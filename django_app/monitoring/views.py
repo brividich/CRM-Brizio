@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from admin_portale.decorators import legacy_admin_required
+from admin_portale.decorators import legacy_admin_or_acl_required
 from core.audit import log_action
 
 from .health import http_status_for, is_ip_allowed, run_readyz_checks
@@ -110,7 +110,7 @@ def _build_django_q_stats() -> dict:
         return {"available": False}
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("monitoring", "admin_dashboard")
 def admin_dashboard(request):
     now = timezone.now()
     last_24h = now - timedelta(hours=24)
@@ -156,7 +156,7 @@ def admin_dashboard(request):
     return render(request, "monitoring/pages/dashboard.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("monitoring", "system_status")
 def system_status(request):
     """Centrale di comando: stato a colpo d'occhio di Servizi (readyz), Assistente AI,
     Automazioni e Issue per severità. Lo stato AI è letto dalle Issue (lo scheduled
@@ -230,7 +230,7 @@ _SYSTEM_ASYNC_ACTIONS = {
 }
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("monitoring", "system_action")
 @require_POST
 def system_action(request):
     """Azioni rapide dalla centrale di comando (Ondata 2). Le azioni lente vengono
@@ -268,7 +268,7 @@ def system_action(request):
     return redirect("monitoring_admin:system_status")
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("monitoring", "schedule_list")
 def schedule_list(request):
     """Gestione schedule django-q dalla centrale (Ondata 3). Abilita/disabilita è
     DUREVOLE (monitoring.ScheduleControl, rispettato da setup_q_schedules anche dopo
@@ -297,7 +297,7 @@ def schedule_list(request):
     return render(request, "monitoring/pages/schedules.html", {"rows": rows})
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("monitoring", "schedule_action")
 @require_POST
 def schedule_action(request):
     """Toggle (abilita/disabilita durevole) o 'esegui ora' di uno schedule."""
@@ -339,7 +339,7 @@ def schedule_action(request):
     return redirect("monitoring_admin:schedule_list")
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("monitoring", "issue_list")
 def issue_list(request):
     qs = Issue.objects.select_related("assigned_to", "created_by_user").all().order_by("-last_seen_at", "-id")
     filters = {
@@ -382,7 +382,7 @@ def issue_list(request):
     return render(request, "monitoring/pages/issue_list.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("monitoring", "issue_detail")
 def issue_detail(request, issue_id: int):
     issue = get_object_or_404(
         Issue.objects.select_related("assigned_to", "created_by_user"),
@@ -421,7 +421,7 @@ def issue_detail(request, issue_id: int):
     return render(request, "monitoring/pages/issue_detail.html", context)
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("monitoring", "automation_list")
 def automation_list(request):
     now = timezone.now()
     missing_jobs_map = {item["job"].pk: item for item in detect_missed_jobs(now=now, create_issues=False)}
@@ -431,7 +431,7 @@ def automation_list(request):
     return render(request, "monitoring/pages/automations.html", {"job_rows": job_rows})
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("monitoring", "automation_detail")
 def automation_detail(request, job_id: int):
     now = timezone.now()
     job = get_object_or_404(AutomationJob, pk=job_id)

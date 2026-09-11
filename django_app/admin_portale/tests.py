@@ -3135,23 +3135,32 @@ class AdminPortaleSimpleAccessTests(TestCase):
         ):
             return self.client.post(url, data)
 
-    def test_accessi_route_points_to_simple_page(self):
+    def test_accessi_route_points_to_unified_panel(self):
+        """La rotta /accessi/ porta al pannello unico, non piu' al semplificato."""
+        response = self._as_admin_get(reverse("admin_portale:accessi"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nuovo gruppo", html=False)
+        self.assertContains(response, 'name="all_codes"', html=False)
+
+    def test_pannello_semplificato_resta_consultabile(self):
         response = self._as_admin_get(
-            reverse("admin_portale:accessi"),
+            reverse("admin_portale:accessi_semplice"),
             {"ruolo_id": "2"},
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Accessi Semplificati", html=False)
-        self.assertContains(response, "grant canonici", html=False)
-        self.assertContains(response, 'name="simple_modules"', html=False)
+        self.assertContains(response, "Sola lettura", html=False)
 
-    def test_accessi_semplice_post_enables_canonical_grants_only(self):
+    def test_accessi_post_scrive_solo_grant_canonici(self):
+        """Il pannello unico concede per singolo permesso, e non tocca il legacy."""
         response = self._as_admin_post(
             reverse("admin_portale:accessi"),
             {
-                "ruolo_id": "2",
-                "simple_modules": ["dashboard"],
+                "action": "save_grants",
+                "subject": "role:2",
+                "all_codes": ["dashboard.home.view"],
+                "granted": ["dashboard.home.view"],
             },
         )
 
@@ -3166,7 +3175,7 @@ class AdminPortaleSimpleAccessTests(TestCase):
         )
         self.assertFalse(NavigationRoleAccess.objects.filter(item=self.nav_item, legacy_role_id=2).exists())
 
-    def test_accessi_semplice_post_can_disable_canonical_grants_without_touching_legacy(self):
+    def test_accessi_post_puo_revocare_senza_toccare_il_legacy(self):
         RolePermissionGrant.objects.create(
             legacy_role_id=2,
             permission_id="dashboard.home.view",
@@ -3176,7 +3185,9 @@ class AdminPortaleSimpleAccessTests(TestCase):
         response = self._as_admin_post(
             reverse("admin_portale:accessi"),
             {
-                "ruolo_id": "2",
+                "action": "save_grants",
+                "subject": "role:2",
+                "all_codes": ["dashboard.home.view"],
             },
         )
 
@@ -4035,21 +4046,25 @@ class AdminPortaleAclRouteCoverageTests(TestCase):
         self.assertNotIn("BINDING_WITHOUT_ENABLED_ROLE_GRANT", row["warnings"])
 
     def test_route_coverage_marks_admin_bypass_routes_without_missing_grant_warning(self):
+        # La route di esempio sta in admin_portale, non piu' in automazioni: i
+        # pannelli dei moduli ora usano legacy_admin_or_acl_required e quindi non
+        # sono piu' bypass - e' il punto di quel cambio. Admin portale resta
+        # riservato per scelta, ed e' li' che la marcatura va ancora verificata.
         PermissionDefinition.objects.create(
-            code="automazioni.converti_power_automate.admin_only",
-            label="Automazioni converti power automate admin only",
-            module="automazioni",
+            code="admin_portale.matrice_permessi.admin_only",
+            label="Matrice permessi admin only",
+            module="admin_portale",
             is_active=True,
         )
         RoutePermissionBinding.objects.filter(
-            route_name="automazioni:automazioni_rule_power_automate_convert",
+            route_name="admin_portale:matrice_permessi",
         ).delete()
         RoutePermissionBinding.objects.create(
-            route_name="automazioni:automazioni_rule_power_automate_convert",
-            path_pattern="/automazioni/regole/converti-power-automate",
+            route_name="admin_portale:matrice_permessi",
+            path_pattern="/admin-portale/matrice-permessi",
             match_strategy=RoutePermissionBinding.MATCH_EXACT,
-            permission_id="automazioni.converti_power_automate.admin_only",
-            source_app="automazioni",
+            permission_id="admin_portale.matrice_permessi.admin_only",
+            source_app="admin_portale",
             is_active=True,
         )
         self.client.force_login(self.admin_user)
@@ -4057,11 +4072,11 @@ class AdminPortaleAclRouteCoverageTests(TestCase):
             "admin_portale.decorators.is_legacy_admin",
             return_value=True,
         ):
-            response = self.client.get(self.url, {"q": "automazioni:automazioni_rule_power_automate_convert"})
+            response = self.client.get(self.url, {"q": "admin_portale:matrice_permessi"})
 
         self.assertEqual(response.status_code, 200)
         rows = response.context["rows"]
-        row = next(item for item in rows if item["route_name"] == "automazioni:automazioni_rule_power_automate_convert")
+        row = next(item for item in rows if item["route_name"] == "admin_portale:matrice_permessi")
         self.assertEqual(row["status"], "CANONICAL_BOUND")
         self.assertTrue(row["admin_bypass"])
         self.assertFalse(row["canonical_missing_grant"])

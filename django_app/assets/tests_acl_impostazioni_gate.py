@@ -18,7 +18,14 @@ from admin_portale.decorators import is_legacy_admin_bypass_view, legacy_admin_o
 from assets import views as assets_views
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso, Ruolo, UtenteLegacy
-from core.models import Profile
+from core.models import (
+    AccessGroup,
+    AccessGroupMembership,
+    GroupPermissionGrant,
+    PermissionDefinition,
+    Profile,
+    RolePermissionGrant,
+)
 from core.test_acl_v2 import _clear_legacy_acl_tables, _ensure_legacy_acl_tables
 
 RUOLO_CAPO_ID = 42
@@ -99,3 +106,40 @@ class AssetsImpostazioniGateReadsAclTest(TestCase):
     def test_la_pagina_impostazioni_non_e_piu_un_bypass_admin(self):
         """Se tornasse un gate solo-admin, l'ACL smetterebbe di contare."""
         self.assertFalse(is_legacy_admin_bypass_view(assets_views.gestione_admin))
+
+    # -- condizione di produzione ---------------------------------------
+    #
+    # I test sopra passano anche col bug: nel DB di test il catalogo canonico e'
+    # vuoto, quindi scatta il fallback sui permessi legacy. In produzione il
+    # catalogo esiste e la riga di grant a False lo spegne. Da qui in giu' si
+    # riproduce quella condizione.
+
+    def _permission_canonica(self):
+        return PermissionDefinition.objects.create(
+            code="legacy.assets.admin_assets",
+            label="Gestione interna Assets",
+            module="assets",
+        )
+
+    def test_grant_canonico_a_false_rende_inutile_il_permesso_legacy(self):
+        permission = self._permission_canonica()
+        RolePermissionGrant.objects.create(
+            legacy_role_id=RUOLO_CAPO_ID, permission=permission, enabled=False
+        )
+        self._grant(consentito=1, can_view=1)
+        self.assertEqual(self._call_gate().status_code, 403)
+
+    def test_un_gruppo_riapre_la_pagina_sopra_al_ruolo(self):
+        permission = self._permission_canonica()
+        RolePermissionGrant.objects.create(
+            legacy_role_id=RUOLO_CAPO_ID, permission=permission, enabled=False
+        )
+        gruppo = AccessGroup.objects.create(code="manutenzione", label="Manutenzione", priority=500)
+        AccessGroupMembership.objects.create(group=gruppo, legacy_user_id=self.legacy_user.id)
+        GroupPermissionGrant.objects.create(group=gruppo, permission=permission, enabled=True)
+        bump_legacy_cache_version()
+        cache.clear()
+
+        response = self._call_gate()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"ok")

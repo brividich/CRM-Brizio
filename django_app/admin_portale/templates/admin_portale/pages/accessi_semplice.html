@@ -88,6 +88,15 @@
   {% include "admin_portale/components/page_header.html" with page_title="Accessi Semplificati" page_subtitle="Un solo toggle per modulo: qui governi i grant canonici. Menu e route seguono i permission code associati." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
+  <div class="panel-readonly-note" style="border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;">
+    <strong>Sola lettura.</strong> Qui i permessi si concedevano per modulo intero, senza granularità di pagina.
+    Vista d'insieme utile, ma si concede da <a href="{% url 'admin_portale:accessi' %}">Accessi</a>.
+  </div>
+
+<style>
+body.theme-dark .panel-readonly-note { background:rgba(245,158,11,.12); border-color:rgba(245,158,11,.35); color:#fcd34d; }
+</style>
+
   <div style="margin-bottom:10px;">
     <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:accessi_avanzati' %}">Apri Accessi Avanzati</a>
     <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:gestione_accessi' %}">Apri Dettaglio Legacy</a>

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import base64
 import json
@@ -99,12 +99,15 @@ from core.pdf import (
 )
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 from core.models import (
+    AccessGroup,
+    AccessGroupMembership,
     AnagraficaRisposta,
     AnagraficaVoce,
     ChecklistEsecuzione,
     ChecklistRisposta,
     ChecklistVoce,
     EmployeeBoardConfig,
+    GroupPermissionGrant,
     LegacyRedirect,
     LoginBanner,
     NavigationItem,
@@ -9571,46 +9574,26 @@ def accessi_dashboard(request):
 @legacy_admin_required
 @csrf_protect
 def accessi_semplice(request):
-    """Pannello semplificato unico per ruoli/moduli.
+    """Vista per modulo dei grant canonici di un ruolo. SOLA LETTURA.
 
-    Permette in una sola schermata di:
-    - attivare/disattivare grant canonici di modulo per ruolo
-    - verificare la copertura menu derivata dai permission code canonici
-
-    I casi legacy o non ancora coperti restano delegati agli strumenti avanzati.
+    Concedeva per modulo intero, senza granularita' di pagina: si concede da
+    ``accessi_unificati``, qui resta la lettura d'insieme.
     """
+    if request.method == "POST":
+        # Il salvataggio vive nel pannello unico: questi due pannelli restano
+        # consultabili (mostrano il layer legacy e la vista per modulo) ma non
+        # possono piu' creare stati che contraddicono i grant canonici.
+        messages.warning(
+            request,
+            "Questa pagina e' in sola lettura: i permessi si concedono da Accessi, "
+            "che scrive il layer canonico.",
+        )
+        return redirect(reverse("admin_portale:accessi"))
+
     roles = _role_choices()
     selected_role_id = _int_or_none(request.GET.get("ruolo_id") or request.POST.get("ruolo_id"))
     if selected_role_id is None and roles:
         selected_role_id = int(roles[0].id)
-
-    if request.method == "POST":
-        if selected_role_id is None:
-            messages.error(request, "Seleziona un ruolo prima di salvare.")
-            return redirect(reverse("admin_portale:accessi"))
-
-        module_rows = _build_accessi_semplice_rows(selected_role_id)
-        allowed_modules = {str(v).strip() for v in request.POST.getlist("simple_modules") if str(v).strip()}
-
-        try:
-            with transaction.atomic():
-                canonical_changed, skipped_modules = _apply_accessi_semplice_changes(
-                    selected_role_id,
-                    module_rows,
-                    allowed_modules,
-                )
-                if canonical_changed:
-                    transaction.on_commit(bump_navigation_registry_version)
-            message = f"Salvato. Grant canonici aggiornati: {canonical_changed}."
-            if skipped_modules:
-                message += f" Moduli senza permission code canonico: {len(skipped_modules)}."
-            messages.success(request, message)
-        except DatabaseError as exc:
-            messages.error(request, f"Errore durante il salvataggio: {exc}")
-        except Exception as exc:
-            messages.error(request, f"Errore durante il salvataggio: {exc}")
-
-        return redirect(f"{reverse('admin_portale:accessi')}?ruolo_id={selected_role_id}")
 
     module_rows = _build_accessi_semplice_rows(selected_role_id)
     selected_role = None
@@ -9637,78 +9620,27 @@ def accessi_semplice(request):
 @legacy_admin_required
 @csrf_protect
 def gestione_accessi(request):
-    """Pagina unificata: selezione ruolo â†’ accordion per modulo â†’ tabella pulsanti.
+    """Vista dei permessi LEGACY (tabella ``permessi``) di un ruolo. SOLA LETTURA.
 
-    Sostituisce Accessi, Accessi Avanzati e Matrice Permessi in un'unica vista.
-    POST salva in batch tutti i flag can_view/can_edit/can_delete per il ruolo.
+    Scriveva un layer che il portale ignora appena esiste un grant canonico: era
+    la ragione per cui una spunta qui poteva non avere alcun effetto. Resta come
+    lettura dello stato legacy durante la migrazione.
     """
+    if request.method == "POST":
+        # Il salvataggio vive nel pannello unico: questi due pannelli restano
+        # consultabili (mostrano il layer legacy e la vista per modulo) ma non
+        # possono piu' creare stati che contraddicono i grant canonici.
+        messages.warning(
+            request,
+            "Questa pagina e' in sola lettura: i permessi si concedono da Accessi, "
+            "che scrive il layer canonico.",
+        )
+        return redirect(reverse("admin_portale:accessi"))
+
     roles = _role_choices()
     selected_role_id = _int_or_none(request.GET.get("ruolo_id") or request.POST.get("ruolo_id"))
     if selected_role_id is None and roles:
         selected_role_id = int(roles[0].id)
-
-    if request.method == "POST":
-        if selected_role_id is None:
-            messages.error(request, "Seleziona un ruolo prima di salvare.")
-            return redirect(reverse("admin_portale:gestione_accessi"))
-
-        # all_keys Ã¨ una lista di "modulo::codice" per ogni pulsante renderizzato
-        all_keys = request.POST.getlist("all_keys")
-        if not all_keys:
-            messages.warning(request, "Nessun dato ricevuto.")
-            return redirect(f"{reverse('admin_portale:gestione_accessi')}?ruolo_id={selected_role_id}")
-
-        optional_fields = [f for f in PERM_OPTIONAL_FIELDS if legacy_table_has_column("permessi", f)]
-        try:
-            with transaction.atomic():
-                saved = 0
-                for key in all_keys:
-                    if "::" not in key:
-                        continue
-                    modulo, azione = key.split("::", 1)
-                    modulo = modulo.strip()
-                    azione = azione.strip()
-                    if not modulo or not azione:
-                        continue
-
-                    can_view = f"cv_{azione}" in request.POST
-                    can_edit = f"ce_{azione}" in request.POST if "can_edit" in optional_fields else False
-                    can_delete = f"cd_{azione}" in request.POST if "can_delete" in optional_fields else False
-                    can_approve = f"ca_{azione}" in request.POST if "can_approve" in optional_fields else False
-
-                    perm = _get_or_create_permesso(selected_role_id, modulo, azione)
-                    update_fields: list[str] = []
-
-                    def _chk(field: str, new_val: bool) -> None:
-                        nonlocal saved
-                        if int(getattr(perm, field, 0) or 0) != int(new_val):
-                            setattr(perm, field, 1 if new_val else 0)
-                            update_fields.append(field)
-
-                    _chk("can_view", can_view)
-                    if legacy_table_has_column("permessi", "consentito"):
-                        if int(getattr(perm, "consentito", 0) or 0) != int(can_view):
-                            perm.consentito = 1 if can_view else 0
-                            update_fields.append("consentito")
-                    if "can_edit" in optional_fields:
-                        _chk("can_edit", can_edit)
-                    if "can_delete" in optional_fields:
-                        _chk("can_delete", can_delete)
-                    if "can_approve" in optional_fields:
-                        _chk("can_approve", can_approve)
-
-                    if update_fields:
-                        perm.save(update_fields=list(dict.fromkeys(update_fields)))
-                        saved += 1
-
-                if saved:
-                    _schedule_legacy_acl_cache_invalidation()
-
-            messages.success(request, f"Salvato. {saved} permessi aggiornati.")
-        except DatabaseError as exc:
-            messages.error(request, f"Errore durante il salvataggio: {exc}")
-
-        return redirect(f"{reverse('admin_portale:gestione_accessi')}?ruolo_id={selected_role_id}")
 
     # GET â€” costruisce i dati per il template
     module_data: list[dict] = []
@@ -11789,3 +11721,298 @@ def api_twofa_user_email_set(request: HttpRequest, user_id: int):
     _audit_safe(request, "twofa_user_email_set", "twofa", {"target_user": target_user.username, "email_override": email})
     return JsonResponse({"ok": True, "msg": "Email OTP aggiornata."})
 
+
+
+# ---------------------------------------------------------------------------
+# Accessi - pannello unico: gruppi e ruoli, un solo layer (canonico)
+# ---------------------------------------------------------------------------
+
+SUBJECT_GROUP = "group"
+SUBJECT_ROLE = "role"
+
+
+def _parse_subject(raw: str) -> tuple[str, int | None]:
+    """"group:3" / "role:2" -> ("group", 3). Stringa vuota se non riconosciuto."""
+    value = str(raw or "").strip().lower()
+    if ":" not in value:
+        return "", None
+    kind, _sep, ident = value.partition(":")
+    if kind not in (SUBJECT_GROUP, SUBJECT_ROLE):
+        return "", None
+    return kind, _int_or_none(ident)
+
+
+def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]:
+    """Permessi canonici per modulo, con lo stato del soggetto selezionato.
+
+    Le righe sono i permessi, non i pulsanti legacy: e' il layer su cui il
+    portale decide davvero. Ogni riga dice anche se il permesso governa una
+    rotta (ha un binding attivo) o solo una sezione dentro una pagina.
+    """
+    permissions = list(PermissionDefinition.objects.filter(is_active=True).order_by("module", "code"))
+    if not permissions:
+        return []
+
+    granted: dict[str, bool] = {}
+    if kind == SUBJECT_GROUP and subject_id:
+        granted = {
+            str(row.permission_id): bool(row.enabled)
+            for row in GroupPermissionGrant.objects.filter(group_id=subject_id)
+        }
+    elif kind == SUBJECT_ROLE and subject_id:
+        granted = {
+            str(row.permission_id): bool(row.enabled)
+            for row in RolePermissionGrant.objects.filter(legacy_role_id=subject_id)
+        }
+
+    bound_codes = set(
+        RoutePermissionBinding.objects.filter(is_active=True).values_list("permission_id", flat=True)
+    )
+
+    grouped: dict[str, list[dict]] = {}
+    for permission in permissions:
+        module = (permission.module or "senza modulo").strip().lower()
+        grouped.setdefault(module, []).append(
+            {
+                "code": permission.code,
+                "label": permission.label,
+                "description": permission.description,
+                "enabled": bool(granted.get(permission.code, False)),
+                "governs_route": permission.code in bound_codes,
+            }
+        )
+
+    rows: list[dict] = []
+    for module in sorted(grouped.keys()):
+        entries = grouped[module]
+        active = sum(1 for entry in entries if entry["enabled"])
+        rows.append(
+            {
+                "modulo": module,
+                "permissions": entries,
+                "total_count": len(entries),
+                "active_count": active,
+                "all_on": bool(entries) and active == len(entries),
+                "partial": 0 < active < len(entries),
+            }
+        )
+    return rows
+
+
+def _group_members(group) -> list[dict]:
+    memberships = list(AccessGroupMembership.objects.filter(group=group).order_by("legacy_user_id"))
+    if not memberships:
+        return []
+    users = {
+        int(u.id): u
+        for u in UtenteLegacy.objects.filter(id__in=[m.legacy_user_id for m in memberships])
+    }
+    members = []
+    for membership in memberships:
+        legacy_user = users.get(int(membership.legacy_user_id))
+        members.append(
+            {
+                "membership_id": int(membership.id),
+                "legacy_user_id": int(membership.legacy_user_id),
+                "nome": getattr(legacy_user, "nome", "") or f"ID {membership.legacy_user_id}",
+                "email": getattr(legacy_user, "email", "") or "",
+                "orfano": legacy_user is None,
+            }
+        )
+    return members
+
+
+@legacy_admin_required
+@csrf_protect
+def accessi_unificati(request):
+    """Un solo posto per concedere accessi, e un solo layer su cui scrive.
+
+    Storia del perche': "Gestione Accessi" scriveva la tabella legacy
+    ``permessi``, ignorata appena esiste un grant canonico; "Accessi
+    Semplificati" scriveva i grant canonici ma per modulo intero. La stessa
+    spunta poteva quindi funzionare o non funzionare a seconda della pagina.
+    Qui si scrivono solo grant canonici, per singolo permesso.
+    """
+    groups = list(AccessGroup.objects.all().order_by("-priority", "label", "id"))
+    try:
+        roles = list(Ruolo.objects.all().order_by("nome"))
+    except DatabaseError:
+        roles = []
+
+    raw_subject = request.POST.get("subject") or request.GET.get("subject") or ""
+    kind, subject_id = _parse_subject(raw_subject)
+    if not kind and groups:
+        kind, subject_id = SUBJECT_GROUP, int(groups[0].id)
+    elif not kind and roles:
+        kind, subject_id = SUBJECT_ROLE, int(roles[0].id)
+
+    if request.method == "POST":
+        action = str(request.POST.get("action") or "").strip()
+        current_subject = f"{kind}:{subject_id}" if kind and subject_id else ""
+        redirect_subject = current_subject
+        try:
+            if action == "group_create":
+                redirect_subject = _accessi_group_create(request)
+            elif action == "group_update":
+                _accessi_group_update(request)
+            elif action == "member_add":
+                _accessi_member_add(request)
+            elif action == "member_remove":
+                _accessi_member_remove(request)
+            elif action == "save_grants":
+                _accessi_save_grants(request, kind=kind, subject_id=subject_id)
+            else:
+                messages.warning(request, "Azione non riconosciuta.")
+        except ValidationError as exc:
+            messages.error(request, "; ".join(exc.messages))
+        except DatabaseError as exc:
+            messages.error(request, f"Errore durante il salvataggio: {exc}")
+        else:
+            bump_legacy_cache_version()
+        return redirect(f"{reverse('admin_portale:accessi')}?subject={redirect_subject or current_subject}")
+
+    module_rows = _accessi_permission_rows(kind=kind, subject_id=subject_id)
+    selected_group = None
+    selected_role = None
+    if kind == SUBJECT_GROUP and subject_id:
+        selected_group = next((g for g in groups if int(g.id) == int(subject_id)), None)
+    elif kind == SUBJECT_ROLE and subject_id:
+        selected_role = next((r for r in roles if int(r.id) == int(subject_id)), None)
+
+    return render(
+        request,
+        "admin_portale/pages/accessi_unificati.html",
+        {
+            "page_title": "Accessi",
+            "groups": groups,
+            "roles": roles,
+            "subject_kind": kind,
+            "subject_id": subject_id,
+            "subject_value": f"{kind}:{subject_id}" if kind and subject_id else "",
+            "selected_group": selected_group,
+            "selected_role": selected_role,
+            "members": _group_members(selected_group) if selected_group else [],
+            "module_rows": module_rows,
+            "total_active": sum(row["active_count"] for row in module_rows),
+            "total_permissions": sum(row["total_count"] for row in module_rows),
+        },
+    )
+
+
+def _accessi_group_create(request) -> str:
+    group = AccessGroup(
+        code=str(request.POST.get("code") or "").strip().lower(),
+        label=str(request.POST.get("label") or "").strip(),
+        description=str(request.POST.get("description") or "").strip(),
+        priority=_int_or_none(request.POST.get("priority")) or 100,
+    )
+    group.full_clean()
+    group.save()
+    messages.success(request, f"Gruppo <<{group.label}>> creato.")
+    return f"{SUBJECT_GROUP}:{group.id}"
+
+
+def _accessi_group_update(request) -> None:
+    group = AccessGroup.objects.filter(pk=_int_or_none(request.POST.get("group_id"))).first()
+    if group is None:
+        messages.error(request, "Gruppo non trovato.")
+        return
+    group.label = str(request.POST.get("label") or group.label).strip()
+    group.priority = _int_or_none(request.POST.get("priority")) or group.priority
+    group.is_active = str(request.POST.get("is_active") or "1") != "0"
+    group.full_clean()
+    group.save()
+    messages.success(request, f"Gruppo <<{group.label}>> aggiornato.")
+
+
+def _accessi_member_add(request) -> None:
+    group = AccessGroup.objects.filter(pk=_int_or_none(request.POST.get("group_id"))).first()
+    if group is None:
+        messages.error(request, "Gruppo non trovato.")
+        return
+    raw = str(request.POST.get("member") or "").strip()
+    legacy_user = None
+    if raw.isdigit():
+        legacy_user = UtenteLegacy.objects.filter(id=int(raw)).first()
+    if legacy_user is None and raw:
+        legacy_user = UtenteLegacy.objects.filter(email__iexact=raw).first()
+    if legacy_user is None and raw:
+        legacy_user = UtenteLegacy.objects.filter(email__istartswith=f"{raw}@").order_by("id").first()
+    if legacy_user is None:
+        messages.error(request, f"Utente '{raw}' non trovato (prova con l'email o l'ID legacy).")
+        return
+    _membership, created = AccessGroupMembership.objects.get_or_create(
+        group=group, legacy_user_id=int(legacy_user.id)
+    )
+    if created:
+        messages.success(request, f"{legacy_user.nome or legacy_user.email} aggiunto al gruppo.")
+    else:
+        messages.info(request, "Era gia' nel gruppo.")
+
+
+def _accessi_member_remove(request) -> None:
+    membership = AccessGroupMembership.objects.filter(
+        pk=_int_or_none(request.POST.get("membership_id"))
+    ).first()
+    if membership is None:
+        messages.error(request, "Appartenenza non trovata.")
+        return
+    membership.delete()
+    messages.success(request, "Persona rimossa dal gruppo.")
+
+
+def _accessi_save_grants(request, *, kind: str, subject_id: int | None) -> None:
+    """Scrive i grant canonici del soggetto. Nessun layer legacy, mai."""
+    if not kind or not subject_id:
+        messages.error(request, "Seleziona prima un gruppo o un ruolo.")
+        return
+
+    rendered = [str(code).strip() for code in request.POST.getlist("all_codes") if str(code).strip()]
+    checked = {str(code).strip() for code in request.POST.getlist("granted") if str(code).strip()}
+    if not rendered:
+        messages.warning(request, "Nessun dato ricevuto.")
+        return
+
+    changed = 0
+    with transaction.atomic():
+        if kind == SUBJECT_GROUP:
+            # Un gruppo concede: le righe non spuntate si cancellano invece di
+            # diventare un diniego esplicito, altrimenti un gruppo con priorita'
+            # alta toglierebbe ai suoi membri cio' che il ruolo gia' concede.
+            existing = {
+                str(row.permission_id): row
+                for row in GroupPermissionGrant.objects.filter(group_id=subject_id)
+            }
+            for code in rendered:
+                row = existing.get(code)
+                if code in checked:
+                    if row is None:
+                        GroupPermissionGrant.objects.create(
+                            group_id=subject_id, permission_id=code, enabled=True
+                        )
+                        changed += 1
+                    elif not row.enabled:
+                        row.enabled = True
+                        row.save(update_fields=["enabled"])
+                        changed += 1
+                elif row is not None:
+                    row.delete()
+                    changed += 1
+        else:
+            for code in rendered:
+                enabled = code in checked
+                row, created = RolePermissionGrant.objects.get_or_create(
+                    legacy_role_id=subject_id,
+                    permission_id=code,
+                    defaults={"enabled": enabled},
+                )
+                if created:
+                    if enabled:
+                        changed += 1
+                elif bool(row.enabled) != enabled:
+                    row.enabled = enabled
+                    row.save(update_fields=["enabled"])
+                    changed += 1
+
+    transaction.on_commit(bump_navigation_registry_version)
+    messages.success(request, f"Salvato. Permessi aggiornati: {changed}.")

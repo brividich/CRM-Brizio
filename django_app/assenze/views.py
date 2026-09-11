@@ -23,7 +23,7 @@ from core.csv_export import CSV_CONTENT_TYPE, bom_first, safe_csv_writer
 from core.acl import user_can_modulo_action
 from core.caporeparto_utils import resolve_caporeparto_legacy_user
 
-from admin_portale.decorators import legacy_admin_required
+from admin_portale.decorators import legacy_admin_or_acl_required
 from core.audit import log_action
 from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
@@ -4848,7 +4848,7 @@ def _admin_assenze_overview(q: str = "") -> dict:
     return {"tabella_ok": True, "stats": stats, "by_tipo": by_tipo, "sync_info": sync_info, "assenze": assenze}
 
 
-@legacy_admin_required
+@legacy_admin_or_acl_required("assenze", "gestione_admin")
 def gestione_admin(request):
     """Deprecato: il pannello admin è ora unificato nelle Impostazioni assenze.
 

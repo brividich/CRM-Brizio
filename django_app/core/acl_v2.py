@@ -472,130 +472,62 @@ def evaluate_permission_code_access(
     allow_superuser: bool = True,
     allow_legacy_admin: bool = True,
 ) -> dict:
+    """Valuta un permission code. La decisione arriva da ``core.acl_resolver``.
+
+    Il payload resta quello storico (i chiamanti leggono ``allowed``,
+    ``role_grant``, ``user_override``, ``legacy_compat``): qui si traduce, non si
+    decide. ``group_grant``/``group_grants`` sono le chiavi nuove dei gruppi.
+    """
+    from core.acl_resolver import (
+        LEVEL_LEGACY_ADMIN,
+        LEVEL_SUPERUSER,
+        resolve_permission_decision,
+    )
+
     permission_code = normalize_permission_code(permission_code)
+    decision = resolve_permission_decision(
+        permission_code=permission_code,
+        legacy_user=legacy_user,
+        django_user=django_user,
+        legacy_role_id=legacy_role_id,
+        legacy_user_id=legacy_user_id,
+        allow_superuser=allow_superuser,
+        allow_legacy_admin=allow_legacy_admin,
+    )
+
     result = {
-        "allowed": False,
+        "allowed": decision.allowed,
         "permission_code": permission_code,
         "decision_source": "deny",
-        "reason": "",
-        "permission": None,
-        "role_grant": None,
-        "user_override": None,
-        "legacy_compat": None,
+        "reason": decision.reason,
+        "permission": decision.permission,
+        "role_grant": decision.role_grant,
+        "user_override": decision.user_override,
+        "group_grant": decision.group_grant,
+        "group_grants": decision.group_grants,
+        "legacy_compat": decision.legacy_compat,
         "effective_level": None,
     }
-    if not permission_code:
-        result["reason"] = "Permission code mancante."
-        return result
 
-    if allow_superuser and bool(getattr(django_user, "is_superuser", False)):
-        result["allowed"] = True
+    if not permission_code:
+        return result
+    if decision.level == LEVEL_SUPERUSER:
         result["decision_source"] = "superuser_bypass"
-        result["reason"] = "Utente Django superuser: bypass ACL."
         result["effective_level"] = "superuser_bypass"
         return result
-
-    if allow_legacy_admin and legacy_user and is_legacy_admin(legacy_user):
-        result["allowed"] = True
+    if decision.level == LEVEL_LEGACY_ADMIN:
         result["decision_source"] = "legacy_admin_bypass"
-        result["reason"] = "Utente riconosciuto come admin legacy: bypass ACL."
         result["effective_level"] = "legacy_admin_bypass"
         return result
-
-    if legacy_role_id is None and legacy_user is not None:
-        legacy_role_id = getattr(legacy_user, "ruolo_id", None)
-    if legacy_user_id is None and legacy_user is not None:
-        legacy_user_id = getattr(legacy_user, "id", None)
-
-    permission = PermissionDefinition.objects.filter(code=permission_code).first()
-    if permission is None:
+    if decision.permission_missing:
         result["decision_source"] = "permission_missing"
-        result["reason"] = f"Permission '{permission_code}' non trovata."
         return result
-
-    result["permission"] = _serialize_permission(permission)
-    if not bool(permission.is_active):
+    if decision.permission_inactive:
         result["decision_source"] = "permission_inactive"
-        result["reason"] = f"Permission '{permission.code}' trovata ma disattiva."
         return result
 
-    role_allowed = False
-    if legacy_role_id:
-        role_grant = (
-            RolePermissionGrant.objects.filter(
-                legacy_role_id=int(legacy_role_id),
-                permission_id=permission.code,
-            )
-            .order_by("-id")
-            .first()
-        )
-        if role_grant is None:
-            result["role_grant"] = {"exists": False, "enabled": None}
-        else:
-            role_allowed = bool(role_grant.enabled)
-            result["role_grant"] = {
-                "exists": True,
-                "id": int(role_grant.id),
-                "enabled": bool(role_grant.enabled),
-                "legacy_role_id": int(role_grant.legacy_role_id),
-                "note": role_grant.note or "",
-            }
-    else:
-        result["role_grant"] = {"exists": False, "enabled": None}
-
-    if legacy_user_id:
-        user_grant = (
-            UserPermissionGrant.objects.filter(
-                legacy_user_id=int(legacy_user_id),
-                permission_id=permission.code,
-            )
-            .order_by("-id")
-            .first()
-        )
-    else:
-        user_grant = None
-
-    if user_grant is None:
-        result["user_override"] = {"exists": False, "enabled": None}
-        if not role_allowed and result["role_grant"].get("exists") is False:
-            legacy_compat = evaluate_legacy_permission_code_compat(
-                permission_code=permission.code,
-                legacy_role_id=legacy_role_id,
-                legacy_user_id=legacy_user_id,
-                legacy_user=legacy_user,
-            )
-            if legacy_compat is not None:
-                result["legacy_compat"] = legacy_compat
-                result["allowed"] = bool(legacy_compat.get("enabled", False))
-                result["decision_source"] = "canonical_permission"
-                result["effective_level"] = str(legacy_compat.get("source") or "legacy_compat")
-                result["reason"] = str(legacy_compat.get("reason") or "")
-                return result
-        result["allowed"] = bool(role_allowed)
-        result["decision_source"] = "canonical_permission"
-        result["effective_level"] = "role_grant"
-        result["reason"] = (
-            f"Grant ruolo su '{permission.code}' consente accesso."
-            if role_allowed
-            else f"Grant ruolo su '{permission.code}' nega accesso (o assente)."
-        )
-        return result
-
-    result["user_override"] = {
-        "exists": True,
-        "id": int(user_grant.id),
-        "enabled": bool(user_grant.enabled),
-        "legacy_user_id": int(user_grant.legacy_user_id),
-        "note": user_grant.note or "",
-    }
-    result["allowed"] = bool(user_grant.enabled)
     result["decision_source"] = "canonical_permission"
-    result["effective_level"] = "user_override"
-    result["reason"] = (
-        f"Override utente canonico su '{permission.code}' consente accesso."
-        if user_grant.enabled
-        else f"Override utente canonico su '{permission.code}' nega accesso."
-    )
+    result["effective_level"] = decision.level
     return result
 
 
@@ -730,6 +662,8 @@ def resolve_acl_access(
             "permission": None,
             "role_grant": None,
             "user_override": None,
+            "group_grant": None,
+            "group_grants": [],
             "legacy_compat": None,
             "effective_level": None,
             "error": "",
@@ -812,98 +746,64 @@ def resolve_acl_access(
         return result
 
     if binding is not None:
-        if not bool(permission.is_active):
+        from core.acl_resolver import LEVEL_GROUP_GRANT, resolve_permission_decision
+
+        decision = resolve_permission_decision(
+            permission_code=permission.code,
+            legacy_user=legacy_user,
+            django_user=django_user,
+            legacy_role_id=ruolo_id,
+            legacy_user_id=getattr(legacy_user, "id", None),
+            allow_superuser=False,
+            allow_legacy_admin=False,
+            permission=permission,
+        )
+        if decision.permission_inactive:
             result["decision_source"] = "canonical_permission_inactive"
             result["decision_kind"] = "canonical"
-            result["reason"] = f"Permission '{permission.code}' trovata ma disattiva."
+            result["reason"] = decision.reason
             trace.append(
                 {"step": "canonical_permission", "result": "deny", "detail": "permission_inactive"}
             )
             return result
 
-        role_grant = (
-            RolePermissionGrant.objects.filter(
-                legacy_role_id=int(ruolo_id),
-                permission_id=permission.code,
-            )
-            .order_by("-id")
-            .first()
-        )
-        if role_grant is None:
-            role_allowed = False
-            result["canonical"]["role_grant"] = {"exists": False, "enabled": None}
-        else:
-            role_allowed = bool(role_grant.enabled)
-            result["canonical"]["role_grant"] = {
-                "exists": True,
-                "id": int(role_grant.id),
-                "enabled": bool(role_grant.enabled),
-                "legacy_role_id": int(role_grant.legacy_role_id),
-                "note": role_grant.note or "",
-            }
-        trace.append(
-            {
-                "step": "role_grant",
-                "result": "allow" if role_allowed else "deny",
-                "detail": permission.code,
-            }
-        )
+        result["canonical"]["role_grant"] = decision.role_grant
+        result["canonical"]["user_override"] = decision.user_override
+        result["canonical"]["group_grant"] = decision.group_grant
+        result["canonical"]["group_grants"] = decision.group_grants
+        result["canonical"]["legacy_compat"] = decision.legacy_compat
+        if decision.error:
+            result["canonical"]["error"] = decision.error
 
-        user_grant = (
-            UserPermissionGrant.objects.filter(
-                legacy_user_id=int(legacy_user.id),
-                permission_id=permission.code,
+        if decision.group_grant is not None:
+            trace.append(
+                {
+                    "step": "group_grant",
+                    "result": "allow" if decision.allowed else "deny",
+                    "detail": f"{decision.group_grant['group_code']}@{decision.group_grant['priority']}",
+                }
             )
-            .order_by("-id")
-            .first()
-        )
-        if user_grant is None:
-            result["canonical"]["user_override"] = {"exists": False, "enabled": None}
-            legacy_compat = None
-            if not role_allowed and role_grant is None:
-                legacy_compat = evaluate_legacy_permission_code_compat(
-                    permission_code=permission.code,
-                    legacy_role_id=ruolo_id,
-                    legacy_user_id=getattr(legacy_user, "id", None),
-                    legacy_user=legacy_user,
-                )
-            if legacy_compat is not None:
-                result["canonical"]["legacy_compat"] = legacy_compat
-                allowed = bool(legacy_compat.get("enabled", False))
-                level = str(legacy_compat.get("source") or "legacy_compat")
-                reason = str(legacy_compat.get("reason") or "")
-            else:
-                allowed = role_allowed
-                level = "role_grant"
-                reason = (
-                    f"Grant ruolo su '{permission.code}' consente accesso."
-                    if role_allowed
-                    else f"Grant ruolo su '{permission.code}' nega accesso (o assente)."
-                )
         else:
-            allowed = bool(user_grant.enabled)
-            level = "user_override"
-            result["canonical"]["user_override"] = {
-                "exists": True,
-                "id": int(user_grant.id),
-                "enabled": bool(user_grant.enabled),
-                "legacy_user_id": int(user_grant.legacy_user_id),
-                "note": user_grant.note or "",
-            }
-            reason = (
-                f"Override utente canonico su '{permission.code}' consente accesso."
-                if allowed
-                else f"Override utente canonico su '{permission.code}' nega accesso."
+            trace.append(
+                {
+                    "step": "role_grant",
+                    "result": "allow" if decision.allowed else "deny",
+                    "detail": permission.code,
+                }
             )
-        trace.append(
-            {"step": "user_override", "result": "allow" if allowed else "deny", "detail": level}
-        )
+            trace.append(
+                {
+                    "step": "user_override",
+                    "result": "allow" if decision.allowed else "deny",
+                    "detail": decision.level,
+                }
+            )
 
-        result["allowed"] = allowed
+        result["allowed"] = decision.allowed
         result["decision_source"] = "canonical"
         result["decision_kind"] = "canonical"
-        result["reason"] = reason
-        result["canonical"]["effective_level"] = level
+        result["reason"] = decision.reason
+        result["canonical"]["effective_level"] = decision.level
         return result
 
     trace.append({"step": "canonical_binding", "result": "missing", "detail": "fallback_legacy"})
