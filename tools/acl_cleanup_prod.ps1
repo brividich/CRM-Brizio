@@ -53,8 +53,21 @@ if (-not $SourcePath) {
     $SourcePath = (Resolve-Path $SourcePath).Path
 }
 if (-not $PythonExe) {
-    $candidate = Join-Path $SourcePath ".venv\Scripts\python.exe"
-    $PythonExe = if (Test-Path $candidate) { $candidate } else { "python" }
+    # In sviluppo il venv sta dentro il repo; in produzione il repo e'
+    # <root>\current e il venv gli sta ACCANTO, in <root>env (convenzione usata
+    # da tutti gli script prod del progetto). Senza questo, si ripiega sul Python
+    # di sistema, che non ha Django, e l'errore che arriva parla dei settings.
+    $candidates = @(
+        (Join-Path $SourcePath ".venv\Scripts\python.exe"),
+        (Join-Path (Split-Path -Parent $SourcePath) "venv\Scripts\python.exe"),
+        "C:\PortaleNovicrom\prodenv\Scripts\python.exe"
+    )
+    $PythonExe = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $PythonExe) {
+        throw ("Nessun Python di progetto trovato. Cercato in:`n  " +
+               ($candidates -join "`n  ") +
+               "`nPassa il percorso con -PythonExe.")
+    }
 }
 if (-not $OutputDir) {
     # Fuori dal repo di proposito: report e backup dentro il checkout
@@ -91,6 +104,11 @@ try {
 if ($diag -ne $null) {
     $detail = ($diag | Where-Object { $_ -match "error:|ImproperlyConfigured|not properly configured" }) -join " "
     if (-not $detail) { $detail = ($probe -join " ") }
+    if ($detail -match "No module named 'django'|Couldn't import Django") {
+        throw ("Il Python usato non ha Django: $PythonExe`n" +
+               "In produzione serve il venv del deploy (di norma <root>env\Scripts\python.exe). " +
+               "Passalo con -PythonExe. Dettaglio: $detail")
+    }
     throw ("Il comando acl_cleanup non e' disponibile con --settings=$Settings. " +
            "Quasi sempre significa che quei settings non si caricano su questa macchina " +
            "(manca il config\.env dell'ambiente). Dettaglio: $detail")
