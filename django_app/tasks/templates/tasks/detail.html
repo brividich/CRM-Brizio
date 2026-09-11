@@ -108,6 +108,13 @@
           <div class="task-detail-meta-item">
             <strong>Data inizio</strong>
             {% if task.next_step_due %}{{ task.next_step_due|date:"d-m-Y" }}{% else %}-{% endif %}
+            {% if can_update_due_date %}
+              <form method="post" action="{% url 'tasks:update_start_date' task.id %}" class="task-inline-form">
+                {% csrf_token %}
+                {{ task_start_date_form.next_step_due }}
+                <button type="submit" class="btn btn-sm">Aggiorna</button>
+              </form>
+            {% endif %}
           </div>
           <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
             <strong>Kickoff</strong>

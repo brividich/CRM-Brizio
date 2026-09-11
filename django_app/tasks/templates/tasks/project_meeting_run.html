@@ -1,4 +1,5 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Conduzione</span>{% endblock %}
 {% block tasks_shell_title %}Incontro {{ meeting.numero }}{% if meeting.titolo %} — {{ meeting.titolo }}{% endif %}{% endblock %}
@@ -23,8 +24,7 @@
     <div class="run-time-warn" id="run-overrun" hidden>Fuori tempo rispetto al pianificato</div>
   </div>
 
-  {% if agenda_items %}
-    <div class="run-items">
+  <div class="run-items" id="run-items">
       {% for item in agenda_items %}
         <article class="run-item{% if item.done %} done{% endif %}" data-item-id="{{ item.id }}">
           <header class="run-item-head">
@@ -52,13 +52,27 @@
           </div>
         </article>
       {% endfor %}
-    </div>
-  {% else %}
-    <p class="empty" style="text-align:center;padding:28px 12px;">
+  </div>
+  {% if not agenda_items %}
+    <p class="empty" id="run-empty" style="text-align:center;padding:28px 12px;">
       Questo incontro non ha punti all'ordine del giorno.
-      <a href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Aggiungili dalla convocazione</a>.
+      <a href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Aggiungili dalla convocazione</a>,
+      oppure aprine uno qui sotto mentre la riunione è in corso.
     </p>
   {% endif %}
+
+  {% comment %}
+  Punto aperto a riunione in corso: entra subito nell'ordine del giorno,
+  con nota, spunta e tempo effettivo come tutti gli altri.
+  {% endcomment %}
+  <section class="ts-panel">
+    <div class="ts-panel-head">
+      <h2 class="ts-panel-title">Aggiungi un punto</h2>
+    </div>
+    <div class="ts-panel-body">
+      {% include "tasks/_meeting_agenda_add.html" %}
+    </div>
+  </section>
 
   {# Cattura rapida: quello che emerge mentre si parla, senza uscire dalla pagina #}
   <section class="ts-panel run-capture">
@@ -139,7 +153,7 @@
   }
 
   /* Un punto per volta: nota in autosave, spunta e tempo effettivo. */
-  document.querySelectorAll('.run-item').forEach(function (card) {
+  window.bindRunItem = function (card) {
     const itemId = card.getAttribute('data-item-id');
     const saved = card.querySelector('[data-role=saved]');
     const state = card.querySelector('[data-role=state]');
@@ -181,7 +195,90 @@
         .catch(function () {})
         .finally(function () { toggle.disabled = false; });
     });
-  });
+  };
+  document.querySelectorAll('.run-item').forEach(window.bindRunItem);
+
+  /* Punto aggiunto a riunione in corso: la scheda si costruisce qui, con gli
+     stessi ruoli di quelle stampate dal server, e viene subito agganciata. */
+  window.MEETING_AGENDA_ADD = {
+    onAdded: function (item) {
+      const list = document.getElementById('run-items');
+      if (!list) { window.location.reload(); return; }
+      document.getElementById('run-empty')?.remove();
+
+      const card = document.createElement('article');
+      card.className = 'run-item';
+      card.setAttribute('data-item-id', item.id);
+
+      const head = document.createElement('header');
+      head.className = 'run-item-head';
+      const num = document.createElement('span');
+      num.className = 'run-item-num';
+      num.textContent = list.children.length + 1;
+      const title = document.createElement('h3');
+      title.className = 'run-item-title';
+      title.textContent = item.titolo;
+      head.appendChild(num);
+      head.appendChild(title);
+      if (item.responsabile_label) {
+        const who = document.createElement('span');
+        who.className = 'mf-issue-chip';
+        who.textContent = item.responsabile_label;
+        head.appendChild(who);
+      }
+      if (item.durata_minuti) {
+        const mins = document.createElement('span');
+        mins.className = 'mf-issue-chip';
+        mins.textContent = item.durata_minuti + ' min previsti';
+        head.appendChild(mins);
+      }
+      const state = document.createElement('span');
+      state.className = 'run-item-state';
+      state.setAttribute('data-role', 'state');
+      state.textContent = 'Da trattare';
+      head.appendChild(state);
+
+      const nota = document.createElement('textarea');
+      nota.className = 'input run-item-nota';
+      nota.setAttribute('data-role', 'nota');
+      nota.rows = 3;
+      nota.placeholder = 'Cosa \u00e8 emerso su questo punto (si salva da solo)';
+
+      const actions = document.createElement('div');
+      actions.className = 'run-item-actions';
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'mf-btn-sm primary';
+      toggle.setAttribute('data-role', 'toggle-done');
+      toggle.textContent = 'Segna trattato';
+      const tempoLabel = document.createElement('label');
+      tempoLabel.className = 'tpl-inline';
+      tempoLabel.textContent = 'Tempo effettivo ';
+      const tempo = document.createElement('input');
+      tempo.className = 'input';
+      tempo.type = 'number';
+      tempo.min = '1';
+      tempo.max = '480';
+      tempo.style.width = '80px';
+      tempo.setAttribute('data-role', 'tempo');
+      tempoLabel.appendChild(tempo);
+      tempoLabel.appendChild(document.createTextNode(' min'));
+      const saved = document.createElement('span');
+      saved.className = 'run-item-saved';
+      saved.setAttribute('data-role', 'saved');
+      saved.hidden = true;
+      actions.appendChild(toggle);
+      actions.appendChild(tempoLabel);
+      actions.appendChild(saved);
+
+      card.appendChild(head);
+      card.appendChild(nota);
+      card.appendChild(actions);
+      list.appendChild(card);
+      window.bindRunItem(card);
+      nota.focus();
+    }
+  };
 
   /* Cattura rapida */
   const kindEl = document.getElementById('capture-kind');
@@ -222,4 +319,5 @@
   });
 })();
 </script>
+<script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
 {% endblock %}

@@ -29,7 +29,7 @@
   {% endcomment %}
   <nav class="mf-jump" aria-label="Sezioni dell'esito">
     <a href="#sec-presenze">Presenze</a>
-    {% if meeting.agenda_items %}<a href="#sec-agenda">Punti trattati</a>{% endif %}
+    <a href="#sec-agenda">Punti trattati</a>
     <a href="#sec-verbale">Verbale</a>
     <a href="#sec-problemi">Problemi{% if meeting_issues %} <b>{{ meeting_issues|length }}</b>{% endif %}</a>
     <a href="#sec-decisioni">Decisioni{% if meeting_decisions %} <b>{{ meeting_decisions|length }}</b>{% endif %}</a>
@@ -62,7 +62,6 @@
       </div>
     </div>
 
-    {% if meeting.agenda_items %}
     <div class="mf-section" id="sec-agenda">
       <div class="mf-section-head">
         <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
@@ -70,9 +69,9 @@
       </div>
       <div class="mf-section-body">
         <p class="mf-hint" style="margin-top:0;margin-bottom:10px">Spunta i punti effettivamente trattati. Le spunte si salvano subito, senza attendere il salvataggio del verbale. I punti che restano da trattare vengono riproposti nell'ordine del giorno del prossimo incontro.</p>
-        <div class="agenda-list">
+        <div class="agenda-list" id="agenda-live-list">
           {% for item in meeting.agenda_items %}
-            <div class="agenda-item" data-agenda-item="{{ item.id }}">
+            <div class="agenda-item{% if item.source == 'live' %} is-live{% endif %}" data-agenda-item="{{ item.id }}">
               <div class="agenda-num">{{ forloop.counter }}</div>
               <div class="agenda-body">
                 <div class="agenda-title">
@@ -89,9 +88,14 @@
             </div>
           {% endfor %}
         </div>
+        {% comment %}
+        Un punto aperto in riunione finiva nelle note libere, fuori da spunte e
+        minuta: qui entra nell'agenda subito, senza attendere il salvataggio.
+        {% endcomment %}
+        {% include "tasks/_meeting_agenda_add.html" %}
+        <p class="mf-hint" style="margin-bottom:0">Il punto aggiunto qui è salvato subito nell'ordine del giorno, anche se non registri ancora l'esito.</p>
       </div>
     </div>
-    {% endif %}
 
     <div class="mf-section" id="sec-verbale">
       <div class="mf-section-head">
@@ -250,6 +254,20 @@
           <p class="mf-hint">Chi fa cosa entro quando: responsabile e scadenza restano tracciati fino alla chiusura.</p>
         </div>
 
+        {% comment %}
+        Un'azione e' un impegno dell'incontro; un'attivita' kickoff e' lavoro
+        pianificato, con date e attrezzatura. Il pannello fa entrambi i gesti
+        senza uscire dalla registrazione dell'esito.
+        {% endcomment %}
+        <div class="mf-field">
+          <label class="mf-label">Attività kickoff</label>
+          <button type="button" class="agenda-btn-add" id="open-task-modal-btn">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            Nuova attività / aggiorna esistente
+          </button>
+          <p class="mf-hint">Crea l'attività con date e attrezzatura, oppure scegli un'attività già creata per correggerne la data inizio. Si salva subito, indipendentemente dall'esito.</p>
+        </div>
+
         <div class="mf-field" style="margin-bottom:0">
           <button type="button" class="mf-collapsible-toggle" id="toggle-steps-note">
             <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
@@ -265,8 +283,10 @@
       </div>
     </div>
 
-    {# Barra di salvataggio agganciata al fondo: il modulo e' piu' alto di uno
-       schermo e il pulsante restava fuori vista per tutta la compilazione. #}
+    {% comment %}
+    Barra di salvataggio agganciata al fondo: il modulo e' piu' alto di uno
+    schermo e il pulsante restava fuori vista per tutta la compilazione.
+    {% endcomment %}
     <div class="mf-actions mf-actions--sticky">
       <span class="mf-actions-note">
         {% if meeting.is_svolto %}L'incontro e' gia' registrato come svolto: il salvataggio aggiorna l'esito.{% else %}Salvando, l'incontro passa in stato «Svolto».{% endif %}
@@ -278,11 +298,59 @@
       </button>
     </div>
   </form>
+
+  {% include "tasks/_meeting_task_modal.html" %}
 </div>
 {% endblock %}
 
 {% block tasks_shell_scripts %}
 {{ project_tasks_json|json_script:"project-tasks-data" }}
+
+<script>
+  window.MEETING_TASK_MODAL = { url: "{{ task_from_step_url }}" };
+  window.MEETING_AGENDA_ADD = {
+    onAdded: function (item) {
+      var list = document.getElementById('agenda-live-list');
+      if (!list) { window.location.reload(); return; }
+      var row = document.createElement('div');
+      row.className = 'agenda-item is-live';
+      row.setAttribute('data-agenda-item', item.id);
+      var num = document.createElement('div');
+      num.className = 'agenda-num';
+      num.textContent = list.children.length + 1;
+      var body = document.createElement('div');
+      body.className = 'agenda-body';
+      var title = document.createElement('div');
+      title.className = 'agenda-title';
+      title.textContent = item.titolo;
+      if (item.responsabile_label) {
+        var who = document.createElement('span');
+        who.className = 'agenda-task-badge';
+        who.textContent = item.responsabile_label;
+        title.appendChild(who);
+      }
+      if (item.durata_minuti) {
+        var mins = document.createElement('span');
+        mins.className = 'agenda-task-badge';
+        mins.textContent = item.durata_minuti + ' min';
+        title.appendChild(mins);
+      }
+      body.appendChild(title);
+      var toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'mf-btn-sm ghost';
+      toggle.setAttribute('data-agenda-toggle', item.id);
+      toggle.textContent = 'Da trattare';
+      if (typeof window.bindAgendaToggle === 'function') { window.bindAgendaToggle(toggle); }
+      row.appendChild(num);
+      row.appendChild(body);
+      row.appendChild(toggle);
+      list.appendChild(row);
+    }
+  };
+</script>
+<script src="{% static 'tasks/js/meeting_task_modal.js' %}" defer></script>
+<script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
 
 <script>
 (function () {
@@ -307,7 +375,7 @@
 
   /* Spunta dei punti agenda: stesso endpoint del dettaglio incontro. */
   const toggleBase = "{% url 'tasks:project_meeting_agenda_toggle' project.id meeting.id 'ITEM' %}";
-  document.querySelectorAll('[data-agenda-toggle]').forEach(function (btn) {
+  window.bindAgendaToggle = function (btn) {
     btn.addEventListener('click', function () {
       const itemId = btn.getAttribute('data-agenda-toggle');
       btn.disabled = true;
@@ -325,7 +393,17 @@
         .catch(function () {})
         .finally(function () { btn.disabled = false; });
     });
-  });
+  };
+  document.querySelectorAll('[data-agenda-toggle]').forEach(window.bindAgendaToggle);
+
+  /* Mini-form attivita' kickoff: il pannello e' l'include condiviso con la
+     scheda incontro, qui serve solo il gancio che lo apre. */
+  const openTaskModalBtn = document.getElementById('open-task-modal-btn');
+  if (openTaskModalBtn) {
+    openTaskModalBtn.addEventListener('click', function () {
+      if (typeof window.openCreateTaskModal === 'function') { window.openCreateTaskModal('', null); }
+    });
+  }
 
   /* Nuovi problemi: righe ripetibili */
   function userOptionsHtml() {

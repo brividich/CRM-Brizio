@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from datetime import date, datetime, timedelta
 from functools import wraps
 
@@ -58,6 +59,7 @@ from .forms import (
     TaskDueDateForm,
     TaskFilterForm,
     TaskForm,
+    TaskStartDateForm,
     TaskStatusForm,
     task_active_users_queryset,
 )
@@ -2239,6 +2241,7 @@ def task_detail(request, task_id: int):
             "task": task,
             "task_status_form": TaskStatusForm(instance=task),
             "task_due_date_form": TaskDueDateForm(instance=task),
+            "task_start_date_form": TaskStartDateForm(instance=task),
             "comment_form": comment_form,
             "subtask_form": SubTaskForm(user=request.user),
             "attachment_form": TaskAttachmentForm(task=task),
@@ -2299,16 +2302,43 @@ def _ensure_attrezzatura_task_link_for_kickoff_task(task: Task, user=None):
 
 
 def _handle_task_tooling_form_action(request, task: Task, form: TaskForm) -> None:
-    mode = form.cleaned_data.get("tooling_mode") or TaskForm.TOOLING_NONE
+    _apply_task_tooling_action(
+        request,
+        task,
+        mode=form.cleaned_data.get("tooling_mode") or TaskForm.TOOLING_NONE,
+        existing_attrezzatura=form.cleaned_data.get("tooling_existing_attrezzatura"),
+        part_number=form.cleaned_data.get("tooling_part_number"),
+        code=form.cleaned_data.get("tooling_code"),
+        description=form.cleaned_data.get("tooling_description"),
+    )
+
+
+def _apply_task_tooling_action(
+    request,
+    task: Task,
+    *,
+    mode: str,
+    existing_attrezzatura=None,
+    part_number: str = "",
+    code: str = "",
+    description: str = "",
+) -> None:
+    """Azione attrezzatura su un'attivita': collega, richiedi, verifica.
+
+    Estratto da `_handle_task_tooling_form_action` perche' lo stesso gesto
+    serve anche fuori dal form completo, dal mini-form dell'incontro: la
+    logica di dominio e' una sola e non va riscritta due volte.
+    """
+    mode = mode or TaskForm.TOOLING_NONE
     if mode == TaskForm.TOOLING_NONE:
         return
     part_number = attrezzature_kickoff.normalize_part_number(
-        form.cleaned_data.get("tooling_part_number")
+        part_number
         or (task.project.part_number if task.project_id else "")
         or _task_attrezzatura_part_number(task)
     )
     if mode == TaskForm.TOOLING_LINK_EXISTING:
-        tool = form.cleaned_data.get("tooling_existing_attrezzatura")
+        tool = existing_attrezzatura
         if not tool:
             return
         linked, _created = attrezzature_kickoff.get_or_create_attrezzatura_task_for_kickoff_activity(
@@ -2332,8 +2362,8 @@ def _handle_task_tooling_form_action(request, task: Task, form: TaskForm) -> Non
     elif mode == TaskForm.TOOLING_REQUEST_NEW:
         tool = attrezzature_kickoff.create_draft_attrezzatura_from_kickoff(
             part_number=part_number,
-            description=form.cleaned_data.get("tooling_description") or task.description,
-            codice=form.cleaned_data.get("tooling_code") or "",
+            description=description or task.description,
+            codice=code or "",
             kickoff_ref=task.project_id,
             kickoff_activity_ref=task.id,
             user=request.user,
@@ -2345,7 +2375,7 @@ def _handle_task_tooling_form_action(request, task: Task, form: TaskForm) -> Non
             tipo=GestioneAttrezzaturaTaskTipo.VERIFICA_DISPONIBILITA,
             part_number=part_number,
             titolo=f"Verificare disponibilita attrezzatura per {task.title}",
-            descrizione=form.cleaned_data.get("tooling_description") or task.description,
+            descrizione=description or task.description,
             kickoff_ref=task.project_id,
             kickoff_activity_ref=task.id,
             user=request.user,
@@ -2987,6 +3017,37 @@ def update_due_date(request, task_id: int):
             logger.warning("Sync Carichi (update_due_date) fallita task=%s: %s", task.id, exc)
     else:
         messages.error(request, "Data prevista conclusione non valida.")
+
+    return redirect("tasks:detail", task_id=task.id)
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def update_start_date(request, task_id: int):
+    """Corregge la data inizio di un'attivita' gia' creata.
+
+    Stesso permesso della data fine: chi puo' spostare la conclusione puo'
+    spostare la partenza. Senza questa scorciatoia l'unico modo era
+    riattraversare il form completo, che ricalcola e rivalida tutto il resto.
+    """
+    task = get_object_or_404(_scoped_tasks_queryset(request), pk=task_id)
+    if not _can_update_task_due_date(request, task):
+        return render(
+            request,
+            "core/pages/forbidden.html",
+            {"page_title": "Accesso negato"},
+            status=403,
+        )
+
+    before = _task_snapshot(task)
+    form = TaskStartDateForm(request.POST, instance=task)
+    if form.is_valid():
+        task = form.save()
+        _log_task_update_events(task, request.user, before)
+        messages.success(request, "Data inizio aggiornata.")
+    else:
+        for error in form.errors.get("next_step_due", ["Data inizio non valida."]):
+            messages.error(request, error)
 
     return redirect("tasks:detail", task_id=task.id)
 
@@ -6507,6 +6568,24 @@ def _project_tasks_for_picker(project: Project) -> list[dict]:
     return list(project.tasks.values("id", "title", "status").order_by("title"))
 
 
+def _meeting_task_modal_context(project: Project, *, project_id: int, meeting_id: int) -> dict:
+    """Dati del mini-form «attivita' kickoff» usato dentro un incontro.
+
+    Dettaglio incontro e registrazione esito montano lo stesso pannello:
+    il contesto sta qui perche' aggiungere un campo non richieda di ricordarsi
+    di toccare due view.
+    """
+    return {
+        "project_tasks_json": _project_tasks_for_picker(project),
+        "task_categories": TaskCategory.objects.filter(is_active=True).order_by("name"),
+        "attrezzature": Attrezzatura.objects.order_by("codice", "part_number", "id"),
+        "task_from_step_url": reverse(
+            "tasks:project_meeting_task_from_step",
+            kwargs={"project_id": project_id, "meeting_id": meeting_id},
+        ),
+    }
+
+
 def _open_meeting_issues_for_project(project: Project):
     return (
         project.meeting_issues
@@ -6930,7 +7009,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             "next_steps_lines": next_steps_lines,
             "active_users": task_active_users_queryset() if can_manage else [],
             "agenda_toggle_url_base": f"/tasks/projects/{project_id}/incontri/{meeting_id}/agenda-toggle/",
-            "task_from_step_url": reverse("tasks:project_meeting_task_from_step", kwargs={"project_id": project_id, "meeting_id": meeting_id}),
+            **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
         },
     )
 
@@ -7048,8 +7127,8 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             "meeting_actions": list(_meeting_actions_for_form(project, meeting)),
             "meeting_decisions": list(meeting.decisions.select_related("decisa_da")),
             "decision_impacts": MeetingDecisionImpact.choices,
-            "project_tasks_json": _project_tasks_for_picker(project),
             "active_users": task_active_users_queryset(),
+            **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
         },
     )
 
@@ -7627,14 +7706,28 @@ def project_meeting_agenda_toggle(request, project_id: int, meeting_id: int, ite
 @require_POST
 @task_permissions_required("tasks_create")
 def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
-    """Crea un task kickoff a partire da un next step dell'incontro."""
+    """Crea (o aggiorna) un'attivita' kickoff da un punto dell'incontro.
+
+    Con `task_id` valorizzato non nasce un doppione: si aggiorna l'attivita'
+    gia' creata - tipicamente per correggerne la data inizio senza uscire
+    dall'incontro. L'attrezzatura passa dallo stesso gesto, perche' in
+    riunione decidere l'attivita' e decidere l'attrezzo sono una frase sola.
+    """
     project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
     if not _can_manage_project(request, project):
         return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
 
+    existing_task = None
+    existing_task_id = (request.POST.get("task_id") or "").strip()
+    if existing_task_id:
+        try:
+            existing_task = project.tasks.get(pk=int(existing_task_id))
+        except (Task.DoesNotExist, ValueError):
+            return JsonResponse({"ok": False, "reason": "Attivita non trovata in questo kickoff."}, status=404)
+
     title = (request.POST.get("title") or "").strip()
-    if not title:
+    if not title and existing_task is None:
         return JsonResponse({"ok": False, "reason": "title_required"}, status=400)
 
     # Assegnatario (opzionale)
@@ -7646,37 +7739,185 @@ def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
         except (User.DoesNotExist, ValueError):
             pass
 
-    # Scadenza (opzionale)
-    due_date = None
-    due_date_raw = (request.POST.get("due_date") or "").strip()
-    if due_date_raw:
-        try:
-            due_date = date.fromisoformat(due_date_raw)
-        except ValueError:
-            pass
+    start_date = _parse_optional_date(request.POST.get("next_step_due") or "")
+    due_date = _parse_optional_date(request.POST.get("due_date") or "")
+    # Stessa regola di `Task.clean()`: la data fine resta successiva alla data
+    # inizio. Qui si verifica sul risultato finale, non solo su cio' che arriva
+    # nel POST, perche' in aggiornamento una sola delle due puo' cambiare.
+    effective_start = start_date or (existing_task.next_step_due if existing_task else None)
+    effective_due = due_date or (existing_task.due_date if existing_task else None)
+    if effective_start and effective_due and effective_due <= effective_start:
+        return JsonResponse(
+            {"ok": False, "reason": "La data fine deve essere successiva alla data inizio."},
+            status=400,
+        )
 
-    # Priorità
+    # Priorita
     priority_raw = (request.POST.get("priority") or "MEDIUM").strip().upper()
     if priority_raw not in (TaskPriority.LOW, TaskPriority.MEDIUM, TaskPriority.HIGH):
         priority_raw = TaskPriority.MEDIUM
 
-    task = Task(
-        title=title,
-        project=project,
-        assigned_to=assigned_to,
-        due_date=due_date,
-        priority=priority_raw,
-        status=TaskStatus.TODO,
-        created_by=request.user,
-        description=f"Dall'incontro #{meeting.numero} ({meeting.data:%d-%m-%Y})",
-    )
-    task.save()
+    category = None
+    category_id = (request.POST.get("category") or "").strip()
+    if category_id:
+        try:
+            category = TaskCategory.objects.get(pk=int(category_id), is_active=True)
+        except (TaskCategory.DoesNotExist, ValueError):
+            category = None
+
+    if existing_task is not None:
+        task = existing_task
+        updated_fields: list[str] = []
+        if title and title != task.title:
+            task.title = title[:200]
+            updated_fields.append("title")
+        if start_date:
+            task.next_step_due = start_date
+            updated_fields.append("next_step_due")
+        if due_date:
+            task.due_date = due_date
+            updated_fields.append("due_date")
+        if assigned_to is not None:
+            task.assigned_to = assigned_to
+            updated_fields.append("assigned_to")
+        if category is not None:
+            task.category = category
+            updated_fields.append("category")
+        if updated_fields:
+            task.save(update_fields=[*updated_fields, "updated_at"])
+        created = False
+    else:
+        task = Task(
+            title=title,
+            project=project,
+            assigned_to=assigned_to,
+            category=category,
+            next_step_due=start_date,
+            due_date=due_date,
+            priority=priority_raw,
+            status=TaskStatus.TODO,
+            created_by=request.user,
+            description=f"Dall'incontro #{meeting.numero} ({meeting.data:%d-%m-%Y})",
+        )
+        task.save()
+        created = True
+
+    tooling_mode = (request.POST.get("tooling_mode") or TaskForm.TOOLING_NONE).strip()
+    valid_tooling = {value for value, _ in TaskForm.TOOLING_MODE_CHOICES}
+    if tooling_mode in valid_tooling and tooling_mode != TaskForm.TOOLING_NONE:
+        tool = None
+        tool_id = (request.POST.get("tooling_existing_attrezzatura") or "").strip()
+        if tool_id:
+            try:
+                tool = Attrezzatura.objects.get(pk=int(tool_id))
+            except (Attrezzatura.DoesNotExist, ValueError):
+                tool = None
+        try:
+            _apply_task_tooling_action(
+                request,
+                task,
+                mode=tooling_mode,
+                existing_attrezzatura=tool,
+                part_number=(request.POST.get("tooling_part_number") or "").strip(),
+                code=(request.POST.get("tooling_code") or "").strip(),
+                description=(request.POST.get("tooling_description") or "").strip(),
+            )
+        except Exception:
+            # L'attivita' e' gia' salvata: un inciampo sull'attrezzatura non
+            # deve far sembrare all'utente che non sia stato creato nulla.
+            logger.exception("Azione attrezzatura fallita da incontro (task=%s)", task.pk)
 
     log_action(
-        request, "kickoff_task_from_step", "tasks",
-        {"task_id": task.pk, "title": title, "meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id},
+        request,
+        "kickoff_task_from_step" if created else "kickoff_task_from_step_update",
+        "tasks",
+        {
+            "task_id": task.pk,
+            "title": task.title,
+            "meeting_id": meeting.pk,
+            "meeting_numero": meeting.numero,
+            "project_id": project_id,
+            "tooling_mode": tooling_mode,
+        },
     )
 
     task_url = reverse("tasks:detail", kwargs={"task_id": task.pk})
-    return JsonResponse({"ok": True, "task_id": task.pk, "task_url": task_url, "title": title})
+    return JsonResponse({
+        "ok": True,
+        "task_id": task.pk,
+        "task_url": task_url,
+        "title": task.title,
+        "created": created,
+        "next_step_due": task.next_step_due.isoformat() if task.next_step_due else "",
+        "due_date": task.due_date.isoformat() if task.due_date else "",
+    })
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_agenda_item_add(request, project_id: int, meeting_id: int):
+    """Aggiunge un punto all'ordine del giorno mentre l'incontro e' in corso.
+
+    Serve sia in conduzione sia in registrazione dell'esito: i punti nati in
+    riunione finivano finora nelle note libere, fuori dall'agenda e quindi
+    fuori da spunte, tempi e minuta.
+    """
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+
+    titolo = (request.POST.get("titolo") or "").strip()
+    if not titolo:
+        return JsonResponse({"ok": False, "reason": "title_required"}, status=400)
+
+    responsabile = None
+    responsabile_id = (request.POST.get("responsabile_id") or "").strip()
+    if responsabile_id:
+        try:
+            responsabile = User.objects.get(pk=int(responsabile_id))
+        except (User.DoesNotExist, ValueError):
+            responsabile = None
+
+    try:
+        durata = int(request.POST.get("durata_minuti") or 0)
+    except (TypeError, ValueError):
+        durata = 0
+    if durata <= 0 or durata > 480:
+        durata = None
+
+    responsabile_label = ""
+    if responsabile:
+        responsabile_label = (responsabile.get_full_name() or responsabile.username)[:150]
+
+    item = {
+        "id": uuid.uuid4().hex,
+        "titolo": titolo[:200],
+        "nota": (request.POST.get("nota") or "").strip()[:1000],
+        "task_id": None,
+        "task_label": "",
+        "issue_id": None,
+        "action_id": None,
+        # Marcatura d'origine: nella minuta un punto aperto in riunione resta
+        # distinguibile da uno convocato.
+        "source": "live",
+        "locked": False,
+        "responsabile_id": responsabile.pk if responsabile else None,
+        "responsabile_label": responsabile_label,
+        "durata_minuti": durata,
+        "tempo_effettivo_minuti": None,
+        "custom_fields": [],
+        "done": False,
+    }
+
+    items = [entry for entry in (meeting.agenda_items or []) if isinstance(entry, dict)]
+    items.append(item)
+    meeting.agenda_items = items
+    meeting.save(update_fields=["agenda_items", "updated_at"])
+
+    log_action(
+        request, "kickoff_meeting_agenda_item_add", "tasks",
+        {"meeting_id": meeting.pk, "project_id": project_id, "titolo": item["titolo"]},
+    )
+    return JsonResponse({"ok": True, "item": item, "position": len(items)})
 

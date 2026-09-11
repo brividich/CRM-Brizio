@@ -471,62 +471,9 @@
   </div>
 </div>
 
-{# ── Modal: crea task da next step ─────────────────────────────────── #}
+{# ── Mini-form attivita' + attrezzatura (condiviso con la pagina esito) ── #}
 {% if can_manage %}
-<div class="ctm-overlay" id="ctm-overlay" style="display:none" onclick="closeCreateTaskModalOutside(event)">
-  <div class="ctm-panel" role="dialog" aria-modal="true">
-    <div class="ctm-head">
-      <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-      <h3>Crea task dal next step</h3>
-    </div>
-    <div class="ctm-body">
-      <div class="ctm-step-label">Next step di riferimento</div>
-      <div class="ctm-step-preview" id="ctm-step-preview"></div>
-
-      <form id="ctm-form" onsubmit="submitCreateTask(event)">
-        {% csrf_token %}
-        <div class="ctm-field">
-          <label for="ctm-title">Titolo task <span style="color:var(--danger)">*</span></label>
-          <input type="text" id="ctm-title" name="title" class="input" maxlength="200" required>
-        </div>
-        <div class="ctm-row">
-          <div class="ctm-field">
-            <label for="ctm-assignee">Assegna a</label>
-            <select id="ctm-assignee" name="assigned_to" class="input">
-              <option value="">— non assegnato —</option>
-              {% for u in active_users %}
-                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="ctm-field">
-            <label for="ctm-due">Scadenza</label>
-            <input type="date" id="ctm-due" name="due_date" class="input">
-          </div>
-        </div>
-        <div class="ctm-field">
-          <label for="ctm-priority">Priorità</label>
-          <select id="ctm-priority" name="priority" class="input">
-            <option value="LOW">Bassa</option>
-            <option value="MEDIUM" selected>Media</option>
-            <option value="HIGH">Alta</option>
-          </select>
-        </div>
-        <p class="ctm-error" id="ctm-error"></p>
-        <div class="ctm-actions">
-          <button type="submit" class="ctm-btn primary" id="ctm-submit">
-            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-            Crea task
-          </button>
-          <button type="button" class="ctm-btn ghost" onclick="closeCreateTaskModal()">Annulla</button>
-          <a id="ctm-view-link" href="#" target="_blank" style="display:none;font-size:.875rem;color:var(--primary-mid);text-decoration:none;margin-left:auto;">
-            Apri task creato →
-          </a>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
+{% include "tasks/_meeting_task_modal.html" %}
 {% endif %}
 
 {% endblock %}
@@ -548,7 +495,6 @@
   }
 
   const TOGGLE_BASE  = "{{ agenda_toggle_url_base }}";
-  const STEP_URL     = "{{ task_from_step_url }}";
   const CAN_MANAGE   = {{ can_manage|yesno:"true,false" }};
 
   /* ── CSRF ──────────────────────────────────────────────────────────── */
@@ -610,99 +556,13 @@
 
   updateAgendaCounter();
 
-  /* ── Modal crea task da step ───────────────────────────────────────── */
-  let activeStepIndex = null;
-
-  window.openCreateTaskModal = function(stepText, stepIndex) {
-    activeStepIndex = stepIndex;
-    const overlay  = document.getElementById('ctm-overlay');
-    const preview  = document.getElementById('ctm-step-preview');
-    const titleEl  = document.getElementById('ctm-title');
-    const errEl    = document.getElementById('ctm-error');
-    const viewLink = document.getElementById('ctm-view-link');
-    const submitBtn = document.getElementById('ctm-submit');
-
-    if (!overlay) return;
-    preview.textContent = stepText;
-    titleEl.value = stepText;
-    if (errEl)    { errEl.textContent = ''; errEl.style.display = 'none'; }
-    if (viewLink) { viewLink.style.display = 'none'; }
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Crea task'; }
-
-    overlay.style.display = 'flex';
-    setTimeout(() => titleEl.focus(), 80);
-  };
-
-  window.closeCreateTaskModal = function() {
-    const overlay = document.getElementById('ctm-overlay');
-    if (overlay) overlay.style.display = 'none';
-    activeStepIndex = null;
-  };
-
-  window.closeCreateTaskModalOutside = function(e) {
-    if (e.target === document.getElementById('ctm-overlay')) closeCreateTaskModal();
-  };
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeCreateTaskModal();
-  });
-
-  window.submitCreateTask = function(e) {
-    e.preventDefault();
-    const form     = document.getElementById('ctm-form');
-    const errEl    = document.getElementById('ctm-error');
-    const viewLink = document.getElementById('ctm-view-link');
-    const submitBtn = document.getElementById('ctm-submit');
-    const titleEl  = document.getElementById('ctm-title');
-
-    if (!titleEl.value.trim()) { titleEl.focus(); return; }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Creazione…';
-    if (errEl) { errEl.style.display = 'none'; }
-
-    const body = new URLSearchParams(new FormData(form));
-
-    fetch(STEP_URL, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': getCsrf() },
-      body: body,
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (!data.ok) {
-        if (errEl) { errEl.textContent = data.reason || 'Errore durante la creazione.'; errEl.style.display = ''; }
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Crea task';
-        return;
-      }
-      // Successo
-      if (viewLink) {
-        viewLink.href = data.task_url;
-        viewLink.style.display = '';
-        viewLink.textContent = `Apri "${data.title}" →`;
-      }
-      submitBtn.textContent = '✓ Creato';
-
-      // Aggiorna il pulsante della riga
-      if (activeStepIndex !== null) {
-        const btn = document.getElementById('step-btn-' + activeStepIndex);
-        if (btn) {
-          btn.classList.add('created');
-          btn.innerHTML = '<svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" style="width:13px;height:13px;stroke:currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg> Creato';
-        }
-      }
-
-      // Chiude dopo 1.6s
-      setTimeout(closeCreateTaskModal, 1600);
-    })
-    .catch(() => {
-      if (errEl) { errEl.textContent = 'Errore di rete. Riprova.'; errEl.style.display = ''; }
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Crea task';
-    });
-  };
-
 })();
 </script>
+{% if can_manage %}
+{{ project_tasks_json|json_script:"project-tasks-data" }}
+<script>
+  window.MEETING_TASK_MODAL = { url: "{{ task_from_step_url }}" };
+</script>
+<script src="{% static 'tasks/js/meeting_task_modal.js' %}" defer></script>
+{% endif %}
 {% endblock %}
