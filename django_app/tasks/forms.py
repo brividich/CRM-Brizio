@@ -962,8 +962,35 @@ class TaskDueDateForm(forms.ModelForm):
         model = Task
         fields = ["due_date"]
         widgets = {
-            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}),
+            # Senza `format` il widget stampa la data localizzata e il browser
+            # lascia il campo vuoto: l'utente vedeva una casella da riempire
+            # ogni volta invece della data gia' impostata.
+            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
         }
+
+
+class TaskStartDateForm(forms.ModelForm):
+    """Modifica della sola data inizio su un'attivita' gia' creata.
+
+    Gemello di `TaskDueDateForm`: serve a correggere la partenza senza
+    riattraversare il form completo, che ricalcola e rivalida tutto il resto.
+    """
+
+    class Meta:
+        model = Task
+        fields = ["next_step_due"]
+        widgets = {
+            "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
+        }
+
+    def clean_next_step_due(self):
+        next_step_due = self.cleaned_data.get("next_step_due")
+        due_date = getattr(self.instance, "due_date", None)
+        if next_step_due and due_date and due_date <= next_step_due:
+            raise forms.ValidationError(
+                "La data inizio deve essere precedente alla data fine gia' impostata."
+            )
+        return next_step_due
 
 
 class TaskCommentForm(forms.ModelForm):

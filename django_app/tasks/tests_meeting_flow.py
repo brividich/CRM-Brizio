@@ -6,6 +6,7 @@ incontro: invio convocazione, invio minuta, download PDF.
 """
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import patch
 
 from django.core import mail
@@ -19,6 +20,7 @@ from tasks.models import (
     MeetingIssueStatus,
     MeetingStatus,
     Project,
+    Task,
 )
 from tasks.tests import (
     TasksBaseTestCase,
@@ -1310,3 +1312,230 @@ class MeetingAttendanceTests(TasksBaseTestCase):
             reverse("tasks:project_meeting_detail", args=[self.project.id, self.meeting.id])
         )
         self.assertContains(response, "2 presenti su 4 convocati")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingAgendaLiveAddTests(TasksBaseTestCase):
+    """Punto ODG aperto mentre l'incontro e' in corso."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="odg-live-pm", legacy_user_id=601, role_id=2, role_name="tasks"
+        )
+        self.project = make_project(name="", created_by=self.user, project_manager=self.user)
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            created_by=self.user,
+            agenda_items=[{"id": "a1", "titolo": "Stato avanzamento", "nota": "", "done": False}],
+        )
+        self.client.force_login(self.user)
+        self.add_url = reverse(
+            "tasks:project_meeting_agenda_item_add", args=[self.project.id, self.meeting.id]
+        )
+
+    def test_il_punto_si_aggiunge_in_coda_ed_e_marcato_live(self):
+        response = self.client.post(self.add_url, {
+            "titolo": "Fornitore in ritardo",
+            "responsabile_id": self.user.pk,
+            "durata_minuti": "10",
+        })
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["position"], 2)
+
+        self.meeting.refresh_from_db()
+        self.assertEqual(len(self.meeting.agenda_items), 2)
+        item = self.meeting.agenda_items[1]
+        self.assertEqual(item["titolo"], "Fornitore in ritardo")
+        self.assertEqual(item["source"], "live")
+        self.assertEqual(item["responsabile_id"], self.user.pk)
+        self.assertEqual(item["durata_minuti"], 10)
+        self.assertFalse(item["done"])
+        # L'id deve essere spendibile subito dagli endpoint di spunta/autosave.
+        self.assertTrue(item["id"])
+
+    def test_il_punto_senza_titolo_e_rifiutato(self):
+        response = self.client.post(self.add_url, {"titolo": "   "})
+        self.assertEqual(response.status_code, 400)
+        self.meeting.refresh_from_db()
+        self.assertEqual(len(self.meeting.agenda_items), 1)
+
+    def test_la_durata_fuori_scala_non_sporca_il_dato(self):
+        self.client.post(self.add_url, {"titolo": "Punto lungo", "durata_minuti": "999"})
+        self.meeting.refresh_from_db()
+        self.assertIsNone(self.meeting.agenda_items[1]["durata_minuti"])
+
+    def test_il_punto_aggiunto_si_puo_spuntare(self):
+        item_id = self.client.post(self.add_url, {"titolo": "Nato in riunione"}).json()["item"]["id"]
+        toggle_url = reverse(
+            "tasks:project_meeting_agenda_toggle",
+            args=[self.project.id, self.meeting.id, item_id],
+        )
+        self.assertTrue(self.client.post(toggle_url).json()["done"])
+
+    def test_chi_non_gestisce_il_kickoff_non_aggiunge_punti(self):
+        estraneo = _create_user_with_legacy(
+            username="odg-live-estraneo", legacy_user_id=602, role_id=2, role_name="tasks"
+        )
+        self.client.force_login(estraneo)
+        response = self.client.post(self.add_url, {"titolo": "Non dovrebbe entrare"})
+        # Il kickoff non rientra nello scope dell'estraneo: la rotta non esiste
+        # nemmeno per lui, come per gli altri endpoint dell'incontro.
+        self.assertEqual(response.status_code, 404)
+        self.meeting.refresh_from_db()
+        self.assertEqual(len(self.meeting.agenda_items), 1)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingTaskFromStepTests(TasksBaseTestCase):
+    """Mini-form attivita' kickoff dentro l'incontro: crea, aggiorna, attrezzatura."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="task-step-pm", legacy_user_id=611, role_id=2, role_name="tasks"
+        )
+        self.project = make_project(name="", created_by=self.user, project_manager=self.user)
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project, data="2026-09-10", created_by=self.user,
+        )
+        self.client.force_login(self.user)
+        self.step_url = reverse(
+            "tasks:project_meeting_task_from_step", args=[self.project.id, self.meeting.id]
+        )
+
+    def test_crea_l_attivita_con_data_inizio_e_fine(self):
+        response = self.client.post(self.step_url, {
+            "title": "Preparare attrezzaggio",
+            "assigned_to": self.user.pk,
+            "next_step_due": "2026-09-15",
+            "due_date": "2026-09-20",
+        })
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["created"])
+
+        task = Task.objects.get(pk=payload["task_id"])
+        self.assertEqual(task.project_id, self.project.id)
+        self.assertEqual(task.next_step_due.isoformat(), "2026-09-15")
+        self.assertEqual(task.due_date.isoformat(), "2026-09-20")
+        self.assertEqual(task.assigned_to_id, self.user.pk)
+
+    def test_con_task_id_aggiorna_la_data_inizio_senza_creare_doppioni(self):
+        task = Task.objects.create(
+            title="Attivita' gia' creata", project=self.project, created_by=self.user,
+            next_step_due=date(2026, 9, 15), due_date=date(2026, 9, 30),
+        )
+        before = Task.objects.count()
+
+        response = self.client.post(self.step_url, {
+            "task_id": task.pk,
+            "next_step_due": "2026-09-17",
+        })
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload["created"])
+        self.assertEqual(payload["task_id"], task.pk)
+
+        task.refresh_from_db()
+        self.assertEqual(task.next_step_due.isoformat(), "2026-09-17")
+        # La data fine non era nel POST: non deve essere azzerata.
+        self.assertEqual(task.due_date.isoformat(), "2026-09-30")
+        self.assertEqual(Task.objects.count(), before)
+
+    def test_data_inizio_oltre_la_data_fine_gia_impostata_e_rifiutata(self):
+        task = Task.objects.create(
+            title="Attivita' con finestra", project=self.project, created_by=self.user,
+            next_step_due=date(2026, 9, 15), due_date=date(2026, 9, 20),
+        )
+        response = self.client.post(self.step_url, {
+            "task_id": task.pk,
+            "next_step_due": "2026-09-25",
+        })
+        self.assertEqual(response.status_code, 400)
+        task.refresh_from_db()
+        self.assertEqual(task.next_step_due.isoformat(), "2026-09-15")
+
+    def test_un_attivita_di_un_altro_kickoff_non_si_aggiorna_da_qui(self):
+        altro = make_project(name="", created_by=self.user, project_manager=self.user)
+        task = Task.objects.create(title="Fuori kickoff", project=altro, created_by=self.user)
+        response = self.client.post(self.step_url, {"task_id": task.pk, "next_step_due": "2026-09-17"})
+        self.assertEqual(response.status_code, 404)
+        task.refresh_from_db()
+        self.assertIsNone(task.next_step_due)
+
+    def test_collega_l_attrezzatura_nello_stesso_gesto(self):
+        from attrezzature.models import Attrezzatura, AttrezzaturaKickoffLink
+
+        tool = Attrezzatura.objects.create(codice="ATT-01", part_number="PN-77")
+        response = self.client.post(self.step_url, {
+            "title": "Montaggio",
+            "tooling_mode": "link_existing",
+            "tooling_existing_attrezzatura": tool.pk,
+        })
+        self.assertEqual(response.status_code, 200)
+        task = Task.objects.get(pk=response.json()["task_id"])
+        self.assertTrue(
+            AttrezzaturaKickoffLink.objects.filter(attrezzatura=tool, task_id=task.id).exists()
+        )
+
+    def test_l_attivita_resta_creata_anche_se_l_attrezzatura_inciampa(self):
+        with patch(
+            "tasks.views._apply_task_tooling_action", side_effect=RuntimeError("boom")
+        ):
+            response = self.client.post(self.step_url, {
+                "title": "Attivita' con attrezzo storto",
+                "tooling_mode": "request_new",
+                "tooling_part_number": "PN-99",
+            })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Task.objects.filter(title="Attivita' con attrezzo storto").exists())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TaskStartDateUpdateTests(TasksBaseTestCase):
+    """Correzione della data inizio dalla pagina dell'attivita'."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="data-inizio-pm", legacy_user_id=621, role_id=2, role_name="tasks"
+        )
+        self.project = make_project(name="", created_by=self.user, project_manager=self.user)
+        self.task = Task.objects.create(
+            title="Attivita' da ripianificare", project=self.project, created_by=self.user,
+            assigned_to=self.user, next_step_due=date(2026, 9, 15), due_date=date(2026, 9, 30),
+        )
+        self.client.force_login(self.user)
+        self.url = reverse("tasks:update_start_date", args=[self.task.id])
+
+    def test_la_data_inizio_si_aggiorna(self):
+        response = self.client.post(self.url, {"next_step_due": "2026-09-18"})
+        self.assertEqual(response.status_code, 302)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.next_step_due.isoformat(), "2026-09-18")
+
+    def test_una_data_inizio_oltre_la_fine_non_passa(self):
+        response = self.client.post(self.url, {"next_step_due": "2026-10-05"})
+        self.assertEqual(response.status_code, 302)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.next_step_due.isoformat(), "2026-09-15")
+
+    def test_la_pagina_attivita_mostra_il_campo_precompilato(self):
+        response = self.client.get(reverse("tasks:detail", args=[self.task.id]))
+        self.assertEqual(response.status_code, 200)
+        # Senza `format` ISO il browser mostrerebbe il campo vuoto.
+        self.assertContains(response, 'value="2026-09-15"')

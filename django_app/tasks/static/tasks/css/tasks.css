@@ -2134,14 +2134,19 @@ body.theme-dark .tf-asset-conflict-list li { background:rgba(255,255,255,.05); }
 .ctm-panel {
   background: var(--surface); border-radius: 16px; width: 100%; max-width: 520px;
   box-shadow: 0 20px 60px rgba(0,0,0,.25); overflow: hidden;
+  /* Con date, tipo attivita' e attrezzatura il pannello supera lo schermo:
+     senza questo limite i campi in cima restavano tagliati e irraggiungibili. */
+  display: flex; flex-direction: column; max-height: calc(100vh - 32px);
 }
+.ctm-panel .ctm-head { flex: 0 0 auto; }
+.ctm-panel .ctm-body { flex: 1 1 auto; overflow-y: auto; }
 .ctm-head {
   background: linear-gradient(135deg, var(--primary), var(--primary-mid));
   padding: 18px 22px; color: #fff;
   display: flex; align-items: center; gap: 10px;
 }
 .ctm-head svg { width: 20px; height: 20px; stroke: #fff; flex-shrink: 0; }
-.ctm-head h3 { margin: 0; font-size: 1rem; font-weight: 800; }
+.ctm-head h3 { margin: 0; font-size: 1rem; font-weight: 800; color: #fff; }
 .ctm-body { padding: 20px 22px; }
 .ctm-step-preview {
   background: var(--success-bg); border: 1px solid var(--success-bg); border-radius: 8px;
@@ -4166,3 +4171,18 @@ body.theme-dark .ka-reason--info { color: #93c5fd; border-color: rgba(147,197,25
 body.theme-dark .ka-dot--info { background: #93c5fd; }
 body.theme-dark .ka-col--next .ka-col-title svg { stroke: #93c5fd; }
 body.theme-dark .mtg-num { color: #93c5fd; border-color: rgba(147,197,253,.28); }
+
+/* ── Punto ODG aggiunto durante l'incontro ──────────────────────────── */
+.agenda-live-add {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  border-top: 1px dashed var(--border); margin-top: 12px; padding-top: 12px;
+}
+.agenda-live-add #agenda-live-titolo { flex: 1 1 240px; min-width: 180px; }
+.agenda-live-add #agenda-live-responsabile { flex: 0 1 200px; }
+.agenda-live-add #agenda-live-durata { flex: 0 0 84px; }
+.agenda-live-msg { font-size: .8rem; color: var(--text-light); }
+.agenda-live-msg.error { color: var(--danger); }
+.agenda-item.is-live { border-style: dashed; }
+
+/* Mini-form attivita' dell'incontro: nota sotto un campo del pannello. */
+.ctm-hint { font-size: .75rem; color: var(--text-light); margin-top: 5px; line-height: 1.45; }

@@ -1,0 +1,119 @@
+{% comment %}
+Mini-form «attività kickoff» richiamabile da dentro un incontro.
+
+Un solo pannello per due gesti che in riunione sono lo stesso: creare
+l'attività e decidere l'attrezzatura. Con «attività già creata» non nasce un
+doppione — si aggiorna quella, tipicamente per correggerne la data inizio.
+
+Contesto richiesto: project, active_users, task_categories, attrezzature,
+project_tasks_json, task_from_step_url.
+{% endcomment %}
+<div class="ctm-overlay" id="ctm-overlay" style="display:none" onclick="closeCreateTaskModalOutside(event)">
+  <div class="ctm-panel" role="dialog" aria-modal="true">
+    <div class="ctm-head">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      <h3 id="ctm-heading">Attività kickoff dall'incontro</h3>
+    </div>
+    <div class="ctm-body">
+      <div class="ctm-step-label" id="ctm-step-label">Punto di riferimento</div>
+      <div class="ctm-step-preview" id="ctm-step-preview"></div>
+
+      <form id="ctm-form" onsubmit="submitCreateTask(event)">
+        {% csrf_token %}
+        <div class="ctm-field">
+          <label for="ctm-existing">Attività già creata</label>
+          <select id="ctm-existing" name="task_id" class="input">
+            <option value="">— crea una nuova attività —</option>
+          </select>
+          <div class="ctm-hint">Scegliendone una si aggiorna quella: date, assegnatario e attrezzatura, senza crearne un'altra.</div>
+        </div>
+        <div class="ctm-field">
+          <label for="ctm-title">Titolo attività <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="ctm-title" name="title" class="input" maxlength="200" required>
+        </div>
+        <div class="ctm-row">
+          <div class="ctm-field">
+            <label for="ctm-assignee">Assegna a</label>
+            <select id="ctm-assignee" name="assigned_to" class="input">
+              <option value="">— non assegnato —</option>
+              {% for u in active_users %}
+                <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="ctm-field">
+            <label for="ctm-category">Tipo attività</label>
+            <select id="ctm-category" name="category" class="input">
+              <option value="">— nessun tipo —</option>
+              {% for c in task_categories %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="ctm-row">
+          <div class="ctm-field">
+            <label for="ctm-start">Data inizio</label>
+            <input type="date" id="ctm-start" name="next_step_due" class="input">
+          </div>
+          <div class="ctm-field">
+            <label for="ctm-due">Data fine</label>
+            <input type="date" id="ctm-due" name="due_date" class="input">
+          </div>
+        </div>
+        <div class="ctm-field">
+          <label for="ctm-priority">Priorità</label>
+          <select id="ctm-priority" name="priority" class="input">
+            <option value="LOW">Bassa</option>
+            <option value="MEDIUM" selected>Media</option>
+            <option value="HIGH">Alta</option>
+          </select>
+        </div>
+
+        <div class="ctm-field">
+          <label for="ctm-tooling-mode">Attrezzatura</label>
+          <select id="ctm-tooling-mode" name="tooling_mode" class="input">
+            <option value="none" selected>Nessuna azione attrezzatura</option>
+            <option value="link_existing">Collega attrezzatura esistente</option>
+            <option value="request_new">Richiedi nuovo attrezzo per P/N</option>
+            <option value="verification_required">Richiedi verifica disponibilità</option>
+          </select>
+        </div>
+        <div class="ctm-field" id="ctm-tooling-existing-field" hidden>
+          <label for="ctm-tooling-existing">Attrezzatura esistente</label>
+          <select id="ctm-tooling-existing" name="tooling_existing_attrezzatura" class="input">
+            <option value="">— seleziona —</option>
+            {% for a in attrezzature %}
+              <option value="{{ a.id }}">{{ a.codice|default:a.id }}{% if a.part_number %} · P/N {{ a.part_number }}{% endif %}{% if a.descrizione %} — {{ a.descrizione }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ctm-field" id="ctm-tooling-pn-field" hidden>
+          <label for="ctm-tooling-pn">P/N attrezzatura</label>
+          <input type="text" id="ctm-tooling-pn" name="tooling_part_number" class="input" maxlength="120"
+                 placeholder="{% if project.part_number %}Default: {{ project.part_number }}{% else %}P/N attrezzatura{% endif %}">
+        </div>
+        <div class="ctm-field" id="ctm-tooling-code-field" hidden>
+          <label for="ctm-tooling-code">Codice attrezzo</label>
+          <input type="text" id="ctm-tooling-code" name="tooling_code" class="input" maxlength="80" placeholder="Se noto">
+        </div>
+        <div class="ctm-field" id="ctm-tooling-note-field" hidden>
+          <label for="ctm-tooling-note">Nota attrezzatura</label>
+          <textarea id="ctm-tooling-note" name="tooling_description" class="input" rows="2" placeholder="Contesto della richiesta"></textarea>
+        </div>
+
+        <p class="ctm-error" id="ctm-error"></p>
+        <div class="ctm-actions">
+          <button type="submit" class="ctm-btn primary" id="ctm-submit">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            Crea attività
+          </button>
+          <button type="button" class="ctm-btn ghost" onclick="closeCreateTaskModal()">Annulla</button>
+          <a id="ctm-view-link" href="#" target="_blank" style="display:none;font-size:.875rem;color:var(--primary-mid);text-decoration:none;margin-left:auto;">
+            Apri attività →
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

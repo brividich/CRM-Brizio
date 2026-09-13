@@ -1,0 +1,24 @@
+{% comment %}
+Aggiunta «live» di un punto all'ordine del giorno.
+
+Volutamente senza <form>: la pagina esito e' gia' un unico grande form e un
+form annidato verrebbe scartato dal browser. I campi si leggono per id.
+
+Contesto richiesto: project, meeting, active_users.
+{% endcomment %}
+<div class="agenda-live-add" id="agenda-live-add"
+     data-url="{% url 'tasks:project_meeting_agenda_item_add' project.id meeting.id %}">
+  {% csrf_token %}
+  <input class="input" type="text" id="agenda-live-titolo" maxlength="200"
+         placeholder="Punto aperto in riunione" aria-label="Titolo del punto">
+  <select class="input" id="agenda-live-responsabile" aria-label="Responsabile del punto">
+    <option value="">— responsabile —</option>
+    {% for u in active_users %}
+      <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+    {% endfor %}
+  </select>
+  <input class="input" type="number" id="agenda-live-durata" min="1" max="480" step="5"
+         placeholder="min" aria-label="Durata in minuti">
+  <button type="button" class="mf-btn-sm primary" id="agenda-live-btn">Aggiungi punto</button>
+  <span class="agenda-live-msg" id="agenda-live-msg" role="status"></span>
+</div>
