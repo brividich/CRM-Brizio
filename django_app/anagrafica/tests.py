@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from openpyxl import load_workbook
 
@@ -4818,3 +4818,36 @@ class FormazioneCorsoWizardRenderTests(TestCase):
         # Struttura del componente percorso kp- presente.
         self.assertContains(resp, "data-kp-root")
         self.assertContains(resp, "kp-station")
+
+
+class StoricoContrattoInCorsoTests(SimpleTestCase):
+    """«In corso» = periodo che contiene oggi, non l'ultima riga senza data fine."""
+
+    OGGI = date(2026, 9, 14)
+
+    def _c(self, inizio, fine=None):
+        from .models import StoricoContratto
+        return StoricoContratto(data_inizio=inizio, data_fine=fine)
+
+    def _patch_oggi(self):
+        return patch("django.utils.timezone.localdate", return_value=self.OGGI)
+
+    def test_rinnovo_futuro_aperto_e_programmato_non_in_corso(self):
+        with self._patch_oggi():
+            c = self._c(date(2026, 9, 16))
+            self.assertTrue(c.is_programmato)
+            self.assertFalse(c.is_in_corso)
+
+    def test_contratto_chiuso_che_contiene_oggi_e_in_corso(self):
+        with self._patch_oggi():
+            c = self._c(date(2026, 3, 16), date(2026, 9, 15))
+            self.assertTrue(c.is_in_corso)
+            self.assertFalse(c.is_programmato)
+
+    def test_contratto_aperto_gia_decorso_e_in_corso(self):
+        with self._patch_oggi():
+            self.assertTrue(self._c(date(2025, 1, 1)).is_in_corso)
+
+    def test_contratto_concluso_non_in_corso(self):
+        with self._patch_oggi():
+            self.assertFalse(self._c(date(2025, 1, 1), date(2026, 9, 13)).is_in_corso)
