@@ -504,6 +504,30 @@ class TaskAdminSettingsTests(TasksBaseTestCase):
         self.assertEqual(cfg.vrf_reminder_days, 11)
         self.assertEqual(cfg.vrf_blocking_days, 40)
 
+    def test_cc_predefiniti_si_salvano_dalle_impostazioni(self):
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get(reverse("tasks:impostazioni"), {"tab": "config"})
+        self.assertContains(response, 'name="cc_predefiniti_utenti"', html=False)
+        self.assertContains(response, 'name="cc_predefinite_email"', html=False)
+
+        self.client.post(
+            f"{reverse('tasks:impostazioni')}?tab=config",
+            {
+                "responsabile_email": "",
+                "giorni_preavviso": "3",
+                "note_generali": "",
+                "vrf_reminder_days": "7",
+                "vrf_blocking_days": "30",
+                "cc_predefiniti_utenti": [str(self.admin_user.pk)],
+                "cc_predefinite_email": "direzione@example.com\nriga-non-valida\n",
+            },
+        )
+        cfg = TaskImpostazioni.get_singleton()
+        # Le righe senza @ non sono indirizzi: si scartano invece di finire in copia.
+        self.assertEqual(cfg.cc_predefinite_email, "direzione@example.com")
+        self.assertEqual(list(cfg.cc_predefiniti_utenti.values_list("pk", flat=True)), [self.admin_user.pk])
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class TaskPermissionsScopeTests(TasksBaseTestCase):

@@ -118,4 +118,60 @@
       <button type="submit" class="btn btn-primary">Salva impostazioni</button>
     </div>
   </div>
+  <div class="ts-panel" style="margin-top:14px;">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Destinatari in copia predefiniti</h2>
+        <p class="ts-panel-subtitle">Chi va sempre in copia di convocazioni e minute. Valgono quando l'incontro non indica CC propri; se la convocazione ne elenca, vincono quelli. Lasciando tutto vuoto la copia torna a project manager e capo commessa.</p>
+      </div>
+    </div>
+    <div class="ts-panel-body">
+      <div class="ts-field">
+        <label for="cc-predefiniti-search">Utenti del portale</label>
+        <input type="text" id="cc-predefiniti-search" class="input" placeholder="Cerca per nome o email…" autocomplete="off">
+        <div class="ts-checkbox-scroll" id="cc-predefiniti-lista">
+          {% for utente in cc_utenti_disponibili %}
+            <label class="ts-field-inline">
+              <input type="checkbox" name="cc_predefiniti_utenti" value="{{ utente.pk }}"
+                     {% if utente.pk in cc_predefiniti_ids %}checked{% endif %}>
+              <span>{{ utente.etichetta }}</span>
+            </label>
+          {% empty %}
+            <p class="ts-field-help">Nessun utente disponibile.</p>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="ts-field">
+        <label for="cc_predefinite_email">Email esterne</label>
+        <textarea id="cc_predefinite_email" name="cc_predefinite_email" rows="3" class="input"
+                  placeholder="uno@dominio.it&#10;altra@dominio.it">{{ cfg.cc_predefinite_email }}</textarea>
+        <span class="ts-field-help">Un indirizzo per riga. Le righe senza @ vengono scartate al salvataggio.</span>
+      </div>
+    </div>
+    <div class="ts-panel-footer">
+      <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+    </div>
+  </div>
 </form>
+
+<style>
+  /* L'elenco utenti puo' essere lungo: resta in una finestra scorrevole invece
+     di spingere il pulsante di salvataggio fuori schermo. */
+  .ts-checkbox-scroll { max-height: 240px; overflow-y: auto; border: 1px solid var(--border, #e2e8f0);
+                        border-radius: 8px; padding: 8px; margin-top: 6px; }
+  .ts-checkbox-scroll label { display: flex; gap: 8px; align-items: center; padding: 3px 2px; }
+  .ts-checkbox-scroll label.is-hidden { display: none; }
+</style>
+<script>
+  (function () {
+    const box = document.getElementById('cc-predefiniti-search');
+    const lista = document.getElementById('cc-predefiniti-lista');
+    if (!box || !lista) return;
+    box.addEventListener('input', function () {
+      const q = box.value.toLowerCase().trim();
+      lista.querySelectorAll('label').forEach(function (label) {
+        label.classList.toggle('is-hidden', !!q && !label.textContent.toLowerCase().includes(q));
+      });
+    });
+  })();
+</script>

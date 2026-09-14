@@ -170,6 +170,45 @@ class MeetingTwoStepFlowTests(TasksBaseTestCase):
         )
         self.assertIn("pm@example.com", mail.outbox[0].cc)
 
+    def test_cc_predefiniti_valgono_quando_l_incontro_non_ne_ha(self):
+        from tasks.models import TaskImpostazioni
+
+        cfg = TaskImpostazioni.get_singleton()
+        cfg.cc_predefinite_email = "direzione@example.com"
+        cfg.save(update_fields=["cc_predefinite_email"])
+        self.client.post(
+            reverse("tasks:project_meeting_send_invite", args=[self.project.id, self.meeting.id])
+        )
+        self.assertEqual(mail.outbox[0].cc, ["direzione@example.com"])
+
+    def test_i_cc_dell_incontro_vincono_sui_predefiniti(self):
+        from tasks.models import TaskImpostazioni
+
+        cfg = TaskImpostazioni.get_singleton()
+        cfg.cc_predefinite_email = "direzione@example.com"
+        cfg.save(update_fields=["cc_predefinite_email"])
+        self.meeting.cc_email_extra = "qualita@example.com"
+        self.meeting.save(update_fields=["cc_email_extra"])
+        self.client.post(
+            reverse("tasks:project_meeting_send_invite", args=[self.project.id, self.meeting.id])
+        )
+        self.assertEqual(mail.outbox[0].cc, ["qualita@example.com"])
+
+    def test_le_checkbox_utenti_mostrano_nome_e_email(self):
+        self.user.first_name = "Mario"
+        self.user.last_name = "Rossi"
+        self.user.save(update_fields=["first_name", "last_name"])
+        response = self.client.get(
+            reverse("tasks:project_meeting_edit", args=[self.project.id, self.meeting.id])
+        )
+        self.assertContains(response, "Mario Rossi - pm@example.com")
+
+    def test_il_blocco_cc_ha_la_sua_ricerca(self):
+        response = self.client.get(
+            reverse("tasks:project_meeting_edit", args=[self.project.id, self.meeting.id])
+        )
+        self.assertContains(response, 'id="cc-search"')
+
     def test_cc_dell_incontro_vale_anche_per_la_minuta(self):
         self.meeting.cc_email_extra = "direzione@example.com"
         self.meeting.note = "Verbale"

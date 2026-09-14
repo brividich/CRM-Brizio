@@ -420,6 +420,15 @@ def _cc_management(meeting, exclude: list[str]) -> list[str]:
     """
     cc: list[str] = []
     scelti = meeting.get_all_cc_emails() if hasattr(meeting, "get_all_cc_emails") else []
+    if not scelti:
+        # Nessun CC sull'incontro: valgono i predefiniti delle impostazioni, che
+        # esistono proprio per le persone da mettere in copia sempre.
+        from tasks.models import TaskImpostazioni
+
+        try:
+            scelti = TaskImpostazioni.get_singleton().get_cc_predefiniti()
+        except Exception:  # impostazioni non raggiungibili: non si blocca l'invio
+            scelti = []
     if scelti:
         for email in scelti:
             if email not in exclude and email not in cc:
