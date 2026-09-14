@@ -8,6 +8,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **KICK-OFF · la convocazione dice l'ora, il cliente e a chi va in copia** (`django_app/tasks/models.py`, `django_app/tasks/minute_email.py`, `django_app/tasks/forms.py`, `django_app/tasks/templates/tasks/project_meeting_form.html`, `django_app/tasks/migrations/0043_kickoffmeeting_cc.py`, `django_app/tasks/tests_meeting_flow.py`). Tre mancanze emerse al primo giro di convocazioni vere.
+  1. **L'orario non compariva.** `_fmt_data()` attaccava l'ora alla data dentro la stessa riga «Data», e solo se il campo era valorizzato: senza ora la riga diceva la sola data e nulla segnalava il buco, così chi riceveva la mail non sapeva a che ora presentarsi. «Data» e «Ora» sono ora due righe distinte della tabella, con `—` quando il dato manca. Vale per convocazione, minuta e PDF, che condividono `_facts()`.
+  2. **Il cliente non era in oggetto.** L'oggetto diceva `Convocazione incontro — KICK-OFF 12`: dalla lista dei messaggi non si riconosceva la commessa. Ora è `Convocazione incontro — ACME · KICK-OFF 12: Titolo`, con il cliente saltato se la scheda non ce l'ha.
+  3. **I destinatari in copia non si potevano scegliere.** Il CC era cablato su project manager e capo commessa (`_cc_management`), senza modo di aggiungere la direzione o un referente del cliente. L'incontro ha ora **`cc_utenti`** (utenti portale) e **`cc_email_extra`** (indirizzi liberi, uno per riga, validati come i partecipanti esterni), compilabili nel blocco collassabile «Destinatari in copia — CC» della convocazione — che in modifica si apre da solo se è già valorizzato, perché un destinatario nascosto in una sezione chiusa è un destinatario che non si controlla. Valgono per **convocazione e minuta**: il CC è un dato dell'incontro, non della singola mail. Se compilati **sostituiscono** il CC automatico; lasciati vuoti, resta il comportamento storico a PM e capo commessa. Migration `tasks/0043`.
+
+- **KICK-OFF · rinominare le commesse storiche col nuovo schema** (`django_app/tasks/management/commands/rinomina_kickoff.py` — nuovo —, `django_app/tasks/tests_rinomina_kickoff.py` — nuovo). `Project.default_name()` compone «Cliente · P/N · KICK-OFF n» solo alla creazione: le commesse già esistenti restavano «KICK-OFF 12» negli elenchi e negli oggetti delle email. `manage.py rinomina_kickoff` le ricompone, ma tocca **solo i nomi ancora automatici** (`KICK-OFF n`, nelle varianti di scrittura, o vuoti): un nome scritto a mano è una decisione di qualcuno e resta dov'è, salvo `--all`. È **dry-run per default** — elenca cosa farebbe — e scrive solo con `--apply`.
+
 ### Fixed
 
 - **Outlook · l'errore del calendario ora dice quale delle due cause è, e quale rimedio** (`django_app/core/outlook_calendar.py`, `django_app/tasks/meeting_outlook.py`, `django_app/tasks/tests_meeting_flow.py`). Salvando una convocazione con «Sincronizza su Outlook» attivo l'utente vedeva `Outlook: Access is denied. Check credentials and try again.` — la frase grezza di Graph, che non dice niente. Tre difetti sommati.

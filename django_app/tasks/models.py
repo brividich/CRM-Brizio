@@ -1056,6 +1056,21 @@ class KickoffMeeting(models.Model):
         verbose_name="Email aggiuntive",
         help_text="Un indirizzo email per riga (per partecipanti non presenti nel portale).",
     )
+    # Destinatari in copia conoscenza delle mail dell'incontro (convocazione e
+    # minuta): utenti portale (M2M) + email esterne (testo libero). Se restano
+    # vuoti vale il CC automatico a PM e capo commessa.
+    cc_utenti = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="kickoff_meetings_as_cc",
+        verbose_name="In copia (portale)",
+    )
+    cc_email_extra = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Email in copia",
+        help_text="Un indirizzo email per riga (per destinatari in copia non presenti nel portale).",
+    )
     # Campo legacy testo libero — mantenuto per retrocompat
     partecipanti_testo = models.TextField(blank=True, default="", verbose_name="Note partecipanti")
 
@@ -1156,6 +1171,19 @@ class KickoffMeeting(models.Model):
             if email and email not in emails:
                 emails.append(email)
         for line in (self.partecipanti_email_extra or "").splitlines():
+            email = line.strip()
+            if email and "@" in email and email not in emails:
+                emails.append(email)
+        return emails
+
+    def get_all_cc_emails(self) -> list[str]:
+        """Email scelte a mano per la copia conoscenza (utenti portale + esterne)."""
+        emails: list[str] = []
+        for user in self.cc_utenti.all():
+            email = (getattr(user, "email", "") or "").strip()
+            if email and email not in emails:
+                emails.append(email)
+        for line in (self.cc_email_extra or "").splitlines():
             email = line.strip()
             if email and "@" in email and email not in emails:
                 emails.append(email)

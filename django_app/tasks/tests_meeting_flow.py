@@ -74,6 +74,14 @@ class MeetingTwoStepFlowTests(TasksBaseTestCase):
         self.assertIn('name="data"', body)
         self.assertIn('name="stato"', body)
 
+    def test_convocazione_espone_il_blocco_cc(self):
+        response = self.client.get(
+            reverse("tasks:project_meeting_edit", args=[self.project.id, self.meeting.id])
+        )
+        body = response.content.decode()
+        self.assertIn('name="cc_utenti"', body)
+        self.assertIn('name="cc_email_extra"', body)
+
     def test_esito_chiede_solo_il_dopo_incontro(self):
         response = self.client.get(
             reverse("tasks:project_meeting_minutes", args=[self.project.id, self.meeting.id])
@@ -124,6 +132,53 @@ class MeetingTwoStepFlowTests(TasksBaseTestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("mario@example.com", mail.outbox[0].to)
         self.assertIn("Convocazione", mail.outbox[0].subject)
+
+    def test_convocazione_dice_orario_e_cliente(self):
+        """L'ora ha una riga sua e il cliente sta in oggetto: si riconoscono senza aprire."""
+        self.project.client_name = "ACME"
+        self.project.save(update_fields=["client_name"])
+        self.meeting.ora = "09:30"
+        self.meeting.save(update_fields=["ora"])
+        self.client.post(
+            reverse("tasks:project_meeting_send_invite", args=[self.project.id, self.meeting.id])
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertIn("ACME", message.subject)
+        self.assertIn("Ora: 09:30", message.body)
+
+    def test_convocazione_senza_ora_lo_dichiara(self):
+        """Senza orario la riga resta, con un trattino: il buco si vede."""
+        self.meeting.ora = None
+        self.meeting.save(update_fields=["ora"])
+        self.client.post(
+            reverse("tasks:project_meeting_send_invite", args=[self.project.id, self.meeting.id])
+        )
+        self.assertIn("Ora: —", mail.outbox[0].body)
+
+    def test_cc_scelti_a_mano_sostituiscono_pm_e_capo_commessa(self):
+        self.meeting.cc_email_extra = "direzione@example.com"
+        self.meeting.save(update_fields=["cc_email_extra"])
+        self.client.post(
+            reverse("tasks:project_meeting_send_invite", args=[self.project.id, self.meeting.id])
+        )
+        self.assertEqual(mail.outbox[0].cc, ["direzione@example.com"])
+
+    def test_senza_cc_scelti_resta_la_copia_al_project_manager(self):
+        self.client.post(
+            reverse("tasks:project_meeting_send_invite", args=[self.project.id, self.meeting.id])
+        )
+        self.assertIn("pm@example.com", mail.outbox[0].cc)
+
+    def test_cc_dell_incontro_vale_anche_per_la_minuta(self):
+        self.meeting.cc_email_extra = "direzione@example.com"
+        self.meeting.note = "Verbale"
+        self.meeting.stato = MeetingStatus.SVOLTO
+        self.meeting.save(update_fields=["cc_email_extra", "note", "stato"])
+        self.client.post(
+            reverse("tasks:project_meeting_send_minute", args=[self.project.id, self.meeting.id])
+        )
+        self.assertEqual(mail.outbox[0].cc, ["direzione@example.com"])
 
     def test_invio_minuta_raggiunge_i_partecipanti(self):
         self.meeting.note = "Verbale del giorno"
