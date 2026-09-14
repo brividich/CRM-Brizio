@@ -40,11 +40,15 @@ class Command(BaseCommand):
         apply_changes = bool(options["apply"])
         anche_personalizzati = bool(options["all"])
 
-        rinominati = 0
         saltati_manuali = 0
         gia_allineati = 0
+        da_scrivere: list[tuple[int, str]] = []
 
-        for project in Project.objects.order_by("kickoff_number", "pk").iterator():
+        # La lettura si chiude PRIMA di scrivere: con `.iterator()` il cursore
+        # resta aperto e SQL Server via ODBC rifiuta l'UPDATE sulla stessa
+        # connessione (HY010, «errore nella sequenza della funzione»). I kickoff
+        # sono poche decine: tenerli in memoria non costa niente.
+        for project in list(Project.objects.order_by("kickoff_number", "pk")):
             nome_attuale = (project.name or "").strip()
             automatico = not nome_attuale or bool(AUTO_NAME.match(nome_attuale))
             if not automatico and not anche_personalizzati:
@@ -57,10 +61,15 @@ class Command(BaseCommand):
                 continue
 
             self.stdout.write(f"  #{project.pk}: «{nome_attuale}» -> «{nuovo}»")
-            rinominati += 1
-            if apply_changes:
-                with transaction.atomic():
-                    Project.objects.filter(pk=project.pk).update(name=nuovo)
+            da_scrivere.append((project.pk, nuovo))
+
+        rinominati = len(da_scrivere)
+        if apply_changes and da_scrivere:
+            # Tutto o niente: una rinomina a meta' lascerebbe l'elenco incoerente
+            # e il dry-run successivo non direbbe piu' da dove si era rimasti.
+            with transaction.atomic():
+                for pk, nuovo in da_scrivere:
+                    Project.objects.filter(pk=pk).update(name=nuovo)
 
         self.stdout.write("")
         self.stdout.write(f"Da rinominare: {rinominati}")

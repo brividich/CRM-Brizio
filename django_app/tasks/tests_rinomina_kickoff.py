@@ -38,6 +38,19 @@ class RinominaKickoffTests(TestCase):
         self.automatico.refresh_from_db()
         self.assertEqual(self.automatico.name, "ACME \u00b7 PN-9 \u00b7 KICK-OFF 1")
 
+    def test_le_scritture_avvengono_dopo_aver_letto_tutto(self):
+        """Regressione HY010: su SQL Server l'UPDATE non puo' partire mentre il
+        cursore di lettura e' ancora aperto. La lettura deve chiudersi prima."""
+        autore = self.automatico.created_by
+        for numero in range(3, 8):
+            Project.objects.create(
+                name=f"KICK-OFF {numero}", kickoff_number=numero,
+                client_name=f"Cliente {numero}", created_by=autore,
+            )
+        self._run("--apply")
+        rinominati = Project.objects.filter(name__startswith="Cliente ").count()
+        self.assertEqual(rinominati, 5)
+
     def test_nome_scritto_a_mano_resta(self):
         self._run("--apply")
         self.manuale.refresh_from_db()
