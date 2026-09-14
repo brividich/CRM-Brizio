@@ -100,6 +100,10 @@
         {% else %}
           <span class="abs-chip soft">Non disponibile</span>
         {% endif %}
+        <span class="abs-chip soft">In coda verso SharePoint: {{ admin_sync_info.pending|default:0 }}</span>
+        {% if admin_sync_info.failing %}
+          <span class="abs-chip soft">Invii con errori: {{ admin_sync_info.failing }}</span>
+        {% endif %}
         <form method="post" action="{% url 'assenze_api_sync_pull' %}" style="display:inline;">
           {% csrf_token %}
           <button type="submit" class="btn btn-secondary btn-sm">Sincronizza ora</button>

@@ -571,6 +571,9 @@
 
       function formatSyncStatus(sync) {
         if (!sync) return "";
+        if (sync.queued) {
+          return " Invio a SharePoint in coda (entro pochi minuti).";
+        }
         if (sync.ok) {
           const action = sync.action ? (sync.action + " ") : "";
           const itemId = sync.sharepoint_item_id ? ("item " + sync.sharepoint_item_id) : "SharePoint";

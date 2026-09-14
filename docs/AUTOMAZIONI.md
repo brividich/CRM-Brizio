@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni attive:** 42
+**Totale automazioni attive:** 43
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -275,6 +275,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Cosa fa:** Cadenza fissa (lunedi 06:00); attivazione e parametri si gestiscono dalla pagina Impostazioni automazioni (SiteConfig), non da qui.
 
 ## Altro
+
+### `assenze_sharepoint_sync`
+
+- **Quando gira:** ogni 5 minuti
+- **Task eseguito:** `assenze.tasks.run_assenze_sharepoint_sync`
+- **Cosa fa:** ASSENZE — convivenza con la lista SharePoint: invia la coda delle modifiche locali e legge da SharePoint solo gli elementi cambiati (delta query). No-op se Graph non e' configurato.
 
 ### `checklist_chiusura_reminders`
 

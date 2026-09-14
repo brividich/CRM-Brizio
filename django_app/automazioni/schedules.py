@@ -471,6 +471,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ASSENZE — convivenza con la lista SharePoint: invia la coda delle
+        # modifiche locali e legge da SharePoint solo gli elementi cambiati
+        # (delta query). No-op se Graph non e' configurato.
+        "name": "assenze_sharepoint_sync",
+        "func": "assenze.tasks.run_assenze_sharepoint_sync",
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 5,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # SUGGESTION CORNER — solleciti DO/CHECK + escalation (§3)
         "name": "suggestion_corner_reminders",
         "func": "suggestion_corner.tasks.run_suggestion_corner_reminders",
