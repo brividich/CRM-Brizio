@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso
-from core.models import Notifica, Profile, UserOnboarding
+from core.models import AuditLog, Notifica, Profile, UserOnboarding
 from .tests_utils import make_project
 from attrezzature.models import (
     Attrezzatura,
@@ -503,6 +503,62 @@ class TaskAdminSettingsTests(TasksBaseTestCase):
         self.assertEqual(cfg.note_generali, "Note test admin")
         self.assertEqual(cfg.vrf_reminder_days, 11)
         self.assertEqual(cfg.vrf_blocking_days, 40)
+
+    def test_record_elimina_kickoff_solo_con_motivazione(self):
+        from tasks.models import Project, Task
+
+        project = Project.objects.create(name="Da cancellare", created_by=self.admin_user)
+        Task.objects.create(title="Attivita' figlia", project=project, created_by=self.admin_user)
+        self.client.force_login(self.admin_user)
+
+        # Senza motivazione non si cancella niente.
+        senza = self.client.post(
+            reverse("tasks:impostazioni_kickoff_delete", args=[project.pk]),
+            {"motivo": "   "},
+            follow=True,
+        )
+        self.assertContains(senza, "Serve la motivazione")
+        self.assertTrue(Project.objects.filter(pk=project.pk).exists())
+
+        self.client.post(
+            reverse("tasks:impostazioni_kickoff_delete", args=[project.pk]),
+            {"motivo": "Commessa aperta per errore"},
+        )
+        self.assertFalse(Project.objects.filter(pk=project.pk).exists())
+        voce = AuditLog.objects.filter(azione="kickoff_project_delete").order_by("-id").first()
+        self.assertIsNotNone(voce)
+        self.assertIn("Commessa aperta per errore", str(voce.dettaglio))
+
+    def test_record_elimina_attivita_solo_con_motivazione(self):
+        from tasks.models import Project, Task
+
+        project = Project.objects.create(name="Commessa viva", created_by=self.admin_user)
+        task = Task.objects.create(title="Da cancellare", project=project, created_by=self.admin_user)
+        self.client.force_login(self.admin_user)
+
+        self.client.post(reverse("tasks:impostazioni_task_delete", args=[task.pk]), {"motivo": ""})
+        self.assertTrue(Task.objects.filter(pk=task.pk).exists())
+
+        self.client.post(
+            reverse("tasks:impostazioni_task_delete", args=[task.pk]),
+            {"motivo": "Doppione"},
+        )
+        self.assertFalse(Task.objects.filter(pk=task.pk).exists())
+        self.assertTrue(Project.objects.filter(pk=project.pk).exists())
+
+    def test_record_cancellazione_richiede_i_permessi_impostazioni(self):
+        from tasks.models import Project
+
+        project = Project.objects.create(name="Protetta", created_by=self.admin_user)
+        estraneo = _create_user_with_legacy(
+            username="record-estraneo", legacy_user_id=9102, role_id=2, role_name="tasks"
+        )
+        self.client.force_login(estraneo)
+        self.client.post(
+            reverse("tasks:impostazioni_kickoff_delete", args=[project.pk]),
+            {"motivo": "provo comunque"},
+        )
+        self.assertTrue(Project.objects.filter(pk=project.pk).exists())
 
     def test_cc_predefiniti_si_salvano_dalle_impostazioni(self):
         self.client.force_login(self.admin_user)

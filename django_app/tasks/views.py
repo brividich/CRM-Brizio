@@ -5602,6 +5602,74 @@ def _handle_tasks_categories_post(request):
     return redirect(base_url)
 
 
+def _motivo_cancellazione(request) -> str:
+    """Motivazione obbligatoria di una cancellazione, normalizzata.
+
+    Cancellare un kickoff o un'attivita' dalle impostazioni e' irreversibile e
+    porta via con se' tutto quello che ci sta appeso: il perche' deve restare
+    scritto nell'audit, altrimenti fra sei mesi nessuno sa cosa e' sparito ne'
+    per mano di chi. Stringa vuota = motivazione mancante.
+    """
+    return (request.POST.get("motivo") or "").strip()[:500]
+
+
+@require_POST
+@legacy_admin_or_acl_required("tasks", "impostazioni")
+def impostazioni_kickoff_delete(request, project_id: int):
+    """Elimina un kickoff dalla scheda Record, con motivazione obbligatoria."""
+    record_url = f"{reverse('tasks:impostazioni')}?tab=record"
+    project = get_object_or_404(Project, pk=project_id)
+    motivo = _motivo_cancellazione(request)
+    if not motivo:
+        messages.error(request, "Serve la motivazione: il kickoff non e' stato eliminato.")
+        return redirect(record_url)
+
+    # I conteggi si leggono PRIMA della cancellazione: dopo il cascade non
+    # resterebbe modo di dire quanto e' stato portato via.
+    dettaglio = {
+        "project_id": project.pk,
+        "kickoff_number": project.kickoff_number,
+        "name": project.name,
+        "client_name": project.client_name,
+        "tasks": Task.objects.filter(project=project).count(),
+        "incontri": KickoffMeeting.objects.filter(project=project).count(),
+        "motivo": motivo,
+    }
+    project.delete()
+    log_action(request, "kickoff_project_delete", "tasks", dettaglio)
+    messages.success(
+        request,
+        f"Kickoff «{dettaglio['name']}» eliminato con {dettaglio['tasks']} attivita' "
+        f"e {dettaglio['incontri']} incontri collegati.",
+    )
+    return redirect(record_url)
+
+
+@require_POST
+@legacy_admin_or_acl_required("tasks", "impostazioni")
+def impostazioni_task_delete(request, task_id: int):
+    """Elimina un'attivita' dalla scheda Record, con motivazione obbligatoria."""
+    record_url = f"{reverse('tasks:impostazioni')}?tab=record"
+    task = get_object_or_404(Task.objects.select_related("project"), pk=task_id)
+    motivo = _motivo_cancellazione(request)
+    if not motivo:
+        messages.error(request, "Serve la motivazione: l'attivita' non e' stata eliminata.")
+        return redirect(record_url)
+
+    dettaglio = {
+        "task_id": task.pk,
+        "title": task.title,
+        "project_id": task.project_id,
+        "project": getattr(task.project, "name", ""),
+        "status": task.status,
+        "motivo": motivo,
+    }
+    task.delete()
+    log_action(request, "kickoff_task_delete", "tasks", dettaglio)
+    messages.success(request, f"Attivita' «{dettaglio['title']}» eliminata.")
+    return redirect(record_url)
+
+
 @legacy_admin_or_acl_required("tasks", "impostazioni")
 def impostazioni(request):
     """Pagina canonica impostazioni/admin del modulo Task."""
