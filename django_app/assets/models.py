@@ -1735,14 +1735,28 @@ class PlantLayoutMarker(models.Model):
         return self.label or self.asset.asset_tag or f"Marker {self.pk}"
 
 
+# Lunghezza massima del percorso generato per i documenti asset: resta sotto il
+# ``max_length`` del campo ``AssetDocument.file`` (255) lasciando margine al
+# suffisso che Django aggiunge quando il nome esiste gia' (``_a1b2c3d``).
+ASSET_DOCUMENT_PATH_MAX_LENGTH = 200
+
+
 def _asset_document_upload_to(instance, filename: str) -> str:
     asset_tag = instance.asset.asset_tag if instance.asset_id and instance.asset and instance.asset.asset_tag else f"asset-{instance.asset_id or 'tmp'}"
-    category = (instance.category or "SPECIFICHE").lower()
+    asset_tag = str(asset_tag)[:60]
+    category = (instance.category or "SPECIFICHE").lower()[:60]
     suffix = Path(filename or "").suffix.lower()[:20]
     stem = slugify(Path(filename or "").stem)[:80] or "documento"
     stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
     token = uuid.uuid4().hex[:8]
-    return f"assets_documents/{asset_tag}/{category}/{stamp}_{token}_{stem}{suffix}"
+    prefix = f"assets_documents/{asset_tag}/{category}/{stamp}_{token}_"
+    # Le cartelle documento personalizzate hanno slug anche lunghi: senza questo
+    # taglio il percorso supera il max_length del campo e Django, non riuscendo
+    # ad accorciarlo, alza SuspiciousFileOperation (pagina in errore 400).
+    budget = ASSET_DOCUMENT_PATH_MAX_LENGTH - len(prefix) - len(suffix)
+    if budget < len(stem):
+        stem = stem[: max(budget, 0)].rstrip("-") or "doc"
+    return f"{prefix}{stem}{suffix}"
 
 
 class AssetDocument(models.Model):
@@ -1759,7 +1773,11 @@ class AssetDocument(models.Model):
     # Codice della cartella documento: una delle CATEGORY_CHOICES di base oppure
     # lo slug di una AssetCategoryDocumentFolder extra configurata sulla categoria.
     category = models.CharField(max_length=60, choices=CATEGORY_CHOICES, default=CATEGORY_SPECIFICHE, db_index=True)
-    file = models.FileField(upload_to=_asset_document_upload_to, storage=PrivateAssetDocumentStorage())
+    file = models.FileField(
+        upload_to=_asset_document_upload_to,
+        storage=PrivateAssetDocumentStorage(),
+        max_length=255,
+    )
     original_name = models.CharField(max_length=255, blank=True, default="")
     relative_folder = models.CharField(
         max_length=400,
