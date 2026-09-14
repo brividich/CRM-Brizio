@@ -2004,6 +2004,50 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(groups[1]["folder"], "Intervento maggio/Foto")
         self.assertEqual(len(groups[1]["documents"]), 2)
 
+    def test_upload_into_long_named_document_folder(self):
+        """Cartella documento dal nome lungo: l'upload non deve finire in errore 400.
+
+        Il percorso generato per il file contiene lo slug della cartella: se
+        supera il ``max_length`` del campo, Django alza SuspiciousFileOperation
+        e la pagina risponde 400 invece di salvare il documento.
+        """
+        self.client.force_login(self.user)
+        category = AssetCategory.objects.create(code="compressori", label="Compressore", is_active=True)
+        folder = AssetCategoryDocumentFolder.objects.create(
+            category=category,
+            name="Verbali Verifica Funzionamento Valvole di Sicurezza",
+            slug="verbali-verifica-funzionamento-valvole-di-sicurezza",
+            order=1,
+        )
+        asset = Asset.objects.create(
+            name="Compressore verbali",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=category,
+            asset_tag="IAP-COMPR-2006700070PI",
+            reparto="CN5",
+            status=Asset.STATUS_IN_USE,
+        )
+        WorkMachine.objects.create(asset=asset, source_key="detail-long-folder-upload")
+        field_name = asset_views._asset_document_custom_field_name(folder.slug)
+        long_file = SimpleUploadedFile(
+            "verbale verifica funzionamento valvola di sicurezza matr.2006700070PI 160 dal 2007.pdf",
+            b"%PDF-1.4 test",
+            content_type="application/pdf",
+        )
+        with _workspace_temporary_directory("assets-long-folder-upload-") as tmpdir:
+            with override_settings(MEDIA_ROOT=Path(tmpdir)):
+                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                    response = self.client.post(
+                        reverse("assets:asset_view", args=[asset.id]),
+                        {"action": "upload_asset_documents", field_name: long_file},
+                    )
+
+        self.assertEqual(response.status_code, 302)
+        document = AssetDocument.objects.get(asset=asset, category=folder.slug)
+        self.assertTrue(document.file)
+        max_length = AssetDocument._meta.get_field("file").max_length
+        self.assertLessEqual(len(document.file.name), max_length)
+
     def test_document_folder_specs_include_category_extra_folders(self):
         """Le cartelle documento extra della AssetCategory si aggiungono alle 3 di base."""
         category = AssetCategory.objects.create(code="cnc-spec", label="CNC", is_active=True)
