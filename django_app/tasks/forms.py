@@ -1180,6 +1180,7 @@ class KickoffMeetingForm(forms.ModelForm):
         fields = [
             "titolo", "data", "ora", "luogo", "stato",
             "partecipanti_utenti", "partecipanti_email_extra", "partecipanti_testo",
+            "cc_utenti", "cc_email_extra",
             "ordine_del_giorno",
             "sync_outlook", "outlook_organizer_email",
         ]
@@ -1191,6 +1192,10 @@ class KickoffMeetingForm(forms.ModelForm):
             "luogo": forms.TextInput(attrs={"class": "input", "placeholder": "Es. Sala riunioni / Teams"}),
             "partecipanti_utenti": forms.CheckboxSelectMultiple(),
             "partecipanti_email_extra": forms.Textarea(
+                attrs={"class": "input", "rows": 3, "placeholder": "uno@dominio.it\naltra@dominio.it"}
+            ),
+            "cc_utenti": forms.CheckboxSelectMultiple(),
+            "cc_email_extra": forms.Textarea(
                 attrs={"class": "input", "rows": 3, "placeholder": "uno@dominio.it\naltra@dominio.it"}
             ),
             "partecipanti_testo": forms.Textarea(
@@ -1209,6 +1214,9 @@ class KickoffMeetingForm(forms.ModelForm):
         self.fields["partecipanti_utenti"].queryset = task_active_users_queryset()
         self.fields["partecipanti_utenti"].required = False
         self.fields["partecipanti_email_extra"].required = False
+        self.fields["cc_utenti"].queryset = task_active_users_queryset()
+        self.fields["cc_utenti"].required = False
+        self.fields["cc_email_extra"].required = False
         self.fields["partecipanti_testo"].required = False
         self.fields["outlook_organizer_email"].required = False
         # «Svolto» non si sceglie a mano: lo imposta la registrazione dell'esito.
@@ -1305,6 +1313,17 @@ class KickoffMeetingForm(forms.ModelForm):
                 f"Indirizzi non validi (manca @): {', '.join(invalid)}"
             )
         return "\n".join(lines)
+
+    def clean_cc_email_extra(self) -> str:
+        raw = self.cleaned_data.get("cc_email_extra", "")
+        lines = [l.strip() for l in raw.splitlines() if l.strip()]
+        invalid = [l for l in lines if "@" not in l]
+        if invalid:
+            raise forms.ValidationError(
+                f"Indirizzi in copia non validi (manca @): {', '.join(invalid)}"
+            )
+        return "\n".join(lines)
+
 
     def save(self, commit=True):
         instance = super().save(commit=False)

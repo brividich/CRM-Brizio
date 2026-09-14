@@ -119,6 +119,26 @@
           {% if form.partecipanti_email_extra.errors %}<ul class="mf-errorlist">{% for e in form.partecipanti_email_extra.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
         </div>
 
+        {# Destinatari in copia (collassabile): valgono per convocazione e minuta #}
+        <div class="mf-field">
+          <button type="button" class="mf-collapsible-toggle" id="toggle-cc">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+            Destinatari in copia — CC (facoltativo)
+          </button>
+          <div class="mf-collapsible-body" id="cc-body">
+            <div style="margin-top:10px">
+              <div class="mf-user-grid">
+                {{ form.cc_utenti }}
+              </div>
+              {% if form.cc_utenti.errors %}<ul class="mf-errorlist">{% for e in form.cc_utenti.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+              <label class="mf-label" for="{{ form.cc_email_extra.id_for_label }}" style="margin-top:10px">Email in copia (esterni)</label>
+              {{ form.cc_email_extra }}
+              {% if form.cc_email_extra.errors %}<ul class="mf-errorlist">{% for e in form.cc_email_extra.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+              <p class="mf-hint">Un indirizzo per riga. Se lasci tutto vuoto, la copia va a project manager e capo commessa come prima.</p>
+            </div>
+          </div>
+        </div>
+
         {# Note partecipanti (collassabile) #}
         <div class="mf-field" style="margin-bottom:0">
           <button type="button" class="mf-collapsible-toggle" id="toggle-part-note">
@@ -842,7 +862,20 @@
     });
   }
   wireCollapsible('toggle-part-note', 'part-note');
+  wireCollapsible('toggle-cc',        'cc-body');
   wireCollapsible('toggle-odg-note',  'odg-note');
+
+  /* Apri il blocco CC se l'incontro ne ha gia' (edit): un destinatario in copia
+     nascosto in una sezione chiusa e' un destinatario che non si controlla. */
+  (function openCcIfFilled() {
+    const ccExtra = document.querySelector('[name="cc_email_extra"]');
+    const ccChecked = document.querySelector('[name="cc_utenti"]:checked');
+    if (!ccChecked && !(ccExtra && ccExtra.value.trim())) return;
+    const body = document.getElementById('cc-body');
+    const btn  = document.getElementById('toggle-cc');
+    if (body) body.classList.add('open');
+    if (btn)  btn.classList.add('open');
+  })();
 
   /* Apri automaticamente note ODG se il campo ha già contenuto (edit) */
   const odgField = document.querySelector('[name="ordine_del_giorno"]');

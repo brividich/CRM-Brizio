@@ -15,13 +15,6 @@ def _fmt(value, fmt: str) -> str:
     return strftime(fmt) if callable(strftime) else str(value)
 
 
-def _fmt_data(meeting) -> str:
-    parts = [_fmt(meeting.data, "%d/%m/%Y")]
-    if meeting.ora:
-        parts.append(_fmt(meeting.ora, "%H:%M"))
-    return " ".join(p for p in parts if p).strip()
-
-
 def meeting_url(meeting) -> str:
     """URL assoluto del dettaglio incontro sul portale, o '' se SITE_URL non è configurato."""
     from django.conf import settings
@@ -47,7 +40,8 @@ def _facts(meeting) -> list[tuple[str, str]]:
         ("KICK-OFF", str(kickoff)),
         ("Incontro n.", str(meeting.numero)),
         ("Titolo", titolo or "—"),
-        ("Data", _fmt_data(meeting) or "—"),
+        ("Data", _fmt(meeting.data, "%d/%m/%Y") or "—"),
+        ("Ora", _fmt(meeting.ora, "%H:%M") or "—"),
         ("Luogo", (meeting.luogo or "—").strip() or "—"),
         ("Stato", meeting.get_stato_display()),
     ]
@@ -276,7 +270,13 @@ def build_invite_email(meeting) -> tuple[str, str, str]:
     """Compone la CONVOCAZIONE (ordine del giorno, prima dell'incontro), senza verbale."""
     kickoff = getattr(meeting.project, "kickoff_number", "") or ""
     titolo = (meeting.titolo or "").strip()
-    subject = f"Convocazione incontro — KICK-OFF {kickoff}"
+    # Il cliente in oggetto: chi riceve la convocazione riconosce la commessa
+    # dalla lista dei messaggi, senza aprire la mail. Manca il cliente -> si salta.
+    cliente = (getattr(meeting.project, "client_name", "") or "").strip()
+    commessa = f"KICK-OFF {kickoff}"
+    if cliente:
+        commessa = f"{cliente} · {commessa}"
+    subject = f"Convocazione incontro — {commessa}"
     if titolo:
         subject += f": {titolo}"
 
@@ -412,8 +412,19 @@ def build_meeting_ics(meeting) -> bytes:
 
 
 def _cc_management(meeting, exclude: list[str]) -> list[str]:
-    """Email di PM e capo commessa del progetto, escludendo chi è già destinatario."""
+    """Destinatari in copia, escludendo chi è già destinatario diretto.
+
+    Se la convocazione indica dei CC espliciti valgono quelli e solo quelli: la
+    scelta fatta nel form è un'istruzione, non un suggerimento. Senza CC scelti
+    a mano resta il comportamento storico, cioè PM e capo commessa del progetto.
+    """
     cc: list[str] = []
+    scelti = meeting.get_all_cc_emails() if hasattr(meeting, "get_all_cc_emails") else []
+    if scelti:
+        for email in scelti:
+            if email not in exclude and email not in cc:
+                cc.append(email)
+        return cc
     project = meeting.project
     for user in project.team_members("project_managers") + project.team_members("capi_commessa"):
         email = (getattr(user, "email", "") or "").strip()
