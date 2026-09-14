@@ -1171,7 +1171,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             <tr id="contr-row-{{ c.pk }}"{% if c.is_in_corso %} class="dp-contr-incorso"{% endif %}>
               <td style="white-space:nowrap;">
                 {{ c.data_inizio|date:"d-m-Y" }} –
-                {% if c.data_fine %}{{ c.data_fine|date:"d-m-Y" }}{% else %}<strong>in corso</strong>{% endif %}
+                {% if c.data_fine %}{{ c.data_fine|date:"d-m-Y" }}{% if c.is_in_corso %} · <strong>in corso</strong>{% endif %}{% elif c.is_programmato %}<strong>programmato</strong>{% else %}<strong>in corso</strong>{% endif %}
               </td>
               <td>{{ c.tipologia_nome|default:"—" }}</td>
               <td>

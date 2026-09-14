@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **Anagrafica / Contratto e retribuzione — «in corso» sulla riga valida oggi, non sull'ultima inserita** (`django_app/anagrafica/models.py`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/tests.py`): `StoricoContratto.is_in_corso` valeva `data_fine is None`, quindi un rinnovo caricato in anticipo (es. indeterminato dal 16/09 con il determinato che scade il 15/09) si prendeva etichetta ed evidenziazione verde, mentre il contratto effettivamente in vigore restava anonimo. Ora `is_in_corso` è vero quando il periodo contiene la data odierna, e nuova `is_programmato` per la decorrenza futura. Nel tab la riga valida oggi mostra `inizio – fine · in corso` in evidenza, la riga futura senza fine mostra `inizio – programmato`. Nessuna migrazione.
+
 ### Added
 
 - **KICK-OFF · dalla scheda Record si cancella, ma solo dicendo perché** (`django_app/tasks/views.py`, `django_app/tasks/urls.py`, `django_app/tasks/templates/tasks/impostazioni/_tab_record.html`, `django_app/tasks/tests.py`). *Impostazioni → Record* elencava kickoff e attività senza alcun modo di rimuoverli: una commessa aperta per errore o un'attività doppia restavano negli elenchi per sempre, o si cancellavano dal database a mano. Ora ogni riga ha **Elimina**, che apre nella riga stessa — non in un modale che nasconderebbe il record da eliminare — un riquadro con la **motivazione obbligatoria**: senza testo la richiesta viene respinta con un messaggio e **non cancella niente**. La motivazione finisce nell'audit (`kickoff_project_delete`, `kickoff_task_delete`) insieme a nome, cliente, numero KICK-OFF e ai **conteggi di quello che il cascade porta via** — letti prima della cancellazione, perché dopo non ci sarebbe più modo di dirlo. Le rotte sono `POST`-only e dietro lo stesso permesso della pagina impostazioni (`legacy_admin_or_acl_required("tasks", "impostazioni")`): chi vede gli elenchi ma non amministra il modulo non può cancellare.
