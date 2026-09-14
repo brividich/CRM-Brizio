@@ -604,6 +604,33 @@ class TaskImpostazioni(models.Model):
         ),
     )
 
+    cc_predefiniti_utenti = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="kickoff_cc_predefinito",
+        verbose_name="CC predefiniti (portale)",
+        help_text="Ricevono in copia convocazioni e minute quando l'incontro non indica dei CC propri.",
+    )
+    cc_predefinite_email = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="CC predefiniti (email)",
+        help_text="Un indirizzo per riga, per chi non e' un utente del portale.",
+    )
+
+    def get_cc_predefiniti(self) -> list[str]:
+        """Indirizzi in copia di default (utenti portale + email libere)."""
+        emails: list[str] = []
+        for user in self.cc_predefiniti_utenti.all():
+            email = (getattr(user, "email", "") or "").strip()
+            if email and email not in emails:
+                emails.append(email)
+        for line in (self.cc_predefinite_email or "").splitlines():
+            email = line.strip()
+            if email and "@" in email and email not in emails:
+                emails.append(email)
+        return emails
+
     class Meta:
         verbose_name = "Impostazioni KICK-OFF"
         verbose_name_plural = "Impostazioni KICK-OFF"

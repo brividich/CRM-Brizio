@@ -64,6 +64,21 @@ from .models import (
 )
 
 
+def etichetta_utente(user) -> str:
+    """Etichetta leggibile di un utente: «Nome Cognome - email».
+
+    Lo `str()` di User e' lo username, che nel portale e' a volte un'email
+    legacy e a volte una sigla (`g.arieti`): gli elenchi di checkbox risultavano
+    illeggibili e incoerenti riga per riga. Qui il nome viene prima e l'email
+    dopo; i pezzi mancanti si saltano invece di lasciare separatori vuoti.
+    """
+    nome = (user.get_full_name() or "").strip()
+    email = (getattr(user, "email", "") or "").strip()
+    if nome and email and nome.lower() != email.lower():
+        return f"{nome} - {email}"
+    return nome or email or user.get_username()
+
+
 def task_active_users_queryset():
     """Utenti Django assegnabili nei task, allineati agli utenti portale attivi.
 
@@ -1211,11 +1226,13 @@ class KickoffMeetingForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         import json
         super().__init__(*args, **kwargs)
-        self.fields["partecipanti_utenti"].queryset = task_active_users_queryset()
-        self.fields["partecipanti_utenti"].required = False
+        utenti = task_active_users_queryset()
+        for nome_campo in ("partecipanti_utenti", "cc_utenti"):
+            campo = self.fields[nome_campo]
+            campo.queryset = utenti
+            campo.required = False
+            campo.label_from_instance = etichetta_utente
         self.fields["partecipanti_email_extra"].required = False
-        self.fields["cc_utenti"].queryset = task_active_users_queryset()
-        self.fields["cc_utenti"].required = False
         self.fields["cc_email_extra"].required = False
         self.fields["partecipanti_testo"].required = False
         self.fields["outlook_organizer_email"].required = False

@@ -62,6 +62,7 @@ from .forms import (
     TaskForm,
     TaskStartDateForm,
     TaskStatusForm,
+    etichetta_utente,
     task_active_users_queryset,
 )
 from .models import (
@@ -356,6 +357,15 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         "in_progress_count": tasks_by_status_raw.get(TaskStatus.IN_PROGRESS, 0),
         "done_count": tasks_by_status_raw.get(TaskStatus.DONE, 0),
     }
+
+    if tab == "config":
+        cfg_cc = TaskImpostazioni.get_singleton()
+        scelti = set(cfg_cc.cc_predefiniti_utenti.values_list("pk", flat=True))
+        context["cc_predefiniti_ids"] = scelti
+        context["cc_utenti_disponibili"] = [
+            {"pk": utente.pk, "etichetta": etichetta_utente(utente)}
+            for utente in task_active_users_queryset()
+        ]
 
     if tab == "riepilogo":
         context["tasks_by_status"] = [
@@ -5628,7 +5638,15 @@ def impostazioni(request):
         cfg.vrf_blocking_days = _coerce_positive_int(request.POST.get("vrf_blocking_days"), default=30)
         cfg.asset_conflict_check_enabled = bool(request.POST.get("asset_conflict_check_enabled"))
         cfg.asset_conflict_block = bool(request.POST.get("asset_conflict_block"))
+        cfg.cc_predefinite_email = "\n".join(
+            riga.strip()
+            for riga in request.POST.get("cc_predefinite_email", "").splitlines()
+            if riga.strip() and "@" in riga
+        )
         cfg.save()
+        cfg.cc_predefiniti_utenti.set(
+            task_active_users_queryset().filter(pk__in=request.POST.getlist("cc_predefiniti_utenti"))
+        )
         log_action(request, "modifica", "tasks", {"message": "Aggiornate impostazioni KICK-OFF"})
         messages.success(request, "Impostazioni salvate.")
         return redirect(config_url)
@@ -6996,6 +7014,7 @@ def project_meeting_create(request, project_id: int):
     project_tasks = _project_tasks_for_picker(project)
     meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
     active_users = task_active_users_queryset()
+    cc_predefiniti = TaskImpostazioni.get_singleton().get_cc_predefiniti()
     previous_agenda = _previous_meeting_agenda(project)
     return render(
         request,
@@ -7013,6 +7032,7 @@ def project_meeting_create(request, project_id: int):
             "meeting_rooms_json": meeting_rooms,
             "carried_issues": meeting_issues,
             "active_users": active_users,
+            "cc_predefiniti": cc_predefiniti,
             "agenda_templates": list(MeetingAgendaTemplate.objects.filter(is_active=True)),
             "agenda_templates_json": _agenda_templates_payload(),
             "previous_agenda_json": previous_agenda,
@@ -7089,6 +7109,7 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
     project_tasks = _project_tasks_for_picker(project)
     meeting_rooms = list(MeetingRoom.objects.values_list("nome", flat=True))
     active_users = task_active_users_queryset()
+    cc_predefiniti = TaskImpostazioni.get_singleton().get_cc_predefiniti()
     previous_agenda = _previous_meeting_agenda(project, exclude_meeting_id=meeting.pk)
     return render(
         request,
@@ -7107,6 +7128,7 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
             "meeting_rooms_json": meeting_rooms,
             "carried_issues": _open_meeting_issues_for_project(project),
             "active_users": active_users,
+            "cc_predefiniti": cc_predefiniti,
             "agenda_templates": list(MeetingAgendaTemplate.objects.filter(is_active=True)),
             "agenda_templates_json": _agenda_templates_payload(),
             "previous_agenda_json": previous_agenda,
