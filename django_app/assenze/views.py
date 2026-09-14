@@ -1823,6 +1823,42 @@ def _find_assenza_id_by_sp_id(sp_id: str) -> int | None:
     return _as_int(rows[0].get("id")) if rows else None
 
 
+def _sync_name_key(value) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip()).upper()
+
+
+def _find_duplicate_assenza_id(payload: dict) -> int | None:
+    """Richiesta gia' presente sul portale con la stessa chiave dell'import Excel.
+
+    Chiave: (nominativo, giorno di inizio, giorno di fine). Serve a scartare gli
+    elementi SharePoint non ancora collegati che il portale ha gia' registrato
+    (import da file, o creati dal portale con collegamento mai salvato).
+    """
+    dt_start = payload.get("data_inizio")
+    dt_end = payload.get("data_fine")
+    name_key = _sync_name_key(payload.get("copia_nome"))
+    if not isinstance(dt_start, datetime) or not isinstance(dt_end, datetime) or not name_key:
+        return None
+    day_start = dt_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = _fetch_all_dict(
+        "SELECT id, copia_nome, data_fine FROM assenze WHERE data_inizio >= %s AND data_inizio < %s",
+        [day_start, day_start + timedelta(days=1)],
+    )
+    for row in sorted(rows, key=lambda r: _as_int(r.get("id")) or 0):
+        row_end = row.get("data_fine")
+        if isinstance(row_end, str):
+            row_end = _parse_input_dt(row_end)
+        if isinstance(row_end, datetime) and timezone.is_aware(row_end):
+            row_end = timezone.localtime(row_end).replace(tzinfo=None)
+        if (
+            isinstance(row_end, datetime)
+            and row_end.date() == dt_end.date()
+            and _sync_name_key(row.get("copia_nome")) == name_key
+        ):
+            return _as_int(row.get("id"))
+    return None
+
+
 def _apply_sp_item_to_local(item: dict, row_id: int | None, *, assenze_cols, has_dip: bool, has_capi: bool) -> str:
     """Scrive un elemento SharePoint nella tabella locale. Ritorna 'inserted'/'updated'/'skipped'."""
     sp_id, payload = _sp_item_to_local(item)
@@ -1887,7 +1923,7 @@ def _sync_pull_from_sharepoint() -> dict:
     assenze_cols = legacy_table_columns("assenze")
     has_dip = _table_exists("dipendenti")
     has_capi = _table_exists("capi_reparto")
-    totals = {"inserted": 0, "updated": 0, "deleted": 0, "skipped_pending": 0, "failed": 0}
+    totals = {"inserted": 0, "updated": 0, "deleted": 0, "skipped_pending": 0, "discarded": 0, "failed": 0}
 
     for sp_id, item in latest.items():
         try:
@@ -1903,6 +1939,18 @@ def _sync_pull_from_sharepoint() -> dict:
             if not item.get("fields"):
                 item = _graph_get_item(sp_id)
                 if not item:
+                    continue
+            if row_id is None:
+                # Elemento SharePoint mai collegato: se il portale ha gia' la stessa
+                # richiesta lo si scarta, senza unirlo ne' duplicarlo.
+                _sp_id, payload = _sp_item_to_local(item)
+                duplicate_id = _find_duplicate_assenza_id(payload)
+                if duplicate_id is not None:
+                    totals["discarded"] += 1
+                    logger.info(
+                        "[assenze:sp_pull] item SharePoint %s scartato: richiesta gia' presente (assenza %s)",
+                        sp_id, duplicate_id,
+                    )
                     continue
             with transaction.atomic():
                 outcome = _apply_sp_item_to_local(

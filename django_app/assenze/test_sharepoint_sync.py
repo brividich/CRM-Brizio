@@ -130,9 +130,10 @@ class DeltaPullTests(TestCase):
     def setUp(self):
         cache.clear()
 
-    def _run(self, items, local_ids, *, apply_result="updated"):
+    def _run(self, items, local_ids, *, apply_result="updated", duplicate_id=None):
         with patch("assenze.views._graph_delta_changes", return_value=(items, "https://graph.example/delta?token=B")), \
                 patch("assenze.views._find_assenza_id_by_sp_id", side_effect=lambda sp_id: local_ids.get(sp_id)), \
+                patch("assenze.views._find_duplicate_assenza_id", return_value=duplicate_id), \
                 patch("assenze.views._apply_sp_item_to_local", return_value=apply_result) as mock_apply, \
                 patch("assenze.views._delete_assenza", return_value=True) as mock_delete, \
                 patch("assenze.views._graph_get_item", return_value=None):
@@ -151,12 +152,32 @@ class DeltaPullTests(TestCase):
 
         self.assertEqual(
             result["totals"],
-            {"inserted": 1, "updated": 0, "deleted": 1, "skipped_pending": 1, "failed": 0},
+            {"inserted": 1, "updated": 0, "deleted": 1, "skipped_pending": 1, "discarded": 0, "failed": 0},
         )
         mock_delete.assert_called_once_with(20)
         mock_apply.assert_called_once()
         self.assertIsNone(mock_apply.call_args.args[1])
         self.assertEqual(cache.get(views._SP_DELTA_LINK_KEY), "https://graph.example/delta?token=B")
+
+    def test_unlinked_item_already_on_portal_is_discarded_not_merged(self, *_):
+        items = [{"id": "4", "fields": {"CopiaNome": "Mario Rossi", "Data_x0020_inizio": "2026-09-14T06:00:00Z"}}]
+
+        result, mock_apply, mock_delete = self._run(items, {}, duplicate_id=77)
+
+        self.assertEqual(result["totals"]["discarded"], 1)
+        mock_apply.assert_not_called()
+        mock_delete.assert_not_called()
+
+    def test_linked_item_is_updated_even_if_it_matches_the_key(self, *_):
+        items = [{"id": "5", "fields": {"Consenso": "Approvato"}}]
+
+        # La chiave coinciderebbe (duplicate_id=77), ma l'elemento e' gia' collegato:
+        # si aggiorna il record collegato invece di scartarlo.
+        result, mock_apply, _delete = self._run(items, {"5": 50}, duplicate_id=77)
+
+        self.assertEqual(result["totals"]["updated"], 1)
+        self.assertEqual(result["totals"]["discarded"], 0)
+        self.assertEqual(mock_apply.call_args.args[1], 50)
 
     def test_pending_local_record_is_not_deleted_by_sharepoint(self, *_):
         Outbox.objects.create(assenza_id=20)
@@ -183,6 +204,44 @@ class DeltaPullTests(TestCase):
 
         self.assertFalse(result["ok"])
         self.assertEqual(cache.get(views._SP_DELTA_LINK_KEY), "https://graph.example/delta?token=A")
+
+
+class DuplicateKeyTests(TestCase):
+    """Chiave dell'import Excel: nominativo + giorno di inizio + giorno di fine."""
+
+    def _payload(self, **over):
+        from datetime import datetime
+
+        data = {"copia_nome": "  mario   rossi ", "data_inizio": datetime(2026, 9, 14, 8, 0), "data_fine": datetime(2026, 9, 15, 17, 0)}
+        data.update(over)
+        return data
+
+    @patch("assenze.views._fetch_all_dict")
+    def test_same_person_same_days_different_hours_is_a_duplicate(self, mock_fetch):
+        from datetime import datetime
+
+        mock_fetch.return_value = [{"id": 9, "copia_nome": "MARIO ROSSI", "data_fine": datetime(2026, 9, 15, 12, 0)}]
+
+        self.assertEqual(views._find_duplicate_assenza_id(self._payload()), 9)
+        day_start, day_end = mock_fetch.call_args.args[1]
+        self.assertEqual((day_start, day_end), (datetime(2026, 9, 14), datetime(2026, 9, 15)))
+
+    @patch("assenze.views._fetch_all_dict")
+    def test_other_person_or_other_end_day_is_not_a_duplicate(self, mock_fetch):
+        from datetime import datetime
+
+        mock_fetch.return_value = [
+            {"id": 9, "copia_nome": "Luigi Verdi", "data_fine": datetime(2026, 9, 15, 17, 0)},
+            {"id": 10, "copia_nome": "Mario Rossi", "data_fine": datetime(2026, 9, 16, 17, 0)},
+        ]
+
+        self.assertIsNone(views._find_duplicate_assenza_id(self._payload()))
+
+    @patch("assenze.views._fetch_all_dict")
+    def test_missing_dates_or_name_never_match(self, mock_fetch):
+        self.assertIsNone(views._find_duplicate_assenza_id(self._payload(data_inizio=None)))
+        self.assertIsNone(views._find_duplicate_assenza_id(self._payload(copia_nome="")))
+        mock_fetch.assert_not_called()
 
 
 @patch("assenze.views._graph_headers", return_value={})
