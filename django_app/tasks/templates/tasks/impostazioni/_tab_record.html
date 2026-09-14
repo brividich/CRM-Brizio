@@ -28,7 +28,17 @@
               <td>{{ p.client_name|default:"-" }}</td>
               <td>{{ p.team_display_pm|default:"-" }}</td>
               <td>{{ p.created_at|date:"d-m-Y" }}</td>
-              <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' p.id %}">Gantt</a></td>
+              <td class="ts-row-actions">
+                <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' p.id %}">Gantt</a>
+                <button type="button" class="btn btn-danger btn-sm js-del-toggle" data-target="del-proj-{{ p.id }}">Elimina</button>
+                <form method="post" action="{% url 'tasks:impostazioni_kickoff_delete' p.id %}" class="ts-del-box" id="del-proj-{{ p.id }}" hidden>
+                  {% csrf_token %}
+                  <p class="ts-del-warn">Elimina il kickoff <strong>{{ p.name }}</strong> con tutte le attivita', gli incontri e i documenti collegati. Non si torna indietro.</p>
+                  <textarea name="motivo" rows="2" class="input" maxlength="500" required
+                            placeholder="Motivazione (obbligatoria)"></textarea>
+                  <button type="submit" class="btn btn-danger btn-sm">Conferma eliminazione</button>
+                </form>
+              </td>
             </tr>
           {% empty %}
             <tr><td colspan="5">Nessun kickoff trovato.</td></tr>
@@ -87,7 +97,17 @@
               <td><span class="ts-badge ts-badge--{{ t.priority|lower }}">{{ t.get_priority_display }}</span></td>
               <td>{{ t.assigned_to.username|default:"-" }}</td>
               <td>{% if t.due_date %}{{ t.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
-              <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:detail' t.id %}">Apri</a></td>
+              <td class="ts-row-actions">
+                <a class="btn btn-secondary btn-sm" href="{% url 'tasks:detail' t.id %}">Apri</a>
+                <button type="button" class="btn btn-danger btn-sm js-del-toggle" data-target="del-task-{{ t.id }}">Elimina</button>
+                <form method="post" action="{% url 'tasks:impostazioni_task_delete' t.id %}" class="ts-del-box" id="del-task-{{ t.id }}" hidden>
+                  {% csrf_token %}
+                  <p class="ts-del-warn">Elimina l'attivita' <strong>{{ t.title }}</strong> e le sue sotto-attivita'. Non si torna indietro.</p>
+                  <textarea name="motivo" rows="2" class="input" maxlength="500" required
+                            placeholder="Motivazione (obbligatoria)"></textarea>
+                  <button type="submit" class="btn btn-danger btn-sm">Conferma eliminazione</button>
+                </form>
+              </td>
             </tr>
           {% empty %}
             <tr><td colspan="7">Nessuna attivita trovata.</td></tr>
@@ -105,3 +125,24 @@
     {% endif %}
   </div>
 </section>
+
+<style>
+  /* Il riquadro di cancellazione sta dentro la riga: la motivazione si scrive
+     dove si e' premuto, senza un modale che nasconda il record da eliminare. */
+  .ts-row-actions { white-space: nowrap; }
+  .ts-del-box { display: block; margin-top: 8px; min-width: 260px; white-space: normal; }
+  .ts-del-box textarea { width: 100%; margin-bottom: 6px; }
+  .ts-del-warn { margin: 0 0 6px; font-size: 12px; color: var(--text-light, #64748b); }
+</style>
+<script>
+  (function () {
+    document.querySelectorAll('.js-del-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const box = document.getElementById(btn.dataset.target);
+        if (!box) return;
+        box.hidden = !box.hidden;
+        if (!box.hidden) { const ta = box.querySelector('textarea'); if (ta) ta.focus(); }
+      });
+    });
+  })();
+</script>
