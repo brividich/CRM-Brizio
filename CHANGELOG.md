@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+---
+
+## 1.5.1 - 2026-09-14
+
 ### Fixed
 
 - **Assets · il caricamento in una cartella documento dal nome lungo rispondeva «Bad Request (400)»** (`django_app/assets/models.py`, `django_app/assets/migrations/0105_assetdocument_file_max_length.py`, `django_app/assets/tests.py`). Il percorso con cui il file viene archiviato contiene lo slug della cartella documento: con una cartella come «Verbali Verifica Funzionamento Valvole di Sicurezza» le sole cartelle superavano da sole i 100 caratteri di `max_length` del campo `AssetDocument.file`. Django prova ad accorciare il nome del file per rientrare nel limite, non ci riesce perché non resta niente da tagliare, e alza `SuspiciousFileOperation`: la scheda asset rispondeva con la pagina bianca di errore 400 e il documento non veniva salvato. Due correzioni: il campo passa a `max_length=255` (migration `0105`, solo `ALTER` di colonna, nessun dato toccato) e il percorso viene ora costruito **a budget** — tag asset e cartella tagliati a 60 caratteri, nome del file accorciato quel tanto che basta perché il totale resti entro 200 caratteri, con margine per il suffisso che Django aggiunge quando un nome esiste già. Le tre cartelle di base (Specifiche, Interventi, Manuali) non erano interessate: solo le cartelle personalizzate hanno slug abbastanza lunghi da sfondare il limite. I documenti già archiviati mantengono il loro percorso.
