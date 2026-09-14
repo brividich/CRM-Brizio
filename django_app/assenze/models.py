@@ -75,3 +75,35 @@ class CertificazionePresenza(models.Model):
     @property
     def ore_totali(self):
         return round((self.ore_mattina or 0) + (self.ore_pomeriggio or 0), 2)
+
+
+class AssenzaSharePointOutbox(models.Model):
+    """Coda delle modifiche locali alle assenze ancora da inviare a SharePoint.
+
+    Una riga per record della tabella legacy ``assenze``: le modifiche successive
+    aggiornano la stessa riga e ne incrementano ``versione``. Il job periodico
+    elimina la riga solo se la versione non e' cambiata durante l'invio, cosi' una
+    modifica arrivata a meta' invio non va persa. Finche' la riga esiste, la
+    lettura da SharePoint non sovrascrive il record locale.
+    """
+
+    AZIONE_UPSERT = "upsert"
+    AZIONE_DELETE = "delete"
+    AZIONE_CHOICES = [(AZIONE_UPSERT, "Crea/aggiorna"), (AZIONE_DELETE, "Elimina")]
+
+    assenza_id = models.IntegerField(unique=True)
+    azione = models.CharField(max_length=10, choices=AZIONE_CHOICES, default=AZIONE_UPSERT)
+    # Valorizzato per le eliminazioni: il record locale non esiste piu'.
+    sharepoint_item_id = models.CharField(max_length=64, blank=True, default="")
+    versione = models.PositiveIntegerField(default=1)
+    tentativi = models.PositiveIntegerField(default=0)
+    ultimo_errore = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Assenza da inviare a SharePoint"
+        verbose_name_plural = "Assenze da inviare a SharePoint"
+
+    def __str__(self):
+        return f"{self.azione} assenza {self.assenza_id} (v{self.versione})"

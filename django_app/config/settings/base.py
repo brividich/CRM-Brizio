@@ -165,7 +165,8 @@ ACL_LOG_LEGACY_FALLBACK = env_bool("ACL_LOG_LEGACY_FALLBACK", True)
 # sicurezza finche' la migrazione canonica non e' definitivamente chiusa.
 ACL_LEGACY_PERMESSI_UI_ENABLED = env_bool("ACL_LEGACY_PERMESSI_UI_ENABLED", False)
 ASSENZE_SP_PULL_INTERVAL_SECONDS = int(env("ASSENZE_SP_PULL_INTERVAL_SECONDS", "300") or "300")
-ASSENZE_SYNC_ON_PAGE_LOAD = env_bool("ASSENZE_SYNC_ON_PAGE_LOAD", True)
+# ASSENZE_SYNC_ON_PAGE_LOAD non esiste piu': le pagine assenze non chiamano Graph,
+# la sincronizzazione SharePoint gira nel job django-q "assenze_sharepoint_sync".
 ASSENZE_CALENDAR_MAX_EVENTS = int(env("ASSENZE_CALENDAR_MAX_EVENTS", "1500") or "1500")
 ANOMALIE_SP_FOLDER_URL = env("ANOMALIE_SP_FOLDER_URL", "#")
 # Reparto (DipendenteAnagraficaAziendale.area) i cui dipendenti sono, di fatto,

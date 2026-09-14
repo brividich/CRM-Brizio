@@ -44,10 +44,12 @@ logger = logging.getLogger(__name__)
 _SYNC_PULL_LOCK_KEY = "assenze:sync_pull:lock"
 _SYNC_PULL_LAST_TS_KEY = "assenze:sync_pull:last_ts"
 _SYNC_PULL_LOCK_TTL = 120
-_PENDING_RECONCILE_LOCK_KEY = "assenze:pending_reconcile:lock"
-_PENDING_RECONCILE_LAST_TS_KEY = "assenze:pending_reconcile:last_ts"
-_PENDING_RECONCILE_LOCK_TTL = 120
-_PENDING_RECONCILE_INTERVAL_SECONDS = 60
+_SP_DELTA_LINK_KEY = "assenze:sp_delta_link"
+_SP_PUSH_LOCK_KEY = "assenze:sp_push:lock"
+_SP_PUSH_LOCK_TTL = 300
+_SP_PUSH_BATCH = 50
+_SP_MOTIVAZIONI_CACHE_KEY = "assenze:sp_motivazioni"
+_SP_MOTIVAZIONI_CACHE_TTL = 2 * 60 * 60
 
 _COLOR_CACHE_KEY_GLOBAL = "assenze:colors:global:v1"
 _COLOR_CACHE_KEY_USER_PREFIX = "assenze:colors:user:v1:"
@@ -127,17 +129,27 @@ def _graph_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {_graph_token()}", "Content-Type": "application/json"}
 
 
-def _graph_get_all() -> list[dict]:
-    url = f"{_graph_base_url()}?expand=fields&$top=500"
-    rows: list[dict] = []
+def _graph_delta_changes(delta_link: str | None) -> tuple[list[dict], str]:
+    """Elementi della lista cambiati dopo ``delta_link`` (tutti, se assente).
+
+    Ritorna (elementi, nuovo deltaLink). Se il token non e' piu' valido Graph
+    risponde 410: si riparte da un'enumerazione completa.
+    """
+    url = delta_link or f"{_graph_base_url()}/delta?$expand=fields"
+    items: list[dict] = []
+    new_link = ""
     while url:
         r = requests.get(url, headers=_graph_headers(), timeout=25)
+        if r.status_code == 410 and delta_link:
+            logger.warning("[assenze:sp_delta] token delta scaduto, enumerazione completa")
+            return _graph_delta_changes(None)
         if r.status_code != 200:
-            raise RuntimeError(f"Graph GET {r.status_code}: {r.text[:300]}")
+            raise RuntimeError(f"Graph delta {r.status_code}: {r.text[:300]}")
         payload = r.json()
-        rows.extend(payload.get("value", []) or [])
+        items.extend(payload.get("value", []) or [])
+        new_link = payload.get("@odata.deltaLink") or new_link
         url = payload.get("@odata.nextLink")
-    return rows
+    return items, new_link
 
 
 def _graph_create(fields_payload: dict) -> tuple[bool, dict | str]:
@@ -1445,6 +1457,16 @@ def _sync_push(limit_rows: int = 30, include_updates: bool = False) -> dict:
         return {"ok": False, "error": "Tabella assenze non disponibile"}
     if not _graph_configured():
         return {"ok": False, "error": "SharePoint non configurato"}
+    # Stesso lock della coda: due invii paralleli creerebbero l'elemento due volte.
+    if not cache.add(_SP_PUSH_LOCK_KEY, "1", timeout=_SP_PUSH_LOCK_TTL):
+        return {"ok": False, "error": "Invio a SharePoint gia' in corso, riprova tra poco"}
+    try:
+        return _sync_push_locked(limit_rows=limit_rows, include_updates=include_updates)
+    finally:
+        cache.delete(_SP_PUSH_LOCK_KEY)
+
+
+def _sync_push_locked(limit_rows: int, include_updates: bool) -> dict:
 
     limit_rows = max(1, min(int(limit_rows or 30), 300))
     where_sql = "1=1" if include_updates else f"{_blank_expr('sharepoint_item_id')} IS NULL"
@@ -1653,138 +1675,255 @@ def _build_sharepoint_sync_diagnostics(item_ids: list[int], limit: int = 12) -> 
     return result
 
 
-def _reconcile_pending_item_ids_with_sharepoint(item_ids: list[int], *, force: bool = False) -> dict:
-    if not item_ids:
-        return {"ok": True, "skipped": True, "reason": "empty", "checked": 0, "updated": 0}
+# ─────────────────────────────────────────────────────────────────────────────
+# Sincronizzazione SharePoint in background
+#
+# Nessuna chiamata Graph durante il caricamento delle pagine. Le modifiche locali
+# entrano nella coda AssenzaSharePointOutbox; il job django-q
+# "assenze_sharepoint_sync" (ogni 5 minuti) prima svuota la coda verso
+# SharePoint, poi legge solo gli elementi cambiati (delta query). Un record con
+# modifiche ancora in coda non viene sovrascritto dalla lettura: vince la
+# modifica locale non ancora inviata.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _sp_kick_push() -> None:
+    """Chiede al cluster un invio immediato, a transazione confermata.
+
+    Best-effort: se l'accodamento fallisce la coda la svuota il giro periodico.
+    """
+
+    def _enqueue():
+        try:
+            from django_q.tasks import async_task
+
+            async_task("assenze.tasks.run_assenze_sharepoint_push")
+        except Exception:
+            logger.warning("[assenze:sp_push] invio immediato non accodato, provvede il job periodico", exc_info=True)
+
+    transaction.on_commit(_enqueue)
+
+
+def _sp_enqueue_upsert(item_id) -> dict:
+    """Mette in coda l'invio a SharePoint di un record creato o modificato."""
+    from django.db import IntegrityError
+    from django.db.models import F
+
+    from .models import AssenzaSharePointOutbox as Outbox
+
+    local_id = _as_int(item_id)
+    if local_id is None or not _graph_configured():
+        return {"ok": False, "reason": "not_configured"}
+
+    bump = {"azione": Outbox.AZIONE_UPSERT, "versione": F("versione") + 1, "updated_at": timezone.now()}
+    if not Outbox.objects.filter(assenza_id=local_id).update(**bump):
+        try:
+            with transaction.atomic():
+                Outbox.objects.create(assenza_id=local_id, azione=Outbox.AZIONE_UPSERT)
+        except IntegrityError:
+            # Accodato in parallelo da un'altra richiesta: basta alzare la versione.
+            Outbox.objects.filter(assenza_id=local_id).update(**bump)
+    _sp_kick_push()
+    return {"ok": True, "queued": True}
+
+
+def _sp_enqueue_delete(item_id, sharepoint_item_id) -> dict:
+    """Mette in coda l'eliminazione su SharePoint di un record cancellato in locale.
+
+    Va chiamata PRIMA di cancellare il record: se un invio di creazione e' in
+    corso, la riga di coda raccoglie l'id SharePoint appena creato e il giro
+    successivo lo elimina.
+    """
+    from django.db.models import F
+
+    from .models import AssenzaSharePointOutbox as Outbox
+
+    local_id = _as_int(item_id)
+    sp_id = str(sharepoint_item_id or "").strip()
+    if local_id is None or not _graph_configured():
+        return {"ok": False, "reason": "not_configured"}
+
+    updated = Outbox.objects.filter(assenza_id=local_id).update(
+        azione=Outbox.AZIONE_DELETE,
+        sharepoint_item_id=sp_id,
+        versione=F("versione") + 1,
+        updated_at=timezone.now(),
+    )
+    if not updated:
+        if not sp_id:
+            # Mai arrivato su SharePoint e nessun invio in coda: nulla da fare.
+            return {"ok": True, "queued": False}
+        Outbox.objects.create(assenza_id=local_id, azione=Outbox.AZIONE_DELETE, sharepoint_item_id=sp_id)
+    _sp_kick_push()
+    return {"ok": True, "queued": True}
+
+
+def _sp_push_outbox(limit: int = _SP_PUSH_BATCH) -> dict:
+    """Svuota la coda verso SharePoint. Un solo invio alla volta (lock in cache)."""
+    from django.db.models import F
+
+    from .models import AssenzaSharePointOutbox as Outbox
+
     if not _graph_configured():
-        return {"ok": False, "skipped": True, "reason": "not_configured", "checked": 0, "updated": 0}
+        return {"ok": False, "skipped": True, "reason": "not_configured"}
+    if not cache.add(_SP_PUSH_LOCK_KEY, "1", timeout=_SP_PUSH_LOCK_TTL):
+        return {"ok": True, "skipped": True, "reason": "busy"}
 
-    now_ts = int(time.time())
-    last_ts = int(cache.get(_PENDING_RECONCILE_LAST_TS_KEY) or 0)
-    if not force and last_ts and (now_ts - last_ts) < _PENDING_RECONCILE_INTERVAL_SECONDS:
-        return {"ok": True, "skipped": True, "reason": "throttled", "checked": 0, "updated": 0}
-
-    if not cache.add(_PENDING_RECONCILE_LOCK_KEY, "1", timeout=_PENDING_RECONCILE_LOCK_TTL):
-        return {"ok": True, "skipped": True, "reason": "busy", "checked": 0, "updated": 0}
-
-    checked = 0
-    updated = 0
+    totals = {"created": 0, "updated": 0, "deleted": 0, "dropped": 0, "failed": 0}
     try:
-        seen: set[int] = set()
-        for raw_id in item_ids:
-            item_id = _as_int(raw_id)
-            if item_id is None or item_id in seen:
-                continue
-            seen.add(item_id)
-
-            current = _get_assenza(item_id)
-            if not current:
-                continue
-            local_status, _local_label = _effective_status(
-                current.get("consenso"),
-                current.get("moderation_status"),
-                default_pending=True,
-            )
-            if local_status != 2:
-                continue
-
-            sp_id = str(current.get("sharepoint_item_id") or "").strip()
-            if not sp_id:
-                continue
-
+        entries = list(Outbox.objects.order_by("tentativi", "updated_at")[: max(1, int(limit))])
+        for entry in entries:
             try:
-                sp_item = _graph_get_item(sp_id)
-            except Exception:
-                continue
-            if not sp_item:
-                continue
-
-            checked += 1
-            _sp_item_id, payload = _sp_item_to_local(sp_item)
-            remote_status, _remote_label = _effective_status(
-                payload.get("consenso"),
-                payload.get("moderation_status"),
-                default_pending=True,
-            )
-            if remote_status == 2:
-                continue
-
-            updates = dict(payload)
-            updates.pop("sharepoint_item_id", None)
-            if _update_assenza(item_id, updates):
-                updated += 1
-
-        cache.set(_PENDING_RECONCILE_LAST_TS_KEY, now_ts, timeout=None)
-        return {"ok": True, "skipped": False, "checked": checked, "updated": updated}
+                if entry.azione == Outbox.AZIONE_DELETE:
+                    if entry.sharepoint_item_id:
+                        ok, err = _graph_delete(entry.sharepoint_item_id)
+                        if not ok:
+                            raise RuntimeError(str(err)[:500])
+                        totals["deleted"] += 1
+                    else:
+                        totals["dropped"] += 1
+                elif _get_assenza(entry.assenza_id) is None:
+                    # Record cancellato senza passare dalla coda: niente da inviare.
+                    totals["dropped"] += 1
+                else:
+                    result = _sync_one_to_sharepoint(entry.assenza_id, force_update=True)
+                    if not result.get("ok"):
+                        raise RuntimeError(str(result.get("error") or "invio fallito")[:500])
+                    if result.get("action") == "create":
+                        totals["created"] += 1
+                        # Se nel frattempo e' stata chiesta l'eliminazione, le serve l'id appena nato.
+                        Outbox.objects.filter(
+                            pk=entry.pk, azione=Outbox.AZIONE_DELETE, sharepoint_item_id=""
+                        ).update(sharepoint_item_id=str(result.get("sharepoint_item_id") or ""))
+                    else:
+                        totals["updated"] += 1
+                # Solo se nessuno ha modificato il record durante l'invio.
+                Outbox.objects.filter(pk=entry.pk, versione=entry.versione).delete()
+            except Exception as exc:
+                totals["failed"] += 1
+                Outbox.objects.filter(pk=entry.pk).update(
+                    tentativi=F("tentativi") + 1,
+                    ultimo_errore=str(exc)[:2000],
+                    updated_at=timezone.now(),
+                )
+                logger.warning("[assenze:sp_push] assenza %s: invio fallito: %s", entry.assenza_id, exc)
     finally:
-        cache.delete(_PENDING_RECONCILE_LOCK_KEY)
+        cache.delete(_SP_PUSH_LOCK_KEY)
+
+    return {
+        "ok": totals["failed"] == 0,
+        "mode": "outbox_push",
+        "totals": totals,
+        "pending": Outbox.objects.count(),
+    }
 
 
-def _sync_pull_from_sharepoint(limit_rows: int | None = None) -> dict:
+def _find_assenza_id_by_sp_id(sp_id: str) -> int | None:
+    rows = _fetch_all_dict("SELECT id FROM assenze WHERE sharepoint_item_id = %s", [str(sp_id)])
+    return _as_int(rows[0].get("id")) if rows else None
+
+
+def _apply_sp_item_to_local(item: dict, row_id: int | None, *, assenze_cols, has_dip: bool, has_capi: bool) -> str:
+    """Scrive un elemento SharePoint nella tabella locale. Ritorna 'inserted'/'updated'/'skipped'."""
+    sp_id, payload = _sp_item_to_local(item)
+    data = _prepare_row_data(payload)
+    outcome = "updated"
+
+    with connections["default"].cursor() as cursor:
+        if row_id is None:
+            cols = list(data.keys())
+            row_id = _insert_row_and_return_id(cursor, "assenze", cols, [data[c] for c in cols])
+            if row_id is None:
+                row_id = _find_inserted_assenza_id(data)
+            outcome = "inserted"
+        else:
+            updates = dict(data)
+            updates.pop("sharepoint_item_id", None)
+            if updates:
+                sets = ", ".join(f"{_quote_identifier(k)} = %s" for k in updates.keys())
+                cursor.execute(f"UPDATE assenze SET {sets} WHERE id = %s", [*list(updates.values()), row_id])
+
+        if row_id is None:
+            return "skipped"
+
+        if has_dip and "dipendente_id" in assenze_cols and "nome_lookup_id" in assenze_cols:
+            nome_lookup = _as_int(payload.get("nome_lookup_id"))
+            if nome_lookup is not None:
+                cursor.execute("SELECT id FROM dipendenti WHERE sharepoint_item_id = %s ORDER BY id DESC", [str(nome_lookup)])
+                drow = cursor.fetchone()
+                if drow and drow[0] is not None:
+                    cursor.execute("UPDATE assenze SET dipendente_id = %s WHERE id = %s", [int(drow[0]), row_id])
+
+        if has_capi and "capo_reparto_id" in assenze_cols and "capo_reparto_lookup_id" in assenze_cols:
+            capo_lookup = _as_int(payload.get("capo_reparto_lookup_id"))
+            if capo_lookup is not None:
+                cursor.execute("SELECT id FROM capi_reparto WHERE sharepoint_item_id = %s ORDER BY id DESC", [str(capo_lookup)])
+                crow = cursor.fetchone()
+                if crow and crow[0] is not None:
+                    cursor.execute("UPDATE assenze SET capo_reparto_id = %s WHERE id = %s", [int(crow[0]), row_id])
+    return outcome
+
+
+def _sync_pull_from_sharepoint() -> dict:
+    """Applica al DB locale le modifiche della lista SharePoint dall'ultimo giro."""
+    from .models import AssenzaSharePointOutbox as Outbox
+
     if not _table_exists("assenze"):
         return {"ok": False, "error": "Tabella assenze non disponibile"}
     if not _graph_configured():
         return {"ok": False, "error": "SharePoint non configurato"}
 
-    items = _graph_get_all()
-    if limit_rows is not None:
-        items = items[: max(1, int(limit_rows))]
+    delta_link = cache.get(_SP_DELTA_LINK_KEY) or None
+    items, new_link = _graph_delta_changes(delta_link)
 
+    # Lo stesso elemento puo' comparire piu' volte nel feed: vale l'ultima occorrenza.
+    latest: dict[str, dict] = {}
+    for item in items:
+        sp_id = str(item.get("id") or "").strip()
+        if sp_id:
+            latest[sp_id] = item
+
+    pending_ids = set(Outbox.objects.values_list("assenza_id", flat=True))
     assenze_cols = legacy_table_columns("assenze")
     has_dip = _table_exists("dipendenti")
     has_capi = _table_exists("capi_reparto")
+    totals = {"inserted": 0, "updated": 0, "deleted": 0, "skipped_pending": 0, "failed": 0}
 
-    inserted = 0
-    updated = 0
-
-    with transaction.atomic():
-        with connections["default"].cursor() as cursor:
-            for item in items:
-                try:
-                    sp_id, payload = _sp_item_to_local(item)
-                except Exception:
+    for sp_id, item in latest.items():
+        try:
+            row_id = _find_assenza_id_by_sp_id(sp_id)
+            if row_id is not None and row_id in pending_ids:
+                totals["skipped_pending"] += 1
+                continue
+            if item.get("deleted"):
+                if row_id is not None and _delete_assenza(row_id):
+                    totals["deleted"] += 1
+                    logger.info("[assenze:sp_pull] assenza %s eliminata: rimossa su SharePoint (item %s)", row_id, sp_id)
+                continue
+            if not item.get("fields"):
+                item = _graph_get_item(sp_id)
+                if not item:
                     continue
+            with transaction.atomic():
+                outcome = _apply_sp_item_to_local(
+                    item, row_id, assenze_cols=assenze_cols, has_dip=has_dip, has_capi=has_capi
+                )
+            if outcome in totals:
+                totals[outcome] += 1
+        except Exception:
+            totals["failed"] += 1
+            logger.exception("[assenze:sp_pull] item SharePoint %s non applicato", sp_id)
 
-                cursor.execute("SELECT id FROM assenze WHERE sharepoint_item_id = %s", [sp_id])
-                existing = cursor.fetchone()
-                row_id = int(existing[0]) if existing and existing[0] is not None else None
-                data = _prepare_row_data(payload)
+    # Con errori il token non avanza: il giro dopo rilegge le stesse modifiche.
+    if new_link and totals["failed"] == 0:
+        cache.set(_SP_DELTA_LINK_KEY, new_link, timeout=None)
 
-                if row_id is None:
-                    cols = list(data.keys())
-                    vals = [data[c] for c in cols]
-                    row_id = _insert_row_and_return_id(cursor, "assenze", cols, vals)
-                    if row_id is None:
-                        row_id = _find_inserted_assenza_id(data)
-                    inserted += 1
-                else:
-                    updates = dict(data)
-                    updates.pop("sharepoint_item_id", None)
-                    if updates:
-                        sets = ", ".join(f"{_quote_identifier(k)} = %s" for k in updates.keys())
-                        cursor.execute(f"UPDATE assenze SET {sets} WHERE id = %s", [*list(updates.values()), row_id])
-                    updated += 1
-
-                if row_id is None:
-                    continue
-
-                if has_dip and "dipendente_id" in assenze_cols and "nome_lookup_id" in assenze_cols:
-                    nome_lookup = _as_int(payload.get("nome_lookup_id"))
-                    if nome_lookup is not None:
-                        cursor.execute("SELECT id FROM dipendenti WHERE sharepoint_item_id = %s ORDER BY id DESC", [str(nome_lookup)])
-                        drow = cursor.fetchone()
-                        if drow and drow[0] is not None:
-                            cursor.execute("UPDATE assenze SET dipendente_id = %s WHERE id = %s", [int(drow[0]), row_id])
-
-                if has_capi and "capo_reparto_id" in assenze_cols and "capo_reparto_lookup_id" in assenze_cols:
-                    capo_lookup = _as_int(payload.get("capo_reparto_lookup_id"))
-                    if capo_lookup is not None:
-                        cursor.execute("SELECT id FROM capi_reparto WHERE sharepoint_item_id = %s ORDER BY id DESC", [str(capo_lookup)])
-                        crow = cursor.fetchone()
-                        if crow and crow[0] is not None:
-                            cursor.execute("UPDATE assenze SET capo_reparto_id = %s WHERE id = %s", [int(crow[0]), row_id])
-
-    return {"ok": True, "mode": "sharepoint_to_db_pull", "totals": {"inserted": inserted, "updated": updated}}
+    return {
+        "ok": totals["failed"] == 0,
+        "mode": "sharepoint_to_db_delta",
+        "full": not delta_link,
+        "totals": totals,
+    }
 
 
 def _pull_interval_seconds() -> int:
@@ -1794,13 +1933,6 @@ def _pull_interval_seconds() -> int:
     except (TypeError, ValueError):
         value = 300
     return max(60, value)
-
-
-def _sync_on_page_load_enabled() -> bool:
-    value = getattr(settings, "ASSENZE_SYNC_ON_PAGE_LOAD", False)
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _maybe_pull(force: bool = False) -> dict:
@@ -1823,9 +1955,23 @@ def _maybe_pull(force: bool = False) -> dict:
         return result
     except Exception as exc:
         logger.exception("_maybe_pull: errore durante sync pull da SharePoint")
-        return {"ok": False, "error": str(exc), "mode": "sharepoint_to_db_pull"}
+        return {"ok": False, "error": str(exc), "mode": "sharepoint_to_db_delta"}
     finally:
         cache.delete(_SYNC_PULL_LOCK_KEY)
+
+
+def _sp_refresh_motivazioni() -> None:
+    """Aggiorna in cache le motivazioni della lista (lette dal job, non dalle pagine)."""
+    values = _graph_get_motivazioni()
+    if values:
+        cache.set(_SP_MOTIVAZIONI_CACHE_KEY, values, timeout=_SP_MOTIVAZIONI_CACHE_TTL)
+
+
+def _motivazioni_options() -> list[str]:
+    cached = cache.get(_SP_MOTIVAZIONI_CACHE_KEY)
+    if isinstance(cached, list) and cached:
+        return cached
+    return _load_motivazioni_local()
 
 
 def _ensure_colors_table() -> None:
@@ -3541,7 +3687,7 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
     )
     today = timezone.localdate()
     capi = _load_capi_options()
-    motivazioni = _graph_get_motivazioni() or _load_motivazioni_local()
+    motivazioni = _motivazioni_options()
     copy_from = str(request.GET.get("copy_from") or "").strip()
     prefill = _prefill_from_copy(copy_from, capi)
 
@@ -3650,25 +3796,12 @@ def gestione_assenze(request):
     (`impostazioni_admin`), riservata all'HR-admin.
     """
     name, email, legacy_id = _legacy_identity(request)
-    if _sync_on_page_load_enabled():
-        _maybe_pull(force=False)
     richieste_da_approvare = _load_pending_for_manager(
         legacy_id,
         limit=40,
         manager_name=name,
         manager_email=email,
     )
-    reconcile_pending = _reconcile_pending_item_ids_with_sharepoint(
-        [r.get("id") for r in richieste_da_approvare],
-        force=False,
-    )
-    if reconcile_pending.get("updated"):
-        richieste_da_approvare = _load_pending_for_manager(
-            legacy_id,
-            limit=40,
-            manager_name=name,
-            manager_email=email,
-        )
     richieste_personali = _load_personal(name, email, limit=40)
 
     return render(
@@ -3819,8 +3952,6 @@ def car_dashboard(request):
         return HttpResponseForbidden("Accesso non consentito: questa pagina è riservata ai Capi Reparto (CAR) e all'Amministrazione.")
     legacy_user_id = perms["legacy_user_id"]
     manager_name, manager_email, _ = _legacy_identity(request)
-    if _sync_on_page_load_enabled():
-        _maybe_pull(force=False)
 
     pending_scope_raw = str(request.GET.get("scope") or "").strip().lower()
     pending_scope = "mine"
@@ -3886,54 +4017,6 @@ def car_dashboard(request):
             manager_name=manager_name,
             manager_email=manager_email,
         )
-
-    reconcile_pending = _reconcile_pending_item_ids_with_sharepoint(
-        [r.get("id") for r in da_gestire],
-        force=show_diag,
-    )
-    if reconcile_pending.get("updated"):
-        if is_admin:
-            if pending_scope == "all":
-                da_gestire = _load_all_pending(limit=100)
-            else:
-                da_gestire = _load_pending_for_manager(
-                    legacy_user_id,
-                    limit=100,
-                    manager_name=manager_name,
-                    manager_email=manager_email,
-                )
-            gestite = _load_all_gestite(limit=50)
-            riepilogo_oggi = _load_all_assenze_periodo(today_start, today_end, limit=200)
-            riepilogo_settimana = _load_all_assenze_periodo(monday, next_monday, limit=500)
-        else:
-            da_gestire = _load_pending_for_manager(
-                legacy_user_id,
-                limit=60,
-                manager_name=manager_name,
-                manager_email=manager_email,
-            )
-            gestite = _load_gestite_for_manager(
-                legacy_user_id,
-                limit=30,
-                manager_name=manager_name,
-                manager_email=manager_email,
-            )
-            riepilogo_oggi = _load_assenze_car_periodo(
-                legacy_user_id,
-                today_start,
-                today_end,
-                limit=100,
-                manager_name=manager_name,
-                manager_email=manager_email,
-            )
-            riepilogo_settimana = _load_assenze_car_periodo(
-                legacy_user_id,
-                monday,
-                next_monday,
-                limit=300,
-                manager_name=manager_name,
-                manager_email=manager_email,
-            )
 
     sync_diag = None
     if show_diag:
@@ -4038,9 +4121,7 @@ def api_car_aggiorna_consenso(request, item_id: int):
     except Exception:
         logger.exception("Assenze: notifica al richiedente non creata")
 
-    sync_result: dict = {"ok": False, "reason": "not_configured"}
-    if _graph_configured():
-        sync_result = _sync_one_to_sharepoint(item_id, force_update=True)
+    sync_result = _sp_enqueue_upsert(item_id)
 
     return JsonResponse({"ok": True, "item_id": item_id, "consenso": consenso, "note_gestione": note_gestione, "sync": sync_result})
 
@@ -4065,14 +4146,12 @@ def api_admin_assenza_delete(request, item_id: int):
     if not note_gestione:
         return _json_error("La nota è obbligatoria per eliminare un'assenza.", status=400)
 
-    sp_id = str(current.get("sharepoint_item_id") or "").strip()
-    if sp_id and _graph_configured():
-        ok, err = _graph_delete(sp_id)
-        if not ok:
-            return _json_error(f"Errore eliminazione SharePoint: {err}", status=502)
-
-    if not _delete_assenza(item_id):
-        return _json_error("Eliminazione non riuscita.", status=500)
+    # Stessa transazione: la coda di eliminazione esiste solo se il record e' davvero cancellato.
+    with transaction.atomic():
+        _sp_enqueue_delete(item_id, current.get("sharepoint_item_id"))
+        if not _delete_assenza(item_id):
+            transaction.set_rollback(True)
+            return _json_error("Eliminazione non riuscita.", status=500)
 
     # --- Audit log ---
     try:
@@ -4248,9 +4327,7 @@ def api_evento_update(request, item_id: int | None = None):
     if not ok:
         return _json_error("Aggiornamento non eseguito", status=500)
 
-    sync_result = {"ok": False, "reason": "not_configured"}
-    if _graph_configured():
-        sync_result = _sync_one_to_sharepoint(target_id, force_update=True)
+    sync_result = _sp_enqueue_upsert(target_id)
 
     return JsonResponse({"ok": True, "item_id": target_id, "sync": sync_result, "warning": warn_msg})
 
@@ -4296,14 +4373,12 @@ def api_evento_delete(request, item_id: int | None = None):
         if not is_own:
             return _json_error("Permessi insufficienti: puoi eliminare solo le tue richieste.", status=403)
 
-    sp_id = str(current.get("sharepoint_item_id") or "").strip()
-    if sp_id and _graph_configured():
-        ok, err = _graph_delete(sp_id)
-        if not ok:
-            return _json_error(f"Errore eliminazione SharePoint: {err}", status=502)
-
-    if not _delete_assenza(target_id):
-        return _json_error("Eliminazione non riuscita", status=500)
+    # Stessa transazione: la coda di eliminazione esiste solo se il record e' davvero cancellato.
+    with transaction.atomic():
+        _sp_enqueue_delete(target_id, current.get("sharepoint_item_id"))
+        if not _delete_assenza(target_id):
+            transaction.set_rollback(True)
+            return _json_error("Eliminazione non riuscita", status=500)
 
     # Notifica mail SOLO per richieste gia' approvate (moderation_status == 0;
     # default 2 = in attesa). Best-effort: un errore mail non deve ribaltare
@@ -4423,9 +4498,7 @@ def api_mia_assenza_update(request, item_id: int):
     if not ok:
         return _json_error("Aggiornamento non eseguito.", status=500)
 
-    sync_result = {"ok": False, "reason": "not_configured"}
-    if _graph_configured():
-        sync_result = _sync_one_to_sharepoint(item_id, force_update=True)
+    sync_result = _sp_enqueue_upsert(item_id)
 
     return JsonResponse({"ok": True, "item_id": item_id, "warning": warn_msg, "sync": sync_result})
 
@@ -4579,12 +4652,8 @@ def invio_placeholder(request):
         )
 
     sync_msg = "Sincronizzazione SharePoint non configurata."
-    if _graph_configured():
-        sync_res = _sync_one_to_sharepoint(local_id, force_update=False)
-        if sync_res.get("ok"):
-            sync_msg = f"Sync SharePoint avviato (item {sync_res.get('sharepoint_item_id')})."
-        else:
-            sync_msg = f"Salvato su DB locale, sync SharePoint fallita: {sync_res.get('error')}"
+    if _sp_enqueue_upsert(local_id).get("queued"):
+        sync_msg = "Arriverà su SharePoint entro pochi minuti."
 
     warn_suffix = f" {warn_msg}" if warn_msg else ""
     proxy_note = f" (inserito per conto di {display_name})" if inserting_for_other else ""
@@ -4607,8 +4676,8 @@ def aggiorna_consenso_placeholder(request, item_id: int):
         item_id,
         updates,
     )
-    if ok and _graph_configured():
-        _sync_one_to_sharepoint(item_id, force_update=True)
+    if ok:
+        _sp_enqueue_upsert(item_id)
     return JsonResponse({"ok": bool(ok), "item_id": item_id, "consenso": consenso})
 
 
@@ -4783,7 +4852,17 @@ def _admin_assenze_overview(q: str = "") -> dict:
     tabella_ok = _table_exists("assenze")
     stats = {"total": 0, "in_attesa": 0, "approvate": 0, "rifiutate": 0}
     by_tipo: list[dict] = []
-    sync_info = {"last_pull": cache.get(_SYNC_PULL_LAST_TS_KEY)}
+    from .models import AssenzaSharePointOutbox
+
+    last_pull_ts = _as_int(cache.get(_SYNC_PULL_LAST_TS_KEY))
+    sync_info = {
+        "last_pull": (
+            timezone.localtime(datetime.fromtimestamp(last_pull_ts, tz=dt_timezone.utc)).strftime("%d/%m/%Y %H:%M")
+            if last_pull_ts else None
+        ),
+        "pending": AssenzaSharePointOutbox.objects.count(),
+        "failing": AssenzaSharePointOutbox.objects.filter(tentativi__gt=0).count(),
+    }
     assenze: list[dict] = []
     if not tabella_ok:
         return {"tabella_ok": False, "stats": stats, "by_tipo": by_tipo, "sync_info": sync_info, "assenze": assenze}
@@ -5038,11 +5117,8 @@ def certificazione_presenza(request):
                             if local_id:
                                 obj.sharepoint_item_id = str(local_id)
                                 obj.save(update_fields=["sharepoint_item_id"])
-                                # Tenta push a SharePoint best-effort (sync push standard)
-                                try:
-                                    _sync_push(limit_rows=5, include_updates=False)
-                                except Exception:
-                                    logger.exception("Assenze: push best-effort verso SharePoint fallito")
+                                # Invio a SharePoint in coda, gestito dal job in background.
+                                _sp_enqueue_upsert(local_id)
                         except Exception as exc:
                             logger.warning("certifica_presenza: errore auto-push assenze: %s", exc)
 

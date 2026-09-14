@@ -30,12 +30,10 @@ from .views import (
     _resolve_capo_local_id,
     _resolve_capo_local_id_from_anagrafica_hr,
     _resolve_default_capo_for_user,
-    _reconcile_pending_item_ids_with_sharepoint,
     _resolve_request_display_name,
     _sp_fields_from_row,
     _sp_item_to_local,
     _strip_tipo_metadata_from_motivazione,
-    _sync_on_page_load_enabled,
     _tipo_for_display,
     _tipo_for_storage,
     _validate_business_rules,
@@ -77,16 +75,6 @@ class SharePointStatusParsingTests(SimpleTestCase):
         _sp_id, data = _sp_item_to_local(self._make_item(consenso="Rifiutato", moderation_status=None))
         self.assertEqual(data["consenso"], "Rifiutato")
         self.assertEqual(data["moderation_status"], 1)
-
-
-class AssenzeSyncFlagTests(SimpleTestCase):
-    @override_settings(ASSENZE_SYNC_ON_PAGE_LOAD=True)
-    def test_sync_on_page_load_enabled_when_setting_true(self):
-        self.assertTrue(_sync_on_page_load_enabled())
-
-    @override_settings(ASSENZE_SYNC_ON_PAGE_LOAD="0")
-    def test_sync_on_page_load_disabled_when_setting_zero_string(self):
-        self.assertFalse(_sync_on_page_load_enabled())
 
 
 class SharePointDeleteTests(SimpleTestCase):
@@ -322,40 +310,6 @@ class SharePointSyncDiagnosticsTests(SimpleTestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["level"], "ok")
         self.assertEqual(row["sp_resolved_status"], "Rifiutato")
-
-
-class SharePointPendingReconcileTests(SimpleTestCase):
-    @patch("assenze.views._update_assenza")
-    @patch("assenze.views._graph_get_item")
-    @patch("assenze.views._get_assenza")
-    @patch("assenze.views._graph_configured", return_value=True)
-    def test_reconcile_updates_pending_record_from_sharepoint(
-        self,
-        _mock_graph_configured,
-        mock_get_assenza,
-        mock_graph_get_item,
-        mock_update_assenza,
-    ):
-        mock_get_assenza.return_value = {
-            "id": 99,
-            "sharepoint_item_id": "6272",
-            "consenso": "In attesa",
-            "moderation_status": 2,
-        }
-        mock_graph_get_item.return_value = {
-            "id": "6272",
-            "fields": {
-                "Consenso": "Rifiutato",
-                "_ModerationStatus": "2",
-            },
-        }
-        mock_update_assenza.return_value = True
-
-        result = _reconcile_pending_item_ids_with_sharepoint([99], force=True)
-
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["updated"], 1)
-        mock_update_assenza.assert_called_once()
 
 
 class CertificazionePresenzaDipendentiTests(SimpleTestCase):
@@ -949,16 +903,12 @@ class GestioneAssenzeDeleteUrlTests(TestCase):
 
     @patch("assenze.views._template_perm_context", return_value={})
     @patch("assenze.views._load_personal")
-    @patch("assenze.views._reconcile_pending_item_ids_with_sharepoint", return_value={"updated": 0})
     @patch("assenze.views._load_pending_for_manager", return_value=[])
-    @patch("assenze.views._sync_on_page_load_enabled", return_value=False)
     @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
     def test_gestione_renders_row_specific_delete_url(
         self,
         _mock_identity,
-        _mock_sync_enabled,
         _mock_pending,
-        _mock_reconcile,
         mock_load_personal,
         _mock_template_ctx,
     ):
@@ -985,16 +935,12 @@ class GestioneAssenzeDeleteUrlTests(TestCase):
 
     @patch("assenze.views._template_perm_context", return_value={})
     @patch("assenze.views._load_personal")
-    @patch("assenze.views._reconcile_pending_item_ids_with_sharepoint", return_value={"updated": 0})
     @patch("assenze.views._load_pending_for_manager")
-    @patch("assenze.views._sync_on_page_load_enabled", return_value=False)
     @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
     def test_gestione_exposes_summary_context(
         self,
         _mock_identity,
-        _mock_sync_enabled,
         mock_pending,
-        _mock_reconcile,
         mock_load_personal,
         _mock_template_ctx,
     ):
@@ -1053,7 +999,7 @@ class GestioneAssenzeDeleteApiTests(TestCase):
     @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
     @patch("assenze.views._get_assenza")
     @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": False})
-    def test_delete_allows_local_cleanup_when_sharepoint_item_is_already_missing(
+    def test_delete_queues_sharepoint_removal_instead_of_calling_graph(
         self,
         _mock_perms,
         mock_get_assenza,
@@ -1062,6 +1008,8 @@ class GestioneAssenzeDeleteApiTests(TestCase):
         mock_graph_delete,
         mock_delete_assenza,
     ):
+        from .models import AssenzaSharePointOutbox
+
         mock_get_assenza.return_value = {
             "id": 42,
             "sharepoint_item_id": "4018",
@@ -1078,8 +1026,12 @@ class GestioneAssenzeDeleteApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(response.content, {"ok": True, "item_id": 42})
-        mock_graph_delete.assert_called_once_with("4018")
+        # Nessuna chiamata Graph durante la richiesta: l'eliminazione va in coda.
+        mock_graph_delete.assert_not_called()
         mock_delete_assenza.assert_called_once_with(42)
+        entry = AssenzaSharePointOutbox.objects.get(assenza_id=42)
+        self.assertEqual(entry.azione, AssenzaSharePointOutbox.AZIONE_DELETE)
+        self.assertEqual(entry.sharepoint_item_id, "4018")
 
     @patch("assenze.views._notify_assenza_deleted")
     @patch("assenze.views._delete_assenza", return_value=True)
