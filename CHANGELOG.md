@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **KICK-OFF · `rinomina_kickoff` si rompeva contro SQL Server a metà scrittura** (`django_app/tasks/management/commands/rinomina_kickoff.py`, `django_app/tasks/tests_rinomina_kickoff.py`). Il comando scorreva i progetti con `.iterator()` e lanciava l'`UPDATE` dentro il ciclo: il cursore di lettura resta aperto e SQL Server via ODBC, senza MARS, rifiuta la scrittura sulla stessa connessione con `HY010 — errore nella sequenza della funzione`. In produzione l'elenco veniva stampato per intero e poi il comando moriva, lasciando **rinominata solo una parte** delle commesse. Ora la lettura si materializza e si chiude prima (i kickoff sono poche decine), e le scritture avvengono dopo, **tutte dentro una sola transazione**: una rinomina a metà renderebbe illeggibile il dry-run successivo. Il comando resta idempotente, quindi si rilancia senza rischio anche dopo un'interruzione.
+
 ### Added
 
 - **KICK-OFF · la convocazione dice l'ora, il cliente e a chi va in copia** (`django_app/tasks/models.py`, `django_app/tasks/minute_email.py`, `django_app/tasks/forms.py`, `django_app/tasks/templates/tasks/project_meeting_form.html`, `django_app/tasks/migrations/0043_kickoffmeeting_cc.py`, `django_app/tasks/tests_meeting_flow.py`). Tre mancanze emerse al primo giro di convocazioni vere.
