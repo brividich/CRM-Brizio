@@ -262,6 +262,7 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 
 - **Home catalogo** (`/admin-portale/`): tutte le pagine del pannello sono elencate come schede nelle sezioni Utenti & Accessi, Navigazione & Menu, Automazioni, Monitoraggio, Configurazione, Sistema & Diagnostica, Hub Tools, Pannelli Moduli, Deploy e Versioning — comprese Gestione Ruoli, Matrice Permessi, Import Utenti LDAP, Wizard Pulsante, Mappa Permessi/Navigazione, Branding & Favicon, Gestione Notifiche, Bacheca, ACL Canonico, ACL Route Coverage, Log Notifiche e FAQ & Knowledge AI
 - **Gestione accessi** semplici canonico-first con toggle per modulo su `RolePermissionGrant`
+- **Accessi negati** (`/admin-portale/accessi-negati/`): ogni «Accesso negato» ricevuto dagli utenti, una riga per persona e pagina, con il motivo in chiaro e lo stato di eccezione personale / gruppo / ruolo (Consentito · Negato esplicitamente · Non impostato). **Consenti** o **Non consentire** su tutto il ruolo o sulla sola persona: scrive i grant canonici, lascia l'audit e verifica l'esito. Lo stesso pannello compare sulla pagina 403 quando un amministratore sta impersonando qualcuno, così il blocco si risolve senza uscire dall'impersonazione
 - **ACL canonico** con 5 tab (Permission, Binding, Role grant, User override, Nav override)
 - **ACL route coverage** report con stati e export CSV
 - **ACL diagnostica** combinata legacy + canonical con una sola decisione finale chiara e trace completo (CLI equivalente: `python manage.py acl_diagnose --user <email|alias|id> --path </route/>`)

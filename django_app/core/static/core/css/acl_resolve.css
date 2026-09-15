@@ -1,0 +1,110 @@
+/* Accessi negati: pagina 403 e pannello admin. Solo token di theme.css,
+   cosi' tema chiaro e scuro seguono da soli. */
+
+.acl-stack { display: grid; gap: 14px; }
+.acl-stack > .card, .acl-stack > .acl-flash { margin: 0; }
+
+.acl-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-mid);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.acl-chip.allow { background: var(--success-bg); border-color: var(--success); color: var(--success); }
+.acl-chip.deny { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+.acl-chip.unset { border-style: dashed; }
+
+.acl-why { margin: 0 0 14px; font-size: 14px; line-height: 1.5; color: var(--text); }
+
+.acl-states { display: grid; gap: 8px; margin-bottom: 16px; }
+.acl-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.acl-state-name { font-size: 13px; color: var(--text); }
+.acl-state-name small { display: block; font-size: 12px; color: var(--text-mid); }
+
+.acl-scope { display: grid; gap: 8px; margin: 0 0 14px; padding: 0; border: 0; min-width: 0; }
+.acl-scope legend {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+}
+.acl-scope label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.acl-scope label:has(input:checked) { border-color: var(--accent); background: var(--accent-light); }
+.acl-scope input { margin-top: 3px; }
+.acl-scope small { display: block; margin-top: 2px; font-size: 12px; color: var(--text-mid); }
+.acl-scope small.acl-warn { color: var(--warning); font-weight: 600; }
+
+.acl-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.acl-flash {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+}
+.acl-flash.success { border-color: var(--success); background: var(--success-bg); }
+.acl-flash.warning { border-color: var(--warning); background: var(--warning-bg); }
+.acl-flash.error { border-color: var(--danger); background: var(--danger-bg); }
+
+.acl-tech summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-mid); }
+.acl-tech dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 10px 0 0; font-size: 13px; }
+.acl-tech dt { color: var(--text-mid); }
+.acl-tech dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+
+.acl-code { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--text-mid); overflow-wrap: anywhere; }
+.acl-muted { font-size: 12px; color: var(--text-mid); }
+.acl-text { color: var(--text); }
+
+/* Pannello admin */
+.acl-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.acl-table-wrap { overflow-x: auto; }
+.acl-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.acl-table th {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+}
+.acl-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text); }
+.acl-table .acl-chips { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.acl-table .acl-chips span.acl-muted { margin-right: 4px; }
+.acl-row-form { display: grid; gap: 6px; min-width: 220px; }
+.acl-row-form .acl-actions .btn { padding: 5px 10px; font-size: 12px; }
+.acl-empty { padding: 24px; text-align: center; color: var(--text-mid); }
+.acl-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
