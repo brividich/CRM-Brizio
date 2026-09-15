@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+---
+
+## 1.6.1 - 2026-09-15
+
 ### Fixed
 
 - **ASSENZE · su SharePoint le richieste del portale arrivavano senza capo reparto (e spesso senza persona)** (`django_app/assenze/views.py`, `django_app/assenze/test_sharepoint_sync.py`, `README.md`). Nella lista «Calendario assenze 2» `Capo Reparto` (`C_x002e_Reparto`) è un lookup sulla lista **Caporeparto** e `Nome` un lookup sulla lista **DIPENDENTI**: SharePoint vuole l'id dell'elemento. Il portale lo cercava in tabelle locali storiche (`capi_reparto`, `dipendenti`) che non conoscono i responsabili d'area da cui ora arriva l'approvatore, quindi il campo restava vuoto: il capo non vedeva la richiesta nelle vecchie app.
