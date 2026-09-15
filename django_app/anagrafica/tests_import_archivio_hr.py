@@ -111,3 +111,90 @@ class ImportArchivioHrTests(TestCase):
             esiti = {(r["cartella_persona"], r["esito"]) for r in csv.DictReader(handle, delimiter=";")}
         self.assertIn(("VERDI_GIUSEPPE", "importato"), esiti)
         self.assertIn(("BIANCHI_LUCA", "persona non abbinata"), esiti)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class CartelleRiservateTests(TestCase):
+    """I documenti delle cartelle `solo_admin` restano ai super-amministratori
+    anche nella scheda dipendente e col link diretto di download."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from django.core.files.base import ContentFile
+
+        self.private = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.private, ignore_errors=True)
+        override = override_settings(ANAGRAFICA_PRIVATE_ROOT=str(self.private))
+        override.enable()
+        self.addCleanup(override.disable)
+
+        _ensure_anagrafica_table()
+        self.legacy_id = _insert_dipendente(7101, "Mario", "Rossi")
+        User = get_user_model()
+        self.superuser = User.objects.create_superuser("riserv_super", "s@example.invalid", "x")
+        self.hr = User.objects.create_user("riserv_hr", "h@example.invalid", "x")
+
+        riservata = CartellaDocumentoDipendente.objects.create(nome="Richiami", solo_admin=True)
+        normale = CartellaDocumentoDipendente.objects.create(nome="Contratti")
+        self.doc_riservato = self._doc(riservata, "richiamo_sintetico.pdf", ContentFile)
+        self.doc_normale = self._doc(normale, "contratto_sintetico.pdf", ContentFile)
+
+    def _doc(self, cartella, nome, ContentFile):
+        doc = DocumentoDipendente(
+            legacy_anagrafica_id=self.legacy_id, tipo=DocumentoDipendente.Tipo.MANUALE,
+            cartella=cartella, nome_originale=nome, tipo_mime="application/pdf",
+        )
+        doc.file.save(nome, ContentFile(PDF), save=True)
+        return doc
+
+    def _download(self, user, doc):
+        # View chiamata direttamente: qui si verifica il suo controllo, non il
+        # middleware ACL (che per un utente senza binding reindirizza prima).
+        from unittest.mock import patch
+
+        from django.test import RequestFactory
+
+        from .views import documento_dipendente_download
+
+        request = RequestFactory().get(f"/anagrafica/documenti/{doc.pk}/download")
+        request.user = user
+        with patch("anagrafica.views._check_hr_permission", return_value=True):
+            return documento_dipendente_download(request, doc_id=doc.pk)
+
+    def test_download_riservato_negato_a_hr_non_superuser(self):
+        self.assertEqual(self._download(self.hr, self.doc_riservato).status_code, 403)
+        self.assertEqual(self._download(self.hr, self.doc_normale).status_code, 200)
+
+    def test_download_riservato_consentito_al_superuser(self):
+        self.assertEqual(self._download(self.superuser, self.doc_riservato).status_code, 200)
+
+    def test_scheda_nasconde_riservati_ai_non_superuser(self):
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.backends.signed_cookies import SessionStore
+        from django.test import RequestFactory
+        from unittest.mock import patch
+
+        from .views import dipendente_detail
+
+        def nomi_visibili(user):
+            request = RequestFactory().get(f"/anagrafica/dipendenti/{self.legacy_id}/")
+            request.user = user
+            request.session = SessionStore()
+            request._messages = FallbackStorage(request)
+            with patch("anagrafica.views.render") as render:
+                dipendente_detail(request, legacy_id=self.legacy_id)
+            if not render.called:
+                return None
+            context = render.call_args.args[2]
+            return {d.nome_originale for d in context["documenti_dipendente"]}
+
+        self.assertEqual(
+            nomi_visibili(self.superuser), {"richiamo_sintetico.pdf", "contratto_sintetico.pdf"}
+        )
+        self.hr.is_staff = True
+        self.hr.save()
+        with patch("anagrafica.views._check_hr_permission", return_value=True), \
+                patch("anagrafica.views._is_anagrafica_admin", return_value=True):
+            visibili = nomi_visibili(self.hr)
+        self.assertIsNotNone(visibili, "la scheda non è stata renderizzata per l'utente HR")
+        self.assertEqual(visibili, {"contratto_sintetico.pdf"})
