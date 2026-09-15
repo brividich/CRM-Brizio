@@ -1362,9 +1362,14 @@ def _update_assenza(item_id: int, updates: dict) -> bool:
 
 
 def _delete_assenza(item_id: int) -> bool:
+    from .models import AssenzaOrigineSharePoint
+
     with connections["default"].cursor() as cursor:
         cursor.execute("DELETE FROM assenze WHERE id = %s", [int(item_id)])
-        return bool(cursor.rowcount)
+        deleted = bool(cursor.rowcount)
+    if deleted:
+        AssenzaOrigineSharePoint.objects.filter(assenza_id=int(item_id)).delete()
+    return deleted
 
 
 def _get_assenza(item_id: int) -> dict | None:
@@ -1449,6 +1454,8 @@ def _sync_one_to_sharepoint(item_id: int, force_update: bool = True) -> dict:
     if not created_sp_id:
         return {"ok": False, "error": "Risposta SharePoint senza item_id"}
     _update_assenza(item_id, {"sharepoint_item_id": created_sp_id, "modified_datetime": timezone.now()})
+    # Creata dal portale: la gestisce il portale, il flusso SharePoint la ignora.
+    _record_sp_origin(item_id, created_sp_id, creata_su_sharepoint=False, overwrite=True)
     return {"ok": True, "action": "create", "sharepoint_item_id": created_sp_id}
 
 
@@ -1461,8 +1468,10 @@ def _sync_push(limit_rows: int = 30, include_updates: bool = False) -> dict:
     if not cache.add(_SP_PUSH_LOCK_KEY, "1", timeout=_SP_PUSH_LOCK_TTL):
         return {"ok": False, "error": "Invio a SharePoint gia' in corso, riprova tra poco"}
     try:
+        _set_automation_queue_skip(True)
         return _sync_push_locked(limit_rows=limit_rows, include_updates=include_updates)
     finally:
+        _set_automation_queue_skip(False)
         cache.delete(_SP_PUSH_LOCK_KEY)
 
 
@@ -1687,6 +1696,94 @@ def _build_sharepoint_sync_diagnostics(item_ids: list[int], limit: int = 12) -> 
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+# ─── Chi gestisce la richiesta ───────────────────────────────────────────────
+# Durante la convivenza ogni richiesta la gestisce il sistema in cui e' nata:
+# quelle create su SharePoint le approva il flusso Power Automate (sul portale
+# restano in sola lettura); quelle create sul portale le approva il portale (il
+# flusso le ignora: autore "App di SharePoint"). Le scritture della
+# sincronizzazione non fanno partire le automazioni del portale, altrimenti le
+# mail partirebbero due volte.
+
+_AUTOMATION_SKIP_SESSION_KEY = "hub_skip_automation"
+_SP_APP_AUTHOR_NAMES = {"sharepoint app", "app di sharepoint"}
+_SP_MANAGED_ERROR = (
+    "Richiesta nata su SharePoint: approvazione, modifica ed eliminazione si fanno "
+    "dall'app SharePoint. Sul portale è in sola lettura."
+)
+_SQLSERVER_IN_CHUNK = 1000  # SQL Server accetta al massimo 2100 parametri per query
+
+
+def _set_automation_queue_skip(enabled: bool) -> None:
+    """Accende o spegne il flag di sessione letto dai trigger ``trg_assenze_automation_*``.
+
+    Solo SQL Server (su SQLite non ci sono trigger). Va sempre spento in un
+    ``finally``: la connessione del worker django-q e' riusata dai task successivi.
+    """
+    if _db_vendor() != "microsoft":
+        return
+    with connections["default"].cursor() as cursor:
+        cursor.execute(
+            "EXEC sys.sp_set_session_context @key = %s, @value = %s",
+            [_AUTOMATION_SKIP_SESSION_KEY, 1 if enabled else None],
+        )
+
+
+def _sp_item_created_by_portal(item: dict) -> bool:
+    """True se l'elemento SharePoint l'ha creato un'app (il portale), non una persona."""
+    created_by = item.get("createdBy") or {}
+    if created_by.get("application"):
+        return True
+    user_name = str((created_by.get("user") or {}).get("displayName") or "").strip().lower()
+    return user_name in _SP_APP_AUTHOR_NAMES
+
+
+def _record_sp_origin(assenza_id, sharepoint_item_id, *, creata_su_sharepoint: bool, overwrite: bool = False) -> None:
+    """Registra dove e' nata una richiesta. Senza ``overwrite`` non corregge un'origine gia' nota."""
+    from .models import AssenzaOrigineSharePoint as Origine
+
+    local_id = _as_int(assenza_id)
+    if local_id is None:
+        return
+    values = {
+        "sharepoint_item_id": str(sharepoint_item_id or "")[:64],
+        "creata_su_sharepoint": bool(creata_su_sharepoint),
+    }
+    if overwrite:
+        Origine.objects.update_or_create(assenza_id=local_id, defaults=values)
+    else:
+        Origine.objects.get_or_create(assenza_id=local_id, defaults=values)
+
+
+def _sharepoint_managed_ids(item_ids) -> set[int]:
+    """Id delle richieste nate su SharePoint, in sola lettura sul portale."""
+    from .models import AssenzaOrigineSharePoint as Origine
+
+    ids = sorted({i for i in (_as_int(x) for x in item_ids) if i is not None})
+    if not ids or not _graph_configured():
+        return set()
+    managed: set[int] = set()
+    for start in range(0, len(ids), _SQLSERVER_IN_CHUNK):
+        chunk = ids[start:start + _SQLSERVER_IN_CHUNK]
+        managed.update(
+            Origine.objects.filter(assenza_id__in=chunk, creata_su_sharepoint=True).values_list("assenza_id", flat=True)
+        )
+    return managed
+
+
+def _mark_sharepoint_managed(rows: list[dict]) -> None:
+    """Aggiunge ``gestita_sp`` a ogni riga: i template nascondono le azioni."""
+    managed = _sharepoint_managed_ids(r.get("id") for r in rows)
+    for row in rows:
+        row["gestita_sp"] = _as_int(row.get("id")) in managed
+
+
+def _sharepoint_managed_error(item_id):
+    """Risposta 409 se la richiesta e' gestita su SharePoint, altrimenti None."""
+    if _as_int(item_id) in _sharepoint_managed_ids([item_id]):
+        return _json_error(_SP_MANAGED_ERROR, status=409)
+    return None
+
+
 def _sp_kick_push() -> None:
     """Chiede al cluster un invio immediato, a transazione confermata.
 
@@ -1771,6 +1868,7 @@ def _sp_push_outbox(limit: int = _SP_PUSH_BATCH) -> dict:
 
     totals = {"created": 0, "updated": 0, "deleted": 0, "dropped": 0, "failed": 0}
     try:
+        _set_automation_queue_skip(True)
         entries = list(Outbox.objects.order_by("tentativi", "updated_at")[: max(1, int(limit))])
         for entry in entries:
             try:
@@ -1808,6 +1906,7 @@ def _sp_push_outbox(limit: int = _SP_PUSH_BATCH) -> dict:
                 )
                 logger.warning("[assenze:sp_push] assenza %s: invio fallito: %s", entry.assenza_id, exc)
     finally:
+        _set_automation_queue_skip(False)
         cache.delete(_SP_PUSH_LOCK_KEY)
 
     return {
@@ -1882,6 +1981,8 @@ def _apply_sp_item_to_local(item: dict, row_id: int | None, *, assenze_cols, has
         if row_id is None:
             return "skipped"
 
+        _record_sp_origin(row_id, sp_id, creata_su_sharepoint=not _sp_item_created_by_portal(item))
+
         if has_dip and "dipendente_id" in assenze_cols and "nome_lookup_id" in assenze_cols:
             nome_lookup = _as_int(payload.get("nome_lookup_id"))
             if nome_lookup is not None:
@@ -1925,42 +2026,47 @@ def _sync_pull_from_sharepoint() -> dict:
     has_capi = _table_exists("capi_reparto")
     totals = {"inserted": 0, "updated": 0, "deleted": 0, "skipped_pending": 0, "discarded": 0, "failed": 0}
 
-    for sp_id, item in latest.items():
-        try:
-            row_id = _find_assenza_id_by_sp_id(sp_id)
-            if row_id is not None and row_id in pending_ids:
-                totals["skipped_pending"] += 1
-                continue
-            if item.get("deleted"):
-                if row_id is not None and _delete_assenza(row_id):
-                    totals["deleted"] += 1
-                    logger.info("[assenze:sp_pull] assenza %s eliminata: rimossa su SharePoint (item %s)", row_id, sp_id)
-                continue
-            if not item.get("fields"):
-                item = _graph_get_item(sp_id)
-                if not item:
+    # Le scritture di questo giro non devono far partire le automazioni del portale.
+    _set_automation_queue_skip(True)
+    try:
+        for sp_id, item in latest.items():
+            try:
+                row_id = _find_assenza_id_by_sp_id(sp_id)
+                if row_id is not None and row_id in pending_ids:
+                    totals["skipped_pending"] += 1
                     continue
-            if row_id is None:
-                # Elemento SharePoint mai collegato: se il portale ha gia' la stessa
-                # richiesta lo si scarta, senza unirlo ne' duplicarlo.
-                _sp_id, payload = _sp_item_to_local(item)
-                duplicate_id = _find_duplicate_assenza_id(payload)
-                if duplicate_id is not None:
-                    totals["discarded"] += 1
-                    logger.info(
-                        "[assenze:sp_pull] item SharePoint %s scartato: richiesta gia' presente (assenza %s)",
-                        sp_id, duplicate_id,
+                if item.get("deleted"):
+                    if row_id is not None and _delete_assenza(row_id):
+                        totals["deleted"] += 1
+                        logger.info("[assenze:sp_pull] assenza %s eliminata: rimossa su SharePoint (item %s)", row_id, sp_id)
+                    continue
+                if not item.get("fields"):
+                    item = _graph_get_item(sp_id)
+                    if not item:
+                        continue
+                if row_id is None:
+                    # Elemento SharePoint mai collegato: se il portale ha gia' la stessa
+                    # richiesta lo si scarta, senza unirlo ne' duplicarlo.
+                    _sp_id, payload = _sp_item_to_local(item)
+                    duplicate_id = _find_duplicate_assenza_id(payload)
+                    if duplicate_id is not None:
+                        totals["discarded"] += 1
+                        logger.info(
+                            "[assenze:sp_pull] item SharePoint %s scartato: richiesta gia' presente (assenza %s)",
+                            sp_id, duplicate_id,
+                        )
+                        continue
+                with transaction.atomic():
+                    outcome = _apply_sp_item_to_local(
+                        item, row_id, assenze_cols=assenze_cols, has_dip=has_dip, has_capi=has_capi
                     )
-                    continue
-            with transaction.atomic():
-                outcome = _apply_sp_item_to_local(
-                    item, row_id, assenze_cols=assenze_cols, has_dip=has_dip, has_capi=has_capi
-                )
-            if outcome in totals:
-                totals[outcome] += 1
-        except Exception:
-            totals["failed"] += 1
-            logger.exception("[assenze:sp_pull] item SharePoint %s non applicato", sp_id)
+                if outcome in totals:
+                    totals[outcome] += 1
+            except Exception:
+                totals["failed"] += 1
+                logger.exception("[assenze:sp_pull] item SharePoint %s non applicato", sp_id)
+    finally:
+        _set_automation_queue_skip(False)
 
     # Con errori il token non avanza: il giro dopo rilegge le stesse modifiche.
     if new_link and totals["failed"] == 0:
@@ -2320,6 +2426,9 @@ def _load_events(
                 "extendedProps": props,
             }
         )
+    managed = _sharepoint_managed_ids(e.get("id") for e in events)
+    for event in events:
+        event["extendedProps"]["gestita_sp"] = _as_int(event.get("id")) in managed
     return events
 
 
@@ -2383,6 +2492,7 @@ def _load_personal(name: str, email: str, limit: int = 20) -> list[dict]:
                 "creata_label": _dt_label(row.get("created_datetime")),
             }
         )
+    _mark_sharepoint_managed(out)
     return out
 
 
@@ -2588,6 +2698,7 @@ def _load_pending_for_manager(
             }
         )
     _attach_corsi_conflicts(out)
+    _mark_sharepoint_managed(out)
     return out
 
 
@@ -2653,6 +2764,7 @@ def _load_gestite_for_manager(
             }
         )
     _attach_corsi_conflicts(out)
+    _mark_sharepoint_managed(out)
     return out
 
 
@@ -2759,6 +2871,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
             }
         )
     _attach_corsi_conflicts(out)
+    _mark_sharepoint_managed(out)
     return out
 
 
@@ -2800,6 +2913,7 @@ def _load_all_gestite(limit: int = 50) -> list[dict]:
                 "note_gestione": str(row.get("note_gestione") or ""),
             }
         )
+    _mark_sharepoint_managed(out)
     return out
 
 
@@ -4107,6 +4221,10 @@ def api_car_aggiorna_consenso(request, item_id: int):
     if not _can_manage_record(request, current, require_delete=False):
         return _json_error("Permessi insufficienti: puoi gestire solo record assegnati al tuo reparto.", status=403)
 
+    managed_error = _sharepoint_managed_error(item_id)
+    if managed_error:
+        return managed_error
+
     payload = _request_json(request)
     consenso_raw = (payload.get("consenso") if payload else None) or request.POST.get("consenso") or ""
     consenso = _norm_consenso(consenso_raw)
@@ -4193,6 +4311,9 @@ def api_admin_assenza_delete(request, item_id: int):
     note_gestione = str(note_raw or "").strip()
     if not note_gestione:
         return _json_error("La nota è obbligatoria per eliminare un'assenza.", status=400)
+    managed_error = _sharepoint_managed_error(item_id)
+    if managed_error:
+        return managed_error
 
     # Stessa transazione: la coda di eliminazione esiste solo se il record e' davvero cancellato.
     with transaction.atomic():
@@ -4320,6 +4441,9 @@ def api_evento_update(request, item_id: int | None = None):
         return _json_error("Record non trovato", status=404)
     if not _can_manage_record(request, current, require_delete=False):
         return _json_error("Permessi insufficienti: puoi modificare solo record assegnati a te come capo reparto.", status=403)
+    managed_error = _sharepoint_managed_error(target_id)
+    if managed_error:
+        return managed_error
 
     requested_tipo = (
         (payload.get("tipo") if payload else None)
@@ -4420,6 +4544,9 @@ def api_evento_delete(request, item_id: int | None = None):
             is_own = bool(name) and rec_nome.casefold() == str(name).strip().casefold()
         if not is_own:
             return _json_error("Permessi insufficienti: puoi eliminare solo le tue richieste.", status=403)
+    managed_error = _sharepoint_managed_error(target_id)
+    if managed_error:
+        return managed_error
 
     # Stessa transazione: la coda di eliminazione esiste solo se il record e' davvero cancellato.
     with transaction.atomic():
@@ -4499,6 +4626,9 @@ def api_mia_assenza_update(request, item_id: int):
         mod_status = _CONSENSO_TO_MOD.get(_norm_consenso(current.get("consenso")), 2)
     if mod_status != 2:
         return _json_error("La richiesta non è più modificabile (non è in stato 'In attesa').", status=400)
+    managed_error = _sharepoint_managed_error(item_id)
+    if managed_error:
+        return managed_error
 
     payload = _request_json(request)
     requested_tipo = (
@@ -4713,6 +4843,9 @@ def invio_placeholder(request):
 def aggiorna_consenso_placeholder(request, item_id: int):
     if not _assenze_permissions(request).get("can_update_any"):
         return _json_error("Permessi insufficienti: aggiornamento consenso non consentito.", status=403)
+    managed_error = _sharepoint_managed_error(item_id)
+    if managed_error:
+        return managed_error
     consenso = _norm_consenso(request.POST.get("consenso"))
     updates = {
         "consenso": consenso,
@@ -4972,6 +5105,7 @@ def _admin_assenze_overview(q: str = "") -> dict:
             "fine_label": _dt_label(row.get("data_fine")),
             "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
         })
+    _mark_sharepoint_managed(assenze)
     return {"tabella_ok": True, "stats": stats, "by_tipo": by_tipo, "sync_info": sync_info, "assenze": assenze}
 
 

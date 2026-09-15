@@ -783,6 +783,9 @@
                       </td>
                       <td data-label="Azioni">
                         <div class="abs-actions">
+                          {% if r.gestita_sp %}
+                            <span class="abs-chip soft" title="Nata su SharePoint: si modifica o elimina dall'app SharePoint">Gestita su SharePoint</span>
+                          {% else %}
                           {% if 'attesa' in stato_l %}
                             <button
                               class="btn btn-sm btn-modifica"
@@ -805,6 +808,7 @@
                           >
                             Elimina
                           </button>
+                          {% endif %}
                         </div>
                       </td>
                     </tr>

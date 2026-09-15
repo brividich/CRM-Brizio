@@ -20,6 +20,14 @@ BEGIN
         RETURN;
     END;
 
+    -- Scritture della sincronizzazione SharePoint (flag di sessione acceso dal job
+    -- assenze_sharepoint_sync): la richiesta la gestisce il sistema in cui e'' nata,
+    -- quindi niente automazioni del portale. Evita le mail doppie.
+    IF CAST(SESSION_CONTEXT(N''hub_skip_automation'') AS INT) = 1
+    BEGIN
+        RETURN;
+    END;
+
     IF OBJECT_ID(N''dbo.automation_event_queue'', N''U'') IS NULL
     BEGIN
         RETURN;
