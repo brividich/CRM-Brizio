@@ -504,38 +504,66 @@ def _load_dipendenti_attivi_list() -> list[dict]:
 def _anagrafica_employee_ids_for_capo(capo_anagrafica_id: int | None) -> set[int]:
     """Restituisce gli id anagrafica dei dipendenti assegnati al caporeparto indicato.
 
-    Il legame autoritativo è ``DipendenteAnagraficaAziendale.caporeparto_legacy_id``
-    (id anagrafica del capo). Come fallback, si includono i dipendenti delle aree il
-    cui ``Reparto.caporeparto_legacy_id`` coincide, in modo coerente con
-    ``_resolve_anagrafica_hr_effective_capo_ids``.
+    È l'inverso di ``_resolve_anagrafica_hr_effective_capo_ids``: il legame
+    autoritativo è la catena canonica ``dipendente → area_aziendale → reparto``,
+    dove il responsabile dell'**area aziendale** vince sul caporeparto del
+    reparto. Per i dipendenti senza area canonica si ripiega sul campo
+    denormalizzato ``caporeparto_legacy_id`` e poi sul testo legacy del reparto.
     """
     if capo_anagrafica_id is None:
         return set()
     ids: set[int] = set()
     try:
-        from anagrafica.models import DipendenteAnagraficaAziendale, Reparto
+        from django.db.models import Q
 
+        from anagrafica.models import AreaAziendale, DipendenteAnagraficaAziendale, Reparto
+
+        capo = int(capo_anagrafica_id)
+
+        # 1) Canonico: aree di cui è responsabile, più le aree senza
+        #    responsabile proprio il cui reparto ha lui come caporeparto.
+        aree_ids = set(
+            AreaAziendale.objects.filter(
+                Q(responsabile_legacy_id=capo)
+                | (
+                    (Q(responsabile_legacy_id__isnull=True) | Q(responsabile_legacy_id=0))
+                    & Q(reparto__caporeparto_legacy_id=capo)
+                )
+            ).values_list("id", flat=True)
+        )
+        if aree_ids:
+            ids.update(
+                int(v)
+                for v in DipendenteAnagraficaAziendale.objects.filter(
+                    area_aziendale_id__in=aree_ids
+                ).values_list("legacy_anagrafica_id", flat=True)
+                if v is not None
+            )
+
+        # 2) Fallback denormalizzato, solo per chi non ha area canonica.
         ids.update(
             int(v)
             for v in DipendenteAnagraficaAziendale.objects.filter(
-                caporeparto_legacy_id=int(capo_anagrafica_id)
+                caporeparto_legacy_id=capo, area_aziendale__isnull=True
             ).values_list("legacy_anagrafica_id", flat=True)
             if v is not None
         )
 
+        # 3) Fallback sul testo legacy del reparto, sempre solo per chi non ha
+        #    area canonica.
         aree = [
             str(nome).strip()
             for nome in Reparto.objects.filter(
-                is_active=True, caporeparto_legacy_id=int(capo_anagrafica_id)
+                is_active=True, caporeparto_legacy_id=capo
             ).values_list("nome", flat=True)
             if str(nome or "").strip()
         ]
         if aree:
             ids.update(
                 int(v)
-                for v in DipendenteAnagraficaAziendale.objects.filter(area__in=aree).values_list(
-                    "legacy_anagrafica_id", flat=True
-                )
+                for v in DipendenteAnagraficaAziendale.objects.filter(
+                    area__in=aree, area_aziendale__isnull=True
+                ).values_list("legacy_anagrafica_id", flat=True)
                 if v is not None
             )
     except Exception:
@@ -3420,15 +3448,30 @@ def _resolve_anagrafica_hr_effective_capo_ids(
     reparto = ""
     try:
         from anagrafica.models import DipendenteAnagraficaAziendale, Reparto
+        from anagrafica.services.reparto_canonico import resolve_responsabile_effettivo
 
         if employee_id is not None:
             aziendale = (
                 DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=employee_id)
-                .only("caporeparto_legacy_id", "area")
+                .select_related("area_aziendale", "area_aziendale__reparto")
+                .only("caporeparto_legacy_id", "area", "area_aziendale")
                 .first()
             )
             if aziendale is not None:
-                capo_anagrafica_id = _as_int(getattr(aziendale, "caporeparto_legacy_id", None))
+                # L'approvatore e' il responsabile dell'AREA AZIENDALE del
+                # dipendente; il caporeparto del REPARTO e' solo il fallback
+                # (stessa regola di `resolve_responsabile_effettivo`, cosi'
+                # assenze e Anagrafica mostrano lo stesso nome). Il campo
+                # denormalizzato `caporeparto_legacy_id` viene usato solo se
+                # la catena canonica non risolve: e' una copia, aggiornata solo
+                # al salvataggio del dipendente, e puo' essere stantia.
+                area = getattr(aziendale, "area_aziendale", None)
+                rep_canonico = getattr(area, "reparto", None) if area is not None else None
+                capo_anagrafica_id = _as_int(
+                    resolve_responsabile_effettivo(area=area, reparto=rep_canonico)
+                )
+                if capo_anagrafica_id is None:
+                    capo_anagrafica_id = _as_int(getattr(aziendale, "caporeparto_legacy_id", None))
                 reparto = str(getattr(aziendale, "area", "") or "").strip()
 
         if capo_anagrafica_id is None:
@@ -3646,14 +3689,22 @@ def _superior_capo_option(capo_anagrafica_id: int | None, capi: list[dict]) -> s
         return ""
     try:
         from anagrafica.models import DipendenteAnagraficaAziendale
+        from anagrafica.services.reparto_canonico import resolve_responsabile_effettivo
 
         az = (
             DipendenteAnagraficaAziendale.objects
             .filter(legacy_anagrafica_id=int(capo_anagrafica_id))
-            .only("caporeparto_legacy_id")
+            .select_related("area_aziendale", "area_aziendale__reparto")
+            .only("caporeparto_legacy_id", "area_aziendale")
             .first()
         )
-        sup_id = _as_int(getattr(az, "caporeparto_legacy_id", None)) if az else None
+        # Stessa regola dell'approvatore: area aziendale prima, reparto dopo,
+        # campo denormalizzato solo come ultima spiaggia.
+        area = getattr(az, "area_aziendale", None) if az else None
+        rep_canonico = getattr(area, "reparto", None) if area is not None else None
+        sup_id = _as_int(resolve_responsabile_effettivo(area=area, reparto=rep_canonico))
+        if sup_id is None:
+            sup_id = _as_int(getattr(az, "caporeparto_legacy_id", None)) if az else None
         if not sup_id:
             return ""
         for capo in capi:
