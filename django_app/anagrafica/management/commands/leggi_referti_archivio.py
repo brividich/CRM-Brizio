@@ -407,13 +407,25 @@ class Command(BaseCommand):
             for motivo, n in motivi.most_common(12):
                 w(f"    {n:4d}  {motivo}")
 
-        esami = Counter(e for l in certificati if l.piano for e in l.piano.esami_ignoti)
+        from anagrafica.services.referti_registrazione import ripulisci_esame, ripulisci_giudizio
+
+        # Raggruppati per nome ripulito + periodicità: è la forma in cui vanno
+        # inseriti gli alias (una riga per esame e cadenza).
+        esami = Counter()
+        for l in certificati:
+            if not (l.piano and l.piano.esami_ignoti):
+                continue
+            ignoti = set(l.piano.esami_ignoti)
+            for voce in l.campi.protocollo or []:
+                if voce.get("esame", "") in ignoti:
+                    esami[f"{ripulisci_esame(voce['esame'])} — {voce.get('periodicita') or '?'}"] += 1
         if esami:
-            w(self.style.WARNING("  Esami NON a catalogo (da mappare negli alias, poi rilanciare):"))
+            w(self.style.WARNING("  Esami NON a catalogo (esame — periodicità, da mappare negli alias):"))
             for esame, n in esami.most_common():
                 w(f"    {n:4d}  {esame}")
         giudizi = Counter(
-            (l.campi.esito_testo or "—") for l in certificati if l.piano and not l.piano.esito
+            ripulisci_giudizio(l.campi.esito_testo or "") or "—"
+            for l in certificati if l.piano and not l.piano.esito
         )
         if giudizi:
             w(self.style.WARNING("  Giudizi NON riconosciuti (da mappare negli alias):"))

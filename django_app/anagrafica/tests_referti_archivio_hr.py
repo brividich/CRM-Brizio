@@ -101,7 +101,7 @@ class LeggiRefertiArchivioTests(TestCase):
         self.oculistica.delete()
         out = self._run()
         self.assertIn("Esami NON a catalogo", out)
-        self.assertIn("Visita Oculistica", out)
+        self.assertIn("VISITA OCULISTICA — biennale", out)
         self.assertIn("REVISIONE", out)
 
     def test_pagina_non_certificato_ignorata(self):
@@ -113,3 +113,48 @@ class LeggiRefertiArchivioTests(TestCase):
     def test_cartella_solo_in_dry_run(self):
         with self.assertRaises(CommandError):
             self._run("--apply", "--cartella", str(self.private))
+
+
+class PuliziaEsamiGiudiziTests(TestCase):
+    """Strascichi OCR sui nomi di esami e giudizi: secondo tentativo, mai invenzioni."""
+
+    def test_ripulisci_esame(self):
+        from .services.referti_registrazione import ripulisci_esame
+
+        self.assertEqual(ripulisci_esame("Visita Medica 52"), "VISITA MEDICA")
+        self.assertEqual(ripulisci_esame("Vaccinazione Antitetanica 520"), "VACCINAZIONE ANTITETANICA")
+        self.assertEqual(ripulisci_esame("Vaccinazione Epatite B"), "VACCINAZIONE EPATITE B")
+        self.assertEqual(ripulisci_esame("Vaccinazione Antitetanica F1"), "VACCINAZIONE ANTITETANICA")
+        self.assertEqual(ripulisci_esame("Visita Oculistica i"), "VISITA OCULISTICA")
+        self.assertEqual(ripulisci_esame("Vaccinazione ‘Antitetanica"), "VACCINAZIONE ANTITETANICA")
+        self.assertEqual(ripulisci_esame("Esami Ematici di Routine 52"), "ESAMI EMATICI DI ROUTINE")
+
+    def test_ripulisci_giudizio(self):
+        from .services.referti_registrazione import ripulisci_giudizio
+
+        self.assertEqual(ripulisci_giudizio("IDONEO CON PRESCRIZIONI PRESCRIZIONI"), "IDONEO CON PRESCRIZIONI")
+        self.assertEqual(ripulisci_giudizio("IDONEO MANSIONE SPECIFICA C"), "IDONEO MANSIONE SPECIFICA")
+        self.assertEqual(ripulisci_giudizio("IDONEO CON LI"), "IDONEO CON LI")  # troncato: non si ricostruisce
+
+    def test_prepara_registrazione_usa_il_nome_ripulito_e_rispetta_gli_alias_esatti(self):
+        from .models_sorveglianza import AliasEsameProtocollo
+        from .services.referti_parsing import CampiReferto
+        from .services.referti_registrazione import prepara_registrazione
+
+        annuale = TipoVisitaMedica.objects.create(nome="Visita Medica", durata_mesi=12)
+        speciale = TipoVisitaMedica.objects.create(nome="Visita Medica speciale", durata_mesi=60)
+        AliasEsameProtocollo.objects.create(testo="Visita Medica 260", periodicita="", tipo=speciale)
+        AliasEsitoIdoneita.objects.create(
+            testo="IDONEO CON PRESCRIZIONI", esito=VisitaMedica.Esito.IDONEO_CON_PRESCRIZIONI
+        )
+
+        piano = prepara_registrazione(CampiReferto(
+            esito_testo="IDONEO CON PRESCRIZIONI PRESCRIZIONI",
+            protocollo=[
+                {"esame": "Visita Medica 52", "periodicita": "annuale"},
+                {"esame": "Visita Medica 260", "periodicita": "quinquennale"},
+            ],
+        ))
+        self.assertEqual([t.pk for t, _ in piano.tipi], [annuale.pk, speciale.pk])
+        self.assertEqual(piano.esami_ignoti, [])
+        self.assertEqual(piano.esito, VisitaMedica.Esito.IDONEO_CON_PRESCRIZIONI)
