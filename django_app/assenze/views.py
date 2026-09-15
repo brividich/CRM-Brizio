@@ -4297,6 +4297,8 @@ def impostazioni_admin(request):
         a=request.GET.get("a") or "",
         page=request.GET.get("page") or 1,
         per_page=request.GET.get("per_page") or ADMIN_PER_PAGE_DEFAULT,
+        ordina=request.GET.get("ordina") or ADMIN_ORDINAMENTO_DEFAULT,
+        verso=request.GET.get("verso") or "desc",
     )
     admin_audit_entries = list(
         AuditLog.objects.filter(modulo="assenze").order_by("-created_at")[:100]
@@ -4317,6 +4319,7 @@ def impostazioni_admin(request):
             "admin_filtri": admin_overview.get("filtri"),
             "admin_paginazione": admin_overview.get("paginazione"),
             "admin_tipi_disponibili": admin_overview.get("tipi_disponibili"),
+            "admin_mostra_creata": admin_overview.get("mostra_creata"),
             "admin_stati_disponibili": admin_overview.get("stati_disponibili"),
             "admin_per_page_scelte": admin_overview.get("per_page_scelte"),
             "admin_audit_entries": admin_audit_entries,
@@ -4608,6 +4611,138 @@ def car_dashboard(request):
 
 @login_required
 @require_http_methods(["POST"])
+def _applica_moderazione(request, item_id: int, current: dict, consenso: str, note_gestione: str):
+    """Approva o rifiuta un record: scrittura, audit, notifica, coda SharePoint.
+
+    Estratta da ``api_car_aggiorna_consenso`` perche' la moderazione in blocco
+    deve fare **esattamente** le stesse cose: una seconda implementazione
+    avrebbe finito per dimenticarsi l'audit o la notifica al richiedente.
+    Ritorna l'esito dell'accodamento SharePoint, oppure ``None`` se la scrittura
+    non e' andata a buon fine.
+    """
+    updates = {
+        "consenso": consenso,
+        "moderation_status": _CONSENSO_TO_MOD.get(consenso, 2),
+        "note_gestione": note_gestione,
+        "modified_datetime": timezone.now(),
+    }
+    updates.update(_approval_timestamp_update(consenso, current))
+    if not _update_assenza(item_id, updates):
+        return None
+
+    try:
+        from core.audit import log_action as _log
+
+        _log(request, "assenza_moderata", "assenze", {
+            "item_id": item_id,
+            "consenso": consenso,
+            "note_gestione": note_gestione,
+        })
+    except Exception:
+        pass
+
+    try:
+        from core.legacy_models import UtenteLegacy
+        from core.models import Notifica
+
+        richiedente_id = None
+        email_rich = (current.get("email_esterna") or "").strip()
+        if email_rich:
+            u = UtenteLegacy.objects.filter(email__iexact=email_rich).first()
+            if u:
+                richiedente_id = u.id
+        if richiedente_id:
+            stato_label = "approvata" if consenso == "Approvato" else "rifiutata"
+            msg = f"La tua richiesta di assenza è stata {stato_label}."
+            if note_gestione and consenso == "Rifiutato":
+                msg += f" Nota: {note_gestione}"
+            Notifica.objects.create(
+                legacy_user_id=richiedente_id,
+                tipo=f"assenza_{stato_label}",
+                messaggio=msg,
+                url_azione="/assenze/richiesta_assenze",
+            )
+    except Exception:
+        logger.exception("Assenze: notifica al richiedente non creata")
+
+    return _sp_enqueue_upsert(item_id)
+
+
+BULK_MAX = 200
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_admin_bulk_consenso(request):
+    """Approva o rifiuta piu' assenze in un colpo solo.
+
+    Ogni record passa dagli **stessi controlli** dell'azione singola (permesso
+    sul record, record gestito su SharePoint, esistenza): un'azione in blocco
+    non deve poter fare quello che l'azione singola vieta. Gli scarti non
+    fermano gli altri: la risposta dice quanti sono passati e perche' gli altri
+    no, cosi' l'operatore non resta a chiedersi cosa sia successo.
+    """
+    perms = _assenze_permissions(request)
+    if not perms.get("can_update_owned") and not perms.get("can_update_any"):
+        return _json_error("Permessi insufficienti per moderare le assenze.", status=403)
+
+    payload = _request_json(request) or {}
+    consenso = _norm_consenso(payload.get("consenso") or request.POST.get("consenso") or "")
+    if consenso not in {"Approvato", "Rifiutato"}:
+        return _json_error("Valore consenso non valido. Usa 'Approvato' o 'Rifiutato'.", status=400)
+
+    note_gestione = str(payload.get("note_gestione") or request.POST.get("note_gestione") or "").strip()
+    if not note_gestione:
+        return _json_error("La nota è obbligatoria.", status=400)
+
+    ids_raw = payload.get("ids")
+    if ids_raw is None:
+        ids_raw = request.POST.getlist("ids")
+    ids: list[int] = []
+    for raw in ids_raw or []:
+        value = _as_int(raw)
+        if value is not None and value > 0 and value not in ids:
+            ids.append(value)
+    if not ids:
+        return _json_error("Nessuna assenza selezionata.", status=400)
+    if len(ids) > BULK_MAX:
+        return _json_error(f"Troppe assenze selezionate: massimo {BULK_MAX} per volta.", status=400)
+
+    fatte: list[int] = []
+    scartate: list[dict] = []
+    for item_id in ids:
+        current = _get_assenza(item_id)
+        if not current:
+            scartate.append({"id": item_id, "motivo": "record non trovato"})
+            continue
+        if not _can_manage_record(request, current, require_delete=False):
+            scartate.append({"id": item_id, "motivo": "fuori dal tuo ambito"})
+            continue
+        if _sharepoint_managed_error(item_id) is not None:
+            scartate.append({"id": item_id, "motivo": "gestita su SharePoint"})
+            continue
+        if _applica_moderazione(request, item_id, current, consenso, note_gestione) is None:
+            scartate.append({"id": item_id, "motivo": "aggiornamento non eseguito"})
+            continue
+        fatte.append(item_id)
+
+    log_action(request, "assenze_moderate_in_blocco", "assenze", {
+        "consenso": consenso,
+        "richieste": len(ids),
+        "applicate": len(fatte),
+        "scartate": len(scartate),
+        "note_gestione": note_gestione,
+    })
+
+    return JsonResponse({
+        "ok": True,
+        "consenso": consenso,
+        "applicate": len(fatte),
+        "ids_applicati": fatte,
+        "scartate": scartate,
+    })
+
+
 def api_car_aggiorna_consenso(request, item_id: int):
     """API per CAR: approva o rifiuta una singola assenza del proprio reparto."""
     perms = _assenze_permissions(request)
@@ -4635,58 +4770,9 @@ def api_car_aggiorna_consenso(request, item_id: int):
         note_raw = request.POST.get("note_gestione", "")
     note_gestione = str(note_raw or "").strip()
 
-    moderation_status = _CONSENSO_TO_MOD.get(consenso, 2)
-    updates = {
-        "consenso": consenso,
-        "moderation_status": moderation_status,
-        "note_gestione": note_gestione,
-        "modified_datetime": timezone.now(),
-    }
-    updates.update(_approval_timestamp_update(consenso, current))
-    ok = _update_assenza(
-        item_id,
-        updates,
-    )
-    if not ok:
+    sync_result = _applica_moderazione(request, item_id, current, consenso, note_gestione)
+    if sync_result is None:
         return _json_error("Aggiornamento non eseguito.", status=500)
-
-    # --- Audit log ---
-    try:
-        from core.audit import log_action
-        log_action(request, "assenza_moderata", "assenze", {
-            "item_id": item_id,
-            "consenso": consenso,
-            "note_gestione": note_gestione,
-        })
-    except Exception:
-        pass
-
-    # --- Notifica all'utente richiedente ---
-    try:
-        from core.models import Notifica
-        from core.legacy_models import UtenteLegacy
-        richiedente_id = None
-        email_rich = (current.get("email_esterna") or "").strip()
-        if email_rich:
-            u = UtenteLegacy.objects.filter(email__iexact=email_rich).first()
-            if u:
-                richiedente_id = u.id
-        if richiedente_id:
-            stato_label = "approvata" if consenso == "Approvato" else "rifiutata"
-            tipo = f"assenza_{stato_label}"
-            msg = f"La tua richiesta di assenza è stata {stato_label}."
-            if note_gestione and consenso == "Rifiutato":
-                msg += f" Nota: {note_gestione}"
-            Notifica.objects.create(
-                legacy_user_id=richiedente_id,
-                tipo=tipo,
-                messaggio=msg,
-                url_azione="/assenze/richiesta_assenze",
-            )
-    except Exception:
-        logger.exception("Assenze: notifica al richiedente non creata")
-
-    sync_result = _sp_enqueue_upsert(item_id)
 
     return JsonResponse({"ok": True, "item_id": item_id, "consenso": consenso, "note_gestione": note_gestione, "sync": sync_result})
 
@@ -5454,6 +5540,42 @@ ADMIN_STATI = {
 ADMIN_PER_PAGE_SCELTE = (25, 50, 100, 200)
 ADMIN_PER_PAGE_DEFAULT = 25
 
+# Il pannello si apre su cio' che ha bisogno di una decisione: le approvate
+# sono migliaia e non chiedono niente a nessuno. "tutti" e' la scelta esplicita
+# per vedere l'intero storico.
+ADMIN_STATO_DEFAULT = "in_attesa"
+ADMIN_STATO_TUTTI = "tutti"
+
+# Colonne ordinabili: chiave usata nell'URL -> espressione SQL. Whitelist, non
+# interpolazione: l'ordinamento arriva dalla query string.
+ADMIN_ORDINAMENTI = {
+    "id": "id",
+    "dipendente": "copia_nome",
+    "tipo": "tipo_assenza",
+    "inizio": "data_inizio",
+    "fine": "data_fine",
+    "stato": "COALESCE(moderation_status, 2)",
+    "creata": "created_datetime",
+}
+ADMIN_ORDINAMENTO_DEFAULT = "inizio"
+
+
+def _admin_order_by(ordina: str, verso: str) -> str:
+    """ORDER BY del pannello admin, da una whitelist (mai interpolazione libera).
+
+    `id` fa da secondo criterio: senza, due righe con lo stesso valore possono
+    scambiarsi di posto fra una pagina e l'altra e una sparirebbe dall'elenco.
+    Non lo si ripete quando si ordina gia' per id: SQL Server rifiuta la stessa
+    colonna due volte nell'ORDER BY (errore 169).
+    """
+    if ordina not in ADMIN_ORDINAMENTI:
+        ordina = ADMIN_ORDINAMENTO_DEFAULT
+    direzione = "ASC" if str(verso or "").lower() == "asc" else "DESC"
+    order_by = f"ORDER BY {ADMIN_ORDINAMENTI[ordina]} {direzione}"
+    if ordina != "id":
+        order_by += ", id DESC"
+    return order_by
+
 
 def _admin_assenze_overview(
     q: str = "",
@@ -5464,6 +5586,8 @@ def _admin_assenze_overview(
     a: str = "",
     page: int = 1,
     per_page: int = ADMIN_PER_PAGE_DEFAULT,
+    ordina: str = ADMIN_ORDINAMENTO_DEFAULT,
+    verso: str = "desc",
 ) -> dict:
     """Panoramica admin del modulo assenze.
 
@@ -5491,9 +5615,15 @@ def _admin_assenze_overview(
     }
 
     stato = str(stato or "").strip().lower()
-    if stato not in ADMIN_STATI:
+    if stato == ADMIN_STATO_TUTTI:
         stato = ""
+    elif stato not in ADMIN_STATI:
+        stato = ADMIN_STATO_DEFAULT
     tipo = str(tipo or "").strip()
+    ordina = str(ordina or "").strip().lower()
+    if ordina not in ADMIN_ORDINAMENTI:
+        ordina = ADMIN_ORDINAMENTO_DEFAULT
+    verso = "asc" if str(verso or "").strip().lower() == "asc" else "desc"
     q = str(q or "").strip()
     da_dt = _parse_input_dt(f"{da}T00:00") if str(da or "").strip() else None
     a_dt = _parse_input_dt(f"{a}T23:59") if str(a or "").strip() else None
@@ -5516,14 +5646,20 @@ def _admin_assenze_overview(
         "assenze": [],
         "filtri": {
             "q": q,
-            "stato": stato,
+            # Nel form: stringa vuota significa "tutti", altrimenti il menu non
+            # potrebbe piu' rappresentare la scelta esplicita di vedere tutto.
+            "stato": stato or ADMIN_STATO_TUTTI,
             "tipo": tipo,
             "da": str(da or "").strip(),
             "a": str(a or "").strip(),
             "per_page": per_page,
-            "attivi": bool(q or stato or tipo or da or a),
+            "ordina": ordina,
+            "verso": verso,
+            "attivi": bool(q or tipo or da or a) or stato != ADMIN_STATO_DEFAULT,
+            "solo_in_attesa": stato == ADMIN_STATO_DEFAULT,
         },
         "tipi_disponibili": [],
+        "mostra_creata": False,
         "stati_disponibili": [{"key": k, "label": v[0]} for k, v in ADMIN_STATI.items()],
         "per_page_scelte": list(ADMIN_PER_PAGE_SCELTE),
         "paginazione": {
@@ -5597,15 +5733,24 @@ def _admin_assenze_overview(
     page = min(page, pages)
     offset = (page - 1) * per_page
 
+    creata_col = ", created_datetime" if _has_assenze_column("created_datetime") else ""
     base_sql = f"""
         SELECT
             id, copia_nome AS dipendente, tipo_assenza,
             data_inizio, data_fine, consenso,
-            moderation_status, motivazione_richiesta
+            moderation_status, motivazione_richiesta{creata_col}
         FROM assenze
         {where_clause}
     """
-    sql = _select_paginated(base_sql, "ORDER BY data_inizio DESC, id DESC", offset=offset, limit=per_page)
+    ordina_effettivo = ordina
+    if ordina == "creata" and not creata_col:
+        ordina_effettivo = ADMIN_ORDINAMENTO_DEFAULT
+    sql = _select_paginated(
+        base_sql,
+        _admin_order_by(ordina_effettivo, verso),
+        offset=offset,
+        limit=per_page,
+    )
 
     assenze: list[dict] = []
     for row in _fetch_all_dict(sql, params):
@@ -5619,10 +5764,12 @@ def _admin_assenze_overview(
             "inizio_label": _dt_label(row.get("data_inizio")),
             "fine_label": _dt_label(row.get("data_fine")),
             "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
+            "creata_label": _dt_label(row.get("created_datetime")) if creata_col else "",
         })
     _mark_sharepoint_managed(assenze)
 
     risultato["assenze"] = assenze
+    risultato["mostra_creata"] = bool(creata_col)
     risultato["paginazione"] = {
         "page": page,
         "pages": pages,

@@ -20,6 +20,24 @@
     .ga-act-delete { border-color:#e2e8f0; color:#64748b; }
     .ga-act-delete:hover { background:#f8fafc; }
 
+    /* -- Ordinamento, selezione, azioni in blocco ---------------------------- */
+    .ga-sort { display:inline-flex; align-items:center; gap:4px; color:inherit; text-decoration:none; white-space:nowrap; }
+    .ga-sort:hover { color:#0f766e; }
+    .ga-sort-arrow { font-size:10px; opacity:.45; }
+    .ga-sort.is-active { color:#0f766e; }
+    .ga-sort.is-active .ga-sort-arrow { opacity:1; }
+    .ga-bulk {
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      padding:10px 12px; margin-bottom:10px;
+      border:1px solid #cbd5e1; border-radius:10px; background:#f8fafc;
+    }
+    .ga-bulk[hidden] { display:none; }
+    .ga-bulk-count { font-size:13px; font-weight:800; color:#0f172a; }
+    .ga-check { width:16px; height:16px; cursor:pointer; }
+    body.theme-dark .ga-bulk { background:var(--surface-alt); border-color:var(--border); }
+    body.theme-dark .ga-bulk-count { color:var(--text); }
+    body.theme-dark .ga-sort:hover, body.theme-dark .ga-sort.is-active { color:#2dd4bf; }
+
     /* -- Filtri e paginazione ------------------------------------------------ */
     .ga-filters { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; align-items:end; margin-bottom:14px; }
     .ga-filters .ga-field { display:grid; gap:5px; min-width:0; }
@@ -155,6 +173,8 @@
         {# Cambiare un filtro riparte da pagina 1: restare alla 7 di un altro
            risultato mostrerebbe una pagina vuota senza spiegare perche'. #}
         <input type="hidden" name="page" id="ga-page" value="1">
+        <input type="hidden" name="ordina" id="ga-ordina" value="{{ admin_filtri.ordina }}">
+        <input type="hidden" name="verso" id="ga-verso" value="{{ admin_filtri.verso }}">
         <div class="ga-field ga-field-wide">
           <label for="q_admin">Cerca</label>
           <input type="text" id="q_admin" name="q_admin" value="{{ admin_filtri.q }}"
@@ -163,7 +183,7 @@
         <div class="ga-field">
           <label for="ga-stato">Stato</label>
           <select id="ga-stato" name="stato">
-            <option value="">Tutti gli stati</option>
+            <option value="tutti" {% if admin_filtri.stato == "tutti" %}selected{% endif %}>Tutti gli stati</option>
             {% for st in admin_stati_disponibili %}
               <option value="{{ st.key }}" {% if admin_filtri.stato == st.key %}selected{% endif %}>{{ st.label }}</option>
             {% endfor %}
@@ -198,15 +218,52 @@
           <button type="submit" class="btn btn-primary btn-sm">Filtra</button>
           {% if admin_filtri.attivi %}
             <a class="btn btn-secondary btn-sm" href="?#admin-assenze-panel">Azzera</a>
+            {% if admin_filtri.solo_in_attesa %}
+              <a class="btn btn-secondary btn-sm" href="?stato=tutti#admin-assenze-panel">Mostra tutte</a>
+            {% endif %}
           {% endif %}
         </div>
       </form>
+      {% if admin_can_moderate %}
+        <div class="ga-bulk" id="ga-bulk" hidden>
+          <span class="ga-bulk-count" id="ga-bulk-count">0 selezionate</span>
+          <button type="button" class="ga-act ga-act-approve" id="ga-bulk-approva">Approva selezionate</button>
+          <button type="button" class="ga-act ga-act-reject" id="ga-bulk-rifiuta">Rifiuta selezionate</button>
+          <button type="button" class="ga-act" id="ga-bulk-annulla">Deseleziona</button>
+          <span class="ms-field-help" id="ga-bulk-nota">La selezione vale solo su questa pagina.</span>
+        </div>
+      {% endif %}
       <div class="abs-table-wrap">
         <table class="abs-table">
-          <thead><tr><th>#</th><th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Stato</th><th>Motivo</th>{% if admin_can_moderate or admin_can_delete %}<th>Azioni</th>{% endif %}</tr></thead>
+          <thead>
+            <tr>
+              {% if admin_can_moderate %}
+                <th><input type="checkbox" class="ga-check" id="ga-check-all" title="Seleziona tutte le righe moderabili di questa pagina"></th>
+              {% endif %}
+              <th>{% include "assenze/partials/_ga_sort.html" with campo="id" etichetta="#" %}</th>
+              <th>{% include "assenze/partials/_ga_sort.html" with campo="dipendente" etichetta="Dipendente" %}</th>
+              <th>{% include "assenze/partials/_ga_sort.html" with campo="tipo" etichetta="Tipo" %}</th>
+              <th>{% include "assenze/partials/_ga_sort.html" with campo="inizio" etichetta="Dal" %}</th>
+              <th>{% include "assenze/partials/_ga_sort.html" with campo="fine" etichetta="Al" %}</th>
+              <th>{% include "assenze/partials/_ga_sort.html" with campo="stato" etichetta="Stato" %}</th>
+              {% if admin_mostra_creata %}
+                <th>{% include "assenze/partials/_ga_sort.html" with campo="creata" etichetta="Inserita il" %}</th>
+              {% endif %}
+              <th>Motivo</th>
+              {% if admin_can_moderate or admin_can_delete %}<th>Azioni</th>{% endif %}
+            </tr>
+          </thead>
           <tbody>
             {% for a in admin_assenze %}
               <tr>
+                {% if admin_can_moderate %}
+                  <td data-label="">
+                    {% if not a.gestita_sp %}
+                      <input type="checkbox" class="ga-check ga-check-row" value="{{ a.id }}"
+                             data-dip="{{ a.dipendente }}" aria-label="Seleziona assenza {{ a.id }}">
+                    {% endif %}
+                  </td>
+                {% endif %}
                 <td data-label="#"><strong>{{ a.id }}</strong></td>
                 <td data-label="Dipendente">{{ a.dipendente }}</td>
                 <td data-label="Tipo">{{ a.tipo }}</td>
@@ -221,6 +278,9 @@
                     <span class="abs-status abs-status-waiting">In attesa</span>
                   {% endif %}
                 </td>
+                {% if admin_mostra_creata %}
+                  <td data-label="Inserita il">{{ a.creata_label|default:"-" }}</td>
+                {% endif %}
                 <td data-label="Motivo">{{ a.motivo|default:"-" }}</td>
                 {% if admin_can_moderate or admin_can_delete %}
                   <td data-label="Azioni">
@@ -242,8 +302,11 @@
               </tr>
             {% empty %}
               <tr>
-                <td colspan="{% if admin_can_moderate or admin_can_delete %}8{% else %}7{% endif %}" class="abs-cell-primary">
-                  {% if admin_filtri.attivi %}
+                <td colspan="12" class="abs-cell-primary">
+                  {% if admin_filtri.solo_in_attesa %}
+                    Nessuna assenza in attesa: non c&#39;è niente da decidere.
+                    <a href="?stato=tutti#admin-assenze-panel">Mostra tutte le assenze</a>
+                  {% elif admin_filtri.attivi %}
                     Nessuna assenza corrisponde ai filtri attivi.
                   {% else %}
                     Nessuna assenza registrata.
@@ -286,6 +349,8 @@
       var form = document.getElementById("ga-filters");
       var campoPagina = document.getElementById("ga-page");
       if (!form || !campoPagina) return;
+
+      // Paginazione
       Array.prototype.forEach.call(document.querySelectorAll(".ga-page-link"), function (link) {
         link.addEventListener("click", function (evento) {
           evento.preventDefault();
@@ -294,8 +359,114 @@
           form.submit();
         });
       });
+
+      // Ordinamento: ricliccare la stessa colonna inverte il verso, cambiare
+      // colonna riparte da pagina 1.
+      var campoOrdina = document.getElementById("ga-ordina");
+      var campoVerso = document.getElementById("ga-verso");
+      Array.prototype.forEach.call(document.querySelectorAll(".ga-sort"), function (link) {
+        link.addEventListener("click", function (evento) {
+          evento.preventDefault();
+          var campo = link.getAttribute("data-campo");
+          if (!campo || !campoOrdina || !campoVerso) return;
+          if (campoOrdina.value === campo) {
+            campoVerso.value = campoVerso.value === "asc" ? "desc" : "asc";
+          } else {
+            campoOrdina.value = campo;
+            campoVerso.value = "desc";
+          }
+          campoPagina.value = "1";
+          form.submit();
+        });
+      });
     })();
   </script>
+
+  {% if admin_can_moderate %}
+  <script>
+    // Selezione multipla e moderazione in blocco. La selezione vive solo nella
+    // pagina corrente: portarsela dietro fra le pagine darebbe l'impressione di
+    // agire su righe che non si stanno piu' guardando.
+    (function () {
+      var barra = document.getElementById("ga-bulk");
+      var contatore = document.getElementById("ga-bulk-count");
+      var checkAll = document.getElementById("ga-check-all");
+      if (!barra) return;
+      var righe = Array.prototype.slice.call(document.querySelectorAll(".ga-check-row"));
+
+      function selezionate() {
+        return righe.filter(function (c) { return c.checked && !c.closest("tr").hidden; });
+      }
+
+      function aggiorna() {
+        var n = selezionate().length;
+        barra.hidden = n === 0;
+        if (contatore) contatore.textContent = n === 1 ? "1 selezionata" : n + " selezionate";
+        if (checkAll) {
+          checkAll.checked = n > 0 && n === righe.length;
+          checkAll.indeterminate = n > 0 && n < righe.length;
+        }
+      }
+
+      righe.forEach(function (c) { c.addEventListener("change", aggiorna); });
+      if (checkAll) {
+        checkAll.addEventListener("change", function () {
+          righe.forEach(function (c) { c.checked = checkAll.checked; });
+          aggiorna();
+        });
+      }
+      var annulla = document.getElementById("ga-bulk-annulla");
+      if (annulla) {
+        annulla.addEventListener("click", function () {
+          righe.forEach(function (c) { c.checked = false; });
+          aggiorna();
+        });
+      }
+
+      function chiediNotaEInvia(consenso, etichetta) {
+        var ids = selezionate().map(function (c) { return parseInt(c.value, 10); });
+        if (!ids.length) return;
+        var nota = window.prompt(
+          etichetta + " " + ids.length + " assenz" + (ids.length === 1 ? "a" : "e") +
+          ".\nLa nota è obbligatoria e viene registrata nel log:"
+        );
+        if (nota === null) return;
+        nota = String(nota).trim();
+        if (!nota) { window.alert("La nota è obbligatoria."); return; }
+
+        var csrfEl = document.querySelector("#ga-modal-overlay [name=csrfmiddlewaretoken]")
+          || document.querySelector("[name=csrfmiddlewaretoken]");
+        fetch("{% url 'assenze_api_admin_bulk_consenso' %}", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrfEl ? csrfEl.value : "" },
+          body: JSON.stringify({ ids: ids, consenso: consenso, note_gestione: nota })
+        }).then(function (r) {
+          return r.json().then(function (d) { return { ok: r.ok, d: d }; }, function () { return { ok: r.ok, d: {} }; });
+        }).then(function (res) {
+          if (!res.ok || !res.d || !res.d.ok) {
+            window.alert((res.d && res.d.error) || "Operazione non riuscita.");
+            return;
+          }
+          var scartate = res.d.scartate || [];
+          if (scartate.length) {
+            window.alert(
+              res.d.applicate + " applicate, " + scartate.length + " scartate:\n" +
+              scartate.map(function (x) { return "#" + x.id + ": " + x.motivo; }).join("\n")
+            );
+          }
+          window.location.reload();
+        });
+      }
+
+      var btnApprova = document.getElementById("ga-bulk-approva");
+      var btnRifiuta = document.getElementById("ga-bulk-rifiuta");
+      if (btnApprova) btnApprova.addEventListener("click", function () { chiediNotaEInvia("Approvato", "Approvi"); });
+      if (btnRifiuta) btnRifiuta.addEventListener("click", function () { chiediNotaEInvia("Rifiutato", "Rifiuti"); });
+
+      aggiorna();
+    })();
+  </script>
+  {% endif %}
 
   <section class="abs-panel">
     <div class="abs-panel-head">
