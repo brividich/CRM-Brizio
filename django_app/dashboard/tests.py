@@ -93,6 +93,7 @@ class DashboardAnomalieAccessTests(TestCase):
         with (
             patch("dashboard.views.user_can_modulo_action", return_value=False),
             patch("dashboard.views.get_legacy_user", return_value=None),
+            patch("core.acl_v2.resolve_acl_access", return_value={"allowed": False}),
         ):
             response = self.client.get(reverse("anomalie_menu"))
 
@@ -101,6 +102,29 @@ class DashboardAnomalieAccessTests(TestCase):
         self.assertNotContains(response, reverse("apertura_segnalazione"))
         self.assertNotContains(response, reverse("gestione_anomalie_page"))
 
+    def test_anomalie_menu_shows_buttons_when_target_pages_are_allowed(self):
+        # Ruolo con i soli permessi delle pagine (nessuna azione storica): i
+        # pulsanti devono comparire, perche' le pagine sono raggiungibili.
+        allowed_paths = {reverse("gestione_anomalie_page"), reverse("apertura_segnalazione")}
+        real_resolve = __import__("core.acl_v2", fromlist=["resolve_acl_access"]).resolve_acl_access
+
+        def fake_resolve(*, path, **kwargs):
+            if path in allowed_paths:
+                return {"allowed": True}
+            return real_resolve(path=path, **kwargs)
+
+        with (
+            patch("dashboard.views.user_can_modulo_action", return_value=False),
+            patch("dashboard.views.get_legacy_user", return_value=None),
+            patch("core.acl_v2.resolve_acl_access", side_effect=fake_resolve),
+        ):
+            response = self.client.get(reverse("anomalie_menu"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("gestione_anomalie_page"))
+        self.assertContains(response, reverse("apertura_segnalazione"))
+        self.assertNotContains(response, "non ha accesso alle funzioni operative del modulo anomalie")
+
     def test_anomalie_menu_shows_only_allowed_actions(self):
         def fake_can(request, modulo: str, azione: str) -> bool:
             return modulo == "anomalie" and azione == "anomalie_aperte"
@@ -108,6 +132,7 @@ class DashboardAnomalieAccessTests(TestCase):
         with (
             patch("dashboard.views.user_can_modulo_action", side_effect=fake_can),
             patch("dashboard.views.get_legacy_user", return_value=None),
+            patch("core.acl_v2.resolve_acl_access", return_value={"allowed": False}),
         ):
             response = self.client.get(reverse("anomalie_menu"))
 

@@ -682,11 +682,43 @@ def richieste(request):
     return redirect("assenze_gestione")
 
 
+def _anomalie_page_allowed(request, legacy_user, path: str) -> bool:
+    """True se l'ACL di route consente la pagina di destinazione del pulsante.
+
+    Stessa decisione del middleware: chi entra nella pagina digitando l'URL deve
+    vederne anche il pulsante nel menu.
+    """
+    from core.acl_v2 import resolve_acl_access
+
+    try:
+        return bool(
+            resolve_acl_access(
+                path=path,
+                legacy_user=legacy_user,
+                django_user=request.user,
+                request=request,
+                include_legacy_diagnostic=False,
+            ).get("allowed")
+        )
+    except Exception:
+        logger.exception("Menu anomalie: verifica ACL fallita per %s", path)
+        return False
+
+
 def _anomalie_access_flags(request) -> dict[str, bool]:
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     return {
-        "can_view_anomalie_list": bool(user_can_modulo_action(request, "anomalie", "anomalie_aperte")),
-        "can_create_anomalie": bool(user_can_modulo_action(request, "anomalie", "inserimento_anomalie")),
+        # I pulsanti seguono i permessi storici di azione OPPURE il permesso della
+        # pagina a cui portano: assegnare solo quest'ultimo al ruolo lasciava il
+        # menu vuoto pur con le pagine accessibili.
+        "can_view_anomalie_list": bool(
+            user_can_modulo_action(request, "anomalie", "anomalie_aperte")
+            or _anomalie_page_allowed(request, legacy_user, reverse("gestione_anomalie_page"))
+        ),
+        "can_create_anomalie": bool(
+            user_can_modulo_action(request, "anomalie", "inserimento_anomalie")
+            or _anomalie_page_allowed(request, legacy_user, reverse("apertura_segnalazione"))
+        ),
         "can_manage_anomalie_config": bool(
             request.user.is_superuser or (legacy_user and is_legacy_admin(legacy_user))
         ),
