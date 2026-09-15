@@ -20,6 +20,42 @@
     .ga-act-delete { border-color:#e2e8f0; color:#64748b; }
     .ga-act-delete:hover { background:#f8fafc; }
 
+    /* -- Filtri e paginazione ------------------------------------------------ */
+    .ga-filters { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; align-items:end; margin-bottom:14px; }
+    .ga-filters .ga-field { display:grid; gap:5px; min-width:0; }
+    .ga-filters label { font-size:11px; text-transform:uppercase; letter-spacing:.06em; font-weight:800; color:#64748b; }
+    .ga-filters input[type="text"], .ga-filters input[type="date"], .ga-filters select {
+      width:100%; box-sizing:border-box; min-height:38px; padding:0 10px;
+      border:1px solid #cbd5e1; border-radius:9px; background:#fff; color:#0f172a;
+      font-family:inherit; font-size:13px;
+    }
+    .ga-filters input:focus, .ga-filters select:focus { outline:none; border-color:#0f766e; box-shadow:0 0 0 3px rgba(15,118,110,.12); }
+    .ga-filters-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .ga-kpi-link { display:block; text-decoration:none; color:inherit; }
+    .ga-kpi-link:hover { transform:translateY(-1px); }
+    .ga-pager { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding-top:12px; }
+    .ga-pager-info { font-size:13px; color:#64748b; }
+    .ga-pager-nav { display:flex; gap:6px; align-items:center; }
+    .ga-pager-nav a, .ga-pager-nav span {
+      min-width:38px; min-height:38px; display:inline-flex; align-items:center; justify-content:center;
+      padding:0 10px; border:1px solid #cbd5e1; border-radius:9px;
+      font-size:13px; font-weight:800; color:#0f172a; text-decoration:none; background:#fff;
+    }
+    .ga-pager-nav a:hover { border-color:#0f766e; color:#0f766e; background:#f0fdfa; }
+    .ga-pager-nav .is-disabled { opacity:.45; pointer-events:none; }
+    .ga-pager-nav .is-current { background:#0f766e; border-color:#0f766e; color:#fff; }
+    body.theme-dark .ga-filters label { color:var(--text-light); }
+    body.theme-dark .ga-filters input[type="text"],
+    body.theme-dark .ga-filters input[type="date"],
+    body.theme-dark .ga-filters select { background:var(--surface); border-color:var(--border); color:var(--text); }
+    body.theme-dark .ga-pager-info { color:var(--text-light); }
+    body.theme-dark .ga-pager-nav a, body.theme-dark .ga-pager-nav span { background:var(--surface); border-color:var(--border); color:var(--text); }
+    body.theme-dark .ga-pager-nav .is-current { background:#0f766e; border-color:#0f766e; color:#fff; }
+    @media (max-width:640px) {
+      .ga-filters { grid-template-columns:1fr 1fr; }
+      .ga-filters .ga-field-wide { grid-column:1 / -1; }
+    }
+
     .ga-log-row { display:grid; grid-template-columns:140px 120px 150px 1fr; gap:10px; padding:10px 12px; border-bottom:1px solid #eef2f7; font-size:13px; }
     .ga-log-row:last-child { border-bottom:none; }
     .ga-log-head { font-size:11px; text-transform:uppercase; letter-spacing:.08em; font-weight:800; color:#94a3b8; background:#f8fafc; }
@@ -79,18 +115,18 @@
           <div class="abs-kpi-top"><div class="abs-kpi-label">Totali</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-chart"></use></svg></span></div>
           <div class="abs-kpi-value">{{ admin_stats.total }}</div><div class="abs-kpi-note">Storico complessivo locale.</div>
         </article>
-        <article class="abs-kpi amber">
+        <a class="ga-kpi-link" href="?stato=in_attesa#admin-assenze-panel" title="Filtra la tabella su questo stato"><article class="abs-kpi amber">
           <div class="abs-kpi-top"><div class="abs-kpi-label">In attesa</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-hourglass"></use></svg></span></div>
           <div class="abs-kpi-value">{{ admin_stats.in_attesa }}</div><div class="abs-kpi-note">Record da processare.</div>
-        </article>
-        <article class="abs-kpi green">
+        </article></a>
+        <a class="ga-kpi-link" href="?stato=approvate#admin-assenze-panel" title="Filtra la tabella su questo stato"><article class="abs-kpi green">
           <div class="abs-kpi-top"><div class="abs-kpi-label">Approvate</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg></span></div>
           <div class="abs-kpi-value">{{ admin_stats.approvate }}</div><div class="abs-kpi-note">Richieste confermate.</div>
-        </article>
-        <article class="abs-kpi red">
+        </article></a>
+        <a class="ga-kpi-link" href="?stato=rifiutate#admin-assenze-panel" title="Filtra la tabella su questo stato"><article class="abs-kpi red">
           <div class="abs-kpi-top"><div class="abs-kpi-label">Rifiutate</div><span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-x"></use></svg></span></div>
           <div class="abs-kpi-value">{{ admin_stats.rifiutate }}</div><div class="abs-kpi-note">Chiuse negativamente.</div>
-        </article>
+        </article></a>
       </section>
 
       <div class="abs-inline-actions" style="margin-bottom:12px;">
@@ -111,11 +147,60 @@
       </div>
 
       {% comment %}
-      Nessuna ricerca custom: la barra ricerca/filtri/colonne è quella unica
-      del sistema tabelle (fm-table-enhanced), renderizzata sopra la tabella.
-      Il dataset completo è caricato lato server così la ricerca live copre
-      tutte le assenze.
+      Filtri e paginazione sono LATO SERVER: prima la pagina caricava fino a
+      5000 righe per poterle filtrare nel browser. La ricerca copre comunque
+      tutto lo storico, perche' e' una WHERE e non un filtro sul DOM.
       {% endcomment %}
+      <form method="get" action="" class="ga-filters" id="ga-filters">
+        {# Cambiare un filtro riparte da pagina 1: restare alla 7 di un altro
+           risultato mostrerebbe una pagina vuota senza spiegare perche'. #}
+        <input type="hidden" name="page" id="ga-page" value="1">
+        <div class="ga-field ga-field-wide">
+          <label for="q_admin">Cerca</label>
+          <input type="text" id="q_admin" name="q_admin" value="{{ admin_filtri.q }}"
+                 placeholder="Dipendente, tipo o motivo" autocomplete="off">
+        </div>
+        <div class="ga-field">
+          <label for="ga-stato">Stato</label>
+          <select id="ga-stato" name="stato">
+            <option value="">Tutti gli stati</option>
+            {% for st in admin_stati_disponibili %}
+              <option value="{{ st.key }}" {% if admin_filtri.stato == st.key %}selected{% endif %}>{{ st.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ga-field">
+          <label for="ga-tipo">Tipo</label>
+          <select id="ga-tipo" name="tipo">
+            <option value="">Tutti i tipi</option>
+            {% for t in admin_tipi_disponibili %}
+              <option value="{{ t }}" {% if admin_filtri.tipo == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ga-field">
+          <label for="ga-da">Dal</label>
+          <input type="date" id="ga-da" name="da" value="{{ admin_filtri.da }}">
+        </div>
+        <div class="ga-field">
+          <label for="ga-a">Al</label>
+          <input type="date" id="ga-a" name="a" value="{{ admin_filtri.a }}">
+        </div>
+        <div class="ga-field">
+          <label for="ga-per-page">Per pagina</label>
+          <select id="ga-per-page" name="per_page">
+            {% for n in admin_per_page_scelte %}
+              <option value="{{ n }}" {% if admin_filtri.per_page == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ga-field ga-filters-actions">
+          <button type="submit" class="btn btn-primary btn-sm">Filtra</button>
+          {% if admin_filtri.attivi %}
+            <a class="btn btn-secondary btn-sm" href="?#admin-assenze-panel">Azzera</a>
+          {% endif %}
+        </div>
+      </form>
       <div class="abs-table-wrap">
         <table class="abs-table">
           <thead><tr><th>#</th><th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Stato</th><th>Motivo</th>{% if admin_can_moderate or admin_can_delete %}<th>Azioni</th>{% endif %}</tr></thead>
@@ -156,13 +241,61 @@
                 {% endif %}
               </tr>
             {% empty %}
-              <tr><td colspan="{% if admin_can_moderate or admin_can_delete %}8{% else %}7{% endif %}" class="abs-cell-primary">Nessuna assenza trovata</td></tr>
+              <tr>
+                <td colspan="{% if admin_can_moderate or admin_can_delete %}8{% else %}7{% endif %}" class="abs-cell-primary">
+                  {% if admin_filtri.attivi %}
+                    Nessuna assenza corrisponde ai filtri attivi.
+                  {% else %}
+                    Nessuna assenza registrata.
+                  {% endif %}
+                </td>
+              </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+
+      {% if admin_paginazione.total %}
+        <div class="ga-pager">
+          <div class="ga-pager-info">
+            {{ admin_paginazione.da_riga }}–{{ admin_paginazione.a_riga }} di
+            <strong>{{ admin_paginazione.total }}</strong>
+            {% if admin_filtri.attivi %}filtrate{% else %}assenze{% endif %}
+            · pagina {{ admin_paginazione.page }} di {{ admin_paginazione.pages }}
+          </div>
+          {% if admin_paginazione.pages > 1 %}
+            <nav class="ga-pager-nav" aria-label="Paginazione assenze">
+              <a class="ga-page-link {% if not admin_paginazione.ha_prec %}is-disabled{% endif %}"
+                 data-page="1" href="#admin-assenze-panel" aria-label="Prima pagina">«</a>
+              <a class="ga-page-link {% if not admin_paginazione.ha_prec %}is-disabled{% endif %}"
+                 data-page="{{ admin_paginazione.prec }}" href="#admin-assenze-panel" aria-label="Pagina precedente">‹</a>
+              <span class="is-current">{{ admin_paginazione.page }}</span>
+              <a class="ga-page-link {% if not admin_paginazione.ha_succ %}is-disabled{% endif %}"
+                 data-page="{{ admin_paginazione.succ }}" href="#admin-assenze-panel" aria-label="Pagina successiva">›</a>
+              <a class="ga-page-link {% if not admin_paginazione.ha_succ %}is-disabled{% endif %}"
+                 data-page="{{ admin_paginazione.pages }}" href="#admin-assenze-panel" aria-label="Ultima pagina">»</a>
+            </nav>
+          {% endif %}
+        </div>
+      {% endif %}
     </div>
   </section>
+
+  <script>
+    (function () {
+      var form = document.getElementById("ga-filters");
+      var campoPagina = document.getElementById("ga-page");
+      if (!form || !campoPagina) return;
+      Array.prototype.forEach.call(document.querySelectorAll(".ga-page-link"), function (link) {
+        link.addEventListener("click", function (evento) {
+          evento.preventDefault();
+          if (link.classList.contains("is-disabled")) return;
+          campoPagina.value = link.getAttribute("data-page") || "1";
+          form.submit();
+        });
+      });
+    })();
+  </script>
 
   <section class="abs-panel">
     <div class="abs-panel-head">

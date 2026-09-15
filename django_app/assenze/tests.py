@@ -1629,11 +1629,82 @@ class AssenzeCapoDaAreaAziendaleTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeSelectPaginatedTests(SimpleTestCase):
+    """SQL di paginazione: LIMIT/OFFSET su SQLite, OFFSET/FETCH su SQL Server."""
+
+    def test_sqlite(self):
+        from assenze.views import _select_paginated
+
+        with patch("assenze.views._db_vendor", return_value="sqlite"):
+            sql = _select_paginated("SELECT id FROM assenze", "ORDER BY id DESC", offset=50, limit=25)
+        self.assertEqual(sql, "SELECT id FROM assenze ORDER BY id DESC LIMIT 25 OFFSET 50")
+
+    def test_sql_server(self):
+        from assenze.views import _select_paginated
+
+        with patch("assenze.views._db_vendor", return_value="microsoft"):
+            sql = _select_paginated("SELECT id FROM assenze", "ORDER BY id DESC", offset=50, limit=25)
+        self.assertIn("OFFSET 50 ROWS FETCH NEXT 25 ROWS ONLY", sql)
+
+    def test_offset_negativo_azzerato(self):
+        from assenze.views import _select_paginated
+
+        with patch("assenze.views._db_vendor", return_value="sqlite"):
+            self.assertIn("OFFSET 0", _select_paginated("SELECT 1", "ORDER BY 1", offset=-10, limit=25))
+
+    def test_senza_order_by_rifiutato(self):
+        """SQL Server rifiuta OFFSET senza ORDER BY, e l'ordine sarebbe arbitrario."""
+        from assenze.views import _select_paginated
+
+        with self.assertRaises(ValueError):
+            _select_paginated("SELECT 1", "", offset=0, limit=25)
+
+
+class AssenzeAdminOverviewFiltriTests(SimpleTestCase):
+    """Normalizzazione dei filtri del pannello admin (senza tabella legacy)."""
+
+    def _overview(self, **kwargs):
+        from assenze.views import _admin_assenze_overview
+
+        with patch("assenze.views._table_exists", return_value=False), patch(
+            "assenze.views.cache.get", return_value=None
+        ), patch("assenze.models.AssenzaSharePointOutbox.objects") as outbox:
+            outbox.count.return_value = 0
+            outbox.filter.return_value.count.return_value = 0
+            return _admin_assenze_overview(**kwargs)
+
+    def test_default_25_per_pagina(self):
+        from assenze.views import ADMIN_PER_PAGE_DEFAULT
+
+        risultato = self._overview()
+        self.assertEqual(risultato["filtri"]["per_page"], ADMIN_PER_PAGE_DEFAULT)
+        self.assertEqual(ADMIN_PER_PAGE_DEFAULT, 25)
+        self.assertFalse(risultato["filtri"]["attivi"])
+
+    def test_per_page_fuori_elenco_torna_al_default(self):
+        self.assertEqual(self._overview(per_page=5000)["filtri"]["per_page"], 25)
+        self.assertEqual(self._overview(per_page="banana")["filtri"]["per_page"], 25)
+
+    def test_stato_non_riconosciuto_ignorato(self):
+        self.assertEqual(self._overview(stato="qualsiasi")["filtri"]["stato"], "")
+        self.assertEqual(self._overview(stato="IN_ATTESA")["filtri"]["stato"], "in_attesa")
+
+    def test_pagina_non_numerica_torna_alla_prima(self):
+        self.assertEqual(self._overview(page="banana")["paginazione"]["page"], 1)
+        self.assertEqual(self._overview(page=-3)["paginazione"]["page"], 1)
+
+    def test_filtri_attivi_rilevati(self):
+        self.assertTrue(self._overview(q="rossi")["filtri"]["attivi"])
+        self.assertTrue(self._overview(da="2026-01-01")["filtri"]["attivi"])
+
+
 class AssenzeImpostazioniFlessibilitaViewTests(TestCase):
     """Salvataggio della sezione «Flessibilità» di Impostazioni."""
 
     def setUp(self):
-        self.user = User.objects.create_user("hradmin", "hr@example.com", "pw12345678")
+        # Superuser: il gate ACL di modulo vive nel middleware, non nella view,
+        # quindi non basta mockare `user_can_modulo_action`.
+        self.user = User.objects.create_superuser("hradmin", "hr@example.com", "pw12345678")
         UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
         self.client.force_login(self.user)
 
@@ -1654,12 +1725,31 @@ class AssenzeImpostazioniFlessibilitaViewTests(TestCase):
         with patch("assenze.views.user_can_modulo_action", return_value=True), patch(
             "assenze.views._load_dipendenti_attivi_list",
             return_value=[{"id": 42, "full_name": "ROSSI MARIO"}, {"id": 43, "full_name": "BIANCHI LUCA"}],
-        ), patch("assenze.views._admin_assenze_overview", return_value={}):
+        ), patch(
+            "assenze.views._admin_assenze_overview",
+            return_value={
+                "tabella_ok": True,
+                "stats": {"total": 0, "in_attesa": 0, "approvate": 0, "rifiutate": 0},
+                "by_tipo": [],
+                "sync_info": {},
+                "assenze": [],
+                "filtri": {"q": "", "stato": "", "tipo": "", "da": "", "a": "", "per_page": 25, "attivi": False},
+                "tipi_disponibili": [],
+                "stati_disponibili": [{"key": "in_attesa", "label": "In attesa"}],
+                "per_page_scelte": [25, 50, 100, 200],
+                "paginazione": {"page": 1, "pages": 1, "per_page": 25, "total": 0,
+                                "da_riga": 0, "a_riga": 0, "ha_prec": False, "ha_succ": False,
+                                "prec": 1, "succ": 1},
+            },
+        ):
             response = self.client.get(reverse("assenze_impostazioni"))
 
         self.assertEqual(response.status_code, 200)
         html = response.content.decode("utf-8")
         self.assertIn("Flessibilità", html)
+        # Barra filtri del pannello admin (prima non c'era: si filtrava nel DOM)
+        self.assertIn('id="ga-filters"', html)
+        self.assertIn('name="per_page"', html)
         self.assertIn('name="abilitati" value="42" checked', html)
         self.assertIn('name="abilitati" value="43"', html)
         self.assertIn("07:00, 08:00, 09:00", html)
@@ -1674,7 +1764,7 @@ class AssenzeImpostazioniFlessibilitaViewTests(TestCase):
             "abilitati": ["42"],
         })
 
-        self.assertEqual(response.status_code, 302, response.get("Location", ""))
+        self.assertEqual(response.status_code, 302, response.content[:600])
         self.assertIn("impostazioni", response["Location"])
         conf = FlessibilitaImpostazioni.get_solo()
         self.assertEqual(conf.entrate, ["07:00", "08:00"])
