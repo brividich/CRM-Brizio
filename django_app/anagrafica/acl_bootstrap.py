@@ -31,7 +31,10 @@ logger = logging.getLogger(__name__)
 #   RoutePermissionBinding, per non cambiare l'enforcement del middleware su route
 #   oggi raggiungibili. Chiave NUOVA: un ambiente già a v11 non registrerebbe i
 #   nuovi permessi/grant delle sezioni.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v12"
+# Bump alla v13: permesso canonico dei documenti nelle cartelle riservate
+#   (PERM_DOCUMENTI_RISERVATI). La cache vive nel DB e sopravvive ai deploy: senza
+#   chiave nuova un ambiente già a v12 non registrerebbe il permesso.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v13"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -210,6 +213,7 @@ PERM_FORMAZIONE_VIEW = "anagrafica.formazione.view"
 PERM_FORMAZIONE_MANAGE = "anagrafica.formazione.manage"
 PERM_SCHEDA_MANAGE = "anagrafica.scheda.manage"
 PERM_STATISTICHE_VIEW = "anagrafica.statistiche.view"
+PERM_DOCUMENTI_RISERVATI = "anagrafica.documenti_riservati.view"
 
 _SEZIONI_CANONICAL = {
     PERM_HR_VIEW: {
@@ -249,6 +253,14 @@ _SEZIONI_CANONICAL = {
             "assenze, DPI): conteggi aggregati sull'attivita' della persona."
         ),
     },
+    PERM_DOCUMENTI_RISERVATI: {
+        "label": "Anagrafica - Documenti in cartelle riservate",
+        "description": (
+            "Documenti delle cartelle marcate come riservate (es. richiami, "
+            "infortuni): scheda dipendente, download, archivio documenti ed export. "
+            "Concedere solo ai ruoli che li trattano (HR, amministrazione)."
+        ),
+    },
 }
 
 # Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).
@@ -259,6 +271,7 @@ _SEZIONI_ROLE_GRANTS = {
     "admin": {
         PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_FORMAZIONE_VIEW,
         PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE, PERM_STATISTICHE_VIEW,
+        PERM_DOCUMENTI_RISERVATI,
     },
 }
 

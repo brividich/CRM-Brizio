@@ -295,14 +295,15 @@ register(ExportSpec(
 
 # ── Archivio documentale ─────────────────────────────────────────────────────
 # Filtri e colonne rispecchiano `views.documenti_list` (cartella / q / anno).
-# Le cartelle riservate (`solo_admin`) restano escluse ai non-superuser: è una
-# regola di visibilità, non un filtro → vale anche con scope=full.
+# Le cartelle riservate (`solo_admin`) restano escluse a chi non ha il permesso
+# documenti riservati (`views._can_view_documenti_riservati`): è una regola di
+# visibilità, non un filtro → vale anche con scope=full.
 # NB: la pagina taglia a 500 righe per performance; l'export non taglia, deve
 # contenere tutte le righe che soddisfano i filtri.
 
 def _documenti_rows(request: HttpRequest, scope: str) -> list[dict]:
     from anagrafica.models import DocumentoDipendente
-    from anagrafica.views import _build_nomi_map
+    from anagrafica.views import _build_nomi_map, _can_view_documenti_riservati
 
     qs = (
         DocumentoDipendente.objects
@@ -310,7 +311,7 @@ def _documenti_rows(request: HttpRequest, scope: str) -> list[dict]:
         .select_related("cartella")
         .order_by("-created_at")
     )
-    if not getattr(request.user, "is_superuser", False):
+    if not _can_view_documenti_riservati(request):
         qs = qs.exclude(cartella__solo_admin=True)
 
     filtro_cerca = ""
@@ -367,14 +368,16 @@ def _documenti_filters(request: HttpRequest) -> str:
         parts.append("Cartella: senza cartella")
     elif filtro_cartella:
         # SICUREZZA: le cartelle riservate (`solo_admin`) sono gia' escluse dalle
-        # RIGHE per i non-superuser, ma il NOME non deve trapelare nemmeno qui:
-        # passando l'id di una cartella riservata si otterrebbero 0 righe e, in
-        # regalo, la sua denominazione nell'etichetta filtri. Per i non-superuser
-        # la lookup ignora quindi le cartelle riservate e resta l'id grezzo.
+        # RIGHE per chi non ha il permesso, ma il NOME non deve trapelare nemmeno
+        # qui: passando l'id di una cartella riservata si otterrebbero 0 righe e,
+        # in regalo, la sua denominazione nell'etichetta filtri. Senza permesso la
+        # lookup ignora quindi le cartelle riservate e resta l'id grezzo.
+        from anagrafica.views import _can_view_documenti_riservati
+
         cartelle_qs = CartellaDocumentoDipendente.objects.filter(
             pk=filtro_cartella if filtro_cartella.isdigit() else 0
         )
-        if not getattr(request.user, "is_superuser", False):
+        if not _can_view_documenti_riservati(request):
             cartelle_qs = cartelle_qs.exclude(solo_admin=True)
         nome = cartelle_qs.values_list("nome", flat=True).first()
         parts.append(f"Cartella: {nome or filtro_cartella}")
