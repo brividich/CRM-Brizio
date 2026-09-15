@@ -143,12 +143,27 @@ def _visite_batch(legacy_ids: list[int], include_dettaglio: bool) -> dict[int, d
         for ruolo in tipo.ruoli_operativi.all():
             tipi_per_ruolo.setdefault(ruolo.id, []).append(tipo)
 
+    # Terza sorgente, come in ``stato_visite``: il protocollo dell'ultimo certificato.
+    requisiti_per_dip: dict[int, dict[int, TipoVisitaMedica]] = {}
+    try:
+        from ..models_sorveglianza import RequisitoVisitaDipendente
+
+        for requisito in (
+            RequisitoVisitaDipendente.objects
+            .filter(legacy_anagrafica_id__in=legacy_ids, attivo=True,
+                    tipo__isnull=False, tipo__is_active=True)
+            .select_related("tipo")
+        ):
+            requisiti_per_dip.setdefault(requisito.legacy_anagrafica_id, {})[requisito.tipo_id] = requisito.tipo
+    except Exception:
+        requisiti_per_dip = {}
+
     ultima_per_dip_tipo = _ultime_visite_map(legacy_ids)
 
     out: dict[int, dict[str, Any]] = {}
-    for legacy_id, ruoli in ruoli_per_dip.items():
-        tipi_richiesti: dict[int, TipoVisitaMedica] = {}
-        for ruolo_id in ruoli:
+    for legacy_id in set(ruoli_per_dip) | set(requisiti_per_dip):
+        tipi_richiesti: dict[int, TipoVisitaMedica] = dict(requisiti_per_dip.get(legacy_id, {}))
+        for ruolo_id in ruoli_per_dip.get(legacy_id, set()):
             for tipo in tipi_per_ruolo.get(ruolo_id, []):
                 tipi_richiesti[tipo.id] = tipo
         if not tipi_richiesti:

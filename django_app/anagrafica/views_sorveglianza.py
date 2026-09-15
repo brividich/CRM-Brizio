@@ -88,16 +88,43 @@ def referti_coda(request):
     from .models_sorveglianza import RefertoIntakeRiga
     from .services.referti_ocr import disponibile as ocr_disponibile
 
+    from .models import TipoVisitaMedica, VisitaMedica
+    from .services.referti_registrazione import e_riga_visita_medica, tipo_oculistico_da_requisiti
+
     righe = list(
         RefertoIntakeRiga.objects
         .filter(esito=RefertoIntakeRiga.ESITO_DA_RIVEDERE)
-        .select_related("creato_da")[:200]
+        .select_related("creato_da", "tipo_visita_scelto")[:200]
     )
 
     nomi = _nomi_per_legacy_ids([r.legacy_anagrafica_id_proposto for r in righe])
+    tipi_oculistici = list(
+        TipoVisitaMedica.objects.filter(is_active=True, nome__icontains="oculist").order_by("nome")
+    )
+    # Chi non ha una proposta (nessun nome leggibile, tipico dell'oculistica caricata
+    # a mano) deve poter essere abbinato comunque: elenco completo, solo se serve.
+    tutti_i_dipendenti = []
+    if any(not r.legacy_anagrafica_id_proposto and not r.candidati for r in righe):
+        tutti_i_dipendenti = sorted(
+            _nomi_per_legacy_ids(_tutti_i_legacy_id()).items(), key=lambda kv: kv[1]
+        )
     pronti = 0
     for riga in righe:
         riga.nome_proposto = nomi.get(riga.legacy_anagrafica_id_proposto or 0, "")
+        riga.protocollo_marcato = [
+            {**voce, "e_visita": e_riga_visita_medica(voce)} for voce in (riga.letto_protocollo or [])
+        ]
+        if riga.e_oculistica:
+            import re as _re
+
+            anno = _re.search(r"(19|20)\d{2}", riga.nome_file or "")
+            riga.anno_file = anno.group(0) if anno else ""
+            proposto = riga.tipo_visita_scelto
+            if proposto is None and riga.legacy_anagrafica_id_proposto:
+                proposto = tipo_oculistico_da_requisiti(riga.legacy_anagrafica_id_proposto)
+            riga.tipo_visita_proposto_id = proposto.pk if proposto else None
+            riga.pronto = False
+            continue
         # «Pronto» = riconoscimento con la garanzia forte (data di nascita che
         # coincide) e niente da inventare. È il sottoinsieme che si può passare
         # in blocco senza riaprire le scansioni; il resto va guardato.
@@ -122,7 +149,49 @@ def referti_coda(request):
         "righe": righe,
         "conteggi": conteggi,
         "ocr_attivo": ocr_disponibile(),
+        "tipi_oculistici": tipi_oculistici,
+        "esiti_visita": VisitaMedica.Esito.choices,
+        "esito_predefinito": VisitaMedica.Esito.IDONEO,
+        "tutti_i_dipendenti": tutti_i_dipendenti,
     })
+
+
+def _tutti_i_legacy_id() -> list[int]:
+    try:
+        from core.legacy_anagrafica import fetch_anagrafica_rows
+
+        return [int(r.get("id") or 0) for r in fetch_anagrafica_rows(deduplicate=True) if r.get("id")]
+    except Exception:
+        logger.exception("Referti: elenco dipendenti non disponibile")
+        return []
+
+
+def _dati_oculistica(request, riga) -> tuple[dict, str]:
+    """Data, tipo ed esito inseriti in coda per un certificato oculistico.
+
+    Ritorna ``(parametri per registra, errore)``. Vale anche per la conferma
+    singola: i campi hanno lo stesso nome, con l'id della riga in coda.
+    """
+    from datetime import date
+
+    from .models import TipoVisitaMedica
+
+    if not riga.e_oculistica:
+        return {}, ""
+    grezza = (request.POST.get(f"data_visita_{riga.pk}") or "").strip()
+    try:
+        data_visita = date.fromisoformat(grezza) if grezza else None
+    except ValueError:
+        return {}, "data della visita non valida"
+    tipo_visita = None
+    tipo_raw = (request.POST.get(f"tipo_visita_{riga.pk}") or "").strip()
+    if tipo_raw.isdigit():
+        tipo_visita = TipoVisitaMedica.objects.filter(pk=int(tipo_raw), is_active=True).first()
+    return {
+        "data_visita": data_visita,
+        "tipo_visita": tipo_visita,
+        "esito_visita": (request.POST.get(f"esito_visita_{riga.pk}") or "").strip(),
+    }, ""
 
 
 @login_required
@@ -177,8 +246,8 @@ def referti_carica(request):
     return redirect("anagrafica:referti_coda")
 
 
-def _conferma_una(request, riga, legacy_id: int | None) -> tuple[int, str]:
-    """Registra le visite di UN referto. Ritorna (visite create, errore).
+def _conferma_una(request, riga, legacy_id: int | None, extra: dict | None = None) -> tuple[int, str]:
+    """Registra la visita di UN referto. Ritorna (visite create, errore).
 
     Estratta perché la conferma in blocco deve comportarsi *esattamente* come
     quella singola — stessa validazione, stesso audit per riga. Un'azione di
@@ -191,7 +260,7 @@ def _conferma_una(request, riga, legacy_id: int | None) -> tuple[int, str]:
     corretto_a_mano = bool(legacy_id and legacy_id != proposto)
 
     try:
-        create = registra(riga, utente=request.user, legacy_id=legacy_id)
+        create = registra(riga, utente=request.user, legacy_id=legacy_id, **(extra or {}))
     except ErroreRegistrazione as exc:
         return 0, str(exc)
     except Exception:
@@ -205,6 +274,7 @@ def _conferma_una(request, riga, legacy_id: int | None) -> tuple[int, str]:
         "corretto_a_mano": corretto_a_mano,
         "punteggio": riga.punteggio,
         "conferma_data_nascita": riga.data_nascita_conferma,
+        "tipo_referto": riga.tipo_referto,
         "visite_create": len(create),
     })
     return len(create), ""
@@ -254,7 +324,9 @@ def referti_conferma(request, riga_id: int):
         messages.error(request, "Dipendente non valido.")
         return redirect("anagrafica:referti_coda")
 
-    quante, errore = _conferma_una(request, riga, legacy_id)
+    extra, errore = _dati_oculistica(request, riga)
+    if not errore:
+        quante, errore = _conferma_una(request, riga, legacy_id, extra)
     if errore:
         messages.error(request, errore)
     else:
@@ -340,7 +412,11 @@ def referti_azioni(request):
         if not valido:
             problemi.append(f"{riga.letto_nominativo or riga.nome_file}: dipendente non valido")
             continue
-        quante, errore = _conferma_una(request, riga, legacy_id)
+        extra, errore = _dati_oculistica(request, riga)
+        if errore:
+            problemi.append(f"{riga.letto_nominativo or riga.nome_file}: {errore}")
+            continue
+        quante, errore = _conferma_una(request, riga, legacy_id, extra)
         if errore:
             problemi.append(f"{riga.letto_nominativo or riga.nome_file}: {errore}")
             continue
