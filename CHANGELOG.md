@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+---
+
+## 1.6.0 - 2026-09-15
+
 ### Changed
 
 - **ASSENZE · convivenza con SharePoint senza mail doppie: ogni richiesta la gestisce il sistema in cui è nata** (`django_app/assenze/views.py`, `django_app/assenze/models.py`, `django_app/assenze/migrations/0004_assenza_origine_sharepoint.py` — nuovo —, `sql/trg_assenze_automation_after_insert.sql`, `sql/trg_assenze_automation_after_update.sql`, `django_app/assenze/templates/assenze/pages/car_dashboard.html`, `django_app/assenze/templates/assenze/pages/gestione_assenze.html`, `django_app/assenze/templates/assenze/pages/calendario.html`, `django_app/assenze/templates/assenze/partials/_gestione_admin_panel.html`, `django_app/assenze/test_sharepoint_sync.py`, `README.md`). Sulla lista «Calendario assenze 2» gira il flusso Power Automate «avviso di inserimento», che non avvisa soltanto: per ogni elemento nuovo apre l'approvazione al capo, imposta lo stato di approvazione nativo, spezza le assenze di più giorni e manda le mail. Il portale, a sua volta, mette in coda le automazioni a ogni insert/update sulla tabella `assenze`, comprese le scritture della sincronizzazione. Senza una regola le mail sarebbero partite due volte in entrambe le direzioni.
