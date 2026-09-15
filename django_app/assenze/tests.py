@@ -1619,6 +1619,13 @@ class AssenzeCapoDaAreaAziendaleTests(TestCase):
         )
         self.assertEqual(self._capo_ids()[1], 777)
 
+    def test_menu_capi_include_i_responsabili_di_area(self):
+        """Senza questo il responsabile d'area non ha una voce nel menu e la
+        richiesta ricade in silenzio sul caporeparto del reparto."""
+        from assenze.views import _anagrafica_hr_capo_ids
+
+        self.assertEqual(_anagrafica_hr_capo_ids(), {501, 999})
+
     def test_dipendenti_del_capo_seguono_il_responsabile_area(self):
         from anagrafica.models import DipendenteAnagraficaAziendale
         from assenze.views import _anagrafica_employee_ids_for_capo
