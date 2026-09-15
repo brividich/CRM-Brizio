@@ -379,8 +379,12 @@
                   </td>
                   <td data-label="Azioni">
                     <div class="car-row-actions">
-                      <button class="btn-approva" data-id="{{ r.id }}" data-action="Approvato" title="Approva questa richiesta">Approva</button>
-                      <button class="btn-rifiuta" data-id="{{ r.id }}" data-action="Rifiutato" title="Inserisci il motivo del rifiuto">Rifiuta</button>
+                      {% if r.gestita_sp %}
+                        <span class="abs-chip soft" title="Nata su SharePoint: si approva dall'app SharePoint">Gestita su SharePoint</span>
+                      {% else %}
+                        <button class="btn-approva" data-id="{{ r.id }}" data-action="Approvato" title="Approva questa richiesta">Approva</button>
+                        <button class="btn-rifiuta" data-id="{{ r.id }}" data-action="Rifiutato" title="Inserisci il motivo del rifiuto">Rifiuta</button>
+                      {% endif %}
                     </div>
                   </td>
                 </tr>

@@ -703,12 +703,16 @@
         const hasRecordId = item.id !== null && item.id !== undefined && String(item.id).trim() !== "";
         saveEventBtn.style.display = canEditEvents ? "" : "none";
         deleteEventBtn.style.display = canDeleteEvents ? "" : "none";
-        saveEventBtn.disabled = !(canEditEvents && hasRecordId);
-        deleteEventBtn.disabled = !(canDeleteEvents && hasRecordId);
+        // Richiesta nata su SharePoint: la gestisce il flusso, sul portale e' in sola lettura.
+        const gestitaSp = Boolean(item.extendedProps.gestita_sp);
+        saveEventBtn.disabled = !(canEditEvents && hasRecordId) || gestitaSp;
+        deleteEventBtn.disabled = !(canDeleteEvents && hasRecordId) || gestitaSp;
         document.querySelectorAll(".event-edit-grid input, .event-edit-grid select, .event-edit-grid textarea").forEach(function(el) {
-          el.disabled = !canEditEvents;
+          el.disabled = !canEditEvents || gestitaSp;
         });
-        if (!canEditEvents && !canDeleteEvents) {
+        if (gestitaSp) {
+          modalMessageEl.textContent = "Richiesta nata su SharePoint: si gestisce dall'app SharePoint.";
+        } else if (!canEditEvents && !canDeleteEvents) {
           modalMessageEl.textContent = "Modalita sola lettura.";
         }
         modalBackdrop.hidden = false;

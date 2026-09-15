@@ -13,6 +13,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from assenze import tasks, views
+from assenze.models import AssenzaOrigineSharePoint as Origine
 from assenze.models import AssenzaSharePointOutbox as Outbox
 
 _LOCMEM = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "assenze-sp-sync-tests"}}
@@ -322,3 +323,187 @@ class PagesDoNotCallGraphTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(mock_requests.method_calls)
+
+
+# ─── Chi gestisce la richiesta: origine, sola lettura, niente automazioni ──────
+
+
+@override_settings(CACHES=_LOCMEM)
+class OrigineSharePointTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_item_created_by_an_app_is_a_portal_request(self):
+        self.assertTrue(views._sp_item_created_by_portal({"createdBy": {"application": {"id": "x", "displayName": "Hub"}}}))
+        self.assertTrue(views._sp_item_created_by_portal({"createdBy": {"user": {"displayName": "App di SharePoint"}}}))
+        self.assertFalse(views._sp_item_created_by_portal({"createdBy": {"user": {"displayName": "Mario Rossi"}}}))
+        self.assertFalse(views._sp_item_created_by_portal({}))
+
+    def test_pull_never_corrects_a_known_origin_push_does(self):
+        views._record_sp_origin(7, "501", creata_su_sharepoint=False)
+        views._record_sp_origin(7, "501", creata_su_sharepoint=True)
+        self.assertFalse(Origine.objects.get(assenza_id=7).creata_su_sharepoint)
+
+        views._record_sp_origin(8, "502", creata_su_sharepoint=True)
+        views._record_sp_origin(8, "502", creata_su_sharepoint=False, overwrite=True)
+        self.assertFalse(Origine.objects.get(assenza_id=8).creata_su_sharepoint)
+
+    @patch("assenze.views._graph_configured", return_value=True)
+    def test_rows_are_marked_only_when_born_on_sharepoint(self, _cfg):
+        Origine.objects.create(assenza_id=1, creata_su_sharepoint=True)
+        Origine.objects.create(assenza_id=2, creata_su_sharepoint=False)
+        rows = [{"id": 1}, {"id": 2}, {"id": 3}]
+
+        views._mark_sharepoint_managed(rows)
+
+        self.assertEqual([r["gestita_sp"] for r in rows], [True, False, False])
+
+    @patch("assenze.views._graph_configured", return_value=True)
+    def test_many_ids_are_queried_in_chunks(self, _cfg):
+        Origine.objects.create(assenza_id=2500, creata_su_sharepoint=True)
+
+        with self.assertNumQueries(3):
+            managed = views._sharepoint_managed_ids(range(1, 3001))
+
+        self.assertEqual(managed, {2500})
+
+    @patch("assenze.views._graph_configured", return_value=False)
+    def test_nothing_is_read_only_without_sharepoint(self, _cfg):
+        Origine.objects.create(assenza_id=1, creata_su_sharepoint=True)
+        self.assertEqual(views._sharepoint_managed_ids([1]), set())
+
+    @patch("assenze.views._update_assenza", return_value=True)
+    @patch("assenze.views._graph_create", return_value=(True, {"id": "900"}))
+    @patch("assenze.views._get_assenza", return_value={"id": 7, "sharepoint_item_id": ""})
+    @patch("assenze.views._graph_configured", return_value=True)
+    def test_request_sent_by_the_portal_is_recorded_as_portal(self, *_):
+        result = views._sync_one_to_sharepoint(7, force_update=True)
+
+        self.assertEqual(result["action"], "create")
+        origine = Origine.objects.get(assenza_id=7)
+        self.assertFalse(origine.creata_su_sharepoint)
+        self.assertEqual(origine.sharepoint_item_id, "900")
+
+
+class AutomationQueueSkipTests(TestCase):
+    def test_sqlite_has_no_triggers_nothing_to_do(self):
+        with patch("assenze.views._db_vendor", return_value="sqlite"), patch("assenze.views.connections") as conns:
+            views._set_automation_queue_skip(True)
+        conns.__getitem__.assert_not_called()
+
+    def test_sql_server_sets_and_clears_the_session_flag(self):
+        cursor = MagicMock()
+        with patch("assenze.views._db_vendor", return_value="microsoft"), patch("assenze.views.connections") as conns:
+            conns.__getitem__.return_value.cursor.return_value.__enter__.return_value = cursor
+            views._set_automation_queue_skip(True)
+            views._set_automation_queue_skip(False)
+
+        first, second = cursor.execute.call_args_list
+        self.assertIn("sp_set_session_context", first.args[0])
+        self.assertEqual(first.args[1], ["hub_skip_automation", 1])
+        self.assertEqual(second.args[1], ["hub_skip_automation", None])
+
+    def test_both_triggers_skip_writes_of_the_sync(self):
+        from pathlib import Path
+
+        sql_dir = Path(views.__file__).resolve().parents[2] / "sql"
+        for name in ("trg_assenze_automation_after_insert.sql", "trg_assenze_automation_after_update.sql"):
+            text = (sql_dir / name).read_text(encoding="utf-8")
+            self.assertIn("SESSION_CONTEXT(N''hub_skip_automation'')", text, name)
+
+
+@override_settings(CACHES=_LOCMEM)
+@patch("assenze.views._table_exists", return_value=True)
+@patch("assenze.views.legacy_table_columns", return_value=set())
+@patch("assenze.views._graph_configured", return_value=True)
+class SyncWritesSkipAutomationTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_pull_turns_the_flag_on_and_always_off(self, *_):
+        with patch("assenze.views._graph_delta_changes", return_value=([{"id": "3", "fields": {"x": 1}}], "")), \
+                patch("assenze.views._find_assenza_id_by_sp_id", return_value=30), \
+                patch("assenze.views._apply_sp_item_to_local", side_effect=RuntimeError("boom")), \
+                patch("assenze.views._set_automation_queue_skip") as mock_skip:
+            views._sync_pull_from_sharepoint()
+
+        self.assertEqual([c.args[0] for c in mock_skip.call_args_list], [True, False])
+
+    def test_push_turns_the_flag_on_and_off(self, *_):
+        Outbox.objects.create(assenza_id=7)
+        with patch("assenze.views._get_assenza", return_value={"id": 7}), \
+                patch("assenze.views._sync_one_to_sharepoint", return_value={"ok": True, "action": "update"}), \
+                patch("assenze.views._set_automation_queue_skip") as mock_skip:
+            views._sp_push_outbox()
+
+        self.assertEqual([c.args[0] for c in mock_skip.call_args_list], [True, False])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False, CACHES=_LOCMEM)
+@patch("assenze.views._graph_configured", return_value=True)
+class ReadOnlyOnPortalTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        Origine.objects.create(assenza_id=42, creata_su_sharepoint=True)
+        user = get_user_model().objects.create_superuser(
+            username="assenze-sp-ro", email="ro@example.local", password="pass12345"
+        )
+        self.client.force_login(user)
+
+    @patch("assenze.views._update_assenza")
+    @patch("assenze.views._can_manage_record", return_value=True)
+    @patch("assenze.views._get_assenza", return_value={"id": 42, "consenso": "In attesa"})
+    @patch("assenze.views._assenze_permissions", return_value={"can_update_owned": True, "can_update_any": True})
+    def test_capo_cannot_approve_a_request_born_on_sharepoint(self, _perms, _get, _can, mock_update, _cfg):
+        response = self.client.post(
+            reverse("assenze_api_car_consenso", args=[42]),
+            data='{"consenso": "Approvato"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        mock_update.assert_not_called()
+
+    @patch("assenze.views._delete_assenza")
+    @patch("assenze.views._get_assenza", return_value={"id": 42, "sharepoint_item_id": "501"})
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_delete_any": True})
+    def test_delete_is_refused_and_nothing_is_queued(self, _perms, _get, mock_delete, _cfg):
+        response = self.client.post(reverse("assenze_api_evento_delete", args=[42]), data="{}", content_type="application/json")
+
+        self.assertEqual(response.status_code, 409)
+        mock_delete.assert_not_called()
+        self.assertFalse(Outbox.objects.exists())
+
+    @patch("assenze.views._update_assenza", return_value=True)
+    @patch("assenze.views._sp_kick_push")
+    @patch("assenze.views._can_manage_record", return_value=True)
+    @patch("assenze.views._get_assenza", return_value={"id": 43, "consenso": "In attesa"})
+    @patch("assenze.views._assenze_permissions", return_value={"can_update_owned": True, "can_update_any": True})
+    def test_request_born_on_the_portal_is_still_approved_here(self, _perms, _get, _can, _kick, mock_update, _cfg):
+        response = self.client.post(
+            reverse("assenze_api_car_consenso", args=[43]),
+            data='{"consenso": "Approvato"}',
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_update.assert_called_once()
+
+    def test_admin_panel_hides_actions_for_requests_born_on_sharepoint(self, _cfg):
+        from django.template.loader import render_to_string
+        from django.test import RequestFactory
+
+        row = {"dipendente": "Mario Rossi", "tipo": "Ferie", "stato_label": "In attesa", "moderation_status": 2,
+               "inizio_label": "14/09/2026", "fine_label": "15/09/2026", "motivo": ""}
+        ctx = {
+            "is_assenze_admin": True, "admin_can_moderate": True, "admin_can_delete": True, "admin_tabella_ok": True,
+            "admin_stats": {}, "admin_by_tipo": [], "admin_q": "", "admin_audit_entries": [],
+            "admin_sync_info": {"pending": 0},
+            "admin_assenze": [{**row, "id": 1, "gestita_sp": True}, {**row, "id": 2, "gestita_sp": False}],
+        }
+
+        html = render_to_string("assenze/partials/_gestione_admin_panel.html", ctx, request=RequestFactory().get("/"))
+
+        self.assertEqual(html.count(">Gestita su SharePoint<"), 1)
+        self.assertIn('data-act="approva" data-id="2"', html)
+        self.assertNotIn('data-act="approva" data-id="1"', html)
