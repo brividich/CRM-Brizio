@@ -8,6 +8,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+
+- **ASSENZE · pannello admin: azioni in blocco, ordinamento, apertura sul non-deciso, colonna «Inserita il»** (`django_app/assenze/views.py`, `django_app/assenze/urls.py`, `django_app/core/middleware.py`, `django_app/assenze/templates/assenze/partials/_gestione_admin_panel.html`, `django_app/assenze/templates/assenze/partials/_ga_sort.html` — nuovo —, `django_app/assenze/tests.py`, `README.md`). Seguito della paginazione: con 4053 record a storico il pannello era navigabile ma ancora scomodo da lavorare.
+  1. **Moderazione in blocco** (`/assenze/api/admin/bulk-consenso`, massimo 200 per volta): casella su ogni riga, «seleziona tutte» in intestazione, «Approva/Rifiuta selezionate» con nota obbligatoria. La logica di moderazione è stata **estratta** da `api_car_aggiorna_consenso` in `_applica_moderazione` e riusata tal quale: una seconda implementazione avrebbe finito per dimenticarsi l'audit o la notifica al richiedente. Ogni record passa dagli **stessi controlli** dell'azione singola (permesso sul record, gestito su SharePoint, esistenza); gli scarti non fermano gli altri e la risposta dice quanti sono e perché. La rotta è mappata in `API_ACL_GATE_PATHS` sulle Impostazioni assenze, altrimenti con `ACL_STRICT_CANONICAL` una rotta nuova e senza binding canonico verrebbe negata.
+  2. **Ordinamento cliccabile** su #, dipendente, tipo, dal, al, stato e inserita il: whitelist di espressioni SQL (`ADMIN_ORDINAMENTI`), mai interpolazione della query string; ricliccare la stessa colonna inverte il verso e riparte da pagina 1. `id` fa da secondo criterio, così due righe con lo stesso valore non si scambiano di posto fra una pagina e l'altra facendone sparire una.
+  3. **Il pannello si apre sulle sole «In attesa»**: le approvate sono migliaia e non chiedono niente a nessuno. «Tutti gli stati» (`?stato=tutti`) resta la scelta esplicita per lo storico, offerta anche dal messaggio di lista vuota.
+  4. **Colonna «Inserita il»** (`created_datetime`, mostrata solo se la colonna esiste nello schema legacy): distingue una richiesta di ieri da una ferma da tre mesi.
+
+  Verificato sul database di sviluppo (4053 record, 109 in attesa): default corretto, tutte e sette le colonne ordinabili nei due versi, colonna «Inserita il» popolata, ordinamento fuori whitelist che ricade sul default. **Bug trovato proprio lì e corretto**: ordinando per `id` usciva `ORDER BY id ASC, id DESC` e SQL Server rifiuta la stessa colonna due volte nell'ORDER BY (errore 169) — la costruzione è ora in `_admin_order_by`, con test di regressione. 18 nuovi test, suite `assenze` verde (204 test).
+
 ---
 
 ## 1.6.1 - 2026-09-15

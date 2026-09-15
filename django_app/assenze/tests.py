@@ -1,11 +1,12 @@
 from datetime import date, datetime
 from io import StringIO
 from unittest.mock import MagicMock, patch
+import json
 from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
@@ -1660,6 +1661,35 @@ class AssenzeSelectPaginatedTests(SimpleTestCase):
             _select_paginated("SELECT 1", "", offset=0, limit=25)
 
 
+class AssenzeAdminOrderByTests(SimpleTestCase):
+    """ORDER BY del pannello admin: whitelist, verso, e niente colonna doppia."""
+
+    def test_default(self):
+        from assenze.views import _admin_order_by
+
+        self.assertEqual(_admin_order_by("inizio", "desc"), "ORDER BY data_inizio DESC, id DESC")
+
+    def test_verso_ascendente(self):
+        from assenze.views import _admin_order_by
+
+        self.assertEqual(_admin_order_by("dipendente", "asc"), "ORDER BY copia_nome ASC, id DESC")
+
+    def test_ordinando_per_id_la_colonna_non_si_ripete(self):
+        """SQL Server rifiuta la stessa colonna due volte nell'ORDER BY (169)."""
+        from assenze.views import _admin_order_by
+
+        self.assertEqual(_admin_order_by("id", "asc"), "ORDER BY id ASC")
+        self.assertEqual(_admin_order_by("id", "desc"), "ORDER BY id DESC")
+
+    def test_campo_fuori_whitelist_ricade_sul_default(self):
+        from assenze.views import _admin_order_by
+
+        self.assertEqual(
+            _admin_order_by("copia_nome; DROP TABLE assenze", "asc"),
+            "ORDER BY data_inizio ASC, id DESC",
+        )
+
+
 class AssenzeAdminOverviewFiltriTests(SimpleTestCase):
     """Normalizzazione dei filtri del pannello admin (senza tabella legacy)."""
 
@@ -1685,9 +1715,35 @@ class AssenzeAdminOverviewFiltriTests(SimpleTestCase):
         self.assertEqual(self._overview(per_page=5000)["filtri"]["per_page"], 25)
         self.assertEqual(self._overview(per_page="banana")["filtri"]["per_page"], 25)
 
-    def test_stato_non_riconosciuto_ignorato(self):
-        self.assertEqual(self._overview(stato="qualsiasi")["filtri"]["stato"], "")
+    def test_stato_non_riconosciuto_ricade_sul_default(self):
+        """Uno stato inventato non deve aprire tutto lo storico di nascosto."""
+        self.assertEqual(self._overview(stato="qualsiasi")["filtri"]["stato"], "in_attesa")
         self.assertEqual(self._overview(stato="IN_ATTESA")["filtri"]["stato"], "in_attesa")
+
+    def test_default_e_solo_in_attesa(self):
+        filtri = self._overview()["filtri"]
+        self.assertEqual(filtri["stato"], "in_attesa")
+        self.assertTrue(filtri["solo_in_attesa"])
+        self.assertFalse(filtri["attivi"])
+
+    def test_tutti_e_la_scelta_esplicita_per_lo_storico(self):
+        filtri = self._overview(stato="tutti")["filtri"]
+        self.assertEqual(filtri["stato"], "tutti")
+        self.assertFalse(filtri["solo_in_attesa"])
+        self.assertTrue(filtri["attivi"])
+
+    def test_ordinamento_non_in_whitelist_ricade_sul_default(self):
+        filtri = self._overview(ordina="copia_nome; DROP TABLE assenze")["filtri"]
+        self.assertEqual(filtri["ordina"], "inizio")
+        self.assertEqual(filtri["verso"], "desc")
+
+    def test_verso_solo_asc_o_desc(self):
+        self.assertEqual(self._overview(verso="asc")["filtri"]["verso"], "asc")
+        self.assertEqual(self._overview(verso="qualsiasi")["filtri"]["verso"], "desc")
+
+    def test_colonne_ordinabili_accettate(self):
+        for campo in ("id", "dipendente", "tipo", "inizio", "fine", "stato", "creata"):
+            self.assertEqual(self._overview(ordina=campo)["filtri"]["ordina"], campo)
 
     def test_pagina_non_numerica_torna_alla_prima(self):
         self.assertEqual(self._overview(page="banana")["paginazione"]["page"], 1)
@@ -1696,6 +1752,116 @@ class AssenzeAdminOverviewFiltriTests(SimpleTestCase):
     def test_filtri_attivi_rilevati(self):
         self.assertTrue(self._overview(q="rossi")["filtri"]["attivi"])
         self.assertTrue(self._overview(da="2026-01-01")["filtri"]["attivi"])
+        self.assertTrue(self._overview(stato="approvate")["filtri"]["attivi"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeBulkConsensoTests(TestCase):
+    """Moderazione in blocco: stessi controlli dell'azione singola, per record."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser("bulkadmin", "bulk@example.com", "pw12345678")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+        self.client.force_login(self.user)
+        self.url = reverse("assenze_api_admin_bulk_consenso")
+
+    def _post(self, body, **patches):
+        difetti = {
+            "_assenze_permissions": {"can_update_any": True, "can_update_owned": True},
+            "_get_assenza": {"id": 1, "email_esterna": "x@e.com"},
+            "_can_manage_record": True,
+            "_sharepoint_managed_error": None,
+            "_applica_moderazione": {"queued": True},
+        }
+        difetti.update(patches)
+        with patch("assenze.views._assenze_permissions", return_value=difetti["_assenze_permissions"]), patch(
+            "assenze.views._get_assenza", side_effect=lambda i: difetti["_get_assenza"]
+        ), patch("assenze.views._can_manage_record", return_value=difetti["_can_manage_record"]), patch(
+            "assenze.views._sharepoint_managed_error", return_value=difetti["_sharepoint_managed_error"]
+        ), patch(
+            "assenze.views._applica_moderazione", return_value=difetti["_applica_moderazione"]
+        ) as modera, patch("assenze.views.log_action") as log:
+            response = self.client.post(self.url, data=json.dumps(body), content_type="application/json")
+        return response, modera, log
+
+    def test_approva_piu_record(self):
+        response, modera, log = self._post({"ids": [1, 2, 3], "consenso": "Approvato", "note_gestione": "ok"})
+
+        self.assertEqual(response.status_code, 200)
+        dati = response.json()
+        self.assertTrue(dati["ok"])
+        self.assertEqual(dati["applicate"], 3)
+        self.assertEqual(dati["ids_applicati"], [1, 2, 3])
+        self.assertEqual(modera.call_count, 3)
+        self.assertEqual(log.call_args.args[1], "assenze_moderate_in_blocco")
+
+    def test_id_duplicati_contati_una_volta_sola(self):
+        response, modera, _ = self._post({"ids": [7, 7, 7], "consenso": "Approvato", "note_gestione": "ok"})
+        self.assertEqual(response.json()["applicate"], 1)
+        self.assertEqual(modera.call_count, 1)
+
+    def test_nota_obbligatoria(self):
+        response, modera, _ = self._post({"ids": [1], "consenso": "Approvato", "note_gestione": "   "})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(modera.call_count, 0)
+
+    def test_consenso_non_valido(self):
+        response, modera, _ = self._post({"ids": [1], "consenso": "Forse", "note_gestione": "ok"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(modera.call_count, 0)
+
+    def test_nessun_id(self):
+        response, _, _ = self._post({"ids": [], "consenso": "Approvato", "note_gestione": "ok"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_oltre_il_massimo_rifiutato(self):
+        from assenze.views import BULK_MAX
+
+        response, modera, _ = self._post(
+            {"ids": list(range(1, BULK_MAX + 2)), "consenso": "Approvato", "note_gestione": "ok"}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(modera.call_count, 0)
+
+    def test_permessi_insufficienti(self):
+        response, modera, _ = self._post(
+            {"ids": [1], "consenso": "Approvato", "note_gestione": "ok"},
+            _assenze_permissions={"can_update_any": False, "can_update_owned": False},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(modera.call_count, 0)
+
+    def test_record_fuori_ambito_scartato_non_blocca_gli_altri(self):
+        """Un record non gestibile viene saltato e dichiarato, non fa fallire il resto."""
+        from assenze.views import api_admin_bulk_consenso  # noqa: F401
+
+        with patch("assenze.views._assenze_permissions", return_value={"can_update_any": True}), patch(
+            "assenze.views._get_assenza", side_effect=lambda i: None if i == 2 else {"id": i}
+        ), patch("assenze.views._can_manage_record", side_effect=lambda r, row, **k: row.get("id") != 3), patch(
+            "assenze.views._sharepoint_managed_error", return_value=None
+        ), patch("assenze.views._applica_moderazione", return_value={"queued": True}), patch(
+            "assenze.views.log_action"
+        ):
+            response = self.client.post(
+                self.url,
+                data=json.dumps({"ids": [1, 2, 3, 4], "consenso": "Approvato", "note_gestione": "ok"}),
+                content_type="application/json",
+            )
+
+        dati = response.json()
+        self.assertEqual(dati["ids_applicati"], [1, 4])
+        motivi = {x["id"]: x["motivo"] for x in dati["scartate"]}
+        self.assertEqual(motivi[2], "record non trovato")
+        self.assertEqual(motivi[3], "fuori dal tuo ambito")
+
+    def test_record_gestito_su_sharepoint_scartato(self):
+        response, _, _ = self._post(
+            {"ids": [1], "consenso": "Approvato", "note_gestione": "ok"},
+            _sharepoint_managed_error=JsonResponse({"error": "gestita su SharePoint"}, status=409),
+        )
+        dati = response.json()
+        self.assertEqual(dati["applicate"], 0)
+        self.assertEqual(dati["scartate"][0]["motivo"], "gestita su SharePoint")
 
 
 class AssenzeImpostazioniFlessibilitaViewTests(TestCase):
