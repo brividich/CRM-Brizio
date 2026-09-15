@@ -151,6 +151,46 @@ class ImportArchivioHrTests(TestCase):
             1,
         )
 
+    def test_nome_file_lungo_importato_con_percorso_entro_100_caratteri(self):
+        lungo = "Comunicazione " + "molto lunga con accenti àèì e simboli (copia) " * 4 + "finale.PDF"
+        self._file(f"Contratti/ROSSI_MARIO/{lungo}", PDF)
+        self._run("--apply", "--categoria", "Contratti")
+        doc = DocumentoDipendente.objects.get(nome_originale=lungo[:255])
+        self.assertLessEqual(len(doc.file.name), 100)
+        self.assertTrue(doc.file.name.endswith(".pdf"))
+        with doc.file.open("rb") as handle:
+            self.assertEqual(handle.read(), PDF)
+
+    def test_stesso_file_in_richiami_e_documenti_personali_resta_nella_riservata(self):
+        self._file("!Richiami!/DE_LUCA_ANNA_MARIA/lettera.pdf", PDF + b" lettera")
+        self._file("Documenti personali/DE_LUCA_ANNA_MARIA/lettera.pdf", PDF + b" lettera")
+
+        out = self._run("--apply")
+        docs = DocumentoDipendente.objects.filter(nome_originale="lettera.pdf").select_related("cartella")
+        self.assertEqual(docs.count(), 1)
+        self.assertEqual(docs.get().cartella.nome, "Richiami")
+        self.assertIn("già presente in altra cartella", out)
+
+        out = self._run("--apply")  # rilancio: nessun rimbalzo
+        self.assertEqual(docs.get().cartella.nome, "Richiami")
+        self.assertNotIn("spostato", out)
+
+    def test_riservata_vince_anche_se_il_file_era_gia_in_cartella_non_riservata(self):
+        """Recupero del caso reale: un richiamo finito in «Documenti personali»."""
+        from django.core.files.base import ContentFile
+
+        personali = CartellaDocumentoDipendente.objects.create(nome="Documenti personali")
+        doc = DocumentoDipendente(
+            legacy_anagrafica_id=self.de_luca, tipo=DocumentoDipendente.Tipo.MANUALE, cartella=personali,
+            nome_originale="richiamo.pdf", dimensione_bytes=len(PDF), oggetto_riferimento_tipo="archivio.hrtools",
+        )
+        doc.file.save("richiamo.pdf", ContentFile(PDF), save=True)
+
+        self.assertIn("spostato", self._run("--apply", "--categoria", "!Richiami!"))
+        doc.refresh_from_db()
+        self.assertEqual(doc.cartella.nome, "Richiami")
+        self.assertTrue(doc.cartella.solo_admin)
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class CartelleRiservateTests(TestCase):

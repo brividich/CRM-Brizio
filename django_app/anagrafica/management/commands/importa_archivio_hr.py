@@ -95,6 +95,26 @@ def _mime(percorso: Path) -> str:
     return MIME_EXTRA.get(ext) or mimetypes.guess_type(percorso.name)[0] or "application/octet-stream"
 
 
+# Nomi delle cartelle di destinazione: un documento che sta già in una di queste è
+# stato messo lì da una categoria dell'archivio, e non va spostato da un'altra.
+NOMI_CARTELLE_CATEGORIE = {c.cartella.lower() for c in CATEGORIE.values()}
+
+
+def _nome_su_disco(nome: str) -> str:
+    """Nome breve con cui il file viene salvato nello storage.
+
+    ``DocumentoDipendente.file`` è un FileField senza ``max_length`` (100 caratteri)
+    e il percorso generato ne consuma già ~61 prima del nome: con i nomi lunghi
+    dell'archivio l'INSERT falliva. Il nome originale resta in ``nome_originale``,
+    che è quello mostrato in scheda e usato al download. 24 caratteri di radice +
+    estensione + l'eventuale suffisso anti-collisione dello storage stanno nei 100.
+    """
+    percorso = Path(nome)
+    radice = unicodedata.normalize("NFKD", percorso.stem).encode("ascii", "ignore").decode()
+    radice = re.sub(r"[^A-Za-z0-9]+", "_", radice).strip("_")[:24]
+    return f"{radice or 'documento'}{percorso.suffix.lower()[:5]}"
+
+
 class Command(BaseCommand):
     help = "Importa nel fascicolo documentale l'archivio HR TOOLS (<Categoria>/<COGNOME_NOME>/file)."
 
@@ -278,18 +298,30 @@ class Command(BaseCommand):
             return cartella
         nome = file.name[:255]
 
-        # Già importato (anche in un'altra cartella, es. la vecchia «Archivio HR
-        # TOOLS»): non si ricarica, al più si sposta nella cartella giusta.
+        # Già importato: non si ricarica. Si sposta SOLO se sta nella vecchia
+        # struttura (sottocartella di «Archivio HR TOOLS», o cartella eliminata) o
+        # se questa categoria è riservata e quella attuale no. Lo stesso file in due
+        # categorie non rimbalza più fra le due a seconda dell'ordine: resta dove è,
+        # e la cartella riservata vince sempre.
         importato = (
             DocumentoDipendente.objects
+            .select_related("cartella")
             .filter(legacy_anagrafica_id=legacy_id, oggetto_riferimento_tipo=RIFERIMENTO_TIPO,
                     nome_originale=nome, dimensione_bytes=size)
             .order_by("id").first()
         )
         if importato is not None:
-            if cartella is None or importato.cartella_id == cartella.pk:
-                return "già presente" if cartella is not None else "da spostare"
-            if not apply:
+            if cartella is not None and importato.cartella_id == cartella.pk:
+                return "già presente"
+            attuale = importato.cartella
+            vecchia_struttura = (
+                attuale is None or attuale.parent_id is not None
+                or attuale.nome.lower() not in NOMI_CARTELLE_CATEGORIE
+            )
+            verso_riservata = categoria.solo_admin and not (attuale is not None and attuale.solo_admin)
+            if not (vecchia_struttura or verso_riservata):
+                return "già presente in altra cartella"
+            if not apply or cartella is None:
                 return "da spostare"
             importato.cartella = cartella
             importato.descrizione = ""
@@ -315,7 +347,7 @@ class Command(BaseCommand):
         )
         try:
             with file.open("rb") as handle:
-                doc.file.save(file.name, File(handle), save=True)
+                doc.file.save(_nome_su_disco(file.name), File(handle), save=True)
         except Exception as exc:
             if doc.file and doc.file.name and not doc.pk:
                 try:
@@ -364,6 +396,14 @@ class Command(BaseCommand):
         w("  File per esito:")
         for chiave, n in sorted(esiti.items(), key=lambda kv: -kv[1]):
             w(f"    {chiave:55s} {n}")
+        errori: dict[str, int] = {}
+        for r in righe:
+            if r["esito"].startswith("errore"):
+                errori[r["esito"][:160]] = errori.get(r["esito"][:160], 0) + 1
+        if errori:
+            w(self.style.WARNING("  Motivi degli errori (i file in errore si reimportano al rilancio):"))
+            for motivo, n in sorted(errori.items(), key=lambda kv: -kv[1])[:5]:
+                w(f"    {n:5d}  {motivo}")
 
         per_cat: dict[str, list[int]] = {}
         for r in righe:

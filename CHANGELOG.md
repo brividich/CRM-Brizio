@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **ANAGRAFICA · import archivio storico: nomi file lunghi e documenti presenti in più categorie** (`django_app/anagrafica/management/commands/importa_archivio_hr.py`, `django_app/anagrafica/tests_import_archivio_hr.py`). Emerso all'import in produzione (138 errori, 34 spostamenti invece di 3).
+  1. **Nomi file lunghi**: `DocumentoDipendente.file` non ha `max_length` (100 caratteri) e il percorso generato ne usa già ~61 prima del nome; con i nomi lunghi dell'archivio l'INSERT falliva. Il file si salva ora su disco con un nome breve (`_nome_su_disco`, 24 caratteri + estensione); il nome originale resta in `nome_originale`, mostrato in scheda e usato al download. Nessuna migrazione. Il riepilogo elenca i motivi degli errori.
+  2. **Stesso file in due categorie** (es. «!Richiami!» e «Documenti personali»): veniva importato nella prima e **spostato** nella seconda, così un richiamo poteva finire in una cartella non riservata e al rilancio rimbalzare. Ora un documento già importato si sposta solo se sta nella vecchia struttura («Archivio HR TOOLS» o cartella eliminata) oppure verso una cartella riservata: la riservata vince sempre, altrimenti resta dov'è («già presente in altra cartella»). Il rilancio riporta nella cartella riservata i documenti spostati per errore.
+
+  **Deploy**: nessuna migrazione. Dopo il deploy rilanciare `importa_archivio_hr --apply`: reimporta i file in errore e corregge le cartelle.
+
 ---
 
 ## 1.6.1 - 2026-09-15
