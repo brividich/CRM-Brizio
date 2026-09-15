@@ -25,7 +25,9 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   3. `_anagrafica_employee_ids_for_capo` — l'inverso, cioe' per quali dipendenti un capo puo' inserire e approvare richieste — parte dalle aree di cui e' responsabile (piu' le aree senza responsabile proprio il cui reparto lo indica come caporeparto); i fallback denormalizzato e testuale valgono solo per i dipendenti **senza** area canonica, altrimenti una copia stantia faceva comparire la stessa persona in due liste.
   4. Aggiornata la nota sotto il campo: «Assegnato automaticamente dall'area aziendale del dipendente».
 
-  Nessuna migrazione. 4 nuovi test (`AssenzeCapoDaAreaAziendaleTests`), suite `assenze` verde (153 test).
+  5. **Il menu «Capo reparto» elencava solo i caporeparto dei reparti** (`_anagrafica_hr_capo_ids`), costruito su `Reparto.caporeparto_legacy_id`. Un responsabile di area aziendale non aveva alcuna voce su cui essere selezionato: anche risolvendo il nome giusto, la richiesta ricadeva in silenzio sul caporeparto del reparto. Ora l'elenco somma i `AreaAziendale.responsabile_legacy_id` attivi. È questo il motivo per cui in produzione BOVA LUCA (area IT, responsabile SMARRELLA SIMONE in Anagrafica) si vedeva proposto il caporeparto del reparto UT.
+
+  Nessuna migrazione. 5 nuovi test (`AssenzeCapoDaAreaAziendaleTests`), suite `assenze` verde (154 test).
 
 ---
 

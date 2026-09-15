@@ -3065,8 +3065,17 @@ def _resolve_legacy_capo_lookup_by_raw_value(raw_value: str | None) -> int | Non
 
 
 def _anagrafica_hr_capo_ids() -> set[int]:
+    """Id anagrafica di chi puo' comparire nel menu «Capo reparto».
+
+    Non bastano i caporeparto dei reparti: l'approvatore di un dipendente e' il
+    **responsabile della sua area aziendale** quando ce n'e' uno proprio
+    (vedi ``_resolve_anagrafica_hr_effective_capo_ids``). Se il menu elencasse
+    solo i caporeparto, quel responsabile non avrebbe una voce su cui essere
+    selezionato e la richiesta ricadrebbe in silenzio sul caporeparto del
+    reparto — cioe' su una persona diversa da quella mostrata in Anagrafica.
+    """
     try:
-        from anagrafica.models import Reparto
+        from anagrafica.models import AreaAziendale, Reparto
     except Exception:
         return set()
 
@@ -3075,6 +3084,12 @@ def _anagrafica_hr_capo_ids() -> set[int]:
         for value in Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False).values_list(
             "caporeparto_legacy_id", flat=True
         ):
+            capo_id = _as_int(value)
+            if capo_id is not None and capo_id > 0:
+                ids.add(capo_id)
+        for value in AreaAziendale.objects.filter(
+            is_active=True, responsabile_legacy_id__isnull=False
+        ).values_list("responsabile_legacy_id", flat=True):
             capo_id = _as_int(value)
             if capo_id is not None and capo_id > 0:
                 ids.add(capo_id)
