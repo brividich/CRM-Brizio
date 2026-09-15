@@ -174,6 +174,7 @@ Foglio operativo di tutti gli script eseguibili (Django management commands + Po
 | `import_cedolini` | 🟡 | Saldi ferie/ROL/ex-festività mensili da XLSX |
 | `import_retribuzioni` | 🟡 | Storico voci paga da XLSX studio paghe |
 | `importa_visite_mediche_xlsx` | 🟡 | Storico visite mediche da XLSX |
+| `importa_archivio_hr` | 🟡 | Archivio documenti del vecchio gestionale HR TOOLS (`<Categoria>/<COGNOME_NOME>/file`) nel fascicolo dipendente; dry-run di default, `--apply`, `--mappa`, `--report` |
 | `import_formazione_gestionale` | 🟡 | Dati formazione HR dagli Excel del gestionale |
 | `import_asr` | 🟡 | Matrice formazione/abilitazioni ASR |
 | `import_dpi_storico` | 🟡 | Storico DPI da Excel |
