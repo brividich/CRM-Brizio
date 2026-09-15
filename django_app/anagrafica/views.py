@@ -155,6 +155,7 @@ from .services import conformita as conformita_service
 from .services import onboarding as onboarding_service
 from .services import mansionario as mansionario_service
 from .acl_bootstrap import (
+    PERM_DOCUMENTI_RISERVATI,
     PERM_FORMAZIONE_MANAGE,
     PERM_FORMAZIONE_VIEW,
     PERM_HR_VIEW,
@@ -1494,6 +1495,22 @@ def _is_anagrafica_admin(request) -> bool:
     return _has_canonical_grant(request, PERM_SCHEDA_MANAGE, legacy_user=legacy_user)
 
 
+def _can_view_documenti_riservati(request) -> bool:
+    """Chi vede i documenti delle cartelle riservate (``solo_admin``).
+
+    Superuser e amministratori del portale sempre; gli altri ruoli (HR,
+    amministrazione, ...) se abilitati al permesso canonico
+    ``anagrafica.documenti_riservati.view`` da /admin-portale/acl-canonico/.
+    Stessa regola in scheda dipendente, download, archivio documenti ed export.
+    """
+    if getattr(request.user, "is_superuser", False):
+        return True
+    legacy_user = get_legacy_user(request.user)
+    if is_legacy_admin(legacy_user):
+        return True
+    return _has_canonical_grant(request, PERM_DOCUMENTI_RISERVATI, legacy_user=legacy_user)
+
+
 def _can_view_visite_mediche(request) -> bool:
     """Verifica se l'utente può vedere/registrare le visite mediche.
 
@@ -1997,8 +2014,8 @@ def dipendente_detail(request, legacy_id: int):
         # Nasconde i referti sanitari a chi non ha il permesso visite
         if not can_view_visite:
             qs_doc = qs_doc.exclude(tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO)
-        # Cartelle riservate (solo_admin): come nell'archivio, solo ai super-amministratori.
-        if not request.user.is_superuser:
+        # Cartelle riservate (solo_admin): solo a chi ha il permesso documenti riservati.
+        if not _can_view_documenti_riservati(request):
             qs_doc = qs_doc.exclude(cartella__solo_admin=True)
         documenti_dipendente = list(qs_doc.order_by("-created_at")[:100])
         # Scheletro cartelle: solo quelle applicabili al dipendente (targeting per
@@ -10484,8 +10501,8 @@ def documento_dipendente_download(request, doc_id: int):
         if not (_is_anagrafica_admin(request) or _check_hr_permission(request)):
             return HttpResponse(status=403)
 
-    # Cartelle riservate (solo_admin): solo ai super-amministratori, anche col link diretto.
-    if doc.cartella_id and doc.cartella.solo_admin and not request.user.is_superuser:
+    # Cartelle riservate (solo_admin): solo col permesso documenti riservati, anche col link diretto.
+    if doc.cartella_id and doc.cartella.solo_admin and not _can_view_documenti_riservati(request):
         return HttpResponse(status=403)
 
     if not doc.file:
@@ -10682,8 +10699,8 @@ def documenti_list(request):
     cartelle = list(CartellaDocumentoDipendente.objects.all())
     qs = DocumentoDipendente.objects.filter(tipo=DocumentoDipendente.Tipo.MANUALE).select_related("cartella", "created_by").order_by("-created_at")
 
-    # Cartelle riservate (solo_admin): visibili nell'archivio solo ai super-amministratori.
-    if not request.user.is_superuser:
+    # Cartelle riservate (solo_admin): visibili solo col permesso documenti riservati.
+    if not _can_view_documenti_riservati(request):
         cartelle = [c for c in cartelle if not c.solo_admin]
         qs = qs.exclude(cartella__solo_admin=True)
 

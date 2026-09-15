@@ -76,7 +76,8 @@ class ImportArchivioHrTests(TestCase):
         self.assertEqual(contratto.legacy_anagrafica_id, self.rossi)
         self.assertEqual(contratto.tipo, DocumentoDipendente.Tipo.MANUALE)
         self.assertEqual(contratto.cartella.nome, "Contratti")
-        self.assertEqual(contratto.cartella.parent.nome, "Archivio HR TOOLS")
+        self.assertIsNone(contratto.cartella.parent)  # primo livello, nessuna cartella «import»
+        self.assertEqual(contratto.descrizione, "")
 
         self.assertEqual(per_nome["idoneita.pdf"].tipo, DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO)
         self.assertEqual(per_nome["consegna.pdf"].tipo, DocumentoDipendente.Tipo.DPI_CONSEGNA)
@@ -112,11 +113,50 @@ class ImportArchivioHrTests(TestCase):
         self.assertIn(("VERDI_GIUSEPPE", "importato"), esiti)
         self.assertIn(("BIANCHI_LUCA", "persona non abbinata"), esiti)
 
+    def test_riusa_la_cartella_esistente_con_lo_stesso_nome(self):
+        esistente = CartellaDocumentoDipendente.objects.create(nome="contratti", retention_anni=3)
+        self._run("--apply", "--categoria", "Contratti")
+        self.assertEqual(CartellaDocumentoDipendente.objects.filter(nome__iexact="contratti").count(), 1)
+        self.assertTrue(DocumentoDipendente.objects.filter(cartella=esistente).exists())
+        esistente.refresh_from_db()
+        self.assertEqual(esistente.retention_anni, 3)  # impostazioni non toccate
+
+    def test_categoria_riservata_non_finisce_in_cartella_non_riservata(self):
+        CartellaDocumentoDipendente.objects.create(nome="Richiami", solo_admin=False)
+        out = self._run("--apply", "--categoria", "!Richiami!")
+        self.assertFalse(DocumentoDipendente.objects.exists())
+        self.assertIn("non è riservata", out)
+
+    def test_documenti_della_vecchia_cartella_archivio_vengono_spostati(self):
+        from django.core.files.base import ContentFile
+
+        vecchia = CartellaDocumentoDipendente.objects.create(nome="Archivio HR TOOLS")
+        sotto = CartellaDocumentoDipendente.objects.create(nome="Contratti", parent=vecchia)
+        doc = DocumentoDipendente(
+            legacy_anagrafica_id=self.rossi, tipo=DocumentoDipendente.Tipo.MANUALE, cartella=sotto,
+            nome_originale="contratto.pdf", dimensione_bytes=len(PDF),
+            descrizione="Archivio HR TOOLS · Contratti", oggetto_riferimento_tipo="archivio.hrtools",
+        )
+        doc.file.save("contratto.pdf", ContentFile(PDF), save=True)
+
+        self.assertIn("da spostare", self._run("--categoria", "Contratti"))
+        out = self._run("--apply", "--categoria", "Contratti")
+        self.assertIn("spostato", out)
+        doc.refresh_from_db()
+        self.assertIsNone(doc.cartella.parent)
+        self.assertEqual(doc.cartella.nome, "Contratti")
+        self.assertEqual(doc.descrizione, "")
+        self.assertEqual(
+            DocumentoDipendente.objects.filter(legacy_anagrafica_id=self.rossi, nome_originale="contratto.pdf").count(),
+            1,
+        )
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class CartelleRiservateTests(TestCase):
-    """I documenti delle cartelle `solo_admin` restano ai super-amministratori
-    anche nella scheda dipendente e col link diretto di download."""
+    """I documenti delle cartelle `solo_admin` restano a chi ha il permesso documenti
+    riservati (superuser, admin del portale, ruoli abilitati in ACL canonico) anche
+    nella scheda dipendente e col link diretto di download."""
 
     def setUp(self):
         from django.contrib.auth import get_user_model
@@ -147,9 +187,10 @@ class CartelleRiservateTests(TestCase):
         doc.file.save(nome, ContentFile(PDF), save=True)
         return doc
 
-    def _download(self, user, doc):
+    def _download(self, user, doc, *, riservati=None):
         # View chiamata direttamente: qui si verifica il suo controllo, non il
         # middleware ACL (che per un utente senza binding reindirizza prima).
+        from contextlib import ExitStack
         from unittest.mock import patch
 
         from django.test import RequestFactory
@@ -158,12 +199,20 @@ class CartelleRiservateTests(TestCase):
 
         request = RequestFactory().get(f"/anagrafica/documenti/{doc.pk}/download")
         request.user = user
-        with patch("anagrafica.views._check_hr_permission", return_value=True):
+        with ExitStack() as stack:
+            stack.enter_context(patch("anagrafica.views._check_hr_permission", return_value=True))
+            if riservati is not None:
+                stack.enter_context(
+                    patch("anagrafica.views._can_view_documenti_riservati", return_value=riservati)
+                )
             return documento_dipendente_download(request, doc_id=doc.pk)
 
-    def test_download_riservato_negato_a_hr_non_superuser(self):
+    def test_download_riservato_negato_senza_permesso(self):
         self.assertEqual(self._download(self.hr, self.doc_riservato).status_code, 403)
         self.assertEqual(self._download(self.hr, self.doc_normale).status_code, 200)
+
+    def test_download_riservato_consentito_col_permesso(self):
+        self.assertEqual(self._download(self.hr, self.doc_riservato, riservati=True).status_code, 200)
 
     def test_download_riservato_consentito_al_superuser(self):
         self.assertEqual(self._download(self.superuser, self.doc_riservato).status_code, 200)
@@ -198,3 +247,9 @@ class CartelleRiservateTests(TestCase):
             visibili = nomi_visibili(self.hr)
         self.assertIsNotNone(visibili, "la scheda non è stata renderizzata per l'utente HR")
         self.assertEqual(visibili, {"contratto_sintetico.pdf"})
+
+        with patch("anagrafica.views._check_hr_permission", return_value=True), \
+                patch("anagrafica.views._is_anagrafica_admin", return_value=True), \
+                patch("anagrafica.views._can_view_documenti_riservati", return_value=True):
+            visibili = nomi_visibili(self.hr)
+        self.assertEqual(visibili, {"richiamo_sintetico.pdf", "contratto_sintetico.pdf"})

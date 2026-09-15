@@ -23,6 +23,7 @@ from core.models import Profile, RolePermissionGrant
 from core.test_acl_v2 import _clear_legacy_acl_tables, _ensure_legacy_acl_tables
 
 from .acl_bootstrap import (
+    PERM_DOCUMENTI_RISERVATI,
     PERM_FORMAZIONE_MANAGE,
     PERM_FORMAZIONE_VIEW,
     PERM_HR_VIEW,
@@ -32,6 +33,7 @@ from .acl_bootstrap import (
     bootstrap_anagrafica_acl_endpoints,
 )
 from .views import (
+    _can_view_documenti_riservati,
     _can_edit_formazione,
     _can_view_formazione,
     _can_view_stats,
@@ -109,11 +111,38 @@ class SezioniAnagraficaAclV2Test(TestCase):
 
         for code in (PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_FORMAZIONE_VIEW,
                      PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE,
-                     PERM_STATISTICHE_VIEW):
+                     PERM_STATISTICHE_VIEW, PERM_DOCUMENTI_RISERVATI):
             self.assertTrue(
                 PermissionDefinition.objects.filter(code=code, is_active=True).exists(),
                 f"permesso canonico mancante: {code}",
             )
+
+    # ── documenti delle cartelle riservate ───────────────────────────────────
+    def test_grant_documenti_riservati_apre_le_cartelle_riservate(self):
+        self._grant(PERM_DOCUMENTI_RISERVATI)
+
+        self.assertTrue(_can_view_documenti_riservati(self._request()))
+
+    def test_senza_grant_le_cartelle_riservate_restano_chiuse(self):
+        self.assertFalse(_can_view_documenti_riservati(self._request()))
+
+    def test_grant_documenti_riservati_disabilitato_non_apre(self):
+        self._grant(PERM_DOCUMENTI_RISERVATI, enabled=False)
+
+        self.assertFalse(_can_view_documenti_riservati(self._request()))
+
+    def test_amministratore_del_portale_vede_le_cartelle_riservate_senza_grant(self):
+        admin = self._make_user("admin-user", "admin", RUOLO_ADMIN_ID)
+
+        self.assertTrue(_can_view_documenti_riservati(self._request(admin)))
+
+    def test_il_permesso_documenti_riservati_nasce_acceso_solo_per_admin(self):
+        grants = dict(
+            RolePermissionGrant.objects.filter(permission_id=PERM_DOCUMENTI_RISERVATI)
+            .values_list("legacy_role_id", "enabled")
+        )
+        self.assertTrue(grants.get(RUOLO_ADMIN_ID))
+        self.assertFalse(grants.get(RUOLO_DIREZIONE_ID))
 
     # ── dati HR riservati ────────────────────────────────────────────────────
     def test_grant_hr_apre_i_dati_riservati(self):

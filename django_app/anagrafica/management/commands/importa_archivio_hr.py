@@ -4,16 +4,20 @@ Struttura attesa della cartella sorgente::
 
     <radice>/<Categoria>/<COGNOME_NOME>/<file>
 
-La categoria (Contratti, DPI, VISITE MEDICHE, ...) diventa una sottocartella di
-«Archivio HR TOOLS» nello scheletro documentale; la cartella persona si abbina al
-dipendente per nominativo. L'abbinamento è **esatto** (stesse parole, in qualunque
-ordine, senza accenti né punteggiatura): niente somiglianze di stringhe. Un nome
-che non trova esattamente una persona non si importa e finisce nel report, dove
-si risolve con ``--mappa``.
+La categoria (Contratti, DPI, VISITE MEDICHE, ...) diventa una cartella **di primo
+livello** dello scheletro documentale, come se i documenti fossero stati caricati a
+mano: se una cartella con quel nome esiste già si usa quella, senza toccarne le
+impostazioni. Le categorie riservate (Richiami, Infortuni) nascono riservate; se
+esiste già una cartella omonima **non** riservata, quei file non si importano
+finché non la si rende riservata. La cartella persona si abbina al dipendente per
+nominativo. L'abbinamento è **esatto** (stesse parole, in qualunque ordine, senza
+accenti né punteggiatura): niente somiglianze di stringhe. Un nome che non trova
+esattamente una persona non si importa e finisce nel report, dove si risolve con
+``--mappa``.
 
 Dry-run di default: senza ``--apply`` non scrive nulla. Rieseguibile: un file già
-importato (stesso dipendente, cartella, nome e dimensione) viene saltato, così si
-può rilanciare dopo aver completato l'estrazione o sistemato la mappa.
+importato (stesso dipendente, nome e dimensione) viene saltato; se si trova in
+un'altra cartella (per esempio sotto la vecchia «Archivio HR TOOLS») viene spostato.
 
 Esempi:
     python manage.py importa_archivio_hr "C:\\...\\Estrazione HR TOOLS"
@@ -35,9 +39,8 @@ from django.core.management.base import BaseCommand, CommandError
 
 from anagrafica.models import CartellaDocumentoDipendente, DocumentoDipendente
 
-CARTELLA_RADICE = "Archivio HR TOOLS"
 RIFERIMENTO_TIPO = "archivio.hrtools"
-AUTORE = "Import archivio HR TOOLS"
+AUTORE = "Importazione archivio storico"
 MAX_BYTES = 50 * 1024 * 1024  # stesso limite dell'upload manuale
 
 ESTENSIONI_AMMESSE = {
@@ -158,7 +161,7 @@ class Command(BaseCommand):
                     riga["esito"] = self._importa_file(
                         file, esito["legacy_id"], categoria, cartelle_cache, apply,
                     )
-                    if riga["esito"] in ("importato", "da importare"):
+                    if riga["esito"] in ("importato", "da importare", "spostato", "da spostare"):
                         conteggio = importati_per_dipendente.setdefault(esito["legacy_id"], {})
                         conteggio[categoria.cartella] = conteggio.get(categoria.cartella, 0) + 1
 
@@ -230,25 +233,31 @@ class Command(BaseCommand):
         return esito
 
     def _cartella(self, categoria: Categoria, cache, apply):
+        """Cartella di primo livello della categoria: quella esistente o una nuova.
+
+        Una cartella esistente si usa così com'è (nome, riservatezza, retention li
+        governa Impostazioni → Documenti). Unica eccezione: una categoria riservata
+        non finisce mai in una cartella omonima NON riservata — ritorna la stringa
+        col motivo e i file vengono saltati.
+        """
         if categoria.cartella in cache:
             return cache[categoria.cartella]
-        radice = CartellaDocumentoDipendente.objects.filter(parent=None, nome=CARTELLA_RADICE).first()
-        figlia = (
-            CartellaDocumentoDipendente.objects.filter(parent=radice, nome=categoria.cartella).first()
-            if radice else None
+        cartella = (
+            CartellaDocumentoDipendente.objects
+            .filter(parent=None, nome__iexact=categoria.cartella)
+            .order_by("id").first()
         )
-        if apply:
-            if radice is None:
-                radice = CartellaDocumentoDipendente.objects.create(
-                    nome=CARTELLA_RADICE, ordine=900,
-                    descrizione="Documenti importati dal vecchio gestionale HR TOOLS.",
-                )
-            if figlia is None:
-                figlia = CartellaDocumentoDipendente.objects.create(
-                    nome=categoria.cartella, parent=radice, solo_admin=categoria.solo_admin,
-                )
-        cache[categoria.cartella] = figlia
-        return figlia
+        if cartella is not None and categoria.solo_admin and not cartella.solo_admin:
+            cartella = (
+                f"saltato: la cartella «{cartella.nome}» esiste ma non è riservata "
+                "(renderla riservata in Impostazioni e rilanciare)"
+            )
+        elif cartella is None and apply:
+            cartella = CartellaDocumentoDipendente.objects.create(
+                nome=categoria.cartella, solo_admin=categoria.solo_admin,
+            )
+        cache[categoria.cartella] = cartella
+        return cartella
 
     def _importa_file(self, file: Path, legacy_id: int, categoria: Categoria, cache, apply) -> str:
         if file.name.lower() in FILE_DI_SISTEMA or file.name.startswith("~$"):
@@ -265,7 +274,27 @@ class Command(BaseCommand):
             return "saltato: contenuto non corrisponde all'estensione"
 
         cartella = self._cartella(categoria, cache, apply)
+        if isinstance(cartella, str):
+            return cartella
         nome = file.name[:255]
+
+        # Già importato (anche in un'altra cartella, es. la vecchia «Archivio HR
+        # TOOLS»): non si ricarica, al più si sposta nella cartella giusta.
+        importato = (
+            DocumentoDipendente.objects
+            .filter(legacy_anagrafica_id=legacy_id, oggetto_riferimento_tipo=RIFERIMENTO_TIPO,
+                    nome_originale=nome, dimensione_bytes=size)
+            .order_by("id").first()
+        )
+        if importato is not None:
+            if cartella is None or importato.cartella_id == cartella.pk:
+                return "già presente" if cartella is not None else "da spostare"
+            if not apply:
+                return "da spostare"
+            importato.cartella = cartella
+            importato.descrizione = ""
+            importato.save(update_fields=["cartella", "descrizione"])
+            return "spostato"
         if cartella is not None and DocumentoDipendente.objects.filter(
             legacy_anagrafica_id=legacy_id, cartella=cartella,
             nome_originale=nome, dimensione_bytes=size,
@@ -281,7 +310,6 @@ class Command(BaseCommand):
             nome_originale=nome,
             tipo_mime=_mime(file),
             dimensione_bytes=size,
-            descrizione=f"{CARTELLA_RADICE} · {categoria.cartella}"[:300],
             oggetto_riferimento_tipo=RIFERIMENTO_TIPO,
             created_by_display=AUTORE,
         )
@@ -308,7 +336,7 @@ class Command(BaseCommand):
                     "legacy_anagrafica_id": legacy_id,
                     "documenti": sum(per_cartella.values()),
                     "per_cartella": per_cartella,
-                    "origine": CARTELLA_RADICE,
+                    "origine": radice,
                 },
                 oggetto_tipo="anagrafica.dipendente", oggetto_id=str(legacy_id),
             )
@@ -341,7 +369,7 @@ class Command(BaseCommand):
         for r in righe:
             tot = per_cat.setdefault(r["categoria"], [0, 0])
             tot[0] += 1
-            tot[1] += r["esito"] in ("importato", "da importare")
+            tot[1] += r["esito"] in ("importato", "da importare", "spostato", "da spostare")
         w("  Per categoria (file / importabili):")
         for cat, (tot, ok) in sorted(per_cat.items()):
             w(f"    {cat:40s} {tot:5d} / {ok}")
