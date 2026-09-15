@@ -1997,6 +1997,9 @@ def dipendente_detail(request, legacy_id: int):
         # Nasconde i referti sanitari a chi non ha il permesso visite
         if not can_view_visite:
             qs_doc = qs_doc.exclude(tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO)
+        # Cartelle riservate (solo_admin): come nell'archivio, solo ai super-amministratori.
+        if not request.user.is_superuser:
+            qs_doc = qs_doc.exclude(cartella__solo_admin=True)
         documenti_dipendente = list(qs_doc.order_by("-created_at")[:100])
         # Scheletro cartelle: solo quelle applicabili al dipendente (targeting per
         # reparto/ruoli operativi; cartella senza targeting = universale).
@@ -10480,6 +10483,10 @@ def documento_dipendente_download(request, doc_id: int):
         legacy_user = get_legacy_user(request.user)
         if not (_is_anagrafica_admin(request) or _check_hr_permission(request)):
             return HttpResponse(status=403)
+
+    # Cartelle riservate (solo_admin): solo ai super-amministratori, anche col link diretto.
+    if doc.cartella_id and doc.cartella.solo_admin and not request.user.is_superuser:
+        return HttpResponse(status=403)
 
     if not doc.file:
         return HttpResponse("File non disponibile.", status=404)
