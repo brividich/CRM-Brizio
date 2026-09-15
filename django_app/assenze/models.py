@@ -107,3 +107,26 @@ class AssenzaSharePointOutbox(models.Model):
 
     def __str__(self):
         return f"{self.azione} assenza {self.assenza_id} (v{self.versione})"
+
+
+class AssenzaOrigineSharePoint(models.Model):
+    """Dove e' nata una richiesta collegata alla lista SharePoint.
+
+    Durante la convivenza con le vecchie app, la richiesta la gestisce il sistema
+    in cui e' nata: ``creata_su_sharepoint=True`` significa approvata dal flusso
+    Power Automate e in sola lettura sul portale. Scritta dalla sincronizzazione
+    (lettura: da ``createdBy`` di Graph; invio: creata dal portale).
+    """
+
+    assenza_id = models.IntegerField(unique=True)
+    sharepoint_item_id = models.CharField(max_length=64, blank=True, default="")
+    creata_su_sharepoint = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Origine assenza (SharePoint)"
+        verbose_name_plural = "Origini assenze (SharePoint)"
+
+    def __str__(self):
+        luogo = "SharePoint" if self.creata_su_sharepoint else "portale"
+        return f"assenza {self.assenza_id} nata su {luogo}"

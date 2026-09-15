@@ -140,12 +140,16 @@
                 {% if admin_can_moderate or admin_can_delete %}
                   <td data-label="Azioni">
                     <div class="ga-row-actions">
+                      {% if a.gestita_sp %}
+                        <span class="abs-chip soft" title="Nata su SharePoint: si gestisce dall'app SharePoint">Gestita su SharePoint</span>
+                      {% else %}
                       {% if admin_can_moderate %}
                         <button type="button" class="ga-act ga-act-approve" data-act="approva" data-id="{{ a.id }}" data-dip="{{ a.dipendente }}" data-tipo="{{ a.tipo }}" data-periodo="{{ a.inizio_label }} → {{ a.fine_label }}">Approva</button>
                         <button type="button" class="ga-act ga-act-reject" data-act="rifiuta" data-id="{{ a.id }}" data-dip="{{ a.dipendente }}" data-tipo="{{ a.tipo }}" data-periodo="{{ a.inizio_label }} → {{ a.fine_label }}">Rifiuta</button>
                       {% endif %}
                       {% if admin_can_delete %}
                         <button type="button" class="ga-act ga-act-delete" data-act="elimina" data-id="{{ a.id }}" data-dip="{{ a.dipendente }}" data-tipo="{{ a.tipo }}" data-periodo="{{ a.inizio_label }} → {{ a.fine_label }}">Elimina</button>
+                      {% endif %}
                       {% endif %}
                     </div>
                   </td>
