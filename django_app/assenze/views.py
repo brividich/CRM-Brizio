@@ -433,6 +433,18 @@ def _select_limited(base_sql: str, order_by_sql: str, limit: int) -> str:
     return f"SELECT TOP {limit} * FROM ({base_sql}) _q {order_by_sql}"
 
 
+def _select_paginated(base_sql: str, order_by_sql: str, *, offset: int, limit: int) -> str:
+    """Una pagina di risultati. Richiede un ORDER BY: senza, SQL Server rifiuta
+    OFFSET/FETCH e l'ordine delle pagine sarebbe comunque arbitrario."""
+    offset = max(0, int(offset))
+    limit = max(1, int(limit))
+    if not order_by_sql.strip():
+        raise ValueError("_select_paginated richiede un ORDER BY")
+    if _db_vendor() == "sqlite":
+        return f"{base_sql} {order_by_sql} LIMIT {limit} OFFSET {offset}"
+    return f"{base_sql} {order_by_sql} OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
+
+
 def _certificazione_presenza_dipendenti_attivi() -> list[str]:
     if not _table_exists("anagrafica_dipendenti"):
         return []
@@ -4277,7 +4289,15 @@ def impostazioni_admin(request):
 
     perms = _assenze_permissions(request)
     admin_q = (request.GET.get("q_admin") or "").strip()
-    admin_overview = _admin_assenze_overview(admin_q)
+    admin_overview = _admin_assenze_overview(
+        admin_q,
+        stato=request.GET.get("stato") or "",
+        tipo=request.GET.get("tipo") or "",
+        da=request.GET.get("da") or "",
+        a=request.GET.get("a") or "",
+        page=request.GET.get("page") or 1,
+        per_page=request.GET.get("per_page") or ADMIN_PER_PAGE_DEFAULT,
+    )
     admin_audit_entries = list(
         AuditLog.objects.filter(modulo="assenze").order_by("-created_at")[:100]
     )
@@ -4294,6 +4314,11 @@ def impostazioni_admin(request):
             "admin_by_tipo": admin_overview.get("by_tipo"),
             "admin_sync_info": admin_overview.get("sync_info"),
             "admin_assenze": admin_overview.get("assenze"),
+            "admin_filtri": admin_overview.get("filtri"),
+            "admin_paginazione": admin_overview.get("paginazione"),
+            "admin_tipi_disponibili": admin_overview.get("tipi_disponibili"),
+            "admin_stati_disponibili": admin_overview.get("stati_disponibili"),
+            "admin_per_page_scelte": admin_overview.get("per_page_scelte"),
             "admin_audit_entries": admin_audit_entries,
             "admin_can_moderate": perms.get("can_update_any", False),
             "admin_can_delete": perms.get("can_delete_any", False),
@@ -5421,11 +5446,34 @@ def export_gestione_assenze_csv(request):
     return _csv_streaming_response(row_iter(), headers, "mie_assenze.csv")
 
 
-def _admin_assenze_overview(q: str = "") -> dict:
-    """Panoramica admin del modulo assenze: statistiche globali, distribuzione per
-    tipo e ultimi 100 record (filtrabili per dipendente/tipo).
+ADMIN_STATI = {
+    "in_attesa": ("In attesa", 2),
+    "approvate": ("Approvate", 0),
+    "rifiutate": ("Rifiutate", 1),
+}
+ADMIN_PER_PAGE_SCELTE = (25, 50, 100, 200)
+ADMIN_PER_PAGE_DEFAULT = 25
 
-    Condivisa dal pannello admin unificato nelle Impostazioni assenze.
+
+def _admin_assenze_overview(
+    q: str = "",
+    *,
+    stato: str = "",
+    tipo: str = "",
+    da: str = "",
+    a: str = "",
+    page: int = 1,
+    per_page: int = ADMIN_PER_PAGE_DEFAULT,
+) -> dict:
+    """Panoramica admin del modulo assenze.
+
+    Statistiche globali, distribuzione per tipo e **una pagina** di record
+    filtrati. Prima venivano caricate in pagina fino a 5000 righe perche' la
+    ricerca era client-side: su uno storico reale significa un documento enorme
+    da scaricare e da rendere a ogni apertura delle Impostazioni, per poi
+    guardarne venti. Filtri, ordinamento e paginazione sono ora lato server, e
+    la ricerca copre comunque l'intero storico perche' e' una WHERE, non un
+    filtro sul DOM.
     """
     tabella_ok = _table_exists("assenze")
     stats = {"total": 0, "in_attesa": 0, "approvate": 0, "rifiutate": 0}
@@ -5441,14 +5489,56 @@ def _admin_assenze_overview(q: str = "") -> dict:
         "pending": AssenzaSharePointOutbox.objects.count(),
         "failing": AssenzaSharePointOutbox.objects.filter(tentativi__gt=0).count(),
     }
-    assenze: list[dict] = []
-    if not tabella_ok:
-        return {"tabella_ok": False, "stats": stats, "by_tipo": by_tipo, "sync_info": sync_info, "assenze": assenze}
 
-    def _count_sql(where=""):
+    stato = str(stato or "").strip().lower()
+    if stato not in ADMIN_STATI:
+        stato = ""
+    tipo = str(tipo or "").strip()
+    q = str(q or "").strip()
+    da_dt = _parse_input_dt(f"{da}T00:00") if str(da or "").strip() else None
+    a_dt = _parse_input_dt(f"{a}T23:59") if str(a or "").strip() else None
+    try:
+        per_page = int(per_page)
+    except (TypeError, ValueError):
+        per_page = ADMIN_PER_PAGE_DEFAULT
+    if per_page not in ADMIN_PER_PAGE_SCELTE:
+        per_page = ADMIN_PER_PAGE_DEFAULT
+    try:
+        page = max(1, int(page))
+    except (TypeError, ValueError):
+        page = 1
+
+    risultato = {
+        "tabella_ok": tabella_ok,
+        "stats": stats,
+        "by_tipo": by_tipo,
+        "sync_info": sync_info,
+        "assenze": [],
+        "filtri": {
+            "q": q,
+            "stato": stato,
+            "tipo": tipo,
+            "da": str(da or "").strip(),
+            "a": str(a or "").strip(),
+            "per_page": per_page,
+            "attivi": bool(q or stato or tipo or da or a),
+        },
+        "tipi_disponibili": [],
+        "stati_disponibili": [{"key": k, "label": v[0]} for k, v in ADMIN_STATI.items()],
+        "per_page_scelte": list(ADMIN_PER_PAGE_SCELTE),
+        "paginazione": {
+            "page": 1, "pages": 1, "per_page": per_page, "total": 0,
+            "da_riga": 0, "a_riga": 0, "ha_prec": False, "ha_succ": False,
+            "prec": 1, "succ": 1,
+        },
+    }
+    if not tabella_ok:
+        return risultato
+
+    def _count_sql(where="", count_params=None):
         sql = "SELECT COUNT(*) FROM assenze" + (f" WHERE {where}" if where else "")
         with connections["default"].cursor() as cur:
-            cur.execute(sql)
+            cur.execute(sql, count_params or [])
             return cur.fetchone()[0]
 
     stats["total"] = _count_sql()
@@ -5466,17 +5556,47 @@ def _admin_assenze_overview(q: str = "") -> dict:
         tipo_label = _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta"))
         by_tipo_counts[tipo_label] = by_tipo_counts.get(tipo_label, 0) + int(row.get("n") or 0)
     by_tipo = [
-        {"tipo_assenza": tipo, "n": count}
-        for tipo, count in sorted(by_tipo_counts.items(), key=lambda item: (-item[1], item[0]))
+        {"tipo_assenza": t, "n": c}
+        for t, c in sorted(by_tipo_counts.items(), key=lambda item: (-item[1], item[0]))
     ]
+    risultato["by_tipo"] = by_tipo
+    risultato["tipi_disponibili"] = [r["tipo_assenza"] for r in by_tipo]
 
     where_parts: list[str] = []
     params: list = []
-    q = str(q or "").strip()
     if q:
-        where_parts.append("(UPPER(COALESCE(copia_nome,'')) LIKE UPPER(%s) OR UPPER(COALESCE(tipo_assenza,'')) LIKE UPPER(%s))")
-        params.extend([f"%{q}%", f"%{q}%"])
+        where_parts.append(
+            "(UPPER(COALESCE(copia_nome,'')) LIKE UPPER(%s)"
+            " OR UPPER(COALESCE(tipo_assenza,'')) LIKE UPPER(%s)"
+            " OR UPPER(COALESCE(motivazione_richiesta,'')) LIKE UPPER(%s))"
+        )
+        params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
+    if stato:
+        where_parts.append("COALESCE(moderation_status, 2) = %s")
+        params.append(ADMIN_STATI[stato][1])
+    if tipo:
+        # Il tipo mostrato puo' derivare dalla motivazione ("Certifica presenza"
+        # e' persistita come "Altro"): si filtra su entrambe le colonne.
+        where_parts.append(
+            "(UPPER(COALESCE(tipo_assenza,'')) = UPPER(%s)"
+            " OR UPPER(COALESCE(motivazione_richiesta,'')) LIKE UPPER(%s))"
+        )
+        params.extend([tipo, f"%{tipo}%"])
+    if da_dt is not None:
+        # Periodi che si intersecano: una richiesta iniziata prima della finestra
+        # ma ancora in corso dentro la finestra va mostrata.
+        where_parts.append("data_fine >= %s")
+        params.append(da_dt)
+    if a_dt is not None:
+        where_parts.append("data_inizio <= %s")
+        params.append(a_dt)
     where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+    total = _count_sql(" AND ".join(where_parts) if where_parts else "", params)
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, pages)
+    offset = (page - 1) * per_page
+
     base_sql = f"""
         SELECT
             id, copia_nome AS dipendente, tipo_assenza,
@@ -5485,11 +5605,9 @@ def _admin_assenze_overview(q: str = "") -> dict:
         FROM assenze
         {where_clause}
     """
-    # Carichiamo l'intero dataset (cap allineato al limite di merge del sistema
-    # tabelle, 5000 righe): la ricerca/filtri/ordinamento del pannello sono
-    # client-side (fm-table-enhanced), quindi devono avere tutte le righe in
-    # pagina per coprire l'intero storico e non solo gli ultimi record.
-    sql = _select_limited(base_sql, "ORDER BY data_inizio DESC, id DESC", 5000)
+    sql = _select_paginated(base_sql, "ORDER BY data_inizio DESC, id DESC", offset=offset, limit=per_page)
+
+    assenze: list[dict] = []
     for row in _fetch_all_dict(sql, params):
         _, mod_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
         assenze.append({
@@ -5503,7 +5621,21 @@ def _admin_assenze_overview(q: str = "") -> dict:
             "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
         })
     _mark_sharepoint_managed(assenze)
-    return {"tabella_ok": True, "stats": stats, "by_tipo": by_tipo, "sync_info": sync_info, "assenze": assenze}
+
+    risultato["assenze"] = assenze
+    risultato["paginazione"] = {
+        "page": page,
+        "pages": pages,
+        "per_page": per_page,
+        "total": total,
+        "da_riga": offset + 1 if total else 0,
+        "a_riga": min(offset + per_page, total),
+        "ha_prec": page > 1,
+        "ha_succ": page < pages,
+        "prec": max(1, page - 1),
+        "succ": min(pages, page + 1),
+    }
+    return risultato
 
 
 @legacy_admin_or_acl_required("assenze", "gestione_admin")
