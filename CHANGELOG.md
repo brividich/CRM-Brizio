@@ -17,6 +17,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   4. **Stesse regole dell'upload manuale**: estensioni ammesse, firma binaria coerente con l'estensione, limite 50 MB, file di sistema scartati; storage privato cifrato.
   5. **Cartelle riservate rispettate ovunque** (`django_app/anagrafica/views.py`): i documenti delle cartelle `solo_admin` erano esclusi dall'archivio documenti e dagli export, ma restavano visibili nella **scheda dipendente** e scaricabili col **link diretto** a chiunque avesse il permesso HR. Ora scheda e download li riservano ai super-amministratori, come l'archivio. Necessario prima dell'import, che mette i richiami in una cartella riservata.
   6. **Dry-run di default** (`--apply` per scrivere), rieseguibile senza doppioni (stesso dipendente, cartella, nome e dimensione), `--categoria` per procedere a blocchi, `--report` con l'esito file per file; una voce di audit `DOCUMENTO_DIPENDENTE_IMPORT_ARCHIVIO` per dipendente.
+### Fixed
+
+- **ASSENZE · l'approvatore e' il responsabile dell'AREA AZIENDALE, non il caporeparto del reparto** (`django_app/assenze/views.py`, `django_app/assenze/templates/assenze/pages/richiesta_assenze.html`, `django_app/assenze/tests.py`, `README.md`). Nel form «Nuova richiesta» il campo «Capo reparto» veniva precompilato leggendo il campo denormalizzato `DipendenteAnagraficaAziendale.caporeparto_legacy_id`, una copia riscritta solo al salvataggio del dipendente: chi lavora in un'area aziendale con un responsabile proprio (es. IN1/IT/DM sotto lo stesso reparto) si vedeva proposto il caporeparto del reparto invece del proprio responsabile, e in Anagrafica/organigramma compariva un nome diverso.
+  1. `_resolve_anagrafica_hr_effective_capo_ids` risolve ora **dal vivo** sulla catena canonica `dipendente → area_aziendale → reparto` con `anagrafica.services.reparto_canonico.resolve_responsabile_effettivo`: vince `AreaAziendale.responsabile_legacy_id`, il caporeparto del reparto e' il fallback per le aree senza responsabile proprio. Il campo denormalizzato resta solo come ultima spiaggia per chi non ha ancora un'area canonica agganciata, poi il testo legacy del reparto.
+  2. `_superior_capo_option` (escalation al superiore quando il capo e' assente nel giorno della richiesta) segue la stessa regola, cosi' il «capo del capo» non cambia a seconda di quale campo viene letto.
+  3. `_anagrafica_employee_ids_for_capo` — l'inverso, cioe' per quali dipendenti un capo puo' inserire e approvare richieste — parte dalle aree di cui e' responsabile (piu' le aree senza responsabile proprio il cui reparto lo indica come caporeparto); i fallback denormalizzato e testuale valgono solo per i dipendenti **senza** area canonica, altrimenti una copia stantia faceva comparire la stessa persona in due liste.
+  4. Aggiornata la nota sotto il campo: «Assegnato automaticamente dall'area aziendale del dipendente».
+
+  Nessuna migrazione. 4 nuovi test (`AssenzeCapoDaAreaAziendaleTests`), suite `assenze` verde (153 test).
 
 ---
 
@@ -41,6 +50,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   6. **Pannello Impostazioni**: accanto all'ultima sincronizzazione (ora in data leggibile, prima era un timestamp) mostra quanti record sono in coda e quanti invii hanno errori.
 
   **Deploy**: `migrate assenze` (0003) e registrazione dello schedule (`setup_q_schedules` o «Registra schedule» nella Centrale di comando). La convivenza richiede `GRAPH_LIST_ID_ASSENZE` e le credenziali Graph valorizzate nel `.env` di produzione. Non verificato contro la lista SharePoint reale: il primo giro esegue un'enumerazione completa della lista. Restano fuori da questa fase lo stato di approvazione nativo di SharePoint (`_ModerationStatus`), i dipendenti senza ID SharePoint e le eventuali mail doppie dei flussi Power Automate.
+
+### Fixed
+
+- **Anagrafica / Contratto e retribuzione — «in corso» sulla riga valida oggi, non sull'ultima inserita** (`django_app/anagrafica/models.py`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/tests.py`): `StoricoContratto.is_in_corso` valeva `data_fine is None`, quindi un rinnovo caricato in anticipo (es. indeterminato dal 16/09 con il determinato che scade il 15/09) si prendeva etichetta ed evidenziazione verde, mentre il contratto effettivamente in vigore restava anonimo. Ora `is_in_corso` è vero quando il periodo contiene la data odierna, e nuova `is_programmato` per la decorrenza futura. Nel tab la riga valida oggi mostra `inizio – fine · in corso` in evidenza, la riga futura senza fine mostra `inizio – programmato`. Nessuna migrazione.
 
 ### Added
 

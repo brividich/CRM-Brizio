@@ -1571,6 +1571,68 @@ class AssenzeCaporepartoEscalationTests(TestCase):
         self.assertFalse(escalated)
 
 
+class AssenzeCapoDaAreaAziendaleTests(TestCase):
+    """L'approvatore e' il responsabile dell'AREA AZIENDALE del dipendente;
+    il caporeparto del REPARTO resta solo il fallback."""
+
+    def setUp(self):
+        from anagrafica.models import AreaAziendale, Reparto
+
+        self.reparto = Reparto.objects.create(nome="PRODUZIONE", caporeparto_legacy_id=501, is_active=True)
+        self.area_con_resp = AreaAziendale.objects.create(
+            nome="IN1", reparto=self.reparto, responsabile_legacy_id=999, is_active=True,
+        )
+        self.area_senza_resp = AreaAziendale.objects.create(
+            nome="IN2", reparto=self.reparto, is_active=True,
+        )
+
+    def _capo_ids(self):
+        from assenze.views import _resolve_anagrafica_hr_effective_capo_ids
+
+        with patch("assenze.views._resolve_anagrafica_employee_id_for_user", return_value=100),                 patch("assenze.views._legacy_user_id_from_anagrafica_employee_id", side_effect=lambda v: v):
+            return _resolve_anagrafica_hr_effective_capo_ids(
+                legacy_user_id=1, email="x@e.com", username="x", name="X",
+            )
+
+    def test_responsabile_area_vince_sul_caporeparto_e_sul_denormalizzato(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=100, area_aziendale=self.area_con_resp,
+            caporeparto_legacy_id=501,  # copia stantia: deve perdere
+        )
+        self.assertEqual(self._capo_ids()[1], 999)
+
+    def test_fallback_caporeparto_se_area_senza_responsabile(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=100, area_aziendale=self.area_senza_resp,
+        )
+        self.assertEqual(self._capo_ids()[1], 501)
+
+    def test_fallback_denormalizzato_senza_area_canonica(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=100, caporeparto_legacy_id=777,
+        )
+        self.assertEqual(self._capo_ids()[1], 777)
+
+    def test_dipendenti_del_capo_seguono_il_responsabile_area(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+        from assenze.views import _anagrafica_employee_ids_for_capo
+
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=100, area_aziendale=self.area_con_resp, caporeparto_legacy_id=501,
+        )
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=101, area_aziendale=self.area_senza_resp,
+        )
+        self.assertEqual(_anagrafica_employee_ids_for_capo(999), {100})
+        self.assertEqual(_anagrafica_employee_ids_for_capo(501), {101})
+
+
 class AssenzeRegoleDurataTests(SimpleTestCase):
     def _dt(self, s):
         return datetime.strptime(s, "%Y-%m-%d %H:%M")

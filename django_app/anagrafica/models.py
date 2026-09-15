@@ -2166,8 +2166,22 @@ class StoricoContratto(models.Model):
         return f"{self.tax_code} {self.data_inizio.strftime('%d-%m-%Y')} – {fine}"
 
     @property
+    def is_programmato(self) -> bool:
+        """True se il contratto decorre nel futuro: oggi non è ancora in vigore."""
+        from django.utils import timezone as _tz
+        return self.data_inizio > _tz.localdate()
+
+    @property
     def is_in_corso(self) -> bool:
-        return self.data_fine is None
+        """True se il periodo contiene la data odierna.
+
+        Non basta ``data_fine`` vuota: un rinnovo inserito in anticipo è aperto
+        ma programmato, mentre quello valido oggi è il contratto precedente,
+        che ha già la sua data di fine.
+        """
+        from django.utils import timezone as _tz
+        oggi = _tz.localdate()
+        return self.data_inizio <= oggi and (self.data_fine is None or self.data_fine >= oggi)
 
 
 # ---------------------------------------------------------------------------
