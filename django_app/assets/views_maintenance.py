@@ -20,6 +20,7 @@ from typing import Any
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db.models import Case, Count, F, IntegerField, Max, Q, Value, When
 from django.db.models.functions import TruncMonth
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
@@ -170,6 +171,40 @@ def _apply_caporeparto_scope(queryset, request: HttpRequest) -> tuple[Any, list[
         # sull'asset e' testo libero) e' peggio di nessun filtro.
         return queryset, []
     return scoped, reparti
+
+
+def _manutenzioni_fuori_reparto(request: HttpRequest, occurrences) -> list:
+    """Le manutenzioni selezionate che un caporeparto non puo' pianificare.
+
+    Lo scope delle liste e' solo un filtro preimpostato (si toglie con un click):
+    guardare fuori dal proprio reparto e' lecito, **scrivere** no. Chi guida uno o
+    piu' reparti e non e' responsabile dei piani pianifica solo gli asset di quei
+    reparti; senza questo controllo bastava togliere il filtro, o costruire il POST,
+    per creare un ordine di lavoro su un asset altrui.
+
+    Nessun vincolo per chi configura i piani e per chi pianifica senza guidare
+    alcun reparto (es. l'ufficio manutenzione): il loro perimetro e' l'azienda.
+    Il reparto sull'asset e' testo libero: confronto senza maiuscole e spazi.
+    """
+    if can_manage_maintenance_plans(request):
+        return []
+    reparti = {r.strip().casefold() for r in user_reparti(request)}
+    if not reparti:
+        return []
+    return [
+        occ for occ in occurrences
+        if str(getattr(occ.asset, "reparto", "") or "").strip().casefold() not in reparti
+    ]
+
+
+def _nega_fuori_reparto(request: HttpRequest, occurrences) -> None:
+    fuori = _manutenzioni_fuori_reparto(request, occurrences)
+    if fuori:
+        elenco = ", ".join(sorted({occ.asset.asset_tag for occ in fuori})[:10])
+        raise PermissionDenied(
+            "Puoi pianificare solo le manutenzioni degli asset dei reparti che guidi. "
+            f"Fuori dal tuo reparto: {elenco}."
+        )
 
 
 def _apply_occurrence_filters(queryset, form: OccurrenceFilterForm, *, today: date):
@@ -1404,6 +1439,7 @@ def occurrence_create_workorder(request: HttpRequest) -> HttpResponse:
     if not occurrences:
         messages.error(request, "Seleziona almeno una manutenzione da pianificare.")
         return redirect(back)
+    _nega_fuori_reparto(request, occurrences)
 
     form = WorkOrderFromOccurrencesForm(request.POST)
     if not form.is_valid():
@@ -1436,7 +1472,9 @@ def workorder_occurrence_add(request: HttpRequest, workorder_id: int) -> HttpRes
     if not can_plan_maintenance(request):
         return _deny(request, "Non hai i permessi per modificare gli ordini di lavoro.")
     work_order = get_object_or_404(WorkOrder, pk=workorder_id)
-    added = domain.add_occurrences_to_workorder(work_order, _selected_occurrences(request), user=request.user)
+    occurrences = _selected_occurrences(request)
+    _nega_fuori_reparto(request, occurrences)
+    added = domain.add_occurrences_to_workorder(work_order, occurrences, user=request.user)
     if added:
         messages.success(request, f"Aggiunte {added} manutenzioni all'ordine di lavoro.")
     else:

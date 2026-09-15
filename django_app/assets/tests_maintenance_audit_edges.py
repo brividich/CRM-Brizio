@@ -8,12 +8,14 @@ patching models, services, views, or templates.
 from datetime import date
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from core.models import UserExtraInfo
+from anagrafica.models import Reparto
+from core.models import Profile, UserExtraInfo
 
 from assets.models import (
     Asset,
@@ -101,6 +103,10 @@ class MaintenanceAuditFixture(TestCase):
             reparto="TORNI",
             caporeparto="audit-maintainer",
         )
+        # Fonte autorevole del caporeparto per la manutenzione (``user_reparti``):
+        # Reparto.caporeparto_legacy_id, raggiunto dall'utente tramite Profile.
+        Profile.objects.create(user=cls.user, legacy_user_id=90001)
+        Reparto.objects.create(nome="TORNI", caporeparto_legacy_id=90001, is_active=True)
         cls.category = AssetCategory.objects.create(code="audit-machines", label="Audit machines")
         cls.assets = [
             Asset.objects.create(
@@ -288,7 +294,15 @@ class MassiveWorkOrderEdgeAuditTests(MaintenanceAuditFixture):
         self.assertEqual(work_order.occurrences.count(), 20)
 
 
-@override_settings(LEGACY_AUTH_ENABLED=False)
+# Qui si verifica il cancello DENTRO la view (permesso di pianificare, reparto).
+# Il middleware ACL decide prima se la rotta e' raggiungibile e, per un utente di
+# prova non amministratore, rimanda all'onboarding (/onboarding/): ogni POST
+# rispondeva 302 senza arrivare alla view, e il test non dimostrava nulla. Stesso
+# schema di ``anagrafica.tests_acl_sezioni_canoniche``.
+_MIDDLEWARE_SENZA_ACL = [m for m in settings.MIDDLEWARE if m != "core.middleware.ACLMiddleware"]
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, MIDDLEWARE=_MIDDLEWARE_SENZA_ACL)
 class MaintenanceACLEdgeAuditTests(MaintenanceAuditFixture):
     def setUp(self):
         self.client.force_login(self.user)
@@ -322,3 +336,43 @@ class MaintenanceACLEdgeAuditTests(MaintenanceAuditFixture):
             )
         self.assertEqual(response.status_code, 403)
         self.assertFalse(WorkOrder.objects.exists())
+
+    def test_department_manager_can_plan_asset_inside_department(self):
+        _plan, _assignment, occurrences = self.make_occurrences("inside")
+        inside = occurrences[0]  # reparto TORNI
+        with patch("assets.views_maintenance.can_plan_maintenance", return_value=True):
+            response = self.client.post(
+                reverse("assets:occurrence_create_workorder"),
+                {"occurrence_ids": [inside.pk]},
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(WorkOrder.objects.count(), 1)
+
+    def test_planner_without_departments_is_not_scoped(self):
+        """L'ufficio manutenzione pianifica per tutta l'azienda: nessun vincolo di reparto."""
+        central = User.objects.create_user(username="audit-central-planner", password="x")
+        self.client.force_login(central)
+        _plan, _assignment, occurrences = self.make_occurrences("central")
+        with patch("assets.views_maintenance.can_plan_maintenance", return_value=True):
+            response = self.client.post(
+                reverse("assets:occurrence_create_workorder"),
+                {"occurrence_ids": [occurrences[2].pk]},  # reparto FRESE
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(WorkOrder.objects.count(), 1)
+
+    def test_department_manager_cannot_add_outside_asset_to_existing_workorder(self):
+        _plan, _assignment, occurrences = self.make_occurrences("add")
+        with patch("assets.views_maintenance.can_plan_maintenance", return_value=True):
+            self.client.post(
+                reverse("assets:occurrence_create_workorder"),
+                {"occurrence_ids": [occurrences[0].pk]},
+            )
+            work_order = WorkOrder.objects.get()
+            response = self.client.post(
+                reverse("assets:workorder_occurrence_add", args=[work_order.pk]),
+                {"occurrence_ids": [occurrences[2].pk]},
+            )
+        self.assertEqual(response.status_code, 403)
+        occurrences[2].refresh_from_db()
+        self.assertIsNone(occurrences[2].work_order_id)
