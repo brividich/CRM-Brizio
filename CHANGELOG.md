@@ -8,6 +8,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **ASSENZE · su SharePoint le richieste del portale arrivavano senza capo reparto (e spesso senza persona)** (`django_app/assenze/views.py`, `django_app/assenze/test_sharepoint_sync.py`, `README.md`). Nella lista «Calendario assenze 2» `Capo Reparto` (`C_x002e_Reparto`) è un lookup sulla lista **Caporeparto** e `Nome` un lookup sulla lista **DIPENDENTI**: SharePoint vuole l'id dell'elemento. Il portale lo cercava in tabelle locali storiche (`capi_reparto`, `dipendenti`) che non conoscono i responsabili d'area da cui ora arriva l'approvatore, quindi il campo restava vuoto: il capo non vedeva la richiesta nelle vecchie app.
+  1. **Abbinamento per email durante l'invio** (job in background, mai nelle pagine). Il capo si ricalcola con la stessa regola del form (`_effective_capo_option`, responsabile dell'area aziendale) e si cerca nella lista Caporeparto per `IndirizozEmail`; la persona nella lista DIPENDENTI per `USERNAME` (username, email intera o parte prima della «@») o, in mancanza, per nominativo con le parole in qualsiasi ordine. Gli id trovati si salvano anche sulla riga locale. Il vecchio lookup del capo salvato sulla riga non viene più usato, perché può puntare al caporeparto storico.
+  2. **Tabelle «email → id» in cache un'ora** (`_sp_lookup_maps`): le liste da leggere si ricavano dalle colonne lookup della lista assenze, senza configurazione. Una chiave presente su due elementi è ambigua e viene scartata.
+  3. **Se Graph non risponde l'invio fallisce e la richiesta resta in coda**; se capo o persona non hanno corrispondenza, la richiesta parte comunque e il Run-log del job lo conta in `push.totals.senza_capo` / `senza_nome`.
+
+  Le richieste già inviate senza capo si correggono al prossimo invio (qualsiasi modifica o approvazione dal portale).
+
 ### Changed
 
 - **ASSENZE · cinque modifiche prima del go-live** (`django_app/assenze/views.py`, `django_app/assenze/models.py`, `django_app/assenze/constants.py`, `django_app/assenze/migrations/0005_flessibilitaabilitato_flessibilitaimpostazioni.py` — nuovo —, `django_app/assenze/templates/assenze/pages/richiesta_assenze.html`, `django_app/assenze/templates/assenze/pages/gestione_assenze.html`, `django_app/assenze/templates/assenze/pages/impostazioni.html`, `django_app/assenze/templates/assenze/pages/car_dashboard.html`, `django_app/assenze/tests.py`, `README.md`).
