@@ -1,5 +1,23 @@
 # Agent Changelog
 
+## 2026-09-04 - Codex
+
+- Area: `django_app/assets`, audit indipendente del refactor manutenzioni su branch/worktree dedicato.
+- Richiesta: non modificare l'implementazione del refactor; censire il legacy e le seconde fonti di verità, verificare `WorkOrder.asset` sugli OdL massivi, confrontare cinque branch legacy, analizzare performance e ACL, aggiungere test edge-case separati.
+- File modificati/creati: nuovi `docs/ai/AUDIT_LEGACY_MANUTENZIONI_CODEX.md`, `docs/ai/AUDIT_BRANCH_LEGACY_MANUTENZIONI.md`, `django_app/assets/tests_maintenance_audit_edges.py`; aggiornati `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno. Nessuna modifica a modelli, migrazioni, servizi di dominio/ricorrenza, scheduler, view/form/template applicativi, ACL, middleware, settings, autenticazione, permessi, routing o navigazione globale. I file `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md` e `CRITICAL_CHANGE_REQUESTS.md` non erano presenti nel worktree.
+- Motivo tecnico: verificare indipendentemente che il nuovo dominio Piano → Applicazione → Occorrenza non conviva con writer legacy, che gli OdL massivi siano rappresentati da tutti i consumer e che i permessi reggano l'accesso diretto prima del cutover/ACL strict.
+- Modifica: sola documentazione e test. Il report censisce 826 match grezzi dei riferimenti legacy e 35 gruppi operativi, identifica il task legacy ancora schedulato, classifica dashboard/storico/export/AI/costi/allegati/follow-up/filtri, ordina le criticità performance e inventaria i gate ACL. Il confronto Git prova che tutti i cinque branch richiesti sono antenati del target e hanno zero commit esclusivi.
+- Impatto previsto: nessun cambiamento runtime; handoff verificabile per una successiva remediation in commit mirati.
+- Rischi residui: il generatore legacy resta schedulato mentre quello occurrence non lo è; `WorkOrder.asset` causa visibilità/attribuzione primary-only; manca scope asset/reparto su letture e mutazioni occurrence, incluso download allegati; route binding canonici strict da verificare/creare; una failure audit resta intenzionalmente rossa finché il difetto ACL non viene corretto.
+- Test/check: `assets.tests_maintenance_domain` OK (35); `assets.tests_maintenance_ui` OK (24); `assets.tests_maintenance_audit_edges` 23 eseguiti, 22 OK e 1 failure attesa/riproducibile (`302` invece di `403` e OdL creato fuori reparto); Django system check OK; `git diff --check` e compilazione file test eseguiti a fine sessione.
+- Backup creati: nessuno; nessun database dev/prod modificato, solo database SQLite di test usa-e-getta.
+- README aggiornato: no, il comportamento operativo non è cambiato.
+- CHANGELOG aggiornato: sì (`CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: sì.
+- Esito: audit completato; nessun merge/cherry-pick legacy e nessuna modifica al dominio.
+- Note per altro agente: branch `codex/audit-manutenzioni`, worktree `temp/codex-manut-audit`; applicare prima il commit test e poi quello documentale se si desidera mantenere separato il test dal report. Non rendere verde il test ACL allentando l'aspettativa: serve uno scope reale per asset/reparto.
+
 ## 2026-09-02 - Codex
 
 - Area: `django_app/tasks`, KICK-OFF F3 — Fase C Panoramica commessa.
