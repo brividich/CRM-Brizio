@@ -324,6 +324,14 @@ class ACLMiddleware:
         if getattr(request, "impersonation_active", False) and is_impersonation_stop_path(path):
             return self.get_response(request)
 
+        # Risolvere un 403 mentre si impersona: la richiesta porta l'utente
+        # impersonato, ma decide l'admin reale, verificato dentro la view.
+        if getattr(request, "impersonation_active", False):
+            from core.acl_resolution import is_resolution_action_path
+
+            if is_resolution_action_path(path):
+                return self.get_response(request)
+
         # Onboarding wizard: reindirizza l'utente se non ha ancora completato il wizard
         # (solo utenti non-superuser; /onboarding/ stesso è sempre permesso)
         if not getattr(request.user, "is_superuser", False) and not is_onboarding_shared_path:
@@ -426,6 +434,10 @@ class ACLMiddleware:
                 decision_reason=decision.get("reason"),
             )
 
+        from core.acl_resolution import build_forbidden_context, record_denial
+
+        record_denial(request, decision)
+
         if _is_json_request(request):
             return JsonResponse(
                 {
@@ -439,7 +451,11 @@ class ACLMiddleware:
         return render(
             request,
             "core/pages/forbidden.html",
-            {"page_title": "Accesso negato", "acl_decision": decision},
+            {
+                "page_title": "Accesso negato",
+                "acl_decision": decision,
+                "acl_view": build_forbidden_context(request, decision),
+            },
             status=403,
         )
 

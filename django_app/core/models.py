@@ -1251,3 +1251,49 @@ class GroupPermissionGrant(models.Model):
 
     def __str__(self) -> str:
         return f"GroupGrant<group={self.group_id} code={self.permission_id} enabled={self.enabled}>"
+
+
+class AclDenialEvent(models.Model):
+    """Un accesso negato dall'ACL, una riga per persona e permesso (o pagina).
+
+    Serve all'amministratore per vedere chi e' rimasto fuori e decidere da un
+    posto solo: consentire o confermare il diniego, sul ruolo o sulla persona.
+    Solo identificativi, niente contenuti: il dettaglio della decisione si
+    ricalcola dal resolver al momento di guardarlo.
+    """
+
+    STATUS_OPEN = "open"
+    STATUS_ALLOWED = "allowed"
+    STATUS_DENIED = "denied"
+    STATUS_IGNORED = "ignored"
+    STATUS_CHOICES = [
+        (STATUS_OPEN, "Da decidere"),
+        (STATUS_ALLOWED, "Consentito"),
+        (STATUS_DENIED, "Diniego confermato"),
+        (STATUS_IGNORED, "Ignorato"),
+    ]
+
+    legacy_user_id = models.IntegerField(db_index=True)
+    legacy_role_id = models.IntegerField(null=True, blank=True)
+    # "perm:<codice>" se la pagina ha un permesso canonico, altrimenti "path:<path>".
+    dedup_key = models.CharField(max_length=300)
+    permission_code = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    path = models.CharField(max_length=500, blank=True, default="")
+    route_name = models.CharField(max_length=160, blank=True, default="")
+    decision_source = models.CharField(max_length=60, blank=True, default="")
+    reason = models.CharField(max_length=500, blank=True, default="")
+    hits = models.PositiveIntegerField(default=1)
+    first_seen_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(db_index=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        unique_together = [("legacy_user_id", "dedup_key")]
+        ordering = ["-last_seen_at", "-id"]
+        verbose_name = "Accesso negato"
+        verbose_name_plural = "Accessi negati"
+
+    def __str__(self) -> str:
+        return f"AclDenial<user={self.legacy_user_id} key={self.dedup_key} status={self.status}>"
