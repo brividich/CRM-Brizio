@@ -372,6 +372,7 @@ class OrigineSharePointTests(TestCase):
         Origine.objects.create(assenza_id=1, creata_su_sharepoint=True)
         self.assertEqual(views._sharepoint_managed_ids([1]), set())
 
+    @patch("assenze.views._fill_sp_lookups", return_value=[])
     @patch("assenze.views._update_assenza", return_value=True)
     @patch("assenze.views._graph_create", return_value=(True, {"id": "900"}))
     @patch("assenze.views._get_assenza", return_value={"id": 7, "sharepoint_item_id": ""})
@@ -507,3 +508,118 @@ class ReadOnlyOnPortalTests(TestCase):
         self.assertEqual(html.count(">Gestita su SharePoint<"), 1)
         self.assertIn('data-act="approva" data-id="2"', html)
         self.assertNotIn('data-act="approva" data-id="1"', html)
+
+
+# ─── Persona e capo su SharePoint: abbinamento per email/username ─────────────
+
+
+@override_settings(CACHES=_LOCMEM)
+class SharePointLookupTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    @patch("assenze.views._graph_headers", return_value={})
+    @patch("assenze.views._graph_settings", return_value={"site_id": "S", "list_id_assenze": "A"})
+    @patch("assenze.views.requests.get")
+    def test_maps_are_read_from_the_lists_pointed_by_the_lookup_columns(self, mock_get, *_):
+        responses = {
+            "/lists/A/columns": [
+                {"name": "Nome", "lookup": {"listId": "DIP"}},
+                {"name": "C_x002e_Reparto", "lookup": {"listId": "CAPI"}},
+                {"name": "Title"},
+            ],
+            "/lists/CAPI/items": [
+                {"id": "11", "fields": {"IndirizozEmail": "Capo.Uno@example.local"}},
+                {"id": "12", "fields": {"IndirizozEmail": "doppio@example.local"}},
+                {"id": "13", "fields": {"IndirizozEmail": "doppio@example.local"}},
+            ],
+            "/lists/DIP/items": [{"id": "21", "fields": {"Title": "ROSSI MARIO", "USERNAME": "m.rossi"}}],
+        }
+
+        def _page(url, **_kwargs):
+            response = MagicMock(status_code=200)
+            response.json.return_value = {"value": next(v for k, v in responses.items() if k in url)}
+            return response
+
+        mock_get.side_effect = _page
+
+        maps = views._sp_lookup_maps()
+
+        self.assertEqual(maps["capi_email"], {"capo.uno@example.local": 11})  # l'email doppia e' ambigua
+        self.assertEqual(maps["dip_username"], {"m.rossi": 21})
+        self.assertEqual(maps["dip_nome"], {"MARIO ROSSI": 21})
+        calls = mock_get.call_count
+        views._sp_lookup_maps()
+        self.assertEqual(mock_get.call_count, calls)  # la seconda volta dalla cache
+
+    @patch("assenze.views._capo_email_for_row", return_value="capo.uno@example.local")
+    def test_person_by_username_email_or_name_capo_by_email(self, _capo):
+        maps = {
+            "capi_email": {"capo.uno@example.local": 11},
+            "dip_username": {"m.rossi": 21, "l.bianchi@example.local": 22},
+            "dip_nome": {"ANNA GIALLO": 23},
+        }
+
+        self.assertEqual(views._sp_lookup_ids_for_row({"aliasusername": "M.Rossi"}, maps), (21, 11))
+        self.assertEqual(views._sp_lookup_ids_for_row({"email_esterna": "L.Bianchi@example.local"}, maps), (22, 11))
+        self.assertEqual(views._sp_lookup_ids_for_row({"email_esterna": "m.rossi@example.local"}, maps), (21, 11))
+        self.assertEqual(views._sp_lookup_ids_for_row({"copia_nome": "giallo  anna"}, maps), (23, 11))
+        self.assertEqual(views._sp_lookup_ids_for_row({"copia_nome": "Nessuno"}, maps), (None, 11))
+
+    @patch("assenze.views._effective_capo_option", return_value=("Capo.Area@Example.local", False))
+    @patch("assenze.views._load_capi_options", return_value=[])
+    def test_capo_email_uses_the_same_rule_as_the_form(self, _capi, mock_effective):
+        from datetime import datetime
+
+        email = views._capo_email_for_row(
+            {"id": 7, "copia_nome": "Mario Rossi", "email_esterna": "m@example.local", "data_inizio": datetime(2026, 9, 23, 16, 30)}
+        )
+
+        self.assertEqual(email, "capo.area@example.local")
+        self.assertEqual(mock_effective.call_args.kwargs["request_day"].isoformat(), "2026-09-23")
+
+    @patch("assenze.views._update_assenza", return_value=True)
+    @patch("assenze.views._graph_create", return_value=(True, {"id": "900"}))
+    @patch(
+        "assenze.views._sp_lookup_maps",
+        return_value={"capi_email": {"capo.uno@example.local": 11}, "dip_username": {"m.rossi": 21}, "dip_nome": {}},
+    )
+    @patch("assenze.views._capo_email_for_row", return_value="capo.uno@example.local")
+    @patch(
+        "assenze.views._get_assenza",
+        return_value={"id": 7, "sharepoint_item_id": "", "aliasusername": "m.rossi", "capo_reparto_lookup_id": 5},
+    )
+    @patch("assenze.views._graph_configured", return_value=True)
+    def test_request_is_sent_with_person_and_capo_filled(self, _cfg, _get, _capo, _maps, mock_create, mock_update):
+        result = views._sync_one_to_sharepoint(7, force_update=True)
+
+        fields = mock_create.call_args.args[0]
+        self.assertEqual(fields["NomeLookupId"], 21)
+        self.assertEqual(fields["C_x002e_RepartoLookupId"], 11)  # non il vecchio 5
+        self.assertEqual(result["lookup_missing"], [])
+        self.assertEqual(mock_update.call_args_list[0].args[1], {"nome_lookup_id": 21, "capo_reparto_lookup_id": 11})
+
+    @patch("assenze.views._sp_lookup_maps", side_effect=RuntimeError("Graph GET 503"))
+    @patch("assenze.views._graph_create")
+    @patch("assenze.views._get_assenza", return_value={"id": 7, "sharepoint_item_id": ""})
+    @patch("assenze.views._graph_configured", return_value=True)
+    def test_graph_error_on_lookups_keeps_the_request_queued(self, _cfg, _get, mock_create, _maps):
+        Outbox.objects.create(assenza_id=7)
+
+        result = views._sp_push_outbox()
+
+        mock_create.assert_not_called()
+        self.assertEqual(result["totals"]["failed"], 1)
+        self.assertTrue(Outbox.objects.filter(assenza_id=7).exists())
+
+    @patch("assenze.views._get_assenza", return_value={"id": 7})
+    @patch("assenze.views._graph_configured", return_value=True)
+    def test_push_counts_requests_sent_without_capo(self, *_):
+        Outbox.objects.create(assenza_id=7)
+        sent = {"ok": True, "action": "create", "sharepoint_item_id": "9", "lookup_missing": ["capo"]}
+
+        with patch("assenze.views._sync_one_to_sharepoint", return_value=sent):
+            result = views._sp_push_outbox()
+
+        self.assertEqual(result["totals"]["senza_capo"], 1)
+        self.assertEqual(result["totals"]["senza_nome"], 0)

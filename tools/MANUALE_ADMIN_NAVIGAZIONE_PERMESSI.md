@@ -1,6 +1,6 @@
 # Manuale Amministratore - NOVICROM HUB
 
-> NOVICROM HUB · Aggiornato: 2026-09-15 (v1.6.0)
+> NOVICROM HUB · Aggiornato: 2026-09-15 (v1.6.1)
 > Percorso admin: **Admin Portale**
 > Governance legacy/canonico: vedi anche [`../doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md`](../doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md)
 

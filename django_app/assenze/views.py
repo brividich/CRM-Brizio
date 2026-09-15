@@ -1430,6 +1430,167 @@ def _get_assenza(item_id: int) -> dict | None:
     return rows[0] if rows else None
 
 
+# ─── Persona e capo su SharePoint (colonne lookup) ────────────────────────────
+# Nella lista assenze «Nome» punta alla lista DIPENDENTI e «Capo Reparto» alla
+# lista Caporeparto: SharePoint vuole l'id dell'elemento, non il nome. Il portale
+# sceglie il capo dall'anagrafica (responsabile dell'area aziendale), quindi l'id
+# si cerca per email nella lista Caporeparto. Le tabelle locali dipendenti /
+# capi_reparto sono copie storiche e non conoscono i responsabili d'area.
+
+_SP_LOOKUP_MAPS_CACHE_KEY = "assenze:sp_lookup_maps:v1"
+_SP_LOOKUP_MAPS_TTL = 60 * 60
+_SP_NOME_LOOKUP_COLUMN = "Nome"
+_SP_CAPO_LOOKUP_COLUMN = "C_x002e_Reparto"
+_SP_CAPO_EMAIL_FIELD = "IndirizozEmail"  # sic: il nome interno della colonna SharePoint ha il refuso
+_SP_DIPENDENTE_USERNAME_FIELD = "USERNAME"
+
+
+def _graph_get_pages(url: str) -> list[dict]:
+    rows: list[dict] = []
+    while url:
+        r = requests.get(url, headers=_graph_headers(), timeout=25)
+        if r.status_code != 200:
+            raise RuntimeError(f"Graph GET {r.status_code}: {r.text[:300]}")
+        payload = r.json()
+        rows.extend(payload.get("value", []) or [])
+        url = payload.get("@odata.nextLink")
+    return rows
+
+
+def _name_tokens_key(value) -> str:
+    """Nominativo come insieme di parole: «BOVA LUCA» e «Luca Bova» coincidono."""
+    return " ".join(sorted(_sync_name_key(value).split()))
+
+
+def _index_unique_sp_items(items: list[dict], key_fn) -> dict[str, int]:
+    """Indice chiave -> id elemento. Una chiave presente su due elementi e' ambigua e si scarta."""
+    index: dict[str, int] = {}
+    ambiguous: set[str] = set()
+    for item in items:
+        item_id = _as_int(item.get("id"))
+        key = key_fn(item.get("fields") or {})
+        if item_id is None or not key:
+            continue
+        if key in index and index[key] != item_id:
+            ambiguous.add(key)
+        index[key] = item_id
+    for key in ambiguous:
+        index.pop(key, None)
+    return index
+
+
+def _sp_lookup_maps() -> dict:
+    """Tabelle email/username/nominativo -> id delle liste Caporeparto e DIPENDENTI.
+
+    Lette da Graph solo durante l'invio (job in background, mai dalle pagine) e
+    tenute in cache un'ora. Le liste si ricavano dalle colonne lookup della lista
+    assenze, senza configurazione. Un errore Graph si propaga: l'invio fallisce e
+    la richiesta resta in coda per il giro successivo.
+    """
+    cached = cache.get(_SP_LOOKUP_MAPS_CACHE_KEY)
+    if isinstance(cached, dict):
+        return cached
+
+    gs = _graph_settings()
+    lists_url = f"https://graph.microsoft.com/v1.0/sites/{gs['site_id']}/lists"
+    columns = _graph_get_pages(f"{lists_url}/{gs['list_id_assenze']}/columns")
+    target = {str(c.get("name") or ""): str((c.get("lookup") or {}).get("listId") or "") for c in columns}
+
+    maps: dict[str, dict[str, int]] = {"capi_email": {}, "dip_username": {}, "dip_nome": {}}
+    capi_list = target.get(_SP_CAPO_LOOKUP_COLUMN)
+    if capi_list:
+        capi = _graph_get_pages(
+            f"{lists_url}/{capi_list}/items?$expand=fields($select={_SP_CAPO_EMAIL_FIELD})&$top=999"
+        )
+        maps["capi_email"] = _index_unique_sp_items(
+            capi, lambda f: str(f.get(_SP_CAPO_EMAIL_FIELD) or "").strip().lower()
+        )
+    nomi_list = target.get(_SP_NOME_LOOKUP_COLUMN)
+    if nomi_list:
+        dipendenti = _graph_get_pages(
+            f"{lists_url}/{nomi_list}/items?$expand=fields($select=Title,{_SP_DIPENDENTE_USERNAME_FIELD})&$top=999"
+        )
+        maps["dip_username"] = _index_unique_sp_items(
+            dipendenti, lambda f: str(f.get(_SP_DIPENDENTE_USERNAME_FIELD) or "").strip().lower()
+        )
+        maps["dip_nome"] = _index_unique_sp_items(dipendenti, lambda f: _name_tokens_key(f.get("Title")))
+
+    cache.set(_SP_LOOKUP_MAPS_CACHE_KEY, maps, timeout=_SP_LOOKUP_MAPS_TTL)
+    return maps
+
+
+def _capo_email_for_row(row: dict) -> str:
+    """Email del capo che approva la richiesta, con la stessa regola del form (area aziendale)."""
+    capi = _load_capi_options()
+    dt_start = row.get("data_inizio")
+    request_day = dt_start.date() if isinstance(dt_start, datetime) else timezone.localdate()
+    option = ""
+    try:
+        option, _escalated = _effective_capo_option(
+            name=str(row.get("copia_nome") or ""),
+            email=str(row.get("email_esterna") or ""),
+            username=str(row.get("aliasusername") or ""),
+            legacy_user_id=_as_int(row.get("utente_id")),
+            capi=capi,
+            request_day=request_day,
+        )
+    except Exception:
+        logger.warning("[assenze:sp_push] assenza %s: capo non risolto", row.get("id"), exc_info=True)
+    if "@" not in str(option or ""):
+        # Il vecchio lookup salvato sulla riga puo' puntare al caporeparto storico: non lo si usa.
+        option = _resolve_capo_option_value_from_ids(
+            local_id=_as_int(row.get("capo_reparto_id")), lookup_id=None, capi=capi
+        )
+    option = str(option or "").strip().lower()
+    return option if "@" in option else ""
+
+
+def _sp_lookup_ids_for_row(row: dict, maps: dict) -> tuple[int | None, int | None]:
+    """(id DIPENDENTI, id Caporeparto) per la richiesta."""
+    dip_username = maps.get("dip_username") or {}
+    email = str(row.get("email_esterna") or "").strip().lower()
+    candidates = [
+        str(row.get("aliasusername") or "").strip().lower(),
+        email,
+        email.split("@", 1)[0] if "@" in email else "",
+    ]
+    nome_id = next((dip_username[c] for c in candidates if c and c in dip_username), None)
+    if nome_id is None:
+        name_key = _name_tokens_key(row.get("copia_nome"))
+        nome_id = (maps.get("dip_nome") or {}).get(name_key) if name_key else None
+
+    capo_email = _capo_email_for_row(row)
+    capo_id = (maps.get("capi_email") or {}).get(capo_email) if capo_email else None
+    return nome_id, capo_id
+
+
+def _fill_sp_lookups(item_id: int, row: dict) -> list[str]:
+    """Compila persona e capo SharePoint della richiesta prima dell'invio.
+
+    Aggiorna ``row`` e la tabella locale; ritorna i campi rimasti senza
+    corrispondenza ("nome", "capo"), che il Run-log conta.
+    """
+    maps = _sp_lookup_maps()
+    nome_id, capo_id = _sp_lookup_ids_for_row(row, maps)
+    updates: dict = {}
+    if nome_id is not None and nome_id != _as_int(row.get("nome_lookup_id")):
+        updates["nome_lookup_id"] = nome_id
+    if capo_id is not None and capo_id != _as_int(row.get("capo_reparto_lookup_id")):
+        updates["capo_reparto_lookup_id"] = capo_id
+    if updates:
+        row.update(updates)
+        _update_assenza(item_id, updates)
+
+    missing = []
+    if _as_int(row.get("nome_lookup_id")) is None:
+        missing.append("nome")
+    if capo_id is None:
+        missing.append("capo")
+    if missing:
+        logger.warning("[assenze:sp_push] assenza %s: nessuna corrispondenza SharePoint per %s", item_id, ", ".join(missing))
+    return missing
+
+
 def _sp_fields_from_row(row: dict) -> dict:
     tipo = _tipo_for_graph(row.get("tipo_assenza"), row.get("motivazione_richiesta"))
     consenso = _norm_consenso(row.get("consenso"))
@@ -1464,6 +1625,9 @@ def _sync_one_to_sharepoint(item_id: int, force_update: bool = True) -> dict:
         return {"ok": False, "error": "SharePoint non configurato"}
 
     sp_id = str(row.get("sharepoint_item_id") or "").strip()
+    # Persona e capo ricalcolati a ogni invio; se Graph non risponde l'eccezione
+    # risale e la richiesta resta in coda.
+    lookup_missing = _fill_sp_lookups(item_id, row)
     fields = _sp_fields_from_row(row)
 
     if sp_id and force_update:
@@ -1471,7 +1635,7 @@ def _sync_one_to_sharepoint(item_id: int, force_update: bool = True) -> dict:
         if not ok:
             return {"ok": False, "error": str(payload)}
         _update_assenza(item_id, {"modified_datetime": timezone.now()})
-        return {"ok": True, "action": "update", "sharepoint_item_id": sp_id}
+        return {"ok": True, "action": "update", "sharepoint_item_id": sp_id, "lookup_missing": lookup_missing}
 
     ok, payload = _graph_create(fields)
     if not ok:
@@ -1482,7 +1646,7 @@ def _sync_one_to_sharepoint(item_id: int, force_update: bool = True) -> dict:
     _update_assenza(item_id, {"sharepoint_item_id": created_sp_id, "modified_datetime": timezone.now()})
     # Creata dal portale: la gestisce il portale, il flusso SharePoint la ignora.
     _record_sp_origin(item_id, created_sp_id, creata_su_sharepoint=False, overwrite=True)
-    return {"ok": True, "action": "create", "sharepoint_item_id": created_sp_id}
+    return {"ok": True, "action": "create", "sharepoint_item_id": created_sp_id, "lookup_missing": lookup_missing}
 
 
 def _sync_push(limit_rows: int = 30, include_updates: bool = False) -> dict:
@@ -1892,7 +2056,7 @@ def _sp_push_outbox(limit: int = _SP_PUSH_BATCH) -> dict:
     if not cache.add(_SP_PUSH_LOCK_KEY, "1", timeout=_SP_PUSH_LOCK_TTL):
         return {"ok": True, "skipped": True, "reason": "busy"}
 
-    totals = {"created": 0, "updated": 0, "deleted": 0, "dropped": 0, "failed": 0}
+    totals = {"created": 0, "updated": 0, "deleted": 0, "dropped": 0, "failed": 0, "senza_nome": 0, "senza_capo": 0}
     try:
         _set_automation_queue_skip(True)
         entries = list(Outbox.objects.order_by("tentativi", "updated_at")[: max(1, int(limit))])
@@ -1913,6 +2077,9 @@ def _sp_push_outbox(limit: int = _SP_PUSH_BATCH) -> dict:
                     result = _sync_one_to_sharepoint(entry.assenza_id, force_update=True)
                     if not result.get("ok"):
                         raise RuntimeError(str(result.get("error") or "invio fallito")[:500])
+                    for campo in result.get("lookup_missing") or []:
+                        if f"senza_{campo}" in totals:
+                            totals[f"senza_{campo}"] += 1
                     if result.get("action") == "create":
                         totals["created"] += 1
                         # Se nel frattempo e' stata chiesta l'eliminazione, le serve l'id appena nato.
