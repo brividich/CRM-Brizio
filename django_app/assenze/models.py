@@ -130,3 +130,100 @@ class AssenzaOrigineSharePoint(models.Model):
     def __str__(self):
         luogo = "SharePoint" if self.creata_su_sharepoint else "portale"
         return f"assenza {self.assenza_id} nata su {luogo}"
+
+
+class FlessibilitaImpostazioni(models.Model):
+    """Orari ammessi per le richieste di Flessibilita' (riga unica, pk=1).
+
+    Gli orari non sono liberi: l'entrata e l'uscita si scelgono da due elenchi
+    decisi dall'Amministrazione (es. 07:00/08:00/09:00 e 16:00/17:00/18:00).
+    Stanno qui e non fra le costanti del codice perche' cambiarli e' una
+    decisione organizzativa, non un rilascio.
+    """
+
+    ENTRATE_DEFAULT = "07:00,08:00,09:00"
+    USCITE_DEFAULT = "16:00,17:00,18:00"
+
+    orari_entrata = models.CharField(
+        max_length=200,
+        default=ENTRATE_DEFAULT,
+        verbose_name="Orari di entrata ammessi",
+        help_text="Elenco separato da virgola, formato HH:MM. Es. 07:00,08:00,09:00",
+    )
+    orari_uscita = models.CharField(
+        max_length=200,
+        default=USCITE_DEFAULT,
+        verbose_name="Orari di uscita ammessi",
+        help_text="Elenco separato da virgola, formato HH:MM. Es. 16:00,17:00,18:00",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Impostazioni flessibilità"
+        verbose_name_plural = "Impostazioni flessibilità"
+
+    def __str__(self):
+        return f"Flessibilità: entrata {self.orari_entrata} · uscita {self.orari_uscita}"
+
+    @staticmethod
+    def _parse(raw: str) -> list[str]:
+        """Normalizza un elenco "HH:MM,HH:MM" scartando le voci non valide."""
+        out: list[str] = []
+        for chunk in str(raw or "").replace(";", ",").split(","):
+            value = chunk.strip()
+            if not value:
+                continue
+            parts = value.split(":")
+            if len(parts) != 2:
+                continue
+            try:
+                ore, minuti = int(parts[0]), int(parts[1])
+            except ValueError:
+                continue
+            if not (0 <= ore <= 23 and 0 <= minuti <= 59):
+                continue
+            normalizzato = f"{ore:02d}:{minuti:02d}"
+            if normalizzato not in out:
+                out.append(normalizzato)
+        return sorted(out)
+
+    @property
+    def entrate(self) -> list[str]:
+        return self._parse(self.orari_entrata) or self._parse(self.ENTRATE_DEFAULT)
+
+    @property
+    def uscite(self) -> list[str]:
+        return self._parse(self.orari_uscita) or self._parse(self.USCITE_DEFAULT)
+
+    @classmethod
+    def get_solo(cls) -> "FlessibilitaImpostazioni":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class FlessibilitaAbilitato(models.Model):
+    """Dipendente autorizzato a richiedere la Flessibilita'.
+
+    La flessibilita' non spetta a tutti: senza questo elenco chiunque potrebbe
+    richiederla. Identificato per ``legacy_anagrafica_id`` come il resto del
+    modulo (vedi il ponte utente/anagrafica in `anagrafica`).
+    """
+
+    legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+    nominativo = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Copia del nominativo al momento dell'abilitazione, per leggibilità dello storico.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["nominativo", "legacy_anagrafica_id"]
+        verbose_name = "Abilitato alla flessibilità"
+        verbose_name_plural = "Abilitati alla flessibilità"
+
+    def __str__(self):
+        return self.nominativo or f"anagrafica {self.legacy_anagrafica_id}"
