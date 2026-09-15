@@ -21,6 +21,24 @@ from .tests_referti_intake import CERTIFICATO
 
 PDF = b"%PDF-1.4 referto sintetico"
 
+# Etichette stampate del modulo dell'oculista; tutto il resto è scritto a mano e
+# l'OCR restituisce rumore. Nessun dato reale.
+OCULISTICO = """Dr. Mario Esempio
+Medico Chirurgo
+Oculista
+Ditta ~~~
+Sig. ~~~ Via ~~~ tel.
+Visus nat OD ~~
+Visus nat OS ~~
+Seg. Aut OD
+Lente OD
+Tono OD
+Fundus OD
+Visione Colori OD
+Non si rilevano controindicazioni all'impiego di apparecchiature dotate di VDT.
+Non si rilevano controindicazioni all'impiego nelle mansioni indicate
+"""
+
 
 class LeggiRefertiArchivioTests(TestCase):
     def setUp(self):
@@ -67,24 +85,31 @@ class LeggiRefertiArchivioTests(TestCase):
     def test_dry_run_non_scrive(self):
         out = self._run()
         self.assertIn("REGISTRA", out)
-        self.assertIn("verrebbero create: 2", out)
+        self.assertIn("verrebbero create: 1", out)
+        self.assertIn("Requisiti dai protocolli dei certificati registrati: 2", out)
         self.assertFalse(VisitaMedica.objects.exists())
         self.assertFalse(RefertoIntakeRiga.objects.exists())
 
-    def test_apply_registra_visite_sul_documento_esistente_e_non_rilegge(self):
+    def test_apply_registra_una_visita_e_i_requisiti_e_non_rilegge(self):
+        from .models_sorveglianza import RequisitoVisitaDipendente
+
         self._run("--apply")
-        visite = VisitaMedica.objects.filter(legacy_anagrafica_id=self.legacy_id)
-        self.assertEqual(visite.count(), 2)
-        self.assertTrue(all(v.referto_documento_id == self.doc.pk for v in visite))
-        self.assertEqual(visite.first().data_svolgimento, date(2024, 3, 15))
+        visita = VisitaMedica.objects.get(legacy_anagrafica_id=self.legacy_id)
+        self.assertEqual(visita.tipo.nome, "Visita Medica")
+        self.assertEqual(visita.referto_documento_id, self.doc.pk)
+        self.assertEqual(visita.data_svolgimento, date(2024, 3, 15))
         self.assertEqual(DocumentoDipendente.objects.count(), 1)  # nessuna copia del file
+        self.assertEqual(
+            set(RequisitoVisitaDipendente.objects.filter(attivo=True).values_list("tipo__nome", flat=True)),
+            {"Visita Medica", "Visita Oculistica"},
+        )
         riga = RefertoIntakeRiga.objects.get()
         self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_OK)
         self.assertEqual(riga.documento_id, self.doc.pk)
 
         out = self._run("--apply")
         self.assertIn("GIA_LETTO", out)
-        self.assertEqual(VisitaMedica.objects.count(), 2)
+        self.assertEqual(VisitaMedica.objects.count(), 1)
         self.assertEqual(RefertoIntakeRiga.objects.count(), 1)
 
     def test_data_nascita_diversa_va_in_revisione(self):
@@ -97,12 +122,22 @@ class LeggiRefertiArchivioTests(TestCase):
         self.assertIn("Data di nascita", riga.messaggio)
         self.assertEqual(riga.legacy_anagrafica_id_proposto, self.legacy_id)
 
-    def test_esame_non_a_catalogo_va_in_revisione_e_compare_nel_riepilogo(self):
+    def test_requisito_non_a_catalogo_non_blocca_e_compare_nel_riepilogo(self):
         self.oculistica.delete()
         out = self._run()
-        self.assertIn("Esami NON a catalogo", out)
+        self.assertIn("NON a catalogo", out)
         self.assertIn("VISITA OCULISTICA — biennale", out)
-        self.assertIn("REVISIONE", out)
+        self.assertIn("REGISTRA", out)
+
+    def test_certificato_oculistico_va_in_coda_senza_creare_visite(self):
+        self.testo = OCULISTICO
+        out = self._run("--apply")
+        self.assertIn("Certificati oculistici messi in coda", out)
+        riga = RefertoIntakeRiga.objects.get()
+        self.assertEqual(riga.tipo_referto, RefertoIntakeRiga.TIPO_OCULISTICA)
+        self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_DA_RIVEDERE)
+        self.assertEqual(riga.legacy_anagrafica_id_proposto, self.legacy_id)
+        self.assertFalse(VisitaMedica.objects.exists())
 
     def test_pagina_non_certificato_ignorata(self):
         self.testo = "Richiesta di visita medica straordinaria"

@@ -24,10 +24,19 @@ def _get_recipients(override: list[str] | None) -> list[str]:
 
 
 def _dipendenti_attivi_legacy_ids() -> list[int]:
-    """Restituisce gli ID legacy dei dipendenti con almeno un ruolo operativo
-    e non cessati (``data_cessazione=None``)."""
+    """Restituisce gli ID legacy dei dipendenti con almeno un ruolo operativo o un
+    requisito dal certificato di idoneità, e non cessati (``data_cessazione=None``).
+
+    Le visite *mancanti* non producono promemoria (vedi ``handle``): un requisito
+    senza nessuna visita registrata compare nello scadenzario ma non manda email.
+    """
+    from anagrafica.models_sorveglianza import RequisitoVisitaDipendente
+
     legacy_ids_con_ruoli = set(
         DipendenteRuoloOperativo.objects.values_list("legacy_anagrafica_id", flat=True).distinct()
+    ) | set(
+        RequisitoVisitaDipendente.objects.filter(attivo=True, tipo__isnull=False)
+        .values_list("legacy_anagrafica_id", flat=True).distinct()
     )
     if not legacy_ids_con_ruoli:
         return []

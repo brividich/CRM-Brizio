@@ -1,20 +1,21 @@
-"""Legge i referti dell'archivio HR TOOLS e ne ricava lo storico delle visite mediche.
+"""Legge i referti dell'archivio HR TOOLS: visite svolte, requisiti, certificati oculistici.
 
-Usa la stessa lettura dell'acquisizione referti (OCR, estrazione campi, alias di
-esami ed esiti, registrazione) con una differenza sostanziale: **di chi è il
-referto lo si sa già**, perché lo dice la cartella da cui è stato importato. Il
-nominativo e la data di nascita letti sul certificato non servono a cercare la
-persona ma a **confermarla**: se smentiscono l'anagrafica, il referto va in
-revisione e non si registra niente.
+Usa la stessa lettura dell'acquisizione referti (OCR, estrazione campi, alias,
+registrazione) con una differenza sostanziale: **di chi è il referto lo si sa
+già**, perché lo dice la cartella da cui è stato importato. Il nominativo e la
+data di nascita letti sul certificato non servono a cercare la persona ma a
+**confermarla**: se smentiscono l'anagrafica, il referto va in revisione.
 
-Si registra da solo solo ciò che è certo:
-  - è un certificato di idoneità, con nominativo e data del giudizio leggibili;
-  - la data di nascita letta coincide con l'anagrafica, oppure — se non è
-    leggibile — il nominativo letto (non di ripiego) è quasi identico;
-  - tutti gli esami del protocollo e il giudizio sono riconosciuti dagli alias.
-Tutto il resto finisce nella coda di revisione esistente, già agganciato al
-documento del fascicolo. Le pagine che non sono certificati si ignorano: il file
-resta comunque nel fascicolo.
+Per ogni certificato di idoneità (vedi ``services.referti_registrazione``):
+  - **una sola visita**, la riga «Visita Medica» del protocollo, con data ed esito
+    del giudizio;
+  - **tutte le righe del protocollo come requisiti** del dipendente (l'ultimo
+    certificato è quello in vigore);
+Si registra da solo solo ciò che è certo: identità confermata, «Visita Medica» e
+giudizio riconosciuti. Un requisito non a catalogo non blocca: viene segnalato.
+
+I **certificati oculistici** hanno data, nome ed esito scritti a mano: vanno tutti
+nella coda di revisione, dove si inseriscono guardando la scansione.
 
 Due sorgenti:
   - default: i referti importati nel fascicolo (``importa_archivio_hr``);
@@ -44,6 +45,7 @@ MAX_PAGINE = 40
 
 AUTO = "REGISTRA"
 REVISIONE = "REVISIONE"
+OCULISTICA = "OCULISTICA_CODA"
 NON_CERTIFICATO = "NON_CERTIFICATO"
 ERRORE = "ERRORE"
 GIA_LETTO = "GIA_LETTO"
@@ -71,12 +73,13 @@ class Lettura:
     piano: object = None
     punteggio: int = 0
     conferma_nascita: bool = False
-    visite_nuove: list[str] = field(default_factory=list)
-    visite_presenti: list[str] = field(default_factory=list)
+    visita: str = ""                 # tipo della visita che si registrerebbe
+    visita_presente: bool = False
+    requisiti: list[str] = field(default_factory=list)
 
 
 class Command(BaseCommand):
-    help = "Legge i referti dell'archivio HR TOOLS e registra le visite mediche (dry-run di default)."
+    help = "Legge i referti dell'archivio HR TOOLS: visite, requisiti, oculistici in coda (dry-run di default)."
 
     def add_arguments(self, parser):
         parser.add_argument("--apply", action="store_true", help="Scrive davvero. Default: dry-run.")
@@ -113,6 +116,8 @@ class Command(BaseCommand):
             self._da_cartella(Path(opts["cartella"]), opts.get("mappa"))
             if opts.get("cartella") else self._da_fascicolo()
         )
+        # L'ordine dei file non conta: quale protocollo è in vigore lo decide la
+        # data del certificato (``aggiorna_requisiti``), non chi viene letto per ultimo.
         if opts["limite"]:
             sorgenti = sorgenti[: opts["limite"]]
         self.stdout.write(f"File da leggere: {len(sorgenti)} ({'APPLY' if apply else 'DRY-RUN'})")
@@ -192,7 +197,7 @@ class Command(BaseCommand):
 
     def _leggi_file(self, sorgente: Sorgente, config, nominativi, nascite, apply) -> list[Lettura]:
         from anagrafica.services.referti_ocr import ErroreLettura, conta_pagine, testo_pagina
-        from anagrafica.services.referti_parsing import analizza_testo
+        from anagrafica.services.referti_parsing import TIPO_OCULISTICA, analizza_testo
 
         try:
             contenuto = sorgente.leggi()
@@ -219,13 +224,20 @@ class Command(BaseCommand):
                 logger.exception("Referto archivio: lettura fallita (%s p.%s)", sorgente.nome_file, pagina + 1)
                 lettura = Lettura(sorgente, pagina + 1, ERRORE, f"Errore imprevisto: {exc.__class__.__name__}")
             else:
-                if not campi.e_certificato:
+                if campi.tipo_referto == TIPO_OCULISTICA:
+                    lettura = Lettura(
+                        sorgente, pagina + 1, OCULISTICA,
+                        "Certificato oculistico: data, tipo ed esito da inserire nella coda di revisione.",
+                        campi,
+                    )
+                elif not campi.e_certificato:
                     # Pagina di continuazione o altro documento: resta nel fascicolo e basta.
                     letture.append(Lettura(sorgente, pagina + 1, NON_CERTIFICATO, "", campi))
                     continue
-                lettura = self._decidi(sorgente, pagina + 1, campi, config, nominativi, nascite)
+                else:
+                    lettura = self._decidi(sorgente, pagina + 1, campi, config, nominativi, nascite)
             letture.append(lettura)
-            if apply and lettura.decisione in (AUTO, REVISIONE):
+            if apply and lettura.decisione in (AUTO, REVISIONE, OCULISTICA):
                 self._scrivi(lettura, sha, contenuto)
         return letture
 
@@ -236,6 +248,10 @@ class Command(BaseCommand):
 
         lettura = Lettura(sorgente, pagina, REVISIONE, campi=campi)
         lettura.piano = piano = prepara_registrazione(campi)
+        lettura.requisiti = [
+            (tipo.nome if tipo else f"{voce.get('esame', '')} (non a catalogo)")
+            for tipo, voce in piano.requisiti
+        ]
         ostacoli = []
 
         legacy_id = sorgente.legacy_id
@@ -264,22 +280,15 @@ class Command(BaseCommand):
                         f"Data di nascita non confermata e nominativo poco somigliante ({lettura.punteggio}%)."
                     )
 
-        if piano.esami_ignoti:
-            ostacoli.append("Esami non a catalogo: " + ", ".join(piano.esami_ignoti) + ".")
-        if not piano.tipi and not piano.esami_ignoti:
-            ostacoli.append("Nessun esame riconosciuto nel protocollo sanitario.")
-        if not piano.esito:
-            ostacoli.append(f"Giudizio «{campi.esito_testo or '—'}» non riconosciuto.")
+        ostacoli.extend(piano.ostacoli)
 
-        if legacy_id and campi.data_giudizio and piano.tipi:
-            presenti = set(
-                VisitaMedica.objects.filter(
+        if piano.visita_tipo is not None:
+            lettura.visita = piano.visita_tipo.nome
+            if legacy_id and campi.data_giudizio:
+                lettura.visita_presente = VisitaMedica.objects.filter(
                     legacy_anagrafica_id=legacy_id, data_svolgimento=campi.data_giudizio,
-                    tipo_id__in=[t.id for t, _ in piano.tipi],
-                ).values_list("tipo_id", flat=True)
-            )
-            for tipo, _voce in piano.tipi:
-                (lettura.visite_presenti if tipo.id in presenti else lettura.visite_nuove).append(tipo.nome)
+                    tipo=piano.visita_tipo,
+                ).exists()
 
         if ostacoli:
             lettura.motivo = " ".join(ostacoli)
@@ -300,6 +309,7 @@ class Command(BaseCommand):
 
         sorgente, campi = lettura.sorgente, lettura.campi
         doc = sorgente.documento
+        oculistica = lettura.decisione == OCULISTICA
         riga = RefertoIntakeRiga(
             nome_file=sorgente.nome_file[:255],
             percorso=(doc.file.name if doc and doc.file else "")[:500],
@@ -307,6 +317,7 @@ class Command(BaseCommand):
             sha256=sha,
             pagina=lettura.pagina,
             origine="CARTELLA",
+            tipo_referto=(RefertoIntakeRiga.TIPO_OCULISTICA if oculistica else RefertoIntakeRiga.TIPO_IDONEITA),
             esito=RefertoIntakeRiga.ESITO_DA_RIVEDERE,
             messaggio=(lettura.motivo or "")[:2000],
             letto_nominativo=(campi.nominativo or "")[:200],
@@ -329,10 +340,7 @@ class Command(BaseCommand):
         try:
             registra(riga, legacy_id=sorgente.legacy_id)
         except ErroreRegistrazione as exc:
-            riga.esito = (
-                RefertoIntakeRiga.ESITO_DUPLICATO if "già registrate" in str(exc)
-                else RefertoIntakeRiga.ESITO_DA_RIVEDERE
-            )
+            riga.esito = RefertoIntakeRiga.ESITO_DA_RIVEDERE
             riga.messaggio = str(exc)
             riga.save(update_fields=["esito", "messaggio"])
             lettura.decisione, lettura.motivo = REVISIONE, str(exc)
@@ -349,7 +357,7 @@ class Command(BaseCommand):
         campi_csv = [
             "cartella", "legacy_id", "nominativo_anagrafica", "file", "pagina", "decisione", "motivo",
             "nominativo_letto", "somiglianza", "nascita_confermata", "data_giudizio", "giudizio_letto",
-            "esito", "esami_letti", "esami_non_a_catalogo", "visite_nuove", "visite_gia_presenti",
+            "esito", "visita", "visita_gia_presente", "requisiti", "requisiti_non_a_catalogo",
         ]
         with path.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=campi_csv, delimiter=";")
@@ -370,12 +378,10 @@ class Command(BaseCommand):
                     "data_giudizio": c.data_giudizio.strftime("%d/%m/%Y") if c and c.data_giudizio else "",
                     "giudizio_letto": getattr(c, "esito_testo", ""),
                     "esito": p.esito if p else "",
-                    "esami_letti": " | ".join(
-                        f"{v.get('esame', '')} ({v.get('periodicita', '')})" for v in (c.protocollo if c else [])
-                    ),
-                    "esami_non_a_catalogo": " | ".join(p.esami_ignoti) if p else "",
-                    "visite_nuove": " | ".join(l.visite_nuove),
-                    "visite_gia_presenti": " | ".join(l.visite_presenti),
+                    "visita": l.visita,
+                    "visita_gia_presente": "sì" if l.visita_presente else "",
+                    "requisiti": " | ".join(l.requisiti),
+                    "requisiti_non_a_catalogo": " | ".join(p.esami_ignoti) if p else "",
                 })
         self.stdout.write(f"Report scritto in {path}")
 
@@ -388,9 +394,14 @@ class Command(BaseCommand):
         for decisione, n in Counter(l.decisione for l in letture).most_common():
             w(f"    {decisione:18s} {n}")
         auto = [l for l in certificati if l.decisione == AUTO]
-        w(f"  Visite che {'sono state' if apply else 'verrebbero'} create: "
-          f"{sum(len(l.visite_nuove) for l in auto)} "
-          f"(già presenti: {sum(len(l.visite_presenti) for l in auto)})")
+        verbo = "sono state" if apply else "verrebbero"
+        w(f"  Visite che {verbo} create: {sum(1 for l in auto if not l.visita_presente)} "
+          f"(già presenti: {sum(1 for l in auto if l.visita_presente)}) — una per certificato di idoneità")
+        w(f"  Requisiti dai protocolli dei certificati registrati: {sum(len(l.requisiti) for l in auto)}")
+        oculistici = sum(1 for l in letture if l.decisione == OCULISTICA)
+        if oculistici:
+            w(f"  Certificati oculistici {'messi' if apply else 'da mettere'} in coda "
+              f"(data, tipo ed esito scritti a mano): {oculistici}")
 
         anni = Counter(l.campi.data_giudizio.year for l in certificati if l.campi and l.campi.data_giudizio)
         if anni:
@@ -411,17 +422,19 @@ class Command(BaseCommand):
 
         # Raggruppati per nome ripulito + periodicità: è la forma in cui vanno
         # inseriti gli alias (una riga per esame e cadenza).
-        esami = Counter()
+        requisiti_ignoti = Counter()
         for l in certificati:
-            if not (l.piano and l.piano.esami_ignoti):
+            if not l.piano:
                 continue
-            ignoti = set(l.piano.esami_ignoti)
-            for voce in l.campi.protocollo or []:
-                if voce.get("esame", "") in ignoti:
-                    esami[f"{ripulisci_esame(voce['esame'])} — {voce.get('periodicita') or '?'}"] += 1
-        if esami:
-            w(self.style.WARNING("  Esami NON a catalogo (esame — periodicità, da mappare negli alias):"))
-            for esame, n in esami.most_common():
+            for tipo, voce in l.piano.requisiti:
+                if tipo is None:
+                    requisiti_ignoti[f"{ripulisci_esame(voce.get('esame', ''))} — {voce.get('periodicita') or '?'}"] += 1
+        if requisiti_ignoti:
+            w(self.style.WARNING(
+                "  Esami del protocollo NON a catalogo (esame — periodicità). Per la «Visita Medica» "
+                "bloccano, per i requisiti no (si registrano senza tipo):"
+            ))
+            for esame, n in requisiti_ignoti.most_common():
                 w(f"    {n:4d}  {esame}")
         giudizi = Counter(
             ripulisci_giudizio(l.campi.esito_testo or "") or "—"

@@ -57,7 +57,28 @@ def tipi_visita_richiesti_per_dipendente(legacy_id: int) -> list[TipoVisitaMedic
         for t in TipoVisitaMedica.objects.filter(id__in=extra_ids, is_active=True):
             tipi[t.id] = t
 
+    # Sorgente certificato: il protocollo sanitario dell'ultimo certificato di
+    # idoneità, deciso dal medico competente (mansione, rischi, età).
+    for t in tipi_visita_da_requisiti(legacy_id):
+        tipi.setdefault(t.id, t)
+
     return sorted(tipi.values(), key=lambda t: t.nome)
+
+
+def tipi_visita_da_requisiti(legacy_id: int) -> list[TipoVisitaMedica]:
+    """Tipi di visita richiesti dal protocollo dell'ultimo certificato (requisiti attivi)."""
+    try:
+        return list(
+            TipoVisitaMedica.objects
+            .filter(
+                is_active=True,
+                requisiti_dipendente__legacy_anagrafica_id=legacy_id,
+                requisiti_dipendente__attivo=True,
+            )
+            .distinct()
+        )
+    except Exception:
+        return []
 
 
 def ultime_visite_per_tipo(legacy_id: int) -> dict[int, VisitaMedica]:
