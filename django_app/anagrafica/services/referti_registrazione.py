@@ -32,6 +32,7 @@ limitazioni» significa cambiare cosa può fare una persona al lavoro.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 
 from django.db import transaction
@@ -99,6 +100,42 @@ def _mappa_esiti() -> dict[str, str]:
     }
 
 
+# Solo gli strascichi osservati davvero: numeri (settimane) e i pochi caratteri del
+# riquadro letti come lettere. Non «qualsiasi lettera»: «Epatite B» deve restare tale.
+_SPORCO_FINALE_ESAME = re.compile(r"^(.*\S)\s+(?:\d{1,3}|F\d?|FI|I)$")
+
+
+def ripulisci_esame(testo: str) -> str:
+    """Il nome dell'esame senza gli strascichi che l'OCR gli attacca in coda.
+
+    Alcuni certificati hanno una colonna in più con la periodicità **in settimane**
+    («Visita Medica 52 annuale»): il numero finisce incollato al nome. Si aggiungono
+    lettere isolate lette dai bordi della tabella («F1», «i») e virgolette spurie.
+    Serve solo come **secondo tentativo** dopo il testo esatto: un alias già
+    registrato col numero continua a valere.
+    """
+    pulito = normalizza(testo)
+    while True:
+        m = _SPORCO_FINALE_ESAME.match(pulito)
+        if not m:
+            return pulito
+        pulito = m.group(1)
+
+
+def ripulisci_giudizio(testo: str) -> str:
+    """Il giudizio senza ripetizioni e lettere spurie in coda.
+
+    «IDONEO CON PRESCRIZIONI PRESCRIZIONI» è lo stesso giudizio letto due volte;
+    «IDONEO MANSIONE SPECIFICA C» ha un carattere del riquadro in fondo. Un giudizio
+    **troncato** o con parole mancanti non si ricostruisce: resta non riconosciuto.
+    """
+    parole = normalizza(testo).split()
+    compatte = [p for i, p in enumerate(parole) if i == 0 or p != parole[i - 1]]
+    while len(compatte) > 1 and len(compatte[-1]) == 1:
+        compatte.pop()
+    return " ".join(compatte)
+
+
 def _tipi_per_nome() -> dict[str, int]:
     """Il catalogo stesso vale come alias: se il medico scrive esattamente il nome
     che abbiamo a catalogo, non c'è ragione di pretendere una riga di mappatura."""
@@ -125,16 +162,20 @@ def prepara_registrazione(campi) -> PianoRegistrazione:
     tipi_cache = {t.id: t for t in TipoVisitaMedica.objects.filter(is_active=True)}
 
     for voce in (campi.protocollo or []):
-        chiave = normalizza(voce.get("esame", ""))
         cadenza = (voce.get("periodicita") or "").lower()
         # Prima la riga per la cadenza esatta, poi quella generica, infine il
         # nome a catalogo: la cadenza è ciò che distingue «Visita Medica
         # Annuale» da «Quinquennale», e sbagliarla sposta una scadenza di anni.
-        tipo_id = (
-            alias_esami.get((chiave, cadenza))
-            or alias_esami.get((chiave, ""))
-            or per_nome.get(chiave)
-        )
+        # Tutta la sequenza col testo esatto, poi di nuovo col nome ripulito.
+        tipo_id = None
+        for chiave in dict.fromkeys((normalizza(voce.get("esame", "")), ripulisci_esame(voce.get("esame", "")))):
+            tipo_id = (
+                alias_esami.get((chiave, cadenza))
+                or alias_esami.get((chiave, ""))
+                or per_nome.get(chiave)
+            )
+            if tipo_id:
+                break
         tipo = tipi_cache.get(tipo_id) if tipo_id else None
         if tipo is None:
             piano.esami_ignoti.append(voce.get("esame", ""))
@@ -153,7 +194,10 @@ def prepara_registrazione(campi) -> PianoRegistrazione:
             })
 
     alias_esiti = _mappa_esiti()
-    piano.esito = alias_esiti.get(normalizza(campi.esito_testo or ""), "")
+    piano.esito = (
+        alias_esiti.get(normalizza(campi.esito_testo or ""), "")
+        or alias_esiti.get(ripulisci_giudizio(campi.esito_testo or ""), "")
+    )
 
     return piano
 
