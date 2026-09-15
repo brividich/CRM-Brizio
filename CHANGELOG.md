@@ -8,6 +8,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **ACL · «Accessi negati»: il 403 si spiega in chiaro e si risolve con un clic, sul ruolo o sulla persona** (`django_app/core/acl_resolution.py` — nuovo —, `django_app/core/models.py`, `django_app/core/migrations/0073_acl_denial_event.py` — nuova —, `django_app/core/migrations/0074_admin_subnav_accessi_negati.py` — nuova —, `django_app/core/middleware.py`, `django_app/core/templates/core/pages/forbidden.html`, `django_app/core/static/core/css/acl_resolve.css` — nuovo —, `django_app/admin_portale/views_accessi_negati.py` — nuovo —, `django_app/admin_portale/urls.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_negati.html` — nuovo —, `django_app/admin_portale/templates/admin_portale/pages/index.html`, `django_app/core/test_acl_resolution.py` — nuovo —, `README.md`). In vista del go-live: il 403 diceva *chi* aveva deciso ma in gergo («Grant ruolo su 'legacy.dashboard.dashboard_anomalie_menu' nega accesso») e non offriva nessuna azione.
+  1. **Pagina 403 leggibile**: «Non hai accesso a «Dashboard › Menu anomalie»» invece del codice; il motivo tecnico resta in «Dettagli tecnici».
+  2. **Risolvi dal 403 durante l'impersonazione**: spiegazione in italiano di chi blocca, stato su tre valori (Consentito / Negato esplicitamente / Non impostato) di eccezione personale, gruppo e ruolo, e i pulsanti **Consenti** / **Non consentire** (più «Togli l'eccezione personale» se esiste) con scelta **tutto il ruolo** (con il numero di persone) o **solo questa persona**. Se sul ruolo non basterebbe — prevale un'eccezione personale o un gruppo che nega — lo dice e preseleziona la persona. Dopo «Consenti» si torna sulla pagina, che si apre.
+  3. **Sezione admin `/admin-portale/accessi-negati/`** (voce nel sottomenu Accessi e scheda in home admin): ogni 403 registrato una volta per persona e permesso (`AclDenialEvent`, solo identificativi; tentativi contati al massimo uno al minuto), filtri Da decidere / Decisi / Tutti, stato ricalcolato *adesso* dal resolver, stesse azioni più «Ignora». Le pagine senza permesso canonico rimandano ad ACL Route Coverage.
+  - Le scritture vanno **solo** sul layer canonico (`RolePermissionGrant` / `UserPermissionGrant`), invalidano la cache ACL, lasciano audit `acl_risolvi_accesso` con stato prima/dopo e **ricontrollano l'esito**: se la persona resta bloccata il messaggio dice perché. «Consenti al ruolo» chiude anche i 403 degli altri membri che ne risultano sbloccati; un «no» non decide per gli altri. Se un accesso consentito viene negato di nuovo, la segnalazione si riapre.
+  - **Sicurezza**: l'azione è POST con CSRF e la esegue solo l'amministratore *reale* (durante l'impersonazione è l'impersonatore, già verificato admin); il middleware ACL lascia passare solo quel path e solo con impersonazione attiva. `next` accettato solo se interno. La precedenza del resolver non cambia.
+
+  **Deploy**: `migrate core` (0073 tabella, 0074 voce di menu). 15 nuovi test; `core.test_acl_v2`, `admin_portale.test_accessi_unificati`, `assenze.test_certificazione_acl`, `assets.tests_acl_impostazioni_gate`, `core.test_acl_coverage_report` verdi.
+
 ### Fixed
 
 - **ANAGRAFICA · import archivio storico: nomi file lunghi e documenti presenti in più categorie** (`django_app/anagrafica/management/commands/importa_archivio_hr.py`, `django_app/anagrafica/tests_import_archivio_hr.py`). Emerso all'import in produzione (138 errori, 34 spostamenti invece di 3).

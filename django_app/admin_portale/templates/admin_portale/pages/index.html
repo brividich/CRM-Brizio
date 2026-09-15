@@ -376,7 +376,7 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
     <div class="ap-section-head">
       <div class="ap-section-icon">👤</div>
       <div class="ap-section-title">Utenti &amp; Accessi</div>
-      <span class="ap-section-count">9 strumenti</span>
+      <span class="ap-section-count">10 strumenti</span>
     </div>
     <div class="modules-grid">
       <a class="mod" href="{% url 'admin_portale:utenti_list' %}">
@@ -391,6 +391,13 @@ body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(
         <div>
           <div class="mod-name">Accessi</div>
           <div class="mod-sub">Pannello unico: gruppi con priorità, ruoli e utenti — scrive i grant canonici</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:accessi_negati' %}">
+        <div class="mod-icon">🚫</div>
+        <div>
+          <div class="mod-name">Accessi negati</div>
+          <div class="mod-sub">Chi ha ricevuto «Accesso negato»: consenti o conferma il diniego sul ruolo o sulla persona</div>
         </div>
       </a>
       <a class="mod" href="{% url 'admin_portale:accessi_avanzati' %}">

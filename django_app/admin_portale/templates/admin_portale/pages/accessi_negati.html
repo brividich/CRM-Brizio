@@ -1,0 +1,125 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Accessi negati | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/acl_resolve.css' %}">
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Accessi negati" page_subtitle="Chi ha ricevuto «Accesso negato» e su quale pagina. Consenti o conferma il diniego, sul ruolo o sulla singola persona." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card">
+    <div class="card-body">
+      <div class="acl-filters">
+        <a class="btn{% if filtro != 'aperti' %} btn-secondary{% endif %}" href="?stato=aperti">Da decidere ({{ open_count }})</a>
+        <a class="btn{% if filtro != 'decisi' %} btn-secondary{% endif %}" href="?stato=decisi">Decisi</a>
+        <a class="btn{% if filtro != 'tutti' %} btn-secondary{% endif %}" href="?stato=tutti">Tutti</a>
+      </div>
+
+      {% if rows %}
+        <div class="acl-table-wrap">
+          <table class="acl-table">
+            <thead>
+              <tr>
+                <th>Persona</th>
+                <th>Pagina</th>
+                <th>Perché è bloccata</th>
+                <th>Tentativi</th>
+                <th>Decisione</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+                {% with a=row.access ev=row.event %}
+                <tr>
+                  <td>
+                    <div class="acl-text">{{ row.person_name }}</div>
+                    {% if a %}<div class="acl-muted">Ruolo «{{ a.role.name }}»</div>{% endif %}
+                  </td>
+                  <td>
+                    <div class="acl-text">{% if a %}{{ a.permission_label }}{% else %}{{ ev.path }}{% endif %}</div>
+                    {% if ev.permission_code %}<div class="acl-code">{{ ev.permission_code }}</div>{% endif %}
+                  </td>
+                  <td>
+                    {% if a and a.resolvable %}
+                      <div style="margin-bottom:6px;">
+                        {% if a.allowed_now %}<span class="acl-chip allow">Ora si apre</span>{% else %}<span class="acl-chip deny">Ancora bloccata</span>{% endif %}
+                      </div>
+                      <div class="acl-muted" style="margin-bottom:6px;">{{ a.explanation }}</div>
+                      <div class="acl-chips">
+                        <span><span class="acl-muted">Persona</span> <span class="acl-chip {{ a.user_state }}">{{ a.user_state_label }}</span></span>
+                        {% if a.group %}<span><span class="acl-muted">Gruppo «{{ a.group.label }}»</span> <span class="acl-chip {{ a.group.state }}">{{ a.group.state_label }}</span></span>{% endif %}
+                        <span><span class="acl-muted">Ruolo</span> <span class="acl-chip {{ a.role_state }}">{{ a.role_state_label }}</span></span>
+                      </div>
+                    {% else %}
+                      <div class="acl-muted">{{ row.unresolvable }}</div>
+                      {% if not ev.permission_code %}<div style="margin-top:6px;"><a href="{% url 'admin_portale:acl_route_coverage' %}">Apri ACL Route Coverage</a></div>{% endif %}
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="acl-text">{{ ev.hits }}</div>
+                    <div class="acl-muted">ultimo {{ ev.last_seen_at|date:"d/m/Y H:i" }}</div>
+                  </td>
+                  <td>
+                    {% if not row.is_open %}
+                      <div class="acl-text">{{ ev.get_status_display }}</div>
+                      <div class="acl-muted">{{ ev.resolved_by|default:"—" }}{% if ev.resolved_at %} · {{ ev.resolved_at|date:"d/m/Y H:i" }}{% endif %}</div>
+                    {% endif %}
+                    {% if a and a.resolvable %}
+                      <form method="post" action="{% url 'admin_portale:accessi_negati_azione' %}" class="acl-row-form"{% if not row.is_open %} style="margin-top:8px;"{% endif %}>
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ next_url }}">
+                        <input type="hidden" name="legacy_user_id" value="{{ ev.legacy_user_id }}">
+                        <input type="hidden" name="permission_code" value="{{ ev.permission_code }}">
+                        <input type="hidden" name="event_id" value="{{ ev.pk }}">
+                        <select class="input" name="scope" aria-label="A chi si applica">
+                          <option value="role"{% if not a.role_allow_blocked_by %} selected{% endif %}>Tutto il ruolo «{{ a.role.name }}» ({{ a.role.members }})</option>
+                          <option value="user"{% if a.role_allow_blocked_by %} selected{% endif %}>Solo {{ row.person_name }}</option>
+                        </select>
+                        {% if a.role_allow_blocked_by %}<div class="acl-muted">Sul ruolo non basta: prevale {{ a.role_allow_blocked_by }}.</div>{% endif %}
+                        <div class="acl-actions">
+                          <button class="btn" type="submit" name="action" value="allow">Consenti</button>
+                          <button class="btn btn-secondary" type="submit" name="action" value="deny">Non consentire</button>
+                          {% if row.is_open %}<button class="btn btn-secondary" type="submit" name="action" value="ignore">Ignora</button>{% endif %}
+                        </div>
+                      </form>
+                    {% elif row.is_open %}
+                      <form method="post" action="{% url 'admin_portale:accessi_negati_azione' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ next_url }}">
+                        <input type="hidden" name="event_id" value="{{ ev.pk }}">
+                        <button class="btn btn-secondary" type="submit" name="action" value="ignore">Ignora</button>
+                      </form>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endwith %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if page_obj.paginator.num_pages > 1 %}
+          <div class="acl-pager">
+            <span class="acl-muted">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
+            <div class="acl-actions">
+              {% if page_obj.has_previous %}<a class="btn btn-secondary" href="?stato={{ filtro }}&page={{ page_obj.previous_page_number }}">← Precedente</a>{% endif %}
+              {% if page_obj.has_next %}<a class="btn btn-secondary" href="?stato={{ filtro }}&page={{ page_obj.next_page_number }}">Successiva →</a>{% endif %}
+            </div>
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="acl-empty">
+          {% if filtro == "aperti" %}Nessun accesso negato da decidere.{% else %}Nessun accesso negato registrato.{% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

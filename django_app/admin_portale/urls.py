@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import acl_v2_views, api, views, views_bacheca
+from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca
 
 
 app_name = "admin_portale"
@@ -118,6 +118,8 @@ urlpatterns = [
     path("notifiche-config/", views.notifiche_config_view, name="notifiche_config"),
     path("health/", views.admin_health_check, name="health_check"),
     path("accessi/", views.accessi_unificati, name="accessi"),
+    path("accessi-negati/", views_accessi_negati.accessi_negati, name="accessi_negati"),
+    path("accessi-negati/azione/", views_accessi_negati.accessi_negati_azione, name="accessi_negati_azione"),
     path("gestione-accessi/", views.gestione_accessi, name="gestione_accessi"),
     path("accessi-semplice/", views.accessi_semplice, name="accessi_semplice"),
     path("accessi-avanzati/", views.accessi_dashboard, name="accessi_avanzati"),

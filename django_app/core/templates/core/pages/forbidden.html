@@ -1,59 +1,117 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}403 | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
-<style>
-  .acl-chip {
-    display:inline-flex;
-    align-items:center;
-    padding:2px 8px;
-    border-radius:999px;
-    border:1px solid #dbe3ef;
-    background:#f8fafc;
-    font-size:11px;
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:.03em;
-    color:#334155;
-  }
-</style>
+<link rel="stylesheet" href="{% static 'core/css/acl_resolve.css' %}">
 {% endblock %}
 
 {% block content %}
   <div class="page-header">
-    <div class="page-h">Accesso negato</div>
-    <div class="page-sub">Non hai i permessi per aprire questa pagina.</div>
-  </div>
-
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">Permessi mancanti</div>
-    </div>
-    <div class="card-body">
-      <div class="activity-item">
-        <div class="act-dot"></div>
-        <div>
-          <div class="act-text">Il resolver ACL ha negato l'accesso.</div>
-          <div class="act-time">HTTP 403</div>
-        </div>
+    <div class="page-header-main">
+      <div class="page-h">Accesso negato</div>
+      <div class="page-sub">
+        {% if acl_view.page_label %}Non hai accesso a «{{ acl_view.page_label }}».{% else %}Non hai i permessi per aprire questa pagina.{% endif %}
       </div>
-      {% if acl_decision %}
-        <div class="activity-item">
-          <div class="act-dot blue"></div>
-          <div>
-            <div class="act-text">Origine decisione: <span class="acl-chip">{{ acl_decision.decision_source|default:"deny" }}</span></div>
-            <div class="act-time">{{ acl_decision.reason|default:"Motivo non disponibile." }}</div>
+    </div>
+  </div>
+  <div class="acl-stack">
+
+  {% if acl_view.flash %}
+    <div class="acl-flash {{ acl_view.flash.level }}" role="status">{{ acl_view.flash.message }}</div>
+  {% endif %}
+
+  {% with r=acl_view.resolve %}
+  {% if r %}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Risolvi come amministratore</div>
+        <div class="cell-muted">Stai impersonando {{ r.person.name }}. La modifica vale subito e resta nell'audit.</div>
+      </div>
+      <div class="card-body">
+        <p class="acl-why">{{ r.explanation }}</p>
+
+        <div class="acl-states">
+          <div class="acl-state">
+            <div class="acl-state-name">Eccezione personale<small>{{ r.person.name }} · vale più di gruppi e ruolo</small></div>
+            <span class="acl-chip {{ r.user_state }}">{{ r.user_state_label }}</span>
+          </div>
+          {% if r.group %}
+            <div class="acl-state">
+              <div class="acl-state-name">Gruppo «{{ r.group.label }}»<small>priorità {{ r.group.priority }} · vale più del ruolo</small></div>
+              <span class="acl-chip {{ r.group.state }}">{{ r.group.state_label }}</span>
+            </div>
+          {% endif %}
+          <div class="acl-state">
+            <div class="acl-state-name">Ruolo «{{ r.role.name }}»<small>{{ r.role.members }} persone attive</small></div>
+            <span class="acl-chip {{ r.role_state }}">{{ r.role_state_label }}</span>
           </div>
         </div>
-      {% endif %}
-      <div class="activity-item">
-        <div class="act-dot blue"></div>
-        <div>
-          <div class="act-text"><a href="{% url 'dashboard' %}" class="sub-a active">Torna alla dashboard</a></div>
-          <div class="act-time">Navigazione</div>
-        </div>
+
+        <form method="post" action="{{ r.action_url }}">
+          {% csrf_token %}
+          <input type="hidden" name="origin" value="forbidden">
+          <input type="hidden" name="next" value="{{ r.next }}">
+          <input type="hidden" name="legacy_user_id" value="{{ r.person.id }}">
+          <input type="hidden" name="permission_code" value="{{ r.permission_code }}">
+
+          <fieldset class="acl-scope">
+            <legend>A chi si applica</legend>
+            <label>
+              <input type="radio" name="scope" value="role"{% if not r.role_allow_blocked_by %} checked{% endif %}>
+              <span>
+                Tutto il ruolo «{{ r.role.name }}»
+                <small>{{ r.role.members }} persone attive</small>
+                {% if r.role_allow_blocked_by %}<small class="acl-warn">Per consentire non basta: prevale {{ r.role_allow_blocked_by }}.</small>{% endif %}
+              </span>
+            </label>
+            <label>
+              <input type="radio" name="scope" value="user"{% if r.role_allow_blocked_by %} checked{% endif %}>
+              <span>
+                Solo {{ r.person.name }}
+                <small>Eccezione personale: non cambia nulla per gli altri.</small>
+              </span>
+            </label>
+          </fieldset>
+
+          <div class="acl-actions">
+            <button class="btn" type="submit" name="action" value="allow">Consenti</button>
+            <button class="btn btn-secondary" type="submit" name="action" value="deny">Non consentire</button>
+            {% if r.has_user_override %}
+              <button class="btn btn-secondary" type="submit" name="action" value="reset">Togli l'eccezione personale</button>
+            {% endif %}
+          </div>
+        </form>
       </div>
     </div>
+  {% elif acl_view.resolve_unavailable %}
+    <div class="card">
+      <div class="card-head"><div class="card-title">Da amministratore</div></div>
+      <div class="card-body"><p class="acl-why">{{ acl_view.resolve_unavailable }}</p></div>
+    </div>
+  {% endif %}
+  {% endwith %}
+
+  <div class="card">
+    <div class="card-body">
+      {% if acl_decision %}
+        <p class="acl-why">Se questa pagina ti serve per lavorare, chiedi all'amministratore del portale: il tentativo è stato registrato e può abilitarti da lì.</p>
+      {% endif %}
+      <div class="acl-actions">
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary">Torna alla dashboard</a>
+      </div>
+      {% if acl_decision %}
+        <details class="acl-tech" style="margin-top:14px;">
+          <summary>Dettagli tecnici</summary>
+          <dl>
+            <dt>Origine</dt><dd><span class="acl-chip">{{ acl_decision.decision_source|default:"deny" }}</span></dd>
+            <dt>Motivo</dt><dd>{{ acl_decision.reason|default:"Motivo non disponibile." }}</dd>
+            {% if acl_view.path %}<dt>Pagina</dt><dd class="acl-code">{{ acl_view.path }}</dd>{% endif %}
+          </dl>
+        </details>
+      {% endif %}
+    </div>
+  </div>
   </div>
 {% endblock %}
