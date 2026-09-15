@@ -4,6 +4,54 @@
 
 {% block assenze_shell_head %}
   {% include "core/components/module_settings_styles.html" %}
+  <style>
+    /* Sezione Flessibilita: solo token di theme.css, nessun colore fisso. */
+    .abs-msg-stack { display: grid; gap: 8px; margin-bottom: 16px; }
+    .abs-msg {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 14px;
+    }
+    .abs-msg-success { border-color: var(--success, var(--border)); }
+    .abs-msg-error { border-color: var(--danger, var(--border)); }
+    .abs-fless-orari { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .abs-fless-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 6px;
+      max-height: 320px;
+      overflow-y: auto;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+    .abs-fless-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .abs-fless-item:hover { background: var(--hover-bg, rgba(127, 127, 127, 0.12)); }
+    .abs-fless-item input { flex: none; }
+    .abs-fless-tag {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      opacity: .7;
+    }
+    .abs-fless-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    @media (max-width: 640px) {
+      .abs-fless-list { grid-template-columns: 1fr; max-height: 260px; }
+    }
+  </style>
 {% endblock %}
 
 {% block assenze_shell_content %}
@@ -60,6 +108,105 @@
       </div>
     {% endif %}
 
+    {% if messages %}
+      <div class="abs-msg-stack">
+        {% for msg in messages %}
+          <div class="abs-msg abs-msg-{{ msg.tags|default:'info' }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <section class="ms-card" id="flessibilita">
+      <div class="ms-card-head">
+        <div class="ms-card-title-wrap">
+          <h2 class="ms-card-title">Flessibilità</h2>
+          <p class="ms-card-subtitle">
+            Chi può richiedere la flessibilità e con quali orari. Un dipendente non
+            abilitato riceve un errore in fase di invio; gli orari fuori elenco
+            vengono rifiutati.
+          </p>
+        </div>
+        <span class="ms-card-badge">{{ flessibilita_abilitati_count }} abilitati</span>
+      </div>
+      <div class="ms-card-body">
+        <form method="post" action="{% url 'assenze_impostazioni' %}">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="flessibilita">
+
+          <div class="ms-field-grid abs-fless-orari">
+            <div class="ms-field">
+              <label for="orari_entrata">Orari di entrata ammessi</label>
+              <input type="text" id="orari_entrata" name="orari_entrata" value="{{ flessibilita_orari_entrata }}">
+              <div class="ms-field-help">Separati da virgola, formato HH:MM. Esempio: 07:00, 08:00, 09:00</div>
+            </div>
+            <div class="ms-field">
+              <label for="orari_uscita">Orari di uscita ammessi</label>
+              <input type="text" id="orari_uscita" name="orari_uscita" value="{{ flessibilita_orari_uscita }}">
+              <div class="ms-field-help">Separati da virgola, formato HH:MM. Esempio: 16:00, 17:00, 18:00</div>
+            </div>
+          </div>
+
+          <div class="ms-field">
+            <label for="abs-fless-filtro">Dipendenti abilitati</label>
+            <input type="text" id="abs-fless-filtro" placeholder="Filtra per nominativo..." autocomplete="off">
+            <div class="ms-field-help">
+              La durata resta quella prevista dal regolamento: almeno 9 ore e non
+              più di 10, massimo 2 flessibilità a settimana.
+            </div>
+          </div>
+
+          <div class="abs-fless-list" role="group" aria-label="Dipendenti abilitati alla flessibilità">
+            {% for dip in flessibilita_dipendenti %}
+              <label class="abs-fless-item" data-nome="{{ dip.full_name|lower }}">
+                <input type="checkbox" name="abilitati" value="{{ dip.id }}" {% if dip.abilitato %}checked{% endif %}>
+                <span>{{ dip.full_name }}</span>
+                {% if dip.fuori_elenco %}<span class="abs-fless-tag">non più in elenco</span>{% endif %}
+              </label>
+            {% empty %}
+              <p class="ms-field-help">Nessun dipendente attivo trovato in anagrafica.</p>
+            {% endfor %}
+          </div>
+
+          <div class="abs-fless-actions">
+            <button type="submit" class="btn btn-primary">Salva flessibilità</button>
+            <span class="ms-field-help" id="abs-fless-count"></span>
+          </div>
+        </form>
+      </div>
+    </section>
+
     {% include "assenze/partials/_gestione_admin_panel.html" %}
   </div>
+
+  <script>
+  (function () {
+    var filtro = document.getElementById("abs-fless-filtro");
+    var lista = document.querySelector(".abs-fless-list");
+    var contatore = document.getElementById("abs-fless-count");
+    if (!lista) return;
+    var voci = Array.prototype.slice.call(lista.querySelectorAll(".abs-fless-item"));
+
+    function aggiornaContatore() {
+      if (!contatore) return;
+      var n = lista.querySelectorAll('input[name="abilitati"]:checked').length;
+      contatore.textContent = n === 1 ? "1 dipendente selezionato" : n + " dipendenti selezionati";
+    }
+
+    if (filtro) {
+      filtro.addEventListener("input", function () {
+        var q = filtro.value.trim().toLowerCase();
+        voci.forEach(function (voce) {
+          var nome = voce.getAttribute("data-nome") || "";
+          // Una voce spuntata resta visibile anche se non combacia: altrimenti
+          // si perde di vista chi e' gia' abilitato mentre si cerca.
+          var spuntata = !!voce.querySelector("input:checked");
+          voce.hidden = !(!q || nome.indexOf(q) !== -1 || spuntata);
+        });
+      });
+    }
+
+    lista.addEventListener("change", aggiornaContatore);
+    aggiornaContatore();
+  })();
+  </script>
 {% endblock %}

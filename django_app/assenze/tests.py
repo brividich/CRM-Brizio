@@ -14,7 +14,6 @@ from django.utils import timezone
 from core.models import UserOnboarding
 
 from .views import (
-    _anagrafica_employee_ids_for_capo,
     _build_submit_token,
     _certificazione_presenza_dipendenti_attivi,
     _diagnose_sharepoint_sync_item,
@@ -1365,45 +1364,47 @@ class AssenzeAllineaTipoFlessibilitaCommandTests(SimpleTestCase):
         self.assertIn("riallineato", stdout.getvalue())
 
 
-class AssenzeInsertForOthersScopeTests(TestCase):
-    """Scope reparto per l'inserimento richieste 'per conto di' (CAR)."""
+class AssenzeInsertForOthersScopeTests(SimpleTestCase):
+    """Chi puo' inserire una richiesta a nome di un altro dipendente.
 
-    def _make_aziendale(self, *, anagrafica_id, capo_anagrafica_id=None, area=""):
-        from anagrafica.models import DipendenteAnagraficaAziendale
+    Caporeparto e Amministrazione inseriscono per TUTTI (prima il caporeparto era
+    ristretto ai dipendenti del proprio reparto); gli altri profili solo per se'
+    stessi. Poter inserire non e' poter approvare: l'approvatore resta quello del
+    dipendente scelto.
+    """
 
-        return DipendenteAnagraficaAziendale.objects.create(
-            legacy_anagrafica_id=anagrafica_id,
-            caporeparto_legacy_id=capo_anagrafica_id,
-            area=area,
+    def _perms(self, roles):
+        from assenze.views import _assenze_permissions
+
+        request = SimpleNamespace(
+            user=SimpleNamespace(
+                is_superuser=False,
+                email="u@example.com",
+                get_username=lambda: "u",
+                get_full_name=lambda: "Utente Uno",
+            ),
+            legacy_user=SimpleNamespace(id=7, nome="Utente Uno", email="u@example.com"),
         )
+        with patch("assenze.views._role_names", return_value=roles), patch(
+            "assenze.views._legacy_capi_table_exists", return_value=False
+        ):
+            return _assenze_permissions(request)
 
-    def test_includes_employees_with_matching_caporeparto(self):
-        capo_id = 100
-        self._make_aziendale(anagrafica_id=11, capo_anagrafica_id=capo_id)
-        self._make_aziendale(anagrafica_id=12, capo_anagrafica_id=capo_id)
-        self._make_aziendale(anagrafica_id=13, capo_anagrafica_id=999)  # altro reparto
+    def test_caporeparto_inserisce_per_tutti(self):
+        perms = self._perms(["Caporeparto"])
+        self.assertEqual(perms["group"], "CAR")
+        self.assertEqual(perms["insert_for_others_scope"], "all")
 
-        ids = _anagrafica_employee_ids_for_capo(capo_id)
+    def test_amministrazione_inserisce_per_tutti(self):
+        perms = self._perms(["Amministrazione"])
+        self.assertEqual(perms["group"], "AMMINISTRAZIONE")
+        self.assertEqual(perms["insert_for_others_scope"], "all")
 
-        self.assertEqual(ids, {11, 12})
-
-    def test_includes_employees_via_reparto_area_fallback(self):
-        from anagrafica.models import Reparto
-
-        capo_id = 200
-        Reparto.objects.create(nome="Verniciatura", caporeparto_legacy_id=capo_id, is_active=True)
-        # Dipendente senza capo diretto ma nell'area gestita dal capo.
-        self._make_aziendale(anagrafica_id=21, area="Verniciatura")
-        # Dipendente in area diversa: escluso.
-        self._make_aziendale(anagrafica_id=22, area="Magazzino")
-
-        ids = _anagrafica_employee_ids_for_capo(capo_id)
-
-        self.assertIn(21, ids)
-        self.assertNotIn(22, ids)
-
-    def test_returns_empty_when_no_capo_id(self):
-        self.assertEqual(_anagrafica_employee_ids_for_capo(None), set())
+    def test_utente_semplice_solo_per_se_stesso(self):
+        perms = self._perms(["Utente"])
+        self.assertEqual(perms["group"], "UTENTI")
+        self.assertEqual(perms["insert_for_others_scope"], "none")
+        self.assertFalse(perms["can_insert_for_others"])
 
 
 class RiconciliazionePresenzeLogicTests(SimpleTestCase):
@@ -1626,18 +1627,212 @@ class AssenzeCapoDaAreaAziendaleTests(TestCase):
 
         self.assertEqual(_anagrafica_hr_capo_ids(), {501, 999})
 
-    def test_dipendenti_del_capo_seguono_il_responsabile_area(self):
-        from anagrafica.models import DipendenteAnagraficaAziendale
-        from assenze.views import _anagrafica_employee_ids_for_capo
 
-        DipendenteAnagraficaAziendale.objects.create(
-            legacy_anagrafica_id=100, area_aziendale=self.area_con_resp, caporeparto_legacy_id=501,
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeImpostazioniFlessibilitaViewTests(TestCase):
+    """Salvataggio della sezione «Flessibilità» di Impostazioni."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("hradmin", "hr@example.com", "pw12345678")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
+        self.client.force_login(self.user)
+
+    def _post(self, data):
+        with patch("assenze.views.user_can_modulo_action", return_value=True), patch(
+            "assenze.views._load_dipendenti_attivi_list",
+            return_value=[
+                {"id": 42, "full_name": "ROSSI MARIO"},
+                {"id": 43, "full_name": "BIANCHI LUCA"},
+            ],
+        ), patch("assenze.views.log_action"):
+            return self.client.post(reverse("assenze_impostazioni"), data)
+
+    def test_pagina_mostra_la_sezione_flessibilita(self):
+        from assenze.models import FlessibilitaAbilitato
+
+        FlessibilitaAbilitato.objects.create(legacy_anagrafica_id=42, nominativo="ROSSI MARIO")
+        with patch("assenze.views.user_can_modulo_action", return_value=True), patch(
+            "assenze.views._load_dipendenti_attivi_list",
+            return_value=[{"id": 42, "full_name": "ROSSI MARIO"}, {"id": 43, "full_name": "BIANCHI LUCA"}],
+        ), patch("assenze.views._admin_assenze_overview", return_value={}):
+            response = self.client.get(reverse("assenze_impostazioni"))
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode("utf-8")
+        self.assertIn("Flessibilità", html)
+        self.assertIn('name="abilitati" value="42" checked', html)
+        self.assertIn('name="abilitati" value="43"', html)
+        self.assertIn("07:00, 08:00, 09:00", html)
+
+    def test_salva_orari_e_abilitati(self):
+        from assenze.models import FlessibilitaAbilitato, FlessibilitaImpostazioni
+
+        response = self._post({
+            "form": "flessibilita",
+            "orari_entrata": "7:00, 08:00",
+            "orari_uscita": "16:00,17:00",
+            "abilitati": ["42"],
+        })
+
+        self.assertEqual(response.status_code, 302, response.get("Location", ""))
+        self.assertIn("impostazioni", response["Location"])
+        conf = FlessibilitaImpostazioni.get_solo()
+        self.assertEqual(conf.entrate, ["07:00", "08:00"])
+        self.assertEqual(conf.uscite, ["16:00", "17:00"])
+        self.assertEqual(
+            list(FlessibilitaAbilitato.objects.values_list("legacy_anagrafica_id", flat=True)),
+            [42],
         )
-        DipendenteAnagraficaAziendale.objects.create(
-            legacy_anagrafica_id=101, area_aziendale=self.area_senza_resp,
+
+    def test_togliere_la_spunta_revoca_l_abilitazione(self):
+        from assenze.models import FlessibilitaAbilitato
+
+        FlessibilitaAbilitato.objects.create(legacy_anagrafica_id=43, nominativo="BIANCHI LUCA")
+        self._post({
+            "form": "flessibilita",
+            "orari_entrata": "07:00",
+            "orari_uscita": "16:00",
+            "abilitati": ["42"],
+        })
+        self.assertEqual(
+            set(FlessibilitaAbilitato.objects.values_list("legacy_anagrafica_id", flat=True)),
+            {42},
         )
-        self.assertEqual(_anagrafica_employee_ids_for_capo(999), {100})
-        self.assertEqual(_anagrafica_employee_ids_for_capo(501), {101})
+
+    def test_orari_non_validi_non_salvano_nulla(self):
+        from assenze.models import FlessibilitaAbilitato, FlessibilitaImpostazioni
+
+        conf = FlessibilitaImpostazioni.get_solo()
+        conf.orari_entrata = "07:00"
+        conf.orari_uscita = "16:00"
+        conf.save()
+
+        self._post({
+            "form": "flessibilita",
+            "orari_entrata": "banana",
+            "orari_uscita": "16:00",
+            "abilitati": ["42"],
+        })
+
+        self.assertEqual(FlessibilitaImpostazioni.get_solo().entrate, ["07:00"])
+        self.assertFalse(FlessibilitaAbilitato.objects.exists())
+
+
+class AssenzeFlessibilitaConfigurataTests(TestCase):
+    """La flessibilita' spetta solo agli abilitati e solo negli orari configurati."""
+
+    def setUp(self):
+        from assenze.models import FlessibilitaAbilitato, FlessibilitaImpostazioni
+
+        conf = FlessibilitaImpostazioni.get_solo()
+        conf.orari_entrata = "07:00,08:00,09:00"
+        conf.orari_uscita = "16:00,17:00,18:00"
+        conf.save()
+        FlessibilitaAbilitato.objects.create(legacy_anagrafica_id=42, nominativo="ROSSI MARIO")
+
+    def _valida(self, *, inizio, fine, anagrafica_id=42):
+        from assenze.views import _validate_business_rules
+
+        with patch("assenze.views._count_flessibilita_week", return_value=0):
+            return _validate_business_rules(
+                tipo="Flessibilità",
+                dt_start=datetime.strptime(inizio, "%Y-%m-%d %H:%M"),
+                dt_end=datetime.strptime(fine, "%Y-%m-%d %H:%M"),
+                person_anagrafica_id=anagrafica_id,
+            )
+
+    def test_abilitato_con_orari_ammessi_ok(self):
+        err, _ = self._valida(inizio="2026-09-15 07:00", fine="2026-09-15 16:00")
+        self.assertEqual(err, "")
+
+    def test_non_abilitato_respinto(self):
+        err, _ = self._valida(inizio="2026-09-15 07:00", fine="2026-09-15 16:00", anagrafica_id=99)
+        self.assertIn("non è abilitata", err)
+
+    def test_senza_id_persona_respinto(self):
+        """Fail-closed: se non si risolve la persona, non si concede."""
+        err, _ = self._valida(inizio="2026-09-15 07:00", fine="2026-09-15 16:00", anagrafica_id=None)
+        self.assertIn("non è abilitata", err)
+
+    def test_entrata_fuori_elenco_respinta(self):
+        err, _ = self._valida(inizio="2026-09-15 06:30", fine="2026-09-15 16:00")
+        self.assertIn("entrata non ammesso", err)
+
+    def test_uscita_fuori_elenco_respinta(self):
+        err, _ = self._valida(inizio="2026-09-15 07:00", fine="2026-09-15 15:30")
+        self.assertIn("uscita non ammesso", err)
+
+    def test_orari_ammessi_ma_durata_fuori_regola(self):
+        """9:00-16:00 sono entrambi in elenco ma fanno 7 ore: resta il limite."""
+        err, _ = self._valida(inizio="2026-09-15 09:00", fine="2026-09-15 16:00")
+        self.assertIn("almeno 8 ore", err)
+
+    def test_orari_personalizzati_dalle_impostazioni(self):
+        from assenze.models import FlessibilitaImpostazioni
+
+        conf = FlessibilitaImpostazioni.get_solo()
+        conf.orari_entrata = "06:00"
+        conf.orari_uscita = "15:00"
+        conf.save()
+        self.assertEqual(self._valida(inizio="2026-09-15 06:00", fine="2026-09-15 15:00")[0], "")
+        self.assertIn("entrata non ammesso", self._valida(inizio="2026-09-15 07:00", fine="2026-09-15 15:00")[0])
+
+
+class AssenzeFlessibilitaImpostazioniModelTests(SimpleTestCase):
+    def test_parse_normalizza_e_scarta_le_voci_non_valide(self):
+        from assenze.models import FlessibilitaImpostazioni as F
+
+        self.assertEqual(F._parse(" 7:00, 08:00 ,, 9:00 "), ["07:00", "08:00", "09:00"])
+        self.assertEqual(F._parse("25:00,08:61,pippo,08:00"), ["08:00"])
+        self.assertEqual(F._parse(""), [])
+
+    def test_elenco_vuoto_ricade_sui_default(self):
+        from assenze.models import FlessibilitaImpostazioni as F
+
+        conf = F(orari_entrata="", orari_uscita="banana")
+        self.assertEqual(conf.entrate, ["07:00", "08:00", "09:00"])
+        self.assertEqual(conf.uscite, ["16:00", "17:00", "18:00"])
+
+
+class AssenzeAutocorrezioneFineTests(SimpleTestCase):
+    """Ora fine non successiva all'inizio -> inizio + 30 min, stesso giorno."""
+
+    def _dt(self, s):
+        return datetime.strptime(s, "%Y-%m-%d %H:%M")
+
+    def test_fine_prima_dell_inizio_viene_pareggiata(self):
+        from assenze.views import _autocorreggi_fine
+
+        fine, msg = _autocorreggi_fine(self._dt("2026-09-15 14:00"), self._dt("2026-09-15 09:00"))
+        self.assertEqual(fine, self._dt("2026-09-15 14:30"))
+        self.assertIn("14:30", msg)
+
+    def test_fine_uguale_all_inizio_viene_pareggiata(self):
+        from assenze.views import _autocorreggi_fine
+
+        fine, msg = _autocorreggi_fine(self._dt("2026-09-15 08:00"), self._dt("2026-09-15 08:00"))
+        self.assertEqual(fine, self._dt("2026-09-15 08:30"))
+        self.assertTrue(msg)
+
+    def test_la_correzione_riporta_al_giorno_dell_inizio(self):
+        from assenze.views import _autocorreggi_fine
+
+        # Fine su un giorno PRECEDENTE: si torna al giorno dell'inizio.
+        fine, _ = _autocorreggi_fine(self._dt("2026-09-15 10:00"), self._dt("2026-09-14 18:00"))
+        self.assertEqual(fine, self._dt("2026-09-15 10:30"))
+
+    def test_fine_gia_successiva_non_viene_toccata(self):
+        from assenze.views import _autocorreggi_fine
+
+        fine, msg = _autocorreggi_fine(self._dt("2026-09-15 08:00"), self._dt("2026-09-17 23:59"))
+        self.assertEqual(fine, self._dt("2026-09-17 23:59"))
+        self.assertEqual(msg, "")
+
+    def test_valori_mancanti_non_rompono(self):
+        from assenze.views import _autocorreggi_fine
+
+        self.assertEqual(_autocorreggi_fine(None, None), (None, ""))
+        self.assertEqual(_autocorreggi_fine(self._dt("2026-09-15 08:00"), None), (None, ""))
 
 
 class AssenzeRegoleDurataTests(SimpleTestCase):

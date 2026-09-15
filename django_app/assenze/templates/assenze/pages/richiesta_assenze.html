@@ -819,6 +819,24 @@
                       <input id="time_end" type="time" name="time_end" class="abs-input" value="{{ form_data.time_end|default:'14:00' }}">
                     </div>
                   </div>
+                  <div class="abs-field-hint" id="abs-auto-fine-hint" role="status" aria-live="polite" hidden></div>
+
+                  {# ── Flessibilita: orari a scelta fissa, configurati in Impostazioni ── #}
+                  <div class="abs-fields-2" id="abs-fless-orari" hidden>
+                    <div class="abs-field">
+                      <label for="fless_entrata">Entrata</label>
+                      <select id="fless_entrata" class="abs-input">
+                        {% for ora in flessibilita_entrate %}<option value="{{ ora }}">{{ ora }}</option>{% endfor %}
+                      </select>
+                    </div>
+                    <div class="abs-field">
+                      <label for="fless_uscita">Uscita</label>
+                      <select id="fless_uscita" class="abs-input">
+                        {% for ora in flessibilita_uscite %}<option value="{{ ora }}">{{ ora }}</option>{% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                  <div class="abs-field-hint" id="abs-fless-nota" hidden></div>
 
                   {# ── Avviso non bloccante: corsi formativi nei giorni richiesti ── #}
                   <div class="abs-duration-card" aria-live="polite">
@@ -1074,6 +1092,50 @@
       });
     });
 
+    function isFlessibilita() {
+      return normalizedType() === "flessibilita";
+    }
+
+    var flessOrari = document.getElementById("abs-fless-orari");
+    var flessEntrata = document.getElementById("fless_entrata");
+    var flessUscita = document.getElementById("fless_uscita");
+    var flessNota = document.getElementById("abs-fless-nota");
+    var FLESS_ABILITATO = {% if flessibilita_abilitato_io %}true{% else %}false{% endif %};
+
+    function syncFlessibilitaToTimes() {
+      if (!flessEntrata || !flessUscita) return;
+      if (startInput) startInput.value = flessEntrata.value;
+      if (endInput) endInput.value = flessUscita.value;
+      // La flessibilita' resta nello stesso giorno.
+      if (dateStartInput && dateEndInput && dateStartInput.value) {
+        dateEndInput.value = dateStartInput.value;
+      }
+      if (endInput) endInput.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    function applyFlessibilita() {
+      var on = isFlessibilita();
+      if (flessOrari) flessOrari.hidden = !on;
+      if (startInput) startInput.readOnly = on || startInput.readOnly;
+      if (endInput) endInput.readOnly = on || endInput.readOnly;
+      if (flessNota) {
+        if (on && !FLESS_ABILITATO) {
+          flessNota.textContent = "La flessibilità non risulta abilitata per te: la richiesta verrà rifiutata. Chiedi all'Amministrazione.";
+          flessNota.hidden = false;
+        } else if (on) {
+          flessNota.textContent = "Orari stabiliti dall'Amministrazione. Almeno 9 ore e non più di 10, massimo 2 a settimana.";
+          flessNota.hidden = false;
+        } else {
+          flessNota.hidden = true;
+          flessNota.textContent = "";
+        }
+      }
+      if (on) syncFlessibilitaToTimes();
+    }
+
+    if (flessEntrata) flessEntrata.addEventListener("change", syncFlessibilitaToTimes);
+    if (flessUscita) flessUscita.addEventListener("change", syncFlessibilitaToTimes);
+
     function applyTypeDefaults() {
       if (isFerie()) {
         if (startInput) {
@@ -1087,6 +1149,7 @@
         if (dateStartInput && dateEndInput && dateStartInput.value && !dateEndInput.value) {
           dateEndInput.value = dateStartInput.value;
         }
+        applyFlessibilita();
         return;
       }
       if (startInput) startInput.readOnly = false;
@@ -1094,7 +1157,57 @@
       if (isPermesso() && dateStartInput && dateEndInput && dateStartInput.value) {
         dateEndInput.value = dateStartInput.value;
       }
+      applyFlessibilita();
     }
+
+    // Ora fine non successiva all'inizio: la si riporta a inizio + 30 minuti sul
+    // giorno dell'inizio, come fa il server (_autocorreggi_fine). Dichiarato a
+    // video: il campo non deve cambiare di nascosto.
+    var AUTO_FINE_MINUTI = 30;
+
+    function minutesOf(value) {
+      var parts = String(value || "").split(":");
+      if (parts.length < 2) return null;
+      var h = parseInt(parts[0], 10);
+      var m = parseInt(parts[1], 10);
+      if (isNaN(h) || isNaN(m)) return null;
+      return h * 60 + m;
+    }
+
+    function pad2(n) { return (n < 10 ? "0" : "") + n; }
+
+    function autoFixEndTime() {
+      var hint = document.getElementById("abs-auto-fine-hint");
+      function clearHint() { if (hint) { hint.hidden = true; hint.textContent = ""; } }
+      if (!startInput || !endInput || isFerie()) { clearHint(); return; }
+      if (!dateStartInput || !dateEndInput) { clearHint(); return; }
+      // Solo sullo stesso giorno: una richiesta su piu' giorni e' legittima.
+      if (dateStartInput.value && dateEndInput.value && dateEndInput.value !== dateStartInput.value) {
+        clearHint();
+        return;
+      }
+      var start = minutesOf(startInput.value);
+      var end = minutesOf(endInput.value);
+      if (start === null || end === null) { clearHint(); return; }
+      if (end > start) { clearHint(); return; }
+      var corrected = start + AUTO_FINE_MINUTI;
+      var day = dateStartInput.value || dateEndInput.value || "";
+      if (corrected >= 24 * 60) {
+        // Oltre la mezzanotte: lascia decidere al server, qui non si inventa un giorno.
+        clearHint();
+        return;
+      }
+      endInput.value = pad2(Math.floor(corrected / 60)) + ":" + pad2(corrected % 60);
+      if (day && dateEndInput.value !== day) dateEndInput.value = day;
+      if (hint) {
+        hint.textContent = "L'ora di fine non era successiva all'inizio: impostata alle " + endInput.value + ".";
+        hint.hidden = false;
+      }
+      endInput.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    if (startInput) startInput.addEventListener("change", autoFixEndTime);
+    if (endInput) endInput.addEventListener("blur", autoFixEndTime);
 
     function applyShortcutLock() {
       var checked = document.querySelector('input[name="shortcut"]:checked');

@@ -31,6 +31,7 @@ from core.models import AuditLog
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from .constants import (
+    AUTO_FINE_MINUTI,
     TIPI_ASSENZA_STORAGE,
     TIPI_ASSENZA_UI,
     SHORTCUT_PRESETS,
@@ -501,84 +502,6 @@ def _load_dipendenti_attivi_list() -> list[dict]:
     return out
 
 
-def _anagrafica_employee_ids_for_capo(capo_anagrafica_id: int | None) -> set[int]:
-    """Restituisce gli id anagrafica dei dipendenti assegnati al caporeparto indicato.
-
-    È l'inverso di ``_resolve_anagrafica_hr_effective_capo_ids``: il legame
-    autoritativo è la catena canonica ``dipendente → area_aziendale → reparto``,
-    dove il responsabile dell'**area aziendale** vince sul caporeparto del
-    reparto. Per i dipendenti senza area canonica si ripiega sul campo
-    denormalizzato ``caporeparto_legacy_id`` e poi sul testo legacy del reparto.
-    """
-    if capo_anagrafica_id is None:
-        return set()
-    ids: set[int] = set()
-    try:
-        from django.db.models import Q
-
-        from anagrafica.models import AreaAziendale, DipendenteAnagraficaAziendale, Reparto
-
-        capo = int(capo_anagrafica_id)
-
-        # 1) Canonico: aree di cui è responsabile, più le aree senza
-        #    responsabile proprio il cui reparto ha lui come caporeparto.
-        aree_ids = set(
-            AreaAziendale.objects.filter(
-                Q(responsabile_legacy_id=capo)
-                | (
-                    (Q(responsabile_legacy_id__isnull=True) | Q(responsabile_legacy_id=0))
-                    & Q(reparto__caporeparto_legacy_id=capo)
-                )
-            ).values_list("id", flat=True)
-        )
-        if aree_ids:
-            ids.update(
-                int(v)
-                for v in DipendenteAnagraficaAziendale.objects.filter(
-                    area_aziendale_id__in=aree_ids
-                ).values_list("legacy_anagrafica_id", flat=True)
-                if v is not None
-            )
-
-        # 2) Fallback denormalizzato, solo per chi non ha area canonica.
-        ids.update(
-            int(v)
-            for v in DipendenteAnagraficaAziendale.objects.filter(
-                caporeparto_legacy_id=capo, area_aziendale__isnull=True
-            ).values_list("legacy_anagrafica_id", flat=True)
-            if v is not None
-        )
-
-        # 3) Fallback sul testo legacy del reparto, sempre solo per chi non ha
-        #    area canonica.
-        aree = [
-            str(nome).strip()
-            for nome in Reparto.objects.filter(
-                is_active=True, caporeparto_legacy_id=capo
-            ).values_list("nome", flat=True)
-            if str(nome or "").strip()
-        ]
-        if aree:
-            ids.update(
-                int(v)
-                for v in DipendenteAnagraficaAziendale.objects.filter(
-                    area__in=aree, area_aziendale__isnull=True
-                ).values_list("legacy_anagrafica_id", flat=True)
-                if v is not None
-            )
-    except Exception:
-        return set()
-    return ids
-
-
-def _load_dipendenti_for_capo(capo_anagrafica_id: int | None) -> list[dict]:
-    """Come ``_load_dipendenti_attivi_list`` ma ristretto al reparto del caporeparto."""
-    allowed = _anagrafica_employee_ids_for_capo(capo_anagrafica_id)
-    if not allowed:
-        return []
-    return [d for d in _load_dipendenti_attivi_list() if _as_int(d.get("id")) in allowed]
-
-
 def _blank_expr(expr: str) -> str:
     if _db_vendor() == "sqlite":
         return f"NULLIF(TRIM(COALESCE({expr}, '')), '')"
@@ -912,19 +835,12 @@ def _assenze_permissions(request) -> dict:
         manager_email=manager_email,
     )
 
-    # Ambito "inserimento per altri": l'Amministrazione (e i superuser) vede tutti i
-    # dipendenti; il Caporeparto è ristretto ai dipendenti del proprio reparto.
-    insert_for_others_scope = "all" if (can_insert_for_others and group == "AMMINISTRAZIONE") else (
-        "reparto" if can_insert_for_others else "none"
-    )
-    insert_capo_anagrafica_id: int | None = None
-    if insert_for_others_scope == "reparto":
-        insert_capo_anagrafica_id = _resolve_anagrafica_employee_id_for_user(
-            legacy_user_id=legacy_user_id,
-            email=manager_email,
-            username=request.user.get_username(),
-            name=manager_name,
-        )
+    # Ambito "inserimento per altri": Caporeparto e Amministrazione inseriscono per
+    # TUTTI i dipendenti, non solo per i propri. Gli altri profili solo per se'
+    # stessi. Il caporeparto che approva resta comunque quello del dipendente
+    # scelto (vedi `_effective_capo_option`): poter inserire non vuol dire
+    # approvare.
+    insert_for_others_scope = "all" if can_insert_for_others else "none"
 
     perms = {
         "group": group,
@@ -932,7 +848,6 @@ def _assenze_permissions(request) -> dict:
         "can_insert": can_insert,
         "can_insert_for_others": can_insert_for_others,
         "insert_for_others_scope": insert_for_others_scope,
-        "insert_capo_anagrafica_id": insert_capo_anagrafica_id,
         "can_view_calendar": can_view_calendar,
         "can_update_any": can_update_any,
         "can_update_owned": can_update_owned,
@@ -950,11 +865,8 @@ def _assenze_permissions(request) -> dict:
 def _insertable_dipendenti_for_request(request) -> list[dict]:
     """Elenco dipendenti per cui l'utente corrente può inserire una richiesta."""
     perms = _assenze_permissions(request)
-    scope = perms.get("insert_for_others_scope")
-    if scope == "all":
+    if perms.get("insert_for_others_scope") == "all":
         return _load_dipendenti_attivi_list()
-    if scope == "reparto":
-        return _load_dipendenti_for_capo(perms.get("insert_capo_anagrafica_id"))
     return []
 
 
@@ -963,14 +875,7 @@ def _can_insert_for_dipendente(request, anagrafica_id: int | None) -> bool:
     if anagrafica_id is None:
         return False
     perms = _assenze_permissions(request)
-    scope = perms.get("insert_for_others_scope")
-    if scope == "all":
-        return True
-    if scope == "reparto":
-        return int(anagrafica_id) in _anagrafica_employee_ids_for_capo(
-            perms.get("insert_capo_anagrafica_id")
-        )
-    return False
+    return perms.get("insert_for_others_scope") == "all"
 
 
 def _template_perm_context(request) -> dict:
@@ -1053,6 +958,74 @@ def _count_flessibilita_week(
     return count
 
 
+def _anagrafica_id_for_assenza_row(row: dict) -> int | None:
+    """Id anagrafica del dipendente di una riga `assenze` (per le regole per-persona)."""
+    if not row:
+        return None
+    return _resolve_anagrafica_employee_id_for_user(
+        legacy_user_id=_as_int(row.get("utente_id")),
+        email=str(row.get("email_esterna") or ""),
+        username=str(row.get("aliasusername") or ""),
+        name=str(row.get("copia_nome") or ""),
+    )
+
+
+def _flessibilita_config():
+    """Orari ammessi per la Flessibilita' (fail-safe sui default se il DB tace)."""
+    from .models import FlessibilitaImpostazioni
+
+    try:
+        return FlessibilitaImpostazioni.get_solo()
+    except Exception:
+        logger.warning("[assenze] impostazioni flessibilita' non leggibili, uso i default", exc_info=True)
+        return FlessibilitaImpostazioni(
+            orari_entrata=FlessibilitaImpostazioni.ENTRATE_DEFAULT,
+            orari_uscita=FlessibilitaImpostazioni.USCITE_DEFAULT,
+        )
+
+
+def _flessibilita_abilitati_ids() -> set[int]:
+    from .models import FlessibilitaAbilitato
+
+    try:
+        return {
+            int(v)
+            for v in FlessibilitaAbilitato.objects.values_list("legacy_anagrafica_id", flat=True)
+            if v is not None
+        }
+    except Exception:
+        logger.warning("[assenze] elenco abilitati flessibilita' non leggibile", exc_info=True)
+        return set()
+
+
+def _flessibilita_abilitata_per(anagrafica_id: int | None) -> bool:
+    """Fail-CLOSED: senza un id risolvibile la flessibilita' non si concede."""
+    if anagrafica_id is None:
+        return False
+    return int(anagrafica_id) in _flessibilita_abilitati_ids()
+
+
+def _autocorreggi_fine(dt_start: datetime | None, dt_end: datetime | None) -> tuple[datetime | None, str]:
+    """Riallinea la fine quando non e' successiva all'inizio.
+
+    Capitava di compilare l'orario al contrario (inizio 14:00, fine 09:00) e di
+    ricevere solo un errore secco. Quando la fine non e' successiva all'inizio la
+    si riporta a ``inizio + AUTO_FINE_MINUTI`` **sul giorno dell'inizio**, e si
+    restituisce l'avviso da mostrare a chi compila: il dato non cambia in
+    silenzio. Le richieste su piu' giorni (fine in una data successiva) non
+    vengono toccate.
+    """
+    if dt_start is None or dt_end is None:
+        return dt_end, ""
+    if dt_end > dt_start:
+        return dt_end, ""
+    corretta = dt_start + timedelta(minutes=AUTO_FINE_MINUTI)
+    return corretta, (
+        f"L'ora di fine non era successiva all'inizio: impostata automaticamente "
+        f"alle {corretta:%H:%M} del {corretta:%d/%m/%Y}."
+    )
+
+
 def _validate_business_rules(
     *,
     tipo: str,
@@ -1060,6 +1033,7 @@ def _validate_business_rules(
     dt_end: datetime | None,
     person_name: str = "",
     person_email: str = "",
+    person_anagrafica_id: int | None = None,
     exclude_item_id: int | None = None,
     shortcut=None,
 ) -> tuple[str, str]:
@@ -1093,6 +1067,30 @@ def _validate_business_rules(
         if (dt_start.hour, dt_start.minute, dt_end.hour, dt_end.minute) != (0, 0, 23, 59):
             return "Le ferie devono coprire giornate intere: orario 00:00-23:59.", ""
     if tipo_ui == "Flessibilità":
+        # La flessibilita' non spetta a tutti e non ha orari liberi: entrambe le
+        # regole sono configurate in Impostazioni (vedi FlessibilitaAbilitato /
+        # FlessibilitaImpostazioni).
+        if not _flessibilita_abilitata_per(person_anagrafica_id):
+            return (
+                "La flessibilità non è abilitata per questo dipendente: "
+                "l'Amministrazione può abilitarla dalle impostazioni del modulo.",
+                "",
+            )
+        conf = _flessibilita_config()
+        ora_inizio = dt_start.strftime("%H:%M")
+        ora_fine = dt_end.strftime("%H:%M")
+        if ora_inizio not in conf.entrate:
+            return (
+                "Orario di entrata non ammesso per la flessibilità: "
+                f"scegli fra {', '.join(conf.entrate)}.",
+                "",
+            )
+        if ora_fine not in conf.uscite:
+            return (
+                "Orario di uscita non ammesso per la flessibilità: "
+                f"scegli fra {', '.join(conf.uscite)}.",
+                "",
+            )
         diff_hours = (dt_end - dt_start).total_seconds() / 3600.0
         if diff_hours < 9:
             return "Devi fare almeno 8 ore lavorative più 1 ora di pausa: altrimenti usa Permesso.", ""
@@ -3922,6 +3920,17 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
     can_insert_for_others = perms.get("can_insert_for_others", False)
     dipendenti = _insertable_dipendenti_for_request(request) if can_insert_for_others else []
 
+    # Flessibilita: orari da Impostazioni e elenco degli abilitati. Il form li usa
+    # per proporre le sole combinazioni ammesse; la verifica resta lato server.
+    fless_conf = _flessibilita_config()
+    fless_abilitati = _flessibilita_abilitati_ids()
+    mio_anagrafica_id = _resolve_anagrafica_employee_id_for_user(
+        legacy_user_id=_legacy_id,
+        email=email,
+        username=request.user.get_username(),
+        name=display_name,
+    )
+
     merged_form = {
         "tipoassenza": "",
         "motivazione": "",
@@ -3970,6 +3979,10 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
             "form_data": merged_form,
             "submit_token": _build_submit_token(request, "assenze_invio"),
             "form_salta_approvazione": bool(_as_bool(merged_form.get("salta_approvazione"))),
+            "flessibilita_entrate": fless_conf.entrate,
+            "flessibilita_uscite": fless_conf.uscite,
+            "flessibilita_abilitati_ids": sorted(fless_abilitati),
+            "flessibilita_abilitato_io": mio_anagrafica_id in fless_abilitati,
             "ore_mattina_list": [f"{h:02d}" for h in range(6, 23)],
             "ore_pom_list":     [f"{h:02d}" for h in range(12, 24)],
             "minuti_list":      [f"{m:02d}" for m in range(0, 60, 5)],
@@ -4024,6 +4037,9 @@ def gestione_assenze(request):
     (`impostazioni_admin`), riservata all'HR-admin.
     """
     name, email, legacy_id = _legacy_identity(request)
+    perms = _assenze_permissions(request)
+    e_capo = bool(perms.get("can_update_owned") or perms.get("can_update_any"))
+
     richieste_da_approvare = _load_pending_for_manager(
         legacy_id,
         limit=40,
@@ -4032,14 +4048,31 @@ def gestione_assenze(request):
     )
     richieste_personali = _load_personal(name, email, limit=40)
 
+    # Le richieste dei propri dipendenti gia' decise: senza queste la pagina
+    # mostrava solo la coda da approvare, e appena approvata una richiesta
+    # spariva da qui senza lasciare traccia.
+    richieste_dipendenti_gestite = (
+        _load_gestite_for_manager(
+            legacy_id,
+            limit=40,
+            manager_name=name,
+            manager_email=email,
+        )
+        if e_capo
+        else []
+    )
+
     return render(
         request,
         "assenze/pages/gestione_assenze.html",
         {
             "richieste_personali": richieste_personali,
             "richieste_da_approvare": richieste_da_approvare,
+            "richieste_dipendenti_gestite": richieste_dipendenti_gestite,
+            "mostra_sezione_dipendenti": e_capo,
             "summary_personali": _summarize_personal_requests(richieste_personali),
             "summary_da_approvare": _summarize_pending_requests(richieste_da_approvare),
+            "summary_dipendenti_gestite": _summarize_pending_requests(richieste_dipendenti_gestite),
             "ruolo_corrente": "",
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_template_perm_context(request),
@@ -4062,6 +4095,9 @@ def impostazioni_admin(request):
         return redirect("assenze_gestione")
 
     if request.method == "POST":
+        if str(request.POST.get("form") or "").strip() == "flessibilita":
+            return _salva_impostazioni_flessibilita(request)
+
         branding_response = handle_module_branding_post(
             request,
             module_key="assenze",
@@ -4094,10 +4130,112 @@ def impostazioni_admin(request):
             "admin_audit_entries": admin_audit_entries,
             "admin_can_moderate": perms.get("can_update_any", False),
             "admin_can_delete": perms.get("can_delete_any", False),
+            **_flessibilita_admin_context(),
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_template_perm_context(request),
         },
     )
+
+
+def _flessibilita_admin_context() -> dict:
+    """Dati della sezione «Flessibilità» di Impostazioni."""
+    from .models import FlessibilitaAbilitato
+
+    conf = _flessibilita_config()
+    abilitati_ids = _flessibilita_abilitati_ids()
+    dipendenti = _load_dipendenti_attivi_list()
+    elenco = [
+        {
+            "id": _as_int(d.get("id")),
+            "full_name": d.get("full_name") or "",
+            "abilitato": _as_int(d.get("id")) in abilitati_ids,
+        }
+        for d in dipendenti
+        if _as_int(d.get("id")) is not None
+    ]
+    # Chi e' abilitato ma non compare fra gli attivi (es. cessato) resterebbe
+    # invisibile: lo mostriamo comunque, altrimenti non si potrebbe togliere.
+    noti = {row["id"] for row in elenco}
+    for orfano in FlessibilitaAbilitato.objects.exclude(legacy_anagrafica_id__in=noti):
+        elenco.append(
+            {
+                "id": orfano.legacy_anagrafica_id,
+                "full_name": orfano.nominativo or f"#{orfano.legacy_anagrafica_id}",
+                "abilitato": True,
+                "fuori_elenco": True,
+            }
+        )
+    elenco.sort(key=lambda row: str(row.get("full_name") or "").casefold())
+    return {
+        "flessibilita_orari_entrata": ", ".join(conf.entrate),
+        "flessibilita_orari_uscita": ", ".join(conf.uscite),
+        "flessibilita_dipendenti": elenco,
+        "flessibilita_abilitati_count": len(abilitati_ids),
+    }
+
+
+def _salva_impostazioni_flessibilita(request):
+    """Salva orari ammessi ed elenco degli abilitati alla flessibilità."""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from .models import FlessibilitaAbilitato, FlessibilitaImpostazioni
+
+    conf = FlessibilitaImpostazioni.get_solo()
+    entrate = FlessibilitaImpostazioni._parse(request.POST.get("orari_entrata"))
+    uscite = FlessibilitaImpostazioni._parse(request.POST.get("orari_uscita"))
+    if not entrate or not uscite:
+        messages.error(
+            request,
+            "Orari flessibilità non salvati: servono almeno un orario di entrata e uno di uscita, in formato HH:MM.",
+        )
+        return redirect("assenze_impostazioni")
+
+    conf.orari_entrata = ",".join(entrate)
+    conf.orari_uscita = ",".join(uscite)
+    conf.updated_by = (request.user.get_username() or "")[:200]
+    conf.save()
+
+    selezionati: set[int] = set()
+    for raw in request.POST.getlist("abilitati"):
+        value = _as_int(raw)
+        if value is not None and value > 0:
+            selezionati.add(value)
+
+    nomi = {
+        _as_int(d.get("id")): str(d.get("full_name") or "")
+        for d in _load_dipendenti_attivi_list()
+    }
+    precedenti = _flessibilita_abilitati_ids()
+    with transaction.atomic():
+        FlessibilitaAbilitato.objects.exclude(legacy_anagrafica_id__in=selezionati).delete()
+        for ana_id in sorted(selezionati - precedenti):
+            FlessibilitaAbilitato.objects.update_or_create(
+                legacy_anagrafica_id=ana_id,
+                defaults={
+                    "nominativo": (nomi.get(ana_id) or "")[:200],
+                    "created_by": (request.user.get_username() or "")[:200],
+                },
+            )
+
+    log_action(
+        request,
+        "impostazioni_flessibilita_salvate",
+        "assenze",
+        {
+            "orari_entrata": conf.orari_entrata,
+            "orari_uscita": conf.orari_uscita,
+            "abilitati": len(selezionati),
+            "aggiunti": sorted(selezionati - precedenti),
+            "rimossi": sorted(precedenti - selezionati),
+        },
+    )
+    messages.success(
+        request,
+        f"Flessibilità aggiornata: {len(selezionati)} dipendenti abilitati, "
+        f"entrata {', '.join(entrate)} · uscita {', '.join(uscite)}.",
+    )
+    return redirect("assenze_impostazioni")
 
 
 def _riconciliazione_csv(items, da, a):
@@ -4257,6 +4395,9 @@ def car_dashboard(request):
         "assenze/pages/car_dashboard.html",
         {
             "da_gestire": da_gestire,
+            # Solo i tipi effettivamente presenti in coda: una pillola che non
+            # filtra niente e' rumore.
+            "tipi_in_coda": sorted({str(r.get("tipo") or "").strip() for r in da_gestire if r.get("tipo")}),
             "gestite": gestite,
             "riepilogo_oggi": riepilogo_oggi,
             "riepilogo_settimana": riepilogo_settimana,
@@ -4538,12 +4679,14 @@ def api_evento_update(request, item_id: int | None = None):
 
     dt_start = _parse_input_dt(inizio_raw) if inizio_raw else current.get("data_inizio")
     dt_end = _parse_input_dt(fine_raw) if fine_raw else current.get("data_fine")
+    dt_end, auto_fine_msg = _autocorreggi_fine(dt_start, dt_end)
     err_msg, warn_msg = _validate_business_rules(
         tipo=tipo,
         dt_start=dt_start,
         dt_end=dt_end,
         person_name=str(current.get("copia_nome") or ""),
         person_email=str(current.get("email_esterna") or ""),
+        person_anagrafica_id=_anagrafica_id_for_assenza_row(current),
         exclude_item_id=target_id,
     )
     if err_msg:
@@ -4567,7 +4710,12 @@ def api_evento_update(request, item_id: int | None = None):
 
     sync_result = _sp_enqueue_upsert(target_id)
 
-    return JsonResponse({"ok": True, "item_id": target_id, "sync": sync_result, "warning": warn_msg})
+    return JsonResponse({
+        "ok": True,
+        "item_id": target_id,
+        "sync": sync_result,
+        "warning": " ".join(x for x in [auto_fine_msg, warn_msg] if x),
+    })
 
 
 @login_required
@@ -4716,6 +4864,7 @@ def api_mia_assenza_update(request, item_id: int):
 
     dt_start = _parse_input_dt(inizio_raw) if inizio_raw else current.get("data_inizio")
     dt_end = _parse_input_dt(fine_raw) if fine_raw else current.get("data_fine")
+    dt_end, auto_fine_msg = _autocorreggi_fine(dt_start, dt_end)
 
     err_msg, warn_msg = _validate_business_rules(
         tipo=tipo,
@@ -4723,6 +4872,7 @@ def api_mia_assenza_update(request, item_id: int):
         dt_end=dt_end,
         person_name=str(current.get("copia_nome") or ""),
         person_email=str(current.get("email_esterna") or ""),
+        person_anagrafica_id=_anagrafica_id_for_assenza_row(current),
         exclude_item_id=item_id,
     )
     if err_msg:
@@ -4744,7 +4894,12 @@ def api_mia_assenza_update(request, item_id: int):
 
     sync_result = _sp_enqueue_upsert(item_id)
 
-    return JsonResponse({"ok": True, "item_id": item_id, "warning": warn_msg, "sync": sync_result})
+    return JsonResponse({
+        "ok": True,
+        "item_id": item_id,
+        "warning": " ".join(x for x in [auto_fine_msg, warn_msg] if x),
+        "sync": sync_result,
+    })
 
 
 @login_required
@@ -4786,7 +4941,7 @@ def invio_placeholder(request):
         return _render_richiesta(request, error="Formato data/ora non valido.", form_data=request.POST.dict())
 
     dt_start = start_local
-    dt_end = end_local
+    dt_end, auto_fine_msg = _autocorreggi_fine(start_local, end_local)
 
     if tipo_ui == "Permesso" and dt_start.date() != dt_end.date():
         return _render_richiesta(
@@ -4806,13 +4961,14 @@ def invio_placeholder(request):
         if not _can_insert_for_dipendente(request, ana_id):
             return _render_richiesta(
                 request,
-                error="Non sei autorizzato a inserire richieste per questo dipendente (fuori dal tuo reparto).",
+                error="Non sei autorizzato a inserire richieste per un altro dipendente.",
                 form_data=request.POST.dict(),
             )
         identity = _resolve_employee_identity_from_anagrafica(ana_id)
         if not identity:
             return _render_richiesta(request, error="Dipendente selezionato non trovato in anagrafica.", form_data=request.POST.dict())
         display_name, email, legacy_id = identity
+        person_anagrafica_id = ana_id
         inserting_for_other = True
     else:
         display_name = _resolve_request_display_name(
@@ -4823,6 +4979,12 @@ def invio_placeholder(request):
         )
         email = inserter_email
         legacy_id = inserter_legacy_id
+        person_anagrafica_id = _resolve_anagrafica_employee_id_for_user(
+            legacy_user_id=legacy_id,
+            email=email,
+            username=request.user.get_username(),
+            name=display_name,
+        )
 
     err_msg, warn_msg = _validate_business_rules(
         tipo=tipo,
@@ -4830,8 +4992,10 @@ def invio_placeholder(request):
         dt_end=dt_end,
         person_name=display_name,
         person_email=email,
+        person_anagrafica_id=person_anagrafica_id,
         shortcut=shortcut,
     )
+    warn_msg = " ".join(x for x in [auto_fine_msg, warn_msg] if x)
     if err_msg:
         return _render_richiesta(request, error=err_msg, form_data=request.POST.dict())
 
