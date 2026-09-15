@@ -37,6 +37,7 @@ from django.db import models
 __all__ = [
     "RefertoIntakeConfig",
     "RefertoIntakeRiga",
+    "RequisitoVisitaDipendente",
     "AliasEsameProtocollo",
     "AliasEsitoIdoneita",
 ]
@@ -224,6 +225,12 @@ class RefertoIntakeRiga(models.Model):
         ("WEB", "Caricamento dalla pagina"),
         ("CARTELLA", "Cartella di acquisizione"),
     ]
+    TIPO_IDONEITA = "IDONEITA"
+    TIPO_OCULISTICA = "OCULISTICA"
+    TIPO_REFERTO_CHOICES = [
+        (TIPO_IDONEITA, "Certificato di idoneità"),
+        (TIPO_OCULISTICA, "Certificato oculistico"),
+    ]
 
     # ── Il file ────────────────────────────────────────────────────────────────
     nome_file = models.CharField(max_length=255, blank=True, default="")
@@ -244,6 +251,11 @@ class RefertoIntakeRiga(models.Model):
                   "una pagina con blocco anagrafico è un certificato a sé.",
     )
     origine = models.CharField(max_length=10, choices=ORIGINE_CHOICES, default="WEB")
+    tipo_referto = models.CharField(
+        max_length=12, choices=TIPO_REFERTO_CHOICES, default=TIPO_IDONEITA,
+        help_text="Certificato di idoneità (stampato, letto per intero) o certificato "
+                  "oculistico (data, nome ed esito scritti a mano: si completano in coda).",
+    )
 
     esito = models.CharField(
         max_length=15, choices=ESITO_CHOICES, default=ESITO_DA_RIVEDERE, db_index=True
@@ -306,8 +318,15 @@ class RefertoIntakeRiga(models.Model):
 
     visite_create = models.PositiveSmallIntegerField(
         default=0,
-        help_text="Quante VisitaMedica sono nate da questa riga: un certificato porta "
-                  "un intero protocollo, non una visita sola.",
+        help_text="Quante VisitaMedica sono nate da questa riga: al più una. Il "
+                  "protocollo sanitario del certificato elenca i requisiti del "
+                  "lavoratore, non esami svolti in quella data.",
+    )
+    tipo_visita_scelto = models.ForeignKey(
+        "anagrafica.TipoVisitaMedica",
+        null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+        help_text="Per i certificati oculistici: il tipo di visita confermato in coda "
+                  "(il certificato non riporta la periodicità).",
     )
     visite_associate = models.PositiveSmallIntegerField(
         default=0,
@@ -350,6 +369,56 @@ class RefertoIntakeRiga(models.Model):
     @property
     def da_rivedere(self) -> bool:
         return self.esito == self.ESITO_DA_RIVEDERE
+
+    @property
+    def e_oculistica(self) -> bool:
+        return self.tipo_referto == self.TIPO_OCULISTICA
+
+
+class RequisitoVisitaDipendente(models.Model):
+    """Una visita a cui il dipendente è soggetto, dal protocollo del suo certificato.
+
+    Il «PROTOCOLLO SANITARIO» del certificato di idoneità lo stabilisce il medico
+    competente in base a mansione, rischi ed età (D.Lgs 81/08 art. 41): è la fonte
+    legale di *quali* visite il lavoratore deve fare e con che cadenza. Non dice
+    che quelle visite siano state fatte — per quello servono le ``VisitaMedica``.
+
+    Vale il protocollo dell'**ultimo** certificato: quando ne arriva uno più
+    recente i requisiti precedenti restano come storico (``attivo=False``) e quelli
+    nuovi prendono il loro posto. Un certificato più vecchio dell'ultimo registrato
+    aggiunge solo storico.
+
+    ``tipo`` vuoto = esame letto ma non ancora mappato a catalogo: resta visibile,
+    ma non entra nello scadenzario finché non lo si mappa.
+    """
+
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    tipo = models.ForeignKey(
+        "anagrafica.TipoVisitaMedica",
+        null=True, blank=True, on_delete=models.SET_NULL, related_name="requisiti_dipendente",
+    )
+    esame = models.CharField(max_length=200, help_text="L'esame come è scritto sul certificato.")
+    periodicita = models.CharField(max_length=20, blank=True, default="")
+    data_certificato = models.DateField(help_text="Data del giudizio del certificato di provenienza.")
+    riga = models.ForeignKey(
+        RefertoIntakeRiga,
+        null=True, blank=True, on_delete=models.SET_NULL, related_name="requisiti",
+    )
+    attivo = models.BooleanField(
+        default=True, db_index=True,
+        help_text="Appartiene al protocollo dell'ultimo certificato del dipendente.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["legacy_anagrafica_id", "-data_certificato", "esame"]
+        indexes = [models.Index(fields=["legacy_anagrafica_id", "attivo"])]
+        verbose_name = "Requisito di visita del dipendente"
+        verbose_name_plural = "Requisiti di visita dei dipendenti"
+
+    def __str__(self) -> str:
+        cadenza = f" {self.periodicita}" if self.periodicita else ""
+        return f"[{self.legacy_anagrafica_id}] {self.esame}{cadenza} ({self.data_certificato})"
 
 
 class AliasEsameProtocollo(models.Model):

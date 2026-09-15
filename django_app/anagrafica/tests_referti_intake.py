@@ -258,7 +258,7 @@ class MatchTests(TestCase):
 
 
 class RegistrazioneTests(TestCase):
-    """Dalla lettura alle visite: N visite, periodicità dal catalogo, atomicità."""
+    """Dalla lettura alla visita: UNA visita per certificato, il protocollo come requisiti."""
 
     def setUp(self):
         self.medica = TipoVisitaMedica.objects.create(nome="Visita Medica", durata_mesi=12)
@@ -286,32 +286,36 @@ class RegistrazioneTests(TestCase):
         campi.update(extra)
         return RefertoIntakeRiga.objects.create(**campi)
 
-    def test_un_certificato_genera_una_visita_per_esame(self):
+    def test_un_certificato_genera_una_sola_visita_e_i_requisiti(self):
+        """Il protocollo elenca i requisiti, non esami svolti: la visita è solo la «Visita Medica»."""
+        from .models_sorveglianza import RequisitoVisitaDipendente
+
         create = registra(self._riga(), utente=self.utente)
-        self.assertEqual(len(create), 2)
-        self.assertEqual(VisitaMedica.objects.filter(legacy_anagrafica_id=10).count(), 2)
+        self.assertEqual(len(create), 1)
+        self.assertEqual(VisitaMedica.objects.filter(legacy_anagrafica_id=10).get().tipo, self.medica)
+        self.assertFalse(VisitaMedica.objects.filter(tipo=self.oculistica).exists())
+        requisiti = RequisitoVisitaDipendente.objects.filter(legacy_anagrafica_id=10, attivo=True)
+        self.assertEqual({r.tipo_id for r in requisiti}, {self.medica.id, self.oculistica.id})
 
     def test_la_scadenza_viene_dal_catalogo_non_dal_certificato(self):
         registra(self._riga(), utente=self.utente)
         medica = VisitaMedica.objects.get(tipo=self.medica)
-        oculistica = VisitaMedica.objects.get(tipo=self.oculistica)
         self.assertEqual(medica.data_scadenza, date(2025, 3, 15))    # 12 mesi
-        self.assertEqual(oculistica.data_scadenza, date(2026, 3, 15))  # 24 mesi
 
     def test_periodicita_divergente_non_blocca_ma_viene_segnalata(self):
         """Il medico dichiara una cadenza diversa: vince il catalogo, ma si dice."""
-        self.oculistica.durata_mesi = 36
-        self.oculistica.save()
+        self.medica.durata_mesi = 24
+        self.medica.save()
         riga = self._riga()
         registra(riga, utente=self.utente)
         riga.refresh_from_db()
         self.assertTrue(riga.divergenze)
         divergenza = riga.divergenze[0]
-        self.assertEqual(divergenza["certificato_mesi"], 24)
-        self.assertEqual(divergenza["catalogo_mesi"], 36)
+        self.assertEqual(divergenza["certificato_mesi"], 12)
+        self.assertEqual(divergenza["catalogo_mesi"], 24)
         # La scadenza resta quella del catalogo.
         self.assertEqual(
-            VisitaMedica.objects.get(tipo=self.oculistica).data_scadenza, date(2027, 3, 15)
+            VisitaMedica.objects.get(tipo=self.medica).data_scadenza, date(2026, 3, 15)
         )
 
     def test_il_referto_e_uno_solo_e_condiviso_da_tutte_le_visite(self):
@@ -319,14 +323,30 @@ class RegistrazioneTests(TestCase):
         documenti = {v.referto_documento_id for v in create}
         self.assertEqual(len(documenti), 1)
 
-    def test_esame_fuori_catalogo_ferma_tutto_senza_inventare_il_tipo(self):
+    def test_requisito_fuori_catalogo_non_blocca_e_non_inventa_il_tipo(self):
+        from .models_sorveglianza import RequisitoVisitaDipendente
+
         riga = self._riga(letto_protocollo=[
             {"esame": "Visita Medica", "periodicita": "annuale"},
             {"esame": "Esame Mai Visto", "periodicita": "annuale"},
         ])
+        registra(riga, utente=self.utente)
+        self.assertEqual(VisitaMedica.objects.count(), 1)
+        ignoto = RequisitoVisitaDipendente.objects.get(esame="Esame Mai Visto")
+        self.assertIsNone(ignoto.tipo)
+        riga.refresh_from_db()
+        self.assertIn("non a catalogo", riga.messaggio)
+
+    def test_senza_riga_visita_medica_non_si_registra_niente(self):
+        riga = self._riga(letto_protocollo=[{"esame": "Visita Oculistica", "periodicita": "biennale"}])
         with self.assertRaises(ErroreRegistrazione):
             registra(riga, utente=self.utente)
-        # Atomicità: nessuna visita creata, nemmeno quella riconosciuta.
+        self.assertEqual(VisitaMedica.objects.count(), 0)
+
+    def test_visita_medica_fuori_catalogo_blocca(self):
+        self.medica.delete()
+        with self.assertRaises(ErroreRegistrazione):
+            registra(self._riga(), utente=self.utente)
         self.assertEqual(VisitaMedica.objects.count(), 0)
 
     def test_giudizio_non_mappato_ferma_la_registrazione(self):
@@ -347,17 +367,22 @@ class RegistrazioneTests(TestCase):
 
     def test_doppione_logico_non_crea_una_seconda_volta(self):
         registra(self._riga(), utente=self.utente)
-        with self.assertRaises(ErroreRegistrazione):
-            registra(self._riga(sha256="b" * 64), utente=self.utente)
-        self.assertEqual(VisitaMedica.objects.count(), 2)
+        create = registra(self._riga(sha256="b" * 64), utente=self.utente)
+        self.assertEqual(create, [])
+        self.assertEqual(VisitaMedica.objects.count(), 1)
 
-    def test_registrazione_parziale_quando_solo_un_tipo_e_gia_presente(self):
+    def test_visita_gia_presente_aggiorna_comunque_i_requisiti(self):
+        from .models_sorveglianza import RequisitoVisitaDipendente
+
         VisitaMedica.objects.create(
             legacy_anagrafica_id=10, tipo=self.medica, data_svolgimento=date(2024, 3, 15)
         )
-        create = registra(self._riga(), utente=self.utente)
-        self.assertEqual(len(create), 1)
-        self.assertEqual(create[0].tipo, self.oculistica)
+        riga = self._riga()
+        self.assertEqual(registra(riga, utente=self.utente), [])
+        self.assertEqual(VisitaMedica.objects.count(), 1)
+        self.assertEqual(RequisitoVisitaDipendente.objects.filter(attivo=True).count(), 2)
+        riga.refresh_from_db()
+        self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_OK)
 
     def test_data_vicina_si_aggancia_invece_di_duplicare(self):
         """Visita già registrata (Giornata visite) 2 giorni prima del giudizio."""
@@ -367,11 +392,9 @@ class RegistrazioneTests(TestCase):
         )
         create = registra(self._riga(), utente=self.utente)
         esistente.refresh_from_db()
-        # Solo l'oculistica è nuova; la medica si è agganciata a quella esistente.
-        self.assertEqual(len(create), 2)
+        # La medica si è agganciata a quella esistente invece di duplicarla.
+        self.assertEqual(create, [esistente])
         self.assertEqual(VisitaMedica.objects.filter(tipo=self.medica).count(), 1)
-        nuova_oculistica = next(v for v in create if v.tipo_id == self.oculistica.id)
-        self.assertEqual(esistente.referto_documento_id, nuova_oculistica.referto_documento_id)
         self.assertIn("agganciato", esistente.note)
         # La data e l'esito originali non vengono toccati.
         self.assertEqual(esistente.data_svolgimento, date(2024, 3, 13))
@@ -383,7 +406,7 @@ class RegistrazioneTests(TestCase):
             data_svolgimento=date(2024, 2, 1),  # oltre 7 giorni dal 15/3
         )
         create = registra(self._riga(), utente=self.utente)
-        self.assertEqual(len(create), 2)
+        self.assertEqual(len(create), 1)
         self.assertEqual(VisitaMedica.objects.filter(tipo=self.medica).count(), 2)
 
     def test_visita_gia_agganciata_non_viene_riusata(self):
@@ -402,7 +425,7 @@ class RegistrazioneTests(TestCase):
             data_svolgimento=date(2024, 3, 14), referto_documento=altro_doc,
         )
         create = registra(self._riga(), utente=self.utente)
-        self.assertEqual(len(create), 2)
+        self.assertEqual(len(create), 1)
         self.assertEqual(VisitaMedica.objects.filter(tipo=self.medica).count(), 2)
 
     def test_soglia_zero_disattiva_l_associazione(self):
@@ -421,7 +444,7 @@ class RegistrazioneTests(TestCase):
         self.assertEqual(riga.confermato_da, self.utente)
         self.assertIsNotNone(riga.confermato_il)
         self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_OK)
-        self.assertEqual(riga.visite_create, 2)
+        self.assertEqual(riga.visite_create, 1)
 
     def test_la_periodicita_sceglie_fra_i_tipi_omonimi_del_catalogo(self):
         """A catalogo la stessa visita esiste per cadenza: la scadenza dipende da qui."""

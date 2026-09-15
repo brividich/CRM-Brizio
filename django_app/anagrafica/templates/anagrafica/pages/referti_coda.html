@@ -153,7 +153,9 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
           <div class="rf-file">{{ riga.nome_file }}{% if riga.pagina > 1 %} · pagina {{ riga.pagina }}{% endif %}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-          {% if riga.pronto %}
+          {% if riga.e_oculistica %}
+            <span class="rf-tag rf-neutro">certificato oculistico</span>
+          {% elif riga.pronto %}
             <span class="rf-tag rf-si">pronto</span>
           {% elif riga.nominativo_da_ripiego %}
             <span class="rf-tag rf-no">nome dalla firma</span>
@@ -168,6 +170,39 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
       <div class="rf-corpo">
         {% if riga.messaggio %}<div class="rf-motivo">{{ riga.messaggio }}</div>{% endif %}
 
+        {% if riga.e_oculistica %}
+        <div class="rf-griglia">
+          <div>
+            <label class="rf-et" for="rf-data-{{ riga.pk }}">Data della visita (scritta a mano)</label>
+            <div class="rf-val">
+              <input type="date" name="data_visita_{{ riga.pk }}" id="rf-data-{{ riga.pk }}" class="rf-input"
+                     value="{{ riga.letto_data_giudizio|date:'Y-m-d' }}">
+              {% if riga.anno_file %}<div style="font-size:12px;opacity:.7;margin-top:2px;">Anno nel nome del file: {{ riga.anno_file }}</div>{% endif %}
+            </div>
+          </div>
+          <div>
+            <label class="rf-et" for="rf-tipo-{{ riga.pk }}">Tipo di visita</label>
+            <div class="rf-val">
+              <select name="tipo_visita_{{ riga.pk }}" id="rf-tipo-{{ riga.pk }}" class="rf-input">
+                <option value="">— dal requisito oculistico del dipendente —</option>
+                {% for t in tipi_oculistici %}
+                <option value="{{ t.pk }}" {% if t.pk == riga.tipo_visita_proposto_id %}selected{% endif %}>{{ t.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="rf-et" for="rf-esito-{{ riga.pk }}">Esito</label>
+            <div class="rf-val">
+              <select name="esito_visita_{{ riga.pk }}" id="rf-esito-{{ riga.pk }}" class="rf-input">
+                {% for valore, etichetta in esiti_visita %}
+                <option value="{{ valore }}" {% if valore == esito_predefinito %}selected{% endif %}>{{ etichetta }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        {% else %}
         <div class="rf-griglia">
           <div>
             <div class="rf-et">Data del giudizio</div>
@@ -196,18 +231,22 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
           </div>
         </div>
 
-        {% if riga.letto_protocollo %}
+        {% if riga.protocollo_marcato %}
         <div>
           <div class="rf-et">Protocollo sanitario</div>
           <ul class="rf-prot">
-            {% for voce in riga.letto_protocollo %}
-            <li>{{ voce.esame }} — {{ voce.periodicita }}</li>
+            {% for voce in riga.protocollo_marcato %}
+            <li>{{ voce.esame }} — {{ voce.periodicita }}
+              {% if voce.e_visita %}<span class="rf-tag rf-si">visita svolta</span>{% else %}<span class="rf-tag rf-neutro">requisito</span>{% endif %}
+            </li>
             {% endfor %}
           </ul>
           <div style="font-size:12px;opacity:.7;margin-top:4px;">
-            La scadenza viene calcolata dal catalogo, non dalla periodicità scritta sul certificato.
+            Si registra una sola visita, la «Visita Medica»: le altre righe sono i requisiti del
+            dipendente. La scadenza viene calcolata dal catalogo.
           </div>
         </div>
+        {% endif %}
         {% endif %}
 
         {% if riga.divergenze %}
@@ -235,6 +274,12 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
               </option>
               {% endif %}
             {% endfor %}
+            {% if not riga.legacy_anagrafica_id_proposto and not riga.candidati %}
+              <option value="">— scegli il dipendente —</option>
+              {% for lid, nominativo in tutti_i_dipendenti %}
+              <option value="{{ lid }}">{{ nominativo }}</option>
+              {% endfor %}
+            {% endif %}
           </select>
           <button type="submit" class="hr-btn hr-btn-primary"
                   data-singola="{{ riga.pk }}">Conferma e registra</button>

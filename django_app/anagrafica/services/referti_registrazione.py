@@ -1,33 +1,46 @@
-"""Dal referto letto alle visite registrate.
+"""Dal referto letto alla visita registrata e ai requisiti del dipendente.
 
-UN CERTIFICATO NON È UNA VISITA
+UN CERTIFICATO DI IDONEITÀ È UNA VISITA SOLA
 
-È la cosa che sorprende di più di questo documento: il certificato di idoneità
-porta un intero **protocollo sanitario**, cioè più esami, ciascuno con la propria
-cadenza — visita medica annuale, oculistica biennale, antitetanica decennale. Da
-un solo PDF nascono quindi più ``VisitaMedica``, tutte con la stessa data di
-svolgimento e scadenze diverse. Trattarlo come «una visita» significherebbe
-perdere le altre e lasciare scoperte le scadenze che nessuno vede.
+Il «PROTOCOLLO SANITARIO» stampato sul certificato **non** elenca esami svolti in
+quella data: è il protocollo a cui il lavoratore è soggetto, deciso dal medico
+competente in base a mansione, rischi ed età (D.Lgs 81/08 art. 41). La visita
+svolta alla data del giudizio è una: la riga «Visita Medica», con la sua cadenza.
+Le altre righe — oculistica, spirometria, antitetanica, esami ematici… — sono
+**requisiti**: visite che il dipendente deve fare, non visite fatte.
+
+Una prima versione creava una ``VisitaMedica`` per ogni riga del protocollo: dati
+sanitari falsi (un'antitetanica «fatta» con scadenza a dieci anni), annullati in
+produzione il 15/09/2026. Da qui la regola, che non va riaperta.
+
+I REQUISITI SEGUONO L'ULTIMO CERTIFICATO
+
+Tutte le righe del protocollo, «Visita Medica» compresa, diventano
+``RequisitoVisitaDipendente``. Il certificato più recente sostituisce i requisiti
+del precedente, che restano come storico: se il medico cambia il protocollo
+(nuova mansione, età), lo scadenzario lo segue. Un esame dei requisiti non a
+catalogo **non blocca** la registrazione della visita: resta con ``tipo`` vuoto e
+viene segnalato, finché non lo si mappa.
 
 LA PERIODICITÀ VIENE DAL CATALOGO
 
 La scadenza la calcola ``VisitaMedica.save()`` da ``TipoVisitaMedica.durata_mesi``,
-come per ogni altra visita registrata a mano. Una sola regola in tutto il sistema,
-nessun percorso privilegiato per i referti automatici.
+come per ogni altra visita. Se il medico dichiara una cadenza diversa da quella a
+catalogo la divergenza viene registrata e mostrata, non sovrascritta in silenzio.
 
-Il che **non** vuol dire ignorare quello che c'è scritto sul certificato: se il
-medico dichiara una cadenza diversa da quella a catalogo, la visita si crea
-comunque col valore del catalogo, ma la divergenza viene registrata e mostrata.
-Una divergenza significa che il protocollo è cambiato, ed è un'informazione che
-deve raggiungere una persona invece di essere sovrascritta in silenzio.
+IL CERTIFICATO OCULISTICO
+
+Modulo prestampato con data, nome, valori e giudizio **scritti a mano**. L'OCR non
+li legge in modo affidabile e la frase «non si rilevano controindicazioni» è
+stampata su ogni modulo: data ed esito li inserisce chi revisiona guardando la
+scansione. Il tipo di visita si propone dal requisito oculistico del dipendente
+(il certificato non riporta la cadenza).
 
 QUELLO CHE NON SI INVENTA
 
-Un esame che non trova corrispondenza a catalogo non diventa un tipo nuovo, e un
-giudizio che non si riconosce non diventa l'esito più somigliante. In entrambi i
-casi si va in revisione: inventare un tipo significa inventare una scadenza, e
-scegliere «il più simile» fra «idoneo con prescrizioni» e «idoneo con
-limitazioni» significa cambiare cosa può fare una persona al lavoro.
+Una visita senza la riga «Visita Medica» riconosciuta, un giudizio che non si
+riconosce, una data che manca: si va in revisione. Inventare un tipo significa
+inventare una scadenza.
 """
 from __future__ import annotations
 
@@ -46,6 +59,9 @@ __all__ = [
     "prepara_registrazione",
     "registra",
     "ErroreRegistrazione",
+    "aggiorna_requisiti",
+    "tipo_oculistico_da_requisiti",
+    "e_riga_visita_medica",
 ]
 
 
@@ -55,21 +71,30 @@ class ErroreRegistrazione(Exception):
 
 @dataclass
 class PianoRegistrazione:
-    """Cosa verrebbe creato, prima di crearlo.
+    """Cosa verrebbe registrato, prima di registrarlo.
 
-    Esiste separato dall'esecuzione perché la coda di revisione deve poter
-    *mostrare* l'effetto di una conferma senza produrlo: chi revisiona vede le
-    visite che nascerebbero, con le loro scadenze, e poi decide.
+    ``visita_tipo`` è la visita svolta (la riga «Visita Medica»); ``requisiti`` sono
+    tutte le righe del protocollo, con il tipo a catalogo se riconosciuto.
+    ``ostacoli`` bloccano la registrazione; ``esami_ignoti`` (requisiti non a
+    catalogo) no.
     """
 
-    tipi: list = field(default_factory=list)          # [(TipoVisitaMedica, dict esame)]
+    visita_tipo: object = None
+    visita_voce: dict | None = None
+    requisiti: list = field(default_factory=list)      # [(TipoVisitaMedica | None, voce)]
     esito: str = ""
     divergenze: list[dict] = field(default_factory=list)
     esami_ignoti: list[str] = field(default_factory=list)
+    ostacoli: list[str] = field(default_factory=list)
 
     @property
     def completo(self) -> bool:
-        return bool(self.tipi) and bool(self.esito) and not self.esami_ignoti
+        return not self.ostacoli
+
+    @property
+    def tipi(self) -> list:
+        """Righe del protocollo riconosciute a catalogo: [(tipo, voce)]."""
+        return [(t, v) for t, v in self.requisiti if t is not None]
 
 
 def _mappa_esami() -> dict[tuple[str, str], int]:
@@ -104,6 +129,9 @@ def _mappa_esiti() -> dict[str, str]:
 # riquadro letti come lettere. Non «qualsiasi lettera»: «Epatite B» deve restare tale.
 _SPORCO_FINALE_ESAME = re.compile(r"^(.*\S)\s+(?:\d{1,3}|F\d?|FI|I)$")
 
+# La riga della visita svolta: «Visita Medica», «Vis. medica», «Visita medica periodica».
+_RIGA_VISITA_MEDICA = re.compile(r"^VIS(?:ITA)?\s+MEDICA\b")
+
 
 def ripulisci_esame(testo: str) -> str:
     """Il nome dell'esame senza gli strascichi che l'OCR gli attacca in coda.
@@ -136,6 +164,11 @@ def ripulisci_giudizio(testo: str) -> str:
     return " ".join(compatte)
 
 
+def e_riga_visita_medica(voce: dict) -> bool:
+    """La riga del protocollo che corrisponde alla visita svolta alla data del giudizio."""
+    return bool(_RIGA_VISITA_MEDICA.match(ripulisci_esame(voce.get("esame", ""))))
+
+
 def _tipi_per_nome() -> dict[str, int]:
     """Il catalogo stesso vale come alias: se il medico scrive esattamente il nome
     che abbiamo a catalogo, non c'è ragione di pretendere una riga di mappatura."""
@@ -149,7 +182,7 @@ def _tipi_per_nome() -> dict[str, int]:
 
 
 def prepara_registrazione(campi) -> PianoRegistrazione:
-    """Traduce quello che si è letto in tipi a catalogo ed esito in codice.
+    """Traduce quello che si è letto: visita svolta, requisiti, esito.
 
     Non tocca il database in scrittura e non solleva: descrive.
     """
@@ -161,6 +194,7 @@ def prepara_registrazione(campi) -> PianoRegistrazione:
     per_nome = _tipi_per_nome()
     tipi_cache = {t.id: t for t in TipoVisitaMedica.objects.filter(is_active=True)}
 
+    righe_visita = []
     for voce in (campi.protocollo or []):
         cadenza = (voce.get("periodicita") or "").lower()
         # Prima la riga per la cadenza esatta, poi quella generica, infine il
@@ -177,27 +211,48 @@ def prepara_registrazione(campi) -> PianoRegistrazione:
             if tipo_id:
                 break
         tipo = tipi_cache.get(tipo_id) if tipo_id else None
-        if tipo is None:
+        piano.requisiti.append((tipo, voce))
+        if e_riga_visita_medica(voce):
+            righe_visita.append((tipo, voce))
+        elif tipo is None:
             piano.esami_ignoti.append(voce.get("esame", ""))
-            continue
 
-        piano.tipi.append((tipo, voce))
-
-        # Confronto fra la cadenza dichiarata dal medico e quella a catalogo.
-        mesi_certificato = PERIODICITA_NOTE.get((voce.get("periodicita") or "").lower())
-        if mesi_certificato and tipo.durata_mesi and mesi_certificato != tipo.durata_mesi:
-            piano.divergenze.append({
-                "esame": voce.get("esame", ""),
-                "tipo": tipo.nome,
-                "certificato_mesi": mesi_certificato,
-                "catalogo_mesi": tipo.durata_mesi,
-            })
+    cadenze_visita = {(v.get("periodicita") or "").lower() for _t, v in righe_visita}
+    if not righe_visita:
+        piano.ostacoli.append(
+            "Nel protocollo sanitario non c'è la riga «Visita Medica»: non si sa quale "
+            "visita sia stata svolta."
+        )
+    elif len(cadenze_visita) > 1:
+        piano.ostacoli.append(
+            "Più righe «Visita Medica» con cadenze diverse: va scelta a mano."
+        )
+    else:
+        tipo, voce = righe_visita[0]
+        piano.visita_voce = voce
+        if tipo is None:
+            piano.ostacoli.append(
+                f"«{voce.get('esame', '')} {voce.get('periodicita', '')}» non è a catalogo: "
+                "va mappata negli alias prima di registrare."
+            )
+        else:
+            piano.visita_tipo = tipo
+            mesi_certificato = PERIODICITA_NOTE.get((voce.get("periodicita") or "").lower())
+            if mesi_certificato and tipo.durata_mesi and mesi_certificato != tipo.durata_mesi:
+                piano.divergenze.append({
+                    "esame": voce.get("esame", ""),
+                    "tipo": tipo.nome,
+                    "certificato_mesi": mesi_certificato,
+                    "catalogo_mesi": tipo.durata_mesi,
+                })
 
     alias_esiti = _mappa_esiti()
     piano.esito = (
         alias_esiti.get(normalizza(campi.esito_testo or ""), "")
         or alias_esiti.get(ripulisci_giudizio(campi.esito_testo or ""), "")
     )
+    if not piano.esito:
+        piano.ostacoli.append(f"Giudizio «{campi.esito_testo or '—'}» non riconosciuto.")
 
     return piano
 
@@ -242,24 +297,156 @@ def _trova_visita_da_associare(*, legacy_id: int, tipo_id: int, data_giudizio, t
     return min(candidate, key=lambda v: abs((v.data_svolgimento - data_giudizio).days))
 
 
-@transaction.atomic
-def registra(riga, *, utente=None, legacy_id: int | None = None):
-    """Crea le visite del protocollo e archivia il referto nel fascicolo.
+def _registra_visita(*, legacy_id, tipo, data, esito, documento, note, utente):
+    """Una visita: nuova, agganciata a una già presente, o già presente.
 
-    Atomica per necessità, non per prudenza: un protocollo registrato a metà
-    lascerebbe scadenze scoperte che nessuno sa mancanti, ed è peggio di un
-    referto che torna in coda.
+    Ritorna ``(stato, visita)`` con stato «creata» / «agganciata» / «presente».
+    Stesso dipendente, tipo e data = la stessa visita (magari registrata a mano):
+    non se ne crea una seconda, al più le si aggancia il referto. Entro la
+    tolleranza, una visita senza referto è lo stesso evento con la data scritta
+    un giorno prima o dopo: la data registrata non si tocca.
+    """
+    from ..models import VisitaMedica
+    from ..models_sorveglianza import RefertoIntakeConfig
+
+    presente = (
+        VisitaMedica.objects
+        .filter(legacy_anagrafica_id=legacy_id, tipo=tipo, data_svolgimento=data)
+        .order_by("pk").first()
+    )
+    if presente is not None:
+        if presente.referto_documento_id is None and documento is not None:
+            presente.referto_documento = documento
+            presente.updated_by = utente
+            presente.save(update_fields=["referto_documento", "updated_by", "updated_at"])
+            return "agganciata", presente
+        return "presente", presente
+
+    tolleranza = RefertoIntakeConfig.load().giorni_tolleranza_associazione
+    candidata = _trova_visita_da_associare(
+        legacy_id=legacy_id, tipo_id=tipo.id, data_giudizio=data, tolleranza=tolleranza,
+    )
+    if candidata is not None:
+        scarto_giorni = abs((candidata.data_svolgimento - data).days)
+        nota = (
+            f"Referto agganciato: giudizio del {data:%d/%m/%Y}"
+            + (f", {scarto_giorni} giorni dopo la data registrata" if scarto_giorni else "")
+            + "."
+        )
+        candidata.referto_documento = documento
+        candidata.note = (candidata.note + " " + nota).strip() if candidata.note else nota
+        candidata.updated_by = utente
+        candidata.save(update_fields=["referto_documento", "note", "updated_by", "updated_at"])
+        return "agganciata", candidata
+
+    visita = VisitaMedica(
+        legacy_anagrafica_id=legacy_id,
+        tipo=tipo,
+        data_svolgimento=data,
+        esito=esito,
+        medico_competente="",
+        note=note,
+        referto_documento=documento,
+        created_by=utente,
+        updated_by=utente,
+    )
+    visita.save()  # la scadenza la calcola save() dal catalogo
+    return "creata", visita
+
+
+def aggiorna_requisiti(legacy_id: int, data_certificato, requisiti, riga=None) -> bool:
+    """Registra il protocollo del certificato come requisiti del dipendente.
+
+    Ritorna ``True`` se è diventato il protocollo in vigore (certificato non più
+    vecchio dell'ultimo registrato), ``False`` se è finito solo nello storico.
+    """
+    from django.db.models import Max
+
+    from ..models_sorveglianza import RequisitoVisitaDipendente
+
+    ultimo = (
+        RequisitoVisitaDipendente.objects
+        .filter(legacy_anagrafica_id=legacy_id)
+        .aggregate(m=Max("data_certificato"))["m"]
+    )
+    in_vigore = ultimo is None or data_certificato >= ultimo
+    if in_vigore:
+        RequisitoVisitaDipendente.objects.filter(
+            legacy_anagrafica_id=legacy_id, attivo=True,
+        ).update(attivo=False)
+    RequisitoVisitaDipendente.objects.bulk_create([
+        RequisitoVisitaDipendente(
+            legacy_anagrafica_id=legacy_id,
+            tipo=tipo,
+            esame=(voce.get("esame") or "")[:200],
+            periodicita=(voce.get("periodicita") or "")[:20],
+            data_certificato=data_certificato,
+            riga=riga,
+            attivo=in_vigore,
+        )
+        for tipo, voce in requisiti
+    ])
+    return in_vigore
+
+
+def tipo_oculistico_da_requisiti(legacy_id: int, data=None):
+    """Il tipo di visita oculistica richiesto al dipendente, dai suoi requisiti.
+
+    Con una data: il requisito del certificato in vigore a quella data (l'ultimo
+    non successivo); senza, o se nessuno la precede, il più recente.
+    """
+    from ..models_sorveglianza import RequisitoVisitaDipendente
+
+    candidati = [
+        r for r in (
+            RequisitoVisitaDipendente.objects
+            .filter(legacy_anagrafica_id=legacy_id, tipo__isnull=False, tipo__is_active=True)
+            .select_related("tipo")
+        )
+        if "OCULIST" in normalizza(r.esame) or "OCULIST" in normalizza(r.tipo.nome)
+    ]
+    if not candidati:
+        return None
+    if data is not None:
+        precedenti = [r for r in candidati if r.data_certificato <= data]
+        if precedenti:
+            return max(precedenti, key=lambda r: (r.data_certificato, r.pk)).tipo
+    return max(candidati, key=lambda r: (r.data_certificato, r.pk)).tipo
+
+
+_MESSAGGI_STATO = {
+    "creata": "Visita registrata",
+    "agganciata": "Referto agganciato alla visita già presente",
+    "presente": "Visita già presente",
+}
+
+
+@transaction.atomic
+def registra(riga, *, utente=None, legacy_id: int | None = None,
+             data_visita=None, tipo_visita=None, esito_visita: str = ""):
+    """Registra la visita del referto (e, per l'idoneità, i requisiti).
+
+    Ritorna la lista delle visite nuove o agganciate (al più una). Atomica: un
+    referto registrato a metà — visita senza requisiti o viceversa — è peggio di
+    un referto che torna in coda.
     """
     from django.utils import timezone
 
-    from ..models import VisitaMedica
-    from ..models_sorveglianza import RefertoIntakeConfig, RefertoIntakeRiga
+    from ..models_sorveglianza import RefertoIntakeRiga
     from .referti_parsing import CampiReferto
 
     legacy_id = legacy_id or riga.legacy_anagrafica_id_proposto
     if not legacy_id:
         raise ErroreRegistrazione("Nessun dipendente scelto per questo referto.")
-    if riga.letto_data_giudizio is None:
+
+    if riga.tipo_referto == RefertoIntakeRiga.TIPO_OCULISTICA:
+        return _registra_oculistica(
+            riga, utente=utente, legacy_id=legacy_id,
+            data_visita=data_visita, tipo_visita=tipo_visita, esito_visita=esito_visita,
+        )
+
+    data = riga.letto_data_giudizio
+    if data is None:
         raise ErroreRegistrazione(
             "Manca la data del giudizio: senza quella la scadenza sarebbe inventata."
         )
@@ -269,113 +456,92 @@ def registra(riga, *, utente=None, legacy_id: int | None = None):
         protocollo=list(riga.letto_protocollo or []),
     )
     piano = prepara_registrazione(campi)
-
-    if piano.esami_ignoti:
-        raise ErroreRegistrazione(
-            "Esami non presenti a catalogo: "
-            + ", ".join(piano.esami_ignoti)
-            + ". Vanno mappati dalle impostazioni prima di registrare."
-        )
-    if not piano.tipi:
-        raise ErroreRegistrazione("Nessun esame riconosciuto nel protocollo sanitario.")
-    if not piano.esito:
-        raise ErroreRegistrazione(
-            f"Giudizio «{riga.letto_esito_testo or '—'}» non riconosciuto: "
-            "va mappato dalle impostazioni prima di registrare."
-        )
-
-    # Doppione logico: stesso dipendente, stesso tipo, stessa data. Non è un
-    # errore del lettore, è un referto già registrato — magari a mano.
-    gia_presenti = set(
-        VisitaMedica.objects
-        .filter(
-            legacy_anagrafica_id=legacy_id,
-            data_svolgimento=riga.letto_data_giudizio,
-            tipo_id__in=[t.id for t, _ in piano.tipi],
-        )
-        .values_list("tipo_id", flat=True)
-    )
-    da_valutare = [(t, v) for t, v in piano.tipi if t.id not in gia_presenti]
-    if not da_valutare:
-        raise ErroreRegistrazione(
-            "Queste visite risultano già registrate per il dipendente in questa data."
-        )
-
-    # Finestra di tolleranza: una visita già presente, senza referto agganciato,
-    # a pochi giorni dalla data del giudizio è lo stesso evento — non un doppione
-    # né una visita nuova. La data registrata NON viene toccata (la scadenza è
-    # già calcolata su quella): si aggancia solo il documento.
-    tolleranza = RefertoIntakeConfig.load().giorni_tolleranza_associazione
-    da_creare = []
-    da_associare = []  # [(VisitaMedica esistente, tipo)]
-    for tipo, voce in da_valutare:
-        candidata = _trova_visita_da_associare(
-            legacy_id=legacy_id, tipo_id=tipo.id,
-            data_giudizio=riga.letto_data_giudizio, tolleranza=tolleranza,
-        )
-        if candidata is not None:
-            da_associare.append((candidata, tipo))
-        else:
-            da_creare.append((tipo, voce))
+    if piano.ostacoli:
+        raise ErroreRegistrazione(" ".join(piano.ostacoli))
 
     documento = _archivia_nel_fascicolo(riga, legacy_id, utente)
-
-    create = []
-    for tipo, _voce in da_creare:
-        visita = VisitaMedica(
-            legacy_anagrafica_id=legacy_id,
-            tipo=tipo,
-            data_svolgimento=riga.letto_data_giudizio,
-            esito=piano.esito,
-            medico_competente="",
-            note=_descrizione_divergenze(piano.divergenze),
-            referto_documento=documento,
-            created_by=utente,
-            updated_by=utente,
-        )
-        visita.save()  # la scadenza la calcola save() dal catalogo
-        create.append(visita)
-
-    associate = []
-    for visita, _tipo in da_associare:
-        scarto_giorni = abs((visita.data_svolgimento - riga.letto_data_giudizio).days)
-        nota = (
-            f"Referto agganciato: giudizio del {riga.letto_data_giudizio:%d/%m/%Y}"
-            + (f", {scarto_giorni} giorni dopo la data registrata" if scarto_giorni else "")
-            + "."
-        )
-        visita.referto_documento = documento
-        visita.note = (visita.note + " " + nota).strip() if visita.note else nota
-        visita.updated_by = utente
-        visita.save(update_fields=["referto_documento", "note", "updated_by", "updated_at"])
-        associate.append(visita)
+    stato, visita = _registra_visita(
+        legacy_id=legacy_id, tipo=piano.visita_tipo, data=data, esito=piano.esito,
+        documento=documento, note=_descrizione_divergenze(piano.divergenze), utente=utente,
+    )
+    in_vigore = aggiorna_requisiti(legacy_id, data, piano.requisiti, riga)
 
     riga.legacy_anagrafica_id_proposto = legacy_id
     riga.esito = RefertoIntakeRiga.ESITO_OK
-    riga.visite_create = len(create)
-    riga.visite_associate = len(associate)
+    riga.visite_create = 1 if stato == "creata" else 0
+    riga.visite_associate = 1 if stato == "agganciata" else 0
     riga.documento = documento
     riga.divergenze = piano.divergenze
     riga.confermato_da = utente
     riga.confermato_il = timezone.now()
-    saltate = len(piano.tipi) - len(da_creare) - len(associate)
-    riga.messaggio = (
-        f"{len(create)} visite registrate"
-        + (f", {len(associate)} agganciate a visite già presenti" if associate else "")
-        + (f", {saltate} già presenti" if saltate else "")
-        + ("; " + _descrizione_divergenze(piano.divergenze) if piano.divergenze else "")
-    )
+    pezzi = [
+        f"{_MESSAGGI_STATO[stato]}: {piano.visita_tipo.nome} del {data:%d/%m/%Y}",
+        f"{len(piano.requisiti)} requisiti "
+        + ("in vigore" if in_vigore else "nello storico (esiste un certificato più recente)"),
+    ]
+    if piano.esami_ignoti:
+        pezzi.append("requisiti non a catalogo: " + ", ".join(piano.esami_ignoti))
+    if piano.divergenze:
+        pezzi.append(_descrizione_divergenze(piano.divergenze))
+    riga.messaggio = "; ".join(pezzi) + "."
     riga.save()
 
-    return create + associate
+    return [visita] if stato in ("creata", "agganciata") else []
+
+
+def _registra_oculistica(riga, *, utente, legacy_id, data_visita, tipo_visita, esito_visita):
+    """Certificato oculistico: data, tipo ed esito confermati da chi revisiona."""
+    from django.utils import timezone
+
+    from ..models import VisitaMedica
+    from ..models_sorveglianza import RefertoIntakeRiga
+
+    data = data_visita or riga.letto_data_giudizio
+    if data is None:
+        raise ErroreRegistrazione(
+            "Certificato oculistico: inserire la data della visita scritta sul certificato."
+        )
+    if data > timezone.localdate():
+        raise ErroreRegistrazione("La data della visita oculistica è nel futuro.")
+
+    tipo = tipo_visita or riga.tipo_visita_scelto or tipo_oculistico_da_requisiti(legacy_id, data)
+    if tipo is None:
+        raise ErroreRegistrazione(
+            "Nessun requisito oculistico per questo dipendente: scegliere il tipo di visita."
+        )
+
+    esiti_validi = dict(VisitaMedica.Esito.choices)
+    if esito_visita not in esiti_validi:
+        raise ErroreRegistrazione("Certificato oculistico: scegliere l'esito della visita.")
+
+    documento = _archivia_nel_fascicolo(riga, legacy_id, utente)
+    stato, _visita = _registra_visita(
+        legacy_id=legacy_id, tipo=tipo, data=data, esito=esito_visita,
+        documento=documento, note="", utente=utente,
+    )
+
+    riga.legacy_anagrafica_id_proposto = legacy_id
+    riga.letto_data_giudizio = data
+    riga.tipo_visita_scelto = tipo
+    riga.esito = RefertoIntakeRiga.ESITO_OK
+    riga.visite_create = 1 if stato == "creata" else 0
+    riga.visite_associate = 1 if stato == "agganciata" else 0
+    riga.documento = documento
+    riga.confermato_da = utente
+    riga.confermato_il = timezone.now()
+    riga.messaggio = (
+        f"{_MESSAGGI_STATO[stato]}: {tipo.nome} del {data:%d/%m/%Y}, "
+        f"esito {esiti_validi[esito_visita]}."
+    )
+    riga.save()
+    return [_visita] if stato in ("creata", "agganciata") else []
 
 
 def _archivia_nel_fascicolo(riga, legacy_id: int, utente):
-    """Il referto nel fascicolo del dipendente, uno solo per tutte le visite.
+    """Il referto nel fascicolo del dipendente, una sola copia.
 
-    Il PDF è uno: duplicarlo per ogni esame del protocollo gonfierebbe l'archivio
-    e moltiplicherebbe le copie di un dato sanitario, che è il contrario di quello
-    che si vuole.
+    Se la riga punta già a un documento (es. referto importato dall'archivio) si
+    usa quello. Altrimenti si legge dall'archivio delle scansioni e si crea.
     """
     from django.core.files.base import ContentFile
 
@@ -403,6 +569,8 @@ def _archivia_nel_fascicolo(riga, legacy_id: int, utente):
         return None
 
     nome = riga.nome_file or "referto.pdf"
+    oculistico = getattr(riga, "tipo_referto", "") == "OCULISTICA"
+    etichetta = "Certificato visita oculistica" if oculistico else "Certificato di idoneità"
     doc = DocumentoDipendente(
         legacy_anagrafica_id=legacy_id,
         tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
@@ -410,8 +578,8 @@ def _archivia_nel_fascicolo(riga, legacy_id: int, utente):
         tipo_mime="application/pdf",
         dimensione_bytes=len(contenuto),
         descrizione=(
-            f"Certificato di idoneità del {riga.letto_data_giudizio:%d-%m-%Y}"
-            if riga.letto_data_giudizio else "Certificato di idoneità"
+            f"{etichetta} del {riga.letto_data_giudizio:%d-%m-%Y}"
+            if riga.letto_data_giudizio else etichetta
         ),
         oggetto_riferimento_tipo="anagrafica.refertointakeriga",
         oggetto_riferimento_id=riga.pk,

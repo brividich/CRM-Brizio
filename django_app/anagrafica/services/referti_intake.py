@@ -191,11 +191,23 @@ def _elabora_pagina(contenuto: bytes, nome_file: str, pagina: int, *,
     # `testo` esce di scena qui: il contenuto grezzo dell'OCR non viene salvato
     # da nessuna parte. Sopravvivono solo i campi riconosciuti.
 
+    if campi.tipo_referto == RefertoIntakeRiga.TIPO_OCULISTICA:
+        # Data, nome ed esito sono scritti a mano: si completano in coda guardando
+        # la scansione. Nessun riconoscimento automatico da tentare.
+        riga.tipo_referto = RefertoIntakeRiga.TIPO_OCULISTICA
+        riga.esito = RefertoIntakeRiga.ESITO_DA_RIVEDERE
+        riga.messaggio = (
+            "Certificato oculistico: data, dipendente ed esito sono scritti a mano. "
+            "Inserirli guardando la scansione."
+        )
+        riga.save()
+        return riga
+
     if not campi.e_certificato:
         riga.esito = RefertoIntakeRiga.ESITO_RIFIUTATO
         riga.messaggio = (
-            "Non sembra un certificato di idoneità: nessuna delle diciture attese "
-            "è stata riconosciuta. Il file resta archiviato e consultabile."
+            "Non sembra un certificato di idoneità né un certificato oculistico: nessuna "
+            "delle diciture attese è stata riconosciuta. Il file resta archiviato e consultabile."
         )
         riga.save()
         return riga
@@ -239,14 +251,9 @@ def _elabora_pagina(contenuto: bytes, nome_file: str, pagina: int, *,
     ostacoli = []
     if match.motivo:
         ostacoli.append(match.motivo)
-    if piano.esami_ignoti:
-        ostacoli.append(
-            "Esami non presenti a catalogo: " + ", ".join(piano.esami_ignoti) + "."
-        )
-    if not piano.esito:
-        ostacoli.append(
-            f"Giudizio «{campi.esito_testo or '—'}» non riconosciuto."
-        )
+    # Bloccano solo visita non riconosciuta e giudizio: i requisiti non a catalogo
+    # si registrano comunque (senza tipo) e vengono segnalati.
+    ostacoli.extend(piano.ostacoli)
 
     if ostacoli or not match.automatico or not config.conferma_automatica:
         riga.esito = RefertoIntakeRiga.ESITO_DA_RIVEDERE

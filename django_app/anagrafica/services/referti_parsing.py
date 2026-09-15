@@ -66,6 +66,20 @@ _IMPRONTE = (
     r"PROTOCOLLO\s+SANITARIO",
 )
 
+# Certificato del medico oculista: modulo prestampato con data, nome, valori e
+# giudizio scritti a mano. Si riconosce dalle etichette stampate; ne servono
+# almeno due, perché «oculista» da solo può comparire in altri documenti.
+TIPO_IDONEITA = "IDONEITA"
+TIPO_OCULISTICA = "OCULISTICA"
+_IMPRONTE_OCULISTICA = (
+    r"SPECIALISTA\s+IN\s+OCULISTICA",
+    r"\bOCULISTA\b",
+    r"\bVISUS\b",
+    r"SENSO\s+CROMATICO|VISIONE\s+COLORI",
+    r"\bFUNDUS\b",
+    r"SEG\.?\s+AUT",
+)
+
 _NOME_ANAGRAFICO = (
     # Il blocco anagrafico: il nominativo segue la data di nascita, sulla stessa
     # riga o subito dopo. Due maiuscole almeno, per non agganciare un'iniziale.
@@ -95,7 +109,13 @@ class CampiReferto:
     mansione: str = ""
     protocollo: list[dict] = field(default_factory=list)
     date_trovate: list[dict] = field(default_factory=list)
-    e_certificato: bool = False
+    e_certificato: bool = False          # certificato di idoneità
+    tipo_referto: str = ""               # TIPO_IDONEITA / TIPO_OCULISTICA / "" (altro)
+
+    @property
+    def e_referto(self) -> bool:
+        """Un documento da gestire: idoneità o oculistico."""
+        return self.tipo_referto in (TIPO_IDONEITA, TIPO_OCULISTICA)
 
     @property
     def minimo_utile(self) -> bool:
@@ -140,6 +160,12 @@ def pare_certificato(testo: str) -> bool:
     """
     piatto = _piatto(testo)
     return any(re.search(p, piatto, re.IGNORECASE) for p in _IMPRONTE)
+
+
+def pare_oculistica(testo: str) -> bool:
+    """Il documento è un certificato del medico oculista? (almeno due etichette)"""
+    piatto = _piatto(testo)
+    return sum(1 for p in _IMPRONTE_OCULISTICA if re.search(p, piatto, re.IGNORECASE)) >= 2
 
 
 def _estrai_date(testo: str) -> tuple[list[dict], date | None, date | None]:
@@ -268,6 +294,15 @@ def analizza_testo(testo: str) -> CampiReferto:
         return campi
 
     campi.e_certificato = pare_certificato(testo)
+    if not campi.e_certificato:
+        # Il certificato oculistico ha data, nome e giudizio scritti a mano: l'OCR
+        # non li legge in modo affidabile, e la frase «non si rilevano
+        # controindicazioni» è prestampata su ogni modulo, quindi non dice nulla.
+        # Si riconosce il tipo di documento e basta: il resto si completa in coda.
+        if pare_oculistica(testo):
+            campi.tipo_referto = TIPO_OCULISTICA
+        return campi
+    campi.tipo_referto = TIPO_IDONEITA
 
     date_trovate, nascita, giudizio = _estrai_date(testo)
     campi.date_trovate = date_trovate
