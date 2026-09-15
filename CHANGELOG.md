@@ -8,6 +8,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **ANAGRAFICA · import dell'archivio documenti del vecchio gestionale HR TOOLS nel fascicolo dipendente** (`django_app/anagrafica/management/commands/importa_archivio_hr.py` — nuovo —, `django_app/anagrafica/tests_import_archivio_hr.py` — nuovo —, `docs/RUNBOOK_COMANDI.md`, `README.md`). Nuovo comando `importa_archivio_hr <cartella>` per l'estrazione organizzata come `<Categoria>/<COGNOME_NOME>/file`.
+  1. **Cartelle**: ogni categoria diventa una sottocartella di «Archivio HR TOOLS» (Contratti, Documenti personali, Comunicazioni sicurezza, DPI, Visite mediche); «!Richiami!» e «Documenti personali - richiami» confluiscono in **Richiami**, che con **Infortuni** nasce riservata (`solo_admin`). Le categorie non previste vengono saltate e segnalate.
+  2. **Tipo documento**: visite mediche come `VISITA_MEDICA_REFERTO` (la scheda li nasconde a chi non ha il permesso visite), DPI come `DPI_CONSEGNA`, il resto `MANUALE`.
+  3. **Abbinamento persona esatto**, niente somiglianze: stesse parole in qualunque ordine, senza accenti e punteggiatura (gestisce `COGNOME___NOME` e i cognomi composti), sull'anagrafica deduplicata come la vede il portale; cessati compresi e segnalati. Nomi non trovati o ambigui non si importano: si risolvono con `--mappa` (CSV `cartella;legacy_id`, `0` = ignora).
+  4. **Stesse regole dell'upload manuale**: estensioni ammesse, firma binaria coerente con l'estensione, limite 50 MB, file di sistema scartati; storage privato cifrato.
+  5. **Cartelle riservate rispettate ovunque** (`django_app/anagrafica/views.py`): i documenti delle cartelle `solo_admin` erano esclusi dall'archivio documenti e dagli export, ma restavano visibili nella **scheda dipendente** e scaricabili col **link diretto** a chiunque avesse il permesso HR. Ora scheda e download li riservano ai super-amministratori, come l'archivio. Necessario prima dell'import, che mette i richiami in una cartella riservata.
+  6. **Dry-run di default** (`--apply` per scrivere), rieseguibile senza doppioni (stesso dipendente, cartella, nome e dimensione), `--categoria` per procedere a blocchi, `--report` con l'esito file per file; una voce di audit `DOCUMENTO_DIPENDENTE_IMPORT_ARCHIVIO` per dipendente.
+
 ---
 
 ## 1.6.0 - 2026-09-15
