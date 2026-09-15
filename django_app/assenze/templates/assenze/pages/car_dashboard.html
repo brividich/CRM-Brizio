@@ -5,6 +5,38 @@
 {% block assenze_shell_head %}
   <style>
     .car-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    /* Filtri della coda: stesse pillole di «Le mie richieste», light + dark. */
+    .car-filters { display: grid; gap: 10px; }
+    .car-filter-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .abs-filter-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 38px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid #d7e3ea;
+      background: #fff;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+    .abs-filter-btn:hover { border-color: #14b8a6; color: #0f766e; background: #f0fdfa; }
+    .abs-filter-btn.active {
+      border-color: #0f766e;
+      background: #0f766e;
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(15, 118, 110, .18);
+    }
+    body.theme-dark .abs-filter-btn { background: var(--surface); border-color: var(--border); color: var(--text-mid); }
+    body.theme-dark .abs-filter-btn:hover { background: rgba(15,118,110,.15); border-color: #2dd4bf; color: #2dd4bf; }
+    body.theme-dark .abs-filter-btn.active { background: #0f766e; border-color: #0f766e; color: #fff; }
+    @media (max-width: 640px) {
+      .car-filter-row { gap: 6px; }
+      .abs-filter-btn { min-height: 34px; font-size: 12px; }
+    }
     .car-type-pill {
       display: inline-flex;
       align-items: center;
@@ -217,102 +249,6 @@
     </section>
   {% endif %}
 
-  {% if show_diag and capo_diag %}
-    <section class="abs-panel">
-      <div class="abs-panel-head">
-        <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>Diagnostica assegnazione CAR</h2>
-          <p class="abs-panel-subtitle">Controllo matching fra utente corrente, capi reparto e sorgenti legacy.</p>
-        </div>
-      </div>
-      <div class="abs-panel-body">
-        <div class="abs-inline-actions">
-          <span class="abs-chip soft">Utente {{ capo_diag.manager_name|default:"-" }}</span>
-          {% if capo_diag.manager_email %}<span class="abs-chip soft">{{ capo_diag.manager_email }}</span>{% endif %}
-          {% if capo_diag.legacy_user_id %}<span class="abs-chip soft">legacy {{ capo_diag.legacy_user_id }}</span>{% endif %}
-          <span class="abs-chip">{{ capo_diag.match_count }} match</span>
-        </div>
-        {% if capo_diag.matched %}
-          <div class="abs-table-wrap">
-            <table class="abs-table">
-              <thead>
-                <tr>
-                  <th>ID</th><th>Reparto</th><th>Nome</th><th>Email</th><th>SP ID</th><th>Utente ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for c in capo_diag.matched %}
-                  <tr>
-                    <td data-label="ID">{{ c.id|default:"-" }}</td>
-                    <td data-label="Reparto">{{ c.title|default:"-" }}</td>
-                    <td data-label="Nome">{{ c.nome|default:"-" }}</td>
-                    <td data-label="Email">{{ c.indirizzo_email|default:"-" }}</td>
-                    <td data-label="SP ID">{{ c.sharepoint_item_id|default:"-" }}</td>
-                    <td data-label="Utente ID">{{ c.utente_id|default:"-" }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <div class="abs-empty-state">
-            <h3 class="abs-empty-title">Nessun capo reparto associato</h3>
-            <p class="abs-empty-text">Con i criteri correnti non risultano capi reparto collegati al tuo utente.</p>
-          </div>
-        {% endif %}
-      </div>
-    </section>
-  {% endif %}
-
-  {% if show_diag and sync_diag %}
-    <section class="abs-panel">
-      <div class="abs-panel-head">
-        <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sync"></use></svg>Diagnostica sincronizzazione SharePoint</h2>
-          <p class="abs-panel-subtitle">Controllati {{ sync_diag.checked_count }} record. Allineati {{ sync_diag.ok_count }}, avvisi {{ sync_diag.warn_count }}, errori {{ sync_diag.error_count }}.</p>
-        </div>
-      </div>
-      <div class="abs-panel-body">
-        {% if not sync_diag.enabled %}
-          <div class="abs-alert abs-alert-warn">Diagnostica SharePoint non disponibile: sincronizzazione non configurata.</div>
-        {% elif sync_diag.rows %}
-          <div class="abs-table-wrap">
-            <table class="abs-table">
-              <thead>
-                <tr>
-                  <th>ID</th><th>SP ID</th><th>Dipendente</th><th>Locale</th><th>SP Consenso</th><th>SP Moderation</th><th>Stato letto</th><th>Esito</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for r in sync_diag.rows %}
-                  <tr>
-                    <td data-label="ID">{{ r.id }}</td>
-                    <td data-label="SP ID">{{ r.sharepoint_item_id|default:"-" }}</td>
-                    <td data-label="Dipendente">
-                      <div>{{ r.dipendente }}</div>
-                      <div style="font-size:11px;color:#64748b;">{{ r.inizio_label }} {% if r.fine_label %}- {{ r.fine_label }}{% endif %}</div>
-                    </td>
-                    <td data-label="Locale">{{ r.local_status_label }}</td>
-                    <td data-label="SP Consenso">{{ r.sp_consenso_field }}</td>
-                    <td data-label="SP Moderation">{{ r.sp_moderation_label }}</td>
-                    <td data-label="Stato letto">{{ r.sp_resolved_status }}</td>
-                    <td data-label="Esito"><span class="diag-chip diag-{{ r.level }}">{{ r.diagnostic }}</span></td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <div class="abs-empty-state">
-            <h3 class="abs-empty-title">Nessun record disponibile</h3>
-            <p class="abs-empty-text">Non ci sono record sufficienti per la diagnostica di sincronizzazione.</p>
-          </div>
-        {% endif %}
-      </div>
-    </section>
-  {% endif %}
-
-  <div id="car-status" class="car-status"></div>
 
   <section class="abs-panel">
     <div class="abs-panel-head">
@@ -332,8 +268,29 @@
       </div>
       <div class="abs-panel-meta">
         <span class="abs-panel-badge">{{ da_gestire|length }} in coda</span>
+        <span class="abs-panel-badge soft" id="car-visible-count"></span>
       </div>
     </div>
+    {% if da_gestire %}
+      <div class="abs-panel-body car-filters">
+        <label class="abs-search" for="car-search">
+          <span class="abs-search-icon"><svg aria-hidden="true"><use href="#abs-i-search"></use></svg></span>
+          <input id="car-search" type="text" placeholder="Cerca dipendente, tipo o motivo" autocomplete="off">
+        </label>
+        <div class="car-filter-row" role="group" aria-label="Filtra per tipo">
+          <button type="button" class="abs-filter-btn active" data-car-tipo="all">Tutti i tipi</button>
+          {% for t in tipi_in_coda %}
+            <button type="button" class="abs-filter-btn" data-car-tipo="{{ t|lower }}">{{ t }}</button>
+          {% endfor %}
+        </div>
+        <div class="car-filter-row" role="group" aria-label="Filtra per periodo">
+          <button type="button" class="abs-filter-btn active" data-car-periodo="all">Tutto</button>
+          <button type="button" class="abs-filter-btn" data-car-periodo="oggi">Inizia oggi</button>
+          <button type="button" class="abs-filter-btn" data-car-periodo="settimana">Entro 7 giorni</button>
+          <button type="button" class="abs-filter-btn" data-car-periodo="passate">Gia iniziate</button>
+        </div>
+      </div>
+    {% endif %}
     <div class="abs-panel-body no-pad">
       {% if da_gestire %}
         <div class="abs-table-wrap">
@@ -345,7 +302,11 @@
             </thead>
             <tbody>
               {% for r in da_gestire %}
-                <tr data-id="{{ r.id }}"{% if r.n_corsi_conflitto %} class="row-has-corso-conflict"{% endif %}>
+                <tr data-id="{{ r.id }}"
+                    data-cerca="{{ r.dipendente|lower }} {{ r.tipo|lower }} {{ r.motivo|default:''|lower }}"
+                    data-tipo="{{ r.tipo|lower }}"
+                    data-inizio="{{ r.data_inizio_raw|date:'Y-m-d' }}"
+                    {% if r.n_corsi_conflitto %}class="row-has-corso-conflict"{% endif %}>
                   <td data-label="Dipendente">{{ r.dipendente }}</td>
                   <td data-label="Tipo">
                     <div style="display:grid;gap:6px;">
@@ -391,6 +352,9 @@
               {% endfor %}
             </tbody>
           </table>
+        </div>
+        <div class="abs-panel-body" id="car-no-match" hidden>
+          <p class="abs-empty-text">Nessuna richiesta corrisponde ai filtri attivi.</p>
         </div>
       {% else %}
         <div class="abs-panel-body">
@@ -547,9 +511,179 @@
       {% endif %}
     </div>
   </section>
+
+  {# Le diagnostiche restano in fondo: servono a rado, la coda no. #}
+  {% if show_diag and capo_diag %}
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-user-check"></use></svg>Diagnostica assegnazione CAR</h2>
+          <p class="abs-panel-subtitle">Controllo matching fra utente corrente, capi reparto e sorgenti legacy.</p>
+        </div>
+      </div>
+      <div class="abs-panel-body">
+        <div class="abs-inline-actions">
+          <span class="abs-chip soft">Utente {{ capo_diag.manager_name|default:"-" }}</span>
+          {% if capo_diag.manager_email %}<span class="abs-chip soft">{{ capo_diag.manager_email }}</span>{% endif %}
+          {% if capo_diag.legacy_user_id %}<span class="abs-chip soft">legacy {{ capo_diag.legacy_user_id }}</span>{% endif %}
+          <span class="abs-chip">{{ capo_diag.match_count }} match</span>
+        </div>
+        {% if capo_diag.matched %}
+          <div class="abs-table-wrap">
+            <table class="abs-table">
+              <thead>
+                <tr>
+                  <th>ID</th><th>Reparto</th><th>Nome</th><th>Email</th><th>SP ID</th><th>Utente ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in capo_diag.matched %}
+                  <tr>
+                    <td data-label="ID">{{ c.id|default:"-" }}</td>
+                    <td data-label="Reparto">{{ c.title|default:"-" }}</td>
+                    <td data-label="Nome">{{ c.nome|default:"-" }}</td>
+                    <td data-label="Email">{{ c.indirizzo_email|default:"-" }}</td>
+                    <td data-label="SP ID">{{ c.sharepoint_item_id|default:"-" }}</td>
+                    <td data-label="Utente ID">{{ c.utente_id|default:"-" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="abs-empty-state">
+            <h3 class="abs-empty-title">Nessun capo reparto associato</h3>
+            <p class="abs-empty-text">Con i criteri correnti non risultano capi reparto collegati al tuo utente.</p>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if show_diag and sync_diag %}
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sync"></use></svg>Diagnostica sincronizzazione SharePoint</h2>
+          <p class="abs-panel-subtitle">Controllati {{ sync_diag.checked_count }} record. Allineati {{ sync_diag.ok_count }}, avvisi {{ sync_diag.warn_count }}, errori {{ sync_diag.error_count }}.</p>
+        </div>
+      </div>
+      <div class="abs-panel-body">
+        {% if not sync_diag.enabled %}
+          <div class="abs-alert abs-alert-warn">Diagnostica SharePoint non disponibile: sincronizzazione non configurata.</div>
+        {% elif sync_diag.rows %}
+          <div class="abs-table-wrap">
+            <table class="abs-table">
+              <thead>
+                <tr>
+                  <th>ID</th><th>SP ID</th><th>Dipendente</th><th>Locale</th><th>SP Consenso</th><th>SP Moderation</th><th>Stato letto</th><th>Esito</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in sync_diag.rows %}
+                  <tr>
+                    <td data-label="ID">{{ r.id }}</td>
+                    <td data-label="SP ID">{{ r.sharepoint_item_id|default:"-" }}</td>
+                    <td data-label="Dipendente">
+                      <div>{{ r.dipendente }}</div>
+                      <div style="font-size:11px;color:#64748b;">{{ r.inizio_label }} {% if r.fine_label %}- {{ r.fine_label }}{% endif %}</div>
+                    </td>
+                    <td data-label="Locale">{{ r.local_status_label }}</td>
+                    <td data-label="SP Consenso">{{ r.sp_consenso_field }}</td>
+                    <td data-label="SP Moderation">{{ r.sp_moderation_label }}</td>
+                    <td data-label="Stato letto">{{ r.sp_resolved_status }}</td>
+                    <td data-label="Esito"><span class="diag-chip diag-{{ r.level }}">{{ r.diagnostic }}</span></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="abs-empty-state">
+            <h3 class="abs-empty-title">Nessun record disponibile</h3>
+            <p class="abs-empty-text">Non ci sono record sufficienti per la diagnostica di sincronizzazione.</p>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+  {% endif %}
+
+  <div id="car-status" class="car-status"></div>
 {% endblock %}
 
 {% block assenze_shell_scripts %}
+  <script>
+    // Filtri della coda: lavorano sulle righe gia' rese, senza ricaricare la
+    // pagina. Testo, tipo e periodo si combinano in AND.
+    (function () {
+      var tabella = document.getElementById("table-da-gestire");
+      if (!tabella) return;
+      var righe = Array.prototype.slice.call(tabella.querySelectorAll("tbody tr"));
+      var ricerca = document.getElementById("car-search");
+      var contatore = document.getElementById("car-visible-count");
+      var vuoto = document.getElementById("car-no-match");
+      var tipoAttivo = "all";
+      var periodoAttivo = "all";
+
+      function oggiISO() {
+        var d = new Date();
+        var m = d.getMonth() + 1, g = d.getDate();
+        return d.getFullYear() + "-" + (m < 10 ? "0" : "") + m + "-" + (g < 10 ? "0" : "") + g;
+      }
+
+      function entroGiorni(iso, giorni) {
+        if (!iso) return false;
+        var inizio = new Date(iso + "T00:00:00");
+        if (isNaN(inizio.getTime())) return false;
+        var oggi = new Date(oggiISO() + "T00:00:00");
+        var diff = Math.round((inizio - oggi) / 86400000);
+        return diff >= 0 && diff <= giorni;
+      }
+
+      function passaPeriodo(iso) {
+        if (periodoAttivo === "all") return true;
+        if (!iso) return false;
+        if (periodoAttivo === "oggi") return iso === oggiISO();
+        if (periodoAttivo === "settimana") return entroGiorni(iso, 7);
+        if (periodoAttivo === "passate") return iso < oggiISO();
+        return true;
+      }
+
+      function applica() {
+        var q = (ricerca && ricerca.value ? ricerca.value : "").trim().toLowerCase();
+        var visibili = 0;
+        righe.forEach(function (riga) {
+          var testo = riga.getAttribute("data-cerca") || "";
+          var tipo = riga.getAttribute("data-tipo") || "";
+          var iso = riga.getAttribute("data-inizio") || "";
+          var ok = (!q || testo.indexOf(q) !== -1)
+            && (tipoAttivo === "all" || tipo === tipoAttivo)
+            && passaPeriodo(iso);
+          riga.hidden = !ok;
+          if (ok) visibili++;
+        });
+        if (contatore) contatore.textContent = visibili + " visibili";
+        if (vuoto) vuoto.hidden = visibili !== 0;
+      }
+
+      function gruppo(attributo, assegna) {
+        var bottoni = Array.prototype.slice.call(document.querySelectorAll("[" + attributo + "]"));
+        bottoni.forEach(function (b) {
+          b.addEventListener("click", function () {
+            bottoni.forEach(function (x) { x.classList.remove("active"); });
+            b.classList.add("active");
+            assegna(b.getAttribute(attributo));
+            applica();
+          });
+        });
+      }
+
+      gruppo("data-car-tipo", function (v) { tipoAttivo = v; });
+      gruppo("data-car-periodo", function (v) { periodoAttivo = v; });
+      if (ricerca) ricerca.addEventListener("input", applica);
+      applica();
+    })();
+  </script>
   <script>
     (function () {
       const csrf = document.querySelector("#car-csrf input[name='csrfmiddlewaretoken']")?.value || "";

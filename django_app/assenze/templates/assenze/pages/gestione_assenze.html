@@ -155,6 +155,22 @@
     }
     .abs-panel-body { padding: 20px; display: grid; gap: 16px; }
     .abs-panel-body.no-pad { padding: 0; }
+    .abs-muted { color: var(--text-muted, #94a3b8); }
+    .abs-gestite { border-top: 1px solid var(--border); }
+    .abs-gestite-summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 20px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text);
+      list-style: none;
+    }
+    .abs-gestite-summary::-webkit-details-marker { display: none; }
+    .abs-gestite-summary::before { content: "B8"; transition: transform .15s ease; }
+    .abs-gestite[open] > .abs-gestite-summary::before { transform: rotate(90deg); }
 
     .abs-filter-card {
       display: grid;
@@ -579,8 +595,8 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Richieste da approvare</h2>
-          <p class="abs-panel-subtitle">Coda operativa delle richieste che attendono ancora una decisione di reparto o amministrazione.</p>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Richieste dei miei dipendenti</h2>
+          <p class="abs-panel-subtitle">Le assenze delle persone che gestisci: prima quelle che aspettano una tua decisione, sotto quelle già decise.</p>
         </div>
         <div class="abs-panel-meta">
           <span class="abs-panel-badge">{{ summary_da_approvare.total }} in coda</span>
@@ -667,6 +683,60 @@
             </div>
           </div>
         {% endif %}
+
+        {% if mostra_sezione_dipendenti %}
+          <details class="abs-gestite" {% if not richieste_da_approvare %}open{% endif %}>
+            <summary class="abs-gestite-summary">
+              Già decise
+              <span class="abs-panel-badge soft">{{ summary_dipendenti_gestite.total }}</span>
+            </summary>
+            {% if richieste_dipendenti_gestite and richieste_dipendenti_gestite|length > 0 %}
+              <div class="abs-table-wrap">
+                <table class="abs-table">
+                  <thead>
+                    <tr>
+                      <th>Dipendente</th>
+                      <th>Tipo</th>
+                      <th>Motivo</th>
+                      <th>Inizio</th>
+                      <th>Fine</th>
+                      <th>Esito</th>
+                      <th>Inserita il</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for r in richieste_dipendenti_gestite %}
+                      <tr>
+                        <td data-label="Dipendente" class="abs-cell-primary">
+                          <div class="abs-row-main"><div class="abs-row-title">{{ r.dipendente }}</div></div>
+                        </td>
+                        <td data-label="Tipo">
+                          <div class="abs-row-main">
+                            <div class="abs-row-title">{{ r.tipo }}</div>
+                            {% if r.certificato_medico %}
+                              <div class="abs-note-row"><span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span></div>
+                            {% endif %}
+                          </div>
+                        </td>
+                        <td data-label="Motivo">
+                          {% if r.motivo %}<span>{{ r.motivo }}</span>{% else %}<span class="abs-muted">Nessuna motivazione indicata</span>{% endif %}
+                        </td>
+                        <td data-label="Inizio"><span class="abs-date-main">{{ r.inizio_label }}</span></td>
+                        <td data-label="Fine"><span class="abs-date-main">{{ r.fine_label }}</span></td>
+                        <td data-label="Esito"><span class="abs-status">{{ r.consenso }}</span></td>
+                        <td data-label="Inserita il"><span class="abs-date-sub">{{ r.creata_label|default:"-" }}</span></td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="abs-panel-body">
+                <p class="abs-empty-text">Nessuna richiesta già decisa per i tuoi dipendenti.</p>
+              </div>
+            {% endif %}
+          </details>
+        {% endif %}
       </div>
     </section>
     {% endif %}
@@ -674,8 +744,8 @@
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
-          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Le tue richieste di assenza</h2>
-          <p class="abs-panel-subtitle">Filtra rapidamente per stato e testo, poi modifica o elimina le richieste ancora in attesa.</p>
+          <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-list-check"></use></svg>Le mie richieste</h2>
+          <p class="abs-panel-subtitle">Le assenze intestate a te. Filtra per stato e testo, poi modifica o elimina quelle ancora in attesa.</p>
         </div>
         <div class="abs-panel-meta">
           <span class="abs-panel-badge">{{ summary_personali.total }} totali</span>
