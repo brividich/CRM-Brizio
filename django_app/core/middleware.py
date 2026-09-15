@@ -34,6 +34,11 @@ API_ACL_GATE_PATHS = {
     # pagina dei piani. La view fa comunque il proprio gate e risponde in JSON;
     # senza mappatura, con ACL_STRICT_CANONICAL il middleware la negherebbe.
     "/api/assets/manutenzione/": "/assets/manutenzione/piani/",
+    # Moderazione in blocco delle assenze: gate come la pagina da cui si usa,
+    # cioe' le Impostazioni assenze. La view applica comunque i propri controlli
+    # per ogni record; senza mappatura, con ACL_STRICT_CANONICAL una route nuova
+    # e senza binding canonico verrebbe negata.
+    "/assenze/api/admin/bulk-consenso": "/assenze/impostazioni/",
 }
 _ACL_MIDDLEWARE_LOG_TTL_SECONDS = 300
 logger = logging.getLogger(__name__)

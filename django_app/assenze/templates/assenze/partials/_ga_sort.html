@@ -1,0 +1,8 @@
+{% comment %}
+  Intestazione di colonna ordinabile del pannello admin assenze.
+  Parametri: campo (chiave in ADMIN_ORDINAMENTI), etichetta (testo mostrato).
+  Il click e' gestito dal JS del pannello, che riempie i campi nascosti
+  `ordina`/`verso` del form filtri e lo invia: cosi' l'ordinamento viaggia
+  insieme ai filtri e alla paginazione, senza costruire URL a mano.
+{% endcomment %}<a href="#admin-assenze-panel" class="ga-sort {% if admin_filtri.ordina == campo %}is-active{% endif %}" data-campo="{{ campo }}"
+   title="Ordina per {{ etichetta }}">{{ etichetta }}<span class="ga-sort-arrow" aria-hidden="true">{% if admin_filtri.ordina == campo %}{% if admin_filtri.verso == "asc" %}&#9650;{% else %}&#9660;{% endif %}{% else %}&#9671;{% endif %}</span></a>
