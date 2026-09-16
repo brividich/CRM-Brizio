@@ -59,11 +59,18 @@ def _split_sp_multivalue(raw: str) -> list[str]:
 
 def _parse_pericolosita(raw: str) -> str:
     """Estrae i codici HP (es. HP04, HP05) come stringa compatta max 100 char."""
-    parts = _split_sp_multivalue(raw)
-    codes = [m.group(1) for p in parts if (m := re.match(r"(HP\d+)", p))]
+    codes = list(dict.fromkeys(re.findall(r"HP\d+", raw)))
     if codes:
         return ", ".join(codes)[:100]
     return raw.strip()[:100]
+
+
+def _detect_delimiter(header_line: str) -> str:
+    """Rileva il delimitatore (';' o ',') dalla riga di intestazione del CSV."""
+    try:
+        return csv.Sniffer().sniff(header_line, delimiters=";,").delimiter
+    except csv.Error:
+        return ";"
 
 
 def _parse_rif_op(raw: str) -> str:
@@ -111,7 +118,9 @@ class Command(BaseCommand):
         errors = []
 
         with open(csv_path, encoding="utf-8-sig", newline="") as f:
-            reader = csv.reader(f, delimiter=";")
+            first_line = f.readline()
+            f.seek(0)
+            reader = csv.reader(f, delimiter=_detect_delimiter(first_line))
             header = next(reader)  # salta intestazione
             self.stdout.write(f"Colonne trovate: {len(header)}")
 

@@ -871,12 +871,20 @@ def _split_sp_multivalue_csv(raw: str) -> list[str]:
 
 
 def _parse_pericolosita_csv(raw: str) -> str:
-    """Estrae codici HP (HP04, HP05…) dal campo multi-valore SharePoint."""
-    parts = _split_sp_multivalue_csv(raw)
-    codes = [m.group(1) for p in parts if (m := re.match(r"(HP\d+)", p))]
+    """Estrae codici HP (HP04, HP05…) dal campo multi-valore SharePoint o dall'export a lista JSON."""
+    codes = list(dict.fromkeys(re.findall(r"HP\d+", raw)))
     if codes:
         return ", ".join(codes)[:100]
     return raw.strip()[:100]
+
+
+def _detect_csv_delimiter(content: str) -> str:
+    """Rileva il delimitatore (';' o ',') dalla riga di intestazione del CSV."""
+    header_line = content.splitlines()[0] if content else ""
+    try:
+        return csv.Sniffer().sniff(header_line, delimiters=";,").delimiter
+    except csv.Error:
+        return ";"
 
 
 def _parse_rif_op_csv(raw: str) -> str:
@@ -893,7 +901,7 @@ def _parse_csv_rows(content: str) -> tuple[list[dict], list[dict]]:
     rows: list[dict] = []
     errors: list[dict] = []
 
-    reader = csv.reader(io.StringIO(content), delimiter=";")
+    reader = csv.reader(io.StringIO(content), delimiter=_detect_csv_delimiter(content))
     try:
         next(reader)  # salta intestazione
     except StopIteration:

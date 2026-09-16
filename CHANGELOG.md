@@ -30,6 +30,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Fixed
 
+- **RENTRI · import CSV: gli export con separatore virgola venivano rifiutati come "colonne insufficienti"** (`django_app/rentri/views.py`, `django_app/rentri/management/commands/import_rentri_csv.py`). Sia l'import da UI (`import_preview`/`import_confirm`) sia il comando `import_rentri_csv` leggevano il CSV con delimitatore `;` fisso: un export con delimitatore `,` (campi tra virgolette, come quello prodotto da alcune esportazioni SharePoint) veniva letto come una riga a colonna singola, e ogni riga falliva con "Colonne insufficienti (1)".
+  1. Il delimitatore (`;` o `,`) è ora rilevato dalla riga di intestazione (`csv.Sniffer`), con fallback a `;` se il rilevamento fallisce.
+  2. L'estrazione dei codici HP dal campo "Pericolosità" (`_parse_pericolosita_csv` / `_parse_pericolosita`) ora cerca `HP\d+` ovunque nel testo invece di richiedere che il valore inizi con `HP`, per riconoscere anche il formato a lista JSON (`["HP04 - ...","HP05 - ..."]`) oltre al multivalore SharePoint classico (`valore;#id;#valore`).
+
+  **Deploy**: nessuna migrazione.
+
 - **ASSETS · manutenzione: un caporeparto non pianifica più asset di altri reparti** (`django_app/assets/views_maintenance.py`, `django_app/assets/tests_maintenance_audit_edges.py`). Emerso dall'audit indipendente del refactor manutenzioni (branch `codex/audit-manutenzioni`, unito in questo rilascio con i suoi 23 test sui casi limite e la documentazione in `docs/ai/AUDIT_*_MANUTENZIONI*.md`), che aveva lasciato un test rosso di proposito: chi può pianificare creava un ordine di lavoro anche su un asset di un altro reparto. Lo scope per reparto delle liste è solo un filtro preimpostato (si toglie con un click) e le view di scrittura non controllavano gli asset selezionati.
   1. `occurrence_create_workorder` e `workorder_occurrence_add` rispondono **403** (con il motivo e gli asset fuori reparto) se chi guida uno o più reparti (`Reparto.caporeparto_legacy_id`, via `user_reparti`) seleziona manutenzioni di asset di altri reparti. Confronto sul reparto dell'asset senza maiuscole e spazi (testo libero).
   2. **Nessun vincolo** per chi configura i piani (`can_manage_maintenance_plans`) e per chi pianifica senza guidare alcun reparto (es. ufficio manutenzione): il loro perimetro resta l'azienda. Guardare fuori dal proprio reparto nelle liste resta possibile.
