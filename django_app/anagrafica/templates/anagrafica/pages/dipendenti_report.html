@@ -167,7 +167,7 @@ body.theme-dark .ana-badge-count { background:var(--surface-alt); color:var(--te
             <td>{{ row.matricola|matricola_fmt|default:"—" }}</td>
             <td>
               <a href="{% url 'anagrafica:dipendente_detail' row.id %}" style="font-weight:700;color:#1e293b;text-decoration:none;">
-                {{ row.cognome }} {{ row.nome }}
+                {% nominativo row %}
               </a>
               {% if not row.attivo %}<span class="ana-pill ana-pill-gray" style="margin-left:6px;">Non attivo</span>{% endif %}
             </td>

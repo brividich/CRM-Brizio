@@ -30,6 +30,8 @@ from django.http import HttpRequest
 
 from anagrafica.exports import ExportSpec, acl_gate, register  # noqa: F401
 
+from core import naming
+
 
 # ── Helper condivisi ─────────────────────────────────────────────────────────
 
@@ -75,7 +77,7 @@ def _nomi_legacy(legacy_ids=None) -> dict:
                 lid = int(row.get("id") or 0)
             except (TypeError, ValueError):
                 continue
-            nome = f'{(row.get("cognome") or "").strip()} {(row.get("nome") or "").strip()}'.strip()
+            nome = naming.nome_completo(row.get("nome"), row.get("cognome"))
             if lid:
                 nomi[lid] = nome or f"#{lid}"
     except Exception:  # tabella legacy non raggiungibile → si degrada a vuoto

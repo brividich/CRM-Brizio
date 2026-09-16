@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Dipendenti | Anagrafica HR{% endblock %}
 
@@ -73,11 +74,11 @@
           <tbody>
             {% for dip in page_obj %}
             <tr>
-              <td data-sort-value="{{ dip.cognome }} {{ dip.nome }}">
+              <td data-sort-value="{% nominativo_sort dip %}">
                 <div class="fmd-person">
-                  <span class="fmd-avatar">{% if dip.foto_url %}<img src="{{ dip.foto_url }}" alt="" style="width:100%;height:100%;border-radius:8px;object-fit:cover;">{% else %}{{ dip.cognome|slice:":1" }}{{ dip.nome|slice:":1" }}{% endif %}</span>
+                  <span class="fmd-avatar">{% if dip.foto_url %}<img src="{{ dip.foto_url }}" alt="" style="width:100%;height:100%;border-radius:8px;object-fit:cover;">{% else %}{% nominativo_iniziali dip %}{% endif %}</span>
                   <span>
-                    <span class="fmd-cell-main">{{ dip.cognome }} {{ dip.nome }}</span>
+                    <span class="fmd-cell-main">{% nominativo dip %}</span>
                     {% if dip.timbri_legacy_id %}<span class="fmd-cell-sub"><span class="fmd-code">#{{ dip.timbri_legacy_id }}</span></span>{% endif %}
                     {% comment %}
                     Termini della ricerca server-side che non sono a video (username, matricola):

@@ -19,6 +19,8 @@ from __future__ import annotations
 from anagrafica.models import RuoloOperativo
 from core.operational_roles import get_anagrafica_ids_for_role
 
+from core import naming
+
 
 def _nome_map(legacy_ids) -> dict[int, str]:
     """``legacy_anagrafica_id`` → "Cognome Nome" (best-effort dal DB legacy).
@@ -40,7 +42,7 @@ def _nome_map(legacy_ids) -> dict[int, str]:
             rid = 0
         if not rid:
             continue
-        nome = f"{row.get('cognome') or ''} {row.get('nome') or ''}".strip()
+        nome = naming.nome_completo(row.get("nome"), row.get("cognome"))
         result[rid] = nome
     return result
 

@@ -1,10 +1,11 @@
 {% load static %}
+{% load anagrafica_extras %}
 <!DOCTYPE html>
 <html lang="it">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Scheda dipendente — {{ dip.cognome }} {{ dip.nome }}</title>
+  <title>Scheda dipendente — {% nominativo dip %}</title>
   <link rel="stylesheet" href="{% static 'core/vendor/outfit/outfit.css' %}">
   <style>
     *, *::before, *::after { box-sizing: border-box; }
@@ -180,7 +181,7 @@
 
   <!-- Action bar (non stampata) -->
   <div class="pb-actions">
-    <span class="pb-actions-title">Scheda dipendente — {{ dip.cognome }} {{ dip.nome }}</span>
+    <span class="pb-actions-title">Scheda dipendente — {% nominativo dip %}</span>
     <a href="{% url 'anagrafica:dipendente_detail' legacy_id %}" title="Apri scheda completa">← Scheda</a>
     <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa</button>
   </div>
@@ -191,14 +192,14 @@
     <header class="pb-head">
       <div class="pb-head-photo">
         {% if civile_foto_url %}
-          <img src="{{ civile_foto_url }}" alt="Foto {{ dip.cognome }} {{ dip.nome }}">
+          <img src="{{ civile_foto_url }}" alt="Foto {% nominativo dip %}">
         {% else %}
-          {{ dip.cognome|first|default:"?" }}{{ dip.nome|first|default:"" }}
+          {% nominativo_iniziali dip %}
         {% endif %}
       </div>
       <div class="pb-head-body">
         <div class="pb-head-eyebrow">Anagrafica HR · NOVICROM HUB</div>
-        <h1 class="pb-head-title">{{ dip.cognome }} {{ dip.nome }}</h1>
+        <h1 class="pb-head-title">{% nominativo dip %}</h1>
         <div class="pb-head-sub">
           {% if dip.mansione %}{{ dip.mansione }}{% else %}<span style="color:var(--muted-soft);">Mansione non specificata</span>{% endif %}
           {% if dip.reparto %} · <b>{{ dip.reparto }}</b>{% endif %}

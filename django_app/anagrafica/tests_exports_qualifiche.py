@@ -153,7 +153,7 @@ class QualificheExportTests(TestCase):
         # Default della pagina: «da gestire» = scadute + ≤60gg → solo la scaduta.
         self._assert_both_formats("qualifiche_scadenzario", 1)
         rows = self._rows("qualifiche_scadenzario")
-        self.assertEqual(rows[0]["dipendente"], "Uno Tizio")
+        self.assertEqual(rows[0]["dipendente"], "Tizio Uno")
         self.assertEqual(rows[0]["reparto"], "REPARTO A")
         self.assertEqual(rows[0]["qualifica"], self.tipo_sic.nome)
         self.assertEqual(rows[0]["stato"], "Scaduta")
@@ -188,20 +188,20 @@ class QualificheExportTests(TestCase):
         # Una riga per dipendente attivo (tabella piatta: colonne = conteggi+elenchi).
         self._assert_both_formats("matrice_competenze", 2)
         rows = {r["dipendente"]: r for r in self._rows("matrice_competenze")}
-        uno = rows["Uno Tizio"]
+        uno = rows["Tizio Uno"]
         self.assertEqual(uno["n_scadute"], 1)
         self.assertEqual(uno["n_valide"], 0)
         self.assertEqual(uno["n_mancanti"], 1)  # non possiede la professionale
         self.assertIn(self.tipo_sic.nome, uno["scadute"])
-        due = rows["Due Caio"]
+        due = rows["Caio Due"]
         self.assertEqual(due["n_valide"], 1)
         self.assertIn(self.tipo_prof.nome, due["valide"])
         # Filtro reparto.
         self._assert_both_formats("matrice_competenze", 1, reparto="REPARTO+A")
         # Filtro categoria: solo la competenza di sicurezza resta a colonna.
         cat_rows = {r["dipendente"]: r for r in self._rows("matrice_competenze", categoria="SICUREZZA")}
-        self.assertEqual(cat_rows["Due Caio"]["n_mancanti"], 1)
-        self.assertEqual(cat_rows["Due Caio"]["n_valide"], 0)
+        self.assertEqual(cat_rows["Caio Due"]["n_mancanti"], 1)
+        self.assertEqual(cat_rows["Caio Due"]["n_valide"], 0)
 
     # -- 5. clienti/enti MOD.128 ---------------------------------------------
     def test_export_mpq_clienti(self):

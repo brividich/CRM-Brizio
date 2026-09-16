@@ -234,7 +234,7 @@ class FormazioneExportTests(TestCase):
         request.user = self.admin
         rows = EXPORT_SPECS["formazione_scadenzario"].dataset(request, "filtered")
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["dipendente"], "Rossi Test Luca")
+        self.assertEqual(rows[0]["dipendente"], "Luca Rossi Test")
         self.assertIn("C-ANTINC", rows[0]["corso"])
         self.assertEqual(rows[0]["obbligatorio"], "Si")
 

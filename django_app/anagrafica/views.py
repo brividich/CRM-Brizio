@@ -28,6 +28,7 @@ from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
 from django.contrib.auth.decorators import login_required
+from core import naming
 from core.csv_export import BOM, CSV_CONTENT_TYPE, safe_csv_writer
 from core.legacy_anagrafica import (
     count_anagrafica_statuses,
@@ -476,7 +477,7 @@ def _offboarding_dipendente_nome(dip: dict) -> str:
     cognome = str(dip.get("cognome") or "").strip()
     nome = str(dip.get("nome") or "").strip()
     legacy_id = dip.get("id") or ""
-    return f"{cognome} {nome}".strip() or f"#{legacy_id}".strip()
+    return naming.nome_completo(nome, cognome) or f"#{legacy_id}".strip()
 
 
 # ---------------------------------------------------------------------------
@@ -1057,7 +1058,7 @@ def dipendente_create(request):
                                     if _dn:
                                         _anno_nascita = _dn.year
                                 _pwd_iniziale = str(_anno_nascita) if _anno_nascita else f"Portale{django_timezone.localdate().year}"
-                                _nome_completo = f"{data.get('cognome', '')} {data.get('nome', '')}".strip()
+                                _nome_completo = naming.nome_completo(data.get("nome"), data.get("cognome"))
                                 _nuovo_utente = UtenteLegacy.objects.create(
                                     nome=_nome_completo,
                                     email=_alias,
@@ -1160,7 +1161,7 @@ def dipendente_create(request):
                 # Onboarding strutturato: avvio opzionale della pratica + checklist
                 if new_id and request.POST.get("avvia_onboarding"):
                     try:
-                        nome_onb = f"{data.get('cognome', '')} {data.get('nome', '')}".strip()
+                        nome_onb = naming.nome_completo(data.get("nome"), data.get("cognome"))
                         ruoli_onb = list(
                             DipendenteRuoloOperativo.objects
                             .filter(legacy_anagrafica_id=new_id)
@@ -1210,7 +1211,7 @@ def dipendente_create(request):
                     except Exception:
                         logger.warning("Registrazione formazione pregressa fallita per %s", new_id, exc_info=True)
 
-                nome_disp = f"{data.get('cognome', '')} {data.get('nome', '')}".strip() or "Dipendente"
+                nome_disp = naming.nome_completo(data.get("nome"), data.get("cognome")) or "Dipendente"
                 messages.success(request, f'Dipendente "{nome_disp}" creato.')
                 if new_id:
                     return redirect("anagrafica:dipendente_detail", legacy_id=new_id)
@@ -1876,7 +1877,7 @@ def dipendente_detail(request, legacy_id: int):
 
     _nome = str(dip.get("nome") or "").strip()
     _cognome = str(dip.get("cognome") or "").strip()
-    _nome_completo = f"{_cognome} {_nome}".strip()
+    _nome_completo = naming.nome_completo(_nome, _cognome)
     _alias = str(dip.get("aliasusername") or "").strip()
 
     def _qs(**params):
@@ -3246,6 +3247,7 @@ def formazione_corso_report_iscritti_csv(request, corso_id: int):
             a["idoneo"] = r["idoneo"]
 
     nomi = _build_nomi_map()
+    ordine = _build_ordine_map()
     _prio = ["COMPLETATO", "IN_CORSO", "ISCRITTO", "NON_IDONEO", "ASSENTE", "RITIRATO"]
 
     import csv
@@ -3255,7 +3257,7 @@ def formazione_corso_report_iscritti_csv(request, corso_id: int):
     writer = safe_csv_writer(response, delimiter=";")
     writer.writerow(["Dipendente", "ID anagrafica", "Stato", "Sessioni", "Completamenti",
                      "% presenza", "Idoneo", "Ultimo completamento"])
-    for lid, a in sorted(agg.items(), key=lambda kv: nomi.get(kv[0], f"#{kv[0]}").casefold()):
+    for lid, a in sorted(agg.items(), key=lambda kv: ordine.get(kv[0], f"#{kv[0]}").casefold()):
         stato = next((s for s in _prio if s in a["stati"]), next(iter(a["stati"]), ""))
         writer.writerow([
             nomi.get(lid, f"#{lid}"), lid, stato, a["n_sessioni"], a["n_compl"],
@@ -3905,7 +3907,7 @@ def ruolo_operativo_dipendenti(request, ruolo_id: int):
                 fonti.append("Da scheda")
             righe.append({
                 "legacy_id": legacy_id,
-                "label": " ".join(p for p in [cognome, nome] if p) or f"#{legacy_id}",
+                "label": naming.nome_completo(nome, cognome) or f"#{legacy_id}",
                 "reparto": str(row.get("reparto") or "").strip(),
                 "mansione": str(row.get("mansione") or "").strip(),
                 "fonti": fonti,
@@ -4030,7 +4032,7 @@ def _notifica_gap_idoneita(legacy_id: int, dip: dict, mansione_nome: str, user=N
         from .services.onboarding import _caporeparto_emails
         from .services.reminders import get_reminder_recipients
         reparto = (dip.get("reparto") or "").strip()
-        nome = f"{dip.get('cognome', '')} {dip.get('nome', '')}".strip() or f"#{legacy_id}"
+        nome = naming.nome_completo(dip.get("nome"), dip.get("cognome")) or f"#{legacy_id}"
         dest = sorted(set(
             get_reminder_recipients("idoneita_reminder_emails") + _caporeparto_emails(reparto)
         ))
@@ -5545,7 +5547,7 @@ def dipendente_retribuzioni_export_xlsx(request, legacy_id: int):
     summary_row = len(_mesi_asc) + 3
     write_cell(
         ws, summary_row, 1,
-        f"Dipendente: {_cognome} {_nome} — {len(_mesi_asc)} mesi · {len(colonne)} voci",
+        f"Dipendente: {naming.nome_completo(_nome, _cognome)} — {len(_mesi_asc)} mesi · {len(colonne)} voci",
     ).font = Font(italic=True, size=9, color="64748B")
 
     # Output
@@ -5554,7 +5556,7 @@ def dipendente_retribuzioni_export_xlsx(request, legacy_id: int):
     buf.seek(0)
 
     today = django_timezone.localdate().strftime("%Y%m%d")
-    safe_name = "".join(ch for ch in f"{_cognome}_{_nome}" if ch.isalnum() or ch in ("_", "-")).strip("_") or str(legacy_id)
+    safe_name = "".join(ch for ch in f"{_nome}_{_cognome}" if ch.isalnum() or ch in ("_", "-")).strip("_") or str(legacy_id)
     filename = f"storico_retributivo_{safe_name}_{today}.xlsx"
 
     resp = HttpResponse(
@@ -6460,9 +6462,14 @@ def _dipendenti_picker_rows() -> list[dict]:
             continue
         nome = str(row.get("nome") or "").strip()
         cognome = str(row.get("cognome") or "").strip()
-        label = " ".join(part for part in [cognome, nome] if part) or str(row.get("aliasusername") or "").strip() or f"#{legacy_id}"
-        items.append({"id": legacy_id, "label": label})
-    items.sort(key=lambda r: r["label"].casefold())
+        label = naming.nome_completo(nome, cognome) or str(row.get("aliasusername") or "").strip() or f"#{legacy_id}"
+        items.append({
+            "id": legacy_id,
+            "label": label,
+            # L'etichetta è "Nome Cognome", ma la tendina resta ordinata per cognome.
+            "_ordine": naming.chiave_ordinamento(nome, cognome) or label,
+        })
+    items.sort(key=lambda r: r["_ordine"].casefold())
     return items
 
 
@@ -6919,7 +6926,7 @@ def qualifiche_list(request):
             for r in rows:
                 rid = int(r.get("id") or 0)
                 if rid:
-                    nome_map[rid] = f"{r.get('cognome', '')} {r.get('nome', '')}".strip()
+                    nome_map[rid] = naming.nome_completo(r.get("nome"), r.get("cognome"))
         except Exception:
             pass
 
@@ -7348,6 +7355,7 @@ def tipo_qualifica_detail(request, tipo_id: int):
     corso_ids = [c.id for c in corsi]
 
     nomi = _build_nomi_map()
+    ordine = _build_ordine_map()
     holders: list[dict] = []
     n_scaduti = n_scadenza = 0
     for q in (DipendenteQualifica.objects.filter(tipo=tipo)
@@ -7366,7 +7374,10 @@ def tipo_qualifica_detail(request, tipo_id: int):
             "nome": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
         })
     _ord = {"scaduta": 0, "in_scadenza": 1, "valida": 2}
-    holders.sort(key=lambda h: (_ord.get(h["stato"], 9), h["nome"].casefold()))
+    holders.sort(key=lambda h: (
+        _ord.get(h["stato"], 9),
+        ordine.get(h["q"].legacy_anagrafica_id, h["nome"]).casefold(),
+    ))
 
     sessioni = list(
         QualificaSessione.objects.filter(tipo=tipo)
@@ -7519,6 +7530,7 @@ def _build_candidati_qualifica(tipo, oggi) -> list[dict]:
               .order_by("legacy_anagrafica_id", "-data_conseguimento", "-id")):
         ultima_per_id.setdefault(q.legacy_anagrafica_id, q)
     nomi = _build_nomi_map()
+    ordine = _build_ordine_map()
     cessati = _cessati_legacy_ids()
     out: list[dict] = []
     for lid, q in ultima_per_id.items():
@@ -7538,7 +7550,10 @@ def _build_candidati_qualifica(tipo, oggi) -> list[dict]:
             "preselect": status in ("scaduta", "in_scadenza"),
         })
     order = {"scaduta": 0, "in_scadenza": 1, "valida": 2}
-    out.sort(key=lambda c: (order.get(c["status"], 9), c["nome"].casefold()))
+    out.sort(key=lambda c: (
+        order.get(c["status"], 9),
+        ordine.get(c["legacy_id"], c["nome"]).casefold(),
+    ))
     return out
 
 
@@ -7671,11 +7686,12 @@ def qualifica_sessione_candidati(request):
 def qualifica_sessione_detail(request, sessione_id: int):
     sess = get_object_or_404(QualificaSessione.objects.select_related("tipo"), pk=sessione_id)
     nomi = _build_nomi_map()
+    ordine = _build_ordine_map()
     rows = [
         {"q": q, "nome": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}")}
         for q in sess.qualifiche.all()
     ]
-    rows.sort(key=lambda r: r["nome"].casefold())
+    rows.sort(key=lambda r: ordine.get(r["q"].legacy_anagrafica_id, r["nome"]).casefold())
     is_admin = _qualifiche_can_edit(request)
     return render(request, "anagrafica/pages/qualifica_sessione_detail.html", {
         "sess": sess,
@@ -7739,9 +7755,10 @@ def qualifica_sessione_report_csv(request, sessione_id: int):
     """Esporta in CSV i partecipanti di una sessione di qualifica/abilitazione."""
     sess = get_object_or_404(QualificaSessione.objects.select_related("tipo"), pk=sessione_id)
     nomi = _build_nomi_map()
+    ordine = _build_ordine_map()
     rows = sorted(
         sess.qualifiche.all(),
-        key=lambda q: nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}").casefold(),
+        key=lambda q: ordine.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}").casefold(),
     )
 
     import csv
@@ -8364,7 +8381,7 @@ def scadenzario(request):
         for v in voci:
             stato = "Scaduta" if v["scaduta"] else f"Scade in {v['giorni']} giorni"
             writer.writerow([
-                f"{v['cognome']} {v['nome']}".strip(),
+                naming.nome_completo(v["nome"], v["cognome"]),
                 v["reparto"],
                 v["kind_label"],
                 v["tipo_nome"],
@@ -8709,7 +8726,12 @@ def ratei_list(request):
     legacy_ids = sorted({lid for lid in cf_to_legacy_rl.values() if lid})
     dip_qs = list(AnagraficaDipendente.objects.filter(id__in=legacy_ids).values("id", "cognome", "nome", "reparto"))
     id_to_nome: dict = {
-        d["id"]: f'{(d["cognome"] or "").strip()} {(d["nome"] or "").strip()}'.strip()
+        d["id"]: naming.nome_completo(d["nome"], d["cognome"])
+        for d in dip_qs
+    }
+    # L'etichetta è "Nome Cognome", la tendina resta ordinata per cognome.
+    id_to_ordine: dict = {
+        d["id"]: naming.chiave_ordinamento(d["nome"], d["cognome"])
         for d in dip_qs
     }
     # Fallback reparto: AnagraficaDipendente.reparto → DipendenteAnagraficaAziendale.area
@@ -8732,8 +8754,13 @@ def ratei_list(request):
         seen_cf.add(cf)
         nome = id_to_nome.get(lid) if lid else None
         reparto = id_to_reparto.get(lid, "") if lid else ""
-        dipendenti_options.append({"cf": cf, "nome": nome or cf, "reparto": reparto})
-    dipendenti_options.sort(key=lambda x: x["nome"])
+        dipendenti_options.append({
+            "cf": cf,
+            "nome": nome or cf,
+            "reparto": reparto,
+            "_ordine": (id_to_ordine.get(lid) if lid else "") or nome or cf,
+        })
+    dipendenti_options.sort(key=lambda x: x["_ordine"].casefold())
     cf_to_nome: dict = {d["cf"]: d["nome"] for d in dipendenti_options}
 
     reparti_options: list = sorted({d["reparto"] for d in dipendenti_options if d["reparto"]})
@@ -8862,7 +8889,7 @@ def ratei_export(request):
     legacy_ids = sorted({lid for lid in cf_to_legacy_exp.values() if lid})
     dip_qs = list(AnagraficaDipendente.objects.filter(id__in=legacy_ids).values("id", "cognome", "nome", "reparto"))
     id_to_nome: dict = {
-        d["id"]: f'{(d["cognome"] or "").strip()} {(d["nome"] or "").strip()}'.strip()
+        d["id"]: naming.nome_completo(d["nome"], d["cognome"])
         for d in dip_qs
     }
     id_to_az_reparto_exp: dict = dict(
@@ -9053,7 +9080,12 @@ def _retribuzioni_globale_context(request) -> dict:
         .values("id", "cognome", "nome", "reparto")
     )
     id_to_nome = {
-        d["id"]: f'{(d["cognome"] or "").strip()} {(d["nome"] or "").strip()}'.strip()
+        d["id"]: naming.nome_completo(d["nome"], d["cognome"])
+        for d in dip_qs
+    }
+    # L'etichetta è "Nome Cognome", la tendina resta ordinata per cognome.
+    id_to_ordine = {
+        d["id"]: naming.chiave_ordinamento(d["nome"], d["cognome"])
         for d in dip_qs
     }
     # Fallback reparto: AnagraficaDipendente.reparto → DipendenteAnagraficaAziendale.area
@@ -9102,9 +9134,13 @@ def _retribuzioni_globale_context(request) -> dict:
         return (id_to_livello.get(lid) if lid else None) or cf_to_livello.get(cf.upper(), "")
 
     # Opzioni filtri
+    def _ordine_cf(cf):
+        lid = cf_to_legacy.get(cf)
+        return ((id_to_ordine.get(lid) if lid else "") or _nome(cf)).casefold()
+
     dipendenti_options = sorted(
         ({"cf": cf, "nome": _nome(cf), "reparto": _reparto(cf)} for cf in cf_to_legacy),
-        key=lambda x: x["nome"],
+        key=lambda x: _ordine_cf(x["cf"]),
     )
     reparti_options = sorted({r for r in id_to_reparto.values() if r})
     livelli_db = list(
@@ -11272,7 +11308,7 @@ def visite_mediche_dashboard(request):
 # ---------------------------------------------------------------------------
 
 def _build_nomi_map() -> dict[int, str]:
-    """Ritorna dict {legacy_anagrafica_id: 'Cognome Nome'} per tutti i dipendenti."""
+    """Ritorna dict {legacy_anagrafica_id: 'Nome Cognome'} per tutti i dipendenti."""
     nomi: dict[int, str] = {}
     try:
         for r in AnagraficaDipendente.objects.values("id", "cognome", "nome"):
@@ -11280,12 +11316,29 @@ def _build_nomi_map() -> dict[int, str]:
                 lid = int(r.get("id") or 0)
             except (TypeError, ValueError):
                 continue
-            cog = (r.get("cognome") or "").strip()
-            nom = (r.get("nome") or "").strip()
-            nomi[lid] = f"{cog} {nom}".strip() or f"#{lid}"
+            nomi[lid] = naming.nome_completo(r.get("nome"), r.get("cognome")) or f"#{lid}"
     except Exception:
         logger.exception("Errore lookup nomi dipendenti per sessione visita")
     return nomi
+
+
+def _build_ordine_map() -> dict[int, str]:
+    """Chiave di ordinamento {legacy_anagrafica_id: 'Cognome Nome'}.
+
+    Il nominativo si *mostra* "Nome Cognome" (`_build_nomi_map`), ma gli elenchi
+    di persone restano ordinati per cognome come in ogni lista HR.
+    """
+    ordine: dict[int, str] = {}
+    try:
+        for r in AnagraficaDipendente.objects.values("id", "cognome", "nome"):
+            try:
+                lid = int(r.get("id") or 0)
+            except (TypeError, ValueError):
+                continue
+            ordine[lid] = naming.chiave_ordinamento(r.get("nome"), r.get("cognome")) or f"#{lid}"
+    except Exception:
+        logger.exception("Errore lookup ordinamento nomi dipendenti")
+    return ordine
 
 
 def _cessati_legacy_ids() -> set[int]:
@@ -11419,7 +11472,11 @@ def _build_candidati_sessione(tipo: TipoVisitaMedica, oggi) -> list[dict]:
 
     # Ordine: in_scadenza → scaduta → mai_effettuata; poi alfabetico per nome
     _status_order = {"in_scadenza": 0, "scaduta": 1, "mai_effettuata": 2}
-    candidati.sort(key=lambda c: (_status_order.get(c["status"], 9), c["nome"]))
+    ordine_map = _build_ordine_map()
+    candidati.sort(key=lambda c: (
+        _status_order.get(c["status"], 9),
+        ordine_map.get(c["legacy_id"], c["nome"]),
+    ))
     return candidati
 
 
@@ -11442,7 +11499,12 @@ def _build_candidati_giornata(oggi, tipo_id=None) -> list[dict]:
                 "preselect": c["status"] in ("scaduta", "in_scadenza"),
             })
     _status_order = {"in_scadenza": 0, "scaduta": 1, "mai_effettuata": 2}
-    righe.sort(key=lambda r: (_status_order.get(r["status"], 9), r["nome"].casefold(), r["tipo"].nome))
+    ordine_map = _build_ordine_map()
+    righe.sort(key=lambda r: (
+        _status_order.get(r["status"], 9),
+        ordine_map.get(r["legacy_id"], r["nome"]).casefold(),
+        r["tipo"].nome,
+    ))
     return righe
 
 
@@ -12168,7 +12230,8 @@ def formazione_ricerca(request):
             {"legacy_id": lid, "nome": nome}
             for lid, nome in nomi.items() if ql in nome.lower()
         ]
-        dip_match.sort(key=lambda d: d["nome"].casefold())
+        _ordine = _build_ordine_map()
+        dip_match.sort(key=lambda d: _ordine.get(d["legacy_id"], d["nome"]).casefold())
         risultati["dipendenti"] = dip_match[:25]
 
         # Attestati: per nome dipendente o titolo corso (snapshot).
@@ -12733,7 +12796,8 @@ def formazione_corso_detail(request, corso_id: int):
             "data_completamento": a["data_completamento"],
             "idoneo": a["idoneo"],
         })
-    dipendenti_iscritti.sort(key=lambda x: x["nome"].lower())
+    _ordine_dip = _build_ordine_map() if agg_dip else {}
+    dipendenti_iscritti.sort(key=lambda x: _ordine_dip.get(x["legacy_id"], x["nome"]).lower())
     n_dipendenti_iscritti = len(dipendenti_iscritti)
 
     edit_form = TrainingCourseForm(instance=corso)
@@ -12768,7 +12832,11 @@ def formazione_corso_detail(request, corso_id: int):
             "data_completamento": _tz.localdate(),
             "idoneo": True,
         })
-        dipendenti_pool = sorted(_build_nomi_map().items(), key=lambda x: x[1].casefold())
+        _ordine_pool = _build_ordine_map()
+        dipendenti_pool = sorted(
+            _build_nomi_map().items(),
+            key=lambda x: _ordine_pool.get(x[0], x[1]).casefold(),
+        )
 
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
         "corso": corso,
@@ -14423,7 +14491,11 @@ def _candidati_rinnovo_corso(corso, sessione=None) -> list[dict]:
             "preselect": d.stato_scadenza in ("SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90"),
         })
     order = {"SCADUTO": 0, "IN_SCADENZA_30": 1, "IN_SCADENZA_90": 2, "MAI_FREQUENTATO": 3}
-    out.sort(key=lambda c: (order.get(c["stato"], 9), c["nome"].casefold()))
+    _ordine = _build_ordine_map()
+    out.sort(key=lambda c: (
+        order.get(c["stato"], 9),
+        _ordine.get(c["legacy_id"], c["nome"]).casefold(),
+    ))
     return out
 
 
@@ -15758,9 +15830,10 @@ def formazione_plan(request, legacy_id: int | None = None):
             if filtro_ruolo    and a.get("ruolo", "") != filtro_ruolo:       return False
             return True
 
+        _ordine_coinvolti = _build_ordine_map()
         rows_legacy = sorted(
             (lid for lid in legacy_ids_coinvolti if _row_passes(lid)),
-            key=lambda lid: nomi_map.get(lid, f"#{lid}").lower(),
+            key=lambda lid: _ordine_coinvolti.get(lid, f"#{lid}").lower(),
         )
         rows = []
         for lid in rows_legacy:
@@ -15805,7 +15878,7 @@ def formazione_plan(request, legacy_id: int | None = None):
         if dip:
             contesto_dipendente = {
                 "legacy_id": legacy_id,
-                "nome":      f"{(dip.cognome or '').strip()} {(dip.nome or '').strip()}".strip() or f"#{legacy_id}",
+                "nome":      naming.nome_completo(dip.nome, dip.cognome) or f"#{legacy_id}",
             }
 
     # Mese precedente/successivo per nav calendario
@@ -16145,7 +16218,7 @@ def organigramma(request):
             area.responsabile_effettivo_id = rid
             resp_row = dip_map.get(rid or 0)
             area.responsabile_effettivo_label = (
-                f"{resp_row.get('cognome', '')} {resp_row.get('nome', '')}".strip()
+                naming.nome_completo(resp_row.get("nome"), resp_row.get("cognome"))
                 if resp_row else ""
             )
             area.responsabile_distinto = bool(
@@ -16238,7 +16311,7 @@ def organigramma_persona_popup(request, legacy_id: int):
         )
     ]
 
-    nome = f"{dip.get('cognome') or ''} {dip.get('nome') or ''}".strip()
+    nome = naming.nome_completo(dip.get("nome"), dip.get("cognome"))
     return render(request, "anagrafica/partials/_org_persona_popup.html", {
         "legacy_id": legacy_id,
         "nome": nome,
@@ -16409,7 +16482,7 @@ def dipendente_verbale_dpi(request, legacy_id: int):
         mansionario_service.requisiti_per_nome_mansione(mansione_nome)
         if mansione_nome else mansionario_service.requisiti_vuoti()
     )
-    nome = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip()
+    nome = naming.nome_completo(dip.get("nome"), dip.get("cognome"))
     return render(request, "anagrafica/pages/verbale_dpi.html", {
         "dip": dip,
         "nome": nome,
@@ -16514,7 +16587,8 @@ def sicurezza_ricerca(request):
             {"legacy_id": lid, "nome": nome}
             for lid, nome in nomi.items() if ql in nome.lower()
         ]
-        dip_match.sort(key=lambda d: d["nome"].casefold())
+        _ordine = _build_ordine_map()
+        dip_match.sort(key=lambda d: _ordine.get(d["legacy_id"], d["nome"]).casefold())
         risultati["dipendenti"] = dip_match[:25]
 
         totale = sum(len(v) for v in risultati.values())
@@ -16677,7 +16751,7 @@ def matrice_competenze(request):
                 if c["data"]:
                     lab = f"{lab} {c['data']:%d/%m/%Y}"
                 cells.append(lab)
-            writer.writerow([f"{r['cognome']} {r['nome']}".strip(), r["reparto"]] + cells)
+            writer.writerow([naming.nome_completo(r["nome"], r["cognome"]), r["reparto"]] + cells)
         return resp
 
     return render(request, "anagrafica/pages/matrice_competenze.html", {
@@ -16957,7 +17031,7 @@ def skill_matrix_macchina(request):
             for cell in r["celle"]:
                 cells.append("" if cell["vuota"] else cell["livello"])
             writer.writerow(
-                [f"{r['cognome']} {r['nome']}".strip(), r["reparto"], _disp_csv(r)] + cells
+                [naming.nome_completo(r["nome"], r["cognome"]), r["reparto"], _disp_csv(r)] + cells
             )
         return resp
 
@@ -17081,7 +17155,7 @@ def skm_refresh(request):
 
     def _nome(lid):
         d = dip_map.get(lid, {})
-        return f"{str(d.get('cognome') or '').strip()} {str(d.get('nome') or '').strip()}".strip() or f"ID {lid}"
+        return naming.nome_completo(d.get("nome"), d.get("cognome")) or f"ID {lid}"
 
     righe = [{
         "ab": a, "nome": _nome(a.legacy_anagrafica_id),
@@ -17344,7 +17418,7 @@ def conformita_report(request):
             idn = r["idoneita"]
             da_soddisfare = "; ".join(list(idn.get("scaduti", [])) + list(idn.get("mancanti", [])))
             writer.writerow([
-                f"{r['cognome']} {r['nome']}".strip(),
+                naming.nome_completo(r["nome"], r["cognome"]),
                 r["reparto"],
                 r["mansione"],
                 _LABEL.get(r["complessivo"], r["complessivo"]),
@@ -17485,7 +17559,7 @@ def onboarding_avvia(request, legacy_id: int):
         .filter(legacy_anagrafica_id=legacy_id)
         .values_list("ruolo_id", flat=True)
     )
-    nome = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip()
+    nome = naming.nome_completo(dip.get("nome"), dip.get("cognome"))
     try:
         pratica = onboarding_service.avvia_onboarding(
             legacy_id=legacy_id,
@@ -17737,7 +17811,8 @@ def _elearning_iscritti_rows(corso):
             "n_tentativi": e.n_tentativi,
             "data_completamento": e.data_completamento,
         })
-    rows.sort(key=lambda x: x["nome"].lower())
+    _ordine = _build_ordine_map() if rows else {}
+    rows.sort(key=lambda x: _ordine.get(x["legacy_id"], x["nome"]).lower())
     return rows
 
 
@@ -17825,7 +17900,8 @@ def formazione_elearning_manage(request, corso_id: int):
         for lid in sorted(attivi_ids):
             if lid not in assegnati_ids and lid in nomi:
                 assegnabili.append({"legacy_id": lid, "nome": nomi[lid]})
-        assegnabili.sort(key=lambda x: x["nome"].lower())
+        _ordine_ass = _build_ordine_map()
+        assegnabili.sort(key=lambda x: _ordine_ass.get(x["legacy_id"], x["nome"]).lower())
 
     return render(request, "anagrafica/pages/formazione_elearning_manage.html", {
         "corso": corso,

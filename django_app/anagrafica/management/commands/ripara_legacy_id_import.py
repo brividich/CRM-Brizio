@@ -52,6 +52,8 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 from django.db.models import UniqueConstraint
 
+from core import naming
+
 # Modelli (app anagrafica) i cui record sono stati importati con il legacy_id di dev.
 TARGET_MODELS = [
     # formazione
@@ -78,7 +80,7 @@ def _nomi_legacy():
     with connection.cursor() as cur:
         cur.execute("SELECT id, nome, cognome FROM anagrafica_dipendenti")
         for _id, _nome, _cognome in cur.fetchall():
-            nomi[_id] = f"{(_cognome or '').strip()} {(_nome or '').strip()}".strip()
+            nomi[_id] = naming.nome_completo(_nome, _cognome)
     return nomi
 
 

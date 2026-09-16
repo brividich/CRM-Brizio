@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Skill Matrix — Abilitazioni macchina (MOD.187){% endblock %}
 
@@ -137,7 +138,7 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
           {% for r in righe %}
           <tr>
             <td class="name {% if r.disp_stato == 'assente' %}sm-row-ass{% elif r.disp_stato == 'da_confermare' %}sm-row-dub{% endif %}">
-              {{ r.cognome }} {{ r.nome }}
+              {% nominativo r %}
               {% if r.disp_stato == 'assente' %}<span class="sm-disp ass" title="{% for a in r.disp_assenze %}{{ a.tipo }} {{ a.data_inizio|date:'d/m' }}–{{ a.data_fine|date:'d/m' }}{% if a.parziale %} (parziale){% endif %}{% if not forloop.last %}; {% endif %}{% endfor %}">assente</span>
               {% elif r.disp_stato == 'da_confermare' %}<span class="sm-disp dub" title="Richiesta assenza in attesa di approvazione">da confermare</span>{% endif %}
               {% if r.reparto %}<div class="sm-rep">{{ r.reparto }}</div>{% endif %}

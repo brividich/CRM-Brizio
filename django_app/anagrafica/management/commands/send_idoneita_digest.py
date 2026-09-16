@@ -19,6 +19,8 @@ from anagrafica.services import conformita as conformita_service
 from anagrafica.services.email_digest import digest_fragment
 from anagrafica.services.reminders import get_reminder_recipients
 
+from core import naming
+
 CONFIG_KEY = "idoneita_reminder_emails"
 
 
@@ -67,7 +69,7 @@ class Command(BaseCommand):
 
         def _nome(lid):
             d = dip_map.get(lid, {})
-            return f"{str(d.get('cognome') or '').strip()} {str(d.get('nome') or '').strip()}".strip() or f"#{lid}"
+            return naming.nome_completo(d.get("nome"), d.get("cognome")) or f"#{lid}"
 
         def _blocco(titolo, items):
             out = [titolo, "-" * 60]

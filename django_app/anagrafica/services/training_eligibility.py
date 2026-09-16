@@ -29,6 +29,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from core import naming
+
 # Stati scadenza che rendono un dipendente candidato (da (ri)formare).
 STATI_RILEVANTI = ("SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90", "MAI_FREQUENTATO")
 # Stati che indicano "già a posto" → escluso dai candidati.
@@ -76,7 +78,7 @@ def _dipendenti_attivi() -> dict[int, dict[str, str]]:
         cognome = (r.get("cognome") or "").strip()
         nome = (r.get("nome") or "").strip()
         out[lid] = {
-            "nome": f"{cognome} {nome}".strip() or f"#{lid}",
+            "nome": naming.nome_completo(nome, cognome) or f"#{lid}",
             "mansione": (r.get("mansione") or "").strip(),
             "reparto": (r.get("reparto") or "").strip(),
         }

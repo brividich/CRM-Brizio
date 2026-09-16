@@ -41,6 +41,8 @@ from core.legacy_anagrafica import (
 from werkzeug.security import generate_password_hash
 from core.legacy_models import AnagraficaDipendente, Ruolo, UtenteLegacy
 
+from core import naming
+
 
 # ---------------------------------------------------------------------------
 # Mapping costanti
@@ -599,7 +601,7 @@ class Command(BaseCommand):
                 data_nascita = _parse_date(cell(raw_row, "data_nascita"))
                 anno_nascita = data_nascita.year if data_nascita else None
                 pwd_iniziale = str(anno_nascita) if anno_nascita else f"Portale{timezone.localdate().year}"
-                nome_completo = f"{cognome} {nome}".strip()
+                nome_completo = naming.nome_completo(nome, cognome)
                 nuovo_utente = UtenteLegacy.objects.create(
                     nome=nome_completo,
                     email=alias_to_use,
