@@ -121,6 +121,78 @@ def origin_label(origin: str) -> str:
     return ORIGIN_LABELS.get(origin, origin or "")
 
 
+# ── Natura del permesso: configurazione/amministrazione vs operativo ─────────
+# Dentro un modulo convivono due cose diverse: i permessi che *impostano* il
+# modulo (chi puo' cambiarne le regole, i cataloghi, chi vi accede) e quelli con
+# cui lo si *usa* tutti i giorni. Chi concede accessi ragiona quasi sempre su
+# questo confine — "gli do il modulo, non le sue impostazioni" — e finora doveva
+# ricavarlo leggendo un codice alla volta.
+NATURE_CONFIG = "configurazione"
+NATURE_OPERATIVO = "operativo"
+
+NATURE_LABELS = {
+    NATURE_CONFIG: "Configurazione e amministrazione",
+    NATURE_OPERATIVO: "Operativo",
+}
+NATURE_ORDER = [NATURE_CONFIG, NATURE_OPERATIVO]
+
+# L'azione finale `manage` e' gia' il raccoglitore in cui `bootstrap_acl_v2`
+# normalizza gestione/configurazione/impostazioni/wizard/toggle: e' il segnale
+# piu' affidabile che il permesso governa il modulo invece di usarlo.
+_CONFIG_ACTIONS = {"manage"}
+
+# Risorse che sono amministrazione a prescindere dall'azione: anche un semplice
+# `view` sui permessi o sugli utenti e' materia di configurazione.
+_CONFIG_RESOURCE_TOKENS = {
+    "acl",
+    "admin",
+    "amministrazione",
+    "catalog",
+    "catalogo",
+    "config",
+    "configurazione",
+    "gruppi",
+    "groups",
+    "impostazioni",
+    "permessi",
+    "permission",
+    "permissions",
+    "roles",
+    "ruoli",
+    "settings",
+    "setup",
+    "users",
+    "utenti",
+    "wizard",
+}
+
+
+def action_for_code(code: str) -> str:
+    """Ultimo segmento del code (`assets.piani.manage` -> ``manage``)."""
+    parts = [segment for segment in (code or "").lower().split(".") if segment]
+    return parts[-1] if len(parts) > 1 else ""
+
+
+def nature_for_code(code: str, module: str = "") -> str:
+    """Configurazione/amministrazione oppure operativo.
+
+    Nessun permesso viene mai nascosto da questa funzione: e' una divisione di
+    presentazione, e nel dubbio si ricade su ``operativo`` (il caso piu' comune
+    e il meno sorprendente per chi legge la pagina Accessi).
+    """
+    if action_for_code(code) in _CONFIG_ACTIONS:
+        return NATURE_CONFIG
+    resource = derive_resource(code, module)
+    tokens = {token for chunk in resource.split(".") for token in chunk.split("_") if token}
+    if tokens & _CONFIG_RESOURCE_TOKENS:
+        return NATURE_CONFIG
+    return NATURE_OPERATIVO
+
+
+def nature_label(nature: str) -> str:
+    return NATURE_LABELS.get(nature, NATURE_LABELS[NATURE_OPERATIVO])
+
+
 def derive_resource(code: str, module: str) -> str:
     """Risorsa (2o livello) ricavata dal code, robusta verso i code legacy.
 

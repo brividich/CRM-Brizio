@@ -877,6 +877,15 @@ il layer canonico. Matrice **soggetto x permessi**: il soggetto e' un **gruppo**
 ruolo; le righe sono i permessi canonici per modulo, e ognuna dice se governa una
 **pagina** o una **sezione** dentro una pagina.
 
+Dentro ogni modulo i permessi sono divisi in due scomparti, ciascuno con il suo
+contatore e i suoi «Accendi/Spegni»: **Configurazione e amministrazione** (azione
+`manage`, oppure risorsa di amministrazione — impostazioni, acl, permessi, ruoli,
+utenti, gruppi, catalogo, setup, wizard) e **Operativo** (tutto il resto, compreso
+cio' che crea, modifica o approva: usare il modulo non e' configurarlo). E' una
+divisione di *presentazione* (`core.permission_taxonomy.nature_for_code`): non
+nasconde nulla, non cambia i totali e non sposta di un millimetro la decisione
+ACL, che resta in `core.acl_v2`.
+
 Un gruppo **concede**: togliere una spunta cancella la riga invece di scrivere un
 diniego, cosi' un gruppo non toglie mai ai suoi membri cio' che il ruolo gia' da'.
 Per negare a una singola persona c'e' l'override utente.

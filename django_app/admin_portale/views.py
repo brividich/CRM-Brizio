@@ -88,6 +88,7 @@ from core.navigation_registry import (
 )
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
 from core.branding import get_portal_branding
+from core.permission_taxonomy import NATURE_ORDER, nature_for_code, nature_label
 from core.pdf import (
     PDF_TEMPLATE_DEFAULTS,
     PdfTheme,
@@ -11748,6 +11749,11 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
     Le righe sono i permessi, non i pulsanti legacy: e' il layer su cui il
     portale decide davvero. Ogni riga dice anche se il permesso governa una
     rotta (ha un binding attivo) o solo una sezione dentro una pagina.
+
+    Dentro il modulo i permessi sono divisi in due scomparti (``gruppi``): chi
+    *imposta* il modulo e chi lo *usa*. E' una divisione di presentazione — il
+    confine e' in :mod:`core.permission_taxonomy` — e non nasconde nulla: la
+    lista completa del modulo resta in ``permissions``.
     """
     permissions = list(PermissionDefinition.objects.filter(is_active=True).order_by("module", "code"))
     if not permissions:
@@ -11779,6 +11785,7 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
                 "description": permission.description,
                 "enabled": bool(granted.get(permission.code, False)),
                 "governs_route": permission.code in bound_codes,
+                "nature": nature_for_code(permission.code, module),
             }
         )
 
@@ -11786,10 +11793,25 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
     for module in sorted(grouped.keys()):
         entries = grouped[module]
         active = sum(1 for entry in entries if entry["enabled"])
+        gruppi: list[dict] = []
+        for nature in NATURE_ORDER:
+            subset = [entry for entry in entries if entry["nature"] == nature]
+            if not subset:
+                continue
+            gruppi.append(
+                {
+                    "nature": nature,
+                    "label": nature_label(nature),
+                    "permissions": subset,
+                    "total_count": len(subset),
+                    "active_count": sum(1 for entry in subset if entry["enabled"]),
+                }
+            )
         rows.append(
             {
                 "modulo": module,
                 "permissions": entries,
+                "gruppi": gruppi,
                 "total_count": len(entries),
                 "active_count": active,
                 "all_on": bool(entries) and active == len(entries),
