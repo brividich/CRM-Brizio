@@ -40,6 +40,107 @@ MAX_ANOMALIE_IN_EMAIL = 10
 MAX_FLUSH_ATTEMPTS = 3
 
 
+def send_and_log_email(
+    *,
+    kind: str,
+    subject: str,
+    body_text: str,
+    body_html: str = "",
+    from_email: str | None = None,
+    to: list[str] | None = None,
+    cc: list[str] | None = None,
+    op_id: str = "",
+    context: dict | None = None,
+    created_by=None,
+    fail_silently: bool = False,
+    resend_of=None,
+):
+    """Invia una mail del modulo anomalie registrandola in ``AnomalieEmailLog``.
+
+    Il corpo gia' renderizzato viene salvato nel log cosi' il reinvio dalla
+    pagina di configurazione rispedisce esattamente lo stesso messaggio.
+    Ritorna ``(inviata: bool, log_row | None)``: il log non deve mai far
+    fallire un invio riuscito.
+    """
+    to_list = [str(x).strip() for x in (to or []) if str(x or "").strip()]
+    cc_list = [str(x).strip() for x in (cc or []) if str(x or "").strip()]
+    _from = from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@costruzioninovicrom.it")
+
+    error_text = ""
+    sent = False
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject, body=body_text, from_email=_from, to=to_list, cc=cc_list or None
+        )
+        if body_html:
+            msg.attach_alternative(body_html, "text/html")
+        msg.send(fail_silently=False)
+        sent = True
+    except Exception as exc:  # noqa: BLE001 - l'esito finisce nel log
+        error_text = f"{type(exc).__name__}: {exc}"
+        logger.exception("anomalie invio email FALLITO kind=%s op=%s", kind, op_id)
+        if not fail_silently:
+            _log_email_row(
+                kind=kind, sent=False, subject=subject, from_email=_from, to_list=to_list,
+                cc_list=cc_list, body_text=body_text, body_html=body_html, op_id=op_id,
+                context=context, created_by=created_by, error_text=error_text, resend_of=resend_of,
+            )
+            raise
+
+    row = _log_email_row(
+        kind=kind, sent=sent, subject=subject, from_email=_from, to_list=to_list,
+        cc_list=cc_list, body_text=body_text, body_html=body_html, op_id=op_id,
+        context=context, created_by=created_by, error_text=error_text, resend_of=resend_of,
+    )
+    return sent, row
+
+
+def _log_email_row(
+    *, kind, sent, subject, from_email, to_list, cc_list, body_text, body_html,
+    op_id, context, created_by, error_text, resend_of,
+):
+    """Scrive la riga di log. Non solleva mai: il log non blocca l'invio."""
+    try:
+        from .mail_log_models import AnomalieEmailLog
+
+        return AnomalieEmailLog.objects.create(
+            kind=kind or AnomalieEmailLog.Kind.ALTRO,
+            status=AnomalieEmailLog.Status.SENT if sent else AnomalieEmailLog.Status.FAILED,
+            subject=(subject or "")[:500],
+            from_email=(from_email or "")[:254],
+            to_emails=to_list,
+            cc_emails=cc_list,
+            body_text=body_text or "",
+            body_html=body_html or "",
+            op_id=(op_id or "")[:255],
+            context=context or {},
+            error=error_text or "",
+            created_by=created_by if getattr(created_by, "pk", None) else None,
+            resend_of=resend_of,
+        )
+    except Exception:
+        logger.warning("anomalie: registrazione log email fallita", exc_info=True)
+        return None
+
+
+def resend_logged_email(log_row, *, user=None):
+    """Rispedisce una mail gia' registrata, creando una nuova riga di log."""
+    return send_and_log_email(
+        kind=log_row.kind,
+        subject=log_row.subject,
+        body_text=log_row.body_text,
+        body_html=log_row.body_html,
+        from_email=log_row.from_email or None,
+        to=list(log_row.to_emails or []),
+        cc=list(log_row.cc_emails or []),
+        op_id=log_row.op_id,
+        context={**(log_row.context or {}), "resend_of": log_row.pk},
+        created_by=user,
+        fail_silently=True,
+        resend_of=log_row,
+    )
+
+
 def _alert_admins_send_failure(*, context: str, op_id: str = "", detail: str = "") -> None:
     """Rete di sicurezza: segnala un fallimento di invio email anomalie.
 
@@ -202,33 +303,30 @@ def send_anomalie_action_email(
         site_url=site_url,
     )
 
-    _from = from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@costruzioninovicrom.it")
-
-    msg = EmailMultiAlternatives(
+    send_and_log_email(
+        kind="mail_action",
         subject=subject,
-        body=body_text,
-        from_email=_from,
+        body_text=body_text,
+        body_html=body_html,
+        from_email=from_email,
         to=[recipient_email],
+        op_id=op_id,
+        context={
+            "action": action,
+            "op_nominativo": op_nominativo,
+            "recipient_display": recipient_display,
+            "anomalie_count": len(anomalie_rows or []),
+            "source_automation": source_automation,
+        },
+        created_by=created_by,
     )
-    msg.attach_alternative(body_html, "text/html")
-
-    try:
-        msg.send(fail_silently=False)
-        logger.info(
-            "anomalie mail_action email inviata token=%s op=%s action=%s a=%s",
-            token_obj.token[:8],
-            op_id,
-            action,
-            recipient_email,
-        )
-    except Exception:
-        logger.exception(
-            "anomalie mail_action email FALLITA token=%s op=%s a=%s",
-            token_obj.token[:8],
-            op_id,
-            recipient_email,
-        )
-        raise
+    logger.info(
+        "anomalie mail_action email inviata token=%s op=%s action=%s a=%s",
+        token_obj.token[:8],
+        op_id,
+        action,
+        recipient_email,
+    )
 
     return token_obj
 
@@ -521,18 +619,27 @@ def send_anomalie_update_confirmation(
         },
     )
 
-    _from = from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@costruzioninovicrom.it")
-    msg = EmailMultiAlternatives(subject=subject, body=body_text, from_email=_from, to=to_list)
-    msg.attach_alternative(body_html, "text/html")
-    try:
-        msg.send(fail_silently=False)
-        logger.info("anomalie update confirmation inviata op=%s a=%s n=%s", op_id, to_list, n)
-        return True
-    except Exception:
-        # Errore SMTP reale (a differenza del caso "nessun destinatario" che ritorna
-        # False sopra): si rilancia perché il chiamante possa ritentare / fare dead-letter.
-        logger.exception("anomalie update confirmation FALLITA op=%s", op_id)
-        raise
+    # Errore SMTP reale (a differenza del caso "nessun destinatario" che ritorna
+    # False sopra): si rilancia perché il chiamante possa ritentare / fare dead-letter.
+    send_and_log_email(
+        kind="conferma_aggiornamenti",
+        subject=subject,
+        body_text=body_text,
+        body_html=body_html,
+        from_email=from_email,
+        to=to_list,
+        op_id=op_id,
+        context={
+            "op_nominativo": op_nominativo,
+            "op_pn": op_pn,
+            "updates": n,
+            "aprire_rdc": n_aprire,
+            "segnalare_cliente": n_segnalare,
+            "source_label": source_label,
+        },
+    )
+    logger.info("anomalie update confirmation inviata op=%s a=%s n=%s", op_id, to_list, n)
+    return True
 
 
 def register_pending_update(
@@ -910,20 +1017,27 @@ def send_escalation_resoconto(op_rows: list[dict], *, soglia_ore: int, from_emai
         },
     )
 
-    _from = from_email or getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@costruzioninovicrom.it")
-    msg = EmailMultiAlternatives(subject=subject, body=body_text, from_email=_from, to=to_list)
-    msg.attach_alternative(body_html, "text/html")
-    try:
-        msg.send(fail_silently=False)
+    sent, row = send_and_log_email(
+        kind="escalation_resoconto",
+        subject=subject,
+        body_text=body_text,
+        body_html=body_html,
+        from_email=from_email,
+        to=to_list,
+        context={"n_op": n_op, "tot_anomalie": tot_anomalie, "soglia_ore": soglia_ore},
+        fail_silently=True,
+    )
+    if sent:
         logger.info("anomalie escalation resoconto inviato a=%s n_op=%s", to_list, n_op)
         return True
-    except Exception as exc:
-        logger.exception("anomalie escalation resoconto FALLITO")
-        _alert_admins_send_failure(
-            context="resoconto escalation OP da controllare",
-            detail=f"Invio del resoconto a {len(to_list)} destinatari non riuscito: {exc}",
-        )
-        return False
+    _alert_admins_send_failure(
+        context="resoconto escalation OP da controllare",
+        detail=(
+            f"Invio del resoconto a {len(to_list)} destinatari non riuscito: "
+            f"{getattr(row, 'error', '') or 'errore SMTP'}"
+        ),
+    )
+    return False
 
 
 # ── Timeline / log azioni portale ───────────────────────────────────────────

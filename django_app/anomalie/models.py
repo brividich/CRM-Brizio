@@ -180,3 +180,4 @@ from .mail_action_models import (  # noqa: E402,F401
     AnomaliaActionLog,
     AnomaliaPendingNotification,
 )
+from .mail_log_models import AnomalieEmailLog  # noqa: E402,F401
