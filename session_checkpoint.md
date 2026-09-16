@@ -10,6 +10,11 @@ Ultime voci viste/aggiunte in questa sessione:
 - Lista, form, dettagli, QR, report/CSV, Assets e contesti AI riallineati alla mansione; nuova pagina `/schede-sicurezza/da-leggere/` e report prodotti senza mansioni.
 - `django_app/schede_sicurezza/acl_bootstrap.py` -> binding della nuova rotta al permesso view esistente, cache `v3`; nessun nuovo grant.
 - Verifica: suite integrata 156 test (155 verdi, unico fixture AI storico corretto), rerun mirato finale 12/12 verde; `py_compile`, Django check, migration drift e `git diff --check` verdi. Nessun DB dev/prod, backup o dipendenza modificati.
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-16 - Codex` (RENTRI CSV `;`/`,` e ripristino intestazione changelog).
+- `django_app/rentri/views.py`, `management/commands/import_rentri_csv.py` -> delimitatore rilevato dall'intestazione e codici HP estratti anche da lista JSON.
+- `django_app/rentri/tests.py` -> 3 regressioni verdi su virgola, punto e virgola, HP e fallback CLI.
+- `CHANGELOG.md` -> rimossi header/note duplicate con mojibake; voce RENTRI mantenuta e completata. README e changelog applicativo aggiornati.
+- Verifica: 3/3 test mirati, `py_compile`, Django check e `git diff --check` verdi; nessun DB dev/prod, migration, dipendenza, backup o file critico modificato.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-04 - Codex` (audit indipendente refactor manutenzioni, sola documentazione/test).
 - `docs/ai/AUDIT_LEGACY_MANUTENZIONI_CODEX.md` -> inventario legacy, seconde fonti di verità, audit `WorkOrder.asset`, performance, ACL/direct URL e priorità remediation.

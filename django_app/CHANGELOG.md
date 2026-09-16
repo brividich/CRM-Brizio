@@ -9,6 +9,12 @@
 - **[report] Conformita**: matrice e CSV sono per mansione; i prodotti senza mansioni sono segnalati separatamente per la bonifica manuale.
 - **[db/acl]**: migration `schede_sicurezza.0004_prodotto_mansioni_rischio`; binding della nuova rotta `sds_da_leggere` al permesso view esistente, senza nuovi grant.
 
+### RENTRI — import CSV con separatore automatico
+
+- **[fix] Import UI e comando CLI**: riconoscono sia `;` sia `,` dall'intestazione del file; gli export CSV a virgola non vengono piu letti come righe a colonna singola.
+- **[fix] Pericolosita**: i codici `HPxx` vengono estratti anche dal formato lista JSON esportato da SharePoint, mantenendo l'ordine e rimuovendo i duplicati.
+- **[test]**: regressioni dedicate per delimitatori, formato HP e fallback conservativo a `;`.
+
 ### KICK-OFF F3 — restyle UI Passata 3: rientro CSS inline (chiusura F3)
 
 - **[ux] `tasks/static/tasks/css/tasks.css` + 8 template**: tutti i blocchi `<style>` inline rimasti nel modulo `tasks` (project_meetings.html, project_vrf_upload.html, projects.html, detail.html, form.html, project_meeting_detail.html, list.html, project_gantt.html — incluso il secondo `<style>` scoped `.ts-gantt-cm` dentro il body) sono spostati verbatim in `tasks.css`, un file per commit. Nessun cambio di resa visiva (verificato con screenshot Playwright chiaro/scuro su ogni pagina toccata).

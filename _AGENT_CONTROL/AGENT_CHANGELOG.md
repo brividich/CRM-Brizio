@@ -1,6 +1,6 @@
 # Agent Changelog
 
-## 2026-09-16 - Codex
+## 2026-09-16 - Codex (SDS)
 
 - Area: `django_app/schede_sicurezza`, con integrazioni mirate in `anagrafica`, `assets` e `ai_assistant`.
 - Richiesta: sostituire il reparto con le mansioni di rischio nell'assegnazione delle SDS e fare in modo che il cambio mansione renda dovute al dipendente le nuove schede da prendere in visione.
@@ -17,6 +17,24 @@
 - AGENT_CHANGELOG aggiornato: si.
 - Esito: implementazione completata e verificata su branch/worktree dedicato `feature/sds-mansioni-rischio` / `temp/codex-sds-mansioni`.
 - Note per altro agente: al deploy eseguire `python manage.py migrate schede_sicurezza`, quindi completare la sezione prodotti senza mansioni nel report conformita prima di affidarsi ai conteggi personali. Non eliminare ancora la FK reparto storica.
+
+## 2026-09-16 - Codex (RENTRI)
+
+- Area: `django_app/rentri`, import CSV UI e comando CLI.
+- Richiesta: ripulire il changelog corrotto/duplicato e pubblicare le modifiche RENTRI su `release/prod`.
+- File modificati: `CHANGELOG.md`, `README.md`, `django_app/CHANGELOG.md`, `django_app/rentri/views.py`, `django_app/rentri/management/commands/import_rentri_csv.py`, `django_app/rentri/tests.py`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, routing o navigazione.
+- Motivo tecnico: parser UI e CLI forzavano `;`, quindi gli export a virgola diventavano righe a una colonna; i codici HP nel formato lista JSON non iniziavano con `HP` e non venivano normalizzati. Il changelog aveva quattro intestazioni duplicate e tre note ripetute con mojibake.
+- Modifica: rilevamento delimitatore limitato a `;`/`,` con fallback conservativo; estrazione ordinata e deduplicata di `HP\d+` in tutto il campo; intestazione changelog riportata a una sola copia; documentazione operativa aggiornata.
+- Impatto previsto: import CSV SharePoint compatibile con entrambi i separatori senza regressioni sul formato storico; pericolosita valorizzata anche dagli export a lista.
+- Rischi residui: `csv.Sniffer` usa la sola intestazione; intestazioni senza alcun delimitatore ricadono volutamente su `;` e le righe malformate continuano a essere segnalate dall'import.
+- Test/check: `rentri.tests.RentriCsvParsingTests` 3/3 verdi; `py_compile`, Django check e `git diff --check` verdi.
+- Backup creati: nessuno; nessun database dev/prod modificato, solo database SQLite di test mantenuto.
+- README aggiornato: si.
+- CHANGELOG aggiornato: si (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: modifica pronta per rebase e push su `origin/release/prod`.
+- Note per altro agente: nessuna migrazione o comando post-deploy richiesto.
 
 ## 2026-09-04 - Codex
 
