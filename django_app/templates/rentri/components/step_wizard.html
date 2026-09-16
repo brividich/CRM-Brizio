@@ -1,0 +1,228 @@
+<style>
+/* ── Step wizard (generico, riusato da carico/scarico-originale/scarico-effettivo/rettifica) ── */
+.rn-wizard-dots { display:flex; align-items:center; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+.rn-wizard-dot {
+  display:flex; align-items:center; gap:6px; font-size:11px; font-weight:700;
+  color:#94a3b8; padding:5px 10px; border-radius:999px; background:#f1f5f9;
+  border:1px solid #e2e8f0; white-space:nowrap;
+}
+.rn-wizard-dot .n {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:16px; height:16px; border-radius:50%; background:#cbd5e1; color:#fff; font-size:10px;
+}
+.rn-wizard-dot.done { color:#166534; background:#f0fdf4; border-color:#bbf7d0; }
+.rn-wizard-dot.done .n { background:#22c55e; }
+.rn-wizard-dot.current { color:var(--rn-accent-text,#0f172a); background:var(--rn-accent-soft,#e0f2fe); border-color:var(--rn-accent,#2296D0); }
+.rn-wizard-dot.current .n { background:var(--rn-accent,#2296D0); }
+.rn-wizard-step { display:none; }
+.rn-wizard-step.active { display:block; animation:rn-step-in .15s ease; }
+@keyframes rn-step-in { from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+.rn-wizard-nav { display:flex; gap:10px; align-items:center; margin-top:22px; flex-wrap:wrap; }
+.rn-wizard-hint { font-size:12px; color:#64748b; margin-top:6px; }
+
+.rn-candidati-list { display:flex; flex-direction:column; gap:8px; max-height:320px; overflow-y:auto; }
+.rn-candidato-item {
+  display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #e2e8f0;
+  border-radius:10px; cursor:pointer; background:#fff; transition:border-color .15s, background .15s;
+}
+.rn-candidato-item:hover { border-color:var(--rn-accent,#2296D0); }
+.rn-candidato-item.selected { border-color:var(--rn-accent,#2296D0); background:var(--rn-accent-soft,#e0f2fe); }
+.rn-candidato-item input { width:16px; height:16px; flex-shrink:0; }
+.rn-candidato-info { display:flex; flex-direction:column; gap:2px; }
+.rn-candidato-id { font-size:13px; font-weight:800; color:#0f172a; }
+.rn-candidato-meta { font-size:11px; color:#64748b; }
+.rn-candidati-empty { font-size:12px; color:#94a3b8; padding:14px; text-align:center; }
+
+.rn-cer-field { position:relative; }
+.rn-cer-dropdown {
+  display:none; position:absolute; z-index:20; top:calc(100% + 4px); left:0; right:0;
+  background:#fff; border:1px solid #e2e8f0; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.1);
+  max-height:220px; overflow-y:auto;
+}
+.rn-cer-dropdown.open { display:block; }
+.rn-cer-opt { padding:9px 12px; font-size:13px; cursor:pointer; }
+.rn-cer-opt:hover, .rn-cer-opt.hi { background:#f1f5f9; }
+.rn-cer-opt-new { color:var(--rn-accent,#2296D0); font-weight:700; }
+
+.rn-extra-toggle {
+  display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700;
+  color:#64748b; cursor:pointer; background:none; border:none; padding:4px 0; margin-bottom:10px;
+}
+.rn-extra-body { display:none; }
+.rn-extra-body.open { display:block; }
+
+body.theme-dark .rn-wizard-dot { background:var(--surface-alt, #17222f); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .rn-wizard-hint { color:var(--text-mid); }
+body.theme-dark .rn-candidato-item { background:var(--surface); border-color:var(--border); }
+body.theme-dark .rn-candidato-id { color:var(--text); }
+body.theme-dark .rn-candidato-meta { color:var(--text-mid); }
+body.theme-dark .rn-cer-dropdown { background:var(--surface); border-color:var(--border); }
+body.theme-dark .rn-cer-opt:hover, body.theme-dark .rn-cer-opt.hi { background:var(--border); }
+body.theme-dark .rn-extra-toggle { color:var(--text-mid); }
+
+@media(max-width:700px) { .rn-wizard-dot span.label { display:none; } }
+</style>
+
+<script>
+window.RentriWizard = (function () {
+  function csrf() {
+    var c = document.cookie.split(';').find(function (s) { return s.trim().startsWith('csrftoken='); });
+    return c ? c.trim().split('=')[1] : '';
+  }
+
+  function debounce(fn, wait) {
+    var t = null;
+    return function () {
+      var args = arguments, ctx = this;
+      clearTimeout(t);
+      t = setTimeout(function () { fn.apply(ctx, args); }, wait || 200);
+    };
+  }
+
+  /* ── Stepper: gestisce avanzamento, indicatori, validazione per-step ── */
+  function createStepper(cfg) {
+    // cfg: { steps:[{id, label, validate?, onEnter?}], dotsEl, prevBtn, nextBtn, onFinish, finishLabel }
+    var idx = 0;
+
+    function renderDots() {
+      cfg.dotsEl.innerHTML = '';
+      cfg.steps.forEach(function (s, i) {
+        var el = document.createElement('div');
+        el.className = 'rn-wizard-dot' + (i < idx ? ' done' : (i === idx ? ' current' : ''));
+        el.innerHTML = '<span class="n">' + (i < idx ? '&#10003;' : (i + 1)) + '</span><span class="label">' + s.label + '</span>';
+        cfg.dotsEl.appendChild(el);
+      });
+    }
+
+    function show() {
+      cfg.steps.forEach(function (s, i) {
+        var el = document.getElementById(s.id);
+        if (el) el.classList.toggle('active', i === idx);
+      });
+      renderDots();
+      cfg.prevBtn.style.visibility = idx === 0 ? 'hidden' : 'visible';
+      var isLast = idx === cfg.steps.length - 1;
+      cfg.nextBtn.textContent = isLast ? (cfg.finishLabel || 'Salva') : 'Avanti →';
+      var step = cfg.steps[idx];
+      if (step.onEnter) step.onEnter();
+    }
+
+    cfg.prevBtn.addEventListener('click', function () {
+      if (idx > 0) { idx -= 1; show(); }
+    });
+
+    cfg.nextBtn.addEventListener('click', function () {
+      var step = cfg.steps[idx];
+      if (step.validate) {
+        var msg = step.validate();
+        if (msg) { if (cfg.onError) cfg.onError(msg); return; }
+      }
+      if (idx < cfg.steps.length - 1) {
+        idx += 1;
+        show();
+      } else if (cfg.onFinish) {
+        cfg.onFinish();
+      }
+    });
+
+    show();
+    return {
+      goTo: function (i) { idx = i; show(); },
+      current: function () { return idx; },
+    };
+  }
+
+  /* ── Campo Codice CER con ricerca tra quelli già inseriti ── */
+  function initCerField(inputEl, dropdownEl) {
+    var items = [];
+    var hi = -1;
+
+    function render(q) {
+      dropdownEl.innerHTML = '';
+      var opts = items.slice();
+      var exact = opts.some(function (c) { return c.toLowerCase() === q.toLowerCase(); });
+      if (q && !exact) {
+        var addEl = document.createElement('div');
+        addEl.className = 'rn-cer-opt rn-cer-opt-new';
+        addEl.textContent = '+ Usa nuovo codice "' + q + '"';
+        addEl.addEventListener('mousedown', function (e) { e.preventDefault(); pick(q); });
+        dropdownEl.appendChild(addEl);
+      }
+      opts.forEach(function (c) {
+        var el = document.createElement('div');
+        el.className = 'rn-cer-opt';
+        el.textContent = c;
+        el.addEventListener('mousedown', function (e) { e.preventDefault(); pick(c); });
+        dropdownEl.appendChild(el);
+      });
+      dropdownEl.classList.toggle('open', dropdownEl.children.length > 0);
+      hi = -1;
+    }
+
+    function pick(val) {
+      inputEl.value = val;
+      dropdownEl.classList.remove('open');
+      inputEl.dispatchEvent(new Event('change'));
+    }
+
+    var doFetch = debounce(function () {
+      var q = inputEl.value.trim();
+      fetch('{% url "rentri_api_codici" %}?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          items = (res && res.codici) || [];
+          render(q);
+        })
+        .catch(function () { items = []; render(q); });
+    }, 200);
+
+    inputEl.addEventListener('input', doFetch);
+    inputEl.addEventListener('focus', doFetch);
+    document.addEventListener('click', function (e) {
+      if (e.target !== inputEl) dropdownEl.classList.remove('open');
+    });
+  }
+
+  /* ── Step Rif.Op: carica e mostra i candidati disponibili per tipo+codice ── */
+  function loadCandidati(tipo, codice) {
+    return fetch(
+      '{% url "rentri_api_candidati_rif_op" %}?tipo=' + encodeURIComponent(tipo) + '&codice=' + encodeURIComponent(codice),
+      { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
+    ).then(function (r) { return r.json(); });
+  }
+
+  function renderCandidati(containerEl, candidati, selected, onChange) {
+    containerEl.innerHTML = '';
+    if (!candidati.length) {
+      containerEl.innerHTML = '<div class="rn-candidati-empty">Nessun elemento disponibile per questo codice CER.</div>';
+      return;
+    }
+    candidati.forEach(function (c) {
+      var row = document.createElement('label');
+      row.className = 'rn-candidato-item' + (selected.has(c.id_registrazione) ? ' selected' : '');
+      var qta = c.quantita !== null && c.quantita !== undefined ? c.quantita : '—';
+      row.innerHTML =
+        '<input type="checkbox" data-id="' + c.id_registrazione + '"' + (selected.has(c.id_registrazione) ? ' checked' : '') + '>' +
+        '<div class="rn-candidato-info">' +
+        '<span class="rn-candidato-id">' + c.id_registrazione + '</span>' +
+        '<span class="rn-candidato-meta">' + (c.data || '—') + ' &middot; quantità ' + qta + '</span>' +
+        '</div>';
+      row.querySelector('input').addEventListener('change', function (e) {
+        if (e.target.checked) selected.add(c.id_registrazione); else selected.delete(c.id_registrazione);
+        row.classList.toggle('selected', e.target.checked);
+        onChange();
+      });
+      containerEl.appendChild(row);
+    });
+  }
+
+  return {
+    csrf: csrf,
+    debounce: debounce,
+    createStepper: createStepper,
+    initCerField: initCerField,
+    loadCandidati: loadCandidati,
+    renderCandidati: renderCandidati,
+  };
+})();
+</script>
