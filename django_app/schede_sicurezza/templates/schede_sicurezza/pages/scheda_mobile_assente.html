@@ -36,7 +36,7 @@ body.theme-dark .ss-mobile-section-title { color:var(--text-mid); }
 <div class="ss-mobile-wrap">
   <div class="ss-mobile-card">
     <div class="ss-mobile-title">{{ prodotto.nome }}</div>
-    <div class="ss-mobile-sub">{{ prodotto.reparto.nome }} · {{ prodotto.fornitore|default:"—" }}</div>
+    <div class="ss-mobile-sub">Mansioni: {{ prodotto.mansioni_label }} · {{ prodotto.fornitore|default:"—" }}</div>
   </div>
 
   <div class="ss-mobile-card">

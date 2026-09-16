@@ -39,6 +39,24 @@ DOMINIO_PREFISSI = {
 }
 
 
+def _notifica_sds_cambio_mansione(
+    legacy_id: int, mansione_nuova: str, mansione_precedente: str
+) -> None:
+    """Bridge fail-open verso Schede Sicurezza, senza dipendenza a import-time."""
+    if (mansione_nuova or "").strip().casefold() == (mansione_precedente or "").strip().casefold():
+        return
+    try:
+        from schede_sicurezza.services.assegnazioni import notifica_cambio_mansione
+
+        notifica_cambio_mansione(legacy_id, mansione_nuova, mansione_precedente)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Aggancio SDS al cambio mansione fallito per dipendente %s", legacy_id,
+            exc_info=True,
+        )
+
+
 def verifica_idoneita(
     legacy_id: int,
     mansione: str,
@@ -386,6 +404,8 @@ def modifica_assegnazione(
         parallelo=ruolo_parallelo,
     )
 
+    _notifica_sds_cambio_mansione(legacy_id, mansione, mansione_prima)
+
     return assegnazione
 
 
@@ -470,6 +490,7 @@ def attiva_assegnazione(assegnazione: DipendenteAssegnazione, *, user=None) -> b
 
     assegnazione.attivata_il = timezone.now()
     assegnazione.save(update_fields=["attivata_il"])
+    _notifica_sds_cambio_mansione(legacy_id, mansione_nuova, mansione_vecchia)
     return True
 
 

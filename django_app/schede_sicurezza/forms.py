@@ -8,6 +8,7 @@ prima chiedevano due sottoinsiemi diversi degli stessi dati.
 from __future__ import annotations
 
 from django import forms
+from django.db.models import Q
 
 from . import pittogrammi as ghs
 from .models import ProdottoChimico
@@ -28,14 +29,14 @@ class ProdottoChimicoForm(forms.ModelForm):
     class Meta:
         model = ProdottoChimico
         fields = [
-            "nome", "reparto", "fornitore", "produttore",
+            "nome", "mansioni", "fornitore", "produttore",
             "famiglia", "sottocategoria",
             "numero_interno", "codice_prodotto", "ubicazione", "quantita_presente",
             "pittogrammi", "dpi_obbligatori", "attivo",
         ]
         labels = {
             "nome": "Nome prodotto",
-            "reparto": "Reparto",
+            "mansioni": "Mansioni di rischio",
             "quantita_presente": "Quantità presente",
         }
         widgets = {
@@ -48,7 +49,7 @@ class ProdottoChimicoForm(forms.ModelForm):
             "codice_prodotto": forms.TextInput(attrs=_TESTO_ATTRS),
             "ubicazione": forms.TextInput(attrs=_TESTO_ATTRS),
             "quantita_presente": forms.TextInput(attrs=_TESTO_ATTRS),
-            "reparto": forms.Select(attrs=_TESTO_ATTRS),
+            "mansioni": forms.CheckboxSelectMultiple,
             "dpi_obbligatori": forms.CheckboxSelectMultiple,
         }
 
@@ -56,13 +57,21 @@ class ProdottoChimicoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # Import in-funzione: le due app restano agganciate solo a runtime.
-        from anagrafica.models import Reparto
+        from anagrafica.models import Mansione
         from dpi.models import CategoriaDPI
 
-        self.fields["reparto"].queryset = Reparto.objects.filter(is_active=True).order_by("nome")
-        self.fields["reparto"].empty_label = "Seleziona…"
+        mansioni_qs = Mansione.objects.filter(is_active=True)
+        if self.instance and self.instance.pk:
+            mansioni_qs = Mansione.objects.filter(
+                Q(is_active=True) | Q(prodotti_chimici=self.instance)
+            )
+        self.fields["mansioni"].queryset = mansioni_qs.distinct().order_by("nome")
+        self.fields["mansioni"].help_text = (
+            "Ogni dipendente che ricopre una di queste mansioni dovra' prendere "
+            "visione della versione corrente della SDS."
+        )
         self.fields["nome"].required = True
-        self.fields["reparto"].required = True
+        self.fields["mansioni"].required = True
 
         dpi_field = self.fields["dpi_obbligatori"]
         dpi_field.queryset = CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome")
@@ -87,9 +96,17 @@ class ProdottoChimicoForm(forms.ModelForm):
         return ghs.catalogo(selezionati=selezionati)
 
     def save(self, commit=True):
+        vecchie_mansioni = set()
+        if self.instance and self.instance.pk:
+            vecchie_mansioni = set(self.instance.mansioni.values_list("pk", flat=True))
         prodotto = super().save(commit=commit)
         if commit:
             self._propaga_pittogrammi(prodotto)
+            nuove_mansioni = set(prodotto.mansioni.values_list("pk", flat=True))
+            aggiunte = nuove_mansioni - vecchie_mansioni
+            if aggiunte:
+                from .services.assegnazioni import notifica_mansioni_aggiunte
+                notifica_mansioni_aggiunte(prodotto, aggiunte)
         return prodotto
 
     def _propaga_pittogrammi(self, prodotto) -> None:

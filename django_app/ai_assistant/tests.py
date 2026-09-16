@@ -2777,7 +2777,7 @@ class SchedeSicurezzaContextTests(TestCase):
     def setUp(self):
         from django.core.cache import cache
 
-        from anagrafica.models import Reparto
+        from anagrafica.models import Mansione
         from schede_sicurezza.models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 
         cache.clear()
@@ -2792,10 +2792,13 @@ class SchedeSicurezzaContextTests(TestCase):
             username="pinco.segreto", email="pinco.segreto@example.local", password="password"
         )
 
-        reparto = Reparto.objects.get_or_create(nome="VERNICIATURA")[0]
+        mansione = Mansione.objects.get_or_create(
+            nome="VERNICIATURA", defaults={"livello_rischio": Mansione.RISCHIO_ALTO}
+        )[0]
         prodotto = ProdottoChimico.objects.create(
-            nome="Diluente Nitro", fornitore="ACME", reparto=reparto
+            nome="Diluente Nitro", fornitore="ACME"
         )
+        prodotto.mansioni.add(mansione)
         self.scheda = SchedaSicurezza.objects.create(
             prodotto=prodotto, pdf="schede/d.pdf", versione="4", is_corrente=True,
             classificazione_clp="Liquido infiammabile Cat. 2", dpi_testo="Guanti nitrile, occhiali",

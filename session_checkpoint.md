@@ -1,8 +1,15 @@
 # Session Checkpoint
 
-Data: 2026-09-04
+Data: 2026-09-16
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-16 - Codex` (SDS assegnate alle mansioni di rischio e workflow dinamico sul cambio mansione).
+- `django_app/schede_sicurezza/migrations/0004_prodotto_mansioni_rischio.py` -> M2M prodotto-mansioni; reparto storico nullable, nessun backfill ambiguo.
+- `django_app/schede_sicurezza/services/assegnazioni.py`, `anagrafica/services/assegnazioni.py` -> calcolo SDS personali e notifiche per nuova versione/associazione/cambio mansione.
+- Lista, form, dettagli, QR, report/CSV, Assets e contesti AI riallineati alla mansione; nuova pagina `/schede-sicurezza/da-leggere/` e report prodotti senza mansioni.
+- `django_app/schede_sicurezza/acl_bootstrap.py` -> binding della nuova rotta al permesso view esistente, cache `v3`; nessun nuovo grant.
+- Verifica: suite integrata 156 test (155 verdi, unico fixture AI storico corretto), rerun mirato finale 12/12 verde; `py_compile`, Django check, migration drift e `git diff --check` verdi. Nessun DB dev/prod, backup o dipendenza modificati.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-04 - Codex` (audit indipendente refactor manutenzioni, sola documentazione/test).
 - `docs/ai/AUDIT_LEGACY_MANUTENZIONI_CODEX.md` -> inventario legacy, seconde fonti di verità, audit `WorkOrder.asset`, performance, ACL/direct URL e priorità remediation.

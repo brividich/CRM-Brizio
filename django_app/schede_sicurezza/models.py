@@ -19,11 +19,26 @@ class ProdottoChimico(models.Model):
     fornitore = models.CharField(max_length=200, blank=True, default="")
     produttore = models.CharField(max_length=200, blank=True, default="")
 
+    # Campo storico mantenuto temporaneamente per non perdere il dato dei
+    # prodotti gia' censiti. Non governa piu' assegnazioni, report o UI: la
+    # relazione operativa e' ``mansioni``.
     reparto = models.ForeignKey(
         "anagrafica.Reparto",
         on_delete=models.PROTECT,
         related_name="prodotti_chimici",
-        verbose_name="Reparto",
+        verbose_name="Reparto storico (non operativo)",
+        null=True,
+        blank=True,
+    )
+    mansioni = models.ManyToManyField(
+        "anagrafica.Mansione",
+        blank=True,
+        related_name="prodotti_chimici",
+        verbose_name="Mansioni di rischio",
+        help_text=(
+            "Mansioni i cui dipendenti devono consultare e confermare la presa "
+            "visione della SDS corrente."
+        ),
     )
 
     # Classificazione interna da censimento (vedi RECON §9), distinta dalla
@@ -95,6 +110,11 @@ class ProdottoChimico(models.Model):
         if scheda is not None and scheda.pittogrammi:
             return list(scheda.pittogrammi)
         return list(self.pittogrammi or [])
+
+    def mansioni_label(self) -> str:
+        """Etichetta leggibile delle mansioni assegnate (queryset prefetchabile)."""
+        nomi = [mansione.nome for mansione in self.mansioni.all()]
+        return ", ".join(nomi) if nomi else "Nessuna mansione assegnata"
 
 
 # ---------------------------------------------------------------------------

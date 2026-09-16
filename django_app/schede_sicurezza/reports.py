@@ -16,9 +16,16 @@ def prodotti_senza_scheda_corrente():
     return (
         ProdottoChimico.objects.filter(attivo=True)
         .exclude(schede__is_corrente=True)
-        .select_related("reparto")
-        .order_by("reparto__nome", "nome")
+        .prefetch_related("mansioni")
+        .order_by("nome")
     )
+
+
+def prodotti_senza_mansioni():
+    """Prodotti attivi non ancora collegati a una mansione di rischio."""
+    from .models import ProdottoChimico
+
+    return ProdottoChimico.objects.filter(attivo=True, mansioni__isnull=True).order_by("nome")
 
 
 @dataclass
@@ -33,17 +40,18 @@ class RigaMatricePresaVisione:
 
 
 @dataclass
-class RepartoMatricePresaVisione:
-    reparto_id: int
-    reparto_nome: str
+class MansioneMatricePresaVisione:
+    mansione_id: int
+    mansione_nome: str
     righe: list[RigaMatricePresaVisione]
 
 
-def _user_ids_attivi_per_reparto(reparto_id: int) -> set[int]:
-    """Django User attivi collegati (via Profile) a dipendenti in forza del reparto.
+def _user_ids_attivi_per_mansione(mansione_nome: str) -> set[int]:
+    """Django User attivi collegati a dipendenti in forza della mansione.
 
-    Percorso: Reparto <- AreaAziendale.reparto <- DipendenteAnagraficaAziendale
-    -> anagrafica_dipendenti.utente_id -> utenti.id == Profile.legacy_user_id -> User.
+    Percorso: ``anagrafica_dipendenti.mansione`` + ``utente_id`` ->
+    ``Profile.legacy_user_id`` -> User. I due spazi ID (riga anagrafica e utente
+    legacy) restano distinti.
 
     Il ponte fra anagrafica e account e' la colonna `utente_id` della tabella
     legacy `anagrafica_dipendenti` (modello `core.legacy_models.AnagraficaDipendente`),
@@ -53,8 +61,8 @@ def _user_ids_attivi_per_reparto(reparto_id: int) -> set[int]:
     non lascia il denominatore vuoto, lo popola con le persone sbagliate ogni
     volta che i due interi coincidono per caso.
 
-    Limite noto: cattura solo i dipendenti con `area_aziendale` valorizzato, non
-    quelli ancora sul solo campo testo legacy `area`.
+    Un eventuale record aziendale con data di cessazione esclude la persona
+    anche se il flag legacy non e' ancora stato riallineato.
     """
     from anagrafica.models import DipendenteAnagraficaAziendale
     from core.legacy_models import AnagraficaDipendente
@@ -67,16 +75,16 @@ def _user_ids_attivi_per_reparto(reparto_id: int) -> set[int]:
         # "n/d") che una percentuale calcolata su persone sbagliate.
         return set()
 
-    legacy_ids = list(
-        DipendenteAnagraficaAziendale.objects.filter(
-            area_aziendale__reparto_id=reparto_id,
-            data_cessazione__isnull=True,
-        ).values_list("legacy_anagrafica_id", flat=True)
+    cessati_ids = set(
+        DipendenteAnagraficaAziendale.objects.filter(data_cessazione__isnull=False)
+        .values_list("legacy_anagrafica_id", flat=True)
     )
-    if not legacy_ids:
-        return set()
     utente_ids = list(
-        AnagraficaDipendente.objects.filter(id__in=legacy_ids, utente_id__isnull=False)
+        AnagraficaDipendente.objects.filter(
+            mansione__iexact=mansione_nome,
+            utente_id__isnull=False,
+        )
+        .exclude(id__in=cessati_ids)
         .values_list("utente_id", flat=True)
     )
     if not utente_ids:
@@ -87,30 +95,32 @@ def _user_ids_attivi_per_reparto(reparto_id: int) -> set[int]:
     )
 
 
-def matrice_presa_visione() -> list[RepartoMatricePresaVisione]:
-    """Un elemento per ogni Reparto con almeno un prodotto attivo con scheda corrente."""
+def matrice_presa_visione() -> list[MansioneMatricePresaVisione]:
+    """Copertura della presa visione per mansione e SDS corrente assegnata."""
     from django.db.models import Count, Prefetch
 
-    from anagrafica.models import Reparto
+    from anagrafica.models import Mansione
 
     from .models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 
-    risultato: list[RepartoMatricePresaVisione] = []
-    reparti = (
-        Reparto.objects.filter(
+    risultato: list[MansioneMatricePresaVisione] = []
+    mansioni = (
+        Mansione.objects.filter(
             prodotti_chimici__attivo=True,
             prodotti_chimici__schede__is_corrente=True,
         )
         .distinct()
         .order_by("nome")
     )
-    for reparto in reparti:
-        user_ids = _user_ids_attivi_per_reparto(reparto.id)
-        # Schede correnti in prefetch e conferme in un colpo solo per reparto:
+    for mansione in mansioni:
+        user_ids = _user_ids_attivi_per_mansione(mansione.nome)
+        # Schede correnti in prefetch e conferme in un colpo solo per mansione:
         # a corpo di ciclo, ogni prodotto costava due query (scheda corrente +
         # conteggio prese visione).
         prodotti = list(
-            ProdottoChimico.objects.filter(reparto=reparto, attivo=True, schede__is_corrente=True)
+            ProdottoChimico.objects.filter(
+                mansioni=mansione, attivo=True, schede__is_corrente=True
+            )
             .distinct()
             .order_by("nome")
             .prefetch_related(Prefetch(
@@ -154,7 +164,7 @@ def matrice_presa_visione() -> list[RepartoMatricePresaVisione]:
                 percentuale=percentuale,
             ))
         if righe:
-            risultato.append(RepartoMatricePresaVisione(
-                reparto_id=reparto.id, reparto_nome=reparto.nome, righe=righe,
+            risultato.append(MansioneMatricePresaVisione(
+                mansione_id=mansione.id, mansione_nome=mansione.nome, righe=righe,
             ))
     return risultato

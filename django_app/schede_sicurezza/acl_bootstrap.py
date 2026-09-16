@@ -17,7 +17,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "schede_sicurezza"
-_BOOTSTRAP_CACHE_KEY = "schede_sicurezza_acl_bootstrap_v2"
+_BOOTSTRAP_CACHE_KEY = "schede_sicurezza_acl_bootstrap_v3"
 
 PERM_VIEW = "schede_sicurezza.prodotto.view"
 PERM_GESTISCI = "schede_sicurezza.prodotto.gestisci"
@@ -35,6 +35,7 @@ _CANONICAL = {
 
 _ROUTE_BINDINGS = {
     "schede_sicurezza:prodotto_list": PERM_VIEW,
+    "schede_sicurezza:sds_da_leggere": PERM_VIEW,
     "schede_sicurezza:prodotto_detail": PERM_VIEW,
     "schede_sicurezza:prodotto_qr": PERM_VIEW,
     "schede_sicurezza:scheda_mobile": PERM_VIEW,
@@ -47,8 +48,8 @@ _ROUTE_BINDINGS = {
 }
 
 # Ruoli legacy reali (portale): admin, amministrazione, caporeparto, HR, qualita, utente.
-# Presa visione via QR è operativa in reparto -> vista consentita a tutti; la
-# gestione anagrafica prodotti/SDS resta ai ruoli con responsabilità di reparto/qualità.
+# Presa visione via QR e' operativa sul posto -> vista consentita a tutti; la
+# gestione anagrafica prodotti/SDS resta ai ruoli con responsabilita' sicurezza/qualita'.
 _ROLE_GRANTS = {
     "admin": {PERM_VIEW, PERM_GESTISCI},
     "amministrazione": {PERM_VIEW, PERM_GESTISCI},
