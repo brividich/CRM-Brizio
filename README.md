@@ -791,6 +791,7 @@ Gestione registro rifiuti secondo normativa **RENTRI** (Registro Elettronico Naz
 
 - **2 modelli**: RegistroRifiuti, RentriImpostazioni
 - **Movimenti** con codice CER, quantità, destinazione, formulario (tipi C/O/M/R)
+- **Registrazione a wizard** (`/rentri/carico/`, `/rentri/scarico-originale/`, `/rentri/scarico-effettivo/`, `/rentri/rettifica-scarico/`): form guidato a step (Data → Codice CER ricercabile → Rif.Op a selezione guidata sui soli movimenti collegabili → Quantità/Rettifica → campi accessori facoltativi), allegato del carico con validazione MIME reale
 - **Import CSV da portale e CLI** (`import_rentri_csv`): accetta automaticamente export separati da `;` o `,` e normalizza i codici di pericolosita `HPxx` anche quando SharePoint li esporta come lista JSON
 - **Formulari** di identificazione rifiuto
 - **Scadenzario adempimenti** (`/rentri/scadenzario/`): FIR mancanti, da comunicare, bozze
