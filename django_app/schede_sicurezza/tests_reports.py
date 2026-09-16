@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.test import TestCase
 
-from anagrafica.models import Reparto
+from anagrafica.models import Mansione, Reparto
 
 from .models import ProdottoChimico, SchedaSicurezza
 from .reports import prodotti_senza_scheda_corrente
@@ -47,7 +47,9 @@ from .reports import matrice_presa_visione
 User = get_user_model()
 
 
-def crea_dipendente_con_account(etichetta: int | str, area_aziendale, *, cessato=False) -> "User":
+def crea_dipendente_con_account(
+    etichetta: int | str, area_aziendale=None, *, mansione="Addetto chimici", cessato=False
+) -> "User":
     """Dipendente in forza + account portale, montati come in produzione.
 
     La catena reale passa da `anagrafica_dipendenti.utente_id`: l'id
@@ -67,7 +69,7 @@ def crea_dipendente_con_account(etichetta: int | str, area_aziendale, *, cessato
         nome=f"dip{etichetta}", email=f"dip{etichetta}@example.local", password="x",
     )
     anagrafica = AnagraficaDipendente.objects.create(
-        aliasusername=f"dip{etichetta}", utente=utente,
+        aliasusername=f"dip{etichetta}", utente=utente, mansione=mansione,
     )
     DipendenteAnagraficaAziendale.objects.create(
         legacy_anagrafica_id=anagrafica.id,
@@ -87,7 +89,9 @@ class MatricePresaVisioneTest(TestCase):
     def setUp(self):
         self.reparto = Reparto.objects.create(nome="Produzione")
         self.area = AreaAziendale.objects.create(nome="Produzione - Linea 1", reparto=self.reparto)
+        self.mansione = Mansione.objects.create(nome="Addetto chimici")
         self.prodotto = ProdottoChimico.objects.create(nome="Sgrassante XY", reparto=self.reparto)
+        self.prodotto.mansioni.add(self.mansione)
         self.scheda = SchedaSicurezza.objects.create(
             prodotto=self.prodotto, pdf=_pdf(), versione="1", is_corrente=True,
         )
@@ -99,10 +103,10 @@ class MatricePresaVisioneTest(TestCase):
 
         matrice = matrice_presa_visione()
         self.assertEqual(len(matrice), 1)
-        reparto_row = matrice[0]
-        self.assertEqual(reparto_row.reparto_id, self.reparto.id)
-        self.assertEqual(len(reparto_row.righe), 1)
-        riga = reparto_row.righe[0]
+        mansione_row = matrice[0]
+        self.assertEqual(mansione_row.mansione_id, self.mansione.id)
+        self.assertEqual(len(mansione_row.righe), 1)
+        riga = mansione_row.righe[0]
         self.assertEqual(riga.totale_dipendenti, 2)
         self.assertEqual(riga.confermati, 1)
         self.assertEqual(riga.percentuale, 50)
@@ -133,7 +137,9 @@ class MatricePresaVisioneTest(TestCase):
         """
         from core.legacy_models import AnagraficaDipendente
 
-        anagrafica = AnagraficaDipendente.objects.create(aliasusername="mai_loggato")
+        anagrafica = AnagraficaDipendente.objects.create(
+            aliasusername="mai_loggato", mansione=self.mansione.nome
+        )
         DipendenteAnagraficaAziendale.objects.create(
             legacy_anagrafica_id=anagrafica.id, area_aziendale=self.area,
         )

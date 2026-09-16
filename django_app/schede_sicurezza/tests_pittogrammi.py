@@ -6,7 +6,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from anagrafica.models import Reparto
+from anagrafica.models import Mansione, Reparto
 
 from . import pittogrammi as ghs
 from .models import ProdottoChimico, SchedaSicurezza
@@ -138,27 +138,32 @@ class ListaCardPittogrammiTest(TestCase):
     def setUp(self):
         self.galvanica = Reparto.objects.create(nome="Galvanica")
         self.verniciatura = Reparto.objects.create(nome="Verniciatura")
+        self.addetto_galvanica = Mansione.objects.create(nome="Addetto galvanica")
+        self.verniciatore = Mansione.objects.create(nome="Verniciatore")
         self.admin = User.objects.create_user(
             username="admin_card_pitto", password="x", is_superuser=True, is_staff=True)
         self.client.force_login(self.admin)
 
         self.infiammabile = ProdottoChimico.objects.create(nome="DiluenteNitro", reparto=self.verniciatura)
+        self.infiammabile.mansioni.add(self.verniciatore)
         SchedaSicurezza.objects.create(
             prodotto=self.infiammabile, pdf=_valid_pdf_upload(), versione="7", is_corrente=True,
             pittogrammi=["GHS02", "GHS07"],
         )
         self.corrosivo = ProdottoChimico.objects.create(nome="AcidoCloridrico", reparto=self.galvanica)
+        self.corrosivo.mansioni.add(self.addetto_galvanica)
         SchedaSicurezza.objects.create(
             prodotto=self.corrosivo, pdf=_valid_pdf_upload(), versione="2", is_corrente=True,
             pittogrammi=["GHS05"],
         )
         self.orfano = ProdottoChimico.objects.create(nome="PassivanteSenzaScheda", reparto=self.galvanica)
+        self.orfano.mansioni.add(self.addetto_galvanica)
         self.url = reverse("schede_sicurezza:prodotto_list")
 
-    def test_card_raggruppate_per_reparto(self):
+    def test_card_raggruppate_per_mansione(self):
         resp = self.client.get(self.url)
-        gruppi = [g["reparto"] for g in resp.context["gruppi"]]
-        self.assertEqual(gruppi, ["Galvanica", "Verniciatura"])
+        gruppi = [g["mansione"] for g in resp.context["gruppi"]]
+        self.assertEqual(gruppi, ["Addetto galvanica", "Verniciatore"])
         self.assertEqual(len(resp.context["gruppi"][0]["cards"]), 2)
         self.assertEqual(resp.context["gruppi"][0]["n_senza_scheda"], 1)
 
@@ -195,8 +200,8 @@ class ListaCardPittogrammiTest(TestCase):
         conteggi = {p["codice"]: p["n"] for p in resp.context["rastrelliera"]}
         self.assertEqual(conteggi["GHS02"], 1)
 
-    def test_filtro_pittogramma_si_combina_col_reparto(self):
-        resp = self.client.get(self.url, {"pittogramma": "GHS05", "reparto": self.verniciatura.pk})
+    def test_filtro_pittogramma_si_combina_con_mansione(self):
+        resp = self.client.get(self.url, {"pittogramma": "GHS05", "mansione": self.verniciatore.pk})
         self.assertEqual(resp.context["n_mostrati"], 0)
 
     def test_prodotto_senza_scheda_segnalato_in_card(self):

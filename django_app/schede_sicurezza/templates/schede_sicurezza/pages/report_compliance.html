@@ -28,18 +28,38 @@ body.theme-dark .ss-pct-nd { background:var(--surface-alt); color:var(--text-lig
   </div>
 
   <div class="ss-report-section">
+    <div class="ss-report-title">Prodotti senza mansioni di rischio ({{ senza_mansioni|length }})</div>
+    {% if senza_mansioni %}
+      <table class="ss-table">
+        <thead><tr><th>Prodotto</th><th>Fornitore</th><th>Azione</th></tr></thead>
+        <tbody>
+          {% for prodotto in senza_mansioni %}
+            <tr>
+              <td>{{ prodotto.nome }}</td>
+              <td>{{ prodotto.fornitore|default:"—" }}</td>
+              <td><a href="{% url 'schede_sicurezza:prodotto_modifica' pk=prodotto.pk %}" class="ss-btn ss-btn-sm ss-btn-gray">Assegna mansioni</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="ss-empty">Tutti i prodotti attivi sono assegnati ad almeno una mansione di rischio.</div>
+    {% endif %}
+  </div>
+
+  <div class="ss-report-section">
     <div class="ss-report-title">
       Prodotti senza scheda corrente ({{ gap|length }})
       <a href="?formato=csv&amp;sezione=gap" class="ss-btn ss-btn-sm ss-btn-gray">Export CSV</a>
     </div>
     {% if gap %}
       <table class="ss-table">
-        <thead><tr><th>Prodotto</th><th>Reparto</th><th>Fornitore</th><th></th></tr></thead>
+        <thead><tr><th>Prodotto</th><th>Mansioni di rischio</th><th>Fornitore</th><th></th></tr></thead>
         <tbody>
           {% for prodotto in gap %}
             <tr>
               <td>{{ prodotto.nome }}</td>
-              <td>{{ prodotto.reparto.nome }}</td>
+              <td>{{ prodotto.mansioni_label }}</td>
               <td>{{ prodotto.fornitore|default:"—" }}</td>
               <td><a href="{% url 'schede_sicurezza:prodotto_detail' pk=prodotto.pk %}" class="ss-btn ss-btn-sm ss-btn-gray">Carica SDS</a></td>
             </tr>
@@ -53,23 +73,23 @@ body.theme-dark .ss-pct-nd { background:var(--surface-alt); color:var(--text-lig
 
   <div class="ss-report-section">
     <div class="ss-report-title">
-      Presa visione per reparto
+      Presa visione per mansione di rischio
       <a href="?formato=csv&amp;sezione=matrice" class="ss-btn ss-btn-sm ss-btn-gray">Export CSV</a>
     </div>
     {% if matrice %}
       <table class="ss-table">
-        <thead><tr><th>Reparto</th><th>Prodotto</th><th>Versione</th><th>Confermati</th><th>Copertura</th></tr></thead>
+        <thead><tr><th>Mansione di rischio</th><th>Prodotto</th><th>Versione</th><th>Confermati</th><th>Copertura</th></tr></thead>
         <tbody>
-          {% for reparto_row in matrice %}
-            {% for riga in reparto_row.righe %}
+          {% for mansione_row in matrice %}
+            {% for riga in mansione_row.righe %}
               <tr>
-                <td>{{ reparto_row.reparto_nome }}</td>
+                <td>{{ mansione_row.mansione_nome }}</td>
                 <td>{{ riga.prodotto_nome }}</td>
                 <td>{{ riga.scheda_versione|default:"—" }}</td>
                 <td>{{ riga.confermati }} / {{ riga.totale_dipendenti }}</td>
                 <td>
                   {% if riga.percentuale is None %}
-                    <span class="ss-pct-badge ss-pct-nd" title="Nessun dipendente collegato al reparto tramite area aziendale">n/d</span>
+                    <span class="ss-pct-badge ss-pct-nd" title="Nessun dipendente attivo con account collegato a questa mansione">n/d</span>
                   {% elif riga.percentuale >= 100 %}
                     <span class="ss-pct-badge ss-pct-verde">{{ riga.percentuale }}%</span>
                   {% elif riga.percentuale >= 50 %}

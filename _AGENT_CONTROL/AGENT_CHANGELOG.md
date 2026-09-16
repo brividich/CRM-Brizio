@@ -1,5 +1,23 @@
 # Agent Changelog
 
+## 2026-09-16 - Codex
+
+- Area: `django_app/schede_sicurezza`, con integrazioni mirate in `anagrafica`, `assets` e `ai_assistant`.
+- Richiesta: sostituire il reparto con le mansioni di rischio nell'assegnazione delle SDS e fare in modo che il cambio mansione renda dovute al dipendente le nuove schede da prendere in visione.
+- File modificati/creati: modelli, form, viste, report, admin, URL, ACL bootstrap, template e test di `schede_sicurezza`; nuova migration `0004_prodotto_mansioni_rischio.py`, nuovo servizio `services/assegnazioni.py`, nuova pagina `sds_da_leggere.html`, nuovi `tests_mansioni.py`; bridge in `anagrafica/services/assegnazioni.py`; form/test Assets; contesti e test AI; `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: `django_app/schede_sicurezza/acl_bootstrap.py`, per associare la nuova rotta personale `schede_sicurezza:sds_da_leggere` al permesso canonico di vista gia esistente e invalidare la cache bootstrap (`v2` -> `v3`). Nessun nuovo permesso o grant; nessuna modifica a middleware, settings, autenticazione, ACL globale o navigazione globale. Modificato anche il routing locale `django_app/schede_sicurezza/urls.py`. `_AGENT_CONTROL/CRITICAL_FILES.md` non era presente nel worktree.
+- Motivo tecnico: il reparto non rappresenta l'esposizione individuale; la mansione corrente del dipendente e' la fonte viva che deve determinare le SDS dovute. Una M2M prodotto-mansione copre i prodotti condivisi da piu profili senza duplicare SDS.
+- Modifica: aggiunta M2M `ProdottoChimico.mansioni`; reparto reso nullable e conservato solo come storico nascosto. Lista, filtri, form, dettagli, QR, report, CSV, Assets e AI usano le mansioni. Nuovo cruscotto personale delle SDS dovute; notifiche su nuova versione, nuova associazione e attivazione/modifica della mansione; storico presa visione invariato per versione. Report dedicato ai prodotti senza mansioni, senza backfill reparto->mansione arbitrario.
+- Impatto previsto: al cambio mansione il dipendente vede e riceve notifica delle SDS correnti della nuova mansione non ancora lette; le letture pregresse restano tracciate e una nuova versione riapre l'obbligo.
+- Rischi residui: i prodotti storici devono essere mappati manualmente alle mansioni dal responsabile sicurezza; fino ad allora compaiono nel report ma non generano obblighi personali. La corrispondenza dipendente-account richiede il ponte legacy `anagrafica_dipendenti.utente_id` -> `Profile.legacy_user_id` gia usato dal portale.
+- Test/check: suite integrata 156 test eseguiti, 155 verdi e un solo fixture AI storico riallineato da reparto a mansione; rerun finale mirato 12/12 verde (`tests_mansioni`, RAG SDS e tool live SDS). `py_compile`, `manage.py check --settings=config.settings.test`, `makemigrations --check --dry-run` e `git diff --check` verdi.
+- Backup creati: nessuno; nessun database dev/prod modificato, solo database SQLite di test isolato/mantenuto.
+- README aggiornato: si.
+- CHANGELOG aggiornato: si (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: implementazione completata e verificata su branch/worktree dedicato `feature/sds-mansioni-rischio` / `temp/codex-sds-mansioni`.
+- Note per altro agente: al deploy eseguire `python manage.py migrate schede_sicurezza`, quindi completare la sezione prodotti senza mansioni nel report conformita prima di affidarsi ai conteggi personali. Non eliminare ancora la FK reparto storica.
+
 ## 2026-09-04 - Codex
 
 - Area: `django_app/assets`, audit indipendente del refactor manutenzioni su branch/worktree dedicato.

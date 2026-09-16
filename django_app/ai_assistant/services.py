@@ -700,12 +700,9 @@ def _sds_scheda_text(scheda) -> str:
         ident.append(f"Fornitore: {_clean_text(prodotto.fornitore, limit=200)}")
     if getattr(prodotto, "produttore", ""):
         ident.append(f"Produttore: {_clean_text(prodotto.produttore, limit=200)}")
-    try:
-        reparto = _clean_text(getattr(prodotto.reparto, "nome", "") or "", limit=100)
-    except Exception:
-        reparto = ""
-    if reparto:
-        ident.append(f"Reparto: {reparto}")
+    mansioni = _clean_text(prodotto.mansioni_label(), limit=500)
+    if mansioni:
+        ident.append(f"Mansioni di rischio: {mansioni}")
     if getattr(scheda, "versione", ""):
         ident.append(f"Versione scheda: {_clean_text(scheda.versione, limit=50)}")
     parts.append("1 Identificazione del prodotto\n" + "\n".join(ident))
@@ -767,7 +764,8 @@ def _load_schede_sicurezza_chunks() -> list[KnowledgeChunk]:
     try:
         schede = list(
             SchedaSicurezza.objects.filter(is_corrente=True)
-            .select_related("prodotto", "prodotto__reparto")
+            .select_related("prodotto")
+            .prefetch_related("prodotto__mansioni")
             .order_by("-data_caricamento")[:limit]
         )
     except Exception:

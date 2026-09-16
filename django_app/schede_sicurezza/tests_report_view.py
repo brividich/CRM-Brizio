@@ -8,7 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from anagrafica.models import AreaAziendale, Reparto
+from anagrafica.models import AreaAziendale, Mansione, Reparto
 
 from .models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 from .tests_reports import crea_dipendente_con_account
@@ -23,7 +23,9 @@ def _pdf():
 class ReportComplianceViewTest(TestCase):
     def setUp(self):
         self.reparto = Reparto.objects.create(nome="Produzione")
-        ProdottoChimico.objects.create(nome="Senza scheda", reparto=self.reparto)
+        self.mansione = Mansione.objects.create(nome="Addetto chimici")
+        prodotto = ProdottoChimico.objects.create(nome="Senza scheda", reparto=self.reparto)
+        prodotto.mansioni.add(self.mansione)
         self.admin = User.objects.create_user(username="admin_report", password="x", is_superuser=True, is_staff=True)
 
     def test_report_visibile_a_utente_con_permesso(self):
@@ -48,10 +50,13 @@ class ReportComplianceCsvExportTest(TestCase):
     def setUp(self):
         self.reparto = Reparto.objects.create(nome="Produzione")
         self.area = AreaAziendale.objects.create(nome="Produzione - Linea 1", reparto=self.reparto)
+        self.mansione = Mansione.objects.create(nome="Addetto chimici")
         self.senza_scheda = ProdottoChimico.objects.create(
             nome="Senza scheda", reparto=self.reparto, fornitore="ACME",
         )
         self.con_scheda = ProdottoChimico.objects.create(nome="Con scheda", reparto=self.reparto)
+        self.senza_scheda.mansioni.add(self.mansione)
+        self.con_scheda.mansioni.add(self.mansione)
         self.scheda = SchedaSicurezza.objects.create(
             prodotto=self.con_scheda, pdf=_pdf(), versione="Rev.2", is_corrente=True,
         )
@@ -66,8 +71,8 @@ class ReportComplianceCsvExportTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp["Content-Type"], "text/csv")
         righe = list(csv.reader(io.StringIO(resp.content.decode("utf-8"))))
-        self.assertEqual(righe[0], ["Prodotto", "Reparto", "Fornitore"])
-        self.assertIn(["Senza scheda", "Produzione", "ACME"], righe)
+        self.assertEqual(righe[0], ["Prodotto", "Mansioni di rischio", "Fornitore"])
+        self.assertIn(["Senza scheda", "Addetto chimici", "ACME"], righe)
 
     def test_export_csv_matrice(self):
         resp = self.client.get(reverse("schede_sicurezza:report_compliance"), {"formato": "csv", "sezione": "matrice"})
@@ -76,16 +81,18 @@ class ReportComplianceCsvExportTest(TestCase):
         righe = list(csv.reader(io.StringIO(resp.content.decode("utf-8"))))
         self.assertEqual(
             righe[0],
-            ["Reparto", "Prodotto", "Versione scheda", "Dipendenti totali", "Confermati", "Percentuale"],
+            ["Mansione di rischio", "Prodotto", "Versione scheda", "Dipendenti totali", "Confermati", "Percentuale"],
         )
-        self.assertIn(["Produzione", "Con scheda", "Rev.2", "1", "1", "100%"], righe)
+        self.assertIn(["Addetto chimici", "Con scheda", "Rev.2", "1", "1", "100%"], righe)
 
 
 class ReportComplianceTemplateTest(TestCase):
     def setUp(self):
         self.reparto = Reparto.objects.create(nome="Produzione")
         self.area = AreaAziendale.objects.create(nome="Produzione - Linea 1", reparto=self.reparto)
+        self.mansione = Mansione.objects.create(nome="Addetto chimici")
         self.prodotto = ProdottoChimico.objects.create(nome="Con scheda", reparto=self.reparto)
+        self.prodotto.mansioni.add(self.mansione)
         self.scheda = SchedaSicurezza.objects.create(
             prodotto=self.prodotto, pdf=_pdf(), versione="Rev.2", is_corrente=True,
         )

@@ -29,6 +29,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | `setup_wizard` | Wizard guidato prima configurazione (12 step) |
 | `dpi` | Gestione DPI (Dispositivi Protezione Individuale): richieste con card-picker immagini, approvazione, consegna, storico, KPI |
 | `procedure_refresh` | Presa visione procedure MT/MTSI: anagrafica documenti, revisioni con sorgente SharePoint/file server, campagne, assegnazioni, tracking aperture/conferme, report, export CSV |
+| `schede_sicurezza` | SDS prodotti chimici versionate e assegnate M2M alle mansioni di rischio; obblighi e notifiche si ricalcolano dalla mansione corrente del dipendente, con cruscotto personale e matrice di conformita per mansione |
 
 Pattern condiviso pagine modulo `Impostazioni`:
 - ogni modulo mantiene una propria pagina dedicata, non esiste una pagina impostazioni centralizzata unica
@@ -90,9 +91,12 @@ Percorso: `/admin-portale/hub/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â richiede 
 | `rentri` | 1 | RegistroRifiuti |
 | `assenze` | 1 | CertificazionePresenza |
 | `dpi` | 5 | CategoriaDPI (con immagine, vita utile), DPIImpostazioni (singleton), RichiestaDPI (numero DPI-YYYY-NNNN, stati), ConsegnaDPI (1:1 con RichiestaDPI), RichiestaDPICommento |
+| `schede_sicurezza` | 3 | ProdottoChimico (M2M Mansione e CategoriaDPI; FK Reparto conservata solo come storico nullable), SchedaSicurezza (versionata, una corrente per prodotto), PresaVisioneScheda (unica per scheda e utente) |
 | `procedure_refresh` | 6 | ProcedureDocument (code univoco, tipo MT/MTSI/ALTRO), ProcedureRevision (sorgente sharepoint/fileserver, unicitÃƒÆ’Ã‚Â  is_current per documento, validazione URL/path), ProcedureCampaign (stati draft/published/closed/archived), ProcedureCampaignDocument (FK campagna+revisione, unique_together), ProcedureAssignment (FK utente Django, stati assignedÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢openedÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢read_confirmed/overdue/cancelled, tracking aperture: open_count, first_opened_at, last_opened_at, IP, user_agent), ProcedureReadEvent (log eventi opened/confirmed/reminder_sent/reassigned/exported) |
 
 **Relazioni inter-app principali:**
+
+- `schede_sicurezza.ProdottoChimico` ↔ `anagrafica.Mansione` (M:M); la mansione testuale viva di `core.legacy_models.AnagraficaDipendente` determina le SDS dovute all'account collegato tramite `Profile.legacy_user_id`
 
 - `tickets.Ticket` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `assets.Asset` (FK), `anagrafica.Fornitore` (FK)
 - `assets.WorkOrder` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ `anagrafica.Fornitore` (FK), `assets.PeriodicVerification` (FK)

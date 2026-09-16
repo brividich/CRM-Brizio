@@ -23,7 +23,8 @@ from core.upload_mime import UploadMimeValidationError, validate_extension_and_m
 from . import pittogrammi as ghs
 from .forms import ProdottoChimicoForm
 from .models import SCADENZA_SDS_GIORNI, EstrazioneStato, PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
-from .reports import matrice_presa_visione, prodotti_senza_scheda_corrente
+from .reports import matrice_presa_visione, prodotti_senza_mansioni, prodotti_senza_scheda_corrente
+from .services.assegnazioni import notifica_nuova_versione, profilo_sds_utente
 from .services.ingestion import estrai_sds, pittogrammi_proposti
 from .services.qr import genera_qr_png
 
@@ -159,25 +160,24 @@ def prodotto_list(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dashboard:dashboard")
 
-    from anagrafica.models import Reparto
+    from anagrafica.models import Mansione
 
     query = request.GET.get("q", "").strip()
-    reparto_id = request.GET.get("reparto", "").strip()
+    mansione_id = request.GET.get("mansione", "").strip()
     famiglia = request.GET.get("famiglia", "").strip()
     stato = request.GET.get("stato", "").strip()
     pittogramma = request.GET.get("pittogramma", "").strip().upper()
 
     qs = (
         ProdottoChimico.objects.filter(attivo=True)
-        .select_related("reparto")
         .annotate(n_dpi=Count("dpi_obbligatori", distinct=True))
+        .prefetch_related("mansioni")
         .prefetch_related(Prefetch(
             "schede",
             queryset=SchedaSicurezza.objects.filter(is_corrente=True),
             to_attr="schede_correnti",
         ))
-        # Ordinamento a due livelli: le card sono raggruppate per reparto.
-        .order_by("reparto__nome", "nome")
+        .order_by("nome")
     )
     if query:
         qs = qs.filter(
@@ -185,8 +185,8 @@ def prodotto_list(request):
             | Q(fornitore__icontains=query)
             | Q(codice_prodotto__icontains=query)
         )
-    if reparto_id:
-        qs = qs.filter(reparto_id=reparto_id)
+    if mansione_id:
+        qs = qs.filter(mansioni__id=mansione_id)
     if famiglia:
         qs = qs.filter(famiglia=famiglia)
     # Sottoquery invece di join + distinct: con l'annotate sopra, DISTINCT +
@@ -214,17 +214,25 @@ def prodotto_list(request):
     if pittogramma:
         cards = [card for card in cards if pittogramma in card["codici"]]
 
-    # Raggruppamento per reparto in Python: la queryset e' gia' ordinata per
-    # reparto, e il filtro per pittogramma non e' esprimibile in SQL in modo
-    # portabile (JSONField: `contains` non esiste su SQLite).
-    gruppi: list[dict] = []
+    # Un prodotto puo' interessare piu' mansioni: compare in ciascun gruppo,
+    # mentre i KPI sopra restano conteggi di prodotti univoci.
+    gruppi_map: dict[tuple[int | None, str], dict] = {}
     for card in cards:
-        nome_reparto = card["prodotto"].reparto.nome
-        if not gruppi or gruppi[-1]["reparto"] != nome_reparto:
-            gruppi.append({"reparto": nome_reparto, "cards": [], "n_senza_scheda": 0})
-        gruppi[-1]["cards"].append(card)
-        if card["stato"] == "bad":
-            gruppi[-1]["n_senza_scheda"] += 1
+        mansioni = list(card["prodotto"].mansioni.all())
+        destinazioni = [(m.pk, m.nome) for m in mansioni] or [(None, "Senza mansione assegnata")]
+        for key in destinazioni:
+            gruppo = gruppi_map.setdefault(
+                key,
+                {"mansione_id": key[0], "mansione": key[1], "cards": [], "n_senza_scheda": 0},
+            )
+            gruppo["cards"].append(card)
+            if card["stato"] == "bad":
+                gruppo["n_senza_scheda"] += 1
+    gruppi = sorted(
+        gruppi_map.values(),
+        key=lambda gruppo: (gruppo["mansione_id"] is None, gruppo["mansione"].casefold()),
+    )
+    profilo_utente = profilo_sds_utente(request.user)
 
     return render(request, "schede_sicurezza/pages/prodotto_list.html", {
         "gruppi": gruppi,
@@ -236,16 +244,18 @@ def prodotto_list(request):
             for codice, nome in ghs.PITTOGRAMMI_GHS
         ],
         "query": query,
-        "reparto_selezionato": reparto_id,
+        "mansione_selezionata": mansione_id,
         "famiglia_selezionata": famiglia,
         "stato_selezionato": stato,
         "pittogramma_selezionato": pittogramma,
-        "reparti_options": Reparto.objects.filter(is_active=True).order_by("nome"),
+        "mansioni_options": Mansione.objects.filter(is_active=True).order_by("nome"),
         "famiglie_options": (
             ProdottoChimico.objects.exclude(famiglia="")
             .values_list("famiglia", flat=True).distinct().order_by("famiglia")
         ),
         "can_gestire": _can_gestire(request),
+        "profilo_sds_utente": profilo_utente,
+        "n_sds_da_leggere": len(profilo_utente.da_leggere),
     })
 
 
@@ -294,7 +304,7 @@ def prodotto_detail(request, pk: int):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dashboard:dashboard")
 
-    prodotto = get_object_or_404(ProdottoChimico.objects.select_related("reparto"), pk=pk)
+    prodotto = get_object_or_404(ProdottoChimico.objects.prefetch_related("mansioni"), pk=pk)
 
     if request.method == "POST":
         if not _can_gestire(request):
@@ -364,6 +374,7 @@ def prodotto_detail(request, pk: int):
             estrai_sds(nuova_scheda)
         except Exception:
             logger.exception("Estrazione SDS fallita per scheda %s", nuova_scheda.pk)
+        notifica_nuova_versione(nuova_scheda)
 
         messages.success(request, "Nuova versione della scheda caricata.")
         return redirect("schede_sicurezza:prodotto_detail", pk=pk)
@@ -410,7 +421,7 @@ def scheda_mobile(request, uuid):
     # core/base_public.html. L'uuid (non un PK sequenziale) resta l'unica
     # protezione contro l'enumerazione; la pagina e' `noindex, nofollow`.
     prodotto = get_object_or_404(
-        ProdottoChimico.objects.select_related("reparto").prefetch_related("dpi_obbligatori"),
+        ProdottoChimico.objects.prefetch_related("mansioni", "dpi_obbligatori"),
         uuid=uuid,
         attivo=True,
     )
@@ -456,7 +467,7 @@ def _scheda_mobile_assente(request, prodotto):
     if request.method == "POST" and request.POST.get("segnala") and request.user.is_authenticated:
         log_action(
             request, "segnalazione_sds_mancante", "schede_sicurezza",
-            {"prodotto": prodotto.nome, "reparto": prodotto.reparto.nome},
+            {"prodotto": prodotto.nome, "mansioni": prodotto.mansioni_label()},
             oggetto=prodotto,
         )
         segnalazione_inviata = True
@@ -480,7 +491,9 @@ def scheda_mobile_pdf(request, uuid):
     indicato: non c'è nessun parametro di percorso o di nome file che il
     chiamante possa influenzare, quindi nessuna superficie di path traversal.
     """
-    prodotto = get_object_or_404(ProdottoChimico.objects.select_related("reparto"), uuid=uuid, attivo=True)
+    prodotto = get_object_or_404(
+        ProdottoChimico.objects.prefetch_related("mansioni"), uuid=uuid, attivo=True
+    )
     scheda = prodotto.scheda_corrente()
     if scheda is None:
         raise Http404("Nessuna scheda di sicurezza corrente per questo prodotto.")
@@ -542,6 +555,20 @@ def presa_visione_list(request, scheda_pk: int):
     })
 
 
+@login_required
+def sds_da_leggere(request):
+    """Cruscotto personale delle SDS dovute dalla mansione corrente."""
+    if not _can_view(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dashboard:dashboard")
+    profilo = profilo_sds_utente(request.user)
+    return render(request, "schede_sicurezza/pages/sds_da_leggere.html", {
+        "profilo": profilo,
+        "da_leggere": profilo.da_leggere,
+        "completate": profilo.completate,
+    })
+
+
 # ---------------------------------------------------------------------------
 # Report compliance SDS
 # ---------------------------------------------------------------------------
@@ -562,6 +589,7 @@ def report_compliance(request):
 
     return render(request, "schede_sicurezza/pages/report_compliance.html", {
         "gap": prodotti_senza_scheda_corrente(),
+        "senza_mansioni": prodotti_senza_mansioni(),
         "matrice": matrice_presa_visione(),
     })
 
@@ -570,22 +598,25 @@ def _csv_gap_sds(prodotti):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="schede_sicurezza_gap_sds.csv"'
     writer = safe_csv_writer(response)
-    writer.writerow(["Prodotto", "Reparto", "Fornitore"])
+    writer.writerow(["Prodotto", "Mansioni di rischio", "Fornitore"])
     for p in prodotti:
-        writer.writerow([p.nome, p.reparto.nome, p.fornitore])
+        writer.writerow([p.nome, p.mansioni_label(), p.fornitore])
     return response
 
 
-def _csv_matrice_presa_visione(reparti):
+def _csv_matrice_presa_visione(mansioni):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="schede_sicurezza_matrice_presa_visione.csv"'
     writer = safe_csv_writer(response)
-    writer.writerow(["Reparto", "Prodotto", "Versione scheda", "Dipendenti totali", "Confermati", "Percentuale"])
-    for reparto in reparti:
-        for riga in reparto.righe:
+    writer.writerow([
+        "Mansione di rischio", "Prodotto", "Versione scheda",
+        "Dipendenti totali", "Confermati", "Percentuale",
+    ])
+    for mansione in mansioni:
+        for riga in mansione.righe:
             percentuale = "n/d" if riga.percentuale is None else f"{riga.percentuale}%"
             writer.writerow([
-                reparto.reparto_nome, riga.prodotto_nome, riga.scheda_versione,
+                mansione.mansione_nome, riga.prodotto_nome, riga.scheda_versione,
                 riga.totale_dipendenti, riga.confermati, percentuale,
             ])
     return response

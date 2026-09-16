@@ -59,7 +59,7 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
       <div>
         <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Sicurezza · Schede dati di sicurezza</div>
         <h1><svg class="fmd-ico fmd-cap"><use href="#i-shield"/></svg>Prodotti chimici</h1>
-        <p class="fmd-sub">Prodotti censiti in reparto, scheda di sicurezza corrente e pittogrammi di pericolo secondo il regolamento CLP.</p>
+        <p class="fmd-sub">Prodotti collegati alle mansioni di rischio, SDS corrente e pittogrammi di pericolo secondo il regolamento CLP.</p>
       </div>
       <div class="fmd-hero-side">
         <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_mostrati }}</span><span class="fmd-lbl">Prodotti</span></div>
@@ -76,10 +76,10 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
         <input type="text" name="q" value="{{ query }}" placeholder="Cerca prodotto, fornitore, codice…" autocomplete="off">
       </span>
       {% if pittogramma_selezionato %}<input type="hidden" name="pittogramma" value="{{ pittogramma_selezionato }}">{% endif %}
-      <select class="fmd-select" name="reparto" aria-label="Filtra per reparto">
-        <option value="">Tutti i reparti</option>
-        {% for r in reparti_options %}
-          <option value="{{ r.pk }}" {% if reparto_selezionato == r.pk|stringformat:"s" %}selected{% endif %}>{{ r.nome }}</option>
+      <select class="fmd-select" name="mansione" aria-label="Filtra per mansione di rischio">
+        <option value="">Tutte le mansioni di rischio</option>
+        {% for r in mansioni_options %}
+          <option value="{{ r.pk }}" {% if mansione_selezionata == r.pk|stringformat:"s" %}selected{% endif %}>{{ r.nome }}</option>
         {% endfor %}
       </select>
       <select class="fmd-select" name="famiglia" aria-label="Filtra per famiglia">
@@ -95,8 +95,13 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
         <option value="da_rivedere" {% if stato_selezionato == "da_rivedere" %}selected{% endif %}>Da rivedere</option>
       </select>
       <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
-      {% if query or reparto_selezionato or famiglia_selezionata or stato_selezionato or pittogramma_selezionato %}
+      {% if query or mansione_selezionata or famiglia_selezionata or stato_selezionato or pittogramma_selezionato %}
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'schede_sicurezza:prodotto_list' %}">Azzera</a>
+      {% endif %}
+      {% if profilo_sds_utente.collegato %}
+        <a class="fmd-btn {% if n_sds_da_leggere %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %}" href="{% url 'schede_sicurezza:sds_da_leggere' %}">
+          Le mie SDS{% if n_sds_da_leggere %} ({{ n_sds_da_leggere }} da leggere){% endif %}
+        </a>
       {% endif %}
       {% if can_gestire %}
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'schede_sicurezza:report_compliance' %}">Report compliance</a>
@@ -110,7 +115,7 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
       <span class="ss-rail-lbl">Pericolo</span>
       {% for p in rastrelliera %}
         <a class="{% if p.attivo %}ss-on{% endif %}" title="{{ p.codice }} — {{ p.nome }} ({{ p.n }})"
-           href="?{% if not p.attivo %}pittogramma={{ p.codice }}&amp;{% endif %}q={{ query|urlencode }}&amp;reparto={{ reparto_selezionato|urlencode }}&amp;famiglia={{ famiglia_selezionata|urlencode }}&amp;stato={{ stato_selezionato|urlencode }}">
+           href="?{% if not p.attivo %}pittogramma={{ p.codice }}&amp;{% endif %}q={{ query|urlencode }}&amp;mansione={{ mansione_selezionata|urlencode }}&amp;famiglia={{ famiglia_selezionata|urlencode }}&amp;stato={{ stato_selezionato|urlencode }}">
           <svg width="34" height="34" role="img" aria-label="{{ p.codice }} {{ p.nome }}"><use href="#{{ p.codice|lower }}"/></svg>
           {% if p.n %}<span class="ss-n">{{ p.n }}</span>{% endif %}
         </a>
@@ -118,13 +123,13 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
     </div>
   </section>
 
-  {# ── Prodotti raggruppati per reparto ───────────────────────────────── #}
+  {# Prodotti raggruppati per mansione di rischio. #}
   {% for gruppo in gruppi %}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head">
         <div class="fmd-block-title">
-          <svg class="fmd-ico"><use href="#i-building"/></svg>
-          {{ gruppo.reparto }} <span class="fmd-count">{{ gruppo.cards|length }}</span>
+          <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
+          {{ gruppo.mansione }} <span class="fmd-count">{{ gruppo.cards|length }}</span>
         </div>
         {% if gruppo.n_senza_scheda %}
           <span class="fmd-block-aside">{{ gruppo.n_senza_scheda }} senza scheda</span>
@@ -194,7 +199,7 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
         <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-shield"/></svg></span>
         <span class="fmd-et">Nessun prodotto chimico</span>
         <span class="fmd-em">
-          {% if query or reparto_selezionato or famiglia_selezionata or stato_selezionato or pittogramma_selezionato %}
+          {% if query or mansione_selezionata or famiglia_selezionata or stato_selezionato or pittogramma_selezionato %}
             Nessun prodotto corrisponde ai filtri attivi.
           {% else %}
             Il censimento e' vuoto. Aggiungi il primo prodotto per iniziare.

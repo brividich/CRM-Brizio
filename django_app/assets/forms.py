@@ -1537,10 +1537,8 @@ class ChemicalAssetForm(forms.ModelForm):
         else:
             prodotto = self.cleaned_data.get("prodotto_chimico")
             asset.prodotto_chimico = prodotto
-        # Allinea il reparto (testo libero) dell'asset a quello del prodotto, se vuoto.
-        if asset.prodotto_chimico and not (asset.reparto or "").strip():
-            rep = asset.prodotto_chimico.reparto
-            asset.reparto = rep.nome if rep else ""
+        # Il reparto logistico dell'asset resta indipendente: la SDS e' ora
+        # assegnata alle mansioni di rischio e non puo' derivare un reparto.
         if commit:
             asset.save()
         return asset
