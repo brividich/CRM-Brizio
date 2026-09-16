@@ -613,4 +613,4 @@ def referto_scarica(request, riga_id: int):
     _audit(request, "referto_archiviato_scaricato", {
         "riga_id": riga.pk, "percorso": riga.percorso, "nome_file": riga.nome_file,
     })
-    return FileResponse(f, as_attachment=True, filename=riga.nome_file or "referto.pdf")
+    return FileResponse(f, as_attachment=False, filename=riga.nome_file or "referto.pdf")
