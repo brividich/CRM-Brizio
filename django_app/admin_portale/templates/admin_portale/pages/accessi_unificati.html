@@ -186,7 +186,7 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
    distinguono con un'etichetta e un filo di bordo, non con un altro rientro. */
 .acl-group + .acl-group { border-top: 1px solid var(--hub-color-border, #d7e0ea); }
 .acl-group__name { font-weight: 700; font-size: var(--hub-font-xs, 12px); color: var(--hub-color-text, #1a202c); }
-.acl-group--config .acl-group__name::before {
+.acl-group--configurazione .acl-group__name::before {
   content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 2px;
   background: var(--acl-navy); margin-right: 6px; vertical-align: 1px;
 }
@@ -195,6 +195,9 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
   background: var(--acl-steel); margin-right: 6px; vertical-align: 1px;
 }
 .acl-bulk--group { background: transparent; }
+/* Il navy della configurazione sparisce sul fondo scuro: in tema scuro il
+   marcatore schiarisce, restando riconoscibile come "lo stesso blu". */
+body.theme-dark .acl-group--configurazione .acl-group__name::before { background: #7aa2d6; }
 
 .acl-grid { width: 100%; border-collapse: collapse; }
 .acl-grid td { padding: 9px var(--hub-space-4, 16px); border-bottom: 1px solid var(--hub-color-border, #d7e0ea); vertical-align: middle; }
