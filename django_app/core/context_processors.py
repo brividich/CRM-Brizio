@@ -527,9 +527,28 @@ _CAR_PENDING_ALLOWED_JOINS = frozenset({
 
 
 def _count_car_pending(legacy_user_id: int | None, legacy_user=None) -> int:
-    """Conta le assenze in attesa del personale gestito da un CAR (per il badge topbar)."""
+    """Conta le assenze in attesa del personale gestito da un CAR (per il badge topbar).
+
+    Il conteggio e' delegato al modulo assenze, che e' la fonte del perimetro
+    mostrato dalla dashboard segnalazioni: la clausola locale qui sotto resta solo
+    come fallback e riconosce meno assegnazioni (niente `capi_reparto.utente_id`,
+    niente fallback su dominio email o ordine nome/cognome), quindi da sola
+    produceva un badge con un numero diverso da quello della pagina di
+    destinazione.
+    """
     manager_name = str(getattr(legacy_user, "nome", "") or "").strip() if legacy_user else ""
     manager_email = str(getattr(legacy_user, "email", "") or "").strip() if legacy_user else ""
+
+    try:
+        from assenze.views import count_pending_for_manager
+
+        return count_pending_for_manager(
+            legacy_user_id,
+            manager_name=manager_name,
+            manager_email=manager_email,
+        )
+    except Exception:
+        logger.debug("_count_car_pending: fallback alla clausola locale", exc_info=True)
 
     clauses: list[str] = []
     params: list = []

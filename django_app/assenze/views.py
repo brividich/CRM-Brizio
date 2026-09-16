@@ -2907,6 +2907,46 @@ def _load_pending_for_manager(
     return out
 
 
+def count_pending_for_manager(
+    legacy_user_id: int | None,
+    *,
+    manager_name: str = "",
+    manager_email: str = "",
+) -> int:
+    """Conteggio delle segnalazioni in attesa per un capo, con lo STESSO perimetro
+    di `_load_pending_for_manager`.
+
+    Serve al badge della subnav (`core.context_processors`), che prima usava una
+    propria clausola di match piu' povera (niente `capi_reparto.utente_id`, niente
+    fallback su dominio email o ordine nome/cognome) e mostrava quindi un numero
+    diverso da quello che si vede aprendo la dashboard segnalazioni.
+    """
+    if not _table_exists("assenze"):
+        return 0
+    manager_where_sql, manager_where_params, use_legacy_join = _combined_manager_assignment_where_clause(
+        legacy_user_id=legacy_user_id,
+        manager_name=manager_name,
+        manager_email=manager_email,
+        assenze_alias="a",
+        capi_alias="cr",
+    )
+    if not manager_where_sql:
+        return 0
+    join_sql = " LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id " if use_legacy_join else ""
+    sql = (
+        "SELECT COUNT(*) FROM assenze a "
+        + join_sql
+        + f"WHERE {manager_where_sql} AND COALESCE(a.moderation_status, 2) = 2"
+    )
+    try:
+        with connections["default"].cursor() as cursor:
+            cursor.execute(sql, manager_where_params)
+            row = cursor.fetchone()
+            return int(row[0]) if row else 0
+    except Exception:
+        return 0
+
+
 def _load_gestite_for_manager(
     legacy_user_id: int | None,
     limit: int = 30,
@@ -4176,9 +4216,10 @@ def menu(request):
     recenti = _load_personal(name, email, limit=8)
     perms = _assenze_permissions(request)
     pending_count = 0
-    if perms.get("can_update_any"):
-        pending_count = len(_load_all_pending(limit=200))
-    elif perms.get("can_update_owned"):
+    if perms.get("can_update_any") or perms.get("can_update_owned"):
+        # Stesso perimetro della dashboard segnalazioni, che apre sempre in scope
+        # "mine": contare tutte le pendenti globali mostrerebbe un badge che non
+        # corrisponde a nulla di visibile nella pagina di destinazione.
         pending_count = len(
             _load_pending_for_manager(
                 legacy_id,
