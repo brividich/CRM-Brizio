@@ -29,7 +29,7 @@ from core.audit import log_action
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
-from core.upload_mime import safe_filename, validate_filename, UploadMimeValidationError
+from core.upload_mime import safe_filename, validate_filename, validate_extension_and_mime, UploadMimeValidationError
 
 from .acl_bootstrap import PERM_RENTRI_MANAGE
 
@@ -50,6 +50,36 @@ def _validate_rentri_csv(uploaded_file):
         return f"{filename}: file vuoto."
     if size > _RENTRI_CSV_MAX_BYTES:
         return f"{filename}: supera il limite di 5 MB."
+    return None
+
+
+_ALLEGATO_MAX_BYTES = 10 * 1024 * 1024
+_ALLEGATO_ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".webp"}
+_ALLEGATO_ALLOWED_MIMES = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
+
+
+def _validate_rentri_allegato(uploaded_file):
+    """Valida l'allegato di un carico: nome, estensione, dimensione, MIME reale."""
+    try:
+        validate_extension_and_mime(
+            uploaded_file,
+            allowed_extensions=_ALLEGATO_ALLOWED_EXTENSIONS,
+            allowed_mimes=_ALLEGATO_ALLOWED_MIMES,
+            max_bytes=_ALLEGATO_MAX_BYTES,
+            label="Allegato",
+            allow_empty=False,
+        )
+    except UploadMimeValidationError as exc:
+        return str(exc)
     return None
 
 from .models import RegistroRifiuti, RentriImpostazioni
@@ -264,6 +294,9 @@ def _from_sp_item(item: dict) -> dict:
 
 
 def _parse_json_body(request) -> dict:
+    """Estrae il payload della richiesta: JSON per fetch normali, POST per multipart (allegato)."""
+    if request.content_type.startswith("multipart/form-data"):
+        return request.POST.dict()
     try:
         return json.loads(request.body)
     except Exception:
@@ -302,6 +335,13 @@ def _require_rentri_manager(request):
     )
 
 
+def _as_bool_field(v) -> bool:
+    """Interpreta booleani sia da JSON (bool nativo) sia da multipart/form-data (stringa)."""
+    if isinstance(v, bool):
+        return v
+    return str(v or "").strip().lower() in {"1", "true", "yes", "on", "si"}
+
+
 def _populate_registro(registro: RegistroRifiuti, data: dict, tipo: str) -> list[str]:
     """Populate registro fields from POST data dict; return list of error strings."""
     errors = []
@@ -330,8 +370,8 @@ def _populate_registro(registro: RegistroRifiuti, data: dict, tipo: str) -> list
         registro.quantita = None
 
     registro.carico_scarico = str(data.get("carico_scarico") or "").strip()
-    registro.rentri_si_no = bool(data.get("rentri_si_no"))
-    registro.salva = bool(data.get("salva"))
+    registro.rentri_si_no = _as_bool_field(data.get("rentri_si_no"))
+    registro.salva = _as_bool_field(data.get("salva"))
     registro.note_rentri = str(data.get("note_rentri") or "").strip()
     registro.pericolosita = str(data.get("pericolosita") or "").strip()
 
@@ -372,6 +412,90 @@ def _sync_to_sp(registro: RegistroRifiuti) -> None:
                 registro.sharepoint_item_id = sp_id
 
 
+# ── Helpers wizard (step-by-step): codici CER e catena Rif.Op ─────────────────
+
+
+def _split_rif_op(raw: str) -> list[str]:
+    return [x.strip() for x in str(raw or "").split(",") if x.strip()]
+
+
+def _codici_esistenti(q: str = "") -> list[str]:
+    """Codici CER già usati in almeno una registrazione (per lo step di ricerca)."""
+    qs = RegistroRifiuti.objects.exclude(codice="")
+    if q:
+        qs = qs.filter(codice__icontains=q)
+    return sorted(set(qs.values_list("codice", flat=True)))[:50]
+
+
+def _candidati_rif_op(tipo: str, codice: str) -> list[dict]:
+    """Ritorna i record "genitori" disponibili per lo step Rif.Op del tipo richiesto.
+
+    - O: carichi (C) del CER indicato senza alcuna evoluzione (nessun O/M/R li referenzia
+      ancora nel proprio rif_op) — come richiesto per lo scarico originale.
+    - M: scarichi originali (O) del CER indicato senza uno scarico effettivo già collegato.
+    - R: scarichi effettivi (M) del CER indicato senza una rettifica già collegata.
+
+    Il valore da copiare nel nuovo record resta sempre la catena di id dei carichi (C)
+    d'origine (`rif_op`), per restare coerenti con l'export storico e con la vista
+    famiglie di `elenco` (che raggruppa proprio su quella catena).
+    """
+    codice = (codice or "").strip()
+    tipo = (tipo or "").strip().upper()
+    if not codice or tipo not in ("O", "M", "R"):
+        return []
+
+    source_tipo = {"O": "C", "M": "O", "R": "M"}[tipo]
+    source_qs = RegistroRifiuti.objects.filter(tipo=source_tipo, codice=codice).order_by("data", "id_registrazione")
+
+    if source_tipo == "C":
+        referenced: set[str] = set()
+        for raw in RegistroRifiuti.objects.filter(tipo__in=["O", "M", "R"]).values_list("rif_op", flat=True):
+            referenced.update(_split_rif_op(raw))
+        candidates = [r for r in source_qs if r.id_registrazione not in referenced]
+        return [
+            {
+                "id_registrazione": r.id_registrazione,
+                "data": r.data.strftime("%d/%m/%Y") if r.data else "",
+                "quantita": float(r.quantita) if r.quantita is not None else None,
+                "rif_op": r.id_registrazione,
+                "carichi": [r.id_registrazione],
+            }
+            for r in candidates
+        ]
+
+    # source_tipo in ("O", "M"): si sceglie per "famiglia" (stesso rif_op = stessa
+    # catena di C d'origine); una famiglia si esclude se esiste già un record di tipo
+    # `tipo` (l'evoluzione successiva) con lo stesso identico rif_op.
+    used_rif_op = {
+        v for v in RegistroRifiuti.objects.filter(tipo=tipo).values_list("rif_op", flat=True)
+        if str(v or "").strip()
+    }
+    candidates = [r for r in source_qs if str(r.rif_op or "").strip() and r.rif_op not in used_rif_op]
+    return [
+        {
+            "id_registrazione": r.id_registrazione,
+            "data": r.data.strftime("%d/%m/%Y") if r.data else "",
+            "quantita": float(r.quantita) if r.quantita is not None else None,
+            "rif_op": r.rif_op,
+            "carichi": _split_rif_op(r.rif_op),
+        }
+        for r in candidates
+    ]
+
+
+@login_required
+def api_codici_cer(request):
+    q = request.GET.get("q", "").strip()
+    return JsonResponse({"ok": True, "codici": _codici_esistenti(q)})
+
+
+@login_required
+def api_candidati_rif_op(request):
+    tipo = request.GET.get("tipo", "")
+    codice = request.GET.get("codice", "")
+    return JsonResponse({"ok": True, "candidati": _candidati_rif_op(tipo, codice)})
+
+
 # ── Views ─────────────────────────────────────────────────────────────────────
 
 
@@ -394,8 +518,17 @@ def _handle_form(request, tipo: str, template: str):
     registro.inserito_da = _get_username(request)
     errors = _populate_registro(registro, data, tipo)
 
+    allegato = request.FILES.get("allegato") if tipo == "C" else None
+    if allegato is not None:
+        err = _validate_rentri_allegato(allegato)
+        if err:
+            errors.append(err)
+
     if errors:
         return JsonResponse({"ok": False, "error": "; ".join(errors)}, status=400)
+
+    if allegato is not None:
+        registro.allegato = allegato
 
     try:
         registro.save()
@@ -815,8 +948,17 @@ def modifica(request, pk: int):
     data = _parse_json_body(request)
     errors = _populate_registro(registro, data, registro.tipo)
 
+    allegato = request.FILES.get("allegato") if registro.tipo == "C" else None
+    if allegato is not None:
+        err = _validate_rentri_allegato(allegato)
+        if err:
+            errors.append(err)
+
     if errors:
         return JsonResponse({"ok": False, "error": "; ".join(errors)}, status=400)
+
+    if allegato is not None:
+        registro.allegato = allegato
 
     try:
         registro.save()
