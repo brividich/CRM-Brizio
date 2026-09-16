@@ -21,6 +21,8 @@ from django.http import HttpRequest
 
 from anagrafica.exports import ExportSpec, acl_gate, register  # noqa: F401
 
+from core import naming
+
 
 def _fmt_date(value) -> str:
     return value.strftime("%d-%m-%Y") if value else ""
@@ -387,11 +389,12 @@ def _matrice_rows(request: HttpRequest, scope: str) -> list[dict]:
                 etichetta = f"{t.nome} ({_fmt_date(q.data_scadenza)})"
             buckets[stato].append(etichetta)
 
-        cognome = str(dip.get("cognome") or f"ID {lid}").strip()
+        cognome = str(dip.get("cognome") or "").strip()
         nome = str(dip.get("nome") or "").strip()
+        nominativo = naming.nome_completo(nome, cognome) or f"ID {lid}"
         rows.append({
             "_sort": (cognome.casefold(), nome.casefold()),
-            "dipendente": f"{cognome} {nome}".strip(),
+            "dipendente": nominativo,
             "reparto": reparto,
             "n_valide": len(buckets["valido"]),
             "n_in_scadenza": len(buckets["in_scadenza"]),

@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Organigramma | Anagrafica{% endblock %}
 
@@ -172,7 +173,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
         {% if b.capo %}
         <div class="org-capo">
           <span class="org-capo-badge">Capo</span>
-          <a href="{% url 'anagrafica:dipendente_detail' b.capo.id %}">{{ b.capo.cognome }} {{ b.capo.nome }}</a>
+          <a href="{% url 'anagrafica:dipendente_detail' b.capo.id %}">{% nominativo b.capo %}</a>
         </div>
         {% else %}
         <div class="org-capo-missing">⚠ Caporeparto non assegnato</div>
@@ -183,7 +184,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
           <ul>
             {% for m in b.membri %}
             <li>
-              <a href="{% url 'anagrafica:dipendente_detail' m.id %}">{{ m.cognome }} {{ m.nome }}</a>
+              <a href="{% url 'anagrafica:dipendente_detail' m.id %}">{% nominativo m %}</a>
               {% if m.area_aziendale_nome %}<span class="org-mansione"> · {{ m.area_aziendale_nome }}</span>{% elif m.mansione %}<span class="org-mansione"> · {{ m.mansione }}</span>{% endif %}
             </li>
             {% endfor %}
@@ -212,7 +213,7 @@ body.theme-dark .org-capo-missing { background:rgba(133,77,14,.18); border-color
     <ul style="list-style:none;margin:0;padding:8px 16px 14px;columns:3;column-gap:24px;">
       {% for m in non_mappati %}
       <li style="padding:3px 0;font-size:13px;break-inside:avoid;">
-        <a href="{% url 'anagrafica:dipendente_detail' m.id %}" class="org-nm-link">{{ m.cognome }} {{ m.nome }}</a>
+        <a href="{% url 'anagrafica:dipendente_detail' m.id %}" class="org-nm-link">{% nominativo m %}</a>
         {% if m.reparto %}<span class="org-nm-rep"> · «{{ m.reparto }}»</span>{% endif %}
       </li>
       {% endfor %}

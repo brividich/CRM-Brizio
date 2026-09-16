@@ -30,6 +30,8 @@ from anagrafica.models import DipendenteAnagraficaAziendale, StoricoContratto
 from anagrafica.services.email_digest import digest_fragment, scadenza_badge
 from anagrafica.services.reminders import get_reminder_recipients
 
+from core import naming
+
 # Tipologie dell'anagrafica aziendale considerate "a termine" per il fallback
 # senza storico contrattuale importato.
 TIPOLOGIE_A_TERMINE = (
@@ -49,7 +51,7 @@ def _nomi_dipendenti() -> dict[int, str]:
         from core.legacy_anagrafica import fetch_anagrafica_rows
         rows = fetch_anagrafica_rows(deduplicate=True)
         return {
-            int(r["id"]): f"{r.get('cognome', '') or ''} {r.get('nome', '') or ''}".strip()
+            int(r["id"]): naming.nome_completo(r.get("nome"), r.get("cognome"))
             for r in rows
             if r.get("id")
         }

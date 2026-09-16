@@ -1,6 +1,7 @@
 {% extends "core/base.html" %}
+{% load anagrafica_extras %}
 
-{% block title %}{{ dip.cognome }} {{ dip.nome }} — Storico Retributivo{% endblock %}
+{% block title %}{% nominativo dip %} — Storico Retributivo{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -130,7 +131,7 @@
   <!-- Topbar -->
   <div class="dr-topbar">
     <div>
-      <div class="dr-title">{{ dip.cognome }} {{ dip.nome }} — Storico Retributivo</div>
+      <div class="dr-title">{% nominativo dip %} — Storico Retributivo</div>
       <div class="dr-sub">{{ n_mesi }} mese{% if n_mesi != 1 %}i{% endif %} · {{ n_colonne }} voce{% if n_colonne != 1 %} retributive{% else %} retributiva{% endif %}</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">

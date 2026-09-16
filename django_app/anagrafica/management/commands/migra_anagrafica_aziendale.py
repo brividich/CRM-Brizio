@@ -45,6 +45,8 @@ from datetime import date
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from core import naming
+
 CAMPI_DATA = ("data_prima_assunzione", "data_consenso_privacy")
 
 
@@ -84,7 +86,7 @@ class Command(BaseCommand):
         with connection.cursor() as cur:
             cur.execute("SELECT id, nome, cognome FROM anagrafica_dipendenti")
             for _id, _nome, _cognome in cur.fetchall():
-                nome_map[_id] = f"{(_cognome or '').strip()} {(_nome or '').strip()}".strip()
+                nome_map[_id] = naming.nome_completo(_nome, _cognome)
 
         righe = []
         senza_cf = 0
