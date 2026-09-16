@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
@@ -242,3 +244,48 @@ class RentriGiacenzeTests(TestCase):
         items = collect_rentri(ScadenzeContext.build(req))
         depositi = [it for it in items if it.kind == "deposito"]
         self.assertTrue(any(it.soggetto == "080111" for it in depositi))
+
+
+class RentriCsvParsingTests(TestCase):
+    @staticmethod
+    def _csv_content(delimiter: str) -> str:
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=delimiter)
+        writer.writerow([
+            "Data", "ID", "Codice", "Pericolosita", "Quantita",
+            "Rettifica", "Tipo", "Note", "Modificato da", "Rif.Op",
+        ])
+        writer.writerow([
+            "01/09/2026", "REG-1", "15 02 02", '["HP04 - Irritante","HP05 - Nocivo","HP04"]',
+            "1.234,5", "", "C - Carico", "Nota", "utente", "OP/1",
+        ])
+        return output.getvalue()
+
+    def test_parser_accetta_csv_con_virgola_e_lista_hp(self):
+        from rentri.views import _parse_csv_rows
+
+        rows, errors = _parse_csv_rows(self._csv_content(","))
+
+        self.assertEqual(errors, [])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["pericolosita"], "HP04, HP05")
+        self.assertEqual(rows[0]["quantita"], "1234.5")
+
+    def test_parser_conserva_compatibilita_con_punto_e_virgola(self):
+        from rentri.views import _parse_csv_rows
+
+        rows, errors = _parse_csv_rows(self._csv_content(";"))
+
+        self.assertEqual(errors, [])
+        self.assertEqual(rows[0]["id_reg"], "REG-1")
+
+    def test_helper_cli_rilevano_delimitatore_e_codici_hp(self):
+        from rentri.management.commands.import_rentri_csv import (
+            _detect_delimiter,
+            _parse_pericolosita,
+        )
+
+        self.assertEqual(_detect_delimiter("Data,ID,Codice"), ",")
+        self.assertEqual(_detect_delimiter("Data;ID;Codice"), ";")
+        self.assertEqual(_detect_delimiter("intestazione"), ";")
+        self.assertEqual(_parse_pericolosita('["HP04 - x","HP05 - y","HP04"]'), "HP04, HP05")
