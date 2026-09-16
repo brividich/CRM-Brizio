@@ -26,6 +26,8 @@ from io import BytesIO
 
 from django.core.files.base import ContentFile
 
+from core import naming
+
 logger = logging.getLogger(__name__)
 
 # Tag di riferimento che lega il documento archiviato al completamento di origine
@@ -106,7 +108,7 @@ def build_attestato_context(record, cfg=None) -> dict:
 
     nominativo = ""
     if dip:
-        nominativo = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip()
+        nominativo = naming.nome_completo(dip.get("nome"), dip.get("cognome"))
     if not nominativo:
         nominativo = f"Dipendente #{legacy_id}"
 
@@ -324,7 +326,7 @@ def build_libretto_pdf_bytes(legacy_id: int, *, dal=None, al=None) -> bytes:
     except Exception:
         logger.exception("Errore lettura anagrafica per libretto %s", legacy_id)
     dip = dip or {}
-    nominativo = f"{str(dip.get('cognome') or '').strip()} {str(dip.get('nome') or '').strip()}".strip() or f"Dipendente #{legacy_id}"
+    nominativo = naming.nome_completo(dip.get("nome"), dip.get("cognome")) or f"Dipendente #{legacy_id}"
 
     records_qs = (
         TrainingEmployeeRecord.objects

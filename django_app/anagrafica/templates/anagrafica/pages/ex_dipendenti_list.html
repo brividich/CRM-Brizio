@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load static %}
+{% load anagrafica_extras %}
 
 {% block title %}Ex dipendenti | Anagrafica HR{% endblock %}
 
@@ -92,12 +93,12 @@ body.theme-dark .hr-pag span { color:var(--text-light); }
         <tbody>
           {% for dip in page_obj %}
           <tr>
-            <td data-sort-value="{{ dip.cognome }} {{ dip.nome }}">
+            <td data-sort-value="{% nominativo_sort dip %}">
               <div class="hr-name-cell">
                 <div class="hr-avatar{% if not dip.foto_url %} hr-avatar-fb{% endif %}" aria-hidden="true">
                   {% if dip.foto_url %}<img class="hr-avatar-img" src="{{ dip.foto_url }}" alt="">{% endif %}
                 </div>
-                <div style="font-weight:700;color:#0f172a;">{{ dip.cognome }} {{ dip.nome }}</div>
+                <div style="font-weight:700;color:#0f172a;">{% nominativo dip %}</div>
               </div>
             </td>
             <td><span class="hr-pill neutral">{{ dip.aliasusername|default:"-" }}</span></td>

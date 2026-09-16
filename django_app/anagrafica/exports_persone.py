@@ -14,6 +14,8 @@ from django.http import HttpRequest
 
 from anagrafica.exports import ExportSpec, acl_gate, register  # noqa: F401
 
+from core import naming
+
 
 # ── Helper comuni ────────────────────────────────────────────────────────────
 
@@ -151,7 +153,7 @@ def _dipendenti_rows(request: HttpRequest, scope: str) -> list[dict]:
 
     return [
         {
-            "dipendente": f"{str(row.get('cognome') or '').strip()} {str(row.get('nome') or '').strip()}".strip(),
+            "dipendente": naming.nome_completo(row.get("nome"), row.get("cognome")),
             "reparto": str(row.get("reparto") or "").strip(),
             "mansione": str(row.get("mansione") or "").strip(),
             "email_notifica": str(row.get("email_notifica") or "").strip(),
@@ -255,7 +257,7 @@ def _ex_dipendenti_rows(request: HttpRequest, scope: str) -> list[dict]:
                 str(row.get("cognome") or "").strip().casefold(),
                 str(row.get("nome") or "").strip().casefold(),
             ),
-            "dipendente": f"{str(row.get('cognome') or '').strip()} {str(row.get('nome') or '').strip()}".strip(),
+            "dipendente": naming.nome_completo(row.get("nome"), row.get("cognome")),
             "username": str(row.get("aliasusername") or "").strip(),
             "matricola": str(row.get("matricola") or "").strip(),
             "contratto": az.get_tipologia_contratto_display() if az and az.tipologia_contratto else "",
@@ -533,10 +535,7 @@ def _scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]:
         giorni = (data_scadenza - oggi).days
         voci.append({
             "_giorni": giorni,
-            "dipendente": (
-                f"{str(dip.get('cognome') or f'ID {legacy_id}').strip()} "
-                f"{str(dip.get('nome') or '').strip()}"
-            ).strip(),
+            "dipendente": naming.nome_completo(dip.get("nome"), dip.get("cognome")) or f"ID {legacy_id}",
             "reparto": reparto,
             "tipo": kind_label,
             "descrizione": tipo_nome,
@@ -740,14 +739,15 @@ def _conformita_rows(request: HttpRequest, scope: str) -> list[dict]:
         if filtro_idoneita and idoneita.get("esito") != filtro_idoneita:
             continue
 
-        cognome = str(dip.get("cognome") or f"ID {legacy_id}").strip()
+        cognome = str(dip.get("cognome") or "").strip()
         nome = str(dip.get("nome") or "").strip()
+        nominativo = naming.nome_completo(nome, cognome) or f"ID {legacy_id}"
         da_soddisfare = "; ".join(
             list(idoneita.get("scaduti", [])) + list(idoneita.get("mancanti", []))
         )
         righe.append({
             "_ordine": (ordine.get(complessivo, 9), cognome.casefold(), nome.casefold()),
-            "dipendente": f"{cognome} {nome}".strip(),
+            "dipendente": nominativo,
             "reparto": reparto,
             "mansione": mansione_nome,
             "conformita": _CONF_LABEL.get(complessivo, complessivo),
@@ -848,8 +848,8 @@ def _organigramma_rows(request: HttpRequest, scope: str) -> list[dict]:
 
     def _nome(row: dict) -> str:
         return (
-            f"{str(row.get('cognome') or '').strip()} {str(row.get('nome') or '').strip()}"
-        ).strip()
+            naming.nome_completo(row.get("nome"), row.get("cognome"))
+        )
 
     righe: list[dict] = []
     for rep in reparti:

@@ -103,7 +103,7 @@ body.theme-dark .mc-legend { color:var(--text-mid); border-color:var(--border); 
         <tbody>
           {% for r in righe %}
           <tr>
-            <td class="mc-dip"><a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.cognome }} {{ r.nome }}</a>{% if r.reparto %}<br><small>{{ r.reparto }}</small>{% endif %}</td>
+            <td class="mc-dip"><a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{% nominativo r %}</a>{% if r.reparto %}<br><small>{{ r.reparto }}</small>{% endif %}</td>
             {% for c in r.celle %}
             <td class="mc-cell-{{ c.stato }}" title="{% if c.data %}scadenza {{ c.data|date:'d/m/Y' }}{% elif c.stato == 'valido' %}valido{% else %}non posseduto{% endif %}">
               {% if c.stato == 'valido' %}✓{% elif c.stato == 'in_scadenza' %}⚠{% elif c.stato == 'scaduto' %}✗{% else %}—{% endif %}

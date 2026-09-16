@@ -12,6 +12,8 @@ from django.http import HttpRequest
 
 from anagrafica.exports import ExportSpec, acl_gate, register  # noqa: F401
 
+from core import naming
+
 
 def _d(value) -> str:
     """Data in formato d-m-Y (come a schermo); stringa vuota se assente."""
@@ -527,7 +529,7 @@ def _nomi_dipendenti() -> dict[int, str]:
                 continue
             cognome = (r.get("cognome") or "").strip()
             nome = (r.get("nome") or "").strip()
-            nomi[lid] = f"{cognome} {nome}".strip() or f"#{lid}"
+            nomi[lid] = naming.nome_completo(nome, cognome) or f"#{lid}"
     except Exception:  # tabella legacy non disponibile: si degrada su "#id"
         return {}
     return nomi

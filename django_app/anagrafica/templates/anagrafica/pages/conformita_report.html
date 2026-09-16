@@ -170,7 +170,7 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
           <tr>
             <td>
               <a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}" style="font-weight:700;color:#0c2545;text-decoration:none;">
-                {{ r.cognome }} {{ r.nome }}
+                {% nominativo r %}
               </a>
               {% if r.mansione %}<div style="font-size:11px;margin-top:1px;">{% if r.mansione_id %}<a href="{% url 'anagrafica:mansione_requisiti' r.mansione_id %}" style="color:#64748b;text-decoration:none;">🎯 {{ r.mansione }}</a>{% else %}<span style="color:#94a3b8;">{{ r.mansione }}</span>{% endif %}</div>{% endif %}
             </td>

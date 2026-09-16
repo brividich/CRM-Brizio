@@ -5,6 +5,8 @@ import logging
 from django import template
 from django.urls import NoReverseMatch, reverse
 
+from core import naming
+
 
 register = template.Library()
 logger = logging.getLogger(__name__)
@@ -333,3 +335,44 @@ def subnav_anagrafica(context):
             })
 
     return {"items": items}
+
+
+@register.simple_tag(name="nominativo")
+def nominativo(oggetto=None, nome=None, cognome=None):
+    """Nominativo dipendente nel formato canonico ``Nome Cognome``.
+
+    Accetta sia un oggetto con attributi/chiavi ``nome``/``cognome``
+    (``{% nominativo dip %}``) sia i due valori sciolti
+    (``{% nominativo nome=r.nome cognome=r.cognome %}``).
+    """
+    if oggetto is not None and nome is None and cognome is None:
+        nome, cognome = _nome_cognome_da(oggetto)
+    return naming.nome_completo(nome, cognome)
+
+
+@register.simple_tag(name="nominativo_iniziali")
+def nominativo_iniziali(oggetto=None, nome=None, cognome=None):
+    """Iniziali per l'avatar, nello stesso ordine del nominativo."""
+    if oggetto is not None and nome is None and cognome is None:
+        nome, cognome = _nome_cognome_da(oggetto)
+    return naming.iniziali(nome, cognome)
+
+
+@register.simple_tag(name="nominativo_sort")
+def nominativo_sort(oggetto=None, nome=None, cognome=None):
+    """Chiave di ordinamento delle liste: resta ``Cognome Nome``."""
+    if oggetto is not None and nome is None and cognome is None:
+        nome, cognome = _nome_cognome_da(oggetto)
+    return naming.chiave_ordinamento(nome, cognome)
+
+
+@register.filter(name="parte_nome")
+def parte_nome(value):
+    """Normalizza in iniziali maiuscole un singolo nome o cognome."""
+    return naming.normalizza_parte(value)
+
+
+def _nome_cognome_da(oggetto):
+    if isinstance(oggetto, dict):
+        return oggetto.get("nome"), oggetto.get("cognome")
+    return getattr(oggetto, "nome", ""), getattr(oggetto, "cognome", "")

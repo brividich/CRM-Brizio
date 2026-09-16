@@ -188,14 +188,14 @@ class CataloghiExportTests(ExportHRTestCase):
         rows = self._rows("aree")
         by_name = {r["nome"]: r for r in rows}
         self.assertEqual(by_name["IN1"]["reparto"], "Produzione")
-        self.assertEqual(by_name["IN1"]["responsabile"], "Bianchi Laura")
+        self.assertEqual(by_name["IN1"]["responsabile"], "Laura Bianchi")
         self.assertEqual(by_name["Area orfana"]["reparto"], "")
 
     def test_reparti(self):
         self._assert_spec_ok("reparti", 1)
         row = self._rows("reparti")[0]
         self.assertEqual(row["nome"], "Produzione")
-        self.assertEqual(row["caporeparto"], "Rossi Mario")
+        self.assertEqual(row["caporeparto"], "Mario Rossi")
         self.assertEqual(row["aree"], "IN1")
         self.assertEqual(row["n_aree"], 1)
 
@@ -218,8 +218,8 @@ class RateiExportTests(ExportHRTestCase):
     def test_ratei_full(self):
         self._assert_spec_ok("ratei", 3)
         nomi = {r["dipendente"] for r in self._rows("ratei")}
-        self.assertIn("Rossi Mario", nomi)
-        self.assertIn("Bianchi Laura", nomi)
+        self.assertIn("Mario Rossi", nomi)
+        self.assertIn("Laura Bianchi", nomi)
 
     def test_ratei_filtro_periodo(self):
         self._assert_spec_ok("ratei", 2, periodo="2026-05-31")
@@ -230,7 +230,7 @@ class RateiExportTests(ExportHRTestCase):
     def test_ratei_filtro_reparto(self):
         rows = self._rows("ratei", scope="filtered", reparto="Ufficio")
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["dipendente"], "Bianchi Laura")
+        self.assertEqual(rows[0]["dipendente"], "Laura Bianchi")
 
     def test_ratei_scope_full_ignora_i_filtri(self):
         self.assertEqual(len(self._rows("ratei", scope="full", dipendente=CF_ROSSI)), 3)
@@ -242,7 +242,7 @@ class RetribuzioniExportTests(ExportHRTestCase):
         self._assert_spec_ok("retribuzioni_globale", 2)
         rows = self._rows("retribuzioni_globale")
         voci = {r["voce"]: r for r in rows}
-        self.assertEqual(voci["Paga base"]["dipendente"], "Rossi Mario")
+        self.assertEqual(voci["Paga base"]["dipendente"], "Mario Rossi")
         self.assertEqual(voci["Paga base"]["periodo"], "05-2026")
         self.assertEqual(voci["Straordinari"]["categoria"], "Elementi Variabili")
 
@@ -256,7 +256,7 @@ class VisiteMedicheExportTests(ExportHRTestCase):
         # Solo la visita scaduta rientra nella finestra (≤60g); l'altra no.
         self._assert_spec_ok("visite_mediche", 1)
         row = self._rows("visite_mediche")[0]
-        self.assertEqual(row["dipendente"], "Rossi Mario")
+        self.assertEqual(row["dipendente"], "Mario Rossi")
         self.assertEqual(row["tipo"], "Visita periodica")
         self.assertTrue(row["stato"].startswith("Scaduta"))
         # GDPR: nessun esito/giudizio sanitario tra le colonne esportate.
@@ -302,9 +302,10 @@ class XlsxFormulaInjectionExportTests(ExportHRTestCase):
     def setUpTestData(cls):
         super().setUpTestData()
 
-        # dipendente con cognome malevolo (finisce in "Dipendente" negli export)
+        # dipendente con nome malevolo (compare per primo nel nominativo "Nome
+        # Cognome" mostrato negli export)
         cls.dip_evil = AnagraficaDipendente.objects.create(
-            nome="Test", cognome=cls.EVIL, reparto="@SUM(A1)"
+            nome=cls.EVIL, cognome="Test", reparto="@SUM(A1)"
         )
         DipendenteAnagraficaCivile.objects.create(
             legacy_anagrafica_id=cls.dip_evil.id, codice_fiscale=cls.CF_EVIL, genere="M"
@@ -360,7 +361,11 @@ class XlsxFormulaInjectionExportTests(ExportHRTestCase):
                             cell.data_type, "f",
                             f"{ws.title}!{cell.coordinate} = {cell.value!r} scritta come formula",
                         )
-                        if isinstance(cell.value, str) and cell.value.startswith(self.EVIL):
+                        # Il nominativo passa dalla normalizzazione "Nome Cognome"
+                        # (core.naming): il testo malevolo resta intatto ma il casing
+                        # cambia (es. tutto minuscolo). Il confronto qui verifica che
+                        # il payload sopravviva come TESTO, non l'esatto casing.
+                        if isinstance(cell.value, str) and cell.value.lower().startswith(self.EVIL.lower()):
                             found = True
                             self.assertTrue(cell.quotePrefix, f"{ws.title}!{cell.coordinate}")
             self.assertTrue(found, "il valore malevolo non e' presente nell'export")
@@ -399,7 +404,7 @@ class XlsxFormulaInjectionExportTests(ExportHRTestCase):
             # Rossi ha due periodi (maggio 40, aprile 32) e l'export ordina per
             # -data_competenza: la prima riga è quella di maggio.
             riga_rossi = next(
-                r for r in ws.iter_rows(min_row=3) if r[0].value == "Rossi Mario"
+                r for r in ws.iter_rows(min_row=3) if r[0].value == "Mario Rossi"
             )
             self.assertEqual(riga_rossi[0].data_type, "s")
             self.assertFalse(riga_rossi[0].quotePrefix)  # valore benigno intatto

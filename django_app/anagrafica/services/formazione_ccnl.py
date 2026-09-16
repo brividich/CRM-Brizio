@@ -19,6 +19,8 @@ from core.legacy_anagrafica import fetch_anagrafica_rows
 
 from ..models_formazione import TrainingEmployeeRecord
 
+from core import naming
+
 __all__ = [
     "MONTE_ORE_TARGET", "FINESTRA_ANNI", "finestra_scorrevole",
     "monte_ore_dipendenti", "corsi_dipendente_nel_periodo", "righe_dipendenti",
@@ -103,7 +105,7 @@ def righe_dipendenti(
             reparti_set.add(reparto)
         if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
             continue
-        nome = f"{(r.get('cognome') or '').strip()} {(r.get('nome') or '').strip()}".strip() or f"#{lid}"
+        nome = naming.nome_completo(r.get("nome"), r.get("cognome")) or f"#{lid}"
         if filtro_q and filtro_q.lower() not in nome.lower():
             continue
 

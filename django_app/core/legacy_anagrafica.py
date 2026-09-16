@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db import connections, transaction
 
+from . import naming
 from .legacy_utils import legacy_table_columns
 
 
@@ -450,8 +451,11 @@ def upsert_anagrafica_dipendente(
 
     cleaned = {
         "aliasusername": normalize_legacy_alias(aliasusername or email),
-        "nome": str(nome or "").strip(),
-        "cognome": str(cognome or "").strip(),
+        # Formato unico "Nome Cognome" a iniziali maiuscole: qui passano tutte
+        # le scritture (form, import XLSX, recruiting, assegnazioni), quindi è
+        # l'unico punto in cui garantire la normalizzazione.
+        "nome": naming.normalizza_parte(nome),
+        "cognome": naming.normalizza_parte(cognome),
         "reparto": str(reparto or "").strip(),
         "mansione": str(mansione or "").strip(),
         "ruolo": str(ruolo or "").strip(),

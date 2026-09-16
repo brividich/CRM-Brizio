@@ -52,6 +52,8 @@ from anagrafica.models import (
 )
 from core.legacy_anagrafica import fetch_anagrafica_rows
 
+from core import naming
+
 
 class Command(BaseCommand):
     help = (
@@ -100,7 +102,7 @@ class Command(BaseCommand):
             row = anagrafica.get(legacy_id) or {}
             nome = str(row.get("nome") or "").strip()
             cognome = str(row.get("cognome") or "").strip()
-            return " ".join(p for p in [cognome, nome] if p) or f"#{legacy_id}"
+            return naming.nome_completo(nome, cognome) or f"#{legacy_id}"
 
         def reparto_di(legacy_id: int) -> str:
             return str((anagrafica.get(legacy_id) or {}).get("reparto") or "").strip()

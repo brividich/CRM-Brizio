@@ -4,6 +4,8 @@ from django import forms
 from django.db.models import Q
 from django.utils import timezone
 
+from core import naming
+
 from .models import (
     AreaAziendale,
     Reparto,
@@ -85,6 +87,14 @@ class DipendenteLegacyForm(forms.Form):
     email = forms.EmailField(required=False, widget=forms.EmailInput(attrs={"class": "ana-input", "placeholder": "login@dominio"}))
     email_notifica = forms.EmailField(required=False, widget=forms.EmailInput(attrs={"class": "ana-input", "placeholder": "nome@example.com"}))
     attivo = forms.BooleanField(required=False, initial=True)
+
+    # Nome e cognome entrano nel portale anche a mano: senza normalizzazione
+    # convivono "BOVA" (import massivo) e "Bova" (inserimento manuale).
+    def clean_nome(self):
+        return naming.normalizza_parte(self.cleaned_data.get("nome"))
+
+    def clean_cognome(self):
+        return naming.normalizza_parte(self.cleaned_data.get("cognome"))
 
 
 class AnagraficaCivileForm(forms.ModelForm):

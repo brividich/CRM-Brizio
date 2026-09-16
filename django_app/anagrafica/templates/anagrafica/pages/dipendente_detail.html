@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load anagrafica_extras %}
 
-{% block title %}{{ dip.cognome }} {{ dip.nome }} | Scheda dipendente{% endblock %}
+{% block title %}{% nominativo dip %} | Scheda dipendente{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_info_styles.html" %}
@@ -561,7 +561,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
   <!-- TOPBAR -->
   <div class="dp-topbar">
     <div>
-      <div class="dp-title">{{ dip.cognome }} {{ dip.nome }}</div>
+      <div class="dp-title">{% nominativo dip %}</div>
       <div class="dp-sub">Scheda dipendente · ID {{ legacy_id }}</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -578,7 +578,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
       {% if civile_foto_url %}<img class="dp-avatar-img" src="{{ civile_foto_url }}" alt="">{% endif %}
     </div>
     <div class="dp-hero-info">
-      <div class="dp-hero-name">{{ dip.cognome }} {{ dip.nome }}</div>
+      <div class="dp-hero-name">{% nominativo dip %}</div>
       <div class="dp-hero-meta">
         {% if dip.mansione %}{{ dip.mansione }}{% endif %}
         {% if dip.reparto %} &middot; <span class="dp-pill dp-pill-blue">{{ dip.reparto }}</span>{% endif %}
@@ -899,8 +899,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
     </div>
     <div class="dp-card-body">
       <div class="dp-info-grid">
-        <div class="dp-info-item"><div class="dp-info-label">Nome</div><div class="dp-info-value">{{ dip.nome|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Nome</div><div class="dp-info-value">{{ dip.nome|parte_nome|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|parte_nome|default:"—" }}</div></div>
         <div class="dp-info-item">
           <div class="dp-info-label">Matricola
             {% if is_admin %}<button type="button" onclick="toggleMatricolaForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia matricola">✏</button>{% endif %}
