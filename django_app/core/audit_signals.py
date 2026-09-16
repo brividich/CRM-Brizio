@@ -42,6 +42,10 @@ _EXCLUDED_APPS: frozenset[str] = frozenset({
 _EXCLUDED_MODELS: frozenset[str] = frozenset({
     "core.auditlog",           # evita ricorsione infinita
     "core.djangocachestore",   # tabella cache SQL (se presente)
+    # Registro email anomalie: e' gia' una traccia di audit con corpo e
+    # destinatari. Duplicarlo nell'AuditLog aggiungerebbe solo rumore e una
+    # seconda copia degli indirizzi.
+    "anomalie.anomalieemaillog",
 })
 
 # Nomi di campo (o sottostringhe) da non includere nei valori loggati

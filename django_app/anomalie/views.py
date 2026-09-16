@@ -36,6 +36,7 @@ from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_col
 from core.models import AuditLog, Notifica, Profile
 from core.operational_roles import (
     get_active_roles,
+    get_anagrafica_ids_for_role,
     get_role_ids_for_user,
     get_roster_by_role,
     get_users_for_role,
@@ -106,6 +107,23 @@ _ANOMALIE_SENSITIVE_LIST_KEYS = frozenset({
 })
 # Liste derivate dall'anagrafica: sola lettura, mai persistite nel file JSON.
 ANOMALIE_DERIVED_LIST_KEYS = frozenset({"capi_reparto", "capi_commessa"})
+# Chiave (non-lista) del file JSON che tiene la *sorgente* delle liste derivate:
+# quali Ruoli Operativi le compongono e gli override per singola persona.
+ANOMALIE_DERIVED_SOURCES_KEY = "derived_sources"
+ANOMALIE_DERIVED_SOURCE_LABELS = {
+    "capi_reparto": "Capi reparto (CAR)",
+    "capi_commessa": "Capi commessa",
+}
+# I due ruoli di SISTEMA riusano le stesse sorgenti delle liste derivate:
+# CAR <-> capi_reparto, Capocommessa <-> capi_commessa. Cosi' "chi e' CAR" e'
+# definito in un solo punto (tab Configurazione) e il tab Permessi lo rispecchia.
+ANOMALIE_SYSTEM_ROLE_DERIVED_KEY = {
+    AnomalieRoleType.CAR: "capi_reparto",
+    AnomalieRoleType.CAPO_COMMESSA: "capi_commessa",
+}
+# Chiave (non-lista) del file JSON: quali Ruoli Operativi mostrare nel tab
+# Permessi. Vuota = tutti (nessuna rottura finche' non viene configurata).
+ANOMALIE_PERMESSI_RUOLI_KEY = "permessi_ruoli_visibili"
 ANOMALIE_ATTACHMENTS_DIR_DEFAULT = r"media\anomalie_allegati"
 ALLEGATI_ALLOWED_EXTENSIONS = {
     ".jpg",
@@ -205,6 +223,28 @@ def _anomalie_system_roles() -> list[dict]:
         {"code": code, "name": name, "description": description, "is_system": True}
         for code, name, description, _order_index, _default_access in SYSTEM_ANOMALIE_ROLE_DEFINITIONS
     ]
+
+
+def _anomalie_system_roles_with_sources(derived_sources: dict, ruoli_by_id: dict) -> list[dict]:
+    """Ruoli di sistema arricchiti con i Ruoli Operativi che li definiscono.
+
+    La sorgente e' la stessa delle liste derivate del tab Configurazione
+    (CAR <-> capi reparto, Capocommessa <-> capi commessa): qui la si mostra
+    per non lasciare l'operatore a indovinare da dove arriva il ruolo.
+    """
+    rows = _anomalie_system_roles()
+    for row in rows:
+        key = ANOMALIE_SYSTEM_ROLE_DERIVED_KEY.get(row["code"], "")
+        cfg = (derived_sources or {}).get(key) or {}
+        names = [
+            ruoli_by_id[rid].nome for rid in cfg.get("ruoli") or [] if rid in ruoli_by_id
+        ]
+        row["source_key"] = key
+        row["source_label"] = ANOMALIE_DERIVED_SOURCE_LABELS.get(key, "")
+        row["source_names"] = names
+        row["source_extra"] = list(cfg.get("extra") or [])
+        row["source_esclusi"] = list(cfg.get("esclusi") or [])
+    return rows
 
 
 def _anomalie_custom_rules_for_user(user) -> list[AnomalieRoleAccessRule]:
@@ -848,10 +888,191 @@ def _capicommessa_from_anagrafica() -> list[str]:
         return []
 
 
+def _default_derived_sources() -> dict[str, dict]:
+    return {key: {"ruoli": [], "extra": [], "esclusi": []} for key in ANOMALIE_DERIVED_LIST_KEYS}
+
+
+def _normalize_derived_source(raw) -> dict:
+    """Normalizza una configurazione sorgente (ruoli + override per persona)."""
+    if not isinstance(raw, dict):
+        raw = {}
+    ruoli = []
+    for value in raw.get("ruoli") or []:
+        try:
+            rid = int(value)
+        except (TypeError, ValueError):
+            continue
+        if rid > 0 and rid not in ruoli:
+            ruoli.append(rid)
+    return {
+        "ruoli": ruoli,
+        "extra": _normalize_choice_list(raw.get("extra")),
+        "esclusi": _normalize_choice_list(raw.get("esclusi")),
+    }
+
+
+def _load_anomalie_derived_sources() -> dict[str, dict]:
+    """Sorgenti configurate per le liste derivate (ruoli + override utente)."""
+    data = _default_derived_sources()
+    path = _anomalie_lists_path()
+    if not path.exists():
+        return data
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return data
+    raw = (payload or {}).get(ANOMALIE_DERIVED_SOURCES_KEY)
+    if not isinstance(raw, dict):
+        return data
+    for key in ANOMALIE_DERIVED_LIST_KEYS:
+        data[key] = _normalize_derived_source(raw.get(key))
+    return data
+
+
+def _save_anomalie_derived_sources(payload: dict) -> dict[str, dict]:
+    """Persiste le sorgenti delle liste derivate nel file JSON del modulo."""
+    normalized = _default_derived_sources()
+    if isinstance(payload, dict):
+        for key in ANOMALIE_DERIVED_LIST_KEYS:
+            normalized[key] = _normalize_derived_source(payload.get(key))
+    path = _anomalie_lists_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        existing: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        existing = {}
+    if not isinstance(existing, dict):
+        existing = {}
+    existing[ANOMALIE_DERIVED_SOURCES_KEY] = normalized
+    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    return normalized
+
+
+def _load_anomalie_permessi_ruoli() -> list[int]:
+    """Id dei Ruoli Operativi da mostrare nel tab Permessi (vuoto = tutti)."""
+    path = _anomalie_lists_path()
+    if not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    raw = (payload or {}).get(ANOMALIE_PERMESSI_RUOLI_KEY)
+    out: list[int] = []
+    for value in raw or []:
+        try:
+            rid = int(value)
+        except (TypeError, ValueError):
+            continue
+        if rid > 0 and rid not in out:
+            out.append(rid)
+    return out
+
+
+def _save_anomalie_permessi_ruoli(ruolo_ids) -> list[int]:
+    """Persiste la selezione dei Ruoli Operativi visibili nel tab Permessi."""
+    normalized: list[int] = []
+    for value in ruolo_ids or []:
+        try:
+            rid = int(value)
+        except (TypeError, ValueError):
+            continue
+        if rid > 0 and rid not in normalized:
+            normalized.append(rid)
+    path = _anomalie_lists_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        existing: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        existing = {}
+    if not isinstance(existing, dict):
+        existing = {}
+    existing[ANOMALIE_PERMESSI_RUOLI_KEY] = normalized
+    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    return normalized
+
+
+def _names_for_ruoli_operativi(ruolo_ids: list[int]) -> list[str]:
+    """Nomi dei dipendenti che ricoprono almeno uno dei Ruoli Operativi dati.
+
+    Il ponte e' ``DipendenteRuoloOperativo.legacy_anagrafica_id`` -> anagrafica
+    dipendenti: gli stessi id usati dalle altre liste derivate, cosi' i nomi
+    risultano nello stesso formato "Nome Cognome".
+    """
+    ids: set[int] = set()
+    for ruolo_id in ruolo_ids or []:
+        try:
+            ids.update(int(v) for v in get_anagrafica_ids_for_role(int(ruolo_id)) if int(v or 0) > 0)
+        except Exception:
+            logger.debug("[anomalie] ruolo operativo %s non risolvibile", ruolo_id, exc_info=True)
+    if not ids:
+        return []
+    try:
+        from core.legacy_anagrafica import fetch_anagrafica_rows
+
+        names = [
+            _label_from_anagrafica_row(row)
+            for row in fetch_anagrafica_rows(ids=sorted(ids), deduplicate=True)
+        ]
+    except Exception:
+        logger.debug("[anomalie] impossibile risolvere i nomi dei ruoli operativi", exc_info=True)
+        return []
+    return sorted({n for n in names if n})
+
+
+def _anomalie_anagrafica_name_choices() -> list[str]:
+    """Elenco nomi dei dipendenti attivi, per i menu di override della config."""
+    try:
+        from core.legacy_anagrafica import fetch_anagrafica_rows
+
+        rows = fetch_anagrafica_rows(deduplicate=True)
+    except Exception:
+        logger.debug("[anomalie] impossibile caricare l'elenco dipendenti", exc_info=True)
+        return []
+    names = set()
+    for row in rows:
+        attivo = row.get("attivo")
+        if attivo is not None and not attivo:
+            continue
+        label = _label_from_anagrafica_row(row)
+        if label:
+            names.add(label)
+    return sorted(names)
+
+
+def _resolve_derived_list(key: str, sources: dict[str, dict]) -> list[str]:
+    """Calcola una lista derivata: ruoli configurati (o fallback) + override.
+
+    Se non e' selezionato alcun Ruolo Operativo si mantiene la derivazione
+    storica (caporeparto dei Reparti / reparto capocommessa), cosi' nulla
+    cambia finche' la configurazione non viene compilata.
+    """
+    cfg = sources.get(key) or {}
+    ruoli = cfg.get("ruoli") or []
+    if ruoli:
+        base = _names_for_ruoli_operativi(ruoli)
+    elif key == "capi_reparto":
+        base = _capireparto_from_anagrafica()
+    elif key == "capi_commessa":
+        base = _capicommessa_from_anagrafica()
+    else:
+        base = []
+    esclusi = {n.casefold() for n in (cfg.get("esclusi") or [])}
+    values = [n for n in base if n.casefold() not in esclusi]
+    seen = {n.casefold() for n in values}
+    for extra in cfg.get("extra") or []:
+        if extra.casefold() in esclusi or extra.casefold() in seen:
+            continue
+        values.append(extra)
+        seen.add(extra.casefold())
+    return sorted(values, key=lambda n: n.casefold())
+
+
 def _apply_derived_anomalie_lists(data: dict[str, list[str]]) -> None:
-    """Sovrascrive le liste derivate dall'anagrafica (sola lettura)."""
-    data["capi_reparto"] = _capireparto_from_anagrafica()
-    data["capi_commessa"] = _capicommessa_from_anagrafica()
+    """Sovrascrive le liste derivate (ruoli operativi + override per persona)."""
+    sources = _load_anomalie_derived_sources()
+    data["capi_reparto"] = _resolve_derived_list("capi_reparto", sources)
+    data["capi_commessa"] = _resolve_derived_list("capi_commessa", sources)
 
 
 def _load_anomalie_lists() -> dict[str, list[str]]:
@@ -1380,6 +1601,56 @@ def _handle_anomalie_roles_post(request):
         "Catalogo e assegnazioni dei ruoli operativi si gestiscono da Anagrafica > Ruoli operativi.",
     )
     return _anomalie_settings_redirect("permessi", sub="ruoli", q_user=q_user)
+
+
+def _handle_anomalie_email_resend_post(request):
+    """Reinvia una mail gia' registrata nel log del modulo.
+
+    Rispedisce il messaggio *salvato* (stessi destinatari, oggetto e corpo):
+    non ricostruisce la mail da dati che nel frattempo possono essere cambiati.
+    Il reinvio genera una nuova riga di log collegata all'originale.
+    """
+    from .mail_action_service import resend_logged_email
+    from .mail_log_models import AnomalieEmailLog
+
+    raw_id = str(request.POST.get("email_log_id") or "").strip()
+    try:
+        log_row = AnomalieEmailLog.objects.get(pk=int(raw_id))
+    except (TypeError, ValueError, AnomalieEmailLog.DoesNotExist):
+        messages.error(request, "Voce di log non trovata: reinvio annullato.")
+        return _anomalie_settings_redirect("log")
+
+    if not log_row.to_emails:
+        messages.error(request, "La mail non ha destinatari registrati: reinvio impossibile.")
+        return _anomalie_settings_redirect("log")
+
+    sent, new_row = resend_logged_email(log_row, user=request.user)
+    if sent:
+        messages.success(
+            request,
+            f"Mail reinviata a {log_row.to_display} (oggetto: {log_row.subject or '—'}).",
+        )
+    else:
+        messages.error(
+            request,
+            "Reinvio non riuscito: "
+            + (getattr(new_row, "error", "") or "errore SMTP non specificato"),
+        )
+    try:
+        log_action(
+            request,
+            "anomalie_email_resend",
+            "anomalie",
+            {
+                "email_log_id": log_row.pk,
+                "kind": log_row.kind,
+                "to": log_row.to_emails,
+                "esito": "inviata" if sent else "fallita",
+            },
+        )
+    except Exception:
+        pass
+    return _anomalie_settings_redirect("log")
 
 
 def _handle_anomalie_access_post(request):
@@ -2802,6 +3073,22 @@ def anomalie_configurazione_page(request):
             return _handle_anomalie_roles_post(request)
         if action == "save_access":
             return _handle_anomalie_access_post(request)
+        if action == "resend_email":
+            return _handle_anomalie_email_resend_post(request)
+        if action == "save_permessi_ruoli":
+            saved = _save_anomalie_permessi_ruoli(request.POST.getlist("permessi_ruolo_id"))
+            messages.success(
+                request,
+                "Ruoli mostrati aggiornati: "
+                + (f"{len(saved)} selezionati." if saved else "tutti i ruoli operativi."),
+            )
+            try:
+                log_action(request, "anomalie_permessi_ruoli_update", "anomalie", {"ruoli": saved})
+            except Exception:
+                pass
+            return _anomalie_settings_redirect(
+                "permessi", sub=request.POST.get("sub") or "accessi"
+            )
 
     raw_tab = request.GET.get("tab")
     tab = _normalize_anomalie_settings_tab(raw_tab, default="config")
@@ -2850,10 +3137,47 @@ def anomalie_configurazione_page(request):
 
     audit_entries = AuditLog.objects.filter(modulo="anomalie").order_by("-created_at")[:100]
 
+    email_log_context = {}
+    if tab == "log":
+        from django.db.models import Q
+
+        from .mail_log_models import AnomalieEmailLog
+
+        email_status_filter = str(request.GET.get("mail_status") or "").strip().lower()
+        email_qs = AnomalieEmailLog.objects.all()
+        if email_status_filter in {AnomalieEmailLog.Status.SENT, AnomalieEmailLog.Status.FAILED}:
+            email_qs = email_qs.filter(status=email_status_filter)
+        q_mail = str(request.GET.get("q_mail") or "").strip()
+        if q_mail:
+            email_qs = email_qs.filter(
+                Q(subject__icontains=q_mail) | Q(op_id__icontains=q_mail)
+            )
+        email_log_context = {
+            "email_logs": list(email_qs.select_related("created_by")[:100]),
+            "email_log_stats": {
+                "total": AnomalieEmailLog.objects.count(),
+                "failed": AnomalieEmailLog.objects.filter(
+                    status=AnomalieEmailLog.Status.FAILED
+                ).count(),
+            },
+            "email_status_filter": email_status_filter,
+            "q_mail": q_mail,
+        }
+
     ruoli_context = {}
     if tab == "permessi" and permessi_sub == "ruoli":
         # Catalogo e assegnazioni sono di sola lettura: fonte unica = anagrafica.
         roster = get_roster_by_role()
+        permessi_ruoli_visibili = _load_anomalie_permessi_ruoli()
+        if permessi_ruoli_visibili:
+            # I ruoli con una regola gia' configurata restano sempre visibili:
+            # nasconderli lascerebbe attiva una regola invisibile.
+            with_rules = set(
+                AnomalieRoleAccessRule.objects.filter(ruolo_operativo__isnull=False)
+                .values_list("ruolo_operativo_id", flat=True)
+            )
+            allowed = set(permessi_ruoli_visibili) | with_rules
+            roster = [item for item in roster if item["ruolo"].id in allowed]
         ruoli_catalog_rows = [
             {
                 "id": item["ruolo"].id,
@@ -2869,8 +3193,22 @@ def anomalie_configurazione_page(request):
             for item in roster
         ]
         total_assignments = sum(len(r["users"]) for r in ruoli_catalog_rows)
+        derived_sources_ruoli = _load_anomalie_derived_sources()
+        ruoli_by_id = {r.id: r for r in get_active_roles()}
         ruoli_context = {
-            "ruoli_system_rows": _anomalie_system_roles(),
+            "ruoli_system_rows": _anomalie_system_roles_with_sources(
+                derived_sources_ruoli, ruoli_by_id
+            ),
+            "permessi_ruoli_visibili": permessi_ruoli_visibili,
+            "permessi_ruoli_choices": [
+                {
+                    "id": r.id,
+                    "nome": r.nome,
+                    "checked": (not permessi_ruoli_visibili) or (r.id in permessi_ruoli_visibili),
+                }
+                for r in ruoli_by_id.values()
+            ],
+            "anomalie_config_url": f"{reverse('anomalie_configurazione_page')}?tab=config",
             "ruoli_catalog_rows": ruoli_catalog_rows,
             "ruoli_anagrafica_url": _anomalie_ruoli_anagrafica_url(),
             "ruoli_stats": {
@@ -2882,8 +3220,20 @@ def anomalie_configurazione_page(request):
 
     access_context = {}
     if tab == "permessi" and permessi_sub == "accessi":
-        system_rows = _anomalie_system_roles()
-        custom_roles = list(get_active_roles())
+        derived_sources_accessi = _load_anomalie_derived_sources()
+        ruoli_by_id_accessi = {r.id: r for r in get_active_roles()}
+        system_rows = _anomalie_system_roles_with_sources(
+            derived_sources_accessi, ruoli_by_id_accessi
+        )
+        permessi_ruoli_visibili = _load_anomalie_permessi_ruoli()
+        custom_roles = list(ruoli_by_id_accessi.values())
+        if permessi_ruoli_visibili:
+            with_rules = set(
+                AnomalieRoleAccessRule.objects.filter(ruolo_operativo__isnull=False)
+                .values_list("ruolo_operativo_id", flat=True)
+            )
+            allowed = set(permessi_ruoli_visibili) | with_rules
+            custom_roles = [r for r in custom_roles if r.id in allowed]
         access_filter_q = request.GET.get("q_access_user", "").strip()
         all_users = list(_anomalie_settings_users_queryset())
         filtered_users = _filter_anomalie_user_rows(all_users, access_filter_q)
@@ -2918,11 +3268,23 @@ def anomalie_configurazione_page(request):
         list_scope_choices = list(AnomalieListScope.choices)
         access_context = {
             "access_filter_q": access_filter_q,
+            "permessi_ruoli_visibili": permessi_ruoli_visibili,
+            "permessi_ruoli_choices": [
+                {
+                    "id": r.id,
+                    "nome": r.nome,
+                    "checked": (not permessi_ruoli_visibili) or (r.id in permessi_ruoli_visibili),
+                }
+                for r in ruoli_by_id_accessi.values()
+            ],
+            "anomalie_config_url": f"{reverse('anomalie_configurazione_page')}?tab=config",
             "access_role_rows": [
                 {
                     "code": row["code"],
                     "label": row["name"],
                     "help": row["description"] or "Ruolo di sistema collegato all'OP.",
+                    "source_label": row.get("source_label", ""),
+                    "source_names": row.get("source_names", []),
                     "access_level": system_rule_map.get(row["code"], {}).get(
                         "access_level", AnomalieAccessLevel.NONE
                     ),
@@ -3011,6 +3373,24 @@ def anomalie_configurazione_page(request):
 
     from anomalie.escalation_config import get_escalation_config
 
+    config_tab_context = {}
+    if tab == "config" or not raw_tab:
+        config_tab_context = {
+            "derived_sources_json": json.dumps(
+                _load_anomalie_derived_sources(), ensure_ascii=False
+            ),
+            "ruoli_operativi_json": json.dumps(
+                [
+                    {"id": r.id, "nome": r.nome, "icona": r.icona or ""}
+                    for r in get_active_roles()
+                ],
+                ensure_ascii=False,
+            ),
+            "anagrafica_names_json": json.dumps(
+                _anomalie_anagrafica_name_choices(), ensure_ascii=False
+            ),
+        }
+
     context = {
         "page_title": "Gestione Anomalie",
         "username": display_name,
@@ -3025,7 +3405,10 @@ def anomalie_configurazione_page(request):
         "anomalie_record": anomalie_record,
         "q_anomalie": q_anomalie,
         "audit_entries": audit_entries,
+        "derived_list_labels": ANOMALIE_DERIVED_SOURCE_LABELS,
     }
+    context.update(config_tab_context)
+    context.update(email_log_context)
     context.update(ruoli_context)
     context.update(access_context)
     return render(request, "anomalie/pages/anomalie_configurazione.html", context)
@@ -3038,14 +3421,15 @@ def api_anomalie_config_liste(request):
         if not _can_manage_anomalie_config(request):
             # SEC: nascondi le liste di notifica/whitelist a chi non gestisce la config.
             lists = {k: v for k, v in lists.items() if k not in _ANOMALIE_SENSITIVE_LIST_KEYS}
-        return JsonResponse(
-            {
-                "success": True,
-                "lists": lists,
-                "attachments_dir": _anomalie_attachments_dir_value(),
-                "menu_logo": _load_anomalie_menu_logo(),
-            }
-        )
+        payload = {
+            "success": True,
+            "lists": lists,
+            "attachments_dir": _anomalie_attachments_dir_value(),
+            "menu_logo": _load_anomalie_menu_logo(),
+        }
+        if _can_manage_anomalie_config(request):
+            payload["derived_sources"] = _load_anomalie_derived_sources()
+        return JsonResponse(payload)
 
     if request.method != "POST":
         return _json_error("Metodo non consentito", status=405)
@@ -3076,8 +3460,13 @@ def api_anomalie_config_liste(request):
     except ValueError as exc:
         return JsonResponse({"success": False, "error": str(exc)}, status=400)
 
+    saved_derived_sources = None
     try:
         _save_anomalie_lists(updated)
+        if isinstance(payload.get(ANOMALIE_DERIVED_SOURCES_KEY), dict):
+            saved_derived_sources = _save_anomalie_derived_sources(
+                payload[ANOMALIE_DERIVED_SOURCES_KEY]
+            )
         saved_attachments_dir = _save_anomalie_attachments_dir(validated_attachments_dir)
     except Exception as exc:
         logger.exception("[anomalie] salvataggio liste fallito")
@@ -3107,6 +3496,7 @@ def api_anomalie_config_liste(request):
                 "keys": list(updated.keys()),
                 "attachments_dir": saved_attachments_dir,
                 "escalation": escalation_saved,
+                "derived_sources": saved_derived_sources,
             },
         )
     except Exception:
@@ -3118,6 +3508,8 @@ def api_anomalie_config_liste(request):
         "lists": updated,
         "attachments_dir": saved_attachments_dir,
         "escalation": escalation_saved,
+        "derived_sources": saved_derived_sources if saved_derived_sources is not None
+        else _load_anomalie_derived_sources(),
     })
 
 
