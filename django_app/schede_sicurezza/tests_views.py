@@ -5,7 +5,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from anagrafica.models import Reparto
+from anagrafica.models import Mansione, Reparto
 
 from .models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 
@@ -44,6 +44,7 @@ class UploadMimeValidationTest(TestCase):
 class DoppioIngressoAssetTest(TestCase):
     def setUp(self):
         self.reparto = Reparto.objects.create(nome="Produzione")
+        self.mansione = Mansione.objects.create(nome="Addetto chimici")
         self.admin = User.objects.create_user(username="admin3", password="x", is_superuser=True, is_staff=True)
         self.client.force_login(self.admin)
 
@@ -51,7 +52,7 @@ class DoppioIngressoAssetTest(TestCase):
         from assets.models import Asset
 
         resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
-            "nome": "Acido", "reparto": self.reparto.id, "crea_asset": "on",
+            "nome": "Acido", "mansioni": [self.mansione.id], "crea_asset": "on",
         })
         self.assertEqual(resp.status_code, 302)
         p = ProdottoChimico.objects.get(nome="Acido")
@@ -61,7 +62,7 @@ class DoppioIngressoAssetTest(TestCase):
 
     def test_prodotto_form_senza_toggle_non_crea_asset(self):
         resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
-            "nome": "Base", "reparto": self.reparto.id,
+            "nome": "Base", "mansioni": [self.mansione.id],
         })
         self.assertEqual(resp.status_code, 302)
         p = ProdottoChimico.objects.get(nome="Base")
@@ -77,7 +78,7 @@ class DoppioIngressoAssetTest(TestCase):
             code="prodotti-chimici", label="Prodotti chimici", base_asset_type=Asset.TYPE_CHEMICAL,
         )
         resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
-            "nome": "Solvente", "reparto": self.reparto.id, "crea_asset": "on",
+            "nome": "Solvente", "mansioni": [self.mansione.id], "crea_asset": "on",
         })
         self.assertEqual(resp.status_code, 302)
         p = ProdottoChimico.objects.get(nome="Solvente")
@@ -95,7 +96,7 @@ class DoppioIngressoAssetTest(TestCase):
             code="prodotti-chimici-2", label="Prodotti Chimici", base_asset_type=Asset.TYPE_OTHER,
         )
         resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
-            "nome": "Ardrox", "reparto": self.reparto.id, "crea_asset": "on",
+            "nome": "Ardrox", "mansioni": [self.mansione.id], "crea_asset": "on",
         })
         self.assertEqual(resp.status_code, 302)
         p = ProdottoChimico.objects.get(nome="Ardrox")
@@ -193,21 +194,26 @@ class ProdottoListFiltriTest(TestCase):
     def setUp(self):
         self.reparto_a = Reparto.objects.create(nome="Produzione")
         self.reparto_b = Reparto.objects.create(nome="Verniciatura")
+        self.mansione_a = Mansione.objects.create(nome="Addetto produzione")
+        self.mansione_b = Mansione.objects.create(nome="Verniciatore")
         self.admin = User.objects.create_user(username="admin_filtri", password="x", is_superuser=True, is_staff=True)
         self.client.force_login(self.admin)
 
         self.senza_scheda = ProdottoChimico.objects.create(
             nome="ProdottoOrfano", reparto=self.reparto_a, famiglia="Solventi",
         )
+        self.senza_scheda.mansioni.add(self.mansione_a)
         self.con_scheda_recente = ProdottoChimico.objects.create(
             nome="Con scheda recente", reparto=self.reparto_a, famiglia="Acidi",
         )
+        self.con_scheda_recente.mansioni.add(self.mansione_a)
         SchedaSicurezza.objects.create(
             prodotto=self.con_scheda_recente, pdf=_valid_pdf_upload(), versione="1", is_corrente=True,
         )
         self.con_scheda_vecchia = ProdottoChimico.objects.create(
             nome="Con scheda vecchia", reparto=self.reparto_b, famiglia="Solventi",
         )
+        self.con_scheda_vecchia.mansioni.add(self.mansione_b)
         scheda_vecchia = SchedaSicurezza.objects.create(
             prodotto=self.con_scheda_vecchia, pdf=_valid_pdf_upload(), versione="1", is_corrente=True,
         )
@@ -220,8 +226,8 @@ class ProdottoListFiltriTest(TestCase):
         vecchia_data = timezone.now() - timedelta(days=SCADENZA_SDS_GIORNI + 10)
         SchedaSicurezza.objects.filter(pk=scheda_vecchia.pk).update(data_caricamento=vecchia_data)
 
-    def test_filtro_reparto(self):
-        resp = self.client.get(reverse("schede_sicurezza:prodotto_list"), {"reparto": self.reparto_b.pk})
+    def test_filtro_mansione(self):
+        resp = self.client.get(reverse("schede_sicurezza:prodotto_list"), {"mansione": self.mansione_b.pk})
         self.assertContains(resp, "Con scheda vecchia")
         self.assertNotContains(resp, "ProdottoOrfano")
         self.assertNotContains(resp, "Con scheda recente")
@@ -344,6 +350,7 @@ class FormProdottoUnificatoTest(TestCase):
 
     def setUp(self):
         self.reparto = Reparto.objects.create(nome="Produzione")
+        self.mansione = Mansione.objects.create(nome="Addetto laboratorio")
         self.admin = User.objects.create_user(username="admin_form_unico", password="x", is_superuser=True, is_staff=True)
         self.client.force_login(self.admin)
 
@@ -354,7 +361,7 @@ class FormProdottoUnificatoTest(TestCase):
 
     def test_salva_pittogrammi_dichiarati_sul_prodotto(self):
         resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {
-            "nome": "Acido nitrico", "reparto": self.reparto.id,
+            "nome": "Acido nitrico", "mansioni": [self.mansione.id],
             "pittogrammi": ["GHS05", "GHS03"], "attivo": "on",
         })
         self.assertEqual(resp.status_code, 302)
@@ -363,12 +370,13 @@ class FormProdottoUnificatoTest(TestCase):
         self.assertEqual(p.pittogrammi_effettivi(), ["GHS05", "GHS03"])
 
     def test_form_invalido_non_crea_e_resta_in_pagina(self):
-        resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {"nome": "Senza reparto"})
+        resp = self.client.post(reverse("schede_sicurezza:prodotto_nuovo"), {"nome": "Senza mansione"})
         self.assertEqual(resp.status_code, 200)
-        self.assertFalse(ProdottoChimico.objects.filter(nome="Senza reparto").exists())
+        self.assertFalse(ProdottoChimico.objects.filter(nome="Senza mansione").exists())
 
     def test_modifica_prodotto_propaga_i_pittogrammi_alla_scheda_corrente(self):
         prodotto = ProdottoChimico.objects.create(nome="Diluente", reparto=self.reparto)
+        prodotto.mansioni.add(self.mansione)
         scheda = SchedaSicurezza.objects.create(
             prodotto=prodotto, versione="1", is_corrente=True,
             pdf=SimpleUploadedFile("sds.pdf", b"%PDF-1.4\n", content_type="application/pdf"),
@@ -376,7 +384,7 @@ class FormProdottoUnificatoTest(TestCase):
         )
         resp = self.client.post(
             reverse("schede_sicurezza:prodotto_modifica", args=[prodotto.pk]),
-            {"nome": "Diluente", "reparto": self.reparto.id,
+            {"nome": "Diluente", "mansioni": [self.mansione.id],
              "pittogrammi": ["GHS02", "GHS07"], "attivo": "on"},
         )
         self.assertEqual(resp.status_code, 302)
@@ -395,19 +403,19 @@ class FormProdottoUnificatoTest(TestCase):
         self.assertEqual(prodotto.pittogrammi_effettivi(), ["GHS02", "GHS08"])
 
 
-class RepartoMancanteCtaTest(TestCase):
+class MansioneMancanteCtaTest(TestCase):
     def setUp(self):
         self.admin = User.objects.create_user(username="admin_reparto_cta", password="x", is_superuser=True, is_staff=True)
         self.client.force_login(self.admin)
 
-    def test_link_aree_list_presente_senza_reparti(self):
+    def test_link_mansioni_presente_senza_mansioni(self):
         resp = self.client.get(reverse("schede_sicurezza:prodotto_nuovo"))
-        self.assertContains(resp, reverse("anagrafica:aree_list"))
+        self.assertContains(resp, reverse("anagrafica:mansioni_list"))
 
-    def test_select_normale_con_almeno_un_reparto(self):
-        Reparto.objects.create(nome="Produzione")
+    def test_cta_assente_con_almeno_una_mansione(self):
+        Mansione.objects.create(nome="Addetto verniciatura")
         resp = self.client.get(reverse("schede_sicurezza:prodotto_nuovo"))
-        self.assertNotContains(resp, reverse("anagrafica:aree_list"))
+        self.assertNotContains(resp, "Nessuna mansione disponibile")
 
 
 class SchedaMobilePubblicaTest(TestCase):

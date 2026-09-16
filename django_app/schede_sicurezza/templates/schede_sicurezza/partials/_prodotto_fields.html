@@ -46,14 +46,21 @@ body.theme-dark .pc-campo > label, body.theme-dark .pc-flag { color:var(--text-m
   <div class="pc-sez-tit">Identificazione</div>
   <div class="pc-griglia">
     {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.nome %}
-    {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.reparto %}
     {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.fornitore %}
     {% include "schede_sicurezza/partials/_pc_campo.html" with campo=pcform.produttore %}
   </div>
-  {% if not pcform.reparto.field.queryset.exists %}
+  <div>
+    <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:6px;">
+      {{ pcform.mansioni.label }} <span class="pc-req">*</span>
+    </div>
+    <div class="pc-help" style="margin-bottom:8px;">{{ pcform.mansioni.help_text }}</div>
+    <div class="pc-chips">{{ pcform.mansioni }}</div>
+    {% for errore in pcform.mansioni.errors %}<div class="pc-errore">{{ errore }}</div>{% endfor %}
+  </div>
+  {% if not pcform.mansioni.field.queryset.exists %}
     <div class="pc-avviso">
-      Nessun reparto disponibile.
-      <a href="{% url 'anagrafica:aree_list' %}" style="color:#1d4ed8;font-weight:700;">Vai a Reparti &amp; Aree</a> per crearne uno.
+      Nessuna mansione disponibile.
+      <a href="{% url 'anagrafica:mansioni_list' %}" style="color:#1d4ed8;font-weight:700;">Vai a Mansioni di rischio</a> per crearne una.
     </div>
   {% endif %}
 </section>

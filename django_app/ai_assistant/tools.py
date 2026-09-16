@@ -168,7 +168,7 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         status="enabled",
         sample_prompt="qual e' la scheda di sicurezza corrente dell'acetone e quante prese visione ha?",
         privacy_note=(
-            "STATO/metadati delle schede di sicurezza correnti (prodotto, reparto, versione, "
+            "STATO/metadati delle schede di sicurezza correnti (prodotto, mansioni di rischio, versione, "
             "scadenza >36 mesi, classificazione CLP, DPI, CONTEGGIO prese visione). Gated dal "
             "permesso canonico ACL v2 'schede_sicurezza.prodotto.view'. Le prese visione sono "
             "esposte SOLO come conteggio: MAI i nomi degli operatori (il named list resta nel modulo)."
@@ -2775,7 +2775,8 @@ def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
 
     base_qs = (
         SchedaSicurezza.objects.filter(is_corrente=True)
-        .select_related("prodotto", "prodotto__reparto")
+        .select_related("prodotto")
+        .prefetch_related("prodotto__mansioni")
         .annotate(n_visioni=Count("prese_visione"))
     )
     tot_correnti = base_qs.count()
@@ -2793,7 +2794,7 @@ def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
     n_scadute = base_qs.filter(data_caricamento__lt=soglia).count()
     n_senza_visioni = base_qs.filter(n_visioni=0).count()
 
-    schede = list(base_qs.order_by("prodotto__reparto__nome", "prodotto__nome"))
+    schede = list(base_qs.order_by("prodotto__nome"))
     filtro_parts: list[str] = []
 
     # Filtro per prodotto citato nel prompt (nome prodotto contenuto nella domanda).
@@ -2814,7 +2815,7 @@ def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
     filtro = "+".join(filtro_parts) or "tutte"
 
     def _riga(s) -> str:
-        rep = getattr(s.prodotto.reparto, "nome", "") or "—"
+        mansioni = s.prodotto.mansioni_label()
         ver = (s.versione or "?").strip()
         is_scaduta = bool(s.data_caricamento and s.data_caricamento < soglia)
         scad = "SCADUTA (>36 mesi)" if is_scaduta else "valida"
@@ -2825,7 +2826,7 @@ def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
             extra += f"; CLP: {clp}"
         if dpi:
             extra += f"; DPI: {dpi}"
-        return f"- {s.prodotto.nome} [{rep}]: v.{ver}, {scad}, {s.n_visioni} prese visione{extra}"
+        return f"- {s.prodotto.nome} [{mansioni}]: v.{ver}, {scad}, {s.n_visioni} prese visione{extra}"
 
     righe = "\n".join(_riga(s) for s in schede) if schede else "Nessuna scheda corrispondente ai filtri."
 
@@ -2835,7 +2836,7 @@ def _schede_sicurezza_context(request, prompt: str) -> RuntimeContext:
             f"Schede correnti: {tot_correnti} (di cui {n_scadute} scadute >36 mesi, "
             f"{n_senza_visioni} senza alcuna presa visione).\n"
             f"Filtro: {filtro}. Schede mostrate: {len(schede)}.\n"
-            "ISTRUZIONE RISPOSTA: usa SOLO questi dati (prodotto, reparto, versione, scadenza, "
+            "ISTRUZIONE RISPOSTA: usa SOLO questi dati (prodotto, mansioni di rischio, versione, scadenza, "
             "classificazione CLP, DPI, NUMERO di prese visione). Le prese visione sono un CONTEGGIO: "
             "NON esistono qui i nomi degli operatori, non inventarli e non dedurli. Non inventare dati.\n"
             f"{righe}"

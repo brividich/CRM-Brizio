@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from anagrafica.models import Reparto
+from anagrafica.models import Mansione, Reparto
 from schede_sicurezza.models import ProdottoChimico
 
 from .forms import AssetForm, ChemicalAssetForm
@@ -30,10 +30,11 @@ class AssetProdottoChimicoModelTests(TestCase):
 class ChemicalAssetFormTests(TestCase):
     def test_chemical_form_creates_new_prodotto_inline(self):
         rep = Reparto.objects.create(nome="Chimica")
+        mansione = Mansione.objects.create(nome="Addetto chimica")
         form = ChemicalAssetForm(data={
             "name": "Acetone", "status": Asset.STATUS_IN_STOCK,
             "prodotto_mode": "new", "pc-nome": "Acetone 99%",
-            "pc-reparto": rep.id, "pc-ubicazione": "Scaffale A",
+            "pc-mansioni": [mansione.id], "pc-ubicazione": "Scaffale A",
         })
         self.assertTrue(form.is_valid(), form.errors)
         asset = form.save()
@@ -45,9 +46,10 @@ class ChemicalAssetFormTests(TestCase):
     def test_chemical_form_salva_i_campi_prima_esclusivi_di_schede_sicurezza(self):
         """Il ramo "nuovo prodotto" chiede gli stessi dati della schermata SDS."""
         rep = Reparto.objects.create(nome="Chimica")
+        mansione = Mansione.objects.create(nome="Addetto chimica")
         form = ChemicalAssetForm(data={
             "name": "Sgrassante", "status": Asset.STATUS_IN_STOCK,
-            "prodotto_mode": "new", "pc-nome": "Sgrassante K", "pc-reparto": rep.id,
+            "prodotto_mode": "new", "pc-nome": "Sgrassante K", "pc-mansioni": [mansione.id],
             "pc-famiglia": "Detergenti", "pc-sottocategoria": "Alcalini",
             "pc-numero_interno": "CH-014", "pc-codice_prodotto": "SK-9",
             "pc-quantita_presente": "20 L", "pc-attivo": "on",
@@ -85,7 +87,7 @@ class ChemicalAssetFormTests(TestCase):
         })
         self.assertFalse(form.is_valid())
 
-    def test_chemical_form_new_requires_nome_and_reparto(self):
+    def test_chemical_form_new_requires_nome_and_mansione(self):
         form = ChemicalAssetForm(data={
             "name": "X", "status": Asset.STATUS_IN_STOCK, "prodotto_mode": "new",
         })
@@ -98,9 +100,10 @@ class ChemicalAssetFormTests(TestCase):
             code="prodotti-chimici", label="Prodotti chimici", base_asset_type=Asset.TYPE_CHEMICAL,
         )
         rep = Reparto.objects.create(nome="Chimica")
+        mansione = Mansione.objects.create(nome="Addetto chimica")
         form = ChemicalAssetForm(data={
             "name": "Acetone", "status": Asset.STATUS_IN_STOCK,
-            "prodotto_mode": "new", "pc-nome": "Acetone 99%", "pc-reparto": rep.id,
+            "prodotto_mode": "new", "pc-nome": "Acetone 99%", "pc-mansioni": [mansione.id],
         })
         self.assertTrue(form.is_valid(), form.errors)
         asset = form.save()
@@ -117,9 +120,10 @@ class ChemicalAssetFormTests(TestCase):
             code="prodotti-chimici-2", label="Prodotti Chimici", base_asset_type=Asset.TYPE_OTHER,
         )
         rep = Reparto.objects.create(nome="Chimica")
+        mansione = Mansione.objects.create(nome="Addetto chimica")
         form = ChemicalAssetForm(data={
             "name": "Diluente", "status": Asset.STATUS_IN_STOCK,
-            "prodotto_mode": "new", "pc-nome": "Diluente X", "pc-reparto": rep.id,
+            "prodotto_mode": "new", "pc-nome": "Diluente X", "pc-mansioni": [mansione.id],
         })
         self.assertTrue(form.is_valid(), form.errors)
         asset = form.save()
@@ -147,11 +151,12 @@ class ChemicalAssetViewTests(TestCase):
 
     def test_chemical_create_view_creates_asset(self):
         rep = Reparto.objects.create(nome="Chimica")
+        mansione = Mansione.objects.create(nome="Addetto chimica")
         self.client.force_login(self.user)
         resp = self.client.post(reverse("assets:chemical_create"), {
             "name": "Diluente", "status": Asset.STATUS_IN_STOCK,
             "prodotto_mode": "new", "pc-nome": "Diluente X",
-            "pc-reparto": rep.id,
+            "pc-mansioni": [mansione.id],
         })
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(

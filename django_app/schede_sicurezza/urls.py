@@ -9,6 +9,7 @@ app_name = "schede_sicurezza"
 urlpatterns = [
     path("", views.prodotto_list, name="prodotto_list"),
     path("nuovo/", views.prodotto_form, name="prodotto_nuovo"),
+    path("da-leggere/", views.sds_da_leggere, name="sds_da_leggere"),
     path("report/", views.report_compliance, name="report_compliance"),
     path("<int:pk>/", views.prodotto_detail, name="prodotto_detail"),
     path("<int:pk>/modifica/", views.prodotto_form, name="prodotto_modifica"),

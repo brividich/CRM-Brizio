@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Schede di sicurezza — assegnazione per mansioni di rischio
+
+- **[feature] SDS per mansione**: `ProdottoChimico.mansioni` sostituisce il reparto in form, lista, dettaglio, QR, report e contesto AI; il vecchio reparto resta nullable come storico non operativo.
+- **[workflow] Obblighi dinamici**: il cruscotto personale mostra le SDS correnti dovute dalla mansione viva del dipendente; cambio mansione, nuova versione e nuove associazioni notificano le prese visione mancanti.
+- **[report] Conformita**: matrice e CSV sono per mansione; i prodotti senza mansioni sono segnalati separatamente per la bonifica manuale.
+- **[db/acl]**: migration `schede_sicurezza.0004_prodotto_mansioni_rischio`; binding della nuova rotta `sds_da_leggere` al permesso view esistente, senza nuovi grant.
+
 ### KICK-OFF F3 — restyle UI Passata 3: rientro CSS inline (chiusura F3)
 
 - **[ux] `tasks/static/tasks/css/tasks.css` + 8 template**: tutti i blocchi `<style>` inline rimasti nel modulo `tasks` (project_meetings.html, project_vrf_upload.html, projects.html, detail.html, form.html, project_meeting_detail.html, list.html, project_gantt.html — incluso il secondo `<style>` scoped `.ts-gantt-cm` dentro il body) sono spostati verbatim in `tasks.css`, un file per commit. Nessun cambio di resa visiva (verificato con screenshot Playwright chiaro/scuro su ogni pagina toccata).

@@ -24,7 +24,7 @@
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
       <div style="font-size:20px;font-weight:900;">{{ prodotto.nome }}</div>
-      <div style="font-size:13px;color:#64748b;">{{ prodotto.reparto.nome }} · {{ prodotto.fornitore|default:"—" }}</div>
+      <div style="font-size:13px;color:#64748b;">Mansioni: {{ prodotto.mansioni_label }} · {{ prodotto.fornitore|default:"—" }}</div>
     </div>
     {% if can_gestire %}
       <a href="{% url 'schede_sicurezza:prodotto_modifica' pk=prodotto.pk %}"

@@ -14,12 +14,16 @@ class SchedaSicurezzaInline(admin.TabularInline):
 
 @admin.register(ProdottoChimico)
 class ProdottoChimicoAdmin(admin.ModelAdmin):
-    list_display = ("nome", "reparto", "fornitore", "produttore", "attivo", "updated_at")
-    list_filter = ("reparto", "attivo", "famiglia")
+    list_display = ("nome", "mansioni_elenco", "fornitore", "produttore", "attivo", "updated_at")
+    list_filter = ("mansioni", "attivo", "famiglia")
     search_fields = ("nome", "fornitore", "produttore", "codice_prodotto", "numero_interno")
-    filter_horizontal = ("dpi_obbligatori",)
+    filter_horizontal = ("mansioni", "dpi_obbligatori")
     readonly_fields = ("uuid", "created_at", "updated_at")
     inlines = (SchedaSicurezzaInline,)
+
+    @admin.display(description="Mansioni di rischio")
+    def mansioni_elenco(self, obj):
+        return obj.mansioni_label()
 
 
 @admin.register(SchedaSicurezza)
