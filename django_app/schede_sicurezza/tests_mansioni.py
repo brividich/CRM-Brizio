@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -18,7 +19,13 @@ from core.models import Notifica, Profile
 
 from .models import PresaVisioneScheda, ProdottoChimico, SchedaSicurezza
 from .reports import matrice_presa_visione, prodotti_senza_mansioni
-from .services.assegnazioni import notifica_nuova_versione, profilo_sds_utente
+from .services.assegnazioni import (
+    conteggio_sds_per_mansione,
+    notifica_cambio_mansione,
+    notifica_nuova_versione,
+    prodotti_sds_per_mansione,
+    profilo_sds_utente,
+)
 
 User = get_user_model()
 
@@ -115,6 +122,64 @@ class SdsPerMansioneWorkflowTest(TestCase):
         self.assertEqual(notifica_nuova_versione(nuova_versione), 1)
         self.assertEqual(
             [s.pk for s in profilo_sds_utente(self.user).da_leggere], [nuova_versione.pk]
+        )
+
+    @override_settings(DEFAULT_FROM_EMAIL="hub@example.local", SITE_URL="https://hub.example.local")
+    def test_cambio_mansione_manda_email_al_dipendente(self):
+        self.anagrafica.email_notifica = "mario.rossi@example.local"
+        self.anagrafica.save(update_fields=["email_notifica"])
+        assegnazione = DipendenteAssegnazione.objects.create(
+            legacy_anagrafica_id=self.anagrafica.pk,
+            data_inizio=timezone.localdate(),
+            reparto=self.reparto.nome,
+            mansione=self.nuova.nome,
+        )
+        mail.outbox = []
+
+        self.assertTrue(attiva_assegnazione(assegnazione, user=self.user))
+
+        self.assertEqual(len(mail.outbox), 1)
+        messaggio = mail.outbox[0]
+        self.assertEqual(messaggio.to, ["mario.rossi@example.local"])
+        self.assertIn(self.nuova.nome, messaggio.subject)
+        # Il prodotto della mansione nuova c'è, quello della vecchia no.
+        self.assertIn("Diluente verniciatura", messaggio.body)
+        self.assertNotIn("Olio montaggio", messaggio.body)
+        # La CTA porta al cruscotto dove la conferma incrementa le prese visione.
+        corpo_html = messaggio.alternatives[0][0]
+        self.assertIn("https://hub.example.local/schede-sicurezza/da-leggere/", corpo_html)
+
+    @override_settings(DEFAULT_FROM_EMAIL="hub@example.local")
+    def test_nessuna_email_se_le_sds_sono_gia_lette(self):
+        self.anagrafica.email_notifica = "mario.rossi@example.local"
+        self.anagrafica.save(update_fields=["email_notifica"])
+        PresaVisioneScheda.objects.create(scheda=self.scheda_nuova, operatore=self.user)
+        mail.outbox = []
+
+        self.assertEqual(
+            notifica_cambio_mansione(self.anagrafica.pk, self.nuova.nome, self.vecchia.nome), 0
+        )
+        self.assertEqual(mail.outbox, [])
+
+    def test_conteggi_ed_elenco_sds_per_mansione(self):
+        # Prodotto attivo senza scheda corrente: entra nell'elenco della scheda
+        # mansione (va caricata la SDS) ma non nel conteggio delle SDS dovute.
+        senza_scheda = ProdottoChimico.objects.create(nome="Sgrassante senza SDS")
+        senza_scheda.mansioni.add(self.nuova)
+        disattivo = ProdottoChimico.objects.create(nome="Prodotto dismesso", attivo=False)
+        disattivo.mansioni.add(self.nuova)
+        SchedaSicurezza.objects.create(
+            prodotto=disattivo, pdf=_pdf("dismesso.pdf"), versione="1", is_corrente=True
+        )
+
+        conteggi = conteggio_sds_per_mansione([self.vecchia.pk, self.nuova.pk])
+        self.assertEqual(conteggi.get(self.vecchia.pk), 1)
+        self.assertEqual(conteggi.get(self.nuova.pk), 1)
+
+        righe = prodotti_sds_per_mansione(self.nuova.pk)
+        self.assertEqual(
+            [(riga["prodotto"].nome, riga["stato"]) for riga in righe],
+            [("Diluente verniciatura", "ok"), ("Sgrassante senza SDS", "bad")],
         )
 
     def test_report_evidenzia_prodotti_senza_mansione(self):

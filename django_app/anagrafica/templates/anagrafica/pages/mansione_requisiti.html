@@ -52,6 +52,32 @@
       </div>
     </section>
 
+    {# ── Schede di sicurezza dovute alla mansione ──────────────────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-doc"/></svg>Schede di sicurezza (SDS) dei prodotti chimici <span class="fmd-count">{{ sds_righe|length }}</span></div>
+        <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'schede_sicurezza:prodotto_list' %}?mansione={{ mansione.pk }}">Apri nel modulo SDS</a>
+      </div>
+      {% if sds_righe %}
+      <p class="fmd-muted" style="margin:0 0 12px;">
+        Chi ricopre questa mansione deve prendere visione di queste schede. All'assegnazione della mansione parte la richiesta di presa visione (notifica nel portale ed email al dipendente); ogni conferma incrementa il contatore delle prese visione.
+        {% if n_sds_senza_scheda %}<strong>{{ n_sds_senza_scheda }}</strong> prodotto/i non ha ancora una SDS corrente caricata.{% endif %}
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        {% for riga in sds_righe %}
+        <a class="fmd-badge {% if riga.stato == 'ok' %}fmd-b-green{% elif riga.stato == 'warn' %}fmd-b-orange{% else %}fmd-b-red{% endif %}"
+           style="text-decoration:none;"
+           href="{% url 'schede_sicurezza:prodotto_detail' riga.prodotto.pk %}"
+           title="{% if riga.stato == 'ok' %}SDS corrente v.{{ riga.scheda.versione|default:'-' }}{% elif riga.stato == 'warn' %}SDS da rivedere (oltre 36 mesi){% else %}Nessuna SDS corrente caricata{% endif %}">
+          {{ riga.prodotto.nome }}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="fmd-muted">Nessun prodotto chimico associato a questa mansione. L'associazione si fa dalla scheda del prodotto in <a class="fmd-data-link" href="{% url 'schede_sicurezza:prodotto_list' %}">Schede di sicurezza</a>.</div>
+      {% endif %}
+    </section>
+
     {# ── Requisiti diretti (modificabili) — form invariato ─────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Requisiti diretti della mansione</div></div>
