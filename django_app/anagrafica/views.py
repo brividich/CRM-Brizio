@@ -6245,6 +6245,15 @@ def mansioni_list(request):
     except Exception:
         pass
 
+    # Schede di sicurezza dovute per mansione: bridge fail-open verso il modulo
+    # Schede di sicurezza (una query per l'intero catalogo, non una per riga).
+    sds_counts: dict[int, int] = {}
+    try:
+        from schede_sicurezza.services.assegnazioni import conteggio_sds_per_mansione
+        sds_counts = conteggio_sds_per_mansione([m.pk for m in mansioni])
+    except Exception:
+        logger.warning("Conteggio SDS per mansione non disponibile", exc_info=True)
+
     for m in mansioni:
         m.n_dipendenti = mansione_counts.get(m.nome.lower(), 0)
         # Contatori requisiti (usano la cache di prefetch_related → nessuna query extra)
@@ -6253,8 +6262,11 @@ def mansioni_list(request):
             m.n_dpi = len(m.dpi_richiesti.all())
         except Exception:
             m.n_dpi = 0
+        m.n_sds = sds_counts.get(m.pk, 0)
         m.livello_label = m.get_livello_rischio_display() if m.livello_rischio else ""
-        m.is_rischio = bool(m.livello_rischio or m.n_dpi or m.n_visite)
+        # L'esposizione a prodotti chimici è essa stessa un rischio della
+        # mansione: una mansione con SDS dovute conta tra quelle "di rischio".
+        m.is_rischio = bool(m.livello_rischio or m.n_dpi or m.n_visite or m.n_sds)
 
     n_rischio_tot = sum(1 for m in mansioni if m.is_rischio)
 
@@ -6433,10 +6445,22 @@ def mansione_requisiti(request, mansione_id: int):
     except Exception:
         dpi_opts = []
 
+    # Prodotti chimici della mansione con la SDS corrente: la presa visione è un
+    # obbligo informativo della mansione al pari di DPI e visite, e va letta
+    # qui accanto a loro. Bridge fail-open: senza il modulo la sezione sparisce.
+    sds_righe: list = []
+    try:
+        from schede_sicurezza.services.assegnazioni import prodotti_sds_per_mansione
+        sds_righe = prodotti_sds_per_mansione(mansione.pk)
+    except Exception:
+        logger.warning("Elenco SDS della mansione non disponibile", exc_info=True)
+
     return render(request, "anagrafica/pages/mansione_requisiti.html", {
         "mansione": mansione,
         "is_editor": is_editor,
         "requisiti": requisiti,
+        "sds_righe": sds_righe,
+        "n_sds_senza_scheda": sum(1 for riga in sds_righe if riga["stato"] == "bad"),
         "visite_opts": visite_opts,
         "sel_visite_ids": sel_visite_ids,
         "dpi_opts": dpi_opts,
