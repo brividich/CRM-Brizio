@@ -22,6 +22,25 @@
   .subtab-bar { display:flex; gap:6px; margin-bottom:16px; padding:6px; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg); }
   /* validazione template upload */
   #tpl-validation-result { display:none; margin-top:12px; padding:12px 14px; border-radius:10px; }
+  /* liste derivate configurabili (ruoli + override persona) */
+  .derived-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:8px; }
+  .derived-sub { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.03em; font-weight:800; color:var(--text-light); margin-bottom:6px; }
+  .derived-roles { display:flex; flex-direction:column; gap:4px; max-height:180px; overflow:auto; border:1px solid var(--border); border-radius:8px; padding:8px 10px; background:var(--surface); }
+  .derived-roles label { display:flex; align-items:center; gap:8px; font-weight:600; font-size:var(--fs-sm); color:var(--text); cursor:pointer; }
+  .derived-roles .empty { color:var(--text-light); font-style:italic; font-size:var(--fs-sm); }
+  .derived-picker { display:flex; gap:6px; margin-bottom:6px; }
+  .derived-picker .ga-select { flex:1; min-width:0; }
+  @media (max-width:900px) { .derived-grid { grid-template-columns:1fr; } }
+  /* tabelle comprimibili (tab Permessi) */
+  .collapse-block { border:1px solid var(--border); border-radius:10px; margin-bottom:14px; background:var(--surface); }
+  .collapse-head { width:100%; display:flex; align-items:center; gap:10px; padding:12px 14px; background:none; border:none; cursor:pointer; font:inherit; font-weight:800; color:var(--text); text-align:left; }
+  .collapse-head:hover { background:var(--bg); border-radius:10px; }
+  .collapse-head .chev { transition:transform .15s ease; color:var(--text-light); }
+  .collapse-block.open .collapse-head .chev { transform:rotate(90deg); }
+  .collapse-head .count { margin-left:auto; font-weight:700; font-size:var(--fs-sm); color:var(--text-light); }
+  .collapse-body { padding:0 14px 14px; }
+  /* log email */
+  .maillog-detail { margin-top:8px; border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:var(--bg); white-space:pre-wrap; font-size:var(--fs-sm); color:var(--text-mid); max-height:280px; overflow:auto; }
 </style>
 {% endblock %}
 
@@ -182,14 +201,60 @@
       </div>
     </div>
     <div class="card-body" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;">
-      <div class="field">
+      <div class="field derived-block" data-derived-key="capi_reparto" style="grid-column:1/-1;">
         <label>Capi reparto (CAR)</label>
-        <small>Derivato automaticamente da <strong>Anagrafica &rarr; Reparti</strong>. Per aggiornare questa lista, modifica il caporeparto assegnato a ciascun reparto.</small>
+        <small>Composta dai <strong>Ruoli Operativi</strong> selezionati qui sotto (es. <em>Caporeparto</em>), pi&ugrave; eventuali override per singola persona. Se non selezioni alcun ruolo resta la derivazione storica da <strong>Anagrafica &rarr; Reparti</strong>.</small>
+        <div class="derived-grid">
+          <div>
+            <div class="derived-sub">Ruoli operativi inclusi</div>
+            <div class="derived-roles" data-role="roles"></div>
+          </div>
+          <div>
+            <div class="derived-sub">Persone aggiunte a mano</div>
+            <div class="derived-picker">
+              <select class="ga-select" data-role="extra-picker"></select>
+              <button type="button" class="btn btn-sm btn-secondary" data-role="extra-add">Aggiungi</button>
+            </div>
+            <textarea class="input" data-role="extra" spellcheck="false" rows="3" placeholder="Un nome per riga"></textarea>
+          </div>
+          <div>
+            <div class="derived-sub">Persone escluse</div>
+            <div class="derived-picker">
+              <select class="ga-select" data-role="esclusi-picker"></select>
+              <button type="button" class="btn btn-sm btn-secondary" data-role="esclusi-add">Escludi</button>
+            </div>
+            <textarea class="input" data-role="esclusi" spellcheck="false" rows="3" placeholder="Un nome per riga"></textarea>
+          </div>
+        </div>
+        <div class="derived-sub" style="margin-top:10px;">Risultato attuale della lista</div>
         <ul id="capi_reparto_list" class="field-readonly-list"></ul>
       </div>
-      <div class="field">
+      <div class="field derived-block" data-derived-key="capi_commessa" style="grid-column:1/-1;">
         <label>Capi commessa</label>
-        <small>Derivato automaticamente dai dipendenti con <strong>ruolo aziendale &laquo;Capocommessa&raquo;</strong> in Anagrafica. Per aggiornare questa lista, modifica il ruolo aziendale del dipendente.</small>
+        <small>Composta dai <strong>Ruoli Operativi</strong> selezionati qui sotto (es. <em>Project Engineer</em>), pi&ugrave; eventuali override per singola persona. Se non selezioni alcun ruolo resta la derivazione storica dal reparto capocommessa.</small>
+        <div class="derived-grid">
+          <div>
+            <div class="derived-sub">Ruoli operativi inclusi</div>
+            <div class="derived-roles" data-role="roles"></div>
+          </div>
+          <div>
+            <div class="derived-sub">Persone aggiunte a mano</div>
+            <div class="derived-picker">
+              <select class="ga-select" data-role="extra-picker"></select>
+              <button type="button" class="btn btn-sm btn-secondary" data-role="extra-add">Aggiungi</button>
+            </div>
+            <textarea class="input" data-role="extra" spellcheck="false" rows="3" placeholder="Un nome per riga"></textarea>
+          </div>
+          <div>
+            <div class="derived-sub">Persone escluse</div>
+            <div class="derived-picker">
+              <select class="ga-select" data-role="esclusi-picker"></select>
+              <button type="button" class="btn btn-sm btn-secondary" data-role="esclusi-add">Escludi</button>
+            </div>
+            <textarea class="input" data-role="esclusi" spellcheck="false" rows="3" placeholder="Un nome per riga"></textarea>
+          </div>
+        </div>
+        <div class="derived-sub" style="margin-top:10px;">Risultato attuale della lista</div>
         <ul id="capi_commessa_list" class="field-readonly-list"></ul>
       </div>
       <div class="field">
@@ -314,19 +379,45 @@
         {% endif %}
       </div>
 
-      <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Ruoli di sistema</h3>
-      <div class="table-wrap" style="margin-bottom:20px;">
+      {% include "anomalie/partials/_permessi_ruoli_picker.html" with sub="ruoli" %}
+
+      <div class="collapse-block">
+        <button type="button" class="collapse-head" data-collapse>
+          <span class="chev">&#9656;</span> Ruoli di sistema
+          <span class="count">{{ ruoli_system_rows|length }}</span>
+        </button>
+        <div class="collapse-body" hidden>
+      <div class="table-wrap">
         <table class="admin-table">
-          <thead><tr><th>Ruolo</th><th>Origine</th></tr></thead>
+          <thead><tr><th>Ruolo</th><th>Origine</th><th>Ruoli operativi che lo compongono</th></tr></thead>
           <tbody>
             {% for role in ruoli_system_rows %}
-              <tr><td style="font-weight:800;">{{ role.name }}</td><td>{{ role.description }}</td></tr>
+              <tr>
+                <td style="font-weight:800;">{{ role.name }}</td>
+                <td>{{ role.description }}</td>
+                <td>
+                  {% for nome in role.source_names %}<span class="badge">{{ nome }}</span> {% empty %}
+                    <span class="cell-muted">Derivazione storica &mdash; configurabile in
+                      <a href="{{ anomalie_config_url }}">Configurazione &rarr; {{ role.source_label }}</a>
+                    </span>
+                  {% endfor %}
+                  {% if role.source_extra %}<div class="cell-muted" style="margin-top:4px;">+ {{ role.source_extra|join:", " }}</div>{% endif %}
+                  {% if role.source_esclusi %}<div class="cell-muted" style="margin-top:4px;">&minus; {{ role.source_esclusi|join:", " }}</div>{% endif %}
+                </td>
+              </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+        </div>
+      </div>
 
-      <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Ruoli operativi da Anagrafica</h3>
+      <div class="collapse-block">
+        <button type="button" class="collapse-head" data-collapse>
+          <span class="chev">&#9656;</span> Ruoli operativi da Anagrafica
+          <span class="count">{{ ruoli_catalog_rows|length }}</span>
+        </button>
+        <div class="collapse-body" hidden>
       <div class="table-wrap">
         <table class="admin-table" style="min-width:640px;">
           <thead>
@@ -355,6 +446,8 @@
           </tbody>
         </table>
       </div>
+        </div>
+      </div>
     </div>
   </div>
 {% endif %}
@@ -381,6 +474,8 @@
         <p style="margin:8px 0 0;font-size:var(--fs-sm);">Vince sempre il livello pi&ugrave; permissivo. Superuser e admin vedono sempre tutto.</p>
       </div>
 
+      {% include "anomalie/partials/_permessi_ruoli_picker.html" with sub="accessi" %}
+
       <form method="get" style="display:flex;gap:8px;margin-bottom:16px;">
         <input type="hidden" name="tab" value="permessi">
         <input type="hidden" name="sub" value="accessi">
@@ -394,8 +489,13 @@
         <input type="hidden" name="action" value="save_access">
         <input type="hidden" name="q_access_user" value="{{ access_filter_q }}">
 
-        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Regole per ruolo di sistema</h3>
-        <div class="table-wrap" style="margin-bottom:20px;">
+        <div class="collapse-block">
+        <button type="button" class="collapse-head" data-collapse>
+          <span class="chev">&#9656;</span> Regole per ruolo di sistema
+          <span class="count">{{ access_role_rows|length }}</span>
+        </button>
+        <div class="collapse-body" hidden>
+        <div class="table-wrap">
           <table class="admin-table">
             <thead>
               <tr>
@@ -409,7 +509,16 @@
               {% for row in access_role_rows %}
                 <tr>
                   <td style="font-weight:800;">{{ row.label }}</td>
-                  <td>{{ row.help }}</td>
+                  <td>
+                    {{ row.help }}
+                    <div class="cell-muted" style="margin-top:4px;">
+                      {% if row.source_names %}
+                        Ruoli operativi: {{ row.source_names|join:", " }}
+                      {% else %}
+                        Composizione da <a href="{{ anomalie_config_url }}">Configurazione &rarr; {{ row.source_label }}</a>
+                      {% endif %}
+                    </div>
+                  </td>
                   <td>
                     <select name="access_role__{{ row.code }}" class="ga-select">
                       {% for value, label in access_role_choices %}
@@ -429,11 +538,16 @@
             </tbody>
           </table>
         </div>
+        </div>
+        </div>
 
-        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">
-          Regole per ruolo operativo (Anagrafica)
-        </h3>
-        <div class="table-wrap" style="margin-bottom:20px;">
+        <div class="collapse-block">
+        <button type="button" class="collapse-head" data-collapse>
+          <span class="chev">&#9656;</span> Regole per ruolo operativo (Anagrafica)
+          <span class="count">{{ access_custom_role_rows|length }}</span>
+        </button>
+        <div class="collapse-body" hidden>
+        <div class="table-wrap">
           <table class="admin-table">
             <thead>
               <tr>
@@ -472,9 +586,16 @@
             </tbody>
           </table>
         </div>
+        </div>
+        </div>
 
-        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Regole per ruolo aziendale</h3>
-        <div class="table-wrap" style="margin-bottom:20px;">
+        <div class="collapse-block">
+        <button type="button" class="collapse-head" data-collapse>
+          <span class="chev">&#9656;</span> Regole per ruolo aziendale
+          <span class="count">{{ access_legacy_role_rows|length }}</span>
+        </button>
+        <div class="collapse-body" hidden>
+        <div class="table-wrap">
           <table class="admin-table">
             <thead>
               <tr>
@@ -513,8 +634,15 @@
             </tbody>
           </table>
         </div>
+        </div>
+        </div>
 
-        <h3 style="font-size:var(--fs-md);color:var(--text);margin:0 0 10px;">Override per singolo utente</h3>
+        <div class="collapse-block">
+        <button type="button" class="collapse-head" data-collapse>
+          <span class="chev">&#9656;</span> Override per singolo utente
+          <span class="count">{{ access_user_rows|length }}</span>
+        </button>
+        <div class="collapse-body" hidden>
         <div class="table-wrap">
           <table class="admin-table">
             <thead>
@@ -553,6 +681,8 @@
               {% endfor %}
             </tbody>
           </table>
+        </div>
+        </div>
         </div>
 
         <div style="display:flex;justify-content:flex-end;padding:14px 0 0;">
@@ -601,6 +731,78 @@
 {# ========== TAB LOG ========== #}
 {% if tab == 'log' %}
   <div class="card">
+    <div class="card-head">
+      <div class="card-title">Email inviate dal modulo (ultime 100)</div>
+      <div style="display:flex;gap:12px;font-size:var(--fs-sm);color:var(--text-light);font-weight:700;">
+        <span>{{ email_log_stats.total }} totali</span>
+        <span>{{ email_log_stats.failed }} fallite</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <form method="get" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <input type="hidden" name="tab" value="log">
+        <input type="text" class="input input-sm" name="q_mail" value="{{ q_mail }}" placeholder="Cerca per oggetto o OP..." style="flex:1;min-width:180px;">
+        <select name="mail_status" class="ga-select" style="max-width:200px;">
+          <option value="">Tutti gli esiti</option>
+          <option value="sent" {% if email_status_filter == 'sent' %}selected{% endif %}>Solo inviate</option>
+          <option value="failed" {% if email_status_filter == 'failed' %}selected{% endif %}>Solo fallite</option>
+        </select>
+        <button type="submit" class="btn btn-sm">Filtra</button>
+        {% if q_mail or email_status_filter %}<a href="?tab=log" class="btn btn-secondary btn-sm">&#10005;</a>{% endif %}
+      </form>
+
+      <div class="table-wrap">
+        <table class="admin-table" style="min-width:820px;">
+          <thead>
+            <tr><th>Data/ora</th><th>Tipo</th><th>Destinatari</th><th>Oggetto</th><th>Esito</th><th></th></tr>
+          </thead>
+          <tbody>
+          {% for row in email_logs %}
+            <tr>
+              <td>{{ row.created_at|date:"d-m-Y H:i" }}</td>
+              <td>
+                {{ row.get_kind_display }}
+                {% if row.is_resend %}<span class="badge">reinvio</span>{% endif %}
+              </td>
+              <td>
+                {{ row.to_display|default:"&mdash;" }}
+                {% if row.cc_display %}<div class="cell-muted">cc: {{ row.cc_display }}</div>{% endif %}
+              </td>
+              <td>
+                {{ row.subject|default:"&mdash;" }}
+                {% if row.op_id %}<div class="cell-muted">OP {{ row.op_id }}</div>{% endif %}
+                <div class="maillog-detail" id="maillog-{{ row.id }}" hidden>{{ row.body_text|default:"(nessun corpo testo registrato)" }}</div>
+              </td>
+              <td>
+                {% if row.status == 'sent' %}
+                  <span class="badge badge-success">Inviata</span>
+                {% else %}
+                  <span class="badge">Fallita</span>
+                  {% if row.error %}<div class="cell-muted">{{ row.error|truncatechars:120 }}</div>{% endif %}
+                {% endif %}
+              </td>
+              <td style="white-space:nowrap;">
+                <button type="button" class="btn btn-sm btn-secondary" data-maillog-toggle="maillog-{{ row.id }}">Corpo</button>
+                <form method="post" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="resend_email">
+                  <input type="hidden" name="email_log_id" value="{{ row.id }}">
+                  <button type="submit" class="btn btn-sm">Reinvia</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="cell-muted" style="text-align:center;padding:24px;">
+              Nessuna email registrata. Il registro raccoglie gli invii successivi a questo aggiornamento.
+            </td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-head"><div class="card-title">Log attivit&agrave; Anomalie (ultime 100)</div></div>
     <div class="card-body">
       {% if audit_entries %}
@@ -625,6 +827,9 @@
 <script>
   window._CFG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
   window._CFG_ATTACHMENTS_DIR = "{{ attachments_dir|escapejs }}";
+  window._CFG_DERIVED_SOURCES = JSON.parse("{{ derived_sources_json|default:'{}'|escapejs }}");
+  window._CFG_RUOLI_OPERATIVI = JSON.parse("{{ ruoli_operativi_json|default:'[]'|escapejs }}");
+  window._CFG_ANAGRAFICA_NAMES = JSON.parse("{{ anagrafica_names_json|default:'[]'|escapejs }}");
   window._CFG_ESCALATION = {
     attivo: {% if escalation_cfg.attivo %}true{% else %}false{% endif %},
     soglia_ore: {{ escalation_cfg.soglia_ore|default:24 }},
@@ -634,6 +839,29 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script>
+  // Tabelle comprimibili (tab Permessi) e corpo mail (tab Log attivita').
+  (function () {
+    document.querySelectorAll("[data-collapse]").forEach(function (head) {
+      head.addEventListener("click", function () {
+        var block = head.closest(".collapse-block");
+        var body = block ? block.querySelector(".collapse-body") : null;
+        if (!body) return;
+        var open = body.hidden;
+        body.hidden = !open;
+        block.classList.toggle("open", open);
+        head.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      head.setAttribute("aria-expanded", "false");
+    });
+    document.querySelectorAll("[data-maillog-toggle]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var row = document.getElementById(btn.dataset.maillogToggle);
+        if (row) row.hidden = !row.hidden;
+      });
+    });
+  })();
+</script>
 <script>
   (function () {
     const defaults = {
@@ -665,16 +893,80 @@
       "escalation_supervisori",
     ];
     const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
-    // Liste derivate dall'anagrafica: sola lettura, renderizzate come elenco.
+    // Liste derivate: la composizione (ruoli + override persona) e' modificabile,
+    // l'elenco risultante resta calcolato dal server.
     const derivedLists = {
       capi_reparto: {
         el: document.getElementById("capi_reparto_list"),
-        empty: "Nessun caporeparto assegnato in Anagrafica &rarr; Reparti",
+        empty: "Nessun nominativo: seleziona almeno un ruolo operativo o aggiungi una persona",
       },
       capi_commessa: {
         el: document.getElementById("capi_commessa_list"),
-        empty: "Nessun dipendente con ruolo aziendale «Capocommessa» in Anagrafica",
+        empty: "Nessun nominativo: seleziona almeno un ruolo operativo o aggiungi una persona",
       },
+    };
+    const esc = (v) => String(v == null ? "" : v).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+    const ruoliOperativi = Array.isArray(window._CFG_RUOLI_OPERATIVI) ? window._CFG_RUOLI_OPERATIVI : [];
+    const anagraficaNames = Array.isArray(window._CFG_ANAGRAFICA_NAMES) ? window._CFG_ANAGRAFICA_NAMES : [];
+    const derivedBlocks = {};
+    document.querySelectorAll(".derived-block").forEach((block) => {
+      const key = block.dataset.derivedKey;
+      if (!key) return;
+      derivedBlocks[key] = block;
+      const rolesBox = block.querySelector('[data-role="roles"]');
+      if (rolesBox) {
+        rolesBox.innerHTML = ruoliOperativi.length
+          ? ruoliOperativi.map((r) =>
+              `<label><input type="checkbox" value="${r.id}">${r.icona ? esc(r.icona) + " " : ""}${esc(r.nome)}</label>`
+            ).join("")
+          : "<span class='empty'>Nessun ruolo operativo in Anagrafica</span>";
+      }
+      ["extra", "esclusi"].forEach((kind) => {
+        const picker = block.querySelector(`[data-role="${kind}-picker"]`);
+        const addBtn = block.querySelector(`[data-role="${kind}-add"]`);
+        const area = block.querySelector(`[data-role="${kind}"]`);
+        if (!picker || !addBtn || !area) return;
+        picker.innerHTML =
+          "<option value=''>— scegli una persona —</option>" +
+          anagraficaNames.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+        addBtn.addEventListener("click", () => {
+          const name = picker.value;
+          if (!name) return;
+          const current = fromText(area.value);
+          if (!current.some((n) => n.toLowerCase() === name.toLowerCase())) current.push(name);
+          area.value = current.join("\n");
+          picker.value = "";
+        });
+      });
+    });
+
+    const readDerivedSources = () => {
+      const out = {};
+      Object.entries(derivedBlocks).forEach(([key, block]) => {
+        out[key] = {
+          ruoli: Array.from(block.querySelectorAll('[data-role="roles"] input:checked'))
+            .map((el) => parseInt(el.value, 10))
+            .filter((n) => !isNaN(n)),
+          extra: fromText((block.querySelector('[data-role="extra"]') || {}).value || ""),
+          esclusi: fromText((block.querySelector('[data-role="esclusi"]') || {}).value || ""),
+        };
+      });
+      return out;
+    };
+
+    const fillDerivedSources = (sources) => {
+      const src = sources && typeof sources === "object" ? sources : {};
+      Object.entries(derivedBlocks).forEach(([key, block]) => {
+        const cfg = src[key] || {};
+        const ruoli = (cfg.ruoli || []).map(Number);
+        block.querySelectorAll('[data-role="roles"] input').forEach((el) => {
+          el.checked = ruoli.indexOf(parseInt(el.value, 10)) !== -1;
+        });
+        const extraEl = block.querySelector('[data-role="extra"]');
+        const escluEl = block.querySelector('[data-role="esclusi"]');
+        if (extraEl) extraEl.value = (cfg.extra || []).join("\n");
+        if (escluEl) escluEl.value = (cfg.esclusi || []).join("\n");
+      });
     };
     const attachmentsDirEl = document.getElementById("attachments_dir");
     const statusEl = document.getElementById("status");
@@ -716,7 +1008,7 @@
         if (!cfg.el) return;
         const lista = Array.isArray(src[key]) ? src[key] : [];
         cfg.el.innerHTML = lista.length
-          ? lista.map(n => `<li>${n.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</li>`).join("")
+          ? lista.map(n => `<li>${esc(n)}</li>`).join("")
           : `<li class='empty'>${cfg.empty}</li>`;
       });
       if (attachmentsDirEl) attachmentsDirEl.value = String(attachmentsDir || defaults.attachments_dir || "").trim();
@@ -728,8 +1020,10 @@
         const j = await r.json();
         if (!r.ok || !j.success) throw new Error(j.error || "Errore caricamento configurazione");
         fill(j.lists || {}, j.attachments_dir || defaults.attachments_dir);
+        fillDerivedSources(j.derived_sources || window._CFG_DERIVED_SOURCES);
       } catch (e) {
         fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
+        fillDerivedSources(window._CFG_DERIVED_SOURCES);
         setStatus("err", e.message || "Errore caricamento configurazione");
       }
     };
@@ -742,6 +1036,7 @@
     btnSave.addEventListener("click", async () => {
       const payload = Object.fromEntries(ids.map((id) => [id, fromText(fields[id].value)]));
       payload.attachments_dir = String(attachmentsDirEl.value || "").trim();
+      payload.derived_sources = readDerivedSources();
       btnSave.disabled = true;
       btnDefault.disabled = true;
       try {
@@ -756,6 +1051,7 @@
         const j = await r.json();
         if (!r.ok || !j.success) throw new Error(j.error || "Salvataggio non riuscito");
         fill(j.lists || payload, j.attachments_dir || payload.attachments_dir);
+        fillDerivedSources(j.derived_sources || payload.derived_sources);
         setStatus("ok", "Configurazione salvata correttamente.");
       } catch (e) {
         setStatus("err", e.message || "Errore durante il salvataggio");
@@ -766,6 +1062,7 @@
     });
 
     fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
+    fillDerivedSources(window._CFG_DERIVED_SOURCES);
     loadFromApi();
   })();
 </script>

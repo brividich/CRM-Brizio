@@ -1,0 +1,36 @@
+{# Selettore dei Ruoli Operativi mostrati nel tab Permessi. Vuoto = tutti. #}
+<div class="collapse-block">
+  <button type="button" class="collapse-head" data-collapse>
+    <span class="chev">&#9656;</span> Ruoli operativi mostrati in questa pagina
+    <span class="count">
+      {% if permessi_ruoli_visibili %}{{ permessi_ruoli_visibili|length }} selezionati{% else %}tutti{% endif %}
+    </span>
+  </button>
+  <div class="collapse-body" hidden>
+    <p class="cell-muted" style="margin:0 0 10px;">
+      Scegli quali ruoli del catalogo Anagrafica compaiono nelle tabelle qui sotto.
+      Deselezionandoli tutti si torna a mostrare l'intero catalogo.
+      Un ruolo con una regola gi&agrave; configurata resta comunque visibile, per non
+      lasciare attiva una regola invisibile.
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_permessi_ruoli">
+      <input type="hidden" name="sub" value="{{ sub }}">
+      <div class="derived-roles" style="max-height:220px;">
+        {% for row in permessi_ruoli_choices %}
+          <label>
+            <input type="checkbox" name="permessi_ruolo_id" value="{{ row.id }}"
+                   {% if row.checked %}checked{% endif %}>
+            {{ row.nome }}
+          </label>
+        {% empty %}
+          <span class="empty">Nessun ruolo operativo in Anagrafica.</span>
+        {% endfor %}
+      </div>
+      <div style="display:flex;justify-content:flex-end;padding-top:10px;">
+        <button class="btn btn-sm" type="submit">Salva ruoli mostrati</button>
+      </div>
+    </form>
+  </div>
+</div>
