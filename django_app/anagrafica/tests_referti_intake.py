@@ -10,6 +10,7 @@ giudizio reale entra in una fixture.
 """
 from __future__ import annotations
 
+import io
 from datetime import date
 from unittest.mock import patch
 
@@ -653,6 +654,25 @@ class PermessiTests(TestCase):
         riga.refresh_from_db()
         self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_SCARTATO)
         self.assertEqual(riga.messaggio, "non serve")
+
+
+class ScaricaScansioneTests(TestCase):
+    """La scansione del referto si apre nel browser, non la scarica il PC."""
+
+    def setUp(self):
+        self.ammesso = User.objects.create_superuser("capo2", "capo2@example.invalid", "x")
+        self.client.force_login(self.ammesso)
+        self.riga = RefertoIntakeRiga.objects.create(nome_file="referto.pdf", percorso="sorveglianza/x.pdf")
+
+    def test_apre_in_linea_invece_di_scaricare(self):
+        with patch(
+            "anagrafica.services.archivio_scansioni.apri_archiviata",
+            return_value=io.BytesIO(b"%PDF-1.4 finto"),
+        ):
+            risposta = self.client.get(f"/anagrafica/visite-mediche/referti/{self.riga.pk}/file")
+        self.assertEqual(risposta.status_code, 200)
+        self.assertNotIn("attachment", risposta["Content-Disposition"])
+        self.assertIn("referto.pdf", risposta["Content-Disposition"])
 
 
 class ConfigTests(TestCase):
