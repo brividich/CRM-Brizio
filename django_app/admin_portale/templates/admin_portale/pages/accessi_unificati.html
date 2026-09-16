@@ -181,6 +181,21 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
 }
 .acl-bulk__count { margin-left: auto; color: var(--hub-color-text-muted, #4a5568); font-variant-numeric: tabular-nums; }
 
+/* Dentro il modulo, due nature: chi lo imposta e chi lo usa. Non sono due
+   livelli di gerarchia ma due scomparti dello stesso quadro, quindi si
+   distinguono con un'etichetta e un filo di bordo, non con un altro rientro. */
+.acl-group + .acl-group { border-top: 1px solid var(--hub-color-border, #d7e0ea); }
+.acl-group__name { font-weight: 700; font-size: var(--hub-font-xs, 12px); color: var(--hub-color-text, #1a202c); }
+.acl-group--config .acl-group__name::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 2px;
+  background: var(--acl-navy); margin-right: 6px; vertical-align: 1px;
+}
+.acl-group--operativo .acl-group__name::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 2px;
+  background: var(--acl-steel); margin-right: 6px; vertical-align: 1px;
+}
+.acl-bulk--group { background: transparent; }
+
 .acl-grid { width: 100%; border-collapse: collapse; }
 .acl-grid td { padding: 9px var(--hub-space-4, 16px); border-bottom: 1px solid var(--hub-color-border, #d7e0ea); vertical-align: middle; }
 .acl-grid tr:last-child td { border-bottom: 0; }
@@ -400,33 +415,43 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
           <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}">Spegni tutto</button>
           <span class="acl-bulk__count">{{ mod.total_count }} permessi</span>
         </div>
-        <table class="acl-grid" data-fm-table-skip="1">
-          <tbody>
-            {% for perm in mod.permissions %}
-            <tr data-search="{{ perm.code }} {{ perm.label|lower }}">
-              <td>
-                <div class="acl-perm">{{ perm.label }}</div>
-                <div class="acl-code">{{ perm.code }}</div>
-              </td>
-              <td class="is-scope">
-                {% if perm.governs_route %}
-                  <span class="acl-scope acl-scope--page">pagina</span>
-                {% else %}
-                  <span class="acl-scope">sezione</span>
-                {% endif %}
-              </td>
-              <td class="is-switch">
-                <label class="acl-switch">
-                  <input type="checkbox" class="acl-check" name="granted" value="{{ perm.code }}"
-                         data-modulo="{{ mod.modulo }}" {% if perm.enabled %}checked{% endif %}
-                         aria-label="{{ perm.label }}">
-                  <span></span>
-                </label>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        {% for grp in mod.gruppi %}
+        <div class="acl-group acl-group--{{ grp.nature }}" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}">
+          <div class="acl-bulk acl-bulk--group">
+            <span class="acl-group__name">{{ grp.label }}</span>
+            <button type="button" class="btn btn-secondary btn-sm acl-bulk-on" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}">Accendi</button>
+            <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}">Spegni</button>
+            <span class="acl-bulk__count acl-group__score">{{ grp.active_count }}/{{ grp.total_count }}</span>
+          </div>
+          <table class="acl-grid" data-fm-table-skip="1">
+            <tbody>
+              {% for perm in grp.permissions %}
+              <tr data-search="{{ perm.code }} {{ perm.label|lower }}">
+                <td>
+                  <div class="acl-perm">{{ perm.label }}</div>
+                  <div class="acl-code">{{ perm.code }}</div>
+                </td>
+                <td class="is-scope">
+                  {% if perm.governs_route %}
+                    <span class="acl-scope acl-scope--page">pagina</span>
+                  {% else %}
+                    <span class="acl-scope">sezione</span>
+                  {% endif %}
+                </td>
+                <td class="is-switch">
+                  <label class="acl-switch">
+                    <input type="checkbox" class="acl-check" name="granted" value="{{ perm.code }}"
+                           data-modulo="{{ mod.modulo }}" data-natura="{{ perm.nature }}" {% if perm.enabled %}checked{% endif %}
+                           aria-label="{{ perm.label }}">
+                    <span></span>
+                  </label>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endfor %}
       </div>
     </section>
     {% endfor %}
@@ -463,7 +488,13 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
   if (!form) { return; }
 
   function bodyFor(head) { return document.getElementById(head.dataset.target); }
-  function boxes(modulo) { return form.querySelectorAll('.acl-check[data-modulo="' + modulo + '"]'); }
+  // Senza natura si prende tutto il modulo; con natura solo lo scomparto
+  // (configurazione o operativo), che e' cio' su cui agiscono i suoi pulsanti.
+  function boxes(modulo, natura) {
+    var sel = '.acl-check[data-modulo="' + modulo + '"]';
+    if (natura) { sel += '[data-natura="' + natura + '"]'; }
+    return form.querySelectorAll(sel);
+  }
 
   document.querySelectorAll('.acl-bank__head').forEach(function (head) {
     head.addEventListener('click', function () {
@@ -508,6 +539,14 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
       var score = bank.querySelector('.acl-bank__score');
       if (level) { level.style.width = (all.length ? Math.round((on / all.length) * 100) : 0) + '%'; }
       if (score) { score.textContent = on + '/' + all.length; }
+
+      bank.querySelectorAll('.acl-group').forEach(function (group) {
+        var rows = boxes(modulo, group.dataset.natura);
+        var lit = 0;
+        rows.forEach(function (cb) { if (cb.checked) { lit += 1; } });
+        var groupScore = group.querySelector('.acl-group__score');
+        if (groupScore) { groupScore.textContent = lit + '/' + rows.length; }
+      });
     }
   }
 
@@ -525,7 +564,7 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
   form.querySelectorAll('.acl-bulk-on, .acl-bulk-off').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var on = btn.classList.contains('acl-bulk-on');
-      boxes(btn.dataset.modulo).forEach(function (cb) { cb.checked = on; });
+      boxes(btn.dataset.modulo, btn.dataset.natura).forEach(function (cb) { cb.checked = on; });
       refresh(btn.dataset.modulo);
       markPending();
     });
@@ -552,6 +591,13 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
                     || (bank.dataset.modulo || '').indexOf(needle) !== -1;
           row.hidden = !hit;
           if (hit) { visible += 1; }
+        });
+        // Uno scomparto senza righe superstiti sparisce con la sua etichetta:
+        // altrimenti il filtro lascerebbe intestazioni vuote.
+        bank.querySelectorAll('.acl-group').forEach(function (group) {
+          var alive = 0;
+          group.querySelectorAll('tbody tr').forEach(function (row) { if (!row.hidden) { alive += 1; } });
+          group.hidden = needle !== '' && alive === 0;
         });
         bank.hidden = needle !== '' && visible === 0;
         if (needle !== '' && visible > 0) {
