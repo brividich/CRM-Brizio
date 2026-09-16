@@ -8,6 +8,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Changed
+
+- **ACL · pagina «Accessi»: dentro ogni modulo i permessi di configurazione sono separati da quelli operativi** (`django_app/core/permission_taxonomy.py`, `django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, `django_app/admin_portale/tests.py`). In `/admin-portale/accessi/` un modulo era un elenco piatto di permessi: per capire se una spunta impostava il modulo o serviva a usarlo bisognava leggere un codice alla volta. Ora ogni modulo si apre in due scomparti — **Configurazione e amministrazione** e **Operativo** — ciascuno con il proprio contatore e i propri «Accendi / Spegni».
+  1. **Il confine** (`nature_for_code` in `core/permission_taxonomy.py`, accanto ad area/origine/risorsa): è configurazione il permesso la cui azione finale è `manage` — il raccoglitore in cui `bootstrap_acl_v2` normalizza gestione/configurazione/impostazioni/wizard/toggle — oppure la cui risorsa è materia di amministrazione (`acl`, `admin`, `config`, `impostazioni`, `setup`, `permessi`, `ruoli`, `utenti`, `gruppi`, `catalogo`, `wizard`). Tutto il resto è operativo, compreso ciò che scrive (`create`, `edit`, `approve`): «crea segnalazione» è uso del modulo, non configurazione.
+  2. **Nulla viene nascosto né spostato**: è una divisione di presentazione, il totale del modulo e l'ordine dei permessi non cambiano, e un codice non riconosciuto ricade su «Operativo» invece di sparire. La decisione di autorizzazione resta in `core/acl_v2.py`: questa tassonomia non è un confine di sicurezza.
+  3. Il filtro di ricerca fa sparire anche l'etichetta di uno scomparto rimasto senza righe; l'interruttore del modulo e i suoi «Accendi/Spegni tutto» continuano ad agire su tutto il modulo.
+
+  **Deploy**: nessuna migrazione.
+
 ### Fixed
 
 - **ASSETS · manutenzione: un caporeparto non pianifica più asset di altri reparti** (`django_app/assets/views_maintenance.py`, `django_app/assets/tests_maintenance_audit_edges.py`). Emerso dall'audit indipendente del refactor manutenzioni (branch `codex/audit-manutenzioni`, unito in questo rilascio con i suoi 23 test sui casi limite e la documentazione in `docs/ai/AUDIT_*_MANUTENZIONI*.md`), che aveva lasciato un test rosso di proposito: chi può pianificare creava un ordine di lavoro anche su un asset di un altro reparto. Lo scope per reparto delle liste è solo un filtro preimpostato (si toglie con un click) e le view di scrittura non controllavano gli asset selezionati.

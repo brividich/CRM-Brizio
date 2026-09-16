@@ -3850,6 +3850,27 @@ class AclPermissionTaxonomyTests(SimpleTestCase):
         self.assertEqual(origin_for_code("legacy.timbri.view"), "legacy")
         self.assertEqual(origin_for_code("tickets.api_sla.view"), "api")
 
+    def test_nature_for_code_config_vs_operativo(self):
+        from core.permission_taxonomy import nature_for_code
+
+        # L'azione 'manage' e' il raccoglitore di gestione/configurazione/impostazioni.
+        self.assertEqual(nature_for_code("assets.impostazioni.manage", "assets"), "configurazione")
+        # Risorsa di amministrazione: anche una semplice lettura e' configurazione.
+        self.assertEqual(nature_for_code("anagrafica.permessi.view", "anagrafica"), "configurazione")
+        self.assertEqual(nature_for_code("admin_portale.users.roles.edit", "admin_portale"), "configurazione")
+        # Uso quotidiano del modulo: operativo anche quando scrive o approva.
+        self.assertEqual(nature_for_code("assets.work_orders.create", "assets"), "operativo")
+        self.assertEqual(nature_for_code("assenze.richieste.approve", "assenze"), "operativo")
+        self.assertEqual(nature_for_code("legacy.timbri.view", "timbri"), "operativo")
+        # Nel dubbio si ricade su 'operativo': mai una terza natura, mai nascosto.
+        self.assertEqual(nature_for_code("", ""), "operativo")
+
+    def test_action_for_code(self):
+        from core.permission_taxonomy import action_for_code
+
+        self.assertEqual(action_for_code("assets.piani.manage"), "manage")
+        self.assertEqual(action_for_code("senza_punti"), "")
+
     def test_area_for_module_with_fallback(self):
         from core.permission_taxonomy import area_for_module
 
