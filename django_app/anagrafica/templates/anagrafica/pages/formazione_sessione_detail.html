@@ -35,6 +35,13 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+<style>
+/* Valore assegnato dal portale (numero giornata): si legge, non si digita. */
+.fm-static-sm{ display:flex; align-items:center; min-height:34px; padding:6px 10px;
+  border:1px dashed var(--border,#e2e8f0); border-radius:8px; background:#fafbfd;
+  font-weight:700; color:#2d3a55; }
+body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-color:var(--border); color:var(--text); }
+</style>
 <div class="hr-shell">
 
   {% include "anagrafica/components/flash_messages.html" %}
@@ -416,8 +423,9 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
         {% csrf_token %}
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
           <div class="fm-f">
-            <label>Numero *</label>
-            <input type="number" name="numero" required min="1" value="{{ lezioni|length|add:1 }}">
+            <label>Numero</label>
+            <div class="fm-static-sm">{{ prossimo_numero_lezione }}</div>
+            <small class="muted">Assegnato in automatico: prossima giornata libera dell’edizione.</small>
           </div>
           <div class="fm-f">
             <label>Data *</label>
@@ -473,18 +481,19 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
     {% endif %}
   </div>
 
-  {# ── Registro firme firmato (livello sessione) ─────────────────────────── #}
+  {# ── Allegati dell'edizione: registro firmato + materiale ──────────────── #}
   <div class="hr-card fm-section">
     <div class="fm-section-head">
-      <div class="fm-section-title">✍️ Registro firme firmato
+      <div class="fm-section-title">📎 Allegati dell'edizione
         <span class="fm-count">{{ allegati_sessione|length }}</span>
       </div>
-      <span class="muted" style="font-size:11px;">Scansione del foglio firme dell'intera sessione</span>
+      <span class="muted" style="font-size:11px;">Registro firmato e materiale consegnato</span>
     </div>
     <div style="padding:8px 16px 4px;font-size:12px;color:#64748b;">
       Stampa il foglio firme dalle singole lezioni (colonna «Foglio firme»), raccogli le firme in aula,
       poi ricarica qui la scansione firmata. Per il registro di una <strong>singola lezione</strong> usa la
-      pagina <em>Presenze</em> della lezione.
+      pagina <em>Presenze</em> della lezione. Qui compare anche il <strong>materiale del corso</strong>
+      riportato su questa edizione alla sua creazione: è una copia, modificabile senza toccare il corso.
     </div>
     {% if allegati_sessione %}
     <div class="fm-table-wrap">
@@ -511,7 +520,7 @@ body.theme-dark .flatpickr-calendar.inline .flatpickr-next-month svg{ fill:#e2e8
       </table>
     </div>
     {% else %}
-    <div class="fm-empty">Nessun registro firmato caricato per la sessione.</div>
+    <div class="fm-empty">Nessun allegato per questa edizione.</div>
     {% endif %}
     {% if is_editor %}
     <form method="post" action="{% url 'anagrafica:formazione_allegato_upload' sessione.pk %}"
@@ -595,7 +604,8 @@ function openEditLezioneModal(pk, numero, data, oraInizio, oraFine, argomento, d
   wrap.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Numero *</label>
-        <input name="numero" type="number" min="1" value="${numero}" required class="fm-input"></div>
+        <div class="fm-static-sm">${numero}</div>
+        <small class="muted">Assegnato alla creazione della giornata.</small></div>
       <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Data *</label>
         <input name="data" type="date" value="${data}" min="${dMin}" max="${dMax}" required class="fm-input"></div>
       <div><label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:3px;">Ora inizio *</label>

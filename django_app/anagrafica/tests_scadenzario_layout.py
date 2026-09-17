@@ -175,12 +175,12 @@ class SessioneCreateConsumaPreselectTests(TestCase):
         s.save()
         oggi = timezone.localdate().isoformat()
         resp = self.client.post(reverse("anagrafica:formazione_sessione_create"), {
-            "corso": str(self.corso.pk), "codice_sessione": "SESS-CRE-1",
+            "corso": str(self.corso.pk),
             "stato": "PIANIFICATA", "modalita": "IN_SEDE",
             "data_inizio": oggi, "data_fine": oggi,
         })
         self.assertEqual(resp.status_code, 302)
-        sess = TrainingSession.objects.get(codice_sessione="SESS-CRE-1")
+        sess = TrainingSession.objects.get(corso=self.corso)
         self.assertEqual(
             set(TrainingEnrollment.objects.filter(sessione=sess).values_list("legacy_anagrafica_id", flat=True)),
             {51, 52},

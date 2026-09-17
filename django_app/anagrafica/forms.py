@@ -21,6 +21,7 @@ from .models import (
 from .models_formazione import (
     AttestatoFormazioneConfig,
     ElearningConfig,
+    TrainingAttachment,
     TrainingCourse,
     TrainingCompletionRule,
     TrainingCourseDependency,
@@ -362,7 +363,7 @@ class TrainingCourseForm(forms.ModelForm):
     class Meta:
         model = TrainingCourse
         fields = [
-            "piano", "categoria", "qualifica", "codice", "titolo", "descrizione",
+            "piano", "categoria", "qualifica", "titolo", "descrizione",
             "ente_formativo",
             "durata_ore_teorica", "validita_mesi",
             "obbligatorio", "obbligatoria_ccnl", "costo_unitario",
@@ -378,7 +379,6 @@ class TrainingCourseForm(forms.ModelForm):
             "fonte_obbligo":      forms.Select(attrs=_FM_SELECT),
             "riferimento_fonte":  forms.TextInput(attrs={**_FM, "placeholder": "es. Accordo Stato-Regioni 21/12/2011"}),
             "articolo_fonte":     forms.TextInput(attrs={**_FM, "placeholder": "es. art. 37 c. 2"}),
-            "codice":             forms.TextInput(attrs=_FM),
             "titolo":             forms.TextInput(attrs=_FM),
             "descrizione":        forms.Textarea(attrs=_FM_TEXTAREA),
             "durata_ore_teorica": forms.NumberInput(attrs={**_FM_NUMBER, "step": "0.5", "min": "0.5"}),
@@ -455,8 +455,22 @@ class TrainingCourseForm(forms.ModelForm):
         if "processi_richiedenti" in self.fields:
             corso.processi_richiedenti.set(self.cleaned_data.get("processi_richiedenti") or [])
 
-    def clean_codice(self):
-        return (self.cleaned_data.get("codice") or "").strip().upper()
+    def save(self, commit=True):
+        """Alloca il codice ``YYNNN`` alla nascita del corso.
+
+        Il codice non e' piu' un campo del form: si assegna qui, una volta sola,
+        e non cambia piu' per tutta la vita del corso (attestati emessi, export e
+        MOD.128 lo citano). I corsi storici conservano il loro codice: se
+        l'istanza ne ha gia' uno non viene toccato.
+        """
+        corso = super().save(commit=False)
+        if not (corso.codice or "").strip():
+            from .services.formazione_numerazione import alloca_codice_corso
+            corso.codice = alloca_codice_corso()
+        if commit:
+            corso.save()
+            self.save_m2m()
+        return corso
 
 
 class TrainingProviderForm(forms.ModelForm):
@@ -699,13 +713,12 @@ class TrainingSessionForm(forms.ModelForm):
     class Meta:
         model = TrainingSession
         fields = [
-            "corso", "codice_sessione", "stato", "modalita",
+            "corso", "stato", "modalita",
             "data_inizio", "data_fine", "sede",
             "docente", "docente_ente", "docente_nome", "note",
         ]
         widgets = {
             "corso":           forms.Select(attrs=_FM_SELECT),
-            "codice_sessione": forms.TextInput(attrs=_FM),
             "stato":           forms.Select(attrs=_FM_SELECT),
             "modalita":        forms.Select(attrs=_FM_SELECT),
             "data_inizio":     forms.DateInput(attrs=_FM_DATE),
@@ -722,6 +735,24 @@ class TrainingSessionForm(forms.ModelForm):
                             "alternativo al docente, non insieme.",
         }
 
+    # ── Materiale e note ereditati dal corso ─────────────────────────
+    # Un\'edizione nasce quasi sempre "come la precedente": dispense, programma e
+    # avvertenze del corso si ripropongono qui pre-spuntati, e si deselezionano
+    # quelli non pertinenti. Copia e non collegamento — vedi
+    # ``services.formazione_pianificazione.copia_allegati_dal_corso``.
+    allegati_dal_corso = forms.ModelMultipleChoiceField(
+        queryset=TrainingAttachment.objects.none(),
+        required=False,
+        label="Materiale del corso da riportare su questa edizione",
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "fm-check"}),
+    )
+    copia_note_corso = forms.BooleanField(
+        required=False, initial=False,
+        label="Riporta le note del corso",
+        help_text="Aggiunge le note del corso in coda a quelle dell\'edizione.",
+        widget=forms.CheckboxInput(attrs=_FM_CHECK),
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["corso"].queryset = (
@@ -732,15 +763,35 @@ class TrainingSessionForm(forms.ModelForm):
         self.fields["docente_ente"].queryset = TrainingProvider.objects.filter(is_active=True).order_by("nome")
         self.fields["docente_ente"].required = False
         self.fields["docente_ente"].empty_label = "— Nessuno —"
-        # Codice edizione e data di fine sono ricavabili: lasciarli vuoti non deve
-        # bloccare il salvataggio (codice = <CORSO>-E<N>, fine = inizio per la
-        # sessione di un solo giorno). Vedi services.formazione_pianificazione.
-        self.fields["codice_sessione"].required = False
-        self.fields["codice_sessione"].help_text = (
-            "Vuoto = generato dal codice corso (es. SIC-01-E1)."
-        )
+        # La data di fine e\' ricavabile: vuota = sessione di un solo giorno.
         self.fields["data_fine"].required = False
         self.fields["data_fine"].help_text = "Vuoto = sessione di un solo giorno."
+
+        # Il materiale proponibile dipende dal corso: in modifica e\' quello del
+        # corso dell\'edizione, in creazione quello del corso scelto (POST) o
+        # preselezionato (initial).
+        from .services.formazione_pianificazione import allegati_proponibili
+        corso = None
+        if self.instance and self.instance.pk:
+            corso = self.instance.corso
+        else:
+            corso_id = (
+                (self.data.get(self.add_prefix("corso")) if self.data else None)
+                or self.initial.get("corso")
+            )
+            if corso_id:
+                corso = TrainingCourse.objects.filter(pk=getattr(corso_id, "pk", corso_id)).first()
+        if corso is not None:
+            qs = allegati_proponibili(corso, self.instance if self.instance.pk else None)
+            self.fields["allegati_dal_corso"].queryset = qs
+            if not self.is_bound:
+                self.fields["allegati_dal_corso"].initial = list(qs.values_list("pk", flat=True))
+                self.fields["copia_note_corso"].initial = bool((corso.note or "").strip())
+            self.fields["allegati_dal_corso"].label_from_instance = (
+                lambda a: f"{a.nome_originale or a.file.name} — {a.get_tipo_display()}"
+            )
+        if not self.fields["allegati_dal_corso"].queryset.exists():
+            self.fields["allegati_dal_corso"].widget = forms.MultipleHiddenInput()
 
     def clean(self):
         cd = super().clean()
@@ -750,10 +801,13 @@ class TrainingSessionForm(forms.ModelForm):
             cd["data_fine"] = d_fine = d_inizio
         if d_inizio and d_fine and d_fine < d_inizio:
             raise forms.ValidationError("La data di fine non può essere precedente alla data di inizio.")
-        # Codice edizione automatico dal corso quando non digitato.
-        if not (cd.get("codice_sessione") or "").strip() and cd.get("corso"):
+        # Il codice edizione non si digita: <codice corso>-<YY>E<N>, dove YY e\'
+        # l\'anno in cui l\'edizione parte e N riparte a ogni anno solare.
+        if not (self.instance.codice_sessione or "").strip() and cd.get("corso"):
             from .services.formazione_pianificazione import genera_codice_sessione
-            cd["codice_sessione"] = genera_codice_sessione(cd["corso"])
+            self.instance.codice_sessione = genera_codice_sessione(
+                cd["corso"], (d_inizio.year if d_inizio else None)
+            )
         # Docente nominativo ed ente-come-docente sono alternativi: il primo
         # sostituisce il secondo, non lo affianca.
         docente = cd.get("docente")
@@ -775,9 +829,29 @@ class TrainingSessionForm(forms.ModelForm):
                 instance.docente_nome = instance.docente.nome
             elif instance.docente_ente:
                 instance.docente_nome = instance.docente_ente.nome
+        if self.cleaned_data.get("copia_note_corso") and instance.corso_id:
+            note_corso = (instance.corso.note or "").strip()
+            if note_corso and note_corso not in (instance.note or ""):
+                instance.note = (
+                    f"{instance.note.rstrip()}\n\n{note_corso}" if (instance.note or "").strip()
+                    else note_corso
+                )
         if commit:
             instance.save()
         return instance
+
+    def copia_allegati(self, user=None) -> int:
+        """Copia sull\'edizione il materiale di corso spuntato nel form.
+
+        Va chiamata dalla view **dopo** il salvataggio (l\'allegato ha bisogno di
+        una sessione con pk). Ritorna quanti file ha copiato.
+        """
+        from .services.formazione_pianificazione import copia_allegati_dal_corso
+
+        scelti = list(self.cleaned_data.get("allegati_dal_corso") or [])
+        if not scelti or not self.instance.pk:
+            return 0
+        return copia_allegati_dal_corso(self.instance, scelti, user=user)
 
 
 class _TrainingOrarioMixin(forms.Form):
@@ -1169,11 +1243,10 @@ class TrainingLessonForm(forms.ModelForm):
     class Meta:
         model = TrainingLesson
         fields = [
-            "numero", "data", "ora_inizio", "ora_fine", "pausa_minuti",
+            "data", "ora_inizio", "ora_fine", "pausa_minuti",
             "argomento", "docente", "docente_ente", "docente_nome", "note",
         ]
         widgets = {
-            "numero":      forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
             "data":        forms.DateInput(attrs=_FM_DATE),
             "ora_inizio":  forms.TimeInput(attrs={**_FM, "type": "time"}),
             "ora_fine":    forms.TimeInput(attrs={**_FM, "type": "time"}),
@@ -1243,6 +1316,13 @@ class TrainingLessonForm(forms.ModelForm):
                 instance.docente_nome = instance.docente.nome
             elif instance.docente_ente:
                 instance.docente_nome = instance.docente_ente.nome
+        # Il numero della lezione non si digita: e' il primo posto libero
+        # nell'edizione. Si assegna solo alla nascita, cosi' modificare una
+        # giornata gia' stampata sul registro firme non la rinumera.
+        if not instance.pk:
+            from .services.formazione_numerazione import prossimo_numero_lezione
+            sess = instance.sessione if instance.sessione_id else self.sessione
+            instance.numero = prossimo_numero_lezione(sess)
         if commit:
             instance.save()
         return instance

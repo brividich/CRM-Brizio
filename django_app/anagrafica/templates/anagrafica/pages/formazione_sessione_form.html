@@ -38,10 +38,35 @@
       {% if form.non_field_errors %}
       <div class="fmd-form-sec"><div class="fmd-ferr">{{ form.non_field_errors }}</div></div>
       {% endif %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Corso e stato" icon="i-cap" desc="Quale corso viene erogato, con codice, stato e modalità." fields=form|section_fields:"corso,codice_sessione,stato,modalita" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Corso e stato" icon="i-cap" desc="Quale corso viene erogato, con stato e modalità." fields=form|section_fields:"corso,stato,modalita" %}
+      <div class="fmd-form-sec">
+        <div class="fmd-field" style="max-width:420px;">
+          <label>Codice edizione</label>
+          <div class="fmd-static">{% if form.instance.pk %}{{ form.instance.codice_sessione }}{% else %}—{% endif %}</div>
+          <div class="fmd-fhelp">
+            {% if form.instance.pk %}Assegnato alla creazione dell’edizione.
+            {% else %}Assegnato in automatico: codice del corso, anno di erogazione e progressivo dell’anno — es. <b>26066-26E1</b>, poi <b>26066-26E2</b>, e a gennaio <b>26066-27E1</b>.{% endif %}
+          </div>
+        </div>
+      </div>
       {% include "anagrafica/partials/_fmd_section.html" with title="Periodo" icon="i-cal-clock" desc="Date di inizio e fine della sessione." fields=form|section_fields:"data_inizio,data_fine" %}
       {% include "anagrafica/partials/_fmd_section.html" with title="Sede e docente" icon="i-clipboard" desc="Dove si svolge e chi la tiene (docente a catalogo o nominativo libero)." fields=form|section_fields:"sede,docente,docente_ente,docente_nome" %}
-      {% include "anagrafica/partials/_fmd_section.html" with title="Note" icon="i-clipboard" fields=form|section_fields:"note" %}
+      {% include "anagrafica/partials/_fmd_section.html" with title="Note" icon="i-clipboard" fields=form|section_fields:"note,copia_note_corso" %}
+      {% if form.allegati_dal_corso.field.queryset.exists %}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-clipboard"/></svg>
+          <span class="fmd-form-sec-t">Materiale dal corso</span>
+        </div>
+        <div class="fmd-form-sec-d">Dispense e documenti caricati sul corso. Quelli spuntati vengono <b>copiati</b> su questa edizione: la copia resta modificabile e documenta ciò che è stato davvero consegnato in aula, anche se il corso domani cambia dispensa.</div>
+        <div class="fmd-checks" style="flex-direction:column; align-items:stretch;">
+          {% for scelta in form.allegati_dal_corso %}
+          <label class="fmd-check" for="{{ scelta.id_for_label }}">{{ scelta.tag }}<span>{{ scelta.choice_label }}</span></label>
+          {% endfor %}
+        </div>
+        {% for err in form.allegati_dal_corso.errors %}<div class="fmd-ferr">{{ err }}</div>{% endfor %}
+      </div>
+      {% endif %}
       <div class="fmd-form-foot">
         <span class="fmd-form-hint">I campi con <i class="fmd-req" style="font-style:normal;">*</i> sono obbligatori.</span>
         <span class="fmd-spacer"></span>

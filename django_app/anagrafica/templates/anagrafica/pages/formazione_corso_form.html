@@ -61,12 +61,19 @@
           <section class="kp-station" data-title="Identificazione">
             <div class="kp-station-head">
               <span class="kp-num">1</span>
-              <div class="kp-station-titles"><h3>Identificazione</h3><p>Titolo, codice e descrizione del corso.</p></div>
+              <div class="kp-station-titles"><h3>Identificazione</h3><p>Titolo e descrizione del corso. Il codice lo assegna il portale.</p></div>
             </div>
             <div class="kp-body">
               <div class="fmd-stack">
                 {% include "anagrafica/partials/_fmd_field.html" with field=form.titolo full=1 %}
-                {% include "anagrafica/partials/_fmd_field.html" with field=form.codice %}
+                <div class="fmd-field">
+                  <label>Codice corso</label>
+                  <div class="fmd-static" data-codice-anteprima>{% if form.instance.pk %}{{ form.instance.codice }}{% else %}—{% endif %}</div>
+                  <div class="fmd-fhelp">
+                    {% if form.instance.pk %}Assegnato alla creazione, non cambia piu’: attestati, export e MOD.128 lo citano.
+                    {% else %}Assegnato in automatico al salvataggio: le prime due cifre sono l’anno, le ultime tre il progressivo di quell’anno (es. <b>26066</b> = 66° corso del 2026). Le edizioni ne ereditano il codice: <b>26066-26E1</b>, e a gennaio <b>26066-27E1</b>.{% endif %}
+                  </div>
+                </div>
                 {% include "anagrafica/partials/_fmd_field.html" with field=form.versione %}
                 {% include "anagrafica/partials/_fmd_field.html" with field=form.descrizione full=1 %}
               </div>
@@ -230,49 +237,25 @@
 {% include "anagrafica/components/_select_search.html" %}
 
 <script>
-/* Assist form corso: codice suggerito (live, se vuoto) dal titolo; validità
-   preimpostata dalla durata della qualifica selezionata (es. preposto 24m,
-   lavoratori 60m). Non sovrascrive mai valori già digitati dall'utente. */
+/* Assist form corso: anteprima del codice che verra’ allocato al salvataggio
+   (il codice non e’ piu’ digitabile), e validita’ preimpostata dalla durata
+   della qualifica selezionata (es. preposto 24m, lavoratori 60m).
+   Non sovrascrive mai valori gia’ digitati dall’utente. */
 (function(){
-  const titolo    = document.querySelector('[name="titolo"]');
-  const codice    = document.querySelector('[name="codice"]');
-  const piano     = document.querySelector('[name="piano"]');
+  const box       = document.querySelector('[data-codice-anteprima]');
   const qualifica = document.querySelector('[name="qualifica"]');
   const validita  = document.querySelector('[name="validita_mesi"]');
   const URL_COD = "{% url 'anagrafica:formazione_corso_codice_suggest' %}";
   const URL_DUR = "{% url 'anagrafica:formazione_qualifica_durata' %}";
 
-  let codiceTouched = false;          // l'utente ha scritto a mano il codice?
-  if (codice) {
-    codice.addEventListener('input', function(){
-      codiceTouched = true;
-      codice.classList.remove('fmd-autofill');
-    });
-  }
-
-  let t = null;
-  async function suggerisciCodice(){
-    if (!codice) return;
-    if (codiceTouched || codice.value.trim()) return;
-    const v = titolo ? titolo.value.trim() : "";
-    const pid = piano ? piano.value : "";
-    // 1.7: col piano selezionato si suggerisce <codice piano>-<N> anche senza titolo.
-    if (!pid && v.length < 2) return;
-    try {
-      const r = await fetch(URL_COD + "?piano_id=" + encodeURIComponent(pid) + "&titolo=" + encodeURIComponent(v));
-      const d = await r.json();
-      if (d.ok && d.codice && !codiceTouched && !codice.value.trim()) {
-        codice.value = d.codice;
-        codice.classList.add('fmd-autofill');
+  // Solo in creazione: sulla scheda di un corso esistente il codice e’ gia’ il suo.
+  if (box && !box.textContent.trim().replace(/\u2014/, '')) {
+    fetch(URL_COD).then(r => r.json()).then(d => {
+      if (d.ok && d.codice) {
+        box.textContent = d.codice;
+        box.classList.add('fmd-autofill');
       }
-    } catch (e) {}
-  }
-  if (titolo) {
-    titolo.addEventListener('input', function(){ clearTimeout(t); t = setTimeout(suggerisciCodice, 450); });
-    titolo.addEventListener('blur', suggerisciCodice);
-  }
-  if (piano) {
-    piano.addEventListener('change', suggerisciCodice);
+    }).catch(function(){});
   }
 
   if (qualifica && validita) {

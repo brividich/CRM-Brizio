@@ -404,6 +404,78 @@
 
 </div>
 
+{# ── Materiale del corso ────────────────────────────────────────────── #}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">📎 Materiale del corso
+      <span class="fm-count">{{ allegati_corso|length }}</span>
+    </div>
+    <span class="muted" style="font-size:11px;">Dispense, programma, modulistica</span>
+  </div>
+  <div style="padding:8px 16px 4px;font-size:12px;color:#64748b;">
+    È il materiale «madre» del corso: alla creazione di ogni nuova edizione viene
+    riproposto in copia, pre-spuntato, e si deseleziona quello non pertinente. La copia
+    vive sull’edizione e resta modificabile — così l’edizione documenta ciò che ha
+    davvero consegnato anche quando il corso, mesi dopo, cambia dispensa.
+  </div>
+  {% if allegati_corso %}
+  <div class="fm-table-wrap">
+    <table class="fm-table">
+      <thead><tr><th>File</th><th>Tipo</th><th class="nowrap">Nuove edizioni</th><th class="nowrap">Caricato</th><th class="nowrap"></th></tr></thead>
+      <tbody>
+        {% for a in allegati_corso %}
+        <tr>
+          <td>
+            <a class="fm-link" href="{% url 'anagrafica:formazione_allegato_download' a.pk %}">{{ a.nome_originale }}</a>
+            {% if a.descrizione %}<div class="muted" style="font-size:11px;">{{ a.descrizione }}</div>{% endif %}
+          </td>
+          <td class="muted">{{ a.get_tipo_display }}</td>
+          <td class="nowrap muted">{% if a.proponi_a_nuova_edizione %}Proposto{% else %}—{% endif %}</td>
+          <td class="nowrap muted">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display }}{% endif %}</td>
+          <td class="nowrap">
+            {% if is_editor %}
+            <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"
+                  onsubmit="return confirm('Eliminare l\'allegato «{{ a.nome_originale|escapejs }}»? Le copie già riportate sulle edizioni restano.')">
+              {% csrf_token %}
+              <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="fm-empty">Nessun materiale caricato sul corso.</div>
+  {% endif %}
+  {% if is_editor %}
+  <form method="post" action="{% url 'anagrafica:formazione_corso_allegato_upload' corso.pk %}"
+        enctype="multipart/form-data" class="fm-inline-form" style="align-items:flex-end;">
+    {% csrf_token %}
+    <div class="fm-f" style="flex:1;min-width:240px;">
+      <label>Carica materiale (PDF, immagine, DOC/XLS)</label>
+      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx">
+    </div>
+    <div class="fm-f">
+      <label>Tipo</label>
+      <select name="tipo">
+        {% for val, lbl in tipi_allegato %}<option value="{{ val }}"{% if val == "MATERIALE" %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="fm-f" style="min-width:200px;">
+      <label>Descrizione (facoltativa)</label>
+      <input type="text" name="descrizione" maxlength="300" placeholder="es. dispensa rev. B">
+    </div>
+    <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;">
+      <input type="checkbox" name="proponi" value="1" checked>
+      <span style="font-size:12px;">Proponi alle nuove edizioni</span>
+    </label>
+    <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">⬆ Carica</button>
+  </form>
+  {% endif %}
+</div>
+
 {# ── Sessioni del corso ─────────────────────────────────────────────────── #}
 <div class="hr-card fm-section">
   <div class="fm-section-head">

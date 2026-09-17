@@ -2246,7 +2246,7 @@ class FormazioneFlussoTests(TestCase):
         corso = form.save()
         self.assertEqual(corso.categoria_id, cat.pk)
         self.assertEqual(corso.qualifica_id, tipo.pk)
-        self.assertEqual(corso.codice, "CX1")  # clean_codice → maiuscolo
+        self.assertRegex(corso.codice, r"^\d{5}$")  # allocato dal portale: YYNNN
 
     # Quick-add inline: endpoint JSON di creazione entità collegate
     def test_quickadd_endpoints(self):
@@ -2276,17 +2276,17 @@ class FormazioneFlussoTests(TestCase):
         self.assertContains(r, "qa-modal")
         self.assertContains(r, "formazione/quick-add/piano")
 
-    # Assist form corso: codice univoco suggerito + durata qualifica
+    # Assist form corso: anteprima del codice YYNNN + durata qualifica
     def test_corso_form_assist_endpoints(self):
         from .models import TipoQualifica
         from .models_formazione import TrainingCourse
-        r = self.client.get(reverse("anagrafica:formazione_corso_codice_suggest"), {"titolo": "Sicurezza Base"})
+        r = self.client.get(reverse("anagrafica:formazione_corso_codice_suggest"))
         self.assertEqual(r.status_code, 200)
         cod = r.json()["codice"]
-        self.assertTrue(cod)
+        self.assertRegex(cod, r"^\d{5}$")
         piano = self._piano()
         TrainingCourse.objects.create(piano=piano, codice=cod, titolo="X", durata_ore_teorica=4)
-        r2 = self.client.get(reverse("anagrafica:formazione_corso_codice_suggest"), {"titolo": "Sicurezza Base"})
+        r2 = self.client.get(reverse("anagrafica:formazione_corso_codice_suggest"))
         self.assertNotEqual(r2.json()["codice"], cod)  # progressivo: evita la collisione
         q = TipoQualifica.objects.create(nome="Preposto QA", durata_mesi=24)
         r3 = self.client.get(reverse("anagrafica:formazione_qualifica_durata"), {"id": q.pk})
