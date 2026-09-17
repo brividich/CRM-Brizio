@@ -206,6 +206,30 @@ MODULE_CATALOG: dict[str, dict] = {
                 "visible_topbar": False,
                 "enabled": True,
             },
+            # Ampiezza di visibilita' sulle assenze altrui. Non sono bottoni: non
+            # aprono nulla, decidono QUANTE righe si vedono nel calendario, nella
+            # dashboard segnalazioni e negli export. Senza nessuno dei due si
+            # vedono soltanto le proprie richieste.
+            {
+                "codice": "view_all_assenze",
+                "nome_visibile": "Vede le assenze di tutti",
+                "url": "",
+                "icona": "users",
+                "ui_slot": "none",
+                "ui_section": "gestione_assenze",
+                "visible_topbar": False,
+                "enabled": True,
+            },
+            {
+                "codice": "view_reparto_assenze",
+                "nome_visibile": "Vede le assenze del proprio reparto",
+                "url": "",
+                "icona": "user-check",
+                "ui_slot": "none",
+                "ui_section": "gestione_assenze",
+                "visible_topbar": False,
+                "enabled": True,
+            },
         ],
     },
     "anomalie": {

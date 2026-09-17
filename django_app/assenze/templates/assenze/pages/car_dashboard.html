@@ -154,11 +154,11 @@
       <span class="abs-eyebrow">Segnalazioni</span>
       <h1>Dashboard reparto assenze</h1>
       <p>
-        {% if is_admin_view %}
+        {% if can_view_all %}
           {% if pending_scope == "all" %}
-            Vista amministrazione con coda globale, riepiloghi e strumenti di diagnostica sync.
+            Vista aziendale con coda globale, riepiloghi e strumenti di diagnostica sync.
           {% else %}
-            Vista amministrazione focalizzata sulle richieste assegnate ai tuoi reparti.
+            Vista aziendale focalizzata sulle richieste assegnate ai tuoi reparti.
           {% endif %}
         {% else %}
           Vista capo reparto per approvare o rifiutare le richieste del personale e controllare l'andamento di oggi e settimana.
@@ -172,7 +172,7 @@
     </div>
     <div class="abs-hero-actions">
       {% if show_diag %}
-        {% if is_admin_view and pending_scope == "all" %}
+        {% if can_view_all and pending_scope == "all" %}
           <a href="{% url 'assenze_car_dashboard' %}?scope=all" class="abs-hero-action">
             <svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>
             Nascondi diagnostica
@@ -184,7 +184,7 @@
           </a>
         {% endif %}
       {% else %}
-        {% if is_admin_view and pending_scope == "all" %}
+        {% if can_view_all and pending_scope == "all" %}
           <a href="{% url 'assenze_car_dashboard' %}?scope=all&amp;diag=1" class="abs-hero-action">
             <svg aria-hidden="true"><use href="#abs-i-sync"></use></svg>
             Diagnostica sync
@@ -238,7 +238,7 @@
     </article>
   </section>
 
-  {% if is_admin_view %}
+  {% if can_view_all %}
     <section class="abs-panel">
       <div class="abs-panel-body" style="padding-top:16px;padding-bottom:16px;">
         <div class="abs-tabs">
@@ -255,7 +255,7 @@
       <div class="abs-panel-title-wrap">
         <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Richieste in attesa</h2>
         <p class="abs-panel-subtitle">
-          {% if is_admin_view %}
+          {% if can_view_all %}
             {% if pending_scope == "all" %}
               Tutte le assenze in attesa di approvazione.
             {% else %}
@@ -460,7 +460,7 @@
       <div class="abs-panel-title-wrap">
         <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg>Ultime gestite</h2>
         <p class="abs-panel-subtitle">
-          {% if is_admin_view %}Ultime richieste approvate o rifiutate.{% else %}Ultime richieste del tuo reparto gia gestite.{% endif %}
+          {% if can_view_all %}Ultime richieste approvate o rifiutate.{% else %}Ultime richieste del tuo reparto gia gestite.{% endif %}
         </p>
       </div>
       <div class="abs-panel-meta"><span class="abs-panel-badge">{{ gestite|length }}</span></div>
