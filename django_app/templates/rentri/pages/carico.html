@@ -162,7 +162,7 @@ body.theme-dark .rn-modal-no:hover { background:var(--border); }
       <div class="rn-wizard-step" id="step-quantita">
         <div class="cp-field">
           <label class="cp-label">Quantità</label>
-          <input type="number" id="f-quantita" class="cp-input" step="0.001" min="0"
+          <input type="number" id="f-quantita" class="cp-input" step="0.001"
             placeholder="0.000"
             value="{% if edit_mode %}{{ registro.quantita }}{% endif %}">
         </div>
@@ -189,14 +189,6 @@ body.theme-dark .rn-modal-no:hover { background:var(--border); }
             <label class="cp-label">Pericolosità</label>
             <input type="text" id="f-pericolosita" class="cp-input" placeholder="Classe pericolosità"
               value="{% if edit_mode %}{{ registro.pericolosita }}{% endif %}">
-          </div>
-
-          <div class="cp-field">
-            <label class="cp-label">Carico / Scarico</label>
-            <select id="f-carico-scarico" class="cp-select">
-              <option value="C" {% if edit_mode and registro.carico_scarico == 'C' %}selected{% endif %}>Carico</option>
-              <option value="S" {% if edit_mode and registro.carico_scarico == 'S' %}selected{% endif %}>Scarico</option>
-            </select>
           </div>
 
           <div class="cp-field cp-full">
@@ -268,7 +260,6 @@ body.theme-dark .rn-modal-no:hover { background:var(--border); }
     fd.append('codice', document.getElementById('f-codice').value);
     fd.append('quantita', document.getElementById('f-quantita').value);
     fd.append('pericolosita', document.getElementById('f-pericolosita').value);
-    fd.append('carico_scarico', document.getElementById('f-carico-scarico').value);
     fd.append('rentri_si_no', document.getElementById('f-rentri-si-no').checked ? 'true' : 'false');
     fd.append('note_rentri', document.getElementById('f-note-rentri').value);
     var file = document.getElementById('f-allegato').files[0];
@@ -324,7 +315,6 @@ body.theme-dark .rn-modal-no:hover { background:var(--border); }
     document.getElementById('f-quantita').value = '';
     document.getElementById('f-allegato').value = '';
     document.getElementById('f-pericolosita').value = '';
-    document.getElementById('f-carico-scarico').selectedIndex = 0;
     document.getElementById('f-rentri-si-no').checked = false;
     document.getElementById('f-note-rentri').value = '';
     alertEl.style.display = 'none';
