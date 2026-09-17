@@ -10582,7 +10582,7 @@ def documento_dipendente_download(request, doc_id: int):
         fh = doc.file.open("rb")
     except FileNotFoundError:
         return HttpResponse("File non trovato sul server.", status=404)
-    response = FileResponse(fh, as_attachment=True, filename=doc.nome_originale or f"documento_{doc.pk}.bin")
+    response = FileResponse(fh, as_attachment=False, filename=doc.nome_originale or f"documento_{doc.pk}.bin")
     if doc.tipo_mime:
         response["Content-Type"] = doc.tipo_mime
     return response
