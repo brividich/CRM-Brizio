@@ -2,12 +2,15 @@
 
 {% block title %}C - Carico | RENTRI{% endblock %}
 
+{% block body_class %}{{ block.super }} rentri-wizard-fullpage{% endblock %}
+
 {% block extra_head %}
 {% include "rentri/components/step_wizard.html" %}
 <style>
 :root { --rn-accent:#2296D0; --rn-accent-soft:#e0f2fe; --rn-accent-text:#075985; }
 /* ── Layout ── */
-.cp-wrap { display:flex; flex-direction:column; gap:20px; }
+.rentri-wizard-fullpage .content { width:100%; max-width:none; }
+.cp-wrap { display:flex; flex-direction:column; gap:20px; min-height:calc(100vh - var(--nav-h, 60px) - var(--subnav-h, 44px) - 40px); }
 
 /* ── Hero ── */
 .cp-hero {
@@ -21,10 +24,10 @@
 .cp-hero-btn:hover { background:#e0f2fe; }
 
 /* ── Form card ── */
-.cp-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.cp-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; flex:1; display:flex; flex-direction:column; }
 .cp-form-head { padding:16px 22px; background:#f8fafc; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:10px; }
 .cp-form-title { font-size:14px; font-weight:800; color:#0f172a; }
-.cp-form-body  { padding:22px; }
+.cp-form-body  { padding:22px; flex:1; display:flex; flex-direction:column; justify-content:center; }
 
 /* ── Griglia form ── */
 .cp-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
@@ -140,7 +143,7 @@ body.theme-dark .rn-modal-no:hover { background:var(--border); }
         <div class="cp-field">
           <label class="cp-label">Data <span class="req">*</span></label>
           <input type="date" id="f-data" class="cp-input"
-            value="{% if edit_mode %}{{ registro.data|date:'Y-m-d' }}{% endif %}" required>
+            value="{% if edit_mode %}{{ registro.data|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}" required>
           <div class="cp-error-msg" id="err-data"></div>
         </div>
       </div>
