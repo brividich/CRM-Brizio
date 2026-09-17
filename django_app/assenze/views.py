@@ -826,9 +826,39 @@ def _assenze_permissions(request) -> dict:
 
     can_insert = group in {"UTENTI", "CAR", "AMMINISTRAZIONE"}
     can_insert_for_others = group in {"CAR", "AMMINISTRAZIONE"}
-    can_view_calendar = group in {"CAR", "AMMINISTRAZIONE"}
     can_update_any = group == "AMMINISTRAZIONE"
     can_update_owned = group == "CAR"
+
+    # --- Ampiezza di visibilita' sulle assenze altrui ------------------------
+    # Tre livelli: "all" (tutta l'azienda: AMMINISTRAZIONE, DIREZIONE, HR),
+    # "reparto" (solo i dipendenti di cui si e' capo assegnato: i CAR) e "own"
+    # (solo le proprie richieste: tutti gli altri).
+    #
+    # La fonte canonica sono due capability ACL, assegnabili da /admin-portale/
+    # accessi/ sia a un ruolo sia al singolo utente (override): il livello non
+    # dipende piu' da come e' scritto il nome del ruolo. Il fallback sui gruppi
+    # legacy resta finche' le capability non sono state distribuite, altrimenti
+    # al primo deploy tutti i CAR perderebbero il calendario.
+    view_scope = "own"
+    view_scope_source = "legacy_group"
+    try:
+        if user_can_modulo_action(request, "assenze", "view_all_assenze"):
+            view_scope, view_scope_source = "all", "acl"
+        elif user_can_modulo_action(request, "assenze", "view_reparto_assenze"):
+            view_scope, view_scope_source = "reparto", "acl"
+    except Exception:
+        logger.debug("_assenze_permissions: valutazione ACL scope fallita", exc_info=True)
+    if view_scope_source != "acl":
+        if can_update_any:
+            view_scope = "all"
+        elif can_update_owned:
+            view_scope = "reparto"
+        else:
+            view_scope = "own"
+
+    # Il calendario mostra assenze altrui: resta riservato a chi ha almeno il
+    # perimetro di reparto. Un dipendente senza ruoli continua a non vederlo.
+    can_view_calendar = view_scope in {"all", "reparto"}
     can_delete_any = group == "AMMINISTRAZIONE"
     can_skip_approval = group in {"CAR", "AMMINISTRAZIONE"}
     manager_name = ""
@@ -856,7 +886,12 @@ def _assenze_permissions(request) -> dict:
 
     perms = {
         "group": group,
+        "view_scope": view_scope,
+        "view_scope_source": view_scope_source,
+        "view_all": view_scope == "all",
         "legacy_user_id": legacy_user_id,
+        "manager_name": manager_name,
+        "manager_email": manager_email,
         "can_insert": can_insert,
         "can_insert_for_others": can_insert_for_others,
         "insert_for_others_scope": insert_for_others_scope,
@@ -872,6 +907,105 @@ def _assenze_permissions(request) -> dict:
     }
     setattr(request, "_assenze_perm_cache", perms)
     return perms
+
+
+def _events_manager_scope(request) -> dict | None:
+    """Perimetro da passare a `_load_events` per la richiesta corrente.
+
+    `None` = nessun filtro (tutta l'azienda), per chi ha `view_all_assenze`.
+    Un dict = solo i dipendenti di cui l'utente e' capo assegnato.
+    """
+    perms = _assenze_permissions(request)
+    if perms.get("view_scope") == "all":
+        return None
+    return {
+        "legacy_user_id": perms.get("legacy_user_id"),
+        "manager_name": perms.get("manager_name") or "",
+        "manager_email": perms.get("manager_email") or "",
+    }
+
+
+VISIBILITA_LIVELLI = (
+    (
+        "all",
+        "view_all_assenze",
+        "Tutta l'azienda",
+        "Vede le assenze di tutti i dipendenti: calendario completo, coda globale ed export integrale.",
+    ),
+    (
+        "reparto",
+        "view_reparto_assenze",
+        "Solo il proprio reparto",
+        "Vede le assenze dei dipendenti di cui è capo assegnato — lo stesso insieme che può approvare.",
+    ),
+)
+
+
+def _visibilita_overview() -> dict:
+    """Chi ricade in quale livello di visibilità, per il cruscotto in Impostazioni.
+
+    Legge le stesse sorgenti che `user_can_modulo_action` consulta a runtime:
+    permessi di ruolo (`permessi`) e override per singolo utente
+    (`UserPermissionOverride`). È una fotografia di sola lettura: la modifica
+    resta in /admin-portale/accessi/, che è la pagina unica per i permessi.
+    """
+    from core.legacy_models import Permesso, Ruolo, UtenteLegacy
+    from core.models import UserPermissionOverride
+
+    livelli = []
+    for scope, codice, etichetta, descrizione in VISIBILITA_LIVELLI:
+        ruoli: list[str] = []
+        utenti_si: list[str] = []
+        utenti_no: list[str] = []
+        try:
+            ruolo_ids = [
+                p.ruolo_id
+                for p in Permesso.objects.filter(modulo__iexact="assenze", azione__iexact=codice)
+                if bool(p.can_view) or bool(p.consentito)
+            ]
+            if ruolo_ids:
+                ruoli = sorted(
+                    str(r.nome or "").strip()
+                    for r in Ruolo.objects.filter(id__in=set(ruolo_ids))
+                    if str(r.nome or "").strip()
+                )
+        except Exception:
+            logger.debug("_visibilita_overview: lettura permessi ruolo fallita (%s)", codice, exc_info=True)
+        try:
+            overrides = list(
+                UserPermissionOverride.objects.filter(
+                    modulo__iexact="assenze", azione__iexact=codice
+                ).exclude(can_view__isnull=True)
+            )
+            if overrides:
+                nomi = {
+                    u.id: (str(u.nome or "").strip() or str(u.email or "").strip() or f"utente {u.id}")
+                    for u in UtenteLegacy.objects.filter(id__in={o.legacy_user_id for o in overrides})
+                }
+                for o in overrides:
+                    label = nomi.get(o.legacy_user_id, f"utente {o.legacy_user_id}")
+                    (utenti_si if o.can_view else utenti_no).append(label)
+                utenti_si.sort()
+                utenti_no.sort()
+        except Exception:
+            logger.debug("_visibilita_overview: lettura override fallita (%s)", codice, exc_info=True)
+
+        livelli.append(
+            {
+                "scope": scope,
+                "codice": codice,
+                "etichetta": etichetta,
+                "descrizione": descrizione,
+                "ruoli": ruoli,
+                "utenti_concessi": utenti_si,
+                "utenti_negati": utenti_no,
+                "configurato": bool(ruoli or utenti_si or utenti_no),
+            }
+        )
+    return {
+        "visibilita_livelli": livelli,
+        "visibilita_configurata": any(l["configurato"] for l in livelli),
+    }
 
 
 def _insertable_dipendenti_for_request(request) -> list[dict]:
@@ -2554,6 +2688,7 @@ def _load_events(
     end: datetime | None = None,
     colors: dict[str, str] | None = None,
     include_sensitive: bool = False,
+    manager_scope: dict | None = None,
 ) -> list[dict]:
     # SEC/GDPR: `motivazione` e `certificato_medico` (dato sanitario, categoria
     # speciale) sono inclusi negli eventi del calendario SOLO per chi gestisce a
@@ -2579,6 +2714,26 @@ def _load_events(
 
     where_clauses = ["a.data_inizio IS NOT NULL", "a.data_fine IS NOT NULL"]
     params: list = []
+
+    # SEC: perimetro di visibilita'. `manager_scope` assente = nessun filtro, cioe'
+    # tutta l'azienda: e' la vista di chi ha `view_all_assenze`. Con il perimetro di
+    # reparto si vedono SOLO i dipendenti di cui si e' capo assegnato — lo stesso
+    # insieme che si puo' approvare, calcolato dalla stessa clausola.
+    if manager_scope is not None:
+        scope_where, scope_params, use_legacy_join = _combined_manager_assignment_where_clause(
+            legacy_user_id=manager_scope.get("legacy_user_id"),
+            manager_name=str(manager_scope.get("manager_name") or ""),
+            manager_email=str(manager_scope.get("manager_email") or ""),
+            assenze_alias="a",
+            capi_alias="cr",
+        )
+        if not scope_where:
+            # Nessun criterio di assegnazione: fail-closed, niente assenze altrui.
+            return []
+        if use_legacy_join and not has_capi:
+            joins += " LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id "
+        where_clauses.append(scope_where)
+        params.extend(scope_params)
     if start is not None:
         where_clauses.append("a.data_fine >= %s")
         params.append(start)
@@ -4366,6 +4521,7 @@ def impostazioni_admin(request):
             "admin_audit_entries": admin_audit_entries,
             "admin_can_moderate": perms.get("can_update_any", False),
             "admin_can_delete": perms.get("can_delete_any", False),
+            **_visibilita_overview(),
             **_flessibilita_admin_context(),
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_template_perm_context(request),
@@ -4546,18 +4702,25 @@ def riconciliazione(request):
 @login_required
 @ensure_csrf_cookie
 def car_dashboard(request):
-    """Dashboard segnalazioni: per CAR (filtrato per reparto) e per AMMINISTRAZIONE (globale)."""
+    """Dashboard segnalazioni.
+
+    Chi vede quante righe dipende dal perimetro di visibilita' (`view_scope`), non
+    dal permesso di approvare: DIREZIONE/HR possono avere la vista aziendale senza
+    poter decidere sulle richieste, mentre i pulsanti Approva/Rifiuta restano
+    legati a `can_update_any` / `can_update_owned`.
+    """
     perms = _assenze_permissions(request)
     is_admin = perms.get("can_update_any", False)
     is_car = perms.get("can_update_owned", False)
-    if not is_admin and not is_car:
-        return HttpResponseForbidden("Accesso non consentito: questa pagina è riservata ai Capi Reparto (CAR) e all'Amministrazione.")
+    view_all = perms.get("view_scope") == "all"
+    if perms.get("view_scope") == "own":
+        return HttpResponseForbidden("Accesso non consentito: questa pagina richiede la visibilità sulle assenze del reparto o dell'azienda.")
     legacy_user_id = perms["legacy_user_id"]
     manager_name, manager_email, _ = _legacy_identity(request)
 
     pending_scope_raw = str(request.GET.get("scope") or "").strip().lower()
     pending_scope = "mine"
-    if is_admin and pending_scope_raw in {"all", "tutte", "global"}:
+    if view_all and pending_scope_raw in {"all", "tutte", "global"}:
         pending_scope = "all"
     show_diag = str(request.GET.get("diag") or "").strip().lower() in {"1", "true", "yes", "on"}
     capo_diag = None
@@ -4577,7 +4740,7 @@ def car_dashboard(request):
     monday = today_start - timedelta(days=today_start.weekday())
     next_monday = monday + timedelta(days=7)
 
-    if is_admin:
+    if view_all:
         if pending_scope == "all":
             da_gestire = _load_all_pending(limit=100)
         else:
@@ -4641,6 +4804,7 @@ def car_dashboard(request):
             "data_lunedi": monday.strftime("%d-%m-%Y"),
             "data_domenica": (next_monday - timedelta(days=1)).strftime("%d-%m-%Y"),
             "is_admin_view": is_admin,
+            "can_view_all": view_all,
             "pending_scope": pending_scope,
             "show_diag": show_diag,
             "capo_diag": capo_diag,
@@ -4878,7 +5042,7 @@ def calendario(request):
     user_key = _user_color_key(request)
     user_colors = _load_colors(user_key=user_key)
     eventi_preview = []
-    for event in _load_events(limit=50, colors=user_colors):
+    for event in _load_events(limit=50, colors=user_colors, manager_scope=_events_manager_scope(request)):
         eventi_preview.append(
             {
                 "dipendente": event.get("title"),
@@ -4919,6 +5083,7 @@ def api_eventi(request):
             _load_events(
                 limit=limit, start=start, end=end, colors=user_colors,
                 include_sensitive=bool(perms.get("can_update_any")),
+                manager_scope=_events_manager_scope(request),
             ),
             safe=False,
         )
@@ -5469,9 +5634,10 @@ def _csv_streaming_response(rows_iter, headers: list[str], filename: str) -> Str
 
 @login_required
 def export_assenze_car_csv(request):
-    """Esporta in CSV le assenze del reparto del CAR loggato (o tutte per AMMIN)."""
+    """Esporta in CSV le assenze visibili: il proprio reparto, o tutte per chi ha
+    la visibilita' aziendale."""
     perms = _assenze_permissions(request)
-    if not perms.get("can_update_owned") and not perms.get("can_update_any"):
+    if perms.get("view_scope") == "own":
         return HttpResponseForbidden("Permessi insufficienti.")
 
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
@@ -5487,7 +5653,7 @@ def export_assenze_car_csv(request):
         else (request.user.email or "").strip()
     )
 
-    if perms.get("can_update_any"):
+    if perms.get("view_scope") == "all":
         rows_data = _load_all_pending(limit=5000) + _load_all_gestite(limit=5000)
     else:
         rows_data = _load_pending_for_manager(
