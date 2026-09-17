@@ -3888,8 +3888,40 @@ class AclPermissionTaxonomyTests(SimpleTestCase):
         self.assertEqual(capability_for_code("assets.impostazioni.manage", "assets"), "amministrazione")
         # Natura configurazione: amministrazione anche con un semplice view.
         self.assertEqual(capability_for_code("anagrafica.permessi.view", "anagrafica"), "amministrazione")
-        # Azione ignota -> lettura (la capacita' meno sorprendente).
-        self.assertEqual(capability_for_code("assets.asset.ping", "assets"), "lettura")
+        # Token italiani dentro i code legacy: si leggono come i canonici.
+        self.assertEqual(capability_for_code("legacy.assets.asset_create", "assets"), "modifica")
+        self.assertEqual(capability_for_code("legacy.assenze.assenze_evento_delete", "assenze"), "modifica")
+        self.assertEqual(capability_for_code("legacy.dpi.dpi_storico", "dpi"), "lettura")
+        # Piu' segnali nello stesso nome: vince il piu' alto.
+        self.assertEqual(capability_for_code("legacy.assets.assets_bulk_update", "assets"), "amministrazione")
+        # Azione ignota -> 'ignoto', MAI 'lettura': un permesso che non si sa
+        # cosa faccia non deve finire dentro "Solo lettura".
+        self.assertEqual(capability_for_code("assets.asset.ping", "assets"), "ignoto")
+
+    def test_capability_override_esplicito_vince(self):
+        from core.permission_taxonomy import _CAPABILITY_OVERRIDES, capability_for_code
+
+        # Deciso a mano leggendo la rotta governata: e' un form di registrazione.
+        self.assertEqual(capability_for_code("legacy.rentri.rentri_carico", "rentri"), "modifica")
+        self.assertIn("legacy.rentri.rentri_carico", _CAPABILITY_OVERRIDES)
+        # Lasciati apposta fuori dalla tabella: restano non classificati.
+        self.assertEqual(capability_for_code("legacy.dashboard.onboarding", "dashboard"), "ignoto")
+
+    def test_capability_for_name_legge_le_rotte(self):
+        from core.permission_taxonomy import capability_for_name
+
+        self.assertEqual(capability_for_name("assets:asset_component_create"), "modifica")
+        self.assertEqual(capability_for_name("assenze:impostazioni"), "amministrazione")
+        self.assertEqual(capability_for_name("dpi:storico"), "lettura")
+        self.assertEqual(capability_for_name("qualcosa:xyz"), "ignoto")
+
+    def test_strongest_capability(self):
+        from core.permission_taxonomy import strongest_capability
+
+        self.assertEqual(strongest_capability(["lettura", "amministrazione", "modifica"]), "amministrazione")
+        self.assertEqual(strongest_capability(["lettura", "ignoto"]), "lettura")
+        self.assertEqual(strongest_capability(["ignoto"]), "ignoto")
+        self.assertEqual(strongest_capability([]), "ignoto")
 
     def test_level_grants_code(self):
         from core.permission_taxonomy import level_grants_code
@@ -3905,6 +3937,10 @@ class AclPermissionTaxonomyTests(SimpleTestCase):
         # "Operativo completo" approva ma non tocca le impostazioni.
         self.assertTrue(level_grants_code("operativo", "assenze.richieste.approve", "assenze"))
         self.assertFalse(level_grants_code("operativo", "assets.impostazioni.manage", "assets"))
+        # Un permesso non classificato lo accende solo l'ultimo livello.
+        self.assertFalse(level_grants_code("lettura", "assets.asset.ping", "assets"))
+        self.assertFalse(level_grants_code("operativo", "assets.asset.ping", "assets"))
+        self.assertTrue(level_grants_code("amministrazione", "assets.asset.ping", "assets"))
         # "Amministratore del modulo" prende tutto; "Nessun accesso" niente.
         self.assertTrue(level_grants_code("amministrazione", "assets.impostazioni.manage", "assets"))
         self.assertFalse(level_grants_code("nessuno", "assets.asset.view", "assets"))

@@ -896,17 +896,50 @@ ACL, che resta in `core.acl_v2`.
 
 **Livelli d'accesso preimpostati**: ogni modulo ha un selettore *Livello* (e ce
 n'e' uno «su tutti i moduli») che accende in un colpo l'insieme di permessi
-corrispondente — **Nessun accesso**, **Solo lettura** (view, export),
-**Lettura e modifica** (+ create, edit, delete, import, run), **Operativo
-completo** (+ approve), **Amministratore del modulo** (tutto, impostazioni
-comprese). Nessun livello sotto l'ultimo concede permessi di natura
-*configurazione*. E' una **macro di selezione**: muove gli interruttori e basta —
-si salva sempre col pulsante in fondo, e cio' che finisce a database e' sempre un
-grant per singolo permesso, mai un "livello". Appena si ritocca un interruttore a
-mano il selettore torna a **Personalizzato**, perche' l'etichetta non racconti
-mai piu' di quello che c'e'. Il confine e'
-`core.permission_taxonomy.capability_for_code` / `ACCESS_LEVELS`, accanto ad
-area/origine/natura, e come quelli non e' un confine di sicurezza.
+corrispondente — **Nessun accesso**, **Solo lettura**, **Lettura e modifica**,
+**Operativo completo** (con le approvazioni), **Amministratore del modulo**
+(tutto, impostazioni comprese). E' una **macro di selezione**: muove gli
+interruttori e basta — si salva sempre col pulsante in fondo, e a database
+finisce sempre un grant per singolo permesso, mai un "livello". Appena si
+ritocca un interruttore a mano il selettore torna a **Personalizzato**.
+
+Ogni riga dichiara la sua **capacita'** accanto al codice (Lettura · Modifica ·
+Approvazione · Amministrazione · **Non classificato**), perche' e' su quella che
+i livelli ragionano e deve essere leggibile, non implicita. La capacita' si
+ricava in `core.permission_taxonomy.capability_for_code` da: una tabella di
+decisioni esplicite prese leggendo la rotta governata; la natura
+*configurazione*; l'azione canonica (`view`/`create`/.../`manage`); infine i
+token del nome per i code legacy (`legacy.assets.asset_create` → modifica), dove
+**il verbo batte il sostantivo** (`api_cerca_utenti` e' una ricerca, non
+amministrazione) e fra piu' segnali vince il piu' alto.
+
+La regola portante e' **fail-closed**: un permesso che non si riesce a leggere
+resta *Non classificato* e lo accende **solo** «Amministratore del modulo» —
+mai «Solo lettura». Due terzi del catalogo sono code legacy importati come
+`legacy.<modulo>.<nome_view>`, e leggerli come letture perche' non finiscono in
+`create` significherebbe che «Solo lettura» concede cancellazioni.
+
+E c'e' un secondo passaggio, in `core/acl_capability.py`: 184 permessi non sono
+legati a una rotta ma a un **prefisso di URL** (`match_strategy='prefix'`), e
+governano tutto il sottoalbero tranne dove esiste un binding piu' specifico.
+Per ognuno si enumerano le rotte del progetto, si chiede al resolver vero chi le
+copre, e la capacita' viene **alzata** (mai abbassata) a quella delle rotte che
+gli ricadono sotto. E' cosi' che `legacy.assets.view_assets` (prefisso `/assets`)
+smette di essere «lettura»: copre anche `assets:maintenance_impostazioni`.
+
+L'audit e' un comando di sola lettura, eseguibile anche in produzione:
+
+```powershell
+python django_app\manage.py acl_capability_report
+python django_app\manage.py acl_capability_report --only-unclassified
+python django_app\manage.py acl_capability_report --format json
+```
+
+Mostra quanti permessi accende ciascun livello, quali sono stati alzati dal
+sottoalbero (con le rotte che l'hanno causato) e quali restano non classificati.
+Sul catalogo di dev del 17/09/2026: 847 permessi, 512 lettura, 145 modifica, 3
+approvazione, 184 amministrazione, **3 non classificati**, 10 alzati dal
+sottoalbero.
 
 Non esiste un livello «solo i propri record»: ACL v2 decide **allow/deny sulla
 rotta**, mentre lo scope per record (`own` / `reparto`) e' codice dentro le

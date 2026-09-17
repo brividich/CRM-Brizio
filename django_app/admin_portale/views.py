@@ -88,10 +88,13 @@ from core.navigation_registry import (
 )
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
 from core.branding import get_portal_branding
+from core.acl_capability import capability_index
 from core.permission_taxonomy import (
     ACCESS_LEVELS,
+    CAPABILITY_IGNOTO,
     NATURE_ORDER,
     capability_for_code,
+    capability_label,
     nature_for_code,
     nature_label,
 )
@@ -11804,10 +11807,17 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
     bound_codes = set(
         RoutePermissionBinding.objects.filter(is_active=True).values_list("permission_id", flat=True)
     )
+    # La capacita' non si legge dal solo nome: un permesso legato a un prefisso
+    # di URL governa anche le rotte che gli stanno sotto, e quelle possono
+    # scrivere. Vedi core/acl_capability.py.
+    capabilities = capability_index()
 
     grouped: dict[str, list[dict]] = {}
     for permission in permissions:
         module = (permission.module or "senza modulo").strip().lower()
+        capability = capabilities.capabilities.get(permission.code) or capability_for_code(
+            permission.code, module
+        )
         grouped.setdefault(module, []).append(
             {
                 "code": permission.code,
@@ -11816,7 +11826,12 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
                 "enabled": bool(granted.get(permission.code, False)),
                 "governs_route": permission.code in bound_codes,
                 "nature": nature_for_code(permission.code, module),
-                "capability": capability_for_code(permission.code, module),
+                "capability": capability,
+                "capability_label": capability_label(capability),
+                "capability_unknown": capability == CAPABILITY_IGNOTO,
+                # Governa un sottoalbero di URL: la capacita' puo' essere stata
+                # alzata da cio' che ci sta sotto, non dal suo nome.
+                "governs_subtree": permission.code in capabilities.subtree_routes,
             }
         )
 

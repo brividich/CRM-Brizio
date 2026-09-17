@@ -238,6 +238,25 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
 .acl-scope::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 2px; background: currentColor; margin-right: 6px; vertical-align: 1px; }
 .acl-scope--page { color: var(--acl-navy); }
 
+/* La capacita' di ogni permesso, stampata accanto al codice: e' cio' su cui i
+   livelli ragionano, quindi deve essere leggibile riga per riga invece di
+   restare implicita nel selettore. "Non classificato" non e' un difetto da
+   nascondere: dice che nessun livello sotto l'ultimo accendera' quella riga. */
+.acl-cap {
+  display: inline-block; margin-left: 8px;
+  font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 999px;
+  border: 1px solid var(--hub-color-border, #d7e0ea);
+  color: var(--hub-color-text-muted, #4a5568);
+  vertical-align: 1px;
+}
+.acl-cap--modifica { border-color: var(--acl-steel); color: var(--acl-steel); }
+.acl-cap--approvazione { border-color: var(--acl-steel); color: var(--acl-steel); }
+.acl-cap--amministrazione { border-color: var(--acl-navy); color: var(--acl-navy); }
+.acl-cap--ignoto { border-color: var(--acl-live); color: var(--acl-live); font-weight: 700; }
+.acl-cap--sub::after { content: "  b7 sottoalbero"; }
+body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d6; }
+
 /* Interruttori, non caselle: l'oggetto di questa pagina e' aprire e chiudere. */
 .acl-switch { display: inline-flex; cursor: pointer; }
 .acl-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
@@ -417,9 +436,9 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
 
     {{ access_levels|json_script:"acl-levels-data" }}
 
-    {# Livelli: insiemi preimpostati di permessi ("solo lettura", "lettura e
+    {% comment %}Livelli: insiemi preimpostati di permessi ("solo lettura", "lettura e
        modifica", ...). Applicarli muove gli interruttori, non salva: si salva
-       sempre col pulsante in fondo, e sempre un grant per permesso. #}
+       sempre col pulsante in fondo, e sempre un grant per permesso.{% endcomment %}
     <div class="acl-levels-all">
       <b>Livello su tutti i moduli</b>
       <span class="acl-level">
@@ -487,7 +506,9 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
               <tr data-search="{{ perm.code }} {{ perm.label|lower }}">
                 <td>
                   <div class="acl-perm">{{ perm.label }}</div>
-                  <div class="acl-code">{{ perm.code }}</div>
+                  <div class="acl-code">{{ perm.code }}<span
+                      class="acl-cap acl-cap--{{ perm.capability }}{% if perm.governs_subtree %} acl-cap--sub{% endif %}"
+                      title="{% if perm.capability_unknown %}Il nome non dice cosa faccia: lo accende solo il livello «Amministratore del modulo».{% else %}I livelli accendono questo permesso a partire da «{{ perm.capability_label }}».{% endif %}{% if perm.governs_subtree %} Governa un intero sottoalbero di URL, quindi la capacità tiene conto anche delle rotte che vi ricadono sotto.{% endif %}">{{ perm.capability_label }}</span></div>
                 </td>
                 <td class="is-scope">
                   {% if perm.governs_route %}
