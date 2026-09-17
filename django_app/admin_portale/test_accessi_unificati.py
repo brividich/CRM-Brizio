@@ -66,6 +66,34 @@ class AccessiUnificatiTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Crea un gruppo")
 
+    def test_la_pagina_offre_i_livelli_preimpostati(self):
+        """I livelli sono una scorciatoia di selezione, non un secondo stato."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        keys = [level["key"] for level in response.context["access_levels"]]
+        self.assertEqual(keys, ["nessuno", "lettura", "modifica", "operativo", "amministrazione"])
+        self.assertContains(response, "Livello su tutti i moduli")
+        self.assertContains(response, "acl-level-pick")
+
+    def test_ogni_interruttore_dichiara_la_sua_capacita(self):
+        """Senza la capacita' sull'interruttore un livello non saprebbe cosa accendere."""
+        response = self.client.get(self.url)
+        permessi = {
+            perm["code"]: perm
+            for row in response.context["module_rows"]
+            for perm in row["permissions"]
+        }
+        self.assertEqual(permessi[PERM_B]["capability"], "lettura")
+        # PERM_A e' una risorsa di amministrazione: nessun livello operativo lo accende.
+        self.assertEqual(permessi[PERM_A]["capability"], "amministrazione")
+        self.assertContains(response, 'data-capacita="lettura"')
+
+    def test_i_livelli_non_scrivono_nulla_da_soli(self):
+        """Applicare un livello muove gli interruttori: salva solo il pulsante."""
+        group = self._group()
+        self.client.post(self.url, {"action": "apply_level", "level": "amministrazione", "subject": f"group:{group.id}"})
+        self.assertEqual(GroupPermissionGrant.objects.filter(group=group).count(), 0)
+
     def test_crea_gruppo(self):
         response = self.client.post(
             self.url,

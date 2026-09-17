@@ -3871,6 +3871,46 @@ class AclPermissionTaxonomyTests(SimpleTestCase):
         self.assertEqual(action_for_code("assets.piani.manage"), "manage")
         self.assertEqual(action_for_code("senza_punti"), "")
 
+    def test_capability_for_code(self):
+        from core.permission_taxonomy import capability_for_code
+
+        # Lettura: consultare ed esportare cio' che si puo' gia' vedere.
+        self.assertEqual(capability_for_code("assets.asset.view", "assets"), "lettura")
+        self.assertEqual(capability_for_code("assenze.richieste.export", "assenze"), "lettura")
+        # Modifica: tutto cio' che cambia lo stato del modulo.
+        for action in ("create", "edit", "delete", "import", "run"):
+            self.assertEqual(
+                capability_for_code(f"assets.work_orders.{action}", "assets"),
+                "modifica",
+                action,
+            )
+        self.assertEqual(capability_for_code("assenze.richieste.approve", "assenze"), "approvazione")
+        self.assertEqual(capability_for_code("assets.impostazioni.manage", "assets"), "amministrazione")
+        # Natura configurazione: amministrazione anche con un semplice view.
+        self.assertEqual(capability_for_code("anagrafica.permessi.view", "anagrafica"), "amministrazione")
+        # Azione ignota -> lettura (la capacita' meno sorprendente).
+        self.assertEqual(capability_for_code("assets.asset.ping", "assets"), "lettura")
+
+    def test_level_grants_code(self):
+        from core.permission_taxonomy import level_grants_code
+
+        # "Solo lettura" non concede scritture, approvazioni ne' impostazioni.
+        self.assertTrue(level_grants_code("lettura", "assets.asset.view", "assets"))
+        self.assertFalse(level_grants_code("lettura", "assets.asset.edit", "assets"))
+        self.assertFalse(level_grants_code("lettura", "assenze.richieste.approve", "assenze"))
+        self.assertFalse(level_grants_code("lettura", "assets.impostazioni.manage", "assets"))
+        # "Lettura e modifica" si ferma prima delle approvazioni.
+        self.assertTrue(level_grants_code("modifica", "assets.asset.edit", "assets"))
+        self.assertFalse(level_grants_code("modifica", "assenze.richieste.approve", "assenze"))
+        # "Operativo completo" approva ma non tocca le impostazioni.
+        self.assertTrue(level_grants_code("operativo", "assenze.richieste.approve", "assenze"))
+        self.assertFalse(level_grants_code("operativo", "assets.impostazioni.manage", "assets"))
+        # "Amministratore del modulo" prende tutto; "Nessun accesso" niente.
+        self.assertTrue(level_grants_code("amministrazione", "assets.impostazioni.manage", "assets"))
+        self.assertFalse(level_grants_code("nessuno", "assets.asset.view", "assets"))
+        # Livello inesistente non concede mai nulla (fail-closed).
+        self.assertFalse(level_grants_code("inventato", "assets.asset.view", "assets"))
+
     def test_area_for_module_with_fallback(self):
         from core.permission_taxonomy import area_for_module
 

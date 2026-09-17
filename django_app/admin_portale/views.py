@@ -88,7 +88,13 @@ from core.navigation_registry import (
 )
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
 from core.branding import get_portal_branding
-from core.permission_taxonomy import NATURE_ORDER, nature_for_code, nature_label
+from core.permission_taxonomy import (
+    ACCESS_LEVELS,
+    NATURE_ORDER,
+    capability_for_code,
+    nature_for_code,
+    nature_label,
+)
 from core.pdf import (
     PDF_TEMPLATE_DEFAULTS,
     PdfTheme,
@@ -11810,6 +11816,7 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
                 "enabled": bool(granted.get(permission.code, False)),
                 "governs_route": permission.code in bound_codes,
                 "nature": nature_for_code(permission.code, module),
+                "capability": capability_for_code(permission.code, module),
             }
         )
 
@@ -11941,6 +11948,18 @@ def accessi_unificati(request):
             "module_rows": module_rows,
             "total_active": sum(row["active_count"] for row in module_rows),
             "total_permissions": sum(row["total_count"] for row in module_rows),
+            # I livelli sono macro di selezione lato pagina: accendono gli
+            # interruttori giusti, poi si salva come sempre un grant per
+            # permesso. Nessuno stato "livello" viene mai scritto a database.
+            "access_levels": [
+                {
+                    "key": level["key"],
+                    "label": level["label"],
+                    "description": level["description"],
+                    "capabilities": sorted(level["capabilities"]),
+                }
+                for level in ACCESS_LEVELS
+            ],
         },
     )
 

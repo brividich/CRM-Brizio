@@ -211,3 +211,122 @@ def derive_resource(code: str, module: str) -> str:
         body = body[1:]
     resource = ".".join(body)
     return resource or "(generale)"
+
+
+# ── Capacita' e livelli d'accesso preimpostati ──────────────────────────────
+# Terzo asse, sempre di sola presentazione: che *cosa consente di fare* il
+# permesso, ricavato dall'azione finale gia' normalizzata da `bootstrap_acl_v2`
+# (view/create/edit/delete/manage/run/export/import/approve).
+#
+# Serve a un bisogno concreto di chi concede accessi: quasi sempre non vuole
+# scegliere permesso per permesso, vuole dire "a questo ruolo il modulo in sola
+# lettura". I livelli qui sotto sono esattamente quella frase, tradotta in un
+# insieme di interruttori. Restano una *macro di selezione*: dopo averli
+# applicati i singoli permessi si correggono a mano, e cio' che viene salvato
+# sono sempre e solo i grant canonici, uno per uno.
+CAPABILITY_LETTURA = "lettura"
+CAPABILITY_MODIFICA = "modifica"
+CAPABILITY_APPROVAZIONE = "approvazione"
+CAPABILITY_AMMINISTRAZIONE = "amministrazione"
+
+CAPABILITY_LABELS = {
+    CAPABILITY_LETTURA: "Lettura",
+    CAPABILITY_MODIFICA: "Modifica",
+    CAPABILITY_APPROVAZIONE: "Approvazione",
+    CAPABILITY_AMMINISTRAZIONE: "Amministrazione",
+}
+CAPABILITY_ORDER = [
+    CAPABILITY_LETTURA,
+    CAPABILITY_MODIFICA,
+    CAPABILITY_APPROVAZIONE,
+    CAPABILITY_AMMINISTRAZIONE,
+]
+
+# Azione canonica -> capacita'. `export` sta con la lettura (porta fuori cio'
+# che si puo' gia' vedere); `run` e `import` stanno con la modifica perche'
+# cambiano lo stato del modulo; `manage` e' amministrazione, coerente con la
+# natura "configurazione".
+_CAPABILITY_BY_ACTION = {
+    "view": CAPABILITY_LETTURA,
+    "export": CAPABILITY_LETTURA,
+    "create": CAPABILITY_MODIFICA,
+    "edit": CAPABILITY_MODIFICA,
+    "delete": CAPABILITY_MODIFICA,
+    "import": CAPABILITY_MODIFICA,
+    "run": CAPABILITY_MODIFICA,
+    "approve": CAPABILITY_APPROVAZIONE,
+    "manage": CAPABILITY_AMMINISTRAZIONE,
+}
+
+
+def capability_for_code(code: str, module: str = "") -> str:
+    """Cosa consente di fare il permesso.
+
+    Nel dubbio si ricade su ``lettura``: e' la capacita' meno sorprendente da
+    vedere accesa applicando il livello piu' basso, e comunque nessun livello
+    concede permessi di natura "configurazione" (vedi :func:`nature_for_code`).
+    Un permesso di natura configurazione e' sempre amministrazione, anche
+    quando la sua azione e' un semplice ``view`` (es. ``anagrafica.permessi.view``).
+    """
+    if nature_for_code(code, module) == NATURE_CONFIG:
+        return CAPABILITY_AMMINISTRAZIONE
+    return _CAPABILITY_BY_ACTION.get(action_for_code(code), CAPABILITY_LETTURA)
+
+
+def capability_label(capability: str) -> str:
+    return CAPABILITY_LABELS.get(capability, CAPABILITY_LABELS[CAPABILITY_LETTURA])
+
+
+# I livelli sono cumulativi e si leggono dall'alto in basso come una scala.
+# `capabilities` vuoto = il livello spegne tutto.
+#
+# Non esiste un livello "solo i propri record": ACL v2 decide allow/deny sulla
+# rotta e lo scope per record e' codice dentro le singole view. Un livello che
+# lo promettesse mentirebbe (vedi docs/ai e la proposta RBAC).
+ACCESS_LEVELS = [
+    {
+        "key": "nessuno",
+        "label": "Nessun accesso",
+        "description": "Spegne tutti i permessi del modulo.",
+        "capabilities": frozenset(),
+    },
+    {
+        "key": "lettura",
+        "label": "Solo lettura",
+        "description": "Consulta ed esporta, non scrive nulla.",
+        "capabilities": frozenset({CAPABILITY_LETTURA}),
+    },
+    {
+        "key": "modifica",
+        "label": "Lettura e modifica",
+        "description": "Consulta, crea, modifica, elimina e importa. Niente approvazioni.",
+        "capabilities": frozenset({CAPABILITY_LETTURA, CAPABILITY_MODIFICA}),
+    },
+    {
+        "key": "operativo",
+        "label": "Operativo completo",
+        "description": "Tutto l'uso quotidiano, approvazioni comprese. Niente impostazioni.",
+        "capabilities": frozenset(
+            {CAPABILITY_LETTURA, CAPABILITY_MODIFICA, CAPABILITY_APPROVAZIONE}
+        ),
+    },
+    {
+        "key": "amministrazione",
+        "label": "Amministratore del modulo",
+        "description": "Tutto, comprese le impostazioni e la configurazione del modulo.",
+        "capabilities": frozenset(CAPABILITY_ORDER),
+    },
+]
+
+ACCESS_LEVELS_BY_KEY = {level["key"]: level for level in ACCESS_LEVELS}
+
+
+def capabilities_for_level(level_key: str) -> frozenset:
+    """Capacita' accese da un livello. Livello ignoto -> nessuna (non concede)."""
+    level = ACCESS_LEVELS_BY_KEY.get(str(level_key or "").strip().lower())
+    return level["capabilities"] if level else frozenset()
+
+
+def level_grants_code(level_key: str, code: str, module: str = "") -> bool:
+    """Il livello accende questo permesso?"""
+    return capability_for_code(code, module) in capabilities_for_level(level_key)

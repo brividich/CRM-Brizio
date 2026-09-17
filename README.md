@@ -894,6 +894,24 @@ divisione di *presentazione* (`core.permission_taxonomy.nature_for_code`): non
 nasconde nulla, non cambia i totali e non sposta di un millimetro la decisione
 ACL, che resta in `core.acl_v2`.
 
+**Livelli d'accesso preimpostati**: ogni modulo ha un selettore *Livello* (e ce
+n'e' uno «su tutti i moduli») che accende in un colpo l'insieme di permessi
+corrispondente — **Nessun accesso**, **Solo lettura** (view, export),
+**Lettura e modifica** (+ create, edit, delete, import, run), **Operativo
+completo** (+ approve), **Amministratore del modulo** (tutto, impostazioni
+comprese). Nessun livello sotto l'ultimo concede permessi di natura
+*configurazione*. E' una **macro di selezione**: muove gli interruttori e basta —
+si salva sempre col pulsante in fondo, e cio' che finisce a database e' sempre un
+grant per singolo permesso, mai un "livello". Appena si ritocca un interruttore a
+mano il selettore torna a **Personalizzato**, perche' l'etichetta non racconti
+mai piu' di quello che c'e'. Il confine e'
+`core.permission_taxonomy.capability_for_code` / `ACCESS_LEVELS`, accanto ad
+area/origine/natura, e come quelli non e' un confine di sicurezza.
+
+Non esiste un livello «solo i propri record»: ACL v2 decide **allow/deny sulla
+rotta**, mentre lo scope per record (`own` / `reparto`) e' codice dentro le
+singole view. Un livello che lo promettesse mentirebbe.
+
 Un gruppo **concede**: togliere una spunta cancella la riga invece di scrivere un
 diniego, cosi' un gruppo non toglie mai ai suoi membri cio' che il ruolo gia' da'.
 Per negare a una singola persona c'e' l'override utente.
