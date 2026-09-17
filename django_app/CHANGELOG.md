@@ -7,6 +7,8 @@
 - **[fix] Una proposta per certificato, non per pagina**: le continuazioni di un PDF multipagina confluiscono nella stessa lettura OCR; un nuovo record nasce soltanto da un nuovo blocco anagrafico.
 - **[fix] Pagine salvate come file distinti**: i lotti web e la cartella automatica ricompongono sequenze consecutive nominate `pagina N`, `pag N` o `page N` prima dell'OCR, mantenendo il PDF completo come unico allegato.
 - **[safety] Nomi ambigui, pagine duplicate o sequenze con buchi non vengono uniti; i PDF con certificati di persone diverse restano separati. Nessuna migration o dipendenza nuova.**
+- **[feature] Unisci con altra visita**: dalla coda si può allegare il referto a una visita già esistente; vengono proposte soltanto visite dello stesso dipendente e dello stesso tipo e non viene creata alcuna visita.
+- **[safety] Allegati non distruttivi e verificati lato server**: un referto principale esistente non viene sostituito; le pagine aggiuntive restano scaricabili nella scheda dipendente e nella dashboard visite. Dipendente e tipo sono ricontrollati al POST e l'azione è tracciata nell'audit.
 
 ### Schede di sicurezza — assegnazione per mansioni di rischio
 

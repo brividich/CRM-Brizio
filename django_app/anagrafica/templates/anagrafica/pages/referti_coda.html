@@ -288,6 +288,29 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
           <button type="submit" class="hr-btn"
                   data-singola-scarta="{{ riga.pk }}">Scarta</button>
         </div>
+        {% if riga.visite_unibili %}
+        <div class="rf-azioni">
+          <label style="font-size:13px;" for="rf-visita-unisci-{{ riga.pk }}">
+            Unisci con altra visita:
+          </label>
+          <select name="visita_unisci_{{ riga.pk }}" id="rf-visita-unisci-{{ riga.pk }}"
+                  class="rf-input" style="max-width:480px;">
+            <option value="">— scegli una visita {{ riga.tipo_visita_proposto.nome }} —</option>
+            {% for visita in riga.visite_unibili %}
+            <option value="{{ visita.pk }}">
+              {{ visita.data_svolgimento|date:"d/m/Y" }} — {{ visita.get_esito_display }}
+              {% if visita.referto_documento_id %} — referto già presente{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          <button type="button" class="hr-btn" data-unisci="{{ riga.pk }}">
+            Unisci senza creare visita
+          </button>
+          <span style="font-size:12px;opacity:.72;">
+            Proposte: stesso dipendente e stesso tipo. Il referto esistente non viene sostituito.
+          </span>
+        </div>
+        {% endif %}
       </div>
     </div>
     {% endfor %}
@@ -358,6 +381,26 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
       azione.type = 'hidden';
       azione.name = 'azione';
       azione.value = scarta ? 'scarta' : 'conferma';
+      form.appendChild(azione);
+      form.submit();
+    });
+  });
+
+  form.querySelectorAll('[data-unisci]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var pk = b.getAttribute('data-unisci');
+      var scelta = document.getElementById('rf-visita-unisci-' + pk);
+      if (!scelta || !scelta.value) {
+        alert('Scegli la visita a cui unire il referto.');
+        return;
+      }
+      if (!confirm('Unire questo referto alla visita scelta senza crearne una nuova?')) return;
+      caselle.forEach(function (c) { c.checked = (c.value === pk); });
+      aggiorna();
+      var azione = document.createElement('input');
+      azione.type = 'hidden';
+      azione.name = 'azione';
+      azione.value = 'unisci';
       form.appendChild(azione);
       form.submit();
     });

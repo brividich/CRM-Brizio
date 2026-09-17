@@ -151,7 +151,12 @@ from .services.dpi_ingresso import (
     crea_consegne_iniziali,
     proposta_righe_iniziali,
 )
-from .services.visite import stato_visite, ultime_visite_correnti_ids, visite_storico
+from .services.visite import (
+    completa_referti_visite,
+    stato_visite,
+    ultime_visite_correnti_ids,
+    visite_storico,
+)
 from .services import conformita as conformita_service
 from .services import onboarding as onboarding_service
 from .services import mansionario as mansionario_service
@@ -11265,9 +11270,10 @@ def visite_mediche_dashboard(request):
     # Ultime visite registrate (globale, 30 più recenti)
     ultime_visite = list(
         VisitaMedica.objects
-        .select_related("tipo")
+        .select_related("tipo", "referto_documento")
         .order_by("-data_svolgimento", "-id")[:30]
     )
+    completa_referti_visite(ultime_visite)
     for v in ultime_visite:
         v.dipendente_nome = nomi_map.get(v.legacy_anagrafica_id, f"#{v.legacy_anagrafica_id}")
         if v.data_svolgimento:

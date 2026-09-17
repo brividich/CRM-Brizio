@@ -2434,8 +2434,10 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               <td class="dp-td-mid" style="padding:7px 8px;">{{ v.get_esito_display }}</td>
               <td class="dp-td-mid" style="padding:7px 8px;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% else %}—{% endif %}</td>
               <td style="padding:7px 8px;">
-                {% if v.referto_documento_id %}
-                  <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1f87cd;font-weight:600;">📄 Apri</a>
+                {% if v.referti_documenti %}
+                  {% for documento in v.referti_documenti %}
+                    <a href="{% url 'anagrafica:documento_download' documento.id %}" style="color:#1f87cd;font-weight:600;white-space:nowrap;">📄 Apri{% if v.referti_documenti|length > 1 %} {{ forloop.counter }}{% endif %}</a>{% if not forloop.last %}<br>{% endif %}
+                  {% endfor %}
                 {% else %}
                   <span style="color:#94a3b8;">—</span>
                 {% endif %}

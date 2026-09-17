@@ -360,8 +360,10 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
                 {% else %}—{% endif %}
               </td>
               <td>
-                {% if v.referto_documento_id %}
-                  <a href="{% url 'anagrafica:documento_download' v.referto_documento_id %}" style="color:#1f87cd;font-weight:700;">📄 Scarica</a>
+                {% if v.referti_documenti %}
+                  {% for documento in v.referti_documenti %}
+                    <a href="{% url 'anagrafica:documento_download' documento.id %}" style="color:#1f87cd;font-weight:700;white-space:nowrap;">📄 Scarica{% if v.referti_documenti|length > 1 %} {{ forloop.counter }}{% endif %}</a>{% if not forloop.last %}<br>{% endif %}
+                  {% endfor %}
                 {% else %}
                   <span style="color:#94a3b8;">—</span>
                 {% endif %}

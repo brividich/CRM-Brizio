@@ -38,6 +38,10 @@ diverse resta separato per certificato. Nel caricamento web e nella cartella di
 acquisizione, file consecutivi nominati esplicitamente `pagina N`, `pag N` o `page N`
 vengono ricomposti con PyMuPDF prima dell'OCR. Non ripristinare la semantica
 "una riga per pagina": una pagina supplementare non e una visita medica.
+La coda espone inoltre `Unisci con altra visita`: il backend propone e accetta
+solo una `VisitaMedica` dello stesso `legacy_anagrafica_id` e dello stesso tipo.
+Il documento aggiuntivo usa `oggetto_riferimento_tipo=anagrafica.visitamedica`,
+non sovrascrive il referto principale e viene incluso negli elenchi allegati.
 
 Pattern condiviso pagine modulo `Impostazioni`:
 - ogni modulo mantiene una propria pagina dedicata, non esiste una pagina impostazioni centralizzata unica

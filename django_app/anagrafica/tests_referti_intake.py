@@ -18,7 +18,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-from .models import TipoVisitaMedica, VisitaMedica
+from .models import DocumentoDipendente, TipoVisitaMedica, VisitaMedica
 from .models_sorveglianza import (
     AliasEsameProtocollo,
     AliasEsitoIdoneita,
@@ -32,6 +32,7 @@ from .services.referti_registrazione import (
     prepara_registrazione,
     registra,
 )
+from .services.visite import visite_storico
 
 User = get_user_model()
 
@@ -533,6 +534,16 @@ class AzioniMassiveTests(TestCase):
         campi.update(extra)
         return RefertoIntakeRiga.objects.create(**campi)
 
+    def _documento(self, nome: str, legacy_id: int = 10):
+        return DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=legacy_id,
+            tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+            file=f"test/referti/{nome}",
+            nome_originale=nome,
+            tipo_mime="application/pdf",
+            dimensione_bytes=10,
+        )
+
     def test_conferma_di_gruppo_registra_ogni_referto(self):
         a, b = self._riga("a", 10), self._riga("b", 11)
         risposta = self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
@@ -602,6 +613,126 @@ class AzioniMassiveTests(TestCase):
             "azione": "conferma", "righe": [riga.pk],
         })
         self.assertEqual(VisitaMedica.objects.count(), 0)
+
+    def test_unisci_aggiunge_il_referto_senza_creare_visite_o_sostituire_il_principale(self):
+        principale = self._documento("principale.pdf")
+        aggiuntivo = self._documento("pagina-2.pdf")
+        visita = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10,
+            tipo=self.medica,
+            data_svolgimento=date(2024, 3, 15),
+            referto_documento=principale,
+        )
+        riga = self._riga("o", documento=aggiuntivo)
+
+        risposta = self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "unisci",
+            "righe": [riga.pk],
+            f"visita_unisci_{riga.pk}": visita.pk,
+        })
+
+        self.assertEqual(risposta.status_code, 302)
+        self.assertEqual(VisitaMedica.objects.count(), 1)
+        visita.refresh_from_db()
+        riga.refresh_from_db()
+        aggiuntivo.refresh_from_db()
+        self.assertEqual(visita.referto_documento, principale)
+        self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_OK)
+        self.assertEqual(riga.visite_create, 0)
+        self.assertEqual(riga.visite_associate, 1)
+        self.assertEqual(aggiuntivo.oggetto_riferimento_tipo, "anagrafica.visitamedica")
+        self.assertEqual(aggiuntivo.oggetto_riferimento_id, visita.pk)
+        self.assertEqual(
+            [documento.pk for documento in visite_storico(10)[0].referti_documenti],
+            [principale.pk, aggiuntivo.pk],
+        )
+
+    def test_unisci_usa_il_referto_come_principale_se_la_visita_non_ne_ha_uno(self):
+        documento = self._documento("unico.pdf")
+        visita = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10,
+            tipo=self.medica,
+            data_svolgimento=date(2024, 3, 15),
+        )
+        riga = self._riga("p", documento=documento)
+
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "unisci",
+            "righe": [riga.pk],
+            f"visita_unisci_{riga.pk}": visita.pk,
+        })
+
+        visita.refresh_from_db()
+        self.assertEqual(visita.referto_documento, documento)
+
+    def test_unisci_rifiuta_visita_di_altro_dipendente_o_tipo(self):
+        altro_tipo = TipoVisitaMedica.objects.create(nome="Visita Oculistica", durata_mesi=24)
+        casi = [
+            VisitaMedica.objects.create(
+                legacy_anagrafica_id=11,
+                tipo=self.medica,
+                data_svolgimento=date(2024, 3, 15),
+            ),
+            VisitaMedica.objects.create(
+                legacy_anagrafica_id=10,
+                tipo=altro_tipo,
+                data_svolgimento=date(2024, 3, 15),
+            ),
+        ]
+        for indice, visita in enumerate(casi):
+            with self.subTest(visita=visita.pk):
+                riga = self._riga(chr(ord("q") + indice), documento=self._documento(
+                    f"sbagliato-{indice}.pdf"
+                ))
+                self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+                    "azione": "unisci",
+                    "righe": [riga.pk],
+                    f"visita_unisci_{riga.pk}": visita.pk,
+                })
+                riga.refresh_from_db()
+                self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_DA_RIVEDERE)
+        self.assertEqual(VisitaMedica.objects.count(), 2)
+
+    def test_unisci_rifiuta_un_documento_archiviato_su_un_altro_dipendente(self):
+        visita = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10,
+            tipo=self.medica,
+            data_svolgimento=date(2024, 3, 15),
+        )
+        documento = self._documento("altro-dipendente.pdf", legacy_id=11)
+        riga = self._riga("t", documento=documento)
+
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "unisci",
+            "righe": [riga.pk],
+            f"visita_unisci_{riga.pk}": visita.pk,
+        })
+
+        riga.refresh_from_db()
+        visita.refresh_from_db()
+        documento.refresh_from_db()
+        self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_DA_RIVEDERE)
+        self.assertIsNone(visita.referto_documento_id)
+        self.assertEqual(documento.oggetto_riferimento_tipo, "")
+
+    def test_la_coda_propone_solo_visite_dello_stesso_dipendente_e_tipo(self):
+        altro_tipo = TipoVisitaMedica.objects.create(nome="Visita Oculistica", durata_mesi=24)
+        corretta = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=self.medica, data_svolgimento=date(2024, 3, 15)
+        )
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=11, tipo=self.medica, data_svolgimento=date(2024, 3, 15)
+        )
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=altro_tipo, data_svolgimento=date(2024, 3, 15)
+        )
+        riga = self._riga("s")
+
+        risposta = self.client.get("/anagrafica/visite-mediche/referti/")
+
+        riga_renderizzata = next(r for r in risposta.context["righe"] if r.pk == riga.pk)
+        self.assertEqual([visita.pk for visita in riga_renderizzata.visite_unibili], [corretta.pk])
+        self.assertContains(risposta, "Unisci senza creare visita")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False)
