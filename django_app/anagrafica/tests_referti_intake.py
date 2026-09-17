@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -722,6 +723,82 @@ class ConfigTests(TestCase):
 
 class IntakeTests(TestCase):
     """Il giro sulla cartella e l'idempotenza."""
+
+    def test_pdf_multipagina_dello_stesso_certificato_produce_una_sola_riga(self):
+        from .services.referti_intake import elabora_contenuto
+
+        seguito = "WINASPED\nPROTOCOLLO SANITARIO\nNote integrative del medico"
+        riga = SimpleNamespace(pagina=1)
+        with (
+            patch("anagrafica.services.referti_intake._archivia", return_value=("x.pdf", 10)),
+            patch("anagrafica.services.referti_ocr.conta_pagine", return_value=2),
+            patch(
+                "anagrafica.services.referti_ocr.testo_pagina",
+                side_effect=[CERTIFICATO, seguito],
+            ),
+            patch("anagrafica.services.referti_intake._elabora_testo", return_value=riga) as elabora,
+        ):
+            righe = elabora_contenuto(b"pdf-multipagina", "referto.pdf")
+
+        self.assertEqual(righe, [riga])
+        elabora.assert_called_once()
+        testo_aggregato = elabora.call_args.args[0]
+        self.assertIn("VERDI GIUSEPPE", testo_aggregato)
+        self.assertIn("Note integrative", testo_aggregato)
+
+    def test_pdf_con_due_dipendenti_produce_due_certificati(self):
+        from .services.referti_intake import _raggruppa_pagine
+
+        secondo = (
+            CERTIFICATO
+            .replace("11-04-1975 VERDI GIUSEPPE", "22-08-1982 ROSSI ANNA")
+            .replace("15-03-2024", "18-06-2025")
+        )
+        gruppi = _raggruppa_pagine([(0, CERTIFICATO), (1, secondo)])
+        self.assertEqual(len(gruppi), 2)
+        self.assertEqual([pagina for pagina, _testo in gruppi], [0, 1])
+
+    def test_file_pagina_uno_e_due_vengono_ricomposti_in_un_pdf(self):
+        import fitz
+
+        from .services.referti_intake import combina_pdf_pagine
+
+        def pdf(vocabolo):
+            documento = fitz.open()
+            pagina = documento.new_page()
+            pagina.insert_text((72, 72), vocabolo)
+            contenuto = documento.tobytes()
+            documento.close()
+            return contenuto
+
+        risultati = combina_pdf_pagine([
+            ("Mario Rossi pagina 2.pdf", pdf("seconda")),
+            ("Mario Rossi pagina 1.pdf", pdf("prima")),
+        ])
+        self.assertEqual(len(risultati), 1)
+        nome, contenuto, sorgenti = risultati[0]
+        self.assertEqual(nome, "Mario Rossi.pdf")
+        self.assertEqual(
+            sorgenti,
+            ["Mario Rossi pagina 1.pdf", "Mario Rossi pagina 2.pdf"],
+        )
+        unito = fitz.open(stream=contenuto, filetype="pdf")
+        try:
+            self.assertEqual(unito.page_count, 2)
+            self.assertIn("prima", unito[0].get_text())
+            self.assertIn("seconda", unito[1].get_text())
+        finally:
+            unito.close()
+
+    def test_file_pagina_con_buco_non_vengono_uniti(self):
+        from .services.referti_intake import combina_pdf_pagine
+
+        risultati = combina_pdf_pagine([
+            ("referto pagina 1.pdf", b"uno"),
+            ("referto pagina 3.pdf", b"tre"),
+        ])
+        self.assertEqual(len(risultati), 2)
+        self.assertEqual([r[0] for r in risultati], ["referto pagina 1.pdf", "referto pagina 3.pdf"])
 
     def test_cartella_spenta_non_fa_nulla(self):
         from .services.referti_intake import elabora_cartella

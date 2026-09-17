@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Anagrafica — referti multipagina
+
+- **[fix] Una proposta per certificato, non per pagina**: le continuazioni di un PDF multipagina confluiscono nella stessa lettura OCR; un nuovo record nasce soltanto da un nuovo blocco anagrafico.
+- **[fix] Pagine salvate come file distinti**: i lotti web e la cartella automatica ricompongono sequenze consecutive nominate `pagina N`, `pag N` o `page N` prima dell'OCR, mantenendo il PDF completo come unico allegato.
+- **[safety] Nomi ambigui, pagine duplicate o sequenze con buchi non vengono uniti; i PDF con certificati di persone diverse restano separati. Nessuna migration o dipendenza nuova.**
+
 ### Schede di sicurezza — assegnazione per mansioni di rischio
 
 - **[feature] SDS per mansione**: `ProdottoChimico.mansioni` sostituisce il reparto in form, lista, dettaglio, QR, report e contesto AI; il vecchio reparto resta nullable come storico non operativo.

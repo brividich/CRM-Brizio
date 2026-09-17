@@ -1,8 +1,13 @@
 # Session Checkpoint
 
-Data: 2026-09-16
+Data: 2026-09-17
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-17 - Codex` (referti multipagina senza visite fittizie).
+- `django_app/anagrafica/services/referti_intake.py`, `views_sorveglianza.py` -> una proposta per certificato; continuazioni aggregate e file `pagina N` consecutivi ricomposti prima dell'OCR sia da web sia dalla cartella automatica.
+- `django_app/anagrafica/tests_referti_intake.py` -> regressioni su PDF multipagina, certificati distinti, ricomposizione file e sequenze con buchi.
+- Verifica: 9/9 test intake e suite referti completa 103/103 verdi; Django check, migration drift e `git diff --check` verdi. Nessun DB dev/prod, migration, dipendenza, backup o file critico modificato.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-16 - Codex` (SDS assegnate alle mansioni di rischio e workflow dinamico sul cambio mansione).
 - `django_app/schede_sicurezza/migrations/0004_prodotto_mansioni_rischio.py` -> M2M prodotto-mansioni; reparto storico nullable, nessun backfill ambiguo.

@@ -31,6 +31,14 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | `procedure_refresh` | Presa visione procedure MT/MTSI: anagrafica documenti, revisioni con sorgente SharePoint/file server, campagne, assegnazioni, tracking aperture/conferme, report, export CSV |
 | `schede_sicurezza` | SDS prodotti chimici versionate e assegnate M2M alle mansioni di rischio; obblighi e notifiche si ricalcolano dalla mansione corrente del dipendente, con cruscotto personale e matrice di conformita per mansione |
 
+Nota Anagrafica / referti sanitari: `services/referti_intake.py` tratta un certificato
+multipagina come una sola unita logica. Le pagine senza un nuovo blocco anagrafico
+sono continuazioni e confluiscono nella stessa proposta; un PDF contenente persone
+diverse resta separato per certificato. Nel caricamento web e nella cartella di
+acquisizione, file consecutivi nominati esplicitamente `pagina N`, `pag N` o `page N`
+vengono ricomposti con PyMuPDF prima dell'OCR. Non ripristinare la semantica
+"una riga per pagina": una pagina supplementare non e una visita medica.
+
 Pattern condiviso pagine modulo `Impostazioni`:
 - ogni modulo mantiene una propria pagina dedicata, non esiste una pagina impostazioni centralizzata unica
 - i percorsi canonici sono `/diario-preposto/impostazioni/`, `/rilevazione-incidenti/impostazioni/`, `/timbri/impostazioni/`, `/rentri/impostazioni/`, `/assenze/impostazioni/`, `/notizie/impostazioni/`, `/procedure-refresh/impostazioni/`, `/tasks/impostazioni/`, `/assets/impostazioni/`

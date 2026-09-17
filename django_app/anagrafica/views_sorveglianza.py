@@ -206,7 +206,7 @@ def referti_carica(request):
     if not _puo(request):
         return _nega(request)
 
-    from .services.referti_intake import elabora_contenuto
+    from .services.referti_intake import elabora_documenti
 
     caricati = request.FILES.getlist("referti")
     if not caricati:
@@ -214,14 +214,17 @@ def referti_carica(request):
         return redirect("anagrafica:referti_coda")
 
     totale = registrati = in_coda = problemi = 0
+    documenti = []
     for f in caricati:
         try:
-            contenuto = f.read()
+            documenti.append((f.name, f.read()))
         except Exception:
             logger.exception("Referti: file caricato non leggibile (%s)", f.name)
             problemi += 1
-            continue
-        for riga in elabora_contenuto(contenuto, f.name, origine="WEB", utente=request.user):
+
+    gruppi = elabora_documenti(documenti, origine="WEB", utente=request.user)
+    for _nomi_sorgente, righe in gruppi:
+        for riga in righe:
             totale += 1
             if riga.esito == riga.ESITO_OK:
                 registrati += 1
@@ -232,6 +235,7 @@ def referti_carica(request):
 
     _audit(request, "referti_caricati", {
         "file": len(caricati), "certificati": totale,
+        "documenti_ricomposti": sum(1 for sorgenti, _righe in gruppi if len(sorgenti) > 1),
         "registrati": registrati, "in_coda": in_coda,
     })
 

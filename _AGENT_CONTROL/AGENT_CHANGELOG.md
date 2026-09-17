@@ -1,5 +1,23 @@
 # Agent Changelog
 
+## 2026-09-17 - Codex (referti multipagina)
+
+- Area: `django_app/anagrafica`, acquisizione OCR referti sanitari.
+- Richiesta: impedire che pagina 1/pagina 2 dello stesso referto generino visite fittizie, senza perdere la seconda pagina come allegato.
+- File modificati: `django_app/anagrafica/services/referti_intake.py`, `views_sorveglianza.py`, `templates/anagrafica/pages/referti_coda.html`, `tests_referti_intake.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, routing o navigazione globale. `_AGENT_CONTROL/CRITICAL_FILES.md` non era presente nel checkout condiviso né nel worktree.
+- Motivo tecnico: `elabora_contenuto` produceva una `RefertoIntakeRiga` per ogni pagina del PDF, sebbene tutte puntassero allo stesso file completo; una continuazione poteva quindi apparire come una visita autonoma. Inoltre i file separati dallo scanner non venivano ricomposti.
+- Modifica: OCR di tutte le pagine in memoria e raggruppamento per certificato tramite blocco anagrafico forte; continuazioni aggregate in una sola proposta, certificati di persone/date diverse separati. I lotti web e cartella ricompongono con PyMuPDF le sequenze consecutive esplicitamente nominate `pagina N`/`pag N`/`page N`; sequenze ambigue, duplicate o con buchi restano separate. Il PDF completo viene archiviato una sola volta. Idempotenza spostata all'impronta dell'intero documento.
+- Impatto previsto: una seconda pagina non genera più una visita/proposta fittizia e non viene persa; resta parte del PDF allegato alla visita corretta. Le scansioni cumulative con certificati distinti continuano a produrre righe distinte.
+- Rischi residui: file separati con nomi che non dichiarano il numero pagina non vengono uniti automaticamente, per evitare associazioni sanitarie errate; vanno caricati come PDF multipagina o rinominati in sequenza esplicita.
+- Test/check: 9/9 test `IntakeTests` verdi; suite referti completa 103/103 verde (`tests_referti_intake`, `tests_referti_requisiti`, `tests_referti_archivio_hr`); Django check, migration drift Anagrafica e `git diff --check` verdi.
+- Backup creati: nessuno; nessun database dev/prod modificato, solo database SQLite di test isolato.
+- README aggiornato: sì.
+- CHANGELOG aggiornato: sì (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: sì.
+- Esito: implementazione completata e verificata su branch/worktree dedicato `feature/anagrafica-referti-pagine` / `temp/codex-referti-pagine`.
+- Note per altro agente: nessuna migration o nuova dipendenza; al collaudo usare un PDF reale multipagina e una coppia di file sintetici nominati `... pagina 1.pdf` / `... pagina 2.pdf`, senza riportare dati sanitari nei log o nelle fixture.
+
 ## 2026-09-16 - Codex (SDS)
 
 - Area: `django_app/schede_sicurezza`, con integrazioni mirate in `anagrafica`, `assets` e `ai_assistant`.
