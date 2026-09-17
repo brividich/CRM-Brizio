@@ -155,14 +155,6 @@ body.theme-dark .rn-modal-no:hover { background:var(--border); }
               value="{% if edit_mode %}{{ registro.arrivo_fir }}{% endif %}">
           </div>
 
-          <div class="cp-field">
-            <label class="cp-label">Carico / Scarico</label>
-            <select id="f-carico-scarico" class="cp-select">
-              <option value="C" {% if edit_mode and registro.carico_scarico == 'C' %}selected{% endif %}>Carico</option>
-              <option value="S" {% if edit_mode and registro.carico_scarico == 'S' %}selected{% endif %}>Scarico</option>
-            </select>
-          </div>
-
           <div class="cp-field cp-full">
             <label class="cp-label">Invio RENTRI</label>
             <div class="cp-toggle-row">
@@ -249,7 +241,6 @@ body.theme-dark .rn-modal-no:hover { background:var(--border); }
     fd.append('codice', document.getElementById('f-codice').value);
     fd.append('rettifica_scarico', document.getElementById('f-rettifica').value);
     fd.append('arrivo_fir', document.getElementById('f-arrivo-fir').value);
-    fd.append('carico_scarico', document.getElementById('f-carico-scarico').value);
     fd.append('rentri_si_no', document.getElementById('f-rentri-si-no').checked ? 'true' : 'false');
     fd.append('note_rentri', document.getElementById('f-note-rentri').value);
     if (overrides) { Object.keys(overrides).forEach(function (k) { fd.set(k, overrides[k]); }); }
@@ -302,7 +293,6 @@ body.theme-dark .rn-modal-no:hover { background:var(--border); }
       var el = document.getElementById(id);
       if (el) el.value = '';
     });
-    document.getElementById('f-carico-scarico').selectedIndex = 0;
     document.getElementById('f-rentri-si-no').checked = false;
     selectedRifOp.clear();
     alertEl.style.display = 'none';
