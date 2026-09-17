@@ -1091,6 +1091,18 @@ class DocumentoDipendenteDownloadACLTests(TestCase):
         # FileResponse o HttpResponse 200/404 (in test il file dovrebbe esserci)
         self.assertNotEqual(resp.status_code, 403)
 
+    def test_documento_si_apre_in_linea_invece_di_scaricare(self):
+        """Il link dal browser deve aprire il PDF, non forzarne il download."""
+        from django.test import RequestFactory
+        from .views import documento_dipendente_download
+
+        rf = RequestFactory()
+        request = rf.get(f"/anagrafica/documenti/{self.doc_referto.id}/download")
+        request.user = self.user_super
+        resp = documento_dipendente_download(request, self.doc_referto.id)
+        self.assertNotIn("attachment", resp["Content-Disposition"])
+        self.assertIn("referto.pdf", resp["Content-Disposition"])
+
 
 class DocumentoDipendenteListTests(TestCase):
     def setUp(self):
