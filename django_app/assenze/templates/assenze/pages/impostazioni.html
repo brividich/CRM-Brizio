@@ -48,8 +48,32 @@
       opacity: .7;
     }
     .abs-fless-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    /* Cruscotto visibilita: stessi token, cosi' vale in chiaro e in scuro. */
+    .vis-levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+    .vis-level {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      padding: 14px 16px;
+    }
+    .vis-level-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .vis-level-title { margin: 0; font-size: 15px; font-weight: 800; color: var(--text); }
+    .vis-level-code { font-size: 11px; color: var(--text-light); }
+    .vis-level-desc { margin: 6px 0 12px; font-size: 13px; color: var(--text-mid); line-height: 1.5; }
+    .vis-level-rows { display: grid; gap: 4px; margin: 0; }
+    .vis-level-rows dt {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-light);
+      margin-top: 8px;
+    }
+    .vis-level-rows dd { margin: 0; display: flex; flex-wrap: wrap; gap: 5px; }
+    .vis-empty { font-size: 13px; color: var(--text-light); font-style: italic; }
     @media (max-width: 640px) {
       .abs-fless-list { grid-template-columns: 1fr; max-height: 260px; }
+      .vis-levels { grid-template-columns: 1fr; }
     }
   </style>
 {% endblock %}
@@ -115,6 +139,69 @@
         {% endfor %}
       </div>
     {% endif %}
+
+    <section class="ms-card" id="visibilita">
+      <div class="ms-card-head">
+        <div class="ms-card-title-wrap">
+          <h2 class="ms-card-title">Chi vede le assenze altrui</h2>
+          <p class="ms-card-subtitle">
+            Tre livelli di visibilità: tutta l'azienda, il solo reparto di cui si è
+            capo assegnato, oppure — per chi non compare qui sotto — soltanto le
+            proprie richieste. Il livello decide cosa si vede nel calendario, nella
+            dashboard segnalazioni e negli export, non chi può approvare.
+          </p>
+        </div>
+        <span class="ms-card-badge">
+          {% if visibilita_configurata %}configurato{% else %}non configurato{% endif %}
+        </span>
+      </div>
+      <div class="ms-card-body">
+        {% if not visibilita_configurata %}
+          <div class="abs-alert abs-alert-warn" style="margin-bottom:14px;">
+            Nessun ruolo o utente ha ancora i permessi di visibilità. Finché restano
+            vuoti vale la regola storica: chi ha un ruolo di amministrazione vede
+            tutto, i caporeparto vedono il proprio reparto, gli altri solo le proprie
+            richieste.
+          </div>
+        {% endif %}
+        <div class="vis-levels">
+          {% for livello in visibilita_livelli %}
+            <article class="vis-level">
+              <div class="vis-level-head">
+                <h3 class="vis-level-title">{{ livello.etichetta }}</h3>
+                <code class="vis-level-code">{{ livello.codice }}</code>
+              </div>
+              <p class="vis-level-desc">{{ livello.descrizione }}</p>
+              <dl class="vis-level-rows">
+                <dt>Ruoli</dt>
+                <dd>
+                  {% if livello.ruoli %}
+                    {% for r in livello.ruoli %}<span class="abs-chip soft">{{ r }}</span>{% endfor %}
+                  {% else %}<span class="vis-empty">nessun ruolo</span>{% endif %}
+                </dd>
+                <dt>Concesso a persona</dt>
+                <dd>
+                  {% if livello.utenti_concessi %}
+                    {% for u in livello.utenti_concessi %}<span class="abs-chip">{{ u }}</span>{% endfor %}
+                  {% else %}<span class="vis-empty">nessun override</span>{% endif %}
+                </dd>
+                {% if livello.utenti_negati %}
+                  <dt>Tolto a persona</dt>
+                  <dd>
+                    {% for u in livello.utenti_negati %}<span class="abs-chip soft">{{ u }}</span>{% endfor %}
+                  </dd>
+                {% endif %}
+              </dl>
+            </article>
+          {% endfor %}
+        </div>
+        <div class="ms-field-help" style="margin-top:12px;">
+          I permessi si assegnano — a un ruolo o alla singola persona — nella pagina
+          <a href="/admin-portale/accessi/?q=assenze">Accessi</a>, che resta la fonte
+          unica. Questo riquadro è di sola lettura.
+        </div>
+      </div>
+    </section>
 
     <section class="ms-card" id="flessibilita">
       <div class="ms-card-head">
