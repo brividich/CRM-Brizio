@@ -53,6 +53,9 @@
 .fmd-ferr{ font-size:11px; font-weight:600; color:#c53030; }
 /* campo precompilato dall'assist (codice / validità) */
 .fmd-field input.fmd-autofill{ background:#f0f9ff; border-color:#bfdded; }
+/* valore non digitabile perché assegnato dal portale (es. codice corso) */
+.fmd-static{ display:flex; align-items:center; min-height:38px; padding:9px 12px; border:1px dashed var(--fmd-line,#e7edf3); border-radius:9px; background:#fafbfd; font-size:14px; font-weight:700; letter-spacing:.04em; color:var(--fmd-ink,#2d3a55); }
+.fmd-static.fmd-autofill{ background:#f0f9ff; border-color:#bfdded; }
 
 /* ── Opzioni / checkbox ───────────────────────────────────── */
 .fmd-checks{ display:flex; flex-wrap:wrap; gap:10px; }
@@ -125,6 +128,8 @@ body.theme-dark .fmd-field textarea{
   background:var(--surface); border-color:var(--border); color:var(--text);
 }
 body.theme-dark .fmd-field input.fmd-autofill{ background:rgba(31,135,205,.12); border-color:rgba(31,135,205,.4); }
+body.theme-dark .fmd-static{ background:var(--surface-alt,#17222f); border-color:var(--border); color:var(--text); }
+body.theme-dark .fmd-static.fmd-autofill{ background:rgba(31,135,205,.12); border-color:rgba(31,135,205,.4); }
 body.theme-dark .fmd-check{ background:var(--surface-alt,#17222f); border-color:var(--border); color:var(--text); }
 body.theme-dark .fmd-form-foot,
 body.theme-dark .fmd-modal-foot{ background:var(--surface-alt,#17222f); border-top-color:var(--border); }

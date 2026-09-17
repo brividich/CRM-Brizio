@@ -4,7 +4,8 @@ Quattro attriti storici del flusso «nuovo corso» si risolvono qui, senza
 toccare il modello dati esistente:
 
 1. **codice sessione a mano**: :func:`genera_codice_sessione` lo deriva dal codice
-   corso (``<CORSO>-E1``, ``-E2``, …), come già si fa per il codice corso dal piano;
+   corso e dall'anno di erogazione (``26066-26E1``, ``-26E2``, poi ``-27E1`` a
+   gennaio) — vedi :mod:`services.formazione_numerazione`;
 2. **sessione unica**: :func:`crea_sessione_unica` crea in un colpo solo sessione +
    giornate, così un corso "una tantum" non richiede tre passaggi separati;
 3. **calendario multi-giorno**: :func:`genera_lezioni` sforna una lezione per giorno
@@ -30,14 +31,20 @@ per la UI (di rado quella tenuta separata in ``TrainingEnrollmentLesson``, i
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, time, timedelta
+from pathlib import Path
 
 from django.db import transaction
 from django.utils import timezone
 
 from ..models_formazione import TrainingLesson, TrainingSession
 
+logger = logging.getLogger(__name__)
+
 __all__ = [
+    "allegati_proponibili",
+    "copia_allegati_dal_corso",
     "copia_programma_dal_corso",
     "genera_codice_sessione",
     "ore_nette",
@@ -49,28 +56,105 @@ __all__ = [
 ]
 
 
-def genera_codice_sessione(corso) -> str:
-    """Codice edizione univoco derivato dal corso: ``<codice corso>-E<N>``.
+def genera_codice_sessione(corso, anno=None) -> str:
+    """Codice edizione ``<codice corso>-<YY>E<N>``.
 
-    N è il primo progressivo libero **a livello globale** (``codice_sessione`` è
-    unique su tutta la tabella, non per corso). Fallback su ``SESS`` se il corso
-    non ha codice.
+    Delega a :mod:`services.formazione_numerazione`, dove vive la numerazione dei
+    tre livelli (corso, edizione, lezione). Resta esportata da qui perche' e' il
+    modulo che i chiamanti storici importano.
     """
-    from core.numbering import next_suffix
+    from .formazione_numerazione import genera_codice_sessione as _gen
 
-    base = (getattr(corso, "codice", "") or "").strip().upper() or "SESS"
-    prefix = f"{base}-E"
-    esistenti = list(
-        TrainingSession.objects.filter(codice_sessione__startswith=prefix)
-        .values_list("codice_sessione", flat=True)
-    )
-    n = next_suffix(esistenti, prefix, sep="")
-    codice = f"{prefix}{n}"[:40]
-    # Cintura e bretelle: il vincolo è unique, meglio un giro in più che un IntegrityError.
-    while TrainingSession.objects.filter(codice_sessione=codice).exists():
-        n += 1
-        codice = f"{prefix}{n}"[:40]
-    return codice
+    return _gen(corso, anno)
+
+
+def allegati_proponibili(corso, sessione=None):
+    """Allegati del corso da proporre alla creazione di una nuova edizione.
+
+    Sono il materiale "madre" del corso con ``proponi_a_nuova_edizione`` acceso.
+    Se ``sessione`` e' indicata si escludono quelli gia' copiati su quell'edizione
+    (``copiato_da``): riaprire il form non ripropone cio' che c'e' gia'.
+    """
+    from ..models_formazione import TrainingAttachment
+
+    if corso is None or not getattr(corso, "pk", None):
+        return TrainingAttachment.objects.none()
+    qs = TrainingAttachment.objects.filter(
+        corso=corso, proponi_a_nuova_edizione=True
+    ).order_by("tipo", "nome_originale", "id")
+    if sessione is not None and getattr(sessione, "pk", None):
+        gia_copiati = TrainingAttachment.objects.filter(
+            sessione=sessione, copiato_da__isnull=False
+        ).values_list("copiato_da_id", flat=True)
+        qs = qs.exclude(pk__in=list(gia_copiati))
+    return qs
+
+
+@transaction.atomic
+def copia_allegati_dal_corso(sessione, allegati=None, user=None) -> int:
+    """Copia sull'edizione gli allegati di corso indicati. Ritorna quanti ne ha copiati.
+
+    **Copia, non collegamento**, per la stessa ragione del programma didattico
+    (:func:`copia_programma_dal_corso`): l'edizione deve poter documentare il
+    materiale davvero consegnato in aula anche quando il corso, mesi dopo, cambia
+    dispensa. ``copiato_da`` conserva la discendenza, cosi' la stessa dispensa non
+    viene riproposta due volte sulla stessa edizione.
+
+    ``allegati`` e' l'elenco (o l'iterabile di pk) scelto dall'utente; ``None``
+    prende tutti quelli proponibili. Un file illeggibile viene saltato senza far
+    fallire la creazione dell'edizione: l'allegato e' un di piu', non un
+    prerequisito.
+    """
+    from django.core.files.base import ContentFile
+
+    from ..models_formazione import TrainingAttachment
+
+    if sessione is None or not sessione.corso_id:
+        return 0
+    if allegati is None:
+        sorgenti = list(allegati_proponibili(sessione.corso, sessione))
+    else:
+        sorgenti = [a for a in allegati if isinstance(a, TrainingAttachment)]
+        pks = [a for a in allegati if not isinstance(a, TrainingAttachment)]
+        if pks:
+            sorgenti += list(
+                TrainingAttachment.objects.filter(pk__in=pks, corso_id=sessione.corso_id)
+            )
+
+    creati = 0
+    for src in sorgenti:
+        try:
+            src.file.open("rb")
+            contenuto = src.file.read()
+        except Exception:
+            logger.warning(
+                "Allegato %s non copiabile sull'edizione %s", src.pk, sessione.pk,
+                exc_info=True,
+            )
+            continue
+        finally:
+            try:
+                src.file.close()
+            except Exception:
+                pass
+        copia = TrainingAttachment(
+            sessione=sessione,
+            tipo=src.tipo,
+            nome_originale=src.nome_originale,
+            tipo_mime=src.tipo_mime,
+            dimensione_bytes=src.dimensione_bytes,
+            descrizione=src.descrizione,
+            copiato_da=src,
+            created_by=user if getattr(user, "pk", None) else None,
+            created_by_display=(
+                (user.get_full_name() or user.username) if getattr(user, "pk", None) else ""
+            ),
+        )
+        nome = src.nome_originale or Path(src.file.name).name or "allegato.bin"
+        copia.file.save(nome, ContentFile(contenuto), save=False)
+        copia.save()
+        creati += 1
+    return creati
 
 
 def copia_programma_dal_corso(sessione, forza: bool = False) -> int:
@@ -293,7 +377,7 @@ def crea_sessione_unica(
     with transaction.atomic():
         sessione = TrainingSession.objects.create(
             corso=corso,
-            codice_sessione=genera_codice_sessione(corso),
+            codice_sessione=genera_codice_sessione(corso, data_inizio.year),
             stato="PIANIFICATA",
             modalita=modalita or "IN_SEDE",
             data_inizio=data_inizio,
@@ -391,7 +475,8 @@ def dividi_in_gruppi(
             offset = timedelta(days=giorni_tra_gruppi * indice)
             nuovo = TrainingSession.objects.create(
                 corso=corso,
-                codice_sessione=genera_codice_sessione(corso),
+                codice_sessione=genera_codice_sessione(
+                    corso, (sessione_sorgente.data_inizio + offset).year),
                 stato="PIANIFICATA",
                 modalita=sessione_sorgente.modalita,
                 data_inizio=sessione_sorgente.data_inizio + offset,

@@ -247,7 +247,7 @@ class WizardCorsoConGruppiTests(TestCase):
 
     def test_n_gruppi_maggiore_di_uno_crea_piu_sessioni(self):
         resp = self.client.post(reverse("anagrafica:formazione_corso_create"), {
-            "piano": self.piano.pk, "codice": "WGR-01", "titolo": "Corso con gruppi",
+            "piano": self.piano.pk, "titolo": "Corso con gruppi",
             "durata_ore_teorica": "8", "validita_mesi": "60",
             "quiz_punteggio_minimo": "70", "stato": "ATTIVO", "versione": "1.0",
             "is_active": "on",
@@ -261,7 +261,7 @@ class WizardCorsoConGruppiTests(TestCase):
             "sess-n_gruppi": "3",
         })
         self.assertEqual(resp.status_code, 302)
-        corso = TrainingCourse.objects.get(codice="WGR-01")
+        corso = TrainingCourse.objects.get(titolo="Corso con gruppi")
         self.assertEqual(corso.sessioni.count(), 3)
         for sess in corso.sessioni.all():
             self.assertEqual(sess.lezioni.count(), 1)
@@ -269,7 +269,7 @@ class WizardCorsoConGruppiTests(TestCase):
 
     def test_n_gruppi_default_crea_una_sola_sessione(self):
         resp = self.client.post(reverse("anagrafica:formazione_corso_create"), {
-            "piano": self.piano.pk, "codice": "WGR-02", "titolo": "Corso singolo",
+            "piano": self.piano.pk, "titolo": "Corso singolo",
             "durata_ore_teorica": "8", "validita_mesi": "60",
             "quiz_punteggio_minimo": "70", "stato": "ATTIVO", "versione": "1.0",
             "is_active": "on",
@@ -282,6 +282,6 @@ class WizardCorsoConGruppiTests(TestCase):
             "sess-giorni_settimana": ["0", "1", "2", "3", "4"],
         })
         self.assertEqual(resp.status_code, 302)
-        corso = TrainingCourse.objects.get(codice="WGR-02")
+        corso = TrainingCourse.objects.get(titolo="Corso singolo")
         self.assertEqual(corso.sessioni.count(), 1)
         self.assertEqual(corso.sessioni.get().edizione, "")

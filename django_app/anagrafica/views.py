@@ -3094,6 +3094,10 @@ def formazione_allegato_upload(request, sessione_id: int):
     legato alla singola lezione, altrimenti all'intera sessione. Gated dal
     permesso di modifica formazione. Foglio firme = dato personale: come gli
     altri documenti HR, scaricabile solo dalla view protetta.
+
+    Il gemello ``formazione_corso_allegato_upload`` carica al livello di CORSO
+    passando per lo stesso codice: una sola validazione di formato, dimensione e
+    MIME, un solo audit.
     """
     sessione = get_object_or_404(TrainingSession, pk=sessione_id)
     if not _can_edit_formazione(request):
@@ -3166,26 +3170,40 @@ def formazione_allegato_upload(request, sessione_id: int):
 @login_required
 @require_POST
 def formazione_allegato_delete(request, attachment_id: int):
-    att = get_object_or_404(TrainingAttachment.objects.select_related("sessione", "lezione"), pk=attachment_id)
-    if not _can_edit_formazione(request):
-        messages.error(request, "Non hai i permessi per eliminare allegati.")
-        return redirect("anagrafica:formazione_sessione_detail", sessione_id=att.sessione_id)
+    att = get_object_or_404(
+        TrainingAttachment.objects.select_related("corso", "sessione", "lezione"),
+        pk=attachment_id,
+    )
+    corso_id = att.corso_id
     sessione_id = att.sessione_id
     lezione_id = att.lezione_id
+
+    def _back():
+        if corso_id:
+            return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+        if lezione_id:
+            return redirect(
+                "anagrafica:formazione_lezione_presenze",
+                sessione_id=sessione_id, lezione_id=lezione_id,
+            )
+        return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per eliminare allegati.")
+        return _back()
     nome = att.nome_originale
     att.delete()
     try:
         from core.audit import log_action
         log_action(request, "FORMAZIONE_ALLEGATO_ELIMINATO", "anagrafica", {
-            "attachment_id": attachment_id, "sessione_id": sessione_id,
+            "attachment_id": attachment_id, "corso_id": corso_id,
+            "sessione_id": sessione_id,
             "lezione_id": lezione_id, "nome_originale": nome,
         })
     except Exception:
         logger.warning("Audit FORMAZIONE_ALLEGATO_ELIMINATO fallito", exc_info=True)
     messages.success(request, "Allegato eliminato.")
-    if lezione_id:
-        return redirect("anagrafica:formazione_lezione_presenze", sessione_id=sessione_id, lezione_id=lezione_id)
-    return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione_id)
+    return _back()
 
 
 @login_required
@@ -3199,7 +3217,7 @@ def formazione_allegato_download(request, attachment_id: int):
     try:
         from core.audit import log_action
         log_action(request, "FORMAZIONE_ALLEGATO_DOWNLOAD", "anagrafica", {
-            "attachment_id": att.pk, "tipo": att.tipo,
+            "attachment_id": att.pk, "tipo": att.tipo, "corso_id": att.corso_id,
             "sessione_id": att.sessione_id, "lezione_id": att.lezione_id,
         })
     except Exception:
@@ -3213,6 +3231,73 @@ def formazione_allegato_download(request, attachment_id: int):
     if att.tipo_mime:
         resp["Content-Type"] = att.tipo_mime
     return resp
+
+
+@login_required
+@require_POST
+def formazione_corso_allegato_upload(request, corso_id: int):
+    """Carica il materiale **del corso**: dispense, programma, modulistica.
+
+    E\' il materiale "madre": ogni nuova edizione se lo ritrova proposto in copia
+    (spunta ``proponi_a_nuova_edizione``). Stesse regole degli allegati di
+    edizione — storage privato fuori webroot, stesse estensioni/MIME ammessi,
+    stesso audit.
+    """
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per caricare allegati.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+    tipo = (request.POST.get("tipo") or TrainingAttachment.Tipo.MATERIALE).strip()
+    if tipo not in TrainingAttachment.Tipo.values:
+        tipo = TrainingAttachment.Tipo.MATERIALE
+
+    def _back():
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        messages.error(request, "Seleziona un file da caricare.")
+        return _back()
+    suffix = Path(uploaded.name or "").suffix.lower()
+    if suffix not in _ALLOWED_DOC_EXTENSIONS:
+        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
+        return _back()
+    if uploaded.size > _MAX_DOC_SIZE:
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 50 MB.")
+        return _back()
+    try:
+        from core.upload_mime import sniff_mime
+        mime = sniff_mime(uploaded)
+    except Exception:
+        mime = uploaded.content_type or "application/octet-stream"
+    if mime not in _ALLOWED_DOC_MIMES:
+        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        return _back()
+
+    att = TrainingAttachment(
+        corso=corso,
+        tipo=tipo,
+        proponi_a_nuova_edizione=(request.POST.get("proponi") or "1") not in ("0", "", "off"),
+        nome_originale=uploaded.name[:255],
+        tipo_mime=mime,
+        dimensione_bytes=uploaded.size,
+        descrizione=(request.POST.get("descrizione") or "").strip()[:300],
+        created_by=request.user,
+        created_by_display=request.user.get_full_name() or request.user.username,
+    )
+    att.file = uploaded
+    att.save()
+    try:
+        from core.audit import log_action
+        log_action(request, "FORMAZIONE_ALLEGATO_UPLOAD", "anagrafica", {
+            "attachment_id": att.pk, "corso_id": corso_id, "tipo": tipo,
+            "nome_originale": att.nome_originale,
+        })
+    except Exception:
+        logger.warning("Audit FORMAZIONE_ALLEGATO_UPLOAD fallito", exc_info=True)
+    messages.success(request, f"Allegato «{att.nome_originale}» caricato sul corso.")
+    return _back()
 
 
 # ---------------------------------------------------------------------------
@@ -12677,39 +12762,18 @@ def formazione_quickadd_docente(request):
 
 @login_required
 def formazione_corso_codice_suggest(request):
-    """Suggerisce un codice corso UNIVOCO (JSON).
+    """Anteprima del prossimo codice corso ``YYNNN`` (JSON).
 
-    Punto 1.7 — numerazione gerarchica: se è indicato il PIANO, il codice è
-    ``<codice piano>-<N>`` con N progressivo per piano (le lezioni restano numerate
-    a parte via ``TrainingLesson.numero``). In assenza di piano si ripiega sulla base
-    derivata dal titolo (comportamento storico). Usato dal form corso per precompilare
-    il codice quando l'utente non lo digita."""
+    Il codice non si digita piu\': e\' allocato al salvataggio da
+    ``services.formazione_numerazione.alloca_codice_corso``. Qui si mostra solo
+    che numero uscirebbe adesso, per far vedere a video cosa nascera\'; il valore
+    definitivo puo\' differire se qualcun altro salva prima.
+    """
     if not _can_edit_formazione(request):
         return JsonResponse({"ok": False}, status=403)
-    from core.numbering import next_code
-    piano_id = request.GET.get("piano_id") or request.GET.get("piano")
-    piano = TrainingPlan.objects.filter(pk=piano_id).first() if piano_id else None
-    if piano and (piano.codice or "").strip():
-        codice = next_code(
-            TrainingCourse.objects.filter(piano=piano).values_list("codice", flat=True),
-            piano.codice.strip(),
-        )
-        return JsonResponse({"ok": True, "codice": codice})
-    import re
-    titolo = (request.GET.get("titolo") or "").strip()
-    parole = re.findall(r"[A-Za-z0-9]+", titolo)
-    if not parole:
-        base = "CORSO"
-    elif len("".join(parole)) <= 8:
-        base = "".join(parole).upper()
-    else:
-        base = ("".join(p[0] for p in parole).upper() or parole[0].upper())
-    base = (base or "CORSO")[:12]
-    codice, i = base, 1
-    while TrainingCourse.objects.filter(codice=codice).exists():
-        i += 1
-        codice = f"{base}-{i}"[:30]
-    return JsonResponse({"ok": True, "codice": codice})
+    from .services.formazione_numerazione import anteprima_codice_corso
+
+    return JsonResponse({"ok": True, "codice": anteprima_codice_corso(), "anteprima": True})
 
 
 @login_required
@@ -12864,6 +12928,10 @@ def formazione_corso_detail(request, corso_id: int):
 
     return render(request, "anagrafica/pages/formazione_corso_detail.html", {
         "corso": corso,
+        # Materiale del corso: e' la base che ogni nuova edizione si ritrova
+        # proposta in copia (vedi TrainingSessionForm.allegati_dal_corso).
+        "allegati_corso": list(corso.allegati.order_by("tipo", "-created_at")),
+        "tipi_allegato": TrainingAttachment.Tipo.choices,
         "prerequisiti": prerequisiti,
         "programma": list(corso.programma.all()),
         "moduli": moduli,
@@ -13828,6 +13896,15 @@ def formazione_sessione_create(request):
             # documenterà ciò che ha davvero erogato anche se il corso cambierà.
             from .services.formazione_pianificazione import copia_programma_dal_corso
             copia_programma_dal_corso(sessione)
+            # Materiale del corso spuntato nel form: copiato sull\'edizione (copia,
+            # non collegamento, come il programma qui sopra).
+            n_allegati = form.copia_allegati(user=request.user)
+            if n_allegati:
+                messages.info(
+                    request,
+                    f"{n_allegati} allegat{'o' if n_allegati == 1 else 'i'} del corso "
+                    f"riportat{'o' if n_allegati == 1 else 'i'} sull\'edizione.",
+                )
             # Rinnovo dallo scadenzario: se ci sono dipendenti pre-selezionati per
             # QUESTO corso, iscrivili in blocco (idempotente) e vai agli iscritti.
             pre = request.session.get("rinnovo_preselect")
@@ -13870,6 +13947,10 @@ def formazione_sessione_detail(request, sessione_id: int):
         pk=sessione_id,
     )
     lezioni  = list(sessione.lezioni.select_related("docente").order_by("data", "ora_inizio"))
+    # Il numero della giornata non si digita: si mostra quello che verra' assegnato
+    # (massimo in uso + 1, non il conteggio: un numero gia' stampato sul registro
+    # firme non deve rinascere).
+    prossimo_numero_lezione = max((lz.numero for lz in lezioni), default=0) + 1
     n_iscritti = sessione.iscrizioni.count()
 
     # Presenze registrate per lezione (1 query aggregata).
@@ -13935,6 +14016,7 @@ def formazione_sessione_detail(request, sessione_id: int):
     return render(request, "anagrafica/pages/formazione_sessione_detail.html", {
         "sessione":     sessione,
         "lezioni":      lezioni,
+        "prossimo_numero_lezione": prossimo_numero_lezione,
         "n_iscritti":   n_iscritti,
         "edit_form":    edit_form,
         "lezione_form": lezione_form,

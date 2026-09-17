@@ -199,6 +199,31 @@ class AttestatoProtocolloCounter(models.Model):
         return f"{self.PREFISSO}-{self.anno}: {self.ultimo}"
 
 
+class TrainingCourseCodeCounter(models.Model):
+    """Contatore progressivo annuale del codice corso ``YYNNN``.
+
+    Una riga per anno; ``ultimo`` è l'ultimo progressivo assegnato in
+    quell'anno. Il codice del 66° corso creato nel 2026 è ``26066``. L'allocazione
+    avviene in transazione con ``select_for_update``
+    (``services.formazione_numerazione.alloca_codice_corso``): il codice corso è
+    unique, due salvataggi simultanei non devono contendersi lo stesso numero.
+
+    Stessa forma di :class:`AttestatoProtocolloCounter`, tabella distinta: sono
+    due sequenze indipendenti che non devono influenzarsi.
+    """
+
+    anno   = models.PositiveSmallIntegerField(unique=True, db_index=True)
+    ultimo = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-anno"]
+        verbose_name = "Contatore codice corso"
+        verbose_name_plural = "Contatori codice corso"
+
+    def __str__(self) -> str:
+        return f"{self.anno % 100:02d}xxx: {self.ultimo}"
+
+
 # ─────────────────────────────────────────────────────────────
 # PIANO FORMATIVO
 # ─────────────────────────────────────────────────────────────
@@ -1778,25 +1803,38 @@ class TrainingExportLog(models.Model):
 # ─────────────────────────────────────────────────────────────
 
 def _training_attachment_upload_to(instance, filename: str) -> str:
-    sess_id = instance.sessione_id or "tmp"
-    livello = f"lez{instance.lezione_id}" if instance.lezione_id else "sessione"
     suffix = Path(filename or "").suffix.lower()[:20] or ".bin"
     stem = Path(filename or "").stem[:80] or "registro"
     now = timezone.now()
+    if instance.sessione_id:
+        radice = f"anagrafica/formazione/sessioni/{instance.sessione_id}/allegati"
+        livello = f"lez{instance.lezione_id}" if instance.lezione_id else "sessione"
+    else:
+        # Allegato di corso: vive sotto il corso, non sotto un'edizione - e' il
+        # materiale "madre" che le edizioni ricopiano.
+        radice = f"anagrafica/formazione/corsi/{instance.corso_id or 'tmp'}/allegati"
+        livello = "corso"
     return (
-        f"anagrafica/formazione/sessioni/{sess_id}/allegati/"
-        f"{now.strftime('%Y%m')}/{now.strftime('%Y%m%d_%H%M%S')}_{livello}_{stem}{suffix}"
+        f"{radice}/{now.strftime('%Y%m')}/"
+        f"{now.strftime('%Y%m%d_%H%M%S')}_{livello}_{stem}{suffix}"
     )
 
 
 class TrainingAttachment(models.Model):
-    """Allegato di una sessione o di una singola lezione.
+    """Allegato di un corso, di un'edizione o di una singola lezione.
 
-    Uso principale: ricaricare il **registro firme firmato** (scansione del
-    foglio presenze raccolto in aula) a livello di lezione (``lezione`` valorizzato)
-    oppure dell'intera sessione (``lezione=None``). Storage privato fuori webroot
-    (:class:`PrivateAnagraficaStorage`), scaricabile solo dalla view protetta
-    ``anagrafica:formazione_allegato_download`` con ACL formazione + audit.
+    Tre livelli, un solo modello (una sola view di upload/download, una sola ACL,
+    un solo audit). Esattamente uno fra ``corso`` e ``sessione`` e' valorizzato:
+
+    - ``corso`` -> materiale **del corso**: dispense, slide, programma, modulistica.
+      E' il materiale "madre", proposto in copia a ogni nuova edizione;
+    - ``sessione`` senza ``lezione`` -> allegato dell'intera edizione;
+    - ``sessione`` + ``lezione`` -> allegato della singola giornata, tipicamente il
+      **registro firme firmato** (scansione del foglio presenze raccolto in aula).
+
+    Storage privato fuori webroot (:class:`PrivateAnagraficaStorage`), scaricabile
+    solo dalla view protetta ``anagrafica:formazione_allegato_download`` con ACL
+    formazione + audit.
 
     Il foglio firme contiene dati personali (nominativi + firme): conservarlo come
     gli altri documenti HR, non esporlo su URL pubblico.
@@ -1805,15 +1843,36 @@ class TrainingAttachment(models.Model):
     class Tipo(models.TextChoices):
         REGISTRO_FIRMATO = "REGISTRO_FIRMATO", "Registro firme firmato"
         MATERIALE = "MATERIALE", "Materiale didattico"
+        PROGRAMMA = "PROGRAMMA", "Programma / dispensa"
         ALTRO = "ALTRO", "Altro"
 
+    corso = models.ForeignKey(
+        TrainingCourse, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="allegati",
+        help_text="Corso di riferimento. Valorizzato = materiale del corso, "
+                  "riproposto in copia alla creazione di ogni nuova edizione.",
+    )
     sessione = models.ForeignKey(
-        TrainingSession, on_delete=models.CASCADE, related_name="allegati",
+        TrainingSession, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="allegati",
+        help_text="Edizione di riferimento. Vuoto = allegato a livello di corso.",
     )
     lezione = models.ForeignKey(
         TrainingLesson, null=True, blank=True,
         on_delete=models.CASCADE, related_name="allegati",
-        help_text="Lezione di riferimento. Vuoto = allegato a livello di sessione.",
+        help_text="Lezione di riferimento. Vuoto = allegato a livello di edizione.",
+    )
+    proponi_a_nuova_edizione = models.BooleanField(
+        default=True,
+        verbose_name="Proponi alle nuove edizioni",
+        help_text="Solo per gli allegati di corso: se spuntato viene pre-selezionato "
+                  "nella copia alla creazione di una nuova edizione.",
+    )
+    copiato_da = models.ForeignKey(
+        "self", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="copie",
+        help_text="Allegato di corso da cui questa copia deriva. Serve a non "
+                  "riproporre due volte lo stesso materiale sulla stessa edizione.",
     )
     tipo = models.CharField(
         max_length=20, choices=Tipo.choices, default=Tipo.REGISTRO_FIRMATO, db_index=True,
@@ -1839,11 +1898,41 @@ class TrainingAttachment(models.Model):
         verbose_name_plural = "Allegati formazione"
         indexes = [
             models.Index(fields=["sessione", "lezione"]),
+            models.Index(fields=["corso"]),
             models.Index(fields=["tipo"]),
         ]
+        constraints = [
+            # Un allegato appartiene a un corso OPPURE a un'edizione, mai a
+            # entrambi e mai a nessuno dei due: senza questo vincolo un allegato
+            # orfano sparirebbe da ogni elenco restando a occupare lo storage.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(corso__isnull=False, sessione__isnull=True)
+                    | models.Q(corso__isnull=True, sessione__isnull=False)
+                ),
+                name="training_attachment_corso_o_sessione",
+            ),
+            # La lezione ha senso solo dentro la propria edizione.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(lezione__isnull=True)
+                    | models.Q(sessione__isnull=False)
+                ),
+                name="training_attachment_lezione_richiede_sessione",
+            ),
+        ]
+
+    @property
+    def livello(self) -> str:
+        """``'corso'``, ``'edizione'`` o ``'lezione'``: a cosa e' appeso l'allegato."""
+        if self.lezione_id:
+            return "lezione"
+        return "edizione" if self.sessione_id else "corso"
 
     def __str__(self) -> str:
-        liv = f"lezione {self.lezione.numero}" if self.lezione_id else "sessione"
+        if self.corso_id:
+            return f"[{self.get_tipo_display()}] {self.corso.codice} — corso"
+        liv = f"lezione {self.lezione.numero}" if self.lezione_id else "edizione"
         return f"[{self.get_tipo_display()}] {self.sessione.codice_sessione} — {liv}"
 
 

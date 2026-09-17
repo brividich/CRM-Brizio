@@ -123,16 +123,30 @@ class DurataNettaTests(TestCase):
 
 
 class CodiceSessioneTests(TestCase):
-    """Il codice edizione si deriva dal corso: un campo in meno da compilare."""
+    """Il codice edizione si deriva dal corso e dall'anno di erogazione."""
 
-    def test_progressivo_per_corso(self):
+    def test_progressivo_per_corso_e_anno(self):
         corso = _corso(codice="ANT-01")
-        self.assertEqual(genera_codice_sessione(corso), "ANT-01-E1")
+        self.assertEqual(genera_codice_sessione(corso, 2026), "ANT-01-26E1")
         TrainingSession.objects.create(
-            corso=corso, codice_sessione="ANT-01-E1",
+            corso=corso, codice_sessione="ANT-01-26E1",
             data_inizio=date(2026, 9, 1), data_fine=date(2026, 9, 1),
         )
-        self.assertEqual(genera_codice_sessione(corso), "ANT-01-E2")
+        self.assertEqual(genera_codice_sessione(corso, 2026), "ANT-01-26E2")
+
+    def test_progressivo_riparte_col_nuovo_anno(self):
+        # Stesso corso, anno nuovo: il codice del CORSO non cambia (identita'
+        # storica), il progressivo dell'edizione riparte da 1.
+        corso = _corso(codice="ANT-02")
+        TrainingSession.objects.create(
+            corso=corso, codice_sessione="ANT-02-26E1",
+            data_inizio=date(2026, 9, 1), data_fine=date(2026, 9, 1),
+        )
+        TrainingSession.objects.create(
+            corso=corso, codice_sessione="ANT-02-26E2",
+            data_inizio=date(2026, 11, 1), data_fine=date(2026, 11, 1),
+        )
+        self.assertEqual(genera_codice_sessione(corso, 2027), "ANT-02-27E1")
 
     def test_form_sessione_completa_codice_e_data_fine(self):
         corso = _corso(codice="PRE-01")
@@ -143,7 +157,7 @@ class CodiceSessioneTests(TestCase):
         })
         self.assertTrue(form.is_valid(), form.errors)
         sessione = form.save()
-        self.assertEqual(sessione.codice_sessione, "PRE-01-E1")
+        self.assertEqual(sessione.codice_sessione, "PRE-01-26E1")
         self.assertEqual(sessione.data_fine, date(2026, 9, 10))
 
 
@@ -223,7 +237,7 @@ class CreaSessioneUnicaTests(TestCase):
             ora_inizio=time(8, 0), ora_fine=time(17, 0), pausa_minuti=60,
             sede="Aula A",
         )
-        self.assertEqual(sess.codice_sessione, "UNI-01-E1")
+        self.assertEqual(sess.codice_sessione, "UNI-01-26E1")
         self.assertEqual(sess.data_fine, date(2026, 9, 10))
         self.assertEqual(sess.lezioni.count(), 1)
         self.assertEqual(sess.ore_pianificate, 8.0)
@@ -258,7 +272,7 @@ class CorsoCreateConSessioneUnicaTests(TestCase):
 
     def _post_corso(self, **extra):
         data = {
-            "piano": self.piano.pk, "codice": "WIZ-01", "titolo": "Corso wizard",
+            "piano": self.piano.pk, "titolo": "Corso wizard",
             "durata_ore_teorica": "8", "validita_mesi": "60",
             "quiz_punteggio_minimo": "70", "stato": "ATTIVO", "versione": "1.0",
             "is_active": "on",
@@ -269,7 +283,7 @@ class CorsoCreateConSessioneUnicaTests(TestCase):
     def test_corso_senza_programmazione_non_crea_sessioni(self):
         resp = self._post_corso()
         self.assertEqual(resp.status_code, 302)
-        corso = TrainingCourse.objects.get(codice="WIZ-01")
+        corso = TrainingCourse.objects.get(titolo="Corso wizard")
         self.assertEqual(corso.sessioni.count(), 0)
         self.assertIn(f"/corsi/{corso.pk}/", resp["Location"])
 
@@ -285,9 +299,9 @@ class CorsoCreateConSessioneUnicaTests(TestCase):
             "sess-giorni_settimana": ["0", "1", "2", "3", "4"],
         })
         self.assertEqual(resp.status_code, 302)
-        corso = TrainingCourse.objects.get(codice="WIZ-01")
+        corso = TrainingCourse.objects.get(titolo="Corso wizard")
         sess = corso.sessioni.get()
-        self.assertEqual(sess.codice_sessione, "WIZ-01-E1")
+        self.assertRegex(sess.codice_sessione, r"^\d{5}-\d{2}E1$")
         self.assertEqual(sess.sede, "Aula A")
         self.assertEqual(sess.lezioni.count(), 1)
         self.assertEqual(sess.ore_pianificate, 8.0)
@@ -307,7 +321,7 @@ class CorsoCreateConSessioneUnicaTests(TestCase):
             "sess-giorni_settimana": ["1", "3"],
         })
         self.assertEqual(resp.status_code, 302)
-        sess = TrainingCourse.objects.get(codice="WIZ-01").sessioni.get()
+        sess = TrainingCourse.objects.get(titolo="Corso wizard").sessioni.get()
         self.assertEqual(sess.lezioni.count(), 4)
         self.assertEqual(sess.ore_pianificate, 32.0)
 
@@ -320,7 +334,7 @@ class CorsoCreateConSessioneUnicaTests(TestCase):
             "sess-giorni_settimana": [],
         })
         self.assertEqual(resp.status_code, 200)
-        self.assertFalse(TrainingCourse.objects.filter(codice="WIZ-01").exists())
+        self.assertFalse(TrainingCourse.objects.filter(titolo="Corso wizard").exists())
 
     def test_corso_con_date_puntuali_deriva_intervallo_e_ignora_giorni_settimana(self):
         resp = self._post_corso(**{
@@ -332,7 +346,7 @@ class CorsoCreateConSessioneUnicaTests(TestCase):
             "sess-date_puntuali": "06/09/2026\n13/09/2026\n20/09/2026",
         })
         self.assertEqual(resp.status_code, 302)
-        corso = TrainingCourse.objects.get(codice="WIZ-01")
+        corso = TrainingCourse.objects.get(titolo="Corso wizard")
         sess = corso.sessioni.get()
         self.assertEqual(sess.data_inizio, date(2026, 9, 6))
         self.assertEqual(sess.data_fine, date(2026, 9, 20))
@@ -345,7 +359,7 @@ class CorsoCreateConSessioneUnicaTests(TestCase):
             "sess-ora_fine": "17:00",
         })
         self.assertEqual(resp.status_code, 200)
-        self.assertFalse(TrainingCourse.objects.filter(codice="WIZ-01").exists())
+        self.assertFalse(TrainingCourse.objects.filter(titolo="Corso wizard").exists())
 
     def test_form_creazione_espone_la_tappa_programmazione(self):
         body = self.client.get(reverse("anagrafica:formazione_corso_create")).content.decode()
