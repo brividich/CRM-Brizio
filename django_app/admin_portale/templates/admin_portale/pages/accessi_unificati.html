@@ -181,6 +181,33 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
 }
 .acl-bulk__count { margin-left: auto; color: var(--hub-color-text-muted, #4a5568); font-variant-numeric: tabular-nums; }
 
+/* Livelli: una scorciatoia, non un secondo stato. Il selettore dice a che
+   livello e' il modulo adesso e permette di rimetterlo a uno dei preimpostati;
+   appena si tocca un singolo interruttore torna a "Personalizzato", perche' la
+   verita' resta la fila di interruttori qui sotto. */
+.acl-level { display: inline-flex; align-items: center; gap: 6px; }
+.acl-level > select {
+  font: inherit; font-size: var(--hub-font-xs, 12px);
+  padding: 4px 8px;
+  border: 1px solid var(--hub-color-border, #d7e0ea);
+  border-radius: var(--hub-radius-sm, 6px);
+  background: var(--hub-color-surface, #fff);
+  color: var(--hub-color-text, #1a202c);
+  max-width: 230px;
+}
+.acl-level__hint { color: var(--hub-color-text-muted, #4a5568); font-size: 11px; }
+.acl-levels-all {
+  display: flex; align-items: center; gap: var(--hub-space-2, 8px); flex-wrap: wrap;
+  padding: 9px var(--hub-space-4, 16px);
+  margin-bottom: var(--hub-space-3, 12px);
+  border: 1px solid var(--hub-color-border, #d7e0ea);
+  border-left: 4px solid var(--acl-steel);
+  border-radius: var(--hub-radius-md, 10px);
+  background: var(--hub-color-surface-raised, #fbfdff);
+  font-size: var(--hub-font-xs, 12px);
+}
+.acl-levels-all b { color: var(--hub-color-text, #1a202c); }
+
 /* Dentro il modulo, due nature: chi lo imposta e chi lo usa. Non sono due
    livelli di gerarchia ma due scomparti dello stesso quadro, quindi si
    distinguono con un'etichetta e un filo di bordo, non con un altro rientro. */
@@ -210,6 +237,25 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
 .acl-scope { font-size: 11px; color: var(--hub-color-text-muted, #4a5568); }
 .acl-scope::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 2px; background: currentColor; margin-right: 6px; vertical-align: 1px; }
 .acl-scope--page { color: var(--acl-navy); }
+
+/* La capacita' di ogni permesso, stampata accanto al codice: e' cio' su cui i
+   livelli ragionano, quindi deve essere leggibile riga per riga invece di
+   restare implicita nel selettore. "Non classificato" non e' un difetto da
+   nascondere: dice che nessun livello sotto l'ultimo accendera' quella riga. */
+.acl-cap {
+  display: inline-block; margin-left: 8px;
+  font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 999px;
+  border: 1px solid var(--hub-color-border, #d7e0ea);
+  color: var(--hub-color-text-muted, #4a5568);
+  vertical-align: 1px;
+}
+.acl-cap--modifica { border-color: var(--acl-steel); color: var(--acl-steel); }
+.acl-cap--approvazione { border-color: var(--acl-steel); color: var(--acl-steel); }
+.acl-cap--amministrazione { border-color: var(--acl-navy); color: var(--acl-navy); }
+.acl-cap--ignoto { border-color: var(--acl-live); color: var(--acl-live); font-weight: 700; }
+.acl-cap--sub::after { content: "  b7 sottoalbero"; }
+body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d6; }
 
 /* Interruttori, non caselle: l'oggetto di questa pagina e' aprire e chiudere. */
 .acl-switch { display: inline-flex; cursor: pointer; }
@@ -388,6 +434,25 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
     {% comment %}I selezionati viaggiano in un solo campo: un hidden per permesso supererebbe DATA_UPLOAD_MAX_NUMBER_FIELDS e il POST tornerebbe 400.{% endcomment %}
     <input type="hidden" name="granted_json" id="granted-json">
 
+    {{ access_levels|json_script:"acl-levels-data" }}
+
+    {% comment %}Livelli: insiemi preimpostati di permessi ("solo lettura", "lettura e
+       modifica", ...). Applicarli muove gli interruttori, non salva: si salva
+       sempre col pulsante in fondo, e sempre un grant per permesso.{% endcomment %}
+    <div class="acl-levels-all">
+      <b>Livello su tutti i moduli</b>
+      <span class="acl-level">
+        <select id="acl-level-all" aria-label="Livello da applicare a tutti i moduli">
+          <option value="">Scegli un livello…</option>
+          {% for level in access_levels %}
+            <option value="{{ level.key }}" title="{{ level.description }}">{{ level.label }}</option>
+          {% endfor %}
+        </select>
+      </span>
+      <button type="button" class="btn btn-secondary btn-sm" id="acl-level-all-apply">Applica a tutti</button>
+      <span class="acl-level__hint" id="acl-level-all-hint">Nessun livello concede le impostazioni di un modulo, tranne «Amministratore del modulo».</span>
+    </div>
+
     <div class="acl-filter">
       <input class="input" type="search" id="perm-search" placeholder="Filtra per permesso, codice o modulo" aria-label="Filtra i permessi">
       <button type="button" class="btn btn-secondary btn-sm" id="btn-expand-all">Apri tutti</button>
@@ -414,6 +479,15 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
 
       <div class="acl-bank__body" id="acl-bank-{{ forloop.counter }}">
         <div class="acl-bulk">
+          <span class="acl-level">
+            <label for="acl-level-{{ forloop.counter }}" class="acl-level__hint">Livello</label>
+            <select class="acl-level-pick" id="acl-level-{{ forloop.counter }}" data-modulo="{{ mod.modulo }}">
+              <option value="">Personalizzato</option>
+              {% for level in access_levels %}
+                <option value="{{ level.key }}" title="{{ level.description }}">{{ level.label }}</option>
+              {% endfor %}
+            </select>
+          </span>
           <button type="button" class="btn btn-secondary btn-sm acl-bulk-on" data-modulo="{{ mod.modulo }}">Accendi tutto</button>
           <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}">Spegni tutto</button>
           <span class="acl-bulk__count">{{ mod.total_count }} permessi</span>
@@ -432,7 +506,9 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
               <tr data-search="{{ perm.code }} {{ perm.label|lower }}">
                 <td>
                   <div class="acl-perm">{{ perm.label }}</div>
-                  <div class="acl-code">{{ perm.code }}</div>
+                  <div class="acl-code">{{ perm.code }}<span
+                      class="acl-cap acl-cap--{{ perm.capability }}{% if perm.governs_subtree %} acl-cap--sub{% endif %}"
+                      title="{% if perm.capability_unknown %}Il nome non dice cosa faccia: lo accende solo il livello «Amministratore del modulo».{% else %}I livelli accendono questo permesso a partire da «{{ perm.capability_label }}».{% endif %}{% if perm.governs_subtree %} Governa un intero sottoalbero di URL, quindi la capacità tiene conto anche delle rotte che vi ricadono sotto.{% endif %}">{{ perm.capability_label }}</span></div>
                 </td>
                 <td class="is-scope">
                   {% if perm.governs_route %}
@@ -444,7 +520,8 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
                 <td class="is-switch">
                   <label class="acl-switch">
                     <input type="checkbox" class="acl-check" name="granted" value="{{ perm.code }}"
-                           data-modulo="{{ mod.modulo }}" data-natura="{{ perm.nature }}" {% if perm.enabled %}checked{% endif %}
+                           data-modulo="{{ mod.modulo }}" data-natura="{{ perm.nature }}"
+                           data-capacita="{{ perm.capability }}" {% if perm.enabled %}checked{% endif %}
                            aria-label="{{ perm.label }}">
                     <span></span>
                   </label>
@@ -499,6 +576,43 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
     return form.querySelectorAll(sel);
   }
 
+  // ── Livelli d'accesso ────────────────────────────────────────
+  // Un livello e' un insieme di capacita' (lettura, modifica, approvazione,
+  // amministrazione): applicarlo significa accendere gli interruttori che
+  // hanno quella capacita' e spegnere gli altri. Nulla viene salvato qui.
+  var levels = [];
+  var levelsNode = document.getElementById('acl-levels-data');
+  if (levelsNode) {
+    try { levels = JSON.parse(levelsNode.textContent) || []; } catch (e) { levels = []; }
+  }
+  var levelByKey = {};
+  levels.forEach(function (lv) { levelByKey[lv.key] = lv; });
+
+  function applyLevel(modulo, key) {
+    var level = levelByKey[key];
+    if (!level) { return; }
+    boxes(modulo).forEach(function (cb) {
+      cb.checked = level.capabilities.indexOf(cb.dataset.capacita) !== -1;
+    });
+  }
+
+  // Il livello mostrato e' quello che combacia *esattamente* con gli
+  // interruttori accesi: qualunque ritocco a mano lo riporta a "Personalizzato",
+  // cosi' l'etichetta non racconta mai piu' di quello che c'e'.
+  function detectLevel(modulo) {
+    var all = boxes(modulo);
+    for (var i = 0; i < levels.length; i += 1) {
+      var level = levels[i];
+      var match = true;
+      for (var j = 0; j < all.length; j += 1) {
+        var expected = level.capabilities.indexOf(all[j].dataset.capacita) !== -1;
+        if (all[j].checked !== expected) { match = false; break; }
+      }
+      if (match) { return level.key; }
+    }
+    return '';
+  }
+
   document.querySelectorAll('.acl-bank__head').forEach(function (head) {
     head.addEventListener('click', function () {
       var body = bodyFor(head);
@@ -543,6 +657,9 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
       if (level) { level.style.width = (all.length ? Math.round((on / all.length) * 100) : 0) + '%'; }
       if (score) { score.textContent = on + '/' + all.length; }
 
+      var pick = bank.querySelector('.acl-level-pick');
+      if (pick) { pick.value = detectLevel(modulo); }
+
       bank.querySelectorAll('.acl-group').forEach(function (group) {
         var rows = boxes(modulo, group.dataset.natura);
         var lit = 0;
@@ -572,6 +689,28 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
       markPending();
     });
   });
+
+  form.querySelectorAll('.acl-level-pick').forEach(function (pick) {
+    pick.addEventListener('change', function () {
+      if (!pick.value) { return; }  // "Personalizzato" non e' un'azione
+      applyLevel(pick.dataset.modulo, pick.value);
+      refresh(pick.dataset.modulo);
+      markPending();
+    });
+  });
+
+  var levelAll = document.getElementById('acl-level-all');
+  var levelAllApply = document.getElementById('acl-level-all-apply');
+  if (levelAll && levelAllApply) {
+    levelAllApply.addEventListener('click', function () {
+      if (!levelAll.value) { return; }
+      form.querySelectorAll('.acl-master').forEach(function (master) {
+        applyLevel(master.dataset.modulo, levelAll.value);
+        refresh(master.dataset.modulo);
+      });
+      markPending();
+    });
+  }
 
   // I selezionati partono in un campo solo: vedi il commento nel markup.
   form.addEventListener('submit', function () {
