@@ -1202,8 +1202,14 @@ class AutomationActionForm(forms.ModelForm):
             self.initial.setdefault("branch_condition_value", config.get("condition_value", ""))
             self.initial.setdefault("branch_condition_value_type", config.get("condition_value_type", "string"))
             self.initial.setdefault("branch_compare_with_old", bool(config.get("compare_with_old")))
-            self.initial.setdefault("branch_if_true_actions_json", _serialize_json_array_text(config.get("if_true_actions")))
-            self.initial.setdefault("branch_if_false_actions_json", _serialize_json_array_text(config.get("if_false_actions")))
+            self.initial.setdefault(
+                "branch_if_true_actions_json",
+                _serialize_json_array_text(config.get("if_true_actions") or config.get("then_actions")),
+            )
+            self.initial.setdefault(
+                "branch_if_false_actions_json",
+                _serialize_json_array_text(config.get("if_false_actions") or config.get("else_actions")),
+            )
             template_initial = ""
             template_code = str(config.get("approval_email_template_code") or "").strip()
             template_id = str(config.get("approval_email_template_id") or "").strip()

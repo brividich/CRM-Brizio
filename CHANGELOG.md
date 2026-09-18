@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **AUTOMAZIONI · designer/builder mostrava vuote le azioni annidate di un branch salvato con le chiavi legacy `then_actions`/`else_actions`** (`django_app/automazioni/forms.py`).
+
+  `services.py` esegue un branch leggendo `if_true_actions`/`if_false_actions` con fallback su `then_actions`/`else_actions` (chiavi legacy), ma `AutomationActionForm` popolava i campi `branch_if_true_actions_json`/`branch_if_false_actions_json` solo dalle chiavi nuove. Risultato: per una regola salvata con le chiavi legacy (es. regola 18, AU-ASSENZE) il designer mostrava "Nessuna azione" nel ramo anche se a runtime le azioni giravano regolarmente — e salvare da lì avrebbe sovrascritto `config_json` con rami vuoti, cancellando la logica annidata. Aggiunto lo stesso fallback `or config.get("then_actions"/"else_actions")` già usato in `services.py` alla lettura dell'initial del form, cosi' il designer ora legge (e ri-salva correttamente) anche le regole con le chiavi legacy.
+
+  Nessuna migrazione. `manage.py check` pulito; suite `automazioni` non eseguibile end-to-end in questo worktree (migration di test si è bloccata indipendentemente dalla modifica — verificare su ambiente dev normale prima del prossimo giro).
+
 ### Added
 
 - **AUTOMAZIONI · regola "cambio mansione → email SDS da leggere" + conferma tutte in un click; email spostata via da codice** (`django_app/automazioni/source_registry.py`, `django_app/automazioni/services.py`, `django_app/automazioni/migrations/trg_anagrafica_dipendenti_automation.sql` — nuovo —, `django_app/automazioni/packages/au56_dipendente_cambio_mansione_sds.automation_package.json` — nuovo —, `django_app/automazioni/tests_source_anagrafica_dipendenti.py` — nuovo —, `django_app/schede_sicurezza/services/assegnazioni.py`, `django_app/schede_sicurezza/views.py`, `django_app/schede_sicurezza/urls.py`, `django_app/schede_sicurezza/tests_mansioni.py`, `README.md`).
