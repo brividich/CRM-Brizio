@@ -2698,6 +2698,14 @@ class VisitaMedica(models.Model):
         related_name="+",
         help_text="DocumentoDipendente di tipo VISITA_MEDICA_REFERTO collegato.",
     )
+    referto_documento_secondario = models.ForeignKey(
+        DocumentoDipendente,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        help_text="Secondo referto della stessa visita (es. certificato oculistico "
+                  "scansionato su 2 fogli separati): non è una seconda visita.",
+    )
     sessione = models.ForeignKey(
         VisitaSessione,
         null=True, blank=True,

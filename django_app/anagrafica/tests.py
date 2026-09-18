@@ -950,6 +950,52 @@ class VisitaMedicaScadenzaTests(TestCase):
         self.assertTrue(v_in_scad.in_scadenza)
 
 
+class VisitaMedicaFormLimitazioniTests(TestCase):
+    def setUp(self):
+        self.tipo = TipoVisitaMedica.objects.create(nome="Visita annuale", durata_mesi=12)
+
+    def _dati(self, **extra):
+        dati = {
+            "tipo": self.tipo.pk,
+            "data_svolgimento": "2026-01-15",
+            "esito": VisitaMedica.Esito.IDONEO,
+            "prescrizioni": "",
+            "medico_competente": "",
+            "note": "",
+        }
+        dati.update(extra)
+        return dati
+
+    def test_esito_con_limitazioni_richiede_note(self):
+        from .forms import VisitaMedicaForm
+
+        form = VisitaMedicaForm(self._dati(esito=VisitaMedica.Esito.IDONEO_CON_LIMITAZIONI))
+        self.assertFalse(form.is_valid())
+        self.assertIn("note", form.errors)
+
+    def test_esito_con_limitazioni_e_prescrizioni_richiede_note(self):
+        from .forms import VisitaMedicaForm
+
+        form = VisitaMedicaForm(self._dati(esito=VisitaMedica.Esito.IDONEO_LIM_PRESCR))
+        self.assertFalse(form.is_valid())
+        self.assertIn("note", form.errors)
+
+    def test_esito_con_limitazioni_e_note_valorizzate_passa(self):
+        from .forms import VisitaMedicaForm
+
+        form = VisitaMedicaForm(self._dati(
+            esito=VisitaMedica.Esito.IDONEO_CON_LIMITAZIONI,
+            note="Divieto lavoro in quota per 3 mesi.",
+        ))
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_esito_senza_limitazioni_non_richiede_note(self):
+        from .forms import VisitaMedicaForm
+
+        form = VisitaMedicaForm(self._dati(esito=VisitaMedica.Esito.IDONEO))
+        self.assertTrue(form.is_valid(), form.errors)
+
+
 class StatoVisiteServiceTests(TestCase):
     def setUp(self):
         self.ruolo = RuoloOperativo.objects.create(nome="Saldatore")

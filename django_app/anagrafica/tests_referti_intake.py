@@ -410,8 +410,9 @@ class RegistrazioneTests(TestCase):
         self.assertEqual(len(create), 1)
         self.assertEqual(VisitaMedica.objects.filter(tipo=self.medica).count(), 2)
 
-    def test_visita_gia_agganciata_non_viene_riusata(self):
-        """Una visita con referto già collegato non è candidata: appartiene a un altro certificato."""
+    def test_visita_con_referto_primario_riusa_slot_secondario(self):
+        """Un secondo certificato per la stessa visita si aggancia allo slot
+        secondario invece di duplicare la visita (es. oculistico su 2 fogli)."""
         from django.core.files.base import ContentFile
 
         from .models import DocumentoDipendente
@@ -421,9 +422,41 @@ class RegistrazioneTests(TestCase):
             nome_originale="altro.pdf", tipo_mime="application/pdf",
         )
         altro_doc.file.save("altro.pdf", ContentFile(b"x"), save=True)
-        VisitaMedica.objects.create(
+        esistente = VisitaMedica.objects.create(
             legacy_anagrafica_id=10, tipo=self.medica,
             data_svolgimento=date(2024, 3, 14), referto_documento=altro_doc,
+        )
+        secondo_doc = DocumentoDipendente(
+            legacy_anagrafica_id=10, tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+            nome_originale="secondo.pdf", tipo_mime="application/pdf",
+        )
+        secondo_doc.file.save("secondo.pdf", ContentFile(b"y"), save=True)
+        create = registra(self._riga(documento=secondo_doc), utente=self.utente)
+        esistente.refresh_from_db()
+        self.assertEqual(create, [esistente])
+        self.assertEqual(VisitaMedica.objects.filter(tipo=self.medica).count(), 1)
+        self.assertEqual(esistente.referto_documento_id, altro_doc.pk)
+        self.assertEqual(esistente.referto_documento_secondario_id, secondo_doc.pk)
+
+    def test_visita_con_entrambi_gli_slot_pieni_non_viene_riusata(self):
+        """Con primario e secondario già occupati, un terzo certificato crea una nuova visita."""
+        from django.core.files.base import ContentFile
+
+        from .models import DocumentoDipendente
+
+        def _doc(nome):
+            d = DocumentoDipendente(
+                legacy_anagrafica_id=10, tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+                nome_originale=nome, tipo_mime="application/pdf",
+            )
+            d.file.save(nome, ContentFile(b"x"), save=True)
+            return d
+
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=self.medica,
+            data_svolgimento=date(2024, 3, 14),
+            referto_documento=_doc("uno.pdf"),
+            referto_documento_secondario=_doc("due.pdf"),
         )
         create = registra(self._riga(), utente=self.utente)
         self.assertEqual(len(create), 1)
