@@ -559,69 +559,137 @@ def rettifica_scarico(request):
     return _handle_form(request, "R", "rentri/pages/rettifica_scarico.html")
 
 
+_ORM_ORDER = {"O": 0, "R": 1, "M": 2}
+
+# Profondità massima di risalita della catena rif_op (protezione da catene assurde).
+_RIF_OP_MAX_DEPTH = 8
+
+
+def _risali_a_carichi(rif: str, by_id: dict, depth: int = 0, visti: set | None = None) -> list[str]:
+    """Risolve un `rif_op` negli id dei carichi (C) d'origine.
+
+    `rif_op` può citare direttamente i carichi oppure il genitore immediato
+    (lo scarico originale O per un M, lo scarico effettivo M per un R — vedi
+    `_candidati_rif_op`): in quel caso si risale ricorsivamente il `rif_op` del
+    genitore fino ad arrivare ai carichi.
+    """
+    if depth > _RIF_OP_MAX_DEPTH:
+        return []
+    visti = set() if visti is None else visti
+    carichi: list[str] = []
+    for rid in _split_rif_op(rif):
+        if rid in visti:
+            continue
+        visti.add(rid)
+        candidati = by_id.get(rid) or []
+        if any(r.tipo == "C" for r in candidati):
+            carichi.append(rid)
+            continue
+        padre = next((r for r in candidati if str(r.rif_op or "").strip()), None)
+        if padre is None:
+            continue
+        carichi.extend(_risali_a_carichi(padre.rif_op, by_id, depth + 1, visti))
+    return carichi
+
+
 def _build_families(records: list) -> list[dict]:
     """
     Raggruppa le registrazioni in famiglie: ogni famiglia ha uno o più C (carichi)
-    e i relativi O/R/M collegati tramite il campo rif_op.
-    Ritorna una lista ordinata per data del primo carico.
+    e i relativi O/R/M collegati tramite il campo rif_op (anche indirettamente,
+    quando il riferimento passa dal genitore invece che dal carico).
+
+    Famiglie che condividono anche un solo carico vengono fuse (union-find), così
+    uno scarico a riferimento multiplo non spezza la catena degli altri.
+
+    Ogni famiglia riporta lo stato: è **chiusa** quando il ciclo è concluso, cioè
+    quando ha almeno un carico (C) e almeno uno scarico effettivo (M). Le famiglie
+    chiuse vengono in fondo all'elenco.
     """
-    _ORM_ORDER = {"O": 0, "R": 1, "M": 2}
+    by_id: dict[str, list] = {}
+    for r in records:
+        by_id.setdefault(str(r.id_registrazione or "").strip(), []).append(r)
 
     c_map: dict[str, object] = {}
     ops: list = []
     for r in records:
         if r.tipo == "C":
-            c_map[r.id_registrazione] = r
+            # In caso di id duplicati vince il primo (i record arrivano ordinati per data).
+            c_map.setdefault(str(r.id_registrazione or "").strip(), r)
         else:
             ops.append(r)
 
-    # family_key (tuple ordinata di id C) → lista di O/R/M
-    family_ops: dict[tuple, list] = {}
+    # ── Union-find sugli id dei carichi ───────────────────────────────────────
+    parent: dict[str, str] = {cid: cid for cid in c_map}
+
+    def find(x: str) -> str:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    op_carichi: list[tuple] = []
     for op in ops:
-        rif = str(op.rif_op or "").strip()
-        fkey = tuple(sorted(x.strip() for x in rif.split(",") if x.strip())) if rif else ()
-        family_ops.setdefault(fkey, []).append(op)
+        cids = [c for c in _risali_a_carichi(op.rif_op or "", by_id) if c in c_map]
+        op_carichi.append((op, cids))
+        for cid in cids[1:]:
+            union(cids[0], cid)
 
-    # c_id → family_key
-    c_to_fkey: dict[str, tuple] = {}
-    for fkey in family_ops:
-        for cid in fkey:
-            c_to_fkey[cid] = fkey
+    # ── Composizione delle famiglie ───────────────────────────────────────────
+    gruppi: dict[str, dict] = {}
+    for cid, c_rec in c_map.items():
+        root = find(cid)
+        gruppi.setdefault(root, {"carichi": [], "operazioni": []})["carichi"].append(c_rec)
 
-    seen: set[tuple] = set()
-    families: list[dict] = []
-
-    for c_rec in sorted(c_map.values(), key=lambda r: (r.data or date.min, r.id_registrazione or "")):
-        cid = c_rec.id_registrazione
-        fkey = c_to_fkey.get(cid)
-
-        if fkey:
-            if fkey in seen:
-                continue
-            seen.add(fkey)
-            carichi = sorted(
-                [c_map[i] for i in fkey if i in c_map],
-                key=lambda r: (r.data or date.min, r.id_registrazione or ""),
-            )
-            operazioni = sorted(
-                family_ops.get(fkey, []),
-                key=lambda r: (r.data or date.min, _ORM_ORDER.get(r.tipo, 9)),
-            )
+    orfane: dict[str, list] = {}
+    for op, cids in op_carichi:
+        if cids:
+            gruppi[find(cids[0])]["operazioni"].append(op)
         else:
-            carichi = [c_rec]
-            operazioni = []
+            orfane.setdefault(str(op.rif_op or "").strip(), []).append(op)
 
-        families.append({"carichi": carichi, "operazioni": operazioni})
+    families: list[dict] = [
+        _family_payload(
+            sorted(g["carichi"], key=lambda r: (r.data or date.min, r.id_registrazione or "")),
+            sorted(g["operazioni"], key=lambda r: (r.data or date.min, _ORM_ORDER.get(r.tipo, 9))),
+        )
+        for g in gruppi.values()
+    ]
 
-    # O/M/R orfani (nessun C trovato nel queryset corrente)
-    for fkey, ops_list in family_ops.items():
-        if fkey not in seen:
-            families.append({
-                "carichi": [],
-                "operazioni": sorted(ops_list, key=lambda r: (r.data or date.min,)),
-            })
+    # O/M/R il cui riferimento non porta a nessun carico del queryset corrente.
+    for ops_list in orfane.values():
+        families.append(_family_payload(
+            [],
+            sorted(ops_list, key=lambda r: (r.data or date.min, _ORM_ORDER.get(r.tipo, 9))),
+        ))
 
+    # Le famiglie chiuse vanno in fondo; dentro ogni blocco si ordina per data.
+    families.sort(key=lambda f: (f["chiusa"], f["data_inizio"] or date.min, f["id_ancora"]))
     return families
+
+
+def _family_payload(carichi: list, operazioni: list) -> dict:
+    """Costruisce la famiglia con i metadati usati dall'elenco (stato, CER, date)."""
+    righe = carichi + operazioni
+    tipi = {r.tipo for r in righe}
+    date_note = [r.data for r in righe if r.data]
+    codici = sorted({(r.codice or "").strip() for r in righe if (r.codice or "").strip()})
+    ancora = carichi[0] if carichi else (operazioni[0] if operazioni else None)
+    return {
+        "carichi": carichi,
+        "operazioni": operazioni,
+        "tipi": [t for t in ("C", "O", "R", "M") if t in tipi],
+        "chiusa": bool(carichi) and "M" in tipi,
+        "codice": codici[0] if len(codici) == 1 else " / ".join(codici),
+        "n_record": len(righe),
+        "data_inizio": min(date_note) if date_note else None,
+        "data_fine": max(date_note) if date_note else None,
+        "id_ancora": (ancora.id_registrazione or "") if ancora is not None else "",
+    }
 
 
 _SORT_FIELDS = {
@@ -652,6 +720,7 @@ def elenco(request):
     q_dir    = request.GET.get("dir",   "desc").strip()
     q_group  = request.GET.get("group", "").strip()
     q_view   = request.GET.get("view",  "famiglie").strip()  # default: vista famiglie
+    q_stato  = request.GET.get("stato", "").strip()          # aperte | chiuse (solo vista famiglie)
 
     if q_tipo in ("C", "O", "M", "R"):
         qs = qs.filter(tipo=q_tipo)
@@ -671,6 +740,7 @@ def elenco(request):
         "q_dir": q_dir,
         "q_group": q_group,
         "q_view": q_view,
+        "q_stato": q_stato,
     }
 
     # ── Vista famiglie (default) ───────────────────────────────────────────────
@@ -679,6 +749,12 @@ def elenco(request):
         # La famiglia viene costruita in Python tramite rif_op
         records = list(qs.order_by("data", "id_registrazione"))
         families = _build_families(records)
+        ctx["n_chiuse"] = sum(1 for f in families if f["chiusa"])
+        ctx["n_aperte"] = len(families) - ctx["n_chiuse"]
+        if q_stato == "aperte":
+            families = [f for f in families if not f["chiusa"]]
+        elif q_stato == "chiuse":
+            families = [f for f in families if f["chiusa"]]
         ctx["families"] = families
         ctx["total"] = sum(len(f["carichi"]) + len(f["operazioni"]) for f in families)
         return render(request, "rentri/pages/elenco.html", ctx)

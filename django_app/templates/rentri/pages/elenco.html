@@ -72,6 +72,21 @@
   height:5px; background:#f8fafc; padding:0;
   border-bottom:1px solid #e2e8f0; border-left:none !important;
 }
+/* Intestazione famiglia (cliccabile: collassa/espande) */
+.rn-fam-head td {
+  background:#f8fafc; border-left:3px solid #2296D0;
+  padding:8px 12px; cursor:pointer; user-select:none;
+}
+.rn-fam-head.is-chiusa td { background:#f4f6f8; border-left-color:#94a3b8; }
+.rn-fam-head:hover td { background:#eef4fb; }
+.rn-fam-caret { display:inline-block; width:14px; color:#94a3b8; font-size:11px; }
+.rn-fam-title { font-size:13px; font-weight:800; color:#0f172a; margin-right:10px; }
+.rn-fam-meta { font-size:11px; color:#64748b; margin-left:10px; }
+.rn-fam-arrow { color:#cbd5e1; font-size:10px; margin:0 2px; }
+.rn-state { display:inline-block; padding:2px 9px; border-radius:20px; font-size:10px; font-weight:800; letter-spacing:.04em; margin-right:8px; }
+.rn-state-aperta { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+.rn-state-chiusa { background:#e2e8f0; color:#475569; border:1px solid #cbd5e1; }
+.rn-state-orfana { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; margin-left:8px; }
 /* Toggle vista */
 .rn-view-toggle { display:flex; gap:6px; }
 .rn-view-btn {
@@ -133,6 +148,12 @@ body.theme-dark .rn-fam-c td { background:var(--surface-alt, #17222f); }
 body.theme-dark .rn-fam-op td { background:var(--surface); color:var(--text-mid); }
 body.theme-dark .rn-fam-op td:first-child { border-left-color:var(--border); }
 body.theme-dark .rn-fam-sep td { background:var(--surface-alt, #17222f); border-bottom-color:var(--border); }
+body.theme-dark .rn-fam-head td { background:var(--surface-alt, #17222f); }
+body.theme-dark .rn-fam-head.is-chiusa td { background:var(--surface); border-left-color:var(--border); }
+body.theme-dark .rn-fam-head:hover td { background:var(--border); }
+body.theme-dark .rn-fam-title { color:var(--text); }
+body.theme-dark .rn-fam-meta { color:var(--text-mid); }
+body.theme-dark .rn-state-chiusa { background:var(--surface-alt, #17222f); color:var(--text-mid); border-color:var(--border); }
 body.theme-dark .rn-view-btn { border-color:var(--border); background:var(--surface); color:var(--text-mid); }
 body.theme-dark .rn-view-btn:hover:not(.active) { background:var(--surface-alt, #17222f); }
 body.theme-dark .cp-btn-ghost { background:var(--surface-alt, #17222f); color:var(--text); border-color:var(--border); }
@@ -186,6 +207,14 @@ body.theme-dark .rn-page-info { color:var(--text-mid); }
         <input type="number" name="anno" class="cp-input" placeholder="2025" style="width:90px;" value="{{ q_anno }}">
       </div>
       <div class="cp-field">
+        <label class="cp-label">Stato famiglia</label>
+        <select name="stato" class="cp-select">
+          <option value="">Tutte</option>
+          <option value="aperte" {% if q_stato == 'aperte' %}selected{% endif %}>Solo aperte</option>
+          <option value="chiuse" {% if q_stato == 'chiuse' %}selected{% endif %}>Solo chiuse</option>
+        </select>
+      </div>
+      <div class="cp-field">
         <label class="cp-label">Raggruppa per</label>
         <select name="group" class="cp-select">
           <option value="">— nessuno —</option>
@@ -196,7 +225,7 @@ body.theme-dark .rn-page-info { color:var(--text-mid); }
         </select>
       </div>
       <button type="submit" class="cp-btn cp-btn-primary" style="align-self:flex-end;">Filtra</button>
-      {% if q_tipo or q_search or q_anno or q_group %}
+      {% if q_tipo or q_search or q_anno or q_group or q_stato %}
         <a href="{% url 'rentri_elenco' %}" class="cp-btn cp-btn-ghost" style="align-self:flex-end;">&#10005; Reset</a>
       {% endif %}
     </form>
@@ -213,7 +242,7 @@ body.theme-dark .rn-page-info { color:var(--text-mid); }
       <div class="cp-table-title">
         Registrazioni
         {% if families %}
-          <span style="font-size:12px;color:#64748b;font-weight:500;">({{ total }} record, {{ families|length }} famiglie)</span>
+          <span style="font-size:12px;color:#64748b;font-weight:500;">({{ total }} record, {{ families|length }} famiglie — {{ n_aperte }} aperte, {{ n_chiuse }} chiuse)</span>
         {% elif groups %}
           <span style="font-size:12px;color:#64748b;font-weight:500;">({{ total }} totali, {{ groups|length }} gruppi)</span>
         {% elif page_obj.paginator.count %}
@@ -221,8 +250,12 @@ body.theme-dark .rn-page-info { color:var(--text-mid); }
         {% endif %}
       </div>
       <div class="rn-view-toggle">
+        {% if families %}
+          <button type="button" class="rn-view-btn" onclick="espandiTutte(true)">&#9660; Espandi</button>
+          <button type="button" class="rn-view-btn" onclick="espandiTutte(false)">&#9654; Comprimi</button>
+        {% endif %}
         <a class="rn-view-btn {% if q_view == 'famiglie' and not q_group %}active{% endif %}"
-           href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&view=famiglie">
+           href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&stato={{ q_stato }}&view=famiglie">
           &#128279; Famiglie
         </a>
         <a class="rn-view-btn {% if q_view != 'famiglie' or q_group %}active{% endif %}"
@@ -233,7 +266,7 @@ body.theme-dark .rn-page-info { color:var(--text-mid); }
     </div>
 
     {% comment %}Macro per un'intestazione ordinabile{% endcomment %}
-    {% with base_qs="tipo="|add:q_tipo|add:"&q="|add:q_search|add:"&anno="|add:q_anno|add:"&group="|add:q_group %}
+    {% with base_qs="tipo="|add:q_tipo|add:"&q="|add:q_search|add:"&anno="|add:q_anno|add:"&group="|add:q_group|add:"&stato="|add:q_stato %}
 
     <div style="overflow-x:auto;">
     <table class="cp-table">
@@ -294,9 +327,29 @@ body.theme-dark .rn-page-info { color:var(--text-mid); }
           {% comment %}── Vista famiglie (default) ──{% endcomment %}
           {% for fam in families %}
 
+            {% comment %}Intestazione famiglia: stato, CER, catena tipi, periodo{% endcomment %}
+            <tr class="rn-fam-head {% if fam.chiusa %}is-chiusa{% else %}is-open{% endif %}"
+                data-fam="{{ forloop.counter }}" onclick="toggleFam(this)">
+              <td colspan="11">
+                <span class="rn-fam-caret">{% if fam.chiusa %}&#9654;{% else %}&#9660;{% endif %}</span>
+                {% if fam.chiusa %}
+                  <span class="rn-state rn-state-chiusa">CHIUSA</span>
+                {% else %}
+                  <span class="rn-state rn-state-aperta">APERTA</span>
+                {% endif %}
+                <span class="rn-fam-title">{{ fam.codice|default:"— senza codice —" }}</span>
+                {% for t in fam.tipi %}<span class="rn-badge rn-badge-{{ t }}">{{ t }}</span>{% if not forloop.last %}<span class="rn-fam-arrow">&#8594;</span>{% endif %}{% endfor %}
+                <span class="rn-fam-meta">
+                  {{ fam.n_record }} record ·
+                  {{ fam.data_inizio|date:"d-m-Y"|default:"—" }}{% if fam.data_fine and fam.data_fine != fam.data_inizio %} &#8594; {{ fam.data_fine|date:"d-m-Y" }}{% endif %}
+                </span>
+                {% if not fam.carichi %}<span class="rn-state rn-state-orfana">SENZA CARICO</span>{% endif %}
+              </td>
+            </tr>
+
             {% comment %}Righe C (carichi){% endcomment %}
             {% for r in fam.carichi %}
-            <tr class="rn-fam-c">
+            <tr class="rn-fam-c" data-fam="{{ forloop.parentloop.counter }}"{% if fam.chiusa %} hidden{% endif %}>
               <td><span class="rn-badge rn-badge-C">C</span></td>
               <td>{{ r.data|date:"d-m-Y" }}</td>
               <td style="font-family:monospace;font-size:12px;">{{ r.id_registrazione|default:"—" }}</td>
@@ -318,7 +371,7 @@ body.theme-dark .rn-page-info { color:var(--text-mid); }
 
             {% comment %}Righe O/R/M (operazioni collegate, indentate){% endcomment %}
             {% for r in fam.operazioni %}
-            <tr class="rn-fam-op">
+            <tr class="rn-fam-op" data-fam="{{ forloop.parentloop.counter }}"{% if fam.chiusa %} hidden{% endif %}>
               <td><span class="rn-badge rn-badge-{{ r.tipo }}">{{ r.tipo }}</span></td>
               <td>{{ r.data|date:"d-m-Y" }}</td>
               <td style="font-family:monospace;font-size:11px;">{{ r.id_registrazione|default:"—" }}</td>
@@ -437,6 +490,25 @@ body.theme-dark .rn-page-info { color:var(--text-mid); }
 </div>
 
 <script>
+function _righeFamiglia(n) {
+  return document.querySelectorAll('tr[data-fam="' + n + '"]:not(.rn-fam-head)');
+}
+
+function _applicaStato(head, aperta) {
+  head.classList.toggle('is-open', aperta);
+  var caret = head.querySelector('.rn-fam-caret');
+  if (caret) caret.innerHTML = aperta ? '&#9660;' : '&#9654;';
+  _righeFamiglia(head.getAttribute('data-fam')).forEach(function(tr) { tr.hidden = !aperta; });
+}
+
+function toggleFam(head) {
+  _applicaStato(head, !head.classList.contains('is-open'));
+}
+
+function espandiTutte(aperta) {
+  document.querySelectorAll('tr.rn-fam-head').forEach(function(head) { _applicaStato(head, aperta); });
+}
+
 function eliminaRecord(pk, btn) {
   if (!confirm('Eliminare questa registrazione? L\'azione non è reversibile.')) return;
   btn.disabled = true;
