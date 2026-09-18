@@ -4,8 +4,10 @@
 {% comment %}
 Libretto sanitario aziendale — quadro generale. Stessa impostazione del report
 Conformità (design hr-, safnav, KPI, filtri, stampa), ma l'unità di misura qui è
-l'**adempimento**, non la persona: due viste della stessa lista (?vista=persone
-| adempimenti). Privacy: i nomi delle visite seguono can_view_visite.
+il **requisito**, non la persona: due viste della stessa lista (?vista=persone
+| requisiti). Il PDF/Excel NON e' la stampa di questa pagina: e' il report
+tabellare del portale (anagrafica:export -> core/table_pdf.py).
+Privacy: i nomi delle visite seguono can_view_visite.
 {% endcomment %}
 
 {% block title %}Libretto sanitario aziendale | Anagrafica{% endblock %}
@@ -48,6 +50,7 @@ l'**adempimento**, non la persona: due viste della stessa lista (?vista=persone
 .lsg-tab { border-radius:.6rem; padding:7px 14px; font-size:13px; font-weight:700; color:#475569; text-decoration:none; border:1px solid #e2e8f0; background:#fff; }
 .lsg-tab.active { background:#0c2545; color:#fff; border-color:#0c2545; }
 .lsg-origine { font-size:11px; color:#94a3b8; }
+.lsg-conta { background:#f1f5f9; color:#475569; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700; }
 /* I link in tabella non possono avere il colore inline: in tema scuro il navy
    sparirebbe sul fondo scuro (l'inline vince sull'override di tema). */
 .lsg-link { color:#0c2545; font-weight:700; text-decoration:none; }
@@ -69,18 +72,10 @@ body.theme-dark .lsg-ko { background:rgba(153,27,27,.3); color:#fca5a5; }
 body.theme-dark .lsg-mancante { background:rgba(30,64,175,.3); color:#bfdbfe; }
 body.theme-dark .lsg-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
 body.theme-dark .lsg-origine { color:var(--text-light); }
+body.theme-dark .lsg-conta { background:var(--surface-alt); color:var(--text-mid); }
 body.theme-dark .lsg-link { color:#93c5fd; }
 body.theme-dark .lsg-link-soft { color:var(--text-mid); }
 
-@media print {
-  @page { size:A4 landscape; margin:12mm; }
-  body * { visibility:hidden; }
-  .lsg-print-area, .lsg-print-area * { visibility:visible; }
-  .lsg-print-area { position:absolute; left:0; top:0; width:100%; }
-  .safnav, .lsg-filters, .lsg-tabs, .hr-pagehead .hr-btn, .hr-pagehead .fmd-export { display:none !important; }
-  .lsg-pill, .hr-pill, .hr-metric-ico, .lsg-bar span, .lsg-dot { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .hr-metric, .hr-card, .lsg-dom { break-inside:avoid; box-shadow:none !important; }
-}
 </style>
 {% endblock %}
 
@@ -88,7 +83,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
 
 {% block content %}
 {% include "anagrafica/components/_fm_icons.html" %}
-<div class="lsg-print-area" style="display:flex;flex-direction:column;gap:20px;">
+<div style="display:flex;flex-direction:column;gap:20px;">
 
   {% include "anagrafica/components/flash_messages.html" %}
   {% include "anagrafica/partials/_safety_subnav.html" with active="libretto" %}
@@ -99,13 +94,12 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
       <div class="hr-pagehead-eyebrow">Anagrafica HR · Salute e Sicurezza</div>
       <h1 class="hr-pagehead-title">Libretto sanitario aziendale</h1>
       <p class="hr-pagehead-desc">
-        Tutti gli obblighi di mansione del personale attivo — visite mediche, DPI e formazione — con scadenza, origine e stato.
+        Tutti i requisiti di mansione del personale attivo — visite mediche, DPI e formazione — con scadenza, origine e stato.
         Il libretto della singola persona si apre dal suo nome. Aggiornato al {{ oggi|date:"d/m/Y" }}.
       </p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <a class="hr-btn hr-btn-outline" href="{% querystring format='csv' page=None %}">⬇ Esporta CSV</a>
-      <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa / PDF</button>
+      {% include "anagrafica/components/_export_menu.html" with export_key=export_key %}
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:conformita_report' %}">✅ Conformità</a>
     </div>
   </div>
@@ -115,7 +109,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
     <div class="hr-metric">
       <div class="hr-metric-ico red">⛔</div>
       <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Adempimenti scaduti</span><span class="hr-metric-val">{{ conta_stato.ko }}</span></div>
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Requisiti scaduti</span><span class="hr-metric-val">{{ conta_stato.ko }}</span></div>
         <div class="hr-metric-sub">{{ n_persone_ko }} person{{ n_persone_ko|pluralize:"a,e" }} non conform{{ n_persone_ko|pluralize:"e,i" }}</div>
       </div>
     </div>
@@ -130,14 +124,14 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
       <div class="hr-metric-ico blue">📋</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top"><span class="hr-metric-lbl">Da acquisire</span><span class="hr-metric-val">{{ conta_stato.mancante }}</span></div>
-        <div class="hr-metric-sub">{{ n_persone_incomplete }} person{{ n_persone_incomplete|pluralize:"a,e" }} con obblighi mai assolti</div>
+        <div class="hr-metric-sub">{{ n_persone_incomplete }} person{{ n_persone_incomplete|pluralize:"a,e" }} con requisiti mai assolti</div>
       </div>
     </div>
     <div class="hr-metric">
       <div class="hr-metric-ico green">✅</div>
       <div class="hr-metric-body">
         <div class="hr-metric-top"><span class="hr-metric-lbl">Copertura</span><span class="hr-metric-val">{{ copertura }}%</span></div>
-        <div class="hr-metric-sub">{{ conta_stato.ok }} obblighi validi su {{ n_obblighi }} · {{ n_persone }} in forza</div>
+        <div class="hr-metric-sub">{{ conta_stato.ok }} requisiti validi su {{ n_obblighi }} · {{ n_persone }} in forza</div>
       </div>
     </div>
   </div>
@@ -150,7 +144,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
       <div class="lsg-dom">
         <div class="lsg-dom-top">
           <span class="lsg-dom-title">{{ d.titolo }}</span>
-          <span class="lsg-dom-tot">{{ d.totale }} obblig{{ d.totale|pluralize:"o,hi" }}</span>
+          <span class="lsg-dom-tot">{{ d.totale }} requisit{{ d.totale|pluralize:"o,i" }}</span>
         </div>
         {% if d.totale %}
         <div class="lsg-bar" role="img" aria-label="{{ d.ok }} conformi, {{ d.warn }} in scadenza, {{ d.ko }} scaduti, {{ d.mancante }} da acquisire">
@@ -167,7 +161,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
           <span class="lsg-count"><span class="lsg-dot lsg-dot-ok"></span>{{ d.ok }} conformi</span>
         </div>
         {% else %}
-        <div style="font-size:12.5px;color:#94a3b8;">Nessun obbligo di questo tipo con i filtri correnti.</div>
+        <div style="font-size:12.5px;color:#94a3b8;">Nessun requisito di questo tipo con i filtri correnti.</div>
         {% endif %}
       </div>
       {% endfor %}
@@ -188,12 +182,12 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
           </select>
         </div>
         {% endif %}
-        {% if mansioni_elenco %}
+        {% if mansioni %}
         <div class="lsg-field">
           <label for="lsg-mansione">Mansione</label>
           <select id="lsg-mansione" name="mansione" class="lsg-select" onchange="this.form.submit()">
             <option value="">Tutte</option>
-            {% for m in mansioni_elenco %}<option value="{{ m }}" {% if m == filtro_mansione %}selected{% endif %}>{{ m }}</option>{% endfor %}
+            {% for m in mansioni %}<option value="{{ m }}" {% if m == filtro_mansione %}selected{% endif %}>{{ m }}</option>{% endfor %}
           </select>
         </div>
         {% endif %}
@@ -218,7 +212,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
           </select>
         </div>
         <div class="lsg-field">
-          <label for="lsg-stato">Stato adempimento</label>
+          <label for="lsg-stato">Stato requisito</label>
           <select id="lsg-stato" name="stato" class="lsg-select" onchange="this.form.submit()">
             <option value="">Tutti</option>
             <option value="ko" {% if filtro_stato == "ko" %}selected{% endif %}>Scaduti</option>
@@ -234,7 +228,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
       </div>
       {% if filtro_dominio or filtro_stato %}
       <div style="padding:0 16px 12px;font-size:12px;color:#94a3b8;">
-        Ambito e stato filtrano i <strong>singoli adempimenti</strong>: nella vista per persona restano visibili tutte le persone che soddisfano gli altri filtri.
+        Ambito e stato filtrano i <strong>singoli requisiti</strong>: nella vista per persona restano visibili tutte le persone che soddisfano gli altri filtri.
       </div>
       {% endif %}
     </form>
@@ -245,10 +239,10 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
     <div class="hr-card-head">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <div class="lsg-tabs">
-          <a class="lsg-tab {% if vista == 'persone' %}active{% endif %}" href="{% querystring vista='persone' page=None %}">👤 Per persona</a>
-          <a class="lsg-tab {% if vista == 'adempimenti' %}active{% endif %}" href="{% querystring vista='adempimenti' page=None %}">📋 Per adempimento</a>
+          <a class="lsg-tab {% if vista == 'persone' %}active{% endif %}" href="{% querystring vista='persone' page=None %}" title="Una riga per dipendente, con il suo esito">👤 Una riga per persona</a>
+          <a class="lsg-tab {% if vista == 'requisiti' %}active{% endif %}" href="{% querystring vista='requisiti' page=None %}" title="Una riga per singolo requisito da soddisfare: visita, DPI o corso">📋 Una riga per requisito</a>
         </div>
-        <span style="background:#f1f5f9;color:#475569;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;">{{ totale }}</span>
+        <span class="lsg-conta">{{ totale }} {% if vista == 'requisiti' %}requisit{{ totale|pluralize:"o,i" }}{% else %}person{{ totale|pluralize:"a,e" }}{% endif %}</span>
       </div>
       {% if not can_view_visite %}
       <div style="font-size:12px;color:#94a3b8;">Il dettaglio delle visite mediche non è visibile con il tuo livello di accesso.</div>
@@ -257,7 +251,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
 
     {% if page_obj.object_list %}
     <div style="overflow-x:auto;">
-      {% if vista == 'adempimenti' %}
+      {% if vista == 'requisiti' %}
       <table class="hr-table">
         <thead>
           <tr>
@@ -304,7 +298,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
             <th>Reparto</th>
             <th>Mansione</th>
             <th>Esito</th>
-            <th>Obblighi</th>
+            <th>Requisiti</th>
             <th>Da sistemare</th>
           </tr>
         </thead>

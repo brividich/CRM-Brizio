@@ -150,7 +150,7 @@ class LibrettoSanitarioTests(TestCase):
 
     # ── quadro generale ──────────────────────────────────────────────────
 
-    def test_generale_kpi_e_vista_adempimenti(self):
+    def test_generale_kpi_e_vista_requisiti(self):
         tipo = TipoVisitaMedica.objects.create(nome="Visita generale LS")
         self.mansione.visite_richieste.add(tipo)
         VisitaMedica.objects.create(
@@ -174,7 +174,7 @@ class LibrettoSanitarioTests(TestCase):
         self.assertEqual(ctx["n_persone_ko"], 1)
         self.assertEqual(ctx["n_obblighi"], 2)
 
-        resp2 = self.client.get(url, {"vista": "adempimenti"})
+        resp2 = self.client.get(url, {"vista": "requisiti"})
         self.assertEqual(resp2.status_code, 200)
         righe = list(resp2.context["page_obj"].object_list)
         self.assertEqual([r["riga"].nome for r in righe],
@@ -186,24 +186,49 @@ class LibrettoSanitarioTests(TestCase):
         guanti = CategoriaDPI.objects.create(nome="Guanti filtro LS")
         self.mansione.dpi_richiesti.add(guanti)
         url = reverse("anagrafica:libretto_sanitario_generale")
-        resp = self.client.get(url, {"vista": "adempimenti", "dominio": "dpi"})
+        resp = self.client.get(url, {"vista": "requisiti", "dominio": "dpi"})
         nomi = [r["riga"].nome for r in resp.context["page_obj"].object_list]
         self.assertEqual(nomi, ["Guanti filtro LS"])
-        resp2 = self.client.get(url, {"vista": "adempimenti", "stato": "ko"})
+        resp2 = self.client.get(url, {"vista": "requisiti", "stato": "ko"})
         self.assertEqual(list(resp2.context["page_obj"].object_list), [])
 
-    def test_generale_export_csv_adempimenti(self):
-        tipo = TipoVisitaMedica.objects.create(nome="Visita csv LS")
+    def test_export_pdf_e_excel_sono_il_report_del_portale(self):
+        """Il documento non è la stampa della pagina: passa dall'endpoint export
+        (template PDF del portale) e contiene le stesse righe della vista."""
+        tipo = TipoVisitaMedica.objects.create(nome="Visita export LS")
         self.mansione.visite_richieste.add(tipo)
-        resp = self.client.get(
-            reverse("anagrafica:libretto_sanitario_generale"),
-            {"vista": "adempimenti", "format": "csv"},
+
+        pdf = self.client.get(
+            reverse("anagrafica:export", args=["libretto_sanitario_requisiti"]),
+            {"format": "pdf", "scope": "filtered"},
         )
-        self.assertEqual(resp.status_code, 200)
-        testo = resp.content.decode("utf-8-sig")
-        self.assertIn("Perch", testo)          # intestazione "Perché è dovuto"
-        self.assertIn("Visita csv LS", testo)
-        self.assertIn("Cromatore-LS", testo)
+        self.assertEqual(pdf.status_code, 200)
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
+
+        xlsx = self.client.get(
+            reverse("anagrafica:export", args=["libretto_sanitario_persone"]),
+            {"format": "xlsx", "scope": "filtered"},
+        )
+        self.assertEqual(xlsx.status_code, 200)
+        self.assertIn("spreadsheetml", xlsx["Content-Type"])
+
+    def test_export_righe_coincidono_con_la_vista(self):
+        from .exports_persone import _libretto_requisiti_rows
+
+        tipo = TipoVisitaMedica.objects.create(nome="Visita coerenza LS")
+        self.mansione.visite_richieste.add(tipo)
+        guanti = CategoriaDPI.objects.create(nome="Guanti coerenza LS")
+        self.mansione.dpi_richiesti.add(guanti)
+
+        url = reverse("anagrafica:libretto_sanitario_generale")
+        resp = self.client.get(url, {"vista": "requisiti", "dominio": "dpi"})
+        a_video = [r["riga"].nome for r in resp.context["page_obj"].object_list]
+
+        request = resp.wsgi_request
+        esportate = [r["requisito"] for r in _libretto_requisiti_rows(request, "filtered")]
+        self.assertEqual(a_video, esportate)
+        self.assertEqual(esportate, ["Guanti coerenza LS"])
 
     def test_dipendente_inesistente_redirige(self):
         resp = self.client.get(
