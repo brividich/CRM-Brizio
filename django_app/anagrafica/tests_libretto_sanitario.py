@@ -148,6 +148,63 @@ class LibrettoSanitarioTests(TestCase):
         self.assertEqual(nomi, ["Visita medica richiesta"])
         self.assertNotIn("Visita riservata LS", nomi)
 
+    # ── quadro generale ──────────────────────────────────────────────────
+
+    def test_generale_kpi_e_vista_adempimenti(self):
+        tipo = TipoVisitaMedica.objects.create(nome="Visita generale LS")
+        self.mansione.visite_richieste.add(tipo)
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=self.legacy_id, tipo=tipo,
+            data_svolgimento=self.oggi - timedelta(days=400),
+            data_scadenza=self.oggi - timedelta(days=5),
+        )
+        guanti = CategoriaDPI.objects.create(nome="Guanti generale LS")
+        self.mansione.dpi_richiesti.add(guanti)
+
+        url = reverse("anagrafica:libretto_sanitario_generale")
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.content.decode()
+        self.assertIn("Libretto sanitario aziendale", body)
+        self.assertIn("Sani", body)
+
+        ctx = resp.context
+        self.assertEqual(ctx["conta_stato"]["ko"], 1)        # visita scaduta
+        self.assertEqual(ctx["conta_stato"]["mancante"], 1)  # DPI mai consegnato
+        self.assertEqual(ctx["n_persone_ko"], 1)
+        self.assertEqual(ctx["n_obblighi"], 2)
+
+        resp2 = self.client.get(url, {"vista": "adempimenti"})
+        self.assertEqual(resp2.status_code, 200)
+        righe = list(resp2.context["page_obj"].object_list)
+        self.assertEqual([r["riga"].nome for r in righe],
+                         ["Visita generale LS", "Guanti generale LS"])  # peggiori in testa
+
+    def test_generale_filtro_stato_e_dominio(self):
+        tipo = TipoVisitaMedica.objects.create(nome="Visita filtro LS")
+        self.mansione.visite_richieste.add(tipo)
+        guanti = CategoriaDPI.objects.create(nome="Guanti filtro LS")
+        self.mansione.dpi_richiesti.add(guanti)
+        url = reverse("anagrafica:libretto_sanitario_generale")
+        resp = self.client.get(url, {"vista": "adempimenti", "dominio": "dpi"})
+        nomi = [r["riga"].nome for r in resp.context["page_obj"].object_list]
+        self.assertEqual(nomi, ["Guanti filtro LS"])
+        resp2 = self.client.get(url, {"vista": "adempimenti", "stato": "ko"})
+        self.assertEqual(list(resp2.context["page_obj"].object_list), [])
+
+    def test_generale_export_csv_adempimenti(self):
+        tipo = TipoVisitaMedica.objects.create(nome="Visita csv LS")
+        self.mansione.visite_richieste.add(tipo)
+        resp = self.client.get(
+            reverse("anagrafica:libretto_sanitario_generale"),
+            {"vista": "adempimenti", "format": "csv"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        testo = resp.content.decode("utf-8-sig")
+        self.assertIn("Perch", testo)          # intestazione "Perché è dovuto"
+        self.assertIn("Visita csv LS", testo)
+        self.assertIn("Cromatore-LS", testo)
+
     def test_dipendente_inesistente_redirige(self):
         resp = self.client.get(
             reverse("anagrafica:dipendente_libretto_sanitario", args=[999999])

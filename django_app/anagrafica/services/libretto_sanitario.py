@@ -118,46 +118,73 @@ def _dedup_pk(items: list) -> list:
     return out
 
 
-def _consegne_dpi(legacy_id: int) -> dict[int, Any]:
-    """Consegna più recente per categoria DPI. ``{}`` se il modulo manca."""
+def _consegne_dpi_batch(legacy_ids: list[int]) -> dict[tuple[int, int], Any]:
+    """Consegna più recente per ``(legacy_id, categoria)``. ``{}`` se il modulo manca."""
     try:
         from dpi.models import ConsegnaDPI, StatoRichiesta
     except Exception:
         return {}
-    out: dict[int, Any] = {}
+    out: dict[tuple[int, int], Any] = {}
     for consegna in (
         ConsegnaDPI.objects
         .filter(
-            richiesta__richiedente_legacy_id=legacy_id,
+            richiesta__richiedente_legacy_id__in=legacy_ids,
             richiesta__stato=StatoRichiesta.CONSEGNATA,
         )
         .select_related("richiesta")
         .order_by("-data_consegna", "-created_at")
     ):
-        out.setdefault(consegna.richiesta.categoria_id, consegna)
+        out.setdefault(
+            (consegna.richiesta.richiedente_legacy_id, consegna.richiesta.categoria_id),
+            consegna,
+        )
     return out
 
 
-def _ultime_visite(legacy_id: int) -> dict[int, VisitaMedica]:
-    """Ultima visita registrata per tipologia."""
-    out: dict[int, VisitaMedica] = {}
+def _ultime_visite_batch(legacy_ids: list[int]) -> dict[tuple[int, int], VisitaMedica]:
+    """Ultima visita registrata per ``(legacy_id, tipo)``."""
+    out: dict[tuple[int, int], VisitaMedica] = {}
     for visita in (
         VisitaMedica.objects
-        .filter(legacy_anagrafica_id=legacy_id)
+        .filter(legacy_anagrafica_id__in=legacy_ids)
         .order_by("-data_svolgimento", "-pk")
     ):
-        out.setdefault(visita.tipo_id, visita)
+        out.setdefault((visita.legacy_anagrafica_id, visita.tipo_id), visita)
+    return out
+
+
+def _deadline_batch(
+    legacy_ids: list[int], corso_ids: set[int]
+) -> dict[tuple[int, int], TrainingDeadline]:
+    if not corso_ids:
+        return {}
+    return {
+        (d.legacy_anagrafica_id, d.corso_id): d
+        for d in TrainingDeadline.objects.filter(
+            legacy_anagrafica_id__in=legacy_ids, corso_id__in=corso_ids
+        )
+    }
+
+
+def _qualifiche_batch(legacy_ids: list[int]) -> dict[int, list[DipendenteQualifica]]:
+    out: dict[int, list[DipendenteQualifica]] = {}
+    for q in (
+        DipendenteQualifica.objects
+        .filter(legacy_anagrafica_id__in=legacy_ids)
+        .select_related("tipo")
+        .order_by("tipo__nome")
+    ):
+        out.setdefault(q.legacy_anagrafica_id, []).append(q)
     return out
 
 
 def _righe_visite(
-    tipi, legacy_id: int, origini, oggi: date, *, include_dettaglio: bool
+    tipi, legacy_id: int, origini, oggi: date, ultime, *, include_dettaglio: bool
 ) -> list[Riga]:
-    ultime = _ultime_visite(legacy_id) if tipi else {}
     righe: list[Riga] = []
     for tipo in tipi:
         etichetta = tipo.nome if include_dettaglio else "Visita medica richiesta"
-        ultima = ultime.get(tipo.pk)
+        ultima = ultime.get((legacy_id, tipo.pk))
         if ultima is None:
             righe.append(Riga(
                 dominio="visite", nome=etichetta, stato=STATO_MANCANTE,
@@ -179,11 +206,10 @@ def _righe_visite(
     return righe
 
 
-def _righe_dpi(categorie, legacy_id: int, origini, oggi: date) -> list[Riga]:
-    consegne = _consegne_dpi(legacy_id) if categorie else {}
+def _righe_dpi(categorie, legacy_id: int, origini, oggi: date, consegne) -> list[Riga]:
     righe: list[Riga] = []
     for categoria in categorie:
-        consegna = consegne.get(categoria.pk)
+        consegna = consegne.get((legacy_id, categoria.pk))
         if consegna is None:
             righe.append(Riga(
                 dominio="dpi", nome=categoria.nome, stato=STATO_MANCANTE,
@@ -202,19 +228,10 @@ def _righe_dpi(categorie, legacy_id: int, origini, oggi: date) -> list[Riga]:
     return righe
 
 
-def _righe_corsi(corsi, legacy_id: int, origini, oggi: date) -> list[Riga]:
-    if not corsi:
-        return []
-    deadlines = {
-        d.corso_id: d
-        for d in TrainingDeadline.objects.filter(
-            legacy_anagrafica_id=legacy_id,
-            corso_id__in=[c.pk for c in corsi],
-        )
-    }
+def _righe_corsi(corsi, legacy_id: int, origini, oggi: date, deadlines) -> list[Riga]:
     righe: list[Riga] = []
     for corso in corsi:
-        d = deadlines.get(corso.pk)
+        d = deadlines.get((legacy_id, corso.pk))
         if d is None or d.stato_scadenza == "MAI_FREQUENTATO":
             righe.append(Riga(
                 dominio="corsi", nome=corso.titolo, stato=STATO_MANCANTE,
@@ -239,16 +256,11 @@ def _righe_corsi(corsi, legacy_id: int, origini, oggi: date) -> list[Riga]:
     return righe
 
 
-def _righe_qualifiche(legacy_id: int, oggi: date) -> list[Riga]:
+def _righe_qualifiche(qualifiche, oggi: date) -> list[Riga]:
     """Abilitazioni possedute: non sono un obbligo di mansione, ma un titolo
     che scade — nel libretto vanno lette accanto al resto, non altrove."""
     righe: list[Riga] = []
-    for q in (
-        DipendenteQualifica.objects
-        .filter(legacy_anagrafica_id=legacy_id)
-        .select_related("tipo")
-        .order_by("tipo__nome")
-    ):
+    for q in qualifiche:
         stato, giorni = _stato_da_scadenza(q.data_scadenza, oggi)
         righe.append(Riga(
             dominio="qualifiche", nome=q.tipo.nome, stato=stato,
@@ -261,64 +273,7 @@ def _righe_qualifiche(legacy_id: int, oggi: date) -> list[Riga]:
     return righe
 
 
-def libretto(
-    legacy_id: int,
-    *,
-    mansione_nome: str | None = None,
-    area_id: int | None = None,
-    include_visite_dettaglio: bool = False,
-) -> dict[str, Any]:
-    """Libretto sanitario completo di una persona.
-
-    Ritorna::
-
-        {
-          "mansione_nome": str,
-          "fattori": [FattoreRischio, ...],      # la "mansione di rischio"
-          "sezioni": [{"chiave", "titolo", "icona", "descrizione",
-                       "righe": [Riga], "stato"}],
-          "righe": [Riga, ...],                  # tutte, per i conteggi
-          "conteggi": {"ok", "warn", "ko", "mancante", "totale"},
-          "verdetto": "ok"|"warn"|"mancante"|"ko"|"na",
-          "verdetto_label": str,
-          "criticita": [Riga, ...],              # scaduti + mancanti, in testa
-          "aggiornato_al": date,
-        }
-    """
-    oggi = timezone.localdate()
-
-    dettaglio = mansionario.requisiti_dipendente_dettaglio(
-        legacy_id, mansione_nome=mansione_nome, area_id=area_id
-    )
-    requisiti = dettaglio["requisiti"]
-    origini: dict[tuple[str, Any], list[str]] = dict(dettaglio["origini"])
-
-    # Requisiti aggiuntivi dei processi qualificati (MOD.128): stessa somma che
-    # fa il semaforo di conformità, così le due viste non divergono mai.
-    try:
-        from .mpq_idoneita import requisiti_processo_dettaglio
-        proc = requisiti_processo_dettaglio([legacy_id]).get(legacy_id)
-    except Exception:
-        proc = None
-    if proc:
-        for chiave, etichette in proc["origini"].items():
-            voci = origini.setdefault(chiave, [])
-            for etichetta in etichette:
-                if etichetta not in voci:
-                    voci.append(etichetta)
-        for dominio in ("dpi", "visite", "corsi"):
-            requisiti[dominio] = _dedup_pk(
-                list(requisiti[dominio]) + list(proc["requisiti"][dominio])
-            )
-
-    righe_visite = _righe_visite(
-        requisiti["visite"], legacy_id, origini, oggi,
-        include_dettaglio=include_visite_dettaglio,
-    )
-    righe_dpi = _righe_dpi(requisiti["dpi"], legacy_id, origini, oggi)
-    righe_corsi = _righe_corsi(requisiti["corsi"], legacy_id, origini, oggi)
-    righe_qualifiche = _righe_qualifiche(legacy_id, oggi)
-
+def _sezioni(righe_visite, righe_dpi, righe_corsi, righe_qualifiche) -> list[dict]:
     sezioni = [
         {
             "chiave": "visite",
@@ -351,33 +306,143 @@ def libretto(
     ]
     for sezione in sezioni:
         sezione["stato"] = _peggiore([r.stato for r in sezione["righe"]])
+    return sezioni
 
-    # Il verdetto pesa solo gli **obblighi** di mansione: una qualifica scaduta
-    # che nessun requisito impone non rende la persona non idonea.
-    righe_obbligo = righe_visite + righe_dpi + righe_corsi
-    tutte = righe_obbligo + righe_qualifiche
-    verdetto = _peggiore([r.stato for r in righe_obbligo])
 
-    conteggi = {
-        stato: sum(1 for r in righe_obbligo if r.stato == stato)
-        for stato in (STATO_OK, STATO_WARN, STATO_KO, STATO_MANCANTE)
-    }
-    conteggi["totale"] = len(righe_obbligo)
+def libretto_batch(
+    legacy_ids,
+    *,
+    mansioni_per_legacy: dict[int, str] | None = None,
+    aree_per_legacy: dict[int, int | None] | None = None,
+    include_visite_dettaglio: bool = False,
+    oggi: date | None = None,
+) -> dict[int, dict[str, Any]]:
+    """Libretto di più persone con un numero di query costante.
 
-    criticita = sorted(
-        [r for r in righe_obbligo if r.stato in (STATO_KO, STATO_MANCANTE)],
-        key=lambda r: (_PESO_STATO.get(r.stato, 0) * -1, r.dominio, r.nome),
+    Stessa struttura di :func:`libretto` per ogni ``legacy_id``. È la forma che
+    serve alla vista generale (tutto il personale in una schermata): chiamare la
+    versione singola in un ciclo farebbe una manciata di query a testa.
+    """
+    ids = [int(i) for i in legacy_ids if int(i or 0) > 0]
+    if not ids:
+        return {}
+    oggi = oggi or timezone.localdate()
+
+    dettagli = mansionario.requisiti_dipendenti_dettaglio(
+        ids, mansioni_per_legacy=mansioni_per_legacy, aree_per_legacy=aree_per_legacy
     )
 
-    return {
-        "mansione_nome": dettaglio["mansione_nome"],
-        "fattori": requisiti["fattori"],
-        "piani": requisiti["piani"],
-        "sezioni": sezioni,
-        "righe": tutte,
-        "conteggi": conteggi,
-        "verdetto": verdetto,
-        "verdetto_label": VERDETTO_LABEL.get(verdetto, "—"),
-        "criticita": criticita,
-        "aggiornato_al": oggi,
+    # Requisiti aggiuntivi dei processi qualificati (MOD.128): stessa somma che
+    # fa il semaforo di conformità, così le due viste non divergono mai.
+    try:
+        from .mpq_idoneita import requisiti_processo_dettaglio
+        processi = requisiti_processo_dettaglio(ids)
+    except Exception:
+        processi = {}
+
+    requisiti_per_legacy: dict[int, dict[str, list]] = {}
+    origini_per_legacy: dict[int, dict] = {}
+    for legacy_id in ids:
+        dettaglio = dettagli.get(legacy_id) or {
+            "requisiti": mansionario.requisiti_vuoti(), "origini": {}, "mansione_nome": "",
+        }
+        requisiti = dict(dettaglio["requisiti"])
+        origini = dict(dettaglio["origini"])
+        proc = processi.get(legacy_id)
+        if proc:
+            for chiave, etichette in proc["origini"].items():
+                voci = origini.setdefault(chiave, [])
+                for etichetta in etichette:
+                    if etichetta not in voci:
+                        voci.append(etichetta)
+            for dominio in ("dpi", "visite", "corsi"):
+                requisiti[dominio] = _dedup_pk(
+                    list(requisiti[dominio]) + list(proc["requisiti"][dominio])
+                )
+        requisiti_per_legacy[legacy_id] = requisiti
+        origini_per_legacy[legacy_id] = origini
+
+    consegne = _consegne_dpi_batch(ids)
+    ultime_visite = _ultime_visite_batch(ids)
+    corso_ids = {
+        c.pk for requisiti in requisiti_per_legacy.values() for c in requisiti["corsi"]
     }
+    deadlines = _deadline_batch(ids, corso_ids)
+    qualifiche = _qualifiche_batch(ids)
+
+    out: dict[int, dict[str, Any]] = {}
+    for legacy_id in ids:
+        requisiti = requisiti_per_legacy[legacy_id]
+        origini = origini_per_legacy[legacy_id]
+
+        righe_visite = _righe_visite(
+            requisiti["visite"], legacy_id, origini, oggi, ultime_visite,
+            include_dettaglio=include_visite_dettaglio,
+        )
+        righe_dpi = _righe_dpi(requisiti["dpi"], legacy_id, origini, oggi, consegne)
+        righe_corsi = _righe_corsi(requisiti["corsi"], legacy_id, origini, oggi, deadlines)
+        righe_qualifiche = _righe_qualifiche(qualifiche.get(legacy_id, []), oggi)
+
+        # Il verdetto pesa solo gli **obblighi** di mansione: una qualifica scaduta
+        # che nessun requisito impone non rende la persona non idonea.
+        righe_obbligo = righe_visite + righe_dpi + righe_corsi
+        verdetto = _peggiore([r.stato for r in righe_obbligo])
+
+        conteggi = {
+            stato: sum(1 for r in righe_obbligo if r.stato == stato)
+            for stato in (STATO_OK, STATO_WARN, STATO_KO, STATO_MANCANTE)
+        }
+        conteggi["totale"] = len(righe_obbligo)
+
+        criticita = sorted(
+            [r for r in righe_obbligo if r.stato in (STATO_KO, STATO_MANCANTE)],
+            key=lambda r: (_PESO_STATO.get(r.stato, 0) * -1, r.dominio, r.nome),
+        )
+
+        out[legacy_id] = {
+            "mansione_nome": (dettagli.get(legacy_id) or {}).get("mansione_nome", ""),
+            "fattori": requisiti["fattori"],
+            "piani": requisiti["piani"],
+            "sezioni": _sezioni(righe_visite, righe_dpi, righe_corsi, righe_qualifiche),
+            "righe": righe_obbligo + righe_qualifiche,
+            "righe_obbligo": righe_obbligo,
+            "conteggi": conteggi,
+            "verdetto": verdetto,
+            "verdetto_label": VERDETTO_LABEL.get(verdetto, "—"),
+            "criticita": criticita,
+            "aggiornato_al": oggi,
+        }
+    return out
+
+
+def libretto(
+    legacy_id: int,
+    *,
+    mansione_nome: str | None = None,
+    area_id: int | None = None,
+    include_visite_dettaglio: bool = False,
+) -> dict[str, Any]:
+    """Libretto sanitario completo di una persona.
+
+    Ritorna::
+
+        {
+          "mansione_nome": str,
+          "fattori": [FattoreRischio, ...],      # la "mansione di rischio"
+          "sezioni": [{"chiave", "titolo", "icona", "descrizione",
+                       "righe": [Riga], "stato"}],
+          "righe": [Riga, ...],                  # tutte, per i conteggi
+          "conteggi": {"ok", "warn", "ko", "mancante", "totale"},
+          "verdetto": "ok"|"warn"|"mancante"|"ko"|"na",
+          "verdetto_label": str,
+          "criticita": [Riga, ...],              # scaduti + mancanti, in testa
+          "aggiornato_al": date,
+        }
+    """
+    return libretto_batch(
+        [legacy_id],
+        mansioni_per_legacy=({int(legacy_id): mansione_nome}
+                             if mansione_nome is not None else None),
+        aree_per_legacy=({int(legacy_id): area_id} if area_id is not None else None),
+        include_visite_dettaglio=include_visite_dettaglio,
+    )[int(legacy_id)]

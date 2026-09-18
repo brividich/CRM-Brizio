@@ -17601,6 +17601,231 @@ def conformita_report(request):
 
 
 # ---------------------------------------------------------------------------
+# Libretto sanitario aziendale — quadro generale (tutto il personale)
+# ---------------------------------------------------------------------------
+
+@login_required
+def libretto_sanitario_generale(request):
+    """Resoconto aziendale degli obblighi di mansione, con KPI e filtri.
+
+    Il report Conformità conta le **persone** per semaforo; qui si contano gli
+    **adempimenti**, che è l'unità di misura del lavoro da fare (e quella su cui
+    si viene sanzionati): per ogni obbligo si sa a chi appartiene, perché è
+    dovuto, quando scade e in che stato è. Due letture della stessa lista:
+
+    - ``?vista=persone`` (default): una riga per dipendente, con il verdetto e
+      i contatori dei suoi obblighi;
+    - ``?vista=adempimenti``: una riga per singolo obbligo, peggiori in testa —
+      la lista di lavoro di RSPP/HR.
+
+    Accesso: ``_check_hr_permission`` (vista trasversale su tutto il personale).
+    Privacy: il dettaglio delle visite segue ``_can_view_visite_mediche``, come
+    nel libretto individuale. Numero di query costante (service batch).
+    """
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per il libretto sanitario aziendale.")
+        return redirect("anagrafica:index")
+
+    ensure_anagrafica_schema()
+    from .services import libretto_sanitario as libretto_service
+
+    can_view_visite = _can_view_visite_mediche(request)
+    vista = "adempimenti" if request.GET.get("vista") == "adempimenti" else "persone"
+    filtro_reparto = (request.GET.get("reparto") or "").strip()
+    filtro_mansione = (request.GET.get("mansione") or "").strip()
+    filtro_verdetto = (request.GET.get("verdetto") or "").strip()
+    filtro_dominio = (request.GET.get("dominio") or "").strip()
+    filtro_stato = (request.GET.get("stato") or "").strip()
+    export_csv = request.GET.get("format") == "csv"
+
+    dip_map = {
+        int(r["id"]): r
+        for r in fetch_anagrafica_rows(deduplicate=True)
+        if r.get("attivo") and r.get("id")
+    }
+    mansioni_per_legacy = {
+        legacy_id: str(dip.get("mansione") or "").strip()
+        for legacy_id, dip in dip_map.items()
+    }
+    mansioni_map = {
+        m.nome.casefold(): m.id
+        for m in Mansione.objects.filter(is_active=True).only("id", "nome")
+    }
+
+    libretti = libretto_service.libretto_batch(
+        list(dip_map.keys()),
+        mansioni_per_legacy=mansioni_per_legacy,
+        include_visite_dettaglio=can_view_visite,
+    )
+
+    _ORDINE_VERDETTO = {
+        libretto_service.STATO_KO: 0,
+        libretto_service.STATO_MANCANTE: 1,
+        libretto_service.STATO_WARN: 2,
+        libretto_service.STATO_OK: 3,
+        conformita_service.ESITO_NA: 4,
+    }
+
+    persone: list[dict] = []
+    adempimenti: list[dict] = []
+    for legacy_id, dip in dip_map.items():
+        reparto = str(dip.get("reparto") or "").strip()
+        mansione_nome = mansioni_per_legacy.get(legacy_id, "")
+        if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
+            continue
+        if filtro_mansione and mansione_nome.casefold() != filtro_mansione.casefold():
+            continue
+        dati = libretti.get(legacy_id)
+        if not dati:
+            continue
+        if filtro_verdetto and dati["verdetto"] != filtro_verdetto:
+            continue
+        persona = {
+            "legacy_id": legacy_id,
+            "cognome": str(dip.get("cognome") or f"ID {legacy_id}").strip(),
+            "nome": str(dip.get("nome") or "").strip(),
+            "reparto": reparto,
+            "mansione": mansione_nome,
+            "mansione_id": mansioni_map.get(mansione_nome.casefold()),
+        }
+        persone.append({**persona, "libretto": dati})
+        for riga in dati["righe_obbligo"]:
+            if filtro_dominio and riga.dominio != filtro_dominio:
+                continue
+            if filtro_stato and riga.stato != filtro_stato:
+                continue
+            adempimenti.append({**persona, "riga": riga})
+
+    persone.sort(key=lambda p: (
+        _ORDINE_VERDETTO.get(p["libretto"]["verdetto"], 9),
+        p["cognome"].casefold(), p["nome"].casefold(),
+    ))
+    _ORDINE_STATO = {
+        libretto_service.STATO_KO: 0,
+        libretto_service.STATO_MANCANTE: 1,
+        libretto_service.STATO_WARN: 2,
+        libretto_service.STATO_OK: 3,
+    }
+    adempimenti.sort(key=lambda a: (
+        _ORDINE_STATO.get(a["riga"].stato, 9),
+        a["riga"].data_scadenza or date.max,
+        a["cognome"].casefold(), a["nome"].casefold(),
+    ))
+
+    # KPI: le persone si contano per verdetto, gli adempimenti per stato — sono
+    # due domande diverse ("chi è fermo?" / "quanto lavoro c'è?").
+    n_persone_ko = sum(1 for p in persone if p["libretto"]["verdetto"] == libretto_service.STATO_KO)
+    n_persone_incomplete = sum(
+        1 for p in persone if p["libretto"]["verdetto"] == libretto_service.STATO_MANCANTE
+    )
+    n_persone_ok = sum(
+        1 for p in persone
+        if p["libretto"]["verdetto"] in (libretto_service.STATO_OK, libretto_service.STATO_WARN)
+    )
+    tutti_obblighi = [r for p in persone for r in p["libretto"]["righe_obbligo"]]
+    conta_stato = {
+        stato: sum(1 for r in tutti_obblighi if r.stato == stato)
+        for stato in (
+            libretto_service.STATO_OK, libretto_service.STATO_WARN,
+            libretto_service.STATO_KO, libretto_service.STATO_MANCANTE,
+        )
+    }
+    n_obblighi = len(tutti_obblighi)
+    copertura = round(100 * conta_stato[libretto_service.STATO_OK] / n_obblighi) if n_obblighi else 0
+
+    _DOMINI = (
+        ("visite", "🏥 Sorveglianza sanitaria"),
+        ("dpi", "🦺 DPI"),
+        ("corsi", "📚 Formazione"),
+    )
+    per_dominio = [
+        {
+            "chiave": chiave,
+            "titolo": titolo,
+            "totale": sum(1 for r in tutti_obblighi if r.dominio == chiave),
+            "ko": sum(1 for r in tutti_obblighi if r.dominio == chiave and r.stato == libretto_service.STATO_KO),
+            "warn": sum(1 for r in tutti_obblighi if r.dominio == chiave and r.stato == libretto_service.STATO_WARN),
+            "mancante": sum(1 for r in tutti_obblighi if r.dominio == chiave and r.stato == libretto_service.STATO_MANCANTE),
+            "ok": sum(1 for r in tutti_obblighi if r.dominio == chiave and r.stato == libretto_service.STATO_OK),
+        }
+        for chiave, titolo in _DOMINI
+    ]
+
+    reparti = sorted({p["reparto"] for p in persone if p["reparto"]})
+    mansioni_elenco = sorted({p["mansione"] for p in persone if p["mansione"]})
+
+    if export_csv:
+        resp = HttpResponse(content_type=CSV_CONTENT_TYPE)
+        nome_file = (
+            "libretto_sanitario_adempimenti" if vista == "adempimenti"
+            else "libretto_sanitario_persone"
+        )
+        resp["Content-Disposition"] = f'attachment; filename="{nome_file}.csv"'
+        resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
+        writer = safe_csv_writer(resp, delimiter=";")
+        _DOM_LABEL = {"visite": "Sorveglianza sanitaria", "dpi": "DPI", "corsi": "Formazione"}
+        if vista == "adempimenti":
+            writer.writerow([
+                "Dipendente", "Reparto", "Mansione", "Ambito", "Requisito",
+                "Perché è dovuto", "Ultima evidenza", "Scadenza", "Stato",
+            ])
+            for a in adempimenti:
+                riga = a["riga"]
+                writer.writerow([
+                    naming.nome_completo(a["nome"], a["cognome"]),
+                    a["reparto"], a["mansione"],
+                    _DOM_LABEL.get(riga.dominio, riga.dominio), riga.nome,
+                    " · ".join(riga.origini),
+                    riga.data_ultima.strftime("%d/%m/%Y") if riga.data_ultima else "",
+                    riga.data_scadenza.strftime("%d/%m/%Y") if riga.data_scadenza else "",
+                    riga.stato_label,
+                ])
+        else:
+            writer.writerow([
+                "Dipendente", "Reparto", "Mansione", "Esito", "Obblighi",
+                "Conformi", "In scadenza", "Scaduti", "Da acquisire", "Da sistemare",
+            ])
+            for p in persone:
+                lib = p["libretto"]
+                writer.writerow([
+                    naming.nome_completo(p["nome"], p["cognome"]),
+                    p["reparto"], p["mansione"], lib["verdetto_label"],
+                    lib["conteggi"]["totale"], lib["conteggi"]["ok"],
+                    lib["conteggi"]["warn"], lib["conteggi"]["ko"],
+                    lib["conteggi"]["mancante"],
+                    "; ".join(f"{r.nome} ({r.stato_label.lower()})" for r in lib["criticita"]),
+                ])
+        return resp
+
+    elenco = adempimenti if vista == "adempimenti" else persone
+    paginator = Paginator(elenco, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "anagrafica/pages/libretto_sanitario_generale.html", {
+        "page_obj": page_obj,
+        "vista": vista,
+        "totale": len(elenco),
+        "n_persone": len(persone),
+        "n_persone_ko": n_persone_ko,
+        "n_persone_incomplete": n_persone_incomplete,
+        "n_persone_ok": n_persone_ok,
+        "n_obblighi": n_obblighi,
+        "conta_stato": conta_stato,
+        "copertura": copertura,
+        "per_dominio": per_dominio,
+        "reparti": reparti,
+        "mansioni_elenco": mansioni_elenco,
+        "filtro_reparto": filtro_reparto,
+        "filtro_mansione": filtro_mansione,
+        "filtro_verdetto": filtro_verdetto,
+        "filtro_dominio": filtro_dominio,
+        "filtro_stato": filtro_stato,
+        "can_view_visite": can_view_visite,
+        "oggi": django_timezone.localdate(),
+    })
+
+
+# ---------------------------------------------------------------------------
 # Onboarding strutturato — pratica + checklist (H1, speculare a offboarding)
 # ---------------------------------------------------------------------------
 

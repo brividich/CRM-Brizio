@@ -284,6 +284,8 @@ urlpatterns = [
 
     # Report conformità "idoneità alla mansione" (semaforo per dominio)
     path("conformita/", views.conformita_report, name="conformita_report"),
+    # Libretto sanitario aziendale — quadro generale (KPI, filtri, export)
+    path("libretto-sanitario/", views.libretto_sanitario_generale, name="libretto_sanitario_generale"),
     path("sicurezza/", views.sicurezza_hub, name="sicurezza_hub"),
     path("sicurezza/ricerca/", views.sicurezza_ricerca, name="sicurezza_ricerca"),
     path("sicurezza/guida/", views.sicurezza_wizard, name="sicurezza_wizard"),

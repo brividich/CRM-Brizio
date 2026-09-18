@@ -212,6 +212,7 @@ can_view_visite. Privacy: nomi visita/giudizio solo se can_view_visite.
     {% if mansione_obj %}
     <a href="{% url 'anagrafica:mansione_requisiti' mansione_obj.id %}" title="Requisiti della mansione di rischio">🎯 Requisiti mansione</a>
     {% endif %}
+    <a href="{% url 'anagrafica:libretto_sanitario_generale' %}" title="Quadro generale: tutti gli obblighi del personale">📊 Quadro generale</a>
     <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa</button>
   </div>
 
