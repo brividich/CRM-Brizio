@@ -390,6 +390,59 @@ def _email_cambio_mansione(
         return False
 
 
+@dataclass
+class SDSDovutePerDipendente:
+    legacy_user_id: int | None
+    mansione_nome: str
+    da_leggere: list
+
+
+def sds_da_leggere_per_dipendente(legacy_anagrafica_id: int, mansione_nome: str) -> SDSDovutePerDipendente:
+    """SDS ancora da leggere per un dipendente in una data mansione (nessun effetto collaterale).
+
+    Fattorizzato da ``notifica_cambio_mansione`` per essere riusabile anche da una
+    regola del motore automazioni (calcolo del conteggio nel corpo mail), senza
+    duplicare la logica di risoluzione mansione/presa-visione.
+    """
+    vuoto = SDSDovutePerDipendente(None, "", [])
+    mansione = _mansione_per_nome(mansione_nome)
+    if mansione is None:
+        return vuoto
+    from core.legacy_models import AnagraficaDipendente
+    from core.models import Profile
+    from ..models import PresaVisioneScheda, SchedaSicurezza
+
+    legacy_user_id = (
+        AnagraficaDipendente.objects.filter(pk=legacy_anagrafica_id)
+        .values_list("utente_id", flat=True)
+        .first()
+    )
+    if not legacy_user_id:
+        return SDSDovutePerDipendente(None, mansione.nome, [])
+    schede = list(
+        SchedaSicurezza.objects.filter(
+            is_corrente=True, prodotto__attivo=True, prodotto__mansioni=mansione
+        ).select_related("prodotto").order_by("prodotto__nome")
+    )
+    if not schede:
+        return SDSDovutePerDipendente(int(legacy_user_id), mansione.nome, [])
+    django_user_id = (
+        Profile.objects.filter(legacy_user_id=legacy_user_id, user__is_active=True)
+        .values_list("user_id", flat=True)
+        .first()
+    )
+    lette = set()
+    if django_user_id:
+        lette = set(
+            PresaVisioneScheda.objects.filter(
+                operatore_id=django_user_id,
+                scheda_id__in=[scheda.pk for scheda in schede],
+            ).values_list("scheda_id", flat=True)
+        )
+    da_leggere = [scheda for scheda in schede if scheda.pk not in lette]
+    return SDSDovutePerDipendente(int(legacy_user_id), mansione.nome, da_leggere)
+
+
 def notifica_cambio_mansione(
     legacy_anagrafica_id: int,
     mansione_nuova: str,
@@ -405,57 +458,24 @@ def notifica_cambio_mansione(
     """
     if (mansione_nuova or "").strip().casefold() == (mansione_precedente or "").strip().casefold():
         return 0
-    mansione = _mansione_per_nome(mansione_nuova)
-    if mansione is None:
-        return 0
     try:
-        from core.legacy_models import AnagraficaDipendente
-        from core.models import Profile
         from core.notifiche import invia_notifica
-        from ..models import PresaVisioneScheda, SchedaSicurezza
 
-        legacy_user_id = (
-            AnagraficaDipendente.objects.filter(pk=legacy_anagrafica_id)
-            .values_list("utente_id", flat=True)
-            .first()
-        )
-        if not legacy_user_id:
+        dovute = sds_da_leggere_per_dipendente(legacy_anagrafica_id, mansione_nuova)
+        if not dovute.legacy_user_id or not dovute.da_leggere:
             return 0
-        schede = list(
-            SchedaSicurezza.objects.filter(
-                is_corrente=True, prodotto__attivo=True, prodotto__mansioni=mansione
-            ).select_related("prodotto").order_by("prodotto__nome")
-        )
-        if not schede:
-            return 0
-        django_user_id = (
-            Profile.objects.filter(legacy_user_id=legacy_user_id, user__is_active=True)
-            .values_list("user_id", flat=True)
-            .first()
-        )
-        lette = set()
-        if django_user_id:
-            lette = set(
-                PresaVisioneScheda.objects.filter(
-                    operatore_id=django_user_id,
-                    scheda_id__in=[scheda.pk for scheda in schede],
-                ).values_list("scheda_id", flat=True)
-            )
-        da_leggere = [scheda for scheda in schede if scheda.pk not in lette]
-        mancanti = len(da_leggere)
-        if not mancanti:
-            return 0
+        mancanti = len(dovute.da_leggere)
         invia_notifica(
-            int(legacy_user_id),
+            dovute.legacy_user_id,
             "presa_visione",
             (
-                f"Nuova mansione '{mansione.nome}': hai {mancanti} "
+                f"Nuova mansione '{dovute.mansione_nome}': hai {mancanti} "
                 f"{'schede' if mancanti != 1 else 'scheda'} di sicurezza da prendere in visione."
             ),
             url_azione=URL_SDS_DA_LEGGERE,
         )
         _email_cambio_mansione(
-            legacy_anagrafica_id, int(legacy_user_id), mansione.nome, da_leggere
+            legacy_anagrafica_id, dovute.legacy_user_id, dovute.mansione_nome, dovute.da_leggere
         )
         return mancanti
     except Exception:

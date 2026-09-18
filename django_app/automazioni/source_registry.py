@@ -1517,6 +1517,98 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
             ),
         ],
     },
+    "anagrafica_dipendenti": {
+        "code": "anagrafica_dipendenti",
+        "label": "Anagrafica - Dipendenti",
+        "source_app": "core",
+        "table_name": "anagrafica_dipendenti",
+        "pk_field": "id",
+        "supported_operations": ["update"],
+        "description": (
+            "Tabella legacy anagrafica dipendenti (SQL Server). "
+            "Trigger utile: cambio `mansione` → notifica SDS ancora da leggere. "
+            "Il trigger trg_anagrafica_dipendenti_automation proietta `old_mansione` "
+            "nel payload update; conteggio SDS e URL sono campi virtuali calcolati "
+            "a runtime (non presenti nella tabella)."
+        ),
+        "fields": [
+            _field(name="id", label="ID", data_type="int", description="Chiave primaria dipendente (anagrafica legacy)."),
+            _field(
+                name="nome",
+                label="Nome",
+                data_type="string",
+                description="Nome del dipendente.",
+            ),
+            _field(
+                name="cognome",
+                label="Cognome",
+                data_type="string",
+                description="Cognome del dipendente.",
+            ),
+            _field(
+                name="mansione",
+                label="Mansione",
+                data_type="string",
+                description="Mansione corrente del dipendente.",
+            ),
+            _field(
+                name="old_mansione",
+                label="Mansione precedente",
+                data_type="string",
+                description="Valore precedente di `mansione`, proiettato dal trigger update.",
+                is_virtual=True,
+                aliases=["previous_mansione"],
+            ),
+            _field(
+                name="reparto",
+                label="Reparto",
+                data_type="string",
+                description="Reparto del dipendente.",
+            ),
+            _field(
+                name="dipendente_nome",
+                label="Nome e cognome",
+                data_type="string",
+                description="Nome e cognome del dipendente (campo virtuale, `cognome` + `nome`).",
+                is_virtual=True,
+                aliases=["nominativo"],
+            ),
+            _field(
+                name="dipendente_email",
+                label="Email dipendente",
+                data_type="string",
+                description="Email da usare per le notifiche (campo virtuale, `email_notifica` con fallback su `email`).",
+                is_virtual=True,
+            ),
+            _field(
+                name="sds_da_leggere_count",
+                label="SDS ancora da leggere",
+                data_type="int",
+                description=(
+                    "Campo virtuale: numero di schede di sicurezza (SDS) ancora da confermare "
+                    "per la nuova mansione, calcolato a runtime da schede_sicurezza."
+                ),
+                is_virtual=True,
+            ),
+            _field(
+                name="sds_url",
+                label="Link cruscotto SDS",
+                data_type="string",
+                description="Campo virtuale: URL assoluto al cruscotto personale «SDS da leggere» (richiede login).",
+                is_virtual=True,
+            ),
+            _field(
+                name="sds_conferma_tutte_url",
+                label="Link conferma tutte le SDS",
+                data_type="string",
+                description=(
+                    "Campo virtuale: URL assoluto che conferma in un click la presa visione di "
+                    "tutte le SDS dovute per l'utente loggato e poi riapre il cruscotto (richiede login)."
+                ),
+                is_virtual=True,
+            ),
+        ],
+    },
     "procedure_assegnazioni": {
         "code": "procedure_assegnazioni",
         "label": "Procedure - Assegnazioni",

@@ -182,6 +182,29 @@ class SdsPerMansioneWorkflowTest(TestCase):
             [("Diluente verniciatura", "ok"), ("Sgrassante senza SDS", "bad")],
         )
 
+    def test_conferma_tutte_registra_presa_visione_e_riapre_cruscotto(self):
+        self.anagrafica.mansione = self.nuova.nome
+        self.anagrafica.save(update_fields=["mansione"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("schede_sicurezza:sds_conferma_tutte"))
+
+        self.assertRedirects(response, reverse("schede_sicurezza:sds_da_leggere"))
+        self.assertTrue(
+            PresaVisioneScheda.objects.filter(scheda=self.scheda_nuova, operatore=self.user).exists()
+        )
+        self.assertEqual(profilo_sds_utente(self.user).da_leggere, [])
+
+    def test_conferma_tutte_e_idempotente_se_gia_confermate(self):
+        self.client.force_login(self.user)
+        self.client.get(reverse("schede_sicurezza:sds_conferma_tutte"))
+        prima = PresaVisioneScheda.objects.count()
+
+        response = self.client.get(reverse("schede_sicurezza:sds_conferma_tutte"))
+
+        self.assertRedirects(response, reverse("schede_sicurezza:sds_da_leggere"))
+        self.assertEqual(PresaVisioneScheda.objects.count(), prima)
+
     def test_report_evidenzia_prodotti_senza_mansione(self):
         orfano = ProdottoChimico.objects.create(nome="Prodotto da bonificare")
         self.assertIn(orfano, prodotti_senza_mansioni())

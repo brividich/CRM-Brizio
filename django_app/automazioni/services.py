@@ -553,6 +553,44 @@ def _resolve_anomalie_role_for_legacy_id(legacy_user_id: Any) -> str:
     return ""
 
 
+def _enrich_anagrafica_dipendenti_payload(payload: Any) -> Any:
+    """Arricchisce il payload dipendente con i campi virtuali usati dalla regola
+    "cambio mansione -> SDS da leggere": nome/email calcolati e conteggio/URL
+    SDS, ricavati riusando la stessa logica di schede_sicurezza (nessuna
+    duplicazione della query mansione/presa-visione)."""
+    if not isinstance(payload, dict):
+        return payload
+    enriched = dict(payload)
+
+    nome = str(enriched.get("nome") or "").strip()
+    cognome = str(enriched.get("cognome") or "").strip()
+    dipendente_nome = f"{cognome} {nome}".strip()
+    if dipendente_nome:
+        enriched.setdefault("dipendente_nome", dipendente_nome)
+
+    dipendente_email = str(
+        enriched.get("email_notifica") or enriched.get("email") or ""
+    ).strip()
+    if dipendente_email:
+        enriched.setdefault("dipendente_email", dipendente_email)
+
+    site_url = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
+    if site_url:
+        enriched.setdefault("sds_url", f"{site_url}/schede-sicurezza/da-leggere/")
+        enriched.setdefault(
+            "sds_conferma_tutte_url", f"{site_url}/schede-sicurezza/da-leggere/conferma-tutte/"
+        )
+
+    try:
+        from schede_sicurezza.services.assegnazioni import sds_da_leggere_per_dipendente
+
+        dovute = sds_da_leggere_per_dipendente(enriched.get("id"), enriched.get("mansione"))
+        enriched["sds_da_leggere_count"] = len(dovute.da_leggere)
+    except Exception:
+        enriched.setdefault("sds_da_leggere_count", 0)
+    return enriched
+
+
 def _enrich_anomalie_payload(payload: Any) -> Any:
     """
     AU-GAP1: arricchisce il payload anomalie con `modified_by_role` derivandolo da
@@ -617,6 +655,8 @@ def _enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:
         enriched = _enrich_tickets_payload(payload)
     elif normalized_source == "anomalie":
         enriched = _enrich_anomalie_payload(payload)
+    elif normalized_source == "anagrafica_dipendenti":
+        enriched = _enrich_anagrafica_dipendenti_payload(payload)
     else:
         enriched = payload
 
