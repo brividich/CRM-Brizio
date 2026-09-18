@@ -1,0 +1,372 @@
+{% load static %}
+{% load anagrafica_extras %}
+{% comment %}
+Libretto sanitario aziendale — foglio stampabile con i requisiti della mansione
+e il loro stato. Stesso impianto grafico del libretto formativo (foglio A4
+bianco + action bar non stampata): è un documento da esibire, non una schermata.
+Context: dip, legacy_id, libretto (service libretto_sanitario), mansione_obj,
+can_view_visite. Privacy: nomi visita/giudizio solo se can_view_visite.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Libretto sanitario — {% nominativo dip %}</title>
+  <link rel="stylesheet" href="{% static 'core/vendor/outfit/outfit.css' %}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    :root {
+      --ink: #0f172a;
+      --ink-soft: #334155;
+      --muted: #64748b;
+      --muted-soft: #94a3b8;
+      --line: #e2e8f0;
+      --line-soft: #f1f5f9;
+      --primary: #1f87cd;
+      --ok: #166534;      --ok-bg: #dcfce7;
+      --warn: #9a3412;    --warn-bg: #ffedd5;
+      --ko: #b91c1c;      --ko-bg: #fee2e2;
+      --miss: #1e40af;    --miss-bg: #dbeafe;
+      --bg: #f8fafc;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    /* ── Action bar (non stampata) ─────────────────────────────── */
+    .pb-actions {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 22px;
+      background: #0f172a; color: #fff;
+      box-shadow: 0 2px 12px rgba(15,23,42,.22);
+    }
+    .pb-actions-title { flex: 1; font-size: 13.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .pb-actions a, .pb-actions button {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08);
+      color: #fff; font-size: 12.5px; font-weight: 700; font-family: inherit;
+      cursor: pointer; text-decoration: none;
+    }
+    .pb-actions a:hover, .pb-actions button:hover { background: rgba(255,255,255,.18); }
+    .pb-actions .pb-btn-print { background: var(--primary); border-color: var(--primary); }
+
+    /* ── Foglio A4 ────────────────────────────────────────────── */
+    .pb-sheet {
+      max-width: 960px; margin: 22px auto;
+      background: #fff; border: 1px solid var(--line); border-radius: 14px;
+      box-shadow: 0 10px 30px -10px rgba(15,23,42,.18);
+      padding: 36px 42px;
+    }
+
+    .pb-head {
+      display: flex; align-items: flex-start; gap: 18px;
+      padding-bottom: 18px; margin-bottom: 22px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .pb-head-body { flex: 1; min-width: 0; }
+    .pb-head-eyebrow { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .pb-head-title { margin: 4px 0 6px; font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+    .pb-head-sub { color: var(--muted); font-size: 13px; }
+    .pb-head-right { text-align: right; flex-shrink: 0; }
+    .pb-head-id { font-family: "Courier New", monospace; font-size: 11px; color: var(--muted); }
+    .pb-head-date { font-size: 11px; color: var(--muted-soft); margin-top: 3px; }
+
+    /* ── Verdetto ─────────────────────────────────────────────── */
+    .ls-verdetto {
+      display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+      padding: 18px 22px; border-radius: 14px;
+      border: 2px solid var(--line); background: var(--line-soft);
+      page-break-inside: avoid;
+    }
+    .ls-verdetto-ok   { border-color: #86efac; background: var(--ok-bg); }
+    .ls-verdetto-warn { border-color: #fdba74; background: var(--warn-bg); }
+    .ls-verdetto-ko   { border-color: #fca5a5; background: var(--ko-bg); }
+    .ls-verdetto-mancante { border-color: #93c5fd; background: var(--miss-bg); }
+    .ls-verdetto-body { flex: 1; min-width: 240px; }
+    .ls-verdetto-eyebrow { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .ls-verdetto-label { font-size: 24px; font-weight: 800; line-height: 1.15; margin-top: 2px; }
+    .ls-verdetto-ok   .ls-verdetto-label { color: var(--ok); }
+    .ls-verdetto-warn .ls-verdetto-label { color: var(--warn); }
+    .ls-verdetto-ko   .ls-verdetto-label { color: var(--ko); }
+    .ls-verdetto-mancante .ls-verdetto-label { color: var(--miss); }
+    .ls-verdetto-note { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
+
+    .ls-conteggi { display: flex; gap: 10px; flex-wrap: wrap; }
+    .ls-conteggio {
+      min-width: 92px; padding: 8px 14px; border-radius: 10px;
+      background: #fff; border: 1px solid var(--line); text-align: center;
+    }
+    .ls-conteggio-val { font-size: 22px; font-weight: 800; line-height: 1; }
+    .ls-conteggio-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 4px; }
+
+    /* ── Catena mansione → requisiti → esito ──────────────────── */
+    .ls-catena {
+      display: flex; align-items: stretch; gap: 0; flex-wrap: wrap;
+      margin: 22px 0 6px; page-break-inside: avoid;
+    }
+    .ls-step {
+      flex: 1; min-width: 190px; padding: 12px 16px;
+      border: 1px solid var(--line); background: #fff;
+    }
+    .ls-step:first-child { border-radius: 10px 0 0 10px; }
+    .ls-step:last-child  { border-radius: 0 10px 10px 0; }
+    .ls-step + .ls-step { border-left: none; }
+    .ls-step-n { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--primary); }
+    .ls-step-t { font-size: 14px; font-weight: 800; margin: 3px 0 4px; }
+    .ls-step-d { font-size: 11.5px; color: var(--muted); }
+
+    .ls-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+    .ls-chip {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 700;
+      background: var(--line-soft); color: var(--ink-soft);
+    }
+    .ls-chip-rischio { background: #ede9fe; color: #5b21b6; }
+
+    /* ── Azioni richieste ─────────────────────────────────────── */
+    .ls-azioni {
+      margin-top: 20px; padding: 16px 20px;
+      border: 1px solid var(--line); border-left: 5px solid var(--muted);
+      border-radius: 12px; background: #fff; page-break-inside: avoid;
+    }
+    /* Rosso solo se c'è davvero qualcosa di scaduto: un obbligo mai assolto è
+       un'azione da pianificare, non una violazione in atto. */
+    .ls-azioni-ko   { border-color: #fca5a5; border-left-color: var(--ko); background: #fff5f5; }
+    .ls-azioni-miss { border-color: #bfdbfe; border-left-color: var(--miss); background: #f5f9ff; }
+    .ls-azioni-t { font-size: 13px; font-weight: 800; margin-bottom: 8px; }
+    .ls-azioni-ko .ls-azioni-t   { color: var(--ko); }
+    .ls-azioni-miss .ls-azioni-t { color: var(--miss); }
+    .ls-azioni ul { margin: 0; padding-left: 20px; }
+    .ls-azioni li { margin: 3px 0; font-size: 13px; }
+    .ls-azioni li b { font-weight: 700; }
+
+    /* ── Sezioni e tabelle ────────────────────────────────────── */
+    .pb-section { margin-top: 26px; page-break-inside: avoid; }
+    .pb-section-head { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-bottom: 10px; }
+    .pb-section-title { font-size: 13px; font-weight: 800; letter-spacing: .01em; margin: 0; }
+    .pb-section-sub { flex: 1; font-size: 11.5px; color: var(--muted); }
+
+    .ls-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .ls-table th {
+      text-align: left; font-size: 10px; font-weight: 800; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .05em;
+      padding: 7px 8px; border-bottom: 1.5px solid var(--line); white-space: nowrap;
+    }
+    .ls-table td { padding: 9px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+    .ls-table tbody tr:nth-child(even) td { background: #fbfcfe; }
+    .ls-table td.req { font-weight: 700; }
+    .ls-table td.date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ls-origine { font-size: 11px; color: var(--muted); }
+    .ls-nota { font-size: 11px; color: var(--muted); font-style: italic; }
+    .ls-vuoto { font-size: 12.5px; color: var(--muted); font-style: italic; padding: 6px 2px; }
+
+    .ls-pill {
+      display: inline-block; padding: 3px 11px; border-radius: 999px;
+      font-size: 11px; font-weight: 800; white-space: nowrap;
+    }
+    .ls-pill-ok       { background: var(--ok-bg);   color: var(--ok); }
+    .ls-pill-warn     { background: var(--warn-bg); color: var(--warn); }
+    .ls-pill-ko       { background: var(--ko-bg);   color: var(--ko); }
+    .ls-pill-mancante { background: var(--miss-bg); color: var(--miss); }
+
+    .ls-privacy {
+      margin-top: 22px; padding: 10px 14px; border-radius: 10px;
+      background: var(--line-soft); font-size: 11.5px; color: var(--muted);
+    }
+
+    .pb-footer {
+      margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 10.5px; color: var(--muted);
+    }
+    .pb-footer-sig { margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+    .pb-footer-sig div { border-top: 1px solid var(--ink-soft); padding-top: 4px; font-size: 10.5px; color: var(--muted); text-align: center; }
+
+    @page { size: A4; margin: 12mm 14mm; }
+    @media print {
+      body { background: #fff; font-size: 11.5px; }
+      .pb-actions { display: none !important; }
+      .pb-sheet { max-width: none; margin: 0; padding: 0; border: none; box-shadow: none; border-radius: 0; }
+      .pb-section, .ls-table tr, .ls-verdetto, .ls-catena { page-break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Action bar (non stampata) -->
+  <div class="pb-actions">
+    <span class="pb-actions-title">Libretto sanitario — {% nominativo dip %}</span>
+    <a href="{% url 'anagrafica:dipendente_detail' legacy_id %}" title="Apri la scheda completa del dipendente">← Scheda</a>
+    <a href="{% url 'anagrafica:dipendente_libretto_formativo' legacy_id %}" title="Libretto formativo (storico corsi e attestati)">📚 Libretto formativo</a>
+    {% if mansione_obj %}
+    <a href="{% url 'anagrafica:mansione_requisiti' mansione_obj.id %}" title="Requisiti della mansione di rischio">🎯 Requisiti mansione</a>
+    {% endif %}
+    <button type="button" class="pb-btn-print" onclick="window.print();">🖨 Stampa</button>
+  </div>
+
+  <article class="pb-sheet">
+
+    <!-- Header -->
+    <header class="pb-head">
+      <div class="pb-head-body">
+        <div class="pb-head-eyebrow">Libretto sanitario aziendale · NOVICROM HUB</div>
+        <h1 class="pb-head-title">{% nominativo dip %}</h1>
+        <div class="pb-head-sub">
+          {% if dip.mansione %}<b>{{ dip.mansione }}</b>{% else %}<span style="color:var(--muted-soft);">Mansione non specificata</span>{% endif %}
+          {% if dip.reparto %} · {{ dip.reparto }}{% endif %}
+          {% if dip.matricola %} · Matricola <b>{{ dip.matricola }}</b>{% endif %}
+        </div>
+      </div>
+      <div class="pb-head-right">
+        <div class="pb-head-id">ID {{ legacy_id }}</div>
+        <div class="pb-head-date">Aggiornato al {{ libretto.aggiornato_al|date:"d/m/Y" }}</div>
+      </div>
+    </header>
+
+    <!-- Verdetto complessivo -->
+    {% with v=libretto.verdetto c=libretto.conteggi %}
+    <div class="ls-verdetto ls-verdetto-{{ v }}">
+      <div class="ls-verdetto-body">
+        <div class="ls-verdetto-eyebrow">Idoneità agli obblighi della mansione</div>
+        <div class="ls-verdetto-label">{{ libretto.verdetto_label }}</div>
+        <div class="ls-verdetto-note">
+          {% if v == 'ko' %}Ci sono adempimenti <b>scaduti</b>: fino al rinnovo la persona non è in regola per la mansione.
+          {% elif v == 'mancante' %}Tutti gli adempimenti registrati sono validi, ma alcuni obblighi <b>non risultano ancora assolti</b>.
+          {% elif v == 'warn' %}Nessun adempimento scaduto; alcuni scadono entro 60 giorni.
+          {% elif v == 'ok' %}Tutti gli obblighi della mansione risultano assolti e validi.
+          {% else %}La mansione non ha requisiti configurati: nulla da verificare.{% endif %}
+        </div>
+      </div>
+      {% if c.totale %}
+      <div class="ls-conteggi">
+        <div class="ls-conteggio"><div class="ls-conteggio-val" style="color:var(--ok);">{{ c.ok }}</div><div class="ls-conteggio-lbl">Conformi</div></div>
+        <div class="ls-conteggio"><div class="ls-conteggio-val" style="color:var(--warn);">{{ c.warn }}</div><div class="ls-conteggio-lbl">In scadenza</div></div>
+        <div class="ls-conteggio"><div class="ls-conteggio-val" style="color:var(--ko);">{{ c.ko }}</div><div class="ls-conteggio-lbl">Scaduti</div></div>
+        <div class="ls-conteggio"><div class="ls-conteggio-val" style="color:var(--miss);">{{ c.mancante }}</div><div class="ls-conteggio-lbl">Da acquisire</div></div>
+      </div>
+      {% endif %}
+    </div>
+    {% endwith %}
+
+    <!-- Catena: da dove nascono gli obblighi -->
+    <div class="ls-catena">
+      <div class="ls-step">
+        <div class="ls-step-n">1 · Esposizione</div>
+        <div class="ls-step-t">Fattori di rischio</div>
+        <div class="ls-step-d">Rischi della mansione, dell'area e quelli assegnati alla persona.</div>
+        <div class="ls-chips">
+          {% for f in libretto.fattori %}<span class="ls-chip ls-chip-rischio">{{ f.nome }}</span>
+          {% empty %}<span class="ls-step-d">Nessun fattore collegato.</span>{% endfor %}
+        </div>
+      </div>
+      <div class="ls-step">
+        <div class="ls-step-n">2 · Mansione</div>
+        <div class="ls-step-t">{{ libretto.mansione_nome|default:"—" }}</div>
+        <div class="ls-step-d">
+          {% if mansione_obj %}
+            Mansione di rischio configurata{% if mansione_obj.livello_rischio %} · livello <b>{{ mansione_obj.get_livello_rischio_display }}</b>{% endif %}.
+          {% elif libretto.mansione_nome %}
+            Mansione di lavoro non ancora collegata a una mansione di rischio: i requisiti derivano solo da area ed esposizioni dirette.
+          {% else %}
+            Mansione non indicata in anagrafica: senza mansione non si possono derivare i requisiti.
+          {% endif %}
+        </div>
+      </div>
+      <div class="ls-step">
+        <div class="ls-step-n">3 · Obblighi</div>
+        <div class="ls-step-t">{{ libretto.conteggi.totale }} requisit{{ libretto.conteggi.totale|pluralize:"o,i" }}</div>
+        <div class="ls-step-d">Visite mediche, DPI e formazione dovuti per questa mansione.</div>
+      </div>
+      <div class="ls-step">
+        <div class="ls-step-n">4 · Esito</div>
+        <div class="ls-step-t">{{ libretto.verdetto_label }}</div>
+        <div class="ls-step-d">Peggiore stato fra gli obblighi: un solo requisito scaduto rende non conforme.</div>
+      </div>
+    </div>
+
+    <!-- Cosa fare, se c'è qualcosa da fare -->
+    {% if libretto.criticita %}
+    <div class="ls-azioni {% if libretto.conteggi.ko %}ls-azioni-ko{% else %}ls-azioni-miss{% endif %}">
+      <div class="ls-azioni-t">{% if libretto.conteggi.ko %}⚠️ Da sistemare{% else %}📋 Da completare{% endif %} ({{ libretto.criticita|length }})</div>
+      <ul>
+        {% for r in libretto.criticita %}
+        <li><b>{{ r.nome }}</b> — {% if r.stato == 'ko' %}scaduto{% if r.data_scadenza %} il {{ r.data_scadenza|date:"d/m/Y" }}{% endif %}{% else %}mai registrato, da acquisire{% endif %}{% if r.origini %} <span class="ls-origine">({{ r.origini|join:" · " }})</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- Dettaglio per dominio -->
+    {% for sezione in libretto.sezioni %}
+    <section class="pb-section">
+      <div class="pb-section-head">
+        <h2 class="pb-section-title">{{ sezione.icona }} {{ sezione.titolo }}</h2>
+        <span class="pb-section-sub">{{ sezione.descrizione }}</span>
+      </div>
+      {% if sezione.righe %}
+      <table class="ls-table">
+        <thead>
+          <tr>
+            <th style="width:34%;">Requisito</th>
+            <th style="width:24%;">Perché è dovuto</th>
+            <th style="width:13%;">Ultima evidenza</th>
+            <th style="width:14%;">Scadenza</th>
+            <th style="width:15%;">Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in sezione.righe %}
+          <tr>
+            <td class="req">{{ r.nome }}{% if r.nota %}<div class="ls-nota">{{ r.nota }}</div>{% endif %}</td>
+            <td class="ls-origine">{% if r.origini %}{{ r.origini|join:" · " }}{% else %}—{% endif %}</td>
+            <td class="date">{% if r.data_ultima %}{{ r.data_ultima|date:"d/m/Y" }}{% else %}<span class="ls-nota">mai</span>{% endif %}</td>
+            <td class="date">
+              {% if r.data_scadenza %}{{ r.data_scadenza|date:"d/m/Y" }}
+                {% if r.stato == 'warn' and r.giorni %}<div class="ls-nota">fra {{ r.giorni }} gg</div>{% endif %}
+              {% elif r.stato == 'mancante' %}<span class="ls-nota">—</span>
+              {% else %}<span class="ls-nota">senza scadenza</span>{% endif %}
+            </td>
+            <td><span class="ls-pill ls-pill-{{ r.stato }}">{{ r.stato_label }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="ls-vuoto">
+        {% if sezione.chiave == 'qualifiche' %}Nessuna qualifica registrata per questa persona.
+        {% else %}Nessun requisito di questo tipo per la mansione.{% endif %}
+      </div>
+      {% endif %}
+    </section>
+    {% endfor %}
+
+    {% if not can_view_visite %}
+    <div class="ls-privacy">
+      🔒 I dati di sorveglianza sanitaria (tipologia di visita e giudizio di idoneità) sono visibili solo al personale autorizzato: qui compaiono solo la scadenza e lo stato dell'adempimento.
+    </div>
+    {% endif %}
+
+    <footer class="pb-footer">
+      <span>NOVICROM HUB · Libretto sanitario aziendale — documento generato automaticamente dai dati del portale</span>
+      <span>{{ libretto.aggiornato_al|date:"d/m/Y" }}</span>
+    </footer>
+    <div class="pb-footer-sig">
+      <div>Firma del lavoratore</div>
+      <div>Firma del datore di lavoro / RSPP</div>
+    </div>
+
+  </article>
+
+</body>
+</html>

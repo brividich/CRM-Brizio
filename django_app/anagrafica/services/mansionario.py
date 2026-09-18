@@ -229,6 +229,30 @@ def requisiti_dipendente(
     Passarli evita il fetch quando il chiamante li ha già. Ritorna
     ``{dpi, visite, corsi, piani, fattori}``.
     """
+    return requisiti_dipendente_dettaglio(
+        legacy_id, mansione_nome=mansione_nome, area_id=area_id
+    )["requisiti"]
+
+
+def requisiti_dipendente_dettaglio(
+    legacy_id: int, *, mansione_nome: str | None = None, area_id: int | None = None
+) -> dict[str, Any]:
+    """Come :func:`requisiti_dipendente`, ma dice **da dove viene** ogni requisito.
+
+    Il libretto sanitario deve poter rispondere a "perché questo DPI è dovuto?":
+    senza l'origine un elenco di obblighi non è verificabile da chi lo legge (né
+    in un'ispezione). Ritorna::
+
+        {
+          "requisiti": {dpi, visite, corsi, piani, fattori},   # come sopra
+          "origini": {("dpi", pk): ["Mansione «Saldatore»", ...], ...},
+          "mansione_nome": "...",
+          "area_id": 12 | None,
+        }
+
+    Le chiavi di ``origini`` sono ``(dominio, pk)`` con dominio in
+    ``dpi``/``visite``/``corsi``/``piani``/``fattori``.
+    """
     from ..models_rischi import EsposizioneRischio
 
     if area_id is None or mansione_nome is None:
@@ -241,10 +265,20 @@ def requisiti_dipendente(
         if mansione_nome is None:
             mansione_nome = _mansione_nome_legacy(legacy_id)
 
+    origini: dict[tuple[str, Any], list[str]] = {}
+
+    def _traccia(parziale: dict[str, list], etichetta: str) -> None:
+        for dominio, voci in parziale.items():
+            for obj in voci:
+                voci_origine = origini.setdefault((dominio, getattr(obj, "pk", obj)), [])
+                if etichetta not in voci_origine:
+                    voci_origine.append(etichetta)
+
     # Fonte 1: mansione lavorativa.
     base = (
         requisiti_per_nome_mansione(mansione_nome) if mansione_nome else requisiti_vuoti()
     )
+    _traccia(base, f"Mansione «{mansione_nome}»" if mansione_nome else "Mansione")
 
     # Fonti 2+3: esposizioni di area + dirette al dipendente.
     esposizioni = (
@@ -255,19 +289,31 @@ def requisiti_dipendente(
             "fattore__tipi_visita", "fattore__categorie_dpi", "fattore__categorie_corso",
         )
     )
-    q_area = esposizioni.filter(area_id=area_id) if area_id else esposizioni.none()
-    q_dir = esposizioni.filter(legacy_anagrafica_id=legacy_id)
-    fattori = [e.fattore for e in list(q_area) + list(q_dir)]
+    q_area = list(esposizioni.filter(area_id=area_id)) if area_id else []
+    q_dir = list(esposizioni.filter(legacy_anagrafica_id=legacy_id))
 
-    categoria_ids = {
-        c.pk for f in fattori if f and f.is_active for c in f.categorie_corso.all()
-    }
-    extra = _requisiti_da_fattori(fattori, _corsi_per_categoria(categoria_ids))
+    extra = {"dpi": [], "visite": [], "corsi": [], "fattori": []}
+    for esposizioni_gruppo, etichetta in ((q_area, "Area aziendale"), (q_dir, "Esposizione diretta")):
+        fattori_gruppo = [e.fattore for e in esposizioni_gruppo]
+        categoria_ids = {
+            c.pk for f in fattori_gruppo if f and f.is_active
+            for c in f.categorie_corso.all()
+        }
+        parziale = _requisiti_da_fattori(fattori_gruppo, _corsi_per_categoria(categoria_ids))
+        _traccia(parziale, etichetta)
+        for dominio in extra:
+            extra[dominio].extend(parziale[dominio])
 
-    return {
+    requisiti = {
         "dpi": _dedup(base["dpi"] + extra["dpi"]),
         "visite": _dedup(base["visite"] + extra["visite"]),
         "corsi": _dedup(base["corsi"] + extra["corsi"]),
         "piani": _dedup(base["piani"]),
         "fattori": _dedup(base["fattori"] + extra["fattori"]),
+    }
+    return {
+        "requisiti": requisiti,
+        "origini": origini,
+        "mansione_nome": (mansione_nome or "").strip(),
+        "area_id": area_id,
     }

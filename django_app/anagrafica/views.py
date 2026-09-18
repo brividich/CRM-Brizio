@@ -2767,6 +2767,50 @@ def dipendente_libretto_formativo(request, legacy_id: int):
 
 
 @login_required
+def dipendente_libretto_sanitario(request, legacy_id: int):
+    """Libretto sanitario aziendale: i requisiti della mansione e il loro stato.
+
+    È la lettura per esteso della catena "fattori di rischio → mansione di
+    rischio → mansione di lavoro → requisiti → conforme/non conforme": il
+    semaforo nella scheda dice *se* la persona è a posto, questa pagina dice
+    *su cosa*, *perché è dovuto* e *entro quando* — una riga per obbligo, con
+    data dell'ultima evidenza, scadenza e origine. Stampabile (A4) perché è il
+    documento che si mostra a un'ispezione.
+
+    Privacy: i nomi delle tipologie di visita e il giudizio di idoneità
+    compaiono solo con il gate sorveglianza sanitaria
+    (``_can_view_visite_mediche``); le prescrizioni mai.
+    """
+    ensure_anagrafica_schema()
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    from .services import libretto_sanitario as libretto_service
+
+    can_view_visite = _can_view_visite_mediche(request)
+    mansione_nome = str(dip.get("mansione") or "").strip()
+    dati = libretto_service.libretto(
+        legacy_id,
+        mansione_nome=mansione_nome,
+        include_visite_dettaglio=can_view_visite,
+    )
+    mansione_obj = (
+        Mansione.objects.filter(nome__iexact=mansione_nome).only("id", "nome", "livello_rischio").first()
+        if mansione_nome else None
+    )
+    return render(request, "anagrafica/pages/dipendente_libretto_sanitario.html", {
+        "dip": dip,
+        "legacy_id": legacy_id,
+        "libretto": dati,
+        "mansione_obj": mansione_obj,
+        "can_view_visite": can_view_visite,
+    })
+
+
+@login_required
 @require_POST
 def libretto_salva_box(request, legacy_id: int):
     """Genera e salva (manualmente) il libretto formativo PDF nel box del dipendente.

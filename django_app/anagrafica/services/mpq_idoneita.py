@@ -13,9 +13,21 @@ from __future__ import annotations
 def requisiti_processo_per_legacy(legacy_ids) -> dict[int, dict[str, list]]:
     """``{legacy_id: {"dpi": [...], "visite": [...], "corsi": [...]}}`` dai processi
     a cui la persona è abilitata (ATTIVA, interna)."""
+    return {
+        legacy_id: dato["requisiti"]
+        for legacy_id, dato in requisiti_processo_dettaglio(legacy_ids).items()
+    }
+
+
+def requisiti_processo_dettaglio(legacy_ids) -> dict[int, dict]:
+    """Come sopra, ma con l'**origine** di ogni requisito (nome del processo).
+
+    ``{legacy_id: {"requisiti": {...}, "origini": {(dominio, pk): [etichetta]}}}``.
+    Serve al libretto sanitario, che deve dire perché un obbligo è dovuto.
+    """
     from ..models_mpq import AbilitazioneProcesso
 
-    out: dict[int, dict[str, list]] = {}
+    out: dict[int, dict] = {}
     if not legacy_ids:
         return out
     abil = (
@@ -29,10 +41,21 @@ def requisiti_processo_per_legacy(legacy_ids) -> dict[int, dict[str, list]]:
                           "processo__corsi_richiesti")
     )
     for ab in abil:
-        d = out.setdefault(ab.legacy_anagrafica_id,
-                           {"dpi": [], "visite": [], "corsi": []})
+        dato = out.setdefault(ab.legacy_anagrafica_id, {
+            "requisiti": {"dpi": [], "visite": [], "corsi": []},
+            "origini": {},
+        })
+        d = dato["requisiti"]
         p = ab.processo
-        d["dpi"].extend(p.dpi_richiesti.all())
-        d["visite"].extend(p.visite_richieste.all())
-        d["corsi"].extend(p.corsi_richiesti.all())
+        etichetta = f"Processo «{p}»"
+        for dominio, voci in (
+            ("dpi", p.dpi_richiesti.all()),
+            ("visite", p.visite_richieste.all()),
+            ("corsi", p.corsi_richiesti.all()),
+        ):
+            for obj in voci:
+                d[dominio].append(obj)
+                origine = dato["origini"].setdefault((dominio, obj.pk), [])
+                if etichetta not in origine:
+                    origine.append(etichetta)
     return out

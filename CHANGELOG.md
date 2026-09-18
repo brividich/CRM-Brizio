@@ -18,6 +18,20 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **ANAGRAFICA · Libretto sanitario aziendale: la catena rischio → mansione → requisiti → conforme/non conforme, leggibile in una pagina sola** (`django_app/anagrafica/services/libretto_sanitario.py` — nuovo —, `django_app/anagrafica/templates/anagrafica/pages/dipendente_libretto_sanitario.html` — nuovo —, `django_app/anagrafica/tests_libretto_sanitario.py` — nuovo —, `django_app/anagrafica/services/mansionario.py`, `django_app/anagrafica/services/mpq_idoneita.py`, `django_app/anagrafica/views.py`, `django_app/anagrafica/urls.py`, `django_app/anagrafica/templates/anagrafica/partials/conformita_panel.html`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `README.md`).
+
+  Il semaforo di conformità nella scheda dipendente dice **se** la persona è in regola con la mansione, ma per sapere **su cosa** e **perché** bisognava girare fra requisiti mansione, visite mediche, DPI e formazione. In un ambito dove la non conformità è sanzionabile, la lettura deve stare su un foglio solo ed essere esibibile.
+
+  1. Nuova pagina `/anagrafica/dipendenti/<id>/libretto-sanitario/` (stampabile A4, stesso impianto del libretto formativo): verdetto in grande, conteggi, la catena in quattro passi (**fattori di rischio → mansione → obblighi → esito**), il riquadro «da sistemare / da completare» e una tabella per dominio (sorveglianza sanitaria, DPI, formazione, abilitazioni) con **una riga per obbligo**: requisito, **perché è dovuto**, ultima evidenza, scadenza, stato.
+  2. Nuovo service `services/libretto_sanitario.py`: nessuna seconda verità: i requisiti vengono dal resolver unico (`services.mansionario`, mansione + area + esposizioni dirette) sommati a quelli dei processi qualificati (`services.mpq_idoneita`), e lo stato usa le stesse regole e la stessa soglia di preavviso (60 gg) del semaforo `services.conformita`. La differenza è la granularità e il verdetto pesa solo gli obblighi di mansione (una qualifica scaduta non imposta da nessun requisito non rende non idonei).
+  3. `mansionario.requisiti_dipendente_dettaglio()` e `mpq_idoneita.requisiti_processo_dettaglio()`: nuove funzioni che restituiscono anche l'**origine** di ogni requisito (`Mansione «X»`, `Area aziendale`, `Esposizione diretta`, `Processo «Y»`); le funzioni preesistenti restano invariate come thin wrapper.
+  4. Stato per riga distinto fra **scaduto** (violazione in atto → non conforme) e **da acquisire** (mai registrato → adempimento da pianificare), coerente con la scelta già fatta dal semaforo; il riquadro azioni è rosso solo se c'è davvero uno scaduto.
+  5. Link dalla scheda dipendente (testata della card Conformità) e dal pannello conformità.
+
+  **Privacy** (dati sanitari, art. 9 GDPR): tipologia di visita e giudizio di idoneità compaiono solo con il gate sorveglianza sanitaria (`_can_view_visite_mediche`); senza gate restano solo scadenza e stato, con avviso in calce. Le prescrizioni del medico competente non sono mai esposte.
+
+  Nessuna migrazione. 9 nuovi test (`tests_libretto_sanitario`); verificate senza regressioni `tests_mansione_rischio_a2`, `tests_mpq_requisiti`, `dpi.tests_profilo_rischio` (17 test). Pagina verificata a video su dati dev.
+
 - **ANAGRAFICA · visite mediche: secondo referto sulla stessa visita e nota obbligatoria per gli esiti con limitazioni** (`django_app/anagrafica/models.py`, `django_app/anagrafica/migrations/0124_visitamedica_referto_documento_secondario.py` — nuovo —, `django_app/anagrafica/services/referti_registrazione.py`, `django_app/anagrafica/forms.py`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/tests_referti_intake.py`, `django_app/anagrafica/tests.py`).
 
   Un certificato oculistico arrivato scansionato su 2 fogli separati veniva registrato come 2 visite distinte, violando la regola «1 certificato = 1 visita» (vedi voce precedente sull'import archivio). Il secondo file non aveva dove finire: `VisitaMedica.referto_documento` è una FK singola.

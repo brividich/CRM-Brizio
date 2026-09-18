@@ -34,6 +34,8 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/libretto-formativo/", views.dipendente_libretto_formativo, name="dipendente_libretto_formativo"),
     # Salva (manualmente) il libretto formativo PDF nel box documenti del dipendente
     path("dipendenti/<int:legacy_id>/libretto-formativo/salva-box", views.libretto_salva_box, name="libretto_salva_box"),
+    # Libretto sanitario aziendale: requisiti della mansione e loro stato (stampabile)
+    path("dipendenti/<int:legacy_id>/libretto-sanitario/", views.dipendente_libretto_sanitario, name="dipendente_libretto_sanitario"),
     # Attestato di formazione autogenerato per singolo completamento (corso/qualifica/altro)
     path("formazione/attestato/<int:record_id>/", views.attestato_formazione, name="attestato_formazione"),
     # Salva (manualmente) l'attestato PDF nel box documenti del dipendente
