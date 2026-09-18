@@ -75,7 +75,7 @@ class ProdottoChimicoForm(forms.ModelForm):
 
         dpi_field = self.fields["dpi_obbligatori"]
         dpi_field.queryset = CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome")
-        dpi_field.label_from_instance = lambda cat: f"{cat.icona_emoji} {cat.nome}".strip()
+        dpi_field.label_from_instance = lambda cat: cat.nome
 
         if self.instance and self.instance.pk:
             # La scheda corrente ha la precedenza (vedi `pittogrammi_effettivi`):

@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load dpi_extras %}
 
 {% block title %}Impostazioni DPI | Portale Applicativo{% endblock %}
 
@@ -43,7 +44,13 @@
 }
 .dpi-cat-item.inactive { opacity:.5; }
 .dpi-cat-item-img { width:52px; height:52px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc; padding:4px; }
-.dpi-cat-item-emoji { font-size:32px; }
+.dpi-cat-item-emoji {
+  width:40px; height:40px; border-radius:50%; flex-shrink:0;
+  background:#f0fdf4; border:1px solid #bbf7d0; color:#15803d;
+  display:flex; align-items:center; justify-content:center;
+}
+.dpi-cat-item-emoji svg { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+body.theme-dark .dpi-cat-item-emoji { background:rgba(21,128,61,.18); border-color:rgba(21,128,61,.35); color:#86efac; }
 .dpi-cat-item-nome { font-size:13px; font-weight:700; color:#0f172a; }
 .dpi-cat-item-meta { font-size:11px; color:#64748b; }
 .dpi-cat-item-actions { display:flex; gap:6px; margin-top:4px; }
@@ -99,6 +106,7 @@ body.theme-dark .dpi-img-preview { border-color:var(--border); }
 
 {% block content %}
 <div id="dpi-root">
+  {% include "dpi/components/_dpi_icons.html" %}
   {% include "dpi/components/subnav.html" with is_gestore=True %}
 
   <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
@@ -159,7 +167,7 @@ body.theme-dark .dpi-img-preview { border-color:var(--border); }
           {% if cat.immagine %}
           <img class="dpi-cat-item-img" src="{{ cat.immagine.url }}" alt="{{ cat.nome }}">
           {% else %}
-          <div class="dpi-cat-item-emoji">{{ cat.icona_emoji }}</div>
+          <div class="dpi-cat-item-emoji"><svg><use href="#i-dpi-{{ cat.icona_emoji|dpi_icon_key }}"/></svg></div>
           {% endif %}
           <div class="dpi-cat-item-nome">{{ cat.nome }}</div>
           <div class="dpi-cat-item-meta">
@@ -293,8 +301,14 @@ body.theme-dark .dpi-img-preview { border-color:var(--border); }
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
         <div class="dpi-field">
-          <label>Icona emoji</label>
-          <input type="text" name="icona_emoji" value="{{ cat_edit.icona_emoji|default:'🦺' }}" maxlength="10">
+          <label>Icona</label>
+          {% with icona_sel=cat_edit.icona_emoji|default:"vest"|dpi_icon_key %}
+          <select name="icona_emoji">
+            {% for chiave, etichetta in icone_disponibili %}
+            <option value="{{ chiave }}" {% if chiave == icona_sel %}selected{% endif %}>{{ etichetta }}</option>
+            {% endfor %}
+          </select>
+          {% endwith %}
         </div>
         <div class="dpi-field">
           <label>Unita di misura</label>

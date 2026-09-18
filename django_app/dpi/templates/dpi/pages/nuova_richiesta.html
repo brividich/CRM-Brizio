@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load dpi_extras %}
 
 {% block title %}Nuova richiesta DPI | Portale Applicativo{% endblock %}
 
@@ -48,7 +49,16 @@
   width:64px; height:64px; object-fit:contain; border-radius:10px;
   background:#f8fafc; border:1px solid #e2e8f0; padding:4px;
 }
-.dpi-cat-card-emoji { font-size:42px; line-height:1; }
+.dpi-cat-card-emoji {
+  width:56px; height:56px; border-radius:50%;
+  background:#f0fdf4; border:1px solid #bbf7d0;
+  display:flex; align-items:center; justify-content:center;
+  color:#15803d; transition:background .18s, border-color .18s;
+}
+.dpi-cat-card-emoji svg { width:28px; height:28px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.dpi-cat-card:hover .dpi-cat-card-emoji, .dpi-cat-card.selected .dpi-cat-card-emoji { background:#dcfce7; border-color:#16a34a; }
+body.theme-dark .dpi-cat-card-emoji { background:rgba(21,128,61,.18); border-color:rgba(21,128,61,.35); color:#86efac; }
+body.theme-dark .dpi-cat-card:hover .dpi-cat-card-emoji, body.theme-dark .dpi-cat-card.selected .dpi-cat-card-emoji { background:rgba(21,128,61,.3); }
 .dpi-cat-card-name { font-size:13px; font-weight:700; color:#0f172a; line-height:1.3; }
 .dpi-cat-card-vita { font-size:11px; color:#64748b; }
 .dpi-cat-hidden { display:none; }
@@ -110,6 +120,7 @@ body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
 
 {% block content %}
 <div id="dpi-root">
+  {% include "dpi/components/_dpi_icons.html" %}
   {% include "dpi/components/subnav.html" with is_gestore=False %}
 
   <div class="dpi-card">
@@ -146,7 +157,7 @@ body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
             {% if cat.immagine %}
               <img class="dpi-cat-card-img" src="{{ cat.immagine.url }}" alt="{{ cat.nome }}">
             {% else %}
-              <div class="dpi-cat-card-emoji">{{ cat.icona_emoji }}</div>
+              <div class="dpi-cat-card-emoji"><svg><use href="#i-dpi-{{ cat.icona_emoji|dpi_icon_key }}"/></svg></div>
             {% endif %}
             <div class="dpi-cat-card-name">{{ cat.nome }}</div>
             {% if profilo_attivo and cat.in_profilo %}<div class="dpi-cat-profilo">✓ Profilo mansione</div>{% endif %}

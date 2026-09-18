@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### DPI — icone SVG line-style al posto delle emoji stile iOS
+
+- **[ux] Nuovo sprite `dpi/templates/dpi/components/_dpi_icons.html`**: 11 icone SVG line-style (~1.8 stroke, currentColor) per le categorie DPI (casco, guanti, occhiali, mascherina, protezione udito, gilet alta visibilita, calzature, imbracatura, tuta, grembiule, generico), sullo stesso pattern sprite+`<use>` già usato da `anagrafica/_fm_icons.html` e `schede_sicurezza/_ghs_icons.html`.
+- **[model] `dpi/models.py`**: `CategoriaDPI.icona_emoji` ora salva una chiave icona (`vest`, `helmet`, ...) invece di un'emoji libera; nuova costante `ICONE_DPI_DISPONIBILI` e funzione `normalizza_icona_dpi()` che mappa anche le emoji storiche (🦺🧤🥽😷...) sulla chiave equivalente, per restare compatibile con i dati già salvati. Default cambiato da `🦺` a `vest`; migration `dpi.0006_alter_categoriadpi_icona_emoji`.
+- **[template] Nuovo filtro `{% load dpi_extras %}` → `|dpi_icon_key`**: normalizza qualunque valore (chiave nuova o emoji legacy) su una chiave valida, con fallback `shield`. Sostituito il rendering diretto di `icona_emoji` con `<svg><use href="#i-dpi-...">` in tutte le pagine DPI (dashboard, gestione, storico, dettaglio, nuova richiesta, impostazioni), nel riepilogo DPI del dipendente (`anagrafica/dipendente_detail.html`, `_dpi_iniziali_righe.html`, `dipendente_create.html`), nel pannello DPI di `anagrafica/impostazioni.html` e nella scheda mobile QR di `schede_sicurezza/scheda_mobile.html`.
+- **[ux] Form categoria DPI**: l'input testo "icona emoji" è ora un `<select>` con le icone disponibili, sia in `dpi:impostazioni` che nel pannello DPI di `anagrafica:impostazioni`; `dpi_categoria_create/edit` normalizzano server-side il valore ricevuto.
+- **[compat]** `schede_sicurezza/forms.py`: la label del multiselect DPI obbligatori nella scheda prodotto non include più il glifo emoji (non piu significativo con le chiavi icona), resta solo il nome categoria.
+
 ### Schede di sicurezza — assegnazione per mansioni di rischio
 
 - **[feature] SDS per mansione**: `ProdottoChimico.mansioni` sostituisce il reparto in form, lista, dettaglio, QR, report e contesto AI; il vecchio reparto resta nullable come storico non operativo.
