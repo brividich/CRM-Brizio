@@ -181,7 +181,7 @@ requests==2.33.1
     # via
     #   -r requirements.in
     #   msal
-ruff==0.15.15
+ruff==0.16.7
     # via -r requirements-dev.in
 six==1.17.0
     # via python-dateutil
@@ -212,6 +212,8 @@ wheel==0.47.0
 x690==1.0.0.post1
     # via puresnmp
 xlrd==2.0.2
+    # via -r requirements.in
+zxing-cpp==3.1.1
     # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
