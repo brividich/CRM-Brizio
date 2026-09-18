@@ -793,8 +793,9 @@ Campagne di aggiornamento procedure MT/MTSI con tracking letture obbligatorio (c
 
 Gestione registro rifiuti secondo normativa **RENTRI** (Registro Elettronico Nazionale Tracciabilità Rifiuti).
 
-- **2 modelli**: RegistroRifiuti, RentriImpostazioni
+- **3 modelli**: RegistroRifiuti, RentriImpostazioni, RentriRegistroCounter
 - **Movimenti** con codice CER, quantità, destinazione, formulario (tipi C/O/M/R)
+- **Numero di registrazione allocato** (`rentri/numerazione.py`): `<anno>/<progressivo>` da un contatore per anno con `select_for_update`, non dal conteggio dei movimenti — le eliminazioni non fanno più riciclare un numero già assegnato e i salvataggi simultanei non se lo contendono. Il contatore di un anno mai allocato riparte dal massimo già presente (storico e import inclusi); gli id imposti dall'import restano intatti. Audit di sola lettura: `python manage.py rentri_id_duplicati [--solo-anomalie] [--format table|csv|json]`
 - **Registrazione a wizard** (`/rentri/carico/`, `/rentri/scarico-originale/`, `/rentri/scarico-effettivo/`, `/rentri/rettifica-scarico/`): form guidato a step (Data → Codice CER ricercabile → Rif.Op a selezione guidata sui soli movimenti collegabili → Quantità/Rettifica → campi accessori facoltativi), allegato del carico con validazione MIME reale
 - **Import CSV da portale e CLI** (`import_rentri_csv`): accetta automaticamente export separati da `;` o `,` e normalizza i codici di pericolosita `HPxx` anche quando SharePoint li esporta come lista JSON
 - **Formulari** di identificazione rifiuto

@@ -29,6 +29,21 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
   **Deploy**: migrazione `anagrafica/0124` PENDING. 6 nuovi test (`tests_referti_intake`, `tests.VisitaMedicaFormLimitazioniTests`); suite `anagrafica` 1578 test, nessuna regressione rispetto ai 23 rossi già presenti sul branch base (1 rosso preesistente sullo stesso test riassorbito riscrivendo l'aspettativa sul nuovo comportamento).
 
+- **RENTRI · il numero di registrazione si alloca da un contatore, non da `COUNT(*)`** (`django_app/rentri/numerazione.py` — nuovo —, `django_app/rentri/models.py`, `django_app/rentri/migrations/0005_rentriregistrocounter.py` — nuovo —, `django_app/rentri/management/commands/rentri_id_duplicati.py` — nuovo —, `django_app/rentri/tests.py`, `README.md`).
+
+  `id_registrazione` nasceva contando i movimenti dell'anno: `f"{anno}/{count + 1:03d}"`. Il conteggio coincide con la sequenza **solo finché nessuno cancella niente** — dopo un'eliminazione arretra e il numero successivo ripete uno già stampato su un'altra riga; due salvataggi simultanei leggono lo stesso conteggio e ottengono lo stesso numero. In produzione ci sono **64 numeri usati da più di un movimento** su 219.
+
+  Non è un dettaglio estetico: `id_registrazione` è la **chiave con cui gli scarichi dichiarano da quale carico provengono** (campo `rif_op`). Se un numero indica due righe, il riferimento è ambiguo e la vista famiglie deve sceglierne una — oggi la più vecchia, che è una scelta arbitraria, non una risposta. Ed è un registro numerato progressivo: due movimenti con lo stesso numero sono contestabili di per sé.
+
+  1. **Il progressivo vive su un contatore** (`RentriRegistroCounter`, una riga per anno) allocato in transazione con `select_for_update`, stessa forma di `TrainingCourseCodeCounter` della formazione. Le eliminazioni non lo fanno arretrare e i salvataggi concorrenti non si contendono il numero.
+  2. **Lo storico non viene riusato**: alla prima allocazione dell'anno il contatore si allinea al **massimo già assegnato** (compresi gli id importati), invece di ripartire da 1. I buchi lasciati da righe cancellate **non si riempiono** — un numero già uscito su un formulario non torna disponibile — e un numero comunque occupato viene saltato.
+  3. **Gli id espliciti restano intatti**: l'import CSV continua a imporre il proprio (`STORICO-9`, formati di terzi), che non passa dal contatore.
+  4. **Comando di audit `rentri_id_duplicati`** (sola lettura, eseguibile in produzione, `--format table|csv|json`, `--solo-anomalie`): elenca i numeri duplicati con tutte le loro righe, distinguendo le **coppie R+M dello stesso giorno** (61 casi in produzione: rettifica e scarico effettivo registrati insieme, importi opposti — sembra un modo di lavorare deliberato) dalle **anomalie vere** (3 casi, fra cui `2025/1847`, che è insieme un carico di olio esausto di giugno e uno scarico di acqua emulsionata di settembre).
+
+  **Lo storico non viene toccato**: questa modifica ferma la nascita di nuovi duplicati, non corregge i 64 esistenti. L'unicità a database si potrà imporre solo dopo aver deciso, con il responsabile, cosa fare delle coppie R+M e delle 3 anomalie — il comando serve esattamente a portargliele davanti.
+
+  **Deploy**: migrazione `rentri/0005` (solo la tabella del contatore, nessun dato modificato). 10 nuovi test; suite `rentri` 50 test verdi.
+
 - **AUTOMAZIONI · regola "cambio mansione → email SDS da leggere" + conferma tutte in un click; email spostata via da codice** (`django_app/automazioni/source_registry.py`, `django_app/automazioni/services.py`, `django_app/automazioni/migrations/trg_anagrafica_dipendenti_automation.sql` — nuovo —, `django_app/automazioni/packages/au56_dipendente_cambio_mansione_sds.automation_package.json` — nuovo —, `django_app/automazioni/tests_source_anagrafica_dipendenti.py` — nuovo —, `django_app/schede_sicurezza/services/assegnazioni.py`, `django_app/schede_sicurezza/views.py`, `django_app/schede_sicurezza/urls.py`, `django_app/schede_sicurezza/tests_mansioni.py`, `README.md`).
 
   La mail SDS al cambio mansione esisteva già come chiamata diretta da codice (`notifica_cambio_mansione`), invisibile e non disattivabile da `/admin-portale/automazioni/`. Spostata sulla regola AU56 del motore automazioni, così resta un solo punto da cui gestirla:

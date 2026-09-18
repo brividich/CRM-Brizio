@@ -387,3 +387,91 @@ class RentriElencoFiltroStatoTests(TestCase):
         famiglie = response.context["families"]
         self.assertEqual(len(famiglie), 1)
         self.assertTrue(famiglie[0]["chiusa"])
+
+
+class RentriNumerazioneTests(TestCase):
+    """Il progressivo del registro si alloca da un contatore, non da COUNT(*)."""
+
+    def _rec(self, giorno, id_reg=""):
+        return RegistroRifiuti.objects.create(
+            tipo="C", data=date(2026, 3, giorno), id_registrazione=id_reg, codice="12.01.01",
+        )
+
+    def test_numeri_progressivi_consecutivi(self):
+        self.assertEqual(self._rec(1).id_registrazione, "2026/001")
+        self.assertEqual(self._rec(2).id_registrazione, "2026/002")
+        self.assertEqual(self._rec(3).id_registrazione, "2026/003")
+
+    def test_eliminazione_non_fa_riciclare_il_numero(self):
+        self._rec(1)
+        secondo = self._rec(2)
+        self._rec(3)
+        secondo.delete()
+
+        nuovo = self._rec(4)
+        self.assertEqual(nuovo.id_registrazione, "2026/004")
+        self.assertEqual(RegistroRifiuti.objects.filter(id_registrazione="2026/002").count(), 0)
+
+    def test_contatore_riparte_dal_massimo_storico(self):
+        """Con storico importato il contatore non deve ripartire da 1."""
+        self._rec(1, id_reg="2026/1847")
+
+        self.assertEqual(self._rec(2).id_registrazione, "2026/1848")
+
+    def test_non_riempie_i_buchi_e_salta_gli_occupati(self):
+        """La sequenza riparte dal massimo: un buco non si riempie, un numero occupato si salta."""
+        self._rec(1, id_reg="2026/002")
+        self.assertEqual(self._rec(2).id_registrazione, "2026/003")
+
+        RegistroRifiuti.objects.create(
+            tipo="C", data=date(2026, 3, 4), id_registrazione="2026/004", codice="12.01.01",
+        )
+        self.assertEqual(self._rec(5).id_registrazione, "2026/005")
+
+    def test_anteprima_non_consuma_il_numero(self):
+        from .numerazione import anteprima_id_registrazione
+
+        self._rec(1)
+        self.assertEqual(anteprima_id_registrazione(2026), "2026/002")
+        self.assertEqual(anteprima_id_registrazione(2026), "2026/002")
+        self.assertEqual(self._rec(2).id_registrazione, "2026/002")
+
+    def test_id_esplicito_resta_intatto(self):
+        """L'import CSV impone il proprio id: non deve essere riscritto."""
+        self.assertEqual(self._rec(1, id_reg="STORICO-9").id_registrazione, "STORICO-9")
+
+    def test_anni_diversi_hanno_sequenze_indipendenti(self):
+        RegistroRifiuti.objects.create(tipo="C", data=date(2025, 12, 31), codice="12.01.01")
+        nuovo = RegistroRifiuti.objects.create(tipo="C", data=date(2026, 1, 2), codice="12.01.01")
+        self.assertEqual(nuovo.id_registrazione, "2026/001")
+
+
+class RentriIdDuplicatiTests(TestCase):
+    """Audit dei numeri duplicati: coppia R+M voluta vs anomalia."""
+
+    def setUp(self):
+        RegistroRifiuti.objects.create(tipo="R", data=date(2026, 4, 1), id_registrazione="2026/010", codice="12.01.01")
+        RegistroRifiuti.objects.create(tipo="M", data=date(2026, 4, 1), id_registrazione="2026/010", codice="12.01.01")
+        RegistroRifiuti.objects.create(tipo="C", data=date(2026, 4, 2), id_registrazione="2026/011", codice="13.02.08")
+        RegistroRifiuti.objects.create(tipo="O", data=date(2026, 5, 9), id_registrazione="2026/011", codice="12.01.09")
+        RegistroRifiuti.objects.create(tipo="C", data=date(2026, 4, 3), id_registrazione="2026/012", codice="12.01.01")
+
+    def test_classifica_coppie_e_anomalie(self):
+        from .numerazione import id_duplicati
+
+        gruppi = id_duplicati()
+        self.assertEqual(len(gruppi), 2)
+        anomalie = [g for g in gruppi if not g["coppia_rm"]]
+        self.assertEqual([g["id_registrazione"] for g in anomalie], ["2026/011"])
+        self.assertEqual(anomalie[0]["codici"], ["12.01.09", "13.02.08"])
+
+    def test_comando_solo_anomalie(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("rentri_id_duplicati", "--solo-anomalie", stdout=out)
+        testo = out.getvalue()
+        self.assertIn("2026/011", testo)
+        self.assertNotIn("2026/010", testo)
