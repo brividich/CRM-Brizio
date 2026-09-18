@@ -18,6 +18,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Fixed
 
+- **DPI · `import_dpi_storico_materiale` scriveva `created_at` con datetime naive, `RuntimeWarning` in produzione (USE_TZ=True)** (`django_app/dpi/management/commands/import_dpi_storico_materiale.py`).
+
+  A differenza di `import_dpi_storico.py`, il `datetime.combine()` usato per riportare `created_at` alla data reale dell'evento non impostava `tzinfo`. Aggiunto `tzinfo=dt_timezone.utc`, coerente con l'import esistente. Nessun dato scritto finora risulta corrotto (il valore veniva comunque salvato, solo senza timezone esplicita); non serve ripulire l'import già lanciato — rilanciare il comando è sicuro, il controllo duplicati su (data, categoria, dipendente) salta le righe già importate.
+
+
 - **AUTOMAZIONI · designer/builder mostrava vuote le azioni annidate di un branch salvato con le chiavi legacy `then_actions`/`else_actions`** (`django_app/automazioni/forms.py`).
 
   `services.py` esegue un branch leggendo `if_true_actions`/`if_false_actions` con fallback su `then_actions`/`else_actions` (chiavi legacy), ma `AutomationActionForm` popolava i campi `branch_if_true_actions_json`/`branch_if_false_actions_json` solo dalle chiavi nuove. Risultato: per una regola salvata con le chiavi legacy (es. regola 18, AU-ASSENZE) il designer mostrava "Nessuna azione" nel ramo anche se a runtime le azioni giravano regolarmente — e salvare da lì avrebbe sovrascritto `config_json` con rami vuoti, cancellando la logica annidata. Aggiunto lo stesso fallback `or config.get("then_actions"/"else_actions")` già usato in `services.py` alla lettura dell'initial del form, cosi' il designer ora legge (e ri-salva correttamente) anche le regole con le chiavi legacy.

@@ -19,7 +19,7 @@ Usage:
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
@@ -253,7 +253,7 @@ class Command(BaseCommand):
                                 richiedente_reparto=reparto_r,
                                 note_gestione=f"{NOTE_MARKER} {cell_text}",
                             )
-                            ts = datetime.combine(data_evento, datetime.min.time())
+                            ts = datetime.combine(data_evento, datetime.min.time(), tzinfo=dt_timezone.utc)
                             RichiestaDPI.objects.filter(pk=richiesta.pk).update(created_at=ts)
                             ConsegnaDPI.objects.create(
                                 richiesta=richiesta,
