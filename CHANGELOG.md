@@ -22,6 +22,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
   A differenza di `import_dpi_storico.py`, il `datetime.combine()` usato per riportare `created_at` alla data reale dell'evento non impostava `tzinfo`. Aggiunto `tzinfo=dt_timezone.utc`, coerente con l'import esistente. Nessun dato scritto finora risulta corrotto (il valore veniva comunque salvato, solo senza timezone esplicita); non serve ripulire l'import già lanciato — rilanciare il comando è sicuro, il controllo duplicati su (data, categoria, dipendente) salta le righe già importate.
 
+- **DPI · `import_dpi_storico_materiale` numerava `RichiestaDPI.numero` (`DPI-AAAA-NNNN`) sull'anno di lancio del comando invece dell'anno di consegna storica** (`django_app/dpi/management/commands/import_dpi_storico_materiale.py`, `django_app/dpi/management/commands/fix_dpi_storico_materiale_numero.py` — nuovo).
+
+  `RichiestaDPI.save()` genera il numero con l'anno corrente quando non viene passato esplicitamente: creando la richiesta senza `numero`, ogni consegna storica (es. 2015) veniva numerata come se fosse dell'anno di import (es. 2026). Il comando ora passa `numero=_next_numero_dpi(year=data_evento.year)` in creazione. Aggiunto anche `fix_dpi_storico_materiale_numero` per ricalcolare il numero dei record già importati con l'anno sbagliato (in ordine cronologico di consegna, per numerazione progressiva sensata per anno): su dev **1.471 record corretti** su 1.573 importati (102 erano già corretti perché consegnati nello stesso anno del lancio).
+
 
 - **AUTOMAZIONI · designer/builder mostrava vuote le azioni annidate di un branch salvato con le chiavi legacy `then_actions`/`else_actions`** (`django_app/automazioni/forms.py`).
 
