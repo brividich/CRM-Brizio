@@ -804,6 +804,135 @@ register(ExportSpec(
 ))
 
 
+# ── Libretto sanitario aziendale — quadro generale ───────────────────────────
+# Due letture della stessa lista (come a schermo): una riga per persona, oppure
+# una riga per singolo requisito. Filtri e ordinamento NON sono riscritti qui:
+# arrivano da `services.libretto_sanitario.quadro_generale`, la stessa funzione
+# che alimenta la pagina — un PDF che dice una cosa diversa dallo schermo è
+# peggio di nessun PDF, perché è il documento che si porta a un'ispezione.
+
+def _libretto_quadro(request: HttpRequest, scope: str):
+    from anagrafica.models import Mansione
+    from anagrafica.services import libretto_sanitario as libretto_service
+    from anagrafica.views import _can_view_visite_mediche
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    filtri = (
+        {
+            chiave: (request.GET.get(chiave) or "").strip()
+            for chiave in ("reparto", "mansione", "verdetto", "dominio", "stato")
+        }
+        if scope == "filtered" else {}
+    )
+    return libretto_service.quadro_generale(
+        [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")],
+        filtri=filtri,
+        include_visite_dettaglio=_can_view_visite_mediche(request),
+        mansioni_map={
+            m.nome.casefold(): m.id
+            for m in Mansione.objects.filter(is_active=True).only("id", "nome")
+        },
+    )
+
+
+def _libretto_filters(request: HttpRequest) -> str:
+    from anagrafica.services import libretto_sanitario as libretto_service
+
+    return libretto_service.descrizione_filtri({
+        chiave: (request.GET.get(chiave) or "").strip()
+        for chiave in ("reparto", "mansione", "verdetto", "dominio", "stato")
+    })
+
+
+def _libretto_persone_rows(request: HttpRequest, scope: str) -> list[dict]:
+    quadro = _libretto_quadro(request, scope)
+    righe: list[dict] = []
+    for persona in quadro["persone"]:
+        lib = persona["libretto"]
+        conteggi = lib["conteggi"]
+        righe.append({
+            "dipendente": naming.nome_completo(persona["nome"], persona["cognome"])
+                          or f"ID {persona['legacy_id']}",
+            "reparto": persona["reparto"],
+            "mansione": persona["mansione"],
+            "esito": lib["verdetto_label"],
+            "obblighi": conteggi["totale"],
+            "conformi": conteggi["ok"],
+            "in_scadenza": conteggi["warn"],
+            "scaduti": conteggi["ko"],
+            "da_acquisire": conteggi["mancante"],
+            "da_sistemare": "; ".join(
+                f"{r.nome} ({r.stato_label.lower()})" for r in lib["criticita"]
+            ),
+        })
+    return righe
+
+
+def _libretto_requisiti_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.services import libretto_sanitario as libretto_service
+
+    quadro = _libretto_quadro(request, scope)
+    righe: list[dict] = []
+    for voce in quadro["adempimenti"]:
+        riga = voce["riga"]
+        righe.append({
+            "dipendente": naming.nome_completo(voce["nome"], voce["cognome"])
+                          or f"ID {voce['legacy_id']}",
+            "reparto": voce["reparto"],
+            "mansione": voce["mansione"],
+            "ambito": libretto_service.DOMINIO_LABEL.get(riga.dominio, riga.dominio),
+            "requisito": riga.nome,
+            "origine": " · ".join(riga.origini),
+            "ultima": riga.data_ultima.strftime("%d/%m/%Y") if riga.data_ultima else "mai",
+            "scadenza": riga.data_scadenza.strftime("%d/%m/%Y") if riga.data_scadenza else "",
+            "stato": riga.stato_label,
+        })
+    return righe
+
+
+register(ExportSpec(
+    key="libretto_sanitario_persone",
+    title="Libretto sanitario aziendale — per persona",
+    sheet_title="Per persona",
+    columns=[
+        ("Dipendente", "dipendente"),
+        ("Reparto", "reparto"),
+        ("Mansione", "mansione"),
+        ("Esito", "esito"),
+        ("Requisiti", "obblighi"),
+        ("Conformi", "conformi"),
+        ("In scadenza", "in_scadenza"),
+        ("Scaduti", "scaduti"),
+        ("Da acquisire", "da_acquisire"),
+        ("Da sistemare", "da_sistemare"),
+    ],
+    dataset=_libretto_persone_rows,
+    filters_label=_libretto_filters,
+    permission=_hr_gate("/anagrafica/libretto-sanitario/"),
+))
+
+
+register(ExportSpec(
+    key="libretto_sanitario_requisiti",
+    title="Libretto sanitario aziendale — requisiti",
+    sheet_title="Requisiti",
+    columns=[
+        ("Dipendente", "dipendente"),
+        ("Reparto", "reparto"),
+        ("Mansione", "mansione"),
+        ("Ambito", "ambito"),
+        ("Requisito", "requisito"),
+        ("Perché è dovuto", "origine"),
+        ("Ultima evidenza", "ultima"),
+        ("Scadenza", "scadenza"),
+        ("Stato", "stato"),
+    ],
+    dataset=_libretto_requisiti_rows,
+    filters_label=_libretto_filters,
+    permission=_hr_gate("/anagrafica/libretto-sanitario/"),
+))
+
+
 # ── Organigramma (lista piatta) ──────────────────────────────────────────────
 # Filtro `reparto` come `views.organigramma`. L'albero a schermo diventa qui una
 # riga per persona: reparto, aree aziendali del reparto, ruolo (capo/collaboratore)
