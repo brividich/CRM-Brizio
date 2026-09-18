@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **DPI · nuovo comando `import_dpi_storico_materiale` per importare lo storico consegne dal file Excel "MATERIALE ANTINFORTUNISTICO"** (`django_app/dpi/management/commands/import_dpi_storico_materiale.py` — nuovo).
+
+  Il foglio STORICO di quel file è "a cascata" (una riga per dipendente, poi colonne evento 1°..N° in testo libero tipo `"GUANTO A MIS.9 20/01/2021"`), incompatibile con il formato a righe/CF già gestito da `import_dpi_storico.py`. Il nuovo comando classifica ogni evento per famiglia DPI tramite parola chiave (riusando le `CategoriaDPI` già esistenti in catalogo: `Calzature di sicurezza`, `Guanti di protezione`, `Protezione udito`, `Protezione occhi e viso`, `Protezione vie respiratorie`, `Abbigliamento protettivo`), estrae la data (tollerante a formati a 2/4 cifre, trattini e seriali Excel) e abbina il dipendente per nome/cognome contro `AnagraficaDipendente`. Ogni evento non classificabile, senza data, multi-item (più DPI nella stessa cella) o con dipendente non abbinato viene **saltato e riportato come eccezione**, mai indovinato — coerente con l'assenza di un campo matricola/CF utilizzabile in questo foglio.
+
+  Importati su dev **1.573 record** (`RichiestaDPI` stato `CONSEGNATA` + `ConsegnaDPI`, `note_gestione="[IMPORT storico MATERIALE ANTINFORTUNISTICO] <testo originale>"`), 628 eventi in eccezione (58 dipendenti su 201 senza corrispondenza in anagrafica — presumibili ex dipendenti, esclusi di proposito; sigla `SP` non identificata; una decina di celle multi-item o con date atipiche). Nessuna migrazione.
+
 ### Fixed
 
 - **AUTOMAZIONI · designer/builder mostrava vuote le azioni annidate di un branch salvato con le chiavi legacy `then_actions`/`else_actions`** (`django_app/automazioni/forms.py`).
