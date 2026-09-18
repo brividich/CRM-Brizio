@@ -43,10 +43,37 @@ class RegistroRifiuti(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.id_registrazione:
-            year = self.data.year if self.data else timezone.now().year
-            count = RegistroRifiuti.objects.filter(data__year=year).count()
-            self.id_registrazione = f"{year}/{count + 1:03d}"
+            from .numerazione import alloca_id_registrazione
+
+            anno = self.data.year if self.data else timezone.now().year
+            self.id_registrazione = alloca_id_registrazione(anno)
         super().save(*args, **kwargs)
+
+
+class RentriRegistroCounter(models.Model):
+    """Progressivo annuale del registro: il numero si **alloca**, non si conta.
+
+    Una riga per anno; ``ultimo`` è l'ultimo progressivo assegnato. Fino al
+    2026-09 il numero nasceva da ``COUNT(*)`` dei movimenti dell'anno: dopo
+    un'eliminazione il conteggio arretrava e il numero successivo **ripeteva**
+    uno già stampato su un'altra riga (64 id duplicati in produzione). Il
+    conteggio non è una sequenza — questo contatore lo è.
+
+    L'allocazione avviene in transazione con ``select_for_update``
+    (:func:`rentri.numerazione.alloca_id_registrazione`), così due salvataggi
+    simultanei non si contendono lo stesso numero. Stessa forma di
+    ``anagrafica.TrainingCourseCodeCounter``.
+    """
+
+    anno = models.PositiveSmallIntegerField(unique=True, db_index=True)
+    ultimo = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Progressivo registro Rentri"
+        verbose_name_plural = "Progressivi registro Rentri"
+
+    def __str__(self) -> str:
+        return f"{self.anno}: {self.ultimo}"
 
 
 class RentriImpostazioni(models.Model):
