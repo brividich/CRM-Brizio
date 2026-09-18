@@ -1,5 +1,22 @@
 # Agent Changelog
 
+## 2026-09-18 - Codex (integrazione release RENTRI)
+
+- Area: integrazione Git e rilascio di `django_app/rentri`.
+- Richiesta: portare il branch applicativo RENTRI su `main` e poi su `release/prod`, lasciando fuori i cinque branch Dependabot.
+- File applicativi integrati dal branch RENTRI: `CHANGELOG.md`, `README.md`, `django_app/rentri/models.py`, `django_app/rentri/numerazione.py`, `django_app/rentri/management/commands/rentri_id_duplicati.py`, `django_app/rentri/migrations/0005_rentriregistrocounter.py`, `django_app/rentri/tests.py`.
+- File modificati in questa sessione: `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`; il codice RENTRI era gia confluito su `origin/main` nel commit `220df381` al momento del fetch.
+- File critici modificati: nessuno; nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, routing o navigazione globale. I file di controllo `ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md` e `CRITICAL_CHANGE_REQUESTS.md` non erano presenti.
+- Modifica: verificata l'ascendenza del commit `0c3b668c` e il delta applicativo atteso (7 file, inclusa la migration `rentri/0005`); predisposto l'allineamento di `release/prod` a `main` da worktree isolato. I branch Dependabot restano intenzionalmente esclusi.
+- Test/check: 9 test `RentriNumerazioneTests` + `RentriIdDuplicatiTests` verdi; `manage.py check --settings=config.settings.test` verde; `makemigrations rentri --check --dry-run` senza drift; `git diff --check` verde.
+- Backup creati: nessuno; nessun database dev/prod modificato, soltanto database di test temporaneo creato e distrutto da Django.
+- README aggiornato: gia aggiornato dal commit RENTRI; nessuna ulteriore modifica in questa sessione.
+- CHANGELOG aggiornato: gia aggiornato dal commit RENTRI; nessuna ulteriore modifica in questa sessione.
+- AGENT_CHANGELOG aggiornato: si.
+- Esito: integrazione verificata; `release/prod` viene allineato allo stesso contenuto di `main` prima del nuovo packaging.
+- Rischi residui: al deploy applicare `rentri/0005`; prima di eventuale bonifica eseguire il comando di audit duplicati secondo le istruzioni gia presenti nel changelog. Le modifiche Anagrafica non committate comparse nel checkout condiviso non sono state toccate.
+- Note per altro agente: worktree isolato `temp/codex-rentri-release-20260918`, branch `codex/rentri-release-20260918`.
+
 ## 2026-09-16 - Codex (SDS)
 
 - Area: `django_app/schede_sicurezza`, con integrazioni mirate in `anagrafica`, `assets` e `ai_assistant`.
