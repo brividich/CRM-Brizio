@@ -10,6 +10,18 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **AUTOMAZIONI · regola "cambio mansione → email SDS da leggere" + conferma tutte in un click; email spostata via da codice** (`django_app/automazioni/source_registry.py`, `django_app/automazioni/services.py`, `django_app/automazioni/migrations/trg_anagrafica_dipendenti_automation.sql` — nuovo —, `django_app/automazioni/packages/au56_dipendente_cambio_mansione_sds.automation_package.json` — nuovo —, `django_app/automazioni/tests_source_anagrafica_dipendenti.py` — nuovo —, `django_app/schede_sicurezza/services/assegnazioni.py`, `django_app/schede_sicurezza/views.py`, `django_app/schede_sicurezza/urls.py`, `django_app/schede_sicurezza/tests_mansioni.py`, `README.md`).
+
+  La mail SDS al cambio mansione esisteva già come chiamata diretta da codice (`notifica_cambio_mansione`), invisibile e non disattivabile da `/admin-portale/automazioni/`. Spostata sulla regola AU56 del motore automazioni, così resta un solo punto da cui gestirla:
+
+  1. Nuova sorgente `anagrafica_dipendenti` (tabella legacy `anagrafica_dipendenti`) con trigger SQL su `mansione` (proietta `old_mansione`) e campi virtuali calcolati a runtime: `dipendente_nome`, `dipendente_email` (via `core.legacy_anagrafica.resolve_notification_email`, stessa risoluzione canonica usata altrove), `sds_da_leggere_count`, `sds_url`, `sds_conferma_tutte_url`.
+  2. `sds_da_leggere_per_dipendente()` estratta da `notifica_cambio_mansione` e riusata dall'arricchimento della nuova sorgente automazioni (nessuna duplicazione della query mansione/presa-visione).
+  3. **`notifica_cambio_mansione` non manda più l'email**: rimossi `_email_cambio_mansione`/`_email_dipendente` (diventati dead code), resta solo la notifica in-app. L'email è ora esclusivamente responsabilità della regola AU56, importabile/attivabile/disattivabile da `/admin-portale/automazioni/`.
+  4. Nuova vista `sds_conferma_tutte` (`/schede-sicurezza/da-leggere/conferma-tutte/`, login richiesto): conferma in un click tutte le SDS ancora dovute per l'utente loggato (ricalcolate live dal profilo, non da un token) e riapre comunque il cruscotto `/schede-sicurezza/da-leggere/`.
+  5. Pacchetto `au56_dipendente_cambio_mansione_sds.automation_package.json` pronto per l'import da `/admin-portale/automazioni/` (regola importata **draft e disattiva**, come da comportamento standard del motore — attivarla è ciò che fa partire la mail).
+
+  Nessuna migrazione Django; il trigger SQL va applicato con `python manage.py apply_sql_triggers`. 5 nuovi test (2 vista conferma-tutte, 3 su registrazione sorgente/arricchimento in `automazioni/tests_source_anagrafica_dipendenti.py` — nuovo); `schede_sicurezza` 130 test verdi; `automazioni` 386 test, 3 falliscono ma preesistenti su `main` (template approvazione, non collegati a questa modifica).
+
 - **ACCESSI · livelli d'accesso preimpostati, classificati sul catalogo reale e fail-closed** (`django_app/core/permission_taxonomy.py`, `django_app/core/acl_capability.py` — nuovo —, `django_app/core/management/commands/acl_capability_report.py` — nuovo —, `django_app/core/test_acl_capability.py` — nuovo —, `django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, `django_app/admin_portale/tests.py`, `django_app/admin_portale/test_accessi_unificati.py`, `README.md`).
 
   La pagina `/admin-portale/accessi/` chiedeva una decisione per **ogni** permesso: assegnare un modulo a un ruolo voleva dire accendere decine di interruttori a mano, sapendo già in partenza la frase da tradurre («questo ruolo il modulo in sola lettura»). Gli unici acceleratori erano i due estremi.

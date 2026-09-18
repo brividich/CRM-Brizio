@@ -569,6 +569,33 @@ def sds_da_leggere(request):
     })
 
 
+@login_required
+def sds_conferma_tutte(request):
+    """Conferma in un click tutte le SDS dovute dalla mansione corrente (link da email).
+
+    Ricalcola sempre le SDS dovute dal profilo live dell'utente loggato (mai da un
+    token con dati potenzialmente stantii): l'azione resta scoperta a sole le
+    proprie schede, poi riporta comunque sul cruscotto, come richiesto per il link
+    "ho letto tutte" nella mail di cambio mansione.
+    """
+    if not _can_view(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dashboard:dashboard")
+    profilo = profilo_sds_utente(request.user)
+    da_confermare = profilo.da_leggere
+    for scheda in da_confermare:
+        PresaVisioneScheda.objects.get_or_create(scheda=scheda, operatore=request.user)
+    if da_confermare:
+        n = len(da_confermare)
+        messages.success(
+            request,
+            f"Presa visione registrata per {n} {'scheda' if n == 1 else 'schede'} di sicurezza.",
+        )
+    else:
+        messages.info(request, "Nessuna scheda di sicurezza da confermare.")
+    return redirect("schede_sicurezza:sds_da_leggere")
+
+
 # ---------------------------------------------------------------------------
 # Report compliance SDS
 # ---------------------------------------------------------------------------
