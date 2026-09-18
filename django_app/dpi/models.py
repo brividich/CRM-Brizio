@@ -11,11 +11,60 @@ from django.utils import timezone
 # Categorie DPI (configurabili con immagine)
 # ---------------------------------------------------------------------------
 
+# Icone SVG selezionabili per categoria (chiave salvata in icona_emoji, resa da
+# dpi_extras.dpi_icon_key + dpi/components/_dpi_icons.html). Valori legacy
+# (emoji libere inserite prima di questa scelta) restano supportati in lettura.
+ICONE_DPI_DISPONIBILI = [
+    ("helmet", "Casco"),
+    ("gloves", "Guanti"),
+    ("glasses", "Occhiali protettivi"),
+    ("mask", "Mascherina / respiratore"),
+    ("earmuffs", "Protezione udito"),
+    ("vest", "Gilet alta visibilita"),
+    ("boots", "Calzature"),
+    ("harness", "Imbracatura anticaduta"),
+    ("coverall", "Tuta protettiva"),
+    ("apron", "Grembiule"),
+    ("shield", "Generico"),
+]
+_CHIAVI_ICONE_DPI = {chiave for chiave, _ in ICONE_DPI_DISPONIBILI}
+
+# Emoji storiche (testo libero inserito prima dell'introduzione delle icone
+# SVG) mappate sulla chiave dell'icona equivalente, per restare retrocompatibili.
+_EMOJI_DPI_LEGACY = {
+    "🦺": "vest",
+    "🧤": "gloves",
+    "🥽": "glasses",
+    "👓": "glasses",
+    "😷": "mask",
+    "🎧": "earmuffs",
+    "👂": "earmuffs",
+    "👢": "boots",
+    "🥾": "boots",
+    "👞": "boots",
+    "🪖": "helmet",
+    "⛑️": "helmet",
+    "⛑": "helmet",
+    "🧷": "harness",
+    "🧵": "coverall",
+    "🛡️": "shield",
+    "🛡": "shield",
+}
+
+
+def normalizza_icona_dpi(valore: str) -> str:
+    """Normalizza icona_emoji (chiave nuova o emoji legacy) su una chiave valida."""
+    valore = (valore or "").strip()
+    if valore in _CHIAVI_ICONE_DPI:
+        return valore
+    return _EMOJI_DPI_LEGACY.get(valore, "shield")
+
+
 class CategoriaDPI(models.Model):
     nome = models.CharField(max_length=100)
     descrizione = models.TextField(blank=True, default="")
     immagine = models.ImageField(upload_to="dpi/categorie/", null=True, blank=True)
-    icona_emoji = models.CharField(max_length=10, blank=True, default="🦺")
+    icona_emoji = models.CharField(max_length=10, blank=True, default="vest")
     vita_utile_giorni = models.PositiveIntegerField(
         null=True, blank=True,
         help_text="Vita utile stimata in giorni (per calcolo scadenza automatica alla consegna)",

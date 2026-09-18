@@ -9830,9 +9830,11 @@ def impostazioni(request):
     dpi_tipi = []
     dpi_modelli = []
     dpi_taglie = []
+    dpi_icone_disponibili = []
     try:
-        from dpi.models import CategoriaDPI, TipoDPI, ModelloDPI, TagliaDPI as _TagliaDPI
+        from dpi.models import CategoriaDPI, TipoDPI, ModelloDPI, TagliaDPI as _TagliaDPI, ICONE_DPI_DISPONIBILI
         dpi_categorie = list(CategoriaDPI.objects.order_by("order_index", "nome"))
+        dpi_icone_disponibili = ICONE_DPI_DISPONIBILI
         dpi_tipi = list(TipoDPI.objects.select_related("categoria").prefetch_related("modelli").order_by("categoria__order_index", "categoria__nome", "ordine", "nome"))
         dpi_modelli = list(ModelloDPI.objects.select_related("tipo", "tipo__categoria").order_by("tipo__categoria__order_index", "tipo__ordine", "codice", "nome"))
         dpi_taglie = list(_TagliaDPI.objects.select_related("modello", "modello__tipo", "modello__tipo__categoria").order_by("modello__tipo__categoria__order_index", "modello__tipo__ordine", "ordine", "valore"))
@@ -9965,6 +9967,7 @@ def impostazioni(request):
         "dpi_tipi": dpi_tipi,
         "dpi_modelli": dpi_modelli,
         "dpi_taglie": dpi_taglie,
+        "dpi_icone_disponibili": dpi_icone_disponibili,
         # Permessi
         "permessi_cards": permessi_cards,
         "ruoli_acl": ruoli_acl,
@@ -10241,7 +10244,7 @@ def dpi_categoria_create(request):
     ok, resp = _impostazioni_admin_check(request, "dpi")
     if not ok:
         return resp
-    from dpi.models import CategoriaDPI
+    from dpi.models import CategoriaDPI, normalizza_icona_dpi
     nome = (request.POST.get("nome") or "").strip()
     if not nome:
         messages.error(request, "Il nome della categoria DPI è obbligatorio.")
@@ -10249,7 +10252,7 @@ def dpi_categoria_create(request):
     cat = CategoriaDPI(
         nome=nome,
         descrizione=(request.POST.get("descrizione") or "").strip(),
-        icona_emoji=(request.POST.get("icona_emoji") or "🦺").strip() or "🦺",
+        icona_emoji=normalizza_icona_dpi(request.POST.get("icona_emoji")),
         vita_utile_giorni=_dpi_parse_int(request.POST.get("vita_utile_giorni")),
         obbligatoria_mansionario=request.POST.get("obbligatoria_mansionario") == "1",
         unita_misura=(request.POST.get("unita_misura") or "pz").strip() or "pz",
@@ -10275,7 +10278,7 @@ def dpi_categoria_edit(request, pk: int):
     ok, resp = _impostazioni_admin_check(request, "dpi")
     if not ok:
         return resp
-    from dpi.models import CategoriaDPI
+    from dpi.models import CategoriaDPI, normalizza_icona_dpi
     cat = get_object_or_404(CategoriaDPI, pk=pk)
     nome = (request.POST.get("nome") or "").strip()
     if not nome:
@@ -10283,7 +10286,7 @@ def dpi_categoria_edit(request, pk: int):
         return _redirect_impostazioni("dpi")
     cat.nome = nome
     cat.descrizione = (request.POST.get("descrizione") or "").strip()
-    cat.icona_emoji = (request.POST.get("icona_emoji") or "🦺").strip() or "🦺"
+    cat.icona_emoji = normalizza_icona_dpi(request.POST.get("icona_emoji"))
     cat.vita_utile_giorni = _dpi_parse_int(request.POST.get("vita_utile_giorni"))
     cat.obbligatoria_mansionario = request.POST.get("obbligatoria_mansionario") == "1"
     cat.unita_misura = (request.POST.get("unita_misura") or "pz").strip() or "pz"

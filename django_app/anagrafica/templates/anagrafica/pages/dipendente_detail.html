@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load anagrafica_extras %}
+{% load dpi_extras %}
 
 {% block title %}{% nominativo dip %} | Scheda dipendente{% endblock %}
 
@@ -548,6 +549,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
 {% block content %}
 <div class="dp-page">
 
+  {% include "dpi/components/_dpi_icons.html" %}
   {% include "anagrafica/components/flash_messages.html" %}
 
   {% if aziendale.data_cessazione %}
@@ -2285,7 +2287,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               {% if r.categoria.immagine %}
                 <img src="{{ r.categoria.immagine.url }}" style="width:18px;height:18px;object-fit:cover;border-radius:3px;vertical-align:middle;margin-right:4px;">
               {% else %}
-                {{ r.categoria.icona_emoji }}
+                <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><use href="#i-dpi-{{ r.categoria.icona_emoji|dpi_icon_key }}"/></svg>
               {% endif %}
               {{ r.categoria.nome }}
             </div>
@@ -2328,7 +2330,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                 <a href="{% url 'dpi:detail' r.pk %}" style="color:#1f87cd;font-weight:600;font-size:12px;">{{ r.numero }}</a>
               </td>
               <td class="dp-td-strong" style="padding:7px 8px;">
-                {{ r.categoria.icona_emoji }} {{ r.categoria.nome }}
+                <svg style="width:14px;height:14px;vertical-align:middle;margin-right:2px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><use href="#i-dpi-{{ r.categoria.icona_emoji|dpi_icon_key }}"/></svg>
+                {{ r.categoria.nome }}
               </td>
               <td class="dp-td-mid" style="padding:7px 8px;">{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
               <td style="padding:7px 8px;">

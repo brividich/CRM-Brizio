@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load dpi_extras %}
 
 {% block title %}DPI | Portale Applicativo{% endblock %}
 
@@ -69,6 +70,7 @@
   padding:3px 10px; border-radius:99px; font-size:12px; font-weight:600;
 }
 .dpi-cat-chip img { width:18px; height:18px; object-fit:cover; border-radius:3px; }
+.dpi-cat-chip .dpi-ico { width:15px; height:15px; flex-shrink:0; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
 
 .dpi-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
 
@@ -110,6 +112,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
 
 {% block content %}
 <div id="dpi-root">
+  {% include "dpi/components/_dpi_icons.html" %}
   {% include "dpi/components/subnav.html" %}
 
   <div class="dpi-hero">
@@ -184,7 +187,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
             </td>
             <td>
               <span class="dpi-cat-chip">
-                {% if r.categoria.immagine %}<img src="{{ r.categoria.immagine.url }}" alt="">{% else %}{{ r.categoria.icona_emoji }}{% endif %}
+                {% if r.categoria.immagine %}<img src="{{ r.categoria.immagine.url }}" alt="">{% else %}<svg class="dpi-ico"><use href="#i-dpi-{{ r.categoria.icona_emoji|dpi_icon_key }}"/></svg>{% endif %}
                 {{ r.categoria.nome }}{% if r.tipo_dpi %} / {{ r.tipo_dpi.nome }}{% endif %}{% if r.modello_dpi %} / {{ r.modello_dpi.nome }}{% endif %}{% if r.taglia_dpi %} / {{ r.taglia_dpi.valore }}{% endif %}
               </span>
             </td>
