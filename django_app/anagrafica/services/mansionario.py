@@ -202,16 +202,26 @@ def requisiti_per_nome_mansione(nome: str) -> dict[str, list]:
     )
 
 
-def _mansione_nome_legacy(legacy_id: int) -> str:
-    """Nome mansione dalla riga legacy anagrafica (campo stringa ``mansione``)."""
+def _mansioni_nome_legacy(legacy_ids: Iterable[int]) -> dict[int, str]:
+    """Nome mansione dalle righe legacy anagrafica, per più dipendenti (1 fetch)."""
+    voluti = {int(i) for i in legacy_ids}
+    out: dict[int, str] = {}
+    if not voluti:
+        return out
     try:
         from core.legacy_anagrafica import fetch_anagrafica_rows
         for row in fetch_anagrafica_rows(deduplicate=True):
-            if int(row.get("id") or 0) == int(legacy_id):
-                return str(row.get("mansione") or "").strip()
+            rid = int(row.get("id") or 0)
+            if rid in voluti:
+                out[rid] = str(row.get("mansione") or "").strip()
     except Exception:
         pass
-    return ""
+    return out
+
+
+def _mansione_nome_legacy(legacy_id: int) -> str:
+    """Nome mansione dalla riga legacy anagrafica (campo stringa ``mansione``)."""
+    return _mansioni_nome_legacy([legacy_id]).get(int(legacy_id), "")
 
 
 def requisiti_dipendente(
@@ -229,24 +239,82 @@ def requisiti_dipendente(
     Passarli evita il fetch quando il chiamante li ha già. Ritorna
     ``{dpi, visite, corsi, piani, fattori}``.
     """
+    return requisiti_dipendente_dettaglio(
+        legacy_id, mansione_nome=mansione_nome, area_id=area_id
+    )["requisiti"]
+
+
+def requisiti_dipendente_dettaglio(
+    legacy_id: int, *, mansione_nome: str | None = None, area_id: int | None = None
+) -> dict[str, Any]:
+    """Come :func:`requisiti_dipendente`, ma dice **da dove viene** ogni requisito.
+
+    Il libretto sanitario deve poter rispondere a "perché questo DPI è dovuto?":
+    senza l'origine un elenco di obblighi non è verificabile da chi lo legge (né
+    in un'ispezione). Ritorna::
+
+        {
+          "requisiti": {dpi, visite, corsi, piani, fattori},   # come sopra
+          "origini": {("dpi", pk): ["Mansione «Saldatore»", ...], ...},
+          "mansione_nome": "...",
+          "area_id": 12 | None,
+        }
+
+    Le chiavi di ``origini`` sono ``(dominio, pk)`` con dominio in
+    ``dpi``/``visite``/``corsi``/``piani``/``fattori``.
+    """
+    return requisiti_dipendenti_dettaglio(
+        [legacy_id],
+        mansioni_per_legacy=({int(legacy_id): mansione_nome}
+                             if mansione_nome is not None else None),
+        aree_per_legacy=({int(legacy_id): area_id} if area_id is not None else None),
+    )[int(legacy_id)]
+
+
+def requisiti_dipendenti_dettaglio(
+    legacy_ids: Iterable[int],
+    *,
+    mansioni_per_legacy: dict[int, str] | None = None,
+    aree_per_legacy: dict[int, int | None] | None = None,
+) -> dict[int, dict[str, Any]]:
+    """Versione batch di :func:`requisiti_dipendente_dettaglio`.
+
+    Numero di query costante rispetto al numero di dipendenti: serve alla vista
+    generale del libretto sanitario, che risolve i requisiti di tutto il
+    personale attivo in una schermata sola. Ciò che non viene passato
+    (``mansioni_per_legacy`` / ``aree_per_legacy``) è risolto con una query
+    sola per l'intero insieme.
+    """
     from ..models_rischi import EsposizioneRischio
 
-    if area_id is None or mansione_nome is None:
-        from ..models import DipendenteAnagraficaAziendale
-        az = DipendenteAnagraficaAziendale.objects.filter(
-            legacy_anagrafica_id=legacy_id
-        ).first()
-        if area_id is None and az is not None:
-            area_id = az.area_aziendale_id
-        if mansione_nome is None:
-            mansione_nome = _mansione_nome_legacy(legacy_id)
+    ids = [int(i) for i in legacy_ids if int(i or 0) > 0]
+    if not ids:
+        return {}
 
-    # Fonte 1: mansione lavorativa.
-    base = (
-        requisiti_per_nome_mansione(mansione_nome) if mansione_nome else requisiti_vuoti()
+    mansioni = dict(mansioni_per_legacy or {})
+    aree: dict[int, int | None] = dict(aree_per_legacy or {})
+
+    mancanti_area = [i for i in ids if i not in aree]
+    if mancanti_area:
+        from ..models import DipendenteAnagraficaAziendale
+        trovate = dict(
+            DipendenteAnagraficaAziendale.objects
+            .filter(legacy_anagrafica_id__in=mancanti_area)
+            .values_list("legacy_anagrafica_id", "area_aziendale_id")
+        )
+        for legacy_id in mancanti_area:
+            aree[legacy_id] = trovate.get(legacy_id)
+
+    mancanti_mansione = [i for i in ids if i not in mansioni]
+    if mancanti_mansione:
+        mansioni.update(_mansioni_nome_legacy(mancanti_mansione))
+
+    # Fonte 1: mansione lavorativa (resolver per nome, già batch).
+    base_per_nome = requisiti_per_nome(
+        {n for n in mansioni.values() if str(n or "").strip()}
     )
 
-    # Fonti 2+3: esposizioni di area + dirette al dipendente.
+    # Fonti 2+3: esposizioni di area + dirette, in due query per tutti.
     esposizioni = (
         EsposizioneRischio.objects
         .filter(is_active=True)
@@ -255,19 +323,64 @@ def requisiti_dipendente(
             "fattore__tipi_visita", "fattore__categorie_dpi", "fattore__categorie_corso",
         )
     )
-    q_area = esposizioni.filter(area_id=area_id) if area_id else esposizioni.none()
-    q_dir = esposizioni.filter(legacy_anagrafica_id=legacy_id)
-    fattori = [e.fattore for e in list(q_area) + list(q_dir)]
+    area_ids = {a for a in aree.values() if a}
+    per_area: dict[int, list] = {}
+    if area_ids:
+        for esp in esposizioni.filter(area_id__in=area_ids):
+            per_area.setdefault(esp.area_id, []).append(esp)
+    per_dipendente: dict[int, list] = {}
+    for esp in esposizioni.filter(legacy_anagrafica_id__in=ids):
+        per_dipendente.setdefault(esp.legacy_anagrafica_id, []).append(esp)
 
-    categoria_ids = {
-        c.pk for f in fattori if f and f.is_active for c in f.categorie_corso.all()
-    }
-    extra = _requisiti_da_fattori(fattori, _corsi_per_categoria(categoria_ids))
+    # Un'unica risoluzione categoria corso → corsi per tutti i fattori coinvolti.
+    categoria_ids: set[int] = set()
+    for gruppo in list(per_area.values()) + list(per_dipendente.values()):
+        for esp in gruppo:
+            if esp.fattore and esp.fattore.is_active:
+                for categoria in esp.fattore.categorie_corso.all():
+                    categoria_ids.add(categoria.pk)
+    corsi_per_categoria = _corsi_per_categoria(categoria_ids)
 
-    return {
-        "dpi": _dedup(base["dpi"] + extra["dpi"]),
-        "visite": _dedup(base["visite"] + extra["visite"]),
-        "corsi": _dedup(base["corsi"] + extra["corsi"]),
-        "piani": _dedup(base["piani"]),
-        "fattori": _dedup(base["fattori"] + extra["fattori"]),
-    }
+    out: dict[int, dict[str, Any]] = {}
+    for legacy_id in ids:
+        origini: dict[tuple[str, Any], list[str]] = {}
+
+        def _traccia(parziale: dict[str, list], etichetta: str) -> None:
+            for dominio, voci in parziale.items():
+                for obj in voci:
+                    voci_origine = origini.setdefault(
+                        (dominio, getattr(obj, "pk", obj)), []
+                    )
+                    if etichetta not in voci_origine:
+                        voci_origine.append(etichetta)
+
+        nome = str(mansioni.get(legacy_id) or "").strip()
+        base = base_per_nome.get(nome.casefold(), requisiti_vuoti()) if nome else requisiti_vuoti()
+        _traccia(base, f"Mansione «{nome}»" if nome else "Mansione")
+
+        extra = {"dpi": [], "visite": [], "corsi": [], "fattori": []}
+        gruppi = (
+            (per_area.get(aree.get(legacy_id) or 0, []), "Area aziendale"),
+            (per_dipendente.get(legacy_id, []), "Esposizione diretta"),
+        )
+        for esposizioni_gruppo, etichetta in gruppi:
+            parziale = _requisiti_da_fattori(
+                [e.fattore for e in esposizioni_gruppo], corsi_per_categoria
+            )
+            _traccia(parziale, etichetta)
+            for dominio in extra:
+                extra[dominio].extend(parziale[dominio])
+
+        out[legacy_id] = {
+            "requisiti": {
+                "dpi": _dedup(base["dpi"] + extra["dpi"]),
+                "visite": _dedup(base["visite"] + extra["visite"]),
+                "corsi": _dedup(base["corsi"] + extra["corsi"]),
+                "piani": _dedup(base["piani"]),
+                "fattori": _dedup(base["fattori"] + extra["fattori"]),
+            },
+            "origini": origini,
+            "mansione_nome": nome,
+            "area_id": aree.get(legacy_id),
+        }
+    return out

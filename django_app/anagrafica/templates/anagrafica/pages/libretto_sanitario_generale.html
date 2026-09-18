@@ -1,0 +1,375 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% load anagrafica_extras %}
+{% comment %}
+Libretto sanitario aziendale — quadro generale. Stessa impostazione del report
+Conformità (design hr-, safnav, KPI, filtri, stampa), ma l'unità di misura qui è
+l'**adempimento**, non la persona: due viste della stessa lista (?vista=persone
+| adempimenti). Privacy: i nomi delle visite seguono can_view_visite.
+{% endcomment %}
+
+{% block title %}Libretto sanitario aziendale | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+<style>
+.lsg-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:14px 16px; }
+.lsg-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px; }
+.lsg-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.lsg-select { border:1px solid #e2e8f0; border-radius:9px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; font-family:inherit; }
+.lsg-select:focus { border-color:#1f87cd; box-shadow:0 0 0 3px rgba(31,92,145,.1); }
+
+.lsg-pill { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
+.lsg-ok { background:#dcfce7; color:#166534; }
+.lsg-warn { background:#ffedd5; color:#9a3412; }
+.lsg-ko { background:#fee2e2; color:#991b1b; }
+.lsg-mancante { background:#dbeafe; color:#1e40af; }
+.lsg-na { background:#f1f5f9; color:#64748b; }
+
+/* Barra di composizione degli obblighi per dominio */
+.lsg-dom-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; padding:16px; }
+.lsg-dom { border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; background:#fff; }
+.lsg-dom-top { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.lsg-dom-title { font-size:13px; font-weight:800; color:#0f172a; }
+.lsg-dom-tot { font-size:12px; color:#64748b; font-weight:700; }
+.lsg-bar { display:flex; height:9px; border-radius:999px; overflow:hidden; background:#f1f5f9; }
+.lsg-bar span { display:block; height:100%; }
+.lsg-bar .s-ok { background:#22c55e; } .lsg-bar .s-warn { background:#f59e0b; }
+.lsg-bar .s-ko { background:#ef4444; } .lsg-bar .s-mancante { background:#60a5fa; }
+.lsg-dom-legend { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+
+.lsg-count { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700; color:#475569; }
+.lsg-dot { width:8px; height:8px; border-radius:50%; flex:none; }
+.lsg-dot-ok { background:#22c55e; } .lsg-dot-warn { background:#f59e0b; }
+.lsg-dot-ko { background:#ef4444; } .lsg-dot-mancante { background:#60a5fa; }
+
+.lsg-tabs { display:flex; gap:6px; }
+.lsg-tab { border-radius:.6rem; padding:7px 14px; font-size:13px; font-weight:700; color:#475569; text-decoration:none; border:1px solid #e2e8f0; background:#fff; }
+.lsg-tab.active { background:#0c2545; color:#fff; border-color:#0c2545; }
+.lsg-origine { font-size:11px; color:#94a3b8; }
+/* I link in tabella non possono avere il colore inline: in tema scuro il navy
+   sparirebbe sul fondo scuro (l'inline vince sull'override di tema). */
+.lsg-link { color:#0c2545; font-weight:700; text-decoration:none; }
+.lsg-link:hover { text-decoration:underline; }
+.lsg-link-soft { color:#475569; text-decoration:none; }
+.lsg-link-soft:hover { text-decoration:underline; }
+
+body.theme-dark .lsg-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .lsg-field label { color:var(--text-light); }
+body.theme-dark .lsg-dom { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .lsg-dom-title { color:var(--text); }
+body.theme-dark .lsg-dom-tot, body.theme-dark .lsg-count { color:var(--text-mid); }
+body.theme-dark .lsg-bar { background:var(--surface); }
+body.theme-dark .lsg-tab { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .lsg-tab.active { background:#1f87cd; color:#fff; border-color:#1f87cd; }
+body.theme-dark .lsg-ok { background:rgba(22,101,52,.25); color:#86efac; }
+body.theme-dark .lsg-warn { background:rgba(133,77,14,.25); color:#fde68a; }
+body.theme-dark .lsg-ko { background:rgba(153,27,27,.3); color:#fca5a5; }
+body.theme-dark .lsg-mancante { background:rgba(30,64,175,.3); color:#bfdbfe; }
+body.theme-dark .lsg-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
+body.theme-dark .lsg-origine { color:var(--text-light); }
+body.theme-dark .lsg-link { color:#93c5fd; }
+body.theme-dark .lsg-link-soft { color:var(--text-mid); }
+
+@media print {
+  @page { size:A4 landscape; margin:12mm; }
+  body * { visibility:hidden; }
+  .lsg-print-area, .lsg-print-area * { visibility:visible; }
+  .lsg-print-area { position:absolute; left:0; top:0; width:100%; }
+  .safnav, .lsg-filters, .lsg-tabs, .hr-pagehead .hr-btn, .hr-pagehead .fmd-export { display:none !important; }
+  .lsg-pill, .hr-pill, .hr-metric-ico, .lsg-bar span, .lsg-dot { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .hr-metric, .hr-card, .lsg-dom { break-inside:avoid; box-shadow:none !important; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="lsg-print-area" style="display:flex;flex-direction:column;gap:20px;">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+  {% include "anagrafica/partials/_safety_subnav.html" with active="libretto" %}
+
+  <!-- Page header -->
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR · Salute e Sicurezza</div>
+      <h1 class="hr-pagehead-title">Libretto sanitario aziendale</h1>
+      <p class="hr-pagehead-desc">
+        Tutti gli obblighi di mansione del personale attivo — visite mediche, DPI e formazione — con scadenza, origine e stato.
+        Il libretto della singola persona si apre dal suo nome. Aggiornato al {{ oggi|date:"d/m/Y" }}.
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <a class="hr-btn hr-btn-outline" href="{% querystring format='csv' page=None %}">⬇ Esporta CSV</a>
+      <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa / PDF</button>
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:conformita_report' %}">✅ Conformità</a>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="hr-metric-grid">
+    <div class="hr-metric">
+      <div class="hr-metric-ico red">⛔</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Adempimenti scaduti</span><span class="hr-metric-val">{{ conta_stato.ko }}</span></div>
+        <div class="hr-metric-sub">{{ n_persone_ko }} person{{ n_persone_ko|pluralize:"a,e" }} non conform{{ n_persone_ko|pluralize:"e,i" }}</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico amber">⏰</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">In scadenza (60 gg)</span><span class="hr-metric-val">{{ conta_stato.warn }}</span></div>
+        <div class="hr-metric-sub">Da rinnovare prima della scadenza</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico blue">📋</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Da acquisire</span><span class="hr-metric-val">{{ conta_stato.mancante }}</span></div>
+        <div class="hr-metric-sub">{{ n_persone_incomplete }} person{{ n_persone_incomplete|pluralize:"a,e" }} con obblighi mai assolti</div>
+      </div>
+    </div>
+    <div class="hr-metric">
+      <div class="hr-metric-ico green">✅</div>
+      <div class="hr-metric-body">
+        <div class="hr-metric-top"><span class="hr-metric-lbl">Copertura</span><span class="hr-metric-val">{{ copertura }}%</span></div>
+        <div class="hr-metric-sub">{{ conta_stato.ok }} obblighi validi su {{ n_obblighi }} · {{ n_persone }} in forza</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Composizione per ambito -->
+  <div class="hr-card">
+    <div class="hr-card-head"><span class="hr-card-title">Dove si concentra il lavoro</span></div>
+    <div class="lsg-dom-grid">
+      {% for d in per_dominio %}
+      <div class="lsg-dom">
+        <div class="lsg-dom-top">
+          <span class="lsg-dom-title">{{ d.titolo }}</span>
+          <span class="lsg-dom-tot">{{ d.totale }} obblig{{ d.totale|pluralize:"o,hi" }}</span>
+        </div>
+        {% if d.totale %}
+        <div class="lsg-bar" role="img" aria-label="{{ d.ok }} conformi, {{ d.warn }} in scadenza, {{ d.ko }} scaduti, {{ d.mancante }} da acquisire">
+          {% widthratio d.ok d.totale 100 as p_ok %}{% widthratio d.warn d.totale 100 as p_warn %}{% widthratio d.ko d.totale 100 as p_ko %}{% widthratio d.mancante d.totale 100 as p_mancante %}
+          <span class="s-ok" style="width:{{ p_ok }}%"></span>
+          <span class="s-warn" style="width:{{ p_warn }}%"></span>
+          <span class="s-ko" style="width:{{ p_ko }}%"></span>
+          <span class="s-mancante" style="width:{{ p_mancante }}%"></span>
+        </div>
+        <div class="lsg-dom-legend">
+          <span class="lsg-count"><span class="lsg-dot lsg-dot-ko"></span>{{ d.ko }} scaduti</span>
+          <span class="lsg-count"><span class="lsg-dot lsg-dot-warn"></span>{{ d.warn }} in scadenza</span>
+          <span class="lsg-count"><span class="lsg-dot lsg-dot-mancante"></span>{{ d.mancante }} da acquisire</span>
+          <span class="lsg-count"><span class="lsg-dot lsg-dot-ok"></span>{{ d.ok }} conformi</span>
+        </div>
+        {% else %}
+        <div style="font-size:12.5px;color:#94a3b8;">Nessun obbligo di questo tipo con i filtri correnti.</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Filtri -->
+  <div class="hr-card">
+    <form method="get" action="">
+      <input type="hidden" name="vista" value="{{ vista }}">
+      <div class="lsg-filters">
+        {% if reparti %}
+        <div class="lsg-field">
+          <label for="lsg-reparto">Reparto</label>
+          <select id="lsg-reparto" name="reparto" class="lsg-select" onchange="this.form.submit()">
+            <option value="">Tutti</option>
+            {% for r in reparti %}<option value="{{ r }}" {% if r == filtro_reparto %}selected{% endif %}>{{ r }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        {% if mansioni_elenco %}
+        <div class="lsg-field">
+          <label for="lsg-mansione">Mansione</label>
+          <select id="lsg-mansione" name="mansione" class="lsg-select" onchange="this.form.submit()">
+            <option value="">Tutte</option>
+            {% for m in mansioni_elenco %}<option value="{{ m }}" {% if m == filtro_mansione %}selected{% endif %}>{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div class="lsg-field">
+          <label for="lsg-verdetto">Esito persona</label>
+          <select id="lsg-verdetto" name="verdetto" class="lsg-select" onchange="this.form.submit()">
+            <option value="">Tutti</option>
+            <option value="ko" {% if filtro_verdetto == "ko" %}selected{% endif %}>Non conformi</option>
+            <option value="mancante" {% if filtro_verdetto == "mancante" %}selected{% endif %}>Incompleti</option>
+            <option value="warn" {% if filtro_verdetto == "warn" %}selected{% endif %}>Con scadenze imminenti</option>
+            <option value="ok" {% if filtro_verdetto == "ok" %}selected{% endif %}>Conformi</option>
+            <option value="na" {% if filtro_verdetto == "na" %}selected{% endif %}>Senza requisiti</option>
+          </select>
+        </div>
+        <div class="lsg-field">
+          <label for="lsg-dominio">Ambito</label>
+          <select id="lsg-dominio" name="dominio" class="lsg-select" onchange="this.form.submit()">
+            <option value="">Tutti</option>
+            <option value="visite" {% if filtro_dominio == "visite" %}selected{% endif %}>Sorveglianza sanitaria</option>
+            <option value="dpi" {% if filtro_dominio == "dpi" %}selected{% endif %}>DPI</option>
+            <option value="corsi" {% if filtro_dominio == "corsi" %}selected{% endif %}>Formazione</option>
+          </select>
+        </div>
+        <div class="lsg-field">
+          <label for="lsg-stato">Stato adempimento</label>
+          <select id="lsg-stato" name="stato" class="lsg-select" onchange="this.form.submit()">
+            <option value="">Tutti</option>
+            <option value="ko" {% if filtro_stato == "ko" %}selected{% endif %}>Scaduti</option>
+            <option value="warn" {% if filtro_stato == "warn" %}selected{% endif %}>In scadenza</option>
+            <option value="mancante" {% if filtro_stato == "mancante" %}selected{% endif %}>Da acquisire</option>
+            <option value="ok" {% if filtro_stato == "ok" %}selected{% endif %}>Conformi</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:1px;">
+          <button type="submit" class="hr-btn hr-btn-primary hr-btn-sm">Filtra</button>
+          <a href="{% url 'anagrafica:libretto_sanitario_generale' %}?vista={{ vista }}" class="hr-btn hr-btn-outline hr-btn-sm">Azzera</a>
+        </div>
+      </div>
+      {% if filtro_dominio or filtro_stato %}
+      <div style="padding:0 16px 12px;font-size:12px;color:#94a3b8;">
+        Ambito e stato filtrano i <strong>singoli adempimenti</strong>: nella vista per persona restano visibili tutte le persone che soddisfano gli altri filtri.
+      </div>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Elenco -->
+  <div class="hr-card">
+    <div class="hr-card-head">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="lsg-tabs">
+          <a class="lsg-tab {% if vista == 'persone' %}active{% endif %}" href="{% querystring vista='persone' page=None %}">👤 Per persona</a>
+          <a class="lsg-tab {% if vista == 'adempimenti' %}active{% endif %}" href="{% querystring vista='adempimenti' page=None %}">📋 Per adempimento</a>
+        </div>
+        <span style="background:#f1f5f9;color:#475569;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;">{{ totale }}</span>
+      </div>
+      {% if not can_view_visite %}
+      <div style="font-size:12px;color:#94a3b8;">Il dettaglio delle visite mediche non è visibile con il tuo livello di accesso.</div>
+      {% endif %}
+    </div>
+
+    {% if page_obj.object_list %}
+    <div style="overflow-x:auto;">
+      {% if vista == 'adempimenti' %}
+      <table class="hr-table">
+        <thead>
+          <tr>
+            <th>Dipendente</th>
+            <th>Ambito</th>
+            <th>Requisito</th>
+            <th>Perché è dovuto</th>
+            <th>Ultima evidenza</th>
+            <th>Scadenza</th>
+            <th>Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in page_obj.object_list %}
+          {% with r=a.riga %}
+          <tr>
+            <td>
+              <a class="lsg-link" href="{% url 'anagrafica:dipendente_libretto_sanitario' a.legacy_id %}" title="Apri il libretto sanitario">{% nominativo a %}</a>
+              {% if a.reparto %}<div style="font-size:11px;color:#94a3b8;">{{ a.reparto }}</div>{% endif %}
+            </td>
+            <td>
+              {% if r.dominio == 'visite' %}🏥 Sorveglianza
+              {% elif r.dominio == 'dpi' %}🦺 DPI
+              {% else %}📚 Formazione{% endif %}
+            </td>
+            <td style="font-weight:600;">{{ r.nome }}{% if r.nota %}<div class="lsg-origine">{{ r.nota }}</div>{% endif %}</td>
+            <td class="lsg-origine">{% if r.origini %}{{ r.origini|join:" · " }}{% else %}—{% endif %}</td>
+            <td>{% if r.data_ultima %}{{ r.data_ultima|date:"d/m/Y" }}{% else %}<span style="color:#94a3b8;">mai</span>{% endif %}</td>
+            <td>
+              {% if r.data_scadenza %}{{ r.data_scadenza|date:"d/m/Y" }}
+              {% else %}<span style="color:#94a3b8;">—</span>{% endif %}
+            </td>
+            <td><span class="lsg-pill lsg-{{ r.stato }}">{{ r.stato_label }}</span></td>
+          </tr>
+          {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <table class="hr-table">
+        <thead>
+          <tr>
+            <th>Dipendente</th>
+            <th>Reparto</th>
+            <th>Mansione</th>
+            <th>Esito</th>
+            <th>Obblighi</th>
+            <th>Da sistemare</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in page_obj.object_list %}
+          {% with lib=p.libretto %}
+          <tr>
+            <td>
+              <a class="lsg-link" href="{% url 'anagrafica:dipendente_libretto_sanitario' p.legacy_id %}" title="Apri il libretto sanitario">🩺 {% nominativo p %}</a>
+            </td>
+            <td>{% if p.reparto %}<span class="hr-pill blue">{{ p.reparto }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+            <td>
+              {% if p.mansione_id %}<a class="lsg-link-soft" href="{% url 'anagrafica:mansione_requisiti' p.mansione_id %}">🎯 {{ p.mansione }}</a>
+              {% elif p.mansione %}<span style="color:#94a3b8;">{{ p.mansione }}</span>
+              {% else %}<span style="color:#94a3b8;">—</span>{% endif %}
+            </td>
+            <td><span class="lsg-pill lsg-{{ lib.verdetto }}">{{ lib.verdetto_label }}</span></td>
+            <td>
+              {% if lib.conteggi.totale %}
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                {% if lib.conteggi.ko %}<span class="lsg-count"><span class="lsg-dot lsg-dot-ko"></span>{{ lib.conteggi.ko }}</span>{% endif %}
+                {% if lib.conteggi.warn %}<span class="lsg-count"><span class="lsg-dot lsg-dot-warn"></span>{{ lib.conteggi.warn }}</span>{% endif %}
+                {% if lib.conteggi.mancante %}<span class="lsg-count"><span class="lsg-dot lsg-dot-mancante"></span>{{ lib.conteggi.mancante }}</span>{% endif %}
+                {% if lib.conteggi.ok %}<span class="lsg-count"><span class="lsg-dot lsg-dot-ok"></span>{{ lib.conteggi.ok }}</span>{% endif %}
+                <span class="lsg-origine">su {{ lib.conteggi.totale }}</span>
+              </div>
+              {% else %}<span style="color:#94a3b8;">nessuno</span>{% endif %}
+            </td>
+            <td>
+              {% if lib.criticita %}
+              <div style="font-size:12px;">
+                {% for r in lib.criticita|slice:":3" %}
+                <div>{{ r.nome }} <span class="lsg-origine">— {{ r.stato_label|lower }}</span></div>
+                {% endfor %}
+                {% if lib.criticita|length > 3 %}<div class="lsg-origine">e altri {{ lib.criticita|length|add:"-3" }}…</div>{% endif %}
+              </div>
+              {% else %}<span style="color:#94a3b8;">—</span>{% endif %}
+            </td>
+          </tr>
+          {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 16px;border-top:1px solid #f1f5f9;">
+      {% if page_obj.has_previous %}
+      <a href="{% querystring page=page_obj.previous_page_number %}" class="hr-btn hr-btn-outline hr-btn-sm">← Prec.</a>
+      {% endif %}
+      <span style="font-size:13px;color:#64748b;">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+      <a href="{% querystring page=page_obj.next_page_number %}" class="hr-btn hr-btn-outline hr-btn-sm">Succ. →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="hr-empty">
+      <div style="font-size:32px;margin-bottom:8px;">🩺</div>
+      Nessun risultato con i filtri selezionati.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
