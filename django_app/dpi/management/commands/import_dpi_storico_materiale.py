@@ -25,7 +25,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from dpi.models import CategoriaDPI, ConsegnaDPI, RichiestaDPI, StatoRichiesta
+from dpi.models import CategoriaDPI, ConsegnaDPI, RichiestaDPI, StatoRichiesta, _next_numero_dpi
 
 NOTE_MARKER = "[IMPORT storico MATERIALE ANTINFORTUNISTICO]"
 
@@ -243,6 +243,7 @@ class Command(BaseCommand):
                     try:
                         with transaction.atomic():
                             richiesta = RichiestaDPI.objects.create(
+                                numero=_next_numero_dpi(year=data_evento.year),
                                 categoria=categoria,
                                 quantita=1,
                                 motivazione="",
