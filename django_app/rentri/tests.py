@@ -289,3 +289,101 @@ class RentriCsvParsingTests(TestCase):
         self.assertEqual(_detect_delimiter("Data;ID;Codice"), ";")
         self.assertEqual(_detect_delimiter("intestazione"), ";")
         self.assertEqual(_parse_pericolosita('["HP04 - x","HP05 - y","HP04"]'), "HP04, HP05")
+
+
+class RentriFamiglieTests(TestCase):
+    """Vista famiglie: risalita della catena rif_op, fusione e stato aperta/chiusa."""
+
+    def _rec(self, tipo, giorno, id_reg, rif_op="", codice="12.01.01"):
+        return RegistroRifiuti.objects.create(
+            tipo=tipo, data=date(2026, 1, giorno), id_registrazione=id_reg,
+            rif_op=rif_op, codice=codice,
+        )
+
+    def _famiglie(self):
+        from .views import _build_families
+        return _build_families(list(RegistroRifiuti.objects.order_by("data", "id_registrazione")))
+
+    def test_catena_indiretta_resta_nella_famiglia(self):
+        """M ed R possono referenziare il genitore (O / M) invece del carico."""
+        self._rec("C", 1, "2026/001")
+        self._rec("O", 2, "2026/002", rif_op="2026/001")
+        self._rec("M", 3, "2026/003", rif_op="2026/002")
+        self._rec("R", 4, "2026/004", rif_op="2026/003")
+
+        famiglie = self._famiglie()
+        self.assertEqual(len(famiglie), 1)
+        self.assertEqual(len(famiglie[0]["carichi"]), 1)
+        self.assertEqual(len(famiglie[0]["operazioni"]), 3)
+        self.assertTrue(famiglie[0]["chiusa"])
+
+    def test_riferimento_multiplo_fonde_le_famiglie(self):
+        """Un rif_op parziale e uno multiplo sullo stesso carico restano una famiglia."""
+        self._rec("C", 1, "2026/001")
+        self._rec("C", 1, "2026/002")
+        self._rec("O", 2, "2026/003", rif_op="2026/001")
+        self._rec("R", 3, "2026/004", rif_op="2026/001, 2026/002")
+
+        famiglie = self._famiglie()
+        self.assertEqual(len(famiglie), 1)
+        self.assertEqual(len(famiglie[0]["carichi"]), 2)
+        self.assertEqual(len(famiglie[0]["operazioni"]), 2)
+
+    def test_operazione_senza_carico_resta_orfana(self):
+        self._rec("O", 2, "2026/010", rif_op="2026/999")
+
+        famiglie = self._famiglie()
+        self.assertEqual(len(famiglie), 1)
+        self.assertEqual(famiglie[0]["carichi"], [])
+        self.assertFalse(famiglie[0]["chiusa"])
+
+    def test_famiglia_chiusa_va_in_fondo(self):
+        self._rec("C", 1, "2026/001")
+        self._rec("O", 2, "2026/002", rif_op="2026/001")
+        self._rec("M", 3, "2026/003", rif_op="2026/002")
+        self._rec("C", 5, "2026/004", codice="12.01.03")
+
+        famiglie = self._famiglie()
+        self.assertEqual([f["chiusa"] for f in famiglie], [False, True])
+        self.assertEqual(famiglie[0]["codice"], "12.01.03")
+
+    def test_catena_ciclica_non_va_in_ricorsione(self):
+        self._rec("C", 1, "2026/001")
+        self._rec("O", 2, "2026/002", rif_op="2026/003")
+        self._rec("M", 3, "2026/003", rif_op="2026/002")
+
+        famiglie = self._famiglie()
+        self.assertEqual(sum(len(f["carichi"]) + len(f["operazioni"]) for f in famiglie), 3)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RentriElencoFiltroStatoTests(TestCase):
+    """Filtro `stato` dell'elenco (solo vista famiglie)."""
+
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="rentri-stato", email="rentri-stato@example.com", password="pwd12345",
+        )
+        RegistroRifiuti.objects.create(tipo="C", data=date(2026, 1, 1), id_registrazione="2026/001", codice="12.01.01")
+        RegistroRifiuti.objects.create(tipo="O", data=date(2026, 1, 2), id_registrazione="2026/002", rif_op="2026/001", codice="12.01.01")
+        RegistroRifiuti.objects.create(tipo="M", data=date(2026, 1, 3), id_registrazione="2026/003", rif_op="2026/002", codice="12.01.01")
+        RegistroRifiuti.objects.create(tipo="C", data=date(2026, 1, 5), id_registrazione="2026/004", codice="12.01.03")
+        self.client.force_login(self.user)
+
+    def test_conteggi_aperte_chiuse(self):
+        response = self.client.get(reverse("rentri_elenco"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["n_aperte"], 1)
+        self.assertEqual(response.context["n_chiuse"], 1)
+
+    def test_filtro_solo_aperte(self):
+        response = self.client.get(reverse("rentri_elenco"), {"stato": "aperte"})
+        famiglie = response.context["families"]
+        self.assertEqual(len(famiglie), 1)
+        self.assertFalse(famiglie[0]["chiusa"])
+
+    def test_filtro_solo_chiuse(self):
+        response = self.client.get(reverse("rentri_elenco"), {"stato": "chiuse"})
+        famiglie = response.context["families"]
+        self.assertEqual(len(famiglie), 1)
+        self.assertTrue(famiglie[0]["chiusa"])
