@@ -1,8 +1,13 @@
 # Session Checkpoint
 
-Data: 2026-09-16
+Data: 2026-09-18
 
 Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-18 - Codex (integrazione release RENTRI)`.
+- `origin/main` -> commit `220df381`, con `feature/rentri-numerazione-univoca` (`0c3b668c`) gia integrato; delta verificato di 7 file inclusa migration `rentri/0005`.
+- Verifica: 9 test mirati numerazione/audit duplicati verdi; Django check, migration drift e `git diff --check` verdi.
+- Perimetro: Dependabot escluso; checkout condiviso con WIP Anagrafica non toccato; nessun file critico, backup o DB dev/prod modificato.
 
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-16 - Codex` (SDS assegnate alle mansioni di rischio e workflow dinamico sul cambio mansione).
 - `django_app/schede_sicurezza/migrations/0004_prodotto_mansioni_rischio.py` -> M2M prodotto-mansioni; reparto storico nullable, nessun backfill ambiguo.
