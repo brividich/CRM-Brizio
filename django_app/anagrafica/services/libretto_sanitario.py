@@ -446,3 +446,172 @@ def libretto(
         aree_per_legacy=({int(legacy_id): area_id} if area_id is not None else None),
         include_visite_dettaglio=include_visite_dettaglio,
     )[int(legacy_id)]
+
+
+# ---------------------------------------------------------------------------
+# Quadro generale — la stessa lista per la pagina, il PDF e l'Excel
+# ---------------------------------------------------------------------------
+
+DOMINIO_LABEL = {
+    "visite": "Sorveglianza sanitaria",
+    "dpi": "DPI",
+    "corsi": "Formazione",
+}
+
+VERDETTO_FILTRO_LABEL = {
+    STATO_KO: "Non conformi",
+    STATO_MANCANTE: "Incompleti",
+    STATO_WARN: "Con scadenze imminenti",
+    STATO_OK: "Conformi",
+    ESITO_NA: "Senza requisiti",
+}
+
+_ORDINE_STATO = {STATO_KO: 0, STATO_MANCANTE: 1, STATO_WARN: 2, STATO_OK: 3}
+_ORDINE_VERDETTO = {**_ORDINE_STATO, ESITO_NA: 4}
+
+
+def quadro_generale(
+    dip_rows,
+    *,
+    filtri: dict | None = None,
+    include_visite_dettaglio: bool = False,
+    mansioni_map: dict[str, int] | None = None,
+) -> dict[str, Any]:
+    """Il quadro aziendale: persone, adempimenti e conteggi, già filtrati.
+
+    Sede unica del filtro e dell'ordinamento della vista generale: la pagina, il
+    PDF e l'Excel chiamano questa funzione, così il documento esportato non può
+    dire una cosa diversa dallo schermo (è il documento che si porta a
+    un'ispezione). ``dip_rows`` sono le righe legacy dei dipendenti attivi.
+
+    ``filtri``: ``reparto``, ``mansione``, ``verdetto`` (esito persona),
+    ``dominio`` e ``stato`` (questi ultimi due filtrano i singoli adempimenti).
+    """
+    filtri = filtri or {}
+    f_reparto = (filtri.get("reparto") or "").strip()
+    f_mansione = (filtri.get("mansione") or "").strip()
+    f_verdetto = (filtri.get("verdetto") or "").strip()
+    f_dominio = (filtri.get("dominio") or "").strip()
+    f_stato = (filtri.get("stato") or "").strip()
+    mansioni_map = mansioni_map or {}
+
+    dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+    mansioni_per_legacy = {
+        legacy_id: str(dip.get("mansione") or "").strip()
+        for legacy_id, dip in dip_map.items()
+    }
+    libretti = libretto_batch(
+        list(dip_map.keys()),
+        mansioni_per_legacy=mansioni_per_legacy,
+        include_visite_dettaglio=include_visite_dettaglio,
+    )
+
+    persone: list[dict] = []
+    adempimenti: list[dict] = []
+    for legacy_id, dip in dip_map.items():
+        reparto = str(dip.get("reparto") or "").strip()
+        mansione_nome = mansioni_per_legacy.get(legacy_id, "")
+        if f_reparto and reparto.casefold() != f_reparto.casefold():
+            continue
+        if f_mansione and mansione_nome.casefold() != f_mansione.casefold():
+            continue
+        dati = libretti.get(legacy_id)
+        if not dati:
+            continue
+        if f_verdetto and dati["verdetto"] != f_verdetto:
+            continue
+        persona = {
+            "legacy_id": legacy_id,
+            "cognome": str(dip.get("cognome") or f"ID {legacy_id}").strip(),
+            "nome": str(dip.get("nome") or "").strip(),
+            "reparto": reparto,
+            "mansione": mansione_nome,
+            "mansione_id": mansioni_map.get(mansione_nome.casefold()),
+        }
+        persone.append({**persona, "libretto": dati})
+        for riga in dati["righe_obbligo"]:
+            if f_dominio and riga.dominio != f_dominio:
+                continue
+            if f_stato and riga.stato != f_stato:
+                continue
+            adempimenti.append({**persona, "riga": riga})
+
+    persone.sort(key=lambda p: (
+        _ORDINE_VERDETTO.get(p["libretto"]["verdetto"], 9),
+        p["cognome"].casefold(), p["nome"].casefold(),
+    ))
+    adempimenti.sort(key=lambda a: (
+        _ORDINE_STATO.get(a["riga"].stato, 9),
+        a["riga"].data_scadenza or date.max,
+        a["cognome"].casefold(), a["nome"].casefold(),
+    ))
+
+    # Le persone si contano per verdetto, gli adempimenti per stato: sono due
+    # domande diverse ("chi è fermo?" / "quanto lavoro c'è?").
+    tutti_obblighi = [r for p in persone for r in p["libretto"]["righe_obbligo"]]
+    conta_stato = {
+        stato: sum(1 for r in tutti_obblighi if r.stato == stato)
+        for stato in (STATO_OK, STATO_WARN, STATO_KO, STATO_MANCANTE)
+    }
+    n_obblighi = len(tutti_obblighi)
+
+    per_dominio = [
+        {
+            "chiave": chiave,
+            "titolo": titolo,
+            "totale": sum(1 for r in tutti_obblighi if r.dominio == chiave),
+            **{
+                stato: sum(
+                    1 for r in tutti_obblighi if r.dominio == chiave and r.stato == stato
+                )
+                for stato in (STATO_OK, STATO_WARN, STATO_KO, STATO_MANCANTE)
+            },
+        }
+        for chiave, titolo in (
+            ("visite", "🏥 Sorveglianza sanitaria"),
+            ("dpi", "🦺 DPI"),
+            ("corsi", "📚 Formazione"),
+        )
+    ]
+
+    return {
+        "persone": persone,
+        "adempimenti": adempimenti,
+        "conta_stato": conta_stato,
+        "n_obblighi": n_obblighi,
+        "copertura": (
+            round(100 * conta_stato[STATO_OK] / n_obblighi) if n_obblighi else 0
+        ),
+        "n_persone": len(persone),
+        "n_persone_ko": sum(1 for p in persone if p["libretto"]["verdetto"] == STATO_KO),
+        "n_persone_incomplete": sum(
+            1 for p in persone if p["libretto"]["verdetto"] == STATO_MANCANTE
+        ),
+        "n_persone_ok": sum(
+            1 for p in persone
+            if p["libretto"]["verdetto"] in (STATO_OK, STATO_WARN)
+        ),
+        "per_dominio": per_dominio,
+        "reparti": sorted({p["reparto"] for p in persone if p["reparto"]}),
+        "mansioni": sorted({p["mansione"] for p in persone if p["mansione"]}),
+    }
+
+
+def descrizione_filtri(filtri: dict | None) -> str:
+    """Filtri attivi in chiaro — finisce in testa al PDF e nell'Excel."""
+    filtri = filtri or {}
+    parti: list[str] = []
+    if (filtri.get("reparto") or "").strip():
+        parti.append(f"Reparto: {filtri['reparto'].strip()}")
+    if (filtri.get("mansione") or "").strip():
+        parti.append(f"Mansione: {filtri['mansione'].strip()}")
+    verdetto = (filtri.get("verdetto") or "").strip()
+    if verdetto in VERDETTO_FILTRO_LABEL:
+        parti.append(f"Esito: {VERDETTO_FILTRO_LABEL[verdetto]}")
+    dominio = (filtri.get("dominio") or "").strip()
+    if dominio in DOMINIO_LABEL:
+        parti.append(f"Ambito: {DOMINIO_LABEL[dominio]}")
+    stato = (filtri.get("stato") or "").strip()
+    if stato in STATO_LABEL:
+        parti.append(f"Stato: {STATO_LABEL[stato]}")
+    return " · ".join(parti)
