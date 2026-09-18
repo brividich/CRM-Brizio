@@ -1,3 +1,4 @@
+{% load dpi_extras %}
 {% comment %}
 Partial HTMX renderizzato da `anagrafica:htmx_dpi_iniziali` al cambio della
 multiselect "Ruoli operativi" nel form di creazione dipendente.
@@ -29,7 +30,7 @@ La view di creazione legge i campi via `dpi_indici` + indici numerici.
         <input type="hidden" name="dpi_categoria_id_{{ i }}" value="{{ cat.id }}">
       </td>
       <td style="padding:8px 6px;">
-        <span style="font-size:16px;">{{ cat.icona_emoji }}</span>
+        <svg style="width:16px;height:16px;vertical-align:middle;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;color:#15803d;"><use href="#i-dpi-{{ cat.icona_emoji|dpi_icon_key }}"/></svg>
         <strong>{{ cat.nome }}</strong>
         {% if cat.vita_utile_giorni %}
           <div style="font-size:11px;color:#94a3b8;">Vita utile: {{ cat.vita_utile_giorni }} gg</div>

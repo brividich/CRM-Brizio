@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load dpi_extras %}
 
 {% block title %}{{ richiesta.numero }} | DPI{% endblock %}
 
@@ -28,7 +29,7 @@
   padding:14px 18px; margin-bottom:8px;
 }
 .dpi-cat-big img { width:52px; height:52px; object-fit:contain; border-radius:8px; }
-.dpi-cat-big-emoji { font-size:36px; }
+.dpi-cat-big-emoji { width:36px; height:36px; color:#166534; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
 .dpi-cat-big-nome { font-size:16px; font-weight:800; color:#166534; }
 .dpi-cat-big-desc { font-size:12px; color:#4b7a5c; }
 
@@ -71,6 +72,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
 
 {% block content %}
 <div id="dpi-root">
+  {% include "dpi/components/_dpi_icons.html" %}
   {% include "dpi/components/subnav.html" %}
 
   <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
@@ -90,7 +92,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           {% if richiesta.categoria.immagine %}
           <img src="{{ richiesta.categoria.immagine.url }}" alt="{{ richiesta.categoria.nome }}">
           {% else %}
-          <div class="dpi-cat-big-emoji">{{ richiesta.categoria.icona_emoji }}</div>
+          <svg class="dpi-cat-big-emoji"><use href="#i-dpi-{{ richiesta.categoria.icona_emoji|dpi_icon_key }}"/></svg>
           {% endif %}
           <div>
             <div class="dpi-cat-big-nome">{{ richiesta.categoria.nome }}</div>

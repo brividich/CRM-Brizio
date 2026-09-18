@@ -720,6 +720,7 @@ Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
 
 - **8 modelli**: CategoriaDPI (con immagine, vita utile e flag obbligatorio mansionario), TipoDPI (sottocategoria), ModelloDPI (codice, produttore, immagine, vita utile override), TagliaDPI (valore taglia), DPIImpostazioni (singleton), RichiestaDPI, ConsegnaDPI (1:1 con firma PNG base64), RichiestaDPICommento
 - **Gerarchia DPI**: Categoria → Tipo → Modello → Taglia gestibile da `/dpi/impostazioni/`, con immagine modello e attivazione/disattivazione record
+- **Icona categoria**: selezionabile da un set di 11 icone SVG line-style (sprite `dpi/components/_dpi_icons.html`, filtro `dpi_extras.dpi_icon_key`) al posto di un'emoji libera; sostituibile con un'immagine caricata. Le emoji storiche già salvate restano visualizzate correttamente tramite mappatura automatica
 - **Richieste** con **card-picker grafico** per la categoria e selezione opzionale di tipo/modello/taglia; resta supportata la richiesta con sola categoria
 - **Numerazione univoca** `DPI-YYYY-NNNN`
 - **Stati workflow**: creata → approvata → consegnata → rifiutata/annullata

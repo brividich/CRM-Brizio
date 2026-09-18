@@ -25,6 +25,7 @@ from core.upload_mime import UploadMimeValidationError, validate_extension_and_m
 from .acl_bootstrap import PERM_DPI_MANAGE
 
 from .models import (
+    ICONE_DPI_DISPONIBILI,
     CategoriaDPI,
     ConsegnaDPI,
     DPIImpostazioni,
@@ -34,6 +35,7 @@ from .models import (
     StatoRichiesta,
     TagliaDPI,
     TipoDPI,
+    normalizza_icona_dpi,
 )
 
 logger = logging.getLogger(__name__)
@@ -204,6 +206,7 @@ def _catalog_context(impost: DPIImpostazioni, **extra) -> dict:
         "impost": impost,
         "categorie": CategoriaDPI.objects.all().order_by("order_index", "nome"),
         "categorie_attive": CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome"),
+        "icone_disponibili": ICONE_DPI_DISPONIBILI,
         "responsabili_raw": serialize_contact_people(
             impost.responsabili,
             fallback_name=impost.responsabile_nome,
@@ -983,7 +986,7 @@ def categoria_edit(request, pk: int | None = None):
         data = {
             "nome": nome,
             "descrizione": request.POST.get("descrizione", "").strip(),
-            "icona_emoji": request.POST.get("icona_emoji", "🦺").strip() or "🦺",
+            "icona_emoji": normalizza_icona_dpi(request.POST.get("icona_emoji", "")),
             "vita_utile_giorni": _parse_optional_positive_int(request.POST.get("vita_utile_giorni")),
             "obbligatoria_mansionario": bool(request.POST.get("obbligatoria_mansionario")),
             "unita_misura": request.POST.get("unita_misura", "pz").strip() or "pz",
