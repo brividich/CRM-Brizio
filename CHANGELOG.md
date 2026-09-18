@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **AUTOMAZIONI · designer/builder mostrava vuote le azioni annidate di un branch salvato con le chiavi legacy `then_actions`/`else_actions`** (`django_app/automazioni/forms.py`).
+
+  `services.py` esegue un branch leggendo `if_true_actions`/`if_false_actions` con fallback su `then_actions`/`else_actions` (chiavi legacy), ma `AutomationActionForm` popolava i campi `branch_if_true_actions_json`/`branch_if_false_actions_json` solo dalle chiavi nuove. Risultato: per una regola salvata con le chiavi legacy (es. regola 18, AU-ASSENZE) il designer mostrava "Nessuna azione" nel ramo anche se a runtime le azioni giravano regolarmente — e salvare da lì avrebbe sovrascritto `config_json` con rami vuoti, cancellando la logica annidata. Aggiunto lo stesso fallback `or config.get("then_actions"/"else_actions")` già usato in `services.py` alla lettura dell'initial del form, cosi' il designer ora legge (e ri-salva correttamente) anche le regole con le chiavi legacy.
+
+  Nessuna migrazione. `manage.py check` pulito; suite `automazioni` non eseguibile end-to-end in questo worktree (migration di test si è bloccata indipendentemente dalla modifica — verificare su ambiente dev normale prima del prossimo giro).
+
 ### Added
 
 - **ANAGRAFICA · visite mediche: secondo referto sulla stessa visita e nota obbligatoria per gli esiti con limitazioni** (`django_app/anagrafica/models.py`, `django_app/anagrafica/migrations/0124_visitamedica_referto_documento_secondario.py` — nuovo —, `django_app/anagrafica/services/referti_registrazione.py`, `django_app/anagrafica/forms.py`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/tests_referti_intake.py`, `django_app/anagrafica/tests.py`).
