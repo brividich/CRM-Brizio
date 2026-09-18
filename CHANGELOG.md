@@ -18,6 +18,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **ANAGRAFICA · visite mediche: secondo referto sulla stessa visita e nota obbligatoria per gli esiti con limitazioni** (`django_app/anagrafica/models.py`, `django_app/anagrafica/migrations/0124_visitamedica_referto_documento_secondario.py` — nuovo —, `django_app/anagrafica/services/referti_registrazione.py`, `django_app/anagrafica/forms.py`, `django_app/anagrafica/templates/anagrafica/pages/dipendente_detail.html`, `django_app/anagrafica/tests_referti_intake.py`, `django_app/anagrafica/tests.py`).
+
+  Un certificato oculistico arrivato scansionato su 2 fogli separati veniva registrato come 2 visite distinte, violando la regola «1 certificato = 1 visita» (vedi voce precedente sull'import archivio). Il secondo file non aveva dove finire: `VisitaMedica.referto_documento` è una FK singola.
+
+  1. **`referto_documento_secondario`**, seconda FK opzionale su `VisitaMedica`: stesso ruolo di `referto_documento`, per il secondo file dello stesso evento clinico.
+  2. **`_trova_visita_da_associare`/`_registra_visita`** (già usate per agganciare un referto arrivato in ritardo a una visita registrata a mano) ora considerano candidata una visita con **almeno uno slot libero**, non solo quella senza alcun referto: un secondo certificato per stesso dipendente/tipo/data (entro la tolleranza configurata) si aggancia allo slot secondario invece di creare una visita duplicata. Con entrambi gli slot occupati si crea comunque una nuova visita (un terzo certificato è un evento diverso).
+  3. **Scheda dipendente**: lo storico visite mostra un secondo link «📄 Apri (2)» quando presente.
+  4. **Esito «idoneo con limitazioni» / «con limitazioni e prescrizioni»**: `VisitaMedicaForm` ora richiede il campo Note valorizzato (limitazione clinica o condizione di lavoro, es. «divieto lavoro in quota», «no turno notturno»). Nessuna propagazione automatica: la tracciabilità è nella nota sulla visita, consultabile da chi ha accesso alle visite mediche.
+
+  **Deploy**: migrazione `anagrafica/0124` PENDING. 6 nuovi test (`tests_referti_intake`, `tests.VisitaMedicaFormLimitazioniTests`); suite `anagrafica` 1578 test, nessuna regressione rispetto ai 23 rossi già presenti sul branch base (1 rosso preesistente sullo stesso test riassorbito riscrivendo l'aspettativa sul nuovo comportamento).
+
 - **AUTOMAZIONI · regola "cambio mansione → email SDS da leggere" + conferma tutte in un click; email spostata via da codice** (`django_app/automazioni/source_registry.py`, `django_app/automazioni/services.py`, `django_app/automazioni/migrations/trg_anagrafica_dipendenti_automation.sql` — nuovo —, `django_app/automazioni/packages/au56_dipendente_cambio_mansione_sds.automation_package.json` — nuovo —, `django_app/automazioni/tests_source_anagrafica_dipendenti.py` — nuovo —, `django_app/schede_sicurezza/services/assegnazioni.py`, `django_app/schede_sicurezza/views.py`, `django_app/schede_sicurezza/urls.py`, `django_app/schede_sicurezza/tests_mansioni.py`, `README.md`).
 
   La mail SDS al cambio mansione esisteva già come chiamata diretta da codice (`notifica_cambio_mansione`), invisibile e non disattivabile da `/admin-portale/automazioni/`. Spostata sulla regola AU56 del motore automazioni, così resta un solo punto da cui gestirla:

@@ -242,6 +242,21 @@ class VisitaMedicaForm(forms.ModelForm):
             raise forms.ValidationError("La data di svolgimento non può essere nel futuro.")
         return data
 
+    def clean(self):
+        cleaned = super().clean()
+        esito = cleaned.get("esito")
+        esiti_con_limitazioni = {
+            VisitaMedica.Esito.IDONEO_CON_LIMITAZIONI,
+            VisitaMedica.Esito.IDONEO_LIM_PRESCR,
+        }
+        if esito in esiti_con_limitazioni and not (cleaned.get("note") or "").strip():
+            self.add_error(
+                "note",
+                "Con esito «idoneo con limitazioni» descrivere qui la limitazione o "
+                "condizione di lavoro (es. divieto lavoro in quota, no turno notturno).",
+            )
+        return cleaned
+
 
 # ---------------------------------------------------------------------------
 # Formazione HR (PATCH-03)

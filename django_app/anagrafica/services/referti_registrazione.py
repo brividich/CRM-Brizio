@@ -271,12 +271,15 @@ def _descrizione_divergenze(divergenze: list[dict]) -> str:
 def _trova_visita_da_associare(*, legacy_id: int, tipo_id: int, data_giudizio, tolleranza: int):
     """La visita già registrata più vicina alla data del certificato, se c'è.
 
-    Candidata solo una ``VisitaMedica`` **senza referto agganciato**: una che ce
-    l'ha già è stata prodotta da un altro certificato, non va toccata. Fra più
-    candidate nella finestra vince la più vicina alla data letta: è quella con
-    più probabilità di essere lo stesso evento.
+    Candidata solo una ``VisitaMedica`` con **almeno uno slot referto libero**
+    (primario o secondario). Una che li ha già entrambi occupati è stata
+    prodotta da altri due certificati, non va toccata. Fra più candidate nella
+    finestra vince la più vicina alla data letta: è quella con più probabilità
+    di essere lo stesso evento.
     """
     from datetime import timedelta
+
+    from django.db.models import Q
 
     from ..models import VisitaMedica
 
@@ -285,9 +288,9 @@ def _trova_visita_da_associare(*, legacy_id: int, tipo_id: int, data_giudizio, t
 
     candidate = list(
         VisitaMedica.objects.filter(
+            Q(referto_documento__isnull=True) | Q(referto_documento_secondario__isnull=True),
             legacy_anagrafica_id=legacy_id,
             tipo_id=tipo_id,
-            referto_documento__isnull=True,
             data_svolgimento__gte=data_giudizio - timedelta(days=tolleranza),
             data_svolgimento__lte=data_giudizio + timedelta(days=tolleranza),
         )
@@ -297,14 +300,40 @@ def _trova_visita_da_associare(*, legacy_id: int, tipo_id: int, data_giudizio, t
     return min(candidate, key=lambda v: abs((v.data_svolgimento - data_giudizio).days))
 
 
+def _aggancia_documento(visita, documento, utente, nota: str = "") -> bool:
+    """Mette ``documento`` nel primo slot referto libero di ``visita``.
+
+    Ritorna ``True`` se agganciato (slot trovato), ``False`` se entrambi gli
+    slot (primario e secondario) sono già occupati: due certificati per la
+    stessa visita capitano (es. oculistico su 2 fogli), un terzo no.
+    """
+    campo = None
+    if visita.referto_documento_id is None:
+        campo = "referto_documento"
+    elif visita.referto_documento_secondario_id is None:
+        campo = "referto_documento_secondario"
+    else:
+        return False
+
+    setattr(visita, campo, documento)
+    aggiornati = [campo, "updated_by", "updated_at"]
+    if nota:
+        visita.note = (visita.note + " " + nota).strip() if visita.note else nota
+        aggiornati.append("note")
+    visita.updated_by = utente
+    visita.save(update_fields=aggiornati)
+    return True
+
+
 def _registra_visita(*, legacy_id, tipo, data, esito, documento, note, utente):
     """Una visita: nuova, agganciata a una già presente, o già presente.
 
     Ritorna ``(stato, visita)`` con stato «creata» / «agganciata» / «presente».
     Stesso dipendente, tipo e data = la stessa visita (magari registrata a mano):
-    non se ne crea una seconda, al più le si aggancia il referto. Entro la
-    tolleranza, una visita senza referto è lo stesso evento con la data scritta
-    un giorno prima o dopo: la data registrata non si tocca.
+    non se ne crea una seconda, al più le si aggancia il referto (fino a due:
+    referto primario e secondario, per i certificati arrivati su più fogli).
+    Entro la tolleranza, una visita con uno slot libero è lo stesso evento con
+    la data scritta un giorno prima o dopo: la data registrata non si tocca.
     """
     from ..models import VisitaMedica
     from ..models_sorveglianza import RefertoIntakeConfig
@@ -315,10 +344,7 @@ def _registra_visita(*, legacy_id, tipo, data, esito, documento, note, utente):
         .order_by("pk").first()
     )
     if presente is not None:
-        if presente.referto_documento_id is None and documento is not None:
-            presente.referto_documento = documento
-            presente.updated_by = utente
-            presente.save(update_fields=["referto_documento", "updated_by", "updated_at"])
+        if documento is not None and _aggancia_documento(presente, documento, utente):
             return "agganciata", presente
         return "presente", presente
 
@@ -333,11 +359,8 @@ def _registra_visita(*, legacy_id, tipo, data, esito, documento, note, utente):
             + (f", {scarto_giorni} giorni dopo la data registrata" if scarto_giorni else "")
             + "."
         )
-        candidata.referto_documento = documento
-        candidata.note = (candidata.note + " " + nota).strip() if candidata.note else nota
-        candidata.updated_by = utente
-        candidata.save(update_fields=["referto_documento", "note", "updated_by", "updated_at"])
-        return "agganciata", candidata
+        if _aggancia_documento(candidata, documento, utente, nota=nota):
+            return "agganciata", candidata
 
     visita = VisitaMedica(
         legacy_anagrafica_id=legacy_id,

@@ -2439,6 +2439,9 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                 {% else %}
                   <span style="color:#94a3b8;">—</span>
                 {% endif %}
+                {% if v.referto_documento_secondario_id %}
+                  <a href="{% url 'anagrafica:documento_download' v.referto_documento_secondario_id %}" style="color:#1f87cd;font-weight:600;">📄 Apri (2)</a>
+                {% endif %}
               </td>
               {% if is_admin %}
               <td style="padding:7px 8px;text-align:right;">
