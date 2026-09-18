@@ -842,6 +842,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
   <div class="dp-card" data-tab="riepilogo">
     <div class="dp-card-head">
       <div class="dp-card-title">✅ Conformità alla mansione</div>
+      <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:dipendente_libretto_sanitario' legacy_id %}" target="_blank" rel="noopener" title="Libretto sanitario aziendale: tutti i requisiti della mansione con origine, scadenza e stato (stampabile)">🩺 Libretto sanitario</a>
     </div>
     <div class="dp-card-body">
       <div hx-get="{% url 'anagrafica:dipendente_conformita_panel' legacy_id %}"

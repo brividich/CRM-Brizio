@@ -34,6 +34,8 @@ urlpatterns = [
     path("dipendenti/<int:legacy_id>/libretto-formativo/", views.dipendente_libretto_formativo, name="dipendente_libretto_formativo"),
     # Salva (manualmente) il libretto formativo PDF nel box documenti del dipendente
     path("dipendenti/<int:legacy_id>/libretto-formativo/salva-box", views.libretto_salva_box, name="libretto_salva_box"),
+    # Libretto sanitario aziendale: requisiti della mansione e loro stato (stampabile)
+    path("dipendenti/<int:legacy_id>/libretto-sanitario/", views.dipendente_libretto_sanitario, name="dipendente_libretto_sanitario"),
     # Attestato di formazione autogenerato per singolo completamento (corso/qualifica/altro)
     path("formazione/attestato/<int:record_id>/", views.attestato_formazione, name="attestato_formazione"),
     # Salva (manualmente) l'attestato PDF nel box documenti del dipendente
@@ -282,6 +284,8 @@ urlpatterns = [
 
     # Report conformità "idoneità alla mansione" (semaforo per dominio)
     path("conformita/", views.conformita_report, name="conformita_report"),
+    # Libretto sanitario aziendale — quadro generale (KPI, filtri, export)
+    path("libretto-sanitario/", views.libretto_sanitario_generale, name="libretto_sanitario_generale"),
     path("sicurezza/", views.sicurezza_hub, name="sicurezza_hub"),
     path("sicurezza/ricerca/", views.sicurezza_ricerca, name="sicurezza_ricerca"),
     path("sicurezza/guida/", views.sicurezza_wizard, name="sicurezza_wizard"),
