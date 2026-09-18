@@ -568,9 +568,12 @@ def _enrich_anagrafica_dipendenti_payload(payload: Any) -> Any:
     if dipendente_nome:
         enriched.setdefault("dipendente_nome", dipendente_nome)
 
-    dipendente_email = str(
-        enriched.get("email_notifica") or enriched.get("email") or ""
-    ).strip()
+    from core.legacy_anagrafica import resolve_notification_email
+
+    dipendente_email = resolve_notification_email(
+        email=str(enriched.get("email") or ""),
+        email_notifica=str(enriched.get("email_notifica") or ""),
+    )
     if dipendente_email:
         enriched.setdefault("dipendente_email", dipendente_email)
 

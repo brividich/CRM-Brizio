@@ -277,119 +277,6 @@ def prodotti_sds_per_mansione(mansione_id: int) -> list[dict]:
         return []
 
 
-def _email_dipendente(legacy_anagrafica_id: int) -> str:
-    """Indirizzo di notifica del dipendente (``email_notifica``, poi ``email``).
-
-    In ``anagrafica_dipendenti`` il campo ``email`` e' il login legacy e puo'
-    non essere un indirizzo: la risoluzione canonica vive in
-    ``core.legacy_anagrafica.resolve_notification_email``.
-    """
-    try:
-        from core.legacy_anagrafica import resolve_notification_email
-        from core.legacy_models import AnagraficaDipendente
-
-        riga = (
-            AnagraficaDipendente.objects.filter(pk=legacy_anagrafica_id)
-            .values("email", "email_notifica")
-            .first()
-        )
-        if not riga:
-            return ""
-        return resolve_notification_email(
-            email=str(riga.get("email") or ""),
-            email_notifica=str(riga.get("email_notifica") or ""),
-        )
-    except Exception:
-        logger.warning(
-            "Risoluzione email dipendente %s per SDS fallita",
-            legacy_anagrafica_id,
-            exc_info=True,
-        )
-        return ""
-
-
-def _email_cambio_mansione(
-    legacy_anagrafica_id: int,
-    legacy_user_id: int,
-    mansione_nome: str,
-    schede_mancanti: list,
-) -> bool:
-    """Manda al dipendente la richiesta di presa visione delle SDS della mansione.
-
-    La notifica in-app resta il canale primario (e il gate delle preferenze);
-    l'email serve a chi la mansione la cambia in reparto e non apre il portale
-    da solo. Fail-open: un errore SMTP non deve far fallire lo spostamento.
-    """
-    destinatario = _email_dipendente(legacy_anagrafica_id)
-    if not destinatario or not schede_mancanti:
-        return False
-    try:
-        from django.conf import settings
-
-        from core.email_utils import email_cta, email_item_cards, send_hub_mail, text_to_html
-        from core.notifiche_prefs import should_notify
-
-        if not should_notify(tipo="presa_visione", legacy_user_id=legacy_user_id):
-            return False
-
-        base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
-        url = (base + URL_SDS_DA_LEGGERE) if base else URL_SDS_DA_LEGGERE
-        quante = len(schede_mancanti)
-        plurale = "schede" if quante != 1 else "scheda"
-        testo = (
-            f"Ti è stata assegnata la mansione «{mansione_nome}».\n\n"
-            f"Per questa mansione ci sono {quante} {plurale} di sicurezza (SDS) "
-            "dei prodotti chimici che ti riguardano, di cui devi prendere visione.\n\n"
-            "Apri il portale, leggi ciascuna scheda e conferma la presa visione: "
-            "la conferma vale come tracciamento dell'avvenuta informazione "
-            "(D.Lgs. 81/08).\n\n"
-            f"Elenco: " + ", ".join(
-                scheda.prodotto.nome for scheda in schede_mancanti[:20]
-            ) + ("…" if quante > 20 else "")
-        )
-        cards = email_item_cards([
-            {
-                "title": scheda.prodotto.nome,
-                "subtitle": f"Scheda di sicurezza versione {scheda.versione or '-'}",
-                "accent": "#ef4444",
-            }
-            for scheda in schede_mancanti[:20]
-        ])
-        fragment = (
-            text_to_html(
-                f"Ti è stata assegnata la mansione «{mansione_nome}». "
-                f"Per questa mansione ci sono {quante} {plurale} di sicurezza (SDS) "
-                "dei prodotti chimici che ti riguardano, di cui devi prendere visione."
-            )
-            + '<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>'
-            + cards
-            + '<div style="height:16px;line-height:16px;font-size:0;">&nbsp;</div>'
-            + email_cta(
-                "Apri le schede da leggere", url,
-                note="Leggi ciascuna scheda e conferma la presa visione: la conferma resta registrata.",
-            )
-        )
-        send_hub_mail(
-            f"Nuova mansione «{mansione_nome}»: {quante} {plurale} di sicurezza da leggere",
-            testo,
-            [destinatario],
-            title="Schede di sicurezza da prendere in visione",
-            body_html_fragment=fragment,
-            email_type="Sicurezza",
-            section_label="Schede di sicurezza",
-            preheader=f"{quante} {plurale} di sicurezza da confermare",
-            fail_silently=True,
-        )
-        return True
-    except Exception:
-        logger.warning(
-            "Email SDS per cambio mansione fallita (dipendente=%s)",
-            legacy_anagrafica_id,
-            exc_info=True,
-        )
-        return False
-
-
 @dataclass
 class SDSDovutePerDipendente:
     legacy_user_id: int | None
@@ -450,11 +337,11 @@ def notifica_cambio_mansione(
 ) -> int:
     """Avvisa il dipendente delle SDS ancora da leggere dopo il cambio mansione.
 
-    Due canali: notifica in-app (come prima) ed **email al dipendente**, perche'
-    chi lavora in reparto il portale lo apre di rado e la presa visione delle
-    SDS e' un obbligo informativo con una scadenza implicita — l'inizio della
-    nuova mansione. Entrambe puntano a ``/schede-sicurezza/da-leggere/``, dove
-    la conferma incrementa il contatore delle prese visione.
+    Solo notifica in-app: l'email è ora responsabilità della regola AU56 nel
+    motore automazioni (`/admin-portale/automazioni/`, sorgente
+    `anagrafica_dipendenti`), unico punto da cui attivarla/disattivarla —
+    prima era una seconda mail inviata qui da codice, invisibile e non
+    disattivabile dall'admin.
     """
     if (mansione_nuova or "").strip().casefold() == (mansione_precedente or "").strip().casefold():
         return 0
@@ -473,9 +360,6 @@ def notifica_cambio_mansione(
                 f"{'schede' if mancanti != 1 else 'scheda'} di sicurezza da prendere in visione."
             ),
             url_azione=URL_SDS_DA_LEGGERE,
-        )
-        _email_cambio_mansione(
-            legacy_anagrafica_id, dovute.legacy_user_id, dovute.mansione_nome, dovute.da_leggere
         )
         return mancanti
     except Exception:
