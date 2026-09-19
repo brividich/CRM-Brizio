@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import io
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-from .models import TipoVisitaMedica, VisitaMedica
+from .models import DocumentoDipendente, TipoVisitaMedica, VisitaMedica
 from .models_sorveglianza import (
     AliasEsameProtocollo,
     AliasEsitoIdoneita,
@@ -31,6 +32,7 @@ from .services.referti_registrazione import (
     prepara_registrazione,
     registra,
 )
+from .services.visite import visite_storico
 
 User = get_user_model()
 
@@ -565,6 +567,16 @@ class AzioniMassiveTests(TestCase):
         campi.update(extra)
         return RefertoIntakeRiga.objects.create(**campi)
 
+    def _documento(self, nome: str, legacy_id: int = 10):
+        return DocumentoDipendente.objects.create(
+            legacy_anagrafica_id=legacy_id,
+            tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+            file=f"test/referti/{nome}",
+            nome_originale=nome,
+            tipo_mime="application/pdf",
+            dimensione_bytes=10,
+        )
+
     def test_conferma_di_gruppo_registra_ogni_referto(self):
         a, b = self._riga("a", 10), self._riga("b", 11)
         risposta = self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
@@ -634,6 +646,126 @@ class AzioniMassiveTests(TestCase):
             "azione": "conferma", "righe": [riga.pk],
         })
         self.assertEqual(VisitaMedica.objects.count(), 0)
+
+    def test_unisci_aggiunge_il_referto_senza_creare_visite_o_sostituire_il_principale(self):
+        principale = self._documento("principale.pdf")
+        aggiuntivo = self._documento("pagina-2.pdf")
+        visita = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10,
+            tipo=self.medica,
+            data_svolgimento=date(2024, 3, 15),
+            referto_documento=principale,
+        )
+        riga = self._riga("o", documento=aggiuntivo)
+
+        risposta = self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "unisci",
+            "righe": [riga.pk],
+            f"visita_unisci_{riga.pk}": visita.pk,
+        })
+
+        self.assertEqual(risposta.status_code, 302)
+        self.assertEqual(VisitaMedica.objects.count(), 1)
+        visita.refresh_from_db()
+        riga.refresh_from_db()
+        aggiuntivo.refresh_from_db()
+        self.assertEqual(visita.referto_documento, principale)
+        self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_OK)
+        self.assertEqual(riga.visite_create, 0)
+        self.assertEqual(riga.visite_associate, 1)
+        self.assertEqual(aggiuntivo.oggetto_riferimento_tipo, "anagrafica.visitamedica")
+        self.assertEqual(aggiuntivo.oggetto_riferimento_id, visita.pk)
+        self.assertEqual(
+            [documento.pk for documento in visite_storico(10)[0].referti_documenti],
+            [principale.pk, aggiuntivo.pk],
+        )
+
+    def test_unisci_usa_il_referto_come_principale_se_la_visita_non_ne_ha_uno(self):
+        documento = self._documento("unico.pdf")
+        visita = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10,
+            tipo=self.medica,
+            data_svolgimento=date(2024, 3, 15),
+        )
+        riga = self._riga("p", documento=documento)
+
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "unisci",
+            "righe": [riga.pk],
+            f"visita_unisci_{riga.pk}": visita.pk,
+        })
+
+        visita.refresh_from_db()
+        self.assertEqual(visita.referto_documento, documento)
+
+    def test_unisci_rifiuta_visita_di_altro_dipendente_o_tipo(self):
+        altro_tipo = TipoVisitaMedica.objects.create(nome="Visita Oculistica", durata_mesi=24)
+        casi = [
+            VisitaMedica.objects.create(
+                legacy_anagrafica_id=11,
+                tipo=self.medica,
+                data_svolgimento=date(2024, 3, 15),
+            ),
+            VisitaMedica.objects.create(
+                legacy_anagrafica_id=10,
+                tipo=altro_tipo,
+                data_svolgimento=date(2024, 3, 15),
+            ),
+        ]
+        for indice, visita in enumerate(casi):
+            with self.subTest(visita=visita.pk):
+                riga = self._riga(chr(ord("q") + indice), documento=self._documento(
+                    f"sbagliato-{indice}.pdf"
+                ))
+                self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+                    "azione": "unisci",
+                    "righe": [riga.pk],
+                    f"visita_unisci_{riga.pk}": visita.pk,
+                })
+                riga.refresh_from_db()
+                self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_DA_RIVEDERE)
+        self.assertEqual(VisitaMedica.objects.count(), 2)
+
+    def test_unisci_rifiuta_un_documento_archiviato_su_un_altro_dipendente(self):
+        visita = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10,
+            tipo=self.medica,
+            data_svolgimento=date(2024, 3, 15),
+        )
+        documento = self._documento("altro-dipendente.pdf", legacy_id=11)
+        riga = self._riga("t", documento=documento)
+
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "unisci",
+            "righe": [riga.pk],
+            f"visita_unisci_{riga.pk}": visita.pk,
+        })
+
+        riga.refresh_from_db()
+        visita.refresh_from_db()
+        documento.refresh_from_db()
+        self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_DA_RIVEDERE)
+        self.assertIsNone(visita.referto_documento_id)
+        self.assertEqual(documento.oggetto_riferimento_tipo, "")
+
+    def test_la_coda_propone_solo_visite_dello_stesso_dipendente_e_tipo(self):
+        altro_tipo = TipoVisitaMedica.objects.create(nome="Visita Oculistica", durata_mesi=24)
+        corretta = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=self.medica, data_svolgimento=date(2024, 3, 15)
+        )
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=11, tipo=self.medica, data_svolgimento=date(2024, 3, 15)
+        )
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=altro_tipo, data_svolgimento=date(2024, 3, 15)
+        )
+        riga = self._riga("s")
+
+        risposta = self.client.get("/anagrafica/visite-mediche/referti/")
+
+        riga_renderizzata = next(r for r in risposta.context["righe"] if r.pk == riga.pk)
+        self.assertEqual([visita.pk for visita in riga_renderizzata.visite_unibili], [corretta.pk])
+        self.assertContains(risposta, "Unisci senza creare visita")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False)
@@ -755,6 +887,82 @@ class ConfigTests(TestCase):
 
 class IntakeTests(TestCase):
     """Il giro sulla cartella e l'idempotenza."""
+
+    def test_pdf_multipagina_dello_stesso_certificato_produce_una_sola_riga(self):
+        from .services.referti_intake import elabora_contenuto
+
+        seguito = "WINASPED\nPROTOCOLLO SANITARIO\nNote integrative del medico"
+        riga = SimpleNamespace(pagina=1)
+        with (
+            patch("anagrafica.services.referti_intake._archivia", return_value=("x.pdf", 10)),
+            patch("anagrafica.services.referti_ocr.conta_pagine", return_value=2),
+            patch(
+                "anagrafica.services.referti_ocr.testo_pagina",
+                side_effect=[CERTIFICATO, seguito],
+            ),
+            patch("anagrafica.services.referti_intake._elabora_testo", return_value=riga) as elabora,
+        ):
+            righe = elabora_contenuto(b"pdf-multipagina", "referto.pdf")
+
+        self.assertEqual(righe, [riga])
+        elabora.assert_called_once()
+        testo_aggregato = elabora.call_args.args[0]
+        self.assertIn("VERDI GIUSEPPE", testo_aggregato)
+        self.assertIn("Note integrative", testo_aggregato)
+
+    def test_pdf_con_due_dipendenti_produce_due_certificati(self):
+        from .services.referti_intake import _raggruppa_pagine
+
+        secondo = (
+            CERTIFICATO
+            .replace("11-04-1975 VERDI GIUSEPPE", "22-08-1982 ROSSI ANNA")
+            .replace("15-03-2024", "18-06-2025")
+        )
+        gruppi = _raggruppa_pagine([(0, CERTIFICATO), (1, secondo)])
+        self.assertEqual(len(gruppi), 2)
+        self.assertEqual([pagina for pagina, _testo in gruppi], [0, 1])
+
+    def test_file_pagina_uno_e_due_vengono_ricomposti_in_un_pdf(self):
+        import fitz
+
+        from .services.referti_intake import combina_pdf_pagine
+
+        def pdf(vocabolo):
+            documento = fitz.open()
+            pagina = documento.new_page()
+            pagina.insert_text((72, 72), vocabolo)
+            contenuto = documento.tobytes()
+            documento.close()
+            return contenuto
+
+        risultati = combina_pdf_pagine([
+            ("Mario Rossi pagina 2.pdf", pdf("seconda")),
+            ("Mario Rossi pagina 1.pdf", pdf("prima")),
+        ])
+        self.assertEqual(len(risultati), 1)
+        nome, contenuto, sorgenti = risultati[0]
+        self.assertEqual(nome, "Mario Rossi.pdf")
+        self.assertEqual(
+            sorgenti,
+            ["Mario Rossi pagina 1.pdf", "Mario Rossi pagina 2.pdf"],
+        )
+        unito = fitz.open(stream=contenuto, filetype="pdf")
+        try:
+            self.assertEqual(unito.page_count, 2)
+            self.assertIn("prima", unito[0].get_text())
+            self.assertIn("seconda", unito[1].get_text())
+        finally:
+            unito.close()
+
+    def test_file_pagina_con_buco_non_vengono_uniti(self):
+        from .services.referti_intake import combina_pdf_pagine
+
+        risultati = combina_pdf_pagine([
+            ("referto pagina 1.pdf", b"uno"),
+            ("referto pagina 3.pdf", b"tre"),
+        ])
+        self.assertEqual(len(risultati), 2)
+        self.assertEqual([r[0] for r in risultati], ["referto pagina 1.pdf", "referto pagina 3.pdf"])
 
     def test_cartella_spenta_non_fa_nulla(self):
         from .services.referti_intake import elabora_cartella

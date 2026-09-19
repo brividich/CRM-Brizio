@@ -89,7 +89,11 @@ def referti_coda(request):
     from .services.referti_ocr import disponibile as ocr_disponibile
 
     from .models import TipoVisitaMedica, VisitaMedica
-    from .services.referti_registrazione import e_riga_visita_medica, tipo_oculistico_da_requisiti
+    from .services.referti_registrazione import (
+        e_riga_visita_medica,
+        tipo_oculistico_da_requisiti,
+        tipo_visita_per_riga,
+    )
 
     righe = list(
         RefertoIntakeRiga.objects
@@ -122,6 +126,7 @@ def referti_coda(request):
             proposto = riga.tipo_visita_scelto
             if proposto is None and riga.legacy_anagrafica_id_proposto:
                 proposto = tipo_oculistico_da_requisiti(riga.legacy_anagrafica_id_proposto)
+            riga.tipo_visita_proposto = proposto
             riga.tipo_visita_proposto_id = proposto.pk if proposto else None
             riga.pronto = False
             continue
@@ -136,6 +141,36 @@ def referti_coda(request):
         )
         if riga.pronto:
             pronti += 1
+        riga.tipo_visita_proposto = tipo_visita_per_riga(riga)
+
+    # Possibili destinazioni per una pagina/referto rimasto separato: solo
+    # visite dello stesso dipendente e dello stesso tipo. Il controllo viene
+    # ripetuto lato POST, quindi la tendina non è una barriera di sicurezza.
+    coppie = {
+        (riga.legacy_anagrafica_id_proposto, riga.tipo_visita_proposto.pk)
+        for riga in righe
+        if riga.legacy_anagrafica_id_proposto and riga.tipo_visita_proposto
+    }
+    visite_per_coppia: dict[tuple[int, int], list] = {}
+    if coppie:
+        legacy_ids = {legacy_id for legacy_id, _tipo_id in coppie}
+        tipo_ids = {tipo_id for _legacy_id, tipo_id in coppie}
+        candidate = (
+            VisitaMedica.objects
+            .filter(legacy_anagrafica_id__in=legacy_ids, tipo_id__in=tipo_ids)
+            .select_related("tipo", "referto_documento")
+            .order_by("-data_svolgimento", "-id")
+        )
+        for visita in candidate:
+            chiave = (visita.legacy_anagrafica_id, visita.tipo_id)
+            if chiave in coppie:
+                visite_per_coppia.setdefault(chiave, []).append(visita)
+    for riga in righe:
+        chiave = (
+            riga.legacy_anagrafica_id_proposto,
+            riga.tipo_visita_proposto.pk if riga.tipo_visita_proposto else None,
+        )
+        riga.visite_unibili = visite_per_coppia.get(chiave, [])[:12]
 
     conteggi = {
         "da_rivedere": RefertoIntakeRiga.objects.filter(
@@ -206,7 +241,7 @@ def referti_carica(request):
     if not _puo(request):
         return _nega(request)
 
-    from .services.referti_intake import elabora_contenuto
+    from .services.referti_intake import elabora_documenti
 
     caricati = request.FILES.getlist("referti")
     if not caricati:
@@ -214,14 +249,17 @@ def referti_carica(request):
         return redirect("anagrafica:referti_coda")
 
     totale = registrati = in_coda = problemi = 0
+    documenti = []
     for f in caricati:
         try:
-            contenuto = f.read()
+            documenti.append((f.name, f.read()))
         except Exception:
             logger.exception("Referti: file caricato non leggibile (%s)", f.name)
             problemi += 1
-            continue
-        for riga in elabora_contenuto(contenuto, f.name, origine="WEB", utente=request.user):
+
+    gruppi = elabora_documenti(documenti, origine="WEB", utente=request.user)
+    for _nomi_sorgente, righe in gruppi:
+        for riga in righe:
             totale += 1
             if riga.esito == riga.ESITO_OK:
                 registrati += 1
@@ -232,6 +270,7 @@ def referti_carica(request):
 
     _audit(request, "referti_caricati", {
         "file": len(caricati), "certificati": totale,
+        "documenti_ricomposti": sum(1 for sorgenti, _righe in gruppi if len(sorgenti) > 1),
         "registrati": registrati, "in_coda": in_coda,
     })
 
@@ -388,6 +427,50 @@ def referti_azioni(request):
     )
     if not righe:
         messages.error(request, "I referti selezionati non sono più in coda.")
+        return redirect("anagrafica:referti_coda")
+
+    if azione == "unisci":
+        from .models import VisitaMedica
+        from .services.referti_registrazione import ErroreRegistrazione, collega_referto_a_visita
+
+        if len(righe) != 1:
+            messages.error(request, "Per unire un referto scegli una sola riga alla volta.")
+            return redirect("anagrafica:referti_coda")
+        riga = righe[0]
+        visita_raw = (request.POST.get(f"visita_unisci_{riga.pk}") or "").strip()
+        visita = None
+        if visita_raw.isdigit():
+            visita = (
+                VisitaMedica.objects
+                .select_related("tipo", "referto_documento")
+                .filter(pk=int(visita_raw))
+                .first()
+            )
+        if visita is None:
+            messages.error(request, "Scegli la visita a cui unire il referto.")
+            return redirect("anagrafica:referti_coda")
+        try:
+            documento = collega_referto_a_visita(riga, visita, utente=request.user)
+        except ErroreRegistrazione as exc:
+            messages.error(request, str(exc))
+            return redirect("anagrafica:referti_coda")
+        except Exception:
+            logger.exception("Referti: unione fallita (riga %s, visita %s)", riga.pk, visita.pk)
+            messages.error(request, "Unione del referto fallita: riprova o segnala il problema.")
+            return redirect("anagrafica:referti_coda")
+
+        _audit(request, "referto_unito_a_visita", {
+            "riga_id": riga.pk,
+            "visita_id": visita.pk,
+            "documento_id": documento.pk,
+            "legacy_id": visita.legacy_anagrafica_id,
+            "tipo_visita_id": visita.tipo_id,
+        })
+        messages.success(
+            request,
+            f"Referto unito alla visita {visita.tipo.nome} del "
+            f"{visita.data_svolgimento:%d/%m/%Y}. Nessuna nuova visita creata.",
+        )
         return redirect("anagrafica:referti_coda")
 
     if azione == "scarta":

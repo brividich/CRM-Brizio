@@ -106,6 +106,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
   Resta aperto un difetto di **numerazione**, non toccato qui: `RegistroRifiuti.save()` genera `id_registrazione` come `{anno}/{progressivo}` contando i record dell'anno, quindi dopo un'eliminazione ricicla un numero già usato — in produzione ci sono **64 id duplicati**, fra cui un `2025/1847` che è insieme carico e scarico originale.
 
+- **ANAGRAFICA · referti multipagina senza visite fittizie** (`django_app/anagrafica/services/referti_intake.py`, `views_sorveglianza.py`, `templates/anagrafica/pages/referti_coda.html`, `tests_referti_intake.py`, `README.md`, `docs/ai/03_BACKEND_MODULES.md`).
+
+  L'acquisizione OCR non crea più una proposta per ogni pagina del PDF: le pagine consecutive senza un nuovo blocco anagrafico vengono lette insieme come un solo certificato e il PDF completo resta l'unico allegato. Una scansione cumulativa continua a produrre più righe solo quando trova certificati realmente distinti. Se lo scanner salva le pagine come file separati e consecutivi (`pagina 1`, `pagina 2`, anche `pag`/`page`), caricamento web e cartella automatica le ricompongono prima dell'OCR; sequenze ambigue, duplicate o con buchi restano separate. Nessuna migration o nuova dipendenza.
+
+  Come rete di sicurezza manuale, ogni referto in coda può essere **unito a una visita esistente**: la tendina propone esclusivamente le visite dello stesso dipendente e dello stesso tipo, l'azione non crea visite e non sostituisce un referto già presente. Tutte le pagine/allegati restano scaricabili dalla scheda dipendente e dalla dashboard visite; la stessa compatibilità viene verificata nuovamente lato server e l'operazione è registrata nell'audit.
+
 - **ACCESSI · livelli d'accesso preimpostati, classificati sul catalogo reale e fail-closed** (`django_app/core/permission_taxonomy.py`, `django_app/core/acl_capability.py` — nuovo —, `django_app/core/management/commands/acl_capability_report.py` — nuovo —, `django_app/core/test_acl_capability.py` — nuovo —, `django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, `django_app/admin_portale/tests.py`, `django_app/admin_portale/test_accessi_unificati.py`, `README.md`).
 
   La pagina `/admin-portale/accessi/` chiedeva una decisione per **ogni** permesso: assegnare un modulo a un ruolo voleva dire accendere decine di interruttori a mano, sapendo già in partenza la frase da tradurre («questo ruolo il modulo in sola lettura»). Gli unici acceleratori erano i due estremi.

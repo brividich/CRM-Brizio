@@ -9,6 +9,17 @@ Ultime voci viste/aggiunte in questa sessione:
 - Verifica: 9 test mirati numerazione/audit duplicati verdi; Django check, migration drift e `git diff --check` verdi.
 - Perimetro: Dependabot escluso; checkout condiviso con WIP Anagrafica non toccato; nessun file critico, backup o DB dev/prod modificato.
 
+Data: 2026-09-17
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-17 - Codex` (referti multipagina senza visite fittizie e unione manuale a visita compatibile).
+- `django_app/anagrafica/services/referti_intake.py`, `views_sorveglianza.py` -> una proposta per certificato; continuazioni aggregate e file `pagina N` consecutivi ricomposti prima dell'OCR sia da web sia dalla cartella automatica.
+- `django_app/anagrafica/tests_referti_intake.py` -> regressioni su PDF multipagina, certificati distinti, ricomposizione file e sequenze con buchi.
+- `services/referti_registrazione.py`, `services/visite.py`, coda e viste visite -> «Unisci con altra visita» filtrato e validato per stesso dipendente/tipo; nessuna nuova visita, referto principale preservato, allegati multipli visibili.
+- `django_app/anagrafica/tests_referti_intake.py` -> regressioni su proposta compatibile, rifiuto dipendente/tipo errato, conservazione del referto principale e storico allegati.
+- Verifica: 13/13 test azioni referti e suite referti completa 108/108 verdi; Django check, migration drift Anagrafica, Ruff errori bloccanti e `git diff --check` verdi. Nessun DB dev/prod, migration, dipendenza, backup o file critico modificato.
+
 - `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-16 - Codex` (SDS assegnate alle mansioni di rischio e workflow dinamico sul cambio mansione).
 - `django_app/schede_sicurezza/migrations/0004_prodotto_mansioni_rischio.py` -> M2M prodotto-mansioni; reparto storico nullable, nessun backfill ambiguo.
 - `django_app/schede_sicurezza/services/assegnazioni.py`, `anagrafica/services/assegnazioni.py` -> calcolo SDS personali e notifiche per nuova versione/associazione/cambio mansione.
