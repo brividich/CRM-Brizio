@@ -14,6 +14,7 @@ from django.db.models import Max
 from django.utils import timezone
 
 from ..models import (
+    DocumentoDipendente,
     DipendenteRuoloOperativo,
     TipoVisitaMedica,
     VisitaMedica,
@@ -24,6 +25,43 @@ STATO_MANCANTE = "mancante"
 STATO_VALIDA = "valida"
 STATO_IN_SCADENZA = "in_scadenza"
 STATO_SCADUTA = "scaduta"
+RIFERIMENTO_VISITA = "anagrafica.visitamedica"
+
+
+def completa_referti_visite(visite: Iterable[VisitaMedica]) -> list[VisitaMedica]:
+    """Aggiunge a ogni visita la lista dei referti, principale e aggiuntivi."""
+    elenco = list(visite)
+    if not elenco:
+        return elenco
+
+    visite_per_id = {visita.pk: visita for visita in elenco if visita.pk}
+    aggiuntivi: dict[int, list[DocumentoDipendente]] = {
+        visita_id: [] for visita_id in visite_per_id
+    }
+    documenti = (
+        DocumentoDipendente.objects
+        .filter(
+            tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+            oggetto_riferimento_tipo=RIFERIMENTO_VISITA,
+            oggetto_riferimento_id__in=visite_per_id,
+        )
+        .order_by("created_at", "id")
+    )
+    for documento in documenti:
+        aggiuntivi[documento.oggetto_riferimento_id].append(documento)
+
+    for visita in elenco:
+        referti = []
+        visti = set()
+        if visita.referto_documento_id:
+            referti.append(visita.referto_documento)
+            visti.add(visita.referto_documento_id)
+        for documento in aggiuntivi.get(visita.pk, []):
+            if documento.pk not in visti:
+                referti.append(documento)
+                visti.add(documento.pk)
+        visita.referti_documenti = referti
+    return elenco
 
 
 def tipi_visita_richiesti_per_dipendente(legacy_id: int) -> list[TipoVisitaMedica]:
@@ -165,7 +203,7 @@ def stato_visite(legacy_id: int, soglia_giorni_avviso: int = 60) -> list[dict[st
 
 def visite_storico(legacy_id: int) -> list[VisitaMedica]:
     """Storico completo delle visite del dipendente, più recenti prima."""
-    return list(
+    return completa_referti_visite(
         VisitaMedica.objects
         .filter(legacy_anagrafica_id=legacy_id)
         .select_related("tipo", "referto_documento")

@@ -60,7 +60,9 @@ __all__ = [
     "registra",
     "ErroreRegistrazione",
     "aggiorna_requisiti",
+    "collega_referto_a_visita",
     "tipo_oculistico_da_requisiti",
+    "tipo_visita_per_riga",
     "e_riga_visita_medica",
 ]
 
@@ -435,6 +437,92 @@ def tipo_oculistico_da_requisiti(legacy_id: int, data=None):
         if precedenti:
             return max(precedenti, key=lambda r: (r.data_certificato, r.pk)).tipo
     return max(candidati, key=lambda r: (r.data_certificato, r.pk)).tipo
+
+
+def tipo_visita_per_riga(riga, *, legacy_id: int | None = None, tipo_visita=None):
+    """Tipo visita riconosciuto per una riga, senza registrare nulla.
+
+    Serve anche al flusso manuale «Unisci con altra visita»: il target deve
+    appartenere allo stesso dipendente e avere esattamente questo tipo.
+    """
+    from ..models_sorveglianza import RefertoIntakeRiga
+    from .referti_parsing import CampiReferto
+
+    if riga.tipo_referto == RefertoIntakeRiga.TIPO_OCULISTICA:
+        return (
+            tipo_visita
+            or riga.tipo_visita_scelto
+            or tipo_oculistico_da_requisiti(
+                legacy_id or riga.legacy_anagrafica_id_proposto,
+                riga.letto_data_giudizio,
+            )
+        )
+    piano = prepara_registrazione(CampiReferto(
+        esito_testo=riga.letto_esito_testo,
+        protocollo=list(riga.letto_protocollo or []),
+    ))
+    return piano.visita_tipo
+
+
+@transaction.atomic
+def collega_referto_a_visita(riga, visita, *, utente=None):
+    """Allega il documento della riga a una visita esistente, senza crearne una.
+
+    Il primo referto resta la FK primaria di ``VisitaMedica``; le pagine o i
+    documenti successivi sono ``DocumentoDipendente`` riferiti alla stessa
+    visita tramite ``oggetto_riferimento_*``. In questo modo nessun originale
+    viene sostituito o cancellato e la UI può mostrarli tutti.
+    """
+    from django.utils import timezone
+
+    from ..models_sorveglianza import RefertoIntakeRiga
+
+    if riga.esito != RefertoIntakeRiga.ESITO_DA_RIVEDERE:
+        raise ErroreRegistrazione("Questo referto non è più nella coda di revisione.")
+    if visita.legacy_anagrafica_id != riga.legacy_anagrafica_id_proposto:
+        raise ErroreRegistrazione("La visita scelta appartiene a un altro dipendente.")
+
+    tipo = tipo_visita_per_riga(riga, legacy_id=visita.legacy_anagrafica_id)
+    if tipo is None:
+        raise ErroreRegistrazione(
+            "Il tipo della pagina non è riconoscibile: non si può unirla in sicurezza."
+        )
+    if visita.tipo_id != tipo.pk:
+        raise ErroreRegistrazione("La visita scelta non è dello stesso tipo del referto.")
+
+    documento = _archivia_nel_fascicolo(riga, visita.legacy_anagrafica_id, utente)
+    if documento is None:
+        raise ErroreRegistrazione("Il file del referto non è più disponibile nell'archivio.")
+    if documento.legacy_anagrafica_id != visita.legacy_anagrafica_id:
+        raise ErroreRegistrazione("Il documento archiviato appartiene a un altro dipendente.")
+
+    documento.oggetto_riferimento_tipo = "anagrafica.visitamedica"
+    documento.oggetto_riferimento_id = visita.pk
+    documento.descrizione = (
+        f"Pagina/referto aggiuntivo per {visita.tipo.nome} "
+        f"del {visita.data_svolgimento:%d-%m-%Y}"
+    )
+    documento.save(update_fields=[
+        "oggetto_riferimento_tipo", "oggetto_riferimento_id", "descrizione",
+    ])
+
+    if visita.referto_documento_id is None:
+        visita.referto_documento = documento
+        visita.updated_by = utente
+        visita.save(update_fields=["referto_documento", "updated_by", "updated_at"])
+
+    riga.esito = RefertoIntakeRiga.ESITO_OK
+    riga.visite_create = 0
+    riga.visite_associate = 1
+    riga.documento = documento
+    riga.confermato_da = utente
+    riga.confermato_il = timezone.now()
+    riga.messaggio = (
+        f"Allegato aggiuntivo unito a {visita.tipo.nome} "
+        f"del {visita.data_svolgimento:%d/%m/%Y}; nessuna nuova visita creata."
+    )
+    riga.save()
+    return documento
 
 
 _MESSAGGI_STATO = {

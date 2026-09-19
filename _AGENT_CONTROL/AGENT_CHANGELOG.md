@@ -17,6 +17,24 @@
 - Rischi residui: al deploy applicare `rentri/0005`; prima di eventuale bonifica eseguire il comando di audit duplicati secondo le istruzioni gia presenti nel changelog. Le modifiche Anagrafica non committate comparse nel checkout condiviso non sono state toccate.
 - Note per altro agente: worktree isolato `temp/codex-rentri-release-20260918`, branch `codex/rentri-release-20260918`.
 
+## 2026-09-17 - Codex (referti multipagina e unione manuale)
+
+- Area: `django_app/anagrafica`, acquisizione OCR referti sanitari.
+- Richiesta: impedire che pagina 1/pagina 2 dello stesso referto generino visite fittizie, senza perdere la seconda pagina come allegato; aggiungere un'azione manuale «Unisci con altra visita» limitata alle visite dello stesso dipendente e tipo.
+- File modificati: `django_app/anagrafica/services/referti_intake.py`, `services/referti_registrazione.py`, `services/visite.py`, `views.py`, `views_sorveglianza.py`, `templates/anagrafica/pages/referti_coda.html`, `templates/anagrafica/pages/dipendente_detail.html`, `templates/anagrafica/pages/visite_mediche_dashboard.html`, `tests_referti_intake.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici modificati: nessuno; nessuna modifica ad ACL, middleware, settings, autenticazione, permessi, routing o navigazione globale. `_AGENT_CONTROL/CRITICAL_FILES.md` non era presente nel checkout condiviso né nel worktree.
+- Motivo tecnico: `elabora_contenuto` produceva una `RefertoIntakeRiga` per ogni pagina del PDF, sebbene tutte puntassero allo stesso file completo; una continuazione poteva quindi apparire come una visita autonoma. Inoltre i file separati dallo scanner non venivano ricomposti.
+- Modifica: OCR di tutte le pagine in memoria e raggruppamento per certificato tramite blocco anagrafico forte; continuazioni aggregate in una sola proposta, certificati di persone/date diverse separati. I lotti web e cartella ricompongono con PyMuPDF le sequenze consecutive esplicitamente nominate `pagina N`/`pag N`/`page N`; sequenze ambigue, duplicate o con buchi restano separate. Il PDF completo viene archiviato una sola volta. Idempotenza spostata all'impronta dell'intero documento. Nella coda, la nuova azione manuale propone al massimo le 12 visite più recenti con identico dipendente/tipo; il POST ricontrolla entrambi, non crea visite e collega il documento tramite riferimento alla visita. Il referto principale non viene sostituito e tutte le pagine sono esposte in scheda dipendente e dashboard visite.
+- Impatto previsto: una seconda pagina non genera più una visita/proposta fittizia e non viene persa; resta parte del PDF allegato alla visita corretta. Le scansioni cumulative con certificati distinti continuano a produrre righe distinte. I casi residui si possono risolvere manualmente senza creare una visita fittizia.
+- Rischi residui: file separati con nomi che non dichiarano il numero pagina non vengono uniti automaticamente, per evitare associazioni sanitarie errate; vanno caricati come PDF multipagina, rinominati in sequenza esplicita oppure uniti manualmente dalla coda. La proposta manuale mostra le 12 visite più recenti compatibili.
+- Test/check: 13/13 test `AzioniMassiveTests` verdi; suite referti completa 108/108 verde (`tests_referti_intake`, `tests_referti_requisiti`, `tests_referti_archivio_hr`); Django check, migration drift Anagrafica, controllo Ruff mirato agli errori bloccanti e `git diff --check` verdi. Il lint completo espone debito preesistente nei file monolitici/test, non introdotto da questa modifica.
+- Backup creati: nessuno; nessun database dev/prod modificato, solo database SQLite di test isolato.
+- README aggiornato: sì.
+- CHANGELOG aggiornato: sì (`CHANGELOG.md` e `django_app/CHANGELOG.md`).
+- AGENT_CHANGELOG aggiornato: sì.
+- Esito: implementazione completata e verificata su branch/worktree dedicato `feature/anagrafica-referti-pagine` / `temp/codex-referti-pagine`.
+- Note per altro agente: nessuna migration o nuova dipendenza; al collaudo usare un PDF reale multipagina e una coppia di file sintetici nominati `... pagina 1.pdf` / `... pagina 2.pdf`, senza riportare dati sanitari nei log o nelle fixture.
+
 ## 2026-09-16 - Codex (SDS)
 
 - Area: `django_app/schede_sicurezza`, con integrazioni mirate in `anagrafica`, `assets` e `ai_assistant`.
