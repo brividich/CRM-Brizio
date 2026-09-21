@@ -1382,6 +1382,95 @@ class ImpostazioniRedirectTests(TestCase):
         self.assertFalse(mapping.obbligatorio)
 
 
+class TipoVisitaMedicaCategoriaMansioniTests(TestCase):
+    def setUp(self):
+        from .models import Mansione
+
+        self.user_super = User.objects.create_superuser(
+            username="settings-admin-vm", email="settings-admin-vm@test.local", password="x"
+        )
+        self.mansione = Mansione.objects.create(nome="Saldatore", livello_rischio="A")
+
+    def _post_request(self, path: str, data: dict):
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.backends.signed_cookies import SessionStore
+        from django.test import RequestFactory
+
+        request = RequestFactory().post(path, data=data)
+        request.user = self.user_super
+        request.session = SessionStore()
+        request._messages = FallbackStorage(request)
+        return request
+
+    def test_create_salva_categoria_e_mansioni(self):
+        from .views import tipo_visita_medica_create
+
+        request = self._post_request(
+            "/anagrafica/tipo-visita-medica/nuovo",
+            {
+                "nome": "Esami Ematici Speciali",
+                "durata_mesi": "12",
+                "categoria": "Rischio chimico",
+                "mansione_ids": [str(self.mansione.pk)],
+            },
+        )
+        resp = tipo_visita_medica_create(request)
+        self.assertEqual(resp.status_code, 302)
+        tipo = TipoVisitaMedica.objects.get(nome="Esami Ematici Speciali")
+        self.assertEqual(tipo.categoria, "Rischio chimico")
+        self.assertIn(self.mansione, tipo.mansioni_richiedenti.all())
+
+    def test_edit_aggiorna_categoria_e_mansioni(self):
+        from .views import tipo_visita_medica_edit
+
+        tipo = TipoVisitaMedica.objects.create(nome="Spirometria", durata_mesi=12)
+        request = self._post_request(
+            f"/anagrafica/tipo-visita-medica/{tipo.pk}/modifica",
+            {
+                "nome": "Spirometria",
+                "durata_mesi": "12",
+                "categoria": "Rischio polveri",
+                "obbligatoria": "1",
+                "is_active": "1",
+                "mansione_ids": [str(self.mansione.pk)],
+            },
+        )
+        resp = tipo_visita_medica_edit(request, tipo.pk)
+        self.assertEqual(resp.status_code, 302)
+        tipo.refresh_from_db()
+        self.assertEqual(tipo.categoria, "Rischio polveri")
+        self.assertIn(self.mansione, tipo.mansioni_richiedenti.all())
+
+        # Deselezionando la mansione, il legame viene rimosso.
+        request2 = self._post_request(
+            f"/anagrafica/tipo-visita-medica/{tipo.pk}/modifica",
+            {
+                "nome": "Spirometria",
+                "durata_mesi": "12",
+                "categoria": "Rischio polveri",
+                "obbligatoria": "1",
+                "is_active": "1",
+            },
+        )
+        tipo_visita_medica_edit(request2, tipo.pk)
+        tipo.refresh_from_db()
+        self.assertNotIn(self.mansione, tipo.mansioni_richiedenti.all())
+
+    def test_mansione_requisiti_raggruppa_per_categoria(self):
+        TipoVisitaMedica.objects.create(nome="Ac. Ippurico", durata_mesi=6, categoria="Rischio chimico")
+        TipoVisitaMedica.objects.create(nome="Cromuria", durata_mesi=6, categoria="Rischio chimico")
+        TipoVisitaMedica.objects.create(nome="Visita Medica Annuale", durata_mesi=12)
+
+        self.client.force_login(self.user_super)
+        response = self.client.get(
+            reverse("anagrafica:mansione_requisiti", args=[self.mansione.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Rischio chimico")
+        self.assertContains(response, "js-categoria-visite-select")
+        self.assertContains(response, '<optgroup label="Rischio chimico">')
+
+
 class VisiteMedicheDashboardTests(TestCase):
     def setUp(self):
         self.user_super = User.objects.create_superuser(

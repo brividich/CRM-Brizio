@@ -106,9 +106,38 @@
           <div class="fm-form-field">
             <label>Visite mediche richieste</label>
             {% if visite_opts %}
-            <select name="visite_richieste" class="fm-input fm-select fm-multiselect" multiple size="10" data-picker data-picker-placeholder="Cerca tipo di visita…" aria-label="Visite mediche richieste dalla mansione">
-              {% for v in visite_opts %}<option value="{{ v.pk }}"{% if v.pk in sel_visite_ids %} selected{% endif %}>{{ v.nome }}</option>{% endfor %}
+            {% regroup visite_opts by categoria as visite_per_categoria %}
+            {% for gruppo in visite_per_categoria %}
+              {% if gruppo.grouper %}
+              <button type="button" class="fmd-btn fmd-btn-ghost fmd-btn-xs js-categoria-visite-select" data-target="visite-richieste-select" data-categoria="{{ gruppo.grouper }}" style="margin:0 6px 6px 0;">+ {{ gruppo.grouper }}</button>
+              {% endif %}
+            {% endfor %}
+            <select id="visite-richieste-select" name="visite_richieste" class="fm-input fm-select fm-multiselect" multiple size="10" data-picker data-picker-placeholder="Cerca tipo di visita…" aria-label="Visite mediche richieste dalla mansione">
+              {% for gruppo in visite_per_categoria %}
+                {% if gruppo.grouper %}
+                <optgroup label="{{ gruppo.grouper }}">
+                  {% for v in gruppo.list %}<option value="{{ v.pk }}" data-categoria="{{ v.categoria }}"{% if v.pk in sel_visite_ids %} selected{% endif %}>{{ v.nome }}</option>{% endfor %}
+                </optgroup>
+                {% else %}
+                  {% for v in gruppo.list %}<option value="{{ v.pk }}" data-categoria=""{% if v.pk in sel_visite_ids %} selected{% endif %}>{{ v.nome }}</option>{% endfor %}
+                {% endif %}
+              {% endfor %}
             </select>
+            <div class="fm-help">I pulsanti sopra selezionano d'un colpo tutti gli esami della categoria.</div>
+            <script>
+            (function () {
+              document.querySelectorAll(".js-categoria-visite-select").forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                  var select = document.getElementById(btn.dataset.target);
+                  if (!select) return;
+                  Array.prototype.forEach.call(select.options, function (opt) {
+                    if (opt.dataset.categoria === btn.dataset.categoria) opt.selected = true;
+                  });
+                  select.dispatchEvent(new Event("change", { bubbles: true }));
+                });
+              });
+            })();
+            </script>
             {% else %}<div class="fmd-muted">Nessun tipo di visita definito. Creane in <a class="fmd-data-link" href="{% url 'anagrafica:visite_mediche_dashboard' %}">Visite mediche</a>.</div>{% endif %}
           </div>
         </div>

@@ -16,6 +16,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **ANAGRAFICA · catalogo visite mediche: collegamento diretto alle mansioni di rischio e categoria libera per raggruppare gli esami affini** (`django_app/anagrafica/models.py`, `django_app/anagrafica/migrations/0125_tipovisitamedica_categoria.py` — nuovo —, `django_app/anagrafica/views.py`, `django_app/anagrafica/templates/anagrafica/pages/impostazioni.html`, `django_app/anagrafica/templates/anagrafica/pages/mansione_requisiti.html`, `django_app/anagrafica/tests.py`).
+
+  Il collegamento fra `TipoVisitaMedica` e `Mansione` esisteva già (`Mansione.visite_richieste`), ma si poteva impostare solo dal lato mansione (`mansione_requisiti.html`, un esame alla volta in un multiselect senza struttura); dal catalogo visite mediche (dove si imposta già quali **ruoli operativi** richiedono un esame) non c'era modo di vedere o toccare le mansioni.
+
+  1. **Checkbox "Mansioni di rischio obbligate"** nel form di creazione e nella modale di modifica di `TipoVisitaMedica` in Impostazioni Anagrafica, speculare a quello già esistente per i ruoli operativi — stesso flusso, stessa UX, per la stessa relazione già presente (`mansioni_richiedenti`, reverse di `Mansione.visite_richieste`).
+  2. **`TipoVisitaMedica.categoria`**, campo libero (non un catalogo a parte) per etichettare esami affini — es. "Rischio chimico" su Esami Ematici, Ac. Ippurico, Cromuria. Compare come badge nell'elenco del catalogo, con datalist di riuso sulle categorie già in uso.
+  3. **`mansione_requisiti.html`**: il multiselect "Visite mediche richieste" ora raggruppa le opzioni per categoria (`<optgroup>`) e mostra un pulsante per categoria che seleziona d'un colpo tutti gli esami del gruppo — prima bisognava cercarli e spuntarli uno per uno anche quando appartenevano allo stesso pacchetto di rischio.
+
+  Nessun dato esistente tocco: la categoria nasce vuota su tutte le voci di catalogo già presenti (32 in prod), da valorizzare a mano dove serve raggruppare. **Deploy**: migrazione `anagrafica/0125` PENDING. 6 nuovi test (`tests.TipoVisitaMedicaCategoriaMansioniTests`).
+
 - **DPI · nuovo comando `import_dpi_storico_materiale` per importare lo storico consegne dal file Excel "MATERIALE ANTINFORTUNISTICO"** (`django_app/dpi/management/commands/import_dpi_storico_materiale.py` — nuovo).
 
   Il foglio STORICO di quel file è "a cascata" (una riga per dipendente, poi colonne evento 1°..N° in testo libero tipo `"GUANTO A MIS.9 20/01/2021"`), incompatibile con il formato a righe/CF già gestito da `import_dpi_storico.py`. Il nuovo comando classifica ogni evento per famiglia DPI tramite parola chiave (riusando le `CategoriaDPI` già esistenti in catalogo: `Calzature di sicurezza`, `Guanti di protezione`, `Protezione udito`, `Protezione occhi e viso`, `Protezione vie respiratorie`, `Abbigliamento protettivo`), estrae la data (tollerante a formati a 2/4 cifre, trattini e seriali Excel) e abbina il dipendente per nome/cognome contro `AnagraficaDipendente`. Ogni evento non classificabile, senza data, multi-item (più DPI nella stessa cella) o con dipendente non abbinato viene **saltato e riportato come eccezione**, mai indovinato — coerente con l'assenza di un campo matricola/CF utilizzabile in questo foglio.

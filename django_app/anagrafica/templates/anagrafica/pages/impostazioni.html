@@ -1083,6 +1083,13 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                 </label>
               </div>
             </div>
+            <div class="imp-field" style="max-width:260px;margin-bottom:10px;">
+              <label class="imp-label">Categoria (facoltativa)</label>
+              <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" placeholder="Es. Rischio chimico">
+              <datalist id="visite-categorie-list">
+                {% for cat in categorie_visita %}<option value="{{ cat }}">{% endfor %}
+              </datalist>
+            </div>
             {% if ruoli_operativi %}
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Ruoli operativi obbligatori</div>
@@ -1093,6 +1100,18 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                 {% for ro in ruoli_operativi %}
                 <label class="visita-create-ruolo-lbl" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:4px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;">
                   <input type="checkbox" name="ruolo_ids" value="{{ ro.id }}" class="visita-create-ruolo"> {{ ro.icona }} {{ ro.nome }}
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+            {% if mansioni %}
+            <div style="margin-bottom:10px;">
+              <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Mansioni di rischio obbligate</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                {% for m in mansioni %}
+                <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:4px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;">
+                  <input type="checkbox" name="mansione_ids" value="{{ m.id }}"> {{ m.nome }}
                 </label>
                 {% endfor %}
               </div>
@@ -1110,13 +1129,16 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
             {% for t in tipi_visita %}
               <div class="imp-row {% if not t.is_active %}inactive{% endif %}">
                 <div class="imp-row-main">
-                  <div class="imp-row-name">{{ t.nome }}</div>
+                  <div class="imp-row-name">{{ t.nome }}{% if t.categoria %} <span class="imp-badge imp-badge-gray">{{ t.categoria }}</span>{% endif %}</div>
                   <div class="imp-row-meta">
                     {% if t.durata_mesi %}ogni {{ t.durata_mesi }} mesi{% else %}senza scadenza{% endif %}
                     {% if t.obbligatoria %} · <span class="imp-badge imp-badge-orange">obbligatoria</span>{% endif %}
                     · {{ t.n_visite|default:0 }} visite registrate
                     {% with ruoli_list=t.ruoli_operativi.all %}
                       {% if ruoli_list %} · ruoli: {% for ro in ruoli_list %}{{ ro.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+                    {% endwith %}
+                    {% with mansioni_list=t.mansioni_richiedenti.all %}
+                      {% if mansioni_list %} · mansioni: {% for m in mansioni_list %}{{ m.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
                     {% endwith %}
                     {% if not t.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
                   </div>
@@ -1154,6 +1176,10 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                         <label class="imp-label">Descrizione</label>
                         <textarea class="imp-textarea" name="descrizione">{{ t.descrizione }}</textarea>
                       </div>
+                      <div class="imp-field">
+                        <label class="imp-label">Categoria (facoltativa)</label>
+                        <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" value="{{ t.categoria }}" placeholder="Es. Rischio chimico">
+                      </div>
                       <div class="imp-field" style="flex-direction:row;gap:16px;">
                         <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
                           <input type="checkbox" name="obbligatoria" value="1" {% if t.obbligatoria %}checked{% endif %}>
@@ -1173,6 +1199,20 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                             <input type="checkbox" name="ruolo_ids" value="{{ ro.id }}"
                                    {% if ro in t.ruoli_operativi.all %}checked{% endif %}>
                             {{ ro.icona }} {{ ro.nome }}
+                          </label>
+                          {% endfor %}
+                        </div>
+                      </div>
+                      {% endif %}
+                      {% if mansioni %}
+                      <div class="imp-field">
+                        <label class="imp-label">Mansioni di rischio obbligate</label>
+                        <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+                          {% for m in mansioni %}
+                          <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;">
+                            <input type="checkbox" name="mansione_ids" value="{{ m.id }}"
+                                   {% if m in t.mansioni_richiedenti.all %}checked{% endif %}>
+                            {{ m.nome }}
                           </label>
                           {% endfor %}
                         </div>
