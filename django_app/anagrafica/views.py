@@ -6570,7 +6570,14 @@ def mansione_requisiti(request, mansione_id: int):
     requisiti = mansionario_service.requisiti_mansione(mansione)
 
     # Cataloghi per i selettori dei requisiti diretti.
-    visite_opts = list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"))
+    # Ordinate per categoria (le senza-categoria in fondo) cosi' il template
+    # puo' raggrupparle con {% regroup %}, che richiede la lista gia' ordinata
+    # sulla chiave di raggruppamento.
+    from django.db.models import Case, When
+    visite_opts = list(
+        TipoVisitaMedica.objects.filter(is_active=True)
+        .order_by(Case(When(categoria="", then=1), default=0), "categoria", "nome")
+    )
     sel_visite_ids = set(mansione.visite_richieste.values_list("pk", flat=True))
     dpi_opts: list = []
     sel_dpi_ids: set[int] = set()
@@ -9820,12 +9827,18 @@ def impostazioni(request):
         acl_perms, acl_role_matrix, acl_user_overrides = [], [], []
 
     # --- Tipi visita medica ---
+    # Ordinate per categoria (le senza-categoria in fondo) cosi' il template
+    # puo' raggrupparle con {% regroup %} in sezioni collassabili.
+    from django.db.models import Case as _VmCase, When as _VmWhen
     tipi_visita = list(
         TipoVisitaMedica.objects
         .annotate(n_visite=Count("visite"))
-        .prefetch_related("ruoli_operativi")
-        .order_by("nome")
+        .prefetch_related("ruoli_operativi", "mansioni_richiedenti")
+        .order_by(_VmCase(_VmWhen(categoria="", then=1), default=0), "categoria", "nome")
     )
+    categorie_visita = sorted({
+        t.categoria for t in tipi_visita if t.categoria
+    })
     scadenze_vm_count = VisitaMedica.objects.filter(
         data_scadenza__isnull=False, data_scadenza__lte=soglia_q
     ).count()
@@ -9966,6 +9979,7 @@ def impostazioni(request):
         "tipologie": tipologie,
         # Visite mediche
         "tipi_visita": tipi_visita,
+        "categorie_visita": categorie_visita,
         "scadenze_vm_count": scadenze_vm_count,
         # DPI
         "dpi_categorie": dpi_categorie,
@@ -10150,12 +10164,16 @@ def tipo_visita_medica_create(request):
             "durata_mesi": durata_mesi,
             "obbligatoria": request.POST.get("obbligatoria") == "1",
             "descrizione": (request.POST.get("descrizione") or "").strip(),
+            "categoria": (request.POST.get("categoria") or "").strip()[:100],
         },
     )
     if created:
         ruolo_ids = [int(x) for x in request.POST.getlist("ruolo_ids") if str(x).isdigit()]
         if ruolo_ids:
             tv.ruoli_operativi.set(ruolo_ids)
+        mansione_ids = [int(x) for x in request.POST.getlist("mansione_ids") if str(x).isdigit()]
+        if mansione_ids:
+            tv.mansioni_richiedenti.set(mansione_ids)
         messages.success(request, f'Tipo visita "{nome}" creato.')
     else:
         messages.warning(request, f'Esiste già un tipo visita con il nome "{nome}".')
@@ -10182,10 +10200,13 @@ def tipo_visita_medica_edit(request, tipo_id: int):
     tipo.durata_mesi = durata_mesi
     tipo.obbligatoria = request.POST.get("obbligatoria") == "1"
     tipo.descrizione = (request.POST.get("descrizione") or "").strip()
+    tipo.categoria = (request.POST.get("categoria") or "").strip()[:100]
     tipo.is_active = request.POST.get("is_active") == "1"
     tipo.save()
     ruolo_ids = [int(x) for x in request.POST.getlist("ruolo_ids") if str(x).isdigit()]
     tipo.ruoli_operativi.set(ruolo_ids)
+    mansione_ids = [int(x) for x in request.POST.getlist("mansione_ids") if str(x).isdigit()]
+    tipo.mansioni_richiedenti.set(mansione_ids)
     messages.success(request, f'Tipo visita "{tipo.nome}" aggiornato.')
     return _redirect_impostazioni("visite-mediche")
 
