@@ -2642,6 +2642,46 @@ class TipoVisitaMedica(models.Model):
         return self.nome
 
 
+class DipendenteVisitaFacoltativa(models.Model):
+    """Visita medica aggiuntiva assegnata volontariamente a un singolo dipendente.
+
+    Non è un requisito derivato da mansione o esposizione a rischio (quelli
+    restano in ``Mansione.visite_richieste`` / ``EsposizioneRischio``, risolti da
+    ``services/mansionario.py``): è una scelta ad-hoc di HR/lavoratore, tenuta
+    separata per non inquinare l'audit "requisito normativo vs scelta
+    facoltativa" e per non alterare il semaforo di conformità.
+    """
+
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    tipo_visita = models.ForeignKey(
+        "anagrafica.TipoVisitaMedica", on_delete=models.CASCADE,
+        related_name="assegnazioni_facoltative",
+    )
+    note = models.CharField(max_length=255, blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Visita facoltativa dipendente"
+        verbose_name_plural = "Visite facoltative dipendente"
+        indexes = [models.Index(fields=["legacy_anagrafica_id", "is_active"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["legacy_anagrafica_id", "tipo_visita"],
+                condition=models.Q(is_active=True),
+                name="uniq_dipendente_visita_facoltativa_attiva",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"dip #{self.legacy_anagrafica_id} → {self.tipo_visita} (facoltativa)"
+
+
 class VisitaSessione(models.Model):
     """Giornata di visite del medico competente: data + medico + un elenco di
     visite (di tipi anche diversi) registrate insieme. Le ``VisitaMedica`` vi si
