@@ -1981,7 +1981,10 @@ def dipendente_detail(request, legacy_id: int):
             .select_related("categoria", "consegna")
             .order_by("-created_at")[:20]
         )
-        dpi_consegnati = [r for r in dpi_richieste if r.stato == "CONSEGNATA" and hasattr(r, "consegna")]
+        dpi_consegnati = [
+            r for r in dpi_richieste
+            if r.stato == "CONSEGNATA" and hasattr(r, "consegna") and r.consegna.is_attiva
+        ]
     except Exception:
         logger.exception("Errore caricamento DPI per dipendente %s", legacy_id)
 

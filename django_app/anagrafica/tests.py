@@ -430,6 +430,56 @@ class AnagraficaDipendentiViewTests(TestCase):
         self.assertNotIn(">Attivo Marco<", ex_html)
         self.assertEqual(ex_response.context["page_obj"].paginator.count, 1)
 
+    def test_dipendente_detail_dpi_tab_excludes_superseded_delivery(self):
+        """La card "In dotazione" della scheda dipendente non deve mostrare un DPI
+        la cui consegna è stata sostituita da una successiva dello stesso tipo."""
+        from dpi.models import CategoriaDPI, ConsegnaDPI, RichiestaDPI, StatoRichiesta, TipoDPI
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, attivo)
+                VALUES (%s, %s, %s, %s)
+                """,
+                ["g.dpi", "Giulia", "Dpi", 1],
+            )
+            cursor.execute(
+                "SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s",
+                ["g.dpi"],
+            )
+            legacy_id = int(cursor.fetchone()[0])
+
+        categoria = CategoriaDPI.objects.create(nome="Guanti", icona_emoji="G", is_active=True)
+        tipo = TipoDPI.objects.create(categoria=categoria, nome="Antitaglio", is_active=True)
+
+        vecchia = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo,
+            stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=legacy_id,
+            richiedente_nome="Giulia Dpi",
+        )
+        nuova = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo,
+            stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=legacy_id,
+            richiedente_nome="Giulia Dpi",
+        )
+        consegna_nuova = ConsegnaDPI.objects.create(richiesta=nuova, data_consegna=date(2026, 5, 5))
+        ConsegnaDPI.objects.create(
+            richiesta=vecchia,
+            data_consegna=date(2025, 1, 1),
+            sostituita_da=consegna_nuova,
+            data_sostituzione=date(2026, 5, 5),
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("anagrafica:dipendente_detail", args=[legacy_id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["dpi_consegnati"], [nuova])
+
     def test_offboarding_licenziamento_creates_pratica_then_closes_employee(self):
         with connection.cursor() as cursor:
             cursor.execute(
