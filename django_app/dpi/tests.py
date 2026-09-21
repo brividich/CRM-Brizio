@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.db import connection
 from django.db.models import FileField, ImageField
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
@@ -25,6 +26,39 @@ PNG_SIGNATURE_DATA_URI = (
     "data:image/png;base64,"
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lx9u9QAAAABJRU5ErkJggg=="
 )
+
+
+def _ensure_anagrafica_table_with_utente(utente_id: int) -> int:
+    """Crea (SQLite) una riga minima in anagrafica_dipendenti legata a `utente_id`
+    e ritorna il suo id legacy, per testare la visibilità self-service basata su
+    richiedente_legacy_id (dipendenti importati, mai legati a created_by)."""
+    from core.legacy_anagrafica import ensure_anagrafica_schema
+
+    with connection.cursor() as cursor:
+        cursor.execute("DROP TABLE IF EXISTS anagrafica_dipendenti")
+        cursor.execute(
+            """
+            CREATE TABLE anagrafica_dipendenti (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                aliasusername VARCHAR(200) NULL,
+                nome VARCHAR(200) NULL,
+                cognome VARCHAR(200) NULL,
+                mansione VARCHAR(200) NULL,
+                reparto VARCHAR(200) NULL,
+                email VARCHAR(200) NULL,
+                email_notifica VARCHAR(200) NULL,
+                utente_id INTEGER NULL
+            )
+            """
+        )
+        cursor.execute(
+            "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, utente_id) VALUES (?, ?, ?, ?)",
+            ["dpi-legacy-user", "Legacy", "User", utente_id],
+        )
+        cursor.execute("SELECT id FROM anagrafica_dipendenti WHERE utente_id = ?", [utente_id])
+        legacy_id = int(cursor.fetchone()[0])
+    ensure_anagrafica_schema()
+    return legacy_id
 
 
 def _reset_test_dir(name: str) -> Path:
@@ -216,6 +250,30 @@ class DpiCatalogRequestTests(TestCase):
         self.assertIsNone(richiesta.tipo_dpi)
         self.assertIsNone(richiesta.modello_dpi)
         self.assertIsNone(richiesta.taglia_dpi)
+
+    def test_storico_and_detail_show_richieste_imported_without_created_by(self):
+        """Le richieste importate via management command (created_by=None, solo
+        richiedente_legacy_id) devono comparire nello storico/dettaglio self-service
+        del dipendente collegato, non solo in quelle create dal form."""
+        legacy_id = _ensure_anagrafica_table_with_utente(self.user.id)
+        categoria, tipo, modello, taglia = self._catalogo()
+        importata = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo,
+            modello_dpi=modello,
+            taglia_dpi=taglia,
+            stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=legacy_id,
+            richiedente_nome="Legacy User",
+            created_by=None,
+        )
+        self.client.force_login(self.user)
+
+        storico_response = self.client.get(reverse("dpi:storico"))
+        self.assertContains(storico_response, importata.numero)
+
+        detail_response = self.client.get(reverse("dpi:detail", args=[importata.pk]))
+        self.assertEqual(detail_response.status_code, 200)
 
     def test_new_request_rejects_incoherent_type_category(self):
         categoria, _, _, _ = self._catalogo("A")

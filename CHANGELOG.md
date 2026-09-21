@@ -20,6 +20,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Fixed
 
+- **DPI · "Il mio storico" e il dettaglio richiesta non mostravano le consegne importate da Excel (`import_dpi_storico`/`import_dpi_storico_materiale`) al dipendente proprietario** (`django_app/dpi/views.py`).
+
+  I comandi di import storico creano `RichiestaDPI` con `richiedente_legacy_id` valorizzato ma `created_by` sempre `None` (nessun utente Django reale al momento dell'import). Le viste self-service (`storico`, `richiesta_detail`, KPI dashboard del dipendente) filtravano però solo su `created_by=request.user`: un dipendente non vedeva mai, nel proprio storico, i DPI ricevuti prima che il portale gestisse le richieste online — pur essendo correttamente visibili nella card "In dotazione" della scheda anagrafica (che usa `richiedente_legacy_id`). Aggiunto `_own_richiesta_filter` (`created_by=request.user` OPPURE `richiedente_legacy_id` del dipendente collegato all'utente) e applicato a tutte e tre le viste. `annulla_richiesta` resta invariata (solo `created_by`): le richieste importate sono già `CONSEGNATA`, non annullabili.
+
 - **DPI · la scheda dipendente ("In dotazione") continuava a mostrare un DPI anche dopo che la sua consegna era stata sostituita da una successiva dello stesso tipo** (`django_app/anagrafica/views.py`).
 
   La sostituzione automatica introdotta sopra marca `ConsegnaDPI.sostituita_da`, ma il calcolo di `dpi_consegnati` in `dipendente_detail` (usato dalla card "In dotazione" della scheda dipendente) filtrava solo su `stato == CONSEGNATA`, ignorando il nuovo flag: il DPI sostituito restava visibile come "in dotazione" insieme a quello nuovo. Aggiunto il controllo `r.consegna.is_attiva`. La tabella "Ultime richieste" (storico) resta invariata di proposito.
