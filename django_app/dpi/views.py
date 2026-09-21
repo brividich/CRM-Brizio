@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import IntegrityError
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -180,6 +181,18 @@ def _legacy_id(request) -> int | None:
     except Exception:
         pass
     return None
+
+
+def _own_richiesta_filter(request) -> Q:
+    """Richieste "proprie" per le viste self-service (storico, dettaglio): per
+    `created_by` (richieste fatte dal form) OPPURE per `richiedente_legacy_id`
+    (consegne storiche importate via management command, mai legate a un utente
+    Django — senza questo OR restano invisibili al dipendente pur essendo sue)."""
+    q = Q(created_by=request.user)
+    legacy_id = _legacy_id(request)
+    if legacy_id:
+        q |= Q(richiedente_legacy_id=legacy_id)
+    return q
 
 
 def _parse_optional_positive_int(value: str | None) -> int | None:
@@ -355,7 +368,7 @@ def dashboard(request):
         qs_all = RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi")
     else:
         qs_all = RichiestaDPI.objects.filter(
-            created_by=request.user
+            _own_richiesta_filter(request)
         ).select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi")
 
     n_totale = qs_all.count()
@@ -490,9 +503,9 @@ def richiesta_detail(request, pk: int):
         )
     else:
         richiesta = get_object_or_404(
-            RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "created_by"),
+            RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "created_by")
+            .filter(_own_richiesta_filter(request)),
             pk=pk,
-            created_by=request.user,
         )
     commenti = richiesta.commenti.filter(is_interno=False).order_by("created_at")
     consegna = getattr(richiesta, "consegna", None)
@@ -529,7 +542,7 @@ def annulla_richiesta(request, pk: int):
 
 @login_required
 def storico(request):
-    qs = RichiestaDPI.objects.filter(created_by=request.user).select_related(
+    qs = RichiestaDPI.objects.filter(_own_richiesta_filter(request)).select_related(
         "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "consegna"
     ).order_by("-created_at")
 
