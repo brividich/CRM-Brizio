@@ -2613,6 +2613,12 @@ class TipoVisitaMedica(models.Model):
 
     nome = models.CharField(max_length=150, unique=True)
     descrizione = models.TextField(blank=True, default="")
+    categoria = models.CharField(
+        max_length=100, blank=True, default="",
+        help_text="Etichetta libera per raggruppare esami affini (es. \"Rischio chimico\"): "
+                  "serve a selezionarli insieme quando si configurano i requisiti di una "
+                  "mansione o di un ruolo, non è un catalogo a parte.",
+    )
     durata_mesi = models.PositiveSmallIntegerField(
         default=12,
         help_text="Periodicità in mesi: la scadenza parte dalla data dell'ultima visita.",
