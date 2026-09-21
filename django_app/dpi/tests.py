@@ -494,6 +494,75 @@ class DpiExpiryReminderCommandTests(TestCase):
         self.assertIn(richiesta.numero, mail.outbox[0].body)
 
 
+class DpiBackfillSostituzioniCommandTests(TestCase):
+    def test_marks_older_deliveries_of_same_type_as_superseded(self):
+        categoria = CategoriaDPI.objects.create(nome="Guanti", is_active=True)
+        tipo = TipoDPI.objects.create(categoria=categoria, nome="Antitaglio", is_active=True)
+
+        vecchia = RichiestaDPI.objects.create(
+            categoria=categoria, tipo_dpi=tipo, stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=1, richiedente_nome="Mario Rossi",
+        )
+        consegna_vecchia = ConsegnaDPI.objects.create(richiesta=vecchia, data_consegna=date(2025, 1, 1))
+        nuova = RichiestaDPI.objects.create(
+            categoria=categoria, tipo_dpi=tipo, stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=1, richiedente_nome="Mario Rossi",
+        )
+        consegna_nuova = ConsegnaDPI.objects.create(richiesta=nuova, data_consegna=date(2026, 5, 5))
+
+        out = StringIO()
+        call_command("dpi_backfill_sostituzioni", stdout=out)
+
+        consegna_vecchia.refresh_from_db()
+        consegna_nuova.refresh_from_db()
+        self.assertFalse(consegna_vecchia.is_attiva)
+        self.assertEqual(consegna_vecchia.sostituita_da_id, consegna_nuova.pk)
+        self.assertTrue(consegna_nuova.is_attiva)
+
+    def test_dry_run_does_not_save(self):
+        categoria = CategoriaDPI.objects.create(nome="Guanti", is_active=True)
+        tipo = TipoDPI.objects.create(categoria=categoria, nome="Antitaglio", is_active=True)
+
+        vecchia = RichiestaDPI.objects.create(
+            categoria=categoria, tipo_dpi=tipo, stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=1, richiedente_nome="Mario Rossi",
+        )
+        consegna_vecchia = ConsegnaDPI.objects.create(richiesta=vecchia, data_consegna=date(2025, 1, 1))
+        RichiestaDPI.objects.create(
+            categoria=categoria, tipo_dpi=tipo, stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=1, richiedente_nome="Mario Rossi",
+        )
+        nuova = RichiestaDPI.objects.filter(pk__gt=vecchia.pk).get()
+        ConsegnaDPI.objects.create(richiesta=nuova, data_consegna=date(2026, 5, 5))
+
+        out = StringIO()
+        call_command("dpi_backfill_sostituzioni", "--dry-run", stdout=out)
+
+        consegna_vecchia.refresh_from_db()
+        self.assertTrue(consegna_vecchia.is_attiva)
+
+    def test_does_not_touch_different_types(self):
+        categoria = CategoriaDPI.objects.create(nome="Guanti", is_active=True)
+        tipo_a = TipoDPI.objects.create(categoria=categoria, nome="Antitaglio", is_active=True)
+        tipo_b = TipoDPI.objects.create(categoria=categoria, nome="Chimico", is_active=True)
+
+        richiesta_a = RichiestaDPI.objects.create(
+            categoria=categoria, tipo_dpi=tipo_a, stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=1, richiedente_nome="Mario Rossi",
+        )
+        consegna_a = ConsegnaDPI.objects.create(richiesta=richiesta_a, data_consegna=date(2025, 1, 1))
+        richiesta_b = RichiestaDPI.objects.create(
+            categoria=categoria, tipo_dpi=tipo_b, stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=1, richiedente_nome="Mario Rossi",
+        )
+        ConsegnaDPI.objects.create(richiesta=richiesta_b, data_consegna=date(2026, 5, 5))
+
+        call_command("dpi_backfill_sostituzioni", stdout=StringIO())
+
+        consegna_a.refresh_from_db()
+        self.assertTrue(consegna_a.is_attiva)
+
+
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class DpiCopilotaTests(TestCase):
     """Copilota DPI (Ondata 3.3): proposta read-only, validata sul catalogo, fail-safe."""
