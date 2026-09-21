@@ -393,11 +393,24 @@ class ConsegnaDPI(models.Model):
         blank=True, default="",
         help_text="Firma digitale del ricevente (PNG base64, data URI)",
     )
+    sostituita_da = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sostituisce",
+        help_text="Consegna successiva dello stesso tipo DPI che ha rimpiazzato questa (storico, mai cancellata).",
+    )
+    data_sostituzione = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "Consegna DPI"
         verbose_name_plural = "Consegne DPI"
+
+    @property
+    def is_attiva(self) -> bool:
+        return self.sostituita_da_id is None
 
     def __str__(self) -> str:
         return f"Consegna {self.richiesta.numero} — {self.data_consegna}"

@@ -148,6 +148,11 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
       {% if consegna %}
       <div class="dpi-card">
         <div style="font-size:15px; font-weight:700; color:#15803d; margin-bottom:16px;">Consegna effettuata</div>
+        {% if consegna.sostituita_da %}
+        <div class="dpi-note-box" style="margin-bottom:16px;">
+          Sostituito il {{ consegna.data_sostituzione|date:"d-m-Y" }} dalla richiesta {{ consegna.sostituita_da.richiesta.numero }}.
+        </div>
+        {% endif %}
         <dl class="dpi-dl">
           <dt>Data consegna</dt>
           <dd>{{ consegna.data_consegna|date:"d-m-Y" }}</dd>

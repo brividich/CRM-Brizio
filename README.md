@@ -725,7 +725,7 @@ Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
 - **Numerazione univoca** `DPI-YYYY-NNNN`
 - **Stati workflow**: creata → approvata → consegnata → rifiutata/annullata
 - **Approvazione** da parte del responsabile sicurezza con commenti
-- **Consegna** con firma dipendente via canvas HTML5, data e ricevuta firmata
+- **Consegna** con firma dipendente via canvas HTML5, data e ricevuta firmata; una nuova consegna dello stesso `tipo_dpi` già in carico allo stesso dipendente sostituisce automaticamente la precedente (che resta in storico, uscendo dai conteggi "in uso"/scadenze)
 - **Vita utile** DPI tracciata per categoria/modello: il modello, se valorizzato, sovrascrive la vita utile categoria nel calcolo della scadenza consegna; lista e dettaglio mostrano il semaforo scadenza
 - **Report conformita** per dipendente su `/dpi/report-conformita/`, con filtro categorie obbligatorie e stato OK/scaduto/mancante
 - **Reminder scadenze** schedulabile con `python manage.py send_dpi_expiry_reminders --dry-run`
