@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **DPI · selezionare una categoria nella card picker di "Nuova richiesta" non aggiornava il campo "Tipo DPI" del form** (`django_app/dpi/templates/dpi/pages/nuova_richiesta.html`).
+
+  Il campo nascosto `categoria_id` veniva impostato al click sulla card, ma le select "Tipo DPI"/"Modello DPI"/"Taglia DPI" restavano invariate: una selezione precedente incompatibile con la nuova categoria (es. un modello di occhiali con una card "Guanti") superava la validazione client lato submit e falliva server-side (`_resolve_richiesta_catalog_selection` in `views.py` rigetta con "Il tipo/modello/taglia selezionato non appartiene alla categoria indicata"). Aggiunta una cascata JS (`filterOptions`/`refreshCascade`) che filtra le opzioni di ciascuna select per categoria (e, a cascata, per tipo/modello) e azzera la selezione quando non è più compatibile con la categoria appena scelta.
+
 ### Added
 
 - **DPI · nuovo comando `import_dpi_storico_materiale` per importare lo storico consegne dal file Excel "MATERIALE ANTINFORTUNISTICO"** (`django_app/dpi/management/commands/import_dpi_storico_materiale.py` — nuovo).
