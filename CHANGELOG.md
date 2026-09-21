@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+
+- **DPI · storico self-service vuoto: ponte utente→anagrafica sbagliato** (`django_app/dpi/views.py`, `django_app/dpi/tests.py`).
+
+  `_legacy_id()` e `_richiedente_info()` cercavano l'anagrafica con `utente_id = request.user.id`, ma `anagrafica_dipendenti.utente_id` e' una FK verso `utenti.id` (legacy), non verso `auth_user.id`. Le due numerazioni coincidono solo per caso, quindi in produzione `/dpi/storico/` (e dettaglio/KPI self-service) restava vuoto o mostrava lo storico di un altro dipendente. Ora si usa il ponte canonico `core.operational_roles.get_legacy_anagrafica_id()` (`profile.legacy_user_id`). Il test dello storico importato usa un `legacy_user_id` diverso da `auth_user.id` per non mascherare piu' il bug. Nota: `checklist_operativa/views.py:69` ha lo stesso pattern (non toccato).
+
 ### Added
 
 - **Anagrafica · visite mediche aggiuntive facoltative per singolo dipendente** (`django_app/anagrafica/models.py`, `django_app/anagrafica/migrations/0126_dipendentevisitafacoltativa.py`, `django_app/anagrafica/views.py`, `django_app/anagrafica/urls.py`, `django_app/anagrafica/templates/anagrafica/partials/conformita_panel.html`).

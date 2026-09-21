@@ -16,7 +16,7 @@ from django.db.models import FileField, ImageField
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from core.models import UserOnboarding
+from core.models import Profile, UserOnboarding
 from core.upload_mime import UploadMimeValidationError
 from dpi.models import CategoriaDPI, ConsegnaDPI, ModelloDPI, RichiestaDPI, StatoRichiesta, TagliaDPI, TipoDPI
 from dpi.views import DPI_MIME_POLICY_FIELDS
@@ -255,7 +255,10 @@ class DpiCatalogRequestTests(TestCase):
         """Le richieste importate via management command (created_by=None, solo
         richiedente_legacy_id) devono comparire nello storico/dettaglio self-service
         del dipendente collegato, non solo in quelle create dal form."""
-        legacy_id = _ensure_anagrafica_table_with_utente(self.user.id)
+        # utente_id e' l'id di `utenti`, diverso da auth_user.id: il ponte e' Profile
+        legacy_user_id = self.user.id + 1000
+        Profile.objects.update_or_create(user=self.user, defaults={"legacy_user_id": legacy_user_id})
+        legacy_id = _ensure_anagrafica_table_with_utente(legacy_user_id)
         categoria, tipo, modello, taglia = self._catalogo()
         importata = RichiestaDPI.objects.create(
             categoria=categoria,
