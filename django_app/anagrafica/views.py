@@ -9827,11 +9827,14 @@ def impostazioni(request):
         acl_perms, acl_role_matrix, acl_user_overrides = [], [], []
 
     # --- Tipi visita medica ---
+    # Ordinate per categoria (le senza-categoria in fondo) cosi' il template
+    # puo' raggrupparle con {% regroup %} in sezioni collassabili.
+    from django.db.models import Case as _VmCase, When as _VmWhen
     tipi_visita = list(
         TipoVisitaMedica.objects
         .annotate(n_visite=Count("visite"))
         .prefetch_related("ruoli_operativi", "mansioni_richiedenti")
-        .order_by("nome")
+        .order_by(_VmCase(_VmWhen(categoria="", then=1), default=0), "categoria", "nome")
     )
     categorie_visita = sorted({
         t.categoria for t in tipi_visita if t.categoria

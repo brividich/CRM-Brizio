@@ -1124,12 +1124,18 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
           {% endif %}
         </div>
 
-        <div class="imp-card">
-          <div class="imp-list">
-            {% for t in tipi_visita %}
+        {% regroup tipi_visita by categoria as visite_per_categoria_lista %}
+        {% for gruppo in visite_per_categoria_lista %}
+        <details class="imp-card" style="padding:0;">
+          <summary style="cursor:pointer;padding:12px 16px;font-size:13px;font-weight:700;color:#334155;list-style:none;display:flex;align-items:center;gap:8px;">
+            <span style="flex:1;">{{ gruppo.grouper|default:"Senza categoria" }}</span>
+            <span class="imp-tab-count">{{ gruppo.list|length }}</span>
+          </summary>
+          <div class="imp-list" style="padding:0 16px 12px;">
+            {% for t in gruppo.list %}
               <div class="imp-row {% if not t.is_active %}inactive{% endif %}">
                 <div class="imp-row-main">
-                  <div class="imp-row-name">{{ t.nome }}{% if t.categoria %} <span class="imp-badge imp-badge-gray">{{ t.categoria }}</span>{% endif %}</div>
+                  <div class="imp-row-name">{{ t.nome }}</div>
                   <div class="imp-row-meta">
                     {% if t.durata_mesi %}ogni {{ t.durata_mesi }} mesi{% else %}senza scadenza{% endif %}
                     {% if t.obbligatoria %} · <span class="imp-badge imp-badge-orange">obbligatoria</span>{% endif %}
@@ -1227,11 +1233,14 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
                 </div>
               </div>
               {% endif %}
-            {% empty %}
-              <div class="imp-empty">Nessun tipo di visita medica registrato.</div>
             {% endfor %}
           </div>
+        </details>
+        {% empty %}
+        <div class="imp-card">
+          <div class="imp-empty">Nessun tipo di visita medica registrato.</div>
         </div>
+        {% endfor %}
       </section>
 
       <!-- ============= DPI ============= -->

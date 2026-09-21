@@ -23,8 +23,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   1. **Checkbox "Mansioni di rischio obbligate"** nel form di creazione e nella modale di modifica di `TipoVisitaMedica` in Impostazioni Anagrafica, speculare a quello già esistente per i ruoli operativi — stesso flusso, stessa UX, per la stessa relazione già presente (`mansioni_richiedenti`, reverse di `Mansione.visite_richieste`).
   2. **`TipoVisitaMedica.categoria`**, campo libero (non un catalogo a parte) per etichettare esami affini — es. "Rischio chimico" su Esami Ematici, Ac. Ippurico, Cromuria. Compare come badge nell'elenco del catalogo, con datalist di riuso sulle categorie già in uso.
   3. **`mansione_requisiti.html`**: il multiselect "Visite mediche richieste" ora raggruppa le opzioni per categoria (`<optgroup>`) e mostra un pulsante per categoria che seleziona d'un colpo tutti gli esami del gruppo — prima bisognava cercarli e spuntarli uno per uno anche quando appartenevano allo stesso pacchetto di rischio.
+  4. **Elenco del catalogo in sezioni collassabili** (`<details>`, chiuse di default): una per categoria più "Senza categoria" in fondo — con 32 voci già in prod, la lista piatta obbligava a scorrere tutto per trovarne una.
 
-  Nessun dato esistente tocco: la categoria nasce vuota su tutte le voci di catalogo già presenti (32 in prod), da valorizzare a mano dove serve raggruppare. **Deploy**: migrazione `anagrafica/0125` PENDING. 6 nuovi test (`tests.TipoVisitaMedicaCategoriaMansioniTests`).
+  Le categorie non hanno una pagina di gestione a parte: si creano scrivendo un nome nel campo "Categoria" del form del tipo di visita (il datalist suggerisce quelle già in uso, per riusarle invece di crearne varianti).
+
+  Nessun dato esistente tocco: la categoria nasce vuota su tutte le voci di catalogo già presenti (32 in prod), da valorizzare a mano dove serve raggruppare. **Deploy**: migrazione `anagrafica/0125` PENDING. 10 nuovi test (`tests.TipoVisitaMedicaCategoriaMansioniTests`).
 
 - **DPI · nuovo comando `import_dpi_storico_materiale` per importare lo storico consegne dal file Excel "MATERIALE ANTINFORTUNISTICO"** (`django_app/dpi/management/commands/import_dpi_storico_materiale.py` — nuovo).
 

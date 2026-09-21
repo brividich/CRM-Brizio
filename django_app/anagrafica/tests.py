@@ -1470,6 +1470,20 @@ class TipoVisitaMedicaCategoriaMansioniTests(TestCase):
         self.assertContains(response, "js-categoria-visite-select")
         self.assertContains(response, '<optgroup label="Rischio chimico">')
 
+    def test_impostazioni_visite_mediche_raggruppa_in_dettagli_collassati(self):
+        TipoVisitaMedica.objects.create(nome="Ac. Ippurico", durata_mesi=6, categoria="Rischio chimico")
+        TipoVisitaMedica.objects.create(nome="Visita Medica Annuale", durata_mesi=12)
+
+        self.client.force_login(self.user_super)
+        response = self.client.get(reverse("anagrafica:impostazioni"), {"tab": "visite-mediche"})
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertIn("<details class=\"imp-card\"", body)
+        self.assertIn("Rischio chimico", body)
+        self.assertIn("Senza categoria", body)
+        # Collassate di default: nessun attributo "open" sui <details> del catalogo.
+        self.assertNotIn('<details class="imp-card" open', body)
+
 
 class VisiteMedicheDashboardTests(TestCase):
     def setUp(self):
