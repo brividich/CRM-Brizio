@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **DPI · consegnare un nuovo DPI dello stesso tipo già in carico al dipendente sostituisce automaticamente quello precedente** (`django_app/dpi/models.py`, `django_app/dpi/views.py`, `django_app/dpi/migrations/0007_consegnadpi_data_sostituzione_and_more.py`, `django_app/dpi/templates/dpi/pages/gestione_detail.html`, `django_app/dpi/templates/dpi/pages/detail.html`).
+
+  Prima, ogni consegna DPI restava "attiva" a tempo indeterminato: un dipendente che riceveva più volte lo stesso tipo di DPI (es. un secondo paio di guanti antitaglio) risultava con più consegne attive in parallelo, gonfiando i conteggi di scadenza e il report conformità. Aggiunti `ConsegnaDPI.sostituita_da` (FK a se stesso) e `data_sostituzione`: alla registrazione di una nuova consegna (`consegna_richiesta`), `_sostituisci_consegne_precedenti` marca come sostituite le consegne ancora attive dello stesso dipendente (per `richiedente_legacy_id`), stessa categoria e stesso `tipo_dpi` — la vecchia consegna resta intatta in storico (mai cancellata, per audit trail) ma esce dai conteggi "in scadenza"/"scadute" della dashboard e viene segnalata con un commento interno automatico sulla richiesta originale. Match richiede `richiedente_legacy_id` valorizzato; richieste "solo categoria" (senza tipo) si sostituiscono solo tra loro. Migration `dpi/0007`.
+
 ### Fixed
 
 - **DPI · selezionare una categoria nella card picker di "Nuova richiesta" non aggiornava il campo "Tipo DPI" del form** (`django_app/dpi/templates/dpi/pages/nuova_richiesta.html`).

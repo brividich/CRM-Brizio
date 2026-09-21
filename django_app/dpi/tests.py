@@ -319,6 +319,80 @@ class DpiCatalogRequestTests(TestCase):
         consegna = ConsegnaDPI.objects.get(richiesta=richiesta)
         self.assertEqual(consegna.data_scadenza_stimata, data_consegna + timedelta(days=180))
 
+    def test_delivery_supersedes_previous_active_delivery_of_same_type(self):
+        categoria, tipo, modello, taglia = self._catalogo()
+        vecchia = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo,
+            modello_dpi=modello,
+            taglia_dpi=taglia,
+            stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=42,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        vecchia_consegna = ConsegnaDPI.objects.create(
+            richiesta=vecchia,
+            data_consegna=date(2025, 1, 1),
+        )
+        nuova = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo,
+            modello_dpi=modello,
+            taglia_dpi=taglia,
+            stato=StatoRichiesta.APPROVATA,
+            richiedente_legacy_id=42,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        self.client.force_login(self.admin)
+        data_consegna = date(2026, 5, 5)
+
+        response = self.client.post(reverse("dpi:consegna", args=[nuova.pk]), {
+            "data_consegna": data_consegna.isoformat(),
+            "note_consegna": "",
+            "firmato_ricevuta": "1",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        vecchia_consegna.refresh_from_db()
+        self.assertFalse(vecchia_consegna.is_attiva)
+        self.assertEqual(vecchia_consegna.sostituita_da.richiesta, nuova)
+        self.assertEqual(vecchia_consegna.data_sostituzione, data_consegna)
+
+    def test_delivery_does_not_supersede_different_type(self):
+        categoria, tipo_a, modello_a, taglia_a = self._catalogo("A")
+        _, tipo_b, _, _ = self._catalogo("B")
+        richiesta_a = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo_a,
+            modello_dpi=modello_a,
+            taglia_dpi=taglia_a,
+            stato=StatoRichiesta.CONSEGNATA,
+            richiedente_legacy_id=42,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        consegna_a = ConsegnaDPI.objects.create(richiesta=richiesta_a, data_consegna=date(2025, 1, 1))
+        richiesta_b = RichiestaDPI.objects.create(
+            categoria=categoria,
+            tipo_dpi=tipo_b,
+            stato=StatoRichiesta.APPROVATA,
+            richiedente_legacy_id=42,
+            richiedente_nome="Mario Rossi",
+            created_by=self.user,
+        )
+        self.client.force_login(self.admin)
+
+        self.client.post(reverse("dpi:consegna", args=[richiesta_b.pk]), {
+            "data_consegna": date(2026, 5, 5).isoformat(),
+            "note_consegna": "",
+            "firmato_ricevuta": "1",
+        })
+
+        consegna_a.refresh_from_db()
+        self.assertTrue(consegna_a.is_attiva)
+
     def test_delivery_saves_signature_data_uri_and_marks_signed(self):
         categoria, tipo, modello, taglia = self._catalogo()
         richiesta = RichiestaDPI.objects.create(
