@@ -141,4 +141,41 @@ body.theme-dark .cf-badge-na { background:rgba(100,116,139,.25); color:#cbd5e1; 
   {% endif %}
 </div>
 {% endif %}
+
+{% if mostra_pannello_visite_facoltative %}
+<div class="cf-dom" style="margin-top:14px;border-left:4px solid #0891b2;">
+  <div class="cf-dom-head">
+    <span class="cf-dom-title">🏥 Visite aggiuntive facoltative</span>
+  </div>
+  <div style="font-size:12px;color:#64748b;margin:2px 0 8px;">Scelta volontaria, non derivata da mansione o rischio: non incide sul semaforo di conformità.</div>
+  {% if visite_facoltative %}
+  <ul class="cf-dettagli" style="list-style:none;padding-left:0;">
+    {% for vf in visite_facoltative %}
+    <li style="display:flex;align-items:center;gap:8px;">
+      <span>• {{ vf.tipo_visita.nome }}{% if vf.note %} — {{ vf.note }}{% endif %}</span>
+      {% if is_admin %}
+      <form hx-post="{% url 'anagrafica:dipendente_visita_facoltativa_remove' legacy_id vf.id %}" hx-target="#conformita-panel" hx-swap="outerHTML" style="display:inline;margin:0;">
+        {% csrf_token %}
+        <button type="submit" title="Rimuovi" style="border:none;background:none;color:#ef4444;cursor:pointer;font-size:12px;line-height:1;">✕</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% elif is_admin %}
+  <div class="cf-dettagli" style="padding-left:0;">Nessuna visita facoltativa assegnata.</div>
+  {% endif %}
+  {% if is_admin and tipi_visita_disponibili %}
+  <form hx-post="{% url 'anagrafica:dipendente_visita_facoltativa_add' legacy_id %}" hx-target="#conformita-panel" hx-swap="outerHTML" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center;">
+    {% csrf_token %}
+    <select name="tipo_visita_id" required style="font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+      <option value="">Aggiungi visita facoltativa…</option>
+      {% for t in tipi_visita_disponibili %}<option value="{{ t.id }}">{{ t.nome }}</option>{% endfor %}
+    </select>
+    <input type="text" name="note" placeholder="note (opz.)" style="font-size:12px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+    <button type="submit" style="font-size:12px;padding:4px 12px;border:none;border-radius:6px;background:#0891b2;color:#fff;cursor:pointer;font-weight:700;">+ Aggiungi</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
 </div>

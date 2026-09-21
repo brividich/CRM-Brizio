@@ -10,6 +10,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Added
 
+- **Anagrafica · visite mediche aggiuntive facoltative per singolo dipendente** (`django_app/anagrafica/models.py`, `django_app/anagrafica/migrations/0126_dipendentevisitafacoltativa.py`, `django_app/anagrafica/views.py`, `django_app/anagrafica/urls.py`, `django_app/anagrafica/templates/anagrafica/partials/conformita_panel.html`).
+
+  Nuovo modello `DipendenteVisitaFacoltativa` (dipendente + tipo visita + note): permette a un admin di assegnare a un dipendente una visita medica non derivata da mansione o esposizione a rischio (scelta volontaria HR/lavoratore), tenuta volutamente separata dai requisiti obbligatori risolti da `services/mansionario.py` per non alterare il semaforo di conformità/idoneità. Sezione dedicata "🏥 Visite aggiuntive facoltative" nel pannello conformità della scheda dipendente (HTMX add/remove), visibile solo a chi ha già visibilità sulle visite mediche (`_can_view_visite_mediche`) e gestibile solo da admin. La feature "mansioni di rischio multiple" (esposizioni a rischio assegnate direttamente al dipendente, oltre alla mansione anagrafica) era già presente (`EsposizioneRischio.legacy_anagrafica_id`, sezione "Esposizioni dirette" nello stesso pannello) — nessuna modifica necessaria lì.
+
 - **DPI · comando `dpi_backfill_sostituzioni` per applicare retroattivamente la sostituzione automatica ai duplicati già esistenti** (`django_app/dpi/management/commands/dpi_backfill_sostituzioni.py`).
 
   La sostituzione automatica introdotta sopra scatta solo alla prossima consegna registrata: i DPI duplicati già presenti in produzione (creati prima di questa modifica) restavano entrambi "attivi" senza un nuovo evento che li marcasse. Il comando raggruppa le consegne attive per (dipendente, categoria, tipo DPI), tiene attiva solo la più recente per data di consegna e marca le altre come sostituite (stesso commento interno automatico del flusso live). Supporta `--dry-run` per simulare senza salvare.
