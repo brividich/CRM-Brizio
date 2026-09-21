@@ -55,6 +55,8 @@
 .dpi-timeline-body { font-size:13px; color:#374151; background:#f8fafc; border-radius:8px; padding:8px 12px; border:1px solid #e2e8f0; flex:1; }
 .dpi-timeline-meta { font-size:11px; color:#94a3b8; margin-top:4px; }
 .dpi-interno-badge { font-size:10px; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px; font-weight:700; margin-left:6px; }
+.dpi-sostituita-box { font-size:12px; font-weight:600; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; margin-bottom:12px; }
+.dpi-sostituita-box a { color:inherit; text-decoration:underline; }
 
 .dpi-consegna-box { background:#d1fae5; border:1px solid #6ee7b7; border-radius:12px; padding:14px 18px; }
 .dpi-consegna-box dt { font-size:11px; font-weight:700; color:#065f46; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
@@ -90,6 +92,7 @@ body.theme-dark .dpi-timeline-body { background:var(--surface-alt); border-color
 body.theme-dark .dpi-timeline-meta { color:var(--text-light); }
 body.theme-dark .dpi-timeline-dot.interno { background:#f59e0b; }
 body.theme-dark .dpi-interno-badge { background:rgba(146,64,14,.25); color:#fcd34d; }
+body.theme-dark .dpi-sostituita-box { background:rgba(146,64,14,.2); border-color:rgba(252,211,77,.3); color:#fcd34d; }
 body.theme-dark .dpi-consegna-box { background:rgba(6,95,70,.25); border-color:rgba(110,231,183,.3); }
 body.theme-dark .dpi-consegna-box dt, body.theme-dark .dpi-consegna-box dd { color:#6ee7b7; }
 body.theme-dark .dpi-semaforo-rosso { color:#fca5a5; }
@@ -175,6 +178,11 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
       {% if consegna %}
       <div class="dpi-card">
         <div style="font-size:15px; font-weight:700; color:#15803d; margin-bottom:12px;">Consegna registrata</div>
+        {% if consegna.sostituita_da %}
+        <div class="dpi-sostituita-box">
+          Sostituito il {{ consegna.data_sostituzione|date:"d-m-Y" }} da <a href="{% url 'dpi:gestione_detail' pk=consegna.sostituita_da.richiesta_id %}">{{ consegna.sostituita_da.richiesta.numero }}</a> — non più conteggiato come DPI in uso.
+        </div>
+        {% endif %}
         <dl class="dpi-consegna-box">
           <dt>Data</dt><dd>{{ consegna.data_consegna|date:"d-m-Y" }}</dd>
           <dt>DPI</dt><dd>{{ richiesta.categoria.nome }}{% if richiesta.tipo_dpi %} / {{ richiesta.tipo_dpi.nome }}{% endif %}{% if richiesta.modello_dpi %} / {{ richiesta.modello_dpi.nome }}{% endif %}{% if richiesta.taglia_dpi %} / {{ richiesta.taglia_dpi.valore }}{% endif %}</dd>

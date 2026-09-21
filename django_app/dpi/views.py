@@ -372,11 +372,13 @@ def dashboard(request):
         data_scadenza_stimata__lte=fra_30,
         data_scadenza_stimata__gte=oggi,
         richiesta__stato=StatoRichiesta.CONSEGNATA,
+        sostituita_da__isnull=True,
     ).count()
     n_scadute = ConsegnaDPI.objects.filter(
         data_scadenza_stimata__isnull=False,
         data_scadenza_stimata__lt=oggi,
         richiesta__stato=StatoRichiesta.CONSEGNATA,
+        sostituita_da__isnull=True,
     ).count()
 
     # Lista ultime richieste
@@ -832,6 +834,36 @@ def rifiuta_richiesta(request, pk: int):
     return redirect("dpi:gestione_detail", pk=pk)
 
 
+def _sostituisci_consegne_precedenti(request, richiesta: RichiestaDPI, consegna: ConsegnaDPI, data_consegna) -> None:
+    """Marca come sostituite le consegne attive dello stesso tipo DPI già in carico
+    allo stesso dipendente, così non contano più come "in uso" ma restano in storico."""
+    if not richiesta.richiedente_legacy_id:
+        return
+
+    precedenti = ConsegnaDPI.objects.filter(
+        richiesta__richiedente_legacy_id=richiesta.richiedente_legacy_id,
+        richiesta__categoria_id=richiesta.categoria_id,
+        richiesta__tipo_dpi_id=richiesta.tipo_dpi_id,
+        richiesta__stato=StatoRichiesta.CONSEGNATA,
+        sostituita_da__isnull=True,
+    ).exclude(richiesta_id=richiesta.pk).select_related("richiesta")
+
+    for vecchia in precedenti:
+        vecchia.sostituita_da = consegna
+        vecchia.data_sostituzione = data_consegna
+        vecchia.save(update_fields=["sostituita_da", "data_sostituzione"])
+        RichiestaDPICommento.objects.create(
+            richiesta=vecchia.richiesta,
+            autore_nome=request.user.get_full_name() or request.user.username,
+            testo=f"DPI sostituito dalla nuova consegna {richiesta.numero} del {data_consegna.strftime('%d-%m-%Y')}.",
+            is_interno=True,
+        )
+        log_action(
+            request, "modifica", "dpi",
+            f"DPI {vecchia.richiesta.numero} sostituito da {richiesta.numero}",
+        )
+
+
 @login_required
 @require_POST
 def consegna_richiesta(request, pk: int):
@@ -899,6 +931,8 @@ def consegna_richiesta(request, pk: int):
     richiesta.stato = StatoRichiesta.CONSEGNATA
     richiesta.save(update_fields=["stato", "updated_at"])
     log_action(request, "consegna", "dpi", f"Consegnato DPI {richiesta.numero} in data {data_consegna}")
+
+    _sostituisci_consegne_precedenti(request, richiesta, consegna, data_consegna)
 
     # Genera e archivia il PDF del modulo di consegna nello spazio documenti del
     # dipendente. Idempotente: se esiste già un documento per questa consegna
