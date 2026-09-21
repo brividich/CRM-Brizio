@@ -173,20 +173,20 @@ body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
 
       <div class="dpi-field">
         <label for="tipo_dpi_id">Tipo DPI</label>
-        <select name="tipo_dpi_id" id="tipo_dpi_id">
+        <select name="tipo_dpi_id" id="tipo_dpi_id" onchange="onTipoChange()">
           <option value="">Solo categoria</option>
           {% for tipo in tipi_attivi %}
-          <option value="{{ tipo.pk }}">{{ tipo.categoria.nome }} - {{ tipo.nome }}</option>
+          <option value="{{ tipo.pk }}" data-categoria="{{ tipo.categoria_id }}">{{ tipo.categoria.nome }} - {{ tipo.nome }}</option>
           {% endfor %}
         </select>
       </div>
 
       <div class="dpi-field">
         <label for="modello_dpi_id">Modello DPI</label>
-        <select name="modello_dpi_id" id="modello_dpi_id">
+        <select name="modello_dpi_id" id="modello_dpi_id" onchange="onModelloChange()">
           <option value="">Nessun modello specifico</option>
           {% for modello in modelli_attivi %}
-          <option value="{{ modello.pk }}">{{ modello.tipo.categoria.nome }} - {{ modello.tipo.nome }} - {{ modello.codice }} {{ modello.nome }}</option>
+          <option value="{{ modello.pk }}" data-categoria="{{ modello.tipo.categoria_id }}" data-tipo="{{ modello.tipo_id }}">{{ modello.tipo.categoria.nome }} - {{ modello.tipo.nome }} - {{ modello.codice }} {{ modello.nome }}</option>
           {% endfor %}
         </select>
       </div>
@@ -196,7 +196,7 @@ body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
         <select name="taglia_dpi_id" id="taglia_dpi_id">
           <option value="">Nessuna taglia specifica</option>
           {% for taglia in taglie_attive %}
-          <option value="{{ taglia.pk }}">{{ taglia.modello.codice }} {{ taglia.modello.nome }} - {{ taglia.valore }}</option>
+          <option value="{{ taglia.pk }}" data-categoria="{{ taglia.modello.tipo.categoria_id }}" data-modello="{{ taglia.modello_id }}">{{ taglia.modello.codice }} {{ taglia.modello.nome }} - {{ taglia.valore }}</option>
           {% endfor %}
         </select>
       </div>
@@ -230,6 +230,37 @@ function toggleFuoriProfilo(cb) {
     el.classList.toggle('dpi-cat-hidden', !cb.checked);
   });
 }
+function filterOptions(selectEl, filters) {
+  Array.from(selectEl.options).forEach(function(opt) {
+    if (!opt.value) return;
+    let hidden = false;
+    for (const attr in filters) {
+      const value = filters[attr];
+      if (value && opt.dataset[attr] !== value) { hidden = true; break; }
+    }
+    opt.hidden = hidden;
+  });
+  const current = selectEl.selectedOptions[0];
+  if (current && current.hidden) {
+    selectEl.value = '';
+  }
+}
+
+function refreshCascade() {
+  const categoriaId = document.getElementById('categoria_id').value;
+  const modelloSelect = document.getElementById('modello_dpi_id');
+  filterOptions(modelloSelect, { categoria: categoriaId, tipo: document.getElementById('tipo_dpi_id').value });
+  filterOptions(document.getElementById('taglia_dpi_id'), { categoria: categoriaId, modello: modelloSelect.value });
+}
+
+function onTipoChange() {
+  refreshCascade();
+}
+
+function onModelloChange() {
+  refreshCascade();
+}
+
 function selectDPI(el) {
   document.querySelectorAll('.dpi-cat-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
@@ -248,6 +279,9 @@ function selectDPI(el) {
   if (vita) {
     document.getElementById('selected-nome').textContent = nome + ' (vita utile: ' + vita + ' gg)';
   }
+
+  filterOptions(document.getElementById('tipo_dpi_id'), { categoria: id });
+  refreshCascade();
 }
 </script>
 {% endblock %}
