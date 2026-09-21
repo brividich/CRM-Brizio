@@ -106,6 +106,7 @@ from .models import (
     QualificaSessione,
     TipoQualifica,
     TipoVisitaMedica,
+    DipendenteVisitaFacoltativa,
     VisitaMedica,
     VoceRetributiva,
     _classify_pay_item,
@@ -16590,6 +16591,11 @@ def _build_conformita_panel_ctx(request, legacy_id: int) -> dict:
         .select_related("fattore")
     )
     _, is_admin = _ensure_admin(request)
+    visite_facoltative = list(
+        DipendenteVisitaFacoltativa.objects
+        .filter(legacy_anagrafica_id=legacy_id, is_active=True)
+        .select_related("tipo_visita")
+    ) if can_view_visite else []
     return {
         "legacy_id": legacy_id,
         "stato": stato,
@@ -16603,6 +16609,12 @@ def _build_conformita_panel_ctx(request, legacy_id: int) -> dict:
             list(FattoreRischio.objects.filter(is_active=True).order_by("nome"))
             if is_admin else []
         ),
+        "visite_facoltative": visite_facoltative,
+        "tipi_visita_disponibili": (
+            list(TipoVisitaMedica.objects.filter(is_active=True).order_by("nome"))
+            if is_admin and can_view_visite else []
+        ),
+        "mostra_pannello_visite_facoltative": can_view_visite and (visite_facoltative or is_admin),
     }
 
 
@@ -16642,6 +16654,53 @@ def dipendente_esposizione_rischio_remove(request, legacy_id: int, esp_id: int):
     from .models_rischi import EsposizioneRischio
     EsposizioneRischio.objects.filter(
         pk=esp_id, legacy_anagrafica_id=legacy_id
+    ).delete()
+    return render(
+        request, "anagrafica/partials/conformita_panel.html",
+        _build_conformita_panel_ctx(request, legacy_id),
+    )
+
+
+@login_required
+@require_POST
+def dipendente_visita_facoltativa_add(request, legacy_id: int):
+    """Assegna una visita medica facoltativa (non derivata da mansione/rischio)
+    direttamente a un dipendente (admin). Ri-renderizza il pannello conformità."""
+    _, is_admin = _ensure_admin(request)
+    if not is_admin:
+        return HttpResponse(status=403)
+    try:
+        tipo_visita = TipoVisitaMedica.objects.get(
+            pk=request.POST.get("tipo_visita_id"), is_active=True
+        )
+    except (TipoVisitaMedica.DoesNotExist, ValueError, TypeError):
+        return render(
+            request, "anagrafica/partials/conformita_panel.html",
+            _build_conformita_panel_ctx(request, legacy_id),
+        )
+    DipendenteVisitaFacoltativa.objects.get_or_create(
+        tipo_visita=tipo_visita, legacy_anagrafica_id=legacy_id,
+        defaults={
+            "note": (request.POST.get("note") or "").strip(),
+            "is_active": True,
+            "created_by": request.user,
+        },
+    )
+    return render(
+        request, "anagrafica/partials/conformita_panel.html",
+        _build_conformita_panel_ctx(request, legacy_id),
+    )
+
+
+@login_required
+@require_POST
+def dipendente_visita_facoltativa_remove(request, legacy_id: int, vf_id: int):
+    """Rimuove una visita facoltativa di un dipendente (admin). Ri-renderizza il pannello."""
+    _, is_admin = _ensure_admin(request)
+    if not is_admin:
+        return HttpResponse(status=403)
+    DipendenteVisitaFacoltativa.objects.filter(
+        pk=vf_id, legacy_anagrafica_id=legacy_id
     ).delete()
     return render(
         request, "anagrafica/partials/conformita_panel.html",
