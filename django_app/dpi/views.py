@@ -21,6 +21,7 @@ from core.audit import log_action
 from core.legacy_anagrafica import ensure_anagrafica_schema, fetch_anagrafica_rows
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.operational_roles import get_legacy_anagrafica_id
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from .acl_bootstrap import PERM_DPI_MANAGE
@@ -160,7 +161,7 @@ def _richiedente_info(request) -> dict:
     reparto = ""
     try:
         from core.legacy_models import AnagraficaDipendente
-        ad = AnagraficaDipendente.objects.filter(utente_id=request.user.id).first()
+        ad = AnagraficaDipendente.objects.filter(pk=get_legacy_anagrafica_id(request.user)).first()
         if ad:
             nome = f"{getattr(ad, 'nome', '') or ''} {getattr(ad, 'cognome', '') or ''}".strip()
             reparto = str(getattr(ad, "reparto", "") or "").strip()
@@ -173,14 +174,12 @@ def _richiedente_info(request) -> dict:
 
 
 def _legacy_id(request) -> int | None:
+    # `AnagraficaDipendente.utente_id` e' l'id di `utenti` (legacy), NON di `auth_user`:
+    # il ponte e' `profile.legacy_user_id`, mai `request.user.id` diretto.
     try:
-        from core.legacy_models import AnagraficaDipendente
-        ad = AnagraficaDipendente.objects.filter(utente_id=request.user.id).first()
-        if ad:
-            return int(ad.pk)
+        return get_legacy_anagrafica_id(request.user)
     except Exception:
-        pass
-    return None
+        return None
 
 
 def _own_richiesta_filter(request) -> Q:
