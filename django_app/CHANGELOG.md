@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Anagrafica — scheda della singola visita medica
+
+- Nuova pagina `/anagrafica/visite-mediche/<id>/` con riepilogo stampabile, referti collegati e form di modifica. Collegamenti dalle scadenze, dalle ultime visite e dallo storico dipendente; accesso con il gate sanitario della sezione e pulsante di eliminazione solo con permesso dedicato.
+
 ### Anagrafica — eliminazione motivata visite errate
 
 - La dashboard visite mediche e lo storico dipendente permettono di avviare la rimozione di una registrazione errata. La nota è obbligatoria; ACL `anagrafica.visite.delete` e audit atomico proteggono l'operazione. Le visite con referto restano protette.

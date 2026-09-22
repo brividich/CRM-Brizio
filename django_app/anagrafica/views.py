@@ -10646,14 +10646,14 @@ def dipendente_visita_add(request, legacy_id: int):
 def dipendente_visita_edit(request, legacy_id: int, v_id: int):
     if not _can_view_visite_mediche(request):
         messages.error(request, "Non hai i permessi per modificare le visite mediche.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        return redirect("anagrafica:visita_medica_dettaglio", v_id=v_id)
 
     visita = get_object_or_404(VisitaMedica, pk=v_id, legacy_anagrafica_id=legacy_id)
     form = VisitaMedicaForm(request.POST, request.FILES, instance=visita)
     if not form.is_valid():
         for err in form.errors.values():
             messages.error(request, "; ".join(err))
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        return redirect("anagrafica:visita_medica_dettaglio", v_id=v_id)
 
     visita = form.save(commit=False)
     visita.updated_by = request.user
@@ -10682,7 +10682,45 @@ def dipendente_visita_edit(request, legacy_id: int, v_id: int):
         logger.warning("Audit VISITA_MEDICA_MODIFICATA fallito", exc_info=True)
 
     messages.success(request, "Visita medica aggiornata.")
-    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    return redirect("anagrafica:visita_medica_dettaglio", v_id=v_id)
+
+
+@login_required
+def visita_medica_dettaglio(request, v_id: int):
+    """Scheda HTML della singola visita, con i medesimi gate della sezione sanitaria."""
+    if not _can_view_visite_mediche(request):
+        return HttpResponseForbidden("Non hai i permessi per visualizzare le visite mediche.")
+
+    visita = get_object_or_404(
+        VisitaMedica.objects.select_related(
+            "tipo", "sessione", "referto_documento", "referto_documento_secondario",
+            "created_by", "updated_by",
+        ),
+        pk=v_id,
+    )
+    completa_referti_visite([visita])
+    if visita.referto_documento_secondario_id and all(
+        documento.pk != visita.referto_documento_secondario_id
+        for documento in visita.referti_documenti
+    ):
+        visita.referti_documenti.append(visita.referto_documento_secondario)
+    dipendente_nome = f"Dipendente #{visita.legacy_anagrafica_id}"
+    try:
+        persona = AnagraficaDipendente.objects.filter(id=visita.legacy_anagrafica_id).values(
+            "nome", "cognome"
+        ).first()
+        if persona:
+            dipendente_nome = naming.nome_completo(
+                persona.get("nome"), persona.get("cognome")
+            ) or dipendente_nome
+    except Exception:
+        logger.exception("Errore lookup dipendente per visita %s", v_id)
+    return render(request, "anagrafica/pages/visita_medica_dettaglio.html", {
+        "visita": visita,
+        "dipendente_nome": dipendente_nome,
+        "form": VisitaMedicaForm(instance=visita),
+        "can_delete_visite": _has_canonical_grant(request, PERM_VISITE_DELETE),
+    })
 
 
 @login_required

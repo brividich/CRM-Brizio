@@ -234,7 +234,12 @@ class VisitaMedicaForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["tipo"].queryset = TipoVisitaMedica.objects.filter(is_active=True).order_by("nome")
+        tipi = TipoVisitaMedica.objects.filter(is_active=True)
+        if self.instance.pk and self.instance.tipo_id:
+            tipi = TipoVisitaMedica.objects.filter(
+                Q(is_active=True) | Q(pk=self.instance.tipo_id)
+            )
+        self.fields["tipo"].queryset = tipi.order_by("nome")
 
     def clean_data_svolgimento(self):
         data = self.cleaned_data.get("data_svolgimento")

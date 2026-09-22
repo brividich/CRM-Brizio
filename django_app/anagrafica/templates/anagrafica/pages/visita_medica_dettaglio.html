@@ -1,0 +1,82 @@
+{% extends "core/base.html" %}
+
+{% block title %}Visita medica {{ visita.pk }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+<style>
+.vm-report { max-width: 1000px; margin: 24px auto; padding: 0 16px 32px; color: var(--text, #172b4d); }
+.vm-report-header, .vm-report-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.vm-report-header { margin: 18px 0 22px; }
+.vm-report-header h1 { margin: 4px 0; font-size: 26px; }
+.vm-report-muted { color: var(--text-mid, #64748b); font-size: 13px; }
+.vm-report-card { background: var(--surface, #fff); border: 1px solid var(--border, #dbe3ed); border-radius: 14px; padding: 22px; margin-bottom: 18px; }
+.vm-report-card h2 { margin: 0 0 16px; font-size: 18px; }
+.vm-report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px 24px; }
+.vm-report-field dt { color: var(--text-mid, #64748b); font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
+.vm-report-field dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.vm-report-field-wide { grid-column: 1 / -1; }
+.vm-report-button { display: inline-block; border: 1px solid #a7bbce; border-radius: 8px; padding: 8px 13px; background: var(--surface, #fff); color: var(--text, #172b4d); text-decoration: none; font: inherit; font-weight: 700; cursor: pointer; }
+.vm-report-button-primary { background: #0c2545; color: #fff; border-color: #0c2545; }
+.vm-report-button-danger { color: #b91c1c; border-color: #fca5a5; }
+.vm-report-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 15px; }
+.vm-report-form label { display: block; font-weight: 700; margin-bottom: 5px; }
+.vm-report-form input, .vm-report-form select, .vm-report-form textarea { width: 100%; box-sizing: border-box; padding: 9px; border: 1px solid #94a3b8; border-radius: 7px; background: var(--surface, #fff); color: var(--text, #172b4d); }
+.vm-report-form .helptext { color: var(--text-mid, #64748b); font-size: 12px; }
+@media print { .vm-report-actions, .vm-report-edit, nav, header, footer { display: none !important; } .vm-report { max-width: none; margin: 0; padding: 0; } .vm-report-card { break-inside: avoid; border-color: #bbb; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<main class="vm-report">
+  <div class="vm-report-actions">
+    <a href="{% url 'anagrafica:visite_mediche_dashboard' %}">← Visite mediche</a>
+    <div>
+      <button type="button" class="vm-report-button" onclick="window.print()">Stampa scheda</button>
+      {% if can_delete_visite %}<a class="vm-report-button vm-report-button-danger" href="{% url 'anagrafica:visita_medica_elimina' visita.pk %}">Elimina visita errata</a>{% endif %}
+    </div>
+  </div>
+  <div class="vm-report-header">
+    <div>
+      <div class="vm-report-muted">Scheda visita medica · Registrazione #{{ visita.pk }}</div>
+      <h1>{{ visita.tipo.nome }}</h1>
+      <a href="{% url 'anagrafica:dipendente_detail' visita.legacy_anagrafica_id %}#visite-mediche">{{ dipendente_nome }}</a>
+    </div>
+    <div class="vm-report-muted">Registrata il {{ visita.created_at|date:"d/m/Y H:i" }}{% if visita.created_by %} da {{ visita.created_by.get_full_name|default:visita.created_by.username }}{% endif %}</div>
+  </div>
+
+  <section class="vm-report-card" aria-labelledby="vm-dati">
+    <h2 id="vm-dati">Dati della visita</h2>
+    <dl class="vm-report-grid">
+      <div class="vm-report-field"><dt>Data visita</dt><dd>{{ visita.data_svolgimento|date:"d/m/Y" }}</dd></div>
+      <div class="vm-report-field"><dt>Scadenza</dt><dd>{{ visita.data_scadenza|date:"d/m/Y"|default:"Nessuna scadenza" }}{% if visita.is_scaduta %} · Scaduta{% elif visita.in_scadenza %} · In scadenza{% endif %}</dd></div>
+      <div class="vm-report-field"><dt>Esito</dt><dd>{{ visita.get_esito_display }}</dd></div>
+      <div class="vm-report-field"><dt>Medico competente</dt><dd>{{ visita.medico_competente|default:"—" }}</dd></div>
+      <div class="vm-report-field vm-report-field-wide"><dt>Prescrizioni</dt><dd>{{ visita.prescrizioni|default:"—" }}</dd></div>
+      <div class="vm-report-field vm-report-field-wide"><dt>Note</dt><dd>{{ visita.note|default:"—" }}</dd></div>
+      {% if visita.sessione_id %}<div class="vm-report-field"><dt>Sessione</dt><dd><a href="{% url 'anagrafica:visite_mediche_sessione_detail' visita.sessione_id %}">Apri sessione #{{ visita.sessione_id }}</a></dd></div>{% endif %}
+      <div class="vm-report-field"><dt>Ultimo aggiornamento</dt><dd>{{ visita.updated_at|date:"d/m/Y H:i" }}{% if visita.updated_by %} · {{ visita.updated_by.get_full_name|default:visita.updated_by.username }}{% endif %}</dd></div>
+    </dl>
+  </section>
+
+  <section class="vm-report-card" aria-labelledby="vm-referti">
+    <h2 id="vm-referti">Referti collegati</h2>
+    {% if visita.referti_documenti %}
+      <ul>{% for documento in visita.referti_documenti %}<li><a href="{% url 'anagrafica:documento_download' documento.pk %}">Apri referto {{ forloop.counter }}</a></li>{% endfor %}</ul>
+    {% else %}<p class="vm-report-muted">Nessun referto collegato.</p>{% endif %}
+  </section>
+
+  <section class="vm-report-card vm-report-edit" aria-labelledby="vm-modifica">
+    <h2 id="vm-modifica">Modifica visita</h2>
+    <p class="vm-report-muted">La scadenza viene ricalcolata dal tipo e dalla data della visita. Un nuovo referto sostituisce quello principale.</p>
+    <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:dipendente_visita_edit' visita.legacy_anagrafica_id visita.pk %}">
+      {% csrf_token %}
+      <div class="vm-report-form">
+        {% for field in form %}<div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}
+      </div>
+      <button type="submit" class="vm-report-button vm-report-button-primary" style="margin-top:18px;">Salva modifiche</button>
+    </form>
+  </section>
+</main>
+{% endblock %}
