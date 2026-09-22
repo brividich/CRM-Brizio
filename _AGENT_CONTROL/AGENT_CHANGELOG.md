@@ -6,9 +6,9 @@
 - Richiesta: portare la modifica su `origin/main` e `origin/release/prod`; esclusi altri branch applicativi.
 - File integrati: i 14 file del commit sorgente `2fd4c294`; conflitti in `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md` e `session_checkpoint.md` risolti conservando anche le voci ACL per sottomodulo gia presenti su main. In questa fase si aggiornano `_AGENT_CONTROL/AGENT_CHANGELOG.md` e `session_checkpoint.md`.
 - File critico integrato: `django_app/anagrafica/acl_bootstrap.py` (ACL). Motivo tecnico: l'eliminazione delle visite errate richiede un permesso distinto dalla consultazione. Modifica: `anagrafica.visite.delete`, grant iniziale admin, binding della nuova rotta e cache bootstrap v14. Impatto: permesso configurabile in ACL canonico; nessuna modifica a middleware, autenticazione o ACL globale. Rischio residuo: i ruoli non admin vanno abilitati esplicitamente.
-- Test/check: 8 test mirati verdi sul commit sorgente; Django check e py_compile verdi sul risultato integrato; controlli Git di tree, diff e ascendenza previsti prima del push.
+- Test/check: 8 test mirati verdi sul commit sorgente e sul risultato integrato; Django check e py_compile verdi; tree di main e release/prod identici, ascendenza e push fast-forward verificati con `git ls-remote`.
 - Backup creati: nessuno. README aggiornato: gia nel commit sorgente. CHANGELOG aggiornato: gia nel commit sorgente, con risoluzione del conflitto. AGENT_CHANGELOG aggiornato: si.
-- Esito: integrazione preparata nel branch `merge/visite-rimozione-main-20260922`; nessun DB DEV/PROD o deploy server eseguito.
+- Esito: pubblicati su `origin/main` (commit `65fe9fea`) e `origin/release/prod` (merge `702f6156`); nessun DB DEV/PROD o deploy server eseguito.
 - Note per altro agente/Brizio: dopo la distribuzione verificare in TEST un ruolo con grant e la cancellazione di una visita senza referto con motivazione; la feature resta non operativa sul server fino al nuovo pacchetto.
 
 ## 2026-09-22 - Codex (rimozione motivata visite mediche errate)
