@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Added
+
+- **Accessi ACL per sottomodulo** (`django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, `django_app/admin_portale/test_accessi_unificati.py`). Nei moduli, i permessi amministrativi e operativi sono ora raccolti per sottomodulo apribile, con conteggi, ricerca e selezione locale. La classificazione usa i codici ACL esistenti; grant e salvataggio restano per singolo permesso. Aggiornati `README.md` e `docs/ai/05_SECURITY_BOUNDARIES.md`.
+
 ### Fixed
 
 - **ACL / upgrade release: permessi configurati conservati** (`django_app/core/management/commands/bootstrap_acl_v2.py`, `django_app/core/test_bootstrap_acl_v2_command.py`, `deployment/setup_wizard.py`). Il bootstrap v2 importa dal legacy solo grant e binding mancanti, senza sovrascrivere quelli esistenti o riattivare binding disabilitati. `--dry-run --import-legacy` non scrive piu nel database. Promuovi Release su TEST/PROD esegue il bootstrap delle sole route mancanti: non reimporta i grant legacy e non lancia `seed_acl_uat --reset` su TEST. L'installazione iniziale mantiene il seed UAT opzionale.

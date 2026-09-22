@@ -222,6 +222,18 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
   background: var(--acl-steel); margin-right: 6px; vertical-align: 1px;
 }
 .acl-bulk--group { background: transparent; }
+.acl-submodule { border-top: 1px solid var(--hub-color-border, #d7e0ea); }
+.acl-submodule__head {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  padding: 9px var(--hub-space-4, 16px);
+  color: var(--hub-color-text, #1a202c); font-size: var(--hub-font-xs, 12px);
+  background: var(--hub-color-surface-raised, #fbfdff);
+}
+.acl-submodule__head b { font-weight: 700; }
+.acl-submodule__head .acl-bulk__count { margin-left: auto; }
+.acl-submodule__actions { padding-left: var(--hub-space-4, 16px); }
+.acl-submodule__actions .acl-bulk { background: transparent; justify-content: flex-end; }
+.acl-submodule[hidden] { display: none; }
 /* Il navy della configurazione sparisce sul fondo scuro: in tema scuro il
    marcatore schiarisce, restando riconoscibile come "lo stesso blu". */
 body.theme-dark .acl-group--configurazione .acl-group__name::before { background: #7aa2d6; }
@@ -454,7 +466,7 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
     </div>
 
     <div class="acl-filter">
-      <input class="input" type="search" id="perm-search" placeholder="Filtra per permesso, codice o modulo" aria-label="Filtra i permessi">
+      <input class="input" type="search" id="perm-search" placeholder="Filtra per permesso, codice, modulo o sottomodulo" aria-label="Filtra i permessi">
       <button type="button" class="btn btn-secondary btn-sm" id="btn-expand-all">Apri tutti</button>
       <button type="button" class="btn btn-secondary btn-sm" id="btn-collapse-all">Chiudi tutti</button>
     </div>
@@ -500,9 +512,21 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
             <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}">Spegni</button>
             <span class="acl-bulk__count acl-group__score">{{ grp.active_count }}/{{ grp.total_count }}</span>
           </div>
+          {% for sub in grp.submodules %}
+          <details class="acl-submodule" data-sottomodulo="{{ sub.key }}" data-sub-label="{{ sub.label|lower }}">
+            <summary class="acl-submodule__head">
+              <b>{{ sub.label }}</b>
+              <span class="acl-bulk__count acl-submodule__score">{{ sub.active_count }}/{{ sub.total_count }}</span>
+            </summary>
+            <div class="acl-submodule__actions">
+              <div class="acl-bulk">
+                <button type="button" class="btn btn-secondary btn-sm acl-bulk-on" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}" data-sottomodulo="{{ sub.key }}">Accendi sottomodulo</button>
+                <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}" data-sottomodulo="{{ sub.key }}">Spegni sottomodulo</button>
+              </div>
+            </div>
           <table class="acl-grid" data-fm-table-skip="1">
             <tbody>
-              {% for perm in grp.permissions %}
+              {% for perm in sub.permissions %}
               <tr data-search="{{ perm.code }} {{ perm.label|lower }}">
                 <td>
                   <div class="acl-perm">{{ perm.label }}</div>
@@ -520,7 +544,7 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
                 <td class="is-switch">
                   <label class="acl-switch">
                     <input type="checkbox" class="acl-check" name="granted" value="{{ perm.code }}"
-                           data-modulo="{{ mod.modulo }}" data-natura="{{ perm.nature }}"
+                           data-modulo="{{ mod.modulo }}" data-natura="{{ perm.nature }}" data-sottomodulo="{{ perm.submodule }}"
                            data-capacita="{{ perm.capability }}" {% if perm.enabled %}checked{% endif %}
                            aria-label="{{ perm.label }}">
                     <span></span>
@@ -530,6 +554,8 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
               {% endfor %}
             </tbody>
           </table>
+          </details>
+          {% endfor %}
         </div>
         {% endfor %}
       </div>
@@ -570,9 +596,10 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
   function bodyFor(head) { return document.getElementById(head.dataset.target); }
   // Senza natura si prende tutto il modulo; con natura solo lo scomparto
   // (configurazione o operativo), che e' cio' su cui agiscono i suoi pulsanti.
-  function boxes(modulo, natura) {
+  function boxes(modulo, natura, sottomodulo) {
     var sel = '.acl-check[data-modulo="' + modulo + '"]';
     if (natura) { sel += '[data-natura="' + natura + '"]'; }
+    if (sottomodulo) { sel += '[data-sottomodulo="' + sottomodulo + '"]'; }
     return form.querySelectorAll(sel);
   }
 
@@ -629,6 +656,7 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
       head.classList.toggle('is-open', open);
       body.classList.toggle('is-open', open);
     });
+    document.querySelectorAll('.acl-submodule').forEach(function (sub) { sub.open = open; });
   }
   document.getElementById('btn-expand-all').addEventListener('click', function () { setOpen(true); });
   document.getElementById('btn-collapse-all').addEventListener('click', function () { setOpen(false); });
@@ -666,6 +694,13 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
         rows.forEach(function (cb) { if (cb.checked) { lit += 1; } });
         var groupScore = group.querySelector('.acl-group__score');
         if (groupScore) { groupScore.textContent = lit + '/' + rows.length; }
+        group.querySelectorAll('.acl-submodule').forEach(function (sub) {
+          var subset = boxes(modulo, group.dataset.natura, sub.dataset.sottomodulo);
+          var subOn = 0;
+          subset.forEach(function (cb) { if (cb.checked) { subOn += 1; } });
+          var subScore = sub.querySelector('.acl-submodule__score');
+          if (subScore) { subScore.textContent = subOn + '/' + subset.length; }
+        });
       });
     }
   }
@@ -684,7 +719,7 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
   form.querySelectorAll('.acl-bulk-on, .acl-bulk-off').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var on = btn.classList.contains('acl-bulk-on');
-      boxes(btn.dataset.modulo, btn.dataset.natura).forEach(function (cb) { cb.checked = on; });
+      boxes(btn.dataset.modulo, btn.dataset.natura, btn.dataset.sottomodulo).forEach(function (cb) { cb.checked = on; });
       refresh(btn.dataset.modulo);
       markPending();
     });
@@ -729,8 +764,10 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
       document.querySelectorAll('.acl-bank').forEach(function (bank) {
         var visible = 0;
         bank.querySelectorAll('tbody tr').forEach(function (row) {
+          var sub = row.closest('.acl-submodule');
           var hit = !needle || (row.dataset.search || '').indexOf(needle) !== -1
-                    || (bank.dataset.modulo || '').indexOf(needle) !== -1;
+                    || (bank.dataset.modulo || '').indexOf(needle) !== -1
+                    || (sub && (sub.dataset.subLabel || '').indexOf(needle) !== -1);
           row.hidden = !hit;
           if (hit) { visible += 1; }
         });
@@ -740,6 +777,12 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
           var alive = 0;
           group.querySelectorAll('tbody tr').forEach(function (row) { if (!row.hidden) { alive += 1; } });
           group.hidden = needle !== '' && alive === 0;
+          group.querySelectorAll('.acl-submodule').forEach(function (sub) {
+            var subAlive = 0;
+            sub.querySelectorAll('tbody tr').forEach(function (row) { if (!row.hidden) { subAlive += 1; } });
+            sub.hidden = needle !== '' && subAlive === 0;
+            if (needle && subAlive) { sub.open = true; }
+          });
         });
         bank.hidden = needle !== '' && visible === 0;
         if (needle !== '' && visible > 0) {

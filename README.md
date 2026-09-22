@@ -901,6 +901,12 @@ divisione di *presentazione* (`core.permission_taxonomy.nature_for_code`): non
 nasconde nulla, non cambia i totali e non sposta di un millimetro la decisione
 ACL, che resta in `core.acl_v2`.
 
+Dentro ciascuno scomparto, i permessi sono raccolti per **sottomodulo**
+(risorsa del codice canonico o prefisso della view legacy). Ogni sottomodulo si
+apre separatamente, mostra i propri conteggi e ha comandi Accendi/Spegni locali.
+Il filtro cerca anche il nome del sottomodulo; ogni permesso resta modificabile
+singolarmente e viene salvato con il pulsante finale.
+
 **Livelli d'accesso preimpostati**: ogni modulo ha un selettore *Livello* (e ce
 n'e' uno «su tutti i moduli») che accende in un colpo l'insieme di permessi
 corrispondente — **Nessun accesso**, **Solo lettura**, **Lettura e modifica**,

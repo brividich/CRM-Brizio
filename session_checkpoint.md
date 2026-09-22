@@ -1,5 +1,13 @@
 # Session Checkpoint
 
+Data: 2026-09-22 (Accessi ACL per sottomodulo)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-22 - Codex (Accessi ACL per sottomodulo)`.
+- Accessi: dentro ogni modulo e scomparto amministrativo/operativo, sottomoduli apribili con conteggi e selezione locale; grant canonici individuali invariati.
+- Verifica: test mirati Accessi, Django check, sintassi JavaScript e diff check; nessun DB DEV/PROD toccato.
+
 Data: 2026-09-22 (integrazione Git ACL)
 
 Ultime voci viste/aggiunte in questa sessione:
