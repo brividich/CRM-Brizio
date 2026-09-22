@@ -1,5 +1,13 @@
 # Session Checkpoint
 
+Data: 2026-09-22 (integrazione Accessi ACL per sottomodulo)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-22 - Codex (integrazione Accessi ACL per sottomodulo)`.
+- Commit `b8d16c72` della divisione ACL per sottomodulo integrato su `main` e `release/prod`, senza altri branch.
+- Verifica: 15 test Accessi del commit sorgente verdi; identita' dei tree, Django check, sintassi JS, py_compile, diff e ascendenza controllati; nessun DB DEV/PROD toccato.
+
 Data: 2026-09-22 (Accessi ACL per sottomodulo)
 
 Ultime voci viste/aggiunte in questa sessione:
