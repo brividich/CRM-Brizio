@@ -2427,7 +2427,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Esito</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Referto</th>
-              {% if is_admin %}<th style="text-align:right;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>{% endif %}
+              {% if can_delete_visite %}<th style="text-align:right;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Azioni</th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -2449,12 +2449,9 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                   <a href="{% url 'anagrafica:documento_download' v.referto_documento_secondario_id %}" style="color:#1f87cd;font-weight:600;">📄 Apri (2)</a>
                 {% endif %}
               </td>
-              {% if is_admin %}
+              {% if can_delete_visite %}
               <td style="padding:7px 8px;text-align:right;">
-                <form method="post" action="{% url 'anagrafica:dipendente_visita_delete' legacy_id v.id %}" style="display:inline;">
-                  {% csrf_token %}
-                  <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Eliminare la visita del {{ v.data_svolgimento|date:"d-m-Y" }}?')">🗑</button>
-                </form>
+                <a href="{% url 'anagrafica:visita_medica_elimina' v.id %}" class="dp-btn dp-btn-danger dp-btn-xs" title="Elimina visita con motivazione">🗑</a>
               </td>
               {% endif %}
             </tr>

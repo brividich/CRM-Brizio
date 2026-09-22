@@ -124,6 +124,7 @@ urlpatterns = [
 
     # Dashboard globale visite mediche
     path("visite-mediche/", views.visite_mediche_dashboard, name="visite_mediche_dashboard"),
+    path("visite-mediche/<int:v_id>/elimina/", views.visita_medica_elimina, name="visita_medica_elimina"),
     path("visite-mediche/nuova-sessione/", views.visite_mediche_nuova_sessione, name="visite_mediche_nuova_sessione"),
     path("visite-mediche/export/scadenze.xlsx", views.visite_mediche_export_scadenze, name="visite_mediche_export_scadenze"),
     path("visite-mediche/export/copertura.xlsx", views.visite_mediche_export_copertura, name="visite_mediche_export_copertura"),

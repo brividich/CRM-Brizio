@@ -34,7 +34,8 @@ logger = logging.getLogger(__name__)
 # Bump alla v13: permesso canonico dei documenti nelle cartelle riservate
 #   (PERM_DOCUMENTI_RISERVATI). La cache vive nel DB e sopravvive ai deploy: senza
 #   chiave nuova un ambiente già a v12 non registrerebbe il permesso.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v13"
+# Bump alla v14: permesso e binding della rimozione motivata visite mediche.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v14"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -202,13 +203,15 @@ _EXPORT_ROUTE_BINDINGS = {
 # non governava affatto queste sezioni. Qui si registrano i permessi canonici che
 # rendono quelle sezioni concedibili da /admin-portale/acl-canonico/.
 #
-# NOTA DELIBERATA — nessun RoutePermissionBinding:
+# NOTA DELIBERATA — nessun RoutePermissionBinding per i permessi di sezione:
 # questi permessi affiancano i cancelli in-view, non spostano l'enforcement sul
 # middleware. Un binding di route, con ACL_STRICT_CANONICAL=True, farebbe NEGARE
 # le route a tutti i ruoli senza grant esplicito: una regressione di accesso.
 # Il gate resta dentro la view (vedi anagrafica/views.py) e resta ADDITIVO.
+# La sola azione di eliminazione ha un binding dedicato e un gate in-view.
 PERM_HR_VIEW = "anagrafica.hr.view"
 PERM_VISITE_VIEW = "anagrafica.visite.view"
+PERM_VISITE_DELETE = "anagrafica.visite.delete"
 PERM_FORMAZIONE_VIEW = "anagrafica.formazione.view"
 PERM_FORMAZIONE_MANAGE = "anagrafica.formazione.manage"
 PERM_SCHEDA_MANAGE = "anagrafica.scheda.manage"
@@ -230,6 +233,10 @@ _SEZIONI_CANONICAL = {
             "Visite mediche e idoneita' (dato sanitario). Concedere solo ai ruoli "
             "autorizzati al trattamento dei dati sanitari."
         ),
+    },
+    PERM_VISITE_DELETE: {
+        "label": "Anagrafica - Elimina visite mediche",
+        "description": "Rimozione motivata di visite mediche errate, con audit obbligatorio.",
     },
     PERM_FORMAZIONE_VIEW: {
         "label": "Anagrafica - Formazione (visualizza)",
@@ -269,7 +276,7 @@ _SEZIONI_CANONICAL = {
 # e sanitari non si concedono per default.
 _SEZIONI_ROLE_GRANTS = {
     "admin": {
-        PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_FORMAZIONE_VIEW,
+        PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_VISITE_DELETE, PERM_FORMAZIONE_VIEW,
         PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE, PERM_STATISTICHE_VIEW,
         PERM_DOCUMENTI_RISERVATI,
     },
@@ -283,7 +290,7 @@ def _norm(value: str) -> str:
 def _bootstrap_sezioni_canonical() -> bool:
     """Registra i permessi canonici delle sezioni riservate + grant di default."""
     from core.legacy_models import Ruolo
-    from core.models import PermissionDefinition, RolePermissionGrant
+    from core.models import PermissionDefinition, RolePermissionGrant, RoutePermissionBinding
 
     changed = False
     with transaction.atomic():
@@ -294,6 +301,17 @@ def _bootstrap_sezioni_canonical() -> bool:
                           "description": payload["description"], "is_active": True},
             )
             changed = changed or created
+
+        _, created = RoutePermissionBinding.objects.get_or_create(
+            route_name="anagrafica:visita_medica_elimina", path_pattern="",
+            defaults={
+                "match_strategy": RoutePermissionBinding.MATCH_EXACT,
+                "permission_id": PERM_VISITE_DELETE, "source_app": MODULE,
+                "note": "[VISITE_BOOTSTRAP] rimozione motivata visita",
+                "priority": 80, "is_active": True,
+            },
+        )
+        changed = changed or created
 
         roles = {int(r.id): _norm(r.nome) for r in Ruolo.objects.all()}
         for rid, rname in roles.items():

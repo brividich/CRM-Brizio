@@ -1013,17 +1013,24 @@ controllo resta dentro la view. È deliberato — con `ACL_STRICT_CANONICAL=True
 binding di route negherebbe l'intera pagina a chi non ha il grant, invece di
 limitarsi a nascondere la sezione.
 
-Permessi di sezione dell'anagrafica:
+Permessi canonici dell'anagrafica:
 
 | Permission code | Cosa apre |
 |---|---|
 | `anagrafica.hr.view` | Dati HR riservati (IBAN, codice fiscale, contratti, retribuzioni) |
 | `anagrafica.visite.view` | Visite mediche e idoneità (dato sanitario) |
+| `anagrafica.visite.delete` | Elimina una visita errata con motivazione obbligatoria e audit |
 | `anagrafica.formazione.view` / `.manage` | Formazione: consultazione / gestione catalogo |
 | `anagrafica.scheda.manage` | Sezioni di gestione della scheda dipendente e cataloghi anagrafica |
 | `anagrafica.statistiche.view` | Widget statistiche della scheda dipendente (ticket, anomalie, assenze, DPI) |
 
-Sono **additivi**: superuser e admin legacy passano come prima, e i grant nascono
+Nella dashboard `/anagrafica/visite-mediche/`, la colonna "Azioni" appare solo con
+`anagrafica.visite.delete`. La conferma richiede una nota (massimo 1000 caratteri);
+audit e cancellazione sono atomici. Le visite con referti collegati sono protette.
+La rotta di eliminazione ha un binding ACL dedicato; i grant non admin sono spenti
+per default e si assegnano in `/admin-portale/acl-canonico/`.
+
+I permessi di sezione sono **additivi**: superuser e admin legacy passano come prima, e i grant nascono
 spenti per tutti gli altri ruoli — dati personali e sanitari si concedono
 esplicitamente, mai per default.
 

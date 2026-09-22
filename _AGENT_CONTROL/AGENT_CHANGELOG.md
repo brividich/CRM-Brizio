@@ -1,5 +1,18 @@
 # Agent Changelog
 
+## 2026-09-22 - Codex (rimozione motivata visite mediche errate)
+
+- Area: `django_app/anagrafica`.
+- Richiesta: eliminare dalla dashboard visite i record creati da un import errato, con permesso ACL, motivo obbligatorio e log.
+- File modificati: `django_app/anagrafica/acl_bootstrap.py`, `urls.py`, `views.py`, `templates/anagrafica/pages/visite_mediche_dashboard.html`, `dipendente_detail.html`, nuovo `visita_medica_elimina.html`, `tests_visite_eliminazione.py`, `tests_acl_sezioni_canoniche.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/05_SECURITY_BOUNDARIES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critico modificato: `django_app/anagrafica/acl_bootstrap.py` (ACL). Motivo tecnico: una rimozione di dati sanitari richiede permesso distinto dalla consultazione. Modifica: definizione `anagrafica.visite.delete`, grant predefinito solo al ruolo admin, binding della nuova rotta e bump cache bootstrap v14. Impatto: il permesso e' amministrabile in ACL canonico senza estendere il permesso di visualizzazione; nessun middleware o ACL globale modificato. Rischio residuo: il grant deve essere assegnato esplicitamente ai ruoli non admin che ne hanno bisogno.
+- Comportamento: nuova conferma per singola visita con nota obbligatoria (massimo 1000 caratteri); audit e cancellazione nella stessa transazione, con rollback se l'audit fallisce. Le visite con referto collegato sono protette. Il vecchio endpoint di cancellazione reindirizza alla conferma.
+- Backup creati: nessuno; nessun DB DEV/PROD modificato. README aggiornato: si. CHANGELOG aggiornato: si (root e Django). AGENT_CHANGELOG aggiornato: si.
+- Test/check: 8 test mirati verdi (cancellazione, referto, audit, compatibilita', dashboard e grant/binding ACL); `manage.py check --settings=config.settings.test`, `py_compile` e `git diff --check` verdi.
+- Esito: implementazione preparata nel worktree `temp/codex-visite-rimozione`, branch `feature/anagrafica-visite-rimozione`; non distribuita.
+- Rischi residui: eliminando una visita corrente, una visita precedente dello stesso dipendente/tipo puo' tornare corrente e apparire nello scadenzario; i record con referto richiedono correzione separata.
+- Note per altro agente/Brizio: verificare in TEST il ruolo che riceve `anagrafica.visite.delete` e una cancellazione con motivazione prima del deploy.
+
 ## 2026-09-22 - Codex (integrazione Accessi ACL per sottomodulo)
 
 - Area: integrazione Git di `feature/acl-accessi-sottomoduli` su `main` e `release/prod`.

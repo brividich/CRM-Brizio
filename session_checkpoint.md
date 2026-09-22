@@ -1,5 +1,13 @@
 # Session Checkpoint
 
+Data: 2026-09-22 (rimozione motivata visite mediche errate)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-22 - Codex (rimozione motivata visite mediche errate)`.
+- `CHANGELOG.md` -> `[Unreleased] / Added`, rimozione visita con ACL, nota obbligatoria e audit atomico.
+- Worktree `temp/codex-visite-rimozione`, branch `feature/anagrafica-visite-rimozione`; nessun DB DEV/PROD o file privato modificato.
+
 Data: 2026-09-22 (integrazione Accessi ACL per sottomodulo)
 
 Ultime voci viste/aggiunte in questa sessione:
