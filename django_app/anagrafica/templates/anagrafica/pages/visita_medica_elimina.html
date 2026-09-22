@@ -1,25 +1,39 @@
 {% extends "core/base.html" %}
 
 {% block title %}Elimina visita medica | Anagrafica HR{% endblock %}
+{% block extra_head %}{% include "anagrafica/components/_hr_restyle.html" %}{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<div style="max-width:620px;margin:24px auto;padding:24px;background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:14px;">
-  <h1 style="font-size:22px;margin:0 0 12px;">Elimina visita medica errata</h1>
-  <p>La registrazione e la sua scadenza verranno rimosse. La motivazione resterà nel registro audit. Se esiste una visita precedente dello stesso tipo, la sua scadenza potrà tornare visibile.</p>
-  <dl>
-    <dt>Dipendente</dt><dd><a href="{% url 'anagrafica:dipendente_detail' visita.legacy_anagrafica_id %}">Scheda dipendente #{{ visita.legacy_anagrafica_id }}</a></dd>
-    <dt>Tipo</dt><dd>{{ visita.tipo.nome }}</dd>
-    <dt>Data visita</dt><dd>{{ visita.data_svolgimento|date:"d-m-Y" }}</dd>
-    <dt>Scadenza</dt><dd>{{ visita.data_scadenza|date:"d-m-Y"|default:"Nessuna" }}</dd>
-  </dl>
-  <form method="post">
-    {% csrf_token %}
-    <label for="motivo" style="display:block;font-weight:700;margin-bottom:6px;">Motivo dell'eliminazione *</label>
-    <textarea id="motivo" name="motivo" required maxlength="1000" rows="4" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #94a3b8;border-radius:8px;">{{ motivo }}</textarea>
-    <div style="display:flex;gap:12px;align-items:center;margin-top:16px;">
-      <button type="submit" style="background:#b91c1c;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer;">Elimina visita</button>
-      <a href="{% url 'anagrafica:visite_mediche_dashboard' %}">Annulla</a>
+<div class="hr-shell" style="max-width:760px;margin:20px auto;">
+  <div class="hr-pagehead">
+    <div>
+      <div class="hr-pagehead-eyebrow">Anagrafica HR · Sorveglianza sanitaria</div>
+      <h1 class="hr-pagehead-title">Elimina visita medica errata</h1>
+      <p class="hr-pagehead-desc">La registrazione e la scadenza saranno rimosse. La motivazione resterà nel registro audit.</p>
     </div>
-  </form>
+  </div>
+  <section class="hr-card">
+    <div class="hr-card-head"><div class="hr-card-title">Visita da eliminare</div></div>
+    <div class="hr-card-pad" style="padding:18px;">
+      <dl style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:0 0 16px;">
+        <div><dt style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;">Dipendente</dt><dd style="margin:4px 0 0;"><a href="{% url 'anagrafica:dipendente_detail' visita.legacy_anagrafica_id %}">Scheda dipendente #{{ visita.legacy_anagrafica_id }}</a></dd></div>
+        <div><dt style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;">Tipo</dt><dd style="margin:4px 0 0;">{{ visita.tipo.nome }}</dd></div>
+        <div><dt style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;">Data visita</dt><dd style="margin:4px 0 0;">{{ visita.data_svolgimento|date:"d-m-Y" }}</dd></div>
+        <div><dt style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;">Scadenza</dt><dd style="margin:4px 0 0;">{{ visita.data_scadenza|date:"d-m-Y"|default:"Nessuna" }}</dd></div>
+      </dl>
+      {% if referti_count %}<p class="hr-pill warning" style="white-space:normal;line-height:1.5;">{% if referti_count == 1 %}1 referto collegato: resterà nel fascicolo del dipendente, scollegato da questa visita.{% else %}{{ referti_count }} referti collegati: resteranno nel fascicolo del dipendente, scollegati da questa visita.{% endif %}</p>{% endif %}
+      <p style="font-size:13px;color:#64748b;">Se esiste una visita precedente dello stesso tipo, la sua scadenza potrà tornare visibile.</p>
+      <form method="post">
+        {% csrf_token %}
+        <label for="motivo" style="display:block;font-size:13px;font-weight:700;margin-bottom:6px;">Motivo dell'eliminazione *</label>
+        <textarea id="motivo" name="motivo" required maxlength="1000" rows="4" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #94a3b8;border-radius:9px;background:var(--surface,#fff);color:var(--text,#0f172a);">{{ motivo }}</textarea>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px;">
+          <button type="submit" class="hr-btn hr-btn-danger">Elimina visita</button>
+          <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:visita_medica_dettaglio' visita.pk %}">Annulla</a>
+        </div>
+      </form>
+    </div>
+  </section>
 </div>
 {% endblock %}

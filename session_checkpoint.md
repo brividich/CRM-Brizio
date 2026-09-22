@@ -1,5 +1,15 @@
 # Session Checkpoint
 
+Data: 2026-09-22 (stile scheda visita e rimozione con referti)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-22 - Codex (stile scheda visita e rimozione con referti)`.
+- `CHANGELOG.md`, `django_app/CHANGELOG.md`, `README.md`, `docs/ai/05_SECURITY_BOUNDARIES.md` -> scheda allineata al portale e cancellazione motivata con referti conservati.
+- Worktree `temp/codex-visita-stile`, branch `feature/anagrafica-visita-stile`; nessun DB DEV/PROD toccato.
+- Verifica: 11 test mirati, Django check, compilazione template, py_compile e diff check superati.
+
+
 Data: 2026-09-22 (scheda singola visita medica)
 
 Ultime voci viste/aggiunte in questa sessione:

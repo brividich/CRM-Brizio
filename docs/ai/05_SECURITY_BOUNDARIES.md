@@ -26,8 +26,10 @@ La rimozione di una visita medica errata usa il permesso canonico
 `anagrafica.visite.delete` e il binding della sola rotta
 `anagrafica:visita_medica_elimina`. La vista richiede anche l'accesso alle visite,
 una motivazione e registra l'audit nella stessa transazione della cancellazione.
-Le visite con referti collegati sono escluse dal flusso. I grant per ruoli non
-admin sono disabilitati per default.
+I referti collegati sono conservati nel fascicolo del dipendente e i riferimenti
+alla visita eliminata vengono rimossi nella stessa transazione, con gli ID dei
+documenti registrati nell'audit. I grant per ruoli non admin sono disabilitati
+per default.
 
 ### 1. ACL Canonico v2 (sorgente primaria sicurezza)
 

@@ -1,82 +1,132 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Visita medica {{ visita.pk }} | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
 <style>
-.vm-report { max-width: 1000px; margin: 24px auto; padding: 0 16px 32px; color: var(--text, #172b4d); }
-.vm-report-header, .vm-report-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.vm-report-header { margin: 18px 0 22px; }
-.vm-report-header h1 { margin: 4px 0; font-size: 26px; }
-.vm-report-muted { color: var(--text-mid, #64748b); font-size: 13px; }
-.vm-report-card { background: var(--surface, #fff); border: 1px solid var(--border, #dbe3ed); border-radius: 14px; padding: 22px; margin-bottom: 18px; }
-.vm-report-card h2 { margin: 0 0 16px; font-size: 18px; }
-.vm-report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px 24px; }
-.vm-report-field dt { color: var(--text-mid, #64748b); font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
-.vm-report-field dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.vm-report-field-wide { grid-column: 1 / -1; }
-.vm-report-button { display: inline-block; border: 1px solid #a7bbce; border-radius: 8px; padding: 8px 13px; background: var(--surface, #fff); color: var(--text, #172b4d); text-decoration: none; font: inherit; font-weight: 700; cursor: pointer; }
-.vm-report-button-primary { background: #0c2545; color: #fff; border-color: #0c2545; }
-.vm-report-button-danger { color: #b91c1c; border-color: #fca5a5; }
-.vm-report-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 15px; }
-.vm-report-form label { display: block; font-weight: 700; margin-bottom: 5px; }
-.vm-report-form input, .vm-report-form select, .vm-report-form textarea { width: 100%; box-sizing: border-box; padding: 9px; border: 1px solid #94a3b8; border-radius: 7px; background: var(--surface, #fff); color: var(--text, #172b4d); }
-.vm-report-form .helptext { color: var(--text-mid, #64748b); font-size: 12px; }
-@media print { .vm-report-actions, .vm-report-edit, nav, header, footer { display: none !important; } .vm-report { max-width: none; margin: 0; padding: 0; } .vm-report-card { break-inside: avoid; border-color: #bbb; } }
+.vm-detail-layout { display:grid; grid-template-columns:minmax(0, 2fr) minmax(270px, 1fr); gap:14px; align-items:start; }
+.vm-detail-sidebar { display:grid; gap:14px; }
+.vm-detail-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:18px 24px; margin:0; }
+.vm-detail-field dt { margin:0 0 5px; color:#64748b; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.vm-detail-field dd { margin:0; color:#0f172a; font-size:14px; font-weight:600; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+.vm-detail-wide { grid-column:1 / -1; padding-top:14px; border-top:1px solid #f1f5f9; }
+.vm-detail-sub { color:#64748b; font-size:12px; line-height:1.5; }
+.vm-detail-docs { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
+.vm-detail-docs a { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 11px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; color:#0c2545; font-size:13px; font-weight:700; text-decoration:none; }
+.vm-detail-docs a:hover { background:#eff6ff; border-color:#bfdbfe; }
+.vm-detail-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.vm-detail-form { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:15px 18px; }
+.vm-detail-form label { display:block; margin-bottom:5px; color:#334155; font-size:12px; font-weight:700; }
+.vm-detail-form input, .vm-detail-form select, .vm-detail-form textarea { width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid #cbd5e1; border-radius:9px; background:#fff; color:#0f172a; font:inherit; font-size:13px; }
+.vm-detail-form input:focus, .vm-detail-form select:focus, .vm-detail-form textarea:focus { outline:2px solid #bfdbfe; border-color:#1f87cd; }
+.vm-detail-form .helptext { margin-top:4px; color:#64748b; font-size:11px; }
+.vm-detail-form-footer { margin-top:18px; display:flex; align-items:center; gap:12px; }
+.vm-detail-layout .hr-card-title, .vm-detail-edit .hr-card-title { margin:0; }
+body.theme-dark .vm-detail-field dt, body.theme-dark .vm-detail-sub, body.theme-dark .vm-detail-form .helptext { color:var(--text-muted, #94a3b8); }
+body.theme-dark .vm-detail-field dd, body.theme-dark .vm-detail-form label { color:var(--text, #e2e8f0); }
+body.theme-dark .vm-detail-wide { border-color:var(--border); }
+body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.theme-dark .vm-detail-form select, body.theme-dark .vm-detail-form textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+@media (max-width:800px) { .vm-detail-layout { grid-template-columns:1fr; } }
+@media (max-width:600px) { .vm-detail-grid, .vm-detail-form { grid-template-columns:1fr; } }
+@media print {
+  .vm-detail-no-print, .vm-detail-edit, nav, header, footer { display:none !important; }
+  .fmd-hero { color:#0f172a !important; background:#fff !important; clip-path:none; padding:0 0 12px; border-bottom:2px solid #0c2545; }
+  .fmd-hero-bg { display:none; }
+  .fmd-hero h1, .fmd-hero .fmd-sub { color:#0f172a !important; }
+  .fmd-hero-tile { background:#fff !important; border:1px solid #cbd5e1; color:#0f172a !important; }
+  .fmd-hero-tile .fmd-bignum, .fmd-hero-tile .fmd-lbl { color:#0f172a !important; }
+  .fmd-wrap { max-width:none; padding:0; }
+  .vm-detail-layout { grid-template-columns:2fr 1fr; }
+  .hr-card { box-shadow:none; break-inside:avoid; }
+}
 </style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
-<main class="vm-report">
-  <div class="vm-report-actions">
-    <a href="{% url 'anagrafica:visite_mediche_dashboard' %}">← Visite mediche</a>
-    <div>
-      <button type="button" class="vm-report-button" onclick="window.print()">Stampa scheda</button>
-      {% if can_delete_visite %}<a class="vm-report-button vm-report-button-danger" href="{% url 'anagrafica:visita_medica_elimina' visita.pk %}">Elimina visita errata</a>{% endif %}
-    </div>
-  </div>
-  <div class="vm-report-header">
-    <div>
-      <div class="vm-report-muted">Scheda visita medica · Registrazione #{{ visita.pk }}</div>
-      <h1>{{ visita.tipo.nome }}</h1>
-      <a href="{% url 'anagrafica:dipendente_detail' visita.legacy_anagrafica_id %}#visite-mediche">{{ dipendente_nome }}</a>
-    </div>
-    <div class="vm-report-muted">Registrata il {{ visita.created_at|date:"d/m/Y H:i" }}{% if visita.created_by %} da {{ visita.created_by.get_full_name|default:visita.created_by.username }}{% endif %}</div>
-  </div>
-
-  <section class="vm-report-card" aria-labelledby="vm-dati">
-    <h2 id="vm-dati">Dati della visita</h2>
-    <dl class="vm-report-grid">
-      <div class="vm-report-field"><dt>Data visita</dt><dd>{{ visita.data_svolgimento|date:"d/m/Y" }}</dd></div>
-      <div class="vm-report-field"><dt>Scadenza</dt><dd>{{ visita.data_scadenza|date:"d/m/Y"|default:"Nessuna scadenza" }}{% if visita.is_scaduta %} · Scaduta{% elif visita.in_scadenza %} · In scadenza{% endif %}</dd></div>
-      <div class="vm-report-field"><dt>Esito</dt><dd>{{ visita.get_esito_display }}</dd></div>
-      <div class="vm-report-field"><dt>Medico competente</dt><dd>{{ visita.medico_competente|default:"—" }}</dd></div>
-      <div class="vm-report-field vm-report-field-wide"><dt>Prescrizioni</dt><dd>{{ visita.prescrizioni|default:"—" }}</dd></div>
-      <div class="vm-report-field vm-report-field-wide"><dt>Note</dt><dd>{{ visita.note|default:"—" }}</dd></div>
-      {% if visita.sessione_id %}<div class="vm-report-field"><dt>Sessione</dt><dd><a href="{% url 'anagrafica:visite_mediche_sessione_detail' visita.sessione_id %}">Apri sessione #{{ visita.sessione_id }}</a></dd></div>{% endif %}
-      <div class="vm-report-field"><dt>Ultimo aggiornamento</dt><dd>{{ visita.updated_at|date:"d/m/Y H:i" }}{% if visita.updated_by %} · {{ visita.updated_by.get_full_name|default:visita.updated_by.username }}{% endif %}</dd></div>
-    </dl>
-  </section>
-
-  <section class="vm-report-card" aria-labelledby="vm-referti">
-    <h2 id="vm-referti">Referti collegati</h2>
-    {% if visita.referti_documenti %}
-      <ul>{% for documento in visita.referti_documenti %}<li><a href="{% url 'anagrafica:documento_download' documento.pk %}">Apri referto {{ forloop.counter }}</a></li>{% endfor %}</ul>
-    {% else %}<p class="vm-report-muted">Nessun referto collegato.</p>{% endif %}
-  </section>
-
-  <section class="vm-report-card vm-report-edit" aria-labelledby="vm-modifica">
-    <h2 id="vm-modifica">Modifica visita</h2>
-    <p class="vm-report-muted">La scadenza viene ricalcolata dal tipo e dalla data della visita. Un nuovo referto sostituisce quello principale.</p>
-    <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:dipendente_visita_edit' visita.legacy_anagrafica_id visita.pk %}">
-      {% csrf_token %}
-      <div class="vm-report-form">
-        {% for field in form %}<div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd hr-shell">
+  <div class="fmd-wrap">
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Sorveglianza sanitaria</div>
+          <h1><svg class="fmd-ico fmd-cap" aria-hidden="true"><use href="#i-pill"/></svg>{{ visita.tipo.nome }}</h1>
+          <p class="fmd-sub">Scheda visita #{{ visita.pk }} · {{ dipendente_nome }} · {{ visita.get_esito_display }}</p>
+          <div class="fmd-hero-actions vm-detail-no-print">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:visite_mediche_dashboard' %}">← Visite mediche</a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:dipendente_detail' visita.legacy_anagrafica_id %}#visite-mediche">Scheda dipendente</a>
+          </div>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ visita.data_svolgimento|date:"d/m/Y" }}</span><span class="fmd-lbl">Data visita</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ visita.data_scadenza|date:"d/m/Y"|default:"—" }}</span><span class="fmd-lbl">Scadenza</span></div>
+        </div>
       </div>
-      <button type="submit" class="vm-report-button vm-report-button-primary" style="margin-top:18px;">Salva modifiche</button>
-    </form>
-  </section>
-</main>
+    </section>
+
+    <div class="vm-detail-actions vm-detail-no-print" style="margin-bottom:14px;">
+      <button type="button" class="hr-btn hr-btn-outline" onclick="window.print()">Stampa scheda</button>
+      {% if can_delete_visite %}<a class="hr-btn hr-btn-danger" href="{% url 'anagrafica:visita_medica_elimina' visita.pk %}">Elimina visita errata</a>{% endif %}
+    </div>
+
+    <div class="vm-detail-layout">
+      <section class="hr-card" aria-labelledby="vm-dati">
+        <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-dati">Dati della visita</h2><div class="hr-card-desc">Riepilogo della registrazione e del giudizio</div></div>
+          {% if visita.is_scaduta %}<span class="hr-pill danger">Scaduta</span>{% elif visita.in_scadenza %}<span class="hr-pill warning">In scadenza</span>{% elif visita.data_scadenza %}<span class="hr-pill ok">Valida</span>{% else %}<span class="hr-pill neutral">Senza scadenza</span>{% endif %}
+        </div>
+        <div class="hr-card-pad" style="padding:20px;">
+          <dl class="vm-detail-grid">
+            <div class="vm-detail-field"><dt>Dipendente</dt><dd>{{ dipendente_nome }}</dd></div>
+            <div class="vm-detail-field"><dt>Tipo visita</dt><dd>{{ visita.tipo.nome }}</dd></div>
+            <div class="vm-detail-field"><dt>Data visita</dt><dd>{{ visita.data_svolgimento|date:"d/m/Y" }}</dd></div>
+            <div class="vm-detail-field"><dt>Scadenza</dt><dd>{{ visita.data_scadenza|date:"d/m/Y"|default:"Nessuna scadenza" }}</dd></div>
+            <div class="vm-detail-field"><dt>Esito</dt><dd>{{ visita.get_esito_display }}</dd></div>
+            <div class="vm-detail-field"><dt>Medico competente</dt><dd>{{ visita.medico_competente|default:"—" }}</dd></div>
+            <div class="vm-detail-field vm-detail-wide"><dt>Prescrizioni</dt><dd>{{ visita.prescrizioni|default:"—" }}</dd></div>
+            <div class="vm-detail-field vm-detail-wide"><dt>Note</dt><dd>{{ visita.note|default:"—" }}</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <aside class="vm-detail-sidebar">
+        <section class="hr-card" aria-labelledby="vm-referti">
+          <div class="hr-card-head"><h2 class="hr-card-title" id="vm-referti">Referti collegati</h2></div>
+          <div class="hr-card-pad" style="padding:16px;">
+            {% if visita.referti_documenti %}
+              <ul class="vm-detail-docs">{% for documento in visita.referti_documenti %}<li><a href="{% url 'anagrafica:documento_download' documento.pk %}"><span>Referto {{ forloop.counter }}</span><span aria-hidden="true">↗</span></a></li>{% endfor %}</ul>
+            {% else %}<p class="vm-detail-sub" style="margin:0;">Nessun referto collegato.</p>{% endif %}
+          </div>
+        </section>
+        <section class="hr-card" aria-labelledby="vm-registro">
+          <div class="hr-card-head"><h2 class="hr-card-title" id="vm-registro">Registrazione</h2></div>
+          <div class="hr-card-pad" style="padding:16px;">
+            <dl class="vm-detail-grid" style="grid-template-columns:1fr;gap:12px;">
+              <div class="vm-detail-field"><dt>Creata</dt><dd>{{ visita.created_at|date:"d/m/Y H:i" }}{% if visita.created_by %} · {{ visita.created_by.get_full_name|default:visita.created_by.username }}{% endif %}</dd></div>
+              <div class="vm-detail-field"><dt>Ultimo aggiornamento</dt><dd>{{ visita.updated_at|date:"d/m/Y H:i" }}{% if visita.updated_by %} · {{ visita.updated_by.get_full_name|default:visita.updated_by.username }}{% endif %}</dd></div>
+              {% if visita.sessione_id %}<div class="vm-detail-field"><dt>Sessione</dt><dd><a href="{% url 'anagrafica:visite_mediche_sessione_detail' visita.sessione_id %}">Apri sessione #{{ visita.sessione_id }}</a></dd></div>{% endif %}
+            </dl>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="hr-card vm-detail-edit" aria-labelledby="vm-modifica" style="margin-top:14px;">
+      <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-modifica">Modifica visita</h2><div class="hr-card-desc">Correggi i dati della registrazione</div></div></div>
+      <div class="hr-card-pad" style="padding:20px;">
+        <p class="vm-detail-sub" style="margin:0 0 16px;">La scadenza viene ricalcolata dal tipo e dalla data della visita. Un nuovo referto sostituisce quello principale.</p>
+        <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:dipendente_visita_edit' visita.legacy_anagrafica_id visita.pk %}">
+          {% csrf_token %}
+          <div class="vm-detail-form">{% for field in form %}<div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}</div>
+          <div class="vm-detail-form-footer"><button type="submit" class="hr-btn hr-btn-primary">Salva modifiche</button></div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
 {% endblock %}

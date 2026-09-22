@@ -10741,19 +10741,19 @@ def visita_medica_elimina(request, v_id: int):
         return HttpResponseForbidden("Non hai i permessi per eliminare visite mediche.")
 
     visita = get_object_or_404(VisitaMedica.objects.select_related("tipo"), pk=v_id)
-    def ha_referto(v):
-        return (
-            v.referto_documento_id is not None
-            or v.referto_documento_secondario_id is not None
-            or DocumentoDipendente.objects.filter(
-                oggetto_riferimento_tipo="anagrafica.visitamedica",
-                oggetto_riferimento_id=v.pk,
-            ).exists()
+    def referti_collegati(v, *, lock=False):
+        """Include FK storiche e documenti con riferimento generico alla visita."""
+        documenti = DocumentoDipendente.objects.filter(
+            oggetto_riferimento_tipo="anagrafica.visitamedica",
+            oggetto_riferimento_id=v.pk,
         )
-
-    if ha_referto(visita):
-        messages.error(request, "La visita ha un referto collegato: non può essere eliminata da qui.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=visita.legacy_anagrafica_id)
+        if lock:
+            documenti = documenti.select_for_update()
+        documenti_ids = list(documenti.values_list("pk", flat=True))
+        referti_ids = sorted(set(documenti_ids) | {
+            pk for pk in (v.referto_documento_id, v.referto_documento_secondario_id) if pk
+        })
+        return documenti, referti_ids
 
     motivo = (request.POST.get("motivo") or "").strip() if request.method == "POST" else ""
     if request.method == "POST":
@@ -10767,9 +10767,7 @@ def visita_medica_elimina(request, v_id: int):
             try:
                 with transaction.atomic():
                     visita = VisitaMedica.objects.select_for_update().select_related("tipo").get(pk=v_id)
-                    if ha_referto(visita):
-                        messages.error(request, "La visita ha un referto collegato: eliminazione annullata.")
-                        return redirect("anagrafica:visita_medica_elimina", v_id=v_id)
+                    documenti_collegati, referti_ids = referti_collegati(visita, lock=True)
                     legacy_user = get_legacy_user(request.user)
                     actor_legacy = getattr(request, "impersonator_legacy_user", None) or legacy_user
                     AuditLog.objects.create(
@@ -10787,22 +10785,28 @@ def visita_medica_elimina(request, v_id: int):
                             "tipo_visita": visita.tipo.nome,
                             "data_svolgimento": visita.data_svolgimento.isoformat(),
                             "data_scadenza": visita.data_scadenza.isoformat() if visita.data_scadenza else None,
+                            "referti_conservati_ids": referti_ids,
                         },
                         ip_address=_get_client_ip(request),
                         oggetto_tipo="anagrafica.visitamedica",
                         oggetto_id=str(visita.pk),
+                    )
+                    documenti_collegati.update(
+                        oggetto_riferimento_tipo="", oggetto_riferimento_id=None
                     )
                     visita.delete()
             except Exception:
                 logger.exception("Eliminazione visita %s fallita", v_id)
                 messages.error(request, "Eliminazione non riuscita: la visita è rimasta registrata.")
             else:
-                messages.success(request, "Visita eliminata e motivazione registrata nell'audit.")
+                messages.success(request, "Visita eliminata e motivazione registrata nell'audit. I referti restano nel fascicolo del dipendente.")
                 return redirect("anagrafica:visite_mediche_dashboard")
 
+    _, referti_ids = referti_collegati(visita)
     return render(request, "anagrafica/pages/visita_medica_elimina.html", {
         "visita": visita,
         "motivo": motivo,
+        "referti_count": len(referti_ids),
     })
 
 

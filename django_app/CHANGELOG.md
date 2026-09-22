@@ -2,13 +2,18 @@
 
 ## [Unreleased]
 
+### Anagrafica — stile scheda visita e rimozione con referti
+
+- La scheda HTML della visita usa gli stessi componenti grafici della dashboard Anagrafica: hero, card, pulsanti, stato, tema scuro e stampa. La conferma di eliminazione usa gli stessi componenti e mostra quanti referti rimarranno nel fascicolo.
+- Una visita errata può essere eliminata anche quando ha referti collegati: i documenti sono conservati, scollegati dalla visita e identificati nell'audit atomico.
+
 ### Anagrafica — scheda della singola visita medica
 
 - Nuova pagina `/anagrafica/visite-mediche/<id>/` con riepilogo stampabile, referti collegati e form di modifica. Collegamenti dalle scadenze, dalle ultime visite e dallo storico dipendente; accesso con il gate sanitario della sezione e pulsante di eliminazione solo con permesso dedicato.
 
 ### Anagrafica — eliminazione motivata visite errate
 
-- La dashboard visite mediche e lo storico dipendente permettono di avviare la rimozione di una registrazione errata. La nota è obbligatoria; ACL `anagrafica.visite.delete` e audit atomico proteggono l'operazione. Le visite con referto restano protette.
+- La dashboard visite mediche e lo storico dipendente permettono di avviare la rimozione di una registrazione errata. La nota è obbligatoria; ACL `anagrafica.visite.delete` e audit atomico proteggono l'operazione. I referti restano nel fascicolo anche quando la visita viene rimossa.
 
 ### DPI — icone SVG line-style al posto delle emoji stile iOS
 
