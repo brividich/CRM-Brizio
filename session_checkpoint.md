@@ -1,5 +1,15 @@
 # Session Checkpoint
 
+Data: 2026-09-22 (scheda singola visita medica)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-22 - Codex (scheda singola visita medica)`.
+- `CHANGELOG.md` e `django_app/CHANGELOG.md` -> nuova scheda HTML della singola visita, link dagli elenchi e form di modifica.
+- Worktree `temp/codex-visita-dettaglio`, branch `feature/anagrafica-visita-dettaglio`; nessun DB DEV/PROD toccato.
+- Verifica: 10 test mirati, Django check, py_compile e diff check superati.
+
+
 Data: 2026-09-22 (integrazione rimozione visite mediche)
 
 Ultime voci viste/aggiunte in questa sessione:

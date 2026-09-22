@@ -2433,7 +2433,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
           <tbody>
             {% for v in visite_storico_list %}
             <tr class="dp-tr-line">
-              <td class="dp-td-strong" style="padding:7px 8px;">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
+              <td class="dp-td-strong" style="padding:7px 8px;"><a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}">{{ v.data_svolgimento|date:"d-m-Y" }}</a></td>
               <td class="dp-td-strong" style="padding:7px 8px;font-weight:600;">{{ v.tipo.nome }}</td>
               <td class="dp-td-mid" style="padding:7px 8px;">{{ v.get_esito_display }}</td>
               <td class="dp-td-mid" style="padding:7px 8px;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% else %}—{% endif %}</td>

@@ -1,5 +1,17 @@
 # Agent Changelog
 
+## 2026-09-22 - Codex (scheda singola visita medica)
+
+- Area: `django_app/anagrafica`; richiesta: pagina HTML per gestire ogni visita e chiusura delle modifiche.
+- File modificati: `django_app/anagrafica/urls.py`, `views.py`, `forms.py`, `templates/anagrafica/pages/visita_medica_dettaglio.html`, `visite_mediche_dashboard.html`, `dipendente_detail.html`, `tests_visita_dettaglio.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critico per funzione: `django_app/anagrafica/urls.py` (routing locale). Motivo tecnico: indirizzo stabile della singola visita. Modifica: aggiunta rotta `visite-mediche/<id>/`; impatto: scheda protetta dal medesimo gate sanitario della sezione, senza modifiche a ACL, middleware o routing globale. Rischio residuo: la route usa il fallback ACL come la dashboard; il gate nella view resta autorevole.
+- Comportamento: riepilogo stampabile, referti con download protetto, modifica dalla scheda e link negli elenchi; l'eliminazione richiede ancora il permesso dedicato e la nota obbligatoria. La modifica conserva il tipo assegnato se inattivo.
+- Backup creati: nessuno. README aggiornato: si. CHANGELOG aggiornato: si (root e Django). AGENT_CHANGELOG aggiornato: si.
+- Test/check: 10 test mirati dettaglio/eliminazione superati, `manage.py check --settings=config.settings.test`, `py_compile` e `git diff --check` superati.
+- Esito: modifiche su branch dedicato `feature/anagrafica-visita-dettaglio`; nessun DB DEV/PROD o file privato toccato.
+- Note per altro agente/Brizio: dopo il rilascio verificare la scheda in TEST con un ruolo sanitario abilitato e il download di un referto.
+
+
 ## 2026-09-22 - Codex (integrazione rimozione visite mediche)
 
 - Area: integrazione Git della rimozione motivata visite errate su `main` e `release/prod`.
