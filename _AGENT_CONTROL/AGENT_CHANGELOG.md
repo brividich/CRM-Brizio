@@ -1,5 +1,16 @@
 # Agent Changelog
 
+## 2026-09-22 - Codex (integrazione fix ACL release)
+
+- Area: integrazione Git del fix ACL su `main` e `release/prod`.
+- Richiesta: "mergia tutto" nel contesto del commit `89154bd1` che conserva i permessi ACL negli upgrade; nessun altro branch applicativo o Dependabot incluso.
+- File modificati dall'integrazione: i nove file del commit ACL `89154bd1`; in questa fase si aggiungono solo `_AGENT_CONTROL/AGENT_CHANGELOG.md` e `session_checkpoint.md`.
+- File critico integrato: `django_app/core/management/commands/bootstrap_acl_v2.py` (ACL/permessi), autorizzato da Brizio; import legacy solo per record mancanti, binding e grant configurati preservati, dry-run senza scritture. Impatto: Promuovi Release non ripristina i permessi legacy; rischi residui: grant gia sovrascritti richiedono ripristino manuale, release server non distribuita da questa integrazione.
+- Test/check: il commit ACL ha 7 test mirati, Django check, py_compile, diff check e build SetupWizard.exe verdi; integrazione Git verificata con tree identico sul branch main e controllo diff/ascendenza prima del push.
+- Backup creati: nessuno. README aggiornato: gia nel commit ACL. CHANGELOG aggiornato: gia nel commit ACL. AGENT_CHANGELOG aggiornato: si.
+- Esito: integrazione preparata prima su `main`, poi su `release/prod`, con push fast-forward verso origin; nessun DB DEV/PROD modificato.
+- Note per altro agente/Brizio: la correzione diventa operativa solo nel prossimo pacchetto distribuito; verificare TEST prima di PROD e controllare eventuali permessi gia alterati.
+
 ## 2026-09-22 - Codex (permessi ACL conservati negli upgrade)
 
 - Area: ACL v2 e Gestore Release TEST/PROD.

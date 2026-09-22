@@ -1,5 +1,13 @@
 # Session Checkpoint
 
+Data: 2026-09-22 (integrazione Git ACL)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-22 - Codex (integrazione fix ACL release)`.
+- Commit ACL `89154bd1` integrato su `main` e quindi su `release/prod`, senza altri branch; branch remoti verificati prima del push.
+- Verifica: test e build del commit sorgente verdi, tree/diff Git e ascendenza controllati; nessun DB DEV/PROD toccato.
+
 Data: 2026-09-22
 
 Ultime voci viste/aggiunte in questa sessione:
