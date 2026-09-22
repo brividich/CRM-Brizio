@@ -165,3 +165,75 @@ class BootstrapAclV2CommandTests(TestCase):
         ).first()
         self.assertIsNotNone(grant)
         self.assertTrue(grant.enabled)
+
+    def test_import_legacy_dry_run_does_not_write(self):
+        Pulsante.objects.create(
+            codice="lista",
+            nome_visibile="Asset",
+            modulo="assets",
+            url="route:assets:asset_list",
+        )
+        Permesso.objects.create(
+            modulo="assets", azione="lista", ruolo_id=6, can_view=1, consentito=1,
+        )
+        permission_code = "legacy.assets.lista"
+
+        self._run_cmd("--import-legacy", "--dry-run", "--apps", "assets")
+
+        self.assertFalse(PermissionDefinition.objects.filter(code=permission_code).exists())
+        self.assertFalse(RolePermissionGrant.objects.filter(permission_id=permission_code).exists())
+        self.assertFalse(RoutePermissionBinding.objects.filter(route_name="assets:asset_list").exists())
+
+    def test_import_legacy_preserves_existing_grant_and_binding(self):
+        Pulsante.objects.create(
+            codice="lista",
+            nome_visibile="Asset",
+            modulo="assets",
+            url="route:assets:asset_list",
+        )
+        Permesso.objects.create(
+            modulo="assets", azione="lista", ruolo_id=6, can_view=1, consentito=1,
+        )
+        PermissionDefinition.objects.create(code="legacy.assets.lista", label="Asset", module="assets")
+        PermissionDefinition.objects.create(code="assets.asset.view", label="Vista Asset", module="assets")
+        binding = RoutePermissionBinding.objects.create(
+            route_name="assets:asset_list",
+            path_pattern="",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="assets.asset.view",
+            source_app="assets",
+            is_active=True,
+            note="Scelta amministratore",
+        )
+        grant = RolePermissionGrant.objects.create(
+            legacy_role_id=6,
+            permission_id="legacy.assets.lista",
+            enabled=False,
+            note="[ACL_V2_BOOTSTRAP] modificato da amministratore",
+        )
+
+        self._run_cmd("--import-legacy", "--apply", "--apps", "assets")
+
+        binding.refresh_from_db()
+        grant.refresh_from_db()
+        self.assertEqual(binding.permission_id, "assets.asset.view")
+        self.assertFalse(grant.enabled)
+        self.assertEqual(grant.note, "[ACL_V2_BOOTSTRAP] modificato da amministratore")
+
+    def test_apply_preserves_disabled_binding(self):
+        PermissionDefinition.objects.create(code="assets.asset.view", label="Vista Asset", module="assets")
+        binding = RoutePermissionBinding.objects.create(
+            route_name="assets:asset_list",
+            path_pattern="",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="assets.asset.view",
+            source_app="assets",
+            is_active=False,
+            note="[ACL_V2_BOOTSTRAP] disattivato da amministratore",
+        )
+
+        self._run_cmd("--apply", "--apps", "assets")
+
+        binding.refresh_from_db()
+        self.assertFalse(binding.is_active)
+        self.assertEqual(binding.note, "[ACL_V2_BOOTSTRAP] disattivato da amministratore")

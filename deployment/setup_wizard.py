@@ -4540,7 +4540,7 @@ class ReleaseConfig:
         # Promuovi release
         self.package_path = ""
         self.environment  = "test"
-        self.acl_seed_uat = True
+        self.acl_seed_uat = False
         self.base_dir     = r"C:\PortaleNovicrom"
         # Hotfix (DEV crea il pacchetto -> server lo applica)
         self.hotfix_files   = []    # file selezionati per il pacchetto (Crea Hotfix)
@@ -4705,37 +4705,8 @@ class ReleaseConfigPromote(Page):
              "Windows Server · SQL Server PROD · IIS porta 80 · utenti reali",
              (GREEN_BG, GREEN_BD, "#166534")),
         ]
-        self._seed_uat = tk.BooleanVar(value=bool(getattr(self.cfg, "acl_seed_uat", True)))
-        self._env_sel = CardSelector(sec, env_opts, initial="test", on_change=self._on_env_change)
+        self._env_sel = CardSelector(sec, env_opts, initial="test")
         self._env_sel.pack(fill="x")
-        self._acl_seed_box = frame(
-            sec,
-            bg=YELLOW_BG,
-            highlightthickness=1,
-            highlightbackground=YELLOW_BD,
-        )
-        tk.Checkbutton(
-            self._acl_seed_box,
-            text="  Esegui seed UAT ACL dopo il bootstrap (solo TEST)",
-            variable=self._seed_uat,
-            font=(SF, 9, "bold"),
-            bg=YELLOW_BG,
-            fg=YELLOW_TX,
-            activebackground=YELLOW_BG,
-            activeforeground=YELLOW_TX,
-            selectcolor=YELLOW_BG,
-            anchor="w",
-            justify="left",
-        ).pack(anchor="w", padx=12, pady=(8, 2))
-        tk.Label(
-            self._acl_seed_box,
-            text="Opzione utile in ambiente di test interno; in produzione va lasciata disattiva.",
-            font=FSM,
-            bg=YELLOW_BG,
-            fg=YELLOW_TX,
-            justify="left",
-        ).pack(anchor="w", padx=14, pady=(0, 8))
-        self._on_env_change(self._env_sel.value)
 
         frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
         tk.Label(sec, text="Directory base server", font=(SF,9,"bold"),
@@ -4756,13 +4727,6 @@ class ReleaseConfigPromote(Page):
         if not self._pkg.get():
             z = find_latest_zip(self._base.get())
             if z: self._pkg.set(z)
-        self._on_env_change(self._env_sel.value)
-
-    def _on_env_change(self, value):
-        if value == "test":
-            self._acl_seed_box.pack(fill="x", pady=(10, 0))
-        else:
-            self._acl_seed_box.pack_forget()
 
     def _browse(self):
         p = filedialog.askopenfilename(
@@ -4788,7 +4752,7 @@ class ReleaseConfigPromote(Page):
             return False
         self.cfg.package_path = pkg
         self.cfg.environment  = self._env_sel.value
-        self.cfg.acl_seed_uat = bool(self._seed_uat.get() and self._env_sel.value == "test")
+        self.cfg.acl_seed_uat = False
         self.cfg.base_dir     = self._base.get().strip()
         return bool(self.cfg.base_dir)
 
@@ -5708,8 +5672,8 @@ class ReleaseRunPage(Page):
                     django_app=django_app,
                     env_vars=env_vars,
                     settings=settings,
-                    include_legacy_import=True,
-                    run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
+                    include_legacy_import=False,
+                    run_uat_seed=False,
                 )
                 self._run_seed_pulsanti_descrizioni(
                     venv_py=venv_py,

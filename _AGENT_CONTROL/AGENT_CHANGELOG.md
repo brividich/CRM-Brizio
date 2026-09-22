@@ -1,5 +1,17 @@
 # Agent Changelog
 
+## 2026-09-22 - Codex (permessi ACL conservati negli upgrade)
+
+- Area: ACL v2 e Gestore Release TEST/PROD.
+- Richiesta: evitare che i permessi configurati si resettino a ogni upgrade; Brizio ha autorizzato esplicitamente la modifica ACL/core nella conversazione.
+- File modificati: `django_app/core/management/commands/bootstrap_acl_v2.py`, `django_app/core/test_bootstrap_acl_v2_command.py`, `deployment/setup_wizard.py`, `README.md`, `CHANGELOG.md`, `docs/ai/05_SECURITY_BOUNDARIES.md`, `docs/ai/06_TESTING_AND_QUALITY_GATES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critico modificato: `django_app/core/management/commands/bootstrap_acl_v2.py` (ACL/permessi). Motivo tecnico: `--import-legacy --apply` usava `update_or_create` e sovrascriveva grant canonici gia amministrati; l'apply riattivava anche binding disabilitati. Modifica: import e bootstrap creano solo record mancanti, mantengono grant e binding esistenti; `--dry-run --import-legacy` e realmente senza scritture. Impatto previsto: gli upgrade non ripristinano i valori legacy sui permessi configurati. Rischio residuo: un riallineamento desiderato richiede ora `acl_sync_legacy_grants` esplicito; i permessi gia sovrascritti prima di questa patch non vengono ricostruiti automaticamente.
+- Modifica del flusso ACL in `deployment/setup_wizard.py`: Promuovi Release esegue bootstrap senza import legacy e senza `seed_acl_uat --reset`, anche su TEST; rimossa la checkbox seed dalla schermata di promozione. L'installazione iniziale TEST conserva il seed opzionale. Nessuna modifica a middleware, settings, autenticazione, routing globale o navigazione globale.
+- Test/check: 7 test mirati `core.test_bootstrap_acl_v2_command` verdi; `manage.py check --settings=config.settings.test`, `py_compile` e `git diff --check` verdi; build PyInstaller di `deployment/dist/SetupWizard.exe` completata nel worktree.
+- Backup creati: nessuno; nessun database dev/prod modificato. README aggiornato: si. CHANGELOG aggiornato: si. AGENT_CHANGELOG aggiornato: si.
+- Esito: patch preparata su branch `feature/acl-release-preserve-grants`; non ancora integrata in `release/prod` o distribuita.
+- Note per altro agente/Brizio: prima della prossima release integrare il branch in `release/prod`; il packager rigenera l'eseguibile dal codice del branch di release. Verificare in TEST un ruolo personalizzato prima/dopo Promuovi Release e usare `acl_diagnose` per eventuali accessi gia alterati da upgrade precedenti.
+
 ## 2026-09-18 - Codex (integrazione release RENTRI)
 
 - Area: integrazione Git e rilascio di `django_app/rentri`.
