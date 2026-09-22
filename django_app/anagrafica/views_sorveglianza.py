@@ -91,6 +91,7 @@ def referti_coda(request):
     from .models import TipoVisitaMedica, VisitaMedica
     from .services.referti_registrazione import (
         e_riga_visita_medica,
+        tipi_famiglia,
         tipo_oculistico_da_requisiti,
         tipo_visita_per_riga,
     )
@@ -143,28 +144,41 @@ def referti_coda(request):
             pronti += 1
         riga.tipo_visita_proposto = tipo_visita_per_riga(riga)
 
-    # Possibili destinazioni per una pagina/referto rimasto separato: solo
-    # visite dello stesso dipendente e dello stesso tipo. Il controllo viene
-    # ripetuto lato POST, quindi la tendina non è una barriera di sicurezza.
+    # Possibili destinazioni per una pagina/referto rimasto separato: stesso
+    # dipendente e stesso tipo, oppure — se il tipo ha una categoria valorizzata —
+    # un tipo qualunque della stessa categoria (es. oculistica annuale/biennale,
+    # quando la periodicità richiesta è cambiata per cambio mansione). Il
+    # controllo viene ripetuto lato POST con la stessa famiglia, quindi la
+    # tendina non è una barriera di sicurezza.
     coppie = {
         (riga.legacy_anagrafica_id_proposto, riga.tipo_visita_proposto.pk)
         for riga in righe
         if riga.legacy_anagrafica_id_proposto and riga.tipo_visita_proposto
     }
+    famiglie_per_tipo = {
+        tipo_id: tipi_famiglia(riga.tipo_visita_proposto)
+        for riga in righe
+        for tipo_id in [riga.tipo_visita_proposto.pk if riga.tipo_visita_proposto else None]
+        if tipo_id
+    }
     visite_per_coppia: dict[tuple[int, int], list] = {}
     if coppie:
         legacy_ids = {legacy_id for legacy_id, _tipo_id in coppie}
-        tipo_ids = {tipo_id for _legacy_id, tipo_id in coppie}
+        tipo_ids = {tid for famiglia in famiglie_per_tipo.values() for tid in famiglia}
         candidate = (
             VisitaMedica.objects
             .filter(legacy_anagrafica_id__in=legacy_ids, tipo_id__in=tipo_ids)
             .select_related("tipo", "referto_documento")
             .order_by("-data_svolgimento", "-id")
         )
+        per_dipendente: dict[int, list] = {}
         for visita in candidate:
-            chiave = (visita.legacy_anagrafica_id, visita.tipo_id)
-            if chiave in coppie:
-                visite_per_coppia.setdefault(chiave, []).append(visita)
+            per_dipendente.setdefault(visita.legacy_anagrafica_id, []).append(visita)
+        for legacy_id, tipo_id in coppie:
+            famiglia = famiglie_per_tipo.get(tipo_id, {tipo_id})
+            visite_per_coppia[(legacy_id, tipo_id)] = [
+                v for v in per_dipendente.get(legacy_id, []) if v.tipo_id in famiglia
+            ]
     for riga in righe:
         chiave = (
             riga.legacy_anagrafica_id_proposto,
