@@ -1025,9 +1025,10 @@ Permessi canonici dell'anagrafica:
 | `anagrafica.scheda.manage` | Sezioni di gestione della scheda dipendente e cataloghi anagrafica |
 | `anagrafica.statistiche.view` | Widget statistiche della scheda dipendente (ticket, anomalie, assenze, DPI) |
 
-Nella dashboard `/anagrafica/visite-mediche/`, la colonna "Azioni" appare solo con
-`anagrafica.visite.delete`. La conferma richiede una nota (massimo 1000 caratteri);
-audit e cancellazione sono atomici. Le visite con referti collegati sono protette.
+Nella dashboard `/anagrafica/visite-mediche/`, la colonna "Azioni" apre la scheda
+della visita; "Elimina" appare solo con `anagrafica.visite.delete`. La conferma
+richiede una nota (massimo 1000 caratteri); audit, scollegamento dei referti e
+cancellazione sono atomici. I referti restano nel fascicolo del dipendente.
 La rotta di eliminazione ha un binding ACL dedicato; i grant non admin sono spenti
 per default e si assegnano in `/admin-portale/acl-canonico/`.
 

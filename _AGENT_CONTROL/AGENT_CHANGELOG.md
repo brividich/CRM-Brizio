@@ -1,5 +1,17 @@
 # Agent Changelog
 
+## 2026-09-22 - Codex (stile scheda visita e rimozione con referti)
+
+- Area: `django_app/anagrafica`; richiesta: scheda HTML coerente con il portale e rimozione di visite errate anche se hanno un referto.
+- File modificati: `django_app/anagrafica/views.py`, `templates/anagrafica/pages/visita_medica_dettaglio.html`, `visita_medica_elimina.html`, `tests_visite_eliminazione.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/05_SECURITY_BOUNDARIES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici per funzione: `django_app/anagrafica/views.py` (eliminazione, ACL in-view e audit). Motivo tecnico: il blocco assoluto sui referti impediva la rimozione delle visite importate per errore. Modifica: il gate `anagrafica.visite.delete`, la nota obbligatoria e l'audit restano; i documenti sono conservati, scollegati dalla visita e identificati nell'audit nella stessa transazione. Impatto: si puo rimuovere la visita senza perdere il referto. Rischio residuo: il referto resta nel fascicolo dello stesso dipendente e va corretto separatamente se anche l'attribuzione della persona e errata.
+- Stile: pagina dettaglio con hero, card, pill, pulsanti, tema scuro e stampa coerenti con la dashboard Anagrafica; conferma eliminazione con componenti `hr-*`.
+- Backup creati: nessuno. README aggiornato: si. CHANGELOG aggiornato: si (root e Django). AGENT_CHANGELOG aggiornato: si.
+- Test/check: 11 test mirati eliminazione e dettaglio superati, Django check, compilazione dei due template, py_compile e diff check superati.
+- Esito: lavoro nel branch/worktree dedicato `feature/anagrafica-visita-stile` / `temp/codex-visita-stile`; nessun DB DEV/PROD o file privato modificato.
+- Note per altro agente/Brizio: verificare in TEST una visita con referto e, dopo l'eliminazione, la presenza del documento nel fascicolo del dipendente.
+
+
 ## 2026-09-22 - Codex (scheda singola visita medica)
 
 - Area: `django_app/anagrafica`; richiesta: pagina HTML per gestire ogni visita e chiusura delle modifiche.
