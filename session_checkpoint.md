@@ -1,5 +1,13 @@
 # Session Checkpoint
 
+Data: 2026-09-22 (integrazione rimozione visite mediche)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-22 - Codex (integrazione rimozione visite mediche)`.
+- Commit sorgente `2fd4c294` applicato a main; note ACL per sottomodulo preservate nei conflitti documentali.
+- Verifica: 8 test sorgente verdi, Django check e py_compile del risultato integrato verdi; nessun DB DEV/PROD toccato.
+
 Data: 2026-09-22 (rimozione motivata visite mediche errate)
 
 Ultime voci viste/aggiunte in questa sessione:
