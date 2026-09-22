@@ -88,6 +88,30 @@ class AccessiUnificatiTest(TestCase):
         self.assertEqual(permessi[PERM_A]["capability"], "amministrazione")
         self.assertContains(response, 'data-capacita="lettura"')
 
+    def test_permessi_divisi_per_natura_e_sottomodulo(self):
+        codes = (
+            "assets.maintenance.plan.view",
+            "assets.maintenance.plan.edit",
+            "legacy.assets.assets_maintenance_calendar",
+            "legacy.assets.assets_components",
+        )
+        for code in codes:
+            PermissionDefinition.objects.create(code=code, label=code, module="assets")
+        response = self.client.get(self.url)
+        module = next(row for row in response.context["module_rows"] if row["modulo"] == "assets")
+        grouped_codes = [
+            perm["code"] for group in module["gruppi"]
+            for sub in group["submodules"] for perm in sub["permissions"]
+        ]
+        self.assertEqual(len(grouped_codes), module["total_count"])
+        self.assertEqual(len(grouped_codes), len(set(grouped_codes)))
+        self.assertTrue({PERM_A, PERM_B, *codes}.issubset(grouped_codes))
+        operativo = next(group for group in module["gruppi"] if group["nature"] == "operativo")
+        maintenance = next(sub for sub in operativo["submodules"] if sub["key"] == "maintenance")
+        self.assertTrue(set(codes[:3]).issubset({perm["code"] for perm in maintenance["permissions"]}))
+        self.assertContains(response, 'data-sottomodulo="maintenance"')
+        self.assertContains(response, "Accendi sottomodulo")
+
     def test_i_livelli_non_scrivono_nulla_da_soli(self):
         """Applicare un livello muove gli interruttori: salva solo il pulsante."""
         group = self._group()

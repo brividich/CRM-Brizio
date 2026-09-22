@@ -82,6 +82,7 @@ Sidebar nav side: i gruppi aperti devono restare visivamente distinti dal primo 
 ### Strumenti diagnostica/gestione ACL (admin)
 
 - `/admin-portale/accessi/`: entrypoint semplice predefinito per i permessi ruolo. Da Fase 3 e **canonico-first**: il toggle modulo scrive solo i `RolePermissionGrant`; legacy ACL e fallback navigation restano visibili come contesto/copertura ma non sono piu la fonte primaria del salvataggio.
+- Nella pagina Accessi, modulo -> natura (configurazione/operativo) -> sottomodulo e' una gerarchia di sola presentazione derivata dai permission code. I comandi del sottomodulo selezionano solo i suoi permessi; il salvataggio continua a scrivere grant canonici individuali. Il resolver ACL non legge questa gerarchia.
 - `/admin-portale/gestione-accessi/`: dettaglio storico legacy ruolo -> modulo -> azione.
 - `/admin-portale/acl-canonico/`: gestione operativa del layer v2 (permission code, route/path binding, grant ruolo, override utente, override navigazione utente). Tab: 1. PermissionDefinition, 2. Route Binding, 3. Role Grant, 4. User Override, **5. Nav Override** (nuovo).
 - `/admin-portale/acl-route-coverage/`: report route dedicato con stati `CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY` e export CSV.

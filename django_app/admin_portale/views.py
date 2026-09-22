@@ -95,6 +95,7 @@ from core.permission_taxonomy import (
     NATURE_ORDER,
     capability_for_code,
     capability_label,
+    derive_resource,
     nature_for_code,
     nature_label,
 )
@@ -11776,6 +11777,29 @@ def _parse_subject(raw: str) -> tuple[str, int | None]:
     return kind, _int_or_none(ident)
 
 
+def _accessi_submodule(code: str, module: str) -> tuple[str, str]:
+    """Raggruppa le risorse ACL per argomento senza alterare i permission code.
+
+    I code canonici hanno gia' una risorsa esplicita. Quelli legacy usano il
+    nome della view: si scarta il prefisso del modulo e si prende il primo
+    termine, cosi' asset_create/asset_detail restano nello stesso gruppo.
+    """
+    if code.startswith("legacy."):
+        # Nel code legacy l'ultimo segmento e' il nome della view, non
+        # un'azione canonica. derive_resource lo scarterebbe.
+        key = code.rsplit(".", 1)[-1]
+        prefix = f"{module}_"
+        if key.startswith(prefix):
+            key = key[len(prefix):]
+        key = key.split("_", 1)[0]
+    else:
+        resource = derive_resource(code, module)
+        if resource == "(generale)":
+            return "generale", "Generale"
+        key = resource.split(".", 1)[0]
+    return key, key.replace("_", " ").capitalize()
+
+
 def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]:
     """Permessi canonici per modulo, con lo stato del soggetto selezionato.
 
@@ -11783,10 +11807,8 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
     portale decide davvero. Ogni riga dice anche se il permesso governa una
     rotta (ha un binding attivo) o solo una sezione dentro una pagina.
 
-    Dentro il modulo i permessi sono divisi in due scomparti (``gruppi``): chi
-    *imposta* il modulo e chi lo *usa*. E' una divisione di presentazione — il
-    confine e' in :mod:`core.permission_taxonomy` — e non nasconde nulla: la
-    lista completa del modulo resta in ``permissions``.
+    Dentro il modulo i permessi sono divisi per natura e sottomodulo. Sono
+    raggruppamenti di presentazione: la lista completa resta in ``permissions``.
     """
     permissions = list(PermissionDefinition.objects.filter(is_active=True).order_by("module", "code"))
     if not permissions:
@@ -11818,6 +11840,7 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
         capability = capabilities.capabilities.get(permission.code) or capability_for_code(
             permission.code, module
         )
+        submodule, submodule_label = _accessi_submodule(permission.code, module)
         grouped.setdefault(module, []).append(
             {
                 "code": permission.code,
@@ -11826,6 +11849,8 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
                 "enabled": bool(granted.get(permission.code, False)),
                 "governs_route": permission.code in bound_codes,
                 "nature": nature_for_code(permission.code, module),
+                "submodule": submodule,
+                "submodule_label": submodule_label,
                 "capability": capability,
                 "capability_label": capability_label(capability),
                 "capability_unknown": capability == CAPABILITY_IGNOTO,
@@ -11844,11 +11869,26 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
             subset = [entry for entry in entries if entry["nature"] == nature]
             if not subset:
                 continue
+            submodules: dict[str, list[dict]] = {}
+            for entry in subset:
+                submodules.setdefault(entry["submodule"], []).append(entry)
             gruppi.append(
                 {
                     "nature": nature,
                     "label": nature_label(nature),
                     "permissions": subset,
+                    "submodules": [
+                        {
+                            "key": key,
+                            "label": rows[0]["submodule_label"],
+                            "permissions": rows,
+                            "total_count": len(rows),
+                            "active_count": sum(1 for row in rows if row["enabled"]),
+                        }
+                        for key, rows in sorted(
+                            submodules.items(), key=lambda pair: (pair[0] != "generale", pair[0])
+                        )
+                    ],
                     "total_count": len(subset),
                     "active_count": sum(1 for entry in subset if entry["enabled"]),
                 }

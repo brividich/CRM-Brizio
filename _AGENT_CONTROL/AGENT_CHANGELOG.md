@@ -1,5 +1,27 @@
 # Agent Changelog
 
+## 2026-09-22 - Codex (integrazione Accessi ACL per sottomodulo)
+
+- Area: integrazione Git di `feature/acl-accessi-sottomoduli` su `main` e `release/prod`.
+- Richiesta: "mergia tutto" nel contesto della divisione dei permessi Accessi per modulo e sottomodulo; esclusi gli altri branch applicativi.
+- File integrati: gli otto file del commit ACL `b8d16c72`; in questa fase si aggiornano `_AGENT_CONTROL/AGENT_CHANGELOG.md` e `session_checkpoint.md`.
+- File critico integrato per funzione: `django_app/admin_portale/views.py` (presentazione ACL). Motivo tecnico e modifica: raggruppamento delle righe per sottomodulo dentro amministrativo/operativo, mantenendo grant individuali e resolver invariati. Impatto: selezione piu' leggibile nella pagina Accessi. Rischio residuo: etichette dei code legacy dedotte dal nome delle view; nessuna modifica a middleware, autenticazione, routing o navigazione globale.
+- Test/check: 15 test Accessi verdi sul commit sorgente; Django check, sintassi JavaScript, py_compile e diff check verdi; tree del cherry-pick identico al sorgente; integrazione e ascendenza verificate prima del push.
+- Backup creati: nessuno. README aggiornato: gia' nel commit ACL. CHANGELOG aggiornato: gia' nel commit ACL. AGENT_CHANGELOG aggiornato: si.
+- Esito: modifica integrata su `main` e `release/prod`; nessun DB DEV/PROD o deploy del server eseguito.
+- Note per altro agente/Brizio: verificare le etichette dei sottomoduli legacy sul catalogo reale; la modifica diventa disponibile al prossimo pacchetto distribuito.
+
+## 2026-09-22 - Codex (Accessi ACL per sottomodulo)
+
+- Area: `django_app/admin_portale`, pagina `/admin-portale/accessi/`.
+- Richiesta: dividere i permessi ACL per modulo e sottomodulo, conservando gli scomparti amministrativo/operativo e i livelli preimpostati.
+- File modificati: `django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, `django_app/admin_portale/test_accessi_unificati.py`, `README.md`, `CHANGELOG.md`, `docs/ai/05_SECURITY_BOUNDARIES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critico modificato per funzione: `django_app/admin_portale/views.py` (presentazione dei permessi ACL). Motivo tecnico: costruire i raggruppamenti per sottomodulo dai codici canonici e dai nomi delle view legacy. Modifica: aggiunti chiavi, etichette e conteggi alle righe gia' prodotte per la pagina Accessi. Impatto: nuova navigazione e selezione locale per sottomodulo; nessuna modifica a grant salvati, resolver, middleware, routing, autenticazione o navigazione globale. Rischio residuo: i nomi dei sottomoduli legacy sono dedotti dal primo termine della view e possono risultare generici; ogni permission code rimane visibile nella sua riga.
+- Test/check: test mirati `admin_portale.test_accessi_unificati`, `manage.py check --settings=config.settings.test`, sintassi JavaScript con `node --check`, `git diff --check`.
+- Backup creati: nessuno. README aggiornato: si. CHANGELOG aggiornato: si. AGENT_CHANGELOG aggiornato: si.
+- Esito: implementazione preparata su branch/worktree dedicato `feature/acl-accessi-sottomoduli` / `temp/codex-acl-sottomoduli`; nessun DB DEV/PROD modificato.
+- Note per altro agente/Brizio: la classificazione per sottomodulo e' solo UI; verificare nella pagina Accessi che i nomi ricavati dal catalogo reale siano comprensibili, soprattutto per i code legacy.
+
 ## 2026-09-22 - Codex (integrazione fix ACL release)
 
 - Area: integrazione Git del fix ACL su `main` e `release/prod`.
