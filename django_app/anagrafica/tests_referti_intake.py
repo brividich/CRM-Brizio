@@ -767,6 +767,51 @@ class AzioniMassiveTests(TestCase):
         self.assertEqual([visita.pk for visita in riga_renderizzata.visite_unibili], [corretta.pk])
         self.assertContains(risposta, "Unisci senza creare visita")
 
+    def test_la_coda_propone_anche_visite_della_stessa_categoria(self):
+        self.medica.categoria = "Oculistica"
+        self.medica.save(update_fields=["categoria"])
+        annuale = TipoVisitaMedica.objects.create(
+            nome="Visita Oculistica Annuale", durata_mesi=12, categoria="Oculistica"
+        )
+        estranea = TipoVisitaMedica.objects.create(nome="Visita Chimica", durata_mesi=12)
+        stessa_categoria = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=annuale, data_svolgimento=date(2024, 3, 15)
+        )
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=estranea, data_svolgimento=date(2024, 3, 15)
+        )
+        riga = self._riga("u")
+
+        risposta = self.client.get("/anagrafica/visite-mediche/referti/")
+
+        riga_renderizzata = next(r for r in risposta.context["righe"] if r.pk == riga.pk)
+        self.assertEqual(
+            [visita.pk for visita in riga_renderizzata.visite_unibili], [stessa_categoria.pk]
+        )
+
+    def test_unisci_accetta_una_visita_della_stessa_categoria(self):
+        self.medica.categoria = "Oculistica"
+        self.medica.save(update_fields=["categoria"])
+        annuale = TipoVisitaMedica.objects.create(
+            nome="Visita Oculistica Annuale", durata_mesi=12, categoria="Oculistica"
+        )
+        visita = VisitaMedica.objects.create(
+            legacy_anagrafica_id=10, tipo=annuale, data_svolgimento=date(2024, 3, 15)
+        )
+        documento = self._documento("stessa-categoria.pdf")
+        riga = self._riga("v", documento=documento)
+
+        self.client.post("/anagrafica/visite-mediche/referti/azioni/", {
+            "azione": "unisci",
+            "righe": [riga.pk],
+            f"visita_unisci_{riga.pk}": visita.pk,
+        })
+
+        riga.refresh_from_db()
+        visita.refresh_from_db()
+        self.assertEqual(riga.esito, RefertoIntakeRiga.ESITO_OK)
+        self.assertEqual(visita.referto_documento, documento)
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False)
 class PermessiTests(TestCase):
