@@ -123,10 +123,11 @@ Pattern: `AppConfig.ready()` ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ chiama `b
   - classificazione copertura route: `CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY`
   - proposta permission code iniziali (convenzione `modulo.risorsa.azione`)
   - scope per app (`--apps`) per migrazione incrementale modulo-per-modulo
-  - import opzionale da `pulsanti`/`permessi` legacy
-  - in apply: upsert `PermissionDefinition` + `RoutePermissionBinding` e sync opzionale grant ruolo da fallback legacy (`RolePermissionGrant`)
+  - import opzionale da `pulsanti`/`permessi` legacy solo con `--apply`; `--dry-run --import-legacy` non scrive
+  - in apply: crea `PermissionDefinition`, `RoutePermissionBinding` e grant ruolo mancanti dal fallback legacy; grant e binding esistenti non vengono riscritti o riattivati
   - report finale con grouping per app di route `LEGACY_FALLBACK/UNBOUND` e conteggi before/after
-  - in `SetupWizard.exe` (test/prod e promote release) viene eseguito workflow automatico: dry-run pre -> apply (`--import-legacy`) -> dry-run post; in `test` il seed `seed_acl_uat --reset` ÃƒÂ¨ opzionale tramite checkbox `Esegui seed UAT ACL`
+  - nell'installazione iniziale il Setup Wizard esegue dry-run pre -> apply (`--import-legacy`) -> dry-run post; in TEST il seed `seed_acl_uat --reset` e opzionale
+  - in Promuovi Release (TEST/PROD) il workflow esegue dry-run pre -> apply senza import legacy -> dry-run post; non esegue il seed UAT
 
 ### Seed ACL v2 UAT (nuovo)
 

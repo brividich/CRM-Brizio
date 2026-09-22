@@ -577,7 +577,7 @@ class Command(BaseCommand):
         imported_legacy_bindings = 0
         imported_legacy_grants = 0
 
-        if do_import_legacy:
+        if do_import_legacy and do_apply:
             (
                 imported_permissions,
                 imported_legacy_bindings,
@@ -773,7 +773,7 @@ class Command(BaseCommand):
                 if not route_name and not path_pattern:
                     continue
 
-                binding, created_binding = RoutePermissionBinding.objects.get_or_create(
+                _, created_binding = RoutePermissionBinding.objects.get_or_create(
                     route_name=route_name,
                     path_pattern=path_pattern,
                     defaults={
@@ -789,9 +789,6 @@ class Command(BaseCommand):
                         "is_active": True,
                     },
                 )
-                if not created_binding and binding.permission_id != permission.code:
-                    binding.permission_id = permission.code
-                    binding.save(update_fields=["permission"])
                 if created_binding:
                     created_bindings += 1
 
@@ -811,7 +808,7 @@ class Command(BaseCommand):
                     continue
                 seen_role_permission.add(key)
                 enabled = bool(getattr(perm, "can_view", 0)) or bool(getattr(perm, "consentito", 0))
-                _, created_grant = RolePermissionGrant.objects.update_or_create(
+                _, created_grant = RolePermissionGrant.objects.get_or_create(
                     legacy_role_id=role_id,
                     permission_id=permission_code,
                     defaults={
@@ -859,7 +856,6 @@ class Command(BaseCommand):
                     .order_by("-is_active", "priority", "id")
                     .first()
                 )
-                conflict = False
                 if existing is None:
                     RoutePermissionBinding.objects.create(
                         route_name=row.route_name,
@@ -873,40 +869,14 @@ class Command(BaseCommand):
                     )
                     created_bindings += 1
                 else:
-                    updates: list[str] = []
-                    conflict = existing.permission_id != permission.code and MIGRATION_NOTE_MARKER not in str(existing.note or "")
-                    if conflict:
+                    # A route may have been changed or disabled by an administrator.
+                    # Bootstrap only fills gaps; it must not restore old ACL state.
+                    if existing.permission_id != permission.code:
                         conflicts += 1
-                    else:
-                        if existing.permission_id != permission.code:
-                            existing.permission_id = permission.code
-                            updates.append("permission")
-                    if (existing.match_strategy or RoutePermissionBinding.MATCH_EXACT) != RoutePermissionBinding.MATCH_EXACT:
-                        existing.match_strategy = RoutePermissionBinding.MATCH_EXACT
-                        updates.append("match_strategy")
-                    if str(existing.source_app or "").strip() != row.source_app:
-                        existing.source_app = row.source_app
-                        updates.append("source_app")
-                    if int(existing.priority or 0) != 120:
-                        existing.priority = 120
-                        updates.append("priority")
-                    if not bool(existing.is_active):
-                        existing.is_active = True
-                        updates.append("is_active")
-                    note = str(existing.note or "")
-                    if MIGRATION_NOTE_MARKER not in note:
-                        existing.note = f"{note} {MIGRATION_NOTE_MARKER} bootstrap route migration".strip()
-                        updates.append("note")
-                    if updates:
-                        updates.append("updated_at")
-                        existing.save(update_fields=updates)
-                        updated_bindings += 1
-                    else:
-                        reused_bindings += 1
+                    reused_bindings += 1
+                    continue
 
                 if row.status_before != STATUS_LEGACY_FALLBACK:
-                    continue
-                if conflict:
                     continue
 
                 legacy_pairs: list[tuple[str, str]] = []
@@ -924,7 +894,7 @@ class Command(BaseCommand):
                     seen_pairs.add(key)
                     role_grants = grants_index.get(key, {})
                     for legacy_role_id, enabled in role_grants.items():
-                        grant, grant_created = RolePermissionGrant.objects.get_or_create(
+                        _, grant_created = RolePermissionGrant.objects.get_or_create(
                             legacy_role_id=int(legacy_role_id),
                             permission_id=permission.code,
                             defaults={
@@ -934,15 +904,6 @@ class Command(BaseCommand):
                         )
                         if grant_created:
                             created_role_grants += 1
-                            continue
-                        grant_note = str(grant.note or "")
-                        if MIGRATION_NOTE_MARKER not in grant_note:
-                            continue
-                        if bool(grant.enabled) != bool(enabled):
-                            grant.enabled = bool(enabled)
-                            grant.note = f"{MIGRATION_NOTE_MARKER} legacy grant sync {modulo}.{azione}"
-                            grant.save(update_fields=["enabled", "note", "updated_at"])
-                            updated_role_grants += 1
 
         return (
             created_permissions,

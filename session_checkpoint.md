@@ -1,5 +1,22 @@
 # Session Checkpoint
 
+Data: 2026-09-22 (integrazione Git ACL)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-22 - Codex (integrazione fix ACL release)`.
+- Commit ACL `89154bd1` integrato su `main` e quindi su `release/prod`, senza altri branch; branch remoti verificati prima del push.
+- Verifica: test e build del commit sorgente verdi, tree/diff Git e ascendenza controllati; nessun DB DEV/PROD toccato.
+
+Data: 2026-09-22
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-22 - Codex (permessi ACL conservati negli upgrade)`.
+- `bootstrap_acl_v2` -> import legacy solo in apply e senza sovrascrittura di grant/binding esistenti; binding disabilitati conservati.
+- Gestore Release `promote` -> bootstrap senza import legacy e senza seed UAT reset; installazione iniziale TEST invariata.
+- Verifica: 7 test mirati ACL, Django check, py_compile e diff check verdi; `SetupWizard.exe` rigenerato nel worktree; nessun DB dev/prod modificato.
+
 Data: 2026-09-18
 
 Ultime voci viste/aggiunte in questa sessione:

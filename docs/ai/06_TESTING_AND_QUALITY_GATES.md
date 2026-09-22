@@ -103,6 +103,7 @@ L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le 
 - Quattro operazioni nel Gestore Release (`ReleaseApp`): `create` (zip completo da DEV), `promote` (deploy zip su TEST/PROD) e il flusso Hotfix a due fasi `hotfix-create` + `hotfix-apply`.
 - `hotfix-create` (`ReleaseConfigHotfixCreate` + `ReleaseRunPage._run_hotfix_create`, lato DEV): rileva i file modificati/nuovi con git tramite l'helper `_git_changed_files` (`git diff --name-only HEAD` + `git ls-files --others --exclude-standard`) e li impacchetta in un `hotfix-vX.Y.Z-<timestamp>.zip` con verifica di integrità.
 - `hotfix-apply` (`ReleaseConfigHotfixApply` + `ReleaseRunPage._run_hotfix_apply`, lato server): estrae il pacchetto hotfix sul release attivo `current\` con guard anti zip-slip, esegue eventuali management command Django con `--settings` coerente e ricicla l'App Pool IIS, senza creare una nuova release né aggiornare la junction.
+- `promote` conserva i grant e i binding ACL gia presenti: dopo `migrate` esegue `bootstrap_acl_v2 --apply` senza `--import-legacy`, e non esegue `seed_acl_uat --reset` neppure su TEST. Il seed UAT resta opzionale nell'installazione iniziale TEST.
 - Flusso: su DEV `hotfix-create` → copia del pacchetto sul server → `hotfix-apply` su TEST/PROD. Per migration, dipendenze o nuovi statici resta obbligatorio `promote`. L'hotfix non aggiorna la junction e va sempre riportato nel `.zip` di release successivo.
 
 ### Selezione moduli (ModulesPage â€” step 11)
