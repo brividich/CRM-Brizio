@@ -299,6 +299,7 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
             {% for visita in riga.visite_unibili %}
             <option value="{{ visita.pk }}">
               {{ visita.data_svolgimento|date:"d/m/Y" }} — {{ visita.get_esito_display }}
+              {% if visita.tipo_id != riga.tipo_visita_proposto.pk %} — {{ visita.tipo.nome }}{% endif %}
               {% if visita.referto_documento_id %} — referto già presente{% endif %}
             </option>
             {% endfor %}
@@ -307,7 +308,8 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
             Unisci senza creare visita
           </button>
           <span style="font-size:12px;opacity:.72;">
-            Proposte: stesso dipendente e stesso tipo. Il referto esistente non viene sostituito.
+            Proposte: stesso dipendente, stesso tipo o stessa categoria del tipo proposto.
+            Il referto esistente non viene sostituito.
           </span>
         </div>
         {% endif %}

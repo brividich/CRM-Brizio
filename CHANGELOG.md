@@ -10,6 +10,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ### Fixed
 
+- **Anagrafica · «unisci con altra visita» nella coda referti proponeva solo il tipo esatto, non la categoria** (`django_app/anagrafica/services/referti_registrazione.py`, `django_app/anagrafica/views_sorveglianza.py`, `django_app/anagrafica/templates/anagrafica/pages/referti_coda.html`, `django_app/anagrafica/tests_referti_intake.py`).
+
+  Un referto rimasto separato (es. una pagina oculistica letta da sola) poteva essere unito solo a una `VisitaMedica` dello stesso `TipoVisitaMedica` esatto del referto proposto: se la periodicità richiesta al dipendente era cambiata (es. da oculistica biennale ad annuale per cambio mansione), la visita precedente — di tipo diverso ma stessa categoria — non compariva nella tendina e il tentativo veniva comunque respinto lato server. Nuova funzione `tipi_famiglia()` (usata sia dalla tendina candidati sia dal controllo server in `collega_referto_a_visita`): se `TipoVisitaMedica.categoria` è valorizzata, la famiglia comprende ogni tipo attivo della stessa categoria; se è vuota resta il confronto stretto di prima (retrocompatibile, la categoria non è ancora valorizzata in prod). La tendina mostra il tipo della visita candidata quando differisce da quello proposto.
+
 - **DPI · storico self-service vuoto: ponte utente→anagrafica sbagliato** (`django_app/dpi/views.py`, `django_app/dpi/tests.py`).
 
   `_legacy_id()` e `_richiedente_info()` cercavano l'anagrafica con `utente_id = request.user.id`, ma `anagrafica_dipendenti.utente_id` e' una FK verso `utenti.id` (legacy), non verso `auth_user.id`. Le due numerazioni coincidono solo per caso, quindi in produzione `/dpi/storico/` (e dettaglio/KPI self-service) restava vuoto o mostrava lo storico di un altro dipendente. Ora si usa il ponte canonico `core.operational_roles.get_legacy_anagrafica_id()` (`profile.legacy_user_id`). Il test dello storico importato usa un `legacy_user_id` diverso da `auth_user.id` per non mascherare piu' il bug. Nota: `checklist_operativa/views.py:69` ha lo stesso pattern (non toccato).

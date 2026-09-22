@@ -63,6 +63,7 @@ __all__ = [
     "collega_referto_a_visita",
     "tipo_oculistico_da_requisiti",
     "tipo_visita_per_riga",
+    "tipi_famiglia",
     "e_riga_visita_medica",
 ]
 
@@ -439,6 +440,28 @@ def tipo_oculistico_da_requisiti(legacy_id: int, data=None):
     return max(candidati, key=lambda r: (r.data_certificato, r.pk)).tipo
 
 
+def tipi_famiglia(tipo) -> set[int]:
+    """Tipi di visita intercambiabili con ``tipo`` nell'unione manuale di un referto.
+
+    Con ``categoria`` valorizzata, la famiglia è ogni tipo attivo della stessa
+    categoria (es. «oculistica annuale» e «biennale» sotto «Oculistica»): il
+    dipendente può passare da una periodicità all'altra per cambio mansione, e il
+    referto va unito comunque. Senza categoria non c'è gruppo da allargare: la
+    famiglia resta il solo tipo, cioè il confronto stretto di prima.
+    """
+    from ..models import TipoVisitaMedica
+
+    if tipo is None:
+        return set()
+    if not tipo.categoria:
+        return {tipo.pk}
+    return set(
+        TipoVisitaMedica.objects
+        .filter(is_active=True, categoria=tipo.categoria)
+        .values_list("id", flat=True)
+    )
+
+
 def tipo_visita_per_riga(riga, *, legacy_id: int | None = None, tipo_visita=None):
     """Tipo visita riconosciuto per una riga, senza registrare nulla.
 
@@ -487,8 +510,10 @@ def collega_referto_a_visita(riga, visita, *, utente=None):
         raise ErroreRegistrazione(
             "Il tipo della pagina non è riconoscibile: non si può unirla in sicurezza."
         )
-    if visita.tipo_id != tipo.pk:
-        raise ErroreRegistrazione("La visita scelta non è dello stesso tipo del referto.")
+    if visita.tipo_id not in tipi_famiglia(tipo):
+        raise ErroreRegistrazione(
+            "La visita scelta non è dello stesso tipo (né della stessa categoria) del referto."
+        )
 
     documento = _archivia_nel_fascicolo(riga, visita.legacy_anagrafica_id, utente)
     if documento is None:
