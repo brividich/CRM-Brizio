@@ -22,6 +22,13 @@ Hardening sicurezza 0.8.7:
 
 ## Sistema ACL / Permessi
 
+La rimozione di una visita medica errata usa il permesso canonico
+`anagrafica.visite.delete` e il binding della sola rotta
+`anagrafica:visita_medica_elimina`. La vista richiede anche l'accesso alle visite,
+una motivazione e registra l'audit nella stessa transazione della cancellazione.
+Le visite con referti collegati sono escluse dal flusso. I grant per ruoli non
+admin sono disabilitati per default.
+
 ### 1. ACL Canonico v2 (sorgente primaria sicurezza)
 
 - File: `core/acl_v2.py`, `core/middleware.py`

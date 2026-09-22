@@ -25,7 +25,7 @@ from django.urls import reverse
 # funzioni (come `tz`/`_tz`) e `datetime.timezone` è un'altra cosa ancora.
 from django.utils import timezone as django_timezone
 from django.utils.dateparse import parse_date
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from django.contrib.auth.decorators import login_required
 from core import naming
@@ -169,6 +169,7 @@ from .acl_bootstrap import (
     PERM_SCHEDA_MANAGE,
     PERM_STATISTICHE_VIEW,
     PERM_VISITE_VIEW,
+    PERM_VISITE_DELETE,
 )
 
 logger = logging.getLogger(__name__)
@@ -2533,6 +2534,7 @@ def dipendente_detail(request, legacy_id: int):
         "dpi_consegnati": dpi_consegnati,
         "dpi_consegna_doc_map": dpi_consegna_doc_map,
         "can_view_visite": can_view_visite,
+        "can_delete_visite": can_view_visite and _has_canonical_grant(request, PERM_VISITE_DELETE),
         "visite_stato_list": visite_stato_list,
         "visite_storico_list": visite_storico_list,
         "tipi_visita_attivi": tipi_visita_attivi,
@@ -10686,28 +10688,84 @@ def dipendente_visita_edit(request, legacy_id: int, v_id: int):
 @login_required
 @require_POST
 def dipendente_visita_delete(request, legacy_id: int, v_id: int):
-    if not _can_view_visite_mediche(request):
-        messages.error(request, "Non hai i permessi per eliminare visite mediche.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
-    _, is_admin = _ensure_admin(request)
-    if not is_admin:
-        messages.error(request, "Solo gli amministratori possono eliminare una visita medica.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    # Compatibilita' con vecchi form: nessuna cancellazione senza motivazione.
+    if not _can_view_visite_mediche(request) or not _has_canonical_grant(request, PERM_VISITE_DELETE):
+        return HttpResponseForbidden("Non hai i permessi per eliminare visite mediche.")
+    get_object_or_404(VisitaMedica, pk=v_id, legacy_anagrafica_id=legacy_id)
+    return redirect("anagrafica:visita_medica_elimina", v_id=v_id)
 
-    visita = get_object_or_404(VisitaMedica, pk=v_id, legacy_anagrafica_id=legacy_id)
-    tipo_nome = visita.tipo.nome
-    data = visita.data_svolgimento
-    visita.delete()
-    try:
-        from core.audit import log_action
-        log_action(
-            request, "VISITA_MEDICA_ELIMINATA", "anagrafica",
-            f"Eliminata visita {tipo_nome} per #{legacy_id} ({data})",
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def visita_medica_elimina(request, v_id: int):
+    """Rimuove una visita errata solo dopo conferma, ACL e audit atomico."""
+    if not _can_view_visite_mediche(request) or not _has_canonical_grant(request, PERM_VISITE_DELETE):
+        return HttpResponseForbidden("Non hai i permessi per eliminare visite mediche.")
+
+    visita = get_object_or_404(VisitaMedica.objects.select_related("tipo"), pk=v_id)
+    def ha_referto(v):
+        return (
+            v.referto_documento_id is not None
+            or v.referto_documento_secondario_id is not None
+            or DocumentoDipendente.objects.filter(
+                oggetto_riferimento_tipo="anagrafica.visitamedica",
+                oggetto_riferimento_id=v.pk,
+            ).exists()
         )
-    except Exception:
-        logger.warning("Audit VISITA_MEDICA_ELIMINATA fallito", exc_info=True)
-    messages.success(request, "Visita medica eliminata.")
-    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    if ha_referto(visita):
+        messages.error(request, "La visita ha un referto collegato: non può essere eliminata da qui.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=visita.legacy_anagrafica_id)
+
+    motivo = (request.POST.get("motivo") or "").strip() if request.method == "POST" else ""
+    if request.method == "POST":
+        if not motivo or len(motivo) > 1000:
+            messages.error(request, "Inserisci una motivazione (massimo 1000 caratteri).")
+        else:
+            from core.audit import _get_client_ip
+            from core.impersonation import display_name_for_user
+            from core.models import AuditLog
+
+            try:
+                with transaction.atomic():
+                    visita = VisitaMedica.objects.select_for_update().select_related("tipo").get(pk=v_id)
+                    if ha_referto(visita):
+                        messages.error(request, "La visita ha un referto collegato: eliminazione annullata.")
+                        return redirect("anagrafica:visita_medica_elimina", v_id=v_id)
+                    legacy_user = get_legacy_user(request.user)
+                    actor_legacy = getattr(request, "impersonator_legacy_user", None) or legacy_user
+                    AuditLog.objects.create(
+                        legacy_user_id=getattr(actor_legacy, "id", None),
+                        utente_display=display_name_for_user(
+                            django_user=getattr(request, "impersonator_user", None) or request.user,
+                            legacy_user=actor_legacy,
+                        ),
+                        azione="VISITA_MEDICA_ELIMINATA",
+                        modulo="anagrafica",
+                        dettaglio={
+                            "motivo": motivo,
+                            "visita_id": visita.pk,
+                            "dipendente_id": visita.legacy_anagrafica_id,
+                            "tipo_visita": visita.tipo.nome,
+                            "data_svolgimento": visita.data_svolgimento.isoformat(),
+                            "data_scadenza": visita.data_scadenza.isoformat() if visita.data_scadenza else None,
+                        },
+                        ip_address=_get_client_ip(request),
+                        oggetto_tipo="anagrafica.visitamedica",
+                        oggetto_id=str(visita.pk),
+                    )
+                    visita.delete()
+            except Exception:
+                logger.exception("Eliminazione visita %s fallita", v_id)
+                messages.error(request, "Eliminazione non riuscita: la visita è rimasta registrata.")
+            else:
+                messages.success(request, "Visita eliminata e motivazione registrata nell'audit.")
+                return redirect("anagrafica:visite_mediche_dashboard")
+
+    return render(request, "anagrafica/pages/visita_medica_elimina.html", {
+        "visita": visita,
+        "motivo": motivo,
+    })
 
 
 @login_required
@@ -11486,6 +11544,7 @@ def visite_mediche_dashboard(request):
         "scad_o_in_scad": scad_o_in_scad,
         "tipologie_stats": tipologie_stats,
         "can_manage": _can_view_visite_mediche(request),
+        "can_delete_visite": _has_canonical_grant(request, PERM_VISITE_DELETE),
         "filtro_scad": filtro_scad,
     })
 

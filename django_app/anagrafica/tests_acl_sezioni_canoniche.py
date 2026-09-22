@@ -30,6 +30,7 @@ from .acl_bootstrap import (
     PERM_SCHEDA_MANAGE,
     PERM_STATISTICHE_VIEW,
     PERM_VISITE_VIEW,
+    PERM_VISITE_DELETE,
     bootstrap_anagrafica_acl_endpoints,
 )
 from .views import (
@@ -38,6 +39,7 @@ from .views import (
     _can_view_formazione,
     _can_view_stats,
     _can_view_visite_mediche,
+    _has_canonical_grant,
     _check_hr_permission,
     _is_anagrafica_admin,
 )
@@ -109,7 +111,7 @@ class SezioniAnagraficaAclV2Test(TestCase):
     def test_bootstrap_registra_i_permessi_delle_sezioni(self):
         from core.models import PermissionDefinition
 
-        for code in (PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_FORMAZIONE_VIEW,
+        for code in (PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_VISITE_DELETE, PERM_FORMAZIONE_VIEW,
                      PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE,
                      PERM_STATISTICHE_VIEW, PERM_DOCUMENTI_RISERVATI):
             self.assertTrue(
@@ -166,6 +168,18 @@ class SezioniAnagraficaAclV2Test(TestCase):
 
     def test_senza_grant_le_visite_mediche_restano_chiuse(self):
         self.assertFalse(_can_view_visite_mediche(self._request()))
+
+    def test_eliminazione_visite_ha_grant_e_binding_dedicati(self):
+        from core.models import RoutePermissionBinding
+
+        binding = RoutePermissionBinding.objects.get(
+            route_name="anagrafica:visita_medica_elimina", is_active=True,
+        )
+        self.assertEqual(binding.permission_id, PERM_VISITE_DELETE)
+        self._grant(PERM_VISITE_VIEW)
+        self.assertFalse(_has_canonical_grant(self._request(), PERM_VISITE_DELETE))
+        self._grant(PERM_VISITE_DELETE)
+        self.assertTrue(_has_canonical_grant(self._request(), PERM_VISITE_DELETE))
 
     # ── formazione ───────────────────────────────────────────────────────────
     def test_grant_formazione_apre_la_visualizzazione(self):

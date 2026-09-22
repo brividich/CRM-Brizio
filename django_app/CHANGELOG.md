@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Anagrafica — eliminazione motivata visite errate
+
+- La dashboard visite mediche e lo storico dipendente permettono di avviare la rimozione di una registrazione errata. La nota è obbligatoria; ACL `anagrafica.visite.delete` e audit atomico proteggono l'operazione. Le visite con referto restano protette.
+
 ### DPI — icone SVG line-style al posto delle emoji stile iOS
 
 - **[ux] Nuovo sprite `dpi/templates/dpi/components/_dpi_icons.html`**: 11 icone SVG line-style (~1.8 stroke, currentColor) per le categorie DPI (casco, guanti, occhiali, mascherina, protezione udito, gilet alta visibilita, calzature, imbracatura, tuta, grembiule, generico), sullo stesso pattern sprite+`<use>` già usato da `anagrafica/_fm_icons.html` e `schede_sicurezza/_ghs_icons.html`.

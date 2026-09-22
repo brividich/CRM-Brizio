@@ -161,12 +161,13 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
               <th data-col="ultima" data-col-label="Ultima visita" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Ultima visita</th>
               <th data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
               <th data-col="stato" data-col-label="Stato" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Stato</th>
+              {% if can_delete_visite %}<th>Azioni</th>{% endif %}
             </tr>
           </thead>
           <tbody>
             {% regroup scad_o_in_scad by mese_label as mesi_scad %}
             {% for mese_group in mesi_scad %}
-            <tr class="hr-table-group-sep"><td colspan="5">📅 {{ mese_group.grouper }}</td></tr>
+            <tr class="hr-table-group-sep"><td colspan="{% if can_delete_visite %}6{% else %}5{% endif %}">📅 {{ mese_group.grouper }}</td></tr>
             {% for v in mese_group.list %}
             <tr>
               <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#0c2545;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
@@ -180,6 +181,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
                   <span class="hr-pill warning">Tra {{ v.giorni_a_scadenza }}g</span>
                 {% endif %}
               </td>
+              {% if can_delete_visite %}<td><a href="{% url 'anagrafica:visita_medica_elimina' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm" aria-label="Elimina visita errata">Elimina</a></td>{% endif %}
             </tr>
             {% endfor %}
             {% endfor %}
