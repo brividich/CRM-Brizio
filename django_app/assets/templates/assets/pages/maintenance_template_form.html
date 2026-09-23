@@ -93,7 +93,7 @@ body.theme-dark .mtf-cta a { color:#60a5fa; }
       </table>
       <div class="as-help">Tipo "Misura": compila Unità e/o Min/Max per segnalare un valore fuori range. "Obbligatorio" blocca la chiusura dell'OdL finché lo step non è completo o saltato con motivazione.</div>
       <div>
-        <button type="button" class="btn" id="add-checklist-row">+ Aggiungi step</button>
+        <button type="button" class="btn btn-secondary" id="add-checklist-row">+ Aggiungi step</button>
       </div>
       <template id="checklist-empty-form">
         <tr class="mtf-cl-row">
@@ -118,7 +118,7 @@ body.theme-dark .mtf-cta a { color:#60a5fa; }
     {% endif %}
 
     <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
-      <a class="btn" href="{{ back_url }}">Annulla</a>
+      <a class="btn btn-secondary" href="{{ back_url }}">Annulla</a>
       <button type="submit" class="btn btn-primary">Salva</button>
     </div>
   </form>

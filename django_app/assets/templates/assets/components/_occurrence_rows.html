@@ -81,10 +81,10 @@
             {% if occ.status == "OPEN" %}
               <a class="btn btn-sm btn-primary" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
             {% elif not occ.attachments.all %}
-              <a class="btn btn-sm" href="{% url 'assets:occurrence_complete' occ.pk %}">Allega rapporto</a>
+              <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_complete' occ.pk %}">Allega rapporto</a>
             {% else %}
               {% for attachment in occ.attachments.all|slice:":1" %}
-                <a class="btn btn-sm" href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">Rapporto</a>
+                <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">Rapporto</a>
               {% endfor %}
             {% endif %}
           </td>
@@ -154,12 +154,12 @@
           </td>
           <td class="md-right md-nowrap">
             {% if occ.status == "OPEN" %}
-              <a class="btn btn-sm" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
+              <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
             {% elif not occ.attachments.all %}
-              <a class="btn btn-sm" href="{% url 'assets:occurrence_complete' occ.pk %}">Allega rapporto</a>
+              <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_complete' occ.pk %}">Allega rapporto</a>
             {% else %}
               {% for attachment in occ.attachments.all|slice:":1" %}
-                <a class="btn btn-sm" href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">Rapporto</a>
+                <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_attachment_download' attachment.pk %}">Rapporto</a>
               {% endfor %}
             {% endif %}
           </td>

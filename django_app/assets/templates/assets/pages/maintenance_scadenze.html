@@ -56,7 +56,7 @@
     {% endfor %}
     <div class="md-actions">
       <button type="submit" class="btn btn-primary">Filtra</button>
-      <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Azzera</a>
+      <a class="btn btn-secondary" href="{% url 'assets:maintenance_scadenze' %}">Azzera</a>
     </div>
 
     <details class="md-advanced" {% if filter_form.advanced_active %}open{% endif %}>
@@ -104,7 +104,7 @@
             <td>{% if row.asset_id %}<a class="md-asset" href="{% url 'assets:asset_view' row.asset_id %}">{{ row.asset_tag }}</a><span class="md-sub">{{ row.asset_name }}</span>{% else %}{{ row.target_label|default:"—" }}{% endif %}</td>
             <td>{{ row.supplier|default:"—" }}</td>
             <td><span class="md-badge {% if row.state == 'overdue' %}badge-danger{% elif row.state == 'due_soon' %}badge-warning{% else %}badge-muted{% endif %}">{{ row.state_label }}</span></td>
-            <td class="md-right"><a class="btn btn-sm" href="{{ row.detail_url }}">Apri</a></td>
+            <td class="md-right"><a class="btn btn-sm btn-secondary" href="{{ row.detail_url }}">Apri</a></td>
           </tr>
           {% endfor %}
         </tbody>

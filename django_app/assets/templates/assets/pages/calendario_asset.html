@@ -176,7 +176,7 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}" data-cm-list-link title="Le stesse scadenze, con i filtri attuali, nello Scadenzario">Apri come elenco</a>
+  <a class="btn btn-secondary" href="{% url 'assets:maintenance_scadenze' %}" data-cm-list-link title="Le stesse scadenze, con i filtri attuali, nello Scadenzario">Apri come elenco</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -279,7 +279,7 @@
       <div class="cm-field"><label for="{{ workorder_form.supplier.id_for_label }}">Ditta esterna</label>{{ workorder_form.supplier }}</div>
       <div class="cm-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>
       <button type="submit" class="btn btn-primary">Crea ordine di lavoro</button>
-      <button type="button" class="btn" data-cm-tray-clear>Svuota</button>
+      <button type="button" class="btn btn-secondary" data-cm-tray-clear>Svuota</button>
     </div>
   </form>
   {% endif %}

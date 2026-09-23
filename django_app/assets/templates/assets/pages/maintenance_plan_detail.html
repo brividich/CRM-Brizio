@@ -16,8 +16,8 @@
 
 {% block assets_shell_toolbar %}
   {% if can_manage %}
-    <a class="btn" href="{% url 'assets:maintenance_plan_edit' plan.pk %}">Modifica piano</a>
-    <a class="btn" href="{% url 'assets:maintenance_template_edit' plan.pk %}">Checklist e istruzioni</a>
+    <a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_edit' plan.pk %}">Modifica piano</a>
+    <a class="btn btn-secondary" href="{% url 'assets:maintenance_template_edit' plan.pk %}">Checklist e istruzioni</a>
     <a class="btn btn-primary" href="{% url 'assets:maintenance_assignment_create' plan.pk %}">+ Applica a...</a>
   {% endif %}
 {% endblock %}
@@ -102,11 +102,11 @@
               </td>
               {% if can_manage %}
                 <td class="md-right md-nowrap">
-                  <a class="btn btn-sm" href="{% url 'assets:maintenance_assignment_edit' plan.pk assignment.pk %}">Modifica</a>
+                  <a class="btn btn-sm btn-secondary" href="{% url 'assets:maintenance_assignment_edit' plan.pk assignment.pk %}">Modifica</a>
                   <form method="post" action="{% url 'assets:maintenance_assignment_delete' plan.pk assignment.pk %}" style="display:inline"
                         onsubmit="return confirm('Rimuovere questa applicazione? Se ha storico verra disattivata, non cancellata.');">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-sm">Rimuovi</button>
+                    <button type="submit" class="btn btn-sm btn-danger">Rimuovi</button>
                   </form>
                 </td>
               {% endif %}

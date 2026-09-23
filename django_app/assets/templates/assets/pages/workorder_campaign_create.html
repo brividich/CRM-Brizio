@@ -24,7 +24,7 @@ body.theme-dark .wcc-tree { border-color:var(--border); }
 {% block assets_shell_title %}Nuova campagna di manutenzione{% endblock %}
 {% block assets_shell_subtitle %}<p>Crea più interventi in un colpo solo per un gruppo di asset simili, con le scadenze distribuite su una finestra invece che tutte sulla stessa data.</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{{ back_url }}">&larr; Interventi</a>
+  <a class="btn btn-secondary" href="{{ back_url }}">&larr; Interventi</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -97,7 +97,7 @@ body.theme-dark .wcc-tree { border-color:var(--border); }
     </fieldset>
 
     <div class="wcc-actions">
-      <a class="btn" href="{{ back_url }}">Annulla</a>
+      <a class="btn btn-secondary" href="{{ back_url }}">Annulla</a>
       <button type="submit" class="btn btn-primary">Crea campagna</button>
     </div>
   </form>

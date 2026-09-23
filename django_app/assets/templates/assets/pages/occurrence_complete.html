@@ -10,8 +10,8 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  {% if occurrence.work_order_id %}<a class="btn" href="{% url 'assets:wo_view' occurrence.work_order_id %}">Ordine di lavoro #{{ occurrence.work_order_id }}</a>{% endif %}
-  <a class="btn" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}">Apri follow-up</a>
+  {% if occurrence.work_order_id %}<a class="btn btn-secondary" href="{% url 'assets:wo_view' occurrence.work_order_id %}">Ordine di lavoro #{{ occurrence.work_order_id }}</a>{% endif %}
+  <a class="btn btn-secondary" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}">Apri follow-up</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -55,7 +55,7 @@
 
   <div class="md-form-actions">
     <button type="submit" class="btn btn-primary">Registra esecuzione</button>
-    <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Annulla</a>
+    <a class="btn btn-secondary" href="{% url 'assets:maintenance_da_fare' %}">Annulla</a>
   </div>
 </form>
 {% endblock %}
