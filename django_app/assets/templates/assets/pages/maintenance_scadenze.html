@@ -1,17 +1,17 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Scadenze — Manutenzione{% endblock %}
+{% block title %}Scadenzario — Manutenzione{% endblock %}
 
 {% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
 
-{% block assets_shell_title %}Scadenze{% endblock %}
+{% block assets_shell_title %}Scadenzario{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>Vista temporale completa: ordinarie e amministrative insieme, perche' per chi le deve rispettare sono la stessa cosa. {{ total }} risultat{{ total|pluralize:"o,i" }}.</p>
+  <p>Vista a elenco di tutte le scadenze: manutenzioni ordinarie, adempimenti amministrativi, licenze e contratti. Le stesse sono nel Calendario. {{ total }} risultat{{ total|pluralize:"o,i" }}.</p>
 {% endblock %}
 
 {% block assets_shell_toolbar %}
   <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Da fare</a>
-  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Piani</a>
+  <a class="btn" href="{% url 'assets:calendario_asset' %}">Calendario</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -29,17 +29,26 @@
   {% endif %}
 
 
-  <div class="md-tabs">
-    {% for value, label in tabs %}
-      <a class="md-tab {% if active_tab == value %}active{% endif %}" href="?window={{ value }}">{{ label }}</a>
+  {% comment %}
+    Due righe di schede: quando (finestra) e cosa (tipologia). Ogni scheda cambia
+    un solo parametro e conserva gli altri filtri. Sotto, quattro filtri a vista e
+    il resto in "Filtri avanzati", come in "Da fare".
+  {% endcomment %}
+  <div class="md-tabs" aria-label="Finestra temporale">
+    {% for tab in window_tabs %}
+      <a class="md-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}"{% if tab.active %} aria-current="true"{% endif %}>{{ tab.label }}</a>
     {% endfor %}
-    <a class="md-tab {% if request.GET.plan_type == 'administrative' %}active{% endif %}" href="?window=&plan_type=administrative">Amministrative</a>
-    <a class="md-tab {% if request.GET.plan_type == 'ordinary' %}active{% endif %}" href="?window=&plan_type=ordinary">Ordinarie</a>
+  </div>
+  <div class="md-tabs" aria-label="Tipologia">
+    {% for tab in type_tabs %}
+      <a class="md-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}"{% if tab.active %} aria-current="true"{% endif %}>{{ tab.label }}</a>
+    {% endfor %}
   </div>
 
   <form class="md-filters" method="get">
-    {% for field in filter_form %}
-      <div class="md-field {% if field.name == 'report_missing' %}md-field-check{% endif %}">
+    {% for field in filter_form.hidden_tab_fields %}{{ field.as_hidden }}{% endfor %}
+    {% for field in filter_form.simple_fields %}
+      <div class="md-field">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
       </div>
@@ -48,16 +57,62 @@
       <button type="submit" class="btn btn-primary">Filtra</button>
       <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Azzera</a>
     </div>
-  </form>
 
+    <details class="md-advanced" {% if filter_form.advanced_active %}open{% endif %}>
+      <summary>Filtri avanzati{% if filter_form.advanced_active %} <span class="md-badge badge-info">attivi</span>{% endif %}</summary>
+      <div class="md-advanced-grid">
+        {% for field in filter_form.advanced_fields %}
+          <div class="md-field {% if field.name == 'report_missing' or field.name == 'include_done' %}md-field-check{% endif %}">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+  </form>
+  {% if show_occurrences %}
   <section class="md-section">
     <div class="md-section-head">
-      <h2>Scadenze</h2>
-      <span class="md-badge badge-muted">{{ total }}</span>
+      <h2>Manutenzioni e adempimenti</h2>
+      <span class="md-badge badge-muted">{{ rows|length }}</span>
       {% if can_plan %}<span class="md-sub">Seleziona per raccogliere in un ordine di lavoro.</span>{% endif %}
     </div>
     {% include "assets/components/_occurrence_rows.html" with rows=rows selectable=can_plan show_plan=1 %}
   </section>
+  {% endif %}
+
+  {% if show_renewals and renewals %}
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2>Licenze e contratti</h2>
+      <span class="md-badge badge-muted">{{ renewals|length }}</span>
+      <span class="md-sub">Si rinnovano dalla loro scheda: qui non si crea un ordine di lavoro.</span>
+    </div>
+    <div class="md-scroll">
+      <table class="md-table">
+        <thead>
+          <tr><th>Scadenza</th><th>Tipologia</th><th>Cosa</th><th>Asset / destinatario</th><th>Fornitore</th><th>Stato</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for row in renewals %}
+          <tr>
+            <td class="md-nowrap"><span class="md-due{% if row.state == 'overdue' %} is-late{% endif %}">{{ row.due_date|date:"d/m/Y" }}</span>
+              <span class="md-sub">{% if row.days < 0 %}scaduta da {{ row.days_late }} g{% elif row.days == 0 %}oggi{% else %}tra {{ row.days }} g{% endif %}</span></td>
+            <td><span class="md-badge {% if row.kind == 'license' %}badge-info{% else %}badge-warning{% endif %}">{{ row.kind_label }}</span></td>
+            <td>{{ row.title }}</td>
+            <td>{% if row.asset_id %}<a class="md-asset" href="{% url 'assets:asset_view' row.asset_id %}">{{ row.asset_tag }}</a><span class="md-sub">{{ row.asset_name }}</span>{% else %}{{ row.target_label|default:"—" }}{% endif %}</td>
+            <td>{{ row.supplier|default:"—" }}</td>
+            <td><span class="md-badge {% if row.state == 'overdue' %}badge-danger{% elif row.state == 'due_soon' %}badge-warning{% else %}badge-muted{% endif %}">{{ row.state_label }}</span></td>
+            <td class="md-right"><a class="btn btn-sm" href="{{ row.detail_url }}">Apri</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% elif show_renewals and not show_occurrences %}
+  <section class="md-section"><p class="md-empty">Nessuna licenza o contratto in scadenza con questi filtri.</p></section>
+  {% endif %}
 
   {% if can_plan %}
     <form class="md-bulk" id="md-bulk-form" method="post" action="{% url 'assets:occurrence_create_workorder' %}">

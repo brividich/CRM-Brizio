@@ -588,6 +588,42 @@ class FollowUpForm(forms.Form):
         _attach_input_css(self)
 
 
+def category_filter_choices() -> list[tuple[str, str]]:
+    """Famiglie (categorie radice) seguite dalle loro sottocategorie, indentate."""
+    categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label"))
+    children: dict[int | None, list[AssetCategory]] = {}
+    active_ids = {category.id for category in categories}
+    for category in categories:
+        # Una sottocategoria con il genitore disattivato sale a famiglia: non sparisce.
+        parent_id = category.parent_id if category.parent_id in active_ids else None
+        children.setdefault(parent_id, []).append(category)
+    choices: list[tuple[str, str]] = []
+
+    def walk(parent_id, depth):
+        for category in children.get(parent_id, []):
+            choices.append((str(category.id), f"{'— ' * depth}{category.label}"))
+            if depth < 4:
+                walk(category.id, depth + 1)
+
+    walk(None, 0)
+    return choices
+
+
+def category_with_descendants(category_id: int) -> set[int]:
+    """L'id della categoria piu' tutti i discendenti (albero poco profondo: una
+    query per livello)."""
+    ids = {category_id}
+    frontier = {category_id}
+    for _ in range(5):
+        frontier = set(
+            AssetCategory.objects.filter(parent_id__in=frontier).exclude(id__in=ids).values_list("id", flat=True)
+        )
+        if not frontier:
+            break
+        ids |= frontier
+    return ids
+
+
 class OccurrenceFilterForm(forms.Form):
     """Filtri condivisi da "Da fare", "Scadenze" e dashboard responsabile."""
 
@@ -619,6 +655,10 @@ class OccurrenceFilterForm(forms.Form):
     plan = forms.ModelChoiceField(queryset=None, required=False, label="Piano", empty_label="Tutti i piani")
     group = forms.ModelChoiceField(queryset=None, required=False, label="Gruppo", empty_label="Tutti i gruppi")
     asset = forms.ModelChoiceField(queryset=None, required=False, label="Asset", empty_label="Tutti gli asset")
+    # Famiglia o categoria d'inventario: e' il raggruppamento che l'officina usa
+    # davvero (carroponti, CNC, compressori...). Scegliere una famiglia include
+    # tutte le sue sottocategorie.
+    category = forms.ChoiceField(choices=[], required=False, label="Famiglia")
     reparto = forms.ChoiceField(choices=[], required=False, label="Reparto")
     plan_type = forms.ChoiceField(choices=TYPE_CHOICES, required=False, label="Tipo")
     execution_mode = forms.ChoiceField(choices=MODE_CHOICES, required=False, label="Esecuzione")
@@ -633,15 +673,25 @@ class OccurrenceFilterForm(forms.Form):
 
     # I quattro filtri che si usano ogni giorno restano a vista; gli altri stanno
     # sotto "Filtri avanzati". Nessuno viene tolto: cambia solo cosa si vede prima.
-    SIMPLE_FIELDS = ("q", "reparto", "assignee", "window")
+    SIMPLE_FIELDS = ("q", "category", "reparto", "assignee", "window")
+    # Campi che la pagina mostra come schede invece che nel pannello filtri (es.
+    # Scadenzario: finestra temporale e tipologia). Restano nel form, e quindi
+    # nella query string, ma non compaiono due volte.
+    tab_fields: tuple[str, ...] = ()
 
     @property
     def simple_fields(self):
-        return [self[name] for name in self.SIMPLE_FIELDS if name in self.fields]
+        return [self[name] for name in self.SIMPLE_FIELDS if name in self.fields and name not in self.tab_fields]
 
     @property
     def advanced_fields(self):
-        return [self[name] for name in self.fields if name not in self.SIMPLE_FIELDS]
+        return [
+            self[name] for name in self.fields if name not in self.SIMPLE_FIELDS and name not in self.tab_fields
+        ]
+
+    @property
+    def hidden_tab_fields(self):
+        return [self[name] for name in self.tab_fields if name in self.fields]
 
     @property
     def advanced_active(self) -> bool:
@@ -666,6 +716,7 @@ class OccurrenceFilterForm(forms.Form):
             .distinct()
         )
         self.fields["reparto"].choices = [("", "Tutti i reparti")] + [(value, value) for value in reparti]
+        self.fields["category"].choices = [("", "Tutte le famiglie")] + category_filter_choices()
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "")
         _attach_input_css(self)

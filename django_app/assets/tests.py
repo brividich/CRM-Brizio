@@ -3783,12 +3783,22 @@ class AssetsRoutingTests(TestCase):
             f'class="as-section-tab active" href="{reverse("assets:maintenance_da_fare")}" aria-current="page">Da fare</a>',
             html=False,
         )
-        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_scadenze")}">Scadenze</a>', html=False)
-        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_plan_list")}">Piani</a>', html=False)
-        self.assertContains(hub_response, f'href="{reverse("assets:asset_group_list")}">Gruppi asset</a>', html=False)
+        # Il ramo operativo: la barra mostra solo le voci di tutti i giorni; Piani,
+        # Gruppi e Catalogo stanno nel ramo Configurazione (menu unico, maintenance_nav).
+        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_responsabile")}">Panoramica</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:calendario_asset")}">Calendario</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_scadenze")}">Scadenzario</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:wo_list")}">Interventi</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:maintenance_history")}">Storico</a>', html=False)
-        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_impostazioni")}">Impostazioni</a>', html=False)
+        self.assertNotContains(hub_response, f'class="as-section-tab" href="{reverse("assets:maintenance_plan_list")}"', html=False)
+
+        plans_response = self.client.get(reverse("assets:maintenance_plan_list"))
+        self.assertEqual(plans_response.status_code, 200)
+        self.assertContains(plans_response, 'aria-label="Configurazione"', html=False)
+        self.assertContains(plans_response, f'href="{reverse("assets:asset_group_list")}">Gruppi asset</a>', html=False)
+        self.assertContains(plans_response, f'href="{reverse("assets:maintenance_impostazioni")}">Catalogo attività</a>', html=False)
+        self.assertContains(plans_response, f'href="{reverse("assets:assistance_contract_list")}">Contratti assistenza</a>', html=False)
+        self.assertContains(plans_response, f'href="{reverse("assets:software_license_list")}">Licenze software</a>', html=False)
         self.assertContains(
             hub_response,
             f'class="as-section-action as-section-action--primary" href="{reverse("assets:wo_list")}?create=1" data-as-section-action="new-workorder">+ Nuovo intervento</a>',
@@ -3815,7 +3825,7 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(scadenze_response.status_code, 200)
         self.assertContains(
             scadenze_response,
-            f'class="as-section-tab active" href="{reverse("assets:maintenance_scadenze")}" aria-current="page">Scadenze</a>',
+            f'class="as-section-tab active" href="{reverse("assets:maintenance_scadenze")}" aria-current="page">Scadenzario</a>',
             html=False,
         )
 
