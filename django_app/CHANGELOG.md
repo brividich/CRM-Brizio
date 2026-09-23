@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Assets — Calendario manutenzione e Scadenzario con licenze e contratti
+
+- Nuovo `assets/services/deadline_feed.py` (sola lettura): occorrenze, licenze e contratti nella stessa forma.
+- Calendario su tutti gli asset e tutte le tipologie, filtri famiglia/reparto/gruppo/esecuzione, viste Mese/Settimana/Elenco/Per asset, pannello dettaglio con azioni; una query per periodo.
+- Scadenzario: sezione e scheda «Licenze e contratti»; licenze e contratti visibili solo con l'ACL delle loro pagine.
+
 ### Assets — menu Manutenzione unico e Scadenzario
 
 - Barra di sezione e sidebar della Manutenzione leggono la stessa definizione (`assets/maintenance_nav.py`): rami Manutenzione e Configurazione; Calendario, Report, Licenze e Contratti assistenza dentro il ramo. Migration `assets 0106` (solo pulsanti sidebar).

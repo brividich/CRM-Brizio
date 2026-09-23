@@ -502,6 +502,7 @@ _SCADENZE_TYPE_TABS = [
     ("", "Tutte le tipologie"),
     ("ordinary", "Ordinarie"),
     ("administrative", "Amministrative"),
+    ("renewals", "Licenze e contratti"),
 ]
 
 
@@ -520,6 +521,47 @@ def _tab_links(request: HttpRequest, param: str, options, active: str) -> list[d
     return links
 
 
+def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: date, scoped_reparti) -> list:
+    """Licenze e contratti in scadenza, dallo stesso servizio del Calendario.
+
+    Stessa finestra temporale delle occorrenze (le scadute restano finche' la
+    licenza o il contratto sono attivi), stessi filtri famiglia/reparto/gruppo e
+    ricerca. Visibili solo a chi puo' aprire le pagine Licenze e Contratti.
+    """
+    from .services import deadline_feed as feed
+
+    data = form.cleaned_data if form.is_valid() else {}
+    kinds = feed.allowed_kinds(request) & {feed.KIND_LICENSE, feed.KIND_CONTRACT}
+    if not kinds or data.get("execution_mode") or data.get("plan") or data.get("asset") or data.get("supplier"):
+        # Filtri che su licenze e contratti non hanno senso: meglio nessuna riga
+        # che righe che sembrano rispettarli.
+        return []
+    window = data.get("window") or ""
+    start = end = None
+    if window == "overdue":
+        end = today - timedelta(days=1)
+    elif window:
+        start, end = today, today + timedelta(days=int(window))
+    category_id = int(data["category"]) if data.get("category") else 0
+    filters = feed.FeedFilters(
+        kinds=frozenset(kinds),
+        category_ids=frozenset(category_with_descendants(category_id)) if category_id else None,
+        reparto=data.get("reparto") or "",
+        group_id=data["group"].id if data.get("group") else None,
+    )
+    rows = feed.collect(start=start, end=end, filters=filters, today=today)
+    term = (data.get("q") or "").strip().lower()
+    if term:
+        rows = [r for r in rows if term in f"{r.title} {r.asset_tag} {r.asset_name} {r.supplier}".lower()]
+    if scoped_reparti and not data.get("reparto"):
+        rows = [r for r in rows if r.reparto in scoped_reparti]
+    for row in rows:
+        # Il template non fa aritmetica: giorni al netto e ritardo gia' positivo.
+        row.days = row.days_until(today)
+        row.days_late = -row.days if row.days < 0 else 0
+    return rows
+
+
 @login_required
 def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
@@ -529,13 +571,25 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     form = OccurrenceFilterForm(initial)
     # Finestra e tipologia sono schede in testa alla pagina, non campi del pannello.
     form.tab_fields = ("window", "plan_type")
+    # Solo qui la tipologia comprende anche licenze e contratti: non sono
+    # occorrenze e in "Da fare" non c'e' niente da eseguire su di loro.
+    form.fields["plan_type"].choices = list(form.fields["plan_type"].choices) + [("renewals", "Licenze e contratti")]
     form.is_valid()
+    plan_type = form.cleaned_data.get("plan_type", "") if form.is_valid() else ""
 
     queryset = _apply_occurrence_filters(_base_occurrence_queryset(), form, today=today)
     queryset, scoped_reparti = _apply_caporeparto_scope(queryset, request)
-    rows = _decorate(list(queryset[:2000]), today=today)
-    if form.cleaned_data.get("report_missing"):
-        rows = _report_missing_rows(rows)
+    if plan_type == "renewals":
+        rows = []
+    else:
+        rows = _decorate(list(queryset[:2000]), today=today)
+        if form.cleaned_data.get("report_missing"):
+            rows = _report_missing_rows(rows)
+    renewals = (
+        _renewal_rows(request, form, today=today, scoped_reparti=scoped_reparti)
+        if plan_type in ("", "renewals") and not form.cleaned_data.get("report_missing")
+        else []
+    )
 
     active_tab = _clean_string(initial.get("window"))
     return render(
@@ -547,7 +601,10 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
             "today": today,
             "filter_form": form,
             "rows": rows,
-            "total": len(rows),
+            "total": len(rows) + len(renewals),
+            "renewals": renewals,
+            "show_occurrences": plan_type != "renewals",
+            "show_renewals": plan_type in ("", "renewals"),
             "window_tabs": _tab_links(request, "window", _SCADENZE_TABS, active_tab),
             "type_tabs": _tab_links(
                 request, "plan_type", _SCADENZE_TYPE_TABS, _clean_string(initial.get("plan_type"))

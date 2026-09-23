@@ -18552,40 +18552,127 @@ def asset_calendar_json(request: HttpRequest, id: int) -> JsonResponse:
 
 @login_required
 def calendario_asset(request: HttpRequest) -> HttpResponse:
-    """Pagina globale Calendario Asset: vista a calendario o a Gantt."""
-    machines = list(
-        Asset.objects
-        .filter(asset_type__in=[Asset.TYPE_WORK_MACHINE, Asset.TYPE_CNC])
-        .order_by("reparto", "name", "asset_tag")
+    """Calendario della manutenzione: ordinarie, amministrative, licenze e contratti.
+
+    Legge dallo stesso servizio dello Scadenzario (``services.deadline_feed``): i
+    numeri del calendario e della lista sono gli stessi. Viste mese, settimana,
+    elenco e per asset; i filtri vanno al server, le tipologie si accendono e
+    spengono senza ricaricare.
+    """
+    from .forms_maintenance import category_filter_choices
+    from .models import AssetGroup
+    from .services import deadline_feed as feed
+
+    allowed = feed.allowed_kinds(request)
+    kinds = [
+        {"value": kind, "label": label}
+        for kind, label in feed.KIND_LABELS.items()
+        if kind in allowed
+    ]
+    kinds.append({"value": "machine_work", "label": "Lavori macchina"})
+    reparti = list(
+        Asset.objects.exclude(reparto="").values_list("reparto", flat=True).order_by("reparto").distinct()
     )
-    reparti = sorted({m.reparto for m in machines if m.reparto})
     return render(request, "assets/pages/calendario_asset.html", {
-        "machines": machines,
+        "page_title": "Calendario manutenzione",
+        "kinds": kinds,
+        "categories": category_filter_choices(),
         "reparti": reparti,
-        "page_title": "Calendario Asset",
+        "groups": AssetGroup.objects.filter(is_active=True).order_by("sort_order", "label"),
         **_assets_shell_context(request),
     })
 
 
+def _calendar_range_date(raw) -> date | None:
+    """FullCalendar manda ``2026-09-28T00:00:00+02:00``: interessa solo la data."""
+    value = _clean_string(raw)[:10]
+    try:
+        return parse_date(value) if value else None
+    except ValueError:
+        return None
+
+
+def _machine_work_events(start: date, end: date, filters) -> list[dict]:
+    """Lavori macchina (attivita' KICK-OFF di categoria "lavoro macchina") sugli
+    asset filtrati: non sono scadenze di manutenzione ma occupano la macchina, e
+    chi pianifica deve vederli accanto. Una query per tutto il periodo."""
+    try:
+        from tasks.models import TaskExtraRef, TaskStatus
+    except Exception:
+        return []
+    refs = (
+        TaskExtraRef.objects.filter(asset_id__isnull=False, task__category__is_machine_work=True)
+        .exclude(task__status__in=[TaskStatus.DONE, TaskStatus.CANCELED])
+        .select_related("task", "task__assigned_to", "asset", "asset__asset_category")
+    )
+    if filters.category_ids is not None:
+        refs = refs.filter(asset__asset_category_id__in=filters.category_ids)
+    if filters.reparto:
+        refs = refs.filter(asset__reparto=filters.reparto)
+    if filters.group_id:
+        refs = refs.filter(asset__group_memberships__group_id=filters.group_id)
+    events = []
+    for ref in refs[:1000]:
+        task = ref.task
+        begin = task.next_step_due or task.due_date
+        finish = task.due_date or task.next_step_due
+        if not begin or begin > end or (finish or begin) < start:
+            continue
+        asset = ref.asset
+        assignee = ""
+        if task.assigned_to_id:
+            assignee = task.assigned_to.get_full_name() or task.assigned_to.get_username()
+        events.append({
+            "id": f"task-{task.pk}",
+            "kind": "machine_work",
+            "kind_label": "Lavoro macchina",
+            "title": task.title,
+            "start": begin.isoformat(),
+            # FullCalendar: fine esclusiva, quindi il giorno dopo l'ultimo.
+            "end": (finish + timedelta(days=1)).isoformat() if finish and finish > begin else None,
+            "state": "open",
+            "state_label": "In corso" if task.status == TaskStatus.IN_PROGRESS else "Pianificato",
+            "asset_id": asset.id,
+            "asset_tag": asset.asset_tag or "",
+            "asset_name": asset.name or "",
+            "category": asset.asset_category.label if asset.asset_category_id else "",
+            "reparto": asset.reparto or "",
+            "assignee": assignee,
+            "url": f"/tasks/detail/{task.pk}/",
+            "actions": [{"label": "Apri attività", "url": f"/tasks/detail/{task.pk}/"}],
+        })
+    return events
+
+
 @login_required
 def calendario_asset_json(request: HttpRequest) -> JsonResponse:
-    """JSON eventi per tutte le macchine (usato dalla pagina calendario globale)."""
-    machines = Asset.objects.filter(
-        asset_type__in=[Asset.TYPE_WORK_MACHINE, Asset.TYPE_CNC]
-    ).values_list("pk", "asset_tag", "name", "reparto")
+    """Eventi del Calendario manutenzione per il periodo visibile (``start``/``end``)."""
+    from .forms_maintenance import category_with_descendants
+    from .services import deadline_feed as feed
 
-    all_events: list[dict] = []
-    resources: list[dict] = []
-    for pk, tag, name, reparto in machines:
-        resources.append({
-            "id": str(pk),
-            "title": f"{tag} – {name}",
-            "tag": tag,
-            "name": name,
-            "reparto": reparto or "",
-        })
-        for ev in _asset_calendar_events(pk):
-            ev["resourceId"] = str(pk)
-            all_events.append(ev)
+    today = timezone.localdate()
+    start = _calendar_range_date(request.GET.get("start")) or today.replace(day=1) - timedelta(days=7)
+    end = _calendar_range_date(request.GET.get("end")) or start + timedelta(days=42)
+    # Il calendario non chiede mai piu' di qualche settimana: un periodo enorme e'
+    # un errore o un abuso, e si tronca.
+    if end <= start or (end - start).days > 400:
+        end = start + timedelta(days=42)
 
-    return JsonResponse({"ok": True, "resources": resources, "events": all_events})
+    requested = [kind for kind in _clean_string(request.GET.get("kinds")).split(",") if kind]
+    allowed = feed.allowed_kinds(request)
+    category_id = _as_int(request.GET.get("category"), default=0)
+    execution = _clean_string(request.GET.get("execution")).upper()
+    filters = feed.FeedFilters(
+        kinds=feed.parse_kinds(requested, allowed),
+        category_ids=frozenset(category_with_descendants(category_id)) if category_id else None,
+        reparto=_clean_string(request.GET.get("reparto")),
+        group_id=_as_int(request.GET.get("group"), default=0) or None,
+        execution_mode=execution if execution in {"INTERNAL", "EXTERNAL"} else "",
+        include_done=_clean_string(request.GET.get("include_done")) in {"1", "true", "on"},
+    )
+    last_day = end - timedelta(days=1)  # FullCalendar tratta ``end`` come esclusivo.
+    rows = feed.collect(start=start, end=last_day, filters=filters, today=today)
+    events = [row.as_json(today) for row in rows]
+    if not requested or "machine_work" in requested:
+        events += _machine_work_events(start, last_day, filters)
+    return JsonResponse({"ok": True, "today": today.isoformat(), "events": events})
