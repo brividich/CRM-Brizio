@@ -52,6 +52,11 @@
 body.theme-dark .as-help-toggle { background:var(--surface); border-color:var(--border); color:#93c5fd; }
 body.theme-dark .as-help[open] .as-help-toggle { background:rgba(37,99,235,.18); }
 body.theme-dark .as-help-panel { background:var(--surface); border-color:var(--border); color:var(--text); }
+/* Azione distruttiva: rossa, per non confonderla con "Modifica". */
+.btn.btn-danger { background:#fff; color:#b91c1c; border:1px solid #fecaca; box-shadow:none; }
+.btn.btn-danger:hover:not(:disabled) { background:#fef2f2; box-shadow:none; }
+body.theme-dark .btn.btn-danger { background:transparent; color:#fca5a5; border-color:rgba(248,113,113,.45); }
+body.theme-dark .btn.btn-danger:hover:not(:disabled) { background:rgba(220,38,38,.14); }
 .as-nav-badge { display:inline-block; min-width:18px; padding:1px 6px; margin-left:4px; border-radius:999px; background:#dc2626; color:#fff; font-size:var(--fs-2xs); font-weight:800; line-height:1.4; text-align:center; vertical-align:1px; }
 .as-link.active { background: #fff; color: #1f64d8; box-shadow:0 8px 18px rgba(15,23,42,.06); }
 .as-link.active:before { content:""; position:absolute; left:0; top:7px; bottom:7px; width:3px; border-radius:999px; background:#14b8a6; }

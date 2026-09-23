@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Torna al piano</a>
+  <a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Torna al piano</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -70,7 +70,7 @@
 
   <div class="md-form-actions">
     <button type="submit" class="btn btn-primary">Salva applicazione</button>
-    <a class="btn" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Annulla</a>
+    <a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Annulla</a>
   </div>
 </form>
 {% endblock %}

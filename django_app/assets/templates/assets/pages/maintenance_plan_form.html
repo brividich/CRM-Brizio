@@ -10,8 +10,8 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  {% if plan %}<a class="btn" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Torna al piano</a>
-  {% else %}<a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Annulla</a>{% endif %}
+  {% if plan %}<a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Torna al piano</a>
+  {% else %}<a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_list' %}">Annulla</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -65,8 +65,8 @@
 
   <div class="md-form-actions">
     <button type="submit" class="btn btn-primary">Salva piano</button>
-    {% if plan %}<a class="btn" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Annulla</a>
-    {% else %}<a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Annulla</a>{% endif %}
+    {% if plan %}<a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_detail' plan.pk %}">Annulla</a>
+    {% else %}<a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_list' %}">Annulla</a>{% endif %}
   </div>
 </form>
 {% endblock %}

@@ -78,7 +78,7 @@
     <input type="hidden" name="mio" value="{% if only_mine %}1{% else %}0{% endif %}">
     <div class="md-actions">
       <button type="submit" class="btn btn-primary">Filtra</button>
-      <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Azzera</a>
+      <a class="btn btn-secondary" href="{% url 'assets:maintenance_da_fare' %}">Azzera</a>
     </div>
 
     <details class="md-advanced" {% if filter_form.advanced_active %}open{% endif %}>
@@ -214,7 +214,7 @@
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ request.get_full_path }}">
       <span class="md-bulk-count"><span data-md-count>0</span> selezionate</span>
-      <button type="button" class="btn btn-sm" data-md-clear>Deseleziona</button>
+      <button type="button" class="btn btn-sm btn-secondary" data-md-clear>Deseleziona</button>
       <div class="md-field"><label for="{{ workorder_form.title.id_for_label }}">Titolo</label>{{ workorder_form.title }}</div>
       <div class="md-field"><label for="{{ workorder_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_form.assigned_to }}</div>
       <div class="md-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>

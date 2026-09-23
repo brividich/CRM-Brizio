@@ -268,7 +268,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
           {% for r in panoramica.reparti %}<option value="{{ r }}"{% if r == panoramica.reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
         </select>
       </label>
-      <noscript><button type="submit" class="btn">Applica</button></noscript>
+      <noscript><button type="submit" class="btn btn-secondary">Applica</button></noscript>
       <div class="pn-links">
         <a class="btn btn-secondary" href="{{ panoramica.calendario_url }}">Calendario</a>
         <a class="btn btn-secondary" href="{{ panoramica.scadenzario_url }}">Scadenzario</a>
@@ -525,7 +525,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
             <ul>
               {% for item in conflict.conflict_description %}<li>{{ item.target }}: {{ item.recurrence }}</li>{% endfor %}
             </ul>
-            <a class="btn btn-sm" href="{% url 'assets:asset_plan_customize' conflict.asset.pk conflict.plan.pk %}">Personalizza {{ conflict.asset.asset_tag }}</a>
+            <a class="btn btn-sm btn-secondary" href="{% url 'assets:asset_plan_customize' conflict.asset.pk conflict.plan.pk %}">Personalizza {{ conflict.asset.asset_tag }}</a>
           </div>
         {% endfor %}
       </div>

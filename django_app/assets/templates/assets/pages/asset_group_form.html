@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:asset_group_list' %}">Tutti i gruppi</a>
+  <a class="btn btn-secondary" href="{% url 'assets:asset_group_list' %}">Tutti i gruppi</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -34,7 +34,7 @@
   </fieldset>
   <div class="md-form-actions">
     <button type="submit" class="btn btn-primary">Salva gruppo</button>
-    <a class="btn" href="{% url 'assets:asset_group_list' %}">Annulla</a>
+    <a class="btn btn-secondary" href="{% url 'assets:asset_group_list' %}">Annulla</a>
   </div>
 </form>
 {% endblock %}

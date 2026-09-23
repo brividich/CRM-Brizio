@@ -481,7 +481,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
     <form method="get" action="{% url 'assets:wo_create' %}" class="wo-create-form">
       <div class="wo-create-head">
         <h2 class="wo-create-title">Nuovo intervento</h2>
-        <button type="button" onclick="document.getElementById('woCreateDlg').close()" class="btn">Chiudi</button>
+        <button type="button" onclick="document.getElementById('woCreateDlg').close()" class="btn btn-secondary">Chiudi</button>
       </div>
       <input type="hidden" name="source" value="workorder_list">
       <div class="wo-create-search">
@@ -501,7 +501,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
         <div class="wo-empty-search" data-wo-empty-search>Nessun asset trovato.</div>
       </div>
       <div class="wo-create-actions">
-        <button type="button" onclick="document.getElementById('woCreateDlg').close()" class="btn">Annulla</button>
+        <button type="button" onclick="document.getElementById('woCreateDlg').close()" class="btn btn-secondary">Annulla</button>
         <button type="submit" class="btn btn-primary">Continua</button>
       </div>
     </form>
@@ -582,7 +582,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
       <div class="wo-search-row">
         <input type="search" name="q" value="{{ q_filter }}" placeholder="Cerca intervento, asset, reparto o descrizione" aria-label="Cerca interventi">
         <button class="btn btn-primary" type="submit">Cerca</button>
-        {% if q_filter %}<a class="btn" href="{{ workorder_view_url }}">Pulisci</a>{% else %}<span></span>{% endif %}
+        {% if q_filter %}<a class="btn btn-secondary" href="{{ workorder_view_url }}">Pulisci</a>{% else %}<span></span>{% endif %}
       </div>
       <details class="wo-advanced-filters"{% if advanced_filters_open %} open{% endif %}>
         <summary>Altri filtri</summary>
@@ -633,7 +633,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
             <label for="woCoverageFilter">Copertura</label>
             <select id="woCoverageFilter" name="coverage"><option value="all" {% if coverage_filter == 'all' %}selected{% endif %}>Tutte</option><option value="covered" {% if coverage_filter == 'covered' %}selected{% endif %}>Con contratto</option><option value="uncovered" {% if coverage_filter == 'uncovered' %}selected{% endif %}>Senza contratto</option></select>
           </div>
-          <div class="wo-advanced-actions"><button class="btn btn-primary" type="submit">Applica</button><a class="btn" href="{{ workorder_view_url }}">Reimposta</a></div>
+          <div class="wo-advanced-actions"><button class="btn btn-primary" type="submit">Applica</button><a class="btn btn-secondary" href="{{ workorder_view_url }}">Reimposta</a></div>
         </div>
       </details>
     </form>
@@ -657,7 +657,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
       <h2 class="wo-table-title">{% if workorder_view == 'mine' %}Interventi assegnati a me{% elif workorder_view == 'unassigned' %}Interventi di nessuno{% elif workorder_view == 'closed' %}Archivio interventi chiusi{% else %}Interventi aperti{% endif %}</h2>
       <span class="as-badge as-badge--info">{{ workorders|length }} righe</span>
       {% if workorder_view != 'closed' %}
-        <a class="btn" href="{{ workorder_display_toggle_url }}">{% if workorder_display == 'board' %}Vista elenco{% else %}Vista board{% endif %}</a>
+        <a class="btn btn-secondary" href="{{ workorder_display_toggle_url }}">{% if workorder_display == 'board' %}Vista elenco{% else %}Vista board{% endif %}</a>
       {% endif %}
     </div>
     {% if workorder_display == 'board' and workorder_view != 'closed' %}
@@ -712,7 +712,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
                   nessuno — chiudendolo diventa di chi lo chiude. Un'azione sola per
                   colonna: prima un OdL non assegnato mostrava "Apri" due volte e non
                   offriva affatto la chiusura.{% endcomment %}
-                  <a class="btn" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
+                  <a class="btn btn-secondary" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
                   {% if wo.status == 'OPEN' %}
                     <a class="btn btn-primary" href="{% url 'assets:wo_close' wo.id %}">Chiudi</a>
                   {% endif %}

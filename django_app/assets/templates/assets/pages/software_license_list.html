@@ -156,7 +156,7 @@ body.theme-dark .sl-new > summary { color:#93c5fd; }
         </div>
         <div class="sl-actions">
           <button type="submit" class="btn btn-primary">Applica</button>
-          <a class="btn" href="{{ clear_filters_url }}">Reset</a>
+          <a class="btn btn-secondary" href="{{ clear_filters_url }}">Reset</a>
         </div>
       </form>
     </div>
@@ -208,7 +208,7 @@ body.theme-dark .sl-new > summary { color:#93c5fd; }
               {% endfor %}
               <div class="sl-actions">
                 {% if is_edit %}
-                  <a class="btn" href="{{ clear_filters_url }}">Annulla modifica</a>
+                  <a class="btn btn-secondary" href="{{ clear_filters_url }}">Annulla modifica</a>
                 {% endif %}
                 <button type="submit" class="btn btn-primary">{% if is_edit %}Salva licenza{% else %}Crea licenza{% endif %}</button>
               </div>
@@ -277,17 +277,17 @@ body.theme-dark .sl-new > summary { color:#93c5fd; }
                     <td>
                       <div class="sl-row-actions">
                         {% if can_manage_licenses %}
-                          <a class="btn" href="{{ row.edit_url }}">Modifica</a>
+                          <a class="btn btn-secondary" href="{{ row.edit_url }}">Modifica</a>
                           <form method="post">
                             {% csrf_token %}
                             {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
                             {% if selected_anagrafica_id %}<input type="hidden" name="anagrafica_id" value="{{ selected_anagrafica_id }}">{% endif %}
                             <input type="hidden" name="action" value="delete_software_license">
                             <input type="hidden" name="license_id" value="{{ row.license.id }}">
-                            <button type="submit" class="btn" onclick="return confirm('Eliminare questa licenza software?');">Elimina</button>
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('Eliminare questa licenza software?');">Elimina</button>
                           </form>
                         {% else %}
-                          <a class="btn" href="{{ row.edit_url }}">Dettaglio</a>
+                          <a class="btn btn-secondary" href="{{ row.edit_url }}">Dettaglio</a>
                         {% endif %}
                       </div>
                     </td>
