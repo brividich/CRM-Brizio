@@ -106,6 +106,18 @@ class UltimeVisiteCorrentiIdsTests(TestCase):
             legacy_anagrafica_id=7, tipo=self.tipo_b, data_svolgimento=self.oggi - timedelta(days=10))
         self.assertEqual(ultime_visite_correnti_ids(), {a.pk, b.pk})
 
+    def test_cessato_congelato_e_ripristinato_se_rimesso_in_forza(self):
+        v = VisitaMedica.objects.create(
+            legacy_anagrafica_id=9, tipo=self.tipo, data_svolgimento=self.oggi - timedelta(days=400))
+        az = DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=9, data_cessazione=self.oggi - timedelta(days=5))
+        self.assertEqual(ultime_visite_correnti_ids(), set())
+        self.assertEqual(ultime_visite_correnti_ids(includi_cessati=True), {v.pk})
+        self.assertTrue(VisitaMedica.objects.filter(pk=v.pk).exists())
+        az.data_cessazione = None
+        az.save()
+        self.assertEqual(ultime_visite_correnti_ids(), {v.pk})
+
     def test_superata_a_mano_non_e_corrente_e_non_rende_il_posto(self):
         VisitaMedica.objects.create(
             legacy_anagrafica_id=8, tipo=self.tipo, data_svolgimento=self.oggi - timedelta(days=800))
@@ -218,6 +230,15 @@ class DashboardScadenzeConfermateTests(TestCase):
         )
         body = self._dashboard_body()
         self.assertEqual(body.count("10-03-2025"), 1)
+
+    def test_cessato_esce_dalle_scadute(self):
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=72, tipo=self.tipo, data_svolgimento=date(2024, 4, 11))
+        self.assertGreaterEqual(self._dashboard_body().count("11-04-2025"), 2)
+        DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=72, data_cessazione=self.oggi - timedelta(days=1))
+        # Resta solo nel log "ultime registrazioni".
+        self.assertEqual(self._dashboard_body().count("11-04-2025"), 1)
 
 
 class DigestVisiteCorrentiTests(TestCase):

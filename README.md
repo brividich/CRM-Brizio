@@ -1041,6 +1041,8 @@ Nello scadenziario visite una visita più recente della stessa **categoria** del
 «Segna come superata» (`POST /anagrafica/visite-mediche/<id>/superata/`, gate sanitario,
 motivo obbligatorio, audit) toglie la visita dallo scadenziario senza cancellarla dal
 libretto; si annulla con «Ripristina nello scadenziario».
+Le visite dei dipendenti cessati (`data_cessazione` valorizzata) escono da scadenziario,
+KPI, export e digest: restano nel libretto e tornano con «Rimetti in forza».
 
 I permessi di sezione sono **additivi**: superuser e admin legacy passano come prima, e i grant nascono
 spenti per tutti gli altri ruoli — dati personali e sanitari si concedono

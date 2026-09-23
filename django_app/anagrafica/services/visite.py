@@ -14,6 +14,7 @@ from django.db.models import Max
 from django.utils import timezone
 
 from ..models import (
+    DipendenteAnagraficaAziendale,
     DocumentoDipendente,
     DipendenteRuoloOperativo,
     TipoVisitaMedica,
@@ -214,6 +215,7 @@ def visite_storico(legacy_id: int) -> list[VisitaMedica]:
 def ultime_visite_correnti_ids(
     legacy_ids: Iterable[int] | None = None,
     tipo_ids: Iterable[int] | None = None,
+    includi_cessati: bool = False,
 ) -> set[int]:
     """Id delle ``VisitaMedica`` **correnti**: l'ultima per coppia
     ``(legacy_anagrafica_id, famiglia)``.
@@ -227,6 +229,10 @@ def ultime_visite_correnti_ids(
     vista. Le visite segnate a mano come superate (``superata_il``) non sono
     mai correnti, e non restituiscono il posto alle precedenti.
 
+    I dipendenti cessati (``data_cessazione`` valorizzata) sono esclusi: le loro
+    scadenze sono congelate, non cancellate — le visite restano nel libretto e
+    tornano correnti se la persona viene rimessa in forza.
+
     SQL Server-safe: niente window function, due query in tutto.
     """
     famiglia_di_tipo = {
@@ -236,6 +242,10 @@ def ultime_visite_correnti_ids(
     qs = VisitaMedica.objects.all()
     if legacy_ids is not None:
         qs = qs.filter(legacy_anagrafica_id__in=list(legacy_ids))
+    if not includi_cessati:
+        qs = qs.exclude(legacy_anagrafica_id__in=DipendenteAnagraficaAziendale.objects.filter(
+            data_cessazione__isnull=False,
+        ).values("legacy_anagrafica_id"))
     tipi_richiesti = None
     if tipo_ids is not None:
         # Il filtro per tipo va allargato alla famiglia, altrimenti una visita
