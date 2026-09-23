@@ -5,27 +5,20 @@
 
 {% block assets_shell_head %}
 {# FullCalendar 6 inietta la propria CSS dal bundle JS: nessun file CSS separato. #}
+{% include "assets/components/maintenance_domain_styles.html" %}
 <style>
 /* Colori per tipologia: gli stessi in calendario, elenco, pannello e legenda. */
+/* Colori per tipologia: token --mk-* di maintenance_domain_styles, uguali ovunque. */
 .cm-page {
-  --cm-ord:#2563eb; --cm-ord-bg:#e8f0ff;
-  --cm-adm:#7c3aed; --cm-adm-bg:#f1eaff;
-  --cm-lic:#0f8f86; --cm-lic-bg:#e2f6f4;
-  --cm-con:#b0620a; --cm-con-bg:#fcefdf;
-  --cm-mw:#475569;  --cm-mw-bg:#eef2f6;
-  --cm-late:#dc2626;
-  --cm-card:var(--surface,#fff); --cm-line:var(--border,#dbe1ea); --cm-soft:#f6f8fb;
+  --cm-ord:var(--mk-ord); --cm-ord-bg:var(--mk-ord-bg);
+  --cm-adm:var(--mk-adm); --cm-adm-bg:var(--mk-adm-bg);
+  --cm-lic:var(--mk-lic); --cm-lic-bg:var(--mk-lic-bg);
+  --cm-con:var(--mk-con); --cm-con-bg:var(--mk-con-bg);
+  --cm-mw:var(--mk-mw);   --cm-mw-bg:var(--mk-mw-bg);
+  --cm-late:var(--mk-late);
+  --cm-card:var(--surface,#fff); --cm-line:var(--border,#dbe1ea); --cm-soft:var(--mk-soft);
   --cm-text:var(--text,#0f172a); --cm-mid:var(--text-mid,#475569); --cm-faint:var(--text-light,#94a3b8);
   display:grid; gap:14px;
-}
-body.theme-dark .cm-page {
-  --cm-ord:#7aa5ff; --cm-ord-bg:rgba(37,99,235,.22);
-  --cm-adm:#b996ff; --cm-adm-bg:rgba(124,58,237,.24);
-  --cm-lic:#45cdc1; --cm-lic-bg:rgba(15,143,134,.24);
-  --cm-con:#eaa55c; --cm-con-bg:rgba(176,98,10,.26);
-  --cm-mw:#a3b1c6;  --cm-mw-bg:rgba(148,163,184,.16);
-  --cm-late:#f87171;
-  --cm-soft:rgba(255,255,255,.04);
 }
 
 .cm-card { background:var(--cm-card); border:1px solid var(--cm-line); border-radius:14px; }
@@ -139,7 +132,7 @@ body.theme-dark .cm-page {
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}" data-cm-list-link>Scadenzario (elenco)</a>
+  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}" data-cm-list-link title="Le stesse scadenze, con i filtri attuali, nello Scadenzario">Apri come elenco</a>
 {% endblock %}
 
 {% block assets_shell_content %}

@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Piani</a>
+  
   {% if can_manage %}<a class="btn btn-primary" href="{% url 'assets:asset_group_create' %}">+ Nuovo gruppo</a>{% endif %}
 {% endblock %}
 

@@ -474,8 +474,6 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
 {% block assets_shell_title %}Interventi{% endblock %}
 {% block assets_shell_subtitle %}<p>La coda è di tutti: apri un intervento, fallo e chiudilo — chiudendolo diventa tuo.</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn btn-secondary" href="{% url 'assets:maintenance_hub' %}">&#8592; Hub manutenzione</a>
-  <a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Inventario</a>
   <button type="button" onclick="document.getElementById('woCreateDlg').showModal()" class="btn btn-primary"{% if not workorder_create_asset_options %} disabled{% endif %}>+ Nuovo intervento</button>
   <a class="btn btn-secondary" href="{% url 'assets:wo_campaign_create' %}">+ Campagna</a>
   <button type="button" onclick="document.getElementById('woExportDlg').showModal()" class="btn btn-secondary">&#8595; Esporta</button>

@@ -9,10 +9,7 @@
   <p>Cosa va fatto, su quali macchine, entro quando. {{ total }} manutenzion{{ total|pluralize:"e,i" }} apert{{ total|pluralize:"a,e" }}.</p>
 {% endblock %}
 
-{% block assets_shell_toolbar %}
-  <a class="btn btn-secondary" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
-  {% if can_plan %}<a class="btn btn-secondary" href="{% url 'assets:maintenance_responsabile' %}">Cruscotto</a>{% endif %}
-{% endblock %}
+{% block assets_shell_toolbar %}{% endblock %}
 
 {% block assets_shell_content %}
 <div class="md-page">

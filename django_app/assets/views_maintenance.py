@@ -629,20 +629,6 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
 # Dashboard responsabile
 # ---------------------------------------------------------------------------
 
-def _vista_cruscotto(request: HttpRequest) -> str:
-    """Quale delle due letture del Cruscotto mostrare.
-
-    La scelta esplicita (``?vista=``) vince sempre. Senza scelta il default si
-    ricava dai permessi che esistono gia': chi non puo' ne' pianificare ne'
-    eseguire non ha nulla da fare con le liste operative — vede la sintesi. Non
-    si introduce un secondo sistema di ruoli per una preferenza di vista.
-    """
-    scelta = _clean_string(request.GET.get("vista")).lower()
-    if scelta in {"operativo", "sintesi"}:
-        return scelta
-    return "operativo" if can_execute_maintenance(request) else "sintesi"
-
-
 def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_rows: list[dict[str, Any]],
                        report_missing: int, resolutions: dict) -> dict[str, Any]:
     """Indicatori di andamento per la direzione, costruiti SOLO su campi che
@@ -924,7 +910,16 @@ def _conformita(request: HttpRequest, *, today: date) -> dict[str, Any]:
 @login_required
 def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
     """Panoramica: cosa e' scaduto, cosa sta per scadere, cosa NON e' ancora
-    pianificato. La distinzione fra "dovuta" e "pianificata" e' il punto della pagina."""
+    pianificato. La distinzione fra "dovuta" e "pianificata" e' il punto della pagina.
+
+    La vecchia lettura "Sintesi" (``?vista=sintesi``) e' la pagina KPI: i link
+    salvati ci arrivano con gli altri parametri intatti.
+    """
+    if _clean_string(request.GET.get("vista")).lower() == "sintesi":
+        query = request.GET.copy()
+        query.pop("vista", None)
+        target = reverse("assets:maintenance_kpi")
+        return redirect(f"{target}?{query.urlencode()}" if query else target)
     return _responsabile_response(request, kpi_page=False)
 
 
@@ -1070,7 +1065,8 @@ def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpRespo
 
     # Due letture della stessa pagina, non due pagine: l'operativo elenca cosa fare,
     # la sintesi dice come sta andando. Stesso URL, stesso conteggio, un parametro.
-    vista = "sintesi" if kpi_page else _vista_cruscotto(request)
+    # Due pagine, non uno switch: la Panoramica elenca cosa fare, KPI dice come sta andando.
+    vista = "sintesi" if kpi_page else "operativo"
     sintesi = (
         _sintesi_direzione(
             today=today,

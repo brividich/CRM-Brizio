@@ -10,6 +10,33 @@
 
 .md-page { display:grid; gap:16px; }
 
+/* --- Colori per tipologia di scadenza ---
+   Un solo posto: Calendario, Panoramica, Scadenzario e scheda asset li leggono
+   da qui. Sul body, cosi' valgono anche fuori da .md-page. */
+body {
+  --mk-ord:#2563eb; --mk-ord-bg:#e8f0ff;
+  --mk-adm:#7c3aed; --mk-adm-bg:#f1eaff;
+  --mk-lic:#0f8f86; --mk-lic-bg:#e2f6f4;
+  --mk-con:#b0620a; --mk-con-bg:#fcefdf;
+  --mk-mw:#475569;  --mk-mw-bg:#eef2f6;
+  --mk-late:#dc2626; --mk-soft:#f6f8fb;
+}
+body.theme-dark {
+  --mk-ord:#7aa5ff; --mk-ord-bg:rgba(37,99,235,.22);
+  --mk-adm:#b996ff; --mk-adm-bg:rgba(124,58,237,.24);
+  --mk-lic:#45cdc1; --mk-lic-bg:rgba(15,143,134,.24);
+  --mk-con:#eaa55c; --mk-con-bg:rgba(176,98,10,.26);
+  --mk-mw:#a3b1c6;  --mk-mw-bg:rgba(148,163,184,.16);
+  --mk-late:#f87171; --mk-soft:rgba(255,255,255,.04);
+}
+.mk-k-ordinary       { --mk-k:var(--mk-ord); --mk-k-bg:var(--mk-ord-bg); }
+.mk-k-administrative { --mk-k:var(--mk-adm); --mk-k-bg:var(--mk-adm-bg); }
+.mk-k-license        { --mk-k:var(--mk-lic); --mk-k-bg:var(--mk-lic-bg); }
+.mk-k-contract       { --mk-k:var(--mk-con); --mk-k-bg:var(--mk-con-bg); }
+.mk-k-machine_work   { --mk-k:var(--mk-mw);  --mk-k-bg:var(--mk-mw-bg); }
+.mk-kind { display:inline-flex; align-items:center; font-size:var(--fs-2xs); font-weight:800; letter-spacing:.04em;
+  text-transform:uppercase; padding:2px 8px; border-radius:6px; background:var(--mk-k-bg); color:var(--mk-k); white-space:nowrap; }
+
 /* --- Riepilogo in testa --- */
 .md-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
 .md-kpi {

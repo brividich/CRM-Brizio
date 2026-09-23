@@ -6450,29 +6450,23 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         "active_label": active_item.label,
         "items": items,
         "breadcrumbs": breadcrumbs,
-        "actions": [
-            {
+        "actions": (
+            [{
                 "key": "new-workorder",
                 "label": "+ Nuovo intervento",
                 "url": f"{workorders_url}?create=1",
                 "kind": "primary",
-            },
-            {
-                "key": "export-workorders",
-                "label": "Esporta OdL",
-                "url": f"{workorders_url}?export=1",
-                "kind": "secondary",
-            },
-            {
-                "key": "new-plan",
-                "label": "+ Nuovo piano",
-                # Punta al nuovo dominio: "piano" per l'utente e' Piano di
-                # manutenzione, non la vecchia regola per categoria.
-                "url": reverse("assets:maintenance_plan_create"),
-                "kind": "secondary",
-            },
-        ],
+            }]
+            if active_item.key in _SECTION_ACTION_NEW_WORKORDER
+            else []
+        ),
     }
+
+
+# Pagine dove "+ Nuovo intervento" sta nella barra di sezione: le operative senza
+# un pulsante proprio. Interventi ha il suo (con il selettore asset), la
+# configurazione e i KPI non aprono lavoro.
+_SECTION_ACTION_NEW_WORKORDER = frozenset({"panoramica", "da_fare", "calendario", "scadenzario", "storico"})
 
 def _safe_editor_json_rows(raw_value) -> list[dict[str, object]]:
     if not raw_value:

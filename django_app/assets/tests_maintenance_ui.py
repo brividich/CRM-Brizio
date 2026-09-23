@@ -1248,7 +1248,7 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
     def test_la_sintesi_misura_la_puntualita_sulle_concluse(self):
         self._occorrenze_concluse(12, in_ritardo=3)
 
-        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        response = self.client.get(reverse("assets:maintenance_kpi"))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["vista"], "sintesi")
@@ -1265,7 +1265,7 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
         164 su 164 e producevano un "100% nei tempi" che non misurava nulla."""
         self._occorrenze_concluse(12, source=MaintenanceOccurrence.SOURCE_MIGRATION)
 
-        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        response = self.client.get(reverse("assets:maintenance_kpi"))
         sintesi = response.context["sintesi"]
 
         # Restano contate, ma fuori dalla misura - e la pagina dice perche'.
@@ -1282,7 +1282,7 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
         self._chiudi(self.occurrences[0], giorni_di_ritardo=-2)
         self._chiudi(self.occurrences[1], giorni_di_ritardo=5)
 
-        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        response = self.client.get(reverse("assets:maintenance_kpi"))
         sintesi = response.context["sintesi"]
 
         # Due righe non fanno una statistica: "50%" sarebbe un numero, non una misura.
@@ -1300,7 +1300,7 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
         )
         chiuso.close(status=WorkOrder.STATUS_DONE)
 
-        response = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        response = self.client.get(reverse("assets:maintenance_kpi"))
 
         self.assertContains(response, "Cosa il portale non puo' ancora misurare")
         self.assertContains(response, "MTTR")
@@ -1317,33 +1317,24 @@ class SintesiDirezioneTests(MaintenanceUITestCase):
             title="Guasto da gestire subito",
         )
 
-        sintesi = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=sintesi")
+        sintesi = self.client.get(reverse("assets:maintenance_kpi"))
         operativo = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=operativo")
 
         self.assertNotContains(sintesi, "Guasto da gestire subito")
         self.assertContains(operativo, "Guasto da gestire subito")
         self.assertEqual(operativo.context["sintesi"], None)
 
-    def test_il_default_segue_i_permessi_gia_esistenti(self):
-        """Chi non puo' ne' pianificare ne' eseguire non ha nulla da fare con le
-        liste operative: apre sulla sintesi. Nessun secondo sistema di ruoli."""
-        from assets import views_maintenance
-
-        # Il superuser esegue: default operativo.
+    def test_la_vecchia_sintesi_e_la_pagina_kpi(self):
+        """Panoramica e KPI sono due voci di menu: niente piu' switch. I link salvati
+        con ``?vista=sintesi`` arrivano ai KPI conservando gli altri parametri."""
         self.assertEqual(
             self.client.get(reverse("assets:maintenance_responsabile")).context["vista"], "operativo"
         )
-
-        originale = views_maintenance.can_execute_maintenance
-        views_maintenance.can_execute_maintenance = lambda request: False
-        try:
-            response = self.client.get(reverse("assets:maintenance_responsabile"))
-            self.assertEqual(response.context["vista"], "sintesi")
-            # La scelta esplicita vince comunque sul default.
-            scelto = self.client.get(reverse("assets:maintenance_responsabile") + "?vista=operativo")
-            self.assertEqual(scelto.context["vista"], "operativo")
-        finally:
-            views_maintenance.can_execute_maintenance = originale
+        response = self.client.get(reverse("assets:maintenance_responsabile"), {"vista": "sintesi", "reparto": "X"})
+        self.assertRedirects(response, reverse("assets:maintenance_kpi") + "?reparto=X", fetch_redirect_response=False)
+        self.assertNotContains(
+            self.client.get(reverse("assets:maintenance_responsabile")), 'class="ms-switch"', html=False
+        )
 
 
 class RifinituraUXTests(MaintenanceUITestCase):

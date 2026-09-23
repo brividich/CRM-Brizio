@@ -3805,16 +3805,12 @@ class AssetsRoutingTests(TestCase):
             f'class="as-section-action as-section-action--primary" href="{reverse("assets:wo_list")}?create=1" data-as-section-action="new-workorder">+ Nuovo intervento</a>',
             html=False,
         )
-        self.assertContains(
-            hub_response,
-            f'href="{reverse("assets:wo_list")}?export=1" data-as-section-action="export-workorders">Esporta OdL</a>',
-            html=False,
-        )
-        self.assertContains(
-            hub_response,
-            f'href="{reverse("assets:maintenance_plan_create")}" data-as-section-action="new-plan">+ Nuovo piano</a>',
-            html=False,
-        )
+        # Solo l'azione che serve alla pagina: export OdL e "+ Nuovo piano" stanno
+        # nelle pagine Interventi e Piani, non ripetuti in ogni barra.
+        self.assertNotContains(hub_response, 'data-as-section-action="export-workorders"', html=False)
+        self.assertNotContains(hub_response, 'data-as-section-action="new-plan"', html=False)
+        kpi_response = self.client.get(reverse("assets:maintenance_kpi"))
+        self.assertNotContains(kpi_response, 'data-as-section-action="new-workorder"', html=False)
 
         # Le pagine del vecchio motore sono state ritirate: restano raggiungibili
         # per URL ma rimandano alla superficie nuova equivalente, cosi' chi arriva
