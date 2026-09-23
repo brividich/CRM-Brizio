@@ -1049,198 +1049,42 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
 
       <!-- ============= VISITE MEDICHE ============= -->
       <section class="imp-panel" data-panel="visite-mediche" id="tab-visite-mediche">
-        <div class="imp-card">
-          <div class="imp-card-head">
-            <div>
-              <div class="imp-card-title">Tipi di visita medica</div>
-              <div class="imp-card-sub">
-                Catalogo tipologie di sorveglianza sanitaria con periodicità e ruoli obbligatori.
-                {% if scadenze_vm_count %}
-                  <span class="imp-badge imp-badge-orange">{{ scadenze_vm_count }} in scadenza/scadute</span>
-                {% endif %}
-              </div>
-            </div>
-            <a class="imp-btn imp-btn-ghost imp-btn-sm" href="{% url 'anagrafica:visite_mediche_dashboard' %}">
-              Scadenzario →
-            </a>
+        {% if is_admin %}
+        <form id="vm-bulk-form" class="imp-card" style="position:sticky;top:8px;z-index:20;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;"
+              hx-post="{% url 'anagrafica:tipo_visita_medica_bulk_edit' %}"
+              hx-target="#visite-mediche-panel-content" hx-swap="outerHTML"
+              hx-include="[data-vm-bulk-check]:checked">
+          {% csrf_token %}
+          <div class="imp-field" style="flex:0 0 auto;">
+            <label class="imp-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" id="vm-bulk-select-all"> Seleziona tutti
+            </label>
+            <span id="vm-bulk-count" style="font-size:12px;color:#64748b;">0 selezionati</span>
           </div>
-          {% if is_admin %}
-          <form method="post" action="{% url 'anagrafica:tipo_visita_medica_create' %}" id="form-visita-create">
-            {% csrf_token %}
-            <div class="imp-add-form" style="margin-bottom:10px;">
-              <div class="imp-field" style="flex:2 1 200px;">
-                <label class="imp-label">Nome *</label>
-                <input class="imp-input" type="text" name="nome" maxlength="150" required placeholder="Es. Visita periodica">
-              </div>
-              <div class="imp-field">
-                <label class="imp-label">Periodicità (mesi)</label>
-                <input class="imp-input" type="number" min="0" name="durata_mesi" value="12">
-              </div>
-              <div class="imp-field" style="justify-content:flex-end;">
-                <label class="imp-label" style="display:flex;align-items:center;gap:5px;margin-top:14px;">
-                  <input type="checkbox" name="obbligatoria" value="1" checked>
-                  Obbligatoria
-                </label>
-              </div>
-            </div>
-            <div class="imp-field" style="max-width:260px;margin-bottom:10px;">
-              <label class="imp-label">Categoria (facoltativa)</label>
-              <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" placeholder="Es. Rischio chimico">
-              <datalist id="visite-categorie-list">
-                {% for cat in categorie_visita %}<option value="{{ cat }}">{% endfor %}
-              </datalist>
-            </div>
-            {% if ruoli_operativi %}
-            <div style="margin-bottom:10px;">
-              <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Ruoli operativi obbligatori</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                <label id="visita-create-tutti-label" style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;background:#dbeafe;border:1px solid #93c5fd;border-radius:7px;color:#1f87cd;">
-                  <input type="checkbox" id="visita-create-tutti" style="margin:0;"> Tutti i ruoli
-                </label>
-                {% for ro in ruoli_operativi %}
-                <label class="visita-create-ruolo-lbl" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:4px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;">
-                  <input type="checkbox" name="ruolo_ids" value="{{ ro.id }}" class="visita-create-ruolo"> {{ ro.icona }} {{ ro.nome }}
-                </label>
-                {% endfor %}
-              </div>
-            </div>
-            {% endif %}
-            {% if mansioni %}
-            <div style="margin-bottom:10px;">
-              <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Mansioni di rischio obbligate</div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                {% for m in mansioni %}
-                <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:4px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;">
-                  <input type="checkbox" name="mansione_ids" value="{{ m.id }}"> {{ m.nome }}
-                </label>
-                {% endfor %}
-              </div>
-            </div>
-            {% endif %}
-            <div>
-              <button class="imp-btn imp-btn-green" type="submit">+ Aggiungi tipo visita</button>
-            </div>
-          </form>
-          {% endif %}
-        </div>
-
-        {% regroup tipi_visita by categoria as visite_per_categoria_lista %}
-        {% for gruppo in visite_per_categoria_lista %}
-        <details class="imp-card" style="padding:0;">
-          <summary style="cursor:pointer;padding:12px 16px;font-size:13px;font-weight:700;color:#334155;list-style:none;display:flex;align-items:center;gap:8px;">
-            <span style="flex:1;">{{ gruppo.grouper|default:"Senza categoria" }}</span>
-            <span class="imp-tab-count">{{ gruppo.list|length }}</span>
-          </summary>
-          <div class="imp-list" style="padding:0 16px 12px;">
-            {% for t in gruppo.list %}
-              <div class="imp-row {% if not t.is_active %}inactive{% endif %}">
-                <div class="imp-row-main">
-                  <div class="imp-row-name">{{ t.nome }}</div>
-                  <div class="imp-row-meta">
-                    {% if t.durata_mesi %}ogni {{ t.durata_mesi }} mesi{% else %}senza scadenza{% endif %}
-                    {% if t.obbligatoria %} · <span class="imp-badge imp-badge-orange">obbligatoria</span>{% endif %}
-                    · {{ t.n_visite|default:0 }} visite registrate
-                    {% with ruoli_list=t.ruoli_operativi.all %}
-                      {% if ruoli_list %} · ruoli: {% for ro in ruoli_list %}{{ ro.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
-                    {% endwith %}
-                    {% with mansioni_list=t.mansioni_richiedenti.all %}
-                      {% if mansioni_list %} · mansioni: {% for m in mansioni_list %}{{ m.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
-                    {% endwith %}
-                    {% if not t.is_active %} · <span class="imp-badge imp-badge-gray">disattiva</span>{% endif %}
-                  </div>
-                </div>
-                {% if is_admin %}
-                <div class="imp-row-actions">
-                  <button type="button" class="imp-btn imp-btn-ghost imp-btn-sm"
-                          data-modal="visita-edit-{{ t.id }}">Modifica</button>
-                  <form method="post" action="{% url 'anagrafica:tipo_visita_medica_delete' t.id %}" style="display:inline;"
-                        onsubmit="return confirm('Eliminare il tipo visita &quot;{{ t.nome|escapejs }}&quot;?');">
-                    {% csrf_token %}
-                    <button class="imp-btn imp-btn-danger imp-btn-sm" type="submit">Elimina</button>
-                  </form>
-                </div>
-                {% endif %}
-              </div>
-
-              {% if is_admin %}
-              <div class="imp-modal-overlay" id="modal-visita-edit-{{ t.id }}">
-                <div class="imp-modal">
-                  <button class="imp-modal-close" type="button" data-close-modal>×</button>
-                  <div class="imp-modal-title">Modifica tipo visita medica</div>
-                  <form method="post" action="{% url 'anagrafica:tipo_visita_medica_edit' t.id %}">
-                    {% csrf_token %}
-                    <div class="imp-modal-body">
-                      <div class="imp-field">
-                        <label class="imp-label">Nome *</label>
-                        <input class="imp-input" type="text" name="nome" maxlength="150" required value="{{ t.nome }}">
-                      </div>
-                      <div class="imp-field">
-                        <label class="imp-label">Periodicità (mesi, 0 = nessuna scadenza)</label>
-                        <input class="imp-input" type="number" min="0" name="durata_mesi" value="{{ t.durata_mesi }}">
-                      </div>
-                      <div class="imp-field">
-                        <label class="imp-label">Descrizione</label>
-                        <textarea class="imp-textarea" name="descrizione">{{ t.descrizione }}</textarea>
-                      </div>
-                      <div class="imp-field">
-                        <label class="imp-label">Categoria (facoltativa)</label>
-                        <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" value="{{ t.categoria }}" placeholder="Es. Rischio chimico">
-                      </div>
-                      <div class="imp-field" style="flex-direction:row;gap:16px;">
-                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
-                          <input type="checkbox" name="obbligatoria" value="1" {% if t.obbligatoria %}checked{% endif %}>
-                          Obbligatoria
-                        </label>
-                        <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
-                          <input type="checkbox" name="is_active" value="1" {% if t.is_active %}checked{% endif %}>
-                          Attiva
-                        </label>
-                      </div>
-                      {% if ruoli_operativi %}
-                      <div class="imp-field">
-                        <label class="imp-label">Ruoli operativi obbligatori</label>
-                        <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
-                          {% for ro in ruoli_operativi %}
-                          <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;">
-                            <input type="checkbox" name="ruolo_ids" value="{{ ro.id }}"
-                                   {% if ro in t.ruoli_operativi.all %}checked{% endif %}>
-                            {{ ro.icona }} {{ ro.nome }}
-                          </label>
-                          {% endfor %}
-                        </div>
-                      </div>
-                      {% endif %}
-                      {% if mansioni %}
-                      <div class="imp-field">
-                        <label class="imp-label">Mansioni di rischio obbligate</label>
-                        <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
-                          {% for m in mansioni %}
-                          <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;">
-                            <input type="checkbox" name="mansione_ids" value="{{ m.id }}"
-                                   {% if m in t.mansioni_richiedenti.all %}checked{% endif %}>
-                            {{ m.nome }}
-                          </label>
-                          {% endfor %}
-                        </div>
-                      </div>
-                      {% endif %}
-                    </div>
-                    <div class="imp-modal-footer">
-                      <button type="button" class="imp-btn imp-btn-ghost" data-close-modal>Annulla</button>
-                      <button type="submit" class="imp-btn imp-btn-primary">Salva</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-              {% endif %}
-            {% endfor %}
+          <div class="imp-field" style="max-width:220px;">
+            <label class="imp-label">Categoria</label>
+            <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" placeholder="non modificare">
           </div>
-        </details>
-        {% empty %}
-        <div class="imp-card">
-          <div class="imp-empty">Nessun tipo di visita medica registrato.</div>
-        </div>
-        {% endfor %}
+          <div class="imp-field" style="max-width:170px;">
+            <label class="imp-label">Obbligatoria</label>
+            <select class="imp-input" name="obbligatoria">
+              <option value="">non modificare</option>
+              <option value="1">Sì</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="imp-field" style="max-width:170px;">
+            <label class="imp-label">Attiva</label>
+            <select class="imp-input" name="is_active">
+              <option value="">non modificare</option>
+              <option value="1">Sì</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <button type="submit" id="vm-bulk-submit" class="imp-btn imp-btn-primary" disabled>Applica a selezionati</button>
+        </form>
+        {% endif %}
+        {% include "anagrafica/partials/_visite_mediche_panel_wrapper.html" with show_htmx_messages=False %}
       </section>
 
       <!-- ============= DPI ============= -->
@@ -2437,25 +2281,59 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
   initial = initial || '{{ active_tab|escapejs }}' || 'mansioni';
   setTab(initial, false);
 
-  // Modali
-  root.querySelectorAll('[data-modal]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var id = 'modal-' + btn.dataset.modal;
-      var modal = document.getElementById(id);
+  // Modali — delegato su root (invece di un bind per-elemento) così sopravvive
+  // a un partial HTMX che rigenera bottoni/overlay (es. il pannello Visite mediche,
+  // ricostruito ad ogni crea/modifica/elimina/modifica-massiva).
+  root.addEventListener('click', function (e) {
+    var openBtn = e.target.closest('[data-modal]');
+    if (openBtn) {
+      var modal = document.getElementById('modal-' + openBtn.dataset.modal);
       if (modal) modal.classList.add('open');
-    });
-  });
-  root.querySelectorAll('[data-close-modal]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var overlay = btn.closest('.imp-modal-overlay');
+      return;
+    }
+    var closeBtn = e.target.closest('[data-close-modal]');
+    if (closeBtn) {
+      var overlay = closeBtn.closest('.imp-modal-overlay');
       if (overlay) overlay.classList.remove('open');
-    });
+      return;
+    }
+    if (e.target.classList && e.target.classList.contains('imp-modal-overlay')) {
+      e.target.classList.remove('open');
+    }
   });
-  root.querySelectorAll('.imp-modal-overlay').forEach(function (overlay) {
-    overlay.addEventListener('click', function (e) {
-      if (e.target === overlay) overlay.classList.remove('open');
+
+  // Visite mediche: selezione multipla per la modifica in blocco. La barra
+  // (form #vm-bulk-form + checkbox "Seleziona tutti") sta fuori dal pannello
+  // che l'HTMX rimpiazza, quindi resta viva; le righe con la checkbox invece
+  // vengono rigenerate ad ogni azione e si riazzerano di conseguenza.
+  (function () {
+    var bulkCount = document.getElementById('vm-bulk-count');
+    var bulkSubmit = document.getElementById('vm-bulk-submit');
+    var selectAll = document.getElementById('vm-bulk-select-all');
+    if (!bulkCount && !bulkSubmit && !selectAll) return;
+
+    function updateCount() {
+      var n = document.querySelectorAll('[data-vm-bulk-check]:checked').length;
+      if (bulkCount) bulkCount.textContent = n + (n === 1 ? ' selezionato' : ' selezionati');
+      if (bulkSubmit) bulkSubmit.disabled = n === 0;
+    }
+    document.addEventListener('change', function (e) {
+      if (e.target.matches && e.target.matches('[data-vm-bulk-check]')) {
+        updateCount();
+      } else if (e.target === selectAll) {
+        document.querySelectorAll('[data-vm-bulk-check]').forEach(function (cb) {
+          cb.checked = selectAll.checked;
+        });
+        updateCount();
+      }
     });
-  });
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+      if (e.detail && e.detail.target && e.detail.target.id === 'visite-mediche-panel-content') {
+        if (selectAll) selectAll.checked = false;
+        updateCount();
+      }
+    });
+  })();
 
   // Permessi: mostra checkbox ruoli solo quando "RUOLI"
   root.querySelectorAll('[data-perm-radio]').forEach(function (radio) {
@@ -2494,16 +2372,15 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
     });
   });
 
-  // Visite mediche create form: "Tutti i ruoli" checkbox
-  var tuttiChk = document.getElementById('visita-create-tutti');
-  if (tuttiChk) {
-    tuttiChk.addEventListener('change', function () {
-      root.querySelectorAll('.visita-create-ruolo').forEach(function (c) {
-        c.checked = tuttiChk.checked;
-        c.disabled = tuttiChk.checked;
-      });
+  // Visite mediche create form: "Tutti i ruoli" checkbox — delegato (il form
+  // viene rigenerato ad ogni azione HTMX sul pannello).
+  root.addEventListener('change', function (e) {
+    if (e.target.id !== 'visita-create-tutti') return;
+    root.querySelectorAll('.visita-create-ruolo').forEach(function (c) {
+      c.checked = e.target.checked;
+      c.disabled = e.target.checked;
     });
-  }
+  });
 })();
 </script>
 
@@ -2516,7 +2393,7 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
 /* Passata leggera Impostazioni — ricerca/filtro live per ogni tab con elenco.
    Iniettata via JS: nessuna modifica al markup dei singoli tab (additiva, fail-safe). */
 (function () {
-  document.querySelectorAll('.imp-panel').forEach(function (panel) {
+  function initPanelSearch(panel) {
     var lists = panel.querySelectorAll('.imp-list');
     if (!lists.length) return;
     var rows = panel.querySelectorAll('.imp-list .imp-row');
@@ -2560,6 +2437,17 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
       });
       info.textContent = q ? (shown + ' / ' + tot) : '';
     });
+  }
+
+  document.querySelectorAll('.imp-panel').forEach(initPanelSearch);
+
+  // Il pannello Visite mediche rigenera il proprio contenuto via HTMX (crea/
+  // modifica/elimina/modifica-massiva): la casella di ricerca iniettata sopra
+  // sparisce con lo swap (era dentro il nodo rimpiazzato) e va reinserita.
+  document.body.addEventListener('htmx:afterSwap', function (e) {
+    if (!e.detail || !e.detail.target || e.detail.target.id !== 'visite-mediche-panel-content') return;
+    var panel = document.getElementById('tab-visite-mediche');
+    if (panel) initPanelSearch(panel);
   });
 })();
 </script>
