@@ -10238,6 +10238,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "asset_maintenance_rule_list_url": _asset_maintenance_rule_list_page_url(asset_id=asset.id),
             # Piani del nuovo dominio (Piano -> Applicazione -> Occorrenza).
             **_asset_maintenance_plans_context(asset),
+            **_asset_deadlines_context(request, asset),
             "can_manage_asset_maintenance_rules": can_manage_asset_maintenance_rules,
             "asset_linked_task_rows": linked_task_rows,
             "asset_upcoming_task_rows": upcoming_task_rows,
@@ -15340,6 +15341,30 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             "assets_section_nav": None,
         },
     )
+
+
+def _asset_deadlines_context(request: HttpRequest, asset) -> dict[str, object]:
+    """Tutte le scadenze aperte dell'asset nei prossimi 12 mesi, dalla stessa fonte
+    di Calendario e Scadenzario: manutenzioni, adempimenti, licenze e contratti
+    (anche quelli sulla sua categoria). Le scadute restano finche' sono aperte."""
+    from .services import deadline_feed as feed
+
+    today = timezone.localdate()
+    rows = feed.collect(
+        start=None,
+        end=today + timedelta(days=365),
+        filters=feed.FeedFilters(kinds=feed.allowed_kinds(request), asset_id=asset.id),
+        today=today,
+    )
+    for row in rows:
+        row.days = row.days_until(today)
+        row.days_late = -row.days if row.days < 0 else 0
+    return {
+        "asset_deadline_rows": rows[:12],
+        "asset_deadline_total": len(rows),
+        "asset_deadline_overdue": sum(1 for row in rows if row.state == feed.STATE_OVERDUE),
+        "asset_deadline_list_url": f"{reverse('assets:maintenance_scadenze')}?window=&asset={asset.id}",
+    }
 
 
 def _asset_maintenance_plans_context(asset) -> dict[str, object]:

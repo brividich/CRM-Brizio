@@ -5,6 +5,7 @@
 {% block title %}{{ asset.asset_tag }}{% endblock %}
 
 {% block assets_shell_head %}
+{% include "assets/components/maintenance_domain_styles.html" %}
 <style>
 .as-page-head h1 .af-shell-back {
   display:inline-flex; align-items:center; gap:7px; width:max-content;
@@ -735,6 +736,39 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             </div>
           </div>
           {% endif %}
+          {% comment %}
+            Tutte le scadenze dell'asset in un posto: manutenzioni, adempimenti,
+            licenze e contratti, dalla stessa fonte di Calendario e Scadenzario.
+          {% endcomment %}
+          <div class="af-subhead af-subhead--flush">
+            <div class="af-subhead-label">
+              Scadenze di questo asset
+              {% if asset_deadline_overdue %}<span class="as-badge as-badge--danger">{{ asset_deadline_overdue }} scadut{{ asset_deadline_overdue|pluralize:"a,e" }}</span>{% endif %}
+            </div>
+            <a class="as-link-subtle" href="{{ asset_deadline_list_url }}">Apri nello Scadenzario{% if asset_deadline_total > 12 %} ({{ asset_deadline_total }}){% endif %}</a>
+          </div>
+          {% if asset_deadline_rows %}
+            <div class="af-table-wrap">
+              <table class="af-table">
+                <thead><tr><th>Scadenza</th><th>Tipologia</th><th>Cosa</th><th>Stato</th><th></th></tr></thead>
+                <tbody>
+                  {% for row in asset_deadline_rows %}
+                    <tr>
+                      <td style="white-space:nowrap;">{{ row.due_date|date:"d-m-Y" }}
+                        <span style="display:block;font-size:11px;color:{% if row.days < 0 %}#b91c1c{% else %}#94a3b8{% endif %};">{% if row.days < 0 %}da {{ row.days_late }} g{% elif row.days == 0 %}oggi{% else %}tra {{ row.days }} g{% endif %}</span></td>
+                      <td><span class="mk-kind mk-k-{{ row.kind }}">{{ row.kind_label }}</span></td>
+                      <td>{{ row.title }}{% if row.supplier %}<span style="display:block;font-size:11px;color:#94a3b8;">{{ row.supplier }}</span>{% endif %}</td>
+                      <td><span class="as-badge as-badge--{% if row.state == 'overdue' %}danger{% elif row.state == 'due_soon' %}warning{% else %}muted{% endif %}">{{ row.state_label }}</span></td>
+                      <td style="white-space:nowrap;">{% if row.detail_url %}<a class="as-link-subtle" href="{{ row.detail_url }}">Apri</a>{% endif %}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="af-doc-empty" style="padding:4px 16px;">Nessuna scadenza aperta nei prossimi 12 mesi.</div>
+          {% endif %}
+
           {% comment %}
             Piani del nuovo dominio. Quando ci sono, sono la fonte: il blocco storico
             qui sotto (regole a soglia) resta visibile solo finche' l'asset non ha

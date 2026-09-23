@@ -556,7 +556,7 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
         "administrative": {feed.KIND_ADMINISTRATIVE},
     }.get(plan_type, set())
     kinds = feed.allowed_kinds(request) & wanted
-    if not kinds or data.get("execution_mode") or data.get("plan") or data.get("asset") or data.get("supplier"):
+    if not kinds or data.get("execution_mode") or data.get("plan") or data.get("supplier"):
         # Filtri che su licenze e contratti non hanno senso: meglio nessuna riga
         # che righe che sembrano rispettarli.
         return []
@@ -572,6 +572,7 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
         category_ids=frozenset(category_with_descendants(category_id)) if category_id else None,
         reparto=data.get("reparto") or "",
         group_id=data["group"].id if data.get("group") else None,
+        asset_id=data["asset"].id if data.get("asset") else None,
     )
     # Le occorrenze hanno la loro tabella sopra: qui solo cio' che non lo e'.
     rows = [row for row in feed.collect(start=start, end=end, filters=filters, today=today)

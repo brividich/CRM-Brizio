@@ -23,7 +23,7 @@ e testata; la verifica a video (chiaro + scuro) e' nel blocco Chiusura.
 - [x] **5. Crea OdL dal Calendario** — dal pannello dettaglio di un'occorrenza, e
   selezione multipla nella vista Settimana per un OdL unico.
 - [x] **6. Export Scadenzario** — Excel e PDF con gli stessi filtri (`core/table_pdf.py`).
-- [ ] **7. Scheda asset sulla stessa fonte** — manutenzioni, adempimenti, licenze e
+- [x] **7. Scheda asset sulla stessa fonte** — manutenzioni, adempimenti, licenze e
   contratti dell'asset dal `deadline_feed`, con link al Calendario filtrato.
 
 ## Setup

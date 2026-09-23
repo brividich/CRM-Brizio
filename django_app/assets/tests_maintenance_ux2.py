@@ -113,3 +113,31 @@ class ScadenzarioExportTests(Ux2TestCase):
         page = self.client.get(reverse("assets:maintenance_scadenze"), {"window": "30"})
         self.assertContains(page, "format=xlsx")
         self.assertContains(page, "format=pdf")
+
+
+class SchedaAssetScadenzeTests(Ux2TestCase):
+    def test_la_scheda_asset_mostra_tutte_le_sue_scadenze(self):
+        from anagrafica.models import Fornitore
+        from assets.models import AssistanceContract, SoftwareLicense
+
+        SoftwareLicense.objects.create(product_name="Licenza CAM ux2", asset=self.asset, expiry_date=self.today + timedelta(days=20))
+        fornitore = Fornitore.objects.create(ragione_sociale="Service ux2")
+        AssistanceContract.objects.create(
+            supplier=fornitore, title="Contratto categoria ux2", asset_category=self.category,
+            end_date=self.today + timedelta(days=40),
+        )
+        response = self.client.get(reverse("assets:asset_view", args=[self.asset.id]))
+        self.assertEqual(response.status_code, 200)
+        titoli = [row.title for row in response.context["asset_deadline_rows"]]
+        self.assertIn("Lubrificazione ux2", titoli)
+        self.assertIn("Licenza CAM ux2", titoli)
+        self.assertIn("Contratto categoria ux2", titoli)  # contratto sulla categoria dell'asset
+        self.assertContains(response, "Scadenze di questo asset")
+
+    def test_scadenzario_filtrato_per_asset_include_licenze(self):
+        from assets.models import SoftwareLicense
+
+        SoftwareLicense.objects.create(product_name="Licenza CAM ux2", asset=self.asset, expiry_date=self.today + timedelta(days=20))
+        response = self.client.get(reverse("assets:maintenance_scadenze"), {"window": "", "asset": self.asset.id})
+        self.assertEqual([r.title for r in response.context["renewals"]], ["Licenza CAM ux2"])
+        self.assertEqual({r["occurrence"].id for r in response.context["rows"]}, {self.libera.id})
