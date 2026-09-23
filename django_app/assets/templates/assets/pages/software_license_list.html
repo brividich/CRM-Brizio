@@ -5,6 +5,13 @@
 {% block assets_shell_head %}
 <style>
 .sl-page { display:grid; gap:14px; }
+/* Una colonna: elenco a tutta larghezza, modulo in un pannello apribile. */
+.sl-grid { grid-template-columns:1fr !important; }
+.sl-new > summary { list-style:none; cursor:pointer; padding:14px 18px; font-weight:800; color:var(--primary,#002b5c); }
+.sl-new > summary::-webkit-details-marker { display:none; }
+.sl-new[open] > summary { border-bottom:1px solid var(--border,#dbe1ea); }
+body.theme-dark .sl-new > summary { color:#93c5fd; }
+
 .sl-grid { display:grid; gap:14px; grid-template-columns:minmax(0, 1.2fr) minmax(320px, .8fr); align-items:start; }
 .sl-kpis { display:grid; gap:10px; grid-template-columns:repeat(5, minmax(0, 1fr)); }
 .sl-kpi, .sl-card {
@@ -156,6 +163,60 @@
   </article>
 
   <section class="sl-grid">
+    <details class="sl-card sl-new" data-tour-step="2" data-tour-title="Nuova licenza" data-tour-text="Apri il pannello per inserire; «Modifica» su una riga lo apre gia' compilato."{% if is_edit or form.errors or selected_asset or selected_employee %} open{% endif %}>
+      <summary class="sl-new-toggle">{% if is_edit %}Modifica licenza{% else %}+ Nuova licenza{% endif %}</summary>
+        <div class="sl-card-head">
+          <div>
+            <h2>{% if is_edit %}Modifica licenza{% else %}Nuova licenza{% endif %}</h2>
+            <p>Compila i dati essenziali e scegli se assegnare ad asset o dipendente.</p>
+          </div>
+        </div>
+        <div class="sl-card-body">
+          {% if selected_asset and not is_edit %}
+            <div class="sl-banner" style="margin-bottom:14px;">
+              Stai creando una licenza per questo asset: <strong>{{ selected_asset.asset_tag }}</strong> - {{ selected_asset.name }}.
+            </div>
+          {% endif %}
+          {% if selected_employee and not is_edit %}
+            <div class="sl-banner" style="margin-bottom:14px;">
+              Stai creando una licenza per <strong>{{ selected_employee.display_name }}</strong>.
+            </div>
+          {% endif %}
+          <form method="post" style="display:grid;gap:12px;">
+            {% csrf_token %}
+            {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
+            {% if selected_anagrafica_id %}<input type="hidden" name="anagrafica_id" value="{{ selected_anagrafica_id }}">{% endif %}
+            {% if is_edit and edit_license %}<input type="hidden" name="edit_id" value="{{ edit_license.id }}">{% endif %}
+            <input type="hidden" name="action" value="{% if is_edit %}update_software_license{% else %}create_software_license{% endif %}">
+
+            {% if form.non_field_errors %}
+              <div class="sl-banner">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="sl-form-grid">
+              {% for field in form %}
+                {% if field.is_hidden %}
+                  {{ field }}
+                {% else %}
+                  <div class="sl-field {% if field.name == 'notes' %}sl-field--full{% endif %}">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<div class="sl-meta">{{ field.help_text }}</div>{% endif %}
+                    {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+              <div class="sl-actions">
+                {% if is_edit %}
+                  <a class="btn" href="{{ clear_filters_url }}">Annulla modifica</a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">{% if is_edit %}Salva licenza{% else %}Crea licenza{% endif %}</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </details>
+
     <article class="sl-card">
       <div class="sl-card-head">
         <div>
@@ -242,58 +303,7 @@
     </article>
 
     {% if can_manage_licenses %}
-      <article class="sl-card">
-        <div class="sl-card-head">
-          <div>
-            <h2>{% if is_edit %}Modifica licenza{% else %}Nuova licenza{% endif %}</h2>
-            <p>Compila i dati essenziali e scegli se assegnare ad asset o dipendente.</p>
-          </div>
-        </div>
-        <div class="sl-card-body">
-          {% if selected_asset and not is_edit %}
-            <div class="sl-banner" style="margin-bottom:14px;">
-              Stai creando una licenza per questo asset: <strong>{{ selected_asset.asset_tag }}</strong> - {{ selected_asset.name }}.
-            </div>
-          {% endif %}
-          {% if selected_employee and not is_edit %}
-            <div class="sl-banner" style="margin-bottom:14px;">
-              Stai creando una licenza per <strong>{{ selected_employee.display_name }}</strong>.
-            </div>
-          {% endif %}
-          <form method="post" style="display:grid;gap:12px;">
-            {% csrf_token %}
-            {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
-            {% if selected_anagrafica_id %}<input type="hidden" name="anagrafica_id" value="{{ selected_anagrafica_id }}">{% endif %}
-            {% if is_edit and edit_license %}<input type="hidden" name="edit_id" value="{{ edit_license.id }}">{% endif %}
-            <input type="hidden" name="action" value="{% if is_edit %}update_software_license{% else %}create_software_license{% endif %}">
-
-            {% if form.non_field_errors %}
-              <div class="sl-banner">{{ form.non_field_errors }}</div>
-            {% endif %}
-
-            <div class="sl-form-grid">
-              {% for field in form %}
-                {% if field.is_hidden %}
-                  {{ field }}
-                {% else %}
-                  <div class="sl-field {% if field.name == 'notes' %}sl-field--full{% endif %}">
-                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.help_text %}<div class="sl-meta">{{ field.help_text }}</div>{% endif %}
-                    {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
-                  </div>
-                {% endif %}
-              {% endfor %}
-              <div class="sl-actions">
-                {% if is_edit %}
-                  <a class="btn" href="{{ clear_filters_url }}">Annulla modifica</a>
-                {% endif %}
-                <button type="submit" class="btn btn-primary">{% if is_edit %}Salva licenza{% else %}Crea licenza{% endif %}</button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </article>
+      
     {% endif %}
   </section>
 </section>

@@ -569,7 +569,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
 
 {% block assets_shell_content %}
 <section class="wo-list-page">
-  <nav class="wo-view-tabs" aria-label="Viste interventi">
+  <nav class="wo-view-tabs" data-tour-step="1" data-tour-title="Le viste" data-tour-text="Aperti, chiusi o tutti: scegli cosa vedere." aria-label="Viste interventi">
     <a class="wo-view-tab{% if workorder_view == 'open' %} is-active{% endif %}" href="{{ workorder_view_urls.open }}"><span>Aperti</span><span class="wo-view-count">{{ operational_counts.open }}</span></a>
     <a class="wo-view-tab{% if workorder_view == 'mine' %} is-active{% endif %}" href="{{ workorder_view_urls.mine }}"><span>Assegnati a me</span><span class="wo-view-count">{{ operational_counts.mine }}</span></a>
     <a class="wo-view-tab{% if workorder_view == 'unassigned' %} is-active{% endif %}" href="{{ workorder_view_urls.unassigned }}"><span>Non assegnati</span><span class="wo-view-count">{{ operational_counts.unassigned }}</span></a>

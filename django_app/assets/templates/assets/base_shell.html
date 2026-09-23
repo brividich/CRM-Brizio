@@ -40,6 +40,18 @@
 .as-nav-head { font-size: var(--fs-2xs); color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
 .as-link { position:relative; display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 6px 9px; font-weight: 700; line-height: 1.1; font-size: var(--fs-sm); }
 .as-link:hover { background: #edf3fc; }
+.as-help { position:relative; }
+.as-help-toggle { list-style:none; cursor:pointer; font-size:var(--fs-sm); font-weight:700; padding:6px 12px; border-radius:8px;
+  border:1px solid #dbe3f0; background:#fff; color:#1f64d8; white-space:nowrap; }
+.as-help-toggle::-webkit-details-marker { display:none; }
+.as-help[open] .as-help-toggle { background:#eef6ff; }
+.as-help-panel { position:absolute; right:0; top:calc(100% + 6px); z-index:40; width:min(420px,88vw); display:grid; gap:8px;
+  padding:14px 16px; border-radius:12px; border:1px solid #dbe3f0; background:#fff; color:#24395e; box-shadow:0 14px 34px rgba(15,23,42,.16); }
+.as-help-panel ul { margin:0; padding-left:18px; display:grid; gap:6px; font-size:var(--fs-sm); line-height:1.45; }
+.as-help-panel .btn { justify-self:start; }
+body.theme-dark .as-help-toggle { background:var(--surface); border-color:var(--border); color:#93c5fd; }
+body.theme-dark .as-help[open] .as-help-toggle { background:rgba(37,99,235,.18); }
+body.theme-dark .as-help-panel { background:var(--surface); border-color:var(--border); color:var(--text); }
 .as-nav-badge { display:inline-block; min-width:18px; padding:1px 6px; margin-left:4px; border-radius:999px; background:#dc2626; color:#fff; font-size:var(--fs-2xs); font-weight:800; line-height:1.4; text-align:center; vertical-align:1px; }
 .as-link.active { background: #fff; color: #1f64d8; box-shadow:0 8px 18px rgba(15,23,42,.06); }
 .as-link.active:before { content:""; position:absolute; left:0; top:7px; bottom:7px; width:3px; border-radius:999px; background:#14b8a6; }
@@ -482,6 +494,17 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
               <a class="as-section-tab{% if item.active %} active{% endif %}" href="{{ item.url }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.label }}</a>
             {% endfor %}
           </div>
+          {% if assets_section_nav.help %}
+            {% comment %}"Cosa posso fare qui": spiegazione breve e, se la pagina lo prevede, tour guidato (core/js/tour.js).{% endcomment %}
+            <details class="as-help" data-as-help>
+              <summary class="as-help-toggle">&#10067; Cosa posso fare qui</summary>
+              <div class="as-help-panel" role="region" aria-label="Cosa posso fare qui">
+                <strong>{{ assets_section_nav.active_label }}</strong>
+                <ul>{% for line in assets_section_nav.help %}<li>{{ line }}</li>{% endfor %}</ul>
+                <button type="button" class="btn btn-primary btn-sm" data-tour-start data-tour-key="{{ assets_section_nav.tour_key }}" data-as-help-tour hidden>Avvia il tour guidato</button>
+              </div>
+            </details>
+          {% endif %}
           {% if assets_section_nav.actions %}
             <div class="as-section-actions">
               {% for action in assets_section_nav.actions %}
@@ -652,6 +675,19 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
   document.querySelectorAll("details.as-collapse > summary a, details.as-collapse > summary button").forEach(function (el) {
     el.addEventListener("click", function (ev) { ev.stopPropagation(); });
   });
+})();
+</script>
+<script>
+/* "Cosa posso fare qui": il tour compare solo se la pagina ha i suoi passi, e si chiude
+   il pannello quando parte o quando si clicca fuori. */
+(function () {
+  var help = document.querySelector("[data-as-help]");
+  if (!help) { return; }
+  var tourBtn = help.querySelector("[data-as-help-tour]");
+  if (tourBtn && document.querySelector("[data-tour-step]")) { tourBtn.hidden = false; }
+  if (tourBtn) { tourBtn.addEventListener("click", function () { help.open = false; }); }
+  document.addEventListener("click", function (e) { if (help.open && !help.contains(e.target)) { help.open = false; } });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { help.open = false; } });
 })();
 </script>
 {% block assets_shell_scripts %}{% endblock %}

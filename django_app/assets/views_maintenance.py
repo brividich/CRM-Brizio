@@ -1758,6 +1758,57 @@ def _selected_occurrences(request: HttpRequest) -> list[MaintenanceOccurrence]:
 
 @login_required
 @require_POST
+def occurrence_reschedule(request: HttpRequest, occurrence_id: int) -> JsonResponse:
+    """Sposta la scadenza di una manutenzione aperta (trascinamento nel Calendario).
+
+    Solo chi pianifica, solo occorrenze aperte, nel proprio perimetro di reparto.
+    Lo scheduler salta le coppie piano/asset con un'occorrenza gia' aperta, quindi
+    spostare la data non genera doppioni. Ogni spostamento va in audit sul record.
+    """
+    from django.utils.dateparse import parse_date
+
+    from core.audit import log_action
+
+    if not can_plan_maintenance(request):
+        return JsonResponse({"ok": False, "error": "Non hai i permessi per pianificare."}, status=403)
+    occurrence = get_object_or_404(
+        MaintenanceOccurrence.objects.select_related("plan", "asset"), pk=occurrence_id
+    )
+    if occurrence.status != MaintenanceOccurrence.STATUS_OPEN:
+        return JsonResponse({"ok": False, "error": "Si possono spostare solo le manutenzioni aperte."}, status=400)
+    try:
+        _nega_fuori_reparto(request, [occurrence])
+    except PermissionDenied:
+        return JsonResponse({"ok": False, "error": "Manutenzione fuori dal tuo reparto."}, status=403)
+    new_date = parse_date(_clean_string(request.POST.get("due_date"))[:10] or "")
+    if new_date is None:
+        return JsonResponse({"ok": False, "error": "Data non valida."}, status=400)
+    old_date = occurrence.due_date
+    if new_date == old_date:
+        return JsonResponse({"ok": True, "due_date": new_date.isoformat(), "old_date": old_date.isoformat()})
+    clash = MaintenanceOccurrence.objects.filter(
+        plan_id=occurrence.plan_id, asset_id=occurrence.asset_id, due_date=new_date
+    ).exclude(pk=occurrence.pk).exists()
+    if clash:
+        return JsonResponse(
+            {"ok": False, "error": "Esiste gia' una manutenzione dello stesso piano su questo asset in quella data."},
+            status=409,
+        )
+    occurrence.due_date = new_date
+    occurrence.save(update_fields=["due_date", "updated_at"])
+    log_action(
+        request,
+        "ASSET_OCCORRENZA_SPOSTATA",
+        "assets",
+        {"da": old_date.isoformat(), "a": new_date.isoformat(), "piano": occurrence.plan.label,
+         "asset": occurrence.asset.asset_tag},
+        oggetto=occurrence,
+    )
+    return JsonResponse({"ok": True, "due_date": new_date.isoformat(), "old_date": old_date.isoformat()})
+
+
+@login_required
+@require_POST
 def occurrence_create_workorder(request: HttpRequest) -> HttpResponse:
     """Raccoglie le manutenzioni selezionate in un unico ordine di lavoro."""
     back = request.POST.get("next") or reverse("assets:maintenance_da_fare")

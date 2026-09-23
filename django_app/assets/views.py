@@ -6519,9 +6519,13 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
     if group.key != GROUP_OPERATIVO:
         breadcrumbs.append({"label": group.label, "url": reverse(f"assets:{group.items[0].route}")})
     breadcrumbs.append({"label": active_item.label, "url": ""})
+    from .maintenance_nav import help_for
+
     return {
         "label": group.label,
         "active_label": active_item.label,
+        "help": help_for(active_item.key),
+        "tour_key": f"assets-{active_item.key}",
         "items": items,
         "breadcrumbs": breadcrumbs,
         "actions": (
