@@ -206,6 +206,11 @@ urlpatterns = [
         name="occurrence_complete",
     ),
     path(
+        "assets/manutenzione/scadenze/<int:occurrence_id>/sposta/",
+        views_maintenance.occurrence_reschedule,
+        name="occurrence_reschedule",
+    ),
+    path(
         "assets/manutenzione/scadenze/<int:occurrence_id>/follow-up/",
         views_maintenance.occurrence_followup_create,
         name="occurrence_followup_create",

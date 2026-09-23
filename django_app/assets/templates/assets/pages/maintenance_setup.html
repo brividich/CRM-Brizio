@@ -33,12 +33,12 @@
 
 {% block assets_shell_content %}
 <div class="md-page">
-  <div class="su-progress">
+  <div class="su-progress" data-tour-step="1" data-tour-title="A che punto sei" data-tour-text="Quanti passi obbligatori sono completi: la barra si riempie man mano.">
     <div class="su-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ total }}" aria-valuenow="{{ done }}"><span style="width:{{ progress_pct }}%"></span></div>
     <p><strong>{{ done }} passi su {{ total }}</strong> completati{% if done == total %} — la configurazione e' a posto.{% endif %}</p>
   </div>
 
-  <ol class="su-steps">
+  <ol class="su-steps" data-tour-step="2" data-tour-title="I passi" data-tour-text="Ognuno dice cosa manca e ha il pulsante per sistemarlo. Parti dal primo non verde.">
     {% for s in steps %}
       <li class="su-step is-{{ s.status }}" data-step="{{ s.key }}">
         <div>
