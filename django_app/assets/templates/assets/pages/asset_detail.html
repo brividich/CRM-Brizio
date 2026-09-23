@@ -696,7 +696,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             {% if card.code == "MAINTENANCE" %}
               <div class="af-card-actions af-card-actions--maintenance">
                 {% if can_manage_asset_maintenance_rules %}
-                  <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_rule_list_url }}" title="Regole manutenzione">Regole</a>
+                  <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_rule_list_url }}" title="Piani applicati a questo asset">Piani</a>
                 {% endif %}
                 <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_schedule_url }}" title="Scadenzario manutenzioni">Scadenzario</a>
                 <a class="af-btn af-btn-ghost" href="{{ periodic_verification_manage_url }}" title="Manutenzione periodica">Periodica</a>

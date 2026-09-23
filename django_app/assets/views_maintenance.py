@@ -12,6 +12,8 @@ Applicazione, Scadenza, Ordine di lavoro, Follow-up. Mai "regola", "override",
 
 from __future__ import annotations
 
+import logging
+
 import io
 import json
 from collections import defaultdict
@@ -71,6 +73,8 @@ from .views import _assets_shell_context, _as_int, _clean_string, _copertura_dat
 # Le tre platee della specifica. I gate non si fermano a "superuser o admin
 # legacy": chi ha il permesso ACL granulare deve poter lavorare, altrimenti il
 # pannello Accessi non serve a niente.
+
+logger = logging.getLogger(__name__)
 
 
 def can_manage_maintenance_plans(request: HttpRequest) -> bool:
@@ -1400,7 +1404,28 @@ def maintenance_assignment_form(
         form = MaintenancePlanAssignmentForm(request.POST, instance=assignment, plan=plan)
         if form.is_valid():
             saved = form.save()
-            messages.success(request, f"Applicazione su «{saved.target_label}» salvata.")
+            # Prima le scadenze comparivano solo al giro notturno dello scheduler: chi
+            # applicava un piano non vedeva nulla e pensava di aver sbagliato. La
+            # generazione e' idempotente, quindi la si lancia subito sul solo piano.
+            created = 0
+            try:
+                created = domain.generate_occurrences(plan_ids=[plan.pk]).get("created", 0)
+            except Exception:
+                logger.exception("Generazione scadenze dopo applicazione piano %s fallita", plan.pk)
+            if created:
+                messages.success(
+                    request,
+                    f"Applicazione su «{saved.target_label}» salvata: {created} scadenz"
+                    f"{'a creata' if created == 1 else 'e create'} ora. Le successive compariranno "
+                    "nel preavviso, e intanto sono visibili come «previste» nel Calendario.",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Applicazione su «{saved.target_label}» salvata. Nessuna scadenza e' ancora nel "
+                    "preavviso: la vedi come «prevista» nel Calendario e comparira' negli elenchi "
+                    "quando si avvicina.",
+                )
             return redirect("assets:maintenance_plan_detail", plan_id=plan.pk)
     else:
         form = MaintenancePlanAssignmentForm(instance=assignment, plan=plan)
@@ -1990,17 +2015,35 @@ def workorder_occurrences_complete(request: HttpRequest, workorder_id: int) -> H
 
 
 @login_required
+def _safe_back_url(request: HttpRequest, fallback: str) -> str:
+    """Dove tornare dopo un'azione: ``next`` esplicito, altrimenti la pagina da cui
+    si e' arrivati (stesso host). Mai un URL esterno."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    for candidate in (request.POST.get("next"), request.GET.get("next"), request.META.get("HTTP_REFERER")):
+        candidate = (candidate or "").strip()
+        if candidate and url_has_allowed_host_and_scheme(
+            candidate, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+        ) and request.path not in candidate:
+            return candidate
+    return fallback
+
+
 def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpResponse:
-    """Chiusura di una singola manutenzione: ogni asset avanza per conto suo."""
+    """Chiusura di una singola manutenzione: ogni asset avanza per conto suo.
+
+    Dopo la registrazione si torna alla pagina di partenza (Calendario,
+    Scadenzario, scheda asset...), non sempre a "Da fare"."""
     occurrence = get_object_or_404(
         MaintenanceOccurrence.objects.select_related("plan", "asset", "assignment", "work_order"),
         pk=occurrence_id,
     )
     if not can_execute_maintenance(request):
         return _deny(request, "Non hai i permessi per registrare l'esecuzione delle manutenzioni.")
+    back_url = _safe_back_url(request, reverse("assets:maintenance_da_fare"))
     if occurrence.status != MaintenanceOccurrence.STATUS_OPEN:
         messages.info(request, "Questa manutenzione risulta gia chiusa.")
-        return redirect("assets:maintenance_da_fare")
+        return redirect(back_url)
 
     if request.method == "POST":
         form = OccurrenceCompletionForm(request.POST, request.FILES, occurrence=occurrence)
@@ -2032,9 +2075,7 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
                     )
                 else:
                     messages.success(request, "Manutenzione registrata.")
-                if occurrence.work_order_id:
-                    return redirect("assets:wo_view", id=occurrence.work_order_id)
-                return redirect("assets:maintenance_da_fare")
+                return redirect(back_url)
     else:
         form = OccurrenceCompletionForm(occurrence=occurrence)
 
@@ -2044,6 +2085,7 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
         {
             **_assets_shell_context(request),
             "page_title": f"Registra — {occurrence.plan.label}",
+            "back_url": back_url,
             "form": form,
             "occurrence": occurrence,
             "state": domain.occurrence_state_payload(occurrence),

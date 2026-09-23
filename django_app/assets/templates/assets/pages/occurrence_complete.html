@@ -16,7 +16,7 @@
 
 {% block assets_shell_content %}
 <form class="md-form" method="post" enctype="multipart/form-data" novalidate>
-  {% csrf_token %}
+  {% csrf_token %}<input type="hidden" name="next" value="{{ back_url }}">
   {{ form.non_field_errors }}
 
   <div class="md-preview">
@@ -55,7 +55,7 @@
 
   <div class="md-form-actions">
     <button type="submit" class="btn btn-primary">Registra esecuzione</button>
-    <a class="btn btn-secondary" href="{% url 'assets:maintenance_da_fare' %}">Annulla</a>
+    <a class="btn btn-secondary" href="{{ back_url }}">Annulla</a>
   </div>
 </form>
 {% endblock %}

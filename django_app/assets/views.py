@@ -1164,10 +1164,8 @@ def _maintenance_rule_form_state(form: MaintenanceRuleForm, *, is_edit: bool) ->
 
 
 def _asset_maintenance_rule_list_page_url(asset_id: int, *, focus_rule_id: int = 0) -> str:
-    base_url = reverse("assets:asset_maintenance_rule_list", kwargs={"asset_id": int(asset_id)})
-    if focus_rule_id:
-        return f"{base_url}?focus_rule={int(focus_rule_id)}#rule-{int(focus_rule_id)}"
-    return base_url
+    """I piani dell'asset (le vecchie "regole asset" rimandavano li' con un redirect)."""
+    return reverse("assets:asset_maintenance_plans", kwargs={"asset_id": int(asset_id)})
 
 
 def _maintenance_schedule_page_url(
@@ -1196,8 +1194,13 @@ def _maintenance_schedule_page_url(
     q_value = _clean_string(q)
     if q_value:
         params.append(f"q={quote(q_value)}")
-    base_url = reverse("assets:maintenance_schedule")
-    return f"{base_url}?{'&'.join(params)}" if params else base_url
+    # Porta allo Scadenzario (il vecchio /prossime/ rimandava li' perdendo i filtri).
+    # Lo stato del vecchio motore diventa la finestra: "due" = scadute + 30 giorni.
+    params = [p for p in params if not p.startswith(("status=", "coverage="))]
+    window = {"due": "30", "overdue": "overdue", "warning": "30"}.get(status_value.lower(), "")
+    params.append(f"window={window}")
+    base_url = reverse("assets:maintenance_scadenze")
+    return f"{base_url}?{'&'.join(params)}"
 
 
 def _workorder_create_page_url(
@@ -11626,10 +11629,8 @@ def _save_template_checklist_formset(formset, template) -> None:
 
 def _template_next_step_rule_url(template) -> str:
     """URL di creazione regola precompilato con il template appena salvato (CTA continuità)."""
-    next_url = f"{reverse('assets:maintenance_rule_create')}?template={template.id}"
-    if template.asset_category_id:
-        next_url += f"&category={template.asset_category_id}"
-    return next_url
+    # Il "template" e' il piano stesso: il passo successivo e' applicarlo a qualcosa.
+    return reverse("assets:maintenance_assignment_create", kwargs={"plan_id": template.id})
 
 
 @login_required
@@ -18257,7 +18258,8 @@ def calendario_asset_json(request: HttpRequest) -> JsonResponse:
         include_done=_clean_string(request.GET.get("include_done")) in {"1", "true", "on"},
     )
     last_day = end - timedelta(days=1)  # FullCalendar tratta ``end`` come esclusivo.
-    rows = feed.collect(start=start, end=last_day, filters=filters, today=today)
+    include_forecast = _clean_string(request.GET.get("forecast")) != "0"
+    rows = feed.collect(start=start, end=last_day, filters=filters, today=today, include_forecast=include_forecast)
     events = [row.as_json(today) for row in rows]
     if not requested or "machine_work" in requested:
         events += _machine_work_events(start, last_day, filters)
