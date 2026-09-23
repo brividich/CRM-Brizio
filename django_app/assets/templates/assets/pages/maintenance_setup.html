@@ -1,0 +1,66 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Imposta la manutenzione{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}
+<style>
+.su-progress { display:grid; gap:6px; max-width:520px; }
+.su-progress-bar { height:10px; border-radius:5px; background:var(--mk-soft); overflow:hidden; border:1px solid var(--border,#dbe1ea); }
+.su-progress-bar span { display:block; height:100%; background:var(--success,#38a169); }
+.su-progress p { margin:0; font-size:var(--fs-sm); color:var(--text-mid,#475569); }
+.su-steps { list-style:none; margin:0; padding:0; display:grid; gap:10px; counter-reset:su; }
+.su-step { display:grid; grid-template-columns:34px 1fr auto; gap:12px; align-items:start; padding:14px 16px;
+  background:var(--surface,#fff); border:1px solid var(--border,#dbe1ea); border-radius:12px; }
+.su-step::before { counter-increment:su; content:counter(su); width:28px; height:28px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:var(--fs-sm);
+  background:var(--mk-soft); color:var(--text-mid,#475569); border:1px solid var(--border,#dbe1ea); }
+.su-step.is-done::before { content:"\2713"; background:var(--success,#38a169); border-color:var(--success,#38a169); color:#fff; }
+.su-step.is-todo { border-left:4px solid var(--warning,#d69e2e); }
+.su-step.is-blocked, .su-step.is-optional, .su-step.is-info { opacity:.92; }
+.su-step h2 { margin:0 0 4px; font-size:var(--fs-md); font-weight:800; color:var(--text,#0f172a); }
+.su-step p { margin:0; font-size:var(--fs-sm); color:var(--text-mid,#475569); max-width:70ch; }
+.su-items { margin:8px 0 0; padding-left:18px; font-size:var(--fs-sm); }
+.su-items li { margin:2px 0; }
+.su-links { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
+@media (max-width:720px) { .su-step { grid-template-columns:34px 1fr; } .su-links { grid-column:2; justify-content:flex-start; } }
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Imposta la manutenzione{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>I passi per avere scadenze giuste e complete, con lo stato attuale letto dai dati. Ogni passo porta alla pagina dove si sistema.</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  <div class="su-progress">
+    <div class="su-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ total }}" aria-valuenow="{{ done }}"><span style="width:{{ progress_pct }}%"></span></div>
+    <p><strong>{{ done }} passi su {{ total }}</strong> completati{% if done == total %} — la configurazione e' a posto.{% endif %}</p>
+  </div>
+
+  <ol class="su-steps">
+    {% for s in steps %}
+      <li class="su-step is-{{ s.status }}" data-step="{{ s.key }}">
+        <div>
+          <h2>{{ s.title }}
+            {% if s.status == "done" %}<span class="md-badge badge-success">Fatto</span>
+            {% elif s.status == "todo" %}<span class="md-badge badge-warning">Da completare</span>
+            {% elif s.status == "optional" %}<span class="md-badge badge-muted">Facoltativo</span>
+            {% elif s.status == "info" %}<span class="md-badge badge-info">Da valutare</span>
+            {% else %}<span class="md-badge badge-muted">Dopo il passo precedente</span>{% endif %}
+          </h2>
+          <p>{{ s.detail }}</p>
+          {% if s.items %}
+            <ul class="su-items">
+              {% for label, url in s.items %}<li><a href="{{ url }}">{{ label }}</a></li>{% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+        <div class="su-links">
+          {% for label, url in s.links %}<a class="btn {% if forloop.first and s.status == 'todo' %}btn-primary{% else %}btn-secondary{% endif %}" href="{{ url }}">{{ label }}</a>{% endfor %}
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+</div>
+{% endblock %}

@@ -10,12 +10,22 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Piani</a>
+  
   {% if can_manage %}<a class="btn btn-primary" href="{% url 'assets:asset_group_create' %}">+ Nuovo gruppo</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
 <div class="md-page">
+  {% comment %}
+    Famiglia o gruppo? La domanda che si fa chiunque apra questa pagina la prima
+    volta: la risposta sta qui, non in un manuale.
+  {% endcomment %}
+  <div class="md-scope-note">
+    <strong>Famiglia o gruppo?</strong> La <em>famiglia</em> (categoria d'inventario) e' gia' assegnata a ogni asset e basta
+    per applicare un piano a tutti i carroponti o a tutte le CNC. Serve un <em>gruppo</em> solo quando il piano riguarda asset
+    di famiglie diverse (una linea, un reparto) o soltanto alcuni asset di una famiglia.
+    {% if not groups %}Finche' non ne crei uno, il filtro «Gruppo» non compare nelle liste.{% endif %}
+  </div>
   <section class="md-section">
     <div class="md-section-head"><h2>Gruppi</h2><span class="md-badge badge-muted">{{ groups|length }}</span></div>
     <div class="md-scroll">

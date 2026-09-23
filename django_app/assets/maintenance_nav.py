@@ -99,6 +99,7 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
         label="Configurazione",
         sidebar_code="maintenance_configurazione",
         items=(
+            NavItem("imposta", "Imposta", "maintenance_setup", sidebar_code="maintenance_imposta"),
             NavItem(
                 "piani",
                 "Piani",

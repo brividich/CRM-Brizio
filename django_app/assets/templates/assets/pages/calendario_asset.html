@@ -5,27 +5,20 @@
 
 {% block assets_shell_head %}
 {# FullCalendar 6 inietta la propria CSS dal bundle JS: nessun file CSS separato. #}
+{% include "assets/components/maintenance_domain_styles.html" %}
 <style>
 /* Colori per tipologia: gli stessi in calendario, elenco, pannello e legenda. */
+/* Colori per tipologia: token --mk-* di maintenance_domain_styles, uguali ovunque. */
 .cm-page {
-  --cm-ord:#2563eb; --cm-ord-bg:#e8f0ff;
-  --cm-adm:#7c3aed; --cm-adm-bg:#f1eaff;
-  --cm-lic:#0f8f86; --cm-lic-bg:#e2f6f4;
-  --cm-con:#b0620a; --cm-con-bg:#fcefdf;
-  --cm-mw:#475569;  --cm-mw-bg:#eef2f6;
-  --cm-late:#dc2626;
-  --cm-card:var(--surface,#fff); --cm-line:var(--border,#dbe1ea); --cm-soft:#f6f8fb;
+  --cm-ord:var(--mk-ord); --cm-ord-bg:var(--mk-ord-bg);
+  --cm-adm:var(--mk-adm); --cm-adm-bg:var(--mk-adm-bg);
+  --cm-lic:var(--mk-lic); --cm-lic-bg:var(--mk-lic-bg);
+  --cm-con:var(--mk-con); --cm-con-bg:var(--mk-con-bg);
+  --cm-mw:var(--mk-mw);   --cm-mw-bg:var(--mk-mw-bg);
+  --cm-late:var(--mk-late);
+  --cm-card:var(--surface,#fff); --cm-line:var(--border,#dbe1ea); --cm-soft:var(--mk-soft);
   --cm-text:var(--text,#0f172a); --cm-mid:var(--text-mid,#475569); --cm-faint:var(--text-light,#94a3b8);
   display:grid; gap:14px;
-}
-body.theme-dark .cm-page {
-  --cm-ord:#7aa5ff; --cm-ord-bg:rgba(37,99,235,.22);
-  --cm-adm:#b996ff; --cm-adm-bg:rgba(124,58,237,.24);
-  --cm-lic:#45cdc1; --cm-lic-bg:rgba(15,143,134,.24);
-  --cm-con:#eaa55c; --cm-con-bg:rgba(176,98,10,.26);
-  --cm-mw:#a3b1c6;  --cm-mw-bg:rgba(148,163,184,.16);
-  --cm-late:#f87171;
-  --cm-soft:rgba(255,255,255,.04);
 }
 
 .cm-card { background:var(--cm-card); border:1px solid var(--cm-line); border-radius:14px; }
@@ -130,6 +123,24 @@ body.theme-dark .cm-page {
 .cm-achip.s-done { opacity:.55; text-decoration:line-through; }
 .cm-empty { padding:36px 12px; text-align:center; color:var(--cm-faint); font-size:var(--fs-sm,12px); }
 @media (max-width:640px) { .cm-arow { grid-template-columns:1fr; } .cm-views { margin-left:0; } }
+
+/* Selezione per un ordine di lavoro */
+.cm-drawer .cm-plan { display:flex; flex-wrap:wrap; gap:6px; padding-top:10px; border-top:1px dashed var(--cm-line); }
+.cm-drawer .cm-plan button { font:inherit; font-size:var(--fs-sm,12px); font-weight:700; padding:6px 11px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--cm-line); background:var(--cm-card); color:var(--cm-text); }
+.cm-drawer .cm-plan button.is-primary { background:var(--accent,#ff6b00); border-color:var(--accent,#ff6b00); color:#fff; }
+.cm-tray { position:sticky; bottom:0; z-index:5; padding:12px 16px; display:grid; gap:10px;
+  box-shadow:0 -6px 20px rgba(15,23,42,.10); border-color:var(--accent,#ff6b00); }
+.cm-tray[hidden] { display:none; }
+.cm-tray-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.cm-tray-head strong { font-size:var(--fs-md,14px); color:var(--cm-text); }
+.cm-tray-items { display:flex; flex-wrap:wrap; gap:6px; }
+.cm-tray-item { display:inline-flex; align-items:center; gap:6px; font-size:var(--fs-xs,11px); font-weight:700; padding:4px 6px 4px 9px;
+  border-radius:6px; background:var(--cm-ord-bg); color:var(--cm-text); }
+.cm-tray-item button { font:inherit; border:0; background:transparent; cursor:pointer; color:var(--cm-mid); font-size:14px; line-height:1; }
+.cm-tray-fields { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:flex-end; }
+.cm-tray-fields .cm-field { min-width:160px; }
+.cm-tray-fields input, .cm-tray-fields select { min-height:34px; }
 </style>
 {% endblock %}
 
@@ -139,7 +150,7 @@ body.theme-dark .cm-page {
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}" data-cm-list-link>Scadenzario (elenco)</a>
+  <a class="btn" href="{% url 'assets:maintenance_scadenze' %}" data-cm-list-link title="Le stesse scadenze, con i filtri attuali, nello Scadenzario">Apri come elenco</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -212,6 +223,30 @@ body.theme-dark .cm-page {
       <p class="cm-drawer-empty">Seleziona una scadenza nel calendario per vederne asset, stato e azioni.</p>
     </aside>
   </div>
+
+  {% if can_plan %}
+  {% comment %}
+    Vassoio "ordine di lavoro": raccoglie una o piu' manutenzioni scelte dal
+    calendario e le invia allo stesso endpoint dello Scadenzario. Dopo la
+    creazione si apre l'OdL; in caso di errore si torna qui.
+  {% endcomment %}
+  <form class="cm-card cm-tray" id="cm-tray" method="post" action="{% url 'assets:occurrence_create_workorder' %}" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}" data-cm-next>
+    <div class="cm-tray-head">
+      <strong><span data-cm-tray-count>0</span> manutenzioni per un ordine di lavoro</strong>
+      <span class="cm-tray-items" data-cm-tray-items></span>
+    </div>
+    <div class="cm-tray-fields">
+      <div class="cm-field"><label for="{{ workorder_form.title.id_for_label }}">Titolo</label>{{ workorder_form.title }}</div>
+      <div class="cm-field"><label for="{{ workorder_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_form.assigned_to }}</div>
+      <div class="cm-field"><label for="{{ workorder_form.supplier.id_for_label }}">Ditta esterna</label>{{ workorder_form.supplier }}</div>
+      <div class="cm-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>
+      <button type="submit" class="btn btn-primary">Crea ordine di lavoro</button>
+      <button type="button" class="btn" data-cm-tray-clear>Svuota</button>
+    </div>
+  </form>
+  {% endif %}
 </div>
 {% endblock %}
 
@@ -325,7 +360,47 @@ body.theme-dark .cm-page {
     var actions = el("div", { "class": "cm-actions" });
     (ev.actions || []).forEach(function (a) { actions.appendChild(el("a", { href: a.url }, a.label)); });
     drawer.appendChild(actions);
+    if (tray && ev.plannable && ev.occurrence_id) {
+      var plan = el("div", { "class": "cm-plan" });
+      var inTray = !!picked[ev.occurrence_id];
+      var only = el("button", { type: "button", "class": "is-primary" }, "Crea OdL per questa");
+      only.addEventListener("click", function () { picked = {}; pick(ev); tray.scrollIntoView({ block: "nearest" }); });
+      var add = el("button", { type: "button" }, inTray ? "Togli dalla selezione" : "Aggiungi alla selezione");
+      add.addEventListener("click", function () { if (picked[ev.occurrence_id]) { unpick(ev.occurrence_id); } else { pick(ev); } showDetail(ev); });
+      plan.appendChild(only);
+      plan.appendChild(add);
+      drawer.appendChild(plan);
+    }
     markSelected();
+  }
+
+  // --- Vassoio ordine di lavoro -------------------------------------------
+  var tray = document.getElementById("cm-tray");
+  var picked = {};
+  function renderTray() {
+    if (!tray) { return; }
+    var ids = Object.keys(picked);
+    tray.hidden = ids.length === 0;
+    tray.querySelector("[data-cm-tray-count]").textContent = ids.length;
+    var box = tray.querySelector("[data-cm-tray-items]");
+    box.innerHTML = "";
+    tray.querySelectorAll('input[name="occurrence_ids"]').forEach(function (n) { n.remove(); });
+    ids.forEach(function (id) {
+      var ev = picked[id];
+      var chip = el("span", { "class": "cm-tray-item" }, (ev.asset_tag ? ev.asset_tag + " · " : "") + ev.title + " · " + fmtDate(ev.start).slice(0, 5));
+      var x = el("button", { type: "button", "aria-label": "Togli " + ev.title }, "\u00d7");
+      x.addEventListener("click", function () { unpick(id); });
+      chip.appendChild(x);
+      box.appendChild(chip);
+      tray.appendChild(el("input", { type: "hidden", name: "occurrence_ids", value: String(id) }));
+    });
+    var next = tray.querySelector("[data-cm-next]");
+    if (next) { next.value = window.location.pathname + window.location.search; }
+  }
+  function pick(ev) { picked[ev.occurrence_id] = ev; renderTray(); }
+  function unpick(id) { delete picked[id]; renderTray(); }
+  if (tray) {
+    tray.querySelector("[data-cm-tray-clear]").addEventListener("click", function () { picked = {}; renderTray(); });
   }
 
   function markSelected() {

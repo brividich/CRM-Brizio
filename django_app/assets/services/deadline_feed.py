@@ -87,6 +87,9 @@ class Deadline:
     assignee: str = ""
     supplier: str = ""
     work_order_id: int | None = None
+    # Solo per le occorrenze aperte senza OdL: si possono raccogliere in un ordine di lavoro.
+    occurrence_id: int | None = None
+    plannable: bool = False
     detail_url: str = ""
     actions: list[dict[str, str]] = field(default_factory=list)
 
@@ -121,6 +124,8 @@ class Deadline:
             "assignee": self.assignee,
             "supplier": self.supplier,
             "work_order_id": self.work_order_id,
+            "occurrence_id": self.occurrence_id,
+            "plannable": self.plannable,
             "url": self.detail_url,
             "actions": self.actions,
         }
@@ -134,6 +139,9 @@ class FeedFilters:
     group_id: int | None = None
     execution_mode: str = ""  # INTERNAL / EXTERNAL, solo per le occorrenze
     include_done: bool = False
+    # Un asset solo (scheda asset, Scadenzario filtrato): i contratti valgono anche
+    # quando coprono la sua categoria.
+    asset_id: int | None = None
 
 
 def _simple_state(due: date, today: date, warning_days: int) -> str:
@@ -196,6 +204,8 @@ def _occurrences(start: date | None, end: date | None, filters: FeedFilters, tod
         qs = qs.filter(asset__reparto=filters.reparto)
     if filters.group_id:
         qs = qs.filter(asset__group_memberships__group_id=filters.group_id)
+    if filters.asset_id:
+        qs = qs.filter(asset_id=filters.asset_id)
     if filters.execution_mode:
         mode = filters.execution_mode
         qs = qs.filter(
@@ -244,6 +254,8 @@ def _occurrences(start: date | None, end: date | None, filters: FeedFilters, tod
             assignee=_person(occ.work_order.assigned_to) if occ.work_order_id else "",
             supplier=str(occ.supplier) if occ.supplier_id else "",
             work_order_id=occ.work_order_id,
+            occurrence_id=occ.id,
+            plannable=occ.status == MaintenanceOccurrence.STATUS_OPEN and not occ.work_order_id,
             detail_url=actions[0]["url"],
             actions=actions,
             **_asset_fields(occ.asset),
@@ -279,6 +291,8 @@ def _licenses(start: date | None, end: date | None, filters: FeedFilters, today:
         qs = qs.filter(Q(assigned_reparto=filters.reparto) | Q(asset__reparto=filters.reparto))
     if filters.group_id:
         qs = qs.filter(asset__group_memberships__group_id=filters.group_id)
+    if filters.asset_id:
+        qs = qs.filter(asset_id=filters.asset_id)
     list_url = reverse("assets:software_license_list")
     rows = []
     for lic in qs.order_by("expiry_date", "id").distinct()[:1000]:
@@ -322,6 +336,12 @@ def _contracts(start: date | None, end: date | None, filters: FeedFilters, today
         qs = qs.filter(asset__reparto=filters.reparto)
     if filters.group_id:
         qs = qs.filter(asset__group_memberships__group_id=filters.group_id)
+    if filters.asset_id:
+        category_id = Asset.objects.filter(pk=filters.asset_id).values_list("asset_category_id", flat=True).first()
+        scope = Q(asset_id=filters.asset_id)
+        if category_id:
+            scope |= Q(asset__isnull=True, asset_category_id=category_id)
+        qs = qs.filter(scope)
     list_url = reverse("assets:assistance_contract_list")
     rows = []
     for contract in qs.order_by("end_date", "id").distinct()[:1000]:
@@ -395,6 +415,8 @@ def _legacy_deadlines(start: date | None, end: date | None, filters: FeedFilters
         qs = qs.filter(asset__reparto=filters.reparto)
     if filters.group_id:
         qs = qs.filter(asset__group_memberships__group_id=filters.group_id)
+    if filters.asset_id:
+        qs = qs.filter(asset_id=filters.asset_id)
     rows = []
     for deadline in qs.order_by("due_date", "id").distinct()[:1000]:
         edit_url = reverse("assets:asset_administrative_deadline_edit", args=[deadline.id])

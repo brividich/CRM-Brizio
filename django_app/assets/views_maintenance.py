@@ -352,6 +352,21 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
         today=today,
     )
     queryset, scoped_reparti = _apply_caporeparto_scope(queryset, request)
+
+    # "Il mio lavoro": cio' che e' mio piu' cio' che non e' di nessuno (senza OdL o
+    # con un OdL senza assegnatario) — la stessa coda di "I miei interventi". E' il
+    # default per chi esegue senza pianificare: il manutentore apre la pagina e
+    # vede la sua giornata, non l'officina intera. Un click la allarga.
+    can_plan = can_plan_maintenance(request)
+    can_execute = can_execute_maintenance(request)
+    mine_param = _clean_string(request.GET.get("mio"))
+    only_mine = mine_param == "1" if mine_param in {"0", "1"} else (can_execute and not can_plan)
+    if only_mine:
+        queryset = queryset.filter(
+            Q(work_order__isnull=True)
+            | Q(work_order__assigned_to__isnull=True)
+            | Q(work_order__assigned_to=request.user)
+        )
     rows = _decorate(list(queryset[:1000]), today=today)
 
     week_end = today + timedelta(days=7)
@@ -478,8 +493,10 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "view_mode": view_mode,
             "summary": summary,
             "total": len(rows),
-            "can_plan": can_plan_maintenance(request),
-            "can_execute": can_execute_maintenance(request),
+            "can_plan": can_plan,
+            "can_execute": can_execute,
+            "only_mine": only_mine,
+            "mine_tabs": _tab_links(request, "mio", [("1", "Il mio lavoro"), ("0", "Tutto")], "1" if only_mine else "0"),
             "workorder_form": WorkOrderFromOccurrencesForm(),
             "scoped_reparti": scoped_reparti,
         },
@@ -539,7 +556,7 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
         "administrative": {feed.KIND_ADMINISTRATIVE},
     }.get(plan_type, set())
     kinds = feed.allowed_kinds(request) & wanted
-    if not kinds or data.get("execution_mode") or data.get("plan") or data.get("asset") or data.get("supplier"):
+    if not kinds or data.get("execution_mode") or data.get("plan") or data.get("supplier"):
         # Filtri che su licenze e contratti non hanno senso: meglio nessuna riga
         # che righe che sembrano rispettarli.
         return []
@@ -555,6 +572,7 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
         category_ids=frozenset(category_with_descendants(category_id)) if category_id else None,
         reparto=data.get("reparto") or "",
         group_id=data["group"].id if data.get("group") else None,
+        asset_id=data["asset"].id if data.get("asset") else None,
     )
     # Le occorrenze hanno la loro tabella sopra: qui solo cio' che non lo e'.
     rows = [row for row in feed.collect(start=start, end=end, filters=filters, today=today)
@@ -569,6 +587,69 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
         row.days = row.days_until(today)
         row.days_late = -row.days if row.days < 0 else 0
     return rows
+
+
+def _scadenzario_export(request: HttpRequest, *, rows, renewals, fmt: str, today: date) -> HttpResponse:
+    """Scadenzario in Excel o PDF: le righe che la pagina mostra, con gli stessi filtri.
+
+    Occorrenze e poi licenze, contratti e vecchie scadenze, in un'unica tabella
+    ordinata per data. I valori passano da ``write_cell`` (niente formula injection).
+    """
+    from core.excel_export import build_xlsx_bytes
+    from core.table_pdf import render_table_pdf
+
+    headers = ["Scadenza", "Tipologia", "Cosa", "Asset", "Descrizione asset", "Categoria", "Reparto", "Stato", "OdL / fornitore"]
+    table = []
+    admin_type = MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE
+    for row in rows:
+        occ = row["occurrence"]
+        asset = occ.asset
+        table.append([
+            occ.due_date,
+            "Amministrativa" if occ.plan.maintenance_type == admin_type else "Ordinaria",
+            occ.plan.label,
+            asset.asset_tag or "",
+            asset.name or "",
+            asset.asset_category.label if asset.asset_category_id else "",
+            asset.reparto or "",
+            row.get("operational_label") or row.get("label") or "",
+            f"OdL #{occ.work_order_id}" if occ.work_order_id else (str(occ.supplier) if occ.supplier_id else ""),
+        ])
+    for item in renewals:
+        table.append([
+            item.due_date, item.kind_label, item.title, item.asset_tag, item.asset_name or item.target_label,
+            item.category_label, item.reparto, item.state_label, item.supplier,
+        ])
+    table.sort(key=lambda values: values[0])
+    stamp = today.strftime("%Y%m%d")
+    filtri = request.GET.copy()
+    filtri.pop("format", None)
+    filters_label = "Filtri: " + (", ".join(f"{k}={v}" for k, v in filtri.items() if v) or "nessuno")
+
+    if fmt == "pdf":
+        body = render_table_pdf(
+            title="Scadenzario manutenzione",
+            subtitle=filters_label,
+            headers=headers,
+            rows=[[value.strftime("%d/%m/%Y") if isinstance(value, date) else value for value in values] for values in table],
+        )
+        response = HttpResponse(body, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="scadenzario_manutenzione_{stamp}.pdf"'
+        return response
+
+    body = build_xlsx_bytes(
+        columns=headers,
+        rows=table,
+        sheet_title="Scadenzario",
+        title="Scadenzario manutenzione",
+        subtitle=f"Estratto il {today:%d/%m/%Y}",
+        filters_label=filters_label,
+    )
+    response = HttpResponse(
+        body, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="scadenzario_manutenzione_{stamp}.xlsx"'
+    return response
 
 
 @login_required
@@ -601,6 +682,11 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     )
 
     active_tab = _clean_string(initial.get("window"))
+    export_format = _clean_string(request.GET.get("format")).lower()
+    if export_format in {"xlsx", "pdf"}:
+        return _scadenzario_export(request, rows=rows, renewals=renewals, fmt=export_format, today=today)
+    export_query = request.GET.copy()
+    export_query.pop("format", None)
     return render(
         request,
         "assets/pages/maintenance_scadenze.html",
@@ -612,6 +698,7 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
             "rows": rows,
             "total": len(rows) + len(renewals),
             "renewals": renewals,
+            "export_query": export_query.urlencode(),
             "show_occurrences": plan_type != "renewals",
             "show_renewals": plan_type in ("", "renewals", "administrative"),
             "window_tabs": _tab_links(request, "window", _SCADENZE_TABS, active_tab),
@@ -628,20 +715,6 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
 # ---------------------------------------------------------------------------
 # Dashboard responsabile
 # ---------------------------------------------------------------------------
-
-def _vista_cruscotto(request: HttpRequest) -> str:
-    """Quale delle due letture del Cruscotto mostrare.
-
-    La scelta esplicita (``?vista=``) vince sempre. Senza scelta il default si
-    ricava dai permessi che esistono gia': chi non puo' ne' pianificare ne'
-    eseguire non ha nulla da fare con le liste operative — vede la sintesi. Non
-    si introduce un secondo sistema di ruoli per una preferenza di vista.
-    """
-    scelta = _clean_string(request.GET.get("vista")).lower()
-    if scelta in {"operativo", "sintesi"}:
-        return scelta
-    return "operativo" if can_execute_maintenance(request) else "sintesi"
-
 
 def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_rows: list[dict[str, Any]],
                        report_missing: int, resolutions: dict) -> dict[str, Any]:
@@ -924,7 +997,16 @@ def _conformita(request: HttpRequest, *, today: date) -> dict[str, Any]:
 @login_required
 def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
     """Panoramica: cosa e' scaduto, cosa sta per scadere, cosa NON e' ancora
-    pianificato. La distinzione fra "dovuta" e "pianificata" e' il punto della pagina."""
+    pianificato. La distinzione fra "dovuta" e "pianificata" e' il punto della pagina.
+
+    La vecchia lettura "Sintesi" (``?vista=sintesi``) e' la pagina KPI: i link
+    salvati ci arrivano con gli altri parametri intatti.
+    """
+    if _clean_string(request.GET.get("vista")).lower() == "sintesi":
+        query = request.GET.copy()
+        query.pop("vista", None)
+        target = reverse("assets:maintenance_kpi")
+        return redirect(f"{target}?{query.urlencode()}" if query else target)
     return _responsabile_response(request, kpi_page=False)
 
 
@@ -1070,7 +1152,8 @@ def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpRespo
 
     # Due letture della stessa pagina, non due pagine: l'operativo elenca cosa fare,
     # la sintesi dice come sta andando. Stesso URL, stesso conteggio, un parametro.
-    vista = "sintesi" if kpi_page else _vista_cruscotto(request)
+    # Due pagine, non uno switch: la Panoramica elenca cosa fare, KPI dice come sta andando.
+    vista = "sintesi" if kpi_page else "operativo"
     sintesi = (
         _sintesi_direzione(
             today=today,
@@ -2161,3 +2244,119 @@ def maintenance_history_template(request: HttpRequest) -> HttpResponse:
     )
     response["Content-Disposition"] = 'attachment; filename="storico_manutenzioni_modello.xlsx"'
     return response
+
+
+# ---------------------------------------------------------------------------
+# Percorso guidato "Imposta la manutenzione"
+# ---------------------------------------------------------------------------
+
+@login_required
+def maintenance_setup(request: HttpRequest) -> HttpResponse:
+    """A che punto e' la configurazione, passo per passo, sui dati veri.
+
+    Ogni passo dice cosa manca, quanto, e porta alla pagina dove si sistema.
+    Nessun dato nuovo: solo conteggi su piani, applicazioni, asset e scadenze.
+    """
+    from .services import deadline_feed as feed
+
+    plans = list(MaintenanceInterventionTemplate.objects.filter(is_active=True).order_by("sort_order", "label"))
+    active_assignments = MaintenancePlanAssignment.objects.filter(is_active=True, plan__is_active=True)
+    applied_plan_ids = set(
+        active_assignments.filter(is_excluded=False).values_list("plan_id", flat=True).order_by().distinct()
+    )
+    plans_without_target = [plan for plan in plans if plan.id not in applied_plan_ids]
+    manual_generation = list(
+        active_assignments.filter(is_excluded=False, auto_generate=False).select_related("plan")[:200]
+    )
+    external_without_supplier = [
+        plan for plan in plans
+        if plan.execution_mode == MaintenanceInterventionTemplate.MODE_EXTERNAL and not plan.default_supplier_id
+    ]
+
+    resolutions = domain.build_plan_resolutions(asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE))
+    covered_assets = {asset_id for (_plan_id, asset_id), res in resolutions.items() if res.is_applied}
+    conflicts = sum(1 for res in resolutions.values() if res.is_conflict)
+    assets_in_use = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
+    coverage_pct = round(100 * len(covered_assets) / assets_in_use) if assets_in_use else None
+
+    legacy_duplicates = feed.migrated_legacy_deadlines_qs().count()
+    legacy_open = feed.legacy_deadlines_qs().count()
+    groups = AssetGroup.objects.filter(is_active=True).count()
+
+    def step(key, title, status, detail, links, items=None):
+        return {"key": key, "title": title, "status": status, "detail": detail, "links": links, "items": items or []}
+
+    steps = [
+        step(
+            "piani", "Definisci i piani di manutenzione",
+            "done" if plans else "todo",
+            f"{len(plans)} piani attivi." if plans else "Nessun piano: e' da qui che nascono tutte le scadenze.",
+            [("+ Nuovo piano", reverse("assets:maintenance_plan_create")), ("Catalogo attivita'", reverse("assets:maintenance_impostazioni"))],
+        ),
+        step(
+            "applicazioni", "Applica ogni piano ad asset, gruppi o categorie",
+            "todo" if plans_without_target else ("done" if plans else "blocked"),
+            (f"{len(plans_without_target)} piani non sono applicati a nessun asset: non generano scadenze."
+             if plans_without_target else "Tutti i piani attivi hanno almeno un'applicazione."),
+            [("Piani", reverse("assets:maintenance_plan_list"))],
+            [(plan.label, reverse("assets:maintenance_plan_detail", args=[plan.id])) for plan in plans_without_target[:8]],
+        ),
+        step(
+            "generazione", "Conferma le periodicita' da verificare",
+            "todo" if manual_generation else "done",
+            (f"{len(manual_generation)} applicazioni hanno la generazione automatica spenta: "
+             "di solito arrivano dalla migrazione, con periodicita' da confermare."
+             if manual_generation else "Tutte le applicazioni generano le scadenze da sole."),
+            [],
+            [(f"{a.plan.label} — {a.get_target_type_display()}",
+              reverse("assets:maintenance_assignment_edit", args=[a.plan_id, a.id])) for a in manual_generation[:8]],
+        ),
+        step(
+            "copertura", "Copri gli asset in uso",
+            "done" if coverage_pct == 100 and not conflicts else ("todo" if assets_in_use else "blocked"),
+            (f"{len(covered_assets)} asset in uso su {assets_in_use} hanno almeno un piano ({coverage_pct}%)."
+             if assets_in_use else "Nessun asset in uso.")
+            + (f" {conflicts} conflitti di periodicita' bloccano la generazione." if conflicts else ""),
+            [("Copertura", reverse("assets:maintenance_coverage"))],
+        ),
+        step(
+            "fornitori", "Assegna un fornitore ai piani esterni",
+            "todo" if external_without_supplier else "done",
+            (f"{len(external_without_supplier)} piani esterni senza fornitore predefinito: l'OdL nasce senza ditta."
+             if external_without_supplier else "Ogni piano esterno ha il suo fornitore."),
+            [("Fornitori", reverse("assets:maintenance_suppliers"))],
+            [(plan.label, reverse("assets:maintenance_plan_edit", args=[plan.id])) for plan in external_without_supplier[:8]],
+        ),
+        step(
+            "archivio", "Chiudi l'archivio delle vecchie scadenze",
+            "todo" if legacy_duplicates else ("info" if legacy_open else "done"),
+            (f"{legacy_duplicates} vecchie scadenze amministrative sono gia' nei piani ma ancora attive: "
+             "l'amministratore le chiude con il comando close_migrated_admin_deadlines."
+             if legacy_duplicates else
+             (f"{legacy_open} vecchie scadenze non sono ancora nei piani: restano visibili, ma conviene trasferirle."
+              if legacy_open else "Nessuna scadenza nel vecchio archivio.")),
+            [("Archivio precedente", reverse("assets:asset_administrative_deadline_list"))],
+        ),
+        step(
+            "gruppi", "Raggruppa gli asset (facoltativo)",
+            "done" if groups else "optional",
+            (f"{groups} gruppi attivi." if groups else
+             "Le famiglie d'inventario bastano quasi sempre. Un gruppo serve quando un piano riguarda "
+             "asset di famiglie diverse (es. «linea 3») o solo alcuni asset di una famiglia."),
+            [("Gruppi asset", reverse("assets:asset_group_list"))],
+        ),
+    ]
+    required = [s for s in steps if s["status"] not in {"optional", "info"}]
+    done = sum(1 for s in required if s["status"] == "done")
+    return render(
+        request,
+        "assets/pages/maintenance_setup.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Imposta la manutenzione",
+            "steps": steps,
+            "done": done,
+            "total": len(required),
+            "progress_pct": round(100 * done / len(required)) if required else 100,
+        },
+    )

@@ -162,6 +162,8 @@ urlpatterns = [
     path("assets/manutenzione/quadro/kpi/", views_maintenance.maintenance_kpi, name="maintenance_kpi"),
     path("assets/manutenzione/piani/", views_maintenance.maintenance_plan_list, name="maintenance_plan_list"),
     path("assets/manutenzione/piani/new/", views_maintenance.maintenance_plan_form, name="maintenance_plan_create"),
+    # Sotto /piani/: eredita per prefisso il permesso ACL della pagina Piani.
+    path("assets/manutenzione/piani/imposta/", views_maintenance.maintenance_setup, name="maintenance_setup"),
     path("assets/manutenzione/piani/<int:plan_id>/", views_maintenance.maintenance_plan_detail, name="maintenance_plan_detail"),
     path("assets/manutenzione/piani/<int:plan_id>/edit/", views_maintenance.maintenance_plan_form, name="maintenance_plan_edit"),
     path(
