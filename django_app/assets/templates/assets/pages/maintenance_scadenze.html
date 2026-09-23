@@ -10,8 +10,9 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Da fare</a>
-  <a class="btn" href="{% url 'assets:calendario_asset' %}">Calendario</a>
+  {% comment %}Stesse righe e stessi filtri della pagina.{% endcomment %}
+  <a class="btn btn-secondary" href="?{% if export_query %}{{ export_query }}&amp;{% endif %}format=xlsx">&#8595; Excel</a>
+  <a class="btn btn-secondary" href="?{% if export_query %}{{ export_query }}&amp;{% endif %}format=pdf">&#8595; PDF</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -98,7 +99,7 @@
           <tr>
             <td class="md-nowrap"><span class="md-due{% if row.state == 'overdue' %} is-late{% endif %}">{{ row.due_date|date:"d/m/Y" }}</span>
               <span class="md-sub">{% if row.days < 0 %}scaduta da {{ row.days_late }} g{% elif row.days == 0 %}oggi{% else %}tra {{ row.days }} g{% endif %}</span></td>
-            <td><span class="md-badge {% if row.kind == 'license' %}badge-info{% elif row.kind == 'administrative' %}badge-primary{% else %}badge-warning{% endif %}">{{ row.kind_label }}</span></td>
+            <td><span class="mk-kind mk-k-{{ row.kind }}">{{ row.kind_label }}</span></td>
             <td>{{ row.title }}</td>
             <td>{% if row.asset_id %}<a class="md-asset" href="{% url 'assets:asset_view' row.asset_id %}">{{ row.asset_tag }}</a><span class="md-sub">{{ row.asset_name }}</span>{% else %}{{ row.target_label|default:"—" }}{% endif %}</td>
             <td>{{ row.supplier|default:"—" }}</td>

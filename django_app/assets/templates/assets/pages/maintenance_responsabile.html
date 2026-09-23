@@ -28,9 +28,8 @@ body.theme-dark .ms-switch a{background:var(--surface);color:var(--text)}
 body.theme-dark .ms-switch a.is-on{background:#1d4ed8;color:#fff}
 body.theme-dark .ms-note,body.theme-dark .ms-chart,body.theme-dark .ms-gaps{background:var(--surface);border-color:var(--border);color:var(--text)}
 body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
-/* Panoramica: stessi colori per tipologia del Calendario. */
-.pn-wrap{--pn-ord:#2563eb;--pn-ord-bg:#e8f0ff;--pn-adm:#7c3aed;--pn-adm-bg:#f1eaff;--pn-lic:#0f8f86;--pn-lic-bg:#e2f6f4;--pn-con:#b0620a;--pn-con-bg:#fcefdf;--pn-late:#dc2626;--pn-line:var(--border,#dbe1ea);--pn-card:var(--surface,#fff);--pn-soft:#f6f8fb;--pn-text:var(--text,#0f172a);--pn-mid:var(--text-mid,#475569);--pn-faint:var(--text-light,#94a3b8);display:grid;gap:14px}
-body.theme-dark .pn-wrap{--pn-ord:#7aa5ff;--pn-ord-bg:rgba(37,99,235,.22);--pn-adm:#b996ff;--pn-adm-bg:rgba(124,58,237,.24);--pn-lic:#45cdc1;--pn-lic-bg:rgba(15,143,134,.24);--pn-con:#eaa55c;--pn-con-bg:rgba(176,98,10,.26);--pn-late:#f87171;--pn-soft:rgba(255,255,255,.04)}
+/* Panoramica: colori per tipologia dai token --mk-* di maintenance_domain_styles. */
+.pn-wrap{--pn-ord:var(--mk-ord);--pn-ord-bg:var(--mk-ord-bg);--pn-adm:var(--mk-adm);--pn-adm-bg:var(--mk-adm-bg);--pn-lic:var(--mk-lic);--pn-lic-bg:var(--mk-lic-bg);--pn-con:var(--mk-con);--pn-con-bg:var(--mk-con-bg);--pn-late:var(--mk-late);--pn-line:var(--border,#dbe1ea);--pn-card:var(--surface,#fff);--pn-soft:var(--mk-soft);--pn-text:var(--text,#0f172a);--pn-mid:var(--text-mid,#475569);--pn-faint:var(--text-light,#94a3b8);display:grid;gap:14px}
 .pn-filters{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end}
 .pn-filters label{display:flex;flex-direction:column;gap:3px;font-size:var(--fs-2xs);font-weight:700;color:var(--pn-faint)}
 .pn-filters select{min-height:34px;min-width:190px;padding:4px 8px}
@@ -82,26 +81,11 @@ body.theme-dark .pn-wrap{--pn-ord:#7aa5ff;--pn-ord-bg:rgba(37,99,235,.22);--pn-a
 
 {% block assets_shell_toolbar %}
   {% comment %}
-    Due letture della stessa pagina, non due pagine: stesso URL, un parametro.
-    Il default segue i permessi che esistono gia' (chi non pianifica ne esegue
-    apre sulla sintesi), ma la scelta esplicita vince sempre.
+    In testata solo cio' che la barra di sezione non ha gia': dalla pagina KPI
+    si arriva ai report storici (budget, export, PDF).
   {% endcomment %}
   {% if kpi_page %}
     <a class="btn btn-secondary" href="{% url 'assets:reports' %}?scope=production">Report e budget</a>
-    <a class="btn btn-secondary" href="{% url 'assets:maintenance_responsabile' %}?vista=operativo">Panoramica</a>
-  {% else %}
-  <span class="ms-switch">
-    <a class="{% if vista == 'operativo' %}is-on{% endif %}" href="?vista=operativo">Operativo</a>
-    <a class="{% if vista == 'sintesi' %}is-on{% endif %}" href="?vista=sintesi">Sintesi</a>
-  </span>
-  {% endif %}
-  {% comment %}
-    Le scorciatoie operative appartengono a chi lavora: in Sintesi non servono e
-    competerebbero con la lettura. Restano un click piu' in la', nello switch.
-  {% endcomment %}
-  {% if vista != "sintesi" %}
-    <a class="btn btn-secondary" href="{% url 'assets:maintenance_da_fare' %}">Da fare</a>
-    <a class="btn btn-secondary" href="{% url 'assets:maintenance_scadenze' %}">Scadenzario</a>
   {% endif %}
 {% endblock %}
 
@@ -258,7 +242,7 @@ body.theme-dark .pn-wrap{--pn-ord:#7aa5ff;--pn-ord-bg:rgba(37,99,235,.22);--pn-a
 
   <div class="ms-note">
     Questa e' la lettura di andamento. Le liste operative &mdash; cosa e' scaduto, quali ordini di lavoro
-    sono aperti, chi ha troppo carico &mdash; sono nella vista <a href="?vista=operativo">Operativo</a>.
+    sono aperti, chi ha troppo carico &mdash; sono nella <a href="{% url 'assets:maintenance_responsabile' %}">Panoramica</a>.
   </div>
 
 {% else %}
@@ -351,16 +335,11 @@ body.theme-dark .pn-wrap{--pn-ord:#7aa5ff;--pn-ord-bg:rgba(37,99,235,.22);--pn-a
   {% endif %}
 
   {% comment %}
-    Nove numeri con lo stesso peso non sono una gerarchia: sono un muro. I quattro
-    che comandano la giornata stanno davanti e grandi; gli altri cinque la
-    commentano, e restano tutti. Ogni riquadro porta alla lista che lo spiega —
-    dentro la pagina quando la sezione c'e' gia', altrimenti alla lista filtrata.
+    Scadute e in scadenza sono gia' nei riquadri per tipologia qui sopra: qui
+    restano solo i numeri del lavoro (pianificazione, OdL, documenti). Ogni
+    riquadro porta alla sezione che lo spiega.
   {% endcomment %}
   <div class="md-kpis md-kpis--lead">
-    <a class="md-kpi is-danger" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">
-      <span class="md-kpi-label">Scadute</span><span class="md-kpi-value">{{ kpi.overdue }}</span>
-      <span class="md-kpi-sub">da recuperare adesso</span>
-    </a>
     <a class="md-kpi is-warn" href="#non-pianificate">
       <span class="md-kpi-label">Non pianificate</span><span class="md-kpi-value">{{ kpi.unplanned }}</span>
       <span class="md-kpi-sub">dovute, senza OdL</span>
@@ -373,17 +352,13 @@ body.theme-dark .pn-wrap{--pn-ord:#7aa5ff;--pn-ord-bg:rgba(37,99,235,.22);--pn-a
       <span class="md-kpi-label">Rapporti mancanti</span><span class="md-kpi-value">{{ kpi.report_missing }}</span>
       <span class="md-kpi-sub">eseguite ma non documentate</span>
     </a>
-  </div>
-
-  <div class="md-kpis md-kpis--sub">
-    <a class="md-kpi" href="{% url 'assets:maintenance_scadenze' %}?window=30">
-      <span class="md-kpi-label">In scadenza</span><span class="md-kpi-value">{{ kpi.due_soon }}</span>
-      <span class="md-kpi-sub">entro 30 giorni</span>
-    </a>
     <div class="md-kpi">
       <span class="md-kpi-label">In attesa</span><span class="md-kpi-value">{{ kpi.waiting }}</span>
       <span class="md-kpi-sub">ricambi, fornitori, autorizzazioni</span>
     </div>
+  </div>
+
+  <div class="md-kpis md-kpis--sub">
     <a class="md-kpi {% if kpi.workorders_overdue %}is-warn{% endif %}" href="#odl-anziani">
       <span class="md-kpi-label">Aperti da oltre {{ wo_overdue_days }} giorni</span><span class="md-kpi-value">{{ kpi.workorders_overdue }}</span>
       <span class="md-kpi-sub">anzianita', non una scadenza</span>

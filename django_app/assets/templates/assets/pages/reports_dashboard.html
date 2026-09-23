@@ -132,7 +132,7 @@
     <a class="rd-kpi" href="{{ maintenance_schedule_due_url }}">
       <div class="rd-kpi-label">PM compliance</div>
       <div class="rd-kpi-value">{% if pm_kpi.has_compliance %}{{ pm_kpi.compliance_pct }}%{% else %}-{% endif %}</div>
-      <span class="rd-empty">{{ pm_kpi.compliant_rules }}/{{ pm_kpi.applicable_rules }} regole in linea</span>
+      <span class="rd-empty">{{ pm_kpi.compliant_rules }}/{{ pm_kpi.applicable_rules }} asset in linea</span>
     </a>
     <a class="rd-kpi" href="{{ done_workorders_url }}">
       <div class="rd-kpi-label">Budget usato {{ budget_kpi.year }}</div>
@@ -146,7 +146,7 @@
     </article>
     <a class="rd-kpi" href="{{ late_workorders_url }}"><div class="rd-kpi-label">Aperti oltre 30 gg</div><div class="rd-kpi-value">{{ late_count }}</div></a>
     <a class="rd-kpi" href="{{ maintenance_schedule_due_url }}"><div class="rd-kpi-label">Scadenze critiche</div><div class="rd-kpi-value">{{ critical_count }}</div></a>
-    <a class="rd-kpi" href="{{ maintenance_schedule_missing_url }}"><div class="rd-kpi-label">Senza baseline</div><div class="rd-kpi-value">{{ missing_count }}</div></a>
+    <a class="rd-kpi" href="{{ maintenance_schedule_missing_url }}"><div class="rd-kpi-label">Senza piano</div><div class="rd-kpi-value">{{ missing_count }}</div></a>
     <a class="rd-kpi" href="{{ done_workorders_url }}"><div class="rd-kpi-label">Chiusi 90 gg</div><div class="rd-kpi-value">{{ done_recent_count }}</div></a>
     <article class="rd-kpi"><div class="rd-kpi-label">Costo 90 gg</div><div class="rd-kpi-value">{{ total_cost }} €</div></article>
   </section>
@@ -155,7 +155,7 @@
     <div class="rd-card-head">
       <div>
         <h2>Compliance e budget</h2>
-        <p>Stato delle regole preventive e confronto consuntivo/budget dell'anno corrente.</p>
+        <p>Stato delle manutenzioni pianificate (stessa fonte di Scadenzario e KPI) e confronto consuntivo/budget dell'anno corrente.</p>
       </div>
     </div>
     <div class="rd-card-body">
@@ -169,7 +169,7 @@
             <span>In linea: <strong>{{ pm_kpi.compliant_rules }}</strong></span>
             <span>Scadute: <strong>{{ pm_kpi.overdue_rules }}</strong></span>
             <span>Warning: <strong>{{ pm_kpi.warning_rules }}</strong></span>
-            <span>Senza baseline: <strong>{{ pm_kpi.missing_baseline_rules }}</strong></span>
+            <span>Senza piano: <strong>{{ pm_kpi.missing_baseline_rules }}</strong></span>
           </div>
         </section>
 
@@ -312,7 +312,7 @@
               {% for row in critical_rows %}
                 <tr>
                   <td><a href="{{ row.asset_detail_url }}">{{ row.asset.asset_tag }}</a><br><span class="rd-empty">{{ row.asset.name }}</span></td>
-                  <td>{{ row.effective_intervention_template.label }}</td>
+                  <td>{{ row.effective_intervention_template.label|default:"Nessun piano applicato" }}</td>
                   <td><span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span></td>
                   <td>{% if row.due_date %}{{ row.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
                   <td><a class="btn btn-primary" href="{{ row.primary_action.url }}">{{ row.primary_action.label }}</a></td>

@@ -705,7 +705,12 @@ class OccurrenceFilterForm(forms.Form):
         self.fields["plan"].queryset = MaintenanceInterventionTemplate.objects.filter(is_active=True).order_by(
             "sort_order", "label"
         )
-        self.fields["group"].queryset = AssetGroup.objects.filter(is_active=True).order_by("sort_order", "label")
+        groups = AssetGroup.objects.filter(is_active=True).order_by("sort_order", "label")
+        if groups.exists():
+            self.fields["group"].queryset = groups
+        else:
+            # Nessun gruppo definito: un menu a tendina vuoto e' solo rumore.
+            del self.fields["group"]
         self.fields["asset"].queryset = Asset.objects.order_by("asset_tag", "name")
         _set_user_choices(self.fields["assignee"])
         self.fields["supplier"].queryset = Fornitore.objects.order_by("ragione_sociale")

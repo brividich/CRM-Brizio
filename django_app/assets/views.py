@@ -2725,6 +2725,66 @@ def _apply_asset_document_changes(
             )
 
 
+def _planned_maintenance_status(asset_queryset, today) -> dict[str, object]:
+    """Stato manutentivo di ogni asset dalle scadenze pianificate (occorrenze).
+
+    Stessa fonte di Scadenzario, Calendario e KPI: prima Dashboard officina e
+    Report leggevano la data sulla macchina e il vecchio motore a regole, e davano
+    numeri diversi. Per asset: la prossima occorrenza aperta decide lo stato
+    (scaduta / in soglia di preavviso / in linea); gli asset in uso senza alcun
+    piano applicato sono "senza piano".
+    """
+    from .models import MaintenanceOccurrence
+    from .services import maintenance_domain as maintenance_dom
+
+    assets = list(asset_queryset)
+    asset_ids = [asset.id for asset in assets]
+    next_by_asset: dict[int, MaintenanceOccurrence] = {}
+    for occurrence in (
+        MaintenanceOccurrence.objects.filter(asset_id__in=asset_ids, status=MaintenanceOccurrence.STATUS_OPEN)
+        .select_related("plan", "asset")
+        .order_by("due_date", "id")
+    ):
+        next_by_asset.setdefault(occurrence.asset_id, occurrence)
+    in_use_ids = [asset.id for asset in assets if asset.status == Asset.STATUS_IN_USE]
+    resolutions = maintenance_dom.build_plan_resolutions(asset_queryset=Asset.objects.filter(pk__in=in_use_ids))
+    with_plan = {asset_id for (_plan_id, asset_id), res in resolutions.items() if res.is_applied}
+
+    rows = {"overdue": [], "warning": [], "ok": [], "missing": []}
+    for asset in assets:
+        occurrence = next_by_asset.get(asset.id)
+        if occurrence is None:
+            if asset.id in with_plan or asset.status != Asset.STATUS_IN_USE:
+                continue
+            rows["missing"].append({"asset": asset, "occurrence": None,
+                                    "state": {"status": "missing", "label": "Senza piano", "days": None, "date": None}})
+            continue
+        days = (occurrence.due_date - today).days
+        if days < 0:
+            status, label = "overdue", f"Scaduta da {abs(days)} gg"
+        elif days <= int(occurrence.warning_days or 0):
+            status, label = "warning", f"In soglia ({days} gg)"
+        else:
+            status, label = "ok", f"Tra {days} gg"
+        rows[status].append({"asset": asset, "occurrence": occurrence,
+                             "state": {"status": status, "label": label, "days": days, "date": occurrence.due_date}})
+    for key in ("overdue", "warning", "ok"):
+        rows[key].sort(key=lambda row: row["state"]["date"])
+    rows["missing"].sort(key=lambda row: (row["asset"].reparto or "", row["asset"].name or ""))
+    with_occ = len(rows["overdue"]) + len(rows["warning"]) + len(rows["ok"])
+    in_line = len(rows["ok"]) + len(rows["warning"])
+    rows["kpi"] = {
+        "has_compliance": bool(with_occ),
+        "compliance_pct": round(100 * in_line / with_occ) if with_occ else 0,
+        "compliant_rules": in_line,
+        "applicable_rules": with_occ,
+        "overdue_rules": len(rows["overdue"]),
+        "warning_rules": len(rows["warning"]),
+        "missing_baseline_rules": len(rows["missing"]),
+    }
+    return rows
+
+
 def _work_machine_maintenance_state(machine: WorkMachine, today) -> dict[str, object]:
     next_date = getattr(machine, "next_maintenance_date", None)
     reminder_days = int(getattr(machine, "maintenance_reminder_days", 30) or 0)
@@ -5974,7 +6034,27 @@ def _sidebar_button_payload(
         "url": url,
         "is_subitem": button.is_subitem if force_subitem is None else force_subitem,
         "active": _is_sidebar_button_active(request, button, url),
+        "badge": _da_fare_badge(request) if button.code == "maintenance_da_fare" else None,
     }
+
+
+def _da_fare_badge(request: HttpRequest) -> int | None:
+    """Manutenzioni scadute ancora aperte, accanto a "Da fare": si vede che c'e'
+    lavoro arretrato senza aprire la pagina. Una count indicizzata
+    (status, due_date), una volta per richiesta."""
+    cached = getattr(request, "_assets_da_fare_badge", "unset")
+    if cached != "unset":
+        return cached
+    from .models import MaintenanceOccurrence
+
+    try:
+        count = MaintenanceOccurrence.objects.filter(
+            status=MaintenanceOccurrence.STATUS_OPEN, due_date__lt=timezone.localdate()
+        ).count()
+    except Exception:
+        count = None
+    request._assets_da_fare_badge = count or None
+    return request._assets_da_fare_badge
 
 
 def _nest_sidebar_items(flat_items: list[dict]) -> list[dict]:
@@ -6450,29 +6530,23 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
         "active_label": active_item.label,
         "items": items,
         "breadcrumbs": breadcrumbs,
-        "actions": [
-            {
+        "actions": (
+            [{
                 "key": "new-workorder",
                 "label": "+ Nuovo intervento",
                 "url": f"{workorders_url}?create=1",
                 "kind": "primary",
-            },
-            {
-                "key": "export-workorders",
-                "label": "Esporta OdL",
-                "url": f"{workorders_url}?export=1",
-                "kind": "secondary",
-            },
-            {
-                "key": "new-plan",
-                "label": "+ Nuovo piano",
-                # Punta al nuovo dominio: "piano" per l'utente e' Piano di
-                # manutenzione, non la vecchia regola per categoria.
-                "url": reverse("assets:maintenance_plan_create"),
-                "kind": "secondary",
-            },
-        ],
+            }]
+            if active_item.key in _SECTION_ACTION_NEW_WORKORDER
+            else []
+        ),
     }
+
+
+# Pagine dove "+ Nuovo intervento" sta nella barra di sezione: le operative senza
+# un pulsante proprio. Interventi ha il suo (con il selettore asset), la
+# configurazione e i KPI non aprono lavoro.
+_SECTION_ACTION_NEW_WORKORDER = frozenset({"panoramica", "da_fare", "calendario", "scadenzario", "storico"})
 
 def _safe_editor_json_rows(raw_value) -> list[dict[str, object]]:
     if not raw_value:
@@ -10244,6 +10318,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "asset_maintenance_rule_list_url": _asset_maintenance_rule_list_page_url(asset_id=asset.id),
             # Piani del nuovo dominio (Piano -> Applicazione -> Occorrenza).
             **_asset_maintenance_plans_context(asset),
+            **_asset_deadlines_context(request, asset),
             "can_manage_asset_maintenance_rules": can_manage_asset_maintenance_rules,
             "asset_linked_task_rows": linked_task_rows,
             "asset_upcoming_task_rows": upcoming_task_rows,
@@ -13198,21 +13273,12 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
             manuals_count += 1
         if "SPECIFICHE" in categories:
             specs_count += 1
-        machine = getattr(asset, "work_machine", None)
-        if not isinstance(machine, WorkMachine):
-            continue
-        maintenance_state = _work_machine_maintenance_state(machine, today)
-        payload = {"asset": asset, "machine": machine, "state": maintenance_state}
-        if maintenance_state["status"] == "overdue":
-            overdue_maintenance.append(payload)
-        elif maintenance_state["status"] == "warning":
-            warning_maintenance.append(payload)
-        elif maintenance_state["status"] == "missing":
-            missing_maintenance.append(payload)
 
-    overdue_maintenance.sort(key=lambda row: row["state"]["date"] or today)
-    warning_maintenance.sort(key=lambda row: row["state"]["date"] or today)
-    missing_maintenance.sort(key=lambda row: (row["asset"].reparto or "", row["asset"].name or ""))
+    # Stato manutentivo dalle scadenze pianificate, non piu' dalla data sulla macchina.
+    planned = _planned_maintenance_status(machine_rows, today)
+    overdue_maintenance = planned["overdue"]
+    warning_maintenance = planned["warning"]
+    missing_maintenance = planned["missing"]
 
     total_machines = len(machine_rows)
     reparto_totals = list(
@@ -15348,6 +15414,30 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
     )
 
 
+def _asset_deadlines_context(request: HttpRequest, asset) -> dict[str, object]:
+    """Tutte le scadenze aperte dell'asset nei prossimi 12 mesi, dalla stessa fonte
+    di Calendario e Scadenzario: manutenzioni, adempimenti, licenze e contratti
+    (anche quelli sulla sua categoria). Le scadute restano finche' sono aperte."""
+    from .services import deadline_feed as feed
+
+    today = timezone.localdate()
+    rows = feed.collect(
+        start=None,
+        end=today + timedelta(days=365),
+        filters=feed.FeedFilters(kinds=feed.allowed_kinds(request), asset_id=asset.id),
+        today=today,
+    )
+    for row in rows:
+        row.days = row.days_until(today)
+        row.days_late = -row.days if row.days < 0 else 0
+    return {
+        "asset_deadline_rows": rows[:12],
+        "asset_deadline_total": len(rows),
+        "asset_deadline_overdue": sum(1 for row in rows if row.state == feed.STATE_OVERDUE),
+        "asset_deadline_list_url": f"{reverse('assets:maintenance_scadenze')}?window=&asset={asset.id}",
+    }
+
+
 def _asset_maintenance_plans_context(asset) -> dict[str, object]:
     """I piani del nuovo dominio che riguardano questo asset, per la sua scheda.
 
@@ -16885,13 +16975,15 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
     reports_context = _reports_scope_context(reports_scope)
     report_asset_types = list(reports_context["asset_types"])
     scoped_asset_qs = Asset.objects.filter(asset_type__in=report_asset_types).select_related("asset_category")
-    schedule_rows = build_day_based_maintenance_schedule_rows(asset_queryset=scoped_asset_qs, today=today)
+    # Budget e costi dagli OdL; lo stato delle manutenzioni dalle occorrenze,
+    # come Scadenzario e KPI (il vecchio motore a regole non entra piu' nel conto).
     maintenance_report_kpis = build_maintenance_report_kpis(
         asset_queryset=scoped_asset_qs,
-        schedule_rows=schedule_rows,
+        schedule_rows=[],
         today=today,
     )
-    pm_kpi = maintenance_report_kpis["pm"]
+    planned = _planned_maintenance_status(scoped_asset_qs, today)
+    pm_kpi = planned["kpi"]
     budget_kpi = maintenance_report_kpis["budget"]
     budget_rows = []
     for row in budget_kpi["rows"][:8]:
@@ -17008,30 +17100,27 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
         lambda workorder: str(workorder.supplier) if workorder.supplier_id else "Fornitore non indicato",
     )[:8]
 
-    overdue_rows = [row for row in schedule_rows if row["schedule_status"] == "overdue"]
-    warning_rows = [row for row in schedule_rows if row["schedule_status"] == "warning"]
-    upcoming_rows = [row for row in schedule_rows if row["schedule_status"] == "upcoming"]
-    missing_rows = [row for row in schedule_rows if row["schedule_status"] == "missing"]
+    overdue_rows = planned["overdue"]
+    warning_rows = planned["warning"]
+    upcoming_rows = planned["ok"]
+    missing_rows = planned["missing"]
     critical_count = len(overdue_rows) + len(warning_rows) + len(missing_rows)
     critical_rows: list[dict[str, object]] = []
-    for row in schedule_rows:
-        if row["schedule_status"] not in {"overdue", "warning", "missing"}:
-            continue
+    for row in overdue_rows + warning_rows + missing_rows:
         asset = row["asset"]
+        occurrence = row["occurrence"]
         critical_rows.append(
             {
-                **row,
+                "asset": asset,
                 "asset_detail_url": reverse("assets:asset_view", kwargs={"id": asset.id}),
-                "workorder_create_url": _workorder_create_page_url(
-                    asset_id=asset.id,
-                    rule_id=row["base_rule"].id,
-                    source="maintenance_reports",
-                ),
-                "primary_action": _maintenance_row_primary_action(
-                    asset=asset,
-                    base_rule=row["base_rule"],
-                    schedule_status=str(row.get("schedule_status") or ""),
-                    source="maintenance_reports",
+                "effective_intervention_template": occurrence.plan if occurrence else None,
+                "schedule_label": row["state"]["label"],
+                "schedule_badge_class": {"overdue": "danger", "warning": "warning"}.get(row["state"]["status"], "muted"),
+                "due_date": row["state"]["date"],
+                "primary_action": (
+                    {"label": "Registra", "url": reverse("assets:occurrence_complete", args=[occurrence.id])}
+                    if occurrence
+                    else {"label": "Applica un piano", "url": reverse("assets:asset_maintenance_plans", args=[asset.id])}
                 ),
             }
         )
@@ -17076,8 +17165,8 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
             "open_workorders_url": _workorder_list_page_url(status=WorkOrder.STATUS_OPEN),
             "late_workorders_url": _workorder_list_page_url(status=WorkOrder.STATUS_OPEN, open_age=30),
             "done_workorders_url": _workorder_list_page_url(status=WorkOrder.STATUS_DONE),
-            "maintenance_schedule_due_url": _maintenance_schedule_page_url(status="due"),
-            "maintenance_schedule_missing_url": _maintenance_schedule_page_url(status="missing"),
+            "maintenance_schedule_due_url": f"{reverse('assets:maintenance_scadenze')}?window=overdue",
+            "maintenance_schedule_missing_url": reverse("assets:maintenance_coverage"),
             "maintenance_month_rows": maintenance_month_dataset["rows"][:10],
             "maintenance_month_count": maintenance_month_dataset["total_count"],
             "maintenance_month_overdue_count": maintenance_month_dataset["overdue_count"],
@@ -18240,8 +18329,14 @@ def calendario_asset(request: HttpRequest) -> HttpResponse:
     reparti = list(
         Asset.objects.exclude(reparto="").values_list("reparto", flat=True).order_by("reparto").distinct()
     )
+    from .forms_maintenance import WorkOrderFromOccurrencesForm
+    from .views_maintenance import can_plan_maintenance
+
+    can_plan = can_plan_maintenance(request)
     return render(request, "assets/pages/calendario_asset.html", {
         "page_title": "Calendario manutenzione",
+        "can_plan": can_plan,
+        "workorder_form": WorkOrderFromOccurrencesForm() if can_plan else None,
         "kinds": kinds,
         "categories": category_filter_choices(),
         "reparti": reparti,
