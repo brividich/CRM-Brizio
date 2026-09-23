@@ -10892,6 +10892,351 @@ def visita_medica_elimina(request, v_id: int):
     })
 
 
+# ---------------------------------------------------------------------------
+# Gestione del singolo referto di visita medica
+# ---------------------------------------------------------------------------
+RIFERIMENTO_VISITA_MEDICA = "anagrafica.visitamedica"
+
+
+def _visita_del_referto(doc: DocumentoDipendente) -> VisitaMedica | None:
+    """La visita a cui il referto e' agganciato, per riferimento o per FK.
+
+    Il riferimento generico (``oggetto_riferimento_*``) e' la fonte primaria:
+    e' cio' che l'import e il form usano. Le FK sulla visita restano un
+    secondo canale, perche' i referti storici possono avere solo quelle.
+    """
+    if doc.oggetto_riferimento_tipo == RIFERIMENTO_VISITA_MEDICA and doc.oggetto_riferimento_id:
+        visita = (
+            VisitaMedica.objects.select_related("tipo")
+            .filter(pk=doc.oggetto_riferimento_id)
+            .first()
+        )
+        if visita is not None:
+            return visita
+    return (
+        VisitaMedica.objects.select_related("tipo")
+        .filter(Q(referto_documento_id=doc.pk) | Q(referto_documento_secondario_id=doc.pk))
+        .first()
+    )
+
+
+def _nome_dipendente_legacy(legacy_id: int) -> str:
+    """Nome e cognome dal legacy, con fallback all'id: mai una pagina senza titolo."""
+    fallback = f"Dipendente #{legacy_id}"
+    try:
+        persona = (
+            AnagraficaDipendente.objects.filter(id=legacy_id)
+            .values("nome", "cognome")
+            .first()
+        )
+    except Exception:
+        logger.exception("Errore lookup dipendente #%s", legacy_id)
+        return fallback
+    if not persona:
+        return fallback
+    return naming.nome_completo(persona.get("nome"), persona.get("cognome")) or fallback
+
+
+def _accessi_referto(doc: DocumentoDipendente, limit: int = 100) -> list:
+    """Chi ha aperto QUESTO referto, dal piu' recente.
+
+    Due sorgenti, perche' l'audit del download ha iniziato ad agganciare il
+    record solo da questa versione: le voci nuove si trovano per
+    ``oggetto_tipo``/``oggetto_id``, quelle storiche solo dal testo del
+    dettaglio, filtrato in Python per non dipendere dalle lookup JSON (il
+    backend SQL Server non le supporta in modo uniforme).
+    """
+    from core.models import AuditLog
+
+    azione = "DOCUMENTO_DIPENDENTE_DOWNLOAD"
+    voci = list(
+        AuditLog.objects.filter(
+            azione=azione,
+            oggetto_tipo=DocumentoDipendente._meta.label_lower,
+            oggetto_id=str(doc.pk),
+        ).order_by("-created_at")[:limit]
+    )
+    try:
+        atteso = f"documento #{doc.pk} "
+        storiche = (
+            AuditLog.objects.filter(azione=azione, modulo="anagrafica", oggetto_id="")
+            .order_by("-created_at")[:500]
+        )
+        for voce in storiche:
+            dettaglio = voce.dettaglio or {}
+            testo = dettaglio.get("dettaglio", "") if isinstance(dettaglio, dict) else dettaglio
+            if atteso in str(testo):
+                voci.append(voce)
+    except Exception:
+        logger.warning("Ricerca accessi storici referto %s fallita", doc.pk, exc_info=True)
+    voci.sort(key=lambda v: v.created_at, reverse=True)
+    return voci[:limit]
+
+
+def _audit_referto(request, azione: str, doc: DocumentoDipendente, dettaglio: dict) -> None:
+    """Audit agganciato al record del referto: alimenta storico e accessi."""
+    try:
+        from core.audit import log_action
+        log_action(request, azione, "anagrafica", dettaglio, oggetto=doc)
+    except Exception:
+        logger.warning("Audit %s fallito per referto %s", azione, doc.pk, exc_info=True)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def referto_gestione(request, doc_id: int):
+    """Scheda di gestione di un singolo referto: metadati, file, aggancio, accessi.
+
+    Il referto e' un dato sanitario: la lettura passa dal permesso delle visite
+    mediche, l'eliminazione da ``anagrafica.visite.delete`` con motivazione
+    obbligatoria. Ogni azione scrive una voce di audit agganciata al record,
+    cosi' la scheda stessa e' il registro di cosa e' stato fatto e di chi ha
+    aperto il file.
+    """
+    if not _can_view_visite_mediche(request):
+        return HttpResponseForbidden("Non hai i permessi per gestire i referti sanitari.")
+
+    doc = get_object_or_404(
+        DocumentoDipendente.objects.select_related("created_by", "cartella"),
+        pk=doc_id,
+        tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+    )
+    if doc.cartella_id and doc.cartella.solo_admin and not _can_view_documenti_riservati(request):
+        return HttpResponseForbidden("Referto in cartella riservata.")
+
+    can_delete = _has_canonical_grant(request, PERM_VISITE_DELETE)
+    azione = (request.POST.get("azione") or "").strip() if request.method == "POST" else ""
+    motivo = (request.POST.get("motivo") or "").strip() if request.method == "POST" else ""
+
+    if request.method == "POST":
+        visita = _visita_del_referto(doc)
+
+        if azione == "metadati":
+            descrizione = (request.POST.get("descrizione") or "").strip()[:300]
+            nome_originale = (request.POST.get("nome_originale") or "").strip()[:255]
+            retention_raw = (request.POST.get("retention_until") or "").strip()
+            retention = parse_date(retention_raw) if retention_raw else None
+            if retention_raw and retention is None:
+                messages.error(request, "Data di conservazione non valida.")
+            elif not nome_originale:
+                messages.error(request, "Il nome del file è obbligatorio.")
+            else:
+                prima = {
+                    "descrizione": doc.descrizione,
+                    "nome_originale": doc.nome_originale,
+                    "retention_until": doc.retention_until.isoformat() if doc.retention_until else None,
+                }
+                doc.descrizione = descrizione
+                doc.nome_originale = nome_originale
+                doc.retention_until = retention
+                doc.save(update_fields=["descrizione", "nome_originale", "retention_until"])
+                _audit_referto(request, "REFERTO_MODIFICATO", doc, {
+                    "prima": prima,
+                    "dopo": {
+                        "descrizione": doc.descrizione,
+                        "nome_originale": doc.nome_originale,
+                        "retention_until": doc.retention_until.isoformat() if doc.retention_until else None,
+                    },
+                    "motivo": motivo[:1000],
+                    "visita_id": visita.pk if visita else None,
+                    "dipendente_id": doc.legacy_anagrafica_id,
+                })
+                messages.success(request, "Dati del referto aggiornati.")
+                return redirect("anagrafica:referto_gestione", doc_id=doc.pk)
+
+        elif azione == "sostituisci":
+            uploaded = request.FILES.get("file")
+            if not uploaded:
+                messages.error(request, "Seleziona il file del nuovo referto.")
+            else:
+                suffix = Path(uploaded.name or "").suffix.lower()
+                if suffix not in _ALLOWED_DOC_EXTENSIONS:
+                    messages.error(
+                        request,
+                        f"Formato non consentito ({suffix}). Ammessi: PDF, DOC, DOCX, "
+                        "XLS, XLSX, JPG, PNG, WEBP.",
+                    )
+                elif uploaded.size > _MAX_DOC_SIZE:
+                    messages.error(
+                        request,
+                        f"File troppo grande ({uploaded.size // (1024 * 1024)} MB). Limite: 50 MB.",
+                    )
+                else:
+                    try:
+                        from core.upload_mime import sniff_mime
+                        mime = sniff_mime(uploaded)
+                    except Exception:
+                        mime = uploaded.content_type or "application/octet-stream"
+                    if mime not in _ALLOWED_DOC_MIMES:
+                        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+                    else:
+                        prima = {
+                            "nome_originale": doc.nome_originale,
+                            "dimensione_bytes": doc.dimensione_bytes,
+                            "tipo_mime": doc.tipo_mime,
+                        }
+                        vecchio_storage = doc.file.storage if doc.file else None
+                        vecchio_nome = doc.file.name if doc.file else ""
+                        doc.file.save(uploaded.name, uploaded, save=False)
+                        doc.nome_originale = uploaded.name[:255]
+                        doc.tipo_mime = mime
+                        doc.dimensione_bytes = uploaded.size
+                        doc.save(update_fields=[
+                            "file", "nome_originale", "tipo_mime", "dimensione_bytes",
+                        ])
+                        if vecchio_storage and vecchio_nome and vecchio_nome != doc.file.name:
+                            try:
+                                if vecchio_storage.exists(vecchio_nome):
+                                    vecchio_storage.delete(vecchio_nome)
+                            except Exception:
+                                logger.warning(
+                                    "File precedente del referto %s non rimosso",
+                                    doc.pk, exc_info=True,
+                                )
+                        _audit_referto(request, "REFERTO_SOSTITUITO", doc, {
+                            "prima": prima,
+                            "dopo": {
+                                "nome_originale": doc.nome_originale,
+                                "dimensione_bytes": doc.dimensione_bytes,
+                                "tipo_mime": doc.tipo_mime,
+                            },
+                            "motivo": motivo[:1000],
+                            "visita_id": visita.pk if visita else None,
+                            "dipendente_id": doc.legacy_anagrafica_id,
+                        })
+                        messages.success(
+                            request,
+                            "Referto sostituito: il file precedente è stato rimosso.",
+                        )
+                        return redirect("anagrafica:referto_gestione", doc_id=doc.pk)
+
+        elif azione in {"principale", "secondario"}:
+            if visita is None:
+                messages.error(request, "Il referto non è collegato a nessuna visita.")
+            else:
+                campo = "referto_documento" if azione == "principale" else "referto_documento_secondario"
+                altro = "referto_documento_secondario" if azione == "principale" else "referto_documento"
+                aggiorna = [campo, "updated_at", "updated_by"]
+                setattr(visita, campo, doc)
+                if getattr(visita, f"{altro}_id", None) == doc.pk:
+                    setattr(visita, altro, None)
+                    aggiorna.append(altro)
+                visita.updated_by = request.user
+                doc.oggetto_riferimento_tipo = RIFERIMENTO_VISITA_MEDICA
+                doc.oggetto_riferimento_id = visita.pk
+                doc.save(update_fields=["oggetto_riferimento_tipo", "oggetto_riferimento_id"])
+                visita.save(update_fields=aggiorna)
+                _audit_referto(request, "REFERTO_RUOLO_CAMBIATO", doc, {
+                    "ruolo": azione,
+                    "motivo": motivo[:1000],
+                    "visita_id": visita.pk,
+                    "dipendente_id": doc.legacy_anagrafica_id,
+                })
+                messages.success(
+                    request,
+                    "Referto impostato come principale." if azione == "principale"
+                    else "Referto impostato come secondario.",
+                )
+                return redirect("anagrafica:referto_gestione", doc_id=doc.pk)
+
+        elif azione == "scollega":
+            if not motivo:
+                messages.error(request, "Indica il motivo dello scollegamento.")
+            else:
+                visita_id = visita.pk if visita else None
+                with transaction.atomic():
+                    if visita is not None:
+                        aggiorna = ["updated_at", "updated_by"]
+                        if visita.referto_documento_id == doc.pk:
+                            visita.referto_documento = None
+                            aggiorna.append("referto_documento")
+                        if visita.referto_documento_secondario_id == doc.pk:
+                            visita.referto_documento_secondario = None
+                            aggiorna.append("referto_documento_secondario")
+                        visita.updated_by = request.user
+                        visita.save(update_fields=aggiorna)
+                    doc.oggetto_riferimento_tipo = ""
+                    doc.oggetto_riferimento_id = None
+                    doc.save(update_fields=["oggetto_riferimento_tipo", "oggetto_riferimento_id"])
+                _audit_referto(request, "REFERTO_SCOLLEGATO", doc, {
+                    "motivo": motivo[:1000],
+                    "visita_id": visita_id,
+                    "dipendente_id": doc.legacy_anagrafica_id,
+                })
+                messages.success(
+                    request,
+                    "Referto scollegato dalla visita: resta nel fascicolo del dipendente.",
+                )
+                return redirect("anagrafica:referto_gestione", doc_id=doc.pk)
+
+        elif azione == "elimina":
+            if not can_delete:
+                return HttpResponseForbidden("Non hai i permessi per eliminare referti sanitari.")
+            if not motivo or len(motivo) > 1000:
+                messages.error(request, "Inserisci una motivazione (massimo 1000 caratteri).")
+            else:
+                legacy_id = doc.legacy_anagrafica_id
+                visita_id = visita.pk if visita else None
+                try:
+                    with transaction.atomic():
+                        bloccato = (
+                            DocumentoDipendente.objects.select_for_update()
+                            .get(pk=doc.pk)
+                        )
+                        if visita is not None:
+                            aggiorna = ["updated_at", "updated_by"]
+                            if visita.referto_documento_id == bloccato.pk:
+                                visita.referto_documento = None
+                                aggiorna.append("referto_documento")
+                            if visita.referto_documento_secondario_id == bloccato.pk:
+                                visita.referto_documento_secondario = None
+                                aggiorna.append("referto_documento_secondario")
+                            visita.updated_by = request.user
+                            visita.save(update_fields=aggiorna)
+                        _audit_referto(request, "REFERTO_ELIMINATO", bloccato, {
+                            "motivo": motivo,
+                            "nome_originale": bloccato.nome_originale,
+                            "dimensione_bytes": bloccato.dimensione_bytes,
+                            "visita_id": visita_id,
+                            "dipendente_id": legacy_id,
+                        })
+                        bloccato.delete()
+                except Exception:
+                    logger.exception("Eliminazione referto %s fallita", doc.pk)
+                    messages.error(
+                        request, "Eliminazione non riuscita: il referto è rimasto in archivio.",
+                    )
+                else:
+                    messages.success(request, "Referto eliminato e motivazione registrata nell'audit.")
+                    if visita_id:
+                        return redirect("anagrafica:visita_medica_dettaglio", v_id=visita_id)
+                    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        else:
+            messages.error(request, "Azione non riconosciuta.")
+
+    from core.audit import storico_oggetto
+
+    visita = _visita_del_referto(doc)
+    ruolo = ""
+    if visita is not None:
+        if visita.referto_documento_id == doc.pk:
+            ruolo = "principale"
+        elif visita.referto_documento_secondario_id == doc.pk:
+            ruolo = "secondario"
+    accessi = _accessi_referto(doc)
+    return render(request, "anagrafica/pages/referto_gestione.html", {
+        "doc": doc,
+        "visita": visita,
+        "ruolo": ruolo,
+        "dipendente_nome": _nome_dipendente_legacy(doc.legacy_anagrafica_id),
+        "accessi": accessi,
+        "accessi_count": len(accessi),
+        "storico": storico_oggetto(doc, limit=60),
+        "can_delete_referto": can_delete,
+        "motivo": motivo,
+    })
+
+
 @login_required
 def documento_dipendente_download(request, doc_id: int):
     doc = get_object_or_404(DocumentoDipendente, pk=doc_id)
@@ -10917,6 +11262,7 @@ def documento_dipendente_download(request, doc_id: int):
         log_action(
             request, "DOCUMENTO_DIPENDENTE_DOWNLOAD", "anagrafica",
             f"Download documento #{doc.pk} ({doc.tipo}) di dipendente #{doc.legacy_anagrafica_id}",
+            oggetto=doc,
         )
     except Exception:
         logger.warning("Audit DOCUMENTO_DIPENDENTE_DOWNLOAD fallito", exc_info=True)
@@ -10977,6 +11323,8 @@ def documento_dipendente_delete(request, doc_id: int):
         log_action(
             request, "DOCUMENTO_DIPENDENTE_ELIMINATO", "anagrafica",
             f"Eliminato documento #{doc_id} ({tipo}) di dipendente #{legacy_id}",
+            oggetto_tipo=DocumentoDipendente._meta.label_lower,
+            oggetto_id=str(doc_id),
         )
     except Exception:
         logger.warning("Audit DOCUMENTO_DIPENDENTE_ELIMINATO fallito", exc_info=True)

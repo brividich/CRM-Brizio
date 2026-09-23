@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Anagrafica — gestione del singolo referto sanitario
+
+- Nuova pagina `/anagrafica/visite-mediche/referti/<doc_id>/gestione/`: dati del referto, sostituzione del file, ruolo sulla visita, scollegamento motivato ed eliminazione con motivazione obbligatoria.
+- La scheda mostra chi ha aperto il referto e quando, più lo storico delle operazioni sul record: l'audit del download e dell'eliminazione di un documento dipendente è ora agganciato al record.
+- Permessi invariati: lettura con il gate sanitario della sezione, eliminazione con `anagrafica.visite.delete`.
+
 ### Anagrafica — stile scheda visita e rimozione con referti
 
 - La scheda HTML della visita usa gli stessi componenti grafici della dashboard Anagrafica: hero, card, pulsanti, stato, tema scuro e stampa. La conferma di eliminazione usa gli stessi componenti e mostra quanti referti rimarranno nel fascicolo.
