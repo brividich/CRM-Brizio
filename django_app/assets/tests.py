@@ -3800,7 +3800,12 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(plans_response.status_code, 200)
         self.assertContains(plans_response, 'aria-label="Configurazione"', html=False)
         self.assertContains(plans_response, f'href="{reverse("assets:asset_group_list")}">Gruppi asset</a>', html=False)
-        self.assertContains(plans_response, f'href="{reverse("assets:maintenance_impostazioni")}">Catalogo attività</a>', html=False)
+        # Catalogo attivita' e Piani erano la stessa lista: resta Piani.
+        self.assertNotContains(plans_response, ">Catalogo attività</a>", html=False)
+        self.assertRedirects(
+            self.client.get(reverse("assets:maintenance_impostazioni")),
+            reverse("assets:maintenance_plan_list"), fetch_redirect_response=False,
+        )
         self.assertContains(plans_response, f'href="{reverse("assets:assistance_contract_list")}">Contratti assistenza</a>', html=False)
         self.assertContains(plans_response, f'href="{reverse("assets:software_license_list")}">Licenze software</a>', html=False)
         self.assertContains(
@@ -6378,6 +6383,11 @@ class AssetMaintenanceStepThreeTests(TestCase):
         if not self.asset.asset_tag:
             self.asset.asset_tag = "QR-TEST-1"
             self.asset.save(update_fields=["asset_tag"])
+        # La pagina QR legge le occorrenze (stessa fonte di Scadenzario e Calendario).
+        MaintenanceOccurrence.objects.create(
+            plan=self.category_template, asset=self.asset,
+            due_date=timezone.localdate() - timedelta(days=1), warning_days=7,
+        )
         self.client.force_login(self.admin)
 
         resp = self.client.get(
@@ -6387,8 +6397,8 @@ class AssetMaintenanceStepThreeTests(TestCase):
         # Le nuove sezioni mobile: manutenzioni in scadenza + documenti.
         self.assertContains(resp, "Manutenzioni")
         self.assertContains(resp, "Documenti")
-        # La regola di categoria dell'asset (missing/prima esecuzione) compare come voce.
         self.assertContains(resp, self.category_template.label)
+        self.assertEqual(resp.context["qr_overdue_count"], 1)
 
     def test_asset_qr_landing_open_workorders_are_clickable_for_authenticated_user(self):
         if not self.asset.asset_tag:

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Assets — Catalogo in Piani, QR e calendario asset sulle occorrenze
+
+- Catalogo attivita' unificato in Piani (checklist dalla scheda piano; migration `assets 0109`).
+- Pagina QR e calendario della scheda asset leggono le occorrenze.
+
 ### Assets — manutenzione, round 2 UI/UX
 
 - Panoramica e testate senza doppioni; Da fare "Il mio lavoro"; OdL dal Calendario; export Scadenzario; scadenze nella scheda asset.
