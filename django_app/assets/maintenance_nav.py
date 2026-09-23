@@ -113,14 +113,10 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                     "asset_maintenance_rule_list", "asset_maintenance_rule_override_create",
                     "asset_maintenance_rule_override_edit", "asset_maintenance_rule_override_reset",
                     "periodic_verifications",
+                    # Ex "Catalogo attivita'": stesso modello, ora dentro Piani.
+                    "maintenance_impostazioni", "maintenance_template_list",
+                    "maintenance_template_create", "maintenance_template_edit",
                 }),
-            ),
-            NavItem(
-                "catalogo",
-                "Catalogo attività",
-                "maintenance_impostazioni",
-                sidebar_code="maintenance_impostazioni",
-                routes=frozenset({"maintenance_template_list", "maintenance_template_create", "maintenance_template_edit"}),
             ),
             NavItem(
                 "gruppi",

@@ -1,0 +1,78 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Notifiche di sistema | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .evn-stats { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); margin-bottom:18px; }
+  .evn-stat { border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; background:#fff; }
+  .evn-stat .n { font-size:26px; font-weight:800; color:#0f172a; }
+  .evn-stat .l { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .evn-table-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:14px; }
+  .evn-table { width:100%; border-collapse:collapse; font-size:14px; background:#fff; }
+  .evn-table th, .evn-table td { padding:11px 14px; border-bottom:1px solid #eef2f7; text-align:left; vertical-align:top; }
+  .evn-table th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; position:sticky; top:0; }
+  .evn-mod { display:inline-block; font-size:11px; font-weight:700; color:#334155; background:#f1f5f9; border-radius:999px; padding:2px 9px; }
+  .evn-name { font-weight:700; color:#0f172a; }
+  .evn-desc { color:#475569; font-size:13px; max-width:420px; }
+  .evn-src { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:#475569; }
+  .evn-note { color:#64748b; font-size:13px; margin:6px 0 16px; }
+  body.theme-dark .evn-stat, body.theme-dark .evn-table, body.theme-dark .evn-table-wrap { background:#0f172a; border-color:#1e293b; }
+  body.theme-dark .evn-table th { background:#0b1220; color:#94a3b8; }
+  body.theme-dark .evn-table td { border-color:#1e293b; }
+  body.theme-dark .evn-name, body.theme-dark .evn-stat .n { color:#e2e8f0; }
+  body.theme-dark .evn-desc { color:#94a3b8; }
+  body.theme-dark .evn-mod { background:#1e293b; color:#cbd5e1; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Notifiche di sistema" page_subtitle="Email scatenate da un evento nel codice (view o comando manuale), fuori dal motore regole e dai task pianificati." %}
+  {% include "automazioni/components/toasts.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="evn-stats">
+    <div class="evn-stat"><div class="n">{{ totale }}</div><div class="l">Notifiche censite</div></div>
+  </div>
+
+  <p class="evn-note">
+    Elenco di <strong>sola lettura</strong>. Queste notifiche non compaiono altrove in Automazioni
+    perché non sono né una <code>AutomationRule</code> né un task pianificato: sono chiamate dirette
+    nel codice, scatenate da un'azione utente (view) o da un comando manuale. Convertirle in vere
+    automazioni richiede — caso per caso — registrare una sorgente/trigger SQL sulla tabella di
+    origine (dev/test/prod) o estendere il motore regole; non è stato fatto per evitare modifiche
+    di schema/motore non verificate singolarmente. Dettagli nei commenti di
+    <code>automazioni/event_notifications.py</code>.
+  </p>
+
+  <div class="evn-table-wrap">
+    <table class="evn-table">
+      <thead>
+        <tr>
+          <th>Notifica</th>
+          <th>Modulo</th>
+          <th>Quando scatta</th>
+          <th>Destinatari</th>
+          <th>Sorgente nel codice</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><span class="evn-name">{{ r.label }}</span></td>
+          <td><span class="evn-mod">{{ r.module }}</span></td>
+          <td class="evn-desc">{{ r.trigger }}</td>
+          <td class="evn-desc">{{ r.destinatari }}</td>
+          <td class="evn-src">{{ r.source }}<br>{{ r.func }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;color:#64748b;padding:24px;">Nessuna notifica censita.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

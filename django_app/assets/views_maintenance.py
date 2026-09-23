@@ -2291,7 +2291,7 @@ def maintenance_setup(request: HttpRequest) -> HttpResponse:
             "piani", "Definisci i piani di manutenzione",
             "done" if plans else "todo",
             f"{len(plans)} piani attivi." if plans else "Nessun piano: e' da qui che nascono tutte le scadenze.",
-            [("+ Nuovo piano", reverse("assets:maintenance_plan_create")), ("Catalogo attivita'", reverse("assets:maintenance_impostazioni"))],
+            [("+ Nuovo piano", reverse("assets:maintenance_plan_create")), ("Piani", reverse("assets:maintenance_plan_list"))],
         ),
         step(
             "applicazioni", "Applica ogni piano ad asset, gruppi o categorie",
