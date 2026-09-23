@@ -254,7 +254,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     le liste operative di sempre.
   {% endcomment %}
   <div class="pn-wrap">
-    <form class="pn-filters" method="get">
+    <form class="pn-filters" data-tour-step="1" data-tour-title="Filtra la panoramica" data-tour-text="Scegli famiglia e reparto: riquadri, calendario e liste si restringono a quegli asset." method="get">
       <input type="hidden" name="vista" value="operativo">
       <label for="pn-category">Famiglia
         <select id="pn-category" name="category" onchange="this.form.submit()">
@@ -275,7 +275,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
       </div>
     </form>
 
-    <div class="pn-types">
+    <div class="pn-types" data-tour-step="2" data-tour-title="Le quattro tipologie" data-tour-text="Ordinarie, amministrative, licenze e contratti: scadute, prossimi 30 giorni e prossima. Clicca un riquadro per l&#x27;elenco.">
       {% for t in panoramica.types %}
         <a class="pn-type pn-k-{{ t.kind }}" href="{{ t.url }}">
           <h3>{{ t.label }}</h3>
@@ -286,7 +286,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
       {% endfor %}
     </div>
 
-    <div class="pn-grid">
+    <div class="pn-grid" data-tour-step="3" data-tour-title="Le prossime settimane" data-tour-text="Quanto scade ogni giorno, le prossime scadenze in ordine e dove si concentrano per categoria.">
       <section class="pn-panel">
         <h2>Prossime quattro settimane <small>scadenze aperte per giorno</small></h2>
         <div class="pn-heat">
@@ -339,7 +339,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     restano solo i numeri del lavoro (pianificazione, OdL, documenti). Ogni
     riquadro porta alla sezione che lo spiega.
   {% endcomment %}
-  <div class="md-kpis md-kpis--lead">
+  <div class="md-kpis md-kpis--lead" data-tour-step="4" data-tour-title="Il lavoro da organizzare" data-tour-text="Manutenzioni senza ordine di lavoro, OdL aperti, rapporti mancanti: ogni numero porta alla sua lista qui sotto.">
     <a class="md-kpi is-warn" href="#non-pianificate">
       <span class="md-kpi-label">Non pianificate</span><span class="md-kpi-value">{{ kpi.unplanned }}</span>
       <span class="md-kpi-sub">dovute, senza OdL</span>

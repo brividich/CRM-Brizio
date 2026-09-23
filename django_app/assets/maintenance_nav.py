@@ -172,3 +172,76 @@ def sidebar_code_routes() -> dict[str, frozenset[str]]:
         if group.sidebar_code:
             mapping[group.sidebar_code] = frozenset(group_routes)
     return mapping
+
+# Testi di "Cosa posso fare qui" per voce: stanno qui accanto al menu, cosi' una
+# pagina nuova non puo' nascere senza la sua spiegazione (lo verifica un test).
+HELP_TEXTS: dict[str, tuple[str, ...]] = {
+    'panoramica': (
+        "Vedi in un colpo d'occhio scadute, prossime 30 giorni e prossima scadenza per ordinarie, amministrative, licenze e contratti.",
+        'Filtra per famiglia e reparto: i link a Calendario e Scadenzario si portano dietro i filtri.',
+        'Sotto trovi il lavoro: manutenzioni dovute ma senza ordine di lavoro, OdL aperti, rapporti mancanti, carico dei manutentori.',
+    ),
+    'da_fare': (
+        "«Il mio lavoro» mostra le tue manutenzioni e quelle di nessuno; «Tutto» l'intera officina.",
+        'Premi «Registra» su una riga per chiudere la manutenzione con esito e documento.',
+        "Chi pianifica seleziona piu' righe e le raccoglie in un solo ordine di lavoro.",
+    ),
+    'calendario': (
+        'Clicca una scadenza per il dettaglio e le azioni; clicca un giorno per vedere cosa scade.',
+        'Trascina una manutenzione su un altro giorno per spostarne la data (chi pianifica).',
+        "«Crea OdL» o «Aggiungi alla selezione» raccolgono una o piu' scadenze in un ordine di lavoro.",
+        'Viste Mese, Settimana, Elenco e Per asset; le tipologie si accendono e spengono in alto.',
+    ),
+    'scadenzario': (
+        'Scegli il periodo (scadute, 7/30/90 giorni) e la tipologia con le schede in alto.',
+        'Seleziona le manutenzioni e crea un ordine di lavoro unico dalla barra in fondo.',
+        "Scarica l'elenco in Excel o PDF con gli stessi filtri.",
+    ),
+    'interventi': (
+        'Tutti gli ordini di lavoro aperti: chi li prende, a che punto sono, cosa li blocca.',
+        "«+ Nuovo intervento» apre un guasto o un lavoro su un asset; «+ Campagna» su piu' asset.",
+        'Apri un intervento per avviarlo, sospenderlo o chiuderlo con esito e costi.',
+    ),
+    'storico': (
+        "Ordini di lavoro conclusi e ticket di manutenzione, in un'unica cronologia.",
+        'Filtra per asset, periodo o testo per ritrovare un intervento passato.',
+    ),
+    'kpi': (
+        "Puntualita', arretrato, copertura dei piani, adempimenti in regola, rinnovi in arrivo.",
+        'Gli indicatori compaiono solo se i dati che li reggono sono compilati: altrimenti la pagina lo dice.',
+        '«Report e budget» apre i report storici, i costi e il piano del mese.',
+    ),
+    'imposta': (
+        "Segui i passi dall'alto: ognuno dice cosa manca e porta alla pagina dove si sistema.",
+        'Quando tutti i passi obbligatori sono verdi, le scadenze nascono da sole e sono complete.',
+    ),
+    'piani': (
+        'Un piano dice cosa fare; le sue applicazioni dicono su quali asset e ogni quanto.',
+        'Apri un piano per applicarlo a un asset, un gruppo o una categoria e per modificarne checklist e istruzioni.',
+        "«+ Nuovo piano» per un'attivita' nuova; «Importa storico» per partire dall'ultima esecuzione nota.",
+    ),
+    'gruppi': (
+        'Un gruppo raccoglie asset di famiglie diverse (una linea, un reparto) per applicarci un piano.',
+        'Se il piano vale per tutta una famiglia non serve un gruppo: applicalo alla categoria.',
+    ),
+    'copertura': (
+        "Ogni riga e' un asset, ogni colonna un piano: vedi i buchi e i conflitti di periodicita'.",
+        "Un conflitto blocca le scadenze di quel piano su quell'asset finche' non lo risolvi.",
+    ),
+    'fornitori': (
+        'Le ditte che eseguono manutenzioni esterne, con piani e interventi collegati.',
+        "L'anagrafica completa del fornitore si gestisce nel modulo Fornitori.",
+    ),
+    'contratti': (
+        'Contratti di assistenza per asset, categoria o generali, con scadenza e costo.',
+        'Le scadenze dei contratti compaiono anche in Calendario, Scadenzario e promemoria.',
+    ),
+    'licenze': (
+        'Licenze software assegnate a un asset, a una persona o a un reparto.',
+        'Le scadenze delle licenze compaiono anche in Calendario, Scadenzario e promemoria.',
+    ),
+}
+
+
+def help_for(item_key: str) -> tuple[str, ...]:
+    return HELP_TEXTS.get(item_key, ())

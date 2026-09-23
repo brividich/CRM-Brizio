@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Assets — calendario gestibile e «Cosa posso fare qui»
+
+- Calendario: pannello sempre visibile, clic sul giorno, trascinamento per spostare le scadenze (audit, annulla).
+- «Cosa posso fare qui» + tour guidato nelle pagine manutenzione; Contratti e Licenze su una colonna.
+
 ### Assets — Catalogo in Piani, QR e calendario asset sulle occorrenze
 
 - Catalogo attivita' unificato in Piani (checklist dalla scheda piano; migration `assets 0109`).

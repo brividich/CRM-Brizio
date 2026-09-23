@@ -126,6 +126,7 @@ class Deadline:
             "work_order_id": self.work_order_id,
             "occurrence_id": self.occurrence_id,
             "plannable": self.plannable,
+            "movable": bool(self.occurrence_id) and self.state != STATE_DONE,
             "url": self.detail_url,
             "actions": self.actions,
         }

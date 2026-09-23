@@ -124,8 +124,34 @@
 .cm-empty { padding:36px 12px; text-align:center; color:var(--cm-faint); font-size:var(--fs-sm,12px); }
 @media (max-width:640px) { .cm-arow { grid-template-columns:1fr; } .cm-views { margin-left:0; } }
 
+/* --- Interazione: pannello sempre raggiungibile, giorni cliccabili, trascinamento --- */
+.cm-drawer-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.cm-drawer-close { display:none; font:inherit; font-size:18px; line-height:1; border:1px solid var(--cm-line); background:var(--cm-card);
+  color:var(--cm-mid); border-radius:8px; width:32px; height:32px; cursor:pointer; align-items:center; justify-content:center; }
+.cm-hint { display:grid; gap:6px; font-size:var(--fs-sm,12px); color:var(--cm-mid); margin:0; padding-left:18px; }
+.cm-day-list { display:grid; gap:6px; }
+.cm-day-item { font:inherit; text-align:left; display:grid; gap:2px; padding:8px 10px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--cm-line); border-left:3px solid var(--cm-k); background:var(--cm-k-bg); color:var(--cm-text); }
+.cm-day-item small { color:var(--cm-mid); font-size:var(--fs-xs,11px); }
+.fc .fc-daygrid-day { cursor:pointer; }
+.fc .fc-daygrid-day:hover { background:var(--cm-soft); }
+.fc .fc-daygrid-day.cm-day-picked { box-shadow:inset 0 0 0 2px var(--accent,#ff6b00); }
+.fc-event.cm-movable { cursor:grab; }
+.fc-event.cm-movable:active { cursor:grabbing; }
+.cm-status.is-ok { color:var(--success,#38a169); font-weight:700; }
+.cm-status.is-err { color:var(--cm-late); font-weight:700; }
+.cm-status button { font:inherit; font-weight:700; margin-left:8px; border:1px solid var(--cm-line); background:var(--cm-card); color:var(--cm-text);
+  border-radius:6px; padding:2px 8px; cursor:pointer; }
+@media (max-width:1100px) {
+  .cm-drawer { position:fixed; top:var(--nav-h,60px); right:0; bottom:0; width:min(380px,92vw); z-index:60; border-radius:0; overflow:auto;
+    transform:translateX(105%); transition:transform .2s ease; box-shadow:-8px 0 30px rgba(15,23,42,.22); }
+  .cm-drawer.is-open { transform:none; }
+  .cm-drawer-close { display:inline-flex; }
+}
+@media (prefers-reduced-motion:reduce) { .cm-drawer { transition:none; } }
+
 /* Selezione per un ordine di lavoro */
-.cm-drawer .cm-plan { display:flex; flex-wrap:wrap; gap:6px; padding-top:10px; border-top:1px dashed var(--cm-line); }
+.cm-drawer .cm-plan { display:flex; flex-wrap:wrap; align-items:flex-start; gap:6px; padding-top:10px; border-top:1px dashed var(--cm-line); }
 .cm-drawer .cm-plan button { font:inherit; font-size:var(--fs-sm,12px); font-weight:700; padding:6px 11px; border-radius:8px; cursor:pointer;
   border:1px solid var(--cm-line); background:var(--cm-card); color:var(--cm-text); }
 .cm-drawer .cm-plan button.is-primary { background:var(--accent,#ff6b00); border-color:var(--accent,#ff6b00); color:#fff; }
@@ -155,9 +181,13 @@
 
 {% block assets_shell_content %}
 <div class="cm-page" id="cm-root"
-     data-json-url="{% url 'assets:calendario_asset_json' %}">
+     data-json-url="{% url 'assets:calendario_asset_json' %}"
+     data-can-plan="{% if can_plan %}1{% endif %}"
+     data-csrf="{{ csrf_token }}"
+     data-reschedule-url="{% url 'assets:occurrence_reschedule' 0 %}"
+     data-new-workorder-url="{% url 'assets:wo_list' %}?create=1">
 
-  <section class="cm-card cm-filters" aria-label="Filtri calendario">
+  <section class="cm-card cm-filters" data-tour-step="1" data-tour-title="Cosa vedere" data-tour-text="Accendi e spegni le tipologie; restringi per famiglia, reparto, gruppo ed esecuzione." aria-label="Filtri calendario">
     <div class="cm-row" role="group" aria-label="Tipologia">
       <span class="cm-label">Tipologia</span>
       {% for kind in kinds %}
@@ -205,7 +235,7 @@
     <span class="cm-stat is-late"><b data-cm-count="overdue">–</b> scadute nel periodo</span>
     <span class="cm-stat"><b data-cm-count="due_soon">–</b> in scadenza</span>
     <span class="cm-stat"><b data-cm-count="total">–</b> in calendario</span>
-    <div class="cm-views" role="group" aria-label="Vista">
+    <div class="cm-views" data-tour-step="2" data-tour-title="Come vederlo" data-tour-text="Mese, Settimana, Elenco o Per asset: stesse scadenze, quattro letture." role="group" aria-label="Vista">
       <button type="button" class="cm-view" data-view="dayGridMonth" aria-pressed="true">Mese</button>
       <button type="button" class="cm-view" data-view="dayGridWeek" aria-pressed="false">Settimana</button>
       <button type="button" class="cm-view" data-view="listMonth" aria-pressed="false">Elenco</button>
@@ -215,12 +245,18 @@
 
   <div class="cm-layout">
     <section class="cm-card cm-main">
-      <div id="cm-calendar"></div>
+      <div id="cm-calendar" data-tour-step="3" data-tour-title="Il calendario" data-tour-text="Clicca una scadenza per il dettaglio, un giorno per vedere cosa scade. Chi pianifica trascina una manutenzione per spostarla."></div>
       <div class="cm-byasset" id="cm-byasset" hidden></div>
       <p class="cm-status" id="cm-status" role="status" aria-live="polite"></p>
     </section>
-    <aside class="cm-card cm-drawer" id="cm-drawer" aria-label="Dettaglio scadenza">
-      <p class="cm-drawer-empty">Seleziona una scadenza nel calendario per vederne asset, stato e azioni.</p>
+    <aside class="cm-card cm-drawer" data-tour-step="4" data-tour-title="Il pannello" data-tour-text="Qui compaiono dettaglio e azioni: registra, crea l&#x27;ordine di lavoro, apri l&#x27;asset." id="cm-drawer" aria-label="Dettaglio scadenza" tabindex="-1">
+      <p class="cm-drawer-empty"><strong>Cosa puoi fare sul calendario</strong></p>
+      <ul class="cm-hint">
+        <li><strong>Clicca una scadenza</strong>: dettaglio, registrazione, ordine di lavoro.</li>
+        <li><strong>Clicca un giorno</strong>: tutto quello che scade quel giorno.</li>
+        {% if can_plan %}<li><strong>Trascina una manutenzione</strong> su un altro giorno per spostarne la scadenza.</li>{% endif %}
+        <li>Accendi e spegni le <strong>tipologie</strong> in alto; «Per asset» raggruppa per macchina.</li>
+      </ul>
     </aside>
   </div>
 
@@ -269,6 +305,48 @@
   var lastEvents = [];
   var selectedId = null;
   var mode = "dayGridMonth";
+  var canPlan = root.dataset.canPlan === "1";
+  var csrf = root.dataset.csrf;
+  var rescheduleUrl = root.dataset.rescheduleUrl;
+  var newWorkorderUrl = root.dataset.newWorkorderUrl;
+
+  function openDrawer() {
+    drawer.classList.add("is-open");
+    // Su schermi larghi il pannello sta a lato: se e' fuori vista lo si porta in vista.
+    var rect = drawer.getBoundingClientRect();
+    if (rect.top > window.innerHeight || rect.bottom < 0) { drawer.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+    try { drawer.focus({ preventScroll: true }); } catch (e) {}
+  }
+  function drawerHeader(label) {
+    var top = el("div", { "class": "cm-drawer-top" });
+    top.appendChild(el("span", { "class": "cm-kind-wrap" }));
+    var close = el("button", { type: "button", "class": "cm-drawer-close", "aria-label": "Chiudi dettaglio" }, "\u00d7");
+    close.addEventListener("click", function () { drawer.classList.remove("is-open"); });
+    top.appendChild(close);
+    if (label) { top.firstChild.appendChild(label); }
+    return top;
+  }
+  function say(text, tone, undo) {
+    statusEl.className = "cm-status" + (tone ? " is-" + tone : "");
+    statusEl.textContent = text;
+    // Un esito resta a vista qualche secondo: il ricaricamento degli eventi non lo cancella.
+    statusEl.dataset.hold = tone ? "1" : "";
+    if (tone) { clearTimeout(say._t); say._t = setTimeout(function () { statusEl.dataset.hold = ""; }, 10000); }
+    if (undo) {
+      var b = el("button", { type: "button" }, "Annulla");
+      b.addEventListener("click", undo);
+      statusEl.appendChild(b);
+    }
+  }
+  function moveOccurrence(occurrenceId, isoDate) {
+    var body = new URLSearchParams();
+    body.set("due_date", isoDate);
+    return fetch(rescheduleUrl.replace("/0/", "/" + occurrenceId + "/"), {
+      method: "POST", credentials: "same-origin",
+      headers: { "X-CSRFToken": csrf, "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+      body: body.toString()
+    }).then(function (r) { return r.json().then(function (data) { if (!r.ok || !data.ok) { throw new Error(data.error || r.status); } return data; }); });
+  }
 
   // --- Stato dei filtri nella query string: un link al calendario filtrato si condivide.
   var params = new URLSearchParams(window.location.search);
@@ -339,7 +417,7 @@
   function showDetail(ev) {
     selectedId = ev.id;
     drawer.innerHTML = "";
-    drawer.appendChild(el("span", { "class": "cm-kind k-" + ev.kind }, ev.kind_label));
+    drawer.appendChild(drawerHeader(el("span", { "class": "cm-kind k-" + ev.kind }, ev.kind_label)));
     drawer.appendChild(el("h3", {}, ev.title));
     var dl = el("dl", { "class": "cm-dl" });
     function row(label, value, cls) {
@@ -371,7 +449,45 @@
       plan.appendChild(add);
       drawer.appendChild(plan);
     }
+    if (canPlan && ev.movable) {
+      drawer.appendChild(el("p", { "class": "cm-drawer-empty" }, "Per spostarla, trascinala su un altro giorno del calendario."));
+    }
     markSelected();
+    openDrawer();
+  }
+
+  function showDay(isoDate) {
+    selectedId = null;
+    markSelected();
+    calEl.querySelectorAll(".cm-day-picked").forEach(function (n) { n.classList.remove("cm-day-picked"); });
+    var cell = calEl.querySelector('.fc-daygrid-day[data-date="' + isoDate + '"]');
+    if (cell) { cell.classList.add("cm-day-picked"); }
+    var ofDay = lastEvents.filter(function (ev) { return ev.start === isoDate; });
+    drawer.innerHTML = "";
+    drawer.appendChild(drawerHeader(el("strong", {}, fmtDate(isoDate))));
+    if (!ofDay.length) {
+      drawer.appendChild(el("p", { "class": "cm-drawer-empty" }, "Nessuna scadenza in questo giorno con i filtri attuali."));
+    } else {
+      var list = el("div", { "class": "cm-day-list" });
+      ofDay.forEach(function (ev) {
+        var item = el("button", { type: "button", "class": "cm-day-item k-" + ev.kind + " cm-ev" });
+        item.appendChild(el("span", {}, ev.title));
+        item.appendChild(el("small", {}, [ev.kind_label, ev.asset_tag || ev.target, ev.state_label].filter(Boolean).join(" · ")));
+        item.addEventListener("click", function () { showDetail(ev); });
+        list.appendChild(item);
+      });
+      drawer.appendChild(list);
+    }
+    var actions = el("div", { "class": "cm-actions" });
+    actions.appendChild(el("a", { href: newWorkorderUrl }, "+ Nuovo intervento"));
+    var plannable = ofDay.filter(function (ev) { return ev.plannable && ev.occurrence_id; });
+    if (tray && plannable.length) {
+      var all = el("button", { type: "button", "class": "btn btn-secondary" }, "Metti le " + plannable.length + " da pianificare nella selezione");
+      all.addEventListener("click", function () { plannable.forEach(function (ev) { pick(ev); }); tray.scrollIntoView({ block: "nearest" }); });
+      actions.appendChild(all);
+    }
+    drawer.appendChild(actions);
+    openDrawer();
   }
 
   // --- Vassoio ordine di lavoro -------------------------------------------
@@ -474,19 +590,20 @@
       var q = filterParams();
       q.set("start", info.startStr);
       q.set("end", info.endStr);
-      statusEl.textContent = "Caricamento…";
+      if (!statusEl.dataset.hold) { statusEl.textContent = "Caricamento…"; }
       fetch(jsonUrl + "?" + q.toString(), { credentials: "same-origin", headers: { "Accept": "application/json" } })
         .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
         .then(function (data) {
           lastEvents = data.events || [];
           updateCounts(lastEvents);
-          statusEl.textContent = "";
+          if (!statusEl.dataset.hold) { statusEl.textContent = ""; }
           if (mode === "byAsset") { renderByAsset(); }
           success(lastEvents.map(function (ev) {
             var label = ev.asset_tag ? ev.asset_tag + " · " + ev.title : ev.title;
             return {
               id: ev.id, title: label, start: ev.start, end: ev.end || null, allDay: true,
-              classNames: ["cm-ev", "k-" + ev.kind, "s-" + ev.state],
+              editable: canPlan && !!ev.movable,
+              classNames: ["cm-ev", "k-" + ev.kind, "s-" + ev.state].concat(canPlan && ev.movable ? ["cm-movable"] : []),
               extendedProps: { raw: ev }
             };
           }));
@@ -505,6 +622,27 @@
     eventClick: function (info) {
       info.jsEvent.preventDefault();
       showDetail(info.event.extendedProps.raw);
+    },
+    dateClick: function (info) { showDay(info.dateStr); },
+    eventStartEditable: canPlan,
+    eventDurationEditable: false,
+    eventDrop: function (info) {
+      var ev = info.event.extendedProps.raw;
+      var from = ev.start;
+      var to = info.event.startStr.slice(0, 10);
+      say("Sposto «" + ev.title + "» al " + fmtDate(to) + "…");
+      moveOccurrence(ev.occurrence_id, to).then(function () {
+        say("«" + ev.title + "» spostata dal " + fmtDate(from) + " al " + fmtDate(to) + ".", "ok", function () {
+          moveOccurrence(ev.occurrence_id, from).then(function () {
+            say("Spostamento annullato.", "ok");
+            calendar.refetchEvents();
+          }).catch(function (err) { say("Non riesco ad annullare: " + err.message, "err"); });
+        });
+        calendar.refetchEvents();
+      }).catch(function (err) {
+        info.revert();
+        say("Non spostata: " + err.message, "err");
+      });
     }
   });
 
