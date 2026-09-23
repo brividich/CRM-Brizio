@@ -186,13 +186,13 @@ body.theme-dark .wmd-card-head {
     <article class="wmd-kpi">
       <div class="wmd-kpi-label">Pianificazione / documenti</div>
       <div class="wmd-kpi-value">{{ missing_maintenance_count }}/{{ manuals_count }}</div>
-      <div class="wmd-kpi-meta">Senza data manut. / con manuali</div>
+      <div class="wmd-kpi-meta">Senza piano / con manuali</div>
     </article>
   </section>
 
   {# ── Striscia manutenzione in scadenza ──────────────────── #}
   <div class="wmd-maint-strip">
-    <span class="wmd-maint-strip-title">Manutenzione macchine <span class="wmd-maint-strip-hint">stato pianificazione · prossima data impostata</span></span>
+    <span class="wmd-maint-strip-title">Manutenzione macchine <span class="wmd-maint-strip-hint">dalle scadenze pianificate</span></span>
     {% if maint_kpis.coinvolti %}
     <div class="wmd-maint-strip-metrics">
       <div class="wmd-maint-metric">
@@ -226,7 +226,7 @@ body.theme-dark .wmd-card-head {
       <div class="wmd-card-head">
         <div>
           <h2>Reminder manutenzione</h2>
-          <p>Alert automatici basati su `prossima manutenzione` e soglia giorni impostata sulla macchina.</p>
+          <p>Prossima manutenzione pianificata di ogni macchina: stessa fonte di Scadenzario e Calendario.</p>
         </div>
       </div>
       <div class="wmd-card-body">
@@ -249,12 +249,12 @@ body.theme-dark .wmd-card-head {
                     <div class="wmd-list-meta">{{ row.asset.asset_tag }}</div>
                   </td>
                   <td>{{ row.asset.reparto|default:"-" }}</td>
-                  <td>{{ row.machine.next_maintenance_date|date:"d-m-Y" }}</td>
+                  <td>{{ row.state.date|date:"d-m-Y" }}<div class="wmd-list-meta">{{ row.occurrence.plan.label }}</div></td>
                   <td><span class="wmd-pill danger">{{ row.state.label }}</span></td>
                   <td>
                     <a class="wmd-link" href="{% url 'assets:asset_view' row.asset.id %}">Dettaglio</a>
                     <span class="wmd-list-meta"> | </span>
-                    <a class="wmd-link" href="{% url 'assets:work_machine_edit' row.asset.id %}">Pianifica</a>
+                    <a class="wmd-link" href="{% url 'assets:occurrence_complete' row.occurrence.id %}">Registra</a>
                   </td>
                 </tr>
               {% endfor %}
@@ -265,17 +265,17 @@ body.theme-dark .wmd-card-head {
                     <div class="wmd-list-meta">{{ row.asset.asset_tag }}</div>
                   </td>
                   <td>{{ row.asset.reparto|default:"-" }}</td>
-                  <td>{{ row.machine.next_maintenance_date|date:"d-m-Y" }}</td>
+                  <td>{{ row.state.date|date:"d-m-Y" }}<div class="wmd-list-meta">{{ row.occurrence.plan.label }}</div></td>
                   <td><span class="wmd-pill warn">{{ row.state.label }}</span></td>
                   <td>
                     <a class="wmd-link" href="{% url 'assets:asset_view' row.asset.id %}">Dettaglio</a>
                     <span class="wmd-list-meta"> | </span>
-                    <a class="wmd-link" href="{% url 'assets:work_machine_edit' row.asset.id %}">Aggiorna data</a>
+                    <a class="wmd-link" href="{% url 'assets:calendario_asset' %}">Calendario</a>
                   </td>
                 </tr>
               {% endfor %}
               {% if not overdue_maintenance and not warning_maintenance %}
-                <tr><td colspan="5" class="wmd-td-empty">Nessun reminder attivo sulle date manutenzione.</td></tr>
+                <tr><td colspan="5" class="wmd-td-empty">Nessuna manutenzione scaduta o in soglia.</td></tr>
               {% endif %}
             </tbody>
           </table>
@@ -318,8 +318,8 @@ body.theme-dark .wmd-card-head {
     <article class="wmd-card">
       <div class="wmd-card-head">
         <div>
-          <h2>Date manutenzione mancanti</h2>
-          <p>Macchine senza pianificazione esplicita: qui devi impostare la prossima manutenzione.</p>
+          <h2>Macchine senza piano</h2>
+          <p>Macchine in uso a cui non si applica nessun piano di manutenzione.</p>
         </div>
       </div>
       <div class="wmd-card-body">
@@ -331,13 +331,13 @@ body.theme-dark .wmd-card-head {
                   <div class="wmd-list-title">{{ row.asset.name }}</div>
                   <div class="wmd-list-meta">{{ row.asset.asset_tag }} · {{ row.asset.reparto|default:"-" }}</div>
                 </div>
-                <span class="wmd-pill warn">Da pianificare</span>
+                <span class="wmd-pill warn">Senza piano</span>
               </div>
-              <div class="wmd-list-meta">Nessuna data prossima manutenzione configurata.</div>
-              <div><a class="wmd-link" href="{% url 'assets:work_machine_edit' row.asset.id %}">Imposta manutenzione</a></div>
+              <div class="wmd-list-meta">Nessun piano di manutenzione applicato.</div>
+              <div><a class="wmd-link" href="{% url 'assets:asset_maintenance_plans' row.asset.id %}">Applica un piano</a></div>
             </article>
           {% empty %}
-            <div class="wmd-list-meta">Tutte le macchine hanno una data manutenzione impostata.</div>
+            <div class="wmd-list-meta">Tutte le macchine in uso hanno almeno un piano.</div>
           {% endfor %}
         </div>
       </div>

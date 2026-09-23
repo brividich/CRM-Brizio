@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Assets — manutenzione, round 2 UI/UX
+
+- Panoramica e testate senza doppioni; Da fare "Il mio lavoro"; OdL dal Calendario; export Scadenzario; scadenze nella scheda asset.
+- Nuova pagina Imposta la manutenzione (migration `assets 0108`); Dashboard officina e Report sulle scadenze pianificate; badge scadute su Da fare.
+
 ### Assets — Panoramica, KPI e fine della doppia fonte delle scadenze amministrative
 
 - Panoramica manutenzione: schede per tipologia, 4 settimane, prossime scadenze, per categoria; filtri famiglia/reparto.

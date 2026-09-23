@@ -48,6 +48,7 @@ from .maintenance import (
 )
 from .services.asset_catalog_import import AssetCatalogImporter
 from .models import (
+    MaintenanceOccurrence,
     Asset,
     AssetActionButton,
     AssetAdministrativeDeadline,
@@ -1130,15 +1131,13 @@ class AssetsRoutingTests(TestCase):
             asset_category=category,
             status=Asset.STATUS_IN_USE,
         )
-        AssetMaintenanceRuleState.objects.create(
-            asset=asset_ok,
-            base_rule=rule,
-            last_execution_date=today - timedelta(days=10),
+        # Lo stato manutentivo arriva dalle occorrenze (stessa fonte di Scadenzario e
+        # KPI): una in linea, una scaduta.
+        MaintenanceOccurrence.objects.create(
+            plan=template, asset=asset_ok, due_date=today + timedelta(days=20), warning_days=5
         )
-        AssetMaintenanceRuleState.objects.create(
-            asset=asset_overdue,
-            base_rule=rule,
-            last_execution_date=today - timedelta(days=45),
+        MaintenanceOccurrence.objects.create(
+            plan=template, asset=asset_overdue, due_date=today - timedelta(days=15), warning_days=5
         )
         AssetMaintenanceBudget.objects.create(
             asset_category=category,
@@ -1160,7 +1159,7 @@ class AssetsRoutingTests(TestCase):
         response = self.client.get(reverse("assets:reports") + "?scope=production")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["pm_kpi"]["compliance_pct"], 50.0)
+        self.assertEqual(response.context["pm_kpi"]["compliance_pct"], 50)
         self.assertEqual(response.context["budget_kpi"]["budget_total"], Decimal("1000.00"))
         self.assertEqual(response.context["budget_kpi"]["actual_total"], Decimal("250.00"))
         self.assertContains(response, "PM compliance")
@@ -1169,7 +1168,7 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "EUR")
         self.assertContains(
             response,
-            f'href="{reverse("assets:maintenance_schedule")}?status=due"',
+            f'href="{reverse("assets:maintenance_scadenze")}?window=overdue"',
             html=False,
         )
         self.assertContains(response, "OdL categoria")
@@ -3268,13 +3267,17 @@ class AssetsRoutingTests(TestCase):
         WorkMachine.objects.create(
             asset=asset,
             source_key="manual-wm-overdue",
-            next_maintenance_date=timezone.localdate() - timedelta(days=2),
             maintenance_reminder_days=7,
+        )
+        plan = MaintenanceInterventionTemplate.objects.create(code="wm-overdue-plan", label="Ingrassaggio fresa")
+        MaintenanceOccurrence.objects.create(
+            plan=plan, asset=asset, due_date=timezone.localdate() - timedelta(days=2), warning_days=7
         )
         self.client.force_login(self.user)
         response = self.client.get(reverse("assets:work_machine_dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Scaduta da 2 gg")
+        self.assertContains(response, "Ingrassaggio fresa")
 
     def test_superuser_can_create_list_option(self):
         admin = User.objects.create_superuser(username="asset-lists-admin", email="asset-lists@test.local", password="pass12345")
@@ -6990,7 +6993,8 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertContains(response, "Apri tutti gli aperti")
         self.assertContains(response, "?status=OPEN")
         self.assertContains(response, "Interventi aperti")
-        self.assertContains(response, "Imposta prima esecuzione")
+        # Un asset in uso senza piano applicato: l'azione porta ai suoi piani.
+        self.assertContains(response, "Applica un piano")
 
     def test_record_periodic_verification_execution_creates_workorder_and_advances_plan(self):
         from anagrafica.models import Fornitore

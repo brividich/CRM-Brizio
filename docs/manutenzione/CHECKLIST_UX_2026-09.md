@@ -37,14 +37,14 @@ e testata; la verifica a video (chiaro + scuro) e' nel blocco Chiusura.
 
 - [x] **10. Colori delle tipologie in un posto solo** — token in
   `maintenance_domain_styles.html`, usati da Calendario e Panoramica.
-- [ ] **11. Ultimi numeri sul vecchio motore** — Dashboard officina, "PM compliance"
+- [x] **11. Ultimi numeri sul vecchio motore** — Dashboard officina, "PM compliance"
   dei Report e tessere "Verifiche periodiche" della Dashboard asset allineati alla
   stessa fonte (o ritirati).
-- [ ] **12. Contatore su "Da fare"** — badge nel menu laterale con scadute e mie.
+- [x] **12. Contatore su "Da fare"** — badge nel menu laterale con scadute e mie.
 
 ## Chiusura
 
-- [ ] Test `assets` + `dashboard` + `core` verdi
-- [ ] Verifica a video chiaro + scuro
-- [ ] CHANGELOG + README
+- [x] Test `assets` + `dashboard` + `core` verdi
+- [x] Verifica a video chiaro + scuro
+- [x] CHANGELOG + README
 - [ ] Merge `main` → `release/prod`

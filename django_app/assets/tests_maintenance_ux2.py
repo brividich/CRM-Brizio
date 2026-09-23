@@ -181,3 +181,10 @@ class GruppiFacoltativiTests(Ux2TestCase):
         self.assertIn("group", OccurrenceFilterForm({}).fields)
         page = self.client.get(reverse("assets:asset_group_list"))
         self.assertContains(page, "Famiglia o gruppo?")
+
+
+class BadgeDaFareTests(Ux2TestCase):
+    def test_badge_con_le_scadute(self):
+        MaintenanceOccurrence.objects.create(plan=self.plan, asset=self.asset, due_date=self.today - timedelta(days=3), warning_days=30)
+        response = self.client.get(reverse("assets:maintenance_scadenze"))
+        self.assertContains(response, 'class="as-nav-badge"', html=False)

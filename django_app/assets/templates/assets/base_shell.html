@@ -40,6 +40,7 @@
 .as-nav-head { font-size: var(--fs-2xs); color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
 .as-link { position:relative; display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 6px 9px; font-weight: 700; line-height: 1.1; font-size: var(--fs-sm); }
 .as-link:hover { background: #edf3fc; }
+.as-nav-badge { display:inline-block; min-width:18px; padding:1px 6px; margin-left:4px; border-radius:999px; background:#dc2626; color:#fff; font-size:var(--fs-2xs); font-weight:800; line-height:1.4; text-align:center; vertical-align:1px; }
 .as-link.active { background: #fff; color: #1f64d8; box-shadow:0 8px 18px rgba(15,23,42,.06); }
 .as-link.active:before { content:""; position:absolute; left:0; top:7px; bottom:7px; width:3px; border-radius:999px; background:#14b8a6; }
 .as-link.sub { font-size: var(--fs-xs); color: #5f7698; padding-left: 18px; }
@@ -419,7 +420,7 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
               </div>
               <div class="as-nav-children">
                 {% for child in item.children %}
-                  <a class="as-link sub{% if child.active %} active{% endif %}" href="{{ child.url }}">{{ child.label }}</a>
+                  <a class="as-link sub{% if child.active %} active{% endif %}" href="{{ child.url }}">{{ child.label }}{% if child.badge %} <span class="as-nav-badge" title="{{ child.badge }} manutenzioni scadute">{{ child.badge }}</span>{% endif %}</a>
                 {% endfor %}
               </div>
             </div>
