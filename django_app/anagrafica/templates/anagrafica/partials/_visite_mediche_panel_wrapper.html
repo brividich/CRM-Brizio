@@ -1,0 +1,17 @@
+{% comment %}
+  Radice unica del pannello "Tipi di visita medica" — è il bersaglio hx-target di
+  crea/modifica/elimina/modifica-massiva (hx-swap="outerHTML"): ogni risposta la
+  rimpiazza per intero, quindi qui dentro va tutto ciò che deve aggiornarsi in blocco,
+  messaggi flash compresi (show_htmx_messages=True solo per le risposte HTMX: la
+  pagina intera li mostra già una volta in testa via flash_messages.html).
+{% endcomment %}
+<div id="visite-mediche-panel-content">
+  {% if show_htmx_messages and messages %}
+    <div class="messages-wrap">
+      {% for message in messages %}
+        <div class="notice{% if message.tags == 'error' %} notice-danger{% elif message.tags == 'success' %} notice-success{% endif %}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% include "anagrafica/partials/_visite_mediche_panel_body.html" %}
+</div>

@@ -521,6 +521,7 @@ urlpatterns = [
     path("tipo-visita-medica/nuovo", views.tipo_visita_medica_create, name="tipo_visita_medica_create"),
     path("tipo-visita-medica/<int:tipo_id>/modifica", views.tipo_visita_medica_edit, name="tipo_visita_medica_edit"),
     path("tipo-visita-medica/<int:tipo_id>/elimina", views.tipo_visita_medica_delete, name="tipo_visita_medica_delete"),
+    path("tipo-visita-medica/modifica-massiva", views.tipo_visita_medica_bulk_edit, name="tipo_visita_medica_bulk_edit"),
 
     # Livelli contrattuali — catalogo
     path("livelli/nuovo", views.livello_contrattuale_create, name="livello_contrattuale_create"),

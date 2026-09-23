@@ -10146,16 +10146,60 @@ def impostazioni_acl_user_override_save(request):
     return _redirect_impostazioni("permessi")
 
 
+def _visite_mediche_panel_ctx(request) -> dict:
+    """Contesto del pannello «Tipi di visita medica» di Impostazioni.
+
+    Ricalcolato ad ogni azione (create/edit/delete/bulk) per il partial HTMX,
+    indipendente dal contesto — molto più ampio — della vista ``impostazioni``.
+    """
+    from datetime import timedelta
+
+    from django.db.models import Case as _VmCase, When as _VmWhen
+    from django.utils import timezone as tz
+
+    tipi_visita = list(
+        TipoVisitaMedica.objects
+        .annotate(n_visite=Count("visite"))
+        .prefetch_related("ruoli_operativi", "mansioni_richiedenti")
+        .order_by(_VmCase(_VmWhen(categoria="", then=1), default=0), "categoria", "nome")
+    )
+    categorie_visita = sorted({t.categoria for t in tipi_visita if t.categoria})
+    soglia = tz.localdate() + timedelta(days=60)
+    scadenze_vm_count = VisitaMedica.objects.filter(
+        data_scadenza__isnull=False, data_scadenza__lte=soglia
+    ).count()
+    return {
+        "is_admin": _is_anagrafica_admin(request),
+        "tipi_visita": tipi_visita,
+        "categorie_visita": categorie_visita,
+        "scadenze_vm_count": scadenze_vm_count,
+        "mansioni": list(Mansione.objects.all().order_by("nome")),
+        "ruoli_operativi": list(RuoloOperativo.objects.order_by("nome")),
+    }
+
+
+def _visite_mediche_response(request):
+    """Esito di un'azione sul catalogo visite mediche: partial HTMX (il resto
+    della pagina Impostazioni non ricarica) se il form è arrivato via HTMX,
+    altrimenti il redirect classico di sempre (form senza JS)."""
+    if request.headers.get("HX-Request"):
+        return render(
+            request, "anagrafica/partials/_visite_mediche_panel_wrapper.html",
+            {**_visite_mediche_panel_ctx(request), "show_htmx_messages": True},
+        )
+    return _redirect_impostazioni("visite-mediche")
+
+
 @login_required
 @require_POST
 def tipo_visita_medica_create(request):
     ok, resp = _impostazioni_admin_check(request, "visite-mediche")
     if not ok:
-        return resp
+        return _visite_mediche_response(request) if request.headers.get("HX-Request") else resp
     nome = (request.POST.get("nome") or "").strip()[:150]
     if not nome:
         messages.error(request, "Il nome della visita è obbligatorio.")
-        return _redirect_impostazioni("visite-mediche")
+        return _visite_mediche_response(request)
     durata_raw = request.POST.get("durata_mesi") or "12"
     try:
         durata_mesi = max(0, int(durata_raw))
@@ -10181,7 +10225,7 @@ def tipo_visita_medica_create(request):
         messages.success(request, f'Tipo visita "{nome}" creato.')
     else:
         messages.warning(request, f'Esiste già un tipo visita con il nome "{nome}".')
-    return _redirect_impostazioni("visite-mediche")
+    return _visite_mediche_response(request)
 
 
 @login_required
@@ -10189,12 +10233,12 @@ def tipo_visita_medica_create(request):
 def tipo_visita_medica_edit(request, tipo_id: int):
     ok, resp = _impostazioni_admin_check(request, "visite-mediche")
     if not ok:
-        return resp
+        return _visite_mediche_response(request) if request.headers.get("HX-Request") else resp
     tipo = get_object_or_404(TipoVisitaMedica, pk=tipo_id)
     nome = (request.POST.get("nome") or "").strip()[:150]
     if not nome:
         messages.error(request, "Il nome della visita è obbligatorio.")
-        return _redirect_impostazioni("visite-mediche")
+        return _visite_mediche_response(request)
     durata_raw = request.POST.get("durata_mesi") or "12"
     try:
         durata_mesi = max(0, int(durata_raw))
@@ -10212,7 +10256,7 @@ def tipo_visita_medica_edit(request, tipo_id: int):
     mansione_ids = [int(x) for x in request.POST.getlist("mansione_ids") if str(x).isdigit()]
     tipo.mansioni_richiedenti.set(mansione_ids)
     messages.success(request, f'Tipo visita "{tipo.nome}" aggiornato.')
-    return _redirect_impostazioni("visite-mediche")
+    return _visite_mediche_response(request)
 
 
 @login_required
@@ -10220,7 +10264,7 @@ def tipo_visita_medica_edit(request, tipo_id: int):
 def tipo_visita_medica_delete(request, tipo_id: int):
     ok, resp = _impostazioni_admin_check(request, "visite-mediche")
     if not ok:
-        return resp
+        return _visite_mediche_response(request) if request.headers.get("HX-Request") else resp
     tipo = get_object_or_404(TipoVisitaMedica, pk=tipo_id)
     n_uso = tipo.visite.count()
     if n_uso:
@@ -10230,11 +10274,49 @@ def tipo_visita_medica_delete(request, tipo_id: int):
             messages.warning(request, f'"{tipo.nome}" è in uso ({n_uso} visite registrate): disattivato (non eliminato) per preservare lo storico. Puoi riattivarlo dalla modifica.')
         else:
             messages.error(request, f'"{tipo.nome}" ha {n_uso} visite registrate: non eliminabile (già disattivo).')
-        return _redirect_impostazioni("visite-mediche")
+        return _visite_mediche_response(request)
     nome = tipo.nome
     tipo.delete()
     messages.success(request, f'Tipo visita "{nome}" eliminato.')
-    return _redirect_impostazioni("visite-mediche")
+    return _visite_mediche_response(request)
+
+
+@login_required
+@require_POST
+def tipo_visita_medica_bulk_edit(request):
+    """Applica in blocco categoria/obbligatorietà/stato attivo ai tipi visita
+    selezionati (checkbox della lista). Ogni campo lasciato vuoto/"non
+    modificare" non viene toccato sui record selezionati."""
+    ok, resp = _impostazioni_admin_check(request, "visite-mediche")
+    if not ok:
+        return _visite_mediche_response(request) if request.headers.get("HX-Request") else resp
+
+    ids = [int(x) for x in request.POST.getlist("ids") if str(x).isdigit()]
+    if not ids:
+        messages.error(request, "Nessun tipo visita selezionato.")
+        return _visite_mediche_response(request)
+
+    campi: dict = {}
+    categoria = (request.POST.get("categoria") or "").strip()
+    if categoria:
+        campi["categoria"] = categoria[:100]
+    obbligatoria = (request.POST.get("obbligatoria") or "").strip()
+    if obbligatoria in ("0", "1"):
+        campi["obbligatoria"] = obbligatoria == "1"
+    is_active = (request.POST.get("is_active") or "").strip()
+    if is_active in ("0", "1"):
+        campi["is_active"] = is_active == "1"
+
+    if not campi:
+        messages.error(request, "Scegli almeno un campo da modificare in blocco.")
+        return _visite_mediche_response(request)
+
+    aggiornati = TipoVisitaMedica.objects.filter(pk__in=ids).update(**campi)
+    messages.success(
+        request,
+        f'{aggiornati} tipi visita aggiornati in blocco ({", ".join(campi)}).',
+    )
+    return _visite_mediche_response(request)
 
 
 # ---------------------------------------------------------------------------

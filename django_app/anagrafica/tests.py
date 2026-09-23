@@ -1534,6 +1534,66 @@ class TipoVisitaMedicaCategoriaMansioniTests(TestCase):
         # Collassate di default: nessun attributo "open" sui <details> del catalogo.
         self.assertNotIn('<details class="imp-card" open', body)
 
+    def test_create_via_htmx_ritorna_il_partial_senza_redirect(self):
+        self.client.force_login(self.user_super)
+        response = self.client.post(
+            reverse("anagrafica:tipo_visita_medica_create"),
+            {"nome": "Visita HTMX", "durata_mesi": "12"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertIn('id="visite-mediche-panel-content"', body)
+        self.assertIn("Visita HTMX", body)
+        self.assertTrue(TipoVisitaMedica.objects.filter(nome="Visita HTMX").exists())
+
+    def test_edit_senza_htmx_continua_a_fare_redirect(self):
+        tipo = TipoVisitaMedica.objects.create(nome="Radiografia", durata_mesi=12)
+        self.client.force_login(self.user_super)
+        response = self.client.post(
+            reverse("anagrafica:tipo_visita_medica_edit", args=[tipo.pk]),
+            {"nome": "Radiografia", "durata_mesi": "24", "obbligatoria": "1", "is_active": "1"},
+        )
+        self.assertEqual(response.status_code, 302)
+        tipo.refresh_from_db()
+        self.assertEqual(tipo.durata_mesi, 24)
+
+    def test_bulk_edit_applica_solo_i_campi_valorizzati_ai_selezionati(self):
+        a = TipoVisitaMedica.objects.create(nome="Oculistica Annuale", durata_mesi=12, obbligatoria=True)
+        b = TipoVisitaMedica.objects.create(nome="Oculistica Biennale", durata_mesi=24, obbligatoria=True)
+        estranea = TipoVisitaMedica.objects.create(nome="Non toccare", durata_mesi=12, obbligatoria=True)
+        self.client.force_login(self.user_super)
+
+        response = self.client.post(
+            reverse("anagrafica:tipo_visita_medica_bulk_edit"),
+            {"ids": [str(a.pk), str(b.pk)], "categoria": "Oculistica", "obbligatoria": "0", "is_active": ""},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        a.refresh_from_db(); b.refresh_from_db(); estranea.refresh_from_db()
+        self.assertEqual(a.categoria, "Oculistica")
+        self.assertEqual(b.categoria, "Oculistica")
+        self.assertFalse(a.obbligatoria)
+        self.assertFalse(b.obbligatoria)
+        # is_active non era stato scelto ("non modificare"): resta quello di default.
+        self.assertTrue(a.is_active)
+        # Il tipo non selezionato non viene toccato.
+        self.assertEqual(estranea.categoria, "")
+        self.assertTrue(estranea.obbligatoria)
+
+    def test_bulk_edit_senza_selezione_non_modifica_nulla(self):
+        tipo = TipoVisitaMedica.objects.create(nome="Isolata", durata_mesi=12)
+        self.client.force_login(self.user_super)
+        response = self.client.post(
+            reverse("anagrafica:tipo_visita_medica_bulk_edit"),
+            {"ids": [], "categoria": "Qualcosa"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 200)
+        tipo.refresh_from_db()
+        self.assertEqual(tipo.categoria, "")
+
 
 class VisiteMedicheDashboardTests(TestCase):
     def setUp(self):
