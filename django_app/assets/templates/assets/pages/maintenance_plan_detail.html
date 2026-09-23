@@ -125,7 +125,7 @@
 
   <section class="md-section">
     <div class="md-section-head"><h2>Prossime scadenze</h2><span class="md-badge badge-muted">{{ upcoming|length }}</span></div>
-    {% include "assets/components/_occurrence_rows.html" with rows=upcoming selectable=0 show_plan=0 %}
+    {% include "assets/components/_occurrence_rows.html" with rows=upcoming selectable=can_plan show_plan=0 %}
   </section>
 
   {% if open_workorders %}
@@ -178,5 +178,6 @@
       </table>
     </div>
   </section>
+  {% include "assets/components/_occurrence_bulk_bar.html" %}
 </div>
 {% endblock %}

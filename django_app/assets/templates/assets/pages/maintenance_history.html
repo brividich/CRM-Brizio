@@ -9,7 +9,7 @@
 {% endblock %}
 
 {% block assets_shell_title %}Storico manutenzione aziendale{% endblock %}
-{% block assets_shell_subtitle %}<p>Un'unica cronologia per OdL conclusi e ticket MAN, senza cambiare il flusso dei ticket.</p>{% endblock %}
+{% block assets_shell_subtitle %}<p>Tutto il lavoro fatto: OdL conclusi, manutenzioni registrate senza OdL e ticket MAN.</p>{% endblock %}
 {% block assets_shell_toolbar %}{% endblock %}
 
 {% block assets_shell_content %}
@@ -45,7 +45,7 @@
   </div>
   <form class="mhs-card mhs-filters" method="get">
     <input type="search" name="q" value="{{ q }}" placeholder="Cerca attivita, asset o ticket" aria-label="Cerca nello storico">
-    <select name="source" aria-label="Origine"><option value="all"{% if source == 'all' %} selected{% endif %}>OdL + ticket MAN</option><option value="workorders"{% if source == 'workorders' %} selected{% endif %}>Solo OdL</option><option value="tickets"{% if source == 'tickets' %} selected{% endif %}>Solo ticket MAN</option></select>
+    <select name="source" aria-label="Origine"><option value="all"{% if source == 'all' %} selected{% endif %}>Tutto</option><option value="workorders"{% if source == 'workorders' %} selected{% endif %}>Solo OdL</option><option value="maintenance"{% if source == 'maintenance' %} selected{% endif %}>Manutenzioni senza OdL</option><option value="tickets"{% if source == 'tickets' %} selected{% endif %}>Solo ticket MAN</option></select>
     <input type="date" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}" aria-label="Dal giorno">
     <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}" aria-label="Al giorno">
     <button class="btn btn-primary" type="submit">Filtra</button>

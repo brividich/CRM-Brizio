@@ -72,6 +72,36 @@
     </details>
   </form>
   {% if show_occurrences %}
+  <div class="md-tabs" aria-label="Raggruppa per">
+    <span style="align-self:center;font-size:var(--fs-xs);font-weight:800;color:var(--text-mid);margin-right:4px">RAGGRUPPA PER</span>
+    {% for tab in group_links %}<a class="md-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}">{{ tab.label }}</a>{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if show_occurrences and group_mode %}
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2>Manutenzioni e adempimenti</h2>
+      <span class="md-badge badge-muted">{{ rows|length }}</span>
+      {% if can_plan %}<span class="md-sub">Seleziona anche da gruppi diversi: nasce un OdL per asset e giorno.</span>{% endif %}
+    </div>
+    <div class="md-groups" style="padding:12px">
+      {% for group in groups %}
+        <details class="md-group" open>
+          <summary>
+            {{ group.label }}
+            {% if group.sub %}<span class="md-sub" style="display:inline">{{ group.sub }}</span>{% endif %}
+            {% if group.overdue %}<span class="md-badge badge-danger">{{ group.overdue }} scadute</span>{% endif %}
+            <span class="md-group-count">{{ group.rows|length }}</span>
+          </summary>
+          {% include "assets/components/_occurrence_rows.html" with rows=group.rows selectable=can_plan show_plan=1 %}
+        </details>
+      {% empty %}
+        <p class="md-empty">Nessuna manutenzione con i filtri correnti.</p>
+      {% endfor %}
+    </div>
+  </section>
+  {% elif show_occurrences %}
   <section class="md-section">
     <div class="md-section-head">
       <h2>Manutenzioni e adempimenti</h2>
@@ -124,6 +154,7 @@
       <div class="md-field"><label for="{{ workorder_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_form.assigned_to }}</div>
       <div class="md-field"><label for="{{ workorder_form.supplier.id_for_label }}">Ditta esterna</label>{{ workorder_form.supplier }}</div>
       <div class="md-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>
+      <label class="md-field md-field-check" style="align-self:center"><span>{{ workorder_form.split_by_asset }} {{ workorder_form.split_by_asset.label }}</span></label>
       <button type="submit" class="btn btn-primary">Crea ordine di lavoro</button>
     </form>
   {% endif %}

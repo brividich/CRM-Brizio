@@ -11,12 +11,13 @@
 
 {% block assets_shell_toolbar %}
   {% if occurrence.work_order_id %}<a class="btn btn-secondary" href="{% url 'assets:wo_view' occurrence.work_order_id %}">Ordine di lavoro #{{ occurrence.work_order_id }}</a>{% endif %}
+  <a class="btn btn-secondary" href="{% url 'assets:occurrence_worksheet' occurrence.pk %}" target="_blank" rel="noopener">&#128424; Scheda di lavoro</a>
   <a class="btn btn-secondary" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}">Apri follow-up</a>
 {% endblock %}
 
 {% block assets_shell_content %}
 <form class="md-form" method="post" enctype="multipart/form-data" novalidate>
-  {% csrf_token %}
+  {% csrf_token %}<input type="hidden" name="next" value="{{ back_url }}">
   {{ form.non_field_errors }}
 
   <div class="md-preview">
@@ -27,6 +28,32 @@
       La prossima scadenza sara' calcolata dalla <strong>data di esecuzione</strong> che indichi qui sotto.
     {% endif %}
   </div>
+
+  {% if previous or same_asset_open or contract %}
+    {% comment %}Il sistema propone cosa sapere e cosa aggiungere: nulla cambia da solo.{% endcomment %}
+    <aside class="md-suggest" aria-label="Suggerimenti">
+      <h2>&#128161; Utile per questa registrazione</h2>
+      {% if previous %}
+        <div class="md-suggest-row">
+          <span>Ultima volta: <strong>{{ previous.completed_on|date:"d/m/Y" }}</strong>{% if previous.downtime_minutes %}, fermo macchina {{ previous.downtime_minutes }} min{% endif %}{% if previous.completion_notes %} — «{{ previous.completion_notes|truncatechars:120 }}»{% endif %}</span>
+          {% if previous.downtime_minutes %}<button type="button" class="btn btn-sm btn-secondary" data-md-copy-downtime="{{ previous.downtime_minutes }}">Usa lo stesso fermo</button>{% endif %}
+        </div>
+      {% endif %}
+      {% if contract %}
+        <div class="md-suggest-row"><span>L'asset e' coperto dal contratto «{{ contract.title }}» con {{ contract.supplier }}: se ha lavorato la ditta, scrivilo nelle note e allega il suo rapporto.</span></div>
+      {% endif %}
+      {% if same_asset_open %}
+        <div class="md-suggest-row is-list">
+          <span><strong>Sulla stessa macchina entro 30 giorni</strong> — se le hai fatte nella stessa uscita, registrale subito dopo:</span>
+          <ul>
+            {% for other in same_asset_open %}
+              <li>{{ other.due_date|date:"d/m/Y" }} · {{ other.plan.label }}{% if other.work_order_id %} · OdL #{{ other.work_order_id }}{% endif %} — <a href="{{ other.register_url }}">Registra</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </aside>
+  {% endif %}
 
   <fieldset class="md-fieldset">
     <h2>Esecuzione</h2>
@@ -55,7 +82,15 @@
 
   <div class="md-form-actions">
     <button type="submit" class="btn btn-primary">Registra esecuzione</button>
-    <a class="btn btn-secondary" href="{% url 'assets:maintenance_da_fare' %}">Annulla</a>
+    <a class="btn btn-secondary" href="{{ back_url }}">Annulla</a>
   </div>
 </form>
+<script>
+document.addEventListener('click', function (event) {
+  var button = event.target.closest('[data-md-copy-downtime]');
+  if (!button) { return; }
+  var field = document.getElementById('{{ form.downtime_minutes.id_for_label }}');
+  if (field) { field.value = button.getAttribute('data-md-copy-downtime'); field.focus(); }
+});
+</script>
 {% endblock %}

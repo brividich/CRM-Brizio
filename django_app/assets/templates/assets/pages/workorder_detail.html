@@ -7,7 +7,9 @@
   <style>
     .wod-cl-badge{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;margin-left:6px}.wod-cl-badge--done{background:#dcfce7;color:#166534}.wod-cl-badge--partial{background:#fef3c7;color:#854d0e}.wod-cl-list{display:grid;gap:7px}.wod-cl-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 8px;align-items:center;padding:9px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#fcfdff}.wod-cl-item--done{background:#f0fdf4;border-color:#bbf7d0}.wod-cl-left{display:flex;gap:9px;align-items:center}.wod-cl-actions{display:flex;gap:4px}.wod-cl-meta{grid-column:1/-1;padding-left:30px;color:#64748b;font-size:10px}.wod-cl-num{width:22px;height:22px;border-radius:999px;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;flex:0 0 auto}.wod-cl-item--done .wod-cl-num{background:#bbf7d0;color:#166534}.wod-cl-desc{color:#0f172a;font-size:var(--fs-sm)}.wod-cl-item--done .wod-cl-desc{color:#64748b;text-decoration:line-through}.wod-cl-toggle,.wod-cl-del{border:0;background:transparent;cursor:pointer;border-radius:6px;padding:4px 7px}.wod-cl-toggle:hover{background:#e2e8f0}.wod-cl-del{color:#94a3b8}.wod-cl-del:hover{background:#fee2e2;color:#dc2626}.wod-cl-add-form{display:flex;gap:8px;margin-top:10px}.wod-cl-add-input{flex:1;min-width:0;height:36px;border:1px solid #cbd5e1;border-radius:9px;padding:0 10px;font:inherit}
     #wod-checklist-section{border:1px solid #dbe5f2;border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.04)}#wod-checklist-section .wod-card-body{padding:16px}#wod-checklist-section .wod-section-title{margin:0;color:#0f172a;font-size:var(--fs-lg)}
-    .wo2-chips{display:flex;gap:7px;flex-wrap:wrap}.wo2-note-form{display:grid;gap:8px}.wo2-note-form textarea{min-height:92px;border:1px solid #cbd5e1;border-radius:10px;padding:10px;font:inherit;resize:vertical}.wo2-detail-title{margin:0;color:#0f172a;font-size:1.15rem}.wo2-muted{color:#64748b;font-size:var(--fs-sm)}.wo2-costgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.wo2-cost{padding:12px;border:1px solid #e2e8f0;border-radius:11px;background:#fbfdff}.wo2-cost span{display:block;color:#64748b;font-size:10px;text-transform:uppercase;font-weight:850}.wo2-cost strong{display:block;margin-top:6px;color:#0f172a;font-size:1.05rem}
+    .wo-batch-list{display:flex;flex-wrap:wrap;gap:8px}.wo-batch-item{display:grid;gap:2px;min-width:150px;padding:8px 12px;border:1px solid var(--border,#dbe1ea);border-radius:10px;text-decoration:none;color:inherit;background:var(--surface,#fff)}.wo-batch-item small{color:var(--text-mid,#64748b)}.wo-batch-item.is-current{border-color:var(--primary-mid,#2f5f89);box-shadow:inset 0 0 0 1px var(--primary-mid,#2f5f89)}
+.wo-suggest .ux-card-body{display:grid;gap:8px}.wo-suggest-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:var(--surface-alt,#f8fafc);border-left:3px solid #2563eb;font-size:var(--fs-sm)}.wo-suggest-row.is-warn{border-left-color:#d97706}.wo-suggest-occ{display:grid;gap:6px;font-size:var(--fs-sm)}.wo-suggest-occ p{margin:0}.wo-suggest-occ .btn{justify-self:start}
+.wo2-chips{display:flex;gap:7px;flex-wrap:wrap}.wo2-note-form{display:grid;gap:8px}.wo2-note-form textarea{min-height:92px;border:1px solid #cbd5e1;border-radius:10px;padding:10px;font:inherit;resize:vertical}.wo2-detail-title{margin:0;color:#0f172a;font-size:1.15rem}.wo2-muted{color:#64748b;font-size:var(--fs-sm)}.wo2-costgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.wo2-cost{padding:12px;border:1px solid #e2e8f0;border-radius:11px;background:#fbfdff}.wo2-cost span{display:block;color:#64748b;font-size:10px;text-transform:uppercase;font-weight:850}.wo2-cost strong{display:block;margin-top:6px;color:#0f172a;font-size:1.05rem}
     @media(max-width:760px){.wo2-costgrid{grid-template-columns:1fr}}
     body.theme-dark #wod-checklist-section,body.theme-dark .wod-cl-item,body.theme-dark .wo2-cost{background:var(--surface);border-color:var(--border)}body.theme-dark .wod-cl-desc,body.theme-dark #wod-checklist-section .wod-section-title,body.theme-dark .wo2-detail-title,body.theme-dark .wo2-cost strong{color:var(--text)}body.theme-dark .wod-cl-meta,body.theme-dark .wo2-muted,body.theme-dark .wo2-cost span{color:var(--text-light)}
     .wo2-wait-banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid #fde68a;border-radius:12px;background:#fffbeb}.wo2-wait-banner strong{color:#92400e}.wo2-wait-banner p{margin:3px 0 0;color:#78350f;font-size:var(--fs-sm)}
@@ -55,6 +57,7 @@
   <a class="btn btn-secondary" href="{{ workorder_asset_url }}">Apri asset</a>
   {% if workorder_rule_url %}<a class="btn btn-secondary" href="{{ workorder_rule_url }}">Piano / regola</a>{% endif %}
   {% if workorder_contract_url %}<a class="btn btn-secondary" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>{% endif %}
+  <a class="btn btn-secondary" href="{% url 'assets:workorder_worksheet' workorder.id %}" target="_blank" rel="noopener">&#128424; Scheda di lavoro</a>
   {% if workorder.status == 'OPEN' %}<a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Registra intervento</a>{% endif %}
 {% endblock %}
 
@@ -73,6 +76,47 @@
       </div>
     </div>
   </div>
+
+  {% if batch_rows %}
+    {% comment %}Gruppo di OdL nati da un'unica selezione: X-1, X-2... uno per asset e giorno.{% endcomment %}
+    <article class="ux-card wo-batch">
+      <header class="ux-card-head"><div><h3>Gruppo {{ batch_rows.0.wo.id }}</h3><p>Ordini di lavoro creati insieme, uno per asset e giorno di esecuzione.</p></div></header>
+      <div class="ux-card-body">
+        <div class="wo-batch-list">
+          {% for row in batch_rows %}
+            <a class="wo-batch-item{% if row.is_current %} is-current{% endif %}" href="{{ row.url }}"{% if row.is_current %} aria-current="page"{% endif %}>
+              <strong>#{{ row.number }}</strong>
+              <span>{{ row.wo.asset.asset_tag|default:row.wo.asset.name }}</span>
+              <small>{% if row.wo.due_at %}{{ row.wo.due_at|date:"d/m" }} · {% endif %}{{ row.wo.get_status_display }}{% if row.wo.assigned_to %} · {{ row.wo.assigned_to.get_full_name|default:row.wo.assigned_to.username }}{% endif %}</small>
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+  {% endif %}
+
+  {% if suggestions or suggested_occurrences %}
+    {% comment %}Il sistema propone cosa aggiungere: niente cambia finche' non lo si conferma.{% endcomment %}
+    <article class="ux-card wo-suggest">
+      <header class="ux-card-head"><div><h3>&#128161; Suggerimenti</h3><p>Informazioni utili da aggiungere a questo intervento.</p></div></header>
+      <div class="ux-card-body">
+        {% for s in suggestions %}
+          <div class="wo-suggest-row is-{{ s.tone }}"><span>{{ s.text }}</span>{% if s.url %}<a class="btn btn-sm btn-secondary" href="{{ s.url }}">{{ s.cta }}</a>{% endif %}</div>
+        {% endfor %}
+        {% if suggested_occurrences and wo_can_plan_maintenance %}
+          <form method="post" action="{% url 'assets:workorder_occurrence_add' workorder.pk %}" class="wo-suggest-occ">
+            {% csrf_token %}
+            <p><strong>Altre manutenzioni dello stesso asset entro 30 giorni</strong> — falle nella stessa uscita:</p>
+            {% for occ in suggested_occurrences %}
+              <label><input type="checkbox" name="occurrence_ids" value="{{ occ.pk }}" checked>
+                {{ occ.due_date|date:"d/m/Y" }} · {{ occ.plan.label }} · {{ occ.asset.asset_tag }}</label>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary btn-sm">Aggiungi all'intervento</button>
+          </form>
+        {% endif %}
+      </div>
+    </article>
+  {% endif %}
 
   <div class="ux-detail-grid">
     <div class="ux-detail-left">

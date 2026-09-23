@@ -1,0 +1,121 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+{% comment %}Scheda di lavoro stampabile (A4): una sezione per ogni manutenzione, con la
+   checklist del piano da spuntare a penna e i campi da riportare poi in «Registra».
+   Legge le occorrenze del dominio nuovo: vale per un OdL (anche di piu' asset) o
+   per una singola manutenzione senza OdL.{% endcomment %}
+<style>
+  .ws-wrap { max-width: 820px; margin: 0 auto; padding: 16px; color: #0f172a; }
+  .ws-toolbar { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .ws-sheet { border: 1px solid #cbd5e1; border-radius: 8px; padding: 22px; background: #fff; color: #0f172a; }
+  .ws-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
+  .ws-title { font-size: 1.4rem; font-weight: 800; margin: 0; }
+  .ws-sub { font-size: .9rem; color: #475569; margin: 2px 0 0; }
+  .ws-doc { font-size: .75rem; color: #64748b; text-align: right; }
+  .ws-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin-bottom: 8px; }
+  .ws-kv { font-size: .9rem; }
+  .ws-kv b { color: #64748b; font-weight: 600; display: inline-block; min-width: 120px; }
+  .ws-item { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 14px; margin-top: 14px; break-inside: avoid; page-break-inside: avoid; }
+  .ws-item-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 8px; }
+  .ws-item-head h2 { font-size: 1.05rem; margin: 0; }
+  .ws-item-head span { font-size: .8rem; color: #475569; }
+  .ws-section-title { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #334155; margin: 10px 0 4px; }
+  .ws-check { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #e2e8f0; font-size: .92rem; }
+  .ws-check small { color: #64748b; margin-left: auto; }
+  .ws-box { width: 16px; height: 16px; border: 2px solid #334155; border-radius: 3px; flex-shrink: 0; }
+  .ws-empty { color: #64748b; font-style: italic; font-size: .85rem; }
+  .ws-fill { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 18px; margin-top: 10px; }
+  .ws-line { border-bottom: 1px solid #94a3b8; height: 24px; }
+  .ws-line-label { font-size: .74rem; color: #64748b; }
+  .ws-notes { border-bottom: 1px solid #94a3b8; height: 24px; margin-top: 6px; }
+  .ws-sign { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  @media print {
+    .ws-toolbar, nav, header, footer, .app-sidebar, .app-header, .dev-git-badge { display: none !important; }
+    .ws-wrap { max-width: 100%; padding: 0; }
+    .ws-sheet { border: none; padding: 0; }
+    body { background: #fff !important; }
+  }
+</style>
+
+<div class="ws-wrap">
+  <div class="ws-toolbar">
+    <a class="btn btn-secondary" href="{{ back_url }}">&larr; Torna</a>
+    <button type="button" class="btn btn-primary" onclick="window.print()">&#128424; Stampa</button>
+  </div>
+
+  <div class="ws-sheet">
+    <div class="ws-head">
+      <div>
+        <h1 class="ws-title">Scheda di lavoro</h1>
+        <p class="ws-sub">
+          {% if work_order %}Ordine di lavoro <strong>#{{ work_order.display_number }}</strong> — {{ work_order.title }}{% else %}Manutenzione senza ordine di lavoro{% endif %}
+        </p>
+      </div>
+      <div class="ws-doc">NOVICROM HUB<br>Stampata il {{ today|date:"d/m/Y" }}</div>
+    </div>
+
+    {% if work_order %}
+      <div class="ws-grid">
+        <div class="ws-kv"><b>Da concludere entro</b> {{ work_order.due_at|date:"d/m/Y"|default:"—" }}</div>
+        <div class="ws-kv"><b>Assegnato a</b> {% if work_order.assigned_to %}{{ work_order.assigned_to.get_full_name|default:work_order.assigned_to.username }}{% else %}—{% endif %}</div>
+        <div class="ws-kv"><b>Ditta esterna</b> {{ work_order.supplier|default:"—" }}</div>
+        <div class="ws-kv"><b>Manutenzioni</b> {{ items|length }}</div>
+      </div>
+      {% if work_order.description %}<p style="font-size:.9rem;margin:6px 0 0">{{ work_order.description|linebreaksbr }}</p>{% endif %}
+    {% endif %}
+
+    {% for item in items %}
+      {% with occ=item.occurrence %}
+      <section class="ws-item">
+        <div class="ws-item-head">
+          <h2>{{ occ.asset.asset_tag|default:occ.asset.name }} — {{ occ.plan.label }}</h2>
+          <span>scadenza {{ occ.due_date|date:"d/m/Y" }}</span>
+        </div>
+        <div class="ws-grid">
+          <div class="ws-kv"><b>Macchina</b> {{ occ.asset.name }}</div>
+          <div class="ws-kv"><b>Reparto</b> {{ occ.asset.reparto|default:"—" }}</div>
+          <div class="ws-kv"><b>Famiglia</b> {{ occ.asset.asset_category.label|default:"—" }}</div>
+          <div class="ws-kv"><b>Ultima volta</b> {% if item.previous %}{{ item.previous.completed_on|date:"d/m/Y" }}{% if item.previous.downtime_minutes %} · fermo {{ item.previous.downtime_minutes }} min{% endif %}{% else %}—{% endif %}</div>
+        </div>
+        {% if occ.plan.description %}
+          <div class="ws-section-title">Istruzioni</div>
+          <p style="font-size:.88rem;margin:0">{{ occ.plan.description|linebreaksbr }}</p>
+        {% endif %}
+        <div class="ws-section-title">Checklist</div>
+        {% for step in item.steps %}
+          <div class="ws-check"><span class="ws-box"></span>{{ step.description }}{% if step.unit %} <small>valore: ______ {{ step.unit }}</small>{% elif step.is_mandatory %}<small>obbligatorio</small>{% endif %}</div>
+        {% empty %}
+          <p class="ws-empty">Il piano non ha una checklist: descrivi il lavoro nelle note.</p>
+        {% endfor %}
+        {% if occ.attachment_required %}<p style="font-size:.85rem;margin:8px 0 0"><strong>Serve il rapporto/documento</strong> per registrarla.</p>{% endif %}
+        <div class="ws-fill">
+          <div><div class="ws-line-label">Eseguita il</div><div class="ws-line"></div></div>
+          <div><div class="ws-line-label">Fermo macchina (min)</div><div class="ws-line"></div></div>
+          <div><div class="ws-line-label">Eseguita da</div><div class="ws-line"></div></div>
+        </div>
+        <div class="ws-line-label" style="margin-top:10px">Note / anomalie</div>
+        <div class="ws-notes"></div><div class="ws-notes"></div>
+      </section>
+      {% endwith %}
+    {% empty %}
+      <section class="ws-item">
+        <div class="ws-section-title">Lavoro svolto</div>
+        <div class="ws-notes"></div><div class="ws-notes"></div><div class="ws-notes"></div>
+        <div class="ws-fill">
+          <div><div class="ws-line-label">Eseguito il</div><div class="ws-line"></div></div>
+          <div><div class="ws-line-label">Durata (min)</div><div class="ws-line"></div></div>
+          <div><div class="ws-line-label">Fermo macchina (min)</div><div class="ws-line"></div></div>
+        </div>
+      </section>
+    {% endfor %}
+
+    <div class="ws-sign">
+      <div><div class="ws-line-label">Firma manutentore</div><div class="ws-line"></div></div>
+      <div><div class="ws-line-label">Firma responsabile</div><div class="ws-line"></div></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

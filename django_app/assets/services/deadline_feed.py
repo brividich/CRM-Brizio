@@ -524,6 +524,98 @@ def administrative_completed_asset_ids(*, since: date, asset_filter: dict | None
 
 
 # ---------------------------------------------------------------------------
+# Scadenze previste (non ancora generate)
+# ---------------------------------------------------------------------------
+#
+# Lo scheduler crea un'occorrenza solo quando entra nella finestra di preavviso:
+# un piano applicato oggi con scadenza fra sei mesi, prima, non si vedeva da
+# nessuna parte e sembrava non aver fatto nulla. Qui la serie di ogni coppia
+# piano/asset si proietta fino alla fine del periodo richiesto, con le stesse
+# regole di calcolo dello scheduler. Sola lettura: niente viene salvato.
+
+STATE_FORECAST = "forecast"
+STATE_LABELS[STATE_FORECAST] = "Prevista"
+
+
+def _forecasts(start: date | None, end: date | None, filters: FeedFilters, today: date) -> list[Deadline]:
+    wanted = filters.kinds & {KIND_ORDINARY, KIND_ADMINISTRATIVE}
+    if not wanted or end is None:
+        return []
+    assets = Asset.objects.filter(status=Asset.STATUS_IN_USE)
+    if filters.category_ids is not None:
+        assets = assets.filter(asset_category_id__in=filters.category_ids)
+    if filters.reparto:
+        assets = assets.filter(reparto=filters.reparto)
+    if filters.group_id:
+        assets = assets.filter(group_memberships__group_id=filters.group_id)
+    if filters.asset_id:
+        assets = assets.filter(pk=filters.asset_id)
+    resolutions = domain.build_plan_resolutions(asset_queryset=assets)
+    if not resolutions:
+        return []
+    plan_ids = {plan_id for plan_id, _ in resolutions}
+    asset_ids = {asset_id for _, asset_id in resolutions}
+    occupied: dict[tuple[int, int], set[date]] = {}
+    open_due: dict[tuple[int, int], date] = {}
+    last_done: dict[tuple[int, int], MaintenanceOccurrence] = {}
+    for occ in (
+        MaintenanceOccurrence.objects.filter(plan_id__in=plan_ids, asset_id__in=asset_ids)
+        .exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
+        .only("id", "plan_id", "asset_id", "due_date", "status", "completed_on")
+        .order_by("due_date", "id")
+    ):
+        pair = (occ.plan_id, occ.asset_id)
+        occupied.setdefault(pair, set()).add(occ.due_date)
+        if occ.status == MaintenanceOccurrence.STATUS_OPEN:
+            open_due[pair] = max(open_due.get(pair, occ.due_date), occ.due_date)
+        else:
+            last_done[pair] = occ
+    admin_type = MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE
+    assets_by_id = {a.id: a for a in Asset.objects.filter(pk__in=asset_ids).select_related("asset_category")}
+    rows: list[Deadline] = []
+    for pair, resolution in resolutions.items():
+        assignment = resolution.assignment
+        if resolution.is_conflict or resolution.is_excluded or assignment is None:
+            continue
+        plan = resolution.plan
+        kind = KIND_ADMINISTRATIVE if plan.maintenance_type == admin_type else KIND_ORDINARY
+        if kind not in wanted:
+            continue
+        mode = assignment.effective_execution_mode
+        if filters.execution_mode and mode != filters.execution_mode:
+            continue
+        anchor = assignment.effective_schedule_anchor
+        if pair in open_due:
+            due = domain.compute_next_due(assignment, anchor=anchor, previous_due=open_due[pair], completion_date=open_due[pair])
+        else:
+            due = domain.compute_due_date_for(resolution, last_completed=last_done.get(pair), today=today)
+        asset = assets_by_id.get(pair[1])
+        for _ in range(60):
+            if due is None or due > end:
+                break
+            if (start is None or due >= start) and due not in occupied.get(pair, set()) and due >= today:
+                rows.append(Deadline(
+                    key=f"fc-{pair[0]}-{pair[1]}-{due.isoformat()}",
+                    kind=kind,
+                    title=plan.label,
+                    due_date=due,
+                    state=STATE_FORECAST,
+                    is_external=mode == MaintenanceInterventionTemplate.MODE_EXTERNAL,
+                    detail_url=reverse("assets:maintenance_plan_detail", args=[plan.id]),
+                    actions=[
+                        {"label": "Apri piano", "url": reverse("assets:maintenance_plan_detail", args=[plan.id])},
+                        {"label": "Apri asset", "url": reverse("assets:asset_view", args=[pair[1]])},
+                    ],
+                    **_asset_fields(asset),
+                ))
+            nxt = domain.compute_next_due(assignment, anchor=anchor, previous_due=due, completion_date=due)
+            if nxt is None or nxt <= due:
+                break
+            due = nxt
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
 
@@ -550,17 +642,21 @@ def collect(
     end: date | None,
     filters: FeedFilters | None = None,
     today: date | None = None,
+    include_forecast: bool = False,
 ) -> list[Deadline]:
-    """Scadenze delle tre sorgenti fra ``start`` ed ``end`` (inclusi), ordinate per data."""
+    """Scadenze delle tre sorgenti fra ``start`` ed ``end`` (inclusi), ordinate per data.
+
+    ``include_forecast`` aggiunge le scadenze previste dai piani e non ancora
+    generate (solo il Calendario le chiede)."""
     today = today or timezone.localdate()
     filters = filters or FeedFilters()
-    rows = (
+    rows = (_forecasts(start, end, filters, today) if include_forecast else []) + (
         _occurrences(start, end, filters, today)
         + _licenses(start, end, filters, today)
         + _contracts(start, end, filters, today)
         + _legacy_deadlines(start, end, filters, today)
     )
-    state_order = {STATE_OVERDUE: 0, STATE_DUE_SOON: 1, STATE_OPEN: 2, STATE_PLANNED: 3, STATE_DONE: 4}
+    state_order = {STATE_OVERDUE: 0, STATE_DUE_SOON: 1, STATE_OPEN: 2, STATE_PLANNED: 3, STATE_DONE: 4, "forecast": 5}
     rows.sort(key=lambda d: (d.due_date, state_order.get(d.state, 9), d.kind, d.title))
     return rows
 

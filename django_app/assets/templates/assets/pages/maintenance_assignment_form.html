@@ -31,6 +31,26 @@
       {% include "assets/components/_md_field.html" with field=form.asset_category %}
     </div>
     <p class="md-preview" data-md-preview>Scegli un bersaglio per vedere quanti asset coinvolge.</p>
+    {% if existing_assignments or family_gaps %}
+      {% comment %}Suggerimenti: dove il piano vale gia' e quali asset della stessa famiglia restano fuori.{% endcomment %}
+      <aside class="md-suggest" aria-label="Suggerimenti">
+        <h2>&#128161; Prima di scegliere</h2>
+        {% if existing_assignments %}
+          <div class="md-suggest-row is-list">
+            <span>Il piano vale gia' su <strong>{{ covered_count }} asset</strong> tramite:</span>
+            <ul>{% for item in existing_assignments %}<li>{{ item.target_label }}</li>{% endfor %}</ul>
+          </div>
+        {% endif %}
+        {% for gap in family_gaps %}
+          <div class="md-suggest-row">
+            <span>Nella famiglia <strong>{{ gap.family }}</strong> {{ gap.assets|length }} asset non hanno questo piano:
+              {% for asset in gap.assets|slice:":6" %}{{ asset.asset_tag|default:asset.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if gap.assets|length > 6 %}…{% endif %}.
+              Conviene applicarlo all'intera famiglia?</span>
+            <button type="button" class="btn btn-sm btn-secondary" data-md-pick-category="{{ gap.category_id }}">Usa la famiglia</button>
+          </div>
+        {% endfor %}
+      </aside>
+    {% endif %}
   </fieldset>
 
   <fieldset class="md-fieldset">
@@ -169,6 +189,20 @@
         || RECURRENCE_IDS.indexOf(id.replace(/^id_/, '')) !== -1) {
       refreshPreview();
     }
+  });
+
+  // Suggerimento "Usa la famiglia": imposta bersaglio categoria e la famiglia proposta.
+  form.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-md-pick-category]');
+    if (!button) { return; }
+    var type = targetTypeEl();
+    var category = el(TARGET_IDS.CATEGORY);
+    if (!type || !category) { return; }
+    type.value = 'CATEGORY';
+    type.dispatchEvent(new Event('change', { bubbles: true }));
+    category.value = button.getAttribute('data-md-pick-category');
+    category.dispatchEvent(new Event('change', { bubbles: true }));
+    category.scrollIntoView({ block: 'center' });
   });
 
   syncTarget();
