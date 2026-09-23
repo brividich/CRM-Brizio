@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Assets — menu Manutenzione unico e Scadenzario
+
+- Barra di sezione e sidebar della Manutenzione leggono la stessa definizione (`assets/maintenance_nav.py`): rami Manutenzione e Configurazione; Calendario, Report, Licenze e Contratti assistenza dentro il ramo. Migration `assets 0106` (solo pulsanti sidebar).
+- Scadenzario: schede finestra/tipologia che conservano gli altri filtri, 4 filtri a vista + avanzati, nuovo filtro Famiglia (anche in Da fare).
+
 ### Anagrafica — gestione del singolo referto sanitario
 
 - Nuova pagina `/anagrafica/visite-mediche/referti/<doc_id>/gestione/`: dati del referto, sostituzione del file, ruolo sulla visita, scollegamento motivato ed eliminazione con motivazione obbligatoria.

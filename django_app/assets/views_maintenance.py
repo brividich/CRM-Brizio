@@ -43,6 +43,7 @@ from .forms_maintenance import (
     OccurrenceCompletionForm,
     OccurrenceFilterForm,
     WorkOrderFromOccurrencesForm,
+    category_with_descendants,
 )
 from .models import (
     Asset,
@@ -229,6 +230,13 @@ def _apply_occurrence_filters(queryset, form: OccurrenceFilterForm, *, today: da
         queryset = queryset.filter(asset=data["asset"])
     if data.get("reparto"):
         queryset = queryset.filter(asset__reparto=data["reparto"])
+    if data.get("category"):
+        try:
+            category_id = int(data["category"])
+        except (TypeError, ValueError):
+            category_id = None
+        if category_id:
+            queryset = queryset.filter(asset__asset_category_id__in=category_with_descendants(category_id))
     if data.get("assignee"):
         queryset = queryset.filter(work_order__assigned_to=data["assignee"])
     if data.get("supplier"):
@@ -484,10 +492,32 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
 
 _SCADENZE_TABS = [
     ("overdue", "Scadute"),
+    ("7", "7 giorni"),
     ("30", "30 giorni"),
     ("90", "90 giorni"),
     ("", "Tutte"),
 ]
+
+_SCADENZE_TYPE_TABS = [
+    ("", "Tutte le tipologie"),
+    ("ordinary", "Ordinarie"),
+    ("administrative", "Amministrative"),
+]
+
+
+def _tab_links(request: HttpRequest, param: str, options, active: str) -> list[dict[str, Any]]:
+    """Link di scheda che cambiano UN solo parametro e conservano gli altri filtri.
+
+    Prima la scheda "Amministrative" azzerava la finestra temporale e ogni scheda
+    buttava via ricerca, reparto e assegnatario: cambiare vista voleva dire
+    rifare i filtri.
+    """
+    links = []
+    for value, label in options:
+        query = request.GET.copy()
+        query[param] = value
+        links.append({"label": label, "url": f"?{query.urlencode()}", "active": active == value})
+    return links
 
 
 @login_required
@@ -497,6 +527,8 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     if "window" not in initial:
         initial["window"] = "30"
     form = OccurrenceFilterForm(initial)
+    # Finestra e tipologia sono schede in testa alla pagina, non campi del pannello.
+    form.tab_fields = ("window", "plan_type")
     form.is_valid()
 
     queryset = _apply_occurrence_filters(_base_occurrence_queryset(), form, today=today)
@@ -511,13 +543,15 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
         "assets/pages/maintenance_scadenze.html",
         {
             **_assets_shell_context(request),
-            "page_title": "Scadenze",
+            "page_title": "Scadenzario",
             "today": today,
             "filter_form": form,
             "rows": rows,
             "total": len(rows),
-            "tabs": _SCADENZE_TABS,
-            "active_tab": active_tab,
+            "window_tabs": _tab_links(request, "window", _SCADENZE_TABS, active_tab),
+            "type_tabs": _tab_links(
+                request, "plan_type", _SCADENZE_TYPE_TABS, _clean_string(initial.get("plan_type"))
+            ),
             "can_plan": can_plan_maintenance(request),
             "workorder_form": WorkOrderFromOccurrencesForm(),
             "scoped_reparti": scoped_reparti,

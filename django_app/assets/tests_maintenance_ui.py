@@ -1089,7 +1089,8 @@ class DaFareKpiEFiltriTests(TestCase):
         semplici = [f.name for f in form.simple_fields]
         avanzati = [f.name for f in form.advanced_fields]
 
-        self.assertEqual(semplici, ["q", "reparto", "assignee", "window"])
+        # "Famiglia" e' a vista: e' il raggruppamento che l'officina usa davvero.
+        self.assertEqual(semplici, ["q", "category", "reparto", "assignee", "window"])
         # Nessun filtro perso: semplici + avanzati = tutti.
         self.assertEqual(sorted(semplici + avanzati), sorted(form.fields))
         for atteso in ("plan", "group", "asset", "plan_type", "execution_mode",

@@ -5115,6 +5115,16 @@ def _resolve_sidebar_url(raw_url: str, rows: int = 25) -> str:
 
 
 def _is_sidebar_button_active(request: HttpRequest, button: AssetSidebarButton, resolved_url: str) -> bool:
+    # Le voci della Manutenzione si accendono per nome di rotta, dalla stessa
+    # definizione della barra di sezione: un pezzo di URL non basta, perche'
+    # Configurazione e Manutenzione condividono il prefisso /assets/manutenzione/.
+    from .maintenance_nav import sidebar_code_routes
+
+    nav_routes = sidebar_code_routes().get(_clean_string(button.code))
+    if nav_routes is not None:
+        current_route = getattr(getattr(request, "resolver_match", None), "url_name", "") or ""
+        return current_route in nav_routes
+
     active_match = _clean_string(button.active_match)
     full_path = request.get_full_path()
     if active_match:
@@ -6399,134 +6409,49 @@ def _assets_shell_context(
 
 
 def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
-    current_route = _clean_string(getattr(getattr(request, "resolver_match", None), "url_name", ""))
-    if not current_route:
-        return None
+    """Barra di sezione Manutenzione, costruita da ``maintenance_nav``.
 
-    route_to_item = {
-        "maintenance_hub": "da_fare",
-        "maintenance_todo": "da_fare",
-        "maintenance_da_fare": "da_fare",
-        "occurrence_complete": "da_fare",
-        "occurrence_followup_create": "da_fare",
-        "maintenance_scadenze": "scadenze",
-        "maintenance_responsabile": "quadro",
-        "maintenance_plan_list": "plans",
-        "maintenance_plan_detail": "plans",
-        "maintenance_plan_create": "plans",
-        "maintenance_plan_edit": "plans",
-        "maintenance_assignment_create": "plans",
-        "maintenance_assignment_edit": "plans",
-        "maintenance_coverage": "plans",
-        "asset_group_list": "groups",
-        "asset_group_create": "groups",
-        "asset_group_edit": "groups",
-        "asset_maintenance_plans": "plans",
-        "asset_plan_customize": "plans",
-        "maintenance_schedule": "scadenze",
-        "maintenance_scadenzario": "scadenze",
-        "maintenance_history": "history",
-        "wo_list": "workorders",
-        "wo_view": "workorders",
-        "wo_create": "workorders",
-        "wo_close": "workorders",
-        "reports": "reports",
-        "report_template_admin": "report_templates",
-        "maintenance_impostazioni": "settings",
-        "maintenance_suppliers": "suppliers",
-        "maintenance_supplier_detail": "suppliers",
-        "maintenance_template_list": "settings",
-        "maintenance_template_create": "settings",
-        "maintenance_template_edit": "settings",
-        "maintenance_rule_list": "settings",
-        "maintenance_rule_create": "settings",
-        "maintenance_rule_edit": "settings",
-        "asset_maintenance_rule_list": "settings",
-        "asset_maintenance_rule_override_create": "settings",
-        "asset_maintenance_rule_override_edit": "settings",
-        "asset_maintenance_rule_override_reset": "settings",
-        "periodic_verifications": "settings",
-        "assistance_contract_list": "settings",
-    }
-    active_item = route_to_item.get(current_route)
+    Mostra le voci del ramo a cui appartiene la pagina (Manutenzione o
+    Configurazione): stessa definizione, stesso ordine e stesse etichette della
+    sidebar.
+    """
+    from .maintenance_nav import GROUP_OPERATIVO, find_active
+
+    current_route = _clean_string(getattr(getattr(request, "resolver_match", None), "url_name", ""))
+    found = find_active(current_route)
+    if found is None:
+        return None
+    group, active_item = found
+
+    # Gli interventi chiusi sono lo Storico, anche se la rotta e' la lista OdL.
     if current_route == "wo_list" and (
         _clean_string(request.GET.get("view")).lower() == "closed"
         or _clean_string(request.GET.get("status")).upper() in {WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED}
     ):
-        active_item = "history"
-    if active_item == "report_templates":
-        active_item = "reports"
-    if active_item is None:
-        return None
+        active_item = next((item for item in group.items if item.key == "storico"), active_item)
 
-    report_scope = _normalize_reports_scope(request.GET.get("scope"))
+    items = []
+    for item in group.items:
+        url = reverse(f"assets:{item.route}")
+        if item.key == "report":
+            url = f"{url}?scope={_normalize_reports_scope(request.GET.get('scope'))}"
+        elif item.query:
+            url = f"{url}?{item.query}"
+        items.append({"key": item.key, "label": item.label, "url": url, "active": item.key == active_item.key})
+
     workorders_url = reverse("assets:wo_list")
-    settings_url = reverse("assets:maintenance_impostazioni")
-    items = [
-        {
-            "key": "da_fare",
-            "label": "Da fare",
-            "url": reverse("assets:maintenance_da_fare"),
-        },
-        {
-            "key": "scadenze",
-            "label": "Scadenze",
-            "url": reverse("assets:maintenance_scadenze"),
-        },
-        {
-            "key": "quadro",
-            "label": "Cruscotto",
-            "url": reverse("assets:maintenance_responsabile"),
-        },
-        {
-            "key": "plans",
-            "label": "Piani",
-            "url": reverse("assets:maintenance_plan_list"),
-        },
-        {
-            "key": "groups",
-            "label": "Gruppi asset",
-            "url": reverse("assets:asset_group_list"),
-        },
-        {
-            "key": "workorders",
-            "label": "Interventi",
-            "url": workorders_url,
-        },
-        {
-            "key": "history",
-            "label": "Storico",
-            "url": reverse("assets:maintenance_history"),
-        },
-        {
-            "key": "settings",
-            "label": "Impostazioni",
-            "url": settings_url,
-        },
-        {
-            "key": "reports",
-            "label": "Report",
-            "url": f"{reverse('assets:reports')}?scope={report_scope}",
-        },
-        {
-            "key": "suppliers",
-            "label": "Fornitori",
-            "url": reverse("assets:maintenance_suppliers"),
-        },
+    breadcrumbs = [
+        {"label": "Assets", "url": reverse("assets:asset_dashboard")},
+        {"label": "Manutenzione", "url": reverse("assets:maintenance_responsabile")},
     ]
-    for item in items:
-        item["active"] = item["key"] == active_item
-
-    active_label = next((item["label"] for item in items if item["active"]), "Manutenzione")
+    if group.key != GROUP_OPERATIVO:
+        breadcrumbs.append({"label": group.label, "url": reverse(f"assets:{group.items[0].route}")})
+    breadcrumbs.append({"label": active_item.label, "url": ""})
     return {
-        "label": "Manutenzione",
-        "active_label": active_label,
+        "label": group.label,
+        "active_label": active_item.label,
         "items": items,
-        "breadcrumbs": [
-            {"label": "Assets", "url": reverse("assets:asset_dashboard")},
-            {"label": "Manutenzione", "url": reverse("assets:maintenance_hub")},
-            {"label": active_label, "url": ""},
-        ],
+        "breadcrumbs": breadcrumbs,
         "actions": [
             {
                 "key": "new-workorder",
@@ -6550,7 +6475,6 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
             },
         ],
     }
-
 
 def _safe_editor_json_rows(raw_value) -> list[dict[str, object]]:
     if not raw_value:

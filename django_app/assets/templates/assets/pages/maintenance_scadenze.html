@@ -1,10 +1,10 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Scadenze — Manutenzione{% endblock %}
+{% block title %}Scadenzario — Manutenzione{% endblock %}
 
 {% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}{% endblock %}
 
-{% block assets_shell_title %}Scadenze{% endblock %}
+{% block assets_shell_title %}Scadenzario{% endblock %}
 {% block assets_shell_subtitle %}
   <p>Vista temporale completa: ordinarie e amministrative insieme, perche' per chi le deve rispettare sono la stessa cosa. {{ total }} risultat{{ total|pluralize:"o,i" }}.</p>
 {% endblock %}
@@ -29,17 +29,26 @@
   {% endif %}
 
 
-  <div class="md-tabs">
-    {% for value, label in tabs %}
-      <a class="md-tab {% if active_tab == value %}active{% endif %}" href="?window={{ value }}">{{ label }}</a>
+  {% comment %}
+    Due righe di schede: quando (finestra) e cosa (tipologia). Ogni scheda cambia
+    un solo parametro e conserva gli altri filtri. Sotto, quattro filtri a vista e
+    il resto in "Filtri avanzati", come in "Da fare".
+  {% endcomment %}
+  <div class="md-tabs" aria-label="Finestra temporale">
+    {% for tab in window_tabs %}
+      <a class="md-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}"{% if tab.active %} aria-current="true"{% endif %}>{{ tab.label }}</a>
     {% endfor %}
-    <a class="md-tab {% if request.GET.plan_type == 'administrative' %}active{% endif %}" href="?window=&plan_type=administrative">Amministrative</a>
-    <a class="md-tab {% if request.GET.plan_type == 'ordinary' %}active{% endif %}" href="?window=&plan_type=ordinary">Ordinarie</a>
+  </div>
+  <div class="md-tabs" aria-label="Tipologia">
+    {% for tab in type_tabs %}
+      <a class="md-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}"{% if tab.active %} aria-current="true"{% endif %}>{{ tab.label }}</a>
+    {% endfor %}
   </div>
 
   <form class="md-filters" method="get">
-    {% for field in filter_form %}
-      <div class="md-field {% if field.name == 'report_missing' %}md-field-check{% endif %}">
+    {% for field in filter_form.hidden_tab_fields %}{{ field.as_hidden }}{% endfor %}
+    {% for field in filter_form.simple_fields %}
+      <div class="md-field">
         <label for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
       </div>
@@ -48,8 +57,19 @@
       <button type="submit" class="btn btn-primary">Filtra</button>
       <a class="btn" href="{% url 'assets:maintenance_scadenze' %}">Azzera</a>
     </div>
-  </form>
 
+    <details class="md-advanced" {% if filter_form.advanced_active %}open{% endif %}>
+      <summary>Filtri avanzati{% if filter_form.advanced_active %} <span class="md-badge badge-info">attivi</span>{% endif %}</summary>
+      <div class="md-advanced-grid">
+        {% for field in filter_form.advanced_fields %}
+          <div class="md-field {% if field.name == 'report_missing' or field.name == 'include_done' %}md-field-check{% endif %}">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+  </form>
   <section class="md-section">
     <div class="md-section-head">
       <h2>Scadenze</h2>
