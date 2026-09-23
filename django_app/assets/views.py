@@ -1077,15 +1077,9 @@ def _maintenance_settings_page_url(request: HttpRequest | None = None, *, tab: s
     return f"{reverse('assets:maintenance_impostazioni')}?{'&'.join(params)}"
 
 
-def _maintenance_template_list_page_url(*, category_id: int = 0, active: str = "") -> str:
-    params: list[str] = []
-    if category_id:
-        params.append(f"category={int(category_id)}")
-    active_value = _clean_string(active).lower()
-    if active_value:
-        params.append(f"active={quote(active_value)}")
-    base_url = reverse("assets:maintenance_template_list")
-    return f"{base_url}?{'&'.join(params)}" if params else base_url
+def _maintenance_template_list_page_url(*, category_id: int = 0, **_ignored) -> str:
+    """Dopo aver salvato checklist e istruzioni si torna alla lista unica dei Piani."""
+    return reverse("assets:maintenance_plan_list")
 
 
 def _maintenance_rule_list_page_url(
@@ -10570,28 +10564,32 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
         days_since_last = (today - closed_date).days
 
     # Manutenzioni programmate in scadenza per questa macchina (dalle regole) — solo azionabili.
-    from .maintenance import build_maintenance_schedule_rows
+    # Manutenzioni e adempimenti dell'asset dalle occorrenze (stessa fonte di
+    # Scadenzario e Calendario): prima la pagina QR leggeva il motore a regole.
+    # Solo ordinarie e amministrative: licenze e contratti non riguardano chi
+    # inquadra la macchina.
+    from .services import deadline_feed as feed
 
     _status_order = {"overdue": 0, "warning": 1, "upcoming": 2, "missing": 3}
+    _feed_status = {feed.STATE_OVERDUE: "overdue", feed.STATE_DUE_SOON: "warning"}
     qr_schedule_rows: list[dict[str, object]] = []
-    for row in build_maintenance_schedule_rows(
-        asset_queryset=Asset.objects.filter(pk=asset.id).select_related("asset_category")
+    for row in feed.collect(
+        start=None,
+        end=today + timedelta(days=365),
+        filters=feed.FeedFilters(
+            kinds=frozenset({feed.KIND_ORDINARY, feed.KIND_ADMINISTRATIVE}), asset_id=asset.id
+        ),
+        today=today,
     ):
-        status = str(row.get("schedule_status") or "")
-        if status not in _status_order:
-            continue
-        base_rule = row["base_rule"]
         qr_schedule_rows.append(
             {
-                "label": getattr(row.get("effective_intervention_template"), "label", "") or "Manutenzione",
-                "due_date": row.get("due_date"),
-                "status": status,
-                "schedule_label": row.get("schedule_label"),
-                "is_external": base_rule.is_external,
-                "supplier": str(base_rule.supplier) if (base_rule.is_external and base_rule.supplier_id) else "",
-                "record_url": _workorder_create_page_url(
-                    asset_id=asset.id, rule_id=base_rule.id, source="qr_landing"
-                ),
+                "label": row.title or "Manutenzione",
+                "due_date": row.due_date,
+                "status": _feed_status.get(row.state, "upcoming"),
+                "schedule_label": row.state_label,
+                "is_external": row.is_external,
+                "supplier": row.supplier if row.is_external else "",
+                "record_url": row.detail_url,
             }
         )
     qr_schedule_rows.sort(key=lambda r: (_status_order.get(r["status"], 9), r["due_date"] or today))
@@ -16530,193 +16528,13 @@ def _maintenance_plan_by_category_rows() -> list[dict[str, object]]:
 
 @login_required
 def maintenance_impostazioni(request: HttpRequest) -> HttpResponse:
-    """Catalogo attivita, piani ordinari e copertura: centro di governo manutenzione."""
-    # I fornitori hanno ora una pagina dedicata (nav di sezione): vecchi link ?tab=fornitori lì.
+    """Il vecchio "Catalogo attivita'" era la stessa lista dei Piani (stesso
+    modello, ``MaintenanceInterventionTemplate``) vista da un'altra pagina. Ora la
+    lista e' una sola, Piani; checklist e istruzioni si modificano dalla scheda
+    del piano. L'URL resta per i segnalibri."""
     if _clean_string(request.GET.get("tab")) == "fornitori":
         return redirect("assets:maintenance_suppliers")
-
-    # La generazione in blocco degli OdL dal vecchio motore e' stata ritirata: le
-    # scadenze nascono dalle occorrenze (generate_maintenance_occurrences) e il
-    # raggruppamento in ordini di lavoro si fa dalla pagina "Da fare", scegliendo
-    # cosa mettere insieme invece di aprirne uno per asset.
-
-    active_tab = _clean_string(request.GET.get("tab")) or "catalogo"
-    active_tab = {
-        "interventi": "catalogo",
-        "templates": "catalogo",
-        "rules": "piani",
-        "piano": "copertura",
-    }.get(active_tab, active_tab)
-    # Le schede "piani" e "copertura" avevano superfici proprie nel nuovo dominio:
-    # qui resta il solo catalogo delle attivita', il resto e' un rimando.
-    active_tab = "catalogo"
-    is_admin = _is_assets_admin(request)
-
-    from .models import MaintenanceInterventionTemplate
-
-    # ── Filtri integrati (sostituiscono le pagine standalone "Vista avanzata") ──
-    selected_category_id = _as_int(request.GET.get("category"), default=0)
-    selected_category = (
-        AssetCategory.objects.filter(pk=selected_category_id).first() if selected_category_id else None
-    )
-    active_filter = _clean_string(request.GET.get("active")).lower() or "active"
-    if active_filter not in {"active", "inactive", "all"}:
-        active_filter = "active"
-    execution_filter = _clean_string(request.GET.get("execution")) or "all"
-    if execution_filter not in {"all", "internal", "external"}:
-        execution_filter = "all"
-    q = _clean_string(request.GET.get("q"))
-
-    template_qs = (
-        MaintenanceInterventionTemplate.objects.select_related("asset_category")
-        .prefetch_related("maintenance_rules__asset_category", "maintenance_rules__supplier")
-        .order_by("asset_category__label", "sort_order", "label")
-    )
-    if selected_category is not None:
-        template_qs = template_qs.filter(
-            Q(asset_category__isnull=True) | Q(asset_category_id=selected_category.id)
-        )
-    if active_filter == "active":
-        template_qs = template_qs.filter(is_active=True)
-    elif active_filter == "inactive":
-        template_qs = template_qs.filter(is_active=False)
-    # Filtro esecuzione: template che hanno almeno una regola interna/esterna.
-    if execution_filter == "external":
-        template_qs = template_qs.filter(
-            maintenance_rules__execution_mode=MaintenanceRule.MODE_EXTERNAL
-        ).distinct()
-    elif execution_filter == "internal":
-        template_qs = template_qs.filter(
-            maintenance_rules__execution_mode=MaintenanceRule.MODE_INTERNAL
-        ).distinct()
-    if q:
-        template_qs = template_qs.filter(
-            Q(code__icontains=q)
-            | Q(label__icontains=q)
-            | Q(description__icontains=q)
-            | Q(asset_category__label__icontains=q)
-        )
-
-    template_rows = []
-    for t in template_qs:
-        rules = [r for r in t.maintenance_rules.all() if r.is_active]
-        template_rows.append({"t": t, "rules": rules, "rules_count": len(rules)})
-
-    has_active_filters = bool(
-        selected_category is not None or q or active_filter != "active" or execution_filter != "all"
-    )
-
-    maintenance_plan_qs = (
-        MaintenanceRule.objects.select_related(
-            "intervention_template", "asset_category", "supplier", "assigned_to"
-        )
-        .prefetch_related("assets", "legacy_periodic_verifications")
-        .annotate(
-            history_count=Count("workorders", distinct=True),
-            completed_count=Count(
-                "workorders",
-                filter=Q(workorders__status=WorkOrder.STATUS_DONE),
-                distinct=True,
-            ),
-        )
-        .order_by("asset_category__label", "sort_order", "intervention_template__label", "id")
-    )
-    if selected_category is not None:
-        maintenance_plan_qs = maintenance_plan_qs.filter(asset_category=selected_category)
-    if active_filter == "active":
-        maintenance_plan_qs = maintenance_plan_qs.filter(is_active=True)
-    elif active_filter == "inactive":
-        maintenance_plan_qs = maintenance_plan_qs.filter(is_active=False)
-    if execution_filter == "external":
-        maintenance_plan_qs = maintenance_plan_qs.filter(execution_mode=MaintenanceRule.MODE_EXTERNAL)
-    elif execution_filter == "internal":
-        maintenance_plan_qs = maintenance_plan_qs.filter(execution_mode=MaintenanceRule.MODE_INTERNAL)
-    if q:
-        maintenance_plan_qs = maintenance_plan_qs.filter(
-            Q(intervention_template__label__icontains=q)
-            | Q(intervention_template__code__icontains=q)
-            | Q(asset_category__label__icontains=q)
-            | Q(assets__asset_tag__icontains=q)
-            | Q(assets__name__icontains=q)
-            | Q(supplier__ragione_sociale__icontains=q)
-            | Q(assigned_to__username__icontains=q)
-            | Q(assigned_to__first_name__icontains=q)
-            | Q(assigned_to__last_name__icontains=q)
-        ).distinct()
-
-    category_asset_counts = dict(
-        Asset.objects.filter(status=Asset.STATUS_IN_USE, asset_category_id__isnull=False)
-        .values_list("asset_category_id")
-        .annotate(total=Count("id"))
-    )
-    maintenance_plan_rows = []
-    for rule in maintenance_plan_qs:
-        targeted_assets = list(rule.assets.all())
-        maintenance_plan_rows.append(
-            {
-                "rule": rule,
-                "asset_count": (
-                    len(targeted_assets)
-                    if rule.scope_type == MaintenanceRule.SCOPE_ASSETS
-                    else category_asset_counts.get(rule.asset_category_id, 0)
-                ),
-                "targeted_assets": targeted_assets,
-                "legacy_count": len(rule.legacy_periodic_verifications.all()),
-            }
-        )
-
-    plan_rows = _maintenance_plan_by_category_rows() if active_tab == "copertura" else []
-    plan_totals = {
-        "overdue": sum(int(r["overdue"]) for r in plan_rows),
-        "warning": sum(int(r["warning"]) for r in plan_rows),
-        "missing": sum(int(r["missing"]) for r in plan_rows),
-    }
-    # Conteggio leggero (sempre disponibile) per il badge del tab Piano
-    plan_category_count = (
-        MaintenanceRule.objects.filter(is_active=True, asset_category__isnull=False)
-        .values("asset_category_id")
-        .distinct()
-        .count()
-    )
-
-    return render(
-        request,
-        "assets/pages/maintenance_impostazioni.html",
-        {
-            **_assets_shell_context(request),
-            "page_title": "Catalogo e piani manutenzione",
-            "active_tab": active_tab,
-            "is_admin": is_admin,
-            "template_rows": template_rows,
-            "template_count": len(template_rows),
-            "maintenance_plan_rows": maintenance_plan_rows,
-            "maintenance_plan_count": len(maintenance_plan_rows),
-            "ingested_periodic_count": PeriodicVerification.objects.filter(
-                maintenance_rules__isnull=False
-            ).distinct().count(),
-            "pending_periodic_count": PeriodicVerification.objects.filter(
-                maintenance_rules__isnull=True
-            ).count(),
-            "plan_rows": plan_rows,
-            "plan_category_count": plan_category_count,
-            "plan_totals": plan_totals,
-            # Filtri integrati
-            "category_options": list(AssetCategory.objects.order_by("sort_order", "label", "id")),
-            "selected_category": selected_category,
-            "active_filter": active_filter,
-            "execution_filter": execution_filter,
-            "q": q,
-            "has_active_filters": has_active_filters,
-            "clear_filters_url": reverse("assets:maintenance_impostazioni") + f"?tab={active_tab}",
-            "url_suppliers": reverse("assets:maintenance_suppliers"),
-            "url_hub": reverse("assets:maintenance_hub"),
-            "url_scadenzario": reverse("assets:maintenance_scadenzario"),
-            "url_schedule": reverse("assets:maintenance_schedule"),
-            "url_template_new": reverse("assets:maintenance_template_create"),
-            "url_rule_new": reverse("assets:maintenance_rule_create"),
-            "url_coverage_matrix": reverse("assets:maintenance_coverage_matrix"),
-        },
-    )
+    return redirect("assets:maintenance_plan_list")
 
 
 @login_required
@@ -18259,36 +18077,38 @@ def _asset_calendar_events(asset_id: int) -> list[dict]:
     except Exception:
         pass
 
-    # -- Manutenzioni programmate predette (regole a giorni con prossima scadenza) --
+    # -- Manutenzioni e adempimenti pianificati (occorrenze: stessa fonte del
+    #    Calendario manutenzione; prima si leggeva il motore a regole) --
     try:
-        from .maintenance import build_maintenance_schedule_rows
-        _pm_colors = {"overdue": "#dc2626", "warning": "#f59e0b", "upcoming": "#10b981", "missing": "#94a3b8"}
-        for row in build_maintenance_schedule_rows(
-            asset_queryset=Asset.objects.filter(pk=asset_id).select_related("asset_category")
+        from .services import deadline_feed as feed
+
+        _pm_colors = {
+            feed.STATE_OVERDUE: "#dc2626", feed.STATE_DUE_SOON: "#f59e0b",
+            feed.STATE_PLANNED: "#2563eb", feed.STATE_OPEN: "#10b981",
+        }
+        for row in feed.collect(
+            start=None,
+            end=today + timedelta(days=400),
+            filters=feed.FeedFilters(
+                kinds=frozenset({feed.KIND_ORDINARY, feed.KIND_ADMINISTRATIVE}), asset_id=asset_id
+            ),
+            today=today,
         ):
-            due = row.get("due_date")
-            if not due:
-                continue
-            template = row.get("effective_intervention_template")
-            label = getattr(template, "label", "") or "Manutenzione programmata"
-            status = str(row.get("schedule_status") or "")
-            base_rule = row["base_rule"]
-            is_external = base_rule.is_external
             # Riempimento = urgenza (stato); bordo viola + marcatore 🏢 = manutenzione esterna (ditta terza).
             pm_event = {
-                "id": f"pm-{base_rule.id}",
-                "title": f"{'🏢 ' if is_external else ''}Manut.: {label}",
-                "start": str(due),
-                "end": str(due),
+                "id": row.key,
+                "title": f"{'🏢 ' if row.is_external else ''}Manut.: {row.title}",
+                "start": str(row.due_date),
+                "end": str(row.due_date),
                 "kind": "manutenzione_prog",
-                "status": status,
-                "assignee": str(base_rule.supplier) if (is_external and base_rule.supplier_id) else "",
+                "status": row.state,
+                "assignee": row.supplier if row.is_external else row.assignee,
                 "project": "",
-                "url": "",
-                "color": _pm_colors.get(status, "#10b981"),
+                "url": row.detail_url,
+                "color": _pm_colors.get(row.state, "#10b981"),
                 "textColor": "#fff",
             }
-            if is_external:
+            if row.is_external:
                 pm_event["borderColor"] = "#6d28d9"
                 pm_event["external"] = True
             events.append(pm_event)

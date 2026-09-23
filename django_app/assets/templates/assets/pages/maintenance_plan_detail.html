@@ -15,9 +15,9 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Tutti i piani</a>
   {% if can_manage %}
     <a class="btn" href="{% url 'assets:maintenance_plan_edit' plan.pk %}">Modifica piano</a>
+    <a class="btn" href="{% url 'assets:maintenance_template_edit' plan.pk %}">Checklist e istruzioni</a>
     <a class="btn btn-primary" href="{% url 'assets:maintenance_assignment_create' plan.pk %}">+ Applica a...</a>
   {% endif %}
 {% endblock %}
