@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Assets — Panoramica, KPI e fine della doppia fonte delle scadenze amministrative
+
+- Panoramica manutenzione: schede per tipologia, 4 settimane, prossime scadenze, per categoria; filtri famiglia/reparto.
+- Nuova pagina KPI (`/assets/manutenzione/quadro/kpi/`) al posto di «Report» nel menu (migration `assets 0107`); il vecchio hub `/assets/manutenzione/` rimanda alla Panoramica.
+- Scadenze amministrative contate una volta sola ovunque (dashboard, HUB, AI, promemoria); nuovo comando `close_migrated_admin_deadlines` (dry-run di default, `--apply`) per disattivare i doppioni con nota e audit.
+- Promemoria email: licenze e contratti in scadenza; vecchie scadenze non migrate di nuovo incluse.
+
 ### Assets — Calendario manutenzione e Scadenzario con licenze e contratti
 
 - Nuovo `assets/services/deadline_feed.py` (sola lettura): occorrenze, licenze e contratti nella stessa forma.
