@@ -149,6 +149,12 @@
 .wo-advanced-grid select { width:100%; }
 .wo-advanced-actions { display:flex; align-items:end; gap:8px; }
 .wo-filter-card,
+.wo-group-tabs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--border,#e5e7eb); }
+.wo-group-tabs > span { font-size:var(--fs-xs); font-weight:800; color:var(--text-mid,#64748b); text-transform:uppercase; letter-spacing:.04em; margin-right:4px; }
+.wo-group-tab { padding:4px 12px; border-radius:999px; border:1px solid var(--border,#dbe1ea); text-decoration:none; font-size:var(--fs-sm); font-weight:700; color:var(--text-mid,#475569); background:var(--surface,#fff); }
+.wo-group-tab.is-active { background:var(--primary,#002b5c); border-color:var(--primary,#002b5c); color:#fff; }
+.wo-table tr.wo-group-row td { background:var(--surface-alt,#f1f5f9); font-weight:800; font-size:var(--fs-sm); color:var(--text,#0f172a); padding:8px 16px; box-shadow:none !important; }
+body.theme-dark .wo-group-tab { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
 .wo-table-card {
   border: 1px solid #dbe1ea;
   border-radius: 12px;
@@ -663,6 +669,10 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
     {% if workorder_display == 'board' and workorder_view != 'closed' %}
       {% include "assets/pages/_workorder_board.html" %}
     {% else %}
+    <div class="wo-group-tabs" aria-label="Raggruppa per">
+      <span>Raggruppa per</span>
+      {% for tab in workorder_group_links %}<a class="wo-group-tab{% if tab.active %} is-active{% endif %}" href="{{ tab.url }}">{{ tab.label }}</a>{% endfor %}
+    </div>
     <div class="wo-table-wrap">
       <table class="wo-table">
         <thead>
@@ -677,6 +687,7 @@ body.theme-dark .wob-overdue { color: #fca5a5; }
         <tbody>
           {% now "Y-m-d" as oggi %}
           {% for wo in workorders %}
+            {% if workorder_group_by %}{% ifchanged wo.group_label %}<tr class="wo-group-row"><td colspan="5">{{ wo.group_label }}</td></tr>{% endifchanged %}{% endif %}
             <tr class="{% if wo.status == 'OPEN' %}wo-row--open {% endif %}{% if wo.status == 'DONE' %}tone-green{% elif wo.status != 'OPEN' %}tone-grey{% elif wo.is_waiting %}tone-grey{% elif wo.is_overdue or wo.priority == 'URGENT' %}tone-red{% elif wo.due_at and wo.due_at|date:'Y-m-d' == oggi %}tone-amber{% else %}tone-blue{% endif %}">
               <td>
                 <a class="wo-title-link" href="{% url 'assets:wo_view' wo.id %}">#{{ wo.display_number }} - {{ wo.title }}</a>

@@ -14707,6 +14707,44 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         asset_filter=asset_filter,
     )
 
+    # "Raggruppa per": l'ordine resta quello della coda, i gruppi si leggono come
+    # intestazioni dentro la stessa tabella (le azioni di riga non cambiano).
+    group_by = _clean_string(request.GET.get("by"))
+    workorder_group_modes = [
+        ("", "Nessuno"), ("asset", "Asset"), ("assegnatario", "Assegnatario"), ("stato", "Stato"),
+        ("gruppo", "Gruppo OdL"), ("giorno", "Giorno"),
+    ]
+    if group_by not in {key for key, _ in workorder_group_modes}:
+        group_by = ""
+    if group_by and display != "board":
+        grouped = list(workorders.select_related("asset", "assigned_to")[:500])
+        for wo in grouped:
+            if group_by == "asset":
+                wo.group_label = f"{wo.asset.asset_tag} — {wo.asset.name}" if wo.asset_id else "Senza asset"
+            elif group_by == "assegnatario":
+                wo.group_label = (
+                    wo.assigned_to.get_full_name() or wo.assigned_to.get_username()
+                ) if wo.assigned_to_id else "Di nessuno"
+            elif group_by == "stato":
+                wo.group_label = wo.operational_state_label if wo.status == WorkOrder.STATUS_OPEN else wo.get_status_display()
+            elif group_by == "gruppo":
+                batch = wo.reference_batch or ""
+                wo.group_label = (
+                    f"Gruppo {batch[len(WorkOrder.BATCH_REFERENCE_PREFIX):]}"
+                    if batch.startswith(WorkOrder.BATCH_REFERENCE_PREFIX) else "OdL singoli"
+                )
+            else:
+                day = timezone.localtime(wo.due_at).date() if wo.due_at else None
+                wo.group_label = f"Entro {day:%d/%m/%Y}" if day else "Senza scadenza"
+                wo.group_sort = day.isoformat() if day else "9999"
+        grouped.sort(key=lambda wo: getattr(wo, "group_sort", wo.group_label))
+        workorders = grouped
+    group_query = request.GET.copy()
+    workorder_group_links = []
+    for key, label in workorder_group_modes:
+        group_query["by"] = key
+        workorder_group_links.append({"label": label, "url": f"?{group_query.urlencode()}", "active": key == group_by})
+
     board_columns = []
     if display == "board":
         # Kanban degli stati operativi (unassigned/assigned/in_progress/waiting), diversa dalla
@@ -14728,6 +14766,8 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         {
             "page_title": "Interventi",
             "workorders": workorders,
+            "workorder_group_by": group_by,
+            "workorder_group_links": workorder_group_links,
             "workorder_display": display,
             "board_columns": board_columns,
             "workorder_display_toggle_url": _workorder_list_page_url(

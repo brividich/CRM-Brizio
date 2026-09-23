@@ -96,9 +96,7 @@
 
   <div class="md-tabs">
     <span style="align-self:center;font-size:var(--fs-xs);font-weight:800;color:var(--text-mid);margin-right:4px">RAGGRUPPA PER</span>
-    <a class="md-tab {% if view_mode == 'plan' %}active{% endif %}" href="?by=plan">Piano</a>
-    <a class="md-tab {% if view_mode == 'group' %}active{% endif %}" href="?by=group">Famiglia</a>
-    <a class="md-tab {% if view_mode == 'asset' %}active{% endif %}" href="?by=asset">Asset</a>
+    {% for tab in group_links %}<a class="md-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}">{{ tab.label }}</a>{% endfor %}
   </div>
 
   {% comment %}
@@ -189,7 +187,7 @@
   raggruppamento serve a costruire un'uscita unica ed e' un secondo momento.{% endcomment %}
   <details class="md-section" data-md-block="grouped">
     <summary class="md-section-head">
-      <h2>Raggruppate per {% if view_mode == 'plan' %}piano{% elif view_mode == 'group' %}famiglia{% else %}asset{% endif %}</h2>
+      <h2>Raggruppate per {{ group_label }}</h2>
       {% if can_plan %}<span class="md-sub" style="display:inline">Seleziona le manutenzioni da raccogliere in un ordine di lavoro.</span>{% endif %}
     </summary>
     <div class="md-groups" style="padding:12px">

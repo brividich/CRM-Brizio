@@ -313,7 +313,22 @@ def _group_rows(rows: list[dict[str, Any]], mode: str) -> list[dict[str, Any]]:
     buckets: dict[Any, dict[str, Any]] = {}
     for row in rows:
         occurrence = row["occurrence"]
-        if mode == "asset":
+        if mode == "family":
+            category = occurrence.asset.asset_category if occurrence.asset.asset_category_id else None
+            key = getattr(category, "id", 0)
+            label = getattr(category, "label", "") or "Senza famiglia"
+            sub = ""
+        elif mode == "day":
+            key = occurrence.due_date
+            label = occurrence.due_date.strftime("%d/%m/%Y")
+            sub = ("Lunedi", "Martedi", "Mercoledi", "Giovedi", "Venerdi", "Sabato", "Domenica")[occurrence.due_date.weekday()]
+        elif mode == "assignee":
+            wo = occurrence.work_order if occurrence.work_order_id else None
+            user = getattr(wo, "assigned_to", None)
+            key = getattr(user, "id", 0)
+            label = (user.get_full_name() or user.get_username()) if user else "Non assegnate"
+            sub = ""
+        elif mode == "asset":
             key = occurrence.asset_id
             label = occurrence.asset.asset_tag or occurrence.asset.name
             sub = occurrence.asset.name
@@ -331,8 +346,31 @@ def _group_rows(rows: list[dict[str, Any]], mode: str) -> list[dict[str, Any]]:
         if row["state"] == MaintenanceOccurrence.VIEW_OVERDUE:
             bucket["overdue"] += 1
     groups = list(buckets.values())
-    groups.sort(key=lambda item: (-item["overdue"], -len(item["rows"]), item["label"]))
+    if mode == "day":
+        # Per giorno conta la sequenza del calendario, non chi ha piu' scadute.
+        groups.sort(key=lambda item: item["rows"][0]["occurrence"].due_date)
+    else:
+        groups.sort(key=lambda item: (-item["overdue"], -len(item["rows"]), item["label"]))
     return groups
+
+
+# Raggruppamenti offerti in tutte le tabelle delle manutenzioni.
+_GROUP_MODES = [
+    ("plan", "Piano"),
+    ("family", "Famiglia"),
+    ("group", "Gruppo asset"),
+    ("asset", "Asset"),
+    ("day", "Giorno"),
+    ("assignee", "Assegnatario"),
+]
+
+
+def _group_mode_links(request: HttpRequest, active: str, *, with_none: bool) -> list[dict[str, Any]]:
+    options = ([("", "Nessuno")] if with_none else []) + [
+        (key, label) for key, label in _GROUP_MODES
+        if key != "group" or AssetGroup.objects.filter(is_active=True).exists()
+    ]
+    return _tab_links(request, "by", options, active)
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +461,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
 
     # Il parametro si chiama "by" e non "group": "group" e' gia' il filtro per gruppo.
     view_mode = _clean_string(request.GET.get("by")) or "plan"
-    if view_mode not in {"plan", "group", "asset"}:
+    if view_mode not in {key for key, _label in _GROUP_MODES}:
         view_mode = "plan"
 
     # I quattro numeri rispondono alla domanda della pagina — "cosa devo fare
@@ -495,6 +533,8 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "blocks": blocks,
             "groups": _group_rows(rows, view_mode),
             "view_mode": view_mode,
+            "group_links": _group_mode_links(request, view_mode, with_none=False),
+            "group_label": dict(_GROUP_MODES).get(view_mode, "").lower(),
             "summary": summary,
             "total": len(rows),
             "can_plan": can_plan,
@@ -686,6 +726,9 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     )
 
     active_tab = _clean_string(initial.get("window"))
+    group_mode = _clean_string(request.GET.get("by"))
+    if group_mode not in {key for key, _label in _GROUP_MODES}:
+        group_mode = ""
     export_format = _clean_string(request.GET.get("format")).lower()
     if export_format in {"xlsx", "pdf"}:
         return _scadenzario_export(request, rows=rows, renewals=renewals, fmt=export_format, today=today)
@@ -703,6 +746,9 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
             "total": len(rows) + len(renewals),
             "renewals": renewals,
             "export_query": export_query.urlencode(),
+            "group_mode": group_mode,
+            "groups": _group_rows(rows, group_mode) if group_mode else [],
+            "group_links": _group_mode_links(request, group_mode, with_none=True),
             "show_occurrences": plan_type != "renewals",
             "show_renewals": plan_type in ("", "renewals", "administrative"),
             "window_tabs": _tab_links(request, "window", _SCADENZE_TABS, active_tab),
