@@ -89,7 +89,7 @@ def _giorni(oggi: date, scad: date | None) -> int | None:
 # ---------------------------------------------------------------------------
 
 def collect_asset(ctx: ScadenzeContext) -> list[ScadenzaItem]:
-    """Scadenze amministrative degli asset (`AssetAdministrativeDeadline`).
+    """Scadenze asset: adempimenti amministrativi, licenze e contratti (`deadline_feed`).
 
     Gating: il modulo asset usa ACL di route + `@login_required`; la lista
     scadenze è visibile agli utenti con accesso al modulo asset. Qui replichiamo
@@ -102,34 +102,33 @@ def collect_asset(ctx: ScadenzeContext) -> list[ScadenzaItem]:
         if not user_can_modulo_action(request, "assets", "assets_deadlines"):
             return []
 
-    from assets.models import AssetAdministrativeDeadline
-    from django.urls import reverse
+    # Stessa fonte di Calendario e Scadenzario della manutenzione: adempimenti
+    # amministrativi (occorrenze dei piani + vecchie scadenze non ancora migrate,
+    # senza doppioni), licenze software e contratti di assistenza. Licenze e
+    # contratti restano soggetti all'ACL delle loro pagine.
+    from assets.services import deadline_feed as feed
 
-    items: list[ScadenzaItem] = []
-    qs = (
-        AssetAdministrativeDeadline.objects
-        .select_related("asset")
-        .filter(is_active=True, due_date__isnull=False, due_date__lte=ctx.soglia_60)
-        .order_by("due_date")
+    kinds = feed.allowed_kinds(request) & {feed.KIND_ADMINISTRATIVE, feed.KIND_LICENSE, feed.KIND_CONTRACT}
+    rows = feed.collect(
+        start=None,
+        end=ctx.soglia_60,
+        filters=feed.FeedFilters(kinds=frozenset(kinds)),
+        today=ctx.oggi,
     )
-    for d in qs:
-        asset = d.asset
-        try:
-            url = reverse("assets:asset_detail", args=[asset.id]) if asset else ""
-        except Exception:
-            url = ""
+    items: list[ScadenzaItem] = []
+    for row in rows:
         items.append(
             ScadenzaItem(
                 source=SOURCE_ASSET,
-                kind=d.deadline_type.lower(),
-                kind_label=d.get_deadline_type_display(),
-                titolo=d.title,
-                soggetto=(getattr(asset, "name", "") or getattr(asset, "asset_tag", "") or "").strip(),
-                reparto=str(getattr(asset, "reparto", "") or "").strip(),
-                data_scadenza=d.due_date,
-                giorni=_giorni(ctx.oggi, d.due_date),
-                url=url,
-                extra={"asset_tag": getattr(asset, "asset_tag", "")},
+                kind=row.kind,
+                kind_label=row.kind_label,
+                titolo=row.title,
+                soggetto=(row.asset_name or row.asset_tag or row.target_label or "").strip(),
+                reparto=(row.reparto or "").strip(),
+                data_scadenza=row.due_date,
+                giorni=_giorni(ctx.oggi, row.due_date),
+                url=row.detail_url,
+                extra={"asset_tag": row.asset_tag},
             )
         )
     return items

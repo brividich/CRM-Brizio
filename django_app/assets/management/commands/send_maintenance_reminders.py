@@ -165,6 +165,13 @@ def collect_occurrence_reminders(*, today, horizon, deadline_days: int, no_throt
     }
 
 
+def _renewal_line(row) -> str:
+    """Licenza o contratto in una riga: cosa, a chi/che cosa si riferisce, fornitore."""
+    target = row.asset_tag or row.target_label
+    parts = [row.title, target, row.supplier]
+    return " — ".join(part for part in parts if part)
+
+
 def _get_recipients(override: list[str] | None) -> list[str]:
     # Delega alla cascata unica (override → SiteConfig → ADMINS → superuser).
     from core.reminder_recipients import resolve_reminder_recipients
@@ -240,14 +247,17 @@ class Command(BaseCommand):
 
         # 1. Scadenze amministrative: scadute (sempre, finché non risolte) + in scadenza entro l'orizzonte.
         #    Nessun filtro di finestra futura: una scadenza superata deve gridare di più, non sparire.
-        admin_all = [] if use_occurrences else list(
-            AssetAdministrativeDeadline.objects.filter(
-                is_active=True,
-                due_date__lte=horizon,
-            )
-            .select_related("asset")
-            .order_by("due_date")
+        #    Con il nuovo dominio attivo restano solo le vecchie scadenze NON ancora
+        #    copiate in un'occorrenza: quelle migrate arrivano gia' come manutenzioni,
+        #    e ignorare le altre le lascerebbe senza alcun promemoria.
+        from assets.services import deadline_feed
+
+        admin_source = (
+            deadline_feed.legacy_deadlines_qs()
+            if use_occurrences
+            else AssetAdministrativeDeadline.objects.filter(is_active=True)
         )
+        admin_all = list(admin_source.filter(due_date__lte=horizon).select_related("asset").order_by("due_date"))
         admin_overdue = [d for d in admin_all if d.due_date < today]
         admin_deadlines = [
             d
@@ -323,8 +333,27 @@ class Command(BaseCommand):
         rule_due = rule_due[:50]
         rule_missing = rule_missing[:50]
 
+        # 5. Licenze software e contratti di assistenza: prima nessun promemoria.
+        #    Stesso servizio di Calendario e Scadenzario; scadute finche' attive.
+        renewal_rows = deadline_feed.collect(
+            start=None,
+            end=horizon,
+            filters=deadline_feed.FeedFilters(
+                kinds=frozenset({deadline_feed.KIND_LICENSE, deadline_feed.KIND_CONTRACT})
+            ),
+            today=today,
+        )
+        renewal_overdue = [row for row in renewal_rows if row.due_date < today]
+        renewal_due = [
+            row
+            for row in renewal_rows
+            if row.due_date >= today
+            and (no_throttle or should_remind_upcoming((row.due_date - today).days, deadline_days))
+        ]
+
         overdue_total = (
             len(admin_overdue) + len(periodic_overdue) + len(rule_overdue) + len(occ_overdue)
+            + len(renewal_overdue)
         )
 
         if not (
@@ -336,6 +365,7 @@ class Command(BaseCommand):
             or rule_missing
             or occ_due
             or occ_report_missing
+            or renewal_due
         ):
             self.stdout.write("Nessun promemoria da inviare.")
             return
@@ -368,6 +398,12 @@ class Command(BaseCommand):
                 late = (today - occurrence.due_date).days
                 lines.append(
                     f"  [SCADUTA da {late}gg] Manutenzione — {_occurrence_line(occurrence)}"
+                )
+            for row in renewal_overdue:
+                late = (today - row.due_date).days
+                lines.append(
+                    f"  [SCADUTA da {late}gg] {row.kind_label} — {_renewal_line(row)} "
+                    f"— era il {row.due_date:%d-%m-%Y}"
                 )
             lines.append("")
             lines.append("=" * 60)
@@ -404,6 +440,13 @@ class Command(BaseCommand):
                 lines.append(f"  [{days_left}gg] {d.asset.asset_tag} — {d.title} — scadenza {d.due_date:%d-%m-%Y}")
             lines.append("")
 
+        if renewal_due:
+            lines.append(f"LICENZE E CONTRATTI in scadenza nei prossimi {deadline_days} giorni ({len(renewal_due)}):")
+            for row in renewal_due:
+                days_left = (row.due_date - today).days
+                lines.append(f"  [{days_left}gg] {row.kind_label} — {_renewal_line(row)} — scadenza {row.due_date:%d-%m-%Y}")
+            lines.append("")
+
         if periodic:
             lines.append(f"VERIFICHE PERIODICHE nei prossimi {deadline_days} giorni ({len(periodic)}):")
             for v in periodic:
@@ -432,6 +475,8 @@ class Command(BaseCommand):
             subject_parts.append(f"{len(rule_missing)} non valutabili")
         if occ_report_missing:
             subject_parts.append(f"{len(occ_report_missing)} senza rapporto")
+        if renewal_due:
+            subject_parts.append(f"{len(renewal_due)} licenze/contratti")
         if use_occurrences:
             subject_parts.extend([f"{len(occ_due)} in scadenza", f"{len(overdue_wo)} OdL"])
         else:

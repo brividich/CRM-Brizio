@@ -3769,7 +3769,7 @@ class AssetsRoutingTests(TestCase):
         )
         self.client.force_login(admin)
 
-        hub_response = self.client.get(reverse("assets:maintenance_hub"))
+        hub_response = self.client.get(reverse("assets:maintenance_da_fare"))
         self.assertEqual(hub_response.status_code, 200)
         self.assertContains(hub_response, 'class="as-section-nav"', html=False)
         self.assertContains(hub_response, 'aria-label="Manutenzione"', html=False)
@@ -3790,6 +3790,7 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(hub_response, f'href="{reverse("assets:maintenance_scadenze")}">Scadenzario</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:wo_list")}">Interventi</a>', html=False)
         self.assertContains(hub_response, f'href="{reverse("assets:maintenance_history")}">Storico</a>', html=False)
+        self.assertContains(hub_response, f'href="{reverse("assets:maintenance_kpi")}">KPI</a>', html=False)
         self.assertNotContains(hub_response, f'class="as-section-tab" href="{reverse("assets:maintenance_plan_list")}"', html=False)
 
         plans_response = self.client.get(reverse("assets:maintenance_plan_list"))
@@ -3845,11 +3846,14 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(report_templates_response.status_code, 200)
         self.assertContains(
             report_templates_response,
-            f'class="as-section-tab active" href="{reverse("assets:reports")}?scope=production" aria-current="page">Report</a>',
+            f'class="as-section-tab active" href="{reverse("assets:maintenance_kpi")}" aria-current="page">KPI</a>',
             html=False,
         )
 
-    def test_maintenance_hub_has_one_clear_operational_hierarchy(self):
+    def test_maintenance_hub_rimanda_alla_panoramica(self):
+        """Il vecchio centro operativo contava sul motore a regole ritirato: l'URL
+        resta per i segnalibri e porta alla Panoramica (o allo Scadenzario per i
+        vecchi deep-link ``?tab=scadenzario``)."""
         admin = User.objects.create_superuser(
             username="asset-maintenance-ux-admin",
             email="asset-maintenance-ux@test.local",
@@ -3858,31 +3862,10 @@ class AssetsRoutingTests(TestCase):
         self.client.force_login(admin)
 
         response = self.client.get(reverse("assets:maintenance_hub"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(
-            response,
-            '<section class="ux-attention-grid" aria-label="Priorità manutenzione">',
-            html=False,
-        )
-        self.assertContains(response, "Lavoro operativo")
-        self.assertContains(response, "Oltre soglia")
-        self.assertContains(response, "Agenda 7 giorni")
-        self.assertContains(response, "Registro completo")
-        self.assertContains(response, "Centro manutenzione aziendale")
-        self.assertContains(response, "Piani di manutenzione")
-        self.assertContains(response, "Catalogo attività")
-        self.assertContains(response, "Storico")
-        expected_create_url = f'{reverse("assets:wo_list")}?create=1'
-        self.assertEqual(response.context["url_wo_create"], expected_create_url)
-        self.assertContains(
-            response,
-            f'href="{expected_create_url}">+ Nuovo intervento</a>',
-            html=False,
-        )
-        self.assertNotContains(response, '<section class="oc-cockpit"', html=False)
-        self.assertNotContains(response, '<div class="mh-actions-list">', html=False)
-        self.assertNotContains(response, "Mese corrente")
+        self.assertRedirects(response, reverse("assets:maintenance_responsabile"), fetch_redirect_response=False)
+        response = self.client.get(reverse("assets:maintenance_hub"), {"tab": "scadenzario"})
+        self.assertEqual(response.status_code, 302)
+        self.assertNotEqual(response["Location"], reverse("assets:maintenance_responsabile"))
 
     def test_superuser_can_create_custom_report_definition(self):
         admin = User.objects.create_superuser(
@@ -5819,55 +5802,6 @@ class WorkOrderFlowTests(TestCase):
         self.assertEqual(row_by_header["Costo materiali"], "70.00")
         self.assertEqual(row_by_header["Costo totale"], "120.00")
 
-    def test_maintenance_hub_shows_critical_rule_rows(self):
-        category = AssetCategory.objects.create(
-            code="hub-rule-critical",
-            label="Categoria Hub",
-            base_asset_type=Asset.TYPE_SERVER,
-        )
-        self.asset.asset_category = category
-        self.asset.reparto = "MAN"
-        self.asset.save(update_fields=["asset_category", "reparto"])
-        template = MaintenanceInterventionTemplate.objects.create(
-            code="hub-rule-critical-template",
-            label="Controllo hub critico",
-            asset_category=category,
-        )
-        MaintenanceRule.objects.create(
-            intervention_template=template,
-            asset_category=category,
-            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
-            threshold_value=90,
-            warning_days=15,
-        )
-        self.client.force_login(self.user)
-
-        response = self.client.get(reverse("assets:maintenance_hub"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["maintenance_rule_counts"]["missing"], 1)
-        self.assertContains(response, "Piani da gestire")
-        self.assertContains(response, self.asset.asset_tag)
-        self.assertContains(response, "Controllo hub critico")
-        self.assertContains(response, "Prima esecuzione")
-        self.assertContains(response, "Imposta prima esecuzione")
-        self.assertContains(
-            response,
-            f'href="{reverse("assets:wo_list")}?status={WorkOrder.STATUS_OPEN}"',
-            html=False,
-        )
-        # Il contatore "scadenze amministrative" ora punta al suo elenco dedicato
-        # (niente più tab-scadenzario interna al Centro).
-        self.assertContains(
-            response,
-            f'href="{reverse("assets:asset_administrative_deadline_list")}"',
-            html=False,
-        )
-        self.assertContains(
-            response,
-            f'href="{reverse("assets:maintenance_schedule")}?status=due"',
-            html=False,
-        )
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -8930,21 +8864,21 @@ class WorkOrderOverdueThresholdTests(TestCase):
         self.SiteConfig.objects.create(chiave="assets_wo_overdue_days", valore="7")
         self.client.force_login(self.admin)
 
-        response = self.client.get(reverse("assets:maintenance_hub"))
+        response = self.client.get(reverse("assets:maintenance_responsabile"), {"vista": "operativo"})
         out = io.StringIO()
         call_command("send_maintenance_reminders", dry_run=True, stdout=out)
 
-        self.assertEqual(list(response.context["wo_overdue"]), [self.workorder])
+        self.assertEqual(list(response.context["overdue_workorders"]), [self.workorder])
         self.assertIn("OdL APERTI DA PIÙ DI 7 GIORNI", out.getvalue())
 
     def test_workorder_is_not_overdue_below_the_threshold(self):
         self.client.force_login(self.admin)
 
-        response = self.client.get(reverse("assets:maintenance_hub"))
+        response = self.client.get(reverse("assets:maintenance_responsabile"), {"vista": "operativo"})
         out = io.StringIO()
         call_command("send_maintenance_reminders", dry_run=True, stdout=out)
 
-        self.assertEqual(list(response.context["wo_overdue"]), [])
+        self.assertEqual(list(response.context["overdue_workorders"]), [])
         self.assertNotIn("OdL APERTI", out.getvalue())
 
 

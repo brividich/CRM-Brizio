@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Cruscotto manutenzione{% endblock %}
+{% block title %}{% if kpi_page %}KPI{% else %}Panoramica{% endif %} — Manutenzione{% endblock %}
 
 {% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}
 <style>
@@ -28,12 +28,56 @@ body.theme-dark .ms-switch a{background:var(--surface);color:var(--text)}
 body.theme-dark .ms-switch a.is-on{background:#1d4ed8;color:#fff}
 body.theme-dark .ms-note,body.theme-dark .ms-chart,body.theme-dark .ms-gaps{background:var(--surface);border-color:var(--border);color:var(--text)}
 body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
+/* Panoramica: stessi colori per tipologia del Calendario. */
+.pn-wrap{--pn-ord:#2563eb;--pn-ord-bg:#e8f0ff;--pn-adm:#7c3aed;--pn-adm-bg:#f1eaff;--pn-lic:#0f8f86;--pn-lic-bg:#e2f6f4;--pn-con:#b0620a;--pn-con-bg:#fcefdf;--pn-late:#dc2626;--pn-line:var(--border,#dbe1ea);--pn-card:var(--surface,#fff);--pn-soft:#f6f8fb;--pn-text:var(--text,#0f172a);--pn-mid:var(--text-mid,#475569);--pn-faint:var(--text-light,#94a3b8);display:grid;gap:14px}
+body.theme-dark .pn-wrap{--pn-ord:#7aa5ff;--pn-ord-bg:rgba(37,99,235,.22);--pn-adm:#b996ff;--pn-adm-bg:rgba(124,58,237,.24);--pn-lic:#45cdc1;--pn-lic-bg:rgba(15,143,134,.24);--pn-con:#eaa55c;--pn-con-bg:rgba(176,98,10,.26);--pn-late:#f87171;--pn-soft:rgba(255,255,255,.04)}
+.pn-filters{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-end}
+.pn-filters label{display:flex;flex-direction:column;gap:3px;font-size:var(--fs-2xs);font-weight:700;color:var(--pn-faint)}
+.pn-filters select{min-height:34px;min-width:190px;padding:4px 8px}
+.pn-filters .pn-links{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.pn-types{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.pn-type{border-radius:12px;padding:12px 14px;display:grid;gap:5px;text-decoration:none;color:var(--pn-text);border:1px solid transparent}
+.pn-type:hover{border-color:var(--pn-k)}
+.pn-type h3{margin:0;font-size:var(--fs-sm);font-weight:800;color:var(--pn-k)}
+.pn-type .pn-row{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-sm);color:var(--pn-mid)}
+.pn-type .pn-row b{color:var(--pn-text);font-variant-numeric:tabular-nums}
+.pn-type .pn-row b.is-late{color:var(--pn-late)}
+.pn-k-ordinary{--pn-k:var(--pn-ord);background:var(--pn-ord-bg)}.pn-k-administrative{--pn-k:var(--pn-adm);background:var(--pn-adm-bg)}
+.pn-k-license{--pn-k:var(--pn-lic);background:var(--pn-lic-bg)}.pn-k-contract{--pn-k:var(--pn-con);background:var(--pn-con-bg)}
+.pn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start}
+.pn-panel{border:1px solid var(--pn-line);border-radius:12px;background:var(--pn-card);padding:14px 16px;display:grid;gap:10px;align-content:start}
+.pn-panel h2{margin:0;font-size:var(--fs-md);font-weight:800;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.pn-panel h2 a,.pn-panel h2 small{font-size:var(--fs-xs);font-weight:700}
+.pn-heat{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.pn-heat .pn-dow{font-size:var(--fs-2xs);color:var(--pn-faint);text-align:center;font-weight:700}
+.pn-heat .pn-day{height:34px;border-radius:6px;font-size:var(--fs-2xs);color:var(--pn-mid);display:flex;align-items:flex-end;justify-content:flex-end;padding:3px 5px;background:var(--pn-soft);font-variant-numeric:tabular-nums}
+.pn-heat .pn-day.is-past{opacity:.55}
+.pn-heat .pn-day.is-today{box-shadow:inset 0 0 0 2px var(--accent,#ff6b00)}
+.pn-heat .l1{background:color-mix(in srgb,var(--pn-ord) 18%,var(--pn-soft))}.pn-heat .l2{background:color-mix(in srgb,var(--pn-ord) 38%,var(--pn-soft))}
+.pn-heat .l3{background:color-mix(in srgb,var(--pn-ord) 62%,var(--pn-soft));color:#fff}.pn-heat .l4{background:var(--pn-ord);color:#fff}
+.pn-list{display:grid}
+.pn-item{display:grid;grid-template-columns:70px 10px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--pn-line);text-decoration:none;color:var(--pn-text)}
+.pn-item:last-child{border-bottom:0}
+.pn-item time{font-size:var(--fs-xs);color:var(--pn-mid);font-variant-numeric:tabular-nums}
+.pn-item i{width:10px;height:10px;border-radius:50%;background:var(--pn-k)}
+.pn-item b{font-size:var(--fs-sm);display:block}
+.pn-item small{font-size:var(--fs-xs);color:var(--pn-faint)}
+.pn-bars{display:grid;gap:7px}
+.pn-bar{display:grid;grid-template-columns:minmax(110px,170px) 1fr 34px;gap:10px;align-items:center;font-size:var(--fs-sm)}
+.pn-bar .pn-track{height:10px;border-radius:5px;background:var(--pn-soft);overflow:hidden}
+.pn-bar .pn-track span{display:block;height:100%;background:var(--primary-mid,#2f5f89)}
+.pn-bar b{text-align:right;font-variant-numeric:tabular-nums}
+.pn-empty{color:var(--pn-faint);font-size:var(--fs-sm)}
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Cruscotto manutenzione{% endblock %}
+{% block assets_shell_title %}{% if kpi_page %}KPI manutenzione{% else %}Panoramica{% endif %}{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>Cosa e' scaduto, cosa sta per scadere e — la domanda che di solito nessuno vede — cosa e' <em>dovuto ma non ancora pianificato</em>.</p>
+  {% if kpi_page %}
+  <p>Come sta andando: puntualita', arretrato, conformita' degli adempimenti e copertura dei piani. Solo indicatori che poggiano su dati davvero compilati.</p>
+  {% else %}
+  <p>Ordinarie, amministrative, licenze e contratti in un colpo d'occhio; sotto, cosa e' scaduto e cosa e' <em>dovuto ma non ancora pianificato</em>.</p>
+  {% endif %}
 {% endblock %}
 
 {% block assets_shell_toolbar %}
@@ -42,17 +86,22 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     Il default segue i permessi che esistono gia' (chi non pianifica ne esegue
     apre sulla sintesi), ma la scelta esplicita vince sempre.
   {% endcomment %}
+  {% if kpi_page %}
+    <a class="btn btn-secondary" href="{% url 'assets:reports' %}?scope=production">Report e budget</a>
+    <a class="btn btn-secondary" href="{% url 'assets:maintenance_responsabile' %}?vista=operativo">Panoramica</a>
+  {% else %}
   <span class="ms-switch">
     <a class="{% if vista == 'operativo' %}is-on{% endif %}" href="?vista=operativo">Operativo</a>
     <a class="{% if vista == 'sintesi' %}is-on{% endif %}" href="?vista=sintesi">Sintesi</a>
   </span>
+  {% endif %}
   {% comment %}
     Le scorciatoie operative appartengono a chi lavora: in Sintesi non servono e
     competerebbero con la lettura. Restano un click piu' in la', nello switch.
   {% endcomment %}
   {% if vista != "sintesi" %}
     <a class="btn btn-secondary" href="{% url 'assets:maintenance_da_fare' %}">Da fare</a>
-    <a class="btn btn-secondary" href="{% url 'assets:maintenance_scadenze' %}">Scadenze</a>
+    <a class="btn btn-secondary" href="{% url 'assets:maintenance_scadenze' %}">Scadenzario</a>
   {% endif %}
 {% endblock %}
 
@@ -60,6 +109,23 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
 <div class="md-page">
 
 {% if vista == "sintesi" %}
+
+  {% if conformita %}
+  <div class="md-kpis">
+    <a class="md-kpi {% if conformita.adempimenti_scaduti %}is-danger{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=&amp;plan_type=administrative">
+      <span class="md-kpi-label">Adempimenti amministrativi in regola</span>
+      <span class="md-kpi-value">{% if conformita.adempimenti_pct != None %}{{ conformita.adempimenti_pct }}%{% else %}&mdash;{% endif %}</span>
+      <span class="md-kpi-sub">{% if conformita.adempimenti_aperti %}{{ conformita.adempimenti_scaduti }} scadut{{ conformita.adempimenti_scaduti|pluralize:"o,i" }} su {{ conformita.adempimenti_aperti }} aperti{% else %}nessun adempimento censito{% endif %}</span>
+    </a>
+    {% if conformita.rinnovi_visibili %}
+    <a class="md-kpi {% if conformita.rinnovi_scaduti %}is-warn{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=90&amp;plan_type=renewals">
+      <span class="md-kpi-label">Rinnovi entro 90 giorni</span>
+      <span class="md-kpi-value">{{ conformita.rinnovi_90 }}</span>
+      <span class="md-kpi-sub">licenze e contratti{% if conformita.rinnovi_scaduti %} · {{ conformita.rinnovi_scaduti }} gia' scadut{{ conformita.rinnovi_scaduti|pluralize:"o,i" }}{% endif %}</span>
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
 
   {% comment %}
     Sintesi direzione. Solo indicatori che poggiano su campi effettivamente
@@ -196,6 +262,93 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
   </div>
 
 {% else %}
+
+  {% if panoramica %}
+  {% comment %}
+    Colpo d'occhio su TUTTE le scadenze (ordinarie, amministrative, licenze,
+    contratti), dalla stessa fonte di Calendario e Scadenzario. Sotto restano
+    le liste operative di sempre.
+  {% endcomment %}
+  <div class="pn-wrap">
+    <form class="pn-filters" method="get">
+      <input type="hidden" name="vista" value="operativo">
+      <label for="pn-category">Famiglia
+        <select id="pn-category" name="category" onchange="this.form.submit()">
+          <option value="">Tutte le famiglie</option>
+          {% for value, label in panoramica.category_choices %}<option value="{{ value }}"{% if value == panoramica.category_id %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label for="pn-reparto">Reparto
+        <select id="pn-reparto" name="reparto" onchange="this.form.submit()">
+          <option value="">Tutti i reparti</option>
+          {% for r in panoramica.reparti %}<option value="{{ r }}"{% if r == panoramica.reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </label>
+      <noscript><button type="submit" class="btn">Applica</button></noscript>
+      <div class="pn-links">
+        <a class="btn btn-secondary" href="{{ panoramica.calendario_url }}">Calendario</a>
+        <a class="btn btn-secondary" href="{{ panoramica.scadenzario_url }}">Scadenzario</a>
+      </div>
+    </form>
+
+    <div class="pn-types">
+      {% for t in panoramica.types %}
+        <a class="pn-type pn-k-{{ t.kind }}" href="{{ t.url }}">
+          <h3>{{ t.label }}</h3>
+          <span class="pn-row"><span>Scadute</span><b class="{% if t.overdue %}is-late{% endif %}">{{ t.overdue }}</b></span>
+          <span class="pn-row"><span>Entro 30 giorni</span><b>{{ t.due_30 }}</b></span>
+          <span class="pn-row"><span>Prossima</span><b>{% if t.next %}{{ t.next.due_date|date:"d/m" }} · {{ t.next.asset_tag|default:t.next.title|truncatechars:22 }}{% else %}&mdash;{% endif %}</b></span>
+        </a>
+      {% endfor %}
+    </div>
+
+    <div class="pn-grid">
+      <section class="pn-panel">
+        <h2>Prossime quattro settimane <small>scadenze aperte per giorno</small></h2>
+        <div class="pn-heat">
+          <span class="pn-dow">L</span><span class="pn-dow">M</span><span class="pn-dow">M</span><span class="pn-dow">G</span><span class="pn-dow">V</span><span class="pn-dow">S</span><span class="pn-dow">D</span>
+          {% for cell in panoramica.heat %}
+            <span class="pn-day l{{ cell.level }}{% if cell.past %} is-past{% endif %}{% if cell.is_today %} is-today{% endif %}" title="{{ cell.day|date:'d/m' }}: {{ cell.count }} scadenz{{ cell.count|pluralize:'a,e' }}">{{ cell.day|date:"j" }}</span>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="pn-panel">
+        <h2>Prossime scadenze <a href="{{ panoramica.scadenzario_url }}">tutte nello Scadenzario</a></h2>
+        {% if panoramica.prossime %}
+          <div class="pn-list">
+            {% for row in panoramica.prossime %}
+              <a class="pn-item pn-k-{{ row.kind }}" style="background:none" href="{{ row.detail_url }}">
+                <time datetime="{{ row.due_date|date:'Y-m-d' }}">{{ row.due_date|date:"d/m/Y" }}</time>
+                <i aria-hidden="true"></i>
+                <span><b>{{ row.title }}</b><small>{{ row.kind_label }}{% if row.asset_tag %} · {{ row.asset_tag }}{% elif row.target_label %} · {{ row.target_label }}{% endif %}</small></span>
+                {% if row.state == "overdue" %}<span class="md-badge badge-danger">da {{ row.days_late }} g</span>
+                {% elif row.state == "planned" %}<span class="md-badge badge-success">OdL</span>
+                {% elif row.days == 0 %}<span class="md-badge badge-warning">oggi</span>
+                {% else %}<span class="md-badge badge-muted">tra {{ row.days }} g</span>{% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="pn-empty">Nessuna scadenza aperta nei prossimi 30 giorni.</p>
+        {% endif %}
+      </section>
+
+      <section class="pn-panel">
+        <h2>Per categoria asset <small>aperte entro 30 giorni</small></h2>
+        {% if panoramica.categories %}
+          <div class="pn-bars">
+            {% for c in panoramica.categories %}
+              <div class="pn-bar"><span>{{ c.label }}</span><span class="pn-track"><span style="width:{{ c.pct }}%"></span></span><b>{{ c.count }}</b></div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="pn-empty">Nessuna scadenza nel periodo.</p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+  {% endif %}
 
   {% comment %}
     Nove numeri con lo stesso peso non sono una gerarchia: sono un muro. I quattro

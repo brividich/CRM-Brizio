@@ -158,6 +158,8 @@ urlpatterns = [
     path("assets/manutenzione/da-fare/", views_maintenance.maintenance_da_fare, name="maintenance_da_fare"),
     path("assets/manutenzione/scadenze/", views_maintenance.maintenance_scadenze, name="maintenance_scadenze"),
     path("assets/manutenzione/quadro/", views_maintenance.maintenance_responsabile, name="maintenance_responsabile"),
+    # Sotto /quadro/: eredita per prefisso lo stesso permesso ACL della Panoramica.
+    path("assets/manutenzione/quadro/kpi/", views_maintenance.maintenance_kpi, name="maintenance_kpi"),
     path("assets/manutenzione/piani/", views_maintenance.maintenance_plan_list, name="maintenance_plan_list"),
     path("assets/manutenzione/piani/new/", views_maintenance.maintenance_plan_form, name="maintenance_plan_create"),
     path("assets/manutenzione/piani/<int:plan_id>/", views_maintenance.maintenance_plan_detail, name="maintenance_plan_detail"),

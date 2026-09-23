@@ -621,14 +621,32 @@ class MaintenanceReminderTests(MaintenanceDomainTestCase):
         self.assertIn("TORNIO01", output)
         self.assertIn("Revisione annuale", output)
 
-    def test_le_sorgenti_legacy_tacciono_quando_esistono_occorrenze(self):
-        # La stessa manutenzione, migrata, arriverebbe due volte con due nomi diversi.
+    def test_la_scadenza_migrata_non_arriva_due_volte(self):
+        # migrate_maintenance_to_plans copia la scadenza in un piano amministrativo
+        # con lo stesso titolo e un'occorrenza alla stessa data: e' la stessa cosa.
+        due = self.today - timedelta(days=3)
+        self._legacy_deadline(due_date=due)
+        piano_amm = MaintenanceInterventionTemplate.objects.create(
+            code="collaudo-inail",
+            label="Collaudo INAIL",
+            maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE,
+        )
+        self._occurrence(self.assets[0], due, plan=piano_amm, assignment=None)
+
+        output = self._run()
+
+        self.assertEqual(output.count("Collaudo INAIL"), 1)
+        self.assertNotIn("Scadenza amministrativa — TORNIO01 — Collaudo INAIL", output)
+
+    def test_la_scadenza_non_migrata_non_resta_senza_promemoria(self):
+        # Prima, appena esisteva una qualsiasi occorrenza, le vecchie scadenze
+        # tacevano tutte: anche quelle mai copiate in un piano.
         self._legacy_deadline(due_date=self.today - timedelta(days=3))
         self._occurrence(self.assets[0], self.today - timedelta(days=3))
 
         output = self._run()
 
-        self.assertNotIn("Collaudo INAIL", output)
+        self.assertIn("Scadenza amministrativa — TORNIO01 — Collaudo INAIL", output)
         self.assertIn("Revisione annuale", output)
 
     def test_senza_occorrenze_resta_il_comportamento_storico(self):

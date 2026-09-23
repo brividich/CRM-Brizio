@@ -19,12 +19,14 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Iterable
 
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.urls import reverse
 from django.utils import timezone
 
 from ..models import (
     Asset,
+    AssetAdministrativeDeadline,
+    AssetAdministrativeDeadlineCompletion,
     AssistanceContract,
     MaintenanceInterventionTemplate,
     MaintenanceOccurrence,
@@ -343,6 +345,162 @@ def _contracts(start: date | None, end: date | None, filters: FeedFilters, today
 
 
 # ---------------------------------------------------------------------------
+# Vecchie scadenze amministrative (``AssetAdministrativeDeadline``)
+# ---------------------------------------------------------------------------
+#
+# ``migrate_maintenance_to_plans`` ha copiato ogni scadenza amministrativa in un
+# piano amministrativo + occorrenza, senza disattivare l'originale: la stessa
+# scadenza esisteva due volte. ``close_migrated_admin_deadlines`` disattiva le
+# copie vecchie; finche' non gira (e per le scadenze mai migrate) qui si leggono
+# SOLO le vecchie che non hanno un'occorrenza corrispondente. Cosi' i conteggi
+# sono giusti prima, durante e dopo la chiusura.
+
+def migrated_occurrence_subquery():
+    """Occorrenza amministrativa che corrisponde a una vecchia scadenza: stesso
+    asset, stessa data, piano con lo stesso titolo (la migrazione usa il titolo
+    come etichetta del piano)."""
+    return MaintenanceOccurrence.objects.filter(
+        asset_id=OuterRef("asset_id"),
+        due_date=OuterRef("due_date"),
+        plan__maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE,
+        plan__label=OuterRef("title"),
+    ).exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
+
+
+def legacy_deadlines_qs():
+    """Vecchie scadenze attive NON ancora rappresentate da un'occorrenza."""
+    return AssetAdministrativeDeadline.objects.filter(is_active=True).exclude(
+        Exists(migrated_occurrence_subquery())
+    )
+
+
+def migrated_legacy_deadlines_qs():
+    """Vecchie scadenze attive gia' copiate in un'occorrenza: sono i doppioni."""
+    return AssetAdministrativeDeadline.objects.filter(is_active=True).filter(
+        Exists(migrated_occurrence_subquery())
+    )
+
+
+def _legacy_deadlines(start: date | None, end: date | None, filters: FeedFilters, today: date) -> list[Deadline]:
+    if KIND_ADMINISTRATIVE not in filters.kinds or filters.execution_mode:
+        return []
+    qs = legacy_deadlines_qs().select_related("asset", "asset__asset_category")
+    if start:
+        qs = qs.filter(due_date__gte=start)
+    if end:
+        qs = qs.filter(due_date__lte=end)
+    if filters.category_ids is not None:
+        qs = qs.filter(asset__asset_category_id__in=filters.category_ids)
+    if filters.reparto:
+        qs = qs.filter(asset__reparto=filters.reparto)
+    if filters.group_id:
+        qs = qs.filter(asset__group_memberships__group_id=filters.group_id)
+    rows = []
+    for deadline in qs.order_by("due_date", "id").distinct()[:1000]:
+        edit_url = reverse("assets:asset_administrative_deadline_edit", args=[deadline.id])
+        rows.append(Deadline(
+            key=f"dl-{deadline.id}",
+            kind=KIND_ADMINISTRATIVE,
+            title=deadline.title,
+            due_date=deadline.due_date,
+            state=_simple_state(deadline.due_date, today, int(deadline.warning_days or DEFAULT_WARNING_DAYS)),
+            supplier=deadline.issuer or "",
+            detail_url=edit_url,
+            actions=[
+                {"label": "Apri scadenza", "url": edit_url},
+                {"label": "Apri asset", "url": reverse("assets:asset_view", args=[deadline.asset_id])},
+            ],
+            **_asset_fields(deadline.asset),
+        ))
+    return rows
+
+
+@dataclass(frozen=True)
+class AdministrativeDue:
+    """Una scadenza amministrativa aperta, da qualunque delle due fonti."""
+
+    source: str  # "occurrence" | "legacy"
+    id: int
+    asset: Asset
+    title: str
+    due_date: date
+    warning_days: int
+
+    @property
+    def asset_id(self) -> int:
+        return self.asset.id
+
+    def days_until_due(self, today: date) -> int:
+        return (self.due_date - today).days
+
+    @property
+    def url(self) -> str:
+        """Dove si registra l'adempimento: la scheda dell'occorrenza, oppure la
+        vecchia lista con la scadenza evidenziata."""
+        if self.source == "occurrence":
+            return reverse("assets:occurrence_complete", args=[self.id])
+        return f"{reverse('assets:asset_administrative_deadline_list')}?focus_deadline={self.id}"
+
+
+def administrative_dues(
+    *,
+    asset_filter: dict | None = None,
+    due_from: date | None = None,
+    due_to: date | None = None,
+    exclude_retired: bool = True,
+) -> list[AdministrativeDue]:
+    """Scadenze amministrative aperte: occorrenze dei piani amministrativi piu' le
+    vecchie scadenze non ancora migrate. ``asset_filter`` sono lookup sull'asset
+    (es. ``{"asset_category": cat}``), applicati a entrambe le fonti.
+
+    Per i contatori delle dashboard, che prima leggevano solo la tabella vecchia.
+    """
+    asset_filter = {f"asset__{key}": value for key, value in (asset_filter or {}).items()}
+    occ = MaintenanceOccurrence.objects.filter(
+        status=MaintenanceOccurrence.STATUS_OPEN,
+        plan__maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE,
+        **asset_filter,
+    ).select_related("asset", "plan")
+    legacy = legacy_deadlines_qs().filter(**asset_filter).select_related("asset")
+    if due_from:
+        occ, legacy = occ.filter(due_date__gte=due_from), legacy.filter(due_date__gte=due_from)
+    if due_to:
+        occ, legacy = occ.filter(due_date__lte=due_to), legacy.filter(due_date__lte=due_to)
+    if exclude_retired:
+        occ = occ.exclude(asset__status=Asset.STATUS_RETIRED)
+        legacy = legacy.exclude(asset__status=Asset.STATUS_RETIRED)
+    rows = [
+        AdministrativeDue("occurrence", o.id, o.asset, o.plan.label, o.due_date, int(o.warning_days or 0))
+        for o in occ.order_by("due_date", "id")[:5000]
+    ] + [
+        AdministrativeDue("legacy", d.id, d.asset, d.title, d.due_date, int(d.warning_days or 0))
+        for d in legacy.order_by("due_date", "id")[:5000]
+    ]
+    rows.sort(key=lambda row: (row.due_date, row.title, row.id))
+    return rows
+
+
+def administrative_completed_asset_ids(*, since: date, asset_filter: dict | None = None) -> set[int]:
+    """Asset con almeno un adempimento amministrativo eseguito da ``since``, da
+    entrambe le fonti (occorrenze eseguite e vecchie registrazioni)."""
+    occ_filter = {f"asset__{key}": value for key, value in (asset_filter or {}).items()}
+    legacy_filter = {f"deadline__asset__{key}": value for key, value in (asset_filter or {}).items()}
+    ids = set(
+        MaintenanceOccurrence.objects.filter(
+            status=MaintenanceOccurrence.STATUS_DONE,
+            completed_on__gte=since,
+            plan__maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE,
+            **occ_filter,
+        ).values_list("asset_id", flat=True).order_by().distinct()
+    )
+    ids |= set(
+        AssetAdministrativeDeadlineCompletion.objects.filter(completed_on__gte=since, **legacy_filter)
+        .values_list("deadline__asset_id", flat=True).order_by().distinct()
+    )
+    return ids
+
+
+# ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
 
@@ -377,6 +535,7 @@ def collect(
         _occurrences(start, end, filters, today)
         + _licenses(start, end, filters, today)
         + _contracts(start, end, filters, today)
+        + _legacy_deadlines(start, end, filters, today)
     )
     state_order = {STATE_OVERDUE: 0, STATE_DUE_SOON: 1, STATE_OPEN: 2, STATE_PLANNED: 3, STATE_DONE: 4}
     rows.sort(key=lambda d: (d.due_date, state_order.get(d.state, 9), d.kind, d.title))

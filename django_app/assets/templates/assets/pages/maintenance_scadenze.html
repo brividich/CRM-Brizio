@@ -84,9 +84,9 @@
   {% if show_renewals and renewals %}
   <section class="md-section">
     <div class="md-section-head">
-      <h2>Licenze e contratti</h2>
+      <h2>{% if request.GET.plan_type == 'administrative' %}Scadenze dall'archivio precedente{% else %}Licenze, contratti e altre scadenze{% endif %}</h2>
       <span class="md-badge badge-muted">{{ renewals|length }}</span>
-      <span class="md-sub">Si rinnovano dalla loro scheda: qui non si crea un ordine di lavoro.</span>
+      <span class="md-sub">Si gestiscono dalla loro scheda: qui non si crea un ordine di lavoro.</span>
     </div>
     <div class="md-scroll">
       <table class="md-table">
@@ -98,7 +98,7 @@
           <tr>
             <td class="md-nowrap"><span class="md-due{% if row.state == 'overdue' %} is-late{% endif %}">{{ row.due_date|date:"d/m/Y" }}</span>
               <span class="md-sub">{% if row.days < 0 %}scaduta da {{ row.days_late }} g{% elif row.days == 0 %}oggi{% else %}tra {{ row.days }} g{% endif %}</span></td>
-            <td><span class="md-badge {% if row.kind == 'license' %}badge-info{% else %}badge-warning{% endif %}">{{ row.kind_label }}</span></td>
+            <td><span class="md-badge {% if row.kind == 'license' %}badge-info{% elif row.kind == 'administrative' %}badge-primary{% else %}badge-warning{% endif %}">{{ row.kind_label }}</span></td>
             <td>{{ row.title }}</td>
             <td>{% if row.asset_id %}<a class="md-asset" href="{% url 'assets:asset_view' row.asset_id %}">{{ row.asset_tag }}</a><span class="md-sub">{{ row.asset_name }}</span>{% else %}{{ row.target_label|default:"—" }}{% endif %}</td>
             <td>{{ row.supplier|default:"—" }}</td>

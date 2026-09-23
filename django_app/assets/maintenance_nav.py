@@ -83,13 +83,14 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 routes=frozenset({"wo_view", "wo_create", "wo_close", "wo_campaign_create"}),
             ),
             NavItem("storico", "Storico", "maintenance_history", sidebar_code="maintenance_storico"),
+            # KPI sostituisce "Report": i report storici (budget, export, PDF) sono
+            # raggiungibili dalla pagina KPI e restano accesi sotto questa voce.
             NavItem(
-                "report",
-                "Report",
-                "reports",
+                "kpi",
+                "KPI",
+                "maintenance_kpi",
                 sidebar_code="report_asset",
-                routes=frozenset({"report_template_admin"}),
-                query="scope=production",
+                routes=frozenset({"reports", "report_template_admin"}),
             ),
         ),
     ),

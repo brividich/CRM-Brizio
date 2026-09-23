@@ -109,6 +109,9 @@ def storico_oggetto(oggetto=None, *, oggetto_tipo: str = "", oggetto_id: str = "
 
 
 def _get_client_ip(request) -> str | None:
+    # Comandi di gestione e job non hanno una richiesta: niente IP, ma l'audit si scrive.
+    if request is None:
+        return None
     remote_addr = request.META.get("REMOTE_ADDR")
     trusted_proxies: set[str] = getattr(settings, "TRUSTED_PROXY_IPS", set())
     if remote_addr in trusted_proxies:
