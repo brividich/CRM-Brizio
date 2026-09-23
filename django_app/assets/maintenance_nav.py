@@ -82,6 +82,8 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 sidebar_code="maintenance_interventi",
                 routes=frozenset({"wo_view", "wo_create", "wo_close", "wo_campaign_create"}),
             ),
+            # Dashboard officina: stato macchine e reparti, prima raggiungibile solo dall'elenco asset.
+            NavItem("officina", "Officina", "work_machine_dashboard", sidebar_code="maintenance_officina"),
             NavItem("storico", "Storico", "maintenance_history", sidebar_code="maintenance_storico"),
             # KPI sostituisce "Report": i report storici (budget, export, PDF) sono
             # raggiungibili dalla pagina KPI e restano accesi sotto questa voce.
@@ -92,6 +94,9 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 sidebar_code="report_asset",
                 routes=frozenset({"reports", "report_template_admin"}),
             ),
+            # Segnalazione rapida di un guasto (ticket MAN): il punto d'ingresso del
+            # lavoro correttivo, prima fuori dal menu.
+            NavItem("segnala", "Segnala guasto", "asset_quick_report", sidebar_code="maintenance_segnala"),
         ),
     ),
     NavGroup(
@@ -196,6 +201,14 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         'Scegli il periodo (scadute, 7/30/90 giorni) e la tipologia con le schede in alto.',
         'Seleziona le manutenzioni e crea un ordine di lavoro unico dalla barra in fondo.',
         "Scarica l'elenco in Excel o PDF con gli stessi filtri.",
+    ),
+    'officina': (
+        'Stato delle macchine per reparto: in uso, ferme, in manutenzione.',
+        'Da qui scarichi il PDF delle manutenzioni del mese, calcolato dalle scadenze pianificate.',
+    ),
+    'segnala': (
+        'Segnala un guasto su un asset: nasce un ticket di manutenzione con asset, descrizione e priorita.',
+        "Dal QR della macchina l'asset e' gia' scelto.",
     ),
     'interventi': (
         'Tutti gli ordini di lavoro aperti: chi li prende, a che punto sono, cosa li blocca.',

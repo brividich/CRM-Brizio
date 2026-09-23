@@ -146,12 +146,12 @@ body.theme-dark .wmd-card-head {
 <form method="get" action="{% url 'assets:work_machine_dashboard' %}" class="wmd-toolbar-form">
   {% if reparto_filter %}<input type="hidden" name="reparto" value="{{ reparto_filter }}">{% endif %}
   <input type="month" name="month" value="{{ maintenance_month_code }}" aria-label="Seleziona mese report">
-  <button class="btn" type="submit">Applica mese</button>
+  <button class="btn btn-secondary" type="submit">Applica mese</button>
 </form>
 <a class="btn btn-secondary" href="{{ maintenance_month_pdf_url }}" target="_blank" rel="noopener">PDF manutenzioni mese ({{ maintenance_month_count }})</a>
 <a class="btn btn-primary" href="{% url 'assets:plant_layout_map' %}">Mappa officina</a>
 <a class="btn btn-secondary" href="{% url 'assets:work_machine_list' %}">Elenco macchine</a>
-<a class="btn" href="{% url 'assets:asset_list' %}">Inventario completo</a>
+<a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Inventario completo</a>
 {% endblock %}
 
 {% block assets_shell_content %}

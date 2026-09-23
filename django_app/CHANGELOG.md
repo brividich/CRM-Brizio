@@ -1,6 +1,10 @@
-﻿# Changelog
+# Changelog
 
 ## [Unreleased]
+
+### Assets — Officina e Segnala guasto nel menu Manutenzione
+
+- Nuove voci nel ramo Manutenzione (migration `assets 0110`).
 
 ### Assets — OdL completato chiuso, scheda di lavoro, Storico e report
 
