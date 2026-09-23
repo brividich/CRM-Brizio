@@ -1,0 +1,213 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Gestione referto {{ doc.pk }} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+<style>
+.vm-detail-layout { display:grid; grid-template-columns:minmax(0, 2fr) minmax(280px, 1fr); gap:14px; align-items:start; }
+.vm-detail-sidebar { display:grid; gap:14px; }
+.vm-detail-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:18px 24px; margin:0; }
+.vm-detail-field dt { margin:0 0 5px; color:#64748b; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.vm-detail-field dd { margin:0; color:#0f172a; font-size:14px; font-weight:600; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+.vm-detail-wide { grid-column:1 / -1; padding-top:14px; border-top:1px solid #f1f5f9; }
+.vm-detail-sub { color:#64748b; font-size:12px; line-height:1.5; }
+.vm-detail-docs { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
+.vm-detail-docs a { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 11px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; color:#0c2545; font-size:13px; font-weight:700; text-decoration:none; }
+.vm-detail-docs a:hover { background:#eff6ff; border-color:#bfdbfe; }
+.vm-detail-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.vm-detail-form { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:15px 18px; }
+.vm-detail-form label { display:block; margin-bottom:5px; color:#334155; font-size:12px; font-weight:700; }
+.vm-detail-form input, .vm-detail-form select, .vm-detail-form textarea { width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid #cbd5e1; border-radius:9px; background:#fff; color:#0f172a; font:inherit; font-size:13px; }
+.vm-detail-form input:focus, .vm-detail-form select:focus, .vm-detail-form textarea:focus { outline:2px solid #bfdbfe; border-color:#1f87cd; }
+.vm-detail-form .helptext { margin-top:4px; color:#64748b; font-size:11px; }
+.vm-detail-form-footer { margin-top:18px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.vm-detail-full { grid-column:1 / -1; }
+.vm-detail-accessi { margin:0; padding:0; list-style:none; display:grid; gap:9px; max-height:340px; overflow:auto; }
+.vm-detail-accessi li { border-left:2px solid #e2e8f0; padding:0 0 0 10px; }
+.vm-detail-accesso-chi { display:block; color:#0f172a; font-size:13px; font-weight:700; }
+.vm-detail-accesso-quando { display:block; color:#64748b; font-size:11px; font-variant-numeric:tabular-nums; }
+.vm-detail-danger { border:1px solid #fecaca; background:#fef2f2; border-radius:12px; padding:16px; }
+.vm-detail-danger h3 { margin:0 0 6px; font-size:14px; color:#991b1b; }
+body.theme-dark .vm-detail-field dt, body.theme-dark .vm-detail-sub, body.theme-dark .vm-detail-form .helptext, body.theme-dark .vm-detail-accesso-quando { color:var(--text-muted, #94a3b8); }
+body.theme-dark .vm-detail-field dd, body.theme-dark .vm-detail-form label, body.theme-dark .vm-detail-accesso-chi { color:var(--text, #e2e8f0); }
+body.theme-dark .vm-detail-wide, body.theme-dark .vm-detail-accessi li { border-color:var(--border); }
+body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.theme-dark .vm-detail-form select, body.theme-dark .vm-detail-form textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .vm-detail-danger { background:rgba(153,27,27,.16); border-color:rgba(248,113,113,.45); }
+body.theme-dark .vm-detail-danger h3 { color:#fca5a5; }
+@media (max-width:800px) { .vm-detail-layout { grid-template-columns:1fr; } }
+@media (max-width:600px) { .vm-detail-grid, .vm-detail-form { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd hr-shell">
+  <div class="fmd-wrap">
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Sorveglianza sanitaria</div>
+          <h1><svg class="fmd-ico fmd-cap" aria-hidden="true"><use href="#i-pill"/></svg>Gestione referto</h1>
+          <p class="fmd-sub">Referto #{{ doc.pk }} · {{ dipendente_nome }}{% if visita %} · {{ visita.tipo.nome }} del {{ visita.data_svolgimento|date:"d/m/Y" }}{% else %} · nessuna visita collegata{% endif %}</p>
+          <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:documento_download' doc.pk %}" target="_blank" rel="noopener">Apri referto ↗</a>
+            {% if visita %}<a class="fmd-btn-template" href="{% url 'anagrafica:visita_medica_dettaglio' visita.pk %}">Scheda visita</a>{% endif %}
+            <a class="fmd-btn-template" href="{% url 'anagrafica:dipendente_detail' doc.legacy_anagrafica_id %}#visite-mediche">Scheda dipendente</a>
+          </div>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ doc.dimensione_bytes|filesizeformat }}</span><span class="fmd-lbl">Dimensione file</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ accessi_count }}</span><span class="fmd-lbl">Accessi registrati</span></div>
+        </div>
+      </div>
+    </section>
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="vm-detail-layout">
+      <section class="hr-card" aria-labelledby="rg-dati">
+        <div class="hr-card-head">
+          <div><h2 class="hr-card-title" id="rg-dati">Dati del referto</h2><div class="hr-card-desc">Documento sanitario in archivio privato</div></div>
+          {% if ruolo == "principale" %}<span class="hr-pill ok">Referto principale</span>{% elif ruolo == "secondario" %}<span class="hr-pill neutral">Referto secondario</span>{% elif visita %}<span class="hr-pill warning">Collegato, nessun ruolo</span>{% else %}<span class="hr-pill danger">Non collegato</span>{% endif %}
+        </div>
+        <div class="hr-card-pad" style="padding:20px;">
+          <dl class="vm-detail-grid">
+            <div class="vm-detail-field"><dt>Dipendente</dt><dd>{{ dipendente_nome }}</dd></div>
+            <div class="vm-detail-field"><dt>Nome file</dt><dd>{{ doc.nome_originale|default:"—" }}</dd></div>
+            <div class="vm-detail-field"><dt>Tipo file</dt><dd>{{ doc.tipo_mime|default:"—" }}</dd></div>
+            <div class="vm-detail-field"><dt>Dimensione</dt><dd>{{ doc.dimensione_bytes|filesizeformat }}</dd></div>
+            <div class="vm-detail-field"><dt>Caricato il</dt><dd>{{ doc.created_at|date:"d/m/Y H:i" }}</dd></div>
+            <div class="vm-detail-field"><dt>Caricato da</dt><dd>{% if doc.created_by %}{{ doc.created_by.get_full_name|default:doc.created_by.username }}{% elif doc.created_by_display %}{{ doc.created_by_display }}{% else %}Import o origine non tracciata{% endif %}</dd></div>
+            <div class="vm-detail-field"><dt>Conservare fino al</dt><dd>{{ doc.retention_until|date:"d/m/Y"|default:"Non impostata" }}</dd></div>
+            <div class="vm-detail-field"><dt>Cartella</dt><dd>{% if doc.cartella %}{{ doc.cartella.nome }}{% else %}Documento di sistema{% endif %}</dd></div>
+            <div class="vm-detail-field vm-detail-wide"><dt>Descrizione</dt><dd>{{ doc.descrizione|default:"—" }}</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <aside class="vm-detail-sidebar">
+        <section class="hr-card" aria-labelledby="rg-accessi">
+          <div class="hr-card-head"><div><h2 class="hr-card-title" id="rg-accessi">Chi ha aperto il referto</h2><div class="hr-card-desc">{{ accessi_count }} apertura/e registrata/e</div></div></div>
+          <div class="hr-card-pad" style="padding:16px;">
+            {% if accessi %}
+              <ul class="vm-detail-accessi">
+                {% for voce in accessi %}
+                  <li>
+                    <span class="vm-detail-accesso-chi">{{ voce.utente_display|default:"Utente non identificato" }}</span>
+                    <span class="vm-detail-accesso-quando">{{ voce.created_at|date:"d/m/Y H:i" }}{% if voce.ip_address %} · {{ voce.ip_address }}{% endif %}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="vm-detail-sub" style="margin:0;">Nessuna apertura registrata per questo referto.</p>
+            {% endif %}
+            <p class="vm-detail-sub" style="margin:12px 0 0;">Ogni apertura del file passa dalla view protetta e viene registrata nell'audit.</p>
+          </div>
+        </section>
+
+        <section class="hr-card" aria-labelledby="rg-visita">
+          <div class="hr-card-head"><h2 class="hr-card-title" id="rg-visita">Visita collegata</h2></div>
+          <div class="hr-card-pad" style="padding:16px;">
+            {% if visita %}
+              <dl class="vm-detail-grid" style="grid-template-columns:1fr;gap:12px;">
+                <div class="vm-detail-field"><dt>Tipo</dt><dd>{{ visita.tipo.nome }}</dd></div>
+                <div class="vm-detail-field"><dt>Data visita</dt><dd>{{ visita.data_svolgimento|date:"d/m/Y" }}</dd></div>
+                <div class="vm-detail-field"><dt>Scadenza</dt><dd>{{ visita.data_scadenza|date:"d/m/Y"|default:"Nessuna scadenza" }}</dd></div>
+                <div class="vm-detail-field"><dt>Esito</dt><dd>{{ visita.get_esito_display }}</dd></div>
+              </dl>
+              <ul class="vm-detail-docs" style="margin-top:12px;"><li><a href="{% url 'anagrafica:visita_medica_dettaglio' visita.pk %}"><span>Apri e modifica la visita</span><span aria-hidden="true">↗</span></a></li></ul>
+            {% else %}
+              <p class="vm-detail-sub" style="margin:0;">Il referto non è collegato a nessuna visita: resta nel fascicolo del dipendente.</p>
+            {% endif %}
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <section class="hr-card" aria-labelledby="rg-metadati" style="margin-top:14px;">
+      <div class="hr-card-head"><div><h2 class="hr-card-title" id="rg-metadati">Modifica dati del referto</h2><div class="hr-card-desc">Nome, descrizione e data di conservazione</div></div></div>
+      <div class="hr-card-pad" style="padding:20px;">
+        <form method="post" action="{% url 'anagrafica:referto_gestione' doc.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="metadati">
+          <div class="vm-detail-form">
+            <div><label for="rg-nome">Nome file</label><input type="text" id="rg-nome" name="nome_originale" maxlength="255" value="{{ doc.nome_originale }}" required></div>
+            <div><label for="rg-retention">Conservare fino al</label><input type="date" id="rg-retention" name="retention_until" value="{{ doc.retention_until|date:'Y-m-d' }}"><div class="helptext">Limite GDPR di conservazione. Vuoto = non impostata.</div></div>
+            <div class="vm-detail-full"><label for="rg-descrizione">Descrizione</label><input type="text" id="rg-descrizione" name="descrizione" maxlength="300" value="{{ doc.descrizione }}"></div>
+            <div class="vm-detail-full"><label for="rg-motivo-meta">Motivo della modifica (opzionale)</label><input type="text" id="rg-motivo-meta" name="motivo" maxlength="1000" placeholder="Es. nome file corretto dopo controllo del referto"><div class="helptext">Finisce nell'audit insieme ai valori prima/dopo.</div></div>
+          </div>
+          <div class="vm-detail-form-footer"><button type="submit" class="hr-btn hr-btn-primary">Salva dati referto</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="hr-card" aria-labelledby="rg-file" style="margin-top:14px;">
+      <div class="hr-card-head"><div><h2 class="hr-card-title" id="rg-file">Sostituisci il file</h2><div class="hr-card-desc">Il referto resta lo stesso record: cambia solo il file allegato</div></div></div>
+      <div class="hr-card-pad" style="padding:20px;">
+        <p class="vm-detail-sub" style="margin:0 0 16px;">Il file precedente viene rimosso dall'archivio privato e la sostituzione resta nell'audit con nome e dimensione di prima e dopo. Formati ammessi: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, WEBP (max 50 MB).</p>
+        <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:referto_gestione' doc.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="sostituisci">
+          <div class="vm-detail-form">
+            <div><label for="rg-file-input">Nuovo file del referto</label><input type="file" id="rg-file-input" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" required></div>
+            <div><label for="rg-motivo-file">Motivo della sostituzione</label><input type="text" id="rg-motivo-file" name="motivo" maxlength="1000" placeholder="Es. scansione illeggibile"></div>
+          </div>
+          <div class="vm-detail-form-footer"><button type="submit" class="hr-btn hr-btn-primary">Sostituisci referto</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="hr-card" aria-labelledby="rg-aggancio" style="margin-top:14px;">
+      <div class="hr-card-head"><div><h2 class="hr-card-title" id="rg-aggancio">Aggancio alla visita</h2><div class="hr-card-desc">Ruolo del referto sulla visita, o scollegamento</div></div></div>
+      <div class="hr-card-pad" style="padding:20px;">
+        {% if visita %}
+          <div class="vm-detail-actions">
+            <form method="post" action="{% url 'anagrafica:referto_gestione' doc.pk %}">{% csrf_token %}<input type="hidden" name="azione" value="principale"><button type="submit" class="hr-btn hr-btn-outline"{% if ruolo == "principale" %} disabled{% endif %}>Imposta come principale</button></form>
+            <form method="post" action="{% url 'anagrafica:referto_gestione' doc.pk %}">{% csrf_token %}<input type="hidden" name="azione" value="secondario"><button type="submit" class="hr-btn hr-btn-outline"{% if ruolo == "secondario" %} disabled{% endif %}>Imposta come secondario</button></form>
+          </div>
+          <form method="post" action="{% url 'anagrafica:referto_gestione' doc.pk %}" style="margin-top:18px;">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="scollega">
+            <div class="vm-detail-form">
+              <div class="vm-detail-full"><label for="rg-motivo-scollega">Motivo dello scollegamento</label><input type="text" id="rg-motivo-scollega" name="motivo" maxlength="1000" required placeholder="Es. referto attribuito alla visita sbagliata"><div class="helptext">Il referto resta nel fascicolo del dipendente, senza visita associata.</div></div>
+            </div>
+            <div class="vm-detail-form-footer"><button type="submit" class="hr-btn hr-btn-outline">Scollega dalla visita</button></div>
+          </form>
+        {% else %}
+          <p class="vm-detail-sub" style="margin:0;">Nessuna visita collegata: per riagganciarlo, carica il referto dalla scheda della visita corretta.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    {% if can_delete_referto %}
+    <section class="hr-card" aria-labelledby="rg-elimina" style="margin-top:14px;">
+      <div class="hr-card-head"><div><h2 class="hr-card-title" id="rg-elimina">Elimina referto</h2><div class="hr-card-desc">Rimozione definitiva del documento sanitario</div></div></div>
+      <div class="hr-card-pad" style="padding:20px;">
+        <div class="vm-detail-danger">
+          <h3>Operazione non reversibile</h3>
+          <p class="vm-detail-sub" style="margin:0;">Il file viene cancellato dall'archivio privato. La visita resta registrata e la motivazione viene scritta nell'audit con nome file, dimensione e visita di provenienza.</p>
+        </div>
+        <form method="post" action="{% url 'anagrafica:referto_gestione' doc.pk %}" style="margin-top:16px;">
+          {% csrf_token %}
+          <input type="hidden" name="azione" value="elimina">
+          <div class="vm-detail-form">
+            <div class="vm-detail-full"><label for="rg-motivo-elimina">Motivazione (obbligatoria)</label><textarea id="rg-motivo-elimina" name="motivo" rows="3" maxlength="1000" required placeholder="Es. referto caricato per errore su questo dipendente">{{ motivo }}</textarea></div>
+          </div>
+          <div class="vm-detail-form-footer"><button type="submit" class="hr-btn hr-btn-danger">Elimina referto</button></div>
+        </form>
+      </div>
+    </section>
+    {% endif %}
+
+    <div style="margin-top:14px;">
+      {% include "core/components/_storico_modifiche.html" with storico=storico titolo="Storico del referto" vuoto="Nessuna operazione registrata su questo referto." %}
+    </div>
+  </div>
+</div>
+{% endblock %}
