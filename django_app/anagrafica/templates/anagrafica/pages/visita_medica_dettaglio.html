@@ -99,7 +99,7 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
           <div class="hr-card-head"><h2 class="hr-card-title" id="vm-referti">Referti collegati</h2></div>
           <div class="hr-card-pad" style="padding:16px;">
             {% if visita.referti_documenti %}
-              <ul class="vm-detail-docs">{% for documento in visita.referti_documenti %}<li><a href="{% url 'anagrafica:documento_download' documento.pk %}"><span>Referto {{ forloop.counter }}</span><span aria-hidden="true">↗</span></a></li>{% endfor %}</ul>
+              <ul class="vm-detail-docs">{% for documento in visita.referti_documenti %}<li><a href="{% url 'anagrafica:documento_download' documento.pk %}"><span>Referto {{ forloop.counter }}</span><span aria-hidden="true">↗</span></a></li><li><a href="{% url 'anagrafica:referto_gestione' documento.pk %}"><span>Gestisci referto {{ forloop.counter }}</span><span aria-hidden="true">⚙</span></a></li>{% endfor %}</ul>
             {% else %}<p class="vm-detail-sub" style="margin:0;">Nessun referto collegato.</p>{% endif %}
           </div>
         </section>
