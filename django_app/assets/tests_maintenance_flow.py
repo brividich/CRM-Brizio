@@ -106,6 +106,38 @@ class FlussoTests(TestCase):
         )
 
 
+    def test_registrare_propone_ultima_volta_e_altre_scadenze_della_macchina(self):
+        MaintenanceOccurrence.objects.create(
+            plan=self.plan, asset=self.asset, due_date=self.today - timedelta(days=40), warning_days=10,
+            status=MaintenanceOccurrence.STATUS_DONE, completed_on=self.today - timedelta(days=41),
+            downtime_minutes=45,
+        )
+        occ = MaintenanceOccurrence.objects.create(plan=self.plan, asset=self.asset, due_date=self.today, warning_days=10)
+        altro = MaintenanceInterventionTemplate.objects.create(code="flow-plan-2", label="Controllo cinghie")
+        MaintenanceOccurrence.objects.create(plan=altro, asset=self.asset, due_date=self.today + timedelta(days=7), warning_days=10)
+        response = self.client.get(reverse("assets:occurrence_complete", args=[occ.id]))
+        self.assertContains(response, "Usa lo stesso fermo")
+        self.assertContains(response, "Controllo cinghie")
+
+    def test_applicare_propone_la_famiglia_degli_asset_scoperti(self):
+        Asset.objects.create(asset_tag="FLOW-2", name="Pressa 2", asset_category=self.category, status=Asset.STATUS_IN_USE)
+        MaintenancePlanAssignment.objects.create(
+            plan=self.plan, target_type=MaintenancePlanAssignment.TARGET_ASSET, asset=self.asset,
+            frequency=MaintenancePlanAssignment.FREQ_DAYS, interval=30, warning_days=15,
+            first_due_date=self.today + timedelta(days=60),
+            schedule_anchor=MaintenancePlanAssignment.ANCHOR_FIXED_CALENDAR,
+        )
+        response = self.client.get(reverse("assets:maintenance_assignment_create", args=[self.plan.id]))
+        self.assertContains(response, "FLOW-2")
+        self.assertContains(response, "Usa la famiglia")
+
+    def test_scheda_piano_permette_la_multiselezione(self):
+        occ = MaintenanceOccurrence.objects.create(plan=self.plan, asset=self.asset, due_date=self.today, warning_days=10)
+        response = self.client.get(reverse("assets:maintenance_plan_detail", args=[self.plan.id]))
+        self.assertContains(response, f'value="{occ.id}" form="md-bulk-form"')
+        self.assertContains(response, 'id="md-bulk-form"')
+
+
 @override_settings(LEGACY_AUTH_ENABLED=False)
 class OdlPerAssetTests(TestCase):
     """Selezione multipla -> un OdL per asset e giorno, numerati X-1, X-2 (WorkOrder.mark_batch)."""

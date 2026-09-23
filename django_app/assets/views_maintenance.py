@@ -19,6 +19,7 @@ import json
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -1240,6 +1241,7 @@ def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpRespo
             "follow_ups": list(follow_ups),
             "conflicts": conflicts[:40],
             "can_plan": can_plan_maintenance(request),
+            "workorder_form": WorkOrderFromOccurrencesForm(),
         },
     )
 
@@ -1398,6 +1400,8 @@ def maintenance_plan_detail(request: HttpRequest, plan_id: int) -> HttpResponse:
             "open_workorders": open_workorders,
             "checklist_steps": list(plan.checklist_steps.order_by("step_number", "id")),
             "can_manage": can_manage_maintenance_plans(request),
+            "can_plan": can_plan_maintenance(request),
+            "workorder_form": WorkOrderFromOccurrencesForm(),
         },
     )
 
@@ -1434,6 +1438,78 @@ def maintenance_plan_form(request: HttpRequest, plan_id: int | None = None) -> H
 # ---------------------------------------------------------------------------
 # Applicazioni di un piano
 # ---------------------------------------------------------------------------
+
+def _assignment_suggestions(plan: MaintenanceInterventionTemplate) -> dict[str, Any]:
+    """Cosa sapere prima di applicare un piano: dove vale gia' e chi resta scoperto.
+
+    Solo proposte da leggere: la scelta del bersaglio resta a chi compila.
+    """
+    from .models import Asset
+
+    existing = list(
+        MaintenancePlanAssignment.objects.filter(plan=plan, is_active=True)
+        .select_related("asset", "asset_group", "asset_category")
+        .order_by("target_type", "id")
+    )
+    resolutions = domain.build_plan_resolutions(
+        plan_ids=[plan.pk], asset_queryset=Asset.objects.exclude(status=Asset.STATUS_RETIRED)
+    )
+    covered = [res.asset for res in resolutions.values() if not res.is_excluded]
+    covered_ids = {asset.id for asset in covered}
+    family_gaps = []
+    category_ids = {asset.asset_category_id for asset in covered if asset.asset_category_id}
+    if category_ids:
+        missing = (
+            Asset.objects.filter(asset_category_id__in=category_ids)
+            .exclude(status=Asset.STATUS_RETIRED)
+            .exclude(id__in=covered_ids)
+            .select_related("asset_category")
+            .order_by("asset_category__label", "asset_tag")
+        )
+        by_family: dict[int, dict[str, Any]] = {}
+        for asset in missing[:200]:
+            bucket = by_family.setdefault(
+                asset.asset_category_id,
+                {"family": asset.asset_category.label, "category_id": asset.asset_category_id, "assets": []},
+            )
+            bucket["assets"].append(asset)
+        family_gaps = list(by_family.values())
+    return {"existing_assignments": existing, "covered_count": len(covered_ids), "family_gaps": family_gaps}
+
+
+def _completion_suggestions(occurrence: MaintenanceOccurrence, back_url: str) -> dict[str, Any]:
+    """Informazioni utili mentre si registra un'esecuzione: l'ultima volta, cos'altro
+    c'e' da fare sulla stessa macchina, il contratto che la copre."""
+    from .maintenance import get_applicable_assistance_contracts
+
+    today = timezone.localdate()
+    previous = (
+        MaintenanceOccurrence.objects.filter(
+            plan_id=occurrence.plan_id, asset_id=occurrence.asset_id, status=MaintenanceOccurrence.STATUS_DONE
+        )
+        .exclude(pk=occurrence.pk)
+        .order_by("-completed_on", "-id")
+        .first()
+    )
+    same_asset = list(
+        MaintenanceOccurrence.objects.filter(
+            asset_id=occurrence.asset_id,
+            status=MaintenanceOccurrence.STATUS_OPEN,
+            due_date__lte=today + timedelta(days=30),
+        )
+        .exclude(pk=occurrence.pk)
+        .select_related("plan")
+        .order_by("due_date")[:8]
+    )
+    for other in same_asset:
+        other.register_url = f"{reverse('assets:occurrence_complete', args=[other.pk])}?{urlencode({'next': back_url})}"
+    contracts = []
+    try:
+        contracts = list(get_applicable_assistance_contracts(occurrence.asset, today=today)[:1])
+    except Exception:
+        logger.exception("Contratti applicabili non calcolabili per asset %s", occurrence.asset_id)
+    return {"previous": previous, "same_asset_open": same_asset, "contract": contracts[0] if contracts else None}
+
 
 @login_required
 def maintenance_assignment_form(
@@ -1487,6 +1563,7 @@ def maintenance_assignment_form(
             "assignment": assignment,
             "presets": RECURRENCE_PRESETS,
             "preview_url": reverse("assets:maintenance_assignment_preview"),
+            **(_assignment_suggestions(plan) if assignment is None else {}),
         },
     )
 
@@ -2147,6 +2224,7 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
             "form": form,
             "occurrence": occurrence,
             "state": domain.occurrence_state_payload(occurrence),
+            **_completion_suggestions(occurrence, back_url),
         },
     )
 

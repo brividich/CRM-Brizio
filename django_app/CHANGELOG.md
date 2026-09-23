@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Assets — flusso manutenzione, OdL per asset e giorno, raggruppamenti, suggerimenti
+
+- Selezione multipla in tutte le tabelle di manutenzioni (anche asset diversi): un OdL per asset e giorno, gruppo numerato X-1, X-2...
+- «Raggruppa per» in Da fare, Scadenzario e Interventi.
+- Suggerimenti in scheda intervento, Registra esecuzione e Applica piano.
+- Scadenze create subito all'applicazione del piano; previste nel Calendario; ritorno alla pagina di partenza dopo Registra; 14 template morti rimossi.
+
 ### Assets — restyling pagine manutenzione
 
 - Pulsanti: principale blu, secondari neutri, distruttivi rossi (`btn-danger`); scheda intervento, testata Report e Dashboard officina in scuro sistemati.
