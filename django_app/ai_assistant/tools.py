@@ -2099,14 +2099,21 @@ def _assets_context(request, prompt: str) -> RuntimeContext:
         filters.extend(_asset_extra_filters)
     asset_rows = _raw_asset_rows[:20]
 
-    deadline_qs = AssetAdministrativeDeadline.objects.filter(is_active=True, asset_id__in=asset_ids_qs).select_related("asset")
+    # Adempimenti amministrativi da occorrenze dei piani e vecchie scadenze non
+    # ancora migrate, senza doppioni (stessa fonte delle pagine manutenzione).
+    from assets.services import deadline_feed
+
     if re.search(r"\b(scadut[aeio]|arretrat[aeio])\b", text):
-        deadline_qs = deadline_qs.filter(due_date__lt=today)
+        deadline_rows = deadline_feed.administrative_dues(
+            asset_filter={"id__in": asset_ids_qs}, due_to=today - timedelta(days=1), exclude_retired=False
+        )
         filters.append("scadenze=scadute")
     else:
-        deadline_qs = deadline_qs.filter(due_date__lte=horizon)
+        deadline_rows = deadline_feed.administrative_dues(
+            asset_filter={"id__in": asset_ids_qs}, due_to=horizon, exclude_retired=False
+        )
         filters.append("scadenze<=30gg")
-    deadline_rows = list(deadline_qs.order_by("due_date", "asset__asset_tag")[:15])
+    deadline_rows = deadline_rows[:15]
 
     workorder_qs = WorkOrder.objects.filter(asset_id__in=asset_ids_qs).select_related("asset", "supplier")
     if re.search(r"\b(chius[ioe]|completat[ie])\b", text):

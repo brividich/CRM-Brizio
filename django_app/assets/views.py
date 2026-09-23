@@ -6433,9 +6433,7 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
     items = []
     for item in group.items:
         url = reverse(f"assets:{item.route}")
-        if item.key == "report":
-            url = f"{url}?scope={_normalize_reports_scope(request.GET.get('scope'))}"
-        elif item.query:
+        if item.query:
             url = f"{url}?{item.query}"
         items.append({"key": item.key, "label": item.label, "url": url, "active": item.key == active_item.key})
 
@@ -14643,7 +14641,7 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
     board_columns = []
     if display == "board":
         # Kanban degli stati operativi (unassigned/assigned/in_progress/waiting), diversa dalla
-        # board per scadenza gia' presente in maintenance_hub.html: qui la colonna e' lo stato
+        # vecchia board per scadenza del centro operativo ritirato: qui la colonna e' lo stato
         # reale dell'OdL, non quanto e' vecchio.
         board_by_state = {key: [] for key in WorkOrder.OPSTATE_LABELS}
         for wo in workorders.filter(status=WorkOrder.STATUS_OPEN).select_related("asset", "assigned_to"):
@@ -16275,340 +16273,14 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def maintenance_hub(request: HttpRequest) -> HttpResponse:
-    """Centro operativo per priorita, OdL e scadenze di manutenzione.
-
-    Lo scadenzario canonico vive in ``maintenance_schedule``; i vecchi
-    deep-link ``?tab=scadenzario`` vi confluiscono senza duplicarne la UI.
+    """Vecchio centro operativo, ritirato: contava le scadenze sul vecchio motore a
+    regole e sulla tabella delle scadenze amministrative, e dava numeri diversi da
+    Panoramica e Scadenzario. L'URL resta per i segnalibri e rimanda alla
+    Panoramica; i vecchi deep-link ``?tab=scadenzario`` allo Scadenzario.
     """
-    from datetime import timedelta
-    from .models import AssistanceContract, WorkMachine
-
-    today = timezone.localdate()
-    horizon_7  = today + timedelta(days=7)
-    horizon_14 = today + timedelta(days=14)
-    horizon_30 = today + timedelta(days=30)
-    wo_overdue_days = get_workorder_overdue_days()
-    overdue_threshold = today - timedelta(days=wo_overdue_days)
-    is_admin = _is_assets_admin(request)
-
-    # Il Centro Manutenzione è ora solo cockpit "Da fare": lo scadenzario unico
-    # (regole + verifiche + amministrative) vive in /prossime/ (maintenance_schedule).
-    # Le vecchie URL/bookmark ?tab=scadenzario (e i deep-link sub=...) confluiscono lì,
-    # preservando il filtro reparto, per non avere due scadenzari.
-    reparto_filter = _clean_string(request.GET.get("reparto"))
     if _clean_string(request.GET.get("tab")) == "scadenzario":
-        return redirect(_maintenance_schedule_page_url(reparto=reparto_filter))
-    active_tab = "da_fare"
-
-    # Filtri condivisi (tab "da fare")
-    assigned_filter = _clean_string(request.GET.get("assigned"))
-
-    # ── OdL aperti ─────────────────────────────────────────────────────────
-    wo_qs = (
-        WorkOrder.objects
-        .filter(status=WorkOrder.STATUS_OPEN)
-        .select_related("asset", "assigned_to", "executed_by", "maintenance_rule__intervention_template")
-        .order_by("opened_at")
-    )
-    if not is_admin:
-        wo_qs = wo_qs.filter(Q(assigned_to=request.user) | Q(executed_by=request.user))
-    elif assigned_filter:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        try:
-            assigned_user = User.objects.get(pk=int(assigned_filter))
-            wo_qs = wo_qs.filter(Q(assigned_to=assigned_user) | Q(executed_by=assigned_user))
-        except (ValueError, User.DoesNotExist):
-            assigned_filter = ""
-    if reparto_filter:
-        wo_qs = wo_qs.filter(asset__reparto=reparto_filter)
-    open_workorders = list(wo_qs[:50])
-    for wo in open_workorders:
-        wo.assigned_to_me = wo.assigned_to_id == request.user.id
-    wo_overdue = [wo for wo in open_workorders if wo.opened_at and wo.opened_at.date() <= overdue_threshold]
-    wo_recent  = [wo for wo in open_workorders if wo not in wo_overdue]
-    wo_total   = len(open_workorders)
-    wo_open_url = _workorder_list_page_url(
-        status=WorkOrder.STATUS_OPEN,
-        reparto=reparto_filter,
-        assigned=assigned_filter,
-    )
-    wo_overdue_url = _workorder_list_page_url(
-        status=WorkOrder.STATUS_OPEN,
-        reparto=reparto_filter,
-        assigned=assigned_filter,
-        open_age=wo_overdue_days,
-    )
-    wo_done_url = reverse("assets:maintenance_history")
-
-    # ── KPI condivisi (count) ──────────────────────────────────────────────
-    upcoming_deadlines_count = AssetAdministrativeDeadline.objects.filter(
-        is_active=True, due_date__gte=today, due_date__lte=horizon_30
-    ).count()
-    overdue_deadlines_count = AssetAdministrativeDeadline.objects.filter(
-        is_active=True, due_date__lt=today
-    ).count()
-    # Le verifiche is_legacy=True sono ora gestite dalle MaintenanceRule (trigger temporale):
-    # escluse dai conteggi/scadenzario a tempo per evitare il doppio conteggio con le regole.
-    overdue_verifications_count = PeriodicVerification.objects.filter(
-        is_active=True, is_legacy=False, next_verification_date__lt=today
-    ).count()
-    upcoming_verifications_count = PeriodicVerification.objects.filter(
-        is_active=True, is_legacy=False, next_verification_date__gte=today, next_verification_date__lte=horizon_30
-    ).count()
-    rules_count = MaintenanceRule.objects.filter(is_active=True).count()
-    contracts_count = AssistanceContract.objects.filter(is_active=True).count()
-    contracts_expiring_count = AssistanceContract.objects.filter(
-        is_active=True, end_date__isnull=False, end_date__gte=today, end_date__lte=horizon_30
-    ).count()
-    closed_recent_count = WorkOrder.objects.filter(
-        status=WorkOrder.STATUS_DONE,
-        closed_at__gte=today - timedelta(days=30)
-    ).count()
-
-    # ── Scadenze/verifiche urgenti e imminenti (tab da_fare) ───────────────
-    _url_deadlines = reverse("assets:asset_administrative_deadline_list")
-    _url_verifications = reverse("assets:periodic_verifications")
-
-    def _deadline_items(qs, is_overdue):
-        items = []
-        for d in qs.select_related("asset")[:20]:
-            asset_label = f"{d.asset.asset_tag} — {d.asset.name}" if d.asset else "—"
-            try:
-                item_url = reverse("assets:asset_administrative_deadline_edit", args=[d.pk])
-            except Exception:
-                item_url = _url_deadlines
-            items.append({
-                "title": d.title,
-                "asset_label": asset_label,
-                "due_date": d.due_date,
-                "is_overdue": is_overdue,
-                "url": item_url,
-            })
-        return items
-
-    def _verification_items(qs, is_overdue):
-        items = []
-        for v in qs.prefetch_related("assets")[:20]:
-            assets_list = list(v.assets.all()[:3])
-            if assets_list:
-                tags = ", ".join(a.asset_tag for a in assets_list[:2])
-                total = v.assets.count()
-                asset_label = f"{tags}{f' +{total - 2} altri' if total > 2 else ''}"
-            else:
-                asset_label = "Nessun asset"
-            items.append({
-                "title": v.name,
-                "asset_label": asset_label,
-                "due_date": v.next_verification_date,
-                "is_overdue": is_overdue,
-                "url": _url_verifications,
-            })
-        return items
-
-    urgent_items = (
-        _deadline_items(
-            AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__lt=today).order_by("due_date"),
-            True,
-        )
-        + _verification_items(
-            PeriodicVerification.objects.filter(is_active=True, is_legacy=False, next_verification_date__lt=today).order_by("next_verification_date"),
-            True,
-        )
-    )
-    urgent_items.sort(key=lambda x: x["due_date"])
-
-    upcoming_items = (
-        _deadline_items(
-            AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__gte=today, due_date__lte=horizon_30).order_by("due_date"),
-            False,
-        )
-        + _verification_items(
-            PeriodicVerification.objects.filter(is_active=True, is_legacy=False, next_verification_date__gte=today, next_verification_date__lte=horizon_30).order_by("next_verification_date"),
-            False,
-        )
-    )
-    upcoming_items.sort(key=lambda x: x["due_date"])
-
-    # ── Macchine con manutenzione in ritardo o prossima (14gg) ─────────────
-    wm_qs = (
-        WorkMachine.objects
-        .filter(next_maintenance_date__isnull=False, next_maintenance_date__lte=horizon_14)
-        .select_related("asset")
-        .order_by("next_maintenance_date")
-    )
-    if reparto_filter:
-        wm_qs = wm_qs.filter(asset__reparto=reparto_filter)
-    machines_due = list(wm_qs[:20])
-    machines_overdue = [m for m in machines_due if m.next_maintenance_date <= today]
-    machines_warning = [m for m in machines_due if m.next_maintenance_date > today]
-
-    # Regole manutenzione effettive: asset con baseline mancante,
-    # regole scadute o prossime, senza duplicare la logica dello scadenzario.
-    maintenance_rule_counts = {"overdue": 0, "warning": 0, "upcoming": 0, "missing": 0}
-    maintenance_rule_rows: list[dict[str, object]] = []
-    maintenance_asset_qs = Asset.objects.select_related("asset_category").filter(asset_category__isnull=False)
-    if reparto_filter:
-        maintenance_asset_qs = maintenance_asset_qs.filter(reparto__iexact=reparto_filter)
-    for row in build_day_based_maintenance_schedule_rows(asset_queryset=maintenance_asset_qs, today=today):
-        status = str(row.get("schedule_status") or "")
-        if status in maintenance_rule_counts:
-            maintenance_rule_counts[status] += 1
-        if status not in {"overdue", "warning", "missing"}:
-            continue
-        if len(maintenance_rule_rows) >= 12:
-            continue
-        asset = row["asset"]
-        primary_action = _maintenance_row_primary_action(
-            asset=asset,
-            base_rule=row["base_rule"],
-            schedule_status=status,
-            source="maintenance_schedule",
-        )
-        row["asset_detail_url"] = reverse("assets:asset_view", kwargs={"id": asset.id})
-        row["primary_action_label"] = primary_action["label"]
-        row["primary_action_url"] = primary_action["url"]
-        maintenance_rule_rows.append(row)
-    maintenance_rule_critical_count = (
-        maintenance_rule_counts["overdue"]
-        + maintenance_rule_counts["warning"]
-        + maintenance_rule_counts["missing"]
-    )
-
-    # ── Ticket MAN aperti (integrazione modulo tickets) ────────────────────
-    man_tickets = []
-    try:
-        from assets.services.dashboard_kpi import _base_ticket_man_qs, _ticket_open_statuses
-        man_qs = _base_ticket_man_qs().filter(stato__in=_ticket_open_statuses())
-        if not is_admin:
-            man_qs = man_qs.filter(assegnato_a=request.user)
-        man_tickets = list(man_qs.order_by("data_apertura")[:20])
-    except Exception:
-        pass
-
-    # ── Prossimi 7gg (colonna destra) ──────────────────────────────────────
-    next7_items: list[dict] = []
-    for d in AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__gte=today, due_date__lte=horizon_7).order_by("due_date").select_related("asset")[:10]:
-        next7_items.append({"title": d.title, "due_date": d.due_date, "kind": "scadenza", "kind_label": "Scadenza"})
-    for v in PeriodicVerification.objects.filter(is_active=True, is_legacy=False, next_verification_date__gte=today, next_verification_date__lte=horizon_7).order_by("next_verification_date")[:10]:
-        next7_items.append({"title": v.name, "due_date": v.next_verification_date, "kind": "verifica", "kind_label": "Verifica"})
-    for c in AssistanceContract.objects.filter(is_active=True, end_date__gte=today, end_date__lte=horizon_7).order_by("end_date")[:5]:
-        next7_items.append({"title": c.title, "due_date": c.end_date, "kind": "contratto", "kind_label": "Contratto"})
-    next7_items.sort(key=lambda x: x["due_date"])
-
-    # Opzioni filtri
-    reparto_options = list(
-        Asset.objects.exclude(reparto="")
-        .order_by("reparto")
-        .values_list("reparto", flat=True)
-        .distinct()
-    )
-    user_options = []
-    if is_admin:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        user_options = list(User.objects.filter(is_active=True).order_by("first_name", "last_name", "username"))
-
-    # ── Dati tab "scadenzario" ─────────────────────────────────────────────
-    scope_filter = _clean_string(request.GET.get("scope")) or "all"
-    verif_qs = PeriodicVerification.objects.exclude(is_legacy=True).prefetch_related("assets").select_related("supplier")
-    if scope_filter == "it":
-        verif_qs = verif_qs.filter(assets__asset_type__in=IT_DEVICE_TYPES).distinct()
-    elif scope_filter == "production":
-        verif_qs = verif_qs.exclude(assets__asset_type__in=IT_DEVICE_TYPES).distinct()
-    verif_rows = []
-    for v in verif_qs.order_by("next_verification_date")[:60]:
-        state, days_left, days_abs = _due_state(v.next_verification_date, today)
-        verif_rows.append({"v": v, "days_left": days_left, "days_abs": days_abs, "state": state})
-
-    deadline_type_filter = _clean_string(request.GET.get("dtype")) or ""
-    deadline_qs = AssetAdministrativeDeadline.objects.filter(is_active=True).select_related("asset")
-    if deadline_type_filter:
-        deadline_qs = deadline_qs.filter(deadline_type=deadline_type_filter)
-    deadline_rows = []
-    for d in deadline_qs.order_by("due_date")[:80]:
-        state, days_left, days_abs = _due_state(d.due_date, today)
-        deadline_rows.append({"d": d, "days_left": days_left, "days_abs": days_abs, "state": state})
-
-    contract_qs = AssistanceContract.objects.filter(is_active=True).select_related("supplier", "asset", "asset_category")
-    contract_rows = []
-    for c in contract_qs.order_by("end_date")[:60]:
-        state, days_left, days_abs = _due_state(c.end_date, today)
-        contract_rows.append({"c": c, "days_left": days_left, "days_abs": days_abs, "state": state})
-
-    # Sotto-tab dello scadenzario (verifiche/scadenze/contratti)
-    scad_sub = _clean_string(request.GET.get("sub")) or "verifiche"
-    if scad_sub not in ("verifiche", "scadenze", "contratti"):
-        scad_sub = "verifiche"
-
-    return render(
-        request,
-        "assets/pages/maintenance_hub.html",
-        {
-            **_assets_shell_context(request),
-            "page_title": "Manutenzione",
-            "today": today,
-            "is_admin": is_admin,
-            "active_tab": active_tab,
-            "scad_sub": scad_sub,
-            # filtri tab da_fare
-            "reparto_filter": reparto_filter,
-            "reparto_options": reparto_options,
-            "assigned_filter": assigned_filter,
-            "user_options": user_options,
-            # OdL
-            "wo_overdue": wo_overdue,
-            "wo_recent": wo_recent,
-            "wo_total": wo_total,
-            # KPI
-            "upcoming_deadlines_count": upcoming_deadlines_count,
-            "overdue_deadlines_count": overdue_deadlines_count,
-            "overdue_verifications_count": overdue_verifications_count,
-            "upcoming_verifications_count": upcoming_verifications_count,
-            "contracts_count": contracts_count,
-            "contracts_expiring_count": contracts_expiring_count,
-            "rules_count": rules_count,
-            "closed_recent_count": closed_recent_count,
-            # liste tab da_fare
-            "urgent_items": urgent_items,
-            "upcoming_items": upcoming_items,
-            "machines_overdue": machines_overdue,
-            "machines_warning": machines_warning,
-            "maintenance_rule_rows": maintenance_rule_rows,
-            "maintenance_rule_counts": maintenance_rule_counts,
-            "maintenance_rule_critical_count": maintenance_rule_critical_count,
-            "man_tickets": man_tickets,
-            "next7_items": next7_items[:12],
-            # dati tab scadenzario
-            "verif_rows": verif_rows,
-            "scope_filter": scope_filter,
-            "deadline_rows": deadline_rows,
-            "deadline_type_filter": deadline_type_filter,
-            "deadline_type_choices": AssetAdministrativeDeadline.TYPE_CHOICES,
-            "contract_rows": contract_rows,
-            "overdue_verifications": overdue_verifications_count,
-            "upcoming_verifications": upcoming_verifications_count,
-            "overdue_deadlines": overdue_deadlines_count,
-            "upcoming_deadlines": upcoming_deadlines_count,
-            "contracts_active": contracts_count,
-            "contracts_expiring": contracts_expiring_count,
-            # URL
-            "url_wo_list": reverse("assets:wo_list"),
-            "url_wo_open": wo_open_url,
-            "url_wo_overdue": wo_overdue_url,
-            "url_wo_done": wo_done_url,
-            "url_wo_create": _workorder_list_page_url(create=1),
-            "url_hub_scadenze": _url_deadlines,
-            "url_hub_verifiche": _url_verifications,
-            "url_hub_contratti": reverse("assets:assistance_contract_list"),
-            "url_maintenance_schedule": _maintenance_schedule_page_url(status="due", reparto=reparto_filter),
-            "url_impostazioni": reverse("assets:maintenance_impostazioni"),
-            "url_verifications_full": _url_verifications,
-            "url_deadlines_full": _url_deadlines,
-            "url_contracts_full": reverse("assets:assistance_contract_list"),
-            "work_machine_list_url": reverse("assets:work_machine_list"),
-        },
-    )
+        return redirect(_maintenance_schedule_page_url(reparto=_clean_string(request.GET.get("reparto"))))
+    return redirect("assets:maintenance_responsabile")
 
 
 @login_required
@@ -18212,11 +17884,14 @@ def _compute_dashboard_kpis(today: date) -> dict:
     in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
     in_repair = Asset.objects.filter(status=Asset.STATUS_IN_REPAIR).count()
 
-    # Scadenze amministrative
-    dl_qs = AssetAdministrativeDeadline.objects.filter(is_active=True)
-    dl_scadute = dl_qs.filter(due_date__lt=today).count()
-    dl_30 = dl_qs.filter(due_date__gte=today, due_date__lte=in_30).count()
-    dl_90 = dl_qs.filter(due_date__gt=in_30, due_date__lte=in_90).count()
+    # Scadenze amministrative: occorrenze dei piani amministrativi + vecchie
+    # scadenze non ancora migrate, senza doppioni (``deadline_feed``).
+    from .services import deadline_feed as feed
+
+    admin_dues = feed.administrative_dues(due_to=in_90, exclude_retired=False)
+    dl_scadute = sum(1 for due in admin_dues if due.due_date < today)
+    dl_30 = sum(1 for due in admin_dues if today <= due.due_date <= in_30)
+    dl_90 = sum(1 for due in admin_dues if in_30 < due.due_date <= in_90)
 
     # OdL
     wo_aperte = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).count()
@@ -18252,20 +17927,12 @@ def _compute_dashboard_kpis(today: date) -> dict:
         })
 
     # Prossime scadenze (lista breve)
-    prossime_scadenze = list(
-        AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__gte=today, due_date__lte=in_30)
-        .select_related("asset")
-        .order_by("due_date")[:8]
-    )
+    prossime_scadenze = [due for due in admin_dues if today <= due.due_date <= in_30][:8]
     prossime_verifiche = list(
         PeriodicVerification.objects.filter(is_active=True, next_verification_date__gte=today, next_verification_date__lte=in_30)
         .order_by("next_verification_date")[:8]
     )
-    scadenze_arretrate = list(
-        AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__lt=today)
-        .select_related("asset")
-        .order_by("due_date")[:8]
-    )
+    scadenze_arretrate = [due for due in admin_dues if due.due_date < today][:8]
 
     return {
         "totale_asset": total,

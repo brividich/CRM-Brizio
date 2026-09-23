@@ -117,6 +117,19 @@
 
 {% block assets_shell_content %}
 <section class="dl-page">
+  <article class="dl-banner">
+    <div class="dl-banner-title">Archivio precedente</div>
+    <div class="dl-banner-text">
+      Le scadenze amministrative si gestiscono dai piani e compaiono nello
+      <a href="{% url 'assets:maintenance_scadenze' %}?window=&amp;plan_type=administrative">Scadenzario</a>
+      e nel <a href="{% url 'assets:calendario_asset' %}?kinds=administrative">Calendario</a>.
+    </div>
+    <div class="dl-banner-note">
+      Qui restano quelle registrate col sistema precedente. Quelle gia' trasferite in un piano
+      risultano disattivate, con una nota che rimanda all'occorrenza; le altre sono comunque
+      incluse in Scadenzario, Calendario e promemoria.
+    </div>
+  </article>
   {% if selected_asset %}
     <article class="dl-banner">
       <div class="dl-banner-title">Contesto asset</div>

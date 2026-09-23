@@ -207,3 +207,129 @@ class ScadenzarioRinnoviTests(DeadlineFeedTestCase):
         )
         self.assertEqual(response.context["renewals"], [])
         self.assertEqual({r["occurrence"].id for r in response.context["rows"]}, {self.occ_adm.id})
+
+
+class DedupVecchieScadenzeTests(DeadlineFeedTestCase):
+    """Le vecchie ``AssetAdministrativeDeadline`` gia' copiate in un'occorrenza non
+    si contano due volte; quelle mai migrate restano visibili ovunque."""
+
+    def setUp(self):
+        super().setUp()
+        from assets.models import AssetAdministrativeDeadline
+
+        # Copia della scadenza migrata: stesso asset, stessa data, stesso titolo del piano.
+        self.doppione = AssetAdministrativeDeadline.objects.create(
+            asset=self.carroponte, title="Revisione feed", due_date=self.occ_adm.due_date
+        )
+        # Mai migrata: nessuna occorrenza corrispondente.
+        self.orfana = AssetAdministrativeDeadline.objects.create(
+            asset=self.firewall, title="Certificato CE feed", due_date=self.today + timedelta(days=4)
+        )
+
+    def test_feed_salta_il_doppione_e_tiene_l_orfana(self):
+        keys = {
+            row.key
+            for row in feed.collect(
+                start=self.today - timedelta(days=30), end=self.today + timedelta(days=30), today=self.today
+            )
+        }
+        self.assertNotIn(f"dl-{self.doppione.id}", keys)
+        self.assertIn(f"dl-{self.orfana.id}", keys)
+        self.assertIn(f"occ-{self.occ_adm.id}", keys)
+
+    def test_administrative_dues_conta_una_volta(self):
+        dues = feed.administrative_dues(due_to=self.today + timedelta(days=30))
+        self.assertEqual(
+            sorted((due.source, due.id) for due in dues),
+            sorted([("occurrence", self.occ_adm.id), ("legacy", self.orfana.id)]),
+        )
+
+    def test_comando_prova_a_vuoto_non_scrive(self):
+        import io
+        from django.core.management import call_command
+
+        out = io.StringIO()
+        call_command("close_migrated_admin_deadlines", stdout=out)
+        self.doppione.refresh_from_db()
+        self.assertTrue(self.doppione.is_active)
+        self.assertIn("PROVA A VUOTO", out.getvalue())
+        self.assertIn(f"#{self.doppione.id}", out.getvalue())
+
+    def test_comando_apply_disattiva_solo_i_doppioni_con_nota_e_audit(self):
+        import io
+        from django.core.management import call_command
+        from core.models import AuditLog
+
+        call_command("close_migrated_admin_deadlines", apply=True, stdout=io.StringIO())
+        self.doppione.refresh_from_db()
+        self.orfana.refresh_from_db()
+        self.assertFalse(self.doppione.is_active)
+        self.assertIn(f"occorrenza #{self.occ_adm.id}", self.doppione.notes)
+        self.assertTrue(self.orfana.is_active)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                azione="ASSET_SCADENZA_AMMINISTRATIVA_CHIUSA_MIGRATA", oggetto_id=str(self.doppione.id)
+            ).exists()
+        )
+        # Ripetibile: la seconda esecuzione non trova piu' niente da chiudere.
+        out = io.StringIO()
+        call_command("close_migrated_admin_deadlines", apply=True, stdout=out)
+        self.assertIn("(da chiudere): 0", out.getvalue())
+
+    def test_dashboard_asset_e_hub_contano_senza_doppioni(self):
+        from django.test import RequestFactory
+
+        from assets.services import dashboard_kpi
+        from dashboard.scadenze_providers import ScadenzeContext, collect_asset
+
+        overview = dashboard_kpi.get_cose_da_fare_overview(today=self.today)
+        self.assertEqual(overview["deadlines_overdue"], 1)  # l'occorrenza, non anche il doppione
+        self.assertEqual(overview["deadlines_30"], 1)  # l'orfana
+
+        request = RequestFactory().get(reverse("assets:maintenance_scadenze"))
+        request.user = self.admin
+        titoli = [item.titolo for item in collect_asset(ScadenzeContext.build(request))]
+        self.assertEqual(titoli.count("Revisione feed"), 1)
+        self.assertIn("Certificato CE feed", titoli)
+        self.assertIn("Total Security feed", " ".join(titoli))
+
+    def test_scadenzario_mostra_le_orfane(self):
+        response = self.client.get(
+            reverse("assets:maintenance_scadenze"), {"window": "", "plan_type": "administrative"}
+        )
+        keys = {row.key for row in response.context["renewals"]}
+        self.assertEqual(keys, {f"dl-{self.orfana.id}"})
+
+
+class PanoramicaKpiTests(DeadlineFeedTestCase):
+    def test_panoramica_per_tipologia(self):
+        response = self.client.get(reverse("assets:maintenance_responsabile"), {"vista": "operativo"})
+        self.assertEqual(response.status_code, 200)
+        types = {t["kind"]: t for t in response.context["panoramica"]["types"]}
+        self.assertEqual(set(types), {"ordinary", "administrative", "license", "contract"})
+        self.assertEqual(types["administrative"]["overdue"], 1)
+        self.assertEqual(types["ordinary"]["due_30"], 1)
+        self.assertEqual(types["license"]["next"].key, f"lic-{self.licenza.id}")
+        self.assertEqual(len(response.context["panoramica"]["heat"]), 28)
+        self.assertContains(response, "Prossime quattro settimane")
+
+    def test_panoramica_filtrata_per_famiglia(self):
+        response = self.client.get(
+            reverse("assets:maintenance_responsabile"), {"vista": "operativo", "category": self.famiglia.id}
+        )
+        types = {t["kind"]: t for t in response.context["panoramica"]["types"]}
+        self.assertEqual(types["license"]["due_30"], 0)
+        self.assertEqual(types["contract"]["due_30"], 1)
+        self.assertIn(f"category={self.famiglia.id}", response.context["panoramica"]["scadenzario_url"])
+
+    def test_pagina_kpi(self):
+        response = self.client.get(reverse("assets:maintenance_kpi"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["vista"], "sintesi")
+        self.assertTrue(response.context["kpi_page"])
+        conformita = response.context["conformita"]
+        self.assertEqual(conformita["adempimenti_aperti"], 1)
+        self.assertEqual(conformita["adempimenti_scaduti"], 1)
+        self.assertEqual(conformita["rinnovi_90"], 2)
+        self.assertContains(response, "Report e budget")
+        self.assertContains(response, 'class="as-section-tab active"', html=False)

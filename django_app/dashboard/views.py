@@ -1491,15 +1491,16 @@ def _board_data_assets(legacy_user_id: int | None, params: dict) -> dict:
         max_items = min(int(params.get("max_items") or 6), MAX_BOARD_WIDGET_ITEMS)
         show_deadlines = bool(params.get("show_deadlines", True))
         today = timezone.localdate()
+        from assets.services import deadline_feed
+
         assigned_qs = Asset.objects.filter(assigned_legacy_user_id=legacy_user_id).order_by("name", "asset_tag", "id")
         assets = list(assigned_qs[:max_items])
         deadline_map: dict[int, Any] = {}
         if show_deadlines and assets:
             asset_ids = [asset.id for asset in assets]
-            for deadline in (
-                AssetAdministrativeDeadline.objects.filter(asset_id__in=asset_ids, is_active=True)
-                .select_related("asset")
-                .order_by("asset_id", "due_date", "id")
+            # La prima scadenza amministrativa di ogni asset, da occorrenze e vecchia tabella.
+            for deadline in deadline_feed.administrative_dues(
+                asset_filter={"id__in": asset_ids}, exclude_retired=False
             ):
                 deadline_map.setdefault(deadline.asset_id, deadline)
         items = []
@@ -1529,11 +1530,13 @@ def _board_data_assets(legacy_user_id: int | None, params: dict) -> dict:
             "assigned": assigned_qs.count(),
             "in_use": assigned_qs.filter(status=Asset.STATUS_IN_USE).count(),
             "in_repair": assigned_qs.filter(status=Asset.STATUS_IN_REPAIR).count(),
-            "deadlines": AssetAdministrativeDeadline.objects.filter(
-                asset__assigned_legacy_user_id=legacy_user_id,
-                is_active=True,
-                due_date__lte=today + timedelta(days=30),
-            ).count(),
+            "deadlines": len(
+                deadline_feed.administrative_dues(
+                    asset_filter={"assigned_legacy_user_id": legacy_user_id},
+                    due_to=today + timedelta(days=30),
+                    exclude_retired=False,
+                )
+            ),
         }
         return {"items": items, "stats": stats}
     except Exception:
@@ -2148,9 +2151,10 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
         from assets.models import AssetAdministrativeDeadline, PeriodicVerification
         import datetime
         horizon = today + datetime.timedelta(days=30)
-        scad_amm = AssetAdministrativeDeadline.objects.filter(
-            is_active=True, due_date__lte=horizon
-        ).count()
+        from assets.services import deadline_feed
+
+        # Occorrenze amministrative + vecchie scadenze non migrate, senza doppioni.
+        scad_amm = len(deadline_feed.administrative_dues(due_to=horizon, exclude_retired=False))
         scad_man = PeriodicVerification.objects.filter(
             is_active=True, next_verification_date__lte=horizon
         ).count()

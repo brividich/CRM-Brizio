@@ -521,17 +521,24 @@ def _tab_links(request: HttpRequest, param: str, options, active: str) -> list[d
     return links
 
 
-def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: date, scoped_reparti) -> list:
-    """Licenze e contratti in scadenza, dallo stesso servizio del Calendario.
+def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: date, scoped_reparti,
+                  plan_type: str = "") -> list:
+    """Scadenze che non sono occorrenze, dallo stesso servizio del Calendario:
+    licenze, contratti e le vecchie scadenze amministrative non ancora migrate.
 
-    Stessa finestra temporale delle occorrenze (le scadute restano finche' la
-    licenza o il contratto sono attivi), stessi filtri famiglia/reparto/gruppo e
-    ricerca. Visibili solo a chi puo' aprire le pagine Licenze e Contratti.
+    Stessa finestra temporale delle occorrenze (le scadute restano finche' sono
+    attive), stessi filtri famiglia/reparto/gruppo e ricerca. Licenze e contratti
+    solo a chi puo' aprire le loro pagine.
     """
     from .services import deadline_feed as feed
 
     data = form.cleaned_data if form.is_valid() else {}
-    kinds = feed.allowed_kinds(request) & {feed.KIND_LICENSE, feed.KIND_CONTRACT}
+    wanted = {
+        "": {feed.KIND_LICENSE, feed.KIND_CONTRACT, feed.KIND_ADMINISTRATIVE},
+        "renewals": {feed.KIND_LICENSE, feed.KIND_CONTRACT},
+        "administrative": {feed.KIND_ADMINISTRATIVE},
+    }.get(plan_type, set())
+    kinds = feed.allowed_kinds(request) & wanted
     if not kinds or data.get("execution_mode") or data.get("plan") or data.get("asset") or data.get("supplier"):
         # Filtri che su licenze e contratti non hanno senso: meglio nessuna riga
         # che righe che sembrano rispettarli.
@@ -549,7 +556,9 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
         reparto=data.get("reparto") or "",
         group_id=data["group"].id if data.get("group") else None,
     )
-    rows = feed.collect(start=start, end=end, filters=filters, today=today)
+    # Le occorrenze hanno la loro tabella sopra: qui solo cio' che non lo e'.
+    rows = [row for row in feed.collect(start=start, end=end, filters=filters, today=today)
+            if not row.key.startswith("occ-")]
     term = (data.get("q") or "").strip().lower()
     if term:
         rows = [r for r in rows if term in f"{r.title} {r.asset_tag} {r.asset_name} {r.supplier}".lower()]
@@ -586,8 +595,8 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
         if form.cleaned_data.get("report_missing"):
             rows = _report_missing_rows(rows)
     renewals = (
-        _renewal_rows(request, form, today=today, scoped_reparti=scoped_reparti)
-        if plan_type in ("", "renewals") and not form.cleaned_data.get("report_missing")
+        _renewal_rows(request, form, today=today, scoped_reparti=scoped_reparti, plan_type=plan_type)
+        if plan_type in ("", "renewals", "administrative") and not form.cleaned_data.get("report_missing")
         else []
     )
 
@@ -604,7 +613,7 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
             "total": len(rows) + len(renewals),
             "renewals": renewals,
             "show_occurrences": plan_type != "renewals",
-            "show_renewals": plan_type in ("", "renewals"),
+            "show_renewals": plan_type in ("", "renewals", "administrative"),
             "window_tabs": _tab_links(request, "window", _SCADENZE_TABS, active_tab),
             "type_tabs": _tab_links(
                 request, "plan_type", _SCADENZE_TYPE_TABS, _clean_string(initial.get("plan_type"))
@@ -780,10 +789,153 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     }
 
 
+def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
+    """Il colpo d'occhio della Panoramica, sullo stesso servizio di Calendario e
+    Scadenzario (``deadline_feed``): per tipologia, prossime quattro settimane,
+    prossime scadenze e ripartizione per categoria asset.
+
+    Filtri facoltativi ``category`` (famiglia, con sottocategorie) e ``reparto``:
+    restano nell'URL e i link verso Scadenzario e Calendario li portano con se'.
+    """
+    from urllib.parse import urlencode
+
+    from .forms_maintenance import category_filter_choices
+    from .services import deadline_feed as feed
+
+    category_id = 0
+    try:
+        category_id = int(request.GET.get("category") or 0)
+    except (TypeError, ValueError):
+        category_id = 0
+    reparto = _clean_string(request.GET.get("reparto"))
+    kinds = feed.allowed_kinds(request)
+    horizon = today + timedelta(days=30)
+    week_start = today - timedelta(days=today.weekday())
+    heat_end = week_start + timedelta(days=27)
+    rows = feed.collect(
+        start=None,
+        end=max(horizon, heat_end),
+        filters=feed.FeedFilters(
+            kinds=kinds,
+            category_ids=frozenset(category_with_descendants(category_id)) if category_id else None,
+            reparto=reparto,
+        ),
+        today=today,
+    )
+    open_rows = [row for row in rows if row.state != feed.STATE_DONE]
+
+    shared = {key: value for key, value in (("category", category_id or ""), ("reparto", reparto)) if value}
+    scadenzario_url = reverse("assets:maintenance_scadenze")
+    calendario_url = reverse("assets:calendario_asset")
+    plan_type_for = {feed.KIND_ORDINARY: "ordinary", feed.KIND_ADMINISTRATIVE: "administrative",
+                     feed.KIND_LICENSE: "renewals", feed.KIND_CONTRACT: "renewals"}
+
+    types = []
+    for kind, label in feed.KIND_LABELS.items():
+        if kind not in kinds:
+            continue
+        of_kind = [row for row in open_rows if row.kind == kind]
+        upcoming = [row for row in of_kind if row.due_date >= today]
+        types.append({
+            "kind": kind,
+            "label": {
+                feed.KIND_ORDINARY: "Manutenzione ordinaria",
+                feed.KIND_ADMINISTRATIVE: "Scadenze amministrative",
+                feed.KIND_LICENSE: "Licenze software",
+                feed.KIND_CONTRACT: "Contratti di assistenza",
+            }[kind],
+            "overdue": sum(1 for row in of_kind if row.state == feed.STATE_OVERDUE),
+            "due_30": sum(1 for row in upcoming if row.due_date <= horizon),
+            "next": upcoming[0] if upcoming else None,
+            "url": f"{scadenzario_url}?{urlencode({**shared, 'window': '', 'plan_type': plan_type_for[kind]})}",
+            "calendar_url": f"{calendario_url}?{urlencode({**shared, 'kinds': kind})}",
+        })
+
+    # Quattro settimane da lunedi': quante scadenze aperte per giorno.
+    per_day: dict[date, int] = {}
+    for row in open_rows:
+        if week_start <= row.due_date <= heat_end:
+            per_day[row.due_date] = per_day.get(row.due_date, 0) + 1
+    peak = max(per_day.values(), default=0)
+    heat = []
+    for offset in range(28):
+        day = week_start + timedelta(days=offset)
+        count = per_day.get(day, 0)
+        # Livelli 0-4: il colore dice "quanto", il numero resta nel titolo.
+        level = 0 if not count else min(4, 1 + (3 * count) // max(peak, 1))
+        heat.append({"day": day, "count": count, "level": level, "is_today": day == today, "past": day < today})
+
+    overdue = [row for row in open_rows if row.state == feed.STATE_OVERDUE]
+    upcoming = [row for row in open_rows if row.due_date >= today]
+    # Le scadute per prime, ma senza soffocare le prossime.
+    prossime = overdue[:4] + upcoming[: 10 - min(len(overdue), 4)]
+    for row in prossime:
+        row.days = row.days_until(today)
+        row.days_late = -row.days if row.days < 0 else 0
+
+    per_category: dict[str, int] = {}
+    for row in open_rows:
+        if row.due_date <= horizon:
+            per_category[row.category_label or "Senza categoria"] = per_category.get(row.category_label or "Senza categoria", 0) + 1
+    category_peak = max(per_category.values(), default=0)
+    categories = [
+        {"label": label, "count": count, "pct": round(100 * count / category_peak) if category_peak else 0}
+        for label, count in sorted(per_category.items(), key=lambda item: (-item[1], item[0]))[:8]
+    ]
+
+    return {
+        "types": types,
+        "heat": heat,
+        "prossime": prossime,
+        "categories": categories,
+        "category_choices": category_filter_choices(),
+        "category_id": str(category_id or ""),
+        "reparto": reparto,
+        "reparti": list(
+            Asset.objects.exclude(reparto="").values_list("reparto", flat=True).order_by("reparto").distinct()
+        ),
+        "scadenzario_url": f"{scadenzario_url}?{urlencode({**shared, 'window': ''})}",
+        "calendario_url": f"{calendario_url}?{urlencode(shared)}" if shared else calendario_url,
+        "filtered": bool(shared),
+    }
+
+
+def _conformita(request: HttpRequest, *, today: date) -> dict[str, Any]:
+    """Indicatori di conformita' per la pagina KPI: adempimenti amministrativi in
+    regola e rinnovi di licenze e contratti. Stessa fonte della Panoramica."""
+    from .services import deadline_feed as feed
+
+    dues = feed.administrative_dues()
+    scaduti = sum(1 for due in dues if due.due_date < today)
+    kinds = feed.allowed_kinds(request) & {feed.KIND_LICENSE, feed.KIND_CONTRACT}
+    rinnovi = feed.collect(
+        start=None, end=today + timedelta(days=90), filters=feed.FeedFilters(kinds=frozenset(kinds)), today=today
+    ) if kinds else []
+    return {
+        "adempimenti_aperti": len(dues),
+        "adempimenti_scaduti": scaduti,
+        "adempimenti_pct": round(100 * (len(dues) - scaduti) / len(dues)) if dues else None,
+        "rinnovi_90": sum(1 for row in rinnovi if row.due_date >= today),
+        "rinnovi_scaduti": sum(1 for row in rinnovi if row.due_date < today),
+        "rinnovi_visibili": bool(kinds),
+    }
+
+
 @login_required
 def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
-    """Quadro generale: cosa e' scaduto, cosa sta per scadere, cosa NON e' ancora
+    """Panoramica: cosa e' scaduto, cosa sta per scadere, cosa NON e' ancora
     pianificato. La distinzione fra "dovuta" e "pianificata" e' il punto della pagina."""
+    return _responsabile_response(request, kpi_page=False)
+
+
+@login_required
+def maintenance_kpi(request: HttpRequest) -> HttpResponse:
+    """KPI: la lettura "come sta andando" (puntualita', arretrato, copertura,
+    conformita'). Stesso calcolo della Sintesi, con una voce di menu propria."""
+    return _responsabile_response(request, kpi_page=True)
+
+
+def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpResponse:
     today = timezone.localdate()
     open_rows = _decorate(
         list(_base_occurrence_queryset().filter(status=MaintenanceOccurrence.STATUS_OPEN)[:3000]),
@@ -918,7 +1070,7 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
 
     # Due letture della stessa pagina, non due pagine: l'operativo elenca cosa fare,
     # la sintesi dice come sta andando. Stesso URL, stesso conteggio, un parametro.
-    vista = _vista_cruscotto(request)
+    vista = "sintesi" if kpi_page else _vista_cruscotto(request)
     sintesi = (
         _sintesi_direzione(
             today=today,
@@ -936,10 +1088,13 @@ def maintenance_responsabile(request: HttpRequest) -> HttpResponse:
         "assets/pages/maintenance_responsabile.html",
         {
             **_assets_shell_context(request),
-            "page_title": "Cruscotto manutenzione",
+            "page_title": "KPI manutenzione" if kpi_page else "Panoramica manutenzione",
+            "kpi_page": kpi_page,
             "today": today,
             "vista": vista,
             "sintesi": sintesi,
+            "panoramica": _panoramica(request, today=today) if vista == "operativo" else None,
+            "conformita": _conformita(request, today=today) if vista == "sintesi" else None,
             "kpi": kpi,
             "unplanned": unplanned[:60],
             "report_missing": report_missing[:40],

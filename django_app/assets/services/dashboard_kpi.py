@@ -7,9 +7,9 @@ from typing import Any
 from django.db.models import Avg, Count, Q, Sum
 from django.utils import timezone
 
+from . import deadline_feed as feed
 from assets.models import (
     Asset,
-    AssetAdministrativeDeadline,
     AssetAdministrativeDeadlineCompletion,
     AssetCategory,
     PeriodicVerification,
@@ -260,23 +260,16 @@ def get_maintenance_kpis_for_types(
     horizon = today + timedelta(days=window_days)
     lookback = today - timedelta(days=365)
 
-    coinvolti_ids: set[int] = set(
-        AssetAdministrativeDeadline.objects
-        .filter(is_active=True, due_date__lte=horizon, asset__asset_type__in=asset_types)
-        .exclude(asset__status=Asset.STATUS_RETIRED)
-        .values_list("asset_id", flat=True)
-        .distinct()
-    )
+    # Occorrenze dei piani amministrativi + vecchie scadenze non ancora migrate
+    # (``deadline_feed``): prima si leggeva solo la tabella vecchia.
+    type_filter = {"asset_type__in": asset_types}
+    coinvolti_ids: set[int] = {
+        due.asset_id for due in feed.administrative_dues(asset_filter=type_filter, due_to=horizon)
+    }
     if not coinvolti_ids:
         return {"coinvolti": 0, "manutentati": 0, "da_manutentare": 0, "percent_done": 0}
 
-    maintained_ids: set[int] = set(
-        AssetAdministrativeDeadlineCompletion.objects
-        .filter(completed_on__gte=lookback, deadline__asset__asset_type__in=asset_types)
-        .exclude(deadline__asset__status=Asset.STATUS_RETIRED)
-        .values_list("deadline__asset_id", flat=True)
-        .distinct()
-    )
+    maintained_ids = feed.administrative_completed_asset_ids(since=lookback, asset_filter=type_filter)
     coinvolti = len(coinvolti_ids)
     manutentati = len(coinvolti_ids & maintained_ids)
     return {
@@ -304,19 +297,9 @@ def get_maintenance_status_by_family(
     horizon = today + timedelta(days=window_days)
     lookback = today - timedelta(days=365)
 
-    upcoming_pairs = list(
-        AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__lte=horizon)
-        .exclude(asset__status=Asset.STATUS_RETIRED)
-        .values_list("asset_id", "asset__asset_type")
-        .distinct()
-    )
+    upcoming_pairs = {(due.asset_id, due.asset.asset_type) for due in feed.administrative_dues(due_to=horizon)}
 
-    maintained_ids: set[int] = set(
-        AssetAdministrativeDeadlineCompletion.objects.filter(completed_on__gte=lookback)
-        .exclude(deadline__asset__status=Asset.STATUS_RETIRED)
-        .values_list("deadline__asset_id", flat=True)
-        .distinct()
-    )
+    maintained_ids = feed.administrative_completed_asset_ids(since=lookback)
 
     family_assets: dict[str, set[int]] = {key: set() for key, _, _ in _ASSET_TYPE_FAMILY_MAP}
     for asset_id, asset_type in upcoming_pairs:
@@ -357,18 +340,14 @@ def get_fire_safety_kpis(today: date | None = None) -> dict:
         }
 
     assets_qs = _active_assets_qs().filter(asset_category=category)
-    deadlines_qs = AssetAdministrativeDeadline.objects.filter(
-        is_active=True,
-        asset__asset_category=category,
-    ).exclude(asset__status=Asset.STATUS_RETIRED)
-
-    # Le scadenze Antincendio usano le scadenze amministrative manuali asset.
-    # Se non vengono censite dall'admin, i KPI restano correttamente a 0.
+    # Scadenze amministrative della categoria, da occorrenze e vecchia tabella.
+    # Se non ne sono censite, i KPI restano correttamente a 0.
+    dues = feed.administrative_dues(asset_filter={"asset_category": category})
     return {
         "has_fire_safety": True,
         "antincendio_asset_totali": _safe_count(assets_qs),
-        "antincendio_scadenze_scadute": _safe_count(deadlines_qs.filter(due_date__lt=today)),
-        "antincendio_scadenze_30gg": _safe_count(deadlines_qs.filter(due_date__gte=today, due_date__lte=in_30)),
+        "antincendio_scadenze_scadute": sum(1 for due in dues if due.due_date < today),
+        "antincendio_scadenze_30gg": sum(1 for due in dues if today <= due.due_date <= in_30),
         "antincendio_wo_aperte": _safe_count(
             WorkOrder.objects.filter(
                 asset__asset_category=category,
@@ -742,11 +721,9 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6) -> dict
     wo_open = _safe_count(wo_qs)
     wo_overdue = _safe_count(wo_qs.filter(opened_at__date__lte=overdue_threshold))
 
-    dl_qs = AssetAdministrativeDeadline.objects.filter(is_active=True).exclude(
-        asset__status=Asset.STATUS_RETIRED
-    )
-    deadlines_overdue = _safe_count(dl_qs.filter(due_date__lt=today))
-    deadlines_30 = _safe_count(dl_qs.filter(due_date__gte=today, due_date__lte=horizon_30))
+    dues = feed.administrative_dues(due_to=horizon_30)
+    deadlines_overdue = sum(1 for due in dues if due.due_date < today)
+    deadlines_30 = sum(1 for due in dues if due.due_date >= today)
 
     pv_qs = PeriodicVerification.objects.filter(
         is_active=True, is_legacy=False, next_verification_date__isnull=False
