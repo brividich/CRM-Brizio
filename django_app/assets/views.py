@@ -5115,6 +5115,16 @@ def _resolve_sidebar_url(raw_url: str, rows: int = 25) -> str:
 
 
 def _is_sidebar_button_active(request: HttpRequest, button: AssetSidebarButton, resolved_url: str) -> bool:
+    # Le voci della Manutenzione si accendono per nome di rotta, dalla stessa
+    # definizione della barra di sezione: un pezzo di URL non basta, perche'
+    # Configurazione e Manutenzione condividono il prefisso /assets/manutenzione/.
+    from .maintenance_nav import sidebar_code_routes
+
+    nav_routes = sidebar_code_routes().get(_clean_string(button.code))
+    if nav_routes is not None:
+        current_route = getattr(getattr(request, "resolver_match", None), "url_name", "") or ""
+        return current_route in nav_routes
+
     active_match = _clean_string(button.active_match)
     full_path = request.get_full_path()
     if active_match:
@@ -6399,134 +6409,49 @@ def _assets_shell_context(
 
 
 def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
-    current_route = _clean_string(getattr(getattr(request, "resolver_match", None), "url_name", ""))
-    if not current_route:
-        return None
+    """Barra di sezione Manutenzione, costruita da ``maintenance_nav``.
 
-    route_to_item = {
-        "maintenance_hub": "da_fare",
-        "maintenance_todo": "da_fare",
-        "maintenance_da_fare": "da_fare",
-        "occurrence_complete": "da_fare",
-        "occurrence_followup_create": "da_fare",
-        "maintenance_scadenze": "scadenze",
-        "maintenance_responsabile": "quadro",
-        "maintenance_plan_list": "plans",
-        "maintenance_plan_detail": "plans",
-        "maintenance_plan_create": "plans",
-        "maintenance_plan_edit": "plans",
-        "maintenance_assignment_create": "plans",
-        "maintenance_assignment_edit": "plans",
-        "maintenance_coverage": "plans",
-        "asset_group_list": "groups",
-        "asset_group_create": "groups",
-        "asset_group_edit": "groups",
-        "asset_maintenance_plans": "plans",
-        "asset_plan_customize": "plans",
-        "maintenance_schedule": "scadenze",
-        "maintenance_scadenzario": "scadenze",
-        "maintenance_history": "history",
-        "wo_list": "workorders",
-        "wo_view": "workorders",
-        "wo_create": "workorders",
-        "wo_close": "workorders",
-        "reports": "reports",
-        "report_template_admin": "report_templates",
-        "maintenance_impostazioni": "settings",
-        "maintenance_suppliers": "suppliers",
-        "maintenance_supplier_detail": "suppliers",
-        "maintenance_template_list": "settings",
-        "maintenance_template_create": "settings",
-        "maintenance_template_edit": "settings",
-        "maintenance_rule_list": "settings",
-        "maintenance_rule_create": "settings",
-        "maintenance_rule_edit": "settings",
-        "asset_maintenance_rule_list": "settings",
-        "asset_maintenance_rule_override_create": "settings",
-        "asset_maintenance_rule_override_edit": "settings",
-        "asset_maintenance_rule_override_reset": "settings",
-        "periodic_verifications": "settings",
-        "assistance_contract_list": "settings",
-    }
-    active_item = route_to_item.get(current_route)
+    Mostra le voci del ramo a cui appartiene la pagina (Manutenzione o
+    Configurazione): stessa definizione, stesso ordine e stesse etichette della
+    sidebar.
+    """
+    from .maintenance_nav import GROUP_OPERATIVO, find_active
+
+    current_route = _clean_string(getattr(getattr(request, "resolver_match", None), "url_name", ""))
+    found = find_active(current_route)
+    if found is None:
+        return None
+    group, active_item = found
+
+    # Gli interventi chiusi sono lo Storico, anche se la rotta e' la lista OdL.
     if current_route == "wo_list" and (
         _clean_string(request.GET.get("view")).lower() == "closed"
         or _clean_string(request.GET.get("status")).upper() in {WorkOrder.STATUS_DONE, WorkOrder.STATUS_CANCELED}
     ):
-        active_item = "history"
-    if active_item == "report_templates":
-        active_item = "reports"
-    if active_item is None:
-        return None
+        active_item = next((item for item in group.items if item.key == "storico"), active_item)
 
-    report_scope = _normalize_reports_scope(request.GET.get("scope"))
+    items = []
+    for item in group.items:
+        url = reverse(f"assets:{item.route}")
+        if item.key == "report":
+            url = f"{url}?scope={_normalize_reports_scope(request.GET.get('scope'))}"
+        elif item.query:
+            url = f"{url}?{item.query}"
+        items.append({"key": item.key, "label": item.label, "url": url, "active": item.key == active_item.key})
+
     workorders_url = reverse("assets:wo_list")
-    settings_url = reverse("assets:maintenance_impostazioni")
-    items = [
-        {
-            "key": "da_fare",
-            "label": "Da fare",
-            "url": reverse("assets:maintenance_da_fare"),
-        },
-        {
-            "key": "scadenze",
-            "label": "Scadenze",
-            "url": reverse("assets:maintenance_scadenze"),
-        },
-        {
-            "key": "quadro",
-            "label": "Cruscotto",
-            "url": reverse("assets:maintenance_responsabile"),
-        },
-        {
-            "key": "plans",
-            "label": "Piani",
-            "url": reverse("assets:maintenance_plan_list"),
-        },
-        {
-            "key": "groups",
-            "label": "Gruppi asset",
-            "url": reverse("assets:asset_group_list"),
-        },
-        {
-            "key": "workorders",
-            "label": "Interventi",
-            "url": workorders_url,
-        },
-        {
-            "key": "history",
-            "label": "Storico",
-            "url": reverse("assets:maintenance_history"),
-        },
-        {
-            "key": "settings",
-            "label": "Impostazioni",
-            "url": settings_url,
-        },
-        {
-            "key": "reports",
-            "label": "Report",
-            "url": f"{reverse('assets:reports')}?scope={report_scope}",
-        },
-        {
-            "key": "suppliers",
-            "label": "Fornitori",
-            "url": reverse("assets:maintenance_suppliers"),
-        },
+    breadcrumbs = [
+        {"label": "Assets", "url": reverse("assets:asset_dashboard")},
+        {"label": "Manutenzione", "url": reverse("assets:maintenance_responsabile")},
     ]
-    for item in items:
-        item["active"] = item["key"] == active_item
-
-    active_label = next((item["label"] for item in items if item["active"]), "Manutenzione")
+    if group.key != GROUP_OPERATIVO:
+        breadcrumbs.append({"label": group.label, "url": reverse(f"assets:{group.items[0].route}")})
+    breadcrumbs.append({"label": active_item.label, "url": ""})
     return {
-        "label": "Manutenzione",
-        "active_label": active_label,
+        "label": group.label,
+        "active_label": active_item.label,
         "items": items,
-        "breadcrumbs": [
-            {"label": "Assets", "url": reverse("assets:asset_dashboard")},
-            {"label": "Manutenzione", "url": reverse("assets:maintenance_hub")},
-            {"label": active_label, "url": ""},
-        ],
+        "breadcrumbs": breadcrumbs,
         "actions": [
             {
                 "key": "new-workorder",
@@ -6550,7 +6475,6 @@ def _assets_section_nav(request: HttpRequest) -> dict[str, object] | None:
             },
         ],
     }
-
 
 def _safe_editor_json_rows(raw_value) -> list[dict[str, object]]:
     if not raw_value:
@@ -18628,40 +18552,127 @@ def asset_calendar_json(request: HttpRequest, id: int) -> JsonResponse:
 
 @login_required
 def calendario_asset(request: HttpRequest) -> HttpResponse:
-    """Pagina globale Calendario Asset: vista a calendario o a Gantt."""
-    machines = list(
-        Asset.objects
-        .filter(asset_type__in=[Asset.TYPE_WORK_MACHINE, Asset.TYPE_CNC])
-        .order_by("reparto", "name", "asset_tag")
+    """Calendario della manutenzione: ordinarie, amministrative, licenze e contratti.
+
+    Legge dallo stesso servizio dello Scadenzario (``services.deadline_feed``): i
+    numeri del calendario e della lista sono gli stessi. Viste mese, settimana,
+    elenco e per asset; i filtri vanno al server, le tipologie si accendono e
+    spengono senza ricaricare.
+    """
+    from .forms_maintenance import category_filter_choices
+    from .models import AssetGroup
+    from .services import deadline_feed as feed
+
+    allowed = feed.allowed_kinds(request)
+    kinds = [
+        {"value": kind, "label": label}
+        for kind, label in feed.KIND_LABELS.items()
+        if kind in allowed
+    ]
+    kinds.append({"value": "machine_work", "label": "Lavori macchina"})
+    reparti = list(
+        Asset.objects.exclude(reparto="").values_list("reparto", flat=True).order_by("reparto").distinct()
     )
-    reparti = sorted({m.reparto for m in machines if m.reparto})
     return render(request, "assets/pages/calendario_asset.html", {
-        "machines": machines,
+        "page_title": "Calendario manutenzione",
+        "kinds": kinds,
+        "categories": category_filter_choices(),
         "reparti": reparti,
-        "page_title": "Calendario Asset",
+        "groups": AssetGroup.objects.filter(is_active=True).order_by("sort_order", "label"),
         **_assets_shell_context(request),
     })
 
 
+def _calendar_range_date(raw) -> date | None:
+    """FullCalendar manda ``2026-09-28T00:00:00+02:00``: interessa solo la data."""
+    value = _clean_string(raw)[:10]
+    try:
+        return parse_date(value) if value else None
+    except ValueError:
+        return None
+
+
+def _machine_work_events(start: date, end: date, filters) -> list[dict]:
+    """Lavori macchina (attivita' KICK-OFF di categoria "lavoro macchina") sugli
+    asset filtrati: non sono scadenze di manutenzione ma occupano la macchina, e
+    chi pianifica deve vederli accanto. Una query per tutto il periodo."""
+    try:
+        from tasks.models import TaskExtraRef, TaskStatus
+    except Exception:
+        return []
+    refs = (
+        TaskExtraRef.objects.filter(asset_id__isnull=False, task__category__is_machine_work=True)
+        .exclude(task__status__in=[TaskStatus.DONE, TaskStatus.CANCELED])
+        .select_related("task", "task__assigned_to", "asset", "asset__asset_category")
+    )
+    if filters.category_ids is not None:
+        refs = refs.filter(asset__asset_category_id__in=filters.category_ids)
+    if filters.reparto:
+        refs = refs.filter(asset__reparto=filters.reparto)
+    if filters.group_id:
+        refs = refs.filter(asset__group_memberships__group_id=filters.group_id)
+    events = []
+    for ref in refs[:1000]:
+        task = ref.task
+        begin = task.next_step_due or task.due_date
+        finish = task.due_date or task.next_step_due
+        if not begin or begin > end or (finish or begin) < start:
+            continue
+        asset = ref.asset
+        assignee = ""
+        if task.assigned_to_id:
+            assignee = task.assigned_to.get_full_name() or task.assigned_to.get_username()
+        events.append({
+            "id": f"task-{task.pk}",
+            "kind": "machine_work",
+            "kind_label": "Lavoro macchina",
+            "title": task.title,
+            "start": begin.isoformat(),
+            # FullCalendar: fine esclusiva, quindi il giorno dopo l'ultimo.
+            "end": (finish + timedelta(days=1)).isoformat() if finish and finish > begin else None,
+            "state": "open",
+            "state_label": "In corso" if task.status == TaskStatus.IN_PROGRESS else "Pianificato",
+            "asset_id": asset.id,
+            "asset_tag": asset.asset_tag or "",
+            "asset_name": asset.name or "",
+            "category": asset.asset_category.label if asset.asset_category_id else "",
+            "reparto": asset.reparto or "",
+            "assignee": assignee,
+            "url": f"/tasks/detail/{task.pk}/",
+            "actions": [{"label": "Apri attività", "url": f"/tasks/detail/{task.pk}/"}],
+        })
+    return events
+
+
 @login_required
 def calendario_asset_json(request: HttpRequest) -> JsonResponse:
-    """JSON eventi per tutte le macchine (usato dalla pagina calendario globale)."""
-    machines = Asset.objects.filter(
-        asset_type__in=[Asset.TYPE_WORK_MACHINE, Asset.TYPE_CNC]
-    ).values_list("pk", "asset_tag", "name", "reparto")
+    """Eventi del Calendario manutenzione per il periodo visibile (``start``/``end``)."""
+    from .forms_maintenance import category_with_descendants
+    from .services import deadline_feed as feed
 
-    all_events: list[dict] = []
-    resources: list[dict] = []
-    for pk, tag, name, reparto in machines:
-        resources.append({
-            "id": str(pk),
-            "title": f"{tag} – {name}",
-            "tag": tag,
-            "name": name,
-            "reparto": reparto or "",
-        })
-        for ev in _asset_calendar_events(pk):
-            ev["resourceId"] = str(pk)
-            all_events.append(ev)
+    today = timezone.localdate()
+    start = _calendar_range_date(request.GET.get("start")) or today.replace(day=1) - timedelta(days=7)
+    end = _calendar_range_date(request.GET.get("end")) or start + timedelta(days=42)
+    # Il calendario non chiede mai piu' di qualche settimana: un periodo enorme e'
+    # un errore o un abuso, e si tronca.
+    if end <= start or (end - start).days > 400:
+        end = start + timedelta(days=42)
 
-    return JsonResponse({"ok": True, "resources": resources, "events": all_events})
+    requested = [kind for kind in _clean_string(request.GET.get("kinds")).split(",") if kind]
+    allowed = feed.allowed_kinds(request)
+    category_id = _as_int(request.GET.get("category"), default=0)
+    execution = _clean_string(request.GET.get("execution")).upper()
+    filters = feed.FeedFilters(
+        kinds=feed.parse_kinds(requested, allowed),
+        category_ids=frozenset(category_with_descendants(category_id)) if category_id else None,
+        reparto=_clean_string(request.GET.get("reparto")),
+        group_id=_as_int(request.GET.get("group"), default=0) or None,
+        execution_mode=execution if execution in {"INTERNAL", "EXTERNAL"} else "",
+        include_done=_clean_string(request.GET.get("include_done")) in {"1", "true", "on"},
+    )
+    last_day = end - timedelta(days=1)  # FullCalendar tratta ``end`` come esclusivo.
+    rows = feed.collect(start=start, end=last_day, filters=filters, today=today)
+    events = [row.as_json(today) for row in rows]
+    if not requested or "machine_work" in requested:
+        events += _machine_work_events(start, last_day, filters)
+    return JsonResponse({"ok": True, "today": today.isoformat(), "events": events})
