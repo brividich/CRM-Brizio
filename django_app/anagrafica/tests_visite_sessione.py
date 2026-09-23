@@ -85,6 +85,97 @@ class UltimeVisiteCorrentiIdsTests(TestCase):
         self.assertEqual(ultime_visite_correnti_ids(legacy_ids=[4]), {v1.pk})
         self.assertEqual(ultime_visite_correnti_ids(tipo_ids=[self.tipo_b.pk]), {v2.pk})
 
+    def test_stessa_categoria_la_recente_supera_altro_tipo(self):
+        quinq = TipoVisitaMedica.objects.create(
+            nome="VM quinquennale", durata_mesi=60, categoria="Visita medica")
+        annuale = TipoVisitaMedica.objects.create(
+            nome="VM annuale", durata_mesi=12, categoria=" visita MEDICA ")
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=6, tipo=quinq, data_svolgimento=date(2020, 6, 30))
+        recente = VisitaMedica.objects.create(
+            legacy_anagrafica_id=6, tipo=annuale, data_svolgimento=date(2025, 5, 23))
+        self.assertEqual(ultime_visite_correnti_ids(), {recente.pk})
+        # Il filtro per tipo non deve far "risorgere" la quinquennale superata.
+        self.assertEqual(ultime_visite_correnti_ids(tipo_ids=[quinq.pk]), set())
+        self.assertEqual(ultime_visite_correnti_ids(tipo_ids=[annuale.pk]), {recente.pk})
+
+    def test_senza_categoria_resta_il_confronto_per_tipo(self):
+        a = VisitaMedica.objects.create(
+            legacy_anagrafica_id=7, tipo=self.tipo, data_svolgimento=self.oggi - timedelta(days=400))
+        b = VisitaMedica.objects.create(
+            legacy_anagrafica_id=7, tipo=self.tipo_b, data_svolgimento=self.oggi - timedelta(days=10))
+        self.assertEqual(ultime_visite_correnti_ids(), {a.pk, b.pk})
+
+    def test_superata_a_mano_non_e_corrente_e_non_rende_il_posto(self):
+        VisitaMedica.objects.create(
+            legacy_anagrafica_id=8, tipo=self.tipo, data_svolgimento=self.oggi - timedelta(days=800))
+        ultima = VisitaMedica.objects.create(
+            legacy_anagrafica_id=8, tipo=self.tipo, data_svolgimento=self.oggi - timedelta(days=400),
+            superata_il=timezone.now(), superata_motivo="già rinnovata")
+        self.assertEqual(ultime_visite_correnti_ids(), set())
+        ultima.superata_il = None
+        ultima.save()
+        self.assertEqual(ultime_visite_correnti_ids(), {ultima.pk})
+
+
+class VisitaSuperataViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_superuser(
+            username="su-visite-sup", email="su-visite-sup@test.local", password="x")
+        self.client.force_login(self.user)
+        tipo = TipoVisitaMedica.objects.create(nome="Periodica superata", durata_mesi=12)
+        self.visita = VisitaMedica.objects.create(
+            legacy_anagrafica_id=71, tipo=tipo, data_svolgimento=date(2024, 3, 10))
+        from django.urls import reverse
+        self.url = reverse("anagrafica:visita_medica_superata", args=[self.visita.pk])
+
+    def test_motivo_obbligatorio(self):
+        self.client.post(self.url, {"motivo": "  "})
+        self.visita.refresh_from_db()
+        self.assertIsNone(self.visita.superata_il)
+
+    def test_segna_e_ripristina_con_audit(self):
+        from core.models import AuditLog
+        self.client.post(self.url, {"motivo": "rinnovata con altro tipo"})
+        self.visita.refresh_from_db()
+        self.assertIsNotNone(self.visita.superata_il)
+        self.assertEqual(self.visita.superata_da, self.user)
+        self.assertNotIn(self.visita.pk, ultime_visite_correnti_ids())
+        self.assertTrue(AuditLog.objects.filter(
+            azione="VISITA_MEDICA_SUPERATA", oggetto_id=str(self.visita.pk)).exists())
+
+        self.client.post(self.url, {"azione": "ripristina"})
+        self.visita.refresh_from_db()
+        self.assertIsNone(self.visita.superata_il)
+        self.assertEqual(self.visita.superata_motivo, "")
+        self.assertIn(self.visita.pk, ultime_visite_correnti_ids())
+        self.assertTrue(AuditLog.objects.filter(
+            azione="VISITA_MEDICA_RIPRISTINATA", oggetto_id=str(self.visita.pk)).exists())
+
+    def test_get_non_ammesso(self):
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+
+    def test_scheda_mostra_segna_poi_ripristina(self):
+        from django.urls import reverse
+        scheda = reverse("anagrafica:visita_medica_dettaglio", args=[self.visita.pk])
+        self.assertContains(self.client.get(scheda), "Segna come superata")
+        self.client.post(self.url, {"motivo": "cambio periodicità"})
+        resp = self.client.get(scheda)
+        self.assertContains(resp, "Ripristina nello scadenziario")
+        self.assertContains(resp, "cambio periodicità")
+
+
+class FamigliaVisitaMedicaMigrationTests(TestCase):
+    def test_regex_solo_visita_medica_periodica(self):
+        import importlib
+        mod = importlib.import_module("anagrafica.migrations.0127_visitamedica_superata_e_famiglia")
+        ok = ["Visita Medica Annuale", "Visita medica (quinquennale)", "VISITA MEDICA", "Visita Medica Biennale"]
+        ko = ["Visita Medica Preassuntiva", "Visita Oculistica Terminalisti (biennale)", "Audiometria"]
+        for nome in ok:
+            self.assertTrue(mod._VISITA_MEDICA_PERIODICA.match(mod._normalizza(nome)), nome)
+        for nome in ko:
+            self.assertFalse(mod._VISITA_MEDICA_PERIODICA.match(mod._normalizza(nome)), nome)
+
 
 class DashboardScadenzeConfermateTests(TestCase):
     """Dopo la registrazione di una nuova visita la vecchia scadenza è

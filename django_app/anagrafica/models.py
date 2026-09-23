@@ -2615,9 +2615,10 @@ class TipoVisitaMedica(models.Model):
     descrizione = models.TextField(blank=True, default="")
     categoria = models.CharField(
         max_length=100, blank=True, default="",
-        help_text="Etichetta libera per raggruppare esami affini (es. \"Rischio chimico\"): "
-                  "serve a selezionarli insieme quando si configurano i requisiti di una "
-                  "mansione o di un ruolo, non è un catalogo a parte.",
+        help_text="Famiglia dello stesso esame con periodicità diverse (es. \"Visita medica\" "
+                  "per annuale, biennale e quinquennale): la visita più recente della "
+                  "famiglia supera le precedenti nello scadenziario. Serve anche a "
+                  "selezionarle insieme nei requisiti di mansione o ruolo.",
     )
     durata_mesi = models.PositiveSmallIntegerField(
         default=12,
@@ -2759,6 +2760,16 @@ class VisitaMedica(models.Model):
         related_name="visite",
         help_text="Giornata visite in cui è stata registrata (opzionale).",
     )
+    # Visita superata a mano: resta nello storico e nel libretto, ma esce dallo
+    # scadenziario (es. sostituita da una visita di altro tipo non in famiglia).
+    superata_il = models.DateTimeField(null=True, blank=True)
+    superata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="+",
+    )
+    superata_motivo = models.CharField(max_length=500, blank=True, default="")
 
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(

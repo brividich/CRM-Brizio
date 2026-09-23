@@ -78,7 +78,7 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
     <div class="vm-detail-layout">
       <section class="hr-card" aria-labelledby="vm-dati">
         <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-dati">Dati della visita</h2><div class="hr-card-desc">Riepilogo della registrazione e del giudizio</div></div>
-          {% if visita.is_scaduta %}<span class="hr-pill danger">Scaduta</span>{% elif visita.in_scadenza %}<span class="hr-pill warning">In scadenza</span>{% elif visita.data_scadenza %}<span class="hr-pill ok">Valida</span>{% else %}<span class="hr-pill neutral">Senza scadenza</span>{% endif %}
+          {% if visita.superata_il %}<span class="hr-pill neutral">Superata</span>{% elif visita.is_scaduta %}<span class="hr-pill danger">Scaduta</span>{% elif visita.in_scadenza %}<span class="hr-pill warning">In scadenza</span>{% elif visita.data_scadenza %}<span class="hr-pill ok">Valida</span>{% else %}<span class="hr-pill neutral">Senza scadenza</span>{% endif %}
         </div>
         <div class="hr-card-pad" style="padding:20px;">
           <dl class="vm-detail-grid">
@@ -115,6 +115,25 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
         </section>
       </aside>
     </div>
+
+    <section class="hr-card vm-detail-edit" id="superata" aria-labelledby="vm-superata" style="margin-top:14px;">
+      <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-superata">Scadenziario</h2><div class="hr-card-desc">Una visita superata resta nello storico e nel libretto, ma non compare più tra le scadute</div></div></div>
+      <div class="hr-card-pad" style="padding:20px;">
+        <form method="post" action="{% url 'anagrafica:visita_medica_superata' visita.pk %}">
+          {% csrf_token %}
+          {% if visita.superata_il %}
+            <p class="vm-detail-sub" style="margin:0 0 12px;">Segnata come superata il {{ visita.superata_il|date:"d/m/Y H:i" }}{% if visita.superata_da %} da {{ visita.superata_da.get_full_name|default:visita.superata_da.username }}{% endif %}: «{{ visita.superata_motivo }}».</p>
+            <input type="hidden" name="azione" value="ripristina">
+            <button type="submit" class="hr-btn hr-btn-outline">Ripristina nello scadenziario</button>
+          {% else %}
+            <div class="vm-detail-form" style="grid-template-columns:1fr;">
+              <div><label for="vm-superata-motivo">Motivo</label><input type="text" id="vm-superata-motivo" name="motivo" maxlength="500" required placeholder="Es. visita già rinnovata, cambio periodicità per nuova mansione"></div>
+            </div>
+            <div class="vm-detail-form-footer"><button type="submit" class="hr-btn hr-btn-primary">Segna come superata</button></div>
+          {% endif %}
+        </form>
+      </div>
+    </section>
 
     <section class="hr-card vm-detail-edit" aria-labelledby="vm-modifica" style="margin-top:14px;">
       <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-modifica">Modifica visita</h2><div class="hr-card-desc">Correggi i dati della registrazione</div></div></div>
