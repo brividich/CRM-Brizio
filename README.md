@@ -1183,6 +1183,7 @@ graph LR
 - `/automazioni/template-approvazioni/` — template email
 - `/admin-portale/automazioni/impostazioni/` — mailbox tecnica, polling, quick links
 - `/admin-portale/automazioni/queue/` — queue admin con azioni `Stoppa`/`Elimina`
+- `/admin-portale/automazioni/notifiche-sistema/` — catalogo di sola lettura delle email scatenate da un evento nel codice (view/comando manuale), fuori dal motore regole e dai task pianificati (`automazioni/event_notifications.py`)
 
 ---
 

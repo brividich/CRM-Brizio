@@ -5,6 +5,7 @@
   <a class="sub-a{% if current == 'admin_portale:automazioni_sorgenti' %} active{% endif %}" href="{% url 'admin_portale:automazioni_sorgenti' %}">Sorgenti</a>
   <a class="sub-a{% if current == 'admin_portale:automazioni_contenuti' %} active{% endif %}" href="{% url 'admin_portale:automazioni_contenuti' %}">Contenuti / Colonne</a>
   <a class="sub-a{% if current == 'admin_portale:automazioni_pianificati' %} active{% endif %}" href="{% url 'admin_portale:automazioni_pianificati' %}">Task pianificati</a>
+  <a class="sub-a{% if current == 'admin_portale:automazioni_event_notifications' %} active{% endif %}" href="{% url 'admin_portale:automazioni_event_notifications' %}">Notifiche di sistema</a>
   <a class="sub-a{% if current == 'admin_portale:automazioni_queue_list' or current == 'admin_portale:automazioni_queue_detail' %} active{% endif %}" href="{% url 'admin_portale:automazioni_queue_list' %}">Queue</a>
   <a class="sub-a{% if current == 'admin_portale:automazioni_run_log_list' or current == 'admin_portale:automazioni_run_log_detail' %} active{% endif %}" href="{% url 'admin_portale:automazioni_run_log_list' %}">Run log</a>
   <a class="sub-a{% if current == 'admin_portale:automazioni_teams_presets' or current == 'admin_portale:automazioni_teams_preset_create' or current == 'admin_portale:automazioni_teams_preset_edit' %} active{% endif %}" href="{% url 'admin_portale:automazioni_teams_presets' %}">Canali Teams</a>
