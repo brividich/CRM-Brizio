@@ -352,6 +352,21 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
         today=today,
     )
     queryset, scoped_reparti = _apply_caporeparto_scope(queryset, request)
+
+    # "Il mio lavoro": cio' che e' mio piu' cio' che non e' di nessuno (senza OdL o
+    # con un OdL senza assegnatario) — la stessa coda di "I miei interventi". E' il
+    # default per chi esegue senza pianificare: il manutentore apre la pagina e
+    # vede la sua giornata, non l'officina intera. Un click la allarga.
+    can_plan = can_plan_maintenance(request)
+    can_execute = can_execute_maintenance(request)
+    mine_param = _clean_string(request.GET.get("mio"))
+    only_mine = mine_param == "1" if mine_param in {"0", "1"} else (can_execute and not can_plan)
+    if only_mine:
+        queryset = queryset.filter(
+            Q(work_order__isnull=True)
+            | Q(work_order__assigned_to__isnull=True)
+            | Q(work_order__assigned_to=request.user)
+        )
     rows = _decorate(list(queryset[:1000]), today=today)
 
     week_end = today + timedelta(days=7)
@@ -478,8 +493,10 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "view_mode": view_mode,
             "summary": summary,
             "total": len(rows),
-            "can_plan": can_plan_maintenance(request),
-            "can_execute": can_execute_maintenance(request),
+            "can_plan": can_plan,
+            "can_execute": can_execute,
+            "only_mine": only_mine,
+            "mine_tabs": _tab_links(request, "mio", [("1", "Il mio lavoro"), ("0", "Tutto")], "1" if only_mine else "0"),
             "workorder_form": WorkOrderFromOccurrencesForm(),
             "scoped_reparti": scoped_reparti,
         },
@@ -571,6 +588,69 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
     return rows
 
 
+def _scadenzario_export(request: HttpRequest, *, rows, renewals, fmt: str, today: date) -> HttpResponse:
+    """Scadenzario in Excel o PDF: le righe che la pagina mostra, con gli stessi filtri.
+
+    Occorrenze e poi licenze, contratti e vecchie scadenze, in un'unica tabella
+    ordinata per data. I valori passano da ``write_cell`` (niente formula injection).
+    """
+    from core.excel_export import build_xlsx_bytes
+    from core.table_pdf import render_table_pdf
+
+    headers = ["Scadenza", "Tipologia", "Cosa", "Asset", "Descrizione asset", "Categoria", "Reparto", "Stato", "OdL / fornitore"]
+    table = []
+    admin_type = MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE
+    for row in rows:
+        occ = row["occurrence"]
+        asset = occ.asset
+        table.append([
+            occ.due_date,
+            "Amministrativa" if occ.plan.maintenance_type == admin_type else "Ordinaria",
+            occ.plan.label,
+            asset.asset_tag or "",
+            asset.name or "",
+            asset.asset_category.label if asset.asset_category_id else "",
+            asset.reparto or "",
+            row.get("operational_label") or row.get("label") or "",
+            f"OdL #{occ.work_order_id}" if occ.work_order_id else (str(occ.supplier) if occ.supplier_id else ""),
+        ])
+    for item in renewals:
+        table.append([
+            item.due_date, item.kind_label, item.title, item.asset_tag, item.asset_name or item.target_label,
+            item.category_label, item.reparto, item.state_label, item.supplier,
+        ])
+    table.sort(key=lambda values: values[0])
+    stamp = today.strftime("%Y%m%d")
+    filtri = request.GET.copy()
+    filtri.pop("format", None)
+    filters_label = "Filtri: " + (", ".join(f"{k}={v}" for k, v in filtri.items() if v) or "nessuno")
+
+    if fmt == "pdf":
+        body = render_table_pdf(
+            title="Scadenzario manutenzione",
+            subtitle=filters_label,
+            headers=headers,
+            rows=[[value.strftime("%d/%m/%Y") if isinstance(value, date) else value for value in values] for values in table],
+        )
+        response = HttpResponse(body, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="scadenzario_manutenzione_{stamp}.pdf"'
+        return response
+
+    body = build_xlsx_bytes(
+        columns=headers,
+        rows=table,
+        sheet_title="Scadenzario",
+        title="Scadenzario manutenzione",
+        subtitle=f"Estratto il {today:%d/%m/%Y}",
+        filters_label=filters_label,
+    )
+    response = HttpResponse(
+        body, content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="scadenzario_manutenzione_{stamp}.xlsx"'
+    return response
+
+
 @login_required
 def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
@@ -601,6 +681,11 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     )
 
     active_tab = _clean_string(initial.get("window"))
+    export_format = _clean_string(request.GET.get("format")).lower()
+    if export_format in {"xlsx", "pdf"}:
+        return _scadenzario_export(request, rows=rows, renewals=renewals, fmt=export_format, today=today)
+    export_query = request.GET.copy()
+    export_query.pop("format", None)
     return render(
         request,
         "assets/pages/maintenance_scadenze.html",
@@ -612,6 +697,7 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
             "rows": rows,
             "total": len(rows) + len(renewals),
             "renewals": renewals,
+            "export_query": export_query.urlencode(),
             "show_occurrences": plan_type != "renewals",
             "show_renewals": plan_type in ("", "renewals", "administrative"),
             "window_tabs": _tab_links(request, "window", _SCADENZE_TABS, active_tab),

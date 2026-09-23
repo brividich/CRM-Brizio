@@ -9,7 +9,11 @@
   <p>Vista a elenco di tutte le scadenze: manutenzioni ordinarie, adempimenti amministrativi, licenze e contratti. Le stesse sono nel Calendario. {{ total }} risultat{{ total|pluralize:"o,i" }}.</p>
 {% endblock %}
 
-{% block assets_shell_toolbar %}{% endblock %}
+{% block assets_shell_toolbar %}
+  {% comment %}Stesse righe e stessi filtri della pagina.{% endcomment %}
+  <a class="btn btn-secondary" href="?{% if export_query %}{{ export_query }}&amp;{% endif %}format=xlsx">&#8595; Excel</a>
+  <a class="btn btn-secondary" href="?{% if export_query %}{{ export_query }}&amp;{% endif %}format=pdf">&#8595; PDF</a>
+{% endblock %}
 
 {% block assets_shell_content %}
 <div class="md-page">

@@ -10,6 +10,18 @@
 
 .md-page { display:grid; gap:16px; }
 
+/* --- Tablet e schermi touch in officina ---
+   Sui dispositivi a puntatore "grosso" i comandi delle righe operative arrivano
+   a 44px: si premono con il guanto, non si mirano. */
+.md-tabs--scope { align-items:center; }
+.md-tabs--scope .md-sub { margin-left:6px; }
+@media (pointer:coarse) {
+  .md-table--op td { padding:14px 12px; }
+  .md-table--op .btn, .md-table--op .btn-sm { min-height:44px; padding:10px 16px; font-size:var(--fs-sm); }
+  .md-table--op input[type="checkbox"] { width:22px; height:22px; }
+  .md-tab { min-height:40px; display:inline-flex; align-items:center; }
+}
+
 /* --- Colori per tipologia di scadenza ---
    Un solo posto: Calendario, Panoramica, Scadenzario e scheda asset li leggono
    da qui. Sul body, cosi' valgono anche fuori da .md-page. */

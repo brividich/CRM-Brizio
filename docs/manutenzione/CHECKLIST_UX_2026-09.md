@@ -18,11 +18,11 @@ e testata; la verifica a video (chiaro + scuro) e' nel blocco Chiusura.
 
 ## Priorita' media — chi usa cosa
 
-- [ ] **4. Da fare = pagina del manutentore** — di default il mio lavoro + quello
+- [x] **4. Da fare = pagina del manutentore** — di default il mio lavoro + quello
   non assegnato, righe grandi da tablet, "Registra" sempre a vista.
-- [ ] **5. Crea OdL dal Calendario** — dal pannello dettaglio di un'occorrenza, e
+- [x] **5. Crea OdL dal Calendario** — dal pannello dettaglio di un'occorrenza, e
   selezione multipla nella vista Settimana per un OdL unico.
-- [ ] **6. Export Scadenzario** — Excel e PDF con gli stessi filtri (`core/table_pdf.py`).
+- [x] **6. Export Scadenzario** — Excel e PDF con gli stessi filtri (`core/table_pdf.py`).
 - [ ] **7. Scheda asset sulla stessa fonte** — manutenzioni, adempimenti, licenze e
   contratti dell'asset dal `deadline_feed`, con link al Calendario filtrato.
 

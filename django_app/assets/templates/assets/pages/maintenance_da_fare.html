@@ -31,6 +31,13 @@
     modulo e' mestiere del Cruscotto. Ogni riquadro e' un filtro: cliccarlo
     restringe la lista sotto invece di portare altrove.
   {% endcomment %}
+  <div class="md-tabs md-tabs--scope" aria-label="Di chi">
+    {% for tab in mine_tabs %}
+      <a class="md-tab {% if tab.active %}active{% endif %}" href="{{ tab.url }}"{% if tab.active %} aria-current="true"{% endif %}>{{ tab.label }}</a>
+    {% endfor %}
+    <span class="md-sub">{% if only_mine %}Le tue e quelle non ancora assegnate.{% else %}Tutte le manutenzioni aperte.{% endif %}</span>
+  </div>
+
   <div class="md-kpis">
     <a class="md-kpi is-danger" href="?window=overdue">
       <span class="md-kpi-label">Scadute</span>
@@ -68,6 +75,7 @@
       </div>
     {% endfor %}
     <input type="hidden" name="by" value="{{ view_mode }}">
+    <input type="hidden" name="mio" value="{% if only_mine %}1{% else %}0{% endif %}">
     <div class="md-actions">
       <button type="submit" class="btn btn-primary">Filtra</button>
       <a class="btn" href="{% url 'assets:maintenance_da_fare' %}">Azzera</a>

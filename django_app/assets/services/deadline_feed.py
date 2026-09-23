@@ -87,6 +87,9 @@ class Deadline:
     assignee: str = ""
     supplier: str = ""
     work_order_id: int | None = None
+    # Solo per le occorrenze aperte senza OdL: si possono raccogliere in un ordine di lavoro.
+    occurrence_id: int | None = None
+    plannable: bool = False
     detail_url: str = ""
     actions: list[dict[str, str]] = field(default_factory=list)
 
@@ -121,6 +124,8 @@ class Deadline:
             "assignee": self.assignee,
             "supplier": self.supplier,
             "work_order_id": self.work_order_id,
+            "occurrence_id": self.occurrence_id,
+            "plannable": self.plannable,
             "url": self.detail_url,
             "actions": self.actions,
         }
@@ -244,6 +249,8 @@ def _occurrences(start: date | None, end: date | None, filters: FeedFilters, tod
             assignee=_person(occ.work_order.assigned_to) if occ.work_order_id else "",
             supplier=str(occ.supplier) if occ.supplier_id else "",
             work_order_id=occ.work_order_id,
+            occurrence_id=occ.id,
+            plannable=occ.status == MaintenanceOccurrence.STATUS_OPEN and not occ.work_order_id,
             detail_url=actions[0]["url"],
             actions=actions,
             **_asset_fields(occ.asset),

@@ -18234,8 +18234,14 @@ def calendario_asset(request: HttpRequest) -> HttpResponse:
     reparti = list(
         Asset.objects.exclude(reparto="").values_list("reparto", flat=True).order_by("reparto").distinct()
     )
+    from .forms_maintenance import WorkOrderFromOccurrencesForm
+    from .views_maintenance import can_plan_maintenance
+
+    can_plan = can_plan_maintenance(request)
     return render(request, "assets/pages/calendario_asset.html", {
         "page_title": "Calendario manutenzione",
+        "can_plan": can_plan,
+        "workorder_form": WorkOrderFromOccurrencesForm() if can_plan else None,
         "kinds": kinds,
         "categories": category_filter_choices(),
         "reparti": reparti,
