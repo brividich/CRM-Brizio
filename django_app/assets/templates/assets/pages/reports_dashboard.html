@@ -411,7 +411,7 @@
             <tbody>
               {% for row in maintenance_month_rows %}
                 <tr>
-                  <td>{{ row.machine.next_maintenance_date|date:"d-m-Y" }}</td>
+                  <td>{{ row.occurrence.due_date|date:"d-m-Y" }}<span class="rd-empty" style="display:block">{{ row.occurrence.plan.label }}</span></td>
                   <td>{{ row.asset.asset_tag }}</td>
                   <td>{{ row.asset.name }}</td>
                   <td>{{ row.asset.reparto|default:"-" }}</td>

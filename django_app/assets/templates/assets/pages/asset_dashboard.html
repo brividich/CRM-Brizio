@@ -383,7 +383,7 @@ body.theme-dark .ad-perf {
         </li>
         {% endfor %}
       </ul>
-      <a href="{% url 'assets:asset_administrative_deadline_list' %}?status=overdue" class="ad-w-link">Gestisci scadenze →</a>
+      <a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=overdue" class="ad-w-link">Gestisci scadenze →</a>
       {% endif %}
     </div>
 
@@ -406,7 +406,7 @@ body.theme-dark .ad-perf {
         </li>
         {% endfor %}
       </ul>
-      <a href="{% url 'assets:asset_administrative_deadline_list' %}?status=warning" class="ad-w-link">Gestisci scadenze →</a>
+      <a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=30" class="ad-w-link">Gestisci scadenze →</a>
       {% endif %}
     </div>
 
@@ -419,7 +419,7 @@ body.theme-dark .ad-perf {
       </div>
       <div class="ad-w-label">Scadenze 31–90 gg</div>
       <div class="ad-w-val">{{ kpis.scadenze_90gg }}</div>
-      <a href="{% url 'assets:asset_administrative_deadline_list' %}" class="ad-w-link">Vedi scadenzario →</a>
+      <a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=" class="ad-w-link">Vedi scadenzario →</a>
     </div>
 
     {# == wo_aperte =================================================== #}

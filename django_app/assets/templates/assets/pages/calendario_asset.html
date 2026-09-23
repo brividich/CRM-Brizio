@@ -99,6 +99,9 @@
 .fc .cm-ev.s-overdue { box-shadow:inset 0 0 0 1px var(--cm-late); }
 .fc .cm-ev.s-overdue .fc-event-title::before { content:"● "; color:var(--cm-late); }
 .fc .cm-ev.s-done { opacity:.55; }
+/* Prevista: calcolata dal piano, non ancora generata. Tratteggiata e senza sfondo pieno. */
+.fc .cm-ev.s-forecast, .cm-achip.s-forecast { background:transparent !important; border:1px dashed var(--cm-k) !important; border-left-width:3px !important; opacity:.85; }
+.cm-legend-forecast { display:inline-block; width:14px; height:10px; border:1px dashed var(--cm-mid); border-radius:3px; vertical-align:-1px; margin-right:4px; }
 .fc .cm-ev.s-done .fc-event-title { text-decoration:line-through; }
 .fc .cm-ev.is-selected { outline:2px solid var(--cm-k); outline-offset:1px; }
 .cm-ev.k-ordinary { --cm-k:var(--cm-ord); --cm-k-bg:var(--cm-ord-bg); }
@@ -227,6 +230,7 @@
         </select>
       </div>
       <label class="cm-check"><input type="checkbox" id="cm-done" data-cm-filter="include_done" value="1"> Includi concluse</label>
+      <label class="cm-check" title="Scadenze calcolate dai piani applicati che non sono ancora entrate nel preavviso"><input type="checkbox" id="cm-forecast" data-cm-filter="forecast" data-cm-default-on value="1" checked> Mostra previste</label>
       <a class="cm-reset" href="{% url 'assets:calendario_asset' %}">Azzera filtri</a>
     </div>
   </section>
@@ -278,6 +282,7 @@
       <div class="cm-field"><label for="{{ workorder_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_form.assigned_to }}</div>
       <div class="cm-field"><label for="{{ workorder_form.supplier.id_for_label }}">Ditta esterna</label>{{ workorder_form.supplier }}</div>
       <div class="cm-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>
+      <label class="md-field md-field-check" style="align-self:center"><span>{{ workorder_form.split_by_asset }} {{ workorder_form.split_by_asset.label }}</span></label>
       <button type="submit" class="btn btn-primary">Crea ordine di lavoro</button>
       <button type="button" class="btn btn-secondary" data-cm-tray-clear>Svuota</button>
     </div>
@@ -357,7 +362,7 @@
   controls.forEach(function (el) {
     var value = params.get(el.dataset.cmFilter);
     if (value === null) { return; }
-    if (el.type === "checkbox") { el.checked = value === "1"; } else { el.value = value; }
+    if (el.type === "checkbox") { el.checked = el.hasAttribute("data-cm-default-on") ? value !== "0" : value === "1"; } else { el.value = value; }
   });
   if (params.get("vista")) { mode = params.get("vista"); }
 
@@ -371,7 +376,9 @@
     var kinds = activeKinds();
     if (kinds.length !== chips.length) { q.set("kinds", kinds.join(",") || "none"); }
     controls.forEach(function (el) {
-      var value = el.type === "checkbox" ? (el.checked ? "1" : "") : el.value;
+      var value = el.type === "checkbox"
+        ? (el.hasAttribute("data-cm-default-on") ? (el.checked ? "" : "0") : (el.checked ? "1" : ""))
+        : el.value;
       if (value) { q.set(el.dataset.cmFilter, value); }
     });
     return q;

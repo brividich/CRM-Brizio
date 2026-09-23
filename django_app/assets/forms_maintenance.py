@@ -545,6 +545,12 @@ class WorkOrderFromOccurrencesForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
     )
+    split_by_asset = forms.BooleanField(
+        label="Un OdL per asset e giorno (numerati X-1, X-2...)",
+        required=False,
+        initial=True,
+        help_text="Tolto: un unico OdL con tutti gli asset selezionati.",
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

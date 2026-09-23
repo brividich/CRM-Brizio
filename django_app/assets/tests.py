@@ -1540,48 +1540,24 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(detail_response, "Verifica sicurezza")
 
     def test_work_machine_maintenance_month_dataset_filters_month_and_reparto(self):
+        # Il mese si legge dalle scadenze pianificate (occorrenze), non dal campo
+        # WorkMachine.next_maintenance_date che la chiusura non aggiorna piu'.
+        from assets.models import MaintenanceInterventionTemplate, MaintenanceOccurrence
+
         today = timezone.localdate()
         month_start = today.replace(day=1)
         next_month_start = (month_start + timedelta(days=32)).replace(day=1)
+        plan = MaintenanceInterventionTemplate.objects.create(code="month-pdf", label="Ingrassaggio mese")
 
-        asset_due = Asset.objects.create(
-            name="Centro filtro reparto",
-            asset_type=Asset.TYPE_WORK_MACHINE,
-            reparto="CN5",
-            source_key="manual-wm-month-report-cn5",
-        )
-        WorkMachine.objects.create(
-            asset=asset_due,
-            source_key="manual-wm-month-report-cn5",
-            next_maintenance_date=month_start + timedelta(days=4),
-            maintenance_reminder_days=15,
-        )
+        def machine(name, reparto, key, due):
+            asset = Asset.objects.create(name=name, asset_type=Asset.TYPE_WORK_MACHINE, reparto=reparto, source_key=key)
+            WorkMachine.objects.create(asset=asset, source_key=key, next_maintenance_date=None)
+            MaintenanceOccurrence.objects.create(plan=plan, asset=asset, due_date=due, warning_days=15)
+            return asset
 
-        asset_other_reparto = Asset.objects.create(
-            name="Centro altro reparto",
-            asset_type=Asset.TYPE_WORK_MACHINE,
-            reparto="TNC",
-            source_key="manual-wm-month-report-tnc",
-        )
-        WorkMachine.objects.create(
-            asset=asset_other_reparto,
-            source_key="manual-wm-month-report-tnc",
-            next_maintenance_date=month_start + timedelta(days=8),
-            maintenance_reminder_days=15,
-        )
-
-        asset_other_month = Asset.objects.create(
-            name="Centro mese successivo",
-            asset_type=Asset.TYPE_WORK_MACHINE,
-            reparto="CN5",
-            source_key="manual-wm-month-report-next",
-        )
-        WorkMachine.objects.create(
-            asset=asset_other_month,
-            source_key="manual-wm-month-report-next",
-            next_maintenance_date=next_month_start + timedelta(days=3),
-            maintenance_reminder_days=15,
-        )
+        machine("Centro filtro reparto", "CN5", "manual-wm-month-report-cn5", month_start + timedelta(days=4))
+        machine("Centro altro reparto", "TNC", "manual-wm-month-report-tnc", month_start + timedelta(days=8))
+        machine("Centro mese successivo", "CN5", "manual-wm-month-report-next", next_month_start + timedelta(days=3))
 
         dataset = asset_views._build_work_machine_maintenance_month_dataset(
             month_value=month_start.strftime("%Y-%m"),
@@ -1604,12 +1580,11 @@ class AssetsRoutingTests(TestCase):
             reparto="CN5",
             source_key="manual-wm-month-report-pdf",
         )
-        WorkMachine.objects.create(
-            asset=asset,
-            source_key="manual-wm-month-report-pdf",
-            next_maintenance_date=month_start + timedelta(days=6),
-            maintenance_reminder_days=10,
-        )
+        WorkMachine.objects.create(asset=asset, source_key="manual-wm-month-report-pdf")
+        from assets.models import MaintenanceInterventionTemplate, MaintenanceOccurrence
+
+        plan = MaintenanceInterventionTemplate.objects.create(code="month-pdf-2", label="Controllo mese")
+        MaintenanceOccurrence.objects.create(plan=plan, asset=asset, due_date=month_start + timedelta(days=6), warning_days=10)
 
         self.client.force_login(self.user)
         response = self.client.get(

@@ -311,7 +311,7 @@ body.theme-dark .dv-card-head {
     {% if maint_kpis.coinvolti %}
     <div class="dv-maint-strip-metrics">
       <div class="dv-maint-metric">
-        <span class="dv-maint-val dv-maint-val-neutral"><a href="{% url 'assets:asset_administrative_deadline_list' %}?family=it" title="Vedi scadenze Asset IT">{{ maint_kpis.coinvolti }}</a></span>
+        <span class="dv-maint-val dv-maint-val-neutral"><a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=" title="Vedi scadenze amministrative">{{ maint_kpis.coinvolti }}</a></span>
         <span class="dv-maint-lbl">Coinvolti</span>
       </div>
       <div class="dv-maint-sep" aria-hidden="true"></div>
@@ -321,7 +321,7 @@ body.theme-dark .dv-card-head {
       </div>
       <div class="dv-maint-sep" aria-hidden="true"></div>
       <div class="dv-maint-metric">
-        <span class="dv-maint-val {% if maint_kpis.da_manutentare %}dv-maint-val-warn{% else %}dv-maint-val-ok{% endif %}"><a href="{% url 'assets:asset_administrative_deadline_list' %}?family=it&status={% if maint_kpis.da_manutentare %}overdue{% else %}all{% endif %}" title="Vedi scadenze da completare">{{ maint_kpis.da_manutentare }}</a></span>
+        <span class="dv-maint-val {% if maint_kpis.da_manutentare %}dv-maint-val-warn{% else %}dv-maint-val-ok{% endif %}"><a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window={% if maint_kpis.da_manutentare %}overdue{% endif %}" title="Vedi scadenze da completare">{{ maint_kpis.da_manutentare }}</a></span>
         <span class="dv-maint-lbl">Da manutentare</span>
       </div>
       <div class="dv-maint-bar-wrap" title="{{ maint_kpis.percent_done }}% eseguiti">

@@ -16,7 +16,7 @@ La fonte di verita' della scadenza e' l'occorrenza: nessun ``next_due`` altrove.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, time
 from typing import Any, Iterable
 
 from django.db import IntegrityError, transaction
@@ -731,6 +731,50 @@ def create_workorder_from_occurrences(
 
 
 @transaction.atomic
+def create_workorders_by_asset_day(
+    occurrences: list[MaintenanceOccurrence],
+    *,
+    user=None,
+    title: str = "",
+    assigned_to=None,
+    supplier=None,
+    due_at=None,
+) -> list[WorkOrder]:
+    """Selezione multipla -> un OdL per ogni asset (e per giorno di esecuzione).
+
+    Le manutenzioni dello stesso asset che si fanno lo stesso giorno finiscono
+    nello stesso OdL: e' una sola uscita sulla macchina. Il giorno e' la data
+    "entro" scelta, altrimenti la scadenza di ciascuna manutenzione. Se nascono
+    piu' OdL vengono collegati come gruppo (``WorkOrder.mark_batch``): si leggono
+    X-1, X-2, ... dove X e' il capofila.
+    """
+    if not occurrences:
+        raise ValueError("Serve almeno un'occorrenza per aprire un ordine di lavoro.")
+    groups: dict[tuple[int, date], list[MaintenanceOccurrence]] = {}
+    for occ in occurrences:
+        day = due_at.date() if hasattr(due_at, "date") else (due_at or occ.due_date)
+        groups.setdefault((occ.asset_id, day), []).append(occ)
+    ordered = sorted(groups.items(), key=lambda item: (item[0][1], item[1][0].asset.asset_tag or "", item[0][0]))
+    work_orders = []
+    for (_asset_id, day), group in ordered:
+        group_title = title
+        if title and len(ordered) > 1:
+            group_title = f"{title} — {group[0].asset.asset_tag or group[0].asset.name}"
+        work_orders.append(
+            create_workorder_from_occurrences(
+                group, user=user, title=group_title, assigned_to=assigned_to, supplier=supplier,
+                due_at=due_at or timezone.make_aware(datetime.combine(day, time(17, 0))),
+            )
+        )
+    if len(work_orders) > 1:
+        WorkOrder.mark_batch(work_orders)
+        numbers = ", ".join(wo.display_number for wo in work_orders)
+        for wo in work_orders:
+            _log(wo, f"Parte del gruppo {work_orders[0].id}: {numbers}.", user)
+    return work_orders
+
+
+@transaction.atomic
 def add_occurrences_to_workorder(
     work_order: WorkOrder,
     occurrences: list[MaintenanceOccurrence],
@@ -824,6 +868,52 @@ def assign_occurrences_to_day(
             user,
         )
     return day
+
+
+def close_workorder_if_complete(work_order: WorkOrder | None, *, user=None) -> bool:
+    """Chiude l'OdL quando non gli resta nessuna manutenzione da registrare.
+
+    Per chi lavora "ho compilato l'OdL" vuol dire "fatto": prima l'intervento
+    restava aperto finche' qualcuno non premeva anche "Registra intervento", e
+    quindi non compariva ne' fra i chiusi ne' nello Storico. Si chiude solo un OdL
+    aperto che raccoglie manutenzioni, tutte chiuse e almeno una eseguita; il
+    fermo e' la somma di quelli dichiarati. Ritorna True se l'ha chiuso.
+    """
+    if work_order is None or work_order.status != WorkOrder.STATUS_OPEN:
+        return False
+    occurrences = list(work_order.occurrences.all())
+    if not occurrences or any(occ.status == MaintenanceOccurrence.STATUS_OPEN for occ in occurrences):
+        return False
+    done = [occ for occ in occurrences if occ.status == MaintenanceOccurrence.STATUS_DONE]
+    if not done:
+        return False
+    if getattr(user, "is_authenticated", False):
+        if work_order.executed_by_id is None:
+            work_order.executed_by = user
+        if work_order.assigned_to_id is None and work_order.supplier_id is None:
+            work_order.assigned_to = user
+    last_day = max(occ.completed_on for occ in done if occ.completed_on) if any(o.completed_on for o in done) else None
+    closed_at = timezone.make_aware(datetime.combine(last_day, time(12, 0))) if last_day else None
+    if closed_at and closed_at > timezone.now():
+        closed_at = None
+    resolution = work_order.resolution or "Manutenzioni registrate: " + "; ".join(
+        f"{occ.asset.asset_tag or occ.asset.name} · {occ.plan.label}" for occ in done
+    )
+    downtime = sum(int(occ.downtime_minutes or 0) for occ in done)
+    try:
+        work_order.close(
+            status=WorkOrder.STATUS_DONE,
+            closed_at=closed_at,
+            resolution=resolution[:4000],
+            downtime=downtime or None,
+        )
+    except Exception:  # validazioni del modello: resta aperto, lo si chiude a mano
+        import logging
+
+        logging.getLogger(__name__).exception("Chiusura automatica OdL %s non riuscita", work_order.pk)
+        return False
+    _log(work_order, "Chiuso automaticamente: tutte le manutenzioni raccolte sono registrate.", user)
+    return True
 
 
 def workorder_progress(work_order: WorkOrder) -> dict[str, int]:

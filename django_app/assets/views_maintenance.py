@@ -12,11 +12,14 @@ Applicazione, Scadenza, Ordine di lavoro, Follow-up. Mai "regola", "override",
 
 from __future__ import annotations
 
+import logging
+
 import io
 import json
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -71,6 +74,8 @@ from .views import _assets_shell_context, _as_int, _clean_string, _copertura_dat
 # Le tre platee della specifica. I gate non si fermano a "superuser o admin
 # legacy": chi ha il permesso ACL granulare deve poter lavorare, altrimenti il
 # pannello Accessi non serve a niente.
+
+logger = logging.getLogger(__name__)
 
 
 def can_manage_maintenance_plans(request: HttpRequest) -> bool:
@@ -309,7 +314,22 @@ def _group_rows(rows: list[dict[str, Any]], mode: str) -> list[dict[str, Any]]:
     buckets: dict[Any, dict[str, Any]] = {}
     for row in rows:
         occurrence = row["occurrence"]
-        if mode == "asset":
+        if mode == "family":
+            category = occurrence.asset.asset_category if occurrence.asset.asset_category_id else None
+            key = getattr(category, "id", 0)
+            label = getattr(category, "label", "") or "Senza famiglia"
+            sub = ""
+        elif mode == "day":
+            key = occurrence.due_date
+            label = occurrence.due_date.strftime("%d/%m/%Y")
+            sub = ("Lunedi", "Martedi", "Mercoledi", "Giovedi", "Venerdi", "Sabato", "Domenica")[occurrence.due_date.weekday()]
+        elif mode == "assignee":
+            wo = occurrence.work_order if occurrence.work_order_id else None
+            user = getattr(wo, "assigned_to", None)
+            key = getattr(user, "id", 0)
+            label = (user.get_full_name() or user.get_username()) if user else "Non assegnate"
+            sub = ""
+        elif mode == "asset":
             key = occurrence.asset_id
             label = occurrence.asset.asset_tag or occurrence.asset.name
             sub = occurrence.asset.name
@@ -327,8 +347,31 @@ def _group_rows(rows: list[dict[str, Any]], mode: str) -> list[dict[str, Any]]:
         if row["state"] == MaintenanceOccurrence.VIEW_OVERDUE:
             bucket["overdue"] += 1
     groups = list(buckets.values())
-    groups.sort(key=lambda item: (-item["overdue"], -len(item["rows"]), item["label"]))
+    if mode == "day":
+        # Per giorno conta la sequenza del calendario, non chi ha piu' scadute.
+        groups.sort(key=lambda item: item["rows"][0]["occurrence"].due_date)
+    else:
+        groups.sort(key=lambda item: (-item["overdue"], -len(item["rows"]), item["label"]))
     return groups
+
+
+# Raggruppamenti offerti in tutte le tabelle delle manutenzioni.
+_GROUP_MODES = [
+    ("plan", "Piano"),
+    ("family", "Famiglia"),
+    ("group", "Gruppo asset"),
+    ("asset", "Asset"),
+    ("day", "Giorno"),
+    ("assignee", "Assegnatario"),
+]
+
+
+def _group_mode_links(request: HttpRequest, active: str, *, with_none: bool) -> list[dict[str, Any]]:
+    options = ([("", "Nessuno")] if with_none else []) + [
+        (key, label) for key, label in _GROUP_MODES
+        if key != "group" or AssetGroup.objects.filter(is_active=True).exists()
+    ]
+    return _tab_links(request, "by", options, active)
 
 
 # ---------------------------------------------------------------------------
@@ -419,7 +462,7 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
 
     # Il parametro si chiama "by" e non "group": "group" e' gia' il filtro per gruppo.
     view_mode = _clean_string(request.GET.get("by")) or "plan"
-    if view_mode not in {"plan", "group", "asset"}:
+    if view_mode not in {key for key, _label in _GROUP_MODES}:
         view_mode = "plan"
 
     # I quattro numeri rispondono alla domanda della pagina — "cosa devo fare
@@ -491,6 +534,8 @@ def maintenance_da_fare(request: HttpRequest) -> HttpResponse:
             "blocks": blocks,
             "groups": _group_rows(rows, view_mode),
             "view_mode": view_mode,
+            "group_links": _group_mode_links(request, view_mode, with_none=False),
+            "group_label": dict(_GROUP_MODES).get(view_mode, "").lower(),
             "summary": summary,
             "total": len(rows),
             "can_plan": can_plan,
@@ -682,6 +727,9 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
     )
 
     active_tab = _clean_string(initial.get("window"))
+    group_mode = _clean_string(request.GET.get("by"))
+    if group_mode not in {key for key, _label in _GROUP_MODES}:
+        group_mode = ""
     export_format = _clean_string(request.GET.get("format")).lower()
     if export_format in {"xlsx", "pdf"}:
         return _scadenzario_export(request, rows=rows, renewals=renewals, fmt=export_format, today=today)
@@ -699,6 +747,9 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
             "total": len(rows) + len(renewals),
             "renewals": renewals,
             "export_query": export_query.urlencode(),
+            "group_mode": group_mode,
+            "groups": _group_rows(rows, group_mode) if group_mode else [],
+            "group_links": _group_mode_links(request, group_mode, with_none=True),
             "show_occurrences": plan_type != "renewals",
             "show_renewals": plan_type in ("", "renewals", "administrative"),
             "window_tabs": _tab_links(request, "window", _SCADENZE_TABS, active_tab),
@@ -1190,6 +1241,7 @@ def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpRespo
             "follow_ups": list(follow_ups),
             "conflicts": conflicts[:40],
             "can_plan": can_plan_maintenance(request),
+            "workorder_form": WorkOrderFromOccurrencesForm(),
         },
     )
 
@@ -1348,6 +1400,8 @@ def maintenance_plan_detail(request: HttpRequest, plan_id: int) -> HttpResponse:
             "open_workorders": open_workorders,
             "checklist_steps": list(plan.checklist_steps.order_by("step_number", "id")),
             "can_manage": can_manage_maintenance_plans(request),
+            "can_plan": can_plan_maintenance(request),
+            "workorder_form": WorkOrderFromOccurrencesForm(),
         },
     )
 
@@ -1385,6 +1439,78 @@ def maintenance_plan_form(request: HttpRequest, plan_id: int | None = None) -> H
 # Applicazioni di un piano
 # ---------------------------------------------------------------------------
 
+def _assignment_suggestions(plan: MaintenanceInterventionTemplate) -> dict[str, Any]:
+    """Cosa sapere prima di applicare un piano: dove vale gia' e chi resta scoperto.
+
+    Solo proposte da leggere: la scelta del bersaglio resta a chi compila.
+    """
+    from .models import Asset
+
+    existing = list(
+        MaintenancePlanAssignment.objects.filter(plan=plan, is_active=True)
+        .select_related("asset", "asset_group", "asset_category")
+        .order_by("target_type", "id")
+    )
+    resolutions = domain.build_plan_resolutions(
+        plan_ids=[plan.pk], asset_queryset=Asset.objects.exclude(status=Asset.STATUS_RETIRED)
+    )
+    covered = [res.asset for res in resolutions.values() if not res.is_excluded]
+    covered_ids = {asset.id for asset in covered}
+    family_gaps = []
+    category_ids = {asset.asset_category_id for asset in covered if asset.asset_category_id}
+    if category_ids:
+        missing = (
+            Asset.objects.filter(asset_category_id__in=category_ids)
+            .exclude(status=Asset.STATUS_RETIRED)
+            .exclude(id__in=covered_ids)
+            .select_related("asset_category")
+            .order_by("asset_category__label", "asset_tag")
+        )
+        by_family: dict[int, dict[str, Any]] = {}
+        for asset in missing[:200]:
+            bucket = by_family.setdefault(
+                asset.asset_category_id,
+                {"family": asset.asset_category.label, "category_id": asset.asset_category_id, "assets": []},
+            )
+            bucket["assets"].append(asset)
+        family_gaps = list(by_family.values())
+    return {"existing_assignments": existing, "covered_count": len(covered_ids), "family_gaps": family_gaps}
+
+
+def _completion_suggestions(occurrence: MaintenanceOccurrence, back_url: str) -> dict[str, Any]:
+    """Informazioni utili mentre si registra un'esecuzione: l'ultima volta, cos'altro
+    c'e' da fare sulla stessa macchina, il contratto che la copre."""
+    from .maintenance import get_applicable_assistance_contracts
+
+    today = timezone.localdate()
+    previous = (
+        MaintenanceOccurrence.objects.filter(
+            plan_id=occurrence.plan_id, asset_id=occurrence.asset_id, status=MaintenanceOccurrence.STATUS_DONE
+        )
+        .exclude(pk=occurrence.pk)
+        .order_by("-completed_on", "-id")
+        .first()
+    )
+    same_asset = list(
+        MaintenanceOccurrence.objects.filter(
+            asset_id=occurrence.asset_id,
+            status=MaintenanceOccurrence.STATUS_OPEN,
+            due_date__lte=today + timedelta(days=30),
+        )
+        .exclude(pk=occurrence.pk)
+        .select_related("plan")
+        .order_by("due_date")[:8]
+    )
+    for other in same_asset:
+        other.register_url = f"{reverse('assets:occurrence_complete', args=[other.pk])}?{urlencode({'next': back_url})}"
+    contracts = []
+    try:
+        contracts = list(get_applicable_assistance_contracts(occurrence.asset, today=today)[:1])
+    except Exception:
+        logger.exception("Contratti applicabili non calcolabili per asset %s", occurrence.asset_id)
+    return {"previous": previous, "same_asset_open": same_asset, "contract": contracts[0] if contracts else None}
+
+
 @login_required
 def maintenance_assignment_form(
     request: HttpRequest, plan_id: int, assignment_id: int | None = None
@@ -1400,7 +1526,28 @@ def maintenance_assignment_form(
         form = MaintenancePlanAssignmentForm(request.POST, instance=assignment, plan=plan)
         if form.is_valid():
             saved = form.save()
-            messages.success(request, f"Applicazione su «{saved.target_label}» salvata.")
+            # Prima le scadenze comparivano solo al giro notturno dello scheduler: chi
+            # applicava un piano non vedeva nulla e pensava di aver sbagliato. La
+            # generazione e' idempotente, quindi la si lancia subito sul solo piano.
+            created = 0
+            try:
+                created = domain.generate_occurrences(plan_ids=[plan.pk]).get("created", 0)
+            except Exception:
+                logger.exception("Generazione scadenze dopo applicazione piano %s fallita", plan.pk)
+            if created:
+                messages.success(
+                    request,
+                    f"Applicazione su «{saved.target_label}» salvata: {created} scadenz"
+                    f"{'a creata' if created == 1 else 'e create'} ora. Le successive compariranno "
+                    "nel preavviso, e intanto sono visibili come «previste» nel Calendario.",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Applicazione su «{saved.target_label}» salvata. Nessuna scadenza e' ancora nel "
+                    "preavviso: la vedi come «prevista» nel Calendario e comparira' negli elenchi "
+                    "quando si avvicina.",
+                )
             return redirect("assets:maintenance_plan_detail", plan_id=plan.pk)
     else:
         form = MaintenancePlanAssignmentForm(instance=assignment, plan=plan)
@@ -1416,6 +1563,7 @@ def maintenance_assignment_form(
             "assignment": assignment,
             "presets": RECURRENCE_PRESETS,
             "preview_url": reverse("assets:maintenance_assignment_preview"),
+            **(_assignment_suggestions(plan) if assignment is None else {}),
         },
     )
 
@@ -1826,24 +1974,36 @@ def occurrence_create_workorder(request: HttpRequest) -> HttpResponse:
         messages.error(request, "Dati dell'ordine di lavoro non validi.")
         return redirect(back)
 
+    options = dict(
+        user=request.user,
+        title=form.cleaned_data.get("title") or "",
+        assigned_to=form.cleaned_data.get("assigned_to"),
+        supplier=form.cleaned_data.get("supplier"),
+        due_at=form.cleaned_data.get("due_at"),
+    )
     try:
-        work_order = domain.create_workorder_from_occurrences(
-            occurrences,
-            user=request.user,
-            title=form.cleaned_data.get("title") or "",
-            assigned_to=form.cleaned_data.get("assigned_to"),
-            supplier=form.cleaned_data.get("supplier"),
-            due_at=form.cleaned_data.get("due_at"),
-        )
+        if form.cleaned_data.get("split_by_asset"):
+            work_orders = domain.create_workorders_by_asset_day(occurrences, **options)
+        else:
+            work_orders = [domain.create_workorder_from_occurrences(occurrences, **options)]
     except ValueError as exc:
         messages.error(request, str(exc))
         return redirect(back)
 
-    messages.success(
-        request,
-        f"Ordine di lavoro #{work_order.pk} creato con {len(occurrences)} manutenzione/i.",
-    )
-    return redirect("assets:wo_view", id=work_order.pk)
+    leader = work_orders[0]
+    if len(work_orders) > 1:
+        messages.success(
+            request,
+            f"Creato il gruppo di ordini di lavoro {leader.pk}: "
+            + ", ".join(f"#{wo.display_number}" for wo in work_orders)
+            + f" — uno per asset e giorno, {len(occurrences)} manutenzioni in tutto.",
+        )
+    else:
+        messages.success(
+            request,
+            f"Ordine di lavoro #{leader.display_number} creato con {len(occurrences)} manutenzione/i.",
+        )
+    return redirect("assets:wo_view", id=leader.pk)
 
 
 @login_required
@@ -1977,30 +2137,46 @@ def workorder_occurrences_complete(request: HttpRequest, workorder_id: int) -> H
     if saltate:
         messages.warning(request, f"Non registrate: {'; '.join(saltate)}.")
 
-    rimaste = MaintenanceOccurrence.objects.filter(
-        work_order_id=work_order.pk, status=MaintenanceOccurrence.STATUS_OPEN
-    ).count()
-    if registrate and not rimaste and work_order.status == WorkOrder.STATUS_OPEN:
+    if registrate and domain.close_workorder_if_complete(work_order, user=request.user):
         messages.info(
             request,
-            "Tutte le manutenzioni raccolte sono registrate: l'intervento puo' essere chiuso.",
+            f"Tutte le manutenzioni raccolte sono registrate: l'intervento #{work_order.display_number} "
+            "e' chiuso e compare fra gli interventi chiusi e nello Storico.",
         )
 
     return redirect("assets:wo_view", id=workorder_id)
 
 
 @login_required
+def _safe_back_url(request: HttpRequest, fallback: str) -> str:
+    """Dove tornare dopo un'azione: ``next`` esplicito, altrimenti la pagina da cui
+    si e' arrivati (stesso host). Mai un URL esterno."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    for candidate in (request.POST.get("next"), request.GET.get("next"), request.META.get("HTTP_REFERER")):
+        candidate = (candidate or "").strip()
+        if candidate and url_has_allowed_host_and_scheme(
+            candidate, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+        ) and request.path not in candidate:
+            return candidate
+    return fallback
+
+
 def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpResponse:
-    """Chiusura di una singola manutenzione: ogni asset avanza per conto suo."""
+    """Chiusura di una singola manutenzione: ogni asset avanza per conto suo.
+
+    Dopo la registrazione si torna alla pagina di partenza (Calendario,
+    Scadenzario, scheda asset...), non sempre a "Da fare"."""
     occurrence = get_object_or_404(
         MaintenanceOccurrence.objects.select_related("plan", "asset", "assignment", "work_order"),
         pk=occurrence_id,
     )
     if not can_execute_maintenance(request):
         return _deny(request, "Non hai i permessi per registrare l'esecuzione delle manutenzioni.")
+    back_url = _safe_back_url(request, reverse("assets:maintenance_da_fare"))
     if occurrence.status != MaintenanceOccurrence.STATUS_OPEN:
         messages.info(request, "Questa manutenzione risulta gia chiusa.")
-        return redirect("assets:maintenance_da_fare")
+        return redirect(back_url)
 
     if request.method == "POST":
         form = OccurrenceCompletionForm(request.POST, request.FILES, occurrence=occurrence)
@@ -2032,9 +2208,15 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
                     )
                 else:
                     messages.success(request, "Manutenzione registrata.")
-                if occurrence.work_order_id:
-                    return redirect("assets:wo_view", id=occurrence.work_order_id)
-                return redirect("assets:maintenance_da_fare")
+                if occurrence.work_order_id and domain.close_workorder_if_complete(
+                    occurrence.work_order, user=request.user
+                ):
+                    messages.info(
+                        request,
+                        f"Era l'ultima dell'intervento #{occurrence.work_order.display_number}: "
+                        "l'intervento e' chiuso e compare fra i chiusi e nello Storico.",
+                    )
+                return redirect(back_url)
     else:
         form = OccurrenceCompletionForm(occurrence=occurrence)
 
@@ -2044,9 +2226,97 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
         {
             **_assets_shell_context(request),
             "page_title": f"Registra — {occurrence.plan.label}",
+            "back_url": back_url,
             "form": form,
             "occurrence": occurrence,
             "state": domain.occurrence_state_payload(occurrence),
+            **_completion_suggestions(occurrence, back_url),
+        },
+    )
+
+
+@login_required
+@require_POST
+def workorder_close_if_complete(request: HttpRequest, workorder_id: int) -> HttpResponse:
+    """Chiude un OdL rimasto aperto con tutte le manutenzioni gia' registrate."""
+    work_order = get_object_or_404(WorkOrder, pk=workorder_id)
+    if not can_execute_maintenance(request):
+        return _deny(request, "Non hai i permessi per chiudere l'intervento.")
+    if domain.close_workorder_if_complete(work_order, user=request.user):
+        messages.success(request, f"Intervento #{work_order.display_number} chiuso.")
+    else:
+        messages.warning(request, "L'intervento ha ancora manutenzioni da registrare: usa «Registra intervento».")
+    return redirect("assets:wo_view", id=work_order.pk)
+
+
+def _worksheet_items(occurrences) -> list[dict[str, Any]]:
+    """Righe della scheda di lavoro: una per manutenzione, con checklist e ultima volta."""
+    from .models import MaintenanceChecklistStep
+
+    occurrences = list(occurrences)
+    plan_ids = {occ.plan_id for occ in occurrences}
+    steps: dict[int, list] = defaultdict(list)
+    for step in MaintenanceChecklistStep.objects.filter(intervention_template_id__in=plan_ids).order_by(
+        "step_number", "id"
+    ):
+        steps[step.intervention_template_id].append(step)
+    items = []
+    for occ in occurrences:
+        previous = (
+            MaintenanceOccurrence.objects.filter(
+                plan_id=occ.plan_id, asset_id=occ.asset_id, status=MaintenanceOccurrence.STATUS_DONE
+            )
+            .exclude(pk=occ.pk)
+            .order_by("-completed_on", "-id")
+            .first()
+        )
+        items.append({"occurrence": occ, "steps": steps.get(occ.plan_id, []), "previous": previous})
+    items.sort(key=lambda item: (item["occurrence"].asset.asset_tag or "", item["occurrence"].due_date))
+    return items
+
+
+@login_required
+def workorder_worksheet(request: HttpRequest, workorder_id: int) -> HttpResponse:
+    """Scheda di lavoro stampabile (A4) dell'intervento: da portare alla macchina,
+    una sezione per ogni manutenzione raccolta con checklist da spuntare a penna."""
+    work_order = get_object_or_404(
+        WorkOrder.objects.select_related("asset", "asset__asset_category", "assigned_to", "supplier"),
+        pk=workorder_id,
+    )
+    occurrences = work_order.occurrences.select_related("plan", "asset", "asset__asset_category").exclude(
+        status=MaintenanceOccurrence.STATUS_CANCELED
+    )
+    return render(
+        request,
+        "assets/pages/work_sheet.html",
+        {
+            "page_title": f"Scheda di lavoro — OdL {work_order.display_number}",
+            "work_order": work_order,
+            "items": _worksheet_items(occurrences),
+            "today": timezone.localdate(),
+            "back_url": reverse("assets:wo_view", kwargs={"id": work_order.pk}),
+        },
+    )
+
+
+@login_required
+def occurrence_worksheet(request: HttpRequest, occurrence_id: int) -> HttpResponse:
+    """Scheda di lavoro stampabile di una singola manutenzione (senza OdL)."""
+    occurrence = get_object_or_404(
+        MaintenanceOccurrence.objects.select_related("plan", "asset", "asset__asset_category", "work_order"),
+        pk=occurrence_id,
+    )
+    if occurrence.work_order_id:
+        return redirect("assets:workorder_worksheet", workorder_id=occurrence.work_order_id)
+    return render(
+        request,
+        "assets/pages/work_sheet.html",
+        {
+            "page_title": f"Scheda di lavoro — {occurrence.asset.asset_tag}",
+            "work_order": None,
+            "items": _worksheet_items([occurrence]),
+            "today": timezone.localdate(),
+            "back_url": _safe_back_url(request, reverse("assets:maintenance_da_fare")),
         },
     )
 

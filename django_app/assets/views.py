@@ -1164,10 +1164,8 @@ def _maintenance_rule_form_state(form: MaintenanceRuleForm, *, is_edit: bool) ->
 
 
 def _asset_maintenance_rule_list_page_url(asset_id: int, *, focus_rule_id: int = 0) -> str:
-    base_url = reverse("assets:asset_maintenance_rule_list", kwargs={"asset_id": int(asset_id)})
-    if focus_rule_id:
-        return f"{base_url}?focus_rule={int(focus_rule_id)}#rule-{int(focus_rule_id)}"
-    return base_url
+    """I piani dell'asset (le vecchie "regole asset" rimandavano li' con un redirect)."""
+    return reverse("assets:asset_maintenance_plans", kwargs={"asset_id": int(asset_id)})
 
 
 def _maintenance_schedule_page_url(
@@ -1196,8 +1194,13 @@ def _maintenance_schedule_page_url(
     q_value = _clean_string(q)
     if q_value:
         params.append(f"q={quote(q_value)}")
-    base_url = reverse("assets:maintenance_schedule")
-    return f"{base_url}?{'&'.join(params)}" if params else base_url
+    # Porta allo Scadenzario (il vecchio /prossime/ rimandava li' perdendo i filtri).
+    # Lo stato del vecchio motore diventa la finestra: "due" = scadute + 30 giorni.
+    params = [p for p in params if not p.startswith(("status=", "coverage="))]
+    window = {"due": "30", "overdue": "overdue", "warning": "30"}.get(status_value.lower(), "")
+    params.append(f"window={window}")
+    base_url = reverse("assets:maintenance_scadenze")
+    return f"{base_url}?{'&'.join(params)}"
 
 
 def _workorder_create_page_url(
@@ -1564,28 +1567,38 @@ def _build_work_machine_maintenance_month_dataset(
     month_end = _month_end(month_start)
     reparto_value = _clean_string(reparto_filter)
 
+    # Dalle scadenze pianificate (occorrenze), come Scadenzario e Calendario:
+    # WorkMachine.next_maintenance_date non si aggiorna piu' alla chiusura e dava
+    # un mese diverso da quello delle pagine. Una riga per manutenzione.
+    from .models import MaintenanceOccurrence
+
     queryset = (
-        Asset.objects.filter(
-            asset_type__in=PRODUCTION_ASSET_TYPES,
-            work_machine__next_maintenance_date__gte=month_start,
-            work_machine__next_maintenance_date__lte=month_end,
+        MaintenanceOccurrence.objects.filter(
+            asset__asset_type__in=PRODUCTION_ASSET_TYPES,
+            due_date__gte=month_start,
+            due_date__lte=month_end,
         )
-        .select_related("work_machine")
-        .order_by("work_machine__next_maintenance_date", "reparto", "name", "asset_tag")
+        .exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
+        .select_related("asset", "plan")
+        .order_by("due_date", "asset__reparto", "asset__name", "asset__asset_tag")
     )
     if reparto_value:
-        queryset = queryset.filter(reparto=reparto_value)
+        queryset = queryset.filter(asset__reparto=reparto_value)
 
     rows: list[dict[str, object]] = []
     status_counts = {"overdue": 0, "warning": 0, "ok": 0}
-    for asset in queryset:
-        machine = getattr(asset, "work_machine", None)
-        if not isinstance(machine, WorkMachine):
-            continue
-        state = _work_machine_maintenance_state(machine, current_day)
-        rows.append({"asset": asset, "machine": machine, "state": state})
-        if state["status"] in status_counts:
-            status_counts[state["status"]] += 1
+    for occ in queryset:
+        delta_days = (occ.due_date - current_day).days
+        if occ.status == MaintenanceOccurrence.STATUS_DONE:
+            state = {"status": "ok", "label": f"Eseguita il {occ.completed_on:%d-%m-%Y}" if occ.completed_on else "Eseguita"}
+        elif delta_days < 0:
+            state = {"status": "overdue", "label": f"Scaduta da {abs(delta_days)} gg"}
+        elif delta_days <= int(occ.warning_days or 0):
+            state = {"status": "warning", "label": f"In scadenza ({delta_days} gg)"}
+        else:
+            state = {"status": "ok", "label": f"Pianificata tra {delta_days} gg"}
+        rows.append({"asset": occ.asset, "occurrence": occ, "state": state})
+        status_counts[state["status"]] += 1
 
     return {
         "month_start": month_start,
@@ -1714,8 +1727,8 @@ def _draw_work_machine_maintenance_month_pdf(
         ("Tag", 28 * mm),
         ("Macchina", 82 * mm),
         ("Reparto", 32 * mm),
-        ("Stato", 62 * mm),
-        ("Soglia", 20 * mm),
+        ("Stato", 42 * mm),
+        ("Manutenzione", 40 * mm),
     ]
     total_width = sum(width for _, width in column_defs)
     status_colors = {
@@ -1791,19 +1804,19 @@ def _draw_work_machine_maintenance_month_pdf(
             current_y = table_y
 
         asset = row["asset"]
-        machine = row["machine"]
+        occurrence = row["occurrence"]
         state = row["state"]
         pdf.setFillColor(HexColor("#ffffff" if index % 2 == 0 else "#fbfdff"))
         pdf.setStrokeColor(theme.c_border())
         pdf.rect(margin_x, current_y - row_height, total_width, row_height, fill=1, stroke=1)
 
         values = [
-            machine.next_maintenance_date.strftime("%d-%m-%Y") if machine.next_maintenance_date else "-",
+            occurrence.due_date.strftime("%d-%m-%Y"),
             _coalesce_str(asset.asset_tag, "-"),
             _coalesce_str(asset.name, "-"),
             _coalesce_str(asset.reparto, "-"),
             _coalesce_str(str(state.get("label") or ""), "-"),
-            f"{int(machine.maintenance_reminder_days or 0)} gg",
+            _coalesce_str(occurrence.plan.label, "-"),
         ]
         font_name = "Helvetica"
         font_size = 8.5
@@ -11626,10 +11639,8 @@ def _save_template_checklist_formset(formset, template) -> None:
 
 def _template_next_step_rule_url(template) -> str:
     """URL di creazione regola precompilato con il template appena salvato (CTA continuità)."""
-    next_url = f"{reverse('assets:maintenance_rule_create')}?template={template.id}"
-    if template.asset_category_id:
-        next_url += f"&category={template.asset_category_id}"
-    return next_url
+    # Il "template" e' il piano stesso: il passo successivo e' applicarlo a qualcosa.
+    return reverse("assets:maintenance_assignment_create", kwargs={"plan_id": template.id})
 
 
 @login_required
@@ -14706,6 +14717,44 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         asset_filter=asset_filter,
     )
 
+    # "Raggruppa per": l'ordine resta quello della coda, i gruppi si leggono come
+    # intestazioni dentro la stessa tabella (le azioni di riga non cambiano).
+    group_by = _clean_string(request.GET.get("by"))
+    workorder_group_modes = [
+        ("", "Nessuno"), ("asset", "Asset"), ("assegnatario", "Assegnatario"), ("stato", "Stato"),
+        ("gruppo", "Gruppo OdL"), ("giorno", "Giorno"),
+    ]
+    if group_by not in {key for key, _ in workorder_group_modes}:
+        group_by = ""
+    if group_by and display != "board":
+        grouped = list(workorders.select_related("asset", "assigned_to")[:500])
+        for wo in grouped:
+            if group_by == "asset":
+                wo.group_label = f"{wo.asset.asset_tag} — {wo.asset.name}" if wo.asset_id else "Senza asset"
+            elif group_by == "assegnatario":
+                wo.group_label = (
+                    wo.assigned_to.get_full_name() or wo.assigned_to.get_username()
+                ) if wo.assigned_to_id else "Di nessuno"
+            elif group_by == "stato":
+                wo.group_label = wo.operational_state_label if wo.status == WorkOrder.STATUS_OPEN else wo.get_status_display()
+            elif group_by == "gruppo":
+                batch = wo.reference_batch or ""
+                wo.group_label = (
+                    f"Gruppo {batch[len(WorkOrder.BATCH_REFERENCE_PREFIX):]}"
+                    if batch.startswith(WorkOrder.BATCH_REFERENCE_PREFIX) else "OdL singoli"
+                )
+            else:
+                day = timezone.localtime(wo.due_at).date() if wo.due_at else None
+                wo.group_label = f"Entro {day:%d/%m/%Y}" if day else "Senza scadenza"
+                wo.group_sort = day.isoformat() if day else "9999"
+        grouped.sort(key=lambda wo: getattr(wo, "group_sort", wo.group_label))
+        workorders = grouped
+    group_query = request.GET.copy()
+    workorder_group_links = []
+    for key, label in workorder_group_modes:
+        group_query["by"] = key
+        workorder_group_links.append({"label": label, "url": f"?{group_query.urlencode()}", "active": key == group_by})
+
     board_columns = []
     if display == "board":
         # Kanban degli stati operativi (unassigned/assigned/in_progress/waiting), diversa dalla
@@ -14727,6 +14776,8 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         {
             "page_title": "Interventi",
             "workorders": workorders,
+            "workorder_group_by": group_by,
+            "workorder_group_links": workorder_group_links,
             "workorder_display": display,
             "board_columns": board_columns,
             "workorder_display_toggle_url": _workorder_list_page_url(
@@ -15359,8 +15410,10 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
         request,
         "assets/pages/workorder_detail.html",
         {
-            "page_title": f"Intervento #{workorder.id}",
+            "page_title": f"Intervento #{workorder.display_number}",
             "workorder": workorder,
+            "batch_rows": _workorder_batch_rows(workorder),
+            **_workorder_suggestions(request, workorder),
             "logs": logs,
             "attachments": attachments,
             "checklist_items": checklist_items,
@@ -15438,6 +15491,89 @@ def _asset_deadlines_context(request: HttpRequest, asset) -> dict[str, object]:
         "asset_deadline_overdue": sum(1 for row in rows if row.state == feed.STATE_OVERDUE),
         "asset_deadline_list_url": f"{reverse('assets:maintenance_scadenze')}?window=&asset={asset.id}",
     }
+
+
+def _workorder_batch_rows(workorder: WorkOrder) -> list[dict[str, object]]:
+    """Gli OdL nati insieme a questo (gruppo X-1, X-2...), per navigarli dalla scheda."""
+    if not (workorder.reference_batch or "").startswith(WorkOrder.BATCH_REFERENCE_PREFIX):
+        return []
+    siblings = list(
+        WorkOrder.objects.filter(reference_batch=workorder.reference_batch)
+        .select_related("asset", "assigned_to")
+        .order_by("id")
+    )
+    if len(siblings) < 2:
+        return []
+    leader = siblings[0].id
+    return [
+        {
+            "wo": wo,
+            "number": f"{leader}-{position}",
+            "is_current": wo.id == workorder.id,
+            "url": reverse("assets:wo_view", kwargs={"id": wo.id}),
+        }
+        for position, wo in enumerate(siblings, start=1)
+    ]
+
+
+def _workorder_suggestions(request: HttpRequest, workorder: WorkOrder) -> dict[str, object]:
+    """Cose utili da aggiungere all'intervento, proposte dal sistema.
+
+    Solo proposte: nulla viene modificato finche' qualcuno non preme il pulsante.
+    """
+    from .maintenance import get_applicable_assistance_contracts
+    from .models import MaintenanceOccurrence
+
+    suggestions: list[dict[str, object]] = []
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return {"suggestions": suggestions, "suggested_occurrences": []}
+    asset_ids = set(workorder.occurrences.values_list("asset_id", flat=True)) or {workorder.asset_id}
+    today = timezone.localdate()
+
+    # 1. Altre manutenzioni dello stesso asset, non ancora in un OdL, entro 30 giorni:
+    #    farle nella stessa uscita risparmia un viaggio alla macchina.
+    suggested_occurrences = list(
+        MaintenanceOccurrence.objects.filter(
+            asset_id__in=asset_ids,
+            status=MaintenanceOccurrence.STATUS_OPEN,
+            work_order__isnull=True,
+            due_date__lte=today + timedelta(days=30),
+        )
+        .select_related("plan", "asset")
+        .order_by("due_date")[:10]
+    )
+    # 2. Altri OdL aperti sulla stessa macchina.
+    other_open = list(
+        WorkOrder.objects.filter(asset_id__in=asset_ids, status=WorkOrder.STATUS_OPEN)
+        .exclude(pk=workorder.pk)
+        .exclude(reference_batch__gt="", reference_batch=workorder.reference_batch)
+        .order_by("opened_at")[:5]
+    )
+    for other in other_open:
+        suggestions.append({
+            "tone": "info",
+            "text": f"Sullo stesso asset c'e' gia' l'intervento #{other.display_number} «{other.title}» aperto: valuta di farli insieme.",
+            "url": reverse("assets:wo_view", kwargs={"id": other.id}),
+            "cta": "Apri",
+        })
+    # 3. Contratto di assistenza attivo ma nessuna ditta indicata.
+    if not workorder.supplier_id and workorder.asset_id:
+        for contract in get_applicable_assistance_contracts(workorder.asset, today=today)[:1]:
+            suggestions.append({
+                "tone": "info",
+                "text": f"L'asset e' coperto dal contratto «{contract.title}» con {contract.supplier}: se interviene la ditta, indicala in chiusura.",
+                "url": reverse("assets:assistance_contract_list"),
+                "cta": "Contratti",
+            })
+    # 4. Nessuno se ne occupa.
+    if not workorder.assigned_to_id and not workorder.supplier_id:
+        suggestions.append({
+            "tone": "warn",
+            "text": "Nessun manutentore e nessuna ditta: assegna l'intervento perche' qualcuno lo prenda in carico.",
+            "url": "#wo-riassegna",
+            "cta": "Riassegna",
+        })
+    return {"suggestions": suggestions, "suggested_occurrences": suggested_occurrences}
 
 
 def _asset_maintenance_plans_context(asset) -> dict[str, object]:
@@ -16235,7 +16371,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
 
     q = _clean_string(request.GET.get("q"))
     source = _clean_string(request.GET.get("source")).lower() or "all"
-    if source not in {"all", "workorders", "tickets"}:
+    if source not in {"all", "workorders", "maintenance", "tickets"}:
         source = "all"
 
     def parsed_date(name: str) -> date | None:
@@ -16283,6 +16419,45 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
                     "duration_minutes": workorder.intervention_duration_minutes,
                     "cost": workorder.resolved_total_cost_eur,
                     "url": reverse("assets:wo_view", kwargs={"id": workorder.id}),
+                }
+            )
+
+    if source in {"all", "maintenance"}:
+        # Manutenzioni registrate direttamente ("Registra" da Da fare, Calendario,
+        # Scadenzario) senza un ordine di lavoro: sono lavoro fatto quanto un OdL
+        # chiuso, e prima nello Storico non comparivano.
+        from .models import MaintenanceOccurrence
+
+        registered = MaintenanceOccurrence.objects.filter(
+            status=MaintenanceOccurrence.STATUS_DONE, work_order__isnull=True
+        ).select_related("asset", "plan", "completed_by")
+        if q:
+            registered = registered.filter(
+                Q(plan__label__icontains=q)
+                | Q(completion_notes__icontains=q)
+                | Q(asset__asset_tag__icontains=q)
+                | Q(asset__name__icontains=q)
+            )
+        if date_from:
+            registered = registered.filter(completed_on__gte=date_from)
+        if date_to:
+            registered = registered.filter(completed_on__lte=date_to)
+        for occ in registered.order_by("-completed_on", "-id")[:500]:
+            rows.append(
+                {
+                    "source": "occurrence",
+                    "source_label": "Manutenzione",
+                    "date": timezone.make_aware(datetime.combine(occ.completed_on, datetime.min.time()))
+                    if occ.completed_on else None,
+                    "title": occ.plan.label,
+                    "asset": occ.asset,
+                    "type_label": "Registrata senza OdL",
+                    "status_label": "Eseguita",
+                    "technician": (occ.completed_by.get_full_name() or occ.completed_by.username)
+                    if occ.completed_by_id else "-",
+                    "duration_minutes": 0,
+                    "cost": None,
+                    "url": reverse("assets:maintenance_plan_detail", kwargs={"plan_id": occ.plan_id}),
                 }
             )
 
@@ -16347,6 +16522,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             "history_total": len(rows),
             "history_workorder_count": sum(1 for row in rows if row["source"] == "workorder"),
             "history_ticket_count": sum(1 for row in rows if row["source"] == "ticket"),
+            "history_occurrence_count": sum(1 for row in rows if row["source"] == "occurrence"),
             "history_duration_hours": round(total_duration / 60, 1),
             "history_total_cost": total_cost,
             "history_duration_coverage": copertura_durata["label"],
@@ -18257,7 +18433,8 @@ def calendario_asset_json(request: HttpRequest) -> JsonResponse:
         include_done=_clean_string(request.GET.get("include_done")) in {"1", "true", "on"},
     )
     last_day = end - timedelta(days=1)  # FullCalendar tratta ``end`` come esclusivo.
-    rows = feed.collect(start=start, end=last_day, filters=filters, today=today)
+    include_forecast = _clean_string(request.GET.get("forecast")) != "0"
+    rows = feed.collect(start=start, end=last_day, filters=filters, today=today, include_forecast=include_forecast)
     events = [row.as_json(today) for row in rows]
     if not requested or "machine_work" in requested:
         events += _machine_work_events(start, last_day, filters)

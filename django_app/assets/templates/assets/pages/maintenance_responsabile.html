@@ -384,7 +384,7 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
       <span class="md-badge badge-warning">{{ unplanned|length }}</span>
       <span class="md-sub">«dovuta» e «pianificata» non sono la stessa cosa</span>
     </div>
-    {% include "assets/components/_occurrence_rows.html" with rows=unplanned selectable=0 show_plan=1 %}
+    {% include "assets/components/_occurrence_rows.html" with rows=unplanned selectable=can_plan show_plan=1 %}
   </section>
 
   <section class="md-section{% if not open_workorders %} is-empty{% endif %}" id="odl-attivi">
@@ -533,5 +533,6 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
   {% endif %}
 
 {% endif %}
+{% include "assets/components/_occurrence_bulk_bar.html" %}
 </div>
 {% endblock %}
