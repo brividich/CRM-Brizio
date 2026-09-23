@@ -11989,6 +11989,9 @@ def visite_mediche_dashboard(request):
             legacy_ids_richiesti = set(
                 DipendenteRuoloOperativo.objects
                 .filter(ruolo_id__in=ruoli_ids)
+                .exclude(legacy_anagrafica_id__in=DipendenteAnagraficaAziendale.objects.filter(
+                    data_cessazione__isnull=False,
+                ).values("legacy_anagrafica_id"))
                 .values_list("legacy_anagrafica_id", flat=True)
             )
         else:
@@ -12748,6 +12751,9 @@ def visite_mediche_export_copertura(request):
             legacy_ids_richiesti = set(
                 DipendenteRuoloOperativo.objects
                 .filter(ruolo_id__in=ruoli_ids)
+                .exclude(legacy_anagrafica_id__in=DipendenteAnagraficaAziendale.objects.filter(
+                    data_cessazione__isnull=False,
+                ).values("legacy_anagrafica_id"))
                 .values_list("legacy_anagrafica_id", flat=True)
             )
         else:
