@@ -5,6 +5,13 @@
 {% block assets_shell_head %}
 <style>
 .ac-page { display:grid; gap:14px; }
+/* Una colonna: elenco a tutta larghezza, modulo in un pannello apribile. */
+.ac-grid { grid-template-columns:1fr !important; }
+.ac-new > summary { list-style:none; cursor:pointer; padding:14px 18px; font-weight:800; color:var(--primary,#002b5c); }
+.ac-new > summary::-webkit-details-marker { display:none; }
+.ac-new[open] > summary { border-bottom:1px solid var(--border,#dbe1ea); }
+body.theme-dark .ac-new > summary { color:#93c5fd; }
+
 .ac-grid { display:grid; gap:14px; grid-template-columns:minmax(0, 1.2fr) minmax(320px, .8fr); align-items:start; }
 .ac-kpis { display:grid; gap:10px; grid-template-columns:repeat(5, minmax(0, 1fr)); }
 .ac-kpi, .ac-card {
@@ -169,6 +176,54 @@
   </article>
 
   <section class="ac-grid">
+    <details class="ac-card ac-new" data-tour-step="2" data-tour-title="Nuovo contratto" data-tour-text="Apri il pannello per inserire; «Modifica» su una riga lo apre gia' compilato."{% if is_edit or form.errors or selected_asset %} open{% endif %}>
+      <summary class="ac-new-toggle">{% if is_edit %}Modifica contratto{% else %}+ Nuovo contratto{% endif %}</summary>
+        <div class="ac-card-head">
+          <div>
+            <h2>{% if is_edit %}Modifica contratto{% else %}Nuovo contratto{% endif %}</h2>
+            <p>Compila solo i dati gestionali essenziali: fornitore, target, finestra attiva e copertura.</p>
+          </div>
+        </div>
+        <div class="ac-card-body">
+          {% if selected_asset and not is_edit %}
+            <div class="ac-banner" style="margin-bottom:14px;">
+              Stai creando un contratto per questo asset: <strong>{{ selected_asset.asset_tag }}</strong> - {{ selected_asset.name }}.
+            </div>
+          {% endif %}
+          <form method="post" style="display:grid;gap:12px;">
+            {% csrf_token %}
+            {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
+            {% if is_edit and edit_contract %}<input type="hidden" name="edit_id" value="{{ edit_contract.id }}">{% endif %}
+            <input type="hidden" name="action" value="{% if is_edit %}update_assistance_contract{% else %}create_assistance_contract{% endif %}">
+
+            {% if form.non_field_errors %}
+              <div class="ac-banner">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="ac-form-grid">
+              {% for field in form %}
+                {% if field.is_hidden %}
+                  {{ field }}
+                {% else %}
+                  <div class="ac-field {% if field.name == 'coverage_summary' or field.name == 'notes' %}ac-field--full{% endif %}">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<div class="ac-meta">{{ field.help_text }}</div>{% endif %}
+                    {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+              <div class="ac-actions">
+                {% if is_edit %}
+                  <a class="btn" href="{{ clear_filters_url }}">Annulla modifica</a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">{% if is_edit %}Salva contratto{% else %}Crea contratto{% endif %}</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </details>
+
     <article class="ac-card">
       <div class="ac-card-head">
       <div>
@@ -313,52 +368,7 @@
     </article>
 
     {% if can_manage_contracts %}
-      <article class="ac-card">
-        <div class="ac-card-head">
-          <div>
-            <h2>{% if is_edit %}Modifica contratto{% else %}Nuovo contratto{% endif %}</h2>
-            <p>Compila solo i dati gestionali essenziali: fornitore, target, finestra attiva e copertura.</p>
-          </div>
-        </div>
-        <div class="ac-card-body">
-          {% if selected_asset and not is_edit %}
-            <div class="ac-banner" style="margin-bottom:14px;">
-              Stai creando un contratto per questo asset: <strong>{{ selected_asset.asset_tag }}</strong> - {{ selected_asset.name }}.
-            </div>
-          {% endif %}
-          <form method="post" style="display:grid;gap:12px;">
-            {% csrf_token %}
-            {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
-            {% if is_edit and edit_contract %}<input type="hidden" name="edit_id" value="{{ edit_contract.id }}">{% endif %}
-            <input type="hidden" name="action" value="{% if is_edit %}update_assistance_contract{% else %}create_assistance_contract{% endif %}">
-
-            {% if form.non_field_errors %}
-              <div class="ac-banner">{{ form.non_field_errors }}</div>
-            {% endif %}
-
-            <div class="ac-form-grid">
-              {% for field in form %}
-                {% if field.is_hidden %}
-                  {{ field }}
-                {% else %}
-                  <div class="ac-field {% if field.name == 'coverage_summary' or field.name == 'notes' %}ac-field--full{% endif %}">
-                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.help_text %}<div class="ac-meta">{{ field.help_text }}</div>{% endif %}
-                    {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
-                  </div>
-                {% endif %}
-              {% endfor %}
-              <div class="ac-actions">
-                {% if is_edit %}
-                  <a class="btn" href="{{ clear_filters_url }}">Annulla modifica</a>
-                {% endif %}
-                <button type="submit" class="btn btn-primary">{% if is_edit %}Salva contratto{% else %}Crea contratto{% endif %}</button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </article>
+      
     {% endif %}
   </section>
 </section>

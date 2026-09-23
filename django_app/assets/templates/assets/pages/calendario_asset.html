@@ -143,7 +143,7 @@
 .cm-status button { font:inherit; font-weight:700; margin-left:8px; border:1px solid var(--cm-line); background:var(--cm-card); color:var(--cm-text);
   border-radius:6px; padding:2px 8px; cursor:pointer; }
 @media (max-width:1100px) {
-  .cm-drawer { position:fixed; top:0; right:0; bottom:0; width:min(380px,92vw); z-index:60; border-radius:0; overflow:auto;
+  .cm-drawer { position:fixed; top:var(--nav-h,60px); right:0; bottom:0; width:min(380px,92vw); z-index:60; border-radius:0; overflow:auto;
     transform:translateX(105%); transition:transform .2s ease; box-shadow:-8px 0 30px rgba(15,23,42,.22); }
   .cm-drawer.is-open { transform:none; }
   .cm-drawer-close { display:inline-flex; }
@@ -151,7 +151,7 @@
 @media (prefers-reduced-motion:reduce) { .cm-drawer { transition:none; } }
 
 /* Selezione per un ordine di lavoro */
-.cm-drawer .cm-plan { display:flex; flex-wrap:wrap; gap:6px; padding-top:10px; border-top:1px dashed var(--cm-line); }
+.cm-drawer .cm-plan { display:flex; flex-wrap:wrap; align-items:flex-start; gap:6px; padding-top:10px; border-top:1px dashed var(--cm-line); }
 .cm-drawer .cm-plan button { font:inherit; font-size:var(--fs-sm,12px); font-weight:700; padding:6px 11px; border-radius:8px; cursor:pointer;
   border:1px solid var(--cm-line); background:var(--cm-card); color:var(--cm-text); }
 .cm-drawer .cm-plan button.is-primary { background:var(--accent,#ff6b00); border-color:var(--accent,#ff6b00); color:#fff; }
