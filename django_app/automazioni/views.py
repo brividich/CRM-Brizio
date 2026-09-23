@@ -4325,6 +4325,24 @@ def contenuti_page(request):
     return render(request, "automazioni/pages/contenuti.html", context)
 
 
+@legacy_admin_or_acl_required("automazioni", "event_notifications_page")
+@require_GET
+def event_notifications_page(request):
+    """Catalogo di sola lettura delle notifiche email scatenate da un evento
+    applicativo (view o comando manuale) che NON passano né dal motore regole
+    né dai task pianificati. Vedi ``event_notifications.py`` per il perché
+    non sono (ancora) vere ``AutomationRule``."""
+    from .event_notifications import get_event_notifications
+
+    rows = get_event_notifications()
+    context = {
+        **_base_context(),
+        "rows": rows,
+        "totale": len(rows),
+    }
+    return render(request, "automazioni/pages/notifiche_sistema.html", context)
+
+
 @legacy_admin_or_acl_required("automazioni", "rule_list_page")
 @require_GET
 def rule_list_page(request):
