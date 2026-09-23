@@ -10807,6 +10807,51 @@ def visita_medica_dettaglio(request, v_id: int):
 
 @login_required
 @require_POST
+def visita_medica_superata(request, v_id: int):
+    """Segna (o ripristina) una visita come superata: esce dallo scadenziario
+    ma resta nello storico e nel libretto. Motivo obbligatorio + audit."""
+    if not _can_view_visite_mediche(request):
+        return HttpResponseForbidden("Non hai i permessi per modificare le visite mediche.")
+
+    from django.utils import timezone as _tz
+    from core.audit import log_action
+
+    visita = get_object_or_404(VisitaMedica.objects.select_related("tipo"), pk=v_id)
+    ripristina = request.POST.get("azione") == "ripristina"
+    motivo = (request.POST.get("motivo") or "").strip()
+    if not ripristina and (not motivo or len(motivo) > 500):
+        messages.error(request, "Indica perché la visita è superata (massimo 500 caratteri).")
+        return redirect(f"{reverse('anagrafica:visita_medica_dettaglio', args=[v_id])}#superata")
+
+    dettaglio = {
+        "visita_id": visita.pk,
+        "dipendente_id": visita.legacy_anagrafica_id,
+        "tipo_visita": visita.tipo.nome,
+        "data_svolgimento": visita.data_svolgimento.isoformat(),
+    }
+    if ripristina:
+        dettaglio["motivo_precedente"] = visita.superata_motivo
+        visita.superata_il = None
+        visita.superata_da = None
+        visita.superata_motivo = ""
+        azione, testo = "VISITA_MEDICA_RIPRISTINATA", "Visita ripristinata nello scadenziario."
+    else:
+        dettaglio["motivo"] = motivo
+        visita.superata_il = _tz.now()
+        visita.superata_da = request.user
+        visita.superata_motivo = motivo
+        azione, testo = "VISITA_MEDICA_SUPERATA", "Visita segnata come superata: non compare più nello scadenziario."
+    visita.updated_by = request.user
+    visita.save(update_fields=[
+        "superata_il", "superata_da", "superata_motivo", "updated_by", "updated_at",
+    ])
+    log_action(request, azione, "anagrafica", dettaglio, oggetto=visita)
+    messages.success(request, testo)
+    return redirect("anagrafica:visita_medica_dettaglio", v_id=v_id)
+
+
+@login_required
+@require_POST
 def dipendente_visita_delete(request, legacy_id: int, v_id: int):
     # Compatibilita' con vecchi form: nessuna cancellazione senza motivazione.
     if not _can_view_visite_mediche(request) or not _has_canonical_grant(request, PERM_VISITE_DELETE):

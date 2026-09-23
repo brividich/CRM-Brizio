@@ -1036,6 +1036,11 @@ La scheda di gestione del referto (`/anagrafica/visite-mediche/referti/<doc_id>/
 usa gli stessi permessi: lettura con il gate sanitario, eliminazione del documento con
 `anagrafica.visite.delete` e motivazione obbligatoria. Ogni operazione sul referto e ogni
 apertura del file finiscono nell'audit agganciate al record.
+Nello scadenziario visite una visita più recente della stessa **categoria** del tipo
+(es. «Visita medica» annuale/quinquennale) supera le precedenti. Per i casi restanti,
+«Segna come superata» (`POST /anagrafica/visite-mediche/<id>/superata/`, gate sanitario,
+motivo obbligatorio, audit) toglie la visita dallo scadenziario senza cancellarla dal
+libretto; si annulla con «Ripristina nello scadenziario».
 
 I permessi di sezione sono **additivi**: superuser e admin legacy passano come prima, e i grant nascono
 spenti per tutti gli altri ruoli — dati personali e sanitari si concedono
