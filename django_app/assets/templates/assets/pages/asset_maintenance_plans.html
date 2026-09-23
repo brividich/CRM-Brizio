@@ -10,8 +10,8 @@
 {% endblock %}
 
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:asset_view' asset.pk %}">Scheda asset</a>
-  <a class="btn" href="{% url 'assets:maintenance_plan_list' %}">Tutti i piani</a>
+  <a class="btn btn-secondary" href="{% url 'assets:asset_view' asset.pk %}">Scheda asset</a>
+  <a class="btn btn-secondary" href="{% url 'assets:maintenance_plan_list' %}">Tutti i piani</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -66,7 +66,7 @@
               </td>
               {% if can_manage %}
                 <td class="md-right md-nowrap">
-                  <a class="btn btn-sm" href="{% url 'assets:asset_plan_customize' asset.pk resolution.plan.pk %}">
+                  <a class="btn btn-sm btn-secondary" href="{% url 'assets:asset_plan_customize' asset.pk resolution.plan.pk %}">
                     {% if resolution.source == "asset" %}Modifica{% else %}Personalizza{% endif %}
                   </a>
                 </td>

@@ -119,10 +119,8 @@
 {% block assets_shell_title %}{{ reports_page_title|default:"Report manutenzione" }}{% endblock %}
 {% block assets_shell_subtitle %}<p>{{ reports_page_subtitle|default:"KPI in alto, riepilogo coerente sotto e un solo punto di approfondimento operativo per evitare effetto dashboard rumorosa." }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{{ maintenance_schedule_url }}">Prossime manutenzioni</a>
-  <a class="btn" href="{{ assistance_contracts_url }}">Contratti assistenza</a>
   {% if report_templates_manage_url %}
-    <a class="btn" href="{{ report_templates_manage_url }}">Gestione template report</a>
+    <a class="btn btn-secondary" href="{{ report_templates_manage_url }}">Gestione template report</a>
   {% endif %}
 {% endblock %}
 
@@ -281,7 +279,7 @@
           <label for="maintenanceMonthInput">Mese piano</label>
           <input id="maintenanceMonthInput" type="month" name="month" value="{{ maintenance_month_code }}">
         </div>
-        <button class="btn" type="submit">Aggiorna</button>
+        <button class="btn btn-secondary" type="submit">Aggiorna</button>
         <a class="btn btn-primary" id="maintenanceMonthPdfLink" href="{{ maintenance_month_pdf_url }}" target="_blank" rel="noopener" data-base-url="{{ maintenance_month_pdf_base_url }}">PDF manutenzioni mese</a>
         {% endif %}
       </form>
@@ -420,7 +418,7 @@
                   <td>
                     <span class="as-badge as-badge--{% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% else %}ok{% endif %}">{{ row.state.label }}</span>
                   </td>
-                  <td><a class="btn" href="{% url 'assets:asset_view' row.asset.id %}">Apri asset</a></td>
+                  <td><a class="btn btn-secondary" href="{% url 'assets:asset_view' row.asset.id %}">Apri asset</a></td>
                 </tr>
               {% empty %}
                 <tr><td colspan="6" class="rd-empty">Nessuna macchina con manutenzione pianificata nel mese selezionato.</td></tr>

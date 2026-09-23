@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Assets — restyling pagine manutenzione
+
+- Pulsanti: principale blu, secondari neutri, distruttivi rossi (`btn-danger`); scheda intervento, testata Report e Dashboard officina in scuro sistemati.
+
 ### Assets — calendario gestibile e «Cosa posso fare qui»
 
 - Calendario: pannello sempre visibile, clic sul giorno, trascinamento per spostare le scadenze (audit, annulla).

@@ -70,7 +70,7 @@
                     hx-target="#wod-checklist-section" hx-swap="outerHTML" class="wod-cl-value-form">
                 {% csrf_token %}
                 <input type="number" step="0.01" name="value_numeric" value="{{ item.value_numeric|default_if_none:'' }}" placeholder="Valore{% if item.unit %} ({{ item.unit }}){% endif %}">
-                <button class="btn" type="submit">Salva</button>
+                <button class="btn btn-secondary" type="submit">Salva</button>
               </form>
               {% endif %}
             {% elif item.step_type == 'TEXT' %}
@@ -81,7 +81,7 @@
                     hx-target="#wod-checklist-section" hx-swap="outerHTML" class="wod-cl-value-form">
                 {% csrf_token %}
                 <textarea name="value_text" placeholder="Nota per questo step...">{{ item.value_text }}</textarea>
-                <button class="btn" type="submit">Salva</button>
+                <button class="btn btn-secondary" type="submit">Salva</button>
               </form>
               {% endif %}
             {% elif item.step_type == 'PHOTO' %}
@@ -96,7 +96,7 @@
               <form method="post" action="{% url 'assets:wo_checklist_photo' workorder.id item.id %}" enctype="multipart/form-data" class="wod-cl-value-form">
                 {% csrf_token %}
                 <input type="file" name="photo" accept="image/*,.pdf">
-                <button class="btn" type="submit">Carica foto</button>
+                <button class="btn btn-secondary" type="submit">Carica foto</button>
               </form>
               {% endif %}
             {% endif %}
@@ -121,7 +121,7 @@
                       hx-target="#wod-checklist-section" hx-swap="outerHTML" class="wod-cl-value-form">
                   {% csrf_token %}
                   <textarea name="skip_reason" placeholder="Motivo per cui questo step obbligatorio non può essere completato..." required></textarea>
-                  <button class="btn" type="submit">Salta</button>
+                  <button class="btn btn-secondary" type="submit">Salta</button>
                 </form>
               </details>
             {% endif %}
@@ -139,7 +139,7 @@
                   <a href="{% url 'assets:wo_view' item.existing_follow_up.id %}">#{{ item.existing_follow_up.id }} {{ item.existing_follow_up.title|truncatechars:60 }}</a>
                 {% elif checklist_followup_occurrences|length == 1 %}
                   {% for occurrence in checklist_followup_occurrences %}
-                    <a class="btn btn-sm" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}?step={{ item.id }}">Apri follow-up</a>
+                    <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}?step={{ item.id }}">Apri follow-up</a>
                   {% endfor %}
                 {% elif checklist_followup_occurrences %}
                   <details>

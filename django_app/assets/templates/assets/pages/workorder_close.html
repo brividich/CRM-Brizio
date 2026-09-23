@@ -4,7 +4,7 @@
 {% block assets_shell_title %}Chiudi intervento #{{ workorder.display_number }}{% endblock %}
 {% block assets_shell_subtitle %}<p>{{ workorder.asset.asset_tag }} · {{ workorder.title }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:wo_view' workorder.id %}">&larr; Torna all'intervento</a>
+  <a class="btn btn-secondary" href="{% url 'assets:wo_view' workorder.id %}">&larr; Torna all'intervento</a>
 {% endblock %}
 
 {% block assets_shell_head %}
@@ -134,7 +134,7 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
         {% endif %}
         <div class="woc-gate-actions">
           <a class="btn btn-primary" href="{{ occurrences_anchor }}">Torna alle manutenzioni</a>
-          <button class="btn" type="submit" name="confirm_open_occurrences" value="1">Chiudi comunque</button>
+          <button class="btn btn-secondary" type="submit" name="confirm_open_occurrences" value="1">Chiudi comunque</button>
         </div>
       </div>
     {% endif %}
@@ -284,11 +284,11 @@ body.theme-dark .woc-details-body{border-color:var(--border)}
     <div class="woc-actions">
       <div class="woc-actions-copy">La conferma registra stato, data/ora, giorni eseguiti e storico dell'intervento.</div>
       <div class="woc-actions-buttons">
-        <a class="btn" href="{% url 'assets:wo_view' workorder.id %}">Annulla</a>
+        <a class="btn btn-secondary" href="{% url 'assets:wo_view' workorder.id %}">Annulla</a>
         {% if pending_confirmation %}
           {# La chiusura e' gia' stata fermata piu' su: qui non si ripropone come se nulla fosse. #}
           <a class="btn btn-primary" href="{{ occurrences_anchor }}">Torna alle manutenzioni</a>
-          <button class="btn" type="submit" name="confirm_open_occurrences" value="1">Chiudi comunque</button>
+          <button class="btn btn-secondary" type="submit" name="confirm_open_occurrences" value="1">Chiudi comunque</button>
         {% else %}
           <button class="btn btn-primary" id="workorderCloseSubmit" type="submit">{{ close_submit_label }}</button>
         {% endif %}

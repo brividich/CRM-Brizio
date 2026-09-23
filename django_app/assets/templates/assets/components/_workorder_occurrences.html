@@ -78,14 +78,14 @@
                     </td>
                     <td class="md-right md-nowrap">
                       {% if occ.status == "OPEN" and wo_can_execute_maintenance %}
-                        <a class="btn btn-sm" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
-                        <a class="btn btn-sm" href="{% url 'assets:occurrence_followup_create' occ.pk %}">Follow-up</a>
+                        <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_complete' occ.pk %}">Registra</a>
+                        <a class="btn btn-sm btn-secondary" href="{% url 'assets:occurrence_followup_create' occ.pk %}">Follow-up</a>
                       {% endif %}
                       {% if occ.status == "OPEN" and wo_can_plan_maintenance %}
                         <form method="post" action="{% url 'assets:workorder_occurrence_remove' workorder.pk occ.pk %}" style="display:inline"
                               onsubmit="return confirm('Togliere {{ occ.asset.asset_tag|escapejs }} da questo ordine di lavoro? La manutenzione NON viene chiusa: torna fra quelle da pianificare.');">
                           {% csrf_token %}
-                          <button type="submit" class="btn btn-sm">Rimuovi</button>
+                          <button type="submit" class="btn btn-sm btn-danger">Rimuovi</button>
                         </form>
                       {% endif %}
                     </td>
@@ -108,8 +108,8 @@
         <div class="md-bulk is-visible md-bulk-stack" style="position:static;box-shadow:none" data-md-bulk-fields>
           <div class="md-bulk-row">
             <span class="md-bulk-count"><span data-md-count>0</span> selezionate</span>
-            <button type="button" class="btn btn-sm" data-md-select-all>Seleziona tutte</button>
-            <button type="button" class="btn btn-sm" data-md-clear>Deseleziona</button>
+            <button type="button" class="btn btn-sm btn-secondary" data-md-select-all>Seleziona tutte</button>
+            <button type="button" class="btn btn-sm btn-secondary" data-md-clear>Deseleziona</button>
           </div>
 
           {% if wo_can_execute_maintenance %}
@@ -122,14 +122,18 @@
                 <label for="{{ wo_bulk_completion_form.downtime_minutes.id_for_label }}">Fermo (min)</label>
                 {{ wo_bulk_completion_form.downtime_minutes }}
               </div>
-              <div class="md-field" style="flex:1;min-width:220px">
-                <label for="{{ wo_bulk_completion_form.notes.id_for_label }}">Note</label>
-                {{ wo_bulk_completion_form.notes }}
-              </div>
               <div class="md-field">
                 <label for="{{ wo_bulk_completion_form.attachment.id_for_label }}">Rapporto unico</label>
                 {{ wo_bulk_completion_form.attachment }}
               </div>
+            </div>
+            <div class="md-bulk-row">
+              <div class="md-field md-field--wide">
+                <label for="{{ wo_bulk_completion_form.notes.id_for_label }}">Note</label>
+                {{ wo_bulk_completion_form.notes }}
+              </div>
+            </div>
+            <div class="md-bulk-row">
               <button type="submit" class="btn btn-primary" form="md-bulk-form"
                       formaction="{% url 'assets:workorder_occurrences_complete' workorder.pk %}"
                       formenctype="multipart/form-data"
@@ -147,7 +151,7 @@
                 <label for="{{ wo_execution_day_form.execution_date.id_for_label }}">Distribuisci sulla giornata</label>
                 {{ wo_execution_day_form.execution_date }}
               </div>
-              <button type="submit" class="btn" form="md-bulk-form"
+              <button type="submit" class="btn btn-secondary" form="md-bulk-form"
                       formaction="{% url 'assets:workorder_distribute_day' workorder.pk %}">Sposta nella giornata</button>
             </div>
           {% endif %}

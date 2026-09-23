@@ -52,9 +52,9 @@
 {% block assets_shell_title %}Intervento #{{ workorder.display_number }}{% endblock %}
 {% block assets_shell_subtitle %}<p>{{ workorder.title }} · {{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{{ workorder_asset_url }}">Apri asset</a>
-  {% if workorder_rule_url %}<a class="btn" href="{{ workorder_rule_url }}">Piano / regola</a>{% endif %}
-  {% if workorder_contract_url %}<a class="btn" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>{% endif %}
+  <a class="btn btn-secondary" href="{{ workorder_asset_url }}">Apri asset</a>
+  {% if workorder_rule_url %}<a class="btn btn-secondary" href="{{ workorder_rule_url }}">Piano / regola</a>{% endif %}
+  {% if workorder_contract_url %}<a class="btn btn-secondary" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>{% endif %}
   {% if workorder.status == 'OPEN' %}<a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Registra intervento</a>{% endif %}
 {% endblock %}
 
