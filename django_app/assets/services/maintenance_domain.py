@@ -16,7 +16,7 @@ La fonte di verita' della scadenza e' l'occorrenza: nessun ``next_due`` altrove.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, time
 from typing import Any, Iterable
 
 from django.db import IntegrityError, transaction
@@ -728,6 +728,50 @@ def create_workorder_from_occurrences(
         user,
     )
     return work_order
+
+
+@transaction.atomic
+def create_workorders_by_asset_day(
+    occurrences: list[MaintenanceOccurrence],
+    *,
+    user=None,
+    title: str = "",
+    assigned_to=None,
+    supplier=None,
+    due_at=None,
+) -> list[WorkOrder]:
+    """Selezione multipla -> un OdL per ogni asset (e per giorno di esecuzione).
+
+    Le manutenzioni dello stesso asset che si fanno lo stesso giorno finiscono
+    nello stesso OdL: e' una sola uscita sulla macchina. Il giorno e' la data
+    "entro" scelta, altrimenti la scadenza di ciascuna manutenzione. Se nascono
+    piu' OdL vengono collegati come gruppo (``WorkOrder.mark_batch``): si leggono
+    X-1, X-2, ... dove X e' il capofila.
+    """
+    if not occurrences:
+        raise ValueError("Serve almeno un'occorrenza per aprire un ordine di lavoro.")
+    groups: dict[tuple[int, date], list[MaintenanceOccurrence]] = {}
+    for occ in occurrences:
+        day = due_at.date() if hasattr(due_at, "date") else (due_at or occ.due_date)
+        groups.setdefault((occ.asset_id, day), []).append(occ)
+    ordered = sorted(groups.items(), key=lambda item: (item[0][1], item[1][0].asset.asset_tag or "", item[0][0]))
+    work_orders = []
+    for (_asset_id, day), group in ordered:
+        group_title = title
+        if title and len(ordered) > 1:
+            group_title = f"{title} — {group[0].asset.asset_tag or group[0].asset.name}"
+        work_orders.append(
+            create_workorder_from_occurrences(
+                group, user=user, title=group_title, assigned_to=assigned_to, supplier=supplier,
+                due_at=due_at or timezone.make_aware(datetime.combine(day, time(17, 0))),
+            )
+        )
+    if len(work_orders) > 1:
+        WorkOrder.mark_batch(work_orders)
+        numbers = ", ".join(wo.display_number for wo in work_orders)
+        for wo in work_orders:
+            _log(wo, f"Parte del gruppo {work_orders[0].id}: {numbers}.", user)
+    return work_orders
 
 
 @transaction.atomic

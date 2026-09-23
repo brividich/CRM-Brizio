@@ -1851,24 +1851,36 @@ def occurrence_create_workorder(request: HttpRequest) -> HttpResponse:
         messages.error(request, "Dati dell'ordine di lavoro non validi.")
         return redirect(back)
 
+    options = dict(
+        user=request.user,
+        title=form.cleaned_data.get("title") or "",
+        assigned_to=form.cleaned_data.get("assigned_to"),
+        supplier=form.cleaned_data.get("supplier"),
+        due_at=form.cleaned_data.get("due_at"),
+    )
     try:
-        work_order = domain.create_workorder_from_occurrences(
-            occurrences,
-            user=request.user,
-            title=form.cleaned_data.get("title") or "",
-            assigned_to=form.cleaned_data.get("assigned_to"),
-            supplier=form.cleaned_data.get("supplier"),
-            due_at=form.cleaned_data.get("due_at"),
-        )
+        if form.cleaned_data.get("split_by_asset"):
+            work_orders = domain.create_workorders_by_asset_day(occurrences, **options)
+        else:
+            work_orders = [domain.create_workorder_from_occurrences(occurrences, **options)]
     except ValueError as exc:
         messages.error(request, str(exc))
         return redirect(back)
 
-    messages.success(
-        request,
-        f"Ordine di lavoro #{work_order.pk} creato con {len(occurrences)} manutenzione/i.",
-    )
-    return redirect("assets:wo_view", id=work_order.pk)
+    leader = work_orders[0]
+    if len(work_orders) > 1:
+        messages.success(
+            request,
+            f"Creato il gruppo di ordini di lavoro {leader.pk}: "
+            + ", ".join(f"#{wo.display_number}" for wo in work_orders)
+            + f" — uno per asset e giorno, {len(occurrences)} manutenzioni in tutto.",
+        )
+    else:
+        messages.success(
+            request,
+            f"Ordine di lavoro #{leader.display_number} creato con {len(occurrences)} manutenzione/i.",
+        )
+    return redirect("assets:wo_view", id=leader.pk)
 
 
 @login_required

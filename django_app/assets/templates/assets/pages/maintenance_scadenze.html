@@ -124,6 +124,7 @@
       <div class="md-field"><label for="{{ workorder_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_form.assigned_to }}</div>
       <div class="md-field"><label for="{{ workorder_form.supplier.id_for_label }}">Ditta esterna</label>{{ workorder_form.supplier }}</div>
       <div class="md-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>
+      <label class="md-field md-field-check" style="align-self:center"><span>{{ workorder_form.split_by_asset }} {{ workorder_form.split_by_asset.label }}</span></label>
       <button type="submit" class="btn btn-primary">Crea ordine di lavoro</button>
     </form>
   {% endif %}

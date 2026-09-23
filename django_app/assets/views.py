@@ -15360,8 +15360,10 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
         request,
         "assets/pages/workorder_detail.html",
         {
-            "page_title": f"Intervento #{workorder.id}",
+            "page_title": f"Intervento #{workorder.display_number}",
             "workorder": workorder,
+            "batch_rows": _workorder_batch_rows(workorder),
+            **_workorder_suggestions(request, workorder),
             "logs": logs,
             "attachments": attachments,
             "checklist_items": checklist_items,
@@ -15439,6 +15441,89 @@ def _asset_deadlines_context(request: HttpRequest, asset) -> dict[str, object]:
         "asset_deadline_overdue": sum(1 for row in rows if row.state == feed.STATE_OVERDUE),
         "asset_deadline_list_url": f"{reverse('assets:maintenance_scadenze')}?window=&asset={asset.id}",
     }
+
+
+def _workorder_batch_rows(workorder: WorkOrder) -> list[dict[str, object]]:
+    """Gli OdL nati insieme a questo (gruppo X-1, X-2...), per navigarli dalla scheda."""
+    if not (workorder.reference_batch or "").startswith(WorkOrder.BATCH_REFERENCE_PREFIX):
+        return []
+    siblings = list(
+        WorkOrder.objects.filter(reference_batch=workorder.reference_batch)
+        .select_related("asset", "assigned_to")
+        .order_by("id")
+    )
+    if len(siblings) < 2:
+        return []
+    leader = siblings[0].id
+    return [
+        {
+            "wo": wo,
+            "number": f"{leader}-{position}",
+            "is_current": wo.id == workorder.id,
+            "url": reverse("assets:wo_view", kwargs={"id": wo.id}),
+        }
+        for position, wo in enumerate(siblings, start=1)
+    ]
+
+
+def _workorder_suggestions(request: HttpRequest, workorder: WorkOrder) -> dict[str, object]:
+    """Cose utili da aggiungere all'intervento, proposte dal sistema.
+
+    Solo proposte: nulla viene modificato finche' qualcuno non preme il pulsante.
+    """
+    from .maintenance import get_applicable_assistance_contracts
+    from .models import MaintenanceOccurrence
+
+    suggestions: list[dict[str, object]] = []
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        return {"suggestions": suggestions, "suggested_occurrences": []}
+    asset_ids = set(workorder.occurrences.values_list("asset_id", flat=True)) or {workorder.asset_id}
+    today = timezone.localdate()
+
+    # 1. Altre manutenzioni dello stesso asset, non ancora in un OdL, entro 30 giorni:
+    #    farle nella stessa uscita risparmia un viaggio alla macchina.
+    suggested_occurrences = list(
+        MaintenanceOccurrence.objects.filter(
+            asset_id__in=asset_ids,
+            status=MaintenanceOccurrence.STATUS_OPEN,
+            work_order__isnull=True,
+            due_date__lte=today + timedelta(days=30),
+        )
+        .select_related("plan", "asset")
+        .order_by("due_date")[:10]
+    )
+    # 2. Altri OdL aperti sulla stessa macchina.
+    other_open = list(
+        WorkOrder.objects.filter(asset_id__in=asset_ids, status=WorkOrder.STATUS_OPEN)
+        .exclude(pk=workorder.pk)
+        .exclude(reference_batch__gt="", reference_batch=workorder.reference_batch)
+        .order_by("opened_at")[:5]
+    )
+    for other in other_open:
+        suggestions.append({
+            "tone": "info",
+            "text": f"Sullo stesso asset c'e' gia' l'intervento #{other.display_number} «{other.title}» aperto: valuta di farli insieme.",
+            "url": reverse("assets:wo_view", kwargs={"id": other.id}),
+            "cta": "Apri",
+        })
+    # 3. Contratto di assistenza attivo ma nessuna ditta indicata.
+    if not workorder.supplier_id and workorder.asset_id:
+        for contract in get_applicable_assistance_contracts(workorder.asset, today=today)[:1]:
+            suggestions.append({
+                "tone": "info",
+                "text": f"L'asset e' coperto dal contratto «{contract.title}» con {contract.supplier}: se interviene la ditta, indicala in chiusura.",
+                "url": reverse("assets:assistance_contract_list"),
+                "cta": "Contratti",
+            })
+    # 4. Nessuno se ne occupa.
+    if not workorder.assigned_to_id and not workorder.supplier_id:
+        suggestions.append({
+            "tone": "warn",
+            "text": "Nessun manutentore e nessuna ditta: assegna l'intervento perche' qualcuno lo prenda in carico.",
+            "url": "#wo-riassegna",
+            "cta": "Riassegna",
+        })
+    return {"suggestions": suggestions, "suggested_occurrences": suggested_occurrences}
 
 
 def _asset_maintenance_plans_context(asset) -> dict[str, object]:

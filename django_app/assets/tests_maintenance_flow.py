@@ -104,3 +104,62 @@ class FlussoTests(TestCase):
             _asset_maintenance_rule_list_page_url(self.asset.id),
             reverse("assets:asset_maintenance_plans", args=[self.asset.id]),
         )
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class OdlPerAssetTests(TestCase):
+    """Selezione multipla -> un OdL per asset e giorno, numerati X-1, X-2 (WorkOrder.mark_batch)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.today = timezone.localdate()
+        cls.admin = User.objects.create_superuser(username="batch-admin", password="x", email="b@a.t")
+        cls.a1 = Asset.objects.create(asset_tag="B-01", name="Tornio", status=Asset.STATUS_IN_USE)
+        cls.a2 = Asset.objects.create(asset_tag="B-02", name="Fresa", status=Asset.STATUS_IN_USE)
+        cls.p1 = MaintenanceInterventionTemplate.objects.create(code="b-lub", label="Lubrificazione")
+        cls.p2 = MaintenanceInterventionTemplate.objects.create(code="b-fil", label="Filtri")
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+        d = self.today + timedelta(days=3)
+        self.o1 = MaintenanceOccurrence.objects.create(plan=self.p1, asset=self.a1, due_date=d, warning_days=10)
+        self.o2 = MaintenanceOccurrence.objects.create(plan=self.p2, asset=self.a1, due_date=d, warning_days=10)
+        self.o3 = MaintenanceOccurrence.objects.create(plan=self.p1, asset=self.a2, due_date=d, warning_days=10)
+        self.o4 = MaintenanceOccurrence.objects.create(plan=self.p2, asset=self.a2, due_date=d + timedelta(days=5), warning_days=10)
+
+    def _create(self, ids, **extra):
+        data = {"occurrence_ids": ids, **extra}
+        return self.client.post(reverse("assets:occurrence_create_workorder"), data)
+
+    def test_un_odl_per_asset_e_giorno_numerati_come_gruppo(self):
+        response = self._create([self.o1.id, self.o2.id, self.o3.id, self.o4.id], split_by_asset="on")
+        for occ in (self.o1, self.o2, self.o3, self.o4):
+            occ.refresh_from_db()
+        # Stesso asset, stesso giorno -> stesso OdL.
+        self.assertEqual(self.o1.work_order_id, self.o2.work_order_id)
+        # Asset diverso, o stesso asset in un altro giorno -> OdL diversi.
+        wo_ids = {self.o1.work_order_id, self.o3.work_order_id, self.o4.work_order_id}
+        self.assertEqual(len(wo_ids), 3)
+        from assets.models import WorkOrder
+
+        wos = list(WorkOrder.objects.filter(pk__in=wo_ids).order_by("id"))
+        leader = wos[0].id
+        self.assertEqual([wo.display_number for wo in wos], [f"{leader}-1", f"{leader}-2", f"{leader}-3"])
+        self.assertRedirects(response, reverse("assets:wo_view", args=[leader]), fetch_redirect_response=False)
+        page = self.client.get(reverse("assets:wo_view", args=[wos[1].id]))
+        self.assertContains(page, f"Gruppo {leader}")
+        self.assertContains(page, f"#{leader}-3")
+
+    def test_senza_la_casella_resta_un_unico_odl(self):
+        self._create([self.o1.id, self.o3.id])
+        self.o1.refresh_from_db()
+        self.o3.refresh_from_db()
+        self.assertEqual(self.o1.work_order_id, self.o3.work_order_id)
+
+    def test_la_scheda_suggerisce_le_altre_scadenze_dello_stesso_asset(self):
+        self._create([self.o3.id], split_by_asset="on")
+        self.o3.refresh_from_db()
+        page = self.client.get(reverse("assets:wo_view", args=[self.o3.work_order_id]))
+        self.assertContains(page, "Suggerimenti")
+        self.assertIn(self.o4, page.context["suggested_occurrences"])
+        self.assertContains(page, "Nessun manutentore e nessuna ditta")
