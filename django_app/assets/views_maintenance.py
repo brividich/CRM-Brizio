@@ -2244,3 +2244,119 @@ def maintenance_history_template(request: HttpRequest) -> HttpResponse:
     )
     response["Content-Disposition"] = 'attachment; filename="storico_manutenzioni_modello.xlsx"'
     return response
+
+
+# ---------------------------------------------------------------------------
+# Percorso guidato "Imposta la manutenzione"
+# ---------------------------------------------------------------------------
+
+@login_required
+def maintenance_setup(request: HttpRequest) -> HttpResponse:
+    """A che punto e' la configurazione, passo per passo, sui dati veri.
+
+    Ogni passo dice cosa manca, quanto, e porta alla pagina dove si sistema.
+    Nessun dato nuovo: solo conteggi su piani, applicazioni, asset e scadenze.
+    """
+    from .services import deadline_feed as feed
+
+    plans = list(MaintenanceInterventionTemplate.objects.filter(is_active=True).order_by("sort_order", "label"))
+    active_assignments = MaintenancePlanAssignment.objects.filter(is_active=True, plan__is_active=True)
+    applied_plan_ids = set(
+        active_assignments.filter(is_excluded=False).values_list("plan_id", flat=True).order_by().distinct()
+    )
+    plans_without_target = [plan for plan in plans if plan.id not in applied_plan_ids]
+    manual_generation = list(
+        active_assignments.filter(is_excluded=False, auto_generate=False).select_related("plan")[:200]
+    )
+    external_without_supplier = [
+        plan for plan in plans
+        if plan.execution_mode == MaintenanceInterventionTemplate.MODE_EXTERNAL and not plan.default_supplier_id
+    ]
+
+    resolutions = domain.build_plan_resolutions(asset_queryset=Asset.objects.filter(status=Asset.STATUS_IN_USE))
+    covered_assets = {asset_id for (_plan_id, asset_id), res in resolutions.items() if res.is_applied}
+    conflicts = sum(1 for res in resolutions.values() if res.is_conflict)
+    assets_in_use = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
+    coverage_pct = round(100 * len(covered_assets) / assets_in_use) if assets_in_use else None
+
+    legacy_duplicates = feed.migrated_legacy_deadlines_qs().count()
+    legacy_open = feed.legacy_deadlines_qs().count()
+    groups = AssetGroup.objects.filter(is_active=True).count()
+
+    def step(key, title, status, detail, links, items=None):
+        return {"key": key, "title": title, "status": status, "detail": detail, "links": links, "items": items or []}
+
+    steps = [
+        step(
+            "piani", "Definisci i piani di manutenzione",
+            "done" if plans else "todo",
+            f"{len(plans)} piani attivi." if plans else "Nessun piano: e' da qui che nascono tutte le scadenze.",
+            [("+ Nuovo piano", reverse("assets:maintenance_plan_create")), ("Catalogo attivita'", reverse("assets:maintenance_impostazioni"))],
+        ),
+        step(
+            "applicazioni", "Applica ogni piano ad asset, gruppi o categorie",
+            "todo" if plans_without_target else ("done" if plans else "blocked"),
+            (f"{len(plans_without_target)} piani non sono applicati a nessun asset: non generano scadenze."
+             if plans_without_target else "Tutti i piani attivi hanno almeno un'applicazione."),
+            [("Piani", reverse("assets:maintenance_plan_list"))],
+            [(plan.label, reverse("assets:maintenance_plan_detail", args=[plan.id])) for plan in plans_without_target[:8]],
+        ),
+        step(
+            "generazione", "Conferma le periodicita' da verificare",
+            "todo" if manual_generation else "done",
+            (f"{len(manual_generation)} applicazioni hanno la generazione automatica spenta: "
+             "di solito arrivano dalla migrazione, con periodicita' da confermare."
+             if manual_generation else "Tutte le applicazioni generano le scadenze da sole."),
+            [],
+            [(f"{a.plan.label} — {a.get_target_type_display()}",
+              reverse("assets:maintenance_assignment_edit", args=[a.plan_id, a.id])) for a in manual_generation[:8]],
+        ),
+        step(
+            "copertura", "Copri gli asset in uso",
+            "done" if coverage_pct == 100 and not conflicts else ("todo" if assets_in_use else "blocked"),
+            (f"{len(covered_assets)} asset in uso su {assets_in_use} hanno almeno un piano ({coverage_pct}%)."
+             if assets_in_use else "Nessun asset in uso.")
+            + (f" {conflicts} conflitti di periodicita' bloccano la generazione." if conflicts else ""),
+            [("Copertura", reverse("assets:maintenance_coverage"))],
+        ),
+        step(
+            "fornitori", "Assegna un fornitore ai piani esterni",
+            "todo" if external_without_supplier else "done",
+            (f"{len(external_without_supplier)} piani esterni senza fornitore predefinito: l'OdL nasce senza ditta."
+             if external_without_supplier else "Ogni piano esterno ha il suo fornitore."),
+            [("Fornitori", reverse("assets:maintenance_suppliers"))],
+            [(plan.label, reverse("assets:maintenance_plan_edit", args=[plan.id])) for plan in external_without_supplier[:8]],
+        ),
+        step(
+            "archivio", "Chiudi l'archivio delle vecchie scadenze",
+            "todo" if legacy_duplicates else ("info" if legacy_open else "done"),
+            (f"{legacy_duplicates} vecchie scadenze amministrative sono gia' nei piani ma ancora attive: "
+             "l'amministratore le chiude con il comando close_migrated_admin_deadlines."
+             if legacy_duplicates else
+             (f"{legacy_open} vecchie scadenze non sono ancora nei piani: restano visibili, ma conviene trasferirle."
+              if legacy_open else "Nessuna scadenza nel vecchio archivio.")),
+            [("Archivio precedente", reverse("assets:asset_administrative_deadline_list"))],
+        ),
+        step(
+            "gruppi", "Raggruppa gli asset (facoltativo)",
+            "done" if groups else "optional",
+            (f"{groups} gruppi attivi." if groups else
+             "Le famiglie d'inventario bastano quasi sempre. Un gruppo serve quando un piano riguarda "
+             "asset di famiglie diverse (es. «linea 3») o solo alcuni asset di una famiglia."),
+            [("Gruppi asset", reverse("assets:asset_group_list"))],
+        ),
+    ]
+    required = [s for s in steps if s["status"] not in {"optional", "info"}]
+    done = sum(1 for s in required if s["status"] == "done")
+    return render(
+        request,
+        "assets/pages/maintenance_setup.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Imposta la manutenzione",
+            "steps": steps,
+            "done": done,
+            "total": len(required),
+            "progress_pct": round(100 * done / len(required)) if required else 100,
+        },
+    )

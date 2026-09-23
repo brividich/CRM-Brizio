@@ -28,9 +28,9 @@ e testata; la verifica a video (chiaro + scuro) e' nel blocco Chiusura.
 
 ## Setup
 
-- [ ] **8. Percorso "Imposta la manutenzione"** — 4 passi con stato: catalogo attivita',
+- [x] **8. Percorso "Imposta la manutenzione"** — 4 passi con stato: catalogo attivita',
   piani, applicazioni agli asset, copertura (asset in uso senza piano).
-- [ ] **9. Gruppi asset spiegati** — filtro Gruppo nascosto finche' non esiste un gruppo;
+- [x] **9. Gruppi asset spiegati** — filtro Gruppo nascosto finche' non esiste un gruppo;
   la pagina Gruppi spiega la differenza con le famiglie.
 
 ## Pulizia di fondo

@@ -141,3 +141,43 @@ class SchedaAssetScadenzeTests(Ux2TestCase):
         response = self.client.get(reverse("assets:maintenance_scadenze"), {"window": "", "asset": self.asset.id})
         self.assertEqual([r.title for r in response.context["renewals"]], ["Licenza CAM ux2"])
         self.assertEqual({r["occurrence"].id for r in response.context["rows"]}, {self.libera.id})
+
+
+class ImpostaManutenzioneTests(Ux2TestCase):
+    def test_percorso_legge_i_dati_veri(self):
+        from assets.models import MaintenancePlanAssignment
+
+        response = self.client.get(reverse("assets:maintenance_setup"))
+        self.assertEqual(response.status_code, 200)
+        steps = {s["key"]: s for s in response.context["steps"]}
+        self.assertEqual(steps["piani"]["status"], "done")
+        # Il piano di prova non e' applicato a niente: il passo 2 lo elenca.
+        self.assertEqual(steps["applicazioni"]["status"], "todo")
+        self.assertIn("Lubrificazione ux2", [label for label, _url in steps["applicazioni"]["items"]])
+        self.assertEqual(steps["gruppi"]["status"], "optional")
+        self.assertContains(response, "Imposta la manutenzione")
+
+        MaintenancePlanAssignment.objects.create(
+            plan=self.plan, target_type=MaintenancePlanAssignment.TARGET_CATEGORY, asset_category=self.category,
+            frequency=MaintenancePlanAssignment.FREQ_DAYS, interval=30, auto_generate=False,
+        )
+        steps = {s["key"]: s for s in self.client.get(reverse("assets:maintenance_setup")).context["steps"]}
+        self.assertEqual(steps["applicazioni"]["status"], "done")
+        self.assertEqual(steps["generazione"]["status"], "todo")  # periodicita' da confermare
+
+    def test_voce_di_menu_in_configurazione(self):
+        response = self.client.get(reverse("assets:maintenance_setup"))
+        self.assertContains(response, 'aria-label="Configurazione"', html=False)
+        self.assertContains(response, 'aria-current="page">Imposta</a>', html=False)
+
+
+class GruppiFacoltativiTests(Ux2TestCase):
+    def test_filtro_gruppo_solo_se_esistono_gruppi(self):
+        from assets.forms_maintenance import OccurrenceFilterForm
+        from assets.models import AssetGroup
+
+        self.assertNotIn("group", OccurrenceFilterForm({}).fields)
+        AssetGroup.objects.create(code="linea-3", label="Linea 3")
+        self.assertIn("group", OccurrenceFilterForm({}).fields)
+        page = self.client.get(reverse("assets:asset_group_list"))
+        self.assertContains(page, "Famiglia o gruppo?")

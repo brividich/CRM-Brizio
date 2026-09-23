@@ -1085,6 +1085,8 @@ class DaFareKpiEFiltriTests(TestCase):
     def test_i_filtri_avanzati_esistono_tutti_e_non_sono_in_prima_fila(self):
         from assets.forms_maintenance import OccurrenceFilterForm
 
+        # Il filtro "Gruppo" compare solo se esiste almeno un gruppo.
+        AssetGroup.objects.get_or_create(code="gruppo-filtri", defaults={"label": "Gruppo filtri"})
         form = OccurrenceFilterForm({})
         semplici = [f.name for f in form.simple_fields]
         avanzati = [f.name for f in form.advanced_fields]
