@@ -11,6 +11,7 @@
 
 {% block assets_shell_toolbar %}
   {% if occurrence.work_order_id %}<a class="btn btn-secondary" href="{% url 'assets:wo_view' occurrence.work_order_id %}">Ordine di lavoro #{{ occurrence.work_order_id }}</a>{% endif %}
+  <a class="btn btn-secondary" href="{% url 'assets:occurrence_worksheet' occurrence.pk %}" target="_blank" rel="noopener">&#128424; Scheda di lavoro</a>
   <a class="btn btn-secondary" href="{% url 'assets:occurrence_followup_create' occurrence.pk %}">Apri follow-up</a>
 {% endblock %}
 

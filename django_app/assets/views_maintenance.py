@@ -2137,13 +2137,11 @@ def workorder_occurrences_complete(request: HttpRequest, workorder_id: int) -> H
     if saltate:
         messages.warning(request, f"Non registrate: {'; '.join(saltate)}.")
 
-    rimaste = MaintenanceOccurrence.objects.filter(
-        work_order_id=work_order.pk, status=MaintenanceOccurrence.STATUS_OPEN
-    ).count()
-    if registrate and not rimaste and work_order.status == WorkOrder.STATUS_OPEN:
+    if registrate and domain.close_workorder_if_complete(work_order, user=request.user):
         messages.info(
             request,
-            "Tutte le manutenzioni raccolte sono registrate: l'intervento puo' essere chiuso.",
+            f"Tutte le manutenzioni raccolte sono registrate: l'intervento #{work_order.display_number} "
+            "e' chiuso e compare fra gli interventi chiusi e nello Storico.",
         )
 
     return redirect("assets:wo_view", id=workorder_id)
@@ -2210,6 +2208,14 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
                     )
                 else:
                     messages.success(request, "Manutenzione registrata.")
+                if occurrence.work_order_id and domain.close_workorder_if_complete(
+                    occurrence.work_order, user=request.user
+                ):
+                    messages.info(
+                        request,
+                        f"Era l'ultima dell'intervento #{occurrence.work_order.display_number}: "
+                        "l'intervento e' chiuso e compare fra i chiusi e nello Storico.",
+                    )
                 return redirect(back_url)
     else:
         form = OccurrenceCompletionForm(occurrence=occurrence)
@@ -2225,6 +2231,92 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
             "occurrence": occurrence,
             "state": domain.occurrence_state_payload(occurrence),
             **_completion_suggestions(occurrence, back_url),
+        },
+    )
+
+
+@login_required
+@require_POST
+def workorder_close_if_complete(request: HttpRequest, workorder_id: int) -> HttpResponse:
+    """Chiude un OdL rimasto aperto con tutte le manutenzioni gia' registrate."""
+    work_order = get_object_or_404(WorkOrder, pk=workorder_id)
+    if not can_execute_maintenance(request):
+        return _deny(request, "Non hai i permessi per chiudere l'intervento.")
+    if domain.close_workorder_if_complete(work_order, user=request.user):
+        messages.success(request, f"Intervento #{work_order.display_number} chiuso.")
+    else:
+        messages.warning(request, "L'intervento ha ancora manutenzioni da registrare: usa «Registra intervento».")
+    return redirect("assets:wo_view", id=work_order.pk)
+
+
+def _worksheet_items(occurrences) -> list[dict[str, Any]]:
+    """Righe della scheda di lavoro: una per manutenzione, con checklist e ultima volta."""
+    from .models import MaintenanceChecklistStep
+
+    occurrences = list(occurrences)
+    plan_ids = {occ.plan_id for occ in occurrences}
+    steps: dict[int, list] = defaultdict(list)
+    for step in MaintenanceChecklistStep.objects.filter(intervention_template_id__in=plan_ids).order_by(
+        "step_number", "id"
+    ):
+        steps[step.intervention_template_id].append(step)
+    items = []
+    for occ in occurrences:
+        previous = (
+            MaintenanceOccurrence.objects.filter(
+                plan_id=occ.plan_id, asset_id=occ.asset_id, status=MaintenanceOccurrence.STATUS_DONE
+            )
+            .exclude(pk=occ.pk)
+            .order_by("-completed_on", "-id")
+            .first()
+        )
+        items.append({"occurrence": occ, "steps": steps.get(occ.plan_id, []), "previous": previous})
+    items.sort(key=lambda item: (item["occurrence"].asset.asset_tag or "", item["occurrence"].due_date))
+    return items
+
+
+@login_required
+def workorder_worksheet(request: HttpRequest, workorder_id: int) -> HttpResponse:
+    """Scheda di lavoro stampabile (A4) dell'intervento: da portare alla macchina,
+    una sezione per ogni manutenzione raccolta con checklist da spuntare a penna."""
+    work_order = get_object_or_404(
+        WorkOrder.objects.select_related("asset", "asset__asset_category", "assigned_to", "supplier"),
+        pk=workorder_id,
+    )
+    occurrences = work_order.occurrences.select_related("plan", "asset", "asset__asset_category").exclude(
+        status=MaintenanceOccurrence.STATUS_CANCELED
+    )
+    return render(
+        request,
+        "assets/pages/work_sheet.html",
+        {
+            "page_title": f"Scheda di lavoro — OdL {work_order.display_number}",
+            "work_order": work_order,
+            "items": _worksheet_items(occurrences),
+            "today": timezone.localdate(),
+            "back_url": reverse("assets:wo_view", kwargs={"id": work_order.pk}),
+        },
+    )
+
+
+@login_required
+def occurrence_worksheet(request: HttpRequest, occurrence_id: int) -> HttpResponse:
+    """Scheda di lavoro stampabile di una singola manutenzione (senza OdL)."""
+    occurrence = get_object_or_404(
+        MaintenanceOccurrence.objects.select_related("plan", "asset", "asset__asset_category", "work_order"),
+        pk=occurrence_id,
+    )
+    if occurrence.work_order_id:
+        return redirect("assets:workorder_worksheet", workorder_id=occurrence.work_order_id)
+    return render(
+        request,
+        "assets/pages/work_sheet.html",
+        {
+            "page_title": f"Scheda di lavoro — {occurrence.asset.asset_tag}",
+            "work_order": None,
+            "items": _worksheet_items([occurrence]),
+            "today": timezone.localdate(),
+            "back_url": _safe_back_url(request, reverse("assets:maintenance_da_fare")),
         },
     )
 

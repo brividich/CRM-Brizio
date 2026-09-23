@@ -870,6 +870,52 @@ def assign_occurrences_to_day(
     return day
 
 
+def close_workorder_if_complete(work_order: WorkOrder | None, *, user=None) -> bool:
+    """Chiude l'OdL quando non gli resta nessuna manutenzione da registrare.
+
+    Per chi lavora "ho compilato l'OdL" vuol dire "fatto": prima l'intervento
+    restava aperto finche' qualcuno non premeva anche "Registra intervento", e
+    quindi non compariva ne' fra i chiusi ne' nello Storico. Si chiude solo un OdL
+    aperto che raccoglie manutenzioni, tutte chiuse e almeno una eseguita; il
+    fermo e' la somma di quelli dichiarati. Ritorna True se l'ha chiuso.
+    """
+    if work_order is None or work_order.status != WorkOrder.STATUS_OPEN:
+        return False
+    occurrences = list(work_order.occurrences.all())
+    if not occurrences or any(occ.status == MaintenanceOccurrence.STATUS_OPEN for occ in occurrences):
+        return False
+    done = [occ for occ in occurrences if occ.status == MaintenanceOccurrence.STATUS_DONE]
+    if not done:
+        return False
+    if getattr(user, "is_authenticated", False):
+        if work_order.executed_by_id is None:
+            work_order.executed_by = user
+        if work_order.assigned_to_id is None and work_order.supplier_id is None:
+            work_order.assigned_to = user
+    last_day = max(occ.completed_on for occ in done if occ.completed_on) if any(o.completed_on for o in done) else None
+    closed_at = timezone.make_aware(datetime.combine(last_day, time(12, 0))) if last_day else None
+    if closed_at and closed_at > timezone.now():
+        closed_at = None
+    resolution = work_order.resolution or "Manutenzioni registrate: " + "; ".join(
+        f"{occ.asset.asset_tag or occ.asset.name} · {occ.plan.label}" for occ in done
+    )
+    downtime = sum(int(occ.downtime_minutes or 0) for occ in done)
+    try:
+        work_order.close(
+            status=WorkOrder.STATUS_DONE,
+            closed_at=closed_at,
+            resolution=resolution[:4000],
+            downtime=downtime or None,
+        )
+    except Exception:  # validazioni del modello: resta aperto, lo si chiude a mano
+        import logging
+
+        logging.getLogger(__name__).exception("Chiusura automatica OdL %s non riuscita", work_order.pk)
+        return False
+    _log(work_order, "Chiuso automaticamente: tutte le manutenzioni raccolte sono registrate.", user)
+    return True
+
+
 def workorder_progress(work_order: WorkOrder) -> dict[str, int]:
     """Avanzamento di un OdL massivo: un OdL puo' essere parzialmente completato."""
     occurrences = list(work_order.occurrences.all())

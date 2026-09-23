@@ -17,6 +17,13 @@
       </div>
     </header>
     <div class="ux-card-body">
+      {% if workorder.status == "OPEN" and wo_occurrence_progress and not wo_occurrence_progress.todo and wo_occurrence_progress.done %}
+        <form method="post" action="{% url 'assets:workorder_close_if_complete' workorder.pk %}" class="md-suggest" style="margin:0 0 12px">
+          {% csrf_token %}
+          <div class="md-suggest-row"><span><strong>Tutte le manutenzioni sono registrate</strong> ma l'intervento e' ancora aperto: chiudilo perche' vada fra i chiusi e nello Storico.</span>
+          <button type="submit" class="btn btn-primary btn-sm">Chiudi intervento</button></div>
+        </form>
+      {% endif %}
       {% if wo_occurrence_progress.todo and workorder.status != "OPEN" %}
         {% comment %}
           L'intervento e' chiuso ma qualche manutenzione non e' stata registrata:

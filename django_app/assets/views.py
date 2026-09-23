@@ -1567,28 +1567,38 @@ def _build_work_machine_maintenance_month_dataset(
     month_end = _month_end(month_start)
     reparto_value = _clean_string(reparto_filter)
 
+    # Dalle scadenze pianificate (occorrenze), come Scadenzario e Calendario:
+    # WorkMachine.next_maintenance_date non si aggiorna piu' alla chiusura e dava
+    # un mese diverso da quello delle pagine. Una riga per manutenzione.
+    from .models import MaintenanceOccurrence
+
     queryset = (
-        Asset.objects.filter(
-            asset_type__in=PRODUCTION_ASSET_TYPES,
-            work_machine__next_maintenance_date__gte=month_start,
-            work_machine__next_maintenance_date__lte=month_end,
+        MaintenanceOccurrence.objects.filter(
+            asset__asset_type__in=PRODUCTION_ASSET_TYPES,
+            due_date__gte=month_start,
+            due_date__lte=month_end,
         )
-        .select_related("work_machine")
-        .order_by("work_machine__next_maintenance_date", "reparto", "name", "asset_tag")
+        .exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
+        .select_related("asset", "plan")
+        .order_by("due_date", "asset__reparto", "asset__name", "asset__asset_tag")
     )
     if reparto_value:
-        queryset = queryset.filter(reparto=reparto_value)
+        queryset = queryset.filter(asset__reparto=reparto_value)
 
     rows: list[dict[str, object]] = []
     status_counts = {"overdue": 0, "warning": 0, "ok": 0}
-    for asset in queryset:
-        machine = getattr(asset, "work_machine", None)
-        if not isinstance(machine, WorkMachine):
-            continue
-        state = _work_machine_maintenance_state(machine, current_day)
-        rows.append({"asset": asset, "machine": machine, "state": state})
-        if state["status"] in status_counts:
-            status_counts[state["status"]] += 1
+    for occ in queryset:
+        delta_days = (occ.due_date - current_day).days
+        if occ.status == MaintenanceOccurrence.STATUS_DONE:
+            state = {"status": "ok", "label": f"Eseguita il {occ.completed_on:%d-%m-%Y}" if occ.completed_on else "Eseguita"}
+        elif delta_days < 0:
+            state = {"status": "overdue", "label": f"Scaduta da {abs(delta_days)} gg"}
+        elif delta_days <= int(occ.warning_days or 0):
+            state = {"status": "warning", "label": f"In scadenza ({delta_days} gg)"}
+        else:
+            state = {"status": "ok", "label": f"Pianificata tra {delta_days} gg"}
+        rows.append({"asset": occ.asset, "occurrence": occ, "state": state})
+        status_counts[state["status"]] += 1
 
     return {
         "month_start": month_start,
@@ -1717,8 +1727,8 @@ def _draw_work_machine_maintenance_month_pdf(
         ("Tag", 28 * mm),
         ("Macchina", 82 * mm),
         ("Reparto", 32 * mm),
-        ("Stato", 62 * mm),
-        ("Soglia", 20 * mm),
+        ("Stato", 42 * mm),
+        ("Manutenzione", 40 * mm),
     ]
     total_width = sum(width for _, width in column_defs)
     status_colors = {
@@ -1794,19 +1804,19 @@ def _draw_work_machine_maintenance_month_pdf(
             current_y = table_y
 
         asset = row["asset"]
-        machine = row["machine"]
+        occurrence = row["occurrence"]
         state = row["state"]
         pdf.setFillColor(HexColor("#ffffff" if index % 2 == 0 else "#fbfdff"))
         pdf.setStrokeColor(theme.c_border())
         pdf.rect(margin_x, current_y - row_height, total_width, row_height, fill=1, stroke=1)
 
         values = [
-            machine.next_maintenance_date.strftime("%d-%m-%Y") if machine.next_maintenance_date else "-",
+            occurrence.due_date.strftime("%d-%m-%Y"),
             _coalesce_str(asset.asset_tag, "-"),
             _coalesce_str(asset.name, "-"),
             _coalesce_str(asset.reparto, "-"),
             _coalesce_str(str(state.get("label") or ""), "-"),
-            f"{int(machine.maintenance_reminder_days or 0)} gg",
+            _coalesce_str(occurrence.plan.label, "-"),
         ]
         font_name = "Helvetica"
         font_size = 8.5
@@ -16361,7 +16371,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
 
     q = _clean_string(request.GET.get("q"))
     source = _clean_string(request.GET.get("source")).lower() or "all"
-    if source not in {"all", "workorders", "tickets"}:
+    if source not in {"all", "workorders", "maintenance", "tickets"}:
         source = "all"
 
     def parsed_date(name: str) -> date | None:
@@ -16409,6 +16419,45 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
                     "duration_minutes": workorder.intervention_duration_minutes,
                     "cost": workorder.resolved_total_cost_eur,
                     "url": reverse("assets:wo_view", kwargs={"id": workorder.id}),
+                }
+            )
+
+    if source in {"all", "maintenance"}:
+        # Manutenzioni registrate direttamente ("Registra" da Da fare, Calendario,
+        # Scadenzario) senza un ordine di lavoro: sono lavoro fatto quanto un OdL
+        # chiuso, e prima nello Storico non comparivano.
+        from .models import MaintenanceOccurrence
+
+        registered = MaintenanceOccurrence.objects.filter(
+            status=MaintenanceOccurrence.STATUS_DONE, work_order__isnull=True
+        ).select_related("asset", "plan", "completed_by")
+        if q:
+            registered = registered.filter(
+                Q(plan__label__icontains=q)
+                | Q(completion_notes__icontains=q)
+                | Q(asset__asset_tag__icontains=q)
+                | Q(asset__name__icontains=q)
+            )
+        if date_from:
+            registered = registered.filter(completed_on__gte=date_from)
+        if date_to:
+            registered = registered.filter(completed_on__lte=date_to)
+        for occ in registered.order_by("-completed_on", "-id")[:500]:
+            rows.append(
+                {
+                    "source": "occurrence",
+                    "source_label": "Manutenzione",
+                    "date": timezone.make_aware(datetime.combine(occ.completed_on, datetime.min.time()))
+                    if occ.completed_on else None,
+                    "title": occ.plan.label,
+                    "asset": occ.asset,
+                    "type_label": "Registrata senza OdL",
+                    "status_label": "Eseguita",
+                    "technician": (occ.completed_by.get_full_name() or occ.completed_by.username)
+                    if occ.completed_by_id else "-",
+                    "duration_minutes": 0,
+                    "cost": None,
+                    "url": reverse("assets:maintenance_plan_detail", kwargs={"plan_id": occ.plan_id}),
                 }
             )
 
@@ -16473,6 +16522,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             "history_total": len(rows),
             "history_workorder_count": sum(1 for row in rows if row["source"] == "workorder"),
             "history_ticket_count": sum(1 for row in rows if row["source"] == "ticket"),
+            "history_occurrence_count": sum(1 for row in rows if row["source"] == "occurrence"),
             "history_duration_hours": round(total_duration / 60, 1),
             "history_total_cost": total_cost,
             "history_duration_coverage": copertura_durata["label"],

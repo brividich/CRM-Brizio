@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Assets — OdL completato chiuso, scheda di lavoro, Storico e report
+
+- Registrata l'ultima manutenzione di un OdL, l'OdL si chiude e va fra i chiusi e nello Storico; pulsante «Chiudi intervento» per quelli rimasti aperti.
+- Scheda di lavoro stampabile per OdL e per singola manutenzione.
+- Storico con le manutenzioni registrate senza OdL; report mensile dalle scadenze pianificate; link del cruscotto verso lo Scadenzario.
+
 ### Assets — flusso manutenzione, OdL per asset e giorno, raggruppamenti, suggerimenti
 
 - Selezione multipla in tutte le tabelle di manutenzioni (anche asset diversi): un OdL per asset e giorno, gruppo numerato X-1, X-2...

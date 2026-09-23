@@ -195,3 +195,46 @@ class OdlPerAssetTests(TestCase):
         self.assertContains(page, "Suggerimenti")
         self.assertIn(self.o4, page.context["suggested_occurrences"])
         self.assertContains(page, "Nessun manutentore e nessuna ditta")
+
+    def test_registrare_tutte_le_manutenzioni_chiude_l_odl_e_va_nello_storico(self):
+        from assets.models import WorkOrder
+
+        self._create([self.o1.id, self.o2.id], split_by_asset="on")
+        wo = WorkOrder.objects.get(occurrences=self.o1)
+        oggi = self.today.isoformat()
+        self.client.post(reverse("assets:occurrence_complete", args=[self.o1.id]), {"completed_on": oggi})
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, WorkOrder.STATUS_OPEN)  # ne manca una
+        response = self.client.post(
+            reverse("assets:occurrence_complete", args=[self.o2.id]), {"completed_on": oggi}, follow=True
+        )
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(wo.executed_by, self.admin)
+        self.assertContains(response, "compare fra i chiusi")
+        storico = self.client.get(reverse("assets:maintenance_history"))
+        self.assertContains(storico, wo.title)
+
+    def test_storico_mostra_le_manutenzioni_registrate_senza_odl(self):
+        self.client.post(
+            reverse("assets:occurrence_complete", args=[self.o3.id]), {"completed_on": self.today.isoformat()}
+        )
+        storico = self.client.get(reverse("assets:maintenance_history"), {"source": "maintenance"})
+        self.assertContains(storico, "Registrata senza OdL")
+        self.assertContains(storico, "B-02")
+
+    def test_scheda_di_lavoro_stampabile(self):
+        from assets.models import MaintenanceChecklistStep, WorkOrder
+
+        MaintenanceChecklistStep.objects.create(intervention_template=self.p1, step_number=10, description="Ingrassare guide")
+        self._create([self.o1.id, self.o3.id], split_by_asset="")
+        wo = WorkOrder.objects.get(occurrences=self.o1)
+        response = self.client.get(reverse("assets:workorder_worksheet", args=[wo.id]))
+        self.assertContains(response, "Scheda di lavoro")
+        self.assertContains(response, "Ingrassare guide")
+        self.assertContains(response, "B-01")
+        self.assertContains(response, "B-02")
+        detail = self.client.get(reverse("assets:wo_view", kwargs={"id": wo.id}))
+        self.assertContains(detail, reverse("assets:workorder_worksheet", args=[wo.id]))
+        singola = self.client.get(reverse("assets:occurrence_worksheet", args=[self.o4.id]))
+        self.assertContains(singola, "Manutenzione senza ordine di lavoro")

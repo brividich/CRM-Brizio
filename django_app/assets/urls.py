@@ -116,6 +116,17 @@ urlpatterns = [
     path("assets/workorders/campagna/", views.workorder_campaign_create, name="wo_campaign_create"),
     path("assets/workorders/view/", views.workorder_detail, name="wo_view"),
     path("assets/workorders/view/<int:id>/", views.workorder_detail, name="wo_view"),
+    # Sotto il prefisso della scheda intervento: stessi permessi di chi la apre.
+    path(
+        "assets/workorders/view/<int:workorder_id>/scheda-lavoro/",
+        views_maintenance.workorder_worksheet,
+        name="workorder_worksheet",
+    ),
+    path(
+        "assets/workorders/view/<int:workorder_id>/chiudi-completo/",
+        views_maintenance.workorder_close_if_complete,
+        name="workorder_close_if_complete",
+    ),
     path("assets/workorders/close/", views.workorder_close, name="wo_close"),
     path("assets/workorders/close/<int:id>/", views.workorder_close, name="wo_close"),
     path("assets/workorders/<int:id>/claim/", views.workorder_claim, name="wo_claim"),
@@ -199,6 +210,11 @@ urlpatterns = [
         "assets/manutenzione/asset/<int:asset_id>/piani/<int:plan_id>/personalizza/",
         views_maintenance.asset_plan_customize,
         name="asset_plan_customize",
+    ),
+    path(
+        "assets/manutenzione/scadenze/<int:occurrence_id>/scheda-lavoro/",
+        views_maintenance.occurrence_worksheet,
+        name="occurrence_worksheet",
     ),
     path(
         "assets/manutenzione/scadenze/<int:occurrence_id>/registra/",
