@@ -181,7 +181,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
                   <span class="hr-pill warning">Tra {{ v.giorni_a_scadenza }}g</span>
                 {% endif %}
               </td>
-              <td><a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm">Apri visita</a>{% if can_delete_visite %} <a href="{% url 'anagrafica:visita_medica_elimina' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm" aria-label="Elimina visita errata">Elimina</a>{% endif %}</td>
+              <td><a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm">Apri visita</a> <a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}#superata" class="hr-btn hr-btn-outline hr-btn-sm" title="Toglie la visita dallo scadenziario senza cancellarla">Superata</a>{% if can_delete_visite %} <a href="{% url 'anagrafica:visita_medica_elimina' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm" aria-label="Elimina visita errata">Elimina</a>{% endif %}</td>
             </tr>
             {% endfor %}
             {% endfor %}

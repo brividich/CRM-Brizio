@@ -216,41 +216,43 @@ def ultime_visite_correnti_ids(
     tipo_ids: Iterable[int] | None = None,
 ) -> set[int]:
     """Id delle ``VisitaMedica`` **correnti**: l'ultima per coppia
-    ``(legacy_anagrafica_id, tipo_id)``.
+    ``(legacy_anagrafica_id, famiglia)``.
 
-    Definizione canonica per tutto il portale: massima ``data_svolgimento``,
-    a parità di data vince il ``pk`` più alto (stessa regola di
-    ``ultime_visite_per_tipo``, qui in versione bulk). Le righe storiche
-    superate NON sono "correnti": una scadenza superata da una visita più
-    recente non deve più comparire come scaduta in nessuna vista.
+    La famiglia è ``TipoVisitaMedica.categoria`` quando valorizzata (es.
+    «Visita medica» annuale/biennale/quinquennale: cambiando mansione cambia la
+    periodicità, ma la visita nuova supera la vecchia), altrimenti il tipo
+    stesso. Massima ``data_svolgimento``, a parità di data vince il ``pk`` più
+    alto. Le righe storiche superate NON sono "correnti": una scadenza superata
+    da una visita più recente non deve più comparire come scaduta in nessuna
+    vista. Le visite segnate a mano come superate (``superata_il``) non sono
+    mai correnti, e non restituiscono il posto alle precedenti.
 
     SQL Server-safe: niente window function, due query in tutto.
     """
+    famiglia_di_tipo = {
+        pk: (f"cat:{categoria.strip().lower()}" if (categoria or "").strip() else f"tipo:{pk}")
+        for pk, categoria in TipoVisitaMedica.objects.values_list("id", "categoria")
+    }
     qs = VisitaMedica.objects.all()
     if legacy_ids is not None:
         qs = qs.filter(legacy_anagrafica_id__in=list(legacy_ids))
+    tipi_richiesti = None
     if tipo_ids is not None:
-        qs = qs.filter(tipo_id__in=list(tipo_ids))
+        # Il filtro per tipo va allargato alla famiglia, altrimenti una visita
+        # superata da un tipo fratello tornerebbe "corrente".
+        tipi_richiesti = set(tipo_ids)
+        famiglie = {famiglia_di_tipo.get(t) for t in tipi_richiesti}
+        qs = qs.filter(tipo_id__in=[t for t, f in famiglia_di_tipo.items() if f in famiglie])
 
-    max_data = {
-        (row["legacy_anagrafica_id"], row["tipo_id"]): row["max_data"]
-        for row in (
-            qs.order_by()
-            .values("legacy_anagrafica_id", "tipo_id")
-            .annotate(max_data=Max("data_svolgimento"))
-        )
-    }
-    if not max_data:
-        return set()
-
-    correnti: dict[tuple[int, int], int] = {}
-    for pk, lid, tid, data in qs.order_by().values_list(
-        "id", "legacy_anagrafica_id", "tipo_id", "data_svolgimento"
+    correnti: dict[tuple[int, str], tuple] = {}
+    for pk, lid, tid, data, superata in qs.order_by().values_list(
+        "id", "legacy_anagrafica_id", "tipo_id", "data_svolgimento", "superata_il"
     ):
-        chiave = (lid, tid)
-        if max_data.get(chiave) != data:
-            continue
+        chiave = (lid, famiglia_di_tipo.get(tid, f"tipo:{tid}"))
         prev = correnti.get(chiave)
-        if prev is None or pk > prev:
-            correnti[chiave] = pk
-    return set(correnti.values())
+        if prev is None or (data, pk) > (prev[0], prev[1]):
+            correnti[chiave] = (data, pk, tid, superata)
+    return {
+        pk for _data, pk, tid, superata in correnti.values()
+        if superata is None and (tipi_richiesti is None or tid in tipi_richiesti)
+    }
