@@ -479,7 +479,8 @@ class OccurrenceCompletionViewTests(MaintenanceUITestCase):
 
 
 class PlanConfigurationViewTests(MaintenanceUITestCase):
-    def test_creazione_piano_amministrativo_forza_documento_e_ancoraggio(self):
+    def test_nuovo_piano_non_puo_essere_amministrativo(self):
+        # Le scadenze amministrative sono un registro separato dai piani.
         response = self.client.post(
             reverse("assets:maintenance_plan_create"),
             {
@@ -499,10 +500,9 @@ class PlanConfigurationViewTests(MaintenanceUITestCase):
                 "is_active": "on",
             },
         )
-        self.assertEqual(response.status_code, 302)
-        plan = MaintenanceInterventionTemplate.objects.get(label="Revisione annuale")
-        self.assertTrue(plan.attachment_required)
-        self.assertEqual(plan.default_schedule_anchor, "FIXED_CALENDAR")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("maintenance_type", response.context["form"].errors)
+        self.assertFalse(MaintenanceInterventionTemplate.objects.filter(label="Revisione annuale").exists())
 
     def test_applicazione_con_preset_di_periodicita(self):
         response = self.client.post(

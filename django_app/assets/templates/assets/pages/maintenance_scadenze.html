@@ -115,7 +115,7 @@
   {% if show_renewals and renewals %}
   <section class="md-section">
     <div class="md-section-head">
-      <h2>{% if request.GET.plan_type == 'administrative' %}Scadenze dall'archivio precedente{% else %}Licenze, contratti e altre scadenze{% endif %}</h2>
+      <h2>{% if request.GET.plan_type == 'administrative' %}Scadenze amministrative{% elif request.GET.plan_type == 'renewals' %}Licenze e contratti{% else %}Scadenze amministrative, licenze e contratti{% endif %}</h2>
       <span class="md-badge badge-muted">{{ renewals|length }}</span>
       <span class="md-sub">Si gestiscono dalla loro scheda: qui non si crea un ordine di lavoro.</span>
     </div>

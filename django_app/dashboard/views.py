@@ -2153,7 +2153,7 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
         horizon = today + datetime.timedelta(days=30)
         from assets.services import deadline_feed
 
-        # Occorrenze amministrative + vecchie scadenze non migrate, senza doppioni.
+        # Scadenze amministrative (registro separato dai piani), senza doppioni.
         scad_amm = len(deadline_feed.administrative_dues(due_to=horizon, exclude_retired=False))
         scad_man = PeriodicVerification.objects.filter(
             is_active=True, next_verification_date__lte=horizon

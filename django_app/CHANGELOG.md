@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Assets — scadenze amministrative separate dai piani
+
+- Le `AssetAdministrativeDeadline` tornano l'unica fonte delle scadenze amministrative e si gestiscono da `/assets/scadenze/` (nuova voce di menu «Scadenze amministrative», migration 0111); le copie nei piani amministrativi sono escluse ovunque.
+- Nuovo piano: niente piu' tipo «Scadenza amministrativa»; `migrate_maintenance_to_plans` non le copia piu'.
+- `close_migrated_admin_deadlines` sostituito da `separate_admin_deadlines` (prova a vuoto, `--apply`): riattiva le scadenze, riporta le esecuzioni, annulla le copie, spegne piani e applicazioni copia, con audit.
+
 ### Assets — registra insieme e chiusura massiva degli interventi
 
 - «Registra»: le altre scadenze della stessa macchina si spuntano e si registrano nella stessa schermata (stessa data, note, rapporto; fermo solo sulla principale).
