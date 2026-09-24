@@ -1,0 +1,67 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Cerca{% if q %}: {{ q }}{% endif %} — Assets{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/maintenance_domain_styles.html" %}
+<style>
+.ms-res-nav{display:flex;flex-wrap:wrap;gap:6px}
+.ms-res-nav a{display:inline-flex;gap:6px;align-items:center;padding:5px 12px;border:1px solid var(--border,#dbe1ea);border-radius:999px;background:var(--surface,#fff);color:var(--text,#0f172a);font-size:var(--fs-sm);font-weight:700;text-decoration:none}
+.ms-res-nav a:hover{border-color:var(--primary-mid,#2f5f89)}
+.ms-res-nav b{font-variant-numeric:tabular-nums;color:var(--text-mid,#475569)}
+.ms-hit{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--border,#eef2f7);text-decoration:none;color:var(--text,#0f172a)}
+.ms-hit:last-child{border-bottom:0}
+.ms-hit:hover{background:var(--tbody-hover,#f8fbff)}
+.ms-hit b{display:block;font-size:var(--fs-sm)}
+.ms-hit small{display:block;font-size:var(--fs-xs);color:var(--text-mid,#64748b)}
+.ms-hit time{font-size:var(--fs-xs);color:var(--text-mid,#64748b);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ms-more{padding:9px 16px;font-size:var(--fs-sm);font-weight:700;border-top:1px solid var(--border,#eef2f7)}
+.ms-empty-box{border:1px dashed var(--border,#dbe1ea);border-radius:12px;padding:18px;color:var(--text-mid,#64748b);background:var(--surface,#fff)}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Cerca nel modulo{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Asset, piani di manutenzione, scadenze ordinarie e amministrative, interventi, segnalazioni, manutenzioni eseguite, contratti, licenze e documenti.</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  {% if not q %}
+    <div class="ms-empty-box">Scrivi nel campo in alto (almeno {{ min_length }} caratteri): targa o nome di un asset, un piano, un numero di OdL, un fornitore, un ticket.</div>
+  {% elif q|length < min_length %}
+    <div class="ms-empty-box">Scrivi almeno {{ min_length }} caratteri.</div>
+  {% elif not groups %}
+    <div class="ms-empty-box">Nessun risultato per <strong>«{{ q }}»</strong> in tutto il modulo.</div>
+  {% else %}
+    <p class="md-sub" style="margin:0">{{ total }} risultat{{ total|pluralize:"o,i" }} per <strong>«{{ q }}»</strong></p>
+    <nav class="ms-res-nav" aria-label="Categorie di risultati">
+      {% for group in groups %}<a href="#cerca-{{ group.key }}">{{ group.label }} <b>{{ group.total }}</b></a>{% endfor %}
+    </nav>
+    {% for group in groups %}
+      <details class="md-section" id="cerca-{{ group.key }}" open data-md-collapsible>
+        <summary class="md-section-head">
+          <h2>{{ group.label }}</h2>
+          <span class="md-badge badge-muted">{{ group.total }}</span>
+        </summary>
+        <div>
+          {% for hit in group.hits %}
+            <a class="ms-hit" href="{{ hit.url }}">
+              <span><b>{{ hit.title }}</b>{% if hit.subtitle %}<small>{{ hit.subtitle }}</small>{% endif %}</span>
+              {% if hit.when %}<time datetime="{{ hit.when|date:'Y-m-d' }}">{{ hit.when|date:"d/m/Y" }}</time>{% else %}<span></span>{% endif %}
+              {% if hit.badge %}<span class="md-badge {{ hit.badge_class }}">{{ hit.badge }}</span>{% else %}<span></span>{% endif %}
+            </a>
+          {% endfor %}
+          {% if group.has_more %}
+            <div class="ms-more">
+              Mostrati {{ group.hits|length }} su {{ group.total }}.
+              {% if group.more_url %}<a href="{{ group.more_url }}">Vedi tutti nell'elenco</a>{% else %}Affina la ricerca per restringere.{% endif %}
+            </div>
+          {% elif group.more_url %}
+            <div class="ms-more"><a href="{{ group.more_url }}">Apri nell'elenco</a></div>
+          {% endif %}
+        </div>
+      </details>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -14770,12 +14770,19 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
             for key, label in WorkOrder.OPSTATE_LABELS.items()
         ]
 
+    from .views_maintenance import can_execute_maintenance, can_plan_maintenance, _workorder_bulk_form
+
+    can_bulk_workorders = operational_view != "closed" and can_execute_maintenance(request)
     return render(
         request,
         "assets/pages/workorder_list.html",
         {
             "page_title": "Interventi",
             "workorders": workorders,
+            # Selezione multipla (casella o Ctrl+clic): chiudi / assegna piu' OdL insieme.
+            "can_bulk_workorders": can_bulk_workorders,
+            "can_plan": can_plan_maintenance(request) if can_bulk_workorders else False,
+            "workorder_bulk_form": _workorder_bulk_form() if can_bulk_workorders else None,
             "workorder_group_by": group_by,
             "workorder_group_links": workorder_group_links,
             "workorder_display": display,

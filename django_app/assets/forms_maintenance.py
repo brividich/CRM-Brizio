@@ -560,6 +560,17 @@ class WorkOrderFromOccurrencesForm(forms.Form):
         _attach_input_css(self)
 
 
+class WorkOrderBulkForm(forms.Form):
+    """Azione su piu' OdL selezionati nella Panoramica (assegnazione)."""
+
+    assigned_to = forms.ModelChoiceField(queryset=None, required=False, label="Assegna a")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _set_user_choices(self.fields["assigned_to"])
+        _attach_input_css(self)
+
+
 class ExecutionDayForm(forms.Form):
     execution_date = forms.DateField(
         label="Giornata",
