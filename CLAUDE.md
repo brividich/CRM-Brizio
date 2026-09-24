@@ -106,7 +106,7 @@ Il server di sviluppo serve la **cartella di lavoro**: il codice "funziona" anch
 - **Ogni sessione CHIUDE con un commit** su branch feature (`feature/<area>-<tema>`), nel worktree dedicato di cui sopra. Nessuna sessione termina con working tree sporco.
 - **Committare non è deployare.** Un commit WIP su branch feature è al sicuro, recuperabile e visibile in `git branch` — ma **non è in produzione**. Il codice è in produzione solo quando è in **`release/prod`**: è da lì che `package-release.ps1` esporta. Non c'è alcun motivo per lasciare lavoro fuori da git, e nessuna garanzia che un commit fuori da `release/prod` arrivi mai sul server.
 - **Il pacchetto si produce SOLO da un commit.** Il pre-flight di `package-release.ps1` fallisce se il tree è sporco o se il branch corrente ha commit assenti da `release/prod`. `-FromWorkingTree -Force` è un'emergenza, non una scorciatoia: il pacchetto che ne esce si dichiara non tracciabile in `BUILD_INFO.json` e la Centrale di comando lo mostra in rosso.
-- In sviluppo (`DEBUG=True`) il badge in alto a destra tiene i due numeri sotto gli occhi: file non committati e commit non ancora in `release/prod`.
+- In sviluppo (`DEBUG=True`) il badge in basso a destra tiene i due numeri sotto gli occhi: file non committati e commit non ancora in `release/prod`.
 
 ## Patch Workflow
 
