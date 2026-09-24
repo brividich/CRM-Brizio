@@ -1,0 +1,17 @@
+{% comment %}Una scadenza nelle liste della Panoramica (Prossime scadenze, giorno della griglia).
+   `row` e' una Deadline di services.deadline_feed. Le manutenzioni aperte senza OdL
+   (plannable) hanno la casella della barra "crea OdL": Ctrl+clic sulla riga la spunta.{% endcomment %}
+<div class="pn-item" data-md-row>
+  {% if can_plan and row.plannable and row.occurrence_id %}
+    <input type="checkbox" name="occurrence_ids" value="{{ row.occurrence_id }}" form="md-bulk-form" data-md-check aria-label="Seleziona {{ row.title }}{% if row.asset_tag %} · {{ row.asset_tag }}{% endif %}">
+  {% else %}<span aria-hidden="true"></span>{% endif %}
+  <a class="pn-item-link" href="{{ row.detail_url }}">
+    <time datetime="{{ row.due_date|date:'Y-m-d' }}">{{ row.due_date|date:"d/m/Y" }}</time>
+    <i class="pn-k-{{ row.kind }}" aria-hidden="true"></i>
+    <span><b>{{ row.title }}</b><small>{{ row.kind_label }}{% if row.asset_tag %} · {{ row.asset_tag }}{% elif row.target_label %} · {{ row.target_label }}{% endif %}</small></span>
+    {% if row.state == "overdue" %}<span class="md-badge badge-danger">da {{ row.days_late }} g</span>
+    {% elif row.state == "planned" %}<span class="md-badge badge-success">OdL</span>
+    {% elif row.days == 0 %}<span class="md-badge badge-warning">oggi</span>
+    {% else %}<span class="md-badge badge-muted">tra {{ row.days }} g</span>{% endif %}
+  </a>
+</div>

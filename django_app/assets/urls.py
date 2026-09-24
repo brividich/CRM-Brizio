@@ -171,6 +171,14 @@ urlpatterns = [
     path("assets/manutenzione/quadro/", views_maintenance.maintenance_responsabile, name="maintenance_responsabile"),
     # Sotto /quadro/: eredita per prefisso lo stesso permesso ACL della Panoramica.
     path("assets/manutenzione/quadro/kpi/", views_maintenance.maintenance_kpi, name="maintenance_kpi"),
+    path(
+        "assets/manutenzione/quadro/odl-selezionati/",
+        views_maintenance.workorder_bulk_action,
+        name="workorder_bulk_action",
+    ),
+    # Ricerca di tutto il modulo (campo in testa a ogni pagina): ogni categoria
+    # di risultati segue a sua volta l'ACL della propria pagina elenco.
+    path("assets/cerca/", views_maintenance.module_search, name="module_search"),
     path("assets/manutenzione/piani/", views_maintenance.maintenance_plan_list, name="maintenance_plan_list"),
     path("assets/manutenzione/piani/new/", views_maintenance.maintenance_plan_form, name="maintenance_plan_create"),
     # Sotto /piani/: eredita per prefisso il permesso ACL della pagina Piani.

@@ -583,8 +583,11 @@
     markSelected();
   }
 
+  // ?data=AAAA-MM-GG (dai giorni della Panoramica): il calendario si apre su quel giorno.
+  var initialDate = /^\d{4}-\d{2}-\d{2}$/.test(params.get("data") || "") ? params.get("data") : undefined;
   var calendar = new FullCalendar.Calendar(calEl, {
     initialView: mode === "byAsset" ? "listMonth" : mode,
+    initialDate: initialDate,
     locale: "it",
     firstDay: 1,
     height: "auto",

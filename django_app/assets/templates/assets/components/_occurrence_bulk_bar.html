@@ -1,4 +1,5 @@
 {% comment %}Barra "crea OdL" delle tabelle di manutenzioni selezionabili (_occurrence_rows con selectable).
+   Ctrl+clic su una riga la seleziona (_multiselect_script).
    Serve workorder_form e can_plan nel contesto. Le checkbox puntano a form="md-bulk-form",
    quindi si seleziona anche fra tabelle e gruppi diversi, di asset diversi.{% endcomment %}
 {% if can_plan %}
@@ -19,18 +20,25 @@
     if (!bar) { return; }
     var counter = bar.querySelector('[data-md-count]');
     function refresh() {
-      var checked = document.querySelectorAll('[data-md-check]:checked').length;
+      // Valori distinti: la stessa manutenzione puo' stare in due liste della pagina.
+      var ids = {};
+      document.querySelectorAll('[data-md-check]:checked').forEach(function (box) { ids[box.value] = true; });
+      var checked = Object.keys(ids).length;
       counter.textContent = checked;
       bar.classList.toggle('is-visible', checked > 0);
     }
     document.addEventListener('change', function (event) {
       var target = event.target;
       if (target.matches('[data-md-check-all]')) {
-        target.closest('table').querySelectorAll('[data-md-check]').forEach(function (box) { box.checked = target.checked; });
+        target.closest('table').querySelectorAll('[data-md-check]').forEach(function (box) {
+          box.checked = target.checked;
+          box.dispatchEvent(new Event('change', { bubbles: true }));
+        });
       }
       if (target.matches('[data-md-check], [data-md-check-all]')) { refresh(); }
     });
     refresh();
   })();
   </script>
+  {% include "assets/components/_multiselect_script.html" %}
 {% endif %}

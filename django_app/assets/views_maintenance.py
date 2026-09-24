@@ -976,18 +976,33 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
         })
 
     # Quattro settimane da lunedi': quante scadenze aperte per giorno.
-    per_day: dict[date, int] = {}
+    per_day: dict[date, list] = {}
     for row in open_rows:
         if week_start <= row.due_date <= heat_end:
-            per_day[row.due_date] = per_day.get(row.due_date, 0) + 1
-    peak = max(per_day.values(), default=0)
+            per_day.setdefault(row.due_date, []).append(row)
+    peak = max((len(day_rows) for day_rows in per_day.values()), default=0)
     heat = []
     for offset in range(28):
         day = week_start + timedelta(days=offset)
-        count = per_day.get(day, 0)
+        day_rows = per_day.get(day, [])
+        count = len(day_rows)
+        for row in day_rows:
+            row.days = row.days_until(today)
+            row.days_late = -row.days if row.days < 0 else 0
         # Livelli 0-4: il colore dice "quanto", il numero resta nel titolo.
         level = 0 if not count else min(4, 1 + (3 * count) // max(peak, 1))
-        heat.append({"day": day, "count": count, "level": level, "is_today": day == today, "past": day < today})
+        heat.append({
+            "day": day,
+            "count": count,
+            "level": level,
+            "is_today": day == today,
+            "past": day < today,
+            # Cliccando il giorno si apre il suo elenco sotto la griglia: non serve
+            # cambiare pagina per sapere cosa scade il 14.
+            "rows": day_rows[:25],
+            "more": max(0, count - 25),
+            "calendar_url": f"{calendario_url}?{urlencode({**shared, 'data': day.isoformat(), 'vista': 'dayGridWeek'})}",
+        })
 
     overdue = [row for row in open_rows if row.state == feed.STATE_OVERDUE]
     upcoming = [row for row in open_rows if row.due_date >= today]
@@ -1242,8 +1257,16 @@ def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpRespo
             "conflicts": conflicts[:40],
             "can_plan": can_plan_maintenance(request),
             "workorder_form": WorkOrderFromOccurrencesForm(),
+            "workorder_bulk_form": _workorder_bulk_form(),
+            "can_bulk_workorders": can_execute_maintenance(request),
         },
     )
+
+
+def _workorder_bulk_form():
+    from .forms_maintenance import WorkOrderBulkForm
+
+    return WorkOrderBulkForm(prefix="wob")
 
 
 # ---------------------------------------------------------------------------
@@ -1509,6 +1532,49 @@ def _completion_suggestions(occurrence: MaintenanceOccurrence, back_url: str) ->
     except Exception:
         logger.exception("Contratti applicabili non calcolabili per asset %s", occurrence.asset_id)
     return {"previous": previous, "same_asset_open": same_asset, "contract": contracts[0] if contracts else None}
+
+
+def _complete_same_outing(request: HttpRequest, occurrence, form, *, first_attachment=None) -> list:
+    """Registra insieme alla principale le altre manutenzioni della stessa macchina
+    spuntate in «Registra» (stessa uscita): stessa data e stesse note; il fermo
+    macchina resta solo sulla principale, per non contarlo due volte. Il rapporto
+    caricato vale anche per loro. Ritorna le manutenzioni registrate."""
+    ids = {int(v) for v in request.POST.getlist("also_complete") if str(v).isdigit()} - {occurrence.pk}
+    if not ids:
+        return []
+    others = list(
+        MaintenanceOccurrence.objects.select_related("plan", "asset", "assignment", "work_order")
+        .filter(pk__in=ids, asset_id=occurrence.asset_id, status=MaintenanceOccurrence.STATUS_OPEN)
+        .order_by("due_date")
+    )
+    done, failed = [], []
+    for other in others:
+        if first_attachment is not None:
+            MaintenanceOccurrenceAttachment.objects.create(
+                occurrence=other,
+                file=first_attachment.file.name,
+                original_name=first_attachment.original_name,
+                uploaded_by=request.user,
+            )
+        try:
+            domain.complete_occurrence(
+                other,
+                completed_on=form.cleaned_data["completed_on"],
+                user=request.user,
+                notes=form.cleaned_data.get("notes") or "",
+            )
+        except domain.OccurrenceCompletionError as exc:
+            failed.append(f"{other.plan.label}: {exc}")
+        else:
+            done.append(other)
+    if done:
+        messages.success(
+            request,
+            f"Registrat{'a' if len(done) == 1 else 'e'} anche: " + ", ".join(o.plan.label for o in done) + ".",
+        )
+    for message in failed:
+        messages.warning(request, f"Non registrata — {message}")
+    return done
 
 
 @login_required
@@ -2182,8 +2248,9 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
         form = OccurrenceCompletionForm(request.POST, request.FILES, occurrence=occurrence)
         if form.is_valid():
             upload = form.cleaned_data.get("attachment")
+            new_attachment = None
             if upload:
-                MaintenanceOccurrenceAttachment.objects.create(
+                new_attachment = MaintenanceOccurrenceAttachment.objects.create(
                     occurrence=occurrence, file=upload, uploaded_by=request.user
                 )
             report_received = form.cleaned_data.get("report_received_at")
@@ -2208,14 +2275,16 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
                     )
                 else:
                     messages.success(request, "Manutenzione registrata.")
-                if occurrence.work_order_id and domain.close_workorder_if_complete(
-                    occurrence.work_order, user=request.user
-                ):
-                    messages.info(
-                        request,
-                        f"Era l'ultima dell'intervento #{occurrence.work_order.display_number}: "
-                        "l'intervento e' chiuso e compare fra i chiusi e nello Storico.",
-                    )
+                touched = [occurrence] + _complete_same_outing(
+                    request, occurrence, form, first_attachment=new_attachment
+                )
+                for work_order in {occ.work_order_id: occ.work_order for occ in touched if occ.work_order_id}.values():
+                    if domain.close_workorder_if_complete(work_order, user=request.user):
+                        messages.info(
+                            request,
+                            f"Era l'ultima dell'intervento #{work_order.display_number}: "
+                            "l'intervento e' chiuso e compare fra i chiusi e nello Storico.",
+                        )
                 return redirect(back_url)
     else:
         form = OccurrenceCompletionForm(occurrence=occurrence)
@@ -2231,6 +2300,196 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
             "occurrence": occurrence,
             "state": domain.occurrence_state_payload(occurrence),
             **_completion_suggestions(occurrence, back_url),
+        },
+    )
+
+
+@login_required
+@require_POST
+def workorder_bulk_action(request: HttpRequest) -> HttpResponse:
+    """Azione su piu' OdL selezionati nelle tabelle della Panoramica.
+
+    ``assign``: assegna tutti a una persona (log e avviso come la riassegnazione
+    singola). ``close_complete``: chiude quelli che non hanno piu' manutenzioni da
+    registrare, con la stessa regola del pulsante nella scheda OdL; gli altri
+    restano aperti e si dice quanti. Solo OdL aperti, perimetro di reparto come
+    per la creazione.
+    """
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    from .forms_maintenance import WorkOrderBulkForm
+    from .models import WorkOrderLog
+    from .notifications import notify_workorder_assigned, notify_workorder_reassigned
+
+    raw_next = request.POST.get("next") or ""
+    back = raw_next if raw_next and url_has_allowed_host_and_scheme(
+        raw_next, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ) else reverse("assets:maintenance_responsabile")
+    action = _clean_string(request.POST.get("action"))
+    # Assegnare e' organizzare il lavoro (chi pianifica); chiudere e' eseguirlo, come
+    # la chiusura singola, che segue anche l'ACL della pagina di chiusura.
+    if action == "assign":
+        allowed = can_plan_maintenance(request)
+    elif action == "close":
+        from core.middleware import acl_allows_path
+
+        try:
+            allowed = can_execute_maintenance(request) and acl_allows_path(
+                reverse("assets:wo_close"), django_user=request.user, request=request
+            )
+        except Exception:
+            allowed = False
+    else:
+        allowed = can_execute_maintenance(request)
+    if not allowed:
+        return _deny(request, "Non hai i permessi per questa azione sugli ordini di lavoro.")
+
+    ids = {int(value) for value in request.POST.getlist("workorder_ids") if str(value).isdigit()}
+    work_orders = list(
+        WorkOrder.objects.filter(pk__in=ids, status=WorkOrder.STATUS_OPEN).select_related("asset", "assigned_to")
+    )
+    if not work_orders:
+        messages.error(request, "Seleziona almeno un ordine di lavoro aperto.")
+        return redirect(back)
+    if not can_manage_maintenance_plans(request):
+        reparti = {r.strip().casefold() for r in user_reparti(request)}
+        fuori = [wo for wo in work_orders
+                 if reparti and str(wo.asset.reparto or "").strip().casefold() not in reparti]
+        if fuori:
+            raise PermissionDenied(
+                "Puoi gestire solo gli ordini di lavoro degli asset dei reparti che guidi. "
+                f"Fuori dal tuo reparto: {', '.join(sorted({f'#{wo.pk}' for wo in fuori})[:10])}."
+            )
+
+    actor = request.user.get_full_name() or request.user.username
+    if action == "assign":
+        form = WorkOrderBulkForm(request.POST, prefix="wob")
+        assignee = form.cleaned_data.get("assigned_to") if form.is_valid() else None
+        if assignee is None:
+            messages.error(request, "Scegli a chi assegnare gli ordini di lavoro.")
+            return redirect(back)
+        changed = 0
+        for wo in work_orders:
+            if wo.assigned_to_id == assignee.pk:
+                continue
+            previous = wo.assigned_to
+            wo.assigned_to = assignee
+            wo.save(update_fields=["assigned_to"])
+            WorkOrderLog.objects.create(
+                work_order=wo,
+                note=f"Assegnato a {assignee.get_full_name() or assignee.username} da {actor} (selezione multipla).",
+                author=request.user,
+            )
+            notify_workorder_assigned(wo, actor=request.user)
+            if previous is not None:
+                notify_workorder_reassigned(wo, previous_assignee=previous, actor=request.user)
+            changed += 1
+        messages.success(request, f"{changed} ordin{'e' if changed == 1 else 'i'} di lavoro assegnat{'o' if changed == 1 else 'i'}.")
+    elif action == "close_complete":
+        closed = [wo for wo in work_orders if domain.close_workorder_if_complete(wo, user=request.user)]
+        rest = len(work_orders) - len(closed)
+        if closed:
+            messages.success(request, f"Chius{'o' if len(closed) == 1 else 'i'} {len(closed)} interventi completati.")
+        if rest:
+            messages.warning(
+                request,
+                f"{rest} intervent{'o' if rest == 1 else 'i'} con manutenzioni ancora da registrare: restano aperti.",
+            )
+    elif action == "close":
+        _close_selected_workorders(request, work_orders, actor=actor)
+    else:
+        messages.error(request, "Azione non riconosciuta.")
+    return redirect(back)
+
+
+def _close_selected_workorders(request: HttpRequest, work_orders: list, *, actor: str) -> None:
+    """«Chiudi selezionati»: le stesse regole della chiusura singola, senza forzare.
+
+    Si salta (e si dice perche') un OdL con manutenzioni raccolte non registrate —
+    resterebbero dovute senza che nessuno lo confermi — o con step obbligatori della
+    checklist aperti. Gli altri si chiudono come «Risolto», con la data e la nota
+    indicate; chi chiude diventa esecutore/assegnatario se mancano, come nella
+    chiusura singola con «intesta a me».
+    """
+    from datetime import datetime, time
+
+    from django.core.exceptions import ValidationError
+    from django.utils.dateparse import parse_date
+
+    from .models import WorkOrderLog
+
+    closed_on = parse_date(_clean_string(request.POST.get("closed_on"))) or timezone.localdate()
+    if closed_on > timezone.localdate():
+        messages.error(request, "La data di chiusura non puo' essere nel futuro.")
+        return
+    closed_at = timezone.now() if closed_on == timezone.localdate() else timezone.make_aware(
+        datetime.combine(closed_on, time(12, 0))
+    )
+    resolution = _clean_string(request.POST.get("resolution"))
+    closed, skipped = [], []
+    for wo in work_orders:
+        pending = wo.occurrences.filter(status=MaintenanceOccurrence.STATUS_OPEN).count()
+        if pending:
+            skipped.append(f"#{wo.display_number}: {pending} manutenzion{'e' if pending == 1 else 'i'} da registrare")
+            continue
+        blocking = [item for item in wo.checklist_items.all() if item.blocks_closure]
+        if blocking:
+            skipped.append(f"#{wo.display_number}: checklist obbligatoria incompleta")
+            continue
+        if wo.assigned_to_id is None and wo.supplier_id is None:
+            wo.assigned_to = request.user
+        if wo.executed_by_id is None:
+            wo.executed_by = request.user
+        try:
+            wo.close(
+                status=WorkOrder.STATUS_DONE,
+                closed_at=closed_at,
+                resolution=resolution if resolution and not wo.resolution else "",
+            )
+        except ValidationError as exc:
+            skipped.append(f"#{wo.display_number}: {'; '.join(exc.messages)}")
+            continue
+        wo.outcome = WorkOrder.OUTCOME_RESOLVED
+        wo.save(update_fields=["outcome"])
+        note = f"Intervento chiuso · esito: {wo.get_outcome_display()} · da {actor} (selezione multipla)."
+        if resolution:
+            note = f"{note} {resolution}"
+        WorkOrderLog.objects.create(work_order=wo, note=note, author=request.user)
+        closed.append(wo)
+    if closed:
+        messages.success(
+            request, f"Chius{'o' if len(closed) == 1 else 'i'} {len(closed)} intervent{'o' if len(closed) == 1 else 'i'}."
+        )
+    if skipped:
+        messages.warning(request, "Restano aperti — " + "; ".join(skipped[:10]) + (" …" if len(skipped) > 10 else ""))
+
+
+@login_required
+def module_search(request: HttpRequest) -> HttpResponse:
+    """Ricerca in tutto il modulo: asset, piani, scadenze, interventi, segnalazioni,
+    storico, contratti, licenze, documenti. ``?format=json`` per i suggerimenti
+    mentre si scrive nel campo in testa alla pagina."""
+    from .services import module_search as search_service
+
+    term = _clean_string(request.GET.get("q"))
+    wants_json = _clean_string(request.GET.get("format")).lower() == "json"
+    groups = search_service.search(request, term, limit=5 if wants_json else 25)
+    if wants_json:
+        return JsonResponse({
+            "q": term,
+            "groups": [group.as_json() for group in groups],
+            "page_url": f"{reverse('assets:module_search')}?{urlencode({'q': term})}",
+        })
+    return render(
+        request,
+        "assets/pages/module_search.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Cerca nel modulo",
+            "q": term,
+            "min_length": search_service.MIN_LENGTH,
+            "groups": groups,
+            "total": sum(group.total for group in groups),
         },
     )
 

@@ -89,6 +89,15 @@ body.theme-dark .btn.btn-danger:hover:not(:disabled) { background:rgba(220,38,38
 .as-top { display: flex; gap: 8px; align-items: center; }
 .as-search { flex: 1; display: flex; gap: 8px; align-items: center; height: 44px; border: 1px solid #dbe3f0; border-radius: 10px; background: #fff; padding: 0 12px; box-shadow:0 8px 20px rgba(15,23,42,.04); }
 .as-search-icon { color: #8da0bc; }
+.as-search-form { flex: 1; position: relative; }
+.as-search-pop { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; right: 0; max-height: min(70vh, 560px); overflow-y: auto; background: #fff; border: 1px solid #dbe3f0; border-radius: 12px; box-shadow: 0 18px 40px rgba(15,23,42,.16); padding: 6px 0; }
+.as-search-pop h4 { margin: 0; padding: 8px 14px 4px; font-size: var(--fs-2xs); font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #7f92af; display: flex; justify-content: space-between; }
+.as-search-pop a { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 7px 14px; text-decoration: none; color: #1f3559; }
+.as-search-pop a small { grid-column: 1; font-size: var(--fs-xs); color: #7f92af; }
+.as-search-pop a em { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-style: normal; font-size: var(--fs-xs); color: #7f92af; white-space: nowrap; }
+.as-search-pop a:hover, .as-search-pop a.is-active { background: #edf3fc; }
+.as-search-pop .as-search-all { border-top: 1px solid #edf1f7; margin-top: 4px; font-weight: 700; color: #2563eb; }
+.as-search-pop .as-search-none { padding: 10px 14px; color: #7f92af; font-size: var(--fs-sm); }
 .as-search input { border: none; background: transparent; outline: none; width: 100%; font-size: var(--fs-title-sm); color: #1f3559; font-family: 'Outfit', sans-serif; }
 .as-tool { width: 40px; height: 40px; border: 1px solid #d8e2f2; border-radius: 10px; background: #fff; color: #6a819f; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; box-shadow:0 8px 18px rgba(15,23,42,.04); }
 .as-tool:hover { background: #edf3fc; }
@@ -341,6 +350,10 @@ body.theme-dark .as-user-role { color: var(--text-light); }
 body.theme-dark .as-search { background: var(--surface); border-color: var(--border); }
 body.theme-dark .as-search-icon { color: var(--text-light); }
 body.theme-dark .as-search input { color: var(--text); }
+body.theme-dark .as-search-pop { background: var(--surface); border-color: var(--border); box-shadow: 0 18px 40px rgba(0,0,0,.5); }
+body.theme-dark .as-search-pop a { color: var(--text); }
+body.theme-dark .as-search-pop a:hover, body.theme-dark .as-search-pop a.is-active { background: var(--surface-alt, rgba(255,255,255,.06)); }
+body.theme-dark .as-search-pop .as-search-all { border-color: var(--border); color: #93c5fd; }
 body.theme-dark .as-tool { background: var(--surface); border-color: var(--border); color: var(--text-mid); }
 body.theme-dark .as-tool:hover { background: rgba(255,255,255,.07); }
 body.theme-dark .as-new { background:#2563eb; border-color:#2563eb; color:#fff; box-shadow:none; }
@@ -463,9 +476,15 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
 
   <main class="as-main">
     <header class="as-top">
-      <form method="get" action="{{ assets_shell_search_action|default:'' }}" style="flex:1;">
-        {% if request.GET.group %}<input type="hidden" name="group" value="{{ request.GET.group }}">{% endif %}
-        <div class="as-search"><span class="as-search-icon">&#128269;</span><input name="q" value="{{ request.GET.q|default:'' }}" placeholder="{{ assets_shell_search_placeholder|default:'Ricerca rapida per asset, seriali o utenti (Ctrl + K)' }}"></div>
+      {% comment %}La ricerca in testa cerca in TUTTO il modulo (asset, piani, scadenze, interventi,
+        segnalazioni, storico, contratti, licenze, documenti). La ricerca della sola pagina
+        corrente resta raggiungibile dal primo suggerimento.{% endcomment %}
+      <form method="get" action="{% url 'assets:module_search' %}" class="as-search-form" data-as-search
+            data-suggest-url="{% url 'assets:module_search' %}"
+            data-page-url="{{ assets_shell_search_action|default:'' }}"
+            data-page-group="{{ request.GET.group|default:'' }}" role="search">
+        <div class="as-search"><span class="as-search-icon">&#128269;</span><input name="q" value="{{ request.GET.q|default:'' }}" autocomplete="off" aria-label="Cerca in tutto il modulo" aria-autocomplete="list" aria-controls="as-search-pop" placeholder="Cerca in tutto il modulo: asset, piani, scadenze, interventi, segnalazioni (Ctrl + K)"></div>
+        <div class="as-search-pop" id="as-search-pop" role="listbox" hidden></div>
       </form>
       <a class="as-tool" href="{% url 'assets:wo_list' %}" title="Avvisi">&#128276;</a>
       <a class="as-new" href="{{ assets_shell_new_url|default:'' }}">{{ assets_shell_new_label|default:'+ Nuovo asset' }}</a>
@@ -679,6 +698,97 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
   // Un link/azione dentro un <summary> non deve far collassare la sezione.
   document.querySelectorAll("details.as-collapse > summary a, details.as-collapse > summary button").forEach(function (el) {
     el.addEventListener("click", function (ev) { ev.stopPropagation(); });
+  });
+})();
+</script>
+<script>
+/* Ricerca in tutto il modulo: suggerimenti per categoria mentre si scrive, Ctrl+K per
+   andarci, frecce + Invio per scegliere. Invio senza scelta apre la pagina risultati. */
+(function () {
+  var form = document.querySelector("[data-as-search]");
+  if (!form) { return; }
+  var input = form.querySelector("input[name=q]");
+  var pop = form.querySelector(".as-search-pop");
+  var suggestUrl = form.dataset.suggestUrl;
+  var pageUrl = form.dataset.pageUrl;
+  var timer = null, seq = 0, active = -1;
+
+  function node(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) { n.className = cls; }
+    if (text !== undefined && text !== null) { n.textContent = text; }
+    return n;
+  }
+  function links() { return Array.prototype.slice.call(pop.querySelectorAll("a")); }
+  function close() { pop.hidden = true; active = -1; input.setAttribute("aria-expanded", "false"); }
+  function mark(i) {
+    var all = links();
+    all.forEach(function (a, j) { a.classList.toggle("is-active", j === i); });
+    active = i;
+    if (all[i]) { all[i].scrollIntoView({ block: "nearest" }); }
+  }
+  function pageSearchLink(q) {
+    // Solo sulle pagine elenco che sanno filtrarsi da sole (la vecchia azione del campo).
+    if (!pageUrl || pageUrl.split("?")[0] !== window.location.pathname) { return null; }
+    var params = new URLSearchParams();
+    params.set("q", q);
+    if (form.dataset.pageGroup) { params.set("group", form.dataset.pageGroup); }
+    var a = node("a", "");
+    a.href = pageUrl.split("?")[0] + "?" + params.toString();
+    a.appendChild(node("span", "", "Cerca «" + q + "» solo in questo elenco"));
+    return a;
+  }
+  function render(data, q) {
+    pop.textContent = "";
+    var groups = data.groups || [];
+    if (!groups.length) { pop.appendChild(node("div", "as-search-none", "Nessun risultato in tutto il modulo.")); }
+    groups.forEach(function (g) {
+      var h = node("h4", "");
+      h.appendChild(node("span", "", g.label));
+      h.appendChild(node("span", "", String(g.total)));
+      pop.appendChild(h);
+      (g.hits || []).forEach(function (hit) {
+        var a = node("a", "");
+        a.href = hit.url;
+        a.setAttribute("role", "option");
+        a.appendChild(node("span", "", hit.title));
+        var meta = [hit.badge, hit.when].filter(Boolean).join(" · ");
+        if (meta) { a.appendChild(node("em", "", meta)); }
+        if (hit.subtitle) { a.appendChild(node("small", "", hit.subtitle)); }
+        pop.appendChild(a);
+      });
+    });
+    var mine = pageSearchLink(q);
+    if (mine) { pop.appendChild(mine); }
+    var all = node("a", "as-search-all", "Tutti i risultati per «" + q + "»");
+    all.href = data.page_url;
+    pop.appendChild(all);
+    pop.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    active = -1;
+  }
+  function suggest() {
+    var q = input.value.trim();
+    if (q.length < 2) { close(); return; }
+    var my = ++seq;
+    fetch(suggestUrl + "?format=json&q=" + encodeURIComponent(q), {
+      credentials: "same-origin", headers: { "Accept": "application/json" }
+    }).then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
+      .then(function (data) { if (my === seq) { render(data, q); } })
+      .catch(function () { if (my === seq) { close(); } });
+  }
+  input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(suggest, 220); });
+  input.addEventListener("focus", function () { if (input.value.trim().length >= 2 && pop.hidden) { suggest(); } });
+  input.addEventListener("keydown", function (e) {
+    var all = links();
+    if (e.key === "ArrowDown" && !pop.hidden) { e.preventDefault(); mark(Math.min(all.length - 1, active + 1)); }
+    else if (e.key === "ArrowUp" && !pop.hidden) { e.preventDefault(); mark(Math.max(0, active - 1)); }
+    else if (e.key === "Enter" && active >= 0 && all[active]) { e.preventDefault(); window.location.href = all[active].href; }
+    else if (e.key === "Escape") { close(); }
+  });
+  document.addEventListener("click", function (e) { if (!form.contains(e.target)) { close(); } });
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); input.focus(); input.select(); }
   });
 })();
 </script>

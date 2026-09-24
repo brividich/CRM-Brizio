@@ -190,6 +190,8 @@ details.md-section.is-warn > summary.md-section-head:hover { background:rgba(217
 .md-bulk-row label { font-size:var(--fs-2xs); font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--text-mid,#64748b); }
 .md-bulk-row button[disabled] { opacity:.5; cursor:not-allowed; }
 .md-bulk-count { font-weight:900; color:var(--accent,#2563eb); }
+/* Riga selezionata (casella o Ctrl+clic, _multiselect_script). */
+.md-table tr.is-selected > td { background:rgba(37,99,235,.08); }
 
 /* --- Conflitto --- */
 .md-conflict { border:1px solid #fca5a5; background:rgba(220,38,38,.06); border-radius:10px; padding:10px 14px; }
@@ -248,6 +250,7 @@ body.theme-dark .md-matrix .cell-custom { color:#93c5fd; }
 body.theme-dark .md-matrix .cell-excluded,
 body.theme-dark .md-matrix .cell-conflict { color:#fca5a5; }
 body.theme-dark .md-bulk { box-shadow:0 -8px 26px rgba(0,0,0,.45); }
+body.theme-dark .md-table tr.is-selected > td { background:rgba(96,165,250,.14); }
 
 @media (max-width: 760px) {
   .md-filters .md-field { min-width:100%; }
@@ -304,4 +307,5 @@ body.theme-dark .md-bulk { box-shadow:0 -8px 26px rgba(0,0,0,.45); }
     margin-left: auto;
   }
 .md-suggest{display:grid;gap:8px;margin:0 0 14px;padding:12px 14px;border:1px solid var(--border,#dbe1ea);border-left:4px solid #2563eb;border-radius:10px;background:var(--surface,#fff)}.md-suggest h2{margin:0;font-size:var(--fs-sm);font-weight:800}.md-suggest-row{display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:var(--fs-sm);padding:6px 10px;border-radius:8px;background:var(--surface-alt,#f8fafc)}.md-suggest-row.is-list{display:block}.md-suggest-row ul{margin:4px 0 0;padding-left:18px}.md-suggest-row .btn{flex:0 0 auto}
+.md-also-list{list-style:none;padding-left:0!important;display:grid;gap:4px;margin:6px 0 8px!important}.md-also-list li{display:flex;justify-content:space-between;gap:10px;align-items:center}.md-also{display:flex;gap:8px;align-items:center;cursor:pointer}.md-also input{margin:0}.md-also-list li:has(input:checked){background:rgba(37,99,235,.08);border-radius:6px}
 </style>
