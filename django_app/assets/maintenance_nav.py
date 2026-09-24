@@ -75,6 +75,14 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 sidebar_code="maintenance_scadenzario",
                 routes=frozenset({"maintenance_schedule", "maintenance_scadenzario"}),
             ),
+            # Registro separato dai piani: revisioni, certificati, garanzie.
+            NavItem(
+                "amministrative",
+                "Scadenze amministrative",
+                "asset_administrative_deadline_list",
+                sidebar_code="maintenance_amministrative",
+                routes=frozenset({"asset_administrative_deadline_create", "asset_administrative_deadline_edit"}),
+            ),
             NavItem(
                 "interventi",
                 "Interventi",
@@ -201,6 +209,11 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         'Scegli il periodo (scadute, 7/30/90 giorni) e la tipologia con le schede in alto.',
         'Seleziona le manutenzioni e crea un ordine di lavoro unico dalla barra in fondo.',
         "Scarica l'elenco in Excel o PDF con gli stessi filtri.",
+    ),
+    'amministrative': (
+        "Revisioni, certificati, garanzie e altri adempimenti dell'asset: un registro a parte, non un piano di manutenzione.",
+        "«+ Nuova scadenza» per aggiungerne una; apri una riga per registrare l'adempimento e fissare la scadenza successiva.",
+        'Le scadenze amministrative compaiono anche in Calendario, Scadenzario e promemoria.',
     ),
     'officina': (
         'Stato delle macchine per reparto: in uso, ferme, in manutenzione.',

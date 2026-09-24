@@ -2099,8 +2099,8 @@ def _assets_context(request, prompt: str) -> RuntimeContext:
         filters.extend(_asset_extra_filters)
     asset_rows = _raw_asset_rows[:20]
 
-    # Adempimenti amministrativi da occorrenze dei piani e vecchie scadenze non
-    # ancora migrate, senza doppioni (stessa fonte delle pagine manutenzione).
+    # Scadenze amministrative (registro separato dai piani), senza doppioni
+    # (stessa fonte delle pagine manutenzione).
     from assets.services import deadline_feed
 
     if re.search(r"\b(scadut[aeio]|arretrat[aeio])\b", text):

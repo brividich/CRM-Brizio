@@ -118,6 +118,13 @@ class MaintenancePlanForm(forms.ModelForm):
             "Sempre attivo sulle scadenze amministrative: senza il documento la scadenza non si chiude."
         )
         self.fields["estimated_duration_minutes"].required = False
+        # Le scadenze amministrative non sono piani: si gestiscono da Manutenzione >
+        # Scadenze amministrative. Il tipo resta solo sui piani che gia' lo hanno.
+        admin_type = MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE
+        if getattr(self.instance, "maintenance_type", "") != admin_type or not self.instance.pk:
+            self.fields["maintenance_type"].choices = [
+                choice for choice in self.fields["maintenance_type"].choices if choice[0] != admin_type
+            ]
         _attach_input_css(self)
 
     def clean_label(self):

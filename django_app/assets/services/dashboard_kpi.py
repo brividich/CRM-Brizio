@@ -260,7 +260,7 @@ def get_maintenance_kpis_for_types(
     horizon = today + timedelta(days=window_days)
     lookback = today - timedelta(days=365)
 
-    # Occorrenze dei piani amministrativi + vecchie scadenze non ancora migrate
+    # Scadenze amministrative (registro separato dai piani, senza le copie migrate)
     # (``deadline_feed``): prima si leggeva solo la tabella vecchia.
     type_filter = {"asset_type__in": asset_types}
     coinvolti_ids: set[int] = {

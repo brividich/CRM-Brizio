@@ -16,12 +16,12 @@ Cosa converte:
     -> occorrenza gia' eseguita, cosi' l'ultima esecuzione resta nota al nuovo
     motore senza tenere in vita una seconda fonte di verita'.
 
-``AssetAdministrativeDeadline``
-    -> piano di tipo amministrativo + applicazione sull'asset + occorrenza aperta
-    alla scadenza corrente. Le esecuzioni storiche diventano occorrenze eseguite.
-
 Cosa **non** converte, e lo dichiara:
 
+- le scadenze amministrative (``AssetAdministrativeDeadline``): restano separate
+  dai piani e si gestiscono da Manutenzione > Scadenze amministrative. Le copie
+  create dalle versioni precedenti di questo comando si tolgono con
+  ``separate_admin_deadlines``;
 - le regole a soglia ORE/KM/CICLI: i contatori escono dal flusso manutentivo;
 - le verifiche periodiche mai assorbite (``is_legacy=False``): vengono elencate.
 
@@ -31,11 +31,12 @@ l'oggetto corrispondente esiste gia' e in tal caso non lo duplica.
 
 from __future__ import annotations
 
+import argparse
+
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
 from assets.models import (
-    AssetAdministrativeDeadline,
     AssetGroup,
     AssetGroupMembership,
     AssetMaintenanceRuleState,
@@ -59,17 +60,15 @@ def _unique_code(model, base: str, fallback: str) -> str:
 
 
 class Command(BaseCommand):
-    help = "Converte regole, override, stati e scadenze amministrative nel nuovo dominio manutenzione."
+    help = "Converte regole, override e stati nel nuovo dominio manutenzione (le scadenze amministrative restano separate)."
 
     def add_arguments(self, parser):
         parser.add_argument("--dry-run", action="store_true", help="Non scrive nulla, riporta solo i conteggi.")
         parser.add_argument("--skip-rules", action="store_true", help="Non migrare regole e override.")
         parser.add_argument("--skip-history", action="store_true", help="Non migrare l'ultima esecuzione registrata.")
-        parser.add_argument(
-            "--skip-deadlines",
-            action="store_true",
-            help="Non migrare le scadenze amministrative.",
-        )
+        # Accettato per compatibilita' con gli script esistenti: le scadenze
+        # amministrative non si migrano piu'.
+        parser.add_argument("--skip-deadlines", action="store_true", help=argparse.SUPPRESS)
 
     def handle(self, *args, **options):
         self.dry_run = bool(options.get("dry_run"))
@@ -79,9 +78,6 @@ class Command(BaseCommand):
             "overrides_migrated": 0,
             "exclusions_migrated": 0,
             "history_occurrences": 0,
-            "deadline_plans": 0,
-            "deadline_assignments": 0,
-            "deadline_occurrences": 0,
             "skipped_meter_rules": 0,
             "skipped_existing": 0,
         }
@@ -90,8 +86,6 @@ class Command(BaseCommand):
             self._migrate_rules()
         if not options.get("skip_history"):
             self._migrate_history()
-        if not options.get("skip_deadlines"):
-            self._migrate_administrative_deadlines()
 
         self._report_unconverted()
 
@@ -284,96 +278,6 @@ class Command(BaseCommand):
                 completion_notes=(state.notes or "Ultima esecuzione migrata dal vecchio motore.")[:2000],
                 source=MaintenanceOccurrence.SOURCE_MIGRATION,
             )
-
-    # -- scadenze amministrative -------------------------------------------
-    def _migrate_administrative_deadlines(self):
-        deadlines = (
-            AssetAdministrativeDeadline.objects.select_related("asset")
-            .prefetch_related("completions")
-            .filter(is_active=True)
-            .order_by("id")
-        )
-        plans_by_title: dict[str, MaintenanceInterventionTemplate] = {}
-
-        for deadline in deadlines:
-            title = (deadline.title or "Scadenza amministrativa").strip()[:120]
-            plan = plans_by_title.get(title.lower())
-            if plan is None:
-                plan = MaintenanceInterventionTemplate.objects.filter(
-                    label=title, maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE
-                ).first()
-            if plan is None:
-                self.stats["deadline_plans"] += 1
-                if not self.dry_run:
-                    plan = MaintenanceInterventionTemplate.objects.create(
-                        code=_unique_code(MaintenanceInterventionTemplate, title, f"scadenza-{deadline.id}"),
-                        label=title,
-                        maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE,
-                        description=deadline.notes or "",
-                        attachment_required=True,
-                        schedule_anchor="FIXED_CALENDAR",
-                    )
-            if plan is not None:
-                plans_by_title[title.lower()] = plan
-            if self.dry_run or plan is None:
-                self.stats["deadline_assignments"] += 1
-                self.stats["deadline_occurrences"] += 1
-                continue
-
-            assignment = MaintenancePlanAssignment.objects.filter(
-                plan=plan, asset=deadline.asset, target_type=MaintenancePlanAssignment.TARGET_ASSET
-            ).first()
-            if assignment is None:
-                # Il vecchio modello non registrava la periodicita': si mette il
-                # default annuale ma la generazione automatica resta spenta finche'
-                # un responsabile non conferma. Inventarla in silenzio produrrebbe
-                # scadenze finte.
-                assignment = MaintenancePlanAssignment.objects.create(
-                    plan=plan,
-                    target_type=MaintenancePlanAssignment.TARGET_ASSET,
-                    asset=deadline.asset,
-                    frequency=MaintenancePlanAssignment.FREQ_YEARS,
-                    interval=1,
-                    warning_days=int(deadline.warning_days or 30),
-                    schedule_anchor=MaintenancePlanAssignment.ANCHOR_FIXED_CALENDAR,
-                    first_due_date=deadline.due_date,
-                    auto_generate=False,
-                    notes="Periodicita' da confermare: il vecchio modello di scadenza non la registrava.",
-                )
-                self.stats["deadline_assignments"] += 1
-
-            for completion in deadline.completions.all():
-                if MaintenanceOccurrence.objects.filter(
-                    plan=plan, asset=deadline.asset, due_date=completion.completed_on
-                ).exists():
-                    continue
-                MaintenanceOccurrence.objects.create(
-                    plan=plan,
-                    assignment=assignment,
-                    asset=deadline.asset,
-                    due_date=completion.completed_on,
-                    warning_days=int(deadline.warning_days or 30),
-                    schedule_anchor=MaintenancePlanAssignment.ANCHOR_FIXED_CALENDAR,
-                    status=MaintenanceOccurrence.STATUS_DONE,
-                    completed_on=completion.completed_on,
-                    completed_by=completion.completed_by,
-                    completion_notes=completion.notes or "",
-                    source=MaintenanceOccurrence.SOURCE_MIGRATION,
-                )
-
-            if not MaintenanceOccurrence.objects.filter(
-                plan=plan, asset=deadline.asset, due_date=deadline.due_date
-            ).exists():
-                MaintenanceOccurrence.objects.create(
-                    plan=plan,
-                    assignment=assignment,
-                    asset=deadline.asset,
-                    due_date=deadline.due_date,
-                    warning_days=int(deadline.warning_days or 30),
-                    schedule_anchor=MaintenancePlanAssignment.ANCHOR_FIXED_CALENDAR,
-                    source=MaintenanceOccurrence.SOURCE_MIGRATION,
-                )
-                self.stats["deadline_occurrences"] += 1
 
     # -- residui -----------------------------------------------------------
     def _report_unconverted(self):

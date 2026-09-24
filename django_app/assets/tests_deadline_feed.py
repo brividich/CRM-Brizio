@@ -209,72 +209,101 @@ class ScadenzarioRinnoviTests(DeadlineFeedTestCase):
         self.assertEqual({r["occurrence"].id for r in response.context["rows"]}, {self.occ_adm.id})
 
 
-class DedupVecchieScadenzeTests(DeadlineFeedTestCase):
-    """Le vecchie ``AssetAdministrativeDeadline`` gia' copiate in un'occorrenza non
-    si contano due volte; quelle mai migrate restano visibili ovunque."""
+class ScadenzeAmministrativeSeparateTests(DeadlineFeedTestCase):
+    """Le ``AssetAdministrativeDeadline`` sono un registro separato dai piani: si
+    leggono tutte; le loro copie migrate in un piano amministrativo non contano."""
 
     def setUp(self):
         super().setUp()
         from assets.models import AssetAdministrativeDeadline
 
-        # Copia della scadenza migrata: stesso asset, stessa data, stesso titolo del piano.
-        self.doppione = AssetAdministrativeDeadline.objects.create(
+        # Scadenza di cui ``occ_adm`` e' la copia: stesso asset, piano con il suo titolo.
+        self.scadenza = AssetAdministrativeDeadline.objects.create(
             asset=self.carroponte, title="Revisione feed", due_date=self.occ_adm.due_date
         )
-        # Mai migrata: nessuna occorrenza corrispondente.
-        self.orfana = AssetAdministrativeDeadline.objects.create(
+        self.altra = AssetAdministrativeDeadline.objects.create(
             asset=self.firewall, title="Certificato CE feed", due_date=self.today + timedelta(days=4)
         )
 
-    def test_feed_salta_il_doppione_e_tiene_l_orfana(self):
+    def test_feed_legge_le_scadenze_e_salta_le_copie(self):
         keys = {
             row.key
             for row in feed.collect(
                 start=self.today - timedelta(days=30), end=self.today + timedelta(days=30), today=self.today
             )
         }
-        self.assertNotIn(f"dl-{self.doppione.id}", keys)
-        self.assertIn(f"dl-{self.orfana.id}", keys)
-        self.assertIn(f"occ-{self.occ_adm.id}", keys)
+        self.assertIn(f"dl-{self.scadenza.id}", keys)
+        self.assertIn(f"dl-{self.altra.id}", keys)
+        self.assertNotIn(f"occ-{self.occ_adm.id}", keys)
 
     def test_administrative_dues_conta_una_volta(self):
         dues = feed.administrative_dues(due_to=self.today + timedelta(days=30))
         self.assertEqual(
             sorted((due.source, due.id) for due in dues),
-            sorted([("occurrence", self.occ_adm.id), ("legacy", self.orfana.id)]),
+            sorted([("legacy", self.scadenza.id), ("legacy", self.altra.id)]),
         )
+
+    def test_copia_fuori_da_da_fare_e_scadenzario(self):
+        response = self.client.get(
+            reverse("assets:maintenance_scadenze"), {"window": "", "plan_type": "administrative"}
+        )
+        self.assertEqual(response.context["rows"], [])
+        keys = {row.key for row in response.context["renewals"]}
+        self.assertEqual(keys, {f"dl-{self.scadenza.id}", f"dl-{self.altra.id}"})
 
     def test_comando_prova_a_vuoto_non_scrive(self):
         import io
         from django.core.management import call_command
 
         out = io.StringIO()
-        call_command("close_migrated_admin_deadlines", stdout=out)
-        self.doppione.refresh_from_db()
-        self.assertTrue(self.doppione.is_active)
+        call_command("separate_admin_deadlines", stdout=out)
+        self.occ_adm.refresh_from_db()
+        self.assertEqual(self.occ_adm.status, MaintenanceOccurrence.STATUS_OPEN)
         self.assertIn("PROVA A VUOTO", out.getvalue())
-        self.assertIn(f"#{self.doppione.id}", out.getvalue())
+        self.assertIn(f"#{self.occ_adm.id}", out.getvalue())
 
-    def test_comando_apply_disattiva_solo_i_doppioni_con_nota_e_audit(self):
+    def test_comando_riattiva_annulla_le_copie_e_riporta_le_esecuzioni(self):
         import io
         from django.core.management import call_command
+
+        from assets.models import AssetAdministrativeDeadlineCompletion
         from core.models import AuditLog
 
-        call_command("close_migrated_admin_deadlines", apply=True, stdout=io.StringIO())
-        self.doppione.refresh_from_db()
-        self.orfana.refresh_from_db()
-        self.assertFalse(self.doppione.is_active)
-        self.assertIn(f"occorrenza #{self.occ_adm.id}", self.doppione.notes)
-        self.assertTrue(self.orfana.is_active)
+        # Stato lasciato da close_migrated_admin_deadlines: originale spenta con nota.
+        self.scadenza.is_active = False
+        self.scadenza.notes = (
+            "Nota vera.\n[23/09/2026] Chiusa: la scadenza vive nell'occorrenza "
+            f"#{self.occ_adm.id} del piano amministrativo. Si gestisce da Manutenzione > Scadenzario."
+        )
+        self.scadenza.save()
+        # Un'esecuzione registrata sulla copia (non migrata dallo storico).
+        eseguita = MaintenanceOccurrence.objects.create(
+            plan=self.occ_adm.plan, asset=self.carroponte, due_date=self.today - timedelta(days=400),
+            status=MaintenanceOccurrence.STATUS_DONE, completed_on=self.today - timedelta(days=2),
+            completion_notes="Fatta dal piano",
+        )
+
+        call_command("separate_admin_deadlines", apply=True, stdout=io.StringIO())
+
+        self.scadenza.refresh_from_db()
+        self.occ_adm.refresh_from_db()
+        self.assertTrue(self.scadenza.is_active)
+        self.assertEqual(self.scadenza.notes, "Nota vera.")
+        self.assertEqual(self.occ_adm.status, MaintenanceOccurrence.STATUS_CANCELED)
         self.assertTrue(
-            AuditLog.objects.filter(
-                azione="ASSET_SCADENZA_AMMINISTRATIVA_CHIUSA_MIGRATA", oggetto_id=str(self.doppione.id)
+            AssetAdministrativeDeadlineCompletion.objects.filter(
+                deadline=self.scadenza, completed_on=eseguita.completed_on
             ).exists()
         )
-        # Ripetibile: la seconda esecuzione non trova piu' niente da chiudere.
+        self.assertTrue(
+            AuditLog.objects.filter(
+                azione="ASSET_SCADENZA_AMMINISTRATIVA_SEPARATA_DAI_PIANI", oggetto_id=str(self.scadenza.id)
+            ).exists()
+        )
+        # Ripetibile: la seconda esecuzione non trova piu' niente.
         out = io.StringIO()
-        call_command("close_migrated_admin_deadlines", apply=True, stdout=out)
-        self.assertIn("(da chiudere): 0", out.getvalue())
+        call_command("separate_admin_deadlines", apply=True, stdout=out)
+        self.assertIn("Fatto: 0 riattivate, 0 esecuzioni riportate, 0 occorrenze annullate", out.getvalue())
 
     def test_dashboard_asset_e_hub_contano_senza_doppioni(self):
         from django.test import RequestFactory
@@ -283,8 +312,8 @@ class DedupVecchieScadenzeTests(DeadlineFeedTestCase):
         from dashboard.scadenze_providers import ScadenzeContext, collect_asset
 
         overview = dashboard_kpi.get_cose_da_fare_overview(today=self.today)
-        self.assertEqual(overview["deadlines_overdue"], 1)  # l'occorrenza, non anche il doppione
-        self.assertEqual(overview["deadlines_30"], 1)  # l'orfana
+        self.assertEqual(overview["deadlines_overdue"], 1)  # la scadenza, non anche la copia
+        self.assertEqual(overview["deadlines_30"], 1)  # l'altra
 
         request = RequestFactory().get(reverse("assets:maintenance_scadenze"))
         request.user = self.admin
@@ -293,12 +322,16 @@ class DedupVecchieScadenzeTests(DeadlineFeedTestCase):
         self.assertIn("Certificato CE feed", titoli)
         self.assertIn("Total Security feed", " ".join(titoli))
 
-    def test_scadenzario_mostra_le_orfane(self):
-        response = self.client.get(
-            reverse("assets:maintenance_scadenze"), {"window": "", "plan_type": "administrative"}
-        )
-        keys = {row.key for row in response.context["renewals"]}
-        self.assertEqual(keys, {f"dl-{self.orfana.id}"})
+    def test_nuovo_piano_non_puo_essere_amministrativo(self):
+        from assets.forms_maintenance import MaintenancePlanForm
+
+        form = MaintenancePlanForm()
+        values = {value for value, _label in form.fields["maintenance_type"].choices}
+        self.assertNotIn(MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE, values)
+        # Un piano amministrativo gia' esistente conserva il suo tipo.
+        form = MaintenancePlanForm(instance=self.occ_adm.plan)
+        values = {value for value, _label in form.fields["maintenance_type"].choices}
+        self.assertIn(MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE, values)
 
 
 class PanoramicaKpiTests(DeadlineFeedTestCase):
