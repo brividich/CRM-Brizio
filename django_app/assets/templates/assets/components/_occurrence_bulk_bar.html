@@ -30,7 +30,10 @@
     document.addEventListener('change', function (event) {
       var target = event.target;
       if (target.matches('[data-md-check-all]')) {
-        target.closest('table').querySelectorAll('[data-md-check]').forEach(function (box) {
+        // L'ambito e' la tabella, oppure un elenco marcato data-md-scope (Panoramica).
+        var scope = target.closest('[data-md-scope], table');
+        if (!scope) { return; }
+        scope.querySelectorAll('[data-md-check]').forEach(function (box) {
           box.checked = target.checked;
           box.dispatchEvent(new Event('change', { bubbles: true }));
         });

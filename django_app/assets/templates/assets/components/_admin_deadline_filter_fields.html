@@ -1,0 +1,8 @@
+{% comment %}Filtri correnti di /assets/scadenze/ nei form POST: dopo l'azione si torna alla stessa vista.{% endcomment %}
+<input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+<input type="hidden" name="filter_component" value="{% if selected_component %}{{ selected_component.id }}{% endif %}">
+<input type="hidden" name="filter_deadline_type" value="{{ selected_deadline_type }}">
+<input type="hidden" name="filter_status" value="{{ status_filter }}">
+<input type="hidden" name="filter_q" value="{{ q }}">
+<input type="hidden" name="filter_category" value="{{ category_id }}">
+<input type="hidden" name="filter_month" value="{{ month_filter }}">

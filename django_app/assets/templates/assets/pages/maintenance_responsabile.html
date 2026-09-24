@@ -55,6 +55,10 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
 .pn-heat .l1{background:color-mix(in srgb,var(--pn-ord) 18%,var(--pn-soft))}.pn-heat .l2{background:color-mix(in srgb,var(--pn-ord) 38%,var(--pn-soft))}
 .pn-heat .l3{background:color-mix(in srgb,var(--pn-ord) 62%,var(--pn-soft));color:#fff}.pn-heat .l4{background:var(--pn-ord);color:#fff}
 .pn-list{display:grid}
+.pn-list--scroll{max-height:460px;overflow:auto;padding-right:4px}
+.pn-selectbar{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;padding:6px 8px;border-radius:8px;background:var(--pn-soft)}
+.pn-selectbar label{display:inline-flex;gap:6px;align-items:center;font-size:var(--fs-xs);font-weight:700;color:var(--pn-text);cursor:pointer}
+.pn-selectbar label input{margin:0}
 .pn-bars{display:grid;gap:7px}
 .pn-bar{display:grid;grid-template-columns:minmax(110px,170px) 1fr 34px;gap:10px;align-items:center;font-size:var(--fs-sm)}
 .pn-bar .pn-track{height:10px;border-radius:5px;background:var(--pn-soft);overflow:hidden}
@@ -313,10 +317,13 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
           {% endfor %}
         </div>
         {% for cell in panoramica.heat %}
-          <div class="pn-dayview" id="pn-day-{{ cell.day|date:'Y-m-d' }}" data-pn-dayview="{{ cell.day|date:'Y-m-d' }}" hidden>
+          <div class="pn-dayview" id="pn-day-{{ cell.day|date:'Y-m-d' }}" data-pn-dayview="{{ cell.day|date:'Y-m-d' }}" data-md-scope hidden>
             <h3>{{ cell.day|date:"l j F"|capfirst }} <a href="{{ cell.calendar_url }}">nel Calendario</a></h3>
+            {% if can_plan and cell.selectable > 1 %}
+              <div class="pn-selectbar"><label><input type="checkbox" data-md-check-all> Seleziona tutte ({{ cell.selectable }})</label></div>
+            {% endif %}
             {% if cell.rows %}
-              <div class="pn-list">
+              <div class="pn-list pn-list--scroll">
                 {% for row in cell.rows %}{% include "assets/components/_panoramica_item.html" %}{% endfor %}
               </div>
               {% if cell.more %}<span class="pn-hint">e altre {{ cell.more }}: aprile nel Calendario.</span>{% endif %}
@@ -327,13 +334,20 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
         {% endfor %}
       </section>
 
-      <section class="pn-panel">
-        <h2>Prossime scadenze <a href="{{ panoramica.scadenzario_url }}">tutte nello Scadenzario</a></h2>
-        {% if can_plan %}<span class="pn-hint">Ctrl+clic (o la casella) per selezionare più manutenzioni e creare l'ordine di lavoro.</span>{% endif %}
+      <section class="pn-panel" data-md-scope>
+        <h2>Prossime scadenze <small>scadute e prossimi 30 giorni &middot; {{ panoramica.prossime|length }}</small></h2>
+        {% if can_plan and panoramica.prossime_selectable %}
+          <div class="pn-selectbar">
+            <label><input type="checkbox" data-md-check-all> Seleziona tutte ({{ panoramica.prossime_selectable }})</label>
+            <span class="pn-hint">Si selezionano le manutenzioni senza OdL; anche con Ctrl+clic sulla riga.</span>
+          </div>
+        {% endif %}
         {% if panoramica.prossime %}
-          <div class="pn-list">
+          <div class="pn-list pn-list--scroll">
             {% for row in panoramica.prossime %}{% include "assets/components/_panoramica_item.html" %}{% endfor %}
           </div>
+          {% if panoramica.prossime_more %}<span class="pn-hint">e altre {{ panoramica.prossime_more }}:</span>{% endif %}
+          <a class="pn-hint" href="{{ panoramica.scadenzario_url }}">Tutte nello Scadenzario &rarr;</a>
         {% else %}
           <p class="pn-empty">Nessuna scadenza aperta nei prossimi 30 giorni.</p>
         {% endif %}
