@@ -55,18 +55,34 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
 .pn-heat .l1{background:color-mix(in srgb,var(--pn-ord) 18%,var(--pn-soft))}.pn-heat .l2{background:color-mix(in srgb,var(--pn-ord) 38%,var(--pn-soft))}
 .pn-heat .l3{background:color-mix(in srgb,var(--pn-ord) 62%,var(--pn-soft));color:#fff}.pn-heat .l4{background:var(--pn-ord);color:#fff}
 .pn-list{display:grid}
-.pn-item{display:grid;grid-template-columns:70px 10px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--pn-line);text-decoration:none;color:var(--pn-text)}
-.pn-item:last-child{border-bottom:0}
-.pn-item time{font-size:var(--fs-xs);color:var(--pn-mid);font-variant-numeric:tabular-nums}
-.pn-item i{width:10px;height:10px;border-radius:50%;background:var(--pn-k)}
-.pn-item b{font-size:var(--fs-sm);display:block}
-.pn-item small{font-size:var(--fs-xs);color:var(--pn-faint)}
 .pn-bars{display:grid;gap:7px}
 .pn-bar{display:grid;grid-template-columns:minmax(110px,170px) 1fr 34px;gap:10px;align-items:center;font-size:var(--fs-sm)}
 .pn-bar .pn-track{height:10px;border-radius:5px;background:var(--pn-soft);overflow:hidden}
 .pn-bar .pn-track span{display:block;height:100%;background:var(--primary-mid,#2f5f89)}
 .pn-bar b{text-align:right;font-variant-numeric:tabular-nums}
 .pn-empty{color:var(--pn-faint);font-size:var(--fs-sm)}
+/* Giorni della griglia: pulsanti, il clic apre l'elenco del giorno sotto la griglia. */
+.pn-heat button.pn-day{border:0;cursor:pointer;font:inherit;font-size:var(--fs-2xs)}
+.pn-heat button.pn-day:hover{box-shadow:inset 0 0 0 2px var(--primary-mid,#2f5f89)}
+.pn-heat button.pn-day[aria-pressed="true"]{box-shadow:inset 0 0 0 3px var(--pn-text);opacity:1}
+.pn-heat button.pn-day:focus-visible{outline:2px solid var(--accent,#ff6b00);outline-offset:1px}
+.pn-dayview{border-top:1px solid var(--pn-line);padding-top:10px;display:grid;gap:6px}
+.pn-dayview h3{margin:0;font-size:var(--fs-sm);font-weight:800;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.pn-dayview h3 a{font-size:var(--fs-xs);font-weight:700}
+.pn-hint{font-size:var(--fs-2xs);color:var(--pn-faint);font-weight:600}
+/* Righe delle liste: casella (solo se pianificabile) + link che occupa il resto. */
+.pn-item{display:grid;grid-template-columns:18px 1fr;gap:8px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--pn-line);border-radius:6px}
+.pn-item:last-child{border-bottom:0}
+.pn-item.is-selected{background:color-mix(in srgb,var(--mk-ord,#2563eb) 14%,transparent)}
+.pn-item input{margin:0}
+.pn-item-link{display:grid;grid-template-columns:70px 10px 1fr auto;gap:10px;align-items:center;text-decoration:none;color:var(--pn-text)}
+.pn-item-link time{font-size:var(--fs-xs);color:var(--pn-mid);font-variant-numeric:tabular-nums}
+.pn-item-link i{width:10px;height:10px;border-radius:50%;background:var(--pn-k)}
+.pn-item-link b{font-size:var(--fs-sm);display:block}
+.pn-item-link small{font-size:var(--fs-xs);color:var(--pn-faint)}
+.pn-item-link:hover b{text-decoration:underline}
+.md-bulk-dock{position:sticky;bottom:0;z-index:5;display:grid;gap:8px}
+.md-bulk-dock .md-bulk{position:static}
 </style>
 {% endblock %}
 
@@ -287,31 +303,39 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     </div>
 
     <div class="pn-grid" data-tour-step="3" data-tour-title="Le prossime settimane" data-tour-text="Quanto scade ogni giorno, le prossime scadenze in ordine e dove si concentrano per categoria.">
-      <section class="pn-panel">
-        <h2>Prossime quattro settimane <small>scadenze aperte per giorno</small></h2>
+      <section class="pn-panel" data-pn-heat>
+        <h2>Prossime quattro settimane <a href="{{ panoramica.calendario_url }}">apri il Calendario</a></h2>
+        <span class="pn-hint">Clicca un giorno per vedere cosa scade.</span>
         <div class="pn-heat">
           <span class="pn-dow">L</span><span class="pn-dow">M</span><span class="pn-dow">M</span><span class="pn-dow">G</span><span class="pn-dow">V</span><span class="pn-dow">S</span><span class="pn-dow">D</span>
           {% for cell in panoramica.heat %}
-            <span class="pn-day l{{ cell.level }}{% if cell.past %} is-past{% endif %}{% if cell.is_today %} is-today{% endif %}" title="{{ cell.day|date:'d/m' }}: {{ cell.count }} scadenz{{ cell.count|pluralize:'a,e' }}">{{ cell.day|date:"j" }}</span>
+            <button type="button" class="pn-day l{{ cell.level }}{% if cell.past %} is-past{% endif %}{% if cell.is_today %} is-today{% endif %}"
+                    data-pn-day="{{ cell.day|date:'Y-m-d' }}" aria-pressed="false" aria-controls="pn-day-{{ cell.day|date:'Y-m-d' }}"
+                    title="{{ cell.day|date:'d/m' }}: {{ cell.count }} scadenz{{ cell.count|pluralize:'a,e' }}"
+                    aria-label="{{ cell.day|date:'l j F' }}: {{ cell.count }} scadenz{{ cell.count|pluralize:'a,e' }}">{{ cell.day|date:"j" }}</button>
           {% endfor %}
         </div>
+        {% for cell in panoramica.heat %}
+          <div class="pn-dayview" id="pn-day-{{ cell.day|date:'Y-m-d' }}" data-pn-dayview="{{ cell.day|date:'Y-m-d' }}" hidden>
+            <h3>{{ cell.day|date:"l j F"|capfirst }} <a href="{{ cell.calendar_url }}">nel Calendario</a></h3>
+            {% if cell.rows %}
+              <div class="pn-list">
+                {% for row in cell.rows %}{% include "assets/components/_panoramica_item.html" %}{% endfor %}
+              </div>
+              {% if cell.more %}<span class="pn-hint">e altre {{ cell.more }}: aprile nel Calendario.</span>{% endif %}
+            {% else %}
+              <p class="pn-empty">Nessuna scadenza aperta in questo giorno.</p>
+            {% endif %}
+          </div>
+        {% endfor %}
       </section>
 
       <section class="pn-panel">
         <h2>Prossime scadenze <a href="{{ panoramica.scadenzario_url }}">tutte nello Scadenzario</a></h2>
+        {% if can_plan %}<span class="pn-hint">Ctrl+clic (o la casella) per selezionare più manutenzioni e creare l'ordine di lavoro.</span>{% endif %}
         {% if panoramica.prossime %}
           <div class="pn-list">
-            {% for row in panoramica.prossime %}
-              <a class="pn-item pn-k-{{ row.kind }}" style="background:none" href="{{ row.detail_url }}">
-                <time datetime="{{ row.due_date|date:'Y-m-d' }}">{{ row.due_date|date:"d/m/Y" }}</time>
-                <i aria-hidden="true"></i>
-                <span><b>{{ row.title }}</b><small>{{ row.kind_label }}{% if row.asset_tag %} · {{ row.asset_tag }}{% elif row.target_label %} · {{ row.target_label }}{% endif %}</small></span>
-                {% if row.state == "overdue" %}<span class="md-badge badge-danger">da {{ row.days_late }} g</span>
-                {% elif row.state == "planned" %}<span class="md-badge badge-success">OdL</span>
-                {% elif row.days == 0 %}<span class="md-badge badge-warning">oggi</span>
-                {% else %}<span class="md-badge badge-muted">tra {{ row.days }} g</span>{% endif %}
-              </a>
-            {% endfor %}
+            {% for row in panoramica.prossime %}{% include "assets/components/_panoramica_item.html" %}{% endfor %}
           </div>
         {% else %}
           <p class="pn-empty">Nessuna scadenza aperta nei prossimi 30 giorni.</p>
@@ -378,28 +402,31 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
     solo l'intestazione: si comprime a una riga. Il Cruscotto serve a trovare i
     problemi, e il vuoto e' una buona notizia da dire in fretta.
   {% endcomment %}
-  <section class="md-section is-warn{% if not unplanned %} is-empty{% endif %}" id="non-pianificate">
-    <div class="md-section-head">
+  {% comment %}Ogni sezione si chiude cliccando il titolo; lo stato resta ricordato su
+    questo browser. Ctrl+clic su una riga la seleziona per l'azione massiva.{% endcomment %}
+  <details class="md-section is-warn{% if not unplanned %} is-empty{% endif %}" id="non-pianificate" open data-md-collapsible>
+    <summary class="md-section-head">
       <h2>Manutenzioni dovute ma non pianificate</h2>
       <span class="md-badge badge-warning">{{ unplanned|length }}</span>
-      <span class="md-sub">«dovuta» e «pianificata» non sono la stessa cosa</span>
-    </div>
+      <span class="md-sub">«dovuta» e «pianificata» non sono la stessa cosa{% if can_plan and unplanned %} · Ctrl+clic per selezionare più righe{% endif %}</span>
+    </summary>
     {% include "assets/components/_occurrence_rows.html" with rows=unplanned selectable=can_plan show_plan=1 %}
-  </section>
+  </details>
 
-  <section class="md-section{% if not open_workorders %} is-empty{% endif %}" id="odl-attivi">
-    <div class="md-section-head">
+  <details class="md-section{% if not open_workorders %} is-empty{% endif %}" id="odl-attivi" open data-md-collapsible>
+    <summary class="md-section-head">
       <h2>Ordini di lavoro attivi</h2>
       <span class="md-badge badge-muted">{{ open_workorders|length }}</span>
       {% if overdue_workorders %}<span class="md-badge badge-danger">di cui {{ overdue_workorders|length }} aperti da oltre {{ wo_overdue_days }} giorni</span>{% endif %}
       {% if planned_workorders_count %}<span class="md-sub">{{ planned_workorders_count }} da manutenzione programmata</span>{% endif %}
-    </div>
+    </summary>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
-        <thead><tr><th>OdL</th><th>Titolo</th><th class="md-right">Asset</th><th>Assegnato a</th><th>Stato</th><th>Aperto il</th></tr></thead>
+        <thead><tr>{% if can_plan %}<th style="width:34px"><input type="checkbox" data-wo-check-all aria-label="Seleziona tutti"></th>{% endif %}<th>OdL</th><th>Titolo</th><th class="md-right">Asset</th><th>Assegnato a</th><th>Stato</th><th>Aperto il</th></tr></thead>
         <tbody>
           {% for wo in open_workorders %}
             <tr>
+              {% if can_plan %}<td><input type="checkbox" name="workorder_ids" value="{{ wo.pk }}" form="wo-bulk-form" data-wo-check aria-label="Seleziona OdL #{{ wo.pk }}"></td>{% endif %}
               <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
               <td>{{ wo.title }}</td>
               <td class="md-right">{{ wo.occurrence_count }}</td>
@@ -412,23 +439,23 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
               <td class="md-nowrap">{{ wo.opened_at|date:"d/m/Y" }}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="6" class="md-empty">Nessun ordine di lavoro aperto sulle manutenzioni programmate.</td></tr>
+            <tr><td colspan="{% if can_plan %}7{% else %}6{% endif %}" class="md-empty">Nessun ordine di lavoro aperto sulle manutenzioni programmate.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </section>
+  </details>
 
   {% comment %}
     Chi ha troppo lavoro, e quanto non e' di nessuno. La riga "Non assegnate" e'
     la piu' importante della tabella: e' il lavoro che nessuno ha preso in mano,
     e da li' si va a vedere quale.
   {% endcomment %}
-  <section class="md-section" id="carico-manutentori">
-    <div class="md-section-head">
+  <details class="md-section" id="carico-manutentori" open data-md-collapsible>
+    <summary class="md-section-head">
       <h2>Carico manutentori</h2>
       <span class="md-sub" style="display:inline">manutenzioni aperte per persona</span>
-    </div>
+    </summary>
     <table class="md-table">
       <thead>
         <tr>
@@ -460,20 +487,21 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
         {% endif %}
       </tbody>
     </table>
-  </section>
+  </details>
 
-  <section class="md-section {% if overdue_workorders %}is-urgent{% else %}is-empty{% endif %}" id="odl-anziani">
-    <div class="md-section-head">
+  <details class="md-section {% if overdue_workorders %}is-urgent{% else %}is-empty{% endif %}" id="odl-anziani" open data-md-collapsible>
+    <summary class="md-section-head">
       <h2>Aperti da oltre {{ wo_overdue_days }} giorni</h2>
       <span class="md-badge {% if overdue_workorders %}badge-danger{% else %}badge-muted{% endif %}">{{ overdue_workorders|length }}</span>
       <span class="md-sub">aperti da oltre {{ wo_overdue_days }} giorni</span>
-    </div>
+    </summary>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
-        <thead><tr><th>OdL</th><th>Titolo</th><th>Asset</th><th>Assegnato a</th><th class="md-right">Aperto da</th></tr></thead>
+        <thead><tr>{% if can_plan %}<th style="width:34px"><input type="checkbox" data-wo-check-all aria-label="Seleziona tutti"></th>{% endif %}<th>OdL</th><th>Titolo</th><th>Asset</th><th>Assegnato a</th><th class="md-right">Aperto da</th></tr></thead>
         <tbody>
           {% for wo in overdue_workorders %}
             <tr>
+              {% if can_plan %}<td><input type="checkbox" name="workorder_ids" value="{{ wo.pk }}" form="wo-bulk-form" data-wo-check aria-label="Seleziona OdL #{{ wo.pk }}"></td>{% endif %}
               <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
               <td>{{ wo.title|truncatechars:70 }}</td>
               <td>{{ wo.asset.asset_tag|default:wo.asset.name }}</td>
@@ -481,26 +509,27 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
               <td class="md-right md-nowrap">{{ wo.days_open }} gg</td>
             </tr>
           {% empty %}
-            <tr><td colspan="5" class="md-empty">Nessun intervento aperto da oltre {{ wo_overdue_days }} giorni.</td></tr>
+            <tr><td colspan="{% if can_plan %}6{% else %}5{% endif %}" class="md-empty">Nessun intervento aperto da oltre {{ wo_overdue_days }} giorni.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </section>
+  </details>
 
-  <section class="md-section{% if not report_missing %} is-empty{% endif %}" id="rapporti-mancanti">
-    <div class="md-section-head"><h2>Rapporti mancanti</h2><span class="md-badge badge-warning">{{ report_missing|length }}</span></div>
+  <details class="md-section{% if not report_missing %} is-empty{% endif %}" id="rapporti-mancanti" open data-md-collapsible>
+    <summary class="md-section-head"><h2>Rapporti mancanti</h2><span class="md-badge badge-warning">{{ report_missing|length }}</span></summary>
     {% include "assets/components/_occurrence_rows.html" with rows=report_missing selectable=0 show_plan=1 %}
-  </section>
+  </details>
 
-  <section class="md-section{% if not follow_ups %} is-empty{% endif %}" id="follow-up">
-    <div class="md-section-head"><h2>Follow-up aperti</h2><span class="md-badge badge-muted">{{ follow_ups|length }}</span></div>
+  <details class="md-section{% if not follow_ups %} is-empty{% endif %}" id="follow-up" open data-md-collapsible>
+    <summary class="md-section-head"><h2>Follow-up aperti</h2><span class="md-badge badge-muted">{{ follow_ups|length }}</span></summary>
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
-        <thead><tr><th>OdL</th><th>Asset</th><th>Anomalia</th><th>Emersa durante</th><th>Aperto il</th></tr></thead>
+        <thead><tr>{% if can_plan %}<th style="width:34px"><input type="checkbox" data-wo-check-all aria-label="Seleziona tutti"></th>{% endif %}<th>OdL</th><th>Asset</th><th>Anomalia</th><th>Emersa durante</th><th>Aperto il</th></tr></thead>
         <tbody>
           {% for wo in follow_ups %}
             <tr>
+              {% if can_plan %}<td><input type="checkbox" name="workorder_ids" value="{{ wo.pk }}" form="wo-bulk-form" data-wo-check aria-label="Seleziona OdL #{{ wo.pk }}"></td>{% endif %}
               <td><a class="md-asset" href="{% url 'assets:wo_view' wo.pk %}">#{{ wo.pk }}</a></td>
               <td>{{ wo.asset.asset_tag|default:wo.asset.name }}</td>
               <td>{{ wo.follow_up_reason|default:wo.title|truncatechars:90 }}</td>
@@ -508,16 +537,16 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
               <td class="md-nowrap">{{ wo.opened_at|date:"d/m/Y" }}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="5" class="md-empty">Nessun follow-up aperto.</td></tr>
+            <tr><td colspan="{% if can_plan %}6{% else %}5{% endif %}" class="md-empty">Nessun follow-up aperto.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </section>
+  </details>
 
   {% if conflicts %}
-    <section class="md-section is-urgent">
-      <div class="md-section-head"><h2>Conflitti di periodicita</h2><span class="md-badge badge-danger">{{ conflicts|length }}</span></div>
+    <details class="md-section is-urgent" id="conflitti" open data-md-collapsible>
+      <summary class="md-section-head"><h2>Conflitti di periodicita</h2><span class="md-badge badge-danger">{{ conflicts|length }}</span></summary>
       <div style="padding:12px 16px;display:grid;gap:8px">
         {% for conflict in conflicts %}
           <div class="md-conflict">
@@ -529,10 +558,57 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
           </div>
         {% endfor %}
       </div>
-    </section>
+    </details>
   {% endif %}
 
 {% endif %}
-{% include "assets/components/_occurrence_bulk_bar.html" %}
+<div class="md-bulk-dock">
+  {% include "assets/components/_occurrence_bulk_bar.html" %}
+  {% if vista != "sintesi" %}{% include "assets/components/_workorder_bulk_bar.html" %}{% endif %}
 </div>
+</div>
+<script>
+(function () {
+  /* Giorni della griglia: un clic apre l'elenco del giorno, un secondo clic lo chiude. */
+  var heat = document.querySelector("[data-pn-heat]");
+  if (heat) {
+    heat.addEventListener("click", function (event) {
+      var button = event.target.closest("[data-pn-day]");
+      if (!button) { return; }
+      var day = button.getAttribute("data-pn-day");
+      var wasOpen = button.getAttribute("aria-pressed") === "true";
+      heat.querySelectorAll("[data-pn-day]").forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+      heat.querySelectorAll("[data-pn-dayview]").forEach(function (v) { v.hidden = true; });
+      if (!wasOpen) {
+        button.setAttribute("aria-pressed", "true");
+        var view = heat.querySelector('[data-pn-dayview="' + day + '"]');
+        if (view) { view.hidden = false; }
+      }
+    });
+  }
+
+  /* Sezioni chiudibili: lo stato si ricorda su questo browser (se lo storage c'e'). */
+  var KEY = "md-collapse:" + window.location.pathname + ":";
+  document.querySelectorAll("details[data-md-collapsible][id]").forEach(function (box) {
+    try {
+      if (window.localStorage.getItem(KEY + box.id) === "0") { box.open = false; }
+    } catch (e) {}
+    box.addEventListener("toggle", function () {
+      try { window.localStorage.setItem(KEY + box.id, box.open ? "1" : "0"); } catch (e) {}
+    });
+  });
+  /* I riquadri in alto portano alla sezione: se era chiusa, si riapre. */
+  function openTarget() {
+    var id = window.location.hash.slice(1);
+    var target = id && document.getElementById(id);
+    if (target && target.tagName === "DETAILS") { target.open = true; }
+  }
+  window.addEventListener("hashchange", openTarget);
+  openTarget();
+  /* Un link dentro il titolo della sezione non la deve chiudere. */
+  document.querySelectorAll("details[data-md-collapsible] > summary a").forEach(function (a) {
+    a.addEventListener("click", function (e) { e.stopPropagation(); });
+  });
+})();
+</script>
 {% endblock %}

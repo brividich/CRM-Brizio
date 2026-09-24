@@ -1,0 +1,40 @@
+{% comment %}Barra delle azioni sugli OdL selezionati (tabelle con caselle [data-wo-check]).
+   Serve workorder_bulk_form e can_plan nel contesto. Le caselle puntano a
+   form="wo-bulk-form": si seleziona anche fra tabelle diverse.{% endcomment %}
+{% if can_plan and workorder_bulk_form %}
+  <form class="md-bulk" id="wo-bulk-form" method="post" action="{% url 'assets:workorder_bulk_action' %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <span class="md-bulk-count"><span data-wo-count>0</span> OdL selezionati</span>
+    <div class="md-field"><label for="{{ workorder_bulk_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_bulk_form.assigned_to }}</div>
+    <button type="submit" class="btn btn-primary" name="action" value="assign">Assegna</button>
+    <button type="submit" class="btn btn-secondary" name="action" value="close_complete"
+            title="Chiude solo gli OdL che non hanno piu' manutenzioni da registrare">Chiudi i completati</button>
+  </form>
+  <script>
+  (function () {
+    var bar = document.getElementById('wo-bulk-form');
+    if (!bar) { return; }
+    var counter = bar.querySelector('[data-wo-count]');
+    function refresh() {
+      var ids = {};
+      document.querySelectorAll('[data-wo-check]:checked').forEach(function (box) { ids[box.value] = true; });
+      var checked = Object.keys(ids).length;
+      counter.textContent = checked;
+      bar.classList.toggle('is-visible', checked > 0);
+    }
+    document.addEventListener('change', function (event) {
+      var target = event.target;
+      if (target.matches('[data-wo-check-all]')) {
+        target.closest('table').querySelectorAll('[data-wo-check]').forEach(function (box) {
+          box.checked = target.checked;
+          box.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      }
+      if (target.matches('[data-wo-check], [data-wo-check-all]')) { refresh(); }
+    });
+    refresh();
+  })();
+  </script>
+  {% include "assets/components/_multiselect_script.html" %}
+{% endif %}

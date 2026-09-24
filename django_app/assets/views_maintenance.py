@@ -976,18 +976,33 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
         })
 
     # Quattro settimane da lunedi': quante scadenze aperte per giorno.
-    per_day: dict[date, int] = {}
+    per_day: dict[date, list] = {}
     for row in open_rows:
         if week_start <= row.due_date <= heat_end:
-            per_day[row.due_date] = per_day.get(row.due_date, 0) + 1
-    peak = max(per_day.values(), default=0)
+            per_day.setdefault(row.due_date, []).append(row)
+    peak = max((len(day_rows) for day_rows in per_day.values()), default=0)
     heat = []
     for offset in range(28):
         day = week_start + timedelta(days=offset)
-        count = per_day.get(day, 0)
+        day_rows = per_day.get(day, [])
+        count = len(day_rows)
+        for row in day_rows:
+            row.days = row.days_until(today)
+            row.days_late = -row.days if row.days < 0 else 0
         # Livelli 0-4: il colore dice "quanto", il numero resta nel titolo.
         level = 0 if not count else min(4, 1 + (3 * count) // max(peak, 1))
-        heat.append({"day": day, "count": count, "level": level, "is_today": day == today, "past": day < today})
+        heat.append({
+            "day": day,
+            "count": count,
+            "level": level,
+            "is_today": day == today,
+            "past": day < today,
+            # Cliccando il giorno si apre il suo elenco sotto la griglia: non serve
+            # cambiare pagina per sapere cosa scade il 14.
+            "rows": day_rows[:25],
+            "more": max(0, count - 25),
+            "calendar_url": f"{calendario_url}?{urlencode({**shared, 'data': day.isoformat(), 'vista': 'dayGridWeek'})}",
+        })
 
     overdue = [row for row in open_rows if row.state == feed.STATE_OVERDUE]
     upcoming = [row for row in open_rows if row.due_date >= today]
@@ -1242,8 +1257,15 @@ def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpRespo
             "conflicts": conflicts[:40],
             "can_plan": can_plan_maintenance(request),
             "workorder_form": WorkOrderFromOccurrencesForm(),
+            "workorder_bulk_form": _workorder_bulk_form(),
         },
     )
+
+
+def _workorder_bulk_form():
+    from .forms_maintenance import WorkOrderBulkForm
+
+    return WorkOrderBulkForm(prefix="wob")
 
 
 # ---------------------------------------------------------------------------
@@ -2231,6 +2253,117 @@ def occurrence_complete(request: HttpRequest, occurrence_id: int) -> HttpRespons
             "occurrence": occurrence,
             "state": domain.occurrence_state_payload(occurrence),
             **_completion_suggestions(occurrence, back_url),
+        },
+    )
+
+
+@login_required
+@require_POST
+def workorder_bulk_action(request: HttpRequest) -> HttpResponse:
+    """Azione su piu' OdL selezionati nelle tabelle della Panoramica.
+
+    ``assign``: assegna tutti a una persona (log e avviso come la riassegnazione
+    singola). ``close_complete``: chiude quelli che non hanno piu' manutenzioni da
+    registrare, con la stessa regola del pulsante nella scheda OdL; gli altri
+    restano aperti e si dice quanti. Solo OdL aperti, perimetro di reparto come
+    per la creazione.
+    """
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    from .forms_maintenance import WorkOrderBulkForm
+    from .models import WorkOrderLog
+    from .notifications import notify_workorder_assigned, notify_workorder_reassigned
+
+    raw_next = request.POST.get("next") or ""
+    back = raw_next if raw_next and url_has_allowed_host_and_scheme(
+        raw_next, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ) else reverse("assets:maintenance_responsabile")
+    if not can_plan_maintenance(request):
+        return _deny(request, "Non hai i permessi per gestire gli ordini di lavoro.")
+
+    ids = {int(value) for value in request.POST.getlist("workorder_ids") if str(value).isdigit()}
+    work_orders = list(
+        WorkOrder.objects.filter(pk__in=ids, status=WorkOrder.STATUS_OPEN).select_related("asset", "assigned_to")
+    )
+    if not work_orders:
+        messages.error(request, "Seleziona almeno un ordine di lavoro aperto.")
+        return redirect(back)
+    if not can_manage_maintenance_plans(request):
+        reparti = {r.strip().casefold() for r in user_reparti(request)}
+        fuori = [wo for wo in work_orders
+                 if reparti and str(wo.asset.reparto or "").strip().casefold() not in reparti]
+        if fuori:
+            raise PermissionDenied(
+                "Puoi gestire solo gli ordini di lavoro degli asset dei reparti che guidi. "
+                f"Fuori dal tuo reparto: {', '.join(sorted({f'#{wo.pk}' for wo in fuori})[:10])}."
+            )
+
+    action = _clean_string(request.POST.get("action"))
+    actor = request.user.get_full_name() or request.user.username
+    if action == "assign":
+        form = WorkOrderBulkForm(request.POST, prefix="wob")
+        assignee = form.cleaned_data.get("assigned_to") if form.is_valid() else None
+        if assignee is None:
+            messages.error(request, "Scegli a chi assegnare gli ordini di lavoro.")
+            return redirect(back)
+        changed = 0
+        for wo in work_orders:
+            if wo.assigned_to_id == assignee.pk:
+                continue
+            previous = wo.assigned_to
+            wo.assigned_to = assignee
+            wo.save(update_fields=["assigned_to"])
+            WorkOrderLog.objects.create(
+                work_order=wo,
+                note=f"Assegnato a {assignee.get_full_name() or assignee.username} da {actor} (selezione multipla).",
+                author=request.user,
+            )
+            notify_workorder_assigned(wo, actor=request.user)
+            if previous is not None:
+                notify_workorder_reassigned(wo, previous_assignee=previous, actor=request.user)
+            changed += 1
+        messages.success(request, f"{changed} ordin{'e' if changed == 1 else 'i'} di lavoro assegnat{'o' if changed == 1 else 'i'}.")
+    elif action == "close_complete":
+        closed = [wo for wo in work_orders if domain.close_workorder_if_complete(wo, user=request.user)]
+        rest = len(work_orders) - len(closed)
+        if closed:
+            messages.success(request, f"Chius{'o' if len(closed) == 1 else 'i'} {len(closed)} interventi completati.")
+        if rest:
+            messages.warning(
+                request,
+                f"{rest} intervent{'o' if rest == 1 else 'i'} con manutenzioni ancora da registrare: restano aperti.",
+            )
+    else:
+        messages.error(request, "Azione non riconosciuta.")
+    return redirect(back)
+
+
+@login_required
+def module_search(request: HttpRequest) -> HttpResponse:
+    """Ricerca in tutto il modulo: asset, piani, scadenze, interventi, segnalazioni,
+    storico, contratti, licenze, documenti. ``?format=json`` per i suggerimenti
+    mentre si scrive nel campo in testa alla pagina."""
+    from .services import module_search as search_service
+
+    term = _clean_string(request.GET.get("q"))
+    wants_json = _clean_string(request.GET.get("format")).lower() == "json"
+    groups = search_service.search(request, term, limit=5 if wants_json else 25)
+    if wants_json:
+        return JsonResponse({
+            "q": term,
+            "groups": [group.as_json() for group in groups],
+            "page_url": f"{reverse('assets:module_search')}?{urlencode({'q': term})}",
+        })
+    return render(
+        request,
+        "assets/pages/module_search.html",
+        {
+            **_assets_shell_context(request),
+            "page_title": "Cerca nel modulo",
+            "q": term,
+            "min_length": search_service.MIN_LENGTH,
+            "groups": groups,
+            "total": sum(group.total for group in groups),
         },
     )
 

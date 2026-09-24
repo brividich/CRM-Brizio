@@ -1,0 +1,46 @@
+{% comment %}Selezione multipla con Ctrl+clic (Cmd+clic su Mac), condivisa da tutte le tabelle
+   selezionabili: su una riga (tr o [data-md-row]) che ha una casella [data-md-check] o
+   [data-wo-check], Ctrl+clic la spunta invece di aprire il link. La stessa manutenzione
+   puo' comparire in due liste (Prossime scadenze e giorno del calendario): le caselle
+   con lo stesso valore restano allineate e si contano una volta sola.
+   Incluso dalle barre di azione massiva; si inizializza una volta sola.{% endcomment %}
+<script>
+(function () {
+  if (window.__mdMultiSelect) { return; }
+  window.__mdMultiSelect = true;
+  var SELECTOR = "input[type=checkbox][data-md-check], input[type=checkbox][data-wo-check]";
+
+  function paint(box) {
+    var row = box.closest("[data-md-row], tr");
+    if (row) { row.classList.toggle("is-selected", box.checked); }
+  }
+  function syncTwins(box) {
+    document.querySelectorAll(SELECTOR).forEach(function (other) {
+      if (other !== box && other.name === box.name && other.value === box.value && other.checked !== box.checked) {
+        other.checked = box.checked;
+        paint(other);
+      }
+    });
+  }
+
+  document.addEventListener("click", function (event) {
+    if (!(event.ctrlKey || event.metaKey)) { return; }
+    if (event.target.matches && event.target.matches("input, select, textarea, button, label")) { return; }
+    var row = event.target.closest("[data-md-row], tr");
+    if (!row) { return; }
+    var box = row.querySelector(SELECTOR);
+    if (!box || box.disabled) { return; }
+    // Fase di cattura: si ferma anche il "apri in nuova scheda" delle righe cliccabili.
+    event.preventDefault();
+    event.stopPropagation();
+    box.checked = !box.checked;
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+  }, true);
+
+  document.addEventListener("change", function (event) {
+    var target = event.target;
+    if (target.matches && target.matches(SELECTOR)) { paint(target); syncTwins(target); }
+  });
+  document.querySelectorAll(SELECTOR).forEach(function (box) { if (box.checked) { paint(box); } });
+})();
+</script>

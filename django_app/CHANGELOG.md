@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Assets — Panoramica utilizzabile e ricerca in tutto il modulo
+
+- Giorni della griglia «Prossime quattro settimane» cliccabili: elenco del giorno e link al Calendario su quella data (`?data=`).
+- Ctrl+clic per selezionare piu' righe in Prossime scadenze e in tutte le tabelle selezionabili.
+- Sezioni della Panoramica chiudibili (stato ricordato); OdL selezionabili con «Assegna a» e «Chiudi i completati».
+- Campo di ricerca in testa: cerca in tutto il modulo (asset, piani, scadenze, amministrative, interventi, segnalazioni, storico, contratti, licenze, documenti) con suggerimenti e pagina `/assets/cerca/`.
+
 ### Assets — Officina e Segnala guasto nel menu Manutenzione
 
 - Nuove voci nel ramo Manutenzione (migration `assets 0110`).
