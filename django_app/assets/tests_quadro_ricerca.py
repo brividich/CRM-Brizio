@@ -159,3 +159,77 @@ class RicercaModuloTests(TestCase):
     def test_il_campo_in_testa_punta_alla_ricerca_del_modulo(self):
         response = self.client.get(reverse("assets:maintenance_responsabile"))
         self.assertContains(response, f'action="{reverse("assets:module_search")}"')
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class RegistraInsiemeEChiusuraMassivaTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.today = timezone.localdate()
+        cls.admin = User.objects.create_superuser(username="insieme-admin", password="x", email="i@n.s")
+        cls.asset = Asset.objects.create(asset_tag="INS-01", name="Pressa insieme", status=Asset.STATUS_IN_USE)
+        cls.altro = Asset.objects.create(asset_tag="INS-02", name="Altra macchina", status=Asset.STATUS_IN_USE)
+        cls.p1 = MaintenanceInterventionTemplate.objects.create(code="ins-a", label="Ingrassaggio insieme")
+        cls.p2 = MaintenanceInterventionTemplate.objects.create(code="ins-b", label="Controllo cinghie insieme")
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_registra_anche_le_altre_della_stessa_macchina(self):
+        main = MaintenanceOccurrence.objects.create(plan=self.p1, asset=self.asset, due_date=self.today, warning_days=10)
+        other = MaintenanceOccurrence.objects.create(plan=self.p2, asset=self.asset, due_date=self.today + timedelta(days=5), warning_days=10)
+        foreign = MaintenanceOccurrence.objects.create(plan=self.p2, asset=self.altro, due_date=self.today, warning_days=10)
+        page = self.client.get(reverse("assets:occurrence_complete", args=[main.id]))
+        self.assertContains(page, f'name="also_complete" value="{other.id}"')
+        self.client.post(
+            reverse("assets:occurrence_complete", args=[main.id]),
+            {"completed_on": self.today.isoformat(), "downtime_minutes": 30, "notes": "uscita unica",
+             "also_complete": [other.id, foreign.id]},
+        )
+        for occ in (main, other, foreign):
+            occ.refresh_from_db()
+        self.assertEqual(main.status, MaintenanceOccurrence.STATUS_DONE)
+        self.assertEqual(other.status, MaintenanceOccurrence.STATUS_DONE)
+        self.assertEqual(other.completion_notes, "uscita unica")
+        self.assertEqual(main.downtime_minutes, 30)
+        self.assertFalse(other.downtime_minutes)  # il fermo non si conta due volte
+        # Un'altra macchina non si registra mai da qui.
+        self.assertEqual(foreign.status, MaintenanceOccurrence.STATUS_OPEN)
+
+    def test_chiudi_selezionati_salta_chi_ha_manutenzioni_aperte(self):
+        libero = WorkOrder.objects.create(asset=self.asset, title="Guasto libero")
+        con_manutenzioni = WorkOrder.objects.create(asset=self.asset, title="Con manutenzioni")
+        MaintenanceOccurrence.objects.create(
+            plan=self.p1, asset=self.asset, due_date=self.today, warning_days=10, work_order=con_manutenzioni
+        )
+        response = self.client.post(
+            reverse("assets:workorder_bulk_action"),
+            {"workorder_ids": [libero.pk, con_manutenzioni.pk], "action": "close",
+             "closed_on": self.today.isoformat(), "resolution": "Sistemato", "next": reverse("assets:wo_list")},
+            follow=True,
+        )
+        libero.refresh_from_db()
+        con_manutenzioni.refresh_from_db()
+        self.assertEqual(libero.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(libero.outcome, WorkOrder.OUTCOME_RESOLVED)
+        self.assertEqual(libero.resolution, "Sistemato")
+        self.assertEqual(libero.executed_by, self.admin)
+        self.assertEqual(con_manutenzioni.status, WorkOrder.STATUS_OPEN)
+        self.assertContains(response, "Restano aperti")
+
+    def test_chiudi_selezionati_rifiuta_date_future(self):
+        wo = WorkOrder.objects.create(asset=self.asset, title="Futuro")
+        self.client.post(
+            reverse("assets:workorder_bulk_action"),
+            {"workorder_ids": [wo.pk], "action": "close", "closed_on": (self.today + timedelta(days=3)).isoformat()},
+        )
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, WorkOrder.STATUS_OPEN)
+
+    def test_lista_interventi_selezionabile_e_raggruppabile(self):
+        wo = WorkOrder.objects.create(asset=self.asset, title="In lista")
+        response = self.client.get(reverse("assets:wo_list"), {"by": "asset"})
+        self.assertContains(response, "data-wo-check-group")
+        self.assertContains(response, f'value="{wo.id}" form="wo-bulk-form"')
+        self.assertContains(response, 'id="wo-bulk-form"')
+        self.assertContains(response, 'value="close"')

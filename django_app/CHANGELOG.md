@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Assets — registra insieme e chiusura massiva degli interventi
+
+- «Registra»: le altre scadenze della stessa macchina si spuntano e si registrano nella stessa schermata (stessa data, note, rapporto; fermo solo sulla principale).
+- Interventi: selezione multipla (anche per gruppo e Ctrl+clic) con «Chiudi selezionati», «Assegna a», «Chiudi solo i completati».
+
 ### Assets — Panoramica utilizzabile e ricerca in tutto il modulo
 
 - Giorni della griglia «Prossime quattro settimane» cliccabili: elenco del giorno e link al Calendario su quella data (`?data=`).

@@ -44,12 +44,19 @@
       {% endif %}
       {% if same_asset_open %}
         <div class="md-suggest-row is-list">
-          <span><strong>Sulla stessa macchina entro 30 giorni</strong> — se le hai fatte nella stessa uscita, registrale subito dopo:</span>
-          <ul>
+          <span><strong>Sulla stessa macchina entro 30 giorni</strong> — se le hai fatte nella stessa uscita, spuntale: si registrano insieme a questa, con la stessa data, le stesse note e lo stesso rapporto (il fermo macchina resta solo su questa).</span>
+          <ul class="md-also-list">
             {% for other in same_asset_open %}
-              <li>{{ other.due_date|date:"d/m/Y" }} · {{ other.plan.label }}{% if other.work_order_id %} · OdL #{{ other.work_order_id }}{% endif %} — <a href="{{ other.register_url }}">Registra</a></li>
+              <li>
+                <label class="md-also">
+                  <input type="checkbox" name="also_complete" value="{{ other.pk }}" data-md-also>
+                  <span>{{ other.due_date|date:"d/m/Y" }} · <strong>{{ other.plan.label }}</strong>{% if other.work_order_id %} · OdL #{{ other.work_order_id }}{% endif %}{% if other.attachment_required %} · <em>rapporto obbligatorio</em>{% endif %}</span>
+                </label>
+                <a class="md-sub" href="{{ other.register_url }}">apri a parte</a>
+              </li>
             {% endfor %}
           </ul>
+          <button type="button" class="btn btn-sm btn-secondary" data-md-also-all>Spunta tutte</button>
         </div>
       {% endif %}
     </aside>
@@ -81,7 +88,7 @@
   </fieldset>
 
   <div class="md-form-actions">
-    <button type="submit" class="btn btn-primary">Registra esecuzione</button>
+    <button type="submit" class="btn btn-primary" data-md-submit>Registra esecuzione</button>
     <a class="btn btn-secondary" href="{{ back_url }}">Annulla</a>
   </div>
 </form>
@@ -92,5 +99,22 @@ document.addEventListener('click', function (event) {
   var field = document.getElementById('{{ form.downtime_minutes.id_for_label }}');
   if (field) { field.value = button.getAttribute('data-md-copy-downtime'); field.focus(); }
 });
+(function () {
+  /* Il pulsante dice quante manutenzioni si registrano. */
+  var submit = document.querySelector('[data-md-submit]');
+  function refresh() {
+    var extra = document.querySelectorAll('[data-md-also]:checked').length;
+    if (submit) { submit.textContent = extra ? 'Registra ' + (extra + 1) + ' manutenzioni' : 'Registra esecuzione'; }
+  }
+  document.addEventListener('change', function (event) { if (event.target.matches('[data-md-also]')) { refresh(); } });
+  document.addEventListener('click', function (event) {
+    if (!event.target.closest('[data-md-also-all]')) { return; }
+    var boxes = document.querySelectorAll('[data-md-also]');
+    var all = Array.prototype.every.call(boxes, function (b) { return b.checked; });
+    boxes.forEach(function (b) { b.checked = !all; });
+    refresh();
+  });
+  refresh();
+})();
 </script>
 {% endblock %}

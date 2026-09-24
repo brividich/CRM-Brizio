@@ -1,15 +1,27 @@
-{% comment %}Barra delle azioni sugli OdL selezionati (tabelle con caselle [data-wo-check]).
-   Serve workorder_bulk_form e can_plan nel contesto. Le caselle puntano a
-   form="wo-bulk-form": si seleziona anche fra tabelle diverse.{% endcomment %}
-{% if can_plan and workorder_bulk_form %}
-  <form class="md-bulk" id="wo-bulk-form" method="post" action="{% url 'assets:workorder_bulk_action' %}">
+{% comment %}Barra delle azioni sugli OdL selezionati (caselle [data-wo-check] o Ctrl+clic).
+   Serve workorder_bulk_form e can_bulk_workorders (chi esegue) nel contesto;
+   l'assegnazione compare solo con can_plan. Le caselle puntano a form="wo-bulk-form":
+   si seleziona anche fra tabelle e gruppi diversi.{% endcomment %}
+{% if can_bulk_workorders and workorder_bulk_form %}
+  <form class="md-bulk md-bulk-stack" id="wo-bulk-form" method="post" action="{% url 'assets:workorder_bulk_action' %}">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ request.get_full_path }}">
-    <span class="md-bulk-count"><span data-wo-count>0</span> OdL selezionati</span>
-    <div class="md-field"><label for="{{ workorder_bulk_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_bulk_form.assigned_to }}</div>
-    <button type="submit" class="btn btn-primary" name="action" value="assign">Assegna</button>
-    <button type="submit" class="btn btn-secondary" name="action" value="close_complete"
-            title="Chiude solo gli OdL che non hanno piu' manutenzioni da registrare">Chiudi i completati</button>
+    <div class="md-bulk-row">
+      <span class="md-bulk-count" style="align-self:center"><span data-wo-count>0</span> OdL selezionati</span>
+      <div class="md-field"><label for="wo-bulk-closed-on">Chiusi il</label><input type="date" id="wo-bulk-closed-on" name="closed_on" value="{% now 'Y-m-d' %}" max="{% now 'Y-m-d' %}"></div>
+      <div class="md-field" style="flex:1 1 260px"><label for="wo-bulk-resolution">Nota di chiusura</label><input type="text" id="wo-bulk-resolution" name="resolution" maxlength="500" placeholder="Facoltativa: vale per tutti quelli senza una risoluzione"></div>
+      <button type="submit" class="btn btn-primary" name="action" value="close"
+              title="Chiude come «Risolto». Restano aperti quelli con manutenzioni da registrare o checklist obbligatoria incompleta.">Chiudi selezionati</button>
+    </div>
+    <div class="md-bulk-row">
+      {% if can_plan %}
+        <div class="md-field"><label for="{{ workorder_bulk_form.assigned_to.id_for_label }}">Assegna a</label>{{ workorder_bulk_form.assigned_to }}</div>
+        <button type="submit" class="btn btn-secondary" name="action" value="assign">Assegna</button>
+      {% endif %}
+      <button type="submit" class="btn btn-secondary" name="action" value="close_complete"
+              title="Chiude solo gli OdL le cui manutenzioni sono gia' tutte registrate">Chiudi solo i completati</button>
+      <span class="md-sub" style="align-self:center">Ctrl+clic su una riga per aggiungerla o toglierla.</span>
+    </div>
   </form>
   <script>
   (function () {
@@ -23,15 +35,27 @@
       counter.textContent = checked;
       bar.classList.toggle('is-visible', checked > 0);
     }
+    function setAll(boxes, value) {
+      boxes.forEach(function (box) {
+        if (box.checked !== value) { box.checked = value; box.dispatchEvent(new Event('change', { bubbles: true })); }
+      });
+    }
     document.addEventListener('change', function (event) {
       var target = event.target;
       if (target.matches('[data-wo-check-all]')) {
-        target.closest('table').querySelectorAll('[data-wo-check]').forEach(function (box) {
-          box.checked = target.checked;
-          box.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+        setAll(target.closest('table').querySelectorAll('[data-wo-check]'), target.checked);
       }
-      if (target.matches('[data-wo-check], [data-wo-check-all]')) { refresh(); }
+      if (target.matches('[data-wo-check-group]')) {
+        // Casella nell'intestazione di un gruppo: seleziona le righe fino al gruppo successivo.
+        var row = target.closest('tr').nextElementSibling, boxes = [];
+        while (row && !row.matches('[data-wo-group]')) {
+          var box = row.querySelector('[data-wo-check]');
+          if (box) { boxes.push(box); }
+          row = row.nextElementSibling;
+        }
+        setAll(boxes, target.checked);
+      }
+      if (target.matches('[data-wo-check], [data-wo-check-all], [data-wo-check-group]')) { refresh(); }
     });
     refresh();
   })();
