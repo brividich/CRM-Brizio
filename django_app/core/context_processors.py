@@ -770,6 +770,7 @@ def legacy_nav(request):
             )
             result["subnav_items"] = _load_subnav_items(request, legacy_user)
             result["admin_subnav_items"] = _load_admin_subnav_items(request, legacy_user)
+            result["command_palette_items"] = _build_command_palette_items(result)
             return result
         _log_nav_once(
             level="info",
@@ -834,8 +835,17 @@ def legacy_nav(request):
 
     result["admin_subnav_items"] = _load_admin_subnav_items(request, legacy_user)
 
-    # Indice piatto per la command palette (Ctrl+K): label -> url, ACL-filtrato,
-    # niente voci "in arrivo" (coming) o placeholder (#). Difensivo su NavItem/dict.
+    result["command_palette_items"] = _build_command_palette_items(result)
+    return result
+
+
+def _build_command_palette_items(result: dict) -> list[dict]:
+    """Indice piatto per la ricerca unificata (Ctrl+K): label -> url, ACL-filtrato,
+    niente voci "in arrivo" (coming) o placeholder (#). Difensivo su NavItem/dict.
+
+    Va calcolato su entrambi i rami di `navigation_context` (registry e legacy):
+    prima il ramo registry usciva in anticipo e l'indice restava vuoto.
+    """
     palette: list[dict] = []
     seen_urls: set[str] = set()
 
@@ -860,9 +870,7 @@ def legacy_nav(request):
     for _key in ("subnav_items", "admin_subnav_items"):
         for _it in result.get(_key, []) or []:
             _palette_add(_it)
-    result["command_palette_items"] = palette
-
-    return result
+    return palette
 
 
 def ui_prefs_context(request):

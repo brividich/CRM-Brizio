@@ -200,7 +200,8 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 - **Legacy models managed** su SQL Server: `Ruolo`, `UtenteLegacy`, `AnagraficaDipendente`, `Pulsante`, `Permesso`
 - **Impersonation** admin → utente con middleware dedicato e session key
 - **23 modelli Django** (Profile, AuditLog, SiteConfig, Notifica, Checklist*, OptioneConfig, ecc.)
-- **Ricerca globale** Ctrl+K su 7 sorgenti (dipendenti, asset, ticket, progetti, task, procedure, DPI), con modulo e preview risultato
+- **Ricerca unificata** Ctrl+K (o barra «Cerca o vai a…» in topnav): pagine recenti, salto a qualsiasi pagina di navigazione (ACL-filtrata) e ricerca dati su 7 sorgenti (dipendenti, asset, ticket, progetti, task, procedure, DPI), con modulo e preview risultato
+- **Topnav**: voci in eccesso raccolte in «Altro», hamburger da ≤1100px, menu utente (profilo, preferenze, tema chiaro/scuro, segnala problema, esci), approvazioni assenze in attesa come «N da approvare»
 </details>
 
 <details open>
