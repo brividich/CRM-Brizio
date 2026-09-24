@@ -1,6 +1,6 @@
-{# Badge di sviluppo: incluso solo se dev_git e' valorizzato (context processor attivo con DEBUG=True). #}
+{# Badge di sviluppo: incluso solo se dev_git e' valorizzato (context processor attivo con DEBUG=True). In basso a destra: in alto copriva il menu utente della topnav. #}
 <style>
-  .devgit{position:fixed;top:8px;right:8px;z-index:9999;pointer-events:none;
+  .devgit{position:fixed;bottom:8px;right:8px;z-index:9999;pointer-events:none;
     font:600 11px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;max-width:min(420px,calc(100vw - 24px))}
   .devgit>*{pointer-events:auto}
   .devgit summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
@@ -9,7 +9,7 @@
   .devgit summary::-webkit-details-marker{display:none}
   .devgit.is-alert summary{border-color:#b91c1c;background:#fee2e2;color:#7f1d1d}
   .devgit .devgit-sep{opacity:.45}
-  .devgit-panel{margin-top:6px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;
+  .devgit-panel{position:absolute;right:0;bottom:calc(100% + 6px);width:max-content;max-width:min(420px,calc(100vw - 24px));padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;
     background:#fff;color:#334155;box-shadow:0 6px 20px rgba(15,23,42,.16);
     max-height:60vh;overflow:auto;font-weight:500}
   .devgit-panel h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#64748b}

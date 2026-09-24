@@ -1393,6 +1393,42 @@ class ContactPeopleTests(SimpleTestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class TopnavUnifiedSearchTests(TestCase):
+    def setUp(self):
+        from core.models import NavigationItem, NavigationRoleAccess
+
+        User = get_user_model()
+        self.user = User.objects.create_superuser(username="topnav-ux", password="pass12345")
+        item = NavigationItem.objects.create(
+            code="topnav_ux_probe",
+            label="Sonda topnav",
+            section="topbar",
+            route_name="dashboard_home",
+            order=35,
+            is_visible=True,
+            is_enabled=True,
+        )
+        NavigationRoleAccess.objects.create(item=item, legacy_role_id=1, can_view=True)
+
+    def test_palette_index_filled_on_registry_branch(self):
+        """Il ramo registry usciva prima di calcolare l'indice: Ctrl+K non trovava pagine."""
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("ui_prefs_page"))
+        self.assertEqual(response.status_code, 200)
+        labels = [row["l"] for row in response.context["command_palette_items"]]
+        self.assertIn("Sonda topnav", labels)
+
+    def test_topnav_renders_search_bar_and_user_menu(self):
+        self.client.force_login(self.user)
+        html = self.client.get(reverse("ui_prefs_page")).content.decode()
+        self.assertIn('class="nav-search" data-gs-open', html)
+        self.assertIn('id="nav-user-panel"', html)
+        self.assertIn("data-theme-toggle", html)
+        self.assertIn(reverse("logout"), html)
+        self.assertNotIn('class="logout-a"', html)
+
+
 class NavigationRegistryBrandingTests(TestCase):
     @override_settings(
         MODULE_BRANDING={

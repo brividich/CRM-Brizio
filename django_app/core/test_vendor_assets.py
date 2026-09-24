@@ -111,6 +111,31 @@ class VendorAssetsTests(SimpleTestCase):
         self.assertTrue((DJANGO_APP / "core" / "static" / "core" / "js" / "command-palette.js").is_file())
         self.assertTrue((DJANGO_APP / "core" / "static" / "core" / "css" / "command-palette.css").is_file())
 
+    def test_ctrl_k_has_single_handler(self):
+        """Ctrl+K apriva due overlay (palette + ricerca globale): ora un solo gestore."""
+        base = (DJANGO_APP / "core" / "templates" / "core" / "base.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        palette = (DJANGO_APP / "core" / "static" / "core" / "js" / "command-palette.js").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        self.assertNotIn("e.key === 'k'", base)
+        self.assertIn('data-api-url="{% url \'api_global_search\' %}"', base)
+        self.assertIn('getElementById("gs-overlay")', palette)
+        self.assertNotIn("nhub-cmdk", palette)
+
+    def test_topnav_no_emoji_or_hardcoded_dropdown_colors(self):
+        topnav = (DJANGO_APP / "core" / "templates" / "core" / "components" / "topnav.html").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        theme = (DJANGO_APP / "core" / "static" / "core" / "css" / "theme.css").read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        for entity in ("&#128269;", "&#128276;", "&#9881;", "&#9888;"):
+            self.assertNotIn(entity, topnav)
+        self.assertNotIn("legacy_url", topnav)
+        self.assertNotIn(".nav-dropdown-item:hover{background:#", theme)
+
     def test_tour_wired_and_pilot(self):
         base = (DJANGO_APP / "core" / "templates" / "core" / "base.html").read_text(
             encoding="utf-8", errors="ignore"
