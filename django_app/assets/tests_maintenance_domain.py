@@ -622,8 +622,9 @@ class MaintenanceReminderTests(MaintenanceDomainTestCase):
         self.assertIn("Revisione annuale", output)
 
     def test_la_scadenza_migrata_non_arriva_due_volte(self):
-        # migrate_maintenance_to_plans copia la scadenza in un piano amministrativo
-        # con lo stesso titolo e un'occorrenza alla stessa data: e' la stessa cosa.
+        # Le vecchie versioni di migrate_maintenance_to_plans copiavano la scadenza in
+        # un piano amministrativo con lo stesso titolo: e' la stessa cosa, e arriva
+        # una volta sola, come scadenza amministrativa (registro separato dai piani).
         due = self.today - timedelta(days=3)
         self._legacy_deadline(due_date=due)
         piano_amm = MaintenanceInterventionTemplate.objects.create(
@@ -636,7 +637,7 @@ class MaintenanceReminderTests(MaintenanceDomainTestCase):
         output = self._run()
 
         self.assertEqual(output.count("Collaudo INAIL"), 1)
-        self.assertNotIn("Scadenza amministrativa — TORNIO01 — Collaudo INAIL", output)
+        self.assertIn("Scadenza amministrativa — TORNIO01 — Collaudo INAIL", output)
 
     def test_la_scadenza_non_migrata_non_resta_senza_promemoria(self):
         # Prima, appena esisteva una qualsiasi occorrenza, le vecchie scadenze

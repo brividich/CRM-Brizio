@@ -215,22 +215,19 @@ body.theme-dark .ms-gaps h2,body.theme-dark .ms-gap{border-color:var(--border)}
       <div class="ms-gap">
         <strong>{{ sintesi.amministrative_scadute }}</strong>
         <span>gia' <b>scadut{{ sintesi.amministrative_scadute|pluralize:"a,e" }}</b> &mdash; non compaiono qui sotto, che elenca cio' che deve ancora arrivare.
-        <a href="{% url 'assets:maintenance_scadenze' %}?window=overdue&plan_type=administrative">Vedile</a></span>
+        <a href="{% url 'assets:asset_administrative_deadline_list' %}?status=overdue">Vedile</a></span>
       </div>
     {% endif %}
     {% if sintesi.prossime_amministrative %}
     <div class="md-scroll">
       <table class="md-table" data-fm-hide-search="1">
-        <thead><tr><th style="width:120px">Data</th><th>Scadenza</th><th>Asset / fornitore</th></tr></thead>
+        <thead><tr><th style="width:120px">Data</th><th>Scadenza</th><th>Asset</th></tr></thead>
         <tbody>
-          {% for occ in sintesi.prossime_amministrative %}
+          {% for due in sintesi.prossime_amministrative %}
             <tr>
-              <td class="md-nowrap"><span class="md-due">{{ occ.due_date|date:"d/m/Y" }}</span></td>
-              <td>{{ occ.plan.label }}</td>
-              <td>
-                {{ occ.asset.asset_tag|default:occ.asset.name }}
-                {% if occ.supplier %}<span class="md-sub">{{ occ.supplier.ragione_sociale }}</span>{% endif %}
-              </td>
+              <td class="md-nowrap"><span class="md-due">{{ due.due_date|date:"d/m/Y" }}</span></td>
+              <td><a href="{{ due.url }}">{{ due.title }}</a></td>
+              <td>{{ due.asset.asset_tag|default:due.asset.name }}</td>
             </tr>
           {% endfor %}
         </tbody>

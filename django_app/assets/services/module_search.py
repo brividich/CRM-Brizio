@@ -189,8 +189,10 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
     # --- Scadenze (occorrenze aperte): ordinarie e amministrative ----------
     scadenzario = reverse("assets:maintenance_scadenze")
     if _allows(request, scadenzario):
+        from .deadline_feed import exclude_mirror_occurrences
+
         open_occ = (
-            MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_OPEN)
+            exclude_mirror_occurrences(MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_OPEN))
             .filter(Q(plan__label__icontains=term) | _asset_q(term) | Q(asset__reparto__icontains=term))
             .select_related("plan", "asset")
             .order_by("due_date", "id")
@@ -219,11 +221,11 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
             open_occ.filter(plan__maintenance_type=admin_type), occ_hit,
             limit=limit, more_url=_with_q(scadenzario, term, window="", plan_type="administrative"),
         )
-        # Le vecchie scadenze non ancora migrate a occorrenza restano visibili.
-        from .deadline_feed import legacy_deadlines_qs
+        # Le scadenze amministrative vivono nel loro modello, separate dai piani.
+        from .deadline_feed import administrative_deadlines_qs
 
         legacy = (
-            legacy_deadlines_qs()
+            administrative_deadlines_qs()
             .filter(Q(title__icontains=term) | Q(reference_code__icontains=term) | Q(issuer__icontains=term)
                     | _asset_q(term))
             .select_related("asset")

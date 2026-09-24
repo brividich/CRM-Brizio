@@ -116,27 +116,14 @@
 {% endblock %}
 
 {% block assets_shell_content %}
-{% comment %}Pagina del vecchio sistema: resta per consultare e chiudere cio' che non e' ancora stato
-   migrato nei piani. Il lavoro quotidiano si fa da Scadenzario, Calendario e Piani.{% endcomment %}
-<div class="as-legacy-banner" role="note" style="margin:0 0 14px;padding:10px 14px;border:1px solid #f59e0b;border-left-width:4px;border-radius:10px;background:rgba(245,158,11,.08);font-size:var(--fs-sm)">
-  <strong>Archivio del vecchio sistema.</strong> Le scadenze ora si gestiscono dallo
-  <a href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=">Scadenzario</a>,
-  dal <a href="{% url 'assets:calendario_asset' %}">Calendario</a> e dai
-  <a href="{% url 'assets:maintenance_plan_list' %}">Piani</a>. Qui restano le voci non ancora migrate:
-  si chiudono da <a href="{% url 'assets:maintenance_setup' %}">Imposta</a>.
-</div>
 <section class="dl-page">
   <article class="dl-banner">
-    <div class="dl-banner-title">Archivio precedente</div>
+    <div class="dl-banner-title">Registro separato dai piani</div>
     <div class="dl-banner-text">
-      Le scadenze amministrative si gestiscono dai piani e compaiono nello
-      <a href="{% url 'assets:maintenance_scadenze' %}?window=&amp;plan_type=administrative">Scadenzario</a>
-      e nel <a href="{% url 'assets:calendario_asset' %}?kinds=administrative">Calendario</a>.
-    </div>
-    <div class="dl-banner-note">
-      Qui restano quelle registrate col sistema precedente. Quelle gia' trasferite in un piano
-      risultano disattivate, con una nota che rimanda all'occorrenza; le altre sono comunque
-      incluse in Scadenzario, Calendario e promemoria.
+      Revisioni, certificati e garanzie si gestiscono qui, non nei piani di manutenzione.
+      Compaiono anche nello
+      <a href="{% url 'assets:maintenance_scadenze' %}?window=&amp;plan_type=administrative">Scadenzario</a>,
+      nel <a href="{% url 'assets:calendario_asset' %}?kinds=administrative">Calendario</a> e nei promemoria.
     </div>
   </article>
   {% if selected_asset %}

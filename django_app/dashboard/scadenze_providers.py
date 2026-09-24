@@ -103,7 +103,7 @@ def collect_asset(ctx: ScadenzeContext) -> list[ScadenzaItem]:
             return []
 
     # Stessa fonte di Calendario e Scadenzario della manutenzione: adempimenti
-    # amministrativi (occorrenze dei piani + vecchie scadenze non ancora migrate,
+    # amministrativi (registro separato dai piani, senza le copie migrate,
     # senza doppioni), licenze software e contratti di assistenza. Licenze e
     # contratti restano soggetti all'ACL delle loro pagine.
     from assets.services import deadline_feed as feed

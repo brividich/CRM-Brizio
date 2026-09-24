@@ -47,7 +47,6 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from assets.models import (
-    AssetAdministrativeDeadline,
     MaintenanceOccurrence,
     PeriodicVerification,
     WorkOrder,
@@ -117,11 +116,15 @@ def collect_occurrence_reminders(*, today, horizon, deadline_days: int, no_throt
     (le copre il blocco "OdL aperti da piu' di N giorni"): finirebbero nella mail due
     volte con due nomi diversi.
     """
+    from assets.services.deadline_feed import exclude_mirror_occurrences
+
+    # Le copie delle scadenze amministrative non sono manutenzioni: la scadenza
+    # arriva gia' nel blocco "Scadenze amministrative".
     open_qs = (
-        MaintenanceOccurrence.objects.filter(
+        exclude_mirror_occurrences(MaintenanceOccurrence.objects.filter(
             status=MaintenanceOccurrence.STATUS_OPEN,
             due_date__lte=horizon,
-        )
+        ))
         .select_related("asset", "plan", "supplier", "work_order")
         .order_by("due_date")
     )
@@ -247,17 +250,11 @@ class Command(BaseCommand):
 
         # 1. Scadenze amministrative: scadute (sempre, finché non risolte) + in scadenza entro l'orizzonte.
         #    Nessun filtro di finestra futura: una scadenza superata deve gridare di più, non sparire.
-        #    Con il nuovo dominio attivo restano solo le vecchie scadenze NON ancora
-        #    copiate in un'occorrenza: quelle migrate arrivano gia' come manutenzioni,
-        #    e ignorare le altre le lascerebbe senza alcun promemoria.
+        #    Sono separate dai piani: vengono sempre da AssetAdministrativeDeadline, e le
+        #    loro copie migrate in un piano sono escluse dalle occorrenze (vedi sopra).
         from assets.services import deadline_feed
 
-        admin_source = (
-            deadline_feed.legacy_deadlines_qs()
-            if use_occurrences
-            else AssetAdministrativeDeadline.objects.filter(is_active=True)
-        )
-        admin_all = list(admin_source.filter(due_date__lte=horizon).select_related("asset").order_by("due_date"))
+        admin_all = list(deadline_feed.administrative_deadlines_qs().filter(due_date__lte=horizon).select_related("asset").order_by("due_date"))
         admin_overdue = [d for d in admin_all if d.due_date < today]
         admin_deadlines = [
             d

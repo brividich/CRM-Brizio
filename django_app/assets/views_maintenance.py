@@ -121,7 +121,11 @@ _OCCURRENCE_SELECT = (
 
 
 def _base_occurrence_queryset():
-    return (
+    from .services.deadline_feed import exclude_mirror_occurrences
+
+    # Le copie delle scadenze amministrative non sono manutenzioni: la scadenza
+    # si gestisce dalla sua pagina (Scadenze amministrative).
+    return exclude_mirror_occurrences(
         MaintenanceOccurrence.objects.select_related(*_OCCURRENCE_SELECT)
         .prefetch_related("attachments")
         .exclude(status=MaintenanceOccurrence.STATUS_CANCELED)
@@ -586,7 +590,7 @@ def _tab_links(request: HttpRequest, param: str, options, active: str) -> list[d
 def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: date, scoped_reparti,
                   plan_type: str = "") -> list:
     """Scadenze che non sono occorrenze, dallo stesso servizio del Calendario:
-    licenze, contratti e le vecchie scadenze amministrative non ancora migrate.
+    licenze, contratti e scadenze amministrative (registro separato dai piani).
 
     Stessa finestra temporale delle occorrenze (le scadute restano finche' sono
     attive), stessi filtri famiglia/reparto/gruppo e ricerca. Licenze e contratti
@@ -637,7 +641,7 @@ def _renewal_rows(request: HttpRequest, form: OccurrenceFilterForm, *, today: da
 def _scadenzario_export(request: HttpRequest, *, rows, renewals, fmt: str, today: date) -> HttpResponse:
     """Scadenzario in Excel o PDF: le righe che la pagina mostra, con gli stessi filtri.
 
-    Occorrenze e poi licenze, contratti e vecchie scadenze, in un'unica tabella
+    Occorrenze e poi licenze, contratti e scadenze amministrative, in un'unica tabella
     ordinata per data. I valori passano da ``write_cell`` (niente formula injection).
     """
     from core.excel_export import build_xlsx_bytes
@@ -854,22 +858,17 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     )
     totale_chiusi = chiusi["totale"] or 0
 
-    # Prossime scadenze amministrative: revisioni, verifiche di legge, contratti.
-    # Sono le uniche che la direzione guarda per data e non per carico di lavoro.
-    # Nessun campo nuovo: sono occorrenze aperte di piani amministrativi.
-    amministrative_qs = MaintenanceOccurrence.objects.filter(
-        status=MaintenanceOccurrence.STATUS_OPEN,
-        plan__maintenance_type=MaintenanceInterventionTemplate.TYPE_ADMINISTRATIVE,
-    )
-    prossime_amministrative = list(
-        amministrative_qs.filter(due_date__gte=today)
-        .select_related("plan", "asset", "supplier")
-        .order_by("due_date", "id")[:5]
-    )
+    # Prossime scadenze amministrative: revisioni, certificati, garanzie. Sono le
+    # uniche che la direzione guarda per data e non per carico di lavoro. Vivono
+    # nel loro modello, separate dai piani (stessa fonte di Calendario e Scadenzario).
+    from .services import deadline_feed as feed
+
+    amministrative = feed.administrative_dues()
+    prossime_amministrative = [due for due in amministrative if due.due_date >= today][:5]
     # Un adempimento gia' scaduto non e' una "prossima scadenza" e non va mescolato
     # alle altre, ma nemmeno taciuto: se ce ne sono, la sezione lo dichiara in una
     # riga sola invece di mostrare un calendario che sembra a posto.
-    amministrative_scadute = amministrative_qs.filter(due_date__lt=today).count()
+    amministrative_scadute = sum(1 for due in amministrative if due.due_date < today)
 
     return {
         "prossime_amministrative": prossime_amministrative,
@@ -2859,8 +2858,8 @@ def maintenance_setup(request: HttpRequest) -> HttpResponse:
     assets_in_use = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
     coverage_pct = round(100 * len(covered_assets) / assets_in_use) if assets_in_use else None
 
-    legacy_duplicates = feed.migrated_legacy_deadlines_qs().count()
-    legacy_open = feed.legacy_deadlines_qs().count()
+    admin_copies = feed.mirror_occurrences_qs().filter(status=MaintenanceOccurrence.STATUS_OPEN).count()
+    admin_open = feed.administrative_deadlines_qs().count()
     groups = AssetGroup.objects.filter(is_active=True).count()
 
     def step(key, title, status, detail, links, items=None):
@@ -2908,14 +2907,13 @@ def maintenance_setup(request: HttpRequest) -> HttpResponse:
             [(plan.label, reverse("assets:maintenance_plan_edit", args=[plan.id])) for plan in external_without_supplier[:8]],
         ),
         step(
-            "archivio", "Chiudi l'archivio delle vecchie scadenze",
-            "todo" if legacy_duplicates else ("info" if legacy_open else "done"),
-            (f"{legacy_duplicates} vecchie scadenze amministrative sono gia' nei piani ma ancora attive: "
-             "l'amministratore le chiude con il comando close_migrated_admin_deadlines."
-             if legacy_duplicates else
-             (f"{legacy_open} vecchie scadenze non sono ancora nei piani: restano visibili, ma conviene trasferirle."
-              if legacy_open else "Nessuna scadenza nel vecchio archivio.")),
-            [("Archivio precedente", reverse("assets:asset_administrative_deadline_list"))],
+            "amministrative", "Scadenze amministrative: separate dai piani",
+            "todo" if admin_copies else "info",
+            (f"{admin_copies} scadenze amministrative risultano ancora copiate in un piano: "
+             "l'amministratore toglie le copie con il comando separate_admin_deadlines."
+             if admin_copies else
+             f"{admin_open} scadenze amministrative attive. Si gestiscono dalla loro pagina, non dai piani."),
+            [("Scadenze amministrative", reverse("assets:asset_administrative_deadline_list"))],
         ),
         step(
             "gruppi", "Raggruppa gli asset (facoltativo)",

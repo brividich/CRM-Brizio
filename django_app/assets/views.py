@@ -17978,8 +17978,8 @@ def _compute_dashboard_kpis(today: date) -> dict:
     in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
     in_repair = Asset.objects.filter(status=Asset.STATUS_IN_REPAIR).count()
 
-    # Scadenze amministrative: occorrenze dei piani amministrativi + vecchie
-    # scadenze non ancora migrate, senza doppioni (``deadline_feed``).
+    # Scadenze amministrative: registro separato dai piani, senza le copie
+    # migrate (``deadline_feed``).
     from .services import deadline_feed as feed
 
     admin_dues = feed.administrative_dues(due_to=in_90, exclude_retired=False)
