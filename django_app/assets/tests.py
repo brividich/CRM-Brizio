@@ -7205,7 +7205,8 @@ class AssetMaintenanceStepThreeTests(TestCase):
             self.assertTrue((Path(private_root) / attachment.file.name).exists())
             self.assertFalse((Path(media_root) / attachment.file.name).exists())
 
-            page = self.client.get(reverse("assets:asset_administrative_deadline_list"))
+            # Chiusa senza prossima scadenza: sta nella scheda «Chiuse».
+            page = self.client.get(reverse("assets:asset_administrative_deadline_list") + "?status=inactive")
             self.assertContains(
                 page,
                 reverse("assets:admin_deadline_attachment_download", args=[attachment.id]),

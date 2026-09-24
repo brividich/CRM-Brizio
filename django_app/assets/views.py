@@ -3692,13 +3692,24 @@ def _maintenance_schedule_redirect_from_request(request: HttpRequest) -> str:
 
 
 def _deadline_list_redirect_from_request(request: HttpRequest) -> str:
-    return _asset_administrative_deadline_page_url(
+    url = _asset_administrative_deadline_page_url(
         asset_id=_as_int(request.POST.get("filter_asset"), default=0),
         component_id=_as_int(request.POST.get("filter_component"), default=0),
         deadline_type=_clean_string(request.POST.get("filter_deadline_type")),
         status=_clean_string(request.POST.get("filter_status")),
         q=_clean_string(request.POST.get("filter_q")),
     )
+    # Famiglia e mese della vista da cui si e' registrato.
+    extra = []
+    category_id = _as_int(request.POST.get("filter_category"), default=0)
+    if category_id:
+        extra.append(f"category={category_id}")
+    month = _clean_string(request.POST.get("filter_month"))
+    if month == "overdue" or re.fullmatch(r"\d{4}-\d{2}", month or ""):
+        extra.append(f"month={month}")
+    if not extra:
+        return url
+    return f"{url}{'&' if '?' in url else '?'}{'&'.join(extra)}"
 
 
 def _periodic_verification_redirect_from_request(request: HttpRequest) -> str:
@@ -11081,6 +11092,90 @@ def asset_component_edit(request: HttpRequest, id: int | None = None) -> HttpRes
     )
 
 
+_DEADLINE_STATUS_TABS = (
+    ("todo", "Da gestire"),
+    ("next90", "Prossimi 90 giorni"),
+    ("active", "Tutte attive"),
+    ("inactive", "Chiuse"),
+)
+_DEADLINE_STATUS_FILTERS = {key for key, _label in _DEADLINE_STATUS_TABS} | {"all", "overdue", "warning", "upcoming"}
+_MONTH_SHORT = ("gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic")
+_MONTH_LONG = ("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto",
+               "settembre", "ottobre", "novembre", "dicembre")
+
+
+def _deadline_row_matches(row: dict, status_filter: str, today: date) -> bool:
+    """Una riga dell'elenco scadenze amministrative rientra nella scheda scelta?"""
+    status = row["state"]["status"]
+    deadline = row["deadline"]
+    if status_filter == "all":
+        return True
+    if status_filter == "active":
+        return deadline.is_active
+    if status_filter == "todo":
+        return status in {"overdue", "warning"}
+    if status_filter == "next90":
+        return deadline.is_active and today <= deadline.due_date <= today + timedelta(days=90)
+    return status == status_filter
+
+
+def _deadline_month_strip(rows: list[dict], *, today: date) -> list[dict]:
+    """Scadute + i prossimi 12 mesi: quante scadenze attive per mese."""
+    counts: dict[str, int] = {}
+    overdue = 0
+    for row in rows:
+        deadline = row["deadline"]
+        if not deadline.is_active:
+            continue
+        if row["state"]["status"] == "overdue":
+            overdue += 1
+        else:
+            key = deadline.due_date.strftime("%Y-%m")
+            counts[key] = counts.get(key, 0) + 1
+    months = [{"key": "overdue", "label": "Scadute", "label_long": "scadute", "count": overdue, "is_late": True}]
+    year, month = today.year, today.month
+    for _ in range(12):
+        key = f"{year:04d}-{month:02d}"
+        months.append({
+            "key": key,
+            "label": f"{_MONTH_SHORT[month - 1]} {str(year)[2:]}",
+            "label_long": f"{_MONTH_LONG[month - 1]} {year}",
+            "count": counts.get(key, 0),
+            "is_late": False,
+        })
+        month += 1
+        if month > 12:
+            year, month = year + 1, 1
+    peak = max((m["count"] for m in months), default=0)
+    for m in months:
+        m["pct"] = round(100 * m["count"] / peak) if peak else 0
+    return months
+
+
+def _group_deadline_series(rows: list[dict]) -> list[dict]:
+    """Stesso asset, componente e titolo = una serie: resta la prima data (le righe
+    sono gia' in ordine di scadenza), le altre finiscono in ``row["series"]``."""
+    grouped: list[dict] = []
+    by_key: dict[tuple, dict] = {}
+    for row in rows:
+        deadline = row["deadline"]
+        key = (deadline.asset_id, deadline.component_id, (deadline.title or "").strip().lower(), deadline.is_active)
+        lead = by_key.get(key)
+        if lead is None:
+            row["series"] = []
+            by_key[key] = row
+            grouped.append(row)
+        else:
+            lead["series"].append(row)
+    return grouped
+
+
+def _deadline_category_choices() -> list[tuple[str, str]]:
+    from .forms_maintenance import category_filter_choices
+
+    return category_filter_choices()
+
+
 @login_required
 def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     can_manage_outlook_calendar = _is_assets_admin(request)
@@ -11293,9 +11388,15 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     valid_deadline_types = {code for code, _label in AssetAdministrativeDeadline.TYPE_CHOICES}
     if deadline_type not in valid_deadline_types:
         deadline_type = ""
-    status_filter = _clean_string(request.GET.get("status")).lower() or "all"
-    if status_filter not in {"all", "overdue", "warning", "upcoming", "inactive"}:
-        status_filter = "all"
+    # Schede: "attive" di default (le chiuse sono storia); overdue/warning/upcoming
+    # restano accettati per i link esistenti (cockpit, Panoramica).
+    status_filter = _clean_string(request.GET.get("status")).lower() or "active"
+    if status_filter not in _DEADLINE_STATUS_FILTERS:
+        status_filter = "active"
+    month_filter = _clean_string(request.GET.get("month"))
+    if month_filter != "overdue" and not re.fullmatch(r"\d{4}-\d{2}", month_filter or ""):
+        month_filter = ""
+    category_id = _as_int(request.GET.get("category"), default=0)
 
     _DEADLINE_FAMILY_TYPES: dict[str, list[str]] = {
         "it":               ["PC", "NOTEBOOK", "SERVER", "VM", "FIREWALL", "STAMPANTE", "HW", "FONIA"],
@@ -11324,6 +11425,10 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
         deadline_qs = deadline_qs.filter(deadline_type=deadline_type)
     if family_filter:
         deadline_qs = deadline_qs.filter(asset__asset_type__in=_DEADLINE_FAMILY_TYPES[family_filter])
+    if category_id:
+        from .forms_maintenance import category_with_descendants
+
+        deadline_qs = deadline_qs.filter(asset__asset_category_id__in=category_with_descendants(category_id))
     if q:
         deadline_qs = deadline_qs.filter(
             Q(title__icontains=q)
@@ -11363,10 +11468,17 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             if entry.administrative_deadline_id:
                 calendar_event_map[entry.administrative_deadline_id].append(entry)
 
-    if status_filter == "all":
-        deadline_rows = deadline_rows_all
-    else:
-        deadline_rows = [row for row in deadline_rows_all if row["state"]["status"] == status_filter]
+    status_counts = {key: sum(1 for row in deadline_rows_all if _deadline_row_matches(row, key, today))
+                     for key, _label in _DEADLINE_STATUS_TABS}
+    deadline_rows = [row for row in deadline_rows_all if _deadline_row_matches(row, status_filter, today)]
+    months = _deadline_month_strip(deadline_rows_all, today=today)
+    if month_filter == "overdue":
+        deadline_rows = [row for row in deadline_rows if row["state"]["status"] == "overdue"]
+    elif month_filter:
+        deadline_rows = [row for row in deadline_rows if row["deadline"].due_date.strftime("%Y-%m") == month_filter]
+    # Una stessa scadenza ripetuta (stesso asset e titolo, date diverse) e' una
+    # riga sola: la prima data, le successive nel dettaglio.
+    deadline_rows = _group_deadline_series(deadline_rows)
 
     deadline_completion_cutoff = _periodic_execution_window_cutoff(
         PERIODIC_EXECUTION_WINDOW_DEFAULT, today=today
@@ -11382,6 +11494,31 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
         )
         row["completion_count"] = len(row["completion_rows"])
         row["last_completion"] = row["completion_rows"][0] if row["completion_rows"] else None
+        row["tone"] = {"overdue": "tone-red", "warning": "tone-amber", "upcoming": "tone-blue"}.get(
+            row["state"]["status"], "tone-grey"
+        )
+
+    list_url = reverse("assets:asset_administrative_deadline_list")
+
+    def _tab_url(**changes) -> str:
+        query = request.GET.copy()
+        query.pop("focus_deadline", None)
+        for key, value in changes.items():
+            if value:
+                query[key] = value
+            else:
+                query.pop(key, None)
+        encoded = query.urlencode()
+        return f"{list_url}?{encoded}" if encoded else list_url
+
+    status_tabs = [
+        {"key": key, "label": label, "count": status_counts[key], "active": key == status_filter,
+         "url": _tab_url(status=key, month="")}
+        for key, label in _DEADLINE_STATUS_TABS
+    ]
+    for month in months:
+        month["url"] = _tab_url(status="active", month=month["key"])
+        month["active"] = month["key"] == month_filter
 
     component_options = []
     if selected_asset is not None:
@@ -11404,13 +11541,26 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             "page_title": "Scadenze amministrative",
             "deadline_rows": deadline_rows,
             "deadline_total": len(deadline_rows),
+            "deadline_dates_total": sum(1 + len(row["series"]) for row in deadline_rows),
+            "status_tabs": status_tabs,
+            "months": months,
+            "month_filter": month_filter,
+            "month_label": next((m["label_long"] for m in months if m["key"] == month_filter), ""),
+            "month_clear_url": _tab_url(month=""),
+            "category_id": str(category_id or ""),
+            "category_choices": _deadline_category_choices(),
+            "due_90_count": status_counts["next90"],
             "deadline_total_all": len(deadline_rows_all),
             "active_deadline_count": sum(1 for row in deadline_rows_all if row["deadline"].is_active),
             "overdue_deadline_count": sum(1 for row in deadline_rows_all if row["state"]["status"] == "overdue"),
             "warning_deadline_count": sum(1 for row in deadline_rows_all if row["state"]["status"] == "warning"),
             "selected_asset": selected_asset,
             "selected_component": selected_component,
-            "asset_options": list(Asset.objects.only("id", "asset_tag", "name").order_by("name", "asset_tag", "id")),
+            # Solo gli asset che hanno scadenze: l'elenco di tutto l'inventario era inservibile.
+            "asset_options": list(
+                Asset.objects.filter(administrative_deadlines__isnull=False)
+                .only("id", "asset_tag", "name").distinct().order_by("asset_tag", "name", "id")
+            ),
             "component_options": component_options,
             "deadline_type_choices": AssetAdministrativeDeadline.TYPE_CHOICES,
             "selected_deadline_type": deadline_type,

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Assets — scadenze amministrative ridisegnate, Panoramica «Seleziona tutte»
+
+- `/assets/scadenze/`: riquadri cliccabili, barra dei 12 mesi, schede Da gestire / 90 giorni / Attive / Chiuse, filtro Famiglia, serie raccolte in una riga, dettagli a scomparsa, «Registra» in una finestra al centro.
+- Panoramica: «Prossime scadenze» con tutte le scadute e i prossimi 30 giorni (scorrevole) e «Seleziona tutte» per creare l'OdL.
+
 ### Assets — scadenze amministrative separate dai piani
 
 - Le `AssetAdministrativeDeadline` tornano l'unica fonte delle scadenze amministrative e si gestiscono da `/assets/scadenze/` (nuova voce di menu «Scadenze amministrative», migration 0111); le copie nei piani amministrativi sono escluse ovunque.

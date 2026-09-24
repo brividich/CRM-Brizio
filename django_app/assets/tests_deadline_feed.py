@@ -366,3 +366,83 @@ class PanoramicaKpiTests(DeadlineFeedTestCase):
         self.assertEqual(conformita["rinnovi_90"], 2)
         self.assertContains(response, "Report e budget")
         self.assertContains(response, 'class="as-section-tab active"', html=False)
+
+
+class PaginaScadenzeAmministrativeTests(DeadlineFeedTestCase):
+    """/assets/scadenze/: schede per stato, serie raccolte in una riga, mesi."""
+
+    def setUp(self):
+        super().setUp()
+        from assets.models import AssetAdministrativeDeadline
+
+        D = AssetAdministrativeDeadline
+        self.scaduta = D.objects.create(asset=self.carroponte, title="Verifica periodica", due_date=self.today - timedelta(days=5))
+        # Serie: stesso asset e titolo, tre date.
+        self.serie = [
+            D.objects.create(asset=self.firewall, title="Controllo batterie", due_date=self.today + timedelta(days=d))
+            for d in (20, 110, 200)
+        ]
+        self.chiusa = D.objects.create(asset=self.firewall, title="Certificato vecchio", due_date=self.today, is_active=False)
+        self.url = reverse("assets:asset_administrative_deadline_list")
+
+    def test_default_tutte_attive_con_serie_raccolte(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["status_filter"], "active")
+        ids = [row["deadline"].id for row in response.context["deadline_rows"]]
+        self.assertEqual(ids, [self.scaduta.id, self.serie[0].id])
+        lead = response.context["deadline_rows"][1]
+        self.assertEqual([r["deadline"].id for r in lead["series"]], [self.serie[1].id, self.serie[2].id])
+        self.assertContains(response, "+2 date successive")
+        self.assertNotContains(response, "Certificato vecchio")
+
+    def test_schede_e_conteggi(self):
+        response = self.client.get(self.url, {"status": "todo"})
+        tabs = {tab["key"]: tab["count"] for tab in response.context["status_tabs"]}
+        self.assertEqual(tabs, {"todo": 2, "next90": 1, "active": 4, "inactive": 1})
+        self.assertEqual([row["deadline"].id for row in response.context["deadline_rows"]],
+                         [self.scaduta.id, self.serie[0].id])
+        response = self.client.get(self.url, {"status": "inactive"})
+        self.assertContains(response, "Certificato vecchio")
+
+    def test_filtro_mese(self):
+        month = self.serie[1].due_date.strftime("%Y-%m")
+        response = self.client.get(self.url, {"status": "active", "month": month})
+        self.assertEqual([row["deadline"].id for row in response.context["deadline_rows"]], [self.serie[1].id])
+        strip = {m["key"]: m["count"] for m in response.context["months"]}
+        self.assertEqual(strip["overdue"], 1)
+        self.assertEqual(len(response.context["months"]), 13)
+        response = self.client.get(self.url, {"month": "overdue"})
+        self.assertEqual([row["deadline"].id for row in response.context["deadline_rows"]], [self.scaduta.id])
+
+    def test_registra_dalla_finestra_torna_alla_stessa_vista(self):
+        response = self.client.post(self.url, {
+            "action": "complete_administrative_deadline",
+            "deadline_id": str(self.scaduta.id),
+            "execution_date": self.today.isoformat(),
+            "execution_next_due": (self.today + timedelta(days=365)).isoformat(),
+            "filter_status": "todo",
+            "filter_month": "overdue",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("status=todo", response["Location"])
+        self.assertIn("month=overdue", response["Location"])
+        self.scaduta.refresh_from_db()
+        self.assertEqual(self.scaduta.due_date, self.today + timedelta(days=365))
+
+
+class PanoramicaSelezioneTests(DeadlineFeedTestCase):
+    def test_prossime_mostra_tutte_e_seleziona_tutte(self):
+        extra = [
+            MaintenanceOccurrence.objects.create(
+                plan=self.occ_ord.plan, asset=self.firewall, due_date=self.today + timedelta(days=d)
+            )
+            for d in range(1, 13)
+        ]
+        response = self.client.get(reverse("assets:maintenance_responsabile"), {"vista": "operativo"})
+        pan = response.context["panoramica"]
+        ids = {row.occurrence_id for row in pan["prossime"]}
+        self.assertTrue({occ.id for occ in extra} <= ids)
+        self.assertGreaterEqual(pan["prossime_selectable"], 12)
+        self.assertContains(response, "data-md-check-all", html=False)
+        self.assertContains(response, f"Seleziona tutte ({pan['prossime_selectable']})")
