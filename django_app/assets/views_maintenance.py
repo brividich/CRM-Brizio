@@ -912,6 +912,10 @@ def _sintesi_direzione(*, today: date, open_rows: list[dict[str, Any]], done_row
     }
 
 
+# Righe massime di «Prossime scadenze» nella Panoramica (scadute + 30 giorni).
+PROSSIME_MAX = 150
+
+
 def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
     """Il colpo d'occhio della Panoramica, sullo stesso servizio di Calendario e
     Scadenzario (``deadline_feed``): per tipologia, prossime quattro settimane,
@@ -1000,13 +1004,15 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
             # cambiare pagina per sapere cosa scade il 14.
             "rows": day_rows[:25],
             "more": max(0, count - 25),
+            "selectable": sum(1 for row in day_rows[:25] if row.plannable and row.occurrence_id),
             "calendar_url": f"{calendario_url}?{urlencode({**shared, 'data': day.isoformat(), 'vista': 'dayGridWeek'})}",
         })
 
     overdue = [row for row in open_rows if row.state == feed.STATE_OVERDUE]
-    upcoming = [row for row in open_rows if row.due_date >= today]
-    # Le scadute per prime, ma senza soffocare le prossime.
-    prossime = overdue[:4] + upcoming[: 10 - min(len(overdue), 4)]
+    upcoming = [row for row in open_rows if today <= row.due_date <= horizon]
+    # Tutte le scadute e tutte quelle dei prossimi 30 giorni (l'elenco scorre): con
+    # dieci righe fisse le manutenzioni selezionabili per l'OdL erano due o tre.
+    prossime = (overdue + upcoming)[:PROSSIME_MAX]
     for row in prossime:
         row.days = row.days_until(today)
         row.days_late = -row.days if row.days < 0 else 0
@@ -1025,6 +1031,8 @@ def _panoramica(request: HttpRequest, *, today: date) -> dict[str, Any]:
         "types": types,
         "heat": heat,
         "prossime": prossime,
+        "prossime_selectable": sum(1 for row in prossime if row.plannable and row.occurrence_id),
+        "prossime_more": max(0, len(overdue) + len(upcoming) - PROSSIME_MAX),
         "categories": categories,
         "category_choices": category_filter_choices(),
         "category_id": str(category_id or ""),
