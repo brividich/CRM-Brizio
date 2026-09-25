@@ -1,0 +1,128 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Cartella scansioni — Verifiche periodiche{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Cartella scansioni{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>I fogli di verifica stampati dal portale tornano da soli: lo scanner li salva nella cartella, il portale legge il QR, li allega alla verifica giusta e propone i punti segnati da confermare.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">Verifiche periodiche</a>
+  {% if can_register %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="action" value="run"><button class="btn btn-primary" type="submit">Leggi la cartella ora</button></form>{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+
+  <section class="md-section">
+    <div class="md-section-head">
+      <h2>Stato</h2>
+      {% if config.attiva %}<span class="pc-state is-ok">Lettura automatica accesa</span>{% else %}<span class="pc-state">Lettura automatica spenta</span>{% endif %}
+    </div>
+    <dl class="pc-facts">
+      <div><dt>Cartella</dt><dd>{{ config.cartella|default:"—" }}</dd></div>
+      <div><dt>Ultimo passaggio</dt><dd>{{ config.ultima_esecuzione|date:"d/m/Y H:i"|default:"mai" }}</dd></div>
+      <div><dt>Esito</dt><dd>{{ config.ultimo_esito|default:"—" }}</dd></div>
+      <div><dt>Da smistare</dt><dd>{{ pending|length }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Come si usa</h2></div>
+    <ol class="pc-steps" style="padding:12px 16px 14px 36px">
+      <li>Dalla scheda della verifica premi <strong>«Stampa foglio»</strong> e consegna il foglio al tecnico.</li>
+      <li>Quando torna compilato, <strong>scansionalo nella cartella</strong> dello scanner (anche piu' fogli nello stesso PDF: ogni pagina si legge a se').</li>
+      <li>Il portale lo riconosce dal QR entro un paio di minuti{% if not config.attiva %} (quando la lettura automatica e' accesa; intanto usa «Leggi la cartella ora»){% endif %}: la verifica passa a <strong>«da confermare»</strong>.</li>
+      <li>Apri la verifica dalla scheda o dal registro qui sotto e <strong>conferma i punti</strong>.</li>
+    </ol>
+    {% if can_register %}
+      <div style="padding:0 16px 14px;display:grid;gap:6px">
+        <span class="pc-muted">Hai la scansione sul PC? Caricala qui: viene smistata dal QR come se fosse arrivata dalla cartella.</span>
+        <form method="post" enctype="multipart/form-data" class="pc-wo">
+          {% csrf_token %}<input type="hidden" name="action" value="upload">
+          <input type="file" name="scan" accept="application/pdf,image/*" multiple required aria-label="Scansioni da smistare">
+          <button class="btn btn-secondary btn-sm" type="submit">Carica e smista</button>
+        </form>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="md-section{% if pending %} is-warn{% endif %}">
+    <div class="md-section-head"><h2>Da smistare</h2><span class="md-badge badge-muted">{{ pending|length }}</span></div>
+    {% if pending %}
+      <div class="md-scroll">
+        <table class="md-table pc-table-auto" data-fm-table-skip="1">
+          <thead><tr><th>Arrivata</th><th>File</th><th>Motivo</th><th class="md-right">Cosa fare</th></tr></thead>
+          <tbody>
+            {% for log in pending %}
+              <tr>
+                <td>{{ log.received_at|date:"d/m/Y H:i" }}</td>
+                <td><a href="{% url 'assets:periodic_check_intake_scan' log.id %}" target="_blank" rel="noopener">{{ log.file_name }}</a></td>
+                <td>{{ log.message }}{% if log.session %} <span class="md-sub">foglio {{ log.token }} · {{ log.session.check_type.name }}</span>{% endif %}</td>
+                <td class="md-right">
+                  {% if can_register %}
+                    <form method="post" class="pc-wo" style="justify-content:flex-end">
+                      {% csrf_token %}<input type="hidden" name="log_id" value="{{ log.id }}">
+                      <select name="session_id" aria-label="Verifica a cui associare la scansione">
+                        {% for s in open_sessions %}<option value="{{ s.id }}">{{ s.check_type.name }} · {% if s.sheet_token %}foglio {{ s.sheet_token }}{% else %}del {{ s.performed_on|date:"d/m/Y" }}{% endif %} · {{ s.get_status_display }}</option>
+                        {% empty %}<option value="">Nessuna verifica in attesa: stampa prima il foglio</option>{% endfor %}
+                      </select>
+                      <button class="btn btn-primary btn-sm" type="submit" name="action" value="assign"{% if not open_sessions %} disabled{% endif %}>Associa</button>
+                      <button class="btn btn-secondary btn-sm" type="submit" name="action" value="discard">Scarta</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="md-empty">Niente da smistare: tutte le scansioni sono state riconosciute.</p>
+    {% endif %}
+  </section>
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Ultime scansioni ricevute</h2><span class="md-badge badge-muted">{{ logs|length }}</span></div>
+    {% if logs %}
+      <div class="md-scroll">
+        <table class="md-table pc-table-auto" data-fm-table-skip="1">
+          <thead><tr><th>Arrivata</th><th>File</th><th>Da</th><th>Esito</th><th>Verifica</th></tr></thead>
+          <tbody>
+            {% for log in logs %}
+              <tr>
+                <td>{{ log.received_at|date:"d/m/Y H:i" }}</td>
+                <td>{{ log.file_name }}</td>
+                <td>{% if log.source == "CARTELLA" %}cartella{% else %}caricata{% endif %}</td>
+                <td><span class="pc-state {% if log.outcome == 'READ' or log.outcome == 'ASSIGNED' %}is-ok{% elif log.outcome == 'UNMATCHED' %}is-due_soon{% elif log.outcome == 'ERROR' %}is-overdue{% endif %}">{{ log.get_outcome_display }}</span>
+                  <span class="md-sub">{{ log.message }}</span></td>
+                <td>{% if log.session %}<a href="{% url 'assets:periodic_check_session_detail' log.session.id %}">{{ log.session.check_type.name }}</a>{% else %}—{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="md-empty">Nessuna scansione ricevuta finora.</p>
+    {% endif %}
+  </section>
+
+  {% if can_configure %}
+    <form method="post" class="md-form" novalidate>
+      {% csrf_token %}<input type="hidden" name="action" value="config">
+      {{ form.non_field_errors }}
+      <fieldset class="md-fieldset">
+        <h2>Impostazioni della cartella</h2>
+        <p class="md-hint">La cartella deve essere raggiungibile dal server del portale con un percorso di rete (\\server\cartella): una lettera di unita' mappata non si vede da un servizio.</p>
+        {% include "assets/components/_md_field.html" with field=form.cartella %}
+        {% include "assets/components/_md_field.html" with field=form.attiva %}
+        {% include "assets/components/_md_field.html" with field=form.sposta_elaborati %}
+        {% include "assets/components/_md_field.html" with field=form.max_file_per_giro %}
+      </fieldset>
+      <div class="md-form-actions"><button class="btn btn-primary" type="submit">Salva impostazioni</button></div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

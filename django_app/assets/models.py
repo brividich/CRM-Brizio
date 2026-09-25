@@ -4235,3 +4235,100 @@ class PeriodicCheckPoint(models.Model):
 
     def __str__(self) -> str:
         return self.code
+
+
+class PeriodicCheckIntakeConfig(models.Model):
+    """Riga unica (pk=1): cartella di rete dove lo scanner deposita i fogli di verifica.
+
+    Stesso schema dell'acquisizione dei fogli firme della formazione
+    (``anagrafica.TrainingScanIntakeConfig``): il QR dice a quale verifica appartiene
+    il foglio, il lavoro periodico legge e allega da solo. La conferma dei punti
+    resta sempre umana: l'acquisizione porta la verifica a «da confermare».
+    """
+
+    CARTELLA_DEFAULT = r"\\pclogsys\PortaleNovicrom\scansioni\verifiche"
+
+    attiva = models.BooleanField(
+        default=False,
+        help_text="Se spenta, il lavoro periodico non guarda la cartella. Il caricamento "
+                  "dalla pagina della verifica funziona comunque.",
+    )
+    cartella = models.CharField(
+        max_length=500, blank=True, default=CARTELLA_DEFAULT,
+        help_text="Percorso UNC della cartella dove lo scanner salva i fogli. Deve essere "
+                  "raggiungibile dall'utente con cui gira il portale: una lettera di unita' "
+                  "mappata non e' visibile a un servizio.",
+    )
+    sposta_elaborati = models.BooleanField(
+        default=True,
+        help_text="Sposta i file letti in «elaborati» e quelli non riusciti in «errori»: la "
+                  "cartella resta pulita e nulla viene riletto due volte.",
+    )
+    max_file_per_giro = models.PositiveIntegerField(
+        default=25, help_text="Quanti file al massimo a ogni passaggio (un arretrato non blocca il lavoro).",
+    )
+    ultima_esecuzione = models.DateTimeField(null=True, blank=True)
+    ultimo_esito = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "Acquisizione fogli di verifica da cartella"
+        verbose_name_plural = "Acquisizione fogli di verifica da cartella"
+
+    def __str__(self) -> str:
+        return "Acquisizione fogli di verifica" + ("" if self.attiva else " (spenta)")
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+def _periodic_intake_upload_to(instance, filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()[:10] or ".pdf"
+    stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    return f"assets_periodic_intake/{stamp}_{uuid.uuid4().hex[:8]}{suffix}"
+
+
+class PeriodicCheckIntakeLog(models.Model):
+    """Registro delle scansioni arrivate dalla cartella (o caricate da smistare).
+
+    Una riga per foglio (pagina). Le scansioni non associate restano qui, con il
+    file, finche' qualcuno non le assegna a una verifica: nulla si perde."""
+
+    OUTCOME_READ = "READ"
+    OUTCOME_UNMATCHED = "UNMATCHED"
+    OUTCOME_ERROR = "ERROR"
+    OUTCOME_ASSIGNED = "ASSIGNED"
+    OUTCOME_DISCARDED = "DISCARDED"
+    OUTCOME_CHOICES = [
+        (OUTCOME_READ, "Letto e associato"),
+        (OUTCOME_UNMATCHED, "Da smistare"),
+        (OUTCOME_ERROR, "Errore di lettura"),
+        (OUTCOME_ASSIGNED, "Associato a mano"),
+        (OUTCOME_DISCARDED, "Scartato"),
+    ]
+
+    received_at = models.DateTimeField(default=timezone.now, db_index=True)
+    file_name = models.CharField(max_length=255)
+    page = models.PositiveSmallIntegerField(default=1)
+    source = models.CharField(max_length=20, default="CARTELLA")
+    outcome = models.CharField(max_length=10, choices=OUTCOME_CHOICES, db_index=True)
+    message = models.CharField(max_length=500, blank=True, default="")
+    token = models.CharField(max_length=16, blank=True, default="")
+    session = models.ForeignKey(
+        PeriodicCheckSession, on_delete=models.SET_NULL, null=True, blank=True, related_name="intake_logs"
+    )
+    # Copia del foglio, solo per quelli da smistare: senza, non si potrebbe associarli dopo.
+    scan = models.FileField(upload_to=_periodic_intake_upload_to, storage=PrivatePeriodicCheckStorage(), blank=True)
+    handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    handled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-received_at", "-id"]
+        verbose_name = "Scansione di verifica ricevuta"
+        verbose_name_plural = "Scansioni di verifica ricevute"
+
+    def __str__(self) -> str:
+        return f"{self.file_name} p.{self.page} ({self.get_outcome_display()})"
