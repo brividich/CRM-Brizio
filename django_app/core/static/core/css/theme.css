@@ -99,6 +99,15 @@ img,video{max-width:100%;height:auto}
 .nav-more .nav-dropdown-menu{left:auto;right:0}
 .nav-more-head{padding:8px 12px 4px;font-size:var(--fs-2xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light)}
 .nav-more-head:not(:first-child){margin-top:4px;border-top:1px solid var(--border);padding-top:10px}
+.nav-more-subhead{padding:6px 12px 2px;font-size:var(--fs-2xs);font-weight:600;color:var(--text-light)}
+.nav-dd-section{display:grid;gap:2px;align-content:start;min-width:0}
+.nav-dd-section+.nav-dd-section{margin-top:4px;padding-top:4px;border-top:1px solid var(--border)}
+.nav-dd-head{padding:8px 12px 4px;font-size:var(--fs-2xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light)}
+.nav-dropdown.open .nav-dropdown-menu--cols{grid-template-columns:repeat(var(--nav-cols,2),minmax(210px,1fr));column-gap:6px}
+.nav-dropdown-menu--cols .nav-dd-section+.nav-dd-section{margin-top:0;padding-top:0;border-top:0;padding-left:6px;border-left:1px solid var(--border)}
+.nav-dropdown-menu.nav-menu-flip{left:auto;right:0}
+/* Voce senza icona in una tendina che ne ha altre: stesso rientro, testi allineati. */
+.nav-dropdown-menu:has(.nav-item-icon) .nav-dropdown-item:not(:has(.nav-item-icon)){padding-left:39px}
 .nav-dropdown-item{position:relative;display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;color:var(--text);font-size:var(--fs-base);font-weight:500;text-decoration:none;transition:background .12s,color .12s}
 .nav-dropdown-item:hover,.nav-dropdown-item:focus-visible{background:color-mix(in srgb,var(--text) 7%,transparent);outline:none}
 .nav-dropdown-item.active{background:color-mix(in srgb,var(--accent) 12%,transparent);font-weight:700}
@@ -343,6 +352,11 @@ body.fs-xl{--fs-2xs:12px;--fs-xs:13px;--fs-sm:14px;--fs-base:17px;--fs-md:18px;-
 }
 .nav-hamburger{display:none;order:-1;width:36px;height:36px;border:none;border-radius:8px;background:rgba(255,255,255,.1);flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;cursor:pointer}
 .nav-hamburger.open .hbar:nth-child(1){transform:translateY(6px) rotate(45deg)}.nav-hamburger.open .hbar:nth-child(2){opacity:0}.nav-hamburger.open .hbar:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+/* Sotto 1600px il nome utente sta nel menu dell'avatar: lo spazio va alle voci. */
+@media (max-width:1600px){
+  .nav-user-text{display:none}
+  .nav-search{width:200px}
+}
 @media (max-width:1400px){
   .nav-a{padding:0 9px}
   .nav-a.active::after{left:9px;right:9px}
@@ -362,6 +376,8 @@ body.fs-xl{--fs-2xs:12px;--fs-xs:13px;--fs-sm:14px;--fs-base:17px;--fs-md:18px;-
   .nav-links .nav-a.active{background:rgba(255,255,255,.1)}
   .nav-dropdown{display:block;width:100%}
   .nav-dropdown-menu{position:static;margin:4px 0 6px;min-width:0;max-height:none;box-shadow:none}
+  .nav-dropdown.open .nav-dropdown-menu--cols{grid-template-columns:1fr}
+  .nav-dropdown-menu--cols .nav-dd-section+.nav-dd-section{margin-top:4px;padding:4px 0 0;border-left:0;border-top:1px solid var(--border)}
   .nav-more{display:none!important}
   .nav-search{width:auto}
 }

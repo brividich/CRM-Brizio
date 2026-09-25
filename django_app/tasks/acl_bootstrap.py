@@ -300,9 +300,11 @@ def _bootstrap_canonical_acl(*, seed_role_grants: bool = False) -> bool:
             .order_by("id")
             .first()
         )
-        nav_item, created = NavigationItem.objects.update_or_create(
-            code=existing_nav_item.code if existing_nav_item else "tasks",
-            defaults={
+        from core.navigation_registry import ensure_navigation_item
+
+        nav_item, created = ensure_navigation_item(
+            existing_nav_item.code if existing_nav_item else "tasks",
+            {
                 "label": "KICK-OFF",
                 "route_name": "tasks:list",
                 "url_path": "",

@@ -137,25 +137,15 @@ def _bootstrap_navigation() -> bool:
     if created:
         changed = True
     else:
+        # Solo i campi "di codice": etichetta, ordine, visibilita', categoria e gruppo
+        # sono dell'utente (Navigation Builder / riorganizza_topbar), vedi NavigationItem.
         updates = []
-        if item.label != "Presa Visione":
-            item.label = "Presa Visione"
-            updates.append("label")
         if item.section != "topbar":
             item.section = "topbar"
             updates.append("section")
         if item.route_name != "procedure_refresh:my_assignments":
             item.route_name = "procedure_refresh:my_assignments"
             updates.append("route_name")
-        if int(item.order or 0) != 70:
-            item.order = 70
-            updates.append("order")
-        if not item.is_visible:
-            item.is_visible = True
-            updates.append("is_visible")
-        if not item.is_enabled:
-            item.is_enabled = True
-            updates.append("is_enabled")
         if updates:
             item.save(update_fields=updates)
             changed = True

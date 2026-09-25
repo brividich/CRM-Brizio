@@ -201,7 +201,7 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 - **Impersonation** admin → utente con middleware dedicato e session key
 - **23 modelli Django** (Profile, AuditLog, SiteConfig, Notifica, Checklist*, OptioneConfig, ecc.)
 - **Ricerca unificata** Ctrl+K (o barra «Cerca o vai a…» in topnav): pagine recenti, salto a qualsiasi pagina di navigazione (ACL-filtrata) e ricerca dati su 7 sorgenti (dipendenti, asset, ticket, progetti, task, procedure, DPI), con modulo e preview risultato
-- **Topnav**: voci in eccesso raccolte in «Altro», hamburger da ≤1100px, menu utente (profilo, preferenze, tema chiaro/scuro, segnala problema, esci), approvazioni assenze in attesa come «N da approvare»
+- **Topnav**: voci in eccesso raccolte in «Altro», hamburger da ≤1100px, menu utente (profilo, preferenze, tema chiaro/scuro, segnala problema, esci), approvazioni assenze in attesa come «N da approvare». Struttura: Per me · Tickets · Produzione · Persone · Sicurezza e ambiente · Qualità · IT · Suggestion Corner, con sottocategorie da `NavigationItem.group`; si applica con `python manage.py riorganizza_topbar --apply` (dry-run senza `--apply`)
 </details>
 
 <details open>
