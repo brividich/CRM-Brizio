@@ -99,6 +99,8 @@ mssql-django==1.7.4
     # via -r requirements.in
 nodeenv==1.10.0
     # via pre-commit
+numpy==2.5.3
+    # via -r requirements.in
 openpyxl==3.1.5
     # via -r requirements.in
 packaging==26.2
@@ -212,6 +214,8 @@ wheel==0.47.0
 x690==1.0.0.post1
     # via puresnmp
 xlrd==2.0.2
+    # via -r requirements.in
+zxing-cpp==3.1.1
     # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
