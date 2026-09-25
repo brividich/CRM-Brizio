@@ -1,0 +1,97 @@
+{% extends "core/base.html" %}
+
+{% block title %}SoA Rev.{{ revisione.numero }} | Sistema di gestione{% endblock %}
+
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}
+<style>.content{width:100%;max-width:100%}.rc-wrap{max-width:1800px;margin:0 auto}</style>{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:index' %}">← Sistema di gestione</a>
+
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">Dichiarazione di applicabilità — Rev.{{ revisione.numero }} <span class="sg-state is-{{ revisione.stato }}">{{ revisione.get_stato_display }}</span></div>
+      <div class="page-sub">ISO/IEC 27001:2022 §6.1.3 d) · MOD.165 Control Matrix · 4 = controllo pienamente applicato, 0 = non applicato (escluso)</div>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn btn-secondary" href="?formato=xlsx">Excel</a>
+      <a class="btn" href="?formato=pdf">PDF</a>
+    </div>
+  </div>
+
+  <div class="rc-card sg-meta">
+    <span>Revisioni:
+      {% for r in revisioni %}<a class="rc-chip{% if r.numero == revisione.numero %} is-active{% endif %}" href="{% url 'sistema_gestione:soa_revisione' r.numero %}">Rev.{{ r.numero }}</a> {% endfor %}
+    </span>
+    {% if revisione.preparata_da %}<span>Preparata da <strong>{{ revisione.preparata_da.get_full_name|default:revisione.preparata_da.username }}</strong>{% if revisione.proposta_il %}, proposta il {{ revisione.proposta_il|date:"d/m/Y H:i" }}{% endif %}</span>{% endif %}
+    {% if revisione.approvata_il %}<span>Approvata da <strong>{{ revisione.approvata_da.get_full_name|default:revisione.approvata_da.username }}</strong> il {{ revisione.approvata_il|date:"d/m/Y H:i" }}</span>{% endif %}
+    {% if revisione.motivo %}<span>Motivo: {{ revisione.motivo }}</span>{% endif %}
+    {% if revisione.copia_firmata %}<span><a href="{% url 'sistema_gestione:soa_copia_firmata' revisione.numero %}">Copia firmata</a> (caricata il {{ revisione.copia_firmata_caricata_il|date:"d/m/Y" }})</span>{% endif %}
+    {% if precedente %}<span>{{ n_cambi }} controlli modificati rispetto alla Rev.{{ precedente.numero }}</span>{% endif %}
+  </div>
+
+  {% if puo_proporre or puo_riportare or puo_approvare or puo_nuova or puo_caricare_firmata %}
+  <div class="sg-actions">
+    {% if puo_proporre %}
+      <form method="post" action="{% url 'sistema_gestione:soa_proponi' revisione.numero %}">{% csrf_token %}<button class="btn" type="submit">Proponi alla Direzione</button></form>
+    {% endif %}
+    {% if puo_approvare %}
+      <form method="post" action="{% url 'sistema_gestione:soa_approva' revisione.numero %}">{% csrf_token %}<button class="btn" type="submit">Approva la revisione</button></form>
+    {% endif %}
+    {% if puo_riportare %}
+      <form method="post" action="{% url 'sistema_gestione:soa_riporta_in_bozza' revisione.numero %}">{% csrf_token %}<button class="btn btn-secondary" type="submit">Riporta in bozza</button></form>
+    {% endif %}
+    {% if puo_nuova %}
+      <form method="post" action="{% url 'sistema_gestione:soa_nuova_revisione' %}">{% csrf_token %}
+        <input type="text" name="motivo" placeholder="Motivo della nuova revisione" maxlength="255">
+        <button class="btn btn-secondary" type="submit">Apri nuova revisione</button>
+      </form>
+    {% endif %}
+    {% if puo_caricare_firmata %}
+      <form method="post" enctype="multipart/form-data" action="{% url 'sistema_gestione:soa_carica_firmata' revisione.numero %}">{% csrf_token %}
+        <input type="file" name="file" accept="application/pdf" required>
+        <button class="btn btn-secondary" type="submit">Carica copia firmata</button>
+      </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% include "report_conformita/components/_kpis.html" with kpis=kpis %}
+
+  <div class="rc-chips">
+    <a class="rc-chip{% if not tema and not filtro %} is-active{% endif %}" href="?">Tutti</a>
+    {% for code, label in temi %}<a class="rc-chip{% if tema == code %} is-active{% endif %}" href="?tema={{ code }}">{{ label }}</a>{% endfor %}
+    <a class="rc-chip{% if filtro == 'parziali' %} is-active{% endif %}" href="?filtro=parziali">Applicati in parte</a>
+    <a class="rc-chip{% if filtro == 'esclusi' %} is-active{% endif %}" href="?filtro=esclusi">Esclusi</a>
+    <a class="rc-chip{% if filtro == 'azioni' %} is-active{% endif %}" href="?filtro=azioni">Con azione aperta</a>
+    {% if precedente %}<a class="rc-chip{% if filtro == 'modificati' %} is-active{% endif %}" href="?filtro=modificati">Modificati</a>{% endif %}
+  </div>
+
+  <div class="rc-table-wrap">
+    <table class="rc-table">
+      <thead><tr>
+        <th>Controllo</th><th>Applicato</th><th>Vuln.</th><th>Riferimenti</th><th>Giustificazione</th>
+        <th>Obbligo</th><th>Azione</th><th>Evidenza nel portale</th>{% if puo_modificare %}<th></th>{% endif %}
+      </tr></thead>
+      <tbody>
+      {% for r in righe %}{% with v=r.voce %}
+        <tr id="c-{{ v.controllo.codice }}"{% if r.scaduta %} class="tone-danger"{% endif %}>
+          <td><span class="sg-code">{{ v.controllo.codice }}</span> {{ v.controllo.titolo }}{% if r.cambi %}<br><span class="sg-changed">Modificato: {{ r.cambi|join:", " }}</span>{% endif %}</td>
+          <td><span class="sg-level l{{ v.livello }}">{% if v.livello %}{{ v.livello }}{% else %}Escluso{% endif %}</span></td>
+          <td>{% if v.livello %}{{ v.vulnerabilita }}{% endif %}</td>
+          <td class="sg-cell-text">{{ v.riferimenti }}</td>
+          <td class="sg-cell-text">{{ v.giustificazione }}</td>
+          <td>{{ v.obblighi_label }}</td>
+          <td class="sg-cell-text">{% if v.azione %}{{ v.azione }}<br><span class="sg-muted">{{ v.responsabile }}{% if v.scadenza %} · entro {{ v.scadenza|date:"d/m/Y" }}{% endif %}{% if v.ofi %} · OFI n. {{ v.ofi.numero }}{% endif %}</span>{% endif %}</td>
+          <td><div class="sg-ev">{% for label, url in r.evidenze %}<a href="{{ url }}">{{ label }} →</a>{% endfor %}</div></td>
+          {% if puo_modificare %}<td><a class="btn btn-secondary" href="{% url 'sistema_gestione:soa_voce' v.pk %}">Modifica</a></td>{% endif %}
+        </tr>
+      {% endwith %}{% empty %}
+        <tr><td colspan="9" class="rc-empty">Nessun controllo per il filtro scelto.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
