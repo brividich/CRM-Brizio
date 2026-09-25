@@ -80,6 +80,7 @@ class AuditForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["numero"].required = False
+        self.fields["processi"].required = True
         self.fields["lead_auditor"].queryset = Auditor.objects.filter(attivo=True)
         self.fields["auditor"].queryset = Auditor.objects.filter(attivo=True)
         programma = self.data.get("programma") or getattr(self.instance, "programma_id", None)

@@ -2,20 +2,42 @@
 from __future__ import annotations
 
 import io
+import os
 from html import escape
 
 from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
-from reportlab.lib.pagesizes import A3, A4
+from reportlab.lib.pagesizes import A3, A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 from core.pdf import PdfTheme
 
-from .models import Audit, AuditEsito, ProgrammaAudit
+from .models import Audit, AuditEsito, CellaProgramma, ProgrammaAudit
 from .services.audit import contatori_rilievi
+
+
+def _register_checkbox_font() -> str | None:
+    candidates = [
+        os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "seguisym.ttf"),
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/Library/Fonts/Arial Unicode.ttf",
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            try:
+                pdfmetrics.registerFont(TTFont("SGCheckbox", path))
+                return "SGCheckbox"
+            except Exception:
+                continue
+    return None
+
+
+_CHECKBOX_FONT = _register_checkbox_font()
 
 
 def _fmt_user(user) -> str:
@@ -31,9 +53,7 @@ def _d(value) -> str:
 
 
 def _check(flag: bool) -> str:
-    # I font PDF standard non contengono in modo affidabile i glifi checkbox.
-    # La resa ASCII resta leggibile anche dopo stampa, scansione e OCR.
-    return "[X]" if flag else "[ ]"
+    return "\u2612" if flag else "\u2610"
 
 
 def _styles():
@@ -51,7 +71,11 @@ def _styles():
 
 
 def _p(value, style):
-    return Paragraph(escape(str(value or "")).replace("\n", "<br/>"), style)
+    testo = escape(str(value or "")).replace("\n", "<br/>")
+    if _CHECKBOX_FONT:
+        testo = testo.replace("\u2612", '<font name="SGCheckbox">&#x2612;</font>')
+        testo = testo.replace("\u2610", '<font name="SGCheckbox">&#x2610;</font>')
+    return Paragraph(testo, style)
 
 
 def _table(rows, widths, *, repeat=0, section_rows=(), font_size=7.5):
@@ -75,7 +99,7 @@ def _table(rows, widths, *, repeat=0, section_rows=(), font_size=7.5):
     return table
 
 
-def _header(title: str, code: str, subtitle: str = ""):
+def _header(title: str, code: str, subtitle: str = "", *, width: float = 184 * mm):
     styles = _styles()
     theme = PdfTheme.from_branding()
     if theme.logo_path:
@@ -87,7 +111,7 @@ def _header(title: str, code: str, subtitle: str = ""):
         styles["title"],
     )
     right = _p(code, styles["small"])
-    return _table([[left, center, right]], [48 * mm, 93 * mm, 43 * mm], font_size=7)
+    return _table([[left, center, right]], [width * .28, width * .50, width * .22], font_size=7)
 
 
 def _firma(label: str, user, when) -> str:
@@ -100,23 +124,33 @@ def programma_pdf(programma: ProgrammaAudit) -> bytes:
     styles = _styles()
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
-        buf, pagesize=A3, leftMargin=8 * mm, rightMargin=8 * mm,
+        buf, pagesize=landscape(A3), leftMargin=8 * mm, rightMargin=8 * mm,
         topMargin=8 * mm, bottomMargin=12 * mm, title="MOD.034 - Programma audit",
     )
-    width = A3[0] - 16 * mm
+    width = landscape(A3)[0] - 16 * mm
     story = [
-        _header("PIANO AUDIT INTERNI ANNO", "MOD.034 Rev.18", str(programma.anno)),
-        Spacer(1, 3 * mm),
-        _table([
-            [_p("LEGENDA", styles["head"]), "PR: V.I. Programmata", "RP: V.I. Riprogrammata", "ST: V.I. Straordinaria"],
-        ], [30 * mm, 55 * mm, 58 * mm, 55 * mm]),
+        _header(
+            "PIANO AUDIT INTERNI ANNO",
+            f"Codice: MOD.034\nRev.: 18\nAnno: {programma.anno}",
+            str(programma.anno),
+            width=width,
+        ),
         Spacer(1, 3 * mm),
     ]
+    legenda = _table([
+            [_p("LEGENDA", styles["head"]), "PR: V.I. Programmata", "RP: V.I. Riprogrammata", "ST: V.I. Straordinaria"],
+        ], [30 * mm, 55 * mm, 58 * mm, 55 * mm])
+    legenda.setStyle(TableStyle([
+        ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#fff67a")),
+        ("BACKGROUND", (2, 0), (2, 0), colors.HexColor("#b8a7d1")),
+        ("BACKGROUND", (3, 0), (3, 0), colors.HexColor("#f7dcc4")),
+    ]))
+    story += [legenda, Spacer(1, 3 * mm)]
     months = ["G", "F", "M", "A", "M", "G", "L", "A", "S", "O", "N", "D"]
     rows = [[
         _p("AREA SOGGETTA AD AUDIT INTERNO", styles["head"]), _p("ENTI", styles["head"]),
-        _p("9100:2018", styles["head"]), _p("45001:2018", styles["head"]),
-        _p("27001:2022", styles["head"]), _p("PdR 125:2022", styles["head"]),
+        _p("9100:2018", styles["small"]), _p("45001:2018", styles["small"]),
+        _p("27001:2022", styles["small"]), _p("PdR 125:2022", styles["small"]),
         _p("Normative", styles["head"]), *[_p(m, styles["head"]) for m in months],
     ]]
     for riga in programma.righe.prefetch_related("celle"):
@@ -128,10 +162,23 @@ def programma_pdf(programma: ProgrammaAudit) -> bytes:
             _p(riga.punti_pdr125, styles["cell"]), _p(riga.altre_normative, styles["small"]),
             *[_p(celle.get(mese, ""), styles["head"]) for mese in range(1, 13)],
         ])
-    fixed = [57, 38, 31, 31, 31, 31, 37]
-    month_width = max(12, (width - sum(fixed)) / 12)
+    fixed = [62 * mm, 35 * mm, 23 * mm, 23 * mm, 23 * mm, 23 * mm, 35 * mm]
+    month_width = max(8 * mm, (width - sum(fixed)) / 12)
+    griglia = _table(rows, fixed + [month_width] * 12, repeat=1, font_size=6.2)
+    colori_stato = {
+        CellaProgramma.STATO_PR: colors.HexColor("#fff67a"),
+        CellaProgramma.STATO_RP: colors.HexColor("#b8a7d1"),
+        CellaProgramma.STATO_ST: colors.HexColor("#f7dcc4"),
+    }
+    for row_index, riga in enumerate(programma.righe.prefetch_related("celle"), start=1):
+        for cella in riga.celle.all():
+            col = 6 + cella.mese
+            griglia.setStyle(TableStyle([
+                ("BACKGROUND", (col, row_index), (col, row_index), colori_stato[cella.stato]),
+                ("ALIGN", (col, row_index), (col, row_index), "CENTER"),
+            ]))
     story += [
-        _table(rows, fixed + [month_width] * 12, repeat=1, font_size=6.4),
+        griglia,
         Spacer(1, 4 * mm),
         _table([
             [_p("RIF. VERBALE DI RIESAME", styles["head"]), _p(programma.rif_riesame, styles["cell"])],
@@ -155,7 +202,15 @@ def piano_audit_pdf(audit: Audit) -> bytes:
         topMargin=13 * mm, bottomMargin=13 * mm, title="MOD.035A - Piano di audit",
     )
     width = A4[0] - 26 * mm
-    story = [_header("PIANO DI AUDIT", "Codice: MOD.035A · Rev.: 0", "MOD.035A Rev.0"), Spacer(1, 4 * mm)]
+    story = [_header(
+        "PIANO DI AUDIT / MOD.035A Rev.0",
+        f"Codice: MOD.035A\nRev.: 0\nData emissione: {_d(audit.created_at.date())}",
+    ), Spacer(1, 4 * mm)]
+    tipi = "  ".join([
+        f"{_check(audit.tipo == Audit.TIPO_SISTEMA)} Sistema SGI (RAIS)",
+        f"{_check(audit.tipo == Audit.TIPO_MANDATORIO_CLIENTE)} Mandatorio Cliente (RAI)",
+        f"{_check(audit.tipo == Audit.TIPO_STRAORDINARIO)} Straordinario",
+    ])
     norme = "  ".join([
         f"{_check(audit.en9100)} EN 9100:2018", f"{_check(audit.iso45001)} ISO 45001:2018",
         f"{_check(audit.iso27001)} ISO/IEC 27001:2022", f"{_check(audit.pdr125)} UNI/PdR 125",
@@ -167,6 +222,12 @@ def piano_audit_pdf(audit: Audit) -> bytes:
     ])
     team = ", ".join(a.nome for a in audit.auditor.all())
     programma = audit.programma
+    rif_programma = f"MOD.034 Rev.{programma.revisione} - Anno {programma.anno}" if programma else ""
+    comunicazione = (
+        f"Data: {_dt(audit.comunicazione_il)}  Metodo: "
+        f"{_check(audit.comunicazione_metodo == Audit.COM_EMAIL)} Email  "
+        f"{_check(audit.comunicazione_metodo == Audit.COM_CALENDARIO)} Calendario condiviso (Teams/Outlook)"
+    )
     main = [
         [_p("1. IDENTIFICAZIONE DELL'AUDIT", styles["head"]), "", "", ""],
         [_p("N° Audit", styles["head"]), audit.numero, _p("Data emissione piano", styles["head"]), _d(audit.created_at.date())],
@@ -190,20 +251,33 @@ def piano_audit_pdf(audit: Audit) -> bytes:
         [_p("4. PERSONE COINVOLTE", styles["head"]), "", "", ""],
         [_p("Nome e Cognome", styles["head"]), _p("Funzione / Ente", styles["head"]), _p("Ruolo", styles["head"]), _p("Email", styles["head"])],
     ]
+    main[2] = [_p("Tipo audit", styles["head"]), _p(tipi, styles["cell"]), "", ""]
+    main[4][1] = rif_programma
+    main[15] = [_p("Comunicazione agli auditati", styles["head"]), _p(comunicazione, styles["cell"]), "", ""]
+    main[17] = [
+        _p("Nome e Cognome", styles["head"]),
+        _p("Funzione / Ente", styles["head"]),
+        _p("Ruolo", styles["head"]),
+        "",
+    ]
     for persona in audit.persone.all():
         main.append([persona.nome, persona.funzione_ente, persona.get_ruolo_display(), persona.email])
+    for row in main[18:]:
+        row[3] = ""
     while len(main) < 28:
         main.append(["", "", "", ""])
     section_rows = (0, 5, 11, 16)
     t = _table(main, [43 * mm, 49 * mm, 51 * mm, width - 143 * mm], section_rows=section_rows)
     t.setStyle(TableStyle([
-        ("SPAN", (0, 0), (-1, 0)), ("SPAN", (0, 2), (-1, 2)),
+        ("SPAN", (0, 0), (-1, 0)), ("SPAN", (1, 2), (-1, 2)),
         ("SPAN", (1, 6), (-1, 6)), ("SPAN", (1, 7), (-1, 7)), ("SPAN", (1, 8), (-1, 8)),
         ("SPAN", (1, 9), (-1, 9)), ("SPAN", (1, 10), (-1, 10)),
         ("SPAN", (0, 5), (-1, 5)), ("SPAN", (0, 11), (-1, 11)),
         ("SPAN", (1, 14), (-1, 14)), ("SPAN", (1, 15), (-1, 15)),
         ("SPAN", (0, 16), (-1, 16)),
     ]))
+    for row in range(17, len(main)):
+        t.setStyle(TableStyle([("SPAN", (2, row), (3, row))]))
     story += [t, PageBreak(), _p("5. PROGRAMMA ORARIO", styles["head"])]
     agenda = [[_p("Data / Ora", styles["head"]), _p("Processo / Area", styles["head"]), _p("Attività / Punto norma / Documento", styles["head"]), _p("Auditor", styles["head"])]]
     for voce in audit.agenda.all():
@@ -238,8 +312,17 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
         topMargin=13 * mm, bottomMargin=13 * mm, title="MOD.035B - Rapporto di audit interno",
     )
     width = A4[0] - 26 * mm
-    story = [_header("RAPPORTO DI AUDIT INTERNO", "Codice: MOD.035B · Rev.: 0", "RAIS - MOD.035B Rev.0"), Spacer(1, 4 * mm)]
+    story = [_header(
+        "RAPPORTO DI AUDIT INTERNO / RAIS - MOD.035B Rev.0",
+        f"Codice: MOD.035B\nRev.: 0\nN.: {audit.numero}\nData: {_d(audit.data_fine or audit.data_inizio)}",
+    ), Spacer(1, 4 * mm)]
     team = ", ".join(a.nome for a in audit.auditor.all())
+    norme_rapporto = "  ".join([
+        f"{_check(audit.en9100)} EN 9100:2018",
+        f"{_check(audit.iso45001)} ISO 45001:2018",
+        f"{_check(audit.iso27001)} ISO/IEC 27001:2022",
+        f"{_check(audit.pdr125)} UNI/PdR 125",
+    ])
     intestazione = [
         [_p("A. INTESTAZIONE AUDIT", styles["head"]), "", "", ""],
         [_p("N° Rapporto", styles["head"]), audit.numero, _p("Date esecuzione", styles["head"]), f"{_d(audit.data_inizio)} - {_d(audit.data_fine)}"],
@@ -251,6 +334,9 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
         [_p("Rif. Piano di Audit", styles["head"]), f"MOD.035A n° {audit.numero}", _p("Rif. Programma", styles["head"]), str(audit.programma or "")],
         [_p("Esclusioni", styles["head"]), _p(audit.esclusioni, styles["cell"]), "", ""],
     ]
+    intestazione[3][1] = _p(norme_rapporto, styles["cell"])
+    if audit.programma:
+        intestazione[7][3] = f"MOD.034 Rev.{audit.programma.revisione} - Anno {audit.programma.anno}"
     head = _table(intestazione, [43 * mm, 49 * mm, 43 * mm, width - 135 * mm], section_rows=(0,))
     head.setStyle(TableStyle([
         ("SPAN", (0, 0), (-1, 0)),

@@ -621,7 +621,11 @@ class AuditEsito(models.Model):
     class Meta:
         ordering = ["domanda__sezione__ordine", "domanda__ordine", "id"]
         constraints = [
-            models.UniqueConstraint(fields=["audit", "domanda"], name="sg_esito_unico_audit_domanda"),
+            models.UniqueConstraint(
+                fields=["audit", "domanda"],
+                condition=models.Q(domanda__isnull=False),
+                name="sg_esito_unico_audit_domanda",
+            ),
         ]
 
     def clean(self):

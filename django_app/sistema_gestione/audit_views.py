@@ -61,12 +61,38 @@ def _audit_url(audit: Audit, anchor: str = "") -> str:
     return f"{url}#{anchor}" if anchor else url
 
 
+def _rapporto_modificabile(audit: Audit) -> bool:
+    return (
+        audit.stato in {Audit.STATO_IN_CORSO, Audit.STATO_RAPPORTO}
+        and not audit.rapporto_firmato_auditor_il
+    )
+
+
+def _puo_convalidare_ente(request, audit: Audit) -> bool:
+    if _has_perm(request, PERM_AUDIT_APPROVA):
+        return True
+    email = (getattr(request.user, "email", "") or "").strip()
+    return bool(
+        email
+        and _has_perm(request, PERM_AUDIT_VIEW)
+        and audit.persone.filter(ruolo=AuditPersona.RUOLO_PROCESSO, email__iexact=email).exists()
+    )
+
+
+def _rapporto_firmato_redirect(request, audit: Audit):
+    messages.error(request, "Il rapporto firmato non Ã¨ modificabile: riaprilo prima di apportare variazioni.")
+    return redirect(_audit_url(audit, "rapporto"))
+
+
 @login_required
 def audit_index(request):
     if not _has_perm(request, PERM_AUDIT_VIEW):
         return _deny(request)
     oggi = timezone.localdate()
-    anno = int(request.GET.get("anno") or oggi.year)
+    try:
+        anno = int(request.GET.get("anno") or oggi.year)
+    except (TypeError, ValueError):
+        anno = oggi.year
     programmi = ProgrammaAudit.objects.filter(anno=anno).order_by("-revisione")
     audit = Audit.objects.filter(data_inizio__year=anno).select_related("lead_auditor", "programma")
     return render(request, "sistema_gestione/pages/audit_index.html", {
@@ -331,8 +357,13 @@ def programma_copia_firmata(request, pk: int):
     programma = get_object_or_404(ProgrammaAudit, pk=pk)
     if not programma.copia_firmata:
         raise Http404
-    return FileResponse(programma.copia_firmata.open("rb"), content_type="application/pdf", as_attachment=True,
-                        filename=f"MOD034_{programma.anno}_Rev{programma.revisione}_firmato.pdf")
+    log_action(request, "programma_copia_firmata_scaricata", MODULE, {}, oggetto=programma)
+    response = FileResponse(
+        programma.copia_firmata.open("rb"), content_type="application/pdf", as_attachment=True,
+        filename=f"MOD034_{programma.anno}_Rev{programma.revisione}_firmato.pdf",
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -415,6 +446,9 @@ def audit_dettaglio(request, pk: int):
     car = {c.sezione_id: c for c in audit.car_sezioni.all()}
     for sezione in sorted(by_section, key=lambda s: (s.ordine, s.pk)):
         gruppi.append({"sezione": sezione, "esiti": by_section[sezione], "car": car.get(sezione.pk)})
+    executor_assegnato = _assigned_executor(request, audit)
+    puo_approvare = _has_perm(request, PERM_AUDIT_APPROVA)
+    puo_convalidare_ente = _puo_convalidare_ente(request, audit)
     return render(request, "sistema_gestione/pages/audit_dettaglio.html", {
         "page_title": f"Audit {audit.numero}", "audit": audit, "gruppi": gruppi,
         "contatori": service.contatori_rilievi(audit),
@@ -425,8 +459,16 @@ def audit_dettaglio(request, pk: int):
         "form_valutazione": ValutazioneRddForm(instance=audit),
         "form_firmata": CopiaFirmataForm(),
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
-        "puo_eseguire": _assigned_executor(request, audit),
-        "puo_approvare": _has_perm(request, PERM_AUDIT_APPROVA),
+        "puo_eseguire": executor_assegnato and not audit.rapporto_firmato_auditor_il,
+        "puo_approvare": puo_approvare,
+        "puo_riaprire_rapporto": bool(
+            executor_assegnato
+            and audit.rapporto_firmato_auditor_il
+            and not audit.rapporto_convalidato_ente_il
+            and not audit.rapporto_valutato_rdd_il
+        ),
+        "puo_convalidare_ente_senza_approvare": puo_convalidare_ente and not puo_approvare,
+        "rapporto_modificabile": _rapporto_modificabile(audit),
     })
 
 
@@ -506,6 +548,9 @@ def audit_comunica(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
     audit = get_object_or_404(Audit, pk=pk)
+    if audit.stato not in {Audit.STATO_PIANIFICATO, Audit.STATO_PIANO_APPROVATO}:
+        messages.error(request, "Il piano puÃ² essere comunicato solo prima dell'avvio dell'audit.")
+        return redirect(_audit_url(audit, "comunicazione"))
     form = ComunicazioneAuditForm(request.POST)
     if form.is_valid():
         try:
@@ -546,6 +591,8 @@ def audit_esito_salva(request, pk: int, esito_pk: int):
     audit = get_object_or_404(Audit, pk=pk)
     if not _assigned_executor(request, audit) or audit.stato not in {Audit.STATO_IN_CORSO, Audit.STATO_RAPPORTO}:
         return _deny(request)
+    if audit.rapporto_firmato_auditor_il:
+        return _rapporto_firmato_redirect(request, audit)
     esito = get_object_or_404(AuditEsito, pk=esito_pk, audit=audit)
     form = AuditEsitoForm(request.POST, instance=esito)
     if form.is_valid():
@@ -561,6 +608,8 @@ def audit_esito_salva(request, pk: int, esito_pk: int):
 @require_POST
 def audit_domanda_aggiuntiva(request, pk: int):
     audit = get_object_or_404(Audit, pk=pk)
+    if _assigned_executor(request, audit) and audit.rapporto_firmato_auditor_il:
+        return _rapporto_firmato_redirect(request, audit)
     if not _assigned_executor(request, audit) or audit.stato != Audit.STATO_IN_CORSO:
         return _deny(request)
     form = AuditDomandaAggiuntivaForm(request.POST, audit=audit)
@@ -578,8 +627,10 @@ def audit_domanda_aggiuntiva(request, pk: int):
 @require_POST
 def audit_car_sezione(request, pk: int, car_pk: int):
     audit = get_object_or_404(Audit, pk=pk)
-    if not _assigned_executor(request, audit):
+    if not _assigned_executor(request, audit) or audit.stato not in {Audit.STATO_IN_CORSO, Audit.STATO_RAPPORTO}:
         return _deny(request)
+    if audit.rapporto_firmato_auditor_il:
+        return _rapporto_firmato_redirect(request, audit)
     car = get_object_or_404(audit.car_sezioni, pk=car_pk)
     car.car_aperta = request.POST.get("car_aperta") == "1"
     car.save(update_fields=["car_aperta"])
@@ -593,6 +644,8 @@ def audit_rapporto_salva(request, pk: int):
     audit = get_object_or_404(Audit, pk=pk)
     if not _assigned_executor(request, audit) or audit.stato not in {Audit.STATO_IN_CORSO, Audit.STATO_RAPPORTO}:
         return _deny(request)
+    if audit.rapporto_firmato_auditor_il:
+        return _rapporto_firmato_redirect(request, audit)
     form = AuditRapportoForm(request.POST, instance=audit)
     if form.is_valid():
         audit = form.save(commit=False)
@@ -618,10 +671,29 @@ def audit_firma_rapporto(request, pk: int):
 
 @login_required
 @require_POST
-def audit_convalida_ente(request, pk: int):
-    if not _has_perm(request, PERM_AUDIT_APPROVA):
-        return _deny(request)
+def audit_riapri_rapporto(request, pk: int):
     audit = get_object_or_404(Audit, pk=pk, stato=Audit.STATO_RAPPORTO)
+    if not _assigned_executor(request, audit):
+        return _deny(request)
+    if audit.rapporto_convalidato_ente_il or audit.rapporto_valutato_rdd_il:
+        messages.error(request, "Il rapporto giÃ  convalidato o valutato non puÃ² essere riaperto.")
+    elif not audit.rapporto_firmato_auditor_il:
+        messages.error(request, "Il rapporto non risulta firmato.")
+    else:
+        audit.rapporto_firmato_auditor_da = None
+        audit.rapporto_firmato_auditor_il = None
+        audit.save(update_fields=["rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
+        log_action(request, "audit_rapporto_riaperto", MODULE, {}, oggetto=audit)
+        messages.success(request, "Rapporto riaperto: Ã¨ nuovamente modificabile.")
+    return redirect(_audit_url(audit, "rapporto"))
+
+
+@login_required
+@require_POST
+def audit_convalida_ente(request, pk: int):
+    audit = get_object_or_404(Audit, pk=pk, stato=Audit.STATO_RAPPORTO)
+    if not _puo_convalidare_ente(request, audit):
+        return _deny(request)
     if not audit.rapporto_firmato_auditor_il:
         messages.error(request, "Serve prima la firma dell'auditor.")
     else:
@@ -700,5 +772,10 @@ def audit_copia_firmata(request, pk: int, documento: str):
     campo = {"piano": "copia_firmata_piano", "rapporto": "copia_firmata_rapporto"}.get(documento)
     if not campo or not getattr(audit, campo):
         raise Http404
-    return FileResponse(getattr(audit, campo).open("rb"), content_type="application/pdf", as_attachment=True,
-                        filename=f"{documento}_{audit.numero}_firmato.pdf")
+    log_action(request, "audit_copia_firmata_scaricata", MODULE, {"documento": documento}, oggetto=audit)
+    response = FileResponse(
+        getattr(audit, campo).open("rb"), content_type="application/pdf", as_attachment=True,
+        filename=f"{documento}_{audit.numero}_firmato.pdf",
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    return response

@@ -1719,6 +1719,10 @@ Il comando `status` segnala automaticamente sessioni stale (avvio > 8 ore: avvis
 | Collega HR | `django_app/anagrafica/**` | Solo con sessione aperta da Brizio |
 | Brizio | tutto | Autorizza modifiche critiche |
 
+### Aggiornamento audit interni EN 9100 - fase 2
+
+Il rapporto MOD.035B diventa immutabile dopo la firma dell'auditor; l'auditor assegnato puÃ² usare **Riapri il rapporto** solo prima della convalida dell'ente e della valutazione RDD. La convalida Ã¨ consentita alla Direzione oppure al responsabile di processo identificato dall'email con permesso audit di lettura. Nel report di conformitÃ , il KPI programmato usa soltanto la revisione MOD.034 approvata e i mesi del periodo; gli anni privi di programma approvato sono esplicitati nelle note.
+
 ---
 
 <div align="center">

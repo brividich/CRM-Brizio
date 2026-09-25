@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+import unicodedata
 from datetime import datetime, time, timedelta
 
 from django.contrib.contenttypes.models import ContentType
@@ -255,7 +256,14 @@ def reparto_auditor(auditor: Auditor) -> str:
 
 
 def conflitti_imparzialita(*, processi: str, lead: Auditor | None, auditor) -> list[str]:
-    ambito = " ".join((processi or "").casefold().split())
+    def token(value: str) -> tuple[str, ...]:
+        normalizzato = unicodedata.normalize("NFKD", value or "")
+        senza_accenti = "".join(c for c in normalizzato if not unicodedata.combining(c))
+        return tuple(re.findall(r"[a-z0-9]+", senza_accenti.casefold()))
+
+    ambito = set(token(processi))
+    if not ambito:
+        return []
     conflitti: list[str] = []
     candidati = [a for a in [lead, *list(auditor or [])] if a]
     visti: set[int] = set()
@@ -263,9 +271,10 @@ def conflitti_imparzialita(*, processi: str, lead: Auditor | None, auditor) -> l
         if persona.pk in visti:
             continue
         visti.add(persona.pk)
-        reparto = " ".join(reparto_auditor(persona).casefold().split())
-        if reparto and (reparto in ambito or ambito in reparto):
-            conflitti.append(f"{persona.nome} ({reparto_auditor(persona)})")
+        reparto_originale = reparto_auditor(persona)
+        reparto = token(reparto_originale)
+        if reparto and set(reparto).issubset(ambito):
+            conflitti.append(f"{persona.nome} ({reparto_originale})")
     return conflitti
 
 
@@ -321,7 +330,9 @@ def sincronizza_ofi(esito: AuditEsito):
     }
     for _tentativo in range(2):
         try:
-            voce = RegistroOFI.objects.create(numero=_prossimo_numero_ofi(), **dati)
+            # Il savepoint rende recuperabile la transazione esterna anche su SQL Server.
+            with transaction.atomic():
+                voce = RegistroOFI.objects.create(numero=_prossimo_numero_ofi(), **dati)
             break
         except IntegrityError:
             if _tentativo:

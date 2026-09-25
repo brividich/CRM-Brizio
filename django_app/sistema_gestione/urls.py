@@ -50,6 +50,7 @@ urlpatterns = [
     path("audit/<int:pk>/car/<int:car_pk>/", audit_views.audit_car_sezione, name="audit_car_sezione"),
     path("audit/<int:pk>/rapporto/", audit_views.audit_rapporto_salva, name="audit_rapporto_salva"),
     path("audit/<int:pk>/rapporto/firma/", audit_views.audit_firma_rapporto, name="audit_firma_rapporto"),
+    path("audit/<int:pk>/rapporto/riapri/", audit_views.audit_riapri_rapporto, name="audit_riapri_rapporto"),
     path("audit/<int:pk>/rapporto/convalida-ente/", audit_views.audit_convalida_ente, name="audit_convalida_ente"),
     path("audit/<int:pk>/rapporto/valuta-rdd/", audit_views.audit_valuta_rdd, name="audit_valuta_rdd"),
     path("audit/<int:pk>/<str:documento>/pdf/", audit_views.audit_export, name="audit_export"),

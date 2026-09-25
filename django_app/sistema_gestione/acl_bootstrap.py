@@ -105,6 +105,7 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:audit_car_sezione": PERM_AUDIT_ESEGUI,
     "sistema_gestione:audit_rapporto_salva": PERM_AUDIT_ESEGUI,
     "sistema_gestione:audit_firma_rapporto": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_riapri_rapporto": PERM_AUDIT_ESEGUI,
     "sistema_gestione:auditor_approva_esterno": PERM_AUDIT_APPROVA,
     "sistema_gestione:programma_approva": PERM_AUDIT_APPROVA,
     "sistema_gestione:programma_convalida": PERM_AUDIT_APPROVA,

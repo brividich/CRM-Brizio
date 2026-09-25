@@ -410,10 +410,23 @@ register(ReportDef(
 # ---------------------------------------------------------------------------
 
 def _audit_interni(params: ReportParams) -> ReportResult:
-    from sistema_gestione.models import Audit, AuditEsito, Auditor, CellaProgramma
+    from sistema_gestione.models import Audit, AuditEsito, Auditor, CellaProgramma, ProgrammaAudit
 
     result = ReportResult()
-    celle = CellaProgramma.objects.filter(riga__programma__anno__range=(params.date_from.year, params.date_to.year))
+    anni = range(params.date_from.year, params.date_to.year + 1)
+    programmi_vigenti = ProgrammaAudit.objects.filter(
+        anno__in=anni,
+        stato=ProgrammaAudit.STATO_APPROVATO,
+    )
+    anni_con_programma = set(programmi_vigenti.values_list("anno", flat=True))
+    filtro_mesi = Q()
+    for anno in anni:
+        mese_da = params.date_from.month if anno == params.date_from.year else 1
+        mese_a = params.date_to.month if anno == params.date_to.year else 12
+        filtro_mesi |= Q(riga__programma__anno=anno, mese__range=(mese_da, mese_a))
+    celle = CellaProgramma.objects.filter(
+        riga__programma__in=programmi_vigenti,
+    ).filter(filtro_mesi)
     audit_periodo = Audit.objects.filter(
         data_inizio__range=(params.date_from, params.date_to),
     ).exclude(stato=Audit.STATO_ANNULLATO).select_related("lead_auditor", "programma")
@@ -454,6 +467,12 @@ def _audit_interni(params: ReportParams) -> ReportResult:
         "KPI MT CN 12 §7: verifiche effettuate (audit chiusi) / celle PR-RP-ST del programma nel periodo.",
         "OFI e NC sono conteggiate dalla checklist del rapporto e collegate al Registro OFI MOD.174.",
     ]
+    anni_senza_programma = [str(anno) for anno in anni if anno not in anni_con_programma]
+    if anni_senza_programma:
+        result.notes.append(
+            "Nessun programma approvato per " + ", ".join(anni_senza_programma)
+            + ": gli anni indicati non contribuiscono alle verifiche programmate."
+        )
     result.links = links(("Audit interni", "sistema_gestione:audit_index"))
     return result
 

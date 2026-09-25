@@ -1,5 +1,17 @@
 # Agent Changelog
 
+## 2026-09-25 - Codex (correzioni fase 2 audit interni EN 9100)
+
+- Area: `django_app/sistema_gestione`, integrazione mirata `django_app/report_conformita/reports/qualita.py`; richiesta: applicare `temp/ISTRUZIONI_FIX_FASE2_AUDIT.md` nel worktree dedicato.
+- File modificati: `django_app/sistema_gestione/{models.py,audit_forms.py,audit_views.py,audit_exports.py,acl_bootstrap.py,urls.py,services/audit.py,templates/sistema_gestione/pages/audit_dettaglio.html,tests_audit.py}`, migration `0004_remove_auditesito_sg_esito_unico_audit_domanda_and_more.py`, `django_app/report_conformita/reports/qualita.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/CHECKLIST_SISTEMA_GESTIONE_AUDIT.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critici per funzione: `django_app/sistema_gestione/acl_bootstrap.py` e `urls.py` (ACL/routing locale audit). Motivo tecnico: aggiungere l'azione POST `audit_riapri_rapporto` al permesso canonico `sistema_gestione.audit.esegui`. Modifica precisa: nuova route locale e relativo binding; nessun middleware, settings, autenticazione, ACL globale o navigazione globale modificati. Impatto: l'auditor assegnato puÃ² riaprire un rapporto firmato prima della convalida/valutazione; rischio residuo: dopo deploy servono bootstrap ACL e grant operativi ai ruoli reali. Test: copertura automatica di tutte le route e suite ACL verde.
+- Correzioni: vincolo unico filtrato sulle domande modello (domande aggiuntive multiple su SQL Server); rapporto/esiti/CAR bloccati dopo firma e riapertura tracciata; convalida del responsabile di processo con almeno audit view; KPI sulla sola revisione approvata e sui mesi del periodo; token normalizzati per imparzialitÃ ; savepoint nel retry numerazione OFI; anno invalido fail-safe, stati comunicazione limitati, download firmati tracciati e `nosniff`; PDF MOD.034/035A/035B riallineati ai modelli aziendali.
+- Backup creati: nessuno. README aggiornato: sÃ¬. CHANGELOG aggiornato: sÃ¬ (root e Django). AGENT_CHANGELOG aggiornato: sÃ¬.
+- Test/check: 80 test mirati verdi (`sistema_gestione`, `report_conformita`, tassonomia ACL e topbar); Django check e migration drift verdi; migration `0004` applicata su SQLite QA del worktree; PDF originali letti dalla rete senza copiarli, generati/renderizzati con PyMuPDF e confrontati; dettaglio audit verificato in browser in tema chiaro e tema scuro reale con sessioni nuove.
+- Esito: correzioni completate nel worktree `temp/codex-sistema-audit-9100`, branch `feature/sistema-gestione-audit-9100`; integrazione `main`/`release/prod` da eseguire dopo commit.
+- Rischi residui: al deploy applicare `sistema_gestione 0003-0004`, bootstrap ACL, grant `sistema_gestione.audit.*` e import autorizzato della checklist MOD.035B. I 403 di `/api/notifiche/live/` osservati nelle sessioni forgiate sono esterni alla pagina audit e non introdotti da questa modifica.
+- Note per altro agente/Brizio: nessun contenuto dei PDF aziendali Ã¨ entrato nel repository; test e QA usano solo dati sintetici.
+
 ## 2026-09-25 - Codex (Sistema di gestione fase 2 - audit interni EN 9100)
 
 - Area: `django_app/sistema_gestione`, con integrazioni mirate in `report_conformita` e `gestione_specifiche`; richiesta: completare la fase 2 di `docs/ai/CHECKLIST_SISTEMA_GESTIONE_AUDIT.md`.

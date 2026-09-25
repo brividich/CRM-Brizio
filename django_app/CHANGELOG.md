@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Sistema di gestione - correzioni audit interni EN 9100
+
+- Rapporto bloccato dopo firma e riapertura esplicita tracciata; convalida del responsabile di processo; KPI sulla sola revisione approvata e sui mesi del periodo; imparzialitÃ  a token interi; retry OFI con savepoint; download firmati tracciati; PDF riallineati ai modelli aziendali.
+- Migration audit aggiornate a `sistema_gestione 0003-0004`.
+
 ### Sistema di gestione — audit interni EN 9100
 
 - Fase 2 completa: auditor e qualifiche, programma MOD.034 revisionato, piano MOD.035A, checklist/rapporto MOD.035B, import runtime del Folder B, imparzialità e preavviso, rilievi idempotenti nel Registro OFI, firme/copie private e PDF.
