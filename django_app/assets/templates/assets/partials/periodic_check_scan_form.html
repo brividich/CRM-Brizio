@@ -1,0 +1,7 @@
+{# Caricamento della scansione del foglio di verifica (PDF o immagine). #}
+<form method="post" enctype="multipart/form-data" class="pc-wo">
+  {% csrf_token %}<input type="hidden" name="action" value="scan">
+  <input type="file" name="scan" accept="application/pdf,image/*" required aria-label="Scansione del foglio">
+  <button class="btn btn-primary btn-sm" type="submit">Carica e leggi la scansione</button>
+  <span class="pc-muted">La lettura richiede alcuni secondi.</span>
+</form>

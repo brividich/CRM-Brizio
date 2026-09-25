@@ -4,18 +4,115 @@
 
 {% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
 
-{% block assets_shell_title %}{{ check_type.name }} del {{ session.performed_on|date:"d/m/Y" }}{% endblock %}
+{% block assets_shell_title %}{{ check_type.name }}{% if session.is_confirmed %} del {{ session.performed_on|date:"d/m/Y" }}{% endif %}{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>{{ check_type.system.name }} · <span class="pc-outcome is-{{ session.outcome }}">{{ session.get_outcome_display }}</span> · {{ session.get_source_display }}</p>
+  <p>{{ check_type.system.name }} ·
+    {% if session.is_confirmed %}<span class="pc-outcome is-{{ session.outcome }}">{{ session.get_outcome_display }}</span>{% else %}{{ session.get_status_display }}{% endif %}
+    · {{ session.get_source_display }}{% if session.sheet_token %} · foglio {{ session.sheet_token }}{% endif %}</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
+  {% if session.sheet_token and session.layout %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_sheet_pdf' session.id %}" target="_blank" rel="noopener">Foglio (PDF)</a>{% endif %}
   <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Storico di questa verifica</a>
 {% endblock %}
 
 {% block assets_shell_content %}
 <div class="md-page">
 
-  {% if not session.is_confirmed %}
+  {% if session.status == "ISSUED" %}
+    <section class="md-section pc-issued">
+      <div class="md-section-head"><h2>Foglio {{ session.sheet_token }}: in attesa della scansione</h2></div>
+      <div style="padding:14px 16px;display:grid;gap:14px">
+        <ol class="pc-steps">
+          <li><strong>Stampa il foglio</strong> e consegnalo al tecnico: <a class="btn btn-primary btn-sm" href="{% url 'assets:periodic_check_sheet_pdf' session.id %}" target="_blank" rel="noopener">{% if print_now %}Apri il foglio da stampare{% else %}Apri il foglio{% endif %}</a></li>
+          <li>Il tecnico segna sulla planimetria: <strong>evidenziatore</strong> = {{ categories.0 }}{% if categories|length > 1 %}, <strong>cerchio a penna</strong> = {{ categories.1 }}{% endif %}. Data, nome e firma nei riquadri in alto.</li>
+          <li>Scansiona il foglio intero e caricalo qui: il QR lo riconosce, i punti segnati vengono proposti da confermare.</li>
+        </ol>
+        {% if can_register %}{% include "assets/partials/periodic_check_scan_form.html" %}{% endif %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if session.status == "DRAFT" and session.layout %}
+    <section class="md-section">
+      <div class="md-section-head">
+        <h2>Lettura della scansione</h2>
+        {% if reading.ok %}<span class="pc-state is-ok">Allineata</span>{% else %}<span class="pc-state is-overdue">Non allineata</span>{% endif %}
+      </div>
+      <div style="padding:12px 16px;display:grid;gap:12px">
+        {% if reading.ok %}
+          <p class="pc-muted" style="margin:0">
+            {{ reading.registrazione.simboli_agganciati }} simboli su {{ reading.registrazione.simboli_totali }} ritrovati sulla scansione{% if reading.registrazione.rotazione_gradi %} (ruotata di {{ reading.registrazione.rotazione_gradi }}°){% endif %}.
+            In verde i segni associati a un punto, in arancio quelli da guardare.
+          </p>
+        {% else %}
+          <p style="margin:0">La scansione non si sovrappone alla planimetria (foglio tagliato, troppo chiaro o di un'altra verifica): guarda il documento e inserisci i punti a mano qui sotto, oppure ricarica una scansione migliore.</p>
+        {% endif %}
+        {% if reading.non_associati %}
+          <div class="pc-draft"><span><strong>{{ reading.non_associati|length }} segn{% if reading.non_associati|length == 1 %}o{% else %}i{% endif %} lontan{% if reading.non_associati|length == 1 %}o{% else %}i{% endif %} dai punti</strong> (in arancio sull'immagine):
+            {% for m in reading.non_associati %}{{ m.tipo }} {{ m.colore }} vicino a {% for c in m.vicini %}{{ c.0 }}{% if not forloop.last %}/{% endif %}{% endfor %}{% if not forloop.last %}; {% endif %}{% endfor %}.
+            Se era un punto, aggiungilo qui sotto.</span></div>
+        {% endif %}
+        {% if overlay %}
+          <a href="{% url 'assets:periodic_check_attachment_download' overlay.id %}" target="_blank" rel="noopener" class="pc-overlay">
+            <img src="{% url 'assets:periodic_check_attachment_download' overlay.id %}" alt="Scansione con i segni riconosciuti">
+          </a>
+        {% endif %}
+      </div>
+    </section>
+
+    {% if can_register %}
+      <form method="post" class="md-form" novalidate>
+        {% csrf_token %}<input type="hidden" name="action" value="confirm_points">
+        <fieldset class="md-fieldset">
+          <h2>Conferma</h2>
+          <div class="md-grid-2">
+            <div class="md-field">
+              <label for="id_performed_on">Data della verifica (scritta sul foglio)</label>
+              <input id="id_performed_on" type="date" name="performed_on" value="{{ session.performed_on|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" required>
+            </div>
+            <div class="md-field">
+              <label for="id_technician">Tecnico</label>
+              <input id="id_technician" type="text" name="technician" value="{{ session.technician }}" maxlength="120">
+            </div>
+          </div>
+          {% if points %}
+            <p class="md-hint">Punti segnati sul foglio. Correggi la categoria o scarta quelli sbagliati.</p>
+            <div class="md-section pc-checklist">
+              {% for r in points %}
+                <div class="pc-check pc-point">
+                  <span class="pc-check-label">{{ r.label }} <span class="md-sub">{{ r.note }}</span></span>
+                  <span class="pc-seg" role="radiogroup" aria-label="{{ r.label }}">
+                    {% for c in categories %}
+                      <label class="{% if forloop.first %}is-ko{% endif %}"><input type="radio" name="point_{{ r.id }}" value="{{ c }}"{% if r.category == c %} checked{% endif %}>{{ c }}</label>
+                    {% endfor %}
+                    <label class="is-na"><input type="radio" name="point_{{ r.id }}" value="">Scarta</label>
+                  </span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="md-hint">Nessun punto segnato letto dalla scansione.</p>
+          {% endif %}
+          <p class="md-hint" style="margin-top:10px">Punti che la lettura non ha visto (numeri separati da virgola):</p>
+          <div class="md-grid-2">
+            {% for c in categories %}
+              <div class="md-field">
+                <label for="id_add_{{ forloop.counter0 }}">Aggiungi: {{ c }}</label>
+                <input id="id_add_{{ forloop.counter0 }}" type="text" name="add_{{ forloop.counter0 }}" placeholder="es. 14, 57" autocomplete="off">
+              </div>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <div class="md-form-actions">
+          <button class="btn btn-primary" type="submit">Conferma verifica</button>
+        </div>
+      </form>
+      <details class="md-section" style="padding:0">
+        <summary class="md-section-head"><h2>Ricarica un'altra scansione</h2></summary>
+        <div style="padding:12px 16px">{% include "assets/partials/periodic_check_scan_form.html" %}</div>
+      </details>
+    {% endif %}
+  {% elif not session.is_confirmed and session.status != "ISSUED" %}
     <div class="pc-draft">
       <span><strong>Da confermare.</strong> Controlla gli esiti: alla conferma la prossima scadenza si ricalcola.</span>
       {% if can_register %}
@@ -24,6 +121,7 @@
     </div>
   {% endif %}
 
+  {% if session.status != "ISSUED" %}
   <section class="md-section">
     <div class="md-section-head"><h2>Dati della verifica</h2></div>
     <dl class="pc-facts">
@@ -36,15 +134,17 @@
     </dl>
     {% if session.notes %}<p style="padding:0 16px 14px;margin:0">{{ session.notes|linebreaksbr }}</p>{% endif %}
   </section>
+  {% endif %}
 
-  {% if items or remarks %}
+  {% if show_results %}
     <section class="md-section">
       <div class="md-section-head"><h2>Esiti</h2></div>
       <div class="md-scroll">
-        <table class="md-table pc-table" data-fm-table-skip="1">
-          <thead><tr><th>Voce / rilievo</th><th>Esito</th><th>Nota</th><th class="md-right">Ordine di lavoro</th></tr></thead>
+        <table class="md-table pc-table-auto" data-fm-table-skip="1">
+          <thead><tr><th>Voce / punto / rilievo</th><th>Esito</th><th>Nota</th><th class="md-right">Ordine di lavoro</th></tr></thead>
           <tbody>
             {% for r in items %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
+            {% for r in points %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
             {% for r in remarks %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
           </tbody>
         </table>
@@ -55,6 +155,14 @@
     </section>
   {% endif %}
 
+  {% if session.is_confirmed and overlay %}
+    <details class="md-section" style="padding:0">
+      <summary class="md-section-head"><h2>Lettura automatica della scansione</h2></summary>
+      <div style="padding:12px 16px"><a href="{% url 'assets:periodic_check_attachment_download' overlay.id %}" target="_blank" rel="noopener" class="pc-overlay"><img src="{% url 'assets:periodic_check_attachment_download' overlay.id %}" alt="Scansione con i segni riconosciuti" loading="lazy"></a></div>
+    </details>
+  {% endif %}
+
+  {% if session.status != "ISSUED" %}
   <section class="md-section">
     <div class="md-section-head"><h2>Documenti</h2><span class="md-badge badge-muted">{{ attachments|length }}</span></div>
     <div style="padding:12px 16px;display:grid;gap:12px">
@@ -72,5 +180,6 @@
       {% endif %}
     </div>
   </section>
+  {% endif %}
 </div>
 {% endblock %}

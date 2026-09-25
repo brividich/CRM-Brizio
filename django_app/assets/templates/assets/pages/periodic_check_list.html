@@ -77,6 +77,7 @@
                 <td class="pc-name">
                   <a href="{% url 'assets:periodic_check_type_detail' t.id %}">{{ t.name }}</a>
                   {% if t.drafts %}<span class="pc-flag">{{ t.drafts }} da confermare</span>{% endif %}
+                  {% if t.issued %}<span class="pc-flag">{{ t.issued }} {% if t.issued == 1 %}foglio{% else %}fogli{% endif %} in giro</span>{% endif %}
                   {% if t.open_ko %}<span class="pc-flag is-ko">{{ t.open_ko }} rilievi senza OdL</span>{% endif %}
                   <span class="md-sub">{{ t.get_method_display }}{% if t.reference_code %} · cod. {{ t.reference_code }}{% endif %}</span>
                 </td>
