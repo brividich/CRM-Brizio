@@ -1764,7 +1764,8 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
                 from core.legacy_models import UtenteLegacy
                 capo_user = UtenteLegacy.objects.filter(email__istartswith=f"{alias_part}@").first()
                 if not capo_user:
-                    capo_user = UtenteLegacy.objects.filter(nome__icontains=capo_val).first()
+                    from anomalie.mail_action_service import find_legacy_user_by_name
+                    capo_user = find_legacy_user_by_name(capo_val)
             except Exception:
                 pass
             if capo_user:
