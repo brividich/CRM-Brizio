@@ -75,12 +75,29 @@ def _kpi_table(kpis: list[Kpi], theme: PdfTheme, styles, width: float):
 
 
 def _col_widths(columns: list[str], rows: list[list], width: float) -> list[float]:
-    lengths = []
+    """Larghezze proporzionali al contenuto, con un minimo che non spezza la parola più lunga dell'intestazione."""
+    lengths, minimi = [], []
     for i, col in enumerate(columns):
         longest = max([len(_txt(col))] + [len(_txt(r[i])) for r in rows[:200] if i < len(r)])
         lengths.append(min(max(longest, 4), 60))
+        parola = max((len(p) for p in _txt(col).split()), default=4)
+        minimi.append(max(28.0, parola * 5.4 + 12))
     total = sum(lengths) or 1
-    return [width * n / total for n in lengths]
+    widths = [width * n / total for n in lengths]
+    # Porta le colonne sotto il minimo al minimo e ripartisce lo spazio restante sulle altre.
+    for _ in range(3):
+        fissi = [i for i, w in enumerate(widths) if w < minimi[i]]
+        if not fissi:
+            break
+        for i in fissi:
+            widths[i] = minimi[i]
+        liberi = [i for i in range(len(widths)) if i not in fissi]
+        spazio = width - sum(widths[i] for i in fissi)
+        peso = sum(lengths[i] for i in liberi) or 1
+        for i in liberi:
+            widths[i] = max(minimi[i], spazio * lengths[i] / peso)
+    scala = width / (sum(widths) or 1)
+    return [w * scala for w in widths]
 
 
 def _data_table(section: PdfSection, theme: PdfTheme, styles, width: float):

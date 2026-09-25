@@ -479,6 +479,7 @@ INSTALLED_APPS = [
     "suggestion_corner.apps.SuggestionCornerConfig",
     "schede_sicurezza.apps.SchedeSicurezzaConfig",
     "report_conformita.apps.ReportConformitaConfig",
+    "sistema_gestione.apps.SistemaGestioneConfig",
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",
     "checklist_operativa.apps.ChecklistOperativaConfig",

@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+
+{% block title %}Controllo {{ voce.controllo.codice }} | SoA{% endblock %}
+
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:soa_revisione' voce.revisione.numero %}#c-{{ voce.controllo.codice }}">← SoA Rev.{{ voce.revisione.numero }}</a>
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">{{ voce.controllo.codice }} — {{ voce.controllo.titolo }}</div>
+      <div class="page-sub">{{ voce.controllo.get_tema_display }} · revisione {{ voce.revisione.numero }} in bozza</div>
+    </div>
+  </div>
+
+  {% if evidenze %}
+    <div class="rc-links">{% for label, url in evidenze %}<a class="btn btn-secondary" href="{{ url }}">Evidenza: {{ label }} →</a>{% endfor %}</div>
+  {% endif %}
+
+  <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
+    {% for err in form.non_field_errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+    <div class="hub-fsec">
+      <div class="sg-form-grid">
+        {% include "core/forms/_field.html" with field=form.livello %}
+        {% include "core/forms/_field.html" with field=form.vulnerabilita %}
+        <div class="full">{% include "core/forms/_field.html" with field=form.riferimenti %}</div>
+        <div class="full">{% include "core/forms/_field.html" with field=form.giustificazione %}</div>
+      </div>
+      <div class="hub-field"><label>Fonte dell'obbligo</label>
+        <div class="sg-checks">
+          {% include "core/forms/_field.html" with field=form.obbligo_legislativo %}
+          {% include "core/forms/_field.html" with field=form.obbligo_normativo %}
+          {% include "core/forms/_field.html" with field=form.obbligo_regolatorio %}
+          {% include "core/forms/_field.html" with field=form.obbligo_cliente %}
+          {% include "core/forms/_field.html" with field=form.buona_pratica %}
+        </div>
+      </div>
+    </div>
+    <div class="hub-fsec">
+      <div class="hub-fsec-h">Piano di trattamento</div>
+      <div class="sg-form-grid">
+        <div class="full">{% include "core/forms/_field.html" with field=form.azione %}</div>
+        {% include "core/forms/_field.html" with field=form.responsabile %}
+        {% include "core/forms/_field.html" with field=form.scadenza %}
+        {% include "core/forms/_field.html" with field=form.livello_atteso %}
+        {% include "core/forms/_field.html" with field=form.ofi %}
+      </div>
+    </div>
+    <div class="sg-actions">
+      <button class="btn" type="submit">Salva</button>
+      <a class="btn btn-secondary" href="{% url 'sistema_gestione:soa_revisione' voce.revisione.numero %}#c-{{ voce.controllo.codice }}">Annulla</a>
+    </div>
+  </form>
+</div>
+{{ suggerimento_vulnerabilita|json_script:"sg-vuln-map" }}
+<script>
+(function () {
+  var livello = document.getElementById("id_livello");
+  var vuln = document.getElementById("id_vulnerabilita");
+  var mappa = JSON.parse(document.getElementById("sg-vuln-map").textContent || "{}");
+  if (!livello || !vuln) return;
+  livello.addEventListener("change", function () {
+    if (Object.prototype.hasOwnProperty.call(mappa, livello.value)) vuln.value = String(mappa[livello.value]);
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+
+{% block title %}Sistema di gestione{% endblock %}
+
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">Sistema di gestione</div>
+      <div class="page-sub">Documenti di governo del Sistema di Gestione Integrato: Dichiarazione di applicabilità ISO/IEC 27001 (MOD.165) e registro di threat intelligence.</div>
+    </div>
+  </div>
+
+  {% if puo_soa %}
+  <div class="sg-hero-grid">
+    <section class="rc-card sg-card">
+      <h2>Dichiarazione di applicabilità (SoA)</h2>
+      {% if in_vigore %}
+        <p>In vigore la <strong>Rev.{{ in_vigore.numero }}</strong>{% if in_vigore.approvata_il %}, approvata il {{ in_vigore.approvata_il|date:"d/m/Y" }}{% endif %}.</p>
+        {% include "report_conformita/components/_kpis.html" with kpis=kpi_in_vigore %}
+      {% else %}
+        <p>Nessuna revisione approvata.</p>
+      {% endif %}
+      {% if di_lavoro %}<p><span class="sg-state is-{{ di_lavoro.stato }}">{{ di_lavoro.get_stato_display }}</span> Rev.{{ di_lavoro.numero }} in lavorazione.</p>{% endif %}
+      <div class="sg-actions"><a class="btn" href="{% url 'sistema_gestione:soa' %}">Apri la SoA</a></div>
+    </section>
+
+    <section class="rc-card sg-card">
+      <h2>Registro threat intelligence</h2>
+      <p>Informazioni sulle minacce raccolte e valutate (ISO/IEC 27001 controllo 5.7). Attività registrate quest'anno: <strong>{{ ti_anno }}</strong>.</p>
+      <div class="sg-actions"><a class="btn btn-secondary" href="{% url 'sistema_gestione:threat_intelligence' %}">Apri il registro</a></div>
+    </section>
+  </div>
+  {% else %}
+    <div class="rc-card rc-empty">Il tuo profilo non include la consultazione della SoA. L'accesso si assegna in Admin › ACL.</div>
+  {% endif %}
+</div>
+{% endblock %}
