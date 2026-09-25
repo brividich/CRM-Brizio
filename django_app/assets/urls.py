@@ -172,6 +172,9 @@ urlpatterns = [
     path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/", views_verifiche.periodic_check_type_detail, name="periodic_check_type_detail"),
     path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/modifica/", views_verifiche.periodic_check_type_form, name="periodic_check_type_edit"),
     path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/registra/", views_verifiche.periodic_check_register, name="periodic_check_register"),
+    path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/foglio/", views_verifiche.periodic_check_sheet_issue, name="periodic_check_sheet_issue"),
+    path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/anteprima-foglio/", views_verifiche.periodic_check_sheet_preview, name="periodic_check_sheet_preview"),
+    path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/foglio.pdf", views_verifiche.periodic_check_sheet_pdf, name="periodic_check_sheet_pdf"),
     path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/", views_verifiche.periodic_check_session_detail, name="periodic_check_session_detail"),
     path(
         "assets/manutenzione/verifiche-impianti/allegati/<int:attachment_id>/",

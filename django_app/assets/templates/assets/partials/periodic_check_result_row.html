@@ -1,6 +1,6 @@
 {# Riga esito di una verifica periodica: voce di checklist o rilievo; se non OK, l'OdL. #}
 <tr>
-  <td>{{ r.label }}{% if r.kind == "REMARK" %}<span class="md-sub">rilievo</span>{% endif %}</td>
+  <td>{{ r.label }}{% if r.category %} · <strong>{{ r.category }}</strong>{% endif %}{% if r.kind == "REMARK" %}<span class="md-sub">rilievo</span>{% endif %}</td>
   <td><span class="pc-outcome is-{% if r.result == 'KO' %}KO{% elif r.result == 'OK' %}OK{% else %}ARCHIVE{% endif %}">{{ r.get_result_display }}</span></td>
   <td>{{ r.note|default:"" }}</td>
   <td class="md-right">

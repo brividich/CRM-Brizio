@@ -3893,6 +3893,9 @@ PERIODIC_FREQUENCY_LABELS = {
 }
 
 
+DEFAULT_POINT_CATEGORIES = "Non funzionante" + chr(10) + "Bassa autonomia"
+
+
 class PeriodicCheckType(models.Model):
     """Tipo di verifica di un impianto: cosa, ogni quanto, chi, come si registra."""
 
@@ -3929,6 +3932,9 @@ class PeriodicCheckType(models.Model):
     instructions = models.TextField(blank=True, default="")
     # Cartella d'archivio dei documenti (solo riferimento, per l'import dello storico).
     archive_folder = models.CharField(max_length=255, blank=True, default="")
+    # Metodo planimetria: cosa puo' avere un punto segnalato, una per riga. La prima
+    # e' il segno a evidenziatore, la seconda il cerchio a penna (legenda del foglio).
+    point_categories = models.TextField(blank=True, default=DEFAULT_POINT_CATEGORIES)
     next_due_date = models.DateField(null=True, blank=True, db_index=True)
     sort_order = models.PositiveIntegerField(default=100)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -3958,6 +3964,14 @@ class PeriodicCheckType(models.Model):
 
     def next_due_from(self, performed_on):
         return _add_months(performed_on, self.frequency_months)
+
+    @property
+    def category_list(self) -> list[str]:
+        return [c.strip() for c in (self.point_categories or "").splitlines() if c.strip()] or ["Segnalato"]
+
+    @property
+    def active_layout(self):
+        return self.layouts.filter(is_active=True).order_by("-version").first()
 
 
 class PeriodicCheckItem(models.Model):
@@ -3990,9 +4004,11 @@ class PeriodicCheckSession(models.Model):
         (OUTCOME_KO, "Non conforme"),
         (OUTCOME_ARCHIVE, "Storico"),
     ]
+    STATUS_ISSUED = "ISSUED"
     STATUS_DRAFT = "DRAFT"
     STATUS_CONFIRMED = "CONFIRMED"
     STATUS_CHOICES = [
+        (STATUS_ISSUED, "Foglio stampato, in attesa della scansione"),
         (STATUS_DRAFT, "Da confermare"),
         (STATUS_CONFIRMED, "Confermata"),
     ]
@@ -4002,7 +4018,7 @@ class PeriodicCheckSession(models.Model):
     SOURCE_CHOICES = [
         (SOURCE_MANUAL, "Inserita a mano"),
         (SOURCE_IMPORT, "Importata dallo storico"),
-        (SOURCE_PARSER, "Letta dal documento"),
+        (SOURCE_PARSER, "Foglio del portale"),
     ]
 
     check_type = models.ForeignKey(PeriodicCheckType, on_delete=models.PROTECT, related_name="sessions")
@@ -4022,6 +4038,13 @@ class PeriodicCheckSession(models.Model):
     next_due_date = models.DateField(null=True, blank=True)
     # Import idempotente: percorso relativo del documento d'origine ("" = inserita a mano).
     import_key = models.CharField(max_length=255, blank=True, default="")
+    # Foglio stampato dal portale: il QR porta questo token, la scansione torna qui.
+    sheet_token = models.CharField(max_length=16, blank=True, default="", db_index=True)
+    layout = models.ForeignKey(
+        "PeriodicCheckLayout", on_delete=models.PROTECT, null=True, blank=True, related_name="sessions"
+    )
+    # Esito della lettura automatica (allineamento, segni trovati): per chi conferma.
+    reading = models.JSONField(default=dict, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -4050,6 +4073,11 @@ class PeriodicCheckSession(models.Model):
                 condition=models.Q(import_key__gt=""),
                 name="uniq_periodic_check_session_import_key",
             ),
+            models.UniqueConstraint(
+                fields=["sheet_token"],
+                condition=models.Q(sheet_token__gt=""),
+                name="uniq_periodic_check_session_sheet_token",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -4065,7 +4093,12 @@ class PeriodicCheckResult(models.Model):
 
     KIND_ITEM = "ITEM"
     KIND_REMARK = "REMARK"
-    KIND_CHOICES = [(KIND_ITEM, "Voce di checklist"), (KIND_REMARK, "Rilievo / prescrizione")]
+    KIND_POINT = "POINT"
+    KIND_CHOICES = [
+        (KIND_ITEM, "Voce di checklist"),
+        (KIND_REMARK, "Rilievo / prescrizione"),
+        (KIND_POINT, "Punto della planimetria"),
+    ]
     RESULT_OK = "OK"
     RESULT_KO = "KO"
     RESULT_NA = "NA"
@@ -4076,6 +4109,10 @@ class PeriodicCheckResult(models.Model):
         PeriodicCheckItem, on_delete=models.SET_NULL, null=True, blank=True, related_name="results"
     )
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_ITEM)
+    point = models.ForeignKey(
+        "PeriodicCheckPoint", on_delete=models.PROTECT, null=True, blank=True, related_name="results"
+    )
+    category = models.CharField(max_length=60, blank=True, default="")
     label = models.CharField(max_length=255)
     result = models.CharField(max_length=4, choices=RESULT_CHOICES, default=RESULT_OK)
     note = models.CharField(max_length=500, blank=True, default="")
@@ -4136,3 +4173,65 @@ class PeriodicCheckAttachment(models.Model):
         super().delete(*args, **kwargs)
         if storage and file_name and storage.exists(file_name):
             storage.delete(file_name)
+
+
+def _periodic_layout_upload_to(instance, filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()[:10] or ".pdf"
+    token = uuid.uuid4().hex[:8]
+    return f"assets_periodic_layouts/{instance.check_type_id or 'tmp'}/v{instance.version}_{token}{suffix}"
+
+
+class PeriodicCheckLayout(models.Model):
+    """Planimetria di riferimento (PDF vettoriale) di un tipo di verifica, con versioni.
+
+    Ogni verifica ricorda con quale versione e' stata stampata e letta: se la
+    planimetria cambia, le verifiche passate restano leggibili."""
+
+    check_type = models.ForeignKey(PeriodicCheckType, on_delete=models.CASCADE, related_name="layouts")
+    version = models.PositiveIntegerField(default=1)
+    source_pdf = models.FileField(upload_to=_periodic_layout_upload_to, storage=PrivatePeriodicCheckStorage())
+    original_name = models.CharField(max_length=255, blank=True, default="")
+    page_index = models.PositiveSmallIntegerField(default=0)
+    # Zone della planimetria coperte sul foglio e ignorate nella lettura (es. il vecchio
+    # cartiglio "non funzionanti / bassa autonomia"): [[x0, y0, x1, y1], ...] in punti PDF.
+    exclude_areas = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    notes = models.CharField(max_length=255, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["check_type_id", "-version"]
+        verbose_name = "Planimetria di verifica periodica"
+        verbose_name_plural = "Planimetrie di verifica periodica"
+        constraints = [
+            models.UniqueConstraint(fields=["check_type", "version"], name="uniq_periodic_layout_type_version"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.check_type} - v{self.version}"
+
+
+class PeriodicCheckPoint(models.Model):
+    """Punto numerato di una planimetria (plafoniera 22, differenziale D12...)."""
+
+    layout = models.ForeignKey(PeriodicCheckLayout, on_delete=models.CASCADE, related_name="points")
+    code = models.CharField(max_length=20)
+    x = models.FloatField()
+    y = models.FloatField()
+    label_x = models.FloatField(null=True, blank=True)
+    label_y = models.FloatField(null=True, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Punto di planimetria"
+        verbose_name_plural = "Punti di planimetria"
+        constraints = [
+            models.UniqueConstraint(fields=["layout", "code"], name="uniq_periodic_point_layout_code"),
+        ]
+
+    def __str__(self) -> str:
+        return self.code

@@ -7,6 +7,8 @@ Dominio in ``services/periodic_checks.py``; vedi docs/ai/VERIFICHE_PERIODICHE.md
 from __future__ import annotations
 
 import mimetypes
+import re
+from datetime import date
 from collections import OrderedDict
 from pathlib import Path
 
@@ -91,10 +93,16 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
         PeriodicCheckType.objects.select_related("system", "supplier")
         .filter(is_active=True, system__is_active=True)
         .annotate(
-            drafts=Count("sessions", filter=Q(sessions__status=PeriodicCheckSession.STATUS_DRAFT)),
+            drafts=Count("sessions", filter=Q(sessions__status=PeriodicCheckSession.STATUS_DRAFT), distinct=True),
+            issued=Count("sessions", filter=Q(sessions__status=PeriodicCheckSession.STATUS_ISSUED), distinct=True),
             open_ko=Count(
                 "sessions__results",
-                filter=Q(sessions__results__result=PeriodicCheckResult.RESULT_KO, sessions__results__work_order__isnull=True),
+                filter=Q(
+                    sessions__status=PeriodicCheckSession.STATUS_CONFIRMED,
+                    sessions__results__result=PeriodicCheckResult.RESULT_KO,
+                    sessions__results__work_order__isnull=True,
+                ),
+                distinct=True,
             ),
         )
     )
@@ -140,7 +148,10 @@ def periodic_check_type_detail(request: HttpRequest, type_id: int) -> HttpRespon
         .prefetch_related("attachments", Prefetch("results", queryset=PeriodicCheckResult.objects.select_related("work_order")))
         .order_by("-performed_on", "-id")
     )
+    if request.method == "POST" and request.POST.get("action") == "layout":
+        return _upload_layout(request, check_type)
     state = checks.type_state(check_type)
+    layout = check_type.active_layout
     return _render(request, "periodic_check_type_detail.html", {
         "page_title": check_type.name,
         "check_type": check_type,
@@ -148,7 +159,93 @@ def periodic_check_type_detail(request: HttpRequest, type_id: int) -> HttpRespon
         "sessions": sessions,
         "state": state,
         "state_label": checks.STATE_LABELS[state],
+        "is_layout": check_type.method == PeriodicCheckType.METHOD_LAYOUT,
+        "layout": layout,
+        "layout_points": layout.points.count() if layout else 0,
     })
+
+
+def _parse_areas(text: str) -> list[list[float]]:
+    areas = []
+    for line in (text or "").splitlines():
+        parts = [p for p in line.replace(";", ",").split(",") if p.strip()]
+        if len(parts) == 4:
+            areas.append([float(p) for p in parts])
+    return areas
+
+
+def _upload_layout(request: HttpRequest, check_type: PeriodicCheckType) -> HttpResponse:
+    back = reverse("assets:periodic_check_type_detail", args=[check_type.id])
+    if not can_manage_maintenance_plans(request):
+        return _deny(request, "Solo chi configura la manutenzione puo' caricare la planimetria.", back)
+    upload = request.FILES.get("layout_pdf")
+    if upload is None or not (upload.name or "").lower().endswith(".pdf"):
+        messages.error(request, "Carica la planimetria in PDF (vettoriale, quella da cui si stampa).")
+        return redirect(back)
+    try:
+        areas = _parse_areas(request.POST.get("exclude_areas", ""))
+    except ValueError:
+        messages.error(request, "Zone da coprire: una per riga, quattro numeri separati da virgola.")
+        return redirect(back)
+    try:
+        layout = checks.create_layout(check_type, upload.read(), name=upload.name, exclude_areas=areas, user=request.user)
+    except checks.LayoutError as exc:
+        messages.error(request, str(exc))
+        return redirect(back)
+    log_action(request, "periodic_check_layout_upload", "assets",
+               {"check_type_id": check_type.id, "layout_id": layout.id, "version": layout.version,
+                "points": layout.points.count()},
+               oggetto_tipo="assets.periodic_check_type", oggetto_id=check_type.id)
+    messages.success(request, f"Planimetria v{layout.version} caricata: {layout.points.count()} punti riconosciuti.")
+    return redirect(back)
+
+
+def _pdf_response(pdf: bytes, filename: str) -> HttpResponse:
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
+
+
+@login_required
+def periodic_check_sheet_preview(request: HttpRequest, type_id: int):
+    check_type = get_object_or_404(PeriodicCheckType.objects.select_related("system"), pk=type_id)
+    layout = check_type.active_layout
+    if layout is None:
+        return HttpResponse("Planimetria non caricata.", status=404)
+    pdf, _geo = checks.build_sheet_for(layout)
+    return _pdf_response(pdf, f"anteprima-foglio-{check_type.id}.pdf")
+
+
+@login_required
+def periodic_check_sheet_issue(request: HttpRequest, type_id: int):
+    check_type = get_object_or_404(PeriodicCheckType.objects.select_related("system"), pk=type_id)
+    back = reverse("assets:periodic_check_type_detail", args=[check_type.id])
+    if request.method != "POST":
+        return redirect(back)
+    if not can_execute_maintenance(request):
+        return _deny(request, "Non hai il permesso di stampare fogli di verifica.", back)
+    try:
+        session = checks.issue_sheet(check_type, user=request.user)
+    except checks.LayoutError as exc:
+        messages.error(request, str(exc))
+        return redirect(back)
+    log_action(request, "periodic_check_sheet_issue", "assets",
+               {"session_id": session.id, "check_type_id": check_type.id, "token": session.sheet_token},
+               oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
+    messages.success(request, f"Foglio {session.sheet_token} pronto: stampalo e dallo al tecnico. "
+                              "Quando torna, carica qui la scansione.")
+    return redirect(f"{reverse('assets:periodic_check_session_detail', args=[session.id])}?stampa=1")
+
+
+@login_required
+def periodic_check_sheet_pdf(request: HttpRequest, session_id: int):
+    session = get_object_or_404(PeriodicCheckSession.objects.select_related("check_type__system", "layout"), pk=session_id)
+    if not session.sheet_token or session.layout is None:
+        return HttpResponse("Questa verifica non ha un foglio stampabile.", status=404)
+    pdf, _geo = checks.build_sheet_for(session.layout, token=session.sheet_token)
+    log_action(request, "periodic_check_sheet_pdf", "assets", {"session_id": session.id},
+               oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
+    return _pdf_response(pdf, f"foglio-verifica-{session.sheet_token}.pdf")
 
 
 @login_required
@@ -159,6 +256,11 @@ def periodic_check_register(request: HttpRequest, type_id: int) -> HttpResponse:
         return _deny(request, "Non hai il permesso di registrare verifiche.", back)
     items = list(check_type.items.filter(is_active=True)) if check_type.method == PeriodicCheckType.METHOD_CHECKLIST else []
     form = PeriodicCheckRegisterForm(request.POST or None, check_type=check_type)
+    layout = check_type.active_layout if check_type.method == PeriodicCheckType.METHOD_LAYOUT else None
+    point_rows = [
+        {"index": index, "category": category, "value": request.POST.get(f"codes_{index}", "")}
+        for index, category in enumerate(check_type.category_list)
+    ] if layout else []
     item_rows = []
     for item in items:
         item_rows.append({
@@ -186,6 +288,11 @@ def periodic_check_register(request: HttpRequest, type_id: int) -> HttpResponse:
                 checks.ResultInput(label=text, kind=PeriodicCheckResult.KIND_REMARK, result=PeriodicCheckResult.RESULT_KO)
                 for text in form.remarks
             ]
+            point_results, unknown = _point_results(layout, point_rows)
+            if unknown:
+                form.add_error(None, "Punti che non esistono sulla planimetria: " + ", ".join(unknown))
+                return _register_page(request, check_type, form, item_rows, point_rows)
+            results += point_results
             supplier = form.cleaned_data.get("supplier")
             session = checks.register_session(
                 checks.SessionInput(
@@ -220,13 +327,43 @@ def periodic_check_register(request: HttpRequest, type_id: int) -> HttpResponse:
             due = f" Prossima scadenza: {check_type.next_due_date:%d/%m/%Y}." if check_type.next_due_date else ""
             messages.success(request, f"Verifica del {session.performed_on:%d/%m/%Y} registrata.{due}")
             return redirect("assets:periodic_check_session_detail", session_id=session.id)
+    return _register_page(request, check_type, form, item_rows, point_rows)
+
+
+def _register_page(request, check_type, form, item_rows, point_rows):
     return _render(request, "periodic_check_register.html", {
         "page_title": f"Registra: {check_type.name}",
         "check_type": check_type,
         "form": form,
         "item_rows": item_rows,
+        "point_rows": point_rows,
         "result_choices": PeriodicCheckResult.RESULT_CHOICES,
     })
+
+
+def _split_codes(text: str) -> list[str]:
+    return [c.strip().upper() for c in re.split(r"[\s,;]+", text or "") if c.strip()]
+
+
+def _point_results(layout, point_rows) -> tuple[list, list[str]]:
+    if layout is None:
+        return [], []
+    by_code = {p.code.upper(): p for p in layout.points.all()}
+    results, unknown, seen = [], [], set()
+    for row in point_rows:
+        for code in _split_codes(row["value"]):
+            point = by_code.get(code)
+            if point is None:
+                unknown.append(code)
+                continue
+            if code in seen:
+                continue
+            seen.add(code)
+            results.append(checks.ResultInput(
+                label=f"Punto {point.code}", kind=PeriodicCheckResult.KIND_POINT, result=PeriodicCheckResult.RESULT_KO,
+                point=point, category=row["category"],
+            ))
+    return results, unknown
 
 
 @login_required
@@ -262,6 +399,10 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
                 messages.success(request, f"Ordine di lavoro #{work_order.id} aperto.")
             else:
                 messages.error(request, "Scegli l'asset e il titolo dell'ordine di lavoro.")
+        elif action == "scan":
+            return _scan_upload(request, session)
+        elif action == "confirm_points" and not session.is_confirmed:
+            return _confirm_points(request, session)
         elif action == "attach":
             uploads, errors = _validate_workorder_attachment_uploads(request, field_name="files")
             for error in errors:
@@ -275,14 +416,24 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
                 messages.success(request, f"{len(uploads)} allegati aggiunti.")
         return redirect("assets:periodic_check_session_detail", session_id=session.id)
 
-    results = list(session.results.select_related("work_order", "item"))
+    results = list(session.results.select_related("work_order", "item", "point"))
+    attachments = list(session.attachments.all())
+    overlay = next((a for a in reversed(attachments) if a.original_name == "lettura-automatica.png"), None)
     return _render(request, "periodic_check_session_detail.html", {
+        "points": sorted((r for r in results if r.kind == PeriodicCheckResult.KIND_POINT),
+                         key=lambda r: checks._code_key(r.point.code if r.point else r.label)),
+        "categories": check_type.category_list,
+        "overlay": overlay,
+        "reading": session.reading or {},
+        "print_now": request.GET.get("stampa") == "1" and session.status == PeriodicCheckSession.STATUS_ISSUED,
+        "show_results": bool(results) and (session.is_confirmed or session.layout_id is None),
+        "today": timezone.localdate(),
         "page_title": f"{check_type.name} del {session.performed_on:%d/%m/%Y}",
         "session": session,
         "check_type": check_type,
         "items": [r for r in results if r.kind == PeriodicCheckResult.KIND_ITEM],
         "remarks": [r for r in results if r.kind == PeriodicCheckResult.KIND_REMARK],
-        "attachments": session.attachments.all(),
+        "attachments": [a for a in attachments if a is not overlay],
         "default_asset": default_asset,
         "asset_choices": (
             list(Asset.objects.order_by("asset_tag", "name").only("id", "asset_tag", "name"))
@@ -290,6 +441,83 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
             else []
         ),
     })
+
+
+def _scan_upload(request: HttpRequest, session: PeriodicCheckSession) -> HttpResponse:
+    back = reverse("assets:periodic_check_session_detail", args=[session.id])
+    uploads, errors = _validate_workorder_attachment_uploads(request, field_name="scan")
+    for error in errors:
+        messages.error(request, error)
+    if not uploads:
+        if not errors:
+            messages.error(request, "Scegli il file della scansione.")
+        return redirect(back)
+    upload = uploads[0]
+    data = upload.read()
+    from core.qr import leggi_codici
+
+    found = [checks.session_for_token(code) for code in leggi_codici(data, upload.name or "")]
+    found = [f for f in found if f is not None]
+    if found and all(f.id != session.id for f in found):
+        other = found[0]
+        messages.error(request, f"Questa scansione e' del foglio {other.sheet_token} ({other.check_type.name}), "
+                                "non di questa verifica: caricala dalla sua pagina.")
+        return redirect(back)
+    try:
+        reading = checks.read_scan_into(session, data, name=upload.name or "scansione.pdf", user=request.user)
+    except checks.LayoutError as exc:
+        messages.error(request, str(exc))
+        return redirect(back)
+    log_action(request, "periodic_check_scan_read", "assets",
+               {"session_id": session.id, "ok": reading.get("ok"), "proposti": list(reading.get("proposti", {})),
+                "qr_verificato": bool(found)},
+               oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
+    if reading.get("ok"):
+        count = len(reading.get("proposti", {}))
+        messages.success(request, f"Scansione letta: {count} punti segnati. Controlla e conferma." if count
+                         else "Scansione letta: nessun punto segnato. Controlla e conferma.")
+    else:
+        messages.warning(request, "Non sono riuscito ad allineare la scansione alla planimetria: "
+                                  "inserisci i punti a mano qui sotto.")
+    return redirect(back)
+
+
+def _confirm_points(request: HttpRequest, session: PeriodicCheckSession) -> HttpResponse:
+    back = reverse("assets:periodic_check_session_detail", args=[session.id])
+    categories = session.check_type.category_list
+    try:
+        performed_on = date.fromisoformat(request.POST.get("performed_on", ""))
+    except ValueError:
+        messages.error(request, "Indica la data della verifica (quella scritta sul foglio).")
+        return redirect(back)
+    if performed_on > timezone.localdate():
+        messages.error(request, "La data della verifica non puo' essere futura.")
+        return redirect(back)
+    decisions = {}
+    for result in session.results.filter(kind=PeriodicCheckResult.KIND_POINT):
+        value = request.POST.get(f"point_{result.id}")
+        if value is not None:
+            decisions[result.id] = value if value in categories else ""
+    added, unknown = {}, []
+    codes = {p.code.upper(): p.code for p in session.layout.points.all()} if session.layout else {}
+    for index, category in enumerate(categories):
+        for code in _split_codes(request.POST.get(f"add_{index}", "")):
+            if code in codes:
+                added[codes[code]] = category
+            else:
+                unknown.append(code)
+    if unknown:
+        messages.error(request, "Punti che non esistono sulla planimetria: " + ", ".join(unknown))
+        return redirect(back)
+    checks.confirm_layout_session(session, performed_on=performed_on, technician=request.POST.get("technician", ""),
+                                  decisions=decisions, added=added, user=request.user)
+    log_action(request, "periodic_check_confirm", "assets",
+               {"session_id": session.id, "punti": session.results.filter(kind=PeriodicCheckResult.KIND_POINT).count()},
+               oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
+    session.check_type.refresh_from_db()
+    due = session.check_type.next_due_date
+    messages.success(request, "Verifica confermata." + (f" Prossima scadenza: {due:%d/%m/%Y}." if due else ""))
+    return redirect(back)
 
 
 @login_required
@@ -354,7 +582,7 @@ def periodic_check_attachment_download(request: HttpRequest, attachment_id: int)
     log_action(request, "download_periodic_check_attachment", "assets",
                {**payload, "filename": filename, "esito": "success"},
                oggetto_tipo=AUDIT_OGGETTO, oggetto_id=attachment.session_id)
-    inline = filename.lower().endswith(".pdf") and request.GET.get("download") != "1"
+    inline = filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg")) and request.GET.get("download") != "1"
     return FileResponse(
         storage.open(attachment.file.name, "rb"),
         as_attachment=not inline,
