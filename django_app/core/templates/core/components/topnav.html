@@ -30,23 +30,24 @@
       {% if grp.type == "category" %}
         <div class="nav-dropdown{% if grp.active %} active{% endif %}" data-nav-top>
           <button class="nav-a nav-dropdown-btn{% if grp.active %} active{% endif %}" type="button" aria-haspopup="true" aria-expanded="false">
-            {% if grp.icon %}<span class="nav-item-icon" aria-hidden="true">{% render_icon grp.icon grp.label %}</span>{% endif %}
             <span class="nav-label">{{ grp.label }}</span>
             <svg class="nav-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
           </button>
-          <div class="nav-dropdown-menu" role="menu" aria-label="{{ grp.label }}">
-            {% for item in grp.items %}
-              <a class="nav-dropdown-item{% if item.active %} active{% endif %}" href="{{ item.href }}" role="menuitem"{% if item.active %} aria-current="page"{% endif %}>
-                {% if item.icon %}<span class="nav-item-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>{% endif %}
-                <span class="nav-label">{{ item.label }}</span>
-                {% if item.coming %}<span class="nav-soon">Presto</span>{% endif %}
-              </a>
-            {% endfor %}
+          <div class="nav-dropdown-menu{% if grp.cols > 1 %} nav-dropdown-menu--cols{% endif %}" role="menu" aria-label="{{ grp.label }}"{% if grp.cols > 1 %} style="--nav-cols: {{ grp.cols }}"{% endif %}>
+            {% if grp.sections %}
+              {% for sec in grp.sections %}
+                <div class="nav-dd-section" role="group"{% if sec.label %} aria-label="{{ sec.label }}"{% endif %}>
+                  {% if sec.label %}<div class="nav-dd-head" aria-hidden="true">{{ sec.label }}</div>{% endif %}
+                  {% for item in sec.items %}{% include "core/components/_topnav_dropdown_item.html" %}{% endfor %}
+                </div>
+              {% endfor %}
+            {% else %}
+              {% for item in grp.items %}{% include "core/components/_topnav_dropdown_item.html" %}{% endfor %}
+            {% endif %}
           </div>
         </div>
-      {% else %}
+      {% elif not grp.is_home %}
         <a class="nav-a{% if grp.item.active %} active{% endif %}" href="{{ grp.item.href }}" data-nav-top{% if grp.item.active %} aria-current="page"{% endif %}>
-          {% if grp.item.icon %}<span class="nav-item-icon" aria-hidden="true">{% render_icon grp.item.icon grp.item.label %}</span>{% endif %}
           <span class="nav-label">{{ grp.item.label }}</span>
           {% if grp.item.coming %}<span class="nav-soon">Presto</span>{% endif %}
         </a>
@@ -182,6 +183,12 @@
     closeAll(host);
     host.classList.add('open');
     toggleBtnOf(host).setAttribute('aria-expanded', 'true');
+    /* Una tendina larga (colonne) vicino al bordo destro si apre verso sinistra. */
+    var m = menuOf(host);
+    if (m && !mqMobile.matches) {
+      m.classList.remove('nav-menu-flip');
+      if (m.getBoundingClientRect().right > window.innerWidth - 8) m.classList.add('nav-menu-flip');
+    }
     if (focusFirst) { var it = items(host); if (it.length) it[0].focus(); }
   }
   function closeHost(host, restoreFocus) {
@@ -254,7 +261,16 @@
         head.className = 'nav-more-head';
         head.textContent = el.querySelector('.nav-dropdown-btn .nav-label').textContent.trim();
         moreMenu.appendChild(head);
-        el.querySelectorAll('.nav-dropdown-item').forEach(function(a){ moreMenu.appendChild(a.cloneNode(true)); });
+        el.querySelectorAll('.nav-dd-head, .nav-dropdown-item').forEach(function(n){
+          if (n.classList.contains('nav-dd-head')) {
+            var sub = document.createElement('div');
+            sub.className = 'nav-more-subhead';
+            sub.textContent = n.textContent.trim();
+            moreMenu.appendChild(sub);
+          } else {
+            moreMenu.appendChild(n.cloneNode(true));
+          }
+        });
       } else {
         var a = el.cloneNode(true);
         a.className = 'nav-dropdown-item' + (el.classList.contains('active') ? ' active' : '');

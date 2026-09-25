@@ -85,6 +85,34 @@ def _versioned_key(base: str) -> str:
     return f"{base}:v{get_navigation_registry_version()}"
 
 
+# Campi "di codice" di NavigationItem: li decide il modulo e si possono riallineare.
+# Tutti gli altri (label, order, icon, visibilita', categoria, gruppo, descrizione)
+# sono dell'utente: Navigation Builder e `riorganizza_topbar` non vanno annullati.
+NAV_CODE_FIELDS = frozenset({"route_name", "url_path", "section", "required_permission_code", "parent_code", "active_patterns"})
+
+
+def ensure_navigation_item(code: str, defaults: dict) -> tuple[NavigationItem, bool]:
+    """Seed idempotente di una voce, per i bootstrap che girano a ogni avvio.
+
+    Alla creazione usa tutti i `defaults`; su una voce esistente aggiorna solo i
+    campi di codice (`NAV_CODE_FIELDS`). Sostituisce `update_or_create`, che a ogni
+    riavvio riportava etichetta, ordine e visibilita' ai valori del modulo.
+    Ritorna (voce, cambiata).
+    """
+    item, created = NavigationItem.objects.get_or_create(code=code, defaults=defaults)
+    if created:
+        return item, True
+    updates = [
+        field for field, value in defaults.items()
+        if field in NAV_CODE_FIELDS and getattr(item, field) != value
+    ]
+    for field in updates:
+        setattr(item, field, defaults[field])
+    if updates:
+        item.save(update_fields=[*updates, "updated_at"])
+    return item, bool(updates)
+
+
 def _log_nav_warning_once(cache_key: str, message: str, **extra) -> None:
     throttle_key = f"navigation_registry:warning:{cache_key}"
     try:

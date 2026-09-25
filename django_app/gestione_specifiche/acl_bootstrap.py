@@ -204,9 +204,11 @@ def _bootstrap_canonical() -> bool:
                 changed = True
 
         # 3) voce di menu
-        nav, created = NavigationItem.objects.update_or_create(
-            code="gestione-specifiche",
-            defaults={"label": "Gestione Specifiche",
+        from core.navigation_registry import ensure_navigation_item
+
+        nav, created = ensure_navigation_item(
+            "gestione-specifiche",
+            {"label": "Gestione Specifiche",
                       "route_name": "gestione_specifiche:lista",
                       "url_path": "", "section": "topbar",
                       "required_permission_code": PERM_VIEW, "order": 47,
@@ -218,9 +220,9 @@ def _bootstrap_canonical() -> bool:
         # 3b) subnav interna del modulo (7 voci come da design). "Inventario
         # componenti" è senza target → il registry la rende "in arrivo".
         for sub in _SUBNAV_ITEMS:
-            _, created = NavigationItem.objects.update_or_create(
-                code=sub["code"],
-                defaults={"label": sub["label"],
+            _, created = ensure_navigation_item(
+                sub["code"],
+                {"label": sub["label"],
                           "route_name": sub.get("route_name", ""),
                           "url_path": sub.get("url_path", ""),
                           "section": "subnav", "parent_code": MODULE,
