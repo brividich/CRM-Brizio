@@ -16,12 +16,16 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "sistema_gestione"
-_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v1"
+_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v2"
 
 PERM_VIEW = "sistema_gestione.modulo.view"
 PERM_SOA_VIEW = "sistema_gestione.soa.view"
 PERM_SOA_EDIT = "sistema_gestione.soa.edit"
 PERM_SOA_APPROVA = "sistema_gestione.soa.approva"
+PERM_AUDIT_VIEW = "sistema_gestione.audit.view"
+PERM_AUDIT_EDIT = "sistema_gestione.audit.edit"
+PERM_AUDIT_ESEGUI = "sistema_gestione.audit.esegui"
+PERM_AUDIT_APPROVA = "sistema_gestione.audit.approva"
 
 _CANONICAL = {
     PERM_VIEW: {
@@ -40,6 +44,22 @@ _CANONICAL = {
         "label": "Sistema di gestione - SoA: approva",
         "description": "Approva la revisione proposta (Direzione): diventa la SoA in vigore.",
     },
+    PERM_AUDIT_VIEW: {
+        "label": "Sistema di gestione - Audit: consulta",
+        "description": "Consulta programmi, piani, checklist, rapporti e PDF degli audit interni.",
+    },
+    PERM_AUDIT_EDIT: {
+        "label": "Sistema di gestione - Audit: prepara",
+        "description": "Gestisce auditor, programma annuale, piani e rapporti di audit.",
+    },
+    PERM_AUDIT_ESEGUI: {
+        "label": "Sistema di gestione - Audit: esegui",
+        "description": "Compila checklist, evidenze e rapporto degli audit assegnati.",
+    },
+    PERM_AUDIT_APPROVA: {
+        "label": "Sistema di gestione - Audit: approva",
+        "description": "Approva programma e piano, convalida e valuta il rapporto di audit.",
+    },
 }
 
 _ROUTE_BINDINGS = {
@@ -55,6 +75,43 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:soa_approva": PERM_SOA_APPROVA,
     "sistema_gestione:threat_intelligence": PERM_SOA_VIEW,
     "sistema_gestione:threat_intelligence_nuova": PERM_SOA_EDIT,
+    "sistema_gestione:audit_index": PERM_AUDIT_VIEW,
+    "sistema_gestione:auditor_elenco": PERM_AUDIT_VIEW,
+    "sistema_gestione:programma_dettaglio": PERM_AUDIT_VIEW,
+    "sistema_gestione:programma_export_pdf": PERM_AUDIT_VIEW,
+    "sistema_gestione:programma_copia_firmata": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_dettaglio": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_export": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_copia_firmata": PERM_AUDIT_VIEW,
+    "sistema_gestione:auditor_nuovo": PERM_AUDIT_EDIT,
+    "sistema_gestione:auditor_modifica": PERM_AUDIT_EDIT,
+    "sistema_gestione:programma_nuovo": PERM_AUDIT_EDIT,
+    "sistema_gestione:programma_riga_nuova": PERM_AUDIT_EDIT,
+    "sistema_gestione:programma_riga_modifica": PERM_AUDIT_EDIT,
+    "sistema_gestione:programma_cella": PERM_AUDIT_EDIT,
+    "sistema_gestione:programma_proponi": PERM_AUDIT_EDIT,
+    "sistema_gestione:programma_nuova_revisione": PERM_AUDIT_EDIT,
+    "sistema_gestione:programma_carica_firmata": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_nuovo": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_modifica": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_persona_salva": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_agenda_salva": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_comunica": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_carica_firmata": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_approva_lead": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_avvia": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_esito_salva": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_domanda_aggiuntiva": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_car_sezione": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_rapporto_salva": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_firma_rapporto": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_riapri_rapporto": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:auditor_approva_esterno": PERM_AUDIT_APPROVA,
+    "sistema_gestione:programma_approva": PERM_AUDIT_APPROVA,
+    "sistema_gestione:programma_convalida": PERM_AUDIT_APPROVA,
+    "sistema_gestione:audit_approva_direzione": PERM_AUDIT_APPROVA,
+    "sistema_gestione:audit_convalida_ente": PERM_AUDIT_APPROVA,
+    "sistema_gestione:audit_valuta_rdd": PERM_AUDIT_APPROVA,
 }
 
 # Ruoli legacy reali: admin, amministrazione, caporeparto, HR, qualita, utente.
@@ -62,7 +119,7 @@ _ROUTE_BINDINGS = {
 # si assegnano per utente o gruppo in Admin › ACL.
 _ROLE_GRANTS = {
     "admin": set(_CANONICAL),
-    "qualita": {PERM_VIEW, PERM_SOA_VIEW},
+    "qualita": {PERM_VIEW, PERM_SOA_VIEW, PERM_AUDIT_VIEW},
 }
 
 _LEGACY_ACTIONS = {"sg_view": PERM_VIEW}

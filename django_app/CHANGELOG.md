@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Sistema di gestione - correzioni audit interni EN 9100
+
+- Rapporto bloccato dopo firma e riapertura esplicita tracciata; convalida del responsabile di processo; KPI sulla sola revisione approvata e sui mesi del periodo; imparzialitÃ  a token interi; retry OFI con savepoint; download firmati tracciati; PDF riallineati ai modelli aziendali.
+- Migration audit aggiornate a `sistema_gestione 0003-0004`.
+
+### Sistema di gestione — audit interni EN 9100
+
+- Fase 2 completa: auditor e qualifiche, programma MOD.034 revisionato, piano MOD.035A, checklist/rapporto MOD.035B, import runtime del Folder B, imparzialità e preavviso, rilievi idempotenti nel Registro OFI, firme/copie private e PDF.
+- Nuovi permessi ACL `sistema_gestione.audit.view/edit/esegui/approva`, binding canonici su tutte le route e report conformità `audit-interni` con KPI MT CN 12 §7.
+- Nuova migration `sistema_gestione 0003` e configurazione opzionale `SISTEMA_GESTIONE_AUDIT_SEDE` / `SISTEMA_GESTIONE_AUDIT_EMAIL_MSM`.
+
 ### Assets — scadenze amministrative ridisegnate, Panoramica «Seleziona tutte»
 
 - `/assets/scadenze/`: riquadri cliccabili, barra dei 12 mesi, schede Da gestire / 90 giorni / Attive / Chiuse, filtro Famiglia, serie raccolte in una riga, dettagli a scomparsa, «Registra» in una finestra al centro.

@@ -27,7 +27,11 @@ EVIDENZE: dict[str, tuple[tuple[str, str, str], ...]] = {
     "5.26": (("Backup, vulnerabilità e rimedi", _REPORT, "sicurezza-it"),),
     "5.27": (("Backup, vulnerabilità e rimedi", _REPORT, "sicurezza-it"),),
     "5.32": (("Licenze software", _REPORT, "licenze-software"),),
-    "5.36": (("Registro NC/OFI", _REPORT, "registro-nc-ofi"),),
+    "5.35": (("Audit interni", _REPORT, "audit-interni"),),
+    "5.36": (
+        ("Audit interni", _REPORT, "audit-interni"),
+        ("Registro NC/OFI", _REPORT, "registro-nc-ofi"),
+    ),
     "5.37": (("Presa visione procedure", _REPORT, "presa-visione"),),
     "6.3": (("Competenze e formazione", _REPORT, "competenze"),),
     "6.5": (("Revisione accessi (uscite)", _REPORT, "revisione-accessi"),),
