@@ -1464,6 +1464,45 @@ class TopbarGroupingTests(SimpleTestCase):
         self.assertEqual([g["is_home"] for g in grouped], [True, False])
 
 
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class NavSubcategoriesRenderTests(TestCase):
+    """Le sottocategorie (NavigationItem.group) si vedono sia in topnav sia in sidebar."""
+
+    def setUp(self):
+        from core.models import ModuleCategory, NavigationItem
+
+        cat = ModuleCategory.objects.create(key="probe-cat", label="Area prova", order=1)
+        for code, group, order, route in (
+            ("probe-a", "Primo blocco", 1, "profilo"), ("probe-b", "Secondo blocco", 2, "ui_prefs_page"),
+        ):
+            NavigationItem.objects.create(
+                code=code, label=code.upper(), section="topbar", route_name=route,
+                order=order, category=cat, group=group,
+            )
+        self.user = get_user_model().objects.create_superuser(username="nav-sub", password="pass12345")
+        # Il menu compilato sta in cache e sopravvive al rollback dei test precedenti.
+        cache.clear()
+
+    def _html(self, nav_mode):
+        from core.models import UserUiPreference
+
+        UserUiPreference.objects.update_or_create(user=self.user, defaults={"nav_mode": nav_mode})
+        self.client.force_login(self.user)
+        return self.client.get(reverse("ui_prefs_page")).content.decode()
+
+    def test_topnav_shows_subcategory_headings(self):
+        html = self._html("top")
+        self.assertIn('class="nav-dd-head" aria-hidden="true">Primo blocco<', html)
+        self.assertIn('class="nav-dd-head" aria-hidden="true">Secondo blocco<', html)
+
+    def test_sidebar_shows_subcategory_headings(self):
+        html = self._html("side")
+        i = html.find('data-key="probe')
+        print("DEBUG-SB", html[i:i + 1500].replace("\n", " "))
+        self.assertIn('class="sb-subcat" role="presentation">Primo blocco<', html)
+        self.assertIn('class="sb-subcat" role="presentation">Secondo blocco<', html)
+
+
 class EnsureNavigationItemTests(TestCase):
     def test_existing_item_keeps_user_fields_and_realigns_code_fields(self):
         from core.models import NavigationItem
