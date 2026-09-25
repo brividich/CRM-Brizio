@@ -343,3 +343,76 @@ register(ReportDef(
     builder=_sicurezza_it,
     fonte="Security Center",
 ))
+
+
+# ---------------------------------------------------------------------------
+# Dichiarazione di applicabilità (dal modulo Sistema di gestione, se installato)
+# ---------------------------------------------------------------------------
+
+
+def _dichiarazione_applicabilita(params: ReportParams) -> ReportResult:
+    from sistema_gestione.exports import kpi_revisione
+    from sistema_gestione.models import ThreatIntelligence
+    from sistema_gestione.services.soa import revisione_di_lavoro, revisione_in_vigore
+
+    result = ReportResult()
+    revisione = revisione_in_vigore()
+    lavoro = revisione_di_lavoro()
+    result.links = links(("Dichiarazione di applicabilità", "sistema_gestione:soa"),
+                         ("Registro threat intelligence", "sistema_gestione:threat_intelligence"))
+    ti = ThreatIntelligence.objects.filter(data__range=(params.date_from, params.date_to)).count()
+    result.columns = ["Controllo", "Titolo", "Applicato", "Azione", "Responsabile", "Scadenza", "Stato"]
+    if revisione is None:
+        result.kpis = [
+            Kpi("Revisione in vigore", "nessuna", TONE_DANGER),
+            Kpi("Attività di threat intelligence nel periodo", ti),
+        ]
+        result.notes = ["Nessuna Dichiarazione di applicabilità approvata nel portale."]
+        return result
+
+    giorni = (params.today - timezone.localtime(revisione.approvata_il).date()).days if revisione.approvata_il else None
+    result.kpis = [
+        Kpi("Revisione in vigore", f"Rev.{revisione.numero}", hint=f"approvata {d(revisione.approvata_il)}"),
+        *kpi_revisione(revisione, params.today)[1:],
+        Kpi("Giorni dall'ultima approvazione", giorni if giorni is not None else "n/d",
+            TONE_WARN if giorni is not None and giorni > 365 else ""),
+        Kpi("Attività di threat intelligence nel periodo", ti, TONE_WARN if not ti else ""),
+    ]
+    for voce in revisione.voci.select_related("controllo"):
+        if voce.livello == 4 and not voce.ha_azione_aperta:
+            continue
+        if voce.livello == 0:
+            continue
+        scaduta = voce.azione_scaduta(params.today)
+        stato = "Azione scaduta" if scaduta else ("Azione pianificata" if voce.ha_azione_aperta else "Senza azione")
+        tone = TONE_DANGER if scaduta else (TONE_WARN if not voce.ha_azione_aperta else "")
+        result.add_row(
+            [voce.controllo.codice, voce.controllo.titolo, voce.livello, voce.azione, voce.responsabile,
+             d(voce.scadenza), stato],
+            tone,
+        )
+    result.notes = [
+        "Righe: controlli applicati in parte (livello 1-3) o con un'azione del piano di trattamento aperta.",
+        "«Senza azione» = controllo non pienamente applicato senza un'azione pianificata: da motivare o trattare.",
+        "La SoA va riesaminata almeno una volta l'anno (MOD.165, Manuale ISMS §6.1.3).",
+    ]
+    if lavoro is not None:
+        result.notes.append(f"In lavorazione la Rev.{lavoro.numero} ({lavoro.get_stato_display().lower()}).")
+    return result
+
+
+try:
+    from django.apps import apps as _apps
+
+    if _apps.is_installed("sistema_gestione"):
+        register(ReportDef(
+            slug="dichiarazione-applicabilita",
+            title="Dichiarazione di applicabilità (SoA)",
+            area=AREA_IT,
+            description="Stato dei 93 controlli ISO/IEC 27001, piano di trattamento, riesame annuale.",
+            clausole=(c(ISO_27001, "6.1.3 d)"), c(ISO_27001, "6.1.3 e)"), c(ISO_27001, "A.5.7")),
+            builder=_dichiarazione_applicabilita,
+            fonte="Sistema di gestione › SoA (MOD.165)",
+        ))
+except Exception:  # pragma: no cover - app non disponibile
+    logger.warning("report SoA non registrato", exc_info=True)

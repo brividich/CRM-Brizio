@@ -76,6 +76,7 @@ MODULE_AREA = {
     "procedure_refresh": AREA_SICUREZZA,
     "rentri": AREA_SICUREZZA,
     "report_conformita": AREA_SICUREZZA,
+    "sistema_gestione": AREA_SICUREZZA,
     # Automation
     "automazioni": AREA_AUTOMAZIONE,
 }

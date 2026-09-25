@@ -1,0 +1,41 @@
+{% extends "core/base.html" %}
+
+{% block title %}Registro threat intelligence{% endblock %}
+
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:index' %}">← Sistema di gestione</a>
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">Registro threat intelligence {{ anno }}</div>
+      <div class="page-sub">Informazioni sulle minacce raccolte, valutate e gestite (ISO/IEC 27001 controllo 5.7 · MOD.165).</div>
+    </div>
+    {% if puo_registrare %}<div class="page-header-actions"><a class="btn" href="{% url 'sistema_gestione:threat_intelligence_nuova' %}">+ Nuova attività</a></div>{% endif %}
+  </div>
+
+  <div class="rc-chips">{% for a in anni %}<a class="rc-chip{% if a == anno %} is-active{% endif %}" href="?anno={{ a }}">{{ a }}</a>{% endfor %}</div>
+
+  <div class="rc-table-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Data</th><th>Fonte</th><th>Informazione / minaccia</th><th>Esito</th><th>Azione intrapresa</th><th>Note</th><th>Registrata da</th></tr></thead>
+      <tbody>
+      {% for v in voci %}
+        <tr{% if v.esito == "AZIONE" %} class="tone-warn"{% endif %}>
+          <td>{{ v.data|date:"d/m/Y" }}</td>
+          <td>{{ v.fonte }}</td>
+          <td class="sg-cell-text">{{ v.informazione }}</td>
+          <td>{{ v.get_esito_display }}</td>
+          <td class="sg-cell-text">{{ v.azione }}{% if v.ofi %}<br><span class="sg-muted">OFI n. {{ v.ofi.numero }}</span>{% endif %}</td>
+          <td class="sg-cell-text">{{ v.note }}</td>
+          <td>{{ v.registrato_da.get_full_name|default:v.registrato_da.username|default:"" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="rc-empty">Nessuna attività registrata nel {{ anno }}.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

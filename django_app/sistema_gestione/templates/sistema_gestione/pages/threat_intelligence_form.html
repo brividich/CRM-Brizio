@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+
+{% block title %}Nuova attività di threat intelligence{% endblock %}
+
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:threat_intelligence' %}">← Registro threat intelligence</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">Nuova attività di threat intelligence</div></div></div>
+  <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
+    {% for err in form.non_field_errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+    <div class="sg-form-grid">
+      {% include "core/forms/_field.html" with field=form.data %}
+      {% include "core/forms/_field.html" with field=form.fonte %}
+      <div class="full">{% include "core/forms/_field.html" with field=form.informazione %}</div>
+      {% include "core/forms/_field.html" with field=form.esito %}
+      {% include "core/forms/_field.html" with field=form.ofi %}
+      <div class="full">{% include "core/forms/_field.html" with field=form.azione %}</div>
+      <div class="full">{% include "core/forms/_field.html" with field=form.note %}</div>
+    </div>
+    <div class="sg-actions"><button class="btn" type="submit">Registra</button>
+      <a class="btn btn-secondary" href="{% url 'sistema_gestione:threat_intelligence' %}">Annulla</a></div>
+  </form>
+</div>
+{% endblock %}
