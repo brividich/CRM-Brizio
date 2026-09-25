@@ -761,6 +761,7 @@ def maintenance_scadenze(request: HttpRequest) -> HttpResponse:
                 request, "plan_type", _SCADENZE_TYPE_TABS, _clean_string(initial.get("plan_type"))
             ),
             "can_plan": can_plan_maintenance(request),
+            "can_execute": can_execute_maintenance(request),
             "workorder_form": WorkOrderFromOccurrencesForm(),
             "scoped_reparti": scoped_reparti,
         },
@@ -1263,6 +1264,7 @@ def _responsabile_response(request: HttpRequest, *, kpi_page: bool) -> HttpRespo
             "follow_ups": list(follow_ups),
             "conflicts": conflicts[:40],
             "can_plan": can_plan_maintenance(request),
+            "can_execute": can_execute_maintenance(request),
             "workorder_form": WorkOrderFromOccurrencesForm(),
             "workorder_bulk_form": _workorder_bulk_form(),
             "can_bulk_workorders": can_execute_maintenance(request),
@@ -1431,6 +1433,7 @@ def maintenance_plan_detail(request: HttpRequest, plan_id: int) -> HttpResponse:
             "checklist_steps": list(plan.checklist_steps.order_by("step_number", "id")),
             "can_manage": can_manage_maintenance_plans(request),
             "can_plan": can_plan_maintenance(request),
+            "can_execute": can_execute_maintenance(request),
             "workorder_form": WorkOrderFromOccurrencesForm(),
         },
     )
