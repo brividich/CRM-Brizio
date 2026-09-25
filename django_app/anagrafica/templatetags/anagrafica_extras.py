@@ -247,9 +247,38 @@ def subnav_anagrafica(context):
             return current_path.startswith(resolved_url)
         return False
 
+    # Una voce che l'utente non può aprire non va mostrata: si interroga la
+    # stessa politica dell'ACLMiddleware (`acl_allows_path`) e poi l'eventuale
+    # cancello in-view della pagina (`subnav_gates`). Memo per path, perché
+    # landing e link possono puntare alla stessa pagina.
+    user = getattr(request, "user", None) if request else None
+    acl_memo: dict[str, bool] = {}
+
+    def _can_open(url):
+        if not url or user is None or not getattr(user, "is_authenticated", False):
+            return True
+        if not url.startswith("/") or url.startswith("//"):
+            return True  # link esterno: fuori dal perimetro ACL del portale
+        path = url.split("?", 1)[0].split("#", 1)[0] or "/"
+        if path not in acl_memo:
+            from anagrafica.subnav_gates import section_gate_allows
+            from core.middleware import acl_allows_path
+
+            try:
+                acl_memo[path] = bool(acl_allows_path(
+                    path,
+                    django_user=user,
+                    legacy_user=getattr(request, "legacy_user", None),
+                    request=None,  # il path è quello del link, non della pagina corrente
+                )) and section_gate_allows(request, path)
+            except Exception:
+                logger.exception("Subnav anagrafica: verifica ACL fallita per %s", path)
+                acl_memo[path] = False
+        return acl_memo[path]
+
     def _build_link_item(link):
         resolved = _resolve_url(link)
-        if resolved == "#":
+        if resolved == "#" or not _can_open(resolved):
             return None
         return {
             "type": "link",
@@ -321,6 +350,8 @@ def subnav_anagrafica(context):
                     groups.append({"header": header, "links": [child]})
             has_headers = any(g["header"] for g in groups)
             landing = _resolve_landing(cat)
+            if landing and not _can_open(landing):
+                landing = ""  # pilastro senza dashboard accessibile: resta solo-dropdown
             landing_active = bool(landing) and current_path == landing
             items.append({
                 "type": "category",
