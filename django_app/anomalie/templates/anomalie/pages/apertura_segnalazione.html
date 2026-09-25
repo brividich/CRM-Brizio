@@ -165,7 +165,7 @@
     ? cfgLists.stati_superficie
     : ['Finito macchinato', 'Con sovrametallo', 'Finito trattato'];
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ CSRF Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ── CSRF ── */
   const getCsrf = () =>
     (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
 
@@ -212,7 +212,7 @@
   ]);
   const ALLEGATI_MAX_SIZE = 20 * 1024 * 1024;
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ Step 1: Selezione OP Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ── Step 1: Selezione OP ── */
   const makeNewOpDraft = () => ({
     causale_doc: CFG_CAUSALI_DOC[0] || 'OP',
     anno: String(new Date().getFullYear()),
@@ -266,14 +266,14 @@
       new Set(
         [...CFG_CAPI_COMMESSA, ...ordini
           .map(op => String(op.capo || '').trim())
-          .filter(v => v && v !== 'â€”')]
+          .filter(v => v && v !== '—')]
       )
     );
     const carOptions = Array.from(
       new Set(
         [...CFG_CAPI_REPARTO, ...ordini
           .map(op => String(op.car || '').trim())
-          .filter(v => v && v !== 'â€”')]
+          .filter(v => v && v !== '—')]
       )
     );
 
@@ -523,7 +523,7 @@
               <div className="op-list">
                 {filtered.map((op, idx) => (
                   <div key={op.item_id ?? idx} className="op-row" onClick={() => onSelect(op)}>
-                    <div className="op-row-title">{op.id || 'â€”'}</div>
+                    <div className="op-row-title">{op.id || '—'}</div>
                     <div className="op-row-meta">
                       {op.pn && <span><span className="meta-label">P/N</span>{op.pn}</span>}
                       {op.capo && <span><span className="meta-label">Capo</span>{op.capo}</span>}
@@ -851,7 +851,7 @@
         {/* OP info bar */}
         <div className="op-info-bar">
           <button className="op-info-back" onClick={onBack} disabled={saving}>
-            Ã¢â€ Â Cambio OP
+            ← Cambio OP
           </button>
           <div className="op-info-items">
             <div className="op-info-chip"><strong>{op.id}</strong></div>
@@ -1139,7 +1139,7 @@
     );
   };
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ Toast Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ── Toast ── */
   const Toast = ({ msg, onDone }) => {
     useEffect(() => {
       const t = setTimeout(onDone, 2500);
@@ -1148,7 +1148,7 @@
     return <div className="toast">{msg}</div>;
   };
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ App Root Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ── App Root ── */
   const AperturaSegnalazione = () => {
     const [step,       setStep]       = useState(1);
     const [selectedOp, setSelectedOp] = useState(null);
