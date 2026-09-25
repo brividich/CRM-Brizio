@@ -30,7 +30,7 @@ body.theme-dark .pc-outcome.is-REMARKS{color:#fbbf24}
 .pc-table .pc-c-last{width:170px}
 .pc-table .pc-c-next{width:130px}
 .pc-table .pc-c-state{width:130px}
-.pc-table .pc-c-act{width:190px}
+.pc-table .pc-c-act{width:250px}
 .pc-actions{flex-wrap:nowrap}
 .pc-name a{font-weight:800;text-decoration:none;color:var(--text,#0f172a)}
 .pc-name a:hover{text-decoration:underline}
@@ -108,5 +108,18 @@ body.theme-dark{--pc-ok:#4ade80;--pc-other:#94a3b8;--pc-unknown:#64748b}
 .pc-chart-x{display:grid;gap:0;margin-top:4px}
 .pc-chart-x a{display:grid;justify-items:center;text-decoration:none;color:var(--text-mid,#64748b);font-size:var(--fs-2xs)}
 .pc-chart-x strong{color:var(--text,#0f172a);font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
+.pc-guide-steps{list-style:none;margin:0;padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.pc-guide-step{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border,#dbe1ea);border-radius:12px;background:var(--surface,#fff)}
+.pc-guide-step.is-next{border-color:var(--mk-chk);box-shadow:inset 0 0 0 1px var(--mk-chk);background:var(--mk-chk-bg)}
+.pc-guide-step.is-waiting,.pc-guide-step.is-blocked{opacity:.7}
+.pc-guide-n{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--mk-soft);color:var(--text,#0f172a);font-weight:800;font-size:var(--fs-xs)}
+.pc-guide-step.is-done .pc-guide-n{background:rgba(22,163,74,.15);color:var(--pc-ok)}
+.pc-guide-step.is-next .pc-guide-n{background:var(--mk-chk);color:var(--surface,#fff)}
+.pc-guide-body{display:grid;gap:4px;font-size:var(--fs-sm);color:var(--text,#0f172a)}
+.pc-guide-body > span{color:var(--text-mid,#64748b);font-size:var(--fs-xs)}
+.pc-guide-body .btn,.pc-guide-body form{justify-self:start;margin-top:2px}
+.pc-codes{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.pc-codes span{padding:1px 6px;border-radius:6px;background:var(--mk-soft);font-size:var(--fs-2xs);font-weight:700;font-variant-numeric:tabular-nums}
+.pc-actions form{display:inline-flex;margin:0}
 @media (max-width:800px){.pc-check{grid-template-columns:1fr}}
 </style>

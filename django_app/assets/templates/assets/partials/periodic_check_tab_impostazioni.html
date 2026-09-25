@@ -14,7 +14,7 @@
   </section>
 
   {% if is_layout %}
-    <section class="md-section">
+    <section class="md-section" id="planimetria">
       <div class="md-section-head">
         <h2>Planimetria e foglio per il tecnico</h2>
         {% if layout %}<span class="md-badge badge-muted">v{{ layout.version }} · {{ layout_points }} punti</span>{% endif %}
@@ -27,7 +27,12 @@
             la scansione torna alla verifica e il portale propone i punti segnati da confermare.
           </p>
           <p style="margin:0"><a href="{% url 'assets:periodic_check_sheet_preview' check_type.id %}" target="_blank" rel="noopener">Anteprima del foglio</a>
-            <span class="pc-muted">· planimetria «{{ layout.original_name }}» caricata il {{ layout.created_at|date:"d/m/Y" }}</span></p>
+            <span class="pc-muted">· planimetria «{{ layout.original_name }}» caricata il {{ layout.created_at|date:"d/m/Y" }}{% if layout.notes %} · {{ layout.notes }}{% endif %}</span></p>
+          <details id="punti">
+            <summary class="pc-muted" style="cursor:pointer">Punti riconosciuti ({{ layout_codes|length }}): controlla che ci siano tutti</summary>
+            <p class="pc-codes">{% for c in layout_codes %}<span>{{ c }}</span>{% endfor %}</p>
+            <p class="pc-muted" style="margin:0">Se ne manca qualcuno (gruppi di punti molto fitti), sul foglio va segnato comunque: alla conferma si aggiunge a mano. Una planimetria con i simboli meno ammassati li fa riconoscere tutti.</p>
+          </details>
         {% else %}
           <p class="pc-muted" style="margin:0">Nessuna planimetria: carica il PDF vettoriale con i punti numerati per poter stampare il foglio.</p>
         {% endif %}
@@ -39,7 +44,7 @@
               <div class="md-field">
                 <label for="id_layout_pdf">Planimetria (PDF vettoriale)</label>
                 <input id="id_layout_pdf" type="file" name="layout_pdf" accept="application/pdf" required>
-                <span class="helptext">I punti si riconoscono dal riquadro rosso con la X e dal numero rosso accanto. Le verifiche gia' fatte restano sulla loro versione.</span>
+                <span class="helptext">Riconosco due disegni: riquadro rosso con la X e numero rosso (luci), oppure quadratino colorato con l'etichetta accanto (differenziali, «D12»). Le verifiche gia' fatte restano sulla loro versione.</span>
               </div>
               <div class="md-field">
                 <label for="id_exclude_areas">Zone da coprire sul foglio (facoltativo)</label>
