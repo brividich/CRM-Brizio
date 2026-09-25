@@ -79,6 +79,29 @@ la cartella di pescaggio arriva dopo con una pagina di configurazione.
   scansione alla verifica; stessa logica di `anagrafica/services/intake_scansioni.py`,
   cartelle `elaborati` / `errori`) con pagina di configurazione del percorso.
 
+## Scheda della verifica (contenitore a schede)
+
+La pagina di un tipo di verifica (`/assets/manutenzione/verifiche-impianti/tipo/<id>/`) e' la
+**scheda** della verifica, con schede `?tab=`: **Panoramica** (statistiche), **Storico verifiche**,
+**Ordini di lavoro** (OdL nati dai rilievi), **Documenti** (tutti gli allegati, senza le immagini
+di lettura), **Impostazioni** (dati del tipo, planimetria, voci di checklist).
+
+Panoramica (`services/periodic_stats.py`, sola lettura):
+- indicatori: prossima e ultima verifica, **punti in ordine** (%), **nei tempi** (verifiche fatte
+  entro la scadenza fissata dalla precedente, ultimi 24 mesi), verifiche negli ultimi 12 mesi
+  rispetto alle attese, rilievi dell'ultima verifica senza OdL e OdL aperti;
+- metodo planimetria: **mappa dello stato attuale** (planimetria come immagine
+  `periodic_check_layout_image`, in cache 30 giorni, con i punti in percentuale: difettoso per
+  categoria, riparato = OdL chiuso, in ordine), elenco dei difettosi con «da quando» e verifiche
+  di fila, **punti ricorrenti** (almeno 2 volte nelle ultime 6 verifiche con esiti);
+- metodo checklist: **voci piu' spesso non OK**;
+- **andamento dei rilievi**: barre impilate per categoria delle ultime 12 verifiche con esiti (SVG).
+- Le verifiche importate dallo storico hanno solo il documento: contano per date e puntualita',
+  non per punti e voci; la pagina lo dice.
+- Trappola: i valori numerici in `style`/SVG vanno dentro `{% localize off %}` (virgola italiana).
+- Colori dei punti e delle serie **provvisori** (`--pc-cat0/1` in `periodic_check_styles.html`,
+  validati solo in tema chiaro): l'utente li decide in seguito.
+
 ## Storico
 
 `manage.py import_periodic_checks <cartella>` (dry-run di default, `--apply` per
