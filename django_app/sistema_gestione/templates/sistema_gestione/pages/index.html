@@ -9,7 +9,7 @@
   <div class="page-header">
     <div class="page-header-main">
       <div class="page-h">Sistema di gestione</div>
-      <div class="page-sub">Documenti di governo del Sistema di Gestione Integrato: Dichiarazione di applicabilità ISO/IEC 27001 (MOD.165) e registro di threat intelligence.</div>
+      <div class="page-sub">Documenti di governo del Sistema di Gestione Integrato: SoA ISO/IEC 27001, threat intelligence e audit interni EN 9100.</div>
     </div>
   </div>
 
@@ -35,6 +35,16 @@
   </div>
   {% else %}
     <div class="rc-card rc-empty">Il tuo profilo non include la consultazione della SoA. L'accesso si assegna in Admin › ACL.</div>
+  {% endif %}
+
+  {% if puo_audit %}
+  <div class="sg-hero-grid" style="margin-top:12px">
+    <section class="rc-card sg-card">
+      <h2>Audit interni EN 9100</h2>
+      <p>Programma MOD.034, piani MOD.035A, checklist e rapporti MOD.035B. Audit pianificati nell'anno: <strong>{{ audit_anno }}</strong>.</p>
+      <div class="sg-actions"><a class="btn" href="{% url 'sistema_gestione:audit_index' %}">Apri gli audit</a></div>
+    </section>
+  </div>
   {% endif %}
 </div>
 {% endblock %}

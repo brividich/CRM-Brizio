@@ -1,5 +1,19 @@
 # Agent Changelog
 
+## 2026-09-25 - Codex (Sistema di gestione fase 2 - audit interni EN 9100)
+
+- Area: `django_app/sistema_gestione`, con integrazioni mirate in `report_conformita` e `gestione_specifiche`; richiesta: completare la fase 2 di `docs/ai/CHECKLIST_SISTEMA_GESTIONE_AUDIT.md`.
+- File applicativi modificati: `django_app/sistema_gestione/{models.py,urls.py,views.py,acl_bootstrap.py,evidenze.py,audit_forms.py,audit_views.py,audit_exports.py,tests_audit.py}`, `services/{audit.py,mod035b_import.py}`, `management/commands/importa_checklist_mod035b.py`, migration `0003_audit_auditagenda_auditor_audit_auditor_and_more.py`, template audit e stili locali; `django_app/report_conformita/reports/qualita.py`; `django_app/gestione_specifiche/registro_ofi.py`; `.env.example` e `django_app/.env.example`.
+- Documentazione modificata: `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/CHECKLIST_SISTEMA_GESTIONE_AUDIT.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- File critico modificato per funzione: `django_app/sistema_gestione/acl_bootstrap.py` (ACL locale). Motivo tecnico: proteggere tutte le nuove route audit con permessi canonici distinti di consultazione, modifica, esecuzione e approvazione. Modifica: aggiunti `sistema_gestione.audit.view/edit/esegui/approva`, grant iniziali fail-closed e binding completi, con bump della cache locale. Impatto: auditor, MSM/RDD e Direzione possono ricevere privilegi separati; nessuna modifica a middleware, autenticazione o ACL globale. Rischio residuo: i ruoli reali non admin devono ricevere i grant espliciti prima dell'uso operativo.
+- Comportamento: qualifica auditor, programma MOD.034 revisionabile, piano MOD.035A, agenda/persone/comunicazione con preavviso e imparzialita', checklist MOD.035B importata dal PDF in dry-run predefinito, esiti OFI/NC idempotenti nel MOD.174, firme/convalide, copie firmate private, PDF, KPI e collegamenti SoA 5.35/5.36.
+- Sicurezza/dati: nessun contenuto aziendale del MOD.035B e nessun dato reale inserito in codice, migration o fixture; test e QA solo con dati sintetici. I PDF sorgente sono stati letti in sola consultazione e gli artefatti temporanei rimossi.
+- Backup creati: nessuno; isolamento tramite worktree e branch dedicati. README aggiornato: si. CHANGELOG aggiornato: si (root e Django). AGENT_CHANGELOG aggiornato: si.
+- Test/check: 62 test mirati complessivi (`sistema_gestione.tests`, `sistema_gestione.tests_audit`, `report_conformita.tests`, tassonomia ACL; ultimo blocco PDF/report rieseguito separatamente) verdi; `makemigrations --check --dry-run`, Django check e secret hygiene verdi; import reale MOD.035B in dry-run (7 sezioni, 19 domande); PDF renderizzati con PyMuPDF e verificati a vista; pagine verificate con Playwright in tema chiaro/scuro, nessun errore JavaScript.
+- Esito: implementazione completata nel worktree `temp/codex-sistema-audit-9100`, branch `feature/sistema-gestione-audit-9100`; non deployata.
+- Rischi residui: assegnare i grant ACL ai ruoli aziendali e importare la checklist reale con `--apply` solo nell'ambiente autorizzato; verificare in TEST recapiti MSM, inviti calendario e resa con dataset completo prima del deploy.
+- Note per altro agente/Brizio: le variabili opzionali sono `SISTEMA_GESTIONE_AUDIT_SEDE` e `SISTEMA_GESTIONE_AUDIT_EMAIL_MSM`; il deploy richiede migration `sistema_gestione 0003`, bootstrap ACL e import esplicito del MOD.035B.
+
 ## 2026-09-22 - Codex (stile scheda visita e rimozione con referti)
 
 - Area: `django_app/anagrafica`; richiesta: scheda HTML coerente con il portale e rimozione di visite errate anche se hanno un referto.

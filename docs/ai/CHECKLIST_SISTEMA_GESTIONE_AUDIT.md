@@ -16,7 +16,7 @@
 | Fase | Contenuto | Stato | Commit / note |
 |---|---|---|---|
 | 1 | Dichiarazione di applicabilità (SoA) ISO 27001 = MOD.165 Control Matrix + threat intelligence | **FATTA** — mergiata su `main` e `release/prod`, **non deployata** | feature `e525875a`, main `a784d330`, release/prod `e59c3223` |
-| 2 | Audit interni EN 9100: MOD.034 programma, MOD.035A piano, MOD.035B rapporto, auditor, collegamento al Registro OFI | **DA FARE** | — |
+| 2 | Audit interni EN 9100: MOD.034 programma, MOD.035A piano, MOD.035B rapporto, auditor, collegamento al Registro OFI | **FATTA** — implementata e verificata, **non deployata** | branch `feature/sistema-gestione-audit-9100`; hash finali nel riepilogo di chiusura |
 | 3 | Audit interni ISMS: MOD.171 piano, MOD.168 rapporto (punteggio 1-4 dei 93 controlli precompilato dalla SoA) | **DA FARE** | — |
 | 4 | Estensioni: checklist ISO 45001 e UNI/PdR 125, flag PdR 125 nel Registro OFI, (eventuale) analisi del rischio completa del MOD.165 | **RIMANDATE** dall'utente | — |
 
@@ -164,10 +164,11 @@ trattamento e threat intelligence.
 
 ---
 
-## 6. Fase 2 — Audit interni EN 9100 (DA FARE)
+## 6. Fase 2 — Audit interni EN 9100 (FATTA — NON DEPLOYATA)
 
-Branch suggerito: `feature/sistema-gestione-audit-9100`. Permessi nuovi (aggiungere in `acl_bootstrap.py`, con binding
-di **ogni** route):
+Implementazione completata il 2026-09-25 sul branch `feature/sistema-gestione-audit-9100`; migrazioni, importatore, PDF e verifiche UI inclusi. Il deploy resta separato (§8).
+
+Permessi nuovi aggiunti in `acl_bootstrap.py`, con binding di **ogni** route:
 
 | Codice | Uso |
 |---|---|
@@ -178,45 +179,45 @@ di **ogni** route):
 
 ### 6.1 Modelli
 
-- [ ] **`Auditor`** — `user` (FK nullable) **oppure** `nome_esterno` + `ente_esterno`; `interno` (bool); requisiti MT CN 12 §6 come campi booleani con data di verifica: `req_diploma`, `req_norme`, `req_tecniche_audit`, `req_settore`, `req_esperienza_2_anni`; `audit_svolti_pregressi` (int, da storico cartaceo); per gli esterni `approvato_ceo_da/_il` e `formazione_processi_il` (§5.3); `attivo`. Proprietà `audit_svolti` = pregressi + audit chiusi nel portale; `qualificato` = tutti i requisiti + `audit_svolti >= 4`. Facoltativo: collegamento a `anagrafica.DipendenteQualifica` se esiste una qualifica «Auditor interno».
-- [ ] **`ProgrammaAudit`** (MOD.034) — `anno`, `revisione` (int), `stato` (BOZZA/PROPOSTA/APPROVATO/SUPERATO), `rif_riesame` (testo: «MOD.062 VRS del …»), `periodi` (testo libero per norma: es. «Audit 27001: gennaio; 9100: maggio + ottobre; 45001: giugno–settembre; PdR 125: settembre»), `esclusioni_27002` (testo, **precompilato dalla SoA in vigore**: controlli con livello 0), approvazione CEO (`approvato_da/_il`) + convalida RDD (`convalidato_da/_il`), `copia_firmata` (come SoA). Una revisione approvata non si modifica; la nuova revisione copia righe e celle (motivo obbligatorio: date non rispettate / nuove criticità, MT CN 12 §5.2).
-- [ ] **`RigaProgramma`** — `programma` FK, `ordine`, `area` (testo, es. «Supporto (Gestione delle risorse)»), `enti` (testo, es. «SAM - MSM / RSPP - CISO»), punti norma per colonna: `punti_9100`, `punti_45001`, `punti_27001`, `punti_pdr125`, `altre_normative` (es. «MO-ID-009.24, EASA, EMAR/AER P-145, MOE», «Doc 1 DMFGSDP», «MT CN 65»), `note`.
-- [ ] **`CellaProgramma`** — `riga` FK, `mese` (1-12), `stato` PR (programmata) / RP (riprogrammata) / ST (straordinaria), `audit` FK nullable (l'audit che la realizza). Vincolo unico (riga, mese).
-- [ ] **`Audit`** (MOD.035A + testata MOD.035B) — `numero` (formato da confermare con l'utente, es. `RAIS-AAAA-NN`), `programma` FK + `righe` M2M (righe coperte), `tipo`: SISTEMA (RAIS) / MANDATORIO_CLIENTE (RAI) / STRAORDINARIO; flag norme `en9100`, `iso45001`, `iso27001`, `pdr125`; `lead_auditor` FK Auditor, `auditor` M2M; `processi`, `punti_norma`, `procedure_criteri`, `esclusioni` (default «Nessuna»); `data_inizio`, `data_fine`, `durata_stimata`, `sede` (default «Costruzioni Novicrom srl – Pontedera (PI)» da configurazione, non fisso nel codice); metodi (4 booleani: intervista, esame documenti, osservazione diretta, verifica evidenze); `comunicazione_il` + `comunicazione_metodo` (EMAIL / CALENDARIO); stato: PIANIFICATO → PIANO_APPROVATO → IN_CORSO → RAPPORTO → CHIUSO (+ ANNULLATO); approvazioni: `piano_approvato_lead_*`, `piano_approvato_direzione_*`, `rapporto_firmato_auditor_*`, `rapporto_convalidato_ente_*` (responsabile ente verificato, MT CN 12), `rapporto_valutato_rdd_*`; `giudizio`, `punti_forza`, `valutazione_rdd`, `car_autorizzate` (testo); `copia_firmata_piano`, `copia_firmata_rapporto`.
-- [ ] **`AuditPersona`** (sez. 4 MOD.035A / sez. B MOD.035B) — `audit` FK, `nome`, `funzione_ente`, `ruolo` (TEAM / AUDITATO / PROCESSO), `data_intervista`, `intervistato` (bool).
-- [ ] **`AuditAgenda`** (sez. 5 MOD.035A) — `audit` FK, `quando` (datetime), `processo_area`, `attivita` (punto norma / documento), `auditor` (testo o FK). Alla creazione dell'audit generare «Riunione di apertura» e «Riunione di chiusura» (Lead Auditor).
-- [ ] **`ChecklistModello`** / **`ChecklistSezione`** / **`ChecklistDomanda`** — modello versionato per norma (fase 2: `EN9100_FOLDER_B`). Sezione = «§4 – Contesto dell'organizzazione» con `criteri` (es. «IDOR CN 01 Rev.10 · MOD.062 VRS»); domanda = `punti` (es. «4.1 4.2») + `testo` (requisito / domande guida). **Il testo delle domande è contenuto aziendale del MOD.035B**: caricarlo con un **comando di import dal PDF** (come `importa_soa_mod165`), non in una migration né nel codice; nei test usare domande sintetiche.
-- [ ] **`AuditEsito`** — `audit` FK, `domanda` FK, `esito` CONFORME (✓) / OFI / NC / NA, `evidenze` (testo), `ofi` FK `RegistroOFI` nullable. Per sezione: `AuditSezioneCar` (`audit`, `sezione`, `car_aperta` bool) = riga «CAR (MOD.036) aperta – §x: NO/SÌ → vedere MOD.174».
+- [x] **`Auditor`** — `user` (FK nullable) **oppure** `nome_esterno` + `ente_esterno`; `interno` (bool); requisiti MT CN 12 §6 come campi booleani con data di verifica: `req_diploma`, `req_norme`, `req_tecniche_audit`, `req_settore`, `req_esperienza_2_anni`; `audit_svolti_pregressi` (int, da storico cartaceo); per gli esterni `approvato_ceo_da/_il` e `formazione_processi_il` (§5.3); `attivo`. Proprietà `audit_svolti` = pregressi + audit chiusi nel portale; `qualificato` = tutti i requisiti + `audit_svolti >= 4`. Facoltativo: collegamento a `anagrafica.DipendenteQualifica` se esiste una qualifica «Auditor interno».
+- [x] **`ProgrammaAudit`** (MOD.034) — `anno`, `revisione` (int), `stato` (BOZZA/PROPOSTA/APPROVATO/SUPERATO), `rif_riesame` (testo: «MOD.062 VRS del …»), `periodi` (testo libero per norma: es. «Audit 27001: gennaio; 9100: maggio + ottobre; 45001: giugno–settembre; PdR 125: settembre»), `esclusioni_27002` (testo, **precompilato dalla SoA in vigore**: controlli con livello 0), approvazione CEO (`approvato_da/_il`) + convalida RDD (`convalidato_da/_il`), `copia_firmata` (come SoA). Una revisione approvata non si modifica; la nuova revisione copia righe e celle (motivo obbligatorio: date non rispettate / nuove criticità, MT CN 12 §5.2).
+- [x] **`RigaProgramma`** — `programma` FK, `ordine`, `area` (testo, es. «Supporto (Gestione delle risorse)»), `enti` (testo, es. «SAM - MSM / RSPP - CISO»), punti norma per colonna: `punti_9100`, `punti_45001`, `punti_27001`, `punti_pdr125`, `altre_normative` (es. «MO-ID-009.24, EASA, EMAR/AER P-145, MOE», «Doc 1 DMFGSDP», «MT CN 65»), `note`.
+- [x] **`CellaProgramma`** — `riga` FK, `mese` (1-12), `stato` PR (programmata) / RP (riprogrammata) / ST (straordinaria), `audit` FK nullable (l'audit che la realizza). Vincolo unico (riga, mese).
+- [x] **`Audit`** (MOD.035A + testata MOD.035B) — `numero` (formato da confermare con l'utente, es. `RAIS-AAAA-NN`), `programma` FK + `righe` M2M (righe coperte), `tipo`: SISTEMA (RAIS) / MANDATORIO_CLIENTE (RAI) / STRAORDINARIO; flag norme `en9100`, `iso45001`, `iso27001`, `pdr125`; `lead_auditor` FK Auditor, `auditor` M2M; `processi`, `punti_norma`, `procedure_criteri`, `esclusioni` (default «Nessuna»); `data_inizio`, `data_fine`, `durata_stimata`, `sede` (default «Costruzioni Novicrom srl – Pontedera (PI)» da configurazione, non fisso nel codice); metodi (4 booleani: intervista, esame documenti, osservazione diretta, verifica evidenze); `comunicazione_il` + `comunicazione_metodo` (EMAIL / CALENDARIO); stato: PIANIFICATO → PIANO_APPROVATO → IN_CORSO → RAPPORTO → CHIUSO (+ ANNULLATO); approvazioni: `piano_approvato_lead_*`, `piano_approvato_direzione_*`, `rapporto_firmato_auditor_*`, `rapporto_convalidato_ente_*` (responsabile ente verificato, MT CN 12), `rapporto_valutato_rdd_*`; `giudizio`, `punti_forza`, `valutazione_rdd`, `car_autorizzate` (testo); `copia_firmata_piano`, `copia_firmata_rapporto`.
+- [x] **`AuditPersona`** (sez. 4 MOD.035A / sez. B MOD.035B) — `audit` FK, `nome`, `funzione_ente`, `ruolo` (TEAM / AUDITATO / PROCESSO), `data_intervista`, `intervistato` (bool).
+- [x] **`AuditAgenda`** (sez. 5 MOD.035A) — `audit` FK, `quando` (datetime), `processo_area`, `attivita` (punto norma / documento), `auditor` (testo o FK). Alla creazione dell'audit generare «Riunione di apertura» e «Riunione di chiusura» (Lead Auditor).
+- [x] **`ChecklistModello`** / **`ChecklistSezione`** / **`ChecklistDomanda`** — modello versionato per norma (fase 2: `EN9100_FOLDER_B`). Sezione = «§4 – Contesto dell'organizzazione» con `criteri` (es. «IDOR CN 01 Rev.10 · MOD.062 VRS»); domanda = `punti` (es. «4.1 4.2») + `testo` (requisito / domande guida). **Il testo delle domande è contenuto aziendale del MOD.035B**: caricarlo con un **comando di import dal PDF** (come `importa_soa_mod165`), non in una migration né nel codice; nei test usare domande sintetiche.
+- [x] **`AuditEsito`** — `audit` FK, `domanda` FK, `esito` CONFORME (✓) / OFI / NC / NA, `evidenze` (testo), `ofi` FK `RegistroOFI` nullable. Per sezione: `AuditSezioneCar` (`audit`, `sezione`, `car_aperta` bool) = riga «CAR (MOD.036) aperta – §x: NO/SÌ → vedere MOD.174».
 
 ### 6.2 Flussi e regole
 
-- [ ] **Programma**: griglia righe × 12 mesi con PR/RP/ST cliccabili (HTMX o form semplice), legenda come MOD.034; da una cella «Pianifica audit» crea l'`Audit` precompilato (norme dalle colonne con punti valorizzati, punti norma, enti).
-- [ ] **Piano**: form a sezioni identiche al MOD.035A (1 Identificazione, 2 Campo, 3 Logistica e comunicazione, 4 Persone coinvolte, 5 Programma orario, 6 Approvazione). Pulsante «Comunica agli auditati»: email (+ invito calendario se l'integrazione Outlook è disponibile) alle persone con ruolo AUDITATO; registra `comunicazione_il/_metodo`; **avviso bloccante (con deroga motivata)** se mancano meno di 5 giorni lavorativi alla `data_inizio` (festivi italiani: riusare l'helper già presente nel progetto, cercare `holidays` / giorni lavorativi in `gestione_specifiche`).
-- [ ] **Imparzialità** (EN 9100 §9.2.2, MT CN 12 §5.3): errore se lead auditor o auditor appartengono al reparto/funzione del processo auditato (confronto con il reparto in anagrafica, ponte `utente_id` — mai confrontare direttamente id utente e id anagrafica); deroga solo con motivazione, tracciata in audit log. Avviso se l'auditor non risulta `qualificato`.
-- [ ] **Esecuzione**: checklist precaricata dal modello della norma; per ogni domanda esito + evidenze; la checklist «può essere ampliata o modificata durante l'audit» (MT CN 12 §5.5) → consentire domande aggiuntive all'audit.
-- [ ] **OFI/NC → Registro OFI**: all'esito OFI o NC creare (una volta sola) una `RegistroOFI` con `tipo` OFI/NC, `norma_en9100=True` (e le altre secondo il flag dell'audit), `rif_norma` = punti della domanda, `processo` = processi dell'audit, `opportunita` = evidenze, `data_apertura` = data dell'audit, `modulo_origine="sistema_gestione"`, origine generica = l'`AuditEsito`. Numerazione: usare la stessa logica del registro (cercare in `gestione_specifiche/views_ofi.py` / `models.py` come si assegna `numero`). Collegare `AuditEsito.ofi`.
-- [ ] **Contatori** «OFI emesse / NC di sistema» calcolati dagli esiti (sez. D).
-- [ ] **Chiusura**: firma auditor → convalida responsabile ente → valutazione RDD con «CAR autorizzate» → CHIUSO. Distribuzione del rapporto (MT CN 12 §5.6): notifica/email al responsabile della funzione auditata e al MSM.
-- [ ] **Audit mirati su richiesta del cliente** (MT CN 12, es. DMFG - Part 145): tipo MANDATORIO_CLIENTE; righe «Normative» del MOD.034.
-- [ ] **KPI MT CN 12 §7**: «N. verifiche effettuate / n. verifiche programmate» per anno → nuovo report `audit-interni` in `report_conformita/reports/qualita.py` (celle PR/RP/ST vs audit chiusi, NC/OFI da audit aperte, tempi di chiusura, auditor qualificati) + incluso nel riesame.
-- [ ] **Evidenza viva SoA**: in `evidenze.py` collegare i controlli **5.35** e **5.36** al report `audit-interni`.
+- [x] **Programma**: griglia righe × 12 mesi con PR/RP/ST cliccabili (HTMX o form semplice), legenda come MOD.034; da una cella «Pianifica audit» crea l'`Audit` precompilato (norme dalle colonne con punti valorizzati, punti norma, enti).
+- [x] **Piano**: form a sezioni identiche al MOD.035A (1 Identificazione, 2 Campo, 3 Logistica e comunicazione, 4 Persone coinvolte, 5 Programma orario, 6 Approvazione). Pulsante «Comunica agli auditati»: email (+ invito calendario se l'integrazione Outlook è disponibile) alle persone con ruolo AUDITATO; registra `comunicazione_il/_metodo`; **avviso bloccante (con deroga motivata)** se mancano meno di 5 giorni lavorativi alla `data_inizio` (festivi italiani: riusare l'helper già presente nel progetto, cercare `holidays` / giorni lavorativi in `gestione_specifiche`).
+- [x] **Imparzialità** (EN 9100 §9.2.2, MT CN 12 §5.3): errore se lead auditor o auditor appartengono al reparto/funzione del processo auditato (confronto con il reparto in anagrafica, ponte `utente_id` — mai confrontare direttamente id utente e id anagrafica); deroga solo con motivazione, tracciata in audit log. Avviso se l'auditor non risulta `qualificato`.
+- [x] **Esecuzione**: checklist precaricata dal modello della norma; per ogni domanda esito + evidenze; la checklist «può essere ampliata o modificata durante l'audit» (MT CN 12 §5.5) → consentire domande aggiuntive all'audit.
+- [x] **OFI/NC → Registro OFI**: all'esito OFI o NC creare (una volta sola) una `RegistroOFI` con `tipo` OFI/NC, `norma_en9100=True` (e le altre secondo il flag dell'audit), `rif_norma` = punti della domanda, `processo` = processi dell'audit, `opportunita` = evidenze, `data_apertura` = data dell'audit, `modulo_origine="sistema_gestione"`, origine generica = l'`AuditEsito`. Numerazione: usare la stessa logica del registro (cercare in `gestione_specifiche/views_ofi.py` / `models.py` come si assegna `numero`). Collegare `AuditEsito.ofi`.
+- [x] **Contatori** «OFI emesse / NC di sistema» calcolati dagli esiti (sez. D).
+- [x] **Chiusura**: firma auditor → convalida responsabile ente → valutazione RDD con «CAR autorizzate» → CHIUSO. Distribuzione del rapporto (MT CN 12 §5.6): notifica/email al responsabile della funzione auditata e al MSM.
+- [x] **Audit mirati su richiesta del cliente** (MT CN 12, es. DMFG - Part 145): tipo MANDATORIO_CLIENTE; righe «Normative» del MOD.034.
+- [x] **KPI MT CN 12 §7**: «N. verifiche effettuate / n. verifiche programmate» per anno → nuovo report `audit-interni` in `report_conformita/reports/qualita.py` (celle PR/RP/ST vs audit chiusi, NC/OFI da audit aperte, tempi di chiusura, auditor qualificati) + incluso nel riesame.
+- [x] **Evidenza viva SoA**: in `evidenze.py` collegare i controlli **5.35** e **5.36** al report `audit-interni`.
 
 ### 6.3 PDF (identici ai moduli)
 
-- [ ] `MOD.034` programma (A3/A4 orizzontale: colonne area, enti, punti per norma, normative, 12 mesi con PR/RP/ST colorati, riquadri approvazione CEO / convalida RDD, riferimento verbale di riesame, periodi per norma, esclusioni 27002).
-- [ ] `MOD.035A` piano: stessa impaginazione del PDF aziendale (testata con logo / titolo / codice-rev-data, sezioni 1-6 a tabella, caselle ☐/☒, nota a piè di pagina «Il presente Piano di Audit costituisce…» presa dal modulo). Nelle caselle firma: «Approvato digitalmente da … il …» se approvato nel portale, altrimenti vuote per la firma a mano.
-- [ ] `MOD.035B` rapporto: testata A, persone intervistate B, Folder C con righe § / requisito / evidenze / rilievo (☑ sull'esito scelto) e riga «CAR (MOD.036) aperta» per sezione, giudizi D, valutazioni RDD E.
-- [ ] Usare `core.pdf` (`PdfTheme`, `make_document`, `data_table`, `header_footer_callback`) o `canvas` per le parti a posizione fissa; confrontare a occhio con i PDF aziendali (render in PNG con PyMuPDF).
+- [x] `MOD.034` programma (A3/A4 orizzontale: colonne area, enti, punti per norma, normative, 12 mesi con PR/RP/ST colorati, riquadri approvazione CEO / convalida RDD, riferimento verbale di riesame, periodi per norma, esclusioni 27002).
+- [x] `MOD.035A` piano: stessa impaginazione del PDF aziendale (testata con logo / titolo / codice-rev-data, sezioni 1-6 a tabella, caselle ☐/☒, nota a piè di pagina «Il presente Piano di Audit costituisce…» presa dal modulo). Nelle caselle firma: «Approvato digitalmente da … il …» se approvato nel portale, altrimenti vuote per la firma a mano.
+- [x] `MOD.035B` rapporto: testata A, persone intervistate B, Folder C con righe § / requisito / evidenze / rilievo (☑ sull'esito scelto) e riga «CAR (MOD.036) aperta» per sezione, giudizi D, valutazioni RDD E.
+- [x] Usare `core.pdf` (`PdfTheme`, `make_document`, `data_table`, `header_footer_callback`) o `canvas` per le parti a posizione fissa; confrontare a occhio con i PDF aziendali (render in PNG con PyMuPDF).
 
 ### 6.4 Test minimi
 
-- [ ] Modelli e vincoli (cella unica per riga/mese, stati, revisione programma che copia righe/celle).
-- [ ] Imparzialità (errore sul proprio reparto, deroga registrata).
-- [ ] Preavviso 5 giorni lavorativi.
-- [ ] Esito OFI/NC → una sola `RegistroOFI` con i campi giusti; nessun duplicato se si salva due volte.
-- [ ] Permessi: esegui senza approva; approva negato senza permesso (patch di `_has_perm`); binding di tutte le route.
-- [ ] PDF MOD.034/035A/035B generati (`%PDF`), nessun `{#` nelle pagine.
-- [ ] Report `audit-interni` su DB vuoto e con dati sintetici.
+- [x] Modelli e vincoli (cella unica per riga/mese, stati, revisione programma che copia righe/celle).
+- [x] Imparzialità (errore sul proprio reparto, deroga registrata).
+- [x] Preavviso 5 giorni lavorativi.
+- [x] Esito OFI/NC → una sola `RegistroOFI` con i campi giusti; nessun duplicato se si salva due volte.
+- [x] Permessi: esegui senza approva; approva negato senza permesso (patch di `_has_perm`); binding di tutte le route.
+- [x] PDF MOD.034/035A/035B generati (`%PDF`), nessun `{#` nelle pagine.
+- [x] Report `audit-interni` su DB vuoto e con dati sintetici.
 
 ---
 
@@ -233,11 +234,13 @@ di **ogni** route):
 ## 8. Deploy (per ogni fase)
 
 1. Pacchetto da `release/prod` (vedi `docs/ai/06_TESTING_AND_QUALITY_GATES.md` e `deployment/scripts/package-release.ps1`).
-2. `manage.py migrate` (fase 1: `sistema_gestione 0001-0002`).
+2. `manage.py migrate` (fase 1: `sistema_gestione 0001-0002`; fase 2: anche `0003_audit_*`).
 3. `manage.py riorganizza_topbar` (dry-run) e poi `--apply`.
 4. Fase 1: `manage.py importa_soa_mod165 "\\novisrv\Sistema Gestione Integrato\27001_Sistemi Informatici\MOD.165 - RAR RiskAssessmentAndRegister Rev.3.pdf" --numero 3` (controllare l'output) e poi con `--apply` → Rev.3 in bozza da verificare e proporre.
-5. Admin › ACL: assegnare `soa.edit` al CISO, `soa.approva` alla Direzione (e in fase 2 `audit.*` a MSM/RDD, auditor, Direzione).
-6. Verificare che `DOCUMENT_ENCRYPTION_KEY` sia configurata in prod (copie firmate cifrate).
+5. Fase 2: `manage.py importa_checklist_mod035b "\\novisrv\Sistema Gestione Integrato\9100_Qualità\_Modelli\MOD.035B RAIS Rapporto di Audit Interno di Sistema Rev0.pdf" --revisione 0` (dry-run: verificare sezioni/domande), poi ripetere con `--apply` nell'ambiente autorizzato.
+6. Admin › ACL: assegnare `soa.edit` al CISO, `soa.approva` alla Direzione; per la fase 2 assegnare `audit.view/edit/esegui/approva` separatamente a MSM/RDD, auditor e Direzione.
+7. Fase 2: configurare `SISTEMA_GESTIONE_AUDIT_SEDE` e `SISTEMA_GESTIONE_AUDIT_EMAIL_MSM`; verificare invio email/invito calendario in TEST.
+8. Verificare che `DOCUMENT_ENCRYPTION_KEY` sia configurata in prod (copie firmate cifrate).
 
 ---
 

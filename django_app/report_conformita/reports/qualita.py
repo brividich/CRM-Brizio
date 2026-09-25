@@ -403,3 +403,67 @@ register(ReportDef(
     builder=_manutenzione,
     fonte="Asset › Manutenzione",
 ))
+
+
+# ---------------------------------------------------------------------------
+# Audit interni (MT CN 12 / MOD.034-035A-035B)
+# ---------------------------------------------------------------------------
+
+def _audit_interni(params: ReportParams) -> ReportResult:
+    from sistema_gestione.models import Audit, AuditEsito, Auditor, CellaProgramma
+
+    result = ReportResult()
+    celle = CellaProgramma.objects.filter(riga__programma__anno__range=(params.date_from.year, params.date_to.year))
+    audit_periodo = Audit.objects.filter(
+        data_inizio__range=(params.date_from, params.date_to),
+    ).exclude(stato=Audit.STATO_ANNULLATO).select_related("lead_auditor", "programma")
+    chiusi = audit_periodo.filter(stato=Audit.STATO_CHIUSO)
+    programmati = celle.count()
+    effettuati = chiusi.count()
+    rilievi = AuditEsito.objects.filter(audit__in=audit_periodo)
+    tempi = []
+    for audit in chiusi.exclude(rapporto_valutato_rdd_il__isnull=True):
+        fine = audit.data_fine or audit.data_inizio
+        tempi.append((audit.rapporto_valutato_rdd_il.date() - fine).days)
+    media_chiusura = round(sum(tempi) / len(tempi)) if tempi else None
+    attivi = Auditor.objects.filter(attivo=True)
+    nc_count = rilievi.filter(esito=AuditEsito.ESITO_NC).count()
+
+    result.kpis = [
+        Kpi("Verifiche programmate", programmati),
+        Kpi("Verifiche effettuate", effettuati),
+        Kpi("Rispetto programma", pct(effettuati, programmati), TONE_OK if programmati and effettuati >= programmati else TONE_WARN),
+        Kpi("OFI emesse", rilievi.filter(esito=AuditEsito.ESITO_OFI).count()),
+        Kpi("NC di sistema", nc_count, TONE_WARN if nc_count else TONE_OK),
+        Kpi("Giorni medi chiusura rapporto", media_chiusura if media_chiusura is not None else "n/d"),
+        Kpi("Auditor qualificati", sum(1 for auditor in attivi if auditor.qualificato), hint=f"su {attivi.count()} attivi"),
+    ]
+    result.columns = [
+        "N.", "Data", "Tipo", "Processi/aree", "Norme", "Lead Auditor", "Stato", "OFI", "NC", "Chiusura rapporto",
+    ]
+    for audit in audit_periodo.order_by("data_inizio", "numero"):
+        n_ofi = audit.esiti.filter(esito=AuditEsito.ESITO_OFI).count()
+        n_nc = audit.esiti.filter(esito=AuditEsito.ESITO_NC).count()
+        tone = TONE_DANGER if n_nc else TONE_OK if audit.stato == Audit.STATO_CHIUSO else TONE_WARN
+        result.add_row([
+            audit.numero, d(audit.data_inizio), audit.get_tipo_display(), short(audit.processi), audit.norme_label,
+            audit.lead_auditor.nome, audit.get_stato_display(), n_ofi, n_nc,
+            d(audit.rapporto_valutato_rdd_il),
+        ], tone)
+    result.notes = [
+        "KPI MT CN 12 §7: verifiche effettuate (audit chiusi) / celle PR-RP-ST del programma nel periodo.",
+        "OFI e NC sono conteggiate dalla checklist del rapporto e collegate al Registro OFI MOD.174.",
+    ]
+    result.links = links(("Audit interni", "sistema_gestione:audit_index"))
+    return result
+
+
+register(ReportDef(
+    slug="audit-interni",
+    title="Audit interni",
+    area=AREA_QUALITA,
+    description="Attuazione del programma, rilievi, tempi di chiusura e qualifica degli auditor.",
+    clausole=(c(ISO_9001, "9.2"), c(EN_9100, "9.2.2"), c(ISO_45001, "9.2"), c(ISO_27001, "9.2")),
+    builder=_audit_interni,
+    fonte="Sistema di gestione › Audit interni",
+))
