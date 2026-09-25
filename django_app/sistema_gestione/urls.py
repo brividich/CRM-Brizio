@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import views
+from . import audit_views, views
 
 app_name = "sistema_gestione"
 
@@ -19,4 +19,41 @@ urlpatterns = [
     path("soa/rev/<int:numero>/copia-firmata/carica/", views.soa_carica_firmata, name="soa_carica_firmata"),
     path("threat-intelligence/", views.threat_intelligence, name="threat_intelligence"),
     path("threat-intelligence/nuova/", views.threat_intelligence_nuova, name="threat_intelligence_nuova"),
+    path("audit/", audit_views.audit_index, name="audit_index"),
+    path("audit/auditor/", audit_views.auditor_elenco, name="auditor_elenco"),
+    path("audit/auditor/nuovo/", audit_views.auditor_modifica, name="auditor_nuovo"),
+    path("audit/auditor/<int:pk>/", audit_views.auditor_modifica, name="auditor_modifica"),
+    path("audit/auditor/<int:pk>/approva-esterno/", audit_views.auditor_approva_esterno, name="auditor_approva_esterno"),
+    path("audit/programmi/nuovo/", audit_views.programma_nuovo, name="programma_nuovo"),
+    path("audit/programmi/<int:pk>/", audit_views.programma_dettaglio, name="programma_dettaglio"),
+    path("audit/programmi/<int:programma_pk>/riga/nuova/", audit_views.programma_riga, name="programma_riga_nuova"),
+    path("audit/programmi/<int:programma_pk>/riga/<int:pk>/", audit_views.programma_riga, name="programma_riga_modifica"),
+    path("audit/programmi/riga/<int:riga_pk>/mese/<int:mese>/", audit_views.programma_cella, name="programma_cella"),
+    path("audit/programmi/<int:pk>/proponi/", audit_views.programma_proponi, name="programma_proponi"),
+    path("audit/programmi/<int:pk>/approva/", audit_views.programma_approva, name="programma_approva"),
+    path("audit/programmi/<int:pk>/convalida/", audit_views.programma_convalida, name="programma_convalida"),
+    path("audit/programmi/<int:pk>/nuova-revisione/", audit_views.programma_nuova_revisione, name="programma_nuova_revisione"),
+    path("audit/programmi/<int:pk>/pdf/", audit_views.programma_export_pdf, name="programma_export_pdf"),
+    path("audit/programmi/<int:pk>/copia-firmata/carica/", audit_views.programma_carica_firmata, name="programma_carica_firmata"),
+    path("audit/programmi/<int:pk>/copia-firmata/", audit_views.programma_copia_firmata, name="programma_copia_firmata"),
+    path("audit/nuovo/", audit_views.audit_modifica, name="audit_nuovo"),
+    path("audit/<int:pk>/", audit_views.audit_dettaglio, name="audit_dettaglio"),
+    path("audit/<int:pk>/modifica/", audit_views.audit_modifica, name="audit_modifica"),
+    path("audit/<int:pk>/persona/", audit_views.audit_persona_salva, name="audit_persona_salva"),
+    path("audit/<int:pk>/agenda/", audit_views.audit_agenda_salva, name="audit_agenda_salva"),
+    path("audit/<int:pk>/approva-lead/", audit_views.audit_approva_lead, name="audit_approva_lead"),
+    path("audit/<int:pk>/approva-direzione/", audit_views.audit_approva_direzione, name="audit_approva_direzione"),
+    path("audit/<int:pk>/comunica/", audit_views.audit_comunica, name="audit_comunica"),
+    path("audit/<int:pk>/avvia/", audit_views.audit_avvia, name="audit_avvia"),
+    path("audit/<int:pk>/esito/<int:esito_pk>/", audit_views.audit_esito_salva, name="audit_esito_salva"),
+    path("audit/<int:pk>/domanda-aggiuntiva/", audit_views.audit_domanda_aggiuntiva, name="audit_domanda_aggiuntiva"),
+    path("audit/<int:pk>/car/<int:car_pk>/", audit_views.audit_car_sezione, name="audit_car_sezione"),
+    path("audit/<int:pk>/rapporto/", audit_views.audit_rapporto_salva, name="audit_rapporto_salva"),
+    path("audit/<int:pk>/rapporto/firma/", audit_views.audit_firma_rapporto, name="audit_firma_rapporto"),
+    path("audit/<int:pk>/rapporto/riapri/", audit_views.audit_riapri_rapporto, name="audit_riapri_rapporto"),
+    path("audit/<int:pk>/rapporto/convalida-ente/", audit_views.audit_convalida_ente, name="audit_convalida_ente"),
+    path("audit/<int:pk>/rapporto/valuta-rdd/", audit_views.audit_valuta_rdd, name="audit_valuta_rdd"),
+    path("audit/<int:pk>/<str:documento>/pdf/", audit_views.audit_export, name="audit_export"),
+    path("audit/<int:pk>/<str:documento>/copia-firmata/carica/", audit_views.audit_carica_firmata, name="audit_carica_firmata"),
+    path("audit/<int:pk>/<str:documento>/copia-firmata/", audit_views.audit_copia_firmata, name="audit_copia_firmata"),
 ]
