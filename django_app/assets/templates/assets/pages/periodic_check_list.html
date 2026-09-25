@@ -9,6 +9,7 @@
 <p>Verifiche sugli impianti dello stabilimento: illuminazione di emergenza, quadri, cabine, terra, antincendio. Le verifiche di legge sul singolo asset stanno in <a href="{% url 'assets:asset_administrative_deadline_list' %}">Scadenze amministrative</a>.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_intake' %}">Cartella scansioni{% if intake_pending %} <span class="pc-flag is-ko">{{ intake_pending }}</span>{% endif %}</a>
   {% if can_configure %}
     <a class="btn btn-secondary" href="{% url 'assets:periodic_check_systems' %}">Impianti</a>
     <a class="btn btn-secondary" href="{% url 'assets:periodic_check_categories' %}">Categorie</a>
@@ -112,7 +113,7 @@
           <tbody>
             {% for row in group.rows %}
               {% with t=row.type %}
-              <tr class="pc-row-link" data-href="{% url 'assets:periodic_check_type_detail' t.id %}">
+              <tr data-row-href="{% url 'assets:periodic_check_type_detail' t.id %}">
                 <td class="pc-name">
                   <a href="{% url 'assets:periodic_check_type_detail' t.id %}" title="Apri la scheda: stato, statistiche, storico, documenti">{{ t.name }}</a>
                   {% if t.drafts %}<span class="pc-flag">{{ t.drafts }} da confermare</span>{% endif %}

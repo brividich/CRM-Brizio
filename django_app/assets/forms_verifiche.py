@@ -10,6 +10,7 @@ from .models import (
     PERIODIC_FREQUENCY_LABELS,
     Asset,
     PeriodicCheckCategory,
+    PeriodicCheckIntakeConfig,
     PeriodicCheckItem,
     PeriodicCheckSession,
     PeriodicCheckSystem,
@@ -193,3 +194,15 @@ class WorkOrderFromResultForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["asset"].queryset = Asset.objects.order_by("asset_tag", "name")
+
+
+class PeriodicCheckIntakeConfigForm(forms.ModelForm):
+    class Meta:
+        model = PeriodicCheckIntakeConfig
+        fields = ["attiva", "cartella", "sposta_elaborati", "max_file_per_giro"]
+        labels = {
+            "attiva": "Leggi la cartella in automatico (ogni 2 minuti)",
+            "cartella": "Cartella di rete dello scanner",
+            "sposta_elaborati": "Sposta i file letti in «elaborati» e gli altri in «errori»",
+            "max_file_per_giro": "File al massimo per passaggio",
+        }

@@ -139,11 +139,9 @@ body.theme-dark{--pc-c-blue:#93c5fd;--pc-c-red:#fca5a5;--pc-c-orange:#fcd34d;--p
 .pc-objnav-crumb{font-size:var(--fs-sm);font-weight:800;color:var(--text,#0f172a)}
 .pc-objnav-crumb > span:first-child{color:var(--text-mid,#94a3b8);margin-right:2px}
 /* Righe cliccabili. */
-.pc-row-link{cursor:pointer}
-.pc-row-link:hover td{background:var(--mk-chk-bg)}
-.pc-row-link:hover .pc-name a{text-decoration:underline}
+tr[data-row-href]:hover .pc-name a{text-decoration:underline}
 .pc-row-go{display:inline-grid;place-items:center;width:22px;color:var(--text-mid,#94a3b8);font-size:1.3rem;line-height:1}
-.pc-row-link:hover .pc-row-go{color:var(--mk-chk)}
+tr[data-row-href]:hover .pc-row-go{color:var(--mk-chk)}
 .pc-table .pc-c-act{width:190px}
 /* «Cosa fare adesso». */
 .pc-todo-list{list-style:none;margin:0;padding:6px 10px 10px;display:grid;gap:6px}

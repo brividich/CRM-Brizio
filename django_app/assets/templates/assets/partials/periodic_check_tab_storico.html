@@ -10,7 +10,7 @@
           </thead>
           <tbody>
             {% for s in sessions %}
-              <tr class="pc-row-link" data-href="{% url 'assets:periodic_check_session_detail' s.id %}">
+              <tr data-row-href="{% url 'assets:periodic_check_session_detail' s.id %}">
                 <td>
                   <span class="pc-date">{{ s.performed_on|date:"d/m/Y" }}</span>
                   {% if s.status == "ISSUED" %}<span class="pc-flag">foglio {{ s.sheet_token }} in giro</span>

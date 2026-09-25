@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('assets', '0114_verifiche_periodiche_planimetrie'),
+        ('assets', '0115_verifiche_periodiche_acquisizione'),
     ]
 
     operations = [

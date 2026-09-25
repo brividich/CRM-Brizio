@@ -117,7 +117,7 @@ Panoramica (`services/periodic_stats.py`, sola lettura):
 
 ## Navigazione, categorie, «Cosa fare adesso»
 
-- **Categorie** (`PeriodicCheckCategory`, migration 0115): trasversali agli impianti, con colore
+- **Categorie** (`PeriodicCheckCategory`, migration 0116): trasversali agli impianti, con colore
   (palette fissa, token `--pc-c-*` anche in dark). Pagina `.../verifiche-impianti/categorie/`
   per crearle e assegnarle in blocco. Elenco: `?categoria=<id>|nessuna` e
   `?raggruppa=impianto|categoria`. Non confondere con `point_categories` («Tipi di segnalazione
@@ -139,6 +139,27 @@ Panoramica (`services/periodic_stats.py`, sola lettura):
 - Antintrusione passa al metodo **misure** (la verifica e' sui valori delle batterie dei
   moduli; la planimetria a zone non ha punti numerati).
 
+## Cartella di pescaggio («Cartella scansioni»)
+
+- Pagina `/assets/manutenzione/verifiche-impianti/acquisizione/` (pulsante «Cartella scansioni»
+  nell'elenco, con il numero di scansioni da smistare): stato, istruzioni, «Leggi la cartella
+  ora», caricamento manuale di file da smistare, coda **da smistare** (associa a una verifica
+  in attesa o scarta), registro delle ultime scansioni, impostazioni (solo chi configura).
+- `PeriodicCheckIntakeConfig` (riga unica: attiva, cartella UNC, sposta in
+  `elaborati`/`errori`, file per passaggio, ultimo esito) e `PeriodicCheckIntakeLog` (una riga
+  per foglio; copia del file solo per quelli da smistare), migrazione 0115.
+- `services/periodic_intake.py`: file stabile → pagine (un PDF con piu' fogli si legge pagina
+  per pagina) → QR → verifica → `read_scan_into` → verifica «da confermare». Senza QR, o
+  verifica gia' confermata → da smistare. Non solleva mai; un file con pagine non lette va in
+  `errori`.
+- Task `assets.tasks.run_periodic_check_intake`, schedule django-q `intake_verifiche_periodiche`
+  ogni 2 minuti (no-op se spenta o cartella irraggiungibile); comando
+  `intake_verifiche_periodiche [--forza] [--limite N]`.
+- Stesso schema di `anagrafica/services/intake_scansioni.py` (fogli firme formazione).
+- Deploy: `migrate assets` 0115, registrare lo schedule (Centrale di comando «Registra
+  schedule» o `setup_q_schedules`), impostare la cartella dalla pagina e accendere; l'utente
+  dell'app-pool deve poter leggere e spostare file nella cartella.
+
 ## Storico
 
 `manage.py import_periodic_checks <cartella>` (dry-run di default, `--apply` per
@@ -156,4 +177,4 @@ La mappa cartella -> tipo e' in `assets/services/periodic_checks_catalog.py`.
 - `import_periodic_layout "Verifica illuminazione di emergenza" "\\novisrv\privman\_Impianto Elettrico\Verifiche impianto elettrico\Verifica illuminazione di emergenza (quadrimestrale)\PLANIMETRIA PLAFONIERE DI EMERGENZA.pdf" --exclude "465.6,975.5,813.7,1136.3" --apply`.
 - `import_periodic_checks "\\novisrv\privman\_Impianto Elettrico\Verifiche impianto elettrico" --apply`
   (e le altre cartelle del catalogo).
-- `migrate assets` 0115 (categorie); le categorie si creano dalla pagina «Categorie».
+- `migrate assets` 0116 (categorie); le categorie si creano dalla pagina «Categorie».

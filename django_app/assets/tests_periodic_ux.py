@@ -44,7 +44,7 @@ class VerificheUxTests(TestCase):
 
     def test_righe_cliccabili_verso_la_scheda(self):
         page = self._list()
-        self.assertContains(page, f'data-href="{reverse("assets:periodic_check_type_detail", args=[self.plain.id])}"')
+        self.assertContains(page, f'data-row-href="{reverse("assets:periodic_check_type_detail", args=[self.plain.id])}"')
 
     def test_filtro_e_raggruppamento_per_categoria(self):
         page = self._list(categoria=str(self.fire.id))

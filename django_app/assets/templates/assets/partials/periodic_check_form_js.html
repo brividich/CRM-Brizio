@@ -1,16 +1,6 @@
-{# Verifiche periodiche: righe cliccabili, nomi dei file scelti, campi che valgono solo per un metodo. #}
+{# Verifiche periodiche: nomi dei file scelti, campi che valgono solo per un metodo. Righe cliccabili: data-row-href della shell. #}
 <script>
 (function () {
-  // Riga intera cliccabile: porta alla scheda, salvo click su link, pulsanti e campi.
-  document.querySelectorAll("tr[data-href]").forEach(function (row) {
-    row.addEventListener("click", function (event) {
-      if (event.target.closest("a,button,input,select,textarea,label,form")) return;
-      if (window.getSelection && String(window.getSelection())) return;
-      if (event.ctrlKey || event.metaKey) { window.open(row.dataset.href, "_blank"); return; }
-      window.location.href = row.dataset.href;
-    });
-  });
-
   // Caricamento file: mostra cosa e' stato scelto, anche per trascinamento.
   document.querySelectorAll("[data-pc-drop]").forEach(function (input) {
     var zone = input.closest(".pc-drop");

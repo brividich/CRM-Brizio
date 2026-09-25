@@ -29,5 +29,32 @@ body.theme-dark .sg-ev a{color:#93c5fd}
 .sg-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
 .sg-form-grid .full{grid-column:1/-1}
 .sg-checks{display:flex;flex-wrap:wrap;gap:6px 18px}
+.sg-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+.sg-kpi{padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.sg-kpi span{display:block;color:var(--text-light);font-size:var(--fs-xs);text-transform:uppercase;font-weight:700}
+.sg-kpi strong{display:block;margin-top:4px;color:var(--text);font-size:var(--fs-xl)}
+.sg-section{margin-top:14px;padding:16px}
+.sg-section h2,.sg-section h3{margin:0 0 10px;color:var(--text)}
+.sg-table-scroll{overflow:auto;border:1px solid var(--border);border-radius:10px}
+.sg-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.sg-table th,.sg-table td{padding:8px;border:1px solid var(--border);vertical-align:top;text-align:left;color:var(--text)}
+.sg-table th{background:var(--surface-soft);font-weight:800;white-space:nowrap}
+.sg-month{min-width:58px;text-align:center!important}
+.sg-month form{display:flex;gap:3px;align-items:center;justify-content:center}
+.sg-month select{min-width:48px;height:30px;padding:2px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)}
+.sg-month .btn{min-height:30px;padding:0 7px}
+.sg-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;background:var(--surface-soft);color:var(--text-mid);font-size:var(--fs-xs);font-weight:800}
+.sg-badge.ok{background:var(--success-bg);color:var(--success)}
+.sg-badge.warn{background:var(--warning-bg);color:var(--warning)}
+.sg-badge.danger{background:var(--danger-bg);color:var(--danger)}
+.sg-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.sg-inline-form{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.sg-inline-form>div{min-width:180px;flex:1}
+.sg-checklist-row{display:grid;grid-template-columns:minmax(80px,.4fr) minmax(240px,1.4fr) minmax(280px,1.7fr);gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
+.sg-checklist-row textarea{width:100%;min-height:82px}
+.sg-checklist-row select{width:100%}
+.sg-signatures{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.sg-signature{padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-soft);font-size:var(--fs-sm)}
 @media (max-width:760px){.sg-form-grid{grid-template-columns:1fr}.sg-actions input[type=text]{min-width:0;width:100%}}
+@media (max-width:900px){.sg-columns{grid-template-columns:1fr}.sg-checklist-row{grid-template-columns:1fr}}
 </style>
