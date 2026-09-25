@@ -376,3 +376,65 @@ class MaintenanceACLEdgeAuditTests(MaintenanceAuditFixture):
         self.assertEqual(response.status_code, 403)
         occurrences[2].refresh_from_db()
         self.assertIsNone(occurrences[2].work_order_id)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, MIDDLEWARE=_MIDDLEWARE_SENZA_ACL)
+class CreateAndCompleteWorkOrderTests(MaintenanceAuditFixture):
+    """"Crea OdL e chiudi intervento" da Da fare: OdL creato e registrato in un colpo."""
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def post(self, occurrences, **extra):
+        data = {
+            "occurrence_ids": [occ.pk for occ in occurrences],
+            "split_by_asset": "on",
+            "action": "create_and_complete",
+            "completed_on": "2026-09-21",
+        }
+        data.update(extra)
+        with patch("assets.views_maintenance.can_plan_maintenance", return_value=True), patch(
+            "assets.views_maintenance.can_execute_maintenance", return_value=True
+        ):
+            return self.client.post(reverse("assets:occurrence_create_workorder"), data)
+
+    def test_creates_and_closes_one_workorder_per_asset(self):
+        _plan, _assignment, occurrences = self.make_occurrences("create-close", count=2)
+        response = self.post(occurrences)
+        self.assertEqual(response.status_code, 302)
+        work_orders = list(WorkOrder.objects.all())
+        self.assertEqual(len(work_orders), 2)
+        self.assertTrue(all(wo.status == WorkOrder.STATUS_DONE for wo in work_orders))
+        for occ in occurrences:
+            occ.refresh_from_db()
+            self.assertEqual(occ.status, MaintenanceOccurrence.STATUS_DONE)
+            self.assertEqual(occ.completed_on, date(2026, 9, 21))
+
+    def test_without_execute_permission_creates_nothing(self):
+        _plan, _assignment, occurrences = self.make_occurrences("no-exec", count=1)
+        with patch("assets.views_maintenance.can_plan_maintenance", return_value=True), patch(
+            "assets.views_maintenance.can_execute_maintenance", return_value=False
+        ):
+            self.client.post(
+                reverse("assets:occurrence_create_workorder"),
+                {"occurrence_ids": [occurrences[0].pk], "action": "create_and_complete"},
+            )
+        self.assertFalse(WorkOrder.objects.exists())
+
+    def test_required_attachment_leaves_workorder_open(self):
+        plan, _assignment, occurrences = self.make_occurrences("attach", count=1)
+        plan.attachment_required = True
+        plan.save(update_fields=["attachment_required"])
+        response = self.post(occurrences)
+        work_order = WorkOrder.objects.get()
+        self.assertRedirects(
+            response, reverse("assets:wo_view", args=[work_order.pk]), fetch_redirect_response=False
+        )
+        self.assertEqual(work_order.status, WorkOrder.STATUS_OPEN)
+        occurrences[0].refresh_from_db()
+        self.assertEqual(occurrences[0].status, MaintenanceOccurrence.STATUS_OPEN)
+
+    def test_future_date_is_rejected(self):
+        _plan, _assignment, occurrences = self.make_occurrences("future", count=1)
+        self.post(occurrences, completed_on="2999-01-01")
+        self.assertFalse(WorkOrder.objects.exists())
