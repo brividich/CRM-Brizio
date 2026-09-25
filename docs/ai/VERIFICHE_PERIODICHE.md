@@ -102,6 +102,26 @@ Panoramica (`services/periodic_stats.py`, sola lettura):
 - Colori dei punti e delle serie **provvisori** (`--pc-cat0/1` in `periodic_check_styles.html`,
   validati solo in tema chiaro): l'utente li decide in seguito.
 
+## Guida in pagina e riconoscimento dei punti
+
+- In cima alla Panoramica della scheda: **«Come funziona questa verifica»** (`_guide` in
+  `views_verifiche.py`, partial `periodic_check_guide.html`). Passi diversi per metodo, ognuno
+  con stato (fatto / da fare / pronto / in attesa / bloccato) e il pulsante per farlo; il primo
+  passo da fare e' evidenziato. Planimetria: carica planimetria → stampa foglio → carica
+  scansione → conferma → rilievi in OdL. Checklist: voci → registra → OdL. Verbale/misure:
+  registra → OdL (per le misure la pagina dice che la lettura automatica arrivera').
+- Elenco: «Apri scheda» sempre; «Stampa foglio» per le planimetrie con planimetria caricata,
+  «Carica planimetria» se manca, «Registra» per gli altri metodi. Il flag dei rilievi senza OdL
+  conta solo l'ultima verifica con esiti, come la scheda.
+- `extract_points` riconosce **due disegni** e sceglie quello che trova piu' punti:
+  riquadro rosso con la X + numero rosso (luci, 71 punti) e **quadratino pieno colorato con
+  l'etichetta accanto** (differenziali: «D12», «D3/A», numeri per le macchine; anche
+  codici attaccati come «D52D53», ognuno sui propri caratteri) → 189 punti sulla tavola 2021;
+  una decina nei gruppi piu' fitti non si abbina e si aggiunge alla conferma.
+  Impostazioni mostra l'elenco dei punti riconosciuti per controllarli.
+- Antintrusione passa al metodo **misure** (la verifica e' sui valori delle batterie dei
+  moduli; la planimetria a zone non ha punti numerati).
+
 ## Storico
 
 `manage.py import_periodic_checks <cartella>` (dry-run di default, `--apply` per
