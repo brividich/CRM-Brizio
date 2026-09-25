@@ -4,19 +4,35 @@
 
 {% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
 
-{% block assets_shell_title %}{{ check_type.name }}{% if session.is_confirmed %} del {{ session.performed_on|date:"d/m/Y" }}{% endif %}{% endblock %}
+{% block assets_shell_title %}{{ check_type.name }}{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>{{ check_type.system.name }} ·
-    {% if session.is_confirmed %}<span class="pc-outcome is-{{ session.outcome }}">{{ session.get_outcome_display }}</span>{% else %}{{ session.get_status_display }}{% endif %}
-    · {{ session.get_source_display }}{% if session.sheet_token %} · foglio {{ session.sheet_token }}{% endif %}</p>
+  {% include "assets/partials/periodic_check_head_meta.html" %}
 {% endblock %}
 {% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}?tab=storico">‹ Storico verifiche</a>
   {% if session.sheet_token and session.layout %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_sheet_pdf' session.id %}" target="_blank" rel="noopener">Foglio (PDF)</a>{% endif %}
-  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Storico di questa verifica</a>
 {% endblock %}
 
 {% block assets_shell_content %}
 <div class="md-page">
+  {% include "assets/partials/periodic_check_type_tabs.html" with crumb=session_crumb %}
+
+  <section class="pc-session-card" aria-label="Stato di questa verifica">
+    <div class="pc-session-id">
+      <span class="pc-session-kicker">{% if session.status == "ISSUED" %}Foglio {{ session.sheet_token }}{% else %}Verifica{% endif %}</span>
+      <strong>{% if session.status == "ISSUED" %}Stampato il {{ session.created_at|date:"d/m/Y" }}{% else %}{{ session.performed_on|date:"d/m/Y" }}{% endif %}</strong>
+      <span>
+        {% if session.is_confirmed %}<span class="pc-outcome is-{{ session.outcome }}">{{ session.get_outcome_display }}</span>
+        {% else %}<span class="pc-state is-due_soon">{{ session.get_status_display }}</span>{% endif %}
+        <span class="pc-muted">{{ session.get_source_display }}</span>
+      </span>
+    </div>
+    <ol class="pc-progress">
+      {% for p in progress %}
+        <li class="is-{{ p.state }}"><span class="pc-progress-dot" aria-hidden="true">{% if p.state == "done" %}✓{% else %}{{ forloop.counter }}{% endif %}</span>{{ p.label }}{% if p.state == "current" %}<span class="visually-hidden"> (passo attuale)</span>{% endif %}</li>
+      {% endfor %}
+    </ol>
+  </section>
 
   {% if session.status == "ISSUED" %}
     <section class="md-section pc-issued">
@@ -61,10 +77,10 @@
     </section>
 
     {% if can_register %}
-      <form method="post" class="md-form" novalidate>
+      <form method="post" class="md-form pc-form" novalidate>
         {% csrf_token %}<input type="hidden" name="action" value="confirm_points">
-        <fieldset class="md-fieldset">
-          <h2>Conferma</h2>
+        <fieldset class="md-fieldset pc-card">
+          <legend class="pc-card-head"><span class="pc-card-n">✓</span><span><strong>Conferma i punti</strong><small>Controlla data e tecnico scritti sul foglio, correggi i punti proposti e conferma: la scadenza si ricalcola.</small></span></legend>
           <div class="md-grid-2">
             <div class="md-field">
               <label for="id_performed_on">Data della verifica (scritta sul foglio)</label>
@@ -172,14 +188,19 @@
         {% empty %}<span class="pc-muted">Nessun documento allegato.</span>{% endfor %}
       </div>
       {% if can_register %}
-        <form method="post" enctype="multipart/form-data" class="pc-wo">
+        <form method="post" enctype="multipart/form-data" class="pc-scan-form">
           {% csrf_token %}<input type="hidden" name="action" value="attach">
-          <input type="file" name="files" multiple aria-label="Aggiungi documenti">
-          <button class="btn btn-secondary btn-sm" type="submit">Aggiungi</button>
+          <label class="pc-drop pc-drop--sm">
+            <input type="file" name="files" multiple aria-label="Aggiungi documenti" data-pc-drop>
+            <span class="pc-drop-icon" aria-hidden="true">⇪</span>
+            <span class="pc-drop-text"><strong>Aggiungi documenti</strong> o trascinali qui<small data-pc-drop-names>Verbale firmato, foto, certificati.</small></span>
+          </label>
+          <div class="pc-scan-actions"><button class="btn btn-secondary btn-sm" type="submit">Carica</button></div>
         </form>
       {% endif %}
     </div>
   </section>
   {% endif %}
 </div>
+{% include "assets/partials/periodic_check_form_js.html" %}
 {% endblock %}

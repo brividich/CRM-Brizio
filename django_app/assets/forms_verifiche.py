@@ -9,6 +9,7 @@ from anagrafica.models import Fornitore
 from .models import (
     PERIODIC_FREQUENCY_LABELS,
     Asset,
+    PeriodicCheckCategory,
     PeriodicCheckItem,
     PeriodicCheckSession,
     PeriodicCheckSystem,
@@ -44,6 +45,20 @@ class PeriodicCheckSystemForm(forms.ModelForm):
         self.fields["asset"].required = False
 
 
+class PeriodicCheckCategoryForm(forms.ModelForm):
+    class Meta:
+        model = PeriodicCheckCategory
+        fields = ["name", "description", "color", "sort_order", "is_active"]
+        labels = {
+            "name": "Categoria",
+            "description": "Descrizione",
+            "color": "Colore",
+            "sort_order": "Ordine",
+            "is_active": "Attiva",
+        }
+        widgets = {"color": forms.RadioSelect}
+
+
 class PeriodicCheckTypeForm(forms.ModelForm):
     frequency_months = forms.TypedChoiceField(
         label="Frequenza",
@@ -60,12 +75,13 @@ class PeriodicCheckTypeForm(forms.ModelForm):
     class Meta:
         model = PeriodicCheckType
         fields = [
-            "system", "name", "reference_code", "method", "frequency_months", "warning_days",
+            "system", "category", "name", "reference_code", "method", "frequency_months", "warning_days",
             "supplier", "executor_label", "legal_reference", "next_due_date", "archive_folder",
-            "instructions", "sort_order", "is_active",
+            "instructions", "point_categories", "sort_order", "is_active",
         ]
         labels = {
             "system": "Impianto",
+            "category": "Categoria",
             "name": "Verifica",
             "reference_code": "Codice",
             "method": "Come si registra",
@@ -76,21 +92,29 @@ class PeriodicCheckTypeForm(forms.ModelForm):
             "next_due_date": "Prossima scadenza",
             "archive_folder": "Cartella d'archivio",
             "instructions": "Istruzioni",
+            "point_categories": "Tipi di segnalazione sui punti",
             "sort_order": "Ordine",
             "is_active": "Attiva",
         }
         help_texts = {
             "next_due_date": "Si ricalcola da sola a ogni verifica registrata; qui si imposta la prima.",
             "archive_folder": "Solo riferimento: dove stavano i documenti prima del portale.",
+            "category": "Per filtrare e raggruppare l'elenco (es. Antincendio, Elettrico).",
+            "point_categories": "Uno per riga. Sul foglio il primo si segna con l'evidenziatore, il secondo con un cerchio a penna.",
         }
         widgets = {
             "next_due_date": forms.DateInput(attrs=_DATE, format="%Y-%m-%d"),
             "instructions": forms.Textarea(attrs={"rows": 3}),
+            "point_categories": forms.Textarea(attrs={"rows": 2}),
+            "method": forms.RadioSelect,
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["system"].queryset = PeriodicCheckSystem.objects.filter(is_active=True)
+        self.fields["category"].queryset = PeriodicCheckCategory.objects.filter(is_active=True)
+        self.fields["category"].required = False
+        self.fields["category"].empty_label = "Nessuna categoria"
         self.fields["supplier"].queryset = _supplier_queryset()
         self.fields["supplier"].required = False
         if self.instance.pk:
@@ -121,6 +145,8 @@ class PeriodicCheckRegisterForm(forms.Form):
     outcome = forms.ChoiceField(
         label="Esito",
         choices=[c for c in PeriodicCheckSession.OUTCOME_CHOICES if c[0] != PeriodicCheckSession.OUTCOME_ARCHIVE],
+        widget=forms.RadioSelect,
+        initial=PeriodicCheckSession.OUTCOME_OK,
     )
     technician = forms.CharField(label="Tecnico", max_length=120, required=False)
     supplier = forms.ModelChoiceField(label="Fornitore", queryset=Fornitore.objects.none(), required=False)

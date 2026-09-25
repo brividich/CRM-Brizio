@@ -110,9 +110,26 @@ Panoramica (`services/periodic_stats.py`, sola lettura):
   passo da fare e' evidenziato. Planimetria: carica planimetria → stampa foglio → carica
   scansione → conferma → rilievi in OdL. Checklist: voci → registra → OdL. Verbale/misure:
   registra → OdL (per le misure la pagina dice che la lettura automatica arrivera').
-- Elenco: «Apri scheda» sempre; «Stampa foglio» per le planimetrie con planimetria caricata,
-  «Carica planimetria» se manca, «Registra» per gli altri metodi. Il flag dei rilievi senza OdL
-  conta solo l'ultima verifica con esiti, come la scheda.
+- Elenco: la riga intera apre la scheda (`tr[data-href]`, JS in `periodic_check_form_js.html`);
+  «Stampa foglio» per le planimetrie con planimetria caricata, «Carica planimetria» se manca,
+  «Registra» per gli altri metodi. Il flag dei rilievi senza OdL conta solo l'ultima verifica
+  con esiti, come la scheda.
+
+## Navigazione, categorie, «Cosa fare adesso»
+
+- **Categorie** (`PeriodicCheckCategory`, migration 0115): trasversali agli impianti, con colore
+  (palette fissa, token `--pc-c-*` anche in dark). Pagina `.../verifiche-impianti/categorie/`
+  per crearle e assegnarle in blocco. Elenco: `?categoria=<id>|nessuna` e
+  `?raggruppa=impianto|categoria`. Non confondere con `point_categories` («Tipi di segnalazione
+  sui punti»: cosa puo' avere un punto della planimetria).
+- **«Cosa fare adesso»** (`_todo_queue`): rilievi senza OdL e scadute, poi da confermare, fogli in
+  giro, in scadenza; max 8 righe. Una verifica con un foglio gia' in giro non compare come scaduta.
+- **Pagine di una verifica** (scheda, singola verifica, registrazione, modifica): `_object_page`
+  mette `assets_head_below_nav` (la barra del modulo sopra, la testata della verifica sotto;
+  `base_shell.html` include `components/section_nav.html` in una delle due posizioni) e le
+  schede della verifica (`partials/periodic_check_type_tabs.html`, con briciola della sottopagina).
+- Singola verifica: percorso a passi (`_session_progress`): foglio stampato → scansione →
+  conferma → rilievi con OdL (senza foglio: registrata → confermata → rilievi).
 - `extract_points` riconosce **due disegni** e sceglie quello che trova piu' punti:
   riquadro rosso con la X + numero rosso (luci, 71 punti) e **quadratino pieno colorato con
   l'etichetta accanto** (differenziali: «D12», «D3/A», numeri per le macchine; anche
@@ -139,3 +156,4 @@ La mappa cartella -> tipo e' in `assets/services/periodic_checks_catalog.py`.
 - `import_periodic_layout "Verifica illuminazione di emergenza" "\\novisrv\privman\_Impianto Elettrico\Verifiche impianto elettrico\Verifica illuminazione di emergenza (quadrimestrale)\PLANIMETRIA PLAFONIERE DI EMERGENZA.pdf" --exclude "465.6,975.5,813.7,1136.3" --apply`.
 - `import_periodic_checks "\\novisrv\privman\_Impianto Elettrico\Verifiche impianto elettrico" --apply`
   (e le altre cartelle del catalogo).
+- `migrate assets` 0115 (categorie); le categorie si creano dalla pagina «Categorie».

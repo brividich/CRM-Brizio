@@ -24,6 +24,7 @@ from django.utils import timezone
 from core.audit import log_action
 
 from .forms_verifiche import (
+    PeriodicCheckCategoryForm,
     PeriodicCheckRegisterForm,
     PeriodicCheckSystemForm,
     PeriodicCheckTypeForm,
@@ -32,6 +33,7 @@ from .forms_verifiche import (
 from .models import (
     Asset,
     PeriodicCheckAttachment,
+    PeriodicCheckCategory,
     PeriodicCheckLayout,
     PeriodicCheckResult,
     PeriodicCheckSession,
@@ -89,12 +91,88 @@ def _last_sessions_by_type(type_ids) -> dict[int, PeriodicCheckSession]:
     return last
 
 
+def _type_tabs(check_type: PeriodicCheckType, active: str = "") -> list[dict]:
+    """Schede della verifica: le stesse sulla scheda e sulle sue sottopagine (singola
+    verifica, registrazione, modifica), cosi' non ci si perde."""
+    base = reverse("assets:periodic_check_type_detail", args=[check_type.id])
+    return [
+        {"key": key, "label": label, "url": f"{base}?tab={key}", "active": key == active}
+        for key, label in _TYPE_TABS
+    ]
+
+
+def _object_page(check_type: PeriodicCheckType, active_tab: str = "") -> dict:
+    """Contesto comune alle pagine di UNA verifica: testata sotto la barra del modulo, schede."""
+    return {
+        "assets_head_below_nav": True,
+        "type_tabs": _type_tabs(check_type, active_tab),
+        "state_key": checks.type_state(check_type),
+    }
+
+
+def _todo_queue(types, today) -> list[dict]:
+    """«Cosa fare adesso»: il lavoro aperto di tutte le verifiche, in ordine di urgenza."""
+    todo = []
+    by_id = {t.id: t for t in types}
+    for session in (
+        PeriodicCheckSession.objects.filter(check_type_id__in=by_id, status=PeriodicCheckSession.STATUS_DRAFT)
+        .order_by("performed_on", "id")[:20]
+    ):
+        todo.append({
+            "tone": "warn", "rank": 1, "kind": "Da confermare",
+            "title": by_id[session.check_type_id].name,
+            "detail": f"Scansione letta il {session.performed_on:%d/%m/%Y}: controlla i punti e conferma.",
+            "url": reverse("assets:periodic_check_session_detail", args=[session.id]), "action": "Conferma",
+        })
+    for session in (
+        PeriodicCheckSession.objects.filter(check_type_id__in=by_id, status=PeriodicCheckSession.STATUS_ISSUED)
+        .order_by("created_at", "id")[:20]
+    ):
+        todo.append({
+            "tone": "info", "rank": 2, "kind": "Foglio in giro",
+            "title": by_id[session.check_type_id].name,
+            "detail": f"Foglio {session.sheet_token} stampato il {timezone.localtime(session.created_at):%d/%m/%Y}: quando torna, carica la scansione.",
+            "url": reverse("assets:periodic_check_session_detail", args=[session.id]), "action": "Carica scansione",
+        })
+    for check_type in types:
+        state = checks.type_state(check_type, today)
+        if check_type.open_ko:
+            todo.append({
+                "tone": "danger", "rank": 0, "kind": "Rilievi senza OdL",
+                "title": check_type.name,
+                "detail": ("1 rilievo dell'ultima verifica non ha" if check_type.open_ko == 1
+                           else f"{check_type.open_ko} rilievi dell'ultima verifica non hanno")
+                + " ancora un ordine di lavoro.",
+                "url": reverse("assets:periodic_check_session_detail", args=[check_type.latest_id]),
+                "action": "Crea gli OdL",
+            })
+        if state == checks.STATE_OVERDUE and not check_type.issued:
+            todo.append({
+                "tone": "danger", "rank": 0, "kind": "Scaduta",
+                "title": check_type.name,
+                "detail": f"Scaduta il {check_type.next_due_date:%d/%m/%Y} ({_days_label(check_type.next_due_date, today)}).",
+                "url": reverse("assets:periodic_check_type_detail", args=[check_type.id]), "action": "Apri",
+            })
+        elif state == checks.STATE_DUE_SOON and not check_type.issued:
+            todo.append({
+                "tone": "warn", "rank": 3, "kind": "In scadenza",
+                "title": check_type.name,
+                "detail": f"Da fare entro il {check_type.next_due_date:%d/%m/%Y} ({_days_label(check_type.next_due_date, today)}).",
+                "url": reverse("assets:periodic_check_type_detail", args=[check_type.id]), "action": "Apri",
+            })
+    todo.sort(key=lambda row: row["rank"])
+    return todo
+
+
 @login_required
 def periodic_check_list(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
     show = (request.GET.get("stato") or "").strip()
+    category_filter = (request.GET.get("categoria") or "").strip()
+    group_by = "categoria" if request.GET.get("raggruppa") == "categoria" else "impianto"
+    categories = list(PeriodicCheckCategory.objects.filter(is_active=True))
     types = list(
-        PeriodicCheckType.objects.select_related("system", "supplier")
+        PeriodicCheckType.objects.select_related("system", "supplier", "category")
         .filter(is_active=True, system__is_active=True)
         .annotate(
             drafts=Count("sessions", filter=Q(sessions__status=PeriodicCheckSession.STATUS_DRAFT), distinct=True),
@@ -117,7 +195,16 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
         .values("session_id").annotate(n=Count("id")).values_list("session_id", "n")
     )
     for check_type in types:
-        check_type.open_ko = open_by_session.get(latest_ids.get(check_type.id), 0)
+        check_type.latest_id = latest_ids.get(check_type.id)
+        check_type.open_ko = open_by_session.get(check_type.latest_id, 0)
+    todo = _todo_queue(types, today)
+    category_counts = {}
+    for check_type in types:
+        category_counts[check_type.category_id] = category_counts.get(check_type.category_id, 0) + 1
+    if category_filter == "nessuna":
+        types = [t for t in types if t.category_id is None]
+    elif category_filter.isdigit():
+        types = [t for t in types if t.category_id == int(category_filter)]
     counts = {state: 0 for state in _STATE_ORDER}
     drafts_total = 0
     rows = []
@@ -136,10 +223,29 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
         rows = [row for row in rows if row["state"] == show]
     elif show == "bozze":
         rows = [row for row in rows if row["type"].drafts]
-    groups: "OrderedDict[int, dict]" = OrderedDict()
+    groups: "OrderedDict[object, dict]" = OrderedDict()
+    if group_by == "categoria":
+        order = {c.id: index for index, c in enumerate(categories)}
+        rows.sort(key=lambda row: order.get(row["type"].category_id, len(order)))
     for row in rows:
-        system = row["type"].system
-        groups.setdefault(system.id, {"system": system, "rows": []})["rows"].append(row)
+        if group_by == "categoria":
+            category = row["type"].category
+            key = category.id if category else None
+            group = groups.setdefault(key, {
+                "name": category.name if category else "Senza categoria",
+                "color": category.color if category else "slate", "rows": [],
+            })
+        else:
+            system = row["type"].system
+            group = groups.setdefault(system.id, {"name": system.name, "color": "", "rows": []})
+        group["rows"].append(row)
+    category_chips = [
+        {"key": str(c.id), "name": c.name, "color": c.color, "count": category_counts.get(c.id, 0)}
+        for c in categories
+    ]
+    if category_counts.get(None) and categories:
+        category_chips.append({"key": "nessuna", "name": "Senza categoria", "color": "slate",
+                               "count": category_counts[None]})
     return _render(request, "periodic_check_list.html", {
         "page_title": "Verifiche periodiche",
         "groups": list(groups.values()),
@@ -147,7 +253,12 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
         "drafts_total": drafts_total,
         "show": show,
         "today": today,
-        "has_types": bool(types),
+        "has_types": bool(types) or bool(category_counts),
+        "todo": todo[:8],
+        "todo_more": max(len(todo) - 8, 0),
+        "category_chips": category_chips,
+        "category_filter": category_filter,
+        "group_by": group_by,
     })
 
 
@@ -178,10 +289,7 @@ def periodic_check_type_detail(request: HttpRequest, type_id: int) -> HttpRespon
         "tab": tab,
         "guide": _guide(request, check_type, layout),
         "layout_codes": [p.code for p in layout.points.all()] if layout and tab == "impostazioni" else [],
-        "tabs": [
-            {"key": key, "label": label, "url": f"?tab={key}", "active": key == tab}
-            for key, label in _TYPE_TABS
-        ],
+        **_object_page(check_type, tab),
     }
     if tab == "panoramica":
         stats = periodic_stats.type_stats(check_type)
@@ -534,6 +642,7 @@ def _register_page(request, check_type, form, item_rows, point_rows):
     return _render(request, "periodic_check_register.html", {
         "page_title": f"Registra: {check_type.name}",
         "check_type": check_type,
+        **_object_page(check_type),
         "form": form,
         "item_rows": item_rows,
         "point_rows": point_rows,
@@ -629,6 +738,10 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
         "show_results": bool(results) and (session.is_confirmed or session.layout_id is None),
         "today": timezone.localdate(),
         "page_title": f"{check_type.name} del {session.performed_on:%d/%m/%Y}",
+        **_object_page(check_type, "storico"),
+        "progress": _session_progress(session, results),
+        "session_crumb": (f"Foglio {session.sheet_token}" if session.status == PeriodicCheckSession.STATUS_ISSUED
+                          else f"Verifica del {session.performed_on:%d/%m/%Y}"),
         "session": session,
         "check_type": check_type,
         "items": [r for r in results if r.kind == PeriodicCheckResult.KIND_ITEM],
@@ -739,7 +852,92 @@ def periodic_check_type_form(request: HttpRequest, type_id: int | None = None) -
         "form": form,
         "check_type": check_type,
         "no_systems": not PeriodicCheckSystem.objects.filter(is_active=True).exists(),
+        "has_categories": PeriodicCheckCategory.objects.filter(is_active=True).exists(),
+        "method_help": _METHOD_HELP,
+        **(_object_page(check_type, "impostazioni") if check_type else {}),
     })
+
+
+# Una riga per metodo, sotto la scelta nel form: cosa succede quando si registra.
+_METHOD_HELP = {
+    PeriodicCheckType.METHOD_CHECKLIST: "Ogni voce si segna OK, non OK o non applicabile. Adatto ai controlli interni.",
+    PeriodicCheckType.METHOD_REPORT: "Esito, rilievi e verbale della ditta o dell'ente allegato.",
+    PeriodicCheckType.METHOD_LAYOUT: "Foglio con QR sulla planimetria: il tecnico segna i punti, la scansione li propone.",
+    PeriodicCheckType.METHOD_MEASURES: "Valori misurati per punto (batterie, tempi di intervento), con il verbale allegato.",
+}
+
+
+def _session_progress(session: PeriodicCheckSession, results) -> list[dict]:
+    """Dove si trova questa verifica: i passi del suo percorso, fatto / adesso / dopo."""
+    ko_open = sum(1 for r in results if r.result == PeriodicCheckResult.RESULT_KO and not r.work_order_id)
+    ko_total = sum(1 for r in results if r.result == PeriodicCheckResult.RESULT_KO)
+    if session.sheet_token:
+        steps = [
+            ("Foglio stampato", True),
+            ("Scansione caricata", session.status != PeriodicCheckSession.STATUS_ISSUED),
+            ("Punti confermati", session.is_confirmed),
+        ]
+    else:
+        steps = [("Verifica registrata", True), ("Confermata", session.is_confirmed)]
+    if not session.is_confirmed:
+        last = "Rilievi in ordini di lavoro"
+    else:
+        last = "Rilievi con OdL" if ko_total else "Nessun rilievo aperto"
+    steps.append((last, session.is_confirmed and not ko_open))
+    out, current_set = [], False
+    for label, done in steps:
+        state = "done" if done else ("current" if not current_set else "todo")
+        current_set = current_set or not done
+        out.append({"label": label, "state": state})
+    return out
+
+
+@login_required
+def periodic_check_categories(request: HttpRequest) -> HttpResponse:
+    if not can_manage_maintenance_plans(request):
+        return _deny(request, "Solo chi configura la manutenzione puo' gestire le categorie.")
+    edit_id = request.GET.get("modifica") or request.POST.get("category_id")
+    instance = get_object_or_404(PeriodicCheckCategory, pk=edit_id) if edit_id else None
+    if request.method == "POST" and request.POST.get("action") == "assign":
+        return _assign_categories(request)
+    form = PeriodicCheckCategoryForm(request.POST or None, instance=instance)
+    if request.method == "POST" and form.is_valid():
+        saved = form.save()
+        log_action(request, "periodic_check_category_save", "assets",
+                   {"category_id": saved.id, "created": instance is None, "name": saved.name},
+                   oggetto_tipo="assets.periodic_check_category", oggetto_id=saved.id)
+        messages.success(request, f"Categoria «{saved.name}» salvata.")
+        return redirect("assets:periodic_check_categories")
+    categories = PeriodicCheckCategory.objects.annotate(types_count=Count("check_types"))
+    return _render(request, "periodic_check_categories.html", {
+        "page_title": "Categorie delle verifiche",
+        "form": form,
+        "editing": instance,
+        "categories": categories,
+        "active_categories": [c for c in categories if c.is_active],
+        "types": PeriodicCheckType.objects.filter(is_active=True).select_related("system", "category"),
+    })
+
+
+def _assign_categories(request: HttpRequest) -> HttpResponse:
+    """Assegnazione rapida: una tendina per verifica, un solo salvataggio."""
+    valid = set(PeriodicCheckCategory.objects.values_list("id", flat=True))
+    changed = []
+    for check_type in PeriodicCheckType.objects.filter(is_active=True):
+        raw = request.POST.get(f"type_{check_type.id}")
+        if raw is None:
+            continue
+        new_id = int(raw) if raw.isdigit() and int(raw) in valid else None
+        if new_id != check_type.category_id:
+            check_type.category_id = new_id
+            check_type.save(update_fields=["category", "updated_at"])
+            changed.append(check_type.id)
+    if changed:
+        log_action(request, "periodic_check_category_assign", "assets", {"check_type_ids": changed},
+                   oggetto_tipo="assets.periodic_check_category")
+    messages.success(request, f"Categorie aggiornate su {len(changed)} verific{'a' if len(changed) == 1 else 'he'}."
+                     if changed else "Nessuna modifica.")
+    return redirect("assets:periodic_check_categories")
 
 
 @login_required

@@ -3879,6 +3879,37 @@ class PeriodicCheckSystem(models.Model):
         return self.name
 
 
+class PeriodicCheckCategory(models.Model):
+    """Categoria trasversale agli impianti (es. "Antincendio", "Elettrico", "Di legge"),
+    per filtrare e raggruppare l'elenco delle verifiche."""
+
+    COLOR_CHOICES = [
+        ("blue", "Blu"),
+        ("red", "Rosso"),
+        ("orange", "Arancio"),
+        ("green", "Verde"),
+        ("purple", "Viola"),
+        ("teal", "Petrolio"),
+        ("slate", "Grigio"),
+    ]
+
+    name = models.CharField(max_length=80, unique=True)
+    description = models.CharField(max_length=255, blank=True, default="")
+    color = models.CharField(max_length=12, choices=COLOR_CHOICES, default="blue")
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name", "id"]
+        verbose_name = "Categoria (verifiche periodiche)"
+        verbose_name_plural = "Categorie (verifiche periodiche)"
+
+    def __str__(self) -> str:
+        return self.name
+
+
 PERIODIC_FREQUENCY_LABELS = {
     1: "Mensile",
     2: "Bimestrale",
@@ -3911,6 +3942,13 @@ class PeriodicCheckType(models.Model):
     ]
 
     system = models.ForeignKey(PeriodicCheckSystem, on_delete=models.PROTECT, related_name="check_types")
+    category = models.ForeignKey(
+        PeriodicCheckCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="check_types",
+    )
     name = models.CharField(max_length=200)
     reference_code = models.CharField(
         max_length=40, blank=True, default="", help_text="Codice del fornitore o interno (es. 005)."

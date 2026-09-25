@@ -1,0 +1,44 @@
+{# Verifiche periodiche: righe cliccabili, nomi dei file scelti, campi che valgono solo per un metodo. #}
+<script>
+(function () {
+  // Riga intera cliccabile: porta alla scheda, salvo click su link, pulsanti e campi.
+  document.querySelectorAll("tr[data-href]").forEach(function (row) {
+    row.addEventListener("click", function (event) {
+      if (event.target.closest("a,button,input,select,textarea,label,form")) return;
+      if (window.getSelection && String(window.getSelection())) return;
+      if (event.ctrlKey || event.metaKey) { window.open(row.dataset.href, "_blank"); return; }
+      window.location.href = row.dataset.href;
+    });
+  });
+
+  // Caricamento file: mostra cosa e' stato scelto, anche per trascinamento.
+  document.querySelectorAll("[data-pc-drop]").forEach(function (input) {
+    var zone = input.closest(".pc-drop");
+    var names = zone && zone.querySelector("[data-pc-drop-names]");
+    var initial = names ? names.textContent : "";
+    input.addEventListener("change", function () {
+      if (!names) return;
+      var list = Array.prototype.map.call(input.files, function (f) { return f.name; });
+      names.textContent = list.length ? list.join(", ") : initial;
+      zone.classList.toggle("has-files", list.length > 0);
+    });
+    ["dragenter", "dragover"].forEach(function (name) {
+      zone.addEventListener(name, function () { zone.classList.add("is-over"); });
+    });
+    ["dragleave", "drop"].forEach(function (name) {
+      zone.addEventListener(name, function () { zone.classList.remove("is-over"); });
+    });
+  });
+
+  // Form del tipo di verifica: le voci servono solo alla checklist, i tipi di segnalazione alla planimetria.
+  var methods = document.querySelectorAll("input[name=method]");
+  function syncMethod() {
+    var current = (document.querySelector("input[name=method]:checked") || {}).value || "";
+    document.querySelectorAll("[data-pc-method]").forEach(function (block) {
+      block.hidden = block.dataset.pcMethod.split(" ").indexOf(current) === -1;
+    });
+  }
+  methods.forEach(function (radio) { radio.addEventListener("change", syncMethod); });
+  if (methods.length) syncMethod();
+})();
+</script>

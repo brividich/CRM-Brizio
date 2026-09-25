@@ -4,67 +4,92 @@
 
 {% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
 
-{% block assets_shell_title %}{{ page_title }}{% endblock %}
+{% block assets_shell_title %}{% if check_type %}{{ check_type.name }}{% else %}{{ page_title }}{% endif %}{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>Una verifica periodica di un impianto: cosa si controlla, ogni quanto, chi la esegue e come si registra l'esito.</p>
+  {% if check_type %}{% include "assets/partials/periodic_check_head_meta.html" %}
+  {% else %}<p>Cosa si controlla, ogni quanto, chi la esegue e come si registra l'esito. Si puo' cambiare tutto anche dopo.</p>{% endif %}
 {% endblock %}
 {% block assets_shell_toolbar %}
-  {% if check_type %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Annulla</a>
-  {% else %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">Annulla</a>{% endif %}
+  {% if check_type %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">‹ Torna alla verifica</a>
+  {% else %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">‹ Tutte le verifiche</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
+<div class="md-page">
+{% if check_type %}{% include "assets/partials/periodic_check_type_tabs.html" with crumb="Modifica" %}{% endif %}
 {% if no_systems %}
   <div class="md-empty">
     <p>Prima serve almeno un impianto.</p>
     <p><a class="btn btn-primary" href="{% url 'assets:periodic_check_systems' %}">Crea un impianto</a></p>
   </div>
 {% else %}
-<form class="md-form" method="post" novalidate>
+<form class="md-form pc-form" method="post" novalidate>
   {% csrf_token %}
-  {{ form.non_field_errors }}
+  {% if form.non_field_errors %}<div class="pc-form-errors">{{ form.non_field_errors }}</div>{% endif %}
 
-  <fieldset class="md-fieldset">
-    <h2>1 · Cosa</h2>
+  <fieldset class="md-fieldset pc-card">
+    <legend class="pc-card-head"><span class="pc-card-n">1</span><span><strong>Cosa</strong><small>Il nome come lo chiama chi la esegue; impianto e categoria servono a ritrovarla nell'elenco.</small></span></legend>
     <div class="md-grid-2">
-      {% include "assets/components/_md_field.html" with field=form.system %}
       {% include "assets/components/_md_field.html" with field=form.name %}
+      {% include "assets/components/_md_field.html" with field=form.system %}
+      <div class="md-field">
+        <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
+        {{ form.category }}
+        <span class="helptext">{% if has_categories %}{{ form.category.help_text }}{% else %}Nessuna categoria ancora.{% endif %} {% if can_configure %}<a href="{% url 'assets:periodic_check_categories' %}">Gestisci le categorie</a>{% endif %}</span>
+        {{ form.category.errors }}
+      </div>
       {% include "assets/components/_md_field.html" with field=form.reference_code %}
-      {% include "assets/components/_md_field.html" with field=form.legal_reference %}
     </div>
-    {% include "assets/components/_md_field.html" with field=form.instructions %}
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.legal_reference %}
+      {% include "assets/components/_md_field.html" with field=form.instructions %}
+    </div>
   </fieldset>
 
-  <fieldset class="md-fieldset">
-    <h2>2 · Quando e chi</h2>
+  <fieldset class="md-fieldset pc-card">
+    <legend class="pc-card-head"><span class="pc-card-n">2</span><span><strong>Quando e chi</strong><small>Il portale avvisa quando manca meno del preavviso alla scadenza.</small></span></legend>
     <div class="md-grid-2">
       {% include "assets/components/_md_field.html" with field=form.frequency_months %}
       {% include "assets/components/_md_field.html" with field=form.warning_days %}
+      {% include "assets/components/_md_field.html" with field=form.next_due_date %}
+    </div>
+    <div class="md-grid-2">
       {% include "assets/components/_md_field.html" with field=form.supplier %}
       {% include "assets/components/_md_field.html" with field=form.executor_label %}
-      {% include "assets/components/_md_field.html" with field=form.next_due_date %}
     </div>
   </fieldset>
 
-  <fieldset class="md-fieldset">
-    <h2>3 · Come si registra</h2>
-    <p class="md-hint">«Checklist a voci»: ogni voce si segna OK / non OK. «Verbale»: esito, rilievi e documento dell'ente o della ditta. Planimetria e misure arriveranno con la lettura automatica dei rapportini.</p>
-    {% include "assets/components/_md_field.html" with field=form.method %}
-    {% include "assets/components/_md_field.html" with field=form.items_text %}
+  <fieldset class="md-fieldset pc-card">
+    <legend class="pc-card-head"><span class="pc-card-n">3</span><span><strong>Come si registra</strong><small>Scegli come torna l'esito: cambia i passi che la scheda ti propone.</small></span></legend>
+    <div class="pc-tiles pc-tiles--method" role="radiogroup" aria-label="{{ form.method.label }}">
+      {% for radio in form.method %}
+        <label class="pc-tile">{{ radio.tag }}
+          <span class="pc-tile-title">{{ radio.choice_label }}</span>
+          <span class="pc-tile-sub">{% for key, text in method_help.items %}{% if key == radio.data.value %}{{ text }}{% endif %}{% endfor %}</span>
+        </label>
+      {% endfor %}
+    </div>
+    {{ form.method.errors }}
+    <div data-pc-method="CHECKLIST">{% include "assets/components/_md_field.html" with field=form.items_text %}</div>
+    <div data-pc-method="LAYOUT">{% include "assets/components/_md_field.html" with field=form.point_categories %}</div>
   </fieldset>
 
-  <fieldset class="md-fieldset">
-    <h2>4 · Archivio e pubblicazione</h2>
-    <div class="md-grid-2">
+  <details class="md-fieldset pc-card pc-card--more"{% if form.archive_folder.errors or form.sort_order.errors %} open{% endif %}>
+    <summary class="pc-card-head"><span class="pc-card-n">4</span><span><strong>Altre impostazioni</strong><small>Archivio, ordine nell'elenco, attivazione.</small></span></summary>
+    <div class="md-grid-2" style="margin-top:12px">
       {% include "assets/components/_md_field.html" with field=form.archive_folder %}
       {% include "assets/components/_md_field.html" with field=form.sort_order %}
       {% include "assets/components/_md_field.html" with field=form.is_active %}
     </div>
-  </fieldset>
+  </details>
 
-  <div class="md-form-actions">
-    <button type="submit" class="btn btn-primary">Salva verifica</button>
+  <div class="md-form-actions pc-form-actions">
+    <button type="submit" class="btn btn-primary">{% if check_type %}Salva modifiche{% else %}Crea verifica{% endif %}</button>
+    {% if check_type %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Annulla</a>
+    {% else %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">Annulla</a>{% endif %}
   </div>
 </form>
 {% endif %}
+</div>
+{% include "assets/partials/periodic_check_form_js.html" %}
 {% endblock %}

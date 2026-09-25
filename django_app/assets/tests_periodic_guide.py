@@ -107,7 +107,7 @@ class GuidaTests(TestCase):
         self._type("Terra", PeriodicCheckType.METHOD_REPORT)
         page = self.client.get(reverse("assets:periodic_check_list"))
         self.assertContains(page, "Carica planimetria")
-        self.assertContains(page, "Apri scheda")
+        self.assertContains(page, f'data-href="{reverse("assets:periodic_check_type_detail", args=[luci.id])}"')
         checks.create_layout(luci, synthetic_plan())
         page = self.client.get(reverse("assets:periodic_check_list"))
         self.assertContains(page, "Stampa foglio")

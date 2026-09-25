@@ -9,7 +9,8 @@
   <p>Gli impianti su cui si fanno verifiche periodiche. L'asset di riferimento viene proposto sugli ordini di lavoro nati dai rilievi.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">Verifiche periodiche</a>
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">‹ Verifiche periodiche</a>
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_categories' %}">Categorie</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -27,7 +28,7 @@
                 <td>{% if s.asset %}{{ s.asset.asset_tag|default:"" }} {{ s.asset.name }}{% else %}<span class="pc-muted">da scegliere a ogni OdL</span>{% endif %}</td>
                 <td class="md-right">{{ s.types_count }}</td>
                 <td>{% if s.is_active %}Attivo{% else %}<span class="pc-muted">Disattivato</span>{% endif %}</td>
-                <td class="md-right"><a class="btn btn-secondary btn-sm" href="?modifica={{ s.id }}">Modifica</a></td>
+                <td class="md-right"><a class="btn btn-secondary btn-sm" href="?modifica={{ s.id }}#impianto">Modifica</a></td>
               </tr>
             {% endfor %}
           </tbody>
@@ -38,12 +39,12 @@
     {% endif %}
   </section>
 
-  <form class="md-form" method="post" novalidate id="impianto">
+  <form class="md-form pc-form" method="post" novalidate id="impianto">
     {% csrf_token %}
     {% if editing %}<input type="hidden" name="system_id" value="{{ editing.id }}">{% endif %}
     {{ form.non_field_errors }}
-    <fieldset class="md-fieldset">
-      <h2>{% if editing %}Modifica «{{ editing.name }}»{% else %}Nuovo impianto{% endif %}</h2>
+    <fieldset class="md-fieldset pc-card">
+      <legend class="pc-card-head"><span class="pc-card-n">{% if editing %}✎{% else %}+{% endif %}</span><span><strong>{% if editing %}Modifica «{{ editing.name }}»{% else %}Nuovo impianto{% endif %}</strong><small>L'asset scelto viene proposto sugli ordini di lavoro nati dai rilievi.</small></span></legend>
       <div class="md-grid-2">
         {% include "assets/components/_md_field.html" with field=form.name %}
         {% include "assets/components/_md_field.html" with field=form.description %}

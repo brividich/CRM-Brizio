@@ -6,10 +6,10 @@
 
 {% block assets_shell_title %}{{ check_type.name }}{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>{{ check_type.system.name }} · {{ check_type.frequency_label }} · {{ check_type.get_method_display }}{% if check_type.performer_label %} · {{ check_type.performer_label }}{% endif %}</p>
+  {% include "assets/partials/periodic_check_head_meta.html" %}
 {% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">Tutte le verifiche</a>
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">‹ Tutte le verifiche</a>
   {% if can_configure %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_edit' check_type.id %}">Modifica</a>{% endif %}
   {% if can_register %}
     {% if is_layout and layout %}
@@ -23,15 +23,12 @@
 
 {% block assets_shell_content %}
 <div class="md-page">
-  <div class="md-tabs pc-tabs" aria-label="Sezioni della verifica">
-    {% for t in tabs %}
-      <a class="md-tab{% if t.active %} active{% endif %}" href="{{ t.url }}"{% if t.active %} aria-current="page"{% endif %}>{{ t.label }}</a>
-    {% endfor %}
-  </div>
+  {% include "assets/partials/periodic_check_type_tabs.html" %}
   {% if tab == "panoramica" %}{% include "assets/partials/periodic_check_tab_panoramica.html" %}
   {% elif tab == "storico" %}{% include "assets/partials/periodic_check_tab_storico.html" %}
   {% elif tab == "odl" %}{% include "assets/partials/periodic_check_tab_odl.html" %}
   {% elif tab == "documenti" %}{% include "assets/partials/periodic_check_tab_documenti.html" %}
   {% else %}{% include "assets/partials/periodic_check_tab_impostazioni.html" %}{% endif %}
 </div>
+{% include "assets/partials/periodic_check_form_js.html" %}
 {% endblock %}
