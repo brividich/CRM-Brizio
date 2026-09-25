@@ -14,7 +14,11 @@ from django.db import IntegrityError, models
 from django.utils import timezone
 from django.utils.text import slugify
 
-from .storage import PrivateAssetAdministrativeDeadlineStorage, PrivateAssetDocumentStorage
+from .storage import (
+    PrivateAssetAdministrativeDeadlineStorage,
+    PrivateAssetDocumentStorage,
+    PrivatePeriodicCheckStorage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -3822,6 +3826,304 @@ class MaintenanceOccurrenceAttachment(models.Model):
     def __str__(self) -> str:
         name = self.original_name or Path(self.file.name).name
         return f"OccAttachment<{self.occurrence_id}:{name}>"
+
+    def save(self, *args, **kwargs):
+        if not self.original_name and self.file:
+            self.original_name = Path(self.file.name).name[:255]
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        storage = self.file.storage if self.file else None
+        file_name = self.file.name if self.file else ""
+        super().delete(*args, **kwargs)
+        if storage and file_name and storage.exists(file_name):
+            storage.delete(file_name)
+
+
+# ---------------------------------------------------------------------------
+# Verifiche periodiche sugli impianti (Manutenzione > Verifiche periodiche)
+# ---------------------------------------------------------------------------
+#
+# Verifiche su un IMPIANTO intero (illuminazione di emergenza, quadri elettrici,
+# impianto di terra, antincendio...), non sul singolo asset: quelle restano in
+# ``AssetAdministrativeDeadline``. Nulla a che vedere con ``PeriodicVerification``
+# (legacy, "Manutenzioni periodiche"): prefisso ``PeriodicCheck`` apposta.
+# Vedi docs/ai/VERIFICHE_PERIODICHE.md.
+
+
+class PeriodicCheckSystem(models.Model):
+    """Impianto verificato periodicamente (es. "Impianto elettrico")."""
+
+    name = models.CharField(max_length=120, unique=True)
+    description = models.CharField(max_length=255, blank=True, default="")
+    # WorkOrder.asset e' obbligatorio: gli OdL nati da una verifica partono da qui.
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_systems",
+        help_text="Asset proposto sugli ordini di lavoro nati dalle verifiche di questo impianto.",
+    )
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name", "id"]
+        verbose_name = "Impianto (verifiche periodiche)"
+        verbose_name_plural = "Impianti (verifiche periodiche)"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+PERIODIC_FREQUENCY_LABELS = {
+    1: "Mensile",
+    2: "Bimestrale",
+    3: "Trimestrale",
+    4: "Quadrimestrale",
+    6: "Semestrale",
+    12: "Annuale",
+    24: "Biennale",
+    36: "Triennale",
+    48: "Quadriennale",
+    60: "Quinquennale",
+}
+
+
+class PeriodicCheckType(models.Model):
+    """Tipo di verifica di un impianto: cosa, ogni quanto, chi, come si registra."""
+
+    METHOD_CHECKLIST = "CHECKLIST"
+    METHOD_REPORT = "REPORT"
+    METHOD_LAYOUT = "LAYOUT"
+    METHOD_MEASURES = "MEASURES"
+    METHOD_CHOICES = [
+        (METHOD_CHECKLIST, "Checklist a voci"),
+        (METHOD_REPORT, "Verbale / rapporto esterno"),
+        (METHOD_LAYOUT, "Planimetria a punti"),
+        (METHOD_MEASURES, "Misure per punto"),
+    ]
+
+    system = models.ForeignKey(PeriodicCheckSystem, on_delete=models.PROTECT, related_name="check_types")
+    name = models.CharField(max_length=200)
+    reference_code = models.CharField(
+        max_length=40, blank=True, default="", help_text="Codice del fornitore o interno (es. 005)."
+    )
+    method = models.CharField(max_length=20, choices=METHOD_CHOICES, default=METHOD_REPORT)
+    frequency_months = models.PositiveSmallIntegerField(default=12)
+    warning_days = models.PositiveSmallIntegerField(default=30)
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_types",
+    )
+    executor_label = models.CharField(
+        max_length=120, blank=True, default="", help_text="Chi esegue, se non e' un fornitore in anagrafica."
+    )
+    legal_reference = models.CharField(max_length=200, blank=True, default="")
+    instructions = models.TextField(blank=True, default="")
+    # Cartella d'archivio dei documenti (solo riferimento, per l'import dello storico).
+    archive_folder = models.CharField(max_length=255, blank=True, default="")
+    next_due_date = models.DateField(null=True, blank=True, db_index=True)
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["system__sort_order", "system__name", "sort_order", "name", "id"]
+        verbose_name = "Tipo di verifica periodica"
+        verbose_name_plural = "Tipi di verifica periodica"
+        constraints = [
+            models.UniqueConstraint(fields=["system", "name"], name="uniq_periodic_check_type_system_name"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def frequency_label(self) -> str:
+        return PERIODIC_FREQUENCY_LABELS.get(self.frequency_months, f"Ogni {self.frequency_months} mesi")
+
+    @property
+    def performer_label(self) -> str:
+        if self.supplier_id:
+            return str(self.supplier)
+        return self.executor_label
+
+    def next_due_from(self, performed_on):
+        return _add_months(performed_on, self.frequency_months)
+
+
+class PeriodicCheckItem(models.Model):
+    """Voce di checklist di un tipo di verifica (metodo checklist)."""
+
+    check_type = models.ForeignKey(PeriodicCheckType, on_delete=models.CASCADE, related_name="items")
+    label = models.CharField(max_length=200)
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Voce di checklist (verifica periodica)"
+        verbose_name_plural = "Voci di checklist (verifiche periodiche)"
+
+    def __str__(self) -> str:
+        return self.label
+
+
+class PeriodicCheckSession(models.Model):
+    """Una verifica eseguita (un rapportino, un verbale, una checklist compilata)."""
+
+    OUTCOME_OK = "OK"
+    OUTCOME_REMARKS = "REMARKS"
+    OUTCOME_KO = "KO"
+    OUTCOME_ARCHIVE = "ARCHIVE"
+    OUTCOME_CHOICES = [
+        (OUTCOME_OK, "Conforme"),
+        (OUTCOME_REMARKS, "Conforme con rilievi"),
+        (OUTCOME_KO, "Non conforme"),
+        (OUTCOME_ARCHIVE, "Storico"),
+    ]
+    STATUS_DRAFT = "DRAFT"
+    STATUS_CONFIRMED = "CONFIRMED"
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Da confermare"),
+        (STATUS_CONFIRMED, "Confermata"),
+    ]
+    SOURCE_MANUAL = "MANUAL"
+    SOURCE_IMPORT = "IMPORT"
+    SOURCE_PARSER = "PARSER"
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, "Inserita a mano"),
+        (SOURCE_IMPORT, "Importata dallo storico"),
+        (SOURCE_PARSER, "Letta dal documento"),
+    ]
+
+    check_type = models.ForeignKey(PeriodicCheckType, on_delete=models.PROTECT, related_name="sessions")
+    performed_on = models.DateField(db_index=True)
+    technician = models.CharField(max_length=120, blank=True, default="")
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_sessions",
+    )
+    outcome = models.CharField(max_length=10, choices=OUTCOME_CHOICES, default=OUTCOME_OK, db_index=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_CONFIRMED, db_index=True)
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    notes = models.TextField(blank=True, default="")
+    next_due_date = models.DateField(null=True, blank=True)
+    # Import idempotente: percorso relativo del documento d'origine ("" = inserita a mano).
+    import_key = models.CharField(max_length=255, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_sessions_created",
+    )
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_sessions_confirmed",
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-performed_on", "-id"]
+        verbose_name = "Verifica periodica eseguita"
+        verbose_name_plural = "Verifiche periodiche eseguite"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["import_key"],
+                condition=models.Q(import_key__gt=""),
+                name="uniq_periodic_check_session_import_key",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.check_type} - {self.performed_on:%d/%m/%Y}"
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.status == self.STATUS_CONFIRMED
+
+
+class PeriodicCheckResult(models.Model):
+    """Esito di una voce di checklist o di un rilievo/prescrizione del verbale."""
+
+    KIND_ITEM = "ITEM"
+    KIND_REMARK = "REMARK"
+    KIND_CHOICES = [(KIND_ITEM, "Voce di checklist"), (KIND_REMARK, "Rilievo / prescrizione")]
+    RESULT_OK = "OK"
+    RESULT_KO = "KO"
+    RESULT_NA = "NA"
+    RESULT_CHOICES = [(RESULT_OK, "OK"), (RESULT_KO, "Non OK"), (RESULT_NA, "Non applicabile")]
+
+    session = models.ForeignKey(PeriodicCheckSession, on_delete=models.CASCADE, related_name="results")
+    item = models.ForeignKey(
+        PeriodicCheckItem, on_delete=models.SET_NULL, null=True, blank=True, related_name="results"
+    )
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_ITEM)
+    label = models.CharField(max_length=255)
+    result = models.CharField(max_length=4, choices=RESULT_CHOICES, default=RESULT_OK)
+    note = models.CharField(max_length=500, blank=True, default="")
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name="periodic_check_results"
+    )
+    sort_order = models.PositiveIntegerField(default=100)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Esito verifica periodica"
+        verbose_name_plural = "Esiti verifiche periodiche"
+
+    def __str__(self) -> str:
+        return f"{self.label}: {self.result}"
+
+
+def _periodic_check_attachment_upload_to(instance, filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()[:20]
+    stem = slugify(Path(filename or "").stem)[:80] or "documento"
+    stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    token = uuid.uuid4().hex[:8]
+    session_id = getattr(instance, "session_id", None) or "tmp"
+    return f"assets_periodic_checks/{session_id}/{stamp}_{token}_{stem}{suffix}"
+
+
+class PeriodicCheckAttachment(models.Model):
+    """Rapportino, verbale o checklist firmata di una verifica."""
+
+    session = models.ForeignKey(PeriodicCheckSession, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to=_periodic_check_attachment_upload_to, storage=PrivatePeriodicCheckStorage())
+    original_name = models.CharField(max_length=255, blank=True, default="")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_attachments_uploaded",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        verbose_name = "Allegato verifica periodica"
+        verbose_name_plural = "Allegati verifiche periodiche"
+
+    def __str__(self) -> str:
+        return self.original_name or Path(self.file.name).name
 
     def save(self, *args, **kwargs):
         if not self.original_name and self.file:

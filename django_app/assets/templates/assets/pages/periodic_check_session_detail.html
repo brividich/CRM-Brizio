@@ -1,0 +1,76 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ page_title }} — Verifiche periodiche{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}{{ check_type.name }} del {{ session.performed_on|date:"d/m/Y" }}{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>{{ check_type.system.name }} · <span class="pc-outcome is-{{ session.outcome }}">{{ session.get_outcome_display }}</span> · {{ session.get_source_display }}</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Storico di questa verifica</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+
+  {% if not session.is_confirmed %}
+    <div class="pc-draft">
+      <span><strong>Da confermare.</strong> Controlla gli esiti: alla conferma la prossima scadenza si ricalcola.</span>
+      {% if can_register %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="confirm"><button class="btn btn-primary" type="submit">Conferma verifica</button></form>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Dati della verifica</h2></div>
+    <dl class="pc-facts">
+      <div><dt>Data</dt><dd>{{ session.performed_on|date:"d/m/Y" }}</dd></div>
+      <div><dt>Tecnico</dt><dd>{{ session.technician|default:"—" }}</dd></div>
+      <div><dt>Fornitore</dt><dd>{{ session.supplier|default:"—" }}</dd></div>
+      <div><dt>Prossima scadenza indicata</dt><dd>{{ session.next_due_date|date:"d/m/Y"|default:"dalla frequenza" }}</dd></div>
+      <div><dt>Registrata da</dt><dd>{% if session.created_by %}{{ session.created_by.get_full_name|default:session.created_by.username }}{% else %}—{% endif %} · {{ session.created_at|date:"d/m/Y H:i" }}</dd></div>
+      {% if session.confirmed_at %}<div><dt>Confermata</dt><dd>{{ session.confirmed_at|date:"d/m/Y H:i" }}{% if session.confirmed_by %} da {{ session.confirmed_by.get_full_name|default:session.confirmed_by.username }}{% endif %}</dd></div>{% endif %}
+    </dl>
+    {% if session.notes %}<p style="padding:0 16px 14px;margin:0">{{ session.notes|linebreaksbr }}</p>{% endif %}
+  </section>
+
+  {% if items or remarks %}
+    <section class="md-section">
+      <div class="md-section-head"><h2>Esiti</h2></div>
+      <div class="md-scroll">
+        <table class="md-table pc-table" data-fm-table-skip="1">
+          <thead><tr><th>Voce / rilievo</th><th>Esito</th><th>Nota</th><th class="md-right">Ordine di lavoro</th></tr></thead>
+          <tbody>
+            {% for r in items %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
+            {% for r in remarks %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if not default_asset and can_register %}
+        <p class="pc-muted" style="padding:10px 16px;margin:0">L'impianto non ha un asset di riferimento: sceglilo per ogni ordine di lavoro{% if can_configure %}, oppure impostalo in <a href="{% url 'assets:periodic_check_systems' %}?modifica={{ check_type.system.id }}">Impianti</a>{% endif %}.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="md-section">
+    <div class="md-section-head"><h2>Documenti</h2><span class="md-badge badge-muted">{{ attachments|length }}</span></div>
+    <div style="padding:12px 16px;display:grid;gap:12px">
+      <div class="pc-files">
+        {% for a in attachments %}
+          <a class="pc-file" href="{% url 'assets:periodic_check_attachment_download' a.id %}" target="_blank" rel="noopener" title="{{ a.original_name }}">{{ a.original_name }}</a>
+        {% empty %}<span class="pc-muted">Nessun documento allegato.</span>{% endfor %}
+      </div>
+      {% if can_register %}
+        <form method="post" enctype="multipart/form-data" class="pc-wo">
+          {% csrf_token %}<input type="hidden" name="action" value="attach">
+          <input type="file" name="files" multiple aria-label="Aggiungi documenti">
+          <button class="btn btn-secondary btn-sm" type="submit">Aggiungi</button>
+        </form>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

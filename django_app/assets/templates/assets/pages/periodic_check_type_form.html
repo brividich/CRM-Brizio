@@ -1,0 +1,70 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}{{ page_title }}{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Una verifica periodica di un impianto: cosa si controlla, ogni quanto, chi la esegue e come si registra l'esito.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  {% if check_type %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Annulla</a>
+  {% else %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">Annulla</a>{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+{% if no_systems %}
+  <div class="md-empty">
+    <p>Prima serve almeno un impianto.</p>
+    <p><a class="btn btn-primary" href="{% url 'assets:periodic_check_systems' %}">Crea un impianto</a></p>
+  </div>
+{% else %}
+<form class="md-form" method="post" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+
+  <fieldset class="md-fieldset">
+    <h2>1 · Cosa</h2>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.system %}
+      {% include "assets/components/_md_field.html" with field=form.name %}
+      {% include "assets/components/_md_field.html" with field=form.reference_code %}
+      {% include "assets/components/_md_field.html" with field=form.legal_reference %}
+    </div>
+    {% include "assets/components/_md_field.html" with field=form.instructions %}
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>2 · Quando e chi</h2>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.frequency_months %}
+      {% include "assets/components/_md_field.html" with field=form.warning_days %}
+      {% include "assets/components/_md_field.html" with field=form.supplier %}
+      {% include "assets/components/_md_field.html" with field=form.executor_label %}
+      {% include "assets/components/_md_field.html" with field=form.next_due_date %}
+    </div>
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>3 · Come si registra</h2>
+    <p class="md-hint">«Checklist a voci»: ogni voce si segna OK / non OK. «Verbale»: esito, rilievi e documento dell'ente o della ditta. Planimetria e misure arriveranno con la lettura automatica dei rapportini.</p>
+    {% include "assets/components/_md_field.html" with field=form.method %}
+    {% include "assets/components/_md_field.html" with field=form.items_text %}
+  </fieldset>
+
+  <fieldset class="md-fieldset">
+    <h2>4 · Archivio e pubblicazione</h2>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.archive_folder %}
+      {% include "assets/components/_md_field.html" with field=form.sort_order %}
+      {% include "assets/components/_md_field.html" with field=form.is_active %}
+    </div>
+  </fieldset>
+
+  <div class="md-form-actions">
+    <button type="submit" class="btn btn-primary">Salva verifica</button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

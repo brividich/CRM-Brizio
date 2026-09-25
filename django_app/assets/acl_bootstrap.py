@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v11"
+_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v12"
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_list", "label": "Assets - Lista asset", "url": "/assets/", "hide": False},
@@ -61,6 +61,10 @@ _PULSANTI_DEFINITIONS = [
     # che configura o modifica passa comunque dai gate della view.
     {"modulo": "assets", "codice": "assets_maintenance_da_fare", "label": "Assets - Manutenzioni da fare", "url": "/assets/manutenzione/da-fare/", "hide": False},
     {"modulo": "assets", "codice": "assets_maintenance_scadenze", "label": "Assets - Scadenze manutenzione", "url": "/assets/manutenzione/scadenze/", "hide": False},
+    # Verifiche periodiche sugli impianti (luci di emergenza, quadri, terra...): pagina
+    # operativa; registrare/configurare passa dai gate della view. Distinta dalla
+    # vecchia "Manutenzione periodica" (/assets/manutenzione/verifiche/).
+    {"modulo": "assets", "codice": "assets_periodic_checks", "label": "Assets - Verifiche periodiche impianti", "url": "/assets/manutenzione/verifiche-impianti/", "hide": False},
     {"modulo": "assets", "codice": "assets_maintenance_quadro", "label": "Assets - Quadro manutenzione (responsabile)", "url": "/assets/manutenzione/quadro/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_plans", "label": "Assets - Piani di manutenzione", "url": "/assets/manutenzione/piani/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_groups", "label": "Assets - Gruppi di asset", "url": "/assets/manutenzione/gruppi/", "hide": True},
