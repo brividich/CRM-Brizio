@@ -62,27 +62,17 @@ class SubnavAclFilterTests(TestCase):
             etichetta="Recruiting", url_type="named", url_value="anagrafica:recruiting_list",
             ordine=4, is_active=True,
         )
-        from anagrafica.subnav_gates import SECTION_GATES
-
-        nega = lambda request: False  # noqa: E731
+        # I cancelli sono letti dal sorgente delle view: si patchano gli helper veri.
         with mock.patch("core.middleware.acl_allows_path", return_value=True), \
-                mock.patch.dict(SECTION_GATES, {
-                    "anagrafica:formazione_dashboard": nega,
-                    "anagrafica:formazione_piani_list": nega,
-                    "anagrafica:recruiting_list": nega,
-                }):
+                mock.patch("anagrafica.views._can_view_formazione", return_value=False), \
+                mock.patch("anagrafica.views_recruiting._can_view_recruiting", return_value=False), \
+                mock.patch("anagrafica.views._is_anagrafica_admin", return_value=True):
             nav = subnav_anagrafica({"request": self.request})
         labels = self._labels(nav)
         self.assertIn("Dipendenti", labels)
-        self.assertIn("Impostazioni", labels)  # nessun cancello di pagina registrato
+        self.assertIn("Impostazioni", labels)  # la pagina non ha un cancello di pagina
         self.assertNotIn("Recruiting", labels)
         self.assertNotIn("Formazione", labels)  # landing e unico figlio negati
-
-    def test_registro_cancelli_solo_route_esistenti(self):
-        from anagrafica.subnav_gates import SECTION_GATES
-
-        for name in SECTION_GATES:
-            reverse(name)  # NoReverseMatch = voce del registro morta
 
     def test_nasconde_voci_non_accessibili(self):
         allowed = {reverse("anagrafica:dipendenti_list")}
@@ -119,3 +109,100 @@ class SubnavAclFilterTests(TestCase):
         checked = [c.args[0] for c in patched.call_args_list]
         self.assertEqual(len(checked), len(set(checked)))
         self.assertNotIn("https://example.invalid/doc", checked)
+
+
+def _helper_ok(request, *args):
+    return True
+
+
+def _helper_no(request, *args):
+    return False
+
+
+SOGLIA = "x"
+
+
+def _view_senza_cancello(request):
+    return None
+
+
+def _view_cancello_diretto(request):
+    """Docstring ignorata."""
+    if request.method == "POST":
+        pass
+    if not _helper_ok(request, SOGLIA):
+        return None
+    if not _helper_no(request, "costante"):
+        return None
+    return None
+
+
+def _view_cancello_via_variabile(request):
+    is_admin = _helper_no(request)
+    if not is_admin:
+        return None
+    return None
+
+
+def _view_cancello_dopo_il_return(request):
+    return None
+    if not _helper_no(request):  # noqa: unreachable
+        return None
+
+
+def _view_parametri_pagina(request, pk):
+    if not _helper_no(request, pk):  # dipende dalla pagina: non è un cancello di sezione
+        return None
+    if not _helper_no(request.user):
+        return None
+    return None
+
+
+def _view_cancello_import_locale(request):
+    from anagrafica.tests_subnav_acl import _helper_no as nega
+
+    if not nega(request):
+        return None
+    return None
+
+
+class PageGatesDetectionTests(TestCase):
+    def _names(self, view):
+        from anagrafica.subnav_gates import page_gates
+
+        return [g.__name__ for g in page_gates(view)]
+
+    def test_rilevamento(self):
+        self.assertEqual(self._names(_view_senza_cancello), [])
+        self.assertEqual(self._names(_view_cancello_diretto), ["_helper_ok", "_helper_no"])
+        self.assertEqual(self._names(_view_cancello_via_variabile), ["_helper_no"])
+        self.assertEqual(self._names(_view_cancello_dopo_il_return), [])
+        self.assertEqual(self._names(_view_parametri_pagina), [])
+        self.assertEqual(self._names(_view_cancello_import_locale), ["nega"])
+
+    def test_i_cancelli_chiamano_gli_helper_con_gli_argomenti(self):
+        from anagrafica.subnav_gates import page_gates
+
+        ok, no = page_gates(_view_cancello_diretto)
+        self.assertTrue(ok(object()))
+        self.assertFalse(no(object()))
+        (nega,) = page_gates(_view_cancello_import_locale)
+        self.assertFalse(nega(object()))
+
+    def test_view_reali_del_modulo(self):
+        from django.urls import resolve
+
+        from anagrafica.subnav_gates import page_gates
+
+        attesi = {
+            "anagrafica:recruiting_list": "_can_view_recruiting",
+            "anagrafica:formazione_dashboard": "_can_view_formazione",
+            "anagrafica:visite_mediche_dashboard": "_can_view_visite_mediche",
+            "anagrafica:onboarding_list": "_check_hr_permission",
+            "anagrafica:contratti_import": "_is_anagrafica_admin",
+        }
+        for route, helper in attesi.items():
+            nomi = [g.__name__ for g in page_gates(resolve(reverse(route)).func)]
+            self.assertIn(helper, nomi, route)
+        # Impostazioni usa is_admin solo per le parti di gestione: nessun cancello.
+        self.assertEqual(page_gates(resolve(reverse("anagrafica:impostazioni")).func), ())
