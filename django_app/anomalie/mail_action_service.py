@@ -802,7 +802,9 @@ def _fetch_op_da_controllare(soglia_ore: int) -> list[dict]:
             if isinstance(ts, str):
                 ts = _dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
             if _tz.is_naive(ts):
-                ts = _tz.make_aware(ts, _tz.utc)
+                # I DATETIME2 legacy (SYSUTCDATETIME) arrivano naive ma sono UTC.
+                # NB: django.utils.timezone.utc non esiste piu' da Django 5.0.
+                ts = _tz.make_aware(ts, _dt.timezone.utc)
             return max(0.0, (now - ts).total_seconds() / 3600.0)
         except Exception:
             return 0.0
@@ -862,6 +864,31 @@ def _fetch_pn_for_ops(op_titles: list[str]) -> dict[str, str]:
         return {}
 
 
+def find_legacy_user_by_name(name: str):
+    """Utente legacy (tabella utenti) dal nominativo, solo se il match è UNIVOCO.
+
+    `utenti.nome` contiene il nome completo. Si accetta l'uguaglianza esatta
+    (case-insensitive) in ordine "Nome Cognome" o "Cognome Nome"; con un solo
+    token (es. il solo cognome del capocommessa) si accetta il nome che finisce
+    con quel cognome. Più candidati = None: meglio nessuna notifica che una
+    notifica alla persona sbagliata (il vecchio `nome__icontains` prendeva il
+    primo "Rossi" qualunque).
+    """
+    from core.legacy_models import UtenteLegacy
+
+    tokens = str(name or "").split()
+    if not tokens:
+        return None
+    full = " ".join(tokens)
+    if len(tokens) >= 2:
+        reversed_full = " ".join(tokens[1:] + tokens[:1])
+        qs = UtenteLegacy.objects.filter(nome__iexact=full) | UtenteLegacy.objects.filter(nome__iexact=reversed_full)
+    else:
+        qs = UtenteLegacy.objects.filter(nome__iexact=full) | UtenteLegacy.objects.filter(nome__iendswith=f" {full}")
+    matches = list(qs.distinct()[:2])
+    return matches[0] if len(matches) == 1 else None
+
+
 def _resolve_op_cc_car_legacy_ids(op_id: str) -> list[tuple[int, str]]:
     """Risolve (legacy_user_id, display) di CC e CAR dell'OP per i reminder dashboard.
 
@@ -884,7 +911,7 @@ def _resolve_op_cc_car_legacy_ids(op_id: str) -> list[tuple[int, str]]:
                 alias = email.split("@")[0].strip()
                 user = UtenteLegacy.objects.filter(email__istartswith=f"{alias}@").first()
             if user is None and display:
-                user = UtenteLegacy.objects.filter(nome__icontains=display).first()
+                user = find_legacy_user_by_name(display)
         except Exception:
             user = None
         if user and user.id not in seen:
