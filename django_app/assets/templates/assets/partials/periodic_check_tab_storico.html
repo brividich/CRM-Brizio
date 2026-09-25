@@ -1,0 +1,46 @@
+{# Scheda verifica, «Storico verifiche». #}
+<div class="md-page">
+  <section class="md-section">
+    <div class="md-section-head"><h2>Storico verifiche</h2><span class="md-badge badge-muted">{{ sessions|length }}</span></div>
+    {% if sessions %}
+      <div class="md-scroll">
+        <table class="md-table pc-table" data-fm-table-skip="1">
+          <thead>
+            <tr><th>Data</th><th>Esito</th><th>Rilievi</th><th>Tecnico / fornitore</th><th>Documenti</th><th class="md-right"></th></tr>
+          </thead>
+          <tbody>
+            {% for s in sessions %}
+              <tr>
+                <td>
+                  <span class="pc-date">{{ s.performed_on|date:"d/m/Y" }}</span>
+                  {% if s.status == "ISSUED" %}<span class="pc-flag">foglio {{ s.sheet_token }} in giro</span>
+                  {% elif not s.is_confirmed %}<span class="pc-flag">da confermare</span>{% endif %}
+                  {% if s.source == "IMPORT" %}<span class="md-sub">dallo storico</span>{% endif %}
+                </td>
+                <td>{% if s.is_confirmed %}<span class="pc-outcome is-{{ s.outcome }}">{{ s.get_outcome_display }}</span>{% else %}<span class="pc-muted">—</span>{% endif %}</td>
+                <td>
+                  {% with ko=s.results.all %}
+                    {% for r in ko %}{% if r.result == "KO" %}
+                      <div>{{ r.label }}{% if r.category %} · <span class="pc-muted">{{ r.category }}</span>{% endif %}{% if r.work_order %} · <a href="{% url 'assets:wo_view' r.work_order.id %}">OdL #{{ r.work_order.id }}</a>{% endif %}</div>
+                    {% endif %}{% empty %}<span class="pc-muted">—</span>{% endfor %}
+                  {% endwith %}
+                </td>
+                <td>{{ s.technician|default:"" }}{% if s.technician and s.supplier %} · {% endif %}{{ s.supplier|default:"" }}</td>
+                <td>
+                  <div class="pc-files">
+                    {% for a in s.attachments.all %}
+                      <a class="pc-file" href="{% url 'assets:periodic_check_attachment_download' a.id %}" target="_blank" rel="noopener" title="{{ a.original_name }}">{{ a.original_name }}</a>
+                    {% empty %}<span class="pc-muted">—</span>{% endfor %}
+                  </div>
+                </td>
+                <td class="md-right"><a class="btn btn-secondary btn-sm" href="{% url 'assets:periodic_check_session_detail' s.id %}">Apri</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="md-empty">Nessuna verifica registrata.{% if can_register %} <a href="{% url 'assets:periodic_check_register' check_type.id %}">Registra la prima</a>.{% endif %}</p>
+    {% endif %}
+  </section>
+</div>

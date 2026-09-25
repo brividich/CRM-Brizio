@@ -1,0 +1,67 @@
+{# Scheda verifica, «Impostazioni»: dati del tipo, planimetria, voci di checklist. #}
+<div class="md-page">
+  <section class="md-section">
+    <div class="md-section-head"><h2>Dati della verifica</h2><span class="pc-state is-{{ state }}">{{ state_label }}</span></div>
+    <dl class="pc-facts">
+      <div><dt>Prossima verifica</dt><dd>{{ check_type.next_due_date|date:"d/m/Y"|default:"da pianificare" }}</dd></div>
+      <div><dt>Frequenza</dt><dd>{{ check_type.frequency_label }} (preavviso {{ check_type.warning_days }} gg)</dd></div>
+      <div><dt>Esegue</dt><dd>{{ check_type.performer_label|default:"—" }}</dd></div>
+      {% if check_type.reference_code %}<div><dt>Codice</dt><dd>{{ check_type.reference_code }}</dd></div>{% endif %}
+      {% if check_type.legal_reference %}<div><dt>Riferimento normativo</dt><dd>{{ check_type.legal_reference }}</dd></div>{% endif %}
+      {% if check_type.archive_folder %}<div><dt>Archivio documenti</dt><dd class="pc-muted">{{ check_type.archive_folder }}</dd></div>{% endif %}
+    </dl>
+    {% if check_type.instructions %}<p class="pc-muted" style="padding:0 16px 14px;margin:0">{{ check_type.instructions|linebreaksbr }}</p>{% endif %}
+  </section>
+
+  {% if is_layout %}
+    <section class="md-section">
+      <div class="md-section-head">
+        <h2>Planimetria e foglio per il tecnico</h2>
+        {% if layout %}<span class="md-badge badge-muted">v{{ layout.version }} · {{ layout_points }} punti</span>{% endif %}
+      </div>
+      <div style="padding:12px 16px;display:grid;gap:10px">
+        {% if layout %}
+          <p class="pc-muted" style="margin:0">
+            «Stampa foglio» crea la verifica e il suo foglio con il QR: il tecnico segna sulla planimetria
+            (evidenziatore = {{ check_type.category_list.0 }}{% if check_type.category_list|length > 1 %}, cerchio a penna = {{ check_type.category_list.1 }}{% endif %}),
+            la scansione torna alla verifica e il portale propone i punti segnati da confermare.
+          </p>
+          <p style="margin:0"><a href="{% url 'assets:periodic_check_sheet_preview' check_type.id %}" target="_blank" rel="noopener">Anteprima del foglio</a>
+            <span class="pc-muted">· planimetria «{{ layout.original_name }}» caricata il {{ layout.created_at|date:"d/m/Y" }}</span></p>
+        {% else %}
+          <p class="pc-muted" style="margin:0">Nessuna planimetria: carica il PDF vettoriale con i punti numerati per poter stampare il foglio.</p>
+        {% endif %}
+        {% if can_configure %}
+          <details>
+            <summary class="pc-muted" style="cursor:pointer">{% if layout %}Carica una nuova versione della planimetria{% else %}Carica la planimetria{% endif %}</summary>
+            <form method="post" enctype="multipart/form-data" class="md-form" style="margin-top:10px">
+              {% csrf_token %}<input type="hidden" name="action" value="layout">
+              <div class="md-field">
+                <label for="id_layout_pdf">Planimetria (PDF vettoriale)</label>
+                <input id="id_layout_pdf" type="file" name="layout_pdf" accept="application/pdf" required>
+                <span class="helptext">I punti si riconoscono dal riquadro rosso con la X e dal numero rosso accanto. Le verifiche gia' fatte restano sulla loro versione.</span>
+              </div>
+              <div class="md-field">
+                <label for="id_exclude_areas">Zone da coprire sul foglio (facoltativo)</label>
+                <textarea id="id_exclude_areas" name="exclude_areas" rows="2" placeholder="465.6, 975.5, 813.7, 1136.3">{% if layout %}{% for a in layout.exclude_areas %}{{ a.0 }}, {{ a.1 }}, {{ a.2 }}, {{ a.3 }}
+{% endfor %}{% endif %}</textarea>
+                <span class="helptext">Una zona per riga: x0, y0, x1, y1 in punti PDF (es. il vecchio cartiglio «non funzionanti / bassa autonomia»).</span>
+              </div>
+              <div class="md-form-actions"><button class="btn btn-primary btn-sm" type="submit">Carica planimetria</button></div>
+            </form>
+          </details>
+        {% endif %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if items %}
+    <section class="md-section">
+      <div class="md-section-head"><h2>Voci di checklist</h2><span class="md-badge badge-muted">{{ items|length }}</span></div>
+      <ol style="margin:0;padding:12px 16px 12px 36px;display:grid;gap:4px">
+        {% for item in items %}<li>{{ item.label }}</li>{% endfor %}
+      </ol>
+    </section>
+  {% endif %}
+  {% if can_configure %}<p style="margin:0"><a class="btn btn-secondary btn-sm" href="{% url 'assets:periodic_check_type_edit' check_type.id %}">Modifica frequenza, fornitore, voci e categorie</a></p>{% endif %}
+</div>

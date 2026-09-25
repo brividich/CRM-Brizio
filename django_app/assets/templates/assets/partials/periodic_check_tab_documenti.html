@@ -1,0 +1,25 @@
+{# Scheda verifica, «Documenti»: rapportini, verbali e scansioni di tutte le verifiche. #}
+<div class="md-page">
+  <section class="md-section">
+    <div class="md-section-head"><h2>Documenti</h2><span class="md-badge badge-muted">{{ documents|length }}</span></div>
+    {% if documents %}
+      <div class="md-scroll">
+        <table class="md-table pc-table-auto" data-fm-table-skip="1">
+          <thead><tr><th>Verifica del</th><th>Documento</th><th>Caricato</th><th class="md-right"></th></tr></thead>
+          <tbody>
+            {% for d in documents %}
+              <tr>
+                <td><a href="{% url 'assets:periodic_check_session_detail' d.session_id %}">{{ d.session.performed_on|date:"d/m/Y" }}</a>{% if d.session.source == "IMPORT" %} <span class="md-sub">dallo storico</span>{% endif %}</td>
+                <td>{{ d.original_name }}</td>
+                <td>{{ d.created_at|date:"d/m/Y" }}</td>
+                <td class="md-right"><a class="btn btn-secondary btn-sm" href="{% url 'assets:periodic_check_attachment_download' d.id %}" target="_blank" rel="noopener">Apri</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="md-empty">Nessun documento.</p>
+    {% endif %}
+  </section>
+</div>
