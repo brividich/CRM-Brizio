@@ -1,0 +1,23 @@
+{# Riga esito di una verifica periodica: voce di checklist o rilievo; se non OK, l'OdL. #}
+<tr>
+  <td>{{ r.label }}{% if r.kind == "REMARK" %}<span class="md-sub">rilievo</span>{% endif %}</td>
+  <td><span class="pc-outcome is-{% if r.result == 'KO' %}KO{% elif r.result == 'OK' %}OK{% else %}ARCHIVE{% endif %}">{{ r.get_result_display }}</span></td>
+  <td>{{ r.note|default:"" }}</td>
+  <td class="md-right">
+    {% if r.work_order %}
+      <a href="{% url 'assets:wo_view' r.work_order.id %}">OdL #{{ r.work_order.id }}</a> <span class="md-sub">{{ r.work_order.get_status_display }}</span>
+    {% elif r.result == "KO" and can_register %}
+      <form method="post" class="pc-wo" style="justify-content:flex-end">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="work_order">
+        <input type="hidden" name="result_id" value="{{ r.id }}">
+        <input type="hidden" name="title" value="{{ check_type.name|truncatechars:80 }}: {{ r.label|truncatechars:160 }}">
+        <select name="asset" aria-label="Asset dell'ordine di lavoro" required>
+          <option value="">Asset…</option>
+          {% for a in asset_choices %}<option value="{{ a.id }}"{% if default_asset and a.id == default_asset.id %} selected{% endif %}>{{ a.asset_tag|default:"" }} {{ a.name }}</option>{% endfor %}
+        </select>
+        <button class="btn btn-primary btn-sm" type="submit">Crea OdL</button>
+      </form>
+    {% elif r.result == "KO" %}<span class="pc-muted">senza OdL</span>{% endif %}
+  </td>
+</tr>

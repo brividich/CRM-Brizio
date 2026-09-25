@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_maintenance
+from . import views, views_maintenance, views_verifiche
 
 app_name = "assets"
 
@@ -165,6 +165,19 @@ urlpatterns = [
     path("assets/bulk-update/", views.asset_bulk_update, name="asset_bulk_update"),
     path("assets/dashboard/", RedirectView.as_view(pattern_name="assets:asset_dashboard", permanent=False)),
     path("api/assets/dashboard/config/", views.api_asset_dashboard_save_config, name="api_dashboard_save_config"),
+    # --- Verifiche periodiche sugli impianti (docs/ai/VERIFICHE_PERIODICHE.md) ---
+    path("assets/manutenzione/verifiche-impianti/", views_verifiche.periodic_check_list, name="periodic_check_list"),
+    path("assets/manutenzione/verifiche-impianti/impianti/", views_verifiche.periodic_check_systems, name="periodic_check_systems"),
+    path("assets/manutenzione/verifiche-impianti/tipo/nuovo/", views_verifiche.periodic_check_type_form, name="periodic_check_type_create"),
+    path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/", views_verifiche.periodic_check_type_detail, name="periodic_check_type_detail"),
+    path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/modifica/", views_verifiche.periodic_check_type_form, name="periodic_check_type_edit"),
+    path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/registra/", views_verifiche.periodic_check_register, name="periodic_check_register"),
+    path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/", views_verifiche.periodic_check_session_detail, name="periodic_check_session_detail"),
+    path(
+        "assets/manutenzione/verifiche-impianti/allegati/<int:attachment_id>/",
+        views_verifiche.periodic_check_attachment_download,
+        name="periodic_check_attachment_download",
+    ),
     # --- Nuovo dominio manutenzione: Piano -> Applicazione -> Occorrenza -> OdL ---
     path("assets/manutenzione/da-fare/", views_maintenance.maintenance_da_fare, name="maintenance_da_fare"),
     path("assets/manutenzione/scadenze/", views_maintenance.maintenance_scadenze, name="maintenance_scadenze"),

@@ -83,6 +83,18 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 sidebar_code="maintenance_amministrative",
                 routes=frozenset({"asset_administrative_deadline_create", "asset_administrative_deadline_edit"}),
             ),
+            # Verifiche sugli impianti (luci di emergenza, quadri, terra...), non sul
+            # singolo asset. Da non confondere con la vecchia "Manutenzioni periodiche".
+            NavItem(
+                "verifiche",
+                "Verifiche periodiche",
+                "periodic_check_list",
+                sidebar_code="maintenance_verifiche",
+                routes=frozenset({
+                    "periodic_check_type_detail", "periodic_check_register", "periodic_check_session_detail",
+                    "periodic_check_type_create", "periodic_check_type_edit", "periodic_check_systems",
+                }),
+            ),
             NavItem(
                 "interventi",
                 "Interventi",
@@ -214,6 +226,11 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         "Revisioni, certificati, garanzie e altri adempimenti dell'asset: un registro a parte, non un piano di manutenzione.",
         "«+ Nuova scadenza» per aggiungerne una; apri una riga per registrare l'adempimento e fissare la scadenza successiva.",
         'Le scadenze amministrative compaiono anche in Calendario, Scadenzario e promemoria.',
+    ),
+    'verifiche': (
+        "Verifiche periodiche sugli impianti (illuminazione di emergenza, quadri, cabine, terra, antincendio...): una riga per tipo di verifica, raggruppate per impianto.",
+        "«Registra» su una riga per inserire l'esito con il rapportino: la prossima scadenza si ricalcola da sola.",
+        "Una voce o un rilievo non conforme diventa un ordine di lavoro dalla pagina della verifica.",
     ),
     'officina': (
         'Stato delle macchine per reparto: in uso, ferme, in manutenzione.',

@@ -1,0 +1,122 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Verifiche periodiche{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Verifiche periodiche{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Verifiche sugli impianti dello stabilimento: illuminazione di emergenza, quadri, cabine, terra, antincendio. Le verifiche di legge sul singolo asset stanno in <a href="{% url 'assets:asset_administrative_deadline_list' %}">Scadenze amministrative</a>.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  {% if can_configure %}
+    <a class="btn btn-secondary" href="{% url 'assets:periodic_check_systems' %}">Impianti</a>
+    <a class="btn btn-primary" href="{% url 'assets:periodic_check_type_create' %}">+ Nuova verifica</a>
+  {% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+
+  <div class="md-kpis pc-kpis">
+    <a class="md-kpi {% if counts.overdue %}is-danger{% else %}is-ok{% endif %}{% if show == 'overdue' %} is-on{% endif %}" href="?stato=overdue">
+      <span class="md-kpi-label">Scadute</span><span class="md-kpi-value">{{ counts.overdue }}</span>
+      <span class="md-kpi-sub">da eseguire subito</span>
+    </a>
+    <a class="md-kpi {% if counts.due_soon %}is-warn{% endif %}{% if show == 'due_soon' %} is-on{% endif %}" href="?stato=due_soon">
+      <span class="md-kpi-label">In scadenza</span><span class="md-kpi-value">{{ counts.due_soon }}</span>
+      <span class="md-kpi-sub">entro il preavviso</span>
+    </a>
+    <a class="md-kpi{% if show == 'ok' %} is-on{% endif %}" href="?stato=ok">
+      <span class="md-kpi-label">In regola</span><span class="md-kpi-value">{{ counts.ok }}</span>
+      <span class="md-kpi-sub">prossima gia' fissata</span>
+    </a>
+    <a class="md-kpi {% if counts.unscheduled %}is-warn{% endif %}{% if show == 'unscheduled' %} is-on{% endif %}" href="?stato=unscheduled">
+      <span class="md-kpi-label">Da pianificare</span><span class="md-kpi-value">{{ counts.unscheduled }}</span>
+      <span class="md-kpi-sub">senza scadenza</span>
+    </a>
+    {% if drafts_total %}
+    <a class="md-kpi is-warn{% if show == 'bozze' %} is-on{% endif %}" href="?stato=bozze">
+      <span class="md-kpi-label">Da confermare</span><span class="md-kpi-value">{{ drafts_total }}</span>
+      <span class="md-kpi-sub">verifiche lette dal documento</span>
+    </a>
+    {% endif %}
+  </div>
+
+  {% if show %}
+    <div class="md-scope-note">Filtro attivo. <a href="{% url 'assets:periodic_check_list' %}">Mostra tutte le verifiche</a></div>
+  {% endif %}
+
+  {% for group in groups %}
+    <section class="md-section pc-system">
+      <div class="md-section-head">
+        <h2>{{ group.system.name }}</h2>
+        <span class="md-badge badge-muted">{{ group.rows|length }}</span>
+      </div>
+      <div class="md-scroll">
+        <table class="md-table pc-table" data-fm-table-skip="1">
+          <colgroup>
+            <col class="pc-c-name"><col class="pc-c-freq"><col class="pc-c-who"><col class="pc-c-last">
+            <col class="pc-c-next"><col class="pc-c-state"><col class="pc-c-act">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Verifica</th>
+              <th>Frequenza</th>
+              <th>Esegue</th>
+              <th>Ultima</th>
+              <th>Prossima</th>
+              <th>Stato</th>
+              <th class="md-right">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in group.rows %}
+              {% with t=row.type %}
+              <tr>
+                <td class="pc-name">
+                  <a href="{% url 'assets:periodic_check_type_detail' t.id %}">{{ t.name }}</a>
+                  {% if t.drafts %}<span class="pc-flag">{{ t.drafts }} da confermare</span>{% endif %}
+                  {% if t.open_ko %}<span class="pc-flag is-ko">{{ t.open_ko }} rilievi senza OdL</span>{% endif %}
+                  <span class="md-sub">{{ t.get_method_display }}{% if t.reference_code %} · cod. {{ t.reference_code }}{% endif %}</span>
+                </td>
+                <td>{{ t.frequency_label }}</td>
+                <td>{{ t.performer_label|default:"—" }}</td>
+                <td>
+                  {% if row.last %}
+                    <a class="pc-date" href="{% url 'assets:periodic_check_session_detail' row.last.id %}">{{ row.last.performed_on|date:"d/m/Y" }}</a>
+                    <span class="pc-outcome is-{{ row.last.outcome }}">{{ row.last.get_outcome_display }}</span>
+                  {% else %}<span class="pc-muted">mai registrata</span>{% endif %}
+                </td>
+                <td>
+                  {% if t.next_due_date %}
+                    <span class="pc-date">{{ t.next_due_date|date:"d/m/Y" }}</span>
+                    <span class="pc-days">{{ row.days_label }}</span>
+                  {% else %}<span class="pc-muted">—</span>{% endif %}
+                </td>
+                <td><span class="pc-state is-{{ row.state }}">{{ row.state_label }}</span></td>
+                <td>
+                  <div class="pc-actions">
+                    {% if can_register %}<a class="btn btn-primary" href="{% url 'assets:periodic_check_register' t.id %}">Registra</a>{% endif %}
+                    <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' t.id %}">Storico</a>
+                  </div>
+                </td>
+              </tr>
+              {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% empty %}
+    {% if has_types %}
+      <p class="md-empty">Nessuna verifica con questo filtro.</p>
+    {% else %}
+      <div class="md-empty">
+        <p>Nessuna verifica periodica configurata.</p>
+        {% if can_configure %}<p>Parti dagli <a href="{% url 'assets:periodic_check_systems' %}">impianti</a>, poi aggiungi le verifiche di ciascuno.</p>{% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endblock %}
