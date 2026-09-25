@@ -1,0 +1,61 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Impianti — Verifiche periodiche{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Impianti{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Gli impianti su cui si fanno verifiche periodiche. L'asset di riferimento viene proposto sugli ordini di lavoro nati dai rilievi.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">Verifiche periodiche</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+  <section class="md-section">
+    <div class="md-section-head"><h2>Impianti</h2><span class="md-badge badge-muted">{{ systems|length }}</span></div>
+    {% if systems %}
+      <div class="md-scroll">
+        <table class="md-table pc-table" data-fm-table-skip="1">
+          <thead><tr><th>Impianto</th><th>Asset per gli OdL</th><th class="md-right">Verifiche</th><th>Stato</th><th class="md-right"></th></tr></thead>
+          <tbody>
+            {% for s in systems %}
+              <tr>
+                <td class="pc-name"><strong>{{ s.name }}</strong>{% if s.description %}<span class="md-sub">{{ s.description }}</span>{% endif %}</td>
+                <td>{% if s.asset %}{{ s.asset.asset_tag|default:"" }} {{ s.asset.name }}{% else %}<span class="pc-muted">da scegliere a ogni OdL</span>{% endif %}</td>
+                <td class="md-right">{{ s.types_count }}</td>
+                <td>{% if s.is_active %}Attivo{% else %}<span class="pc-muted">Disattivato</span>{% endif %}</td>
+                <td class="md-right"><a class="btn btn-secondary btn-sm" href="?modifica={{ s.id }}">Modifica</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="md-empty">Nessun impianto: crea il primo qui sotto.</p>
+    {% endif %}
+  </section>
+
+  <form class="md-form" method="post" novalidate id="impianto">
+    {% csrf_token %}
+    {% if editing %}<input type="hidden" name="system_id" value="{{ editing.id }}">{% endif %}
+    {{ form.non_field_errors }}
+    <fieldset class="md-fieldset">
+      <h2>{% if editing %}Modifica «{{ editing.name }}»{% else %}Nuovo impianto{% endif %}</h2>
+      <div class="md-grid-2">
+        {% include "assets/components/_md_field.html" with field=form.name %}
+        {% include "assets/components/_md_field.html" with field=form.description %}
+        {% include "assets/components/_md_field.html" with field=form.asset %}
+        {% include "assets/components/_md_field.html" with field=form.sort_order %}
+        {% include "assets/components/_md_field.html" with field=form.is_active %}
+      </div>
+    </fieldset>
+    <div class="md-form-actions">
+      <button type="submit" class="btn btn-primary">{% if editing %}Salva modifiche{% else %}Crea impianto{% endif %}</button>
+      {% if editing %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_systems' %}">Annulla</a>{% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Registra verifica — {{ check_type.name }}{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Registra: {{ check_type.name }}{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>{{ check_type.system.name }} · {{ check_type.frequency_label }}. Alla conferma la prossima scadenza si ricalcola dalla data della verifica.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Annulla</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<form class="md-form" method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+
+  <fieldset class="md-fieldset">
+    <h2>1 · Quando e chi</h2>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.performed_on %}
+      {% include "assets/components/_md_field.html" with field=form.outcome %}
+      {% include "assets/components/_md_field.html" with field=form.technician %}
+      {% include "assets/components/_md_field.html" with field=form.supplier %}
+    </div>
+  </fieldset>
+
+  {% if item_rows %}
+    <fieldset class="md-fieldset">
+      <h2>2 · Checklist</h2>
+      <p class="md-hint">Tutto OK di default: segna solo le voci che non vanno. Una voce non OK rende la verifica «con rilievi» e potra' diventare un ordine di lavoro.</p>
+      <div class="md-section pc-checklist">
+        {% for row in item_rows %}
+          <div class="pc-check">
+            <span class="pc-check-label">{{ row.item.label }}</span>
+            <span class="pc-seg" role="radiogroup" aria-label="{{ row.item.label }}">
+              {% for code, label in result_choices %}
+                <label class="{% if code == 'KO' %}is-ko{% elif code == 'NA' %}is-na{% endif %}">
+                  <input type="radio" name="item_{{ row.item.id }}" value="{{ code }}"{% if row.result == code %} checked{% endif %}>{% if code == "NA" %}N/A{% else %}{{ label }}{% endif %}
+                </label>
+              {% endfor %}
+            </span>
+            <input type="text" name="item_note_{{ row.item.id }}" value="{{ row.note }}" placeholder="Nota (facoltativa)" aria-label="Nota per {{ row.item.label }}">
+          </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+  {% endif %}
+
+  <fieldset class="md-fieldset">
+    <h2>{% if item_rows %}3{% else %}2{% endif %} · Rilievi e documenti</h2>
+    {% include "assets/components/_md_field.html" with field=form.remarks_text %}
+    {% include "assets/components/_md_field.html" with field=form.notes %}
+    <div class="md-field">
+      <label for="id_files">Rapportino / verbale</label>
+      <input id="id_files" type="file" name="files" multiple>
+      <span class="helptext">PDF o immagini della verifica firmata. Puoi caricarne piu' di uno.</span>
+    </div>
+    {% include "assets/components/_md_field.html" with field=form.next_due_date %}
+  </fieldset>
+
+  <div class="md-form-actions">
+    <button type="submit" class="btn btn-primary">Registra verifica</button>
+    <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Annulla</a>
+  </div>
+</form>
+{% endblock %}
