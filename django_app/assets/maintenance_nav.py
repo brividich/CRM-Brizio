@@ -94,7 +94,7 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                     "periodic_check_type_detail", "periodic_check_register", "periodic_check_session_detail",
                     "periodic_check_type_create", "periodic_check_type_edit", "periodic_check_systems",
                     "periodic_check_sheet_issue", "periodic_check_sheet_preview", "periodic_check_sheet_pdf",
-                    "periodic_check_layout_image",
+                    "periodic_check_layout_image", "periodic_check_intake", "periodic_check_intake_scan",
                 }),
             ),
             NavItem(
@@ -234,6 +234,7 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         "«Apri scheda» porta alla pagina della verifica: in cima «Come funziona questa verifica» dice i passi, cosa manca e il pulsante per farlo.",
         "Verifiche a planimetria: «Stampa foglio» crea il foglio con il QR per il tecnico, poi si carica la scansione. Le altre: «Registra» con il rapportino.",
         "Nella scheda: stato attuale, statistiche, storico, ordini di lavoro nati dai rilievi, documenti.",
+        "«Cartella scansioni»: i fogli scansionati nella cartella dello scanner tornano da soli alla loro verifica; quelli senza QR si smistano a mano.",
     ),
     'officina': (
         'Stato delle macchine per reparto: in uso, ferme, in manutenzione.',
