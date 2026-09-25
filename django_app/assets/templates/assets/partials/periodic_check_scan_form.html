@@ -1,7 +1,13 @@
 {# Caricamento della scansione del foglio di verifica (PDF o immagine). #}
-<form method="post" enctype="multipart/form-data" class="pc-wo">
+<form method="post" enctype="multipart/form-data" class="pc-scan-form">
   {% csrf_token %}<input type="hidden" name="action" value="scan">
-  <input type="file" name="scan" accept="application/pdf,image/*" required aria-label="Scansione del foglio">
-  <button class="btn btn-primary btn-sm" type="submit">Carica e leggi la scansione</button>
-  <span class="pc-muted">La lettura richiede alcuni secondi.</span>
+  <label class="pc-drop">
+    <input type="file" name="scan" accept="application/pdf,image/*" required aria-label="Scansione del foglio" data-pc-drop>
+    <span class="pc-drop-icon" aria-hidden="true">⇪</span>
+    <span class="pc-drop-text"><strong>Scegli la scansione</strong> o trascinala qui<small data-pc-drop-names>PDF o immagine del foglio intero, QR compreso.</small></span>
+  </label>
+  <div class="pc-scan-actions">
+    <button class="btn btn-primary" type="submit">Carica e leggi la scansione</button>
+    <span class="pc-muted">La lettura richiede alcuni secondi.</span>
+  </div>
 </form>

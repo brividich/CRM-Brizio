@@ -1,0 +1,9 @@
+{# Testata di una verifica: stato e dati essenziali come etichette, uguali su tutte le sue pagine. #}
+<div class="pc-head-meta">
+  {% if state_key %}<span class="pc-state is-{{ state_key }}">{% if state_key == "overdue" %}Scaduta{% elif state_key == "due_soon" %}In scadenza{% elif state_key == "ok" %}In regola{% else %}Da pianificare{% endif %}{% if check_type.next_due_date %} · {{ check_type.next_due_date|date:"d/m/Y" }}{% endif %}</span>{% endif %}
+  {% if check_type.category %}<span class="pc-cat is-{{ check_type.category.color }}">{{ check_type.category.name }}</span>{% endif %}
+  <span class="pc-meta">{{ check_type.system.name }}</span>
+  <span class="pc-meta">{{ check_type.frequency_label }}</span>
+  <span class="pc-meta">{{ check_type.get_method_display }}</span>
+  {% if check_type.performer_label %}<span class="pc-meta">{{ check_type.performer_label }}</span>{% endif %}
+</div>

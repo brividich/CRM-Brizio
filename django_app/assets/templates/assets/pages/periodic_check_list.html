@@ -12,6 +12,7 @@
   <a class="btn btn-secondary" href="{% url 'assets:periodic_check_intake' %}">Cartella scansioni{% if intake_pending %} <span class="pc-flag is-ko">{{ intake_pending }}</span>{% endif %}</a>
   {% if can_configure %}
     <a class="btn btn-secondary" href="{% url 'assets:periodic_check_systems' %}">Impianti</a>
+    <a class="btn btn-secondary" href="{% url 'assets:periodic_check_categories' %}">Categorie</a>
     <a class="btn btn-primary" href="{% url 'assets:periodic_check_type_create' %}">+ Nuova verifica</a>
   {% endif %}
 {% endblock %}
@@ -19,39 +20,77 @@
 {% block assets_shell_content %}
 <div class="md-page">
 
+  {% if has_types %}
+  <section class="md-section pc-todo" aria-label="Cosa fare adesso">
+    <div class="md-section-head">
+      <h2>Cosa fare adesso</h2>
+      {% if todo %}<span class="md-badge badge-muted">{{ todo|length }}{% if todo_more %}+{{ todo_more }}{% endif %}</span>{% endif %}
+    </div>
+    {% if todo %}
+      <ul class="pc-todo-list">
+        {% for t in todo %}
+          <li class="pc-todo-item is-{{ t.tone }}">
+            <span class="pc-todo-kind">{{ t.kind }}</span>
+            <span class="pc-todo-body"><strong>{{ t.title }}</strong><span>{{ t.detail }}</span></span>
+            <a class="btn {% if t.tone == 'danger' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm" href="{{ t.url }}">{{ t.action }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+      {% if todo_more %}<p class="pc-muted pc-todo-more">Altre {{ todo_more }} cose da fare: usa i filtri qui sotto.</p>{% endif %}
+    {% else %}
+      <p class="pc-todo-ok"><span aria-hidden="true">✓</span> Tutto in regola: nessuna verifica scaduta, nessun foglio in attesa, nessun rilievo senza ordine di lavoro.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <div class="md-kpis pc-kpis">
-    <a class="md-kpi {% if counts.overdue %}is-danger{% else %}is-ok{% endif %}{% if show == 'overdue' %} is-on{% endif %}" href="?stato=overdue">
+    <a class="md-kpi {% if counts.overdue %}is-danger{% else %}is-ok{% endif %}{% if show == 'overdue' %} is-on{% endif %}" href="?stato={% if show != 'overdue' %}overdue{% endif %}&categoria={{ category_filter }}&raggruppa={{ group_by }}">
       <span class="md-kpi-label">Scadute</span><span class="md-kpi-value">{{ counts.overdue }}</span>
       <span class="md-kpi-sub">da eseguire subito</span>
     </a>
-    <a class="md-kpi {% if counts.due_soon %}is-warn{% endif %}{% if show == 'due_soon' %} is-on{% endif %}" href="?stato=due_soon">
+    <a class="md-kpi {% if counts.due_soon %}is-warn{% endif %}{% if show == 'due_soon' %} is-on{% endif %}" href="?stato={% if show != 'due_soon' %}due_soon{% endif %}&categoria={{ category_filter }}&raggruppa={{ group_by }}">
       <span class="md-kpi-label">In scadenza</span><span class="md-kpi-value">{{ counts.due_soon }}</span>
       <span class="md-kpi-sub">entro il preavviso</span>
     </a>
-    <a class="md-kpi{% if show == 'ok' %} is-on{% endif %}" href="?stato=ok">
+    <a class="md-kpi{% if show == 'ok' %} is-on{% endif %}" href="?stato={% if show != 'ok' %}ok{% endif %}&categoria={{ category_filter }}&raggruppa={{ group_by }}">
       <span class="md-kpi-label">In regola</span><span class="md-kpi-value">{{ counts.ok }}</span>
       <span class="md-kpi-sub">prossima gia' fissata</span>
     </a>
-    <a class="md-kpi {% if counts.unscheduled %}is-warn{% endif %}{% if show == 'unscheduled' %} is-on{% endif %}" href="?stato=unscheduled">
+    <a class="md-kpi {% if counts.unscheduled %}is-warn{% endif %}{% if show == 'unscheduled' %} is-on{% endif %}" href="?stato={% if show != 'unscheduled' %}unscheduled{% endif %}&categoria={{ category_filter }}&raggruppa={{ group_by }}">
       <span class="md-kpi-label">Da pianificare</span><span class="md-kpi-value">{{ counts.unscheduled }}</span>
       <span class="md-kpi-sub">senza scadenza</span>
     </a>
     {% if drafts_total %}
-    <a class="md-kpi is-warn{% if show == 'bozze' %} is-on{% endif %}" href="?stato=bozze">
+    <a class="md-kpi is-warn{% if show == 'bozze' %} is-on{% endif %}" href="?stato={% if show != 'bozze' %}bozze{% endif %}&categoria={{ category_filter }}&raggruppa={{ group_by }}">
       <span class="md-kpi-label">Da confermare</span><span class="md-kpi-value">{{ drafts_total }}</span>
       <span class="md-kpi-sub">verifiche lette dal documento</span>
     </a>
     {% endif %}
   </div>
 
-  {% if show %}
-    <div class="md-scope-note">Filtro attivo. <a href="{% url 'assets:periodic_check_list' %}">Mostra tutte le verifiche</a></div>
+  <div class="pc-toolbar">
+    <div class="pc-chips" role="group" aria-label="Filtra per categoria">
+      <a class="pc-chip{% if not category_filter %} is-on{% endif %}" href="?stato={{ show }}&raggruppa={{ group_by }}">Tutte</a>
+      {% for c in category_chips %}
+        <a class="pc-chip{% if category_filter == c.key %} is-on{% endif %}" href="?stato={{ show }}&categoria={{ c.key }}&raggruppa={{ group_by }}"><span class="pc-dot is-{{ c.color }}" aria-hidden="true"></span>{{ c.name }} <span class="pc-chip-n">{{ c.count }}</span></a>
+      {% empty %}
+        {% if can_configure %}<a class="pc-chip pc-chip--add" href="{% url 'assets:periodic_check_categories' %}">+ Crea le categorie per filtrare</a>{% endif %}
+      {% endfor %}
+    </div>
+    <div class="pc-seg pc-groupby" role="group" aria-label="Raggruppa per">
+      <a class="{% if group_by == 'impianto' %}is-on{% endif %}" href="?stato={{ show }}&categoria={{ category_filter }}&raggruppa=impianto"{% if group_by == 'impianto' %} aria-current="true"{% endif %}>Per impianto</a>
+      <a class="{% if group_by == 'categoria' %}is-on{% endif %}" href="?stato={{ show }}&categoria={{ category_filter }}&raggruppa=categoria"{% if group_by == 'categoria' %} aria-current="true"{% endif %}>Per categoria</a>
+    </div>
+  </div>
+
+  {% if show or category_filter %}
+    <div class="md-scope-note">Filtro attivo. <a href="?raggruppa={{ group_by }}">Mostra tutte le verifiche</a></div>
   {% endif %}
 
   {% for group in groups %}
-    <section class="md-section pc-system">
+    <section class="md-section pc-system{% if group.color %} pc-group-cat is-{{ group.color }}{% endif %}">
       <div class="md-section-head">
-        <h2>{{ group.system.name }}</h2>
+        <h2>{{ group.name }}</h2>
         <span class="md-badge badge-muted">{{ group.rows|length }}</span>
       </div>
       <div class="md-scroll">
@@ -74,19 +113,22 @@
           <tbody>
             {% for row in group.rows %}
               {% with t=row.type %}
-              <tr>
+              <tr data-row-href="{% url 'assets:periodic_check_type_detail' t.id %}">
                 <td class="pc-name">
                   <a href="{% url 'assets:periodic_check_type_detail' t.id %}" title="Apri la scheda: stato, statistiche, storico, documenti">{{ t.name }}</a>
                   {% if t.drafts %}<span class="pc-flag">{{ t.drafts }} da confermare</span>{% endif %}
                   {% if t.issued %}<span class="pc-flag">{{ t.issued }} {% if t.issued == 1 %}foglio{% else %}fogli{% endif %} in giro</span>{% endif %}
-                  {% if t.open_ko %}<span class="pc-flag is-ko">{{ t.open_ko }} rilievi senza OdL nell'ultima verifica</span>{% endif %}
-                  <span class="md-sub">{{ t.get_method_display }}{% if t.reference_code %} · cod. {{ t.reference_code }}{% endif %}</span>
+                  {% if t.open_ko %}<span class="pc-flag is-ko">{{ t.open_ko }} {% if t.open_ko == 1 %}rilievo{% else %}rilievi{% endif %} senza OdL</span>{% endif %}
+                  <span class="md-sub">
+                    {% if group_by == "categoria" %}{{ t.system.name }}{% elif t.category %}<span class="pc-cat is-{{ t.category.color }}">{{ t.category.name }}</span>{% endif %}
+                    {{ t.get_method_display }}{% if t.reference_code %} · cod. {{ t.reference_code }}{% endif %}
+                  </span>
                 </td>
                 <td>{{ t.frequency_label }}</td>
                 <td>{{ t.performer_label|default:"—" }}</td>
                 <td>
                   {% if row.last %}
-                    <a class="pc-date" href="{% url 'assets:periodic_check_session_detail' row.last.id %}">{{ row.last.performed_on|date:"d/m/Y" }}</a>
+                    <a class="pc-date" href="{% url 'assets:periodic_check_session_detail' row.last.id %}" title="Apri questa verifica">{{ row.last.performed_on|date:"d/m/Y" }}</a>
                     <span class="pc-outcome is-{{ row.last.outcome }}">{{ row.last.get_outcome_display }}</span>
                   {% else %}<span class="pc-muted">mai registrata</span>{% endif %}
                 </td>
@@ -99,7 +141,6 @@
                 <td><span class="pc-state is-{{ row.state }}">{{ row.state_label }}</span></td>
                 <td>
                   <div class="pc-actions">
-                    <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' t.id %}">Apri scheda</a>
                     {% if can_register %}
                       {% if t.method == "LAYOUT" and t.has_layout %}
                         <form method="post" action="{% url 'assets:periodic_check_sheet_issue' t.id %}">{% csrf_token %}<button class="btn btn-primary" type="submit" title="Crea la verifica e il foglio con il QR per il tecnico">Stampa foglio</button></form>
@@ -109,6 +150,7 @@
                         <a class="btn btn-primary" href="{% url 'assets:periodic_check_register' t.id %}">Registra</a>
                       {% endif %}
                     {% endif %}
+                    <span class="pc-row-go" aria-hidden="true">›</span>
                   </div>
                 </td>
               </tr>
@@ -129,4 +171,5 @@
     {% endif %}
   {% endfor %}
 </div>
+{% include "assets/partials/periodic_check_form_js.html" %}
 {% endblock %}
