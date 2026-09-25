@@ -43,3 +43,19 @@ def run_maintenance_reminders() -> dict:
     except Exception:
         logger.exception("run_maintenance_reminders: eccezione inattesa")
         raise
+
+
+def run_periodic_check_intake(limit: int | None = None) -> dict:
+    """Legge i fogli di verifica depositati dallo scanner nella cartella di pescaggio.
+
+    **Opt-in / fail-safe**: no-op se l'acquisizione e' spenta
+    (``PeriodicCheckIntakeConfig.attiva``) o se la cartella non risponde. Il QR
+    di ogni foglio ritrova la verifica; la conferma dei punti resta umana.
+    """
+    from assets.services.periodic_intake import process_folder
+
+    try:
+        return {"ok": True, **process_folder(limit=limit)}
+    except Exception:
+        logger.exception("run_periodic_check_intake: passaggio fallito")
+        return {"ok": False, "riepilogo": "Errore nel passaggio sulla cartella"}

@@ -24,6 +24,7 @@ from django.utils import timezone
 from core.audit import log_action
 
 from .forms_verifiche import (
+    PeriodicCheckIntakeConfigForm,
     PeriodicCheckRegisterForm,
     PeriodicCheckSystemForm,
     PeriodicCheckTypeForm,
@@ -32,6 +33,8 @@ from .forms_verifiche import (
 from .models import (
     Asset,
     PeriodicCheckAttachment,
+    PeriodicCheckIntakeConfig,
+    PeriodicCheckIntakeLog,
     PeriodicCheckLayout,
     PeriodicCheckResult,
     PeriodicCheckSession,
@@ -40,7 +43,7 @@ from .models import (
     WorkOrder,
 )
 from .services import periodic_checks as checks
-from .services import periodic_stats
+from .services import periodic_intake, periodic_stats
 from .views import _assets_shell_context, _validate_workorder_attachment_uploads
 from .views_maintenance import can_execute_maintenance, can_manage_maintenance_plans
 
@@ -148,6 +151,8 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
         "show": show,
         "today": today,
         "has_types": bool(types),
+        "intake_pending": PeriodicCheckIntakeLog.objects.filter(
+            outcome__in=[PeriodicCheckIntakeLog.OUTCOME_UNMATCHED, PeriodicCheckIntakeLog.OUTCOME_ERROR]).count(),
     })
 
 
@@ -242,7 +247,10 @@ def _guide(request: HttpRequest, check_type: PeriodicCheckType, layout) -> dict:
         step("Carica la scansione",
              f"{issued.count()} fogl{'io' if issued.count() == 1 else 'i'} stampat{'o' if issued.count() == 1 else 'i'} in attesa: "
              "apri la verifica e carica il foglio scansionato, il QR la riconosce." if first_issued
-             else "Quando il foglio torna compilato, si carica nella verifica creata con la stampa.",
+             else ("Quando il foglio torna compilato basta scansionarlo nella cartella dello scanner: il portale lo "
+                   "riconosce dal QR." if PeriodicCheckIntakeConfig.load().attiva
+                   else "Quando il foglio torna compilato, si carica nella verifica creata con la stampa "
+                        "(o dalla Cartella scansioni)."),
              "todo" if first_issued else "waiting",
              {"label": "Apri il foglio in attesa", "url": reverse("assets:periodic_check_session_detail", args=[first_issued.id])}
              if first_issued else None)
@@ -789,3 +797,100 @@ def periodic_check_attachment_download(request: HttpRequest, attachment_id: int)
         filename=filename,
         content_type=mimetypes.guess_type(filename)[0] or "application/octet-stream",
     )
+
+
+# ---------------------------------------------------------------------------
+# Cartella scansioni (acquisizione dei fogli dallo scanner)
+# ---------------------------------------------------------------------------
+
+@login_required
+def periodic_check_intake(request: HttpRequest) -> HttpResponse:
+    config = PeriodicCheckIntakeConfig.load()
+    can_register = can_execute_maintenance(request)
+    can_configure = can_manage_maintenance_plans(request)
+    back = reverse("assets:periodic_check_intake")
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "config":
+            if not can_configure:
+                return _deny(request, "Solo chi configura la manutenzione puo' cambiare la cartella.", back)
+            form = PeriodicCheckIntakeConfigForm(request.POST, instance=config)
+            if form.is_valid():
+                form.save()
+                log_action(request, "periodic_check_intake_config", "assets",
+                           {"attiva": config.attiva, "cartella": config.cartella})
+                messages.success(request, "Impostazioni della cartella salvate.")
+                return redirect(back)
+        elif not can_register:
+            return _deny(request, "Non hai il permesso di acquisire scansioni.", back)
+        elif action == "run":
+            result = periodic_intake.process_folder(config, force=True)
+            log_action(request, "periodic_check_intake_run", "assets", {"riepilogo": result["riepilogo"]})
+            messages.info(request, f"Cartella letta: {result['riepilogo']}")
+            return redirect(back)
+        elif action == "upload":
+            uploads, errors = _validate_workorder_attachment_uploads(request, field_name="scan")
+            for error in errors:
+                messages.error(request, error)
+            logs = []
+            for upload in uploads:
+                logs += periodic_intake.process_file(upload.read(), upload.name or "scansione.pdf",
+                                                     source="CARICAMENTO", user=request.user)
+            if logs:
+                read = sum(1 for log in logs if log.outcome == PeriodicCheckIntakeLog.OUTCOME_READ)
+                log_action(request, "periodic_check_intake_upload", "assets", {"fogli": len(logs), "letti": read})
+                messages.info(request, f"{len(logs)} fogli: {read} associati alla loro verifica, "
+                                       f"{len(logs) - read} da smistare qui sotto.")
+            return redirect(back)
+        elif action in {"assign", "discard"}:
+            log = get_object_or_404(PeriodicCheckIntakeLog, pk=request.POST.get("log_id"))
+            if action == "discard":
+                periodic_intake.discard(log, user=request.user)
+                messages.info(request, f"Scansione «{log.file_name}» scartata.")
+            else:
+                session = get_object_or_404(PeriodicCheckSession, pk=request.POST.get("session_id"))
+                try:
+                    periodic_intake.assign(log, session, user=request.user)
+                except checks.LayoutError as exc:
+                    messages.error(request, str(exc))
+                    return redirect(back)
+                messages.success(request, f"Scansione associata a «{session.check_type.name}»: controlla e conferma i punti.")
+                log_action(request, "periodic_check_intake_assign", "assets",
+                           {"log_id": log.id, "session_id": session.id}, oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
+                return redirect("assets:periodic_check_session_detail", session_id=session.id)
+            return redirect(back)
+        form = PeriodicCheckIntakeConfigForm(request.POST, instance=config)
+    else:
+        form = PeriodicCheckIntakeConfigForm(instance=config)
+
+    pending = PeriodicCheckIntakeLog.objects.filter(
+        outcome__in=[PeriodicCheckIntakeLog.OUTCOME_UNMATCHED, PeriodicCheckIntakeLog.OUTCOME_ERROR]
+    ).select_related("session__check_type")
+    open_sessions = (
+        PeriodicCheckSession.objects.filter(
+            status__in=[PeriodicCheckSession.STATUS_ISSUED, PeriodicCheckSession.STATUS_DRAFT], layout__isnull=False)
+        .select_related("check_type").order_by("check_type__name", "-id")
+    )
+    return _render(request, "periodic_check_intake.html", {
+        "page_title": "Cartella scansioni",
+        "config": config,
+        "form": form,
+        "pending": pending,
+        "open_sessions": open_sessions,
+        "logs": PeriodicCheckIntakeLog.objects.select_related("session__check_type")[:50],
+        "can_register": can_register,
+        "can_configure": can_configure,
+    })
+
+
+@login_required
+def periodic_check_intake_scan(request: HttpRequest, log_id: int):
+    log = get_object_or_404(PeriodicCheckIntakeLog, pk=log_id)
+    if not can_execute_maintenance(request):
+        return render(request, "core/pages/forbidden.html", status=403)
+    if not log.scan or not log.scan.storage.exists(log.scan.name):
+        return HttpResponse("Scansione non disponibile.", status=404)
+    log_action(request, "download_periodic_check_intake_scan", "assets", {"log_id": log.id})
+    name = log.file_name or "scansione.pdf"
+    return FileResponse(log.scan.open("rb"), as_attachment=False, filename=name,
+                        content_type=mimetypes.guess_type(name)[0] or "application/octet-stream")

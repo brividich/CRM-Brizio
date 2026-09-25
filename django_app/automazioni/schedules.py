@@ -130,6 +130,19 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Fogli delle verifiche periodiche (luci di emergenza, differenziali...)
+        # depositati dallo scanner nella cartella di pescaggio: il QR dice a quale
+        # verifica appartengono, i punti segnati restano da confermare. Spento
+        # finche' non lo si accende da Verifiche periodiche > Cartella scansioni;
+        # no-op se la share non risponde.
+        "name": "intake_verifiche_periodiche",
+        "func": "assets.tasks.run_periodic_check_intake",
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 2,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Promemoria sessioni formative imminenti (T-7 e T-1) agli iscritti, con
         # invito calendario .ics + notifica in-app. Fail-safe / no-op se non ci sono
         # edizioni pianificate nelle date bersaglio.

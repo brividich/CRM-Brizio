@@ -168,6 +168,8 @@ urlpatterns = [
     # --- Verifiche periodiche sugli impianti (docs/ai/VERIFICHE_PERIODICHE.md) ---
     path("assets/manutenzione/verifiche-impianti/", views_verifiche.periodic_check_list, name="periodic_check_list"),
     path("assets/manutenzione/verifiche-impianti/impianti/", views_verifiche.periodic_check_systems, name="periodic_check_systems"),
+    path("assets/manutenzione/verifiche-impianti/acquisizione/", views_verifiche.periodic_check_intake, name="periodic_check_intake"),
+    path("assets/manutenzione/verifiche-impianti/acquisizione/<int:log_id>/scansione/", views_verifiche.periodic_check_intake_scan, name="periodic_check_intake_scan"),
     path("assets/manutenzione/verifiche-impianti/tipo/nuovo/", views_verifiche.periodic_check_type_form, name="periodic_check_type_create"),
     path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/", views_verifiche.periodic_check_type_detail, name="periodic_check_type_detail"),
     path("assets/manutenzione/verifiche-impianti/tipo/<int:type_id>/modifica/", views_verifiche.periodic_check_type_form, name="periodic_check_type_edit"),
