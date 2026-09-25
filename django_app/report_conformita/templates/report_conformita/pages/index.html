@@ -1,0 +1,57 @@
+{% extends "core/base.html" %}
+
+{% block title %}Report conformità{% endblock %}
+
+{% block extra_head %}{% include "report_conformita/components/_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">Report conformità</div>
+      <div class="page-sub">Evidenze per gli audit ISO 9001, EN 9100, ISO 45001 e ISO 27001: consultabili a video, scaricabili in PDF ed Excel.</div>
+    </div>
+  </div>
+
+  <div class="rc-card rc-hero">
+    <div class="rc-hero-text">
+      <strong>Riesame della direzione.</strong> Un unico PDF con gli indicatori di tutti i report a cui hai accesso,
+      sul periodo scelto: il pacchetto di ingresso al riesame (§9.3 di tutte e quattro le norme).
+    </div>
+    <a class="btn" href="{% url 'report_conformita:riesame' %}">Apri il riesame</a>
+  </div>
+
+  <div class="rc-chips" aria-label="Filtra per norma">
+    <a class="rc-chip{% if not norma %} is-active{% endif %}" href="{% url 'report_conformita:index' %}">Tutte le norme</a>
+    {% for n in norme %}
+      <a class="rc-chip{% if norma == n %} is-active{% endif %}" href="?norma={{ n|urlencode }}">{{ n }}</a>
+    {% endfor %}
+  </div>
+
+  {% for gruppo in gruppi %}
+    <section class="rc-group">
+      <div class="rc-group-head">
+        <h2 class="rc-section-title">{{ gruppo.label }}</h2>
+        <span class="rc-note-inline">{{ gruppo.reports|length }} report</span>
+      </div>
+      <div class="rc-grid">
+        {% for r in gruppo.reports %}
+          <a class="rc-card rc-tile" href="{% url 'report_conformita:report' r.slug %}">
+            <div class="rc-tile-title">{{ r.title }}</div>
+            <div class="rc-tile-desc">{{ r.description }}</div>
+            <div class="rc-tile-foot">
+              {% for cl in r.clausole %}<span class="rc-clause">{{ cl }}</span>{% endfor %}
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+  {% empty %}
+    <div class="rc-card rc-empty">Nessun report per la norma selezionata.</div>
+  {% endfor %}
+
+  {% if aree_negate %}
+    <p class="rc-note-inline">Aree non incluse nel tuo profilo: {{ aree_negate|join:", " }}. L'accesso si assegna in Admin › ACL.</p>
+  {% endif %}
+</div>
+{% endblock %}

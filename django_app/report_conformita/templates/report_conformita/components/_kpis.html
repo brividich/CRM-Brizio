@@ -1,0 +1,9 @@
+<div class="rc-kpis">
+  {% for k in kpis %}
+    <div class="rc-kpi{% if k.tone %} tone-{{ k.tone }}{% endif %}">
+      <div class="rc-kpi-label">{{ k.label }}</div>
+      <div class="rc-kpi-value">{{ k.value }}</div>
+      {% if k.hint %}<div class="rc-kpi-hint">{{ k.hint }}</div>{% endif %}
+    </div>
+  {% endfor %}
+</div>

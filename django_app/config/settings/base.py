@@ -478,6 +478,7 @@ INSTALLED_APPS = [
     "procedure_refresh.apps.ProcedureRefreshConfig",
     "suggestion_corner.apps.SuggestionCornerConfig",
     "schede_sicurezza.apps.SchedeSicurezzaConfig",
+    "report_conformita.apps.ReportConformitaConfig",
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",
     "checklist_operativa.apps.ChecklistOperativaConfig",
