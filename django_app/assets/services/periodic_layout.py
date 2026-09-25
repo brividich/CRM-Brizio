@@ -63,54 +63,124 @@ def _is_red(color) -> bool:
     return bool(color) and len(color) == 3 and color[0] > 0.9 and color[1] < 0.1 and color[2] < 0.1
 
 
-def extract_points(pdf_bytes: bytes, page_index: int = 0, *, label_regex: str = r"\d{1,3}") -> list[dict]:
-    """Punti della planimetria: riquadro rosso con la X + etichetta rossa vicina.
+STYLE_RED_X = "riquadro rosso con la X e numero rosso"
+STYLE_MARKER = "quadratino colorato con l'etichetta accanto"
 
-    E' il disegno delle planimetrie Novicrom (luci di emergenza). Alcune X sono
-    tratti, altre triangoli pieni: entrambe valgono."""
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
-        page = doc[page_index]
-        boxes, crosses = [], []
-        for g in page.get_drawings():
-            r = g["rect"]
-            if _is_red(g.get("color")):
-                if 7 <= r.width <= 11 and 7 <= r.height <= 11 and abs(r.width - r.height) < 0.6:
-                    boxes.append(r)
-                elif 3.5 <= max(r.width, r.height) <= 9 and len(g["items"]) >= 8:
-                    crosses.append(r)
-            elif _is_red(g.get("fill")) and 3.5 <= max(r.width, r.height) <= 6:
-                crosses.append(r)
-        labels = []
-        for block in page.get_text("dict")["blocks"]:
-            for line in block.get("lines", []):
-                for span in line["spans"]:
-                    txt = span["text"].strip()
-                    if re.fullmatch(label_regex, txt) and span["color"] == 0xFF0000:
-                        x0, y0, x1, y1 = span["bbox"]
-                        labels.append((txt, (x0 + x1) / 2, (y0 + y1) / 2))
+# Etichette dei punti nel secondo stile: «D12», «D3/A», «Q2», oppure solo il numero.
+MARKER_LABEL = re.compile(r"[A-Z]{0,2}\d{1,3}(?:/[A-Z])?")
 
-    def centre(r):
-        return (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2
 
-    x_boxes = [
-        b for b in boxes
-        if any(abs(centre(c)[0] - centre(b)[0]) < 3 and abs(centre(c)[1] - centre(b)[1]) < 3 for c in crosses)
-    ]
+def _centre(r) -> tuple[float, float]:
+    return (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2
+
+
+def _pair(labels, symbols, max_dist) -> list[dict]:
+    """Abbina etichette e simboli per distanza crescente, uno a uno."""
     pairs = sorted(
-        (math.hypot(bx - lx, by - ly), i, j)
+        (math.hypot(sx - lx, sy - ly), i, j)
         for i, (_, lx, ly) in enumerate(labels)
-        for j, (bx, by) in enumerate(centre(b) for b in x_boxes)
+        for j, (sx, sy) in enumerate(symbols)
+        if abs(sx - lx) <= max_dist and abs(sy - ly) <= max_dist
     )
-    used_l, used_b, points = set(), set(), []
+    used_l, used_s, points, seen = set(), set(), [], {}
     for dist, i, j in pairs:
-        if i in used_l or j in used_b or dist > 25:
+        if i in used_l or j in used_s or dist > max_dist:
             continue
         used_l.add(i)
-        used_b.add(j)
+        used_s.add(j)
         code, lx, ly = labels[i]
-        bx, by = centre(x_boxes[j])
-        points.append({"code": code, "x": round(bx, 2), "y": round(by, 2), "label_x": round(lx, 2), "label_y": round(ly, 2)})
-    points.sort(key=lambda p: (int(p["code"]) if p["code"].isdigit() else 10**6, p["code"]))
+        seen[code] = seen.get(code, 0) + 1
+        if seen[code] > 1:  # stessa etichetta due volte sulla tavola: restano distinte
+            code = f"{code} ({seen[code]})"
+        sx, sy = symbols[j]
+        points.append({"code": code, "x": round(sx, 2), "y": round(sy, 2), "label_x": round(lx, 2), "label_y": round(ly, 2)})
+    return points
+
+
+def point_sort_key(code: str):
+    """«7» < «D3» < «D3/A» < «D12»: prima le lettere, poi il numero, poi il suffisso."""
+    match = re.match(r"([A-Z]*)(\d+)(.*)", code)
+    if not match:
+        return (code, 0, "")
+    return (match.group(1), int(match.group(2)), match.group(3))
+
+
+def _sort_key(point: dict):
+    return point_sort_key(point["code"])
+
+
+def _red_x_points(page) -> list[dict]:
+    """Stile luci di emergenza: riquadro rosso con la X (a tratti o a triangoli pieni) + numero rosso."""
+    boxes, crosses = [], []
+    for g in page.get_drawings():
+        r = g["rect"]
+        if _is_red(g.get("color")):
+            if 7 <= r.width <= 11 and 7 <= r.height <= 11 and abs(r.width - r.height) < 0.6:
+                boxes.append(r)
+            elif 3.5 <= max(r.width, r.height) <= 9 and len(g["items"]) >= 8:
+                crosses.append(r)
+        elif _is_red(g.get("fill")) and 3.5 <= max(r.width, r.height) <= 6:
+            crosses.append(r)
+    labels = []
+    for block in page.get_text("dict")["blocks"]:
+        for line in block.get("lines", []):
+            for span in line["spans"]:
+                txt = span["text"].strip()
+                if re.fullmatch(r"\d{1,3}", txt) and span["color"] == 0xFF0000:
+                    labels.append((txt, *_centre(fitz.Rect(span["bbox"]))))
+    x_boxes = [
+        _centre(b) for b in boxes
+        if any(abs(_centre(c)[0] - _centre(b)[0]) < 3 and abs(_centre(c)[1] - _centre(b)[1]) < 3 for c in crosses)
+    ]
+    return _pair(labels, x_boxes, 25)
+
+
+def _is_marker(g) -> bool:
+    fill = g.get("fill")
+    r = g["rect"]
+    if not fill or len(fill) != 3 or not (3 <= r.width <= 10 and 3 <= r.height <= 10):
+        return False
+    if max(r.width, r.height) / max(0.1, min(r.width, r.height)) > 2.2:
+        return False
+    return max(fill) - min(fill) > 0.4  # colore acceso, non grigio
+
+
+def _marker_points(page) -> list[dict]:
+    """Stile differenziali: quadratino pieno colorato con l'etichetta accanto (D12, D3/A, 7).
+
+    Un'etichetta puo' contenere piu' codici attaccati («D52D53»): ognuno prende la
+    posizione dei propri caratteri."""
+    symbols = [_centre(g["rect"]) for g in page.get_drawings() if _is_marker(g)]
+    labels = []
+    for block in page.get_text("rawdict")["blocks"]:
+        for line in block.get("lines", []):
+            for span in line["spans"]:
+                chars = span.get("chars", [])
+                text = "".join(c["c"] for c in chars)
+                for match in MARKER_LABEL.finditer(text):
+                    boxes = [fitz.Rect(c["bbox"]) for c in chars[match.start():match.end()]]
+                    if not boxes:
+                        continue
+                    rect = boxes[0]
+                    for box in boxes[1:]:
+                        rect |= box
+                    labels.append((match.group(), *_centre(rect)))
+    return _pair(labels, symbols, 16)
+
+
+def extract_points(pdf_bytes: bytes, page_index: int = 0) -> list[dict]:
+    """Punti numerati della planimetria, riconosciuti dal disegno.
+
+    Due stili: le luci di emergenza (riquadro rosso con la X + numero rosso) e i
+    differenziali (quadratino colorato con l'etichetta accanto). Vince quello che
+    trova piu' punti."""
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+        page = doc[page_index]
+        candidates = [(STYLE_RED_X, _red_x_points(page)), (STYLE_MARKER, _marker_points(page))]
+    style, points = max(candidates, key=lambda c: len(c[1]))
+    points.sort(key=_sort_key)
+    for p in points:
+        p["style"] = style
     return points
 
 
