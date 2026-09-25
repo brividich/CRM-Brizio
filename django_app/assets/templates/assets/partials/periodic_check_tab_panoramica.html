@@ -1,0 +1,154 @@
+{# Scheda verifica, «Panoramica»: indicatori, stato attuale sulla planimetria, ricorrenze, andamento. #}
+{% load l10n %}{# coordinate e percentuali con il punto decimale, non la virgola italiana #}
+{% localize off %}
+<div class="md-page">
+  <div class="md-kpis pc-kpis">
+    <div class="md-kpi {% if stats.state == 'overdue' %}is-danger{% elif stats.state == 'due_soon' %}is-warn{% endif %}">
+      <span class="md-kpi-label">Prossima verifica</span>
+      <span class="md-kpi-value pc-kpi-date">{{ check_type.next_due_date|date:"d/m/Y"|default:"—" }}</span>
+      <span class="md-kpi-sub"><span class="pc-state is-{{ stats.state }}">{{ stats.state_label }}</span></span>
+    </div>
+    <div class="md-kpi">
+      <span class="md-kpi-label">Ultima verifica</span>
+      <span class="md-kpi-value pc-kpi-date">{{ stats.last_session.performed_on|date:"d/m/Y"|default:"—" }}</span>
+      <span class="md-kpi-sub">{% if stats.last_session %}<span class="pc-outcome is-{{ stats.last_session.outcome }}">{{ stats.last_session.get_outcome_display }}</span>{% else %}mai registrata{% endif %}</span>
+    </div>
+    {% if stats.efficiency_pct is not None %}
+      <div class="md-kpi {% if stats.defective %}is-warn{% else %}is-ok{% endif %}">
+        <span class="md-kpi-label">Punti in ordine</span>
+        <span class="md-kpi-value">{{ stats.efficiency_pct }}%</span>
+        <span class="md-kpi-sub">{{ stats.defective|length }} da sistemare su {{ stats.points_total }}</span>
+      </div>
+    {% endif %}
+    <div class="md-kpi">
+      <span class="md-kpi-label">Nei tempi</span>
+      <span class="md-kpi-value">{% if stats.on_time_total %}{{ stats.on_time }}/{{ stats.on_time_total }}{% else %}—{% endif %}</span>
+      <span class="md-kpi-sub">verifiche entro la scadenza, ultimi 24 mesi</span>
+    </div>
+    <div class="md-kpi">
+      <span class="md-kpi-label">Ultimi 12 mesi</span>
+      <span class="md-kpi-value">{{ stats.last_12m }}</span>
+      <span class="md-kpi-sub">verifiche fatte, ne sono attese {{ stats.expected_12m }}</span>
+    </div>
+    <a class="md-kpi {% if stats.open_findings %}is-danger{% endif %}" href="?tab=storico">
+      <span class="md-kpi-label">Rilievi senza OdL</span>
+      <span class="md-kpi-value">{{ stats.open_findings }}</span>
+      <span class="md-kpi-sub">nell'ultima verifica · {{ stats.open_work_orders }} OdL apert{% if stats.open_work_orders == 1 %}o{% else %}i{% endif %}</span>
+    </a>
+  </div>
+
+  {% if not stats.with_results %}
+    <div class="md-scope-note">
+      Le statistiche sui {% if is_layout %}punti{% else %}rilievi{% endif %} partono dalla prima verifica registrata con gli esiti
+      {% if is_layout %}(foglio con QR o «Registra a mano»){% endif %}.
+      {% if stats.confirmed %}Le {{ stats.confirmed }} verifiche importate dallo storico hanno solo il documento: contano per date e puntualita'.{% endif %}
+    </div>
+  {% endif %}
+
+  {% if is_layout and map %}
+    <section class="md-section">
+      <div class="md-section-head">
+        <h2>Stato attuale{% if stats.layout_session %} <span class="pc-muted pc-h-sub">dalla verifica del <a href="{% url 'assets:periodic_check_session_detail' stats.layout_session.id %}">{{ stats.layout_session.performed_on|date:"d/m/Y" }}</a></span>{% endif %}</h2>
+        <span class="md-badge badge-muted">planimetria v{{ stats.layout.version }}</span>
+      </div>
+      <div class="pc-map-wrap">
+        <ul class="pc-legend" aria-label="Legenda">
+          <li><span class="pc-key is-cat0"></span>{{ check_type.category_list.0 }}</li>
+          {% if check_type.category_list|length > 1 %}<li><span class="pc-key is-cat1"></span>{{ check_type.category_list.1 }}</li>{% endif %}
+          <li><span class="pc-key is-fixed"></span>Riparato (OdL chiuso)</li>
+          <li><span class="pc-key is-ok"></span>In ordine</li>
+          {% if not stats.layout_session %}<li class="pc-muted">Nessuna verifica con esiti sulla planimetria: i punti sono grigi.</li>{% endif %}
+        </ul>
+        <div class="pc-map" style="padding-top:{{ map.ratio }}%">
+          <img src="{{ map.image_url }}" alt="Planimetria {{ check_type.name }}" loading="lazy">
+          {% for m in map.points %}
+            <a class="pc-pt is-{{ m.p.state }}" style="left:{{ m.left }}%;top:{{ m.top }}%"
+               {% if m.p.state != "ok" and m.p.state != "unknown" %}href="#punto-{{ m.p.code }}"{% endif %}
+               title="Punto {{ m.p.code }}{% if m.p.category %} · {{ m.p.category }}{% if m.p.streak > 1 %} da {{ m.p.streak }} verifiche{% endif %}{% elif m.p.state == 'ok' %} · in ordine{% endif %}{% if m.p.recent_count > 1 %} · difettoso {{ m.p.recent_count }} volte nelle ultime verifiche{% endif %}{% if m.p.work_order %} · OdL #{{ m.p.work_order.id }} {{ m.p.work_order.get_status_display|lower }}{% endif %}">
+              {% if m.p.state == "cat0" or m.p.state == "cat1" or m.p.state == "fixed" %}<span>{{ m.p.code }}</span>{% endif %}
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% if stats.defective %}
+        <div class="md-scroll">
+          <table class="md-table pc-table-auto" data-fm-table-skip="1">
+            <thead><tr><th>Punto</th><th>Stato</th><th>Da</th><th>Nelle ultime verifiche</th><th class="md-right">Ordine di lavoro</th></tr></thead>
+            <tbody>
+              {% for p in stats.defective %}
+                <tr id="punto-{{ p.code }}">
+                  <td><strong>{{ p.code }}</strong></td>
+                  <td><span class="pc-key is-{{ p.state }}"></span> {{ p.category }}</td>
+                  <td>{{ p.since|date:"d/m/Y" }}{% if p.streak > 1 %} <span class="md-sub">{{ p.streak }} verifiche di fila</span>{% endif %}</td>
+                  <td>{{ p.recent_count }} volt{% if p.recent_count == 1 %}a{% else %}e{% endif %}</td>
+                  <td class="md-right">{% if p.work_order %}<a href="{% url 'assets:wo_view' p.work_order.id %}">OdL #{{ p.work_order.id }}</a> <span class="md-sub">{{ p.work_order.get_status_display }}</span>{% else %}<a href="{% url 'assets:periodic_check_session_detail' p.session_id %}">Crea OdL dalla verifica</a>{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% elif stats.layout_session %}
+        <p class="md-empty">Tutti i punti in ordine all'ultima verifica.</p>
+      {% endif %}
+    </section>
+
+    {% if stats.recurring %}
+      <section class="md-section">
+        <div class="md-section-head"><h2>Punti ricorrenti</h2><span class="pc-muted">difettosi almeno 2 volte nelle ultime 6 verifiche: da sostituire, non solo da segnalare</span></div>
+        <div class="md-scroll">
+          <table class="md-table pc-table-auto" data-fm-table-skip="1">
+            <thead><tr><th>Punto</th><th>Volte</th><th>Adesso</th></tr></thead>
+            <tbody>
+              {% for p in stats.recurring %}
+                <tr><td><strong>{{ p.code }}</strong></td><td>{{ p.recent_count }}</td>
+                  <td>{% if p.state == "ok" %}in ordine{% elif p.state == "fixed" %}riparato{% else %}<span class="pc-key is-{{ p.state }}"></span> {{ p.category }}{% endif %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+  {% endif %}
+
+  {% if stats.item_failures %}
+    <section class="md-section">
+      <div class="md-section-head"><h2>Voci piu' spesso non OK</h2><span class="pc-muted">ultime {{ stats.item_failures.0.of }} verifiche con esiti</span></div>
+      <div class="md-scroll">
+        <table class="md-table pc-table-auto" data-fm-table-skip="1">
+          <thead><tr><th>Voce</th><th>Non OK</th><th>Ultima volta</th></tr></thead>
+          <tbody>
+            {% for f in stats.item_failures %}<tr><td>{{ f.label }}</td><td>{{ f.ko }} su {{ f.of }}</td><td>{{ f.last|date:"d/m/Y" }}</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if trend_bars %}
+    <section class="md-section">
+      <div class="md-section-head"><h2>Andamento dei rilievi</h2><span class="pc-muted">ultime {{ stats.trend|length }} verifiche con esiti</span></div>
+      <div class="pc-chart">
+        <ul class="pc-legend" aria-label="Legenda">
+          {% for s in stats.trend_series %}<li><span class="pc-key is-s{{ s.slot }}"></span>{{ s.key }}</li>{% endfor %}
+        </ul>
+        <div class="pc-chart-plot">
+          <span class="pc-chart-max">{{ trend_bars.peak }}</span>
+          <svg viewBox="0 0 100 52" preserveAspectRatio="none" role="img" aria-label="Rilievi per verifica">
+            <line x1="0" x2="100" y1="{{ trend_bars.base_y }}" y2="{{ trend_bars.base_y }}" class="pc-axis"></line>
+            <line x1="0" x2="100" y1="{{ trend_bars.top }}" y2="{{ trend_bars.top }}" class="pc-grid"></line>
+            {% for b in trend_bars.bars %}
+              <g class="pc-bar">
+                <rect class="pc-hit" x="{{ b.hit_x }}" y="0" width="{{ b.hit_w }}" height="52"><title>{{ b.session.performed_on|date:"d/m/Y" }}: {{ b.total }} rilievi{% for s in b.segments %} · {{ s.key }} {{ s.value }}{% endfor %}</title></rect>
+                {% for s in b.segments %}<rect class="pc-seg-s{{ s.slot }}" x="{{ s.x }}" y="{{ s.y }}" width="{{ s.w }}" height="{{ s.h }}" rx="0.6"><title>{{ b.session.performed_on|date:"d/m/Y" }} · {{ s.key }}: {{ s.value }}</title></rect>{% endfor %}
+              </g>
+            {% endfor %}
+          </svg>
+          <div class="pc-chart-x" style="grid-template-columns:repeat({{ trend_bars.bars|length }},1fr)">
+            {% for b in trend_bars.bars %}<a href="{% url 'assets:periodic_check_session_detail' b.session.id %}" title="Apri la verifica"><strong>{{ b.total }}</strong><span>{{ b.session.performed_on|date:"d/m/y" }}</span></a>{% endfor %}
+          </div>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+</div>
+{% endlocalize %}

@@ -13,6 +13,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from django.contrib import messages
+from django.core.cache import cache
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse, HttpRequest, HttpResponse
@@ -31,12 +32,15 @@ from .forms_verifiche import (
 from .models import (
     Asset,
     PeriodicCheckAttachment,
+    PeriodicCheckLayout,
     PeriodicCheckResult,
     PeriodicCheckSession,
     PeriodicCheckSystem,
     PeriodicCheckType,
+    WorkOrder,
 )
 from .services import periodic_checks as checks
+from .services import periodic_stats
 from .views import _assets_shell_context, _validate_workorder_attachment_uploads
 from .views_maintenance import can_execute_maintenance, can_manage_maintenance_plans
 
@@ -150,19 +154,127 @@ def periodic_check_type_detail(request: HttpRequest, type_id: int) -> HttpRespon
     )
     if request.method == "POST" and request.POST.get("action") == "layout":
         return _upload_layout(request, check_type)
+    tab = request.GET.get("tab") or "panoramica"
+    if tab not in {key for key, _label in _TYPE_TABS}:
+        tab = "panoramica"
     state = checks.type_state(check_type)
     layout = check_type.active_layout
-    return _render(request, "periodic_check_type_detail.html", {
+    context = {
         "page_title": check_type.name,
         "check_type": check_type,
         "items": check_type.items.filter(is_active=True),
-        "sessions": sessions,
         "state": state,
         "state_label": checks.STATE_LABELS[state],
         "is_layout": check_type.method == PeriodicCheckType.METHOD_LAYOUT,
         "layout": layout,
         "layout_points": layout.points.count() if layout else 0,
-    })
+        "tab": tab,
+        "tabs": [
+            {"key": key, "label": label, "url": f"?tab={key}", "active": key == tab}
+            for key, label in _TYPE_TABS
+        ],
+    }
+    if tab == "panoramica":
+        stats = periodic_stats.type_stats(check_type)
+        context["stats"] = stats
+        context["map"] = _map_context(stats)
+        context["trend_bars"] = _trend_bars(stats)
+    elif tab == "storico":
+        context["sessions"] = sessions
+    elif tab == "odl":
+        context["work_orders"] = (
+            WorkOrder.objects.filter(periodic_check_results__session__check_type=check_type)
+            .select_related("asset").distinct().order_by("-opened_at", "-id")
+        )
+    elif tab == "documenti":
+        context["documents"] = (
+            PeriodicCheckAttachment.objects.filter(session__check_type=check_type)
+            .exclude(original_name="lettura-automatica.png")
+            .select_related("session").order_by("-session__performed_on", "-id")
+        )
+    return _render(request, "periodic_check_type_detail.html", context)
+
+
+_TYPE_TABS = (
+    ("panoramica", "Panoramica"),
+    ("storico", "Storico verifiche"),
+    ("odl", "Ordini di lavoro"),
+    ("documenti", "Documenti"),
+    ("impostazioni", "Impostazioni"),
+)
+
+
+def _layout_page_size(layout) -> tuple[float, float]:
+    key = f"assets:pc-layout-size:{layout.id}"
+    size = cache.get(key)
+    if size is None:
+        import fitz
+
+        with layout.source_pdf.open("rb") as handle, fitz.open(stream=handle.read(), filetype="pdf") as doc:
+            rect = doc[layout.page_index].rect
+        size = (rect.width, rect.height)
+        cache.set(key, size, 60 * 60 * 24 * 30)
+    return size
+
+
+def _map_context(stats) -> dict | None:
+    """Punti posizionati in percentuale sull'immagine della planimetria."""
+    if stats.layout is None or not stats.points:
+        return None
+    width, height = _layout_page_size(stats.layout)
+    return {
+        "image_url": reverse("assets:periodic_check_layout_image", args=[stats.layout.id]),
+        "ratio": round(height / width * 100, 3),
+        "points": [
+            {"p": p, "left": round(p.x / width * 100, 3), "top": round(p.y / height * 100, 3)}
+            for p in stats.points
+        ],
+    }
+
+
+def _trend_bars(stats) -> dict | None:
+    """Barre impilate dell'andamento, gia' in coordinate SVG (viewBox 100 x 60)."""
+    if not stats.trend:
+        return None
+    n = len(stats.trend)
+    plot_h, top = 46.0, 4.0
+    slot_w = 100.0 / n
+    bar_w = min(7.0, slot_w * 0.56)
+    peak = max(stats.trend_max, 1)
+    bars = []
+    for index, row in enumerate(stats.trend):
+        x = index * slot_w + (slot_w - bar_w) / 2
+        y = top + plot_h
+        segments = []
+        for seg in row["segments"]:
+            if not seg["value"]:
+                continue
+            h = seg["value"] / peak * plot_h
+            y -= h
+            segments.append({"x": round(x, 3), "y": round(y, 3), "w": round(bar_w, 3), "h": round(max(h - 0.6, 0.4), 3),
+                             "slot": seg["slot"], "key": seg["key"], "value": seg["value"]})
+        bars.append({
+            "session": row["session"], "total": row["total"], "segments": segments,
+            "label_x": round(x + bar_w / 2, 3), "hit_x": round(index * slot_w, 3), "hit_w": round(slot_w, 3),
+        })
+    return {"bars": bars, "peak": peak, "base_y": top + plot_h, "top": top}
+
+
+@login_required
+def periodic_check_layout_image(request: HttpRequest, layout_id: int):
+    """Planimetria come immagine per la mappa della scheda (in cache: non cambia mai)."""
+    layout = get_object_or_404(PeriodicCheckLayout, pk=layout_id)
+    key = f"assets:pc-layout-png:{layout.id}"
+    png = cache.get(key)
+    if png is None:
+        import fitz
+
+        with layout.source_pdf.open("rb") as handle, fitz.open(stream=handle.read(), filetype="pdf") as doc:
+            png = doc[layout.page_index].get_pixmap(dpi=110, alpha=False).tobytes("png")
+        cache.set(key, png, 60 * 60 * 24 * 30)
+    response = HttpResponse(png, content_type="image/png")
+    response["Cache-Control"] = "private, max-age=86400"
+    return response
 
 
 def _parse_areas(text: str) -> list[list[float]]:

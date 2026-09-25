@@ -94,6 +94,7 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                     "periodic_check_type_detail", "periodic_check_register", "periodic_check_session_detail",
                     "periodic_check_type_create", "periodic_check_type_edit", "periodic_check_systems",
                     "periodic_check_sheet_issue", "periodic_check_sheet_preview", "periodic_check_sheet_pdf",
+                    "periodic_check_layout_image",
                 }),
             ),
             NavItem(
