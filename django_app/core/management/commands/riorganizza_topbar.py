@@ -102,6 +102,7 @@ VOCI: tuple[Voce, ...] = (
     Voce("gestione_anomalie", "anomalie_menu", "qualita", "", 61),
     Voce("gestione-specifiche", "gestione_specifiche:lista", "qualita", "", 62),
     Voce("ofi_registro", "registro_ofi:lista", "qualita", "", 63),
+    Voce("report-conformita", "report_conformita:index", "qualita", "", 64),
     # IT
     Voce("security_center", "security:dashboard", "it", "", 71),
     Voce("contatori", "contatori:dashboard", "it", "", 72),
