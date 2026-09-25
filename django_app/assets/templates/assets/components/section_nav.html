@@ -1,0 +1,40 @@
+{# Barra di sezione Manutenzione (breadcrumb, voci, aiuto): la include base_shell, sopra o sotto la testata della pagina. #}
+    {% if assets_section_nav %}
+      <nav class="as-section-nav" aria-label="{{ assets_section_nav.label }}">
+        <div class="as-crumbs">
+          {% for crumb in assets_section_nav.breadcrumbs %}
+            {% if not forloop.first %}<span class="as-crumb-sep" aria-hidden="true">/</span>{% endif %}
+            {% if crumb.url %}
+              <a href="{{ crumb.url }}">{{ crumb.label }}</a>
+            {% else %}
+              <span class="as-crumb-current" aria-current="page">{{ crumb.label }}</span>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="as-section-main">
+          <div class="as-section-tabs">
+            {% for item in assets_section_nav.items %}
+              <a class="as-section-tab{% if item.active %} active{% endif %}" href="{{ item.url }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.label }}</a>
+            {% endfor %}
+          </div>
+          {% if assets_section_nav.help %}
+            {% comment %}"Cosa posso fare qui": spiegazione breve e, se la pagina lo prevede, tour guidato (core/js/tour.js).{% endcomment %}
+            <details class="as-help" data-as-help>
+              <summary class="as-help-toggle">&#10067; Cosa posso fare qui</summary>
+              <div class="as-help-panel" role="region" aria-label="Cosa posso fare qui">
+                <strong>{{ assets_section_nav.active_label }}</strong>
+                <ul>{% for line in assets_section_nav.help %}<li>{{ line }}</li>{% endfor %}</ul>
+                <button type="button" class="btn btn-primary btn-sm" data-tour-start data-tour-key="{{ assets_section_nav.tour_key }}" data-as-help-tour hidden>Avvia il tour guidato</button>
+              </div>
+            </details>
+          {% endif %}
+          {% if assets_section_nav.actions %}
+            <div class="as-section-actions">
+              {% for action in assets_section_nav.actions %}
+                <a class="as-section-action as-section-action--{{ action.kind }}" href="{{ action.url }}" data-as-section-action="{{ action.key }}">{{ action.label }}</a>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </nav>
+    {% endif %}

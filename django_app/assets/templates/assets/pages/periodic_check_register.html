@@ -4,34 +4,44 @@
 
 {% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
 
-{% block assets_shell_title %}Registra: {{ check_type.name }}{% endblock %}
+{% block assets_shell_title %}{{ check_type.name }}{% endblock %}
 {% block assets_shell_subtitle %}
-  <p>{{ check_type.system.name }} · {{ check_type.frequency_label }}. Alla conferma la prossima scadenza si ricalcola dalla data della verifica.</p>
+  {% include "assets/partials/periodic_check_head_meta.html" %}
 {% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Annulla</a>
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">‹ Torna alla verifica</a>
 {% endblock %}
 
 {% block assets_shell_content %}
-<form class="md-form" method="post" enctype="multipart/form-data" novalidate>
-  {% csrf_token %}
-  {{ form.non_field_errors }}
+<div class="md-page">
+{% include "assets/partials/periodic_check_type_tabs.html" with crumb="Registra una verifica" %}
 
-  <fieldset class="md-fieldset">
-    <h2>1 · Quando e chi</h2>
+<form class="md-form pc-form" method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="pc-form-errors">{{ form.non_field_errors }}</div>{% endif %}
+
+  <fieldset class="md-fieldset pc-card">
+    <legend class="pc-card-head"><span class="pc-card-n">1</span><span><strong>Quando e chi</strong><small>La data scritta sul rapportino: da qui si ricalcola la prossima scadenza.</small></span></legend>
     <div class="md-grid-2">
       {% include "assets/components/_md_field.html" with field=form.performed_on %}
-      {% include "assets/components/_md_field.html" with field=form.outcome %}
       {% include "assets/components/_md_field.html" with field=form.technician %}
       {% include "assets/components/_md_field.html" with field=form.supplier %}
+    </div>
+    <div class="md-field">
+      <span class="pc-label" id="lbl-outcome">{{ form.outcome.label }}</span>
+      <div class="pc-tiles pc-tiles--outcome" role="radiogroup" aria-labelledby="lbl-outcome">
+        {% for radio in form.outcome %}
+          <label class="pc-tile is-{{ radio.data.value }}">{{ radio.tag }}<span class="pc-tile-title">{{ radio.choice_label }}</span></label>
+        {% endfor %}
+      </div>
+      {{ form.outcome.errors }}
     </div>
   </fieldset>
 
   {% if item_rows %}
-    <fieldset class="md-fieldset">
-      <h2>2 · Checklist</h2>
-      <p class="md-hint">Tutto OK di default: segna solo le voci che non vanno. Una voce non OK rende la verifica «con rilievi» e potra' diventare un ordine di lavoro.</p>
-      <div class="md-section pc-checklist">
+    <fieldset class="md-fieldset pc-card">
+      <legend class="pc-card-head"><span class="pc-card-n">2</span><span><strong>Checklist</strong><small>Tutto OK di default: segna solo le voci che non vanno. Una voce non OK potra' diventare un ordine di lavoro.</small></span></legend>
+      <div class="pc-checklist">
         {% for row in item_rows %}
           <div class="pc-check">
             <span class="pc-check-label">{{ row.item.label }}</span>
@@ -50,9 +60,8 @@
   {% endif %}
 
   {% if point_rows %}
-    <fieldset class="md-fieldset">
-      <h2>2 · Punti segnalati</h2>
-      <p class="md-hint">Registrazione a mano: scrivi i numeri dei punti della planimetria, separati da virgola o spazio. Con il foglio stampato dal portale non serve: la scansione li propone da sola.</p>
+    <fieldset class="md-fieldset pc-card">
+      <legend class="pc-card-head"><span class="pc-card-n">2</span><span><strong>Punti segnalati</strong><small>Scrivi i numeri dei punti della planimetria, separati da virgola o spazio. Con il foglio stampato dal portale non serve: la scansione li propone da sola.</small></span></legend>
       <div class="md-grid-2">
         {% for row in point_rows %}
           <div class="md-field">
@@ -64,21 +73,29 @@
     </fieldset>
   {% endif %}
 
-  <fieldset class="md-fieldset">
-    <h2>{% if item_rows or point_rows %}3{% else %}2{% endif %} · Rilievi e documenti</h2>
+  <fieldset class="md-fieldset pc-card">
+    <legend class="pc-card-head"><span class="pc-card-n">{% if item_rows or point_rows %}3{% else %}2{% endif %}</span><span><strong>Rilievi e documenti</strong><small>Ogni rilievo, uno per riga, potra' diventare un ordine di lavoro.</small></span></legend>
     {% include "assets/components/_md_field.html" with field=form.remarks_text %}
-    {% include "assets/components/_md_field.html" with field=form.notes %}
     <div class="md-field">
-      <label for="id_files">Rapportino / verbale</label>
-      <input id="id_files" type="file" name="files" multiple>
-      <span class="helptext">PDF o immagini della verifica firmata. Puoi caricarne piu' di uno.</span>
+      <span class="pc-label">Rapportino / verbale</span>
+      <label class="pc-drop" for="id_files">
+        <input id="id_files" type="file" name="files" multiple data-pc-drop>
+        <span class="pc-drop-icon" aria-hidden="true">⇪</span>
+        <span class="pc-drop-text"><strong>Scegli i file</strong> o trascinali qui<small data-pc-drop-names>PDF o immagini della verifica firmata, anche piu' di uno.</small></span>
+      </label>
     </div>
-    {% include "assets/components/_md_field.html" with field=form.next_due_date %}
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.next_due_date %}
+      {% include "assets/components/_md_field.html" with field=form.notes %}
+    </div>
   </fieldset>
 
-  <div class="md-form-actions">
+  <div class="md-form-actions pc-form-actions">
     <button type="submit" class="btn btn-primary">Registra verifica</button>
     <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}">Annulla</a>
+    <span class="pc-muted">Alla registrazione la prossima scadenza si ricalcola dalla data della verifica.</span>
   </div>
 </form>
+</div>
+{% include "assets/partials/periodic_check_form_js.html" %}
 {% endblock %}
