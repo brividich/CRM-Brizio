@@ -2,6 +2,7 @@
 {% load l10n %}{# coordinate e percentuali con il punto decimale, non la virgola italiana #}
 {% localize off %}
 <div class="md-page">
+  {% include "assets/partials/periodic_check_guide.html" %}
   <div class="md-kpis pc-kpis">
     <div class="md-kpi {% if stats.state == 'overdue' %}is-danger{% elif stats.state == 'due_soon' %}is-warn{% endif %}">
       <span class="md-kpi-label">Prossima verifica</span>

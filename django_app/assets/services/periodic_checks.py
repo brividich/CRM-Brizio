@@ -215,13 +215,16 @@ def create_layout(check_type: PeriodicCheckType, pdf_bytes: bytes, *, name: str 
         raise LayoutError(f"PDF non leggibile: {exc}") from exc
     if len(points) < 3:
         raise LayoutError(
-            "Nella planimetria non ho trovato i punti numerati (riquadro rosso con la X e numero rosso)."
+            "Nella planimetria non ho trovato i punti numerati. Riconosco due disegni: riquadro rosso con la X "
+            "e numero rosso (luci di emergenza), oppure quadratino colorato con l'etichetta accanto (differenziali, "
+            "es. «D12»). Serve il PDF vettoriale, non una scansione."
         )
     with transaction.atomic():
         version = (check_type.layouts.order_by("-version").values_list("version", flat=True).first() or 0) + 1
         layout = PeriodicCheckLayout(
             check_type=check_type, version=version, original_name=(name or "planimetria.pdf")[:255],
             exclude_areas=[[float(v) for v in area] for area in (exclude_areas or [])],
+            notes=f"{len(points)} punti riconosciuti · {points[0].get('style', '')}"[:255],
             created_by=user if getattr(user, "is_authenticated", False) else None,
         )
         layout.source_pdf.save(name or "planimetria.pdf", ContentFile(pdf_bytes), save=False)
@@ -290,7 +293,9 @@ def session_for_token(text: str) -> PeriodicCheckSession | None:
 
 
 def _code_key(code: str):
-    return (0, int(code), code) if code.isdigit() else (1, 0, code)
+    from .periodic_layout import point_sort_key
+
+    return point_sort_key(code)
 
 
 def read_scan_into(session: PeriodicCheckSession, data: bytes, *, name: str = "", user=None) -> dict:

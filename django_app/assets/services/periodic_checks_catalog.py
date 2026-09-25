@@ -114,7 +114,7 @@ CATALOG: list[CatalogType] = [
         sources=[ArchiveSource(f"{_E}/Verifica pacchi batteria gruppo UPS (quadrimestrale)")], sort_order=80,
     ),
     CatalogType(
-        ELETTRICO, "Verifica impianto antintrusione", 4, LAYOUT, "030", BRUSCHI, "bruschi",
+        ELETTRICO, "Verifica impianto antintrusione", 4, MEASURES, "030", BRUSCHI, "bruschi",
         sources=[ArchiveSource(f"{_E}/Verifica impianto antintrusione (quadrimestrale)")], sort_order=90,
     ),
     CatalogType(

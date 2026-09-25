@@ -99,18 +99,25 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
         .annotate(
             drafts=Count("sessions", filter=Q(sessions__status=PeriodicCheckSession.STATUS_DRAFT), distinct=True),
             issued=Count("sessions", filter=Q(sessions__status=PeriodicCheckSession.STATUS_ISSUED), distinct=True),
-            open_ko=Count(
-                "sessions__results",
-                filter=Q(
-                    sessions__status=PeriodicCheckSession.STATUS_CONFIRMED,
-                    sessions__results__result=PeriodicCheckResult.RESULT_KO,
-                    sessions__results__work_order__isnull=True,
-                ),
-                distinct=True,
-            ),
+            has_layout=Count("layouts", filter=Q(layouts__is_active=True), distinct=True),
         )
     )
     last = _last_sessions_by_type([t.id for t in types])
+    # Rilievi aperti: solo dell'ultima verifica con esiti, come nella scheda (le precedenti sono superate).
+    latest_ids = {}
+    for session in (
+        PeriodicCheckSession.objects.filter(check_type__in=types, status=PeriodicCheckSession.STATUS_CONFIRMED)
+        .exclude(outcome=PeriodicCheckSession.OUTCOME_ARCHIVE).order_by("check_type_id", "-performed_on", "-id")
+        .only("id", "check_type_id")
+    ):
+        latest_ids.setdefault(session.check_type_id, session.id)
+    open_by_session = dict(
+        PeriodicCheckResult.objects.filter(session_id__in=latest_ids.values(), result=PeriodicCheckResult.RESULT_KO,
+                                           work_order__isnull=True)
+        .values("session_id").annotate(n=Count("id")).values_list("session_id", "n")
+    )
+    for check_type in types:
+        check_type.open_ko = open_by_session.get(latest_ids.get(check_type.id), 0)
     counts = {state: 0 for state in _STATE_ORDER}
     drafts_total = 0
     rows = []
@@ -169,6 +176,8 @@ def periodic_check_type_detail(request: HttpRequest, type_id: int) -> HttpRespon
         "layout": layout,
         "layout_points": layout.points.count() if layout else 0,
         "tab": tab,
+        "guide": _guide(request, check_type, layout),
+        "layout_codes": [p.code for p in layout.points.all()] if layout and tab == "impostazioni" else [],
         "tabs": [
             {"key": key, "label": label, "url": f"?tab={key}", "active": key == tab}
             for key, label in _TYPE_TABS
@@ -193,6 +202,85 @@ def periodic_check_type_detail(request: HttpRequest, type_id: int) -> HttpRespon
             .select_related("session").order_by("-session__performed_on", "-id")
         )
     return _render(request, "periodic_check_type_detail.html", context)
+
+
+def _guide(request: HttpRequest, check_type: PeriodicCheckType, layout) -> dict:
+    """«Come funziona questa verifica»: i passi del suo metodo, cosa e' fatto, cosa manca,
+    e il pulsante per farlo. Stessa pagina per tutte le verifiche, passi diversi per metodo."""
+    base = reverse("assets:periodic_check_type_detail", args=[check_type.id])
+    register_url = reverse("assets:periodic_check_register", args=[check_type.id])
+    can_register = can_execute_maintenance(request)
+    can_configure = can_manage_maintenance_plans(request)
+    sessions = check_type.sessions
+    issued = sessions.filter(status=PeriodicCheckSession.STATUS_ISSUED).order_by("-id")
+    drafts = sessions.filter(status=PeriodicCheckSession.STATUS_DRAFT).order_by("-id")
+    latest = sessions.filter(status=PeriodicCheckSession.STATUS_CONFIRMED).exclude(
+        outcome=PeriodicCheckSession.OUTCOME_ARCHIVE).order_by("-performed_on", "-id").first()
+    open_ko = (latest.results.filter(result=PeriodicCheckResult.RESULT_KO, work_order__isnull=True).count()
+               if latest else 0)
+    steps: list[dict] = []
+
+    def step(title, detail, state, action=None):
+        steps.append({"n": len(steps) + 1, "title": title, "detail": detail, "state": state, "action": action})
+
+    method = check_type.method
+    if method == PeriodicCheckType.METHOD_LAYOUT:
+        if layout:
+            step("Planimetria", f"Versione {layout.version}: {layout.points.count()} punti riconosciuti.", "done",
+                 {"label": "Controlla i punti", "url": f"{base}?tab=impostazioni#punti"})
+        else:
+            step("Carica la planimetria", "Il PDF vettoriale con i punti numerati: il portale li riconosce da solo.",
+                 "todo", {"label": "Carica la planimetria", "url": f"{base}?tab=impostazioni#planimetria"} if can_configure else None)
+        step("Stampa il foglio per il tecnico",
+             "Il portale crea la verifica e un foglio con il QR: il tecnico segna sulla planimetria "
+             f"(evidenziatore = {check_type.category_list[0].lower()}"
+             + (f", cerchio a penna = {check_type.category_list[1].lower()}" if len(check_type.category_list) > 1 else "") + ").",
+             "ready" if layout else "blocked",
+             {"label": "Stampa foglio", "post": reverse("assets:periodic_check_sheet_issue", args=[check_type.id])}
+             if layout and can_register else None)
+        first_issued = issued.first()
+        step("Carica la scansione",
+             f"{issued.count()} fogl{'io' if issued.count() == 1 else 'i'} stampat{'o' if issued.count() == 1 else 'i'} in attesa: "
+             "apri la verifica e carica il foglio scansionato, il QR la riconosce." if first_issued
+             else "Quando il foglio torna compilato, si carica nella verifica creata con la stampa.",
+             "todo" if first_issued else "waiting",
+             {"label": "Apri il foglio in attesa", "url": reverse("assets:periodic_check_session_detail", args=[first_issued.id])}
+             if first_issued else None)
+        first_draft = drafts.first()
+        step("Conferma i punti",
+             "Il portale propone i punti segnati: correggi, scarta o aggiungi e conferma. La scadenza si ricalcola."
+             if not first_draft else f"{drafts.count()} verific{'a' if drafts.count() == 1 else 'he'} da confermare.",
+             "todo" if first_draft else "waiting",
+             {"label": "Conferma", "url": reverse("assets:periodic_check_session_detail", args=[first_draft.id])}
+             if first_draft else None)
+    elif method == PeriodicCheckType.METHOD_CHECKLIST:
+        count = check_type.items.filter(is_active=True).count()
+        if count:
+            step("Voci da controllare", f"{count} voci: ognuna si segna OK, non OK o non applicabile.", "done",
+                 {"label": "Vedi le voci", "url": f"{base}?tab=impostazioni"})
+        else:
+            step("Definisci le voci", "Scrivi le voci della checklist, una per riga.", "todo",
+                 {"label": "Aggiungi le voci", "url": reverse("assets:periodic_check_type_edit", args=[check_type.id])}
+                 if can_configure else None)
+        step("Registra la verifica", "Data, tecnico, esito per voce, rapportino firmato allegato.", "ready" if count else "blocked",
+             {"label": "Registra", "url": register_url} if can_register and count else None)
+    else:
+        detail = "Data, esito, rilievi o prescrizioni (uno per riga) e il verbale allegato."
+        if method == PeriodicCheckType.METHOD_MEASURES:
+            detail += " La lettura automatica delle misure (batterie, tempi di intervento) arrivera' in seguito."
+        step("Registra la verifica", detail, "ready", {"label": "Registra", "url": register_url} if can_register else None)
+    if latest:
+        step("Rilievi → ordini di lavoro",
+             f"{open_ko} rilievi dell'ultima verifica ({latest.performed_on:%d/%m/%Y}) senza ordine di lavoro." if open_ko
+             else "Nessun rilievo aperto nell'ultima verifica.",
+             "todo" if open_ko else "done",
+             {"label": "Crea gli OdL", "url": reverse("assets:periodic_check_session_detail", args=[latest.id])} if open_ko else None)
+    else:
+        step("Rilievi → ordini di lavoro", "Ogni rilievo non conforme diventa un ordine di lavoro dalla pagina della verifica.", "waiting")
+    next_step = next((s for s in steps if s["state"] in ("todo", "ready") and s["action"]), None)
+    if next_step:
+        next_step["is_next"] = True
+    return {"steps": steps, "method": check_type.get_method_display()}
 
 
 _TYPE_TABS = (

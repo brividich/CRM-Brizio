@@ -75,10 +75,10 @@
               {% with t=row.type %}
               <tr>
                 <td class="pc-name">
-                  <a href="{% url 'assets:periodic_check_type_detail' t.id %}">{{ t.name }}</a>
+                  <a href="{% url 'assets:periodic_check_type_detail' t.id %}" title="Apri la scheda: stato, statistiche, storico, documenti">{{ t.name }}</a>
                   {% if t.drafts %}<span class="pc-flag">{{ t.drafts }} da confermare</span>{% endif %}
                   {% if t.issued %}<span class="pc-flag">{{ t.issued }} {% if t.issued == 1 %}foglio{% else %}fogli{% endif %} in giro</span>{% endif %}
-                  {% if t.open_ko %}<span class="pc-flag is-ko">{{ t.open_ko }} rilievi senza OdL</span>{% endif %}
+                  {% if t.open_ko %}<span class="pc-flag is-ko">{{ t.open_ko }} rilievi senza OdL nell'ultima verifica</span>{% endif %}
                   <span class="md-sub">{{ t.get_method_display }}{% if t.reference_code %} · cod. {{ t.reference_code }}{% endif %}</span>
                 </td>
                 <td>{{ t.frequency_label }}</td>
@@ -98,8 +98,16 @@
                 <td><span class="pc-state is-{{ row.state }}">{{ row.state_label }}</span></td>
                 <td>
                   <div class="pc-actions">
-                    {% if can_register %}<a class="btn btn-primary" href="{% url 'assets:periodic_check_register' t.id %}">Registra</a>{% endif %}
-                    <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' t.id %}">Storico</a>
+                    <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' t.id %}">Apri scheda</a>
+                    {% if can_register %}
+                      {% if t.method == "LAYOUT" and t.has_layout %}
+                        <form method="post" action="{% url 'assets:periodic_check_sheet_issue' t.id %}">{% csrf_token %}<button class="btn btn-primary" type="submit" title="Crea la verifica e il foglio con il QR per il tecnico">Stampa foglio</button></form>
+                      {% elif t.method == "LAYOUT" %}
+                        <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' t.id %}?tab=impostazioni#planimetria" title="Serve la planimetria per stampare il foglio">Carica planimetria</a>
+                      {% else %}
+                        <a class="btn btn-primary" href="{% url 'assets:periodic_check_register' t.id %}">Registra</a>
+                      {% endif %}
+                    {% endif %}
                   </div>
                 </td>
               </tr>
