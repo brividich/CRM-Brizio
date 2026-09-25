@@ -438,3 +438,25 @@ class CreateAndCompleteWorkOrderTests(MaintenanceAuditFixture):
         _plan, _assignment, occurrences = self.make_occurrences("future", count=1)
         self.post(occurrences, completed_on="2999-01-01")
         self.assertFalse(WorkOrder.objects.exists())
+
+    def test_button_on_every_page_with_selection(self):
+        plan, _assignment, _occurrences = self.make_occurrences("pages", count=1)
+        urls = [
+            reverse("assets:maintenance_da_fare"),
+            reverse("assets:maintenance_scadenze"),
+            reverse("assets:maintenance_responsabile"),
+            reverse("assets:maintenance_plan_detail", args=[plan.pk]),
+            reverse("assets:calendario_asset"),
+        ]
+        for can_execute in (True, False):
+            with patch("assets.views_maintenance.can_plan_maintenance", return_value=True), patch(
+                "assets.views_maintenance.can_execute_maintenance", return_value=can_execute
+            ):
+                for url in urls:
+                    with self.subTest(url=url, can_execute=can_execute):
+                        response = self.client.get(url)
+                        self.assertEqual(response.status_code, 200)
+                        if can_execute:
+                            self.assertContains(response, 'value="create_and_complete"')
+                        else:
+                            self.assertNotContains(response, 'value="create_and_complete"')
