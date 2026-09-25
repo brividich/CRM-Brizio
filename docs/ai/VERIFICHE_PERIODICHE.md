@@ -44,9 +44,40 @@ Alla conferma di una sessione la prossima scadenza del tipo diventa
 | **A · Planimetria a punti** | illuminazione emergenza, differenziali tasto prova (D1…D76), antintrusione a zone | Fase 2: parser `parser pdf/planimetria_parser.py` + modello visione sul cartiglio; all'operatore **solo le differenze** fra «letto dal cartiglio» ed «evidenziato» |
 | **B · Misure per punto** | pacchi batteria UPS, differenziali con strumento (PDF testo Bruschi) | Fase 3 |
 
-Il metodo A/B aggiungera' `PeriodicCheckPoint` (punti numerati con coordinate sulla
+Il metodo B aggiungera' le misure per punto; il metodo A e' fatto (sotto). In origine era previsto `PeriodicCheckPoint` (punti numerati con coordinate sulla
 planimetria versionata) e risultati per punto; il nucleo e' gia' pronto (stato bozza,
 origine parser, esiti per riga).
+
+## Metodo A: foglio «layout Novicrom» con QR (fase 2, fatta)
+
+Decisioni utente (25/09/2026): **solo planimetria**, nessuna lista scritta da leggere;
+la cartella di pescaggio arriva dopo con una pagina di configurazione.
+
+- `PeriodicCheckLayout` (planimetria PDF vettoriale con **versioni**, zone da coprire
+  `exclude_areas`) e `PeriodicCheckPoint` (codice + coordinate). I punti si estraggono da
+  soli: riquadro rosso con la X + numero rosso (`services/periodic_layout.extract_points`).
+  Caricamento dalla pagina della verifica o con `import_periodic_layout`.
+- «Stampa foglio per il tecnico» crea la verifica in stato **ISSUED** con un token
+  (`sheet_token`, alfabeto senza caratteri ambigui) e il PDF A4: intestazione con data /
+  tecnico / firma, QR `NVC-VP:<token>`, legenda, planimetria vettoriale, vecchio cartiglio
+  coperto, 4 marcatori d'angolo (stesso schema del foglio firme della formazione,
+  `anagrafica/services/foglio_firme.py`).
+- **Legenda**: evidenziatore = prima categoria del tipo, cerchio a penna = seconda
+  (`PeriodicCheckType.point_categories`, default «Non funzionante / Bassa autonomia»).
+- Lettura (`services/periodic_layout_reader.py`, numpy + PyMuPDF + Pillow, niente AI):
+  allineamento al foglio rigenerato senza QR (rotazione a 90 gradi, scala, affinamento sui
+  simboli), segni = inchiostro nuovo nella zona planimetria; controllo dedicato dei cerchi
+  a penna (copertura della corona attorno al punto, contando solo i settori dove la carta
+  era libera). Soglie in punti della planimetria originale, scalate con `unit`.
+- La scansione si carica dalla pagina della verifica: il QR viene controllato (una
+  scansione di un altro foglio e' rifiutata), scansione e immagine della lettura
+  (`lettura-automatica.png`) vanno negli allegati, i punti diventano esiti `POINT` proposti
+  e la verifica passa **DRAFT**. La conferma (data scritta sul foglio, categoria per punto,
+  scarta, aggiungi i mancanti) la rende CONFIRMED e ricalcola la scadenza.
+- Senza foglio: «Registra a mano» accetta i numeri dei punti per categoria.
+- Prossimo passo: **cartella di pescaggio** (job django-q che legge il QR e aggancia la
+  scansione alla verifica; stessa logica di `anagrafica/services/intake_scansioni.py`,
+  cartelle `elaborati` / `errori`) con pagina di configurazione del percorso.
 
 ## Storico
 
@@ -61,5 +92,7 @@ La mappa cartella -> tipo e' in `assets/services/periodic_checks_catalog.py`.
 - `migrate assets` (modelli + voce di menu).
 - `bootstrap_acl_v2` per i binding canonici delle nuove route `/assets/manutenzione/verifiche-impianti/`.
 - `seed_periodic_checks --apply` (catalogo impianti/tipi da Excel Bruschi e cartelle).
+- `pip install -r requirements.txt` (nuova dipendenza **numpy**), `migrate assets` 0114.
+- `import_periodic_layout "Verifica illuminazione di emergenza" "\\novisrv\privman\_Impianto Elettrico\Verifiche impianto elettrico\Verifica illuminazione di emergenza (quadrimestrale)\PLANIMETRIA PLAFONIERE DI EMERGENZA.pdf" --exclude "465.6,975.5,813.7,1136.3" --apply`.
 - `import_periodic_checks "\\novisrv\privman\_Impianto Elettrico\Verifiche impianto elettrico" --apply`
   (e le altre cartelle del catalogo).

@@ -49,8 +49,23 @@
     </fieldset>
   {% endif %}
 
+  {% if point_rows %}
+    <fieldset class="md-fieldset">
+      <h2>2 · Punti segnalati</h2>
+      <p class="md-hint">Registrazione a mano: scrivi i numeri dei punti della planimetria, separati da virgola o spazio. Con il foglio stampato dal portale non serve: la scansione li propone da sola.</p>
+      <div class="md-grid-2">
+        {% for row in point_rows %}
+          <div class="md-field">
+            <label for="id_codes_{{ row.index }}">{{ row.category }}</label>
+            <input id="id_codes_{{ row.index }}" type="text" name="codes_{{ row.index }}" value="{{ row.value }}" placeholder="es. 7, 14, 22" autocomplete="off">
+          </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+  {% endif %}
+
   <fieldset class="md-fieldset">
-    <h2>{% if item_rows %}3{% else %}2{% endif %} · Rilievi e documenti</h2>
+    <h2>{% if item_rows or point_rows %}3{% else %}2{% endif %} · Rilievi e documenti</h2>
     {% include "assets/components/_md_field.html" with field=form.remarks_text %}
     {% include "assets/components/_md_field.html" with field=form.notes %}
     <div class="md-field">
