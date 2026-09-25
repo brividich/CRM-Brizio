@@ -558,13 +558,27 @@ class WorkOrderFromOccurrencesForm(forms.Form):
         initial=True,
         help_text="Tolto: un unico OdL con tutti gli asset selezionati.",
     )
+    # Solo per "Crea OdL e chiudi intervento": il giorno in cui il lavoro e'
+    # stato fatto. Vuoto = oggi.
+    completed_on = forms.DateField(
+        label="Eseguite il",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         _set_user_choices(self.fields["assigned_to"])
         self.fields["supplier"].queryset = Fornitore.objects.order_by("ragione_sociale")
         self.fields["title"].help_text = "Lascia vuoto per generarlo dal piano e dal numero di asset."
+        self.fields["completed_on"].initial = timezone.localdate()
         _attach_input_css(self)
+
+    def clean_completed_on(self):
+        completed_on = self.cleaned_data.get("completed_on")
+        if completed_on and completed_on > timezone.localdate():
+            raise forms.ValidationError("La data di esecuzione non puo essere nel futuro.")
+        return completed_on
 
 
 class WorkOrderBulkForm(forms.Form):

@@ -2042,9 +2042,14 @@ def occurrence_create_workorder(request: HttpRequest) -> HttpResponse:
         return redirect(back)
     _nega_fuori_reparto(request, occurrences)
 
+    complete_now = request.POST.get("action") == "create_and_complete"
+    if complete_now and not can_execute_maintenance(request):
+        return _deny(request, "Non hai i permessi per registrare l'esecuzione delle manutenzioni.")
+
     form = WorkOrderFromOccurrencesForm(request.POST)
     if not form.is_valid():
-        messages.error(request, "Dati dell'ordine di lavoro non validi.")
+        errori = "; ".join(" ".join(errs) for errs in form.errors.values())
+        messages.error(request, f"Dati dell'ordine di lavoro non validi. {errori}".strip())
         return redirect(back)
 
     options = dict(
@@ -2064,6 +2069,10 @@ def occurrence_create_workorder(request: HttpRequest) -> HttpResponse:
         return redirect(back)
 
     leader = work_orders[0]
+    if complete_now:
+        return _complete_new_workorders(
+            request, work_orders, occurrences, form.cleaned_data.get("completed_on"), back
+        )
     if len(work_orders) > 1:
         messages.success(
             request,
@@ -2077,6 +2086,48 @@ def occurrence_create_workorder(request: HttpRequest) -> HttpResponse:
             f"Ordine di lavoro #{leader.display_number} creato con {len(occurrences)} manutenzione/i.",
         )
     return redirect("assets:wo_view", id=leader.pk)
+
+
+def _complete_new_workorders(request, work_orders, occurrences, completed_on, back) -> HttpResponse:
+    """"Crea OdL e chiudi intervento": il lavoro e' gia' fatto, si registra subito.
+
+    Stessa regola della registrazione in blocco dall'OdL: ogni manutenzione si
+    chiude per conto suo e avanza sul suo piano; quella che non si puo' chiudere
+    (documento obbligatorio mancante) viene saltata e detta per nome, e il suo
+    OdL resta aperto per completarla a mano.
+    """
+    completed_on = completed_on or timezone.localdate()
+    registrate: list[str] = []
+    saltate: list[str] = []
+    for occurrence in occurrences:
+        etichetta = occurrence.asset.asset_tag or occurrence.asset.name
+        try:
+            domain.complete_occurrence(occurrence, completed_on=completed_on, user=request.user)
+        except domain.OccurrenceCompletionError as exc:
+            saltate.append(f"{etichetta} ({exc})")
+        else:
+            registrate.append(etichetta)
+
+    chiusi = [wo for wo in work_orders if domain.close_workorder_if_complete(wo, user=request.user)]
+    aperti = [wo for wo in work_orders if wo not in chiusi]
+
+    if registrate:
+        messages.success(
+            request,
+            f"{len(registrate)} manutenzion{'e' if len(registrate) == 1 else 'i'} registrat"
+            f"{'a' if len(registrate) == 1 else 'e'} il {completed_on:%d/%m/%Y}; "
+            f"interventi chiusi: {', '.join(f'#{wo.display_number}' for wo in chiusi) or 'nessuno'}.",
+        )
+    if saltate:
+        messages.warning(
+            request,
+            f"Non registrate: {'; '.join(saltate)}. Restano aperte negli interventi "
+            + ", ".join(f"#{wo.display_number}" for wo in aperti)
+            + ".",
+        )
+    if len(aperti) == 1:
+        return redirect("assets:wo_view", id=aperti[0].pk)
+    return redirect(back)
 
 
 @login_required
