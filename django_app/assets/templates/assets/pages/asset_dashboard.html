@@ -1,329 +1,610 @@
 {% extends "assets/base_shell.html" %}
 {% load assets_extras %}
 
+{% block assets_shell_title %}Dashboard{% endblock %}
+{% block assets_shell_subtitle %}<p>Stato del parco asset e lavoro aperto &middot; aggiornato alle {{ now|date:"H:i" }} del {{ today|date:"d/m/Y" }}</p>{% endblock %}
+{% block assets_shell_toolbar %}
+  <button type="button" class="btn btn-secondary" onclick="adRefresh()" title="Ricarica i dati">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    Aggiorna
+  </button>
+  <button type="button" class="btn btn-secondary" onclick="adOpenCustomize()">Personalizza</button>
+  <a class="btn btn-secondary" href="{% url 'assets:asset_quick_report' %}">Segnala un guasto</a>
+  <a class="btn btn-primary" href="{% url 'assets:wo_list' %}?create=1">+ Nuovo intervento</a>
+{% endblock %}
+
 {% block assets_shell_head %}
 <style>
-/* ── Layout principale ──────────────────────────────────────────────── */
-.ad-wrap   { max-width: 1300px; margin: 0 auto; padding: 18px 16px 40px; }
+/* ── Dashboard Assets: tutta la larghezza ──────────────────────────── */
+.ad-wrap { display:grid; gap:18px; padding:2px 0 36px; }
+.ad-sec-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+.ad-sec-title { margin:0; font-size:var(--fs-lg); font-weight:800; color:var(--text); display:flex; align-items:center; gap:8px; }
+.ad-sec-sub { margin:2px 0 0; font-size:var(--fs-sm); color:var(--text-mid); }
+.ad-sec-link { font-size:var(--fs-sm); font-weight:700; color:#1d4ed8; text-decoration:none; white-space:nowrap; }
+.ad-sec-link:hover { text-decoration:underline; }
+.ad-count { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 7px; border-radius:999px;
+  font-size:var(--fs-xs); font-weight:800; background:#e2e8f0; color:#475569; }
+.ad-count.red { background:#fee2e2; color:#b91c1c; }
+.ad-count.amber { background:#fef3c7; color:#92400e; }
+.ad-count.green { background:#dcfce7; color:#15803d; }
+.ad-count.blue { background:#dbeafe; color:#1d4ed8; }
 
-/* ── Barra categorie in cima ────────────────────────────────────────── */
-.ad-cats        { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; align-items: center; }
-.ad-cats-label  { font-size: var(--fs-xs); text-transform: uppercase; color: #8ea2bf; font-weight: 700; letter-spacing:.06em; flex-shrink:0; }
-.ad-cat         { display: inline-flex; align-items: center; gap: 5px; padding: 5px 13px; border-radius: 999px;
-                  background: #f0f6ff; border: 1px solid #c7d9f5; color: #1d4ed8; font-size: var(--fs-sm);
-                  font-weight: 700; text-decoration: none; transition: background .13s, border-color .13s; }
-.ad-cat:hover   { background: #dce9fb; border-color: #93b8f0; }
-.ad-cat.all     { background: #1f64d8; color: #fff; border-color: #1750b8; }
-.ad-cat.all:hover { background: #1750b8; }
-.ad-cat-count   { background: rgba(0,0,0,.1); border-radius: 999px; padding: 0 5px; font-size: var(--fs-2xs); line-height: 1.6; }
-.ad-cat.all .ad-cat-count { background: rgba(255,255,255,.25); }
+/* ── Stato generale ────────────────────────────────────────────────── */
+.ad-status { display:flex; align-items:center; gap:14px; padding:12px 16px; border-radius:12px; border:1px solid; flex-wrap:wrap; }
+.ad-status.red   { background:#fef2f2; border-color:#fecaca; }
+.ad-status.amber { background:#fffbeb; border-color:#fde68a; }
+.ad-status.green { background:#f0fdf4; border-color:#bbf7d0; }
+.ad-status-dot { width:12px; height:12px; border-radius:999px; flex-shrink:0; box-shadow:0 0 0 5px rgba(0,0,0,.05); }
+.ad-status.red .ad-status-dot   { background:#dc2626; box-shadow:0 0 0 5px rgba(220,38,38,.14); }
+.ad-status.amber .ad-status-dot { background:#d97706; box-shadow:0 0 0 5px rgba(217,119,6,.14); }
+.ad-status.green .ad-status-dot { background:#16a34a; box-shadow:0 0 0 5px rgba(22,163,74,.14); }
+.ad-status-text { flex:1; min-width:220px; }
+.ad-status-title { font-size:var(--fs-md); font-weight:800; color:var(--text); }
+.ad-status-sub { font-size:var(--fs-sm); color:var(--text-mid); margin-top:1px; }
+.ad-status-chips { display:flex; gap:6px; flex-wrap:wrap; }
+.ad-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; font-size:var(--fs-xs); font-weight:800;
+  text-decoration:none; border:1px solid transparent; background:var(--surface); color:var(--text-mid); border-color:var(--border); }
+.ad-chip:hover { border-color:#93b4e8; color:#1d4ed8; }
+.ad-chip b { font-weight:900; }
+.ad-chip.red b { color:#dc2626; }
+.ad-chip.amber b { color:#d97706; }
 
-/* ── Header sezione ─────────────────────────────────────────────────── */
-.ad-head        { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
-.ad-title       { font-size: var(--fs-xl); font-weight: 800; color: #0f172a; margin: 0; }
-.ad-head-actions{ display: flex; gap: 8px; align-items: center; }
-.ad-btn         { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 8px;
-                  font-size: var(--fs-sm); font-weight: 600; cursor: pointer; border: 1px solid #d1dae8;
-                  background: #fff; color: #374151; text-decoration: none; }
-.ad-btn:hover   { background: #f0f5ff; border-color: #93b8f0; color: #1f64d8; }
-.ad-btn svg     { flex-shrink: 0; }
+/* ── KPI ───────────────────────────────────────────────────────────── */
+.ad-kpis { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; }
+.ad-kpi { position:relative; display:flex; flex-direction:column; gap:6px; padding:14px 16px 13px; border-radius:12px; overflow:hidden;
+  background:var(--surface); border:1px solid var(--border); text-decoration:none; color:inherit; box-shadow:var(--shadow);
+  transition:transform .12s ease, border-color .12s ease; }
+.ad-kpi:hover { transform:translateY(-1px); border-color:#93b4e8; }
+.ad-kpi:before { content:""; position:absolute; left:0; right:0; top:0; height:3px; background:var(--ad-tone,#94a3b8); }
+.ad-kpi.red   { --ad-tone:#dc2626; }
+.ad-kpi.amber { --ad-tone:#d97706; }
+.ad-kpi.green { --ad-tone:#16a34a; }
+.ad-kpi.blue  { --ad-tone:#2563eb; }
+.ad-kpi-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.ad-kpi-label { font-size:var(--fs-xs); font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--text-mid); }
+.ad-kpi-icon { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  background:color-mix(in srgb, var(--ad-tone,#94a3b8) 13%, transparent); color:var(--ad-tone,#64748b); }
+.ad-kpi-val { font-size:var(--fs-display-xl); font-weight:900; line-height:1; color:var(--text); letter-spacing:-.01em; }
+.ad-kpi.red .ad-kpi-val { color:#dc2626; }
+.ad-kpi.amber .ad-kpi-val { color:#b45309; }
+.ad-kpi-sub { font-size:var(--fs-xs); color:var(--text-mid); line-height:1.35; }
+.ad-kpi-sub b { color:var(--text); }
+.ad-stack { display:flex; height:6px; border-radius:999px; overflow:hidden; background:#e5ecf6; margin-top:2px; }
+.ad-stack span { display:block; height:100%; }
 
-/* ── Griglia widget ─────────────────────────────────────────────────── */
-.ad-grid        { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-.ad-grid.compact{ grid-template-columns: repeat(4, 1fr); }
-.ad-widget      { background: #fff; border: 1px solid #dbe3f0; border-radius: 13px; padding: 16px 18px;
-                  box-shadow: 0 2px 8px rgba(15,23,42,.05); cursor: grab; position: relative;
-                  transition: box-shadow .15s, border-color .15s; user-select: none; }
-.ad-widget:hover{ box-shadow: 0 4px 16px rgba(15,23,42,.09); border-color: #c5d4ef; }
-.ad-widget.dragging { opacity: .45; box-shadow: 0 8px 24px rgba(15,23,42,.15); border-color: #1f64d8; }
-.ad-widget.drag-over{ border-color: #1f64d8; background: #f0f6ff; }
+/* ── Centro "Da fare" ─────────────────────────────────────────────── */
+.ad-todo { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:start; }
+.ad-panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); display:flex; flex-direction:column; min-width:0; }
+.ad-panel-head { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border); }
+.ad-panel-icon { width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ad-panel-icon.blue { background:#dbeafe; color:#1d4ed8; }
+.ad-panel-icon.amber { background:#fef3c7; color:#b45309; }
+.ad-panel-icon.red { background:#fee2e2; color:#b91c1c; }
+.ad-panel-title { flex:1; min-width:0; font-size:var(--fs-md); font-weight:800; color:var(--text); line-height:1.2; }
+.ad-panel-title small { display:block; font-size:var(--fs-xs); font-weight:600; color:var(--text-light); margin-top:2px; }
+.ad-facets { display:flex; gap:6px; flex-wrap:wrap; padding:10px 14px 2px; }
+.ad-facet { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:8px; font-size:var(--fs-xs); font-weight:700;
+  color:var(--text-mid); background:rgba(148,163,184,.12); text-decoration:none; }
+.ad-facet:hover { color:#1d4ed8; background:rgba(37,99,235,.10); }
+.ad-facet b { font-weight:900; color:var(--text); }
+.ad-facet.red b { color:#dc2626; }
+.ad-facet.amber b { color:#d97706; }
+.ad-rows { list-style:none; margin:0; padding:8px; display:grid; gap:6px; }
+.ad-row { display:grid; grid-template-columns:4px minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 10px 8px 0; border-radius:9px;
+  border:1px solid var(--border); background:var(--surface); }
+.ad-row:hover { border-color:#bfd2ee; }
+.ad-row-bar { align-self:stretch; border-radius:0 3px 3px 0; background:#cbd5e1; }
+.ad-row.red .ad-row-bar { background:#dc2626; }
+.ad-row.amber .ad-row-bar { background:#d97706; }
+.ad-row.blue .ad-row-bar { background:#2563eb; }
+.ad-row-main { min-width:0; text-decoration:none; color:inherit; }
+.ad-row-title { font-size:var(--fs-sm); font-weight:800; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ad-row-main:hover .ad-row-title { color:#1d4ed8; }
+.ad-row-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:3px; font-size:var(--fs-xs); color:var(--text-mid); }
+.ad-tag { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:var(--fs-2xs); font-weight:800; padding:1px 5px; border-radius:4px; background:#eff6ff; color:#1d4ed8; }
+.ad-pill { font-size:var(--fs-2xs); font-weight:800; padding:1px 7px; border-radius:999px; white-space:nowrap; background:#e2e8f0; color:#475569; }
+.ad-pill.red { background:#fee2e2; color:#b91c1c; }
+.ad-pill.amber { background:#fef3c7; color:#92400e; }
+.ad-pill.green { background:#dcfce7; color:#15803d; }
+.ad-pill.blue { background:#dbeafe; color:#1d4ed8; }
+.ad-row-side { display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
+.ad-when { font-size:var(--fs-xs); font-weight:800; color:var(--text-light); white-space:nowrap; }
+.ad-when.red { color:#dc2626; }
+.ad-when.amber { color:#d97706; }
+.ad-acts { display:flex; gap:4px; }
+.ad-act { display:inline-flex; align-items:center; height:24px; padding:0 8px; border-radius:7px; font-size:var(--fs-xs); font-weight:800;
+  border:1px solid var(--border); background:var(--surface); color:var(--text-mid); text-decoration:none; cursor:pointer; white-space:nowrap; font-family:inherit; }
+.ad-act:hover { border-color:#2563eb; color:#1d4ed8; }
+.ad-act.primary { background:#2563eb; border-color:#2563eb; color:#fff; }
+.ad-act.primary:hover { background:#1d4ed8; color:#fff; }
+.ad-act[disabled] { opacity:.55; cursor:progress; }
+.ad-act-form { margin:0; display:inline; }
+.ad-empty { display:flex; align-items:center; gap:8px; padding:18px 14px; color:var(--text-mid); font-size:var(--fs-sm); }
+.ad-empty:before { content:"\2713"; display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:999px; background:#dcfce7; color:#15803d; font-weight:900; font-size:var(--fs-xs); }
+.ad-panel-foot { margin-top:auto; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 14px; border-top:1px solid var(--border); }
+.ad-foot-link { font-size:var(--fs-sm); font-weight:800; color:#1d4ed8; text-decoration:none; }
+.ad-foot-link:hover { text-decoration:underline; }
+.ad-foot-link.cta { color:#15803d; }
 
-.ad-w-icon      { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; flex-shrink:0; }
-.ad-w-icon.blue   { background: #dbeafe; color: #1d4ed8; }
-.ad-w-icon.green  { background: #dcfce7; color: #15803d; }
-.ad-w-icon.orange { background: #ffedd5; color: #c2410c; }
-.ad-w-icon.red    { background: #fee2e2; color: #b91c1c; }
-.ad-w-icon.yellow { background: #fef9c3; color: #854d0e; }
-.ad-w-icon.slate  { background: #e2e8f0; color: #475569; }
+/* ── Vai a ─────────────────────────────────────────────────────────── */
+.ad-launch { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px; }
+.ad-tile { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:12px; background:var(--surface); border:1px solid var(--border);
+  text-decoration:none; color:inherit; transition:border-color .12s ease, transform .12s ease; }
+.ad-tile:hover { border-color:#93b4e8; transform:translateY(-1px); }
+.ad-tile-icon { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  background:linear-gradient(135deg,#eff6ff,#ecfdf5); color:#1d4ed8; border:1px solid #dbeafe; }
+.ad-tile-body { flex:1; min-width:0; }
+.ad-tile-label { display:block; font-size:var(--fs-base); font-weight:800; color:var(--text); }
+.ad-tile-hint { display:block; font-size:var(--fs-xs); color:var(--text-mid); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ad-tile:hover .ad-tile-label { color:#1d4ed8; }
+.ad-cats { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:12px; }
+.ad-cats-label { font-size:var(--fs-xs); text-transform:uppercase; color:var(--text-light); font-weight:800; letter-spacing:.06em; margin-right:4px; }
+.ad-cat { display:inline-flex; align-items:center; gap:6px; padding:4px 11px; border-radius:8px; background:var(--surface); border:1px solid var(--border);
+  color:var(--text-mid); font-size:var(--fs-sm); font-weight:700; text-decoration:none; }
+.ad-cat:hover { border-color:#93b4e8; color:#1d4ed8; }
+.ad-cat.all { background:#0f172a; border-color:#0f172a; color:#fff; }
+.ad-cat-count { font-size:var(--fs-2xs); font-weight:800; padding:0 6px; border-radius:999px; background:rgba(148,163,184,.2); line-height:1.7; }
+.ad-cat.all .ad-cat-count { background:rgba(255,255,255,.2); }
+details.ad-cats-more { display:contents; }
+details.ad-cats-more > summary { list-style:none; cursor:pointer; display:inline-flex; align-items:center; padding:4px 11px; border-radius:8px;
+  border:1px dashed var(--border); color:#1d4ed8; font-size:var(--fs-sm); font-weight:800; }
+details.ad-cats-more > summary::-webkit-details-marker { display:none; }
+details.ad-cats-more[open] > summary { display:none; }
 
-.ad-w-label     { font-size: var(--fs-xs); text-transform: uppercase; color: #7e94b2; font-weight: 700; letter-spacing:.05em; }
-.ad-w-val       { font-size: var(--fs-display-2xl); font-weight: 800; color: #0f172a; line-height: 1; margin-top: 4px; }
-.ad-w-val.danger{ color: #b91c1c; }
-.ad-w-val.warn  { color: #92400e; }
-.ad-w-val.ok    { color: #15803d; }
-.ad-w-sub       { font-size: var(--fs-xs); color: #94a3b8; margin-top: 3px; }
-.ad-w-remove    { position: absolute; top: 8px; right: 8px; opacity: 0; border: none; background: none;
-                  color: #94a3b8; cursor: pointer; transition: opacity .15s, color .13s; padding: 2px; border-radius: 4px; }
-.ad-widget:hover .ad-w-remove { opacity: 1; }
-.ad-w-remove:hover { color: #dc2626; background: #fee2e2; }
-.ad-w-link      { display: block; margin-top: 8px; font-size: var(--fs-xs); color: #1d4ed8; text-decoration: none; font-weight: 600; }
-.ad-w-link:hover{ text-decoration: underline; }
+/* ── Widget personalizzabili ───────────────────────────────────────── */
+.ad-grid { column-width:260px; column-gap:12px; }
+.ad-grid > * { break-inside:avoid; margin-bottom:12px; }
+.ad-widget { display:block; position:relative; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+  box-shadow:var(--shadow); cursor:grab; user-select:none; transition:border-color .15s; }
+.ad-widget:hover { border-color:#93b4e8; }
+.ad-widget.dragging { opacity:.45; border-color:#2563eb; }
+.ad-widget.drag-over { border-color:#2563eb; background:rgba(37,99,235,.05); }
+.ad-w-icon { width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; margin-bottom:8px; }
+.ad-w-icon.blue { background:#dbeafe; color:#1d4ed8; }
+.ad-w-icon.green { background:#dcfce7; color:#15803d; }
+.ad-w-icon.orange { background:#ffedd5; color:#c2410c; }
+.ad-w-icon.red { background:#fee2e2; color:#b91c1c; }
+.ad-w-icon.yellow { background:#fef9c3; color:#854d0e; }
+.ad-w-icon.slate { background:#e2e8f0; color:#475569; }
+.ad-w-label { font-size:var(--fs-xs); text-transform:uppercase; color:var(--text-mid); font-weight:800; letter-spacing:.05em; }
+.ad-w-val { font-size:var(--fs-display-lg); font-weight:900; color:var(--text); line-height:1; margin-top:4px; }
+.ad-w-val.danger { color:#dc2626; }
+.ad-w-val.warn { color:#b45309; }
+.ad-w-val.ok { color:#15803d; }
+.ad-w-remove { position:absolute; top:8px; right:8px; opacity:0; border:none; background:none; color:var(--text-light); cursor:pointer; padding:2px 5px; border-radius:5px; }
+.ad-widget:hover .ad-w-remove { opacity:1; }
+.ad-w-remove:hover { color:#dc2626; background:#fee2e2; }
+.ad-w-link { display:inline-block; margin-top:8px; font-size:var(--fs-xs); color:#1d4ed8; text-decoration:none; font-weight:800; }
+.ad-w-link:hover { text-decoration:underline; }
+.ad-list { margin:8px 0 0; list-style:none; padding:0; display:grid; gap:2px; }
+.ad-list-item { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--border); font-size:var(--fs-sm); }
+.ad-list-item:last-child { border-bottom:none; }
+.ad-list-name { color:var(--text); font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:none; }
+.ad-list-tag { font-size:var(--fs-xs); color:var(--text-light); }
+.ad-list-badge { font-size:var(--fs-xs); font-weight:800; border-radius:999px; padding:1px 7px; flex-shrink:0; }
+.ad-list-badge.red { background:#fee2e2; color:#b91c1c; }
+.ad-list-badge.yellow { background:#fef9c3; color:#854d0e; }
+.ad-bars { margin:10px 0 0; display:grid; gap:7px; }
+.ad-bar-row { display:flex; align-items:center; gap:8px; font-size:var(--fs-xs); }
+.ad-bar-label { width:120px; color:var(--text); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; }
+.ad-bar-track { flex:1; height:7px; background:#e5ecf6; border-radius:999px; overflow:hidden; }
+.ad-bar-fill { height:100%; border-radius:999px; }
+.ad-bar-count { width:32px; text-align:right; color:var(--text-mid); font-weight:800; flex-shrink:0; }
+.fill-blue { background:#3b82f6; } .fill-green { background:#22c55e; } .fill-orange { background:#f97316; }
+.fill-slate { background:#94a3b8; } .fill-violet { background:#8b5cf6; } .fill-teal { background:#14b8a6; } .fill-rose { background:#f43f5e; }
 
-/* ── Widget espanso (lista) ─────────────────────────────────────────── */
-.ad-widget.wide { grid-column: span 2; }
-.ad-list        { margin: 8px 0 0; list-style: none; padding: 0; display: grid; gap: 4px; }
-.ad-list-item   { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0;
-                  border-bottom: 1px solid #f0f4fa; font-size: var(--fs-sm); }
-.ad-list-item:last-child { border-bottom: none; }
-.ad-list-name   { color: #1e293b; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ad-list-date   { color: #64748b; font-size: var(--fs-xs); flex-shrink: 0; }
-.ad-list-tag    { font-size: var(--fs-xs); color: #94a3b8; }
-.ad-list-badge  { font-size: var(--fs-xs); font-weight: 700; border-radius: 999px; padding: 1px 7px; flex-shrink:0; }
-.ad-list-badge.red  { background: #fee2e2; color: #b91c1c; }
-.ad-list-badge.yellow { background: #fef9c3; color: #854d0e; }
-.ad-list-badge.green  { background: #dcfce7; color: #15803d; }
-.ad-list-badge.slate  { background: #e2e8f0; color: #475569; }
+/* ── Analisi ───────────────────────────────────────────────────────── */
+details.ad-analysis { background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); }
+details.ad-analysis > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:10px; padding:12px 16px; }
+details.ad-analysis > summary::-webkit-details-marker { display:none; }
+details.ad-analysis > summary:after { content:"\25BE"; margin-left:auto; color:var(--text-light); transition:transform .15s; }
+details.ad-analysis:not([open]) > summary:after { transform:rotate(-90deg); }
+.ad-analysis-body { padding:4px 16px 16px; display:grid; gap:14px; border-top:1px solid var(--border); }
+.ad-filter { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.ad-filter select { min-width:220px; }
+.ad-metrics { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:10px; }
+.ad-metric { padding:11px 12px; border-radius:10px; border:1px solid var(--border); background:rgba(148,163,184,.06); }
+.ad-metric-label { font-size:var(--fs-2xs); font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-mid); }
+.ad-metric-val { margin-top:5px; font-size:var(--fs-2xl, 22px); font-weight:900; line-height:1; color:var(--text); }
+.ad-metric-val a { color:inherit; text-decoration:none; }
+.ad-metric-val a:hover { text-decoration:underline; }
+.ad-metric-val.warn { color:#b45309; }
+.ad-panels { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:start; }
+.ad-panels .ad-mini-bars { max-height:320px; overflow-y:auto; padding-right:4px; }
+.ad-mini-panel { border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+.ad-mini-title { margin:0 0 10px; font-size:var(--fs-base); font-weight:800; color:var(--text); }
+.ad-mini-bars { display:grid; gap:8px; }
+.ad-mini-row { display:grid; grid-template-columns:minmax(90px,1fr) 2fr auto; gap:8px; align-items:center; font-size:var(--fs-xs); }
+.ad-mini-label { color:var(--text); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ad-mini-label a { color:inherit; text-decoration:none; }
+.ad-mini-track { height:8px; background:#e5ecf6; border-radius:999px; overflow:hidden; }
+.ad-mini-fill { display:block; height:100%; border-radius:999px; background:#3b82f6; }
+.ad-mini-fill.green { background:#22c55e; } .ad-mini-fill.orange { background:#f97316; }
+.ad-mini-count { color:var(--text-mid); font-weight:800; min-width:34px; text-align:right; }
+.ad-mini-count a { color:inherit; }
+.ad-muted { color:var(--text-light); font-size:var(--fs-sm); }
+.ad-subhead { margin:4px 0 0; font-size:var(--fs-md); font-weight:800; color:var(--text); display:flex; align-items:center; gap:8px; }
+.ad-subhead.fire:before { content:""; width:8px; height:8px; border-radius:999px; background:#dc2626; }
 
-/* Widget barra (per/stato per/cat) */
-.ad-bars        { margin: 10px 0 0; display: grid; gap: 7px; }
-.ad-bar-row     { display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); }
-.ad-bar-label   { width: 110px; color: #374151; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
-.ad-bar-track   { flex: 1; height: 7px; background: #e5ecf6; border-radius: 4px; overflow: hidden; }
-.ad-bar-fill    { height: 100%; border-radius: 4px; transition: width .4s ease; }
-.ad-bar-count   { width: 28px; text-align: right; color: #64748b; font-weight: 700; flex-shrink: 0; }
-.fill-blue      { background: #3b82f6; }
-.fill-green     { background: #22c55e; }
-.fill-orange    { background: #f97316; }
-.fill-slate     { background: #94a3b8; }
-.fill-violet    { background: #8b5cf6; }
-.fill-teal      { background: #14b8a6; }
-.fill-rose      { background: #f43f5e; }
+/* ── Modale personalizza ───────────────────────────────────────────── */
+.ad-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.45); z-index:2000; align-items:center; justify-content:center; }
+.ad-overlay.open { display:flex; }
+.ad-modal { background:var(--surface); border-radius:14px; width:min(520px,94vw); max-height:88vh; display:grid; grid-template-rows:auto 1fr auto; overflow:hidden; box-shadow:0 20px 60px rgba(15,23,42,.3); }
+.ad-modal-head { padding:16px 18px 12px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.ad-modal-title { font-size:var(--fs-lg); font-weight:800; color:var(--text); margin:0; }
+.ad-modal-close { border:none; background:none; cursor:pointer; color:var(--text-light); padding:4px; border-radius:6px; }
+.ad-modal-body { padding:14px 18px; overflow-y:auto; }
+.ad-modal-body p { font-size:var(--fs-sm); color:var(--text-mid); margin:0 0 12px; }
+.ad-modal-foot { padding:12px 18px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; }
+.ad-wlist { display:grid; gap:6px; }
+.ad-witem { display:flex; align-items:center; gap:10px; padding:9px 12px; border:1px solid var(--border); border-radius:10px; cursor:pointer; }
+.ad-witem:hover { border-color:#93b4e8; }
+.ad-witem.active { border-color:#3b82f6; background:rgba(59,130,246,.07); }
+.ad-witem-icon { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ad-witem-name { flex:1; font-size:var(--fs-base); font-weight:700; color:var(--text); }
+.ad-witem-toggle { width:22px; height:22px; border-radius:6px; border:2px solid var(--border); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ad-witem.active .ad-witem-toggle { background:#2563eb; border-color:#2563eb; color:#fff; }
+.ad-toast { position:fixed; right:20px; bottom:20px; z-index:2100; max-width:360px; padding:10px 14px; border-radius:10px; font-size:var(--fs-sm); font-weight:700;
+  background:#0f172a; color:#fff; box-shadow:0 12px 30px rgba(15,23,42,.3); opacity:0; transform:translateY(8px); transition:opacity .2s, transform .2s; pointer-events:none; }
+.ad-toast.show { opacity:1; transform:none; }
+.ad-toast.error { background:#b91c1c; }
 
-/* KPI famiglia asset */
-.ad-family-section { margin: 28px 0 18px; display: grid; gap: 16px; }
-.ad-section-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
-.ad-section-title { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: #0f172a; }
-.ad-section-sub { margin: 3px 0 0; color: #64748b; font-size: var(--fs-sm); }
-.ad-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ad-filter select { min-width: 220px; border: 1px solid #d1dae8; border-radius: 8px; padding: 7px 10px; background: #fff; color: #1e293b; font-size: var(--fs-sm); }
-.ad-family-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.ad-family-metric { background: #fff; border: 1px solid #dbe3f0; border-radius: 8px; padding: 13px 14px; box-shadow: 0 1px 5px rgba(15,23,42,.04); }
-.ad-family-label { color: #64748b; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-.ad-family-value { margin-top: 5px; color: #0f172a; font-size: var(--fs-2xl); font-weight: 800; line-height: 1; }
-.ad-family-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.ad-family-panel { background: #fff; border: 1px solid #dbe3f0; border-radius: 8px; padding: 14px; }
-.ad-panel-title { margin: 0 0 10px; color: #0f172a; font-size: var(--fs-base); font-weight: 800; }
-.ad-mini-bars { display: grid; gap: 8px; }
-.ad-mini-row { display: grid; grid-template-columns: minmax(92px, 1fr) 2fr auto; gap: 8px; align-items: center; font-size: var(--fs-xs); }
-.ad-mini-label { color: #334155; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ad-mini-track { height: 8px; background: #e5ecf6; border-radius: 999px; overflow: hidden; }
-.ad-mini-fill { height: 100%; border-radius: 999px; background: #3b82f6; }
-.ad-mini-fill.green { background: #22c55e; }
-.ad-mini-fill.orange { background: #f97316; }
-.ad-mini-count { color: #64748b; font-weight: 800; min-width: 34px; text-align: right; }
-.ad-empty { color: #94a3b8; font-size: var(--fs-sm); }
-.ad-fire { border: 1px solid #fecaca; background: #fff7f7; border-radius: 8px; padding: 14px; }
-.ad-fire-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.ad-fire .ad-family-metric { border-color: #fecaca; box-shadow: none; }
+@media (max-width:1500px) { .ad-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } .ad-metrics { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media (max-width:1280px) { .ad-todo { grid-template-columns:repeat(2,minmax(0,1fr)); } .ad-todo > .ad-panel:last-child { grid-column:1 / -1; } }
+@media (max-width:900px)  { .ad-todo, .ad-panels { grid-template-columns:1fr; } .ad-todo > .ad-panel:last-child { grid-column:auto; } }
+@media (max-width:640px)  { .ad-kpis, .ad-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .ad-filter select { min-width:100%; } .ad-row { grid-template-columns:4px minmax(0,1fr); } .ad-row-side { grid-column:2; flex-direction:row; align-items:center; justify-content:space-between; } }
 
-/* ── Modale personalizza ────────────────────────────────────────────── */
-.ad-overlay     { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 2000;
-                  align-items: center; justify-content: center; }
-.ad-overlay.open{ display: flex; }
-.ad-modal       { background: #fff; border-radius: 16px; width: min(520px, 96vw); max-height: 90vh;
-                  display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; box-shadow: 0 20px 60px rgba(15,23,42,.25); }
-.ad-modal-head  { padding: 18px 20px 14px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; }
-.ad-modal-title { font-size: var(--fs-lg); font-weight: 800; color: #0f172a; margin: 0; }
-.ad-modal-close { border: none; background: none; cursor: pointer; color: #94a3b8; padding: 4px; border-radius: 6px; }
-.ad-modal-close:hover { background: #f1f5f9; color: #374151; }
-.ad-modal-body  { padding: 16px 20px; overflow-y: auto; }
-.ad-modal-foot  { padding: 14px 20px; border-top: 1px solid #e5ecf6; display: flex; justify-content: flex-end; gap: 8px; }
-
-.ad-wlist       { display: grid; gap: 8px; }
-.ad-witem       { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #dbe3f0;
-                  border-radius: 10px; cursor: pointer; transition: background .12s, border-color .12s; }
-.ad-witem:hover { background: #f8fbff; border-color: #93b8f0; }
-.ad-witem.active{ background: #f0f6ff; border-color: #3b82f6; }
-.ad-witem-icon  { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.ad-witem-name  { flex: 1; font-size: var(--fs-base); font-weight: 600; color: #1e293b; }
-.ad-witem-toggle{ width: 22px; height: 22px; border-radius: 6px; border: 2px solid #d1d9e8; background: #fff;
-                  display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .12s, border-color .12s; }
-.ad-witem.active .ad-witem-toggle { background: #1f64d8; border-color: #1f64d8; color: #fff; }
-
-.ad-btn-primary { background: #1f64d8; color: #fff; border-color: #1f64d8; }
-.ad-btn-primary:hover { background: #1750b8; }
-
-/* Refresh ──────────────────────────────────────────────────────────── */
-.ad-refresh-ts  { font-size: var(--fs-xs); color: #94a3b8; }
-
-@media (max-width: 1100px) { .ad-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 1100px) { .ad-family-grid { grid-template-columns: repeat(3, 1fr); } .ad-family-panels { grid-template-columns: 1fr; } }
-@media (max-width: 800px)  { .ad-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } .ad-widget.wide { grid-column: span 2; } .ad-family-grid, .ad-fire-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 500px)  { .ad-grid { grid-template-columns: 1fr; gap: 8px; } .ad-widget.wide { grid-column: span 1; } .ad-bar-label { width: 80px; } .ad-family-grid, .ad-fire-grid { grid-template-columns: 1fr; } .ad-mini-row { grid-template-columns: 1fr; } .ad-filter select { min-width: 100%; } }
-
-body.theme-dark .ad-cats-label { color:var(--text-light); }
-body.theme-dark .ad-cat { background:rgba(29,78,216,.15); border-color:rgba(29,78,216,.35); color:#93c5fd; }
-body.theme-dark .ad-cat:hover { background:rgba(29,78,216,.25); border-color:rgba(29,78,216,.5); }
-body.theme-dark .ad-cat.all { background:#1f64d8; color:#fff; border-color:#1750b8; }
-body.theme-dark .ad-title { color:var(--text); }
-body.theme-dark .ad-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .ad-btn:hover { background:var(--surface-alt); border-color:#3b82f6; color:#93c5fd; }
-body.theme-dark .ad-widget { background:var(--surface); border-color:var(--border); }
-body.theme-dark .ad-widget:hover { border-color:#334155; }
-body.theme-dark .ad-widget.drag-over { border-color:#3b82f6; background:rgba(29,78,216,.08); }
-body.theme-dark .ad-w-icon.blue { background:rgba(29,78,216,.2); color:#93c5fd; }
-body.theme-dark .ad-w-icon.green { background:rgba(21,128,61,.2); color:#86efac; }
-body.theme-dark .ad-w-icon.orange { background:rgba(194,65,12,.2); color:#fdba74; }
-body.theme-dark .ad-w-icon.red { background:rgba(185,28,28,.2); color:#fca5a5; }
-body.theme-dark .ad-w-icon.yellow { background:rgba(133,77,14,.2); color:#fde68a; }
-body.theme-dark .ad-w-icon.slate { background:rgba(71,85,105,.2); color:#94a3b8; }
-body.theme-dark .ad-w-label { color:var(--text-light); }
-body.theme-dark .ad-w-val { color:var(--text); }
-body.theme-dark .ad-w-val.danger { color:#fca5a5; }
-body.theme-dark .ad-w-val.warn { color:#fde68a; }
+/* ── Tema scuro ────────────────────────────────────────────────────── */
+body.theme-dark .ad-sec-link, body.theme-dark .ad-foot-link, body.theme-dark .ad-w-link { color:#93c5fd; }
+body.theme-dark .ad-foot-link.cta { color:#86efac; }
+body.theme-dark .ad-count { background:rgba(255,255,255,.1); color:var(--text-mid); }
+body.theme-dark .ad-count.red, body.theme-dark .ad-pill.red, body.theme-dark .ad-list-badge.red { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .ad-count.amber, body.theme-dark .ad-pill.amber, body.theme-dark .ad-list-badge.yellow { background:rgba(217,119,6,.2); color:#fcd34d; }
+body.theme-dark .ad-count.green, body.theme-dark .ad-pill.green { background:rgba(22,163,74,.2); color:#86efac; }
+body.theme-dark .ad-count.blue, body.theme-dark .ad-pill.blue { background:rgba(37,99,235,.22); color:#93c5fd; }
+body.theme-dark .ad-pill { background:rgba(255,255,255,.1); color:var(--text-mid); }
+body.theme-dark .ad-status.red { background:rgba(220,38,38,.1); border-color:rgba(248,113,113,.35); }
+body.theme-dark .ad-status.amber { background:rgba(217,119,6,.1); border-color:rgba(252,211,77,.3); }
+body.theme-dark .ad-status.green { background:rgba(22,163,74,.1); border-color:rgba(134,239,172,.3); }
+body.theme-dark .ad-chip { background:rgba(255,255,255,.04); }
+body.theme-dark .ad-chip:hover, body.theme-dark .ad-tile:hover .ad-tile-label, body.theme-dark .ad-row-main:hover .ad-row-title { color:#93c5fd; }
+body.theme-dark .ad-chip.red b, body.theme-dark .ad-facet.red b, body.theme-dark .ad-when.red { color:#fca5a5; }
+body.theme-dark .ad-chip.amber b, body.theme-dark .ad-facet.amber b, body.theme-dark .ad-when.amber { color:#fcd34d; }
+body.theme-dark .ad-kpi:hover, body.theme-dark .ad-tile:hover, body.theme-dark .ad-widget:hover, body.theme-dark .ad-row:hover { border-color:#3b5b8a; }
+body.theme-dark .ad-kpi.red .ad-kpi-val, body.theme-dark .ad-w-val.danger { color:#fca5a5; }
+body.theme-dark .ad-kpi.amber .ad-kpi-val, body.theme-dark .ad-w-val.warn, body.theme-dark .ad-metric-val.warn { color:#fcd34d; }
 body.theme-dark .ad-w-val.ok { color:#86efac; }
-body.theme-dark .ad-w-sub { color:var(--text-light); }
-body.theme-dark .ad-w-link { color:#93c5fd; }
-body.theme-dark .ad-list-item { border-bottom-color:var(--border); }
-body.theme-dark .ad-list-name { color:var(--text); }
-body.theme-dark .ad-list-date { color:var(--text-light); }
-body.theme-dark .ad-list-tag { color:var(--text-light); }
-body.theme-dark .ad-list-badge.red { background:rgba(185,28,28,.2); color:#fca5a5; }
-body.theme-dark .ad-list-badge.yellow { background:rgba(133,77,14,.2); color:#fde68a; }
-body.theme-dark .ad-list-badge.green { background:rgba(21,128,61,.2); color:#86efac; }
-body.theme-dark .ad-list-badge.slate { background:rgba(71,85,105,.2); color:#94a3b8; }
-body.theme-dark .ad-bar-label { color:var(--text); }
-body.theme-dark .ad-bar-track { background:rgba(255,255,255,.07); }
-body.theme-dark .ad-bar-count { color:var(--text-light); }
-body.theme-dark .ad-section-title,
-body.theme-dark .ad-panel-title,
-body.theme-dark .ad-family-value { color:var(--text); }
-body.theme-dark .ad-section-sub,
-body.theme-dark .ad-family-label,
-body.theme-dark .ad-mini-count { color:var(--text-light); }
-body.theme-dark .ad-filter select,
-body.theme-dark .ad-family-metric,
-body.theme-dark .ad-family-panel { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .ad-mini-label { color:var(--text); }
-body.theme-dark .ad-mini-track { background:rgba(255,255,255,.07); }
-body.theme-dark .ad-fire { background:rgba(185,28,28,.08); border-color:rgba(248,113,113,.35); }
-body.theme-dark .ad-fire .ad-family-metric { border-color:rgba(248,113,113,.35); }
-body.theme-dark .ad-refresh-ts { color:var(--text-light); }
-body.theme-dark .ad-modal { background:var(--surface); }
-body.theme-dark .ad-modal-head { border-bottom-color:var(--border); }
-body.theme-dark .ad-modal-title { color:var(--text); }
-body.theme-dark .ad-modal-close { color:var(--text-light); }
-body.theme-dark .ad-modal-close:hover { background:var(--surface-alt); color:var(--text); }
-body.theme-dark .ad-modal-foot { border-top-color:var(--border); }
-body.theme-dark .ad-witem { background:var(--surface); border-color:var(--border); }
-body.theme-dark .ad-witem:hover { background:var(--surface-alt); border-color:#3b82f6; }
-body.theme-dark .ad-witem.active { background:rgba(29,78,216,.1); border-color:#3b82f6; }
-body.theme-dark .ad-witem-name { color:var(--text); }
-body.theme-dark .ad-witem-toggle { background:var(--surface); border-color:var(--border); }
-body.theme-dark .ad-btn-primary { background:#1f64d8; border-color:#1f64d8; color:#fff; }
-/* ── Sezione performance manutenzione ───────────────────────────── */
-.ad-perf { border:1px solid #bfdbfe; background:#f0f6ff; border-radius:8px; padding:14px; margin-top:8px; }
-.ad-perf .ad-family-metric { border-color:#bfdbfe; }
-.ad-perf-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-.ad-perf-panel-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-.ad-perf-val-link { color:inherit; text-decoration:none; font-weight:800; }
-.ad-perf-val-link:hover { text-decoration:underline; }
-body.theme-dark .ad-perf { background:rgba(29,78,216,.07); border-color:rgba(99,149,255,.3); }
-body.theme-dark .ad-perf .ad-family-metric { border-color:rgba(99,149,255,.3); }
-@media (max-width:1100px) { .ad-perf-grid { grid-template-columns:repeat(2,1fr); } .ad-perf-panel-row { grid-template-columns:1fr; } }
-@media (max-width:500px)  { .ad-perf-grid { grid-template-columns:1fr; } }
-
-/* Cockpit refresh */
-.ad-wrap { max-width:1480px; padding:14px 0 40px; }
-.ad-cats { margin-bottom:14px; }
-.ad-cat { border-radius:8px; background:#fff; box-shadow:0 8px 18px rgba(15,23,42,.035); }
-.ad-cat.all { background:#0f172a; border-color:#0f172a; }
-.ad-head {
-  position:relative;
-  overflow:hidden;
-  border:1px solid #d9e2ef;
-  border-radius:10px;
-  background:linear-gradient(135deg,#fff 0%,#f8fafc 58%,#ecfdf5 100%);
-  padding:14px 16px 14px 20px;
-  box-shadow:0 14px 30px rgba(15,23,42,.055);
-}
-.ad-head:before {
-  content:"";
-  position:absolute;
-  left:0;
-  top:0;
-  bottom:0;
-  width:5px;
-  background:linear-gradient(180deg,#2563eb,#14b8a6,#f59e0b);
-}
-.ad-title { font-size:var(--fs-display-lg); letter-spacing:0; }
-.ad-btn { border-radius:10px; min-height:36px; font-weight:800; background:#fff; }
-.ad-widget,
-.ad-family-metric,
-.ad-family-panel,
-.ad-fire,
-.ad-perf {
-  border-radius:10px;
-  box-shadow:0 10px 24px rgba(15,23,42,.045);
-}
-.ad-widget { overflow:hidden; }
-.ad-widget:before {
-  content:"";
-  position:absolute;
-  left:0;
-  top:0;
-  bottom:0;
-  width:4px;
-  background:#2563eb;
-}
-.ad-widget:nth-child(3n+2):before { background:#14b8a6; }
-.ad-widget:nth-child(3n+3):before { background:#f59e0b; }
-.ad-w-icon { border-radius:10px; }
-body.theme-dark .ad-head { background:linear-gradient(135deg,var(--surface) 0%,var(--surface) 58%,rgba(20,184,166,.10) 100%); border-color:var(--border); box-shadow:none; }
-body.theme-dark .ad-cat { background:var(--surface); box-shadow:none; }
-body.theme-dark .ad-widget,
-body.theme-dark .ad-family-metric,
-body.theme-dark .ad-family-panel,
-body.theme-dark .ad-fire,
-body.theme-dark .ad-perf {
-  box-shadow:none;
-}
+body.theme-dark .ad-kpi.red { --ad-tone:#f87171; } body.theme-dark .ad-kpi.amber { --ad-tone:#fbbf24; }
+body.theme-dark .ad-kpi.green { --ad-tone:#4ade80; } body.theme-dark .ad-kpi.blue { --ad-tone:#60a5fa; }
+body.theme-dark .ad-stack, body.theme-dark .ad-bar-track, body.theme-dark .ad-mini-track { background:rgba(255,255,255,.08); }
+body.theme-dark .ad-panel-icon.blue, body.theme-dark .ad-w-icon.blue { background:rgba(37,99,235,.2); color:#93c5fd; }
+body.theme-dark .ad-panel-icon.amber, body.theme-dark .ad-w-icon.yellow { background:rgba(217,119,6,.2); color:#fcd34d; }
+body.theme-dark .ad-panel-icon.red, body.theme-dark .ad-w-icon.red { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .ad-w-icon.green { background:rgba(22,163,74,.2); color:#86efac; }
+body.theme-dark .ad-w-icon.orange { background:rgba(234,88,12,.2); color:#fdba74; }
+body.theme-dark .ad-w-icon.slate { background:rgba(148,163,184,.15); color:#cbd5e1; }
+body.theme-dark .ad-facet:hover { color:#93c5fd; background:rgba(59,130,246,.15); }
+body.theme-dark .ad-tag { background:rgba(37,99,235,.22); color:#93c5fd; }
+body.theme-dark .ad-act:hover { border-color:#60a5fa; color:#93c5fd; }
+body.theme-dark .ad-act.primary:hover { color:#fff; }
+body.theme-dark .ad-empty:before { background:rgba(22,163,74,.2); color:#86efac; }
+body.theme-dark .ad-tile-icon { background:linear-gradient(135deg,rgba(37,99,235,.2),rgba(20,184,166,.14)); border-color:rgba(96,165,250,.25); color:#93c5fd; }
+body.theme-dark .ad-cat:hover { color:#93c5fd; border-color:#3b5b8a; }
+body.theme-dark .ad-cat.all { background:#2563eb; border-color:#2563eb; }
+body.theme-dark .ad-w-remove:hover { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .ad-overlay { background:rgba(0,0,0,.6); }
 </style>
 {% endblock %}
 
 {% block assets_shell_content %}
 <div class="ad-wrap">
 
-  {# ── Barra categorie ──────────────────────────────────────────────── #}
-  <div class="ad-cats">
-    <span class="ad-cats-label">Categorie</span>
-    <a href="{% url 'assets:asset_list' %}" class="ad-cat all">
-      Tutti gli asset
-    </a>
-    {% for cat in categories %}
-    <a href="{% url 'assets:asset_list' %}?asset_category={{ cat.id }}" class="ad-cat">
-      {{ cat.label }}
-      {% with cnt=kpis.asset_per_categoria %}
-        {% for item in cnt %}{% if item.id == cat.id %}<span class="ad-cat-count">{{ item.count }}</span>{% endif %}{% endfor %}
-      {% endwith %}
-    </a>
-    {% empty %}
-    <span style="color:#94a3b8;font-size:var(--fs-sm);">Nessuna categoria configurata</span>
-    {% endfor %}
-  </div>
-
-  {# ── Header ───────────────────────────────────────────────────────── #}
-  <div class="ad-head">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <h1 class="ad-title">Dashboard</h1>
-      <span class="ad-refresh-ts" id="ad-ts">Aggiornato ora</span>
+  {# ── Stato generale ─────────────────────────────────────────────────── #}
+  {% if attention_total %}
+  <div class="ad-status red" role="status">
+  {% elif dash_wo.total or segnalazioni.open_total or dash_deadlines.total %}
+  <div class="ad-status amber" role="status">
+  {% else %}
+  <div class="ad-status green" role="status">
+  {% endif %}
+    <span class="ad-status-dot" aria-hidden="true"></span>
+    <div class="ad-status-text">
+      <div class="ad-status-title">
+        {% if attention_total %}{{ attention_total }} element{{ attention_total|pluralize:"o richiede,i richiedono" }} attenzione
+        {% elif dash_wo.total or segnalazioni.open_total or dash_deadlines.total %}Nessuna criticità: c'è lavoro in corso
+        {% else %}Tutto in ordine{% endif %}
+      </div>
+      <div class="ad-status-sub">
+        {% if attention_total %}Interventi urgenti o in ritardo, segnalazioni urgenti e scadenze superate.
+        {% else %}Niente di scaduto o urgente. Qui sotto trovi il lavoro aperto e le scadenze dei prossimi 30 giorni.{% endif %}
+      </div>
     </div>
-    <div class="ad-head-actions">
-      <button class="ad-btn" id="ad-refresh-btn" onclick="adRefresh()">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-        Aggiorna
-      </button>
-      <button class="ad-btn" id="ad-customize-btn" onclick="adOpenCustomize()">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Personalizza
-      </button>
+    <div class="ad-status-chips">
+      {% if dash_wo.urgent %}<a class="ad-chip red" href="{% url 'assets:wo_list' %}?status=OPEN&priority=URGENT"><b>{{ dash_wo.urgent }}</b> OdL urgenti</a>{% endif %}
+      {% if dash_wo.late %}<a class="ad-chip amber" href="{% url 'assets:wo_list' %}?status=OPEN"><b>{{ dash_wo.late }}</b> OdL in ritardo</a>{% endif %}
+      {% if segnalazioni.urgenti %}<a class="ad-chip red" href="{% url 'tickets:gestione_list' %}?tipo=MAN"><b>{{ segnalazioni.urgenti }}</b> segnalazioni urgenti</a>{% endif %}
+      {% if dash_deadlines.overdue %}<a class="ad-chip red" href="{% url 'assets:maintenance_scadenze' %}?window=overdue"><b>{{ dash_deadlines.overdue }}</b> scadenze superate</a>{% endif %}
     </div>
   </div>
 
-  {# ── Cruscotto operativo: cose da fare + segnalazioni arrivate ──────── #}
-  {% include "assets/pages/_operational_cockpit.html" %}
+  {# ── KPI a colpo d'occhio ──────────────────────────────────────────── #}
+  <section class="ad-kpis" aria-label="Indicatori principali">
+    <a class="ad-kpi blue" href="{% url 'assets:asset_list' %}">
+      <div class="ad-kpi-top">
+        <span class="ad-kpi-label">Parco asset</span>
+        <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>
+      </div>
+      <div class="ad-kpi-val">{{ kpis.totale_asset }}</div>
+      <div class="ad-kpi-sub"><b>{{ kpis.asset_in_uso }}</b> in uso &middot; <b>{{ kpis.asset_in_riparazione }}</b> in riparazione</div>
+      {% if kpis.totale_asset %}
+      <div class="ad-stack" title="Asset per stato">
+        {% for row in status_rows %}<span class="{% cycle 'fill-green' 'fill-blue' 'fill-orange' 'fill-slate' 'fill-violet' 'fill-teal' %}" style="width:{% widthratio row.count kpis.totale_asset 100 %}%" title="{{ row.label }}: {{ row.count }}"></span>{% endfor %}
+      </div>
+      {% endif %}
+    </a>
 
-  {# ── Griglia widget ───────────────────────────────────────────────── #}
+    <a class="ad-kpi {% if dash_wo.urgent or dash_wo.late %}amber{% elif dash_wo.total %}blue{% else %}green{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN">
+      <div class="ad-kpi-top">
+        <span class="ad-kpi-label">Interventi aperti</span>
+        <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
+      </div>
+      <div class="ad-kpi-val">{{ dash_wo.total }}</div>
+      <div class="ad-kpi-sub"><b>{{ dash_wo.unassigned }}</b> da assegnare &middot; <b>{{ dash_wo.late }}</b> in ritardo</div>
+    </a>
+
+    <a class="ad-kpi {% if segnalazioni.urgenti %}red{% elif segnalazioni.nuove %}amber{% else %}green{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN">
+      <div class="ad-kpi-top">
+        <span class="ad-kpi-label">Segnalazioni</span>
+        <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+      </div>
+      <div class="ad-kpi-val">{{ segnalazioni.open_total }}</div>
+      <div class="ad-kpi-sub"><b>{{ segnalazioni.nuove }}</b> nuove &middot; <b>{{ segnalazioni.urgenti }}</b> urgenti</div>
+    </a>
+
+    <a class="ad-kpi {% if dash_deadlines.maintenance_overdue %}red{% elif dash_deadlines.maintenance_due_soon %}amber{% else %}green{% endif %}" href="{% url 'assets:maintenance_da_fare' %}">
+      <div class="ad-kpi-top">
+        <span class="ad-kpi-label">Manutenzioni scadute</span>
+        <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+      </div>
+      <div class="ad-kpi-val">{{ dash_deadlines.maintenance_overdue }}</div>
+      <div class="ad-kpi-sub"><b>{{ dash_deadlines.maintenance_due_soon }}</b> nei prossimi 30 giorni</div>
+    </a>
+
+    <a class="ad-kpi {% if kpis.scadenze_scadute %}red{% elif kpis.scadenze_30gg %}amber{% else %}green{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?plan_type=administrative&window=overdue">
+      <div class="ad-kpi-top">
+        <span class="ad-kpi-label">Adempimenti scaduti</span>
+        <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg></span>
+      </div>
+      <div class="ad-kpi-val">{{ kpis.scadenze_scadute }}</div>
+      <div class="ad-kpi-sub"><b>{{ kpis.scadenze_30gg }}</b> entro 30 giorni &middot; {{ kpis.scadenze_90gg }} entro 90</div>
+    </a>
+
+    <a class="ad-kpi {% if kpis.verifiche_scadute %}red{% elif kpis.verifiche_30gg %}amber{% else %}green{% endif %}" href="{% url 'assets:periodic_verifications' %}">
+      <div class="ad-kpi-top">
+        <span class="ad-kpi-label">Verifiche scadute</span>
+        <span class="ad-kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span>
+      </div>
+      <div class="ad-kpi-val">{{ kpis.verifiche_scadute }}</div>
+      <div class="ad-kpi-sub"><b>{{ kpis.verifiche_30gg }}</b> entro 30 giorni</div>
+    </a>
+  </section>
+
+  {# ── Cosa c'è da fare ──────────────────────────────────────────────── #}
+  <section aria-labelledby="ad-todo-title">
+    <div class="ad-sec-head">
+      <div>
+        <h2 class="ad-sec-title" id="ad-todo-title">Cosa c'è da fare</h2>
+        <p class="ad-sec-sub">Prima gli urgenti e i ritardi. Le azioni agiscono subito, senza aprire le schede.</p>
+      </div>
+    </div>
+    <div class="ad-todo">
+
+      {# Interventi aperti #}
+      <div class="ad-panel">
+        <div class="ad-panel-head">
+          <span class="ad-panel-icon blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+          <span class="ad-panel-title">Interventi aperti<small>Ordini di lavoro da eseguire</small></span>
+          <span class="ad-count {% if dash_wo.urgent or dash_wo.late %}amber{% elif dash_wo.total %}blue{% else %}green{% endif %}">{{ dash_wo.total }}</span>
+        </div>
+        <div class="ad-facets">
+          <a class="ad-facet {% if dash_wo.urgent %}red{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN&priority=URGENT">Urgenti <b>{{ dash_wo.urgent }}</b></a>
+          <a class="ad-facet {% if dash_wo.late %}amber{% endif %}" href="{% url 'assets:wo_list' %}?status=OPEN">In ritardo <b>{{ dash_wo.late }}</b></a>
+          <a class="ad-facet" href="{% url 'assets:wo_list' %}?status=OPEN">Da assegnare <b>{{ dash_wo.unassigned }}</b></a>
+          <a class="ad-facet" href="{% url 'assets:il_mio_turno' %}">Miei <b>{{ dash_wo.mine }}</b></a>
+        </div>
+        {% if dash_wo.items %}
+        <ul class="ad-rows">
+          {% for it in dash_wo.items %}
+          <li class="ad-row {% if it.is_urgent %}red{% elif it.is_late %}amber{% else %}blue{% endif %}">
+            <span class="ad-row-bar" aria-hidden="true"></span>
+            <a class="ad-row-main" href="{% url 'assets:wo_view' it.id %}">
+              <div class="ad-row-title" title="{{ it.title }}">{{ it.title }}</div>
+              <div class="ad-row-meta">
+                {% if it.asset_tag %}<span class="ad-tag">{{ it.asset_tag }}</span>{% endif %}
+                <span>{{ it.asset_name|truncatechars:28 }}</span>
+                {% if it.is_urgent %}<span class="ad-pill red">Urgente</span>{% endif %}
+                <span class="ad-pill {% if it.state == 'unassigned' %}amber{% elif it.state == 'in_progress' %}blue{% endif %}">{% if it.assignee and it.state != 'unassigned' %}{{ it.state_label }} &middot; {% if it.is_mine %}tu{% else %}{{ it.assignee|truncatechars:18 }}{% endif %}{% else %}{{ it.state_label }}{% endif %}</span>
+              </div>
+            </a>
+            <div class="ad-row-side">
+              <span class="ad-when {% if it.is_late %}amber{% endif %}" title="Aperto da {{ it.age_days }} giorni">{% if it.age_days == 0 %}oggi{% elif it.age_days == 1 %}1 giorno{% else %}{{ it.age_days }} gg{% endif %}</span>
+              <div class="ad-acts">
+                {% if not it.is_mine %}
+                <form class="ad-act-form" method="post" action="{% url 'assets:wo_claim' it.id %}">
+                  {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                  <button type="submit" class="ad-act primary" title="Assegna a te l'intervento">Prendo io</button>
+                </form>
+                {% endif %}
+                <a class="ad-act" href="{% url 'assets:wo_close' it.id %}" title="Registra la chiusura">Chiudi</a>
+              </div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="ad-empty">Nessun intervento aperto.</p>
+        {% endif %}
+        <div class="ad-panel-foot">
+          <a class="ad-foot-link cta" href="{% url 'assets:wo_list' %}?create=1">+ Nuovo intervento</a>
+          <a class="ad-foot-link" href="{% url 'assets:wo_list' %}?status=OPEN">Tutti gli OdL &rsaquo;</a>
+        </div>
+      </div>
+
+      {# Segnalazioni #}
+      <div class="ad-panel">
+        <div class="ad-panel-head">
+          <span class="ad-panel-icon amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
+          <span class="ad-panel-title">Segnalazioni arrivate<small>Ticket di manutenzione dagli operatori</small></span>
+          <span class="ad-count {% if segnalazioni.urgenti %}red{% elif segnalazioni.nuove %}amber{% elif segnalazioni.open_total %}blue{% else %}green{% endif %}">{{ segnalazioni.open_total }}</span>
+        </div>
+        <div class="ad-facets">
+          <a class="ad-facet {% if segnalazioni.nuove %}amber{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN&stato=APERTA">Nuove <b>{{ segnalazioni.nuove }}</b></a>
+          <a class="ad-facet" href="{% url 'tickets:gestione_list' %}?tipo=MAN&stato=IN_CARICO">In carico <b>{{ segnalazioni.in_carico }}</b></a>
+          <a class="ad-facet" href="{% url 'tickets:gestione_list' %}?tipo=MAN&stato=IN_ATTESA">In attesa <b>{{ segnalazioni.in_attesa }}</b></a>
+          <a class="ad-facet {% if segnalazioni.urgenti %}red{% endif %}" href="{% url 'tickets:gestione_list' %}?tipo=MAN">Urgenti <b>{{ segnalazioni.urgenti }}</b></a>
+        </div>
+        {% if segnalazioni.items %}
+        <ul class="ad-rows">
+          {% for s in segnalazioni.items %}
+          <li class="ad-row {% if s.priorita == 'URGENTE' or s.incide_sicurezza %}red{% elif s.is_new or s.priorita == 'ALTA' %}amber{% else %}blue{% endif %}">
+            <span class="ad-row-bar" aria-hidden="true"></span>
+            <a class="ad-row-main" href="{% url 'tickets:detail' s.id %}">
+              <div class="ad-row-title" title="{{ s.titolo }}">{% if s.incide_sicurezza %}&#9888; {% endif %}{{ s.titolo }}</div>
+              <div class="ad-row-meta">
+                <span>{{ s.asset_label|truncatechars:34 }}</span>
+                {% if s.is_new %}<span class="ad-pill amber">Nuova</span>{% else %}<span class="ad-pill blue">{{ s.stato_label }}</span>{% endif %}
+                <span class="ad-pill {% if s.priorita == 'URGENTE' %}red{% elif s.priorita == 'ALTA' %}amber{% endif %}">{{ s.priorita_label }}</span>
+              </div>
+            </a>
+            <div class="ad-row-side">
+              <span class="ad-when">{{ s.created_at|date:"d/m" }}</span>
+              <div class="ad-acts">
+                {% if can_manage_man and s.is_new %}
+                <button type="button" class="ad-act primary" data-ticket-take="{{ s.id }}" title="Prendi in carico la segnalazione">Prendi in carico</button>
+                {% else %}
+                <a class="ad-act" href="{% url 'tickets:detail' s.id %}">Apri</a>
+                {% endif %}
+              </div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="ad-empty">Nessuna segnalazione aperta.</p>
+        {% endif %}
+        <div class="ad-panel-foot">
+          <a class="ad-foot-link cta" href="{% url 'assets:asset_quick_report' %}">+ Segnala un guasto</a>
+          <a class="ad-foot-link" href="{% url 'tickets:gestione_list' %}?tipo=MAN">Gestione segnalazioni &rsaquo;</a>
+        </div>
+      </div>
+
+      {# Scadenze #}
+      <div class="ad-panel">
+        <div class="ad-panel-head">
+          <span class="ad-panel-icon red"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+          <span class="ad-panel-title">Scadenze<small>Superate ed entro 30 giorni</small></span>
+          <span class="ad-count {% if dash_deadlines.overdue %}red{% elif dash_deadlines.total %}amber{% else %}green{% endif %}">{{ dash_deadlines.total }}</span>
+        </div>
+        <div class="ad-facets">
+          <a class="ad-facet {% if dash_deadlines.overdue %}red{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=overdue">Superate <b>{{ dash_deadlines.overdue }}</b></a>
+          <a class="ad-facet {% if dash_deadlines.due_soon %}amber{% endif %}" href="{% url 'assets:maintenance_scadenze' %}?window=30">Entro 30 gg <b>{{ dash_deadlines.due_soon }}</b></a>
+        </div>
+        {% if dash_deadlines.items %}
+        <ul class="ad-rows">
+          {% for d in dash_deadlines.items %}
+          <li class="ad-row {% if d.is_overdue %}red{% elif d.days <= 7 %}amber{% else %}blue{% endif %}">
+            <span class="ad-row-bar" aria-hidden="true"></span>
+            <a class="ad-row-main" href="{{ d.url }}">
+              <div class="ad-row-title" title="{{ d.title }}">{{ d.title }}</div>
+              <div class="ad-row-meta">
+                <span class="ad-pill">{{ d.source_label }}</span>
+                {% if d.asset_tag %}<span class="ad-tag">{{ d.asset_tag }}</span>{% endif %}
+                {% if d.asset_name %}<span>{{ d.asset_name|truncatechars:26 }}</span>{% endif %}
+              </div>
+            </a>
+            <div class="ad-row-side">
+              <span class="ad-when {% if d.is_overdue %}red{% elif d.days <= 7 %}amber{% endif %}" title="{{ d.due_date|date:'d/m/Y' }}">{% if d.is_overdue %}scaduta {{ d.due_date|date:"d/m" }}{% elif d.days == 0 %}oggi{% else %}tra {{ d.days }} gg{% endif %}</span>
+              <div class="ad-acts">
+                <a class="ad-act {% if d.is_overdue %}primary{% endif %}" href="{{ d.url }}" title="{{ d.action_label }}">{% if d.source == 'verification' %}Gestisci{% elif d.work_order_id %}Apri OdL{% else %}Registra{% endif %}</a>
+              </div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="ad-empty">Nessuna scadenza nei prossimi 30 giorni.</p>
+        {% endif %}
+        <div class="ad-panel-foot">
+          <a class="ad-foot-link" href="{% url 'assets:periodic_verifications' %}">Verifiche periodiche &rsaquo;</a>
+          <a class="ad-foot-link" href="{% url 'assets:maintenance_scadenze' %}">Scadenzario completo &rsaquo;</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ── Vai a ─────────────────────────────────────────────────────────── #}
+  <section aria-labelledby="ad-launch-title">
+    <div class="ad-sec-head">
+      <div>
+        <h2 class="ad-sec-title" id="ad-launch-title">Vai a</h2>
+        <p class="ad-sec-sub">Le parti principali del modulo.</p>
+      </div>
+    </div>
+    <nav class="ad-launch" aria-label="Sezioni del modulo">
+      {% for t in launcher %}
+      <a class="ad-tile" href="{{ t.url }}">
+        <span class="ad-tile-icon" aria-hidden="true">
+          {% if t.code == "inventory" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          {% elif t.code == "hub" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          {% elif t.code == "todo" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/></svg>
+          {% elif t.code == "workorders" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          {% elif t.code == "shift" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          {% elif t.code == "deadlines" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          {% elif t.code == "plans" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          {% elif t.code == "verifications" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+          {% elif t.code == "checks" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+          {% elif t.code == "map" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+          {% elif t.code == "machines" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          {% elif t.code == "tickets" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          {% elif t.code == "history" %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg>
+          {% else %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>{% endif %}
+        </span>
+        <span class="ad-tile-body">
+          <span class="ad-tile-label">{{ t.label }}</span>
+          <span class="ad-tile-hint" title="{{ t.hint }}">{{ t.hint }}</span>
+        </span>
+        {% if t.count %}<span class="ad-count {{ t.tone }}">{{ t.count }}</span>{% endif %}
+      </a>
+      {% endfor %}
+    </nav>
+    <div class="ad-cats">
+      <span class="ad-cats-label">Inventario per categoria</span>
+      <a href="{% url 'assets:asset_list' %}" class="ad-cat all">Tutti <span class="ad-cat-count">{{ kpis.totale_asset }}</span></a>
+      {% for cat in categories_top %}
+      <a href="{% url 'assets:asset_list' %}?asset_category={{ cat.id }}" class="ad-cat">{{ cat.label }} <span class="ad-cat-count">{{ cat.asset_count }}</span></a>
+      {% empty %}
+      {% if not categories_rest %}<span class="ad-muted">Nessuna categoria configurata</span>{% endif %}
+      {% endfor %}
+      {% if categories_rest %}
+      <details class="ad-cats-more">
+        <summary>+ altre {{ categories_rest|length }}</summary>
+        {% for cat in categories_rest %}
+        <a href="{% url 'assets:asset_list' %}?asset_category={{ cat.id }}" class="ad-cat">{{ cat.label }}{% if cat.asset_count %} <span class="ad-cat-count">{{ cat.asset_count }}</span>{% endif %}</a>
+        {% endfor %}
+      </details>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ── Indicatori personalizzabili ───────────────────────────────────── #}
+  <section aria-labelledby="ad-widgets-title">
+    <div class="ad-sec-head">
+      <div>
+        <h2 class="ad-sec-title" id="ad-widgets-title">I tuoi indicatori</h2>
+        <p class="ad-sec-sub">Scegli quali mostrare e trascinali per cambiarne l'ordine.</p>
+      </div>
+      <button type="button" class="ad-act" onclick="adOpenCustomize()">Aggiungi / rimuovi</button>
+    </div>
   <div class="ad-grid" id="ad-grid">
 
     {% for wcode in enabled_widgets %}
@@ -497,7 +778,7 @@ body.theme-dark .ad-perf {
           <span class="ad-bar-count">{{ row.count }}</span>
         </div>
         {% empty %}
-        <span style="color:#94a3b8;font-size:var(--fs-sm);">Nessun dato</span>
+        <span class="ad-muted">Nessun dato</span>
         {% endfor %}
       </div>
       {% endwith %}
@@ -524,7 +805,7 @@ body.theme-dark .ad-perf {
         </div>
         {% endif %}
         {% empty %}
-        <span style="color:#94a3b8;font-size:var(--fs-sm);">Nessun dato</span>
+        <span class="ad-muted">Nessun dato</span>
         {% endfor %}
       </div>
       {% endwith %}
@@ -533,287 +814,185 @@ body.theme-dark .ad-perf {
 
     {% endif %}
     {% empty %}
-    <div style="grid-column:1/-1;text-align:center;padding:40px;color:#94a3b8;">
-      <p>Nessun widget abilitato. <button class="ad-btn" onclick="adOpenCustomize()" style="margin-top:8px;">Aggiungi widget</button></p>
+    <div class="ad-muted" style="text-align:center;padding:30px;">
+      <p>Nessun widget abilitato. <button class="ad-act" onclick="adOpenCustomize()" >Aggiungi widget</button></p>
     </div>
     {% endfor %}
 
+
   </div>{# /ad-grid #}
-
-  <section class="ad-family-section" aria-labelledby="ad-family-kpi-title">
-    <div class="ad-section-head">
-      <div>
-        <h2 class="ad-section-title" id="ad-family-kpi-title">KPI per famiglia asset</h2>
-        <p class="ad-section-sub">
-          {% if selected_family_label %}{{ selected_family_label }}{% else %}Tutte le famiglie{% endif %}
-        </p>
-      </div>
-      <form class="ad-filter" method="get">
-        <label class="ad-cats-label" for="family-filter">Famiglia</label>
-        <select id="family-filter" name="family">
-          <option value="">Tutte le famiglie</option>
-          {% for family in family_options %}
-          <option value="{{ family.id }}" {% if family.id == selected_family_id %}selected{% endif %}>{{ family.label }}</option>
-          {% endfor %}
-        </select>
-        <button class="ad-btn" type="submit">Applica</button>
-      </form>
-    </div>
-
-    <div class="ad-family-grid">
-      <div class="ad-family-metric">
-        <div class="ad-family-label">Totale asset famiglia</div>
-        <div class="ad-family-value">{{ family_kpis.totale_asset_famiglia }}</div>
-      </div>
-      <div class="ad-family-metric">
-        <div class="ad-family-label">Asset in uso</div>
-        <div class="ad-family-value">{{ family_kpis.asset_in_uso_famiglia }}</div>
-      </div>
-      <div class="ad-family-metric">
-        <div class="ad-family-label">Asset in riparazione</div>
-        <div class="ad-family-value">{{ family_kpis.asset_in_riparazione_famiglia }}</div>
-      </div>
-      <div class="ad-family-metric">
-        <div class="ad-family-label">OdL aperti</div>
-        <div class="ad-family-value">{{ family_kpis.wo_aperte_famiglia }}</div>
-      </div>
-      <div class="ad-family-metric">
-        <div class="ad-family-label">OdL chiusi mese</div>
-        <div class="ad-family-value">{{ family_kpis.wo_chiuse_mese_famiglia }}</div>
-      </div>
-      <div class="ad-family-metric">
-        <div class="ad-family-label">Ticket MAN aperti</div>
-        <div class="ad-family-value">{{ family_kpis.ticket_man_aperti_famiglia }}</div>
-      </div>
-      <div class="ad-family-metric">
-        <div class="ad-family-label">Ticket MAN chiusi mese</div>
-        <div class="ad-family-value">{{ family_kpis.ticket_man_chiusi_mese_famiglia }}</div>
-      </div>
-      <div class="ad-family-metric">
-        <div class="ad-family-label">Ore fermo mese</div>
-        <div class="ad-family-value">{{ family_kpis.fermi_ore_mese_famiglia|floatformat:2 }}</div>
-      </div>
-    </div>
-
-    <div class="ad-family-panels">
-      <div class="ad-family-panel">
-        <h3 class="ad-panel-title">Asset per famiglia</h3>
-        <div class="ad-mini-bars">
-          {% for row in family_distribution %}
-          <div class="ad-mini-row">
-            <span class="ad-mini-label" title="{{ row.label }}">{{ row.label }}</span>
-            <span class="ad-mini-track"><span class="ad-mini-fill" style="width:{{ row.percent|default:0 }}%;"></span></span>
-            <span class="ad-mini-count">{{ row.count }}</span>
-          </div>
-          {% empty %}
-          <span class="ad-empty">Nessun dato</span>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="ad-family-panel">
-        <h3 class="ad-panel-title">Manutenzioni per famiglia</h3>
-        <div class="ad-mini-bars">
-          {% for row in maintenance_by_family %}
-          <div class="ad-mini-row">
-            <span class="ad-mini-label" title="{{ row.label }}">{{ row.label }}</span>
-            <span class="ad-mini-track"><span class="ad-mini-fill green" style="width:{{ row.percent|default:0 }}%;"></span></span>
-            <span class="ad-mini-count">{{ row.count }}</span>
-          </div>
-          {% empty %}
-          <span class="ad-empty">Nessun dato</span>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="ad-family-panel">
-        <h3 class="ad-panel-title">Ore fermo per famiglia</h3>
-        <div class="ad-mini-bars">
-          {% for row in downtime_by_family %}
-          <div class="ad-mini-row">
-            <span class="ad-mini-label" title="{{ row.label }}">{{ row.label }}</span>
-            <span class="ad-mini-track"><span class="ad-mini-fill orange" style="width:{{ row.percent|default:0 }}%;"></span></span>
-            <span class="ad-mini-count">{{ row.hours|floatformat:2 }}</span>
-          </div>
-          {% empty %}
-          <span class="ad-empty">Nessun dato</span>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-
-    {% if fire_safety_kpis.has_fire_safety %}
-    <div class="ad-fire">
-      <h3 class="ad-panel-title">Antincendio</h3>
-      <div class="ad-fire-grid">
-        <div class="ad-family-metric">
-          <div class="ad-family-label">Asset antincendio totali</div>
-          <div class="ad-family-value">{{ fire_safety_kpis.antincendio_asset_totali }}</div>
-        </div>
-        <div class="ad-family-metric">
-          <div class="ad-family-label">Scadenze scadute</div>
-          <div class="ad-family-value">{{ fire_safety_kpis.antincendio_scadenze_scadute }}</div>
-        </div>
-        <div class="ad-family-metric">
-          <div class="ad-family-label">Scadenze prossimi 30 giorni</div>
-          <div class="ad-family-value">{{ fire_safety_kpis.antincendio_scadenze_30gg }}</div>
-        </div>
-        <div class="ad-family-metric">
-          <div class="ad-family-label">OdL aperti antincendio</div>
-          <div class="ad-family-value">{{ fire_safety_kpis.antincendio_wo_aperte }}</div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
   </section>
 
-  {# ── Sezione Performance Manutenzione ───────────────────────────────── #}
-  {% if maintenance_perf.has_data %}
-  <section class="ad-family-section">
-    <div class="ad-section-head">
-      <div>
-        <h2 class="ad-section-title">Performance manutenzione</h2>
-        <p class="ad-section-sub">Metriche operative del mese corrente · OdL, downtime, costi, ticket</p>
-      </div>
-      <a class="ad-btn" href="{% url 'assets:wo_list' %}">Tutti gli OdL</a>
-    </div>
-
-    <div class="ad-perf">
-      {# 4 metric card principali #}
-      <div class="ad-perf-grid">
-        <div class="ad-family-metric">
-          <div class="ad-family-label">MTTR medio (ore correttive)</div>
-          <div class="ad-family-value">{% if maintenance_perf.mttr_hours %}{{ maintenance_perf.mttr_hours|floatformat:1 }}h{% else %}&mdash;{% endif %}</div>
-        </div>
-        <div class="ad-family-metric">
-          <div class="ad-family-label">Downtime mese (ore)</div>
-          <div class="ad-family-value {% if maintenance_perf.downtime_hours_month %}ad-w-val warn{% endif %}">{{ maintenance_perf.downtime_hours_month|floatformat:1 }}h</div>
-        </div>
-        <div class="ad-family-metric">
-          <div class="ad-family-label">Costo manutenzione (mese)</div>
-          <div class="ad-family-value">{% if maintenance_perf.maintenance_cost_month %}&euro;&nbsp;{{ maintenance_perf.maintenance_cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}</div>
-        </div>
-        <div class="ad-family-metric">
-          <div class="ad-family-label">Ticket MAN aperti</div>
-          <div class="ad-family-value {% if maintenance_perf.ticket_man_open %}ad-w-val warn{% else %}ad-w-val ok{% endif %}">
-            <a class="ad-perf-val-link" href="{% url 'tickets:gestione_list' %}?tipo=MAN" title="Vedi ticket manutenzione aperti">{{ maintenance_perf.ticket_man_open }}</a>
-          </div>
-        </div>
-      </div>
-
-      {# Panel barre: OdL per tipo + riepilogo mese #}
-      <div class="ad-perf-panel-row">
-        <div class="ad-family-panel">
-          <h3 class="ad-panel-title">OdL aperti per tipo &mdash; {{ maintenance_perf.wo_open_total }} totali</h3>
-          {% if maintenance_perf.wo_open_by_kind %}
-          <div class="ad-mini-bars">
-            {% for kind_code, kind_data in maintenance_perf.wo_open_by_kind.items %}
-            <div class="ad-mini-row">
-              <span class="ad-mini-label">
-                <a href="{% url 'assets:wo_list' %}?kind={{ kind_code }}&status=OPEN">{{ kind_data.label }}</a>
-              </span>
-              <span class="ad-mini-track"><span class="ad-mini-fill {% if kind_code == 'CORRECTIVE' %}orange{% elif kind_code == 'PREVENTIVE' %}green{% else %}blue{% endif %}" style="width:{{ kind_data.percent|default:0 }}%;"></span></span>
-              <span class="ad-mini-count">{{ kind_data.count }}</span>
-            </div>
+  {# ── Analisi (famiglie, performance, antincendio) ──────────────────── #}
+  <details class="ad-analysis" id="ad-analysis"{% if selected_family_id %} open{% endif %}>
+    <summary>
+      <span class="ad-panel-icon blue" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+      <span class="ad-panel-title">Analisi per famiglia e performance<small>MTTR, fermi, costi del mese e distribuzione per famiglia{% if selected_family_label %} &middot; {{ selected_family_label }}{% endif %}</small></span>
+    </summary>
+    <div class="ad-analysis-body">
+      <div class="ad-sec-head" style="margin:10px 0 0;">
+        <h3 class="ad-subhead">KPI per famiglia &middot; {% if selected_family_label %}{{ selected_family_label }}{% else %}tutte{% endif %}</h3>
+        <form class="ad-filter" method="get">
+          <label class="ad-cats-label" for="family-filter">Famiglia</label>
+          <select id="family-filter" name="family" onchange="this.form.submit()">
+            <option value="">Tutte le famiglie</option>
+            {% for family in family_options %}
+            <option value="{{ family.id }}" {% if family.id == selected_family_id %}selected{% endif %}>{{ family.label }}</option>
             {% endfor %}
-          </div>
-          {% else %}
-          <p class="ad-empty">Nessun OdL aperto</p>
-          {% endif %}
-        </div>
+          </select>
+          <noscript><button class="ad-act" type="submit">Applica</button></noscript>
+        </form>
+      </div>
+      <div class="ad-metrics">
+        <div class="ad-metric"><div class="ad-metric-label">Asset</div><div class="ad-metric-val">{{ family_kpis.totale_asset_famiglia }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">In uso</div><div class="ad-metric-val">{{ family_kpis.asset_in_uso_famiglia }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">In riparazione</div><div class="ad-metric-val {% if family_kpis.asset_in_riparazione_famiglia %}warn{% endif %}">{{ family_kpis.asset_in_riparazione_famiglia }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">OdL aperti</div><div class="ad-metric-val">{{ family_kpis.wo_aperte_famiglia }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">OdL chiusi mese</div><div class="ad-metric-val">{{ family_kpis.wo_chiuse_mese_famiglia }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Ticket MAN aperti</div><div class="ad-metric-val">{{ family_kpis.ticket_man_aperti_famiglia }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Ticket chiusi mese</div><div class="ad-metric-val">{{ family_kpis.ticket_man_chiusi_mese_famiglia }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Ore fermo mese</div><div class="ad-metric-val">{{ family_kpis.fermi_ore_mese_famiglia|floatformat:1 }}</div></div>
+      </div>
 
-        <div class="ad-family-panel">
-          <h3 class="ad-panel-title">Riepilogo mese</h3>
+      <div class="ad-panels">
+        <div class="ad-mini-panel">
+          <h4 class="ad-mini-title">Asset per famiglia</h4>
           <div class="ad-mini-bars">
+            {% for row in family_distribution %}
             <div class="ad-mini-row">
-              <span class="ad-mini-label">OdL chiusi</span>
-              <span class="ad-mini-track"><span class="ad-mini-fill green" style="width:100%;"></span></span>
-              <span class="ad-mini-count"><a href="{% url 'assets:wo_list' %}?status=DONE">{{ maintenance_perf.wo_closed_month }}</a></span>
+              <span class="ad-mini-label" title="{{ row.label }}">{{ row.label }}</span>
+              <span class="ad-mini-track"><span class="ad-mini-fill" style="width:{{ row.percent|default:0 }}%;"></span></span>
+              <span class="ad-mini-count">{{ row.count }}</span>
             </div>
+            {% empty %}<span class="ad-muted">Nessun dato</span>{% endfor %}
+          </div>
+        </div>
+        <div class="ad-mini-panel">
+          <h4 class="ad-mini-title">Manutenzioni per famiglia</h4>
+          <div class="ad-mini-bars">
+            {% for row in maintenance_by_family %}
             <div class="ad-mini-row">
-              <span class="ad-mini-label">OdL aperti</span>
-              <span class="ad-mini-track"><span class="ad-mini-fill orange" style="width:{% if maintenance_perf.wo_closed_month %}{{ maintenance_perf.wo_open_total|floatformat:0 }}{% else %}100{% endif %}%;"></span></span>
-              <span class="ad-mini-count"><a href="{% url 'assets:wo_list' %}?status=OPEN">{{ maintenance_perf.wo_open_total }}</a></span>
+              <span class="ad-mini-label" title="{{ row.label }}">{{ row.label }}</span>
+              <span class="ad-mini-track"><span class="ad-mini-fill green" style="width:{{ row.percent|default:0 }}%;"></span></span>
+              <span class="ad-mini-count">{{ row.count }}</span>
             </div>
+            {% empty %}<span class="ad-muted">Nessun dato</span>{% endfor %}
+          </div>
+        </div>
+        <div class="ad-mini-panel">
+          <h4 class="ad-mini-title">Ore di fermo per famiglia</h4>
+          <div class="ad-mini-bars">
+            {% for row in downtime_by_family %}
             <div class="ad-mini-row">
-              <span class="ad-mini-label">Ticket MAN</span>
-              <span class="ad-mini-track"><span class="ad-mini-fill blue" style="width:{% if maintenance_perf.ticket_man_open %}60{% else %}0{% endif %}%;"></span></span>
-              <span class="ad-mini-count"><a href="{% url 'tickets:gestione_list' %}?tipo=MAN">{{ maintenance_perf.ticket_man_open }}</a></span>
+              <span class="ad-mini-label" title="{{ row.label }}">{{ row.label }}</span>
+              <span class="ad-mini-track"><span class="ad-mini-fill orange" style="width:{{ row.percent|default:0 }}%;"></span></span>
+              <span class="ad-mini-count">{{ row.hours|floatformat:1 }}</span>
             </div>
+            {% empty %}<span class="ad-muted">Nessun dato</span>{% endfor %}
           </div>
         </div>
       </div>
-    </div>
-  </section>
-  {% endif %}
 
-  {# Pulsante "Aggiungi widget" a piede griglia #}
-  <div style="text-align:center;margin-top:8px;">
-    <button class="ad-btn" onclick="adOpenCustomize()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Aggiungi / rimuovi widget
-    </button>
-  </div>
+      {% if maintenance_perf.has_data %}
+      <h3 class="ad-subhead">Performance manutenzione del mese</h3>
+      <div class="ad-metrics" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+        <div class="ad-metric"><div class="ad-metric-label">MTTR medio (correttive)</div><div class="ad-metric-val">{% if maintenance_perf.mttr_hours %}{{ maintenance_perf.mttr_hours|floatformat:1 }} h{% else %}&mdash;{% endif %}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Fermo macchina</div><div class="ad-metric-val {% if maintenance_perf.downtime_hours_month %}warn{% endif %}">{{ maintenance_perf.downtime_hours_month|floatformat:1 }} h</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Costo manutenzione</div><div class="ad-metric-val">{% if maintenance_perf.maintenance_cost_month %}&euro;&nbsp;{{ maintenance_perf.maintenance_cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">OdL chiusi</div><div class="ad-metric-val"><a href="{% url 'assets:wo_list' %}?status=DONE">{{ maintenance_perf.wo_closed_month }}</a></div></div>
+      </div>
+      {% if maintenance_perf.wo_open_by_kind %}
+      <div class="ad-mini-panel">
+        <h4 class="ad-mini-title">OdL aperti per tipo &middot; {{ maintenance_perf.wo_open_total }} in tutto</h4>
+        <div class="ad-mini-bars">
+          {% for kind_code, kind_data in maintenance_perf.wo_open_by_kind.items %}
+          <div class="ad-mini-row">
+            <span class="ad-mini-label"><a href="{% url 'assets:wo_list' %}?kind={{ kind_code }}&status=OPEN">{{ kind_data.label }}</a></span>
+            <span class="ad-mini-track"><span class="ad-mini-fill {% if kind_code == 'CORRECTIVE' %}orange{% elif kind_code == 'PREVENTIVE' %}green{% endif %}" style="width:{{ kind_data.percent|default:0 }}%;"></span></span>
+            <span class="ad-mini-count">{{ kind_data.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if fire_safety_kpis.has_fire_safety %}
+      <h3 class="ad-subhead fire">Antincendio</h3>
+      <div class="ad-metrics" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+        <div class="ad-metric"><div class="ad-metric-label">Asset antincendio</div><div class="ad-metric-val">{{ fire_safety_kpis.antincendio_asset_totali }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Scadenze superate</div><div class="ad-metric-val {% if fire_safety_kpis.antincendio_scadenze_scadute %}warn{% endif %}">{{ fire_safety_kpis.antincendio_scadenze_scadute }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Scadenze 30 giorni</div><div class="ad-metric-val">{{ fire_safety_kpis.antincendio_scadenze_30gg }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">OdL aperti</div><div class="ad-metric-val">{{ fire_safety_kpis.antincendio_wo_aperte }}</div></div>
+      </div>
+      {% endif %}
+    </div>
+  </details>
 
 </div>{# /ad-wrap #}
+
+<div class="ad-toast" id="ad-toast" role="status" aria-live="polite"></div>
 
 {# ── Modale personalizza ─────────────────────────────────────────────── #}
 <div class="ad-overlay" id="ad-overlay" onclick="adOverlayClick(event)">
   <div class="ad-modal" role="dialog" aria-modal="true" aria-labelledby="ad-modal-title">
     <div class="ad-modal-head">
-      <h2 class="ad-modal-title" id="ad-modal-title">Personalizza dashboard</h2>
+      <h2 class="ad-modal-title" id="ad-modal-title">Personalizza gli indicatori</h2>
       <button class="ad-modal-close" onclick="adCloseCustomize()" aria-label="Chiudi">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <div class="ad-modal-body">
-      <p style="font-size:var(--fs-sm);color:#64748b;margin:0 0 12px;">
-        Attiva o disattiva i widget. L'ordine può essere modificato trascinando i widget nella dashboard.
-      </p>
+      <p>Attiva o disattiva gli indicatori. L'ordine si cambia trascinandoli nella dashboard.</p>
       <div class="ad-wlist" id="ad-wlist">
         {% for w in widgets_all %}
         <div class="ad-witem {% if w.enabled %}active{% endif %}" data-code="{{ w.code }}" onclick="adToggleWidget('{{ w.code }}')">
           <div class="ad-witem-icon ad-w-icon {{ w.color }}">
-            {# icona inline semplificata #}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/></svg>
           </div>
           <span class="ad-witem-name">{{ w.label }}</span>
           <div class="ad-witem-toggle" aria-label="{% if w.enabled %}attivo{% else %}disattivo{% endif %}">
-            {% if w.enabled %}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-            {% endif %}
+            {% if w.enabled %}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>{% endif %}
           </div>
         </div>
         {% endfor %}
       </div>
     </div>
     <div class="ad-modal-foot">
-      <button class="ad-btn" onclick="adCloseCustomize()">Annulla</button>
-      <button class="ad-btn ad-btn-primary" id="ad-save-btn" onclick="adSaveConfig()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Salva e applica
-      </button>
+      <button class="btn btn-secondary" onclick="adCloseCustomize()">Annulla</button>
+      <button class="btn btn-primary" id="ad-save-btn" onclick="adSaveConfig()">Salva e applica</button>
     </div>
   </div>
 </div>
 {% endblock %}
 
 {% block assets_shell_scripts %}
+{{ enabled_widgets|json_script:"ad-enabled-widgets" }}
 <script>
-// ── Stato locale ─────────────────────────────────────────────────────
 const AD_SAVE_URL = "{% url 'assets:api_dashboard_save_config' %}";
-let adEnabled = {{ enabled_widgets_json }};
+const AD_TICKET_STATE_URL = "{% url 'tickets:api_stato' %}";
+let adEnabled = JSON.parse(document.getElementById('ad-enabled-widgets').textContent || '[]');
 
-// ── Personalizzazione modale ─────────────────────────────────────────
-function adOpenCustomize() {
-  document.getElementById('ad-overlay').classList.add('open');
+function adCsrf() {
+  const el = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+  return el ? decodeURIComponent(el.split('=')[1].trim()) : '';
 }
-function adCloseCustomize() {
-  document.getElementById('ad-overlay').classList.remove('open');
+function adToast(text, isError) {
+  const el = document.getElementById('ad-toast');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle('error', !!isError);
+  el.classList.add('show');
+  clearTimeout(adToast._t);
+  adToast._t = setTimeout(() => el.classList.remove('show'), 3500);
 }
-function adOverlayClick(e) {
-  if (e.target === document.getElementById('ad-overlay')) adCloseCustomize();
-}
+function adRefresh() { window.location.reload(); }
+
+// ── Personalizzazione ────────────────────────────────────────────────
+function adOpenCustomize() { document.getElementById('ad-overlay').classList.add('open'); }
+function adCloseCustomize() { document.getElementById('ad-overlay').classList.remove('open'); }
+function adOverlayClick(e) { if (e.target === document.getElementById('ad-overlay')) adCloseCustomize(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') adCloseCustomize(); });
 function adToggleWidget(code) {
   const item = document.querySelector(`.ad-witem[data-code="${code}"]`);
   if (!item) return;
@@ -824,28 +1003,16 @@ function adToggleWidget(code) {
     : '';
   toggle.setAttribute('aria-label', active ? 'attivo' : 'disattivo');
 }
-
-// ── Rimuovi dalla griglia (shortcut pulsante X) ──────────────────────
 function adRemoveWidget(code) {
   adEnabled = adEnabled.filter(w => w !== code);
-  adSaveConfig(true /* skipReload: no, reload after */);
+  adSaveConfig(true);
 }
-
-// ── Salva configurazione ─────────────────────────────────────────────
 async function adSaveConfig(fromRemove = false) {
-  let toSave;
-  if (fromRemove === true) {
-    toSave = adEnabled;
-  } else {
-    const items = document.querySelectorAll('.ad-witem');
-    toSave = Array.from(items)
-      .filter(el => el.classList.contains('active'))
-      .map(el => el.dataset.code);
-  }
-
+  const toSave = fromRemove === true
+    ? adEnabled
+    : Array.from(document.querySelectorAll('.ad-witem.active')).map(el => el.dataset.code);
   const btn = document.getElementById('ad-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Salvataggio…'; }
-
   try {
     const resp = await fetch(AD_SAVE_URL, {
       method: 'POST',
@@ -853,74 +1020,88 @@ async function adSaveConfig(fromRemove = false) {
       body: JSON.stringify({ widgets: toSave }),
     });
     const data = await resp.json();
-    if (data.ok) {
-      window.location.reload();
-    } else {
-      alert('Errore nel salvataggio: ' + (data.error || 'Sconosciuto'));
-    }
+    if (data.ok) { window.location.reload(); return; }
+    adToast('Errore nel salvataggio: ' + (data.error || 'sconosciuto'), true);
   } catch (e) {
-    alert('Errore di rete: ' + e.message);
+    adToast('Errore di rete: ' + e.message, true);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Salva e applica'; }
   }
 }
 
-function adCsrf() {
-  const el = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
-  return el ? el.split('=')[1].trim() : '';
-}
+// ── Prendi in carico una segnalazione ────────────────────────────────
+document.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-ticket-take]');
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    const resp = await fetch(AD_TICKET_STATE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': adCsrf() },
+      body: JSON.stringify({ ticket_id: Number(btn.dataset.ticketTake), stato: 'IN_CARICO' }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok && data.ok !== false) {
+      adToast('Segnalazione presa in carico.');
+      setTimeout(() => window.location.reload(), 700);
+      return;
+    }
+    adToast(data.error || 'Impossibile prendere in carico la segnalazione.', true);
+  } catch (err) {
+    adToast('Errore di rete: ' + err.message, true);
+  }
+  btn.disabled = false;
+});
 
-// ── Aggiorna (reload) ────────────────────────────────────────────────
-function adRefresh() {
-  window.location.reload();
-}
-
-// ── Drag & drop riordino ─────────────────────────────────────────────
+// ── Drag & drop riordino indicatori ──────────────────────────────────
 (function() {
   const grid = document.getElementById('ad-grid');
   if (!grid) return;
   let dragged = null;
-
   grid.addEventListener('dragstart', e => {
     dragged = e.target.closest('.ad-widget');
     if (!dragged) return;
     dragged.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
   });
-  grid.addEventListener('dragend', e => {
+  grid.addEventListener('dragend', () => {
     if (dragged) dragged.classList.remove('dragging');
     grid.querySelectorAll('.ad-widget.drag-over').forEach(el => el.classList.remove('drag-over'));
     dragged = null;
-    // Salva nuovo ordine
     const newOrder = Array.from(grid.querySelectorAll('.ad-widget[data-widget]')).map(el => el.dataset.widget);
     adEnabled = newOrder;
-    adSaveOrder(newOrder);
+    fetch(AD_SAVE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': adCsrf() },
+      body: JSON.stringify({ widgets: newOrder }),
+    }).catch(() => {});
   });
   grid.addEventListener('dragover', e => {
     e.preventDefault();
     const target = e.target.closest('.ad-widget');
-    if (!target || target === dragged) return;
+    if (!target || !dragged || target === dragged) return;
     grid.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     target.classList.add('drag-over');
     const rect = target.getBoundingClientRect();
-    const after = e.clientX > rect.left + rect.width / 2;
-    if (after) grid.insertBefore(dragged, target.nextSibling);
+    if (e.clientX > rect.left + rect.width / 2) grid.insertBefore(dragged, target.nextSibling);
     else grid.insertBefore(dragged, target);
   });
   grid.addEventListener('dragleave', e => {
     const target = e.target.closest('.ad-widget');
     if (target) target.classList.remove('drag-over');
   });
+})();
 
-  async function adSaveOrder(order) {
-    try {
-      await fetch(AD_SAVE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': adCsrf() },
-        body: JSON.stringify({ widgets: order }),
-      });
-    } catch (_) {}
-  }
+// ── Sezione analisi: ricorda se era aperta ───────────────────────────
+(function() {
+  const box = document.getElementById('ad-analysis');
+  if (!box) return;
+  try {
+    if (localStorage.getItem('assets.dashboard.analysis') === '1') box.open = true;
+    box.addEventListener('toggle', () => {
+      try { localStorage.setItem('assets.dashboard.analysis', box.open ? '1' : '0'); } catch (_) {}
+    });
+  } catch (_) {}
 })();
 </script>
 {% endblock %}

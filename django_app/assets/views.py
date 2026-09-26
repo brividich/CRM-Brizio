@@ -18345,6 +18345,164 @@ def _legacy_asset_dashboard_list_redirect_url(request: HttpRequest) -> str:
     return f"{target_url}?{query_string}" if query_string else target_url
 
 
+def _dashboard_workorders(request: HttpRequest, today: date, limit: int = 6) -> dict:
+    """OdL aperti per il centro "Da fare": urgenti e in ritardo in testa."""
+    from assets.maintenance import get_workorder_overdue_days
+
+    now = timezone.now()
+    age_threshold = today - timedelta(days=get_workorder_overdue_days())
+    qs = (
+        WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN)
+        .exclude(asset__status=Asset.STATUS_RETIRED)
+        .select_related("asset", "assigned_to")
+    )
+    open_rows = list(qs.order_by("opened_at", "id")[:400])
+
+    def _late(wo) -> bool:
+        if wo.due_at and wo.due_at < now:
+            return True
+        return bool(wo.opened_at and wo.opened_at.date() <= age_threshold)
+
+    def _sort_key(wo):
+        return (
+            0 if wo.priority == WorkOrder.PRIORITY_URGENT else 1,
+            0 if _late(wo) else 1,
+            wo.opened_at or now,
+        )
+
+    items = []
+    for wo in sorted(open_rows, key=_sort_key)[:limit]:
+        assignee = ""
+        if wo.assigned_to_id:
+            assignee = wo.assigned_to.get_full_name() or wo.assigned_to.get_username()
+        opened = wo.opened_at.date() if wo.opened_at else None
+        items.append({
+            "id": wo.id,
+            "title": wo.title,
+            "asset_tag": wo.asset.asset_tag if wo.asset_id else "",
+            "asset_name": wo.asset.name if wo.asset_id else "",
+            "kind_label": wo.get_kind_display(),
+            "is_urgent": wo.priority == WorkOrder.PRIORITY_URGENT,
+            "is_late": _late(wo),
+            "state_label": wo.operational_state_label,
+            "state": wo.operational_state or "",
+            "assignee": assignee,
+            "is_mine": wo.assigned_to_id == request.user.id,
+            "age_days": (today - opened).days if opened else None,
+        })
+    return {
+        "items": items,
+        "total": qs.count(),
+        "urgent": sum(1 for wo in open_rows if wo.priority == WorkOrder.PRIORITY_URGENT),
+        "late": sum(1 for wo in open_rows if _late(wo)),
+        "unassigned": sum(1 for wo in open_rows if not wo.assigned_to_id),
+        "mine": sum(1 for wo in open_rows if wo.assigned_to_id == request.user.id),
+    }
+
+
+def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> dict:
+    """Scadenze (piani, amministrative, licenze, contratti) + verifiche periodiche
+    entro 30 giorni o gia' scadute, in una lista sola. Sola lettura: le azioni
+    puntano alle pagine che gia' le gestiscono."""
+    from .services import deadline_feed as feed
+
+    horizon = today + timedelta(days=30)
+    rows: list[dict] = []
+    try:
+        deadlines = feed.collect(
+            start=None,
+            end=horizon,
+            filters=feed.FeedFilters(kinds=feed.allowed_kinds(request)),
+            today=today,
+        )
+    except Exception:
+        deadlines = []
+    for dl in deadlines:
+        if dl.state == feed.STATE_DONE:
+            continue
+        rows.append({
+            "source": dl.kind,
+            "source_label": dl.kind_label,
+            "title": dl.title,
+            "due_date": dl.due_date,
+            "days": (dl.due_date - today).days,
+            "is_overdue": dl.due_date < today,
+            "asset_tag": dl.asset_tag,
+            "asset_name": dl.asset_name or dl.target_label,
+            "url": dl.detail_url,
+            "action_label": (dl.actions[0]["label"] if dl.actions else "Apri"),
+            "work_order_id": dl.work_order_id,
+        })
+    verifications = PeriodicVerification.objects.filter(
+        is_active=True, is_legacy=False, next_verification_date__isnull=False,
+        next_verification_date__lte=horizon,
+    ).order_by("next_verification_date")[:200]
+    pv_url = reverse("assets:periodic_verifications")
+    for pv in verifications:
+        rows.append({
+            "source": "verification",
+            "source_label": "Verifica",
+            "title": pv.name,
+            "due_date": pv.next_verification_date,
+            "days": (pv.next_verification_date - today).days,
+            "is_overdue": pv.next_verification_date < today,
+            "asset_tag": "",
+            "asset_name": "",
+            "url": pv_url,
+            "action_label": "Gestisci",
+            "work_order_id": None,
+        })
+    rows.sort(key=lambda r: (r["due_date"], r["title"]))
+    overdue = [r for r in rows if r["is_overdue"]]
+    return {
+        "items": rows[:limit],
+        "total": len(rows),
+        "overdue": len(overdue),
+        "due_soon": len(rows) - len(overdue),
+        "maintenance_overdue": sum(1 for r in overdue if r["source"] == feed.KIND_ORDINARY),
+        "maintenance_due_soon": sum(
+            1 for r in rows if r["source"] == feed.KIND_ORDINARY and not r["is_overdue"]
+        ),
+    }
+
+
+def _dashboard_launcher(request: HttpRequest, counters: dict) -> list[dict]:
+    """Collegamenti alle parti principali del modulo, filtrati con la stessa
+    decisione ACL del middleware (fail-closed): non si mostrano porte chiuse."""
+    from core.middleware import acl_allows_path
+
+    tiles = [
+        ("inventory", "Inventario", "Tutti gli asset, filtri ed export", reverse("assets:asset_list"), counters.get("assets"), ""),
+        ("hub", "Centro manutenzione", "Punto di partenza del manutentore", reverse("assets:maintenance_hub"), None, ""),
+        ("todo", "Da fare", "Manutenzioni programmate aperte", reverse("assets:maintenance_da_fare"), counters.get("maintenance_overdue"), "red"),
+        ("workorders", "Ordini di lavoro", "Interventi aperti e chiusi", reverse("assets:wo_list"), counters.get("wo_open"), "amber"),
+        ("shift", "Il mio turno", "Gli interventi assegnati a te", reverse("assets:il_mio_turno"), counters.get("wo_mine"), "blue"),
+        ("deadlines", "Scadenzario", "Scadenze di piani, adempimenti e contratti", reverse("assets:maintenance_scadenze"), counters.get("deadlines_overdue"), "red"),
+        ("plans", "Piani di manutenzione", "Cicli e frequenze per asset", reverse("assets:maintenance_plan_list"), None, ""),
+        ("verifications", "Verifiche periodiche", "Verifiche di legge sugli asset", reverse("assets:periodic_verifications"), counters.get("verifiche_overdue"), "red"),
+        ("checks", "Verifiche impianti", "Luci di emergenza, estintori, impianti", reverse("assets:periodic_check_list"), None, ""),
+        ("map", "Mappa officina", "Stato delle macchine in planimetria", reverse("assets:plant_layout_map"), None, ""),
+        ("machines", "Macchine di lavoro", "Cruscotto del parco produttivo", reverse("assets:work_machine_dashboard"), None, ""),
+        ("tickets", "Segnalazioni", "Ticket di manutenzione dagli operatori", f"{reverse('tickets:gestione_list')}?tipo=MAN", counters.get("tickets_new"), "amber"),
+        ("history", "Storico", "Interventi eseguiti e registro", reverse("assets:maintenance_history"), None, ""),
+        ("reports", "Report", "Report e analisi del modulo", reverse("assets:reports"), None, ""),
+    ]
+    user = getattr(request, "user", None)
+    output = []
+    for code, label, hint, url, count, tone in tiles:
+        try:
+            allowed = acl_allows_path(url.split("?", 1)[0], django_user=user, request=request)
+        except Exception:
+            allowed = False
+        if not allowed:
+            continue
+        output.append({
+            "code": code, "label": label, "hint": hint, "url": url,
+            "count": count or 0, "tone": tone if count else "",
+        })
+    return output
+
+
 @login_required
 def asset_dashboard(request: HttpRequest) -> HttpResponse:
     """Dashboard principale del modulo Assets con KPI personalizzabili."""
@@ -18391,9 +18549,46 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
     cose_da_fare = get_cose_da_fare_overview(today=today)
     segnalazioni = get_segnalazioni_overview(today=today)
 
-    # Categorie asset attive (solo principali, per i link in cima)
+    # Centro "Da fare": interventi, segnalazioni e scadenze con le azioni rapide
+    dash_wo = _dashboard_workorders(request, today)
+    dash_deadlines = _dashboard_deadlines(request, today)
+    from tickets.views import _can_manage_tickets
+    from tickets.models import TipoTicket
+
+    try:
+        can_manage_man = _can_manage_tickets(request, TipoTicket.MAN)
+    except Exception:
+        can_manage_man = False
+    attention_total = (
+        dash_wo["urgent"] + dash_wo["late"] + segnalazioni["urgenti"] + dash_deadlines["overdue"]
+    )
+    launcher = _dashboard_launcher(request, {
+        "assets": kpis["totale_asset"],
+        "maintenance_overdue": dash_deadlines["maintenance_overdue"],
+        "wo_open": dash_wo["total"],
+        "wo_mine": dash_wo["mine"],
+        "deadlines_overdue": dash_deadlines["overdue"],
+        "verifiche_overdue": kpis["verifiche_scadute"],
+        "tickets_new": segnalazioni["nuove"],
+    })
+    status_rows = [row for row in kpis["asset_per_stato"] if row["status"] != Asset.STATUS_RETIRED]
     categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label"))
     family_options = categories
+    # Categorie per la barra "Inventario per categoria": le piu' popolose in vista,
+    # le altre dietro "+ altre" (sono decine e coprivano la pagina).
+    category_counts = dict(
+        Asset.objects.exclude(status=Asset.STATUS_RETIRED)
+        .values_list("asset_category_id")
+        .annotate(n=Count("id"))
+        .order_by()
+    )
+    for cat in categories:
+        cat.asset_count = int(category_counts.get(cat.id) or 0)
+    by_count = sorted(categories, key=lambda c: (-c.asset_count, c.label.lower()))
+    categories_top = [c for c in by_count if c.asset_count][:10]
+    top_ids = {c.id for c in categories_top}
+    categories_rest = [c for c in categories if c.id not in top_ids]
+
 
     # Metadati widget arricchiti con valore
     widgets_all = []
@@ -18429,8 +18624,17 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         "maintenance_perf": maintenance_perf,
         "cose_da_fare": cose_da_fare,
         "segnalazioni": segnalazioni,
+        "dash_wo": dash_wo,
+        "dash_deadlines": dash_deadlines,
+        "can_manage_man": can_manage_man,
+        "attention_total": attention_total,
+        "launcher": launcher,
+        "status_rows": status_rows,
+        "categories_top": categories_top,
+        "categories_rest": categories_rest,
+        "now": timezone.localtime(),
         "branding": branding,
-        "page_title": "Dashboard Assets",
+        "page_title": "Dashboard",
     })
     return render(request, "assets/pages/asset_dashboard.html", ctx)
 
