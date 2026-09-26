@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v12"
+_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v13"
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_list", "label": "Assets - Lista asset", "url": "/assets/", "hide": False},
@@ -65,6 +65,9 @@ _PULSANTI_DEFINITIONS = [
     # operativa; registrare/configurare passa dai gate della view. Distinta dalla
     # vecchia "Manutenzione periodica" (/assets/manutenzione/verifiche/).
     {"modulo": "assets", "codice": "assets_periodic_checks", "label": "Assets - Verifiche periodiche impianti", "url": "/assets/manutenzione/verifiche-impianti/", "hide": False},
+    # Categorie delle verifiche: catalogo con permesso proprio (binding a prefisso
+    # piu' lungo di verifiche-impianti, migrazione assets 0118).
+    {"modulo": "assets", "codice": "assets_periodic_check_categories", "label": "Assets - Categorie verifiche periodiche", "url": "/assets/manutenzione/verifiche-impianti/categorie/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_quadro", "label": "Assets - Quadro manutenzione (responsabile)", "url": "/assets/manutenzione/quadro/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_plans", "label": "Assets - Piani di manutenzione", "url": "/assets/manutenzione/piani/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_groups", "label": "Assets - Gruppi di asset", "url": "/assets/manutenzione/gruppi/", "hide": True},
