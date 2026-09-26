@@ -406,7 +406,8 @@ def _setting_type_check():
 
 
 def _secret_rendering_check():
-    secret_count = SecurityCenterSetting.objects.filter(is_secret=True).exclude(value__in=["", None]).count()
+    # Filtro in Python: i valori semplici sono salvati avvolti (SettingValueField), un lookup SQL sul JSON non li vede.
+    secret_count = sum(1 for setting in SecurityCenterSetting.objects.filter(is_secret=True) if setting.value not in ("", None))
     return _check("secret_values_redacted", "Mascheramento segreti", "ok", f"{secret_count} impostazioni segrete saranno mostrate solo come valori mascherati.", {"secret_settings": secret_count}, "")
 
 
