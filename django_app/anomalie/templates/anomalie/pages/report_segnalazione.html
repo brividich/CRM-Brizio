@@ -242,6 +242,9 @@
       white-space: pre-wrap;
     }
 
+    .note-box.quick-summary { white-space: normal; }
+    .quick-summary__ok { margin-top: 10px; font-size: var(--fs-sm); font-weight: 700; color: #047857; }
+
     .field-value.empty,
     .note-box.empty {
       color: #94a3b8;
@@ -517,16 +520,7 @@
 
       <section class="section">
         <h2 class="section-title">Riepilogo Rapido</h2>
-        <div class="note-box">
-          {% if report.anomalie_totali %}
-            Il documento <strong>{{ op.id|default:"OP" }}</strong> ha {{ report.anomalie_totali }}
-            anomalia{% if report.anomalie_totali != 1 %}e{% endif %} registrata{% if report.anomalie_totali != 1 %}e{% endif %},
-            di cui {{ report.anomalie_aperte }} aperta{% if report.anomalie_aperte != 1 %}e{% endif %}
-            e {{ report.anomalie_chiuse }} chiusa{% if report.anomalie_chiuse != 1 %}e{% endif %}.
-          {% else %}
-            Nessuna anomalia collegata al documento OP.
-          {% endif %}
-        </div>
+        <div class="note-box quick-summary">{% if report.anomalie_totali %}Il documento <strong>{{ op.id|default:"OP" }}</strong> ha <strong>{{ report.anomalie_totali }}</strong> {% if report.anomalie_totali == 1 %}anomalia registrata{% else %}anomalie registrate{% endif %}: <strong>{{ report.anomalie_aperte }}</strong> {% if report.anomalie_aperte == 1 %}aperta{% else %}aperte{% endif %} e <strong>{{ report.anomalie_chiuse }}</strong> {% if report.anomalie_chiuse == 1 %}chiusa{% else %}chiuse{% endif %}.{% if report.allegati_totali %} Allegati complessivi: <strong>{{ report.allegati_totali }}</strong>.{% endif %}{% if not report.anomalie_aperte %}<div class="quick-summary__ok">Nessuna anomalia da gestire su questo OP.</div>{% endif %}{% else %}Nessuna anomalia collegata al documento OP.{% endif %}</div>
       </section>
     </div>
 
