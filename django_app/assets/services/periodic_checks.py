@@ -57,6 +57,7 @@ class ResultInput:
     kind: str = PeriodicCheckResult.KIND_ITEM
     point: object | None = None
     category: str = ""
+    values: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -105,6 +106,7 @@ def register_session(data: SessionInput, *, user=None, files: Iterable = ()) -> 
             kind=row.kind,
             point=row.point,
             category=row.category[:60],
+            values=row.values,
             label=row.label[:255],
             result=row.result,
             note=row.note[:500],
@@ -266,9 +268,14 @@ def issue_sheet(check_type: PeriodicCheckType, *, user=None) -> PeriodicCheckSes
     """Verifica in stato «foglio stampato» con il suo token: il QR la ritrova."""
     from . import periodic_layout
 
-    layout = check_type.active_layout
-    if layout is None:
-        raise LayoutError("Questa verifica non ha ancora una planimetria.")
+    layout = None
+    if check_type.method == PeriodicCheckType.METHOD_MEASURES:
+        if not (check_type.items.filter(is_active=True).exists() and check_type.measure_fields.filter(is_active=True).exists()):
+            raise LayoutError("Prima definisci i punti di misura e le grandezze (Modifica verifica).")
+    else:
+        layout = check_type.active_layout
+        if layout is None:
+            raise LayoutError("Questa verifica non ha ancora una planimetria.")
     token = periodic_layout.generate_token(lambda t: PeriodicCheckSession.objects.filter(sheet_token=t).exists())
     return PeriodicCheckSession.objects.create(
         check_type=check_type,
@@ -306,6 +313,8 @@ def read_scan_into(session: PeriodicCheckSession, data: bytes, *, name: str = ""
 
     if session.is_confirmed:
         raise LayoutError("La verifica e' gia' confermata: la scansione non viene riletta.")
+    if session.check_type.method == PeriodicCheckType.METHOD_MEASURES:
+        return _attach_measure_scan(session, data, name=name, user=user)
     layout = session.layout or session.check_type.active_layout
     if layout is None:
         raise LayoutError("La verifica non ha una planimetria da confrontare.")
@@ -377,6 +386,80 @@ def confirm_layout_session(session: PeriodicCheckSession, *, performed_on, techn
             session=session, kind=PeriodicCheckResult.KIND_POINT, point=by_code[code], label=f"Punto {code}",
             category=category, result=PeriodicCheckResult.RESULT_KO, note="Aggiunto a mano alla conferma",
             sort_order=1000 + _code_key(code)[1],
+        )
+    has_ko = session.results.filter(result=PeriodicCheckResult.RESULT_KO).exists()
+    session.performed_on = performed_on
+    if technician:
+        session.technician = technician[:120]
+    session.outcome = PeriodicCheckSession.OUTCOME_REMARKS if has_ko else PeriodicCheckSession.OUTCOME_OK
+    session.save(update_fields=["performed_on", "technician", "outcome", "updated_at"])
+    confirm_session(session, user=user)
+
+
+# ---------------------------------------------------------------------------
+# Metodo misure: griglia punti x grandezze, soglie, foglio da compilare a mano
+# ---------------------------------------------------------------------------
+
+def measure_fields(check_type: PeriodicCheckType):
+    return list(check_type.measure_fields.filter(is_active=True))
+
+
+def build_measure_sheet_for(check_type: PeriodicCheckType, *, token: str = "") -> bytes:
+    from . import periodic_layout
+
+    return periodic_layout.build_measure_sheet(
+        title=check_type.name,
+        subtitle=f"{check_type.system.name} · {check_type.frequency_label.lower()}",
+        token=token,
+        rows=list(check_type.items.filter(is_active=True).values_list("label", flat=True)),
+        fields=[{"label": f.label, "unit": f.unit, "range": f.range_text} for f in measure_fields(check_type)],
+        printed_on=timezone.localdate() if token else None,
+    )
+
+
+def measure_input(label: str, *, item=None, values: dict, fields, replace: bool = False, note: str = "") -> ResultInput:
+    """Riga misurata: fuori soglia o «da sostituire» -> rilievo non conforme."""
+    out = [f for f in fields if f.is_out_of_range(values.get(f.id))]
+    parts = [f"{f.label} fuori soglia ({f.range_label})" for f in out]
+    if replace:
+        parts.insert(0, "Da sostituire")
+    if note:
+        parts.append(note)
+    return ResultInput(
+        label=label, item=item, kind=PeriodicCheckResult.KIND_MEASURE,
+        result=PeriodicCheckResult.RESULT_KO if (out or replace) else PeriodicCheckResult.RESULT_OK,
+        category="Da sostituire" if replace else ("Fuori soglia" if out else ""),
+        note="; ".join(parts),
+        values={str(k): float(v) for k, v in values.items() if v is not None},
+    )
+
+
+def _attach_measure_scan(session: PeriodicCheckSession, data: bytes, *, name: str = "", user=None) -> dict:
+    """Foglio a misure tornato dallo scanner: si allega, i valori li riporta una persona."""
+    from django.core.files.base import ContentFile
+
+    file_name = name or "scansione.pdf"
+    with transaction.atomic():
+        add_attachment(session, ContentFile(data, name=file_name), user=user, name=file_name)
+        session.status = PeriodicCheckSession.STATUS_DRAFT
+        session.reading = {
+            "ok": True, "misure": True, "proposti": {},
+            "letta_il": timezone.now().isoformat(timespec="seconds"), "file": file_name,
+        }
+        session.save(update_fields=["status", "reading", "updated_at"])
+    return session.reading
+
+
+@transaction.atomic
+def confirm_measure_session(session: PeriodicCheckSession, *, performed_on, technician: str = "",
+                            rows: list[ResultInput], user=None) -> None:
+    """Scrive i valori riportati dal foglio e conferma la verifica."""
+    session.results.filter(kind=PeriodicCheckResult.KIND_MEASURE, work_order__isnull=True).delete()
+    for index, row in enumerate(rows):
+        PeriodicCheckResult.objects.create(
+            session=session, item=row.item, kind=PeriodicCheckResult.KIND_MEASURE, label=row.label[:255],
+            result=row.result, category=row.category[:60], note=row.note[:500], values=row.values,
+            sort_order=(index + 1) * 10,
         )
     has_ko = session.results.filter(result=PeriodicCheckResult.RESULT_KO).exists()
     session.performed_on = performed_on

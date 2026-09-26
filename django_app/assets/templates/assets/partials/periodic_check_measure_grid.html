@@ -1,0 +1,48 @@
+{# Griglia punti × grandezze da compilare (metodo misure). Virgola o punto per i decimali. #}
+<div class="md-scroll pc-grid-wrap">
+  <table class="md-table pc-grid" data-fm-table-skip="1">
+    <thead>
+      <tr>
+        <th>Punto</th>
+        {% for f in grid.fields %}<th class="pc-grid-num">{{ f.label }}<span class="md-sub">{{ f.unit }}{% if f.range_label %} · {{ f.range_label }}{% endif %}</span></th>{% endfor %}
+        <th class="pc-grid-flag">Da sostituire</th>
+        <th>Nota</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in grid.rows %}
+        <tr{% if row.free %} class="pc-grid-free"{% endif %}>
+          <td>
+            {% if row.free %}<input type="text" name="l_{{ row.key }}" value="{{ row.label }}" placeholder="Altro punto…" aria-label="Nome del punto aggiunto">
+            {% else %}<strong>{{ row.label }}</strong>{% endif %}
+          </td>
+          {% for f in grid.fields %}
+            <td class="pc-grid-num">
+              {% for fid, value in row.values.items %}{% if fid == f.id %}<input type="text" inputmode="decimal" name="m_{{ row.key }}_{{ f.id }}" value="{{ value }}" data-min="{{ f.min_value|default_if_none:'' }}" data-max="{{ f.max_value|default_if_none:'' }}" aria-label="{{ row.label|default:'Punto aggiunto' }}: {{ f.label }}">{% endif %}{% endfor %}
+            </td>
+          {% endfor %}
+          <td class="pc-grid-flag"><input type="checkbox" name="r_{{ row.key }}"{% if row.replace %} checked{% endif %} aria-label="{{ row.label|default:'Punto aggiunto' }}: da sostituire"></td>
+          <td><input type="text" name="n_{{ row.key }}" value="{{ row.note }}" placeholder="Nota" aria-label="{{ row.label|default:'Punto aggiunto' }}: nota"></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="md-hint" style="margin:6px 0 0">Le righe lasciate vuote non si registrano. Un valore fuori soglia o «da sostituire» diventa un rilievo (e da li' un ordine di lavoro).</p>
+<script>
+(function () {
+  // Evidenzia subito i valori fuori soglia mentre si scrive.
+  document.querySelectorAll(".pc-grid input[data-min], .pc-grid input[data-max]").forEach(function (input) {
+    function check() {
+      var v = parseFloat((input.value || "").replace(",", "."));
+      var min = input.dataset.min === "" ? null : parseFloat(input.dataset.min);
+      var max = input.dataset.max === "" ? null : parseFloat(input.dataset.max);
+      var out = !isNaN(v) && ((min !== null && v < min) || (max !== null && v > max));
+      input.classList.toggle("is-out", out);
+      input.title = out ? "Fuori soglia" : "";
+    }
+    input.addEventListener("input", check);
+    check();
+  });
+})();
+</script>

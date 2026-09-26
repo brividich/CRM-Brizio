@@ -142,7 +142,7 @@
                 <td>
                   <div class="pc-actions">
                     {% if can_register %}
-                      {% if t.method == "LAYOUT" and t.has_layout %}
+                      {% if t.method == "LAYOUT" and t.has_layout or t.method == "MEASURES" and t.n_fields and t.n_items %}
                         <form method="post" action="{% url 'assets:periodic_check_sheet_issue' t.id %}">{% csrf_token %}<button class="btn btn-primary" type="submit" title="Crea la verifica e il foglio con il QR per il tecnico">Stampa foglio</button></form>
                       {% elif t.method == "LAYOUT" %}
                         <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' t.id %}?tab=impostazioni#planimetria" title="Serve la planimetria per stampare il foglio">Carica planimetria</a>

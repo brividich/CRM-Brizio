@@ -4132,10 +4132,12 @@ class PeriodicCheckResult(models.Model):
     KIND_ITEM = "ITEM"
     KIND_REMARK = "REMARK"
     KIND_POINT = "POINT"
+    KIND_MEASURE = "MEASURE"
     KIND_CHOICES = [
         (KIND_ITEM, "Voce di checklist"),
         (KIND_REMARK, "Rilievo / prescrizione"),
         (KIND_POINT, "Punto della planimetria"),
+        (KIND_MEASURE, "Punto misurato"),
     ]
     RESULT_OK = "OK"
     RESULT_KO = "KO"
@@ -4151,6 +4153,8 @@ class PeriodicCheckResult(models.Model):
         "PeriodicCheckPoint", on_delete=models.PROTECT, null=True, blank=True, related_name="results"
     )
     category = models.CharField(max_length=60, blank=True, default="")
+    # Metodo misure: valori per grandezza, {"<id grandezza>": 12.4}; vuoto per gli altri metodi.
+    values = models.JSONField(default=dict, blank=True)
     label = models.CharField(max_length=255)
     result = models.CharField(max_length=4, choices=RESULT_CHOICES, default=RESULT_OK)
     note = models.CharField(max_length=500, blank=True, default="")
@@ -4370,3 +4374,62 @@ class PeriodicCheckIntakeLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.file_name} p.{self.page} ({self.get_outcome_display()})"
+
+
+
+class PeriodicCheckMeasureField(models.Model):
+    """Grandezza misurata in una verifica a misure (colonna della griglia).
+
+    Le righe sono le voci del tipo (``PeriodicCheckItem``: «Pacco 1 · Batteria 5»),
+    le colonne queste grandezze, con unita' e soglie facoltative: un valore fuori
+    soglia rende la riga un rilievo non conforme."""
+
+    check_type = models.ForeignKey(PeriodicCheckType, on_delete=models.CASCADE, related_name="measure_fields")
+    label = models.CharField(max_length=80)
+    unit = models.CharField(max_length=15, blank=True, default="")
+    min_value = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    max_value = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Grandezza misurata (verifica periodica)"
+        verbose_name_plural = "Grandezze misurate (verifiche periodiche)"
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.unit})" if self.unit else self.label
+
+    @property
+    def range_label(self) -> str:
+        def fmt(value):
+            return f"{value.normalize():f}".replace(".", ",")
+
+        if self.min_value is not None and self.max_value is not None:
+            return f"{fmt(self.min_value)}–{fmt(self.max_value)}"
+        if self.min_value is not None:
+            return f"≥ {fmt(self.min_value)}"
+        if self.max_value is not None:
+            return f"≤ {fmt(self.max_value)}"
+        return ""
+
+    @property
+    def range_text(self) -> str:
+        """Soglia in parole, per il foglio stampato (i font base del PDF non hanno ≥ ≤)."""
+        def fmt(value):
+            return f"{value.normalize():f}".replace(".", ",")
+
+        parts = []
+        if self.min_value is not None:
+            parts.append(f"min {fmt(self.min_value)}")
+        if self.max_value is not None:
+            parts.append(f"max {fmt(self.max_value)}")
+        return " ".join(parts)
+
+    def is_out_of_range(self, value) -> bool:
+        if value is None:
+            return False
+        value = Decimal(str(value))
+        return (self.min_value is not None and value < self.min_value) or (
+            self.max_value is not None and value > self.max_value
+        )

@@ -100,7 +100,8 @@ class GuidaTests(TestCase):
 
     def test_misure_dice_cosa_manca(self):
         ups = self._type("UPS", PeriodicCheckType.METHOD_MEASURES)
-        self.assertContains(self._page(ups), "lettura automatica delle misure")
+        steps = self._page(ups).context["guide"]["steps"]
+        self.assertEqual((steps[0]["title"], steps[1]["state"]), ("Definisci punti e grandezze", "blocked"))
 
     def test_elenco_con_azioni_per_metodo(self):
         luci = self._type("Luci", PeriodicCheckType.METHOD_LAYOUT)

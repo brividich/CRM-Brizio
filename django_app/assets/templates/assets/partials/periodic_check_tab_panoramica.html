@@ -111,6 +111,41 @@
     {% endif %}
   {% endif %}
 
+  {% if stats.measure_session %}
+    <section class="md-section">
+      <div class="md-section-head">
+        <h2>Da sistemare adesso <span class="pc-muted pc-h-sub">dalla verifica del <a href="{% url 'assets:periodic_check_session_detail' stats.measure_session.id %}">{{ stats.measure_session.performed_on|date:"d/m/Y" }}</a></span></h2>
+        <span class="md-badge badge-muted">{{ stats.measure_ko|length }}</span>
+      </div>
+      {% if stats.measure_ko %}
+        <div class="md-scroll">
+          <table class="md-table pc-table-auto" data-fm-table-skip="1">
+            <thead><tr><th>Punto</th><th>Perche'</th><th class="md-right">Ordine di lavoro</th></tr></thead>
+            <tbody>
+              {% for r in stats.measure_ko %}
+                <tr><td><strong>{{ r.label }}</strong></td><td>{{ r.note|default:r.category }}</td>
+                  <td class="md-right">{% if r.work_order %}<a href="{% url 'assets:wo_view' r.work_order.id %}">OdL #{{ r.work_order.id }}</a> <span class="md-sub">{{ r.work_order.get_status_display }}</span>{% else %}<a href="{% url 'assets:periodic_check_session_detail' stats.measure_session.id %}">Crea OdL dalla verifica</a>{% endif %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="md-empty">Tutti i punti misurati nella norma all'ultima verifica.</p>
+      {% endif %}
+    </section>
+    {% if stats.measure_recurring %}
+      <section class="md-section">
+        <div class="md-section-head"><h2>Punti ricorrenti</h2><span class="pc-muted">fuori soglia o da sostituire almeno 2 volte nelle ultime verifiche</span></div>
+        <div class="md-scroll">
+          <table class="md-table pc-table-auto" data-fm-table-skip="1">
+            <thead><tr><th>Punto</th><th>Volte</th></tr></thead>
+            <tbody>{% for m in stats.measure_recurring %}<tr><td><strong>{{ m.label }}</strong></td><td>{{ m.count }} su {{ m.of }}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+  {% endif %}
+
   {% if stats.item_failures %}
     <section class="md-section">
       <div class="md-section-head"><h2>Voci piu' spesso non OK</h2><span class="pc-muted">ultime {{ stats.item_failures.0.of }} verifiche con esiti</span></div>
