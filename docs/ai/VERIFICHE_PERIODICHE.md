@@ -160,6 +160,27 @@ Panoramica (`services/periodic_stats.py`, sola lettura):
   schedule» o `setup_q_schedules`), impostare la cartella dalla pagina e accendere; l'utente
   dell'app-pool deve poter leggere e spostare file nella cartella.
 
+## Metodo B: misure per punto (fatto)
+
+- Righe = voci del tipo (`PeriodicCheckItem`: «Pacco 1 · Batteria 5»); colonne =
+  `PeriodicCheckMeasureField` (nome, unita', min, max facoltativi; `range_label` con ≥ ≤ per il
+  portale, `range_text` «min/max» per il PDF). Form del tipo: «Grandezze misurate», una per
+  riga `nome | unita' | min | max`. Migrazione 0117 (`PeriodicCheckResult.values` JSON
+  {id grandezza: valore}, kind `MEASURE`).
+- Esito per riga (`checks.measure_input`): fuori soglia o «da sostituire» -> KO con nota;
+  diventa rilievo/OdL come gli altri.
+- Registrazione: griglia punti × grandezze (+ 4 righe libere per punti non previsti, es. un
+  interruttore nuovo), fuori soglia colorati mentre si scrive, righe vuote non registrate.
+- Foglio con QR (`periodic_layout.build_measure_sheet`, stessa intestazione del foglio
+  planimetria via `_draw_frame`): griglia vuota da compilare a mano, piu' pagine se serve.
+  La scansione (pagina o cartella) si **allega** e la verifica passa «da confermare»: i valori
+  li riporta una persona accanto alla scansione (nessuna lettura della scrittura a mano).
+- Scheda: «Da sistemare adesso» (righe KO dell'ultima verifica con OdL) e «Punti ricorrenti».
+- Catalogo: UPS 2 pacchi × 20 batterie con le 5 letture del rapportino Bruschi; differenziali
+  con strumento (mA, ms; righe libere); antintrusione (tensione batteria modulo). **Soglie da
+  impostare** dal portale: non erano note. `seed_periodic_checks --apply` completa i tipi a
+  misure gia' presenti senza punti/grandezze (solo aggiunte).
+
 ## Storico
 
 `manage.py import_periodic_checks <cartella>` (dry-run di default, `--apply` per

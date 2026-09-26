@@ -239,6 +239,114 @@ def _qr_png(text: str) -> bytes:
     return buf.getvalue()
 
 
+def _draw_frame(page, *, title: str, subtitle: str, token: str, legend: str, printed_on: date | None,
+                page_label: str = "") -> None:
+    """Marcatori d'angolo, intestazione (titolo, data/tecnico/firma, legenda, QR) e pie' di pagina:
+    uguali per il foglio a planimetria e per quello a misure."""
+    for rect in marker_rects():
+        page.draw_rect(rect, color=(0, 0, 0), fill=(0, 0, 0), width=0)
+    left = PLAN_MARGIN
+    top = HEADER_TOP
+    qr_left = SHEET_W - PLAN_MARGIN - QR_SIZE
+    page.insert_text((left, top + 12), "NOVICROM · VERIFICA PERIODICA", fontsize=7.5, fontname="hebo", color=(0.35, 0.35, 0.35))
+    title_size = 13.0
+    while title_size > 8 and fitz.get_text_length(title, fontname="hebo", fontsize=title_size) > qr_left - 12 - left:
+        title_size -= 0.5
+    page.insert_text((left, top + 29), title, fontsize=title_size, fontname="hebo", color=(0, 0, 0))
+    if subtitle:
+        page.insert_text((left, top + 42), subtitle, fontsize=8, fontname="helv", color=(0.3, 0.3, 0.3))
+    y = top + 48
+    fields = [("Data", 88), ("Tecnico", 160), ("Firma", qr_left - 12 - left - 88 - 160 - 16)]
+    x = left
+    for label, width in fields:
+        page.insert_text((x, y + 8), label, fontsize=6.5, fontname="helv", color=(0.35, 0.35, 0.35))
+        page.draw_rect(fitz.Rect(x, y + 10, x + width, y + 26), color=(0.4, 0.4, 0.4), width=0.6)
+        x += width + 8
+    page.insert_text((left, top + 86), legend, fontsize=7.5, fontname="hebo", color=(0.1, 0.1, 0.1))
+    if token:
+        page.insert_image(fitz.Rect(qr_left, top, qr_left + QR_SIZE, top + QR_SIZE), stream=_qr_png(QR_PREFIX + token))
+        page.insert_text((qr_left, top + QR_SIZE + 9), token, fontsize=7, fontname="cour", color=(0.2, 0.2, 0.2))
+    footer_y = SHEET_H - MARKER_MARGIN - 4
+    footer = f"Foglio generato dal portale{' il ' + printed_on.strftime('%d/%m/%Y') if printed_on else ''}"
+    footer += " · scansionare intero, senza ritagli" + (f" · codice {token}" if token else "")
+    if page_label:
+        footer += f" · {page_label}"
+    page.insert_text((MARKER_MARGIN + MARKER + 6, footer_y), footer, fontsize=6.5, fontname="helv", color=(0.4, 0.4, 0.4))
+
+
+MEASURE_ROW_H = 17.0
+
+
+def _fit_text(page, rect, text: str, *, size: float, font: str, color=(0, 0, 0)) -> None:
+    """Testo nella casella, rimpicciolito finche' ci sta (insert_textbox non disegna nulla se non entra)."""
+    while size >= 4.5:
+        if page.insert_textbox(rect, text, fontsize=size, fontname=font, color=color) >= 0:
+            return
+        size -= 0.5
+
+
+def build_measure_sheet(
+    *,
+    title: str,
+    subtitle: str = "",
+    token: str = "",
+    rows: list[str],
+    fields: list[dict],
+    printed_on: date | None = None,
+    blank_rows: int = 4,
+) -> bytes:
+    """Foglio A4 delle verifiche a misure: griglia punti × grandezze da compilare a mano,
+    con la soglia sotto ogni colonna. Piu' pagine se servono, ognuna col suo QR.
+
+    ``fields``: [{"label", "unit", "range"}]. Le ultime righe restano vuote per i punti
+    non previsti (es. un interruttore nuovo)."""
+    rows = list(rows) + [""] * blank_rows
+    top = HEADER_TOP + HEADER_H + 10
+    bottom = SHEET_H - MARKER_MARGIN - MARKER - FOOTER_H
+    head_h = 34.0
+    per_page = max(1, int((bottom - top - head_h) // MEASURE_ROW_H))
+    pages = [rows[i:i + per_page] for i in range(0, len(rows), per_page)] or [[]]
+    left, right = PLAN_MARGIN, SHEET_W - PLAN_MARGIN
+    label_w = 150.0
+    extra = [("Da sostituire", 46.0), ("Note", 96.0)]
+    value_w = max(40.0, (right - left - label_w - sum(w for _, w in extra)) / max(1, len(fields)))
+    columns = [("Punto", label_w, "")] + [(f["label"], value_w, f"{f.get('unit', '')} {f.get('range', '')}".strip()) for f in fields]
+    columns += [(label, width, "") for label, width in extra]
+
+    out = fitz.open()
+    for index, chunk in enumerate(pages):
+        page = out.new_page(width=SHEET_W, height=SHEET_H)
+        _draw_frame(
+            page, title=title, subtitle=subtitle, token=token, printed_on=printed_on,
+            legend="Scrivi i valori misurati; spunta «Da sostituire» e scrivi una nota dove serve.",
+            page_label=f"pagina {index + 1} di {len(pages)}" if len(pages) > 1 else "",
+        )
+        x = left
+        for label, width, sub in columns:
+            cell = fitz.Rect(x, top, x + width, top + head_h)
+            page.draw_rect(cell, color=(0.3, 0.3, 0.3), fill=(0.93, 0.94, 0.96), width=0.5)
+            _fit_text(page, cell + (3, 3, -3, -11), label, size=6.8, font="hebo")
+            if sub:
+                _fit_text(page, cell + (3, 23, -3, -1), sub, size=6, font="helv", color=(0.3, 0.3, 0.3))
+            x += width
+        y = top + head_h
+        for label in chunk:
+            x = left
+            for col_index, (_label, width, _sub) in enumerate(columns):
+                cell = fitz.Rect(x, y, x + width, y + MEASURE_ROW_H)
+                page.draw_rect(cell, color=(0.45, 0.45, 0.45), width=0.4)
+                if col_index == 0 and label:
+                    page.insert_textbox(cell + (3, 4, -3, -1), label, fontsize=7, fontname="helv", color=(0, 0, 0))
+                if _label == "Da sostituire":
+                    box = fitz.Rect(cell.x0 + width / 2 - 4.5, cell.y0 + 4, cell.x0 + width / 2 + 4.5, cell.y0 + 13)
+                    page.draw_rect(box, color=(0.2, 0.2, 0.2), width=0.6)
+                x += width
+            y += MEASURE_ROW_H
+    data = out.tobytes(deflate=True, garbage=3)
+    out.close()
+    return data
+
+
 def build_sheet(
     plan_pdf: bytes,
     *,
@@ -270,40 +378,10 @@ def build_sheet(
             "Non scrivere qui:\nsegna sulla planimetria",
             fontsize=7, fontname="helv", color=(0.55, 0.55, 0.55), align=fitz.TEXT_ALIGN_CENTER,
         )
-    for rect in marker_rects():
-        page.draw_rect(rect, color=(0, 0, 0), fill=(0, 0, 0), width=0)
-
-    # Intestazione
-    left = PLAN_MARGIN
-    top = HEADER_TOP
-    qr_left = SHEET_W - PLAN_MARGIN - QR_SIZE
-    page.insert_text((left, top + 12), "NOVICROM · VERIFICA PERIODICA", fontsize=7.5, fontname="hebo", color=(0.35, 0.35, 0.35))
-    title_size = 13.0
-    while title_size > 8 and fitz.get_text_length(title, fontname="hebo", fontsize=title_size) > qr_left - 12 - left:
-        title_size -= 0.5
-    page.insert_text((left, top + 29), title, fontsize=title_size, fontname="hebo", color=(0, 0, 0))
-    if subtitle:
-        page.insert_text((left, top + 42), subtitle, fontsize=8, fontname="helv", color=(0.3, 0.3, 0.3))
-    y = top + 48
-    fields = [("Data", 88), ("Tecnico", 160), ("Firma", qr_left - 12 - left - 88 - 160 - 16)]
-    x = left
-    for label, width in fields:
-        page.insert_text((x, y + 8), label, fontsize=6.5, fontname="helv", color=(0.35, 0.35, 0.35))
-        page.draw_rect(fitz.Rect(x, y + 10, x + width, y + 26), color=(0.4, 0.4, 0.4), width=0.6)
-        x += width + 8
     legend = "Segna sulla planimetria:  evidenziatore = " + categories[0]
     if len(categories) > 1:
         legend += "   ·   cerchio a penna = " + categories[1]
-    page.insert_text((left, top + 86), legend, fontsize=7.5, fontname="hebo", color=(0.1, 0.1, 0.1))
-
-    if token:
-        page.insert_image(fitz.Rect(qr_left, top, qr_left + QR_SIZE, top + QR_SIZE), stream=_qr_png(QR_PREFIX + token))
-        page.insert_text((qr_left, top + QR_SIZE + 9), token, fontsize=7, fontname="cour", color=(0.2, 0.2, 0.2))
-
-    footer_y = SHEET_H - MARKER_MARGIN - 4
-    footer = f"Foglio generato dal portale{' il ' + printed_on.strftime('%d/%m/%Y') if printed_on else ''}"
-    footer += " · scansionare intero, senza ritagli" + (f" · codice {token}" if token else "")
-    page.insert_text((MARKER_MARGIN + MARKER + 6, footer_y), footer, fontsize=6.5, fontname="helv", color=(0.4, 0.4, 0.4))
+    _draw_frame(page, title=title, subtitle=subtitle, token=token, legend=legend, printed_on=printed_on)
 
     data = out.tobytes(deflate=True, garbage=3)
     out.close()

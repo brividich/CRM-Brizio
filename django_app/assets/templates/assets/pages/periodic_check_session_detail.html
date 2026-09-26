@@ -10,7 +10,7 @@
 {% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}?tab=storico">‹ Storico verifiche</a>
-  {% if session.sheet_token and session.layout %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_sheet_pdf' session.id %}" target="_blank" rel="noopener">Foglio (PDF)</a>{% endif %}
+  {% if session.sheet_token %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_sheet_pdf' session.id %}" target="_blank" rel="noopener">Foglio (PDF)</a>{% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -40,8 +40,13 @@
       <div style="padding:14px 16px;display:grid;gap:14px">
         <ol class="pc-steps">
           <li><strong>Stampa il foglio</strong> e consegnalo al tecnico: <a class="btn btn-primary btn-sm" href="{% url 'assets:periodic_check_sheet_pdf' session.id %}" target="_blank" rel="noopener">{% if print_now %}Apri il foglio da stampare{% else %}Apri il foglio{% endif %}</a></li>
+          {% if is_measures %}
+          <li>Il tecnico scrive i valori nella griglia e spunta «Da sostituire» dove serve. Data, nome e firma nei riquadri in alto.</li>
+          <li>Scansiona il foglio (tutte le pagine) nella cartella dello scanner o caricalo qui: il QR lo riconosce, poi riporti i valori accanto alla scansione.</li>
+          {% else %}
           <li>Il tecnico segna sulla planimetria: <strong>evidenziatore</strong> = {{ categories.0 }}{% if categories|length > 1 %}, <strong>cerchio a penna</strong> = {{ categories.1 }}{% endif %}. Data, nome e firma nei riquadri in alto.</li>
           <li>Scansiona il foglio intero e caricalo qui: il QR lo riconosce, i punti segnati vengono proposti da confermare.</li>
+          {% endif %}
         </ol>
         {% if can_register %}{% include "assets/partials/periodic_check_scan_form.html" %}{% endif %}
       </div>
@@ -128,6 +133,30 @@
         <div style="padding:12px 16px">{% include "assets/partials/periodic_check_scan_form.html" %}</div>
       </details>
     {% endif %}
+  {% elif session.status == "DRAFT" and is_measures and measure_grid %}
+    <section class="md-section">
+      <div class="md-section-head"><h2>Riporta i valori dal foglio</h2>{% if scan_attachment %}<a class="btn btn-secondary btn-sm" href="{% url 'assets:periodic_check_attachment_download' scan_attachment.id %}" target="_blank" rel="noopener">Apri la scansione</a>{% endif %}</div>
+      <div class="pc-measure-split">
+        {% if scan_attachment %}
+          <object class="pc-scan-view" data="{% url 'assets:periodic_check_attachment_download' scan_attachment.id %}" type="application/pdf" aria-label="Scansione del foglio">
+            <a href="{% url 'assets:periodic_check_attachment_download' scan_attachment.id %}" target="_blank" rel="noopener">Apri la scansione</a>
+          </object>
+        {% endif %}
+        {% if can_register %}
+          <form method="post" class="md-form pc-measure-form" novalidate>
+            {% csrf_token %}<input type="hidden" name="action" value="confirm_measures">
+            <div class="md-grid-2">
+              <div class="md-field"><label for="id_performed_on">Data della verifica (scritta sul foglio)</label>
+                <input id="id_performed_on" type="date" name="performed_on" value="{{ session.performed_on|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}" required></div>
+              <div class="md-field"><label for="id_technician">Tecnico</label>
+                <input id="id_technician" type="text" name="technician" value="{{ session.technician }}" maxlength="120"></div>
+            </div>
+            {% with grid=measure_grid %}{% include "assets/partials/periodic_check_measure_grid.html" %}{% endwith %}
+            <div class="md-form-actions"><button class="btn btn-primary" type="submit">Conferma i valori</button></div>
+          </form>
+        {% endif %}
+      </div>
+    </section>
   {% elif not session.is_confirmed and session.status != "ISSUED" %}
     <div class="pc-draft">
       <span><strong>Da confermare.</strong> Controlla gli esiti: alla conferma la prossima scadenza si ricalcola.</span>
@@ -152,6 +181,7 @@
   </section>
   {% endif %}
 
+  {% if measure_table and session.is_confirmed %}{% include "assets/partials/periodic_check_measure_table.html" %}{% endif %}
   {% if show_results %}
     <section class="md-section">
       <div class="md-section-head"><h2>Esiti</h2></div>
@@ -161,6 +191,7 @@
           <tbody>
             {% for r in items %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
             {% for r in points %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
+            {% for r in measures %}{% if r.result == "KO" %}{% include "assets/partials/periodic_check_result_row.html" %}{% endif %}{% endfor %}
             {% for r in remarks %}{% include "assets/partials/periodic_check_result_row.html" %}{% endfor %}
           </tbody>
         </table>

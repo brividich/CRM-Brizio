@@ -56,6 +56,8 @@ class CatalogType:
     supplier_hint: str = ""  # frammento della ragione sociale in anagrafica fornitori
     legal_reference: str = ""
     items: list[str] = field(default_factory=list)
+    # Metodo misure: (nome, unita', minimo, massimo). Soglie None = da impostare dal portale.
+    measure_fields: list[tuple] = field(default_factory=list)
     sources: list[ArchiveSource] = field(default_factory=list)
     sort_order: int = 100
 
@@ -94,6 +96,8 @@ CATALOG: list[CatalogType] = [
     CatalogType(
         ELETTRICO, "Verifica interruttori differenziali con strumento", 12, MEASURES, "001", BRUSCHI, "bruschi",
         legal_reference="CEI 64-8 art. 62.2.1",
+        # Le righe (interruttori per quadro) cambiano: si scrivono nelle righe libere della griglia.
+        measure_fields=[("Corrente differenziale", "mA", None, None), ("Tempo di intervento", "ms", None, None)],
         sources=[ArchiveSource(f"{_E}/Verifica interruttori differenziali con strumento (annuale)")], sort_order=40,
     ),
     CatalogType(
@@ -111,10 +115,21 @@ CATALOG: list[CatalogType] = [
     ),
     CatalogType(
         ELETTRICO, "Verifica pacchi batteria gruppo UPS", 4, MEASURES, "021", BRUSCHI, "bruschi",
+        # Come il rapportino Bruschi: 2 pacchi da 20 batterie, 5 letture per batteria.
+        items=[f"Pacco {pacco} · Batteria {n}" for pacco in (1, 2) for n in range(1, 21)],
+        measure_fields=[
+            ("Tensione a vuoto", "V", None, None),
+            ('Tensione a 15"', "V", None, None),
+            ('Corrente a 15"', "A", None, None),
+            ('Tensione a 30"', "V", None, None),
+            ("Tensione fine prova", "V", None, None),
+        ],
         sources=[ArchiveSource(f"{_E}/Verifica pacchi batteria gruppo UPS (quadrimestrale)")], sort_order=80,
     ),
     CatalogType(
         ELETTRICO, "Verifica impianto antintrusione", 4, MEASURES, "030", BRUSCHI, "bruschi",
+        # Moduli della centrale: le righe si scrivono dal portale (Modifica verifica) o nelle righe libere.
+        measure_fields=[("Tensione batteria modulo", "V", None, None)],
         sources=[ArchiveSource(f"{_E}/Verifica impianto antintrusione (quadrimestrale)")], sort_order=90,
     ),
     CatalogType(
