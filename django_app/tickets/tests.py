@@ -470,7 +470,7 @@ class TicketAttachmentPrivacyTests(TestCase):
         try:
             with override_settings(MEDIA_ROOT=media_root, TICKETS_PRIVATE_ROOT=private_root):
                 self.client.force_login(self.user)
-                with patch("tickets.views.validate_extension_and_mime", return_value="text/plain"):
+                with patch("tickets.allegati.validate_extension_and_mime", return_value="text/plain"):
                     response = self.client.post(
                         reverse("tickets:api_allegato"),
                         {
@@ -492,7 +492,7 @@ class TicketAttachmentPrivacyTests(TestCase):
     def test_api_upload_rejects_spoofed_extension_when_mime_validation_fails(self):
         self.client.force_login(self.user)
         with patch(
-            "tickets.views.validate_extension_and_mime",
+            "tickets.allegati.validate_extension_and_mime",
             side_effect=UploadMimeValidationError("file.pdf: tipo MIME non consentito (application/x-msdownload)."),
         ):
             response = self.client.post(
@@ -511,7 +511,7 @@ class TicketAttachmentPrivacyTests(TestCase):
     def test_api_upload_fails_closed_when_mime_engine_is_unavailable(self):
         self.client.force_login(self.user)
         with patch(
-            "tickets.views.validate_extension_and_mime",
+            "tickets.allegati.validate_extension_and_mime",
             side_effect=UploadMimeValidationError("Validazione MIME non disponibile sul server. Upload bloccato."),
         ):
             response = self.client.post(

@@ -148,6 +148,84 @@ a.qrl-wo-item:first-child { margin-top: 0; }
 }
 .qrl-not-found h2 { font-size: 1.3rem; color: #0f172a; margin: 10px 0 6px; }
 
+/* Messaggi esito caricamento */
+.qrl-msg { border-radius: 12px; padding: 11px 14px; font-size: .88rem; font-weight: 600; }
+.qrl-msg--success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.qrl-msg--error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+/* Ticket aperti + caricamento rapportino */
+.qrl-tkt { padding: 10px 0; border-top: 1px solid #f1f5f9; }
+.qrl-tkt:first-child { border-top: none; padding-top: 0; }
+.qrl-tkt-head { display: flex; gap: 10px; align-items: flex-start; }
+.qrl-tkt-num { font-size: .72rem; font-weight: 800; color: #64748b; letter-spacing: .02em; }
+.qrl-tkt-open { margin-left: auto; font-size: .75rem; color: #1d4ed8; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.qrl-badge--violet { background: #ede9fe; color: #5b21b6; }
+.qrl-upload { margin-top: 8px; }
+.qrl-upload > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: .85rem;
+  font-weight: 700;
+}
+.qrl-upload > summary::-webkit-details-marker { display: none; }
+.qrl-upload[open] > summary { border-style: solid; }
+.qrl-form { display: grid; gap: 10px; padding: 12px 2px 2px; }
+.qrl-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.qrl-pick label {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  border-radius: 12px;
+  border: 1px solid #dbe1ea;
+  background: #f8fafc;
+  font-size: .8rem;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  text-align: center;
+}
+.qrl-pick label:focus-within { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+.qrl-pick input[type=file] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.qrl-pick-icon { font-size: 1.5rem; line-height: 1; }
+.qrl-files { font-size: .78rem; color: #475569; min-height: 1em; word-break: break-word; }
+.qrl-field { display: grid; gap: 4px; font-size: .78rem; font-weight: 600; color: #475569; }
+.qrl-field input, .qrl-field select {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 1rem; /* >=16px: niente zoom automatico su iOS */
+  font-family: inherit;
+  background: #fff;
+  color: #0f172a;
+}
+.qrl-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.qrl-submit {
+  padding: 13px 14px;
+  border: none;
+  border-radius: 12px;
+  background: var(--primary, #1d4ed8);
+  color: #fff;
+  font-size: .95rem;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+}
+.qrl-submit[disabled] { opacity: .6; cursor: wait; }
+.qrl-hint { font-size: .72rem; color: #94a3b8; text-align: center; }
+
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
   .qrl-card { background: #1e293b; border-color: #334155; }
@@ -161,7 +239,32 @@ a.qrl-wo-item:first-child { margin-top: 0; }
   .qrl-btn--detail { background: #1e293b; color: #cbd5e1; border-color: #334155; }
   .qrl-not-found { color: #94a3b8; }
   .qrl-not-found h2 { color: #f1f5f9; }
+  .qrl-msg--success { background: rgba(6,95,70,.22); color: #6ee7b7; border-color: rgba(110,231,183,.25); }
+  .qrl-msg--error { background: rgba(153,27,27,.22); color: #fca5a5; border-color: rgba(252,165,165,.25); }
+  .qrl-tkt { border-top-color: #334155; }
+  .qrl-tkt-num { color: #94a3b8; }
+  .qrl-tkt-open { color: #60a5fa; }
+  .qrl-badge--violet { background: rgba(124,58,237,.25); color: #c4b5fd; }
+  .qrl-upload > summary { background: rgba(29,78,216,.15); border-color: rgba(96,165,250,.45); color: #93c5fd; }
+  .qrl-pick label { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+  .qrl-files { color: #cbd5e1; }
+  .qrl-field { color: #cbd5e1; }
+  .qrl-field input, .qrl-field select { background: #0f172a; border-color: #334155; color: #f1f5f9; }
 }
+/* Tema scuro scelto nel portale (landing autenticata) */
+body.theme-dark .qrl-card { background: var(--surface, #1e293b); border-color: var(--border, #334155); }
+body.theme-dark .qrl-card-title { color: #94a3b8; border-bottom-color: #334155; }
+body.theme-dark .qrl-wo-item, body.theme-dark .qrl-tkt { border-top-color: #334155; }
+body.theme-dark .qrl-wo-title, body.theme-dark .qrl-kv-value { color: #f1f5f9; }
+body.theme-dark .qrl-kv-label, body.theme-dark .qrl-tkt-num { color: #94a3b8; }
+body.theme-dark .qrl-tkt-open { color: #60a5fa; }
+body.theme-dark .qrl-msg--success { background: rgba(6,95,70,.22); color: #6ee7b7; border-color: rgba(110,231,183,.25); }
+body.theme-dark .qrl-msg--error { background: rgba(153,27,27,.22); color: #fca5a5; border-color: rgba(252,165,165,.25); }
+body.theme-dark .qrl-badge--violet { background: rgba(124,58,237,.25); color: #c4b5fd; }
+body.theme-dark .qrl-upload > summary { background: rgba(29,78,216,.15); border-color: rgba(96,165,250,.45); color: #93c5fd; }
+body.theme-dark .qrl-pick label { background: var(--surface-alt, #0f172a); border-color: #334155; color: #f1f5f9; }
+body.theme-dark .qrl-files, body.theme-dark .qrl-field { color: #cbd5e1; }
+body.theme-dark .qrl-field input, body.theme-dark .qrl-field select { background: var(--surface-alt, #0f172a); border-color: #334155; color: #f1f5f9; }
 </style>
 
 <div class="qrl-body">
@@ -248,6 +351,93 @@ a.qrl-wo-item:first-child { margin-top: 0; }
           </div>
         {% endif %}
       </div>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="qrl-msg {% if m.tags == 'error' %}qrl-msg--error{% else %}qrl-msg--success{% endif %}" role="status">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% comment %}
+  Ticket aperti della macchina. Dal QR pubblico: solo numero, titolo, stato e
+  priorita' + caricamento di foto/PDF (rapportino del tecnico), che nascono
+  "da validare" per il team manutenzione.
+  {% endcomment %}
+  <div class="qrl-card" id="ticket">
+    <div class="qrl-card-title">Ticket aperti{% if qr_tickets %} ({{ qr_tickets|length }}){% endif %}</div>
+    <div class="qrl-card-body">
+      {% if qr_tickets %}
+        {% for t in qr_tickets %}
+          <div class="qrl-tkt">
+            <div class="qrl-tkt-head">
+              <div class="qrl-wo-dot {% if t.priorita == 'URGENTE' or t.priorita == 'ALTA' or t.incide_sicurezza %}qrl-wo-dot--urgente{% endif %}"></div>
+              <div style="flex:1; min-width:0;">
+                <div class="qrl-tkt-num">{{ t.numero }}</div>
+                <div class="qrl-wo-title" style="word-break:break-word;">{{ t.titolo|truncatechars:70 }}</div>
+                <div class="qrl-wo-meta">
+                  {% if t.stato == 'APERTA' %}<span class="qrl-badge qrl-badge--warn">{{ t.stato_label }}</span>
+                  {% elif t.stato == 'RISOLTO' %}<span class="qrl-badge qrl-badge--ok">{{ t.stato_label }}</span>
+                  {% else %}<span class="qrl-badge qrl-badge--info">{{ t.stato_label }}</span>{% endif %}
+                  {% if t.priorita == 'URGENTE' or t.priorita == 'ALTA' %}<span class="qrl-badge qrl-badge--alert">{{ t.priorita_label }}</span>{% endif %}
+                  {% if t.incide_sicurezza %}<span class="qrl-badge qrl-badge--alert">Sicurezza</span>{% endif %}
+                  &nbsp;&middot;&nbsp;aperto il {{ t.created_at|date:"d-m-Y" }}
+                  {% if t.n_allegati %}&nbsp;&middot;&nbsp;&#128206; {{ t.n_allegati }}{% endif %}
+                  {% if t.n_da_validare %}<span class="qrl-badge qrl-badge--violet">{{ t.n_da_validare }} da validare</span>{% endif %}
+                </div>
+              </div>
+              {% if t.detail_url %}<a class="qrl-tkt-open" href="{{ t.detail_url }}">Apri &rsaquo;</a>{% endif %}
+            </div>
+
+            {% if qr_upload_enabled and t.upload_url %}
+            <details class="qrl-upload">
+              <summary>&#128206; Allega rapportino o foto</summary>
+              <form method="post" action="{{ t.upload_url }}" enctype="multipart/form-data" class="qrl-form" data-qrl-upload>
+                {% csrf_token %}
+                {% if not qr_public %}<input type="hidden" name="next" value="{{ qr_landing_url }}#ticket">{% endif %}
+                <div class="qrl-pick">
+                  <label>
+                    <span class="qrl-pick-icon">&#128247;</span>
+                    Scatta foto
+                    <input type="file" name="file" accept="image/*" capture="environment" aria-label="Scatta una foto del documento">
+                  </label>
+                  <label>
+                    <span class="qrl-pick-icon">&#128193;</span>
+                    Scegli file
+                    <input type="file" name="file" multiple accept="{% if qr_public %}image/jpeg,image/png,application/pdf,.pdf,.jpg,.jpeg,.png{% else %}image/*,.pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt{% endif %}" aria-label="Scegli file da allegare">
+                  </label>
+                </div>
+                <div class="qrl-files" data-qrl-files></div>
+                {% if qr_public %}
+                  <label class="qrl-field">Nome e cognome *
+                    <input type="text" name="nome" required minlength="3" maxlength="200" autocomplete="name" value="{{ qr_uploader_name }}">
+                  </label>
+                  <label class="qrl-field">Ditta (se esterno)
+                    <input type="text" name="ditta" maxlength="200" autocomplete="organization">
+                  </label>
+                  <div class="qrl-hp" aria-hidden="true"><label>Sito web <input type="text" name="sito_web" tabindex="-1" autocomplete="off"></label></div>
+                {% endif %}
+                <label class="qrl-field">Tipo di documento
+                  <select name="tipo_documento">
+                    <option value="RAPPORTINO">Rapportino di intervento</option>
+                    <option value="FOTO">Foto</option>
+                    <option value="ALTRO">Altro documento</option>
+                  </select>
+                </label>
+                <label class="qrl-field">Note (facoltative)
+                  <input type="text" name="descrizione" maxlength="500" placeholder="Es. sostituita cinghia, macchina ripartita">
+                </label>
+                <button type="submit" class="qrl-submit">Invia al ticket {{ t.numero }}</button>
+                <p class="qrl-hint">{% if qr_public %}Solo foto (JPG/PNG) o PDF, max 15 MB, fino a 5 file. Il team manutenzione verificherà il documento.{% else %}Max 20 MB per file. Se non gestisci il ticket, il team manutenzione verificherà il documento.{% endif %}</p>
+              </form>
+            </details>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="qrl-empty">Nessun ticket aperto su questa macchina.</p>
+      {% endif %}
     </div>
   </div>
 
@@ -379,4 +569,38 @@ a.qrl-wo-item:first-child { margin-top: 0; }
 
 {% endif %}
 </div>
+<script>
+(function () {
+  document.querySelectorAll('form[data-qrl-upload]').forEach(function (form) {
+    var inputs = form.querySelectorAll('input[type=file]');
+    var out = form.querySelector('[data-qrl-files]');
+    function selected() {
+      var names = [];
+      inputs.forEach(function (inp) {
+        Array.prototype.forEach.call(inp.files || [], function (f) { names.push(f.name); });
+      });
+      return names;
+    }
+    inputs.forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var names = selected();
+        out.textContent = names.length ? ('✔ ' + names.length + ' file: ' + names.join(', ')) : '';
+      });
+    });
+    form.addEventListener('submit', function (ev) {
+      if (!selected().length) {
+        ev.preventDefault();
+        out.textContent = 'Scatta una foto o scegli un file prima di inviare.';
+        return;
+      }
+      var btn = form.querySelector('button[type=submit]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Invio in corso…'; }
+    });
+  });
+  if (location.hash === '#ticket') {
+    var box = document.getElementById('ticket');
+    if (box) box.scrollIntoView({ block: 'start' });
+  }
+})();
+</script>
 {% endblock %}

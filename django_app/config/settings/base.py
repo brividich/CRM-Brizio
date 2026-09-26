@@ -620,6 +620,10 @@ BACKUP_RETENTION = int(env("BACKUP_RETENTION", "10") or "10")
 TIMBRI_PRIVATE_ROOT = Path(env("TIMBRI_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 # Allegati ticket: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
 TICKETS_PRIVATE_ROOT = Path(env("TICKETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
+# Dal QR pubblico dell'asset (senza login) si possono allegare foto/PDF ai ticket
+# aperti della macchina; i file nascono "da validare". False = interruttore di
+# emergenza: la landing torna in sola lettura.
+ASSETS_QR_PUBLIC_TICKET_UPLOAD = env_bool("ASSETS_QR_PUBLIC_TICKET_UPLOAD", True)
 # Allegati asset sensibili: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
 ASSETS_PRIVATE_ROOT = Path(env("ASSETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 # Allegati Diario Preposto (segnalazioni di sicurezza): storage privato con

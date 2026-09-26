@@ -28,6 +28,17 @@ class HelperTests(SimpleTestCase):
         self.assertEqual(risposta["Cache-Control"], "public, max-age=60")
         self.assertEqual(risposta["Referrer-Policy"], "no-referrer")
 
+    def test_rispetta_same_origin_ma_non_politiche_che_escono_dal_dominio(self):
+        # same-origin: serve ai form POST pubblici (con no-referrer Chromium manda
+        # Origin: null e il CSRF rifiuta), e il token non esce comunque dal dominio.
+        stessa = HttpResponse("ok")
+        stessa["Referrer-Policy"] = "same-origin"
+        self.assertEqual(blinda_risposta_pubblica(stessa)["Referrer-Policy"], "same-origin")
+
+        larga = HttpResponse("ok")
+        larga["Referrer-Policy"] = "unsafe-url"
+        self.assertEqual(blinda_risposta_pubblica(larga)["Referrer-Policy"], "no-referrer")
+
     def test_decoratore_preserva_la_risposta_della_view(self):
         @risposta_pubblica
         def vista(request):

@@ -10659,6 +10659,169 @@ def asset_qr_public_landing(request: HttpRequest, public_qr_token: str) -> HttpR
     return _render_asset_qr_landing(request, asset, public=True)
 
 
+def _qr_landing_tickets(request: HttpRequest, asset: Asset, *, public: bool, qr_token: str) -> list[dict[str, object]]:
+    """Ticket non chiusi dell'asset per la landing QR (max 10, piu' recenti prima)."""
+    from tickets.allegati import ticket_aperti_asset
+    from tickets.views import _can_manage_tickets
+
+    rows: list[dict[str, object]] = []
+    can_manage: dict[str, bool] = {}
+    for t in ticket_aperti_asset(asset.id)[:10]:
+        row: dict[str, object] = {
+            "id": t.pk,
+            "numero": t.numero_ticket,
+            "titolo": t.titolo,
+            "stato": t.stato,
+            "stato_label": t.label_stato,
+            "priorita": t.priorita,
+            "priorita_label": t.label_priorita,
+            "tipo_label": t.label_tipo,
+            "incide_sicurezza": t.incide_sicurezza,
+            "created_at": t.created_at,
+            "n_allegati": t.n_allegati,
+            "n_da_validare": t.n_allegati_da_validare,
+            "detail_url": "",
+        }
+        if public:
+            row["upload_url"] = (
+                reverse("assets:asset_qr_ticket_upload", kwargs={"public_qr_token": qr_token, "ticket_id": t.pk})
+                if qr_token
+                else ""
+            )
+        else:
+            row["upload_url"] = reverse("tickets:carica_allegati", args=[t.pk])
+            if t.tipo not in can_manage:
+                can_manage[t.tipo] = _can_manage_tickets(request, t.tipo)
+            if can_manage[t.tipo]:
+                row["detail_url"] = reverse("tickets:gestione_detail", args=[t.pk])
+        rows.append(row)
+    return rows
+
+
+@risposta_pubblica
+def asset_qr_ticket_upload(request: HttpRequest, public_qr_token: str, ticket_id: int) -> HttpResponse:
+    """Upload di rapportino/foto su un ticket aperto dal QR pubblico dell'asset.
+
+    Il token QR e' la chiave: il ticket deve appartenere esattamente all'asset del
+    token ed essere ancora aperto. Solo foto/PDF, tetto per IP e per macchina,
+    file sempre "da validare" dal team gestore. Nessun dato del ticket viene
+    restituito oltre a quanto gia' mostrato dalla landing.
+    """
+    from tickets.allegati import (
+        QR_MAX_FILES,
+        AllegatoError,
+        carica_allegato,
+        qr_rate_limited,
+        registra_caricamento,
+        ticket_accetta_allegati,
+    )
+    from tickets.models import OrigineAllegato, Ticket
+
+    if request.method != "POST":
+        raise Http404("Pagina non disponibile.")
+    token = _clean_string(public_qr_token)
+    asset = (
+        Asset.objects.filter(public_qr_token=token, public_qr_enabled=True).first() if token else None
+    )
+    if asset is None or not getattr(settings, "ASSETS_QR_PUBLIC_TICKET_UPLOAD", True):
+        raise Http404("Link non disponibile.")
+    landing_url = reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": token}) + "#ticket"
+
+    ticket = Ticket.objects.filter(pk=ticket_id, asset_id=asset.id).first()
+    if ticket is None:
+        # Ticket inesistente o di un'altra macchina: nessun oracolo.
+        log_action(
+            request,
+            "ticket_allegato_qr",
+            "assets",
+            {"asset_id": asset.id, "ticket_id": ticket_id, "qr_token_prefix": token[:8],
+             "esito": "denied", "motivo": "ticket_not_in_asset"},
+        )
+        raise Http404("Ticket non disponibile.")
+    if not ticket_accetta_allegati(ticket):
+        messages.error(request, f"Il ticket {ticket.numero_ticket} è chiuso: non accetta nuovi allegati.")
+        return redirect(landing_url)
+
+    # Honeypot: i bot compilano tutto, le persone non vedono il campo.
+    if _clean_string(request.POST.get("sito_web")):
+        return redirect(landing_url)
+
+    nome = _clean_string(request.POST.get("nome"))[:200]
+    ditta = _clean_string(request.POST.get("ditta"))[:200]
+    files = request.FILES.getlist("file")
+    if len(nome) < 3:
+        messages.error(request, "Indica nome e cognome di chi carica il documento.")
+        return redirect(landing_url)
+    if not files:
+        messages.error(request, "Scatta una foto o scegli un file da allegare.")
+        return redirect(landing_url)
+    if len(files) > QR_MAX_FILES:
+        messages.error(request, f"Puoi allegare al massimo {QR_MAX_FILES} file per invio.")
+        return redirect(landing_url)
+    if qr_rate_limited(request, asset.id):
+        log_action(
+            request,
+            "ticket_allegato_qr",
+            "assets",
+            {"asset_id": asset.id, "ticket_id": ticket.pk, "qr_token_prefix": token[:8],
+             "esito": "denied", "motivo": "rate_limited"},
+        )
+        messages.error(request, "Troppi invii ravvicinati da questo dispositivo. Riprova tra qualche minuto.")
+        return redirect(landing_url)
+
+    email = ""
+    if request.user.is_authenticated:
+        email = (request.user.email or "").strip().lower()
+    caricati = []
+    errori = []
+    for f in files:
+        try:
+            caricati.append(
+                carica_allegato(
+                    ticket,
+                    f,
+                    caricato_da_nome=nome,
+                    caricato_da_email=email,
+                    ditta=ditta,
+                    origine=OrigineAllegato.QR,
+                    tipo_documento=_clean_string(request.POST.get("tipo_documento")).upper(),
+                    descrizione=_clean_string(request.POST.get("descrizione")),
+                    da_validare=True,
+                )
+            )
+        except AllegatoError as exc:
+            errori.append(f"{safe_filename(getattr(f, 'name', '')) or 'file'}: {exc}")
+
+    registra_caricamento(ticket, caricati)
+    log_action(
+        request,
+        "ticket_allegato_qr",
+        "assets",
+        {
+            "asset_id": asset.id,
+            "asset_tag": asset.asset_tag,
+            "ticket_id": ticket.pk,
+            "numero_ticket": ticket.numero_ticket,
+            "qr_token_prefix": token[:8],
+            "allegati": [a.pk for a in caricati],
+            "scartati": len(errori),
+            "caricato_da": nome,
+            "ditta": ditta,
+            "esito": "success" if caricati else "rejected",
+        },
+        oggetto=ticket,
+    )
+    if caricati:
+        messages.success(
+            request,
+            f"Grazie! {len(caricati)} file allegat{'o' if len(caricati) == 1 else 'i'} al ticket "
+            f"{ticket.numero_ticket}. Il team manutenzione {'lo' if len(caricati) == 1 else 'li'} verificherà a breve.",
+        )
+    for err in errori:
+        messages.error(request, err)
+    return redirect(landing_url)
+
+
 def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool) -> HttpResponse:
     asset_tag = asset.asset_tag
     today = timezone.localdate()
@@ -10756,6 +10919,19 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
                 "open_url": open_url,
             }
         )
+    # Ticket aperti della macchina, con il caricamento di rapportini/foto.
+    # Dal QR pubblico il visitatore vede solo numero, titolo, stato e priorita'
+    # (niente richiedente, note o allegati) e puo' solo AGGIUNGERE file, che
+    # nascono "da validare" per il team MAN.
+    qr_tickets = _qr_landing_tickets(request, asset, public=public, qr_token=qr_token)
+    qr_upload_enabled = bool(
+        qr_tickets
+        and (not public or (qr_token and getattr(settings, "ASSETS_QR_PUBLIC_TICKET_UPLOAD", True)))
+    )
+    qr_uploader_name = ""
+    if request.user.is_authenticated:
+        qr_uploader_name = request.user.get_full_name() or request.user.get_username()
+
     # URL azioni
     detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
     report_url = f"{reverse('assets:asset_quick_report')}?asset={asset.id}"
@@ -10779,6 +10955,10 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
         "wo_list_url": wo_list_url,
         "schedule_url": schedule_url,
         "qr_public": public,
+        "qr_tickets": qr_tickets,
+        "qr_upload_enabled": qr_upload_enabled,
+        "qr_uploader_name": qr_uploader_name,
+        "qr_landing_url": request.path,
     }
     if public:
         # Nessuna shell applicativa (sidebar/nav/ACL) per i visitatori non autenticati.
@@ -10786,7 +10966,12 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     else:
         context["base_template"] = "core/base.html"
         context.update(_assets_shell_context(request, rows=25))
-    return render(request, "assets/pages/asset_qr_landing.html", context)
+    response = render(request, "assets/pages/asset_qr_landing.html", context)
+    if public and qr_upload_enabled:
+        # Il form di caricamento e' un POST: con "no-referrer" Chromium manda
+        # Origin: null e il CSRF lo rifiuta. same-origin non fa uscire il token.
+        response["Referrer-Policy"] = "same-origin"
+    return response
 
 
 @login_required
