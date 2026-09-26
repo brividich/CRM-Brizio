@@ -3478,12 +3478,18 @@ def api_anomalie_config_liste(request):
     esc_payload = payload.get("escalation")
     if isinstance(esc_payload, dict):
         try:
-            from anomalie.escalation_config import get_escalation_config, save_escalation_config
+            from anomalie.escalation_config import (
+                get_escalation_config,
+                save_automazioni_config,
+                save_escalation_config,
+            )
             save_escalation_config(
                 attivo=bool(esc_payload.get("attivo")),
                 soglia_ore=esc_payload.get("soglia_ore"),
                 ora_invio=esc_payload.get("ora_invio"),
             )
+            if isinstance(esc_payload.get("automazioni"), dict):
+                save_automazioni_config(esc_payload["automazioni"])
             escalation_saved = get_escalation_config()
         except Exception:
             logger.exception("[anomalie] salvataggio escalation fallito")

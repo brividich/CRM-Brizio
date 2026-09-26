@@ -80,10 +80,16 @@ def run_anomalie_escalation(*, force_email: bool = False) -> dict:
     - invia il RESOCONTO email aggregato solo se `attivo` è on e siamo nel giorno
       lavorativo (lun-ven) all'`ora_invio` configurata — oppure se `force_email=True`.
 
-    Ritorna {"reminders": n, "email_sent": bool, "op_da_controllare": m, "op_over": k}.
+    Nello stesso run girano le automazioni aggiuntive accese da Configurazione
+    (vedi anomalie.automazioni_service): RDC senza numero, difetto ricorrente per P/N,
+    OP completato e, il lunedi' all'ora del resoconto, il digest settimanale.
+
+    Ritorna {"reminders": n, "email_sent": bool, "op_da_controllare": m, "op_over": k, ...}.
     """
     from django.utils import timezone
 
+    from anomalie import automazioni_service as auto
+    from anomalie.automation_models import AnomalieAutomazioneMarker
     from anomalie.escalation_config import get_escalation_config
     from anomalie.mail_action_service import (
         _fetch_op_da_controllare,
@@ -93,10 +99,13 @@ def run_anomalie_escalation(*, force_email: bool = False) -> dict:
 
     cfg = get_escalation_config()
     soglia = int(cfg["soglia_ore"])
-    out = {"reminders": 0, "email_sent": False, "op_da_controllare": 0, "op_over": 0}
+    out = {
+        "reminders": 0, "email_sent": False, "op_da_controllare": 0, "op_over": 0,
+        "rdc_op": 0, "rdc_reminders": 0, "ricorrenze": 0, "op_completati": 0, "digest_sent": False,
+    }
 
     try:
-        op_rows = _fetch_op_da_controllare(soglia)
+        op_rows = _fetch_op_da_controllare(soglia, strict=True)
     except Exception:
         logger.exception("run_anomalie_escalation: fetch OP fallito")
         return out
@@ -104,28 +113,70 @@ def run_anomalie_escalation(*, force_email: bool = False) -> dict:
     out["op_da_controllare"] = len(op_rows)
     out["op_over"] = sum(1 for op in op_rows if op.get("over_threshold"))
 
-    # 1) Promemoria dashboard: sempre (anche sotto soglia)
+    # 1) Promemoria dashboard: sempre (anche sotto soglia); chiude quelli superati
     try:
         out["reminders"] = create_dashboard_reminders(op_rows, soglia_ore=soglia)
     except Exception:
         logger.exception("run_anomalie_escalation: reminders falliti")
 
-    # 2) Email resoconto: solo on + giorno lavorativo + ora di invio (o forzata)
+    # 1b) RDC richiesto senza numero: promemoria a CC/CAR + sezione nel resoconto
+    rdc_rows: list[dict] = []
+    if cfg["rdc_attivo"]:
+        try:
+            rdc_rows = auto.find_rdc_senza_numero(giorni=int(cfg["rdc_giorni"]))
+            out["rdc_op"] = len(rdc_rows)
+            out["rdc_reminders"] = auto.sync_rdc_reminders(rdc_rows)
+        except Exception:
+            logger.exception("run_anomalie_escalation: automazione RDC fallita")
+
+    # 2) Email resoconto: solo on + giorno lavorativo + ora di invio (o forzata),
+    #    una sola volta al giorno anche se il task gira due volte nella stessa ora.
     now = timezone.localtime(timezone.now())
     is_send_window = (
         cfg["attivo"]
         and now.weekday() < 5  # lun(0)..ven(4)
         and now.hour == int(cfg["ora_invio"])
     )
-    if force_email or is_send_window:
+    oggi = now.date().isoformat()
+    already_sent = AnomalieAutomazioneMarker.objects.filter(
+        tipo=AnomalieAutomazioneMarker.Tipo.RESOCONTO, chiave=oggi,
+    ).exists()
+    if force_email or (is_send_window and not already_sent):
         try:
-            out["email_sent"] = send_escalation_resoconto(op_rows, soglia_ore=soglia)
+            out["email_sent"] = send_escalation_resoconto(
+                op_rows, soglia_ore=soglia, rdc_rows=rdc_rows, rdc_giorni=int(cfg["rdc_giorni"]),
+            )
+            if out["email_sent"] and not force_email:
+                AnomalieAutomazioneMarker.objects.create(
+                    tipo=AnomalieAutomazioneMarker.Tipo.RESOCONTO, chiave=oggi,
+                    dettaglio={"op": out["op_over"], "rdc": out["rdc_op"]},
+                )
         except Exception:
             logger.exception("run_anomalie_escalation: invio resoconto fallito")
 
-    if out["reminders"] or out["email_sent"]:
-        logger.info(
-            "run_anomalie_escalation: reminders=%s email_sent=%s op=%s over=%s",
-            out["reminders"], out["email_sent"], out["op_da_controllare"], out["op_over"],
-        )
+    # 3) Difetto ricorrente per P/N
+    if cfg["ricorrenza_attivo"]:
+        try:
+            out["ricorrenze"] = auto.notify_ricorrenze_pn(
+                soglia_n=int(cfg["ricorrenza_n"]), giorni=int(cfg["ricorrenza_giorni"]),
+            )
+        except Exception:
+            logger.exception("run_anomalie_escalation: automazione ricorrenza P/N fallita")
+
+    # 4) OP completato (rete di sicurezza: di norma parte dal flush delle modifiche)
+    if cfg["op_completato_attivo"]:
+        try:
+            out["op_completati"] = auto.notify_op_completati()
+        except Exception:
+            logger.exception("run_anomalie_escalation: automazione OP completato fallita")
+
+    # 5) Digest settimanale: lunedi' all'ora del resoconto
+    if cfg["digest_attivo"] and now.weekday() == 0 and now.hour == int(cfg["ora_invio"]):
+        try:
+            out["digest_sent"] = auto.send_digest(soglia_ore=soglia)
+        except Exception:
+            logger.exception("run_anomalie_escalation: digest settimanale fallito")
+
+    if any(out[k] for k in ("reminders", "email_sent", "rdc_reminders", "ricorrenze", "op_completati", "digest_sent")):
+        logger.info("run_anomalie_escalation: %s", out)
     return out

@@ -29,6 +29,7 @@ TIPO_META: dict[str, dict[str, str]] = {
     "anomalia_segnalata":   {"label": "Anomalia segnalata",     "icona": "⚠️", "tono": "warn",   "categoria": "operativita"},
     "anomalia_chiusa":      {"label": "Anomalia chiusa",        "icona": "✅", "tono": "ok",     "categoria": "operativita"},
     "anomalia_da_gestire":  {"label": "Anomalia da gestire",    "icona": "🔧", "tono": "warn",   "categoria": "operativita"},
+    "anomalia_rdc_mancante": {"label": "RDC da aprire",         "icona": "📝", "tono": "warn",   "categoria": "operativita"},
     "dpi_approvata":        {"label": "DPI approvata",          "icona": "🦺", "tono": "ok",     "categoria": "scadenzari"},
     "dpi_rifiutata":        {"label": "DPI rifiutata",          "icona": "🦺", "tono": "danger", "categoria": "scadenzari"},
     "dpi_consegnata":       {"label": "DPI consegnata",         "icona": "🦺", "tono": "ok",     "categoria": "scadenzari"},

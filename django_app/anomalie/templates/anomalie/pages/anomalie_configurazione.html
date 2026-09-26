@@ -332,6 +332,52 @@
         <small>Il resoconto parte a quest'ora ogni giorno lavorativo (lun&ndash;ven). Default 06:00.</small>
         <select id="esc_ora_invio" class="input"></select>
       </div>
+
+      <div class="field" style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+        <label style="font-weight:800;">Automazioni aggiuntive</label>
+        <small>Girano insieme al controllo orario dell'escalation. Tutte spente finch&eacute; non le attivi; ogni evento viene notificato una sola volta.</small>
+      </div>
+      <div class="field">
+        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="auto_ricorrenza_attivo" />
+          <span>Difetto ricorrente per P/N</span>
+        </label>
+        <small>Se lo stesso P/N accumula troppe anomalie nella finestra, parte una mail alle liste <em>supervisori</em> e <em>RDC / segnalazione cliente</em>. Una sola mail per P/N per finestra.</small>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <label style="flex:1;font-size:var(--fs-sm);">Anomalie (min 2)
+            <input id="auto_ricorrenza_n" type="number" min="2" max="50" step="1" class="input" />
+          </label>
+          <label style="flex:1;font-size:var(--fs-sm);">In giorni
+            <input id="auto_ricorrenza_giorni" type="number" min="1" max="365" step="1" class="input" />
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="auto_rdc_attivo" />
+          <span>RDC richiesto ma senza numero</span>
+        </label>
+        <small>Anomalie aperte con &laquo;Aprire RDC&raquo; attivo e numero RDC vuoto da oltre i giorni indicati: promemoria in dashboard a capocommessa/CAR e sezione dedicata nel resoconto giornaliero.</small>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <label style="flex:1;font-size:var(--fs-sm);">Dopo giorni
+            <input id="auto_rdc_giorni" type="number" min="1" max="60" step="1" class="input" />
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="auto_digest_attivo" />
+          <span>Digest settimanale KPI</span>
+        </label>
+        <small>Ogni luned&igrave; all'ora del resoconto, ai <em>supervisori</em>: nuove e chiuse della settimana, aperte, in attesa oltre soglia, RDC senza numero, tempo medio di chiusura, OP e P/N con pi&ugrave; anomalie.</small>
+      </div>
+      <div class="field">
+        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="auto_op_completato_attivo" />
+          <span>OP completato</span>
+        </label>
+        <small>Quando l'ultima anomalia aperta di un OP viene chiusa, capocommessa e CAR ricevono una mail con il link al Report OP (circa 5 minuti dopo il salvataggio).</small>
+      </div>
     </div>
     <div id="esc-status" class="status" style="margin:0 16px;"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;padding:16px;">
@@ -834,7 +880,14 @@
   window._CFG_ESCALATION = {
     attivo: {% if escalation_cfg.attivo %}true{% else %}false{% endif %},
     soglia_ore: {{ escalation_cfg.soglia_ore|default:24 }},
-    ora_invio: {{ escalation_cfg.ora_invio|default:6 }}
+    ora_invio: {{ escalation_cfg.ora_invio|default:6 }},
+    ricorrenza_attivo: {% if escalation_cfg.ricorrenza_attivo %}true{% else %}false{% endif %},
+    ricorrenza_n: {{ escalation_cfg.ricorrenza_n|default:3 }},
+    ricorrenza_giorni: {{ escalation_cfg.ricorrenza_giorni|default:30 }},
+    rdc_attivo: {% if escalation_cfg.rdc_attivo %}true{% else %}false{% endif %},
+    rdc_giorni: {{ escalation_cfg.rdc_giorni|default:3 }},
+    digest_attivo: {% if escalation_cfg.digest_attivo %}true{% else %}false{% endif %},
+    op_completato_attivo: {% if escalation_cfg.op_completato_attivo %}true{% else %}false{% endif %}
   };
 </script>
 {% endblock %}
@@ -1094,6 +1147,35 @@
     elSoglia.value = cfg.soglia_ore != null ? cfg.soglia_ore : 24;
     elOra.value = String(cfg.ora_invio != null ? cfg.ora_invio : 6);
 
+    // Automazioni aggiuntive: [id elemento, chiave, tipo, default]
+    const AUTO_FIELDS = [
+      ['auto_ricorrenza_attivo', 'ricorrenza_attivo', 'bool', false],
+      ['auto_ricorrenza_n', 'ricorrenza_n', 'int', 3],
+      ['auto_ricorrenza_giorni', 'ricorrenza_giorni', 'int', 30],
+      ['auto_rdc_attivo', 'rdc_attivo', 'bool', false],
+      ['auto_rdc_giorni', 'rdc_giorni', 'int', 3],
+      ['auto_digest_attivo', 'digest_attivo', 'bool', false],
+      ['auto_op_completato_attivo', 'op_completato_attivo', 'bool', false],
+    ];
+    const fillAuto = (src) => {
+      AUTO_FIELDS.forEach(([id, key, type, def]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const v = src && src[key] != null ? src[key] : def;
+        if (type === 'bool') el.checked = !!v; else el.value = v;
+      });
+    };
+    const readAuto = () => {
+      const out = {};
+      AUTO_FIELDS.forEach(([id, key, type, def]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        out[key] = type === 'bool' ? !!el.checked : (parseInt(el.value, 10) || def);
+      });
+      return out;
+    };
+    fillAuto(cfg);
+
     btnSave.addEventListener('click', async () => {
       // I supervisori viaggiano nella stessa chiave liste; li salviamo insieme
       // riusando l'endpoint config/liste con il blocco "escalation".
@@ -1105,6 +1187,7 @@
           attivo: !!elAttivo.checked,
           soglia_ore: parseInt(elSoglia.value, 10) || 24,
           ora_invio: parseInt(elOra.value, 10) || 6,
+          automazioni: readAuto(),
         },
       };
       btnSave.disabled = true;
@@ -1120,6 +1203,7 @@
           elAttivo.checked = !!j.escalation.attivo;
           elSoglia.value = j.escalation.soglia_ore;
           elOra.value = String(j.escalation.ora_invio);
+          fillAuto(j.escalation);
         }
         setStatus(true, 'Impostazioni promemoria & escalation salvate.');
       } catch (e) {

@@ -60,15 +60,18 @@
           <td class="ep" style="padding:28px 34px 6px;background:#ffffff;">
             <div style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Resoconto promemoria</div>
             <h2 style="margin:0;color:#182232;font-size:22px;line-height:1.22;font-weight:800;">
-              {{ n_op }} OP con anomalie da gestire
+              {% if n_op %}{{ n_op }} OP con anomalie da gestire{% else %}{{ n_rdc }} RDC da aprire senza numero{% endif %}
             </h2>
+            {% if n_op %}
             <p style="margin:8px 0 0;color:#64748b;font-size:14px;">
               {{ tot_anomalie }} anomali{% if tot_anomalie == 1 %}a in stato{% else %}e in stato{% endif %} <strong>&laquo;In attesa&raquo;</strong> da oltre <strong>{{ soglia_ore }} ore</strong>. Si richiede la presa in carico.
             </p>
+            {% endif %}
           </td>
         </tr>
 
         <!-- TABELLA OP -->
+        {% if op_rows %}
         <tr>
           <td class="ep" style="padding:18px 34px 8px;background:#ffffff;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
@@ -95,6 +98,39 @@
             </table>
           </td>
         </tr>
+        {% endif %}
+
+        <!-- RDC SENZA NUMERO -->
+        {% if rdc_rows %}
+        <tr>
+          <td class="ep" style="padding:18px 34px 8px;background:#ffffff;">
+            <div style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">RDC da aprire</div>
+            <p style="margin:0 0 10px;color:#64748b;font-size:14px;">Anomalie con <strong>&laquo;Aprire RDC&raquo;</strong> attivo e numero RDC ancora vuoto da oltre <strong>{{ rdc_giorni }} giorni</strong>.</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                   style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+              <tr style="background:#f1f5f9;">
+                <th align="left" style="padding:9px 12px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0;">OP / P-N</th>
+                <th align="center" style="padding:9px 8px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0;">Anomalie</th>
+                <th align="center" style="padding:9px 8px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0;">Da</th>
+                <th align="left" class="hide-sm" style="padding:9px 12px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0;">CC / CAR</th>
+              </tr>
+              {% for op in rdc_rows %}
+              <tr style="background:{% cycle '#ffffff' '#fafbfc' %};">
+                <td style="padding:11px 12px;font-size:13px;color:#182232;border-bottom:1px solid #f1f5f9;vertical-align:top;">
+                  <strong>{{ op.op_id }}</strong>{% if op.pn %}<br><span style="color:#64748b;font-size:12px;">P/N {{ op.pn }}</span>{% endif %}
+                  {% if op.seriali %}<div style="margin-top:4px;color:#94a3b8;font-size:11px;">S/N: {{ op.seriali|join:", "|truncatechars:80 }}</div>{% endif %}
+                </td>
+                <td align="center" style="padding:11px 8px;font-size:14px;color:#182232;font-weight:700;border-bottom:1px solid #f1f5f9;vertical-align:top;">{{ op.n_anomalie }}</td>
+                <td align="center" style="padding:11px 8px;border-bottom:1px solid #f1f5f9;vertical-align:top;">
+                  <span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:12px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap;">{{ op.giorni_max }} gg</span>
+                </td>
+                <td class="hide-sm" style="padding:11px 12px;font-size:12px;color:#475569;border-bottom:1px solid #f1f5f9;vertical-align:top;">{{ op.cc_car|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </table>
+          </td>
+        </tr>
+        {% endif %}
 
         <!-- FOOTER -->
         <tr>

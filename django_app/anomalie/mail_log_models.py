@@ -21,6 +21,9 @@ class AnomalieEmailLog(models.Model):
         MAIL_ACTION = "mail_action", "Mail-action (link azione)"
         CONFERMA_AGGIORNAMENTI = "conferma_aggiornamenti", "Conferma aggiornamenti"
         ESCALATION = "escalation_resoconto", "Resoconto escalation"
+        RICORRENZA_PN = "ricorrenza_pn", "Difetto ricorrente per P/N"
+        DIGEST = "digest_settimanale", "Digest settimanale KPI"
+        OP_COMPLETATO = "op_completato", "OP completato"
         ALERT_ADMIN = "alert_admin", "Alert amministratori"
         ALTRO = "altro", "Altro"
 
