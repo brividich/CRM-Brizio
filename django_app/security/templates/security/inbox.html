@@ -76,7 +76,7 @@
           <thead><tr><th>ID</th><th>Subject</th><th>Source</th><th>Status</th><th>Received</th></tr></thead>
           <tbody>
             {% for message in recent_mailbox_messages %}
-              <tr><td>#{{ message.pk }}</td><td>{{ message.subject }}</td><td>{{ message.source.name }}</td><td><span class="sec-badge">{{ message.parse_status }}</span></td><td>{{ message.received_at }}</td></tr>
+              <tr><td>#{{ message.pk }}</td><td>{{ message.subject }}</td><td>{{ message.source.name }}</td><td><span class="sec-badge">{{ message.parse_status }}</span>{% if message.raw_payload.skip_detail %}<small class="sec-muted" style="display:block; margin-top:4px;">{{ message.raw_payload.skip_detail }}</small>{% endif %}</td><td>{{ message.received_at }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -96,7 +96,7 @@
           <thead><tr><th>ID</th><th>Name</th><th>Source</th><th>Type</th><th>Status</th></tr></thead>
           <tbody>
             {% for file in recent_source_files %}
-              <tr><td>#{{ file.pk }}</td><td>{{ file.original_name }}</td><td>{{ file.source.name }}</td><td>{{ file.file_type }}</td><td><span class="sec-badge">{{ file.parse_status }}</span></td></tr>
+              <tr><td>#{{ file.pk }}</td><td>{{ file.original_name }}</td><td>{{ file.source.name }}</td><td>{{ file.file_type }}</td><td><span class="sec-badge">{{ file.parse_status }}</span>{% if file.raw_payload.skip_detail %}<small class="sec-muted" style="display:block; margin-top:4px;">{{ file.raw_payload.skip_detail }}</small>{% endif %}</td></tr>
             {% endfor %}
           </tbody>
         </table>

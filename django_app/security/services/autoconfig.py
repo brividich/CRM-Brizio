@@ -89,6 +89,7 @@ ALERT_RULES = [
     ("backup_missing_expected_job", "Backup missing expected job", "synology_backup", "missing_jobs", "gt", "0", "warning", True),
     ("backup_duration_anomaly", "Backup duration anomaly", "synology_backup", "duration_minutes", "gt", "0", "warning", False),
     ("backup_transferred_size_anomaly", "Backup transferred size anomaly", "synology_backup", "transferred_size_gb", "baseline_deviation", "0", "warning", False),
+    ("possible_sender_spoofing", "Possible sender spoofing (vendor report from untrusted sender)", "mailbox", "untrusted_sender", "eq", "true", "warning", False),
 ]
 
 DASHBOARD_CHANNEL_NAME = "Dashboard only"

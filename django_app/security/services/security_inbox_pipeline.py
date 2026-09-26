@@ -19,7 +19,7 @@ from security.models import (
     ParseStatus,
     SourceType,
 )
-from security.services.parser_engine import _match_enabled_parser, run_pending_parsers
+from security.services.parser_engine import SKIP_UNTRUSTED_SENDER, _match_enabled_parser, mark_skipped, run_pending_parsers
 from security.services.rule_engine import evaluate_security_rules
 
 logger = logging.getLogger(__name__)
@@ -143,8 +143,15 @@ def _process_inbox_item(item) -> Dict[str, Any]:
         result["parser_matched"] = True
         result["parser_name"] = parser.name
     else:
+        code, detail = mark_skipped(item)
         result["status"] = "skipped"
-        result["warnings"].append("No parser matched this item")
+        result["skip_reason"] = code
+        result["warnings"].append(detail)
+        if code == SKIP_UNTRUSTED_SENDER:
+            before = _pipeline_counts()
+            evaluate_security_rules()
+            result["events_created"] = 1
+            result["alerts_created"] = max(_pipeline_counts()["alerts"] - before["alerts"], 0)
         return result
 
     before = _pipeline_counts()

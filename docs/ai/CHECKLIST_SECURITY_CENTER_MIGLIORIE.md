@@ -37,13 +37,13 @@ Aggiornare questa checklist a ogni blocco concluso.
 
 ## B — Qualità del rilevamento
 
-- [ ] Registrare il motivo di scarto (`skip_reason`) sugli elementi SKIPPED:
+- [x] Registrare il motivo di scarto (`skip_reason`) sugli elementi SKIPPED:
       `no_parser` / `untrusted_sender` / `parser_disabled` — visibile in Inbox.
-- [ ] Mail «con aspetto Defender» da mittente non attendibile: evento/alert
-      `possible_sender_spoofing` (severità media) invece di sparire in silenzio.
-- [ ] `ingest_sample_security_data`: mittente Defender sintetico attendibile
+- [x] Mail «con aspetto Defender» da mittente non attendibile: evento/alert
+      `possible_sender_spoofing` (severità «attenzione», un alert per fornitore+dominio, senza corpo mail) invece di sparire in silenzio.
+- [x] `ingest_sample_security_data`: mittente Defender sintetico attendibile
       (`@microsoft.com` di esempio) così la demo produce la CVE critica.
-- [ ] Test su spoofing, skip reason, demo.
+- [x] Test su spoofing, skip reason, demo.
 
 ## C — Alert e ticket (UX operatore)
 

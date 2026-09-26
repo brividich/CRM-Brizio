@@ -16,7 +16,7 @@ class Command(BaseCommand):
             defender,
             "Microsoft Defender vulnerability notification",
             "CVE-2025-12345\nAffected product: Contoso VPN Gateway\nCVSS: 9.8\nExposed devices: 3\nSeverity: Critical",
-            sender="defender@example.test",
+            sender="defender-noreply@microsoft.com",  # dominio attendibile: senza, il parser scarta (anti-spoofing)
             external_id="sample-defender-cve",
         )
         ingest_mailbox_message(
