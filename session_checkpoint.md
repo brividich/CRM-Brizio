@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-09-26 (ripresa push profili SNMP)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `pubblicazione profili SNMP su release aggiornata`. L'utente ha riconfermato il push dopo il blocco automatico e l'indicazione della destinazione GitHub.
+- Integrato `e893f418` nel ramo isolato `integration/snmp-profili-release-20260926`, comprensivo del catalogo `523f58b2` e del merge `f7249e90`. Codice Contatori invariato rispetto ai test gia' eseguiti. README/CHANGELOG di entrambe le linee conservati.
+- Push previsto su `origin/release/prod` senza force e verifica hash remoto; deploy server separato, con migrazioni Contatori 0008-0012 e riavvio web/qcluster. Nessun nuovo file critico o backup.
+
 Data: 2026-09-26 (catalogo massivo profili SNMP multi-vendor)
 
 - Nuova voce vista/aggiunta: `2026-09-26 - Codex (catalogo massivo profili SNMP multi-vendor)` in AGENT_CHANGELOG; README, changelog root/Django e documentazione Contatori aggiornati.

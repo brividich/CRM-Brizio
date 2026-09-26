@@ -1,5 +1,11 @@
 # Agent Changelog
 
+## 2026-09-26 - Codex (pubblicazione profili SNMP su release aggiornata)
+
+- Ripreso il push dopo riconferma esplicita dell'utente sulla destinazione `origin` (github.com/brividich/CRM-Brizio). Integrata la release `e893f418` nel ramo isolato che contiene `523f58b2` e `f7249e90`; merge automatico, codice Contatori invariato rispetto ai test gia' verdi.
+- File modificati in questa ripresa: solo questo registro e `session_checkpoint.md`; README e CHANGELOG gia' aggiornati dalla funzione e conservati nel merge. Nessuna nuova modifica a file critici, nessun backup o deploy server.
+- Verifiche: confronto albero Contatori con `f7249e90`, genealogia dei commit, diff check e Django check. Pubblicazione con push ordinario senza force; verificare l'hash remoto dopo l'esito. Rischi applicativi e istruzioni migrate/riavvio restano quelli della voce seguente.
+
 ## 2026-09-26 - Codex (catalogo massivo profili SNMP multi-vendor)
 
 - Richiesta: estendere la centrale oltre le MFC Canon/Kyocera con configurazioni riutilizzabili per firewall, server, rete, storage, UPS e produttori diffusi. Lavoro svolto nel worktree `temp/codex-snmp-profili`, branch `feature/contatori-profili-snmp`, senza modificare il checkout condiviso o apparati/DB aziendali.
