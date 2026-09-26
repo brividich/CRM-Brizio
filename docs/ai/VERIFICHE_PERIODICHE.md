@@ -94,6 +94,11 @@ Panoramica (`services/periodic_stats.py`, sola lettura):
   `periodic_check_layout_image`, in cache 30 giorni, con i punti in percentuale: difettoso per
   categoria, riparato = OdL chiuso, in ordine), elenco dei difettosi con «da quando» e verifiche
   di fila, **punti ricorrenti** (almeno 2 volte nelle ultime 6 verifiche con esiti);
+  la mappa tiene le proporzioni della pagina PDF con `aspect-ratio` (MAI `padding-top` in %:
+  si calcola sulla larghezza del contenitore e stirava la planimetria) e sta in `78vh`;
+  e' interattiva (`partials/periodic_check_map_js.html`, JS in pagina senza librerie): filtri
+  per stato, zoom/trascinamento, punti con segnalazione senza OdL che pulsano, scheda del punto
+  con OdL o «Crea OdL dalla verifica», elenco «Segnalazioni attive» che centra il punto;
 - metodo checklist: **voci piu' spesso non OK**;
 - **andamento dei rilievi**: barre impilate per categoria delle ultime 12 verifiche con esiti (SVG).
 - Le verifiche importate dallo storico hanno solo il documento: contano per date e puntualita',
