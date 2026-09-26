@@ -47,12 +47,13 @@ Aggiornare questa checklist a ogni blocco concluso.
 
 ## C — Alert e ticket (UX operatore)
 
-- [ ] Lista alert: tabella a tutta larghezza, filtri compatti sopra; conteggi reali per
+- [x] Lista alert: tabella a tutta larghezza, filtri compatti sopra; conteggi reali per
       severità (non la parola «severita»); nessuna colonna tagliata.
-- [ ] Dettaglio alert: «Perché è stato generato» da `decision_trace` (regola, soglia, valore);
+- [x] Dettaglio alert: «Perché è stato generato» da `decision_trace` (regola, soglia, valore);
       payload leggibile (chiave/valore) invece del dict Python; box principale senza vuoto.
-- [ ] Riquadro ticket: campi CVE/CVSS solo per alert di vulnerabilità.
-- [ ] Ticket: filtri stato/severità, link all'alert, colonne CVE solo se pertinenti.
+- [x] Riquadro ticket: campi CVE/CVSS solo per alert di vulnerabilità.
+- [x] Ticket: filtri stato/severità, link all'alert, colonne CVE solo se pertinenti.
+- [x] Tema scuro: link nei riquadri e hover dei pulsanti leggibili.
 
 ## D — KPI, Inbox, Configurazione
 
