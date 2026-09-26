@@ -14,6 +14,9 @@
   .field-readonly-list li.empty { color:var(--text-light); font-style:italic; }
   /* log activity */
   .log-row > span { min-width:0; overflow-wrap:anywhere; }
+  .log-detail { display:flex; flex-wrap:wrap; gap:4px 6px; color:var(--text-mid); }
+  .log-kv { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:1px 7px; line-height:1.5; }
+  .log-kv b { color:var(--text); font-weight:700; }
   .log-row { display:grid; grid-template-columns:120px 150px 160px minmax(0,1fr); gap:12px; padding:8px 0; border-bottom:1px solid var(--border); font-size:var(--fs-sm); }
   .log-row:last-child { border-bottom:none; }
   .log-head { font-size:var(--fs-xs); text-transform:uppercase; color:var(--text-light); font-weight:700; background:var(--bg); border-radius:6px; padding:6px 0; }
@@ -860,8 +863,8 @@
       <div class="log-row">
         <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
         <span>{{ entry.utente_display|default:"&mdash;" }}</span>
-        <span>{{ entry.azione }}</span>
-        <span style="color:var(--text-mid);">{{ entry.dettaglio }}</span>
+        <span title="{{ entry.azione }}">{{ entry.azione_label }}</span>
+        <span class="log-detail">{% for label, value in entry.dettaglio_items %}<span class="log-kv">{% if label %}<b>{{ label }}</b> {% endif %}{{ value }}</span>{% empty %}<span class="cell-muted">&mdash;</span>{% endfor %}</span>
       </div>
       {% endfor %}
       {% else %}

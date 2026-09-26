@@ -15,6 +15,10 @@
     html, body, #root { height: 100%; }
     body { font-family: "Outfit", sans-serif; font-size: var(--fs-base); line-height: var(--lh-base); background: var(--bg); background: radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--primary-mid) 11%, transparent), transparent 34%), radial-gradient(circle at 92% 7%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 28%), linear-gradient(180deg, var(--surface) 0%, var(--bg) 280px, var(--bg) 100%); }
     #root { position: relative; }
+    /* Lo sfondo copre anche le pagine piu' alte della finestra (prima si interrompeva a 100vh). */
+    /* Lo sfondo del body si propaga alla pagina ma si dimensiona sulla radice: se
+       html resta alto quanto la finestra il gradiente si ripete e fa una banda. */
+    html, body { height: auto; min-height: 100%; }
     .topbar { position: fixed; top: 0; left: 0; right: 0; height: 52px; background: var(--primary); display: flex; align-items: center; padding: 0 24px; gap: 16px; z-index: 100; box-shadow: 0 2px 16px rgba(0,0,0,.2); }
     .topbar-back { color: rgba(255,255,255,.80); text-decoration: none; font-size: var(--fs-base); font-weight: 600; white-space: nowrap; transition: color 0.15s; }
     .topbar-back:hover { color: #fff; }
@@ -57,9 +61,11 @@
     .field-group { display: flex; flex-direction: column; gap: 6px; }
     .field-label { font-size: var(--fs-base); font-weight: 700; color: var(--text); }
     .req { color: var(--danger); margin-left: 2px; }
-    .checkbox-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .checkbox-row { display: flex; gap: 10px 20px; flex-wrap: wrap; }
     .checkbox-item { display: flex; align-items: center; gap: 7px; font-size: var(--fs-base); color: var(--text); cursor: pointer; user-select: none; }
     .checkbox-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+    /* theme.css da' a ogni input l'altezza dei controlli (40px): le caselle non ne hanno bisogno. */
+    .checkbox-item input[type="checkbox"], .create-op-checkbox input[type="checkbox"] { min-height: 0; margin: 0; flex-shrink: 0; }
     .text-input, .textarea-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: var(--fs-md); font-family: inherit; background: var(--bg); color: var(--text); outline: none; transition: border-color 0.15s, background 0.15s; }
     .text-input:focus, .textarea-input:focus { border-color: rgba(249,115,22,.5); background: var(--surface); box-shadow: 0 0 0 3px rgba(249,115,22,.12); }
     .text-input:disabled, .textarea-input:disabled { background: var(--bg-muted, #f1f5f9); color: var(--text-mid, #94a3b8); cursor: not-allowed; opacity: 0.7; }
@@ -94,6 +100,33 @@
     .btn-secondary { background: var(--surface); color: var(--text-mid); border: 1px solid var(--border); border-radius: 8px; padding: 10px 18px; font-size: var(--fs-base); font-weight: 700; cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
     .btn-secondary:hover:not(:disabled) { background: var(--bg); color: var(--text); }
     .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Azioni "Salva e nuova": stessa famiglia del primario ma un gradino sotto. */
+    .btn-outline { background: var(--surface); color: var(--accent); border: 1.5px solid var(--accent); border-radius: 8px; padding: 9px 18px; font-size: var(--fs-base); font-weight: 700; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+    .btn-outline:hover:not(:disabled) { background: var(--accent-light); }
+    .btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Copilota AI */
+    .copilot-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 10px 12px; margin: 6px 0 14px; }
+    .copilot-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .copilot-title { color: #0369a1; font-size: var(--fs-base); }
+    .copilot-btn { background: #0284c7; color: #fff; border: none; border-radius: 8px; padding: 5px 11px; font-size: var(--fs-sm); font-weight: 700; cursor: pointer; font-family: inherit; }
+    .copilot-btn:disabled { opacity: .6; cursor: default; }
+    .copilot-hint { font-size: var(--fs-xs); color: #64748b; margin-top: 4px; }
+    .copilot-err { font-size: var(--fs-sm); color: var(--danger); margin-top: 6px; }
+    .copilot-sug { background: var(--surface); border: 1px solid #bae6fd; border-radius: 10px; padding: 8px 10px; margin-top: 8px; font-size: var(--fs-sm); color: var(--text); }
+    .copilot-sug__row { margin-top: 4px; }
+    .copilot-sug__why { color: var(--text-mid); }
+    /* Tema scuro: superfici e avvisi che non derivano dai token */
+    body.theme-dark .copilot-box { background: rgba(14,165,233,.08); border-color: rgba(56,189,248,.35); }
+    body.theme-dark .copilot-title { color: #7dd3fc; }
+    body.theme-dark .copilot-hint { color: var(--text-mid); }
+    body.theme-dark .copilot-sug { border-color: rgba(56,189,248,.35); }
+    body.theme-dark .step-num { background: var(--accent); }
+    body.theme-dark .sn-warn { background: rgba(245,158,11,.12); color: #fcd34d; border-color: rgba(245,158,11,.45); }
+    body.theme-dark .sn-dup-card__stato { background: rgba(59,130,246,.15); border-color: rgba(96,165,250,.4); color: #93c5fd; }
+    body.theme-dark .sn-dup-pop, body.theme-dark .sn-dup-pop::before { border-color: rgba(96,165,250,.4); }
+    body.theme-dark .error-msg { background: rgba(239,68,68,.12); border-color: rgba(248,113,113,.45); color: #fca5a5; }
+    body.theme-dark .badge { border-color: rgba(56,161,105,.45); }
+    body.theme-dark .text-input:disabled, body.theme-dark .textarea-input:disabled { background: rgba(255,255,255,.03); color: var(--text-light); border-style: dashed; opacity: 1; }
     .toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: var(--success); color: #fff; padding: 12px 28px; border-radius: 10px; font-weight: 700; font-size: var(--fs-md); box-shadow: 0 4px 20px rgba(0,0,0,.20); z-index: 9999; white-space: nowrap; }
     *::-webkit-scrollbar { width: 5px; }
     *::-webkit-scrollbar-track { background: transparent; }
@@ -105,19 +138,23 @@
       .step-header { padding: 16px 18px 14px; }
       .create-op-wrap, .search-wrap, .op-row, .form-body { padding-left: 18px; padding-right: 18px; }
       .create-grid { grid-template-columns: 1fr; }
-      .op-info-bar { padding: 10px 14px; }
+      .op-info-bar { padding: 10px 14px; align-items: flex-start; }
+      .op-info-items { flex-basis: 100%; }
       .toast { white-space: normal; max-width: calc(100vw - 32px); text-align: center; }
     }
     @media (max-width: 480px) {
       .topbar { padding: 0 10px; gap: 6px; }
       .topbar-back { font-size: var(--fs-sm); }
+      /* Su telefono il titolo non ci sta insieme a "Menu" e "Config Liste": lo nasconde la card sotto. */
+      .topbar-title { font-size: 0; }
+      .topbar-sep { display: none; }
       .content { padding-top: 62px; }
       .step-card { margin: 0 10px; border-radius: 14px; }
       .step-header { padding: 12px 14px 10px; gap: 10px; }
       .create-op-wrap, .search-wrap, .op-row, .form-body { padding-left: 14px; padding-right: 14px; }
       .op-list { max-height: 320px; }
       .action-bar { flex-direction: column; }
-      .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
+      .btn-primary, .btn-secondary, .btn-outline { width: 100%; justify-content: center; }
       .range-row { flex-direction: column; gap: 6px; }
       .range-sep { display: none; }
     }
@@ -983,23 +1020,22 @@
           </div>
 
           {/* Copilota AI: proposta di triage (read-only, non modifica i campi) */}
-          <div style={{background:'#f0f9ff',border:'1px solid #bae6fd',borderRadius:'12px',padding:'10px 12px',margin:'6px 0 14px'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',flexWrap:'wrap'}}>
-              <strong style={{color:'#0369a1',fontSize:'13px'}}>Copilota AI &mdash; triage</strong>
-              <button type="button" onClick={proponiCopilota} disabled={copLoading}
-                style={{background:'#0ea5e9',color:'#fff',border:'none',borderRadius:'8px',padding:'5px 11px',fontSize:'12px',fontWeight:600,cursor:copLoading?'default':'pointer'}}>
+          <div className="copilot-box">
+            <div className="copilot-head">
+              <strong className="copilot-title">Copilota AI &mdash; triage</strong>
+              <button type="button" className="copilot-btn" onClick={proponiCopilota} disabled={copLoading}>
                 {copLoading ? 'Analisi…' : 'Proponi triage'}
               </button>
             </div>
-            <div style={{fontSize:'11px',color:'#64748b',marginTop:'4px'}}>Suggerimento dalla descrizione: <strong>rivedi tu</strong>, non modifica i campi automaticamente.</div>
-            {copErr ? <div style={{fontSize:'12px',color:'#dc2626',marginTop:'6px'}}>{copErr}</div> : null}
+            <div className="copilot-hint">Suggerimento dalla descrizione: <strong>rivedi tu</strong>, non modifica i campi automaticamente.</div>
+            {copErr ? <div className="copilot-err">{copErr}</div> : null}
             {copSug ? (
-              <div style={{background:'#fff',border:'1px solid #bae6fd',borderRadius:'10px',padding:'8px 10px',marginTop:'8px',fontSize:'12.5px'}}>
+              <div className="copilot-sug">
                 {copSug.stato_superficie ? <div><strong>Stato superficie:</strong> {copSug.stato_superficie}</div> : null}
                 {copSug.avanzamento ? <div><strong>Avanzamento:</strong> {copSug.avanzamento}</div> : null}
-                <div><strong>Serve RDC/cliente:</strong> {copSug.serve_rdc ? 'si' : 'no'}</div>
-                {copSug.bozza_descrizione ? <div style={{marginTop:'4px'}}><strong>Bozza:</strong> {copSug.bozza_descrizione}</div> : null}
-                {copSug.motivazione ? <div style={{marginTop:'4px',color:'#475569'}}><em>{copSug.motivazione}</em></div> : null}
+                <div><strong>Serve RDC/cliente:</strong> {copSug.serve_rdc ? 'sì' : 'no'}</div>
+                {copSug.bozza_descrizione ? <div className="copilot-sug__row"><strong>Bozza:</strong> {copSug.bozza_descrizione}</div> : null}
+                {copSug.motivazione ? <div className="copilot-sug__row copilot-sug__why"><em>{copSug.motivazione}</em></div> : null}
               </div>
             ) : null}
           </div>
@@ -1119,7 +1155,7 @@
             </button>
             {!isRange && (
               <button
-                className="btn-primary"
+                className="btn-outline"
                 onClick={() => handleSave('new_same_sn')}
                 disabled={saving}
               >
@@ -1127,7 +1163,7 @@
               </button>
             )}
             <button
-              className="btn-primary"
+              className="btn-outline"
               onClick={() => handleSave('new')}
               disabled={saving}
             >
