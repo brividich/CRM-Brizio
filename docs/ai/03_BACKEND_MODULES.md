@@ -6,6 +6,12 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 
 ## App Django (custom)
 
+Reportistica Asset: `/assets/impostazioni/reportistica/` configura `AssetReportSchedule`;
+`/assets/reports/archivio/` consulta `AssetReportRun` (snapshot e PDF/XLSX privati nel DB).
+Servizi `assets/services/reporting.py` e `reporting_exports.py`, dispatcher `assets_reportistica`
+ogni minuto nel catalogo django-q2 esistente. Migrazioni 0119/0120, dipendenza Contatori 0007.
+Runbook completo: `docs/ASSET_REPORTISTICA.md`. Nessuna lettura SNMP live durante il report.
+
 | App | Scopo |
 | --- | ----- |
 | `core` | Middleware ACL, navigation registry, legacy models, auth backends, context processors |

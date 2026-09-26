@@ -8,6 +8,16 @@ from __future__ import annotations
 
 SCHEDULES: list[dict] = [
     {
+        # ASSETS — reportistica programmata dalle Impostazioni: controlla le scadenze,
+        # archivia snapshot e PDF/Excel, recupera gli errori temporanei (max 3 tentativi).
+        "name": "assets_reportistica",
+        "func": "assets.services.reporting.dispatch_due_reports",
+        "schedule_type": "I",
+        "minutes": 1,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CONTATORI — monitor SNMP dei dispositivi attivi, con un job per apparato.
         # Stato, sonde ed errori sono consultabili nella Centrale MFC/SNMP.
         "name": "contatori_poll_snmp",

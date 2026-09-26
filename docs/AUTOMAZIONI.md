@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni attive:** 46
+**Totale automazioni attive:** 47
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -97,6 +97,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 07:00
 - **Task eseguito:** `assets.tasks.run_maintenance_reminders`
 - **Cosa fa:** ASSETS — promemoria scadenze manutenzione / verifiche periodiche + OdL scaduti. Destinatari SiteConfig assets_reminder_emails con FALLBACK su ADMINS/superuser (non no-op puro): disattivabile dalla Centrale di comando.
+
+### `assets_reportistica`
+
+- **Quando gira:** ogni minuto
+- **Task eseguito:** `assets.services.reporting.dispatch_due_reports`
+- **Cosa fa:** ASSETS — reportistica programmata dalle Impostazioni: controlla le scadenze, archivia snapshot e PDF/Excel, recupera gli errori temporanei (max 3 tentativi).
 
 ### `intake_verifiche_periodiche`
 

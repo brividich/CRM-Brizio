@@ -1,5 +1,13 @@
 # Session Checkpoint
 
+Data: 2026-09-26 (reportistica Asset programmata)
+
+- Nuova voce vista/aggiunta: `2026-09-26 - Codex (reportistica Asset programmata)` in AGENT_CHANGELOG; changelog root/Django, README e docs AI aggiornati alla stessa funzione.
+- Impostazioni → Reportistica, archivio privato PDF/Excel/web e andamento ultime 12 estrazioni; nuovo dispatcher `assets_reportistica` nel qcluster esistente. Migrazioni Assets 0119/0120 con dipendenza Contatori 0007. Runbook `docs/ASSET_REPORTISTICA.md`, AUTOMAZIONI.md rigenerato (47 voci).
+- File critici: route locali Assets, migration binding ACL separati gestione/lettura senza nuovi grant e catalogo scheduler. Nessuna modifica a settings permanenti, middleware, autenticazione o navigazione globale.
+- Verifiche: 118 test mirati verdi, check Django e drift migrazioni puliti, QA desktop/mobile/dark e PDF sintetico renderizzato. Nessun dato/apparato reale toccato; nessun backup aggiuntivo. Dettagli e limiti nel registro agente.
+- Stato: branch `feature/contatori-centrale-snmp`, worktree dedicato. Pronto per integrazione nella release, non distribuito. PROD deve ricevere anche gli antenati, incluso `716010f5` per `leggi_contatori_mensili`; poi migrate, setup_q_schedules e riavvio worker esistente. Nessun task Windows aggiuntivo.
+
 Data: 2026-09-26 (scheduler esistente e raccolta MFC mensile)
 
 - Nuova voce agente vista/aggiunta: `2026-09-26 - Codex (scheduler esistente e raccolta MFC mensile)`; changelog root/Django aggiornati alla stessa funzionalita'.

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Assets — reportistica programmata e archivio privato
+
+- Nuova sezione Impostazioni → Reportistica: data/cadenza, filtri inventario, MFC/SNMP collegati, PDF/Excel con tema portale; estrazione manuale o automatica, storico congelato, dettaglio web e andamento a perimetro costante.
+- Job `assets_reportistica` nello scheduler esistente, ogni minuto, con deduplica e retry; file archiviati nel DB e download protetti/auditati. Migrazioni Assets 0119/0120; binding canonici separati per gestione e consultazione senza nuovi grant.
+- Runbook `docs/ASSET_REPORTISTICA.md`: attivazione e limiti, inclusa diagnosi `Unknown command: leggi_contatori_mensili` su installazioni senza il nuovo codice.
+
 ### Contatori — scheduler centralizzato e letture mensili
 
 - Registrati `contatori_poll_snmp` (5 minuti) e `contatori_letture_mensili` (giorno 1 alle 08:00) nello scheduler django-q2 esistente, gestibili in Task pianificati.
