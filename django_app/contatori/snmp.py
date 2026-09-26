@@ -8,6 +8,7 @@ o, in produzione, su un modello dedicato. Qui e' un dizionario semplice.
 """
 import asyncio
 import functools
+import re
 
 CANON_BASE = "1.3.6.1.4.1.1602.1.11.1.3.1"  # tabella contatori Canon
 # Printer-MIB standard: prtMarkerSuppliesTable (toner, tamburi, fusore, ...)
@@ -29,8 +30,15 @@ COUNTER_MAP = {
 
 # Discovery di rete: OID standard per identificare il dispositivo.
 SYS_DESCR = "1.3.6.1.2.1.1.1.0"              # descrizione (contiene il modello)
+SYS_OBJECT_ID = "1.3.6.1.2.1.1.2.0"          # identificatore enterprise/modello
+SYS_UPTIME = "1.3.6.1.2.1.1.3.0"             # centesimi di secondo dall'avvio
+SYS_CONTACT = "1.3.6.1.2.1.1.4.0"            # referente configurato sul device
 SYS_NAME = "1.3.6.1.2.1.1.5.0"               # nome host della stampante
+SYS_LOCATION = "1.3.6.1.2.1.1.6.0"           # posizione configurata sul device
 PRT_SERIAL = "1.3.6.1.2.1.43.5.1.1.17.1"     # Printer-MIB: numero di serie (= matricola)
+
+SYSTEM_OIDS = (SYS_DESCR, SYS_OBJECT_ID, SYS_UPTIME, SYS_CONTACT, SYS_NAME, SYS_LOCATION)
+_OID_RE = re.compile(r"^\d+(?:\.\d+)+$")
 
 # Cap di sicurezza: una scansione parte da una richiesta web, non deve poter
 # esplodere su un range enorme.
@@ -45,6 +53,49 @@ def _testo(valore):
     if isinstance(valore, bytes):
         return valore.decode("latin-1", "replace").strip()
     return str(valore).strip() if valore is not None else ""
+
+
+def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
+               version="v1"):
+    """Legge una lista esplicita di OID con sole operazioni GET.
+
+    Ritorna ``(valori, errori)`` indicizzati per OID. Un errore su una sonda non
+    interrompe le altre; se nessun OID risponde viene sollevato :class:`SNMPError`.
+    """
+    if not host:
+        raise SNMPError("host non impostato")
+    richiesti = list(dict.fromkeys(str(oid).strip() for oid in oids))
+    non_validi = [oid for oid in richiesti if not _OID_RE.fullmatch(oid)]
+    if non_validi:
+        raise SNMPError(f"OID non valido: {non_validi[0]}")
+
+    try:
+        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp.transport import send_udp
+    except ImportError as e:
+        raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
+
+    cred = V1(community) if version == "v1" else V2C(community)
+
+    async def _run():
+        sender = functools.partial(send_udp, timeout=timeout)
+        client = PyWrapper(Client(str(host), cred, port=port, sender=sender))
+        valori, errori = {}, {}
+        for oid in richiesti:
+            try:
+                valori[oid] = await client.get(oid)
+            except Exception as exc:  # ogni OID resta indipendente
+                errori[oid] = str(exc)[:500]
+        return valori, errori
+
+    try:
+        valori, errori = asyncio.run(_run())
+    except Exception as e:
+        raise SNMPError(f"{host}: {e}") from e
+    if not valori:
+        dettaglio = next(iter(errori.values()), "nessuna risposta")
+        raise SNMPError(f"{host}: {dettaglio}")
+    return valori, errori
 
 
 def scansiona_rete(rete, community="novicromprinter", port=161, timeout=2,

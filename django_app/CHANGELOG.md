@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Contatori — centrale MFC/SNMP e ponte Asset HUB
+
+- Nuovi dispositivi SNMP generici, sonde OID tipizzate con conversioni e soglie, storico valori/esiti, salute e latenza persistite; dashboard e monitor responsive per MFC, lettori, apparati, UPS e sensori.
+- Ponte Asset bidirezionale: FK opzionale, match automatico univoco seriale→`Asset.serial_number` o host→`AssetEndpoint.ip`, link nelle due schede e comando `collega_asset` esteso. Nessuna modifica automatica ai record Asset.
+- Polling esclusivamente GET, configurazione community centralizzata, OID numerici validati; comando schedulabile `poll_snmp_devices`. Migration `contatori 0006`.
+
 ### Contatori MFC - fix opzione versione SNMP dei comandi
 
 - `snmp_discover` e `leggi_contatori` usano `--snmp-version {v1,v2c}` invece del nome riservato Django `--version`, eliminando il crash `argparse.ArgumentError` in fase di avvio.

@@ -1,7 +1,9 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block modulo %}
-<h1>{{ macchina.reparto }}</h1>
-<p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p>
+<div class="row"><div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div><a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a></div>
+
+<div class="cards"><div class="card"><div class="k">Stato SNMP</div><div class="v" style="font-size:20px"><span class="pill {% if macchina.snmp_stato == 'OK' %}ok{% elif macchina.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ macchina.get_snmp_stato_display }}</span></div></div><div class="card"><div class="k">Host</div><div class="v mono" style="font-size:20px">{{ macchina.host|default:"—" }}</div></div><div class="card"><div class="k">Ultimo controllo</div><div class="v" style="font-size:20px">{{ macchina.snmp_ultimo_controllo|date:"d/m/Y H:i"|default:"Mai" }}</div></div><div class="card"><div class="k">Latenza</div><div class="v">{% if macchina.snmp_tempo_risposta_ms is not None %}{{ macchina.snmp_tempo_risposta_ms }}<small> ms</small>{% else %}—{% endif %}</div></div></div>
+{% if macchina.snmp_ultimo_errore %}<div class="banner">{{ macchina.snmp_ultimo_errore }}</div>{% endif %}
 
 {% if macchina.asset %}
 <div class="panel">

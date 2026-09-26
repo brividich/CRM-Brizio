@@ -10,13 +10,55 @@ Due controlli indipendenti:
      Un calo = refuso interno o reset da verificare.
 """
 from collections import defaultdict
+from decimal import Decimal, InvalidOperation, Overflow
+from time import perf_counter
+
+from django.db import transaction
 from django.utils import timezone
-from .models import Macchina, LetturaContatori, Fattura, RigaFattura, CONTATORI
+from .models import (
+    CONTATORI,
+    DispositivoSNMP,
+    Fattura,
+    ImpostazioniSNMP,
+    LetturaContatori,
+    Macchina,
+    RilevazioneSNMP,
+    RigaFattura,
+    SondaSNMP,
+    StatoSNMP,
+    ValoreSNMP,
+)
 
 CAMPI = [c[0] for c in CONTATORI]
 
 # Raggruppamenti usati nelle analisi
 BN = ("a4_bn", "a3_bn")
+
+
+def trova_asset_snmp(*, seriale="", host=None):
+    """Trova un Asset HUB univoco per seriale, poi per endpoint IP.
+
+    Restituisce ``(asset, motivo)``. In caso di nessun match o ambiguità non
+    sceglie arbitrariamente: ``asset`` resta ``None`` e il motivo spiega perché.
+    """
+    from assets.models import Asset
+
+    seriale = (seriale or "").strip()
+    if seriale:
+        candidati = list(Asset.objects.filter(serial_number__iexact=seriale)[:2])
+        if len(candidati) == 1:
+            return candidati[0], "seriale"
+        if len(candidati) > 1:
+            return None, "seriale ambiguo"
+    if host:
+        candidati = list(
+            Asset.objects.filter(endpoints__ip=str(host)).distinct()[:2]
+        )
+        if len(candidati) == 1:
+            return candidati[0], "indirizzo IP"
+        if len(candidati) > 1:
+            return None, "indirizzo IP ambiguo"
+    return None, "nessuna corrispondenza"
 COL = ("a4_col", "a3_col")
 A4 = ("a4_bn", "a4_col")
 A3 = ("a3_bn", "a3_col")
@@ -299,3 +341,214 @@ def abbina_discovery(trovati):
     ordine = {"ip_diverso": 0, "nuova": 1, "ok": 2}
     righe.sort(key=lambda r: (ordine[r["stato"]], r["host"]))
     return righe
+
+
+# --- Centrale SNMP ---------------------------------------------------------
+
+def _tempo_ms(inizio):
+    return max(0, round((perf_counter() - inizio) * 1000))
+
+
+def _intero_grezzo(valore):
+    try:
+        return int(valore)
+    except (TypeError, ValueError):
+        try:
+            return int(str(valore).strip())
+        except (TypeError, ValueError):
+            return None
+
+
+def _numero_sonda(sonda, valore):
+    try:
+        numero = Decimal(str(valore).strip())
+        if not numero.is_finite():
+            return None
+        if sonda.tipo_valore == SondaSNMP.TipoValore.TIMETICKS:
+            numero /= Decimal("100")
+        numero *= sonda.fattore
+        if not numero.is_finite() or abs(numero) >= Decimal("1e24"):
+            return None
+        return numero
+    except (InvalidOperation, Overflow, TypeError, ValueError):
+        return None
+
+
+def interroga_macchina(macchina):
+    """Legge una MFC, aggiorna la salute SNMP e ritorna i quattro contatori.
+
+    Non salva una :class:`LetturaContatori`: il chiamante decide se si tratta di
+    un semplice test o della rilevazione trimestrale ufficiale.
+    """
+    from .snmp import SNMPError, leggi_macchina
+
+    cfg = ImpostazioniSNMP.get_solo()
+    inizio = perf_counter()
+    try:
+        valori = leggi_macchina(
+            macchina, community=cfg.community, port=cfg.port,
+            timeout=cfg.timeout, version=cfg.version,
+        )
+    except SNMPError as exc:
+        macchina.snmp_stato = StatoSNMP.ERROR
+        macchina.snmp_ultimo_controllo = timezone.now()
+        macchina.snmp_tempo_risposta_ms = _tempo_ms(inizio)
+        macchina.snmp_ultimo_errore = str(exc)[:500]
+        macchina.save(update_fields=[
+            "snmp_stato", "snmp_ultimo_controllo", "snmp_tempo_risposta_ms",
+            "snmp_ultimo_errore",
+        ])
+        raise
+    macchina.snmp_stato = StatoSNMP.OK
+    macchina.snmp_ultimo_controllo = timezone.now()
+    macchina.snmp_tempo_risposta_ms = _tempo_ms(inizio)
+    macchina.snmp_ultimo_errore = ""
+    macchina.save(update_fields=[
+        "snmp_stato", "snmp_ultimo_controllo", "snmp_tempo_risposta_ms",
+        "snmp_ultimo_errore",
+    ])
+    return valori
+
+
+@transaction.atomic
+def interroga_dispositivo(dispositivo):
+    """Interroga identita' e sonde di un dispositivo e storicizza l'esito."""
+    from .snmp import (
+        SNMPError,
+        SYS_DESCR,
+        SYS_NAME,
+        SYS_OBJECT_ID,
+        SYS_UPTIME,
+        SYSTEM_OIDS,
+        _testo,
+        leggi_oids,
+    )
+
+    cfg = ImpostazioniSNMP.get_solo()
+    sonde = list(dispositivo.sonde.filter(attiva=True))
+    oids = [*SYSTEM_OIDS, *(sonda.oid for sonda in sonde)]
+    porta = dispositivo.porta or cfg.port
+    versione = dispositivo.versione or cfg.version
+    inizio = perf_counter()
+    adesso = timezone.now()
+
+    try:
+        valori, errori = leggi_oids(
+            dispositivo.host, oids, community=cfg.community, port=porta,
+            timeout=cfg.timeout, version=versione,
+        )
+    except SNMPError as exc:
+        durata = _tempo_ms(inizio)
+        rilevazione = RilevazioneSNMP.objects.create(
+            dispositivo=dispositivo, rilevata_il=adesso,
+            stato=StatoSNMP.ERROR, tempo_risposta_ms=durata,
+            errore=str(exc)[:500],
+        )
+        dispositivo.snmp_stato = StatoSNMP.ERROR
+        dispositivo.snmp_ultimo_controllo = adesso
+        dispositivo.snmp_tempo_risposta_ms = durata
+        dispositivo.snmp_ultimo_errore = str(exc)[:500]
+        dispositivo.save(update_fields=[
+            "snmp_stato", "snmp_ultimo_controllo", "snmp_tempo_risposta_ms",
+            "snmp_ultimo_errore", "aggiornato_il",
+        ])
+        return rilevazione
+
+    durata = _tempo_ms(inizio)
+    sys_name = _testo(valori.get(SYS_NAME))
+    sys_description = _testo(valori.get(SYS_DESCR))
+    sys_object_id = _testo(valori.get(SYS_OBJECT_ID))
+    uptime_ticks = _intero_grezzo(valori.get(SYS_UPTIME))
+    uptime_seconds = max(0, uptime_ticks // 100) if uptime_ticks is not None else None
+
+    esiti = []
+    ha_warning = False
+    ha_critico = False
+    for sonda in sonde:
+        if sonda.oid not in valori:
+            ha_warning = True
+            esiti.append({
+                "sonda": sonda, "numero": None, "testo": "",
+                "stato": StatoSNMP.ERROR,
+                "errore": (errori.get(sonda.oid) or "OID senza risposta")[:500],
+            })
+            continue
+        grezzo = valori[sonda.oid]
+        if sonda.tipo_valore == SondaSNMP.TipoValore.TESTO:
+            esiti.append({
+                "sonda": sonda, "numero": None, "testo": _testo(grezzo),
+                "stato": StatoSNMP.OK, "errore": "",
+            })
+            continue
+        numero = _numero_sonda(sonda, grezzo)
+        if numero is None:
+            ha_warning = True
+            esiti.append({
+                "sonda": sonda, "numero": None, "testo": _testo(grezzo),
+                "stato": StatoSNMP.ERROR,
+                "errore": "Valore non numerico"[:500],
+            })
+            continue
+        stato = sonda.stato_per_valore(numero)
+        ha_warning = ha_warning or stato == StatoSNMP.WARNING
+        ha_critico = ha_critico or stato == StatoSNMP.ERROR
+        esiti.append({
+            "sonda": sonda, "numero": numero, "testo": "",
+            "stato": stato, "errore": "",
+        })
+
+    stato_generale = (
+        StatoSNMP.ERROR if ha_critico else
+        # Gli OID di sistema opzionali non determinano lo stato: molti device
+        # non espongono contact/location. Contano le sonde configurate.
+        StatoSNMP.WARNING if ha_warning else
+        StatoSNMP.OK
+    )
+    rilevazione = RilevazioneSNMP.objects.create(
+        dispositivo=dispositivo, rilevata_il=adesso, stato=stato_generale,
+        tempo_risposta_ms=durata, sys_name=sys_name,
+        sys_description=sys_description, sys_object_id=sys_object_id,
+        sys_uptime_seconds=uptime_seconds,
+    )
+    ValoreSNMP.objects.bulk_create([
+        ValoreSNMP(
+            rilevazione=rilevazione, sonda=e["sonda"],
+            valore_numero=e["numero"], valore_testo=e["testo"],
+            stato=e["stato"], errore=e["errore"],
+        )
+        for e in esiti
+    ])
+
+    dispositivo.snmp_stato = stato_generale
+    dispositivo.snmp_ultimo_controllo = adesso
+    dispositivo.snmp_tempo_risposta_ms = durata
+    dispositivo.snmp_ultimo_errore = ""
+    dispositivo.sys_name = sys_name
+    dispositivo.sys_description = sys_description
+    dispositivo.sys_object_id = sys_object_id
+    dispositivo.sys_uptime_seconds = uptime_seconds
+    dispositivo.save(update_fields=[
+        "snmp_stato", "snmp_ultimo_controllo", "snmp_tempo_risposta_ms",
+        "snmp_ultimo_errore", "sys_name", "sys_description", "sys_object_id",
+        "sys_uptime_seconds", "aggiornato_il",
+    ])
+    return rilevazione
+
+
+def centrale_snmp_riepilogo():
+    """KPI compatti della centrale, inclusi MFC e dispositivi generici."""
+    mfc = Macchina.objects.filter(attiva=True)
+    dispositivi = DispositivoSNMP.objects.filter(attivo=True)
+    stati = list(mfc.values_list("snmp_stato", flat=True))
+    stati += list(dispositivi.values_list("snmp_stato", flat=True))
+    totale = len(stati)
+    configurati = mfc.exclude(host__isnull=True).count() + dispositivi.count()
+    return {
+        "totale": totale,
+        "configurati": configurati,
+        "ok": stati.count(StatoSNMP.OK),
+        "warning": stati.count(StatoSNMP.WARNING),
+        "errori": stati.count(StatoSNMP.ERROR),
+        "mai": stati.count(StatoSNMP.MAI),
+        "sonde": SondaSNMP.objects.filter(attiva=True, dispositivo__attivo=True).count(),
+    }

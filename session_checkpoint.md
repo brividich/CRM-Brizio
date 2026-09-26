@@ -1,5 +1,17 @@
 # Session Checkpoint
 
+Data: 2026-09-26 (centrale MFC/SNMP e ponte Asset)
+
+Ultime voci viste/aggiunte:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-26 - Codex (centrale MFC/SNMP e ponte Asset)`; changelog root/Django -> Centrale MFC e SNMP con ponte Asset HUB.
+- Worktree `temp/codex-contatori-centrale-snmp`, branch `feature/contatori-centrale-snmp`, basato su `c463cb85` (fix parser SNMP).
+- Nuovi dispositivi, sonde, rilevazioni e valori SNMP; salute MFC, dashboard/monitor e bridge Asset bidirezionale; migration contatori 0006 e comando `poll_snmp_devices`.
+- Test finali: 71/71 contatori verdi, system check senza errori, migration drift assente; QA visuale desktop/mobile con dati sintetici. Nessun SNMP reale o DB aziendale modificato.
+- File critico per funzione: solo routing locale `contatori/urls.py`; integrazione Assets limitata al template della scheda. README, changelog root/Django e documentazione AI aggiornati; nessun backup aggiuntivo.
+- Rilascio ancora da eseguire: integrare branch e fix antenato, migrate contatori, statici e collaudo SQL Server/apparati/ruoli TEST. Polling schedulabile ma non attivato automaticamente.
+- Controlli sessione/lock/critical non presenti, come alla partenza. Modifiche estranee nel checkout condiviso lasciate intatte.
+
 Data: 2026-09-26 (fix parser comandi SNMP)
 
 Ultime voci viste/aggiunte in questa sessione:

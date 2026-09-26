@@ -4,11 +4,11 @@
 <p class="sub">Fattura fornitore vs rilevazione interna. Regola: la lettura interna (fatta più tardi) dev'essere ≥ a quella del fornitore.</p>
 
 <div class="panel">
-  <form class="row" method="get" onchange="this.submit()" action="">
+  <div class="row">
     <label>Trimestre:</label>
-    <select name="t" onchange="location='/riconciliazione/'+this.value+'/'">
+    <select aria-label="Trimestre" onchange="if(this.value){location=this.value}">
       {% for t in trimestri %}
-        <option value="{{ t }}" {% if t == trimestre %}selected{% endif %}>{{ t }}</option>
+        <option value="{% url 'contatori:riconciliazione_trim' t %}" {% if t == trimestre %}selected{% endif %}>{{ t }}</option>
       {% endfor %}
     </select>
     <div class="spacer"></div>
@@ -17,7 +17,7 @@
       {% else %}<span class="pill danger">⚠ {{ riepilogo.anomalie }} da controllare</span>{% endif %}
       <span class="pos">· fatt. {{ riepilogo.fatture|join:", " }}</span>
     {% endif %}
-  </form>
+  </div>
   {% if righe %}<a class="btn ghost" href="{% url 'contatori:export_riconciliazione' trimestre %}">⬇ Esporta .xlsx</a>{% endif %}
 </div>
 

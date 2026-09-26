@@ -1,9 +1,20 @@
-"""Modelli per la gestione contatori MFC Canon e riconciliazione fatture."""
+"""Modelli per la centrale MFC e il monitoraggio SNMP read-only."""
+from decimal import Decimal
+
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
+from django.utils import timezone
 
 # I quattro contatori usati ovunque: (campo, etichetta)
 CONTATORI = (("a4_bn", "A4 BN"), ("a3_bn", "A3 BN"),
              ("a4_col", "A4 COL"), ("a3_col", "A3 COL"))
+
+
+class StatoSNMP(models.TextChoices):
+    MAI = "MAI", "Mai interrogato"
+    OK = "OK", "Operativo"
+    WARNING = "WARNING", "Attenzione"
+    ERROR = "ERROR", "Errore"
 
 
 class Macchina(models.Model):
@@ -44,6 +55,12 @@ class Macchina(models.Model):
         related_name="contatori_macchine",
         help_text="Asset del registro HUB collegato (match matricola↔serial / host↔IP).",
     )
+    snmp_stato = models.CharField(
+        max_length=10, choices=StatoSNMP.choices, default=StatoSNMP.MAI,
+    )
+    snmp_ultimo_controllo = models.DateTimeField(null=True, blank=True)
+    snmp_tempo_risposta_ms = models.PositiveIntegerField(null=True, blank=True)
+    snmp_ultimo_errore = models.CharField(max_length=500, blank=True)
 
     class Meta:
         ordering = ["reparto"]
@@ -51,6 +68,193 @@ class Macchina(models.Model):
 
     def __str__(self):
         return f"{self.reparto} ({self.matricola})"
+
+
+class DispositivoSNMP(models.Model):
+    """Nodo SNMP generico monitorato dalla centrale.
+
+    Le credenziali restano nel singleton :class:`ImpostazioniSNMP`: il record
+    non replica community o segreti e tutte le operazioni sono esclusivamente GET.
+    """
+
+    class Categoria(models.TextChoices):
+        LETTORE = "LETTORE", "Lettore / terminale"
+        STAMPANTE = "STAMPANTE", "Stampante / MFC extra"
+        RETE = "RETE", "Rete"
+        UPS = "UPS", "UPS / alimentazione"
+        AMBIENTE = "AMBIENTE", "Sensore ambiente"
+        ALTRO = "ALTRO", "Altro dispositivo"
+
+    class Versione(models.TextChoices):
+        GLOBALE = "", "Usa configurazione globale"
+        V1 = "v1", "SNMPv1"
+        V2C = "v2c", "SNMPv2c"
+
+    nome = models.CharField(max_length=100)
+    categoria = models.CharField(
+        max_length=16, choices=Categoria.choices, default=Categoria.LETTORE,
+    )
+    host = models.GenericIPAddressField(unique=True)
+    porta = models.PositiveIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1)],
+        help_text="Vuoto = porta SNMP globale.",
+    )
+    versione = models.CharField(
+        max_length=4, blank=True, choices=Versione.choices,
+        help_text="Vuoto = versione SNMP globale.",
+    )
+    posizione = models.CharField(max_length=120, blank=True)
+    produttore = models.CharField(max_length=80, blank=True)
+    modello = models.CharField(max_length=120, blank=True)
+    matricola = models.CharField(max_length=80, blank=True)
+    note = models.TextField(blank=True)
+    asset = models.ForeignKey(
+        "assets.Asset", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="dispositivi_snmp",
+    )
+    attivo = models.BooleanField(default=True)
+    snmp_stato = models.CharField(
+        max_length=10, choices=StatoSNMP.choices, default=StatoSNMP.MAI,
+    )
+    snmp_ultimo_controllo = models.DateTimeField(null=True, blank=True)
+    snmp_tempo_risposta_ms = models.PositiveIntegerField(null=True, blank=True)
+    snmp_ultimo_errore = models.CharField(max_length=500, blank=True)
+    sys_name = models.CharField(max_length=255, blank=True)
+    sys_description = models.TextField(blank=True)
+    sys_object_id = models.CharField(max_length=255, blank=True)
+    sys_uptime_seconds = models.PositiveBigIntegerField(null=True, blank=True)
+    creato_il = models.DateTimeField(auto_now_add=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["categoria", "nome"]
+        verbose_name = "Dispositivo SNMP"
+        verbose_name_plural = "Dispositivi SNMP"
+
+    def __str__(self):
+        return f"{self.nome} ({self.host})"
+
+
+_oid_validator = RegexValidator(
+    regex=r"^\d+(?:\.\d+)+$",
+    message="Inserisci un OID numerico puntato, ad esempio 1.3.6.1.2.1.1.3.0.",
+)
+
+
+class SondaSNMP(models.Model):
+    """Lettore configurabile di un singolo OID su un dispositivo."""
+
+    class TipoValore(models.TextChoices):
+        NUMERO = "NUMERO", "Numero"
+        TESTO = "TESTO", "Testo"
+        TIMETICKS = "TIMETICKS", "Tempo (TimeTicks)"
+
+    dispositivo = models.ForeignKey(
+        DispositivoSNMP, on_delete=models.CASCADE, related_name="sonde",
+    )
+    nome = models.CharField(max_length=100)
+    oid = models.CharField(max_length=255, validators=[_oid_validator])
+    tipo_valore = models.CharField(
+        max_length=10, choices=TipoValore.choices, default=TipoValore.NUMERO,
+    )
+    unita = models.CharField(max_length=24, blank=True)
+    fattore = models.DecimalField(
+        max_digits=14, decimal_places=6, default=Decimal("1"),
+        help_text="Moltiplicatore applicato al valore numerico grezzo.",
+    )
+    soglia_warning_min = models.DecimalField(
+        max_digits=20, decimal_places=6, null=True, blank=True,
+    )
+    soglia_warning_max = models.DecimalField(
+        max_digits=20, decimal_places=6, null=True, blank=True,
+    )
+    soglia_critica_min = models.DecimalField(
+        max_digits=20, decimal_places=6, null=True, blank=True,
+    )
+    soglia_critica_max = models.DecimalField(
+        max_digits=20, decimal_places=6, null=True, blank=True,
+    )
+    attiva = models.BooleanField(default=True)
+    ordine = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dispositivo", "oid"], name="contatori_sonda_oid_unico",
+            ),
+        ]
+        verbose_name = "Sonda SNMP"
+        verbose_name_plural = "Sonde SNMP"
+
+    def __str__(self):
+        return f"{self.dispositivo.nome} · {self.nome}"
+
+    def stato_per_valore(self, valore):
+        if valore is None:
+            return StatoSNMP.ERROR
+        if ((self.soglia_critica_min is not None and valore < self.soglia_critica_min)
+                or (self.soglia_critica_max is not None and valore > self.soglia_critica_max)):
+            return StatoSNMP.ERROR
+        if ((self.soglia_warning_min is not None and valore < self.soglia_warning_min)
+                or (self.soglia_warning_max is not None and valore > self.soglia_warning_max)):
+            return StatoSNMP.WARNING
+        return StatoSNMP.OK
+
+
+class RilevazioneSNMP(models.Model):
+    """Esito immutabile di un'interrogazione di un dispositivo generico."""
+
+    dispositivo = models.ForeignKey(
+        DispositivoSNMP, on_delete=models.CASCADE, related_name="rilevazioni",
+    )
+    rilevata_il = models.DateTimeField(default=timezone.now, db_index=True)
+    stato = models.CharField(max_length=10, choices=StatoSNMP.choices)
+    tempo_risposta_ms = models.PositiveIntegerField(null=True, blank=True)
+    errore = models.CharField(max_length=500, blank=True)
+    sys_name = models.CharField(max_length=255, blank=True)
+    sys_description = models.TextField(blank=True)
+    sys_object_id = models.CharField(max_length=255, blank=True)
+    sys_uptime_seconds = models.PositiveBigIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-rilevata_il", "-pk"]
+        verbose_name = "Rilevazione SNMP"
+        verbose_name_plural = "Rilevazioni SNMP"
+
+
+class ValoreSNMP(models.Model):
+    """Valore storicizzato di una sonda durante una rilevazione."""
+
+    rilevazione = models.ForeignKey(
+        RilevazioneSNMP, on_delete=models.CASCADE, related_name="valori",
+    )
+    sonda = models.ForeignKey(
+        SondaSNMP, on_delete=models.CASCADE, related_name="valori",
+    )
+    valore_numero = models.DecimalField(
+        max_digits=30, decimal_places=6, null=True, blank=True,
+    )
+    valore_testo = models.TextField(blank=True)
+    stato = models.CharField(max_length=10, choices=StatoSNMP.choices)
+    errore = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        ordering = ["sonda__ordine", "sonda__nome"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["rilevazione", "sonda"], name="contatori_valore_sonda_rilevazione_unico",
+            ),
+        ]
+        verbose_name = "Valore SNMP"
+        verbose_name_plural = "Valori SNMP"
+
+    @property
+    def valore_display(self):
+        if self.valore_numero is not None:
+            valore = format(self.valore_numero.normalize(), "f")
+            return f"{valore} {self.sonda.unita}".strip()
+        return self.valore_testo or "—"
 
 
 class LetturaContatori(models.Model):

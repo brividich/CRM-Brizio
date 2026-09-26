@@ -30,7 +30,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | `dpi` | Gestione DPI (Dispositivi Protezione Individuale): richieste con card-picker immagini, approvazione, consegna, storico, KPI |
 | `procedure_refresh` | Presa visione procedure MT/MTSI: anagrafica documenti, revisioni con sorgente SharePoint/file server, campagne, assegnazioni, tracking aperture/conferme, report, export CSV |
 | `schede_sicurezza` | SDS prodotti chimici versionate e assegnate M2M alle mansioni di rischio; obblighi e notifiche si ricalcolano dalla mansione corrente del dipendente, con cruscotto personale e matrice di conformita per mansione |
-| `contatori` | Contatori MFC Canon: letture SNMP/manuali, riconciliazione fatture e analisi volumi; i command `snmp_discover` e `leggi_contatori` accettano la versione del protocollo con `--snmp-version {v1,v2c}` perche' `--version` e' riservato globalmente da Django |
+| `contatori` | Centrale MFC/SNMP: contatori Canon, riconciliazione e analisi; dispositivi generici + sonde OID/soglie/storico; salute e latenza persistite; ponte opzionale verso `assets.Asset` per seriale o `AssetEndpoint.ip`. Poll generici con `poll_snmp_devices`; `snmp_discover` e `leggi_contatori` usano `--snmp-version {v1,v2c}` perché `--version` è riservato da Django |
 
 Nota Anagrafica / referti sanitari: `services/referti_intake.py` tratta un certificato
 multipagina come una sola unita logica. Le pagine senza un nuovo blocco anagrafico

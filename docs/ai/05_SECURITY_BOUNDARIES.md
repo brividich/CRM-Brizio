@@ -190,6 +190,13 @@ Tutte le app sono incluse in `config/urls.py`. Prefissi notevoli:
 | Prefisso | App |
 | --- | --- |
 
+## Centrale SNMP (`contatori`)
+
+- Le comunicazioni verso MFC e dispositivi usano esclusivamente SNMP GET/WALK; non esiste alcun percorso SET.
+- Le sonde accettano solo OID numerici puntati validati. La discovery limita ogni scansione a 512 host.
+- La community SNMP resta nel singleton globale `ImpostazioniSNMP`: non è duplicata nei dispositivi, nello storico, nei messaggi o nei log.
+- Il ponte Asset è in sola lettura sul registro `assets`: l'automatch scrive soltanto la FK nel modulo `contatori`, e solo per un match univoco di seriale o endpoint IP. Ambiguità e assenze non vengono risolte automaticamente.
+
 ## Infrastruttura server (NON riproducibile in dev)
 
 Questi componenti esistono solo sul server di produzione:
