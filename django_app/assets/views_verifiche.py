@@ -467,11 +467,15 @@ def _map_context(stats) -> dict | None:
     width, height = _layout_page_size(stats.layout)
     return {
         "image_url": reverse("assets:periodic_check_layout_image", args=[stats.layout.id]),
-        "ratio": round(height / width * 100, 3),
+        # proporzioni della pagina: la mappa le tiene con aspect-ratio (non con padding-top,
+        # che si calcola sulla larghezza del contenitore e stirava la planimetria)
+        "width": round(width, 2),
+        "height": round(height, 2),
         "points": [
             {"p": p, "left": round(p.x / width * 100, 3), "top": round(p.y / height * 100, 3)}
             for p in stats.points
         ],
+        "counts": {key: sum(1 for p in stats.points if p.state == key) for key in ("cat0", "cat1", "fixed", "ok", "unknown")},
     }
 
 
@@ -507,13 +511,13 @@ def _trend_bars(stats) -> dict | None:
 def periodic_check_layout_image(request: HttpRequest, layout_id: int):
     """Planimetria come immagine per la mappa della scheda (in cache: non cambia mai)."""
     layout = get_object_or_404(PeriodicCheckLayout, pk=layout_id)
-    key = f"assets:pc-layout-png:{layout.id}"
+    key = f"assets:pc-layout-png:{layout.id}:170"
     png = cache.get(key)
     if png is None:
         import fitz
 
         with layout.source_pdf.open("rb") as handle, fitz.open(stream=handle.read(), filetype="pdf") as doc:
-            png = doc[layout.page_index].get_pixmap(dpi=110, alpha=False).tobytes("png")
+            png = doc[layout.page_index].get_pixmap(dpi=170, alpha=False).tobytes("png")  # nitida anche con lo zoom
         cache.set(key, png, 60 * 60 * 24 * 30)
     response = HttpResponse(png, content_type="image/png")
     response["Cache-Control"] = "private, max-age=86400"

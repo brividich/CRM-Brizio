@@ -1,0 +1,139 @@
+{# Mappa della scheda verifica: filtri per stato, zoom/trascinamento, scheda del punto cliccato. #}
+<script>
+(function () {
+  var root = document.querySelector("[data-pc-map]");
+  if (!root) return;
+  var view = root.querySelector("[data-pc-view]");
+  var stage = root.querySelector("[data-pc-stage]");
+  var card = root.querySelector("[data-pc-card]");
+  var z = 1, tx = 0, ty = 0, MAX = 8;
+
+  function clamp() {
+    var w = view.clientWidth, h = view.clientHeight;
+    tx = Math.min(0, Math.max(w - w * z, tx));
+    ty = Math.min(0, Math.max(h - h * z, ty));
+  }
+  function apply() {
+    clamp();
+    stage.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + z + ")";
+    stage.style.setProperty("--pc-z", z);
+  }
+  function zoomAt(factor, cx, cy) {
+    var nz = Math.min(MAX, Math.max(1, z * factor));
+    tx = cx - (cx - tx) * (nz / z);
+    ty = cy - (cy - ty) * (nz / z);
+    z = nz;
+    apply();
+  }
+
+  root.querySelectorAll("[data-pc-zoom]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var mode = btn.getAttribute("data-pc-zoom");
+      if (mode === "reset") { z = 1; tx = 0; ty = 0; apply(); return; }
+      zoomAt(mode === "in" ? 1.5 : 1 / 1.5, view.clientWidth / 2, view.clientHeight / 2);
+    });
+  });
+  view.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var r = view.getBoundingClientRect();
+    zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  var drag = null;
+  view.addEventListener("pointerdown", function (e) {
+    if (e.target.closest("[data-pc-point]") || z === 1) return;
+    drag = { x: e.clientX, y: e.clientY, tx: tx, ty: ty };
+    view.setPointerCapture(e.pointerId);
+    view.classList.add("is-dragging");
+  });
+  view.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    tx = drag.tx + e.clientX - drag.x;
+    ty = drag.ty + e.clientY - drag.y;
+    apply();
+  });
+  function endDrag() { drag = null; view.classList.remove("is-dragging"); }
+  view.addEventListener("pointerup", endDrag);
+  view.addEventListener("pointercancel", endDrag);
+
+  root.querySelectorAll("[data-pc-filter]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      var on = chip.getAttribute("aria-pressed") !== "true";
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+      view.classList.toggle("hide-" + chip.getAttribute("data-pc-filter"), !on);
+    });
+  });
+
+  var STATES = { cat0: "var(--pc-cat0)", cat1: "var(--pc-cat1)", fixed: "var(--pc-ok)", ok: "var(--pc-ok)" };
+  function el(tag, text, cls) {
+    var n = document.createElement(tag);
+    if (text) n.textContent = text;
+    if (cls) n.className = cls;
+    return n;
+  }
+  function row(dl, label, value) {
+    if (!value) return;
+    dl.appendChild(el("dt", label));
+    dl.appendChild(el("dd", value));
+  }
+  function link(url, text, cls) {
+    var a = el("a", text, cls);
+    a.href = url;
+    return a;
+  }
+  function select(code, center) {
+    var pt = stage.querySelector('[data-pc-point="' + CSS.escape(code) + '"]');
+    root.querySelectorAll(".is-selected").forEach(function (n) { n.classList.remove("is-selected"); });
+    if (!pt) return;
+    pt.classList.add("is-selected");
+    root.querySelectorAll('[data-pc-focus="' + CSS.escape(code) + '"]').forEach(function (n) { n.classList.add("is-selected"); });
+    var d = pt.dataset, state = d.state;
+    card.textContent = "";
+    card.style.setProperty("--pc-tone", STATES[state] || "var(--pc-unknown)");
+    var h = el("h3", "Punto " + code);
+    var close = el("button", "×", "pc-map-close");
+    close.type = "button";
+    close.setAttribute("aria-label", "Chiudi");
+    close.addEventListener("click", function () {
+      card.hidden = true;
+      root.querySelectorAll(".is-selected").forEach(function (n) { n.classList.remove("is-selected"); });
+    });
+    h.appendChild(close);
+    card.appendChild(h);
+    var dl = el("dl");
+    row(dl, "Stato", state === "ok" ? "In ordine" : state === "fixed" ? "Riparato (" + d.category + ")" : d.category);
+    if (state !== "ok") {
+      row(dl, "Segnalato dal", d.since);
+      if (+d.streak > 1) row(dl, "Di fila", d.streak + " verifiche");
+    }
+    if (+d.recent > 0) row(dl, "Ultime verifiche", "difettoso " + d.recent + (d.recent === "1" ? " volta" : " volte"));
+    if (d.woLabel) row(dl, "Ordine di lavoro", d.woLabel);
+    card.appendChild(dl);
+    var actions = el("div", "", "pc-map-actions");
+    var open = !d.woUrl && (state === "cat0" || state === "cat1");
+    if (d.woUrl) actions.appendChild(link(d.woUrl, "Apri l'OdL", "btn btn-primary btn-sm"));
+    if (d.sessionUrl) {
+      actions.appendChild(link(d.sessionUrl, open ? "Crea OdL dalla verifica" : "Apri la verifica",
+        open ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm"));
+    }
+    if (actions.children.length) card.appendChild(actions);
+    card.hidden = false;
+    if (center) {
+      if (z < 2.5) z = 2.5;
+      var w = view.clientWidth, hh = view.clientHeight;
+      tx = w / 2 - parseFloat(pt.style.left) / 100 * w * z;
+      ty = hh / 2 - parseFloat(pt.style.top) / 100 * hh * z;
+      apply();
+      view.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+  stage.addEventListener("click", function (e) {
+    var pt = e.target.closest("[data-pc-point]");
+    if (pt) select(pt.getAttribute("data-pc-point"), false);
+  });
+  document.querySelectorAll("[data-pc-focus]").forEach(function (btn) {
+    btn.addEventListener("click", function () { select(btn.getAttribute("data-pc-focus"), true); });
+  });
+  window.addEventListener("resize", apply);
+})();
+</script>
