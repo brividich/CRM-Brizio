@@ -11,18 +11,21 @@ Due controlli indipendenti:
 """
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation, Overflow
+import re
 from time import perf_counter
 
 from django.db import transaction
 from django.utils import timezone
 from .models import (
     CONTATORI,
+    ColonnaProfiloSNMP,
     DispositivoSNMP,
     Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
     LetturaMensileContatori,
     Macchina,
+    ProfiloSNMP,
     RilevazioneSNMP,
     RigaFattura,
     SondaSNMP,
@@ -375,6 +378,155 @@ def _numero_sonda(sonda, valore):
         return None
 
 
+def trova_profilo_snmp(*, sys_object_id="", sys_description=""):
+    """Restituisce il profilo attivo piu specifico compatibile con l'identita'."""
+    object_id = str(sys_object_id or "").strip().lstrip(".")
+    description = str(sys_description or "")
+    candidati = []
+    for profilo in ProfiloSNMP.objects.filter(attivo=True):
+        prefix = (profilo.sys_object_id_prefix or "").strip().lstrip(".")
+        prefix_match = bool(prefix) and (
+            object_id == prefix or object_id.startswith(prefix + ".")
+        )
+        pattern_match = False
+        if profilo.sys_descr_pattern:
+            try:
+                pattern_match = bool(re.search(
+                    profilo.sys_descr_pattern, description, re.IGNORECASE,
+                ))
+            except re.error:
+                continue
+        if not prefix_match and not pattern_match:
+            continue
+        candidati.append((len(prefix) if prefix_match else 0, pattern_match, profilo))
+    if not candidati:
+        return None
+    candidati.sort(key=lambda item: (item[0], item[1], item[2].pk), reverse=True)
+    migliore = candidati[0]
+    # Un PEN condiviso da famiglie diverse senza sysDescr discriminante non va
+    # assegnato a caso (es. HP stampanti vs Aruba rete).
+    if not migliore[1]:
+        pari = [c for c in candidati if c[0] == migliore[0] and not c[1]]
+        if len(pari) > 1:
+            return None
+    return migliore[2]
+
+
+def applica_profilo_dispositivo(dispositivo, profilo, *, sovrascrivi=False):
+    """Associa un profilo e materializza le sue colonne come sonde riutilizzabili."""
+    dispositivo.profilo_snmp = profilo
+    campi = ["profilo_snmp", "aggiornato_il"]
+    if not dispositivo.produttore:
+        dispositivo.produttore = profilo.produttore
+        campi.append("produttore")
+    categoria = {
+        ProfiloSNMP.Categoria.STAMPANTE: DispositivoSNMP.Categoria.STAMPANTE,
+        ProfiloSNMP.Categoria.FIREWALL: DispositivoSNMP.Categoria.FIREWALL,
+        ProfiloSNMP.Categoria.RETE: DispositivoSNMP.Categoria.RETE,
+        ProfiloSNMP.Categoria.SERVER: DispositivoSNMP.Categoria.SERVER,
+        ProfiloSNMP.Categoria.STORAGE: DispositivoSNMP.Categoria.STORAGE,
+        ProfiloSNMP.Categoria.UPS: DispositivoSNMP.Categoria.UPS,
+        ProfiloSNMP.Categoria.AMBIENTE: DispositivoSNMP.Categoria.AMBIENTE,
+        ProfiloSNMP.Categoria.GENERICO: DispositivoSNMP.Categoria.ALTRO,
+    }[profilo.categoria]
+    if dispositivo.categoria != categoria:
+        dispositivo.categoria = categoria
+        campi.append("categoria")
+    if sovrascrivi or not dispositivo.versione:
+        dispositivo.versione = profilo.versione
+        campi.append("versione")
+    if profilo.porta and (sovrascrivi or not dispositivo.porta):
+        dispositivo.porta = profilo.porta
+        campi.append("porta")
+    if profilo.timeout and (sovrascrivi or not dispositivo.timeout):
+        dispositivo.timeout = profilo.timeout
+        campi.append("timeout")
+    dispositivo.save(update_fields=list(dict.fromkeys(campi)))
+
+    # Le sonde manuali restano intatte. Eliminiamo solo quelle generate da un
+    # profilo precedente, altrimenti un cambio produttore lascerebbe OID non
+    # pertinenti che trasformano ogni polling successivo in un falso warning.
+    dispositivo.sonde.filter(
+        profilo_colonna__isnull=False,
+    ).exclude(profilo_colonna__profilo=profilo).delete()
+
+    create_count = 0
+    update_count = 0
+    for colonna in profilo.colonne.filter(attiva=True):
+        defaults = {
+            "nome": colonna.nome,
+            "profilo_colonna": colonna,
+            "tipo_valore": colonna.tipo_valore,
+            "modalita": colonna.modalita,
+            "aggregazione": colonna.aggregazione,
+            "unita": colonna.unita,
+            "fattore": colonna.fattore,
+            "ordine": colonna.ordine,
+            "attiva": True,
+        }
+        _, created = SondaSNMP.objects.update_or_create(
+            dispositivo=dispositivo, oid=colonna.oid,
+            defaults=defaults if sovrascrivi else {**defaults, "nome": colonna.nome},
+        )
+        create_count += int(created)
+        update_count += int(not created)
+    return create_count, update_count
+
+
+def _parametri_snmp(oggetto, cfg):
+    profilo = getattr(oggetto, "profilo_snmp", None)
+    porta = (getattr(oggetto, "snmp_porta", None)
+             or getattr(oggetto, "porta", None)
+             or (profilo.porta if profilo else None) or cfg.port)
+    versione = (getattr(oggetto, "snmp_versione", "")
+                or getattr(oggetto, "versione", "")
+                or (profilo.versione if profilo else "") or cfg.version)
+    timeout = (getattr(oggetto, "snmp_timeout", None)
+               or getattr(oggetto, "timeout", None)
+               or (profilo.timeout if profilo else None) or cfg.timeout)
+    return porta, timeout, versione
+
+
+def _community_snmp(oggetto, cfg):
+    return (
+        getattr(oggetto, "snmp_community", "")
+        or getattr(oggetto, "community", "")
+        or cfg.community
+    )
+
+
+def _leggi_contatori_profilo(macchina, cfg):
+    from .snmp import SNMPError, leggi_specifiche
+
+    colonne = list(macchina.profilo_snmp.colonne.filter(
+        attiva=True,
+    ).exclude(contatore_mfc=""))
+    mappa = {c.contatore_mfc: c for c in colonne}
+    mancanti = [chiave for chiave, _ in CONTATORI if chiave not in mappa]
+    if mancanti:
+        raise SNMPError(
+            f"profilo '{macchina.profilo_snmp}' incompleto per letture MFC: "
+            f"mancano {', '.join(mancanti)}. Le colonne standard restano monitorabili."
+        )
+    porta, timeout, versione = _parametri_snmp(macchina, cfg)
+    specifiche = [{
+        "oid": c.oid, "modalita": c.modalita, "aggregazione": c.aggregazione,
+    } for c in colonne]
+    valori, errori = leggi_specifiche(
+        macchina.host, specifiche, community=_community_snmp(macchina, cfg), port=porta,
+        timeout=timeout, version=versione,
+    )
+    out = {}
+    for chiave, colonna in mappa.items():
+        if colonna.oid not in valori:
+            raise SNMPError(errori.get(colonna.oid) or f"OID {colonna.oid} senza risposta")
+        numero = _intero_grezzo(valori[colonna.oid])
+        if numero is None or numero < 0:
+            raise SNMPError(f"contatore {chiave} non numerico o negativo")
+        out[chiave] = int(Decimal(numero) * colonna.fattore)
+    return out
+
+
 def interroga_macchina(macchina):
     """Legge una MFC, aggiorna la salute SNMP e ritorna i quattro contatori.
 
@@ -386,10 +538,14 @@ def interroga_macchina(macchina):
     cfg = ImpostazioniSNMP.get_solo()
     inizio = perf_counter()
     try:
-        valori = leggi_macchina(
-            macchina, community=cfg.community, port=cfg.port,
-            timeout=cfg.timeout, version=cfg.version,
-        )
+        if macchina.profilo_snmp_id:
+            valori = _leggi_contatori_profilo(macchina, cfg)
+        else:
+            porta, timeout, versione = _parametri_snmp(macchina, cfg)
+            valori = leggi_macchina(
+                macchina, community=_community_snmp(macchina, cfg), port=porta,
+                timeout=timeout, version=versione,
+            )
     except SNMPError as exc:
         macchina.snmp_stato = StatoSNMP.ERROR
         macchina.snmp_ultimo_controllo = timezone.now()
@@ -416,27 +572,36 @@ def interroga_dispositivo(dispositivo):
     """Interroga identita' e sonde di un dispositivo e storicizza l'esito."""
     from .snmp import (
         SNMPError,
+        PRT_SERIAL,
         SYS_DESCR,
         SYS_NAME,
         SYS_OBJECT_ID,
         SYS_UPTIME,
         SYSTEM_OIDS,
         _testo,
-        leggi_oids,
+        leggi_specifiche,
     )
 
     cfg = ImpostazioniSNMP.get_solo()
     sonde = list(dispositivo.sonde.filter(attiva=True))
-    oids = [*SYSTEM_OIDS, *(sonda.oid for sonda in sonde)]
-    porta = dispositivo.porta or cfg.port
-    versione = dispositivo.versione or cfg.version
+    specifiche = [
+        {"oid": oid, "modalita": "GET", "aggregazione": "PRIMO"}
+        for oid in SYSTEM_OIDS
+    ] + [
+        {
+            "oid": sonda.oid, "modalita": sonda.modalita,
+            "aggregazione": sonda.aggregazione,
+        }
+        for sonda in sonde
+    ]
+    porta, timeout, versione = _parametri_snmp(dispositivo, cfg)
     inizio = perf_counter()
     adesso = timezone.now()
 
     try:
-        valori, errori = leggi_oids(
-            dispositivo.host, oids, community=cfg.community, port=porta,
-            timeout=cfg.timeout, version=versione,
+        valori, errori = leggi_specifiche(
+            dispositivo.host, specifiche, community=_community_snmp(dispositivo, cfg), port=porta,
+            timeout=timeout, version=versione,
         )
     except SNMPError as exc:
         durata = _tempo_ms(inizio)
@@ -459,6 +624,7 @@ def interroga_dispositivo(dispositivo):
     sys_name = _testo(valori.get(SYS_NAME))
     sys_description = _testo(valori.get(SYS_DESCR))
     sys_object_id = _testo(valori.get(SYS_OBJECT_ID))
+    seriale = _testo(valori.get(PRT_SERIAL))
     uptime_ticks = _intero_grezzo(valori.get(SYS_UPTIME))
     uptime_seconds = max(0, uptime_ticks // 100) if uptime_ticks is not None else None
 
@@ -528,11 +694,23 @@ def interroga_dispositivo(dispositivo):
     dispositivo.sys_description = sys_description
     dispositivo.sys_object_id = sys_object_id
     dispositivo.sys_uptime_seconds = uptime_seconds
-    dispositivo.save(update_fields=[
+    update_fields = [
         "snmp_stato", "snmp_ultimo_controllo", "snmp_tempo_risposta_ms",
         "snmp_ultimo_errore", "sys_name", "sys_description", "sys_object_id",
         "sys_uptime_seconds", "aggiornato_il",
+    ]
+    if seriale and not dispositivo.matricola:
+        dispositivo.matricola = seriale
+        update_fields.append("matricola")
+    dispositivo.save(update_fields=[
+        *update_fields,
     ])
+    if not dispositivo.profilo_snmp_id:
+        profilo = trova_profilo_snmp(
+            sys_object_id=sys_object_id, sys_description=sys_description,
+        )
+        if profilo is not None:
+            applica_profilo_dispositivo(dispositivo, profilo)
     return rilevazione
 
 

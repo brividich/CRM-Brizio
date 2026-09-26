@@ -16,9 +16,12 @@ class Command(BaseCommand):
                 _, creata = leggi_mensile_macchina(macchina)
                 nuove += int(creata)
                 presenti += int(not creata)
-            except (SNMPError, ValueError):
+            except (SNMPError, ValueError) as exc:
                 errori += 1
-                self.stderr.write(f"MFC {macchina.pk}: lettura fallita; consultare lo stato SNMP.")
+                self.stderr.write(
+                    f"MFC {macchina.pk} · {macchina.reparto} · "
+                    f"{macchina.host}: {exc}"
+                )
         self.stdout.write(f"Nuove: {nuove}; già presenti: {presenti}; errori: {errori}.")
         if errori:
             raise CommandError("Raccolta mensile incompleta: rieseguire per recuperare le macchine mancanti.")

@@ -7,17 +7,21 @@ from django.views.decorators.http import require_POST
 
 from . import services
 from .forms import (
+    ColonnaProfiloSNMPForm,
     DispositivoSNMPForm,
     ImpostazioniSNMPForm,
     LetturaForm,
     MacchinaForm,
+    ProfiloSNMPForm,
     SondaSNMPForm,
 )
 from .models import (
+    ColonnaProfiloSNMP,
     DispositivoSNMP,
     ImpostazioniSNMP,
     LetturaContatori,
     Macchina,
+    ProfiloSNMP,
     SondaSNMP,
     StatoSNMP,
     ValoreSNMP,
@@ -168,7 +172,6 @@ def leggi_snmp(request):
 
 def macchine_list(request):
     """Elenco stampanti + form parametri SNMP globali (salvati sul singleton)."""
-    from .snmp import COUNTER_MAP
     cfg = ImpostazioniSNMP.get_solo()
     if request.method == "POST":
         form = ImpostazioniSNMPForm(request.POST, instance=cfg)
@@ -181,7 +184,12 @@ def macchine_list(request):
     return render(request, "contatori/macchine.html", {
         "macchine": Macchina.objects.select_related("asset").all(),
         "snmp_form": form,
-        "modelli_noti": sorted(COUNTER_MAP.keys()),
+        "profili_mfc": [
+            profilo for profilo in ProfiloSNMP.objects.filter(
+                attivo=True, categoria=ProfiloSNMP.Categoria.STAMPANTE,
+            ).prefetch_related("colonne")
+            if len({c.contatore_mfc for c in profilo.colonne.all() if c.contatore_mfc}) == 4
+        ],
         "ultime": services.ultime_rilevazioni(),
     })
 
@@ -243,8 +251,9 @@ def _leggi_consumabili_cfg(macchina):
     from .snmp import leggi_consumabili, SNMPError
     cfg = ImpostazioniSNMP.get_solo()
     try:
-        return leggi_consumabili(macchina, community=cfg.community, port=cfg.port,
-                                 timeout=cfg.timeout, version=cfg.version), None
+        porta, timeout, versione = services._parametri_snmp(macchina, cfg)
+        return leggi_consumabili(macchina, community=services._community_snmp(macchina, cfg), port=porta,
+                                 timeout=timeout, version=versione), None
     except SNMPError as e:
         return None, str(e)
 
@@ -342,6 +351,7 @@ def dispositivo_snmp_detail(request, pk):
         "dispositivo": dispositivo,
         "sonde": sonde,
         "rilevazioni": rilevazioni,
+        "profili_disponibili": ProfiloSNMP.objects.filter(attivo=True),
     })
 
 
@@ -359,6 +369,10 @@ def dispositivo_snmp_edit(request, pk=None):
         form = DispositivoSNMPForm(request.POST, instance=dispositivo)
         if form.is_valid():
             dispositivo = form.save()
+            if dispositivo.profilo_snmp_id:
+                services.applica_profilo_dispositivo(
+                    dispositivo, dispositivo.profilo_snmp,
+                )
             if pk is None and dispositivo.asset_id is None:
                 asset, motivo = services.trova_asset_snmp(
                     seriale=dispositivo.matricola, host=dispositivo.host,
@@ -378,6 +392,74 @@ def dispositivo_snmp_edit(request, pk=None):
     return render(request, "contatori/snmp_dispositivo_form.html", {
         "form": form, "dispositivo": dispositivo,
     })
+
+
+def profili_snmp(request):
+    categoria = (request.GET.get("categoria") or "").strip().upper()
+    profili = ProfiloSNMP.objects.prefetch_related("colonne").all()
+    if categoria in ProfiloSNMP.Categoria.values:
+        profili = profili.filter(categoria=categoria)
+    return render(request, "contatori/snmp_profili.html", {
+        "profili": profili,
+        "categoria": categoria,
+        "categorie": ProfiloSNMP.Categoria.choices,
+    })
+
+
+def profilo_snmp_edit(request, pk=None):
+    profilo = get_object_or_404(ProfiloSNMP, pk=pk) if pk else None
+    if request.method == "POST":
+        form = ProfiloSNMPForm(request.POST, instance=profilo)
+        if form.is_valid():
+            profilo = form.save(commit=False)
+            profilo.save()
+            messages.success(request, f"Profilo «{profilo.nome}» salvato.")
+            return redirect("contatori:snmp_profilo_edit", pk=profilo.pk)
+    else:
+        form = ProfiloSNMPForm(instance=profilo)
+    return render(request, "contatori/snmp_profilo_form.html", {
+        "form": form, "profilo": profilo,
+        "colonne": profilo.colonne.all() if profilo else [],
+    })
+
+
+def colonna_profilo_snmp_edit(request, profilo_pk, pk=None):
+    profilo = get_object_or_404(ProfiloSNMP, pk=profilo_pk)
+    colonna = ColonnaProfiloSNMP(profilo=profilo)
+    if pk is not None:
+        colonna = get_object_or_404(
+            ColonnaProfiloSNMP, pk=pk, profilo=profilo,
+        )
+    if request.method == "POST":
+        form = ColonnaProfiloSNMPForm(request.POST, instance=colonna)
+        if form.is_valid():
+            colonna = form.save(commit=False)
+            colonna.profilo = profilo
+            colonna.save()
+            messages.success(request, f"Colonna «{colonna.nome}» salvata.")
+            return redirect("contatori:snmp_profilo_edit", pk=profilo.pk)
+    else:
+        form = ColonnaProfiloSNMPForm(instance=colonna)
+    return render(request, "contatori/snmp_profilo_colonna_form.html", {
+        "form": form, "profilo": profilo, "colonna": colonna,
+    })
+
+
+@require_POST
+def dispositivo_snmp_applica_profilo(request, pk):
+    dispositivo = get_object_or_404(DispositivoSNMP, pk=pk)
+    profilo = get_object_or_404(
+        ProfiloSNMP, pk=request.POST.get("profilo"), attivo=True,
+    )
+    create_count, update_count = services.applica_profilo_dispositivo(
+        dispositivo, profilo, sovrascrivi=request.POST.get("sovrascrivi") == "1",
+    )
+    messages.success(
+        request,
+        f"Profilo {profilo.nome} applicato: {create_count} sonde create, "
+        f"{update_count} aggiornate.",
+    )
+    return redirect("contatori:snmp_dispositivo", pk=dispositivo.pk)
 
 
 def sonda_snmp_edit(request, dispositivo_pk, pk=None):
