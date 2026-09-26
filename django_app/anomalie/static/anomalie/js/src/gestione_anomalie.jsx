@@ -316,6 +316,288 @@
       );
     };
 
+    // --- Scheda qualita' (protocollo NC, classificazione, registro NC, proposta AI) ---
+    // Consuma /api/anomalie/qualita (GET crea la scheda al primo accesso) e
+    // /api/anomalie/qualita/copilota (proposta AI, non salva nulla).
+    const GRAVITA_COLORS = {
+      MINORE:   { bg: "var(--success-bg)", fg: "var(--success)" },
+      MAGGIORE: { bg: "var(--warning-bg)", fg: "var(--warning)" },
+      CRITICA:  { bg: "var(--danger-bg)",  fg: "var(--danger)" },
+    };
+    const qInputStyle = (enabled) => ({
+      width: "100%", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8,
+      color: "var(--text)", background: enabled ? "var(--surface)" : "var(--bg)", outline: "none",
+      cursor: enabled ? "auto" : "not-allowed", opacity: enabled ? 1 : 0.8,
+    });
+    const SCHEDA_FIELDS = ["origine", "tipo_difetto", "gravita", "reparto", "quantita_nc", "quantita_scartata", "disposizione"];
+
+    const SchedaQualita = ({ localId, canEdit, reloadKey, isMobile }) => {
+      const [scheda, setScheda] = useState(null);
+      const [scelte, setScelte] = useState(null);
+      const [draft, setDraft] = useState({});
+      const [loading, setLoading] = useState(false);
+      const [saving, setSaving] = useState(false);
+      const [msg, setMsg] = useState(null);
+      const [ai, setAi] = useState(null);
+      const [aiLoading, setAiLoading] = useState(false);
+      const [serverCanEdit, setServerCanEdit] = useState(false);
+
+      const toDraft = (s) => {
+        const d = {};
+        SCHEDA_FIELDS.forEach((k) => { d[k] = s && s[k] != null ? String(s[k]) : ""; });
+        return d;
+      };
+
+      useEffect(() => {
+        setAi(null); setMsg(null);
+        if (!localId || !API.qualita) { setScheda(null); return; }
+        let alive = true;
+        setLoading(true);
+        fetch(`${API.qualita}?local_id=${encodeURIComponent(localId)}`, { credentials: "same-origin" })
+          .then((r) => readJsonOrThrow(r, "Scheda qualità"))
+          .then((d) => {
+            if (!alive) return;
+            if (!d.success) throw new Error(d.error || "Scheda non disponibile");
+            setScheda(d.scheda); setScelte(d.scelte); setDraft(toDraft(d.scheda));
+            setServerCanEdit(!!d.can_edit);
+          })
+          .catch((e) => { if (alive) { setScheda(null); setMsg({ ok: false, text: e.message }); } })
+          .finally(() => { if (alive) setLoading(false); });
+        return () => { alive = false; };
+      }, [localId, reloadKey]);
+
+      // Tipi difetto raggruppati per famiglia (optgroup). Hook PRIMA di ogni return.
+      const famiglie = useMemo(() => {
+        const out = [];
+        ((scelte && scelte.tipi_difetto) || []).forEach((t) => {
+          const fam = t.famiglia || "Altro";
+          let g = out.find((x) => x.fam === fam);
+          if (!g) { g = { fam, items: [] }; out.push(g); }
+          g.items.push(t);
+        });
+        return out;
+      }, [scelte]);
+
+      if (!localId) {
+        return (
+          <div className="text-sm" style={{ marginTop: 20, padding: "12px 14px", border: "1px dashed var(--border)", borderRadius: 10, color: "var(--text-light)" }}>
+            Scheda qualità: disponibile dopo il primo salvataggio della segnalazione.
+          </div>
+        );
+      }
+
+      const editable = canEdit && serverCanEdit && !!scheda;
+      const dirty = scheda && SCHEDA_FIELDS.some((k) => (draft[k] || "") !== (scheda[k] != null ? String(scheda[k]) : ""));
+      const set = (k) => (e) => setDraft((prev) => ({ ...prev, [k]: e.target.value }));
+      const flash = (m) => { setMsg(m); setTimeout(() => setMsg(null), 4000); };
+
+      const save = async () => {
+        setSaving(true);
+        try {
+          const body = { local_id: localId };
+          SCHEDA_FIELDS.forEach((k) => { body[k] = draft[k] === "" ? null : draft[k]; });
+          const r = await fetch(API.qualita, {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify(body),
+          });
+          const d = await readJsonOrThrow(r, "Salvataggio scheda qualità");
+          if (!d.success) throw new Error(d.error || "Salvataggio non riuscito");
+          setScheda(d.scheda); setDraft(toDraft(d.scheda));
+          flash({ ok: true, text: d.scheda.registro_nc ? `Scheda salvata · NC ${d.scheda.registro_nc.numero} nel registro` : "Scheda salvata" });
+        } catch (e) {
+          flash({ ok: false, text: e.message });
+        }
+        setSaving(false);
+      };
+
+      const askAi = async () => {
+        setAiLoading(true); setAi(null);
+        try {
+          const r = await fetch(API.qualita_copilota, {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ local_id: localId }),
+          });
+          const d = await readJsonOrThrow(r, "Proposta AI");
+          if (!r.ok || !d.success) throw new Error(d.error || "Proposta non disponibile");
+          setAi(d.proposta);
+        } catch (e) {
+          flash({ ok: false, text: e.message });
+        }
+        setAiLoading(false);
+      };
+
+      const applyAi = () => {
+        if (!ai) return;
+        setDraft((prev) => ({
+          ...prev,
+          tipo_difetto: ai.tipo_difetto != null ? String(ai.tipo_difetto) : prev.tipo_difetto,
+          gravita: ai.gravita || prev.gravita,
+        }));
+      };
+
+      const label = (list, value) => {
+        const hit = (list || []).find((o) => String(o.value) === String(value));
+        return hit ? hit.label : "";
+      };
+      const reg = scheda && scheda.registro_nc;
+      const grav = GRAVITA_COLORS[draft.gravita] || null;
+
+      return (
+        <div style={{ marginTop: 20, border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)", overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 16px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+            <span className="text-sm font-semibold" style={{ fontWeight: 700, color: "var(--text)" }}>Scheda qualità</span>
+            {scheda && (
+              <span className="text-xs font-bold" style={{ fontFamily: "ui-monospace,monospace", padding: "2px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }}>
+                {scheda.protocollo}
+              </span>
+            )}
+            {grav && (
+              <span className="text-2xs font-semibold" style={{ padding: "2px 8px", borderRadius: 99, background: grav.bg, color: grav.fg, fontWeight: 700, textTransform: "uppercase" }}>
+                {label(scelte && scelte.gravita, draft.gravita)}
+              </span>
+            )}
+            <span style={{ marginLeft: "auto" }} />
+            {reg ? (
+              <a href={reg.url || "#"} target="_blank" rel="noopener" className="text-xs font-semibold" style={{
+                padding: "3px 10px", borderRadius: 99, textDecoration: "none", fontWeight: 700,
+                background: reg.chiuso ? "var(--success-bg)" : "var(--warning-bg)", color: reg.chiuso ? "var(--success)" : "var(--warning)",
+              }} title="Voce del registro OFI/NC (ISO 9001 §10.2)">
+                Registro NC n. {reg.numero} · {reg.fase}
+              </a>
+            ) : scheda ? (
+              <span className="text-xs" style={{ color: "var(--text-light)" }} title="Entra nel registro NC se gravità maggiore/critica, segnalata al cliente, con RDC o difetto ricorrente">
+                Non nel registro NC
+              </span>
+            ) : null}
+          </div>
+
+          <div style={{ padding: "14px 16px" }}>
+            {loading ? (
+              <div className="text-sm" style={{ color: "var(--text-light)" }}>Caricamento scheda…</div>
+            ) : !scheda ? (
+              <div className="text-sm" style={{ color: "var(--danger)" }}>{(msg && msg.text) || "Scheda non disponibile."}</div>
+            ) : (
+              <>
+                {scheda.part_number && (
+                  <div className="text-xs" style={{ color: "var(--text-light)", marginBottom: 10 }}>
+                    P/N registrato: <span style={{ fontFamily: "ui-monospace,monospace", color: "var(--text-mid)" }}>{scheda.part_number}</span>
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0,1fr))", gap: 12 }}>
+                  <div style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
+                    <FieldLabel>Tipo difetto</FieldLabel>
+                    <select value={draft.tipo_difetto || ""} onChange={set("tipo_difetto")} disabled={!editable} style={qInputStyle(editable)}>
+                      <option value="">— da classificare —</option>
+                      {famiglie.map((g) => (
+                        <optgroup key={g.fam} label={g.fam}>
+                          {g.items.map((t) => <option key={t.value} value={String(t.value)}>{t.label}</option>)}
+                        </optgroup>
+                      ))}
+                      {draft.tipo_difetto && !((scelte && scelte.tipi_difetto) || []).some((t) => String(t.value) === draft.tipo_difetto) && (
+                        <option value={draft.tipo_difetto}>{scheda.tipo_difetto_label || "Tipo disattivato"}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Gravità</FieldLabel>
+                    <select value={draft.gravita || ""} onChange={set("gravita")} disabled={!editable} style={qInputStyle(editable)}>
+                      <option value="">— da valutare —</option>
+                      {((scelte && scelte.gravita) || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Origine</FieldLabel>
+                    <select value={draft.origine || ""} onChange={set("origine")} disabled={!editable} style={qInputStyle(editable)}>
+                      <option value="">—</option>
+                      {((scelte && scelte.origini) || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Reparto</FieldLabel>
+                    <select value={draft.reparto || ""} onChange={set("reparto")} disabled={!editable} style={qInputStyle(editable)}>
+                      <option value="">—</option>
+                      {((scelte && scelte.reparti) || []).map((o) => <option key={o.value} value={String(o.value)}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Decisione sul materiale</FieldLabel>
+                    <select value={draft.disposizione || ""} onChange={set("disposizione")} disabled={!editable} style={qInputStyle(editable)}>
+                      {((scelte && scelte.disposizioni) || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                    {scheda.disposizione_auto && !dirty && (
+                      <div className="text-2xs" style={{ color: "var(--text-light)", marginTop: 4 }}>Dedotta da RDC/avanzamento: cambiala se serve.</div>
+                    )}
+                  </div>
+                  <div>
+                    <FieldLabel>Q.tà non conforme</FieldLabel>
+                    <input type="number" min="0" value={draft.quantita_nc || ""} onChange={set("quantita_nc")} disabled={!editable} style={qInputStyle(editable)} />
+                  </div>
+                  <div>
+                    <FieldLabel>Q.tà scartata</FieldLabel>
+                    <input type="number" min="0" value={draft.quantita_scartata || ""} onChange={set("quantita_scartata")} disabled={!editable} style={qInputStyle(editable)} />
+                  </div>
+                </div>
+
+                {ai && (
+                  <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                      <span className="text-xs font-semibold" style={{ fontWeight: 700, color: "var(--text)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Proposta {ai.fonte === "simili" ? "dai casi simili" : "AI"}
+                      </span>
+                      {!ai.ai_disponibile && <span className="text-2xs" style={{ color: "var(--text-light)" }}>AI non raggiungibile</span>}
+                      <span style={{ marginLeft: "auto" }} />
+                      {editable && (ai.tipo_difetto != null || ai.gravita) && (
+                        <IconBtn onClick={applyAi} title="Copia tipo difetto e gravità nel form (poi salva)">Applica al form</IconBtn>
+                      )}
+                    </div>
+                    <div className="text-sm" style={{ color: "var(--text-mid)", display: "grid", gap: 4 }}>
+                      <div>Tipo difetto: <strong style={{ color: "var(--text)" }}>{label(scelte && scelte.tipi_difetto, ai.tipo_difetto) || "—"}</strong>
+                        {" · "}Gravità: <strong style={{ color: "var(--text)" }}>{label(scelte && scelte.gravita, ai.gravita) || "—"}</strong></div>
+                      {ai.causa_probabile && <div>Causa probabile (da verificare): {ai.causa_probabile}</div>}
+                      {ai.motivazione && <div style={{ color: "var(--text-light)" }}>{ai.motivazione}</div>}
+                    </div>
+                    {Array.isArray(ai.simili) && ai.simili.length > 0 && (
+                      <div style={{ marginTop: 8 }}>
+                        <div className="text-2xs font-semibold" style={{ color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Casi simili</div>
+                        {ai.simili.map((c) => (
+                          <div key={c.protocollo} className="text-xs" style={{ color: "var(--text-mid)", padding: "3px 0", borderTop: "1px solid var(--border)" }}>
+                            <span style={{ fontFamily: "ui-monospace,monospace", color: "var(--text)" }}>{c.protocollo}</span>
+                            {" · "}{c.tipo_difetto_label}{c.part_number ? ` · P/N ${c.part_number}` : ""} — {c.descrizione}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                  {msg && (
+                    <span className="text-sm font-semibold" style={{ color: msg.ok ? "var(--success)" : "var(--danger)", fontWeight: 600 }}>{msg.text}</span>
+                  )}
+                  {!msg && aiLoading && (
+                    <span className="text-sm" style={{ color: "var(--text-light)" }}>L'AI sta analizzando la segnalazione: può servire anche un minuto.</span>
+                  )}
+                  <span style={{ marginLeft: "auto" }} />
+                  {editable && API.qualita_copilota && (
+                    <IconBtn onClick={askAi} disabled={aiLoading} title="Proposta di tipo difetto, gravità e causa probabile (non salva nulla)">
+                      {aiLoading ? "Analisi…" : "Proponi con AI"}
+                    </IconBtn>
+                  )}
+                  {editable && (
+                    <IconBtn onClick={save} disabled={saving || !dirty} accent title="Salva la scheda qualità">
+                      {saving ? "Salvataggio…" : "Salva scheda"}
+                    </IconBtn>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    };
+
     const Toggle = ({ label, checked, onChange, disabled = false }) => (
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div onClick={disabled ? undefined : onChange} style={{
@@ -351,6 +633,7 @@
       const [loadingAttachments, setLoadingAttachments] = useState(false);
       const [uploadingAttachments, setUploadingAttachments] = useState(false);
       const [selectedAttachmentId, setSelectedAttachmentId] = useState(null);
+      const [qualitaTick, setQualitaTick] = useState(0);  // ricarica la scheda qualita' dopo "Salva"
       const fileInputRef = useRef(null);
 
       // â"€â"€ Selezione e ricerca â"€â"€
@@ -640,10 +923,11 @@
             const newLocalId = data.local_id || currentLocalId;
             setCurrentItemId(newItemId);
             setCurrentLocalId(newLocalId || null);
-            setSaveMsg({ ok: true, text: "Salvato" });
+            setSaveMsg({ ok: true, text: data.protocollo ? `Salvato · ${data.protocollo}` : "Salvato" });
             if (newLocalId) {
               loadAttachments(newLocalId);
             }
+            setQualitaTick((n) => n + 1);
             // Optimistic update: aggiorna lo stato locale senza re-fetch
             const updatedRecord = {
               item_id:    newItemId,
@@ -1599,6 +1883,9 @@
                     )}
                   </div>
                 </div>
+                {sn.sn && (
+                  <SchedaQualita localId={currentLocalId} canEdit={canEditCurrentOp} reloadKey={qualitaTick} isMobile={isMobile} />
+                )}
                 {op.id && op.id !== '—' && (
                   <TimelineOp opId={op.id} opItemId={op.item_id} />
                 )}

@@ -146,7 +146,7 @@ ALLEGATI_SYNC_META_FILENAME = "__sync_meta__.json"
 ALLEGATI_SYNC_PENDING = "pending"
 ALLEGATI_SYNC_SYNCED = "synced"
 ALLEGATI_SYNC_ERROR = "error"
-ANOMALIE_SETTINGS_TABS = ("riepilogo", "config", "permessi", "record", "log")
+ANOMALIE_SETTINGS_TABS = ("riepilogo", "config", "qualita", "permessi", "record", "log")
 # Alias retrocompatibili: le vecchie URL ?tab=ruoli|accessi restano valide e
 # vengono normalizzate nella view al nuovo tab "permessi" con sub corrispondente.
 ANOMALIE_SETTINGS_TAB_ALIASES = {
@@ -1603,6 +1603,77 @@ def _handle_anomalie_roles_post(request):
     return _anomalie_settings_redirect("permessi", sub="ruoli", q_user=q_user)
 
 
+def _handle_anomalie_tipo_difetto_post(request):
+    """Catalogo tipi difetto: crea/rinomina (``save_tipo_difetto``) o attiva/disattiva.
+
+    Nessuna cancellazione: un tipo gia' usato nelle schede resta per lo storico
+    (FK PROTECT), si disattiva e sparisce dalle scelte.
+    """
+    from django.utils.text import slugify
+
+    from .quality_models import AnomaliaTipoDifetto
+
+    action = str(request.POST.get("action") or "").strip()
+    raw_id = str(request.POST.get("tipo_id") or "").strip()
+    tipo = AnomaliaTipoDifetto.objects.filter(pk=int(raw_id)).first() if raw_id.isdigit() else None
+
+    if action == "toggle_tipo_difetto":
+        if tipo is None:
+            messages.error(request, "Tipo difetto non trovato.")
+        else:
+            tipo.attivo = not tipo.attivo
+            tipo.save(update_fields=["attivo", "updated_at"])
+            messages.success(request, f"«{tipo.nome}» {'riattivato' if tipo.attivo else 'disattivato'}.")
+        return _anomalie_settings_redirect("qualita")
+
+    nome = str(request.POST.get("nome") or "").strip()[:120]
+    famiglia = str(request.POST.get("famiglia") or "").strip()[:80]
+    try:
+        ordine = max(0, int(request.POST.get("ordine") or 0))
+    except (TypeError, ValueError):
+        ordine = 0
+    if not nome:
+        messages.error(request, "Il nome del tipo difetto è obbligatorio.")
+        return _anomalie_settings_redirect("qualita")
+    doppione = AnomaliaTipoDifetto.objects.filter(nome__iexact=nome)
+    if tipo is not None:
+        doppione = doppione.exclude(pk=tipo.pk)
+    if doppione.exists():
+        messages.error(request, f"Esiste già un tipo difetto «{nome}».")
+        return _anomalie_settings_redirect("qualita")
+    if tipo is None:
+        base = slugify(nome)[:34] or "difetto"
+        codice, n = base, 1
+        while AnomaliaTipoDifetto.objects.filter(codice=codice).exists():
+            n += 1
+            codice = f"{base}-{n}"
+        if not ordine:
+            ordine = (AnomaliaTipoDifetto.objects.order_by("-ordine").values_list("ordine", flat=True).first() or 0) + 10
+        AnomaliaTipoDifetto.objects.create(codice=codice, nome=nome, famiglia=famiglia, ordine=ordine)
+        messages.success(request, f"Tipo difetto «{nome}» aggiunto.")
+    else:
+        tipo.nome, tipo.famiglia, tipo.ordine = nome, famiglia, ordine
+        tipo.save(update_fields=["nome", "famiglia", "ordine", "updated_at"])
+        messages.success(request, f"Tipo difetto «{nome}» aggiornato.")
+    return _anomalie_settings_redirect("qualita")
+
+
+def _anomalie_qualita_tab_context() -> dict:
+    from django.db.models import Count
+
+    from .quality_models import AnomaliaSchedaQualita, AnomaliaTipoDifetto
+
+    tipi = list(AnomaliaTipoDifetto.objects.annotate(n_schede=Count("schede")).order_by("ordine", "nome"))
+    return {
+        "tipi_difetto": tipi,
+        "qualita_stats": {
+            "schede": AnomaliaSchedaQualita.objects.count(),
+            "classificate": AnomaliaSchedaQualita.objects.exclude(tipo_difetto__isnull=True).count(),
+            "registrate_nc": AnomaliaSchedaQualita.objects.exclude(registro_nc__isnull=True).count(),
+            "tipi_attivi": sum(1 for t in tipi if t.attivo),
+        },
+    }
+
 def _handle_anomalie_email_resend_post(request):
     """Reinvia una mail gia' registrata nel log del modulo.
 
@@ -2708,11 +2779,24 @@ def api_salva(request):
             except Exception:
                 logger.warning("api_salva: gestione conferma salvataggio fallita op=%s", op_id, exc_info=True)
 
+        # Scheda qualita' + registro NC (fire-and-forget, savepoint: un errore qui
+        # non deve mai invalidare il salvataggio della segnalazione).
+        protocollo = ""
+        if local_id is not None:
+            try:
+                from anomalie.qualita_service import sync_da_anomalia
+                with transaction.atomic():
+                    scheda = sync_da_anomalia(local_id)
+                protocollo = scheda.protocollo if scheda else ""
+            except Exception:
+                logger.warning("api_salva: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
+
         return JsonResponse(
             {
                 "success": True,
                 "item_id": returned_item_id,
                 "local_id": local_id,
+                "protocollo": protocollo,
             }
         )
     except DatabaseError as exc:
@@ -3128,6 +3212,8 @@ def anomalie_configurazione_page(request):
             return _handle_anomalie_access_post(request)
         if action == "resend_email":
             return _handle_anomalie_email_resend_post(request)
+        if action in {"save_tipo_difetto", "toggle_tipo_difetto"}:
+            return _handle_anomalie_tipo_difetto_post(request)
         if action == "save_permessi_ruoli":
             saved = _save_anomalie_permessi_ruoli(request.POST.getlist("permessi_ruolo_id"))
             messages.success(
@@ -3465,6 +3551,8 @@ def anomalie_configurazione_page(request):
     }
     context.update(config_tab_context)
     context.update(email_log_context)
+    if tab == "qualita":
+        context.update(_anomalie_qualita_tab_context())
     context.update(ruoli_context)
     context.update(access_context)
     return render(request, "anomalie/pages/anomalie_configurazione.html", context)
@@ -3704,6 +3792,116 @@ def api_copilota_anomalia(request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Scheda qualita' (classificazione NC) + proposta AI
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _scheda_request_payload(request) -> dict:
+    if request.method == "GET":
+        return {"local_id": request.GET.get("local_id")}
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _scheda_legacy_row(data: dict):
+    """(local_id, riga legacy) dal payload; riga None se l'anomalia non esiste."""
+    try:
+        local_id = int(str(data.get("local_id") or "").split(":")[-1])
+    except (TypeError, ValueError):
+        return None, None
+    from anomalie.qualita_service import legacy_row
+    return local_id, legacy_row(local_id)
+
+
+@login_required
+def api_anomalie_qualita(request):
+    """GET: scheda qualita' dell'anomalia (creata al primo accesso) + liste scelte.
+    POST: salva la classificazione e rivaluta la registrazione nel registro NC.
+
+    La scheda resta modificabile anche ad anomalia chiusa: la classificazione
+    qualita' spesso si completa dopo la chiusura operativa.
+    """
+    if request.method not in ("GET", "POST"):
+        return _json_error("Metodo non consentito", status=405)
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile", status=503)
+    data = _scheda_request_payload(request)
+    local_id, row = _scheda_legacy_row(data)
+    if local_id is None:
+        return _json_error("local_id obbligatorio", status=400)
+    if row is None:
+        return _json_error("Anomalia non trovata", status=404)
+    op_id = str(row.get("ex_op_nominativo") or "")
+    if not _can_view_anomalie_for_op(request, op_id):
+        return _json_error("Permesso negato", status=403)
+
+    from anomalie import qualita_service as qs
+
+    if request.method == "POST":
+        if not _can_edit_anomalie_for_op(request, op_id):
+            return _json_error("Permesso negato: non autorizzato a modificare questo OP", status=403)
+        with transaction.atomic():
+            scheda, _ = qs.get_or_create_scheda(local_id, row=row)
+            errori = qs.applica_modifiche(scheda, data, user=request.user)
+            if errori:
+                return JsonResponse({"success": False, "error": " ".join(errori)}, status=400)
+            qs.valuta_registro_nc(scheda, row)
+        try:
+            log_action(request, "anomalia_scheda_qualita", "anomalie", {
+                "local_id": local_id, "op_id": op_id, "protocollo": scheda.protocollo,
+                "registro_nc": scheda.registro_nc.numero if scheda.registro_nc_id else None,
+            })
+        except Exception:
+            pass
+        return JsonResponse({"success": True, "scheda": qs.serializza(scheda)})
+
+    with transaction.atomic():
+        scheda, _ = qs.get_or_create_scheda(local_id, row=row)
+        qs.aggiorna_automatici(scheda, row)
+    return JsonResponse({
+        "success": True,
+        "scheda": qs.serializza(scheda),
+        "scelte": qs.scelte(),
+        "can_edit": _can_edit_anomalie_for_op(request, op_id),
+    })
+
+
+@login_required
+@csrf_protect
+@require_POST
+def api_anomalie_qualita_copilota(request):
+    """Proposta AI di tipo difetto, gravita' e causa probabile (NON salva nulla)."""
+    if not _access_level_at_least(
+        _request_anomalie_global_access_level(request), AnomalieAccessLevel.EDIT_ASSIGNED
+    ):
+        return JsonResponse({"error": "forbidden"}, status=403)
+    data = _scheda_request_payload(request)
+    local_id, row = _scheda_legacy_row(data)
+    if row is None:
+        return _json_error("Anomalia non trovata", status=404)
+    descrizione = str(data.get("descrizione") or row.get("descrizione") or "").strip()
+    if not descrizione:
+        return _json_error("descrizione mancante", status=400)
+
+    from anomalie.ai_copilota import proponi_classificazione_qualita
+    from anomalie.quality_models import AnomaliaSchedaQualita, AnomaliaTipoDifetto
+
+    scheda = AnomaliaSchedaQualita.objects.filter(anomalia_id=local_id).first()
+    proposta = proponi_classificazione_qualita(
+        descrizione=descrizione,
+        note=str(data.get("note") or row.get("note_capocommessa") or ""),
+        part_number=scheda.part_number if scheda else "",
+        anomalia_id=local_id,
+        tipi_difetto=list(AnomaliaTipoDifetto.objects.filter(attivo=True).values_list("id", "nome")),
+        gravita=AnomaliaSchedaQualita.Gravita.choices,
+    )
+    return JsonResponse({"success": True, "proposta": proposta})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Export CSV anomalie
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -3917,7 +4115,19 @@ def api_anomalie_statistiche(request):
             )
         ]
 
+    # Pareto qualita' (schede): ristretto alle anomalie del filtro corrente.
+    qualita = None
+    try:
+        from anomalie.qualita_service import pareto
+        ids = None
+        if where_parts:
+            ids = [int(r["id"]) for r in _fetch_all_dict(f"SELECT id FROM anomalie {_where()}", params)]
+        qualita = pareto(ids)
+    except Exception:
+        logger.warning("statistiche anomalie: pareto qualita' non disponibile", exc_info=True)
+
     return JsonResponse({
+        "qualita": qualita,
         "totale": totale,
         "aperte": totale - chiuse,
         "chiuse": chiuse,
