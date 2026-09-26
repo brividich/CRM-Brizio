@@ -1661,15 +1661,19 @@ def _handle_anomalie_tipo_difetto_post(request):
 def _anomalie_qualita_tab_context() -> dict:
     from django.db.models import Count
 
-    from .quality_models import AnomaliaSchedaQualita, AnomaliaTipoDifetto
+    from . import nc_service
+    from .quality_models import AnomaliaNC, AnomaliaSchedaQualita, AnomaliaTipoDifetto
 
     tipi = list(AnomaliaTipoDifetto.objects.annotate(n_schede=Count("schede")).order_by("ordine", "nome"))
     return {
         "tipi_difetto": tipi,
+        "nc_chiusura": nc_service.get_chiusura_mode(),
+        "nc_chiusura_choices": nc_service.CHIUSURA_CHOICES,
         "qualita_stats": {
             "schede": AnomaliaSchedaQualita.objects.count(),
             "classificate": AnomaliaSchedaQualita.objects.exclude(tipo_difetto__isnull=True).count(),
-            "registrate_nc": AnomaliaSchedaQualita.objects.exclude(registro_nc__isnull=True).count(),
+            "nc_totali": AnomaliaNC.objects.count(),
+            "nc_aperte": AnomaliaNC.objects.exclude(stato=AnomaliaNC.Stato.CHIUSA).count(),
             "tipi_attivi": sum(1 for t in tipi if t.attivo),
         },
     }
@@ -2779,7 +2783,7 @@ def api_salva(request):
             except Exception:
                 logger.warning("api_salva: gestione conferma salvataggio fallita op=%s", op_id, exc_info=True)
 
-        # Scheda qualita' + registro NC (fire-and-forget, savepoint: un errore qui
+        # Scheda qualita' + NC dell'OP (fire-and-forget, savepoint: un errore qui
         # non deve mai invalidare il salvataggio della segnalazione).
         protocollo = ""
         if local_id is not None:
@@ -2787,7 +2791,7 @@ def api_salva(request):
                 from anomalie.qualita_service import sync_da_anomalia
                 with transaction.atomic():
                     scheda = sync_da_anomalia(local_id)
-                protocollo = scheda.protocollo if scheda else ""
+                protocollo = scheda.nc.protocollo if scheda and scheda.nc_id else ""
             except Exception:
                 logger.warning("api_salva: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
 
@@ -3214,6 +3218,18 @@ def anomalie_configurazione_page(request):
             return _handle_anomalie_email_resend_post(request)
         if action in {"save_tipo_difetto", "toggle_tipo_difetto"}:
             return _handle_anomalie_tipo_difetto_post(request)
+        if action == "save_nc_chiusura":
+            from . import nc_service
+            if nc_service.set_chiusura_mode(request.POST.get("nc_chiusura")):
+                messages.success(request, "Regola di chiusura delle NC aggiornata.")
+                try:
+                    log_action(request, "anomalie_nc_chiusura_config", "anomalie",
+                               {"valore": nc_service.get_chiusura_mode()})
+                except Exception:
+                    pass
+            else:
+                messages.error(request, "Valore non valido per la chiusura delle NC.")
+            return _anomalie_settings_redirect("qualita")
         if action == "save_permessi_ruoli":
             saved = _save_anomalie_permessi_ruoli(request.POST.getlist("permessi_ruolo_id"))
             messages.success(
@@ -3848,11 +3864,12 @@ def api_anomalie_qualita(request):
             errori = qs.applica_modifiche(scheda, data, user=request.user)
             if errori:
                 return JsonResponse({"success": False, "error": " ".join(errori)}, status=400)
-            qs.valuta_registro_nc(scheda, row)
+            from anomalie import nc_service
+            nc_service.aggancia_a_nc(scheda, row)
         try:
             log_action(request, "anomalia_scheda_qualita", "anomalie", {
-                "local_id": local_id, "op_id": op_id, "protocollo": scheda.protocollo,
-                "registro_nc": scheda.registro_nc.numero if scheda.registro_nc_id else None,
+                "local_id": local_id, "op_id": op_id,
+                "nc": scheda.nc.protocollo if scheda.nc_id else None,
             })
         except Exception:
             pass
@@ -3861,6 +3878,8 @@ def api_anomalie_qualita(request):
     with transaction.atomic():
         scheda, _ = qs.get_or_create_scheda(local_id, row=row)
         qs.aggiorna_automatici(scheda, row)
+        from anomalie import nc_service
+        nc_service.aggancia_a_nc(scheda, row)
     return JsonResponse({
         "success": True,
         "scheda": qs.serializza(scheda),

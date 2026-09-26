@@ -385,13 +385,6 @@
         </label>
         <small>Quando l'ultima anomalia aperta di un OP viene chiusa, capocommessa e CAR ricevono una mail con il link al Report OP (circa 5 minuti dopo il salvataggio).</small>
       </div>
-      <div class="field">
-        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
-          <input type="checkbox" id="auto_nc_registro_attivo" />
-          <span>Registro NC automatico</span>
-        </label>
-        <small>Le anomalie significative (gravit&agrave; maggiore/critica, segnalate al cliente, con RDC, o difetto ricorrente) diventano una voce NC del registro OFI/NC. Nessuna email. Acceso di default; dettagli nel tab <a href="?tab=qualita">Qualit&agrave;</a>.</small>
-      </div>
     </div>
     <div id="esc-status" class="status" style="margin:0 16px;"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end;padding:16px;">
@@ -767,7 +760,7 @@
     </div>
     <div class="stat">
       <div class="stat-icon-wrap yellow">&#9888;</div>
-      <div><div class="stat-num">{{ qualita_stats.registrate_nc }}</div><div class="stat-lbl">Nel registro NC</div></div>
+      <div><div class="stat-num">{{ qualita_stats.nc_aperte }}</div><div class="stat-lbl">NC aperte (su {{ qualita_stats.nc_totali }})</div></div>
     </div>
     <div class="stat">
       <div class="stat-icon-wrap blue">&#9776;</div>
@@ -778,10 +771,23 @@
   <div class="card" style="margin-bottom:18px;">
     <div class="card-head">
       <div>
-        <div class="card-title">Registro NC (ISO 9001 &sect;10.2)</div>
-        <div class="page-sub" style="margin-top:4px;">Ogni anomalia salvata riceve una scheda qualit&agrave; con protocollo <code>NC-anno-numero</code>. Quelle significative diventano da sole una voce <strong>NC</strong> del registro OFI/NC: gravit&agrave; maggiore o critica, segnalazione al cliente, richiesta di deroga (RDC), oppure difetto ricorrente sullo stesso P/N (soglia e finestra dell'automazione &laquo;Difetto ricorrente&raquo;). Le anomalie dello stesso evento si agganciano alla NC gi&agrave; aperta. La voce nasce senza responsabile e con il promemoria spento: analisi delle cause e azioni si registrano nel registro. Interruttore in <a href="?tab=config">Configurazione &rsaquo; Automazioni aggiuntive</a>.</div>
+        <div class="card-title">Non conformit&agrave; per OP (ISO 9001 &sect;10.2)</div>
+        <div class="page-sub" style="margin-top:4px;">Alla prima anomalia di un OP nasce la sua NC (<code>NC-anno-numero</code>); le anomalie successive si aggiungono finch&eacute; &egrave; aperta, dopo la chiusura se ne apre una nuova collegata come ricaduta. Contenimento, analisi delle cause, azioni correttive e verifica di efficacia sono tutte facoltative: lo stato si calcola da ci&ograve; che &egrave; compilato e dall'avanzamento dato dal capocommessa alle anomalie.</div>
       </div>
-      <a href="{% url 'registro_ofi:lista' %}?modulo=anomalie" class="btn btn-secondary btn-sm">Apri registro NC</a>
+      <a href="{% url 'anomalie_nc_lista' %}" class="btn btn-secondary btn-sm">Apri non conformit&agrave;</a>
+    </div>
+    <div class="card-body">
+      <form method="post" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_nc_chiusura">
+        <label class="field" style="margin:0;flex:1;min-width:260px;">Chi pu&ograve; chiudere una NC
+          <select name="nc_chiusura" class="ga-select">
+            {% for val, label in nc_chiusura_choices %}<option value="{{ val }}"{% if val == nc_chiusura %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="btn">Salva</button>
+      </form>
+      <small style="display:block;margin-top:8px;color:var(--text-light);">Il permesso &laquo;Anomalie - Gestione NC&raquo; si assegna ai ruoli da Accessi. Una verifica di efficacia positiva registrata da chi pu&ograve; chiudere chiude la NC.</small>
     </div>
   </div>
 
@@ -978,9 +984,7 @@
     attivo: {% if escalation_cfg.attivo %}true{% else %}false{% endif %},
     soglia_ore: {{ escalation_cfg.soglia_ore|default:24 }},
     ora_invio: {{ escalation_cfg.ora_invio|default:6 }},
-    ricorrenza_attivo: {% if escalation_cfg.ricorrenza_attivo %}true{% else %}false{% endif %},
-    nc_registro_attivo: {% if escalation_cfg.nc_registro_attivo %}true{% else %}false{% endif %},
-    ricorrenza_n: {{ escalation_cfg.ricorrenza_n|default:3 }},
+    ricorrenza_attivo: {% if escalation_cfg.ricorrenza_attivo %}true{% else %}false{% endif %},    ricorrenza_n: {{ escalation_cfg.ricorrenza_n|default:3 }},
     ricorrenza_giorni: {{ escalation_cfg.ricorrenza_giorni|default:30 }},
     rdc_attivo: {% if escalation_cfg.rdc_attivo %}true{% else %}false{% endif %},
     rdc_giorni: {{ escalation_cfg.rdc_giorni|default:3 }},
@@ -1253,9 +1257,7 @@
       ['auto_rdc_attivo', 'rdc_attivo', 'bool', false],
       ['auto_rdc_giorni', 'rdc_giorni', 'int', 3],
       ['auto_digest_attivo', 'digest_attivo', 'bool', false],
-      ['auto_op_completato_attivo', 'op_completato_attivo', 'bool', false],
-      ['auto_nc_registro_attivo', 'nc_registro_attivo', 'bool', true],
-    ];
+      ['auto_op_completato_attivo', 'op_completato_attivo', 'bool', false],    ];
     const fillAuto = (src) => {
       AUTO_FIELDS.forEach(([id, key, type, def]) => {
         const el = document.getElementById(id);

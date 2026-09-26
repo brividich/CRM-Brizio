@@ -1,0 +1,321 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ nc.protocollo }} | Non conformità{% endblock %}
+
+{% block extra_head %}
+<style>
+  .nc-steps { display:flex; gap:0; align-items:flex-start; flex-wrap:wrap; }
+  .nc-step { flex:1; min-width:92px; display:flex; flex-direction:column; align-items:center; gap:5px; position:relative; }
+  .nc-step::before { content:""; position:absolute; top:11px; left:-50%; width:100%; height:2px; background:var(--border); z-index:0; }
+  .nc-step:first-child::before { display:none; }
+  .nc-step.done::before, .nc-step.current::before { background:var(--success); }
+  .nc-dot { width:24px; height:24px; border-radius:50%; background:var(--bg); border:2px solid var(--border); color:var(--text-light); display:flex; align-items:center; justify-content:center; font-size:var(--fs-xs); font-weight:800; position:relative; z-index:1; }
+  .nc-step.done .nc-dot { background:var(--success); border-color:var(--success); color:#fff; }
+  .nc-step.current .nc-dot { background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 0 0 4px var(--accent-light); }
+  .nc-step span { font-size:var(--fs-xs); font-weight:600; color:var(--text-light); text-align:center; }
+  .nc-step.current span, .nc-step.done span { color:var(--text); }
+  .nc-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-bottom:18px; }
+  @media (max-width:1000px) { .nc-grid { grid-template-columns:1fr; } }
+  .nc-num { display:inline-flex; width:24px; height:24px; border-radius:50%; align-items:center; justify-content:center; background:var(--primary-mid); color:#fff; font-size:var(--fs-xs); font-weight:800; margin-right:8px; }
+  .nc-hint { font-size:var(--fs-sm); color:var(--text-mid); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
+  .nc-fields { display:grid; gap:12px; }
+  .nc-fields .row2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  @media (max-width:640px) { .nc-fields .row2 { grid-template-columns:1fr; } }
+  .nc-fields label { display:grid; gap:4px; font-weight:700; font-size:var(--fs-sm); color:var(--text-mid); }
+  .nc-fields textarea { min-height:78px; resize:vertical; }
+  fieldset.nc-fs { border:none; margin:0; padding:0; min-width:0; }
+  fieldset.nc-fs[disabled] .btn { display:none; }
+  .nc-foot { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+  .nc-pill { display:inline-block; padding:1px 8px; border-radius:99px; font-size:var(--fs-xs); font-weight:700; margin-left:4px; }
+  .nc-pill.rdc { background:var(--danger-bg); color:var(--danger); }
+  .nc-pill.cli { background:var(--accent-light); color:var(--text); }
+  .nc-pill.ok { background:var(--success-bg); color:var(--success); }
+  .nc-late { color:var(--danger); font-weight:700; }
+  .nc-sub { color:var(--text-light); font-size:var(--fs-xs); }
+  .nc-metodo[hidden] { display:none; }
+  .nc-azione-form { display:grid; grid-template-columns:140px minmax(0,1fr) auto; gap:6px; align-items:center; }
+  @media (max-width:760px) { .nc-azione-form { grid-template-columns:1fr; } }
+  .nc-eventi { display:grid; gap:0; }
+  .nc-evento { display:grid; grid-template-columns:130px minmax(0,1fr) 160px; gap:10px; padding:7px 0; border-bottom:1px solid var(--border); font-size:var(--fs-sm); }
+  .nc-evento:last-child { border-bottom:none; }
+  @media (max-width:640px) { .nc-evento { grid-template-columns:1fr; gap:2px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-main">
+    <a href="{% url 'anomalie_nc_lista' %}" class="btn-back">&#8592; Non conformit&agrave;</a>
+    <div class="page-h" style="margin-top:8px;">{{ nc.protocollo }}</div>
+    <div class="page-sub">OP <strong>{{ nc.op_titolo }}</strong> &middot; P/N {{ nc.part_number|default:"—" }} &middot; Capocommessa {{ nc.capocommessa|default:"—" }} &middot; CAR {{ nc.car|default:"—" }}{% if nc.precedente_id %} &middot; ricaduta di <a href="{% url 'anomalie_nc_dettaglio' nc.precedente_id %}">{{ nc.precedente.protocollo }}</a>{% endif %}</div>
+  </div>
+  <div class="page-header-actions">
+    <a href="{{ gestione_url }}" class="btn btn-secondary btn-sm">Anomalie dell'OP</a>
+    <a href="{% url 'anomalie_nc_pdf' nc.pk %}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">PDF</a>
+  </div>
+</div>
+
+{% if messages %}
+  <div class="messages-wrap">
+    {% for message in messages %}<div class="notice {% if message.tags == 'error' %}notice-danger{% elif message.tags == 'success' %}notice-success{% endif %}">{{ message }}</div>{% endfor %}
+  </div>
+{% endif %}
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-body">
+    <div class="nc-steps" aria-label="Stato della non conformità">
+      {% for p in passi %}
+        <div class="nc-step {{ p.stato }}"><div class="nc-dot">{% if p.stato == 'done' %}&#10003;{% else %}{{ forloop.counter }}{% endif %}</div><span>{{ p.label }}</span></div>
+      {% endfor %}
+    </div>
+    <div class="nc-sub" style="text-align:center;margin-top:10px;">Lo stato si aggiorna da solo in base a quello che &egrave; compilato e all'avanzamento delle anomalie. Nessuna sezione &egrave; obbligatoria.</div>
+    {% if nc.is_chiusa %}
+      <div class="notice notice-success" style="margin-top:12px;">NC chiusa il {{ nc.chiusa_il|date:"d/m/Y H:i" }}{% if nc.chiusa_da %} da {{ nc.chiusa_da.get_full_name|default:nc.chiusa_da.username }}{% endif %}{% if nc.note_chiusura %}: {{ nc.note_chiusura }}{% endif %}. Le sezioni sono in sola lettura.</div>
+    {% elif not perm.modifica %}
+      <div class="notice" style="margin-top:12px;">Sola lettura: non gestisci questo OP.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:18px;">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Anomalie dell'OP ({{ righe|length }})</div>
+      <div class="page-sub" style="margin-top:4px;">Avanzamento dato dal capocommessa: {{ contenimento_cc.gestite }} di {{ contenimento_cc.totale }} gestite, {{ contenimento_cc.chiuse }} chiuse.{% if contenimento_cc.tutte_chiuse %} <span class="nc-pill ok">tutte chiuse</span>{% endif %}</div>
+    </div>
+    <a href="{{ gestione_url }}" class="btn btn-secondary btn-sm">Apri in gestione</a>
+  </div>
+  <div class="card-body" style="padding:0;">
+    <div class="table-wrap" style="border:none;border-radius:0;">
+      <table class="admin-table">
+        <thead><tr><th>S/N</th><th>Descrizione</th><th>Tipo difetto</th><th>Gravit&agrave;</th><th>Q.t&agrave; NC / scarto</th><th>Decisione</th><th>Avanzamento</th></tr></thead>
+        <tbody>
+        {% for r in righe %}
+          <tr>
+            <td style="font-family:ui-monospace,monospace;">{{ r.seriale|default:"—" }}</td>
+            <td style="max-width:320px;">{{ r.descrizione|truncatechars:160|default:"—" }}</td>
+            <td>{% if r.scheda.tipo_difetto %}{{ r.scheda.tipo_difetto.nome }}{% else %}<span class="nc-sub">da classificare</span>{% endif %}</td>
+            <td>{{ r.scheda.get_gravita_display|default:"—" }}</td>
+            <td>{{ r.scheda.quantita_nc|default_if_none:"—" }} / {{ r.scheda.quantita_scartata|default_if_none:"—" }}</td>
+            <td>{{ r.scheda.get_disposizione_display }}</td>
+            <td>{% if r.chiusa %}<span class="nc-pill ok">Chiusa</span>{% endif %} {{ r.avanzamento|default:"—" }}{% if r.rdc %}<span class="nc-pill rdc">RDC{% if r.numero_rdc %} {{ r.numero_rdc }}{% endif %}</span>{% endif %}{% if r.cliente %}<span class="nc-pill cli">Cliente</span>{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="cell-muted" style="text-align:center;">Nessuna anomalia collegata.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="nc-grid">
+  <div class="card" id="contenimento">
+    <div class="card-head"><div class="card-title"><span class="nc-num">1</span>Contenimento immediato</div></div>
+    <div class="card-body">
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="contenimento">
+        <fieldset class="nc-fs" {% if nc.is_chiusa or not perm.modifica %}disabled{% endif %}>
+          <div class="nc-fields">
+            <div class="nc-hint">Cosa &egrave; stato fatto subito su materiale e pezzi in corso (&sect;10.2.1 a). Le decisioni prese dal capocommessa sulle singole anomalie (avanzamento, RDC, chiusura) sono gi&agrave; nella tabella sopra.</div>
+            <label>Azioni di contenimento<textarea name="contenimento" class="input">{{ nc.contenimento }}</textarea></label>
+            <div class="row2">
+              <label>Data<input type="date" name="contenimento_data" class="input" value="{{ nc.contenimento_data|date:'Y-m-d' }}"></label>
+              <label>Eseguito da<input type="text" name="contenimento_da" class="input" maxlength="150" value="{{ nc.contenimento_da }}"></label>
+            </div>
+          </div>
+          <div class="nc-foot"><button type="submit" class="btn btn-sm">Salva contenimento</button></div>
+        </fieldset>
+      </form>
+    </div>
+  </div>
+
+  <div class="card" id="verifica">
+    <div class="card-head"><div class="card-title"><span class="nc-num">4</span>Verifica di efficacia</div></div>
+    <div class="card-body">
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="verifica">
+        <fieldset class="nc-fs" {% if nc.is_chiusa or not perm.modifica %}disabled{% endif %}>
+          <div class="nc-fields">
+            <div class="nc-hint">Le azioni hanno eliminato la causa? (&sect;10.2.1 d){% if perm.chiude %} Un esito &laquo;Efficace&raquo; chiude la NC.{% endif %}</div>
+            <div class="row2">
+              <label>Verifica prevista il<input type="date" name="verifica_prevista" class="input" value="{{ nc.verifica_prevista|date:'Y-m-d' }}"></label>
+              <label>Eseguita il<input type="date" name="verifica_data" class="input" value="{{ nc.verifica_data|date:'Y-m-d' }}"></label>
+            </div>
+            <div class="row2">
+              <label>Esito<select name="verifica_esito" class="input"><option value="">—</option>{% for v, l in esiti %}<option value="{{ v }}"{% if nc.verifica_esito == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+              <label>Verificata da<input type="text" name="verifica_da" class="input" maxlength="150" value="{{ nc.verifica_da }}"></label>
+            </div>
+            <label>Evidenze / note<textarea name="verifica_note" class="input">{{ nc.verifica_note }}</textarea></label>
+          </div>
+          <div class="nc-foot"><button type="submit" class="btn btn-sm">Salva verifica</button></div>
+        </fieldset>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="analisi" style="margin-bottom:18px;">
+  <div class="card-head"><div class="card-title"><span class="nc-num">2</span>Analisi delle cause</div></div>
+  <div class="card-body">
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="analisi">
+      <fieldset class="nc-fs" {% if nc.is_chiusa or not perm.modifica %}disabled{% endif %}>
+        <div class="nc-fields">
+          <div class="row2">
+            <label>Metodo
+              <select name="analisi_metodo" class="input" id="nc-metodo">
+                <option value="">—</option>
+                {% for v, l in metodi %}<option value="{{ v }}"{% if nc.analisi_metodo == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
+              </select>
+            </label>
+            <label>Riferimento documento esterno<input type="text" name="analisi_riferimento" class="input" maxlength="300" value="{{ nc.analisi_riferimento }}" placeholder="es. 8D cliente n. 123, verbale del 12/09"></label>
+          </div>
+          <div class="nc-metodo" data-metodo="CINQUE_PERCHE">
+            <div class="row2">
+              {% for p in perche %}<label>Perch&eacute; {{ forloop.counter }}<input type="text" name="perche_{{ forloop.counter }}" class="input" maxlength="1000" value="{{ p }}"></label>{% endfor %}
+            </div>
+          </div>
+          <div class="nc-metodo" data-metodo="ISHIKAWA">
+            <div class="row2">
+              {% for key, label, val in ishikawa %}<label>{{ label }}<textarea name="ishikawa_{{ key }}" class="input" style="min-height:60px;">{{ val }}</textarea></label>{% endfor %}
+            </div>
+          </div>
+          <label>Causa radice<textarea name="causa_radice" class="input">{{ nc.causa_radice }}</textarea></label>
+          <div class="row2">
+            <label>Data analisi<input type="date" name="analisi_data" class="input" value="{{ nc.analisi_data|date:'Y-m-d' }}"></label>
+            <label>A cura di<input type="text" name="analisi_da" class="input" maxlength="150" value="{{ nc.analisi_da }}"></label>
+          </div>
+        </div>
+        <div class="nc-foot"><button type="submit" class="btn btn-sm">Salva analisi</button></div>
+      </fieldset>
+    </form>
+  </div>
+</div>
+
+<div class="card" id="azioni" style="margin-bottom:18px;">
+  <div class="card-head"><div class="card-title"><span class="nc-num">3</span>Azioni correttive ({{ azioni|length }})</div></div>
+  <div class="card-body" style="display:grid;gap:14px;">
+    {% if azioni %}
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>Azione</th><th>Responsabile</th><th>Scadenza</th><th style="min-width:340px;">Stato ed esito</th></tr></thead>
+        <tbody>
+        {% for a in azioni %}
+          <tr>
+            <td>{{ a.descrizione|linebreaksbr }}<div class="nc-sub">{{ a.get_tipo_display }}{% if a.completata_il %} &middot; fatta il {{ a.completata_il|date:"d/m/Y" }}{% endif %}</div></td>
+            <td>{{ a.responsabile_nome|default:"—" }}</td>
+            <td>{% if a.scadenza %}<span class="{% if a.aperta and a.scadenza < oggi %}nc-late{% endif %}">{{ a.scadenza|date:"d/m/Y" }}</span>{% else %}—{% endif %}</td>
+            <td>
+              <form method="post" class="nc-azione-form">{% csrf_token %}
+                <input type="hidden" name="action" value="azione_aggiorna"><input type="hidden" name="azione_id" value="{{ a.pk }}">
+                <fieldset class="nc-fs" style="display:contents;" {% if nc.is_chiusa or not perm.modifica %}disabled{% endif %}>
+                  <select name="stato" class="input input-sm" aria-label="Stato azione">{% for v, l in azione_stati %}<option value="{{ v }}"{% if a.stato == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+                  <input type="text" name="esito" class="input input-sm" value="{{ a.esito }}" placeholder="Esito / note" aria-label="Esito">
+                  <button type="submit" class="btn btn-sm btn-secondary">Salva</button>
+                </fieldset>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if perm.modifica and not nc.is_chiusa %}
+    <form method="post" class="nc-fields" style="border-top:{% if azioni %}1px solid var(--border){% else %}none{% endif %};padding-top:{% if azioni %}14px{% else %}0{% endif %};">{% csrf_token %}
+      <input type="hidden" name="action" value="azione_nuova">
+      <label>Nuova azione<textarea name="descrizione" class="input" required style="min-height:56px;" placeholder="Cosa va fatto per eliminare la causa"></textarea></label>
+      <div class="row2">
+        <label>Responsabile
+          <select name="responsabile" class="input">
+            <option value="">—</option>
+            {% for r in responsabili %}<option value="{{ r.id }}">{{ r.nome }}{% if r.ruolo %} ({{ r.ruolo }}){% endif %}</option>{% endfor %}
+          </select>
+        </label>
+        <div class="row2">
+          <label>Tipo<select name="tipo" class="input">{% for v, l in azione_tipi %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+          <label>Scadenza<input type="date" name="scadenza" class="input"></label>
+        </div>
+      </div>
+      <div class="nc-foot" style="margin-top:0;"><button type="submit" class="btn btn-sm">Aggiungi azione</button></div>
+    </form>
+    <div class="nc-sub">Il responsabile ritrova l'azione in &laquo;Le mie attivit&agrave;&raquo; e riceve un promemoria in-app due giorni prima della scadenza.</div>
+    {% elif not azioni %}
+    <div class="nc-sub">Nessuna azione registrata.</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="nc-grid">
+  <div class="card" id="allegati">
+    <div class="card-head"><div class="card-title">Allegati ({{ allegati|length }})</div></div>
+    <div class="card-body" style="display:grid;gap:10px;">
+      {% for al in allegati %}
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:8px;">
+          <div style="min-width:0;"><a href="{% url 'anomalie_nc_allegato' nc.pk al.pk %}" target="_blank" rel="noopener" style="font-weight:700;overflow-wrap:anywhere;">{{ al.nome }}</a>
+            <div class="nc-sub">{{ al.get_sezione_display }} &middot; {{ al.size|filesizeformat }} &middot; {{ al.created_at|date:"d/m/Y" }}{% if al.uploaded_by %} &middot; {{ al.uploaded_by.get_full_name|default:al.uploaded_by.username }}{% endif %}</div></div>
+        </div>
+      {% empty %}
+        <div class="nc-sub">Nessun allegato (es. 8D, verbali, foto, rapporti di prova).</div>
+      {% endfor %}
+      {% if perm.modifica and not nc.is_chiusa %}
+      <form method="post" enctype="multipart/form-data" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">{% csrf_token %}
+        <input type="hidden" name="action" value="allegato">
+        <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" class="input" style="flex:1;min-width:200px;">
+        <select name="sezione" class="input" style="width:auto;" aria-label="Sezione">{% for v, l in sezioni_allegato %}<option value="{{ v }}"{% if v == 'ANALISI' %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        <button type="submit" class="btn btn-sm">Carica</button>
+      </form>
+      <div class="nc-sub">PDF, JPG, PNG, DOCX, XLSX &middot; max 20 MB.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card" id="chiusura">
+    <div class="card-head"><div class="card-title">Chiusura</div></div>
+    <div class="card-body">
+      {% if nc.is_chiusa %}
+        <p style="margin:0 0 10px;">Chiusa il {{ nc.chiusa_il|date:"d/m/Y H:i" }}{% if nc.chiusa_da %} da {{ nc.chiusa_da.get_full_name|default:nc.chiusa_da.username }}{% endif %}.</p>
+        {% if perm.chiude %}
+        <form method="post" class="nc-fields">{% csrf_token %}<input type="hidden" name="action" value="riapri">
+          <label>Motivo della riapertura<input type="text" name="motivo" class="input" maxlength="300"></label>
+          <div class="nc-foot" style="margin-top:0;"><button type="submit" class="btn btn-sm btn-secondary">Riapri NC</button></div>
+        </form>
+        {% endif %}
+        {% for r in ricadute %}<div class="nc-sub" style="margin-top:8px;">Ricaduta successiva: <a href="{% url 'anomalie_nc_dettaglio' r.pk %}">{{ r.protocollo }}</a></div>{% endfor %}
+      {% elif perm.chiude %}
+        <form method="post" class="nc-fields">{% csrf_token %}<input type="hidden" name="action" value="chiudi">
+          <label>Note di chiusura (facoltative)<textarea name="note_chiusura" class="input" style="min-height:56px;"></textarea></label>
+          <div class="nc-foot" style="margin-top:0;"><button type="submit" class="btn btn-sm">Chiudi NC</button></div>
+        </form>
+      {% else %}
+        <div class="nc-sub">La chiusura spetta a {% if perm.modifica %}chi gestisce le NC{% else %}chi gestisce le NC o l'OP{% endif %} (opzione del modulo).</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><div class="card-title">Storico</div></div>
+  <div class="card-body nc-eventi">
+    {% for e in eventi %}
+      <div class="nc-evento"><span class="nc-sub">{{ e.created_at|date:"d/m/Y H:i" }}</span><span>{{ e.testo }}</span><span class="nc-sub">{{ e.user_nome|default:"Sistema" }}</span></div>
+    {% empty %}
+      <div class="nc-sub">Nessun evento.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  var sel = document.getElementById('nc-metodo');
+  if (!sel) return;
+  function sync() {
+    document.querySelectorAll('.nc-metodo').forEach(function (el) {
+      el.hidden = el.getAttribute('data-metodo') !== sel.value;
+    });
+  }
+  sel.addEventListener('change', sync);
+  sync();
+})();
+</script>
+{% endblock %}

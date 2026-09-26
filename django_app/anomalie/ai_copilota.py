@@ -123,7 +123,7 @@ def casi_simili(*, descrizione: str, part_number: str = "", escludi_anomalia_id=
         schede = list(
             AnomaliaSchedaQualita.objects.filter(tipo_difetto__isnull=False)
             .exclude(anomalia_id=escludi_anomalia_id or 0)
-            .select_related("tipo_difetto")
+            .select_related("tipo_difetto", "nc")
             .order_by("-id")[:candidati]
         )
         if not schede or "descrizione" not in _anomalie_cols():
@@ -150,7 +150,8 @@ def casi_simili(*, descrizione: str, part_number: str = "", escludi_anomalia_id=
         if score <= 0.05:
             continue
         out.append({
-            "protocollo": s.protocollo,
+            "protocollo": s.nc.protocollo if s.nc_id else f"#{s.anomalia_id}",
+            "anomalia_id": s.anomalia_id,
             "tipo_difetto": s.tipo_difetto_id,
             "tipo_difetto_label": s.tipo_difetto.nome,
             "gravita": s.gravita,

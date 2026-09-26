@@ -462,7 +462,7 @@ const TimelineOp = ({
   }, it.note))))));
 };
 
-// --- Scheda qualita' (protocollo NC, classificazione, registro NC, proposta AI) ---
+// --- Scheda qualita' della singola anomalia (classificazione, NC dell'OP, proposta AI) ---
 // Consuma /api/anomalie/qualita (GET crea la scheda al primo accesso) e
 // /api/anomalie/qualita/copilota (proposta AI, non salva nulla).
 const GRAVITA_COLORS = {
@@ -610,7 +610,7 @@ const SchedaQualita = ({
       setDraft(toDraft(d.scheda));
       flash({
         ok: true,
-        text: d.scheda.registro_nc ? `Scheda salvata · NC ${d.scheda.registro_nc.numero} nel registro` : "Scheda salvata"
+        text: "Scheda salvata"
       });
     } catch (e) {
       flash({
@@ -658,7 +658,7 @@ const SchedaQualita = ({
     const hit = (list || []).find(o => String(o.value) === String(value));
     return hit ? hit.label : "";
   };
-  const reg = scheda && scheda.registro_nc;
+  const nc = scheda && scheda.nc;
   const grav = GRAVITA_COLORS[draft.gravita] || null;
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -684,17 +684,7 @@ const SchedaQualita = ({
       fontWeight: 700,
       color: "var(--text)"
     }
-  }, "Scheda qualit\xE0"), scheda && /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-bold",
-    style: {
-      fontFamily: "ui-monospace,monospace",
-      padding: "2px 8px",
-      borderRadius: 6,
-      border: "1px solid var(--border)",
-      background: "var(--surface)",
-      color: "var(--text)"
-    }
-  }, scheda.protocollo), grav && /*#__PURE__*/React.createElement("span", {
+  }, "Scheda qualit\xE0"), grav && /*#__PURE__*/React.createElement("span", {
     className: "text-2xs font-semibold",
     style: {
       padding: "2px 8px",
@@ -708,27 +698,28 @@ const SchedaQualita = ({
     style: {
       marginLeft: "auto"
     }
-  }), reg ? /*#__PURE__*/React.createElement("a", {
-    href: reg.url || "#",
+  }), nc && /*#__PURE__*/React.createElement("a", {
+    href: nc.url || "#",
     target: "_blank",
     rel: "noopener",
     className: "text-xs font-semibold",
     style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
       padding: "3px 10px",
       borderRadius: 99,
       textDecoration: "none",
       fontWeight: 700,
-      background: reg.chiuso ? "var(--success-bg)" : "var(--warning-bg)",
-      color: reg.chiuso ? "var(--success)" : "var(--warning)"
+      background: nc.chiusa ? "var(--success-bg)" : "var(--warning-bg)",
+      color: nc.chiusa ? "var(--success)" : "var(--warning)"
     },
-    title: "Voce del registro OFI/NC (ISO 9001 \xA710.2)"
-  }, "Registro NC n. ", reg.numero, " \xB7 ", reg.fase) : scheda ? /*#__PURE__*/React.createElement("span", {
-    className: "text-xs",
+    title: "Non conformit\xE0 dell'OP: contenimento, analisi, azioni e verifica"
+  }, /*#__PURE__*/React.createElement("span", {
     style: {
-      color: "var(--text-light)"
-    },
-    title: "Entra nel registro NC se gravit\xE0 maggiore/critica, segnalata al cliente, con RDC o difetto ricorrente"
-  }, "Non nel registro NC") : null), /*#__PURE__*/React.createElement("div", {
+      fontFamily: "ui-monospace,monospace"
+    }
+  }, nc.protocollo), " \xB7 ", nc.stato_label)), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "14px 16px"
     }
@@ -904,7 +895,7 @@ const SchedaQualita = ({
       marginBottom: 4
     }
   }, "Casi simili"), ai.simili.map(c => /*#__PURE__*/React.createElement("div", {
-    key: c.protocollo,
+    key: c.anomalia_id || c.protocollo,
     className: "text-xs",
     style: {
       color: "var(--text-mid)",
@@ -1663,7 +1654,24 @@ function GestioneAnomalie() {
     viewBox: "0 0 24 24"
   }, /*#__PURE__*/React.createElement("path", {
     d: "M12 5v14m-7-7h14"
-  }))), saveMsg && !isMobile && /*#__PURE__*/React.createElement("span", {
+  }))), !isMobile && API.nc_lista && /*#__PURE__*/React.createElement("a", {
+    className: "text-base font-semibold",
+    href: API.nc_lista,
+    title: "Non conformit\xE0 per OP",
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      background: "rgba(255,255,255,.08)",
+      border: "1px solid rgba(255,255,255,.12)",
+      borderRadius: 8,
+      padding: "7px 16px",
+      color: "#e2e8f0",
+      fontWeight: 600,
+      textDecoration: "none",
+      whiteSpace: "nowrap"
+    }
+  }, "Non conformit\xE0"), saveMsg && !isMobile && /*#__PURE__*/React.createElement("span", {
     className: "text-base font-medium",
     style: {
       fontWeight: 500,
