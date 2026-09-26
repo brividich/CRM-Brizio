@@ -7,6 +7,7 @@ Dominio in ``services/periodic_checks.py``; vedi docs/ai/VERIFICHE_PERIODICHE.md
 from __future__ import annotations
 
 import mimetypes
+from decimal import Decimal, InvalidOperation
 import re
 from datetime import date
 from collections import OrderedDict
@@ -181,6 +182,8 @@ def periodic_check_list(request: HttpRequest) -> HttpResponse:
             drafts=Count("sessions", filter=Q(sessions__status=PeriodicCheckSession.STATUS_DRAFT), distinct=True),
             issued=Count("sessions", filter=Q(sessions__status=PeriodicCheckSession.STATUS_ISSUED), distinct=True),
             has_layout=Count("layouts", filter=Q(layouts__is_active=True), distinct=True),
+            n_fields=Count("measure_fields", filter=Q(measure_fields__is_active=True), distinct=True),
+            n_items=Count("items", filter=Q(items__is_active=True), distinct=True),
         )
     )
     last = _last_sessions_by_type([t.id for t in types])
@@ -390,10 +393,36 @@ def _guide(request: HttpRequest, check_type: PeriodicCheckType, layout) -> dict:
                  if can_configure else None)
         step("Registra la verifica", "Data, tecnico, esito per voce, rapportino firmato allegato.", "ready" if count else "blocked",
              {"label": "Registra", "url": register_url} if can_register and count else None)
+    elif method == PeriodicCheckType.METHOD_MEASURES:
+        n_points = check_type.items.filter(is_active=True).count()
+        n_fields = check_type.measure_fields.filter(is_active=True).count()
+        ready = bool(n_points and n_fields)
+        if ready:
+            step("Punti e grandezze", f"{n_points} punti di misura, {n_fields} grandezze con le loro soglie.", "done",
+                 {"label": "Vedi", "url": f"{base}?tab=impostazioni"})
+        else:
+            step("Definisci punti e grandezze",
+                 "Le righe da misurare (es. «Pacco 1 · Batteria 5») e le grandezze con unita' e soglie (es. tensione, min 11,5 V).",
+                 "todo", {"label": "Definisci", "url": reverse("assets:periodic_check_type_edit", args=[check_type.id])}
+                 if can_configure else None)
+        step("Stampa il foglio per il tecnico",
+             "Una griglia punti × grandezze con il QR: il tecnico scrive i valori e spunta i «da sostituire». "
+             "Oppure registra direttamente i valori.",
+             "ready" if ready else "blocked",
+             {"label": "Stampa foglio", "post": reverse("assets:periodic_check_sheet_issue", args=[check_type.id])}
+             if ready and can_register else None)
+        first_issued = issued.first()
+        first_draft = drafts.first()
+        step("Riporta i valori",
+             (f"{drafts.count()} fogli{'o' if drafts.count() == 1 else ''} scansionat{'o' if drafts.count() == 1 else 'i'}: "
+              "riporta i valori accanto alla scansione e conferma.") if first_draft
+             else (f"{issued.count()} fogli stampati in attesa della scansione." if first_issued
+                   else "Quando il foglio torna, la scansione si allega alla verifica (dalla pagina o dalla cartella)."),
+             "todo" if first_draft else "waiting",
+             {"label": "Riporta i valori", "url": reverse("assets:periodic_check_session_detail", args=[first_draft.id])}
+             if first_draft else ({"label": "Registra senza foglio", "url": register_url} if can_register and ready else None))
     else:
         detail = "Data, esito, rilievi o prescrizioni (uno per riga) e il verbale allegato."
-        if method == PeriodicCheckType.METHOD_MEASURES:
-            detail += " La lettura automatica delle misure (batterie, tempi di intervento) arrivera' in seguito."
         step("Registra la verifica", detail, "ready", {"label": "Registra", "url": register_url} if can_register else None)
     if latest:
         step("Rilievi → ordini di lavoro",
@@ -535,6 +564,8 @@ def _pdf_response(pdf: bytes, filename: str) -> HttpResponse:
 @login_required
 def periodic_check_sheet_preview(request: HttpRequest, type_id: int):
     check_type = get_object_or_404(PeriodicCheckType.objects.select_related("system"), pk=type_id)
+    if check_type.method == PeriodicCheckType.METHOD_MEASURES:
+        return _pdf_response(checks.build_measure_sheet_for(check_type), f"anteprima-foglio-{check_type.id}.pdf")
     layout = check_type.active_layout
     if layout is None:
         return HttpResponse("Planimetria non caricata.", status=404)
@@ -566,9 +597,12 @@ def periodic_check_sheet_issue(request: HttpRequest, type_id: int):
 @login_required
 def periodic_check_sheet_pdf(request: HttpRequest, session_id: int):
     session = get_object_or_404(PeriodicCheckSession.objects.select_related("check_type__system", "layout"), pk=session_id)
-    if not session.sheet_token or session.layout is None:
+    if session.sheet_token and session.check_type.method == PeriodicCheckType.METHOD_MEASURES:
+        pdf = checks.build_measure_sheet_for(session.check_type, token=session.sheet_token)
+    elif not session.sheet_token or session.layout is None:
         return HttpResponse("Questa verifica non ha un foglio stampabile.", status=404)
-    pdf, _geo = checks.build_sheet_for(session.layout, token=session.sheet_token)
+    else:
+        pdf, _geo = checks.build_sheet_for(session.layout, token=session.sheet_token)
     log_action(request, "periodic_check_sheet_pdf", "assets", {"session_id": session.id},
                oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
     return _pdf_response(pdf, f"foglio-verifica-{session.sheet_token}.pdf")
@@ -587,6 +621,8 @@ def periodic_check_register(request: HttpRequest, type_id: int) -> HttpResponse:
         {"index": index, "category": category, "value": request.POST.get(f"codes_{index}", "")}
         for index, category in enumerate(check_type.category_list)
     ] if layout else []
+    is_measures = check_type.method == PeriodicCheckType.METHOD_MEASURES
+    grid = _measure_grid(check_type, post=request.POST if request.method == "POST" else None) if is_measures else None
     item_rows = []
     for item in items:
         item_rows.append({
@@ -617,8 +653,15 @@ def periodic_check_register(request: HttpRequest, type_id: int) -> HttpResponse:
             point_results, unknown = _point_results(layout, point_rows)
             if unknown:
                 form.add_error(None, "Punti che non esistono sulla planimetria: " + ", ".join(unknown))
-                return _register_page(request, check_type, form, item_rows, point_rows)
+                return _register_page(request, check_type, form, item_rows, point_rows, grid)
             results += point_results
+            if is_measures:
+                measure_rows, grid_errors = _parse_measure_grid(request.POST, check_type)
+                if grid_errors:
+                    for error in grid_errors:
+                        form.add_error(None, error)
+                    return _register_page(request, check_type, form, item_rows, point_rows, grid)
+                results += measure_rows
             supplier = form.cleaned_data.get("supplier")
             session = checks.register_session(
                 checks.SessionInput(
@@ -653,10 +696,10 @@ def periodic_check_register(request: HttpRequest, type_id: int) -> HttpResponse:
             due = f" Prossima scadenza: {check_type.next_due_date:%d/%m/%Y}." if check_type.next_due_date else ""
             messages.success(request, f"Verifica del {session.performed_on:%d/%m/%Y} registrata.{due}")
             return redirect("assets:periodic_check_session_detail", session_id=session.id)
-    return _register_page(request, check_type, form, item_rows, point_rows)
+    return _register_page(request, check_type, form, item_rows, point_rows, grid)
 
 
-def _register_page(request, check_type, form, item_rows, point_rows):
+def _register_page(request, check_type, form, item_rows, point_rows, grid=None):
     return _render(request, "periodic_check_register.html", {
         "page_title": f"Registra: {check_type.name}",
         "check_type": check_type,
@@ -664,8 +707,101 @@ def _register_page(request, check_type, form, item_rows, point_rows):
         "form": form,
         "item_rows": item_rows,
         "point_rows": point_rows,
+        "grid": grid,
         "result_choices": PeriodicCheckResult.RESULT_CHOICES,
     })
+
+
+FREE_MEASURE_ROWS = 4
+
+
+def _measure_grid(check_type: PeriodicCheckType, *, post=None, session=None) -> dict:
+    """Griglia punti × grandezze da compilare: righe fisse (le voci del tipo) + righe libere.
+    Precompilata da un invio fallito (``post``) o dai valori gia' registrati (``session``)."""
+    fields = checks.measure_fields(check_type)
+    saved = {}
+    if session is not None:
+        for r in session.results.filter(kind=PeriodicCheckResult.KIND_MEASURE):
+            saved[r.item_id or r.label] = r
+    rows = []
+
+    def cell_values(key, result):
+        values = {}
+        for f in fields:
+            if post is not None:
+                values[f.id] = post.get(f"m_{key}_{f.id}", "")
+            elif result is not None and str(f.id) in (result.values or {}):
+                values[f.id] = f"{result.values[str(f.id)]:g}".replace(".", ",")
+            else:
+                values[f.id] = ""
+        return values
+
+    for item in check_type.items.filter(is_active=True):
+        result = saved.pop(item.id, None)
+        rows.append({
+            "key": str(item.id), "label": item.label, "free": False,
+            "values": cell_values(item.id, result),
+            "replace": (post.get(f"r_{item.id}") == "on") if post is not None else bool(result and result.category == "Da sostituire"),
+            "note": post.get(f"n_{item.id}", "") if post is not None else "",
+        })
+    extra = list(saved.values())
+    for index in range(max(FREE_MEASURE_ROWS, len(extra) + 1)):
+        key = f"x{index}"
+        result = extra[index] if index < len(extra) else None
+        rows.append({
+            "key": key, "free": True,
+            "label": post.get(f"l_{key}", "") if post is not None else (result.label if result else ""),
+            "values": cell_values(key, result),
+            "replace": (post.get(f"r_{key}") == "on") if post is not None else bool(result and result.category == "Da sostituire"),
+            "note": post.get(f"n_{key}", "") if post is not None else "",
+        })
+    return {"fields": fields, "rows": rows}
+
+
+def _parse_measure_grid(post, check_type: PeriodicCheckType) -> tuple[list, list[str]]:
+    """Righe compilate -> esiti; le righe lasciate vuote non si registrano."""
+    fields = checks.measure_fields(check_type)
+    items = {str(i.id): i for i in check_type.items.filter(is_active=True)}
+    keys = list(items) + [f"x{i}" for i in range(50) if f"l_x{i}" in post]
+    rows, errors = [], []
+    for key in keys:
+        item = items.get(key)
+        label = item.label if item else (post.get(f"l_{key}") or "").strip()
+        values = {}
+        for f in fields:
+            raw = (post.get(f"m_{key}_{f.id}") or "").strip().replace(",", ".")
+            if not raw:
+                continue
+            try:
+                values[f.id] = Decimal(raw)
+            except InvalidOperation:
+                errors.append(f"«{label or 'riga senza nome'}», {f.label}: «{raw}» non e' un numero.")
+        replace = post.get(f"r_{key}") == "on"
+        note = (post.get(f"n_{key}") or "").strip()
+        if not values and not replace and not note:
+            continue
+        if not label:
+            errors.append("Una riga aggiunta ha dei valori ma non il nome del punto.")
+            continue
+        rows.append(checks.measure_input(label, item=item, values=values, fields=fields, replace=replace, note=note))
+    return rows, errors
+
+
+def _measure_table(session: PeriodicCheckSession) -> dict | None:
+    """Valori registrati di una verifica a misure, con i fuori soglia evidenziati."""
+    fields = checks.measure_fields(session.check_type)
+    results = [r for r in session.results.all() if r.kind == PeriodicCheckResult.KIND_MEASURE]
+    if not results or not fields:
+        return None
+    rows = []
+    for r in results:
+        cells = []
+        for f in fields:
+            value = (r.values or {}).get(str(f.id))
+            cells.append({"value": "" if value is None else f"{value:g}".replace(".", ","),
+                          "out": f.is_out_of_range(value)})
+        rows.append({"result": r, "cells": cells, "replace": r.category == "Da sostituire"})
+    return {"fields": fields, "rows": rows}
 
 
 def _split_codes(text: str) -> list[str]:
@@ -730,6 +866,8 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
             return _scan_upload(request, session)
         elif action == "confirm_points" and not session.is_confirmed:
             return _confirm_points(request, session)
+        elif action == "confirm_measures" and not session.is_confirmed:
+            return _confirm_measures(request, session)
         elif action == "attach":
             uploads, errors = _validate_workorder_attachment_uploads(request, field_name="files")
             for error in errors:
@@ -753,6 +891,11 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
         "overlay": overlay,
         "reading": session.reading or {},
         "print_now": request.GET.get("stampa") == "1" and session.status == PeriodicCheckSession.STATUS_ISSUED,
+        "is_measures": check_type.method == PeriodicCheckType.METHOD_MEASURES,
+        "measure_grid": (_measure_grid(check_type, session=session)
+                         if check_type.method == PeriodicCheckType.METHOD_MEASURES and not session.is_confirmed else None),
+        "measure_table": _measure_table(session) if check_type.method == PeriodicCheckType.METHOD_MEASURES else None,
+        "scan_attachment": next((a for a in reversed(attachments) if a.original_name != "lettura-automatica.png"), None),
         "show_results": bool(results) and (session.is_confirmed or session.layout_id is None),
         "today": timezone.localdate(),
         "page_title": f"{check_type.name} del {session.performed_on:%d/%m/%Y}",
@@ -764,6 +907,7 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
         "check_type": check_type,
         "items": [r for r in results if r.kind == PeriodicCheckResult.KIND_ITEM],
         "remarks": [r for r in results if r.kind == PeriodicCheckResult.KIND_REMARK],
+        "measures": [r for r in results if r.kind == PeriodicCheckResult.KIND_MEASURE],
         "attachments": [a for a in attachments if a is not overlay],
         "default_asset": default_asset,
         "asset_choices": (
@@ -810,6 +954,30 @@ def _scan_upload(request: HttpRequest, session: PeriodicCheckSession) -> HttpRes
     else:
         messages.warning(request, "Non sono riuscito ad allineare la scansione alla planimetria: "
                                   "inserisci i punti a mano qui sotto.")
+    return redirect(back)
+
+
+def _confirm_measures(request: HttpRequest, session: PeriodicCheckSession) -> HttpResponse:
+    back = reverse("assets:periodic_check_session_detail", args=[session.id])
+    try:
+        performed_on = date.fromisoformat(request.POST.get("performed_on", ""))
+    except ValueError:
+        messages.error(request, "Indica la data della verifica (quella scritta sul foglio).")
+        return redirect(back)
+    if performed_on > timezone.localdate():
+        messages.error(request, "La data della verifica non puo' essere futura.")
+        return redirect(back)
+    rows, errors = _parse_measure_grid(request.POST, session.check_type)
+    if errors:
+        for error in errors:
+            messages.error(request, error)
+        return redirect(back)
+    checks.confirm_measure_session(session, performed_on=performed_on, technician=request.POST.get("technician", ""),
+                                   rows=rows, user=request.user)
+    ko = sum(1 for r in rows if r.result == PeriodicCheckResult.RESULT_KO)
+    log_action(request, "periodic_check_confirm", "assets", {"session_id": session.id, "misure": len(rows), "fuori_soglia": ko},
+               oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
+    messages.success(request, f"Verifica confermata: {len(rows)} punti misurati, {ko} da sistemare.")
     return redirect(back)
 
 
@@ -860,6 +1028,7 @@ def periodic_check_type_form(request: HttpRequest, type_id: int | None = None) -
     if request.method == "POST" and form.is_valid():
         saved = form.save()
         form.save_items(saved)
+        form.save_measure_fields(saved)
         log_action(request, "periodic_check_type_save", "assets",
                    {"check_type_id": saved.id, "created": check_type is None, "name": saved.name},
                    oggetto_tipo="assets.periodic_check_type", oggetto_id=saved.id)
@@ -893,7 +1062,8 @@ def _session_progress(session: PeriodicCheckSession, results) -> list[dict]:
         steps = [
             ("Foglio stampato", True),
             ("Scansione caricata", session.status != PeriodicCheckSession.STATUS_ISSUED),
-            ("Punti confermati", session.is_confirmed),
+            ("Valori confermati" if session.check_type.method == PeriodicCheckType.METHOD_MEASURES
+             else "Punti confermati", session.is_confirmed),
         ]
     else:
         steps = [("Verifica registrata", True), ("Confermata", session.is_confirmed)]

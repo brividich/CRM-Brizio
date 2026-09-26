@@ -256,4 +256,19 @@ body.theme-dark .pc-form-actions{box-shadow:none}
   .pc-todo-item .btn{justify-self:start}
   .pc-progress{min-width:100%}
 }
+/* Verifiche a misure: griglia punti x grandezze, fuori soglia evidenziati. */
+.pc-grid th .md-sub{display:block;font-weight:600;text-transform:none;letter-spacing:0}
+.pc-grid td{padding:4px 6px;vertical-align:middle}
+.pc-grid-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pc-grid-flag{text-align:center}
+.pc-grid input[type=text]{width:100%;min-width:64px;font:inherit;padding:5px 6px;border:1px solid var(--border,#cbd5e1);border-radius:6px;background:var(--surface,#fff);color:inherit}
+.pc-grid td.pc-grid-num input{text-align:right;max-width:96px}
+.pc-grid input.is-out,.pc-grid td.is-out{background:rgba(212,42,42,.12);border-color:var(--pc-cat0,#d42a2a);color:var(--pc-cat0,#d42a2a);font-weight:800}
+.pc-grid-free td:first-child input{min-width:150px}
+.pc-measure-split{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding:12px 16px}
+@media (min-width:1800px){.pc-measure-split{grid-template-columns:minmax(420px,0.7fr) minmax(0,1.3fr)}}
+.pc-scan-view{width:100%;height:560px;border:1px solid var(--border,#dbe1ea);border-radius:10px;background:#fff}
+@media (min-width:1800px){.pc-scan-view{height:820px}}
+.pc-grid-wrap{max-height:none}
+.pc-grid input[type=text]{min-width:56px}
 </style>

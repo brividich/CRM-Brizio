@@ -67,6 +67,10 @@ class TypeStats:
     layout_session: PeriodicCheckSession | None = None
     # metodo checklist
     item_failures: list[dict] = field(default_factory=list)
+    # metodo misure
+    measure_session: PeriodicCheckSession | None = None
+    measure_ko: list = field(default_factory=list)
+    measure_recurring: list[dict] = field(default_factory=list)
 
 
 def _confirmed_sessions(check_type: PeriodicCheckType):
@@ -96,6 +100,8 @@ def _series_key(result, categories: list[str]) -> str:
         return result.category if result.category in categories else (categories[0] if categories else "Punto")
     if result.kind == PeriodicCheckResult.KIND_ITEM:
         return "Voci non OK"
+    if result.kind == PeriodicCheckResult.KIND_MEASURE:
+        return result.category or "Fuori soglia"
     return "Rilievi"
 
 
@@ -143,7 +149,29 @@ def type_stats(check_type: PeriodicCheckType, today: date | None = None) -> Type
         _layout_stats(stats, check_type, with_results)
     elif check_type.method == PeriodicCheckType.METHOD_CHECKLIST:
         _checklist_stats(stats, with_results)
+    elif check_type.method == PeriodicCheckType.METHOD_MEASURES:
+        _measure_stats(stats, with_results)
     return stats
+
+
+def _measure_stats(stats: TypeStats, sessions) -> None:
+    """Ultima verifica con valori: i punti da sistemare adesso; ricorrenti nelle ultime 6."""
+    measured = [s for s in sessions if any(r.kind == PeriodicCheckResult.KIND_MEASURE for r in s.results.all())]
+    if not measured:
+        return
+    last = measured[-1]
+    stats.measure_session = last
+    stats.measure_ko = [r for r in last.results.all()
+                        if r.kind == PeriodicCheckResult.KIND_MEASURE and r.result == PeriodicCheckResult.RESULT_KO]
+    recent = measured[-RECENT_SESSIONS:]
+    counts: Counter = Counter()
+    for session in recent:
+        counts.update({r.label for r in session.results.all()
+                       if r.kind == PeriodicCheckResult.KIND_MEASURE and r.result == PeriodicCheckResult.RESULT_KO})
+    stats.measure_recurring = [
+        {"label": label, "count": count, "of": len(recent)}
+        for label, count in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])) if count >= 2
+    ]
 
 
 def _layout_stats(stats: TypeStats, check_type: PeriodicCheckType, sessions) -> None:

@@ -13,7 +13,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from anagrafica.models import Fornitore
-from assets.models import PeriodicCheckItem, PeriodicCheckSystem, PeriodicCheckType
+from assets.models import PeriodicCheckItem, PeriodicCheckMeasureField, PeriodicCheckSystem, PeriodicCheckType
 from assets.services.periodic_checks_catalog import CATALOG, SYSTEMS
 
 
@@ -42,8 +42,10 @@ class Command(BaseCommand):
                 systems[name] = system
             for entry in CATALOG:
                 system = systems[entry.system]
-                if PeriodicCheckType.objects.filter(system=system, name=entry.name).exists():
-                    self.stdout.write(f"= tipo      {entry.system} / {entry.name} (gia' presente)")
+                existing = PeriodicCheckType.objects.filter(system=system, name=entry.name).first()
+                if existing is not None:
+                    added = self._fill_measures(existing, entry)
+                    self.stdout.write(f"= tipo      {entry.system} / {entry.name} (gia' presente){added}")
                     continue
                 supplier = _supplier_for(entry.supplier_hint)
                 check_type = PeriodicCheckType.objects.create(
@@ -60,6 +62,7 @@ class Command(BaseCommand):
                 )
                 for index, label in enumerate(entry.items):
                     PeriodicCheckItem.objects.create(check_type=check_type, label=label, sort_order=(index + 1) * 10)
+                self._fill_measures(check_type, entry, items=False)
                 who = f"fornitore {supplier}" if supplier else (entry.executor or "esecutore da indicare")
                 self.stdout.write(
                     f"+ tipo      {entry.system} / {entry.name} · ogni {entry.frequency_months} mesi · {who}"
@@ -68,3 +71,20 @@ class Command(BaseCommand):
             if not apply:
                 transaction.set_rollback(True)
         self.stdout.write(self.style.SUCCESS("Fatto." if apply else "Prova a vuoto: nulla e' stato scritto (usa --apply)."))
+
+    def _fill_measures(self, check_type, entry, *, items: bool = True) -> str:
+        """Verifiche a misure gia' presenti senza punti o grandezze: si completano (solo aggiunte)."""
+        if check_type.method != PeriodicCheckType.METHOD_MEASURES:
+            return ""
+        notes = []
+        if entry.measure_fields and not check_type.measure_fields.exists():
+            for index, (label, unit, low, high) in enumerate(entry.measure_fields):
+                PeriodicCheckMeasureField.objects.create(
+                    check_type=check_type, label=label, unit=unit, min_value=low, max_value=high, sort_order=(index + 1) * 10,
+                )
+            notes.append(f"{len(entry.measure_fields)} grandezze")
+        if items and entry.items and not check_type.items.exists():
+            for index, label in enumerate(entry.items):
+                PeriodicCheckItem.objects.create(check_type=check_type, label=label, sort_order=(index + 1) * 10)
+            notes.append(f"{len(entry.items)} punti di misura")
+        return (" · aggiunti " + ", ".join(notes)) if notes else ""

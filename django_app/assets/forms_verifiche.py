@@ -1,6 +1,8 @@
 """Form della sezione Manutenzione > Verifiche periodiche (impianti)."""
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
+
 from django import forms
 from django.utils import timezone
 
@@ -12,6 +14,7 @@ from .models import (
     PeriodicCheckCategory,
     PeriodicCheckIntakeConfig,
     PeriodicCheckItem,
+    PeriodicCheckMeasureField,
     PeriodicCheckSession,
     PeriodicCheckSystem,
     PeriodicCheckType,
@@ -22,6 +25,15 @@ _DATE = {"type": "date"}
 
 def _supplier_queryset():
     return Fornitore.objects.filter(is_active=True).order_by("ragione_sociale")
+
+
+def _decimal(text: str):
+    text = (text or "").strip().replace(",", ".")
+    return Decimal(text) if text else None
+
+
+def _num(value) -> str:
+    return "" if value is None else f"{value.normalize():f}".replace(".", ",")
 
 
 def _lines(text: str) -> list[str]:
@@ -67,10 +79,16 @@ class PeriodicCheckTypeForm(forms.ModelForm):
         choices=[(months, label) for months, label in PERIODIC_FREQUENCY_LABELS.items()],
     )
     items_text = forms.CharField(
-        label="Voci di checklist",
+        label="Voci da controllare / punti di misura",
         required=False,
         widget=forms.Textarea(attrs={"rows": 6}),
-        help_text="Una voce per riga (solo per il metodo «Checklist a voci»).",
+        help_text="Una per riga. Checklist: le voci (es. «Esame a vista»). Misure: i punti misurati (es. «Pacco 1 · Batteria 5»).",
+    )
+    fields_text = forms.CharField(
+        label="Grandezze misurate",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 4, "placeholder": "Tensione fine prova | V | 11,5 |\nTempo di intervento | ms | | 300"}),
+        help_text="Una per riga: nome | unita' | minimo | massimo. Soglie facoltative: un valore fuori soglia diventa un rilievo.",
     )
 
     class Meta:
@@ -122,6 +140,45 @@ class PeriodicCheckTypeForm(forms.ModelForm):
             self.fields["items_text"].initial = "\n".join(
                 self.instance.items.filter(is_active=True).values_list("label", flat=True)
             )
+            self.fields["fields_text"].initial = "\n".join(
+                " | ".join([f.label, f.unit, _num(f.min_value), _num(f.max_value)])
+                for f in self.instance.measure_fields.filter(is_active=True)
+            )
+
+    def clean_fields_text(self):
+        parsed = []
+        for number, line in enumerate(_lines(self.cleaned_data.get("fields_text", "")), start=1):
+            parts = [p.strip() for p in line.split("|")] + ["", "", ""]
+            label, unit, low, high = parts[:4]
+            if not label:
+                raise forms.ValidationError(f"Riga {number}: manca il nome della grandezza.")
+            try:
+                low_value, high_value = _decimal(low), _decimal(high)
+            except (InvalidOperation, ValueError):
+                raise forms.ValidationError(f"Riga {number}: minimo e massimo devono essere numeri (es. 11,5).")
+            if low_value is not None and high_value is not None and low_value > high_value:
+                raise forms.ValidationError(f"Riga {number}: il minimo e' maggiore del massimo.")
+            parsed.append((label[:80], unit[:15], low_value, high_value))
+        return parsed
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("method") == PeriodicCheckType.METHOD_MEASURES and not cleaned.get("fields_text"):
+            self.add_error("fields_text", "Per una verifica a misure indica almeno una grandezza.")
+        return cleaned
+
+    def save_measure_fields(self, check_type: PeriodicCheckType) -> None:
+        """Allinea le grandezze al testo, per nome: quelle tolte si spengono (i valori passati restano)."""
+        existing = {f.label: f for f in check_type.measure_fields.all()}
+        for index, (label, unit, low, high) in enumerate(self.cleaned_data.get("fields_text") or []):
+            field = existing.pop(label, None) or PeriodicCheckMeasureField(check_type=check_type, label=label)
+            field.unit, field.min_value, field.max_value = unit, low, high
+            field.sort_order, field.is_active = (index + 1) * 10, True
+            field.save()
+        for field in existing.values():
+            if field.is_active:
+                field.is_active = False
+                field.save(update_fields=["is_active"])
 
     def save_items(self, check_type: PeriodicCheckType) -> None:
         """Allinea le voci al testo: le voci tolte si spengono (gli esiti passati restano)."""

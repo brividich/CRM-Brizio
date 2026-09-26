@@ -1,0 +1,24 @@
+{# Valori registrati (metodo misure), fuori soglia evidenziati. #}
+<section class="md-section">
+  <div class="md-section-head"><h2>Valori misurati</h2><span class="md-badge badge-muted">{{ measure_table.rows|length }} punti</span></div>
+  <div class="md-scroll">
+    <table class="md-table pc-grid" data-fm-table-skip="1">
+      <thead>
+        <tr>
+          <th>Punto</th>
+          {% for f in measure_table.fields %}<th class="pc-grid-num">{{ f.label }}<span class="md-sub">{{ f.unit }}{% if f.range_label %} · {{ f.range_label }}{% endif %}</span></th>{% endfor %}
+          <th>Esito</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in measure_table.rows %}
+          <tr>
+            <td><strong>{{ row.result.label }}</strong></td>
+            {% for c in row.cells %}<td class="pc-grid-num{% if c.out %} is-out{% endif %}">{{ c.value|default:"—" }}{% if c.out %}<span class="visually-hidden"> fuori soglia</span>{% endif %}</td>{% endfor %}
+            <td>{% if row.result.result == "KO" %}<span class="pc-outcome is-KO">{{ row.result.category|default:"Non OK" }}</span>{% if row.result.note %}<span class="md-sub">{{ row.result.note }}</span>{% endif %}{% else %}<span class="pc-outcome is-OK">OK</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>

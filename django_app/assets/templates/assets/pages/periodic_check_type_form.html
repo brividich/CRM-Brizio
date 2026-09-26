@@ -70,7 +70,8 @@
       {% endfor %}
     </div>
     {{ form.method.errors }}
-    <div data-pc-method="CHECKLIST">{% include "assets/components/_md_field.html" with field=form.items_text %}</div>
+    <div data-pc-method="CHECKLIST MEASURES">{% include "assets/components/_md_field.html" with field=form.items_text %}</div>
+    <div data-pc-method="MEASURES">{% include "assets/components/_md_field.html" with field=form.fields_text %}</div>
     <div data-pc-method="LAYOUT">{% include "assets/components/_md_field.html" with field=form.point_categories %}</div>
   </fieldset>
 
