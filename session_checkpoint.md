@@ -1,5 +1,14 @@
 # Session Checkpoint
 
+Data: 2026-09-26 (catalogo massivo profili SNMP multi-vendor)
+
+- Nuova voce vista/aggiunta: `2026-09-26 - Codex (catalogo massivo profili SNMP multi-vendor)` in AGENT_CHANGELOG; README, changelog root/Django e documentazione Contatori aggiornati.
+- Aggiunti 37 profili per stampanti/MFC, firewall, rete, server/hypervisor, storage e UPS; riconoscimento automatico PEN/sysDescr, parametri per apparato, sonde GET/WALK e catalogo modificabile dal portale. Le sonde generate sono tracciate e sostituibili senza toccare quelle manuali.
+- MFC estese a modelli liberi con profilo obbligatorio fuori dai Canon legacy; quattro contatori contrattuali sempre espliciti. Migrazioni Contatori 0008-0012; nessuna nuova dipendenza o schedule.
+- File critico: solo `django_app/contatori/urls.py`, nuove route locali; nessuna modifica ACL/settings/middleware/auth/routing globale. Nessun DB o apparato reale toccato, nessun backup.
+- Verifiche: suite Contatori 89/89 prima dell'ultimo hardening, poi 16/16 test profili/view; check Django, migration drift, py_compile, secret hygiene e diff check verdi. Browser integrato non disponibile; rendering template coperto dai test Django.
+- Deploy: dopo integrazione/push, eseguire `migrate contatori` e riavviare web/qcluster esistenti. Collaudare community/versione/OID su apparati reali; per Kyocera il totale Printer-MIB e' pronto, mentre A4/A3 B/N/colore richiedono OID verificati sul modello.
+
 Data: 2026-09-26 (integrazione centrale MFC/SNMP e reportistica in release/prod)
 
 - `d7ab908f` non conteneva i commit SNMP. Integrati `c463cb85`, `d052f2e3`, `716010f5`, `ff230d6f` sopra l'attuale `release/prod` `4776678e` nel worktree `temp/codex-release-contatori`, branch `integration/contatori-release-20260926`.

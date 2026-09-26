@@ -6,6 +6,13 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 
 ## App Django (custom)
 
+Contatori espone il catalogo `/contatori/snmp/profili/`: `ProfiloSNMP` e
+`ColonnaProfiloSNMP` (migrazioni 0008-0012) precaricano oltre 35 famiglie per
+stampanti/MFC, firewall, rete, server, storage e UPS. L'autodetect combina PEN/
+`sysObjectID` e `sysDescr`; le sonde supportano GET/WALK e aggregazione. Gli OID
+MFC alimentano i quattro contatori contrattuali soltanto se mappati esplicitamente.
+Runbook: `docs/PROFILI_SNMP.md`.
+
 Reportistica Asset: `/assets/impostazioni/reportistica/` configura `AssetReportSchedule`;
 `/assets/reports/archivio/` consulta `AssetReportRun` (snapshot e PDF/XLSX privati nel DB).
 Servizi `assets/services/reporting.py` e `reporting_exports.py`, dispatcher `assets_reportistica`

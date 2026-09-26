@@ -1,16 +1,31 @@
 from django.contrib import admin
 from .models import (
+    ColonnaProfiloSNMP,
     DispositivoSNMP,
     Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
     LetturaMensileContatori,
     Macchina,
+    ProfiloSNMP,
     RigaFattura,
     RilevazioneSNMP,
     SondaSNMP,
     ValoreSNMP,
 )
+
+
+class ColonnaProfiloInline(admin.TabularInline):
+    model = ColonnaProfiloSNMP
+    extra = 0
+
+
+@admin.register(ProfiloSNMP)
+class ProfiloSNMPAdmin(admin.ModelAdmin):
+    list_display = ("produttore", "nome", "categoria", "versione", "precaricato", "attivo")
+    list_filter = ("categoria", "precaricato", "attivo", "versione")
+    search_fields = ("produttore", "nome", "famiglia_modelli", "sys_object_id_prefix")
+    inlines = [ColonnaProfiloInline]
 
 
 @admin.register(Macchina)

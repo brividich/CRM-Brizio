@@ -9,12 +9,141 @@ from django.utils import timezone
 CONTATORI = (("a4_bn", "A4 BN"), ("a3_bn", "A3 BN"),
              ("a4_col", "A4 COL"), ("a3_col", "A3 COL"))
 
+_oid_validator = RegexValidator(
+    regex=r"^\d+(?:\.\d+)+$",
+    message="Inserisci un OID numerico puntato, ad esempio 1.3.6.1.2.1.1.3.0.",
+)
+
 
 class StatoSNMP(models.TextChoices):
     MAI = "MAI", "Mai interrogato"
     OK = "OK", "Operativo"
     WARNING = "WARNING", "Attenzione"
     ERROR = "ERROR", "Errore"
+
+
+class ProfiloSNMP(models.Model):
+    """Profilo riutilizzabile per riconoscimento e configurazione SNMP."""
+
+    class Categoria(models.TextChoices):
+        STAMPANTE = "STAMPANTE", "Stampante / MFC"
+        FIREWALL = "FIREWALL", "Firewall / sicurezza"
+        RETE = "RETE", "Switch / router / Wi-Fi"
+        SERVER = "SERVER", "Server / hypervisor"
+        STORAGE = "STORAGE", "NAS / storage"
+        UPS = "UPS", "UPS / alimentazione"
+        AMBIENTE = "AMBIENTE", "Sensore / ambiente"
+        GENERICO = "GENERICO", "Generico"
+
+    class Versione(models.TextChoices):
+        GLOBALE = "", "Usa configurazione globale"
+        V1 = "v1", "SNMPv1"
+        V2C = "v2c", "SNMPv2c"
+
+    slug = models.SlugField(max_length=80, unique=True)
+    nome = models.CharField(max_length=120)
+    produttore = models.CharField(max_length=80, db_index=True)
+    categoria = models.CharField(
+        max_length=16, choices=Categoria.choices, default=Categoria.GENERICO,
+        db_index=True,
+    )
+    famiglia_modelli = models.CharField(max_length=160, blank=True)
+    descrizione = models.TextField(blank=True)
+    sys_object_id_prefix = models.CharField(
+        max_length=255, blank=True, validators=[_oid_validator],
+        help_text="Prefisso enterprise usato per il riconoscimento automatico.",
+    )
+    sys_descr_pattern = models.CharField(
+        max_length=255, blank=True,
+        help_text="Espressione regolare opzionale applicata a sysDescr.",
+    )
+    versione = models.CharField(
+        max_length=4, blank=True, choices=Versione.choices,
+    )
+    porta = models.PositiveIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1)],
+    )
+    timeout = models.PositiveIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1)],
+    )
+    precaricato = models.BooleanField(default=False)
+    attivo = models.BooleanField(default=True)
+    note = models.TextField(blank=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["produttore", "nome"]
+        verbose_name = "Profilo SNMP"
+        verbose_name_plural = "Profili SNMP"
+
+    def __str__(self):
+        return f"{self.produttore} - {self.nome}"
+
+
+class ColonnaProfiloSNMP(models.Model):
+    """OID di un profilo, copiabile come sonda o usabile come contatore MFC."""
+
+    class TipoValore(models.TextChoices):
+        NUMERO = "NUMERO", "Numero"
+        TESTO = "TESTO", "Testo"
+        TIMETICKS = "TIMETICKS", "Tempo (TimeTicks)"
+
+    class Modalita(models.TextChoices):
+        GET = "GET", "GET (OID esatto)"
+        WALK = "WALK", "WALK (colonna MIB)"
+
+    class Aggregazione(models.TextChoices):
+        PRIMO = "PRIMO", "Primo valore"
+        MASSIMO = "MASSIMO", "Valore massimo"
+        MINIMO = "MINIMO", "Valore minimo"
+        SOMMA = "SOMMA", "Somma"
+
+    class ContatoreMFC(models.TextChoices):
+        NESSUNO = "", "Non e un contatore MFC"
+        A4_BN = "a4_bn", "A4 BN"
+        A3_BN = "a3_bn", "A3 BN"
+        A4_COL = "a4_col", "A4 colore"
+        A3_COL = "a3_col", "A3 colore"
+
+    profilo = models.ForeignKey(
+        ProfiloSNMP, on_delete=models.CASCADE, related_name="colonne",
+    )
+    nome = models.CharField(max_length=100)
+    oid = models.CharField(max_length=255, validators=[_oid_validator])
+    tipo_valore = models.CharField(
+        max_length=10, choices=TipoValore.choices, default=TipoValore.NUMERO,
+    )
+    modalita = models.CharField(
+        max_length=8, choices=Modalita.choices, default=Modalita.GET,
+    )
+    aggregazione = models.CharField(
+        max_length=10, choices=Aggregazione.choices, default=Aggregazione.PRIMO,
+    )
+    unita = models.CharField(max_length=24, blank=True)
+    fattore = models.DecimalField(max_digits=14, decimal_places=6, default=Decimal("1"))
+    contatore_mfc = models.CharField(
+        max_length=8, blank=True, choices=ContatoreMFC.choices,
+    )
+    ordine = models.PositiveIntegerField(default=0)
+    attiva = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profilo", "oid"], name="contatori_profilo_oid_unico",
+            ),
+            models.UniqueConstraint(
+                fields=["profilo", "contatore_mfc"],
+                condition=~models.Q(contatore_mfc=""),
+                name="contatori_profilo_contatore_mfc_unico",
+            ),
+        ]
+        verbose_name = "Colonna profilo SNMP"
+        verbose_name_plural = "Colonne profilo SNMP"
+
+    def __str__(self):
+        return f"{self.profilo} - {self.nome}"
 
 
 class Macchina(models.Model):
@@ -24,13 +153,10 @@ class Macchina(models.Model):
         COPYLAB = "COPYLAB", "Copylab"
 
     class Modello(models.TextChoices):
-        """Modelli con una counter_map SNMP verificata (vedi snmp.COUNTER_MAP).
+        """Valori Canon legacy mantenuti per compatibilita con i record esistenti.
 
-        Validato di proposito: con testo libero si poteva inserire la marca
-        ('CANON') o un typo, e la lookup esatta su COUNTER_MAP falliva a runtime.
-        Aggiungere un modello qui SOLO dopo aver verificato i numeri contatore
-        (management command `snmp_discover`), altrimenti si leggono contatori
-        sbagliati e la riconciliazione fatture ne risente.
+        I nuovi modelli sono testo libero ma, se non appartengono a questa lista,
+        il form richiede un :class:`ProfiloSNMP` con OID espliciti.
         """
         C5535I = "iR-ADV C5535i", "Canon iR-ADV C5535i"
         DX_C5840I = "iR-ADV DX C5840i", "Canon iR-ADV DX C5840i"
@@ -38,15 +164,37 @@ class Macchina(models.Model):
 
     reparto = models.CharField(max_length=60)
     matricola = models.CharField(max_length=40, unique=True)
-    modello = models.CharField(max_length=60, blank=True, choices=Modello.choices,
-                               help_text="Modello con contatori SNMP mappati. "
-                                         "Non inserire la marca: serve il modello esatto.")
+    modello = models.CharField(
+        max_length=120, blank=True,
+        help_text="Modello dichiarato dal produttore. Il profilo stabilisce gli OID.",
+    )
     contratto = models.CharField(max_length=20, blank=True,
                                  help_text="Stesso contratto = fatturazione in pool")
     fornitore = models.CharField(max_length=10, choices=Fornitore.choices,
                                  default=Fornitore.BASE)
     host = models.GenericIPAddressField(null=True, blank=True,
                                         help_text="IP per lettura SNMP")
+    profilo_snmp = models.ForeignKey(
+        ProfiloSNMP, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="macchine",
+        help_text="Profilo OID; se vuoto il portale prova il riconoscimento automatico.",
+    )
+    snmp_porta = models.PositiveIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1)],
+        help_text="Vuoto = profilo o configurazione globale.",
+    )
+    snmp_community = models.CharField(
+        max_length=60, blank=True,
+        help_text="Vuoto = community globale; usare una community read-only.",
+    )
+    snmp_versione = models.CharField(
+        max_length=4, blank=True, choices=ProfiloSNMP.Versione.choices,
+        help_text="Vuoto = profilo o configurazione globale.",
+    )
+    snmp_timeout = models.PositiveIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1)],
+        help_text="Vuoto = profilo o configurazione globale.",
+    )
     attiva = models.BooleanField(default=True)
     asset = models.ForeignKey(
         "assets.Asset",
@@ -80,7 +228,10 @@ class DispositivoSNMP(models.Model):
     class Categoria(models.TextChoices):
         LETTORE = "LETTORE", "Lettore / terminale"
         STAMPANTE = "STAMPANTE", "Stampante / MFC extra"
+        FIREWALL = "FIREWALL", "Firewall / sicurezza"
         RETE = "RETE", "Rete"
+        SERVER = "SERVER", "Server / hypervisor"
+        STORAGE = "STORAGE", "NAS / storage"
         UPS = "UPS", "UPS / alimentazione"
         AMBIENTE = "AMBIENTE", "Sensore ambiente"
         ALTRO = "ALTRO", "Altro dispositivo"
@@ -102,6 +253,19 @@ class DispositivoSNMP(models.Model):
     versione = models.CharField(
         max_length=4, blank=True, choices=Versione.choices,
         help_text="Vuoto = versione SNMP globale.",
+    )
+    community = models.CharField(
+        max_length=60, blank=True,
+        help_text="Vuoto = community globale; usare una community read-only.",
+    )
+    timeout = models.PositiveIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1)],
+        help_text="Vuoto = timeout del profilo o globale.",
+    )
+    profilo_snmp = models.ForeignKey(
+        ProfiloSNMP, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="dispositivi",
+        help_text="Profilo OID; se vuoto viene proposto automaticamente dopo il primo test.",
     )
     posizione = models.CharField(max_length=120, blank=True)
     produttore = models.CharField(max_length=80, blank=True)
@@ -135,12 +299,6 @@ class DispositivoSNMP(models.Model):
         return f"{self.nome} ({self.host})"
 
 
-_oid_validator = RegexValidator(
-    regex=r"^\d+(?:\.\d+)+$",
-    message="Inserisci un OID numerico puntato, ad esempio 1.3.6.1.2.1.1.3.0.",
-)
-
-
 class SondaSNMP(models.Model):
     """Lettore configurabile di un singolo OID su un dispositivo."""
 
@@ -149,13 +307,34 @@ class SondaSNMP(models.Model):
         TESTO = "TESTO", "Testo"
         TIMETICKS = "TIMETICKS", "Tempo (TimeTicks)"
 
+    class Modalita(models.TextChoices):
+        GET = "GET", "GET (OID esatto)"
+        WALK = "WALK", "WALK (colonna MIB)"
+
+    class Aggregazione(models.TextChoices):
+        PRIMO = "PRIMO", "Primo valore"
+        MASSIMO = "MASSIMO", "Valore massimo"
+        MINIMO = "MINIMO", "Valore minimo"
+        SOMMA = "SOMMA", "Somma"
+
     dispositivo = models.ForeignKey(
         DispositivoSNMP, on_delete=models.CASCADE, related_name="sonde",
+    )
+    profilo_colonna = models.ForeignKey(
+        ColonnaProfiloSNMP, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="sonde_generate",
+        help_text="Colonna del catalogo che ha generato questa sonda; vuoto se manuale.",
     )
     nome = models.CharField(max_length=100)
     oid = models.CharField(max_length=255, validators=[_oid_validator])
     tipo_valore = models.CharField(
         max_length=10, choices=TipoValore.choices, default=TipoValore.NUMERO,
+    )
+    modalita = models.CharField(
+        max_length=8, choices=Modalita.choices, default=Modalita.GET,
+    )
+    aggregazione = models.CharField(
+        max_length=10, choices=Aggregazione.choices, default=Aggregazione.PRIMO,
     )
     unita = models.CharField(max_length=24, blank=True)
     fattore = models.DecimalField(

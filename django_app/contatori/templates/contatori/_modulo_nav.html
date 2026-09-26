@@ -1,6 +1,7 @@
 <nav class="cnav">
   <a href="{% url 'contatori:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Centrale</a>
   <a href="{% url 'contatori:snmp_centrale' %}" class="{% if 'snmp_' in request.resolver_match.url_name %}active{% endif %}">Monitor SNMP</a>
+  <a href="{% url 'contatori:snmp_profili' %}" class="{% if 'snmp_profil' in request.resolver_match.url_name %}active{% endif %}">Profili SNMP</a>
   <a href="{% url 'contatori:riconciliazione' %}" class="{% if 'riconciliazione' in request.resolver_match.url_name %}active{% endif %}">Riconciliazione</a>
   <a href="{% url 'contatori:analisi' %}" class="{% if request.resolver_match.url_name == 'analisi' %}active{% endif %}">Analisi</a>
   <a href="{% url 'contatori:consumabili' %}" class="{% if 'consumabili' in request.resolver_match.url_name %}active{% endif %}">Consumabili</a>

@@ -37,7 +37,10 @@ SYS_NAME = "1.3.6.1.2.1.1.5.0"               # nome host della stampante
 SYS_LOCATION = "1.3.6.1.2.1.1.6.0"           # posizione configurata sul device
 PRT_SERIAL = "1.3.6.1.2.1.43.5.1.1.17.1"     # Printer-MIB: numero di serie (= matricola)
 
-SYSTEM_OIDS = (SYS_DESCR, SYS_OBJECT_ID, SYS_UPTIME, SYS_CONTACT, SYS_NAME, SYS_LOCATION)
+SYSTEM_OIDS = (
+    SYS_DESCR, SYS_OBJECT_ID, SYS_UPTIME, SYS_CONTACT, SYS_NAME, SYS_LOCATION,
+    PRT_SERIAL,
+)
 _OID_RE = re.compile(r"^\d+(?:\.\d+)+$")
 
 # Cap di sicurezza: una scansione parte da una richiesta web, non deve poter
@@ -92,6 +95,90 @@ def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
         valori, errori = asyncio.run(_run())
     except Exception as e:
         raise SNMPError(f"{host}: {e}") from e
+    if not valori:
+        dettaglio = next(iter(errori.values()), "nessuna risposta")
+        raise SNMPError(f"{host}: {dettaglio}")
+    return valori, errori
+
+
+def leggi_colonna(host, oid, community="novicromprinter", port=161, timeout=3,
+                   version="v1"):
+    """Esegue un WALK read-only e restituisce i valori della colonna MIB."""
+    if not host:
+        raise SNMPError("host non impostato")
+    oid = str(oid).strip()
+    if not _OID_RE.fullmatch(oid):
+        raise SNMPError(f"OID non valido: {oid}")
+    try:
+        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp.transport import send_udp
+    except ImportError as e:
+        raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
+
+    cred = V1(community) if version == "v1" else V2C(community)
+
+    async def _run():
+        sender = functools.partial(send_udp, timeout=timeout)
+        client = PyWrapper(Client(str(host), cred, port=port, sender=sender))
+        valori = []
+        async for vb in client.walk(oid):
+            valori.append(vb.value)
+        return valori
+
+    try:
+        valori = asyncio.run(_run())
+    except Exception as e:
+        raise SNMPError(f"{host}: {e}") from e
+    if not valori:
+        raise SNMPError(f"{host}: colonna {oid} senza valori")
+    return valori
+
+
+def aggrega_colonna(valori, aggregazione="PRIMO"):
+    """Riduce una colonna WALK a un valore singolo secondo il profilo."""
+    if not valori:
+        raise SNMPError("colonna senza valori")
+    if aggregazione == "PRIMO":
+        return valori[0]
+    try:
+        numeri = [int(str(v).strip()) for v in valori]
+    except (TypeError, ValueError) as exc:
+        raise SNMPError("la colonna contiene valori non numerici") from exc
+    if aggregazione == "MASSIMO":
+        return max(numeri)
+    if aggregazione == "MINIMO":
+        return min(numeri)
+    if aggregazione == "SOMMA":
+        return sum(numeri)
+    raise SNMPError(f"aggregazione non supportata: {aggregazione}")
+
+
+def leggi_specifiche(host, specifiche, community="novicromprinter", port=161,
+                     timeout=3, version="v1"):
+    """Legge specifiche GET/WALK e ritorna ``(valori, errori)`` per OID."""
+    specifiche = list(specifiche)
+    get_oids = [s["oid"] for s in specifiche if s.get("modalita", "GET") == "GET"]
+    valori, errori = ({}, {})
+    if get_oids:
+        try:
+            valori, errori = leggi_oids(
+                host, get_oids, community=community, port=port,
+                timeout=timeout, version=version,
+            )
+        except SNMPError as exc:
+            errori.update({oid: str(exc) for oid in get_oids})
+    for spec in specifiche:
+        if spec.get("modalita", "GET") != "WALK":
+            continue
+        oid = spec["oid"]
+        try:
+            colonna = leggi_colonna(
+                host, oid, community=community, port=port,
+                timeout=timeout, version=version,
+            )
+            valori[oid] = aggrega_colonna(colonna, spec.get("aggregazione", "PRIMO"))
+        except SNMPError as exc:
+            errori[oid] = str(exc)
     if not valori:
         dettaglio = next(iter(errori.values()), "nessuna risposta")
         raise SNMPError(f"{host}: {dettaglio}")

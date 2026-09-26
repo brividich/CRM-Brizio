@@ -10,14 +10,23 @@ from django.urls import reverse
 from assets.models import Asset, AssetEndpoint
 from contatori import services
 from contatori.models import (
+    ColonnaProfiloSNMP,
     DispositivoSNMP,
     Macchina,
+    ProfiloSNMP,
     RilevazioneSNMP,
     SondaSNMP,
     StatoSNMP,
     ValoreSNMP,
 )
-from contatori.snmp import SNMPError, SYS_DESCR, SYS_NAME, SYS_OBJECT_ID, SYS_UPTIME
+from contatori.snmp import (
+    PRT_SERIAL,
+    SNMPError,
+    SYS_DESCR,
+    SYS_NAME,
+    SYS_OBJECT_ID,
+    SYS_UPTIME,
+)
 
 
 class OIDValidationTest(SimpleTestCase):
@@ -26,6 +35,110 @@ class OIDValidationTest(SimpleTestCase):
 
         with self.assertRaisesMessage(SNMPError, "OID non valido"):
             leggi_oids("192.0.2.10", ["sysName.0"])
+
+    def test_aggregazioni_walk(self):
+        from contatori.snmp import aggrega_colonna
+
+        self.assertEqual(aggrega_colonna([3, 9, 4], "MASSIMO"), 9)
+        self.assertEqual(aggrega_colonna([3, 9, 4], "MINIMO"), 3)
+        self.assertEqual(aggrega_colonna([3, 9, 4], "SOMMA"), 16)
+
+
+class ProfiliSNMPTest(TestCase):
+    def test_catalogo_iniziale_copre_stampanti_firewall_server_storage_e_ups(self):
+        categorie = set(ProfiloSNMP.objects.values_list("categoria", flat=True))
+        self.assertTrue({
+            "STAMPANTE", "FIREWALL", "RETE", "SERVER", "STORAGE", "UPS",
+        }.issubset(categorie))
+        self.assertTrue(ProfiloSNMP.objects.filter(slug="kyocera").exists())
+        self.assertTrue(ProfiloSNMP.objects.filter(slug="fortinet").exists())
+        self.assertTrue(ProfiloSNMP.objects.filter(slug="dell-server").exists())
+
+    def test_autodetect_kyocera_da_enterprise_oid_e_descrizione(self):
+        profile = services.trova_profilo_snmp(
+            sys_object_id="1.3.6.1.4.1.1347.43.5.1",
+            sys_description="KYOCERA TASKalfa 3554ci",
+        )
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile.slug, "kyocera")
+
+    def test_applica_profilo_materializza_sonde_e_override(self):
+        device = DispositivoSNMP.objects.create(
+            nome="Firewall", host="192.0.2.80",
+        )
+        profile = ProfiloSNMP.objects.get(slug="fortinet")
+        created, updated = services.applica_profilo_dispositivo(device, profile)
+        self.assertEqual(created, profile.colonne.count())
+        self.assertEqual(updated, 0)
+        device.refresh_from_db()
+        self.assertEqual(device.profilo_snmp, profile)
+        self.assertEqual(device.versione, "v2c")
+        self.assertEqual(device.timeout, 5)
+        self.assertTrue(device.sonde.filter(modalita="WALK").exists())
+        self.assertFalse(device.sonde.filter(profilo_colonna__isnull=True).exists())
+
+    def test_cambio_profilo_rimuove_solo_sonde_generate_dal_vecchio(self):
+        device = DispositivoSNMP.objects.create(nome="Appliance", host="192.0.2.83")
+        fortinet = ProfiloSNMP.objects.get(slug="fortinet")
+        apc = ProfiloSNMP.objects.get(slug="apc-ups")
+        services.applica_profilo_dispositivo(device, fortinet)
+        manuale = SondaSNMP.objects.create(
+            dispositivo=device, nome="Sonda manuale", oid="1.3.6.1.4.1.999.9.0",
+        )
+
+        services.applica_profilo_dispositivo(device, apc)
+
+        self.assertTrue(device.sonde.filter(pk=manuale.pk).exists())
+        self.assertFalse(device.sonde.filter(
+            profilo_colonna__profilo=fortinet,
+        ).exists())
+        self.assertEqual(
+            device.sonde.filter(profilo_colonna__profilo=apc).count(),
+            apc.colonne.filter(attiva=True).count(),
+        )
+
+    @mock.patch("contatori.snmp.leggi_oids")
+    def test_prima_interrogazione_autoconfigura_kyocera(self, leggi):
+        device = DispositivoSNMP.objects.create(
+            nome="MFC magazzino", host="192.0.2.81",
+            categoria=DispositivoSNMP.Categoria.STAMPANTE,
+        )
+        leggi.return_value = ({
+            SYS_NAME: "kyocera-01",
+            SYS_DESCR: "KYOCERA TASKalfa 3554ci",
+            SYS_OBJECT_ID: "1.3.6.1.4.1.1347.43.5.1",
+            SYS_UPTIME: 200,
+            PRT_SERIAL: "KY-TEST-001",
+        }, {})
+        services.interroga_dispositivo(device)
+        device.refresh_from_db()
+        self.assertEqual(device.profilo_snmp.slug, "kyocera")
+        self.assertEqual(device.matricola, "KY-TEST-001")
+        self.assertTrue(device.sonde.filter(
+            oid="1.3.6.1.2.1.43.10.2.1.4", modalita="WALK",
+        ).exists())
+
+    @mock.patch("contatori.snmp.leggi_specifiche")
+    def test_mfc_con_profilo_personalizzato_legge_quattro_contatori(self, leggi):
+        profile = ProfiloSNMP.objects.create(
+            slug="mfc-test", nome="MFC test", produttore="Test",
+            categoria=ProfiloSNMP.Categoria.STAMPANTE,
+        )
+        columns = []
+        for order, key in enumerate(("a4_bn", "a3_bn", "a4_col", "a3_col"), 1):
+            columns.append(ColonnaProfiloSNMP.objects.create(
+                profilo=profile, nome=key, oid=f"1.3.6.1.4.1.999.1.{order}.0",
+                contatore_mfc=key, ordine=order,
+            ))
+        leggi.return_value = ({c.oid: index * 100 for index, c in enumerate(columns, 1)}, {})
+        machine = Macchina.objects.create(
+            reparto="Test", matricola="MFC-PROFILE-1", modello="Kyocera test",
+            host="192.0.2.82", profilo_snmp=profile,
+        )
+        values = services.interroga_macchina(machine)
+        self.assertEqual(values, {
+            "a4_bn": 100, "a3_bn": 200, "a4_col": 300, "a3_col": 400,
+        })
 
 
 class SoglieSondaTest(TestCase):
@@ -160,6 +273,33 @@ class CentraleViewsAndAssetBridgeTest(TestCase):
         self.assertEqual(
             self.client.get(reverse("contatori:snmp_dispositivo_nuovo")).status_code,
             200,
+        )
+
+    def test_catalogo_profili_renderizza_i_preset_principali(self):
+        response = self.client.get(reverse("contatori:snmp_profili"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Kyocera MFP e stampanti")
+        self.assertContains(response, "FortiGate / Fortinet")
+        self.assertContains(response, "Dell PowerEdge / iDRAC")
+
+    def test_applica_profilo_da_portale_crea_le_sonde(self):
+        profilo = ProfiloSNMP.objects.get(slug="fortinet")
+        dispositivo = DispositivoSNMP.objects.create(
+            nome="Firewall sede", host="192.0.2.29",
+        )
+        response = self.client.post(
+            reverse(
+                "contatori:snmp_dispositivo_applica_profilo",
+                args=[dispositivo.pk],
+            ),
+            {"profilo": profilo.pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        dispositivo.refresh_from_db()
+        self.assertEqual(dispositivo.profilo_snmp, profilo)
+        self.assertEqual(dispositivo.categoria, DispositivoSNMP.Categoria.FIREWALL)
+        self.assertEqual(
+            dispositivo.sonde.count(), profilo.colonne.filter(attiva=True).count(),
         )
 
     def test_creazione_dispositivo_collega_asset_univoco_per_ip(self):

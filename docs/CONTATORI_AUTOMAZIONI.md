@@ -1,5 +1,7 @@
 # Automazioni MFC e SNMP
 
+I dispositivi e le MFC usano il catalogo in **Contatori → Profili SNMP**. Il polling applica automaticamente un profilo quando `sysObjectID`/`sysDescr` producono un match univoco; porta, versione e timeout del singolo apparato prevalgono sul profilo e poi sui default globali. Dettagli in `docs/PROFILI_SNMP.md`.
+
 La centrale usa lo scheduler **django-q2 già presente nel portale**. Windows avvia il worker persistente `qcluster`; le cadenze sono definite in `django_app/automazioni/schedules.py`, registrate da `setup_q_schedules` e gestibili da **Automazioni → Task pianificati**, `/admin-portale/automazioni/pianificati/`.
 
 | Lavoro | Cadenza | Risultato |

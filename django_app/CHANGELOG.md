@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Contatori - catalogo profili SNMP multi-produttore
+
+- Catalogo UI modificabile con oltre 35 preset per stampanti/MFC, firewall, switch/router/Wi-Fi, server/hypervisor, NAS/storage e UPS; autodetect tramite sysObjectID/sysDescr e applicazione delle colonne al dispositivo.
+- Sonde GET/WALK con aggregazione; configurazione porta/versione/timeout per apparato; profili MFC custom con mapping esplicito dei quattro contatori.
+- Migrazioni Contatori 0008-0012; override community read-only per apparato, tracciamento delle sonde generate dai profili, `snmp_discover` generico e messaggi del recupero mensile completi di apparato, IP ed errore.
+
 ### Assets — reportistica programmata e archivio privato
 
 - Nuova sezione Impostazioni → Reportistica: data/cadenza, filtri inventario, MFC/SNMP collegati, PDF/Excel con tema portale; estrazione manuale o automatica, storico congelato, dettaglio web e andamento a perimetro costante.
