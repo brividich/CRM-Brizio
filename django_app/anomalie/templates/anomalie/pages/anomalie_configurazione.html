@@ -44,6 +44,9 @@
   .collapse-head .count { margin-left:auto; font-weight:700; font-size:var(--fs-sm); color:var(--text-light); }
   .collapse-body { padding:0 14px 14px; }
   /* log email */
+  /* tab qualita: form nuovo tipo difetto */
+  .qd-new { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr) 110px auto; gap:8px; align-items:end; margin-bottom:14px; }
+  @media (max-width:760px) { .qd-new { grid-template-columns:1fr; } }
   .maillog-detail { margin-top:8px; border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:var(--bg); white-space:pre-wrap; font-size:var(--fs-sm); color:var(--text-mid); max-height:280px; overflow:auto; }
 </style>
 {% endblock %}
@@ -65,6 +68,7 @@
 <div class="subnav" style="margin-bottom:18px;">
   <a href="?tab=riepilogo" class="sub-a {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
   <a href="?tab=config" class="sub-a {% if tab == 'config' or not tab %}active{% endif %}">Configurazione</a>
+  <a href="?tab=qualita" class="sub-a {% if tab == 'qualita' %}active{% endif %}">Qualit&agrave;</a>
   <a href="?tab=permessi" class="sub-a {% if tab == 'permessi' %}active{% endif %}">Permessi</a>
   <a href="?tab=record" class="sub-a {% if tab == 'record' %}active{% endif %}">Record</a>
   <a href="?tab=log" class="sub-a {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
@@ -380,6 +384,13 @@
           <span>OP completato</span>
         </label>
         <small>Quando l'ultima anomalia aperta di un OP viene chiusa, capocommessa e CAR ricevono una mail con il link al Report OP (circa 5 minuti dopo il salvataggio).</small>
+      </div>
+      <div class="field">
+        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="auto_nc_registro_attivo" />
+          <span>Registro NC automatico</span>
+        </label>
+        <small>Le anomalie significative (gravit&agrave; maggiore/critica, segnalate al cliente, con RDC, o difetto ricorrente) diventano una voce NC del registro OFI/NC. Nessuna email. Acceso di default; dettagli nel tab <a href="?tab=qualita">Qualit&agrave;</a>.</small>
       </div>
     </div>
     <div id="esc-status" class="status" style="margin:0 16px;"></div>
@@ -743,6 +754,89 @@
   </div>
 {% endif %}
 
+{# ========== TAB QUALITA ========== #}
+{% if tab == 'qualita' %}
+  <div class="stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+    <div class="stat">
+      <div class="stat-icon-wrap blue">&#128203;</div>
+      <div><div class="stat-num">{{ qualita_stats.schede }}</div><div class="stat-lbl">Schede qualit&agrave;</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap green">&#10003;</div>
+      <div><div class="stat-num">{{ qualita_stats.classificate }}</div><div class="stat-lbl">Con tipo difetto</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap yellow">&#9888;</div>
+      <div><div class="stat-num">{{ qualita_stats.registrate_nc }}</div><div class="stat-lbl">Nel registro NC</div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap blue">&#9776;</div>
+      <div><div class="stat-num">{{ qualita_stats.tipi_attivi }}</div><div class="stat-lbl">Tipi difetto attivi</div></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Registro NC (ISO 9001 &sect;10.2)</div>
+        <div class="page-sub" style="margin-top:4px;">Ogni anomalia salvata riceve una scheda qualit&agrave; con protocollo <code>NC-anno-numero</code>. Quelle significative diventano da sole una voce <strong>NC</strong> del registro OFI/NC: gravit&agrave; maggiore o critica, segnalazione al cliente, richiesta di deroga (RDC), oppure difetto ricorrente sullo stesso P/N (soglia e finestra dell'automazione &laquo;Difetto ricorrente&raquo;). Le anomalie dello stesso evento si agganciano alla NC gi&agrave; aperta. La voce nasce senza responsabile e con il promemoria spento: analisi delle cause e azioni si registrano nel registro. Interruttore in <a href="?tab=config">Configurazione &rsaquo; Automazioni aggiuntive</a>.</div>
+      </div>
+      <a href="{% url 'registro_ofi:lista' %}?modulo=anomalie" class="btn btn-secondary btn-sm">Apri registro NC</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Catalogo tipi difetto</div>
+        <div class="page-sub" style="margin-top:4px;">Voci della scheda qualit&agrave; e del Pareto nelle statistiche. Un tipo gi&agrave; usato non si cancella: si disattiva e resta nello storico.</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <form method="post" class="qd-new">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_tipo_difetto">
+        <label class="field" style="margin:0;">Nuovo tipo difetto<input type="text" name="nome" class="input" maxlength="120" required placeholder="es. Ovalizzazione foro"></label>
+        <label class="field" style="margin:0;">Famiglia<input type="text" name="famiglia" class="input" maxlength="80" placeholder="es. Dimensionale"></label>
+        <label class="field" style="margin:0;">Ordine<input type="number" name="ordine" class="input" min="0" step="10" placeholder="auto"></label>
+        <button type="submit" class="btn">Aggiungi</button>
+      </form>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Ordine</th><th>Tipo difetto</th><th>Famiglia</th><th>Schede</th><th>Stato</th><th></th></tr></thead>
+          <tbody>
+          {% for t in tipi_difetto %}
+            <tr{% if not t.attivo %} style="opacity:.6;"{% endif %}>
+              <td style="width:90px;"><input type="number" name="ordine" form="tipo-{{ t.id }}" class="input input-sm" min="0" value="{{ t.ordine }}" style="width:80px;" aria-label="Ordine"></td>
+              <td><input type="text" name="nome" form="tipo-{{ t.id }}" class="input input-sm" maxlength="120" value="{{ t.nome }}" required style="width:100%;min-width:220px;" aria-label="Tipo difetto"></td>
+              <td><input type="text" name="famiglia" form="tipo-{{ t.id }}" class="input input-sm" maxlength="80" value="{{ t.famiglia }}" style="width:100%;min-width:120px;" aria-label="Famiglia"></td>
+              <td><strong>{{ t.n_schede }}</strong></td>
+              <td>{% if t.attivo %}<span class="badge badge-success">Attivo</span>{% else %}<span class="badge">Disattivo</span>{% endif %}</td>
+              <td style="white-space:nowrap;text-align:right;">
+                <form method="post" id="tipo-{{ t.id }}" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="save_tipo_difetto">
+                  <input type="hidden" name="tipo_id" value="{{ t.id }}">
+                  <button type="submit" class="btn btn-sm btn-secondary">Salva</button>
+                </form>
+                <form method="post" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="toggle_tipo_difetto">
+                  <input type="hidden" name="tipo_id" value="{{ t.id }}">
+                  <button type="submit" class="btn btn-sm btn-secondary">{% if t.attivo %}Disattiva{% else %}Riattiva{% endif %}</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="cell-muted" style="text-align:center;">Catalogo vuoto</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
 {# ========== TAB RECORD ========== #}
 {% if tab == 'record' %}
   <div class="card">
@@ -885,6 +979,7 @@
     soglia_ore: {{ escalation_cfg.soglia_ore|default:24 }},
     ora_invio: {{ escalation_cfg.ora_invio|default:6 }},
     ricorrenza_attivo: {% if escalation_cfg.ricorrenza_attivo %}true{% else %}false{% endif %},
+    nc_registro_attivo: {% if escalation_cfg.nc_registro_attivo %}true{% else %}false{% endif %},
     ricorrenza_n: {{ escalation_cfg.ricorrenza_n|default:3 }},
     ricorrenza_giorni: {{ escalation_cfg.ricorrenza_giorni|default:30 }},
     rdc_attivo: {% if escalation_cfg.rdc_attivo %}true{% else %}false{% endif %},
@@ -1159,6 +1254,7 @@
       ['auto_rdc_giorni', 'rdc_giorni', 'int', 3],
       ['auto_digest_attivo', 'digest_attivo', 'bool', false],
       ['auto_op_completato_attivo', 'op_completato_attivo', 'bool', false],
+      ['auto_nc_registro_attivo', 'nc_registro_attivo', 'bool', true],
     ];
     const fillAuto = (src) => {
       AUTO_FIELDS.forEach(([id, key, type, def]) => {

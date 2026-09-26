@@ -35,6 +35,8 @@ urlpatterns = [
     path("api/anomalie/timeline", views.api_anomalie_timeline, name="api_anomalie_timeline"),
     path("api/anomalie/sync", views.api_sync, name="api_anomalie_sync"),
     path("api/anomalie/copilota", views.api_copilota_anomalia, name="api_anomalie_copilota"),
+    path("api/anomalie/qualita", views.api_anomalie_qualita, name="api_anomalie_qualita"),
+    path("api/anomalie/qualita/copilota", views.api_anomalie_qualita_copilota, name="api_anomalie_qualita_copilota"),
     path("export-csv", views.export_anomalie_csv, name="anomalie_export_csv"),
     # Statistiche e estrazioni
     path("gestione-anomalie/statistiche", views.anomalie_statistiche_page, name="anomalie_statistiche_page"),
