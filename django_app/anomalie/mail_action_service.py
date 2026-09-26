@@ -708,6 +708,7 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
     sent = 0
     failed = 0
     given_up = 0
+    flushed_ops: list[str] = []
     for p in pending:
         snapshot = p.updates_snapshot if isinstance(p.updates_snapshot, list) else []
         if not snapshot:
@@ -745,12 +746,24 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
         p.save(update_fields=["notified", "last_error"])
         if ok:
             sent += 1
-    return {"sent": sent, "failed": failed, "given_up": given_up, "checked": len(pending)}
+        flushed_ops.append(p.op_id)
+    result = {"sent": sent, "failed": failed, "given_up": given_up, "checked": len(pending)}
+    if flushed_ops:
+        # Automazione «OP completato»: se con queste modifiche l'OP ha chiuso l'ultima
+        # anomalia aperta, CC/CAR ricevono subito la mail (idempotente, vedi marcatori).
+        try:
+            from .escalation_config import get_escalation_config
+            if get_escalation_config().get("op_completato_attivo"):
+                from .automazioni_service import notify_op_completati
+                result["op_completati"] = notify_op_completati(flushed_ops)
+        except Exception:
+            logger.warning("flush_pending_update_notifications: controllo OP completato fallito", exc_info=True)
+    return result
 
 
 # ── Promemoria & escalation "OP da controllare" ──────────────────────────────
 
-def _fetch_op_da_controllare(soglia_ore: int) -> list[dict]:
+def _fetch_op_da_controllare(soglia_ore: int, *, strict: bool = False) -> list[dict]:
     """Raggruppa per OP le anomalie aperte ferme in stato 'In attesa'.
 
     Un'anomalia entra nel set se: non chiusa (`COALESCE(chiudere,0)=0`) e avanzamento
@@ -789,6 +802,10 @@ def _fetch_op_da_controllare(soglia_ore: int) -> list[dict]:
             rows = [dict(zip([c[0] for c in cur.description], r)) for r in cur.fetchall()]
     except Exception:
         logger.exception("_fetch_op_da_controllare: query fallita")
+        if strict:
+            # Il task deve distinguere "nessun OP" da "DB non leggibile": nel secondo
+            # caso non si chiudono i promemoria esistenti.
+            raise
         return []
 
     from django.utils import timezone as _tz
@@ -925,11 +942,15 @@ def create_dashboard_reminders(op_rows: list[dict], *, soglia_ore: int) -> int:
 
     Idempotente: per ogni (utente, OP) non duplica se esiste già una notifica non letta
     dello stesso tipo che punta allo stesso OP. Aggiorna il messaggio a "in ritardo" quando
-    l'OP supera la soglia. Ritorna il numero di notifiche create.
+    l'OP supera la soglia. `op_rows` è l'elenco COMPLETO degli OP da controllare: i
+    promemoria non letti di OP non più in elenco (anomalie prese in carico o chiuse)
+    vengono segnati come letti. Ritorna il numero di notifiche create.
     """
     from core.models import Notifica
+    from .automazioni_service import op_url
 
     created = 0
+    keep_urls: set[str] = set()
     for op in op_rows:
         op_id = op.get("op_id") or ""
         if not op_id:
@@ -940,7 +961,8 @@ def create_dashboard_reminders(op_rows: list[dict], *, soglia_ore: int) -> int:
         messaggio = (
             f"OP {op_id}: {n} anomali{'a' if n == 1 else 'e'} da gestire (stato 'In attesa'){ritardo}."
         )[:500]
-        url = f"/gestione-anomalie?op={op_id}"
+        url = op_url(op_id)
+        keep_urls.add(url)
         for legacy_uid, _display in _resolve_op_cc_car_legacy_ids(op_id):
             try:
                 # Idempotenza: una sola notifica non letta per (utente, OP)
@@ -965,20 +987,39 @@ def create_dashboard_reminders(op_rows: list[dict], *, soglia_ore: int) -> int:
                 created += 1
             except Exception:
                 logger.warning("create_dashboard_reminders: notifica fallita op=%s uid=%s", op_id, legacy_uid, exc_info=True)
+    try:
+        closed = (
+            Notifica.objects.filter(tipo="anomalia_da_gestire", letta=False)
+            .exclude(url_azione__in=keep_urls)
+            .update(letta=True)
+        )
+        if closed:
+            logger.info("create_dashboard_reminders: %s promemoria chiusi (OP gestiti)", closed)
+    except Exception:
+        logger.warning("create_dashboard_reminders: chiusura promemoria superati fallita", exc_info=True)
     return created
 
 
-def send_escalation_resoconto(op_rows: list[dict], *, soglia_ore: int, from_email: str | None = None) -> bool:
+def send_escalation_resoconto(
+    op_rows: list[dict],
+    *,
+    soglia_ore: int,
+    from_email: str | None = None,
+    rdc_rows: list[dict] | None = None,
+    rdc_giorni: int | None = None,
+) -> bool:
     """Invia UNA mail aggregata con il resoconto degli OP/PN oltre soglia.
 
     Destinatari: CC/CAR di tutti gli OP coinvolti + lista fissa supervisori
-    (config liste anomalie chiave `escalation_supervisori`). Ritorna True se inviata.
+    (config liste anomalie chiave `escalation_supervisori`). `rdc_rows` (automazione
+    «RDC richiesto senza numero») aggiunge una sezione dedicata. Ritorna True se inviata.
     """
     from .escalation_config import LISTA_SUPERVISORI_KEY
     from automazioni.services import _resolve_op_recipients
 
     over_rows = [op for op in op_rows if op.get("over_threshold")]
-    if not over_rows:
+    rdc_rows = list(rdc_rows or [])
+    if not over_rows and not rdc_rows:
         return False
 
     # Arricchisci ogni OP con i nomi CC/CAR per la tabella
@@ -993,6 +1034,15 @@ def send_escalation_resoconto(op_rows: list[dict], *, soglia_ore: int, from_emai
             if r.get("email"):
                 destinatari.append(r["email"])
         enriched.append({**op, "cc_car": cc_car})
+
+    rdc_enriched = []
+    for op in rdc_rows:
+        recs = _resolve_op_recipients(op.get("op_id") or "")
+        destinatari.extend(r["email"] for r in recs if r.get("email"))
+        rdc_enriched.append({
+            **op,
+            "cc_car": ", ".join(f"{r.get('display') or r.get('email')}" for r in recs if (r.get("display") or r.get("email"))),
+        })
 
     destinatari.extend(_resolve_lista_config(LISTA_SUPERVISORI_KEY))
 
@@ -1009,15 +1059,23 @@ def send_escalation_resoconto(op_rows: list[dict], *, soglia_ore: int, from_emai
 
     n_op = len(enriched)
     tot_anomalie = sum(op.get("n_anomalie") or 0 for op in enriched)
-    subject = (
-        f"[Novicrom Hub] {n_op} OP da controllare — {tot_anomalie} anomali"
-        f"{'a' if tot_anomalie == 1 else 'e'} in attesa oltre {soglia_ore}h"
-    )
+    n_rdc = sum(op.get("n_anomalie") or 0 for op in rdc_enriched)
+    if n_op:
+        subject = (
+            f"[Novicrom Hub] {n_op} OP da controllare — {tot_anomalie} anomali"
+            f"{'a' if tot_anomalie == 1 else 'e'} in attesa oltre {soglia_ore}h"
+        )
+        if n_rdc:
+            subject += f" · {n_rdc} RDC senza numero"
+    else:
+        subject = f"[Novicrom Hub] {n_rdc} RDC da aprire senza numero"
 
-    lines = [
-        f"Resoconto OP da controllare (anomalie in stato 'In attesa' da oltre {soglia_ore} ore).",
-        "",
-    ]
+    lines = []
+    if enriched:
+        lines += [
+            f"Resoconto OP da controllare (anomalie in stato 'In attesa' da oltre {soglia_ore} ore).",
+            "",
+        ]
     for op in enriched:
         sn = ", ".join(op.get("seriali") or [])
         pn = f" · P/N {op['pn']}" if op.get("pn") else ""
@@ -1026,6 +1084,14 @@ def send_escalation_resoconto(op_rows: list[dict], *, soglia_ore: int, from_emai
             + (f" · S/N {sn}" if sn else "")
             + (f" · {op['cc_car']}" if op.get("cc_car") else "")
         )
+    if rdc_enriched:
+        lines += ["", f"RDC richiesto ma numero RDC ancora vuoto (da oltre {rdc_giorni or '-'} giorni):", ""]
+        for op in rdc_enriched:
+            pn = f" · P/N {op['pn']}" if op.get("pn") else ""
+            lines.append(
+                f"  • OP {op['op_id']}{pn} — {op['n_anomalie']} anomalie · da {op.get('giorni_max', 0)} giorni"
+                + (f" · {op['cc_car']}" if op.get("cc_car") else "")
+            )
     lines += [
         "",
         "—",
@@ -1041,6 +1107,9 @@ def send_escalation_resoconto(op_rows: list[dict], *, soglia_ore: int, from_emai
             "n_op": n_op,
             "tot_anomalie": tot_anomalie,
             "soglia_ore": soglia_ore,
+            "rdc_rows": rdc_enriched,
+            "n_rdc": n_rdc,
+            "rdc_giorni": rdc_giorni,
         },
     )
 
