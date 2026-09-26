@@ -1,5 +1,16 @@
 # Agent Changelog
 
+## 2026-09-26 - Codex (fix parser comandi SNMP)
+
+- Area: `django_app/contatori`; richiesta: correggere il crash produzione di `manage.py snmp_discover` causato dal conflitto argparse sull'opzione `--version`.
+- File modificati: `django_app/contatori/management/commands/snmp_discover.py`, `django_app/contatori/management/commands/leggi_contatori.py`, `django_app/contatori/tests.py`, `README.md`, `CHANGELOG.md`, `django_app/CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- Modifica: rinominata in entrambi i comandi l'opzione SNMP da `--version` (riservata globalmente da Django) a `--snmp-version`, mantenendo `dest="version"` per non alterare la logica runtime; aggiornato l'esempio CLI e aggiunti due test che costruiscono realmente i parser.
+- File critici modificati: nessuno. Backup creati: nessuno. README aggiornato: si'. CHANGELOG aggiornato: si' (root e Django). AGENT_CHANGELOG aggiornato: si'.
+- Test/check: 2/2 test parser mirati e 53/53 test della suite `contatori` verdi; `manage.py check --settings=config.settings.test`, help reale di entrambi i command e `git diff --check` superati.
+- Esito: fix preparato nel worktree `temp/codex-snmp-version`, branch `feature/contatori-snmp-version`; nessun accesso SNMP reale e nessun DB DEV/PROD modificato.
+- Rischi residui: eventuali script esterni devono usare `--snmp-version`; `--version` non era utilizzabile per la versione SNMP perche' Django lo riserva alla versione del framework.
+- Note per altro agente/Brizio: dopo il deploy, il comando segnalato puo' essere rilanciato senza cambiare argomenti; specificare `--snmp-version v2c` solo quando serve sovrascrivere la configurazione.
+
 ## 2026-09-25 - Codex (correzioni fase 2 audit interni EN 9100)
 
 - Area: `django_app/sistema_gestione`, integrazione mirata `django_app/report_conformita/reports/qualita.py`; richiesta: applicare `temp/ISTRUZIONI_FIX_FASE2_AUDIT.md` nel worktree dedicato.

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Contatori MFC - fix opzione versione SNMP dei comandi
+
+- `snmp_discover` e `leggi_contatori` usano `--snmp-version {v1,v2c}` invece del nome riservato Django `--version`, eliminando il crash `argparse.ArgumentError` in fase di avvio.
+- Aggiunta copertura automatica sulla costruzione e sul parsing delle CLI.
+
 ### Sistema di gestione - correzioni audit interni EN 9100
 
 - Rapporto bloccato dopo firma e riapertura esplicita tracciata; convalida del responsabile di processo; KPI sulla sola revisione approvata e sui mesi del periodo; imparzialitÃ  a token interi; retry OFI con savepoint; download firmati tracciati; PDF riallineati ai modelli aziendali.

@@ -1,5 +1,14 @@
 # Session Checkpoint
 
+Data: 2026-09-26 (fix parser comandi SNMP)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-26 - Codex (fix parser comandi SNMP)`.
+- `snmp_discover` e `leggi_contatori` usano ora `--snmp-version`, evitando il conflitto con il `--version` globale di Django; aggiunti test parser per entrambi e nota in `docs/ai/03_BACKEND_MODULES.md`.
+- Verifica: 2/2 test parser e 53/53 test `contatori` verdi; Django check, help reale dei due command e diff check superati.
+- Worktree `temp/codex-snmp-version`, branch `feature/contatori-snmp-version`; nessun file critico, backup, dipendenza o DB DEV/PROD modificato.
+
 Data: 2026-09-25 (correzioni fase 2 audit interni EN 9100)
 
 Ultime voci viste/aggiunte in questa sessione:

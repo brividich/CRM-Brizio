@@ -12,7 +12,7 @@ Due usi:
 Esempi:
   manage.py snmp_discover --host 10.0.0.155
   manage.py snmp_discover --host 10.0.0.155 --community public
-  manage.py snmp_discover --host 10.0.0.155 --version v2c --timeout 10
+  manage.py snmp_discover --host 10.0.0.155 --snmp-version v2c --timeout 10
   manage.py snmp_discover --host 10.0.0.212 --consumabili
 """
 from django.core.management.base import BaseCommand, CommandError
@@ -37,7 +37,13 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--host", required=True, help="IP della stampante")
         parser.add_argument("--community", default=None, help="default: quella configurata")
-        parser.add_argument("--version", default=None, choices=["v1", "v2c"])
+        parser.add_argument(
+            "--snmp-version",
+            dest="version",
+            default=None,
+            choices=["v1", "v2c"],
+            help="versione SNMP (default: quella configurata)",
+        )
         parser.add_argument("--port", type=int, default=None)
         parser.add_argument("--timeout", type=int, default=None, help="secondi")
         parser.add_argument("--consumabili", action="store_true",

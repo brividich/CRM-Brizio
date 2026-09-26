@@ -11,7 +11,12 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--community", default="novicromprinter")
         parser.add_argument("--timeout", type=int, default=3)
-        parser.add_argument("--version", default="v1", choices=["v1", "v2c"])
+        parser.add_argument(
+            "--snmp-version",
+            dest="version",
+            default="v1",
+            choices=["v1", "v2c"],
+        )
 
     def handle(self, *args, **o):
         oggi = timezone.localdate()
