@@ -393,6 +393,23 @@ class TicketCommento(models.Model):
 # Allegati
 # ---------------------------------------------------------------------------
 
+class OrigineAllegato(models.TextChoices):
+    PORTALE = "PORTALE", "Portale"
+    QR      = "QR",      "QR code (senza login)"
+
+
+class TipoDocumentoAllegato(models.TextChoices):
+    RAPPORTINO = "RAPPORTINO", "Rapportino di intervento"
+    FOTO       = "FOTO",       "Foto"
+    ALTRO      = "ALTRO",      "Altro documento"
+
+
+class StatoValidazioneAllegato(models.TextChoices):
+    DA_VALIDARE = "DA_VALIDARE", "Da validare"
+    VALIDATO    = "VALIDATO",    "Validato"
+    RIFIUTATO   = "RIFIUTATO",   "Rifiutato"
+
+
 class TicketAllegato(models.Model):
     ticket         = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="allegati")
     file           = models.FileField(upload_to="tickets/allegati/%Y/%m/", storage=PrivateTicketStorage)
@@ -401,6 +418,25 @@ class TicketAllegato(models.Model):
     uploaded_at    = models.DateTimeField(auto_now_add=True)
     uploaded_by_nome = models.CharField(max_length=200)
 
+    # ── Caricamento da tecnici/esterni e validazione del team gestore ────────
+    # Gli allegati aggiunti a un ticket esistente da chi NON lo gestisce (es. il
+    # rapportino di un tecnico esterno fotografato dal QR sulla macchina) nascono
+    # DA_VALIDARE: il team MAN li valida o li rifiuta. Default VALIDATO per gli
+    # allegati storici e per quelli caricati dai gestori.
+    origine            = models.CharField(max_length=10, choices=OrigineAllegato.choices,
+                                          default=OrigineAllegato.PORTALE)
+    tipo_documento     = models.CharField(max_length=12, choices=TipoDocumentoAllegato.choices,
+                                          blank=True, default="")
+    descrizione        = models.CharField(max_length=500, blank=True)
+    uploaded_by_email  = models.CharField(max_length=200, blank=True)
+    uploaded_by_ditta  = models.CharField(max_length=200, blank=True,
+                                          help_text="Ditta del tecnico che ha caricato il file (dal QR)")
+    stato_validazione  = models.CharField(max_length=12, choices=StatoValidazioneAllegato.choices,
+                                          default=StatoValidazioneAllegato.VALIDATO, db_index=True)
+    validato_da_nome   = models.CharField(max_length=200, blank=True)
+    validato_at        = models.DateTimeField(null=True, blank=True)
+    nota_validazione   = models.CharField(max_length=500, blank=True)
+
     class Meta:
         ordering = ["uploaded_at"]
         verbose_name = "Allegato ticket"
@@ -408,6 +444,26 @@ class TicketAllegato(models.Model):
 
     def __str__(self):
         return self.nome_originale
+
+    @property
+    def is_da_validare(self) -> bool:
+        return self.stato_validazione == StatoValidazioneAllegato.DA_VALIDARE
+
+    @property
+    def is_rifiutato(self) -> bool:
+        return self.stato_validazione == StatoValidazioneAllegato.RIFIUTATO
+
+    @property
+    def label_stato_validazione(self) -> str:
+        return dict(StatoValidazioneAllegato.choices).get(self.stato_validazione, self.stato_validazione)
+
+    @property
+    def label_tipo_documento(self) -> str:
+        return dict(TipoDocumentoAllegato.choices).get(self.tipo_documento, "")
+
+    @property
+    def is_immagine(self) -> bool:
+        return (self.tipo_mime or "").startswith("image/")
 
 
 # ---------------------------------------------------------------------------
