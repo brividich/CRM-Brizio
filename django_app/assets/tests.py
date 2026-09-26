@@ -376,6 +376,71 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, f"?asset_category={category.id}", html=False)
         self.assertNotContains(response, f"?category={category.id}", html=False)
 
+    def test_asset_dashboard_action_center_lists_work_with_actions(self):
+        asset = Asset.objects.create(asset_tag="AST-DASH-001", name="Tornio dashboard")
+        urgent = WorkOrder.objects.create(
+            asset=asset,
+            title="Perdita olio urgente",
+            priority=WorkOrder.PRIORITY_URGENT,
+            kind=WorkOrder.KIND_CORRECTIVE,
+        )
+        mine = WorkOrder.objects.create(asset=asset, title="Cambio filtro", assigned_to=self.user)
+        Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Rumore anomalo mandrino",
+            descrizione="Segnalazione di prova",
+            priorita=PrioritaTicket.ALTA,
+            stato=StatoTicket.APERTA,
+            asset=asset,
+            include_in_maintenance_register=True,
+            richiedente_nome="operatore",
+            richiedente_email="operatore@test.local",
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        dash_wo = response.context["dash_wo"]
+        self.assertEqual(dash_wo["total"], 2)
+        self.assertEqual(dash_wo["urgent"], 1)
+        self.assertEqual(dash_wo["mine"], 1)
+        self.assertEqual(dash_wo["items"][0]["id"], urgent.id, "l'urgente va in testa")
+        # "Prendo io" solo per gli OdL non gia' miei; "Chiudi" per tutti.
+        self.assertContains(response, reverse("assets:wo_claim", args=[urgent.id]), html=False)
+        self.assertNotContains(response, reverse("assets:wo_claim", args=[mine.id]), html=False)
+        self.assertContains(response, reverse("assets:wo_close", args=[mine.id]), html=False)
+        self.assertContains(response, "Rumore anomalo mandrino")
+        self.assertGreaterEqual(response.context["attention_total"], 2)
+        # Il JSON dei widget non deve uscire con l'escape HTML (rompeva lo script).
+        self.assertContains(response, 'id="ad-enabled-widgets"', html=False)
+        self.assertNotContains(response, "let adEnabled = [&quot;", html=False)
+
+    def test_asset_dashboard_claim_returns_to_dashboard(self):
+        asset = Asset.objects.create(asset_tag="AST-DASH-002", name="Fresa dashboard")
+        wo = WorkOrder.objects.create(asset=asset, title="Controllo cinghia")
+        dashboard_url = reverse("assets:asset_dashboard")
+
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("assets:wo_claim", args=[wo.id]), {"next": dashboard_url})
+
+        self.assertRedirects(response, dashboard_url, fetch_redirect_response=False)
+        wo.refresh_from_db()
+        self.assertEqual(wo.assigned_to_id, self.user.id)
+
+    def test_asset_dashboard_launcher_hides_links_denied_by_acl(self):
+        def _deny_reports(path, **kwargs):
+            return path != reverse("assets:reports")
+
+        self.client.force_login(self.user)
+        with patch("core.middleware.acl_allows_path", side_effect=_deny_reports):
+            response = self.client.get(reverse("assets:asset_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        codes = [tile["code"] for tile in response.context["launcher"]]
+        self.assertIn("hub", codes)
+        self.assertNotIn("reports", codes)
+
     def test_asset_list_legacy_category_query_redirects_and_filters(self):
         pressa = AssetCategory.objects.create(code="pressa", label="Pressa", is_active=True)
         forni = AssetCategory.objects.create(code="forni", label="Forni", is_active=True)
