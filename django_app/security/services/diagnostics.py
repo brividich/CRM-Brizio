@@ -50,6 +50,7 @@ def run_security_center_diagnostics():
         _database_check(),
         _migrations_check(),
         _config_seeded_check(),
+        _mailbox_sources_check(),
         _enabled_sources_check(),
         _enabled_parsers_check(),
         _defender_source_check(),
@@ -298,6 +299,25 @@ def _config_seeded_check():
         counts,
         "Esegui python manage.py seed_security_center_config." if missing else "",
     )
+
+
+def _mailbox_sources_check():
+    """Senza una casella mail attiva non arriva nessun dato (le sorgenti descrivono solo il riconoscimento)."""
+    from security.models import SecurityMailboxSource
+    from security.services.mailbox_setup import graph_credentials_status
+
+    graph_sources = SecurityMailboxSource.objects.filter(enabled=True, source_type="graph")
+    count = graph_sources.count()
+    failing = list(graph_sources.exclude(last_error_message="").values_list("name", flat=True))
+    creds = graph_credentials_status()
+    if not count:
+        return _check("mailbox_sources", "Caselle mail", "error", "Nessuna casella mail attiva: il Security Center non riceve report.", {"enabled_graph_sources": 0}, "Crea una casella in Caselle mail e premi «Anteprima».")
+    if not creds["complete"]:
+        missing = [k["key"] for k in creds["keys"] if not k["configured"]]
+        return _check("mailbox_sources", "Caselle mail", "error", f"Credenziali Microsoft Graph mancanti: {', '.join(missing)}.", {"missing": missing}, "Imposta le credenziali nel .env del server o in Configurazione › Generale.")
+    if failing:
+        return _check("mailbox_sources", "Caselle mail", "warning", f"Ultima lettura in errore per: {', '.join(failing)}.", {"failing": failing}, "Apri la casella e guarda l'ultimo errore.")
+    return _check("mailbox_sources", "Caselle mail", "ok", f"{count} caselle mail attive.", {"enabled_graph_sources": count})
 
 
 def _enabled_sources_check():

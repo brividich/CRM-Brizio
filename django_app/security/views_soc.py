@@ -31,6 +31,11 @@ def run_mailbox_ingestion_view(request):
     (`/soc/admin/config/general/`) come SecurityCenterSetting: qui non si toccano.
     Per esecuzioni pianificate usare il task django-q2 `ingest_security_mailboxes_task`.
     """
+    from security.services.configuration import can_manage_security_config
+
+    if not can_manage_security_config(request.user):
+        messages.error(request, "Serve il permesso di configurazione del Security Center.")
+        return redirect("security:admin_mailbox_sources_list")
     from security.services.mailbox_ingestion import run_mailbox_ingestion
 
     sources = list(
@@ -44,13 +49,17 @@ def run_mailbox_ingestion_view(request):
         )
         return redirect("security:admin_mailbox_sources_list")
 
+    from security.services.mailbox_setup import run_summary
+
+    # run_mailbox_ingestion NON solleva: l'esito sta nel run. Prima il try/except qui
+    # non scattava mai e un errore di credenziali veniva riportato come «ok».
     ok = err = 0
     for src in sources:
-        try:
-            run_mailbox_ingestion(src)
-            ok += 1
-        except Exception as exc:  # errore connessione/credenziali → segnalato all'utente
+        level, text = run_summary(run_mailbox_ingestion(src))
+        if level == "error":
             err += 1
-            messages.warning(request, f"«{src.name}»: {exc}")
-    messages.success(request, f"Ingestione mailbox eseguita: {ok} sorgenti ok, {err} in errore.")
+            messages.warning(request, f"«{src.name}»: {text}")
+        else:
+            ok += 1
+    messages.success(request, f"Lettura caselle eseguita: {ok} ok, {err} in errore.")
     return redirect("security:admin_mailbox_sources_list")

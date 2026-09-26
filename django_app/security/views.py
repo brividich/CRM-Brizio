@@ -12,6 +12,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from .forms import (
+    SecurityMailboxSourceForm,
     BackupExpectedJobConfigForm,
     SecurityAlertRuleConfigForm,
     SecurityAlertSuppressionRuleForm,
@@ -59,6 +60,7 @@ from .services.alert_lifecycle import (
     snooze_alert,
 )
 from .services.kpi_service import build_daily_kpi_snapshots
+from .services.mailbox_setup import graph_credentials_status, preview_mailbox, run_summary, unique_code_for
 from .services.posture import build_pipeline_status, build_posture, build_trend
 from .services.parser_engine import _match_enabled_parser, run_pending_parsers
 from .services.rule_engine import evaluate_security_rules, test_alert_rule
@@ -505,6 +507,8 @@ def _autoconfig_context(applied=None):
         "fixes": available_fixes(diagnostics),
         "diagnostics_status": diagnostics["status"],
         "applied": applied,
+        "mailbox_count": SecurityMailboxSource.objects.filter(enabled=True, source_type="graph").count(),
+        "graph": graph_credentials_status(),
     }
 
 
@@ -1028,17 +1032,36 @@ CONFIG_SECTION_HELP = {
 
 @ensure_csrf_cookie
 def admin_mailbox_sources_list(request):
+    """Caselle mail lette dal Security Center: elenco + creazione.
+
+    Senza almeno una casella attiva non arriva alcun dato: le «Sorgenti» della
+    configurazione dicono solo come riconoscere i report.
+    """
     if not can_view_security_center(request.user):
         return HttpResponseForbidden("Accesso negato")
+    can_manage = can_manage_security_config(request.user)
+    form = SecurityMailboxSourceForm()
+    if request.method == "POST":
+        if not can_manage:
+            return _security_config_denied(request)
+        form = SecurityMailboxSourceForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.code = unique_code_for(obj.name)
+            obj.save()
+            audit_config_change(request.user, "create", obj, "", "", obj.mailbox_address or obj.name, request=request)
+            messages.success(request, f"Casella «{obj.name}» creata. Ora prova la lettura con «Anteprima».")
+            return redirect("security:admin_mailbox_source_detail", code=obj.code)
 
-    sources = SecurityMailboxSource.objects.all().order_by("-created_at")
-
+    sources = list(SecurityMailboxSource.objects.all().order_by("name"))
     for source in sources:
         source.latest_run = source.ingestion_runs.order_by("-started_at").first()
-
     context = {
         "sources": sources,
-        "page_title": "Sorgenti Mail",
+        "form": form,
+        "can_manage": can_manage,
+        "graph": graph_credentials_status(),
+        "page_title": "Caselle mail",
     }
     return render(request, "security/admin_mailbox_sources_list.html", context)
 
@@ -1047,18 +1070,41 @@ def admin_mailbox_sources_list(request):
 def admin_mailbox_source_detail(request, code):
     if not can_view_security_center(request.user):
         return HttpResponseForbidden("Accesso negato")
-
     source = get_object_or_404(SecurityMailboxSource, code=code)
-    recent_runs = source.ingestion_runs.order_by("-started_at")[:10]
-    recent_messages = SecurityMailboxMessage.objects.filter(
-        source__name=source.name
-    ).order_by("-received_at")[:20]
+    can_manage = can_manage_security_config(request.user)
+    form = SecurityMailboxSourceForm(instance=source)
+    preview = None
+
+    if request.method == "POST":
+        if not can_manage:
+            return _security_config_denied(request)
+        action = request.POST.get("action", "save")
+        if action == "preview":
+            preview = preview_mailbox(source)
+        elif action == "run":
+            from security.services.mailbox_ingestion import run_mailbox_ingestion
+
+            level, text = run_summary(run_mailbox_ingestion(source))
+            getattr(messages, level)(request, text)
+            return redirect("security:admin_mailbox_source_detail", code=source.code)
+        else:
+            old = snapshot_instance(source)
+            form = SecurityMailboxSourceForm(request.POST, instance=source)
+            if form.is_valid():
+                obj = form.save()
+                audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request)
+                messages.success(request, "Casella aggiornata.")
+                return redirect("security:admin_mailbox_source_detail", code=obj.code)
 
     context = {
         "source": source,
-        "recent_runs": recent_runs,
-        "recent_messages": recent_messages,
-        "page_title": f"Sorgente Mail: {source.name}",
+        "form": form,
+        "can_manage": can_manage,
+        "preview": preview,
+        "graph": graph_credentials_status(),
+        "recent_runs": source.ingestion_runs.order_by("-started_at")[:10],
+        "recent_messages": SecurityMailboxMessage.objects.filter(source__name=source.name).order_by("-received_at")[:20],
+        "page_title": f"Casella mail: {source.name}",
     }
     return render(request, "security/admin_mailbox_source_detail.html", context)
 
