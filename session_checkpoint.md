@@ -5,7 +5,7 @@ Data: 2026-09-26 (integrazione centrale MFC/SNMP e reportistica in release/prod)
 - `d7ab908f` non conteneva i commit SNMP. Integrati `c463cb85`, `d052f2e3`, `716010f5`, `ff230d6f` sopra l'attuale `release/prod` `4776678e` nel worktree `temp/codex-release-contatori`, branch `integration/contatori-release-20260926`.
 - Conflitti esclusivamente documentali risolti conservando entrambe le linee; `docs/AUTOMAZIONI.md` rigenerato dalla fonte con 48 schedule, incluso `security_cycle` gia' in release e i tre nuovi job Contatori/Asset.
 - 118 test mirati verdi sul merge; system check incluso senza errori. Nessun DB o apparato reale toccato, nessun backup aggiuntivo. File critici integrati: route locali Contatori/Assets, binding ACL report e catalogo scheduler; nessun middleware/settings/auth/routing globale.
-- Deploy ancora separato: dopo pubblicazione/pacchetto eseguire `migrate`, `setup_q_schedules` e riavviare web/qcluster esistente. Il checkout condiviso e la cartella utente `parser pdf/` non sono stati modificati.
+- Merge `1b1f404f` pubblicato su `origin/release/prod`; deploy ancora separato. Dopo il nuovo pacchetto eseguire `migrate`, `setup_q_schedules` e riavviare web/qcluster esistente. Il checkout condiviso e la cartella utente `parser pdf/` non sono stati modificati.
 
 Data: 2026-09-26 (reportistica Asset programmata)
 
