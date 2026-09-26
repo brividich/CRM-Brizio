@@ -39,3 +39,41 @@ def ingest_security_mailboxes_task():
         except Exception:
             continue
     return ok
+
+
+
+def run_security_cycle_task():
+    """Ciclo periodico del Security Center (schedule `security_cycle`, ogni 15 minuti).
+
+    Prima nessun task del modulo era pianificato: anche con una casella configurata,
+    nessuno andava a leggere le mail e dashboard/alert restavano vuoti.
+    1. legge le caselle attive (ogni mail importata passa già da parser e regole);
+    2. recupera eventuali elementi rimasti in coda e valuta le regole;
+    3. controlla le sorgenti silenziose (heartbeat) e le rivaluta;
+    4. aggiorna gli snapshot KPI di oggi.
+    Ogni passo è isolato: un errore (es. credenziali Graph) non ferma gli altri.
+    """
+    import logging
+
+    from security.services.kpi_service import build_daily_kpi_snapshots
+    from security.services.parser_engine import run_pending_parsers
+    from security.services.rule_engine import evaluate_security_rules
+    from security.services.source_heartbeat import evaluate_source_heartbeat
+
+    logger = logging.getLogger(__name__)
+    result = {}
+    steps = (
+        ("mailboxes", ingest_security_mailboxes_task),
+        ("parsers", run_pending_parsers),
+        ("rules", evaluate_security_rules),
+        ("heartbeat", lambda: len(evaluate_source_heartbeat())),
+        ("rules_after_heartbeat", evaluate_security_rules),
+        ("kpis", build_daily_kpi_snapshots),
+    )
+    for name, step in steps:
+        try:
+            result[name] = step()
+        except Exception as exc:  # noqa: BLE001 - un passo fallito non blocca il ciclo
+            logger.exception("security_cycle: passo %s fallito", name)
+            result[name] = f"errore: {exc}"[:300]
+    return result

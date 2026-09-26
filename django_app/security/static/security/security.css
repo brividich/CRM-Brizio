@@ -273,6 +273,9 @@ body.theme-dark .soc-module code { color: #93c5fd; }
 .soc-module .sec-filter-bar label { min-width: 170px; }
 .soc-module .sec-nowrap { white-space: nowrap; }
 .soc-module .sec-small { font-size: var(--fs-sm); }
+.soc-module .sec-callout { border-left: 4px solid var(--primary-mid); }
+.soc-module .sec-callout-warning { border-left-color: var(--warning); }
+.soc-module .sec-steps { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 4px; color: var(--text); }
 .soc-module .sec-wrap { overflow-wrap: anywhere; word-break: break-word; max-width: 260px; }
 .soc-module .sec-form input[type=checkbox] { width: 18px; height: 18px; min-height: 0; justify-self: start; }
 /* Form generati con as_p: campi a tutta larghezza, help text leggibile */

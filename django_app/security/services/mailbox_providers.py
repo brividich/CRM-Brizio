@@ -32,13 +32,29 @@ GRAPH_MAX_PAGES = 20
 # land with a timestamp slightly before the moment we finished the previous run.
 # Re-fetching is free - the dedup on provider_message_id drops the duplicates.
 INCREMENTAL_OVERLAP_MINUTES = 30
+# First ever run: start from recent mail, not from the oldest message in the mailbox.
+# Oldest-first with max_messages_per_run=50 on a years-old shared mailbox meant weeks of
+# runs before reaching this month's reports - the dashboards stayed empty meanwhile.
+DEFAULT_FIRST_RUN_DAYS = 14
+
+
+def first_run_days() -> int:
+    try:
+        value = get_setting("SECURITY_MAILBOX_FIRST_RUN_DAYS", None)
+        return max(1, int(value if value not in (None, "") else DEFAULT_FIRST_RUN_DAYS))
+    except (TypeError, ValueError):
+        return DEFAULT_FIRST_RUN_DAYS
 
 
 def incremental_since(source):
-    """Lower bound for the incremental fetch, or None on the first ever run."""
+    """Lower bound for the incremental fetch.
+
+    After a successful run: last success minus the overlap. First ever run: the last
+    ``SECURITY_MAILBOX_FIRST_RUN_DAYS`` days (default 14).
+    """
     last_success = getattr(source, "last_success_at", None)
     if not last_success:
-        return None
+        return timezone.now() - timedelta(days=first_run_days())
     return last_success - timedelta(minutes=INCREMENTAL_OVERLAP_MINUTES)
 
 

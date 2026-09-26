@@ -1,179 +1,119 @@
 {% extends "security/_base_soc.html" %}
+{% load security_i18n %}
 
-{% block title %}{{ source.name }} - Sorgenti Mail - Security Center AI{% endblock %}
-
+{% block title %}{{ source.name }} - Caselle mail - Security Center AI{% endblock %}
 {% block page_icon %}@{% endblock %}
-{% block page_marker %}Sorgente Mail{% endblock %}
+{% block page_marker %}Casella mail{% endblock %}
 {% block page_title %}{{ source.name }}{% endblock %}
 
 {% block soc_content %}
-<div class="sec-panel">
-  <div class="sec-panel-header">
-    <h2>Configurazione Sorgente</h2>
+<p><a class="sec-button" href="{% url 'security:admin_mailbox_sources_list' %}">&lt; Tutte le caselle</a></p>
+
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <div>
+      <h2>{{ source.mailbox_address|default:source.name }}</h2>
+      <span class="sec-muted">{{ source.get_source_type_display }} · {% if source.enabled %}lettura automatica ogni 15 minuti{% else %}disattivata{% endif %}</span>
+    </div>
+    {% if can_manage %}
+      <div class="sec-actions">
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="preview"><button type="submit">Anteprima (non importa)</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="run"><button class="sec-button-primary" type="submit">Leggi ora</button></form>
+      </div>
+    {% endif %}
   </div>
-  <dl class="sec-dl">
-    <dt>Nome</dt>
-    <dd><strong>{{ source.name }}</strong></dd>
-
-    <dt>Codice</dt>
-    <dd><code>{{ source.code }}</code></dd>
-
-    <dt>Tipo</dt>
-    <dd>{{ source.get_source_type_display }}</dd>
-
-    <dt>Mailbox</dt>
-    <dd>{{ source.mailbox_address|default:"Non configurato" }}</dd>
-
-    <dt>Stato</dt>
-    <dd>
-      {% if source.enabled %}
-        <span class="sec-badge sec-badge-success">Attivo</span>
-      {% else %}
-        <span class="sec-badge sec-badge-muted">Disattivo</span>
-      {% endif %}
-    </dd>
-
-    <dt>Descrizione</dt>
-    <dd>{{ source.description|default:"—" }}</dd>
-
-    <dt>Max messaggi per run</dt>
-    <dd>{{ source.max_messages_per_run }}</dd>
-
-    <dt>Processa allegati</dt>
-    <dd>{{ source.process_attachments|yesno:"Sì,No" }}</dd>
-
-    <dt>Processa corpo email</dt>
-    <dd>{{ source.process_email_body|yesno:"Sì,No" }}</dd>
-
-    <dt>Marca come letto</dt>
-    <dd>{{ source.mark_as_read_after_import|yesno:"Sì,No" }}</dd>
-
-    {% if source.sender_allowlist_text %}
-    <dt>Mittenti consentiti</dt>
-    <dd><pre class="sec-code-block">{{ source.sender_allowlist_text }}</pre></dd>
-    {% endif %}
-
-    {% if source.subject_include_text %}
-    <dt>Oggetto deve contenere</dt>
-    <dd><pre class="sec-code-block">{{ source.subject_include_text }}</pre></dd>
-    {% endif %}
-
-    {% if source.subject_exclude_text %}
-    <dt>Oggetto deve escludere</dt>
-    <dd><pre class="sec-code-block">{{ source.subject_exclude_text }}</pre></dd>
-    {% endif %}
-
-    {% if source.attachment_extensions %}
-    <dt>Estensioni allegati</dt>
-    <dd><code>{{ source.attachment_extensions }}</code></dd>
-    {% endif %}
-  </dl>
-</div>
-
-<div class="sec-panel">
-  <div class="sec-panel-header">
-    <h2>Stato Esecuzioni</h2>
+  <div class="sec-fact-grid">
+    <div class="sec-fact"><span>Ultima lettura</span><strong>{{ source.last_run_at|date:"d/m/Y H:i"|default:"Mai" }}</strong></div>
+    <div class="sec-fact"><span>Letta fino a</span><strong>{{ source.last_success_at|date:"d/m/Y H:i"|default:"—" }}</strong></div>
+    <div class="sec-fact"><span>Credenziali Graph</span><strong>{% if graph.complete %}Complete{% else %}<span class="critical">Mancanti</span>{% endif %}</strong></div>
+    <div class="sec-fact"><span>Report atteso ogni</span><strong>{% if source.expected_every_hours %}{{ source.expected_every_hours }} ore{% else %}nessun controllo{% endif %}</strong></div>
   </div>
-  <dl class="sec-dl">
-    <dt>Ultima esecuzione</dt>
-    <dd>{{ source.last_run_at|date:"d/m/Y H:i:s"|default:"Mai eseguito" }}</dd>
+  {% if source.last_error_message %}
+    <p class="sec-action-result sec-error" style="margin-top: 12px;"><strong>Ultimo errore ({{ source.last_error_at|date:"d/m/Y H:i" }}):</strong> {{ source.last_error_message }}</p>
+  {% endif %}
+  {% if not source.last_run_at %}
+    <p class="sec-muted" style="margin-top: 8px;">La prima lettura importa le mail degli ultimi 14 giorni, poi prosegue da dove si è fermata.</p>
+  {% endif %}
+</section>
 
-    <dt>Ultimo successo</dt>
-    <dd>{{ source.last_success_at|date:"d/m/Y H:i:s"|default:"—" }}</dd>
-
-    <dt>Ultimo errore</dt>
-    <dd>{{ source.last_error_at|date:"d/m/Y H:i:s"|default:"—" }}</dd>
-
-    {% if source.last_error_message %}
-    <dt>Messaggio errore</dt>
-    <dd><pre class="sec-code-block sec-error">{{ source.last_error_message }}</pre></dd>
-    {% endif %}
-  </dl>
-</div>
-
-{% if recent_runs %}
-<div class="sec-panel">
-  <div class="sec-panel-header">
-    <h2>Esecuzioni Recenti</h2>
-  </div>
-  <table class="sec-table">
-    <thead>
-      <tr>
-        <th>Data/Ora</th>
-        <th>Stato</th>
-        <th>Importati</th>
-        <th>Duplicati</th>
-        <th>Saltati</th>
-        <th>File</th>
-        <th>Processati</th>
-        <th>Alert</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for run in recent_runs %}
-      <tr>
-        <td>{{ run.started_at|date:"d/m/Y H:i" }}</td>
-        <td>
-          {% if run.status == 'success' %}
-            <span class="sec-badge sec-badge-success">{{ run.get_status_display }}</span>
-          {% elif run.status == 'failed' %}
-            <span class="sec-badge sec-badge-critical">{{ run.get_status_display }}</span>
-          {% elif run.status == 'partial' %}
-            <span class="sec-badge sec-badge-warning">{{ run.get_status_display }}</span>
-          {% else %}
-            <span class="sec-badge sec-badge-muted">{{ run.get_status_display }}</span>
-          {% endif %}
-        </td>
-        <td>{{ run.imported_messages_count }}</td>
-        <td>{{ run.duplicate_messages_count }}</td>
-        <td>{{ run.skipped_messages_count }}</td>
-        <td>{{ run.imported_files_count }}</td>
-        <td>{{ run.processed_items_count }}</td>
-        <td>{{ run.generated_alerts_count }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% if preview %}
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Anteprima: mail degli ultimi 3 giorni</h2><span class="sec-badge">Nulla è stato importato</span></div>
+  {% if not preview.ok %}
+    <p class="sec-action-result sec-error"><strong>Lettura non riuscita:</strong> {{ preview.error }}</p>
+    <p class="sec-muted">Cause tipiche: credenziali Graph mancanti o scadute, permesso <strong>Mail.Read</strong> non concesso all'app Entra, indirizzo della casella errato.</p>
+  {% elif not preview.rows %}
+    <p class="sec-empty">La casella è raggiungibile ma non contiene mail negli ultimi 3 giorni.</p>
+  {% else %}
+    <div class="sec-table-wrap">
+      <table class="sec-table" data-fm-table-skip="1">
+        <thead><tr><th>Ricevuta</th><th>Mittente</th><th>Oggetto</th><th>Filtri casella</th><th>Riconoscimento</th></tr></thead>
+        <tbody>
+        {% for row in preview.rows %}
+          <tr>
+            <td class="sec-nowrap">{{ row.received_at|date:"d/m H:i" }}</td>
+            <td>{{ row.sender }}</td>
+            <td>{{ row.subject }}</td>
+            <td>{% if row.accepted %}<span class="sec-badge ok">Accettata</span>{% else %}<span class="sec-badge disabled">Esclusa</span>{% endif %}</td>
+            <td>{% if row.parser %}<span class="sec-badge ok">Riconosciuta</span><small class="sec-muted" style="display:block;">{{ row.parser }}</small>{% else %}<span class="sec-badge warning">Non riconosciuta</span><small class="sec-muted" style="display:block;">{{ row.detail }}</small>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="sec-muted" style="margin-top: 8px;">Solo le mail <strong>accettate e riconosciute</strong> producono dati. Se i report che ti aspetti risultano «non riconosciuti», controlla mittente e oggetto in Config › Sorgenti.</p>
+  {% endif %}
+</section>
 {% endif %}
 
-{% if recent_messages %}
-<div class="sec-panel">
-  <div class="sec-panel-header">
-    <h2>Messaggi Recenti</h2>
-  </div>
-  <table class="sec-table">
-    <thead>
-      <tr>
-        <th>Ricevuto</th>
-        <th>Mittente</th>
-        <th>Oggetto</th>
-        <th>Stato parsing</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for msg in recent_messages %}
-      <tr>
-        <td>{{ msg.received_at|date:"d/m/Y H:i" }}</td>
-        <td><small>{{ msg.sender }}</small></td>
-        <td>{{ msg.subject }}</td>
-        <td>
-          {% if msg.parse_status == 'parsed' %}
-            <span class="sec-badge sec-badge-success">{{ msg.get_parse_status_display }}</span>
-          {% elif msg.parse_status == 'failed' %}
-            <span class="sec-badge sec-badge-critical">{{ msg.get_parse_status_display }}</span>
-          {% else %}
-            <span class="sec-badge sec-badge-muted">{{ msg.get_parse_status_display }}</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Letture recenti</h2></div>
+    {% if recent_runs %}
+      <div class="sec-table-wrap">
+        <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+          <thead><tr><th>Quando</th><th>Esito</th><th>Importate</th><th>Scartate</th><th>Alert</th></tr></thead>
+          <tbody>
+          {% for run in recent_runs %}
+            <tr>
+              <td class="sec-nowrap">{{ run.started_at|date:"d/m H:i" }}</td>
+              <td><span class="sec-badge {{ run.status }}">{{ run.status|ui_label }}</span>{% if run.error_message %}<small class="critical" style="display:block;">{{ run.error_message|truncatechars:140 }}</small>{% endif %}</td>
+              <td>{{ run.imported_messages_count }}{% if run.duplicate_messages_count %} <small class="sec-muted">(+{{ run.duplicate_messages_count }} già presenti)</small>{% endif %}</td>
+              <td>{{ run.skipped_messages_count }}</td>
+              <td>{{ run.generated_alerts_count }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="sec-empty">Nessuna lettura eseguita.</p>
+    {% endif %}
 
-<div class="sec-panel">
-  <a href="{% url 'security:admin_config' %}" class="sec-btn-link">Torna alla configurazione</a>
-</div>
+    <div class="sec-section-head" style="margin-top: 18px;"><h3>Ultime mail importate</h3></div>
+    {% if recent_messages %}
+      <ul class="sec-mini-list">
+        {% for message in recent_messages %}
+          <li><span>{{ message.subject|truncatechars:70 }}<small class="sec-muted" style="display:block;">{{ message.sender }} · {{ message.received_at|date:"d/m H:i" }}</small></span><span class="sec-badge {{ message.parse_status }}">{{ message.parse_status|ui_label }}</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="sec-empty">Nessuna mail importata da questa casella.</p>
+    {% endif %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Impostazioni</h2></div>
+    {% if can_manage %}
+      <form method="post" class="sec-grid sec-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save">
+        {{ form.as_p }}
+        <button class="sec-button-primary" type="submit">Salva</button>
+      </form>
+    {% else %}
+      <p class="sec-empty">Serve il permesso di configurazione del Security Center.</p>
+    {% endif %}
+  </div>
+</section>
 {% endblock %}

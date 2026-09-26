@@ -16,6 +16,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {"limit": 50},
     },
     {
+        # SECURITY CENTER — legge le caselle mail dei report (Graph), parser, regole,
+        # heartbeat sorgenti e KPI. Senza questo schedule il SOC non riceve dati.
+        "name": "security_cycle",
+        "func": "security.tasks.run_security_cycle_task",
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 15,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         "name": "approval_mailbox",
         "func": "automazioni.tasks.run_approval_mailbox",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
