@@ -22,6 +22,11 @@
 .tkt-kpi-orange .tkt-kpi-val { color:#d97706; }
 .tkt-kpi-blue .tkt-kpi-val { color:#0369a1; }
 .tkt-kpi-green .tkt-kpi-val { color:#16a34a; }
+.tkt-kpi-violet .tkt-kpi-val { color:#7c3aed; }
+a.tkt-kpi { text-decoration:none; color:inherit; transition:border-color .15s, box-shadow .15s; }
+a.tkt-kpi:hover { border-color:#c4b5fd; box-shadow:0 2px 8px rgba(124,58,237,.12); }
+a.tkt-kpi.is-active { border-color:#7c3aed; box-shadow:0 0 0 2px rgba(124,58,237,.18); }
+.tkt-att-badge { display:inline-block; margin-left:5px; font-size:10px; background:#f5f3ff; color:#6d28d9; padding:1px 6px; border-radius:4px; font-weight:700; white-space:nowrap; }
 
 /* Tab tipo */
 .tkt-tabs { display:flex; gap:0; border-bottom:2px solid #e2e8f0; }
@@ -263,6 +268,8 @@ body.theme-dark .tkt-sla-risposta    { background:rgba(217,119,6,.15);  color:#f
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .tkt-kpi { background:var(--surface); border-color:var(--border); }
 body.theme-dark .tkt-kpi-lbl { color:var(--text-light); }
+body.theme-dark a.tkt-kpi.is-active { border-color:#a78bfa; }
+body.theme-dark .tkt-att-badge { background:rgba(124,58,237,.2); color:#c4b5fd; }
 body.theme-dark .tkt-kpi .tkt-kpi-val { color:var(--text) !important; }
 
 body.theme-dark .tkt-tabs-wrap { background:var(--surface) !important; border-color:var(--border) !important; }
@@ -377,6 +384,12 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
       <div class="tkt-kpi-val">{{ n_risolti }}</div>
       <div class="tkt-kpi-lbl">Risolti</div>
     </div>
+    <a class="tkt-kpi tkt-kpi-violet{% if filtro_allegati == 'da_validare' %} is-active{% endif %}"
+       href="{% if filtro_allegati == 'da_validare' %}?tipo={{ tab_attivo }}{% else %}?tipo={{ tab_attivo }}&allegati=da_validare{% endif %}"
+       title="{% if filtro_allegati == 'da_validare' %}Rimuovi il filtro{% else %}Mostra i ticket con allegati da validare{% endif %}">
+      <div class="tkt-kpi-val">{{ n_allegati_da_validare }}</div>
+      <div class="tkt-kpi-lbl">Allegati da validare</div>
+    </a>
   </div>
 
   <!-- Tab tipo -->
@@ -392,7 +405,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
   </div>
 
   <!-- Filtri avanzati -->
-  {% with has_filter=filtro_stato|add:filtro_prio|add:filtro_cerca|add:filtro_ass|add:filtro_asset|add:filtro_cat|add:filtro_data_da|add:filtro_data_a|add:filtro_sicurezza|add:filtro_ricorrente %}
+  {% with has_filter=filtro_stato|add:filtro_prio|add:filtro_cerca|add:filtro_ass|add:filtro_asset|add:filtro_cat|add:filtro_data_da|add:filtro_data_a|add:filtro_sicurezza|add:filtro_ricorrente|add:filtro_allegati %}
   <div class="tkt-filter-card">
     <div class="tkt-filter-header" id="tkt-filter-toggle" onclick="tktToggleFilters()">
       <div class="tkt-filter-header-left">
@@ -412,6 +425,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
       <form method="get" id="tkt-filter-form">
         <input type="hidden" name="tipo" value="{{ tab_attivo }}">
         <input type="hidden" name="ordine" value="{{ filtro_ordine }}">
+        {% if filtro_allegati %}<input type="hidden" name="allegati" value="{{ filtro_allegati }}">{% endif %}
 
         <!-- Riga 1: stato, priorità, assegnato, sicurezza -->
         <div class="tkt-filter-row">
@@ -559,7 +573,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
             <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a>{% if t.sla_risoluzione_scaduto %}<span class="tkt-sla-badge tkt-sla-risoluzione" title="SLA risoluzione scaduto">&#9888; SLA</span>{% elif t.sla_risposta_scaduto %}<span class="tkt-sla-badge tkt-sla-risposta" title="SLA risposta scaduto">&#9888; SLA</span>{% endif %}</td>
             <td>
               <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:50 }}</a>
-              {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}
+              {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}{% if t.n_allegati_da_validare %}<span class="tkt-att-badge" title="Allegati caricati in attesa di validazione">&#128206; {{ t.n_allegati_da_validare }} da validare</span>{% endif %}
             </td>
             <td style="font-size:12px;color:#64748b;">{{ t.label_categoria }}</td>
             <td style="font-size:12px;color:#0369a1;">
@@ -620,7 +634,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
             <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a>{% if t.sla_risoluzione_scaduto %}<span class="tkt-sla-badge tkt-sla-risoluzione" title="SLA risoluzione scaduto">&#9888; SLA</span>{% elif t.sla_risposta_scaduto %}<span class="tkt-sla-badge tkt-sla-risposta" title="SLA risposta scaduto">&#9888; SLA</span>{% endif %}</td>
             <td>
               <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:50 }}</a>
-              {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}
+              {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}{% if t.n_allegati_da_validare %}<span class="tkt-att-badge" title="Allegati caricati in attesa di validazione">&#128206; {{ t.n_allegati_da_validare }} da validare</span>{% endif %}
             </td>
             <td style="font-size:12px;color:#64748b;">{{ t.label_categoria }}</td>
             <td style="font-size:12px;">
@@ -718,7 +732,7 @@ body.theme-dark .bulk-ac-item:hover { background:var(--hover-bg); }
   var icon   = document.getElementById('tkt-filter-icon');
   var stored = sessionStorage.getItem('tktFiltersOpen');
   // Se ci sono filtri attivi oppure era aperto in precedenza → aperto di default
-  var hasFilter = {% if filtro_stato or filtro_prio or filtro_cerca or filtro_ass or filtro_asset or filtro_cat or filtro_data_da or filtro_data_a or filtro_sicurezza or filtro_ricorrente %}true{% else %}false{% endif %};
+  var hasFilter = {% if filtro_stato or filtro_prio or filtro_cerca or filtro_ass or filtro_asset or filtro_cat or filtro_data_da or filtro_data_a or filtro_sicurezza or filtro_ricorrente or filtro_allegati %}true{% else %}false{% endif %};
   var open = hasFilter || stored === '1';
   if (!open) { body.style.display = 'none'; } else { icon.classList.add('open'); }
   window.tktToggleFilters = function() {

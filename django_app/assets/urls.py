@@ -151,6 +151,13 @@ urlpatterns = [
         views.asset_document_qr_download,
         name="asset_document_qr_download",
     ),
+    # Upload rapportino/foto su un ticket aperto della macchina: solo POST, solo
+    # foto/PDF, file sempre "da validare" (tickets.allegati).
+    path(
+        "assets/qr/pub/<str:public_qr_token>/ticket/<int:ticket_id>/allegati/",
+        views.asset_qr_ticket_upload,
+        name="asset_qr_ticket_upload",
+    ),
     path("assets/qr/pub/<str:public_qr_token>/", views.asset_qr_public_landing, name="asset_qr_public_landing"),
     path("assets/qr/<str:asset_tag>/", views.asset_qr_landing, name="asset_qr_landing"),
     path("assets/reports/", views.reports_dashboard, name="reports"),

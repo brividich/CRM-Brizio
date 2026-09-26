@@ -155,6 +155,7 @@ Colonne dinamiche:
 - Il QR stampato punta alla landing pubblica `/assets/qr/pub/<public_qr_token>/` (sola lettura, senza login); `?target=detail` forza la scheda autenticata.
 - Se `SITE_URL` e configurato, i PDF etichetta usano quella base canonica per le route QR (es. `https://hub.cnovicrom.local/assets/qr/pub/<token>/`) invece dello scheme visto dalla request interna IIS/Waitress.
 - Con `public_qr_enabled=False` la landing risponde 404.
+- La landing mostra i ticket aperti dell'asset; su ciascuno si allega un rapportino/foto (`asset_qr_ticket_upload`, solo POST, solo JPG/PNG/PDF). I file nascono «Da validare» per il team gestore (`tickets/allegati.py`). Con il form attivo la landing pubblica usa `Referrer-Policy: same-origin`: con `no-referrer` Chromium invia `Origin: null` e il CSRF rifiuta il POST. `ASSETS_QR_PUBLIC_TICKET_UPLOAD=0` spegne il caricamento dal QR pubblico.
 
 ## Archivio documenti
 - I documenti asset (specifiche, manuali, interventi + eventuali cartelle extra per categoria) sono archiviati **solo in locale**, in `ASSETS_PRIVATE_ROOT`, cifrati at-rest e serviti da view protette (`/assets/documenti/<id>/download/`, oppure la view a token per il QR pubblico). Nessuna copia su servizi esterni.

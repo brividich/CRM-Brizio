@@ -1,0 +1,154 @@
+{% comment %}
+Allegati del ticket: elenco con stato di validazione, azioni del team gestore
+e caricamento da pagina web. Parametri: ticket, allegati, can_validate,
+can_upload, next_url. I file si aprono sempre dalla view protetta.
+{% endcomment %}
+<style>
+.tka-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 22px; }
+.tka-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+.tka-title { font-size:13px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.tka-pending-pill { font-size:11px; font-weight:800; background:#f5f3ff; color:#6d28d9; border-radius:99px; padding:3px 10px; }
+.tka-msg { border-radius:10px; padding:9px 12px; font-size:13px; font-weight:600; margin-bottom:10px; }
+.tka-msg-success { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
+.tka-msg-error { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; }
+.tka-list { display:flex; flex-direction:column; gap:8px; }
+.tka-item { display:flex; gap:12px; align-items:flex-start; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; }
+.tka-item.is-pending { border-color:#c4b5fd; background:#faf5ff; }
+.tka-item.is-rejected { opacity:.75; }
+.tka-thumb { width:52px; height:52px; border-radius:8px; object-fit:cover; flex-shrink:0; border:1px solid #e2e8f0; background:#fff; }
+.tka-icon { width:52px; height:52px; border-radius:8px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:#64748b; background:#fff; border:1px solid #e2e8f0; }
+.tka-body { flex:1; min-width:0; }
+.tka-name { font-size:13px; font-weight:700; color:#0f172a; word-break:break-word; }
+.tka-meta { font-size:12px; color:#64748b; margin-top:2px; }
+.tka-note { font-size:12px; color:#374151; margin-top:4px; white-space:pre-wrap; }
+.tka-badge { display:inline-block; font-size:10px; font-weight:800; border-radius:4px; padding:1px 6px; margin-left:4px; vertical-align:middle; }
+.tka-badge-DA_VALIDARE { background:#ede9fe; color:#6d28d9; }
+.tka-badge-VALIDATO { background:#dcfce7; color:#166534; }
+.tka-badge-RIFIUTATO { background:#fee2e2; color:#991b1b; }
+.tka-badge-QR { background:#e0f2fe; color:#0369a1; }
+.tka-links { display:flex; gap:10px; flex-shrink:0; }
+.tka-link { color:#0369a1; font-size:12px; font-weight:700; text-decoration:none; }
+.tka-link:hover { text-decoration:underline; }
+.tka-validate { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:8px; }
+.tka-validate input[type=text] { flex:1; min-width:160px; padding:6px 9px; border:1px solid #cbd5e1; border-radius:8px; font-size:12px; }
+.tka-btn { border:none; border-radius:8px; padding:7px 13px; font-size:12px; font-weight:700; cursor:pointer; }
+.tka-btn-ok { background:#16a34a; color:#fff; }
+.tka-btn-ok:hover { background:#15803d; }
+.tka-btn-ko { background:#fff; color:#b91c1c; border:1px solid #fecaca; }
+.tka-btn-ko:hover { background:#fef2f2; }
+.tka-btn-primary { background:#0369a1; color:#fff; }
+.tka-btn-primary:hover { background:#075985; }
+.tka-empty { color:#94a3b8; font-size:13px; }
+.tka-upload { margin-top:14px; padding-top:14px; border-top:1px dashed #e2e8f0; display:grid; gap:10px; }
+.tka-upload-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+@media (max-width:640px){ .tka-upload-row { grid-template-columns:1fr; } }
+.tka-upload label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:#475569; }
+.tka-upload select, .tka-upload input[type=text], .tka-upload input[type=file] { padding:7px 9px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; background:#fff; color:#0f172a; }
+.tka-hint { font-size:11px; color:#94a3b8; }
+
+body.theme-dark .tka-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tka-title { color:var(--text-light); }
+body.theme-dark .tka-pending-pill { background:rgba(124,58,237,.2); color:#c4b5fd; }
+body.theme-dark .tka-msg-success { background:rgba(6,95,70,.2); color:#6ee7b7; border-color:rgba(110,231,183,.25); }
+body.theme-dark .tka-msg-error { background:rgba(153,27,27,.2); color:#fca5a5; border-color:rgba(252,165,165,.25); }
+body.theme-dark .tka-item { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .tka-item.is-pending { background:rgba(124,58,237,.08); border-color:rgba(167,139,250,.4); }
+body.theme-dark .tka-thumb, body.theme-dark .tka-icon { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .tka-name { color:var(--text); }
+body.theme-dark .tka-meta { color:var(--text-light); }
+body.theme-dark .tka-note { color:var(--text-mid); }
+body.theme-dark .tka-badge-DA_VALIDARE { background:rgba(124,58,237,.25); color:#c4b5fd; }
+body.theme-dark .tka-badge-VALIDATO { background:rgba(22,101,52,.25); color:#86efac; }
+body.theme-dark .tka-badge-RIFIUTATO { background:rgba(153,27,27,.25); color:#fca5a5; }
+body.theme-dark .tka-badge-QR { background:rgba(3,105,161,.25); color:#7dd3fc; }
+body.theme-dark .tka-link { color:#60a5fa; }
+body.theme-dark .tka-btn-ko { background:transparent; color:#fca5a5; border-color:rgba(252,165,165,.35); }
+body.theme-dark .tka-validate input[type=text],
+body.theme-dark .tka-upload select,
+body.theme-dark .tka-upload input[type=text],
+body.theme-dark .tka-upload input[type=file] { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .tka-upload { border-top-color:var(--border); }
+body.theme-dark .tka-upload label { color:var(--text-mid); }
+</style>
+
+<div class="tka-card" id="allegati">
+  <div class="tka-head">
+    <div class="tka-title">Allegati ({{ allegati|length }})</div>
+    {% if n_da_validare %}<span class="tka-pending-pill">{{ n_da_validare }} da validare</span>{% endif %}
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="tka-msg {% if m.tags == 'error' %}tka-msg-error{% else %}tka-msg-success{% endif %}">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if allegati %}
+  <div class="tka-list">
+    {% for a in allegati %}
+    <div class="tka-item{% if a.is_da_validare %} is-pending{% elif a.is_rifiutato %} is-rejected{% endif %}">
+      {% if a.is_immagine %}
+        <a href="{% url 'tickets:download_allegato' a.pk %}?inline=1" target="_blank" rel="noopener"><img class="tka-thumb" src="{% url 'tickets:download_allegato' a.pk %}?inline=1" alt="" loading="lazy"></a>
+      {% else %}
+        <div class="tka-icon">{% if a.tipo_mime == 'application/pdf' %}PDF{% else %}FILE{% endif %}</div>
+      {% endif %}
+      <div class="tka-body">
+        <div class="tka-name">
+          {{ a.nome_originale }}
+          {% if a.stato_validazione != 'VALIDATO' or a.validato_at %}<span class="tka-badge tka-badge-{{ a.stato_validazione }}">{{ a.label_stato_validazione }}</span>{% endif %}
+          {% if a.origine == 'QR' %}<span class="tka-badge tka-badge-QR">da QR</span>{% endif %}
+        </div>
+        <div class="tka-meta">
+          {% if a.label_tipo_documento %}{{ a.label_tipo_documento }} · {% endif %}{{ a.uploaded_by_nome }}{% if a.uploaded_by_ditta %} ({{ a.uploaded_by_ditta }}){% endif %} · {{ a.uploaded_at|date:"d-m-Y H:i" }}
+        </div>
+        {% if a.descrizione %}<div class="tka-note">{{ a.descrizione }}</div>{% endif %}
+        {% if a.validato_at %}
+          <div class="tka-meta">{{ a.label_stato_validazione }} da {{ a.validato_da_nome }} il {{ a.validato_at|date:"d-m-Y H:i" }}{% if a.nota_validazione %} — {{ a.nota_validazione }}{% endif %}</div>
+        {% endif %}
+        {% if can_validate and a.is_da_validare %}
+          <form method="post" action="{% url 'tickets:valida_allegato' a.pk %}" class="tka-validate">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next_url }}#allegati">
+            <input type="text" name="nota" maxlength="500" placeholder="Nota (obbligatoria se rifiuti)" aria-label="Nota di validazione">
+            <button type="submit" name="esito" value="VALIDATO" class="tka-btn tka-btn-ok">Valida</button>
+            <button type="submit" name="esito" value="RIFIUTATO" class="tka-btn tka-btn-ko">Rifiuta</button>
+          </form>
+        {% endif %}
+      </div>
+      <div class="tka-links">
+        {% if a.tipo_mime == 'application/pdf' or a.is_immagine %}<a class="tka-link" href="{% url 'tickets:download_allegato' a.pk %}?inline=1" target="_blank" rel="noopener">Apri</a>{% endif %}
+        <a class="tka-link" href="{% url 'tickets:download_allegato' a.pk %}">Scarica</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="tka-empty">Nessun allegato.</div>
+  {% endif %}
+
+  {% if can_upload and not ticket.is_chiuso %}
+  <form method="post" action="{% url 'tickets:carica_allegati' ticket.pk %}" enctype="multipart/form-data" class="tka-upload">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_url }}#allegati">
+    <div class="tka-upload-row">
+      <label>File (foto, PDF, documenti)
+        <input type="file" name="file" multiple required accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt,.csv,.msg,.eml,.zip,.7z">
+      </label>
+      <label>Tipo di documento
+        <select name="tipo_documento">
+          <option value="RAPPORTINO">Rapportino di intervento</option>
+          <option value="FOTO">Foto</option>
+          <option value="ALTRO">Altro documento</option>
+        </select>
+      </label>
+    </div>
+    <label>Note (facoltative)
+      <input type="text" name="descrizione" maxlength="500" placeholder="Es. rapportino ditta, intervento del 26/09">
+    </label>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <button type="submit" class="tka-btn tka-btn-primary">Carica allegati</button>
+      <span class="tka-hint">{% if can_validate %}Caricati da un gestore: già validati.{% else %}I file saranno validati dal team gestore.{% endif %} Max 20 MB per file.</span>
+    </div>
+  </form>
+  {% endif %}
+</div>
