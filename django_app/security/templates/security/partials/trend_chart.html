@@ -1,0 +1,24 @@
+{% if trend.is_empty %}
+  <p class="sec-empty">Nessun evento né alert negli ultimi {{ trend.days|length }} giorni.</p>
+{% else %}
+<div class="sec-trend">
+  <svg viewBox="0 0 {{ trend.width }} {{ trend.height|add:22 }}" role="img" aria-label="Andamento giornaliero di eventi, alert creati e alert critici">
+    <line class="grid" x1="0" x2="{{ trend.width }}" y1="{{ trend.top }}" y2="{{ trend.top }}"></line>
+    <line class="grid" x1="0" x2="{{ trend.width }}" y1="{{ trend.baseline }}" y2="{{ trend.baseline }}"></line>
+    <text class="axis-label" x="0" y="{{ trend.top|add:-4 }}">max {{ trend.peak }}</text>
+    {% for day in trend.days %}
+      <line class="grid" x1="{{ day.x }}" x2="{{ day.x }}" y1="{{ trend.top }}" y2="{{ trend.baseline }}" stroke-dasharray="2 4"></line>
+      <text class="axis-label" x="{{ day.x }}" y="{{ trend.height|add:14 }}" text-anchor="middle">{{ day.date|date:"d/m" }}</text>
+    {% endfor %}
+    {% for serie in trend.series %}
+      <polyline points="{{ serie.points }}" style="stroke: {{ serie.color }};"></polyline>
+      {% for dot in serie.dots %}
+        <circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="3.5" style="fill: {{ serie.color }};"><title>{{ serie.label }} {{ dot.day|date:"d/m" }}: {{ dot.value }}</title></circle>
+      {% endfor %}
+    {% endfor %}
+  </svg>
+  <div class="sec-trend-legend">
+    {% for serie in trend.series %}<span style="--dot: {{ serie.color }};">{{ serie.label }}: <strong>{{ serie.total }}</strong></span>{% endfor %}
+  </div>
+</div>
+{% endif %}

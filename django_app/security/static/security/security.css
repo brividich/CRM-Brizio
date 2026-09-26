@@ -91,57 +91,47 @@
 .soc-module .sec-kpi-delta { display: block; margin-top: 10px; color: var(--warning); font-size: var(--fs-base); font-weight: 600; }
 .soc-module .sec-kpi-delta.sec-good { color: var(--success); }
 
-/* Anelli postura */
-.soc-module .sec-ring-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.soc-module .sec-ring { text-align: center; }
+/* Anelli postura (valori calcolati da services/posture.py) */
+.soc-module .sec-ring-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+.soc-module .sec-ring { text-align: center; cursor: help; }
 .soc-module .sec-ring-meter {
-  width: 104px;
+  width: 92px;
   aspect-ratio: 1;
-  margin: 0 auto 10px;
+  margin: 0 auto 8px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: conic-gradient(var(--ring, var(--warning)) calc(var(--score, 72) * 1%), var(--border) 0);
+  background: conic-gradient(var(--ring, var(--warning)) calc(var(--score, 0) * 1%), var(--border) 0);
 }
 .soc-module .sec-ring-meter span {
   display: grid;
   place-items: center;
-  width: 76px;
+  width: 68px;
   aspect-ratio: 1;
   border-radius: 50%;
   background: var(--surface);
   color: var(--text);
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
 }
 .soc-module .sec-ring strong { display: block; color: var(--text); }
 .soc-module .sec-ring small { color: var(--text-light); }
+.soc-module .sec-ring.tone-success { --ring: var(--success); }
+.soc-module .sec-ring.tone-warning { --ring: var(--warning); }
+.soc-module .sec-ring.tone-danger { --ring: var(--danger); }
+.soc-module .sec-ring.tone-muted { --ring: var(--border); }
+.soc-module .sec-ring.tone-muted .sec-ring-meter span { color: var(--text-light); }
+.soc-module .sec-ring-note { margin: 12px 0 0; color: var(--text-light); font-size: var(--fs-sm, 12px); }
 
-/* Chart placeholder */
-.soc-module .sec-chart {
-  height: 238px;
-  position: relative;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background:
-    linear-gradient(var(--border) 1px, transparent 1px) 0 0 / 100% 25%,
-    linear-gradient(90deg, var(--border) 1px, transparent 1px) 0 0 / 12.5% 100%;
-  overflow: hidden;
-}
-.soc-module .sec-chart-line {
-  position: absolute;
-  left: 4%;
-  right: 4%;
-  height: 3px;
-  border-radius: 999px;
-  transform-origin: left center;
-  background: var(--line-color, var(--primary-mid));
-}
-.soc-module .sec-chart-line:nth-child(1) { top: 32%; transform: rotate(7deg); }
-.soc-module .sec-chart-line:nth-child(2) { top: 52%; transform: rotate(-5deg); --line-color: var(--warning); }
-.soc-module .sec-chart-line:nth-child(3) { top: 69%; transform: rotate(3deg); --line-color: var(--danger); }
-.soc-module .sec-bars { display: flex; align-items: end; gap: 7px; height: 170px; padding: 18px 8px 0; }
-.soc-module .sec-bar { flex: 1; min-width: 8px; border-radius: 4px 4px 0 0; background: var(--primary-mid); }
+/* Trend reale (SVG server-side, partials/trend_chart.html) */
+.soc-module .sec-trend { width: 100%; }
+.soc-module .sec-trend svg { display: block; width: 100%; height: auto; overflow: visible; }
+.soc-module .sec-trend .grid { stroke: var(--border); stroke-width: 1; }
+.soc-module .sec-trend .axis-label { fill: var(--text-light); font-size: 11px; }
+.soc-module .sec-trend polyline { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.soc-module .sec-trend circle { stroke: var(--surface); stroke-width: 1.5; }
+.soc-module .sec-trend-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; color: var(--text); font-size: var(--fs-sm, 12px); }
+.soc-module .sec-trend-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; background: var(--dot); vertical-align: -1px; }
 
 /* Tabelle */
 .soc-module .sec-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
