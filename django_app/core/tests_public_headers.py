@@ -105,4 +105,11 @@ class RotteAtokenTests(TestCase):
         )
 
     def test_form_pubblico_suggestion_corner(self):
-        self._asserisci_blindata(reverse("suggestion_corner:nuova"))
+        """Form POST pubblico: same-origin, non no-referrer — con no-referrer
+        Chromium invia Origin: null e il CSRF rifiuta l'invio. Gli altri header
+        restano quelli delle superfici pubbliche."""
+        risposta = self.client.get(reverse("suggestion_corner:nuova"))
+        self.assertEqual(risposta["Referrer-Policy"], "same-origin")
+        self.assertEqual(risposta["X-Robots-Tag"], "noindex, nofollow, noarchive")
+        self.assertEqual(risposta["X-Content-Type-Options"], "nosniff")
+        self.assertIn("no-store", risposta["Cache-Control"])
