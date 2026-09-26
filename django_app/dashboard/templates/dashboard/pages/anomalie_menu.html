@@ -244,6 +244,9 @@
         <a href="{% url 'gestione_anomalie_page' %}?filter=in_carico" class="btn-main">
           Segnalazioni in Carico
         </a>
+        <a href="{% url 'anomalie_nc_lista' %}" class="btn-main">
+          Non Conformit&agrave;
+        </a>
       {% endif %}
     </div>
     {% if not can_create_anomalie and not can_view_anomalie_list %}

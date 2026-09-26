@@ -316,7 +316,7 @@
       );
     };
 
-    // --- Scheda qualita' (protocollo NC, classificazione, registro NC, proposta AI) ---
+    // --- Scheda qualita' della singola anomalia (classificazione, NC dell'OP, proposta AI) ---
     // Consuma /api/anomalie/qualita (GET crea la scheda al primo accesso) e
     // /api/anomalie/qualita/copilota (proposta AI, non salva nulla).
     const GRAVITA_COLORS = {
@@ -404,7 +404,7 @@
           const d = await readJsonOrThrow(r, "Salvataggio scheda qualità");
           if (!d.success) throw new Error(d.error || "Salvataggio non riuscito");
           setScheda(d.scheda); setDraft(toDraft(d.scheda));
-          flash({ ok: true, text: d.scheda.registro_nc ? `Scheda salvata · NC ${d.scheda.registro_nc.numero} nel registro` : "Scheda salvata" });
+          flash({ ok: true, text: "Scheda salvata" });
         } catch (e) {
           flash({ ok: false, text: e.message });
         }
@@ -441,36 +441,28 @@
         const hit = (list || []).find((o) => String(o.value) === String(value));
         return hit ? hit.label : "";
       };
-      const reg = scheda && scheda.registro_nc;
+      const nc = scheda && scheda.nc;
       const grav = GRAVITA_COLORS[draft.gravita] || null;
 
       return (
         <div style={{ marginTop: 20, border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)", overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 16px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
             <span className="text-sm font-semibold" style={{ fontWeight: 700, color: "var(--text)" }}>Scheda qualità</span>
-            {scheda && (
-              <span className="text-xs font-bold" style={{ fontFamily: "ui-monospace,monospace", padding: "2px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }}>
-                {scheda.protocollo}
-              </span>
-            )}
             {grav && (
               <span className="text-2xs font-semibold" style={{ padding: "2px 8px", borderRadius: 99, background: grav.bg, color: grav.fg, fontWeight: 700, textTransform: "uppercase" }}>
                 {label(scelte && scelte.gravita, draft.gravita)}
               </span>
             )}
             <span style={{ marginLeft: "auto" }} />
-            {reg ? (
-              <a href={reg.url || "#"} target="_blank" rel="noopener" className="text-xs font-semibold" style={{
+            {nc && (
+              <a href={nc.url || "#"} target="_blank" rel="noopener" className="text-xs font-semibold" style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
                 padding: "3px 10px", borderRadius: 99, textDecoration: "none", fontWeight: 700,
-                background: reg.chiuso ? "var(--success-bg)" : "var(--warning-bg)", color: reg.chiuso ? "var(--success)" : "var(--warning)",
-              }} title="Voce del registro OFI/NC (ISO 9001 §10.2)">
-                Registro NC n. {reg.numero} · {reg.fase}
+                background: nc.chiusa ? "var(--success-bg)" : "var(--warning-bg)", color: nc.chiusa ? "var(--success)" : "var(--warning)",
+              }} title="Non conformità dell'OP: contenimento, analisi, azioni e verifica">
+                <span style={{ fontFamily: "ui-monospace,monospace" }}>{nc.protocollo}</span> · {nc.stato_label}
               </a>
-            ) : scheda ? (
-              <span className="text-xs" style={{ color: "var(--text-light)" }} title="Entra nel registro NC se gravità maggiore/critica, segnalata al cliente, con RDC o difetto ricorrente">
-                Non nel registro NC
-              </span>
-            ) : null}
+            )}
           </div>
 
           <div style={{ padding: "14px 16px" }}>
@@ -562,7 +554,7 @@
                       <div style={{ marginTop: 8 }}>
                         <div className="text-2xs font-semibold" style={{ color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Casi simili</div>
                         {ai.simili.map((c) => (
-                          <div key={c.protocollo} className="text-xs" style={{ color: "var(--text-mid)", padding: "3px 0", borderTop: "1px solid var(--border)" }}>
+                          <div key={c.anomalia_id || c.protocollo} className="text-xs" style={{ color: "var(--text-mid)", padding: "3px 0", borderTop: "1px solid var(--border)" }}>
                             <span style={{ fontFamily: "ui-monospace,monospace", color: "var(--text)" }}>{c.protocollo}</span>
                             {" · "}{c.tipo_difetto_label}{c.part_number ? ` · P/N ${c.part_number}` : ""} — {c.descrizione}
                           </div>
@@ -1158,6 +1150,16 @@
                   color: "#e2e8f0", textDecoration: "none",
                 }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg>
+                </a>
+              )}
+              {!isMobile && API.nc_lista && (
+                <a className="text-base font-semibold" href={API.nc_lista} title="Non conformità per OP" style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
+                  borderRadius: 8, padding: "7px 16px", color: "#e2e8f0",
+                  fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap",
+                }}>
+                  Non conformità
                 </a>
               )}
               {/* Messaggio di salvataggio / sync */}

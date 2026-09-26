@@ -177,6 +177,15 @@ def run_anomalie_escalation(*, force_email: bool = False) -> dict:
         except Exception:
             logger.exception("run_anomalie_escalation: digest settimanale fallito")
 
-    if any(out[k] for k in ("reminders", "email_sent", "rdc_reminders", "ricorrenze", "op_completati", "digest_sent")):
+    # 6) Non conformita': promemoria in-app sulle azioni in scadenza/scadute (sempre attivo,
+    #    uno al giorno per azione, solo per azioni con responsabile).
+    try:
+        from anomalie.nc_service import notifica_azioni_in_scadenza
+        out["nc_azioni_promemoria"] = notifica_azioni_in_scadenza()
+    except Exception:
+        logger.exception("run_anomalie_escalation: promemoria azioni NC falliti")
+
+    if any(out.get(k) for k in ("reminders", "email_sent", "rdc_reminders", "ricorrenze", "op_completati",
+                                "digest_sent", "nc_azioni_promemoria")):
         logger.info("run_anomalie_escalation: %s", out)
     return out

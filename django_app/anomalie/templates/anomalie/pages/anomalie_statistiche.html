@@ -300,7 +300,7 @@
       w.d.innerHTML = m; w.o.innerHTML = m; w.s.innerHTML = m;
       return;
     }
-    $('qualita-sub').textContent = `${q.classificate} ${q.classificate === 1 ? 'scheda classificata' : 'schede classificate'} su ${q.totale} · ${q.registrate_nc} NC nel registro`;
+    $('qualita-sub').textContent = `${q.classificate} ${q.classificate === 1 ? 'scheda classificata' : 'schede classificate'} su ${q.totale} · ${q.nc} non conformità (OP)`;
     w.d.innerHTML = renderPareto(q.per_difetto, 'Tipo difetto');
     w.o.innerHTML = renderPareto(q.per_origine, 'Origine');
     w.s.innerHTML = renderPareto(q.per_disposizione, 'Decisione');

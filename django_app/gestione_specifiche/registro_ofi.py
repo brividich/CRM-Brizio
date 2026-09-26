@@ -20,7 +20,6 @@ _OFI_BASE = 1000  # coerente con gestione_specifiche.ofi._OFI_BASE
 MODULO_LABELS = {
     "gestione_specifiche": "Specifiche / MOD.133",
     "sistema_gestione": "Sistema di gestione / Audit",
-    "anomalie": "Gestione anomalie",
 }
 
 

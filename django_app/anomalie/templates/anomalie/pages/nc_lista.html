@@ -1,0 +1,86 @@
+{% extends "core/base.html" %}
+
+{% block title %}Non conformità | Anomalie{% endblock %}
+
+{% block extra_head %}
+<style>
+  .nc-filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .nc-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:99px; border:1px solid var(--border); background:var(--surface); color:var(--text-mid); font-size:var(--fs-sm); font-weight:600; text-decoration:none; }
+  .nc-chip b { color:var(--text); }
+  .nc-chip.active { border-color:var(--accent); background:var(--accent-light); color:var(--text); }
+  .nc-stato { display:inline-block; padding:2px 10px; border-radius:99px; font-size:var(--fs-xs); font-weight:700; text-transform:uppercase; letter-spacing:.03em; white-space:nowrap; border:1px solid var(--border); background:var(--bg); color:var(--text-mid); }
+  .nc-stato.s-APERTA { background:var(--warning-bg); color:var(--warning); border-color:transparent; }
+  .nc-stato.s-CONTENIMENTO, .nc-stato.s-ANALISI, .nc-stato.s-AZIONI { background:var(--accent-light); color:var(--text); border-color:transparent; }
+  .nc-stato.s-VERIFICA { background:var(--success-bg); color:var(--success); border-color:transparent; }
+  .nc-prot { font-family:ui-monospace,monospace; font-weight:700; color:var(--text); text-decoration:none; }
+  .nc-sub { color:var(--text-light); font-size:var(--fs-xs); }
+  .nc-late { color:var(--danger); font-weight:700; }
+  tr.nc-row { cursor:pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-main">
+    <a href="{% url 'anomalie_menu' %}" class="btn-back">&#8592; Menu Anomalie</a>
+    <div class="page-h" style="margin-top:8px;">Non conformit&agrave;</div>
+    <div class="page-sub">Una scheda per OP: contenimento, analisi delle cause, azioni correttive e verifica di efficacia (ISO 9001 &sect;10.2). Tutte le sezioni sono facoltative.</div>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'gestione_anomalie_page' %}" class="btn btn-secondary btn-sm">Gestione anomalie</a>
+    <a href="{% url 'anomalie_statistiche_page' %}" class="btn btn-secondary btn-sm">Statistiche</a>
+  </div>
+</div>
+
+{% if messages %}
+  <div class="messages-wrap">
+    {% for message in messages %}<div class="notice {% if message.tags == 'error' %}notice-danger{% elif message.tags == 'success' %}notice-success{% endif %}">{{ message }}</div>{% endfor %}
+  </div>
+{% endif %}
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="display:grid;gap:12px;">
+    <div class="nc-filters">
+      <a class="nc-chip{% if filtro.stato == 'APERTE' %} active{% endif %}" href="?stato=aperte{% if filtro.q %}&amp;q={{ filtro.q|urlencode }}{% endif %}{% if filtro.mie %}&amp;mie=1{% endif %}">Aperte <b>{{ n_aperte }}</b></a>
+      {% for val, label in stati %}
+        <a class="nc-chip{% if filtro.stato == val %} active{% endif %}" href="?stato={{ val }}{% if filtro.q %}&amp;q={{ filtro.q|urlencode }}{% endif %}{% if filtro.mie %}&amp;mie=1{% endif %}">{{ label }} <b>{% for k, n in conteggi.items %}{% if k == val %}{{ n }}{% endif %}{% endfor %}</b></a>
+      {% endfor %}
+      <a class="nc-chip{% if filtro.stato == 'TUTTE' %} active{% endif %}" href="?stato=tutte{% if filtro.q %}&amp;q={{ filtro.q|urlencode }}{% endif %}">Tutte</a>
+    </div>
+    <form method="get" class="nc-filters">
+      <input type="hidden" name="stato" value="{{ filtro.stato|lower }}">
+      <input type="text" name="q" value="{{ filtro.q }}" class="input" placeholder="Cerca per OP, P/N o protocollo&hellip;" style="flex:1;min-width:220px;">
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--text-mid);white-space:nowrap;"><input type="checkbox" style="min-height:0;width:16px;height:16px;" name="mie" value="1"{% if filtro.mie %} checked{% endif %}> <span>Solo le mie</span></label>
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--text-mid);white-space:nowrap;"><input type="checkbox" style="min-height:0;width:16px;height:16px;" name="scadute" value="1"{% if filtro.scadute %} checked{% endif %}> <span>Con azioni scadute</span></label>
+      <button type="submit" class="btn btn-sm">Filtra</button>
+      {% if filtro.q or filtro.mie or filtro.scadute %}<a href="?stato={{ filtro.stato|lower }}" class="btn btn-secondary btn-sm">Azzera</a>{% endif %}
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body" style="padding:0;">
+    <div class="table-wrap" style="border:none;border-radius:0;">
+      <table class="admin-table">
+        <thead><tr><th>Protocollo</th><th>OP / P/N</th><th>Capocommessa / CAR</th><th>Anomalie</th><th>Azioni aperte</th><th>Stato</th><th>Aperta il</th></tr></thead>
+        <tbody>
+        {% for nc in righe %}
+          <tr class="nc-row" onclick="if(!event.target.closest('a'))location.href='{% url 'anomalie_nc_dettaglio' nc.pk %}'">
+            <td><a class="nc-prot" href="{% url 'anomalie_nc_dettaglio' nc.pk %}">{{ nc.protocollo }}</a>{% if nc.precedente_id %}<div class="nc-sub">ricaduta</div>{% endif %}</td>
+            <td>{{ nc.op_titolo }}<div class="nc-sub">{{ nc.part_number|default:"—" }}</div></td>
+            <td>{{ nc.capocommessa|default:"—" }}<div class="nc-sub">{{ nc.car|default:"—" }}</div></td>
+            <td>{{ nc.n_schede }}</td>
+            <td>{% if nc.n_azioni_aperte %}{{ nc.n_azioni_aperte }}{% if nc.n_azioni_scadute %} <span class="nc-late">({{ nc.n_azioni_scadute }} scadute)</span>{% endif %}{% else %}—{% endif %}</td>
+            <td><span class="nc-stato s-{{ nc.stato }}">{{ nc.get_stato_display }}</span></td>
+            <td>{{ nc.created_at|date:"d/m/Y" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7" class="cell-muted" style="text-align:center;padding:24px;">Nessuna non conformit&agrave; per i filtri scelti.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if troncata %}<div class="nc-sub" style="padding:10px 16px;">Mostrate le ultime {{ righe|length }} NC visibili: restringi con la ricerca.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

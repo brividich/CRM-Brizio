@@ -182,4 +182,11 @@ from .mail_action_models import (  # noqa: E402,F401
 )
 from .mail_log_models import AnomalieEmailLog  # noqa: E402,F401
 from .automation_models import AnomalieAutomazioneMarker  # noqa: E402,F401
-from .quality_models import AnomaliaSchedaQualita, AnomaliaTipoDifetto  # noqa: E402,F401
+from .quality_models import (  # noqa: E402,F401
+    AnomaliaNC,
+    AnomaliaNCAllegato,
+    AnomaliaNCAzione,
+    AnomaliaNCEvento,
+    AnomaliaSchedaQualita,
+    AnomaliaTipoDifetto,
+)
