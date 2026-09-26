@@ -69,11 +69,11 @@ COMMON_LABELS = {
     "replace_webhook_secret": "Sostituisci segreto webhook",
     "scope_type": "Tipo ambito",
     "severity": "Severita",
-    "severity_mapping_json": "Mappatura severita JSON",
+    "severity_mapping_json": "Mappatura severità (JSON)",
     "severity_min": "Severita minima",
     "sla_by_severity": "SLA per severita",
     "source": "Sorgente",
-    "source_type": "source_type",
+    "source_type": "Tipo sorgente",
     "starts_at": "Inizia il",
     "statuses": "Stati",
     "threshold_json": "Soglia JSON",
@@ -91,7 +91,50 @@ class SecurityCenterSettingForm(forms.ModelForm):
         widgets = {"value": JSON_TEXTAREA}
 
 
+FREQUENCY_LABELS_IT = {
+    "manual": "Manuale",
+    "hourly": "Oraria",
+    "daily": "Giornaliera",
+    "weekly": "Settimanale",
+    "monthly": "Mensile",
+}
+
+
+class PatternListField(forms.CharField):
+    """Lista di pattern come testo «uno per riga» (prima: JSON grezzo da scrivere a mano)."""
+
+    widget = forms.Textarea(attrs={"rows": 3, "placeholder": "Uno per riga, es. *watchguard*"})
+
+    def prepare_value(self, value):
+        if isinstance(value, (list, tuple)):
+            return "\n".join(str(item) for item in value)
+        return value
+
+    def to_python(self, value):
+        if isinstance(value, (list, tuple)):
+            return [str(item).strip() for item in value if str(item).strip()]
+        text = super().to_python(value) or ""
+        return [line.strip() for line in text.splitlines() if line.strip()]
+
+
 class SecuritySourceConfigForm(forms.ModelForm):
+    mailbox_sender_patterns = PatternListField(
+        label="Pattern mittente", required=False,
+        help_text="Uno per riga; * vale per qualsiasi testo (es. *@watchguard.com).",
+    )
+    mailbox_subject_patterns = PatternListField(
+        label="Pattern oggetto", required=False,
+        help_text="Uno per riga; basta che l'oggetto corrisponda a uno di essi.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["expected_frequency"].choices = [
+            (value, FREQUENCY_LABELS_IT.get(value, label)) for value, label in self.fields["expected_frequency"].choices
+        ]
+        self.fields["expected_time_window_start"].label = "Finestra attesa: dalle"
+        self.fields["expected_time_window_end"].label = "Finestra attesa: alle"
+
     class Meta:
         model = SecuritySourceConfig
         fields = [

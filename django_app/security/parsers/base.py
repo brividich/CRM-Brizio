@@ -28,3 +28,11 @@ class BaseParser:
 
     def parse(self, item) -> ParsedReport:
         raise NotImplementedError
+
+    def impersonation_suspect(self, item) -> bool:
+        """True when the CONTENT looks like this vendor's report but the provenance check
+        rejected the sender. Never used to accept a message: only to flag it instead of
+        dropping it in silence (see ``parser_engine.mark_skipped``)."""
+        return False
+
+    claimed_vendor = ""
