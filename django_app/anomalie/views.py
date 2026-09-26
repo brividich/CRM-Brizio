@@ -3055,6 +3055,58 @@ def api_sync(request):
     return _json_error("Sincronizzazione SharePoint non disponibile", status=410)
 
 
+# Etichette leggibili per il tab «Log attività» della configurazione.
+_AUDIT_AZIONI_LABEL = {
+    "export_csv": "Export CSV",
+    "anomalia_creata": "Anomalia creata",
+    "anomalia_modificata": "Anomalia modificata",
+    "anomalia_sync": "Sincronizzazione",
+    "auto_insert": "Inserimento automatico",
+    "auto_update": "Modifica automatica",
+    "auto_delete": "Eliminazione automatica",
+    "anomalie_config_liste_update": "Configurazione salvata",
+}
+_AUDIT_CHIAVI_LABEL = {
+    "rows": "righe",
+    "filters": "filtri",
+    "local_id": "anomalia",
+    "item_id": "item",
+    "op_id": "OP",
+    "sn": "S/N",
+    "model": "modello",
+    "pk": "id",
+    "valori": "valori",
+    "inseriti": "inseriti",
+    "aggiornati": "aggiornati",
+}
+
+
+def _audit_value_text(value, limit: int = 140) -> str:
+    if isinstance(value, dict):
+        parts = [f"{k}={_audit_value_text(v, 40)}" for k, v in value.items() if v not in (None, "", [], {})]
+        text = ", ".join(parts) or "—"
+    elif isinstance(value, (list, tuple)):
+        text = ", ".join(_audit_value_text(v, 40) for v in value) or "—"
+    elif isinstance(value, bool):
+        text = "sì" if value else "no"
+    else:
+        text = str(value)
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _audit_detail_items(dettaglio) -> list[tuple[str, str]]:
+    """Dettaglio AuditLog come coppie (etichetta, valore) leggibili, senza i campi vuoti."""
+    if not isinstance(dettaglio, dict):
+        text = str(dettaglio or "").strip()
+        return [("", _audit_value_text(text))] if text else []
+    items = []
+    for key, value in dettaglio.items():
+        if value in (None, "", [], {}):
+            continue
+        items.append((_AUDIT_CHIAVI_LABEL.get(key, str(key).replace("_", " ")), _audit_value_text(value)))
+    return items
+
+
 @login_required
 @ensure_csrf_cookie
 def anomalie_configurazione_page(request):
@@ -3136,7 +3188,10 @@ def anomalie_configurazione_page(request):
     else:
         q_anomalie = ""
 
-    audit_entries = AuditLog.objects.filter(modulo="anomalie").order_by("-created_at")[:100]
+    audit_entries = list(AuditLog.objects.filter(modulo="anomalie").order_by("-created_at")[:100])
+    for entry in audit_entries:
+        entry.azione_label = _AUDIT_AZIONI_LABEL.get(entry.azione, str(entry.azione or "").replace("_", " ").capitalize())
+        entry.dettaglio_items = _audit_detail_items(entry.dettaglio)
 
     email_log_context = {}
     if tab == "log":
