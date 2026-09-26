@@ -377,7 +377,18 @@ def nuova(request):
     """Form pubblico: crea una segnalazione (INSERITA→DA_CLASSIFICARE).
 
     Rate-limit per IP + honeypot anti-bot. Nessun login richiesto.
+
+    `Referrer-Policy: same-origin` invece del `no-referrer` di
+    `risposta_pubblica`: con `no-referrer` Chromium invia `Origin: null`
+    sul POST del form e il controllo CSRF di Django lo rifiuta (l'invio finiva
+    su «Sessione scaduta»). same-origin non fa uscire nulla dal dominio.
     """
+    response = _nuova(request)
+    response["Referrer-Policy"] = "same-origin"
+    return response
+
+
+def _nuova(request):
     from .ratelimit import is_rate_limited
 
     if request.method == "POST":
