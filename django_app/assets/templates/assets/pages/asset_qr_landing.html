@@ -160,71 +160,42 @@ a.qrl-wo-item:first-child { margin-top: 0; }
 .qrl-tkt-num { font-size: .72rem; font-weight: 800; color: #64748b; letter-spacing: .02em; }
 .qrl-tkt-open { margin-left: auto; font-size: .75rem; color: #1d4ed8; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .qrl-badge--violet { background: #ede9fe; color: #5b21b6; }
-.qrl-upload { margin-top: 8px; }
+.qrl-upload { margin-top: 10px; }
 .qrl-upload > summary {
   list-style: none;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px dashed #93c5fd;
-  background: #eff6ff;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(180deg, #f0f7ff 0%, #e6f0ff 100%);
   color: #1d4ed8;
-  font-size: .85rem;
-  font-weight: 700;
-}
-.qrl-upload > summary::-webkit-details-marker { display: none; }
-.qrl-upload[open] > summary { border-style: solid; }
-.qrl-form { display: grid; gap: 10px; padding: 12px 2px 2px; }
-.qrl-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.qrl-pick label {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 14px 8px;
-  border-radius: 12px;
-  border: 1px solid #dbe1ea;
-  background: #f8fafc;
-  font-size: .8rem;
-  font-weight: 700;
-  color: #0f172a;
-  cursor: pointer;
-  text-align: center;
-}
-.qrl-pick label:focus-within { outline: 2px solid #1d4ed8; outline-offset: 2px; }
-.qrl-pick input[type=file] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-.qrl-pick-icon { font-size: 1.5rem; line-height: 1; }
-.qrl-files { font-size: .78rem; color: #475569; min-height: 1em; word-break: break-word; }
-.qrl-field { display: grid; gap: 4px; font-size: .78rem; font-weight: 600; color: #475569; }
-.qrl-field input, .qrl-field select {
-  width: 100%;
-  padding: 10px 11px;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  font-size: 1rem; /* >=16px: niente zoom automatico su iOS */
-  font-family: inherit;
-  background: #fff;
-  color: #0f172a;
-}
-.qrl-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
-.qrl-submit {
-  padding: 13px 14px;
-  border: none;
-  border-radius: 12px;
-  background: var(--primary, #1d4ed8);
-  color: #fff;
-  font-size: .95rem;
+  font-size: .9rem;
   font-weight: 800;
-  cursor: pointer;
-  font-family: inherit;
+  transition: box-shadow .15s, border-color .15s;
 }
-.qrl-submit[disabled] { opacity: .6; cursor: wait; }
-.qrl-hint { font-size: .72rem; color: #94a3b8; text-align: center; }
+.qrl-upload > summary:hover { border-color: #93c5fd; box-shadow: 0 2px 8px rgba(29,78,216,.12); }
+.qrl-upload > summary::-webkit-details-marker { display: none; }
+.qrl-upload-ico { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: #fff; color: #1d4ed8; flex-shrink: 0; box-shadow: 0 1px 2px rgba(15,23,42,.08); }
+.qrl-upload-ico svg { width: 17px; height: 17px; }
+.qrl-upload-label { flex: 1; }
+.qrl-upload-sub { display: block; font-size: .72rem; font-weight: 600; color: #3b82f6; margin-top: 1px; }
+.qrl-upload-chev { width: 18px; height: 18px; transition: transform .2s; flex-shrink: 0; }
+.qrl-upload[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.qrl-upload[open] .qrl-upload-chev { transform: rotate(180deg); }
+.qrl-upload-body {
+  border: 1px solid #bfdbfe;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  padding: 14px 12px 12px;
+  background: #fff;
+}
+/* Sul telefono i campi restano a 16px: niente zoom automatico di iOS */
+.qrl-upload-body .upl-field input[type=text] { font-size: 16px; padding: 11px 12px; }
+.qrl-upload-body .upl-seg-option span { min-height: 44px; }
+.qrl-hint { font-size: .72rem; color: #94a3b8; text-align: center; margin: 0; }
 
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
@@ -245,11 +216,10 @@ a.qrl-wo-item:first-child { margin-top: 0; }
   .qrl-tkt-num { color: #94a3b8; }
   .qrl-tkt-open { color: #60a5fa; }
   .qrl-badge--violet { background: rgba(124,58,237,.25); color: #c4b5fd; }
-  .qrl-upload > summary { background: rgba(29,78,216,.15); border-color: rgba(96,165,250,.45); color: #93c5fd; }
-  .qrl-pick label { background: #0f172a; border-color: #334155; color: #f1f5f9; }
-  .qrl-files { color: #cbd5e1; }
-  .qrl-field { color: #cbd5e1; }
-  .qrl-field input, .qrl-field select { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+  .qrl-upload > summary { background: rgba(29,78,216,.15); border-color: rgba(96,165,250,.35); color: #93c5fd; }
+  .qrl-upload-ico { background: #0f172a; color: #93c5fd; }
+  .qrl-upload-sub { color: #7dabf8; }
+  .qrl-upload-body { background: #172033; border-color: rgba(96,165,250,.35); }
 }
 /* Tema scuro scelto nel portale (landing autenticata) */
 body.theme-dark .qrl-card { background: var(--surface, #1e293b); border-color: var(--border, #334155); }
@@ -261,11 +231,12 @@ body.theme-dark .qrl-tkt-open { color: #60a5fa; }
 body.theme-dark .qrl-msg--success { background: rgba(6,95,70,.22); color: #6ee7b7; border-color: rgba(110,231,183,.25); }
 body.theme-dark .qrl-msg--error { background: rgba(153,27,27,.22); color: #fca5a5; border-color: rgba(252,165,165,.25); }
 body.theme-dark .qrl-badge--violet { background: rgba(124,58,237,.25); color: #c4b5fd; }
-body.theme-dark .qrl-upload > summary { background: rgba(29,78,216,.15); border-color: rgba(96,165,250,.45); color: #93c5fd; }
-body.theme-dark .qrl-pick label { background: var(--surface-alt, #0f172a); border-color: #334155; color: #f1f5f9; }
-body.theme-dark .qrl-files, body.theme-dark .qrl-field { color: #cbd5e1; }
-body.theme-dark .qrl-field input, body.theme-dark .qrl-field select { background: var(--surface-alt, #0f172a); border-color: #334155; color: #f1f5f9; }
+body.theme-dark .qrl-upload > summary { background: rgba(29,78,216,.15); border-color: rgba(96,165,250,.35); color: #93c5fd; }
+body.theme-dark .qrl-upload-ico { background: var(--surface-alt, #0f172a); color: #93c5fd; }
+body.theme-dark .qrl-upload-sub { color: #7dabf8; }
+body.theme-dark .qrl-upload-body { background: var(--surface, #1e293b); border-color: rgba(96,165,250,.35); }
 </style>
+<link rel="stylesheet" href="{% static 'tickets/css/allegati_upload.css' %}">
 
 <div class="qrl-body">
 
@@ -392,45 +363,56 @@ body.theme-dark .qrl-field input, body.theme-dark .qrl-field select { background
 
             {% if qr_upload_enabled and t.upload_url %}
             <details class="qrl-upload">
-              <summary>&#128206; Allega rapportino o foto</summary>
-              <form method="post" action="{{ t.upload_url }}" enctype="multipart/form-data" class="qrl-form" data-qrl-upload>
+              <summary>
+                <span class="qrl-upload-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 11-8.6 8.6a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7L10 17.3a1.7 1.7 0 0 1-2.3-2.3L15.6 7"/></svg></span>
+                <span class="qrl-upload-label">Allega rapportino o foto<span class="qrl-upload-sub">Fotografa il foglio o scegli un PDF</span></span>
+                <svg class="qrl-upload-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </summary>
+              <div class="qrl-upload-body">
+              <form method="post" action="{{ t.upload_url }}" enctype="multipart/form-data" class="upl-form" data-upload-form
+                    data-max-files="{% if qr_public %}5{% else %}10{% endif %}" data-max-mb="{% if qr_public %}15{% else %}20{% endif %}">
                 {% csrf_token %}
                 {% if not qr_public %}<input type="hidden" name="next" value="{{ qr_landing_url }}#ticket">{% endif %}
-                <div class="qrl-pick">
-                  <label>
-                    <span class="qrl-pick-icon">&#128247;</span>
-                    Scatta foto
+                <div class="upl-drop-pair">
+                  <label class="upl-drop" data-upload-drop>
                     <input type="file" name="file" accept="image/*" capture="environment" aria-label="Scatta una foto del documento">
+                    <span class="upl-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg></span>
+                    <span class="upl-drop-title">Scatta foto</span>
+                    <span class="upl-drop-hint">Fotocamera</span>
                   </label>
-                  <label>
-                    <span class="qrl-pick-icon">&#128193;</span>
-                    Scegli file
+                  <label class="upl-drop" data-upload-drop>
                     <input type="file" name="file" multiple accept="{% if qr_public %}image/jpeg,image/png,application/pdf,.pdf,.jpg,.jpeg,.png{% else %}image/*,.pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt{% endif %}" aria-label="Scegli file da allegare">
+                    <span class="upl-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>
+                    <span class="upl-drop-title">Scegli file</span>
+                    <span class="upl-drop-hint">{% if qr_public %}JPG, PNG o PDF{% else %}Foto, PDF, Office{% endif %}</span>
                   </label>
                 </div>
-                <div class="qrl-files" data-qrl-files></div>
+                <ul class="upl-chips" data-upload-chips hidden></ul>
                 {% if qr_public %}
-                  <label class="qrl-field">Nome e cognome *
-                    <input type="text" name="nome" required minlength="3" maxlength="200" autocomplete="name" value="{{ qr_uploader_name }}">
+                  <label class="upl-field">Nome e cognome
+                    <input type="text" name="nome" required minlength="3" maxlength="200" autocomplete="name" placeholder="Chi carica il documento" value="{{ qr_uploader_name }}">
                   </label>
-                  <label class="qrl-field">Ditta (se esterno)
-                    <input type="text" name="ditta" maxlength="200" autocomplete="organization">
+                  <label class="upl-field">Ditta <small>(se esterno)</small>
+                    <input type="text" name="ditta" maxlength="200" autocomplete="organization" placeholder="Es. Rossi Impianti Srl">
                   </label>
-                  <div class="qrl-hp" aria-hidden="true"><label>Sito web <input type="text" name="sito_web" tabindex="-1" autocomplete="off"></label></div>
+                  <div class="upl-hp" aria-hidden="true"><label>Sito web <input type="text" name="sito_web" tabindex="-1" autocomplete="off"></label></div>
                 {% endif %}
-                <label class="qrl-field">Tipo di documento
-                  <select name="tipo_documento">
-                    <option value="RAPPORTINO">Rapportino di intervento</option>
-                    <option value="FOTO">Foto</option>
-                    <option value="ALTRO">Altro documento</option>
-                  </select>
+                <fieldset class="upl-seg">
+                  <legend>Tipo di documento</legend>
+                  <div class="upl-seg-options">
+                    <label class="upl-seg-option"><input type="radio" name="tipo_documento" value="RAPPORTINO" checked><span>Rapportino</span></label>
+                    <label class="upl-seg-option"><input type="radio" name="tipo_documento" value="FOTO"><span>Foto</span></label>
+                    <label class="upl-seg-option"><input type="radio" name="tipo_documento" value="ALTRO"><span>Altro</span></label>
+                  </div>
+                </fieldset>
+                <label class="upl-field">Note <small>(facoltative)</small>
+                  <input type="text" name="descrizione" maxlength="500" placeholder="Es. cinghia sostituita">
                 </label>
-                <label class="qrl-field">Note (facoltative)
-                  <input type="text" name="descrizione" maxlength="500" placeholder="Es. sostituita cinghia, macchina ripartita">
-                </label>
-                <button type="submit" class="qrl-submit">Invia al ticket {{ t.numero }}</button>
-                <p class="qrl-hint">{% if qr_public %}Solo foto (JPG/PNG) o PDF, max 15 MB, fino a 5 file. Il team manutenzione verificherà il documento.{% else %}Max 20 MB per file. Se non gestisci il ticket, il team manutenzione verificherà il documento.{% endif %}</p>
+                <span class="upl-status" data-upload-status aria-live="polite"></span>
+                <button type="submit" class="upl-btn upl-btn--block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>Invia al ticket {{ t.numero }}</button>
+                <p class="qrl-hint">{% if qr_public %}Max 5 file da 15 MB. Il team manutenzione verificherà il documento.{% else %}Max 20 MB per file. Se non gestisci il ticket, il team manutenzione verificherà il documento.{% endif %}</p>
               </form>
+              </div>
             </details>
             {% endif %}
           </div>
@@ -571,36 +553,11 @@ body.theme-dark .qrl-field input, body.theme-dark .qrl-field select { background
 </div>
 <script>
 (function () {
-  document.querySelectorAll('form[data-qrl-upload]').forEach(function (form) {
-    var inputs = form.querySelectorAll('input[type=file]');
-    var out = form.querySelector('[data-qrl-files]');
-    function selected() {
-      var names = [];
-      inputs.forEach(function (inp) {
-        Array.prototype.forEach.call(inp.files || [], function (f) { names.push(f.name); });
-      });
-      return names;
-    }
-    inputs.forEach(function (inp) {
-      inp.addEventListener('change', function () {
-        var names = selected();
-        out.textContent = names.length ? ('✔ ' + names.length + ' file: ' + names.join(', ')) : '';
-      });
-    });
-    form.addEventListener('submit', function (ev) {
-      if (!selected().length) {
-        ev.preventDefault();
-        out.textContent = 'Scatta una foto o scegli un file prima di inviare.';
-        return;
-      }
-      var btn = form.querySelector('button[type=submit]');
-      if (btn) { btn.disabled = true; btn.textContent = 'Invio in corso…'; }
-    });
-  });
   if (location.hash === '#ticket') {
     var box = document.getElementById('ticket');
     if (box) box.scrollIntoView({ block: 'start' });
   }
 })();
 </script>
+<script src="{% static 'tickets/js/allegati_upload.js' %}" defer></script>
 {% endblock %}

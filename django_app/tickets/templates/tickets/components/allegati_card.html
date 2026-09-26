@@ -2,7 +2,7 @@
 Allegati del ticket: elenco con stato di validazione, azioni del team gestore
 e caricamento da pagina web. Parametri: ticket, allegati, can_validate,
 can_upload, next_url. I file si aprono sempre dalla view protetta.
-{% endcomment %}
+{% endcomment %}{% load static %}
 <style>
 .tka-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 22px; }
 .tka-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
@@ -39,12 +39,14 @@ can_upload, next_url. I file si aprono sempre dalla view protetta.
 .tka-btn-primary { background:#0369a1; color:#fff; }
 .tka-btn-primary:hover { background:#075985; }
 .tka-empty { color:#94a3b8; font-size:13px; }
-.tka-upload { margin-top:14px; padding-top:14px; border-top:1px dashed #e2e8f0; display:grid; gap:10px; }
-.tka-upload-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-@media (max-width:640px){ .tka-upload-row { grid-template-columns:1fr; } }
-.tka-upload label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:#475569; }
-.tka-upload select, .tka-upload input[type=text], .tka-upload input[type=file] { padding:7px 9px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; background:#fff; color:#0f172a; }
-.tka-hint { font-size:11px; color:#94a3b8; }
+.tka-validate input[type=text]:focus { outline:none; border-color:#0369a1; box-shadow:0 0 0 3px rgba(3,105,161,.15); }
+.tka-btn { display:inline-flex; align-items:center; gap:5px; }
+.tka-btn svg { width:14px; height:14px; }
+.tka-upload { margin-top:18px; padding-top:18px; border-top:1px solid #eef2f7; display:grid; gap:12px; }
+.tka-upload-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.tka-upload-title { font-size:14px; font-weight:800; color:#0f172a; }
+.tka-upload-badge { font-size:11px; font-weight:700; border-radius:99px; padding:3px 10px; background:#f5f3ff; color:#6d28d9; }
+.tka-upload-badge.is-ok { background:#ecfdf5; color:#047857; }
 
 body.theme-dark .tka-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .tka-title { color:var(--text-light); }
@@ -63,13 +65,13 @@ body.theme-dark .tka-badge-RIFIUTATO { background:rgba(153,27,27,.25); color:#fc
 body.theme-dark .tka-badge-QR { background:rgba(3,105,161,.25); color:#7dd3fc; }
 body.theme-dark .tka-link { color:#60a5fa; }
 body.theme-dark .tka-btn-ko { background:transparent; color:#fca5a5; border-color:rgba(252,165,165,.35); }
-body.theme-dark .tka-validate input[type=text],
-body.theme-dark .tka-upload select,
-body.theme-dark .tka-upload input[type=text],
-body.theme-dark .tka-upload input[type=file] { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .tka-validate input[type=text] { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .tka-upload { border-top-color:var(--border); }
-body.theme-dark .tka-upload label { color:var(--text-mid); }
+body.theme-dark .tka-upload-title { color:var(--text); }
+body.theme-dark .tka-upload-badge { background:rgba(124,58,237,.2); color:#c4b5fd; }
+body.theme-dark .tka-upload-badge.is-ok { background:rgba(6,95,70,.25); color:#6ee7b7; }
 </style>
+<link rel="stylesheet" href="{% static 'tickets/css/allegati_upload.css' %}">
 
 <div class="tka-card" id="allegati">
   <div class="tka-head">
@@ -110,8 +112,8 @@ body.theme-dark .tka-upload label { color:var(--text-mid); }
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ next_url }}#allegati">
             <input type="text" name="nota" maxlength="500" placeholder="Nota (obbligatoria se rifiuti)" aria-label="Nota di validazione">
-            <button type="submit" name="esito" value="VALIDATO" class="tka-btn tka-btn-ok">Valida</button>
-            <button type="submit" name="esito" value="RIFIUTATO" class="tka-btn tka-btn-ko">Rifiuta</button>
+            <button type="submit" name="esito" value="VALIDATO" class="tka-btn tka-btn-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Valida</button>
+            <button type="submit" name="esito" value="RIFIUTATO" class="tka-btn tka-btn-ko"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>Rifiuta</button>
           </form>
         {% endif %}
       </div>
@@ -127,28 +129,43 @@ body.theme-dark .tka-upload label { color:var(--text-mid); }
   {% endif %}
 
   {% if can_upload and not ticket.is_chiuso %}
-  <form method="post" action="{% url 'tickets:carica_allegati' ticket.pk %}" enctype="multipart/form-data" class="tka-upload">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ next_url }}#allegati">
-    <div class="tka-upload-row">
-      <label>File (foto, PDF, documenti)
-        <input type="file" name="file" multiple required accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt,.csv,.msg,.eml,.zip,.7z">
-      </label>
-      <label>Tipo di documento
-        <select name="tipo_documento">
-          <option value="RAPPORTINO">Rapportino di intervento</option>
-          <option value="FOTO">Foto</option>
-          <option value="ALTRO">Altro documento</option>
-        </select>
-      </label>
+  <div class="tka-upload">
+    <div class="tka-upload-head">
+      <span class="tka-upload-title">Aggiungi allegati</span>
+      <span class="tka-upload-badge{% if can_validate %} is-ok{% endif %}">{% if can_validate %}Già validati (sei gestore){% else %}Verranno validati dal team{% endif %}</span>
     </div>
-    <label>Note (facoltative)
-      <input type="text" name="descrizione" maxlength="500" placeholder="Es. rapportino ditta, intervento del 26/09">
-    </label>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <button type="submit" class="tka-btn tka-btn-primary">Carica allegati</button>
-      <span class="tka-hint">{% if can_validate %}Caricati da un gestore: già validati.{% else %}I file saranno validati dal team gestore.{% endif %} Max 20 MB per file.</span>
-    </div>
-  </form>
+    <form method="post" action="{% url 'tickets:carica_allegati' ticket.pk %}" enctype="multipart/form-data"
+          class="upl-form" data-upload-form data-max-files="10" data-max-mb="20">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next_url }}#allegati">
+      <label class="upl-drop" data-upload-drop>
+        <input type="file" name="file" multiple required
+               accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt,.csv,.msg,.eml,.zip,.7z"
+               aria-label="Scegli i file da allegare">
+        <span class="upl-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M20 16v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3"/></svg></span>
+        <span class="upl-drop-title">Trascina qui i file oppure <u>sfoglia</u></span>
+        <span class="upl-drop-hint">Foto, PDF e documenti Office · fino a 20 MB ciascuno · max 10 file</span>
+      </label>
+      <ul class="upl-chips" data-upload-chips hidden></ul>
+      <div class="upl-row">
+        <fieldset class="upl-seg">
+          <legend>Tipo di documento</legend>
+          <div class="upl-seg-options">
+            <label class="upl-seg-option"><input type="radio" name="tipo_documento" value="RAPPORTINO" checked><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>Rapportino</span></label>
+            <label class="upl-seg-option"><input type="radio" name="tipo_documento" value="FOTO"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>Foto</span></label>
+            <label class="upl-seg-option"><input type="radio" name="tipo_documento" value="ALTRO"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.6 8.6a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7L10 17.3a1.7 1.7 0 0 1-2.3-2.3L15.6 7"/></svg>Altro</span></label>
+          </div>
+        </fieldset>
+        <label class="upl-field">Note <small>(facoltative)</small>
+          <input type="text" name="descrizione" maxlength="500" placeholder="Es. rapportino ditta, intervento del 26/09">
+        </label>
+      </div>
+      <div class="upl-footer">
+        <span class="upl-status" data-upload-status aria-live="polite"></span>
+        <button type="submit" class="upl-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M20 16v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3"/></svg>Carica allegati</button>
+      </div>
+    </form>
+  </div>
+  <script src="{% static 'tickets/js/allegati_upload.js' %}" defer></script>
   {% endif %}
 </div>
