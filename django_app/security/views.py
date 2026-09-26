@@ -18,7 +18,6 @@ from .forms import (
     SecurityAlertSuppressionRuleForm,
     SecurityCenterSettingForm,
     SecurityNotificationChannelForm,
-    SecurityParserConfigForm,
     SecuritySourceConfigForm,
     SecurityTicketConfigForm,
 )
@@ -84,6 +83,8 @@ from .services.autoconfig import (
 )
 from .services.diagnostics import build_diagnostics_context, run_security_center_diagnostics
 from .services.security_inbox_pipeline import process_mailbox_message, process_source_file
+from .services.text_extraction import extract_text
+from .services.parser_catalog import delete_orphan_config, parser_overview, reprocess_items, test_parsers
 from .docs_render import DOC_FILES as _DOC_FILES, load_doc, slug_for
 
 
@@ -418,7 +419,78 @@ def admin_config_sources(request):
 
 @ensure_csrf_cookie
 def admin_config_parsers(request):
-    return _config_model_page(request, SecurityParserConfig, SecurityParserConfigForm, "security/admin_config/parsers.html", "admin_config_parsers", extra_context={**_parser_stats(), "section_help": CONFIG_SECTION_HELP["parsers"]})
+    if not can_manage_security_config(request.user):
+        return _security_config_denied(request)
+    test_result = None
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "test":
+            test_result = _parser_test_from_request(request)
+        else:
+            _handle_parser_action(request, action)
+            return redirect("security:admin_config_parsers")
+    context = {**parser_overview(), "test_result": test_result, "section_help": CONFIG_SECTION_HELP["parsers"], "max_upload_mb": INBOX_MAX_UPLOAD_BYTES // (1024 * 1024)}
+    return render(request, "security/admin_config/parsers.html", context)
+
+
+def _parser_test_from_request(request):
+    uploaded = request.FILES.get("file")
+    if uploaded:
+        if uploaded.size > INBOX_MAX_UPLOAD_BYTES:
+            return {"error_input": f"File troppo grande: massimo {INBOX_MAX_UPLOAD_BYTES // (1024 * 1024)} MB."}
+        return test_parsers(filename=Path(uploaded.name or "file").name, data=uploaded.read())
+    sender, subject, body = (request.POST.get(key, "").strip() for key in ("sender", "subject", "body"))
+    if not (subject or body):
+        return {"error_input": "Indica almeno oggetto o testo, oppure carica un file."}
+    result = test_parsers(sender=sender, subject=subject, body=body)
+    result["input"] = {"sender": sender, "subject": subject, "body": body}
+    return result
+
+
+def _handle_parser_action(request, action):
+    if action == "toggle":
+        name = request.POST.get("parser_name", "")
+        config = SecurityParserConfig.objects.filter(parser_name=name).first()
+        if config is None:
+            config = SecurityParserConfig.objects.create(parser_name=name, enabled=True, description="Creato dalla pagina Parser", updated_by=request.user)
+            audit_config_change(request.user, "create", config, request=request)
+        old_enabled = config.enabled
+        config.enabled = not old_enabled
+        config.updated_by = request.user
+        config.save(update_fields=["enabled", "updated_by", "updated_at"])
+        audit_config_change(request.user, "update", config, "enabled", old_enabled, config.enabled, request=request)
+        messages.success(request, f"Parser {'attivato' if config.enabled else 'disattivato'}: {name}.")
+    elif action == "priority":
+        config = get_object_or_404(SecurityParserConfig, pk=request.POST.get("object_id"))
+        try:
+            priority = max(0, int(request.POST.get("priority", "")))
+        except ValueError:
+            messages.error(request, "Priorità non valida: serve un numero intero.")
+            return
+        old_priority = config.priority
+        config.priority = priority
+        config.updated_by = request.user
+        config.save(update_fields=["priority", "updated_by", "updated_at"])
+        audit_config_change(request.user, "update", config, "priority", old_priority, priority, request=request)
+        messages.success(request, f"Priorità di {config.parser_name} impostata a {priority}.")
+    elif action == "seed":
+        result = apply_autoconfig(["parsers"], actor=request.user, request=request)
+        messages.success(request, f"{result['created']} configurazioni parser create.")
+    elif action == "delete-orphan":
+        config = get_object_or_404(SecurityParserConfig, pk=request.POST.get("object_id"))
+        if delete_orphan_config(config, actor=request.user, request=request):
+            messages.success(request, f"Configurazione eliminata: {config.parser_name}.")
+        else:
+            messages.error(request, "Il parser esiste nel codice: si disattiva, non si elimina.")
+    elif action == "reprocess":
+        result = reprocess_items()
+        messages.success(
+            request,
+            f"Rielaborazione: {result['requeued']} elementi rimessi in coda, {result['parsed']} report prodotti. "
+            f"Ancora non elaborati: {result['still_unprocessed']['failed']} in errore, {result['still_unprocessed']['skipped']} scartati.",
+        )
+    else:
+        messages.error(request, "Azione non riconosciuta.")
 
 
 @ensure_csrf_cookie
@@ -653,25 +725,6 @@ def _config_card(title, url_name, enabled_count, warning_count, latest):
     }
 
 
-def _parser_stats():
-    stats = {}
-    for report in SecurityReport.objects.values("parser_name").annotate(total=Count("id")):
-        stats[report["parser_name"]] = {"reports_parsed": report["total"]}
-    for parser in SecurityParserConfig.objects.all():
-        data = stats.setdefault(parser.parser_name, {})
-        successes = SecurityReport.objects.filter(parser_name=parser.parser_name, parse_status="parsed").order_by("-created_at")
-        failures = SecurityReport.objects.filter(parser_name=parser.parser_name, parse_status="failed").order_by("-created_at")
-        data.update(
-            {
-                "last_successful_parse": successes.first(),
-                "last_failed_parse": failures.first(),
-                "warning_count": SecurityReport.objects.filter(parser_name=parser.parser_name, parsed_payload__parse_warnings__isnull=False).count(),
-                "error_count": failures.count(),
-            }
-        )
-    return {"parser_stats": stats}
-
-
 def _latest_pipeline_reports():
     reports = []
     for report in SecurityReport.objects.prefetch_related("metrics", "events").order_by("-created_at")[:5]:
@@ -812,7 +865,8 @@ def _ingest_inbox_file(uploaded, data, result):
         return None
 
     raw = uploaded.read()
-    content = raw.decode("utf-8", errors="replace")
+    content, extraction_warnings = extract_text(original_name, raw)
+    result.setdefault("warnings", []).extend(extraction_warnings)
     source_hint = (data.get("source_hint") or "").strip()
     source, source_config = _resolve_inbox_source(subject=original_name, body=content, source_hint=source_hint, fallback_type=_source_type_for_extension(extension))
     result["source_detected"] = source_config.name if source_config else "No source matched"
@@ -823,6 +877,7 @@ def _ingest_inbox_file(uploaded, data, result):
         "extension": extension,
         "size": uploaded.size,
         "source_hint": source_hint,
+        **({"parse_warnings": extraction_warnings} if extraction_warnings else {}),
     }
     source_file.save(update_fields=["raw_payload"])
     return source_file
@@ -989,7 +1044,7 @@ CONFIG_SECTION_HELP = {
         "title": "Parser",
         "intro": "Abilita e ordina i parser che trasformano i report in metriche e finding. Priorita' piu' bassa = valutato prima.",
         "doc_slug": "02-admin-guide",
-        "tips": ["Un parser disattivato non produce metriche.", "Verifica il nome parser sulla sorgente."],
+        "tips": ["Lo stato viene dai risultati reali: report prodotti, errori, elementi scartati.", "Con «Prova i parser» verifichi una mail o un PDF senza salvare nulla.", "Dopo una correzione, «Rielabora» ripropone gli elementi rimasti indietro."],
     },
     "alert_rules": {
         "title": "Regole alert",
