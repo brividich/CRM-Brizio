@@ -46,6 +46,8 @@ _EXCLUDED_MODELS: frozenset[str] = frozenset({
     # destinatari. Duplicarlo nell'AuditLog aggiungerebbe solo rumore e una
     # seconda copia degli indirizzi.
     "anomalie.anomalieemaillog",
+    # Marcatori tecnici di idempotenza delle automazioni anomalie (scritti dal task).
+    "anomalie.anomalieautomazionemarker",
 })
 
 # Nomi di campo (o sottostringhe) da non includere nei valori loggati

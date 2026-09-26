@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ title }}</title>
+  <style>
+    @media (max-width:640px) {
+      .ew { width:100% !important; }
+      .ep { padding-left:18px !important; padding-right:18px !important; }
+      .kpi { display:block !important; width:100% !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#eef3f8;font-family:Arial,Helvetica,sans-serif;color:#182232;">
+
+<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#eef3f8;mso-hide:all;">{{ title }}</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#eef3f8;">
+  <tr>
+    <td align="center" style="padding:32px 12px 48px;">
+      <table role="presentation" width="680" cellpadding="0" cellspacing="0" class="ew"
+             style="width:680px;max-width:680px;border-collapse:separate;border-spacing:0;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 18px 45px rgba(15,23,42,.16);">
+
+        <tr>
+          <td style="padding:0;background:#002b5c;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td class="ep" style="padding:20px 30px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                    <tr>
+                      <td valign="middle"><span style="color:#ffffff;font-size:18px;font-weight:800;letter-spacing:.04em;">NOVICROM HUB</span></td>
+                      <td valign="middle" align="right">
+                        <span style="display:inline-block;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:6px 11px;color:#ffffff;font-size:11px;font-weight:700;background:rgba(255,255,255,.08);">{{ badge }}</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr><td style="height:5px;background:#ff6b00;line-height:5px;font-size:0;">&nbsp;</td></tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td class="ep" style="padding:28px 34px 6px;background:#ffffff;">
+            {% if eyebrow %}<div style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">{{ eyebrow }}</div>{% endif %}
+            <h2 style="margin:0;color:#182232;font-size:22px;line-height:1.22;font-weight:800;">{{ title }}</h2>
+            {% if intro %}<p style="margin:8px 0 0;color:#64748b;font-size:14px;line-height:1.55;">{{ intro }}</p>{% endif %}
+          </td>
+        </tr>
+
+        {% if kpis %}
+        <tr>
+          <td class="ep" style="padding:18px 34px 4px;background:#ffffff;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0 8px;">
+              <tr>
+              {% for k in kpis %}
+                <td class="kpi" width="33%" style="padding:0 4px;vertical-align:top;">
+                  <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;background:#f8fafc;">
+                    <div style="font-size:20px;font-weight:800;color:#182232;">{{ k.value }}</div>
+                    <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:2px;">{{ k.label }}</div>
+                  </div>
+                </td>
+                {% if forloop.counter|divisibleby:3 and not forloop.last %}</tr><tr>{% endif %}
+              {% endfor %}
+              </tr>
+            </table>
+          </td>
+        </tr>
+        {% endif %}
+
+        {% if columns and rows %}
+        <tr>
+          <td class="ep" style="padding:14px 34px 8px;background:#ffffff;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+              <tr style="background:#f1f5f9;">
+                {% for c in columns %}
+                <th align="left" style="padding:9px 12px;font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e2e8f0;">{{ c }}</th>
+                {% endfor %}
+              </tr>
+              {% for row in rows %}
+              <tr style="background:{% cycle '#ffffff' '#fafbfc' %};">
+                {% for cell in row %}
+                <td style="padding:10px 12px;font-size:13px;color:#182232;border-bottom:1px solid #f1f5f9;vertical-align:top;">{{ cell }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </table>
+          </td>
+        </tr>
+        {% endif %}
+
+        {% if cta_url %}
+        <tr>
+          <td class="ep" style="padding:14px 34px 6px;background:#ffffff;">
+            <a href="{{ cta_url }}" style="display:inline-block;background:#ff6b00;color:#ffffff;text-decoration:none;font-size:14px;font-weight:800;border-radius:10px;padding:11px 18px;">{{ cta_label|default:"Apri nel portale" }}</a>
+          </td>
+        </tr>
+        {% endif %}
+
+        <tr>
+          <td class="ep" style="padding:18px 34px 24px;background:#ffffff;border-top:1px solid #d8e1ec;">
+            <p style="margin:0;color:#64748b;font-size:12px;line-height:1.55;">
+              Email automatica generata da NOVICROM HUB (Gestione anomalie). Le automazioni si configurano in Configurazione &rsaquo; Promemoria &amp; escalation.<br>
+              Non rispondere a questa email.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

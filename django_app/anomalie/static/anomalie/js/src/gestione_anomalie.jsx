@@ -68,6 +68,8 @@
     const QUERY_PARAMS = new URLSearchParams(window.location.search || "");
     const INITIAL_FILTER = normalizeChoice(QUERY_PARAMS.get("filter")).toLowerCase();
     const ACTIVE_FILTER = ["aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "";
+    // ?op=<titolo OP>: arrivo da un promemoria in dashboard o da una mail -> preseleziona l'OP.
+    const INITIAL_OP = normalizeChoice(QUERY_PARAMS.get("op")).toLowerCase();
 
     const canUserEditOp = (opCapocommessa, opCar) => {
       if (IS_ADMIN) return true;
@@ -498,6 +500,18 @@
         if (selectedOp < filteredOrdini.length) return;
         setSelectedOp(0);
       }, [filteredOrdini.length, selectedOp]);
+
+      // Preselezione da ?op= (una sola volta, al primo caricamento degli ordini).
+      const initialOpApplied = useRef(false);
+      useEffect(() => {
+        if (initialOpApplied.current || !INITIAL_OP || !filteredOrdini.length) return;
+        initialOpApplied.current = true;
+        const idx = filteredOrdini.findIndex((o) => String(o.id || "").trim().toLowerCase() === INITIAL_OP);
+        if (idx >= 0) {
+          setSelectedOp(idx);
+          if (isMobile) setMobilePanel("serie");
+        }
+      }, [filteredOrdini]);
 
       useEffect(() => {
         if (selectedSn < filteredSeriali.length) return;

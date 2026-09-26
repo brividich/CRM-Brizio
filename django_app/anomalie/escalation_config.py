@@ -38,6 +38,23 @@ LISTA_SUPERVISORI_KEY = "escalation_supervisori"
 # Etichetta cadenza mostrata in UI.
 CADENZA_LABEL = "Ogni giorno lavorativo (lun-ven)"
 
+# ── Automazioni aggiuntive (tutte spente di default) ───────────────────────
+# Girano dentro lo stesso task orario `anomalie_escalation`: nessuno Schedule nuovo.
+KEY_RICORRENZA_ATTIVO = "anomalie_auto_ricorrenza_attivo"
+KEY_RICORRENZA_N = "anomalie_auto_ricorrenza_n"
+KEY_RICORRENZA_GIORNI = "anomalie_auto_ricorrenza_giorni"
+KEY_RDC_ATTIVO = "anomalie_auto_rdc_attivo"
+KEY_RDC_GIORNI = "anomalie_auto_rdc_giorni"
+KEY_DIGEST_ATTIVO = "anomalie_auto_digest_attivo"
+KEY_OP_COMPLETATO_ATTIVO = "anomalie_auto_op_completato_attivo"
+
+DEFAULT_RICORRENZA_N = 3
+RICORRENZA_N_MIN, RICORRENZA_N_MAX = 2, 50
+DEFAULT_RICORRENZA_GIORNI = 30
+RICORRENZA_GIORNI_MIN, RICORRENZA_GIORNI_MAX = 1, 365
+DEFAULT_RDC_GIORNI = 3
+RDC_GIORNI_MIN, RDC_GIORNI_MAX = 1, 60
+
 
 def _parse_bool(raw: str, default: bool) -> bool:
     if raw is None or raw == "":
@@ -73,7 +90,53 @@ def get_escalation_config() -> dict:
         "soglia_ore": soglia,
         "ora_invio": ora,
         "cadenza_label": CADENZA_LABEL,
+        "ricorrenza_attivo": _parse_bool(SiteConfig.get(KEY_RICORRENZA_ATTIVO, ""), default=False),
+        "ricorrenza_n": _clamp_int(
+            SiteConfig.get(KEY_RICORRENZA_N, "") or DEFAULT_RICORRENZA_N,
+            DEFAULT_RICORRENZA_N, RICORRENZA_N_MIN, RICORRENZA_N_MAX,
+        ),
+        "ricorrenza_giorni": _clamp_int(
+            SiteConfig.get(KEY_RICORRENZA_GIORNI, "") or DEFAULT_RICORRENZA_GIORNI,
+            DEFAULT_RICORRENZA_GIORNI, RICORRENZA_GIORNI_MIN, RICORRENZA_GIORNI_MAX,
+        ),
+        "rdc_attivo": _parse_bool(SiteConfig.get(KEY_RDC_ATTIVO, ""), default=False),
+        "rdc_giorni": _clamp_int(
+            SiteConfig.get(KEY_RDC_GIORNI, "") or DEFAULT_RDC_GIORNI,
+            DEFAULT_RDC_GIORNI, RDC_GIORNI_MIN, RDC_GIORNI_MAX,
+        ),
+        "digest_attivo": _parse_bool(SiteConfig.get(KEY_DIGEST_ATTIVO, ""), default=False),
+        "op_completato_attivo": _parse_bool(SiteConfig.get(KEY_OP_COMPLETATO_ATTIVO, ""), default=False),
     }
+
+
+def save_automazioni_config(payload: dict) -> bool:
+    """Persiste le automazioni aggiuntive; le chiavi assenti dal payload restano invariate."""
+    from core.models import SiteConfig
+
+    if not isinstance(payload, dict):
+        return False
+    ok = True
+    flags = {
+        "ricorrenza_attivo": (KEY_RICORRENZA_ATTIVO, "Anomalie: allarme difetto ricorrente per P/N."),
+        "rdc_attivo": (KEY_RDC_ATTIVO, "Anomalie: promemoria RDC richiesto senza numero."),
+        "digest_attivo": (KEY_DIGEST_ATTIVO, "Anomalie: digest settimanale KPI ai supervisori."),
+        "op_completato_attivo": (KEY_OP_COMPLETATO_ATTIVO, "Anomalie: mail a CC/CAR quando un OP ha tutte le anomalie chiuse."),
+    }
+    for field, (key, desc) in flags.items():
+        if field in payload:
+            ok &= SiteConfig.set(key, "1" if bool(payload.get(field)) else "0", desc)
+    numbers = {
+        "ricorrenza_n": (KEY_RICORRENZA_N, DEFAULT_RICORRENZA_N, RICORRENZA_N_MIN, RICORRENZA_N_MAX,
+                         "Anomalie: numero di anomalie sullo stesso P/N che fa scattare l'allarme."),
+        "ricorrenza_giorni": (KEY_RICORRENZA_GIORNI, DEFAULT_RICORRENZA_GIORNI, RICORRENZA_GIORNI_MIN,
+                              RICORRENZA_GIORNI_MAX, "Anomalie: finestra in giorni dell'allarme ricorrenza P/N."),
+        "rdc_giorni": (KEY_RDC_GIORNI, DEFAULT_RDC_GIORNI, RDC_GIORNI_MIN, RDC_GIORNI_MAX,
+                       "Anomalie: giorni oltre cui un RDC richiesto senza numero genera il promemoria."),
+    }
+    for field, (key, default, lo, hi, desc) in numbers.items():
+        if field in payload:
+            ok &= SiteConfig.set(key, str(_clamp_int(payload.get(field), default, lo, hi)), desc)
+    return ok
 
 
 def save_escalation_config(*, attivo: bool, soglia_ore: int, ora_invio: int) -> bool:
