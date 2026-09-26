@@ -108,6 +108,23 @@ class StatistichePlanimetriaTests(TestCase):
         image = self.client.get(reverse("assets:periodic_check_layout_image", args=[self.layout.id]))
         self.assertEqual((image.status_code, image["Content-Type"]), (200, "image/png"))
 
+    def test_mappa_proporzioni_e_segnalazioni_cliccabili(self):
+        last = self._session(date(2026, 5, 20), {"5": NF, "9": BA})
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse("assets:periodic_check_type_detail", args=[self.check_type.id]))
+        html = page.content.decode()
+        # proporzioni con aspect-ratio: padding-top in % stirava la planimetria
+        self.assertIn("aspect-ratio:", html)
+        self.assertNotIn('class="pc-map" style="padding-top', html)
+        session_url = reverse("assets:periodic_check_session_detail", args=[last.id])
+        self.assertContains(page, 'data-pc-point="5"')
+        self.assertContains(page, f'data-session-url="{session_url}"')
+        self.assertContains(page, 'data-pc-focus="9"')
+        self.assertContains(page, "Segnalazioni attive")
+        self.assertContains(page, "is-cat0 is-open")
+        self.assertEqual(page.context["map"]["counts"]["cat0"], 1)
+        self.assertEqual(page.context["map"]["counts"]["cat1"], 1)
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False)
 class StatisticheChecklistTests(TestCase):
