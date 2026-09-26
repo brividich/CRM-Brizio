@@ -14,7 +14,7 @@
 {% endif %}
 
 <div class="panel">
-  <h2>Storico letture</h2>
+  <h2>Letture trimestrali di riconciliazione</h2>
   <table>
     <thead><tr><th>Trimestre</th><th>Data</th>
       <th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th>
@@ -33,6 +33,14 @@
   </table>
 </div>
 
+<div class="panel">
+  <h2>Letture mensili automatiche</h2>
+  <p class="muted">Ultimi 24 mesi: contatori cumulativi alla data effettiva della lettura. Le rilevazioni mensili restano separate dalle letture trimestrali.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Mese rilevazione</th><th>Rilevata il</th><th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th><th class="num">Totale</th></tr></thead>
+    <tbody>{% for l in letture_mensili %}<tr><td>{{ l.mese|date:"m/Y" }}</td><td>{{ l.rilevata_il|date:"d/m/Y H:i" }}</td><td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td><td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td><td class="num">{{ l.totale }}</td></tr>{% empty %}<tr><td colspan="7" class="muted">Nessuna lettura mensile. La raccolta si gestisce da Automazioni → Task pianificati.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
 <div class="panel">
   <h2>Andamento totale copie</h2>
   {% with serie=dati.serie %}

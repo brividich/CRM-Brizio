@@ -21,6 +21,7 @@ from .models import (
     Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
+    LetturaMensileContatori,
     Macchina,
     RilevazioneSNMP,
     RigaFattura,
@@ -533,6 +534,25 @@ def interroga_dispositivo(dispositivo):
         "sys_uptime_seconds", "aggiornato_il",
     ])
     return rilevazione
+
+
+def leggi_mensile_macchina(macchina, *, mese=None):
+    """Conserva la prima lettura riuscita del mese; i retry non sovrascrivono dati."""
+    mese_corrente = timezone.localdate().replace(day=1)
+    mese = mese or mese_corrente
+    precedente = LetturaMensileContatori.objects.filter(macchina=macchina, mese=mese).first()
+    if precedente is not None:
+        return precedente, False
+    if mese != mese_corrente:
+        raise ValueError("Non è possibile ricostruire via SNMP una lettura di un mese passato o futuro.")
+    valori = interroga_macchina(macchina)
+    rilevata_il = timezone.now()
+    if timezone.localdate(rilevata_il).replace(day=1) != mese:
+        raise ValueError("Il mese è cambiato durante la lettura: ripetere nel mese corrente.")
+    return LetturaMensileContatori.objects.get_or_create(
+        macchina=macchina, mese=mese,
+        defaults={**valori, "rilevata_il": rilevata_il},
+    )
 
 
 def centrale_snmp_riepilogo():

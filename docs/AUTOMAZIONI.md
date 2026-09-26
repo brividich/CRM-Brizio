@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni attive:** 43
+**Totale automazioni attive:** 46
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -97,6 +97,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 07:00
 - **Task eseguito:** `assets.tasks.run_maintenance_reminders`
 - **Cosa fa:** ASSETS — promemoria scadenze manutenzione / verifiche periodiche + OdL scaduti. Destinatari SiteConfig assets_reminder_emails con FALLBACK su ADMINS/superuser (non no-op puro): disattivabile dalla Centrale di comando.
+
+### `intake_verifiche_periodiche`
+
+- **Quando gira:** ogni 2 minuti
+- **Task eseguito:** `assets.tasks.run_periodic_check_intake`
+- **Cosa fa:** Fogli delle verifiche periodiche (luci di emergenza, differenziali...) depositati dallo scanner nella cartella di pescaggio: il QR dice a quale verifica appartengono, i punti segnati restano da confermare. Spento finche' non lo si accende da Verifiche periodiche > Cartella scansioni; no-op se la share non risponde.
 
 ## DPI · Sicurezza
 
@@ -287,6 +293,18 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 07:15
 - **Task eseguito:** `checklist_operativa.tasks.run_checklist_chiusura_reminders`
 - **Cosa fa:** CHECKLIST OPERATIVA — promemoria in-app ai responsabili con task non confermati per le chiusure aziendali in arrivo (soglie 7/3/1/0 giorni).
+
+### `contatori_letture_mensili`
+
+- **Quando gira:** il giorno 1 del mese, alle 08:00
+- **Task eseguito:** `contatori.tasks.run_letture_mensili`
+- **Cosa fa:** CONTATORI — snapshot mensile MFC il giorno 1 alle 08:00 (fuso del portale). Una lettura per macchina/mese; Esegui ora recupera solo le letture mancanti. Lo storico mensile non sovrascrive le letture trimestrali di riconciliazione.
+
+### `contatori_poll_snmp`
+
+- **Quando gira:** ogni 5 minuti
+- **Task eseguito:** `contatori.tasks.run_poll_snmp`
+- **Cosa fa:** CONTATORI — monitor SNMP dei dispositivi attivi, con un job per apparato. Stato, sonde ed errori sono consultabili nella Centrale MFC/SNMP.
 
 ### `suggestion_corner_reminders`
 

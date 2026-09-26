@@ -121,7 +121,10 @@ def riconciliazione(request, trimestre=None):
 def macchina_detail(request, pk):
     macchina = get_object_or_404(Macchina, pk=pk)
     dati = services.storico_macchina(macchina)
-    return render(request, "contatori/macchina.html", {"macchina": macchina, "dati": dati})
+    return render(request, "contatori/macchina.html", {
+        "macchina": macchina, "dati": dati,
+        "letture_mensili": macchina.letture_mensili.all()[:24],
+    })
 
 
 def importa_lettura(request):

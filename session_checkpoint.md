@@ -1,5 +1,14 @@
 # Session Checkpoint
 
+Data: 2026-09-26 (scheduler esistente e raccolta MFC mensile)
+
+- Nuova voce agente vista/aggiunta: `2026-09-26 - Codex (scheduler esistente e raccolta MFC mensile)`; changelog root/Django aggiornati alla stessa funzionalita'.
+- Confermato scheduler django-q2 e pagina Task pianificati gia' presenti. Aggiunti `contatori_poll_snmp` (5 minuti) e `contatori_letture_mensili` (giorno 1 ore 08:00), job per apparato e nessun task Windows aggiuntivo.
+- Nuovo storico mensile idempotente MFC separato dai trimestri, migration contatori 0007, tabella nella scheda macchina e comando `leggi_contatori_mensili`.
+- Test finali: 93 mirati verdi, Django check pulito, migration drift assente. File critico: catalogo scheduler `automazioni/schedules.py`, sole due aggiunte, documentate. Nessun ACL/routing/settings permanente modificato.
+- README, changelog root/Django, docs AI e AUTOMAZIONI.md aggiornati; nuovo runbook CONTATORI_AUTOMAZIONI.md. Nessun backup aggiuntivo o accesso a DB/apparati reali.
+- Deploy da effettuare: migrate contatori, setup_q_schedules e riavvio del qcluster esistente. Stato runtime PROD non verificato. Branch feature/contatori-centrale-snmp.
+
 Data: 2026-09-26 (centrale MFC/SNMP e ponte Asset)
 
 Ultime voci viste/aggiunte:

@@ -4,6 +4,7 @@ from .models import (
     Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
+    LetturaMensileContatori,
     Macchina,
     RigaFattura,
     RilevazioneSNMP,
@@ -44,6 +45,16 @@ class ImpostazioniSNMPAdmin(admin.ModelAdmin):
 class SondaInline(admin.TabularInline):
     model = SondaSNMP
     extra = 0
+
+
+@admin.register(LetturaMensileContatori)
+class LetturaMensileAdmin(admin.ModelAdmin):
+    list_display = ("macchina", "mese", "rilevata_il", "totale")
+    list_filter = ("mese",)
+    readonly_fields = ("macchina", "mese", "rilevata_il", "a4_bn", "a3_bn", "a4_col", "a3_col")
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(DispositivoSNMP)

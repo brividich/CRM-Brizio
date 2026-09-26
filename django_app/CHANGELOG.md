@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Contatori — scheduler centralizzato e letture mensili
+
+- Registrati `contatori_poll_snmp` (5 minuti) e `contatori_letture_mensili` (giorno 1 alle 08:00) nello scheduler django-q2 esistente, gestibili in Task pianificati.
+- Job per apparato con limite di durata e controllo duplicati in cache; storico mensile MFC idempotente separato dai trimestri, timestamp effettivo e recupero delle sole letture mancanti tramite `leggi_contatori_mensili`.
+- Migration `contatori 0007`, tabella mensile nella scheda MFC e documentazione `docs/CONTATORI_AUTOMAZIONI.md`. Deploy: migrate, setup_q_schedules e riavvio del worker esistente; nessun nuovo task Windows.
+
 ### Contatori — centrale MFC/SNMP e ponte Asset HUB
 
 - Nuovi dispositivi SNMP generici, sonde OID tipizzate con conversioni e soglie, storico valori/esiti, salute e latenza persistite; dashboard e monitor responsive per MFC, lettori, apparati, UPS e sensori.

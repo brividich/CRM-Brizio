@@ -288,6 +288,35 @@ class LetturaContatori(models.Model):
         return self.a4_bn + self.a3_bn + self.a4_col + self.a3_col
 
 
+class LetturaMensileContatori(models.Model):
+    """Snapshot cumulativo mensile, indipendente dalla riconciliazione trimestrale."""
+
+    macchina = models.ForeignKey(
+        Macchina, on_delete=models.CASCADE, related_name="letture_mensili",
+    )
+    mese = models.DateField(help_text="Primo giorno del mese di rilevazione")
+    rilevata_il = models.DateTimeField(default=timezone.now)
+    a4_bn = models.PositiveIntegerField()
+    a3_bn = models.PositiveIntegerField()
+    a4_col = models.PositiveIntegerField()
+    a3_col = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ["-mese", "macchina__reparto"]
+        constraints = [models.UniqueConstraint(
+            fields=["macchina", "mese"], name="contatori_mfc_mese_unico",
+        )]
+        verbose_name = "Lettura mensile MFC"
+        verbose_name_plural = "Letture mensili MFC"
+
+    @property
+    def totale(self):
+        return self.a4_bn + self.a3_bn + self.a4_col + self.a3_col
+
+    def __str__(self):
+        return f"{self.macchina} {self.mese:%Y-%m}"
+
+
 class Fattura(models.Model):
     """Testata fattura fornitore relativa a un trimestre."""
     numero = models.CharField(max_length=30)

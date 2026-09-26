@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+### Automazioni MFC/SNMP
+
+- **Scheduler esistente e raccolta mensile MFC**: `django_app/automazioni/schedules.py` registra polling SNMP ogni 5 minuti e snapshot MFC il giorno 1 alle 08:00, eseguiti da `contatori/tasks.py` per apparato. Nuovo storico mensile idempotente con data effettiva e recupero delle sole letture mancanti, senza sovrascrivere la riconciliazione trimestrale. File: `django_app/contatori/{models.py,services.py,admin.py,views.py,tasks.py,tests_schedules.py}`, `migrations/0007_letturamensilecontatori.py`, `management/commands/leggi_contatori_mensili.py`, `templates/contatori/macchina.html`; `README.md`, `docs/{AUTOMAZIONI,CONTATORI_AUTOMAZIONI}.md`, `docs/ai/03_BACKEND_MODULES.md`, registri agente/checkpoint. Deploy: `migrate contatori`, `setup_q_schedules`, riavvio qcluster esistente. Nessun ulteriore task Windows.
+
 ### Fixed
 
 - **Contatori MFC - comandi SNMP di nuovo avviabili** (`django_app/contatori/management/commands/{snmp_discover.py,leggi_contatori.py}`, `django_app/contatori/tests.py`). I due management command registravano `--version`, gia' riservato da Django, e terminavano durante la costruzione del parser con `argparse.ArgumentError` prima di eseguire qualunque lettura. L'opzione specifica e' ora `--snmp-version {v1,v2c}`; default e passaggio della versione ai servizi SNMP restano invariati. Aggiunti test di regressione sui parser di entrambi i comandi.
