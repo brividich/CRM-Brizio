@@ -405,7 +405,7 @@ const TimelineOp = ({
       display: "flex",
       gap: 10,
       padding: "8px 0",
-      borderBottom: "1px solid #f1f5f9"
+      borderBottom: "1px solid var(--border)"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1351,7 +1351,7 @@ function GestioneAnomalie() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      borderRight: isMobile ? "none" : "1px solid #e2e8f0",
+      borderRight: isMobile ? "none" : "1px solid var(--border)",
       background: "var(--surface)",
       display: isMobile && mobilePanel !== "ordini" ? "none" : "flex",
       flexDirection: "column",
@@ -1446,11 +1446,11 @@ function GestioneAnomalie() {
     style: {
       width: "100%",
       padding: "9px 12px 9px 32px",
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 8,
       outline: "none",
-      background: "#f8fafc",
-      color: "#334155"
+      background: "var(--bg)",
+      color: "var(--text)"
     },
     onFocus: e => e.target.style.borderColor = "rgba(249,115,22,.5)",
     onBlur: e => e.target.style.borderColor = "var(--border)"
@@ -1501,7 +1501,7 @@ function GestioneAnomalie() {
     className: "text-md font-bold",
     style: {
       fontWeight: 700,
-      color: "#0f172a"
+      color: "var(--text)"
     }
   }, o.id), o.stato && /*#__PURE__*/React.createElement(StatusBadge, {
     text: o.stato,
@@ -1547,7 +1547,7 @@ function GestioneAnomalie() {
       gap: 6,
       marginTop: 10,
       paddingTop: 10,
-      borderTop: "1px solid #e2e8f0"
+      borderTop: "1px solid var(--border)"
     }
   }, /*#__PURE__*/React.createElement(IconBtn, {
     accent: true,
@@ -1592,7 +1592,7 @@ function GestioneAnomalie() {
   })), "Duplica"))))), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "12px 16px",
-      borderTop: "1px solid #e2e8f0",
+      borderTop: "1px solid var(--border)",
       display: "flex",
       gap: 8
     }
@@ -1615,9 +1615,9 @@ function GestioneAnomalie() {
     style: {
       flex: 1,
       padding: "9px",
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 8,
-      background: "#fff",
+      background: "var(--surface)",
       color: "var(--text-mid)",
       fontWeight: 500,
       cursor: "pointer"
@@ -1641,7 +1641,7 @@ function GestioneAnomalie() {
       padding: "10px 14px",
       background: "none",
       border: "none",
-      borderBottom: "1px solid #f1f5f9",
+      borderBottom: "1px solid var(--border)",
       color: "var(--primary-mid)",
       fontWeight: 600,
       cursor: "pointer",
@@ -1700,11 +1700,11 @@ function GestioneAnomalie() {
     style: {
       width: "100%",
       padding: "9px 12px 9px 32px",
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 8,
       outline: "none",
-      background: "#fff",
-      color: "#334155"
+      background: "var(--surface)",
+      color: "var(--text)"
     },
     onFocus: e => e.target.style.borderColor = "rgba(249,115,22,.5)",
     onBlur: e => e.target.style.borderColor = "var(--border)"
@@ -1905,7 +1905,7 @@ function GestioneAnomalie() {
       padding: "10px 14px",
       background: "none",
       border: "none",
-      borderBottom: "1px solid #f1f5f9",
+      borderBottom: "1px solid var(--border)",
       color: "var(--primary-mid)",
       fontWeight: 600,
       cursor: "pointer",
@@ -1923,7 +1923,7 @@ function GestioneAnomalie() {
   })), "S/N \u2014 ", sn.sn || "lista"), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: isMobile ? "12px 16px" : "20px 24px 16px",
-      borderBottom: "1px solid #f1f5f9",
+      borderBottom: "1px solid var(--border)",
       background: "var(--surface)"
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -1937,13 +1937,13 @@ function GestioneAnomalie() {
     className: "text-md font-semibold",
     style: {
       fontWeight: 600,
-      color: "#0f172a"
+      color: "var(--text)"
     }
   }, op.capo || '\u2014')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "CAR"), /*#__PURE__*/React.createElement("div", {
     className: "text-md font-medium",
     style: {
       fontWeight: 500,
-      color: "#334155"
+      color: "var(--text)"
     }
   }, op.car || '\u2014')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "S/N selezionato"), /*#__PURE__*/React.createElement("div", {
     className: "text-md font-medium",
@@ -1962,7 +1962,7 @@ function GestioneAnomalie() {
       display: "inline-block",
       padding: "4px 12px",
       borderRadius: 6,
-      background: "#f1f5f9",
+      background: "var(--bg)",
       fontWeight: 700,
       color: "var(--text)",
       fontFamily: "ui-monospace,monospace"
@@ -1974,7 +1974,7 @@ function GestioneAnomalie() {
       gap: 16,
       marginTop: 12,
       paddingTop: 12,
-      borderTop: "1px solid #f1f5f9"
+      borderTop: "1px solid var(--border)"
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "P/N"), /*#__PURE__*/React.createElement("span", {
     className: "text-base",
@@ -1993,7 +1993,7 @@ function GestioneAnomalie() {
     style: {
       marginTop: 14,
       paddingTop: 14,
-      borderTop: "1px solid #f1f5f9"
+      borderTop: "1px solid var(--border)"
     }
   }, /*#__PURE__*/React.createElement(FieldLabel, null, "Avanzamento"), /*#__PURE__*/React.createElement(StatoStepper, {
     avanzamento: sn.avanzamento,
@@ -2199,7 +2199,7 @@ function GestioneAnomalie() {
     }
   }, "Nessun allegato. Formati ammessi: immagini, PDF, Word, Excel.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 10,
       background: "var(--primary)",
       overflow: "hidden",
@@ -2295,7 +2295,7 @@ function GestioneAnomalie() {
         height: 54,
         borderRadius: 8,
         objectFit: "cover",
-        border: "1px solid #e2e8f0"
+        border: "1px solid var(--border)"
       }
     }) : /*#__PURE__*/React.createElement("div", {
       className: "text-xs font-bold",
@@ -2303,8 +2303,8 @@ function GestioneAnomalie() {
         width: 54,
         height: 54,
         borderRadius: 8,
-        border: "1px solid #e2e8f0",
-        background: "#f8fafc",
+        border: "1px solid var(--border)",
+        background: "var(--bg)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -2319,7 +2319,7 @@ function GestioneAnomalie() {
       className: "text-base font-semibold",
       title: file.name,
       style: {
-        color: "#0f172a",
+        color: "var(--text)",
         fontWeight: 600,
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -2328,7 +2328,7 @@ function GestioneAnomalie() {
     }, file.name), /*#__PURE__*/React.createElement("div", {
       className: "text-xs",
       style: {
-        color: "#64748b",
+        color: "var(--text-mid)",
         marginTop: 2
       }
     }, formatBytes(file.size), " \u2022 ", file.mime_type || "file")), /*#__PURE__*/React.createElement("div", {
@@ -2365,11 +2365,11 @@ function GestioneAnomalie() {
     style: {
       width: "100%",
       padding: "9px 14px",
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 8,
       outline: "none",
-      color: "#334155",
-      background: canEditCurrentOp ? "#fff" : "#f1f5f9"
+      color: "var(--text)",
+      background: canEditCurrentOp ? "var(--surface)" : "var(--bg)"
     },
     onFocus: e => e.target.style.borderColor = "#93c5fd",
     onBlur: e => e.target.style.borderColor = "#e2e8f0"

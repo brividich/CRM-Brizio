@@ -290,7 +290,7 @@
                 <div className="text-sm" style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>Nessuna azione registrata per questo OP.</div>
               ) : (
                 items.map((it) => (
-                  <div key={it.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
+                  <div key={it.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", marginTop: 6, flexShrink: 0, background: sourceColor(it.source) }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
@@ -970,7 +970,7 @@
 
             {/* â"€â"€ SINISTRA: Ordini di Produzione â"€â"€ */}
             <div style={{
-              borderRight: isMobile ? "none" : "1px solid #e2e8f0", background: "var(--surface)",
+              borderRight: isMobile ? "none" : "1px solid var(--border)", background: "var(--surface)",
               display: isMobile && mobilePanel !== "ordini" ? "none" : "flex",
               flexDirection: "column", overflow: "hidden",
               minHeight: isMobile ? "calc(100dvh - 112px)" : undefined,
@@ -1021,8 +1021,8 @@
                     placeholder="Cerca OP, P/N, capocommessa..."
                     style={{
                       width: "100%", padding: "9px 12px 9px 32px",
-                      border: "1px solid #e2e8f0", borderRadius: 8,
-                      outline: "none", background: "#f8fafc", color: "#334155",
+                      border: "1px solid var(--border)", borderRadius: 8,
+                      outline: "none", background: "var(--bg)", color: "var(--text)",
                     }}
                     onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
                     onBlur={e  => e.target.style.borderColor="var(--border)"}
@@ -1052,7 +1052,7 @@
                       transition: "all 0.15s ease",
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                        <span className="text-md font-bold" style={{ fontWeight: 700, color: "#0f172a" }}>{o.id}</span>
+                        <span className="text-md font-bold" style={{ fontWeight: 700, color: "var(--text)" }}>{o.id}</span>
                         {o.stato && <StatusBadge text={o.stato} variant="benestare" />}
                       </div>
                       <div className="text-sm" style={{ color: "var(--text-mid)", marginBottom: 4, fontFamily: "ui-monospace,monospace", letterSpacing: "-0.02em" }}>
@@ -1067,7 +1067,7 @@
                         </span>
                       </div>
                       {selectedOp === i && (
-                        <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
+                        <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
                           <IconBtn accent title="Inserisci una nuova anomalia su questo OP" onClick={() => {
                             window.location.href = o.id
                               ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(o.id)}`
@@ -1087,14 +1087,14 @@
                 )}
               </div>
 
-              <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0", display: "flex", gap: 8 }}>
+              <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
                 <button className="text-base font-semibold" onClick={() => history.back()} style={{
                   flex: 1, padding: "9px", border: "1px solid rgba(229,62,62,.3)", borderRadius: 8,
                   background: "var(--danger-bg)", color: "var(--danger)", fontWeight: 600, cursor: "pointer",
                 }}>Indietro</button>
                 <button className="text-base font-medium" onClick={loadOrdini} style={{
-                  flex: 1, padding: "9px", border: "1px solid #e2e8f0", borderRadius: 8,
-                  background: "#fff", color: "var(--text-mid)", fontWeight: 500, cursor: "pointer",
+                  flex: 1, padding: "9px", border: "1px solid var(--border)", borderRadius: 8,
+                  background: "var(--surface)", color: "var(--text-mid)", fontWeight: 500, cursor: "pointer",
                 }}>Aggiorna</button>
               </div>
             </div>
@@ -1109,7 +1109,7 @@
               {isMobile && (
                 <button className="text-base font-semibold" onClick={() => setMobilePanel("ordini")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
-                  background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
+                  background: "none", border: "none", borderBottom: "1px solid var(--border)",
                   color: "var(--primary-mid)", fontWeight: 600, cursor: "pointer", width: "100%",
                 }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
@@ -1129,8 +1129,8 @@
                     placeholder="Cerca S/N..."
                     style={{
                       width: "100%", padding: "9px 12px 9px 32px",
-                      border: "1px solid #e2e8f0", borderRadius: 8,
-                      outline: "none", background: "#fff", color: "#334155",
+                      border: "1px solid var(--border)", borderRadius: 8,
+                      outline: "none", background: "var(--surface)", color: "var(--text)",
                     }}
                     onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
                     onBlur={e  => e.target.style.borderColor="var(--border)"}
@@ -1241,7 +1241,7 @@
               {isMobile && (
                 <button className="text-base font-semibold" onClick={() => setMobilePanel("serie")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
-                  background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
+                  background: "none", border: "none", borderBottom: "1px solid var(--border)",
                   color: "var(--primary-mid)", fontWeight: 600, cursor: "pointer", width: "100%",
                 }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
@@ -1250,17 +1250,17 @@
               )}
               {/* Header dettaglio */}
               <div style={{
-                padding: isMobile ? "12px 16px" : "20px 24px 16px", borderBottom: "1px solid #f1f5f9",
+                padding: isMobile ? "12px 16px" : "20px 24px 16px", borderBottom: "1px solid var(--border)",
                 background: "var(--surface)",
               }}>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto", gap: isMobile ? 12 : 16, alignItems: "start" }}>
                   <div>
                     <FieldLabel>Capocommessa</FieldLabel>
-                    <div className="text-md font-semibold" style={{ fontWeight: 600, color: "#0f172a" }}>{op.capo || '\u2014'}</div>
+                    <div className="text-md font-semibold" style={{ fontWeight: 600, color: "var(--text)" }}>{op.capo || '\u2014'}</div>
                   </div>
                   <div>
                     <FieldLabel>CAR</FieldLabel>
-                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "#334155" }}>{op.car || '\u2014'}</div>
+                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "var(--text)" }}>{op.car || '\u2014'}</div>
                   </div>
                   <div>
                     <FieldLabel>S/N selezionato</FieldLabel>
@@ -1272,12 +1272,12 @@
                     <FieldLabel>Identificativo</FieldLabel>
                     <span className="text-base font-bold" style={{
                       display: "inline-block", padding: "4px 12px", borderRadius: 6,
-                      background: "#f1f5f9", fontWeight: 700,
+                      background: "var(--bg)", fontWeight: 700,
                       color: "var(--text)", fontFamily: "ui-monospace,monospace",
                     }}>{op.id || '\u2014'}</span>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
                   <div>
                     <FieldLabel>P/N</FieldLabel>
                     <span className="text-base" style={{ fontFamily: "'JetBrains Mono',monospace", color: "var(--text-mid)" }}>
@@ -1290,7 +1290,7 @@
                   </div>
                 </div>
                 {sn.sn && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #f1f5f9" }}>
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
                     <FieldLabel>Avanzamento</FieldLabel>
                     <StatoStepper avanzamento={sn.avanzamento} chiuso={Boolean(sn.chiudere)} />
                   </div>
@@ -1423,7 +1423,7 @@
                             <>
                               {/* Preview allegato selezionato */}
                               <div style={{
-                                border: "1px solid #e2e8f0",
+                                border: "1px solid var(--border)",
                                 borderRadius: 10,
                                 background: "var(--primary)",
                                 overflow: "hidden",
@@ -1507,7 +1507,7 @@
                                             height: 54,
                                             borderRadius: 8,
                                             objectFit: "cover",
-                                            border: "1px solid #e2e8f0",
+                                            border: "1px solid var(--border)",
                                           }}
                                         />
                                       ) : (
@@ -1515,8 +1515,8 @@
                                           width: 54,
                                           height: 54,
                                           borderRadius: 8,
-                                          border: "1px solid #e2e8f0",
-                                          background: "#f8fafc",
+                                          border: "1px solid var(--border)",
+                                          background: "var(--bg)",
                                           display: "flex",
                                           alignItems: "center",
                                           justifyContent: "center",
@@ -1528,7 +1528,7 @@
                                       )}
                                       <div style={{ minWidth: 0 }}>
                                         <div className="text-base font-semibold" title={file.name} style={{
-                                          color: "#0f172a",
+                                          color: "var(--text)",
                                           fontWeight: 600,
                                           overflow: "hidden",
                                           textOverflow: "ellipsis",
@@ -1536,7 +1536,7 @@
                                         }}>
                                           {file.name}
                                         </div>
-                                        <div className="text-xs" style={{ color: "#64748b", marginTop: 2 }}>
+                                        <div className="text-xs" style={{ color: "var(--text-mid)", marginTop: 2 }}>
                                           {formatBytes(file.size)} • {file.mime_type || "file"}
                                         </div>
                                       </div>
@@ -1575,8 +1575,8 @@
                           disabled={!canEditCurrentOp}
                           style={{
                             width: "100%", padding: "9px 14px",
-                            border: "1px solid #e2e8f0", borderRadius: 8,
-                            outline: "none", color: "#334155", background: canEditCurrentOp ? "#fff" : "#f1f5f9",
+                            border: "1px solid var(--border)", borderRadius: 8,
+                            outline: "none", color: "var(--text)", background: canEditCurrentOp ? "var(--surface)" : "var(--bg)",
                           }}
                           onFocus={e => e.target.style.borderColor="#93c5fd"}
                           onBlur={e  => e.target.style.borderColor="#e2e8f0"}
