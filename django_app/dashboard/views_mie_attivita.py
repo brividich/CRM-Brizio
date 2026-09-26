@@ -55,6 +55,49 @@ def _my_anomalie(legacy_user, is_admin: bool) -> list[dict]:
     return out
 
 
+def _my_nc(request, legacy_user) -> list[dict]:
+    """Non conformita': azioni assegnate all'utente + NC aperte dei suoi OP (CC/CAR)."""
+    try:
+        from anomalie.nc_views import _mie
+        from anomalie.quality_models import AnomaliaNC, AnomaliaNCAzione
+    except Exception:
+        return []
+    out: list[dict] = []
+    try:
+        viste: set[int] = set()
+        if legacy_user:
+            azioni = (AnomaliaNCAzione.objects.select_related("nc")
+                      .filter(responsabile_legacy_id=legacy_user.id,
+                              stato__in=[AnomaliaNCAzione.Stato.DA_FARE, AnomaliaNCAzione.Stato.IN_CORSO])
+                      .exclude(nc__stato=AnomaliaNC.Stato.CHIUSA).order_by("scadenza", "id")[:12])
+            for a in azioni:
+                out.append({
+                    "code": a.nc.protocollo,
+                    "title": a.descrizione[:120],
+                    "meta": f"Azione · OP {a.nc.op_titolo}" + (f" · scade {a.scadenza:%d/%m/%Y}" if a.scadenza else ""),
+                    "status": a.get_stato_display(),
+                    "url": _safe_url("anomalie_nc_dettaglio", a.nc_id) + "#azioni",
+                })
+                viste.add(a.nc_id)
+        aperte = (AnomaliaNC.objects.exclude(stato=AnomaliaNC.Stato.CHIUSA)
+                  .prefetch_related("azioni").order_by("-id")[:200])
+        for nc in aperte:
+            if len(out) >= 12:
+                break
+            if nc.pk in viste or not _mie(request, nc):
+                continue
+            out.append({
+                "code": nc.protocollo,
+                "title": f"OP {nc.op_titolo}",
+                "meta": nc.part_number or "Non conformità",
+                "status": nc.get_stato_display(),
+                "url": _safe_url("anomalie_nc_dettaglio", nc.pk),
+            })
+    except Exception:
+        return out
+    return out
+
+
 def _my_tickets(request_user, legacy_user, legacy_user_id) -> list[dict]:
     try:
         from tickets.models import StatoTicket, Ticket  # noqa: F401
@@ -309,6 +352,15 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "items": _my_anomalie(legacy_user, is_admin),
             "all_url": _safe_url("gestione_anomalie_page"),
             "empty": "Nessuna anomalia aperta a te collegata.",
+        },
+        {
+            "key": "non_conformita",
+            "label": "Non conformità",
+            "tone": "warning",
+            "icon": "📋",
+            "items": _my_nc(request, legacy_user),
+            "all_url": _safe_url("anomalie_nc_lista") + "?mie=1",
+            "empty": "Nessuna non conformità o azione a te assegnata.",
         },
         {
             "key": "procedure",
