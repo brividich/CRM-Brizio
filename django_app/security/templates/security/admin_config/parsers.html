@@ -1,34 +1,157 @@
 {% extends "security/_base_soc.html" %}
 {% block title %}Parser / Security Center AI{% endblock %}
 {% block page_marker %}Configurazione{% endblock %}
-{% block page_title %}Configurazione registro parser{% endblock %}
+{% block page_title %}Configurazione parser{% endblock %}
 {% block page_icon %}*{% endblock %}
 {% block soc_content %}
 {% include "security/admin_config/_section_help.html" %}
-<div class="sec-grid sec-two-col">
+
+<div class="sec-grid sec-kpi-grid">
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Parser funzionanti</span><strong class="sec-kpi-value">{{ parser_summary.ok }}/{{ parser_summary.total }}</strong><span class="sec-kpi-delta{% if parser_summary.ok == parser_summary.total %} sec-good{% endif %}">Hanno prodotto report</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Con problemi</span><strong class="sec-kpi-value{% if parser_summary.problems %} critical{% endif %}">{{ parser_summary.problems }}</strong><span class="sec-kpi-delta{% if not parser_summary.problems %} sec-good{% endif %}">In errore o inesistenti</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">In coda</span><strong class="sec-kpi-value">{{ queue_summary.pending }}</strong><span class="sec-kpi-delta{% if not queue_summary.pending %} sec-good{% endif %}">Da elaborare</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">In errore</span><strong class="sec-kpi-value{% if queue_summary.failed %} critical{% endif %}">{{ queue_summary.failed }}</strong><span class="sec-kpi-delta{% if not queue_summary.failed %} sec-good{% endif %}">Il parser è andato in eccezione</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Scartati</span><strong class="sec-kpi-value">{{ queue_summary.skipped }}</strong><span class="sec-kpi-delta">Nessun parser li riconosce</span></div>
+</div>
+
+{% if parser_summary.missing_config %}
+<section class="sec-panel sec-callout sec-callout-warning" style="margin-top:12px">
+  <div class="sec-section-head">
+    <h2>{{ parser_summary.missing_config }} parser senza configurazione</h2>
+    <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="seed"><button class="sec-button-primary" type="submit">Crea configurazione</button></form>
+  </div>
+  <p class="sec-muted">Funzionano comunque con le impostazioni predefinite (attivi, priorità 100), ma senza configurazione non compaiono nei controlli della diagnostica.</p>
+</section>
+{% endif %}
+
+<section class="sec-panel" style="margin-top:12px">
+  <div class="sec-section-head"><h2>Parser</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
+  <p class="sec-muted">Ogni mail o file viene proposto ai parser in quest'ordine: lo elabora il primo parser attivo che lo riconosce. Priorità più bassa = valutato prima.</p>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-table-enhanced="0">
+      <thead><tr><th>#</th><th>Parser</th><th>Stato</th><th>Risultati</th><th>Priorità</th><th>Azioni</th></tr></thead>
+      <tbody>
+        {% for row in parser_rows %}
+          <tr>
+            <td class="sec-num">{{ row.position|default:"—" }}</td>
+            <td class="sec-title-cell">
+              <strong>{{ row.label }}</strong>
+              <small><span class="sec-code">{{ row.name }}</span>{% if row.inputs %} · {{ row.inputs }}{% endif %}</small>
+              {% if row.recognizes %}<small>{{ row.recognizes }}</small>{% endif %}
+            </td>
+            <td><span class="sec-badge {{ row.status_badge }}">{{ row.status_label }}</span></td>
+            <td class="sec-small">
+              {% if row.status == "orphan" %}
+                <div>Nessun codice registrato con questo nome: non elabora nulla.</div>
+              {% endif %}
+              <div>{{ row.reports_total }} report{% if row.last_report_at %} · ultimo {{ row.last_report_at|date:"d/m/Y H:i" }}{% endif %}</div>
+              {% if row.failures_count %}
+                <div class="sec-error">{{ row.failures_count }} in errore · ultimo {{ row.last_failure_at|date:"d/m/Y H:i" }}</div>
+                {% if row.last_error %}<div class="sec-muted sec-wrap">{{ row.last_error|truncatechars:160 }}</div>{% endif %}
+              {% endif %}
+              {% if row.disabled_skips %}<div class="sec-muted">{{ row.disabled_skips }} elementi scartati perché disattivato</div>{% endif %}
+              {% if row.status == "idle" %}<div class="sec-muted">Non ha ancora riconosciuto nessun contenuto.</div>{% endif %}
+            </td>
+            <td>
+              {% if row.config and row.registered %}
+                <form method="post" class="sec-inline" style="gap:6px">{% csrf_token %}
+                  <input type="hidden" name="action" value="priority"><input type="hidden" name="object_id" value="{{ row.config.pk }}">
+                  <input type="number" name="priority" min="0" value="{{ row.priority }}" style="width:5.5em" aria-label="Priorità di {{ row.label }}">
+                  <button class="sec-button" type="submit">Salva</button>
+                </form>
+              {% else %}<span class="sec-muted" title="Nessuna configurazione: priorità predefinita">{{ row.priority }}</span>{% endif %}
+            </td>
+            <td>
+              {% if row.registered %}
+                <form method="post" class="sec-inline">{% csrf_token %}
+                  <input type="hidden" name="action" value="toggle"><input type="hidden" name="parser_name" value="{{ row.name }}">
+                  <button class="sec-button" type="submit">{% if row.enabled %}Disattiva{% else %}Attiva{% endif %}</button>
+                </form>
+              {% else %}
+                <form method="post" class="sec-inline" onsubmit="return confirm('Eliminare la configurazione di {{ row.name|escapejs }}?');">{% csrf_token %}
+                  <input type="hidden" name="action" value="delete-orphan"><input type="hidden" name="object_id" value="{{ row.config.pk }}">
+                  <button class="sec-button" type="submit">Elimina</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}<tr><td colspan="6" class="sec-empty">Nessun parser registrato.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="sec-grid sec-two-col" style="margin-top:12px">
   <section class="sec-panel">
-    <div class="sec-section-head"><h2>Parser</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
-    <div class="sec-table-wrap">
-      <table class="sec-table">
-        <thead><tr><th>Nome</th><th>Stato</th><th>Priorita</th><th>Sorgente</th><th>Input</th><th>Descrizione</th></tr></thead>
-        <tbody>
-          {% for object in objects %}
-            <tr>
-              <td class="sec-code">{{ object.parser_name }}</td>
-              <td><span class="sec-badge {% if object.enabled %}ok{% else %}disabled{% endif %}">{{ object.enabled|yesno:"Attivo,Disattivato" }}</span></td>
-              <td>{{ object.priority }}</td>
-              <td>{{ object.source_type }}</td>
-              <td>{{ object.input_type }}</td>
-              <td>{{ object.description }}</td>
-            </tr>
-          {% empty %}<tr><td colspan="6" class="sec-empty">Nessuna configurazione parser disponibile.</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <div class="sec-section-head"><h2>Prova i parser</h2></div>
+    <p class="sec-muted">Incolla una mail o carica un file (PDF, CSV, testo): vedi quale parser lo prenderebbe e cosa ne estrarrebbe. Non salva nulla e non genera alert.</p>
+    <form method="post" enctype="multipart/form-data" class="sec-grid" style="gap:10px">{% csrf_token %}
+      <input type="hidden" name="action" value="test">
+      <label>Mittente <input name="sender" value="{{ test_result.input.sender|default:'' }}" placeholder="mittente@example.com"></label>
+      <label>Oggetto <input name="subject" value="{{ test_result.input.subject|default:'' }}" placeholder="Oggetto della mail"></label>
+      <label>Testo <textarea name="body" rows="5" placeholder="Corpo della mail">{{ test_result.input.body|default:'' }}</textarea></label>
+      <label>oppure un file (max {{ max_upload_mb }} MB) <input type="file" name="file" accept=".pdf,.csv,.txt,.log,.eml"></label>
+      <div><button class="sec-button-primary" type="submit">Prova</button></div>
+    </form>
+
+    {% if test_result %}
+      <div style="margin-top:14px">
+        {% if test_result.error_input %}
+          <p class="sec-error">{{ test_result.error_input }}</p>
+        {% else %}
+          {% if test_result.chosen %}
+            <p class="sec-action-result">Lo elaborerebbe: <strong>{{ test_result.chosen }}</strong></p>
+          {% else %}
+            <p class="sec-action-result">Nessun parser lo elaborerebbe: <strong>{{ test_result.skip_detail }}</strong></p>
+          {% endif %}
+          {% for warning in test_result.warnings %}<p class="sec-error">{{ warning }}</p>{% endfor %}
+          <table class="sec-table sec-table-compact" data-table-enhanced="0" style="margin-top:8px">
+            <thead><tr><th>Parser</th><th>Lo riconosce?</th><th>Stato</th></tr></thead>
+            <tbody>
+              {% for candidate in test_result.candidates %}
+                <tr>
+                  <td>{{ candidate.label }}</td>
+                  <td>{% if candidate.recognizes %}<span class="sec-badge ok">Sì</span>{% elif candidate.impersonation %}<span class="sec-badge critical">Mittente non attendibile</span>{% else %}<span class="sec-badge disabled">No</span>{% endif %}</td>
+                  <td>{{ candidate.enabled|yesno:"Attivo,Disattivato" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if test_result.error %}
+            <p class="sec-error" style="margin-top:8px">Il parser è andato in errore: {{ test_result.error }}</p>
+          {% endif %}
+          {% if test_result.parsed %}
+            <dl class="sec-dl" style="margin-top:8px">
+              <dt>Tipo report</dt><dd class="sec-code">{{ test_result.parsed.report_type }}</dd>
+              <dt>Record</dt><dd>{{ test_result.parsed.records_total }}{% for type, count in test_result.parsed.record_types %}{% if forloop.first %} ({% endif %}{{ type }}: {{ count }}{% if forloop.last %}){% else %}, {% endif %}{% endfor %}</dd>
+              <dt>Possibili alert</dt><dd>{{ test_result.parsed.alert_candidates }}</dd>
+              <dt>Metriche</dt><dd>{% for name, value in test_result.parsed.metrics %}<span class="sec-chip">{{ name }} = {{ value }}</span> {% empty %}<span class="sec-muted">nessuna</span>{% endfor %}</dd>
+              {% if test_result.parsed.parse_warnings %}<dt>Avvisi</dt><dd>{% for warning in test_result.parsed.parse_warnings %}<div class="sec-muted">{{ warning }}</div>{% endfor %}</dd>{% endif %}
+            </dl>
+          {% endif %}
+          {% if test_result.is_file %}
+            <details style="margin-top:8px"><summary>Testo estratto da {{ test_result.filename }}</summary><p class="sec-small sec-wrap">{{ test_result.extracted_preview|default:"(vuoto)" }}</p></details>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
   </section>
+
   <section class="sec-panel">
-    <div class="sec-section-head"><h2>Aggiungi / sostituisci parser</h2></div>
-    <form method="post" class="sec-grid">{% csrf_token %}{{ form.as_p }}<button class="sec-button-primary" type="submit">Salva parser</button></form>
+    <div class="sec-section-head">
+      <h2>Non elaborati</h2>
+      <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="reprocess"><button class="sec-button-primary" type="submit" {% if not queue_summary.failed and not queue_summary.skipped and not queue_summary.pending %}disabled{% endif %}>Rielabora</button></form>
+    </div>
+    <p class="sec-muted">Dopo aver attivato o corretto un parser, «Rielabora» ripropone gli elementi in errore o scartati (non quelli da mittente non attendibile).</p>
+    <ul class="sec-mini-list sec-stack">
+      {% for item in unprocessed_items %}
+        <li>
+          <strong class="sec-wrap">{{ item.title|default:"(senza titolo)"|truncatechars:90 }}</strong>
+          <small class="sec-muted">{{ item.kind }}{% if item.sender %} · {{ item.sender }}{% endif %}{% if item.source %} · {{ item.source }}{% endif %} · {{ item.at|date:"d/m/Y H:i" }}</small>
+          <small class="{% if item.status == 'failed' %}sec-error{% else %}sec-muted{% endif %} sec-wrap">{{ item.reason|truncatechars:200 }}</small>
+        </li>
+      {% empty %}<li class="sec-muted">Nessun elemento in errore o scartato.</li>{% endfor %}
+    </ul>
   </section>
 </div>
 {% endblock %}

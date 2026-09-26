@@ -20,6 +20,7 @@ from security.models import (
 )
 from security.services.mailbox_providers import get_provider, MailboxMessage
 from security.services.security_inbox_pipeline import process_mailbox_message, process_source_file, summarize_pipeline_result
+from security.services.text_extraction import extract_text
 
 logger = logging.getLogger(__name__)
 
@@ -303,7 +304,8 @@ def ingest_mailbox_message(source: SecurityMailboxSource, raw_message: MailboxMe
                     if ext not in allowed_extensions:
                         continue
 
-                decoded = attachment.content_bytes.decode("utf-8", errors="ignore")
+                # A PDF decoded as UTF-8 is compressed binary: no parser ever matched it.
+                decoded, extraction_warnings = extract_text(attachment.filename, attachment.content_bytes)
                 max_chars = attachment_max_chars()
                 truncated = len(decoded) > max_chars
                 if truncated:
@@ -328,9 +330,10 @@ def ingest_mailbox_message(source: SecurityMailboxSource, raw_message: MailboxMe
                         "content_truncated": truncated,
                         "content_chars": len(decoded),
                         "content_chars_stored": min(len(decoded), max_chars),
-                        **({"parse_warnings": [
-                            f"Attachment truncated at {max_chars} characters (original {len(decoded)}): parsed data is partial"
-                        ]} if truncated else {}),
+                        **({"parse_warnings": extraction_warnings + (
+                            [f"Attachment truncated at {max_chars} characters (original {len(decoded)}): parsed data is partial"]
+                            if truncated else []
+                        )} if truncated or extraction_warnings else {}),
                     }
                 )
                 result["files_count"] += 1
