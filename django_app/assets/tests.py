@@ -8313,6 +8313,39 @@ class PlantLayoutOpenTicketsTests(TestCase):
 
         self.assertEqual(_open_tickets_by_asset([]), {})
 
+    def test_stato_macchine_sulla_mappa_dal_piu_grave(self):
+        from assets.models import MaintenanceInterventionTemplate, MaintenanceOccurrence
+        from assets.views import _plant_layout_public_payload
+
+        today = timezone.localdate()
+        plan = MaintenanceInterventionTemplate.objects.create(code="map-alert", label="Controllo")
+        tornio = Asset.objects.create(name="Tornio", asset_type=Asset.TYPE_WORK_MACHINE, reparto="TRN")
+        fresa = Asset.objects.create(name="Fresa", asset_type=Asset.TYPE_WORK_MACHINE, reparto="TRN")
+        pressa = Asset.objects.create(name="Pressa", asset_type=Asset.TYPE_WORK_MACHINE, reparto="TRN")
+        sega = Asset.objects.create(name="Sega", asset_type=Asset.TYPE_WORK_MACHINE, reparto="TRN")
+        Ticket.objects.create(titolo="Guasto", stato=StatoTicket.APERTA, asset=tornio)
+        MaintenanceOccurrence.objects.create(plan=plan, asset=tornio, due_date=today - timedelta(days=3))
+        MaintenanceOccurrence.objects.create(plan=plan, asset=fresa, due_date=today - timedelta(days=1))
+        WorkOrder.objects.create(asset=pressa, title="Cambio olio")
+        MaintenanceOccurrence.objects.create(plan=plan, asset=sega, due_date=today + timedelta(days=5), warning_days=10)
+        with _workspace_temporary_directory("assets-map-alert-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            layout = PlantLayout.objects.create(category="Officina", name="Officina", image=_valid_png_upload(), is_active=True)
+            PlantLayoutArea.objects.create(layout=layout, name="Torni", reparto_code="TRN")
+            for index, asset in enumerate((tornio, fresa, pressa, sega)):
+                PlantLayoutMarker.objects.create(layout=layout, asset=asset, x_percent=10 + index, y_percent=10)
+            payload = _plant_layout_public_payload(layout)
+
+        by_asset = {m["asset_id"]: m for m in payload["markers"]}
+        # il ticket vince sulla manutenzione scaduta dello stesso tornio
+        self.assertEqual(by_asset[tornio.id]["alert"], "ticket")
+        self.assertEqual(by_asset[fresa.id]["alert"], "overdue")
+        self.assertEqual(by_asset[pressa.id]["alert"], "workorder")
+        self.assertEqual(by_asset[pressa.id]["machine"]["workorders"][0]["titolo"], "Cambio olio")
+        self.assertEqual(by_asset[sega.id]["alert"], "due_soon")
+        self.assertEqual(payload["alert_counts"]["ticket"], 1)
+        self.assertEqual(payload["areas"][0]["alert_count"], 4)
+        self.assertNotIn("machine_catalog", payload)
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class ImportCollaudoHistoryTests(TestCase):
