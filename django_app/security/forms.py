@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from .models import (
+    SecurityMailboxSource,
     BackupExpectedJobConfig,
     SecurityAlertRuleConfig,
     SecurityAlertSuppressionRule,
@@ -295,3 +296,72 @@ class SecurityTicketConfigForm(forms.ModelForm):
         ]
         labels = COMMON_LABELS
         widgets = {"statuses": JSON_TEXTAREA, "sla_by_severity": JSON_TEXTAREA}
+
+
+class SecurityMailboxSourceForm(forms.ModelForm):
+    """Casella mail da leggere via Microsoft Graph (prima non creabile dall'HUB)."""
+
+    SOURCE_TYPE_UI_CHOICES = [
+        ("graph", "Microsoft 365 (Graph)"),
+        ("manual", "Solo caricamento manuale (nessuna lettura)"),
+    ]
+
+    class Meta:
+        model = SecurityMailboxSource
+        fields = [
+            "name",
+            "enabled",
+            "source_type",
+            "mailbox_address",
+            "description",
+            "sender_allowlist_text",
+            "require_verified_sender",
+            "subject_include_text",
+            "subject_exclude_text",
+            "expected_every_hours",
+            "max_messages_per_run",
+            "process_attachments",
+            "process_email_body",
+        ]
+        labels = {
+            "name": "Nome",
+            "enabled": "Attiva (lettura automatica)",
+            "source_type": "Tipo",
+            "mailbox_address": "Indirizzo della casella",
+            "description": "Descrizione",
+            "sender_allowlist_text": "Mittenti ammessi",
+            "require_verified_sender": "Accetta solo mittenti verificati (DKIM/SPF)",
+            "subject_include_text": "L'oggetto deve contenere",
+            "subject_exclude_text": "Escludi se l'oggetto contiene",
+            "expected_every_hours": "Report atteso almeno ogni (ore)",
+            "max_messages_per_run": "Mail massime per lettura",
+            "process_attachments": "Analizza gli allegati",
+            "process_email_body": "Analizza il testo della mail",
+        }
+        help_texts = {
+            "mailbox_address": "La casella che riceve i report (es. soc@azienda.it). L'app Entra del portale deve avere il permesso Mail.Read.",
+            "sender_allowlist_text": "Uno per riga: indirizzo completo o dominio (es. microsoft.com). Vuoto = tutti.",
+            "subject_include_text": "Uno per riga; vuoto = nessun filtro.",
+            "subject_exclude_text": "Uno per riga.",
+            "expected_every_hours": "0 = nessun controllo. Se non arriva nulla entro questo intervallo parte un alert «sorgente silenziosa».",
+            "require_verified_sender": "Più sicuro, ma scarta le mail senza intestazione Authentication-Results.",
+        }
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 2}),
+            "sender_allowlist_text": forms.Textarea(attrs={"rows": 3, "placeholder": "microsoft.com, watchguard.com (uno per riga)"}),
+            "subject_include_text": forms.Textarea(attrs={"rows": 2}),
+            "subject_exclude_text": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["source_type"].choices = self.SOURCE_TYPE_UI_CHOICES
+        if not self.instance.pk:
+            self.initial.setdefault("source_type", "graph")
+            self.initial.setdefault("expected_every_hours", 24)
+
+    def clean(self):
+        data = super().clean()
+        if data.get("source_type") == "graph" and not data.get("mailbox_address"):
+            self.add_error("mailbox_address", "Obbligatorio per leggere la casella con Microsoft Graph.")
+        return data

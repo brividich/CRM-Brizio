@@ -19,6 +19,20 @@
   </p>
 </section>
 
+<section class="sec-panel sec-callout {% if not mailbox_count or not graph.complete %}sec-callout-warning{% endif %}" style="margin-top:12px">
+  <div class="sec-section-head">
+    <h2>Da dove arrivano i dati</h2>
+    <a class="sec-button{% if not mailbox_count %} sec-button-primary{% endif %}" href="{% url 'security:admin_mailbox_sources_list' %}">Caselle mail</a>
+  </div>
+  {% if not mailbox_count %}
+    <p><strong>Nessuna casella mail attiva.</strong> L'autoconfigurazione prepara come riconoscere i report, ma i report arrivano solo da una casella: creala in «Caselle mail», altrimenti dashboard e alert restano vuoti.</p>
+  {% elif not graph.complete %}
+    <p><strong>Credenziali Microsoft Graph incomplete:</strong> le caselle non possono essere lette. Dettagli in «Caselle mail».</p>
+  {% else %}
+    <p>{{ mailbox_count }} casell{{ mailbox_count|pluralize:"a,e" }} mail attiv{{ mailbox_count|pluralize:"a,e" }}, lette ogni 15 minuti.</p>
+  {% endif %}
+</section>
+
 <div id="autoconfig-live" style="margin-top:12px">
   {% include "security/partials/autoconfig_result.html" %}
 </div>

@@ -15,11 +15,18 @@
     <a href="{% url 'security:kpis' %}" {% if url_name == 'kpis' %}class="active"{% endif %}>KPI</a>
     <a href="{% url 'security:pipeline' %}" {% if url_name == 'pipeline' %}class="active"{% endif %}>Pipeline</a>
     <a href="{% url 'security:assets' %}" {% if url_name == 'assets' %}class="active"{% endif %}>Asset</a>
-    <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' and url_name != 'admin_autoconfig' %}class="active"{% endif %}>Config</a>
+    <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' and url_name != 'admin_autoconfig' and url_name|slice:':13' != 'admin_mailbox' %}class="active"{% endif %}>Config</a>
+    <a href="{% url 'security:admin_mailbox_sources_list' %}" {% if url_name|slice:':13' == 'admin_mailbox' %}class="active"{% endif %}>Caselle mail</a>
     <a href="{% url 'security:admin_autoconfig' %}" {% if url_name == 'admin_autoconfig' %}class="active"{% endif %}>Autoconfig</a>
     <a href="{% url 'security:help' %}" {% if url_name == 'help' or url_name == 'doc_detail' %}class="active"{% endif %}>Guida</a>
   </nav>
   {% endwith %}
+  {# Esiti delle azioni (salvataggi, letture caselle, errori): prima nell'HUB non comparivano mai. #}
+  {% if messages %}
+    <div class="sec-message-stack" role="status">
+      {% for message in messages %}<div class="sec-message{% if message.level_tag == 'error' or message.level_tag == 'warning' %} sec-error{% endif %}">{{ message }}</div>{% endfor %}
+    </div>
+  {% endif %}
   {% block soc_content %}{% endblock %}
 </div>
 {% endblock %}
