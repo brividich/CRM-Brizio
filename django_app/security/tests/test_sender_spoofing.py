@@ -126,8 +126,12 @@ class SpoofedEmailCreatesNoAlertTests(TestCase):
         run_pending_parsers()
         evaluate_security_rules()
 
-        self.assertEqual(SecurityAlert.objects.count(), 0)
+        # Nessun alert CVE né ticket dal contenuto non attendibile; il tentativo resta
+        # visibile come UN alert di possibile spoofing (non piu' scartato in silenzio).
+        self.assertFalse(SecurityAlert.objects.filter(title__icontains="vulnerability").exists())
         self.assertEqual(SecurityRemediationTicket.objects.count(), 0)
+        self.assertEqual(SecurityAlert.objects.count(), 1)
+        self.assertEqual(SecurityAlert.objects.get().event.event_type, "possible_sender_spoofing")
 
     def test_genuine_defender_email_still_creates_alert_and_ticket(self):
         """The same body from the real sender must still produce the alert."""

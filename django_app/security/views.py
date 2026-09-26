@@ -59,6 +59,7 @@ from .services.alert_lifecycle import (
     snooze_alert,
 )
 from .services.kpi_service import build_daily_kpi_snapshots
+from .services.posture import build_pipeline_status, build_posture, build_trend
 from .services.parser_engine import _match_enabled_parser, run_pending_parsers
 from .services.rule_engine import evaluate_security_rules, test_alert_rule
 from .services.backup_monitoring import last_seen_backup_status, missing_backup_candidates
@@ -105,44 +106,61 @@ def dashboard(request):
         ),
         "latest_alerts": _decorate_alerts(SecurityAlert.objects.select_related("source", "event").order_by("-updated_at")[:10]),
         "last_pipeline_run": request.session.get("last_pipeline_run"),
+        "posture": build_posture(),
+        "trend": build_trend(today=today),
     }
     return render(request, "security/dashboard.html", context)
 
 
 @ensure_csrf_cookie
 def alerts_list(request):
-    alerts = SecurityAlert.objects.select_related("source", "event").annotate(evidence_count=Count("evidence_containers")).order_by("-updated_at")
+    alerts = SecurityAlert.objects.select_related("source", "event", "event__asset").annotate(evidence_count=Count("evidence_containers")).order_by("-updated_at")
 
-    # Validate and sanitize input
-    severity = request.GET.get("severity")
-    if severity and severity in [s[0] for s in Severity.choices]:
-        alerts = alerts.filter(severity=severity)
-
-    status = request.GET.get("status")
-    if status and status in [s[0] for s in Status.choices]:
+    # «active» è la vista di lavoro (tutto ciò che non è chiuso); gli altri valori sono Status.
+    status = request.GET.get("status", "")
+    if status == "active":
+        alerts = alerts.filter(status__in=ACTIVE_ALERT_STATUSES)
+    elif status in {s[0] for s in Status.choices}:
         alerts = alerts.filter(status=status)
 
     source_id = request.GET.get("source")
     if source_id and source_id.isdigit():
         alerts = alerts.filter(source_id=int(source_id))
 
-    date_str = request.GET.get("date")
-    if date_str:
-        try:
-            from datetime import datetime
-            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
-            alerts = alerts.filter(created_at__date=date_obj)
-        except ValueError:
-            pass  # Invalid date format, ignore filter
+    date_obj = _parse_date(request.GET.get("date"))
+    if date_obj:
+        alerts = alerts.filter(created_at__date=date_obj)
 
+    # Conteggi per severità calcolati PRIMA del filtro severità: i chip mostrano quanti
+    # alert ci sono per ciascuna severità con gli altri filtri applicati.
+    severity_counts = {row["severity"]: row["n"] for row in alerts.order_by().values("severity").annotate(n=Count("id"))}
+    severity = request.GET.get("severity", "")
+    if severity in {s[0] for s in Severity.choices}:
+        alerts = alerts.filter(severity=severity)
+
+    total = alerts.count()
+    severity_chips = [
+        {"value": value, "count": severity_counts.get(value, 0), "active": severity == value}
+        for value, _label in reversed(Severity.choices)
+    ]
     context = {
         "alerts": _decorate_alerts(alerts[:100]),
+        "total": total,
+        "severity_chips": severity_chips,
+        "all_count": sum(severity_counts.values()),
         "sources": SecuritySource.objects.order_by("name"),
         "severity_choices": Severity.choices,
         "status_choices": Status.choices,
         "filters": request.GET,
+        "query_without_severity": _querystring_without(request, "severity"),
     }
     return render(request, "security/alerts_list.html", context)
+
+
+def _querystring_without(request, key):
+    params = request.GET.copy()
+    params.pop(key, None)
+    return params.urlencode()
 
 
 @ensure_csrf_cookie
@@ -204,10 +222,32 @@ def alert_action(request, pk, action):
     return redirect("security:alert_detail", pk=alert.pk)
 
 
+TICKET_OPEN_STATUSES = [Status.NEW, Status.OPEN, Status.IN_PROGRESS]
+
+
 @ensure_csrf_cookie
 def tickets_list(request):
     tickets = SecurityRemediationTicket.objects.select_related("source", "alert").order_by("-updated_at")
-    return render(request, "security/tickets_list.html", {"tickets": tickets})
+    status = request.GET.get("status", "")
+    if status == "active":
+        tickets = tickets.filter(status__in=TICKET_OPEN_STATUSES)
+    elif status in {s[0] for s in Status.choices}:
+        tickets = tickets.filter(status=status)
+    severity = request.GET.get("severity", "")
+    if severity in {s[0] for s in Severity.choices}:
+        tickets = tickets.filter(severity=severity)
+    total = tickets.count()
+    return render(
+        request,
+        "security/tickets_list.html",
+        {
+            "tickets": tickets[:200],
+            "total": total,
+            "filters": request.GET,
+            "status_choices": Status.choices,
+            "severity_choices": Severity.choices,
+        },
+    )
 
 
 def kpis_page(request):
@@ -222,12 +262,13 @@ def kpis_page(request):
         "previous_date": selected_date - timezone.timedelta(days=1),
         "next_date": selected_date + timezone.timedelta(days=1),
         "grouped_kpis": grouped,
+        "trend": build_trend(today=selected_date),
     }
     return render(request, "security/kpis.html", context)
 
 
 def pipeline_page(request):
-    return render(request, "security/pipeline.html", {"last_pipeline_run": request.session.get("last_pipeline_run")})
+    return render(request, "security/pipeline.html", {"last_pipeline_run": request.session.get("last_pipeline_run"), "status": build_pipeline_status()})
 
 
 @ensure_csrf_cookie

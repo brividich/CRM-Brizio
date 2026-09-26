@@ -14,6 +14,9 @@
 .soc-module * { box-sizing: border-box; }
 .soc-module a { color: var(--primary-mid); text-decoration: none; }
 .soc-module a:hover { color: var(--primary); text-decoration: underline; }
+/* Tema scuro: --primary/--primary-mid sono blu notte, illeggibili come colore del testo. */
+body.theme-dark .soc-module .sec-panel a:not(.sec-button):not(.sec-chip):not(.sec-button-primary) { color: #93c5fd; }
+body.theme-dark .soc-module .sec-panel a:not(.sec-button):not(.sec-chip):not(.sec-button-primary):hover { color: #bfdbfe; }
 
 /* Subnav del modulo (Dashboard / Alert / Ticket / ...) */
 .soc-module .soc-nav {
@@ -91,61 +94,53 @@
 .soc-module .sec-kpi-delta { display: block; margin-top: 10px; color: var(--warning); font-size: var(--fs-base); font-weight: 600; }
 .soc-module .sec-kpi-delta.sec-good { color: var(--success); }
 
-/* Anelli postura */
-.soc-module .sec-ring-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.soc-module .sec-ring { text-align: center; }
+/* Anelli postura (valori calcolati da services/posture.py) */
+.soc-module .sec-ring-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+.soc-module .sec-ring { text-align: center; cursor: help; }
 .soc-module .sec-ring-meter {
-  width: 104px;
+  width: 92px;
   aspect-ratio: 1;
-  margin: 0 auto 10px;
+  margin: 0 auto 8px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: conic-gradient(var(--ring, var(--warning)) calc(var(--score, 72) * 1%), var(--border) 0);
+  background: conic-gradient(var(--ring, var(--warning)) calc(var(--score, 0) * 1%), var(--border) 0);
 }
 .soc-module .sec-ring-meter span {
   display: grid;
   place-items: center;
-  width: 76px;
+  width: 68px;
   aspect-ratio: 1;
   border-radius: 50%;
   background: var(--surface);
   color: var(--text);
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
 }
 .soc-module .sec-ring strong { display: block; color: var(--text); }
 .soc-module .sec-ring small { color: var(--text-light); }
+.soc-module .sec-ring.tone-success { --ring: var(--success); }
+.soc-module .sec-ring.tone-warning { --ring: var(--warning); }
+.soc-module .sec-ring.tone-danger { --ring: var(--danger); }
+.soc-module .sec-ring.tone-muted { --ring: var(--border); }
+.soc-module .sec-ring.tone-muted .sec-ring-meter span { color: var(--text-light); }
+.soc-module .sec-ring-note { margin: 12px 0 0; color: var(--text-light); font-size: var(--fs-sm, 12px); }
 
-/* Chart placeholder */
-.soc-module .sec-chart {
-  height: 238px;
-  position: relative;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background:
-    linear-gradient(var(--border) 1px, transparent 1px) 0 0 / 100% 25%,
-    linear-gradient(90deg, var(--border) 1px, transparent 1px) 0 0 / 12.5% 100%;
-  overflow: hidden;
-}
-.soc-module .sec-chart-line {
-  position: absolute;
-  left: 4%;
-  right: 4%;
-  height: 3px;
-  border-radius: 999px;
-  transform-origin: left center;
-  background: var(--line-color, var(--primary-mid));
-}
-.soc-module .sec-chart-line:nth-child(1) { top: 32%; transform: rotate(7deg); }
-.soc-module .sec-chart-line:nth-child(2) { top: 52%; transform: rotate(-5deg); --line-color: var(--warning); }
-.soc-module .sec-chart-line:nth-child(3) { top: 69%; transform: rotate(3deg); --line-color: var(--danger); }
-.soc-module .sec-bars { display: flex; align-items: end; gap: 7px; height: 170px; padding: 18px 8px 0; }
-.soc-module .sec-bar { flex: 1; min-width: 8px; border-radius: 4px 4px 0 0; background: var(--primary-mid); }
+/* Trend reale (SVG server-side, partials/trend_chart.html) */
+.soc-module .sec-trend { width: 100%; max-width: 860px; }
+.soc-module .sec-trend svg { display: block; width: 100%; height: auto; overflow: visible; }
+.soc-module .sec-trend .grid { stroke: var(--border); stroke-width: 1; }
+.soc-module .sec-trend .axis-label { fill: var(--text-light); font-size: 11px; }
+.soc-module .sec-trend polyline { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.soc-module .sec-trend circle { stroke: var(--surface); stroke-width: 1.5; }
+.soc-module .sec-trend-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; color: var(--text); font-size: var(--fs-sm, 12px); }
+.soc-module .sec-trend-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; background: var(--dot); vertical-align: -1px; }
 
 /* Tabelle */
 .soc-module .sec-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .soc-module .sec-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+/* Tabelle a 2-3 colonne nei riquadri stretti: senza min-width l'ultima colonna finiva fuori vista. */
+.soc-module .sec-table.sec-table-compact { min-width: 0; }
 .soc-module .sec-table th,
 .soc-module .sec-table td { padding: 11px 13px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; font-size: var(--fs-table); }
 .soc-module .sec-table th { color: var(--text-mid); font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; background: var(--thead-bg, var(--bg)); }
@@ -173,6 +168,9 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: var(--fs-sm);
 }
+body.theme-dark .soc-module .sec-code,
+body.theme-dark .soc-module code { color: #93c5fd; }
+.soc-module .sec-table .sec-num { text-align: right; }
 .soc-module pre,
 .soc-module .sec-code-block {
   max-width: 100%;
@@ -256,6 +254,44 @@
 .soc-module .sec-badge.disabled { color: var(--text-light); }
 .soc-module .sec-badge.misconfigured { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
 
+/* Coda alert: chip severità con conteggi reali + barra filtri compatta */
+.soc-module .sec-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.soc-module .sec-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text); font-size: var(--fs-sm); font-weight: 600; text-decoration: none;
+}
+.soc-module .sec-chip strong { font-weight: 800; }
+.soc-module .sec-chip:hover { border-color: var(--primary-mid); }
+.soc-module .sec-chip.is-active { border-color: var(--primary-mid); box-shadow: inset 0 0 0 1px var(--primary-mid); }
+.soc-module .sec-chip.is-empty { opacity: .55; }
+.soc-module .sec-chip.sev-critical strong { color: var(--danger); }
+.soc-module .sec-chip.sev-high strong,
+.soc-module .sec-chip.sev-warning strong,
+.soc-module .sec-chip.sev-medium strong { color: var(--warning); }
+.soc-module .sec-filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.soc-module .sec-filter-bar label { min-width: 170px; }
+.soc-module .sec-nowrap { white-space: nowrap; }
+.soc-module .sec-small { font-size: var(--fs-sm); }
+.soc-module .sec-wrap { overflow-wrap: anywhere; word-break: break-word; max-width: 260px; }
+.soc-module .sec-form input[type=checkbox] { width: 18px; height: 18px; min-height: 0; justify-self: start; }
+/* Form generati con as_p: campi a tutta larghezza, help text leggibile */
+.soc-module .sec-form p { display: grid; gap: 5px; margin: 0; }
+.soc-module .sec-form p > label { color: var(--text-mid); font-size: var(--fs-sm); font-weight: 600; }
+.soc-module .sec-form input:not([type=checkbox]),
+.soc-module .sec-form select,
+.soc-module .sec-form textarea { width: 100%; box-sizing: border-box; }
+.soc-module .sec-form textarea { padding: 8px 10px; }
+.soc-module .sec-form .helptext { color: var(--text-light); font-size: var(--fs-sm); }
+.soc-module .sec-auto-grid { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); align-items: start; }
+
+/* Coppie chiave/valore leggibili (decision trace, payload) al posto del dict grezzo */
+.soc-module h3.sec-subhead { margin: 20px 0 10px; font-size: var(--fs-base); color: var(--text); }
+.soc-module .sec-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; }
+.soc-module .sec-kv dt { color: var(--text-light); font-weight: 600; }
+.soc-module .sec-kv dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.soc-module .sec-kv-compact { gap: 2px 10px; font-size: var(--fs-sm); }
+
 /* Filtri e azioni */
 .soc-module .sec-filters,
 .soc-module .filters,
@@ -283,6 +319,8 @@
 }
 .soc-module input,
 .soc-module select { padding: 0 10px; }
+/* La ricerca delle tabelle (fm-table-enhanced) ha l'icona a sinistra: il padding del modulo la sovrapponeva al testo. */
+.soc-module .fm-tbl-search input { padding-left: 34px; }
 .soc-module button,
 .soc-module .button,
 .soc-module .sec-button {
@@ -298,6 +336,10 @@
 .soc-module button:hover,
 .soc-module .button:hover,
 .soc-module .sec-button:hover { border-color: var(--primary-mid); color: var(--primary); }
+/* In tema scuro --primary e' blu notte: all'hover il testo dei pulsanti spariva. */
+body.theme-dark .soc-module button:not(.sec-button-primary):hover,
+body.theme-dark .soc-module .button:not(.primary):hover,
+body.theme-dark .soc-module .sec-button:not(.sec-button-primary):hover { color: var(--text); }
 .soc-module button.primary,
 .soc-module .button.primary,
 .soc-module .sec-button-primary { border-color: var(--primary); background: var(--primary); color: #fff; }

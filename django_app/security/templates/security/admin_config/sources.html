@@ -1,48 +1,60 @@
 {% extends "security/_base_soc.html" %}
+{% load security_i18n %}
 {% block title %}Sorgenti / Security Center AI{% endblock %}
 {% block page_marker %}Configurazione{% endblock %}
 {% block page_title %}Configurazione sorgenti{% endblock %}
 {% block page_icon %}*{% endblock %}
 {% block soc_content %}
 {% include "security/admin_config/_section_help.html" %}
-<div class="sec-grid sec-two-col">
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>Sorgenti monitorate</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Sorgente</th><th>Stato</th><th>Parser</th><th>Frequenza</th><th>Riconoscimento</th></tr></thead>
+      <tbody>
+        {% for object in objects %}
+          <tr>
+            <td class="sec-title-cell"><strong>{{ object.name }}</strong><small>{% if object.vendor %}{{ object.vendor }} · {% endif %}{{ object.source_type }}{% if object.description and object.description != object.name %} · {{ object.description }}{% endif %}</small></td>
+            <td><span class="sec-badge {% if object.enabled %}ok{% else %}disabled{% endif %}">{% if object.enabled %}Attivo{% else %}Disattivato{% endif %}</span></td>
+            <td class="sec-wrap">{% if object.parser_name %}<span class="sec-code">{{ object.parser_name }}</span>{% else %}<span class="sec-muted">—</span>{% endif %}</td>
+            <td>{{ object.expected_frequency|ui_label }}</td>
+            <td class="sec-small">
+              {% if object.mailbox_sender_patterns %}<div><span class="sec-muted">Mittente:</span> {{ object.mailbox_sender_patterns|join:", " }}</div>{% endif %}
+              {% if object.mailbox_subject_patterns %}<div><span class="sec-muted">Oggetto:</span> {{ object.mailbox_subject_patterns|join:", " }}</div>{% endif %}
+              {% if not object.mailbox_sender_patterns and not object.mailbox_subject_patterns %}<span class="sec-muted">Nessun pattern</span>{% endif %}
+            </td>
+          </tr>
+        {% empty %}<tr><td colspan="5" class="sec-empty">Nessuna configurazione sorgente disponibile.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="sec-grid sec-two-col" style="margin-top: 12px;">
   <section class="sec-panel">
-    <div class="sec-section-head"><h2>Sorgenti monitorate</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
-    <div class="sec-table-wrap">
-      <table class="sec-table">
-        <thead><tr><th>Nome</th><th>Fornitore</th><th>Tipo</th><th>Stato</th><th>Parser</th><th>Frequenza</th><th>Test corrispondenza</th></tr></thead>
-        <tbody>
-          {% for object in objects %}
-            <tr>
-              <td class="sec-title-cell"><strong>{{ object.name }}</strong><small>{{ object.description }}</small></td>
-              <td>{{ object.vendor }}</td>
-              <td>{{ object.source_type }}</td>
-              <td><span class="sec-badge {% if object.enabled %}ok{% else %}disabled{% endif %}">{% if object.enabled %}Attivo{% else %}Disattivato{% endif %}</span></td>
-              <td class="sec-code">{{ object.parser_name }}</td>
-              <td>{{ object.expected_frequency }}</td>
-              <td>
-                <form method="post" class="sec-grid">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="test-match">
-                  <input type="hidden" name="source_id" value="{{ object.pk }}">
-                  <input name="sender" placeholder="mittente@example.com">
-                  <input name="subject" placeholder="Oggetto di esempio">
-                  <input name="body" placeholder="Corpo di esempio">
-                  <button type="submit">Test</button>
-                </form>
-              </td>
-            </tr>
-          {% empty %}<tr><td colspan="7" class="sec-empty">Nessuna configurazione sorgente disponibile.</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <div class="sec-section-head"><h2>Prova il riconoscimento</h2></div>
+    <p class="sec-muted">Verifica se una mail di esempio verrebbe attribuita a una sorgente, senza salvare nulla.</p>
+    <form method="post" class="sec-grid" style="gap: 10px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="test-match">
+      <label>Sorgente
+        <select name="source_id" required>
+          {% for object in objects %}<option value="{{ object.pk }}" {% if test_result.source.pk == object.pk %}selected{% endif %}>{{ object.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Mittente <input name="sender" placeholder="mittente@example.com"></label>
+      <label>Oggetto <input name="subject" placeholder="Oggetto di esempio"></label>
+      <label>Testo <input name="body" placeholder="Testo di esempio (facoltativo)"></label>
+      <div><button type="submit">Prova</button></div>
+    </form>
     {% if test_result %}
-      <p class="sec-panel">Corrispondenza campione per {{ test_result.source.name }}: <strong>{{ test_result.matched|yesno:"trovata,non trovata" }}</strong></p>
+      <p class="sec-action-result" style="margin-top: 12px;">{{ test_result.source.name }}: corrispondenza <strong>{{ test_result.matched|yesno:"trovata,non trovata" }}</strong></p>
     {% endif %}
   </section>
+
   <section class="sec-panel">
-    <div class="sec-section-head"><h2>Aggiungi / sostituisci sorgente</h2></div>
-    <form method="post" class="sec-grid">
+    <div class="sec-section-head"><h2>Aggiungi o sostituisci sorgente</h2></div>
+    <form method="post" class="sec-grid sec-form">
       {% csrf_token %}
       {{ form.as_p }}
       <button class="sec-button-primary" type="submit">Salva sorgente</button>
