@@ -57,11 +57,12 @@ Aggiornare questa checklist a ogni blocco concluso.
 
 ## D — KPI, Inbox, Configurazione
 
-- [ ] KPI: etichette leggibili per le metriche (mappa nome tecnico → italiano), tabella non troncata.
-- [ ] Inbox/Pipeline: etichette in italiano, colonne non troncate, icona ricerca non sovrapposta.
-- [ ] Sorgenti: righe compatte, etichette tradotte (`source_type`, finestra oraria), pattern
+- [x] KPI: etichette leggibili per le metriche (mappa nome tecnico → italiano), tabella non troncata.
+- [x] Inbox/Pipeline: etichette in italiano, colonne non troncate, icona ricerca non sovrapposta.
+- [x] Sorgenti: righe compatte, etichette tradotte (`source_type`, finestra oraria), pattern
       come testo una-riga-per-voce invece di JSON grezzo.
-- [ ] Autoconfig: pattern mittente/oggetto di default per le sorgenti note.
+- [~] Autoconfig: pattern di default — NON necessario, erano già presenti (errore dell'analisi iniziale:
+      avevo scambiato il form vuoto «nuova sorgente» per i dati delle sorgenti).
 
 ## Chiusura
 

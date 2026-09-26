@@ -29,7 +29,16 @@ LABELS = {
     "parsed": "Analizzato",
     "pending": "In attesa",
     "resolved": "Risolto",
-    "skipped": "Saltato",
+    "skipped": "Scartato",
+    "success": "Elaborato",
+    "already_processed": "Già elaborato",
+    "dry_run": "Prova",
+    "enabled": "Attivo",
+    "manual": "Manuale",
+    "hourly": "Oraria",
+    "daily": "Giornaliera",
+    "weekly": "Settimanale",
+    "monthly": "Mensile",
     "snoozed": "Posticipato",
     "suppressed": "Soppresso",
     "warning": "Attenzione",
@@ -175,3 +184,35 @@ ACTION_LABELS = {
 def action_label(value):
     text = str(value or "")
     return ACTION_LABELS.get(text, text.replace("_", " ").capitalize())
+
+
+METRIC_LABELS = {
+    "backup_completed_count": "Backup completati",
+    "backup_failed_count": "Backup falliti",
+    "backup_warning_count": "Backup con avvisi",
+    "backup_transferred_total_gb": "Dati trasferiti (GB)",
+    "backup_duration_avg_seconds": "Durata media backup (s)",
+    "backup_duration_max_seconds": "Durata massima backup (s)",
+    "backup_devices_backed_up": "Dispositivi salvati",
+    "backup_job": "Eventi job di backup",
+    "vulnerability_finding": "Vulnerabilità rilevate",
+    "vpn_auth_denied": "Accessi VPN negati",
+    "vpn_auth_allowed": "Accessi VPN consentiti",
+    "vpn_denied_count": "Accessi VPN negati",
+    "source_silent": "Sorgenti silenziose",
+    "possible_sender_spoofing": "Possibili spoofing mittente",
+    "watchguard_report_summary": "Report WatchGuard ricevuti",
+    "watchguard_alert_candidate": "Segnalazioni WatchGuard",
+    "exposed_devices": "Dispositivi esposti",
+    "cvss": "CVSS",
+}
+
+
+@register.filter
+def metric_label(value):
+    """Nome tecnico della metrica -> etichetta italiana (fallback: nome reso leggibile)."""
+    text = str(value or "")
+    if text in METRIC_LABELS:
+        return METRIC_LABELS[text]
+    human = text.replace("_", " ").strip()
+    return human[:1].upper() + human[1:]

@@ -91,3 +91,40 @@ class FiltersTest(TestCase):
     def test_action_label(self):
         self.assertEqual(action_label("alert_created"), "Alert creato")
         self.assertEqual(action_label("something_new"), "Something new")
+
+
+class SourcesConfigFormTest(_Base):
+    def test_patterns_one_per_line_saved_as_list(self):
+        from security.forms import SecuritySourceConfigForm
+
+        form = SecuritySourceConfigForm(data={
+            "name": "Firewall", "source_type": "watchguard_epdr", "vendor": "WatchGuard", "enabled": "on",
+            "expected_frequency": "daily", "mailbox_sender_patterns": "*@watchguard.com\n\n *firebox* ",
+            "mailbox_subject_patterns": "", "parser_name": "", "severity_mapping_json": "{}", "metadata_json": "{}",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        obj = form.save()
+        self.assertEqual(obj.mailbox_sender_patterns, ["*@watchguard.com", "*firebox*"])
+        self.assertEqual(obj.mailbox_subject_patterns, [])
+        edit = SecuritySourceConfigForm(instance=obj)
+        self.assertIn("*@watchguard.com\n*firebox*", edit.as_p())
+        self.assertIn("Giornaliera", edit.as_p())
+
+    def test_sources_page_single_test_form(self):
+        html = self.client.get(reverse("security:admin_config_sources")).content.decode()
+        self.assertEqual(html.count('value="test-match"'), 1)
+        self.assertNotIn(">source_type<", html)
+
+
+class InboxAndKpiLabelsTest(_Base):
+    def test_inbox_in_italian(self):
+        html = self.client.get(reverse("security:inbox")).content.decode()
+        for english in ("Run inbox parser", "Recent reports", "No inbox run yet", "Upload / Paste"):
+            self.assertNotIn(english, html)
+        self.assertIn("Elabora report", html)
+
+    def test_metric_label(self):
+        from security.templatetags.security_i18n import metric_label
+
+        self.assertEqual(metric_label("backup_failed_count"), "Backup falliti")
+        self.assertEqual(metric_label("new_metric_x"), "New metric x")

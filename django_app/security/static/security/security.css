@@ -139,6 +139,8 @@ body.theme-dark .soc-module .sec-panel a:not(.sec-button):not(.sec-chip):not(.se
 /* Tabelle */
 .soc-module .sec-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .soc-module .sec-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+/* Tabelle a 2-3 colonne nei riquadri stretti: senza min-width l'ultima colonna finiva fuori vista. */
+.soc-module .sec-table.sec-table-compact { min-width: 0; }
 .soc-module .sec-table th,
 .soc-module .sec-table td { padding: 11px 13px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; font-size: var(--fs-table); }
 .soc-module .sec-table th { color: var(--text-mid); font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; background: var(--thead-bg, var(--bg)); }
@@ -166,6 +168,9 @@ body.theme-dark .soc-module .sec-panel a:not(.sec-button):not(.sec-chip):not(.se
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: var(--fs-sm);
 }
+body.theme-dark .soc-module .sec-code,
+body.theme-dark .soc-module code { color: #93c5fd; }
+.soc-module .sec-table .sec-num { text-align: right; }
 .soc-module pre,
 .soc-module .sec-code-block {
   max-width: 100%;
@@ -267,6 +272,18 @@ body.theme-dark .soc-module .sec-panel a:not(.sec-button):not(.sec-chip):not(.se
 .soc-module .sec-filter-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
 .soc-module .sec-filter-bar label { min-width: 170px; }
 .soc-module .sec-nowrap { white-space: nowrap; }
+.soc-module .sec-small { font-size: var(--fs-sm); }
+.soc-module .sec-wrap { overflow-wrap: anywhere; word-break: break-word; max-width: 260px; }
+.soc-module .sec-form input[type=checkbox] { width: 18px; height: 18px; min-height: 0; justify-self: start; }
+/* Form generati con as_p: campi a tutta larghezza, help text leggibile */
+.soc-module .sec-form p { display: grid; gap: 5px; margin: 0; }
+.soc-module .sec-form p > label { color: var(--text-mid); font-size: var(--fs-sm); font-weight: 600; }
+.soc-module .sec-form input:not([type=checkbox]),
+.soc-module .sec-form select,
+.soc-module .sec-form textarea { width: 100%; box-sizing: border-box; }
+.soc-module .sec-form textarea { padding: 8px 10px; }
+.soc-module .sec-form .helptext { color: var(--text-light); font-size: var(--fs-sm); }
+.soc-module .sec-auto-grid { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); align-items: start; }
 
 /* Coppie chiave/valore leggibili (decision trace, payload) al posto del dict grezzo */
 .soc-module h3.sec-subhead { margin: 20px 0 10px; font-size: var(--fs-base); color: var(--text); }
@@ -302,6 +319,8 @@ body.theme-dark .soc-module .sec-panel a:not(.sec-button):not(.sec-chip):not(.se
 }
 .soc-module input,
 .soc-module select { padding: 0 10px; }
+/* La ricerca delle tabelle (fm-table-enhanced) ha l'icona a sinistra: il padding del modulo la sovrapponeva al testo. */
+.soc-module .fm-tbl-search input { padding-left: 34px; }
 .soc-module button,
 .soc-module .button,
 .soc-module .sec-button {
