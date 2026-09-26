@@ -461,6 +461,495 @@ const TimelineOp = ({
     }
   }, it.note))))));
 };
+
+// --- Scheda qualita' (protocollo NC, classificazione, registro NC, proposta AI) ---
+// Consuma /api/anomalie/qualita (GET crea la scheda al primo accesso) e
+// /api/anomalie/qualita/copilota (proposta AI, non salva nulla).
+const GRAVITA_COLORS = {
+  MINORE: {
+    bg: "var(--success-bg)",
+    fg: "var(--success)"
+  },
+  MAGGIORE: {
+    bg: "var(--warning-bg)",
+    fg: "var(--warning)"
+  },
+  CRITICA: {
+    bg: "var(--danger-bg)",
+    fg: "var(--danger)"
+  }
+};
+const qInputStyle = enabled => ({
+  width: "100%",
+  padding: "8px 12px",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  color: "var(--text)",
+  background: enabled ? "var(--surface)" : "var(--bg)",
+  outline: "none",
+  cursor: enabled ? "auto" : "not-allowed",
+  opacity: enabled ? 1 : 0.8
+});
+const SCHEDA_FIELDS = ["origine", "tipo_difetto", "gravita", "reparto", "quantita_nc", "quantita_scartata", "disposizione"];
+const SchedaQualita = ({
+  localId,
+  canEdit,
+  reloadKey,
+  isMobile
+}) => {
+  const [scheda, setScheda] = useState(null);
+  const [scelte, setScelte] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [ai, setAi] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [serverCanEdit, setServerCanEdit] = useState(false);
+  const toDraft = s => {
+    const d = {};
+    SCHEDA_FIELDS.forEach(k => {
+      d[k] = s && s[k] != null ? String(s[k]) : "";
+    });
+    return d;
+  };
+  useEffect(() => {
+    setAi(null);
+    setMsg(null);
+    if (!localId || !API.qualita) {
+      setScheda(null);
+      return;
+    }
+    let alive = true;
+    setLoading(true);
+    fetch(`${API.qualita}?local_id=${encodeURIComponent(localId)}`, {
+      credentials: "same-origin"
+    }).then(r => readJsonOrThrow(r, "Scheda qualità")).then(d => {
+      if (!alive) return;
+      if (!d.success) throw new Error(d.error || "Scheda non disponibile");
+      setScheda(d.scheda);
+      setScelte(d.scelte);
+      setDraft(toDraft(d.scheda));
+      setServerCanEdit(!!d.can_edit);
+    }).catch(e => {
+      if (alive) {
+        setScheda(null);
+        setMsg({
+          ok: false,
+          text: e.message
+        });
+      }
+    }).finally(() => {
+      if (alive) setLoading(false);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [localId, reloadKey]);
+
+  // Tipi difetto raggruppati per famiglia (optgroup). Hook PRIMA di ogni return.
+  const famiglie = useMemo(() => {
+    const out = [];
+    (scelte && scelte.tipi_difetto || []).forEach(t => {
+      const fam = t.famiglia || "Altro";
+      let g = out.find(x => x.fam === fam);
+      if (!g) {
+        g = {
+          fam,
+          items: []
+        };
+        out.push(g);
+      }
+      g.items.push(t);
+    });
+    return out;
+  }, [scelte]);
+  if (!localId) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "text-sm",
+      style: {
+        marginTop: 20,
+        padding: "12px 14px",
+        border: "1px dashed var(--border)",
+        borderRadius: 10,
+        color: "var(--text-light)"
+      }
+    }, "Scheda qualit\xE0: disponibile dopo il primo salvataggio della segnalazione.");
+  }
+  const editable = canEdit && serverCanEdit && !!scheda;
+  const dirty = scheda && SCHEDA_FIELDS.some(k => (draft[k] || "") !== (scheda[k] != null ? String(scheda[k]) : ""));
+  const set = k => e => setDraft(prev => ({
+    ...prev,
+    [k]: e.target.value
+  }));
+  const flash = m => {
+    setMsg(m);
+    setTimeout(() => setMsg(null), 4000);
+  };
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body = {
+        local_id: localId
+      };
+      SCHEDA_FIELDS.forEach(k => {
+        body[k] = draft[k] === "" ? null : draft[k];
+      });
+      const r = await fetch(API.qualita, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: JSON.stringify(body)
+      });
+      const d = await readJsonOrThrow(r, "Salvataggio scheda qualità");
+      if (!d.success) throw new Error(d.error || "Salvataggio non riuscito");
+      setScheda(d.scheda);
+      setDraft(toDraft(d.scheda));
+      flash({
+        ok: true,
+        text: d.scheda.registro_nc ? `Scheda salvata · NC ${d.scheda.registro_nc.numero} nel registro` : "Scheda salvata"
+      });
+    } catch (e) {
+      flash({
+        ok: false,
+        text: e.message
+      });
+    }
+    setSaving(false);
+  };
+  const askAi = async () => {
+    setAiLoading(true);
+    setAi(null);
+    try {
+      const r = await fetch(API.qualita_copilota, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: JSON.stringify({
+          local_id: localId
+        })
+      });
+      const d = await readJsonOrThrow(r, "Proposta AI");
+      if (!r.ok || !d.success) throw new Error(d.error || "Proposta non disponibile");
+      setAi(d.proposta);
+    } catch (e) {
+      flash({
+        ok: false,
+        text: e.message
+      });
+    }
+    setAiLoading(false);
+  };
+  const applyAi = () => {
+    if (!ai) return;
+    setDraft(prev => ({
+      ...prev,
+      tipo_difetto: ai.tipo_difetto != null ? String(ai.tipo_difetto) : prev.tipo_difetto,
+      gravita: ai.gravita || prev.gravita
+    }));
+  };
+  const label = (list, value) => {
+    const hit = (list || []).find(o => String(o.value) === String(value));
+    return hit ? hit.label : "";
+  };
+  const reg = scheda && scheda.registro_nc;
+  const grav = GRAVITA_COLORS[draft.gravita] || null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 20,
+      border: "1px solid var(--border)",
+      borderRadius: 12,
+      background: "var(--surface)",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      flexWrap: "wrap",
+      padding: "12px 16px",
+      background: "var(--bg)",
+      borderBottom: "1px solid var(--border)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-sm font-semibold",
+    style: {
+      fontWeight: 700,
+      color: "var(--text)"
+    }
+  }, "Scheda qualit\xE0"), scheda && /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-bold",
+    style: {
+      fontFamily: "ui-monospace,monospace",
+      padding: "2px 8px",
+      borderRadius: 6,
+      border: "1px solid var(--border)",
+      background: "var(--surface)",
+      color: "var(--text)"
+    }
+  }, scheda.protocollo), grav && /*#__PURE__*/React.createElement("span", {
+    className: "text-2xs font-semibold",
+    style: {
+      padding: "2px 8px",
+      borderRadius: 99,
+      background: grav.bg,
+      color: grav.fg,
+      fontWeight: 700,
+      textTransform: "uppercase"
+    }
+  }, label(scelte && scelte.gravita, draft.gravita)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: "auto"
+    }
+  }), reg ? /*#__PURE__*/React.createElement("a", {
+    href: reg.url || "#",
+    target: "_blank",
+    rel: "noopener",
+    className: "text-xs font-semibold",
+    style: {
+      padding: "3px 10px",
+      borderRadius: 99,
+      textDecoration: "none",
+      fontWeight: 700,
+      background: reg.chiuso ? "var(--success-bg)" : "var(--warning-bg)",
+      color: reg.chiuso ? "var(--success)" : "var(--warning)"
+    },
+    title: "Voce del registro OFI/NC (ISO 9001 \xA710.2)"
+  }, "Registro NC n. ", reg.numero, " \xB7 ", reg.fase) : scheda ? /*#__PURE__*/React.createElement("span", {
+    className: "text-xs",
+    style: {
+      color: "var(--text-light)"
+    },
+    title: "Entra nel registro NC se gravit\xE0 maggiore/critica, segnalata al cliente, con RDC o difetto ricorrente"
+  }, "Non nel registro NC") : null), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "14px 16px"
+    }
+  }, loading ? /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: "var(--text-light)"
+    }
+  }, "Caricamento scheda\u2026") : !scheda ? /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: "var(--danger)"
+    }
+  }, msg && msg.text || "Scheda non disponibile.") : /*#__PURE__*/React.createElement(React.Fragment, null, scheda.part_number && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs",
+    style: {
+      color: "var(--text-light)",
+      marginBottom: 10
+    }
+  }, "P/N registrato: ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: "ui-monospace,monospace",
+      color: "var(--text-mid)"
+    }
+  }, scheda.part_number)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0,1fr))",
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      gridColumn: isMobile ? "auto" : "span 2"
+    }
+  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Tipo difetto"), /*#__PURE__*/React.createElement("select", {
+    value: draft.tipo_difetto || "",
+    onChange: set("tipo_difetto"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 da classificare \u2014"), famiglie.map(g => /*#__PURE__*/React.createElement("optgroup", {
+    key: g.fam,
+    label: g.fam
+  }, g.items.map(t => /*#__PURE__*/React.createElement("option", {
+    key: t.value,
+    value: String(t.value)
+  }, t.label)))), draft.tipo_difetto && !(scelte && scelte.tipi_difetto || []).some(t => String(t.value) === draft.tipo_difetto) && /*#__PURE__*/React.createElement("option", {
+    value: draft.tipo_difetto
+  }, scheda.tipo_difetto_label || "Tipo disattivato"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Gravit\xE0"), /*#__PURE__*/React.createElement("select", {
+    value: draft.gravita || "",
+    onChange: set("gravita"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 da valutare \u2014"), (scelte && scelte.gravita || []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.value,
+    value: o.value
+  }, o.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Origine"), /*#__PURE__*/React.createElement("select", {
+    value: draft.origine || "",
+    onChange: set("origine"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014"), (scelte && scelte.origini || []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.value,
+    value: o.value
+  }, o.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Reparto"), /*#__PURE__*/React.createElement("select", {
+    value: draft.reparto || "",
+    onChange: set("reparto"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014"), (scelte && scelte.reparti || []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.value,
+    value: String(o.value)
+  }, o.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Decisione sul materiale"), /*#__PURE__*/React.createElement("select", {
+    value: draft.disposizione || "",
+    onChange: set("disposizione"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, (scelte && scelte.disposizioni || []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.value,
+    value: o.value
+  }, o.label))), scheda.disposizione_auto && !dirty && /*#__PURE__*/React.createElement("div", {
+    className: "text-2xs",
+    style: {
+      color: "var(--text-light)",
+      marginTop: 4
+    }
+  }, "Dedotta da RDC/avanzamento: cambiala se serve.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Q.t\xE0 non conforme"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    value: draft.quantita_nc || "",
+    onChange: set("quantita_nc"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Q.t\xE0 scartata"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    value: draft.quantita_scartata || "",
+    onChange: set("quantita_scartata"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }))), ai && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 14,
+      padding: "12px 14px",
+      borderRadius: 10,
+      border: "1px solid var(--border)",
+      background: "var(--bg)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-semibold",
+    style: {
+      fontWeight: 700,
+      color: "var(--text)",
+      textTransform: "uppercase",
+      letterSpacing: "0.05em"
+    }
+  }, "Proposta ", ai.fonte === "simili" ? "dai casi simili" : "AI"), !ai.ai_disponibile && /*#__PURE__*/React.createElement("span", {
+    className: "text-2xs",
+    style: {
+      color: "var(--text-light)"
+    }
+  }, "AI non raggiungibile"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: "auto"
+    }
+  }), editable && (ai.tipo_difetto != null || ai.gravita) && /*#__PURE__*/React.createElement(IconBtn, {
+    onClick: applyAi,
+    title: "Copia tipo difetto e gravit\xE0 nel form (poi salva)"
+  }, "Applica al form")), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: "var(--text-mid)",
+      display: "grid",
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", null, "Tipo difetto: ", /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: "var(--text)"
+    }
+  }, label(scelte && scelte.tipi_difetto, ai.tipo_difetto) || "—"), " · ", "Gravit\xE0: ", /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: "var(--text)"
+    }
+  }, label(scelte && scelte.gravita, ai.gravita) || "—")), ai.causa_probabile && /*#__PURE__*/React.createElement("div", null, "Causa probabile (da verificare): ", ai.causa_probabile), ai.motivazione && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "var(--text-light)"
+    }
+  }, ai.motivazione)), Array.isArray(ai.simili) && ai.simili.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-2xs font-semibold",
+    style: {
+      color: "var(--text-light)",
+      textTransform: "uppercase",
+      letterSpacing: "0.05em",
+      marginBottom: 4
+    }
+  }, "Casi simili"), ai.simili.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.protocollo,
+    className: "text-xs",
+    style: {
+      color: "var(--text-mid)",
+      padding: "3px 0",
+      borderTop: "1px solid var(--border)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: "ui-monospace,monospace",
+      color: "var(--text)"
+    }
+  }, c.protocollo), " · ", c.tipo_difetto_label, c.part_number ? ` · P/N ${c.part_number}` : "", " \u2014 ", c.descrizione)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 14,
+      flexWrap: "wrap"
+    }
+  }, msg && /*#__PURE__*/React.createElement("span", {
+    className: "text-sm font-semibold",
+    style: {
+      color: msg.ok ? "var(--success)" : "var(--danger)",
+      fontWeight: 600
+    }
+  }, msg.text), !msg && aiLoading && /*#__PURE__*/React.createElement("span", {
+    className: "text-sm",
+    style: {
+      color: "var(--text-light)"
+    }
+  }, "L'AI sta analizzando la segnalazione: pu\xF2 servire anche un minuto."), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: "auto"
+    }
+  }), editable && API.qualita_copilota && /*#__PURE__*/React.createElement(IconBtn, {
+    onClick: askAi,
+    disabled: aiLoading,
+    title: "Proposta di tipo difetto, gravit\xE0 e causa probabile (non salva nulla)"
+  }, aiLoading ? "Analisi…" : "Proponi con AI"), editable && /*#__PURE__*/React.createElement(IconBtn, {
+    onClick: save,
+    disabled: saving || !dirty,
+    accent: true,
+    title: "Salva la scheda qualit\xE0"
+  }, saving ? "Salvataggio…" : "Salva scheda")))));
+};
 const Toggle = ({
   label,
   checked,
@@ -522,6 +1011,7 @@ function GestioneAnomalie() {
   const [loadingAttachments, setLoadingAttachments] = useState(false);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
   const [selectedAttachmentId, setSelectedAttachmentId] = useState(null);
+  const [qualitaTick, setQualitaTick] = useState(0); // ricarica la scheda qualita' dopo "Salva"
   const fileInputRef = useRef(null);
 
   // â"€â"€ Selezione e ricerca â"€â"€
@@ -828,11 +1318,12 @@ function GestioneAnomalie() {
         setCurrentLocalId(newLocalId || null);
         setSaveMsg({
           ok: true,
-          text: "Salvato"
+          text: data.protocollo ? `Salvato · ${data.protocollo}` : "Salvato"
         });
         if (newLocalId) {
           loadAttachments(newLocalId);
         }
+        setQualitaTick(n => n + 1);
         // Optimistic update: aggiorna lo stato locale senza re-fetch
         const updatedRecord = {
           item_id: newItemId,
@@ -2387,7 +2878,12 @@ function GestioneAnomalie() {
     },
     onFocus: e => e.target.style.borderColor = "#93c5fd",
     onBlur: e => e.target.style.borderColor = "#e2e8f0"
-  })))), op.id && op.id !== '—' && /*#__PURE__*/React.createElement(TimelineOp, {
+  })))), sn.sn && /*#__PURE__*/React.createElement(SchedaQualita, {
+    localId: currentLocalId,
+    canEdit: canEditCurrentOp,
+    reloadKey: qualitaTick,
+    isMobile: isMobile
+  }), op.id && op.id !== '—' && /*#__PURE__*/React.createElement(TimelineOp, {
     opId: op.id,
     opItemId: op.item_id
   })))), isMobile && saveMsg && /*#__PURE__*/React.createElement("div", {
