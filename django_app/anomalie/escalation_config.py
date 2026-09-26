@@ -47,9 +47,6 @@ KEY_RDC_ATTIVO = "anomalie_auto_rdc_attivo"
 KEY_RDC_GIORNI = "anomalie_auto_rdc_giorni"
 KEY_DIGEST_ATTIVO = "anomalie_auto_digest_attivo"
 KEY_OP_COMPLETATO_ATTIVO = "anomalie_auto_op_completato_attivo"
-# Registrazione automatica delle NC significative nel registro OFI/NC (ISO 9001 §10.2).
-# Unica automazione ACCESA di default: e' la tenuta del registro, non una notifica.
-KEY_NC_REGISTRO_ATTIVO = "anomalie_auto_nc_registro_attivo"
 
 DEFAULT_RICORRENZA_N = 3
 RICORRENZA_N_MIN, RICORRENZA_N_MAX = 2, 50
@@ -109,7 +106,6 @@ def get_escalation_config() -> dict:
         ),
         "digest_attivo": _parse_bool(SiteConfig.get(KEY_DIGEST_ATTIVO, ""), default=False),
         "op_completato_attivo": _parse_bool(SiteConfig.get(KEY_OP_COMPLETATO_ATTIVO, ""), default=False),
-        "nc_registro_attivo": _parse_bool(SiteConfig.get(KEY_NC_REGISTRO_ATTIVO, ""), default=True),
     }
 
 
@@ -125,7 +121,6 @@ def save_automazioni_config(payload: dict) -> bool:
         "rdc_attivo": (KEY_RDC_ATTIVO, "Anomalie: promemoria RDC richiesto senza numero."),
         "digest_attivo": (KEY_DIGEST_ATTIVO, "Anomalie: digest settimanale KPI ai supervisori."),
         "op_completato_attivo": (KEY_OP_COMPLETATO_ATTIVO, "Anomalie: mail a CC/CAR quando un OP ha tutte le anomalie chiuse."),
-        "nc_registro_attivo": (KEY_NC_REGISTRO_ATTIVO, "Anomalie: registrazione automatica delle NC significative nel registro OFI/NC."),
     }
     for field, (key, desc) in flags.items():
         if field in payload:
