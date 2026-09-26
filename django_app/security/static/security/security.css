@@ -400,6 +400,7 @@ body.theme-dark .soc-module .sec-button:not(.sec-button-primary):hover { color: 
 .soc-module .sec-mini-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .soc-module .sec-mini-list li { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .soc-module .sec-mini-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.soc-module .sec-mini-list.sec-stack li { flex-direction: column; justify-content: flex-start; gap: 2px; }
 .soc-module .sec-doc-panel { margin-top: 12px; }
 .soc-module .sec-doc-list {
   display: grid;

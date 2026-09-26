@@ -59,12 +59,7 @@ ADDONS = [
         documentation_file="04_WATCHGUARD_ADDON.md",
         source_tokens=("watchguard", "firebox", "dimension", "epdr", "threatsync"),
         parser_tokens=("watchguard",),
-        parser_names=(
-            "watchguard_report_parser",
-            "watchguard_firebox_authentication_denied_csv_parser",
-            "watchguard_firebox_authentication_allowed_csv_parser",
-            "watchguard_epdr_executive_report_parser",
-        ),
+        parser_names=("watchguard_report_parser",),
         rule_prefixes=("watchguard_",),
         important_parser_names=("watchguard_report_parser",),
         important_rule_codes=("watchguard_vpn_denied_gt_0",),
