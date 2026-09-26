@@ -8,6 +8,37 @@ from __future__ import annotations
 
 SCHEDULES: list[dict] = [
     {
+        # ASSETS — reportistica programmata dalle Impostazioni: controlla le scadenze,
+        # archivia snapshot e PDF/Excel, recupera gli errori temporanei (max 3 tentativi).
+        "name": "assets_reportistica",
+        "func": "assets.services.reporting.dispatch_due_reports",
+        "schedule_type": "I",
+        "minutes": 1,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # CONTATORI — monitor SNMP dei dispositivi attivi, con un job per apparato.
+        # Stato, sonde ed errori sono consultabili nella Centrale MFC/SNMP.
+        "name": "contatori_poll_snmp",
+        "func": "contatori.tasks.run_poll_snmp",
+        "schedule_type": "I",
+        "minutes": 5,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # CONTATORI — snapshot mensile MFC il giorno 1 alle 08:00 (fuso del portale).
+        # Una lettura per macchina/mese; Esegui ora recupera solo le letture mancanti.
+        # Lo storico mensile non sovrascrive le letture trimestrali di riconciliazione.
+        "name": "contatori_letture_mensili",
+        "func": "contatori.tasks.run_letture_mensili",
+        "schedule_type": "C",
+        "cron": "0 8 1 * *",
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         "name": "automation_queue",
         "func": "automazioni.tasks.run_automation_queue",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)

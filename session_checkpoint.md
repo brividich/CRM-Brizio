@@ -1,5 +1,50 @@
 # Session Checkpoint
 
+Data: 2026-09-26 (integrazione centrale MFC/SNMP e reportistica in release/prod)
+
+- `d7ab908f` non conteneva i commit SNMP. Integrati `c463cb85`, `d052f2e3`, `716010f5`, `ff230d6f` sopra l'attuale `release/prod` `4776678e` nel worktree `temp/codex-release-contatori`, branch `integration/contatori-release-20260926`.
+- Conflitti esclusivamente documentali risolti conservando entrambe le linee; `docs/AUTOMAZIONI.md` rigenerato dalla fonte con 48 schedule, incluso `security_cycle` gia' in release e i tre nuovi job Contatori/Asset.
+- 118 test mirati verdi sul merge; system check incluso senza errori. Nessun DB o apparato reale toccato, nessun backup aggiuntivo. File critici integrati: route locali Contatori/Assets, binding ACL report e catalogo scheduler; nessun middleware/settings/auth/routing globale.
+- Deploy ancora separato: dopo pubblicazione/pacchetto eseguire `migrate`, `setup_q_schedules` e riavviare web/qcluster esistente. Il checkout condiviso e la cartella utente `parser pdf/` non sono stati modificati.
+
+Data: 2026-09-26 (reportistica Asset programmata)
+
+- Nuova voce vista/aggiunta: `2026-09-26 - Codex (reportistica Asset programmata)` in AGENT_CHANGELOG; changelog root/Django, README e docs AI aggiornati alla stessa funzione.
+- Impostazioni → Reportistica, archivio privato PDF/Excel/web e andamento ultime 12 estrazioni; nuovo dispatcher `assets_reportistica` nel qcluster esistente. Migrazioni Assets 0119/0120 con dipendenza Contatori 0007. Runbook `docs/ASSET_REPORTISTICA.md`, AUTOMAZIONI.md rigenerato (47 voci).
+- File critici: route locali Assets, migration binding ACL separati gestione/lettura senza nuovi grant e catalogo scheduler. Nessuna modifica a settings permanenti, middleware, autenticazione o navigazione globale.
+- Verifiche: 118 test mirati verdi, check Django e drift migrazioni puliti, QA desktop/mobile/dark e PDF sintetico renderizzato. Nessun dato/apparato reale toccato; nessun backup aggiuntivo. Dettagli e limiti nel registro agente.
+- Stato: branch `feature/contatori-centrale-snmp`, worktree dedicato. Pronto per integrazione nella release, non distribuito. PROD deve ricevere anche gli antenati, incluso `716010f5` per `leggi_contatori_mensili`; poi migrate, setup_q_schedules e riavvio worker esistente. Nessun task Windows aggiuntivo.
+
+Data: 2026-09-26 (scheduler esistente e raccolta MFC mensile)
+
+- Nuova voce agente vista/aggiunta: `2026-09-26 - Codex (scheduler esistente e raccolta MFC mensile)`; changelog root/Django aggiornati alla stessa funzionalita'.
+- Confermato scheduler django-q2 e pagina Task pianificati gia' presenti. Aggiunti `contatori_poll_snmp` (5 minuti) e `contatori_letture_mensili` (giorno 1 ore 08:00), job per apparato e nessun task Windows aggiuntivo.
+- Nuovo storico mensile idempotente MFC separato dai trimestri, migration contatori 0007, tabella nella scheda macchina e comando `leggi_contatori_mensili`.
+- Test finali: 93 mirati verdi, Django check pulito, migration drift assente. File critico: catalogo scheduler `automazioni/schedules.py`, sole due aggiunte, documentate. Nessun ACL/routing/settings permanente modificato.
+- README, changelog root/Django, docs AI e AUTOMAZIONI.md aggiornati; nuovo runbook CONTATORI_AUTOMAZIONI.md. Nessun backup aggiuntivo o accesso a DB/apparati reali.
+- Deploy da effettuare: migrate contatori, setup_q_schedules e riavvio del qcluster esistente. Stato runtime PROD non verificato. Branch feature/contatori-centrale-snmp.
+
+Data: 2026-09-26 (centrale MFC/SNMP e ponte Asset)
+
+Ultime voci viste/aggiunte:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-26 - Codex (centrale MFC/SNMP e ponte Asset)`; changelog root/Django -> Centrale MFC e SNMP con ponte Asset HUB.
+- Worktree `temp/codex-contatori-centrale-snmp`, branch `feature/contatori-centrale-snmp`, basato su `c463cb85` (fix parser SNMP).
+- Nuovi dispositivi, sonde, rilevazioni e valori SNMP; salute MFC, dashboard/monitor e bridge Asset bidirezionale; migration contatori 0006 e comando `poll_snmp_devices`.
+- Test finali: 71/71 contatori verdi, system check senza errori, migration drift assente; QA visuale desktop/mobile con dati sintetici. Nessun SNMP reale o DB aziendale modificato.
+- File critico per funzione: solo routing locale `contatori/urls.py`; integrazione Assets limitata al template della scheda. README, changelog root/Django e documentazione AI aggiornati; nessun backup aggiuntivo.
+- Rilascio ancora da eseguire: integrare branch e fix antenato, migrate contatori, statici e collaudo SQL Server/apparati/ruoli TEST. Polling schedulabile ma non attivato automaticamente.
+- Controlli sessione/lock/critical non presenti, come alla partenza. Modifiche estranee nel checkout condiviso lasciate intatte.
+
+Data: 2026-09-26 (fix parser comandi SNMP)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-26 - Codex (fix parser comandi SNMP)`.
+- `snmp_discover` e `leggi_contatori` usano ora `--snmp-version`, evitando il conflitto con il `--version` globale di Django; aggiunti test parser per entrambi e nota in `docs/ai/03_BACKEND_MODULES.md`.
+- Verifica: 2/2 test parser e 53/53 test `contatori` verdi; Django check, help reale dei due command e diff check superati.
+- Worktree `temp/codex-snmp-version`, branch `feature/contatori-snmp-version`; nessun file critico, backup, dipendenza o DB DEV/PROD modificato.
+
 Data: 2026-09-25 (correzioni fase 2 audit interni EN 9100)
 
 Ultime voci viste/aggiunte in questa sessione:

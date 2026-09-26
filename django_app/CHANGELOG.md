@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Assets — reportistica programmata e archivio privato
+
+- Nuova sezione Impostazioni → Reportistica: data/cadenza, filtri inventario, MFC/SNMP collegati, PDF/Excel con tema portale; estrazione manuale o automatica, storico congelato, dettaglio web e andamento a perimetro costante.
+- Job `assets_reportistica` nello scheduler esistente, ogni minuto, con deduplica e retry; file archiviati nel DB e download protetti/auditati. Migrazioni Assets 0119/0120; binding canonici separati per gestione e consultazione senza nuovi grant.
+- Runbook `docs/ASSET_REPORTISTICA.md`: attivazione e limiti, inclusa diagnosi `Unknown command: leggi_contatori_mensili` su installazioni senza il nuovo codice.
+
+### Contatori — scheduler centralizzato e letture mensili
+
+- Registrati `contatori_poll_snmp` (5 minuti) e `contatori_letture_mensili` (giorno 1 alle 08:00) nello scheduler django-q2 esistente, gestibili in Task pianificati.
+- Job per apparato con limite di durata e controllo duplicati in cache; storico mensile MFC idempotente separato dai trimestri, timestamp effettivo e recupero delle sole letture mancanti tramite `leggi_contatori_mensili`.
+- Migration `contatori 0007`, tabella mensile nella scheda MFC e documentazione `docs/CONTATORI_AUTOMAZIONI.md`. Deploy: migrate, setup_q_schedules e riavvio del worker esistente; nessun nuovo task Windows.
+
+### Contatori — centrale MFC/SNMP e ponte Asset HUB
+
+- Nuovi dispositivi SNMP generici, sonde OID tipizzate con conversioni e soglie, storico valori/esiti, salute e latenza persistite; dashboard e monitor responsive per MFC, lettori, apparati, UPS e sensori.
+- Ponte Asset bidirezionale: FK opzionale, match automatico univoco seriale→`Asset.serial_number` o host→`AssetEndpoint.ip`, link nelle due schede e comando `collega_asset` esteso. Nessuna modifica automatica ai record Asset.
+- Polling esclusivamente GET, configurazione community centralizzata, OID numerici validati; comando schedulabile `poll_snmp_devices`. Migration `contatori 0006`.
+
+### Contatori MFC - fix opzione versione SNMP dei comandi
+
+- `snmp_discover` e `leggi_contatori` usano `--snmp-version {v1,v2c}` invece del nome riservato Django `--version`, eliminando il crash `argparse.ArgumentError` in fase di avvio.
+- Aggiunta copertura automatica sulla costruzione e sul parsing delle CLI.
+
 ### Sistema di gestione - correzioni audit interni EN 9100
 
 - Rapporto bloccato dopo firma e riapertura esplicita tracciata; convalida del responsabile di processo; KPI sulla sola revisione approvata e sui mesi del periodo; imparzialitÃ  a token interi; retry OFI con savepoint; download firmati tracciati; PDF riallineati ai modelli aziendali.

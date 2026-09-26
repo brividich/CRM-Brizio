@@ -2,9 +2,7 @@
 {% block title %}Discovery SNMP{% endblock %}
 {% block modulo %}
 <h1>Discovery SNMP</h1>
-<p class="sub">Cerca in rete le stampanti che rispondono in SNMP e le abbina all'anagrafica
-   <strong>per matricola</strong> (il numero di serie letto dal dispositivo). Serve soprattutto a
-   scoprire un <strong>IP sbagliato</strong>: l'IP puo' cambiare, la matricola no. Solo letture: non scrive nulla sulle stampanti.</p>
+<p class="sub">Individua gli endpoint che rispondono in SNMP. Le MFC vengono abbinate per matricola; lettori, apparati e sensori possono essere aggiunti direttamente al monitor. La scansione usa solo letture GET.</p>
 
 <div class="panel">
   <form method="post">
@@ -79,7 +77,7 @@
                 <button class="btn" type="submit">Correggi IP → {{ r.host }}</button>
               </form>
             {% elif r.stato == 'nuova' %}
-              <a class="btn ghost" href="{% url 'contatori:macchina_nuova' %}">Aggiungi stampante</a>
+              <div class="actions"><a class="btn ghost small" href="{% url 'contatori:snmp_dispositivo_nuovo' %}?host={{ r.host|urlencode }}&nome={{ r.descr|default:'Dispositivo SNMP'|urlencode }}&matricola={{ r.matricola|urlencode }}&descr={{ r.descr|urlencode }}">Aggiungi al monitor</a><a class="btn ghost small" href="{% url 'contatori:macchina_nuova' %}">Aggiungi MFC</a></div>
             {% endif %}
           </td>
         </tr>

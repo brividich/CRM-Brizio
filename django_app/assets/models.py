@@ -2102,6 +2102,64 @@ class AssetLabelTemplate(models.Model):
             storage.delete(file_name)
 
 
+class AssetReportSchedule(models.Model):
+    class Frequency(models.TextChoices):
+        ONCE = "ONCE", "Una sola volta"
+        DAILY = "DAILY", "Giornaliera"
+        WEEKLY = "WEEKLY", "Settimanale"
+        MONTHLY = "MONTHLY", "Mensile"
+
+    name = models.CharField("Nome report", max_length=120)
+    asset_type = models.CharField("Tipo asset", max_length=20, blank=True, choices=Asset.TYPE_CHOICES)
+    asset_category = models.ForeignKey("AssetCategory", verbose_name="Categoria", null=True, blank=True, on_delete=models.PROTECT)
+    reparto = models.CharField("Reparto", max_length=120, blank=True)
+    include_snmp = models.BooleanField("Includi MFC e monitor SNMP collegati", default=True)
+    export_pdf = models.BooleanField("PDF", default=True)
+    export_excel = models.BooleanField("Excel", default=True)
+    frequency = models.CharField("Frequenza", max_length=10, choices=Frequency.choices, default=Frequency.MONTHLY)
+    next_run = models.DateTimeField("Prossima estrazione")
+    anchor_day = models.PositiveSmallIntegerField(default=1)
+    enabled = models.BooleanField("Attiva", default=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name", "pk"]
+
+    def __str__(self):
+        return self.name
+
+
+class AssetReportRun(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "In coda"
+        RUNNING = "RUNNING", "In elaborazione"
+        DONE = "DONE", "Disponibile"
+        ERROR = "ERROR", "Errore"
+
+    schedule = models.ForeignKey(AssetReportSchedule, related_name="runs", on_delete=models.PROTECT)
+    due_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True)
+    completed_at = models.DateTimeField(null=True)
+    enqueued_at = models.DateTimeField(null=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    configuration = models.JSONField(default=dict)
+    scope_key = models.CharField(max_length=64, db_index=True)
+    snapshot = models.JSONField(default=dict)
+    error = models.CharField(max_length=500, blank=True)
+    # Archivi privati nel DB: nessun URL pubblico sotto MEDIA_URL.
+    pdf_content = models.BinaryField(null=True, editable=False)
+    excel_content = models.BinaryField(null=True, editable=False)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["schedule", "due_at"], name="asset_report_due_unique")]
+
+
 class AssetReportDefinition(models.Model):
     code = models.SlugField(max_length=80, unique=True)
     label = models.CharField(max_length=120)
