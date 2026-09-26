@@ -4128,6 +4128,15 @@ def _report_anomalie_rows(op_item_id: int | None, op_title: str | None) -> list[
     return _fetch_all_dict(sql, params)
 
 
+def _report_datetime_text(value) -> str:
+    """Data/ora leggibile per il report: le colonne sono scritte con SYSUTCDATETIME (UTC naive)."""
+    if not isinstance(value, datetime):
+        return str(value or "")
+    if dj_tz.is_naive(value):
+        value = value.replace(tzinfo=timezone.utc)
+    return dj_tz.localtime(value).strftime("%d-%m-%Y %H:%M")
+
+
 def _serialize_report_anomalia(row: dict) -> dict:
     local_id = int(row["id"]) if row.get("id") is not None else None
     attachments: list[dict] = []
@@ -4141,6 +4150,8 @@ def _serialize_report_anomalia(row: dict) -> dict:
     data = {k: (str(v) if v is not None else "") for k, v in row.items()}
     data.update(
         {
+            "created_datetime": _report_datetime_text(row.get("created_datetime")),
+            "modified_datetime": _report_datetime_text(row.get("modified_datetime")),
             "local_id": local_id,
             "item_id": _display_item_id(row),
             "is_closed": bool(row.get("chiudere")),
@@ -4248,8 +4259,8 @@ def report_segnalazione_html(request):
         "car": str((op_row or {}).get("incaricato") or ""),
         "stato": str((op_row or {}).get("stato") or ""),
         "info": str((op_row or {}).get("in1text") or ""),
-        "created_datetime": str((op_row or {}).get("created_datetime") or ""),
-        "modified_datetime": str((op_row or {}).get("modified_datetime") or ""),
+        "created_datetime": _report_datetime_text((op_row or {}).get("created_datetime")),
+        "modified_datetime": _report_datetime_text((op_row or {}).get("modified_datetime")),
     }
     anomalie_aperte = sum(1 for row in anomalie if not row.get("is_closed"))
     total_attachments = sum(int(row.get("attachments_count") or 0) for row in anomalie)
