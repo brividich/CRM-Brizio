@@ -1,3 +1,4 @@
+{% load l10n %}{% localize off %}
 {% if trend.is_empty %}
   <p class="sec-empty">Nessun evento né alert negli ultimi {{ trend.days|length }} giorni.</p>
 {% else %}
@@ -10,7 +11,7 @@
       <line class="grid" x1="{{ day.x }}" x2="{{ day.x }}" y1="{{ trend.top }}" y2="{{ trend.baseline }}" stroke-dasharray="2 4"></line>
       <text class="axis-label" x="{{ day.x }}" y="{{ trend.height|add:14 }}" text-anchor="middle">{{ day.date|date:"d/m" }}</text>
     {% endfor %}
-    {% for serie in trend.series %}
+    {% for serie in trend.series reversed %}
       <polyline points="{{ serie.points }}" style="stroke: {{ serie.color }};"></polyline>
       {% for dot in serie.dots %}
         <circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="3.5" style="fill: {{ serie.color }};"><title>{{ serie.label }} {{ dot.day|date:"d/m" }}: {{ dot.value }}</title></circle>
@@ -22,3 +23,4 @@
   </div>
 </div>
 {% endif %}
+{% endlocalize %}

@@ -124,7 +124,7 @@
 .soc-module .sec-ring-note { margin: 12px 0 0; color: var(--text-light); font-size: var(--fs-sm, 12px); }
 
 /* Trend reale (SVG server-side, partials/trend_chart.html) */
-.soc-module .sec-trend { width: 100%; }
+.soc-module .sec-trend { width: 100%; max-width: 860px; }
 .soc-module .sec-trend svg { display: block; width: 100%; height: auto; overflow: visible; }
 .soc-module .sec-trend .grid { stroke: var(--border); stroke-width: 1; }
 .soc-module .sec-trend .axis-label { fill: var(--text-light); font-size: 11px; }

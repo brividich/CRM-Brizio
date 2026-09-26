@@ -16,11 +16,8 @@
       <a class="sec-button" href="{% url 'security:kpis' %}?date={{ next_date|date:'Y-m-d' }}">&gt;</a>
     </form>
   </div>
-  <div class="sec-chart" aria-hidden="true">
-    <div class="sec-bars">
-      <span class="sec-bar" style="height:42%"></span><span class="sec-bar" style="height:55%"></span><span class="sec-bar" style="height:38%"></span><span class="sec-bar" style="height:72%"></span><span class="sec-bar" style="height:64%"></span><span class="sec-bar" style="height:86%"></span><span class="sec-bar" style="height:51%"></span><span class="sec-bar" style="height:77%"></span><span class="sec-bar" style="height:69%"></span><span class="sec-bar" style="height:92%"></span>
-    </div>
-  </div>
+  <p class="sec-muted" style="margin: 0 0 8px;">Andamento dei {{ trend.days|length }} giorni fino al {{ selected_date|date:"d/m/Y" }}.</p>
+  {% include "security/partials/trend_chart.html" %}
 </section>
 
 <section class="sec-grid sec-three-col" style="margin-top: 12px;">

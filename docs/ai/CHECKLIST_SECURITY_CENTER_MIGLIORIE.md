@@ -26,13 +26,14 @@ Aggiornare questa checklist a ogni blocco concluso.
 
 ## A — Dati veri al posto dei valori finti (PRIORITÀ MASSIMA)
 
-- [ ] Postura sicurezza: sostituire i punteggi fissi 72/81/94/88 con indici calcolati
+- [x] Postura sicurezza: sostituire i punteggi fissi 72/81/94/88 con indici calcolati
       (alert attivi per severità, esito backup, heartbeat/ingestione sorgenti, eventi rete)
       con formula documentata e tooltip «come è calcolato»; stato «n.d.» se mancano dati.
-- [ ] Trend alert ed eventi 7 giorni: serie reali per giorno (alert creati, eventi, critici),
+- [x] Trend alert ed eventi 7 giorni: serie reali per giorno (alert creati, eventi, critici),
       SVG server-side, assi/legenda, stato vuoto.
-- [ ] Grafico KPI: barre dai valori reali del giorno selezionato (o rimosso se senza senso).
-- [ ] Test: i valori mostrati cambiano con i dati; nessun numero fisso nei template.
+- [x] Grafico KPI: sostituito dal trend reale dei 7 giorni fino alla data scelta.
+- [x] Test: i valori mostrati cambiano con i dati; nessun numero fisso nei template.
+- [x] Card Pipeline: conteggi reali al posto di «18 / OK / ON / AI».
 
 ## B — Qualità del rilevamento
 

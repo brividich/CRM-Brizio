@@ -59,6 +59,7 @@ from .services.alert_lifecycle import (
     snooze_alert,
 )
 from .services.kpi_service import build_daily_kpi_snapshots
+from .services.posture import build_pipeline_status, build_posture, build_trend
 from .services.parser_engine import _match_enabled_parser, run_pending_parsers
 from .services.rule_engine import evaluate_security_rules, test_alert_rule
 from .services.backup_monitoring import last_seen_backup_status, missing_backup_candidates
@@ -105,6 +106,8 @@ def dashboard(request):
         ),
         "latest_alerts": _decorate_alerts(SecurityAlert.objects.select_related("source", "event").order_by("-updated_at")[:10]),
         "last_pipeline_run": request.session.get("last_pipeline_run"),
+        "posture": build_posture(),
+        "trend": build_trend(today=today),
     }
     return render(request, "security/dashboard.html", context)
 
@@ -222,12 +225,13 @@ def kpis_page(request):
         "previous_date": selected_date - timezone.timedelta(days=1),
         "next_date": selected_date + timezone.timedelta(days=1),
         "grouped_kpis": grouped,
+        "trend": build_trend(today=selected_date),
     }
     return render(request, "security/kpis.html", context)
 
 
 def pipeline_page(request):
-    return render(request, "security/pipeline.html", {"last_pipeline_run": request.session.get("last_pipeline_run")})
+    return render(request, "security/pipeline.html", {"last_pipeline_run": request.session.get("last_pipeline_run"), "status": build_pipeline_status()})
 
 
 @ensure_csrf_cookie

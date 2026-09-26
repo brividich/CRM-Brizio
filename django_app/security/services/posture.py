@@ -167,9 +167,9 @@ TREND_PAD_X = 28
 TREND_PAD_Y = 16
 
 TREND_SERIES = (
-    ("events", "Eventi", "var(--primary-mid, #1f4e79)"),
-    ("alerts", "Alert creati", "var(--warning, #d4a017)"),
-    ("critical", "Alert critici", "var(--danger, #dc2626)"),
+    ("events", "Eventi", "#3b82f6"),
+    ("alerts", "Alert creati", "#d4a017"),
+    ("critical", "Alert critici", "#ef4444"),
 )
 
 
@@ -220,4 +220,35 @@ def build_trend(days=WINDOW_DAYS, today=None):
         "days": [{"date": day, "x": round(TREND_PAD_X + i * step, 1)} for i, day in enumerate(dates)],
         "series": series,
         "is_empty": all(s["total"] == 0 for s in series),
+    }
+
+
+# --- Stato pipeline ------------------------------------------------------------------
+
+def build_pipeline_status(now=None):
+    """Numeri reali per le card della sala controllo pipeline (prima erano scritti a mano)."""
+    from security.models import SecurityAlertRuleConfig, SecurityParserConfig
+    from security.parsers import parser_registry
+    import security.parsers.load  # noqa: F401 - registra i parser nel registry
+
+    now = now or timezone.now()
+    since = now - timedelta(days=WINDOW_DAYS)
+    pending = SecurityMailboxMessage.objects.filter(parse_status=ParseStatus.PENDING).count()
+    failed = skipped = 0
+    for model, date_field in ((SecurityMailboxMessage, "received_at"), (SecuritySourceFile, "uploaded_at")):
+        agg = model.objects.filter(**{f"{date_field}__gte": since}).aggregate(
+            failed=Count("id", filter=Q(parse_status=ParseStatus.FAILED)),
+            skipped=Count("id", filter=Q(parse_status=ParseStatus.SKIPPED)),
+        )
+        failed += agg["failed"]
+        skipped += agg["skipped"]
+    return {
+        "parsers_registered": len(parser_registry.all()),
+        "parsers_disabled": SecurityParserConfig.objects.filter(enabled=False).count(),
+        "pending": pending,
+        "failed": failed,
+        "skipped": skipped,
+        "rules_enabled": SecurityAlertRuleConfig.objects.filter(enabled=True).count(),
+        "events_unevaluated": SecurityEventRecord.objects.filter(decision_trace={}).count(),
+        "window_days": WINDOW_DAYS,
     }
