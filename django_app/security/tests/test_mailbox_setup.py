@@ -138,3 +138,51 @@ class CycleScheduleDiagnosticsTest(TestCase):
     def test_diagnostics_ok_with_mailbox_and_credentials(self):
         SecurityMailboxSource.objects.create(name="C", code="c", source_type="graph", mailbox_address="soc@example.test")
         self.assertEqual(_mailbox_sources_check()["status"], "ok")
+
+
+class _FakeMailbox:
+    """Casella con una mail al giorno: rispetta finestra incrementale e limite come Graph."""
+
+    def __init__(self, days):
+        now = timezone.now()
+        self.mails = [
+            MailboxMessage(
+                provider_message_id=f"old-{n}", internet_message_id=None, sender="news@example.test",
+                recipients=["soc@example.test"], subject=f"Mail {n}", received_at=now - timedelta(days=n, hours=1),
+                body_text="nulla", body_html="", attachments=[],
+            )
+            for n in range(days, 0, -1)
+        ]
+
+    def list_messages(self, source, limit=50):
+        from security.services.mailbox_providers import incremental_since
+
+        since = incremental_since(source)
+        return [m for m in self.mails if m.received_at >= since][:limit]
+
+
+class HistoryImportTest(_Admin):
+    def test_history_goes_back_and_drains_without_duplicates(self):
+        source = self._source(max_messages_per_run=50)
+        fake = _FakeMailbox(120)
+        with mock.patch("security.services.mailbox_ingestion.get_provider", return_value=fake):
+            # Lettura normale: solo le mail degli ultimi 14 giorni (13, una al giorno).
+            self.client.post(reverse("security:admin_mailbox_source_detail", args=[source.code]), {"action": "run"})
+            self.assertEqual(source.ingestion_runs.first().imported_messages_count, 13)
+            since = (timezone.localdate() - timedelta(days=200)).isoformat()
+            response = self.client.post(reverse("security:admin_mailbox_source_detail", args=[source.code]), {"action": "history", "since": since}, follow=True)
+        from security.models import SecurityConfigurationAuditLog, SecurityMailboxMessage
+
+        self.assertEqual(SecurityMailboxMessage.objects.count(), 120)
+        self.assertContains(response, "Casella allineata")
+        self.assertTrue(SecurityConfigurationAuditLog.objects.filter(action="history_import").exists())
+
+    def test_future_date_rejected(self):
+        source = self._source()
+        response = self.client.post(
+            reverse("security:admin_mailbox_source_detail", args=[source.code]),
+            {"action": "history", "since": timezone.localdate().isoformat()}, follow=True,
+        )
+        self.assertContains(response, "deve essere nel passato")
+        source.refresh_from_db()
+        self.assertIsNone(source.last_success_at)

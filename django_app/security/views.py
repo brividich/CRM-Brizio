@@ -59,7 +59,7 @@ from .services.alert_lifecycle import (
     snooze_alert,
 )
 from .services.kpi_service import build_daily_kpi_snapshots
-from .services.mailbox_setup import graph_credentials_status, preview_mailbox, run_summary, unique_code_for
+from .services.mailbox_setup import graph_credentials_status, preview_mailbox, run_summary, start_history_import, unique_code_for
 from .services.posture import build_pipeline_status, build_posture, build_trend
 from .services.parser_engine import _match_enabled_parser, run_pending_parsers
 from .services.rule_engine import evaluate_security_rules, test_alert_rule
@@ -1142,6 +1142,9 @@ def admin_mailbox_source_detail(request, code):
             level, text = run_summary(run_mailbox_ingestion(source))
             getattr(messages, level)(request, text)
             return redirect("security:admin_mailbox_source_detail", code=source.code)
+        elif action == "history":
+            _history_import_from_request(request, source)
+            return redirect("security:admin_mailbox_source_detail", code=source.code)
         else:
             old = snapshot_instance(source)
             form = SecurityMailboxSourceForm(request.POST, instance=source)
@@ -1160,6 +1163,34 @@ def admin_mailbox_source_detail(request, code):
         "recent_runs": source.ingestion_runs.order_by("-started_at")[:10],
         "recent_messages": SecurityMailboxMessage.objects.filter(source__name=source.name).order_by("-received_at")[:20],
         "page_title": f"Casella mail: {source.name}",
+        "history_default": (timezone.localdate() - timezone.timedelta(days=365)).isoformat(),
+        "history_max": (timezone.localdate() - timezone.timedelta(days=1)).isoformat(),
     }
     return render(request, "security/admin_mailbox_source_detail.html", context)
+
+
+def _history_import_from_request(request, source):
+    from datetime import date
+
+    try:
+        since_date = date.fromisoformat(request.POST.get("since", ""))
+    except ValueError:
+        messages.error(request, "Data non valida.")
+        return
+    if since_date >= timezone.localdate():
+        messages.error(request, "La data di partenza deve essere nel passato.")
+        return
+    totals = start_history_import(source, since_date, actor=request.user, request=request)
+    if totals["error"]:
+        messages.error(request, f"Importazione dello storico interrotta: {totals['error']}")
+        return
+    reached = timezone.localtime(totals["reached"]).strftime("%d/%m/%Y %H:%M") if totals["reached"] else "—"
+    text = (
+        f"Storico dal {since_date:%d/%m/%Y}: {totals['imported']} mail importate, {totals['duplicates']} già presenti, "
+        f"{totals['alerts']} alert. Letta fino al {reached}."
+    )
+    if totals["caught_up"]:
+        messages.success(request, f"{text} Casella allineata.")
+    else:
+        messages.success(request, f"{text} Il resto arriva con la lettura automatica ogni 15 minuti (o con «Leggi ora»).")
 
