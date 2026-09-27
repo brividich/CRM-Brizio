@@ -1,5 +1,14 @@
 # Agent Changelog
 
+## 2026-09-27 - Codex (autodetect SNMP e consumabili nella scheda dispositivo)
+
+- Problema: la Kyocera configurata in Dispositivi rispondeva ma la pagina non raccoglieva toner; le sonde del profilo venivano lette soltanto dal secondo polling. Ora il riconoscimento materializza e legge le nuove sonde nella stessa interrogazione, anche per firewall/server/rete, e ripara profili esistenti senza sonde conservando le personalizzazioni.
+- File modificati: `contatori/{services.py,models.py,views.py,tests_snmp_centrale.py}`, nuovi `printer_snmp.py`, `tests_printer_autodetect.py`, migration `0013_rilevazionesnmp_dati_stampante.py`, template dettaglio e `_stampante_snmp.html`; README, changelog root/Django, docs PROFILI_SNMP e AI backend, questo registro e checkpoint.
+- Stampanti: WALK read-only Printer-MIB con indici dinamici, colonne indipendenti (128 righe/20s ciascuna), contatori cumulativi con unita' dichiarata, livelli e nomi consumabili. Snapshot per polling, pannello automatico e ultime 20 interrogazioni; assenza/errore/sconosciuto espliciti, zero preservato, nessuna somma arbitraria dei motori o ripartizione A3/A4/colore inventata. La versione SNMP che ha risposto viene preservata durante autodetect.
+- Verifiche: 96 test Contatori verdi, poi 6 test specifici rieseguiti dopo aver isolato anche il trasporto nel test di errore; check Django, migration drift Contatori e diff check verdi. Rendering scheda verificato tramite Django client; nessun collaudo visuale browser o apparato reale. Test solo su indirizzi sintetici e SQLite isolato.
+- File critici modificati: nessuno; nessuna nuova route, ACL, schedule, dipendenza o impostazione globale. Backup: nessuno. README aggiornato: si; CHANGELOG: si; AGENT_CHANGELOG: si. Versione in Unreleased per rilascio coordinato.
+- Esito: correzione pronta per pubblicazione su release/prod dal worktree `temp/codex-snmp-autodetect`. Rischi residui: collaudo SQL Server e tabelle effettivamente esposte dal firmware della 5054; contatori contrattuali ancora subordinati agli OID verificati. Dopo deploy applicare migration Contatori 0013, riavviare web/qcluster e interrogare il dispositivo esistente, senza ricrearlo. Nessun deploy server eseguito.
+
 ## 2026-09-26 - Codex (pubblicazione profili SNMP su release aggiornata)
 
 - Ripreso il push dopo riconferma esplicita dell'utente sulla destinazione `origin` (github.com/brividich/CRM-Brizio). Integrata la release `e893f418` nel ramo isolato che contiene `523f58b2` e `f7249e90`; merge automatico, codice Contatori invariato rispetto ai test gia' verdi.

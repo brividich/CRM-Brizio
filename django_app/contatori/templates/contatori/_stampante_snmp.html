@@ -1,0 +1,47 @@
+<section class="panel">
+  <div class="panel-head"><div><h2>Contatori e consumabili</h2>
+    <p>Rilevati automaticamente dalla stampante{% if ultima_rilevazione %} · {{ ultima_rilevazione.rilevata_il|date:"d/m/Y H:i:s" }}{% endif %}.</p>
+  </div></div>
+  {% if not ultima_rilevazione %}
+    <p class="muted">Premi «Interroga ora»: il portale riconosce il profilo e legge contatori e toner nello stesso aggiornamento.</p>
+  {% elif not ultima_rilevazione.dati_stampante %}
+    <p class="muted">Dati stampante non acquisiti in questa interrogazione. Premi «Interroga ora» per aggiornarli; se la connessione fallisce, consulta l'errore sopra.</p>
+  {% else %}
+    <h3>Contatori cumulativi</h3>
+    <div class="cards">
+    {% for c in ultima_rilevazione.dati_stampante.contatori %}
+      <div class="card"><div class="k">{% if forloop.first and forloop.last %}Totale stampante{% else %}Contatore {{ c.indice }}{% endif %}</div>
+        <div class="v">{{ c.valore }}</div><div class="meta">{{ c.unita }}</div></div>
+    {% empty %}<p class="muted">Contatori non disponibili: la macchina non li ha restituiti in questa lettura.</p>{% endfor %}
+    </div>
+    <p class="muted">I contatori standard non distinguono necessariamente copie da stampe, colore da bianco e nero o A3 da A4.</p>
+    <h3>Toner e altri consumabili</h3>
+    <div class="device-grid">
+    {% for c in ultima_rilevazione.dati_stampante.consumabili %}
+      <div class="device-card"><h3>{{ c.nome }}</h3>
+        {% if c.pct != None %}
+          <p><strong class="{% if c.pct <= 10 %}health-error{% elif c.pct <= 20 %}health-warning{% else %}health-ok{% endif %}">{{ c.pct }}%</strong></p>
+          <progress max="100" value="{{ c.pct }}" aria-label="{{ c.nome }}" style="width:100%">{{ c.pct }}%</progress>
+        {% else %}<p class="muted">{{ c.nota }}</p>{% endif %}
+      </div>
+    {% empty %}<p class="muted">Livelli non disponibili: la macchina non ha restituito la tabella dei consumabili.</p>{% endfor %}
+    </div>
+    {% if ultima_rilevazione.dati_stampante.errori %}
+      <details><summary>Dettagli delle informazioni non disponibili</summary>
+      {% for campo, errore in ultima_rilevazione.dati_stampante.errori.items %}<p>{{ campo }}: {{ errore }}</p>{% endfor %}
+      </details>
+    {% endif %}
+  {% endif %}
+  {% if rilevazioni %}
+  <details><summary>Storico contatori e consumabili (ultime 20 interrogazioni)</summary>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Rilevata il</th><th>Contatori</th><th>Consumabili</th></tr></thead>
+      <tbody>{% for r in rilevazioni %}<tr>
+        <td>{{ r.rilevata_il|date:"d/m/Y H:i:s" }}</td>
+        <td>{% for c in r.dati_stampante.contatori %}<div>{{ c.valore }} {{ c.unita }} ({{ c.indice }})</div>{% empty %}Non disponibili{% endfor %}</td>
+        <td>{% for c in r.dati_stampante.consumabili %}<div>{{ c.nome }}: {% if c.pct != None %}{{ c.pct }}%{% else %}{{ c.nota }}{% endif %}</div>{% empty %}Non disponibili{% endfor %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  </details>
+  {% endif %}
+</section>

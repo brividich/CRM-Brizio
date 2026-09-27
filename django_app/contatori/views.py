@@ -352,6 +352,8 @@ def dispositivo_snmp_detail(request, pk):
         "sonde": sonde,
         "rilevazioni": rilevazioni,
         "profili_disponibili": ProfiloSNMP.objects.filter(attivo=True),
+        "ultima_rilevazione": rilevazioni[0] if rilevazioni else None,
+        "stampante": dispositivo.categoria == DispositivoSNMP.Categoria.STAMPANTE,
     })
 
 

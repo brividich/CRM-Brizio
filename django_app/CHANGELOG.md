@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- SNMP: autodetect con sonde lette al primo polling; scheda dispositivi stampante con contatori e toner automatici Printer-MIB, storico e informazioni mancanti esplicite. Migration contatori 0013; compatibile con il polling schedulato esistente.
+
 ### Contatori - catalogo profili SNMP multi-produttore
 
 - Catalogo UI modificabile con oltre 35 preset per stampanti/MFC, firewall, switch/router/Wi-Fi, server/hypervisor, NAS/storage e UPS; autodetect tramite sysObjectID/sysDescr e applicazione delle colonne al dispositivo.

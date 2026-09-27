@@ -395,6 +395,7 @@ class RilevazioneSNMP(models.Model):
     sys_description = models.TextField(blank=True)
     sys_object_id = models.CharField(max_length=255, blank=True)
     sys_uptime_seconds = models.PositiveBigIntegerField(null=True, blank=True)
+    dati_stampante = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-rilevata_il", "-pk"]

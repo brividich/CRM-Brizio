@@ -13,6 +13,8 @@ stampanti/MFC, firewall, rete, server, storage e UPS. L'autodetect combina PEN/
 MFC alimentano i quattro contatori contrattuali soltanto se mappati esplicitamente.
 Runbook: `docs/PROFILI_SNMP.md`.
 
+Autodetect: `interroga_dispositivo` materializza e legge le nuove sonde nello stesso polling, ripara i profili esistenti privi di sonde senza riscrivere quelle personalizzate. Per le stampanti `printer_snmp.py` raccoglie Printer-MIB con indici dinamici, limiti WALK e risposte parziali. `RilevazioneSNMP.dati_stampante` (0013) conserva contatori/consumabili per ogni polling; la scheda mostra ultimo tentativo e storico, mai dati precedenti spacciati per correnti. Nessuna nuova route, schedule o dipendenza.
+
 Reportistica Asset: `/assets/impostazioni/reportistica/` configura `AssetReportSchedule`;
 `/assets/reports/archivio/` consulta `AssetReportRun` (snapshot e PDF/XLSX privati nel DB).
 Servizi `assets/services/reporting.py` e `reporting_exports.py`, dispatcher `assets_reportistica`

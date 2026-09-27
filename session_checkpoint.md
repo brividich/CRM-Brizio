@@ -1,5 +1,12 @@
 # Session Checkpoint
 
+Data: 2026-09-27 (autodetect e dati stampante nei Dispositivi SNMP)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `autodetect SNMP e consumabili nella scheda dispositivo`; README, changelog e docs aggiornati. Worktree dedicato `temp/codex-snmp-autodetect`, branch `feature/snmp-autodetect-dati`, base release `48af907c`.
+- Nuove sonde lette gia' durante il primo autodetect; profili senza sonde riparati al polling. Stampanti: contatori/toner Printer-MIB automatici in scheda, snapshot storico (migration 0013), valori sconosciuti ed errori espliciti.
+- 96 test Contatori verdi e 6 test specifici riconfermati; check, migration drift e diff check verdi. Nessun nuovo file critico, dipendenza, schedule, backup o accesso ad apparati reali; nessun deploy server. Pubblicazione release autorizzata nella conversazione.
+- Al deploy: migrate contatori, riavvio web/qcluster, Interroga ora sul dispositivo Kyocera gia' presente. La ripartizione contrattuale MFC resta distinta dai totali standard.
+
 Data: 2026-09-26 (ripresa push profili SNMP)
 
 - Vista/aggiunta voce AGENT_CHANGELOG `pubblicazione profili SNMP su release aggiornata`. L'utente ha riconfermato il push dopo il blocco automatico e l'indicazione della destinazione GitHub.

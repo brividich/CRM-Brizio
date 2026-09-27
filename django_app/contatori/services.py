@@ -620,7 +620,6 @@ def interroga_dispositivo(dispositivo):
         ])
         return rilevazione
 
-    durata = _tempo_ms(inizio)
     sys_name = _testo(valori.get(SYS_NAME))
     sys_description = _testo(valori.get(SYS_DESCR))
     sys_object_id = _testo(valori.get(SYS_OBJECT_ID))
@@ -628,8 +627,77 @@ def interroga_dispositivo(dispositivo):
     uptime_ticks = _intero_grezzo(valori.get(SYS_UPTIME))
     uptime_seconds = max(0, uptime_ticks // 100) if uptime_ticks is not None else None
 
+    # Riconosce e configura prima di salvare i valori: il primo polling deve
+    # gia' leggere le sonde appena create. Mantiene la versione che ha risposto.
+    if not dispositivo.profilo_snmp_id:
+        profilo = trova_profilo_snmp(
+            sys_object_id=sys_object_id, sys_description=sys_description,
+        )
+        if profilo is not None:
+            if not dispositivo.versione:
+                dispositivo.versione = versione
+                dispositivo.save(update_fields=["versione"])
+            applica_profilo_dispositivo(dispositivo, profilo)
+    if dispositivo.profilo_snmp_id:
+        # Ripara anche apparati gia' configurati con profilo ma privi di sonde.
+        # Non sovrascrive sonde personalizzate o disattivate dall'operatore.
+        for colonna in dispositivo.profilo_snmp.colonne.filter(attiva=True):
+            dispositivo.sonde.get_or_create(oid=colonna.oid, defaults={
+                "nome": colonna.nome, "profilo_colonna": colonna,
+                "tipo_valore": colonna.tipo_valore, "modalita": colonna.modalita,
+                "aggregazione": colonna.aggregazione, "unita": colonna.unita,
+                "fattore": colonna.fattore, "ordine": colonna.ordine,
+            })
+    nuove_sonde = list(dispositivo.sonde.filter(attiva=True).exclude(
+        pk__in=[s.pk for s in sonde],
+    ))
+    if nuove_sonde:
+        try:
+            nuovi_valori, nuovi_errori = leggi_specifiche(
+                dispositivo.host, [{
+                    "oid": s.oid, "modalita": s.modalita,
+                    "aggregazione": s.aggregazione,
+                } for s in nuove_sonde],
+                community=_community_snmp(dispositivo, cfg), port=porta,
+                timeout=timeout, version=versione,
+            )
+            valori.update(nuovi_valori)
+            errori.update(nuovi_errori)
+        except SNMPError as exc:
+            errori.update({s.oid: str(exc) for s in nuove_sonde})
+        sonde.extend(nuove_sonde)
+
+    stampante = (
+        dispositivo.categoria == DispositivoSNMP.Categoria.STAMPANTE
+        or (dispositivo.profilo_snmp_id and
+            dispositivo.profilo_snmp.categoria == ProfiloSNMP.Categoria.STAMPANTE)
+        or (not dispositivo.profilo_snmp_id and bool(re.search(
+            r"\b(printer|TASKalfa|ECOSYS|LaserJet|imageRUNNER)\b",
+            sys_description, re.IGNORECASE,
+        )))
+    )
+    dati_stampante = {}
+    if stampante:
+        from .printer_snmp import leggi_stampante
+
+        try:
+            dati_stampante = leggi_stampante(
+                dispositivo, community=_community_snmp(dispositivo, cfg),
+                port=porta, timeout=timeout, version=versione,
+            )
+        except SNMPError as exc:
+            dati_stampante = {"contatori": [], "consumabili": [], "errori": {"lettura": str(exc)}}
+        if dispositivo.categoria != DispositivoSNMP.Categoria.STAMPANTE:
+            dispositivo.categoria = DispositivoSNMP.Categoria.STAMPANTE
+            dispositivo.save(update_fields=["categoria"])
+
+    durata = _tempo_ms(inizio)
+
     esiti = []
-    ha_warning = False
+    ha_warning = bool(stampante and (
+        dati_stampante.get("errori") or not dati_stampante.get("contatori")
+        or not dati_stampante.get("consumabili")
+    ))
     ha_critico = False
     for sonda in sonde:
         if sonda.oid not in valori:
@@ -676,6 +744,7 @@ def interroga_dispositivo(dispositivo):
         tempo_risposta_ms=durata, sys_name=sys_name,
         sys_description=sys_description, sys_object_id=sys_object_id,
         sys_uptime_seconds=uptime_seconds,
+        dati_stampante=dati_stampante,
     )
     ValoreSNMP.objects.bulk_create([
         ValoreSNMP(
@@ -705,12 +774,6 @@ def interroga_dispositivo(dispositivo):
     dispositivo.save(update_fields=[
         *update_fields,
     ])
-    if not dispositivo.profilo_snmp_id:
-        profilo = trova_profilo_snmp(
-            sys_object_id=sys_object_id, sys_description=sys_description,
-        )
-        if profilo is not None:
-            applica_profilo_dispositivo(dispositivo, profilo)
     return rilevazione
 
 
