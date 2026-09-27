@@ -2,6 +2,8 @@
 
 Data: 2026-09-27 (autodetect e dati stampante nei Dispositivi SNMP)
 
+- Commit funzione `b12a2112`; push NON riuscito: credenziali HTTPS GitHub assenti/non disponibili, nessun login gh. Remoto ancora `48af907c`. Nessun blocco di auto-review; serve autenticazione prima di ritentare. Worktree/branch conservati per completare la pubblicazione.
+
 - Vista/aggiunta voce AGENT_CHANGELOG `autodetect SNMP e consumabili nella scheda dispositivo`; README, changelog e docs aggiornati. Worktree dedicato `temp/codex-snmp-autodetect`, branch `feature/snmp-autodetect-dati`, base release `48af907c`.
 - Nuove sonde lette gia' durante il primo autodetect; profili senza sonde riparati al polling. Stampanti: contatori/toner Printer-MIB automatici in scheda, snapshot storico (migration 0013), valori sconosciuti ed errori espliciti.
 - 96 test Contatori verdi e 6 test specifici riconfermati; check, migration drift e diff check verdi. Nessun nuovo file critico, dipendenza, schedule, backup o accesso ad apparati reali; nessun deploy server. Pubblicazione release autorizzata nella conversazione.
