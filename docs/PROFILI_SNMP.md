@@ -9,7 +9,11 @@ Il catalogo in **Contatori → Profili SNMP** evita di inserire OID nel codice p
 1. Creare il dispositivo da **Monitor SNMP → Dispositivo** indicando almeno nome e IP.
 2. Lasciare vuoto il profilo e premere **Interroga ora**: il portale legge `sysObjectID`, `sysDescr`, `sysName` e seriale, poi applica il profilo solo se il match è univoco.
 3. Se l'autodetect non è conclusivo, scegliere il profilo nella scheda e premere **Applica**.
-4. Alla lettura successiva vengono storicizzate anche le colonne del profilo.
+4. Gia' nella stessa interrogazione vengono lette e storicizzate le colonne del profilo. Gli apparati esistenti con profilo ma senza sonde vengono completati automaticamente al prossimo polling, preservando le sonde personalizzate o disattivate.
+
+Per le stampanti (incluse le Kyocera TASKalfa 5054ci), la scheda dispositivo mostra automaticamente **Contatori e consumabili**: contatori cumulativi e livelli toner restituiti dalla Printer-MIB. Non occorre creare una seconda anagrafica MFC. Funziona anche con il polling pianificato esistente. Gli indici delle tabelle vengono scoperti dal dispositivo: ogni toner resta distinto e piu' motori di stampa non vengono sommati. Zero indica esaurito; valore sconosciuto o solo presenza non diventano percentuali inventate. Il blocco mostra data e dati dell'ultima interrogazione e uno storico delle ultime 20; dopo un errore non ripropone un vecchio livello come corrente. Le tabelle opzionali possono essere assenti e gli errori sono visibili senza nascondere gli altri dati.
+
+Il supporto standard e' basato su [Printer-MIB, RFC 3805](https://www.rfc-editor.org/rfc/rfc3805.html); disponibilita' e dettaglio dipendono dalle tabelle esposte dal firmware, non dalla sola risposta SNMP. I contatori standard non separano automaticamente copie/stampe o A3/A4 e colore/BN.
 
 I profili possono impostare versione, porta e timeout. Gli override del singolo apparato hanno precedenza ed è disponibile anche una community read-only dedicata; la community non viene mai inclusa nei preset.
 
@@ -50,4 +54,4 @@ Il comando mostra identità, seriale, profilo suggerito e, per le stampanti, il 
 python manage.py migrate contatori --settings=config.settings.prod
 ```
 
-Le migrazioni 0008-0012 creano il catalogo e caricano i preset. Non servono nuove dipendenze né nuovi task Windows. Dopo il deploy riavviare web e qcluster esistenti.
+Le migrazioni 0008-0012 creano il catalogo e caricano i preset; la 0013 aggiunge lo snapshot stampante allo storico SNMP. Non servono nuove dipendenze né nuovi task Windows. Dopo il deploy riavviare web e qcluster esistenti e premere Interroga ora sulla Kyocera gia' configurata (oppure attendere il polling programmato).

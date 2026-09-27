@@ -97,8 +97,13 @@ class ProfiliSNMPTest(TestCase):
             apc.colonne.filter(attiva=True).count(),
         )
 
+    @mock.patch("contatori.printer_snmp.leggi_stampante", return_value={
+        "contatori": [{"indice": "1.1", "valore": 1234, "unita": "impressioni"}],
+        "consumabili": [{"nome": "Black", "pct": 45, "nota": ""}], "errori": {},
+    })
+    @mock.patch("contatori.snmp.leggi_colonna", return_value=[1234])
     @mock.patch("contatori.snmp.leggi_oids")
-    def test_prima_interrogazione_autoconfigura_kyocera(self, leggi):
+    def test_prima_interrogazione_autoconfigura_kyocera(self, leggi, colonna, stampante):
         device = DispositivoSNMP.objects.create(
             nome="MFC magazzino", host="192.0.2.81",
             categoria=DispositivoSNMP.Categoria.STAMPANTE,
@@ -110,9 +115,11 @@ class ProfiliSNMPTest(TestCase):
             SYS_UPTIME: 200,
             PRT_SERIAL: "KY-TEST-001",
         }, {})
-        services.interroga_dispositivo(device)
+        poll = services.interroga_dispositivo(device)
         device.refresh_from_db()
         self.assertEqual(device.profilo_snmp.slug, "kyocera")
+        self.assertEqual(poll.valori.get().valore_numero, 1234)
+        self.assertEqual(poll.dati_stampante["consumabili"][0]["pct"], 45)
         self.assertEqual(device.matricola, "KY-TEST-001")
         self.assertTrue(device.sonde.filter(
             oid="1.3.6.1.2.1.43.10.2.1.4", modalita="WALK",

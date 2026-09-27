@@ -8,6 +8,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **SNMP - autodetect e dati stampante nella scheda dispositivo** (`contatori/services.py`, `printer_snmp.py`, `models.py`, `views.py`, template dettaglio/`_stampante_snmp.html`, migration 0013, test): sonde dei profili lette gia' nel primo polling; recupero automatico dei profili senza sonde; toner e contatori Printer-MIB con indici dinamici, risposte parziali, percentuali sconosciute esplicite e snapshot storico. Stesso flusso nei job esistenti, senza duplicare le MFC. Nessuna modifica a permessi o schedule.
+
 ### Changed
 
 - **Contatori - catalogo massivo profili SNMP multi-produttore** (`django_app/contatori/`, migrazioni 0008-0012). Nuovo catalogo amministrabile con oltre 35 preset per Canon/Kyocera e altre stampanti, firewall, rete, server/hypervisor, NAS/storage e UPS. Riconoscimento automatico tramite PEN/sysObjectID e sysDescr, parametri community read-only/porta/versione/timeout per apparato, colonne come sonde, supporto GET/WALK con aggregazione e MIB standard. I profili MFC personalizzati mappano esplicitamente A4/A3 B/N/colore; nessun OID proprietario non verificato viene attribuito ai contatori contrattuali. `snmp_discover` diagnostica ora qualsiasi apparato e il recupero mensile riporta nome, IP e causa reale.
