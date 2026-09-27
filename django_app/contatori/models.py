@@ -135,7 +135,8 @@ class ColonnaProfiloSNMP(models.Model):
             ),
             models.UniqueConstraint(
                 fields=["profilo", "contatore_mfc"],
-                condition=~models.Q(contatore_mfc=""),
+                # `> ''` e non `~Q(... = '')`: SQL Server non accetta NOT negli indici filtrati.
+                condition=models.Q(contatore_mfc__gt=""),
                 name="contatori_profilo_contatore_mfc_unico",
             ),
         ]

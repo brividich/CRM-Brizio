@@ -104,7 +104,7 @@ class Migration(migrations.Migration):
                 'verbose_name': 'Colonna profilo SNMP',
                 'verbose_name_plural': 'Colonne profilo SNMP',
                 'ordering': ['ordine', 'nome'],
-                'constraints': [models.UniqueConstraint(fields=('profilo', 'oid'), name='contatori_profilo_oid_unico'), models.UniqueConstraint(condition=models.Q(('contatore_mfc', ''), _negated=True), fields=('profilo', 'contatore_mfc'), name='contatori_profilo_contatore_mfc_unico')],
+                'constraints': [models.UniqueConstraint(fields=('profilo', 'oid'), name='contatori_profilo_oid_unico'), models.UniqueConstraint(condition=models.Q(('contatore_mfc__gt', '')), fields=('profilo', 'contatore_mfc'), name='contatori_profilo_contatore_mfc_unico')],
             },
         ),
     ]

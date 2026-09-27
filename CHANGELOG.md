@@ -8,6 +8,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori - la migrazione 0008 bloccava il rilascio su SQL Server** (`django_app/contatori/models.py`, `django_app/contatori/migrations/0008_profilosnmp_dispositivosnmp_timeout_and_more.py`). Il vincolo univoco condizionato `contatori_profilo_contatore_mfc_unico` usava `~Q(contatore_mfc="")`, che diventa un indice filtrato `WHERE NOT (...)`: SQL Server non accetta `NOT` negli indici filtrati (errore 156), quindi `migrate` falliva e `release_promote` non attivava la release (in produzione restava il pacchetto precedente). Ora `contatore_mfc > ''`, stesso significato. La 0008 non era mai stata applicata su SQL Server (transazione annullata), quindi si corregge la migrazione stessa. I test girano su SQLite, che accetta la sintassi vecchia: verificato direttamente su SQL Server.
+
 - **SNMP - autodetect e dati stampante nella scheda dispositivo** (`contatori/services.py`, `printer_snmp.py`, `models.py`, `views.py`, template dettaglio/`_stampante_snmp.html`, migration 0013, test): sonde dei profili lette gia' nel primo polling; recupero automatico dei profili senza sonde; toner e contatori Printer-MIB con indici dinamici, risposte parziali, percentuali sconosciute esplicite e snapshot storico. Stesso flusso nei job esistenti, senza duplicare le MFC. Nessuna modifica a permessi o schedule.
 
 ### Changed
