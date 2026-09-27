@@ -111,3 +111,55 @@ def run_summary(run):
         f"{run.duplicate_messages_count} già presenti, {run.skipped_messages_count} scartate dai filtri, "
         f"{run.generated_alerts_count} alert generati."
     )
+
+
+# «Importa storico»: quanto lavorare subito, dentro la richiesta web. Il resto lo smaltisce
+# lo schedule security_cycle (ogni 15 minuti, max_messages_per_run mail a giro).
+HISTORY_DRAIN_SECONDS = 45
+HISTORY_DRAIN_MAX_RUNS = 10
+
+
+def start_history_import(source, since_date, *, actor=None, request=None):
+    """Riporta indietro il punto da cui riparte la lettura e smaltisce un primo blocco.
+
+    La lettura è incrementale: la prima volta prende gli ultimi 14 giorni, poi va solo
+    avanti da ``last_success_at``. Lo storico si recupera spostando quel punto indietro;
+    il watermark avanza sulle mail effettivamente lette, quindi niente va perso e le mail
+    già importate vengono scartate come duplicati.
+    """
+    import time
+    from datetime import datetime
+
+    from security.services.configuration import audit_config_change
+    from security.services.mailbox_ingestion import run_mailbox_ingestion
+
+    since = timezone.make_aware(datetime.combine(since_date, datetime.min.time()), timezone.get_current_timezone())
+    old = source.last_success_at
+    source.last_success_at = since
+    source.save(update_fields=["last_success_at"])
+    audit_config_change(actor, "history_import", source, "last_success_at", old, since, request=request)
+
+    totals = {"runs": 0, "imported": 0, "duplicates": 0, "alerts": 0, "error": "", "caught_up": False}
+    started = time.monotonic()
+    while totals["runs"] < HISTORY_DRAIN_MAX_RUNS and time.monotonic() - started < HISTORY_DRAIN_SECONDS:
+        before = source.last_success_at
+        run = run_mailbox_ingestion(source)
+        if run is None:
+            totals["error"] = "Casella disattivata."
+            break
+        totals["runs"] += 1
+        if run.status == "failed":
+            totals["error"] = run.error_message[:300]
+            break
+        totals["imported"] += run.imported_messages_count
+        totals["duplicates"] += run.duplicate_messages_count
+        totals["alerts"] += run.generated_alerts_count
+        source.refresh_from_db(fields=["last_success_at"])
+        fetched = run.imported_messages_count + run.duplicate_messages_count + run.skipped_messages_count
+        if fetched < source.max_messages_per_run:
+            totals["caught_up"] = True  # ultimo blocco non pieno: casella smaltita
+            break
+        if source.last_success_at == before:
+            break  # watermark fermo: evitare di rileggere all'infinito lo stesso blocco
+    totals["reached"] = source.last_success_at
+    return totals

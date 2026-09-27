@@ -32,9 +32,23 @@
     <p class="sec-action-result sec-error" style="margin-top: 12px;"><strong>Ultimo errore ({{ source.last_error_at|date:"d/m/Y H:i" }}):</strong> {{ source.last_error_message }}</p>
   {% endif %}
   {% if not source.last_run_at %}
-    <p class="sec-muted" style="margin-top: 8px;">La prima lettura importa le mail degli ultimi 14 giorni, poi prosegue da dove si è fermata.</p>
+    <p class="sec-muted" style="margin-top: 8px;">La prima lettura importa le mail degli ultimi 14 giorni, poi prosegue da dove si è fermata. Per le mail più vecchie usa «Importa storico».</p>
   {% endif %}
 </section>
+
+{% if can_manage %}
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Importa storico</h2></div>
+  <p class="sec-muted">La lettura va solo in avanti. Per recuperare le mail più vecchie scegli la data da cui ripartire: la lettura riprende da quel giorno, oltre le mail già importate (che non vengono duplicate). Subito si leggono blocchi da {{ source.max_messages_per_run }} mail per circa 45 secondi; il resto arriva con la lettura automatica ogni 15 minuti. Per una casella grande alza «Mail massime per lettura» nelle impostazioni.</p>
+  <p class="sec-muted">Attenzione: i report vecchi passano da parser e regole come quelli nuovi, quindi possono comparire alert per eventi già superati.</p>
+  <form method="post" class="sec-actions" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Importazione in corso…';">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="history">
+    <label>Dal giorno <input type="date" name="since" value="{{ history_default }}" max="{{ history_max }}" required></label>
+    <button class="sec-button-primary" type="submit">Importa storico</button>
+  </form>
+</section>
+{% endif %}
 
 {% if preview %}
 <section class="sec-panel" style="margin-top: 12px;">
