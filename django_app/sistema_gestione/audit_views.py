@@ -43,6 +43,7 @@ from .models import (
     RigaProgramma,
 )
 from .services import audit as service
+from .services import audit_automation as automation
 from .views import MODULE, _has_perm, _nega
 
 
@@ -448,8 +449,14 @@ def audit_dettaglio(request, pk: int):
         ), pk=pk,
     )
     gruppi = []
+    esiti_processo = []
     by_section = {}
-    for esito in audit.esiti.all():
+    for esito in audit.esiti.select_related("domanda__sezione", "sezione", "processo", "ofi").prefetch_related("allegati", "verifiche_efficacia"):
+        esito.mancanti = automation.problemi_esito(esito)
+        esito.completo = not esito.mancanti and not (esito.esito in {"NC", "OFI"} and not esito.ofi_id)
+        esito.efficacia_label = automation.stato_efficacia(esito) if esito.ofi_id else ""
+        if esito.modello_processo_id or esito.processo_id:
+            esiti_processo.append(esito)
         sezione = esito.sezione_effettiva
         if sezione:
             by_section.setdefault(sezione, []).append(esito)
@@ -461,6 +468,8 @@ def audit_dettaglio(request, pk: int):
     puo_convalidare_ente = _puo_convalidare_ente(request, audit)
     return render(request, "sistema_gestione/pages/audit_dettaglio.html", {
         "page_title": f"Audit {audit.numero}", "audit": audit, "gruppi": gruppi,
+        "esiti_processo": esiti_processo, "versioni_rapporto": audit.versioni_rapporto.all(),
+        "puo_verificare_efficacia": executor_assegnato or puo_approvare,
         "contatori": service.contatori_rilievi(audit),
         "completezza": service.verifica_completezza(audit),
         "form_persona": AuditPersonaForm(), "form_agenda": AuditAgendaForm(audit=audit),
@@ -659,7 +668,11 @@ def audit_esito_salva(request, pk: int, esito_pk: int):
     if form.is_valid():
         service.salva_esito(form.save(commit=False), utente=request.user)
         log_action(request, "audit_esito_salvato", MODULE, {"esito": esito.esito, "punti": esito.punti}, oggetto=audit)
-        messages.success(request, "Esito salvato.")
+        mancanti = automation.problemi_esito(esito)
+        if mancanti:
+            messages.warning(request, "Bozza salvata. Da completare: " + "; ".join(mancanti) + ".")
+        else:
+            messages.success(request, "Esito registrato.")
     else:
         return render(request, "sistema_gestione/pages/audit_form.html", {
             "page_title": "Completa l'esito della verifica", "form": form,
@@ -681,6 +694,7 @@ def audit_domanda_aggiuntiva(request, pk: int):
     if form.is_valid():
         esito = form.save(commit=False)
         esito.audit = audit
+        esito.strutturato = True
         service.salva_esito(esito, utente=request.user)
         messages.success(request, "Domanda aggiuntiva registrata.")
     else:
@@ -717,6 +731,7 @@ def audit_rapporto_salva(request, pk: int):
     if form.is_valid():
         audit = form.save(commit=False)
         audit.stato = Audit.STATO_RAPPORTO
+        audit.riepilogo_generato = automation.riepilogo_rapporto(audit)
         audit.save()
         log_action(request, "audit_rapporto_preparato", MODULE, {}, oggetto=audit)
         messages.success(request, "Rapporto salvato e inviato alla firma.")
@@ -736,9 +751,10 @@ def audit_firma_rapporto(request, pk: int):
     if problemi:
         messages.error(request, "Firma non disponibile: " + " ".join(v["testo"] for v in problemi[:8]))
         return redirect(_audit_url(audit, "guida"))
+    audit.riepilogo_generato = automation.riepilogo_rapporto(audit)
     audit.rapporto_firmato_auditor_da = request.user
     audit.rapporto_firmato_auditor_il = timezone.now()
-    audit.save(update_fields=["rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
+    audit.save(update_fields=["riepilogo_generato", "rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
     log_action(request, "audit_rapporto_firmato", MODULE, {}, oggetto=audit)
     return redirect(_audit_url(audit, "rapporto"))
 
@@ -757,7 +773,7 @@ def audit_riapri_rapporto(request, pk: int):
     else:
         audit.rapporto_firmato_auditor_da = None
         audit.rapporto_firmato_auditor_il = None
-        audit.save(update_fields=["rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
+        audit.save(update_fields=["riepilogo_generato", "rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
         log_action(request, "audit_rapporto_riaperto", MODULE, {}, oggetto=audit)
         messages.success(request, "Rapporto riaperto: Ã¨ nuovamente modificabile.")
     return redirect(_audit_url(audit, "rapporto"))

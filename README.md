@@ -22,6 +22,8 @@
 
 ---
 
+**Audit e catalogo processi (Unreleased):** checklist revisionate, compilazione con autosalvataggio, evidenze e allegati privati, proposta delle priorita e del riepilogo, efficacia e archivio revisioni firmate. [Funzionamento e rilascio](docs/ai/CHECKLIST_SISTEMA_GESTIONE_AUDIT.md#automatismi-audit-2026-09-28).
+
 ## 📖 Indice
 
 1. [Cos'è NOVICROM HUB](#-cosè-novicrom-hub)

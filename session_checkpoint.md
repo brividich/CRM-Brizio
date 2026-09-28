@@ -1,5 +1,12 @@
 # Session Checkpoint
 
+Data: 2026-09-28 (automatismi audit, evidenze e revisioni)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `automatismi audit, evidenze e revisioni`; changelog Unreleased root/Django, README e guida audit aggiornati.
+- Worktree `temp/codex-audit-guidato`, branch `feature/audit-guidato-processi`, sopra `d7f28081`. Checklist versionate/generate in bozza, autosave, allegati cifrati/deduplicati, emissione esplicita rilievi, riepilogo fattuale, priorita spiegabili, efficacia e archivio revisioni. Migration SG 0007.
+- 106 test mirati verdi, check/migration drift/secret hygiene/diff check verdi. E2E HTTP autenticato sintetico e mobile scuro verificati, server QA arrestato. Nessun DB aziendale, backup aggiuntivo, dipendenza, schedule o deploy.
+- Critici: sole route/binding ACL locali con permessi esistenti; documentati nel registro. Rilascio separato con migrate SG 0005-0007, bootstrap ACL, collectstatic e riavvio; SQL Server/ruoli reali da collaudare. Le nuove revisioni catalogo si adottano con casella esplicita nel piano in bozza.
+
 Data: 2026-09-28 (audit guidati e catalogo processi revisionato)
 
 - Vista/aggiunta voce AGENT_CHANGELOG `audit guidati e catalogo processi revisionato`; letta nuova voce CHANGELOG sul fix SQL Server migrazione Contatori 0008 oltre al checkpoint precedente.

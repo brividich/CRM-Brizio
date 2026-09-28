@@ -71,6 +71,8 @@ class RigaProgrammaForm(forms.ModelForm):
 
 
 class AuditForm(forms.ModelForm):
+    aggiorna_schede = forms.BooleanField(required=False, label="Adotta le revisioni attuali del catalogo",
+        help_text="Solo in bozza: aggiorna schede e domande non compilate. Riesamina i criteri personalizzati del piano.")
     class Meta:
         model = Audit
         fields = [
@@ -122,7 +124,7 @@ class AuditForm(forms.ModelForm):
     def clean(self):
         dati = super().clean()
         processi = list(dati.get("processi_catalogo") or [])
-        precedenti = {p["id"]: p for p in (self.instance.processi_snapshot or [])}
+        precedenti = {} if dati.get("aggiorna_schede") else {p["id"]: p for p in (self.instance.processi_snapshot or [])}
         schede = [precedenti.get(p.pk, p.snapshot()) for p in processi]
         if processi:
             dati["processi"] = "\n".join(f'{p["codice"]} - {p["nome"]} (Rev.{p["revisione"]})' for p in schede)
@@ -158,7 +160,7 @@ class AuditForm(forms.ModelForm):
     def sezioni(self):
         gruppi = [
             ("1. Campo di audit", "Scegli i processi dal catalogo e le norme applicabili.",
-             "numero programma righe tipo processi_catalogo en9100 iso45001 iso27001 pdr125"),
+             "numero programma righe tipo processi_catalogo aggiorna_schede en9100 iso45001 iso27001 pdr125"),
             ("2. Criteri e limiti", "Lascia i criteri vuoti per usare quelli delle schede processo. Precisa le esclusioni.",
              "punti_norma procedure_criteri esclusioni"),
             ("3. Team e indipendenza", "Assegna il Lead Auditor e il team; motiva eventuali conflitti.",
@@ -177,7 +179,7 @@ class ProcessoForm(forms.ModelForm):
         model = Processo
         fields = ["codice", "nome", "categoria", "responsabile", "enti", "scopo", "input", "output",
                   "rischi", "indicatori", "procedure", "punti_9100", "punti_45001", "punti_27001",
-                  "punti_pdr125", "frequenza_mesi", "attivo"]
+                  "punti_pdr125", "criticita", "frequenza_mesi", "attivo"]
         widgets = {nome: forms.Textarea(attrs={"rows": 3}) for nome in
                    ("scopo", "input", "output", "rischi", "indicatori", "procedure")}
         labels = {"input": "Ingressi", "output": "Risultati attesi", "indicatori": "Indicatori, obiettivi e frequenza di misura",
@@ -188,8 +190,12 @@ class ProcessoForm(forms.ModelForm):
         self.initial["versione"] = self.instance.revisione if self.instance.pk else 0
         for nome in ("responsabile", "scopo", "input", "output", "rischi", "indicatori", "procedure"):
             self.fields[nome].required = True
+        self.fields["criticita"].required = False
         self.fields["frequenza_mesi"].min_value = 1
         self.fields["frequenza_mesi"].max_value = 120
+
+    def clean_criticita(self):
+        return self.cleaned_data.get("criticita") or 2
 
     def clean_frequenza_mesi(self):
         valore = self.cleaned_data["frequenza_mesi"]
@@ -267,14 +273,34 @@ class AuditRapportoForm(forms.ModelForm):
 
 
 class AuditEsitoForm(forms.ModelForm):
+    versione = forms.IntegerField(required=False, widget=forms.HiddenInput())
     class Meta:
         model = AuditEsito
-        fields = ["esito", "evidenze"]
-        widgets = {"evidenze": forms.Textarea(attrs={"rows": 3})}
+        fields = ["esito", "documento", "revisione_documento", "campione", "data_verifica", "evidenze", "requisito_atteso", "scostamento", "responsabile_azione", "scadenza_azione"]
+        widgets = {nome: forms.Textarea(attrs={"rows": 3}) for nome in ["campione", "evidenze", "requisito_atteso", "scostamento"]}
+        widgets.update(data_verifica=_DATE, scadenza_azione=_DATE)
+        labels = {"documento": "Documento o registrazione verificata", "revisione_documento": "Revisione / versione",
+                  "campione": "Campione: identificativi e quantita", "evidenze": "Risultato osservato / motivazione N/A",
+                  "scostamento": "Scostamento dal requisito / opportunita di miglioramento"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.initial["versione"] = self.instance.versione
+        if self.instance.ofi_id:
+            for nome in self.Meta.fields:
+                self.fields[nome].disabled = True
+
 
     def clean(self):
         dati = super().clean()
-        if dati.get("esito") in {AuditEsito.ESITO_OFI, AuditEsito.ESITO_NC} and not (
+        if self.instance.pk and dati.get("versione", 0) not in (self.instance.versione, None if self.instance.versione == 0 else -1):
+            raise ValidationError("Questa verifica e stata aggiornata altrove. Ricarica prima di salvare: il tuo testo resta nel modulo.")
+        from django.utils import timezone
+        if dati.get("data_verifica") and dati["data_verifica"] > timezone.localdate():
+            self.add_error("data_verifica", "La verifica non puo avere una data futura.")
+        if dati.get("data_verifica") and dati.get("scadenza_azione") and dati["scadenza_azione"] < dati["data_verifica"]:
+            self.add_error("scadenza_azione", "La scadenza non puo precedere la verifica.")
+        if not self.instance.strutturato and dati.get("esito") in {AuditEsito.ESITO_OFI, AuditEsito.ESITO_NC} and not (
             dati.get("evidenze") or ""
         ).strip():
             self.add_error("evidenze", "Descrivi l'evidenza che genera il rilievo.")
@@ -282,11 +308,11 @@ class AuditEsitoForm(forms.ModelForm):
 
 
 class AuditDomandaAggiuntivaForm(forms.ModelForm):
-    sezione = forms.ModelChoiceField(queryset=ChecklistSezione.objects.none())
+    sezione = forms.ModelChoiceField(queryset=ChecklistSezione.objects.none(), required=False)
 
     class Meta:
         model = AuditEsito
-        fields = ["sezione", "punti_aggiuntivi", "testo_aggiuntivo", "esito", "evidenze"]
+        fields = ["processo", "sezione", "punti_aggiuntivi", "testo_aggiuntivo", "esito", "evidenze"]
         widgets = {
             "testo_aggiuntivo": forms.Textarea(attrs={"rows": 3}),
             "evidenze": forms.Textarea(attrs={"rows": 3}),
@@ -294,12 +320,19 @@ class AuditDomandaAggiuntivaForm(forms.ModelForm):
 
     def __init__(self, *args, audit=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["processo"].queryset = audit.processi_catalogo.all() if audit else Processo.objects.none()
         modello_ids = audit.esiti.filter(domanda__isnull=False).values_list(
             "domanda__sezione__modello_id", flat=True,
         ) if audit else []
         self.fields["sezione"].queryset = ChecklistSezione.objects.filter(
             modello_id__in=set(modello_ids),
         ).order_by("ordine")
+
+    def clean(self):
+        dati = super().clean()
+        if not dati.get("processo") and not dati.get("sezione"):
+            raise ValidationError("Collega la domanda a un processo del piano o a una sezione della checklist.")
+        return dati
 
 
 class ValutazioneRddForm(forms.ModelForm):

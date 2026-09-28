@@ -5,7 +5,7 @@
 <div class="rc-wrap">
   <a class="rc-back" href="{{ indietro }}">← Indietro</a>
   <div class="page-header"><div class="page-header-main"><div class="page-h">{{ page_title }}</div></div></div>
-  <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
+  <form method="post" enctype="multipart/form-data" class="rc-card sg-form hub-form-stack">{% csrf_token %}
     {% for error in form.non_field_errors %}<div class="hub-err">{{ error }}</div>{% endfor %}
     {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
     {% if form.sezioni %}

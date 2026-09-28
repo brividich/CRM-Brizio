@@ -63,6 +63,20 @@ _CANONICAL = {
 }
 
 _ROUTE_BINDINGS = {
+    "sistema_gestione:audit_esito_editor": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_priorita": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_priorita_applica": PERM_AUDIT_EDIT,
+    "sistema_gestione:checklist_processo_nuova": PERM_AUDIT_EDIT,
+    "sistema_gestione:checklist_processo_modifica": PERM_AUDIT_EDIT,
+    "sistema_gestione:checklist_processo_proponi": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_esito_bozza": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_allegato_carica": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_allegato_download": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_verifica_efficacia": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_prepara_rapporto": PERM_AUDIT_ESEGUI,
+    "sistema_gestione:audit_revisiona_rapporto": PERM_AUDIT_APPROVA,
+    "sistema_gestione:audit_versione_download": PERM_AUDIT_VIEW,
+
     "sistema_gestione:audit_elemento_modifica": PERM_AUDIT_EDIT,
     "sistema_gestione:processi_catalogo": PERM_AUDIT_VIEW,
     "sistema_gestione:processo_dettaglio": PERM_AUDIT_VIEW,

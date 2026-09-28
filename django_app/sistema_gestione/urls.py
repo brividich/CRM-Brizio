@@ -2,11 +2,25 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import audit_views, views, processi_views
+from . import audit_views, views, processi_views, automation_views
 
 app_name = "sistema_gestione"
 
 urlpatterns = [
+    path("audit/<int:pk>/verifica/<int:esito_pk>/", automation_views.esito_editor, name="audit_esito_editor"),
+    path("audit/priorita/", automation_views.priorita, name="audit_priorita"),
+    path("audit/priorita/applica/", automation_views.applica_priorita, name="audit_priorita_applica"),
+    path("audit/processi/<int:processo_pk>/checklist/nuova/", automation_views.checklist_processo, name="checklist_processo_nuova"),
+    path("audit/processi/<int:processo_pk>/checklist/<int:pk>/", automation_views.checklist_processo, name="checklist_processo_modifica"),
+    path("audit/processi/<int:processo_pk>/checklist/proponi/", automation_views.proponi_checklist, name="checklist_processo_proponi"),
+    path("audit/<int:pk>/esito/<int:esito_pk>/bozza/", automation_views.esito_bozza, name="audit_esito_bozza"),
+    path("audit/<int:pk>/esito/<int:esito_pk>/allegato/", automation_views.allegato_carica, name="audit_allegato_carica"),
+    path("audit/<int:pk>/evidenza/<int:allegato_pk>/", automation_views.allegato_download, name="audit_allegato_download"),
+    path("audit/<int:pk>/esito/<int:esito_pk>/efficacia/", automation_views.verifica_efficacia, name="audit_verifica_efficacia"),
+    path("audit/<int:pk>/rapporto/prepara/", automation_views.prepara_rapporto, name="audit_prepara_rapporto"),
+    path("audit/<int:pk>/rapporto/revisiona/", automation_views.revisiona_rapporto, name="audit_revisiona_rapporto"),
+    path("audit/<int:pk>/versione/<int:versione_pk>/<str:tipo>/", automation_views.versione_download, name="audit_versione_download"),
+
     path("", views.index, name="index"),
     path("soa/", views.soa, name="soa"),
     path("soa/nuova-revisione/", views.soa_nuova_revisione, name="soa_nuova_revisione"),

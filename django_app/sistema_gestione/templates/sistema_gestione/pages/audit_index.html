@@ -6,7 +6,7 @@
   <a class="rc-back" href="{% url 'sistema_gestione:index' %}">← Sistema di gestione</a>
   <div class="page-header">
     <div class="page-header-main"><div class="page-h">Audit interni</div><div class="page-sub">Programma MOD.034, piano MOD.035A, esecuzione e rapporto MOD.035B.</div></div>
-    <div class="sg-actions"><a class="btn btn-secondary" href="{% url 'sistema_gestione:processi_catalogo' %}">Catalogo processi</a>
+    <div class="sg-actions"><a class="btn btn-secondary" href="{% url 'sistema_gestione:audit_priorita' %}">Priorita e proposte</a><a class="btn btn-secondary" href="{% url 'sistema_gestione:processi_catalogo' %}">Catalogo processi</a>
       <a class="btn btn-secondary" href="{% url 'sistema_gestione:auditor_elenco' %}">Auditor</a>
       {% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:programma_nuovo' %}">Nuovo programma</a><a class="btn" href="{% url 'sistema_gestione:audit_nuovo' %}">Nuovo audit</a>{% endif %}
     </div>

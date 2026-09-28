@@ -206,19 +206,21 @@ def modello_en9100_attivo() -> ChecklistModello | None:
 
 @transaction.atomic
 def inizializza_checklist(audit: Audit) -> int:
+    from .audit_automation import genera_checklist_processi
+    nuovi_processi = genera_checklist_processi(audit)
     if not audit.en9100:
-        return 0
+        return nuovi_processi
     modello = modello_en9100_attivo()
     if not modello:
-        return 0
+        return nuovi_processi
     create = []
     for sezione in modello.sezioni.prefetch_related("domande"):
         AuditSezioneCar.objects.get_or_create(audit=audit, sezione=sezione)
         for domanda in sezione.domande.filter(attiva=True):
-            create.append(AuditEsito(audit=audit, domanda=domanda))
+            create.append(AuditEsito(audit=audit, domanda=domanda, strutturato=True, domanda_snapshot={"domanda": domanda.testo, "punti": domanda.punti, "revisione": modello.revisione, "criterio": sezione.criteri}))
     before = audit.esiti.count()
     AuditEsito.objects.bulk_create(create, ignore_conflicts=True)
-    return audit.esiti.count() - before
+    return audit.esiti.count() - before + nuovi_processi
 
 
 def giorni_lavorativi_di_preavviso(data_comunicazione, data_audit) -> int:
@@ -325,10 +327,16 @@ def sincronizza_ofi(esito: AuditEsito):
         "ref": audit.numero[:100],
         "processo": audit.processi[:200],
         "opportunita": esito.evidenze,
+        "proprietario": _nome_utente(esito.responsabile_azione)[:150],
+        "data_richiesta": esito.scadenza_azione,
         "modulo_origine": "sistema_gestione",
         "content_type": ct,
         "object_id": esito.pk,
     }
+    if esito.strutturato:
+        from .audit_automation import testo_evidenza
+        dati["opportunita"] = testo_evidenza(esito)
+        dati["processo"] = esito.domanda_snapshot.get("processo", audit.processi)[:200]
     for _tentativo in range(2):
         try:
             # Il savepoint rende recuperabile la transazione esterna anche su SQL Server.
@@ -344,11 +352,14 @@ def sincronizza_ofi(esito: AuditEsito):
 
 
 @transaction.atomic
-def salva_esito(esito: AuditEsito, *, utente):
+def salva_esito(esito: AuditEsito, *, utente, genera_rilievo=True):
+    from .audit_automation import problemi_esito
     esito.aggiornato_da = utente
+    esito.versione += 1
     esito.full_clean()
     esito.save()
-    if esito.esito in {AuditEsito.ESITO_OFI, AuditEsito.ESITO_NC}:
+    Audit.objects.filter(pk=esito.audit_id).update(riepilogo_generato="")
+    if genera_rilievo and esito.esito in {AuditEsito.ESITO_OFI, AuditEsito.ESITO_NC} and not problemi_esito(esito):
         sincronizza_ofi(esito)
     return esito
 
@@ -391,11 +402,15 @@ def verifica_completezza(audit: Audit) -> dict:
     non_qualificati = auditor_non_qualificati(lead=audit.lead_auditor, auditor=audit.auditor.all())
     manca(piano, bool(non_qualificati), "Verifica le qualifiche del team: " + ", ".join(non_qualificati), "campo")
     esiti = list(audit.esiti.all())
-    completi = sum(bool(e.esito and e.evidenze.strip()) for e in esiti)
+    from .audit_automation import problemi_esito
+    completi = sum(not problemi_esito(e) for e in esiti)
     manca(rapporto, not esiti, "Carica una checklist prima di firmare il rapporto.", "checklist")
     for esito in esiti:
-        manca(rapporto, not esito.esito, f"{esito.punti}: scegli un esito.", f"esito-{esito.pk}")
-        manca(rapporto, bool(esito.esito) and not esito.evidenze.strip(),
+        if esito.strutturato:
+            for problema in problemi_esito(esito):
+                rapporto.append({"testo": f"{esito.punti}: {problema}.", "sezione": f"esito-{esito.pk}"})
+        manca(rapporto, not esito.strutturato and not esito.esito, f"{esito.punti}: scegli un esito.", f"esito-{esito.pk}")
+        manca(rapporto, not esito.strutturato and bool(esito.esito) and not esito.evidenze.strip(),
               f"{esito.punti}: registra evidenze o motivazione N/A.", f"esito-{esito.pk}")
         manca(rapporto, esito.esito in {AuditEsito.ESITO_NC, AuditEsito.ESITO_OFI} and not esito.ofi_id,
               f"{esito.punti}: manca il collegamento al Registro OFI.", f"esito-{esito.pk}")
