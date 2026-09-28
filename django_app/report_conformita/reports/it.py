@@ -58,7 +58,7 @@ def _inventario_it(params: ReportParams) -> ReportResult:
         result.add_row(
             [a.asset_tag, a.name, a.get_asset_type_display(), " ".join(x for x in (a.manufacturer, a.model) if x),
              a.serial_number, reparto, assegnato, a.get_status_display()],
-            tone,
+            tone, source=a
         )
     totale = len(assets)
     result.kpis = [Kpi("Asset IT in inventario", totale)]
@@ -121,7 +121,7 @@ def _licenze(params: ReportParams) -> ReportResult:
             [" ".join(x for x in (lic.product_name, lic.edition) if x), lic.vendor, lic.get_category_display(),
              lic.assigned_to_display or lic.assigned_reparto, posti, d(lic.renewal_date), d(lic.expiry_date),
              yes_no(lic.auto_renew), stato],
-            tone,
+            tone, source=lic
         )
     result.kpis = [
         Kpi("Licenze attive", len(licenze)),
@@ -229,7 +229,7 @@ def _revisione_accessi(params: ReportParams) -> ReportResult:
             [u.username, u.get_full_name(), getattr(profilo, "legacy_ruolo", "") or "",
              yes_no(u.is_superuser or u.is_staff), d(u.last_login), yes_no(ha_2fa),
              negati.get(legacy_id, 0) if legacy_id else 0, "; ".join(esiti) or "OK"],
-            tone,
+            tone, source=u
         )
     totale = len(utenti)
     offboarding_chiuse = 0
@@ -314,7 +314,7 @@ def _sicurezza_it(params: ReportParams) -> ReportResult:
         result.add_row(
             [v.cve, v.affected_product, v.get_severity_display(), v.cvss if v.cvss is not None else "",
              v.exposed_devices, d(v.first_seen_at), giorni, v.get_status_display()],
-            tone,
+            tone, source=v
         )
     result.kpis = [
         Kpi("Backup eseguiti nel periodo", tot_backup),
@@ -389,7 +389,7 @@ def _dichiarazione_applicabilita(params: ReportParams) -> ReportResult:
         result.add_row(
             [voce.controllo.codice, voce.controllo.titolo, voce.livello, voce.azione, voce.responsabile,
              d(voce.scadenza), stato],
-            tone,
+            tone, source=voce
         )
     result.notes = [
         "Righe: controlli applicati in parte (livello 1-3) o con un'azione del piano di trattamento aperta.",

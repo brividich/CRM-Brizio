@@ -11,7 +11,10 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, HttpResponseForbidden
+from django.core.paginator import Paginator
+from django.urls import reverse
+from django.views.decorators.http import require_http_methods
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.http import urlencode
@@ -19,7 +22,10 @@ from django.utils.text import slugify
 
 from core.audit import log_action
 
-from .acl_bootstrap import PERM_AREA, PERM_VIEW
+from .acl_bootstrap import PERM_AREA, PERM_VIEW, PERM_EDIT
+from .corrections import CorrectionData, corrected_result
+from .forms import CorrectionForm
+from .sources import COLUMN_SOURCES, allowed_links
 from .exports import PdfSection, render_pdf, report_pdf, report_xlsx, section_for
 from .registry import AREE, AREE_ORDINE, NORME, ReportParams, all_reports, get_report
 
@@ -104,7 +110,7 @@ def report(request, slug: str):
         return redirect("report_conformita:index")
 
     params = ReportParams.from_querydict(request.GET, filtri=definition.filtri)
-    result = definition.build(params)
+    result = corrected_result(definition, params)
     filtri_label = _filtri_label(definition, params)
     fmt = (request.GET.get("formato") or "").strip().lower()
     stamp = timezone.localdate().strftime("%Y%m%d")
@@ -129,10 +135,13 @@ def report(request, slug: str):
         "area_label": AREE[definition.area],
         "params": params,
         "result": result,
-        "rows": list(zip(result.rows, result.row_tones)),
+        "rows": [([{"value": v, "corrected": (i, j) in result.corrected_cells}
+                   for j, v in enumerate(values)], result.row_tones[i])
+                 for i, values in enumerate(result.rows)],
         "filtri_label": filtri_label,
         "pdf_url": f"?{query}&formato=pdf",
         "xlsx_url": f"?{query}&formato=xlsx",
+        "data_url": reverse("report_conformita:dati", args=[slug]) + f"?{query}",
     })
 
 
@@ -149,7 +158,7 @@ def riesame(request):
         if definition.area not in aree:
             continue
         try:
-            result = definition.build(params)
+            result = corrected_result(definition, params)
         except Exception:
             logger.exception("riesame: report %s non calcolabile", definition.slug)
             result = None
@@ -165,7 +174,7 @@ def riesame(request):
             section = section_for(s["report"], s["result"])
             # Nel pacchetto riesame solo indicatori: le righe nominative restano nei singoli report.
             section.columns, section.rows, section.row_tones = [], [], []
-            section.notes = []
+            section.notes = s["result"].riesame_notes
             pdf_sections.append(section)
         body = render_pdf(
             title="Riesame della direzione - dati di ingresso",
@@ -191,3 +200,71 @@ def riesame(request):
         "pdf_url": f"?{urlencode(params.as_query())}&formato=pdf",
         "aree_escluse": [AREE[a] for a in AREE_ORDINE if a not in aree],
     })
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def dati(request, slug: str):
+    definition = get_report(slug)
+    if definition is None:
+        raise Http404("Report inesistente")
+    if definition.area not in _aree_consentite(request):
+        return HttpResponseForbidden("Non hai accesso ai dati di questo report.")
+    can_edit = _has_perm(request, PERM_EDIT)
+    if request.method == "POST" and not can_edit:
+        return HttpResponseForbidden("Non hai il permesso di rettificare i report.")
+    params = ReportParams.from_querydict(request.GET, filtri=definition.filtri)
+    result = definition.build(params)
+    data = CorrectionData(definition, params, result)
+    query = urlencode(params.as_query())
+    data_url = reverse("report_conformita:dati", args=[slug]) + f"?{query}"
+    target = request.POST.get("target", "") if request.method == "POST" else request.GET.get("target", "")
+    selected = data.cells.get(target)
+    if target and selected is None:
+        raise Http404("Dato non presente nel report con questi filtri")
+    status = 200
+    form = None
+    if request.method == "POST" and selected is None:
+        return HttpResponse("Seleziona un dato da rettificare.", status=400)
+    if selected and can_edit:
+        form = CorrectionForm(request.POST if request.method == "POST" else None, kpi=selected.kpi is not None, initial={
+            "value": selected.value, "token": data.token(selected), "action": "correct",
+        })
+        if request.method == "POST":
+            if form.is_valid():
+                try:
+                    data.save(request, selected, form.cleaned_data)
+                except ValueError as exc:
+                    form.add_error(None, str(exc))
+                    status = 409
+                else:
+                    messages.success(request, "Rettifica registrata." if form.cleaned_data["action"] == "correct"
+                                     else "Dato sorgente ripristinato; lo storico e conservato.")
+                    return redirect(data_url + "&target=" + selected.target + "#editor")
+            else:
+                status = 400
+    page = Paginator(list(enumerate(data.rows)), 50).get_page(request.GET.get("pagina"))
+    rows = []
+    link_cache = {}
+
+    def visible_links(items):
+        key = tuple(items)
+        if key not in link_cache:
+            link_cache[key] = allowed_links(request, items)
+        return link_cache[key]
+
+    for index, cells in page:
+        source_links = result.row_sources[index] or result.links
+        rows.append({"number": index + 1, "cells": cells, "links": visible_links(source_links)})
+    history = data.history.filter(target=selected.target) if selected else data.history
+    history_page = Paginator(history, 25).get_page(request.GET.get("storico"))
+    return render(request, "report_conformita/pages/dati.html", {
+        "page_title": "Dati e fonti - " + definition.title,
+        "report": definition, "params": params, "result": result,
+        "data_url": data_url, "report_url": reverse("report_conformita:report", args=[slug]) + f"?{query}",
+        "can_edit": can_edit, "selected": selected, "form": form,
+        "rows": rows, "page": page, "kpis": data.kpis,
+        "columns_sources": list(zip(result.columns, COLUMN_SOURCES.get(slug, []))),
+        "source_links": visible_links(result.links), "history": history_page,
+        "history_url": data_url + ("&target=" + selected.target if selected else ""),
+    }, status=status)

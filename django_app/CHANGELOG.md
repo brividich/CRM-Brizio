@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- **Report conformita - Dati e fonti per tutti i 16 report**: nuova pagina `/report-conformita/<slug>/dati/` con provenienza di ogni colonna, dati originali, collegamenti alle sorgenti filtrati per ACL e rettifiche condivise del solo report (righe e KPI). Motivazione obbligatoria, autore/data, storico append-only, ripristino, protezione contro modifiche concorrenti e sospensione se cambia il dato originale. Rettifiche incluse e dichiarate in web/PDF/Excel; il riesame mantiene solo indicatori e relative note. Le rettifiche delle righe non ricalcolano KPI/semafori; i report di periodo isolano le rettifiche per periodo/filtri. Nuovo permesso canonico `report_conformita.rettifiche.edit`, assegnato di default al solo ruolo admin; accesso all'area comunque obbligatorio. Nessuna nuova dipendenza. **Deploy**: `migrate report_conformita`, riavvio web (bootstrap ACL v2).
+  File: `django_app/report_conformita/{models,forms,sources,corrections,registry,views,urls,acl_bootstrap,tests_corrections}.py`, `reports/{it,persone,qualita,sicurezza}.py`, `migrations/{__init__,0001_initial}.py`, template `pages/{dati,report,riesame}.html` e `components/_data_value.html`; `README.md`, changelog root/Django, `docs/ai/REPORT_CONFORMITA_DATI.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+
+
 - SNMP: autodetect con sonde lette al primo polling; scheda dispositivi stampante con contatori e toner automatici Printer-MIB, storico e informazioni mancanti esplicite. Migration contatori 0013; compatibile con il polling schedulato esistente.
 
 ### Contatori - catalogo profili SNMP multi-produttore

@@ -60,7 +60,7 @@ def _eventi_sicurezza(params: ReportParams) -> ReportResult:
              yes_no(analisi), short(e.quali_misure, 80) if e.misure_tecniche else "No",
              e.approvazione_rls, d(e.data_chiusura_rspp) if chiuso else "Aperta",
              giorni if giorni is not None else ""],
-            tone,
+            tone, source=e
         )
     totale = len(eventi)
     result.kpis = [
@@ -131,7 +131,7 @@ def _dpi(params: ReportParams) -> ReportResult:
         result.add_row(
             [r.numero, r.richiedente_nome, r.richiedente_reparto, str(r.categoria or ""), str(r.tipo_dpi or ""),
              d(cons.data_consegna), yes_no(cons.firmato_ricevuta), d(cons.data_scadenza_stimata), stato],
-            tone,
+            tone, source=cons
         )
     in_attesa = RichiestaDPI.objects.filter(stato__in=("INVIATA", "APPROVATA"))
     vecchie = in_attesa.filter(created_at__date__lt=params.today - timedelta(days=15)).count()
@@ -271,7 +271,7 @@ def _scadenziario_legale(params: ReportParams) -> ReportResult:
         result.add_row(
             [v["label"], v["rif"], v["scadute"], v["in_scadenza"], v["totale"],
              pct(v["totale"] - v["scadute"], v["totale"])],
-            tone,
+            tone, key=v["label"]
         )
         if v["link"]:
             result.links.append((v["label"], v["link"][1]))

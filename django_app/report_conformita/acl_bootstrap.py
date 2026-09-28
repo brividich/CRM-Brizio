@@ -22,8 +22,9 @@ from .registry import AREA_IT, AREA_PERSONE, AREA_QUALITA, AREA_SICUREZZA
 logger = logging.getLogger(__name__)
 
 MODULE = "report_conformita"
-_BOOTSTRAP_CACHE_KEY = "report_conformita_acl_bootstrap_v1"
+_BOOTSTRAP_CACHE_KEY = "report_conformita_acl_bootstrap_v2"
 
+PERM_EDIT = "report_conformita.rettifiche.edit"
 PERM_VIEW = "report_conformita.modulo.view"
 PERM_AREA = {
     AREA_QUALITA: "report_conformita.qualita.view",
@@ -33,6 +34,8 @@ PERM_AREA = {
 }
 
 _CANONICAL = {
+    PERM_EDIT: {"label": "Report conformita - Rettifiche",
+                "description": "Rettifiche e ripristini del solo report; richiede anche accesso alla sua area."},
     PERM_VIEW: {
         "label": "Report conformità - Accesso",
         "description": "Accesso alla sezione Report conformità (ISO 9001, EN 9100, ISO 45001, ISO 27001). "
@@ -59,13 +62,14 @@ _CANONICAL = {
 _ROUTE_BINDINGS = {
     "report_conformita:index": PERM_VIEW,
     "report_conformita:report": PERM_VIEW,
+    "report_conformita:dati": PERM_VIEW,
     "report_conformita:riesame": PERM_VIEW,
 }
 
 # Ruoli legacy reali: admin, amministrazione, caporeparto, HR, qualita, utente.
 # L'area IT resta al solo admin: nessun ruolo legacy IT dedicato, si assegna a mano.
 _ROLE_GRANTS = {
-    "admin": {PERM_VIEW, *PERM_AREA.values()},
+    "admin": {PERM_VIEW, PERM_EDIT, *PERM_AREA.values()},
     "qualita": {PERM_VIEW, PERM_AREA[AREA_QUALITA], PERM_AREA[AREA_PERSONE], PERM_AREA[AREA_SICUREZZA]},
     "amministrazione": {PERM_VIEW, PERM_AREA[AREA_QUALITA]},
     "hr": {PERM_VIEW, PERM_AREA[AREA_PERSONE]},

@@ -1,5 +1,13 @@
 # Session Checkpoint
 
+Data: 2026-09-28 (Dati e fonti / rettifiche Report conformita)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `Report conformita: dati, fonti e rettifiche`; viste le voci precedenti fino al checkpoint SNMP 2026-09-27 e il delta CHANGELOG (fix indice SQL Server Contatori 0008). README, changelog root/Django e docs mirate aggiornati.
+- Worktree `temp/codex-report-dati`, branch `feature/report-conformita-dati`, base `34cb1219`. Pagina `/report-conformita/<slug>/dati/` su tutti i 16 report, fonti per campo, link sorgenti, rettifiche di celle/KPI con audit, storico/ripristino, concorrenza e sospensione su sorgente cambiata. Modifica sorgente tramite editor esistenti; rettifiche solo presentazione, incluse in web/PDF/Excel e KPI del riesame.
+- 39 test verdi, Django check/migration drift/diff check verdi. File critici: route locale e bootstrap ACL report (permesso rettifiche separato + binding, grant admin create-only); nessuna modifica globale o a DB aziendali. Nessun backup o deploy, checkout condiviso intatto.
+- Prossimo rilascio: integrare branch, `migrate report_conformita`, riavvio web; collaudare SQL Server e grant reali. Rettifiche di riga non ricalcolano KPI/semafori. QA visuale browser non eseguita (runtime integrato non disponibile); rendering di tutte le pagine coperto dai test.
+
+
 Data: 2026-09-27 (autodetect e dati stampante nei Dispositivi SNMP)
 
 - Vista/aggiunta voce AGENT_CHANGELOG `autodetect SNMP e consumabili nella scheda dispositivo`; README, changelog e docs aggiornati. Worktree dedicato `temp/codex-snmp-autodetect`, branch `feature/snmp-autodetect-dati`, base release `48af907c`.
