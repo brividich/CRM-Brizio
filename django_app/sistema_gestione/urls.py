@@ -2,11 +2,25 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import audit_views, views
+from . import audit_views, views, processi_views, automation_views
 
 app_name = "sistema_gestione"
 
 urlpatterns = [
+    path("audit/<int:pk>/verifica/<int:esito_pk>/", automation_views.esito_editor, name="audit_esito_editor"),
+    path("audit/priorita/", automation_views.priorita, name="audit_priorita"),
+    path("audit/priorita/applica/", automation_views.applica_priorita, name="audit_priorita_applica"),
+    path("audit/processi/<int:processo_pk>/checklist/nuova/", automation_views.checklist_processo, name="checklist_processo_nuova"),
+    path("audit/processi/<int:processo_pk>/checklist/<int:pk>/", automation_views.checklist_processo, name="checklist_processo_modifica"),
+    path("audit/processi/<int:processo_pk>/checklist/proponi/", automation_views.proponi_checklist, name="checklist_processo_proponi"),
+    path("audit/<int:pk>/esito/<int:esito_pk>/bozza/", automation_views.esito_bozza, name="audit_esito_bozza"),
+    path("audit/<int:pk>/esito/<int:esito_pk>/allegato/", automation_views.allegato_carica, name="audit_allegato_carica"),
+    path("audit/<int:pk>/evidenza/<int:allegato_pk>/", automation_views.allegato_download, name="audit_allegato_download"),
+    path("audit/<int:pk>/esito/<int:esito_pk>/efficacia/", automation_views.verifica_efficacia, name="audit_verifica_efficacia"),
+    path("audit/<int:pk>/rapporto/prepara/", automation_views.prepara_rapporto, name="audit_prepara_rapporto"),
+    path("audit/<int:pk>/rapporto/revisiona/", automation_views.revisiona_rapporto, name="audit_revisiona_rapporto"),
+    path("audit/<int:pk>/versione/<int:versione_pk>/<str:tipo>/", automation_views.versione_download, name="audit_versione_download"),
+
     path("", views.index, name="index"),
     path("soa/", views.soa, name="soa"),
     path("soa/nuova-revisione/", views.soa_nuova_revisione, name="soa_nuova_revisione"),
@@ -20,6 +34,10 @@ urlpatterns = [
     path("threat-intelligence/", views.threat_intelligence, name="threat_intelligence"),
     path("threat-intelligence/nuova/", views.threat_intelligence_nuova, name="threat_intelligence_nuova"),
     path("audit/", audit_views.audit_index, name="audit_index"),
+    path("audit/processi/", processi_views.catalogo, name="processi_catalogo"),
+    path("audit/processi/nuovo/", processi_views.modifica, name="processo_nuovo"),
+    path("audit/processi/<int:pk>/", processi_views.dettaglio, name="processo_dettaglio"),
+    path("audit/processi/<int:pk>/modifica/", processi_views.modifica, name="processo_modifica"),
     path("audit/auditor/", audit_views.auditor_elenco, name="auditor_elenco"),
     path("audit/auditor/nuovo/", audit_views.auditor_modifica, name="auditor_nuovo"),
     path("audit/auditor/<int:pk>/", audit_views.auditor_modifica, name="auditor_modifica"),
@@ -41,6 +59,7 @@ urlpatterns = [
     path("audit/<int:pk>/modifica/", audit_views.audit_modifica, name="audit_modifica"),
     path("audit/<int:pk>/persona/", audit_views.audit_persona_salva, name="audit_persona_salva"),
     path("audit/<int:pk>/agenda/", audit_views.audit_agenda_salva, name="audit_agenda_salva"),
+    path("audit/<int:pk>/correggi/<str:tipo>/<int:elemento_pk>/", audit_views.audit_elemento_modifica, name="audit_elemento_modifica"),
     path("audit/<int:pk>/approva-lead/", audit_views.audit_approva_lead, name="audit_approva_lead"),
     path("audit/<int:pk>/approva-direzione/", audit_views.audit_approva_direzione, name="audit_approva_direzione"),
     path("audit/<int:pk>/comunica/", audit_views.audit_comunica, name="audit_comunica"),

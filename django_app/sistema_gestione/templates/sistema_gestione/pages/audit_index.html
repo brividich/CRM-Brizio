@@ -6,11 +6,13 @@
   <a class="rc-back" href="{% url 'sistema_gestione:index' %}">← Sistema di gestione</a>
   <div class="page-header">
     <div class="page-header-main"><div class="page-h">Audit interni</div><div class="page-sub">Programma MOD.034, piano MOD.035A, esecuzione e rapporto MOD.035B.</div></div>
-    <div class="sg-actions">
+    <div class="sg-actions"><a class="btn btn-secondary" href="{% url 'sistema_gestione:audit_priorita' %}">Priorita e proposte</a><a class="btn btn-secondary" href="{% url 'sistema_gestione:processi_catalogo' %}">Catalogo processi</a>
       <a class="btn btn-secondary" href="{% url 'sistema_gestione:auditor_elenco' %}">Auditor</a>
       {% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:programma_nuovo' %}">Nuovo programma</a><a class="btn" href="{% url 'sistema_gestione:audit_nuovo' %}">Nuovo audit</a>{% endif %}
     </div>
   </div>
+  <section class="rc-card sg-section"><h2>Dal processo al rapporto, un passo alla volta</h2><p>1. Definisci i processi e i responsabili nel catalogo. 2. Pianifica le verifiche. 3. Raccogli evidenze e rilievi. 4. Completa il rapporto e le firme.</p>
+  <form method="get" class="sg-actions"><label for="anno">Anno di riferimento</label><input id="anno" name="anno" type="number" min="2020" max="2100" value="{{ anno }}"><button class="btn btn-secondary">Mostra</button></form></section>
   <div class="sg-kpis"><div class="sg-kpi"><span>Anno</span><strong>{{ anno }}</strong></div><div class="sg-kpi"><span>Audit programmati</span><strong>{{ audit_programmati }}</strong></div><div class="sg-kpi"><span>Audit chiusi</span><strong>{{ audit_chiusi }}</strong></div><div class="sg-kpi"><span>Auditor attivi</span><strong>{{ auditor_attivi }}</strong></div></div>
   <section class="rc-card sg-section">
     <h2>Programmi annuali</h2>

@@ -333,7 +333,65 @@ class ProgrammaAudit(models.Model):
         return self.stato == self.STATO_BOZZA
 
 
+class Processo(models.Model):
+    codice = models.CharField(max_length=30, unique=True)
+    nome = models.CharField(max_length=200)
+    categoria = models.CharField(max_length=20, choices=[
+        ("DIREZIONALE", "Direzionale"), ("OPERATIVO", "Operativo"), ("SUPPORTO", "Supporto"),
+    ], default="OPERATIVO")
+    responsabile = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.PROTECT, related_name="processi_sgi")
+    enti = models.CharField(max_length=255, blank=True)
+    scopo = models.TextField(blank=True)
+    input = models.TextField(blank=True)
+    output = models.TextField(blank=True)
+    rischi = models.TextField(blank=True)
+    indicatori = models.TextField(blank=True)
+    procedure = models.TextField(blank=True)
+    punti_9100 = models.CharField(max_length=255, blank=True)
+    punti_45001 = models.CharField(max_length=255, blank=True)
+    punti_27001 = models.CharField(max_length=255, blank=True)
+    punti_pdr125 = models.CharField(max_length=255, blank=True)
+    criticita = models.PositiveSmallIntegerField(default=2, choices=[(1,"Bassa"),(2,"Media"),(3,"Alta")])
+    frequenza_mesi = models.PositiveSmallIntegerField(default=12)
+    attivo = models.BooleanField(default=True)
+    revisione = models.PositiveIntegerField(default=1, editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["codice"]
+        verbose_name_plural = "Processi"
+
+    def __str__(self):
+        return f"{self.codice} - {self.nome}"
+
+    def snapshot(self):
+        dati = {f.name: getattr(self, f.name) for f in self._meta.fields
+                if f.name not in {"responsabile", "updated_at"}}
+        dati["responsabile_id"] = self.responsabile_id
+        dati["responsabile"] = ((self.responsabile.get_full_name() or self.responsabile.get_username())
+                                if self.responsabile_id else "")
+        dati["checklist"] = list(self.checklist.filter(attiva=True).values(
+            "id", "codice", "norma", "punti", "domanda", "criterio", "suggerimento", "revisione"
+        )) if self.pk else []
+        return dati
+
+
+class ProcessoRevisione(models.Model):
+    processo = models.ForeignKey(Processo, on_delete=models.PROTECT, related_name="revisioni")
+    numero = models.PositiveIntegerField()
+    dati = models.JSONField(default=dict)
+    motivo = models.CharField(max_length=500)
+    autore = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    creata_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-numero"]
+        constraints = [models.UniqueConstraint(fields=["processo", "numero"], name="sg_processo_rev_unica")]
+
+
 class RigaProgramma(models.Model):
+    processo = models.ForeignKey(Processo, null=True, blank=True, on_delete=models.PROTECT, related_name="righe")
     programma = models.ForeignKey(ProgrammaAudit, on_delete=models.CASCADE, related_name="righe")
     ordine = models.PositiveIntegerField(default=100)
     area = models.CharField(max_length=255)
@@ -394,6 +452,8 @@ class Audit(models.Model):
     lead_auditor = models.ForeignKey(Auditor, on_delete=models.PROTECT, related_name="audit_come_lead")
     auditor = models.ManyToManyField(Auditor, blank=True, related_name="audit_come_membro")
     processi = models.TextField(blank=True, default="")
+    processi_catalogo = models.ManyToManyField(Processo, blank=True, related_name="audit")
+    processi_snapshot = models.JSONField(default=list, blank=True)
     punti_norma = models.TextField(blank=True, default="")
     procedure_criteri = models.TextField(blank=True, default="")
     esclusioni = models.TextField(blank=True, default="Nessuna")
@@ -431,6 +491,7 @@ class Audit(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
     rapporto_valutato_rdd_il = models.DateTimeField(null=True, blank=True)
+    riepilogo_generato = models.TextField(blank=True, default="")
     giudizio = models.TextField(blank=True, default="")
     punti_forza = models.TextField(blank=True, default="")
     valutazione_rdd = models.TextField(blank=True, default="")
@@ -525,6 +586,7 @@ class AuditPersona(models.Model):
 
 
 class AuditAgenda(models.Model):
+    processo = models.ForeignKey(Processo, null=True, blank=True, on_delete=models.PROTECT, related_name="attivita_audit")
     audit = models.ForeignKey(Audit, on_delete=models.CASCADE, related_name="agenda")
     quando = models.DateTimeField()
     processo_area = models.CharField(max_length=255)
@@ -590,6 +652,27 @@ class ChecklistDomanda(models.Model):
         return f"{self.punti} - {self.testo[:60]}"
 
 
+class ChecklistProcesso(models.Model):
+    processo = models.ForeignKey(Processo, on_delete=models.PROTECT, related_name="checklist")
+    codice = models.CharField(max_length=30)
+    norma = models.CharField(max_length=12, choices=[("en9100", "EN 9100"), ("iso45001", "ISO 45001"), ("iso27001", "ISO/IEC 27001"), ("pdr125", "UNI/PdR 125")], default="en9100")
+    punti = models.CharField(max_length=100)
+    domanda = models.TextField()
+    criterio = models.TextField()
+    suggerimento = models.TextField(blank=True)
+    ordine = models.PositiveIntegerField(default=100)
+    revisione = models.PositiveIntegerField(default=1)
+    attiva = models.BooleanField(default=True)
+    aggiornata_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "codice"]
+        constraints = [models.UniqueConstraint(fields=["processo", "codice"], name="sg_check_processo_codice")]
+
+    def __str__(self):
+        return f"{self.processo.codice}/{self.codice} Rev.{self.revisione}"
+
+
 class AuditEsito(models.Model):
     ESITO_CONFORME = "CONFORME"
     ESITO_OFI = "OFI"
@@ -600,6 +683,19 @@ class AuditEsito(models.Model):
         (ESITO_NC, "NC"), (ESITO_NA, "N/A"),
     ]
     audit = models.ForeignKey(Audit, on_delete=models.CASCADE, related_name="esiti")
+    processo = models.ForeignKey(Processo, null=True, blank=True, on_delete=models.PROTECT, related_name="esiti_audit")
+    modello_processo = models.ForeignKey(ChecklistProcesso, null=True, blank=True, on_delete=models.PROTECT)
+    domanda_snapshot = models.JSONField(default=dict, blank=True)
+    strutturato = models.BooleanField(default=False)
+    versione = models.PositiveIntegerField(default=0)
+    documento = models.CharField(max_length=255, blank=True)
+    revisione_documento = models.CharField(max_length=100, blank=True)
+    campione = models.TextField(blank=True)
+    data_verifica = models.DateField(null=True, blank=True)
+    requisito_atteso = models.TextField(blank=True)
+    scostamento = models.TextField(blank=True)
+    responsabile_azione = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="rilievi_audit_assegnati")
+    scadenza_azione = models.DateField(null=True, blank=True)
     domanda = models.ForeignKey(
         ChecklistDomanda, null=True, blank=True, on_delete=models.PROTECT, related_name="esiti",
     )
@@ -626,6 +722,7 @@ class AuditEsito(models.Model):
                 condition=models.Q(domanda__isnull=False),
                 name="sg_esito_unico_audit_domanda",
             ),
+            models.UniqueConstraint(fields=["audit", "modello_processo"], condition=models.Q(modello_processo__isnull=False), name="sg_esito_unico_processo"),
         ]
 
     def clean(self):
@@ -639,11 +736,11 @@ class AuditEsito(models.Model):
 
     @property
     def punti(self) -> str:
-        return self.domanda.punti if self.domanda_id else self.punti_aggiuntivi
+        return self.domanda_snapshot.get("punti") or (self.domanda.punti if self.domanda_id else self.punti_aggiuntivi)
 
     @property
     def testo(self) -> str:
-        return self.domanda.testo if self.domanda_id else self.testo_aggiuntivo
+        return self.domanda_snapshot.get("domanda") or (self.domanda.testo if self.domanda_id else self.testo_aggiuntivo)
 
 
 class AuditSezioneCar(models.Model):
@@ -656,3 +753,42 @@ class AuditSezioneCar(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["audit", "sezione"], name="sg_car_unica_audit_sezione"),
         ]
+
+
+class AuditAllegato(models.Model):
+    esito = models.ForeignKey(AuditEsito, on_delete=models.PROTECT, related_name="allegati")
+    file = models.FileField(upload_to="sistema_gestione/evidenze/%Y/%m/", storage=PrivateSistemaGestioneStorage())
+    nome = models.CharField(max_length=200)
+    sha256 = models.CharField(max_length=64)
+    dimensione = models.PositiveIntegerField()
+    caricato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    caricato_il = models.DateTimeField(auto_now_add=True)
+
+
+class AuditVerificaEfficacia(models.Model):
+    esito = models.ForeignKey(AuditEsito, on_delete=models.PROTECT, related_name="verifiche_efficacia")
+    risultato = models.CharField(max_length=16, choices=[("EFFICACE", "Efficace"), ("NON_EFFICACE", "Non efficace"), ("DA_RIVERIFICARE", "Da riverificare")])
+    metodo = models.TextField()
+    evidenza = models.TextField()
+    data_verifica = models.DateField()
+    prossima_verifica = models.DateField(null=True, blank=True)
+    verificato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    registrato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-registrato_il", "-pk"]
+
+
+class AuditRapportoVersione(models.Model):
+    audit = models.ForeignKey(Audit, on_delete=models.PROTECT, related_name="versioni_rapporto")
+    numero = models.PositiveIntegerField()
+    motivo = models.CharField(max_length=500)
+    snapshot = models.JSONField(default=dict)
+    pdf = models.FileField(upload_to="sistema_gestione/revisioni/%Y/", storage=PrivateSistemaGestioneStorage())
+    copia_firmata = models.FileField(blank=True, storage=PrivateSistemaGestioneStorage())
+    autore = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    creata_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-numero"]
+        constraints = [models.UniqueConstraint(fields=["audit", "numero"], name="sg_rapporto_versione_unica")]
