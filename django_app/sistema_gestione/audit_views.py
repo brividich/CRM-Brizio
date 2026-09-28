@@ -145,6 +145,7 @@ def auditor_modifica(request, pk: int | None = None):
 
 @login_required
 @require_POST
+@transaction.atomic
 def auditor_approva_esterno(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_APPROVA):
         return _deny(request)
@@ -244,6 +245,7 @@ def programma_riga(request, programma_pk: int, pk: int | None = None):
 
 @login_required
 @require_POST
+@transaction.atomic
 def programma_cella(request, riga_pk: int, mese: int):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
@@ -277,6 +279,7 @@ def _programma_transizione(request, pk: int, azione, evento: str, messaggio: str
 
 @login_required
 @require_POST
+@transaction.atomic
 def programma_proponi(request, pk: int):
     return _programma_transizione(
         request, pk, lambda p: service.proponi_programma(p, utente=request.user),
@@ -286,6 +289,7 @@ def programma_proponi(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def programma_approva(request, pk: int):
     return _programma_transizione(
         request, pk, lambda p: service.approva_programma(p, utente=request.user),
@@ -295,6 +299,7 @@ def programma_approva(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def programma_convalida(request, pk: int):
     return _programma_transizione(
         request, pk, lambda p: service.convalida_programma(p, utente=request.user),
@@ -304,6 +309,7 @@ def programma_convalida(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def programma_nuova_revisione(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
@@ -332,6 +338,7 @@ def programma_export_pdf(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def programma_carica_firmata(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
@@ -379,6 +386,7 @@ def _initial_da_cella(cella: CellaProgramma) -> dict:
         "en9100": bool(riga.punti_9100), "iso45001": bool(riga.punti_45001),
         "iso27001": bool(riga.punti_27001), "pdr125": bool(riga.punti_pdr125),
         "processi": riga.area + (f" - {riga.enti}" if riga.enti else ""),
+        "processi_catalogo": [riga.processo_id] if riga.processo_id else [],
         "punti_norma": "; ".join(filter(None, [riga.punti_9100, riga.punti_45001, riga.punti_27001, riga.punti_pdr125])),
         "procedure_criteri": riga.altre_normative,
         "data_inizio": giorno,
@@ -386,10 +394,11 @@ def _initial_da_cella(cella: CellaProgramma) -> dict:
 
 
 @login_required
+@transaction.atomic
 def audit_modifica(request, pk: int | None = None):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
-    audit = get_object_or_404(Audit, pk=pk) if pk else Audit(created_by=request.user)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk) if pk else Audit(created_by=request.user)
     if pk and audit.stato != Audit.STATO_PIANIFICATO:
         messages.error(request, "Il piano non è più modificabile.")
         return redirect("sistema_gestione:audit_dettaglio", pk=pk)
@@ -407,6 +416,7 @@ def audit_modifica(request, pk: int | None = None):
             audit.save()
             form.save_m2m()
             service.prepara_nuovo_audit(audit, cella=cella)
+            service.invalida_approvazione_piano(audit)
         conflitti = service.conflitti_imparzialita(
             processi=audit.processi, lead=audit.lead_auditor, auditor=audit.auditor.all(),
         )
@@ -452,7 +462,8 @@ def audit_dettaglio(request, pk: int):
     return render(request, "sistema_gestione/pages/audit_dettaglio.html", {
         "page_title": f"Audit {audit.numero}", "audit": audit, "gruppi": gruppi,
         "contatori": service.contatori_rilievi(audit),
-        "form_persona": AuditPersonaForm(), "form_agenda": AuditAgendaForm(),
+        "completezza": service.verifica_completezza(audit),
+        "form_persona": AuditPersonaForm(), "form_agenda": AuditAgendaForm(audit=audit),
         "form_comunicazione": ComunicazioneAuditForm(initial={"metodo": Audit.COM_EMAIL}),
         "form_rapporto": AuditRapportoForm(instance=audit),
         "form_domanda": AuditDomandaAggiuntivaForm(audit=audit),
@@ -474,15 +485,17 @@ def audit_dettaglio(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_persona_salva(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
-    audit = get_object_or_404(Audit, pk=pk, stato=Audit.STATO_PIANIFICATO)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk, stato=Audit.STATO_PIANIFICATO)
     form = AuditPersonaForm(request.POST)
     if form.is_valid():
         persona = form.save(commit=False)
         persona.audit = audit
         persona.save()
+        service.invalida_approvazione_piano(audit)
         log_action(request, "audit_persona_aggiunta", MODULE, {"ruolo": persona.ruolo}, oggetto=audit)
     else:
         messages.error(request, "Persona non valida: " + " ".join(sum(form.errors.values(), [])))
@@ -491,30 +504,72 @@ def audit_persona_salva(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_agenda_salva(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
-    audit = get_object_or_404(Audit, pk=pk, stato=Audit.STATO_PIANIFICATO)
-    form = AuditAgendaForm(request.POST)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk, stato=Audit.STATO_PIANIFICATO)
+    form = AuditAgendaForm(request.POST, audit=audit)
     if form.is_valid():
         voce = form.save(commit=False)
         voce.audit = audit
         voce.save()
+        service.invalida_approvazione_piano(audit)
+        log_action(request, "audit_agenda_aggiunta", MODULE, {"voce": voce.pk}, oggetto=audit)
     else:
-        messages.error(request, "Voce agenda non valida.")
+        messages.error(request, "Voce agenda non valida: " + " ".join(sum(form.errors.values(), [])))
     return redirect(_audit_url(audit, "agenda"))
 
 
 @login_required
+@transaction.atomic
+def audit_elemento_modifica(request, pk: int, tipo: str, elemento_pk: int):
+    if not _has_perm(request, PERM_AUDIT_EDIT):
+        return _deny(request)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk, stato=Audit.STATO_PIANIFICATO)
+    if tipo == "persona":
+        elemento = get_object_or_404(AuditPersona, audit=audit, pk=elemento_pk)
+        form = AuditPersonaForm(request.POST or None, instance=elemento)
+        ancora = "persone"
+    elif tipo == "agenda":
+        elemento = get_object_or_404(AuditAgenda, audit=audit, pk=elemento_pk, processo__isnull=False)
+        form = AuditAgendaForm(request.POST or None, instance=elemento, audit=audit)
+        ancora = "agenda"
+    else:
+        raise Http404
+    if request.method == "POST":
+        if request.POST.get("azione") == "rimuovi":
+            elemento.delete()
+        elif form.is_valid():
+            form.save()
+        else:
+            return render(request, "sistema_gestione/pages/audit_form.html", {
+                "page_title": "Correggi " + tipo, "form": form, "indietro": _audit_url(audit, ancora),
+                "puo_rimuovere": True,
+            })
+        service.invalida_approvazione_piano(audit)
+        log_action(request, "audit_elemento_modificato", MODULE,
+                   {"tipo": tipo, "id": elemento_pk, "rimosso": request.POST.get("azione") == "rimuovi"}, oggetto=audit)
+        return redirect(_audit_url(audit, ancora))
+    return render(request, "sistema_gestione/pages/audit_form.html", {
+        "page_title": "Correggi " + tipo, "form": form, "indietro": _audit_url(audit, ancora),
+        "puo_rimuovere": True,
+    })
+
+
+@login_required
 @require_POST
+@transaction.atomic
 def audit_approva_lead(request, pk: int):
-    audit = get_object_or_404(Audit.objects.select_related("lead_auditor"), pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update().select_related("lead_auditor"), pk=pk)
     if not _assigned_executor(request, audit) or (
         not request.user.is_superuser and audit.lead_auditor.user_id != request.user.id
     ):
         return _deny(request)
     if audit.stato != Audit.STATO_PIANIFICATO:
         messages.error(request, "Stato non compatibile con l'approvazione del piano.")
+    elif service.verifica_completezza(audit)["piano"]:
+        messages.error(request, "Completa il piano: " + " ".join(v["testo"] for v in service.verifica_completezza(audit)["piano"]))
     else:
         audit.piano_approvato_lead_da = request.user
         audit.piano_approvato_lead_il = timezone.now()
@@ -525,12 +580,15 @@ def audit_approva_lead(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_approva_direzione(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_APPROVA):
         return _deny(request)
-    audit = get_object_or_404(Audit, pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if audit.stato != Audit.STATO_PIANIFICATO or not audit.piano_approvato_lead_il:
         messages.error(request, "Serve prima l'approvazione del Lead Auditor.")
+    elif service.verifica_completezza(audit)["piano"]:
+        messages.error(request, "Il piano contiene informazioni mancanti: consulta la guida di compilazione.")
     else:
         audit.piano_approvato_direzione_da = request.user
         audit.piano_approvato_direzione_il = timezone.now()
@@ -544,10 +602,11 @@ def audit_approva_direzione(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_comunica(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
-    audit = get_object_or_404(Audit, pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if audit.stato not in {Audit.STATO_PIANIFICATO, Audit.STATO_PIANO_APPROVATO}:
         messages.error(request, "Il piano puÃ² essere comunicato solo prima dell'avvio dell'audit.")
         return redirect(_audit_url(audit, "comunicazione"))
@@ -571,8 +630,9 @@ def audit_comunica(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_avvia(request, pk: int):
-    audit = get_object_or_404(Audit, pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if not _assigned_executor(request, audit):
         return _deny(request)
     if audit.stato != Audit.STATO_PIANO_APPROVATO:
@@ -587,8 +647,9 @@ def audit_avvia(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_esito_salva(request, pk: int, esito_pk: int):
-    audit = get_object_or_404(Audit, pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if not _assigned_executor(request, audit) or audit.stato not in {Audit.STATO_IN_CORSO, Audit.STATO_RAPPORTO}:
         return _deny(request)
     if audit.rapporto_firmato_auditor_il:
@@ -600,14 +661,18 @@ def audit_esito_salva(request, pk: int, esito_pk: int):
         log_action(request, "audit_esito_salvato", MODULE, {"esito": esito.esito, "punti": esito.punti}, oggetto=audit)
         messages.success(request, "Esito salvato.")
     else:
-        messages.error(request, "Esito non valido: " + " ".join(sum(form.errors.values(), [])))
+        return render(request, "sistema_gestione/pages/audit_form.html", {
+            "page_title": "Completa l'esito della verifica", "form": form,
+            "indietro": _audit_url(audit, f"esito-{esito.pk}"),
+        })
     return redirect(_audit_url(audit, f"esito-{esito.pk}"))
 
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_domanda_aggiuntiva(request, pk: int):
-    audit = get_object_or_404(Audit, pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if _assigned_executor(request, audit) and audit.rapporto_firmato_auditor_il:
         return _rapporto_firmato_redirect(request, audit)
     if not _assigned_executor(request, audit) or audit.stato != Audit.STATO_IN_CORSO:
@@ -625,8 +690,9 @@ def audit_domanda_aggiuntiva(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_car_sezione(request, pk: int, car_pk: int):
-    audit = get_object_or_404(Audit, pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if not _assigned_executor(request, audit) or audit.stato not in {Audit.STATO_IN_CORSO, Audit.STATO_RAPPORTO}:
         return _deny(request)
     if audit.rapporto_firmato_auditor_il:
@@ -640,8 +706,9 @@ def audit_car_sezione(request, pk: int, car_pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_rapporto_salva(request, pk: int):
-    audit = get_object_or_404(Audit, pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if not _assigned_executor(request, audit) or audit.stato not in {Audit.STATO_IN_CORSO, Audit.STATO_RAPPORTO}:
         return _deny(request)
     if audit.rapporto_firmato_auditor_il:
@@ -658,10 +725,17 @@ def audit_rapporto_salva(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_firma_rapporto(request, pk: int):
-    audit = get_object_or_404(Audit, pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if not _assigned_executor(request, audit) or audit.stato != Audit.STATO_RAPPORTO:
         return _deny(request)
+    if audit.rapporto_firmato_auditor_il:
+        return redirect(_audit_url(audit, "rapporto"))
+    problemi = service.verifica_completezza(audit)["rapporto"]
+    if problemi:
+        messages.error(request, "Firma non disponibile: " + " ".join(v["testo"] for v in problemi[:8]))
+        return redirect(_audit_url(audit, "guida"))
     audit.rapporto_firmato_auditor_da = request.user
     audit.rapporto_firmato_auditor_il = timezone.now()
     audit.save(update_fields=["rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
@@ -671,8 +745,9 @@ def audit_firma_rapporto(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_riapri_rapporto(request, pk: int):
-    audit = get_object_or_404(Audit, pk=pk, stato=Audit.STATO_RAPPORTO)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk, stato=Audit.STATO_RAPPORTO)
     if not _assigned_executor(request, audit):
         return _deny(request)
     if audit.rapporto_convalidato_ente_il or audit.rapporto_valutato_rdd_il:
@@ -690,8 +765,9 @@ def audit_riapri_rapporto(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_convalida_ente(request, pk: int):
-    audit = get_object_or_404(Audit, pk=pk, stato=Audit.STATO_RAPPORTO)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk, stato=Audit.STATO_RAPPORTO)
     if not _puo_convalidare_ente(request, audit):
         return _deny(request)
     if not audit.rapporto_firmato_auditor_il:
@@ -706,10 +782,11 @@ def audit_convalida_ente(request, pk: int):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_valuta_rdd(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_APPROVA):
         return _deny(request)
-    audit = get_object_or_404(Audit, pk=pk, stato=Audit.STATO_RAPPORTO)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk, stato=Audit.STATO_RAPPORTO)
     if not audit.rapporto_firmato_auditor_il or not audit.rapporto_convalidato_ente_il:
         messages.error(request, "Servono firma dell'auditor e convalida del responsabile dell'ente.")
         return redirect(_audit_url(audit, "rapporto"))
@@ -745,10 +822,11 @@ def audit_export(request, pk: int, documento: str):
 
 @login_required
 @require_POST
+@transaction.atomic
 def audit_carica_firmata(request, pk: int, documento: str):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
-    audit = get_object_or_404(Audit, pk=pk)
+    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     form = CopiaFirmataForm(request.POST, request.FILES)
     if form.is_valid() and documento in {"piano", "rapporto"}:
         file = form.cleaned_data["file"]

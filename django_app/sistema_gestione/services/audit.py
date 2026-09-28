@@ -88,6 +88,7 @@ def nuova_revisione_programma(programma: ProgrammaAudit, *, motivo: str, utente)
     for riga in programma.righe.order_by("ordine", "id"):
         copia = RigaProgramma.objects.create(
             programma=nuova,
+            processo=riga.processo,
             ordine=riga.ordine,
             area=riga.area,
             enti=riga.enti,
@@ -172,7 +173,7 @@ def prepara_nuovo_audit(audit: Audit, *, cella: CellaProgramma | None = None) ->
         audit.righe.add(cella.riga)
         cella.audit = audit
         cella.save(update_fields=["audit"])
-    AuditAgenda.objects.get_or_create(
+    AuditAgenda.objects.update_or_create(
         audit=audit,
         processo_area="Riunione di apertura",
         defaults={
@@ -183,7 +184,7 @@ def prepara_nuovo_audit(audit: Audit, *, cella: CellaProgramma | None = None) ->
         },
     )
     giorno_fine = audit.data_fine or audit.data_inizio
-    AuditAgenda.objects.get_or_create(
+    AuditAgenda.objects.update_or_create(
         audit=audit,
         processo_area="Riunione di chiusura",
         defaults={
@@ -359,6 +360,58 @@ def contatori_rilievi(audit: Audit) -> dict[str, int]:
         "conformi": audit.esiti.filter(esito=AuditEsito.ESITO_CONFORME).count(),
         "na": audit.esiti.filter(esito=AuditEsito.ESITO_NA).count(),
     }
+
+
+def verifica_completezza(audit: Audit) -> dict:
+    """Un'unica fonte per guida in pagina e blocchi server prima delle firme."""
+    piano, rapporto = [], []
+    def manca(lista, condizione, testo, sezione):
+        if condizione:
+            lista.append({"testo": testo, "sezione": sezione})
+    manca(piano, not audit.processi_snapshot, "Seleziona i processi dal catalogo nel piano.", "campo")
+    manca(piano, not audit.punti_norma.strip(), "Indica i punti norma da verificare.", "campo")
+    manca(piano, not audit.procedure_criteri.strip(), "Indica procedure e criteri di verifica.", "campo")
+    manca(piano, not audit.sede.strip(), "Definisci la sede dell'audit.", "campo")
+    manca(piano, not any((audit.metodo_intervista, audit.metodo_esame_documenti,
+                         audit.metodo_osservazione_diretta, audit.metodo_verifica_evidenze)),
+          "Seleziona almeno un metodo di audit.", "campo")
+    manca(piano, not audit.persone.filter(ruolo=AuditPersona.RUOLO_AUDITATO).exists(),
+          "Inserisci almeno una persona auditata.", "persone")
+    manca(piano, not audit.persone.filter(ruolo=AuditPersona.RUOLO_PROCESSO).exists(),
+          "Inserisci il responsabile del processo tra le persone coinvolte.", "persone")
+    manca(piano, not audit.agenda.exclude(processo_area__in=["Riunione di apertura", "Riunione di chiusura"]).exists(),
+          "Pianifica almeno un'attività di verifica oltre alle riunioni.", "agenda")
+    processi_ids = {p["id"] for p in audit.processi_snapshot}
+    for voce in audit.agenda.all():
+        giorno = timezone.localtime(voce.quando).date()
+        manca(piano, not audit.data_inizio <= giorno <= (audit.data_fine or audit.data_inizio),
+              f"Correggi la data in agenda: {voce.processo_area}.", "agenda")
+        manca(piano, bool(voce.processo_id) and voce.processo_id not in processi_ids,
+              f"L'attivita {voce.processo_area} riguarda un processo rimosso dal piano.", "agenda")
+    non_qualificati = auditor_non_qualificati(lead=audit.lead_auditor, auditor=audit.auditor.all())
+    manca(piano, bool(non_qualificati), "Verifica le qualifiche del team: " + ", ".join(non_qualificati), "campo")
+    esiti = list(audit.esiti.all())
+    completi = sum(bool(e.esito and e.evidenze.strip()) for e in esiti)
+    manca(rapporto, not esiti, "Carica una checklist prima di firmare il rapporto.", "checklist")
+    for esito in esiti:
+        manca(rapporto, not esito.esito, f"{esito.punti}: scegli un esito.", f"esito-{esito.pk}")
+        manca(rapporto, bool(esito.esito) and not esito.evidenze.strip(),
+              f"{esito.punti}: registra evidenze o motivazione N/A.", f"esito-{esito.pk}")
+        manca(rapporto, esito.esito in {AuditEsito.ESITO_NC, AuditEsito.ESITO_OFI} and not esito.ofi_id,
+              f"{esito.punti}: manca il collegamento al Registro OFI.", f"esito-{esito.pk}")
+    manca(rapporto, not audit.giudizio.strip(), "Scrivi il giudizio conclusivo del rapporto.", "rapporto")
+    return {"piano": piano, "rapporto": rapporto, "completi": completi, "totale": len(esiti),
+            "percentuale": round(100 * completi / len(esiti)) if esiti else 0}
+
+
+def invalida_approvazione_piano(audit):
+    """Ogni variazione al piano in bozza richiede una nuova firma Lead."""
+    audit.piano_approvato_lead_da = None
+    audit.piano_approvato_lead_il = None
+    audit.comunicazione_il = None
+    audit.comunicazione_metodo = ""
+    audit.save(update_fields=["piano_approvato_lead_da", "piano_approvato_lead_il",
+                              "comunicazione_il", "comunicazione_metodo", "updated_at"])
 
 
 def _ics(audit: Audit) -> bytes:

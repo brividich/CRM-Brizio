@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- **Audit guidati e catalogo processi revisionato** (`django_app/sistema_gestione/{models.py,audit_forms.py,audit_views.py,processi_views.py,urls.py,acl_bootstrap.py,services/audit.py,tests_audit.py,tests_processi.py}`, migrazioni `0005`/`0006`, template audit/catalogo e componenti). Nuovo catalogo con codice, responsabile, ingressi/risultati, rischi, indicatori, documenti, punti norma e frequenza; storico revisioni con autore/motivo e protezione da salvataggi obsoleti. Selezione strutturata in programma, piano e agenda, copie delle schede conservate nell'audit. Piano in quattro sezioni; guida ai dati mancanti; approvazione piano e firma rapporto bloccate se incompleti. Correzione di persone/agenda in bozza, invalidazione della firma Lead e comunicazione dopo modifiche, transizioni serializzate e conservazione delle evidenze in caso di errore. Catalogo ricercabile, archivio e storico audit con prossima verifica indicativa. Nuove route protette dai permessi audit esistenti, senza nuovi grant. Deploy: migrate sistema_gestione, bootstrap ACL e riavvio; nessuna conversione automatica dei testi storici in processi.
+
+
 - SNMP: autodetect con sonde lette al primo polling; scheda dispositivi stampante con contatori e toner automatici Printer-MIB, storico e informazioni mancanti esplicite. Migration contatori 0013; compatibile con il polling schedulato esistente.
 
 ### Contatori - catalogo profili SNMP multi-produttore

@@ -63,6 +63,11 @@ _CANONICAL = {
 }
 
 _ROUTE_BINDINGS = {
+    "sistema_gestione:audit_elemento_modifica": PERM_AUDIT_EDIT,
+    "sistema_gestione:processi_catalogo": PERM_AUDIT_VIEW,
+    "sistema_gestione:processo_dettaglio": PERM_AUDIT_VIEW,
+    "sistema_gestione:processo_nuovo": PERM_AUDIT_EDIT,
+    "sistema_gestione:processo_modifica": PERM_AUDIT_EDIT,
     "sistema_gestione:index": PERM_VIEW,
     "sistema_gestione:soa": PERM_SOA_VIEW,
     "sistema_gestione:soa_revisione": PERM_SOA_VIEW,

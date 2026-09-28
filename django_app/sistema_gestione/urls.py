@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import audit_views, views
+from . import audit_views, views, processi_views
 
 app_name = "sistema_gestione"
 
@@ -20,6 +20,10 @@ urlpatterns = [
     path("threat-intelligence/", views.threat_intelligence, name="threat_intelligence"),
     path("threat-intelligence/nuova/", views.threat_intelligence_nuova, name="threat_intelligence_nuova"),
     path("audit/", audit_views.audit_index, name="audit_index"),
+    path("audit/processi/", processi_views.catalogo, name="processi_catalogo"),
+    path("audit/processi/nuovo/", processi_views.modifica, name="processo_nuovo"),
+    path("audit/processi/<int:pk>/", processi_views.dettaglio, name="processo_dettaglio"),
+    path("audit/processi/<int:pk>/modifica/", processi_views.modifica, name="processo_modifica"),
     path("audit/auditor/", audit_views.auditor_elenco, name="auditor_elenco"),
     path("audit/auditor/nuovo/", audit_views.auditor_modifica, name="auditor_nuovo"),
     path("audit/auditor/<int:pk>/", audit_views.auditor_modifica, name="auditor_modifica"),
@@ -41,6 +45,7 @@ urlpatterns = [
     path("audit/<int:pk>/modifica/", audit_views.audit_modifica, name="audit_modifica"),
     path("audit/<int:pk>/persona/", audit_views.audit_persona_salva, name="audit_persona_salva"),
     path("audit/<int:pk>/agenda/", audit_views.audit_agenda_salva, name="audit_agenda_salva"),
+    path("audit/<int:pk>/correggi/<str:tipo>/<int:elemento_pk>/", audit_views.audit_elemento_modifica, name="audit_elemento_modifica"),
     path("audit/<int:pk>/approva-lead/", audit_views.audit_approva_lead, name="audit_approva_lead"),
     path("audit/<int:pk>/approva-direzione/", audit_views.audit_approva_direzione, name="audit_approva_direzione"),
     path("audit/<int:pk>/comunica/", audit_views.audit_comunica, name="audit_comunica"),

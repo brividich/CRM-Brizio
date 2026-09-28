@@ -1,0 +1,5 @@
+{% if field.name == 'processi_catalogo' or field.name == 'righe' or field.name == 'auditor' %}
+<fieldset class="sg-choice-group"><legend>{{ field.label }}{% if field.field.required %} *{% endif %}</legend>
+{% for scelta in field %}<label class="sg-choice">{{ scelta.tag }} <span>{{ scelta.choice_label }}</span></label>{% empty %}<p class="sg-muted">Nessuna voce disponibile.{% if field.name == 'processi_catalogo' %} Crea prima una scheda nel catalogo processi.{% endif %}</p>{% endfor %}
+{% if field.help_text %}<p class="sg-muted">{{ field.help_text }}</p>{% endif %}{% for error in field.errors %}<p class="hub-err">{{ error }}</p>{% endfor %}</fieldset>
+{% else %}{% include "core/forms/_field.html" with field=field %}{% endif %}

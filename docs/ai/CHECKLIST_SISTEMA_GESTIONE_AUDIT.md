@@ -253,3 +253,14 @@ Permessi nuovi aggiunti in `acl_bootstrap.py`, con binding di **ogni** route:
 - UNI ISO 45001:2018 §9.2 — consultazione dei lavoratori sul programma, comunicazione dei risultati a lavoratori e rappresentanti.
 - UNI CEI EN ISO/IEC 27001:2022 §6.1.3 d) — SoA: controlli necessari, giustificazione di inclusione/esclusione, stato di attuazione; §9.2 audit interno.
 - ISO 9001:2026 pubblicata il 16/09/2026 (transizione 3 anni).
+
+
+## Aggiornamento 2026-09-28: catalogo processi e compilazione guidata
+
+- Implementati `Processo`, `ProcessoRevisione`, collegamenti programma/piano/agenda e snapshot JSON delle schede incluse. Codici unici normalizzati, owner utente, archivio senza cancellazione, revisione con autore e motivo; editor protetto da revisione obsoleta. Nessun seed di processi aziendali inventati e nessun import di documenti privati.
+- La copia nel piano resta invariata anche se si modifica il catalogo o si salva nuovamente il piano con gli stessi processi. Per usare una nuova scheda in una bozza, rimuovere il processo dal piano, salvare e reinserirlo; i criteri personalizzati del piano vanno riesaminati esplicitamente. I PDF esistenti leggono i testi storicizzati, con codice/revisione del processo.
+- `verifica_completezza` alimenta guida e blocchi server: processi, criteri, sede, metodi, persone, agenda e qualifiche prima dell'approvazione; checklist completa con evidenze/motivi N/A, collegamenti OFI/NC e giudizio prima della firma. La completezza formale non certifica l'adeguatezza sostanziale delle evidenze, che resta responsabilita dell'auditor.
+- Modifiche al piano/persone/agenda in bozza invalidano firma Lead e comunicazione. Persone e attivita collegate correggibili/rimuovibili in bozza; audit estranei o approvati non modificabili. POST audit serializzati con lock della riga per evitare scritture durante le firme. Firma rapporto ripetuta idempotente.
+- Agenda limitata ai processi del piano e alle sue date. Il cambio date riallinea le riunioni generate e segnala le altre attivita fuori intervallo. Gli errori di esito riaprono il form conservando il testo inserito.
+- Nuove route locali catalogo e correzione elementi con binding a `.audit.view`/`.audit.edit`, controllo fail-closed nella view, nessuna variazione di grant/default, middleware, settings o navigazione globale.
+- Deploy: `migrate sistema_gestione`, bootstrap ACL canonico esistente, riavvio applicazione. Nessun DB aziendale modificato durante sviluppo; verificare su SQL Server e ruoli reali. Il catalogo va compilato con i processi reali: le descrizioni legacy non sono convertite automaticamente. Stato versione Unreleased per rilascio coordinato.

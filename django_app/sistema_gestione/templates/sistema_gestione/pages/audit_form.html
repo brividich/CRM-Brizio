@@ -7,14 +7,24 @@
   <div class="page-header"><div class="page-header-main"><div class="page-h">{{ page_title }}</div></div></div>
   <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
     {% for error in form.non_field_errors %}<div class="hub-err">{{ error }}</div>{% endfor %}
-    <div class="sg-form-grid">
-      {% for field in form %}
+    {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+    {% if form.sezioni %}
+    <p class="sg-muted">Compila i quattro passaggi. Il salvataggio prepara una bozza: prima delle firme vedrai esattamente cosa manca.</p>
+    <p><a href="{% url 'sistema_gestione:processi_catalogo' %}">Apri il catalogo processi</a></p>
+    {% for sezione in form.sezioni %}
+    <fieldset class="sg-section"><legend><strong>{{ sezione.titolo }}</strong></legend><p class="sg-muted">{{ sezione.aiuto }}</p>
+      <div class="sg-form-grid">{% for field in sezione.campi %}<div class="{% if field.name == 'processi_catalogo' or field.name == 'righe' or field.name == 'procedure_criteri' %}full{% endif %}">{% include "sistema_gestione/components/_audit_field.html" with field=field %}</div>{% endfor %}</div>
+    </fieldset>
+    {% endfor %}
+    {% else %}<div class="sg-form-grid">
+      {% for field in form.visible_fields %}
       <div{% if field.field.widget.input_type == "checkbox" %}{% else %} class="{% if field.name == 'processi' or field.name == 'punti_norma' or field.name == 'procedure_criteri' or field.name == 'esclusioni' or field.name == 'periodi' or field.name == 'esclusioni_27002' or field.name == 'note' or field.name == 'imparzialita_deroga_motivo' %}full{% endif %}"{% endif %}>
-        {% include "core/forms/_field.html" with field=field %}
+        {% include "sistema_gestione/components/_audit_field.html" with field=field %}
       </div>
       {% endfor %}
     </div>
-    <div class="sg-actions"><button class="btn" type="submit">Salva</button><a class="btn btn-secondary" href="{{ indietro }}">Annulla</a></div>
+    {% endif %}
+    <div class="sg-actions"><button class="btn" type="submit">Salva</button><a class="btn btn-secondary" href="{{ indietro }}">Annulla</a>{% if puo_rimuovere %}<button class="btn btn-secondary" type="submit" name="azione" value="rimuovi" formnovalidate>Rimuovi dal piano</button>{% endif %}</div>
   </form>
 </div>
 {% endblock %}

@@ -1,5 +1,13 @@
 # Session Checkpoint
 
+Data: 2026-09-28 (audit guidati e catalogo processi revisionato)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `audit guidati e catalogo processi revisionato`; letta nuova voce CHANGELOG sul fix SQL Server migrazione Contatori 0008 oltre al checkpoint precedente.
+- Worktree `temp/codex-audit-guidato`, branch `feature/audit-guidato-processi`, base `34cb1219`. Schede processo revisionate, FK/M2M in programma/piano/agenda, snapshot storici, guida compilazione, gate firme e correzione elementi in bozza. Migrazioni SG 0005/0006.
+- 83 verifiche verdi incluse QA render sintetiche; check Django, migration drift, secret hygiene e diff check verdi. Verifica browser chiaro/scuro/mobile di HTML Django. Nessun DB aziendale o nuova dipendenza; nessun backup aggiuntivo/deploy.
+- Critici: sole route locali e binding ACL esistenti del modulo, senza nuovi grant o modifiche globali. README/changelog root e Django/docs AI/registro aggiornati.
+- Rilascio separato: migrate SG e bootstrap ACL, riavvio, popolamento catalogo con processi reali, collaudo SQL Server/ruoli. Main indietro di 91 commit rispetto alla release: nessuna integrazione automatica di aree estranee.
+
 Data: 2026-09-27 (autodetect e dati stampante nei Dispositivi SNMP)
 
 - Vista/aggiunta voce AGENT_CHANGELOG `autodetect SNMP e consumabili nella scheda dispositivo`; README, changelog e docs aggiornati. Worktree dedicato `temp/codex-snmp-autodetect`, branch `feature/snmp-autodetect-dati`, base release `48af907c`.

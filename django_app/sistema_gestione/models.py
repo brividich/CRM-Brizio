@@ -333,7 +333,61 @@ class ProgrammaAudit(models.Model):
         return self.stato == self.STATO_BOZZA
 
 
+class Processo(models.Model):
+    codice = models.CharField(max_length=30, unique=True)
+    nome = models.CharField(max_length=200)
+    categoria = models.CharField(max_length=20, choices=[
+        ("DIREZIONALE", "Direzionale"), ("OPERATIVO", "Operativo"), ("SUPPORTO", "Supporto"),
+    ], default="OPERATIVO")
+    responsabile = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.PROTECT, related_name="processi_sgi")
+    enti = models.CharField(max_length=255, blank=True)
+    scopo = models.TextField(blank=True)
+    input = models.TextField(blank=True)
+    output = models.TextField(blank=True)
+    rischi = models.TextField(blank=True)
+    indicatori = models.TextField(blank=True)
+    procedure = models.TextField(blank=True)
+    punti_9100 = models.CharField(max_length=255, blank=True)
+    punti_45001 = models.CharField(max_length=255, blank=True)
+    punti_27001 = models.CharField(max_length=255, blank=True)
+    punti_pdr125 = models.CharField(max_length=255, blank=True)
+    frequenza_mesi = models.PositiveSmallIntegerField(default=12)
+    attivo = models.BooleanField(default=True)
+    revisione = models.PositiveIntegerField(default=1, editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["codice"]
+        verbose_name_plural = "Processi"
+
+    def __str__(self):
+        return f"{self.codice} - {self.nome}"
+
+    def snapshot(self):
+        dati = {f.name: getattr(self, f.name) for f in self._meta.fields
+                if f.name not in {"responsabile", "updated_at"}}
+        dati["responsabile_id"] = self.responsabile_id
+        dati["responsabile"] = ((self.responsabile.get_full_name() or self.responsabile.get_username())
+                                if self.responsabile_id else "")
+        return dati
+
+
+class ProcessoRevisione(models.Model):
+    processo = models.ForeignKey(Processo, on_delete=models.PROTECT, related_name="revisioni")
+    numero = models.PositiveIntegerField()
+    dati = models.JSONField(default=dict)
+    motivo = models.CharField(max_length=500)
+    autore = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    creata_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-numero"]
+        constraints = [models.UniqueConstraint(fields=["processo", "numero"], name="sg_processo_rev_unica")]
+
+
 class RigaProgramma(models.Model):
+    processo = models.ForeignKey(Processo, null=True, blank=True, on_delete=models.PROTECT, related_name="righe")
     programma = models.ForeignKey(ProgrammaAudit, on_delete=models.CASCADE, related_name="righe")
     ordine = models.PositiveIntegerField(default=100)
     area = models.CharField(max_length=255)
@@ -394,6 +448,8 @@ class Audit(models.Model):
     lead_auditor = models.ForeignKey(Auditor, on_delete=models.PROTECT, related_name="audit_come_lead")
     auditor = models.ManyToManyField(Auditor, blank=True, related_name="audit_come_membro")
     processi = models.TextField(blank=True, default="")
+    processi_catalogo = models.ManyToManyField(Processo, blank=True, related_name="audit")
+    processi_snapshot = models.JSONField(default=list, blank=True)
     punti_norma = models.TextField(blank=True, default="")
     procedure_criteri = models.TextField(blank=True, default="")
     esclusioni = models.TextField(blank=True, default="Nessuna")
@@ -525,6 +581,7 @@ class AuditPersona(models.Model):
 
 
 class AuditAgenda(models.Model):
+    processo = models.ForeignKey(Processo, null=True, blank=True, on_delete=models.PROTECT, related_name="attivita_audit")
     audit = models.ForeignKey(Audit, on_delete=models.CASCADE, related_name="agenda")
     quando = models.DateTimeField()
     processo_area = models.CharField(max_length=255)
