@@ -1,5 +1,14 @@
 # Agent Changelog
 
+## 2026-09-29 - Codex (check produzione automazioni e inventario per modulo)
+
+- Richiesta: audit produzione e lista automazioni per modulo con miglioramenti. Worktree C:/Dev/pn-automazioni-check, branch feature/automazioni-check-produzione, base origin/release/prod 5871b10a. Checkout condiviso con WIP estraneo preservato; checkpoint/delta registri letti, file ACTIVE_SESSION/WORK_LOCKS/CRITICAL_FILES/CRITICAL_CHANGE_REQUESTS assenti.
+- File: nuovo docs/AUDIT_AUTOMAZIONI_PROD_2026-09-29.md, questo registro e session_checkpoint.md. Sola documentazione; nessun codice o file critico modificato, nessuna modifica ACL/settings/routing/auth/navigazione.
+- Verifiche in produzione autorizzate e read-only: BUILD_INFO c4ead42, catalogo distribuito 48 job confrontato con 46 schedule e due disabilitazioni esplicite; 25 regole (16 attive); conteggi e stati aggregati SQL, trigger, configurazione destinatari solo per presenza, broker analizzato tramite pickletools senza unpickle e senza esportare payload. Nessuna azione job, invio email, avvio Django, scrittura DB o consultazione di contenuti sanitari/personali.
+- Risultato: broker 8.857 poi 8.887 task, ultimo completamento q alle 12:49 locali mentre processore eventi ha heartbeat corrente e 393 eventi done. Due pending oltre scadenza; sorgenti Visite/Diario/RENTRI senza trigger SQL; rischio sovrapposizione regole Assenze; gap osservabilita e documentazione fallback destinatari. Cause definitive/servizio Windows e consegna email non certificate; WinRM non raggiungibile. Non cancellare broker o riavviare indiscriminatamente.
+- Test/check: SELECT limitate e aggregate, transazioni chiuse con rollback; confronto completo definizioni 46 schedule senza drift; copertura editoriale 48 job + 25 regole con assert; git diff --check. Nessuna suite necessaria per sola documentazione. Report senza segreti, nominativi o log grezzi.
+- Backup: nessuno aggiuntivo, produzione invariata. README aggiornato: no; CHANGELOG: no (nessun comportamento cambiato); AGENT_CHANGELOG/checkpoint: si. Esito: audit completato, criticita operativa aperta, nessun deploy/push/merge. Note altro agente: affrontare P0 del rapporto, identificare worker/esecutori e recupero sicuro prima delle ottimizzazioni funzionali.
+
 ## 2026-09-29 - Codex (Assenze reparto, card e storico)
 
 - Autorizzazione: utente chiede priorita alla visibilita richieste/storico dei dipendenti per caporeparto, merge, poi proposta multiruolo. Per "car" considerata la card mancante; domanda di chiarimento inviata, nessuna modifica alla catena di approvazione personale senza superiore. Worktree C:/Dev/pn-assenze-reparto, feature/assenze-reparto-storico, base origin/release/prod 1ab70ddb. Checkout condiviso e WIP estraneo preservati. Letti checkpoint/delta registri; file ACTIVE_SESSION/WORK_LOCKS/CRITICAL_FILES/CRITICAL_CHANGE_REQUESTS assenti.

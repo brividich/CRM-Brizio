@@ -1,5 +1,12 @@
 # Session Checkpoint
 
+Data: 2026-09-29 (check produzione automazioni)
+
+- Vista/aggiunta voce AGENT_CHANGELOG check produzione automazioni e inventario per modulo; nessun delta applicativo oltre Assenze reparto gia visto.
+- Worktree C:/Dev/pn-automazioni-check, feature/automazioni-check-produzione, base 5871b10a. Rapporto docs/AUDIT_AUTOMAZIONI_PROD_2026-09-29.md: 48 job, 46 registrati + 2 disabilitati, 25 regole, funzioni/stato/miglioramenti per modulo.
+- Produzione c4ead42 verificata via share e SELECT read-only. Broker 8.857 -> 8.887, q completamenti fermi alle 12:49 locali; eventi SQL smaltiti con monitor corrente. Nessuna modifica runtime, invio o dato personale esportato. WinRM non raggiungibile, causa worker da accertare.
+- Solo documentazione/registro/checkpoint; nessun file critico/backup, README/CHANGELOG invariati. Confronto schedule senza drift e copertura inventario verificati. Prossimo intervento: P0 cluster/broker con recupero controllato, poi collegamenti sorgenti e deduplica.
+
 Data: 2026-09-29 (Assenze reparto, card e storico)
 
 - Vista/aggiunta voce AGENT_CHANGELOG Assenze reparto, card e storico; letti delta procedure aziendali audit fino al merge 1ab70ddb.
