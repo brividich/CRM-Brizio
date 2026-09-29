@@ -591,7 +591,7 @@
       </article>
     </section>
 
-    {% if assenze_can_edit_events %}
+    {% if assenze_can_view_team %}
     <section class="abs-panel">
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
@@ -685,6 +685,7 @@
         {% endif %}
 
         {% if mostra_sezione_dipendenti %}
+          <p><a href="{% url 'assenze_car_dashboard' %}#storico">Apri lo storico completo del reparto, incluse le assenze future</a></p>
           <details class="abs-gestite" {% if not richieste_da_approvare %}open{% endif %}>
             <summary class="abs-gestite-summary">
               Già decise

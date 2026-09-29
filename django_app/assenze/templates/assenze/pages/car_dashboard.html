@@ -4,6 +4,10 @@
 
 {% block assenze_shell_head %}
   <style>
+    .abs-panel-body.car-history-tools,
+    .abs-panel-body.car-history-pages { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .car-history-tools select { width: auto; max-width: 100%; min-height: 38px; }
+    .car-history-pages a { color: inherit; text-underline-offset: 3px; }
     .car-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     /* Filtri della coda: stesse pillole di «Le mie richieste», light + dark. */
     .car-filters { display: grid; gap: 10px; }
@@ -340,7 +344,9 @@
                   </td>
                   <td data-label="Azioni">
                     <div class="car-row-actions">
-                      {% if r.gestita_sp %}
+                      {% if not r.can_moderate %}
+                        <span class="abs-chip soft">Sola consultazione</span>
+                      {% elif r.gestita_sp %}
                         <span class="abs-chip soft" title="Nata su SharePoint: si approva dall'app SharePoint">Gestita su SharePoint</span>
                       {% else %}
                         <button class="btn-approva" data-id="{{ r.id }}" data-action="Approvato" title="Approva questa richiesta">Approva</button>
@@ -455,16 +461,31 @@
     </section>
   </div>
 
-  <section class="abs-panel">
+  <section class="abs-panel" id="storico">
     <div class="abs-panel-head">
       <div class="abs-panel-title-wrap">
-        <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg>Ultime gestite</h2>
+        <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-check"></use></svg>Storico del reparto</h2>
         <p class="abs-panel-subtitle">
-          {% if can_view_all %}Ultime richieste approvate o rifiutate.{% else %}Ultime richieste del tuo reparto gia gestite.{% endif %}
+          Richieste approvate o rifiutate, passate e future. Pagina {{ history_page }}.
         </p>
       </div>
       <div class="abs-panel-meta"><span class="abs-panel-badge">{{ gestite|length }}</span></div>
     </div>
+    <form method="get" action="#storico" class="abs-panel-body car-history-tools">
+      <input type="hidden" name="scope" value="{{ pending_scope }}">
+      <label for="periodo-storico">Periodo dello storico</label>
+      <select id="periodo-storico" name="periodo_storico">
+        <option value="tutte" {% if history_period == 'tutte' %}selected{% endif %}>Tutte le date</option>
+        <option value="passate" {% if history_period == 'passate' %}selected{% endif %}>Assenze passate</option>
+        <option value="future" {% if history_period == 'future' %}selected{% endif %}>In corso e future</option>
+      </select>
+      <button type="submit" class="abs-filter-btn">Filtra storico</button>
+    </form>
+    <nav class="abs-panel-body car-history-pages" aria-label="Pagine storico assenze">
+      {% if history_page > 1 %}<a href="?scope={{ pending_scope }}&amp;periodo_storico={{ history_period }}&amp;pagina_storico={{ history_previous }}#storico">Precedente</a>{% endif %}
+      <span>Pagina {{ history_page }}</span>
+      {% if history_has_next %}<a href="?scope={{ pending_scope }}&amp;periodo_storico={{ history_period }}&amp;pagina_storico={{ history_next }}#storico">Successiva</a>{% endif %}
+    </nav>
     <div class="abs-panel-body no-pad">
       {% if gestite %}
         <div class="abs-table-wrap">

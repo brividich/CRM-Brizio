@@ -184,3 +184,12 @@ Percorso: `/admin-portale/hub/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â richiede 
 
 ---
 
+
+### Assenze: consultazione reparto e storico (2026-09-29)
+
+- Card locale e sezione dipendenti dipendono da `view_scope` reparto/all, separato da `can_update_owned/any`.
+- `assenze/team_scope.py`: predicati SQL EXISTS sulla catena account -> anagrafica -> area -> reparto. Il responsabile area prevale su capo reparto e copia denormalizzata; se una responsabilita corrente e nota, prevale sulla vecchia FK della richiesta. Il fallback storico resta solo senza responsabilita risolta. Per record importati senza utente e ammessa email esatta e univoca; nessun match nominativo aggiunto. Nessuna concessione ACL implicita da una relazione HR.
+- `capi_reparto.id` non e `utenti.id`: con la tabella FK presente il confronto diretto numerico e escluso.
+- Storico dashboard: query SQL paginata, 30 righe + sentinella, filtro `periodo_storico=tutte/passate/future` prima della paginazione; future include oggi/in corso. Pagina personale conserva anteprima e offre link allo storico completo.
+- La lettura non riassegna approvazioni; `_prepare_team_rows` rende esplicita la sola consultazione e rimuove motivazioni/certificati/note dalle righe non gestibili, anche nell'export. Calendario mantiene le restrizioni esistenti.
+- Deploy: nessuna migrazione o grant automatico, aggiornare applicazione e riavviare. Verificare su SQL Server e configurazione ACL reale; una relazione HR incompleta o un account non collegato richiede riallineamento dei dati, non accesso aziendale indiscriminato. Versione invariata: bugfix registrato in Unreleased, bump coordinato al packaging.

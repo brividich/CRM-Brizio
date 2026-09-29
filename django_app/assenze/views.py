@@ -695,15 +695,16 @@ def _combined_manager_assignment_where_clause(
     clauses: list[str] = []
     params: list = []
 
+    use_legacy_join = _legacy_capi_table_exists()
     local_where, local_params = _local_manager_assignment_where_clause(
         legacy_user_id=legacy_user_id,
         alias=assenze_alias,
     )
-    if local_where:
+    # Con una FK reale, capi_reparto.id NON e' utenti.id.
+    if local_where and not use_legacy_join:
         clauses.append(local_where)
         params.extend(local_params)
 
-    use_legacy_join = _legacy_capi_table_exists()
     if use_legacy_join:
         legacy_where, legacy_params = _capo_assignment_where_clause(
             legacy_user_id=legacy_user_id,
@@ -716,9 +717,15 @@ def _combined_manager_assignment_where_clause(
             clauses.append(legacy_where)
             params.extend(legacy_params)
 
-    if not clauses:
-        return "", [], use_legacy_join
-    return f"({' OR '.join(clauses)})", params, use_legacy_join
+    from .team_scope import canonical_team_predicates
+
+    known, mine, canonical_params = canonical_team_predicates(legacy_user_id, assenze_alias)
+    legacy_where = f"({' OR '.join(clauses)})" if clauses else ""
+    if known:
+        # Una nuova assegnazione in HR prevale sul capo storico della richiesta.
+        where = f"({mine} OR (NOT {known} AND {legacy_where}))" if legacy_where else mine
+        return where, [*canonical_params, *params], use_legacy_join
+    return legacy_where, params, use_legacy_join
 
 
 def _capo_assignment_diagnostics(
@@ -1033,6 +1040,7 @@ def _template_perm_context(request) -> dict:
         "assenze_can_view_calendar": perms["can_view_calendar"],
         "assenze_can_skip_approval": perms["can_skip_approval"],
         "assenze_can_edit_events": perms["can_edit_events"],
+        "assenze_can_view_team": perms.get("view_scope") in {"all", "reparto"},
         "assenze_can_delete_events": perms["can_delete_any"],
         "assenze_can_reconcile": perms.get("can_update_any", False),
         "assenze_is_admin": user_can_modulo_action(request, "assenze", "admin_assenze"),
@@ -1057,6 +1065,16 @@ def _can_manage_record(request, row: dict, *, require_delete: bool = False) -> b
         return True
 
     return False
+
+
+def _prepare_team_rows(request, rows):
+    """La consultazione del reparto non concede dettagli riservati o scritture."""
+    for row in rows:
+        row["can_moderate"] = _can_manage_record(request, row)
+        if not row["can_moderate"]:
+            for field in ("motivo", "certificato_medico", "note_gestione"):
+                row[field] = ""
+    return rows
 
 
 def _week_window(value: datetime) -> tuple[datetime, datetime]:
@@ -3019,6 +3037,7 @@ def _load_pending_for_manager(
     _cert_col = ", a.certificato_medico" if _has_assenze_column("certificato_medico") else ""
     _utente_col = ", a.utente_id" if _has_assenze_column("utente_id") else ""
     _creata_col = ", a.created_datetime" if _has_assenze_column("created_datetime") else ""
+    _capo_cols = "".join(f", a.{col}" for col in ("capo_reparto_id", "capo_reparto_lookup_id") if _has_assenze_column(col))
     base_sql = f"""
         SELECT
             a.id,
@@ -3028,7 +3047,7 @@ def _load_pending_for_manager(
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_cert_col}{_utente_col}{_creata_col}
+            a.motivazione_richiesta{_cert_col}{_utente_col}{_creata_col}{_capo_cols}
         FROM assenze a
         {join_sql}
         WHERE {manager_where_sql}
@@ -3043,6 +3062,8 @@ def _load_pending_for_manager(
         out.append(
             {
                 "id": row.get("id"),
+                "capo_reparto_id": row.get("capo_reparto_id"),
+                "capo_reparto_lookup_id": row.get("capo_reparto_lookup_id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
                 "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": stato_value,
@@ -3102,12 +3123,23 @@ def count_pending_for_manager(
         return 0
 
 
+def _team_history_period(periodo):
+    today = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+    if periodo == "passate":
+        return " AND a.data_fine < %s", [today]
+    if periodo == "future":
+        return " AND a.data_fine >= %s", [today]
+    return "", []
+
+
 def _load_gestite_for_manager(
     legacy_user_id: int | None,
     limit: int = 30,
     *,
     manager_name: str = "",
     manager_email: str = "",
+    offset: int = 0,
+    periodo: str = "tutte",
 ) -> list[dict]:
     """Assenze già gestite (Approvato/Rifiutato) dal CAR indicato."""
     if not _table_exists("assenze"):
@@ -3126,6 +3158,7 @@ def _load_gestite_for_manager(
     _note_col = ", a.note_gestione" if _has_assenze_column("note_gestione") else ""
     _cert_col = ", a.certificato_medico" if _has_assenze_column("certificato_medico") else ""
     _utente_col = ", a.utente_id" if _has_assenze_column("utente_id") else ""
+    _capo_cols = "".join(f", a.{col}" for col in ("capo_reparto_id", "capo_reparto_lookup_id") if _has_assenze_column(col))
     base_sql = f"""
         SELECT
             a.id,
@@ -3135,13 +3168,16 @@ def _load_gestite_for_manager(
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_note_col}{_cert_col}{_utente_col}
+            a.motivazione_richiesta{_note_col}{_cert_col}{_utente_col}{_capo_cols}
         FROM assenze a
         {join_sql}
         WHERE {manager_where_sql}
           AND COALESCE(a.moderation_status, 2) IN (0, 1)
     """
-    sql = _select_limited(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", limit)
+    period_sql, period_params = _team_history_period(periodo)
+    base_sql += period_sql
+    manager_where_params = [*manager_where_params, *period_params]
+    sql = _select_paginated(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", offset=offset, limit=limit)
     rows = _fetch_all_dict(sql, manager_where_params)
     out = []
     for row in rows:
@@ -3149,6 +3185,8 @@ def _load_gestite_for_manager(
         out.append(
             {
                 "id": row.get("id"),
+                "capo_reparto_id": row.get("capo_reparto_id"),
+                "capo_reparto_lookup_id": row.get("capo_reparto_lookup_id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
                 "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": moderation_label,
@@ -3235,6 +3273,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
     _cert_col = ", a.certificato_medico" if _has_assenze_column("certificato_medico") else ""
     _utente_col = ", a.utente_id" if _has_assenze_column("utente_id") else ""
     _creata_col = ", a.created_datetime" if _has_assenze_column("created_datetime") else ""
+    _capo_cols = "".join(f", a.{col}" for col in ("capo_reparto_id", "capo_reparto_lookup_id") if _has_assenze_column(col))
     base_sql = f"""
         SELECT
             a.id,
@@ -3244,7 +3283,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_cert_col}{_utente_col}{_creata_col}
+            a.motivazione_richiesta{_cert_col}{_utente_col}{_creata_col}{_capo_cols}
         FROM assenze a
         WHERE COALESCE(a.moderation_status, 2) = 2
     """
@@ -3256,6 +3295,8 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
         out.append(
             {
                 "id": row.get("id"),
+                "capo_reparto_id": row.get("capo_reparto_id"),
+                "capo_reparto_lookup_id": row.get("capo_reparto_lookup_id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
                 "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": moderation_label,
@@ -3275,7 +3316,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
     return out
 
 
-def _load_all_gestite(limit: int = 50) -> list[dict]:
+def _load_all_gestite(limit: int = 50, *, offset: int = 0, periodo: str = "tutte") -> list[dict]:
     """Ultime assenze già gestite (Approvato/Rifiutato), nessun filtro: per AMMINISTRAZIONE."""
     if not _table_exists("assenze"):
         return []
@@ -3294,8 +3335,12 @@ def _load_all_gestite(limit: int = 50) -> list[dict]:
         FROM assenze a
         WHERE COALESCE(a.moderation_status, 2) IN (0, 1)
     """
-    sql = _select_limited(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", limit)
-    rows = _fetch_all_dict(sql)
+    manager_where_params = []
+    period_sql, period_params = _team_history_period(periodo)
+    base_sql += period_sql
+    manager_where_params = [*manager_where_params, *period_params]
+    sql = _select_paginated(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", offset=offset, limit=limit)
+    rows = _fetch_all_dict(sql, manager_where_params)
     out = []
     for row in rows:
         _, moderation_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
@@ -4371,7 +4416,7 @@ def menu(request):
     recenti = _load_personal(name, email, limit=8)
     perms = _assenze_permissions(request)
     pending_count = 0
-    if perms.get("can_update_any") or perms.get("can_update_owned"):
+    if perms.get("view_scope") in {"all", "reparto"}:
         # Stesso perimetro della dashboard segnalazioni, che apre sempre in scope
         # "mine": contare tutte le pendenti globali mostrerebbe un badge che non
         # corrisponde a nulla di visibile nella pagina di destinazione.
@@ -4413,7 +4458,7 @@ def gestione_assenze(request):
     """
     name, email, legacy_id = _legacy_identity(request)
     perms = _assenze_permissions(request)
-    e_capo = bool(perms.get("can_update_owned") or perms.get("can_update_any"))
+    e_capo = perms.get("view_scope") in {"all", "reparto"}
 
     richieste_da_approvare = _load_pending_for_manager(
         legacy_id,
@@ -4421,6 +4466,8 @@ def gestione_assenze(request):
         manager_name=name,
         manager_email=email,
     )
+    if not e_capo:
+        richieste_da_approvare = []
     richieste_personali = _load_personal(name, email, limit=40)
 
     # Le richieste dei propri dipendenti gia' decise: senza queste la pagina
@@ -4436,6 +4483,8 @@ def gestione_assenze(request):
         if e_capo
         else []
     )
+    _prepare_team_rows(request, richieste_da_approvare)
+    _prepare_team_rows(request, richieste_dipendenti_gestite)
 
     return render(
         request,
@@ -4734,6 +4783,11 @@ def car_dashboard(request):
         capo_diag["manager_email"] = manager_email
         capo_diag["legacy_user_id"] = legacy_user_id
 
+    history_page = max(1, min(_as_int(request.GET.get("pagina_storico")) or 1, 100000))
+    history_period = request.GET.get("periodo_storico", "tutte")
+    if history_period not in {"tutte", "passate", "future"}:
+        history_period = "tutte"
+    history_offset = (history_page - 1) * 30
     now = timezone.localtime()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     today_end = today_start + timedelta(days=1)
@@ -4750,7 +4804,7 @@ def car_dashboard(request):
                 manager_name=manager_name,
                 manager_email=manager_email,
             )
-        gestite = _load_all_gestite(limit=50)
+        gestite = _load_all_gestite(limit=31, offset=history_offset, periodo=history_period)
         riepilogo_oggi = _load_all_assenze_periodo(today_start, today_end, limit=200)
         riepilogo_settimana = _load_all_assenze_periodo(monday, next_monday, limit=500)
     else:
@@ -4762,7 +4816,9 @@ def car_dashboard(request):
         )
         gestite = _load_gestite_for_manager(
             legacy_user_id,
-            limit=30,
+            limit=31,
+            offset=history_offset,
+            periodo=history_period,
             manager_name=manager_name,
             manager_email=manager_email,
         )
@@ -4783,6 +4839,10 @@ def car_dashboard(request):
             manager_email=manager_email,
         )
 
+    history_has_next = len(gestite) > 30
+    gestite = gestite[:30]
+    _prepare_team_rows(request, da_gestire)
+    _prepare_team_rows(request, gestite)
     sync_diag = None
     if show_diag:
         diag_item_ids = [r.get("id") for r in gestite[:8]]
@@ -4798,6 +4858,11 @@ def car_dashboard(request):
             # filtra niente e' rumore.
             "tipi_in_coda": sorted({str(r.get("tipo") or "").strip() for r in da_gestire if r.get("tipo")}),
             "gestite": gestite,
+            "history_page": history_page,
+            "history_previous": history_page - 1,
+            "history_next": history_page + 1,
+            "history_has_next": history_has_next,
+            "history_period": history_period,
             "riepilogo_oggi": riepilogo_oggi,
             "riepilogo_settimana": riepilogo_settimana,
             "data_oggi": today_start.strftime("%d-%m-%Y"),
@@ -5667,6 +5732,7 @@ def export_assenze_car_csv(request):
             manager_name=manager_name,
             manager_email=manager_email,
         )
+    _prepare_team_rows(request, rows_data)
     log_action(
         request,
         "export_csv",

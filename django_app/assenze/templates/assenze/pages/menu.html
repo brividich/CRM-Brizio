@@ -380,7 +380,7 @@
           {% if assenze_can_view_calendar %}
             <span class="abs-hero-pill">Calendario disponibile</span>
           {% endif %}
-          {% if assenze_can_edit_events %}
+          {% if assenze_can_view_team %}
             <span class="abs-hero-pill">{{ car_pending_count }} in attesa reparto</span>
           {% endif %}
         </div>
@@ -470,12 +470,12 @@
       </div>
     </a>
 
-    {% if assenze_can_edit_events %}
+    {% if assenze_can_view_team %}
       <a class="abs-card-link abs-menu-card abs-card-alerts" href="{% url 'assenze_car_dashboard' %}">
         <span class="abs-card-icon"><svg aria-hidden="true"><use href="#abs-i-bell"></use></svg></span>
         <div class="abs-card-content">
           <div class="abs-card-top">
-            <div class="abs-card-title">Segnalazioni</div>
+            <div class="abs-card-title">Assenze del reparto</div>
             {% if car_pending_count %}
               <span class="abs-card-count">{{ car_pending_count }}</span>
             {% endif %}
@@ -484,7 +484,7 @@
             {% if assenze_group == "AMMINISTRAZIONE" %}
               Approvazioni, diagnostica e reparto.
             {% else %}
-              Coda richieste e presenza reparto.
+              Richieste, storico e assenze future approvate.
             {% endif %}
           </div>
         </div>
