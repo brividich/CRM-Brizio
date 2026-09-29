@@ -1,5 +1,13 @@
 # Agent Changelog
 
+## 2026-09-29 - Codex (analisi preliminare ruoli SGI)
+
+- Richiesta: valutare ruoli/permessi e automazioni dalla cartella SGI. Share X: consultata in sola lettura, struttura e riscontro locale di termini in quattro documenti organizzativi; nessun nominativo o contenuto riservato riportato. Analisi statica di modelli anagrafica, helper ruoli, ACL SG e pacchetto automazioni.
+- File modificati: docs/PROPOSTA_RUOLI_SGI.md, questo registro, session_checkpoint.md, nel worktree C:/Dev/pn-sgi-ruoli-analisi, branch feature/sgi-ruoli-analisi. Checkout condiviso preservato, incluso parser pdf/ non tracciato. Controlli ACTIVE_SESSION, WORK_LOCKS, CRITICAL_FILES e CRITICAL_CHANGE_REQUESTS assenti; checkpoint e registri consultati.
+- File critici modificati: nessuno. Backup: nessuno aggiuntivo, documenti versionati. README/CHANGELOG: no, comportamento invariato. AGENT_CHANGELOG/checkpoint: si.
+- Check: lettura statica e accessibilita documenti; git diff --check. Test applicativi non necessari per soli documenti. Nessun DB, grant, nomina, notifica o automazione modificati.
+- Esito: proposta preliminare documentata. Rischi residui: responsabilita e sigle da validare sulle fonti/nomine; runtime non verificato. Helper ruoli non filtra decorrenza/scadenza delle assegnazioni e account attivi: da valutare prima di usarlo per nuove automazioni. Note altro agente: non scambiare profili candidati per autorizzazioni approvate; preservare distinzione incarichi/ACL/perimetro.
+
 ## 2026-09-28 - Codex (merge audit in release/prod)
 
 - Autorizzazione utente: "mergia". Fetch di origin; release/prod ferma a `34cb1219`, antenata diretta dei due commit audit `d7f28081` e `113c1009`. Merge senza conflitti nel worktree isolato `temp/codex-audit-release`, branch `integration/audit-release-20260928`; checkout condiviso e cartella utente preservati.

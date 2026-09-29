@@ -1,5 +1,10 @@
 # Session Checkpoint
 
+Data: 2026-09-29 (analisi preliminare ruoli SGI)
+
+- Vista/aggiunta voce AGENT_CHANGELOG analisi preliminare ruoli SGI; precedente ultima voce merge audit in release/prod del 2026-09-28. CHANGELOG consultato, nessuna modifica operativa introdotta.
+- Proposta in docs/PROPOSTA_RUOLI_SGI.md nel worktree C:/Dev/pn-sgi-ruoli-analisi; nessun cambiamento codice/ACL/DB. Validare fonti e nomine prima di attuare la matrice.
+
 Data: 2026-09-28 (merge audit in release/prod)
 
 - Vista/aggiunta voce AGENT_CHANGELOG `merge audit in release/prod`. Integrati `d7f28081` e `113c1009` sopra origin/release/prod `34cb1219`, senza conflitti, worktree `temp/codex-audit-release`.
