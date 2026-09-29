@@ -15,9 +15,9 @@
       <svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg>Calendario
     </a>
   {% endif %}
-  {% if assenze_can_edit_events %}
+  {% if assenze_can_view_team %}
     <a class="abs-subnav-link{% if current == 'assenze_car_dashboard' %} active{% endif %}" href="{% url 'assenze_car_dashboard' %}">
-      <svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Segnalazioni{% if car_pending_count %}<span class="abs-subnav-badge">{{ car_pending_count }}</span>{% endif %}
+      <svg aria-hidden="true"><use href="#abs-i-bell"></use></svg>Assenze del reparto{% if car_pending_count %}<span class="abs-subnav-badge">{{ car_pending_count }}</span>{% endif %}
     </a>
   {% endif %}
   <a class="abs-subnav-link{% if current == 'assenze_certifica_presenza' %} active{% endif %}" href="{% url 'assenze_certifica_presenza' %}">

@@ -1745,3 +1745,7 @@ I file `.example` sono template. Il pre-commit hook in `tools/git-hooks/` blocca
 commit accidentali di `.env` e secret.*
 
 </div>
+
+### Assenze del reparto
+
+Card di consultazione per chi vede reparto/azienda, assegnazione corrente da anagrafica e storico paginato con filtri passate/in corso e future. L'accesso in lettura non concede approvazioni o dettagli riservati.

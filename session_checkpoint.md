@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-09-29 (Assenze reparto, card e storico)
+
+- Vista/aggiunta voce AGENT_CHANGELOG Assenze reparto, card e storico; letti delta procedure aziendali audit fino al merge 1ab70ddb.
+- Worktree C:/Dev/pn-assenze-reparto, feature/assenze-reparto-storico. Consultazione separata da approvazione, perimetro HR corrente, storico paginato e filtri. 230 test Assenze/check/secret hygiene/diff check verdi; QA template desktop/mobile/scuro.
+- README/changelog root/Django/docs AI aggiornati, nessuna migrazione o grant. Merge release/prod autorizzato; deploy separato e collaudo SQL Server/ACL reali. Poi proposta multiruolo SGI.
+
 Data: 2026-09-29 (merge procedure aziendali nella release)
 
 - Vista/aggiunta voce AGENT_CHANGELOG `merge procedure aziendali nella release`. Integrato `6cd61801` sopra origin/release/prod `c4ead425`, senza conflitti, worktree isolato `temp/codex-audit-release`.
