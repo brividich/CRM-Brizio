@@ -44,6 +44,7 @@ from .models import (
 )
 from .services import audit as service
 from .services import audit_automation as automation
+from .services import procedure
 from .views import MODULE, _has_perm, _nega
 
 
@@ -217,6 +218,7 @@ def programma_dettaglio(request, pk: int):
     for riga in programma.righe.all():
         righe.append({"riga": riga, "mesi": [celle.get((riga.pk, mese)) for mese in range(1, 13)]})
     return render(request, "sistema_gestione/pages/programma_dettaglio.html", {
+        "copertura": procedure.copertura_annuale(programma),
         "page_title": str(programma), "programma": programma, "righe": righe, "mesi": range(1, 13),
         "form": form, "form_firmata": CopiaFirmataForm(),
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT) and programma.modificabile,
@@ -646,6 +648,10 @@ def audit_avvia(request, pk: int):
         return _deny(request)
     if audit.stato != Audit.STATO_PIANO_APPROVATO:
         messages.error(request, "Il piano deve essere approvato dalla Direzione.")
+    elif not audit.comunicazione_il:
+        messages.error(request, "Comunica il piano agli auditati prima di avviare la verifica.")
+    elif procedure.problemi_preparazione(audit):
+        messages.error(request, "Completa e conferma la preparazione sul piano approvato prima di avviare l'audit (MT CN 12).")
     else:
         audit.stato = Audit.STATO_IN_CORSO
         audit.save(update_fields=["stato", "updated_at"])

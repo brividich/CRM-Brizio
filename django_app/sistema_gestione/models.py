@@ -271,7 +271,7 @@ class Auditor(models.Model):
             self.req_diploma, self.req_norme, self.req_tecniche_audit,
             self.req_settore, self.req_esperienza_2_anni,
         )
-        esterno_approvato = self.interno or bool(self.approvato_ceo_da_id and self.approvato_ceo_il)
+        esterno_approvato = self.interno or bool(self.approvato_ceo_da_id and self.approvato_ceo_il and self.formazione_processi_il)
         return bool(all(requisiti) and self.requisiti_verificati_il and esterno_approvato and self.audit_svolti >= 4)
 
 
@@ -348,6 +348,7 @@ class Processo(models.Model):
     rischi = models.TextField(blank=True)
     indicatori = models.TextField(blank=True)
     procedure = models.TextField(blank=True)
+    fonte_documentale = models.TextField(blank=True, help_text="File, revisione, pagina e impronta della fonte; discrepanze da verificare.")
     punti_9100 = models.CharField(max_length=255, blank=True)
     punti_45001 = models.CharField(max_length=255, blank=True)
     punti_27001 = models.CharField(max_length=255, blank=True)
@@ -792,3 +793,71 @@ class AuditRapportoVersione(models.Model):
     class Meta:
         ordering = ["-numero"]
         constraints = [models.UniqueConstraint(fields=["audit", "numero"], name="sg_rapporto_versione_unica")]
+
+
+class AuditPreparazione(models.Model):
+    audit = models.OneToOneField(Audit, on_delete=models.CASCADE, related_name="preparazione")
+    audit_precedenti = models.TextField("Audit precedenti: riferimenti ed esame, oppure assenza motivata")
+    car_cliente = models.TextField("CAR cliente: riferimenti e stato, oppure assenza motivata")
+    documenti_registrazioni = models.TextField("Documenti e registrazioni da campionare, revisioni e disponibilita")
+    obiettivi_carenze = models.TextField("Obiettivi della verifica e carenze da approfondire")
+    verificato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    verificato_il = models.DateTimeField(auto_now=True)
+
+
+class AzioneCorrettivaAudit(models.Model):
+    registro = models.OneToOneField("gestione_specifiche.RegistroOFI", on_delete=models.PROTECT, related_name="car_procedurale")
+    data_richiesta = models.DateField("Data richiesta CAR")
+    responsabile = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="car_assegnate")
+    causa = models.TextField("Analisi della causa radice", blank=True)
+    contenimento = models.TextField("Azione di contenimento", blank=True)
+    azione = models.TextField("Azione correttiva e modifiche documentali", blank=True)
+    analizzata_il = models.DateField("Data valutazione cause e azioni", null=True, blank=True)
+    evidenza_attuazione = models.TextField("Evidenza di attuazione", blank=True)
+    evidenza_efficacia = models.TextField("Metodo, campione e risultato della verifica di efficacia", blank=True)
+    proroga_al = models.DateField(null=True, blank=True)
+    motivo_proroga = models.TextField(blank=True)
+    proroga_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")
+    proroga_il = models.DateTimeField(null=True)
+    approvata_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")
+    approvata_il = models.DateTimeField(null=True)
+    approvazione_esterna = models.CharField("Riferimento approvazione cliente/ente, se richiesta esterna", max_length=250, blank=True)
+    origine_esterna = models.BooleanField("CAR richiesta da cliente/ente", default=False)
+    chiusa_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")
+    chiusa_il = models.DateTimeField(null=True)
+    versione = models.PositiveIntegerField(default=0)
+
+    @property
+    def scadenza_analisi(self):
+        from .services.audit_automation import aggiungi_mesi
+        return aggiungi_mesi(self.data_richiesta, 1)
+
+    @property
+    def scadenza_chiusura(self):
+        from .services.audit_automation import aggiungi_mesi
+        return self.proroga_al or aggiungi_mesi(self.data_richiesta, 3)
+
+
+class RilevazioneKpi(models.Model):
+    processo = models.ForeignKey(Processo, on_delete=models.PROTECT, related_name="rilevazioni_kpi")
+    codice = models.CharField(max_length=40)
+    periodo_da = models.DateField()
+    periodo_a = models.DateField()
+    formula = models.CharField(max_length=20, choices=[("PERCENTUALE", "Numeratore / denominatore x 100"), ("RAPPORTO", "Numeratore / denominatore"), ("VENDOR", "Vendor Rating: OTD x 0,30 + OQD x 0,70")])
+    numeratore = models.DecimalField("Numeratore (per VR: consegne puntuali)", max_digits=18, decimal_places=4)
+    denominatore = models.DecimalField("Denominatore (per VR: consegne totali)", max_digits=18, decimal_places=4)
+    pezzi_nc = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    pezzi_totali = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    fonte_filtri = models.TextField("Fonte, campo data, filtri ed esclusioni applicati")
+    target = models.DecimalField(max_digits=18, decimal_places=4)
+    verso = models.CharField(max_length=3, choices=[("MIN", "Valore almeno pari al target"), ("MAX", "Valore al massimo pari al target")])
+    valore_precedente = models.DecimalField(max_digits=18, decimal_places=4, null=True, blank=True)
+    confrontabile = models.BooleanField(default=True)
+    motivo_non_confrontabilita = models.TextField(blank=True)
+    commento = models.TextField("Analisi, cause e azioni proposte")
+    riferimento_riesame = models.CharField("Riferimento VRS / obiettivo approvato", max_length=250)
+    autore = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    registrata_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-periodo_a", "-pk"]

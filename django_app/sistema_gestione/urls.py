@@ -1,4 +1,5 @@
 from __future__ import annotations
+from . import procedure_views
 
 from django.urls import path
 
@@ -7,6 +8,9 @@ from . import audit_views, views, processi_views, automation_views
 app_name = "sistema_gestione"
 
 urlpatterns = [
+    path("audit/<int:pk>/preparazione/", procedure_views.preparazione, name="procedura_preparazione"),
+    path("audit/car/<int:pk>/", procedure_views.car, name="procedura_car"),
+    path("audit/kpi/", procedure_views.kpi, name="procedura_kpi"),
     path("audit/<int:pk>/verifica/<int:esito_pk>/", automation_views.esito_editor, name="audit_esito_editor"),
     path("audit/priorita/", automation_views.priorita, name="audit_priorita"),
     path("audit/priorita/applica/", automation_views.applica_priorita, name="audit_priorita_applica"),

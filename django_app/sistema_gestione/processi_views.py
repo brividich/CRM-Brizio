@@ -35,7 +35,7 @@ def catalogo(request):
     for processo in righe:
         processo.prossimo_audit = None
         if processo.ultimo_audit:
-            mesi = processo.ultimo_audit.year * 12 + processo.ultimo_audit.month - 1 + processo.frequenza_mesi
+            mesi = processo.ultimo_audit.year * 12 + processo.ultimo_audit.month - 1 + min(processo.frequenza_mesi, 12)
             anno, mese = divmod(mesi, 12)
             mese += 1
             processo.prossimo_audit = processo.ultimo_audit.replace(year=anno, month=mese,

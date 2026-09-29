@@ -214,3 +214,16 @@ class RegistroOFIForm(forms.ModelForm):
         if not self.instance.pk and not self.initial.get("data_apertura"):
             from django.utils import timezone
             self.fields["data_apertura"].initial = timezone.localdate()
+
+
+    def clean(self):
+        dati = super().clean()
+        if self.instance.pk:
+            from sistema_gestione.models import AzioneCorrettivaAudit
+            car = AzioneCorrettivaAudit.objects.filter(registro_id=self.instance.pk).first()
+            if car:
+                if dati.get("data_richiesta") != self.instance.data_richiesta:
+                    self.add_error("data_richiesta", "Usa la proroga approvata nella scheda CAR MT CN 11.")
+                if dati.get("fase") != self.instance.fase or dati.get("data_chiusura") != self.instance.data_chiusura:
+                    raise forms.ValidationError("Questa voce ha una CAR: gestisci chiusura e verifica indipendente nella scheda MT CN 11.")
+        return dati

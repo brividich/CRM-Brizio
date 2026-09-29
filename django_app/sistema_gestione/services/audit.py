@@ -113,6 +113,7 @@ def proponi_programma(programma: ProgrammaAudit, *, utente) -> None:
         raise TransizioneNonAmmessa("Solo una bozza può essere proposta.")
     if not programma.righe.exists():
         raise TransizioneNonAmmessa("Aggiungi almeno una riga al programma.")
+    _verifica_copertura_procedurale(programma)
     programma.stato = ProgrammaAudit.STATO_PROPOSTA
     programma.proposto_da = utente
     programma.proposto_il = timezone.now()
@@ -123,6 +124,7 @@ def proponi_programma(programma: ProgrammaAudit, *, utente) -> None:
 def approva_programma(programma: ProgrammaAudit, *, utente) -> None:
     if programma.stato != ProgrammaAudit.STATO_PROPOSTA:
         raise TransizioneNonAmmessa("Il programma non è in attesa di approvazione.")
+    _verifica_copertura_procedurale(programma)
     programma.approvato_da = utente
     programma.approvato_il = timezone.now()
     programma.save(update_fields=["approvato_da", "approvato_il", "updated_at"])
@@ -132,6 +134,7 @@ def approva_programma(programma: ProgrammaAudit, *, utente) -> None:
 def convalida_programma(programma: ProgrammaAudit, *, utente) -> None:
     if programma.stato != ProgrammaAudit.STATO_PROPOSTA or not programma.approvato_il:
         raise TransizioneNonAmmessa("È necessaria prima l'approvazione della Direzione.")
+    _verifica_copertura_procedurale(programma)
     ProgrammaAudit.objects.filter(
         anno=programma.anno, stato=ProgrammaAudit.STATO_APPROVATO,
     ).exclude(pk=programma.pk).update(stato=ProgrammaAudit.STATO_SUPERATO)
@@ -399,6 +402,13 @@ def verifica_completezza(audit: Audit) -> dict:
               f"Correggi la data in agenda: {voce.processo_area}.", "agenda")
         manca(piano, bool(voce.processo_id) and voce.processo_id not in processi_ids,
               f"L'attivita {voce.processo_area} riguarda un processo rimosso dal piano.", "agenda")
+    team = list(audit.auditor.all())
+    manca(piano, audit.lead_auditor.interno and not any(a.pk != audit.lead_auditor_id for a in team),
+          "MT CN 12: affianca al responsabile almeno un altro auditor qualificato.", "campo")
+    conflitti = conflitti_imparzialita(processi=audit.processi, lead=audit.lead_auditor, auditor=team)
+    utenti = {a.user_id for a in [audit.lead_auditor, *team] if a.user_id}
+    conflitti.extend(str(p) for p in audit.processi_catalogo.all() if p.responsabile_id in utenti)
+    manca(piano, bool(conflitti), "MT CN 12: risolvi il conflitto di indipendenza del team: " + ", ".join(conflitti), "campo")
     non_qualificati = auditor_non_qualificati(lead=audit.lead_auditor, auditor=audit.auditor.all())
     manca(piano, bool(non_qualificati), "Verifica le qualifiche del team: " + ", ".join(non_qualificati), "campo")
     esiti = list(audit.esiti.all())
@@ -446,9 +456,9 @@ def _ics(audit: Audit) -> bytes:
 def comunica_audit(audit: Audit, *, metodo: str, deroga_motivo: str = "") -> int:
     oggi = timezone.localdate()
     preavviso = giorni_lavorativi_di_preavviso(oggi, audit.data_inizio)
-    if preavviso < 5 and not (deroga_motivo or "").strip():
+    if preavviso < 5 or (audit.data_inizio - oggi).days < 7:
         raise ValidationError(
-            f"Restano {preavviso} giorni lavorativi: indica il motivo della deroga al preavviso minimo di 5 giorni."
+            f"Restano {preavviso} giorni lavorativi: riprogramma il piano per rispettare almeno 5 giorni lavorativi e una settimana (MT CN 12 / MOD.035A)."
         )
     destinatari = sorted({
         p.email.strip() for p in audit.persone.filter(ruolo=AuditPersona.RUOLO_AUDITATO) if p.email.strip()
@@ -508,3 +518,11 @@ def distribuisci_rapporto(audit: Audit) -> None:
         )
     except Exception:
         return
+
+
+def _verifica_copertura_procedurale(programma):
+    from .procedure import verifica_copertura
+    try:
+        verifica_copertura(programma)
+    except ValidationError as exc:
+        raise TransizioneNonAmmessa("; ".join(exc.messages)) from exc
