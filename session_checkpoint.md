@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-09-29 (merge Assenze e proposta multiruolo SGI)
+
+- Assenze integrate e pubblicate su origin/release/prod: 5871b10a (feature 3fd894b7), hash remoto verificato; 230 test/check/QA verdi, deploy separato.
+- Proposta multiruolo completata in docs/PROPOSTA_RUOLI_SGI.md, branch feature/sgi-multiruolo-proposta, worktree C:/Dev/pn-sgi-multiruolo. Verificati gruppi ACL gia presenti, precedenze, perimetri e provenienza contributi; nessun grant applicato.
+- Registro aggiornato. Vecchio worktree proposta con modifica utente alla prima riga preservato. Validare nomine/fonti e inventario runtime prima di attuare i collegamenti automatici.
+
 Data: 2026-09-29 (Assenze reparto, card e storico)
 
 - Vista/aggiunta voce AGENT_CHANGELOG Assenze reparto, card e storico; letti delta procedure aziendali audit fino al merge 1ab70ddb.

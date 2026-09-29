@@ -1,5 +1,13 @@
 # Agent Changelog
 
+## 2026-09-29 - Codex (merge Assenze e proposta multiruolo SGI)
+
+- Prima completata priorita utente: commit Assenze 3fd894b7, merge 5871b10a nel worktree C:/Dev/pn-assenze-release; push ordinario origin/release/prod confermato con hash remoto. Albero applicativo identico alla feature con 230 test verdi. Nessun deploy.
+- Poi nuova proposta in C:/Dev/pn-sgi-multiruolo, branch feature/sgi-multiruolo-proposta dalla release integrata. Ripresa fonte documentale dal commit 1e9ce8fe; il vecchio worktree pn-sgi-ruoli-analisi contiene una modifica utente alla prima riga, lasciata intatta.
+- File modificati: docs/PROPOSTA_RUOLI_SGI.md, questo registro e session_checkpoint.md. Proposta aggiornata con gruppi ACL multipli gia esistenti e precedenze reali, unione azione/perimetro, provenienza contributi e revoche, deleghe, fonti, matrice dei permessi riscontrati, flussi prioritari e criteri di accettazione. Nessun grant o automazione applicato.
+- Critici: nessuna nuova modifica; per i cambi locali di visibilita Assenze vedere voce precedente. Backup: nessuno aggiuntivo, lavoro versionato. README/CHANGELOG: gia aggiornati per Assenze, invariati in questa fase documentale. AGENT_CHANGELOG/checkpoint: si. Check proposta: corrispondenza modelli/resolver/codici e git diff --check; nessun test applicativo aggiuntivo per soli documenti.
+- Rischi/note: gruppi ACL attuali hanno priorita e dinieghi, non una semplice unione; gli incarichi non sono ancora collegati automaticamente. Validare fonti/nomine prima del pilota, preservare contributi manuali e vincoli di indipendenza. Proposta committata separatamente, nessun database reale modificato.
+
 ## 2026-09-29 - Codex (Assenze reparto, card e storico)
 
 - Autorizzazione: utente chiede priorita alla visibilita richieste/storico dei dipendenti per caporeparto, merge, poi proposta multiruolo. Per "car" considerata la card mancante; domanda di chiarimento inviata, nessuna modifica alla catena di approvazione personale senza superiore. Worktree C:/Dev/pn-assenze-reparto, feature/assenze-reparto-storico, base origin/release/prod 1ab70ddb. Checkout condiviso e WIP estraneo preservati. Letti checkpoint/delta registri; file ACTIVE_SESSION/WORK_LOCKS/CRITICAL_FILES/CRITICAL_CHANGE_REQUESTS assenti.
