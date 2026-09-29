@@ -411,6 +411,13 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
             "sono registrate nel MOD.174 - SGI Registro OFI/NC.", styles["note"],
         ),
     ]
+    from .models import AuditPreparazione
+    preparazione = AuditPreparazione.objects.filter(audit=audit).select_related("verificato_da").first()
+    if preparazione:
+        story += [PageBreak(), _p("ALLEGATO - PREPARAZIONE MT CN 12", styles["head"])]
+        for campo, titolo in [("audit_precedenti", "Audit precedenti"), ("car_cliente", "CAR cliente"), ("documenti_registrazioni", "Documenti e campioni"), ("obiettivi_carenze", "Obiettivi e carenze")]:
+            story += [_p(titolo, styles["head"]), _p(getattr(preparazione, campo), styles["cell"]), Spacer(1, 3*mm)]
+        story += [_p(_firma("Preparazione confermata", preparazione.verificato_da, preparazione.verificato_il), styles["cell"])]
     allegati = [(e, a) for e in audit.esiti.prefetch_related("allegati") for a in e.allegati.all()]
     if allegati:
         story += [PageBreak(), _p("ALLEGATO - INDICE DELLE EVIDENZE", styles["head"]), Spacer(1, 4*mm)]

@@ -137,7 +137,7 @@ def priorita_processi(processi, oggi=None):
     for processo in processi:
         chiusi = sorted((a for a in processo.audit_priorita if a.stato == Audit.STATO_CHIUSO), key=lambda a: a.data_inizio, reverse=True)
         ultimo = chiusi[0].data_inizio if chiusi else None
-        scadenza = aggiungi_mesi(ultimo, processo.frequenza_mesi) if ultimo else oggi
+        scadenza = aggiungi_mesi(ultimo, min(processo.frequenza_mesi, 12)) if ultimo else oggi
         score = processo.criticita * 10
         motivi = [f"Criticita dichiarata {processo.get_criticita_display()}: +{score}"]
         if not ultimo:

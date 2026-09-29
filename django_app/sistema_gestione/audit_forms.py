@@ -95,7 +95,7 @@ class AuditForm(forms.ModelForm):
         }
         help_texts = {
             "numero": "Lascia vuoto per la numerazione automatica RAIS-AAAA-NN.",
-            "imparzialita_deroga_motivo": "Obbligatorio se un auditor appartiene al reparto/processo verificato.",
+            "imparzialita_deroga_motivo": "Note storiche. I conflitti di indipendenza richiedono un diverso auditor (MT CN 12).",
         }
 
     def __init__(self, *args, **kwargs):
@@ -149,10 +149,10 @@ class AuditForm(forms.ModelForm):
         )
         utenti_team = {a.user_id for a in [dati.get("lead_auditor"), *list(dati.get("auditor") or [])] if a and a.user_id}
         conflitti.extend(str(p) for p in processi if p.responsabile_id in utenti_team)
-        if conflitti and not (dati.get("imparzialita_deroga_motivo") or "").strip():
+        if conflitti:
             self.add_error(
                 "imparzialita_deroga_motivo",
-                "Possibile conflitto di imparzialità per: " + ", ".join(conflitti) + ". Indica la deroga motivata.",
+                "Possibile conflitto di imparzialità per: " + ", ".join(conflitti) + ". Assegna un auditor indipendente: una nota non supera il requisito MT CN 12.",
             )
         return dati
 
@@ -178,7 +178,7 @@ class ProcessoForm(forms.ModelForm):
     class Meta:
         model = Processo
         fields = ["codice", "nome", "categoria", "responsabile", "enti", "scopo", "input", "output",
-                  "rischi", "indicatori", "procedure", "punti_9100", "punti_45001", "punti_27001",
+                  "rischi", "indicatori", "procedure", "fonte_documentale", "punti_9100", "punti_45001", "punti_27001",
                   "punti_pdr125", "criticita", "frequenza_mesi", "attivo"]
         widgets = {nome: forms.Textarea(attrs={"rows": 3}) for nome in
                    ("scopo", "input", "output", "rischi", "indicatori", "procedure")}
@@ -192,15 +192,15 @@ class ProcessoForm(forms.ModelForm):
             self.fields[nome].required = True
         self.fields["criticita"].required = False
         self.fields["frequenza_mesi"].min_value = 1
-        self.fields["frequenza_mesi"].max_value = 120
+        self.fields["frequenza_mesi"].max_value = 12
 
     def clean_criticita(self):
         return self.cleaned_data.get("criticita") or 2
 
     def clean_frequenza_mesi(self):
         valore = self.cleaned_data["frequenza_mesi"]
-        if not 1 <= valore <= 120:
-            raise ValidationError("Indica una frequenza fra 1 e 120 mesi.")
+        if not 1 <= valore <= 12:
+            raise ValidationError("MT CN 12: indica una frequenza fra 1 e 12 mesi.")
         return valore
 
     def clean_codice(self):
@@ -258,7 +258,7 @@ class ComunicazioneAuditForm(forms.Form):
     metodo = forms.ChoiceField(choices=Audit.COM_CHOICES)
     deroga_motivo = forms.CharField(
         required=False, widget=forms.Textarea(attrs={"rows": 2}),
-        label="Motivo della deroga al preavviso (se necessario)",
+        label="Note sulla comunicazione (non modificano il preavviso minimo)",
     )
 
 

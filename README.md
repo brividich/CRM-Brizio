@@ -22,6 +22,8 @@
 
 ---
 
+**Procedure aziendali (Unreleased):** copertura annuale e preparazione audit MT CN 12, CAR MT CN 11 nel registro trasversale, indicatori MT CN 13 e import controllato dei Turtle. [Checklist e avanzamento](docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md). Richiede migrazione SG 0008 e bootstrap ACL; nessuna nuova dipendenza.
+
 **Audit e catalogo processi (Unreleased):** checklist revisionate, compilazione con autosalvataggio, evidenze e allegati privati, proposta delle priorita e del riepilogo, efficacia e archivio revisioni firmate. [Funzionamento e rilascio](docs/ai/CHECKLIST_SISTEMA_GESTIONE_AUDIT.md#automatismi-audit-2026-09-28).
 
 ## 📖 Indice

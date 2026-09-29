@@ -63,6 +63,9 @@ _CANONICAL = {
 }
 
 _ROUTE_BINDINGS = {
+    "sistema_gestione:procedura_preparazione": PERM_AUDIT_VIEW,
+    "sistema_gestione:procedura_car": PERM_AUDIT_VIEW,
+    "sistema_gestione:procedura_kpi": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_esito_editor": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_priorita": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_priorita_applica": PERM_AUDIT_EDIT,

@@ -8,6 +8,7 @@
     <div class="page-header-main"><div class="page-h">Audit {{ audit.numero }}</div><div class="page-sub"><span class="sg-badge">{{ audit.get_stato_display }}</span> · {{ audit.get_tipo_display }} · {{ audit.data_inizio|date:"d/m/Y" }}</div></div>
     <div class="sg-actions"><a class="btn btn-secondary" href="{% url 'sistema_gestione:audit_export' audit.pk 'piano' %}">PDF MOD.035A</a><a class="btn btn-secondary" href="{% url 'sistema_gestione:audit_export' audit.pk 'rapporto' %}">PDF MOD.035B</a>{% if puo_modificare and audit.stato == 'PIANIFICATO' %}<a class="btn" href="{% url 'sistema_gestione:audit_modifica' audit.pk %}">Modifica piano</a>{% endif %}</div>
   </div>
+  <p><a class="btn btn-secondary" href="{% url 'sistema_gestione:procedura_preparazione' audit.pk %}">Preparazione: precedenti audit, CAR cliente e documenti</a></p>
   <section class="rc-card sg-section" id="guida"><h2>Il prossimo passo</h2>
     <nav class="sg-actions" aria-label="Passaggi audit"><a href="#campo">1. Piano</a><a href="#persone">2. Persone</a><a href="#agenda">3. Agenda</a><a href="#checklist">4. Verifiche</a><a href="#rapporto">5. Rapporto e firme</a></nav>
     {% if audit.stato == 'PIANIFICATO' %}

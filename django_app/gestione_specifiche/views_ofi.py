@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
 from core.acl_v2 import request_has_permission_code
@@ -96,9 +97,10 @@ def nuovo(request):
 
 
 @login_required
+@transaction.atomic
 def modifica(request, pk: int):
     """Modifica di una voce OFI (ACL ``registroofi.add``)."""
-    voce = get_object_or_404(RegistroOFI, pk=pk)
+    voce = get_object_or_404(RegistroOFI.objects.select_for_update(), pk=pk)
     if request.method == "POST":
         form = RegistroOFIForm(request.POST, instance=voce)
         if form.is_valid():

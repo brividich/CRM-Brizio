@@ -1,5 +1,18 @@
 # Session Checkpoint
 
+Data: 2026-09-29 (merge procedure aziendali nella release)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `merge procedure aziendali nella release`. Integrato `6cd61801` sopra origin/release/prod `c4ead425`, senza conflitti, worktree isolato `temp/codex-audit-release`.
+- Codice invariato rispetto ai 171 test/check verdi; confronto alberi e diff check in integrazione. Checklist aggiornata: codice integrato, deploy separato. README/CHANGELOG conservati, registro/checkpoint aggiornati.
+- Push ordinario su origin/release/prod e verifica hash remoto. Nessun database/deploy/backup aggiuntivo; apply SG 0008, bootstrap ACL e riavvio al rilascio. Validazioni aziendali aperte nel file `docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md`.
+
+Data: 2026-09-29 (attuazione procedure aziendali audit, CAR e KPI)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `attuazione procedure aziendali audit, CAR e KPI`. Worktree `temp/codex-audit-procedure`, feature `feature/audit-procedure-aziendali`, base release `c4ead425`.
+- MT CN 12: copertura annuale, indipendenza, preavviso, preparazione e PDF; MT CN 11: CAR con scadenze/approvazioni/proroghe/efficacia collegate al Registro OFI; MT CN 13: rilevazioni KPI e VR 30/70; import Turtle in proposte inattive. Migration SG 0008. Checklist `docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md` aggiornata.
+- 171 test SG/report_conformita/registro OFI verdi, check/migration drift/diff check verdi. QA browser KPI e mobile scuro, cinque Turtle reali letti senza import nel DB. Server QA fermato; nessun database aziendale, PDF privato, dipendenza, backup aggiuntivo o deploy.
+- Critici: tre route locali e binding ACL audit.view con controlli scrittura/approvazione aggiuntivi. Cross-modulo OFI autorizzato. README/changelog root e Django/registro aggiornati; rilascio con migrate 0008, bootstrap ACL, riavvio e validazione SQL Server/ruoli/catalogo. Discrepanze aziendali rimangono nella checklist.
+
 Data: 2026-09-28 (merge audit in release/prod)
 
 - Vista/aggiunta voce AGENT_CHANGELOG `merge audit in release/prod`. Integrati `d7f28081` e `113c1009` sopra origin/release/prod `34cb1219`, senza conflitti, worktree `temp/codex-audit-release`.
