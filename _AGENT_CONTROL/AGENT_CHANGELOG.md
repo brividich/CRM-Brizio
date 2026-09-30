@@ -1,5 +1,14 @@
 # Agent Changelog
 
+## 2026-09-30 - Codex (integrazione watchdog in release/prod)
+
+- Autorizzazione esplicita dell'utente a integrare e pubblicare il watchdog dopo verifica dell'assenza in 3a181a7. Fetch: release remota gia avanzata a 444606ba; integrata nel worktree isolato C:/Dev/pn-qcluster-watchdog, feature/qcluster-watchdog, mantenendo cdf002fe e tutte le novita della release. Checkout condiviso e WIP altrui preservati; controlli sessione/lock/critical assenti, checkpoint/delta letti.
+- Conflitto solo in CHANGELOG.md, risolto conservando entrambe le serie di voci. README unito automaticamente. Codice Automazioni e script watchdog/launcher identici a cdf002fe; confronto alberi verificato. File modificati specificamente in integrazione: CHANGELOG.md (risoluzione), questo registro e session_checkpoint.md. Tutti i file applicativi integrati sono elencati nella voce watchdog successiva.
+- Test/check: 42 test mirati Automazioni nuovamente verdi sul merge con SQLite sintetico; Django check, drift migrazioni, secret hygiene e diff check. Valide le precedenti 13 prove Windows e prova launcher >1MB/exit7, script invariati. Nessuna suite completa o collaudo sul server.
+- Critici integrati: broker.py (heartbeat persistente), start_qcluster.ps1 (TEST distribuito su settings prod, ritardo validato), nuovi script watchdog/installer; dettagli e rischi nella voce successiva. Nessuna ulteriore modifica ACL, middleware, settings, autenticazione, routing o navigazione globale.
+- README aggiornato: si, integrato; CHANGELOG: si, integrato preservando release; AGENT_CHANGELOG/checkpoint: si. Backup aggiuntivi: nessuno, commit originali conservati. Push ordinario previsto su origin/release/prod, senza force, con verifica hash e inclusione cdf002fe. Nessun deploy, email reale o DB aziendale modificato.
+- Note altro agente/Brizio: pubblicazione Git distinta dall'attivazione server; seguire docs/QCLUSTER_WATCHDOG.md per migrate 0027, copia launcher, riavvio worker, installazione task e consegna email. Checkout condiviso release/prod fermo al suo commit precedente per preservare la sessione altrui: sincronizzarlo prima di creare pacchetti da quella cartella. SQL Server/account/SMTP e monitor da altra macchina restano da collaudare.
+
 ## 2026-09-30 - Codex (watchdog indipendente qcluster)
 
 - Richiesta: evitare arresti del qcluster non rilevati e migliorare la gestione. Worktree isolato `C:/Dev/pn-qcluster-watchdog`, branch `feature/qcluster-watchdog`, base `a199474f`; checkout condiviso preservato (AGENTS.md modificato e cartella utente parser pdf preesistenti). Checkpoint e delta registri letti; ACTIVE_SESSION/WORK_LOCKS/CRITICAL_FILES/CRITICAL_CHANGE_REQUESTS assenti. Nessun accesso a produzione, invio reale, nuovo servizio locale o dipendenza.

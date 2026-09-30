@@ -105,6 +105,40 @@ def _agenda_text(meeting) -> str:
     return "\n".join(lines)
 
 
+def _has_agenda_items(meeting) -> bool:
+    items = meeting.agenda_items or []
+    return isinstance(items, list) and any(
+        isinstance(i, dict) and str(i.get("titolo", "")).strip() for i in items
+    )
+
+
+def legacy_agenda_recap_lines(meeting) -> set[str]:
+    """Righe «N. Titolo: nota» che la vecchia pagina esito copiava nel verbale.
+
+    Le note dei punti vivono gia' nell'ordine del giorno: nelle minute storiche
+    lo stesso testo era ricopiato in `note`, e oggi comparirebbe due volte.
+    """
+    lines: set[str] = set()
+    for index, item in enumerate(meeting.agenda_items or [], start=1):
+        if not isinstance(item, dict):
+            continue
+        titolo = str(item.get("titolo", "")).strip()
+        nota = str(item.get("nota", "")).strip()
+        if titolo and nota:
+            lines.add(f"{index}. {titolo}: {nota}")
+    return lines
+
+
+def note_generali(meeting) -> str:
+    """Note libere dell'incontro, senza il testo gia' riportato nei punti."""
+    duplicated = legacy_agenda_recap_lines(meeting)
+    kept = [
+        line for line in (meeting.note or "").splitlines()
+        if line.strip() not in duplicated
+    ]
+    return "\n".join(kept).strip()
+
+
 def _issues_text(meeting) -> str:
     """Problemi sollevati o chiusi in questo incontro, resi come testo."""
     from django.db.models import Q
@@ -225,12 +259,28 @@ def _presenze_sections(meeting) -> list[tuple[str, str]]:
     ]
 
 
+def _agenda_verbale_sections(meeting) -> list[tuple[str, str]]:
+    """Ordine del giorno e verbale in un'unica sezione: ogni punto porta la sua nota.
+
+    Le note che non appartengono a nessun punto restano in «Note generali».
+    Senza punti strutturati (incontri storici) si torna alle due sezioni testuali.
+    """
+    if _has_agenda_items(meeting):
+        return [
+            ("Ordine del giorno e verbale", _agenda_text(meeting)),
+            ("Note generali", note_generali(meeting)),
+        ]
+    return [
+        ("Ordine del giorno", meeting.ordine_del_giorno),
+        ("Verbale / Note", meeting.note),
+    ]
+
+
 def _minute_sections(meeting) -> list[tuple[str, str]]:
     """Sezioni della minuta, sorgente unica per email e PDF (evita che divergano)."""
     return [
         *_presenze_sections(meeting),
-        ("Ordine del giorno", _agenda_text(meeting) or meeting.ordine_del_giorno),
-        ("Verbale / Note", meeting.note),
+        *_agenda_verbale_sections(meeting),
         ("Decisioni", _decisions_text(meeting)),
         ("Problemi", _issues_text(meeting) or meeting.problemi_aperti),
         ("Azioni", _actions_text(meeting) or meeting.next_steps),
@@ -442,19 +492,43 @@ def _cc_management(meeting, exclude: list[str]) -> list[str]:
     return cc
 
 
+def minute_recipients(meeting) -> tuple[list[str], list[str]]:
+    """(destinatari, assenti in copia) della minuta.
+
+    Con l'appello registrato la minuta va ai presenti e gli assenti restano in
+    copia. Se nessun presente ha un indirizzo, si scrive a tutti i partecipanti:
+    meglio una minuta a tutti che nessuna minuta.
+    """
+    tutti = meeting.get_all_attendee_emails()
+    if not getattr(meeting, "presenze_registrate", False):
+        return tutti, []
+    presenti: list[str] = []
+    for user in meeting.presenti_utenti.all():
+        email = (getattr(user, "email", "") or "").strip()
+        if email and email not in presenti:
+            presenti.append(email)
+    for email in meeting.get_presenti_email_list():
+        if email not in presenti:
+            presenti.append(email)
+    if not presenti:
+        return tutti, []
+    return presenti, [e for e in tutti if e not in presenti]
+
+
 def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict:
     """Invia la minuta a tutti i partecipanti (CC a PM/capo commessa, PDF allegato).
 
     Ritorna esito senza sollevare per casi previsti.
     """
-    recipients = meeting.get_all_attendee_emails()
+    recipients, assenti = minute_recipients(meeting)
     if not recipients:
         return {"sent": False, "recipients": [], "cc": [], "reason": "no_recipients"}
 
     from core.email_utils import send_hub_mail
 
     subject, body_text, body_html = build_minute_email(meeting)
-    cc = _cc_management(meeting, exclude=recipients)
+    # Chi non c'era resta in copia: la minuta lo riguarda comunque.
+    cc = assenti + _cc_management(meeting, exclude=recipients + assenti)
     attachments = None
     if with_pdf:
         try:

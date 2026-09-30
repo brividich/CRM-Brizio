@@ -3635,6 +3635,7 @@ body.theme-dark .md-hero { background: linear-gradient(135deg,#0f172a 0%,#1e3a5f
 .agenda-body { flex: 1; min-width: 0; }
 .agenda-title { font-size: .9rem; font-weight: 600; color: var(--text); word-break: break-word; }
 .agenda-nota { font-size: .8125rem; color: var(--text-light); margin-top: 4px; white-space: pre-wrap; }
+.agenda-nota-input { width: 100%; margin-top: 6px; font-size: .8125rem; resize: vertical; }
 .agenda-extra-fields {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 6px; margin-top: 8px;

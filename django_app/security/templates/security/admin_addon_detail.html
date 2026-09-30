@@ -59,7 +59,7 @@
   <div class="sec-section-head"><h2>Parser</h2></div>
   <div class="sec-table-wrap">
     <table class="sec-table">
-      <thead><tr><th>Nome parser</th><th>Stato</th><th>Priorita</th><th>source_type</th><th>Tipo input</th><th>Descrizione</th></tr></thead>
+      <thead><tr><th>Nome parser</th><th>Stato</th><th>Priorità</th><th>source_type</th><th>Tipo input</th><th>Descrizione</th></tr></thead>
       <tbody>
         {% for parser in addon.parsers %}
           <tr><td><code>{{ parser.parser_name }}</code></td><td><span class="sec-badge {% if parser.enabled %}ok{% else %}disabled{% endif %}">{% if parser.enabled %}Attivo{% else %}Disattivato{% endif %}</span></td><td>{{ parser.priority }}</td><td><code>{{ parser.source_type|default:"-" }}</code></td><td>{{ parser.input_type|default:"-" }}</td><td>{{ parser.description|default:"-" }}</td></tr>

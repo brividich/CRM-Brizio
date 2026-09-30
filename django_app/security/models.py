@@ -986,6 +986,10 @@ class SecurityVpnAccess(models.Model):
     logout_at = models.DateTimeField(null=True, blank=True)
     duration_seconds = models.PositiveIntegerField(default=0)
     method = models.CharField(max_length=64, blank=True)
+    # vpn / firewall / guest / other: il report Authentication del Firebox elenca anche i login
+    # «Firewall» (centinaia al giorno di un servizio): non sono accessi VPN.
+    kind = models.CharField(max_length=16, blank=True, default="", db_index=True)
+    reason = models.CharField(max_length=300, blank=True)
     firebox_name = models.CharField(max_length=120, blank=True)
     dedup_hash = models.CharField(max_length=64)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)

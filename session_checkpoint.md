@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-09-30 (integrazione watchdog in release/prod)
+
+- Vista/aggiunta voce AGENT_CHANGELOG integrazione watchdog in release/prod. Autorizzazione esplicita utente; unita origin/release/prod 444606ba a cdf002fe nel worktree dedicato C:/Dev/pn-qcluster-watchdog. Conflitto solo CHANGELOG risolto mantenendo entrambe le linee; codice watchdog invariato.
+- 42 test mirati nuovamente verdi sul merge, check/drift/secret hygiene/diff check; prove Windows precedenti valide per uguaglianza script. README/CHANGELOG integrati, registro/checkpoint aggiornati. Nessun backup aggiuntivo, deploy o DB aziendale.
+- Push ordinario su origin/release/prod e verifica remota; checkout condiviso non modificato. Prima del packaging da quella cartella sincronizzare il ramo locale. Attivare sul server con runbook (migrazione 0027, launcher, restart, installer watchdog, collaudo email). Critici e rischi della voce watchdog invariati.
+
 Data: 2026-09-30 (watchdog indipendente qcluster)
 
 - Vista/aggiunta voce AGENT_CHANGELOG watchdog indipendente qcluster; README, CHANGELOG root/Django e runbook docs/QCLUSTER_WATCHDOG.md aggiornati. Worktree C:/Dev/pn-qcluster-watchdog, feature/qcluster-watchdog, base a199474f; checkout condiviso preservato.

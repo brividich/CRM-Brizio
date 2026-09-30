@@ -13,12 +13,16 @@ from security.services.parser_engine import run_pending_parsers
 from security.services.vpn_history import persist_vpn_accesses
 
 ALLOWED_CSV = (
-    "User,Source IP,Login Time,Logout Time,Duration\n"
-    "mario.rossi,203.0.113.10,2026-09-29 08:01:00,2026-09-29 09:31:00,01:30:00\n"
-    "anna.verdi,203.0.113.11,2026-09-29 08:05:00,2026-09-29 08:06:00,00:01:00\n"
-    "mario.rossi,203.0.113.10,2026-09-29 14:00:00,2026-09-29 15:00:00,01:00:00\n"
+    "User,Source IP,Login Time,Logout Time,Duration,Method\n"
+    "mario.rossi,203.0.113.10,2026-09-29 08:01:00,2026-09-29 09:31:00,01:30:00,SSLVPN\n"
+    "anna.verdi,203.0.113.11,2026-09-29 08:05:00,2026-09-29 08:06:00,00:01:00,SSLVPN\n"
+    "mario.rossi,203.0.113.10,2026-09-29 14:00:00,2026-09-29 15:00:00,01:00:00,SSLVPN\n"
 )
-DENIED_CSV = "User,Source IP,Login Time\nadmin,198.51.100.7,2026-09-29 03:00:00\nadmin,198.51.100.7,2026-09-29 03:01:00\n"
+DENIED_CSV = (
+    "User,Source IP,Login Time,Reason\n"
+    "admin,198.51.100.7,2026-09-29 03:00:00,Authentication of SSLVPN user [admin] was rejected\n"
+    "admin,198.51.100.7,2026-09-29 03:01:00,Authentication of SSLVPN user [admin] was rejected\n"
+)
 PDF_TEXT = (
     "Firebox Authentication Allowed\n"
     "User Source IP Login Time Logout Time Duration\n"
@@ -90,6 +94,42 @@ class VpnHistoryPersistenceTests(TestCase):
         self.assertEqual(values["vpn_session_max_seconds"], 5400)
 
 
+class SocDashboardAndKpiTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user("soc_dash", password="x", is_staff=True, is_superuser=True)
+        self.client.force_login(user)
+
+    def test_dashboard_shows_data_flows_and_vpn_panels(self):
+        response = self.client.get(reverse("security:dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Flussi dati")
+        self.assertContains(response, "Accessi VPN")
+        self.assertIn("source_rows", response.context)
+
+    def test_metric_display_formats_by_unit(self):
+        from security.templatetags.security_i18n import metric_display
+
+        self.assertEqual(metric_display(SimpleNamespace(name="vpn_session_avg_seconds", value=5400.0)), "1:30:00")
+        self.assertEqual(metric_display(SimpleNamespace(name="backup_transferred_total_gb", value=1234.5)), "1.234,50 GB")
+        self.assertEqual(metric_display(SimpleNamespace(name="vpn_access_allowed", value=1200.0)), "1.200")
+
+
+class VpnFindingsTests(TestCase):
+    def test_burst_then_success_is_flagged_high(self):
+        from security.services.vpn_history import vpn_findings
+
+        source = SecuritySource.objects.create(name="Firewall", source_type="watchguard_epdr", vendor="WatchGuard")
+        denied = "User,Source IP,Login Time\n" + "".join(f"admin,198.51.100.7,2026-09-29 03:{m:02d}:00\n" for m in range(12))
+        allowed = "User,Source IP,Login Time,Logout Time,Duration\nadmin,198.51.100.7,2026-09-29 03:30:00,2026-09-29 04:00:00,00:30:00\n"
+        rows = []
+        for name, text in (("FB1_Authentication_Denied.csv", denied), ("FB1_Authentication_Allowed.csv", allowed)):
+            rows += [r.payload for r in WatchGuardReportParser().parse(_item(name, text)).records if r.record_type == "vpn_access"]
+        persist_vpn_accesses(source, None, rows)
+        findings = vpn_findings(SecurityVpnAccess.objects.all())
+        self.assertEqual(findings[0]["level"], "high")
+        self.assertIn("dopo 12 rifiuti", findings[0]["title"])
+
+
 class VpnHistoryPageTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user("vpn_admin", password="x", is_staff=True, is_superuser=True)
@@ -109,5 +149,7 @@ class VpnHistoryPageTests(TestCase):
         filtered = self.client.get(reverse("security:vpn_history"), {"action": "denied", "user": "admin"})
         self.assertEqual(filtered.context["page"].paginator.count, 2)
         self.assertNotContains(filtered, "mario.rossi</td>")
+        self.assertFalse(response.context["daily"]["empty"])
+        self.assertEqual(len(response.context["hours"]), 24)
         by_day = self.client.get(reverse("security:vpn_history"), {"from": "2026-09-30"})
         self.assertEqual(by_day.context["page"].paginator.count, 0)

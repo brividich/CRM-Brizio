@@ -490,3 +490,41 @@ body.theme-dark .soc-module .sec-button:not(.sec-button-primary):hover { color: 
 .soc-module .sec-section-help { border-left: 3px solid var(--primary-mid); }
 .soc-module .sec-section-help-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
+/* Storico accessi VPN */
+.soc-module .vpn-filters { margin-bottom: 12px; }
+.soc-module .vpn-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.soc-module .vpn-kpis .sec-kpi-card { min-height: 0; }
+.soc-module .vpn-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; margin-bottom: 12px; align-items: stretch; }
+.soc-module .vpn-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.soc-module .vpn-chart svg { display: block; width: 100%; height: auto; }
+.soc-module .vpn-chart .grid { stroke: var(--border); stroke-width: 1; }
+.soc-module .vpn-chart .axis-label { fill: var(--text-light); font-size: 11px; }
+.soc-module .vpn-chart .bar-ok { fill: var(--success); }
+.soc-module .vpn-chart .bar-ko { fill: var(--danger); }
+.soc-module .vpn-chart .bar-hit { fill: transparent; }
+.soc-module .vpn-chart g:hover .bar-hit { fill: var(--border); opacity: .35; }
+.soc-module .vpn-findings { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.soc-module .vpn-findings li { padding: 8px 10px; border-left: 4px solid var(--border); background: var(--bg, transparent); border-radius: 4px; }
+.soc-module .vpn-findings li.high { border-left-color: var(--danger); }
+.soc-module .vpn-findings li.warning { border-left-color: var(--warning); }
+.soc-module .vpn-findings li.info { border-left-color: var(--primary-mid); }
+.soc-module .vpn-findings small { display: block; margin-top: 2px; color: var(--text-mid); }
+.soc-module .vpn-hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; align-items: end; height: 130px; }
+.soc-module .vpn-hours span { position: relative; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.soc-module .vpn-hours i { display: block; height: var(--h); min-height: 2px; border-radius: 2px 2px 0 0; background: var(--success); }
+.soc-module .vpn-hours span.zero i { min-height: 0; }
+.soc-module .vpn-hours span.night i { background: var(--warning); }
+.soc-module .vpn-hours b { position: absolute; bottom: -16px; left: 0; font-size: 10px; font-weight: 500; color: var(--text-light); }
+.soc-module .vpn-row-3 .sec-panel:first-child { padding-bottom: 28px; }
+.soc-module .vpn-pager { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+@media (max-width: 1100px) {
+  .soc-module .vpn-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .soc-module .vpn-row, .soc-module .vpn-row-3 { grid-template-columns: 1fr; }
+}
+
+/* Griglie: i figli non devono allargare la colonna oltre lo spazio disponibile (scroll orizzontale). */
+.soc-module .sec-two-col > *, .soc-module .sec-dash-cols > * { min-width: 0; }
+.soc-module .sec-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+@media (max-width: 1100px) { .soc-module .sec-pair { grid-template-columns: 1fr; } }
+.soc-module .sec-dash-cols > .sec-grid { grid-template-columns: minmax(0, 1fr); align-content: start; }
+.soc-module .sec-dash-cols .sec-panel { min-width: 0; }

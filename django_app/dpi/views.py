@@ -5,7 +5,7 @@ import binascii
 import json
 import logging
 import mimetypes
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -25,7 +25,7 @@ from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.operational_roles import get_legacy_anagrafica_id
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
-from . import flusso
+from . import flusso, magazzino
 from .acl_bootstrap import PERM_DPI_MANAGE
 
 from .models import (
@@ -33,6 +33,7 @@ from .models import (
     CategoriaDPI,
     ConsegnaDPI,
     DocumentoDPI,
+    MovimentoMagazzinoDPI,
     DPIImpostazioni,
     ModelloDPI,
     RichiestaDPI,
@@ -857,6 +858,7 @@ def gestione_detail(request, pk: int):
         "consegna": consegna,
         "oggi": timezone.localdate(),
         "vita_utile_consegna": vita_utile_consegna,
+        "giacenza_modello": magazzino.giacenza(richiesta.modello_dpi_id) if richiesta.modello_dpi_id else None,
         "is_gestore": is_gestore,
         "is_approvatore": True,
     })
@@ -997,7 +999,6 @@ def consegna_richiesta(request, pk: int):
         messages.error(request, "Inserisci la data di consegna.")
         return redirect("dpi:gestione_detail", pk=pk)
 
-    from datetime import date
     try:
         data_consegna = date.fromisoformat(data_str)
     except ValueError:
@@ -1054,7 +1055,14 @@ def consegna_richiesta(request, pk: int):
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
     flusso.notifica_consegnata(consegna)
+    movimento, residuo = magazzino.scarica_per_consegna(richiesta, data_consegna, user=request.user)
+    if movimento is not None:
+        log_action(request, "DPI_MAGAZZINO_SCARICO", "dpi", f"Scarico {movimento.quantita} x {movimento.modello.codice} per {richiesta.numero}")
     messages.success(request, f"Consegna DPI {richiesta.numero} registrata.")
+    if residuo is not None and residuo < 0:
+        messages.warning(request, f"Giacenza di magazzino negativa ({residuo}) per {richiesta.modello_dpi.codice}: registra il carico dei DDT o una rettifica.")
+    elif residuo is not None and richiesta.modello_dpi.scorta_minima and residuo <= richiesta.modello_dpi.scorta_minima:
+        messages.warning(request, f"{richiesta.modello_dpi.codice} sotto scorta minima: restano {residuo} pezzi.")
     return redirect("dpi:gestione_detail", pk=pk)
 
 
@@ -1536,3 +1544,126 @@ def documento_elimina(request, pk: int):
     log_action(request, "DPI_DOCUMENTO_ELIMINATO", "dpi", dettaglio)
     messages.success(request, "Documento eliminato.")
     return redirect("dpi:documenti")
+
+
+# ---------------------------------------------------------------------------
+# Magazzino: scorta per modello, carico da DDT (manuale), rettifiche
+# ---------------------------------------------------------------------------
+
+def _int_or_none(value) -> int | None:
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+@login_required
+def magazzino_view(request):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+
+    if request.method == "POST":
+        azione = request.POST.get("azione", "")
+        modello = ModelloDPI.objects.filter(pk=_int_or_none(request.POST.get("modello"))).first()
+        if modello is None:
+            messages.error(request, "Scegli il DPI.")
+            return redirect("dpi:magazzino")
+        if azione == "carico":
+            qta = _int_or_none(request.POST.get("quantita"))
+            try:
+                data = date.fromisoformat(request.POST.get("data", "").strip()) if request.POST.get("data") else timezone.localdate()
+            except ValueError:
+                data = None
+            if not qta or qta <= 0 or data is None:
+                messages.error(request, "Indica una quantità positiva e una data valida.")
+                return redirect("dpi:magazzino")
+            mov = magazzino.carica_ddt(
+                modello, qta, ddt_numero=request.POST.get("ddt_numero", "").strip(), data=data,
+                fornitore=request.POST.get("fornitore", "").strip(), note=request.POST.get("note", "").strip(), user=request.user,
+            )
+            log_action(request, "DPI_MAGAZZINO_CARICO", "dpi", f"Carico {qta} x {modello.codice} (DDT {mov.ddt_numero or 's.n.'})")
+            messages.success(request, f"Caricati {qta} × {modello.codice}. Giacenza: {magazzino.giacenza(modello.pk)}.")
+        elif azione == "rettifica":
+            nuova = _int_or_none(request.POST.get("giacenza"))
+            if nuova is None or nuova < 0:
+                messages.error(request, "Indica la giacenza corretta (zero o più).")
+                return redirect("dpi:magazzino")
+            mov = magazzino.imposta_giacenza(modello, nuova, note=request.POST.get("note", "").strip(), user=request.user)
+            if mov:
+                log_action(request, "DPI_MAGAZZINO_RETTIFICA", "dpi", f"Rettifica {mov.quantita:+d} su {modello.codice}: giacenza {nuova}")
+            messages.success(request, f"Giacenza di {modello.codice} impostata a {nuova}.")
+        elif azione == "soglia":
+            soglia = _int_or_none(request.POST.get("scorta_minima"))
+            if soglia is None or soglia < 0:
+                messages.error(request, "La scorta minima deve essere zero o più.")
+                return redirect("dpi:magazzino")
+            modello.scorta_minima = soglia
+            modello.save(update_fields=["scorta_minima", "updated_at"])
+            messages.success(request, f"Scorta minima di {modello.codice}: {soglia}.")
+        return redirect("dpi:magazzino")
+
+    modelli = list(_catalog_select_related()["modelli"].filter(is_active=True))
+    per_modello = magazzino.giacenze()
+    righe = []
+    for m in modelli:
+        qta = per_modello.get(m.pk, 0)
+        pct = min(100, max(0, round(qta * 50 / m.scorta_minima))) if m.scorta_minima else 0
+        righe.append({"modello": m, "giacenza": qta, "pct": pct, "stato": magazzino.stato_scorta(qta, m.scorta_minima)})
+    n_esauriti = sum(1 for r in righe if r["stato"] == magazzino.STATO_ESAURITO)
+    n_sotto = sum(1 for r in righe if r["stato"] == magazzino.STATO_SOTTO_SCORTA)
+    solo = request.GET.get("stato", "")
+    if solo in (magazzino.STATO_ESAURITO, magazzino.STATO_SOTTO_SCORTA, magazzino.STATO_OK):
+        righe = [r for r in righe if r["stato"] == solo]
+    movimenti = MovimentoMagazzinoDPI.objects.select_related("modello", "created_by")
+    modello_mov = _parse_optional_positive_int(request.GET.get("modello"))
+    if modello_mov:
+        movimenti = movimenti.filter(modello_id=modello_mov)
+    return render(request, "dpi/pages/magazzino.html", {
+        "is_gestore": True,
+        "righe": righe,
+        "modelli": modelli,
+        "n_modelli": len(modelli),
+        "n_esauriti": n_esauriti,
+        "n_sotto": n_sotto,
+        "pezzi_totali": sum(per_modello.get(m.pk, 0) for m in modelli),
+        "filtro_stato": solo,
+        "modello_mov": modello_mov,
+        "movimenti": movimenti[:40],
+        "oggi": timezone.localdate(),
+    })
+
+
+def _csv_safe(value) -> str:
+    """Neutralizza le formule dei fogli di calcolo nei campi di testo liberi."""
+    text = str(value or "")
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+@login_required
+def magazzino_report(request):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+    giorni = _int_or_none(request.GET.get("giorni")) or 90
+    if giorni not in (30, 90, 180, 365):
+        giorni = 90
+    dati = magazzino.report(giorni)
+
+    if request.GET.get("formato") == "csv":
+        import csv
+
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="movimenti_dpi_{timezone.localdate():%Y%m%d}.csv"'
+        response.write("\ufeff")
+        writer = csv.writer(response, delimiter=";")
+        writer.writerow(["Data", "Movimento", "Codice", "DPI", "Quantita", "DDT", "Fornitore", "Nota"])
+        for m in MovimentoMagazzinoDPI.objects.filter(data__gte=dati["da"]).select_related("modello").order_by("data", "id"):
+            writer.writerow([
+                m.data.isoformat(), m.get_tipo_display(), _csv_safe(m.modello.codice), _csv_safe(m.modello.nome),
+                m.quantita, _csv_safe(m.ddt_numero), _csv_safe(m.fornitore), _csv_safe(m.note),
+            ])
+        log_action(request, "DPI_MAGAZZINO_EXPORT", "dpi", f"Esportati movimenti magazzino dal {dati['da']}")
+        return response
+
+    return render(request, "dpi/pages/magazzino_report.html", {**dati, "is_gestore": True, "periodi": (30, 90, 180, 365)})

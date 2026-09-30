@@ -719,12 +719,15 @@ class MeetingRunTests(TasksBaseTestCase):
         self.meeting.refresh_from_db()
         self.assertEqual(self.meeting.agenda_items[0]["nota"], "")
 
-    def test_l_esito_riparte_dalle_note_prese_durante_la_riunione(self):
+    def test_l_esito_non_ricopia_le_note_dei_punti_nel_verbale(self):
+        """La nota sta sotto il punto (una sola volta): le note generali restano vuote."""
         self.client.post(self.item_url, {"item_id": "a1", "nota": "in linea col piano"})
         response = self.client.get(
             reverse("tasks:project_meeting_minutes", args=[self.project.id, self.meeting.id])
         )
-        self.assertIn("Stato avanzamento: in linea col piano", response.context["form"].initial["note"])
+        self.assertEqual(response.context["form"].initial["note"], "")
+        self.assertContains(response, "in linea col piano")
+        self.assertContains(response, 'data-agenda-nota="a1"')
 
     def test_un_verbale_gia_scritto_non_viene_sovrascritto(self):
         self.meeting.note = "verbale scritto a mano"
@@ -1545,6 +1548,52 @@ class MeetingAttendanceTests(TasksBaseTestCase):
         self.assertIn("esterno@example.com", sections["Presenti"])
         self.assertIn(self.assente.username, sections["Assenti"])
         self.assertIn("altro@example.com", sections["Assenti"])
+
+    def test_aggiungere_persone_all_incontro_le_rende_partecipanti_e_presenti(self):
+        nuovo = _create_user_with_legacy(
+            username="presenze-nuovo", legacy_user_id=514, role_id=2, role_name="tasks"
+        )
+        response = self.client.post(self.minutes_url, {
+            "presenti_utenti": [self.user.pk],
+            "presenti_email_list": [],
+            "aggiunti_utenti": [nuovo.pk],
+            "aggiunti_email": "ospite@example.com, altro-ospite@example.com",
+            "note": "verbale",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.meeting.refresh_from_db()
+        self.assertIn(nuovo, self.meeting.partecipanti_utenti.all())
+        self.assertIn(nuovo, self.meeting.presenti_utenti.all())
+        self.assertIn("ospite@example.com", self.meeting.get_partecipanti_email_list())
+        self.assertIn("altro-ospite@example.com", self.meeting.get_presenti_email_list())
+        # il convocato assente resta assente, con le sue email esterne originali
+        self.assertIn(self.assente, self.meeting.assenti_utenti)
+        self.assertIn("esterno@example.com", self.meeting.assenti_email)
+
+    def test_email_aggiunta_non_valida_blocca_il_salvataggio(self):
+        response = self.client.post(self.minutes_url, {
+            "presenti_utenti": [self.user.pk],
+            "aggiunti_email": "senza-chiocciola",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.meeting.refresh_from_db()
+        self.assertFalse(self.meeting.presenze_registrate)
+
+    def test_minuta_va_ai_presenti_e_gli_assenti_restano_in_copia(self):
+        from tasks.minute_email import minute_recipients
+
+        self.assente.email = "assente@example.com"
+        self.assente.save(update_fields=["email"])
+        self.client.post(self.minutes_url, {
+            "presenti_utenti": [self.user.pk],
+            "presenti_email_list": [],
+            "aggiunti_email": "ospite@example.com",
+            "note": "verbale",
+        })
+        self.meeting.refresh_from_db()
+        a, cc = minute_recipients(self.meeting)
+        self.assertCountEqual(a, ["pm-presenze@example.com", "ospite@example.com"])
+        self.assertCountEqual(cc, ["assente@example.com", "esterno@example.com", "altro@example.com"])
 
     def test_dettaglio_incontro_mostra_il_conteggio_presenze(self):
         self.client.post(self.minutes_url, {

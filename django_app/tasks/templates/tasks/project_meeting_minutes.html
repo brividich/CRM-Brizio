@@ -29,8 +29,7 @@
   {% endcomment %}
   <nav class="mf-jump" aria-label="Sezioni dell'esito">
     <a href="#sec-presenze">Presenze</a>
-    <a href="#sec-agenda">Punti trattati</a>
-    <a href="#sec-verbale">Verbale</a>
+    <a href="#sec-agenda">Ordine del giorno e verbale</a>
     <a href="#sec-problemi">Problemi{% if meeting_issues %} <b>{{ meeting_issues|length }}</b>{% endif %}</a>
     <a href="#sec-decisioni">Decisioni{% if meeting_decisions %} <b>{{ meeting_decisions|length }}</b>{% endif %}</a>
     <a href="#sec-azioni">Azioni{% if meeting_actions %} <b>{{ meeting_actions|length }}</b>{% endif %}</a>
@@ -57,18 +56,30 @@
             {{ form.presenti_email_list }}
           </div>
         {% else %}
-          <p class="mf-hint" style="margin:0">Nessun partecipante convocato: aggiungili dalla convocazione per registrare le presenze.</p>
+          <p class="mf-hint" style="margin:0">Nessun partecipante convocato: aggiungi qui sotto chi c'era.</p>
         {% endif %}
+        {# Chi non era in convocazione: entra fra partecipanti e presenti al salvataggio. #}
+        <div class="mf-field" style="margin:14px 0 0">
+          <label class="mf-label" for="{{ form.aggiunti_utenti.id_for_label }}">{{ form.aggiunti_utenti.label }}</label>
+          {{ form.aggiunti_utenti }}
+          <p class="mf-hint">Tieni premuto Ctrl per sceglierne più di una. Risulteranno partecipanti e presenti, e riceveranno la minuta.</p>
+        </div>
+        <div class="mf-field" style="margin:10px 0 0">
+          <label class="mf-label" for="{{ form.aggiunti_email.id_for_label }}">{{ form.aggiunti_email.label }}</label>
+          {{ form.aggiunti_email }}
+          {% if form.aggiunti_email.errors %}<ul class="mf-errorlist">{% for e in form.aggiunti_email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <p class="mf-hint" style="margin-bottom:0">La minuta va ai presenti; chi era convocato e non c'era resta in copia.</p>
       </div>
     </div>
 
     <div class="mf-section" id="sec-agenda">
       <div class="mf-section-head">
         <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
-        <span>Punti trattati</span>
+        <span>Ordine del giorno e verbale</span>
       </div>
       <div class="mf-section-body">
-        <p class="mf-hint" style="margin-top:0;margin-bottom:10px">Spunta i punti effettivamente trattati. Le spunte si salvano subito, senza attendere il salvataggio del verbale. I punti che restano da trattare vengono riproposti nell'ordine del giorno del prossimo incontro.</p>
+        <p class="mf-hint" style="margin-top:0;margin-bottom:10px">Per ogni punto spunta se è stato trattato e scrivi cosa è emerso: la nota sta sotto il punto e compare una sola volta nella minuta. Spunte e note si salvano subito. I punti che restano da trattare vengono riproposti nell'ordine del giorno del prossimo incontro.</p>
         <div class="agenda-list" id="agenda-live-list">
           {% for item in meeting.agenda_items %}
             <div class="agenda-item{% if item.source == 'live' %} is-live{% endif %}" data-agenda-item="{{ item.id }}">
@@ -79,7 +90,9 @@
                   {% if item.responsabile_label %}<span class="agenda-task-badge">{{ item.responsabile_label }}</span>{% endif %}
                   {% if item.durata_minuti %}<span class="agenda-task-badge">{{ item.durata_minuti }} min</span>{% endif %}
                 </div>
-                {% if item.nota %}<div class="agenda-nota">{{ item.nota }}</div>{% endif %}
+                <textarea class="input agenda-nota-input" rows="2" maxlength="1000"
+                          data-agenda-nota="{{ item.id }}"
+                          placeholder="Note e decisioni su questo punto">{{ item.nota }}</textarea>
               </div>
               <button type="button" class="mf-btn-sm {% if item.done %}primary{% else %}ghost{% endif %}"
                       data-agenda-toggle="{{ item.id }}">
@@ -94,20 +107,11 @@
         {% endcomment %}
         {% include "tasks/_meeting_agenda_add.html" %}
         <p class="mf-hint" style="margin-bottom:0">Il punto aggiunto qui è salvato subito nell'ordine del giorno, anche se non registri ancora l'esito.</p>
-      </div>
-    </div>
-
-    <div class="mf-section" id="sec-verbale">
-      <div class="mf-section-head">
-        <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
-        <span>Verbale</span>
-      </div>
-      <div class="mf-section-body">
-        <div class="mf-field" style="margin-bottom:0">
-          <label class="mf-label" for="{{ form.note.id_for_label }}">Verbale / Note incontro</label>
+        <div class="mf-field" style="margin:14px 0 0">
+          <label class="mf-label" for="{{ form.note.id_for_label }}">Note generali</label>
           {{ form.note }}
           {% if form.note.errors %}<ul class="mf-errorlist">{% for e in form.note.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-          <p class="mf-hint">È il testo che finisce nella minuta inviata ai partecipanti.</p>
+          <p class="mf-hint">Solo ciò che non riguarda un punto in particolare. Finisce nella minuta dopo i punti.</p>
         </div>
       </div>
     </div>
@@ -336,6 +340,14 @@
         title.appendChild(mins);
       }
       body.appendChild(title);
+      var nota = document.createElement('textarea');
+      nota.className = 'input agenda-nota-input';
+      nota.rows = 2;
+      nota.maxLength = 1000;
+      nota.placeholder = 'Note e decisioni su questo punto';
+      nota.setAttribute('data-agenda-nota', item.id);
+      if (typeof window.bindAgendaNota === 'function') { window.bindAgendaNota(nota); }
+      body.appendChild(nota);
       var toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'mf-btn-sm ghost';
@@ -395,6 +407,27 @@
     });
   };
   document.querySelectorAll('[data-agenda-toggle]').forEach(window.bindAgendaToggle);
+
+  /* Nota del punto: salvata alla perdita del focus, stesso endpoint della conduzione. */
+  const updateUrl = "{% url 'tasks:project_meeting_agenda_item_update' project.id meeting.id %}";
+  window.bindAgendaNota = function (area) {
+    let saved = area.value;
+    area.addEventListener('blur', function () {
+      if (area.value === saved) return;
+      const body = new URLSearchParams();
+      body.set('item_id', area.getAttribute('data-agenda-nota'));
+      body.set('nota', area.value);
+      fetch(updateUrl, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+        body: body,
+      })
+        .then(r => r.json())
+        .then(function (data) { if (data && data.ok) saved = area.value; })
+        .catch(function () {});
+    });
+  };
+  document.querySelectorAll('[data-agenda-nota]').forEach(window.bindAgendaNota);
 
   /* Mini-form attivita' kickoff: il pannello e' l'include condiviso con la
      scheda incontro, qui serve solo il gancio che lo apre. */

@@ -63,6 +63,29 @@ def evaluate_source_heartbeat(now=None) -> list[SecurityEventRecord]:
     return events
 
 
+def source_status_rows(now=None):
+    """Stato di ogni casella attiva, per la dashboard: ultimo passaggio, ultimo report, silenzio."""
+    now = now or timezone.now()
+    rows = []
+    for mailbox_source in SecurityMailboxSource.objects.filter(enabled=True).order_by("name"):
+        verdict = _evaluate_one(mailbox_source, now) if mailbox_source.expected_every_hours else None
+        if verdict is None:
+            state, label = "ok", "In regola"
+        elif verdict["reason"] == REASON_NO_RUN:
+            state, label = "high", "Lettura ferma"
+        else:
+            state, label = "warning", "Nessun report"
+        rows.append({
+            "name": mailbox_source.name,
+            "state": state,
+            "label": label,
+            "last_run_at": mailbox_source.last_run_at,
+            "last_report_at": _last_report_at(mailbox_source),
+            "expected_every_hours": mailbox_source.expected_every_hours,
+        })
+    return rows
+
+
 def _evaluate_one(mailbox_source, now):
     """Return the silence verdict for a source, or None when it is healthy."""
     deadline_hours = mailbox_source.expected_every_hours + grace_hours()

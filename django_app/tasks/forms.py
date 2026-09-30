@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from datetime import date
 
 from django import forms
@@ -1367,13 +1369,29 @@ class KickoffMeetingMinuteForm(forms.ModelForm):
         label="Presenti (esterni)",
     )
 
+    # Chi non era stato convocato ma e' comparso in riunione: entra fra i
+    # partecipanti e fra i presenti dell'incontro, senza tornare alla convocazione.
+    aggiunti_utenti = forms.ModelMultipleChoiceField(
+        required=False,
+        queryset=User.objects.none(),
+        widget=forms.SelectMultiple(attrs={"class": "input", "size": 6}),
+        label="Aggiungi persone del portale",
+    )
+    aggiunti_email = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={"class": "input", "rows": 2, "placeholder": "nome@esempio.it (una per riga)"}
+        ),
+        label="Aggiungi persone esterne",
+    )
+
     class Meta:
         model = KickoffMeeting
         fields = ["presenti_utenti", "note", "problemi_aperti", "next_steps"]
         widgets = {
             "presenti_utenti": forms.CheckboxSelectMultiple(),
             "note": forms.Textarea(
-                attrs={"class": "input", "rows": 8, "placeholder": "Verbale / Note incontro"}
+                attrs={"class": "input", "rows": 8, "placeholder": "Note generali (quelle dei singoli punti vanno sotto il punto)"}
             ),
             "problemi_aperti": forms.Textarea(
                 attrs={
@@ -1402,6 +1420,9 @@ class KickoffMeetingMinuteForm(forms.ModelForm):
 
         convocati = meeting.partecipanti_utenti.all()
         emails = meeting.get_partecipanti_email_list()
+        self.fields["aggiunti_utenti"].queryset = task_active_users_queryset().exclude(
+            pk__in=convocati.values_list("pk", flat=True)
+        )
         self.fields["presenti_utenti"].queryset = convocati
         self.fields["presenti_email_list"].choices = [(e, e) for e in emails]
 
@@ -1414,12 +1435,43 @@ class KickoffMeetingMinuteForm(forms.ModelForm):
         else:
             self.initial["presenti_email_list"] = meeting.get_presenti_email_list()
 
+    def clean_aggiunti_email(self):
+        raw = self.cleaned_data.get("aggiunti_email") or ""
+        emails: list[str] = []
+        invalid: list[str] = []
+        for token in re.split(r"[\s,;]+", raw):
+            token = token.strip()
+            if not token:
+                continue
+            if "@" not in token:
+                invalid.append(token)
+            elif token.lower() not in [e.lower() for e in emails]:
+                emails.append(token)
+        if invalid:
+            raise forms.ValidationError(
+                f"Indirizzi non validi (manca @): {', '.join(invalid)}"
+            )
+        return emails
+
     def save(self, commit=True):
         instance = super().save(commit=False)
-        instance.presenti_email_extra = "\n".join(
-            self.cleaned_data.get("presenti_email_list") or []
-        )
+        presenti = list(self.cleaned_data.get("presenti_email_list") or [])
+        nuovi = self.cleaned_data.get("aggiunti_email") or []
+        if nuovi:
+            convocati = instance.get_partecipanti_email_list()
+            instance.partecipanti_email_extra = "\n".join(
+                convocati + [e for e in nuovi if e not in convocati]
+            )
+            presenti += [e for e in nuovi if e not in presenti]
+        instance.presenti_email_extra = "\n".join(presenti)
         if commit:
             instance.save()
             self.save_m2m()
         return instance
+
+    def _save_m2m(self):
+        super()._save_m2m()
+        aggiunti = list(self.cleaned_data.get("aggiunti_utenti") or [])
+        if aggiunti:
+            self.instance.partecipanti_utenti.add(*aggiunti)
+            self.instance.presenti_utenti.add(*aggiunti)

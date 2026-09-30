@@ -50,34 +50,30 @@
   </aside>
 </section>
 
-<section class="sec-grid sec-two-col" style="margin-top: 12px;">
-  <div class="sec-panel">
-    <div class="sec-section-head"><h2>Inbox prioritaria</h2><a href="{% url 'security:alerts_list' %}">Tutti gli eventi</a></div>
-    <div class="sec-table-wrap">
-      <table class="sec-table">
-        <thead><tr><th>Priorita</th><th>Evento</th><th>Sorgente</th><th>Stato</th><th>Ora</th></tr></thead>
-        <tbody>
-        {% for alert in latest_alerts %}
-          <tr>
-            <td><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></td>
-            <td class="sec-title-cell"><strong><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title }}</a></strong><small>{{ alert.short_dedup_hash }}</small></td>
-            <td>{{ alert.source.name }}</td>
-            <td><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></td>
-            <td>{{ alert.last_seen_at|date:"d M, H:i" }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="5" class="sec-empty">Nessun alert presente.</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
+<section class="sec-grid sec-two-col sec-dash-cols" style="margin-top: 12px;">
   <div class="sec-grid">
     <div class="sec-panel">
-      <div class="sec-section-head"><h2>Sintesi giornaliera</h2><span class="sec-muted">Generata ora</span></div>
-      <p>Nella coda sono presenti <strong>{{ critical_alerts_count }}</strong> criticita e <strong>{{ open_alerts_count }}</strong> alert attivi. Gli eventi con CVE critiche e ticket aperti restano in priorita SOC.</p>
+      <div class="sec-section-head"><h2>Inbox prioritaria</h2><a href="{% url 'security:alerts_list' %}">Tutti gli eventi</a></div>
+      <div class="sec-table-wrap">
+        <table class="sec-table">
+          <thead><tr><th>Priorità</th><th>Evento</th><th>Sorgente</th><th>Stato</th><th>Ora</th></tr></thead>
+          <tbody>
+          {% for alert in latest_alerts %}
+            <tr>
+              <td><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></td>
+              <td class="sec-title-cell"><strong><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title }}</a></strong><small>{{ alert.short_dedup_hash }}</small></td>
+              <td>{{ alert.source.name }}</td>
+              <td><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></td>
+              <td>{{ alert.last_seen_at|date:"d M, H:i" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="sec-empty">Nessun alert presente.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
+    <div class="sec-grid sec-pair">
     <div class="sec-panel">
       <div class="sec-section-head"><h2>CVE critiche recenti</h2><a href="{% url 'security:tickets_list' %}">Ticket</a></div>
       <ul class="sec-mini-list">
@@ -89,7 +85,7 @@
       </ul>
     </div>
     <div class="sec-panel">
-      <div class="sec-section-head"><h2>Vulnerabilita Defender</h2><span class="sec-muted">Ultime analizzate</span></div>
+      <div class="sec-section-head"><h2>Vulnerabilità Defender</h2><span class="sec-muted">Ultime analizzate</span></div>
       <ul class="sec-mini-list">
         {% for finding in latest_defender_findings %}
           <li>
@@ -103,9 +99,40 @@
             <span>{{ finding.cvss }}</span>
           </li>
         {% empty %}
-          <li><span class="sec-muted">Nessuna vulnerabilita Defender analizzata.</span></li>
+          <li><span class="sec-muted">Nessuna vulnerabilità Defender analizzata.</span></li>
         {% endfor %}
       </ul>
+    </div>
+    </div>
+  </div>
+
+  <div class="sec-grid">
+    <div class="sec-panel">
+      <div class="sec-section-head"><h2>Flussi dati</h2><a href="{% url 'security:admin_mailbox_sources_list' %}">Caselle mail</a></div>
+      {% if source_rows %}
+      <ul class="sec-mini-list">
+        {% for row in source_rows %}
+          <li>
+            <span><strong>{{ row.name }}</strong><br><small class="sec-muted">Ultimo report: {{ row.last_report_at|date:"d/m/Y H:i"|default:"mai ricevuto" }}</small></span>
+            <span class="sec-badge {{ row.state }}">{{ row.label }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+        <p class="sec-empty">Nessuna casella collegata: senza, il Security Center non riceve i report. <a href="{% url 'security:admin_mailbox_sources_list' %}">Configura la casella</a>.</p>
+      {% endif %}
+    </div>
+    <div class="sec-panel">
+      <div class="sec-section-head"><h2>Accessi VPN</h2><a href="{% url 'security:vpn_history' %}">Storico</a></div>
+      {% if vpn_week.has_history %}
+        <div class="sec-fact-grid">
+          <div class="sec-fact"><span>Consentiti ({{ vpn_week.days }} gg)</span><strong>{{ vpn_week.allowed }}</strong></div>
+          <div class="sec-fact"><span>Negati</span><strong>{{ vpn_week.denied }}</strong></div>
+          <div class="sec-fact"><span>Utenti</span><strong>{{ vpn_week.users }}</strong></div>
+        </div>
+      {% else %}
+        <p class="sec-empty">Storico ancora vuoto: si popola con i report «Authentication» del firewall.</p>
+      {% endif %}
     </div>
     <div class="sec-panel">
       <div class="sec-section-head"><h2>Pipeline</h2><a href="{% url 'security:pipeline' %}">Sala controllo</a></div>
