@@ -69,7 +69,7 @@
   {% else %}
     <div class="sec-table-wrap">
       <table class="sec-table" data-fm-table-skip="1">
-        <thead><tr><th>Ricevuta</th><th>Mittente</th><th>Oggetto</th><th>Filtri casella</th><th>Riconoscimento</th></tr></thead>
+        <thead><tr><th>Ricevuta</th><th>Mittente</th><th>Oggetto</th><th>Filtri casella</th><th>Allegati</th><th>Riconoscimento</th></tr></thead>
         <tbody>
         {% for row in preview.rows %}
           <tr>
@@ -77,7 +77,12 @@
             <td>{{ row.sender }}</td>
             <td>{{ row.subject }}</td>
             <td>{% if row.accepted %}<span class="sec-badge ok">Accettata</span>{% else %}<span class="sec-badge disabled">Esclusa</span>{% endif %}</td>
-            <td>{% if row.parser %}<span class="sec-badge ok">Riconosciuta</span><small class="sec-muted" style="display:block;">{{ row.parser }}</small>{% else %}<span class="sec-badge warning">Non riconosciuta</span><small class="sec-muted" style="display:block;">{{ row.detail }}</small>{% endif %}</td>
+            <td>
+              {% for a in row.attachments %}
+                <small style="display:block;">{{ a.name }} <span class="sec-muted">· {{ a.size_kb }} KB{% if a.from_zip %} · dentro lo ZIP{% endif %}</span> {% if a.parser %}<span class="sec-badge ok">letto</span>{% else %}<span class="sec-badge warning">non riconosciuto</span>{% endif %}{% if a.warning %}<span class="sec-muted"> {{ a.warning }}</span>{% endif %}</small>
+              {% empty %}<span class="sec-muted">nessuno</span>{% endfor %}
+            </td>
+            <td>{% if row.recognized %}<span class="sec-badge ok">{{ row.label }}</span>{% if row.parser %}<small class="sec-muted" style="display:block;">{{ row.parser }}</small>{% endif %}{% else %}<span class="sec-badge warning">Non riconosciuta</span><small class="sec-muted" style="display:block;">{{ row.detail }}</small>{% endif %}</td>
           </tr>
         {% endfor %}
         </tbody>

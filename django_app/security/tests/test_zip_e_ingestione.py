@@ -114,6 +114,23 @@ class MailboxZipIngestionTests(TestCase):
         self.assertEqual(run.status, "success")
         self.assertEqual(SecuritySourceFile.objects.count(), 0)
 
+    def test_preview_lists_attachments_and_reads_the_zip(self):
+        from security.services.mailbox_setup import preview_mailbox
+
+        provider = mock.Mock()
+        provider.list_messages.return_value = [self._firebox_mail(), _mail("m9", "Posta di lavoro", "niente")]
+        with mock.patch("security.services.mailbox_providers.get_provider", return_value=provider):
+            result = preview_mailbox(self.source)
+        self.assertTrue(result["ok"])
+        by_subject = {row["subject"]: row for row in result["rows"]}
+        firebox = by_subject["Scheduled Firebox Report"]
+        self.assertEqual(len(firebox["attachments"]), 2)
+        self.assertTrue(all(a["from_zip"] == "reports.zip" and a["parser"] for a in firebox["attachments"]))
+        self.assertTrue(firebox["recognized"])
+        self.assertEqual(firebox["label"], "Allegati letti")
+        self.assertFalse(by_subject["Posta di lavoro"]["recognized"])
+        self.assertEqual(SecuritySourceFile.objects.count(), 0)  # l'anteprima non importa nulla
+
     def test_short_body_with_real_csv_is_still_parsed(self):
         run = self._run([_mail("m3", "Report", DENIED_CSV)])
         self.assertEqual(run.status, "success")
