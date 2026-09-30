@@ -6,6 +6,16 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 
 ## App Django (custom)
 
+Qcluster: `FlowBroker.set_stat` persiste il heartbeat della sentinella in
+`ClusterHeartbeat` (0027) ogni 15s e ai cambi di stato. `automation_health`
+resta read-only salvo `--notify`: watchdog indipendente, stato/limite email
+persistenti in `ClusterWatchdogState`, segnalazioni critiche nel monitoraggio,
+email sincrone e ripristino. Non schedulare il controllo dentro django-q.
+`deployment/watch_qcluster.ps1` verifica ogni minuto e avvia solo task Ready
+senza heartbeat/processi residui, massimo tre tentativi/30min; manutenzione
+con scadenza obbligatoria prima degli arresti volontari. Nuovo installer
+separato, nessuna modifica al Setup Wizard. Runbook: `docs/QCLUSTER_WATCHDOG.md`.
+
 Contatori espone il catalogo `/contatori/snmp/profili/`: `ProfiloSNMP` e
 `ColonnaProfiloSNMP` (migrazioni 0008-0012) precaricano oltre 35 famiglie per
 stampanti/MFC, firewall, rete, server, storage e UPS. L'autodetect combina PEN/

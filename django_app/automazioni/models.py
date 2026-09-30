@@ -986,3 +986,19 @@ class BrokerRecoveryEntry(models.Model):
     original_lock = models.DateTimeField()
     flow_code = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ClusterHeartbeat(models.Model):
+    """Durable sentinel status, independent of process-local Django caches."""
+    instance = models.CharField(max_length=100, primary_key=True)
+    cluster = models.CharField(max_length=100, db_index=True)
+    seen_at = models.DateTimeField(db_index=True)
+    status = models.CharField(max_length=30)
+
+
+class ClusterWatchdogState(models.Model):
+    cluster = models.CharField(max_length=100, primary_key=True)
+    checked_at = models.DateTimeField(null=True)
+    unhealthy = models.BooleanField(default=False)
+    notified_at = models.DateTimeField(null=True)
+    recovery_pending = models.BooleanField(default=False)

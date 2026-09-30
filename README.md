@@ -20,6 +20,13 @@
 
 </div>
 
+**Sorveglianza automazioni:** il [watchdog qcluster](docs/QCLUSTER_WATCHDOG.md)
+controlla il worker ogni minuto da Task Scheduler, rileva gli arresti anche a
+coda vuota, registra allarmi ed email agli amministratori e tenta il riavvio
+dei task fermi con limiti e verifica dei processi residui. Include pausa di
+manutenzione e segnalazione del watchdog inattivo. Richiede migrazione
+Automazioni 0027 e installazione esplicita sul server.
+
 ---
 
 **Procedure aziendali (Unreleased):** copertura annuale e preparazione audit MT CN 12, CAR MT CN 11 nel registro trasversale, indicatori MT CN 13 e import controllato dei Turtle. [Checklist e avanzamento](docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md). Richiede migrazione SG 0008 e bootstrap ACL; nessuna nuova dipendenza.

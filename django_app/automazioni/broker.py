@@ -6,6 +6,32 @@ from django_q.signing import SignedPackage
 
 
 class FlowBroker(ORM):
+    def set_stat(self, key, value, timeout):
+        # Sentinel calls this even when the queue is empty. Rate-limit SQL writes,
+        # but persist every state transition (especially STOPPING/STOPPED).
+        import time
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import ClusterHeartbeat
+
+        stat = SignedPackage.loads(value)
+        status = "running" if stat.status in (Conf.IDLE, Conf.WORKING) else "unavailable"
+        now_tick = time.monotonic()
+        previous = getattr(self, "_heartbeat_write", None)
+        if previous is None or previous[1] != status or now_tick - previous[0] >= 15:
+            now = timezone.now()
+            ClusterHeartbeat.objects.using(Conf.ORM).update_or_create(
+                instance=str(stat.cluster_id),
+                defaults={"cluster": self.list_key, "seen_at": now, "status": status},
+            )
+            # Keep restart history bounded, without deleting current instances.
+            if previous is None:
+                ClusterHeartbeat.objects.using(Conf.ORM).filter(
+                    cluster=self.list_key, seen_at__lt=now - timedelta(days=7)
+                ).delete()
+            self._heartbeat_write = (now_tick, status)
+        return super().set_stat(key, value, timeout)
+
     def enqueue(self, task):
         from .models import ManagedFlow
         package = SignedPackage.loads(task)

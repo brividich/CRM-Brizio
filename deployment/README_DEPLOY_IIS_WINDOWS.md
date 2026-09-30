@@ -324,6 +324,18 @@ Impostazioni obbligatorie nel Task Scheduler GUI:
 
 Lo script `start_qcluster.ps1` gestisce il restart automatico on crash con `Start-Sleep 5` tra un tentativo e il successivo; il log viene scritto su `C:\PortaleNovicrom\<env>\logs\qcluster.log`.
 
+### Sorveglianza indipendente del qcluster
+
+Il solo launcher non rileva tutti i blocchi e non segnala il proprio arresto.
+Installare il [watchdog esterno](../docs/QCLUSTER_WATCHDOG.md) dopo la migrazione
+Automazioni 0027 e il riavvio del worker: `scripts/install-qcluster-watchdog.ps1`.
+Controllo ogni minuto, heartbeat anche a coda vuota, allarmi nel monitoraggio e
+via email diretta, riavvio limitato dei task fermi, eventi Windows anche se il
+controllo Django fallisce. Mettere il watchdog in manutenzione prima di fermare
+il worker dal dashboard. I dettagli su account, installazione, collaudo e
+rollback sono nel runbook. Il launcher usa `config.settings.prod` anche per
+TEST distribuito; `config.settings.test` resta riservato ai test SQLite.
+
 ### Task Scheduler legacy (DEPRECATED)
 
 > I task Windows che lanciavano direttamente `process_automation_queue` e `process_approval_mailbox` ogni minuto sono **deprecati** con l'adozione di django-q2. Mantenerli temporaneamente come fallback è accettabile durante la transizione, ma vanno disabilitati non appena qcluster è stabile in produzione.
