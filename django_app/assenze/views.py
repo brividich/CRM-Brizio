@@ -868,6 +868,11 @@ def _assenze_permissions(request) -> dict:
     can_view_calendar = view_scope in {"all", "reparto"}
     can_delete_any = group == "AMMINISTRAZIONE"
     can_skip_approval = group in {"CAR", "AMMINISTRAZIONE"}
+    # Scelta del caporeparto a cui inviare la richiesta: a tutti tranne a chi ha
+    # il solo ruolo UTENTE (o nessun ruolo), che resta sul caporeparto assegnato.
+    can_choose_capo = bool(getattr(request.user, "is_superuser", False)) or any(
+        k not in {"utente", "utenti"} for k in role_keys
+    )
     manager_name = ""
     manager_email = ""
     if legacy_user:
@@ -907,6 +912,7 @@ def _assenze_permissions(request) -> dict:
         "can_update_owned": can_update_owned,
         "can_delete_any": can_delete_any,
         "can_skip_approval": can_skip_approval,
+        "can_choose_capo": can_choose_capo,
         "can_edit_events": can_update_any or can_update_owned,
         "owned_capo_local_ids": owned_local_ids,
         "owned_capo_lookup_ids": owned_lookup_ids,
@@ -1039,6 +1045,7 @@ def _template_perm_context(request) -> dict:
         "assenze_can_insert_for_others": perms["can_insert_for_others"],
         "assenze_can_view_calendar": perms["can_view_calendar"],
         "assenze_can_skip_approval": perms["can_skip_approval"],
+        "assenze_can_choose_capo": perms.get("can_choose_capo", False),
         "assenze_can_edit_events": perms["can_edit_events"],
         "assenze_can_view_team": perms.get("view_scope") in {"all", "reparto"},
         "assenze_can_delete_events": perms["can_delete_any"],
@@ -5564,6 +5571,25 @@ def invio_placeholder(request):
     )
     capo_final = capo_effective or capo_raw
 
+    # Chi puo' scegliere il caporeparto (tutti tranne il ruolo UTENTE) invia al
+    # capo selezionato, purche' sia fra quelli configurati. Se lascia quello
+    # assegnato, resta valida l'escalation al superiore per assenza del capo.
+    capo_scelto = False
+    if perms.get("can_choose_capo") and capo_raw:
+        chosen = _find_capo_dict_for_option(capo_raw, capi_options)
+        if chosen is None:
+            return _render_richiesta(request, error="Caporeparto selezionato non valido.", form_data=request.POST.dict())
+        capo_assegnato = _resolve_default_capo_for_user(
+            name=display_name, email=email, username=capo_username,
+            capi=capi_options, legacy_user_id=legacy_id,
+        )
+        assegnato = _find_capo_dict_for_option(capo_assegnato, capi_options) if capo_assegnato else None
+        effettivo = _find_capo_dict_for_option(capo_final, capi_options) if capo_final else None
+        if chosen is not assegnato and chosen is not effettivo:
+            capo_final = _capo_option_value(chosen) or capo_raw
+            capo_escalated = False
+            capo_scelto = True
+
     payload = {
         "sharepoint_item_id": None,
         "nome_lookup_id": _resolve_nome_lookup_id(legacy_id, display_name),
@@ -5598,6 +5624,14 @@ def invio_placeholder(request):
             "assenza_inserita_per_conto",
             "assenze",
             {"local_id": local_id, "for_dipendente": display_name, "by": inserter_name},
+        )
+
+    if capo_scelto:
+        log_action(
+            request,
+            "assenza_caporeparto_scelto",
+            "assenze",
+            {"local_id": local_id, "capo_scelto": capo_final, "for_dipendente": display_name},
         )
 
     if capo_escalated:

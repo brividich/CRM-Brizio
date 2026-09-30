@@ -685,10 +685,11 @@
                 <div class="abs-field">
                   <label for="caporeparto">Capo reparto</label>
                   {% comment %}
-                  Campo bloccato: il caporeparto è quello ASSEGNATO al dipendente
-                  (fonte autoritativa lato server). L'utente non lo sceglie.
+                  Il ruolo UTENTE ha il campo bloccato sul caporeparto ASSEGNATO.
+                  Tutti gli altri ruoli possono scegliere a chi inviare la richiesta:
+                  il server accetta solo capi presenti in elenco.
                   {% endcomment %}
-                  <select id="caporeparto" name="caporeparto" class="abs-select" disabled aria-readonly="true">
+                  <select id="caporeparto" name="caporeparto" class="abs-select"{% if not assenze_can_choose_capo %} disabled aria-readonly="true"{% endif %}>
                     <option value="">-- Assegnato automaticamente --</option>
                     {% for capo in capi %}
                       {% with option_value=capo.Email|default:capo.LookupId %}
@@ -696,7 +697,11 @@
                       {% endwith %}
                     {% endfor %}
                   </select>
-                  <div class="abs-field-hint">Assegnato automaticamente dall'area aziendale del dipendente. Se il caporeparto è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
+                  {% if assenze_can_choose_capo %}
+                    <div class="abs-field-hint">Proposto dall'area aziendale del dipendente: puoi sceglierne un altro a cui inviare la richiesta. Se lasci quello proposto ed è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
+                  {% else %}
+                    <div class="abs-field-hint">Assegnato automaticamente dall'area aziendale del dipendente. Se il caporeparto è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
+                  {% endif %}
                 </div>
               </div>
 

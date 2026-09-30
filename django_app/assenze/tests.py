@@ -559,6 +559,57 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(payload["tipo_assenza"], "Malattia")
         self.assertEqual(payload["certificato_medico"], "CERT-12345")
 
+    def _post_invio_con_capo(self, perms, capo_value):
+        capi = [
+            {"Value": "Capo Uno", "Email": "capo1@example.com", "LookupId": 1},
+            {"Value": "Capo Due", "Email": "capo2@example.com", "LookupId": 2},
+        ]
+        self.client.force_login(self.user)
+        request = type("Req", (), {"user": self.user, "session": self.client.session})()
+        with patch("assenze.views._assenze_permissions", return_value=perms), \
+                patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77)), \
+                patch("assenze.views._resolve_request_display_name", return_value="Mario Rossi"), \
+                patch("assenze.views._table_exists", return_value=True), \
+                patch("assenze.views._validate_business_rules", return_value=(None, "")), \
+                patch("assenze.views._resolve_nome_lookup_id", return_value=77), \
+                patch("assenze.views._resolve_capo_lookup_id", return_value=None), \
+                patch("assenze.views._resolve_capo_local_id", return_value=None) as mock_capo_local, \
+                patch("assenze.views._insert_assenza", return_value=1), \
+                patch("assenze.views._graph_configured", return_value=False), \
+                patch("assenze.views._render_richiesta", return_value=HttpResponse("ok")) as mock_render, \
+                patch("assenze.views._load_capi_options", return_value=capi), \
+                patch("assenze.views._resolve_default_capo_for_user", return_value="capo1@example.com"), \
+                patch("assenze.views._effective_capo_option", return_value=("capo1@example.com", False)):
+            self.client.post(
+                reverse("assenze_invio"),
+                {
+                    "submit_token": _build_submit_token(request, "assenze_invio"),
+                    "tipoassenza": "Permesso",
+                    "date_start": "2026-03-10",
+                    "date_end": "2026-03-10",
+                    "time_start": "08:00",
+                    "time_end": "12:00",
+                    "caporeparto": capo_value,
+                },
+            )
+        return mock_capo_local, mock_render
+
+    def test_invio_ruolo_non_utente_usa_il_capo_scelto(self):
+        perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": True}
+        mock_capo_local, _render = self._post_invio_con_capo(perms, "capo2@example.com")
+        self.assertEqual(mock_capo_local.call_args.args[0], "capo2@example.com")
+
+    def test_invio_ruolo_utente_ignora_il_capo_inviato(self):
+        perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": False}
+        mock_capo_local, _render = self._post_invio_con_capo(perms, "capo2@example.com")
+        self.assertEqual(mock_capo_local.call_args.args[0], "capo1@example.com")
+
+    def test_invio_capo_scelto_fuori_elenco_rifiutato(self):
+        perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": True}
+        mock_capo_local, mock_render = self._post_invio_con_capo(perms, "estraneo@example.com")
+        mock_capo_local.assert_not_called()
+        self.assertEqual(mock_render.call_args.kwargs.get("error"), "Caporeparto selezionato non valido.")
+
     @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
     @patch("assenze.views._graph_configured", return_value=False)
     @patch("assenze.views._insert_assenza", return_value=1)
@@ -1406,6 +1457,13 @@ class AssenzeInsertForOthersScopeTests(SimpleTestCase):
         self.assertEqual(perms["group"], "UTENTI")
         self.assertEqual(perms["insert_for_others_scope"], "none")
         self.assertFalse(perms["can_insert_for_others"])
+
+    def test_solo_il_ruolo_utente_non_sceglie_il_caporeparto(self):
+        self.assertFalse(self._perms(["Utente"])["can_choose_capo"])
+        self.assertFalse(self._perms([])["can_choose_capo"])
+        for ruolo in ("Caporeparto", "Amministrazione", "Impiegato", "Capocommessa"):
+            self.assertTrue(self._perms([ruolo])["can_choose_capo"], ruolo)
+        self.assertTrue(self._perms(["Utente", "Qualita"])["can_choose_capo"])
 
 
 class RiconciliazionePresenzeLogicTests(SimpleTestCase):
