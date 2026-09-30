@@ -1,0 +1,223 @@
+{% extends "core/base.html" %}
+{% load dpi_extras %}
+
+{% block title %}Magazzino DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; transition:all .15s; }
+.dpi-subnav-link:hover { background:#e2e8f0; color:#0f172a; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+
+.dpi-hero { background:linear-gradient(135deg,#166534 0%,#15803d 60%,#16a34a 100%); border-radius:16px; padding:26px 32px; color:#fff; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.dpi-hero-title { font-size:24px; font-weight:900; letter-spacing:-.03em; }
+.dpi-hero-sub { font-size:13px; opacity:.75; margin-top:3px; }
+
+.dpi-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+.dpi-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 20px; display:flex; flex-direction:column; gap:4px; text-decoration:none; transition:all .15s; }
+a.dpi-kpi:hover { border-color:#16a34a; transform:translateY(-2px); box-shadow:0 4px 12px rgba(22,163,74,.12); }
+.dpi-kpi-val { font-size:30px; font-weight:900; line-height:1; color:#0f172a; }
+.dpi-kpi-lbl { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+.dpi-kpi-green .dpi-kpi-val { color:#15803d; }
+.dpi-kpi-orange .dpi-kpi-val { color:#d97706; }
+.dpi-kpi-red .dpi-kpi-val { color:#dc2626; }
+.dpi-kpi.is-active { border-color:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,.15); }
+
+.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:22px 26px; }
+.dpi-card-title { font-size:15px; font-weight:800; color:#0f172a; margin-bottom:4px; }
+.dpi-card-sub { font-size:12px; color:#64748b; margin-bottom:14px; }
+.dpi-tabs { display:inline-flex; gap:4px; background:#f1f5f9; padding:4px; border-radius:12px; margin-bottom:16px; }
+.dpi-tab { padding:7px 16px; border-radius:9px; font-size:13px; font-weight:700; color:#475569; cursor:pointer; border:none; background:transparent; }
+.dpi-tab.is-on { background:#fff; color:#15803d; box-shadow:0 1px 3px rgba(15,23,42,.12); }
+.dpi-pane { display:none; }
+.dpi-pane.is-on { display:block; }
+.dpi-mov-form { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; align-items:end; }
+.dpi-mov-form .span2 { grid-column:span 2; }
+.dpi-mov-form .full { grid-column:1 / -1; }
+.dpi-field label { display:block; font-size:11px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+.dpi-field input, .dpi-field select, .dpi-soglia input { width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:10px; font-size:13px; background:#fff; color:#0f172a; }
+.dpi-field input:focus, .dpi-field select:focus, .dpi-soglia input:focus { outline:none; border-color:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,.12); }
+
+.dpi-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 22px; border-radius:10px; font-size:13px; font-weight:700; border:none; cursor:pointer; text-decoration:none; transition:all .15s; }
+.dpi-btn-green { background:#16a34a; color:#fff; }
+.dpi-btn-green:hover { background:#15803d; }
+.dpi-btn-gray { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; padding:7px 12px; font-size:12px; }
+
+.dpi-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.dpi-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dpi-table th { background:#f8fafc; padding:10px 16px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.dpi-table td { padding:12px 16px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.dpi-table tr:last-child td { border-bottom:none; }
+.dpi-table tr:hover td { background:#f8fafc; }
+.dpi-nome { font-weight:700; color:#0f172a; }
+.dpi-muted { color:#64748b; font-size:12px; }
+.dpi-qta { font-size:20px; font-weight:900; min-width:46px; display:inline-block; }
+.dpi-bar { height:6px; border-radius:99px; background:#e2e8f0; margin-top:6px; overflow:hidden; width:120px; }
+.dpi-bar > span { display:block; height:100%; border-radius:99px; }
+.dpi-st { display:inline-block; padding:3px 11px; border-radius:99px; font-size:11px; font-weight:800; }
+.dpi-st-ok { background:#d1fae5; color:#065f46; }
+.dpi-st-sotto { background:#fef3c7; color:#92400e; }
+.dpi-st-esaurito { background:#fee2e2; color:#991b1b; }
+.dpi-soglia { display:flex; gap:6px; align-items:center; }
+.dpi-soglia input { width:70px; padding:6px 8px; }
+.dpi-mov-tipo { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:800; }
+.dpi-mov-CARICO { background:#d1fae5; color:#065f46; }
+.dpi-mov-SCARICO { background:#dbeafe; color:#1e40af; }
+.dpi-mov-RETTIFICA { background:#ede9fe; color:#5b21b6; }
+.dpi-pos { color:#15803d; font-weight:800; }
+.dpi-neg { color:#b91c1c; font-weight:800; }
+.dpi-empty { padding:36px 20px; text-align:center; color:#94a3b8; }
+
+@media (max-width:820px) { .dpi-mov-form { grid-template-columns:1fr 1fr; } .dpi-hero { padding:20px; } }
+
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .dpi-kpi, body.theme-dark .dpi-card, body.theme-dark .dpi-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-kpi-val, body.theme-dark .dpi-card-title, body.theme-dark .dpi-nome { color:var(--text); }
+body.theme-dark .dpi-kpi-green .dpi-kpi-val { color:#86efac; }
+body.theme-dark .dpi-kpi-orange .dpi-kpi-val { color:#fcd34d; }
+body.theme-dark .dpi-kpi-red .dpi-kpi-val { color:#fca5a5; }
+body.theme-dark .dpi-kpi-lbl, body.theme-dark .dpi-muted, body.theme-dark .dpi-card-sub, body.theme-dark .dpi-empty { color:var(--text-light); }
+body.theme-dark .dpi-tabs { background:rgba(255,255,255,.06); }
+body.theme-dark .dpi-tab { color:var(--text-mid); }
+body.theme-dark .dpi-tab.is-on { background:rgba(34,197,94,.22); color:#86efac; }
+body.theme-dark .dpi-field label { color:var(--text-mid); }
+body.theme-dark .dpi-field input, body.theme-dark .dpi-field select, body.theme-dark .dpi-soglia input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-btn-gray { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .dpi-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .dpi-table td { border-color:var(--border); }
+body.theme-dark .dpi-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .dpi-bar { background:var(--surface-alt); }
+body.theme-dark .dpi-st-ok, body.theme-dark .dpi-mov-CARICO { background:rgba(34,197,94,.2); color:#86efac; }
+body.theme-dark .dpi-st-sotto { background:rgba(245,158,11,.2); color:#fcd34d; }
+body.theme-dark .dpi-st-esaurito { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .dpi-mov-SCARICO { background:rgba(59,130,246,.2); color:#93c5fd; }
+body.theme-dark .dpi-mov-RETTIFICA { background:rgba(139,92,246,.22); color:#c4b5fd; }
+body.theme-dark .dpi-pos { color:#86efac; }
+body.theme-dark .dpi-neg { color:#fca5a5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/_dpi_icons.html" %}
+  {% include "dpi/components/subnav.html" %}
+
+  <div class="dpi-hero">
+    <div>
+      <div class="dpi-hero-title">Magazzino DPI</div>
+      <div class="dpi-hero-sub">Scorta per modello: scende a ogni consegna, sale con il carico dei DDT di acquisto</div>
+    </div>
+  </div>
+
+  <div class="dpi-kpi-row">
+    <div class="dpi-kpi dpi-kpi-green"><span class="dpi-kpi-val">{{ pezzi_totali }}</span><span class="dpi-kpi-lbl">Pezzi a magazzino</span></div>
+    <a class="dpi-kpi{% if not filtro_stato %} is-active{% endif %}" href="{% url 'dpi:magazzino' %}"><span class="dpi-kpi-val">{{ n_modelli }}</span><span class="dpi-kpi-lbl">Modelli a catalogo</span></a>
+    <a class="dpi-kpi dpi-kpi-orange{% if filtro_stato == 'sotto' %} is-active{% endif %}" href="?stato=sotto"><span class="dpi-kpi-val">{{ n_sotto }}</span><span class="dpi-kpi-lbl">Sotto scorta minima</span></a>
+    <a class="dpi-kpi dpi-kpi-red{% if filtro_stato == 'esaurito' %} is-active{% endif %}" href="?stato=esaurito"><span class="dpi-kpi-val">{{ n_esauriti }}</span><span class="dpi-kpi-lbl">Esauriti</span></a>
+  </div>
+
+  <div class="dpi-card">
+    <div class="dpi-card-title">Registra un movimento</div>
+    <div class="dpi-card-sub">Per ora i valori si inseriscono a mano, dal DDT o dall'inventario.</div>
+    <div class="dpi-tabs" role="tablist">
+      <button type="button" class="dpi-tab is-on" data-pane="carico">Carico da DDT</button>
+      <button type="button" class="dpi-tab" data-pane="rettifica">Rettifica inventario</button>
+    </div>
+
+    <form method="post" class="dpi-pane is-on" id="pane-carico">
+      {% csrf_token %}<input type="hidden" name="azione" value="carico">
+      <div class="dpi-mov-form">
+        <div class="dpi-field span2"><label>DPI *</label>
+          <select name="modello" required><option value="">Scegli il DPI…</option>{% for m in modelli %}<option value="{{ m.pk }}">{{ m.tipo.categoria.nome }} · {{ m.codice }} - {{ m.nome }}</option>{% endfor %}</select></div>
+        <div class="dpi-field"><label>Quantità *</label><input type="number" name="quantita" min="1" required placeholder="es. 50"></div>
+        <div class="dpi-field"><label>Data DDT</label><input type="date" name="data" value="{{ oggi|date:'Y-m-d' }}"></div>
+        <div class="dpi-field"><label>N° DDT</label><input type="text" name="ddt_numero" maxlength="60" placeholder="es. 1234/2026"></div>
+        <div class="dpi-field"><label>Fornitore</label><input type="text" name="fornitore" maxlength="150"></div>
+        <div class="dpi-field span2"><label>Note</label><input type="text" name="note" maxlength="300"></div>
+        <div class="full"><button type="submit" class="dpi-btn dpi-btn-green">Carica a magazzino</button></div>
+      </div>
+    </form>
+
+    <form method="post" class="dpi-pane" id="pane-rettifica">
+      {% csrf_token %}<input type="hidden" name="azione" value="rettifica">
+      <div class="dpi-mov-form">
+        <div class="dpi-field span2"><label>DPI *</label>
+          <select name="modello" required><option value="">Scegli il DPI…</option>{% for r in righe %}<option value="{{ r.modello.pk }}">{{ r.modello.codice }} - {{ r.modello.nome }} (ora {{ r.giacenza }})</option>{% endfor %}</select></div>
+        <div class="dpi-field"><label>Giacenza corretta *</label><input type="number" name="giacenza" min="0" required placeholder="pezzi contati"></div>
+        <div class="dpi-field"><label>Motivo</label><input type="text" name="note" maxlength="300" placeholder="Inventario iniziale"></div>
+        <div class="full"><button type="submit" class="dpi-btn dpi-btn-green">Imposta giacenza</button></div>
+      </div>
+    </form>
+  </div>
+
+  <div class="dpi-table-wrap">
+    {% if righe %}
+    <table class="dpi-table" data-fm-table-skip="1">
+      <thead><tr><th>DPI</th><th>Giacenza</th><th>Stato</th><th>Scorta minima</th><th></th></tr></thead>
+      <tbody>
+        {% for r in righe %}
+        <tr>
+          <td><div class="dpi-nome">{{ r.modello.nome }}</div><div class="dpi-muted">{{ r.modello.codice }} · {{ r.modello.tipo.categoria.nome }} · {{ r.modello.tipo.nome }}</div></td>
+          <td>
+            <span class="dpi-qta {% if r.giacenza <= 0 %}dpi-neg{% endif %}">{{ r.giacenza }}</span>
+            {% if r.modello.scorta_minima %}
+            <div class="dpi-bar"><span style="width:{{ r.pct }}%; background:{% if r.stato == 'ok' %}#16a34a{% elif r.stato == 'sotto' %}#f59e0b{% else %}#dc2626{% endif %};"></span></div>
+            {% endif %}
+          </td>
+          <td>{% if r.stato == 'ok' %}<span class="dpi-st dpi-st-ok">Disponibile</span>{% elif r.stato == 'sotto' %}<span class="dpi-st dpi-st-sotto">Da riordinare</span>{% else %}<span class="dpi-st dpi-st-esaurito">Esaurito</span>{% endif %}</td>
+          <td>
+            <form method="post" class="dpi-soglia">{% csrf_token %}<input type="hidden" name="azione" value="soglia"><input type="hidden" name="modello" value="{{ r.modello.pk }}">
+              <input type="number" name="scorta_minima" min="0" value="{{ r.modello.scorta_minima }}" aria-label="Scorta minima">
+              <button type="submit" class="dpi-btn dpi-btn-gray">Salva</button></form>
+          </td>
+          <td><a class="dpi-btn dpi-btn-gray" href="?modello={{ r.modello.pk }}#movimenti">Movimenti</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="dpi-empty">{% if filtro_stato %}Nessun modello in questo stato.{% else %}Nessun modello DPI a catalogo: aggiungili da Impostazioni.{% endif %}</div>
+    {% endif %}
+  </div>
+
+  <div class="dpi-card" id="movimenti">
+    <div class="dpi-card-title">Ultimi movimenti{% if modello_mov %} <a href="{% url 'dpi:magazzino' %}" class="dpi-muted">· mostra tutti</a>{% endif %}</div>
+    {% if movimenti %}
+    <div class="dpi-table-wrap" style="border:none;">
+    <table class="dpi-table" data-fm-table-skip="1">
+      <thead><tr><th>Data</th><th>Movimento</th><th>DPI</th><th>Quantità</th><th>Riferimento</th><th>Chi</th></tr></thead>
+      <tbody>
+        {% for m in movimenti %}
+        <tr>
+          <td>{{ m.data|date:"d/m/Y" }}</td>
+          <td><span class="dpi-mov-tipo dpi-mov-{{ m.tipo }}">{{ m.get_tipo_display }}</span></td>
+          <td>{{ m.modello.codice }} <span class="dpi-muted">{{ m.modello.nome }}</span></td>
+          <td class="{% if m.quantita > 0 %}dpi-pos{% else %}dpi-neg{% endif %}">{{ m.quantita|stringformat:"+d" }}</td>
+          <td class="dpi-muted">{% if m.ddt_numero %}DDT {{ m.ddt_numero }}{% if m.fornitore %} · {{ m.fornitore }}{% endif %}{% elif m.note %}{{ m.note }}{% else %}—{% endif %}</td>
+          <td class="dpi-muted">{{ m.created_by.get_full_name|default:m.created_by.username|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="dpi-empty">Nessun movimento registrato. Comincia con un carico da DDT o con l'inventario iniziale.</div>
+    {% endif %}
+  </div>
+</div>
+<script>
+(function () {
+  var tabs = document.querySelectorAll('.dpi-tab');
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      tabs.forEach(function (x) { x.classList.toggle('is-on', x === t); });
+      document.querySelectorAll('.dpi-pane').forEach(function (p) { p.classList.toggle('is-on', p.id === 'pane-' + t.dataset.pane); });
+    });
+  });
+})();
+</script>
+{% endblock %}
