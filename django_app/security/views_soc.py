@@ -6,7 +6,12 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from security.models import SecurityAsset, SecurityMailboxSource
+from django.core.paginator import Paginator
+from django.utils import timezone
+
+from security.models import SecurityAsset, SecurityMailboxSource, SecurityVpnAccess
+from security.permissions import can_view_security_center
+from security.services.vpn_history import vpn_history_summary
 
 
 def assets_list(request):
@@ -63,3 +68,38 @@ def run_mailbox_ingestion_view(request):
             ok += 1
     messages.success(request, f"Lettura caselle eseguita: {ok} ok, {err} in errore.")
     return redirect("security:admin_mailbox_sources_list")
+
+def _vpn_day(value):
+    try:
+        return timezone.datetime.strptime(str(value or ""), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def vpn_history(request):
+    """Storico accessi VPN (consentiti/negati) letto dai report Firebox, con filtri e classifiche."""
+    if not can_view_security_center(request.user):
+        from security.views import _security_center_denied
+
+        return _security_center_denied(request)
+    qs = SecurityVpnAccess.objects.select_related("source")
+    filters = {key: (request.GET.get(key) or "").strip() for key in ("user", "ip", "action", "from", "to")}
+    if filters["user"]:
+        qs = qs.filter(username__icontains=filters["user"])
+    if filters["ip"]:
+        qs = qs.filter(source_ip__startswith=filters["ip"])
+    if filters["action"] in (SecurityVpnAccess.ACTION_ALLOWED, SecurityVpnAccess.ACTION_DENIED):
+        qs = qs.filter(action=filters["action"])
+    day_from, day_to = _vpn_day(filters["from"]), _vpn_day(filters["to"])
+    if day_from:
+        qs = qs.filter(login_at__date__gte=day_from)
+    if day_to:
+        qs = qs.filter(login_at__date__lte=day_to)
+    page = Paginator(qs, 50).get_page(request.GET.get("page"))
+    query = request.GET.copy()
+    query.pop("page", None)
+    return render(
+        request,
+        "security/vpn_history.html",
+        {"page": page, "filters": filters, "summary": vpn_history_summary(qs), "query": query.urlencode()},
+    )

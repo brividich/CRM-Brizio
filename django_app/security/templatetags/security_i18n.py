@@ -201,6 +201,18 @@ METRIC_LABELS = {
     "vpn_auth_denied": "Accessi VPN negati",
     "vpn_auth_allowed": "Accessi VPN consentiti",
     "vpn_denied_count": "Accessi VPN negati",
+    "vpn_access_allowed": "Accessi VPN consentiti (giorno)",
+    "vpn_access_denied": "Accessi VPN negati (giorno)",
+    "vpn_unique_users": "Utenti VPN distinti",
+    "vpn_unique_source_ips": "IP di origine VPN distinti",
+    "vpn_session_avg_seconds": "Durata media sessione VPN (s)",
+    "vpn_session_max_seconds": "Durata massima sessione VPN (s)",
+    "watchguard_sslvpn_allowed_count": "Accessi VPN consentiti (report)",
+    "watchguard_sslvpn_denied_count": "Accessi VPN negati (report)",
+    "watchguard_sslvpn_unique_users": "Utenti VPN nel report",
+    "watchguard_sslvpn_unique_source_ips": "IP VPN nel report",
+    "watchguard_sslvpn_short_reconnect_count": "Riconnessioni VPN brevi",
+    "watchguard_sslvpn_long_session_count": "Sessioni VPN molto lunghe",
     "source_silent": "Sorgenti silenziose",
     "possible_sender_spoofing": "Possibili spoofing mittente",
     "watchguard_report_summary": "Report WatchGuard ricevuti",
@@ -208,6 +220,19 @@ METRIC_LABELS = {
     "exposed_devices": "Dispositivi esposti",
     "cvss": "CVSS",
 }
+
+
+@register.filter
+def duration_hms(value):
+    """Secondi -> «h:mm:ss» (o «—» se assenti)."""
+    try:
+        seconds = int(value or 0)
+    except (TypeError, ValueError):
+        return "—"
+    if seconds <= 0:
+        return "—"
+    hours, rest = divmod(seconds, 3600)
+    return f"{hours}:{rest // 60:02d}:{rest % 60:02d}"
 
 
 @register.filter
