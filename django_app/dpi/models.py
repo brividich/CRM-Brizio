@@ -218,6 +218,14 @@ class DPIImpostazioni(models.Model):
         blank=True, default="",
         help_text="Indirizzi email aggiuntivi per notifiche, uno per riga",
     )
+    magazzino_emails = models.TextField(
+        blank=True, default="",
+        help_text="Avviso di consegna alla approvazione della richiesta, uno per riga",
+    )
+    amministrazione_emails = models.TextField(
+        blank=True, default="",
+        help_text="Avviso di consegna e report di consegna, uno per riga",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
