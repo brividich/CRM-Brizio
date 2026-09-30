@@ -1372,6 +1372,10 @@ def documenti(request):
             return redirect("dpi:documenti")
         titolo = request.POST.get("titolo", "").strip()[:200]
         descrizione = request.POST.get("descrizione", "").strip()[:500]
+        modello = ModelloDPI.objects.filter(pk=_parse_optional_positive_int(request.POST.get("modello"))).first()
+        if modello is None:
+            messages.error(request, "Scegli il DPI a cui appartiene il documento.")
+            return redirect("dpi:documenti")
         files = request.FILES.getlist("files")
         if not files:
             messages.error(request, "Scegli almeno un file da caricare.")
@@ -1392,6 +1396,7 @@ def documenti(request):
                 continue
             nome = (upload.name or "documento")[:255]
             doc = DocumentoDPI.objects.create(
+                modello=modello,
                 # Il titolo a mano vale solo con un file; con piu' file ognuno prende il proprio nome.
                 titolo=(titolo if titolo and len(files) == 1 else nome.rsplit(".", 1)[0])[:200],
                 descrizione=descrizione,
@@ -1400,17 +1405,26 @@ def documenti(request):
                 dimensione_bytes=int(upload.size or 0),
                 caricato_da=request.user,
             )
-            log_action(request, "DPI_DOCUMENTO_CARICATO", "dpi", f"Caricato documento DPI {doc.pk}: {doc.nome_originale}")
+            log_action(request, "DPI_DOCUMENTO_CARICATO", "dpi", f"Caricato documento DPI {doc.pk} ({modello.codice}): {doc.nome_originale}")
             salvati += 1
         if salvati:
             messages.success(request, "Documento caricato." if salvati == 1 else f"{salvati} documenti caricati.")
         return redirect("dpi:documenti")
 
     q = request.GET.get("q", "").strip()
-    qs = DocumentoDPI.objects.select_related("caricato_da")
+    qs = DocumentoDPI.objects.select_related("caricato_da", "modello", "modello__tipo", "modello__tipo__categoria")
+    modello_filtro = _parse_optional_positive_int(request.GET.get("modello"))
+    if modello_filtro:
+        qs = qs.filter(modello_id=modello_filtro)
     if q:
-        qs = qs.filter(Q(titolo__icontains=q) | Q(descrizione__icontains=q) | Q(nome_originale__icontains=q))
-    return render(request, "dpi/pages/documenti.html", {"is_gestore": is_gestore, "documenti": qs, "q": q})
+        qs = qs.filter(Q(titolo__icontains=q) | Q(descrizione__icontains=q) | Q(nome_originale__icontains=q) | Q(modello__nome__icontains=q) | Q(modello__codice__icontains=q))
+    return render(request, "dpi/pages/documenti.html", {
+        "is_gestore": is_gestore,
+        "documenti": qs,
+        "q": q,
+        "modelli": _catalog_select_related()["modelli"].filter(is_active=True),
+        "modello_filtro": modello_filtro,
+    })
 
 
 @login_required
