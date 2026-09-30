@@ -36,10 +36,18 @@
   {% endif %}
 </section>
 
+{% if can_manage and unfiltered %}
+<section class="sec-panel" style="margin-top: 12px; border-left: 4px solid var(--warning);">
+  <div class="sec-section-head"><h2>Questa casella legge TUTTE le mail</h2>{% if not_relevant_count %}<span class="sec-badge">{{ not_relevant_count }} non pertinenti già importate</span>{% endif %}</div>
+  <p class="sec-muted">Nessun filtro sull'oggetto: oltre ai report entrano anche mail di lavoro che nessun parser riconosce. Consumano tempo di lettura e riempiono la posta del Security Center. Con i filtri consigliati si importano solo le mail il cui oggetto contiene: {{ recommended_filters|join:", " }}. Puoi modificarli poi in «Impostazioni».</p>
+  <form method="post" class="sec-actions">{% csrf_token %}<input type="hidden" name="action" value="recommended_filters"><button class="sec-button-primary" type="submit">Applica i filtri consigliati</button></form>
+</section>
+{% endif %}
+
 {% if can_manage %}
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>Importa storico</h2></div>
-  <p class="sec-muted">La lettura va solo in avanti. Per recuperare le mail più vecchie scegli la data da cui ripartire: la lettura riprende da quel giorno, oltre le mail già importate (che non vengono duplicate). Subito si leggono blocchi da {{ source.max_messages_per_run }} mail per circa 45 secondi; il resto arriva con la lettura automatica ogni 15 minuti. Per una casella grande alza «Mail massime per lettura» nelle impostazioni.</p>
+  <p class="sec-muted">La lettura va solo in avanti, da «Letta fino a». La data proposta è quella: le mail già importate non vengono duplicate. Scegli una data più vecchia solo per recuperare mail precedenti: riporta indietro il punto di lettura e la prima parte risulterà «già presente». Subito si leggono blocchi da {{ source.max_messages_per_run }} mail per circa 45 secondi; il resto arriva con la lettura automatica ogni 15 minuti. Per una casella grande alza «Mail massime per lettura» nelle impostazioni.</p>
   <p class="sec-muted">Attenzione: i report vecchi passano da parser e regole come quelli nuovi, quindi possono comparire alert per eventi già superati.</p>
   <form method="post" class="sec-actions" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Importazione in corso…';">
     {% csrf_token %}
