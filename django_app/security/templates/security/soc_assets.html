@@ -3,38 +3,53 @@
 {% block soc_content %}
 <section class="sec-panel">
   <div class="sec-section-head">
-    <h2>Asset di sicurezza</h2>
-    <span class="sec-muted">{{ n_linked }}/{{ n_tot }} collegati al registro HUB</span>
+    <h2>Asset di sicurezza · dispositivi nei report</h2>
+    <span class="sec-muted">{{ n_linked }}/{{ n_tot }} collegati al registro asset</span>
+  </div>
+  <p class="sec-muted">I report (backup, Endpoint Security) citano dei dispositivi. Qui li colleghi agli asset del registro, così sulla scheda dell'asset compaiono backup, rilevamenti e minacce. Il collegamento si propone quando il nome è identico e lo confermi tu.</p>
+  <div class="sec-actions" style="margin: 8px 0 12px;">
+    <a class="sec-button {% if view == 'da_collegare' %}sec-button-primary{% endif %}" href="?stato=da_collegare">Da collegare</a>
+    <a class="sec-button {% if view == 'collegati' %}sec-button-primary{% endif %}" href="?stato=collegati">Collegati</a>
+    <a class="sec-button {% if view == 'tutti' %}sec-button-primary{% endif %}" href="?stato=tutti">Tutti</a>
+    {% if can_manage and n_suggested %}
+      <form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="confirm_all"><button class="sec-button" type="submit" onclick="return confirm('Collegare tutti i dispositivi con nome identico a un asset?');">Conferma tutti i {{ n_suggested }} con nome identico</button></form>
+    {% endif %}
   </div>
   <div class="sec-table-wrap">
-    <table class="sec-table">
+    <table class="sec-table" data-fm-table-skip="1">
       <thead>
-        <tr>
-          <th>Hostname</th><th>IP</th><th>Tipo</th><th>Sorgente</th><th>Asset HUB collegato</th>
-        </tr>
+        <tr><th>Dispositivo</th><th>IP</th><th>Tipo</th><th class="sec-num">Segnali</th><th>Asset del registro</th></tr>
       </thead>
       <tbody>
-        {% for a in assets %}
+        {% for row in rows %}
         <tr>
-          <td class="sec-title-cell"><strong>{{ a.hostname }}</strong>{% if a.owner %}<small>{{ a.owner }}</small>{% endif %}</td>
-          <td>{{ a.ip_address|default:"—" }}</td>
-          <td>{{ a.asset_type|default:"—" }}</td>
-          <td>{{ a.source.name|default:"—" }}</td>
+          <td class="sec-title-cell"><strong>{{ row.asset.hostname }}</strong>{% if row.asset.last_signal %}<small>ultimo segnale {{ row.asset.last_signal|date:"d/m/Y H:i" }}</small>{% endif %}</td>
+          <td>{{ row.asset.ip_address|default:"—" }}</td>
+          <td>{{ row.asset.asset_type|default:"—" }}</td>
+          <td class="sec-num">{{ row.asset.n_signals }}</td>
           <td>
-            {% if a.hub_asset %}
-              <a href="{% url 'assets:asset_view' a.hub_asset.id %}">{{ a.hub_asset.name }}</a>
-              <span class="sec-muted">[{{ a.hub_asset.asset_tag }}]</span>
+            {% if row.asset.hub_asset %}
+              <a href="{% url 'assets:asset_view' row.asset.hub_asset.id %}">{{ row.asset.hub_asset.name }}</a>
+              <span class="sec-muted">[{{ row.asset.hub_asset.asset_tag }}]</span>
+              {% if can_manage %}
+                <form method="post" style="display:inline; margin-left:8px;">{% csrf_token %}<input type="hidden" name="action" value="unlink"><input type="hidden" name="asset" value="{{ row.asset.id }}"><button class="sec-button" type="submit">Scollega</button></form>
+              {% endif %}
+            {% elif row.suggestion %}
+              <span class="sec-badge warning">Proposto</span>
+              <a href="{% url 'assets:asset_view' row.suggestion.id %}">{{ row.suggestion.name }}</a> <span class="sec-muted">[{{ row.suggestion.asset_tag }}]</span>
+              {% if can_manage %}
+                <form method="post" style="display:inline; margin-left:8px;">{% csrf_token %}<input type="hidden" name="action" value="confirm"><input type="hidden" name="asset" value="{{ row.asset.id }}"><input type="hidden" name="hub" value="{{ row.suggestion.id }}"><button class="sec-button-primary" type="submit">Conferma</button></form>
+              {% endif %}
             {% else %}
-              <span class="sec-muted">non collegato</span>
+              <span class="sec-muted">{{ row.reason|default:"non collegato" }}</span>
             {% endif %}
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="sec-empty">Nessun asset di sicurezza rilevato. (Popolato dall'ingestione/pipeline.)</td></tr>
+        <tr><td colspan="5" class="sec-empty">{% if view == 'da_collegare' %}Nessun dispositivo da collegare.{% else %}Nessun dispositivo rilevato: si popola quando arrivano i report di backup e di Endpoint Security.{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  <p class="sec-muted" style="margin-top:12px">Collegamento automatico: <code>manage.py collega_asset_security --apply</code> (match IP↔endpoint, hostname↔nome).</p>
 </section>
 {% endblock %}

@@ -1006,3 +1006,36 @@ class SecurityVpnAccess(models.Model):
 
     def __str__(self):
         return f"{self.action} {self.username} {self.source_ip}"
+
+
+class SecurityAssetSignal(models.Model):
+    """Un fatto di sicurezza/backup riferito a un dispositivo (un backup, un rilevamento, una minaccia).
+
+    Serve a mostrare sull'asset HUB collegato cosa dicono i report su di lui. Il dispositivo e'
+    il `SecurityAsset`, che a sua volta si collega (con conferma manuale) all'asset del registro.
+    """
+
+    KIND_BACKUP = "backup"
+    KIND_DETECTIONS = "endpoint_detections"
+    KIND_THREAT = "endpoint_threat"
+
+    asset = models.ForeignKey(SecurityAsset, on_delete=models.CASCADE, related_name="signals")
+    source = models.ForeignKey(SecuritySource, on_delete=models.SET_NULL, null=True, blank=True)
+    report = models.ForeignKey(SecurityReport, on_delete=models.SET_NULL, null=True, blank=True, related_name="asset_signals")
+    kind = models.CharField(max_length=32, db_index=True)
+    status = models.CharField(max_length=24, blank=True)
+    title = models.CharField(max_length=255)
+    detail = models.JSONField(default=dict, blank=True)
+    occurred_at = models.DateTimeField(db_index=True)
+    dedup_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(fields=["asset", "dedup_hash"], name="uniq_asset_signal_hash"),
+        ]
+        indexes = [models.Index(fields=["asset", "kind", "occurred_at"])]
+
+    def __str__(self):
+        return f"{self.kind} {self.asset_id} {self.status}"
