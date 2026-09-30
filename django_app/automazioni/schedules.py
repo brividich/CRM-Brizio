@@ -8,6 +8,12 @@ from __future__ import annotations
 
 SCHEDULES: list[dict] = [
     {
+        # Riconcilia richieste ancora in attesa oltre la scadenza, senza applicare decisioni.
+        "name": "approval_expiry_reconciliation",
+        "func": "automazioni.managed_flows.reconcile_expired_approvals",
+        "schedule_type": "I", "minutes": 15, "repeats": -1, "kwargs": {},
+    },
+    {
         # ASSETS — reportistica programmata dalle Impostazioni: controlla le scadenze,
         # archivia snapshot e PDF/Excel, recupera gli errori temporanei (max 3 tentativi).
         "name": "assets_reportistica",
@@ -374,7 +380,7 @@ SCHEDULES: list[dict] = [
     {
         # ANAGRAFICA HR — reminder visite mediche scadute/in scadenza: digest ai
         # responsabili (card+badge nel frame HUB) + notifica in-app al dipendente.
-        # Fail-safe: no-op senza SiteConfig visite_reminder_emails.
+        # Destinatari visite_reminder_emails con fallback amministrativo da verificare.
         "name": "visite_expiry_reminders",
         "func": "anagrafica.tasks.run_visite_expiry_reminders",
         "schedule_type": "C",       # Schedule.CRON
@@ -384,7 +390,7 @@ SCHEDULES: list[dict] = [
     },
     {
         # ANAGRAFICA HR — contratti a termine + periodi di prova in scadenza.
-        # Fail-safe: no-op senza SiteConfig contratti_reminder_emails.
+        # Destinatari contratti_reminder_emails con fallback amministrativo da verificare.
         "name": "contratti_expiry_reminders",
         "func": "anagrafica.tasks.run_contratti_expiry_reminders",
         "schedule_type": "C",       # Schedule.CRON
@@ -430,7 +436,7 @@ SCHEDULES: list[dict] = [
         # ANAGRAFICA — reminder scadenze formazione OBBLIGATORIA (corsi scaduti/in
         # scadenza dalla cache TrainingDeadline): digest HR + notifica al dipendente.
         # Complementare a formazione_audit_digest (trimestrale): qui è il reminder
-        # operativo. Fail-safe: digest no-op senza SiteConfig training_reminder_emails.
+        # operativo. Destinatari training_reminder_emails con fallback amministrativo da verificare.
         "name": "training_expiry_reminders",
         "func": "anagrafica.tasks.run_training_expiry_reminders",
         "schedule_type": "C",       # Schedule.CRON
@@ -669,19 +675,29 @@ def schedule_rows() -> list[dict]:
     except Exception:
         last_runs = {}
 
+    from .models import ManagedFlow
+    bindings = {b.code: b for b in ManagedFlow.objects.select_related("rule").all()}
     descr = schedule_descriptions()
     rows = []
     for spec in SCHEDULES:
         name = spec["name"]
         sch = live.get(name)
         last = last_runs.get(spec["func"])
+        binding = bindings.get(name)
+        effective = dict(spec)
+        if binding:
+            effective.update(schedule_type=binding.schedule_type, minutes=binding.minutes, cron=binding.cron)
+            if binding.rule.last_run_at:
+                latest = binding.rule.run_logs.order_by("-started_at").first()
+                last = (binding.rule.last_run_at, latest.status == "success" if latest else None)
         rows.append({
+            "rule_id": binding.rule_id if binding else None,
             "name": name,
             "func": spec["func"],
             "module": str(spec["func"]).split(".", 1)[0],
-            "cadence": describe_cadence(spec),
+            "cadence": describe_cadence(effective),
             "description": descr.get(name, ""),
-            "enabled": controls.get(name, True),
+            "enabled": (binding.rule.is_active and not binding.rule.is_draft) if binding else controls.get(name, True),
             "registered": sch is not None,
             "next_run": getattr(sch, "next_run", None),
             "last_run": last[0] if last else None,
@@ -715,7 +731,30 @@ def register_schedule(spec: dict):
     """Crea/aggiorna lo Schedule django-q allo stato del codice. Ritorna (obj, created)."""
     from django_q.models import Schedule
 
-    return Schedule.objects.update_or_create(name=spec["name"], defaults=_schedule_defaults(spec))
+    from .models import ManagedFlow
+    from django.utils import timezone
+    binding = ManagedFlow.objects.select_related("rule").filter(code=spec["name"], kind="schedule").first()
+    defaults = _schedule_defaults(spec)
+    if binding:
+        if not binding.rule.is_active or binding.rule.is_draft:
+            delete_schedule(binding.code)
+            return None, False
+        defaults.update(func="automazioni.managed_flows.run_managed_flow", args=repr(binding.code), kwargs="{}",
+                        schedule_type=binding.schedule_type, minutes=binding.minutes if binding.schedule_type == "I" else None,
+                        cron=binding.cron if binding.schedule_type == "C" else None)
+    # Preserve next_run on ordinary deploy; compute first cron in the portal timezone.
+    current = Schedule.objects.filter(name=spec["name"]).first()
+    changed = current and any(getattr(current, k) != defaults.get(k) for k in ("schedule_type", "minutes", "cron"))
+    defaults.pop("next_run", None)
+    if not current or changed:
+        now = timezone.localtime()
+        if defaults["schedule_type"] == "C":
+            from croniter import croniter
+            from datetime import datetime
+            defaults["next_run"] = croniter(defaults["cron"], now).get_next(datetime)
+        else:
+            defaults["next_run"] = now
+    return Schedule.objects.update_or_create(name=spec["name"], defaults=defaults)
 
 
 def delete_schedule(name: str) -> int:

@@ -1,0 +1,195 @@
+{% extends "core/base.html" %}
+{% load dpi_extras %}
+
+{% block title %}Report magazzino DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; transition:all .15s; }
+.dpi-subnav-link:hover { background:#e2e8f0; color:#0f172a; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+
+.dpi-hero { background:linear-gradient(135deg,#166534 0%,#15803d 60%,#16a34a 100%); border-radius:16px; padding:26px 32px; color:#fff; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.dpi-hero-title { font-size:24px; font-weight:900; letter-spacing:-.03em; }
+.dpi-hero-sub { font-size:13px; opacity:.75; margin-top:3px; }
+.dpi-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.dpi-hbtn { display:inline-flex; align-items:center; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; background:#fff; color:#166534; }
+.dpi-hbtn:hover { background:#dcfce7; }
+.dpi-hbtn-ghost { background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.35); }
+.dpi-hbtn-ghost:hover { background:rgba(255,255,255,.28); }
+
+.dpi-periodo { display:inline-flex; gap:4px; background:#fff; border:1px solid #e2e8f0; padding:4px; border-radius:12px; align-self:flex-start; }
+.dpi-periodo a { padding:7px 16px; border-radius:9px; font-size:13px; font-weight:700; color:#475569; text-decoration:none; }
+.dpi-periodo a.is-on { background:#16a34a; color:#fff; }
+
+.dpi-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
+.dpi-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 20px; display:flex; flex-direction:column; gap:4px; }
+.dpi-kpi-val { font-size:30px; font-weight:900; line-height:1; color:#0f172a; }
+.dpi-kpi-lbl { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+.dpi-kpi-green .dpi-kpi-val { color:#15803d; }
+.dpi-kpi-orange .dpi-kpi-val { color:#d97706; }
+.dpi-kpi-red .dpi-kpi-val { color:#dc2626; }
+
+.dpi-grid { display:grid; grid-template-columns:1.4fr 1fr; gap:20px; }
+.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:22px 26px; }
+.dpi-card-title { font-size:15px; font-weight:800; color:#0f172a; }
+.dpi-card-sub { font-size:12px; color:#64748b; margin:2px 0 16px; }
+
+.dpi-cols { display:flex; align-items:flex-end; gap:10px; height:190px; padding-top:8px; border-bottom:1px solid #e2e8f0; }
+.dpi-col { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:6px; position:relative; cursor:default; }
+.dpi-col-bar { width:100%; max-width:26px; background:#16a34a; border-radius:4px 4px 0 0; min-height:2px; transition:background .15s; }
+.dpi-col:hover .dpi-col-bar { background:#15803d; }
+.dpi-col-val { font-size:11px; font-weight:800; color:#0f172a; opacity:0; transition:opacity .15s; }
+.dpi-col:hover .dpi-col-val { opacity:1; }
+.dpi-cols-lbl { display:flex; gap:10px; margin-top:6px; }
+.dpi-cols-lbl span { flex:1; text-align:center; font-size:11px; color:#64748b; font-weight:600; text-transform:capitalize; }
+
+.dpi-hbars { display:flex; flex-direction:column; gap:12px; }
+.dpi-hbar-top { display:flex; justify-content:space-between; gap:12px; font-size:13px; margin-bottom:4px; }
+.dpi-hbar-top strong { color:#0f172a; font-weight:700; }
+.dpi-hbar-top span { color:#0f172a; font-weight:800; }
+.dpi-hbar-track { height:8px; border-radius:99px; background:#eef2f6; overflow:hidden; }
+.dpi-hbar-fill { height:100%; border-radius:99px; background:#16a34a; }
+.dpi-muted { color:#64748b; font-size:12px; }
+
+.dpi-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.dpi-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dpi-table th { background:#f8fafc; padding:10px 16px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.dpi-table td { padding:11px 16px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.dpi-table tr:last-child td { border-bottom:none; }
+.dpi-table tr:hover td { background:#f8fafc; }
+.dpi-nome { font-weight:700; color:#0f172a; }
+.dpi-st { display:inline-block; padding:3px 11px; border-radius:99px; font-size:11px; font-weight:800; }
+.dpi-st-ok { background:#d1fae5; color:#065f46; }
+.dpi-st-sotto { background:#fef3c7; color:#92400e; }
+.dpi-st-esaurito { background:#fee2e2; color:#991b1b; }
+.dpi-sugg { display:inline-block; padding:3px 12px; border-radius:10px; background:#f0fdf4; border:1px solid #bbf7d0; color:#15803d; font-weight:800; }
+.dpi-empty { padding:32px 20px; text-align:center; color:#94a3b8; }
+.dpi-sec-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+
+@media (max-width:900px) { .dpi-grid { grid-template-columns:1fr; } .dpi-hero { padding:20px; } }
+
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .dpi-periodo, body.theme-dark .dpi-kpi, body.theme-dark .dpi-card, body.theme-dark .dpi-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-periodo a { color:var(--text-mid); }
+body.theme-dark .dpi-periodo a.is-on { background:#16a34a; color:#fff; }
+body.theme-dark .dpi-kpi-val, body.theme-dark .dpi-card-title, body.theme-dark .dpi-nome, body.theme-dark .dpi-hbar-top strong, body.theme-dark .dpi-hbar-top span, body.theme-dark .dpi-col-val { color:var(--text); }
+body.theme-dark .dpi-kpi-green .dpi-kpi-val { color:#86efac; }
+body.theme-dark .dpi-kpi-orange .dpi-kpi-val { color:#fcd34d; }
+body.theme-dark .dpi-kpi-red .dpi-kpi-val { color:#fca5a5; }
+body.theme-dark .dpi-kpi-lbl, body.theme-dark .dpi-muted, body.theme-dark .dpi-card-sub, body.theme-dark .dpi-cols-lbl span, body.theme-dark .dpi-empty { color:var(--text-light); }
+body.theme-dark .dpi-cols { border-color:var(--border); }
+body.theme-dark .dpi-col-bar, body.theme-dark .dpi-hbar-fill { background:#22c55e; }
+body.theme-dark .dpi-col:hover .dpi-col-bar { background:#4ade80; }
+body.theme-dark .dpi-hbar-track { background:rgba(255,255,255,.08); }
+body.theme-dark .dpi-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .dpi-table td { border-color:var(--border); }
+body.theme-dark .dpi-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .dpi-st-ok { background:rgba(34,197,94,.2); color:#86efac; }
+body.theme-dark .dpi-st-sotto { background:rgba(245,158,11,.2); color:#fcd34d; }
+body.theme-dark .dpi-st-esaurito { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .dpi-sugg { background:rgba(21,128,61,.2); border-color:rgba(21,128,61,.4); color:#86efac; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/_dpi_icons.html" %}
+  {% include "dpi/components/subnav.html" %}
+
+  <div class="dpi-hero">
+    <div>
+      <div class="dpi-hero-title">Report magazzino DPI</div>
+      <div class="dpi-hero-sub">Consumi, coperture e cosa riordinare · dal {{ da|date:"d/m/Y" }}</div>
+    </div>
+    <div class="dpi-hero-actions">
+      <a class="dpi-hbtn dpi-hbtn-ghost" href="{% url 'dpi:magazzino' %}">← Magazzino</a>
+      <a class="dpi-hbtn" href="?giorni={{ giorni }}&formato=csv">Esporta movimenti (CSV)</a>
+    </div>
+  </div>
+
+  <div class="dpi-periodo" role="group" aria-label="Periodo">
+    {% for p in periodi %}<a href="?giorni={{ p }}" class="{% if p == giorni %}is-on{% endif %}">{% if p == 365 %}1 anno{% elif p == 180 %}6 mesi{% elif p == 90 %}3 mesi{% else %}30 giorni{% endif %}</a>{% endfor %}
+  </div>
+
+  <div class="dpi-kpi-row">
+    <div class="dpi-kpi"><span class="dpi-kpi-val">{{ consumati }}</span><span class="dpi-kpi-lbl">Pezzi consegnati</span></div>
+    <div class="dpi-kpi dpi-kpi-green"><span class="dpi-kpi-val">{{ caricati }}</span><span class="dpi-kpi-lbl">Pezzi caricati da DDT</span></div>
+    <div class="dpi-kpi"><span class="dpi-kpi-val">{{ pezzi_totali }}</span><span class="dpi-kpi-lbl">Giacenza attuale</span></div>
+    <div class="dpi-kpi dpi-kpi-orange"><span class="dpi-kpi-val">{{ sotto }}</span><span class="dpi-kpi-lbl">Da riordinare</span></div>
+    <div class="dpi-kpi dpi-kpi-red"><span class="dpi-kpi-val">{{ esauriti }}</span><span class="dpi-kpi-lbl">Esauriti</span></div>
+  </div>
+
+  <div class="dpi-grid">
+    <div class="dpi-card">
+      <div class="dpi-card-title">Consegne per mese</div>
+      <div class="dpi-card-sub">Pezzi consegnati negli ultimi 12 mesi</div>
+      <div class="dpi-cols" role="img" aria-label="Pezzi consegnati per mese">
+        {% for s in serie %}
+        <div class="dpi-col" title="{{ s.mese|date:'F Y' }}: {{ s.pezzi }} pezzi">
+          <span class="dpi-col-val">{{ s.pezzi }}</span>
+          <div class="dpi-col-bar" style="height:{% widthratio s.pezzi serie_max 100 %}%"></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="dpi-cols-lbl">{% for s in serie %}<span>{{ s.mese|date:"M" }}</span>{% endfor %}</div>
+    </div>
+
+    <div class="dpi-card">
+      <div class="dpi-card-title">Consumi per reparto</div>
+      <div class="dpi-card-sub">Pezzi consegnati nel periodo</div>
+      {% if reparti %}
+      <div class="dpi-hbars">
+        {% for nome, pezzi in reparti %}
+        <div><div class="dpi-hbar-top"><strong>{{ nome }}</strong><span>{{ pezzi }}</span></div>
+          <div class="dpi-hbar-track"><div class="dpi-hbar-fill" style="width:{% widthratio pezzi reparti_max 100 %}%"></div></div></div>
+        {% endfor %}
+      </div>
+      {% else %}<div class="dpi-empty">Nessuna consegna nel periodo.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="dpi-card">
+    <div class="dpi-card-title">DPI più consegnati</div>
+    <div class="dpi-card-sub">Primi 10 modelli per pezzi consegnati nel periodo</div>
+    {% if top %}
+    <div class="dpi-hbars">
+      {% for r in top %}
+      <div><div class="dpi-hbar-top"><strong>{{ r.modello.nome }} <span class="dpi-muted" style="font-weight:600;">{{ r.modello.codice }}</span></strong><span>{{ r.consumo }}</span></div>
+        <div class="dpi-hbar-track"><div class="dpi-hbar-fill" style="width:{% widthratio r.consumo top_max 100 %}%"></div></div></div>
+      {% endfor %}
+    </div>
+    {% else %}<div class="dpi-empty">Nessuna consegna nel periodo.</div>{% endif %}
+  </div>
+
+  <div>
+    <div class="dpi-sec-head" style="margin-bottom:10px;">
+      <div class="dpi-card-title">Da riordinare</div>
+      <span class="dpi-muted">Sotto scorta, esauriti o con meno di 30 giorni di copertura. La quantità suggerita porta la scorta a 2× la soglia o a ~60 giorni di consumo.</span>
+    </div>
+    <div class="dpi-table-wrap">
+      {% if riordino %}
+      <table class="dpi-table" data-fm-table-skip="1">
+        <thead><tr><th>DPI</th><th>Giacenza</th><th>Scorta minima</th><th>Copertura</th><th>Stato</th><th>Suggerito</th></tr></thead>
+        <tbody>
+          {% for r in riordino %}
+          <tr>
+            <td><div class="dpi-nome">{{ r.modello.nome }}</div><div class="dpi-muted">{{ r.modello.codice }} · {{ r.modello.tipo.categoria.nome }}</div></td>
+            <td><strong>{{ r.giacenza }}</strong></td>
+            <td>{{ r.modello.scorta_minima|default:"—" }}</td>
+            <td>{% if r.copertura is None %}<span class="dpi-muted">n.d.</span>{% else %}{{ r.copertura }} gg{% endif %}</td>
+            <td>{% if r.stato == 'ok' %}<span class="dpi-st dpi-st-ok">Disponibile</span>{% elif r.stato == 'sotto' %}<span class="dpi-st dpi-st-sotto">Da riordinare</span>{% else %}<span class="dpi-st dpi-st-esaurito">Esaurito</span>{% endif %}</td>
+            <td>{% if r.suggerito %}<span class="dpi-sugg">+{{ r.suggerito }}</span>{% else %}<span class="dpi-muted">—</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<div class="dpi-empty">Tutto a posto: nessun DPI da riordinare.</div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -148,6 +148,9 @@ class ModelloDPI(models.Model):
         null=True, blank=True,
         help_text="Override della vita utile della categoria (se vuoto usa quella della categoria)",
     )
+    scorta_minima = models.PositiveIntegerField(
+        default=0, help_text="Sotto questa giacenza il magazzino segnala «da riordinare» (0 = nessuna soglia)."
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -217,6 +220,14 @@ class DPIImpostazioni(models.Model):
     notifica_email_extra = models.TextField(
         blank=True, default="",
         help_text="Indirizzi email aggiuntivi per notifiche, uno per riga",
+    )
+    magazzino_emails = models.TextField(
+        blank=True, default="",
+        help_text="Avviso di consegna alla approvazione della richiesta, uno per riga",
+    )
+    amministrazione_emails = models.TextField(
+        blank=True, default="",
+        help_text="Avviso di consegna e report di consegna, uno per riga",
     )
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -514,3 +525,45 @@ class DocumentoDPI(models.Model):
         super().delete(*args, **kwargs)
         if storage and file_name and storage.exists(file_name):
             storage.delete(file_name)
+
+
+# ---------------------------------------------------------------------------
+# Magazzino DPI: giacenza come somma dei movimenti
+# ---------------------------------------------------------------------------
+
+class MovimentoMagazzinoDPI(models.Model):
+    """Movimento di magazzino di un modello DPI.
+
+    La giacenza non e' un campo da ritoccare: e' la somma dei movimenti, cosi' ogni
+    variazione resta tracciata (chi, quando, da quale DDT o consegna). ``quantita`` e'
+    con segno: positiva per carichi (DDT di acquisto) e rettifiche in aumento,
+    negativa per scarichi (consegne) e rettifiche in diminuzione."""
+
+    class Tipo(models.TextChoices):
+        CARICO = "CARICO", "Carico da DDT"
+        SCARICO = "SCARICO", "Consegna"
+        RETTIFICA = "RETTIFICA", "Rettifica inventario"
+
+    modello = models.ForeignKey(ModelloDPI, on_delete=models.PROTECT, related_name="movimenti")
+    tipo = models.CharField(max_length=10, choices=Tipo.choices, db_index=True)
+    quantita = models.IntegerField(help_text="Con segno: + carico, - scarico.")
+    data = models.DateField(default=timezone.localdate, db_index=True)
+    ddt_numero = models.CharField(max_length=60, blank=True, default="")
+    fornitore = models.CharField(max_length=150, blank=True, default="")
+    note = models.CharField(max_length=300, blank=True, default="")
+    richiesta = models.ForeignKey(
+        "RichiestaDPI", on_delete=models.SET_NULL, null=True, blank=True, related_name="movimenti_magazzino"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-data", "-id"]
+        verbose_name = "Movimento magazzino DPI"
+        verbose_name_plural = "Movimenti magazzino DPI"
+        indexes = [models.Index(fields=["modello", "-data"])]
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} {self.quantita:+d} - {self.modello}"

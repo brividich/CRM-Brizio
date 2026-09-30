@@ -37,6 +37,6 @@ class GeneraDocTests(SimpleTestCase):
 
         call_command("genera_doc_automazioni", verbosity=0)
         md = (Path(sched_mod.__file__).resolve().parents[2] / "docs" / "AUTOMAZIONI.md").read_text(encoding="utf-8")
-        self.assertIn(f"**Totale automazioni attive:** {len(SCHEDULES)}", md)
+        self.assertIn(f"**Totale automazioni disponibili:** {len(SCHEDULES)}", md)
         for spec in SCHEDULES:
             self.assertIn(f"`{spec['name']}`", md, spec["name"])

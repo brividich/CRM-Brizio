@@ -727,6 +727,8 @@ Q_CLUSTER = {
     "save_limit": 250,
     "max_attempts": 3,
     "orm": "default",
+    "broker_class": "automazioni.broker.FlowBroker",
+    "catch_up": False,
 }
 
 CSRF_FAILURE_VIEW = "core.views.csrf_failure"

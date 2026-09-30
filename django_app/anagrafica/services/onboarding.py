@@ -271,6 +271,10 @@ def _caporeparto_emails(reparto_nome: str) -> list[str]:
         return []
 
 
+from automazioni.managed_flows import event_flow
+
+
+@event_flow("onboarding_dpi_rischio", skipped_result=None)
 def notifica_assegnazione_mansione_rischio(
     *,
     dipendente_nome: str,

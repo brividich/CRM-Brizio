@@ -1,32 +1,4 @@
-"""Catalogo (sola lettura) delle notifiche email "nascoste": invii scatenati da
-un evento applicativo (una view, un comando manuale) chiamati direttamente nel
-codice, SENZA passare né dal motore regole (``AutomationRule``) né dai task
-pianificati django-q (``automazioni.schedules``).
-
-Perché esistono qui e non altrove
----------------------------------
-Il motore regole valuta condizioni dichiarative (uguale/contiene/giorni-da-oggi/
-campo-cambiato) su eventi INSERT/UPDATE alimentati da trigger SQL Server per
-tabella (vedi ``source_registry.py`` + ``migrations/trg_*.sql``). I flussi
-elencati qui non ci rientrano perché:
-
-- la tabella di origine non ha ancora una sorgente/trigger SQL registrato
-  (specifiche, OFI, timbri MOD.128, abilitazioni macchina); oppure
-- la condizione dipende da logica di business incrociata (requisiti mansione,
-  catalogo DPI, abilitazioni) che gli operatori dichiarativi del motore non
-  possono esprimere; oppure
-- il flusso è una soglia temporale periodica (MOD.128, OFI) e non un evento di
-  riga, quindi richiederebbe un tipo di trigger "a tempo" che il motore non ha.
-
-Convertirli in vere ``AutomationRule`` richiede quindi, caso per caso: creare e
-applicare (`apply_sql_triggers`) un nuovo trigger SQL su dev/test/**prod**, e/o
-estendere il motore condiviso — non è un'operazione da fare alla cieca su più
-moduli contemporaneamente. Questo catalogo li rende almeno **visibili** senza
-toccare la logica di invio esistente.
-
-Per aggiungere una voce: cercare le altre chiamate dirette a ``send_hub_mail``
-fuori da ``automazioni/`` e da ``schedules.py`` e aggiungerle qui.
-"""
+"""Catalogo degli eventi applicativi gestiti dal designer tramite managed_flows."""
 from __future__ import annotations
 
 EVENT_NOTIFICATIONS: list[dict[str, str]] = [
@@ -55,6 +27,33 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "func": "notifica_assegnazione_mansione_rischio",
     },
     {
+        "code": "dpi_richiesta_da_approvare",
+        "label": "Richiesta DPI - da approvare",
+        "module": "DPI",
+        "trigger": "Un dipendente (o il suo responsabile per suo conto) invia una richiesta DPI.",
+        "destinatari": "Responsabile effettivo del dipendente (area/reparto), co-responsabili e preposto; ripiego SiteConfig dpi_car_emails",
+        "source": "dpi/flusso.py",
+        "func": "notifica_nuova_richiesta",
+    },
+    {
+        "code": "dpi_avviso_consegna",
+        "label": "Richiesta DPI approvata - avviso di consegna",
+        "module": "DPI",
+        "trigger": "Il responsabile/preposto approva una richiesta DPI.",
+        "destinatari": "Impostazioni DPI: email Magazzino + Amministrazione",
+        "source": "dpi/flusso.py",
+        "func": "notifica_approvata",
+    },
+    {
+        "code": "dpi_report_consegna",
+        "label": "DPI consegnato - report di consegna",
+        "module": "DPI",
+        "trigger": "Il magazzino registra la consegna di un DPI approvato.",
+        "destinatari": "Impostazioni DPI: email Amministrazione (con il modulo di consegna PDF in allegato)",
+        "source": "dpi/flusso.py",
+        "func": "notifica_consegnata",
+    },
+    {
         "code": "mpq_timbri_sospesi",
         "label": "Timbri MOD.128 sospesi automaticamente",
         "module": "Anagrafica HR",
@@ -73,7 +72,7 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "trigger": "Un CAR applica le decisioni del refresh semestrale abilitazioni macchina di un reparto.",
         "destinatari": "Email del CAR del reparto",
         "source": "anagrafica/services/skillmatrix_refresh.py",
-        "func": "applica_refresh",
+        "func": "_notifica_car",
     },
     {
         "code": "gs_nuova_specifica",
@@ -107,4 +106,8 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
 
 def get_event_notifications() -> list[dict[str, str]]:
     """Copia difensiva del catalogo, per uso nelle view."""
-    return [dict(item) for item in EVENT_NOTIFICATIONS]
+    from .models import ManagedFlow
+    bindings = {b.code: b for b in ManagedFlow.objects.select_related("rule").filter(kind="event")}
+    return [{**item, "rule_id": bindings[item["code"]].rule_id if item["code"] in bindings else None,
+             "enabled": (bindings[item["code"]].rule.is_active and not bindings[item["code"]].rule.is_draft) if item["code"] in bindings else None}
+            for item in EVENT_NOTIFICATIONS]

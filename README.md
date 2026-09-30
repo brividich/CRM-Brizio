@@ -165,7 +165,7 @@ Gli interventi Assets supportano una coda operativa distinta tra aperti, assegna
 | 14 | [`tickets`](django_app/tickets/) | HR & Workflow | `/tickets/` | Ticket interni con interventi, fermo macchina, ticket ricorrenti; allegati caricabili da pagina web e dal QR della macchina, con **validazione del team gestore** (coda «Allegati da validare» in gestione, valida/rifiuta motivato) |
 | 15 | [`timbri`](django_app/timbri/) | HR & Workflow | `/timbri/` | Report timbrature da DB legacy, registro, immagini badge |
 | 16 | [`notizie`](django_app/notizie/) | HR & Workflow | `/notizie/` | Bacheca con audience, allegati, letture tracked |
-| 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: catalogo gerarchico, richieste, approvazione, consegna firmata, report conformita, reminder scadenze; **raccoglitore «Documenti»** (certificati, attestati, manuali d'uso, ciascuno legato al suo DPI del catalogo, senza categorie di documento: i gestori caricano/eliminano, tutti consultano; storage privato cifrato con audit) |
+| 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: catalogo gerarchico, richieste, approvazione, consegna firmata, report conformita, reminder scadenze; **raccoglitore «Documenti»** (certificati, attestati, manuali d'uso, ciascuno legato al suo DPI del catalogo, senza categorie di documento: i gestori caricano/eliminano, tutti consultano; storage privato cifrato con audit); **flusso di richiesta**: dipendente (o il suo responsabile per suo conto) → approvazione del responsabile/preposto (vede solo i propri dipendenti) → avviso di consegna a Magazzino e Amministrazione (email configurabili in Impostazioni) → consegna registrata dal magazzino → report di consegna con PDF all'Amministrazione; **Magazzino DPI**: giacenza per modello come somma di movimenti (carico DDT inserito a mano, scarico automatico alla consegna, rettifica inventario), scorta minima con stato «Da riordinare/Esaurito»; **report magazzino** (consumi per mese/reparto/modello, coperture in giorni, elenco «da riordinare» con quantita' suggerita, export CSV) |
 | 18 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni, allegati privati e ispezioni periodiche |
 | 19 | [`rilevazione_incidenti`](django_app/rilevazione_incidenti/) | Sicurezza | `/rilevazione-incidenti/` | Unsafe conditions, near miss, incidenti, KPI sicurezza e heatmap planimetria |
 | 20 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI (lista unica), campagne, motore scadenze/solleciti, sync SGI con log e segnalazione nuove revisioni, segnalazioni di modifica, consultazione in Bacheca, matrice formazione ISO |
@@ -1749,3 +1749,12 @@ commit accidentali di `.env` e secret.*
 ### Assenze del reparto
 
 Card di consultazione per chi vede reparto/azienda, assegnazione corrente da anagrafica e storico paginato con filtri passate/in corso e future. L'accesso in lettura non concede approvazioni o dettagli riservati.
+
+
+### Flussi dei moduli nel designer Automazioni
+
+Pianificazioni e notifiche applicative censite si gestiscono come flussi nel designer esistente: attivazione, condizioni, azioni, calendario e storico. Il collegamento «Apri flusso» è disponibile nelle pianificazioni e negli eventi. L'azione di modulo conserva la logica operativa; disattivare una notifica non annulla l'operazione aziendale.
+
+Installazione e recupero del worker: [runbook flussi](docs/AUTOMAZIONI_FLUSSI_RUNTIME.md). Le personalizzazioni non vengono riscritte al deploy; il recupero dell'arretrato richiede worker fermi e conserva i pacchetti modificati nel database. Nessun servizio Microsoft Power Automate richiesto.
+
+Le due richieste di approvazione Assenze censite possono essere unite con `merge_assenze_flows`: un percorso per tipo/durata, registrazione dell'esito dopo l'ultimo approvatore e fallback al caporeparto. Le regole originali vengono conservate disattivate. La conversione richiede processori fermi; anteprima e ripristino sono descritti nel runbook.

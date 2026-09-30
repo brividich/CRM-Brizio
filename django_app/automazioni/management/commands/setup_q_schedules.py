@@ -49,6 +49,11 @@ class Command(BaseCommand):
         # non vengono registrati anche dopo un redeploy (l'abilitazione è durevole).
         disabled = set() if delete else disabled_schedule_names()
 
+        if not dry_run and not delete:
+            from automazioni.managed_flows import install_flows
+            created = install_flows()
+            self.stdout.write(f"Flussi del designer creati: {created}")
+
         for spec in SCHEDULES:
             name = spec["name"]
 

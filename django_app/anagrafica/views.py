@@ -4158,6 +4158,10 @@ def _registra_cambiamento(
     )
 
 
+from automazioni.managed_flows import event_flow
+
+
+@event_flow("idoneita_gap_mansione", skipped_result=None)
 def _notifica_gap_idoneita(legacy_id: int, dip: dict, mansione_nome: str, user=None) -> None:
     """All'assegnazione di una nuova mansione, ricalcola l'idoneità e notifica
     (email, fail-open) i requisiti mancanti/scaduti a caporeparto + RSPP/HR.

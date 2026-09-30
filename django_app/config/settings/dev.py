@@ -34,4 +34,6 @@ Q_CLUSTER = {
     "save_limit": 100,
     "max_attempts": 2,
     "orm": "default",
+    "broker_class": "automazioni.broker.FlowBroker",
+    "catch_up": False,
 }

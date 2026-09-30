@@ -205,6 +205,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
 
       <!-- Azioni -->
       {% if richiesta.stato == "INVIATA" or richiesta.stato == "APPROVATA" %}
+      {% if richiesta.stato == "INVIATA" or is_gestore %}
       <div class="dpi-card">
         <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:16px;">Azioni</div>
 
@@ -236,9 +237,16 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
         </div>
         {% endif %}
 
-        <!-- Consegna -->
+        {% if richiesta.stato == "APPROVATA" and is_gestore %}
+        <!-- Consegna: solo dopo l'approvazione -->
         <div class="dpi-action-panel">
           <div class="dpi-action-title">📦 Registra consegna</div>
+          {% if giacenza_modello is not None %}
+          <div style="margin:0 0 12px; font-size:12px; font-weight:700; color:{% if giacenza_modello < richiesta.quantita %}#b91c1c{% else %}#15803d{% endif %};">
+            In magazzino: {{ giacenza_modello }} pz{% if giacenza_modello < richiesta.quantita %} — insufficienti per {{ richiesta.quantita }} richiesti{% endif %} ·
+            <a href="{% url 'dpi:magazzino' %}" style="color:inherit;">apri magazzino</a>
+          </div>
+          {% endif %}
           <form method="post" action="{% url 'dpi:consegna' richiesta.pk %}">
             {% csrf_token %}
             <div class="dpi-field">
@@ -270,7 +278,9 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
             <button type="submit" class="dpi-btn dpi-btn-blue">Registra consegna</button>
           </form>
         </div>
+        {% endif %}
       </div>
+      {% endif %}
       {% endif %}
     </div>
 
@@ -297,6 +307,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
         </ul>
         {% endif %}
 
+        {% if is_gestore %}
         <form method="post" action="{% url 'dpi:commento' richiesta.pk %}">
           {% csrf_token %}
           <div class="dpi-field">
@@ -311,6 +322,7 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
             </label>
           </div>
         </form>
+        {% endif %}
       </div>
     </div>
   </div>

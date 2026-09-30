@@ -3099,8 +3099,8 @@ def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
 
     for rule in ungrouped_rules:
         _status, error = _run_rule_status(rule)
-        if error:
-            worker_errors.append(error)
+        if error or _status == AutomationRunLogStatus.ERROR:
+            worker_errors.append(error or f"{rule.code}: esecuzione terminata in errore.")
 
     for group, rules in grouped_rules.items():
         ordered = sorted(rules, key=lambda r: (-int(getattr(r, "priority", 0) or 0), r.id))
@@ -3787,6 +3787,15 @@ def execute_action(
                 result_message=result_message,
             )
             return {"status": AutomationActionLogStatus.SKIPPED, "result_message": result_message, "action_log": action_log}
+
+        if action.action_type == AutomationActionType.NATIVE_PROCESS:
+            from .managed_flows import invoke_native
+            result = invoke_native(action, run_log)
+            skipped = isinstance(result, dict) and bool(result.get("skipped"))
+            status = AutomationActionLogStatus.SKIPPED if skipped else AutomationActionLogStatus.SUCCESS
+            message = "Anteprima senza effetti." if run_log.is_test else ("Processo senza attività / disabilitato nelle impostazioni." if skipped else "Processo del modulo completato.")
+            log = _create_action_log(run_log=run_log, action=action, status=status, result_message=message)
+            return {"status": status, "result_message": message, "action_log": log}
 
         if action.action_type == AutomationActionType.SEND_EMAIL:
             to = _parse_email_recipients(config.get("to"), payload_context, "to")
@@ -4957,10 +4966,13 @@ def run_rule(
         else:
             action_errors = 0
             action_count = 0
+            action_skips = 0
             enabled_actions = rule.actions.filter(is_enabled=True).order_by("order", "id")
             for action in enabled_actions:
                 action_count += 1
                 result = execute_action(action, payload, old_payload=old_payload, run_log=run_log, queue_event=queue_event)
+                if result["status"] == AutomationActionLogStatus.SKIPPED:
+                    action_skips += 1
                 if result["status"] == AutomationActionLogStatus.ERROR:
                     action_errors += 1
                     if rule.stop_on_first_failure:
@@ -4973,6 +4985,9 @@ def run_rule(
                 run_log.status = AutomationRunLogStatus.ERROR
                 if not run_log.result_message or run_log.result_message == "Esecuzione avviata.":
                     run_log.result_message = f"Esecuzione completata con {action_errors} action in errore."
+            elif rule.source_code == "managed_flows" and action_skips == action_count:
+                run_log.status = AutomationRunLogStatus.SKIPPED
+                run_log.result_message = "Nessuna azione eseguita: verificare condizioni e impostazioni del modulo."
             elif run_log.status == AutomationRunLogStatus.WAITING_APPROVAL:
                 if not run_log.result_message or run_log.result_message == "Esecuzione avviata.":
                     run_log.result_message = f"In attesa di approvazione. Azioni elaborate: {action_count}."
@@ -5074,6 +5089,16 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
         actions_run += 1
         if res.get("status") == AutomationActionLogStatus.ERROR:
             actions_errors += 1
+            if getattr(run_log.rule, "stop_on_first_failure", False):
+                break
+
+    if actions_errors:
+        run_log.status = AutomationRunLogStatus.ERROR
+        run_log.result_message = "Decisione registrata; una o più azioni successive sono in errore. Consultare lo storico."
+        run_log.save(update_fields=["status", "result_message"])
+    elif run_log.approvals.filter(status="pending").exists():
+        run_log.status = AutomationRunLogStatus.WAITING_APPROVAL
+        run_log.save(update_fields=["status"])
 
     return {
         "ok": True,

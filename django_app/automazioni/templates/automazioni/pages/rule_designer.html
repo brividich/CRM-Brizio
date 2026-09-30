@@ -604,6 +604,22 @@ body.theme-dark .diagram-action-item-app { color:var(--text-light); }
 {% endblock %}
 
 {% block content %}
+{% if managed_binding %}
+  <section class="designer-section-card managed-flow-settings" style="margin-bottom:18px;padding:18px;">
+  <h2>{{ managed_binding.get_kind_display }} · {{ rule.name }}</h2>
+  <p>{{ rule.description }}</p>
+  <p>Gestisci condizioni e azioni nel flusso. L'azione «Esegui processo del modulo» mantiene le regole operative del modulo e può essere disattivata o sostituita.</p>
+  {% if managed_schedule_form %}
+    <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}" style="display:grid;gap:12px;max-width:640px;">
+    {% csrf_token %}<input type="hidden" name="name" value="{{ managed_binding.code }}"><input type="hidden" name="action" value="save_schedule">
+    {{ managed_schedule_form.as_p }}
+    <button type="submit" class="btn btn-primary">Salva pianificazione</button>
+  </form>
+    <p><a href="{% url 'admin_portale:automazioni_pianificati' %}">Pianificazioni e impostazioni messaggi</a></p>
+  {% else %}<p>Il flusso parte quando il modulo emette l'evento, senza modificare il salvataggio dei dati aziendali.</p>{% endif %}
+  <a href="{% url 'admin_portale:automazioni_run_log_list' %}?rule={{ rule.id }}">Storico esecuzioni</a>
+</section>
+{% endif %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Designer visuale" page_subtitle="Vista affiancata al builder classico per leggere e modificare la regola in modo piu' chiaro." %}
   {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/skeletons.html" %}

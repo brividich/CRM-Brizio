@@ -240,6 +240,10 @@ def _risolvi_car(reparto: str) -> tuple[int | None, str]:
     return (car_id, str(email).strip())
 
 
+from automazioni.managed_flows import event_flow
+
+
+@event_flow("skillmatrix_refresh_car", skipped_result=None)
 def _notifica_car(reparto: str) -> None:
     """In-app + email best-effort al CAR. Nessun errore propagato."""
     car_id, car_email = _risolvi_car(reparto)

@@ -1,5 +1,20 @@
 # Session Checkpoint
 
+Data: 2026-09-30 (flussi nel designer, recupero runtime e unione Assenze)
+
+- Vista/aggiunta voce AGENT_CHANGELOG flussi dei moduli nel designer e recupero automazioni; changelog Unreleased root/Django e docs aggiornati. Worktree C:/Dev/pn-automazioni-check, feature/automazioni-check-produzione; audit 019d0977, base5871b10a. Nessuna modifica al checkout condiviso.
+- 59 collegamenti designer (incluse tre notifiche DPI aggiunte dalla release remota), cadenze persistenti, broker/lease/health/recupero archiviato, launcher Windows, quattro trigger e riconciliazione scadenze. Unione Assenze richiesta esplicitamente, comando conserva originali disattivati e fonde routing + stato/split terminali; anteprima compatibile con config reale. Dettagli docs/AUTOMAZIONI_FLUSSI_RUNTIME.md.
+- 421 test Automazioni +104 cross-modulo verdi; dopo merge release corrente, 431 test Automazioni+DPI verdi. Check/migration drift/secret hygiene/validate_deployment 0 FAIL/diff verdi; QA browser cadenza e mobile, launcher sintetico >1MB/exit7; server QA fermato. Critici settings base/dev broker e catch_up, launcher; nessuna modifica ACL/routing/auth/navigazione globale.
+- Produzione server ancora sul build5871b10 all'ultimo controllo: worker non gestibile da remoto (Accesso negato/WinRM), recupero/deploy non eseguiti. Feature allineata alla release remota b75e5e01 e pronta per push ordinario; distribuire con procedure locali server: backup, stop worker+legacy, migrate/trigger/setup, merge Assenze e recupero, restart e verifica. SQL Server runtime/destinatari/consegne reali da collaudare; Unreleased per bump coordinato.
+
+
+Data: 2026-09-29 (check produzione automazioni)
+
+- Vista/aggiunta voce AGENT_CHANGELOG check produzione automazioni e inventario per modulo; nessun delta applicativo oltre Assenze reparto gia visto.
+- Worktree C:/Dev/pn-automazioni-check, feature/automazioni-check-produzione, base 5871b10a. Rapporto docs/AUDIT_AUTOMAZIONI_PROD_2026-09-29.md: 48 job, 46 registrati + 2 disabilitati, 25 regole, funzioni/stato/miglioramenti per modulo.
+- Produzione c4ead42 verificata via share e SELECT read-only. Broker 8.857 -> 8.887, q completamenti fermi alle 12:49 locali; eventi SQL smaltiti con monitor corrente. Nessuna modifica runtime, invio o dato personale esportato. WinRM non raggiungibile, causa worker da accertare.
+- Solo documentazione/registro/checkpoint; nessun file critico/backup, README/CHANGELOG invariati. Confronto schedule senza drift e copertura inventario verificati. Prossimo intervento: P0 cluster/broker con recupero controllato, poi collegamenti sorgenti e deduplica.
+
 Data: 2026-09-29 (Assenze reparto, card e storico)
 
 - Vista/aggiunta voce AGENT_CHANGELOG Assenze reparto, card e storico; letti delta procedure aziendali audit fino al merge 1ab70ddb.

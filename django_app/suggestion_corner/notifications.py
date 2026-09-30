@@ -38,6 +38,10 @@ def team_emails() -> list[str]:
     return emails
 
 
+from automazioni.managed_flows import event_flow
+
+
+@event_flow("suggestion_corner_nuova_segnalazione", skipped_result=0)
 def notifica_team_nuova_segnalazione(seg) -> int:
     """Mail al team SMS all'arrivo di una nuova segnalazione (§5)."""
     dest = team_emails()

@@ -40,9 +40,18 @@ class EventNotificationsPageTests(TestCase):
         self.assertEqual(r.status_code, 200)
         for item in EVENT_NOTIFICATIONS:
             self.assertContains(r, item["label"])
-            self.assertContains(r, item["func"])
+            self.assertContains(r, "Installazione richiesta")
 
     def test_richiede_login(self):
         self.client.logout()
         r = self.client.get(reverse("admin_portale:automazioni_event_notifications"))
         self.assertNotEqual(r.status_code, 200)
+
+
+    def test_installed_events_link_to_designer(self):
+        from automazioni.managed_flows import install_flows
+        from automazioni.models import ManagedFlow
+        install_flows()
+        response = self.client.get(reverse("admin_portale:automazioni_event_notifications"))
+        for binding in ManagedFlow.objects.filter(kind="event"):
+            self.assertContains(response, reverse("admin_portale:automazioni_rule_designer", args=[binding.rule_id]))

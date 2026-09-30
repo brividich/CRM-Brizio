@@ -148,6 +148,14 @@ body.theme-dark .dpi-img-preview { border-color:var(--border); }
           <label>Email notifiche aggiuntive (una per riga)</label>
           <textarea name="notifica_email_extra" rows="3">{{ impost.notifica_email_extra }}</textarea>
         </div>
+        <div class="dpi-field">
+          <label>Magazzino: email per l'avviso di consegna (una per riga)</label>
+          <textarea name="magazzino_emails" rows="3">{{ impost.magazzino_emails }}</textarea>
+        </div>
+        <div class="dpi-field">
+          <label>Amministrazione: email per avviso e report di consegna (una per riga)</label>
+          <textarea name="amministrazione_emails" rows="3">{{ impost.amministrazione_emails }}</textarea>
+        </div>
 
         <button type="submit" class="dpi-btn dpi-btn-green">Salva impostazioni</button>
       </form>
