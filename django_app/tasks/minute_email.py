@@ -492,19 +492,43 @@ def _cc_management(meeting, exclude: list[str]) -> list[str]:
     return cc
 
 
+def minute_recipients(meeting) -> tuple[list[str], list[str]]:
+    """(destinatari, assenti in copia) della minuta.
+
+    Con l'appello registrato la minuta va ai presenti e gli assenti restano in
+    copia. Se nessun presente ha un indirizzo, si scrive a tutti i partecipanti:
+    meglio una minuta a tutti che nessuna minuta.
+    """
+    tutti = meeting.get_all_attendee_emails()
+    if not getattr(meeting, "presenze_registrate", False):
+        return tutti, []
+    presenti: list[str] = []
+    for user in meeting.presenti_utenti.all():
+        email = (getattr(user, "email", "") or "").strip()
+        if email and email not in presenti:
+            presenti.append(email)
+    for email in meeting.get_presenti_email_list():
+        if email not in presenti:
+            presenti.append(email)
+    if not presenti:
+        return tutti, []
+    return presenti, [e for e in tutti if e not in presenti]
+
+
 def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict:
     """Invia la minuta a tutti i partecipanti (CC a PM/capo commessa, PDF allegato).
 
     Ritorna esito senza sollevare per casi previsti.
     """
-    recipients = meeting.get_all_attendee_emails()
+    recipients, assenti = minute_recipients(meeting)
     if not recipients:
         return {"sent": False, "recipients": [], "cc": [], "reason": "no_recipients"}
 
     from core.email_utils import send_hub_mail
 
     subject, body_text, body_html = build_minute_email(meeting)
-    cc = _cc_management(meeting, exclude=recipients)
+    # Chi non c'era resta in copia: la minuta lo riguarda comunque.
+    cc = assenti + _cc_management(meeting, exclude=recipients + assenti)
     attachments = None
     if with_pdf:
         try:

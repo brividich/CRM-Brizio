@@ -56,8 +56,20 @@
             {{ form.presenti_email_list }}
           </div>
         {% else %}
-          <p class="mf-hint" style="margin:0">Nessun partecipante convocato: aggiungili dalla convocazione per registrare le presenze.</p>
+          <p class="mf-hint" style="margin:0">Nessun partecipante convocato: aggiungi qui sotto chi c'era.</p>
         {% endif %}
+        {# Chi non era in convocazione: entra fra partecipanti e presenti al salvataggio. #}
+        <div class="mf-field" style="margin:14px 0 0">
+          <label class="mf-label" for="{{ form.aggiunti_utenti.id_for_label }}">{{ form.aggiunti_utenti.label }}</label>
+          {{ form.aggiunti_utenti }}
+          <p class="mf-hint">Tieni premuto Ctrl per sceglierne più di una. Risulteranno partecipanti e presenti, e riceveranno la minuta.</p>
+        </div>
+        <div class="mf-field" style="margin:10px 0 0">
+          <label class="mf-label" for="{{ form.aggiunti_email.id_for_label }}">{{ form.aggiunti_email.label }}</label>
+          {{ form.aggiunti_email }}
+          {% if form.aggiunti_email.errors %}<ul class="mf-errorlist">{% for e in form.aggiunti_email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <p class="mf-hint" style="margin-bottom:0">La minuta va ai presenti; chi era convocato e non c'era resta in copia.</p>
       </div>
     </div>
 
