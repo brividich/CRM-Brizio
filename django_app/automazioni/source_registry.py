@@ -54,6 +54,17 @@ def _field(
 
 
 _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
+    "managed_flows": {
+        "code": "managed_flows", "label": "Processi dei moduli", "source_app": "automazioni",
+        "table_name": None, "pk_field": "flow_code", "supported_operations": ["manual"],
+        "description": "Pianificazioni ed eventi applicativi gestiti dal designer.",
+        "fields": [
+            _field(name="flow_code", label="Codice flusso", data_type="string", description="Processo registrato", is_virtual=True),
+            _field(name="module", label="Modulo", data_type="string", description="Modulo di origine", is_virtual=True),
+            _field(name="hour", label="Ora locale", data_type="int", description="Ora 0–23", is_virtual=True),
+            _field(name="weekday", label="Giorno settimana", data_type="int", description="Lunedì 1, domenica 7", is_virtual=True),
+        ],
+    },
     "assenze": {
         "code": "assenze",
         "label": "Assenze",
@@ -1776,7 +1787,7 @@ def _clone_source(source: dict[str, object]) -> dict[str, object]:
 
 
 def get_registered_sources() -> list[dict[str, object]]:
-    return [_clone_source(source) for source in _SOURCE_REGISTRY.values()]
+    return [_clone_source(source) for source in sorted(_SOURCE_REGISTRY.values(), key=lambda source: source["code"] == "managed_flows")]
 
 
 def get_source_definition(code: str | None) -> dict[str, object] | None:

@@ -1749,3 +1749,12 @@ commit accidentali di `.env` e secret.*
 ### Assenze del reparto
 
 Card di consultazione per chi vede reparto/azienda, assegnazione corrente da anagrafica e storico paginato con filtri passate/in corso e future. L'accesso in lettura non concede approvazioni o dettagli riservati.
+
+
+### Flussi dei moduli nel designer Automazioni
+
+Pianificazioni e notifiche applicative censite si gestiscono come flussi nel designer esistente: attivazione, condizioni, azioni, calendario e storico. Il collegamento «Apri flusso» è disponibile nelle pianificazioni e negli eventi. L'azione di modulo conserva la logica operativa; disattivare una notifica non annulla l'operazione aziendale.
+
+Installazione e recupero del worker: [runbook flussi](docs/AUTOMAZIONI_FLUSSI_RUNTIME.md). Le personalizzazioni non vengono riscritte al deploy; il recupero dell'arretrato richiede worker fermi e conserva i pacchetti modificati nel database. Nessun servizio Microsoft Power Automate richiesto.
+
+Le due richieste di approvazione Assenze censite possono essere unite con `merge_assenze_flows`: un percorso per tipo/durata, registrazione dell'esito dopo l'ultimo approvatore e fallback al caporeparto. Le regole originali vengono conservate disattivate. La conversione richiede processori fermi; anteprima e ripristino sono descritti nel runbook.

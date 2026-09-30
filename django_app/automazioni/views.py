@@ -4030,11 +4030,24 @@ def _build_rule_designer_context(
     )
     condition_entries = _build_condition_entries(condition_formset, source_code=source_code)
     action_entries = _build_action_entries(action_formset)
+    binding = getattr(rule, "managed_flow", None)
+    if binding:
+        from .schedules import describe_cadence
+        label = "Pianificazione" if binding.kind == "schedule" else "Evento applicativo"
+        when = describe_cadence({"schedule_type": binding.schedule_type, "minutes": binding.minutes, "cron": binding.cron}) if binding.kind == "schedule" else rule.description
+        trigger_descriptor.update(operation_label=label, trigger_scope_label=label, headline=when,
+                                  natural_when="QUANDO " + when, natural_scope="SE le condizioni sono soddisfatte", scope_detail=label)
     flow_nodes = _build_flow_nodes(rule, trigger_descriptor, condition_entries, action_entries)
     teams_flow_endpoints, teams_flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=True)
+    from .flow_forms import ManagedScheduleForm
+    binding = getattr(rule, "managed_flow", None)
+    if binding:
+        trigger_descriptor["label"] = "Pianificazione" if binding.kind == "schedule" else "Evento applicativo"
     return {
         **_base_context(),
         **_build_source_catalog_context(source_code),
+        "managed_binding": binding,
+        "managed_schedule_form": ManagedScheduleForm(instance=binding) if binding and binding.kind == "schedule" else None,
         "enable_smart_field_panel": True,
         "rule": rule,
         "is_new_rule": not bool(getattr(rule, "pk", None)),
@@ -4077,6 +4090,7 @@ _ACTION_NODE_STYLES: dict[str, dict[str, str]] = {
     "update_trigger_record": {"icon": "🔄",  "color": "#0d9488", "bg": "#f0fdfa", "app": "Database"},
     "update_dashboard_metric":{"icon": "📊", "color": "#7c3aed", "bg": "#f5f3ff", "app": "Dashboard"},
     "write_log":             {"icon": "📝",  "color": "#475569", "bg": "#f8fafc", "app": "Log"},
+    "native_process": {"icon": "⚙", "color": "#047857", "bg": "#ecfdf5", "app": "Processo del modulo"},
     "delay_schedule":        {"icon": "⏰",  "color": "#d97706", "bg": "#fffbeb", "app": "Scheduler"},
     "http_request":          {"icon": "🌐",  "color": "#0369a1", "bg": "#f0f9ff", "app": "HTTP"},
     "teams_webhook":         {"icon": "💬",  "color": "#5b5fc7", "bg": "#eef2ff", "app": "Teams"},
@@ -4328,10 +4342,7 @@ def contenuti_page(request):
 @legacy_admin_or_acl_required("automazioni", "event_notifications_page")
 @require_GET
 def event_notifications_page(request):
-    """Catalogo di sola lettura delle notifiche email scatenate da un evento
-    applicativo (view o comando manuale) che NON passano né dal motore regole
-    né dai task pianificati. Vedi ``event_notifications.py`` per il perché
-    non sono (ancora) vere ``AutomationRule``."""
+    """Flussi su evento con collegamento al designer e stato corrente."""
     from .event_notifications import get_event_notifications
 
     rows = get_event_notifications()
@@ -4348,7 +4359,7 @@ def event_notifications_page(request):
 def rule_list_page(request):
     filters = _build_rule_filters_context(request)
     queryset = _apply_rule_filters(
-        AutomationRule.objects.select_related("created_by", "updated_by").order_by("source_code", "name", "id"),
+        AutomationRule.objects.select_related("created_by", "updated_by", "managed_flow").order_by("source_code", "name", "id"),
         filters,
     )
     all_sources = get_registered_sources()
@@ -4357,6 +4368,8 @@ def rule_list_page(request):
     # Group rules by source_code preserving registry order
     from collections import defaultdict
     groups: dict[str, list] = defaultdict(list)
+    from .managed_flows import catalog
+    native_catalog = catalog()
     # Mini-mappa flusso (blocco 9): prefetch azioni e condizioni per evitare N+1
     # quando costruiamo l'anteprima visiva inline accanto al nome.
     rules_qs = queryset[:500].prefetch_related("actions", "conditions")
@@ -4370,7 +4383,15 @@ def rule_list_page(request):
             "actions": [a.action_type for a in actions_seq[:3]],
             "more_actions": max(0, len(actions_seq) - 3),
         }
-        groups[rule.source_code].append(rule)
+        binding = getattr(rule, "managed_flow", None)
+        if binding and binding.code in native_catalog:
+            module = native_catalog[binding.code]["module"]
+            group_code = f"managed-{module}"
+            source_map[group_code] = {"label": module.replace("_", " ").title(), "source_app": "Processi del modulo"}
+            rule.flow_preview["trigger_op"] = "Pianificazione" if binding.kind == "schedule" else "Evento"
+            groups[group_code].append(rule)
+        else:
+            groups[rule.source_code].append(rule)
 
     # Build ordered group list following registry order, then unknown sources
     registry_order = [s["code"] for s in all_sources]
@@ -4390,8 +4411,8 @@ def rule_list_page(request):
         if code not in seen:
             rules_by_source.append({
                 "source_code": code,
-                "source_label": code,
-                "source_app": "",
+                "source_label": source_map.get(code, {}).get("label", code),
+                "source_app": source_map.get(code, {}).get("source_app", ""),
                 "rules": rules,
             })
 
@@ -5087,6 +5108,9 @@ def rule_toggle_view(request, rule_id: int):
 @require_POST
 def rule_delete_view(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
+    if hasattr(rule, "managed_flow"):
+        messages.error(request, "Questo flusso è collegato al modulo: disattivalo senza eliminarne il collegamento.")
+        return redirect("admin_portale:automazioni_rule_designer", rule_id=rule.pk)
     rule_name = rule.name
     rule_code = rule.code
     # Le condizioni/azioni hanno FK on_delete=CASCADE: vengono rimosse con la regola.
@@ -6921,9 +6945,12 @@ def pianificati_page(request):
     for r in rows:
         r["configurable"] = is_configurable(r["name"])
     enabled_n = sum(1 for r in rows if r["enabled"])
+    from .flow_health import broker_health
+    health = broker_health()
     context = {
         **_base_context(),
         "rows": rows,
+        "health": health,
         "totale": len(SCHEDULES),
         "attivi": enabled_n,
         "disattivi": len(rows) - enabled_n,
@@ -6946,6 +6973,21 @@ def pianificati_action(request):
         messages.error(request, "Task pianificato sconosciuto.")
         return redirect("admin_portale:automazioni_pianificati")
 
+    if action == "save_schedule":
+        from .flow_forms import ManagedScheduleForm
+        from .models import ManagedFlow
+        from .managed_flows import synchronize_schedule
+        binding = get_object_or_404(ManagedFlow, code=name, kind="schedule")
+        form = ManagedScheduleForm(request.POST, instance=binding)
+        if form.is_valid():
+            with transaction.atomic():
+                binding = form.save()
+                synchronize_schedule(binding)
+            log_action(request, "automazioni_schedule_config", "automazioni", {"name": name})
+            messages.success(request, "Pianificazione salvata.")
+        else:
+            messages.error(request, "Pianificazione non valida: " + " ".join(str(e) for errors in form.errors.values() for e in errors))
+        return redirect("admin_portale:automazioni_rule_designer", rule_id=binding.rule_id)
     if action == "toggle":
         control, _ = ScheduleControl.objects.get_or_create(name=name)
         control.enabled = not control.enabled
@@ -6964,7 +7006,12 @@ def pianificati_action(request):
         try:
             from django_q.tasks import async_task
 
-            async_task(spec["func"], **(spec.get("kwargs") or {}))
+            from .models import ManagedFlow
+            binding = ManagedFlow.objects.filter(code=name, kind="schedule").first()
+            if binding:
+                async_task("automazioni.managed_flows.run_managed_flow", name)
+            else:
+                async_task(spec["func"], **(spec.get("kwargs") or {}))
             log_action(request, "automazioni_schedule_run_now", "automazioni", {"name": name})
             messages.success(request, f"'{name}' avviato ora (accodato al cluster).")
         except Exception as exc:

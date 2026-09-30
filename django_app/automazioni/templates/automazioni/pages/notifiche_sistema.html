@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Automazioni - Notifiche di sistema | Admin Portale{% endblock %}
+{% block title %}Automazioni - Flussi su evento | Admin Portale{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -31,7 +31,7 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Notifiche di sistema" page_subtitle="Email scatenate da un evento nel codice (view o comando manuale), fuori dal motore regole e dai task pianificati." %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Flussi su evento" page_subtitle="Email scatenate da un evento nel codice (view o comando manuale), fuori dal motore regole e dai task pianificati." %}
   {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/subnav.html" %}
 
@@ -39,15 +39,7 @@
     <div class="evn-stat"><div class="n">{{ totale }}</div><div class="l">Notifiche censite</div></div>
   </div>
 
-  <p class="evn-note">
-    Elenco di <strong>sola lettura</strong>. Queste notifiche non compaiono altrove in Automazioni
-    perché non sono né una <code>AutomationRule</code> né un task pianificato: sono chiamate dirette
-    nel codice, scatenate da un'azione utente (view) o da un comando manuale. Convertirle in vere
-    automazioni richiede — caso per caso — registrare una sorgente/trigger SQL sulla tabella di
-    origine (dev/test/prod) o estendere il motore regole; non è stato fatto per evitare modifiche
-    di schema/motore non verificate singolarmente. Dettagli nei commenti di
-    <code>automazioni/event_notifications.py</code>.
-  </p>
+  <p class="evn-note">Ogni evento installato apre un flusso nel designer: puoi gestire attivazione, condizioni, azioni e consultare lo storico. Il salvataggio dei dati del modulo rimane indipendente dalla notifica.</p>
 
   <div class="evn-table-wrap">
     <table class="evn-table">
@@ -57,7 +49,7 @@
           <th>Modulo</th>
           <th>Quando scatta</th>
           <th>Destinatari</th>
-          <th>Sorgente nel codice</th>
+          <th>Gestione flusso</th>
         </tr>
       </thead>
       <tbody>
@@ -67,7 +59,7 @@
           <td><span class="evn-mod">{{ r.module }}</span></td>
           <td class="evn-desc">{{ r.trigger }}</td>
           <td class="evn-desc">{{ r.destinatari }}</td>
-          <td class="evn-src">{{ r.source }}<br>{{ r.func }}</td>
+          <td>{% if r.rule_id %}<a href="{% url 'admin_portale:automazioni_rule_designer' rule_id=r.rule_id %}">Apri flusso</a><br>{% if r.enabled %}Attivo{% else %}Disattivo{% endif %}{% else %}Installazione richiesta{% endif %}</td>
         </tr>
         {% empty %}
         <tr><td colspan="5" style="text-align:center;color:#64748b;padding:24px;">Nessuna notifica censita.</td></tr>

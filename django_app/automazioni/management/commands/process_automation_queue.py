@@ -63,6 +63,13 @@ class Command(BaseCommand):
         dry_run = bool(options.get("dry_run"))
         no_monitoring = bool(options.get("no_monitoring"))
 
+        if not dry_run and not no_monitoring and source_code is None:
+            from automazioni.models import ManagedFlow
+            if ManagedFlow.objects.filter(code="automation_queue").exists():
+                from automazioni.managed_flows import run_managed_flow
+                result = run_managed_flow("automation_queue", queue_limit=limit)
+                self.stdout.write(f"Flusso automation_queue: {result.get('status', result.get('reason', 'completato'))}")
+                return
         if no_monitoring:
             summary = process_pending_queue_events(limit=limit, source_code=source_code, dry_run=dry_run)
         else:

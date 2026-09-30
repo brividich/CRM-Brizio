@@ -133,7 +133,7 @@ def _build_markdown(schedules: list[dict], commenti: dict[str, str]) -> str:
     out.append("> Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:")
     out.append("> si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).")
     out.append("")
-    out.append(f"**Totale automazioni attive:** {len(schedules)}")
+    out.append(f"**Totale automazioni disponibili:** {len(schedules)}")
     out.append("")
     out.append("Ogni automazione è un task periodico gestito da django-q2 e può essere "
                "**disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) "

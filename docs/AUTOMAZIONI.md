@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni attive:** 48
+**Totale automazioni disponibili:** 49
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -28,7 +28,7 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 - **Quando gira:** ogni giorno, alle 07:50
 - **Task eseguito:** `anagrafica.tasks.run_contratti_expiry_reminders`
-- **Cosa fa:** ANAGRAFICA HR — contratti a termine + periodi di prova in scadenza. Fail-safe: no-op senza SiteConfig contratti_reminder_emails.
+- **Cosa fa:** ANAGRAFICA HR — contratti a termine + periodi di prova in scadenza. Destinatari contratti_reminder_emails con fallback amministrativo da verificare.
 
 ### `elearning_reminders`
 
@@ -70,13 +70,13 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 - **Quando gira:** ogni giorno, alle 08:05
 - **Task eseguito:** `anagrafica.tasks.run_training_expiry_reminders`
-- **Cosa fa:** ANAGRAFICA — reminder scadenze formazione OBBLIGATORIA (corsi scaduti/in scadenza dalla cache TrainingDeadline): digest HR + notifica al dipendente. Complementare a formazione_audit_digest (trimestrale): qui è il reminder operativo. Fail-safe: digest no-op senza SiteConfig training_reminder_emails.
+- **Cosa fa:** ANAGRAFICA — reminder scadenze formazione OBBLIGATORIA (corsi scaduti/in scadenza dalla cache TrainingDeadline): digest HR + notifica al dipendente. Complementare a formazione_audit_digest (trimestrale): qui è il reminder operativo. Destinatari training_reminder_emails con fallback amministrativo da verificare.
 
 ### `visite_expiry_reminders`
 
 - **Quando gira:** ogni giorno, alle 07:45
 - **Task eseguito:** `anagrafica.tasks.run_visite_expiry_reminders`
-- **Cosa fa:** ANAGRAFICA HR — reminder visite mediche scadute/in scadenza: digest ai responsabili (card+badge nel frame HUB) + notifica in-app al dipendente. Fail-safe: no-op senza SiteConfig visite_reminder_emails.
+- **Cosa fa:** ANAGRAFICA HR — reminder visite mediche scadute/in scadenza: digest ai responsabili (card+badge nel frame HUB) + notifica in-app al dipendente. Destinatari visite_reminder_emails con fallback amministrativo da verificare.
 
 ### `visite_mediche_digest`
 
@@ -263,6 +263,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Cosa fa:** CORE — digest mattutino caporeparto: DPI in attesa + incidenti aperti del reparto (fonte capi = Reparto.caporeparto_legacy_id; email = email_notifica). Fail-safe: no-op senza capi/voci; assenze (SharePoint dismesso) e ticket (nessun legame reparto) esclusi per design.
 
 ## Motore automazioni
+
+### `approval_expiry_reconciliation`
+
+- **Quando gira:** ogni 15 minuti
+- **Task eseguito:** `automazioni.managed_flows.reconcile_expired_approvals`
+- **Cosa fa:** Riconcilia richieste ancora in attesa oltre la scadenza, senza applicare decisioni.
 
 ### `approval_mailbox`
 

@@ -1,5 +1,13 @@
 # Session Checkpoint
 
+Data: 2026-09-30 (flussi nel designer, recupero runtime e unione Assenze)
+
+- Vista/aggiunta voce AGENT_CHANGELOG flussi dei moduli nel designer e recupero automazioni; changelog Unreleased root/Django e docs aggiornati. Worktree C:/Dev/pn-automazioni-check, feature/automazioni-check-produzione; audit 019d0977, base5871b10a. Nessuna modifica al checkout condiviso.
+- 56 collegamenti designer, cadenze persistenti, broker/lease/health/recupero archiviato, launcher Windows, quattro trigger e riconciliazione scadenze. Unione Assenze richiesta esplicitamente, comando conserva originali disattivati e fonde routing + stato/split terminali; anteprima compatibile con config reale. Dettagli docs/AUTOMAZIONI_FLUSSI_RUNTIME.md.
+- 421 test Automazioni +104 cross-modulo verdi, check/migration drift/secret hygiene/diff verdi; QA browser cadenza e mobile, launcher sintetico >1MB/exit7; server QA fermato. Critici settings base/dev broker e catch_up, launcher; nessuna modifica ACL/routing/auth/navigazione globale.
+- Produzione5871b10 ancora invariata: worker non gestibile da remoto (Accesso negato/WinRM), recupero/deploy non eseguiti. Commit feature da integrare e distribuire con procedure locali server; backup, stop worker+legacy, migrate/trigger/setup, merge Assenze e recupero, restart e verifica. SQL Server runtime/destinatari/consegne reali da collaudare; Unreleased per bump coordinato.
+
+
 Data: 2026-09-29 (check produzione automazioni)
 
 - Vista/aggiunta voce AGENT_CHANGELOG check produzione automazioni e inventario per modulo; nessun delta applicativo oltre Assenze reparto gia visto.

@@ -502,6 +502,9 @@ class AutomationRuleForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         self.fields["source_code"].choices = get_source_choices()
+        if self.instance.pk and hasattr(self.instance, "managed_flow"):
+            for name in ("code", "source_code", "operation_type", "trigger_scope", "watched_field"):
+                self.fields[name].disabled = True
         _mark_smart_target(self.fields.get("watched_field"), mode="field-select", role="watched-field", source_role="trigger")
 
         if not self.is_bound and not self.instance.pk:
@@ -1232,7 +1235,11 @@ class AutomationActionForm(forms.ModelForm):
 
         config_json: dict[str, Any] = {}
 
-        if action_type == AutomationActionType.SEND_EMAIL:
+        if action_type == AutomationActionType.NATIVE_PROCESS:
+            if self._effective_source_code != "managed_flows":
+                self.add_error("action_type", "Disponibile solo nei flussi dei moduli.")
+            config_json = {}
+        elif action_type == AutomationActionType.SEND_EMAIL:
             config_json = {
                 "from_email": cleaned_data.get("email_from_email", ""),
                 "to": cleaned_data.get("email_to", ""),

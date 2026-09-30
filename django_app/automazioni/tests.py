@@ -5268,6 +5268,17 @@ class AutomationQueueMatchingTests(TestCase):
 
 
 class AutomationQueueProcessorTests(TestCase):
+    @patch("automazioni.services.mark_queue_done")
+    @patch("automazioni.services.mark_queue_error")
+    @patch("automazioni.services.run_rule")
+    def test_failed_ungrouped_rule_keeps_queue_in_error(self, run, mark_error, mark_done):
+        run.return_value = SimpleNamespace(status=AutomationRunLogStatus.ERROR, result_message="Synthetic error")
+        result = process_queue_event({"id": 88, "source_code": "assenze", "operation_type": "update",
+                                      "payload_json": '{"id": 1}', "old_payload_json": '{}'})
+        self.assertEqual(result["status"], "error")
+        mark_error.assert_called_once()
+        mark_done.assert_not_called()
+
     def setUp(self):
         self.rule = AutomationRule.objects.create(
             code="queue-processor-rule",
@@ -6074,6 +6085,7 @@ class ApprovalEmailTemplateDBTests(TestCase):
         self.assertIn("approval_mailto_subject_template", ctx.exception.message_dict)
 
 
+@override_settings(DEFAULT_FROM_EMAIL="automation-tests@example.com")
 class ApprovalEmailTemplateFallbackTests(TestCase):
     """Test che il fallback in send_approval sia sicuro se il template manca."""
 

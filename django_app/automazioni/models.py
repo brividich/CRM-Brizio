@@ -74,6 +74,7 @@ class AutomationConditionValueType(models.TextChoices):
 
 
 class AutomationActionType(models.TextChoices):
+    NATIVE_PROCESS = "native_process", "Esegui processo del modulo"
     SEND_EMAIL = "send_email", "Send email"
     INSERT_RECORD = "insert_record", "Insert record"
     UPDATE_RECORD = "update_record", "Update record"
@@ -954,3 +955,34 @@ class ScheduledMailText(models.Model):
 
     def __str__(self) -> str:
         return f"ScheduledMailText<{self.task_name}>"
+
+
+class ManagedFlow(models.Model):
+    code = models.SlugField(max_length=100, unique=True)
+    rule = models.OneToOneField(AutomationRule, on_delete=models.PROTECT, related_name="managed_flow")
+    kind = models.CharField(max_length=16, choices=[("schedule", "Pianificato"), ("event", "Evento applicativo")])
+    schedule_type = models.CharField(max_length=1, default="I", choices=[("I", "Ogni N minuti"), ("C", "Calendario")])
+    minutes = models.PositiveIntegerField(default=1)
+    cron = models.CharField(max_length=100, blank=True, default="")
+    queued_task_id = models.BigIntegerField(null=True, blank=True)
+    running_until = models.DateTimeField(null=True, blank=True)
+    lease_token = models.UUIDField(null=True, blank=True)
+
+    def clean(self):
+        super().clean()
+        if self.schedule_type == "I" and not 1 <= self.minutes <= 10080:
+            raise ValidationError({"minutes": "Intervallo ammesso: 1–10080 minuti."})
+        if self.schedule_type == "C":
+            from croniter import croniter
+            if len(self.cron.split()) != 5 or not croniter.is_valid(self.cron):
+                raise ValidationError({"cron": "Calendario cron non valido (cinque campi)."})
+
+
+class BrokerRecoveryEntry(models.Model):
+    batch = models.UUIDField(db_index=True)
+    original_id = models.BigIntegerField()
+    key = models.CharField(max_length=100)
+    signed_payload = models.TextField()
+    original_lock = models.DateTimeField()
+    flow_code = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
