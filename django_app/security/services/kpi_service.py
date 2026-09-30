@@ -28,7 +28,7 @@ def _build_vpn_kpi_snapshots(snapshot_date):
     """KPI VPN dallo storico accessi: gli utenti unici non si ottengono sommando i report."""
     created = 0
     source_ids = (
-        SecurityVpnAccess.objects.filter(login_at__date=snapshot_date).order_by().values_list("source_id", flat=True).distinct()
+        SecurityVpnAccess.objects.filter(kind="vpn", login_at__date=snapshot_date).order_by().values_list("source_id", flat=True).distinct()
     )
     for source_id in source_ids:
         for name, value in vpn_day_stats(snapshot_date, source_id).items():

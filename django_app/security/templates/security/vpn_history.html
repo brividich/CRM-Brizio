@@ -17,6 +17,15 @@
       <option value="denied" {% if filters.action == "denied" %}selected{% endif %}>Negati</option>
     </select>
   </label>
+  <label>Tipo
+    <select name="kind">
+      <option value="vpn" {% if filters.kind == "vpn" %}selected{% endif %}>VPN</option>
+      <option value="firewall" {% if filters.kind == "firewall" %}selected{% endif %}>Firewall</option>
+      <option value="guest" {% if filters.kind == "guest" %}selected{% endif %}>Guest</option>
+      <option value="other" {% if filters.kind == "other" %}selected{% endif %}>Altro</option>
+      <option value="all" {% if filters.kind == "all" %}selected{% endif %}>Tutti</option>
+    </select>
+  </label>
   <label>Dal <input type="date" name="from" value="{{ filters.from }}"></label>
   <label>Al <input type="date" name="to" value="{{ filters.to }}"></label>
   <button class="sec-button-primary" type="submit">Filtra</button>
@@ -125,7 +134,7 @@
           <td class="sec-nowrap">{{ row.login_at|date:"d/m/Y H:i"|default:"—" }}</td>
           <td class="sec-nowrap">{{ row.logout_at|date:"d/m/Y H:i"|default:"—" }}</td>
           <td class="sec-nowrap sec-num">{% if row.duration_seconds %}{{ row.duration_seconds|duration_hms }}{% else %}—{% endif %}</td>
-          {% if has_method %}<td>{{ row.method|default:"—" }}</td>{% endif %}
+          {% if has_method %}<td>{{ row.method|default:row.kind|default:"—" }}{% if row.reason %}<small class="sec-muted" style="display:block;max-width:34ch;" title="{{ row.reason }}">{{ row.reason|truncatechars:60 }}</small>{% endif %}</td>{% endif %}
           <td>{{ row.firebox_name|default:row.source.name }}</td>
         </tr>
       {% empty %}

@@ -9,14 +9,35 @@ from .config import (
     VPN_SHORT_SESSION_SECONDS,
 )
 
+KIND_VPN, KIND_FIREWALL, KIND_GUEST, KIND_OTHER = "vpn", "firewall", "guest", "other"
+_VPN_WORDS = ("vpn", "ssl", "ipsec", "pptp", "l2tp", "ikev2")
+
+
+def classify_kind(method, reason=""):
+    """Tipo di autenticazione. Il report «Authentication» del Firebox NON e' solo VPN: la colonna
+    `method` distingue Firewall, VPN, Guest. Contarli tutti come VPN gonfiava gli accessi
+    (centinaia di login «Firewall» al minuto di un servizio) e generava alert falsi."""
+    text = f"{method} {reason}".lower()
+    if any(word in text for word in _VPN_WORDS):
+        return KIND_VPN
+    if "firewall" in text:
+        return KIND_FIREWALL
+    if "guest" in text or "portal" in text:
+        return KIND_GUEST
+    return KIND_OTHER
+
 
 def parse_watchguard_firebox_authentication_allowed_csv(csv_text, *, source_name=None, received_at=None):
     result = _parse_authentication_csv(csv_text, "allowed", source_name=source_name, received_at=received_at)
     result["report_type"] = "watchguard_firebox_authentication_allowed"
-    result["metrics"]["watchguard_sslvpn_allowed_count"] = len(result["records"])
+    records = result["records"]
+    vpn = [record for record in records if record["kind"] == KIND_VPN]
+    result["metrics"]["watchguard_auth_allowed_total"] = len(records)
+    result["metrics"]["watchguard_firewall_auth_count"] = sum(1 for record in records if record["kind"] == KIND_FIREWALL)
+    result["metrics"]["watchguard_sslvpn_allowed_count"] = len(vpn)
     result["metrics"]["watchguard_sslvpn_denied_count"] = 0
-    short_by_user = Counter(record["user"] for record in result["records"] if record["duration_seconds"] <= VPN_SHORT_SESSION_SECONDS)
-    long_sessions = [record for record in result["records"] if record["duration_seconds"] > VPN_LONG_SESSION_SECONDS]
+    short_by_user = Counter(record["user"] for record in vpn if 0 < record["duration_seconds"] <= VPN_SHORT_SESSION_SECONDS)
+    long_sessions = [record for record in vpn if record["duration_seconds"] > VPN_LONG_SESSION_SECONDS]
     result["metrics"]["watchguard_sslvpn_short_reconnect_count"] = sum(short_by_user.values())
     result["metrics"]["watchguard_sslvpn_long_session_count"] = len(long_sessions)
     for user, count in short_by_user.items():
@@ -51,10 +72,12 @@ def parse_watchguard_firebox_authentication_allowed_csv(csv_text, *, source_name
 def parse_watchguard_firebox_authentication_denied_csv(csv_text, *, source_name=None, received_at=None):
     result = _parse_authentication_csv(csv_text, "denied", source_name=source_name, received_at=received_at)
     result["report_type"] = "watchguard_firebox_authentication_denied"
+    records = result["records"]
     result["metrics"]["watchguard_sslvpn_allowed_count"] = 0
-    result["metrics"]["watchguard_sslvpn_denied_count"] = len(result["records"])
-    denied_by_ip = Counter(record["source_ip"] for record in result["records"])
-    denied_by_user = Counter(record["user"] for record in result["records"])
+    result["metrics"]["watchguard_auth_denied_total"] = len(records)
+    result["metrics"]["watchguard_sslvpn_denied_count"] = sum(1 for record in records if record["kind"] == KIND_VPN)
+    denied_by_ip = Counter(record["source_ip"] for record in records)
+    denied_by_user = Counter(record["user"] for record in records)
     for source_ip, count in denied_by_ip.items():
         if source_ip and count >= VPN_DENIED_THRESHOLD_PER_IP:
             result["alerts_candidates"].append(
@@ -109,6 +132,9 @@ def _parse_authentication_csv(csv_text, action, *, source_name=None, received_at
         login_time = _first(normalized, "login_time", "login", "start_time", "timestamp")
         logout_time = _first(normalized, "logout_time", "logout", "end_time")
         duration = _first(normalized, "duration", "session_duration")
+        method = _first(normalized, "method", "auth_method", "connection_type", "type", "auth_type", "connection")
+        reason = _first(normalized, "reason", "message", "description")
+        kind = classify_kind(method, reason)
         record = {
             "vendor": "watchguard",
             "action": action,
@@ -119,30 +145,34 @@ def _parse_authentication_csv(csv_text, action, *, source_name=None, received_at
             "duration": duration,
             "duration_seconds": parse_duration_seconds(duration),
             "quota": _first(normalized, "quota"),
-            "method": _first(normalized, "method", "auth_method", "connection_type", "type", "auth_type", "connection"),
+            "method": method,
+            "reason": reason[:300],
+            "kind": kind,
             "firebox_name": result["firebox_name"],
             "dedup_key": stable_hash("watchguard", "vpn_auth", action, user, source_ip, login_time, logout_time, duration),
         }
         result["records"].append(record)
-        if user:
-            users.add(user)
-        if source_ip:
-            source_ips.add(source_ip)
-        by_pair[(user, source_ip)] += 1
+        if kind == KIND_VPN:
+            if user:
+                users.add(user)
+            if source_ip:
+                source_ips.add(source_ip)
+            by_pair[(user, source_ip)] += 1
     result["metrics"]["watchguard_sslvpn_unique_users"] = len(users)
     result["metrics"]["watchguard_sslvpn_unique_source_ips"] = len(source_ips)
     result["metrics"]["watchguard_sslvpn_user_ip_pairs"] = len(by_pair)
-    if result["records"]:
-        result["report_date"] = (parse_datetime(result["records"][0].get("login_time")) or parse_datetime(result["records"][0].get("logout_time")) or None)
-        if result["report_date"]:
-            result["report_date"] = result["report_date"].date().isoformat()
+    dated = next((r for r in result["records"] if parse_datetime(r.get("login_time")) or parse_datetime(r.get("logout_time"))), None)
+    if dated:
+        moment = parse_datetime(dated.get("login_time")) or parse_datetime(dated.get("logout_time"))
+        result["report_date"] = moment.date().isoformat()
     return result
 
 
 def _finalize_auth_result(result, csv_text):
+    kinds = Counter(record["kind"] for record in result["records"])
     result["raw_summary"] = (
-        f"{result['report_type']}: {len(result['records'])} rows, "
-        f"{result['metrics'].get('watchguard_sslvpn_unique_users', 0)} users, "
+        f"{result['report_type']}: {len(result['records'])} righe "
+        f"({', '.join(f'{count} {kind}' for kind, count in kinds.most_common())}), "
         f"{len(result['alerts_candidates'])} alert candidates"
     )
     result["metrics"]["top_users"] = top_counter(Counter(record["user"] for record in result["records"] if record["user"]))
@@ -180,7 +210,9 @@ def _rows_from_text(text):
             (tok for tok in rest.split() if any(ch.isalpha() for ch in tok) and tok.lower() not in _NOISE_TOKENS),
             "",
         )
+        low = line.lower()
         rows.append({
+            "method": "SSLVPN" if ("vpn" in low or "ssl" in low) else ("Firewall" if "firewall" in low else ""),
             "user": user,
             "source_ip": ip.group(0),
             "login_time": stamps[0],

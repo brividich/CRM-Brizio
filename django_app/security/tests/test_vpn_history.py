@@ -13,12 +13,16 @@ from security.services.parser_engine import run_pending_parsers
 from security.services.vpn_history import persist_vpn_accesses
 
 ALLOWED_CSV = (
-    "User,Source IP,Login Time,Logout Time,Duration\n"
-    "mario.rossi,203.0.113.10,2026-09-29 08:01:00,2026-09-29 09:31:00,01:30:00\n"
-    "anna.verdi,203.0.113.11,2026-09-29 08:05:00,2026-09-29 08:06:00,00:01:00\n"
-    "mario.rossi,203.0.113.10,2026-09-29 14:00:00,2026-09-29 15:00:00,01:00:00\n"
+    "User,Source IP,Login Time,Logout Time,Duration,Method\n"
+    "mario.rossi,203.0.113.10,2026-09-29 08:01:00,2026-09-29 09:31:00,01:30:00,SSLVPN\n"
+    "anna.verdi,203.0.113.11,2026-09-29 08:05:00,2026-09-29 08:06:00,00:01:00,SSLVPN\n"
+    "mario.rossi,203.0.113.10,2026-09-29 14:00:00,2026-09-29 15:00:00,01:00:00,SSLVPN\n"
 )
-DENIED_CSV = "User,Source IP,Login Time\nadmin,198.51.100.7,2026-09-29 03:00:00\nadmin,198.51.100.7,2026-09-29 03:01:00\n"
+DENIED_CSV = (
+    "User,Source IP,Login Time,Reason\n"
+    "admin,198.51.100.7,2026-09-29 03:00:00,Authentication of SSLVPN user [admin] was rejected\n"
+    "admin,198.51.100.7,2026-09-29 03:01:00,Authentication of SSLVPN user [admin] was rejected\n"
+)
 PDF_TEXT = (
     "Firebox Authentication Allowed\n"
     "User Source IP Login Time Logout Time Duration\n"

@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from security.models import SecurityVpnAccess
 from security.parsers.watchguard.common import parse_datetime
+from security.parsers.watchguard.firebox_authentication_csv import KIND_VPN, classify_kind
 from security.services.dedup import make_hash
 
 _BATCH = 200
@@ -53,6 +54,8 @@ def persist_vpn_accesses(source, report, payloads):
             logout_at=_aware(payload.get("logout_time")),
             duration_seconds=max(int(payload.get("duration_seconds") or 0), 0),
             method=str(payload.get("method") or "")[:64],
+            kind=payload.get("kind") or classify_kind(payload.get("method"), payload.get("reason") or ""),
+            reason=str(payload.get("reason") or "")[:300],
             firebox_name=str(payload.get("firebox_name") or "")[:120],
             dedup_hash=digest,
         )
@@ -72,7 +75,7 @@ def persist_vpn_accesses(source, report, payloads):
 def vpn_day_stats(day, source_id=None):
     """Metriche del giorno calcolate sullo storico (gli unici non si sommano tra report)."""
     start = timezone.make_aware(timezone.datetime.combine(day, timezone.datetime.min.time()))
-    qs = SecurityVpnAccess.objects.filter(login_at__gte=start, login_at__lt=start + timedelta(days=1))
+    qs = SecurityVpnAccess.objects.filter(kind=KIND_VPN, login_at__gte=start, login_at__lt=start + timedelta(days=1))
     if source_id is not None:
         qs = qs.filter(source_id=source_id)
     allowed = qs.filter(action=SecurityVpnAccess.ACTION_ALLOWED)
@@ -91,13 +94,13 @@ def vpn_day_stats(day, source_id=None):
 def vpn_recent_stats(days=7):
     """Sintesi degli ultimi giorni per la dashboard."""
     since = timezone.now() - timedelta(days=days)
-    qs = SecurityVpnAccess.objects.filter(login_at__gte=since)
+    qs = SecurityVpnAccess.objects.filter(kind=KIND_VPN, login_at__gte=since)
     return {
         "days": days,
         "allowed": qs.filter(action=SecurityVpnAccess.ACTION_ALLOWED).count(),
         "denied": qs.filter(action=SecurityVpnAccess.ACTION_DENIED).count(),
         "users": qs.exclude(username="").order_by().values("username").distinct().count(),
-        "has_history": SecurityVpnAccess.objects.exists(),
+        "has_history": SecurityVpnAccess.objects.filter(kind=KIND_VPN).exists(),
     }
 
 

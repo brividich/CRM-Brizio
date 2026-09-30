@@ -46,6 +46,12 @@ PARSER_INFO = {
         "inputs": "Mail",
         "recognizes": "Esiti dei job Active Backup for Business (mail in italiano o inglese).",
     },
+    "veeam_backup_email_parser": {
+        "label": "Veeam Backup & Replication",
+        "vendor": "Veeam",
+        "inputs": "Mail",
+        "recognizes": "Esiti dei job Veeam («[Success] Backup ...»): stato, orari, dimensioni, durata e macchine virtuali.",
+    },
     "watchguard_report_parser": {
         "label": "WatchGuard · tutti i report",
         "vendor": "WatchGuard",

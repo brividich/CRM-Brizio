@@ -84,6 +84,10 @@ def vpn_history(request):
         return _security_center_denied(request)
     qs = SecurityVpnAccess.objects.select_related("source")
     filters = {key: (request.GET.get(key) or "").strip() for key in ("user", "ip", "action", "from", "to")}
+    # Di default solo le VPN: il report Authentication contiene anche i login «Firewall».
+    filters["kind"] = (request.GET.get("kind") or "vpn").strip()
+    if filters["kind"] in ("vpn", "firewall", "guest", "other"):
+        qs = qs.filter(kind=filters["kind"])
     if filters["user"]:
         qs = qs.filter(username__icontains=filters["user"])
     if filters["ip"]:
@@ -108,7 +112,7 @@ def vpn_history(request):
             "daily": vpn_daily_series(qs, day_from, day_to),
             "hours": vpn_hour_profile(qs),
             "findings": vpn_findings(qs),
-            "has_method": qs.exclude(method="").exists(),
+            "has_method": True,
             "query": query.urlencode(),
         },
     )
