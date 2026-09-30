@@ -5,7 +5,20 @@ This project uses Claude-style configuration.
 Read `CLAUDE.md` first for the lightweight operational rules.
 
 Do not read all docs automatically. Open only the `docs/ai/*.md` files relevant to the current task.
+## Uso dei tool e gestione errori
 
+- Non tentare di leggere lo stesso file più di 2 volte se il tool restituisce errore.
+- Dopo 2 errori consecutivi sullo stesso file, cambia strategia.
+- Per cercare simboli, classi, funzioni o configurazioni nel repository,
+  preferisci una ricerca testuale tramite terminale (`rg`, `grep`,
+  `Select-String`) rispetto alla lettura completa dei file.
+- Non esplorare file non correlati alla richiesta.
+- Se una ricerca può essere eseguita con un singolo comando shell,
+  preferisci il comando shell a molte chiamate `read`.
+- Se un file è troppo grande, cerca il simbolo e leggi solo il contesto
+  circostante.
+- Non ripetere una chiamata tool identica dopo un errore senza modificare
+  strategia o parametri.
 ## Shared Workspace Agent Protocol
 
 Questo progetto può essere usato in modalità cartella condivisa, senza Git e senza GitHub.
