@@ -963,3 +963,42 @@ class AIConversationMessage(models.Model):
 
     def __str__(self):
         return f"{self.conversation_id}:{self.role}"
+
+
+class SecurityVpnAccess(models.Model):
+    """Storico degli accessi VPN letti dai report (consentiti e negati).
+
+    Una riga per accesso. Prima il parser calcolava le righe ma nessuno le salvava:
+    restavano solo i contatori. Il dedup e' per sorgente: rileggere lo stesso report o
+    un report che ne ricopre il periodo non duplica gli accessi.
+    """
+
+    ACTION_ALLOWED = "allowed"
+    ACTION_DENIED = "denied"
+    ACTION_CHOICES = [(ACTION_ALLOWED, "Consentito"), (ACTION_DENIED, "Negato")]
+
+    source = models.ForeignKey(SecuritySource, on_delete=models.CASCADE, related_name="vpn_accesses")
+    report = models.ForeignKey(SecurityReport, on_delete=models.SET_NULL, null=True, blank=True, related_name="vpn_accesses")
+    action = models.CharField(max_length=16, choices=ACTION_CHOICES, db_index=True)
+    username = models.CharField(max_length=255, blank=True, db_index=True)
+    source_ip = models.CharField(max_length=64, blank=True, db_index=True)
+    login_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    logout_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(default=0)
+    method = models.CharField(max_length=64, blank=True)
+    firebox_name = models.CharField(max_length=120, blank=True)
+    dedup_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-login_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(fields=["source", "dedup_hash"], name="uniq_vpn_access_source_hash"),
+        ]
+        indexes = [
+            models.Index(fields=["source", "login_at"]),
+            models.Index(fields=["username", "login_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.action} {self.username} {self.source_ip}"

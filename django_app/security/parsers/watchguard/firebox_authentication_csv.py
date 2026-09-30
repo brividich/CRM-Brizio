@@ -1,3 +1,4 @@
+import re
 from collections import Counter, defaultdict
 
 from .common import alert_candidate, base_result, finalize_result, normalize_csv_row, parse_datetime, parse_duration_seconds, read_csv_rows, stable_hash, top_counter
@@ -86,6 +87,12 @@ def parse_watchguard_firebox_authentication_denied_csv(csv_text, *, source_name=
 def _parse_authentication_csv(csv_text, action, *, source_name=None, received_at=None):
     result = base_result("csv", f"watchguard_firebox_authentication_{action}", source_name, received_at)
     rows, warnings = read_csv_rows(csv_text)
+    if not _has_access_columns(rows):
+        text_rows = _rows_from_text(csv_text)
+        if text_rows:
+            # Report arrivato come PDF (o testo libero): niente intestazioni CSV, ma le righe
+            # di accesso si riconoscono da IP + data. Meglio uno storico approssimato che nulla.
+            rows, warnings = text_rows, ["Accessi estratti dal testo del report (non era un CSV): verificare a campione"]
     result["parse_warnings"].extend(warnings)
     users = set()
     source_ips = set()
@@ -141,6 +148,46 @@ def _finalize_auth_result(result, csv_text):
     result["metrics"]["top_users"] = top_counter(Counter(record["user"] for record in result["records"] if record["user"]))
     result["metrics"]["top_source_ips"] = top_counter(Counter(record["source_ip"] for record in result["records"] if record["source_ip"]))
     return finalize_result(result, csv_text)
+
+
+_IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_DATETIME = re.compile(r"\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?|\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}(?::\d{2})?")
+_DURATION = re.compile(r"\b\d{1,4}:\d{2}:\d{2}\b")
+_NOISE_TOKENS = {"allowed", "denied", "ssl", "vpn", "sslvpn", "mobile", "ipsec", "pptp", "l2tp", "-", "n/a"}
+
+
+def _has_access_columns(rows):
+    return any(
+        normalize_csv_row(row).get(name)
+        for row in rows[:5]
+        for name in ("source_ip", "ip", "src_ip", "client_ip")
+    )
+
+
+def _rows_from_text(text):
+    """Righe di accesso da testo libero: una riga con un IPv4 e almeno una data e' un accesso."""
+    rows = []
+    for line in str(text or "").splitlines():
+        ip = _IPV4.search(line)
+        stamps = _DATETIME.findall(line)
+        if not ip or not stamps:
+            continue
+        rest = _DATETIME.sub(" ", line.replace(ip.group(0), " "))
+        duration = _DURATION.search(rest)
+        if duration:
+            rest = rest.replace(duration.group(0), " ")
+        user = next(
+            (tok for tok in rest.split() if any(ch.isalpha() for ch in tok) and tok.lower() not in _NOISE_TOKENS),
+            "",
+        )
+        rows.append({
+            "user": user,
+            "source_ip": ip.group(0),
+            "login_time": stamps[0],
+            "logout_time": stamps[1] if len(stamps) > 1 else "",
+            "duration": duration.group(0) if duration else "",
+        })
+    return rows
 
 
 def _first(row, *names):
