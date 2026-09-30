@@ -4,6 +4,7 @@ import base64
 import binascii
 import json
 import logging
+import mimetypes
 from datetime import timedelta
 
 from django.contrib import messages
@@ -11,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import IntegrityError
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -24,12 +25,14 @@ from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.operational_roles import get_legacy_anagrafica_id
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
+from . import flusso
 from .acl_bootstrap import PERM_DPI_MANAGE
 
 from .models import (
     ICONE_DPI_DISPONIBILI,
     CategoriaDPI,
     ConsegnaDPI,
+    DocumentoDPI,
     DPIImpostazioni,
     ModelloDPI,
     RichiestaDPI,
@@ -51,10 +54,24 @@ DPI_ALLOWED_IMAGE_MIMES = {
     "image/bmp",
     "image/x-ms-bmp",
 }
+DPI_DOCUMENT_ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png"}
+DPI_DOCUMENT_ALLOWED_MIMES = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/zip",
+    "application/x-ole-storage",
+    "application/cdfv2",
+    "image/jpeg",
+    "image/png",
+}
+DPI_DOCUMENT_MAX_BYTES = 25 * 1024 * 1024
 DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS = DPI_ALLOWED_IMAGE_EXTENSIONS
 DPI_CATEGORY_ALLOWED_IMAGE_MIMES = DPI_ALLOWED_IMAGE_MIMES
 # Guard di copertura policy MIME su tutti i FileField/ImageField del modulo DPI.
-DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine"}
+DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine", "DocumentoDPI.file"}
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +88,21 @@ def _is_gestore(request) -> bool:
     # (additivo, fail-closed). Prima il gate era binario e nessun ruolo diverso
     # da "admin" poteva gestire il modulo DPI.
     return request_has_permission_code(request, PERM_DPI_MANAGE)
+
+
+def _scope_approvatore(request) -> set[int]:
+    """Dipendenti (id legacy anagrafica) le cui richieste l'utente approva come responsabile/preposto."""
+    return flusso.dipendenti_di_approvatore(_legacy_id(request))
+
+
+def _can_approve(request, richiesta: RichiestaDPI, *, scope: set[int] | None = None) -> bool:
+    """Gestori DPI (ripiego) oppure responsabile/preposto del dipendente della richiesta."""
+    if _is_gestore(request):
+        return True
+    if not richiesta.richiedente_legacy_id:
+        return False
+    scope = _scope_approvatore(request) if scope is None else scope
+    return int(richiesta.richiedente_legacy_id) in scope
 
 
 def _archivia_pdf_consegna(request, consegna: ConsegnaDPI) -> None:
@@ -154,23 +186,53 @@ def _archivia_pdf_consegna(request, consegna: ConsegnaDPI) -> None:
     )
 
 
-def _richiedente_info(request) -> dict:
-    """Estrae nome, email, reparto del richiedente dall'utente corrente."""
+def _richiedente_info(request, legacy_id: int | None = None) -> dict:
+    """Estrae nome, email, reparto del richiedente (default: l'utente corrente)."""
     nome = ""
     email = ""
     reparto = ""
+    per_altri = legacy_id is not None and legacy_id != _legacy_id(request)
     try:
         from core.legacy_models import AnagraficaDipendente
-        ad = AnagraficaDipendente.objects.filter(pk=get_legacy_anagrafica_id(request.user)).first()
+        ad = AnagraficaDipendente.objects.filter(
+            pk=legacy_id if legacy_id is not None else get_legacy_anagrafica_id(request.user)
+        ).first()
         if ad:
             nome = f"{getattr(ad, 'nome', '') or ''} {getattr(ad, 'cognome', '') or ''}".strip()
             reparto = str(getattr(ad, "reparto", "") or "").strip()
+            if per_altri:
+                email = (getattr(ad, "email_notifica", "") or "").strip()
     except Exception:
         pass
     if not nome:
         nome = request.user.get_full_name() or request.user.username
-    email = getattr(request.user, "email", "") or ""
+    if not per_altri:
+        email = getattr(request.user, "email", "") or ""
     return {"nome": nome, "email": email, "reparto": reparto}
+
+
+def _dipendenti_selezionabili(request) -> list[dict]:
+    """Chi si puo' scegliere come richiedente: i propri dipendenti (responsabile/preposto),
+    tutti per i gestori DPI. Vuota = nessuna scelta, la richiesta e' sempre personale."""
+    try:
+        from core.legacy_models import AnagraficaDipendente
+
+        own = _legacy_id(request)
+        if _is_gestore(request):
+            ids = None
+        else:
+            ids = _scope_approvatore(request)
+            if not ids:
+                return []
+        qs = AnagraficaDipendente.objects.all()
+        if ids is not None:
+            qs = qs.filter(pk__in=list(ids | ({own} if own else set())))
+        return [
+            {"id": ad.pk, "nome": f"{ad.cognome or ''} {ad.nome or ''}".strip() or ad.aliasusername or f"#{ad.pk}"}
+            for ad in qs.order_by("cognome", "nome")
+        ]
+    except Exception:
+        return []
 
 
 def _legacy_id(request) -> int | None:
@@ -401,6 +463,7 @@ def dashboard(request):
 
     return render(request, "dpi/pages/dashboard.html", {
         "is_gestore": is_gestore,
+        "is_approvatore": bool(_scope_approvatore(request)),
         "n_totale": n_totale,
         "n_inviate": n_inviate,
         "n_approvate": n_approvate,
@@ -428,7 +491,16 @@ def nuova_richiesta(request):
     # Punto 2.1: filtra le categorie al profilo di rischio del richiedente (mansione di
     # rischio a vista). Fuori profilo resta richiedibile con override + motivazione.
     from anagrafica.services import mansionario
-    _req_legacy = _legacy_id(request)
+    _own_legacy = _legacy_id(request)
+    per_conto_di = _dipendenti_selezionabili(request)
+    _req_legacy = _own_legacy
+    _scelto = _parse_optional_positive_int(request.POST.get("richiedente") if request.method == "POST" else request.GET.get("per"))
+    if _scelto and _scelto != _own_legacy:
+        if _scelto in {d["id"] for d in per_conto_di}:
+            _req_legacy = _scelto
+        else:
+            messages.error(request, "Non puoi fare richieste per questo dipendente.")
+            return redirect("dpi:nuova")
     _profilo = (
         mansionario.requisiti_dipendente(_req_legacy) if _req_legacy
         else mansionario.requisiti_vuoti()
@@ -461,7 +533,12 @@ def nuova_richiesta(request):
             for e in errors:
                 messages.error(request, e)
         else:
-            info = _richiedente_info(request)
+            info = _richiedente_info(request, _req_legacy)
+            per_altri = bool(_req_legacy and _req_legacy != _own_legacy)
+            note_iniziali = "[Richiesta fuori profilo di rischio]" if fuori_profilo else ""
+            if per_altri:
+                inserita = request.user.get_full_name() or request.user.username
+                note_iniziali = (note_iniziali + " " if note_iniziali else "") + f"[Inserita da {inserita} per conto del dipendente]"
             r = RichiestaDPI.objects.create(
                 categoria=categoria,
                 tipo_dpi=tipo_dpi,
@@ -470,20 +547,26 @@ def nuova_richiesta(request):
                 quantita=quantita,
                 motivazione=motivazione,
                 stato=StatoRichiesta.INVIATA,
-                richiedente_legacy_id=_legacy_id(request),
+                richiedente_legacy_id=_req_legacy,
                 richiedente_nome=info["nome"],
                 richiedente_email=info["email"],
                 richiedente_reparto=info["reparto"],
-                note_gestione=("[Richiesta fuori profilo di rischio]" if fuori_profilo else ""),
+                note_gestione=note_iniziali,
                 created_by=request.user,
             )
-            log_action(request, "crea", "dpi", f"Nuova richiesta DPI {r.numero} — {r.categoria}")
+            log_action(request, "crea", "dpi", f"Nuova richiesta DPI {r.numero} — {r.categoria}" + (f" (per conto di {info['nome']})" if per_altri else ""))
+            flusso.notifica_nuova_richiesta(r)
             messages.success(request, f"Richiesta {r.numero} inviata correttamente.")
             return redirect("dpi:detail", pk=r.pk)
 
     return render(request, "dpi/pages/nuova_richiesta.html", {
         "categorie": categorie,
         "profilo_attivo": profilo_attivo,
+        "per_conto_di": per_conto_di,
+        "is_gestore": _is_gestore(request),
+        "is_approvatore": bool(per_conto_di) or bool(_scope_approvatore(request)),
+        "richiedente_scelto": _req_legacy,
+        "richiedente_proprio": _own_legacy,
         **catalog_options,
     })
 
@@ -702,11 +785,16 @@ def report_conformita(request):
 
 @login_required
 def gestione_list(request):
-    if not _is_gestore(request):
+    is_gestore = _is_gestore(request)
+    scope = None if is_gestore else _scope_approvatore(request)
+    if not is_gestore and not scope:
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
-    qs = RichiestaDPI.objects.select_related(
+    base_qs = RichiestaDPI.objects.all()
+    if scope is not None:
+        base_qs = base_qs.filter(richiedente_legacy_id__in=list(scope))
+    qs = base_qs.select_related(
         "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "consegna"
     ).order_by("-created_at")
 
@@ -721,7 +809,7 @@ def gestione_list(request):
     if filtro_q:
         qs = qs.filter(richiedente_nome__icontains=filtro_q)
 
-    n_inviate = RichiestaDPI.objects.filter(stato=StatoRichiesta.INVIATA).count()
+    n_inviate = base_qs.filter(stato=StatoRichiesta.INVIATA).count()
 
     paginator = Paginator(qs, 30)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -736,6 +824,8 @@ def gestione_list(request):
         "filtro_cat": filtro_cat,
         "filtro_q": filtro_q,
         "n_inviate": n_inviate,
+        "is_gestore": is_gestore,
+        "is_approvatore": True,
     })
 
 
@@ -745,14 +835,14 @@ def gestione_list(request):
 
 @login_required
 def gestione_detail(request, pk: int):
-    if not _is_gestore(request):
-        messages.error(request, "Accesso non autorizzato.")
-        return redirect("dpi:dashboard")
-
+    is_gestore = _is_gestore(request)
     richiesta = get_object_or_404(
         RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "created_by"),
         pk=pk,
     )
+    if not _can_approve(request, richiesta):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
     commenti = richiesta.commenti.order_by("created_at")
     consegna = getattr(richiesta, "consegna", None)
     vita_utile_consegna = (
@@ -767,6 +857,8 @@ def gestione_detail(request, pk: int):
         "consegna": consegna,
         "oggi": timezone.localdate(),
         "vita_utile_consegna": vita_utile_consegna,
+        "is_gestore": is_gestore,
+        "is_approvatore": True,
     })
 
 
@@ -777,10 +869,10 @@ def gestione_detail(request, pk: int):
 @login_required
 @require_POST
 def approva_richiesta(request, pk: int):
-    if not _is_gestore(request):
+    richiesta = get_object_or_404(RichiestaDPI, pk=pk)
+    if not _can_approve(request, richiesta):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
-    richiesta = get_object_or_404(RichiestaDPI, pk=pk)
     if richiesta.stato != StatoRichiesta.INVIATA:
         messages.error(request, "Solo le richieste 'Inviate' possono essere approvate.")
         return redirect("dpi:gestione_detail", pk=pk)
@@ -806,6 +898,7 @@ def approva_richiesta(request, pk: int):
             messaggio=f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata approvata.",
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
+    flusso.notifica_approvata(richiesta)
     messages.success(request, f"Richiesta {richiesta.numero} approvata.")
     return redirect("dpi:gestione_detail", pk=pk)
 
@@ -813,10 +906,10 @@ def approva_richiesta(request, pk: int):
 @login_required
 @require_POST
 def rifiuta_richiesta(request, pk: int):
-    if not _is_gestore(request):
+    richiesta = get_object_or_404(RichiestaDPI, pk=pk)
+    if not _can_approve(request, richiesta):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
-    richiesta = get_object_or_404(RichiestaDPI, pk=pk)
     if richiesta.stato not in (StatoRichiesta.INVIATA, StatoRichiesta.APPROVATA):
         messages.error(request, "Stato non valido per il rifiuto.")
         return redirect("dpi:gestione_detail", pk=pk)
@@ -886,8 +979,8 @@ def consegna_richiesta(request, pk: int):
         RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi"),
         pk=pk,
     )
-    if richiesta.stato not in (StatoRichiesta.INVIATA, StatoRichiesta.APPROVATA):
-        messages.error(request, "Stato non valido per la consegna.")
+    if richiesta.stato != StatoRichiesta.APPROVATA:
+        messages.error(request, "La consegna si registra solo dopo l'approvazione del responsabile.")
         return redirect("dpi:gestione_detail", pk=pk)
 
     data_str = request.POST.get("data_consegna", "").strip()
@@ -960,6 +1053,7 @@ def consegna_richiesta(request, pk: int):
             messaggio=f"Il tuo {richiesta.categoria.nome} ({richiesta.numero}) è stato consegnato il {data_consegna.strftime('%d-%m-%Y')}.",
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
+    flusso.notifica_consegnata(consegna)
     messages.success(request, f"Consegna DPI {richiesta.numero} registrata.")
     return redirect("dpi:gestione_detail", pk=pk)
 
@@ -1004,6 +1098,8 @@ def impostazioni(request):
         impost.note_generali = request.POST.get("note_generali", "").strip()
         impost.notifica_nuova_richiesta = bool(request.POST.get("notifica_nuova_richiesta"))
         impost.notifica_email_extra = request.POST.get("notifica_email_extra", "").strip()
+        impost.magazzino_emails = request.POST.get("magazzino_emails", "").strip()
+        impost.amministrazione_emails = request.POST.get("amministrazione_emails", "").strip()
         impost.save()
         log_action(request, "modifica", "dpi", "Aggiornate impostazioni DPI")
         messages.success(request, "Impostazioni salvate.")
@@ -1340,3 +1436,103 @@ def api_copilota_dpi(request):
         "ai_disponibile": proposta.get("ai_disponibile"),
     })
     return JsonResponse({"ok": True, "proposta": proposta})
+
+
+# ---------------------------------------------------------------------------
+# Raccoglitore documenti (certificati, attestati, manuali d'uso)
+# ---------------------------------------------------------------------------
+
+@login_required
+def documenti(request):
+    """Raccoglitore unico: tutti gli utenti DPI consultano, i gestori caricano ed eliminano."""
+    is_gestore = _is_gestore(request)
+    if request.method == "POST":
+        if not is_gestore:
+            messages.error(request, "Solo chi gestisce i DPI puo' caricare documenti.")
+            return redirect("dpi:documenti")
+        titolo = request.POST.get("titolo", "").strip()[:200]
+        descrizione = request.POST.get("descrizione", "").strip()[:500]
+        modello = ModelloDPI.objects.filter(pk=_parse_optional_positive_int(request.POST.get("modello"))).first()
+        if modello is None:
+            messages.error(request, "Scegli il DPI a cui appartiene il documento.")
+            return redirect("dpi:documenti")
+        files = request.FILES.getlist("files")
+        if not files:
+            messages.error(request, "Scegli almeno un file da caricare.")
+            return redirect("dpi:documenti")
+        salvati = 0
+        for upload in files:
+            try:
+                validate_extension_and_mime(
+                    upload,
+                    allowed_extensions=DPI_DOCUMENT_ALLOWED_EXTENSIONS,
+                    allowed_mimes=DPI_DOCUMENT_ALLOWED_MIMES,
+                    max_bytes=DPI_DOCUMENT_MAX_BYTES,
+                    label=upload.name,
+                    allow_empty=False,
+                )
+            except UploadMimeValidationError as exc:
+                messages.error(request, str(exc))
+                continue
+            nome = (upload.name or "documento")[:255]
+            doc = DocumentoDPI.objects.create(
+                modello=modello,
+                # Il titolo a mano vale solo con un file; con piu' file ognuno prende il proprio nome.
+                titolo=(titolo if titolo and len(files) == 1 else nome.rsplit(".", 1)[0])[:200],
+                descrizione=descrizione,
+                file=upload,
+                nome_originale=nome,
+                dimensione_bytes=int(upload.size or 0),
+                caricato_da=request.user,
+            )
+            log_action(request, "DPI_DOCUMENTO_CARICATO", "dpi", f"Caricato documento DPI {doc.pk} ({modello.codice}): {doc.nome_originale}")
+            salvati += 1
+        if salvati:
+            messages.success(request, "Documento caricato." if salvati == 1 else f"{salvati} documenti caricati.")
+        return redirect("dpi:documenti")
+
+    q = request.GET.get("q", "").strip()
+    qs = DocumentoDPI.objects.select_related("caricato_da", "modello", "modello__tipo", "modello__tipo__categoria")
+    modello_filtro = _parse_optional_positive_int(request.GET.get("modello"))
+    if modello_filtro:
+        qs = qs.filter(modello_id=modello_filtro)
+    if q:
+        qs = qs.filter(Q(titolo__icontains=q) | Q(descrizione__icontains=q) | Q(nome_originale__icontains=q) | Q(modello__nome__icontains=q) | Q(modello__codice__icontains=q))
+    return render(request, "dpi/pages/documenti.html", {
+        "is_gestore": is_gestore,
+        "documenti": qs,
+        "q": q,
+        "modelli": _catalog_select_related()["modelli"].filter(is_active=True),
+        "modello_filtro": modello_filtro,
+    })
+
+
+@login_required
+def documento_download(request, pk: int):
+    doc = get_object_or_404(DocumentoDPI, pk=pk)
+    storage = doc.file.storage
+    if not doc.file or not doc.file.name or not storage.exists(doc.file.name):
+        return HttpResponse("Documento non trovato.", status=404)
+    log_action(request, "DPI_DOCUMENTO_SCARICATO", "dpi", f"Aperto documento DPI {doc.pk}: {doc.nome_originale}")
+    filename = doc.nome_originale or doc.titolo
+    inline = filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg")) and request.GET.get("download") != "1"
+    return FileResponse(
+        storage.open(doc.file.name, "rb"),
+        as_attachment=not inline,
+        filename=filename,
+        content_type=mimetypes.guess_type(filename)[0] or "application/octet-stream",
+    )
+
+
+@login_required
+@require_POST
+def documento_elimina(request, pk: int):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:documenti")
+    doc = get_object_or_404(DocumentoDPI, pk=pk)
+    dettaglio = f"Eliminato documento DPI {doc.pk}: {doc.nome_originale}"
+    doc.delete()
+    log_action(request, "DPI_DOCUMENTO_ELIMINATO", "dpi", dettaglio)
+    messages.success(request, "Documento eliminato.")
+    return redirect("dpi:documenti")

@@ -6,6 +6,8 @@ from django.conf import settings
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
+from .storage import PrivateDpiDocumentStorage
+
 
 # ---------------------------------------------------------------------------
 # Categorie DPI (configurabili con immagine)
@@ -215,6 +217,14 @@ class DPIImpostazioni(models.Model):
     notifica_email_extra = models.TextField(
         blank=True, default="",
         help_text="Indirizzi email aggiuntivi per notifiche, uno per riga",
+    )
+    magazzino_emails = models.TextField(
+        blank=True, default="",
+        help_text="Avviso di consegna alla approvazione della richiesta, uno per riga",
+    )
+    amministrazione_emails = models.TextField(
+        blank=True, default="",
+        help_text="Avviso di consegna e report di consegna, uno per riga",
     )
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -456,3 +466,59 @@ class RichiestaDPICommento(models.Model):
 
     def __str__(self) -> str:
         return f"Commento su {self.richiesta.numero}"
+
+
+# ---------------------------------------------------------------------------
+# Raccoglitore documenti (certificati, attestati, manuali d'uso)
+# ---------------------------------------------------------------------------
+
+def _documento_dpi_upload_to(instance, filename: str) -> str:
+    import uuid
+    from pathlib import Path
+
+    from django.utils.text import slugify
+
+    suffix = Path(filename or "").suffix.lower()[:10]
+    stem = slugify(Path(filename or "").stem)[:80] or "documento"
+    return f"dpi_documenti/{timezone.now():%Y%m}/{uuid.uuid4().hex[:8]}_{stem}{suffix}"
+
+
+class DocumentoDPI(models.Model):
+    """Certificato, attestato o manuale d'uso di un DPI del catalogo (raccoglitore unico, senza categorie di documento)."""
+
+    modello = models.ForeignKey(
+        ModelloDPI,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="documenti",
+        help_text="DPI a cui si riferisce il documento (obbligatorio al caricamento).",
+    )
+    titolo = models.CharField(max_length=200)
+    descrizione = models.CharField(max_length=500, blank=True, default="")
+    file = models.FileField(upload_to=_documento_dpi_upload_to, storage=PrivateDpiDocumentStorage(), max_length=400)
+    nome_originale = models.CharField(max_length=255, blank=True, default="")
+    dimensione_bytes = models.PositiveBigIntegerField(default=0)
+    caricato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="documenti_dpi_caricati",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Documento DPI"
+        verbose_name_plural = "Documenti DPI"
+
+    def __str__(self) -> str:
+        return self.titolo
+
+    def delete(self, *args, **kwargs):
+        storage = self.file.storage if self.file else None
+        file_name = self.file.name if self.file else ""
+        super().delete(*args, **kwargs)
+        if storage and file_name and storage.exists(file_name):
+            storage.delete(file_name)

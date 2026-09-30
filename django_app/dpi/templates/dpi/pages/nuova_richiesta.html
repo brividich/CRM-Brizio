@@ -130,6 +130,17 @@ body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
     <form method="post" id="dpi-form">
       {% csrf_token %}
 
+      {% if per_conto_di %}
+      <div class="dpi-field">
+        <label for="richiedente">Richiesta per</label>
+        <select name="richiedente" id="richiedente" onchange="window.location.href='{% url 'dpi:nuova' %}?per=' + this.value">
+          {% if richiedente_proprio %}<option value="{{ richiedente_proprio }}"{% if richiedente_scelto == richiedente_proprio %} selected{% endif %}>Me stesso</option>{% endif %}
+          {% for d in per_conto_di %}{% if d.id != richiedente_proprio %}<option value="{{ d.id }}"{% if richiedente_scelto == d.id %} selected{% endif %}>{{ d.nome }}</option>{% endif %}{% endfor %}
+        </select>
+        <div class="dpi-card-sub" style="margin-top:4px;">Puoi richiedere i DPI per un tuo dipendente: la richiesta sarà a suo nome, con la tua indicazione come inseritore.</div>
+      </div>
+      {% endif %}
+
       <!-- Card picker categorie DPI -->
       <div class="dpi-field">
         <span class="dpi-picker-label">Tipo di DPI <span class="dpi-picker-required">*</span></span>

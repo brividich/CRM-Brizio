@@ -30,6 +30,7 @@ urlpatterns = [
     path("tickets/", views.tickets_list, name="tickets_list"),
     path("kpis/", views.kpis_page, name="kpis"),
     path("assets/", views_soc.assets_list, name="assets"),
+    path("vpn/", views_soc.vpn_history, name="vpn_history"),
     # B3 — pipeline (esecuzione sincrona via HTMX POST; nessuna coda/Celery)
     path("pipeline/", views.pipeline_page, name="pipeline"),
     path("pipeline/run/<slug:action>/", views.pipeline_run, name="pipeline_run"),

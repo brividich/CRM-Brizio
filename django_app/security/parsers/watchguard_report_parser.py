@@ -13,6 +13,9 @@ from .watchguard import (
 )
 
 
+_VPN_REPORT_TYPES = {"watchguard_firebox_authentication_allowed", "watchguard_firebox_authentication_denied"}
+
+
 class WatchGuardReportParser(BaseParser):
     name = "watchguard_report_parser"
 
@@ -36,6 +39,10 @@ class WatchGuardReportParser(BaseParser):
                 },
             )
         ]
+        if result["report_type"] in _VPN_REPORT_TYPES:
+            # Le righe di accesso vanno allo storico (SecurityVpnAccess), non a eventi generici.
+            for row in result["records"]:
+                records.append(ParsedRecord(record_type="vpn_access", payload=row))
         for candidate in result["alerts_candidates"]:
             records.append(
                 ParsedRecord(

@@ -1,0 +1,41 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{{ page_title }} — Verifiche periodiche{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}{{ check_type.name }}{% endblock %}
+{% block assets_shell_subtitle %}
+  {% include "assets/partials/periodic_check_head_meta.html" %}
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_session_detail' session.id %}">‹ Torna alla verifica</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page">
+{% include "assets/partials/periodic_check_type_tabs.html" with crumb=session_crumb %}
+
+<form class="md-form pc-form" method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="pc-form-errors">{{ form.non_field_errors }}</div>{% endif %}
+
+  <fieldset class="md-fieldset pc-card">
+    <legend class="pc-card-head"><span class="pc-card-n">1</span><span><strong>Dati della verifica</strong><small>Esiti, rilievi e allegati restano come registrati: qui correggi data, esito, esecutore e scadenza.</small></span></legend>
+    <div class="md-grid-2">
+      {% include "assets/components/_md_field.html" with field=form.performed_on %}
+      {% include "assets/components/_md_field.html" with field=form.outcome %}
+      {% include "assets/components/_md_field.html" with field=form.technician %}
+      {% include "assets/components/_md_field.html" with field=form.supplier %}
+      {% include "assets/components/_md_field.html" with field=form.next_due_date %}
+      {% include "assets/components/_md_field.html" with field=form.notes %}
+    </div>
+  </fieldset>
+
+  <div class="md-form-actions pc-form-actions">
+    <button type="submit" class="btn btn-primary">Salva modifiche</button>
+    <a class="btn btn-secondary" href="{% url 'assets:periodic_check_session_detail' session.id %}">Annulla</a>
+  </div>
+</form>
+</div>
+{% endblock %}

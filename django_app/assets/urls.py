@@ -194,6 +194,8 @@ urlpatterns = [
     path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/foglio.pdf", views_verifiche.periodic_check_sheet_pdf, name="periodic_check_sheet_pdf"),
     path("assets/manutenzione/verifiche-impianti/planimetria/<int:layout_id>.png", views_verifiche.periodic_check_layout_image, name="periodic_check_layout_image"),
     path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/", views_verifiche.periodic_check_session_detail, name="periodic_check_session_detail"),
+    path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/modifica/", views_verifiche.periodic_check_session_edit, name="periodic_check_session_edit"),
+    path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/elimina/", views_verifiche.periodic_check_session_delete, name="periodic_check_session_delete"),
     path(
         "assets/manutenzione/verifiche-impianti/allegati/<int:attachment_id>/",
         views_verifiche.periodic_check_attachment_download,

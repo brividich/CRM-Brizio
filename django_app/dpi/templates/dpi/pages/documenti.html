@@ -1,0 +1,124 @@
+{% extends "core/base.html" %}
+{% load dpi_extras %}
+
+{% block title %}Documenti DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.dpi-subnav-link:hover { background:#e2e8f0; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:20px 24px; }
+.dpi-card-title { font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px; }
+.dpi-doc-form { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.dpi-doc-form label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.04em; }
+.dpi-doc-form input[type=text] { padding:8px 11px; border:1px solid #d1d5db; border-radius:9px; font-size:13px; background:#fff; text-transform:none; letter-spacing:0; font-weight:400; }
+.dpi-doc-form .full { grid-column:1 / -1; }
+.dpi-search { flex:1; min-width:220px; padding:8px 11px; border:1px solid #d1d5db; border-radius:9px; font-size:13px; background:#fff; }
+.dpi-btn { padding:9px 22px; border-radius:9px; font-size:13px; font-weight:700; border:none; cursor:pointer; }
+.dpi-btn-blue { background:#0369a1; color:#fff; }
+.dpi-btn-gray { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; text-decoration:none; }
+.dpi-btn-red { background:#fee2e2; color:#dc2626; border:1px solid #fecaca; padding:5px 12px; font-size:12px; }
+.dpi-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.dpi-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dpi-table th { background:#f8fafc; padding:10px 14px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.dpi-table td { padding:11px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.dpi-table tr:last-child td { border-bottom:none; }
+.dpi-muted { color:#64748b; font-size:12px; }
+.dpi-empty { padding:32px; text-align:center; color:#94a3b8; }
+@media (max-width:700px) { .dpi-doc-form { grid-template-columns:1fr; } }
+
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .dpi-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-card-title { color:var(--text); }
+body.theme-dark .dpi-doc-form label { color:var(--text-mid); }
+body.theme-dark .dpi-doc-form input[type=text], body.theme-dark .dpi-search { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-btn-gray { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .dpi-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .dpi-table td { border-color:var(--border); }
+body.theme-dark .dpi-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .dpi-table a { color:#60a5fa; }
+body.theme-dark .dpi-muted, body.theme-dark .dpi-empty { color:var(--text-light); }
+body.theme-dark .dpi-btn-red { background:rgba(220,38,38,.15); border-color:rgba(220,38,38,.35); color:#fca5a5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/_dpi_icons.html" %}
+  {% include "dpi/components/subnav.html" %}
+
+  <div>
+    <div style="font-size:20px; font-weight:800;">Documenti DPI</div>
+    <div class="dpi-muted" style="margin-top:2px;">Certificati, attestati e manuali d'uso, ciascuno collegato al suo DPI.</div>
+  </div>
+
+  {% if is_gestore %}
+  <form method="post" enctype="multipart/form-data" class="dpi-card">
+    {% csrf_token %}
+    <div class="dpi-card-title">Carica documenti</div>
+    <div class="dpi-doc-form">
+      <label class="full">DPI di riferimento
+        <select name="modello" required class="dpi-search">
+          <option value="">Scegli il DPI…</option>
+          {% for m in modelli %}<option value="{{ m.pk }}">{{ m.tipo.categoria.nome }} · {{ m.tipo.nome }} · {{ m.codice }} - {{ m.nome }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Titolo <input type="text" name="titolo" maxlength="200" placeholder="Con più file vale il nome di ciascun file"></label>
+      <label>Descrizione <input type="text" name="descrizione" maxlength="500" placeholder="Facoltativa (es. modello, scadenza, fornitore)"></label>
+      <label class="full">File (PDF, Word, Excel, immagini; max 25 MB ciascuno)
+        <input type="file" name="files" multiple required accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+      </label>
+      <div class="full"><button type="submit" class="dpi-btn dpi-btn-blue">Carica</button></div>
+    </div>
+  </form>
+  {% endif %}
+
+  <form method="get" style="display:flex; gap:8px; flex-wrap:wrap;">
+    <select name="modello" class="dpi-search" style="flex:0 1 320px" onchange="this.form.submit()">
+      <option value="">Tutti i DPI</option>
+      {% for m in modelli %}<option value="{{ m.pk }}"{% if modello_filtro == m.pk %} selected{% endif %}>{{ m.codice }} - {{ m.nome }}</option>{% endfor %}
+    </select>
+    <input type="text" name="q" value="{{ q }}" class="dpi-search" placeholder="Cerca per titolo, descrizione o nome file">
+    <button type="submit" class="dpi-btn dpi-btn-blue">Cerca</button>
+    {% if q or modello_filtro %}<a href="{% url 'dpi:documenti' %}" class="dpi-btn dpi-btn-gray">Azzera</a>{% endif %}
+  </form>
+
+  <div class="dpi-table-wrap">
+    {% if documenti %}
+    <table class="dpi-table">
+      <thead><tr><th>Documento</th><th>DPI</th><th>Caricato</th><th>Dimensione</th><th></th></tr></thead>
+      <tbody>
+        {% for d in documenti %}
+        <tr>
+          <td>
+            <a href="{% url 'dpi:documento_download' d.pk %}" target="_blank" rel="noopener"><strong>{{ d.titolo }}</strong></a>
+            {% if d.descrizione %}<div class="dpi-muted">{{ d.descrizione }}</div>{% endif %}
+            <div class="dpi-muted">{{ d.nome_originale }}</div>
+          </td>
+          <td>{% if d.modello %}<strong>{{ d.modello.nome }}</strong><div class="dpi-muted">{{ d.modello.codice }} · {{ d.modello.tipo.categoria.nome }}</div>{% else %}<span class="dpi-muted">—</span>{% endif %}</td>
+          <td>{{ d.created_at|date:"d/m/Y" }}{% if d.caricato_da %}<div class="dpi-muted">{{ d.caricato_da.get_full_name|default:d.caricato_da.username }}</div>{% endif %}</td>
+          <td>{{ d.dimensione_bytes|filesizeformat }}</td>
+          <td style="text-align:right; white-space:nowrap">
+            <a href="{% url 'dpi:documento_download' d.pk %}?download=1" class="dpi-muted">Scarica</a>
+            {% if is_gestore %}
+            <form method="post" action="{% url 'dpi:documento_elimina' d.pk %}" style="display:inline; margin-left:10px" onsubmit="return confirm('Eliminare il documento «{{ d.titolo|escapejs }}»? L\'operazione non si annulla.');">
+              {% csrf_token %}<button type="submit" class="dpi-btn dpi-btn-red">Elimina</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="dpi-empty">{% if q or modello_filtro %}Nessun documento corrisponde alla ricerca.{% else %}Nessun documento caricato.{% endif %}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

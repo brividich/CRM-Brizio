@@ -28,6 +28,7 @@ from .forms_verifiche import (
     PeriodicCheckCategoryForm,
     PeriodicCheckIntakeConfigForm,
     PeriodicCheckRegisterForm,
+    PeriodicCheckSessionEditForm,
     PeriodicCheckSystemForm,
     PeriodicCheckTypeForm,
     WorkOrderFromResultForm,
@@ -920,6 +921,66 @@ def periodic_check_session_detail(request: HttpRequest, session_id: int) -> Http
             else []
         ),
     })
+
+
+@login_required
+def periodic_check_session_edit(request: HttpRequest, session_id: int) -> HttpResponse:
+    session = get_object_or_404(PeriodicCheckSession.objects.select_related("check_type__system"), pk=session_id)
+    check_type = session.check_type
+    back = reverse("assets:periodic_check_session_detail", args=[session.id])
+    if not can_execute_maintenance(request):
+        return _deny(request, "Non hai il permesso di modificare le verifiche.", back)
+    form = PeriodicCheckSessionEditForm(request.POST or None, session=session)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        supplier = data.get("supplier")
+        checks.update_session(
+            session,
+            performed_on=data["performed_on"],
+            outcome=data["outcome"],
+            technician=data.get("technician") or "",
+            supplier_id=supplier.id if supplier else None,
+            notes=data.get("notes") or "",
+            next_due_date=data.get("next_due_date"),
+        )
+        log_action(request, "periodic_check_edit", "assets",
+                   {"session_id": session.id, "check_type_id": check_type.id,
+                    "performed_on": str(session.performed_on), "outcome": session.outcome},
+                   oggetto_tipo=AUDIT_OGGETTO, oggetto_id=session.id)
+        messages.success(request, "Verifica aggiornata.")
+        return redirect(back)
+    return _render(request, "periodic_check_session_edit.html", {
+        "page_title": f"Modifica: {check_type.name} del {session.performed_on:%d/%m/%Y}",
+        "check_type": check_type,
+        **_object_page(check_type, "storico"),
+        "session_crumb": "Modifica verifica",
+        "session": session,
+        "form": form,
+    })
+
+
+@login_required
+def periodic_check_session_delete(request: HttpRequest, session_id: int) -> HttpResponse:
+    session = get_object_or_404(PeriodicCheckSession.objects.select_related("check_type"), pk=session_id)
+    check_type = session.check_type
+    storico = reverse("assets:periodic_check_type_detail", args=[check_type.id]) + "?tab=storico"
+    if request.method != "POST":
+        return redirect("assets:periodic_check_session_detail", session_id=session.id)
+    if not can_execute_maintenance(request):
+        return _deny(request, "Non hai il permesso di eliminare le verifiche.", storico)
+    details = {
+        "session_id": session.id,
+        "check_type_id": check_type.id,
+        "performed_on": str(session.performed_on),
+        "outcome": session.outcome,
+        "results": session.results.count(),
+        "attachments": session.attachments.count(),
+    }
+    checks.delete_session(session)
+    log_action(request, "periodic_check_delete", "assets", details,
+               oggetto_tipo=AUDIT_OGGETTO, oggetto_id=details["session_id"])
+    messages.success(request, f"Verifica del {details['performed_on'][8:]}/{details['performed_on'][5:7]}/{details['performed_on'][:4]} eliminata.")
+    return redirect(storico)
 
 
 def _scan_upload(request: HttpRequest, session: PeriodicCheckSession) -> HttpResponse:
