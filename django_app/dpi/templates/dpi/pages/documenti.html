@@ -55,7 +55,7 @@ body.theme-dark .dpi-btn-red { background:rgba(220,38,38,.15); border-color:rgba
 
   <div>
     <div style="font-size:20px; font-weight:800;">Documenti DPI</div>
-    <div class="dpi-muted" style="margin-top:2px;">Certificati, attestati e manuali d'uso in un unico raccoglitore.</div>
+    <div class="dpi-muted" style="margin-top:2px;">Certificati, attestati e manuali d'uso, ciascuno collegato al suo DPI.</div>
   </div>
 
   {% if is_gestore %}
@@ -63,6 +63,12 @@ body.theme-dark .dpi-btn-red { background:rgba(220,38,38,.15); border-color:rgba
     {% csrf_token %}
     <div class="dpi-card-title">Carica documenti</div>
     <div class="dpi-doc-form">
+      <label class="full">DPI di riferimento
+        <select name="modello" required class="dpi-search">
+          <option value="">Scegli il DPI…</option>
+          {% for m in modelli %}<option value="{{ m.pk }}">{{ m.tipo.categoria.nome }} · {{ m.tipo.nome }} · {{ m.codice }} - {{ m.nome }}</option>{% endfor %}
+        </select>
+      </label>
       <label>Titolo <input type="text" name="titolo" maxlength="200" placeholder="Con più file vale il nome di ciascun file"></label>
       <label>Descrizione <input type="text" name="descrizione" maxlength="500" placeholder="Facoltativa (es. modello, scadenza, fornitore)"></label>
       <label class="full">File (PDF, Word, Excel, immagini; max 25 MB ciascuno)
@@ -74,15 +80,19 @@ body.theme-dark .dpi-btn-red { background:rgba(220,38,38,.15); border-color:rgba
   {% endif %}
 
   <form method="get" style="display:flex; gap:8px; flex-wrap:wrap;">
+    <select name="modello" class="dpi-search" style="flex:0 1 320px" onchange="this.form.submit()">
+      <option value="">Tutti i DPI</option>
+      {% for m in modelli %}<option value="{{ m.pk }}"{% if modello_filtro == m.pk %} selected{% endif %}>{{ m.codice }} - {{ m.nome }}</option>{% endfor %}
+    </select>
     <input type="text" name="q" value="{{ q }}" class="dpi-search" placeholder="Cerca per titolo, descrizione o nome file">
     <button type="submit" class="dpi-btn dpi-btn-blue">Cerca</button>
-    {% if q %}<a href="{% url 'dpi:documenti' %}" class="dpi-btn dpi-btn-gray">Azzera</a>{% endif %}
+    {% if q or modello_filtro %}<a href="{% url 'dpi:documenti' %}" class="dpi-btn dpi-btn-gray">Azzera</a>{% endif %}
   </form>
 
   <div class="dpi-table-wrap">
     {% if documenti %}
     <table class="dpi-table">
-      <thead><tr><th>Documento</th><th>Caricato</th><th>Dimensione</th><th></th></tr></thead>
+      <thead><tr><th>Documento</th><th>DPI</th><th>Caricato</th><th>Dimensione</th><th></th></tr></thead>
       <tbody>
         {% for d in documenti %}
         <tr>
@@ -91,6 +101,7 @@ body.theme-dark .dpi-btn-red { background:rgba(220,38,38,.15); border-color:rgba
             {% if d.descrizione %}<div class="dpi-muted">{{ d.descrizione }}</div>{% endif %}
             <div class="dpi-muted">{{ d.nome_originale }}</div>
           </td>
+          <td>{% if d.modello %}<strong>{{ d.modello.nome }}</strong><div class="dpi-muted">{{ d.modello.codice }} · {{ d.modello.tipo.categoria.nome }}</div>{% else %}<span class="dpi-muted">—</span>{% endif %}</td>
           <td>{{ d.created_at|date:"d/m/Y" }}{% if d.caricato_da %}<div class="dpi-muted">{{ d.caricato_da.get_full_name|default:d.caricato_da.username }}</div>{% endif %}</td>
           <td>{{ d.dimensione_bytes|filesizeformat }}</td>
           <td style="text-align:right; white-space:nowrap">
@@ -106,7 +117,7 @@ body.theme-dark .dpi-btn-red { background:rgba(220,38,38,.15); border-color:rgba
       </tbody>
     </table>
     {% else %}
-    <div class="dpi-empty">{% if q %}Nessun documento corrisponde alla ricerca.{% else %}Nessun documento caricato.{% endif %}</div>
+    <div class="dpi-empty">{% if q or modello_filtro %}Nessun documento corrisponde alla ricerca.{% else %}Nessun documento caricato.{% endif %}</div>
     {% endif %}
   </div>
 </div>

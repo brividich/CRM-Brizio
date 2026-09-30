@@ -476,8 +476,16 @@ def _documento_dpi_upload_to(instance, filename: str) -> str:
 
 
 class DocumentoDPI(models.Model):
-    """Documento generico del modulo DPI, senza suddivisione per categoria."""
+    """Certificato, attestato o manuale d'uso di un DPI del catalogo (raccoglitore unico, senza categorie di documento)."""
 
+    modello = models.ForeignKey(
+        ModelloDPI,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="documenti",
+        help_text="DPI a cui si riferisce il documento (obbligatorio al caricamento).",
+    )
     titolo = models.CharField(max_length=200)
     descrizione = models.CharField(max_length=500, blank=True, default="")
     file = models.FileField(upload_to=_documento_dpi_upload_to, storage=PrivateDpiDocumentStorage(), max_length=400)

@@ -10,7 +10,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import DocumentoDPI
+from .models import CategoriaDPI, DocumentoDPI, ModelloDPI, TipoDPI
 
 User = get_user_model()
 PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\n%%EOF\n"
@@ -29,8 +29,16 @@ class DocumentiDpiTests(TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def _upload(self, name="manuale.pdf"):
+    def _modello(self, codice="CASCO-1"):
+        cat = CategoriaDPI.objects.get_or_create(nome="Caschi", defaults={"icona_emoji": "helmet", "vita_utile_giorni": 365})[0]
+        tipo = TipoDPI.objects.get_or_create(categoria=cat, nome="Casco antinfortunistico")[0]
+        return ModelloDPI.objects.create(tipo=tipo, codice=codice, nome=f"Casco {codice}")
+
+    def _upload(self, name="manuale.pdf", modello=None):
+        modello = modello or getattr(self, "modello", None) or self._modello()
+        self.modello = modello
         return self.client.post(reverse("dpi:documenti"), {
+            "modello": modello.pk,
             "titolo": "Manuale casco",
             "descrizione": "Modello X",
             "files": SimpleUploadedFile(name, PDF, content_type="application/pdf"),
@@ -68,3 +76,21 @@ class DocumentiDpiTests(TestCase):
         self.client.force_login(self.admin)
         self._upload("script.exe")
         self.assertFalse(DocumentoDPI.objects.exists())
+
+    def test_documento_senza_dpi_rifiutato(self):
+        self.client.force_login(self.admin)
+        self.client.post(reverse("dpi:documenti"), {
+            "files": SimpleUploadedFile("manuale.pdf", PDF, content_type="application/pdf"),
+        })
+        self.assertFalse(DocumentoDPI.objects.exists())
+
+    def test_documento_legato_al_dpi_e_filtrabile(self):
+        self.client.force_login(self.admin)
+        altro = self._modello("CASCO-2")
+        self._upload("uno.pdf", modello=altro)
+        self._upload("due.pdf", modello=self._modello("GUANTO-9"))
+        doc = DocumentoDPI.objects.get(nome_originale="uno.pdf")
+        self.assertEqual(doc.modello, altro)
+        page = self.client.get(reverse("dpi:documenti"), {"modello": altro.pk})
+        self.assertContains(page, "uno")
+        self.assertNotContains(page, "due.pdf")
