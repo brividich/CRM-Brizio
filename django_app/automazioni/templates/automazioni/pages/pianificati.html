@@ -42,6 +42,7 @@
   {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/subnav.html" %}
 
+  {% if health.stalled %}<div role="alert" style="padding:16px;border:2px solid #dc2626;border-radius:12px;margin-bottom:16px;">Attenzione: {{ health.queued }} esecuzioni in coda e nessun completamento recente. Ultimo completamento: {{ health.last_completed|date:"d/m/Y H:i"|default:"non disponibile" }}. Verificare il worker prima di aggiungere altre esecuzioni.</div>{% endif %}
   <div class="pian-stats">
     <div class="pian-stat"><div class="n">{{ totale }}</div><div class="l">Task pianificati</div></div>
     <div class="pian-stat"><div class="n" style="color:#166534;">{{ attivi }}</div><div class="l">Attivi</div></div>
@@ -49,9 +50,8 @@
   </div>
 
   <p class="pian-note">
-    Sono i task periodici (django-q) definiti nel codice. L'on/off qui è <strong>durevole</strong>
-    (sopravvive ai redeploy); la cadenza si cambia nel codice. La documentazione completa e
-    auto-aggiornata è in <code>docs/AUTOMAZIONI.md</code>.
+    Ogni processo installato è un flusso modificabile nel designer: pianificazione,
+    condizioni, azioni e storico. Le personalizzazioni restano valide dopo gli aggiornamenti.
   </p>
 
   <div class="pian-table-wrap">
@@ -90,6 +90,7 @@
           <td>{% if r.next_run %}{{ r.next_run|date:"d/m H:i" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
           <td>
             <div class="pian-actions">
+              {% if r.rule_id %}<a class="pian-btn" href="{% url 'admin_portale:automazioni_rule_designer' rule_id=r.rule_id %}">Apri flusso</a>{% endif %}
               <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}">
                 {% csrf_token %}
                 <input type="hidden" name="name" value="{{ r.name }}">

@@ -1,0 +1,107 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}Accessi VPN | Security Center{% endblock %}
+{% block page_icon %}V{% endblock %}
+{% block page_marker %}Accessi VPN{% endblock %}
+{% block page_title %}Storico accessi VPN{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <form class="sec-filter-bar" method="get">
+    <label>Utente <input type="text" name="user" value="{{ filters.user }}" placeholder="nome o parte del nome"></label>
+    <label>IP origine <input type="text" name="ip" value="{{ filters.ip }}" placeholder="es. 203.0.113."></label>
+    <label>Esito
+      <select name="action">
+        <option value="">Tutti</option>
+        <option value="allowed" {% if filters.action == "allowed" %}selected{% endif %}>Consentiti</option>
+        <option value="denied" {% if filters.action == "denied" %}selected{% endif %}>Negati</option>
+      </select>
+    </label>
+    <label>Dal <input type="date" name="from" value="{{ filters.from }}"></label>
+    <label>Al <input type="date" name="to" value="{{ filters.to }}"></label>
+    <button class="sec-button-primary" type="submit">Filtra</button>
+    <a class="sec-button" href="{% url 'security:vpn_history' %}">Reimposta</a>
+  </form>
+</section>
+
+<section class="sec-grid sec-auto-grid" style="margin-top: 12px;">
+  <div class="sec-panel"><small class="sec-muted">Accessi</small><h2>{{ summary.total }}</h2></div>
+  <div class="sec-panel"><small class="sec-muted">Consentiti</small><h2>{{ summary.allowed }}</h2></div>
+  <div class="sec-panel"><small class="sec-muted">Negati</small><h2>{{ summary.denied }}</h2></div>
+  <div class="sec-panel"><small class="sec-muted">Utenti distinti</small><h2>{{ summary.unique_users }}</h2></div>
+  <div class="sec-panel"><small class="sec-muted">Durata media sessione</small><h2>{{ summary.avg|duration_hms }}</h2></div>
+</section>
+
+<section class="sec-grid sec-auto-grid" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h3>Utenti più attivi</h3></div>
+    <div class="sec-table-wrap">
+      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+        <thead><tr><th>Utente</th><th class="sec-num">Accessi</th><th class="sec-num">Negati</th><th>Ultimo</th></tr></thead>
+        <tbody>
+        {% for row in summary.top_users %}
+          <tr>
+            <td><a href="?user={{ row.username|urlencode }}">{{ row.username }}</a></td>
+            <td class="sec-num">{{ row.total }}</td>
+            <td class="sec-num">{{ row.denied }}</td>
+            <td class="sec-nowrap">{{ row.last|date:"d/m/Y H:i"|default:"—" }}</td>
+          </tr>
+        {% empty %}<tr><td colspan="4" class="sec-empty">Nessun dato.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="sec-panel">
+    <div class="sec-section-head"><h3>IP di origine più frequenti</h3></div>
+    <div class="sec-table-wrap">
+      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+        <thead><tr><th>IP</th><th class="sec-num">Accessi</th><th class="sec-num">Negati</th></tr></thead>
+        <tbody>
+        {% for row in summary.top_ips %}
+          <tr>
+            <td><a href="?ip={{ row.source_ip|urlencode }}">{{ row.source_ip }}</a></td>
+            <td class="sec-num">{{ row.total }}</td>
+            <td class="sec-num">{{ row.denied }}</td>
+          </tr>
+        {% empty %}<tr><td colspan="3" class="sec-empty">Nessun dato.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head">
+    <h2>Accessi</h2>
+    <span class="sec-badge">{{ page.paginator.count }} risultati</span>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-fm-table-skip="1">
+      <thead><tr><th>Esito</th><th>Utente</th><th>IP origine</th><th>Accesso</th><th>Uscita</th><th class="sec-num">Durata</th><th>Firewall</th></tr></thead>
+      <tbody>
+      {% for row in page %}
+        <tr>
+          <td><span class="sec-badge {% if row.action == 'denied' %}high{% else %}info{% endif %}">{{ row.get_action_display }}</span></td>
+          <td>{{ row.username|default:"—" }}</td>
+          <td class="sec-nowrap">{{ row.source_ip|default:"—" }}</td>
+          <td class="sec-nowrap">{{ row.login_at|date:"d/m/Y H:i:s"|default:"—" }}</td>
+          <td class="sec-nowrap">{{ row.logout_at|date:"d/m/Y H:i:s"|default:"—" }}</td>
+          <td class="sec-nowrap sec-num">{% if row.duration_seconds %}{{ row.duration_seconds|duration_hms }}{% else %}—{% endif %}</td>
+          <td>{{ row.firebox_name|default:row.source.name }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="sec-empty">Nessun accesso registrato. Lo storico si popola quando arrivano i report «Authentication Allowed/Denied» del firewall.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page.paginator.num_pages > 1 %}
+  <p class="sec-muted" style="margin-top: 8px;">
+    {% if page.has_previous %}<a class="sec-button" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.previous_page_number }}">&lt; Precedente</a>{% endif %}
+    Pagina {{ page.number }} di {{ page.paginator.num_pages }}
+    {% if page.has_next %}<a class="sec-button" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.next_page_number }}">Successiva &gt;</a>{% endif %}
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -110,6 +110,10 @@ def _invia_email_html(email: str, spec, url_rel: str) -> None:
         logger.exception("[gs] invio email nuova specifica a %s fallito", email)
 
 
+from automazioni.managed_flows import event_flow
+
+
+@event_flow("gs_nuova_specifica", skipped_result=None)
 def notifica_nuova_specifica(spec) -> int:
     """Notifica l'incaricato (o il gruppo IN1) di una nuova specifica. Ritorna i destinatari."""
     from .models import NotificaConfig

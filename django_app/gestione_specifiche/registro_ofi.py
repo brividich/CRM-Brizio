@@ -148,6 +148,10 @@ def _destinatari_reminder() -> list[str]:
     return list(dest)
 
 
+from automazioni.managed_flows import event_flow
+
+
+@event_flow("gs_ofi_reminder", skipped_result={})
 def invia_reminder_ofi(*, oggi=None, giorni: int = 0, dry_run: bool = False) -> dict:
     """Solleciti per le voci OFI in scadenza/scadute. Best-effort: l'email non
     deve mai bloccare (fail-safe); marca ``reminder_inviato`` sulle voci trattate.

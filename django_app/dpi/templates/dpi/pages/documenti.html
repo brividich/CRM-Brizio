@@ -7,44 +7,119 @@
 <style>
 #dpi-root { display:flex; flex-direction:column; gap:20px; }
 .dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
-.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
-.dpi-subnav-link:hover { background:#e2e8f0; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; transition:all .15s; }
+.dpi-subnav-link:hover { background:#e2e8f0; color:#0f172a; }
 .dpi-subnav-link.active { background:#0369a1; color:#fff; }
-.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:20px 24px; }
-.dpi-card-title { font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px; }
-.dpi-doc-form { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.dpi-doc-form label { display:flex; flex-direction:column; gap:4px; font-size:11px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.04em; }
-.dpi-doc-form input[type=text] { padding:8px 11px; border:1px solid #d1d5db; border-radius:9px; font-size:13px; background:#fff; text-transform:none; letter-spacing:0; font-weight:400; }
-.dpi-doc-form .full { grid-column:1 / -1; }
-.dpi-search { flex:1; min-width:220px; padding:8px 11px; border:1px solid #d1d5db; border-radius:9px; font-size:13px; background:#fff; }
-.dpi-btn { padding:9px 22px; border-radius:9px; font-size:13px; font-weight:700; border:none; cursor:pointer; }
-.dpi-btn-blue { background:#0369a1; color:#fff; }
-.dpi-btn-gray { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; text-decoration:none; }
-.dpi-btn-red { background:#fee2e2; color:#dc2626; border:1px solid #fecaca; padding:5px 12px; font-size:12px; }
+
+.dpi-hero {
+  background:linear-gradient(135deg,#166534 0%,#15803d 60%,#16a34a 100%);
+  border-radius:16px; padding:26px 32px; color:#fff;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;
+}
+.dpi-hero-title { font-size:24px; font-weight:900; letter-spacing:-.03em; }
+.dpi-hero-sub { font-size:13px; opacity:.75; margin-top:3px; }
+.dpi-hero-count { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.3); border-radius:12px; padding:8px 18px; text-align:center; }
+.dpi-hero-count strong { display:block; font-size:24px; font-weight:900; line-height:1.1; }
+.dpi-hero-count span { font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.8; }
+
+.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:22px 26px; }
+.dpi-card-title { font-size:15px; font-weight:800; color:#0f172a; margin-bottom:14px; }
+
+.dpi-upload { display:grid; grid-template-columns:1.1fr 1fr; gap:18px; align-items:stretch; }
+.dpi-drop {
+  position:relative; border:2px dashed #86efac; background:#f0fdf4; border-radius:14px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  padding:26px 18px; text-align:center; cursor:pointer; transition:all .15s; min-height:150px;
+}
+.dpi-drop:hover, .dpi-drop.is-over { border-color:#16a34a; background:#dcfce7; }
+.dpi-drop input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.dpi-drop-ico { width:44px; height:44px; border-radius:50%; background:#dcfce7; color:#15803d; display:flex; align-items:center; justify-content:center; }
+.dpi-drop-ico svg { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.dpi-drop strong { font-size:14px; color:#14532d; }
+.dpi-drop small { font-size:12px; color:#4b7a5c; }
+.dpi-drop-names { font-size:12px; font-weight:700; color:#166534; word-break:break-word; }
+
+.dpi-form-side { display:flex; flex-direction:column; gap:12px; justify-content:space-between; }
+.dpi-field label { display:block; font-size:11px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+.dpi-field input[type=text], .dpi-field select, .dpi-search select, .dpi-search input {
+  width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:10px; font-size:13px; background:#fff; color:#0f172a;
+}
+.dpi-field input:focus, .dpi-field select:focus, .dpi-search input:focus, .dpi-search select:focus { outline:none; border-color:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,.12); }
+
+.dpi-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px 22px; border-radius:10px; font-size:13px; font-weight:700; border:none; cursor:pointer; text-decoration:none; transition:all .15s; }
+.dpi-btn-green { background:#16a34a; color:#fff; }
+.dpi-btn-green:hover { background:#15803d; }
+.dpi-btn-gray { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+.dpi-btn-gray:hover { background:#e2e8f0; }
+.dpi-btn-red { background:#fff; color:#dc2626; border:1px solid #fecaca; padding:6px 12px; font-size:12px; }
+.dpi-btn-red:hover { background:#fee2e2; }
+
+.dpi-search { display:grid; grid-template-columns:minmax(200px,300px) 1fr auto; gap:10px; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:10px; }
+.dpi-search input { border-color:transparent; background:#f8fafc; }
+
 .dpi-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
 .dpi-table { width:100%; border-collapse:collapse; font-size:13px; }
-.dpi-table th { background:#f8fafc; padding:10px 14px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
-.dpi-table td { padding:11px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.dpi-table th { background:#f8fafc; padding:10px 16px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.dpi-table td { padding:12px 16px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
 .dpi-table tr:last-child td { border-bottom:none; }
+.dpi-table tr:hover td { background:#f8fafc; }
+.dpi-doc { display:flex; align-items:center; gap:12px; }
+.dpi-doc a { color:#0f172a; font-weight:700; text-decoration:none; }
+.dpi-doc a:hover { color:#0369a1; text-decoration:underline; }
+.dpi-ft { flex:0 0 auto; width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:900; letter-spacing:.04em; }
+.dpi-ft-pdf { background:#fee2e2; color:#b91c1c; }
+.dpi-ft-doc { background:#dbeafe; color:#1d4ed8; }
+.dpi-ft-xls { background:#dcfce7; color:#15803d; }
+.dpi-ft-img { background:#ede9fe; color:#6d28d9; }
+.dpi-ft-file { background:#f1f5f9; color:#475569; }
 .dpi-muted { color:#64748b; font-size:12px; }
-.dpi-empty { padding:32px; text-align:center; color:#94a3b8; }
-@media (max-width:700px) { .dpi-doc-form { grid-template-columns:1fr; } }
+.dpi-chip { display:inline-flex; flex-direction:column; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:4px 12px; border-radius:10px; font-size:12px; font-weight:700; line-height:1.3; }
+.dpi-chip small { font-weight:600; color:#4b7a5c; font-size:11px; }
+.dpi-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
+.dpi-actions form { margin:0; }
+.dpi-link { color:#0369a1; font-weight:700; font-size:12px; text-decoration:none; }
+.dpi-link:hover { text-decoration:underline; }
+.dpi-empty { padding:44px 20px; text-align:center; color:#94a3b8; }
+.dpi-empty-ico { width:56px; height:56px; margin:0 auto 10px; border-radius:50%; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#94a3b8; }
+.dpi-empty-ico svg { width:28px; height:28px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.dpi-empty strong { display:block; color:#475569; font-size:15px; margin-bottom:3px; }
+
+@media (max-width:820px) {
+  .dpi-upload { grid-template-columns:1fr; }
+  .dpi-search { grid-template-columns:1fr; }
+  .dpi-hero { padding:20px; }
+}
 
 body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
 body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
 body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
-body.theme-dark .dpi-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-card, body.theme-dark .dpi-search, body.theme-dark .dpi-table-wrap { background:var(--surface); border-color:var(--border); }
 body.theme-dark .dpi-card-title { color:var(--text); }
-body.theme-dark .dpi-doc-form label { color:var(--text-mid); }
-body.theme-dark .dpi-doc-form input[type=text], body.theme-dark .dpi-search { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-drop { background:rgba(21,128,61,.12); border-color:rgba(74,222,128,.4); }
+body.theme-dark .dpi-drop:hover, body.theme-dark .dpi-drop.is-over { background:rgba(21,128,61,.22); border-color:#4ade80; }
+body.theme-dark .dpi-drop-ico { background:rgba(21,128,61,.3); color:#86efac; }
+body.theme-dark .dpi-drop strong, body.theme-dark .dpi-drop-names { color:#86efac; }
+body.theme-dark .dpi-drop small { color:var(--text-light); }
+body.theme-dark .dpi-field label { color:var(--text-mid); }
+body.theme-dark .dpi-field input[type=text], body.theme-dark .dpi-field select, body.theme-dark .dpi-search select, body.theme-dark .dpi-search input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .dpi-btn-gray { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
-body.theme-dark .dpi-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-btn-red { background:transparent; border-color:rgba(220,38,38,.4); color:#fca5a5; }
+body.theme-dark .dpi-btn-red:hover { background:rgba(220,38,38,.15); }
 body.theme-dark .dpi-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
 body.theme-dark .dpi-table td { border-color:var(--border); }
 body.theme-dark .dpi-table tr:hover td { background:var(--tbody-hover); }
-body.theme-dark .dpi-table a { color:#60a5fa; }
-body.theme-dark .dpi-muted, body.theme-dark .dpi-empty { color:var(--text-light); }
-body.theme-dark .dpi-btn-red { background:rgba(220,38,38,.15); border-color:rgba(220,38,38,.35); color:#fca5a5; }
+body.theme-dark .dpi-doc a { color:var(--text); }
+body.theme-dark .dpi-doc a:hover, body.theme-dark .dpi-link { color:#60a5fa; }
+body.theme-dark .dpi-muted { color:var(--text-light); }
+body.theme-dark .dpi-ft-pdf { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .dpi-ft-doc { background:rgba(59,130,246,.2); color:#93c5fd; }
+body.theme-dark .dpi-ft-xls { background:rgba(34,197,94,.2); color:#86efac; }
+body.theme-dark .dpi-ft-img { background:rgba(139,92,246,.22); color:#c4b5fd; }
+body.theme-dark .dpi-ft-file { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .dpi-chip { background:rgba(21,128,61,.2); color:#86efac; border-color:rgba(21,128,61,.4); }
+body.theme-dark .dpi-chip small { color:var(--text-light); }
+body.theme-dark .dpi-empty-ico { background:var(--surface-alt); }
+body.theme-dark .dpi-empty strong { color:var(--text-mid); }
 </style>
 {% endblock %}
 
@@ -53,72 +128,112 @@ body.theme-dark .dpi-btn-red { background:rgba(220,38,38,.15); border-color:rgba
   {% include "dpi/components/_dpi_icons.html" %}
   {% include "dpi/components/subnav.html" %}
 
-  <div>
-    <div style="font-size:20px; font-weight:800;">Documenti DPI</div>
-    <div class="dpi-muted" style="margin-top:2px;">Certificati, attestati e manuali d'uso, ciascuno collegato al suo DPI.</div>
+  <div class="dpi-hero">
+    <div>
+      <div class="dpi-hero-title">Documenti DPI</div>
+      <div class="dpi-hero-sub">Certificati, attestati e manuali d'uso, ciascuno collegato al suo DPI</div>
+    </div>
+    <div class="dpi-hero-count"><strong>{{ documenti|length }}</strong><span>{% if q or modello_filtro %}trovati{% else %}documenti{% endif %}</span></div>
   </div>
 
   {% if is_gestore %}
   <form method="post" enctype="multipart/form-data" class="dpi-card">
     {% csrf_token %}
     <div class="dpi-card-title">Carica documenti</div>
-    <div class="dpi-doc-form">
-      <label class="full">DPI di riferimento
-        <select name="modello" required class="dpi-search">
-          <option value="">Scegli il DPI…</option>
-          {% for m in modelli %}<option value="{{ m.pk }}">{{ m.tipo.categoria.nome }} · {{ m.tipo.nome }} · {{ m.codice }} - {{ m.nome }}</option>{% endfor %}
-        </select>
+    <div class="dpi-upload">
+      <label class="dpi-drop" id="dpi-drop">
+        <input type="file" name="files" multiple required accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" id="dpi-files">
+        <span class="dpi-drop-ico"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
+        <strong>Scegli i file o trascinali qui</strong>
+        <small>PDF, Word, Excel, immagini · max 25 MB ciascuno</small>
+        <span class="dpi-drop-names" id="dpi-names"></span>
       </label>
-      <label>Titolo <input type="text" name="titolo" maxlength="200" placeholder="Con più file vale il nome di ciascun file"></label>
-      <label>Descrizione <input type="text" name="descrizione" maxlength="500" placeholder="Facoltativa (es. modello, scadenza, fornitore)"></label>
-      <label class="full">File (PDF, Word, Excel, immagini; max 25 MB ciascuno)
-        <input type="file" name="files" multiple required accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
-      </label>
-      <div class="full"><button type="submit" class="dpi-btn dpi-btn-blue">Carica</button></div>
+      <div class="dpi-form-side">
+        <div class="dpi-field">
+          <label for="dpi-modello">DPI di riferimento *</label>
+          <select name="modello" id="dpi-modello" required>
+            <option value="">Scegli il DPI…</option>
+            {% for m in modelli %}<option value="{{ m.pk }}">{{ m.tipo.categoria.nome }} · {{ m.tipo.nome }} · {{ m.codice }} - {{ m.nome }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="dpi-field">
+          <label for="dpi-titolo">Titolo</label>
+          <input type="text" name="titolo" id="dpi-titolo" maxlength="200" placeholder="Vuoto = nome del file">
+        </div>
+        <div class="dpi-field">
+          <label for="dpi-desc">Descrizione</label>
+          <input type="text" name="descrizione" id="dpi-desc" maxlength="500" placeholder="Facoltativa (es. scadenza, fornitore)">
+        </div>
+        <button type="submit" class="dpi-btn dpi-btn-green">Carica documenti</button>
+      </div>
     </div>
   </form>
   {% endif %}
 
-  <form method="get" style="display:flex; gap:8px; flex-wrap:wrap;">
-    <select name="modello" class="dpi-search" style="flex:0 1 320px" onchange="this.form.submit()">
+  <form method="get" class="dpi-search">
+    <select name="modello" onchange="this.form.submit()">
       <option value="">Tutti i DPI</option>
       {% for m in modelli %}<option value="{{ m.pk }}"{% if modello_filtro == m.pk %} selected{% endif %}>{{ m.codice }} - {{ m.nome }}</option>{% endfor %}
     </select>
-    <input type="text" name="q" value="{{ q }}" class="dpi-search" placeholder="Cerca per titolo, descrizione o nome file">
-    <button type="submit" class="dpi-btn dpi-btn-blue">Cerca</button>
-    {% if q or modello_filtro %}<a href="{% url 'dpi:documenti' %}" class="dpi-btn dpi-btn-gray">Azzera</a>{% endif %}
+    <input type="text" name="q" value="{{ q }}" placeholder="Cerca per titolo, descrizione, nome file o DPI">
+    <span style="display:flex; gap:8px;">
+      <button type="submit" class="dpi-btn dpi-btn-green">Cerca</button>
+      {% if q or modello_filtro %}<a href="{% url 'dpi:documenti' %}" class="dpi-btn dpi-btn-gray">Azzera</a>{% endif %}
+    </span>
   </form>
 
   <div class="dpi-table-wrap">
     {% if documenti %}
-    <table class="dpi-table">
+    <table class="dpi-table" data-fm-table-skip="1">
       <thead><tr><th>Documento</th><th>DPI</th><th>Caricato</th><th>Dimensione</th><th></th></tr></thead>
       <tbody>
         {% for d in documenti %}
         <tr>
           <td>
-            <a href="{% url 'dpi:documento_download' d.pk %}" target="_blank" rel="noopener"><strong>{{ d.titolo }}</strong></a>
-            {% if d.descrizione %}<div class="dpi-muted">{{ d.descrizione }}</div>{% endif %}
-            <div class="dpi-muted">{{ d.nome_originale }}</div>
+            <div class="dpi-doc">
+              <span class="dpi-ft dpi-ft-{{ d.nome_originale|dpi_filetype }}">{{ d.nome_originale|dpi_filetype|upper }}</span>
+              <div>
+                <a href="{% url 'dpi:documento_download' d.pk %}" target="_blank" rel="noopener">{{ d.titolo }}</a>
+                <div class="dpi-muted">{% if d.descrizione %}{{ d.descrizione }} · {% endif %}{{ d.nome_originale }}</div>
+              </div>
+            </div>
           </td>
-          <td>{% if d.modello %}<strong>{{ d.modello.nome }}</strong><div class="dpi-muted">{{ d.modello.codice }} · {{ d.modello.tipo.categoria.nome }}</div>{% else %}<span class="dpi-muted">—</span>{% endif %}</td>
+          <td>{% if d.modello %}<span class="dpi-chip">{{ d.modello.nome }}<small>{{ d.modello.codice }} · {{ d.modello.tipo.categoria.nome }}</small></span>{% else %}<span class="dpi-muted">—</span>{% endif %}</td>
           <td>{{ d.created_at|date:"d/m/Y" }}{% if d.caricato_da %}<div class="dpi-muted">{{ d.caricato_da.get_full_name|default:d.caricato_da.username }}</div>{% endif %}</td>
           <td>{{ d.dimensione_bytes|filesizeformat }}</td>
-          <td style="text-align:right; white-space:nowrap">
-            <a href="{% url 'dpi:documento_download' d.pk %}?download=1" class="dpi-muted">Scarica</a>
-            {% if is_gestore %}
-            <form method="post" action="{% url 'dpi:documento_elimina' d.pk %}" style="display:inline; margin-left:10px" onsubmit="return confirm('Eliminare il documento «{{ d.titolo|escapejs }}»? L\'operazione non si annulla.');">
-              {% csrf_token %}<button type="submit" class="dpi-btn dpi-btn-red">Elimina</button>
-            </form>
-            {% endif %}
+          <td>
+            <div class="dpi-actions">
+              <a href="{% url 'dpi:documento_download' d.pk %}?download=1" class="dpi-link">Scarica</a>
+              {% if is_gestore %}
+              <form method="post" action="{% url 'dpi:documento_elimina' d.pk %}" onsubmit="return confirm('Eliminare il documento «{{ d.titolo|escapejs }}»? L\'operazione non si annulla.');">
+                {% csrf_token %}<button type="submit" class="dpi-btn dpi-btn-red">Elimina</button>
+              </form>
+              {% endif %}
+            </div>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     {% else %}
-    <div class="dpi-empty">{% if q or modello_filtro %}Nessun documento corrisponde alla ricerca.{% else %}Nessun documento caricato.{% endif %}</div>
+    <div class="dpi-empty">
+      <div class="dpi-empty-ico"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></div>
+      <strong>{% if q or modello_filtro %}Nessun documento corrisponde alla ricerca{% else %}Nessun documento caricato{% endif %}</strong>
+      {% if is_gestore and not q and not modello_filtro %}Carica il primo certificato, attestato o manuale d'uso qui sopra.{% endif %}
+    </div>
     {% endif %}
   </div>
 </div>
+<script>
+(function () {
+  var drop = document.getElementById('dpi-drop'), input = document.getElementById('dpi-files'), names = document.getElementById('dpi-names');
+  if (!drop || !input) return;
+  function show() {
+    names.textContent = Array.prototype.map.call(input.files, function (f) { return f.name; }).join(' · ');
+  }
+  input.addEventListener('change', show);
+  ['dragenter', 'dragover'].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.add('is-over'); }); });
+  ['dragleave', 'drop'].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove('is-over'); }); });
+})();
+</script>
 {% endblock %}

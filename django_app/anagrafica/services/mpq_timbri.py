@@ -153,6 +153,10 @@ def propaga_timbro(timbro, *, oggi=None) -> str | None:
     return None
 
 
+from automazioni.managed_flows import event_flow
+
+
+@event_flow("mpq_timbri_sospesi", skipped_result=0)
 def notifica_msm_sospensioni(pks, *, oggi=None, override=None, fail_silently: bool = True) -> int:
     """Notifica MSM/Qualità dei timbri sospesi automaticamente (digest email).
 

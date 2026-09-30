@@ -43,7 +43,9 @@ param(
 
     [int]$RestartDelaySec = 5,
 
-    [string]$LogFile = ""
+    [string]$LogFile = "",
+
+    [switch]$Once
 )
 
 Set-StrictMode -Version Latest
@@ -84,6 +86,13 @@ if (-not (Test-Path $CurrentDir)) {
     exit 1
 }
 
+$rootBytes = [Text.Encoding]::UTF8.GetBytes($EnvRoot.ToLowerInvariant())
+$rootHash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($rootBytes)).Replace("-", "").Substring(0, 16)
+$clusterMutex = [Threading.Mutex]::new($false, "Global\NovicromQCluster_$rootHash")
+try { $ownsMutex = $clusterMutex.WaitOne(0) }
+catch [Threading.AbandonedMutexException] { $ownsMutex = $true }
+if (-not $ownsMutex) { Write-Log "Launcher gia attivo per questo ambiente." "WARN"; $clusterMutex.Dispose(); exit 0 }
+try {
 Write-Log "=== qcluster START (env=$Environment, pid=$PID) ==="
 
 # -- Loop di restart -------------------------------------------------------
@@ -93,59 +102,38 @@ while ($true) {
     Write-Log "Avvio qcluster - tentativo #$attempt"
 
     try {
-        $psi = [System.Diagnostics.ProcessStartInfo]::new()
-        $psi.FileName               = $VenvPython
-        $psi.Arguments              = "manage.py qcluster --settings=$Settings"
-        $psi.WorkingDirectory       = $CurrentDir
-        $psi.UseShellExecute        = $false
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError  = $true
-        $psi.EnvironmentVariables["PORTAL_SKIP_RUNTIME_BOOTSTRAP"] = "0"
-        $psi.EnvironmentVariables["DJANGO_SETTINGS_MODULE"] = $Settings
-
-        $proc = [System.Diagnostics.Process]::new()
-        $proc.StartInfo = $psi
-
-        # Scrivi stdout/stderr su file in background
-        $stdoutAction = {
-            param($sender, $e)
-            if ($e.Data) {
-                $ts   = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-                $line = "[$ts] [OUT] $($e.Data)"
-                Add-Content -Path $Event.MessageData -Value $line -Encoding UTF8
-            }
-        }
-        $stderrAction = {
-            param($sender, $e)
-            if ($e.Data) {
-                $ts   = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-                $line = "[$ts] [ERR] $($e.Data)"
-                Add-Content -Path $Event.MessageData -Value $line -Encoding UTF8
-            }
-        }
-
-        Register-ObjectEvent -InputObject $proc -EventName "OutputDataReceived" `
-            -Action $stdoutAction -MessageData $LogFile | Out-Null
-        Register-ObjectEvent -InputObject $proc -EventName "ErrorDataReceived" `
-            -Action $stderrAction -MessageData $LogFile | Out-Null
-
-        $proc.Start() | Out-Null
-        $proc.BeginOutputReadLine()
-        $proc.BeginErrorReadLine()
-
+        # File redirection is handled by .NET, without PowerShell event callbacks.
+        # Blocking WaitForExit + Register-ObjectEvent can fill the child pipes.
+        $runStamp = (Get-Date).ToString("yyyyMMdd_HHmmss_fff")
+        $stdoutPath = Join-Path $LogsDir "qcluster_${PID}_${runStamp}.out.log"
+        $stderrPath = Join-Path $LogsDir "qcluster_${PID}_${runStamp}.err.log"
+        $env:PORTAL_SKIP_RUNTIME_BOOTSTRAP = "0"
+        $env:DJANGO_SETTINGS_MODULE = $Settings
+        $env:PYTHONUNBUFFERED = "1"
+        $proc = Start-Process -FilePath $VenvPython `
+            -ArgumentList @("manage.py", "qcluster", "--settings=$Settings") `
+            -WorkingDirectory $CurrentDir -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -ErrorAction Stop
+        $null = $proc.Handle
         Write-Log "qcluster avviato - PID processo figlio: $($proc.Id)"
         $proc.WaitForExit()
         $exitCode = $proc.ExitCode
-
-        Get-EventSubscriber | Where-Object { $_.SourceObject -eq $proc } | Unregister-Event
         $proc.Dispose()
 
         Write-Log "qcluster terminato con exit code $exitCode" "WARN"
+        if ($Once) { exit $exitCode }
     }
     catch {
         Write-Log "Eccezione durante avvio/attesa qcluster: $_" "ERROR"
+        if ($Once) { exit 1 }
     }
 
     Write-Log "Restart tra $RestartDelaySec secondi..." "WARN"
     Start-Sleep -Seconds $RestartDelaySec
+}
+
+}
+finally {
+    if ($ownsMutex) { $clusterMutex.ReleaseMutex() }
+    $clusterMutex.Dispose()
 }
