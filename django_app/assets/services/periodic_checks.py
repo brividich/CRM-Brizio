@@ -143,6 +143,30 @@ def confirm_session(session: PeriodicCheckSession, *, user=None) -> None:
     refresh_next_due(session.check_type)
 
 
+@transaction.atomic
+def update_session(session: PeriodicCheckSession, *, performed_on, outcome: str, technician: str = "",
+                   supplier_id=None, notes: str = "", next_due_date=None) -> None:
+    session.performed_on = performed_on
+    session.outcome = outcome
+    session.technician = technician[:120]
+    session.supplier_id = supplier_id
+    session.notes = notes
+    session.next_due_date = next_due_date
+    session.save()
+    refresh_next_due(session.check_type)
+
+
+@transaction.atomic
+def delete_session(session: PeriodicCheckSession) -> None:
+    """Elimina la verifica con esiti e allegati (i file su disco vanno via con la riga)
+    e ricalcola la scadenza del tipo dall'ultima verifica confermata rimasta."""
+    check_type = session.check_type
+    for attachment in list(session.attachments.all()):
+        attachment.delete()
+    session.delete()
+    refresh_next_due(check_type)
+
+
 def refresh_next_due(check_type: PeriodicCheckType) -> date | None:
     """Prossima scadenza = dall'ultima verifica confermata (la data indicata a mano
     vince, es. la scadenza scritta sul verbale DPR 462). Senza verifiche confermate

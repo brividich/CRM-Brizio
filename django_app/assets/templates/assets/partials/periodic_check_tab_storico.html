@@ -33,7 +33,15 @@
                     {% empty %}<span class="pc-muted">—</span>{% endfor %}
                   </div>
                 </td>
-                <td class="md-right"><a class="btn btn-secondary btn-sm" href="{% url 'assets:periodic_check_session_detail' s.id %}">Apri</a></td>
+                <td class="md-right" style="white-space:nowrap">
+                  <a class="btn btn-secondary btn-sm" href="{% url 'assets:periodic_check_session_detail' s.id %}">Apri</a>
+                  {% if can_register %}
+                    <a class="btn btn-secondary btn-sm" href="{% url 'assets:periodic_check_session_edit' s.id %}">Modifica</a>
+                    <form method="post" action="{% url 'assets:periodic_check_session_delete' s.id %}" style="display:inline" onsubmit="return confirm('Eliminare la verifica del {{ s.performed_on|date:"d/m/Y" }} con esiti e allegati? L'operazione non si annulla.');">
+                      {% csrf_token %}<button type="submit" class="btn btn-danger btn-sm">Elimina</button>
+                    </form>
+                  {% endif %}
+                </td>
               </tr>
             {% endfor %}
           </tbody>

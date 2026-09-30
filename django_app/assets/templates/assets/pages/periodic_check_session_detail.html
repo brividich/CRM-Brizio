@@ -11,6 +11,12 @@
 {% block assets_shell_toolbar %}
   <a class="btn btn-secondary" href="{% url 'assets:periodic_check_type_detail' check_type.id %}?tab=storico">‹ Storico verifiche</a>
   {% if session.sheet_token %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_sheet_pdf' session.id %}" target="_blank" rel="noopener">Foglio (PDF)</a>{% endif %}
+  {% if can_register %}
+    <a class="btn btn-secondary" href="{% url 'assets:periodic_check_session_edit' session.id %}">Modifica</a>
+    <form method="post" action="{% url 'assets:periodic_check_session_delete' session.id %}" style="display:inline" onsubmit="return confirm('Eliminare questa verifica con esiti e allegati? L'operazione non si annulla.');">
+      {% csrf_token %}<button type="submit" class="btn btn-danger">Elimina</button>
+    </form>
+  {% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}

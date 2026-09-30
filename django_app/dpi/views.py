@@ -4,6 +4,7 @@ import base64
 import binascii
 import json
 import logging
+import mimetypes
 from datetime import timedelta
 
 from django.contrib import messages
@@ -11,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import IntegrityError
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -30,6 +31,7 @@ from .models import (
     ICONE_DPI_DISPONIBILI,
     CategoriaDPI,
     ConsegnaDPI,
+    DocumentoDPI,
     DPIImpostazioni,
     ModelloDPI,
     RichiestaDPI,
@@ -51,10 +53,24 @@ DPI_ALLOWED_IMAGE_MIMES = {
     "image/bmp",
     "image/x-ms-bmp",
 }
+DPI_DOCUMENT_ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png"}
+DPI_DOCUMENT_ALLOWED_MIMES = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/zip",
+    "application/x-ole-storage",
+    "application/cdfv2",
+    "image/jpeg",
+    "image/png",
+}
+DPI_DOCUMENT_MAX_BYTES = 25 * 1024 * 1024
 DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS = DPI_ALLOWED_IMAGE_EXTENSIONS
 DPI_CATEGORY_ALLOWED_IMAGE_MIMES = DPI_ALLOWED_IMAGE_MIMES
 # Guard di copertura policy MIME su tutti i FileField/ImageField del modulo DPI.
-DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine"}
+DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine", "DocumentoDPI.file"}
 
 
 # ---------------------------------------------------------------------------
@@ -1340,3 +1356,89 @@ def api_copilota_dpi(request):
         "ai_disponibile": proposta.get("ai_disponibile"),
     })
     return JsonResponse({"ok": True, "proposta": proposta})
+
+
+# ---------------------------------------------------------------------------
+# Raccoglitore documenti (certificati, attestati, manuali d'uso)
+# ---------------------------------------------------------------------------
+
+@login_required
+def documenti(request):
+    """Raccoglitore unico: tutti gli utenti DPI consultano, i gestori caricano ed eliminano."""
+    is_gestore = _is_gestore(request)
+    if request.method == "POST":
+        if not is_gestore:
+            messages.error(request, "Solo chi gestisce i DPI puo' caricare documenti.")
+            return redirect("dpi:documenti")
+        titolo = request.POST.get("titolo", "").strip()[:200]
+        descrizione = request.POST.get("descrizione", "").strip()[:500]
+        files = request.FILES.getlist("files")
+        if not files:
+            messages.error(request, "Scegli almeno un file da caricare.")
+            return redirect("dpi:documenti")
+        salvati = 0
+        for upload in files:
+            try:
+                validate_extension_and_mime(
+                    upload,
+                    allowed_extensions=DPI_DOCUMENT_ALLOWED_EXTENSIONS,
+                    allowed_mimes=DPI_DOCUMENT_ALLOWED_MIMES,
+                    max_bytes=DPI_DOCUMENT_MAX_BYTES,
+                    label=upload.name,
+                    allow_empty=False,
+                )
+            except UploadMimeValidationError as exc:
+                messages.error(request, str(exc))
+                continue
+            nome = (upload.name or "documento")[:255]
+            doc = DocumentoDPI.objects.create(
+                # Il titolo a mano vale solo con un file; con piu' file ognuno prende il proprio nome.
+                titolo=(titolo if titolo and len(files) == 1 else nome.rsplit(".", 1)[0])[:200],
+                descrizione=descrizione,
+                file=upload,
+                nome_originale=nome,
+                dimensione_bytes=int(upload.size or 0),
+                caricato_da=request.user,
+            )
+            log_action(request, "DPI_DOCUMENTO_CARICATO", "dpi", f"Caricato documento DPI {doc.pk}: {doc.nome_originale}")
+            salvati += 1
+        if salvati:
+            messages.success(request, "Documento caricato." if salvati == 1 else f"{salvati} documenti caricati.")
+        return redirect("dpi:documenti")
+
+    q = request.GET.get("q", "").strip()
+    qs = DocumentoDPI.objects.select_related("caricato_da")
+    if q:
+        qs = qs.filter(Q(titolo__icontains=q) | Q(descrizione__icontains=q) | Q(nome_originale__icontains=q))
+    return render(request, "dpi/pages/documenti.html", {"is_gestore": is_gestore, "documenti": qs, "q": q})
+
+
+@login_required
+def documento_download(request, pk: int):
+    doc = get_object_or_404(DocumentoDPI, pk=pk)
+    storage = doc.file.storage
+    if not doc.file or not doc.file.name or not storage.exists(doc.file.name):
+        return HttpResponse("Documento non trovato.", status=404)
+    log_action(request, "DPI_DOCUMENTO_SCARICATO", "dpi", f"Aperto documento DPI {doc.pk}: {doc.nome_originale}")
+    filename = doc.nome_originale or doc.titolo
+    inline = filename.lower().endswith((".pdf", ".png", ".jpg", ".jpeg")) and request.GET.get("download") != "1"
+    return FileResponse(
+        storage.open(doc.file.name, "rb"),
+        as_attachment=not inline,
+        filename=filename,
+        content_type=mimetypes.guess_type(filename)[0] or "application/octet-stream",
+    )
+
+
+@login_required
+@require_POST
+def documento_elimina(request, pk: int):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:documenti")
+    doc = get_object_or_404(DocumentoDPI, pk=pk)
+    dettaglio = f"Eliminato documento DPI {doc.pk}: {doc.nome_originale}"
+    doc.delete()
+    log_action(request, "DPI_DOCUMENTO_ELIMINATO", "dpi", dettaglio)
+    messages.success(request, "Documento eliminato.")
+    return redirect("dpi:documenti")

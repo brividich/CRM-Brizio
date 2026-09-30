@@ -244,6 +244,43 @@ class PeriodicCheckRegisterForm(forms.Form):
         return _lines(self.cleaned_data.get("remarks_text", ""))
 
 
+class PeriodicCheckSessionEditForm(forms.Form):
+    """Correzione dei dati di una verifica gia' registrata (esiti e allegati restano)."""
+
+    performed_on = forms.DateField(label="Data della verifica", widget=forms.DateInput(attrs=_DATE, format="%Y-%m-%d"))
+    outcome = forms.ChoiceField(label="Esito", choices=PeriodicCheckSession.OUTCOME_CHOICES)
+    technician = forms.CharField(label="Tecnico", max_length=120, required=False)
+    supplier = forms.ModelChoiceField(label="Fornitore", queryset=Fornitore.objects.none(), required=False)
+    notes = forms.CharField(label="Note", required=False, widget=forms.Textarea(attrs={"rows": 3}))
+    next_due_date = forms.DateField(
+        label="Prossima scadenza",
+        required=False,
+        widget=forms.DateInput(attrs=_DATE, format="%Y-%m-%d"),
+        help_text="Vuota = calcolata dalla frequenza.",
+    )
+
+    def __init__(self, *args, session: PeriodicCheckSession, **kwargs):
+        if not args or args[0] is None:
+            kwargs.setdefault("initial", {
+                "performed_on": session.performed_on,
+                "outcome": session.outcome,
+                "technician": session.technician,
+                "supplier": session.supplier_id,
+                "notes": session.notes,
+                "next_due_date": session.next_due_date,
+            })
+        super().__init__(*args, **kwargs)
+        self.fields["supplier"].queryset = _supplier_queryset()
+
+    def clean(self):
+        cleaned = super().clean()
+        performed_on = cleaned.get("performed_on")
+        next_due = cleaned.get("next_due_date")
+        if performed_on and next_due and next_due <= performed_on:
+            self.add_error("next_due_date", "La prossima scadenza deve essere dopo la data della verifica.")
+        return cleaned
+
+
 class WorkOrderFromResultForm(forms.Form):
     asset = forms.ModelChoiceField(label="Asset", queryset=Asset.objects.none())
     title = forms.CharField(label="Titolo", max_length=255)
