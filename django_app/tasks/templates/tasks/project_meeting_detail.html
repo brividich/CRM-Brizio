@@ -181,7 +181,7 @@
       <div class="md-card full" id="agenda-card">
         <div class="md-card-head">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
-          <span>Ordine del giorno</span>
+          <span>Ordine del giorno{% if meeting.stato == 'SVOLTO' or note_generali %} e verbale{% endif %}</span>
           <span id="agenda-progress-label" style="margin-left:auto;font-size:.75rem;color:var(--text-light);font-weight:400;">
             {{ meeting.agenda_items|length }} punt{% if meeting.agenda_items|length == 1 %}o{% else %}i{% endif %}
           </span>
@@ -292,13 +292,13 @@
       </div>
     {% endif %}
 
-    {% if meeting.note %}
+    {% if note_generali %}
       <div class="md-card full">
         <div class="md-card-head">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
-          <span>Verbale / Note</span>
+          <span>{% if meeting.agenda_items %}Note generali{% else %}Verbale / Note{% endif %}</span>
         </div>
-        <div class="md-card-body"><p>{{ meeting.note }}</p></div>
+        <div class="md-card-body"><p>{% if meeting.agenda_items %}{{ note_generali|linebreaksbr }}{% else %}{{ meeting.note }}{% endif %}</p></div>
       </div>
     {% endif %}
 
