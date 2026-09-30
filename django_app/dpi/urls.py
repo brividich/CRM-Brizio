@@ -30,6 +30,7 @@ urlpatterns = [
     path("impostazioni/taglie/nuova/", views.taglia_edit, name="taglia_nuova"),
     path("impostazioni/taglie/<int:pk>/modifica/", views.taglia_edit, name="taglia_modifica"),
     path("magazzino/", views.magazzino_view, name="magazzino"),
+    path("magazzino/report/", views.magazzino_report, name="magazzino_report"),
     path("documenti/", views.documenti, name="documenti"),
     path("documenti/<int:pk>/", views.documento_download, name="documento_download"),
     path("documenti/<int:pk>/elimina/", views.documento_elimina, name="documento_elimina"),

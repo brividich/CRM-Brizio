@@ -14,6 +14,8 @@
 .dpi-hero { background:linear-gradient(135deg,#166534 0%,#15803d 60%,#16a34a 100%); border-radius:16px; padding:26px 32px; color:#fff; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
 .dpi-hero-title { font-size:24px; font-weight:900; letter-spacing:-.03em; }
 .dpi-hero-sub { font-size:13px; opacity:.75; margin-top:3px; }
+.dpi-hbtn { display:inline-flex; align-items:center; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; background:#fff; color:#166534; }
+.dpi-hbtn:hover { background:#dcfce7; }
 
 .dpi-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:14px; }
 .dpi-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 20px; display:flex; flex-direction:column; gap:4px; text-decoration:none; transition:all .15s; }
@@ -111,6 +113,7 @@ body.theme-dark .dpi-neg { color:#fca5a5; }
       <div class="dpi-hero-title">Magazzino DPI</div>
       <div class="dpi-hero-sub">Scorta per modello: scende a ogni consegna, sale con il carico dei DDT di acquisto</div>
     </div>
+    <a class="dpi-hbtn" href="{% url 'dpi:magazzino_report' %}">Report e consumi →</a>
   </div>
 
   <div class="dpi-kpi-row">
