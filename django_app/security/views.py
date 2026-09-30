@@ -12,12 +12,12 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from .forms import (
+    SecurityMailboxSourceForm,
     BackupExpectedJobConfigForm,
     SecurityAlertRuleConfigForm,
     SecurityAlertSuppressionRuleForm,
     SecurityCenterSettingForm,
     SecurityNotificationChannelForm,
-    SecurityParserConfigForm,
     SecuritySourceConfigForm,
     SecurityTicketConfigForm,
 )
@@ -59,6 +59,8 @@ from .services.alert_lifecycle import (
     snooze_alert,
 )
 from .services.kpi_service import build_daily_kpi_snapshots
+from .services.mailbox_setup import graph_credentials_status, preview_mailbox, run_summary, start_history_import, unique_code_for
+from .services.posture import build_pipeline_status, build_posture, build_trend
 from .services.parser_engine import _match_enabled_parser, run_pending_parsers
 from .services.rule_engine import evaluate_security_rules, test_alert_rule
 from .services.backup_monitoring import last_seen_backup_status, missing_backup_candidates
@@ -81,6 +83,8 @@ from .services.autoconfig import (
 )
 from .services.diagnostics import build_diagnostics_context, run_security_center_diagnostics
 from .services.security_inbox_pipeline import process_mailbox_message, process_source_file
+from .services.text_extraction import extract_text
+from .services.parser_catalog import delete_orphan_config, parser_overview, reprocess_items, test_parsers
 from .docs_render import DOC_FILES as _DOC_FILES, load_doc, slug_for
 
 
@@ -105,44 +109,61 @@ def dashboard(request):
         ),
         "latest_alerts": _decorate_alerts(SecurityAlert.objects.select_related("source", "event").order_by("-updated_at")[:10]),
         "last_pipeline_run": request.session.get("last_pipeline_run"),
+        "posture": build_posture(),
+        "trend": build_trend(today=today),
     }
     return render(request, "security/dashboard.html", context)
 
 
 @ensure_csrf_cookie
 def alerts_list(request):
-    alerts = SecurityAlert.objects.select_related("source", "event").annotate(evidence_count=Count("evidence_containers")).order_by("-updated_at")
+    alerts = SecurityAlert.objects.select_related("source", "event", "event__asset").annotate(evidence_count=Count("evidence_containers")).order_by("-updated_at")
 
-    # Validate and sanitize input
-    severity = request.GET.get("severity")
-    if severity and severity in [s[0] for s in Severity.choices]:
-        alerts = alerts.filter(severity=severity)
-
-    status = request.GET.get("status")
-    if status and status in [s[0] for s in Status.choices]:
+    # «active» è la vista di lavoro (tutto ciò che non è chiuso); gli altri valori sono Status.
+    status = request.GET.get("status", "")
+    if status == "active":
+        alerts = alerts.filter(status__in=ACTIVE_ALERT_STATUSES)
+    elif status in {s[0] for s in Status.choices}:
         alerts = alerts.filter(status=status)
 
     source_id = request.GET.get("source")
     if source_id and source_id.isdigit():
         alerts = alerts.filter(source_id=int(source_id))
 
-    date_str = request.GET.get("date")
-    if date_str:
-        try:
-            from datetime import datetime
-            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
-            alerts = alerts.filter(created_at__date=date_obj)
-        except ValueError:
-            pass  # Invalid date format, ignore filter
+    date_obj = _parse_date(request.GET.get("date"))
+    if date_obj:
+        alerts = alerts.filter(created_at__date=date_obj)
 
+    # Conteggi per severità calcolati PRIMA del filtro severità: i chip mostrano quanti
+    # alert ci sono per ciascuna severità con gli altri filtri applicati.
+    severity_counts = {row["severity"]: row["n"] for row in alerts.order_by().values("severity").annotate(n=Count("id"))}
+    severity = request.GET.get("severity", "")
+    if severity in {s[0] for s in Severity.choices}:
+        alerts = alerts.filter(severity=severity)
+
+    total = alerts.count()
+    severity_chips = [
+        {"value": value, "count": severity_counts.get(value, 0), "active": severity == value}
+        for value, _label in reversed(Severity.choices)
+    ]
     context = {
         "alerts": _decorate_alerts(alerts[:100]),
+        "total": total,
+        "severity_chips": severity_chips,
+        "all_count": sum(severity_counts.values()),
         "sources": SecuritySource.objects.order_by("name"),
         "severity_choices": Severity.choices,
         "status_choices": Status.choices,
         "filters": request.GET,
+        "query_without_severity": _querystring_without(request, "severity"),
     }
     return render(request, "security/alerts_list.html", context)
+
+
+def _querystring_without(request, key):
+    params = request.GET.copy()
+    params.pop(key, None)
+    return params.urlencode()
 
 
 @ensure_csrf_cookie
@@ -204,10 +225,32 @@ def alert_action(request, pk, action):
     return redirect("security:alert_detail", pk=alert.pk)
 
 
+TICKET_OPEN_STATUSES = [Status.NEW, Status.OPEN, Status.IN_PROGRESS]
+
+
 @ensure_csrf_cookie
 def tickets_list(request):
     tickets = SecurityRemediationTicket.objects.select_related("source", "alert").order_by("-updated_at")
-    return render(request, "security/tickets_list.html", {"tickets": tickets})
+    status = request.GET.get("status", "")
+    if status == "active":
+        tickets = tickets.filter(status__in=TICKET_OPEN_STATUSES)
+    elif status in {s[0] for s in Status.choices}:
+        tickets = tickets.filter(status=status)
+    severity = request.GET.get("severity", "")
+    if severity in {s[0] for s in Severity.choices}:
+        tickets = tickets.filter(severity=severity)
+    total = tickets.count()
+    return render(
+        request,
+        "security/tickets_list.html",
+        {
+            "tickets": tickets[:200],
+            "total": total,
+            "filters": request.GET,
+            "status_choices": Status.choices,
+            "severity_choices": Severity.choices,
+        },
+    )
 
 
 def kpis_page(request):
@@ -222,12 +265,13 @@ def kpis_page(request):
         "previous_date": selected_date - timezone.timedelta(days=1),
         "next_date": selected_date + timezone.timedelta(days=1),
         "grouped_kpis": grouped,
+        "trend": build_trend(today=selected_date),
     }
     return render(request, "security/kpis.html", context)
 
 
 def pipeline_page(request):
-    return render(request, "security/pipeline.html", {"last_pipeline_run": request.session.get("last_pipeline_run")})
+    return render(request, "security/pipeline.html", {"last_pipeline_run": request.session.get("last_pipeline_run"), "status": build_pipeline_status()})
 
 
 @ensure_csrf_cookie
@@ -375,7 +419,78 @@ def admin_config_sources(request):
 
 @ensure_csrf_cookie
 def admin_config_parsers(request):
-    return _config_model_page(request, SecurityParserConfig, SecurityParserConfigForm, "security/admin_config/parsers.html", "admin_config_parsers", extra_context={**_parser_stats(), "section_help": CONFIG_SECTION_HELP["parsers"]})
+    if not can_manage_security_config(request.user):
+        return _security_config_denied(request)
+    test_result = None
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "test":
+            test_result = _parser_test_from_request(request)
+        else:
+            _handle_parser_action(request, action)
+            return redirect("security:admin_config_parsers")
+    context = {**parser_overview(), "test_result": test_result, "section_help": CONFIG_SECTION_HELP["parsers"], "max_upload_mb": INBOX_MAX_UPLOAD_BYTES // (1024 * 1024)}
+    return render(request, "security/admin_config/parsers.html", context)
+
+
+def _parser_test_from_request(request):
+    uploaded = request.FILES.get("file")
+    if uploaded:
+        if uploaded.size > INBOX_MAX_UPLOAD_BYTES:
+            return {"error_input": f"File troppo grande: massimo {INBOX_MAX_UPLOAD_BYTES // (1024 * 1024)} MB."}
+        return test_parsers(filename=Path(uploaded.name or "file").name, data=uploaded.read())
+    sender, subject, body = (request.POST.get(key, "").strip() for key in ("sender", "subject", "body"))
+    if not (subject or body):
+        return {"error_input": "Indica almeno oggetto o testo, oppure carica un file."}
+    result = test_parsers(sender=sender, subject=subject, body=body)
+    result["input"] = {"sender": sender, "subject": subject, "body": body}
+    return result
+
+
+def _handle_parser_action(request, action):
+    if action == "toggle":
+        name = request.POST.get("parser_name", "")
+        config = SecurityParserConfig.objects.filter(parser_name=name).first()
+        if config is None:
+            config = SecurityParserConfig.objects.create(parser_name=name, enabled=True, description="Creato dalla pagina Parser", updated_by=request.user)
+            audit_config_change(request.user, "create", config, request=request)
+        old_enabled = config.enabled
+        config.enabled = not old_enabled
+        config.updated_by = request.user
+        config.save(update_fields=["enabled", "updated_by", "updated_at"])
+        audit_config_change(request.user, "update", config, "enabled", old_enabled, config.enabled, request=request)
+        messages.success(request, f"Parser {'attivato' if config.enabled else 'disattivato'}: {name}.")
+    elif action == "priority":
+        config = get_object_or_404(SecurityParserConfig, pk=request.POST.get("object_id"))
+        try:
+            priority = max(0, int(request.POST.get("priority", "")))
+        except ValueError:
+            messages.error(request, "Priorità non valida: serve un numero intero.")
+            return
+        old_priority = config.priority
+        config.priority = priority
+        config.updated_by = request.user
+        config.save(update_fields=["priority", "updated_by", "updated_at"])
+        audit_config_change(request.user, "update", config, "priority", old_priority, priority, request=request)
+        messages.success(request, f"Priorità di {config.parser_name} impostata a {priority}.")
+    elif action == "seed":
+        result = apply_autoconfig(["parsers"], actor=request.user, request=request)
+        messages.success(request, f"{result['created']} configurazioni parser create.")
+    elif action == "delete-orphan":
+        config = get_object_or_404(SecurityParserConfig, pk=request.POST.get("object_id"))
+        if delete_orphan_config(config, actor=request.user, request=request):
+            messages.success(request, f"Configurazione eliminata: {config.parser_name}.")
+        else:
+            messages.error(request, "Il parser esiste nel codice: si disattiva, non si elimina.")
+    elif action == "reprocess":
+        result = reprocess_items()
+        messages.success(
+            request,
+            f"Rielaborazione: {result['requeued']} elementi rimessi in coda, {result['parsed']} report prodotti. "
+            f"Ancora non elaborati: {result['still_unprocessed']['failed']} in errore, {result['still_unprocessed']['skipped']} scartati.",
+        )
+    else:
+        messages.error(request, "Azione non riconosciuta.")
 
 
 @ensure_csrf_cookie
@@ -464,6 +579,8 @@ def _autoconfig_context(applied=None):
         "fixes": available_fixes(diagnostics),
         "diagnostics_status": diagnostics["status"],
         "applied": applied,
+        "mailbox_count": SecurityMailboxSource.objects.filter(enabled=True, source_type="graph").count(),
+        "graph": graph_credentials_status(),
     }
 
 
@@ -608,25 +725,6 @@ def _config_card(title, url_name, enabled_count, warning_count, latest):
     }
 
 
-def _parser_stats():
-    stats = {}
-    for report in SecurityReport.objects.values("parser_name").annotate(total=Count("id")):
-        stats[report["parser_name"]] = {"reports_parsed": report["total"]}
-    for parser in SecurityParserConfig.objects.all():
-        data = stats.setdefault(parser.parser_name, {})
-        successes = SecurityReport.objects.filter(parser_name=parser.parser_name, parse_status="parsed").order_by("-created_at")
-        failures = SecurityReport.objects.filter(parser_name=parser.parser_name, parse_status="failed").order_by("-created_at")
-        data.update(
-            {
-                "last_successful_parse": successes.first(),
-                "last_failed_parse": failures.first(),
-                "warning_count": SecurityReport.objects.filter(parser_name=parser.parser_name, parsed_payload__parse_warnings__isnull=False).count(),
-                "error_count": failures.count(),
-            }
-        )
-    return {"parser_stats": stats}
-
-
 def _latest_pipeline_reports():
     reports = []
     for report in SecurityReport.objects.prefetch_related("metrics", "events").order_by("-created_at")[:5]:
@@ -767,7 +865,8 @@ def _ingest_inbox_file(uploaded, data, result):
         return None
 
     raw = uploaded.read()
-    content = raw.decode("utf-8", errors="replace")
+    content, extraction_warnings = extract_text(original_name, raw)
+    result.setdefault("warnings", []).extend(extraction_warnings)
     source_hint = (data.get("source_hint") or "").strip()
     source, source_config = _resolve_inbox_source(subject=original_name, body=content, source_hint=source_hint, fallback_type=_source_type_for_extension(extension))
     result["source_detected"] = source_config.name if source_config else "No source matched"
@@ -778,6 +877,7 @@ def _ingest_inbox_file(uploaded, data, result):
         "extension": extension,
         "size": uploaded.size,
         "source_hint": source_hint,
+        **({"parse_warnings": extraction_warnings} if extraction_warnings else {}),
     }
     source_file.save(update_fields=["raw_payload"])
     return source_file
@@ -944,7 +1044,7 @@ CONFIG_SECTION_HELP = {
         "title": "Parser",
         "intro": "Abilita e ordina i parser che trasformano i report in metriche e finding. Priorita' piu' bassa = valutato prima.",
         "doc_slug": "02-admin-guide",
-        "tips": ["Un parser disattivato non produce metriche.", "Verifica il nome parser sulla sorgente."],
+        "tips": ["Lo stato viene dai risultati reali: report prodotti, errori, elementi scartati.", "Con «Prova i parser» verifichi una mail o un PDF senza salvare nulla.", "Dopo una correzione, «Rielabora» ripropone gli elementi rimasti indietro."],
     },
     "alert_rules": {
         "title": "Regole alert",
@@ -987,17 +1087,36 @@ CONFIG_SECTION_HELP = {
 
 @ensure_csrf_cookie
 def admin_mailbox_sources_list(request):
+    """Caselle mail lette dal Security Center: elenco + creazione.
+
+    Senza almeno una casella attiva non arriva alcun dato: le «Sorgenti» della
+    configurazione dicono solo come riconoscere i report.
+    """
     if not can_view_security_center(request.user):
         return HttpResponseForbidden("Accesso negato")
+    can_manage = can_manage_security_config(request.user)
+    form = SecurityMailboxSourceForm()
+    if request.method == "POST":
+        if not can_manage:
+            return _security_config_denied(request)
+        form = SecurityMailboxSourceForm(request.POST)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            obj.code = unique_code_for(obj.name)
+            obj.save()
+            audit_config_change(request.user, "create", obj, "", "", obj.mailbox_address or obj.name, request=request)
+            messages.success(request, f"Casella «{obj.name}» creata. Ora prova la lettura con «Anteprima».")
+            return redirect("security:admin_mailbox_source_detail", code=obj.code)
 
-    sources = SecurityMailboxSource.objects.all().order_by("-created_at")
-
+    sources = list(SecurityMailboxSource.objects.all().order_by("name"))
     for source in sources:
         source.latest_run = source.ingestion_runs.order_by("-started_at").first()
-
     context = {
         "sources": sources,
-        "page_title": "Sorgenti Mail",
+        "form": form,
+        "can_manage": can_manage,
+        "graph": graph_credentials_status(),
+        "page_title": "Caselle mail",
     }
     return render(request, "security/admin_mailbox_sources_list.html", context)
 
@@ -1006,18 +1125,72 @@ def admin_mailbox_sources_list(request):
 def admin_mailbox_source_detail(request, code):
     if not can_view_security_center(request.user):
         return HttpResponseForbidden("Accesso negato")
-
     source = get_object_or_404(SecurityMailboxSource, code=code)
-    recent_runs = source.ingestion_runs.order_by("-started_at")[:10]
-    recent_messages = SecurityMailboxMessage.objects.filter(
-        source__name=source.name
-    ).order_by("-received_at")[:20]
+    can_manage = can_manage_security_config(request.user)
+    form = SecurityMailboxSourceForm(instance=source)
+    preview = None
+
+    if request.method == "POST":
+        if not can_manage:
+            return _security_config_denied(request)
+        action = request.POST.get("action", "save")
+        if action == "preview":
+            preview = preview_mailbox(source)
+        elif action == "run":
+            from security.services.mailbox_ingestion import run_mailbox_ingestion
+
+            level, text = run_summary(run_mailbox_ingestion(source))
+            getattr(messages, level)(request, text)
+            return redirect("security:admin_mailbox_source_detail", code=source.code)
+        elif action == "history":
+            _history_import_from_request(request, source)
+            return redirect("security:admin_mailbox_source_detail", code=source.code)
+        else:
+            old = snapshot_instance(source)
+            form = SecurityMailboxSourceForm(request.POST, instance=source)
+            if form.is_valid():
+                obj = form.save()
+                audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request)
+                messages.success(request, "Casella aggiornata.")
+                return redirect("security:admin_mailbox_source_detail", code=obj.code)
 
     context = {
         "source": source,
-        "recent_runs": recent_runs,
-        "recent_messages": recent_messages,
-        "page_title": f"Sorgente Mail: {source.name}",
+        "form": form,
+        "can_manage": can_manage,
+        "preview": preview,
+        "graph": graph_credentials_status(),
+        "recent_runs": source.ingestion_runs.order_by("-started_at")[:10],
+        "recent_messages": SecurityMailboxMessage.objects.filter(source__name=source.name).order_by("-received_at")[:20],
+        "page_title": f"Casella mail: {source.name}",
+        "history_default": (timezone.localdate() - timezone.timedelta(days=365)).isoformat(),
+        "history_max": (timezone.localdate() - timezone.timedelta(days=1)).isoformat(),
     }
     return render(request, "security/admin_mailbox_source_detail.html", context)
+
+
+def _history_import_from_request(request, source):
+    from datetime import date
+
+    try:
+        since_date = date.fromisoformat(request.POST.get("since", ""))
+    except ValueError:
+        messages.error(request, "Data non valida.")
+        return
+    if since_date >= timezone.localdate():
+        messages.error(request, "La data di partenza deve essere nel passato.")
+        return
+    totals = start_history_import(source, since_date, actor=request.user, request=request)
+    if totals["error"]:
+        messages.error(request, f"Importazione dello storico interrotta: {totals['error']}")
+        return
+    reached = timezone.localtime(totals["reached"]).strftime("%d/%m/%Y %H:%M") if totals["reached"] else "—"
+    text = (
+        f"Storico dal {since_date:%d/%m/%Y}: {totals['imported']} mail importate, {totals['duplicates']} già presenti, "
+        f"{totals['alerts']} alert. Letta fino al {reached}."
+    )
+    if totals["caught_up"]:
+        messages.success(request, f"{text} Casella allineata.")
+    else:
+        messages.success(request, f"{text} Il resto arriva con la lettura automatica ogni 15 minuti (o con «Leggi ora»).")
 

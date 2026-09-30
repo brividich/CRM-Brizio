@@ -8,10 +8,13 @@ from core.acl_bootstrap_base import run_bootstrap
 # `_can_manage_anomalie_config` guardava solo `is_superuser or is_legacy_admin()`
 # — vero unicamente per il ruolo "admin" — quindi nessun altro ruolo (es.
 # qualità) poteva essere abilitato dal modulo permessi.
-_BOOTSTRAP_CACHE_KEY = "anomalie_acl_bootstrap_v3"
+_BOOTSTRAP_CACHE_KEY = "anomalie_acl_bootstrap_v4"
 
 MODULE = "anomalie"
 PERM_ANOMALIE_CONFIG = "anomalie.configurazione.manage"
+# v4: gestione delle non conformita' per OP (sezione NC). Additivo al cancello OP:
+# chi lo ha vede e gestisce tutte le NC; CC/CAR restano abilitati sui propri OP.
+PERM_ANOMALIE_NC = "anomalie.nc.gestione"
 
 # Permesso "solo definizione", senza RoutePermissionBinding: con
 # ACL_STRICT_CANONICAL=True un binding di route negherebbe l'intera pagina a
@@ -24,10 +27,17 @@ _CANONICAL = {
             "sync e parametri. Area di gestione, non la semplice segnalazione."
         ),
     },
+    PERM_ANOMALIE_NC: {
+        "label": "Anomalie - Gestione NC",
+        "description": (
+            "Gestione delle non conformita' per OP: vede tutte le NC, compila le sezioni "
+            "e, secondo l'opzione del modulo, le chiude."
+        ),
+    },
 }
 
 # Grant di default create-only: solo "admin", che passa comunque dal bypass.
-_ROLE_GRANTS = {"admin": {PERM_ANOMALIE_CONFIG}}
+_ROLE_GRANTS = {"admin": {PERM_ANOMALIE_CONFIG, PERM_ANOMALIE_NC}}
 
 
 def _bootstrap_canonical() -> bool:

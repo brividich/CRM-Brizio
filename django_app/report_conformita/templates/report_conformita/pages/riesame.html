@@ -1,0 +1,54 @@
+{% extends "core/base.html" %}
+
+{% block title %}Riesame della direzione | Report conformità{% endblock %}
+
+{% block extra_head %}{% include "report_conformita/components/_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'report_conformita:index' %}">← Report conformità</a>
+
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">Riesame della direzione</div>
+      <div class="page-sub">Dati di ingresso al riesame: gli indicatori di ogni report, sul periodo scelto. Il dettaglio nominativo resta nei singoli report.</div>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn" href="{{ pdf_url }}">PDF riesame</a>
+    </div>
+  </div>
+
+  <form method="get" class="rc-card rc-toolbar">
+    <div class="rc-field">
+      <label for="rc-da">Dal</label>
+      <input id="rc-da" type="date" name="da" value="{{ params.date_from|date:'Y-m-d' }}">
+    </div>
+    <div class="rc-field">
+      <label for="rc-a">Al</label>
+      <input id="rc-a" type="date" name="a" value="{{ params.date_to|date:'Y-m-d' }}">
+    </div>
+    <button type="submit" class="btn btn-secondary">Aggiorna</button>
+    <div class="rc-toolbar-spacer"></div>
+    <div class="rc-note-inline">Periodo {{ params.periodo_label }} · i report «situazione» sono alla data di oggi</div>
+  </form>
+
+  {% for s in sezioni %}
+    {% ifchanged s.area_label %}<h2 class="rc-section-title">{{ s.area_label }}</h2>{% endifchanged %}
+    <section class="rc-card rc-riesame-block">
+      <div class="rc-riesame-head">
+        <a class="rc-tile-title" href="{% url 'report_conformita:report' s.report.slug %}?da={{ params.date_from|date:'Y-m-d' }}&a={{ params.date_to|date:'Y-m-d' }}">{{ s.report.title }} →</a>
+        <div class="rc-tile-foot">{% for cl in s.report.clausole %}<span class="rc-clause">{{ cl }}</span>{% endfor %}</div>
+      </div>
+      {% if s.result %}
+        {% include "report_conformita/components/_kpis.html" with kpis=s.result.kpis %}
+      {% else %}
+        <div class="rc-empty">Report non calcolabile in questo momento.</div>
+      {% endif %}
+    </section>
+  {% endfor %}
+
+  {% if aree_escluse %}
+    <p class="rc-note-inline">Aree escluse dal tuo profilo: {{ aree_escluse|join:", " }}.</p>
+  {% endif %}
+</div>
+{% endblock %}

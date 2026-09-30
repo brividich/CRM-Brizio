@@ -40,7 +40,7 @@
     <form method="post" action="{% url 'security:alert_action' alert.pk 'reopen' %}" hx-post="{% url 'security:alert_action' alert.pk 'reopen' %}" hx-target="#alert-lifecycle-panel" hx-swap="outerHTML">
       {% csrf_token %}
       <label>Motivo <input type="text" name="reason" placeholder="Motivo riapertura"></label>
-      <button class="sec-button-primary" type="submit" aria-label="Riapri">Reopen</button>
+      <button class="sec-button-primary" type="submit">Riapri</button>
     </form>
   {% endif %}
 </aside>

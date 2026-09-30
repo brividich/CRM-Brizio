@@ -1,0 +1,91 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ report.title }} | Report conformità{% endblock %}
+
+{% block extra_head %}{% include "report_conformita/components/_styles.html" %}
+<style>.content{width:100%;max-width:100%}.rc-wrap{max-width:1800px;margin:0 auto}</style>{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'report_conformita:index' %}">← Report conformità · {{ area_label }}</a>
+
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">{{ report.title }}</div>
+      <div class="page-sub">{{ report.description }}</div>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn btn-secondary" href="{{ xlsx_url }}">Excel</a>
+      <a class="btn" href="{{ pdf_url }}">PDF</a>
+    </div>
+  </div>
+
+  <div class="rc-chips">
+    {% for cl in report.clausole %}<span class="rc-chip"><strong>{{ cl.norma }}</strong>{% if cl.punto|slice:":1" in "0123456789" %}§{% endif %}{{ cl.punto }}</span>{% endfor %}
+  </div>
+
+  <form method="get" class="rc-card rc-toolbar">
+    {% if report.usa_periodo %}
+      <div class="rc-field">
+        <label for="rc-da">Dal</label>
+        <input id="rc-da" type="date" name="da" value="{{ params.date_from|date:'Y-m-d' }}">
+      </div>
+      <div class="rc-field">
+        <label for="rc-a">Al</label>
+        <input id="rc-a" type="date" name="a" value="{{ params.date_to|date:'Y-m-d' }}">
+      </div>
+    {% endif %}
+    {% for f in report.filtri %}
+      <div class="rc-field">
+        <label for="rc-f-{{ f.name }}">{{ f.label }}</label>
+        <select id="rc-f-{{ f.name }}" name="{{ f.name }}">
+          {% for code, label in f.choices %}
+            <option value="{{ code }}"{% for k, v in params.extra.items %}{% if k == f.name and v == code %} selected{% endif %}{% endfor %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endfor %}
+    {% if report.usa_periodo or report.filtri %}
+      <button type="submit" class="btn btn-secondary">Aggiorna</button>
+    {% endif %}
+    <div class="rc-toolbar-spacer"></div>
+    <div class="rc-note-inline">
+      {% if report.usa_periodo %}Periodo {{ params.periodo_label }}{% else %}Situazione al {{ params.today|date:"d/m/Y" }}{% endif %}
+      {% if report.fonte %} · Fonte: {{ report.fonte }}{% endif %}
+    </div>
+  </form>
+
+  {% include "report_conformita/components/_kpis.html" with kpis=result.kpis %}
+
+  <section class="rc-group">
+    <div class="rc-group-head">
+      <h2 class="rc-section-title">Dettaglio</h2>
+      <span class="rc-note-inline">{{ rows|length }} righe</span>
+    </div>
+    {% if rows %}
+      <div class="rc-table-wrap">
+        <table class="rc-table">
+          <thead><tr>{% for col in result.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            {% for values, tone in rows %}
+              <tr{% if tone %} class="tone-{{ tone }}"{% endif %}>{% for v in values %}<td>{{ v }}</td>{% endfor %}</tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="rc-card rc-empty">Nessuna riga da segnalare.</div>
+    {% endif %}
+  </section>
+
+  {% if result.notes %}
+    <ul class="rc-card rc-notes">{% for n in result.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  {% if result.links %}
+    <div class="rc-links">
+      {% for label, url in result.links %}<a class="btn btn-secondary" href="{{ url }}">{{ label }} →</a>{% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

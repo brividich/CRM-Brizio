@@ -50,6 +50,7 @@ def run_security_center_diagnostics():
         _database_check(),
         _migrations_check(),
         _config_seeded_check(),
+        _mailbox_sources_check(),
         _enabled_sources_check(),
         _enabled_parsers_check(),
         _defender_source_check(),
@@ -300,6 +301,25 @@ def _config_seeded_check():
     )
 
 
+def _mailbox_sources_check():
+    """Senza una casella mail attiva non arriva nessun dato (le sorgenti descrivono solo il riconoscimento)."""
+    from security.models import SecurityMailboxSource
+    from security.services.mailbox_setup import graph_credentials_status
+
+    graph_sources = SecurityMailboxSource.objects.filter(enabled=True, source_type="graph")
+    count = graph_sources.count()
+    failing = list(graph_sources.exclude(last_error_message="").values_list("name", flat=True))
+    creds = graph_credentials_status()
+    if not count:
+        return _check("mailbox_sources", "Caselle mail", "error", "Nessuna casella mail attiva: il Security Center non riceve report.", {"enabled_graph_sources": 0}, "Crea una casella in Caselle mail e premi «Anteprima».")
+    if not creds["complete"]:
+        missing = [k["key"] for k in creds["keys"] if not k["configured"]]
+        return _check("mailbox_sources", "Caselle mail", "error", f"Credenziali Microsoft Graph mancanti: {', '.join(missing)}.", {"missing": missing}, "Imposta le credenziali nel .env del server o in Configurazione › Generale.")
+    if failing:
+        return _check("mailbox_sources", "Caselle mail", "warning", f"Ultima lettura in errore per: {', '.join(failing)}.", {"failing": failing}, "Apri la casella e guarda l'ultimo errore.")
+    return _check("mailbox_sources", "Caselle mail", "ok", f"{count} caselle mail attive.", {"enabled_graph_sources": count})
+
+
 def _enabled_sources_check():
     count = SecuritySourceConfig.objects.filter(enabled=True).count()
     return _check("enabled_sources", "Sorgenti attive", "ok" if count else "warning", f"{count} sorgenti attive configurate.", {"enabled_count": count}, "Attiva almeno una sorgente.")
@@ -386,7 +406,8 @@ def _setting_type_check():
 
 
 def _secret_rendering_check():
-    secret_count = SecurityCenterSetting.objects.filter(is_secret=True).exclude(value__in=["", None]).count()
+    # Filtro in Python: i valori semplici sono salvati avvolti (SettingValueField), un lookup SQL sul JSON non li vede.
+    secret_count = sum(1 for setting in SecurityCenterSetting.objects.filter(is_secret=True) if setting.value not in ("", None))
     return _check("secret_values_redacted", "Mascheramento segreti", "ok", f"{secret_count} impostazioni segrete saranno mostrate solo come valori mascherati.", {"secret_settings": secret_count}, "")
 
 

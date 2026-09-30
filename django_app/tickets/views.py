@@ -32,7 +32,6 @@ from core.pdf import PdfTheme, draw_canvas_footer, draw_canvas_header
 from core.acl_v2 import request_has_permission_code
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.audit import log_action
-from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from .models import (
     CATEGORIE_IT,
@@ -443,7 +442,9 @@ def _ticket_access_flags(request, ticket: Ticket) -> dict:
         ticket.richiedente_user_id == request.user.id
         or (legacy_id and ticket.richiedente_legacy_user_id == legacy_id)
         or ticket.richiedente_nome == name
-        or ticket.richiedente_email.lower() == email.lower()
+        # Email vuota da entrambe le parti non e' un'identita': senza la guardia
+        # ogni utente privo di email risultava richiedente dei ticket senza email.
+        or bool(email and ticket.richiedente_email.lower() == email.lower())
     )
     return {
         "name": name,
@@ -1017,10 +1018,13 @@ def ticket_detail(request, pk: int):
             .first()
         )
 
+    allegati = list(ticket.allegati.all())
     ctx = {
         "ticket":        ticket,
         "commenti":      commenti,
-        "allegati":      ticket.allegati.all(),
+        "allegati":      allegati,
+        "n_da_validare": sum(1 for a in allegati if a.is_da_validare),
+        "next_url":      request.path,
         "is_gestore":    is_gestore,
         "is_admin":      is_admin,
         "is_richiedente":is_richiedente,
@@ -1071,12 +1075,150 @@ def ticket_download_allegato(request, allegato_id: int):
             "esito": "success",
         },
     )
+    # Anteprima nel browser solo per i tipi che non eseguono script (foto e PDF
+    # dei rapportini da validare); tutto il resto resta un download.
+    inline = request.GET.get("inline") == "1" and content_type in _INLINE_PREVIEW_MIMES
     return FileResponse(
         storage.open(allegato.file.name, "rb"),
-        as_attachment=True,
+        as_attachment=not inline,
         filename=allegato.nome_originale,
         content_type=content_type,
     )
+
+
+_INLINE_PREVIEW_MIMES = {"image/jpeg", "image/png", "application/pdf"}
+
+
+def _safe_next(request, fallback: str) -> str:
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    target = (request.POST.get("next") or "").strip()
+    if target and url_has_allowed_host_and_scheme(
+        target, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return target
+    return fallback
+
+
+def _can_upload_to_ticket(request, ticket: Ticket, access: dict) -> bool:
+    """Chi puo' allegare file a un ticket esistente.
+
+    Oltre a richiedente/gestori/admin, sui ticket collegati a un asset puo'
+    allegare chiunque possa aprire ticket di quel tipo: e' il caso del capo
+    reparto che dal QR della macchina carica il rapportino del tecnico esterno.
+    Il file resta comunque DA_VALIDARE finche' il team non lo valida.
+    """
+    if access["is_richiedente"] or access["is_gestore"] or access["is_admin"]:
+        return True
+    return bool(ticket.asset_id) and _can_open_tickets(request, ticket.tipo)
+
+
+@require_POST
+@login_required
+def ticket_carica_allegati(request, pk: int):
+    """Caricamento allegati da pagina web (dettaglio ticket, landing QR autenticata)."""
+    from .allegati import AllegatoError, carica_allegato, registra_caricamento, ticket_accetta_allegati
+
+    ticket = get_object_or_404(Ticket, pk=pk)
+    access = _ticket_access_flags(request, ticket)
+    fallback = reverse("tickets:detail", args=[ticket.pk])
+    if access["is_gestore"] or access["is_admin"]:
+        fallback = reverse("tickets:gestione_detail", args=[ticket.pk])
+    next_url = _safe_next(request, fallback)
+
+    if not _can_upload_to_ticket(request, ticket, access):
+        return render(request, "core/pages/forbidden.html", status=403)
+    if not ticket_accetta_allegati(ticket):
+        messages.error(request, f"Il ticket {ticket.numero_ticket} è chiuso: non accetta nuovi allegati.")
+        return redirect(next_url)
+
+    files = request.FILES.getlist("file")[:10]
+    if not files:
+        messages.error(request, "Seleziona almeno un file da allegare.")
+        return redirect(next_url)
+
+    auto_valida = bool(access["is_gestore"] or access["is_admin"])
+    caricati = []
+    errori = []
+    for f in files:
+        try:
+            caricati.append(
+                carica_allegato(
+                    ticket,
+                    f,
+                    caricato_da_nome=access["name"],
+                    caricato_da_email=access["email"],
+                    tipo_documento=(request.POST.get("tipo_documento") or "").strip().upper(),
+                    descrizione=(request.POST.get("descrizione") or "").strip(),
+                    da_validare=not auto_valida,
+                    allowed_extensions=TICKET_ALLOWED_UPLOAD_EXTENSIONS,
+                    allowed_mimes=TICKET_ALLOWED_UPLOAD_MIMES,
+                    max_bytes=20 * 1024 * 1024,
+                )
+            )
+        except AllegatoError as exc:
+            errori.append(f"{getattr(f, 'name', 'file')}: {exc}")
+
+    registra_caricamento(ticket, caricati)
+    log_action(
+        request,
+        "ticket_allegato_caricato",
+        "tickets",
+        {
+            "ticket_id": ticket.pk,
+            "numero_ticket": ticket.numero_ticket,
+            "allegati": [a.pk for a in caricati],
+            "scartati": len(errori),
+            "da_validare": not auto_valida,
+        },
+        oggetto=ticket,
+    )
+    if caricati:
+        msg = f"{len(caricati)} file allegat{'o' if len(caricati) == 1 else 'i'} a {ticket.numero_ticket}."
+        if not auto_valida:
+            msg += f" Il team gestore {'lo' if len(caricati) == 1 else 'li'} validerà a breve."
+        messages.success(request, msg)
+    for err in errori:
+        messages.error(request, err)
+    return redirect(next_url)
+
+
+@require_POST
+@_tickets_gestione_required
+def ticket_valida_allegato(request, allegato_id: int):
+    """Validazione (o rifiuto motivato) di un allegato da parte del team gestore."""
+    from .allegati import AllegatoError, valida_allegato
+
+    allegato = get_object_or_404(TicketAllegato.objects.select_related("ticket"), pk=allegato_id)
+    ticket = allegato.ticket
+    access = _ticket_access_flags(request, ticket)
+    if not (access["is_gestore"] or access["is_admin"]):
+        return render(request, "core/pages/forbidden.html", status=403)
+    next_url = _safe_next(request, reverse("tickets:gestione_detail", args=[ticket.pk]) + "#allegati")
+
+    esito = (request.POST.get("esito") or "").strip().upper()
+    nota = (request.POST.get("nota") or "").strip()
+    stato_prima = allegato.stato_validazione
+    try:
+        valida_allegato(allegato, esito=esito, nome=access["name"], email=access["email"], nota=nota)
+    except AllegatoError as exc:
+        messages.error(request, str(exc))
+        return redirect(next_url)
+    log_action(
+        request,
+        "ticket_allegato_validazione",
+        "tickets",
+        {
+            "ticket_id": ticket.pk,
+            "allegato_id": allegato.pk,
+            "da": stato_prima,
+            "a": allegato.stato_validazione,
+            "nota": nota[:200],
+        },
+        oggetto=ticket,
+    )
+    messages.success(request, f"Allegato «{allegato.nome_originale}» {allegato.label_stato_validazione.lower()}.")
+    return redirect(next_url)
 
 
 @login_required
@@ -1141,6 +1283,7 @@ def ticket_gestione_list(request):
     sicurezza_f  = request.GET.get("sicurezza", "").strip()
     ricorrente_f = request.GET.get("ricorrente", "").strip()
     ordine_f     = request.GET.get("ordine", "").strip()
+    allegati_f   = request.GET.get("allegati", "").strip()
 
     _priority_order = Case(
         When(priorita="URGENTE", then=Value(0)),
@@ -1186,6 +1329,8 @@ def ticket_gestione_list(request):
             qs = qs.filter(incide_sicurezza=True)
         if ricorrente_f == "1":
             qs = qs.filter(ricorrente=True)
+        if allegati_f == "da_validare":
+            qs = qs.filter(n_allegati_da_validare__gt=0)
         if data_da_f:
             try:
                 qs = qs.filter(created_at__date__gte=datetime.strptime(data_da_f, "%Y-%m-%d").date())
@@ -1209,12 +1354,16 @@ def ticket_gestione_list(request):
             return qs.order_by("-created_at")
 
     from core.legacy_models import AnagraficaDipendente
+    from .allegati import subquery_conteggio_allegati
+    from .models import StatoValidazioneAllegato
+
     base = Ticket.objects.select_related("asset", "richiedente_user").annotate(
         richiedente_anagrafica_id=Subquery(
             AnagraficaDipendente.objects.filter(
                 aliasusername=OuterRef("richiedente_user__username")
             ).values("id")[:1]
-        )
+        ),
+        n_allegati_da_validare=subquery_conteggio_allegati(StatoValidazioneAllegato.DA_VALIDARE),
     )
     if tipo_f in (TipoTicket.IT, TipoTicket.MAN):
         tickets_it  = _apply_filters(base.filter(tipo=TipoTicket.IT))  if tipo_f == TipoTicket.IT  else None
@@ -1241,6 +1390,11 @@ def ticket_gestione_list(request):
         "filtro_sicurezza":  sicurezza_f,
         "filtro_ricorrente": ricorrente_f,
         "filtro_ordine":     ordine_f,
+        "filtro_allegati":   allegati_f,
+        "n_allegati_da_validare": TicketAllegato.objects.filter(
+            stato_validazione=StatoValidazioneAllegato.DA_VALIDARE,
+            ticket__tipo__in=[t for t in (TipoTicket.IT, TipoTicket.MAN) if is_admin or _can_manage_tickets(request, t)],
+        ).count(),
         "categorie_it":    get_categorie(TipoTicket.IT),
         "categorie_man":   get_categorie(TipoTicket.MAN),
         # KPI globali
@@ -1272,7 +1426,7 @@ def ticket_gestione_detail(request, pk: int):
     cfg         = TicketImpostazioni.get_or_create_for(ticket.tipo)
     fornitori   = _get_fornitori_for_select()
     commenti    = ticket.commenti.all()
-    allegati    = ticket.allegati.all()
+    allegati    = list(ticket.allegati.all())
     interventi  = ticket.interventi.all()
     stato_log   = ticket.stato_log.all()
 
@@ -1304,6 +1458,8 @@ def ticket_gestione_detail(request, pk: int):
         "ticket":           ticket,
         "commenti":         commenti,
         "allegati":         allegati,
+        "n_da_validare":    sum(1 for a in allegati if a.is_da_validare),
+        "next_url":         request.path,
         "cfg":              cfg,
         "stati":            StatoTicket.choices,
         "fornitori":        fornitori,
@@ -1652,29 +1808,32 @@ def api_allegato(request):
     if not f:
         return _json_err("Nessun file")
 
-    _MAX_SIZE = 20 * 1024 * 1024  # 20 MB
+    from .allegati import AllegatoError, carica_allegato, registra_caricamento
+
+    # Stessa regola della pagina web: chi non gestisce il ticket carica "da validare".
+    auto_valida = bool(is_gestore or is_admin)
     try:
-        detected_mime = validate_extension_and_mime(
+        allegato = carica_allegato(
+            ticket,
             f,
+            caricato_da_nome=name,
+            caricato_da_email=email,
+            tipo_documento=(request.POST.get("tipo_documento") or "").strip().upper(),
+            descrizione=(request.POST.get("descrizione") or "").strip(),
+            da_validare=not auto_valida,
             allowed_extensions=TICKET_ALLOWED_UPLOAD_EXTENSIONS,
             allowed_mimes=TICKET_ALLOWED_UPLOAD_MIMES,
-            max_bytes=_MAX_SIZE,
+            max_bytes=20 * 1024 * 1024,
         )
-    except UploadMimeValidationError as exc:
+    except AllegatoError as exc:
         return _json_err(str(exc))
-
-    allegato = TicketAllegato.objects.create(
-        ticket=ticket,
-        file=f,
-        nome_originale=f.name[:255],
-        tipo_mime=detected_mime[:100],
-        uploaded_by_nome=name,
-    )
+    registra_caricamento(ticket, [allegato])
     return JsonResponse({
         "ok": True,
         "allegato_id": allegato.pk,
         "nome": allegato.nome_originale,
         "url":  reverse("tickets:download_allegato", args=[allegato.pk]),
+        "stato_validazione": allegato.stato_validazione,
     })
 
 

@@ -116,7 +116,7 @@ body.theme-dark .tkt-btn-gray:hover { background:var(--hover-bg); }
       {% if ticket.incide_sicurezza %}<div class="tkt-sicurezza">Problema segnalato come sicurezza sul lavoro. Dare priorita alla presa in carico e alla chiusura del rischio.</div>{% endif %}
 
       <div class="tkt-tabs">
-        <button type="button" class="tkt-tab-btn" data-tab="overview">Panoramica</button>
+        <button type="button" class="tkt-tab-btn" data-tab="overview">Panoramica{% if n_da_validare %} <span class="tka-pending-pill" title="Allegati da validare">{{ n_da_validare }}</span>{% endif %}</button>
         <button type="button" class="tkt-tab-btn" data-tab="activity">Timeline ({{ activity_feed|length }})</button>
         <button type="button" class="tkt-tab-btn" data-tab="interventi">Interventi ({{ interventi|length }})</button>
         <button type="button" class="tkt-tab-btn" data-tab="asset">Asset e KPI</button>
@@ -127,16 +127,9 @@ body.theme-dark .tkt-btn-gray:hover { background:var(--hover-bg); }
           <div class="tkt-card-title">Descrizione</div>
           <div style="font-size:14px;color:#374151;white-space:pre-wrap;line-height:1.7;">{{ ticket.descrizione }}</div>
         </div>
-        {% if allegati %}
-        <div class="tkt-card" style="margin-top:16px;">
-          <div class="tkt-card-title">Allegati ({{ allegati|length }})</div>
-          {% for a in allegati %}
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;font-size:13px;{% if not forloop.last %}margin-bottom:8px;{% endif %}">
-            <span style="color:#64748b;">FILE</span><strong style="flex:1;color:#0f172a;">{{ a.nome_originale }}</strong><a href="{% url 'tickets:download_allegato' a.pk %}" style="color:#0369a1;font-size:12px;font-weight:700;text-decoration:none;">Scarica</a>
-          </div>
-          {% endfor %}
+        <div style="margin-top:16px;">
+          {% include "tickets/components/allegati_card.html" with can_validate=True can_upload=True %}
         </div>
-        {% endif %}
       </section>
 
       <section class="tkt-tab-panel" data-panel="activity">
@@ -419,7 +412,7 @@ const ASSETS=(function(){try{return JSON.parse(document.getElementById("assets-l
 const TICKET_ID={{ ticket.pk }},CSRF="{{ csrf_token }}",API_COMM="{% url 'tickets:api_commento' %}",API_STATO="{% url 'tickets:api_stato' %}",API_ASSEGNA="{% url 'tickets:api_assegna' %}",API_ASSET="{% url 'tickets:api_asset' %}",API_ANALYTICS="{% url 'tickets:api_analytics' %}",API_INTERVENTO="{% url 'tickets:api_intervento' %}",API_COMPONENTE="{% url 'tickets:api_componente' %}",API_CREA_WORKORDER="{% url 'tickets:api_crea_workorder' %}",DETAIL_TAB_KEY="tickets:gestione-detail:tab";
 function escapeHtml(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function activateTicketTab(t){document.querySelectorAll(".tkt-tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));document.querySelectorAll(".tkt-tab-panel").forEach(p=>p.classList.toggle("active",p.dataset.panel===t));sessionStorage.setItem(DETAIL_TAB_KEY,t)}
-document.querySelectorAll(".tkt-tab-btn").forEach(btn=>btn.addEventListener("click",()=>activateTicketTab(btn.dataset.tab)));(()=>{const tabs=[...document.querySelectorAll(".tkt-tab-btn")].map(b=>b.dataset.tab),stored=sessionStorage.getItem(DETAIL_TAB_KEY),fallback=tabs.includes("activity")?"activity":tabs[0];activateTicketTab(tabs.includes(stored)?stored:fallback)})();
+document.querySelectorAll(".tkt-tab-btn").forEach(btn=>btn.addEventListener("click",()=>activateTicketTab(btn.dataset.tab)));(()=>{const tabs=[...document.querySelectorAll(".tkt-tab-btn")].map(b=>b.dataset.tab),stored=sessionStorage.getItem(DETAIL_TAB_KEY),fallback=tabs.includes("activity")?"activity":tabs[0];if(location.hash==="#allegati"&&tabs.includes("overview")){activateTicketTab("overview");document.getElementById("allegati")?.scrollIntoView({block:"start"});return}activateTicketTab(tabs.includes(stored)?stored:fallback)})();
 function renderActivityComment(d){return `<article class="tkt-feed-item tkt-feed-comment"><div class="tkt-feed-dot"></div><div class="tkt-feed-body"><div class="tkt-feed-head"><div><span class="tkt-feed-actor">${escapeHtml(d.autore_nome)}</span><span class="tkt-feed-badge">Commento</span><div class="tkt-feed-title">Commento</div></div><div class="tkt-feed-date">${escapeHtml(d.created_at)}</div></div><div class="tkt-feed-copy">${escapeHtml(d.testo).replace(/\n/g,"<br>")}</div></div></article>`}
 async function sendCommento(){const txt=document.getElementById("commento-testo").value.trim();if(!txt)return;const st=document.getElementById("commento-status");st.textContent="Invio...";try{const r=await fetch(API_COMM,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,testo:txt,is_interno:false})}),d=await r.json();if(d.ok){if(d.auto_in_carico){location.reload();return}document.getElementById("commento-testo").value="";st.textContent="Salvato.";document.getElementById("activity-feed")?.insertAdjacentHTML("afterbegin",renderActivityComment(d));activateTicketTab("activity")}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}}
 document.getElementById("commento-invia")?.addEventListener("click",()=>sendCommento());

@@ -19,16 +19,19 @@
   <div class="sec-panel">
     <div class="sec-section-head"><h2>Postura sicurezza</h2><span class="sec-muted">/100</span></div>
     <div class="sec-ring-row">
-      <div class="sec-ring" style="--score:72; --ring:var(--warning);"><div class="sec-ring-meter"><span>72</span></div><strong>Sicurezza</strong><small>Attenzione</small></div>
-      <div class="sec-ring" style="--score:81; --ring:var(--success);"><div class="sec-ring-meter"><span>81</span></div><strong>Rete</strong><small>Buono</small></div>
-      <div class="sec-ring" style="--score:94; --ring:var(--success);"><div class="sec-ring-meter"><span>94</span></div><strong>Backup</strong><small>Ottimo</small></div>
-      <div class="sec-ring" style="--score:88; --ring:var(--primary-mid);"><div class="sec-ring-meter"><span>88</span></div><strong>Ingestione</strong><small>Stabile</small></div>
+      {% for ind in posture %}
+        <div class="sec-ring tone-{{ ind.tone }}" style="--score:{{ ind.score|default_if_none:0 }};" title="{{ ind.detail }}">
+          <div class="sec-ring-meter"><span>{% if ind.score is None %}&ndash;{% else %}{{ ind.score }}{% endif %}</span></div>
+          <strong>{{ ind.label }}</strong><small>{{ ind.grade }}</small>
+        </div>
+      {% endfor %}
     </div>
+    <p class="sec-ring-note">Indici calcolati dai dati reali: passa sopra un anello per la formula. &ldquo;n.d.&rdquo; = dati insufficienti.</p>
   </div>
 
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Trend alert ed eventi</h2><span class="sec-badge">Ultimi 7 giorni</span></div>
-    <div class="sec-chart" aria-hidden="true"><span class="sec-chart-line"></span><span class="sec-chart-line"></span><span class="sec-chart-line"></span></div>
+    <div class="sec-section-head"><h2>Trend alert ed eventi</h2><span class="sec-badge">Ultimi {{ trend.days|length }} giorni</span></div>
+    {% include "security/partials/trend_chart.html" %}
   </div>
 
   <aside class="sec-panel">

@@ -1,0 +1,28 @@
+{% extends "core/base.html" %}
+{% block title %}Audit interni{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:index' %}">← Sistema di gestione</a>
+  <div class="page-header">
+    <div class="page-header-main"><div class="page-h">Audit interni</div><div class="page-sub">Programma MOD.034, piano MOD.035A, esecuzione e rapporto MOD.035B.</div></div>
+    <div class="sg-actions">
+      <a class="btn btn-secondary" href="{% url 'sistema_gestione:auditor_elenco' %}">Auditor</a>
+      {% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:programma_nuovo' %}">Nuovo programma</a><a class="btn" href="{% url 'sistema_gestione:audit_nuovo' %}">Nuovo audit</a>{% endif %}
+    </div>
+  </div>
+  <div class="sg-kpis"><div class="sg-kpi"><span>Anno</span><strong>{{ anno }}</strong></div><div class="sg-kpi"><span>Audit programmati</span><strong>{{ audit_programmati }}</strong></div><div class="sg-kpi"><span>Audit chiusi</span><strong>{{ audit_chiusi }}</strong></div><div class="sg-kpi"><span>Auditor attivi</span><strong>{{ auditor_attivi }}</strong></div></div>
+  <section class="rc-card sg-section">
+    <h2>Programmi annuali</h2>
+    <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Anno</th><th>Rev.</th><th>Stato</th><th>Righe</th><th>Azioni</th></tr></thead><tbody>
+      {% for programma in programmi %}<tr><td>{{ programma.anno }}</td><td>{{ programma.revisione }}</td><td><span class="sg-state is-{{ programma.stato }}">{{ programma.get_stato_display }}</span></td><td>{{ programma.righe.count }}</td><td><a href="{% url 'sistema_gestione:programma_dettaglio' programma.pk %}">Apri</a></td></tr>{% empty %}<tr><td colspan="5">Nessun programma per l'anno selezionato.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+  <section class="rc-card sg-section">
+    <h2>Audit</h2>
+    <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>N.</th><th>Data</th><th>Tipo</th><th>Processi</th><th>Lead Auditor</th><th>Stato</th></tr></thead><tbody>
+      {% for audit in audit_list %}<tr><td><a href="{% url 'sistema_gestione:audit_dettaglio' audit.pk %}">{{ audit.numero }}</a></td><td>{{ audit.data_inizio|date:"d/m/Y" }}</td><td>{{ audit.get_tipo_display }}</td><td>{{ audit.processi|truncatechars:80 }}</td><td>{{ audit.lead_auditor.nome }}</td><td><span class="sg-badge">{{ audit.get_stato_display }}</span></td></tr>{% empty %}<tr><td colspan="6">Nessun audit.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</div>
+{% endblock %}

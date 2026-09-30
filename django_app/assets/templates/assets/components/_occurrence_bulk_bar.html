@@ -13,6 +13,11 @@
     <div class="md-field"><label for="{{ workorder_form.due_at.id_for_label }}">Entro</label>{{ workorder_form.due_at }}</div>
     <label class="md-field md-field-check" style="align-self:center"><span>{{ workorder_form.split_by_asset }} {{ workorder_form.split_by_asset.label }}</span></label>
     <button type="submit" class="btn btn-primary">Crea ordine di lavoro</button>
+    {% if can_execute %}
+      <div class="md-field"><label for="{{ workorder_form.completed_on.id_for_label }}">Eseguite il</label>{{ workorder_form.completed_on }}</div>
+      <button type="submit" class="btn btn-primary" name="action" value="create_and_complete"
+              title="Crea l'ordine di lavoro e registra subito le manutenzioni selezionate come eseguite: l'intervento si chiude.">Crea OdL e chiudi intervento</button>
+    {% endif %}
   </form>
   <script>
   (function () {

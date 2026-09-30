@@ -1,0 +1,26 @@
+{# Scheda verifica, «Ordini di lavoro»: gli OdL nati dai rilievi di questa verifica. #}
+<div class="md-page">
+  <section class="md-section">
+    <div class="md-section-head"><h2>Ordini di lavoro dai rilievi</h2><span class="md-badge badge-muted">{{ work_orders|length }}</span></div>
+    {% if work_orders %}
+      <div class="md-scroll">
+        <table class="md-table pc-table-auto" data-fm-table-skip="1">
+          <thead><tr><th>OdL</th><th>Titolo</th><th>Asset</th><th>Aperto</th><th>Stato</th></tr></thead>
+          <tbody>
+            {% for wo in work_orders %}
+              <tr>
+                <td><a href="{% url 'assets:wo_view' wo.id %}"><strong>#{{ wo.id }}</strong></a></td>
+                <td>{{ wo.title }}</td>
+                <td>{{ wo.asset.asset_tag|default:"" }} {{ wo.asset.name }}</td>
+                <td>{{ wo.opened_at|date:"d/m/Y" }}</td>
+                <td>{% if wo.status == "OPEN" %}<span class="pc-state is-due_soon">{{ wo.get_status_display }}</span>{% elif wo.status == "DONE" %}<span class="pc-state is-ok">{{ wo.get_status_display }}{% if wo.closed_at %} il {{ wo.closed_at|date:"d/m/Y" }}{% endif %}</span>{% else %}<span class="pc-state">{{ wo.get_status_display }}</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="md-empty">Nessun ordine di lavoro: si aprono dalla pagina della singola verifica, su un rilievo non conforme.</p>
+    {% endif %}
+  </section>
+</div>

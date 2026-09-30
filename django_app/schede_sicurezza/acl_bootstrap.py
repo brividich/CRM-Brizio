@@ -109,9 +109,11 @@ def _bootstrap_canonical() -> bool:
                 changed = True
 
         # 3) voce di menu (area Sicurezza/Compliance, coerente con dpi/procedure_refresh)
-        nav, created = NavigationItem.objects.update_or_create(
-            code="schede-sicurezza",
-            defaults={"label": "Schede di Sicurezza",
+        from core.navigation_registry import ensure_navigation_item
+
+        nav, created = ensure_navigation_item(
+            "schede-sicurezza",
+            {"label": "Schede di Sicurezza",
                       "route_name": "schede_sicurezza:prodotto_list",
                       "url_path": "", "section": "topbar",
                       "required_permission_code": PERM_VIEW, "order": 71,

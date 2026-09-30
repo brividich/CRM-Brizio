@@ -31,6 +31,8 @@ def evaluate_security_rules():
             _evaluate_watchguard_alert_candidate(event)
         elif event.event_type == "source_silent":
             _evaluate_source_silent(event)
+        elif event.event_type == "possible_sender_spoofing":
+            _evaluate_sender_spoofing(event)
         else:
             event.decision_trace = {"decision": "kpi_only", "reason": "No alert rule matched"}
             event.save(update_fields=["decision_trace"])
@@ -143,6 +145,48 @@ def _evaluate_source_silent(event):
     event.decision_trace = trace
     event.save(update_fields=["decision_trace"])
     build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(
+        alert=alert,
+        action="alert_created" if alert_created else "alert_reused",
+        details=trace,
+    )
+    _mark_rule_triggered(rule)
+    if alert_created:
+        notify_alert_created(alert)
+
+
+def _evaluate_sender_spoofing(event):
+    """A mail that looks like a trusted vendor's report from an untrusted sender.
+
+    The provenance gate already refused to parse it (fail-closed). Refusing silently,
+    though, hid a phishing/spoofing attempt aimed at the SOC mailbox: raise it instead.
+    """
+    payload = event.payload
+    rule = _get_rule("possible_sender_spoofing")
+    if rule and not rule.enabled:
+        event.decision_trace = {"decision": "kpi_only", "reason": "Sender spoofing rule disabled", "rule": rule.code}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Vendor-looking report from untrusted sender => alert (not parsed)",
+        "reason": payload.get("detail"),
+        "claimed_vendor": payload.get("claimed_vendor"),
+        "sender": payload.get("sender"),
+        "sender_domain": payload.get("sender_domain"),
+    }
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source,
+        event=event,
+        title=f"Possible sender spoofing: {payload.get('claimed_vendor') or 'vendor'} report from {payload.get('sender_domain') or 'unknown domain'}",
+        severity=(rule.severity if rule else Severity.WARNING),
+        dedup_hash=event.dedup_hash,
+        decision_trace=trace,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
     SecurityAlertActionLog.objects.create(
         alert=alert,
         action="alert_created" if alert_created else "alert_reused",

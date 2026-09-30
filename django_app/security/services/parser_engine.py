@@ -26,8 +26,7 @@ def run_pending_parsers():
     for item in _pending_items():
         parser = _match_enabled_parser(item)
         if not parser:
-            item.parse_status = ParseStatus.SKIPPED
-            item.save(update_fields=["parse_status"])
+            mark_skipped(item)
             continue
         try:
             parsed = parser.parse(item)
@@ -79,6 +78,65 @@ def _pending_items():
 
     yield from SecurityMailboxMessage.objects.filter(parse_status=ParseStatus.PENDING).order_by("received_at")
     yield from SecuritySourceFile.objects.filter(parse_status=ParseStatus.PENDING).order_by("uploaded_at")
+
+
+SKIP_NO_PARSER = "no_parser"
+SKIP_PARSER_DISABLED = "parser_disabled"
+SKIP_UNTRUSTED_SENDER = "untrusted_sender"
+
+SKIP_REASON_LABELS = {
+    SKIP_NO_PARSER: "Nessun parser riconosce questo contenuto",
+    SKIP_PARSER_DISABLED: "Il parser che lo riconosce è disattivato",
+    SKIP_UNTRUSTED_SENDER: "Contenuto da fornitore noto ma mittente non attendibile",
+}
+
+
+def skip_reason(item):
+    """Why no parser took this item: ``(code, detail)``.
+
+    An item marked SKIPPED without a reason is indistinguishable from noise, and a spoofed
+    vendor notification looked exactly like an unknown newsletter.
+    """
+    configs = {config.parser_name: config for config in SecurityParserConfig.objects.all()}
+    for parser in parser_registry.all():
+        config = configs.get(parser.name)
+        if config and not config.enabled and parser.can_parse(item):
+            return SKIP_PARSER_DISABLED, f"Parser disattivato: {parser.name}"
+    for parser in parser_registry.all():
+        if parser.impersonation_suspect(item):
+            sender = str(getattr(item, "sender", "") or "")[:255]
+            return SKIP_UNTRUSTED_SENDER, f"Si presenta come {parser.claimed_vendor or parser.name} ma il mittente {sender or '(vuoto)'} non è attendibile"
+    return SKIP_NO_PARSER, SKIP_REASON_LABELS[SKIP_NO_PARSER]
+
+
+def mark_skipped(item):
+    """Mark an item SKIPPED with its reason; a suspected spoof becomes an event (-> alert)."""
+    code, detail = skip_reason(item)
+    item.parse_status = ParseStatus.SKIPPED
+    item.raw_payload = {**(item.raw_payload or {}), "skip_reason": code, "skip_detail": detail}
+    item.save(update_fields=["parse_status", "raw_payload"])
+    if code == SKIP_UNTRUSTED_SENDER:
+        _record_spoofing_suspect(item, detail)
+    return code, detail
+
+
+def _record_spoofing_suspect(item, detail):
+    sender = str(getattr(item, "sender", "") or "").strip().lower()
+    sender_domain = sender.rsplit("@", 1)[-1].strip(">") if "@" in sender else ""
+    claimed = next((p.claimed_vendor or p.name for p in parser_registry.all() if p.impersonation_suspect(item)), "")
+    # One alert per (claimed vendor, sender domain): a flood of spoofed mails must not flood the queue.
+    dedup_hash = make_hash(item.source_id, "possible_sender_spoofing", claimed, sender_domain)
+    payload = {
+        "claimed_vendor": claimed,
+        "sender": sender[:255],
+        "sender_domain": sender_domain,
+        # Subject only, never the body: the content is attacker-controlled and may carry personal data.
+        "subject": str(getattr(item, "subject", "") or "")[:200],
+        "item_type": type(item).__name__,
+        "item_id": item.pk,
+        "detail": detail,
+    }
+    _create_event(item.source, None, "possible_sender_spoofing", Severity.WARNING, dedup_hash, payload)
 
 
 def _match_enabled_parser(item):

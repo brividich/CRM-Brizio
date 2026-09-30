@@ -19,6 +19,7 @@ _OFI_BASE = 1000  # coerente con gestione_specifiche.ofi._OFI_BASE
 # Estendibile quando altri moduli inizieranno a generare OFI.
 MODULO_LABELS = {
     "gestione_specifiche": "Specifiche / MOD.133",
+    "sistema_gestione": "Sistema di gestione / Audit",
 }
 
 

@@ -1,76 +1,109 @@
 {% extends "assets/base_shell.html" %}
+{% load l10n %}
 
 {% block title %}Planimetrie impianti{% endblock %}
 
 {% block assets_shell_head %}
 <style>
-.pl-page { display:grid; gap:16px; }
-.pl-summary { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); }
-.pl-summary-card { border:1px solid #dbe1ea; border-radius:16px; background:#fff; padding:16px; box-shadow:0 2px 8px rgba(15, 23, 42, .05); }
-.pl-summary-label { font-size: var(--fs-xs); text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:800; }
-.pl-summary-value { margin-top:8px; font-size: var(--fs-display-lg); line-height:1; color:#0f172a; font-weight:800; }
-.pl-summary-meta { margin-top:6px; color:#64748b; font-size: var(--fs-base); }
-.pl-grid { display:grid; grid-template-columns:minmax(0, 1.7fr) minmax(320px, .9fr); gap:16px; align-items:start; }
-.pl-card { border:1px solid #dbe1ea; border-radius:18px; background:#fff; overflow:hidden; box-shadow:0 4px 18px rgba(15, 23, 42, .05); }
-.pl-card-head { padding:16px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
-.pl-card-head h2 { margin:0; font-size: var(--fs-display-sm); color:#0f172a; }
-.pl-card-head p { margin:4px 0 0; color:#64748b; font-size: var(--fs-base); }
-.pl-stage-wrap { padding:18px; background:linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%); }
-.pl-stage { position:relative; width:100%; border-radius:16px; overflow:hidden; background:#dbe7f7; border:1px solid #d5e0f0; }
-.pl-stage img { display:block; width:100%; height:auto; }
-.pl-overlay { position:absolute; inset:0; }
-.pl-area { position:absolute; border:2px solid var(--area-color, #2563EB); background:var(--area-bg, rgba(37,99,235,0.22)); border-radius:14px; cursor:pointer; transition:transform .14s ease, box-shadow .14s ease, background .14s ease; }
-.pl-area:hover { transform:translateY(-1px); box-shadow:0 12px 24px rgba(15, 23, 42, .12); background:var(--area-bg-active, rgba(37,99,235,0.40)); }
-.pl-area.is-active { background:var(--area-bg-active, rgba(37,99,235,0.40)); box-shadow:0 14px 28px rgba(37, 99, 235, .22); }
-.pl-area-label { position:absolute; left:10px; top:10px; right:10px; display:flex; justify-content:space-between; gap:8px; align-items:flex-start; pointer-events:none; }
-.pl-area-name { background:rgba(15, 23, 42, .78); color:#fff; border-radius:999px; padding:6px 10px; font-size: var(--fs-sm); font-weight:800; max-width:calc(100% - 48px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pl-area-count { background:#fff; color:#0f172a; border-radius:999px; padding:6px 9px; font-size: var(--fs-xs); font-weight:800; box-shadow:0 4px 12px rgba(15, 23, 42, .12); }
-.pl-pin { position:absolute; width:18px; height:18px; border-radius:999px; border:none; transform:translate(-50%, -50%); background:#475569; box-shadow:0 0 0 4px rgba(255,255,255,.9), 0 8px 16px rgba(15,23,42,.18); cursor:pointer; }
-.pl-pin::after { content:""; position:absolute; width:6px; height:6px; inset:6px; border-radius:999px; background:#fff; }
-.pl-pin.is-active { box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 0 9px rgba(71,85,105,.30), 0 10px 22px rgba(15,23,42,.2); }
-.pl-pin.is-focused { background:#2563eb; box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 0 10px rgba(37,99,235,.35), 0 10px 22px rgba(15,23,42,.2); animation:pl-pulse 1.4s ease-in-out 3; }
-.pl-pin.has-tickets { background:#dc2626; box-shadow:0 0 0 4px rgba(255,255,255,.92), 0 0 0 9px rgba(220,38,38,.30), 0 8px 16px rgba(15,23,42,.18); animation:pl-pulse 1.8s ease-in-out infinite; }
-.pl-pin.has-tickets.is-active { box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 0 10px rgba(220,38,38,.45), 0 10px 22px rgba(15,23,42,.2); }
-.pl-pin-badge { position:absolute; top:-9px; right:-9px; min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:#b91c1c; color:#fff; font-size:10px; font-weight:800; line-height:16px; text-align:center; box-shadow:0 0 0 2px #fff; z-index:2; }
-@keyframes pl-pulse { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-50%,-50%) scale(1.5)} }
-.pl-sidebar { padding:16px; display:grid; gap:14px; }
-.pl-detail-title { margin:0; font-size: var(--fs-display-sm); color:#0f172a; }
-.pl-detail-sub { margin:4px 0 0; color:#64748b; font-size: var(--fs-base); }
-.pl-pill-row { display:flex; flex-wrap:wrap; gap:8px; }
-.pl-pill { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:6px 10px; background:#eff6ff; color:#1d4ed8; font-size: var(--fs-sm); font-weight:800; }
-.pl-note { border:1px solid #dbe1ea; border-radius:14px; background:#f8fafc; padding:12px 14px; color:#334155; font-size: var(--fs-base); }
-.pl-machine-list { display:grid; gap:10px; }
-.pl-machine-card { border:1px solid #e2e8f0; border-radius:14px; padding:12px 13px; background:#fff; display:grid; gap:6px; }
-.pl-machine-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-.pl-machine-name { font-size: var(--fs-md); font-weight:800; color:#0f172a; }
-.pl-machine-tag { color:#475569; font-size: var(--fs-sm); font-weight:700; }
-.pl-machine-meta { color:#64748b; font-size: var(--fs-sm); display:flex; flex-wrap:wrap; gap:10px; }
-.pl-machine-link { color:#1d4ed8; text-decoration:none; font-size: var(--fs-sm); font-weight:800; }
-.pl-ticket-box { border:1px solid #fecaca; background:#fef2f2; border-radius:14px; padding:12px 13px; display:grid; gap:8px; }
-.pl-ticket-box-title { font-size: var(--fs-sm); font-weight:800; color:#b91c1c; text-transform:uppercase; letter-spacing:.03em; }
-.pl-ticket-row { display:flex; align-items:center; gap:8px; text-decoration:none; padding:6px 8px; border-radius:9px; background:#fff; border:1px solid #fee2e2; }
-.pl-ticket-row:hover { background:#fff1f1; }
-.pl-ticket-num { font-family: ui-monospace, monospace; font-size:11px; font-weight:700; color:#b91c1c; white-space:nowrap; }
-.pl-ticket-title { flex:1; min-width:0; color:#182232; font-size: var(--fs-sm); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pl-ticket-stato { font-size:10px; font-weight:700; color:#9a3412; background:#ffedd5; border-radius:999px; padding:2px 8px; white-space:nowrap; }
-.pl-empty { padding:28px; text-align:center; color:#64748b; }
-.pl-empty strong { display:block; color:#0f172a; font-size: var(--fs-xl); margin-bottom:6px; }
-.pl-layout-list { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 18px; }
-.pl-layout-chip { border:1px solid #dbe1ea; background:#fff; color:#334155; border-radius:999px; padding:7px 11px; font-size: var(--fs-sm); font-weight:800; }
-.pl-layout-chip.is-active { border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; }
-@media (max-width: 1100px) {
-  .pl-grid { grid-template-columns:1fr; }
-}
-@media (max-width: 760px) {
-  .pl-summary { grid-template-columns:1fr; }
-  .pl-card-head { flex-direction:column; }
-}
+/* Mappa officina: solo token di tema (valgono anche in dark). Colori di stato su body. */
+body{--pl-ticket:#dc2626;--pl-overdue:#ea580c;--pl-workorder:#2563eb;--pl-due_soon:#ca8a04;--pl-repair:#7c3aed;--pl-ok:#16a34a}
+body.theme-dark{--pl-ticket:#f87171;--pl-overdue:#fb923c;--pl-workorder:#60a5fa;--pl-due_soon:#facc15;--pl-repair:#a78bfa;--pl-ok:#4ade80}
+.pl-page{display:grid;gap:14px}
+.pl-kpis{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.pl-kpi{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:12px 14px;display:grid;gap:2px}
+.pl-kpi-label{font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:.06em;color:var(--text-mid);font-weight:800}
+.pl-kpi-value{font-size:1.6rem;line-height:1.1;color:var(--text);font-weight:900}
+.pl-kpi-sub{color:var(--text-light);font-size:var(--fs-xs)}
+.pl-kpi.is-danger .pl-kpi-value{color:var(--pl-ticket)}
+.pl-kpi.is-warn .pl-kpi-value{color:var(--pl-overdue)}
+.pl-switch{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.pl-switch-label{font-size:var(--fs-2xs);font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-mid);margin-right:2px}
+.pl-switch-sep{width:1px;height:20px;background:var(--border);margin:0 6px}
+.pl-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:999px;padding:5px 11px;font-size:var(--fs-sm);font-weight:700;text-decoration:none;cursor:pointer}
+.pl-chip:hover{border-color:var(--primary-mid)}
+.pl-chip.is-active{border-color:var(--primary-mid);box-shadow:inset 0 0 0 1px var(--primary-mid)}
+.pl-chip b{font-weight:900}
+.pl-chip[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
+.pl-dot{width:9px;height:9px;border-radius:50%;background:var(--pl-dot,var(--text-light));flex:none;display:inline-block}
+.pl-dot.is-ticket{--pl-dot:var(--pl-ticket)}.pl-dot.is-overdue{--pl-dot:var(--pl-overdue)}.pl-dot.is-workorder{--pl-dot:var(--pl-workorder)}
+.pl-dot.is-due_soon{--pl-dot:var(--pl-due_soon)}.pl-dot.is-repair{--pl-dot:var(--pl-repair)}.pl-dot.is-ok{--pl-dot:var(--pl-ok)}
+.pl-dot.is-state-overdue{--pl-dot:var(--pl-ticket)}.pl-dot.is-state-due_soon{--pl-dot:var(--pl-due_soon)}.pl-dot.is-state-ok{--pl-dot:var(--pl-ok)}
+.pl-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:start}
+@media (max-width:1100px){.pl-grid{grid-template-columns:minmax(0,1fr)}}
+.pl-card{border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden}
+.pl-card-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.pl-card-head h2{margin:0;font-size:var(--fs-lg);color:var(--text)}
+.pl-card-head p{margin:2px 0 0;color:var(--text-mid);font-size:var(--fs-sm)}
+.pl-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border)}
+.pl-filters{display:flex;flex-wrap:wrap;gap:6px}
+.pl-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pl-search{height:32px;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:0 10px;background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-sm)}
+.pl-stage-wrap{padding:12px;display:grid}
+/* proporzioni dell'immagine con aspect-ratio, altezza entro lo schermo */
+.pl-view{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:12px;background:#fff;touch-action:none;justify-self:center;
+  width:min(100%,calc(80vh * var(--pl-ar,1.4)))}
+.pl-view.is-pannable{cursor:grab}
+.pl-view.is-dragging{cursor:grabbing}
+.pl-stage{--pl-z:1;position:relative;width:100%;transform-origin:0 0;will-change:transform}
+.pl-stage img{display:block;width:100%;height:auto;user-select:none;pointer-events:none}
+.pl-overlay{position:absolute;inset:0}
+.pl-view.hide-areas .pl-area{display:none}
+.pl-area{position:absolute;padding:0;border:2px solid var(--area-color,#2563EB);background:var(--area-bg,rgba(37,99,235,.18));border-radius:10px;cursor:pointer;transition:background .14s ease,box-shadow .14s ease}
+.pl-area:hover,.pl-area.is-active{background:var(--area-bg-active,rgba(37,99,235,.36))}
+.pl-area.is-active{border-style:dashed}
+.pl-area-label{position:absolute;left:6px;top:6px;display:flex;gap:4px;align-items:center;pointer-events:none;transform:scale(calc(1 / var(--pl-z)));transform-origin:0 0;max-width:calc(100% - 12px)}
+.pl-area-name{background:rgba(15,23,42,.8);color:#fff;border-radius:999px;padding:3px 9px;font-size:var(--fs-xs);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-area-alert{background:var(--pl-ticket);color:#fff;border-radius:999px;padding:3px 7px;font-size:var(--fs-2xs);font-weight:900}
+.pl-pin{position:absolute;padding:0;width:16px;height:16px;border-radius:50%;border:0;background:var(--pl-c,var(--pl-ok));
+  transform:translate(-50%,-50%) scale(calc(1 / var(--pl-z)));box-shadow:0 0 0 3px #fff,0 4px 10px rgba(15,23,42,.3);cursor:pointer;z-index:2}
+.pl-pin.is-ticket{--pl-c:var(--pl-ticket)}.pl-pin.is-overdue{--pl-c:var(--pl-overdue)}.pl-pin.is-workorder{--pl-c:var(--pl-workorder)}
+.pl-pin.is-due_soon{--pl-c:var(--pl-due_soon)}.pl-pin.is-repair{--pl-c:var(--pl-repair)}.pl-pin.is-ok{--pl-c:var(--pl-ok);width:12px;height:12px}
+.pl-pin.is-ticket::after,.pl-pin.is-overdue::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--pl-c);animation:pl-pulse 1.8s ease-out infinite}
+@keyframes pl-pulse{from{transform:scale(.6);opacity:.9}to{transform:scale(1.7);opacity:0}}
+@media (prefers-reduced-motion:reduce){.pl-pin::after{animation:none!important;opacity:.5}}
+.pl-pin:focus-visible,.pl-pin:hover{outline:2px solid var(--primary-mid);outline-offset:3px;z-index:4}
+.pl-pin.is-selected{outline:3px solid var(--primary-mid);outline-offset:4px;z-index:5}
+.pl-pin.is-dim{opacity:.18}
+.pl-pin-badge{position:absolute;top:-9px;left:-10px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--pl-ticket);color:#fff;font-size:9px;font-weight:900;line-height:15px;text-align:center;box-shadow:0 0 0 2px #fff}
+.pl-pin-label{position:absolute;left:18px;top:50%;transform:translateY(-50%);background:#fff;color:#0f172a;border-radius:4px;padding:0 4px;font-size:10px;font-weight:800;line-height:14px;white-space:nowrap;box-shadow:0 0 0 1px rgba(15,23,42,.18);display:none}
+.pl-view.show-labels .pl-pin:not(.is-ok) .pl-pin-label,.pl-view.is-zoomed .pl-pin-label,.pl-pin.is-selected .pl-pin-label{display:block}
+.pl-view.hide-ticket .pl-pin.is-ticket,.pl-view.hide-overdue .pl-pin.is-overdue,.pl-view.hide-workorder .pl-pin.is-workorder,
+.pl-view.hide-due_soon .pl-pin.is-due_soon,.pl-view.hide-repair .pl-pin.is-repair,.pl-view.hide-ok .pl-pin.is-ok{display:none}
+.pl-hint{margin:8px 0 0;color:var(--text-light);font-size:var(--fs-xs);text-align:center}
+.pl-side{display:grid;gap:0}
+.pl-side-body{padding:14px 16px;display:grid;gap:12px}
+.pl-back{justify-self:start;border:0;background:none;color:var(--primary-mid);font:inherit;font-size:var(--fs-sm);font-weight:700;cursor:pointer;padding:0}
+.pl-list{list-style:none;margin:0;padding:0;display:grid;gap:2px;max-height:60vh;overflow:auto}
+.pl-list button{width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 8px;border:0;border-radius:8px;background:none;color:var(--text);text-align:left;font:inherit;font-size:var(--fs-sm);cursor:pointer}
+.pl-list button:hover{background:color-mix(in srgb,var(--primary-mid) 9%,transparent)}
+.pl-list-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-list-name small{display:block;color:var(--text-mid);font-size:var(--fs-xs)}
+.pl-list-state{font-size:var(--fs-xs);font-weight:800;color:var(--text-mid);white-space:nowrap}
+.pl-section-title{margin:0;font-size:var(--fs-xs);font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:var(--text-mid);display:flex;align-items:center;gap:6px}
+.pl-empty{padding:18px;text-align:center;color:var(--text-mid);font-size:var(--fs-sm)}
+.pl-empty strong{display:block;color:var(--text);font-size:var(--fs-lg);margin-bottom:4px}
+.pl-detail h3{margin:0;font-size:var(--fs-lg);color:var(--text)}
+.pl-detail-sub{margin:2px 0 0;color:var(--text-mid);font-size:var(--fs-sm)}
+.pl-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:var(--fs-xs);font-weight:800;background:color-mix(in srgb,var(--pl-dot,var(--text-light)) 14%,transparent);color:var(--text)}
+.pl-pills{display:flex;flex-wrap:wrap;gap:6px}
+.pl-pill{border-radius:999px;padding:3px 9px;background:color-mix(in srgb,var(--primary-mid) 10%,transparent);color:var(--text);font-size:var(--fs-xs);font-weight:700}
+.pl-box{border:1px solid var(--border);border-left:4px solid var(--pl-dot,var(--border));border-radius:10px;padding:10px 12px;display:grid;gap:6px}
+.pl-box-title{font-size:var(--fs-xs);font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid)}
+.pl-row{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--text);font-size:var(--fs-sm);padding:4px 6px;border-radius:6px}
+.pl-row:hover{background:color-mix(in srgb,var(--primary-mid) 8%,transparent)}
+.pl-row-num{font-family:ui-monospace,monospace;font-size:var(--fs-xs);font-weight:800;white-space:nowrap}
+.pl-row-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-row-meta{font-size:var(--fs-xs);color:var(--text-mid);white-space:nowrap}
+.pl-row-meta.is-late{color:var(--pl-ticket);font-weight:800}
+.pl-dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:var(--fs-sm)}
+.pl-dl dt{color:var(--text-mid)}.pl-dl dd{margin:0;font-weight:700;color:var(--text)}
+.pl-actions{display:flex;flex-wrap:wrap;gap:6px}
 </style>
 {% endblock %}
 
 {% block assets_shell_title %}Planimetrie impianti{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Passa da una planimetria all'altra per consultare officina, TVCC, allarme e altri impianti.</p>
+<p>Dove sono le macchine e cosa c'e' da fare: ticket, OdL e manutenzioni direttamente sulla planimetria.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
 <a class="btn" href="{% url 'assets:work_machine_dashboard' %}">Dashboard officina</a>
@@ -81,105 +114,110 @@
 
 {% block assets_shell_content %}
 <section class="pl-page">
-  <section class="pl-summary">
-    <article class="pl-summary-card">
-      <div class="pl-summary-label">Categorie attive</div>
-      <div class="pl-summary-value">{{ layout_category_switches|length }}</div>
-      <div class="pl-summary-meta">{% if layout %}Categoria selezionata: {{ selected_layout_category }}{% else %}Nessuna mappa pubblicata{% endif %}</div>
-    </article>
-    <article class="pl-summary-card">
-      <div class="pl-summary-label">Reparti mappati</div>
-      <div class="pl-summary-value">{{ plant_layout_payload.areas|length }}</div>
-      <div class="pl-summary-meta">Zone cliccabili sulla planimetria</div>
-    </article>
-    <article class="pl-summary-card">
-      <div class="pl-summary-label">Macchine posizionate</div>
-      <div class="pl-summary-value">{{ plant_layout_payload.markers|length }}</div>
-      <div class="pl-summary-meta">Marker manuali sulla mappa</div>
-    </article>
-    <article class="pl-summary-card">
-      <div class="pl-summary-label">Macchine con ticket aperti</div>
-      <div class="pl-summary-value" style="{% if plant_layout_payload.markers_with_tickets %}color:#dc2626;{% endif %}">{{ plant_layout_payload.markers_with_tickets }}</div>
-      <div class="pl-summary-meta">Marker evidenziati in rosso sulla mappa</div>
-    </article>
+  {% if layout_category_switches or check_layouts %}
+  <nav class="pl-switch" aria-label="Planimetrie">
+    {% if layout_category_switches %}
+      <span class="pl-switch-label">Planimetrie</span>
+      {% for chip in layout_category_switches %}
+        <a class="pl-chip {% if chip.active %}is-active{% endif %}" href="{{ chip.url }}"{% if chip.active %} aria-current="page"{% endif %}>{{ chip.category }}</a>
+      {% endfor %}
+    {% endif %}
+    {% if check_layouts %}
+      {% if layout_category_switches %}<span class="pl-switch-sep" aria-hidden="true"></span>{% endif %}
+      <span class="pl-switch-label">Verifiche impianti</span>
+      {% for c in check_layouts %}
+        <a class="pl-chip" href="{{ c.url }}" title="{{ c.name }}: {{ c.state_label|lower }}"><span class="pl-dot is-state-{{ c.state }}"></span>{{ c.name }}</a>
+      {% endfor %}
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% if layout %}
+  <section class="pl-kpis">
+    <div class="pl-kpi">
+      <span class="pl-kpi-label">Macchine sulla mappa</span>
+      <span class="pl-kpi-value">{{ plant_layout_payload.markers|length }}</span>
+      <span class="pl-kpi-sub">{{ plant_layout_payload.areas|length }} repart{{ plant_layout_payload.areas|length|pluralize:"o,i" }} disegnat{{ plant_layout_payload.areas|length|pluralize:"o,i" }}</span>
+    </div>
+    <div class="pl-kpi {% if alert_total %}is-warn{% endif %}">
+      <span class="pl-kpi-label">Da guardare</span>
+      <span class="pl-kpi-value">{{ alert_total }}</span>
+      <span class="pl-kpi-sub">macchine con ticket, OdL o manutenzioni</span>
+    </div>
+    <div class="pl-kpi {% if plant_layout_payload.alert_counts.ticket %}is-danger{% endif %}">
+      <span class="pl-kpi-label">Con ticket aperti</span>
+      <span class="pl-kpi-value">{{ plant_layout_payload.markers_with_tickets }}</span>
+      <span class="pl-kpi-sub">in rosso sulla mappa</span>
+    </div>
+    <div class="pl-kpi {% if plant_layout_payload.alert_counts.overdue %}is-warn{% endif %}">
+      <span class="pl-kpi-label">Manutenzione scaduta</span>
+      <span class="pl-kpi-value">{{ plant_layout_payload.alert_counts.overdue }}</span>
+      <span class="pl-kpi-sub">in arancione sulla mappa</span>
+    </div>
   </section>
+  {% endif %}
 
   <section class="pl-grid">
     <article class="pl-card">
       <div class="pl-card-head">
         <div>
           <h2>{% if layout %}{{ layout.name }}{% else %}Mappa non disponibile{% endif %}</h2>
-          <p>{% if layout and layout.description %}{{ layout.category }} - {{ layout.description }}{% elif layout %}{{ layout.category }} - seleziona un reparto o una macchina per aprire il dettaglio contestuale.{% else %}Nessuna planimetria attiva disponibile.{% endif %}</p>
+          <p>{% if layout %}{{ layout.category }}{% if layout.description %} · {{ layout.description }}{% endif %}{% else %}Nessuna planimetria attiva disponibile.{% endif %}</p>
         </div>
       </div>
-      {% if layout_category_switches %}
-      <div class="pl-layout-list" style="padding-top:18px;">
-        {% for chip in layout_category_switches %}
-        <a class="pl-layout-chip {% if chip.active %}is-active{% endif %}" style="text-decoration:none;" href="{{ chip.url }}">{{ chip.category }}</a>
-        {% endfor %}
-      </div>
-      {% endif %}
       {% if layout and layout.image %}
+      <div class="pl-bar" data-pl-bar>
+        <div class="pl-filters" role="group" aria-label="Mostra sulla mappa">
+          {% for f in alert_filters %}
+            <button type="button" class="pl-chip" data-pl-filter="{{ f.code }}" aria-pressed="true"><span class="pl-dot is-{{ f.code }}"></span>{{ f.label }} <b>{{ f.count }}</b></button>
+          {% endfor %}
+          {% if plant_layout_payload.areas %}<button type="button" class="pl-chip" data-pl-areas aria-pressed="true">Reparti</button>{% endif %}
+        </div>
+        <div class="pl-tools">
+          <input type="search" class="pl-search" data-pl-search placeholder="Cerca macchina, tag…" aria-label="Cerca macchina sulla mappa">
+          <button type="button" class="btn btn-secondary btn-sm" data-pl-zoom="out" aria-label="Riduci" title="Riduci">&minus;</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-pl-zoom="reset" title="Adatta allo schermo">Adatta</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-pl-zoom="in" aria-label="Ingrandisci" title="Ingrandisci">+</button>
+        </div>
+      </div>
       <div class="pl-stage-wrap">
-        <div class="pl-stage" id="plant-layout-stage">
-          <img src="{{ layout.image.url }}" alt="{{ layout.name }}">
-          <div class="pl-overlay">
-            {% for area in plant_layout_payload.areas %}
-            <button
-              type="button"
-              class="pl-area"
-              data-area-id="{{ area.id }}"
-              style="left:{{ area.x_percent|stringformat:'g' }}%;top:{{ area.y_percent|stringformat:'g' }}%;width:{{ area.width_percent|stringformat:'g' }}%;height:{{ area.height_percent|stringformat:'g' }}%;--area-color:{{ area.color }};--area-bg:{{ area.bg_color }};--area-bg-active:{{ area.active_bg_color }};"
-            >
-              <span class="pl-area-label">
-                <span class="pl-area-name">{{ area.name }}</span>
-                <span class="pl-area-count">{{ area.machine_count }}</span>
-              </span>
-            </button>
-            {% endfor %}
-            {% for marker in plant_layout_payload.markers %}
-            <button
-              type="button"
-              class="pl-pin{% if marker.open_tickets %} has-tickets{% endif %}"
-              data-marker-id="{{ marker.id }}"
-              style="left:{{ marker.x_percent|stringformat:'g' }}%;top:{{ marker.y_percent|stringformat:'g' }}%;"
-              title="{{ marker.label }}{% if marker.open_tickets %} — {{ marker.open_tickets }} ticket apert{{ marker.open_tickets|pluralize:'o,i' }}{% endif %}"
-            >{% if marker.open_tickets %}<span class="pl-pin-badge">{{ marker.open_tickets }}</span>{% endif %}</button>
-            {% endfor %}
+        {% localize off %}
+        <div class="pl-view show-labels" data-pl-view{% if image_width and image_height %} style="--pl-ar:{{ image_width }}/{{ image_height }}"{% endif %}>
+          <div class="pl-stage" data-pl-stage>
+            <img src="{{ layout.image.url }}" alt="{{ layout.name }}" draggable="false">
+            <div class="pl-overlay">
+              {% for area in plant_layout_payload.areas %}
+              <button type="button" class="pl-area" data-area-id="{{ area.id }}"
+                style="left:{{ area.x_percent }}%;top:{{ area.y_percent }}%;width:{{ area.width_percent }}%;height:{{ area.height_percent }}%;--area-color:{{ area.color }};--area-bg:{{ area.bg_color }};--area-bg-active:{{ area.active_bg_color }};"
+                aria-label="Reparto {{ area.name }}, {{ area.machine_count }} macchine{% if area.alert_count %}, {{ area.alert_count }} da guardare{% endif %}">
+                <span class="pl-area-label"><span class="pl-area-name">{{ area.name }}</span>{% if area.alert_count %}<span class="pl-area-alert">{{ area.alert_count }}</span>{% endif %}</span>
+              </button>
+              {% endfor %}
+              {% for marker in plant_layout_payload.markers %}
+              <button type="button" class="pl-pin is-{{ marker.alert }}" data-marker-id="{{ marker.id }}"
+                style="left:{{ marker.x_percent }}%;top:{{ marker.y_percent }}%;"
+                title="{{ marker.label }}{% if marker.machine.name %} · {{ marker.machine.name }}{% endif %} · {{ marker.alert_label }}"
+                aria-label="{{ marker.label }}, {{ marker.alert_label }}">
+                {% if marker.open_tickets %}<span class="pl-pin-badge">{{ marker.open_tickets }}</span>{% endif %}
+                <span class="pl-pin-label">{{ marker.label }}</span>
+              </button>
+              {% endfor %}
+            </div>
           </div>
         </div>
+        {% endlocalize %}
+        <p class="pl-hint">Clicca una macchina o un reparto per il dettaglio · rotellina o +/&minus; per lo zoom, trascina per spostarti.</p>
       </div>
-      {% if plant_layout_payload.areas %}
-      <div class="pl-layout-list">
-        {% for area in plant_layout_payload.areas %}
-        <span class="pl-layout-chip">{{ area.name }} {% if area.reparto_code %}- {{ area.reparto_code }}{% endif %}</span>
-        {% endfor %}
-      </div>
-      {% endif %}
       {% else %}
       <div class="pl-empty">
         <strong>Nessuna planimetria disponibile</strong>
-        {% if can_manage_map %}
-        Configura una PNG/JPG dall'editor mappa per pubblicarla qui.
-        {% else %}
-        Contatta un amministratore per caricare la planimetria dell'officina.
-        {% endif %}
+        {% if can_manage_map %}Carica una PNG/JPG dall'editor mappa per pubblicarla qui.{% else %}Contatta un amministratore per caricare la planimetria.{% endif %}
       </div>
       {% endif %}
     </article>
 
-    <aside class="pl-card">
-      <div class="pl-card-head">
-        <div>
-          <h2 id="pl-detail-title">Dettaglio mappa</h2>
-          <p id="pl-detail-sub" class="pl-detail-sub">Clicca un reparto o un marker macchina.</p>
-        </div>
-      </div>
-      <div class="pl-sidebar">
-        <div id="pl-detail-pills" class="pl-pill-row"></div>
-        <div id="pl-detail-note" class="pl-note" hidden></div>
-        <div id="pl-detail-list" class="pl-machine-list"></div>
-      </div>
+    <aside class="pl-card pl-side" aria-live="polite">
+      <div class="pl-side-body" data-pl-panel></div>
     </aside>
   </section>
 </section>
@@ -190,200 +228,318 @@
 {% block assets_shell_scripts %}
 <script>
 (function () {
-  const dataNode = document.getElementById("plant-layout-data");
-  if (!dataNode) return;
-  const payload = JSON.parse(dataNode.textContent || "{}");
-  const focusAssetId = {{ focus_asset_id|default:0 }};
-  const areaButtons = Array.from(document.querySelectorAll("[data-area-id]"));
-  const markerButtons = Array.from(document.querySelectorAll("[data-marker-id]"));
-  const titleNode = document.getElementById("pl-detail-title");
-  const subNode = document.getElementById("pl-detail-sub");
-  const pillsNode = document.getElementById("pl-detail-pills");
-  const noteNode = document.getElementById("pl-detail-note");
-  const listNode = document.getElementById("pl-detail-list");
-  const areas = Array.isArray(payload.areas) ? payload.areas : [];
-  const markers = Array.isArray(payload.markers) ? payload.markers : [];
+  var dataNode = document.getElementById("plant-layout-data");
+  var panel = document.querySelector("[data-pl-panel]");
+  if (!dataNode || !panel) return;
+  var payload = JSON.parse(dataNode.textContent || "{}");
+  var focusAssetId = {{ focus_asset_id|default:0 }};
+  var areas = payload.areas || [];
+  var markers = payload.markers || [];
+  var labels = payload.alert_labels || {};
+  var ORDER = ["ticket", "overdue", "workorder", "due_soon", "repair", "ok"];
+  var view = document.querySelector("[data-pl-view]");
+  var stage = document.querySelector("[data-pl-stage]");
+  var pins = Array.prototype.slice.call(document.querySelectorAll("[data-marker-id]"));
+  var areaButtons = Array.prototype.slice.call(document.querySelectorAll("[data-area-id]"));
 
-  function escapeHtml(value) {
-    return String(value || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null && text !== "") n.textContent = text;
+    return n;
   }
+  function link(href, cls, text) { var a = el("a", cls, text); a.href = href || "#"; return a; }
+  function dot(code) { return el("span", "pl-dot is-" + code); }
+  function byId(list, id) { return list.find(function (r) { return Number(r.id) === Number(id); }); }
+  function severity(code) { var i = ORDER.indexOf(code); return i < 0 ? ORDER.length : i; }
 
-  function setActiveAreaIds(ids) {
-    const activeIds = new Set((ids || []).map(function (value) { return String(value); }));
-    areaButtons.forEach(function (button) {
-      button.classList.toggle("is-active", activeIds.has(button.getAttribute("data-area-id")));
-    });
+  /* ---- zoom e trascinamento ---- */
+  var z = 1, tx = 0, ty = 0, MAX = 8;
+  function apply() {
+    if (!view) return;
+    var w = view.clientWidth, h = view.clientHeight;
+    tx = Math.min(0, Math.max(w - w * z, tx));
+    ty = Math.min(0, Math.max(h - h * z, ty));
+    stage.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + z + ")";
+    stage.style.setProperty("--pl-z", z);
+    view.classList.toggle("is-zoomed", z >= 2);
+    view.classList.toggle("is-pannable", z > 1);
   }
-
-  function setActiveMarkerIds(ids) {
-    const activeIds = new Set((ids || []).map(function (value) { return String(value); }));
-    markerButtons.forEach(function (button) {
-      button.classList.toggle("is-active", activeIds.has(button.getAttribute("data-marker-id")));
-    });
+  function zoomAt(f, cx, cy) {
+    var nz = Math.min(MAX, Math.max(1, z * f));
+    tx = cx - (cx - tx) * (nz / z);
+    ty = cy - (cy - ty) * (nz / z);
+    z = nz;
+    apply();
   }
-
-  function renderPills(values) {
-    pillsNode.innerHTML = "";
-    (values || []).forEach(function (row) {
-      if (!row) return;
-      const chip = document.createElement("span");
-      chip.className = "pl-pill";
-      chip.textContent = row;
-      pillsNode.appendChild(chip);
-    });
+  function centerOn(xPct, yPct, minZoom) {
+    if (!view) return;
+    if (z < minZoom) z = minZoom;
+    var w = view.clientWidth, h = view.clientHeight;
+    tx = w / 2 - xPct / 100 * w * z;
+    ty = h / 2 - yPct / 100 * h * z;
+    apply();
   }
-
-  function renderMachines(rows) {
-    listNode.innerHTML = "";
-    if (!rows || !rows.length) {
-      const empty = document.createElement("div");
-      empty.className = "pl-empty";
-      empty.innerHTML = "<strong>Nessuna macchina collegata</strong>Il reparto non ha ancora asset associati o posizionati.";
-      listNode.appendChild(empty);
-      return;
-    }
-    rows.forEach(function (machine) {
-      const card = document.createElement("article");
-      card.className = "pl-machine-card";
-      const top = document.createElement("div");
-      top.className = "pl-machine-top";
-      top.innerHTML =
-        '<div><div class="pl-machine-name">' + escapeHtml(machine.name) + '</div>' +
-        '<div class="pl-machine-tag">' + escapeHtml(machine.asset_tag) + '</div></div>' +
-        '<div class="pl-machine-tag">' + escapeHtml(machine.status) + '</div>';
-      const meta = document.createElement("div");
-      meta.className = "pl-machine-meta";
-      [
-        machine.reparto ? "Reparto " + machine.reparto : "",
-        machine.location ? "Posizione " + machine.location : "",
-        machine.model ? machine.model : "",
-        machine.next_maintenance_date ? "Manut. " + machine.next_maintenance_date : ""
-      ].forEach(function (row) {
-        if (!row) return;
-        const span = document.createElement("span");
-        span.textContent = row;
-        meta.appendChild(span);
+  if (view) {
+    document.querySelectorAll("[data-pl-zoom]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var m = b.getAttribute("data-pl-zoom");
+        if (m === "reset") { z = 1; tx = 0; ty = 0; apply(); return; }
+        zoomAt(m === "in" ? 1.5 : 1 / 1.5, view.clientWidth / 2, view.clientHeight / 2);
       });
-      const link = document.createElement("a");
-      link.className = "pl-machine-link";
-      link.href = machine.detail_url || "#";
-      link.textContent = "Apri dettaglio macchina";
-      card.appendChild(top);
-      card.appendChild(meta);
-      card.appendChild(link);
-      listNode.appendChild(card);
     });
-  }
-
-  function renderTickets(tickets) {
-    if (!tickets || !tickets.length) return;
-    const box = document.createElement("div");
-    box.className = "pl-ticket-box";
-    const title = document.createElement("div");
-    title.className = "pl-ticket-box-title";
-    title.textContent = "⚠ " + tickets.length + " ticket apert" + (tickets.length === 1 ? "o" : "i");
-    box.appendChild(title);
-    tickets.forEach(function (tk) {
-      const row = document.createElement("a");
-      row.className = "pl-ticket-row";
-      row.href = tk.url || "#";
-      row.innerHTML =
-        '<span class="pl-ticket-num">' + escapeHtml(tk.numero) + '</span>' +
-        '<span class="pl-ticket-title">' + escapeHtml(tk.titolo) + '</span>' +
-        '<span class="pl-ticket-stato">' + escapeHtml(tk.stato) + '</span>';
-      box.appendChild(row);
+    view.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var r = view.getBoundingClientRect();
+      zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+    var drag = null, moved = false;
+    view.addEventListener("pointerdown", function (e) {
+      if (z === 1 || e.button !== 0) return;
+      drag = { x: e.clientX, y: e.clientY, tx: tx, ty: ty };
+      moved = false;
     });
-    listNode.appendChild(box);
+    view.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      if (!moved) { moved = true; view.setPointerCapture(e.pointerId); view.classList.add("is-dragging"); }
+      tx = drag.tx + dx; ty = drag.ty + dy;
+      apply();
+    });
+    function endDrag() { drag = null; view.classList.remove("is-dragging"); }
+    view.addEventListener("pointerup", endDrag);
+    view.addEventListener("pointercancel", endDrag);
+    /* un trascinamento non deve aprire il reparto o la macchina su cui finisce */
+    view.addEventListener("click", function (e) { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+    window.addEventListener("resize", apply);
   }
 
-  function showArea(area) {
-    if (!area) return;
-    titleNode.textContent = area.name || "Reparto";
-    subNode.textContent = area.reparto_code ? "Reparto collegato: " + area.reparto_code : "Reparto non collegato a un codice.";
-    renderPills([
-      "Macchine " + String(area.machine_count || 0),
-      area.reparto_code ? "Codice " + area.reparto_code : "",
-      area.color ? "Colore " + area.color : ""
-    ].filter(Boolean));
-    if (area.notes) {
-      noteNode.hidden = false;
-      noteNode.textContent = area.notes;
-    } else {
-      noteNode.hidden = true;
-      noteNode.textContent = "";
-    }
-    renderMachines(area.machines || []);
-    setActiveAreaIds([area.id]);
-    const markerIds = markers
-      .filter(function (marker) { return Array.isArray(marker.area_ids) && marker.area_ids.indexOf(area.id) !== -1; })
-      .map(function (marker) { return marker.id; });
-    setActiveMarkerIds(markerIds);
-  }
-
-  function showMarker(marker) {
-    if (!marker) return;
-    const machine = marker.machine || {};
-    titleNode.textContent = marker.label || machine.asset_tag || machine.name || "Macchina";
-    subNode.textContent = machine.reparto ? "Macchina del reparto " + machine.reparto : "Marker macchina";
-    renderPills([
-      marker.open_tickets ? (marker.open_tickets + " ticket apert" + (marker.open_tickets === 1 ? "o" : "i")) : "",
-      machine.status || "",
-      machine.manufacturer || "",
-      machine.model || "",
-      machine.five_axes ? "5 assi" : "",
-      machine.cnc_controlled ? "CNC" : ""
-    ].filter(Boolean));
-    if (machine.location) {
-      noteNode.hidden = false;
-      noteNode.textContent = "Posizione registrata: " + machine.location;
-    } else {
-      noteNode.hidden = true;
-      noteNode.textContent = "";
-    }
-    renderMachines([machine]);
-    renderTickets(marker.tickets || []);
-    setActiveMarkerIds([marker.id]);
-    setActiveAreaIds(marker.area_ids || []);
-  }
-
-  areaButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      const id = Number(button.getAttribute("data-area-id") || "0");
-      showArea(areas.find(function (row) { return Number(row.id) === id; }));
+  /* ---- filtri ---- */
+  document.querySelectorAll("[data-pl-filter]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      var on = chip.getAttribute("aria-pressed") !== "true";
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+      if (view) view.classList.toggle("hide-" + chip.getAttribute("data-pl-filter"), !on);
     });
   });
-
-  markerButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      const id = Number(button.getAttribute("data-marker-id") || "0");
-      showMarker(markers.find(function (row) { return Number(row.id) === id; }));
-    });
+  var areasChip = document.querySelector("[data-pl-areas]");
+  if (areasChip) areasChip.addEventListener("click", function () {
+    var on = areasChip.getAttribute("aria-pressed") !== "true";
+    areasChip.setAttribute("aria-pressed", on ? "true" : "false");
+    if (view) view.classList.toggle("hide-areas", !on);
   });
 
-  let initiallyHandled = false;
-  if (focusAssetId) {
-    const focusMarker = markers.find(function (m) { return Number(m.asset_id) === focusAssetId; });
-    if (focusMarker) {
-      showMarker(focusMarker);
-      const focusBtn = markerButtons.find(function (b) { return Number(b.getAttribute("data-marker-id")) === Number(focusMarker.id); });
-      if (focusBtn) {
-        focusBtn.classList.add("is-focused");
-        focusBtn.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-      initiallyHandled = true;
-    }
+  /* ---- selezione ---- */
+  function highlight(markerIds, areaIds) {
+    var ms = new Set((markerIds || []).map(String)), as = new Set((areaIds || []).map(String));
+    pins.forEach(function (p) { p.classList.toggle("is-selected", ms.has(p.getAttribute("data-marker-id"))); });
+    areaButtons.forEach(function (b) { b.classList.toggle("is-active", as.has(b.getAttribute("data-area-id"))); });
   }
-  if (!initiallyHandled) {
+  function backButton() {
+    var b = el("button", "pl-back", "← Tutte le segnalazioni");
+    b.type = "button";
+    b.addEventListener("click", function () { highlight([], []); showOverview(); });
+    return b;
+  }
+  function machineRow(machine, onClick) {
+    var li = el("li"), b = el("button");
+    b.type = "button";
+    b.appendChild(dot(machine.alert || "ok"));
+    var name = el("span", "pl-list-name", machine.name || machine.asset_tag);
+    name.appendChild(el("small", "", [machine.asset_tag, machine.reparto].filter(Boolean).join(" · ")));
+    b.appendChild(name);
+    b.appendChild(el("span", "pl-list-state", machine.alert && machine.alert !== "ok" ? labels[machine.alert] : ""));
+    b.addEventListener("click", onClick);
+    li.appendChild(b);
+    return li;
+  }
+
+  function showOverview() {
+    panel.textContent = "";
+    var open = markers.filter(function (m) { return m.alert !== "ok"; })
+      .sort(function (a, b) { return severity(a.alert) - severity(b.alert); });
+    var head = el("h3", "pl-section-title");
+    head.appendChild(document.createTextNode("Da guardare sulla mappa"));
+    head.appendChild(el("span", "pl-pill", String(open.length)));
+    panel.appendChild(head);
+    if (open.length) {
+      var ul = el("ul", "pl-list");
+      open.forEach(function (m) {
+        var machine = Object.assign({}, m.machine, { alert: m.alert, name: (m.machine && m.machine.name) || m.label });
+        ul.appendChild(machineRow(machine, function () { showMarker(m, true); }));
+      });
+      panel.appendChild(ul);
+    } else {
+      panel.appendChild(el("p", "pl-empty", markers.length ? "Nessun ticket, OdL o manutenzione in sospeso per le macchine posizionate." : "Nessuna macchina posizionata: si posizionano dall'editor mappa."));
+    }
     if (areas.length) {
-      showArea(areas[0]);
-    } else if (markers.length) {
-      showMarker(markers[0]);
+      var ah = el("h3", "pl-section-title", "Reparti");
+      panel.appendChild(ah);
+      var al = el("ul", "pl-list");
+      areas.forEach(function (a) {
+        var li = el("li"), b = el("button");
+        b.type = "button";
+        var sw = el("span", "pl-dot"); sw.style.setProperty("--pl-dot", a.color);
+        b.appendChild(sw);
+        var name = el("span", "pl-list-name", a.name);
+        name.appendChild(el("small", "", a.machine_count + " macchin" + (a.machine_count === 1 ? "a" : "e")));
+        b.appendChild(name);
+        b.appendChild(el("span", "pl-list-state", a.alert_count ? a.alert_count + " da guardare" : ""));
+        b.addEventListener("click", function () { showArea(a, true); });
+        li.appendChild(b);
+        al.appendChild(li);
+      });
+      panel.appendChild(al);
     }
+  }
+
+  function showArea(area, center) {
+    panel.textContent = "";
+    panel.appendChild(backButton());
+    var box = el("div", "pl-detail");
+    box.appendChild(el("h3", "", area.name));
+    box.appendChild(el("p", "pl-detail-sub", area.reparto_code ? "Reparto " + area.reparto_code + " · " + area.machine_count + " macchin" + (area.machine_count === 1 ? "a" : "e") : "Zona non collegata a un reparto"));
+    panel.appendChild(box);
+    if (area.notes) panel.appendChild(el("p", "pl-detail-sub", area.notes));
+    if (area.list_url) {
+      var acts = el("div", "pl-actions");
+      acts.appendChild(link(area.list_url, "btn btn-secondary btn-sm", "Elenco macchine del reparto"));
+      panel.appendChild(acts);
+    }
+    var rows = area.machines || [];
+    if (rows.length) {
+      var ul = el("ul", "pl-list");
+      rows.forEach(function (machine) {
+        ul.appendChild(machineRow(machine, function () {
+          var m = markers.find(function (x) { return Number(x.asset_id) === Number(machine.id); });
+          if (m) showMarker(m, true); else showMachine(machine, null);
+        }));
+      });
+      panel.appendChild(ul);
+    } else {
+      panel.appendChild(el("p", "pl-empty", "Nessuna macchina collegata a questo reparto."));
+    }
+    var ids = markers.filter(function (m) { return (m.area_ids || []).indexOf(area.id) !== -1; }).map(function (m) { return m.id; });
+    highlight(ids, [area.id]);
+    if (center) centerOn(area.x_percent + area.width_percent / 2, area.y_percent + area.height_percent / 2, 1);
+  }
+
+  function showMachine(machine, marker) {
+    panel.textContent = "";
+    panel.appendChild(backButton());
+    var alert = (marker && marker.alert) || machine.alert || "ok";
+    var box = el("div", "pl-detail");
+    box.appendChild(el("h3", "", machine.name || (marker && marker.label) || "Macchina"));
+    box.appendChild(el("p", "pl-detail-sub", [machine.asset_tag, machine.internal_number ? "N. " + machine.internal_number : "", machine.reparto ? "Reparto " + machine.reparto : ""].filter(Boolean).join(" · ")));
+    panel.appendChild(box);
+    var badge = el("span", "pl-badge");
+    badge.style.setProperty("--pl-dot", "var(--pl-" + alert + ")");
+    badge.appendChild(dot(alert));
+    badge.appendChild(document.createTextNode(labels[alert] || ""));
+    panel.appendChild(badge);
+    var pills = el("div", "pl-pills");
+    [machine.status, machine.manufacturer, machine.model, machine.cnc_controlled ? "CNC" : "", machine.five_axes ? "5 assi" : "", machine.location ? "Posizione " + machine.location : ""]
+      .filter(Boolean).forEach(function (t) { pills.appendChild(el("span", "pl-pill", t)); });
+    if (pills.children.length) panel.appendChild(pills);
+
+    var tickets = (marker && marker.tickets) || machine.tickets || [];
+    if (tickets.length) {
+      var tb = el("div", "pl-box"); tb.style.setProperty("--pl-dot", "var(--pl-ticket)");
+      tb.appendChild(el("div", "pl-box-title", tickets.length + " ticket apert" + (tickets.length === 1 ? "o" : "i")));
+      tickets.forEach(function (t) {
+        var r = link(t.url, "pl-row");
+        r.appendChild(el("span", "pl-row-num", t.numero));
+        r.appendChild(el("span", "pl-row-title", t.titolo));
+        r.appendChild(el("span", "pl-row-meta", t.stato));
+        tb.appendChild(r);
+      });
+      panel.appendChild(tb);
+    }
+    var wos = machine.workorders || [];
+    if (wos.length) {
+      var wb = el("div", "pl-box"); wb.style.setProperty("--pl-dot", "var(--pl-workorder)");
+      var total = machine.workorders_total || wos.length;
+      wb.appendChild(el("div", "pl-box-title", total + " OdL apert" + (total === 1 ? "o" : "i")));
+      wos.forEach(function (w) {
+        var r = link(w.url, "pl-row");
+        r.appendChild(el("span", "pl-row-num", "#" + w.id));
+        r.appendChild(el("span", "pl-row-title", w.titolo));
+        r.appendChild(el("span", "pl-row-meta" + (w.in_ritardo ? " is-late" : ""), w.scadenza ? (w.in_ritardo ? "in ritardo " : "entro ") + w.scadenza : w.tipo));
+        wb.appendChild(r);
+      });
+      panel.appendChild(wb);
+    }
+    if (machine.overdue || machine.due_soon || machine.next_due) {
+      var mb = el("div", "pl-box"); mb.style.setProperty("--pl-dot", machine.overdue ? "var(--pl-overdue)" : machine.due_soon ? "var(--pl-due_soon)" : "var(--pl-ok)");
+      mb.appendChild(el("div", "pl-box-title", "Manutenzione"));
+      var dl = el("dl", "pl-dl");
+      function row(k, v) { if (!v) return; dl.appendChild(el("dt", "", k)); dl.appendChild(el("dd", "", String(v))); }
+      row("Scadute", machine.overdue);
+      row("In scadenza", machine.due_soon);
+      row("Prossima", machine.next_due);
+      mb.appendChild(dl);
+      panel.appendChild(mb);
+    }
+    var acts = el("div", "pl-actions");
+    if (machine.detail_url) acts.appendChild(link(machine.detail_url, "btn btn-primary btn-sm", "Scheda macchina"));
+    if (machine.create_wo_url) acts.appendChild(link(machine.create_wo_url, "btn btn-secondary btn-sm", "Crea OdL"));
+    if (acts.children.length) panel.appendChild(acts);
+  }
+
+  function showMarker(marker, center) {
+    showMachine(marker.machine || {}, marker);
+    highlight([marker.id], marker.area_ids || []);
+    if (center) centerOn(marker.x_percent, marker.y_percent, 2.5);
+  }
+
+  areaButtons.forEach(function (b) {
+    b.addEventListener("click", function () { var a = byId(areas, b.getAttribute("data-area-id")); if (a) showArea(a, false); });
+  });
+  pins.forEach(function (p) {
+    p.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var m = byId(markers, p.getAttribute("data-marker-id"));
+      if (m) showMarker(m, false);
+    });
+  });
+
+  /* ---- ricerca ---- */
+  var search = document.querySelector("[data-pl-search]");
+  if (search) {
+    search.addEventListener("input", function () {
+      var q = search.value.trim().toLowerCase();
+      var hits = [];
+      pins.forEach(function (p) {
+        var m = byId(markers, p.getAttribute("data-marker-id"));
+        var hay = [m.label, m.machine && m.machine.name, m.machine && m.machine.asset_tag, m.machine && m.machine.internal_number, m.machine && m.machine.reparto].join(" ").toLowerCase();
+        var hit = !q || hay.indexOf(q) !== -1;
+        p.classList.toggle("is-dim", !hit);
+        if (q && hit) hits.push(m);
+      });
+      if (!q) { showOverview(); return; }
+      panel.textContent = "";
+      panel.appendChild(el("h3", "pl-section-title", hits.length + " risultat" + (hits.length === 1 ? "o" : "i") + " sulla mappa"));
+      var ul = el("ul", "pl-list");
+      hits.forEach(function (m) {
+        ul.appendChild(machineRow(Object.assign({}, m.machine, { alert: m.alert, name: (m.machine && m.machine.name) || m.label }), function () { showMarker(m, true); }));
+      });
+      panel.appendChild(ul);
+    });
+    search.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      var first = pins.find(function (p) { return !p.classList.contains("is-dim"); });
+      if (first && search.value.trim()) showMarker(byId(markers, first.getAttribute("data-marker-id")), true);
+    });
+  }
+
+  var focused = focusAssetId && markers.find(function (m) { return Number(m.asset_id) === focusAssetId; });
+  if (focused) {
+    showMarker(focused, true);
+    if (view) view.scrollIntoView({ block: "center" });
+  } else {
+    showOverview();
   }
 })();
 </script>

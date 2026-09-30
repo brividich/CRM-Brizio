@@ -1,0 +1,34 @@
+{# Verifiche periodiche: nomi dei file scelti, campi che valgono solo per un metodo. Righe cliccabili: data-row-href della shell. #}
+<script>
+(function () {
+  // Caricamento file: mostra cosa e' stato scelto, anche per trascinamento.
+  document.querySelectorAll("[data-pc-drop]").forEach(function (input) {
+    var zone = input.closest(".pc-drop");
+    var names = zone && zone.querySelector("[data-pc-drop-names]");
+    var initial = names ? names.textContent : "";
+    input.addEventListener("change", function () {
+      if (!names) return;
+      var list = Array.prototype.map.call(input.files, function (f) { return f.name; });
+      names.textContent = list.length ? list.join(", ") : initial;
+      zone.classList.toggle("has-files", list.length > 0);
+    });
+    ["dragenter", "dragover"].forEach(function (name) {
+      zone.addEventListener(name, function () { zone.classList.add("is-over"); });
+    });
+    ["dragleave", "drop"].forEach(function (name) {
+      zone.addEventListener(name, function () { zone.classList.remove("is-over"); });
+    });
+  });
+
+  // Form del tipo di verifica: le voci servono solo alla checklist, i tipi di segnalazione alla planimetria.
+  var methods = document.querySelectorAll("input[name=method]");
+  function syncMethod() {
+    var current = (document.querySelector("input[name=method]:checked") || {}).value || "";
+    document.querySelectorAll("[data-pc-method]").forEach(function (block) {
+      block.hidden = block.dataset.pcMethod.split(" ").indexOf(current) === -1;
+    });
+  }
+  methods.forEach(function (radio) { radio.addEventListener("change", syncMethod); });
+  if (methods.length) syncMethod();
+})();
+</script>

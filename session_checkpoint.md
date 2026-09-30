@@ -1,5 +1,28 @@
 # Session Checkpoint
 
+Data: 2026-09-25 (correzioni fase 2 audit interni EN 9100)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-25 - Codex (correzioni fase 2 audit interni EN 9100)`.
+- `temp/ISTRUZIONI_FIX_FASE2_AUDIT.md` eseguito nel worktree `temp/codex-sistema-audit-9100`; migration `sistema_gestione 0004` aggiunta.
+- Corrette firma/riapertura rapporto, convalida ente, domande aggiuntive SQL Server, KPI revisioni/mesi, imparzialitÃ , retry OFI, download e PDF.
+- Verifica: 80 test mirati, Django check e migration drift verdi; PDF confrontati con gli originali; UI chiaro/scuro verificata con sessioni nuove.
+- File critici per funzione: `django_app/sistema_gestione/acl_bootstrap.py` e `urls.py`, nuova route audit locale con binding canonico; nessun ACL globale, middleware o settings modificato.
+- Nessun backup o DB PROD; SQLite del worktree usato solo con dati sintetici. README, changelog root/Django e checklist fase 2 aggiornati.
+
+Data: 2026-09-25 (Sistema di gestione fase 2 - audit interni EN 9100)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-25 - Codex (Sistema di gestione fase 2 - audit interni EN 9100)`.
+- `docs/ai/CHECKLIST_SISTEMA_GESTIONE_AUDIT.md` -> fase 2 completata e verificata, deploy lasciato separato.
+- Modelli, flussi ACL, importatore MOD.035B, PDF MOD.034/035A/035B, Registro OFI, KPI ed evidenze SoA implementati nel branch `feature/sistema-gestione-audit-9100`.
+- Verifica: 62 test mirati complessivi, migration drift, Django check, secret hygiene, import reale in dry-run, PDF renderizzati e UI Playwright chiaro/scuro; nessun contenuto aziendale salvato nel repository.
+- File critico per funzione: `django_app/sistema_gestione/acl_bootstrap.py`; quattro permessi canonici e binding completi, nessun ACL globale o middleware modificato.
+- Nessun backup, DB PROD o deploy server; database SQLite locale usato solo per QA sintetica.
+
+
 Data: 2026-09-22 (stile scheda visita e rimozione con referti)
 
 Ultime voci viste/aggiunte in questa sessione:

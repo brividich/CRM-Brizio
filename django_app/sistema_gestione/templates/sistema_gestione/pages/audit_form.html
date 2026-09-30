@@ -1,0 +1,20 @@
+{% extends "core/base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{{ indietro }}">← Indietro</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">{{ page_title }}</div></div></div>
+  <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
+    {% for error in form.non_field_errors %}<div class="hub-err">{{ error }}</div>{% endfor %}
+    <div class="sg-form-grid">
+      {% for field in form %}
+      <div{% if field.field.widget.input_type == "checkbox" %}{% else %} class="{% if field.name == 'processi' or field.name == 'punti_norma' or field.name == 'procedure_criteri' or field.name == 'esclusioni' or field.name == 'periodi' or field.name == 'esclusioni_27002' or field.name == 'note' or field.name == 'imparzialita_deroga_motivo' %}full{% endif %}"{% endif %}>
+        {% include "core/forms/_field.html" with field=field %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="sg-actions"><button class="btn" type="submit">Salva</button><a class="btn btn-secondary" href="{{ indietro }}">Annulla</a></div>
+  </form>
+</div>
+{% endblock %}

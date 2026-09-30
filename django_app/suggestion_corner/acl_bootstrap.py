@@ -100,9 +100,11 @@ def _bootstrap_canonical() -> bool:
                 changed = True
 
         # 3) voce di menu
-        nav, created = NavigationItem.objects.update_or_create(
-            code="suggestion-corner",
-            defaults={"label": "Suggestion Corner",
+        from core.navigation_registry import ensure_navigation_item
+
+        nav, created = ensure_navigation_item(
+            "suggestion-corner",
+            {"label": "Suggestion Corner",
                       "route_name": "suggestion_corner:home",
                       "url_path": "", "section": "topbar",
                       "required_permission_code": PERM_VIEW, "order": 95,

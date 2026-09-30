@@ -376,6 +376,71 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, f"?asset_category={category.id}", html=False)
         self.assertNotContains(response, f"?category={category.id}", html=False)
 
+    def test_asset_dashboard_action_center_lists_work_with_actions(self):
+        asset = Asset.objects.create(asset_tag="AST-DASH-001", name="Tornio dashboard")
+        urgent = WorkOrder.objects.create(
+            asset=asset,
+            title="Perdita olio urgente",
+            priority=WorkOrder.PRIORITY_URGENT,
+            kind=WorkOrder.KIND_CORRECTIVE,
+        )
+        mine = WorkOrder.objects.create(asset=asset, title="Cambio filtro", assigned_to=self.user)
+        Ticket.objects.create(
+            tipo=TipoTicket.MAN,
+            titolo="Rumore anomalo mandrino",
+            descrizione="Segnalazione di prova",
+            priorita=PrioritaTicket.ALTA,
+            stato=StatoTicket.APERTA,
+            asset=asset,
+            include_in_maintenance_register=True,
+            richiedente_nome="operatore",
+            richiedente_email="operatore@test.local",
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        dash_wo = response.context["dash_wo"]
+        self.assertEqual(dash_wo["total"], 2)
+        self.assertEqual(dash_wo["urgent"], 1)
+        self.assertEqual(dash_wo["mine"], 1)
+        self.assertEqual(dash_wo["items"][0]["id"], urgent.id, "l'urgente va in testa")
+        # "Prendo io" solo per gli OdL non gia' miei; "Chiudi" per tutti.
+        self.assertContains(response, reverse("assets:wo_claim", args=[urgent.id]), html=False)
+        self.assertNotContains(response, reverse("assets:wo_claim", args=[mine.id]), html=False)
+        self.assertContains(response, reverse("assets:wo_close", args=[mine.id]), html=False)
+        self.assertContains(response, "Rumore anomalo mandrino")
+        self.assertGreaterEqual(response.context["attention_total"], 2)
+        # Il JSON dei widget non deve uscire con l'escape HTML (rompeva lo script).
+        self.assertContains(response, 'id="ad-enabled-widgets"', html=False)
+        self.assertNotContains(response, "let adEnabled = [&quot;", html=False)
+
+    def test_asset_dashboard_claim_returns_to_dashboard(self):
+        asset = Asset.objects.create(asset_tag="AST-DASH-002", name="Fresa dashboard")
+        wo = WorkOrder.objects.create(asset=asset, title="Controllo cinghia")
+        dashboard_url = reverse("assets:asset_dashboard")
+
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("assets:wo_claim", args=[wo.id]), {"next": dashboard_url})
+
+        self.assertRedirects(response, dashboard_url, fetch_redirect_response=False)
+        wo.refresh_from_db()
+        self.assertEqual(wo.assigned_to_id, self.user.id)
+
+    def test_asset_dashboard_launcher_hides_links_denied_by_acl(self):
+        def _deny_reports(path, **kwargs):
+            return path != reverse("assets:reports")
+
+        self.client.force_login(self.user)
+        with patch("core.middleware.acl_allows_path", side_effect=_deny_reports):
+            response = self.client.get(reverse("assets:asset_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        codes = [tile["code"] for tile in response.context["launcher"]]
+        self.assertIn("hub", codes)
+        self.assertNotIn("reports", codes)
+
     def test_asset_list_legacy_category_query_redirects_and_filters(self):
         pressa = AssetCategory.objects.create(code="pressa", label="Pressa", is_active=True)
         forni = AssetCategory.objects.create(code="forni", label="Forni", is_active=True)
@@ -8312,6 +8377,39 @@ class PlantLayoutOpenTicketsTests(TestCase):
         from assets.views import _open_tickets_by_asset
 
         self.assertEqual(_open_tickets_by_asset([]), {})
+
+    def test_stato_macchine_sulla_mappa_dal_piu_grave(self):
+        from assets.models import MaintenanceInterventionTemplate, MaintenanceOccurrence
+        from assets.views import _plant_layout_public_payload
+
+        today = timezone.localdate()
+        plan = MaintenanceInterventionTemplate.objects.create(code="map-alert", label="Controllo")
+        tornio = Asset.objects.create(name="Tornio", asset_type=Asset.TYPE_WORK_MACHINE, reparto="TRN")
+        fresa = Asset.objects.create(name="Fresa", asset_type=Asset.TYPE_WORK_MACHINE, reparto="TRN")
+        pressa = Asset.objects.create(name="Pressa", asset_type=Asset.TYPE_WORK_MACHINE, reparto="TRN")
+        sega = Asset.objects.create(name="Sega", asset_type=Asset.TYPE_WORK_MACHINE, reparto="TRN")
+        Ticket.objects.create(titolo="Guasto", stato=StatoTicket.APERTA, asset=tornio)
+        MaintenanceOccurrence.objects.create(plan=plan, asset=tornio, due_date=today - timedelta(days=3))
+        MaintenanceOccurrence.objects.create(plan=plan, asset=fresa, due_date=today - timedelta(days=1))
+        WorkOrder.objects.create(asset=pressa, title="Cambio olio")
+        MaintenanceOccurrence.objects.create(plan=plan, asset=sega, due_date=today + timedelta(days=5), warning_days=10)
+        with _workspace_temporary_directory("assets-map-alert-") as tmpdir, override_settings(MEDIA_ROOT=Path(tmpdir)):
+            layout = PlantLayout.objects.create(category="Officina", name="Officina", image=_valid_png_upload(), is_active=True)
+            PlantLayoutArea.objects.create(layout=layout, name="Torni", reparto_code="TRN")
+            for index, asset in enumerate((tornio, fresa, pressa, sega)):
+                PlantLayoutMarker.objects.create(layout=layout, asset=asset, x_percent=10 + index, y_percent=10)
+            payload = _plant_layout_public_payload(layout)
+
+        by_asset = {m["asset_id"]: m for m in payload["markers"]}
+        # il ticket vince sulla manutenzione scaduta dello stesso tornio
+        self.assertEqual(by_asset[tornio.id]["alert"], "ticket")
+        self.assertEqual(by_asset[fresa.id]["alert"], "overdue")
+        self.assertEqual(by_asset[pressa.id]["alert"], "workorder")
+        self.assertEqual(by_asset[pressa.id]["machine"]["workorders"][0]["titolo"], "Cambio olio")
+        self.assertEqual(by_asset[sega.id]["alert"], "due_soon")
+        self.assertEqual(payload["alert_counts"]["ticket"], 1)
+        self.assertEqual(payload["areas"][0]["alert_count"], 4)
+        self.assertNotIn("machine_catalog", payload)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

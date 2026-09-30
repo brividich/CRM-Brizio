@@ -173,19 +173,8 @@ body.theme-dark .tkt-sicurezza-alert { background:rgba(220,38,38,.12); border-co
         {% endif %}
       </div>
 
-      <!-- Allegati -->
-      {% if allegati %}
-      <div class="tkt-card">
-        <div class="tkt-card-title">Allegati ({{ allegati.count }})</div>
-        {% for a in allegati %}
-        <div class="tkt-allegato-item">
-          <span>📎</span>
-          <span class="tkt-allegato-name">{{ a.nome_originale }}</span>
-          <a href="{% url 'tickets:download_allegato' a.pk %}" class="tkt-allegato-link">Scarica</a>
-        </div>
-        {% endfor %}
-      </div>
-      {% endif %}
+      <!-- Allegati: elenco, stato di validazione e caricamento -->
+      {% include "tickets/components/allegati_card.html" with can_validate=is_gestore can_upload=True %}
 
       <!-- Commenti -->
       <div class="tkt-card">

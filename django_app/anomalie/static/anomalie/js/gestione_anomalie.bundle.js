@@ -63,6 +63,8 @@ const peopleMatchCurrentUser = rawPeople => {
 const QUERY_PARAMS = new URLSearchParams(window.location.search || "");
 const INITIAL_FILTER = normalizeChoice(QUERY_PARAMS.get("filter")).toLowerCase();
 const ACTIVE_FILTER = ["aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "";
+// ?op=<titolo OP>: arrivo da un promemoria in dashboard o da una mail -> preseleziona l'OP.
+const INITIAL_OP = normalizeChoice(QUERY_PARAMS.get("op")).toLowerCase();
 const canUserEditOp = (opCapocommessa, opCar) => {
   if (IS_ADMIN) return true;
   if (ACCESS_CONTEXT.can_edit_all) return true;
@@ -405,7 +407,7 @@ const TimelineOp = ({
       display: "flex",
       gap: 10,
       padding: "8px 0",
-      borderBottom: "1px solid #f1f5f9"
+      borderBottom: "1px solid var(--border)"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -458,6 +460,486 @@ const TimelineOp = ({
       marginTop: 2
     }
   }, it.note))))));
+};
+
+// --- Scheda qualita' della singola anomalia (classificazione, NC dell'OP, proposta AI) ---
+// Consuma /api/anomalie/qualita (GET crea la scheda al primo accesso) e
+// /api/anomalie/qualita/copilota (proposta AI, non salva nulla).
+const GRAVITA_COLORS = {
+  MINORE: {
+    bg: "var(--success-bg)",
+    fg: "var(--success)"
+  },
+  MAGGIORE: {
+    bg: "var(--warning-bg)",
+    fg: "var(--warning)"
+  },
+  CRITICA: {
+    bg: "var(--danger-bg)",
+    fg: "var(--danger)"
+  }
+};
+const qInputStyle = enabled => ({
+  width: "100%",
+  padding: "8px 12px",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  color: "var(--text)",
+  background: enabled ? "var(--surface)" : "var(--bg)",
+  outline: "none",
+  cursor: enabled ? "auto" : "not-allowed",
+  opacity: enabled ? 1 : 0.8
+});
+const SCHEDA_FIELDS = ["origine", "tipo_difetto", "gravita", "reparto", "quantita_nc", "quantita_scartata", "disposizione"];
+const SchedaQualita = ({
+  localId,
+  canEdit,
+  reloadKey,
+  isMobile
+}) => {
+  const [scheda, setScheda] = useState(null);
+  const [scelte, setScelte] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [ai, setAi] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [serverCanEdit, setServerCanEdit] = useState(false);
+  const toDraft = s => {
+    const d = {};
+    SCHEDA_FIELDS.forEach(k => {
+      d[k] = s && s[k] != null ? String(s[k]) : "";
+    });
+    return d;
+  };
+  useEffect(() => {
+    setAi(null);
+    setMsg(null);
+    if (!localId || !API.qualita) {
+      setScheda(null);
+      return;
+    }
+    let alive = true;
+    setLoading(true);
+    fetch(`${API.qualita}?local_id=${encodeURIComponent(localId)}`, {
+      credentials: "same-origin"
+    }).then(r => readJsonOrThrow(r, "Scheda qualità")).then(d => {
+      if (!alive) return;
+      if (!d.success) throw new Error(d.error || "Scheda non disponibile");
+      setScheda(d.scheda);
+      setScelte(d.scelte);
+      setDraft(toDraft(d.scheda));
+      setServerCanEdit(!!d.can_edit);
+    }).catch(e => {
+      if (alive) {
+        setScheda(null);
+        setMsg({
+          ok: false,
+          text: e.message
+        });
+      }
+    }).finally(() => {
+      if (alive) setLoading(false);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [localId, reloadKey]);
+
+  // Tipi difetto raggruppati per famiglia (optgroup). Hook PRIMA di ogni return.
+  const famiglie = useMemo(() => {
+    const out = [];
+    (scelte && scelte.tipi_difetto || []).forEach(t => {
+      const fam = t.famiglia || "Altro";
+      let g = out.find(x => x.fam === fam);
+      if (!g) {
+        g = {
+          fam,
+          items: []
+        };
+        out.push(g);
+      }
+      g.items.push(t);
+    });
+    return out;
+  }, [scelte]);
+  if (!localId) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "text-sm",
+      style: {
+        marginTop: 20,
+        padding: "12px 14px",
+        border: "1px dashed var(--border)",
+        borderRadius: 10,
+        color: "var(--text-light)"
+      }
+    }, "Scheda qualit\xE0: disponibile dopo il primo salvataggio della segnalazione.");
+  }
+  const editable = canEdit && serverCanEdit && !!scheda;
+  const dirty = scheda && SCHEDA_FIELDS.some(k => (draft[k] || "") !== (scheda[k] != null ? String(scheda[k]) : ""));
+  const set = k => e => setDraft(prev => ({
+    ...prev,
+    [k]: e.target.value
+  }));
+  const flash = m => {
+    setMsg(m);
+    setTimeout(() => setMsg(null), 4000);
+  };
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body = {
+        local_id: localId
+      };
+      SCHEDA_FIELDS.forEach(k => {
+        body[k] = draft[k] === "" ? null : draft[k];
+      });
+      const r = await fetch(API.qualita, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: JSON.stringify(body)
+      });
+      const d = await readJsonOrThrow(r, "Salvataggio scheda qualità");
+      if (!d.success) throw new Error(d.error || "Salvataggio non riuscito");
+      setScheda(d.scheda);
+      setDraft(toDraft(d.scheda));
+      flash({
+        ok: true,
+        text: "Scheda salvata"
+      });
+    } catch (e) {
+      flash({
+        ok: false,
+        text: e.message
+      });
+    }
+    setSaving(false);
+  };
+  const askAi = async () => {
+    setAiLoading(true);
+    setAi(null);
+    try {
+      const r = await fetch(API.qualita_copilota, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: JSON.stringify({
+          local_id: localId
+        })
+      });
+      const d = await readJsonOrThrow(r, "Proposta AI");
+      if (!r.ok || !d.success) throw new Error(d.error || "Proposta non disponibile");
+      setAi(d.proposta);
+    } catch (e) {
+      flash({
+        ok: false,
+        text: e.message
+      });
+    }
+    setAiLoading(false);
+  };
+  const applyAi = () => {
+    if (!ai) return;
+    setDraft(prev => ({
+      ...prev,
+      tipo_difetto: ai.tipo_difetto != null ? String(ai.tipo_difetto) : prev.tipo_difetto,
+      gravita: ai.gravita || prev.gravita
+    }));
+  };
+  const label = (list, value) => {
+    const hit = (list || []).find(o => String(o.value) === String(value));
+    return hit ? hit.label : "";
+  };
+  const nc = scheda && scheda.nc;
+  const grav = GRAVITA_COLORS[draft.gravita] || null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 20,
+      border: "1px solid var(--border)",
+      borderRadius: 12,
+      background: "var(--surface)",
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      flexWrap: "wrap",
+      padding: "12px 16px",
+      background: "var(--bg)",
+      borderBottom: "1px solid var(--border)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-sm font-semibold",
+    style: {
+      fontWeight: 700,
+      color: "var(--text)"
+    }
+  }, "Scheda qualit\xE0"), grav && /*#__PURE__*/React.createElement("span", {
+    className: "text-2xs font-semibold",
+    style: {
+      padding: "2px 8px",
+      borderRadius: 99,
+      background: grav.bg,
+      color: grav.fg,
+      fontWeight: 700,
+      textTransform: "uppercase"
+    }
+  }, label(scelte && scelte.gravita, draft.gravita)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: "auto"
+    }
+  }), nc && /*#__PURE__*/React.createElement("a", {
+    href: nc.url || "#",
+    target: "_blank",
+    rel: "noopener",
+    className: "text-xs font-semibold",
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "3px 10px",
+      borderRadius: 99,
+      textDecoration: "none",
+      fontWeight: 700,
+      background: nc.chiusa ? "var(--success-bg)" : "var(--warning-bg)",
+      color: nc.chiusa ? "var(--success)" : "var(--warning)"
+    },
+    title: "Non conformit\xE0 dell'OP: contenimento, analisi, azioni e verifica"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: "ui-monospace,monospace"
+    }
+  }, nc.protocollo), " \xB7 ", nc.stato_label)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "14px 16px"
+    }
+  }, loading ? /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: "var(--text-light)"
+    }
+  }, "Caricamento scheda\u2026") : !scheda ? /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: "var(--danger)"
+    }
+  }, msg && msg.text || "Scheda non disponibile.") : /*#__PURE__*/React.createElement(React.Fragment, null, scheda.part_number && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs",
+    style: {
+      color: "var(--text-light)",
+      marginBottom: 10
+    }
+  }, "P/N registrato: ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: "ui-monospace,monospace",
+      color: "var(--text-mid)"
+    }
+  }, scheda.part_number)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0,1fr))",
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      gridColumn: isMobile ? "auto" : "span 2"
+    }
+  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Tipo difetto"), /*#__PURE__*/React.createElement("select", {
+    value: draft.tipo_difetto || "",
+    onChange: set("tipo_difetto"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 da classificare \u2014"), famiglie.map(g => /*#__PURE__*/React.createElement("optgroup", {
+    key: g.fam,
+    label: g.fam
+  }, g.items.map(t => /*#__PURE__*/React.createElement("option", {
+    key: t.value,
+    value: String(t.value)
+  }, t.label)))), draft.tipo_difetto && !(scelte && scelte.tipi_difetto || []).some(t => String(t.value) === draft.tipo_difetto) && /*#__PURE__*/React.createElement("option", {
+    value: draft.tipo_difetto
+  }, scheda.tipo_difetto_label || "Tipo disattivato"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Gravit\xE0"), /*#__PURE__*/React.createElement("select", {
+    value: draft.gravita || "",
+    onChange: set("gravita"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 da valutare \u2014"), (scelte && scelte.gravita || []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.value,
+    value: o.value
+  }, o.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Origine"), /*#__PURE__*/React.createElement("select", {
+    value: draft.origine || "",
+    onChange: set("origine"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014"), (scelte && scelte.origini || []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.value,
+    value: o.value
+  }, o.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Reparto"), /*#__PURE__*/React.createElement("select", {
+    value: draft.reparto || "",
+    onChange: set("reparto"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014"), (scelte && scelte.reparti || []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.value,
+    value: String(o.value)
+  }, o.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Decisione sul materiale"), /*#__PURE__*/React.createElement("select", {
+    value: draft.disposizione || "",
+    onChange: set("disposizione"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }, (scelte && scelte.disposizioni || []).map(o => /*#__PURE__*/React.createElement("option", {
+    key: o.value,
+    value: o.value
+  }, o.label))), scheda.disposizione_auto && !dirty && /*#__PURE__*/React.createElement("div", {
+    className: "text-2xs",
+    style: {
+      color: "var(--text-light)",
+      marginTop: 4
+    }
+  }, "Dedotta da RDC/avanzamento: cambiala se serve.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Q.t\xE0 non conforme"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    value: draft.quantita_nc || "",
+    onChange: set("quantita_nc"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Q.t\xE0 scartata"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    min: "0",
+    value: draft.quantita_scartata || "",
+    onChange: set("quantita_scartata"),
+    disabled: !editable,
+    style: qInputStyle(editable)
+  }))), ai && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 14,
+      padding: "12px 14px",
+      borderRadius: 10,
+      border: "1px solid var(--border)",
+      background: "var(--bg)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
+      marginBottom: 6
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xs font-semibold",
+    style: {
+      fontWeight: 700,
+      color: "var(--text)",
+      textTransform: "uppercase",
+      letterSpacing: "0.05em"
+    }
+  }, "Proposta ", ai.fonte === "simili" ? "dai casi simili" : "AI"), !ai.ai_disponibile && /*#__PURE__*/React.createElement("span", {
+    className: "text-2xs",
+    style: {
+      color: "var(--text-light)"
+    }
+  }, "AI non raggiungibile"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: "auto"
+    }
+  }), editable && (ai.tipo_difetto != null || ai.gravita) && /*#__PURE__*/React.createElement(IconBtn, {
+    onClick: applyAi,
+    title: "Copia tipo difetto e gravit\xE0 nel form (poi salva)"
+  }, "Applica al form")), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: "var(--text-mid)",
+      display: "grid",
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("div", null, "Tipo difetto: ", /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: "var(--text)"
+    }
+  }, label(scelte && scelte.tipi_difetto, ai.tipo_difetto) || "—"), " · ", "Gravit\xE0: ", /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: "var(--text)"
+    }
+  }, label(scelte && scelte.gravita, ai.gravita) || "—")), ai.causa_probabile && /*#__PURE__*/React.createElement("div", null, "Causa probabile (da verificare): ", ai.causa_probabile), ai.motivazione && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "var(--text-light)"
+    }
+  }, ai.motivazione)), Array.isArray(ai.simili) && ai.simili.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-2xs font-semibold",
+    style: {
+      color: "var(--text-light)",
+      textTransform: "uppercase",
+      letterSpacing: "0.05em",
+      marginBottom: 4
+    }
+  }, "Casi simili"), ai.simili.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.anomalia_id || c.protocollo,
+    className: "text-xs",
+    style: {
+      color: "var(--text-mid)",
+      padding: "3px 0",
+      borderTop: "1px solid var(--border)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: "ui-monospace,monospace",
+      color: "var(--text)"
+    }
+  }, c.protocollo), " · ", c.tipo_difetto_label, c.part_number ? ` · P/N ${c.part_number}` : "", " \u2014 ", c.descrizione)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 14,
+      flexWrap: "wrap"
+    }
+  }, msg && /*#__PURE__*/React.createElement("span", {
+    className: "text-sm font-semibold",
+    style: {
+      color: msg.ok ? "var(--success)" : "var(--danger)",
+      fontWeight: 600
+    }
+  }, msg.text), !msg && aiLoading && /*#__PURE__*/React.createElement("span", {
+    className: "text-sm",
+    style: {
+      color: "var(--text-light)"
+    }
+  }, "L'AI sta analizzando la segnalazione: pu\xF2 servire anche un minuto."), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: "auto"
+    }
+  }), editable && API.qualita_copilota && /*#__PURE__*/React.createElement(IconBtn, {
+    onClick: askAi,
+    disabled: aiLoading,
+    title: "Proposta di tipo difetto, gravit\xE0 e causa probabile (non salva nulla)"
+  }, aiLoading ? "Analisi…" : "Proponi con AI"), editable && /*#__PURE__*/React.createElement(IconBtn, {
+    onClick: save,
+    disabled: saving || !dirty,
+    accent: true,
+    title: "Salva la scheda qualit\xE0"
+  }, saving ? "Salvataggio…" : "Salva scheda")))));
 };
 const Toggle = ({
   label,
@@ -520,6 +1002,7 @@ function GestioneAnomalie() {
   const [loadingAttachments, setLoadingAttachments] = useState(false);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
   const [selectedAttachmentId, setSelectedAttachmentId] = useState(null);
+  const [qualitaTick, setQualitaTick] = useState(0); // ricarica la scheda qualita' dopo "Salva"
   const fileInputRef = useRef(null);
 
   // â"€â"€ Selezione e ricerca â"€â"€
@@ -662,6 +1145,18 @@ function GestioneAnomalie() {
     if (selectedOp < filteredOrdini.length) return;
     setSelectedOp(0);
   }, [filteredOrdini.length, selectedOp]);
+
+  // Preselezione da ?op= (una sola volta, al primo caricamento degli ordini).
+  const initialOpApplied = useRef(false);
+  useEffect(() => {
+    if (initialOpApplied.current || !INITIAL_OP || !filteredOrdini.length) return;
+    initialOpApplied.current = true;
+    const idx = filteredOrdini.findIndex(o => String(o.id || "").trim().toLowerCase() === INITIAL_OP);
+    if (idx >= 0) {
+      setSelectedOp(idx);
+      if (isMobile) setMobilePanel("serie");
+    }
+  }, [filteredOrdini]);
   useEffect(() => {
     if (selectedSn < filteredSeriali.length) return;
     setSelectedSn(0);
@@ -814,11 +1309,12 @@ function GestioneAnomalie() {
         setCurrentLocalId(newLocalId || null);
         setSaveMsg({
           ok: true,
-          text: "Salvato"
+          text: data.protocollo ? `Salvato · ${data.protocollo}` : "Salvato"
         });
         if (newLocalId) {
           loadAttachments(newLocalId);
         }
+        setQualitaTick(n => n + 1);
         // Optimistic update: aggiorna lo stato locale senza re-fetch
         const updatedRecord = {
           item_id: newItemId,
@@ -1158,7 +1654,24 @@ function GestioneAnomalie() {
     viewBox: "0 0 24 24"
   }, /*#__PURE__*/React.createElement("path", {
     d: "M12 5v14m-7-7h14"
-  }))), saveMsg && !isMobile && /*#__PURE__*/React.createElement("span", {
+  }))), !isMobile && API.nc_lista && /*#__PURE__*/React.createElement("a", {
+    className: "text-base font-semibold",
+    href: API.nc_lista,
+    title: "Non conformit\xE0 per OP",
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      background: "rgba(255,255,255,.08)",
+      border: "1px solid rgba(255,255,255,.12)",
+      borderRadius: 8,
+      padding: "7px 16px",
+      color: "#e2e8f0",
+      fontWeight: 600,
+      textDecoration: "none",
+      whiteSpace: "nowrap"
+    }
+  }, "Non conformit\xE0"), saveMsg && !isMobile && /*#__PURE__*/React.createElement("span", {
     className: "text-base font-medium",
     style: {
       fontWeight: 500,
@@ -1351,7 +1864,7 @@ function GestioneAnomalie() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      borderRight: isMobile ? "none" : "1px solid #e2e8f0",
+      borderRight: isMobile ? "none" : "1px solid var(--border)",
       background: "var(--surface)",
       display: isMobile && mobilePanel !== "ordini" ? "none" : "flex",
       flexDirection: "column",
@@ -1446,11 +1959,11 @@ function GestioneAnomalie() {
     style: {
       width: "100%",
       padding: "9px 12px 9px 32px",
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 8,
       outline: "none",
-      background: "#f8fafc",
-      color: "#334155"
+      background: "var(--bg)",
+      color: "var(--text)"
     },
     onFocus: e => e.target.style.borderColor = "rgba(249,115,22,.5)",
     onBlur: e => e.target.style.borderColor = "var(--border)"
@@ -1501,7 +2014,7 @@ function GestioneAnomalie() {
     className: "text-md font-bold",
     style: {
       fontWeight: 700,
-      color: "#0f172a"
+      color: "var(--text)"
     }
   }, o.id), o.stato && /*#__PURE__*/React.createElement(StatusBadge, {
     text: o.stato,
@@ -1547,7 +2060,7 @@ function GestioneAnomalie() {
       gap: 6,
       marginTop: 10,
       paddingTop: 10,
-      borderTop: "1px solid #e2e8f0"
+      borderTop: "1px solid var(--border)"
     }
   }, /*#__PURE__*/React.createElement(IconBtn, {
     accent: true,
@@ -1592,7 +2105,7 @@ function GestioneAnomalie() {
   })), "Duplica"))))), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "12px 16px",
-      borderTop: "1px solid #e2e8f0",
+      borderTop: "1px solid var(--border)",
       display: "flex",
       gap: 8
     }
@@ -1615,9 +2128,9 @@ function GestioneAnomalie() {
     style: {
       flex: 1,
       padding: "9px",
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 8,
-      background: "#fff",
+      background: "var(--surface)",
       color: "var(--text-mid)",
       fontWeight: 500,
       cursor: "pointer"
@@ -1641,7 +2154,7 @@ function GestioneAnomalie() {
       padding: "10px 14px",
       background: "none",
       border: "none",
-      borderBottom: "1px solid #f1f5f9",
+      borderBottom: "1px solid var(--border)",
       color: "var(--primary-mid)",
       fontWeight: 600,
       cursor: "pointer",
@@ -1700,11 +2213,11 @@ function GestioneAnomalie() {
     style: {
       width: "100%",
       padding: "9px 12px 9px 32px",
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 8,
       outline: "none",
-      background: "#fff",
-      color: "#334155"
+      background: "var(--surface)",
+      color: "var(--text)"
     },
     onFocus: e => e.target.style.borderColor = "rgba(249,115,22,.5)",
     onBlur: e => e.target.style.borderColor = "var(--border)"
@@ -1905,7 +2418,7 @@ function GestioneAnomalie() {
       padding: "10px 14px",
       background: "none",
       border: "none",
-      borderBottom: "1px solid #f1f5f9",
+      borderBottom: "1px solid var(--border)",
       color: "var(--primary-mid)",
       fontWeight: 600,
       cursor: "pointer",
@@ -1923,7 +2436,7 @@ function GestioneAnomalie() {
   })), "S/N \u2014 ", sn.sn || "lista"), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: isMobile ? "12px 16px" : "20px 24px 16px",
-      borderBottom: "1px solid #f1f5f9",
+      borderBottom: "1px solid var(--border)",
       background: "var(--surface)"
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -1937,13 +2450,13 @@ function GestioneAnomalie() {
     className: "text-md font-semibold",
     style: {
       fontWeight: 600,
-      color: "#0f172a"
+      color: "var(--text)"
     }
   }, op.capo || '\u2014')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "CAR"), /*#__PURE__*/React.createElement("div", {
     className: "text-md font-medium",
     style: {
       fontWeight: 500,
-      color: "#334155"
+      color: "var(--text)"
     }
   }, op.car || '\u2014')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "S/N selezionato"), /*#__PURE__*/React.createElement("div", {
     className: "text-md font-medium",
@@ -1962,7 +2475,7 @@ function GestioneAnomalie() {
       display: "inline-block",
       padding: "4px 12px",
       borderRadius: 6,
-      background: "#f1f5f9",
+      background: "var(--bg)",
       fontWeight: 700,
       color: "var(--text)",
       fontFamily: "ui-monospace,monospace"
@@ -1974,7 +2487,7 @@ function GestioneAnomalie() {
       gap: 16,
       marginTop: 12,
       paddingTop: 12,
-      borderTop: "1px solid #f1f5f9"
+      borderTop: "1px solid var(--border)"
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "P/N"), /*#__PURE__*/React.createElement("span", {
     className: "text-base",
@@ -1993,7 +2506,7 @@ function GestioneAnomalie() {
     style: {
       marginTop: 14,
       paddingTop: 14,
-      borderTop: "1px solid #f1f5f9"
+      borderTop: "1px solid var(--border)"
     }
   }, /*#__PURE__*/React.createElement(FieldLabel, null, "Avanzamento"), /*#__PURE__*/React.createElement(StatoStepper, {
     avanzamento: sn.avanzamento,
@@ -2199,7 +2712,7 @@ function GestioneAnomalie() {
     }
   }, "Nessun allegato. Formati ammessi: immagini, PDF, Word, Excel.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 10,
       background: "var(--primary)",
       overflow: "hidden",
@@ -2295,7 +2808,7 @@ function GestioneAnomalie() {
         height: 54,
         borderRadius: 8,
         objectFit: "cover",
-        border: "1px solid #e2e8f0"
+        border: "1px solid var(--border)"
       }
     }) : /*#__PURE__*/React.createElement("div", {
       className: "text-xs font-bold",
@@ -2303,8 +2816,8 @@ function GestioneAnomalie() {
         width: 54,
         height: 54,
         borderRadius: 8,
-        border: "1px solid #e2e8f0",
-        background: "#f8fafc",
+        border: "1px solid var(--border)",
+        background: "var(--bg)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -2319,7 +2832,7 @@ function GestioneAnomalie() {
       className: "text-base font-semibold",
       title: file.name,
       style: {
-        color: "#0f172a",
+        color: "var(--text)",
         fontWeight: 600,
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -2328,7 +2841,7 @@ function GestioneAnomalie() {
     }, file.name), /*#__PURE__*/React.createElement("div", {
       className: "text-xs",
       style: {
-        color: "#64748b",
+        color: "var(--text-mid)",
         marginTop: 2
       }
     }, formatBytes(file.size), " \u2022 ", file.mime_type || "file")), /*#__PURE__*/React.createElement("div", {
@@ -2365,15 +2878,20 @@ function GestioneAnomalie() {
     style: {
       width: "100%",
       padding: "9px 14px",
-      border: "1px solid #e2e8f0",
+      border: "1px solid var(--border)",
       borderRadius: 8,
       outline: "none",
-      color: "#334155",
-      background: canEditCurrentOp ? "#fff" : "#f1f5f9"
+      color: "var(--text)",
+      background: canEditCurrentOp ? "var(--surface)" : "var(--bg)"
     },
     onFocus: e => e.target.style.borderColor = "#93c5fd",
     onBlur: e => e.target.style.borderColor = "#e2e8f0"
-  })))), op.id && op.id !== '—' && /*#__PURE__*/React.createElement(TimelineOp, {
+  })))), sn.sn && /*#__PURE__*/React.createElement(SchedaQualita, {
+    localId: currentLocalId,
+    canEdit: canEditCurrentOp,
+    reloadKey: qualitaTick,
+    isMobile: isMobile
+  }), op.id && op.id !== '—' && /*#__PURE__*/React.createElement(TimelineOp, {
     opId: op.id,
     opItemId: op.item_id
   })))), isMobile && saveMsg && /*#__PURE__*/React.createElement("div", {

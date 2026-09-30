@@ -1429,6 +1429,167 @@ class TopnavUnifiedSearchTests(TestCase):
         self.assertNotIn('class="logout-a"', html)
 
 
+class TopbarGroupingTests(SimpleTestCase):
+    def _item(self, label, group="", cat="c1", **kw):
+        from core.context_processors import NavItem
+
+        return NavItem(
+            label=label, legacy_url="", href=kw.get("href", f"/{label.lower()}/"), active=False, coming=False,
+            modulo="", codice=kw.get("codice", label.lower()), group=group, order_hint=kw.get("order", 10),
+            category_key=cat, category_label=cat.upper() if cat else "", category_order=kw.get("cat_order", 10),
+        )
+
+    def test_sections_only_with_two_distinct_subgroups(self):
+        from core.context_processors import _group_nav_items
+
+        grouped = _group_nav_items([self._item("A", "Uno"), self._item("B", "Uno"), self._item("C", "Due")])
+        self.assertEqual([s["label"] for s in grouped[0]["sections"]], ["Uno", "Due"])
+        self.assertEqual(grouped[0]["cols"], 1)
+        single = _group_nav_items([self._item("A", "Uno"), self._item("B", "Uno")])
+        self.assertEqual(single[0]["sections"], [])
+
+    def test_columns_when_more_than_six_items(self):
+        from core.context_processors import _group_nav_items
+
+        items = [self._item(f"V{i}", "Uno" if i < 4 else "Due") for i in range(7)]
+        self.assertEqual(_group_nav_items(items)[0]["cols"], 2)
+
+    def test_dashboard_marked_as_home(self):
+        from core.context_processors import _group_nav_items
+
+        grouped = _group_nav_items([
+            self._item("Dashboard", cat="", codice="dashboard", order=-1000),
+            self._item("Tickets", cat="", order=20),
+        ])
+        self.assertEqual([g["is_home"] for g in grouped], [True, False])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class NavSubcategoriesRenderTests(TestCase):
+    """Le sottocategorie (NavigationItem.group) si vedono sia in topnav sia in sidebar."""
+
+    def setUp(self):
+        from core.models import ModuleCategory, NavigationItem
+
+        cat = ModuleCategory.objects.create(key="probe-cat", label="Area prova", order=1)
+        for code, group, order, route in (
+            ("probe-a", "Primo blocco", 1, "profilo"), ("probe-b", "Secondo blocco", 2, "ui_prefs_page"),
+        ):
+            NavigationItem.objects.create(
+                code=code, label=code.upper(), section="topbar", route_name=route,
+                order=order, category=cat, group=group,
+            )
+        self.user = get_user_model().objects.create_superuser(username="nav-sub", password="pass12345")
+        # Il menu compilato sta in cache e sopravvive al rollback dei test precedenti.
+        cache.clear()
+
+    def _html(self, nav_mode):
+        from core.models import UserUiPreference
+
+        UserUiPreference.objects.update_or_create(user=self.user, defaults={"nav_mode": nav_mode})
+        self.client.force_login(self.user)
+        return self.client.get(reverse("ui_prefs_page")).content.decode()
+
+    def test_topnav_shows_subcategory_headings(self):
+        html = self._html("top")
+        self.assertIn('class="nav-dd-head" aria-hidden="true">Primo blocco<', html)
+        self.assertIn('class="nav-dd-head" aria-hidden="true">Secondo blocco<', html)
+
+    def test_sidebar_shows_subcategory_headings(self):
+        html = self._html("side")
+        i = html.find('data-key="probe')
+        print("DEBUG-SB", html[i:i + 1500].replace("\n", " "))
+        self.assertIn('class="sb-subcat" role="presentation">Primo blocco<', html)
+        self.assertIn('class="sb-subcat" role="presentation">Secondo blocco<', html)
+
+
+class EnsureNavigationItemTests(TestCase):
+    def test_existing_item_keeps_user_fields_and_realigns_code_fields(self):
+        from core.models import NavigationItem
+        from core.navigation_registry import ensure_navigation_item
+
+        defaults = {"label": "Modulo", "section": "topbar", "route_name": "dashboard_home", "order": 40, "is_visible": True}
+        item, changed = ensure_navigation_item("probe-ensure", defaults)
+        self.assertTrue(changed)
+        # L'utente (Navigation Builder / riorganizza_topbar) personalizza la voce...
+        NavigationItem.objects.filter(pk=item.pk).update(label="Mio nome", order=5, is_visible=False, route_name="old")
+        # ...e il bootstrap al riavvio non deve annullarlo, ma riallinea la route.
+        item, changed = ensure_navigation_item("probe-ensure", defaults)
+        item.refresh_from_db()
+        self.assertTrue(changed)
+        self.assertEqual((item.label, item.order, item.is_visible, item.route_name), ("Mio nome", 5, False, "dashboard_home"))
+        self.assertFalse(ensure_navigation_item("probe-ensure", defaults)[1])
+
+
+class RiorganizzaTopbarCommandTests(TestCase):
+    def setUp(self):
+        from core.models import ModuleCategory, NavigationItem
+
+        hr = ModuleCategory.objects.filter(label="HR").first() or ModuleCategory.objects.create(key="hr-t", label="HR")
+        NavigationItem.objects.filter(code__in=["tickets", "assenze"]).delete()
+        NavigationItem.objects.create(
+            code="tickets", label="Tickets", section="topbar", route_name="tickets:dashboard", order=10, category=hr,
+        )
+        NavigationItem.objects.create(
+            code="assenze", label="Assenze", section="topbar", route_name="assenze_gestione", order=10, category=hr,
+        )
+
+    def _run(self, *args):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("riorganizza_topbar", *args, stdout=out)
+        return out.getvalue()
+
+    def test_dry_run_writes_nothing(self):
+        from core.models import ModuleCategory, NavigationItem
+
+        before = (ModuleCategory.objects.count(), NavigationItem.objects.count())
+        out = self._run()
+        self.assertIn("DRY-RUN", out)
+        self.assertEqual(before, (ModuleCategory.objects.count(), NavigationItem.objects.count()))
+        self.assertFalse(ModuleCategory.objects.filter(key="per-me").exists())
+        self.assertEqual(NavigationItem.objects.get(code="tickets").category.label, "HR")
+
+    def test_apply_moves_items_and_is_idempotent(self):
+        from core.models import ModuleCategory, NavigationItem
+
+        self._run("--apply")
+        per_me = ModuleCategory.objects.get(key="per-me")
+        assenze = NavigationItem.objects.get(code="assenze")
+        self.assertEqual((assenze.category_id, assenze.group, assenze.label), (per_me.pk, "Richieste", "Le mie assenze"))
+        tickets = NavigationItem.objects.get(code="tickets")
+        self.assertIsNone(tickets.category_id)
+        self.assertTrue(ModuleCategory.objects.filter(label="Persone").exists())
+        self.assertFalse(ModuleCategory.objects.filter(label="HR").exists())
+        self.assertTrue(NavigationItem.objects.filter(code="per-me-richiedi-dpi", route_name="dpi:nuova").exists())
+        # La gestione HR non eredita assenze.route.view (= tutti): permesso admin esplicito.
+        hr_item = NavigationItem.objects.get(code="persone-assenze-hr")
+        self.assertEqual(hr_item.required_permission_code, "legacy.assenze.admin_assenze")
+        # Le voci-modulo prendono il nome dal branding: impostato se vuoto.
+        from core.models import SiteConfig
+
+        self.assertEqual(SiteConfig.get("module_branding.assenze.menu_label"), "Le mie assenze")
+
+    def test_every_icon_in_the_spec_resolves_to_an_svg(self):
+        from core.icon_utils import resolve_semantic_icon_name
+        from core.management.commands.riorganizza_topbar import CATEGORIE, VOCI
+
+        icons = [c.icon for c in CATEGORIE] + [v.icon for v in VOCI if v.icon]
+        self.assertEqual([i for i in icons if not resolve_semantic_icon_name(i)], [])
+
+    def test_apply_keeps_customised_branding(self):
+        from core.models import SiteConfig
+
+        SiteConfig.set("module_branding.assenze.menu_label", "Ferie e permessi")
+        out = self._run("--apply")
+        self.assertEqual(SiteConfig.get("module_branding.assenze.menu_label"), "Ferie e permessi")
+        self.assertIn("personalizzato", out)
+        self.assertIn("Modifiche applicate: 0", self._run("--apply"))
+
+
 class NavigationRegistryBrandingTests(TestCase):
     @override_settings(
         MODULE_BRANDING={

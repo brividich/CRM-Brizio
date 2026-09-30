@@ -14,7 +14,11 @@ from django.db import IntegrityError, models
 from django.utils import timezone
 from django.utils.text import slugify
 
-from .storage import PrivateAssetAdministrativeDeadlineStorage, PrivateAssetDocumentStorage
+from .storage import (
+    PrivateAssetAdministrativeDeadlineStorage,
+    PrivateAssetDocumentStorage,
+    PrivatePeriodicCheckStorage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -3834,3 +3838,598 @@ class MaintenanceOccurrenceAttachment(models.Model):
         super().delete(*args, **kwargs)
         if storage and file_name and storage.exists(file_name):
             storage.delete(file_name)
+
+
+# ---------------------------------------------------------------------------
+# Verifiche periodiche sugli impianti (Manutenzione > Verifiche periodiche)
+# ---------------------------------------------------------------------------
+#
+# Verifiche su un IMPIANTO intero (illuminazione di emergenza, quadri elettrici,
+# impianto di terra, antincendio...), non sul singolo asset: quelle restano in
+# ``AssetAdministrativeDeadline``. Nulla a che vedere con ``PeriodicVerification``
+# (legacy, "Manutenzioni periodiche"): prefisso ``PeriodicCheck`` apposta.
+# Vedi docs/ai/VERIFICHE_PERIODICHE.md.
+
+
+class PeriodicCheckSystem(models.Model):
+    """Impianto verificato periodicamente (es. "Impianto elettrico")."""
+
+    name = models.CharField(max_length=120, unique=True)
+    description = models.CharField(max_length=255, blank=True, default="")
+    # WorkOrder.asset e' obbligatorio: gli OdL nati da una verifica partono da qui.
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_systems",
+        help_text="Asset proposto sugli ordini di lavoro nati dalle verifiche di questo impianto.",
+    )
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name", "id"]
+        verbose_name = "Impianto (verifiche periodiche)"
+        verbose_name_plural = "Impianti (verifiche periodiche)"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class PeriodicCheckCategory(models.Model):
+    """Categoria trasversale agli impianti (es. "Antincendio", "Elettrico", "Di legge"),
+    per filtrare e raggruppare l'elenco delle verifiche."""
+
+    COLOR_CHOICES = [
+        ("blue", "Blu"),
+        ("red", "Rosso"),
+        ("orange", "Arancio"),
+        ("green", "Verde"),
+        ("purple", "Viola"),
+        ("teal", "Petrolio"),
+        ("slate", "Grigio"),
+    ]
+
+    name = models.CharField(max_length=80, unique=True)
+    description = models.CharField(max_length=255, blank=True, default="")
+    color = models.CharField(max_length=12, choices=COLOR_CHOICES, default="blue")
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "name", "id"]
+        verbose_name = "Categoria (verifiche periodiche)"
+        verbose_name_plural = "Categorie (verifiche periodiche)"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+PERIODIC_FREQUENCY_LABELS = {
+    1: "Mensile",
+    2: "Bimestrale",
+    3: "Trimestrale",
+    4: "Quadrimestrale",
+    6: "Semestrale",
+    12: "Annuale",
+    24: "Biennale",
+    36: "Triennale",
+    48: "Quadriennale",
+    60: "Quinquennale",
+}
+
+
+DEFAULT_POINT_CATEGORIES = "Non funzionante" + chr(10) + "Bassa autonomia"
+
+
+class PeriodicCheckType(models.Model):
+    """Tipo di verifica di un impianto: cosa, ogni quanto, chi, come si registra."""
+
+    METHOD_CHECKLIST = "CHECKLIST"
+    METHOD_REPORT = "REPORT"
+    METHOD_LAYOUT = "LAYOUT"
+    METHOD_MEASURES = "MEASURES"
+    METHOD_CHOICES = [
+        (METHOD_CHECKLIST, "Checklist a voci"),
+        (METHOD_REPORT, "Verbale / rapporto esterno"),
+        (METHOD_LAYOUT, "Planimetria a punti"),
+        (METHOD_MEASURES, "Misure per punto"),
+    ]
+
+    system = models.ForeignKey(PeriodicCheckSystem, on_delete=models.PROTECT, related_name="check_types")
+    category = models.ForeignKey(
+        PeriodicCheckCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="check_types",
+    )
+    name = models.CharField(max_length=200)
+    reference_code = models.CharField(
+        max_length=40, blank=True, default="", help_text="Codice del fornitore o interno (es. 005)."
+    )
+    method = models.CharField(max_length=20, choices=METHOD_CHOICES, default=METHOD_REPORT)
+    frequency_months = models.PositiveSmallIntegerField(default=12)
+    warning_days = models.PositiveSmallIntegerField(default=30)
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_types",
+    )
+    executor_label = models.CharField(
+        max_length=120, blank=True, default="", help_text="Chi esegue, se non e' un fornitore in anagrafica."
+    )
+    legal_reference = models.CharField(max_length=200, blank=True, default="")
+    instructions = models.TextField(blank=True, default="")
+    # Cartella d'archivio dei documenti (solo riferimento, per l'import dello storico).
+    archive_folder = models.CharField(max_length=255, blank=True, default="")
+    # Metodo planimetria: cosa puo' avere un punto segnalato, una per riga. La prima
+    # e' il segno a evidenziatore, la seconda il cerchio a penna (legenda del foglio).
+    point_categories = models.TextField(blank=True, default=DEFAULT_POINT_CATEGORIES)
+    next_due_date = models.DateField(null=True, blank=True, db_index=True)
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["system__sort_order", "system__name", "sort_order", "name", "id"]
+        verbose_name = "Tipo di verifica periodica"
+        verbose_name_plural = "Tipi di verifica periodica"
+        constraints = [
+            models.UniqueConstraint(fields=["system", "name"], name="uniq_periodic_check_type_system_name"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def frequency_label(self) -> str:
+        return PERIODIC_FREQUENCY_LABELS.get(self.frequency_months, f"Ogni {self.frequency_months} mesi")
+
+    @property
+    def performer_label(self) -> str:
+        if self.supplier_id:
+            return str(self.supplier)
+        return self.executor_label
+
+    def next_due_from(self, performed_on):
+        return _add_months(performed_on, self.frequency_months)
+
+    @property
+    def category_list(self) -> list[str]:
+        return [c.strip() for c in (self.point_categories or "").splitlines() if c.strip()] or ["Segnalato"]
+
+    @property
+    def active_layout(self):
+        return self.layouts.filter(is_active=True).order_by("-version").first()
+
+
+class PeriodicCheckItem(models.Model):
+    """Voce di checklist di un tipo di verifica (metodo checklist)."""
+
+    check_type = models.ForeignKey(PeriodicCheckType, on_delete=models.CASCADE, related_name="items")
+    label = models.CharField(max_length=200)
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Voce di checklist (verifica periodica)"
+        verbose_name_plural = "Voci di checklist (verifiche periodiche)"
+
+    def __str__(self) -> str:
+        return self.label
+
+
+class PeriodicCheckSession(models.Model):
+    """Una verifica eseguita (un rapportino, un verbale, una checklist compilata)."""
+
+    OUTCOME_OK = "OK"
+    OUTCOME_REMARKS = "REMARKS"
+    OUTCOME_KO = "KO"
+    OUTCOME_ARCHIVE = "ARCHIVE"
+    OUTCOME_CHOICES = [
+        (OUTCOME_OK, "Conforme"),
+        (OUTCOME_REMARKS, "Conforme con rilievi"),
+        (OUTCOME_KO, "Non conforme"),
+        (OUTCOME_ARCHIVE, "Storico"),
+    ]
+    STATUS_ISSUED = "ISSUED"
+    STATUS_DRAFT = "DRAFT"
+    STATUS_CONFIRMED = "CONFIRMED"
+    STATUS_CHOICES = [
+        (STATUS_ISSUED, "Foglio stampato, in attesa della scansione"),
+        (STATUS_DRAFT, "Da confermare"),
+        (STATUS_CONFIRMED, "Confermata"),
+    ]
+    SOURCE_MANUAL = "MANUAL"
+    SOURCE_IMPORT = "IMPORT"
+    SOURCE_PARSER = "PARSER"
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, "Inserita a mano"),
+        (SOURCE_IMPORT, "Importata dallo storico"),
+        (SOURCE_PARSER, "Foglio del portale"),
+    ]
+
+    check_type = models.ForeignKey(PeriodicCheckType, on_delete=models.PROTECT, related_name="sessions")
+    performed_on = models.DateField(db_index=True)
+    technician = models.CharField(max_length=120, blank=True, default="")
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_sessions",
+    )
+    outcome = models.CharField(max_length=10, choices=OUTCOME_CHOICES, default=OUTCOME_OK, db_index=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_CONFIRMED, db_index=True)
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    notes = models.TextField(blank=True, default="")
+    next_due_date = models.DateField(null=True, blank=True)
+    # Import idempotente: percorso relativo del documento d'origine ("" = inserita a mano).
+    import_key = models.CharField(max_length=255, blank=True, default="")
+    # Foglio stampato dal portale: il QR porta questo token, la scansione torna qui.
+    sheet_token = models.CharField(max_length=16, blank=True, default="", db_index=True)
+    layout = models.ForeignKey(
+        "PeriodicCheckLayout", on_delete=models.PROTECT, null=True, blank=True, related_name="sessions"
+    )
+    # Esito della lettura automatica (allineamento, segni trovati): per chi conferma.
+    reading = models.JSONField(default=dict, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_sessions_created",
+    )
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_sessions_confirmed",
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-performed_on", "-id"]
+        verbose_name = "Verifica periodica eseguita"
+        verbose_name_plural = "Verifiche periodiche eseguite"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["import_key"],
+                condition=models.Q(import_key__gt=""),
+                name="uniq_periodic_check_session_import_key",
+            ),
+            models.UniqueConstraint(
+                fields=["sheet_token"],
+                condition=models.Q(sheet_token__gt=""),
+                name="uniq_periodic_check_session_sheet_token",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.check_type} - {self.performed_on:%d/%m/%Y}"
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.status == self.STATUS_CONFIRMED
+
+
+class PeriodicCheckResult(models.Model):
+    """Esito di una voce di checklist o di un rilievo/prescrizione del verbale."""
+
+    KIND_ITEM = "ITEM"
+    KIND_REMARK = "REMARK"
+    KIND_POINT = "POINT"
+    KIND_MEASURE = "MEASURE"
+    KIND_CHOICES = [
+        (KIND_ITEM, "Voce di checklist"),
+        (KIND_REMARK, "Rilievo / prescrizione"),
+        (KIND_POINT, "Punto della planimetria"),
+        (KIND_MEASURE, "Punto misurato"),
+    ]
+    RESULT_OK = "OK"
+    RESULT_KO = "KO"
+    RESULT_NA = "NA"
+    RESULT_CHOICES = [(RESULT_OK, "OK"), (RESULT_KO, "Non OK"), (RESULT_NA, "Non applicabile")]
+
+    session = models.ForeignKey(PeriodicCheckSession, on_delete=models.CASCADE, related_name="results")
+    item = models.ForeignKey(
+        PeriodicCheckItem, on_delete=models.SET_NULL, null=True, blank=True, related_name="results"
+    )
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_ITEM)
+    point = models.ForeignKey(
+        "PeriodicCheckPoint", on_delete=models.PROTECT, null=True, blank=True, related_name="results"
+    )
+    category = models.CharField(max_length=60, blank=True, default="")
+    # Metodo misure: valori per grandezza, {"<id grandezza>": 12.4}; vuoto per gli altri metodi.
+    values = models.JSONField(default=dict, blank=True)
+    label = models.CharField(max_length=255)
+    result = models.CharField(max_length=4, choices=RESULT_CHOICES, default=RESULT_OK)
+    note = models.CharField(max_length=500, blank=True, default="")
+    work_order = models.ForeignKey(
+        WorkOrder, on_delete=models.SET_NULL, null=True, blank=True, related_name="periodic_check_results"
+    )
+    sort_order = models.PositiveIntegerField(default=100)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Esito verifica periodica"
+        verbose_name_plural = "Esiti verifiche periodiche"
+
+    def __str__(self) -> str:
+        return f"{self.label}: {self.result}"
+
+
+def _periodic_check_attachment_upload_to(instance, filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()[:20]
+    stem = slugify(Path(filename or "").stem)[:80] or "documento"
+    stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    token = uuid.uuid4().hex[:8]
+    session_id = getattr(instance, "session_id", None) or "tmp"
+    return f"assets_periodic_checks/{session_id}/{stamp}_{token}_{stem}{suffix}"
+
+
+class PeriodicCheckAttachment(models.Model):
+    """Rapportino, verbale o checklist firmata di una verifica."""
+
+    session = models.ForeignKey(PeriodicCheckSession, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to=_periodic_check_attachment_upload_to, storage=PrivatePeriodicCheckStorage())
+    original_name = models.CharField(max_length=255, blank=True, default="")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="periodic_check_attachments_uploaded",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        verbose_name = "Allegato verifica periodica"
+        verbose_name_plural = "Allegati verifiche periodiche"
+
+    def __str__(self) -> str:
+        return self.original_name or Path(self.file.name).name
+
+    def save(self, *args, **kwargs):
+        if not self.original_name and self.file:
+            self.original_name = Path(self.file.name).name[:255]
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        storage = self.file.storage if self.file else None
+        file_name = self.file.name if self.file else ""
+        super().delete(*args, **kwargs)
+        if storage and file_name and storage.exists(file_name):
+            storage.delete(file_name)
+
+
+def _periodic_layout_upload_to(instance, filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()[:10] or ".pdf"
+    token = uuid.uuid4().hex[:8]
+    return f"assets_periodic_layouts/{instance.check_type_id or 'tmp'}/v{instance.version}_{token}{suffix}"
+
+
+class PeriodicCheckLayout(models.Model):
+    """Planimetria di riferimento (PDF vettoriale) di un tipo di verifica, con versioni.
+
+    Ogni verifica ricorda con quale versione e' stata stampata e letta: se la
+    planimetria cambia, le verifiche passate restano leggibili."""
+
+    check_type = models.ForeignKey(PeriodicCheckType, on_delete=models.CASCADE, related_name="layouts")
+    version = models.PositiveIntegerField(default=1)
+    source_pdf = models.FileField(upload_to=_periodic_layout_upload_to, storage=PrivatePeriodicCheckStorage())
+    original_name = models.CharField(max_length=255, blank=True, default="")
+    page_index = models.PositiveSmallIntegerField(default=0)
+    # Zone della planimetria coperte sul foglio e ignorate nella lettura (es. il vecchio
+    # cartiglio "non funzionanti / bassa autonomia"): [[x0, y0, x1, y1], ...] in punti PDF.
+    exclude_areas = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    notes = models.CharField(max_length=255, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["check_type_id", "-version"]
+        verbose_name = "Planimetria di verifica periodica"
+        verbose_name_plural = "Planimetrie di verifica periodica"
+        constraints = [
+            models.UniqueConstraint(fields=["check_type", "version"], name="uniq_periodic_layout_type_version"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.check_type} - v{self.version}"
+
+
+class PeriodicCheckPoint(models.Model):
+    """Punto numerato di una planimetria (plafoniera 22, differenziale D12...)."""
+
+    layout = models.ForeignKey(PeriodicCheckLayout, on_delete=models.CASCADE, related_name="points")
+    code = models.CharField(max_length=20)
+    x = models.FloatField()
+    y = models.FloatField()
+    label_x = models.FloatField(null=True, blank=True)
+    label_y = models.FloatField(null=True, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Punto di planimetria"
+        verbose_name_plural = "Punti di planimetria"
+        constraints = [
+            models.UniqueConstraint(fields=["layout", "code"], name="uniq_periodic_point_layout_code"),
+        ]
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class PeriodicCheckIntakeConfig(models.Model):
+    """Riga unica (pk=1): cartella di rete dove lo scanner deposita i fogli di verifica.
+
+    Stesso schema dell'acquisizione dei fogli firme della formazione
+    (``anagrafica.TrainingScanIntakeConfig``): il QR dice a quale verifica appartiene
+    il foglio, il lavoro periodico legge e allega da solo. La conferma dei punti
+    resta sempre umana: l'acquisizione porta la verifica a «da confermare».
+    """
+
+    CARTELLA_DEFAULT = r"\\pclogsys\PortaleNovicrom\scansioni\verifiche"
+
+    attiva = models.BooleanField(
+        default=False,
+        help_text="Se spenta, il lavoro periodico non guarda la cartella. Il caricamento "
+                  "dalla pagina della verifica funziona comunque.",
+    )
+    cartella = models.CharField(
+        max_length=500, blank=True, default=CARTELLA_DEFAULT,
+        help_text="Percorso UNC della cartella dove lo scanner salva i fogli. Deve essere "
+                  "raggiungibile dall'utente con cui gira il portale: una lettera di unita' "
+                  "mappata non e' visibile a un servizio.",
+    )
+    sposta_elaborati = models.BooleanField(
+        default=True,
+        help_text="Sposta i file letti in «elaborati» e quelli non riusciti in «errori»: la "
+                  "cartella resta pulita e nulla viene riletto due volte.",
+    )
+    max_file_per_giro = models.PositiveIntegerField(
+        default=25, help_text="Quanti file al massimo a ogni passaggio (un arretrato non blocca il lavoro).",
+    )
+    ultima_esecuzione = models.DateTimeField(null=True, blank=True)
+    ultimo_esito = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = "Acquisizione fogli di verifica da cartella"
+        verbose_name_plural = "Acquisizione fogli di verifica da cartella"
+
+    def __str__(self) -> str:
+        return "Acquisizione fogli di verifica" + ("" if self.attiva else " (spenta)")
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+def _periodic_intake_upload_to(instance, filename: str) -> str:
+    suffix = Path(filename or "").suffix.lower()[:10] or ".pdf"
+    stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+    return f"assets_periodic_intake/{stamp}_{uuid.uuid4().hex[:8]}{suffix}"
+
+
+class PeriodicCheckIntakeLog(models.Model):
+    """Registro delle scansioni arrivate dalla cartella (o caricate da smistare).
+
+    Una riga per foglio (pagina). Le scansioni non associate restano qui, con il
+    file, finche' qualcuno non le assegna a una verifica: nulla si perde."""
+
+    OUTCOME_READ = "READ"
+    OUTCOME_UNMATCHED = "UNMATCHED"
+    OUTCOME_ERROR = "ERROR"
+    OUTCOME_ASSIGNED = "ASSIGNED"
+    OUTCOME_DISCARDED = "DISCARDED"
+    OUTCOME_CHOICES = [
+        (OUTCOME_READ, "Letto e associato"),
+        (OUTCOME_UNMATCHED, "Da smistare"),
+        (OUTCOME_ERROR, "Errore di lettura"),
+        (OUTCOME_ASSIGNED, "Associato a mano"),
+        (OUTCOME_DISCARDED, "Scartato"),
+    ]
+
+    received_at = models.DateTimeField(default=timezone.now, db_index=True)
+    file_name = models.CharField(max_length=255)
+    page = models.PositiveSmallIntegerField(default=1)
+    source = models.CharField(max_length=20, default="CARTELLA")
+    outcome = models.CharField(max_length=10, choices=OUTCOME_CHOICES, db_index=True)
+    message = models.CharField(max_length=500, blank=True, default="")
+    token = models.CharField(max_length=16, blank=True, default="")
+    session = models.ForeignKey(
+        PeriodicCheckSession, on_delete=models.SET_NULL, null=True, blank=True, related_name="intake_logs"
+    )
+    # Copia del foglio, solo per quelli da smistare: senza, non si potrebbe associarli dopo.
+    scan = models.FileField(upload_to=_periodic_intake_upload_to, storage=PrivatePeriodicCheckStorage(), blank=True)
+    handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    handled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-received_at", "-id"]
+        verbose_name = "Scansione di verifica ricevuta"
+        verbose_name_plural = "Scansioni di verifica ricevute"
+
+    def __str__(self) -> str:
+        return f"{self.file_name} p.{self.page} ({self.get_outcome_display()})"
+
+
+
+class PeriodicCheckMeasureField(models.Model):
+    """Grandezza misurata in una verifica a misure (colonna della griglia).
+
+    Le righe sono le voci del tipo (``PeriodicCheckItem``: «Pacco 1 · Batteria 5»),
+    le colonne queste grandezze, con unita' e soglie facoltative: un valore fuori
+    soglia rende la riga un rilievo non conforme."""
+
+    check_type = models.ForeignKey(PeriodicCheckType, on_delete=models.CASCADE, related_name="measure_fields")
+    label = models.CharField(max_length=80)
+    unit = models.CharField(max_length=15, blank=True, default="")
+    min_value = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    max_value = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    sort_order = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        verbose_name = "Grandezza misurata (verifica periodica)"
+        verbose_name_plural = "Grandezze misurate (verifiche periodiche)"
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.unit})" if self.unit else self.label
+
+    @property
+    def range_label(self) -> str:
+        def fmt(value):
+            return f"{value.normalize():f}".replace(".", ",")
+
+        if self.min_value is not None and self.max_value is not None:
+            return f"{fmt(self.min_value)}–{fmt(self.max_value)}"
+        if self.min_value is not None:
+            return f"≥ {fmt(self.min_value)}"
+        if self.max_value is not None:
+            return f"≤ {fmt(self.max_value)}"
+        return ""
+
+    @property
+    def range_text(self) -> str:
+        """Soglia in parole, per il foglio stampato (i font base del PDF non hanno ≥ ≤)."""
+        def fmt(value):
+            return f"{value.normalize():f}".replace(".", ",")
+
+        parts = []
+        if self.min_value is not None:
+            parts.append(f"min {fmt(self.min_value)}")
+        if self.max_value is not None:
+            parts.append(f"max {fmt(self.max_value)}")
+        return " ".join(parts)
+
+    def is_out_of_range(self, value) -> bool:
+        if value is None:
+            return False
+        value = Decimal(str(value))
+        return (self.min_value is not None and value < self.min_value) or (
+            self.max_value is not None and value > self.max_value
+        )

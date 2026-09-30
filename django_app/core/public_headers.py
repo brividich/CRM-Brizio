@@ -42,12 +42,23 @@ def blinda_risposta_pubblica(response):
 
     Non sovrascrive un ``Cache-Control`` già impostato dalla view: se qualcuno
     ha deciso una politica di cache diversa, l'avrà fatto con cognizione.
+
+    ``Referrer-Policy`` della view è rispettata solo se resta dentro l'origine
+    (``same-origin``): serve alle pagine pubbliche che ospitano un form POST,
+    perché con ``no-referrer`` Chromium invia ``Origin: null`` e il controllo
+    CSRF di Django rifiuta l'invio. Il token non lascia comunque il dominio.
     """
     for nome, valore in HEADER_PUBBLICI.items():
         if nome == "Cache-Control" and response.has_header("Cache-Control"):
             continue
+        if nome == "Referrer-Policy" and response.get("Referrer-Policy") in REFERRER_POLICY_AMMESSE:
+            continue
         response[nome] = valore
     return response
+
+
+#: Politiche che una view pubblica può scegliere al posto di ``no-referrer``.
+REFERRER_POLICY_AMMESSE = {"no-referrer", "same-origin"}
 
 
 def risposta_pubblica(view_func):

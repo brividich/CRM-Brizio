@@ -58,6 +58,44 @@ class ConfigStatus(models.TextChoices):
     MISCONFIGURED = "misconfigured", "Misconfigured"
 
 
+SCALAR_WRAPPER_KEY = "__scalar__"
+
+
+class SettingValueField(models.JSONField):
+    """JSONField che su SQL Server accetta anche valori semplici.
+
+    mssql-django protegge le colonne JSON con ``CHECK (ISJSON(value) = 1)`` e ISJSON
+    accetta solo oggetti e liste: ogni impostazione semplice («NOVICROM HUB», 90, true)
+    falliva l'INSERT con errore 547, e autoconfigurazione e Configuration Studio non
+    riuscivano a salvare nulla in produzione (SQLite, usato nei test, non ha il vincolo).
+    I valori semplici vengono salvati come ``{"__scalar__": valore}`` e restituiti
+    svolti: il resto del codice continua a vedere il valore originale.
+
+    ``deconstruct`` dichiara il JSONField standard: nessuna migrazione, colonna invariata.
+    """
+
+    def get_prep_value(self, value):
+        if not isinstance(value, (dict, list)):
+            value = {SCALAR_WRAPPER_KEY: value}
+        return super().get_prep_value(value)
+
+    def get_db_prep_save(self, value, connection):
+        # JSONField salva None come NULL SQL prima di get_prep_value: la colonna e' NOT NULL.
+        if value is None:
+            value = {SCALAR_WRAPPER_KEY: None}
+        return super().get_db_prep_save(value, connection)
+
+    def from_db_value(self, value, expression, connection):
+        value = super().from_db_value(value, expression, connection)
+        if isinstance(value, dict) and set(value) == {SCALAR_WRAPPER_KEY}:
+            return value[SCALAR_WRAPPER_KEY]
+        return value
+
+    def deconstruct(self):
+        name, _path, args, kwargs = super().deconstruct()
+        return name, "django.db.models.JSONField", args, kwargs
+
+
 def empty_setting_value():
     return ""
 
@@ -80,7 +118,7 @@ class SecuritySource(models.Model):
 
 class SecurityCenterSetting(models.Model):
     key = models.CharField(max_length=160, unique=True)
-    value = models.JSONField(default=empty_setting_value, blank=True)
+    value = SettingValueField(default=empty_setting_value, blank=True)
     value_type = models.CharField(max_length=16, choices=SettingValueType.choices, default=SettingValueType.STRING)
     category = models.CharField(max_length=80, db_index=True)
     description = models.TextField(blank=True)

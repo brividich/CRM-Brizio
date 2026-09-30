@@ -83,6 +83,21 @@ MAINTENANCE_NAV: tuple[NavGroup, ...] = (
                 sidebar_code="maintenance_amministrative",
                 routes=frozenset({"asset_administrative_deadline_create", "asset_administrative_deadline_edit"}),
             ),
+            # Verifiche sugli impianti (luci di emergenza, quadri, terra...), non sul
+            # singolo asset. Da non confondere con la vecchia "Manutenzioni periodiche".
+            NavItem(
+                "verifiche",
+                "Verifiche periodiche",
+                "periodic_check_list",
+                sidebar_code="maintenance_verifiche",
+                routes=frozenset({
+                    "periodic_check_type_detail", "periodic_check_register", "periodic_check_session_detail",
+                    "periodic_check_type_create", "periodic_check_type_edit", "periodic_check_systems",
+                    "periodic_check_categories",
+                    "periodic_check_sheet_issue", "periodic_check_sheet_preview", "periodic_check_sheet_pdf",
+                    "periodic_check_layout_image", "periodic_check_intake", "periodic_check_intake_scan",
+                }),
+            ),
             NavItem(
                 "interventi",
                 "Interventi",
@@ -214,6 +229,13 @@ HELP_TEXTS: dict[str, tuple[str, ...]] = {
         "Revisioni, certificati, garanzie e altri adempimenti dell'asset: un registro a parte, non un piano di manutenzione.",
         "«+ Nuova scadenza» per aggiungerne una; apri una riga per registrare l'adempimento e fissare la scadenza successiva.",
         'Le scadenze amministrative compaiono anche in Calendario, Scadenzario e promemoria.',
+    ),
+    'verifiche': (
+        "Verifiche periodiche sugli impianti (illuminazione di emergenza, quadri, cabine, terra, antincendio...): una riga per tipo di verifica, raggruppate per impianto.",
+        "«Apri scheda» porta alla pagina della verifica: in cima «Come funziona questa verifica» dice i passi, cosa manca e il pulsante per farlo.",
+        "Verifiche a planimetria: «Stampa foglio» crea il foglio con il QR per il tecnico, poi si carica la scansione. Le altre: «Registra» con il rapportino.",
+        "Nella scheda: stato attuale, statistiche, storico, ordini di lavoro nati dai rilievi, documenti.",
+        "«Cartella scansioni»: i fogli scansionati nella cartella dello scanner tornano da soli alla loro verifica; quelli senza QR si smistano a mano.",
     ),
     'officina': (
         'Stato delle macchine per reparto: in uso, ferme, in manutenzione.',

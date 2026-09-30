@@ -1,0 +1,26 @@
+{% extends "core/base.html" %}
+
+{% block title %}Dichiarazione di applicabilità{% endblock %}
+
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:index' %}">← Sistema di gestione</a>
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">Dichiarazione di applicabilità</div>
+      <div class="page-sub">Nessuna revisione presente.</div>
+    </div>
+  </div>
+  <div class="rc-card sg-card">
+    <p>La revisione iniziale si carica dal MOD.165 in vigore con il comando <code>importa_soa_mod165 &lt;percorso del PDF&gt; --apply</code> (dry-run senza <code>--apply</code>): viene creata in bozza, da verificare e proporre alla Direzione.</p>
+    {% if puo_modificare %}
+      <form method="post" action="{% url 'sistema_gestione:soa_nuova_revisione' %}" class="sg-actions">{% csrf_token %}
+        <input type="text" name="motivo" placeholder="Motivo (es. prima emissione)" maxlength="255">
+        <button class="btn btn-secondary" type="submit">Crea una revisione vuota</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

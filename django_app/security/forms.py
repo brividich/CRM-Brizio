@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from .models import (
+    SecurityMailboxSource,
     BackupExpectedJobConfig,
     SecurityAlertRuleConfig,
     SecurityAlertSuppressionRule,
@@ -69,11 +70,11 @@ COMMON_LABELS = {
     "replace_webhook_secret": "Sostituisci segreto webhook",
     "scope_type": "Tipo ambito",
     "severity": "Severita",
-    "severity_mapping_json": "Mappatura severita JSON",
+    "severity_mapping_json": "Mappatura severità (JSON)",
     "severity_min": "Severita minima",
     "sla_by_severity": "SLA per severita",
     "source": "Sorgente",
-    "source_type": "source_type",
+    "source_type": "Tipo sorgente",
     "starts_at": "Inizia il",
     "statuses": "Stati",
     "threshold_json": "Soglia JSON",
@@ -91,7 +92,50 @@ class SecurityCenterSettingForm(forms.ModelForm):
         widgets = {"value": JSON_TEXTAREA}
 
 
+FREQUENCY_LABELS_IT = {
+    "manual": "Manuale",
+    "hourly": "Oraria",
+    "daily": "Giornaliera",
+    "weekly": "Settimanale",
+    "monthly": "Mensile",
+}
+
+
+class PatternListField(forms.CharField):
+    """Lista di pattern come testo «uno per riga» (prima: JSON grezzo da scrivere a mano)."""
+
+    widget = forms.Textarea(attrs={"rows": 3, "placeholder": "Uno per riga, es. *watchguard*"})
+
+    def prepare_value(self, value):
+        if isinstance(value, (list, tuple)):
+            return "\n".join(str(item) for item in value)
+        return value
+
+    def to_python(self, value):
+        if isinstance(value, (list, tuple)):
+            return [str(item).strip() for item in value if str(item).strip()]
+        text = super().to_python(value) or ""
+        return [line.strip() for line in text.splitlines() if line.strip()]
+
+
 class SecuritySourceConfigForm(forms.ModelForm):
+    mailbox_sender_patterns = PatternListField(
+        label="Pattern mittente", required=False,
+        help_text="Uno per riga; * vale per qualsiasi testo (es. *@watchguard.com).",
+    )
+    mailbox_subject_patterns = PatternListField(
+        label="Pattern oggetto", required=False,
+        help_text="Uno per riga; basta che l'oggetto corrisponda a uno di essi.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["expected_frequency"].choices = [
+            (value, FREQUENCY_LABELS_IT.get(value, label)) for value, label in self.fields["expected_frequency"].choices
+        ]
+        self.fields["expected_time_window_start"].label = "Finestra attesa: dalle"
+        self.fields["expected_time_window_end"].label = "Finestra attesa: alle"
+
     class Meta:
         model = SecuritySourceConfig
         fields = [
@@ -252,3 +296,72 @@ class SecurityTicketConfigForm(forms.ModelForm):
         ]
         labels = COMMON_LABELS
         widgets = {"statuses": JSON_TEXTAREA, "sla_by_severity": JSON_TEXTAREA}
+
+
+class SecurityMailboxSourceForm(forms.ModelForm):
+    """Casella mail da leggere via Microsoft Graph (prima non creabile dall'HUB)."""
+
+    SOURCE_TYPE_UI_CHOICES = [
+        ("graph", "Microsoft 365 (Graph)"),
+        ("manual", "Solo caricamento manuale (nessuna lettura)"),
+    ]
+
+    class Meta:
+        model = SecurityMailboxSource
+        fields = [
+            "name",
+            "enabled",
+            "source_type",
+            "mailbox_address",
+            "description",
+            "sender_allowlist_text",
+            "require_verified_sender",
+            "subject_include_text",
+            "subject_exclude_text",
+            "expected_every_hours",
+            "max_messages_per_run",
+            "process_attachments",
+            "process_email_body",
+        ]
+        labels = {
+            "name": "Nome",
+            "enabled": "Attiva (lettura automatica)",
+            "source_type": "Tipo",
+            "mailbox_address": "Indirizzo della casella",
+            "description": "Descrizione",
+            "sender_allowlist_text": "Mittenti ammessi",
+            "require_verified_sender": "Accetta solo mittenti verificati (DKIM/SPF)",
+            "subject_include_text": "L'oggetto deve contenere",
+            "subject_exclude_text": "Escludi se l'oggetto contiene",
+            "expected_every_hours": "Report atteso almeno ogni (ore)",
+            "max_messages_per_run": "Mail massime per lettura",
+            "process_attachments": "Analizza gli allegati",
+            "process_email_body": "Analizza il testo della mail",
+        }
+        help_texts = {
+            "mailbox_address": "La casella che riceve i report (es. soc@azienda.it). L'app Entra del portale deve avere il permesso Mail.Read.",
+            "sender_allowlist_text": "Uno per riga: indirizzo completo o dominio (es. microsoft.com). Vuoto = tutti.",
+            "subject_include_text": "Uno per riga; vuoto = nessun filtro.",
+            "subject_exclude_text": "Uno per riga.",
+            "expected_every_hours": "0 = nessun controllo. Se non arriva nulla entro questo intervallo parte un alert «sorgente silenziosa».",
+            "require_verified_sender": "Più sicuro, ma scarta le mail senza intestazione Authentication-Results.",
+        }
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 2}),
+            "sender_allowlist_text": forms.Textarea(attrs={"rows": 3, "placeholder": "microsoft.com, watchguard.com (uno per riga)"}),
+            "subject_include_text": forms.Textarea(attrs={"rows": 2}),
+            "subject_exclude_text": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["source_type"].choices = self.SOURCE_TYPE_UI_CHOICES
+        if not self.instance.pk:
+            self.initial.setdefault("source_type", "graph")
+            self.initial.setdefault("expected_every_hours", 24)
+
+    def clean(self):
+        data = super().clean()
+        if data.get("source_type") == "graph" and not data.get("mailbox_address"):
+            self.add_error("mailbox_address", "Obbligatorio per leggere la casella con Microsoft Graph.")
+        return data

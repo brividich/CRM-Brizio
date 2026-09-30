@@ -68,6 +68,8 @@
     const QUERY_PARAMS = new URLSearchParams(window.location.search || "");
     const INITIAL_FILTER = normalizeChoice(QUERY_PARAMS.get("filter")).toLowerCase();
     const ACTIVE_FILTER = ["aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "";
+    // ?op=<titolo OP>: arrivo da un promemoria in dashboard o da una mail -> preseleziona l'OP.
+    const INITIAL_OP = normalizeChoice(QUERY_PARAMS.get("op")).toLowerCase();
 
     const canUserEditOp = (opCapocommessa, opCar) => {
       if (IS_ADMIN) return true;
@@ -290,7 +292,7 @@
                 <div className="text-sm" style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>Nessuna azione registrata per questo OP.</div>
               ) : (
                 items.map((it) => (
-                  <div key={it.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
+                  <div key={it.id} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", marginTop: 6, flexShrink: 0, background: sourceColor(it.source) }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
@@ -310,6 +312,280 @@
               )}
             </div>
           )}
+        </div>
+      );
+    };
+
+    // --- Scheda qualita' della singola anomalia (classificazione, NC dell'OP, proposta AI) ---
+    // Consuma /api/anomalie/qualita (GET crea la scheda al primo accesso) e
+    // /api/anomalie/qualita/copilota (proposta AI, non salva nulla).
+    const GRAVITA_COLORS = {
+      MINORE:   { bg: "var(--success-bg)", fg: "var(--success)" },
+      MAGGIORE: { bg: "var(--warning-bg)", fg: "var(--warning)" },
+      CRITICA:  { bg: "var(--danger-bg)",  fg: "var(--danger)" },
+    };
+    const qInputStyle = (enabled) => ({
+      width: "100%", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8,
+      color: "var(--text)", background: enabled ? "var(--surface)" : "var(--bg)", outline: "none",
+      cursor: enabled ? "auto" : "not-allowed", opacity: enabled ? 1 : 0.8,
+    });
+    const SCHEDA_FIELDS = ["origine", "tipo_difetto", "gravita", "reparto", "quantita_nc", "quantita_scartata", "disposizione"];
+
+    const SchedaQualita = ({ localId, canEdit, reloadKey, isMobile }) => {
+      const [scheda, setScheda] = useState(null);
+      const [scelte, setScelte] = useState(null);
+      const [draft, setDraft] = useState({});
+      const [loading, setLoading] = useState(false);
+      const [saving, setSaving] = useState(false);
+      const [msg, setMsg] = useState(null);
+      const [ai, setAi] = useState(null);
+      const [aiLoading, setAiLoading] = useState(false);
+      const [serverCanEdit, setServerCanEdit] = useState(false);
+
+      const toDraft = (s) => {
+        const d = {};
+        SCHEDA_FIELDS.forEach((k) => { d[k] = s && s[k] != null ? String(s[k]) : ""; });
+        return d;
+      };
+
+      useEffect(() => {
+        setAi(null); setMsg(null);
+        if (!localId || !API.qualita) { setScheda(null); return; }
+        let alive = true;
+        setLoading(true);
+        fetch(`${API.qualita}?local_id=${encodeURIComponent(localId)}`, { credentials: "same-origin" })
+          .then((r) => readJsonOrThrow(r, "Scheda qualità"))
+          .then((d) => {
+            if (!alive) return;
+            if (!d.success) throw new Error(d.error || "Scheda non disponibile");
+            setScheda(d.scheda); setScelte(d.scelte); setDraft(toDraft(d.scheda));
+            setServerCanEdit(!!d.can_edit);
+          })
+          .catch((e) => { if (alive) { setScheda(null); setMsg({ ok: false, text: e.message }); } })
+          .finally(() => { if (alive) setLoading(false); });
+        return () => { alive = false; };
+      }, [localId, reloadKey]);
+
+      // Tipi difetto raggruppati per famiglia (optgroup). Hook PRIMA di ogni return.
+      const famiglie = useMemo(() => {
+        const out = [];
+        ((scelte && scelte.tipi_difetto) || []).forEach((t) => {
+          const fam = t.famiglia || "Altro";
+          let g = out.find((x) => x.fam === fam);
+          if (!g) { g = { fam, items: [] }; out.push(g); }
+          g.items.push(t);
+        });
+        return out;
+      }, [scelte]);
+
+      if (!localId) {
+        return (
+          <div className="text-sm" style={{ marginTop: 20, padding: "12px 14px", border: "1px dashed var(--border)", borderRadius: 10, color: "var(--text-light)" }}>
+            Scheda qualità: disponibile dopo il primo salvataggio della segnalazione.
+          </div>
+        );
+      }
+
+      const editable = canEdit && serverCanEdit && !!scheda;
+      const dirty = scheda && SCHEDA_FIELDS.some((k) => (draft[k] || "") !== (scheda[k] != null ? String(scheda[k]) : ""));
+      const set = (k) => (e) => setDraft((prev) => ({ ...prev, [k]: e.target.value }));
+      const flash = (m) => { setMsg(m); setTimeout(() => setMsg(null), 4000); };
+
+      const save = async () => {
+        setSaving(true);
+        try {
+          const body = { local_id: localId };
+          SCHEDA_FIELDS.forEach((k) => { body[k] = draft[k] === "" ? null : draft[k]; });
+          const r = await fetch(API.qualita, {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify(body),
+          });
+          const d = await readJsonOrThrow(r, "Salvataggio scheda qualità");
+          if (!d.success) throw new Error(d.error || "Salvataggio non riuscito");
+          setScheda(d.scheda); setDraft(toDraft(d.scheda));
+          flash({ ok: true, text: "Scheda salvata" });
+        } catch (e) {
+          flash({ ok: false, text: e.message });
+        }
+        setSaving(false);
+      };
+
+      const askAi = async () => {
+        setAiLoading(true); setAi(null);
+        try {
+          const r = await fetch(API.qualita_copilota, {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ local_id: localId }),
+          });
+          const d = await readJsonOrThrow(r, "Proposta AI");
+          if (!r.ok || !d.success) throw new Error(d.error || "Proposta non disponibile");
+          setAi(d.proposta);
+        } catch (e) {
+          flash({ ok: false, text: e.message });
+        }
+        setAiLoading(false);
+      };
+
+      const applyAi = () => {
+        if (!ai) return;
+        setDraft((prev) => ({
+          ...prev,
+          tipo_difetto: ai.tipo_difetto != null ? String(ai.tipo_difetto) : prev.tipo_difetto,
+          gravita: ai.gravita || prev.gravita,
+        }));
+      };
+
+      const label = (list, value) => {
+        const hit = (list || []).find((o) => String(o.value) === String(value));
+        return hit ? hit.label : "";
+      };
+      const nc = scheda && scheda.nc;
+      const grav = GRAVITA_COLORS[draft.gravita] || null;
+
+      return (
+        <div style={{ marginTop: 20, border: "1px solid var(--border)", borderRadius: 12, background: "var(--surface)", overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 16px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+            <span className="text-sm font-semibold" style={{ fontWeight: 700, color: "var(--text)" }}>Scheda qualità</span>
+            {grav && (
+              <span className="text-2xs font-semibold" style={{ padding: "2px 8px", borderRadius: 99, background: grav.bg, color: grav.fg, fontWeight: 700, textTransform: "uppercase" }}>
+                {label(scelte && scelte.gravita, draft.gravita)}
+              </span>
+            )}
+            <span style={{ marginLeft: "auto" }} />
+            {nc && (
+              <a href={nc.url || "#"} target="_blank" rel="noopener" className="text-xs font-semibold" style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "3px 10px", borderRadius: 99, textDecoration: "none", fontWeight: 700,
+                background: nc.chiusa ? "var(--success-bg)" : "var(--warning-bg)", color: nc.chiusa ? "var(--success)" : "var(--warning)",
+              }} title="Non conformità dell'OP: contenimento, analisi, azioni e verifica">
+                <span style={{ fontFamily: "ui-monospace,monospace" }}>{nc.protocollo}</span> · {nc.stato_label}
+              </a>
+            )}
+          </div>
+
+          <div style={{ padding: "14px 16px" }}>
+            {loading ? (
+              <div className="text-sm" style={{ color: "var(--text-light)" }}>Caricamento scheda…</div>
+            ) : !scheda ? (
+              <div className="text-sm" style={{ color: "var(--danger)" }}>{(msg && msg.text) || "Scheda non disponibile."}</div>
+            ) : (
+              <>
+                {scheda.part_number && (
+                  <div className="text-xs" style={{ color: "var(--text-light)", marginBottom: 10 }}>
+                    P/N registrato: <span style={{ fontFamily: "ui-monospace,monospace", color: "var(--text-mid)" }}>{scheda.part_number}</span>
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0,1fr))", gap: 12 }}>
+                  <div style={{ gridColumn: isMobile ? "auto" : "span 2" }}>
+                    <FieldLabel>Tipo difetto</FieldLabel>
+                    <select value={draft.tipo_difetto || ""} onChange={set("tipo_difetto")} disabled={!editable} style={qInputStyle(editable)}>
+                      <option value="">— da classificare —</option>
+                      {famiglie.map((g) => (
+                        <optgroup key={g.fam} label={g.fam}>
+                          {g.items.map((t) => <option key={t.value} value={String(t.value)}>{t.label}</option>)}
+                        </optgroup>
+                      ))}
+                      {draft.tipo_difetto && !((scelte && scelte.tipi_difetto) || []).some((t) => String(t.value) === draft.tipo_difetto) && (
+                        <option value={draft.tipo_difetto}>{scheda.tipo_difetto_label || "Tipo disattivato"}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Gravità</FieldLabel>
+                    <select value={draft.gravita || ""} onChange={set("gravita")} disabled={!editable} style={qInputStyle(editable)}>
+                      <option value="">— da valutare —</option>
+                      {((scelte && scelte.gravita) || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Origine</FieldLabel>
+                    <select value={draft.origine || ""} onChange={set("origine")} disabled={!editable} style={qInputStyle(editable)}>
+                      <option value="">—</option>
+                      {((scelte && scelte.origini) || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Reparto</FieldLabel>
+                    <select value={draft.reparto || ""} onChange={set("reparto")} disabled={!editable} style={qInputStyle(editable)}>
+                      <option value="">—</option>
+                      {((scelte && scelte.reparti) || []).map((o) => <option key={o.value} value={String(o.value)}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Decisione sul materiale</FieldLabel>
+                    <select value={draft.disposizione || ""} onChange={set("disposizione")} disabled={!editable} style={qInputStyle(editable)}>
+                      {((scelte && scelte.disposizioni) || []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                    {scheda.disposizione_auto && !dirty && (
+                      <div className="text-2xs" style={{ color: "var(--text-light)", marginTop: 4 }}>Dedotta da RDC/avanzamento: cambiala se serve.</div>
+                    )}
+                  </div>
+                  <div>
+                    <FieldLabel>Q.tà non conforme</FieldLabel>
+                    <input type="number" min="0" value={draft.quantita_nc || ""} onChange={set("quantita_nc")} disabled={!editable} style={qInputStyle(editable)} />
+                  </div>
+                  <div>
+                    <FieldLabel>Q.tà scartata</FieldLabel>
+                    <input type="number" min="0" value={draft.quantita_scartata || ""} onChange={set("quantita_scartata")} disabled={!editable} style={qInputStyle(editable)} />
+                  </div>
+                </div>
+
+                {ai && (
+                  <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                      <span className="text-xs font-semibold" style={{ fontWeight: 700, color: "var(--text)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Proposta {ai.fonte === "simili" ? "dai casi simili" : "AI"}
+                      </span>
+                      {!ai.ai_disponibile && <span className="text-2xs" style={{ color: "var(--text-light)" }}>AI non raggiungibile</span>}
+                      <span style={{ marginLeft: "auto" }} />
+                      {editable && (ai.tipo_difetto != null || ai.gravita) && (
+                        <IconBtn onClick={applyAi} title="Copia tipo difetto e gravità nel form (poi salva)">Applica al form</IconBtn>
+                      )}
+                    </div>
+                    <div className="text-sm" style={{ color: "var(--text-mid)", display: "grid", gap: 4 }}>
+                      <div>Tipo difetto: <strong style={{ color: "var(--text)" }}>{label(scelte && scelte.tipi_difetto, ai.tipo_difetto) || "—"}</strong>
+                        {" · "}Gravità: <strong style={{ color: "var(--text)" }}>{label(scelte && scelte.gravita, ai.gravita) || "—"}</strong></div>
+                      {ai.causa_probabile && <div>Causa probabile (da verificare): {ai.causa_probabile}</div>}
+                      {ai.motivazione && <div style={{ color: "var(--text-light)" }}>{ai.motivazione}</div>}
+                    </div>
+                    {Array.isArray(ai.simili) && ai.simili.length > 0 && (
+                      <div style={{ marginTop: 8 }}>
+                        <div className="text-2xs font-semibold" style={{ color: "var(--text-light)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Casi simili</div>
+                        {ai.simili.map((c) => (
+                          <div key={c.anomalia_id || c.protocollo} className="text-xs" style={{ color: "var(--text-mid)", padding: "3px 0", borderTop: "1px solid var(--border)" }}>
+                            <span style={{ fontFamily: "ui-monospace,monospace", color: "var(--text)" }}>{c.protocollo}</span>
+                            {" · "}{c.tipo_difetto_label}{c.part_number ? ` · P/N ${c.part_number}` : ""} — {c.descrizione}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                  {msg && (
+                    <span className="text-sm font-semibold" style={{ color: msg.ok ? "var(--success)" : "var(--danger)", fontWeight: 600 }}>{msg.text}</span>
+                  )}
+                  {!msg && aiLoading && (
+                    <span className="text-sm" style={{ color: "var(--text-light)" }}>L'AI sta analizzando la segnalazione: può servire anche un minuto.</span>
+                  )}
+                  <span style={{ marginLeft: "auto" }} />
+                  {editable && API.qualita_copilota && (
+                    <IconBtn onClick={askAi} disabled={aiLoading} title="Proposta di tipo difetto, gravità e causa probabile (non salva nulla)">
+                      {aiLoading ? "Analisi…" : "Proponi con AI"}
+                    </IconBtn>
+                  )}
+                  {editable && (
+                    <IconBtn onClick={save} disabled={saving || !dirty} accent title="Salva la scheda qualità">
+                      {saving ? "Salvataggio…" : "Salva scheda"}
+                    </IconBtn>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       );
     };
@@ -349,6 +625,7 @@
       const [loadingAttachments, setLoadingAttachments] = useState(false);
       const [uploadingAttachments, setUploadingAttachments] = useState(false);
       const [selectedAttachmentId, setSelectedAttachmentId] = useState(null);
+      const [qualitaTick, setQualitaTick] = useState(0);  // ricarica la scheda qualita' dopo "Salva"
       const fileInputRef = useRef(null);
 
       // â"€â"€ Selezione e ricerca â"€â"€
@@ -499,6 +776,18 @@
         setSelectedOp(0);
       }, [filteredOrdini.length, selectedOp]);
 
+      // Preselezione da ?op= (una sola volta, al primo caricamento degli ordini).
+      const initialOpApplied = useRef(false);
+      useEffect(() => {
+        if (initialOpApplied.current || !INITIAL_OP || !filteredOrdini.length) return;
+        initialOpApplied.current = true;
+        const idx = filteredOrdini.findIndex((o) => String(o.id || "").trim().toLowerCase() === INITIAL_OP);
+        if (idx >= 0) {
+          setSelectedOp(idx);
+          if (isMobile) setMobilePanel("serie");
+        }
+      }, [filteredOrdini]);
+
       useEffect(() => {
         if (selectedSn < filteredSeriali.length) return;
         setSelectedSn(0);
@@ -626,10 +915,11 @@
             const newLocalId = data.local_id || currentLocalId;
             setCurrentItemId(newItemId);
             setCurrentLocalId(newLocalId || null);
-            setSaveMsg({ ok: true, text: "Salvato" });
+            setSaveMsg({ ok: true, text: data.protocollo ? `Salvato · ${data.protocollo}` : "Salvato" });
             if (newLocalId) {
               loadAttachments(newLocalId);
             }
+            setQualitaTick((n) => n + 1);
             // Optimistic update: aggiorna lo stato locale senza re-fetch
             const updatedRecord = {
               item_id:    newItemId,
@@ -862,6 +1152,16 @@
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg>
                 </a>
               )}
+              {!isMobile && API.nc_lista && (
+                <a className="text-base font-semibold" href={API.nc_lista} title="Non conformità per OP" style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
+                  borderRadius: 8, padding: "7px 16px", color: "#e2e8f0",
+                  fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap",
+                }}>
+                  Non conformità
+                </a>
+              )}
               {/* Messaggio di salvataggio / sync */}
               {saveMsg && !isMobile && (
                 <span className="text-base font-medium" style={{
@@ -970,7 +1270,7 @@
 
             {/* â"€â"€ SINISTRA: Ordini di Produzione â"€â"€ */}
             <div style={{
-              borderRight: isMobile ? "none" : "1px solid #e2e8f0", background: "var(--surface)",
+              borderRight: isMobile ? "none" : "1px solid var(--border)", background: "var(--surface)",
               display: isMobile && mobilePanel !== "ordini" ? "none" : "flex",
               flexDirection: "column", overflow: "hidden",
               minHeight: isMobile ? "calc(100dvh - 112px)" : undefined,
@@ -1021,8 +1321,8 @@
                     placeholder="Cerca OP, P/N, capocommessa..."
                     style={{
                       width: "100%", padding: "9px 12px 9px 32px",
-                      border: "1px solid #e2e8f0", borderRadius: 8,
-                      outline: "none", background: "#f8fafc", color: "#334155",
+                      border: "1px solid var(--border)", borderRadius: 8,
+                      outline: "none", background: "var(--bg)", color: "var(--text)",
                     }}
                     onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
                     onBlur={e  => e.target.style.borderColor="var(--border)"}
@@ -1052,7 +1352,7 @@
                       transition: "all 0.15s ease",
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                        <span className="text-md font-bold" style={{ fontWeight: 700, color: "#0f172a" }}>{o.id}</span>
+                        <span className="text-md font-bold" style={{ fontWeight: 700, color: "var(--text)" }}>{o.id}</span>
                         {o.stato && <StatusBadge text={o.stato} variant="benestare" />}
                       </div>
                       <div className="text-sm" style={{ color: "var(--text-mid)", marginBottom: 4, fontFamily: "ui-monospace,monospace", letterSpacing: "-0.02em" }}>
@@ -1067,7 +1367,7 @@
                         </span>
                       </div>
                       {selectedOp === i && (
-                        <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
+                        <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
                           <IconBtn accent title="Inserisci una nuova anomalia su questo OP" onClick={() => {
                             window.location.href = o.id
                               ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(o.id)}`
@@ -1087,14 +1387,14 @@
                 )}
               </div>
 
-              <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0", display: "flex", gap: 8 }}>
+              <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
                 <button className="text-base font-semibold" onClick={() => history.back()} style={{
                   flex: 1, padding: "9px", border: "1px solid rgba(229,62,62,.3)", borderRadius: 8,
                   background: "var(--danger-bg)", color: "var(--danger)", fontWeight: 600, cursor: "pointer",
                 }}>Indietro</button>
                 <button className="text-base font-medium" onClick={loadOrdini} style={{
-                  flex: 1, padding: "9px", border: "1px solid #e2e8f0", borderRadius: 8,
-                  background: "#fff", color: "var(--text-mid)", fontWeight: 500, cursor: "pointer",
+                  flex: 1, padding: "9px", border: "1px solid var(--border)", borderRadius: 8,
+                  background: "var(--surface)", color: "var(--text-mid)", fontWeight: 500, cursor: "pointer",
                 }}>Aggiorna</button>
               </div>
             </div>
@@ -1109,7 +1409,7 @@
               {isMobile && (
                 <button className="text-base font-semibold" onClick={() => setMobilePanel("ordini")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
-                  background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
+                  background: "none", border: "none", borderBottom: "1px solid var(--border)",
                   color: "var(--primary-mid)", fontWeight: 600, cursor: "pointer", width: "100%",
                 }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
@@ -1129,8 +1429,8 @@
                     placeholder="Cerca S/N..."
                     style={{
                       width: "100%", padding: "9px 12px 9px 32px",
-                      border: "1px solid #e2e8f0", borderRadius: 8,
-                      outline: "none", background: "#fff", color: "#334155",
+                      border: "1px solid var(--border)", borderRadius: 8,
+                      outline: "none", background: "var(--surface)", color: "var(--text)",
                     }}
                     onFocus={e => e.target.style.borderColor="rgba(249,115,22,.5)"}
                     onBlur={e  => e.target.style.borderColor="var(--border)"}
@@ -1241,7 +1541,7 @@
               {isMobile && (
                 <button className="text-base font-semibold" onClick={() => setMobilePanel("serie")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
-                  background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
+                  background: "none", border: "none", borderBottom: "1px solid var(--border)",
                   color: "var(--primary-mid)", fontWeight: 600, cursor: "pointer", width: "100%",
                 }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
@@ -1250,17 +1550,17 @@
               )}
               {/* Header dettaglio */}
               <div style={{
-                padding: isMobile ? "12px 16px" : "20px 24px 16px", borderBottom: "1px solid #f1f5f9",
+                padding: isMobile ? "12px 16px" : "20px 24px 16px", borderBottom: "1px solid var(--border)",
                 background: "var(--surface)",
               }}>
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto", gap: isMobile ? 12 : 16, alignItems: "start" }}>
                   <div>
                     <FieldLabel>Capocommessa</FieldLabel>
-                    <div className="text-md font-semibold" style={{ fontWeight: 600, color: "#0f172a" }}>{op.capo || '\u2014'}</div>
+                    <div className="text-md font-semibold" style={{ fontWeight: 600, color: "var(--text)" }}>{op.capo || '\u2014'}</div>
                   </div>
                   <div>
                     <FieldLabel>CAR</FieldLabel>
-                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "#334155" }}>{op.car || '\u2014'}</div>
+                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "var(--text)" }}>{op.car || '\u2014'}</div>
                   </div>
                   <div>
                     <FieldLabel>S/N selezionato</FieldLabel>
@@ -1272,12 +1572,12 @@
                     <FieldLabel>Identificativo</FieldLabel>
                     <span className="text-base font-bold" style={{
                       display: "inline-block", padding: "4px 12px", borderRadius: 6,
-                      background: "#f1f5f9", fontWeight: 700,
+                      background: "var(--bg)", fontWeight: 700,
                       color: "var(--text)", fontFamily: "ui-monospace,monospace",
                     }}>{op.id || '\u2014'}</span>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
                   <div>
                     <FieldLabel>P/N</FieldLabel>
                     <span className="text-base" style={{ fontFamily: "'JetBrains Mono',monospace", color: "var(--text-mid)" }}>
@@ -1290,7 +1590,7 @@
                   </div>
                 </div>
                 {sn.sn && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #f1f5f9" }}>
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
                     <FieldLabel>Avanzamento</FieldLabel>
                     <StatoStepper avanzamento={sn.avanzamento} chiuso={Boolean(sn.chiudere)} />
                   </div>
@@ -1423,7 +1723,7 @@
                             <>
                               {/* Preview allegato selezionato */}
                               <div style={{
-                                border: "1px solid #e2e8f0",
+                                border: "1px solid var(--border)",
                                 borderRadius: 10,
                                 background: "var(--primary)",
                                 overflow: "hidden",
@@ -1507,7 +1807,7 @@
                                             height: 54,
                                             borderRadius: 8,
                                             objectFit: "cover",
-                                            border: "1px solid #e2e8f0",
+                                            border: "1px solid var(--border)",
                                           }}
                                         />
                                       ) : (
@@ -1515,8 +1815,8 @@
                                           width: 54,
                                           height: 54,
                                           borderRadius: 8,
-                                          border: "1px solid #e2e8f0",
-                                          background: "#f8fafc",
+                                          border: "1px solid var(--border)",
+                                          background: "var(--bg)",
                                           display: "flex",
                                           alignItems: "center",
                                           justifyContent: "center",
@@ -1528,7 +1828,7 @@
                                       )}
                                       <div style={{ minWidth: 0 }}>
                                         <div className="text-base font-semibold" title={file.name} style={{
-                                          color: "#0f172a",
+                                          color: "var(--text)",
                                           fontWeight: 600,
                                           overflow: "hidden",
                                           textOverflow: "ellipsis",
@@ -1536,7 +1836,7 @@
                                         }}>
                                           {file.name}
                                         </div>
-                                        <div className="text-xs" style={{ color: "#64748b", marginTop: 2 }}>
+                                        <div className="text-xs" style={{ color: "var(--text-mid)", marginTop: 2 }}>
                                           {formatBytes(file.size)} • {file.mime_type || "file"}
                                         </div>
                                       </div>
@@ -1575,8 +1875,8 @@
                           disabled={!canEditCurrentOp}
                           style={{
                             width: "100%", padding: "9px 14px",
-                            border: "1px solid #e2e8f0", borderRadius: 8,
-                            outline: "none", color: "#334155", background: canEditCurrentOp ? "#fff" : "#f1f5f9",
+                            border: "1px solid var(--border)", borderRadius: 8,
+                            outline: "none", color: "var(--text)", background: canEditCurrentOp ? "var(--surface)" : "var(--bg)",
                           }}
                           onFocus={e => e.target.style.borderColor="#93c5fd"}
                           onBlur={e  => e.target.style.borderColor="#e2e8f0"}
@@ -1585,6 +1885,9 @@
                     )}
                   </div>
                 </div>
+                {sn.sn && (
+                  <SchedaQualita localId={currentLocalId} canEdit={canEditCurrentOp} reloadKey={qualitaTick} isMobile={isMobile} />
+                )}
                 {op.id && op.id !== '—' && (
                   <TimelineOp opId={op.id} opItemId={op.item_id} />
                 )}

@@ -110,9 +110,11 @@ def _bootstrap_canonical() -> bool:
                 changed = True
 
         # 3) voce di menu
-        nav, created = NavigationItem.objects.update_or_create(
-            code="carichi-macchina",
-            defaults={"label": "Carichi Macchina",
+        from core.navigation_registry import ensure_navigation_item
+
+        nav, created = ensure_navigation_item(
+            "carichi-macchina",
+            {"label": "Carichi Macchina",
                       "route_name": "gestione_carichi_macchina:excel",
                       "url_path": "", "section": "topbar",
                       "required_permission_code": PERM_VIEW, "order": 46,

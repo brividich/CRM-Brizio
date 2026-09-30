@@ -1,0 +1,9 @@
+{# Schede della verifica: le stesse sulla scheda e sulle sue sottopagine. «crumb» = pagina figlia aperta (es. la singola verifica). #}
+<nav class="pc-objnav" aria-label="Sezioni della verifica">
+  <div class="md-tabs pc-tabs">
+    {% for t in type_tabs %}
+      <a class="md-tab{% if t.active %} active{% endif %}" href="{{ t.url }}"{% if t.active and not crumb %} aria-current="page"{% endif %}>{{ t.label }}</a>
+    {% endfor %}
+  </div>
+  {% if crumb %}<span class="pc-objnav-crumb"><span aria-hidden="true">›</span> <span aria-current="page">{{ crumb }}</span></span>{% endif %}
+</nav>

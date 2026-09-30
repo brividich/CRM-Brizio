@@ -1,0 +1,90 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Categorie — Verifiche periodiche{% endblock %}
+
+{% block assets_shell_head %}{% include "assets/components/periodic_check_styles.html" %}{% endblock %}
+
+{% block assets_shell_title %}Categorie delle verifiche{% endblock %}
+{% block assets_shell_subtitle %}
+  <p>Raggruppano le verifiche al di la' dell'impianto (es. Antincendio, Elettrico, Di legge): nell'elenco si filtrano e si raggruppano per categoria.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:periodic_check_list' %}">‹ Verifiche periodiche</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="md-page pc-two-col">
+  <div class="md-page">
+    <section class="md-section">
+      <div class="md-section-head"><h2>Categorie</h2><span class="md-badge badge-muted">{{ categories|length }}</span></div>
+      {% if categories %}
+        <ul class="pc-cat-list">
+          {% for c in categories %}
+            <li{% if editing and editing.id == c.id %} class="is-editing"{% endif %}>
+              <span class="pc-cat is-{{ c.color }}">{{ c.name }}</span>
+              <span class="pc-muted">{{ c.description }}</span>
+              <span class="pc-muted pc-cat-count">{{ c.types_count }} verific{% if c.types_count == 1 %}a{% else %}he{% endif %}{% if not c.is_active %} · disattivata{% endif %}</span>
+              <a class="btn btn-secondary btn-sm" href="?modifica={{ c.id }}#categoria">Modifica</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="md-empty">Nessuna categoria: crea la prima qui accanto.</p>
+      {% endif %}
+    </section>
+
+    {% if active_categories and types %}
+      <form method="post" class="md-section">
+        {% csrf_token %}<input type="hidden" name="action" value="assign">
+        <div class="md-section-head"><h2>Assegna le categorie</h2><button class="btn btn-primary btn-sm" type="submit">Salva assegnazioni</button></div>
+        <div class="md-scroll">
+          <table class="md-table" data-fm-table-skip="1">
+            <thead><tr><th>Verifica</th><th>Impianto</th><th>Categoria</th></tr></thead>
+            <tbody>
+              {% for t in types %}
+                <tr>
+                  <td class="pc-name"><a href="{% url 'assets:periodic_check_type_detail' t.id %}">{{ t.name }}</a></td>
+                  <td>{{ t.system.name }}</td>
+                  <td>
+                    <select name="type_{{ t.id }}" class="pc-select" aria-label="Categoria di {{ t.name }}">
+                      <option value="">Nessuna</option>
+                      {% for c in active_categories %}<option value="{{ c.id }}"{% if t.category_id == c.id %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+                    </select>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </form>
+    {% endif %}
+  </div>
+
+  <form class="md-form pc-form" method="post" novalidate id="categoria">
+    {% csrf_token %}
+    {% if editing %}<input type="hidden" name="category_id" value="{{ editing.id }}">{% endif %}
+    {% if form.non_field_errors %}<div class="pc-form-errors">{{ form.non_field_errors }}</div>{% endif %}
+    <fieldset class="md-fieldset pc-card">
+      <legend class="pc-card-head"><span class="pc-card-n">{% if editing %}✎{% else %}+{% endif %}</span><span><strong>{% if editing %}Modifica «{{ editing.name }}»{% else %}Nuova categoria{% endif %}</strong><small>Nome breve: compare come etichetta colorata nell'elenco.</small></span></legend>
+      {% include "assets/components/_md_field.html" with field=form.name %}
+      {% include "assets/components/_md_field.html" with field=form.description %}
+      <div class="md-field">
+        <span class="pc-label">{{ form.color.label }}</span>
+        <div class="pc-swatches" role="radiogroup" aria-label="{{ form.color.label }}">
+          {% for radio in form.color %}
+            <label class="pc-swatch is-{{ radio.data.value }}" title="{{ radio.choice_label }}">{{ radio.tag }}<span class="visually-hidden">{{ radio.choice_label }}</span></label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="md-grid-2">
+        {% include "assets/components/_md_field.html" with field=form.sort_order %}
+        {% include "assets/components/_md_field.html" with field=form.is_active %}
+      </div>
+    </fieldset>
+    <div class="md-form-actions pc-form-actions">
+      <button type="submit" class="btn btn-primary">{% if editing %}Salva modifiche{% else %}Crea categoria{% endif %}</button>
+      {% if editing %}<a class="btn btn-secondary" href="{% url 'assets:periodic_check_categories' %}">Annulla</a>{% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{# «Come funziona questa verifica»: passi del metodo con stato e azione. #}
+<section class="md-section pc-guide" aria-label="Come funziona questa verifica">
+  <div class="md-section-head"><h2>Come funziona questa verifica</h2><span class="pc-muted">{{ guide.method }}</span></div>
+  <ol class="pc-guide-steps">
+    {% for s in guide.steps %}
+      <li class="pc-guide-step is-{{ s.state }}{% if s.is_next %} is-next{% endif %}">
+        <span class="pc-guide-n" aria-hidden="true">{% if s.state == "done" %}✓{% else %}{{ s.n }}{% endif %}</span>
+        <div class="pc-guide-body">
+          <strong>{{ s.title }}</strong>
+          <span>{{ s.detail }}</span>
+          {% if s.action %}
+            {% if s.action.post %}
+              <form method="post" action="{{ s.action.post }}">{% csrf_token %}<button class="btn {% if s.is_next %}btn-primary{% else %}btn-secondary{% endif %} btn-sm" type="submit">{{ s.action.label }}</button></form>
+            {% else %}
+              <a class="btn {% if s.is_next %}btn-primary{% else %}btn-secondary{% endif %} btn-sm" href="{{ s.action.url }}">{{ s.action.label }}</a>
+            {% endif %}
+          {% elif s.state == "blocked" %}
+            <em class="pc-muted">Prima completa il passo precedente.</em>
+          {% endif %}
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+</section>

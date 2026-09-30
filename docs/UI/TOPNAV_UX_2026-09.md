@@ -35,7 +35,7 @@ File coinvolti: `core/templates/core/components/topnav.html`, `core/templates/co
 
 ### 5. Raggruppamento
 - [x] 5.1 I gruppi nascono da `category_key` del Navigation Registry (`_group_nav_items`) e si gestiscono da **Impostazioni → Navigation Builder**: è configurazione dati, non codice. L'overflow «Altro» elimina il problema di spazio anche senza riorganizzarli.
-- [ ] 5.2 (decisione di contenuto, fuori codice) ridurre a 5–6 aree: Operatività, Persone, Sicurezza, Automazioni, Amministrazione.
+- [x] 5.2 Gruppi decisi con l'utente (2026-09-25) → vedi «Round 2».
 
 ### Extra
 - [x] Badge git di sviluppo spostato in basso a destra: in alto copriva il menu utente.
@@ -44,4 +44,48 @@ File coinvolti: `core/templates/core/components/topnav.html`, `core/templates/co
 - [x] test `core.tests.TopnavUnifiedSearchTests`, `core.test_vendor_assets`, navigation registry/legacy/branding, sidebar footer (25 OK)
 - [x] a video (Playwright, SQLite di worktree): light + dark, 1440 / 1180 / 1024 / 390 px; nessun errore JS; un solo overlay con Ctrl+K; tema persistito dopo reload; Recenti e tastiera verificati
 - [x] CHANGELOG + README
-- [ ] merge main → release/prod
+- [x] merge main → release/prod (main `db3e10be`, release/prod `59b55825`)
+
+---
+
+# Round 2 — gruppi e sottocategorie (2026-09-25)
+
+Branch `feature/core-topnav-gruppi` · worktree `C:\Dev\pn-navgruppi`
+
+## Decisioni dell'utente (vincolanti)
+- Segnalazioni **distinte**: niente «+ Segnala» unico. **Tickets resta un modulo unico** (IT + MAN), voce diretta.
+- **Suggestion Corner** fuori da «Per me»: voce diretta.
+- **Timbri** = registro HR (non le timbrature personali): solo in Persone.
+- «Dashboard» esce dalla barra (ci porta il logo); resta in sidebar e Ctrl+K.
+
+## Struttura
+```
+[logo] Per me ▾  Tickets  Produzione ▾  Persone ▾  Sicurezza e ambiente ▾  Qualità ▾  IT ▾  Suggestion Corner
+```
+| Gruppo | Sottocategoria → voci (route) |
+|---|---|
+| Per me | Da fare → Presa visione (`procedure_refresh:my_assignments`), KICK-OFF da gestire (`tasks:da_gestire`) · Richieste → Le mie assenze (`assenze_gestione`), Richiedi assenza (`assenze_richiesta`), Richiedi DPI (`dpi:nuova`) · Azienda → Notizie |
+| Tickets | voce diretta (`tickets:dashboard`) |
+| Produzione | Commesse e reparti → KICK-OFF, Carichi Macchina, Checklist Operativa · Manutenzione → Asset e manutenzione, Gestione Attrezzatura |
+| Persone | Anagrafica, Assenze (gestione HR) (`assenze_impostazioni`, permesso esplicito `legacy.assenze.admin_assenze`: la route eredita `assenze.route.view` = tutti), Timbri, Campagne presa visione (`procedure_refresh:admin_dashboard`) |
+| Sicurezza e ambiente | Sul campo → Diario preposto, Segnalazioni sicurezza, DPI · Prodotti e rifiuti → Schede di Sicurezza, Rentri |
+| Qualità | Gestione Anomalie (legate agli ordini), Gestione Specifiche, Registro OFI |
+| IT | Security Center, Contatori MFC, Accessi azienda |
+| Suggestion Corner | voce diretta |
+
+Scartati dopo verifica nel codice: «Il mio turno» (nascosto apposta da assets 0104); «I miei DPI» (stesso URL di DPI: `dpi:dashboard` è già personale per chi non è gestore).
+
+## Checklist
+- [x] R2.1 `_group_nav_items`: `sections` dalle sottocategorie (`NavigationItem.group`), `cols` se >6 voci; `is_home` per nascondere Dashboard in topnav
+- [x] R2.2 Template tendina: intestazioni sottocategoria, colonne; «Altro» e hamburger con intestazioni; tendina tenuta dentro lo schermo
+- [x] R2.3 Comando `riorganizza_topbar` (`--apply`, default dry-run), idempotente: categorie (rinomina le esistenti, crea «Per me»), sposta/etichetta voci per code con fallback route, crea le 4 voci nuove, report permessi e voci non toccate, bump cache registry
+- [x] R2.4 Test: raggruppamento, comando (dry-run non scrive, apply, secondo apply senza modifiche)
+- [x] R2.5 Verifica a video light/dark 1440/1180/1024/390
+- [ ] R2.6 CHANGELOG, README, merge main → release/prod; al deploy: `riorganizza_topbar` poi `--apply`
+
+## Emersi durante il lavoro
+- [x] **Bootstrap che annullavano il menu**: 9 moduli (`dpi`, `timbri`, `procedure_refresh`, `tasks`, `attrezzature`, `gestione_carichi_macchina`, `gestione_specifiche`, `schede_sicurezza`, `suggestion_corner`) a ogni avvio riscrivevano etichetta/ordine/visibilità → `core.navigation_registry.ensure_navigation_item` (poi solo campi di codice).
+- [x] **Branding batte l'etichetta**: le voci-modulo prendono il nome da `module_branding.<modulo>.menu_label`; il comando lo imposta solo se vuoto.
+- [x] **Permesso troppo largo**: la route admin assenze ereditava `assenze.route.view` → permesso esplicito `legacy.assenze.admin_assenze` su `assenze_impostazioni` (`gestione_admin` è un redirect deprecato).
+- [x] **Spazio**: a 1440px le voci non entravano (964px su 711) → niente icone al primo livello, nome utente nel menu dell'avatar sotto 1600px.
+- [ ] Preesistente, NON legato a questo lavoro: `dpi.tests.DpiCatalogRequestTests` 2 test falliti anche su `origin/main` (il dettaglio richiesta non mostra il codice modello).

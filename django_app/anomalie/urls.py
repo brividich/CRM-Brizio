@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views
 from . import mail_action_views
+from . import nc_views
 
 
 urlpatterns = [
@@ -10,6 +11,11 @@ urlpatterns = [
     path("gestione-anomalie", views.gestione_anomalie_page, name="gestione_anomalie_page"),
     path("gestione-anomalie/nuova-segnalazione", views.apertura_segnalazione_page, name="apertura_segnalazione"),
     path("gestione-anomalie/configurazione", views.anomalie_configurazione_page, name="anomalie_configurazione_page"),
+    # Non conformita' per OP (ISO 9001 §10.2): sotto /gestione-anomalie per ereditare il gate ACL.
+    path("gestione-anomalie/nc/", nc_views.nc_lista, name="anomalie_nc_lista"),
+    path("gestione-anomalie/nc/<int:pk>/", nc_views.nc_dettaglio, name="anomalie_nc_dettaglio"),
+    path("gestione-anomalie/nc/<int:pk>/pdf/", nc_views.nc_pdf, name="anomalie_nc_pdf"),
+    path("gestione-anomalie/nc/<int:pk>/allegati/<int:allegato_id>/", nc_views.nc_allegato, name="anomalie_nc_allegato"),
     path("gestione-anomalie/apertura", views.legacy_apertura_redirect, name="legacy_gestione_anomalie_apertura"),
     path(
         "gestione-anomalie/apertura/anomalie",
@@ -35,6 +41,8 @@ urlpatterns = [
     path("api/anomalie/timeline", views.api_anomalie_timeline, name="api_anomalie_timeline"),
     path("api/anomalie/sync", views.api_sync, name="api_anomalie_sync"),
     path("api/anomalie/copilota", views.api_copilota_anomalia, name="api_anomalie_copilota"),
+    path("api/anomalie/qualita", views.api_anomalie_qualita, name="api_anomalie_qualita"),
+    path("api/anomalie/qualita/copilota", views.api_anomalie_qualita_copilota, name="api_anomalie_qualita_copilota"),
     path("export-csv", views.export_anomalie_csv, name="anomalie_export_csv"),
     # Statistiche e estrazioni
     path("gestione-anomalie/statistiche", views.anomalie_statistiche_page, name="anomalie_statistiche_page"),

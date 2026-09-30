@@ -1,0 +1,12 @@
+{% extends "core/base.html" %}
+{% block title %}Auditor{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">Auditor</div><div class="page-sub">Qualifica secondo MT CN 12 §6 e approvazione degli auditor esterni.</div></div>{% if puo_modificare %}<a class="btn" href="{% url 'sistema_gestione:auditor_nuovo' %}">Nuovo auditor</a>{% endif %}</div>
+  <div class="rc-card sg-table-scroll"><table class="sg-table"><thead><tr><th>Auditor</th><th>Tipo / ente</th><th>Requisiti</th><th>Audit svolti</th><th>Qualifica</th><th>Azioni</th></tr></thead><tbody>
+    {% for auditor in auditor_list %}<tr><td>{{ auditor.nome }}</td><td>{% if auditor.interno %}Interno{% else %}Esterno · {{ auditor.ente_esterno }}{% endif %}</td><td>{{ auditor.requisiti_verificati_il|date:"d/m/Y"|default:"Da verificare" }}</td><td>{{ auditor.audit_svolti }}</td><td>{% if auditor.qualificato %}<span class="sg-badge ok">Qualificato</span>{% else %}<span class="sg-badge warn">Non completo</span>{% endif %}</td><td class="sg-actions">{% if puo_modificare %}<a href="{% url 'sistema_gestione:auditor_modifica' auditor.pk %}">Modifica</a>{% endif %}{% if puo_approvare and not auditor.interno and not auditor.approvato_ceo_il %}<form method="post" action="{% url 'sistema_gestione:auditor_approva_esterno' auditor.pk %}">{% csrf_token %}<button class="btn btn-secondary" type="submit">Approva CEO</button></form>{% endif %}</td></tr>{% empty %}<tr><td colspan="6">Nessun auditor censito.</td></tr>{% endfor %}
+  </tbody></table></div>
+</div>
+{% endblock %}

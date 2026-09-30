@@ -75,6 +75,8 @@ MODULE_AREA = {
     "rilevazione_incidenti": AREA_SICUREZZA,
     "procedure_refresh": AREA_SICUREZZA,
     "rentri": AREA_SICUREZZA,
+    "report_conformita": AREA_SICUREZZA,
+    "sistema_gestione": AREA_SICUREZZA,
     # Automation
     "automazioni": AREA_AUTOMAZIONE,
 }
@@ -484,6 +486,7 @@ _CAPABILITY_OVERRIDES = {
     "legacy.assets.assets_components": CAPABILITY_LETTURA,
     "legacy.assets.assets_deadlines": CAPABILITY_LETTURA,
     "legacy.assets.assets_verifiche": CAPABILITY_LETTURA,
+    "legacy.assets.assets_periodic_checks": CAPABILITY_LETTURA,
     "legacy.assets.assets_work_machines": CAPABILITY_LETTURA,
     "legacy.assets.assets_workorders": CAPABILITY_LETTURA,
     "legacy.tickets.tickets_api_asset": CAPABILITY_LETTURA,
@@ -511,6 +514,7 @@ _CAPABILITY_OVERRIDES = {
     # ─ amministrazione: cataloghi, pannelli /admin/, diagnostica
     "legacy.anagrafica.anagrafica_mansioni": CAPABILITY_AMMINISTRAZIONE,
     "legacy.anagrafica.anagrafica_qualifiche": CAPABILITY_AMMINISTRAZIONE,
+    "legacy.assets.assets_periodic_check_categories": CAPABILITY_AMMINISTRAZIONE,
     "legacy.automazioni.automazioni_contenuti": CAPABILITY_AMMINISTRAZIONE,
     "legacy.automazioni.automazioni_sorgenti": CAPABILITY_AMMINISTRAZIONE,
     "legacy.portale_esterno.portale_esterno": CAPABILITY_AMMINISTRAZIONE,

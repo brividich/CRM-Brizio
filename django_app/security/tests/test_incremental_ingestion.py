@@ -51,9 +51,14 @@ def _graph_item(index, received_at):
 
 
 class IncrementalSinceTests(TestCase):
-    def test_first_run_has_no_lower_bound(self):
+    def test_first_run_starts_from_recent_mail(self):
+        """Prima lettura: gli ultimi N giorni, non dalla mail piu' vecchia della casella."""
+        from security.services.mailbox_providers import DEFAULT_FIRST_RUN_DAYS
+
         source = SecurityMailboxSource(name="S", code="s", source_type="graph")
-        self.assertIsNone(incremental_since(source))
+        since = incremental_since(source)
+        expected = timezone.now() - timedelta(days=DEFAULT_FIRST_RUN_DAYS)
+        self.assertLess(abs((since - expected).total_seconds()), 60)
 
     def test_since_is_last_success_minus_overlap(self):
         last = datetime(2026, 7, 13, 10, 0, tzinfo=dt_timezone.utc)
@@ -84,14 +89,14 @@ class GraphQueryTests(TestCase):
 
         return calls, fake_request
 
-    def test_first_run_asks_ascending_and_without_filter(self):
+    def test_first_run_asks_ascending_from_recent_window(self):
         calls, fake = self._capture_urls([{"value": []}])
         with mock.patch("security.services.mailbox_providers._request_json", side_effect=fake):
             self.provider._get_messages("tok", self.source, limit=50)
 
         url = calls[-1]
         self.assertIn("receivedDateTime+asc", url.replace("%20", "+").replace("%3A", ":"))
-        self.assertNotIn("filter", url)
+        self.assertIn("receivedDateTime ge", urllib_unquote(url))
 
     def test_incremental_run_filters_from_last_success(self):
         self.source.last_success_at = datetime(2026, 7, 13, 10, 0, tzinfo=dt_timezone.utc)

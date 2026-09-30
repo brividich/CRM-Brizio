@@ -157,6 +157,29 @@
   </div>
 
   <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Qualit&agrave; &mdash; Pareto dei difetti</div>
+        <div class="page-sub" style="margin-top:4px;" id="qualita-sub">Dalle schede qualit&agrave; delle anomalie filtrate.</div>
+      </div>
+    </div>
+    <div class="card-body" style="overflow-x:auto;">
+      <div id="tbl-difetto-wrap"><div class="loading">Caricamento...</div></div>
+    </div>
+  </div>
+
+  <div class="two-col" style="margin-bottom:16px;">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Per origine</div></div>
+      <div class="card-body" style="overflow-x:auto;"><div id="tbl-origine-wrap"><div class="loading">Caricamento...</div></div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Per decisione sul materiale</div></div>
+      <div class="card-body" style="overflow-x:auto;"><div id="tbl-disposizione-wrap"><div class="loading">Caricamento...</div></div></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
     <div class="card-head"><div class="card-title">Top OP per numero di anomalie</div></div>
     <div class="card-body" style="overflow-x:auto;">
       <div id="tbl-op-wrap"><div class="loading">Caricamento...</div></div>
@@ -257,6 +280,32 @@
       + '</tbody></table>';
   }
 
+  // Pareto: righe gia' ordinate dal server con % cumulata.
+  function renderPareto(rows, titolo) {
+    if (!rows || !rows.length) return '<div class="empty-msg">Nessuna scheda qualit&agrave; nel filtro.</div>';
+    const max = Math.max(...rows.map(x => x.n));
+    return `<table class="admin-table"><thead><tr><th>${esc(titolo)}</th><th style="text-align:right">N.</th><th style="text-align:right">% cum.</th><th style="min-width:120px"></th></tr></thead><tbody>`
+      + rows.map(r => {
+          const pct = max ? Math.round((r.n / max) * 100) : 0;
+          return `<tr><td>${esc(r.label)}</td><td style="text-align:right;font-weight:700">${r.n}</td><td style="text-align:right;color:var(--text-mid)">${r.cum_pct}%</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div></td></tr>`;
+        }).join('')
+      + '</tbody></table>';
+  }
+
+  function renderQualita(q) {
+    const w = { d: $('tbl-difetto-wrap'), o: $('tbl-origine-wrap'), s: $('tbl-disposizione-wrap') };
+    if (!w.d) return;
+    if (!q) {
+      const m = '<div class="empty-msg">Dati qualit&agrave; non disponibili.</div>';
+      w.d.innerHTML = m; w.o.innerHTML = m; w.s.innerHTML = m;
+      return;
+    }
+    $('qualita-sub').textContent = `${q.classificate} ${q.classificate === 1 ? 'scheda classificata' : 'schede classificate'} su ${q.totale} · ${q.nc} non conformità (OP)`;
+    w.d.innerHTML = renderPareto(q.per_difetto, 'Tipo difetto');
+    w.o.innerHTML = renderPareto(q.per_origine, 'Origine');
+    w.s.innerHTML = renderPareto(q.per_disposizione, 'Decisione');
+  }
+
   function fillSelect(sel, values) {
     const cur = sel.value;
     while (sel.options.length > 1) sel.remove(1);
@@ -354,6 +403,7 @@
       }
       const maxOp = (d.per_op && d.per_op.length) ? Math.max(...d.per_op.map(x => x.n)) : 0;
       tblOp.innerHTML = renderOp(d.per_op, maxOp);
+      renderQualita(d.qualita);
     } catch (e) {
       const msg = `<div class="err-msg">Errore caricamento statistiche: ${esc(e.message)}</div>`;
       tblAvanz.innerHTML = msg; tblMese.innerHTML = ''; tblOp.innerHTML = '';

@@ -94,3 +94,12 @@ class PrivateAssetDocumentStorage(_PrivateEncryptedAssetStorage):
     view ``asset_document_qr_download`` / ``asset_document_download`` /
     ``workorder_attachment_download``, con audit.
     """
+
+
+class PrivatePeriodicCheckStorage(_PrivateEncryptedAssetStorage):
+    """Storage privato per rapportini e verbali delle verifiche periodiche sugli impianti."""
+
+    def url(self, name):
+        raise NotImplementedError(
+            "Usa reverse('assets:periodic_check_attachment_download', args=[id]) al posto di .file.url"
+        )

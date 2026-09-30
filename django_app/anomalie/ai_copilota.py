@@ -96,3 +96,138 @@ def proponi_triage_anomalia(*, descrizione: str, stati_superficie, avanzamenti) 
         "bozza_descrizione": bozza,
         "motivazione": motivazione,
     }
+
+
+# ── Classificazione qualita' (tipo difetto / gravita' / causa probabile) ────
+
+_STOPWORDS = {
+    "della", "delle", "dello", "degli", "sulla", "sulle", "nella", "nelle", "questo",
+    "questa", "sono", "stato", "stata", "come", "anche", "dopo", "prima", "pezzo",
+    "pezzi", "anomalia", "presenta", "presente", "rilevato", "rilevata",
+}
+
+
+def _tokens(testo: str) -> set[str]:
+    parole = re.findall(r"[a-zà-ù0-9]+", (testo or "").lower())
+    return {p for p in parole if len(p) >= 4 and p not in _STOPWORDS}
+
+
+def casi_simili(*, descrizione: str, part_number: str = "", escludi_anomalia_id=None,
+                limite: int = 5, candidati: int = 300) -> list[dict]:
+    """Anomalie gia' classificate con descrizione simile (sovrapposizione di parole,
+    +0.3 se stesso P/N). Nessun embedding: veloce, deterministico, fail-safe."""
+    try:
+        from .automazioni_service import _anomalie_cols, _fetch, _text
+        from .quality_models import AnomaliaSchedaQualita
+
+        schede = list(
+            AnomaliaSchedaQualita.objects.filter(tipo_difetto__isnull=False)
+            .exclude(anomalia_id=escludi_anomalia_id or 0)
+            .select_related("tipo_difetto", "nc")
+            .order_by("-id")[:candidati]
+        )
+        if not schede or "descrizione" not in _anomalie_cols():
+            return []
+        ids = [s.anomalia_id for s in schede]
+        ph = ",".join(["%s"] * len(ids))
+        testi = {
+            int(r["id"]): str(r["d"] or "")
+            for r in _fetch(f"SELECT id, {_text('descrizione')} AS d FROM anomalie WHERE id IN ({ph})", ids)
+        }
+    except Exception as exc:  # pragma: no cover - dipende dal DB legacy
+        logger.debug("anomalie casi simili non disponibili: %s", exc)
+        return []
+
+    base = _tokens(descrizione)
+    pn = (part_number or "").strip().lower()
+    out = []
+    for s in schede:
+        testo = testi.get(s.anomalia_id, "")
+        altri = _tokens(testo)
+        score = (len(base & altri) / len(base | altri)) if (base and altri) else 0.0
+        if pn and s.part_number.strip().lower() == pn:
+            score += 0.3
+        if score <= 0.05:
+            continue
+        out.append({
+            "protocollo": s.nc.protocollo if s.nc_id else f"#{s.anomalia_id}",
+            "anomalia_id": s.anomalia_id,
+            "tipo_difetto": s.tipo_difetto_id,
+            "tipo_difetto_label": s.tipo_difetto.nome,
+            "gravita": s.gravita,
+            "disposizione": s.get_disposizione_display(),
+            "part_number": s.part_number,
+            "descrizione": testo.strip()[:160],
+            "score": round(score, 2),
+        })
+    out.sort(key=lambda x: -x["score"])
+    return out[:limite]
+
+
+def proponi_classificazione_qualita(*, descrizione: str, note: str = "", part_number: str = "",
+                                    anomalia_id=None, tipi_difetto, gravita) -> dict:
+    """Propone tipo difetto, gravita' e causa probabile. Sola lettura, niente DB.
+
+    Args:
+        tipi_difetto: [(id, nome)] del catalogo attivo (vocabolario controllato).
+        gravita: [(codice, etichetta)] ammessi.
+
+    Se l'AI non risponde o non sceglie un difetto del catalogo, il difetto proposto
+    e' il piu' frequente fra i casi simili (``fonte="simili"``).
+    """
+    tipi = [(int(i), str(n).strip()) for i, n in (tipi_difetto or []) if str(n).strip()]
+    tipi_per_nome = {n.casefold(): i for i, n in tipi}
+    grav_codici = [str(c).upper() for c, _ in (gravita or [])]
+    grav_validi = {c.casefold(): c for c in grav_codici}
+    grav_validi.update({str(l).casefold(): str(c).upper() for c, l in (gravita or [])})
+
+    simili = casi_simili(descrizione=f"{descrizione}\n{note}", part_number=part_number,
+                         escludi_anomalia_id=anomalia_id)
+
+    tipi_lines = "\n".join(f"- {n}" for _, n in tipi) or "(nessuno)"
+    grav_lines = "\n".join(f"- {c}" for c in grav_codici) or "(nessuno)"
+    simili_lines = "\n".join(
+        f"- {c['protocollo']}: {c['tipo_difetto_label']} (gravita' {c['gravita'] or 'n.d.'}, "
+        f"{c['disposizione']}) - {c['descrizione']}"
+        for c in simili
+    ) or "(nessuno)"
+    prompt = (
+        "Sei un assistente qualita' di un'officina meccanica di precisione (ISO 9001 / EN 9100). "
+        "Classifica la non conformita' e rispondi SOLO con JSON (nessun testo fuori), chiavi:\n"
+        '  "tipo_difetto": una delle ETICHETTE del catalogo sotto (o stringa vuota se incerto),\n'
+        '  "gravita": uno dei CODICI di gravita\' sotto (o stringa vuota),\n'
+        '  "causa_probabile": ipotesi breve sulla causa (metodo, macchina, materiale, '
+        "misura, operatore, ambiente); e' un'ipotesi da verificare, non una conclusione,\n"
+        '  "motivazione": una frase sul perche\' della proposta.\n\n'
+        "Gravita': MINORE = non compromette funzione o sicurezza; MAGGIORE = compromette la "
+        "funzione o richiede deroga del cliente; CRITICA = rischio per la sicurezza.\n\n"
+        f"CATALOGO DIFETTI:\n{tipi_lines}\n\nCODICI GRAVITA':\n{grav_lines}\n\n"
+        f"CASI SIMILI GIA' CLASSIFICATI:\n{simili_lines}\n\n"
+        f"SEGNALAZIONE\n{(descrizione or '').strip()[:3000]}\n"
+        f"NOTE\n{(note or '').strip()[:1500]}"
+    )
+    raw = _chiama_ai(
+        prompt,
+        runtime_context="Copilota anomalie: classificazione qualita', l'operatore rivede e conferma.",
+    )
+    data = _parse_json_obj(raw)
+
+    tipo_id = tipi_per_nome.get(str(data.get("tipo_difetto") or "").strip().casefold())
+    fonte = "ai"
+    if tipo_id is None and simili:
+        conteggi: dict[int, int] = {}
+        for c in simili:
+            conteggi[c["tipo_difetto"]] = conteggi.get(c["tipo_difetto"], 0) + 1
+        tipo_id = max(conteggi, key=conteggi.get)
+        fonte = "simili"
+
+    return {
+        "proposto": True,
+        "fonte": fonte,
+        "ai_disponibile": bool(raw),
+        "tipo_difetto": tipo_id,
+        "gravita": grav_validi.get(str(data.get("gravita") or "").strip().casefold(), ""),
+        "causa_probabile": str(data.get("causa_probabile") or "").strip()[:600],
+        "motivazione": str(data.get("motivazione") or "").strip()[:500],
+        "simili": simili,
+    }

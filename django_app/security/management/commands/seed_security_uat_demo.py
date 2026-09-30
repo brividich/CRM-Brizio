@@ -198,7 +198,7 @@ DEMO_MESSAGES = [
         "pipeline_result": {
             "status": "success",
             "parser_matched": True,
-            "parser_name": "watchguard_firebox_authentication_denied_csv_parser",
+            "parser_name": "watchguard_report_parser",
             "reports_parsed": 1,
             "metrics_created": 2,
             "events_created": 2,

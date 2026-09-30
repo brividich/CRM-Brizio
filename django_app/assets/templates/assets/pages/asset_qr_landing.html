@@ -148,6 +148,55 @@ a.qrl-wo-item:first-child { margin-top: 0; }
 }
 .qrl-not-found h2 { font-size: 1.3rem; color: #0f172a; margin: 10px 0 6px; }
 
+/* Messaggi esito caricamento */
+.qrl-msg { border-radius: 12px; padding: 11px 14px; font-size: .88rem; font-weight: 600; }
+.qrl-msg--success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.qrl-msg--error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+/* Ticket aperti + caricamento rapportino */
+.qrl-tkt { padding: 10px 0; border-top: 1px solid #f1f5f9; }
+.qrl-tkt:first-child { border-top: none; padding-top: 0; }
+.qrl-tkt-head { display: flex; gap: 10px; align-items: flex-start; }
+.qrl-tkt-num { font-size: .72rem; font-weight: 800; color: #64748b; letter-spacing: .02em; }
+.qrl-tkt-open { margin-left: auto; font-size: .75rem; color: #1d4ed8; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.qrl-badge--violet { background: #ede9fe; color: #5b21b6; }
+.qrl-upload { margin-top: 10px; }
+.qrl-upload > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(180deg, #f0f7ff 0%, #e6f0ff 100%);
+  color: #1d4ed8;
+  font-size: .9rem;
+  font-weight: 800;
+  transition: box-shadow .15s, border-color .15s;
+}
+.qrl-upload > summary:hover { border-color: #93c5fd; box-shadow: 0 2px 8px rgba(29,78,216,.12); }
+.qrl-upload > summary::-webkit-details-marker { display: none; }
+.qrl-upload-ico { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: #fff; color: #1d4ed8; flex-shrink: 0; box-shadow: 0 1px 2px rgba(15,23,42,.08); }
+.qrl-upload-ico svg { width: 17px; height: 17px; }
+.qrl-upload-label { flex: 1; }
+.qrl-upload-sub { display: block; font-size: .72rem; font-weight: 600; color: #3b82f6; margin-top: 1px; }
+.qrl-upload-chev { width: 18px; height: 18px; transition: transform .2s; flex-shrink: 0; }
+.qrl-upload[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.qrl-upload[open] .qrl-upload-chev { transform: rotate(180deg); }
+.qrl-upload-body {
+  border: 1px solid #bfdbfe;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  padding: 14px 12px 12px;
+  background: #fff;
+}
+/* Sul telefono i campi restano a 16px: niente zoom automatico di iOS */
+.qrl-upload-body .upl-field input[type=text] { font-size: 16px; padding: 11px 12px; }
+.qrl-upload-body .upl-seg-option span { min-height: 44px; }
+.qrl-hint { font-size: .72rem; color: #94a3b8; text-align: center; margin: 0; }
+
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
   .qrl-card { background: #1e293b; border-color: #334155; }
@@ -161,8 +210,33 @@ a.qrl-wo-item:first-child { margin-top: 0; }
   .qrl-btn--detail { background: #1e293b; color: #cbd5e1; border-color: #334155; }
   .qrl-not-found { color: #94a3b8; }
   .qrl-not-found h2 { color: #f1f5f9; }
+  .qrl-msg--success { background: rgba(6,95,70,.22); color: #6ee7b7; border-color: rgba(110,231,183,.25); }
+  .qrl-msg--error { background: rgba(153,27,27,.22); color: #fca5a5; border-color: rgba(252,165,165,.25); }
+  .qrl-tkt { border-top-color: #334155; }
+  .qrl-tkt-num { color: #94a3b8; }
+  .qrl-tkt-open { color: #60a5fa; }
+  .qrl-badge--violet { background: rgba(124,58,237,.25); color: #c4b5fd; }
+  .qrl-upload > summary { background: rgba(29,78,216,.15); border-color: rgba(96,165,250,.35); color: #93c5fd; }
+  .qrl-upload-ico { background: #0f172a; color: #93c5fd; }
+  .qrl-upload-sub { color: #7dabf8; }
+  .qrl-upload-body { background: #172033; border-color: rgba(96,165,250,.35); }
 }
+/* Tema scuro scelto nel portale (landing autenticata) */
+body.theme-dark .qrl-card { background: var(--surface, #1e293b); border-color: var(--border, #334155); }
+body.theme-dark .qrl-card-title { color: #94a3b8; border-bottom-color: #334155; }
+body.theme-dark .qrl-wo-item, body.theme-dark .qrl-tkt { border-top-color: #334155; }
+body.theme-dark .qrl-wo-title, body.theme-dark .qrl-kv-value { color: #f1f5f9; }
+body.theme-dark .qrl-kv-label, body.theme-dark .qrl-tkt-num { color: #94a3b8; }
+body.theme-dark .qrl-tkt-open { color: #60a5fa; }
+body.theme-dark .qrl-msg--success { background: rgba(6,95,70,.22); color: #6ee7b7; border-color: rgba(110,231,183,.25); }
+body.theme-dark .qrl-msg--error { background: rgba(153,27,27,.22); color: #fca5a5; border-color: rgba(252,165,165,.25); }
+body.theme-dark .qrl-badge--violet { background: rgba(124,58,237,.25); color: #c4b5fd; }
+body.theme-dark .qrl-upload > summary { background: rgba(29,78,216,.15); border-color: rgba(96,165,250,.35); color: #93c5fd; }
+body.theme-dark .qrl-upload-ico { background: var(--surface-alt, #0f172a); color: #93c5fd; }
+body.theme-dark .qrl-upload-sub { color: #7dabf8; }
+body.theme-dark .qrl-upload-body { background: var(--surface, #1e293b); border-color: rgba(96,165,250,.35); }
 </style>
+<link rel="stylesheet" href="{% static 'tickets/css/allegati_upload.css' %}">
 
 <div class="qrl-body">
 
@@ -248,6 +322,104 @@ a.qrl-wo-item:first-child { margin-top: 0; }
           </div>
         {% endif %}
       </div>
+    </div>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}
+      <div class="qrl-msg {% if m.tags == 'error' %}qrl-msg--error{% else %}qrl-msg--success{% endif %}" role="status">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% comment %}
+  Ticket aperti della macchina. Dal QR pubblico: solo numero, titolo, stato e
+  priorita' + caricamento di foto/PDF (rapportino del tecnico), che nascono
+  "da validare" per il team manutenzione.
+  {% endcomment %}
+  <div class="qrl-card" id="ticket">
+    <div class="qrl-card-title">Ticket aperti{% if qr_tickets %} ({{ qr_tickets|length }}){% endif %}</div>
+    <div class="qrl-card-body">
+      {% if qr_tickets %}
+        {% for t in qr_tickets %}
+          <div class="qrl-tkt">
+            <div class="qrl-tkt-head">
+              <div class="qrl-wo-dot {% if t.priorita == 'URGENTE' or t.priorita == 'ALTA' or t.incide_sicurezza %}qrl-wo-dot--urgente{% endif %}"></div>
+              <div style="flex:1; min-width:0;">
+                <div class="qrl-tkt-num">{{ t.numero }}</div>
+                <div class="qrl-wo-title" style="word-break:break-word;">{{ t.titolo|truncatechars:70 }}</div>
+                <div class="qrl-wo-meta">
+                  {% if t.stato == 'APERTA' %}<span class="qrl-badge qrl-badge--warn">{{ t.stato_label }}</span>
+                  {% elif t.stato == 'RISOLTO' %}<span class="qrl-badge qrl-badge--ok">{{ t.stato_label }}</span>
+                  {% else %}<span class="qrl-badge qrl-badge--info">{{ t.stato_label }}</span>{% endif %}
+                  {% if t.priorita == 'URGENTE' or t.priorita == 'ALTA' %}<span class="qrl-badge qrl-badge--alert">{{ t.priorita_label }}</span>{% endif %}
+                  {% if t.incide_sicurezza %}<span class="qrl-badge qrl-badge--alert">Sicurezza</span>{% endif %}
+                  &nbsp;&middot;&nbsp;aperto il {{ t.created_at|date:"d-m-Y" }}
+                  {% if t.n_allegati %}&nbsp;&middot;&nbsp;&#128206; {{ t.n_allegati }}{% endif %}
+                  {% if t.n_da_validare %}<span class="qrl-badge qrl-badge--violet">{{ t.n_da_validare }} da validare</span>{% endif %}
+                </div>
+              </div>
+              {% if t.detail_url %}<a class="qrl-tkt-open" href="{{ t.detail_url }}">Apri &rsaquo;</a>{% endif %}
+            </div>
+
+            {% if qr_upload_enabled and t.upload_url %}
+            <details class="qrl-upload">
+              <summary>
+                <span class="qrl-upload-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 11-8.6 8.6a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7L10 17.3a1.7 1.7 0 0 1-2.3-2.3L15.6 7"/></svg></span>
+                <span class="qrl-upload-label">Allega rapportino o foto<span class="qrl-upload-sub">Fotografa il foglio o scegli un PDF</span></span>
+                <svg class="qrl-upload-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              </summary>
+              <div class="qrl-upload-body">
+              <form method="post" action="{{ t.upload_url }}" enctype="multipart/form-data" class="upl-form" data-upload-form
+                    data-max-files="{% if qr_public %}5{% else %}10{% endif %}" data-max-mb="{% if qr_public %}15{% else %}20{% endif %}">
+                {% csrf_token %}
+                {% if not qr_public %}<input type="hidden" name="next" value="{{ qr_landing_url }}#ticket">{% endif %}
+                <div class="upl-drop-pair">
+                  <label class="upl-drop" data-upload-drop>
+                    <input type="file" name="file" accept="image/*" capture="environment" aria-label="Scatta una foto del documento">
+                    <span class="upl-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg></span>
+                    <span class="upl-drop-title">Scatta foto</span>
+                    <span class="upl-drop-hint">Fotocamera</span>
+                  </label>
+                  <label class="upl-drop" data-upload-drop>
+                    <input type="file" name="file" multiple accept="{% if qr_public %}image/jpeg,image/png,application/pdf,.pdf,.jpg,.jpeg,.png{% else %}image/*,.pdf,.doc,.docx,.xls,.xlsx,.odt,.ods,.txt{% endif %}" aria-label="Scegli file da allegare">
+                    <span class="upl-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg></span>
+                    <span class="upl-drop-title">Scegli file</span>
+                    <span class="upl-drop-hint">{% if qr_public %}JPG, PNG o PDF{% else %}Foto, PDF, Office{% endif %}</span>
+                  </label>
+                </div>
+                <ul class="upl-chips" data-upload-chips hidden></ul>
+                {% if qr_public %}
+                  <label class="upl-field">Nome e cognome
+                    <input type="text" name="nome" required minlength="3" maxlength="200" autocomplete="name" placeholder="Chi carica il documento" value="{{ qr_uploader_name }}">
+                  </label>
+                  <label class="upl-field">Ditta <small>(se esterno)</small>
+                    <input type="text" name="ditta" maxlength="200" autocomplete="organization" placeholder="Es. Rossi Impianti Srl">
+                  </label>
+                  <div class="upl-hp" aria-hidden="true"><label>Sito web <input type="text" name="sito_web" tabindex="-1" autocomplete="off"></label></div>
+                {% endif %}
+                <fieldset class="upl-seg">
+                  <legend>Tipo di documento</legend>
+                  <div class="upl-seg-options">
+                    <label class="upl-seg-option"><input type="radio" name="tipo_documento" value="RAPPORTINO" checked><span>Rapportino</span></label>
+                    <label class="upl-seg-option"><input type="radio" name="tipo_documento" value="FOTO"><span>Foto</span></label>
+                    <label class="upl-seg-option"><input type="radio" name="tipo_documento" value="ALTRO"><span>Altro</span></label>
+                  </div>
+                </fieldset>
+                <label class="upl-field">Note <small>(facoltative)</small>
+                  <input type="text" name="descrizione" maxlength="500" placeholder="Es. cinghia sostituita">
+                </label>
+                <span class="upl-status" data-upload-status aria-live="polite"></span>
+                <button type="submit" class="upl-btn upl-btn--block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>Invia al ticket {{ t.numero }}</button>
+                <p class="qrl-hint">{% if qr_public %}Max 5 file da 15 MB. Il team manutenzione verificherà il documento.{% else %}Max 20 MB per file. Se non gestisci il ticket, il team manutenzione verificherà il documento.{% endif %}</p>
+              </form>
+              </div>
+            </details>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="qrl-empty">Nessun ticket aperto su questa macchina.</p>
+      {% endif %}
     </div>
   </div>
 
@@ -379,4 +551,13 @@ a.qrl-wo-item:first-child { margin-top: 0; }
 
 {% endif %}
 </div>
+<script>
+(function () {
+  if (location.hash === '#ticket') {
+    var box = document.getElementById('ticket');
+    if (box) box.scrollIntoView({ block: 'start' });
+  }
+})();
+</script>
+<script src="{% static 'tickets/js/allegati_upload.js' %}" defer></script>
 {% endblock %}

@@ -1,0 +1,248 @@
+/*
+ * Form di caricamento allegati ticket: card allegati (dettaglio/gestione) e
+ * pagina QR della macchina. Token locali su .upl-form, ridefiniti in tema scuro
+ * (body.theme-dark nel portale, prefers-color-scheme sulla pagina pubblica).
+ */
+.upl-form {
+  --upl-surface: #ffffff;
+  --upl-surface-soft: #f8fafc;
+  --upl-border: #d6dde7;
+  --upl-border-strong: #94a3b8;
+  --upl-text: #0f172a;
+  --upl-text-mid: #475569;
+  --upl-text-soft: #64748b;
+  --upl-accent: #0369a1;
+  --upl-accent-soft: #e0f2fe;
+  --upl-accent-ring: rgba(3, 105, 161, .18);
+  --upl-danger: #b91c1c;
+  --upl-danger-soft: #fef2f2;
+  --upl-ok: #15803d;
+  display: grid;
+  gap: 14px;
+  color: var(--upl-text);
+  font-family: inherit;
+}
+
+/* ── Area file ─────────────────────────────────────────────────────────── */
+.upl-drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 22px 16px;
+  border: 1.5px dashed var(--upl-border-strong);
+  border-radius: 14px;
+  background: var(--upl-surface-soft);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.upl-drop:hover,
+.upl-drop.is-over { border-color: var(--upl-accent); background: var(--upl-accent-soft); }
+.upl-drop:focus-within { box-shadow: 0 0 0 3px var(--upl-accent-ring); border-color: var(--upl-accent); }
+.upl-drop input[type=file] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.upl-drop-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--upl-surface);
+  color: var(--upl-accent);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .08);
+}
+.upl-drop-icon svg { width: 22px; height: 22px; }
+.upl-drop-title { font-size: 14px; font-weight: 700; color: var(--upl-text); }
+.upl-drop-title u { color: var(--upl-accent); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.upl-drop-hint { font-size: 12px; color: var(--upl-text-soft); }
+
+/* Due riquadri affiancati (pagina QR: fotocamera + file) */
+.upl-drop-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.upl-drop-pair .upl-drop { padding: 18px 10px; }
+
+/* ── File scelti ───────────────────────────────────────────────────────── */
+.upl-chips { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.upl-chips[hidden] { display: none; }
+.upl-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 8px;
+  border: 1px solid var(--upl-border);
+  border-radius: 12px;
+  background: var(--upl-surface);
+  animation: upl-in .18s ease-out;
+}
+.upl-chip.is-error { border-color: var(--upl-danger); background: var(--upl-danger-soft); }
+@keyframes upl-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.upl-thumb {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  object-fit: cover;
+  border: 1px solid var(--upl-border);
+  background: var(--upl-surface-soft);
+}
+.upl-thumb--doc {
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: var(--upl-accent);
+  background: var(--upl-accent-soft);
+  border-color: transparent;
+}
+.upl-meta { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.upl-name { font-size: 13px; font-weight: 700; color: var(--upl-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upl-size { font-size: 11.5px; color: var(--upl-text-soft); }
+.upl-chip.is-error .upl-size { color: var(--upl-danger); font-weight: 700; }
+.upl-remove {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--upl-text-soft);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.upl-remove:hover { background: var(--upl-danger-soft); color: var(--upl-danger); }
+
+/* ── Tipo di documento (pulsanti) ──────────────────────────────────────── */
+.upl-seg { border: none; margin: 0; padding: 0; display: grid; gap: 6px; min-width: 0; }
+.upl-seg legend,
+.upl-label { font-size: 12px; font-weight: 700; color: var(--upl-text-mid); padding: 0; margin-bottom: 6px; }
+.upl-seg-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.upl-seg-option { position: relative; }
+.upl-seg-option input { position: absolute; opacity: 0; pointer-events: none; }
+.upl-seg-option span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 6px;
+  border: 1px solid var(--upl-border);
+  border-radius: 10px;
+  background: var(--upl-surface);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--upl-text-mid);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.upl-seg-option span svg { width: 16px; height: 16px; flex-shrink: 0; }
+.upl-seg-option input:checked + span { border-color: var(--upl-accent); background: var(--upl-accent-soft); color: var(--upl-accent); }
+.upl-seg-option input:focus-visible + span { box-shadow: 0 0 0 3px var(--upl-accent-ring); }
+
+/* ── Campi ─────────────────────────────────────────────────────────────── */
+/* flex a capo: etichetta e "(facoltative)" sulla stessa riga, il campo sotto */
+.upl-field { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px; row-gap: 6px; font-size: 12px; font-weight: 700; color: var(--upl-text-mid); }
+.upl-field input[type=text] { flex: 1 0 100%; }
+.upl-field small { font-size: 12px; font-weight: 500; color: var(--upl-text-soft); }
+.upl-field input[type=text] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--upl-border);
+  border-radius: 10px;
+  background: var(--upl-surface);
+  color: var(--upl-text);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+.upl-field input[type=text]::placeholder { color: var(--upl-text-soft); opacity: .8; }
+.upl-field input[type=text]:focus { outline: none; border-color: var(--upl-accent); box-shadow: 0 0 0 3px var(--upl-accent-ring); }
+.upl-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 640px) { .upl-row { grid-template-columns: 1fr; } }
+
+/* ── Piede: stato + invio ──────────────────────────────────────────────── */
+.upl-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.upl-status { font-size: 12.5px; font-weight: 700; color: var(--upl-ok); min-height: 1em; }
+.upl-status:empty { display: none; }
+.upl-status.is-error { color: var(--upl-danger); }
+.upl-note { font-size: 12px; color: var(--upl-text-soft); }
+.upl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 11px;
+  background: var(--upl-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  transition: filter .15s, transform .05s, opacity .15s;
+}
+.upl-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.upl-btn:active:not(:disabled) { transform: translateY(1px); }
+.upl-btn:disabled { opacity: .45; cursor: not-allowed; }
+.upl-btn.is-loading { opacity: .85; cursor: progress; }
+.upl-btn svg { width: 17px; height: 17px; }
+.upl-btn--block { width: 100%; min-height: 50px; font-size: 15px; border-radius: 13px; }
+.upl-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(255, 255, 255, .45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: upl-spin .7s linear infinite;
+}
+@keyframes upl-spin { to { transform: rotate(360deg); } }
+.upl-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+/* ── Tema scuro ────────────────────────────────────────────────────────── */
+body.theme-dark .upl-form {
+  --upl-surface: var(--surface, #1e293b);
+  --upl-surface-soft: var(--surface-alt, #0f172a);
+  --upl-border: var(--border, #334155);
+  --upl-border-strong: #475569;
+  --upl-text: var(--text, #f1f5f9);
+  --upl-text-mid: #cbd5e1;
+  --upl-text-soft: #94a3b8;
+  --upl-accent: #60a5fa;
+  --upl-accent-soft: rgba(96, 165, 250, .14);
+  --upl-accent-ring: rgba(96, 165, 250, .28);
+  --upl-danger: #fca5a5;
+  --upl-danger-soft: rgba(220, 38, 38, .14);
+  --upl-ok: #86efac;
+}
+body.theme-dark .upl-btn { background: #2563eb; }
+@media (prefers-color-scheme: dark) {
+  body.public-shell .upl-form {
+    --upl-surface: #1e293b;
+    --upl-surface-soft: #0f172a;
+    --upl-border: #334155;
+    --upl-border-strong: #475569;
+    --upl-text: #f1f5f9;
+    --upl-text-mid: #cbd5e1;
+    --upl-text-soft: #94a3b8;
+    --upl-accent: #60a5fa;
+    --upl-accent-soft: rgba(96, 165, 250, .14);
+    --upl-accent-ring: rgba(96, 165, 250, .28);
+    --upl-danger: #fca5a5;
+    --upl-danger-soft: rgba(220, 38, 38, .14);
+    --upl-ok: #86efac;
+  }
+  body.public-shell .upl-btn { background: #2563eb; }
+}

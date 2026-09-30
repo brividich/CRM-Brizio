@@ -6642,8 +6642,8 @@ def _plant_layout_machine_queryset():
     )
 
 
-def _plant_layout_machine_catalog() -> list[dict[str, object]]:
-    machines = _plant_layout_machine_queryset()
+def _plant_layout_machine_catalog(machines=None) -> list[dict[str, object]]:
+    machines = _plant_layout_machine_queryset() if machines is None else machines
     catalog: list[dict[str, object]] = []
     for asset in machines:
         machine = getattr(asset, "work_machine", None)
@@ -6772,21 +6772,118 @@ def _open_tickets_by_asset(asset_ids) -> dict[int, list[dict[str, object]]]:
     return result
 
 
-def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object]:
-    if layout is None:
-        return {"layout": None, "areas": [], "markers": [], "machine_catalog": [], "markers_with_tickets": 0}
+# Stato di ogni macchina sulla mappa officina, dal piu' grave: ticket aperti,
+# manutenzione scaduta, OdL aperti, manutenzione in scadenza, in riparazione.
+_PLANT_ALERT_LEVELS = ("ticket", "overdue", "workorder", "due_soon", "repair", "ok")
+_PLANT_ALERT_LABELS = {
+    "ticket": "Ticket aperto",
+    "overdue": "Manutenzione scaduta",
+    "workorder": "OdL aperto",
+    "due_soon": "Manutenzione in scadenza",
+    "repair": "In riparazione",
+    "ok": "In ordine",
+}
 
-    machine_catalog = _plant_layout_machine_catalog()
+
+def _plant_layout_machine_alerts(assets, *, today=None) -> dict[int, dict[str, object]]:
+    """asset_id -> OdL aperti, manutenzioni scadute/in scadenza, in riparazione.
+
+    Due query batch per tutta la mappa; i ticket arrivano da ``_open_tickets_by_asset``."""
+    from .models import MaintenanceOccurrence
+
+    today = today or timezone.localdate()
+    now = timezone.now()
+    ids = [a.id for a in assets]
+    result: dict[int, dict[str, object]] = {
+        a.id: {"workorders": [], "workorders_total": 0, "overdue": 0, "due_soon": 0, "next_due": "",
+               "in_repair": a.status == Asset.STATUS_IN_REPAIR}
+        for a in assets
+    }
+    if not ids:
+        return result
+    for wo in (
+        WorkOrder.objects.filter(asset_id__in=ids, status=WorkOrder.STATUS_OPEN)
+        .only("id", "asset_id", "title", "due_at", "kind", "status")
+        .order_by("due_at", "id")
+    ):
+        row = result[wo.asset_id]
+        row["workorders_total"] += 1
+        if len(row["workorders"]) < 5:
+            row["workorders"].append({
+                "id": wo.id,
+                "titolo": wo.title or f"OdL #{wo.id}",
+                "tipo": wo.get_kind_display(),
+                "scadenza": timezone.localtime(wo.due_at).strftime("%d/%m/%Y") if wo.due_at else "",
+                "in_ritardo": bool(wo.due_at and wo.due_at < now),
+                "url": reverse("assets:wo_view", args=[wo.id]),
+            })
+    for occ in (
+        MaintenanceOccurrence.objects.filter(asset_id__in=ids, status=MaintenanceOccurrence.STATUS_OPEN)
+        .only("asset_id", "due_date", "warning_days")
+        .order_by("due_date")
+    ):
+        row = result[occ.asset_id]
+        if not row["next_due"]:
+            row["next_due"] = occ.due_date.strftime("%d/%m/%Y")
+        if occ.due_date < today:
+            row["overdue"] += 1
+        elif (occ.due_date - today).days <= (occ.warning_days or 0):
+            row["due_soon"] += 1
+    return result
+
+
+def _plant_alert_level(alerts: dict[str, object], open_tickets: int) -> str:
+    if open_tickets:
+        return "ticket"
+    if alerts.get("overdue"):
+        return "overdue"
+    if alerts.get("workorders_total"):
+        return "workorder"
+    if alerts.get("due_soon"):
+        return "due_soon"
+    if alerts.get("in_repair"):
+        return "repair"
+    return "ok"
+
+
+def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object]:
+    empty_counts = {level: 0 for level in _PLANT_ALERT_LEVELS}
+    if layout is None:
+        return {"layout": None, "areas": [], "markers": [], "markers_with_tickets": 0,
+                "alert_counts": empty_counts, "alert_labels": _PLANT_ALERT_LABELS}
+
+    machines = list(_plant_layout_machine_queryset())
+    machine_catalog = _plant_layout_machine_catalog(machines)
+    alerts = _plant_layout_machine_alerts(machines)
+    # ticket solo per le macchine posizionate o nei reparti mappati: sono quelle che la mappa mostra
+    area_repartos = {_clean_string(code) for code in layout.areas.values_list("reparto_code", flat=True) if _clean_string(code)}
+    shown_ids = set(layout.markers.values_list("asset_id", flat=True)) | {
+        row["id"] for row in machine_catalog if _clean_string(str(row.get("reparto") or "")) in area_repartos
+    }
+    ticket_map = _open_tickets_by_asset(shown_ids)
+    for row in machine_catalog:
+        info = alerts.get(row["id"], {})
+        tickets = ticket_map.get(row["id"], [])
+        row["alert"] = _plant_alert_level(info, len(tickets))
+        row["alert_label"] = _PLANT_ALERT_LABELS[row["alert"]]
+        row["tickets"] = tickets
+        row["workorders"] = info.get("workorders", [])
+        row["workorders_total"] = info.get("workorders_total", 0)
+        row["overdue"] = info.get("overdue", 0)
+        row["due_soon"] = info.get("due_soon", 0)
+        row["next_due"] = info.get("next_due", "") or row.get("next_maintenance_date", "")
+        row["create_wo_url"] = reverse("assets:wo_create", args=[row["id"]])
     machines_by_id = {row["id"]: row for row in machine_catalog}
     reparto_machine_rows: dict[str, list[dict[str, object]]] = defaultdict(list)
     for row in machine_catalog:
-        reparto_machine_rows[_clean_string(str(row.get("reparto") or ""))].append(dict(row))
+        reparto_machine_rows[_clean_string(str(row.get("reparto") or ""))].append(row)
 
     reparto_area_ids: dict[str, list[int]] = defaultdict(list)
     area_payload: list[dict[str, object]] = []
     for area in layout.areas.all().order_by("sort_order", "id"):
         reparto_code = _clean_string(area.reparto_code)
         reparto_area_ids[reparto_code].append(area.id)
+        rows = reparto_machine_rows.get(reparto_code, []) if reparto_code else []
         area_payload.append(
             {
                 "id": area.id,
@@ -6800,14 +6897,24 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
                 "y_percent": float(area.y_percent),
                 "width_percent": float(area.width_percent),
                 "height_percent": float(area.height_percent),
-                "machine_count": len(reparto_machine_rows.get(reparto_code, [])),
-                "machines": list(reparto_machine_rows.get(reparto_code, [])),
+                "machine_count": len(rows),
+                "alert_count": sum(1 for r in rows if r["alert"] != "ok"),
+                "machines": sorted(rows, key=lambda r: _PLANT_ALERT_LEVELS.index(r["alert"])),
+                "list_url": (f"{reverse('assets:work_machine_list')}?{urlencode({'reparto': reparto_code})}"
+                             if reparto_code else ""),
             }
         )
 
     marker_payload: list[dict[str, object]] = []
-    for marker in layout.markers.select_related("asset", "asset__work_machine").all().order_by("sort_order", "id"):
+    alert_counts = dict(empty_counts)
+    markers_with_tickets = 0
+    for marker in layout.markers.all().order_by("sort_order", "id"):
         asset_payload = dict(machines_by_id.get(marker.asset_id) or {})
+        tickets = ticket_map.get(marker.asset_id, [])
+        alert = asset_payload.get("alert") or ("ticket" if tickets else "ok")
+        alert_counts[alert] += 1
+        if tickets:
+            markers_with_tickets += 1
         asset_payload["marker_id"] = marker.id
         marker_payload.append(
             {
@@ -6818,19 +6925,12 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
                 "y_percent": float(marker.y_percent),
                 "area_ids": list(reparto_area_ids.get(_clean_string(str(asset_payload.get("reparto") or "")), [])),
                 "machine": asset_payload,
+                "alert": alert,
+                "alert_label": _PLANT_ALERT_LABELS[alert],
+                "open_tickets": len(tickets),
+                "tickets": tickets,
             }
         )
-
-    # Overlay ticket aperti (#5): arricchisce ogni marker con i ticket aperti
-    # dell'asset (una sola query batch) per evidenziarlo in rosso sulla mappa.
-    ticket_map = _open_tickets_by_asset({m["asset_id"] for m in marker_payload if m.get("asset_id")})
-    markers_with_tickets = 0
-    for m in marker_payload:
-        tickets = ticket_map.get(m["asset_id"], [])
-        m["open_tickets"] = len(tickets)
-        m["tickets"] = tickets
-        if tickets:
-            markers_with_tickets += 1
 
     return {
         "layout": {
@@ -6842,8 +6942,9 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
         },
         "areas": area_payload,
         "markers": marker_payload,
-        "machine_catalog": machine_catalog,
         "markers_with_tickets": markers_with_tickets,
+        "alert_counts": alert_counts,
+        "alert_labels": _PLANT_ALERT_LABELS,
     }
 
 
@@ -10558,6 +10659,169 @@ def asset_qr_public_landing(request: HttpRequest, public_qr_token: str) -> HttpR
     return _render_asset_qr_landing(request, asset, public=True)
 
 
+def _qr_landing_tickets(request: HttpRequest, asset: Asset, *, public: bool, qr_token: str) -> list[dict[str, object]]:
+    """Ticket non chiusi dell'asset per la landing QR (max 10, piu' recenti prima)."""
+    from tickets.allegati import ticket_aperti_asset
+    from tickets.views import _can_manage_tickets
+
+    rows: list[dict[str, object]] = []
+    can_manage: dict[str, bool] = {}
+    for t in ticket_aperti_asset(asset.id)[:10]:
+        row: dict[str, object] = {
+            "id": t.pk,
+            "numero": t.numero_ticket,
+            "titolo": t.titolo,
+            "stato": t.stato,
+            "stato_label": t.label_stato,
+            "priorita": t.priorita,
+            "priorita_label": t.label_priorita,
+            "tipo_label": t.label_tipo,
+            "incide_sicurezza": t.incide_sicurezza,
+            "created_at": t.created_at,
+            "n_allegati": t.n_allegati,
+            "n_da_validare": t.n_allegati_da_validare,
+            "detail_url": "",
+        }
+        if public:
+            row["upload_url"] = (
+                reverse("assets:asset_qr_ticket_upload", kwargs={"public_qr_token": qr_token, "ticket_id": t.pk})
+                if qr_token
+                else ""
+            )
+        else:
+            row["upload_url"] = reverse("tickets:carica_allegati", args=[t.pk])
+            if t.tipo not in can_manage:
+                can_manage[t.tipo] = _can_manage_tickets(request, t.tipo)
+            if can_manage[t.tipo]:
+                row["detail_url"] = reverse("tickets:gestione_detail", args=[t.pk])
+        rows.append(row)
+    return rows
+
+
+@risposta_pubblica
+def asset_qr_ticket_upload(request: HttpRequest, public_qr_token: str, ticket_id: int) -> HttpResponse:
+    """Upload di rapportino/foto su un ticket aperto dal QR pubblico dell'asset.
+
+    Il token QR e' la chiave: il ticket deve appartenere esattamente all'asset del
+    token ed essere ancora aperto. Solo foto/PDF, tetto per IP e per macchina,
+    file sempre "da validare" dal team gestore. Nessun dato del ticket viene
+    restituito oltre a quanto gia' mostrato dalla landing.
+    """
+    from tickets.allegati import (
+        QR_MAX_FILES,
+        AllegatoError,
+        carica_allegato,
+        qr_rate_limited,
+        registra_caricamento,
+        ticket_accetta_allegati,
+    )
+    from tickets.models import OrigineAllegato, Ticket
+
+    if request.method != "POST":
+        raise Http404("Pagina non disponibile.")
+    token = _clean_string(public_qr_token)
+    asset = (
+        Asset.objects.filter(public_qr_token=token, public_qr_enabled=True).first() if token else None
+    )
+    if asset is None or not getattr(settings, "ASSETS_QR_PUBLIC_TICKET_UPLOAD", True):
+        raise Http404("Link non disponibile.")
+    landing_url = reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": token}) + "#ticket"
+
+    ticket = Ticket.objects.filter(pk=ticket_id, asset_id=asset.id).first()
+    if ticket is None:
+        # Ticket inesistente o di un'altra macchina: nessun oracolo.
+        log_action(
+            request,
+            "ticket_allegato_qr",
+            "assets",
+            {"asset_id": asset.id, "ticket_id": ticket_id, "qr_token_prefix": token[:8],
+             "esito": "denied", "motivo": "ticket_not_in_asset"},
+        )
+        raise Http404("Ticket non disponibile.")
+    if not ticket_accetta_allegati(ticket):
+        messages.error(request, f"Il ticket {ticket.numero_ticket} è chiuso: non accetta nuovi allegati.")
+        return redirect(landing_url)
+
+    # Honeypot: i bot compilano tutto, le persone non vedono il campo.
+    if _clean_string(request.POST.get("sito_web")):
+        return redirect(landing_url)
+
+    nome = _clean_string(request.POST.get("nome"))[:200]
+    ditta = _clean_string(request.POST.get("ditta"))[:200]
+    files = request.FILES.getlist("file")
+    if len(nome) < 3:
+        messages.error(request, "Indica nome e cognome di chi carica il documento.")
+        return redirect(landing_url)
+    if not files:
+        messages.error(request, "Scatta una foto o scegli un file da allegare.")
+        return redirect(landing_url)
+    if len(files) > QR_MAX_FILES:
+        messages.error(request, f"Puoi allegare al massimo {QR_MAX_FILES} file per invio.")
+        return redirect(landing_url)
+    if qr_rate_limited(request, asset.id):
+        log_action(
+            request,
+            "ticket_allegato_qr",
+            "assets",
+            {"asset_id": asset.id, "ticket_id": ticket.pk, "qr_token_prefix": token[:8],
+             "esito": "denied", "motivo": "rate_limited"},
+        )
+        messages.error(request, "Troppi invii ravvicinati da questo dispositivo. Riprova tra qualche minuto.")
+        return redirect(landing_url)
+
+    email = ""
+    if request.user.is_authenticated:
+        email = (request.user.email or "").strip().lower()
+    caricati = []
+    errori = []
+    for f in files:
+        try:
+            caricati.append(
+                carica_allegato(
+                    ticket,
+                    f,
+                    caricato_da_nome=nome,
+                    caricato_da_email=email,
+                    ditta=ditta,
+                    origine=OrigineAllegato.QR,
+                    tipo_documento=_clean_string(request.POST.get("tipo_documento")).upper(),
+                    descrizione=_clean_string(request.POST.get("descrizione")),
+                    da_validare=True,
+                )
+            )
+        except AllegatoError as exc:
+            errori.append(f"{safe_filename(getattr(f, 'name', '')) or 'file'}: {exc}")
+
+    registra_caricamento(ticket, caricati)
+    log_action(
+        request,
+        "ticket_allegato_qr",
+        "assets",
+        {
+            "asset_id": asset.id,
+            "asset_tag": asset.asset_tag,
+            "ticket_id": ticket.pk,
+            "numero_ticket": ticket.numero_ticket,
+            "qr_token_prefix": token[:8],
+            "allegati": [a.pk for a in caricati],
+            "scartati": len(errori),
+            "caricato_da": nome,
+            "ditta": ditta,
+            "esito": "success" if caricati else "rejected",
+        },
+        oggetto=ticket,
+    )
+    if caricati:
+        messages.success(
+            request,
+            f"Grazie! {len(caricati)} file allegat{'o' if len(caricati) == 1 else 'i'} al ticket "
+            f"{ticket.numero_ticket}. Il team manutenzione {'lo' if len(caricati) == 1 else 'li'} verificherà a breve.",
+        )
+    for err in errori:
+        messages.error(request, err)
+    return redirect(landing_url)
+
+
 def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool) -> HttpResponse:
     asset_tag = asset.asset_tag
     today = timezone.localdate()
@@ -10655,6 +10919,19 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
                 "open_url": open_url,
             }
         )
+    # Ticket aperti della macchina, con il caricamento di rapportini/foto.
+    # Dal QR pubblico il visitatore vede solo numero, titolo, stato e priorita'
+    # (niente richiedente, note o allegati) e puo' solo AGGIUNGERE file, che
+    # nascono "da validare" per il team MAN.
+    qr_tickets = _qr_landing_tickets(request, asset, public=public, qr_token=qr_token)
+    qr_upload_enabled = bool(
+        qr_tickets
+        and (not public or (qr_token and getattr(settings, "ASSETS_QR_PUBLIC_TICKET_UPLOAD", True)))
+    )
+    qr_uploader_name = ""
+    if request.user.is_authenticated:
+        qr_uploader_name = request.user.get_full_name() or request.user.get_username()
+
     # URL azioni
     detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
     report_url = f"{reverse('assets:asset_quick_report')}?asset={asset.id}"
@@ -10678,6 +10955,10 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
         "wo_list_url": wo_list_url,
         "schedule_url": schedule_url,
         "qr_public": public,
+        "qr_tickets": qr_tickets,
+        "qr_upload_enabled": qr_upload_enabled,
+        "qr_uploader_name": qr_uploader_name,
+        "qr_landing_url": request.path,
     }
     if public:
         # Nessuna shell applicativa (sidebar/nav/ACL) per i visitatori non autenticati.
@@ -10685,7 +10966,12 @@ def _render_asset_qr_landing(request: HttpRequest, asset: Asset, *, public: bool
     else:
         context["base_template"] = "core/base.html"
         context.update(_assets_shell_context(request, rows=25))
-    return render(request, "assets/pages/asset_qr_landing.html", context)
+    response = render(request, "assets/pages/asset_qr_landing.html", context)
+    if public and qr_upload_enabled:
+        # Il form di caricamento e' un POST: con "no-referrer" Chromium manda
+        # Origin: null e il CSRF lo rifiuta. same-origin non fa uscire il token.
+        response["Referrer-Policy"] = "same-origin"
+    return response
 
 
 @login_required
@@ -14109,6 +14395,12 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
         active_layouts[0] if active_layouts else None,
     )
     payload = _plant_layout_public_payload(layout)
+    image_size = (0, 0)
+    if layout is not None and layout.image:
+        try:
+            image_size = (layout.image.width, layout.image.height)
+        except (OSError, ValueError):
+            image_size = (0, 0)
     category_switches = _plant_layout_category_switches(
         active_layouts=active_layouts,
         selected_category=selected_category,
@@ -14125,6 +14417,14 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
             "focus_asset_id": focus_asset_id,
             "selected_layout_category": selected_category,
             "layout_category_switches": category_switches,
+            "check_layouts": _plant_layout_check_links(),
+            "image_width": image_size[0],
+            "image_height": image_size[1],
+            "alert_filters": [
+                {"code": code, "label": _PLANT_ALERT_LABELS[code], "count": payload["alert_counts"][code]}
+                for code in _PLANT_ALERT_LEVELS if payload["alert_counts"][code]
+            ],
+            "alert_total": sum(v for k, v in payload["alert_counts"].items() if k != "ok"),
             "can_manage_map": user_can_modulo_action(request, "assets", "admin_assets"),
             **_assets_shell_context(
                 request,
@@ -14136,6 +14436,27 @@ def plant_layout_map(request: HttpRequest) -> HttpResponse:
             ),
         },
     )
+
+
+def _plant_layout_check_links() -> list[dict[str, object]]:
+    """Le planimetrie delle verifiche periodiche (luci di emergenza, differenziali...):
+    stanno nella loro scheda, qui solo il collegamento con lo stato della verifica."""
+    from .models import PeriodicCheckType
+    from .services import periodic_checks as checks
+
+    links = []
+    for check_type in (
+        PeriodicCheckType.objects.filter(method=PeriodicCheckType.METHOD_LAYOUT, is_active=True, layouts__is_active=True)
+        .distinct().order_by("name")
+    ):
+        state = checks.type_state(check_type)
+        links.append({
+            "name": check_type.name,
+            "state": state,
+            "state_label": checks.STATE_LABELS[state],
+            "url": reverse("assets:periodic_check_type_detail", args=[check_type.id]) + "?tab=panoramica",
+        })
+    return links
 
 
 @login_required
@@ -18209,6 +18530,164 @@ def _legacy_asset_dashboard_list_redirect_url(request: HttpRequest) -> str:
     return f"{target_url}?{query_string}" if query_string else target_url
 
 
+def _dashboard_workorders(request: HttpRequest, today: date, limit: int = 6) -> dict:
+    """OdL aperti per il centro "Da fare": urgenti e in ritardo in testa."""
+    from assets.maintenance import get_workorder_overdue_days
+
+    now = timezone.now()
+    age_threshold = today - timedelta(days=get_workorder_overdue_days())
+    qs = (
+        WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN)
+        .exclude(asset__status=Asset.STATUS_RETIRED)
+        .select_related("asset", "assigned_to")
+    )
+    open_rows = list(qs.order_by("opened_at", "id")[:400])
+
+    def _late(wo) -> bool:
+        if wo.due_at and wo.due_at < now:
+            return True
+        return bool(wo.opened_at and wo.opened_at.date() <= age_threshold)
+
+    def _sort_key(wo):
+        return (
+            0 if wo.priority == WorkOrder.PRIORITY_URGENT else 1,
+            0 if _late(wo) else 1,
+            wo.opened_at or now,
+        )
+
+    items = []
+    for wo in sorted(open_rows, key=_sort_key)[:limit]:
+        assignee = ""
+        if wo.assigned_to_id:
+            assignee = wo.assigned_to.get_full_name() or wo.assigned_to.get_username()
+        opened = wo.opened_at.date() if wo.opened_at else None
+        items.append({
+            "id": wo.id,
+            "title": wo.title,
+            "asset_tag": wo.asset.asset_tag if wo.asset_id else "",
+            "asset_name": wo.asset.name if wo.asset_id else "",
+            "kind_label": wo.get_kind_display(),
+            "is_urgent": wo.priority == WorkOrder.PRIORITY_URGENT,
+            "is_late": _late(wo),
+            "state_label": wo.operational_state_label,
+            "state": wo.operational_state or "",
+            "assignee": assignee,
+            "is_mine": wo.assigned_to_id == request.user.id,
+            "age_days": (today - opened).days if opened else None,
+        })
+    return {
+        "items": items,
+        "total": qs.count(),
+        "urgent": sum(1 for wo in open_rows if wo.priority == WorkOrder.PRIORITY_URGENT),
+        "late": sum(1 for wo in open_rows if _late(wo)),
+        "unassigned": sum(1 for wo in open_rows if not wo.assigned_to_id),
+        "mine": sum(1 for wo in open_rows if wo.assigned_to_id == request.user.id),
+    }
+
+
+def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> dict:
+    """Scadenze (piani, amministrative, licenze, contratti) + verifiche periodiche
+    entro 30 giorni o gia' scadute, in una lista sola. Sola lettura: le azioni
+    puntano alle pagine che gia' le gestiscono."""
+    from .services import deadline_feed as feed
+
+    horizon = today + timedelta(days=30)
+    rows: list[dict] = []
+    try:
+        deadlines = feed.collect(
+            start=None,
+            end=horizon,
+            filters=feed.FeedFilters(kinds=feed.allowed_kinds(request)),
+            today=today,
+        )
+    except Exception:
+        deadlines = []
+    for dl in deadlines:
+        if dl.state == feed.STATE_DONE:
+            continue
+        rows.append({
+            "source": dl.kind,
+            "source_label": dl.kind_label,
+            "title": dl.title,
+            "due_date": dl.due_date,
+            "days": (dl.due_date - today).days,
+            "is_overdue": dl.due_date < today,
+            "asset_tag": dl.asset_tag,
+            "asset_name": dl.asset_name or dl.target_label,
+            "url": dl.detail_url,
+            "action_label": (dl.actions[0]["label"] if dl.actions else "Apri"),
+            "work_order_id": dl.work_order_id,
+        })
+    verifications = PeriodicVerification.objects.filter(
+        is_active=True, is_legacy=False, next_verification_date__isnull=False,
+        next_verification_date__lte=horizon,
+    ).order_by("next_verification_date")[:200]
+    pv_url = reverse("assets:periodic_verifications")
+    for pv in verifications:
+        rows.append({
+            "source": "verification",
+            "source_label": "Verifica",
+            "title": pv.name,
+            "due_date": pv.next_verification_date,
+            "days": (pv.next_verification_date - today).days,
+            "is_overdue": pv.next_verification_date < today,
+            "asset_tag": "",
+            "asset_name": "",
+            "url": pv_url,
+            "action_label": "Gestisci",
+            "work_order_id": None,
+        })
+    rows.sort(key=lambda r: (r["due_date"], r["title"]))
+    overdue = [r for r in rows if r["is_overdue"]]
+    return {
+        "items": rows[:limit],
+        "total": len(rows),
+        "overdue": len(overdue),
+        "due_soon": len(rows) - len(overdue),
+        "maintenance_overdue": sum(1 for r in overdue if r["source"] == feed.KIND_ORDINARY),
+        "maintenance_due_soon": sum(
+            1 for r in rows if r["source"] == feed.KIND_ORDINARY and not r["is_overdue"]
+        ),
+    }
+
+
+def _dashboard_launcher(request: HttpRequest, counters: dict) -> list[dict]:
+    """Collegamenti alle parti principali del modulo, filtrati con la stessa
+    decisione ACL del middleware (fail-closed): non si mostrano porte chiuse."""
+    from core.middleware import acl_allows_path
+
+    tiles = [
+        ("inventory", "Inventario", "Tutti gli asset, filtri ed export", reverse("assets:asset_list"), counters.get("assets"), ""),
+        ("hub", "Centro manutenzione", "Punto di partenza del manutentore", reverse("assets:maintenance_hub"), None, ""),
+        ("todo", "Da fare", "Manutenzioni programmate aperte", reverse("assets:maintenance_da_fare"), counters.get("maintenance_overdue"), "red"),
+        ("workorders", "Ordini di lavoro", "Interventi aperti e chiusi", reverse("assets:wo_list"), counters.get("wo_open"), "amber"),
+        ("shift", "Il mio turno", "Gli interventi assegnati a te", reverse("assets:il_mio_turno"), counters.get("wo_mine"), "blue"),
+        ("deadlines", "Scadenzario", "Scadenze di piani, adempimenti e contratti", reverse("assets:maintenance_scadenze"), counters.get("deadlines_overdue"), "red"),
+        ("plans", "Piani di manutenzione", "Cicli e frequenze per asset", reverse("assets:maintenance_plan_list"), None, ""),
+        ("verifications", "Verifiche periodiche", "Verifiche di legge sugli asset", reverse("assets:periodic_verifications"), counters.get("verifiche_overdue"), "red"),
+        ("checks", "Verifiche impianti", "Luci di emergenza, estintori, impianti", reverse("assets:periodic_check_list"), None, ""),
+        ("map", "Mappa officina", "Stato delle macchine in planimetria", reverse("assets:plant_layout_map"), None, ""),
+        ("machines", "Macchine di lavoro", "Cruscotto del parco produttivo", reverse("assets:work_machine_dashboard"), None, ""),
+        ("tickets", "Segnalazioni", "Ticket di manutenzione dagli operatori", f"{reverse('tickets:gestione_list')}?tipo=MAN", counters.get("tickets_new"), "amber"),
+        ("history", "Storico", "Interventi eseguiti e registro", reverse("assets:maintenance_history"), None, ""),
+        ("reports", "Report", "Report e analisi del modulo", reverse("assets:reports"), None, ""),
+    ]
+    user = getattr(request, "user", None)
+    output = []
+    for code, label, hint, url, count, tone in tiles:
+        try:
+            allowed = acl_allows_path(url.split("?", 1)[0], django_user=user, request=request)
+        except Exception:
+            allowed = False
+        if not allowed:
+            continue
+        output.append({
+            "code": code, "label": label, "hint": hint, "url": url,
+            "count": count or 0, "tone": tone if count else "",
+        })
+    return output
+
+
 @login_required
 def asset_dashboard(request: HttpRequest) -> HttpResponse:
     """Dashboard principale del modulo Assets con KPI personalizzabili."""
@@ -18255,9 +18734,46 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
     cose_da_fare = get_cose_da_fare_overview(today=today)
     segnalazioni = get_segnalazioni_overview(today=today)
 
-    # Categorie asset attive (solo principali, per i link in cima)
+    # Centro "Da fare": interventi, segnalazioni e scadenze con le azioni rapide
+    dash_wo = _dashboard_workorders(request, today)
+    dash_deadlines = _dashboard_deadlines(request, today)
+    from tickets.views import _can_manage_tickets
+    from tickets.models import TipoTicket
+
+    try:
+        can_manage_man = _can_manage_tickets(request, TipoTicket.MAN)
+    except Exception:
+        can_manage_man = False
+    attention_total = (
+        dash_wo["urgent"] + dash_wo["late"] + segnalazioni["urgenti"] + dash_deadlines["overdue"]
+    )
+    launcher = _dashboard_launcher(request, {
+        "assets": kpis["totale_asset"],
+        "maintenance_overdue": dash_deadlines["maintenance_overdue"],
+        "wo_open": dash_wo["total"],
+        "wo_mine": dash_wo["mine"],
+        "deadlines_overdue": dash_deadlines["overdue"],
+        "verifiche_overdue": kpis["verifiche_scadute"],
+        "tickets_new": segnalazioni["nuove"],
+    })
+    status_rows = [row for row in kpis["asset_per_stato"] if row["status"] != Asset.STATUS_RETIRED]
     categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label"))
     family_options = categories
+    # Categorie per la barra "Inventario per categoria": le piu' popolose in vista,
+    # le altre dietro "+ altre" (sono decine e coprivano la pagina).
+    category_counts = dict(
+        Asset.objects.exclude(status=Asset.STATUS_RETIRED)
+        .values_list("asset_category_id")
+        .annotate(n=Count("id"))
+        .order_by()
+    )
+    for cat in categories:
+        cat.asset_count = int(category_counts.get(cat.id) or 0)
+    by_count = sorted(categories, key=lambda c: (-c.asset_count, c.label.lower()))
+    categories_top = [c for c in by_count if c.asset_count][:10]
+    top_ids = {c.id for c in categories_top}
+    categories_rest = [c for c in categories if c.id not in top_ids]
+
 
     # Metadati widget arricchiti con valore
     widgets_all = []
@@ -18293,8 +18809,17 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         "maintenance_perf": maintenance_perf,
         "cose_da_fare": cose_da_fare,
         "segnalazioni": segnalazioni,
+        "dash_wo": dash_wo,
+        "dash_deadlines": dash_deadlines,
+        "can_manage_man": can_manage_man,
+        "attention_total": attention_total,
+        "launcher": launcher,
+        "status_rows": status_rows,
+        "categories_top": categories_top,
+        "categories_rest": categories_rest,
+        "now": timezone.localtime(),
         "branding": branding,
-        "page_title": "Dashboard Assets",
+        "page_title": "Dashboard",
     })
     return render(request, "assets/pages/asset_dashboard.html", ctx)
 
@@ -18487,12 +19012,13 @@ def calendario_asset(request: HttpRequest) -> HttpResponse:
         Asset.objects.exclude(reparto="").values_list("reparto", flat=True).order_by("reparto").distinct()
     )
     from .forms_maintenance import WorkOrderFromOccurrencesForm
-    from .views_maintenance import can_plan_maintenance
+    from .views_maintenance import can_execute_maintenance, can_plan_maintenance
 
     can_plan = can_plan_maintenance(request)
     return render(request, "assets/pages/calendario_asset.html", {
         "page_title": "Calendario manutenzione",
         "can_plan": can_plan,
+        "can_execute": can_plan and can_execute_maintenance(request),
         "workorder_form": WorkOrderFromOccurrencesForm() if can_plan else None,
         "kinds": kinds,
         "categories": category_filter_choices(),

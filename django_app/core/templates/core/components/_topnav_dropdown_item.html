@@ -1,0 +1,5 @@
+{% load ui_icons %}<a class="nav-dropdown-item{% if item.active %} active{% endif %}" href="{{ item.href }}" role="menuitem"{% if item.active %} aria-current="page"{% endif %}>
+  {% if item.icon %}<span class="nav-item-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>{% endif %}
+  <span class="nav-label">{{ item.label }}</span>
+  {% if item.coming %}<span class="nav-soon">Presto</span>{% endif %}
+</a>

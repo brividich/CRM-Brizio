@@ -230,10 +230,49 @@ def _group_nav_items(items: list) -> list[dict]:
             if item.active:
                 grp["active"] = True
         else:
-            direct.append({"type": "item", "item": item, "order": item.order_hint or 100})
+            direct.append({
+                "type": "item",
+                "item": item,
+                "order": item.order_hint or 100,
+                "is_home": _is_home_nav_item(item),
+            })
+    for grp in cat_map.values():
+        grp["sections"] = _nav_sections(grp["items"])
+        grp["cols"] = min(len(grp["sections"]), 3) if len(grp["items"]) > 6 else 1
     merged = list(cat_map.values()) + direct
     merged.sort(key=lambda x: x["order"])
     return merged
+
+
+def _nav_sections(items: list) -> list[dict]:
+    """Sottocategorie di una tendina da `NavigationItem.group`, nell'ordine delle voci.
+
+    Ritorna [] se le voci non hanno almeno due sottocategorie distinte: un'intestazione
+    unica sopra l'intera tendina e' solo rumore.
+    """
+    sections: list[dict] = []
+    for item in items:
+        label = str(getattr(item, "group", "") or "").strip()
+        if sections and sections[-1]["label"] == label:
+            sections[-1]["items"].append(item)
+        else:
+            sections.append({"label": label, "items": [item]})
+    if len({s["label"] for s in sections if s["label"]}) < 2:
+        return []
+    return sections
+
+
+def _is_home_nav_item(item) -> bool:
+    """La Dashboard: in topnav la raggiunge il logo, quindi non occupa una voce."""
+    if str(getattr(item, "codice", "") or "").strip().lower() == "dashboard":
+        return True
+    paths = {"/", "/dashboard"}
+    try:
+        paths.add(_normalize_path(reverse("dashboard_home")))
+    except NoReverseMatch:
+        pass
+    href_path = _normalize_path(urlsplit(str(getattr(item, "href", "") or "")).path or "")
+    return bool(href_path) and href_path in paths
 
 
 def _normalize_path(path: str) -> str:

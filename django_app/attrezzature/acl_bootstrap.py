@@ -309,9 +309,11 @@ def _bootstrap_canonical_acl(*, seed_role_grants: bool = False) -> bool:
                 binding.save(update_fields=[*updates, "updated_at"])
                 changed = True
 
-        nav_item, created = NavigationItem.objects.update_or_create(
-            code="gestione-attrezzatura",
-            defaults={
+        from core.navigation_registry import ensure_navigation_item
+
+        nav_item, created = ensure_navigation_item(
+            "gestione-attrezzatura",
+            {
                 "label": "Gestione Attrezzatura",
                 "route_name": "attrezzature:list",
                 "url_path": "",

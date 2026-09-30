@@ -48,36 +48,14 @@
             <span class="sb-cat-arrow" aria-hidden="true">&#8250;</span>
           </button>
           <div class="sb-cat-items">
-            {% for item in grp.items %}
-              {% if item.children %}
-                <div class="sb-module{% if item.active %} open active{% endif %}" data-key="{{ item.codice }}">
-                  <div class="sb-mod-head">
-                    <a class="sb-item sb-sub-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
-                      <span class="sb-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>
-                      <span class="sb-label">{{ item.label }}</span>
-                    </a>
-                    <button class="sb-mod-toggle" type="button" aria-expanded="{% if item.active %}true{% else %}false{% endif %}" aria-label="Espandi {{ item.label }}">
-                      <span class="sb-cat-arrow" aria-hidden="true">&#8250;</span>
-                    </button>
-                  </div>
-                  <div class="sb-mod-items">
-                    {% for child in item.children %}
-                      <a class="sb-item sb-sub-item sb-sub-item--l3{% if child.active %} active{% endif %}" href="{{ child.href }}" title="{{ child.label }}"{% if child.active %} aria-current="page"{% endif %}>
-                        <span class="sb-icon" aria-hidden="true">{% render_icon child.icon child.label %}</span>
-                        <span class="sb-label">{{ child.label }}</span>
-                        {% if child.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
-                      </a>
-                    {% endfor %}
-                  </div>
-                </div>
-              {% else %}
-                <a class="sb-item sb-sub-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
-                  <span class="sb-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>
-                  <span class="sb-label">{{ item.label }}</span>
-                  {% if item.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
-                </a>
-              {% endif %}
-            {% endfor %}
+            {% if grp.sections %}
+              {% for sec in grp.sections %}
+                {% if sec.label %}<div class="sb-subcat" role="presentation">{{ sec.label }}</div>{% endif %}
+                {% for item in sec.items %}{% include "core/components/_sidebar_cat_item.html" %}{% endfor %}
+              {% endfor %}
+            {% else %}
+              {% for item in grp.items %}{% include "core/components/_sidebar_cat_item.html" %}{% endfor %}
+            {% endif %}
           </div>
         </div>
       {% else %}

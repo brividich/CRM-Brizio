@@ -16,6 +16,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {"limit": 50},
     },
     {
+        # SECURITY CENTER — legge le caselle mail dei report (Graph), parser, regole,
+        # heartbeat sorgenti e KPI. Senza questo schedule il SOC non riceve dati.
+        "name": "security_cycle",
+        "func": "security.tasks.run_security_cycle_task",
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 15,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         "name": "approval_mailbox",
         "func": "automazioni.tasks.run_approval_mailbox",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
@@ -126,6 +136,19 @@ SCHEDULES: list[dict] = [
         "func": "anagrafica.tasks.run_intake_referti_sanitari",
         "schedule_type": "I",   # Schedule.MINUTES
         "minutes": 10,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # Fogli delle verifiche periodiche (luci di emergenza, differenziali...)
+        # depositati dallo scanner nella cartella di pescaggio: il QR dice a quale
+        # verifica appartengono, i punti segnati restano da confermare. Spento
+        # finche' non lo si accende da Verifiche periodiche > Cartella scansioni;
+        # no-op se la share non risponde.
+        "name": "intake_verifiche_periodiche",
+        "func": "assets.tasks.run_periodic_check_intake",
+        "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
+        "minutes": 2,
         "repeats": -1,
         "kwargs": {},
     },

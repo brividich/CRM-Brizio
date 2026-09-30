@@ -1,107 +1,79 @@
 {% extends "security/_base_soc.html" %}
+{% load security_i18n %}
 
-{% block title %}Sorgenti Mail - Security Center AI{% endblock %}
-
+{% block title %}Caselle mail - Security Center AI{% endblock %}
 {% block page_icon %}@{% endblock %}
 {% block page_marker %}Configurazione{% endblock %}
-{% block page_title %}Sorgenti Mail{% endblock %}
+{% block page_title %}Caselle mail{% endblock %}
 
 {% block soc_content %}
-<div class="sec-panel">
-  <div class="sec-panel-header">
-    <h2>Sorgenti Mailbox Configurate</h2>
-    <p>Gestione sorgenti per ingestion schedulata da mailbox</p>
-  </div>
+<section class="sec-panel sec-callout">
+  <div class="sec-section-head"><h2>Da qui arrivano i dati</h2></div>
+  <p>Il Security Center legge i report (WatchGuard, Defender, backup…) da una <strong>casella mail</strong>. Le «Sorgenti» della configurazione e l'autoconfigurazione dicono solo <em>come riconoscerli</em>: senza almeno una casella attiva qui sotto, dashboard, alert e KPI restano vuoti.</p>
+  <ol class="sec-steps">
+    <li>Crea la casella con l'indirizzo che riceve i report.</li>
+    <li>Apri la casella e premi <strong>Anteprima</strong>: vedi le ultime mail e quali verrebbero riconosciute, senza importare nulla.</li>
+    <li>Premi <strong>Leggi ora</strong>. Poi la lettura riparte da sola ogni 15 minuti.</li>
+  </ol>
+</section>
 
-  {% if not sources %}
-    <div class="sec-empty-state">
-      <p>Nessuna sorgente mailbox configurata.</p>
-      <p><small>Le sorgenti mailbox permettono l'importazione automatica di report/alert da caselle email.</small></p>
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head">
+      <h2>Caselle configurate</h2>
+      {% if can_manage and sources %}
+        <form method="post" action="{% url 'security:run_mailbox_ingestion' %}">{% csrf_token %}<button type="submit">Leggi tutte ora</button></form>
+      {% endif %}
     </div>
-  {% else %}
-    <table class="sec-table">
-      <thead>
-        <tr>
-          <th>Nome</th>
-          <th>Codice</th>
-          <th>Tipo</th>
-          <th>Mailbox</th>
-          <th>Stato</th>
-          <th>Ultima esecuzione</th>
-          <th>Ultimo successo</th>
-          <th>Azioni</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for source in sources %}
-        <tr>
-          <td><strong>{{ source.name }}</strong></td>
-          <td><code>{{ source.code }}</code></td>
-          <td>{{ source.get_source_type_display }}</td>
-          <td>{{ source.mailbox_address|default:"—" }}</td>
-          <td>
-            {% if source.enabled %}
-              <span class="sec-badge sec-badge-success">Attivo</span>
-            {% else %}
-              <span class="sec-badge sec-badge-muted">Disattivo</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if source.last_run_at %}
-              {{ source.last_run_at|date:"d/m/Y H:i" }}
-              {% if source.latest_run %}
-                <br><small class="sec-muted">{{ source.latest_run.get_status_display }} - {{ source.latest_run.imported_messages_count }} importati</small>
-              {% endif %}
-            {% else %}
-              <span class="sec-muted">Mai eseguito</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if source.last_success_at %}
-              {{ source.last_success_at|date:"d/m/Y H:i" }}
-            {% else %}
-              <span class="sec-muted">—</span>
-            {% endif %}
-          </td>
-          <td><span class="sec-muted">Gestione da Configurazione</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% endif %}
-</div>
+    {% if sources %}
+      <div class="sec-table-wrap">
+        <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+          <thead><tr><th>Casella</th><th>Stato</th><th>Ultima lettura</th></tr></thead>
+          <tbody>
+          {% for source in sources %}
+            <tr>
+              <td class="sec-title-cell"><a href="{% url 'security:admin_mailbox_source_detail' source.code %}"><strong>{{ source.name }}</strong></a><small>{{ source.mailbox_address|default:"(nessun indirizzo)" }} · {{ source.get_source_type_display }}</small></td>
+              <td>{% if source.enabled %}<span class="sec-badge ok">Attiva</span>{% else %}<span class="sec-badge disabled">Disattivata</span>{% endif %}</td>
+              <td>
+                {% if source.latest_run %}
+                  <span class="sec-badge {{ source.latest_run.status }}">{{ source.latest_run.status|ui_label }}</span>
+                  <small class="sec-muted" style="display:block;">{{ source.latest_run.started_at|date:"d/m/Y H:i" }} · {{ source.latest_run.imported_messages_count }} importate</small>
+                  {% if source.last_error_message %}<small class="critical" style="display:block;">{{ source.last_error_message|truncatechars:120 }}</small>{% endif %}
+                {% else %}<span class="sec-muted">Mai letta</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="sec-empty">Nessuna casella configurata: per questo non arrivano dati.</p>
+    {% endif %}
 
-<div class="sec-panel">
-  <div class="sec-panel-header">
-    <h3>Link rapidi</h3>
+    <div class="sec-section-head" style="margin-top: 18px;"><h3>Credenziali Microsoft Graph</h3>
+      {% if graph.complete %}<span class="sec-badge ok">Complete</span>{% else %}<span class="sec-badge misconfigured">Mancanti</span>{% endif %}
+    </div>
+    <ul class="sec-mini-list">
+      {% for key in graph.keys %}
+        <li><span class="sec-code">{{ key.key }}</span>{% if key.configured %}<span>{{ key.origin }}</span>{% else %}<span class="critical">non impostata</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% if not graph.complete %}
+      <p class="sec-muted" style="margin-top: 8px;">Si impostano nel <code>.env</code> del server (le stesse del calendario Outlook) oppure in <a href="{% url 'security:admin_config_general' %}">Configurazione › Generale</a>. L'app Entra deve avere il permesso applicativo <strong>Mail.Read</strong>.</p>
+    {% endif %}
   </div>
-  <div class="sec-link-grid">
-    <a href="{% url 'security:admin_diagnostics' %}" class="sec-card-link">
-      <strong>Diagnostica</strong>
-      <small>Verifica stato sistema</small>
-    </a>
-    <a href="{% url 'security:inbox' %}" class="sec-card-link">
-      <strong>Inbox / Workbench</strong>
-      <small>Upload manuale report</small>
-    </a>
-    <a href="{% url 'security:admin_addons' %}" class="sec-card-link">
-      <strong>Moduli</strong>
-      <small>Registro addon</small>
-    </a>
-    <a href="{% url 'security:admin_docs' %}" class="sec-card-link">
-      <strong>Documentazione</strong>
-      <small>Guide e troubleshooting</small>
-    </a>
-  </div>
-</div>
 
-<div class="sec-panel">
-  <div class="sec-panel-header">
-    <h3>Comando manuale</h3>
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Nuova casella</h2></div>
+    {% if can_manage %}
+      <form method="post" class="sec-grid sec-form">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="sec-button-primary" type="submit">Crea casella</button>
+      </form>
+    {% else %}
+      <p class="sec-empty">Serve il permesso di configurazione del Security Center.</p>
+    {% endif %}
   </div>
-  <pre class="sec-code-block">python manage.py ingest_security_mailbox
-python manage.py ingest_security_mailbox --source watchguard-daily
-python manage.py ingest_security_mailbox --dry-run
-python manage.py ingest_security_mailbox --limit 10</pre>
-</div>
+</section>
 {% endblock %}

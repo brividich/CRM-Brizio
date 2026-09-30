@@ -8,27 +8,54 @@
 
 {% block soc_content %}
 <section class="sec-panel">
+  <form class="sec-filter-bar" method="get">
+    <label>Stato
+      <select name="status">
+        <option value="">Tutti</option>
+        <option value="active" {% if filters.status == "active" %}selected{% endif %}>Aperti (nuovi, aperti, in lavorazione)</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ value|ui_label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Severità
+      <select name="severity">
+        <option value="">Tutte</option>
+        {% for value, label in severity_choices %}
+          <option value="{{ value }}" {% if filters.severity == value %}selected{% endif %}>{{ value|ui_label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="sec-button-primary" type="submit">Filtra</button>
+    <a class="sec-button" href="{% url 'security:tickets_list' %}">Reimposta</a>
+  </form>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head">
     <h2>Ticket remediation</h2>
-    <span class="sec-badge">Totale {{ tickets|length }}</span>
+    <span class="sec-badge">{% if total > tickets|length %}Mostrati {{ tickets|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
   </div>
   <div class="sec-table-wrap">
     <table class="sec-table">
-      <thead><tr><th>Stato</th><th>Severita</th><th>Titolo</th><th>CVE</th><th>Prodotto</th><th>Esposizione</th><th>Alert</th><th>Aggiornato</th></tr></thead>
+      <thead><tr><th>Stato</th><th>Severità</th><th>Ticket</th><th>Dettaglio</th><th>Alert collegato</th><th>Aggiornato</th></tr></thead>
       <tbody>
       {% for ticket in tickets %}
         <tr>
           <td><span class="sec-badge {{ ticket.status }}">{{ ticket.status|ui_label }}</span></td>
           <td><span class="sec-badge {{ ticket.severity }}">{{ ticket.severity|ui_label }}</span></td>
-          <td class="sec-title-cell"><strong>{{ ticket.title }}</strong><small>{{ ticket.dedup_hash|slice:":12" }}</small></td>
-          <td>{% if ticket.cve_ids %}{{ ticket.cve_ids|join:", " }}{% else %}{{ ticket.cve|default:"-" }}{% endif %}</td>
-          <td>{{ ticket.affected_product|default:"-" }}</td>
-          <td>CVSS {{ ticket.max_cvss }} / {{ ticket.max_exposed_devices }} dispositivi / {{ ticket.occurrence_count }} occorrenze</td>
+          <td class="sec-title-cell"><strong>{{ ticket.title }}</strong><small>{{ ticket.source.name }} · {{ ticket.occurrence_count }} occorrenze</small></td>
+          <td>
+            {% if ticket.cve or ticket.cve_ids %}
+              <strong>{% if ticket.cve_ids %}{{ ticket.cve_ids|join:", " }}{% else %}{{ ticket.cve }}{% endif %}</strong>
+              <small class="sec-muted" style="display:block;">{{ ticket.affected_product|default:"-" }} · CVSS {{ ticket.max_cvss }} · {{ ticket.max_exposed_devices }} dispositivi</small>
+            {% else %}<span class="sec-muted">—</span>{% endif %}
+          </td>
           <td>{% if ticket.alert %}<a href="{% url 'security:alert_detail' ticket.alert.pk %}">{{ ticket.alert.title }}</a>{% else %}<span class="sec-muted">Nessuno</span>{% endif %}</td>
-          <td>{{ ticket.updated_at|date:"d M Y, H:i" }}</td>
+          <td class="sec-nowrap">{{ ticket.updated_at|date:"d M Y, H:i" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="8" class="sec-empty">Nessun ticket remediation.</td></tr>
+        <tr><td colspan="6" class="sec-empty">Nessun ticket corrisponde ai filtri.</td></tr>
       {% endfor %}
       </tbody>
     </table>
