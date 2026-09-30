@@ -74,3 +74,85 @@ def scarica_per_consegna(richiesta: RichiestaDPI, data: date, *, user=None) -> t
         },
     )
     return movimento, giacenza(richiesta.modello_dpi_id)
+
+
+# ---------------------------------------------------------------------------
+# Reportistica
+# ---------------------------------------------------------------------------
+
+def _mesi_indietro(n: int, oggi: date) -> list[date]:
+    """Primi giorni degli ultimi ``n`` mesi (incluso il corrente), dal piu' vecchio."""
+    y, m = oggi.year, oggi.month
+    out = []
+    for _ in range(n):
+        out.append(date(y, m, 1))
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    return list(reversed(out))
+
+
+def report(giorni: int, oggi: date | None = None) -> dict:
+    """Aggregati per la pagina di report: consumi, carichi, copertura, riordino."""
+    from datetime import timedelta
+
+    from django.db.models.functions import TruncMonth
+
+    oggi = oggi or date.today()
+    da = oggi - timedelta(days=giorni)
+    scarichi = MovimentoMagazzinoDPI.objects.filter(tipo=Tipo.SCARICO, data__gte=da)
+    carichi = MovimentoMagazzinoDPI.objects.filter(tipo=Tipo.CARICO, data__gte=da)
+
+    consumati = -int(scarichi.aggregate(t=Sum("quantita"))["t"] or 0)
+    caricati = int(carichi.aggregate(t=Sum("quantita"))["t"] or 0)
+
+    per_modello = {
+        r["modello_id"]: -int(r["t"] or 0)
+        for r in scarichi.values("modello_id").annotate(t=Sum("quantita"))
+    }
+
+    # Andamento mensile degli ultimi 12 mesi (indipendente dal periodo scelto).
+    mesi = _mesi_indietro(12, oggi)
+    mensili = {
+        r["m"].date() if hasattr(r["m"], "date") else r["m"]: -int(r["t"] or 0)
+        for r in MovimentoMagazzinoDPI.objects.filter(tipo=Tipo.SCARICO, data__gte=mesi[0])
+        .annotate(m=TruncMonth("data")).values("m").annotate(t=Sum("quantita"))
+    }
+    serie = [{"mese": m, "pezzi": mensili.get(m, 0)} for m in mesi]
+
+    per_reparto: dict[str, int] = {}
+    for r in scarichi.values("richiesta__richiedente_reparto").annotate(t=Sum("quantita")):
+        nome = (r["richiesta__richiedente_reparto"] or "").strip() or "Non indicato"
+        per_reparto[nome] = per_reparto.get(nome, 0) - int(r["t"] or 0)
+
+    modelli = list(ModelloDPI.objects.filter(is_active=True).select_related("tipo", "tipo__categoria"))
+    giac = giacenze()
+    righe = []
+    for m in modelli:
+        qta = giac.get(m.pk, 0)
+        cons = per_modello.get(m.pk, 0)
+        medio_giorno = cons / giorni if giorni else 0
+        copertura = (qta * giorni) // cons if cons > 0 and qta > 0 else (0 if cons > 0 else None)
+        stato = stato_scorta(qta, m.scorta_minima)
+        obiettivo = max(2 * m.scorta_minima, round(medio_giorno * 60))
+        righe.append({
+            "modello": m, "giacenza": qta, "consumo": cons, "stato": stato,
+            "copertura": copertura, "suggerito": max(0, obiettivo - qta) if stato != STATO_OK or (copertura is not None and copertura < 30) else 0,
+        })
+
+    top = sorted((r for r in righe if r["consumo"] > 0), key=lambda r: -r["consumo"])[:10]
+    riordino = sorted(
+        (r for r in righe if r["stato"] != STATO_OK or (r["copertura"] is not None and r["copertura"] < 30 and r["suggerito"] > 0)),
+        key=lambda r: (r["stato"] != STATO_ESAURITO, r["copertura"] if r["copertura"] is not None else 10**6),
+    )
+    return {
+        "giorni": giorni, "da": da, "consumati": consumati, "caricati": caricati,
+        "serie": serie, "serie_max": max([s["pezzi"] for s in serie] + [1]),
+        "top": top, "top_max": max([r["consumo"] for r in top] + [1]),
+        "reparti": sorted(per_reparto.items(), key=lambda kv: -kv[1]),
+        "reparti_max": max(list(per_reparto.values()) + [1]),
+        "riordino": riordino, "righe": righe,
+        "sotto": sum(1 for r in righe if r["stato"] == STATO_SOTTO_SCORTA),
+        "esauriti": sum(1 for r in righe if r["stato"] == STATO_ESAURITO),
+        "pezzi_totali": sum(r["giacenza"] for r in righe),
+    }

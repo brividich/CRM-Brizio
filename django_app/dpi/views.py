@@ -1632,3 +1632,38 @@ def magazzino_view(request):
         "movimenti": movimenti[:40],
         "oggi": timezone.localdate(),
     })
+
+
+def _csv_safe(value) -> str:
+    """Neutralizza le formule dei fogli di calcolo nei campi di testo liberi."""
+    text = str(value or "")
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+@login_required
+def magazzino_report(request):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+    giorni = _int_or_none(request.GET.get("giorni")) or 90
+    if giorni not in (30, 90, 180, 365):
+        giorni = 90
+    dati = magazzino.report(giorni)
+
+    if request.GET.get("formato") == "csv":
+        import csv
+
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="movimenti_dpi_{timezone.localdate():%Y%m%d}.csv"'
+        response.write("\ufeff")
+        writer = csv.writer(response, delimiter=";")
+        writer.writerow(["Data", "Movimento", "Codice", "DPI", "Quantita", "DDT", "Fornitore", "Nota"])
+        for m in MovimentoMagazzinoDPI.objects.filter(data__gte=dati["da"]).select_related("modello").order_by("data", "id"):
+            writer.writerow([
+                m.data.isoformat(), m.get_tipo_display(), _csv_safe(m.modello.codice), _csv_safe(m.modello.nome),
+                m.quantita, _csv_safe(m.ddt_numero), _csv_safe(m.fornitore), _csv_safe(m.note),
+            ])
+        log_action(request, "DPI_MAGAZZINO_EXPORT", "dpi", f"Esportati movimenti magazzino dal {dati['da']}")
+        return response
+
+    return render(request, "dpi/pages/magazzino_report.html", {**dati, "is_gestore": True, "periodi": (30, 90, 180, 365)})
