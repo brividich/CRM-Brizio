@@ -719,12 +719,15 @@ class MeetingRunTests(TasksBaseTestCase):
         self.meeting.refresh_from_db()
         self.assertEqual(self.meeting.agenda_items[0]["nota"], "")
 
-    def test_l_esito_riparte_dalle_note_prese_durante_la_riunione(self):
+    def test_l_esito_non_ricopia_le_note_dei_punti_nel_verbale(self):
+        """La nota sta sotto il punto (una sola volta): le note generali restano vuote."""
         self.client.post(self.item_url, {"item_id": "a1", "nota": "in linea col piano"})
         response = self.client.get(
             reverse("tasks:project_meeting_minutes", args=[self.project.id, self.meeting.id])
         )
-        self.assertIn("Stato avanzamento: in linea col piano", response.context["form"].initial["note"])
+        self.assertEqual(response.context["form"].initial["note"], "")
+        self.assertContains(response, "in linea col piano")
+        self.assertContains(response, 'data-agenda-nota="a1"')
 
     def test_un_verbale_gia_scritto_non_viene_sovrascritto(self):
         self.meeting.note = "verbale scritto a mano"

@@ -1373,7 +1373,7 @@ class KickoffMeetingMinuteForm(forms.ModelForm):
         widgets = {
             "presenti_utenti": forms.CheckboxSelectMultiple(),
             "note": forms.Textarea(
-                attrs={"class": "input", "rows": 8, "placeholder": "Verbale / Note incontro"}
+                attrs={"class": "input", "rows": 8, "placeholder": "Note generali (quelle dei singoli punti vanno sotto il punto)"}
             ),
             "problemi_aperti": forms.Textarea(
                 attrs={

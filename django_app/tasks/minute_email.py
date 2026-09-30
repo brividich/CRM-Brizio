@@ -105,6 +105,40 @@ def _agenda_text(meeting) -> str:
     return "\n".join(lines)
 
 
+def _has_agenda_items(meeting) -> bool:
+    items = meeting.agenda_items or []
+    return isinstance(items, list) and any(
+        isinstance(i, dict) and str(i.get("titolo", "")).strip() for i in items
+    )
+
+
+def legacy_agenda_recap_lines(meeting) -> set[str]:
+    """Righe «N. Titolo: nota» che la vecchia pagina esito copiava nel verbale.
+
+    Le note dei punti vivono gia' nell'ordine del giorno: nelle minute storiche
+    lo stesso testo era ricopiato in `note`, e oggi comparirebbe due volte.
+    """
+    lines: set[str] = set()
+    for index, item in enumerate(meeting.agenda_items or [], start=1):
+        if not isinstance(item, dict):
+            continue
+        titolo = str(item.get("titolo", "")).strip()
+        nota = str(item.get("nota", "")).strip()
+        if titolo and nota:
+            lines.add(f"{index}. {titolo}: {nota}")
+    return lines
+
+
+def note_generali(meeting) -> str:
+    """Note libere dell'incontro, senza il testo gia' riportato nei punti."""
+    duplicated = legacy_agenda_recap_lines(meeting)
+    kept = [
+        line for line in (meeting.note or "").splitlines()
+        if line.strip() not in duplicated
+    ]
+    return "\n".join(kept).strip()
+
+
 def _issues_text(meeting) -> str:
     """Problemi sollevati o chiusi in questo incontro, resi come testo."""
     from django.db.models import Q
@@ -225,12 +259,28 @@ def _presenze_sections(meeting) -> list[tuple[str, str]]:
     ]
 
 
+def _agenda_verbale_sections(meeting) -> list[tuple[str, str]]:
+    """Ordine del giorno e verbale in un'unica sezione: ogni punto porta la sua nota.
+
+    Le note che non appartengono a nessun punto restano in «Note generali».
+    Senza punti strutturati (incontri storici) si torna alle due sezioni testuali.
+    """
+    if _has_agenda_items(meeting):
+        return [
+            ("Ordine del giorno e verbale", _agenda_text(meeting)),
+            ("Note generali", note_generali(meeting)),
+        ]
+    return [
+        ("Ordine del giorno", meeting.ordine_del_giorno),
+        ("Verbale / Note", meeting.note),
+    ]
+
+
 def _minute_sections(meeting) -> list[tuple[str, str]]:
     """Sezioni della minuta, sorgente unica per email e PDF (evita che divergano)."""
     return [
         *_presenze_sections(meeting),
-        ("Ordine del giorno", _agenda_text(meeting) or meeting.ordine_del_giorno),
-        ("Verbale / Note", meeting.note),
+        *_agenda_verbale_sections(meeting),
         ("Decisioni", _decisions_text(meeting)),
         ("Problemi", _issues_text(meeting) or meeting.problemi_aperti),
         ("Azioni", _actions_text(meeting) or meeting.next_steps),
