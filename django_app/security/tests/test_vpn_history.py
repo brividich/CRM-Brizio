@@ -90,6 +90,22 @@ class VpnHistoryPersistenceTests(TestCase):
         self.assertEqual(values["vpn_session_max_seconds"], 5400)
 
 
+class VpnFindingsTests(TestCase):
+    def test_burst_then_success_is_flagged_high(self):
+        from security.services.vpn_history import vpn_findings
+
+        source = SecuritySource.objects.create(name="Firewall", source_type="watchguard_epdr", vendor="WatchGuard")
+        denied = "User,Source IP,Login Time\n" + "".join(f"admin,198.51.100.7,2026-09-29 03:{m:02d}:00\n" for m in range(12))
+        allowed = "User,Source IP,Login Time,Logout Time,Duration\nadmin,198.51.100.7,2026-09-29 03:30:00,2026-09-29 04:00:00,00:30:00\n"
+        rows = []
+        for name, text in (("FB1_Authentication_Denied.csv", denied), ("FB1_Authentication_Allowed.csv", allowed)):
+            rows += [r.payload for r in WatchGuardReportParser().parse(_item(name, text)).records if r.record_type == "vpn_access"]
+        persist_vpn_accesses(source, None, rows)
+        findings = vpn_findings(SecurityVpnAccess.objects.all())
+        self.assertEqual(findings[0]["level"], "high")
+        self.assertIn("dopo 12 rifiuti", findings[0]["title"])
+
+
 class VpnHistoryPageTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user("vpn_admin", password="x", is_staff=True, is_superuser=True)
@@ -109,5 +125,7 @@ class VpnHistoryPageTests(TestCase):
         filtered = self.client.get(reverse("security:vpn_history"), {"action": "denied", "user": "admin"})
         self.assertEqual(filtered.context["page"].paginator.count, 2)
         self.assertNotContains(filtered, "mario.rossi</td>")
+        self.assertFalse(response.context["daily"]["empty"])
+        self.assertEqual(len(response.context["hours"]), 24)
         by_day = self.client.get(reverse("security:vpn_history"), {"from": "2026-09-30"})
         self.assertEqual(by_day.context["page"].paginator.count, 0)

@@ -1,5 +1,5 @@
 {% extends "security/_base_soc.html" %}
-{% load security_i18n %}
+{% load l10n security_i18n %}
 
 {% block title %}Accessi VPN | Security Center{% endblock %}
 {% block page_icon %}V{% endblock %}
@@ -7,101 +7,139 @@
 {% block page_title %}Storico accessi VPN{% endblock %}
 
 {% block soc_content %}
-<section class="sec-panel">
-  <form class="sec-filter-bar" method="get">
-    <label>Utente <input type="text" name="user" value="{{ filters.user }}" placeholder="nome o parte del nome"></label>
-    <label>IP origine <input type="text" name="ip" value="{{ filters.ip }}" placeholder="es. 203.0.113."></label>
-    <label>Esito
-      <select name="action">
-        <option value="">Tutti</option>
-        <option value="allowed" {% if filters.action == "allowed" %}selected{% endif %}>Consentiti</option>
-        <option value="denied" {% if filters.action == "denied" %}selected{% endif %}>Negati</option>
-      </select>
-    </label>
-    <label>Dal <input type="date" name="from" value="{{ filters.from }}"></label>
-    <label>Al <input type="date" name="to" value="{{ filters.to }}"></label>
-    <button class="sec-button-primary" type="submit">Filtra</button>
-    <a class="sec-button" href="{% url 'security:vpn_history' %}">Reimposta</a>
-  </form>
+<form class="sec-filter-bar vpn-filters" method="get">
+  <label>Utente <input type="text" name="user" value="{{ filters.user }}" placeholder="nome"></label>
+  <label>IP origine <input type="text" name="ip" value="{{ filters.ip }}" placeholder="es. 203.0.113."></label>
+  <label>Esito
+    <select name="action">
+      <option value="">Tutti</option>
+      <option value="allowed" {% if filters.action == "allowed" %}selected{% endif %}>Consentiti</option>
+      <option value="denied" {% if filters.action == "denied" %}selected{% endif %}>Negati</option>
+    </select>
+  </label>
+  <label>Dal <input type="date" name="from" value="{{ filters.from }}"></label>
+  <label>Al <input type="date" name="to" value="{{ filters.to }}"></label>
+  <button class="sec-button-primary" type="submit">Filtra</button>
+  <a class="sec-button" href="{% url 'security:vpn_history' %}">Reimposta</a>
+</form>
+
+<section class="vpn-kpis">
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Accessi</span><strong class="sec-kpi-value">{{ summary.total }}</strong><span class="sec-kpi-delta sec-good">nel periodo</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Consentiti</span><strong class="sec-kpi-value">{{ summary.allowed }}</strong><span class="sec-kpi-delta sec-good">riusciti</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Negati</span><strong class="sec-kpi-value {% if summary.denied_pct >= 20 %}critical{% endif %}">{{ summary.denied }}</strong><span class="sec-kpi-delta {% if summary.denied_pct < 20 %}sec-good{% endif %}">{{ summary.denied_pct }}% del totale</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Utenti distinti</span><strong class="sec-kpi-value">{{ summary.unique_users }}</strong><span class="sec-kpi-delta sec-good">che si sono collegati</span></div>
+  <div class="sec-kpi-card"><span class="sec-kpi-label">Durata media</span><strong class="sec-kpi-value">{{ summary.avg|duration_hms }}</strong><span class="sec-kpi-delta sec-good">per sessione</span></div>
 </section>
 
-<section class="sec-grid sec-auto-grid" style="margin-top: 12px;">
-  <div class="sec-panel"><small class="sec-muted">Accessi</small><h2>{{ summary.total }}</h2></div>
-  <div class="sec-panel"><small class="sec-muted">Consentiti</small><h2>{{ summary.allowed }}</h2></div>
-  <div class="sec-panel"><small class="sec-muted">Negati</small><h2>{{ summary.denied }}</h2></div>
-  <div class="sec-panel"><small class="sec-muted">Utenti distinti</small><h2>{{ summary.unique_users }}</h2></div>
-  <div class="sec-panel"><small class="sec-muted">Durata media sessione</small><h2>{{ summary.avg|duration_hms }}</h2></div>
-</section>
-
-<section class="sec-grid sec-auto-grid" style="margin-top: 12px;">
+<section class="vpn-row">
   <div class="sec-panel">
-    <div class="sec-section-head"><h3>Utenti più attivi</h3></div>
-    <div class="sec-table-wrap">
-      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
-        <thead><tr><th>Utente</th><th class="sec-num">Accessi</th><th class="sec-num">Negati</th><th>Ultimo</th></tr></thead>
-        <tbody>
-        {% for row in summary.top_users %}
-          <tr>
-            <td><a href="?user={{ row.username|urlencode }}">{{ row.username }}</a></td>
-            <td class="sec-num">{{ row.total }}</td>
-            <td class="sec-num">{{ row.denied }}</td>
-            <td class="sec-nowrap">{{ row.last|date:"d/m/Y H:i"|default:"—" }}</td>
-          </tr>
-        {% empty %}<tr><td colspan="4" class="sec-empty">Nessun dato.</td></tr>{% endfor %}
-        </tbody>
-      </table>
+    <div class="sec-section-head"><h2>Accessi per giorno</h2></div>
+    {% localize off %}
+    {% if daily.empty %}
+      <p class="sec-empty">Nessun accesso nel periodo.</p>
+    {% else %}
+    <div class="vpn-chart">
+      <svg viewBox="0 0 {{ daily.width }} {{ daily.height }}" role="img" aria-label="Accessi VPN consentiti e negati per giorno">
+        <line class="grid" x1="{{ daily.left }}" x2="{{ daily.width }}" y1="{{ daily.top }}" y2="{{ daily.top }}"></line>
+        <line class="grid" x1="{{ daily.left }}" x2="{{ daily.width }}" y1="{{ daily.baseline }}" y2="{{ daily.baseline }}"></line>
+        <text class="axis-label" x="0" y="{{ daily.top|add:4 }}">{{ daily.peak }}</text>
+        <text class="axis-label" x="0" y="{{ daily.baseline }}">0</text>
+        {% for d in daily.days %}
+          <g>
+            <title>{{ d.date|date:"d/m/Y" }}: {{ d.allowed }} consentiti, {{ d.denied }} negati</title>
+            <rect class="bar-hit" x="{{ d.x }}" y="{{ daily.top }}" width="{{ d.w }}" height="{{ daily.baseline|add:-14 }}"></rect>
+            {% if d.h_allowed %}<rect class="bar-ok" x="{{ d.x }}" y="{{ d.y_allowed }}" width="{{ d.w }}" height="{{ d.h_allowed }}" rx="1.5"></rect>{% endif %}
+            {% if d.h_denied %}<rect class="bar-ko" x="{{ d.x }}" y="{{ d.y_denied }}" width="{{ d.w }}" height="{{ d.h_denied }}" rx="1.5"></rect>{% endif %}
+          </g>
+          {% if d.show_label %}<text class="axis-label" x="{{ d.label_x }}" y="{{ daily.baseline|add:16 }}" text-anchor="middle">{{ d.date|date:"d/m" }}</text>{% endif %}
+        {% endfor %}
+      </svg>
+      <div class="sec-trend-legend"><span style="--dot: var(--success);">Consentiti</span><span style="--dot: var(--danger);">Negati</span></div>
+    </div>
+    {% endif %}
+    {% endlocalize %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Da controllare</h2>{% if findings %}<span class="sec-badge">{{ findings|length }}</span>{% endif %}</div>
+    {% if findings %}
+    <ul class="vpn-findings">
+      {% for f in findings %}
+        <li class="{{ f.level }}">
+          <a href="?{{ f.filter }}"><strong>{{ f.title }}</strong></a>
+          <small>{{ f.detail }}</small>
+        </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="sec-empty">Nessun segnale anomalo nel periodo.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="vpn-row vpn-row-3">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h3>Accessi per ora</h3><small class="sec-muted">consentiti · notte in evidenza</small></div>
+    <div class="vpn-hours" role="img" aria-label="Accessi consentiti per ora del giorno">
+      {% for h in hours %}<span class="{% if h.night %}night{% endif %}{% if not h.n %} zero{% endif %}" style="--h: {{ h.pct|unlocalize }}%;" title="{{ h.hour }}:00 — {{ h.n }} accessi"><i></i><b>{% if h.hour|divisibleby:6 %}{{ h.hour }}{% endif %}</b></span>{% endfor %}
     </div>
   </div>
   <div class="sec-panel">
-    <div class="sec-section-head"><h3>IP di origine più frequenti</h3></div>
-    <div class="sec-table-wrap">
-      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
-        <thead><tr><th>IP</th><th class="sec-num">Accessi</th><th class="sec-num">Negati</th></tr></thead>
-        <tbody>
-        {% for row in summary.top_ips %}
-          <tr>
-            <td><a href="?ip={{ row.source_ip|urlencode }}">{{ row.source_ip }}</a></td>
-            <td class="sec-num">{{ row.total }}</td>
-            <td class="sec-num">{{ row.denied }}</td>
-          </tr>
-        {% empty %}<tr><td colspan="3" class="sec-empty">Nessun dato.</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <div class="sec-section-head"><h3>Utenti più attivi</h3></div>
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Utente</th><th class="sec-num">Accessi</th><th class="sec-num">Negati</th></tr></thead>
+      <tbody>
+      {% for row in summary.top_users|slice:":6" %}
+        <tr><td><a href="?user={{ row.username|urlencode }}">{{ row.username }}</a></td><td class="sec-num">{{ row.total }}</td><td class="sec-num">{{ row.denied }}</td></tr>
+      {% empty %}<tr><td colspan="3" class="sec-empty">Nessun dato.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="sec-panel">
+    <div class="sec-section-head"><h3>IP di origine</h3></div>
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>IP</th><th class="sec-num">Accessi</th><th class="sec-num">Negati</th></tr></thead>
+      <tbody>
+      {% for row in summary.top_ips|slice:":6" %}
+        <tr><td><a href="?ip={{ row.source_ip|urlencode }}">{{ row.source_ip }}</a></td><td class="sec-num">{{ row.total }}</td><td class="sec-num">{{ row.denied }}</td></tr>
+      {% empty %}<tr><td colspan="3" class="sec-empty">Nessun dato.</td></tr>{% endfor %}
+      </tbody>
+    </table>
   </div>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head">
-    <h2>Accessi</h2>
+    <h2>Registro accessi</h2>
     <span class="sec-badge">{{ page.paginator.count }} risultati</span>
   </div>
   <div class="sec-table-wrap">
     <table class="sec-table" data-fm-table-skip="1">
-      <thead><tr><th>Esito</th><th>Utente</th><th>IP origine</th><th>Accesso</th><th>Uscita</th><th class="sec-num">Durata</th><th>Firewall</th></tr></thead>
+      <thead><tr><th>Esito</th><th>Utente</th><th>IP origine</th><th>Accesso</th><th>Uscita</th><th class="sec-num">Durata</th>{% if has_method %}<th>Tipo</th>{% endif %}<th>Firewall</th></tr></thead>
       <tbody>
       {% for row in page %}
         <tr>
           <td><span class="sec-badge {% if row.action == 'denied' %}high{% else %}info{% endif %}">{{ row.get_action_display }}</span></td>
           <td>{{ row.username|default:"—" }}</td>
           <td class="sec-nowrap">{{ row.source_ip|default:"—" }}</td>
-          <td class="sec-nowrap">{{ row.login_at|date:"d/m/Y H:i:s"|default:"—" }}</td>
-          <td class="sec-nowrap">{{ row.logout_at|date:"d/m/Y H:i:s"|default:"—" }}</td>
+          <td class="sec-nowrap">{{ row.login_at|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td class="sec-nowrap">{{ row.logout_at|date:"d/m/Y H:i"|default:"—" }}</td>
           <td class="sec-nowrap sec-num">{% if row.duration_seconds %}{{ row.duration_seconds|duration_hms }}{% else %}—{% endif %}</td>
+          {% if has_method %}<td>{{ row.method|default:"—" }}</td>{% endif %}
           <td>{{ row.firebox_name|default:row.source.name }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="7" class="sec-empty">Nessun accesso registrato. Lo storico si popola quando arrivano i report «Authentication Allowed/Denied» del firewall.</td></tr>
+        <tr><td colspan="8" class="sec-empty">Nessun accesso registrato. Lo storico si popola quando arrivano i report «Authentication Allowed/Denied» del firewall.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
   {% if page.paginator.num_pages > 1 %}
-  <p class="sec-muted" style="margin-top: 8px;">
+  <div class="vpn-pager">
     {% if page.has_previous %}<a class="sec-button" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.previous_page_number }}">&lt; Precedente</a>{% endif %}
-    Pagina {{ page.number }} di {{ page.paginator.num_pages }}
+    <span class="sec-muted">Pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>
     {% if page.has_next %}<a class="sec-button" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.next_page_number }}">Successiva &gt;</a>{% endif %}
-  </p>
+  </div>
   {% endif %}
 </section>
 {% endblock %}

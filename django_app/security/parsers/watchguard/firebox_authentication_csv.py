@@ -119,7 +119,7 @@ def _parse_authentication_csv(csv_text, action, *, source_name=None, received_at
             "duration": duration,
             "duration_seconds": parse_duration_seconds(duration),
             "quota": _first(normalized, "quota"),
-            "method": _first(normalized, "method", "auth_method"),
+            "method": _first(normalized, "method", "auth_method", "connection_type", "type", "auth_type", "connection"),
             "firebox_name": result["firebox_name"],
             "dedup_key": stable_hash("watchguard", "vpn_auth", action, user, source_ip, login_time, logout_time, duration),
         }

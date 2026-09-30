@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from security.models import SecurityAsset, SecurityMailboxSource, SecurityVpnAccess
 from security.permissions import can_view_security_center
-from security.services.vpn_history import vpn_history_summary
+from security.services.vpn_history import vpn_daily_series, vpn_findings, vpn_history_summary, vpn_hour_profile
 
 
 def assets_list(request):
@@ -95,11 +95,20 @@ def vpn_history(request):
         qs = qs.filter(login_at__date__gte=day_from)
     if day_to:
         qs = qs.filter(login_at__date__lte=day_to)
-    page = Paginator(qs, 50).get_page(request.GET.get("page"))
+    page = Paginator(qs, 25).get_page(request.GET.get("page"))
     query = request.GET.copy()
     query.pop("page", None)
     return render(
         request,
         "security/vpn_history.html",
-        {"page": page, "filters": filters, "summary": vpn_history_summary(qs), "query": query.urlencode()},
+        {
+            "page": page,
+            "filters": filters,
+            "summary": vpn_history_summary(qs),
+            "daily": vpn_daily_series(qs, day_from, day_to),
+            "hours": vpn_hour_profile(qs),
+            "findings": vpn_findings(qs),
+            "has_method": qs.exclude(method="").exists(),
+            "query": query.urlencode(),
+        },
     )
