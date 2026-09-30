@@ -196,7 +196,7 @@ Percorso: `/admin-portale/hub/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â richiede 
 
 ### Automazioni: processi gestiti nel designer (2026-09-30)
 
-- `ManagedFlow` associa i 49 schedule e le sette notifiche censite a regole esistenti del motore. Azione `native_process` vincolata a codice registrato e ContextVar sincrona: preview senza effetti, nessun argomento privato nel payload; approvazioni/ritardi prima di questa azione richiedono un ingresso persistente specifico.
+- `ManagedFlow` associa i 49 schedule e le dieci notifiche censite a regole esistenti del motore. Azione `native_process` vincolata a codice registrato e ContextVar sincrona: preview senza effetti, nessun argomento privato nel payload; approvazioni/ritardi prima di questa azione richiedono un ingresso persistente specifico.
 - `setup_q_schedules` installa i collegamenti e conserva cadenza/stato/next_run personalizzati. `FlowBroker` accorpa soltanto tick ricorrenti standard, lease per processo e `catch_up=False`; comandi manuali e callback restano separati. Controllo salute indipendente dal worker e archivio transazionale per recupero broker.
 - `merge_assenze_flows`: anteprima/apply esplicito a processori fermi; nuova regola unica, originali conservati disattivati. Percorsi per tipo/durata, aggiornamento stato e split al termine della catena, fallback caporeparto. Shape inattese bloccano il merge; snapshot delle approvazioni pendenti conservati.
 - Migrazioni automazioni 0025/0026; quattro trigger SQL set-based con campi espliciti per visite, diario, incidenti e RENTRI. Dati clinici esclusi: il placeholder prescrizioni rinvia alla scheda riservata.

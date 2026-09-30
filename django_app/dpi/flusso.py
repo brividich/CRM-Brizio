@@ -186,6 +186,10 @@ def _dettaglio_richiesta(richiesta) -> str:
     return "\n".join(righe)
 
 
+from automazioni.managed_flows import event_flow
+
+
+@event_flow("dpi_richiesta_da_approvare", skipped_result=None)
 def notifica_nuova_richiesta(richiesta) -> None:
     """Passo 1 -> 2: avvisa il responsabile/preposto che c'e' una richiesta da approvare."""
     try:
@@ -200,6 +204,7 @@ def notifica_nuova_richiesta(richiesta) -> None:
         logger.warning("Notifica nuova richiesta DPI fallita (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
 
 
+@event_flow("dpi_avviso_consegna", skipped_result=None)
 def notifica_approvata(richiesta) -> None:
     """Passo 2 -> 3: avviso di consegna a magazzino e amministrazione."""
     try:
@@ -214,6 +219,7 @@ def notifica_approvata(richiesta) -> None:
         logger.warning("Avviso di consegna DPI fallito (%s)", getattr(richiesta, "numero", "?"), exc_info=True)
 
 
+@event_flow("dpi_report_consegna", skipped_result=None)
 def notifica_consegnata(consegna) -> None:
     """Passo 4: report di consegna all'amministrazione (con il modulo PDF in allegato)."""
     richiesta = consegna.richiesta
