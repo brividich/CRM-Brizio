@@ -3,30 +3,47 @@ from .registry import parser_registry
 from .watchguard import (
     parse_watchguard_dimension_executive_summary,
     parse_watchguard_epdr_executive_report,
+    parse_watchguard_epdr_threat_mail,
+    parse_watchguard_executive_dashboard,
     parse_watchguard_firebox_authentication_allowed_csv,
     parse_watchguard_firebox_authentication_denied_csv,
-    parse_watchguard_interface_summary,
-    parse_watchguard_sdwan_status,
+    parse_watchguard_interface_summary_pdf,
+    parse_watchguard_sdwan_status_pdf,
     parse_watchguard_threatsync_incident_list,
     parse_watchguard_threatsync_summary,
     parse_watchguard_zero_day_apt_summary,
 )
-
+from .watchguard import routing
 
 _VPN_REPORT_TYPES = {"watchguard_firebox_authentication_allowed", "watchguard_firebox_authentication_denied"}
+
+_HANDLERS = {
+    routing.AUTH_ALLOWED: parse_watchguard_firebox_authentication_allowed_csv,
+    routing.AUTH_DENIED: parse_watchguard_firebox_authentication_denied_csv,
+    routing.EXECUTIVE_SUMMARY: parse_watchguard_dimension_executive_summary,
+    routing.EXECUTIVE_DASHBOARD: parse_watchguard_executive_dashboard,
+    routing.INTERFACE_SUMMARY: parse_watchguard_interface_summary_pdf,
+    routing.SDWAN: parse_watchguard_sdwan_status_pdf,
+    routing.ZERO_DAY: parse_watchguard_zero_day_apt_summary,
+    routing.EPDR_REPORT: parse_watchguard_epdr_executive_report,
+    routing.EPDR_THREAT_MAIL: parse_watchguard_epdr_threat_mail,
+    routing.THREATSYNC_LIST: parse_watchguard_threatsync_incident_list,
+    routing.THREATSYNC_SUMMARY: parse_watchguard_threatsync_summary,
+    routing.DIMENSION: parse_watchguard_dimension_executive_summary,
+}
 
 
 class WatchGuardReportParser(BaseParser):
     name = "watchguard_report_parser"
 
     def can_parse(self, item) -> bool:
-        haystack = _item_haystack(item)
-        return any(token in haystack for token in ["watchguard", "firebox", "threatsync", "epdr", "dimension", "sd-wan", "sdwan", "zero-day", "zero_day", "authentication"])
+        return self._kind(item) is not None or routing.looks_like_watchguard(_provenance(item))
 
     def parse(self, item) -> ParsedReport:
         source_name = getattr(item, "original_name", "") or getattr(item, "subject", "")
         content = getattr(item, "content", "") or getattr(item, "body", "")
-        result = _parse_watchguard_payload(source_name, content, getattr(item, "received_at", None))
+        kind = self._kind(item)
+        result = _parse_payload(kind, source_name, content, getattr(item, "received_at", None))
         records = [
             ParsedRecord(
                 record_type="watchguard_report_summary",
@@ -60,43 +77,33 @@ class WatchGuardReportParser(BaseParser):
             payload=result,
         )
 
+    @staticmethod
+    def _kind(item):
+        filename = getattr(item, "original_name", "") or ""
+        content = getattr(item, "content", "") or getattr(item, "body", "") or ""
+        return routing.detect_report(filename, content, getattr(item, "subject", ""))
 
-def _parse_watchguard_payload(source_name, content, received_at):
-    haystack = f"{source_name}\n{content}".lower()
+
+def _parse_payload(kind, source_name, content, received_at):
     kwargs = {"source_name": source_name, "received_at": received_at}
-    if "authentication" in haystack and "allowed" in haystack:
-        return parse_watchguard_firebox_authentication_allowed_csv(content, **kwargs)
-    if "authentication" in haystack and "denied" in haystack:
-        return parse_watchguard_firebox_authentication_denied_csv(content, **kwargs)
-    if "zero" in haystack and "apt" in haystack:
-        return parse_watchguard_zero_day_apt_summary(content, **kwargs)
-    if "sd-wan" in haystack or "sdwan" in haystack:
-        return parse_watchguard_sdwan_status(content, **kwargs)
-    if "interface" in haystack:
-        return parse_watchguard_interface_summary(content, **kwargs)
-    if "threatsync" in haystack and ("," in content.splitlines()[0] if content.splitlines() else False):
-        return parse_watchguard_threatsync_incident_list(content, **kwargs)
-    if "threatsync" in haystack:
-        return parse_watchguard_threatsync_summary(content, **kwargs)
-    if "epdr" in haystack:
-        return parse_watchguard_epdr_executive_report(content, **kwargs)
-    if "dimension" in haystack or "executive summary" in haystack or "dashboard" in haystack or "botnet detection" in haystack:
-        return parse_watchguard_dimension_executive_summary(content, **kwargs)
+    handler = _HANDLERS.get(kind)
+    if handler:
+        return handler(content, **kwargs)
     result = parse_watchguard_dimension_executive_summary(content, **kwargs)
-    result["parse_warnings"].append("WatchGuard source recognized, but report subtype was inferred as Dimension summary")
+    result["parse_warnings"].append("Report WatchGuard non riconosciuto dal titolo: trattato come riepilogo generico, verificare")
     return result
 
 
-def _item_haystack(item):
-    parts = [
+def _provenance(item):
+    """Solo mittente, oggetto, nome file e sorgente: il corpo della mail non prova nulla."""
+    source = getattr(item, "source", None)
+    return [
         getattr(item, "original_name", ""),
         getattr(item, "subject", ""),
-        getattr(getattr(item, "source", None), "name", ""),
-        getattr(getattr(item, "source", None), "vendor", ""),
-        getattr(item, "content", "")[:1000],
-        getattr(item, "body", "")[:1000],
+        getattr(item, "sender", ""),
+        getattr(source, "name", ""),
+        getattr(source, "vendor", ""),
     ]
-    return "\n".join(str(part or "").lower() for part in parts)
 
 
 parser_registry.register(WatchGuardReportParser())

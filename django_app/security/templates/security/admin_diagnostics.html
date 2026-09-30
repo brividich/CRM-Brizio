@@ -53,8 +53,8 @@
             <td>{{ row.parser_name }}</td>
             <td>{% if row.configured_enabled == None %}mancante{% elif row.configured_enabled %}attivo{% else %}disattivato{% endif %}</td>
             <td>{% if row.exists_in_registry %}si{% else %}no{% endif %}</td>
-            <td>{% if row.last_successful_parse %}{{ row.last_successful_parse|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
-            <td>{% if row.last_failed_parse %}{{ row.last_failed_parse|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+            <td>{% if row.last_successful_parse %}{{ row.last_successful_parse|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
+            <td>{% if row.last_failed_parse %}{{ row.last_failed_parse|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td>
             <td>{{ row.report_count }}</td><td>{{ row.warning_count }}</td><td>{{ row.error_count }}</td>
             <td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td>
           </tr>
@@ -121,7 +121,7 @@
       <thead><tr><th>Regola</th><th>Severita</th><th>Responsabile</th><th>Scadenza</th><th>Occorrenze</th><th>Flag</th></tr></thead>
       <tbody>
         {% for row in suppression_diagnostics.top_by_hit_count %}
-          <tr><td>{{ row.rule.name }}</td><td>{{ row.rule.severity|default:"*" }}</td><td>{{ row.rule.owner|default:"-" }}</td><td>{% if row.rule.expires_at %}{{ row.rule.expires_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td><td>{{ row.rule.hit_count }}</td><td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td></tr>
+          <tr><td>{{ row.rule.name }}</td><td>{{ row.rule.severity|default:"*" }}</td><td>{{ row.rule.owner|default:"-" }}</td><td>{% if row.rule.expires_at %}{{ row.rule.expires_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</td><td>{{ row.rule.hit_count }}</td><td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td></tr>
         {% empty %}
           <tr><td colspan="6" class="sec-empty">Nessuna regola di soppressione configurata.</td></tr>
         {% endfor %}
@@ -134,7 +134,7 @@
   <div class="sec-section-head"><h2>Diagnostica backup</h2></div>
   <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Job atteso</th><th>Attivo</th><th>Critico</th><th>Ultimo visto</th><th>Flag</th></tr></thead><tbody>
     {% for row in backup_diagnostics.enabled_expected_jobs %}
-      <tr><td>{{ row.config.job_name }}</td><td>{{ row.config.enabled|yesno:"si,no" }}</td><td>{{ row.config.critical_asset|yesno:"si,no" }}</td><td>{% if row.last_seen %}{{ row.last_seen.created_at|date:"Y-m-d H:i" }} {{ row.last_seen.status }}{% else %}-{% endif %}</td><td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td></tr>
+      <tr><td>{{ row.config.job_name }}</td><td>{{ row.config.enabled|yesno:"si,no" }}</td><td>{{ row.config.critical_asset|yesno:"si,no" }}</td><td>{% if row.last_seen %}{{ row.last_seen.created_at|date:"d/m/Y H:i" }} {{ row.last_seen.status }}{% else %}-{% endif %}</td><td>{% for flag in row.flags %}<span class="sec-badge warning">{{ flag }}</span> {% empty %}-{% endfor %}</td></tr>
     {% empty %}
       <tr><td colspan="5" class="sec-empty">Nessun job backup atteso attivo.</td></tr>
     {% endfor %}
@@ -153,12 +153,12 @@
 </section>
 
 <section class="sec-panel" style="margin-top:12px">
-  <div class="sec-section-head"><h2>Attivita recente</h2></div>
+  <div class="sec-section-head"><h2>Attività recente</h2></div>
   <div class="sec-table-wrap"><table class="sec-table"><thead><tr><th>Quando</th><th>Tipo</th><th>Titolo</th><th>Sorgente</th><th>Stato</th></tr></thead><tbody>
     {% for item in recent_activity %}
-      <tr><td>{{ item.when|date:"Y-m-d H:i" }}</td><td>{{ item.type }}</td><td>{{ item.title }}</td><td>{{ item.source }}</td><td>{{ item.status }}</td></tr>
+      <tr><td>{{ item.when|date:"d/m/Y H:i" }}</td><td>{{ item.type }}</td><td>{{ item.title }}</td><td>{{ item.source }}</td><td>{{ item.status }}</td></tr>
     {% empty %}
-      <tr><td colspan="5" class="sec-empty">Nessuna attivita recente.</td></tr>
+      <tr><td colspan="5" class="sec-empty">Nessuna attività recente.</td></tr>
     {% endfor %}
   </tbody></table></div>
 </section>

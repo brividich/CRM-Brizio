@@ -1549,6 +1549,52 @@ class MeetingAttendanceTests(TasksBaseTestCase):
         self.assertIn(self.assente.username, sections["Assenti"])
         self.assertIn("altro@example.com", sections["Assenti"])
 
+    def test_aggiungere_persone_all_incontro_le_rende_partecipanti_e_presenti(self):
+        nuovo = _create_user_with_legacy(
+            username="presenze-nuovo", legacy_user_id=514, role_id=2, role_name="tasks"
+        )
+        response = self.client.post(self.minutes_url, {
+            "presenti_utenti": [self.user.pk],
+            "presenti_email_list": [],
+            "aggiunti_utenti": [nuovo.pk],
+            "aggiunti_email": "ospite@example.com, altro-ospite@example.com",
+            "note": "verbale",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.meeting.refresh_from_db()
+        self.assertIn(nuovo, self.meeting.partecipanti_utenti.all())
+        self.assertIn(nuovo, self.meeting.presenti_utenti.all())
+        self.assertIn("ospite@example.com", self.meeting.get_partecipanti_email_list())
+        self.assertIn("altro-ospite@example.com", self.meeting.get_presenti_email_list())
+        # il convocato assente resta assente, con le sue email esterne originali
+        self.assertIn(self.assente, self.meeting.assenti_utenti)
+        self.assertIn("esterno@example.com", self.meeting.assenti_email)
+
+    def test_email_aggiunta_non_valida_blocca_il_salvataggio(self):
+        response = self.client.post(self.minutes_url, {
+            "presenti_utenti": [self.user.pk],
+            "aggiunti_email": "senza-chiocciola",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.meeting.refresh_from_db()
+        self.assertFalse(self.meeting.presenze_registrate)
+
+    def test_minuta_va_ai_presenti_e_gli_assenti_restano_in_copia(self):
+        from tasks.minute_email import minute_recipients
+
+        self.assente.email = "assente@example.com"
+        self.assente.save(update_fields=["email"])
+        self.client.post(self.minutes_url, {
+            "presenti_utenti": [self.user.pk],
+            "presenti_email_list": [],
+            "aggiunti_email": "ospite@example.com",
+            "note": "verbale",
+        })
+        self.meeting.refresh_from_db()
+        a, cc = minute_recipients(self.meeting)
+        self.assertCountEqual(a, ["pm-presenze@example.com", "ospite@example.com"])
+        self.assertCountEqual(cc, ["assente@example.com", "esterno@example.com", "altro@example.com"])
+
     def test_dettaglio_incontro_mostra_il_conteggio_presenze(self):
         self.client.post(self.minutes_url, {
             "presenti_utenti": [self.user.pk],
