@@ -32,7 +32,7 @@
           {% for snapshot in snapshots %}
             <tr>
               <td class="sec-title-cell"><strong>{{ snapshot.name|metric_label }}</strong><small>{{ snapshot.name }}</small></td>
-              <td class="sec-nowrap sec-num"><strong>{{ snapshot.value|floatformat:"-2" }}</strong></td>
+              <td class="sec-nowrap sec-num"><strong>{{ snapshot|metric_display }}</strong></td>
             </tr>
           {% endfor %}
           </tbody>

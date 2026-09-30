@@ -521,3 +521,10 @@ body.theme-dark .soc-module .sec-button:not(.sec-button-primary):hover { color: 
   .soc-module .vpn-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .soc-module .vpn-row, .soc-module .vpn-row-3 { grid-template-columns: 1fr; }
 }
+
+/* Griglie: i figli non devono allargare la colonna oltre lo spazio disponibile (scroll orizzontale). */
+.soc-module .sec-two-col > *, .soc-module .sec-dash-cols > * { min-width: 0; }
+.soc-module .sec-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+@media (max-width: 1100px) { .soc-module .sec-pair { grid-template-columns: 1fr; } }
+.soc-module .sec-dash-cols > .sec-grid { grid-template-columns: minmax(0, 1fr); align-content: start; }
+.soc-module .sec-dash-cols .sec-panel { min-width: 0; }

@@ -213,6 +213,40 @@ METRIC_LABELS = {
     "watchguard_sslvpn_unique_source_ips": "IP VPN nel report",
     "watchguard_sslvpn_short_reconnect_count": "Riconnessioni VPN brevi",
     "watchguard_sslvpn_long_session_count": "Sessioni VPN molto lunghe",
+    "defender_vulnerability_total_count": "Vulnerabilità Defender (totale)",
+    "defender_vulnerability_critical_count": "Vulnerabilità Defender critiche",
+    "defender_vulnerability_high_count": "Vulnerabilità Defender alte",
+    "defender_exposed_devices_total": "Dispositivi esposti (totale)",
+    "defender_critical_exposed_devices_total": "Dispositivi esposti a vulnerabilità critiche",
+    "defender_unique_cves": "CVE distinte",
+    "defender_unique_products_affected": "Prodotti interessati",
+    "watchguard_malware_scanned_count": "Malware: file analizzati",
+    "watchguard_malware_detected_count": "Malware rilevati",
+    "watchguard_network_attacks_scanned_count": "Attacchi di rete analizzati",
+    "watchguard_ips_scanned_count": "IPS: connessioni analizzate",
+    "watchguard_ips_detected_count": "IPS: minacce rilevate",
+    "watchguard_ips_prevented_count": "IPS: minacce bloccate",
+    "watchguard_botnet_scanned_count": "Botnet: analizzati",
+    "watchguard_botnet_detected_count": "Botnet rilevate",
+    "watchguard_botnet_blocked_count": "Botnet bloccate",
+    "watchguard_pup_detected_count": "Programmi indesiderati rilevati",
+    "watchguard_epdr_protected_endpoints": "Endpoint protetti",
+    "watchguard_epdr_unprotected_endpoints": "Endpoint non protetti",
+    "watchguard_epdr_outdated_agents": "Agent obsoleti",
+    "watchguard_epdr_pending_actions": "Azioni EPDR in attesa",
+    "watchguard_threatsync_total_count": "Incidenti ThreatSync",
+    "watchguard_threatsync_critical_count": "ThreatSync critici",
+    "watchguard_threatsync_high_count": "ThreatSync alti",
+    "watchguard_threatsync_medium_count": "ThreatSync medi",
+    "watchguard_threatsync_low_count": "ThreatSync bassi",
+    "watchguard_threatsync_open_critical_count": "ThreatSync critici aperti",
+    "watchguard_threatsync_open_high_count": "ThreatSync alti aperti",
+    "watchguard_sdwan_loss_avg": "SD-WAN perdita pacchetti media (%)",
+    "watchguard_sdwan_latency_avg_ms": "SD-WAN latenza media (ms)",
+    "watchguard_sdwan_jitter_avg_ms": "SD-WAN jitter medio (ms)",
+    "watchguard_dropped_packets_total": "Pacchetti scartati",
+    "watchguard_zero_day_apt_hits": "Zero-day / APT rilevati",
+    "watchguard_sslvpn_user_ip_pairs": "Coppie utente-IP VPN",
     "source_silent": "Sorgenti silenziose",
     "possible_sender_spoofing": "Possibili spoofing mittente",
     "watchguard_report_summary": "Report WatchGuard ricevuti",
@@ -233,6 +267,19 @@ def duration_hms(value):
         return "—"
     hours, rest = divmod(seconds, 3600)
     return f"{hours}:{rest // 60:02d}:{rest % 60:02d}"
+
+
+@register.filter
+def metric_display(snapshot):
+    """Valore di uno snapshot leggibile: durate in h:mm:ss, GB con 2 decimali, interi senza virgola."""
+    name, value = str(getattr(snapshot, "name", "")), getattr(snapshot, "value", 0) or 0
+    if name.endswith("_seconds"):
+        return duration_hms(round(value))
+    if name.endswith("_gb"):
+        return f"{value:,.2f} GB".replace(",", "X").replace(".", ",").replace("X", ".")
+    if float(value).is_integer():
+        return f"{int(value):,}".replace(",", ".")
+    return f"{value:.2f}".replace(".", ",")
 
 
 @register.filter

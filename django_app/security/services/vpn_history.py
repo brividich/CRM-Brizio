@@ -88,6 +88,19 @@ def vpn_day_stats(day, source_id=None):
     }
 
 
+def vpn_recent_stats(days=7):
+    """Sintesi degli ultimi giorni per la dashboard."""
+    since = timezone.now() - timedelta(days=days)
+    qs = SecurityVpnAccess.objects.filter(login_at__gte=since)
+    return {
+        "days": days,
+        "allowed": qs.filter(action=SecurityVpnAccess.ACTION_ALLOWED).count(),
+        "denied": qs.filter(action=SecurityVpnAccess.ACTION_DENIED).count(),
+        "users": qs.exclude(username="").order_by().values("username").distinct().count(),
+        "has_history": SecurityVpnAccess.objects.exists(),
+    }
+
+
 def vpn_history_summary(qs):
     """Contatori e classifiche per la pagina storico, sul queryset gia' filtrato."""
     totals = qs.aggregate(
@@ -173,10 +186,10 @@ def vpn_findings(qs):
                              "detail": f"{row['users']} {'nome utente provato' if row['users'] == 1 else 'nomi utente provati'}: possibile tentativo di forza bruta.", "filter": f"ip={ip}&action=denied"})
     for row in ok.filter(login_at__isnull=False).annotate(hour=ExtractHour("login_at")).filter(hour__in=NIGHT_HOURS).exclude(username="").order_by().values("username").annotate(n=Count("id")).order_by("-n")[:3]:
         findings.append({"level": "warning", "title": f"{row['username']}: {row['n']} accessi in orario notturno",
-                         "detail": "Tra le 22 e le 6. Normale per reperibilita' o account di servizio, altrimenti da verificare.", "filter": f"user={row['username']}"})
+                         "detail": "Tra le 22 e le 6. Normale per reperibilità o account di servizio, altrimenti da verificare.", "filter": f"user={row['username']}"})
     for row in ok.exclude(username="").order_by().values("username").annotate(ips=Count("source_ip", distinct=True)).filter(ips__gte=MANY_IPS).order_by("-ips")[:3]:
         findings.append({"level": "warning", "title": f"{row['username']} da {row['ips']} indirizzi diversi",
-                         "detail": "Molti IP di origine nel periodo: puo' indicare credenziali condivise o in uso da altri.", "filter": f"user={row['username']}"})
+                         "detail": "Molti IP di origine nel periodo: può indicare credenziali condivise o in uso da altri.", "filter": f"user={row['username']}"})
     long_n = ok.filter(duration_seconds__gt=LONG_SESSION).count()
     if long_n:
         findings.append({"level": "info", "title": f"{long_n} sessioni oltre 8 ore", "detail": "Sessioni rimaste aperte a lungo: utile per capire se si disconnettono.", "filter": "action=allowed"})

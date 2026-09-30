@@ -59,6 +59,8 @@ from .services.alert_lifecycle import (
     snooze_alert,
 )
 from .services.kpi_service import build_daily_kpi_snapshots
+from .services.source_heartbeat import source_status_rows
+from .services.vpn_history import vpn_recent_stats
 from .services.mailbox_setup import graph_credentials_status, preview_mailbox, run_summary, start_history_import, unique_code_for
 from .services.posture import build_pipeline_status, build_posture, build_trend
 from .services.parser_engine import _match_enabled_parser, run_pending_parsers
@@ -111,6 +113,8 @@ def dashboard(request):
         "last_pipeline_run": request.session.get("last_pipeline_run"),
         "posture": build_posture(),
         "trend": build_trend(today=today),
+        "source_rows": source_status_rows(),
+        "vpn_week": vpn_recent_stats(),
     }
     return render(request, "security/dashboard.html", context)
 
@@ -1042,7 +1046,7 @@ CONFIG_SECTION_HELP = {
     },
     "parsers": {
         "title": "Parser",
-        "intro": "Abilita e ordina i parser che trasformano i report in metriche e finding. Priorita' piu' bassa = valutato prima.",
+        "intro": "Abilita e ordina i parser che trasformano i report in metriche e finding. Priorità più bassa = valutato prima.",
         "doc_slug": "02-admin-guide",
         "tips": ["Lo stato viene dai risultati reali: report prodotti, errori, elementi scartati.", "Con «Prova i parser» verifichi una mail o un PDF senza salvare nulla.", "Dopo una correzione, «Rielabora» ripropone gli elementi rimasti indietro."],
     },
@@ -1056,7 +1060,7 @@ CONFIG_SECTION_HELP = {
         "title": "Regole di soppressione",
         "intro": "Silenzia eventi noti/rumorosi per tipo, severita' o condizioni, con validita' temporale.",
         "doc_slug": "07-alert-lifecycle",
-        "tips": ["Una soppressione attiva riduce il rumore ma puo' nascondere segnali: rivedila periodicamente.", "Imposta una scadenza quando possibile."],
+        "tips": ["Una soppressione attiva riduce il rumore ma può nascondere segnali: rivedila periodicamente.", "Imposta una scadenza quando possibile."],
     },
     "backups": {
         "title": "Monitoraggio backup",

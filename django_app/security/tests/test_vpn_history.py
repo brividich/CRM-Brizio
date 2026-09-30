@@ -90,6 +90,26 @@ class VpnHistoryPersistenceTests(TestCase):
         self.assertEqual(values["vpn_session_max_seconds"], 5400)
 
 
+class SocDashboardAndKpiTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user("soc_dash", password="x", is_staff=True, is_superuser=True)
+        self.client.force_login(user)
+
+    def test_dashboard_shows_data_flows_and_vpn_panels(self):
+        response = self.client.get(reverse("security:dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Flussi dati")
+        self.assertContains(response, "Accessi VPN")
+        self.assertIn("source_rows", response.context)
+
+    def test_metric_display_formats_by_unit(self):
+        from security.templatetags.security_i18n import metric_display
+
+        self.assertEqual(metric_display(SimpleNamespace(name="vpn_session_avg_seconds", value=5400.0)), "1:30:00")
+        self.assertEqual(metric_display(SimpleNamespace(name="backup_transferred_total_gb", value=1234.5)), "1.234,50 GB")
+        self.assertEqual(metric_display(SimpleNamespace(name="vpn_access_allowed", value=1200.0)), "1.200")
+
+
 class VpnFindingsTests(TestCase):
     def test_burst_then_success_is_flagged_high(self):
         from security.services.vpn_history import vpn_findings
