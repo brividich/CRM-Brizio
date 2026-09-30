@@ -65,6 +65,7 @@ from .forms import (
     etichetta_utente,
     task_active_users_queryset,
 )
+from .minute_email import note_generali
 from .models import (
     DependencyType,
     GanttBaseline,
@@ -6881,20 +6882,6 @@ def _sync_meeting_issues_from_post(request, project: Project, meeting: KickoffMe
         )
 
 
-def _agenda_notes_recap(meeting: KickoffMeeting) -> str:
-    """Note prese punto per punto durante la conduzione, come bozza di verbale."""
-    lines: list[str] = []
-    for index, item in enumerate(meeting.agenda_items or [], start=1):
-        if not isinstance(item, dict):
-            continue
-        titolo = str(item.get("titolo", "")).strip()
-        nota = str(item.get("nota", "")).strip()
-        if not titolo or not nota:
-            continue
-        lines.append(f"{index}. {titolo}: {nota}")
-    return "\n".join(lines)
-
-
 def _meeting_actions_for_form(project: Project, meeting: KickoffMeeting | None = None):
     """Azioni da mostrare nella pagina esito: le aperte + quelle nate qui."""
     qs = project.meeting_actions.select_related("source_meeting", "assigned_to", "linked_task")
@@ -7141,6 +7128,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             "page_title": f"Incontro {meeting.numero} - {project.name}",
             "project": project,
             "meeting": meeting,
+            "note_generali": note_generali(meeting),
             "can_manage": can_manage,
             "meeting_issues": meeting_issues,
             "open_issue_count": open_issue_count,
@@ -7252,12 +7240,9 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     else:
         form = KickoffMeetingMinuteForm(instance=meeting)
-        # Se la riunione e' stata condotta da `/conduci/`, le note dei punti ci
-        # sono gia': si riportano nel verbale invece di farle riscrivere.
-        if not (meeting.note or "").strip():
-            recap = _agenda_notes_recap(meeting)
-            if recap:
-                form.initial["note"] = recap
+        # Minute storiche: le note dei punti erano ricopiate nel verbale e ora
+        # stanno gia' nell'ordine del giorno, quindi qui non si riproducono.
+        form.initial["note"] = note_generali(meeting)
 
     return render(
         request,
