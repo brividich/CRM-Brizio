@@ -6,6 +6,21 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 
 ## App Django (custom)
 
+Contatori espone il catalogo `/contatori/snmp/profili/`: `ProfiloSNMP` e
+`ColonnaProfiloSNMP` (migrazioni 0008-0012) precaricano oltre 35 famiglie per
+stampanti/MFC, firewall, rete, server, storage e UPS. L'autodetect combina PEN/
+`sysObjectID` e `sysDescr`; le sonde supportano GET/WALK e aggregazione. Gli OID
+MFC alimentano i quattro contatori contrattuali soltanto se mappati esplicitamente.
+Runbook: `docs/PROFILI_SNMP.md`.
+
+Autodetect: `interroga_dispositivo` materializza e legge le nuove sonde nello stesso polling, ripara i profili esistenti privi di sonde senza riscrivere quelle personalizzate. Per le stampanti `printer_snmp.py` raccoglie Printer-MIB con indici dinamici, limiti WALK e risposte parziali. `RilevazioneSNMP.dati_stampante` (0013) conserva contatori/consumabili per ogni polling; la scheda mostra ultimo tentativo e storico, mai dati precedenti spacciati per correnti. Nessuna nuova route, schedule o dipendenza.
+
+Reportistica Asset: `/assets/impostazioni/reportistica/` configura `AssetReportSchedule`;
+`/assets/reports/archivio/` consulta `AssetReportRun` (snapshot e PDF/XLSX privati nel DB).
+Servizi `assets/services/reporting.py` e `reporting_exports.py`, dispatcher `assets_reportistica`
+ogni minuto nel catalogo django-q2 esistente. Migrazioni 0119/0120, dipendenza Contatori 0007.
+Runbook completo: `docs/ASSET_REPORTISTICA.md`. Nessuna lettura SNMP live durante il report.
+
 | App | Scopo |
 | --- | ----- |
 | `core` | Middleware ACL, navigation registry, legacy models, auth backends, context processors |
@@ -30,6 +45,7 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 | `dpi` | Gestione DPI (Dispositivi Protezione Individuale): richieste con card-picker immagini, approvazione, consegna, storico, KPI |
 | `procedure_refresh` | Presa visione procedure MT/MTSI: anagrafica documenti, revisioni con sorgente SharePoint/file server, campagne, assegnazioni, tracking aperture/conferme, report, export CSV |
 | `schede_sicurezza` | SDS prodotti chimici versionate e assegnate M2M alle mansioni di rischio; obblighi e notifiche si ricalcolano dalla mansione corrente del dipendente, con cruscotto personale e matrice di conformita per mansione |
+| `contatori` | Centrale MFC/SNMP: contatori Canon, riconciliazione e analisi; dispositivi generici + sonde OID/soglie/storico; salute e latenza persistite; ponte opzionale verso `assets.Asset` per seriale o `AssetEndpoint.ip`. Scheduler django-q2 esistente: `contatori_poll_snmp` ogni 5 minuti e `contatori_letture_mensili` il giorno 1 alle 08:00; job per apparato, lock in cache condivisa, snapshot mensile idempotente (`LetturaMensileContatori`, migration 0007) e recupero `leggi_contatori_mensili`, senza modificare i trimestri. Runbook: `docs/CONTATORI_AUTOMAZIONI.md`. Poll generici con `poll_snmp_devices`; `snmp_discover` e `leggi_contatori` usano `--snmp-version {v1,v2c}` perché `--version` è riservato da Django |
 
 Nota Anagrafica / referti sanitari: `services/referti_intake.py` tratta un certificato
 multipagina come una sola unita logica. Le pagine senza un nuovo blocco anagrafico
@@ -168,3 +184,12 @@ Percorso: `/admin-portale/hub/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â richiede 
 
 ---
 
+
+### Assenze: consultazione reparto e storico (2026-09-29)
+
+- Card locale e sezione dipendenti dipendono da `view_scope` reparto/all, separato da `can_update_owned/any`.
+- `assenze/team_scope.py`: predicati SQL EXISTS sulla catena account -> anagrafica -> area -> reparto. Il responsabile area prevale su capo reparto e copia denormalizzata; se una responsabilita corrente e nota, prevale sulla vecchia FK della richiesta. Il fallback storico resta solo senza responsabilita risolta. Per record importati senza utente e ammessa email esatta e univoca; nessun match nominativo aggiunto. Nessuna concessione ACL implicita da una relazione HR.
+- `capi_reparto.id` non e `utenti.id`: con la tabella FK presente il confronto diretto numerico e escluso.
+- Storico dashboard: query SQL paginata, 30 righe + sentinella, filtro `periodo_storico=tutte/passate/future` prima della paginazione; future include oggi/in corso. Pagina personale conserva anteprima e offre link allo storico completo.
+- La lettura non riassegna approvazioni; `_prepare_team_rows` rende esplicita la sola consultazione e rimuove motivazioni/certificati/note dalle righe non gestibili, anche nell'export. Calendario mantiene le restrizioni esistenti.
+- Deploy: nessuna migrazione o grant automatico, aggiornare applicazione e riavviare. Verificare su SQL Server e configurazione ACL reale; una relazione HR incompleta o un account non collegato richiede riallineamento dei dati, non accesso aziendale indiscriminato. Versione invariata: bugfix registrato in Unreleased, bump coordinato al packaging.

@@ -41,6 +41,7 @@ from .models import (
     ChecklistModello,
     ChecklistSezione,
     ProgrammaAudit,
+    Processo,
     RigaProgramma,
 )
 from .services import audit as service
@@ -80,6 +81,7 @@ class AuditBase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="auditor-test", password="x", first_name="Ada", last_name="Verdi")
         self.direzione = User.objects.create_user(username="direzione-test", password="x")
+        self.processo = Processo.objects.create(codice="QA-01", nome="Qualit\u00e0", responsabile=self.direzione)
         self.auditor = Auditor.objects.create(
             user=self.user, interno=True, req_diploma=True, req_norme=True,
             req_tecniche_audit=True, req_settore=True, req_esperienza_2_anni=True,
@@ -157,7 +159,7 @@ class RegoleAuditTest(AuditBase):
     def test_imparzialita_blocca_senza_deroga(self, _reparto):
         form = AuditForm(data={
             "numero": "RAIS-2026-02", "tipo": Audit.TIPO_SISTEMA, "en9100": "on",
-            "lead_auditor": self.auditor.pk, "processi": "Qualità",
+            "processi_catalogo": [self.processo.pk], "lead_auditor": self.auditor.pk, "processi": "Qualità",
             "data_inizio": "2026-10-15", "esclusioni": "Nessuna",
             "metodo_intervista": "on", "metodo_esame_documenti": "on", "metodo_verifica_evidenze": "on",
         })
@@ -165,14 +167,15 @@ class RegoleAuditTest(AuditBase):
         self.assertIn("imparzialita_deroga_motivo", form.errors)
 
     @patch("sistema_gestione.services.audit.reparto_auditor", return_value="Qualità")
-    def test_imparzialita_accetta_deroga_motivata(self, _reparto):
+    def test_imparzialita_non_accetta_deroga_motivata(self, _reparto):
         form = AuditForm(data={
             "numero": "RAIS-2026-02", "tipo": Audit.TIPO_SISTEMA, "en9100": "on",
-            "lead_auditor": self.auditor.pk, "processi": "Qualità",
+            "processi_catalogo": [self.processo.pk], "lead_auditor": self.auditor.pk, "processi": "Qualità",
             "data_inizio": "2026-10-15", "esclusioni": "Nessuna",
             "imparzialita_deroga_motivo": "Nessun altro auditor disponibile; riesame indipendente delle evidenze.",
         })
-        self.assertTrue(form.is_valid(), form.errors)
+        self.assertFalse(form.is_valid())
+        self.assertIn("imparzialita_deroga_motivo", form.errors)
 
     @patch("sistema_gestione.services.audit.reparto_auditor", return_value="Magazzino")
     def test_processi_vuoto_e_errore_del_campo_non_di_imparzialita(self, _reparto):
@@ -181,7 +184,7 @@ class RegoleAuditTest(AuditBase):
             "processi": "", "data_inizio": "2026-10-15", "esclusioni": "Nessuna",
         })
         self.assertFalse(form.is_valid())
-        self.assertIn("processi", form.errors)
+        self.assertIn("processi_catalogo", form.errors)
         self.assertNotIn("imparzialita_deroga_motivo", form.errors)
 
     @patch("sistema_gestione.services.audit.reparto_auditor", return_value="IT")
@@ -393,7 +396,9 @@ class AclAuditTest(AuditBase):
         from sistema_gestione.audit_views import audit_avvia
 
         has_perm.side_effect = lambda _request, code: code in {PERM_AUDIT_VIEW, PERM_AUDIT_ESEGUI}
-        audit = self.make_audit(stato=Audit.STATO_PIANO_APPROVATO)
+        audit = self.make_audit(stato=Audit.STATO_PIANO_APPROVATO, comunicazione_il=timezone.now())
+        from .models import AuditPreparazione
+        AuditPreparazione.objects.create(audit=audit, verificato_da=self.user, audit_precedenti="Nessun precedente: prima verifica", car_cliente="Nessuna CAR nel periodo", documenti_registrazioni="PR-QA Rev.1 e campione sintetico", obiettivi_carenze="Verifica applicazione sul campione")
         response = audit_avvia(_request(self.user), audit.pk)
         self.assertEqual(response.status_code, 302)
         audit.refresh_from_db()

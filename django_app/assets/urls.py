@@ -1,11 +1,18 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_maintenance, views_verifiche
+from . import views, views_maintenance, views_verifiche, views_reporting
 
 app_name = "assets"
 
 urlpatterns = [
+    path("assets/impostazioni/reportistica/", views_reporting.settings, name="reporting_settings"),
+    path("assets/impostazioni/reportistica/<int:pk>/", views_reporting.settings, name="reporting_edit"),
+    path("assets/impostazioni/reportistica/<int:pk>/esegui/", views_reporting.run_now, name="reporting_run"),
+    path("assets/impostazioni/reportistica/report/<int:pk>/riprova/", views_reporting.retry, name="reporting_retry"),
+    path("assets/reports/archivio/", views_reporting.archive, name="reporting_archive"),
+    path("assets/reports/archivio/<int:pk>/", views_reporting.detail, name="reporting_detail"),
+    path("assets/reports/archivio/<int:pk>/<str:file_format>/", views_reporting.download, name="reporting_download"),
     path("assets/", views.asset_dashboard, name="asset_dashboard"),
     path("assets/lista/", views.asset_list, name="asset_list"),
     path("assets/part-145/", views.asset_part_145_list, name="part_145_list"),
@@ -187,6 +194,8 @@ urlpatterns = [
     path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/foglio.pdf", views_verifiche.periodic_check_sheet_pdf, name="periodic_check_sheet_pdf"),
     path("assets/manutenzione/verifiche-impianti/planimetria/<int:layout_id>.png", views_verifiche.periodic_check_layout_image, name="periodic_check_layout_image"),
     path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/", views_verifiche.periodic_check_session_detail, name="periodic_check_session_detail"),
+    path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/modifica/", views_verifiche.periodic_check_session_edit, name="periodic_check_session_edit"),
+    path("assets/manutenzione/verifiche-impianti/sessione/<int:session_id>/elimina/", views_verifiche.periodic_check_session_delete, name="periodic_check_session_delete"),
     path(
         "assets/manutenzione/verifiche-impianti/allegati/<int:attachment_id>/",
         views_verifiche.periodic_check_attachment_download,

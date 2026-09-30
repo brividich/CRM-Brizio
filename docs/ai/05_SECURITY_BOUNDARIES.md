@@ -190,6 +190,26 @@ Tutte le app sono incluse in `config/urls.py`. Prefissi notevoli:
 | Prefisso | App |
 | --- | --- |
 
+## Centrale SNMP (`contatori`)
+
+### Reportistica Asset collegata
+
+- Nuovi prefissi canonici: `/assets/impostazioni/reportistica` → `legacy.assets.admin_assets`;
+  `/assets/reports/archivio` → `legacy.assets.assets_reports`. Migration Assets 0120 riusa i
+  permessi senza assegnare grant. Nessuna modifica alle esenzioni pubbliche.
+- Snapshot/PDF/XLSX nel DB, non MEDIA pubblici; download protetti, auditati e `private, no-store`.
+  Creazione/modifica/estrazione/retry richiedono gestione e POST/CSRF; archivio in sola lettura.
+- Il permesso Reports abilita la consultazione dell'intero perimetro dei report: non è un filtro
+  per asset assegnati all'utente. Non esportare credenziali/community; valori Excel come testo,
+  contenuti PDF escapati. Nessuna interrogazione apparati dall'esportazione.
+
+### Polling e collegamenti
+
+- Le comunicazioni verso MFC e dispositivi usano esclusivamente SNMP GET/WALK; non esiste alcun percorso SET.
+- Le sonde accettano solo OID numerici puntati validati. La discovery limita ogni scansione a 512 host.
+- La community SNMP resta nel singleton globale `ImpostazioniSNMP`: non è duplicata nei dispositivi, nello storico, nei messaggi o nei log.
+- Il ponte Asset è in sola lettura sul registro `assets`: l'automatch scrive soltanto la FK nel modulo `contatori`, e solo per un match univoco di seriale o endpoint IP. Ambiguità e assenze non vengono risolte automaticamente.
+
 ## Infrastruttura server (NON riproducibile in dev)
 
 Questi componenti esistono solo sul server di produzione:

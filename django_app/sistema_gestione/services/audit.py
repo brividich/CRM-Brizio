@@ -88,6 +88,7 @@ def nuova_revisione_programma(programma: ProgrammaAudit, *, motivo: str, utente)
     for riga in programma.righe.order_by("ordine", "id"):
         copia = RigaProgramma.objects.create(
             programma=nuova,
+            processo=riga.processo,
             ordine=riga.ordine,
             area=riga.area,
             enti=riga.enti,
@@ -112,6 +113,7 @@ def proponi_programma(programma: ProgrammaAudit, *, utente) -> None:
         raise TransizioneNonAmmessa("Solo una bozza può essere proposta.")
     if not programma.righe.exists():
         raise TransizioneNonAmmessa("Aggiungi almeno una riga al programma.")
+    _verifica_copertura_procedurale(programma)
     programma.stato = ProgrammaAudit.STATO_PROPOSTA
     programma.proposto_da = utente
     programma.proposto_il = timezone.now()
@@ -122,6 +124,7 @@ def proponi_programma(programma: ProgrammaAudit, *, utente) -> None:
 def approva_programma(programma: ProgrammaAudit, *, utente) -> None:
     if programma.stato != ProgrammaAudit.STATO_PROPOSTA:
         raise TransizioneNonAmmessa("Il programma non è in attesa di approvazione.")
+    _verifica_copertura_procedurale(programma)
     programma.approvato_da = utente
     programma.approvato_il = timezone.now()
     programma.save(update_fields=["approvato_da", "approvato_il", "updated_at"])
@@ -131,6 +134,7 @@ def approva_programma(programma: ProgrammaAudit, *, utente) -> None:
 def convalida_programma(programma: ProgrammaAudit, *, utente) -> None:
     if programma.stato != ProgrammaAudit.STATO_PROPOSTA or not programma.approvato_il:
         raise TransizioneNonAmmessa("È necessaria prima l'approvazione della Direzione.")
+    _verifica_copertura_procedurale(programma)
     ProgrammaAudit.objects.filter(
         anno=programma.anno, stato=ProgrammaAudit.STATO_APPROVATO,
     ).exclude(pk=programma.pk).update(stato=ProgrammaAudit.STATO_SUPERATO)
@@ -172,7 +176,7 @@ def prepara_nuovo_audit(audit: Audit, *, cella: CellaProgramma | None = None) ->
         audit.righe.add(cella.riga)
         cella.audit = audit
         cella.save(update_fields=["audit"])
-    AuditAgenda.objects.get_or_create(
+    AuditAgenda.objects.update_or_create(
         audit=audit,
         processo_area="Riunione di apertura",
         defaults={
@@ -183,7 +187,7 @@ def prepara_nuovo_audit(audit: Audit, *, cella: CellaProgramma | None = None) ->
         },
     )
     giorno_fine = audit.data_fine or audit.data_inizio
-    AuditAgenda.objects.get_or_create(
+    AuditAgenda.objects.update_or_create(
         audit=audit,
         processo_area="Riunione di chiusura",
         defaults={
@@ -205,19 +209,21 @@ def modello_en9100_attivo() -> ChecklistModello | None:
 
 @transaction.atomic
 def inizializza_checklist(audit: Audit) -> int:
+    from .audit_automation import genera_checklist_processi
+    nuovi_processi = genera_checklist_processi(audit)
     if not audit.en9100:
-        return 0
+        return nuovi_processi
     modello = modello_en9100_attivo()
     if not modello:
-        return 0
+        return nuovi_processi
     create = []
     for sezione in modello.sezioni.prefetch_related("domande"):
         AuditSezioneCar.objects.get_or_create(audit=audit, sezione=sezione)
         for domanda in sezione.domande.filter(attiva=True):
-            create.append(AuditEsito(audit=audit, domanda=domanda))
+            create.append(AuditEsito(audit=audit, domanda=domanda, strutturato=True, domanda_snapshot={"domanda": domanda.testo, "punti": domanda.punti, "revisione": modello.revisione, "criterio": sezione.criteri}))
     before = audit.esiti.count()
     AuditEsito.objects.bulk_create(create, ignore_conflicts=True)
-    return audit.esiti.count() - before
+    return audit.esiti.count() - before + nuovi_processi
 
 
 def giorni_lavorativi_di_preavviso(data_comunicazione, data_audit) -> int:
@@ -324,10 +330,16 @@ def sincronizza_ofi(esito: AuditEsito):
         "ref": audit.numero[:100],
         "processo": audit.processi[:200],
         "opportunita": esito.evidenze,
+        "proprietario": _nome_utente(esito.responsabile_azione)[:150],
+        "data_richiesta": esito.scadenza_azione,
         "modulo_origine": "sistema_gestione",
         "content_type": ct,
         "object_id": esito.pk,
     }
+    if esito.strutturato:
+        from .audit_automation import testo_evidenza
+        dati["opportunita"] = testo_evidenza(esito)
+        dati["processo"] = esito.domanda_snapshot.get("processo", audit.processi)[:200]
     for _tentativo in range(2):
         try:
             # Il savepoint rende recuperabile la transazione esterna anche su SQL Server.
@@ -343,11 +355,14 @@ def sincronizza_ofi(esito: AuditEsito):
 
 
 @transaction.atomic
-def salva_esito(esito: AuditEsito, *, utente):
+def salva_esito(esito: AuditEsito, *, utente, genera_rilievo=True):
+    from .audit_automation import problemi_esito
     esito.aggiornato_da = utente
+    esito.versione += 1
     esito.full_clean()
     esito.save()
-    if esito.esito in {AuditEsito.ESITO_OFI, AuditEsito.ESITO_NC}:
+    Audit.objects.filter(pk=esito.audit_id).update(riepilogo_generato="")
+    if genera_rilievo and esito.esito in {AuditEsito.ESITO_OFI, AuditEsito.ESITO_NC} and not problemi_esito(esito):
         sincronizza_ofi(esito)
     return esito
 
@@ -359,6 +374,69 @@ def contatori_rilievi(audit: Audit) -> dict[str, int]:
         "conformi": audit.esiti.filter(esito=AuditEsito.ESITO_CONFORME).count(),
         "na": audit.esiti.filter(esito=AuditEsito.ESITO_NA).count(),
     }
+
+
+def verifica_completezza(audit: Audit) -> dict:
+    """Un'unica fonte per guida in pagina e blocchi server prima delle firme."""
+    piano, rapporto = [], []
+    def manca(lista, condizione, testo, sezione):
+        if condizione:
+            lista.append({"testo": testo, "sezione": sezione})
+    manca(piano, not audit.processi_snapshot, "Seleziona i processi dal catalogo nel piano.", "campo")
+    manca(piano, not audit.punti_norma.strip(), "Indica i punti norma da verificare.", "campo")
+    manca(piano, not audit.procedure_criteri.strip(), "Indica procedure e criteri di verifica.", "campo")
+    manca(piano, not audit.sede.strip(), "Definisci la sede dell'audit.", "campo")
+    manca(piano, not any((audit.metodo_intervista, audit.metodo_esame_documenti,
+                         audit.metodo_osservazione_diretta, audit.metodo_verifica_evidenze)),
+          "Seleziona almeno un metodo di audit.", "campo")
+    manca(piano, not audit.persone.filter(ruolo=AuditPersona.RUOLO_AUDITATO).exists(),
+          "Inserisci almeno una persona auditata.", "persone")
+    manca(piano, not audit.persone.filter(ruolo=AuditPersona.RUOLO_PROCESSO).exists(),
+          "Inserisci il responsabile del processo tra le persone coinvolte.", "persone")
+    manca(piano, not audit.agenda.exclude(processo_area__in=["Riunione di apertura", "Riunione di chiusura"]).exists(),
+          "Pianifica almeno un'attività di verifica oltre alle riunioni.", "agenda")
+    processi_ids = {p["id"] for p in audit.processi_snapshot}
+    for voce in audit.agenda.all():
+        giorno = timezone.localtime(voce.quando).date()
+        manca(piano, not audit.data_inizio <= giorno <= (audit.data_fine or audit.data_inizio),
+              f"Correggi la data in agenda: {voce.processo_area}.", "agenda")
+        manca(piano, bool(voce.processo_id) and voce.processo_id not in processi_ids,
+              f"L'attivita {voce.processo_area} riguarda un processo rimosso dal piano.", "agenda")
+    team = list(audit.auditor.all())
+    manca(piano, audit.lead_auditor.interno and not any(a.pk != audit.lead_auditor_id for a in team),
+          "MT CN 12: affianca al responsabile almeno un altro auditor qualificato.", "campo")
+    conflitti = conflitti_imparzialita(processi=audit.processi, lead=audit.lead_auditor, auditor=team)
+    utenti = {a.user_id for a in [audit.lead_auditor, *team] if a.user_id}
+    conflitti.extend(str(p) for p in audit.processi_catalogo.all() if p.responsabile_id in utenti)
+    manca(piano, bool(conflitti), "MT CN 12: risolvi il conflitto di indipendenza del team: " + ", ".join(conflitti), "campo")
+    non_qualificati = auditor_non_qualificati(lead=audit.lead_auditor, auditor=audit.auditor.all())
+    manca(piano, bool(non_qualificati), "Verifica le qualifiche del team: " + ", ".join(non_qualificati), "campo")
+    esiti = list(audit.esiti.all())
+    from .audit_automation import problemi_esito
+    completi = sum(not problemi_esito(e) for e in esiti)
+    manca(rapporto, not esiti, "Carica una checklist prima di firmare il rapporto.", "checklist")
+    for esito in esiti:
+        if esito.strutturato:
+            for problema in problemi_esito(esito):
+                rapporto.append({"testo": f"{esito.punti}: {problema}.", "sezione": f"esito-{esito.pk}"})
+        manca(rapporto, not esito.strutturato and not esito.esito, f"{esito.punti}: scegli un esito.", f"esito-{esito.pk}")
+        manca(rapporto, not esito.strutturato and bool(esito.esito) and not esito.evidenze.strip(),
+              f"{esito.punti}: registra evidenze o motivazione N/A.", f"esito-{esito.pk}")
+        manca(rapporto, esito.esito in {AuditEsito.ESITO_NC, AuditEsito.ESITO_OFI} and not esito.ofi_id,
+              f"{esito.punti}: manca il collegamento al Registro OFI.", f"esito-{esito.pk}")
+    manca(rapporto, not audit.giudizio.strip(), "Scrivi il giudizio conclusivo del rapporto.", "rapporto")
+    return {"piano": piano, "rapporto": rapporto, "completi": completi, "totale": len(esiti),
+            "percentuale": round(100 * completi / len(esiti)) if esiti else 0}
+
+
+def invalida_approvazione_piano(audit):
+    """Ogni variazione al piano in bozza richiede una nuova firma Lead."""
+    audit.piano_approvato_lead_da = None
+    audit.piano_approvato_lead_il = None
+    audit.comunicazione_il = None
+    audit.comunicazione_metodo = ""
+    audit.save(update_fields=["piano_approvato_lead_da", "piano_approvato_lead_il",
+                              "comunicazione_il", "comunicazione_metodo", "updated_at"])
 
 
 def _ics(audit: Audit) -> bytes:
@@ -378,9 +456,9 @@ def _ics(audit: Audit) -> bytes:
 def comunica_audit(audit: Audit, *, metodo: str, deroga_motivo: str = "") -> int:
     oggi = timezone.localdate()
     preavviso = giorni_lavorativi_di_preavviso(oggi, audit.data_inizio)
-    if preavviso < 5 and not (deroga_motivo or "").strip():
+    if preavviso < 5 or (audit.data_inizio - oggi).days < 7:
         raise ValidationError(
-            f"Restano {preavviso} giorni lavorativi: indica il motivo della deroga al preavviso minimo di 5 giorni."
+            f"Restano {preavviso} giorni lavorativi: riprogramma il piano per rispettare almeno 5 giorni lavorativi e una settimana (MT CN 12 / MOD.035A)."
         )
     destinatari = sorted({
         p.email.strip() for p in audit.persone.filter(ruolo=AuditPersona.RUOLO_AUDITATO) if p.email.strip()
@@ -440,3 +518,11 @@ def distribuisci_rapporto(audit: Audit) -> None:
         )
     except Exception:
         return
+
+
+def _verifica_copertura_procedurale(programma):
+    from .procedure import verifica_copertura
+    try:
+        verifica_copertura(programma)
+    except ValidationError as exc:
+        raise TransizioneNonAmmessa("; ".join(exc.messages)) from exc

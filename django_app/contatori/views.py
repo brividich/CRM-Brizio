@@ -1,12 +1,31 @@
 from django.contrib import messages
+from django.db.models import OuterRef, Subquery
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from . import services
-from .forms import LetturaForm, MacchinaForm, ImpostazioniSNMPForm
-from .models import Macchina, LetturaContatori, ImpostazioniSNMP
+from .forms import (
+    ColonnaProfiloSNMPForm,
+    DispositivoSNMPForm,
+    ImpostazioniSNMPForm,
+    LetturaForm,
+    MacchinaForm,
+    ProfiloSNMPForm,
+    SondaSNMPForm,
+)
+from .models import (
+    ColonnaProfiloSNMP,
+    DispositivoSNMP,
+    ImpostazioniSNMP,
+    LetturaContatori,
+    Macchina,
+    ProfiloSNMP,
+    SondaSNMP,
+    StatoSNMP,
+    ValoreSNMP,
+)
 
 
 def discovery(request):
@@ -79,11 +98,14 @@ def dashboard(request):
     if ultimo:
         _, riepilogo = services.riconcilia(ultimo)
     problemi = services.controllo_monotonia()
-    macchine = Macchina.objects.filter(attiva=True)
+    macchine = Macchina.objects.filter(attiva=True).select_related("asset")
+    dispositivi = DispositivoSNMP.objects.filter(attivo=True).select_related("asset")[:8]
     ultime = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=ultimo)} if ultimo else {}
     return render(request, "contatori/dashboard.html", {
         "trimestri": trimestri, "ultimo": ultimo, "riepilogo": riepilogo,
         "problemi": problemi, "macchine": macchine, "ultime": ultime,
+        "dispositivi_snmp": dispositivi,
+        "snmp_riepilogo": services.centrale_snmp_riepilogo(),
     })
 
 
@@ -103,7 +125,10 @@ def riconciliazione(request, trimestre=None):
 def macchina_detail(request, pk):
     macchina = get_object_or_404(Macchina, pk=pk)
     dati = services.storico_macchina(macchina)
-    return render(request, "contatori/macchina.html", {"macchina": macchina, "dati": dati})
+    return render(request, "contatori/macchina.html", {
+        "macchina": macchina, "dati": dati,
+        "letture_mensili": macchina.letture_mensili.all()[:24],
+    })
 
 
 def importa_lettura(request):
@@ -122,16 +147,14 @@ def leggi_snmp(request):
     """Legge via SNMP tutte le macchine attive con host. Salva le letture del trimestre corrente."""
     if request.method != "POST":
         return redirect("contatori:dashboard")
-    from .snmp import leggi_macchina, SNMPError
-    oggi = timezone.now().date()
+    from .snmp import SNMPError
+    oggi = timezone.localdate()
     q = (oggi.month - 1) // 3 + 1
     trimestre = f"{oggi.year}-Q{q}"
-    cfg = ImpostazioniSNMP.get_solo()
     ok, ko = 0, []
     for m in Macchina.objects.filter(attiva=True).exclude(host__isnull=True):
         try:
-            vals = leggi_macchina(m, community=cfg.community, port=cfg.port,
-                                  timeout=cfg.timeout, version=cfg.version)
+            vals = services.interroga_macchina(m)
             LetturaContatori.objects.update_or_create(
                 macchina=m, trimestre=trimestre,
                 defaults={**vals, "data": oggi, "fonte": "SNMP"})
@@ -149,7 +172,6 @@ def leggi_snmp(request):
 
 def macchine_list(request):
     """Elenco stampanti + form parametri SNMP globali (salvati sul singleton)."""
-    from .snmp import COUNTER_MAP
     cfg = ImpostazioniSNMP.get_solo()
     if request.method == "POST":
         form = ImpostazioniSNMPForm(request.POST, instance=cfg)
@@ -160,9 +182,14 @@ def macchine_list(request):
     else:
         form = ImpostazioniSNMPForm(instance=cfg)
     return render(request, "contatori/macchine.html", {
-        "macchine": Macchina.objects.all(),
+        "macchine": Macchina.objects.select_related("asset").all(),
         "snmp_form": form,
-        "modelli_noti": sorted(COUNTER_MAP.keys()),
+        "profili_mfc": [
+            profilo for profilo in ProfiloSNMP.objects.filter(
+                attivo=True, categoria=ProfiloSNMP.Categoria.STAMPANTE,
+            ).prefetch_related("colonne")
+            if len({c.contatore_mfc for c in profilo.colonne.all() if c.contatore_mfc}) == 4
+        ],
         "ultime": services.ultime_rilevazioni(),
     })
 
@@ -224,8 +251,9 @@ def _leggi_consumabili_cfg(macchina):
     from .snmp import leggi_consumabili, SNMPError
     cfg = ImpostazioniSNMP.get_solo()
     try:
-        return leggi_consumabili(macchina, community=cfg.community, port=cfg.port,
-                                 timeout=cfg.timeout, version=cfg.version), None
+        porta, timeout, versione = services._parametri_snmp(macchina, cfg)
+        return leggi_consumabili(macchina, community=services._community_snmp(macchina, cfg), port=porta,
+                                 timeout=timeout, version=versione), None
     except SNMPError as e:
         return None, str(e)
 
@@ -266,14 +294,218 @@ def macchina_consumabili_riepilogo(request, pk):
 @require_POST
 def macchina_test_snmp(request, pk):
     """Testa la lettura SNMP di una macchina; ritorna il frammento con l'esito."""
-    from .snmp import leggi_macchina, SNMPError
+    from .snmp import SNMPError
     macchina = get_object_or_404(Macchina, pk=pk)
-    cfg = ImpostazioniSNMP.get_solo()
     valori, errore = None, None
     try:
-        valori = leggi_macchina(macchina, community=cfg.community, port=cfg.port,
-                                timeout=cfg.timeout, version=cfg.version)
+        valori = services.interroga_macchina(macchina)
     except SNMPError as e:
         errore = str(e)
     return render(request, "contatori/_snmp_result.html",
                   {"valori": valori, "errore": errore, "macchina": macchina})
+
+
+# --- Centrale dispositivi e lettori SNMP ----------------------------------
+
+def snmp_centrale(request):
+    categoria = (request.GET.get("categoria") or "").strip().upper()
+    stato = (request.GET.get("stato") or "").strip().upper()
+    dispositivi = DispositivoSNMP.objects.select_related("asset").all()
+    if categoria in DispositivoSNMP.Categoria.values:
+        dispositivi = dispositivi.filter(categoria=categoria)
+    if stato in StatoSNMP.values:
+        dispositivi = dispositivi.filter(snmp_stato=stato)
+    return render(request, "contatori/snmp_centrale.html", {
+        "dispositivi": dispositivi,
+        "macchine": Macchina.objects.filter(attiva=True).select_related("asset"),
+        "riepilogo": services.centrale_snmp_riepilogo(),
+        "categoria": categoria,
+        "stato": stato,
+        "categorie": DispositivoSNMP.Categoria.choices,
+        "stati": StatoSNMP.choices,
+    })
+
+
+def dispositivo_snmp_detail(request, pk):
+    dispositivo = get_object_or_404(
+        DispositivoSNMP.objects.select_related("asset"), pk=pk,
+    )
+    rilevazioni = list(
+        dispositivo.rilevazioni.prefetch_related("valori__sonda")[:20]
+    )
+    ultimo_pk = ValoreSNMP.objects.filter(sonda_id=OuterRef("pk")).order_by(
+        "-rilevazione__rilevata_il", "-pk",
+    ).values("pk")[:1]
+    ultimi_ids = dispositivo.sonde.annotate(
+        ultimo_pk=Subquery(ultimo_pk),
+    ).values("ultimo_pk")
+    ultimi_valori = {
+        valore.sonda_id: valore
+        for valore in ValoreSNMP.objects.filter(pk__in=Subquery(ultimi_ids))
+        .select_related("sonda", "rilevazione")
+    }
+    sonde = list(dispositivo.sonde.all())
+    for sonda in sonde:
+        sonda.ultimo_valore = ultimi_valori.get(sonda.pk)
+    return render(request, "contatori/snmp_dispositivo_detail.html", {
+        "dispositivo": dispositivo,
+        "sonde": sonde,
+        "rilevazioni": rilevazioni,
+        "profili_disponibili": ProfiloSNMP.objects.filter(attivo=True),
+        "ultima_rilevazione": rilevazioni[0] if rilevazioni else None,
+        "stampante": dispositivo.categoria == DispositivoSNMP.Categoria.STAMPANTE,
+    })
+
+
+def dispositivo_snmp_edit(request, pk=None):
+    dispositivo = get_object_or_404(DispositivoSNMP, pk=pk) if pk else None
+    initial = {}
+    if dispositivo is None:
+        initial = {
+            "host": (request.GET.get("host") or "").strip(),
+            "nome": (request.GET.get("nome") or "").strip(),
+            "matricola": (request.GET.get("matricola") or "").strip(),
+            "note": (request.GET.get("descr") or "").strip(),
+        }
+    if request.method == "POST":
+        form = DispositivoSNMPForm(request.POST, instance=dispositivo)
+        if form.is_valid():
+            dispositivo = form.save()
+            if dispositivo.profilo_snmp_id:
+                services.applica_profilo_dispositivo(
+                    dispositivo, dispositivo.profilo_snmp,
+                )
+            if pk is None and dispositivo.asset_id is None:
+                asset, motivo = services.trova_asset_snmp(
+                    seriale=dispositivo.matricola, host=dispositivo.host,
+                )
+                if asset is not None:
+                    dispositivo.asset = asset
+                    dispositivo.save(update_fields=["asset", "aggiornato_il"])
+                    messages.info(
+                        request,
+                        f"Collegato automaticamente all'Asset {asset.asset_tag} "
+                        f"tramite {motivo}.",
+                    )
+            messages.success(request, f"Dispositivo «{dispositivo.nome}» salvato.")
+            return redirect("contatori:snmp_dispositivo", pk=dispositivo.pk)
+    else:
+        form = DispositivoSNMPForm(instance=dispositivo, initial=initial)
+    return render(request, "contatori/snmp_dispositivo_form.html", {
+        "form": form, "dispositivo": dispositivo,
+    })
+
+
+def profili_snmp(request):
+    categoria = (request.GET.get("categoria") or "").strip().upper()
+    profili = ProfiloSNMP.objects.prefetch_related("colonne").all()
+    if categoria in ProfiloSNMP.Categoria.values:
+        profili = profili.filter(categoria=categoria)
+    return render(request, "contatori/snmp_profili.html", {
+        "profili": profili,
+        "categoria": categoria,
+        "categorie": ProfiloSNMP.Categoria.choices,
+    })
+
+
+def profilo_snmp_edit(request, pk=None):
+    profilo = get_object_or_404(ProfiloSNMP, pk=pk) if pk else None
+    if request.method == "POST":
+        form = ProfiloSNMPForm(request.POST, instance=profilo)
+        if form.is_valid():
+            profilo = form.save(commit=False)
+            profilo.save()
+            messages.success(request, f"Profilo «{profilo.nome}» salvato.")
+            return redirect("contatori:snmp_profilo_edit", pk=profilo.pk)
+    else:
+        form = ProfiloSNMPForm(instance=profilo)
+    return render(request, "contatori/snmp_profilo_form.html", {
+        "form": form, "profilo": profilo,
+        "colonne": profilo.colonne.all() if profilo else [],
+    })
+
+
+def colonna_profilo_snmp_edit(request, profilo_pk, pk=None):
+    profilo = get_object_or_404(ProfiloSNMP, pk=profilo_pk)
+    colonna = ColonnaProfiloSNMP(profilo=profilo)
+    if pk is not None:
+        colonna = get_object_or_404(
+            ColonnaProfiloSNMP, pk=pk, profilo=profilo,
+        )
+    if request.method == "POST":
+        form = ColonnaProfiloSNMPForm(request.POST, instance=colonna)
+        if form.is_valid():
+            colonna = form.save(commit=False)
+            colonna.profilo = profilo
+            colonna.save()
+            messages.success(request, f"Colonna «{colonna.nome}» salvata.")
+            return redirect("contatori:snmp_profilo_edit", pk=profilo.pk)
+    else:
+        form = ColonnaProfiloSNMPForm(instance=colonna)
+    return render(request, "contatori/snmp_profilo_colonna_form.html", {
+        "form": form, "profilo": profilo, "colonna": colonna,
+    })
+
+
+@require_POST
+def dispositivo_snmp_applica_profilo(request, pk):
+    dispositivo = get_object_or_404(DispositivoSNMP, pk=pk)
+    profilo = get_object_or_404(
+        ProfiloSNMP, pk=request.POST.get("profilo"), attivo=True,
+    )
+    create_count, update_count = services.applica_profilo_dispositivo(
+        dispositivo, profilo, sovrascrivi=request.POST.get("sovrascrivi") == "1",
+    )
+    messages.success(
+        request,
+        f"Profilo {profilo.nome} applicato: {create_count} sonde create, "
+        f"{update_count} aggiornate.",
+    )
+    return redirect("contatori:snmp_dispositivo", pk=dispositivo.pk)
+
+
+def sonda_snmp_edit(request, dispositivo_pk, pk=None):
+    dispositivo = get_object_or_404(DispositivoSNMP, pk=dispositivo_pk)
+    sonda = SondaSNMP(dispositivo=dispositivo)
+    if pk is not None:
+        sonda = get_object_or_404(SondaSNMP, pk=pk, dispositivo=dispositivo)
+    if request.method == "POST":
+        form = SondaSNMPForm(request.POST, instance=sonda)
+        if form.is_valid():
+            sonda = form.save(commit=False)
+            sonda.dispositivo = dispositivo
+            sonda.save()
+            messages.success(request, f"Lettore OID «{sonda.nome}» salvato.")
+            return redirect("contatori:snmp_dispositivo", pk=dispositivo.pk)
+    else:
+        form = SondaSNMPForm(instance=sonda)
+    return render(request, "contatori/snmp_sonda_form.html", {
+        "form": form, "dispositivo": dispositivo, "sonda": sonda,
+    })
+
+
+@require_POST
+def dispositivo_snmp_interroga(request, pk):
+    dispositivo = get_object_or_404(DispositivoSNMP, pk=pk)
+    rilevazione = services.interroga_dispositivo(dispositivo)
+    if rilevazione.stato == StatoSNMP.OK:
+        messages.success(request, f"{dispositivo.nome}: interrogazione completata.")
+    elif rilevazione.stato == StatoSNMP.WARNING:
+        messages.warning(request, f"{dispositivo.nome}: lettura parziale o soglie in attenzione.")
+    else:
+        messages.error(request, f"{dispositivo.nome}: {rilevazione.errore or 'soglia critica rilevata'}")
+    return redirect("contatori:snmp_dispositivo", pk=dispositivo.pk)
+
+
+@require_POST
+def dispositivi_snmp_interroga_tutti(request):
+    esiti = {StatoSNMP.OK: 0, StatoSNMP.WARNING: 0, StatoSNMP.ERROR: 0}
+    for dispositivo in DispositivoSNMP.objects.filter(attivo=True):
+        rilevazione = services.interroga_dispositivo(dispositivo)
+        esiti[rilevazione.stato] = esiti.get(rilevazione.stato, 0) + 1
+    messages.success(
+        request,
+        f"Interrogazione completata: {esiti[StatoSNMP.OK]} operativi, "
+        f"{esiti[StatoSNMP.WARNING]} in attenzione, {esiti[StatoSNMP.ERROR]} errori.",
+    )
+    return redirect("contatori:snmp_centrale")

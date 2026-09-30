@@ -1,5 +1,112 @@
 # Session Checkpoint
 
+Data: 2026-09-29 (Assenze reparto, card e storico)
+
+- Vista/aggiunta voce AGENT_CHANGELOG Assenze reparto, card e storico; letti delta procedure aziendali audit fino al merge 1ab70ddb.
+- Worktree C:/Dev/pn-assenze-reparto, feature/assenze-reparto-storico. Consultazione separata da approvazione, perimetro HR corrente, storico paginato e filtri. 230 test Assenze/check/secret hygiene/diff check verdi; QA template desktop/mobile/scuro.
+- README/changelog root/Django/docs AI aggiornati, nessuna migrazione o grant. Merge release/prod autorizzato; deploy separato e collaudo SQL Server/ACL reali. Poi proposta multiruolo SGI.
+
+Data: 2026-09-29 (merge procedure aziendali nella release)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `merge procedure aziendali nella release`. Integrato `6cd61801` sopra origin/release/prod `c4ead425`, senza conflitti, worktree isolato `temp/codex-audit-release`.
+- Codice invariato rispetto ai 171 test/check verdi; confronto alberi e diff check in integrazione. Checklist aggiornata: codice integrato, deploy separato. README/CHANGELOG conservati, registro/checkpoint aggiornati.
+- Push ordinario su origin/release/prod e verifica hash remoto. Nessun database/deploy/backup aggiuntivo; apply SG 0008, bootstrap ACL e riavvio al rilascio. Validazioni aziendali aperte nel file `docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md`.
+
+Data: 2026-09-29 (attuazione procedure aziendali audit, CAR e KPI)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `attuazione procedure aziendali audit, CAR e KPI`. Worktree `temp/codex-audit-procedure`, feature `feature/audit-procedure-aziendali`, base release `c4ead425`.
+- MT CN 12: copertura annuale, indipendenza, preavviso, preparazione e PDF; MT CN 11: CAR con scadenze/approvazioni/proroghe/efficacia collegate al Registro OFI; MT CN 13: rilevazioni KPI e VR 30/70; import Turtle in proposte inattive. Migration SG 0008. Checklist `docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md` aggiornata.
+- 171 test SG/report_conformita/registro OFI verdi, check/migration drift/diff check verdi. QA browser KPI e mobile scuro, cinque Turtle reali letti senza import nel DB. Server QA fermato; nessun database aziendale, PDF privato, dipendenza, backup aggiuntivo o deploy.
+- Critici: tre route locali e binding ACL audit.view con controlli scrittura/approvazione aggiuntivi. Cross-modulo OFI autorizzato. README/changelog root e Django/registro aggiornati; rilascio con migrate 0008, bootstrap ACL, riavvio e validazione SQL Server/ruoli/catalogo. Discrepanze aziendali rimangono nella checklist.
+
+Data: 2026-09-28 (merge audit in release/prod)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `merge audit in release/prod`. Integrati `d7f28081` e `113c1009` sopra origin/release/prod `34cb1219`, senza conflitti, worktree `temp/codex-audit-release`.
+- Codice identico alla feature: 106 test e check gia verdi; confronto alberi e diff check in integrazione. README/CHANGELOG conservati; registro/checkpoint aggiornati. Nessun nuovo file critico o backup, nessun DB/deploy.
+- Push ordinario su origin/release/prod e verifica hash; applicare SG 0005-0007, bootstrap ACL, collectstatic, riavvio e collaudo SQL Server/ruoli al deploy.
+
+Data: 2026-09-28 (automatismi audit, evidenze e revisioni)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `automatismi audit, evidenze e revisioni`; changelog Unreleased root/Django, README e guida audit aggiornati.
+- Worktree `temp/codex-audit-guidato`, branch `feature/audit-guidato-processi`, sopra `d7f28081`. Checklist versionate/generate in bozza, autosave, allegati cifrati/deduplicati, emissione esplicita rilievi, riepilogo fattuale, priorita spiegabili, efficacia e archivio revisioni. Migration SG 0007.
+- 106 test mirati verdi, check/migration drift/secret hygiene/diff check verdi. E2E HTTP autenticato sintetico e mobile scuro verificati, server QA arrestato. Nessun DB aziendale, backup aggiuntivo, dipendenza, schedule o deploy.
+- Critici: sole route/binding ACL locali con permessi esistenti; documentati nel registro. Rilascio separato con migrate SG 0005-0007, bootstrap ACL, collectstatic e riavvio; SQL Server/ruoli reali da collaudare. Le nuove revisioni catalogo si adottano con casella esplicita nel piano in bozza.
+
+Data: 2026-09-28 (audit guidati e catalogo processi revisionato)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `audit guidati e catalogo processi revisionato`; letta nuova voce CHANGELOG sul fix SQL Server migrazione Contatori 0008 oltre al checkpoint precedente.
+- Worktree `temp/codex-audit-guidato`, branch `feature/audit-guidato-processi`, base `34cb1219`. Schede processo revisionate, FK/M2M in programma/piano/agenda, snapshot storici, guida compilazione, gate firme e correzione elementi in bozza. Migrazioni SG 0005/0006.
+- 83 verifiche verdi incluse QA render sintetiche; check Django, migration drift, secret hygiene e diff check verdi. Verifica browser chiaro/scuro/mobile di HTML Django. Nessun DB aziendale o nuova dipendenza; nessun backup aggiuntivo/deploy.
+- Critici: sole route locali e binding ACL esistenti del modulo, senza nuovi grant o modifiche globali. README/changelog root e Django/docs AI/registro aggiornati.
+- Rilascio separato: migrate SG e bootstrap ACL, riavvio, popolamento catalogo con processi reali, collaudo SQL Server/ruoli. Main indietro di 91 commit rispetto alla release: nessuna integrazione automatica di aree estranee.
+
+Data: 2026-09-27 (autodetect e dati stampante nei Dispositivi SNMP)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `autodetect SNMP e consumabili nella scheda dispositivo`; README, changelog e docs aggiornati. Worktree dedicato `temp/codex-snmp-autodetect`, branch `feature/snmp-autodetect-dati`, base release `48af907c`.
+- Nuove sonde lette gia' durante il primo autodetect; profili senza sonde riparati al polling. Stampanti: contatori/toner Printer-MIB automatici in scheda, snapshot storico (migration 0013), valori sconosciuti ed errori espliciti.
+- 96 test Contatori verdi e 6 test specifici riconfermati; check, migration drift e diff check verdi. Nessun nuovo file critico, dipendenza, schedule, backup o accesso ad apparati reali; nessun deploy server. Pubblicazione release autorizzata nella conversazione.
+- Al deploy: migrate contatori, riavvio web/qcluster, Interroga ora sul dispositivo Kyocera gia' presente. La ripartizione contrattuale MFC resta distinta dai totali standard.
+
+Data: 2026-09-26 (ripresa push profili SNMP)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `pubblicazione profili SNMP su release aggiornata`. L'utente ha riconfermato il push dopo il blocco automatico e l'indicazione della destinazione GitHub.
+- Integrato `e893f418` nel ramo isolato `integration/snmp-profili-release-20260926`, comprensivo del catalogo `523f58b2` e del merge `f7249e90`. Codice Contatori invariato rispetto ai test gia' eseguiti. README/CHANGELOG di entrambe le linee conservati.
+- Push previsto su `origin/release/prod` senza force e verifica hash remoto; deploy server separato, con migrazioni Contatori 0008-0012 e riavvio web/qcluster. Nessun nuovo file critico o backup.
+
+Data: 2026-09-26 (catalogo massivo profili SNMP multi-vendor)
+
+- Nuova voce vista/aggiunta: `2026-09-26 - Codex (catalogo massivo profili SNMP multi-vendor)` in AGENT_CHANGELOG; README, changelog root/Django e documentazione Contatori aggiornati.
+- Aggiunti 37 profili per stampanti/MFC, firewall, rete, server/hypervisor, storage e UPS; riconoscimento automatico PEN/sysDescr, parametri per apparato, sonde GET/WALK e catalogo modificabile dal portale. Le sonde generate sono tracciate e sostituibili senza toccare quelle manuali.
+- MFC estese a modelli liberi con profilo obbligatorio fuori dai Canon legacy; quattro contatori contrattuali sempre espliciti. Migrazioni Contatori 0008-0012; nessuna nuova dipendenza o schedule.
+- File critico: solo `django_app/contatori/urls.py`, nuove route locali; nessuna modifica ACL/settings/middleware/auth/routing globale. Nessun DB o apparato reale toccato, nessun backup.
+- Verifiche: suite Contatori 89/89 prima dell'ultimo hardening, poi 16/16 test profili/view; check Django, migration drift, py_compile, secret hygiene e diff check verdi. Browser integrato non disponibile; rendering template coperto dai test Django.
+- Deploy: dopo integrazione/push, eseguire `migrate contatori` e riavviare web/qcluster esistenti. Collaudare community/versione/OID su apparati reali; per Kyocera il totale Printer-MIB e' pronto, mentre A4/A3 B/N/colore richiedono OID verificati sul modello.
+
+Data: 2026-09-26 (integrazione centrale MFC/SNMP e reportistica in release/prod)
+
+- `d7ab908f` non conteneva i commit SNMP. Integrati `c463cb85`, `d052f2e3`, `716010f5`, `ff230d6f` sopra l'attuale `release/prod` `4776678e` nel worktree `temp/codex-release-contatori`, branch `integration/contatori-release-20260926`.
+- Conflitti esclusivamente documentali risolti conservando entrambe le linee; `docs/AUTOMAZIONI.md` rigenerato dalla fonte con 48 schedule, incluso `security_cycle` gia' in release e i tre nuovi job Contatori/Asset.
+- 118 test mirati verdi sul merge; system check incluso senza errori. Nessun DB o apparato reale toccato, nessun backup aggiuntivo. File critici integrati: route locali Contatori/Assets, binding ACL report e catalogo scheduler; nessun middleware/settings/auth/routing globale.
+- Deploy ancora separato: dopo pubblicazione/pacchetto eseguire `migrate`, `setup_q_schedules` e riavviare web/qcluster esistente. Il checkout condiviso e la cartella utente `parser pdf/` non sono stati modificati.
+
+Data: 2026-09-26 (reportistica Asset programmata)
+
+- Nuova voce vista/aggiunta: `2026-09-26 - Codex (reportistica Asset programmata)` in AGENT_CHANGELOG; changelog root/Django, README e docs AI aggiornati alla stessa funzione.
+- Impostazioni → Reportistica, archivio privato PDF/Excel/web e andamento ultime 12 estrazioni; nuovo dispatcher `assets_reportistica` nel qcluster esistente. Migrazioni Assets 0119/0120 con dipendenza Contatori 0007. Runbook `docs/ASSET_REPORTISTICA.md`, AUTOMAZIONI.md rigenerato (47 voci).
+- File critici: route locali Assets, migration binding ACL separati gestione/lettura senza nuovi grant e catalogo scheduler. Nessuna modifica a settings permanenti, middleware, autenticazione o navigazione globale.
+- Verifiche: 118 test mirati verdi, check Django e drift migrazioni puliti, QA desktop/mobile/dark e PDF sintetico renderizzato. Nessun dato/apparato reale toccato; nessun backup aggiuntivo. Dettagli e limiti nel registro agente.
+- Stato: branch `feature/contatori-centrale-snmp`, worktree dedicato. Pronto per integrazione nella release, non distribuito. PROD deve ricevere anche gli antenati, incluso `716010f5` per `leggi_contatori_mensili`; poi migrate, setup_q_schedules e riavvio worker esistente. Nessun task Windows aggiuntivo.
+
+Data: 2026-09-26 (scheduler esistente e raccolta MFC mensile)
+
+- Nuova voce agente vista/aggiunta: `2026-09-26 - Codex (scheduler esistente e raccolta MFC mensile)`; changelog root/Django aggiornati alla stessa funzionalita'.
+- Confermato scheduler django-q2 e pagina Task pianificati gia' presenti. Aggiunti `contatori_poll_snmp` (5 minuti) e `contatori_letture_mensili` (giorno 1 ore 08:00), job per apparato e nessun task Windows aggiuntivo.
+- Nuovo storico mensile idempotente MFC separato dai trimestri, migration contatori 0007, tabella nella scheda macchina e comando `leggi_contatori_mensili`.
+- Test finali: 93 mirati verdi, Django check pulito, migration drift assente. File critico: catalogo scheduler `automazioni/schedules.py`, sole due aggiunte, documentate. Nessun ACL/routing/settings permanente modificato.
+- README, changelog root/Django, docs AI e AUTOMAZIONI.md aggiornati; nuovo runbook CONTATORI_AUTOMAZIONI.md. Nessun backup aggiuntivo o accesso a DB/apparati reali.
+- Deploy da effettuare: migrate contatori, setup_q_schedules e riavvio del qcluster esistente. Stato runtime PROD non verificato. Branch feature/contatori-centrale-snmp.
+
+Data: 2026-09-26 (centrale MFC/SNMP e ponte Asset)
+
+Ultime voci viste/aggiunte:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-26 - Codex (centrale MFC/SNMP e ponte Asset)`; changelog root/Django -> Centrale MFC e SNMP con ponte Asset HUB.
+- Worktree `temp/codex-contatori-centrale-snmp`, branch `feature/contatori-centrale-snmp`, basato su `c463cb85` (fix parser SNMP).
+- Nuovi dispositivi, sonde, rilevazioni e valori SNMP; salute MFC, dashboard/monitor e bridge Asset bidirezionale; migration contatori 0006 e comando `poll_snmp_devices`.
+- Test finali: 71/71 contatori verdi, system check senza errori, migration drift assente; QA visuale desktop/mobile con dati sintetici. Nessun SNMP reale o DB aziendale modificato.
+- File critico per funzione: solo routing locale `contatori/urls.py`; integrazione Assets limitata al template della scheda. README, changelog root/Django e documentazione AI aggiornati; nessun backup aggiuntivo.
+- Rilascio ancora da eseguire: integrare branch e fix antenato, migrate contatori, statici e collaudo SQL Server/apparati/ruoli TEST. Polling schedulabile ma non attivato automaticamente.
+- Controlli sessione/lock/critical non presenti, come alla partenza. Modifiche estranee nel checkout condiviso lasciate intatte.
+
+Data: 2026-09-26 (fix parser comandi SNMP)
+
+Ultime voci viste/aggiunte in questa sessione:
+
+- `_AGENT_CONTROL/AGENT_CHANGELOG.md` -> `2026-09-26 - Codex (fix parser comandi SNMP)`.
+- `snmp_discover` e `leggi_contatori` usano ora `--snmp-version`, evitando il conflitto con il `--version` globale di Django; aggiunti test parser per entrambi e nota in `docs/ai/03_BACKEND_MODULES.md`.
+- Verifica: 2/2 test parser e 53/53 test `contatori` verdi; Django check, help reale dei due command e diff check superati.
+- Worktree `temp/codex-snmp-version`, branch `feature/contatori-snmp-version`; nessun file critico, backup, dipendenza o DB DEV/PROD modificato.
+
 Data: 2026-09-25 (correzioni fase 2 audit interni EN 9100)
 
 Ultime voci viste/aggiunte in questa sessione:

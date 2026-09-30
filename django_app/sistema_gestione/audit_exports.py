@@ -19,6 +19,7 @@ from core.pdf import PdfTheme
 
 from .models import Audit, AuditEsito, CellaProgramma, ProgrammaAudit
 from .services.audit import contatori_rilievi
+from .services.audit_automation import testo_evidenza
 
 
 def _register_checkbox_font() -> str | None:
@@ -78,8 +79,8 @@ def _p(value, style):
     return Paragraph(testo, style)
 
 
-def _table(rows, widths, *, repeat=0, section_rows=(), font_size=7.5):
-    table = Table(rows, colWidths=widths, repeatRows=repeat, hAlign="LEFT")
+def _table(rows, widths, *, repeat=0, section_rows=(), font_size=7.5, split_in_row=0):
+    table = Table(rows, colWidths=widths, repeatRows=repeat, hAlign="LEFT", splitInRow=split_in_row)
     commands = [
         ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#444444")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -372,14 +373,20 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
             ])
             checklist.append([
                 _p(esito.punti, styles["head"]), _p(esito.testo, styles["small"]),
-                _p(esito.evidenze, styles["small"]), _p(rilievo, styles["small"]),
+                _p(testo_evidenza(esito), styles["small"]), _p(rilievo, styles["small"]),
             ])
         section_rows.append(len(checklist))
         checklist.append([_p(
             f"CAR (MOD.036) aperta - {sezione.codice}: {_check(not car.get(sezione.pk))} NO  {_check(car.get(sezione.pk, False))} SÌ → vedere MOD.174",
             styles["head"],
         ), "", "", ""])
-    ct = _table(checklist, [12 * mm, 66 * mm, 63 * mm, width - 141 * mm], repeat=1, section_rows=tuple(section_rows), font_size=6.5)
+    for esito in audit.esiti.filter(domanda__isnull=True, sezione__isnull=True).select_related("processo"):
+        section_rows.append(len(checklist))
+        label = esito.domanda_snapshot.get("processo") or "Verifica aggiuntiva"
+        checklist.append([_p(f"{label} - domanda Rev.{esito.domanda_snapshot.get('revisione', '-')}", styles["head"]), "", "", ""])
+        checklist.append([_p(esito.punti, styles["head"]), _p(esito.testo, styles["small"]),
+            _p(testo_evidenza(esito), styles["small"]), _p(esito.get_esito_display() or "Da valutare", styles["small"])])
+    ct = _table(checklist, [12 * mm, 66 * mm, 63 * mm, width - 141 * mm], repeat=1, section_rows=tuple(section_rows), font_size=6.5, split_in_row=1)
     for row in section_rows:
         ct.setStyle(TableStyle([("SPAN", (0, row), (-1, row))]))
     counts = contatori_rilievi(audit)
@@ -404,5 +411,18 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
             "sono registrate nel MOD.174 - SGI Registro OFI/NC.", styles["note"],
         ),
     ]
+    from .models import AuditPreparazione
+    preparazione = AuditPreparazione.objects.filter(audit=audit).select_related("verificato_da").first()
+    if preparazione:
+        story += [PageBreak(), _p("ALLEGATO - PREPARAZIONE MT CN 12", styles["head"])]
+        for campo, titolo in [("audit_precedenti", "Audit precedenti"), ("car_cliente", "CAR cliente"), ("documenti_registrazioni", "Documenti e campioni"), ("obiettivi_carenze", "Obiettivi e carenze")]:
+            story += [_p(titolo, styles["head"]), _p(getattr(preparazione, campo), styles["cell"]), Spacer(1, 3*mm)]
+        story += [_p(_firma("Preparazione confermata", preparazione.verificato_da, preparazione.verificato_il), styles["cell"])]
+    allegati = [(e, a) for e in audit.esiti.prefetch_related("allegati") for a in e.allegati.all()]
+    if allegati:
+        story += [PageBreak(), _p("ALLEGATO - INDICE DELLE EVIDENZE", styles["head"]), Spacer(1, 4*mm)]
+        for esito, allegato in allegati:
+            story += [_p(f"Verifica {esito.punti}: {allegato.nome} ({allegato.dimensione} byte)", styles["cell"]),
+                      _p(f"SHA-256: {allegato.sha256}", styles["small"]), Spacer(1, 3*mm)]
     doc.build(story)
     return buf.getvalue()

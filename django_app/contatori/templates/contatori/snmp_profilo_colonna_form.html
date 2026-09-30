@@ -1,0 +1,6 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Colonna · {{ profilo.nome }}{% endblock %}
+{% block modulo %}
+<div class="eyebrow">{{ profilo.produttore }} · {{ profilo.nome }}</div><h1>{% if colonna.pk %}Modifica colonna{% else %}Nuova colonna SNMP{% endif %}</h1>
+<form method="post" class="panel">{% csrf_token %}<div class="form-grid">{% for field in form %}<div class="form-field">{{ field.label_tag }}{{ field }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}{{ field.errors }}</div>{% endfor %}</div><div class="actions" style="margin-top:20px"><button class="btn" type="submit">Salva colonna</button><a class="btn ghost" href="{% url 'contatori:snmp_profilo_edit' profilo.pk %}">Annulla</a></div></form>
+{% endblock %}

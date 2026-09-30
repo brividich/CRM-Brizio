@@ -115,11 +115,10 @@ class AssetsImpostazioniGateReadsAclTest(TestCase):
     # riproduce quella condizione.
 
     def _permission_canonica(self):
-        return PermissionDefinition.objects.create(
+        return PermissionDefinition.objects.get_or_create(
             code="legacy.assets.admin_assets",
-            label="Gestione interna Assets",
-            module="assets",
-        )
+            defaults={"label": "Gestione interna Assets", "module": "assets"},
+        )[0]
 
     def test_grant_canonico_a_false_rende_inutile_il_permesso_legacy(self):
         permission = self._permission_canonica()

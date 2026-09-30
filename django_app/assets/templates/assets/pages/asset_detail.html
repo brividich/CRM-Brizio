@@ -688,6 +688,38 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
     </section>
   {% endif %}
 
+  {% with mfc_collegate=asset.contatori_macchine.all dispositivi_snmp=asset.dispositivi_snmp.all %}
+  {% if mfc_collegate or dispositivi_snmp %}
+  <section class="af-sections" aria-label="Monitoraggio SNMP collegato">
+    <article class="af-card af-span-full">
+      <div class="af-card-head">
+        <h2 class="af-card-title">Monitoraggio MFC e SNMP</h2>
+        <a class="af-btn af-btn-ghost" href="{% url 'contatori:snmp_centrale' %}">Apri centrale</a>
+      </div>
+      <div class="af-card-body">
+        {% for macchina in mfc_collegate %}
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border,#e2e8f0);">
+            <strong>MFC · {{ macchina.reparto }}</strong>
+            <span>{{ macchina.matricola }}</span>
+            <span class="as-badge {% if macchina.snmp_stato == 'OK' %}as-badge--ok{% elif macchina.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ macchina.get_snmp_stato_display }}</span>
+            <span style="margin-left:auto;">{{ macchina.host|default:"host non impostato" }}</span>
+            <a class="as-link-subtle" href="{% url 'contatori:macchina' macchina.pk %}">Dettagli</a>
+          </div>
+        {% endfor %}
+        {% for dispositivo in dispositivi_snmp %}
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--border,#e2e8f0);">
+            <strong>{{ dispositivo.get_categoria_display }} · {{ dispositivo.nome }}</strong>
+            <span class="as-badge {% if dispositivo.snmp_stato == 'OK' %}as-badge--ok{% elif dispositivo.snmp_stato == 'ERROR' %}as-badge--danger{% else %}as-badge--warn{% endif %}">{{ dispositivo.get_snmp_stato_display }}</span>
+            <span style="margin-left:auto;">{{ dispositivo.host }}</span>
+            <a class="as-link-subtle" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">Dettagli e sonde</a>
+          </div>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+  {% endif %}
+  {% endwith %}
+
   <section class="af-sections">
     {% for card in detail_section_cards %}
       <article class="af-card {{ card.size_class }}" data-card-code="{{ card.code|lower }}">

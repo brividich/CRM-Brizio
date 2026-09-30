@@ -1,11 +1,33 @@
 import datetime as dt
 from unittest import mock
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from django.core.management import call_command
 from contatori import services
 from contatori.models import Macchina, LetturaContatori, ImpostazioniSNMP
 from contatori.snmp import SNMPError
+
+
+class SNMPManagementCommandParserTest(SimpleTestCase):
+    """Le opzioni SNMP non devono collidere con il --version globale di Django."""
+
+    def test_snmp_discover_accetta_snmp_version(self):
+        from contatori.management.commands.snmp_discover import Command
+
+        parser = Command().create_parser("manage.py", "snmp_discover")
+        options = parser.parse_args(
+            ["--host", "192.0.2.10", "--snmp-version", "v2c"]
+        )
+
+        self.assertEqual(options.version, "v2c")
+
+    def test_leggi_contatori_accetta_snmp_version(self):
+        from contatori.management.commands.leggi_contatori import Command
+
+        parser = Command().create_parser("manage.py", "leggi_contatori")
+        options = parser.parse_args(["--snmp-version", "v2c"])
+
+        self.assertEqual(options.version, "v2c")
 
 
 class _AuthedClientMixin:

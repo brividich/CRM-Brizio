@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+- **Assenze - reparto e storico consultabili** (`django_app/assenze/views.py`, `team_scope.py`, `tests_team_history.py`, template `components/subnav.html`, `pages/menu.html`, `pages/gestione_assenze.html`, `pages/car_dashboard.html`): card e sezione dipendenti accessibili con visibilita reparto/azienda anche senza permesso di modifica; lettura basata sul responsabile corrente in anagrafica (area, reparto, copia legacy come fallback), con corrispondenza account o email esatta univoca per importazioni senza account. La FK capi_reparto non viene piu confusa con utenti.id. Storico paginato a 30 righe con filtri passate/in corso e future, senza taglio alle ultime 30 richieste; link dalla pagina personale. Permessi di approvazione invariati, azioni e dettagli riservati esclusi per righe in sola consultazione, anche nell'export. Nessuna migrazione o nuovo grant. Documentazione: README, docs/ai/03_BACKEND_MODULES.md, registro agente e checkpoint.
+
+
+- **Procedure aziendali per audit, CAR e KPI**: MT CN 12 con copertura annuale dei processi e riferimenti censiti, team indipendente, formazione auditor esterni, preavviso minimo e preparazione prima dell'avvio conservata nel PDF. MT CN 11 con scheda CAR collegata al Registro OFI, analisi entro un mese/chiusura entro tre, approvazione, proroga motivata e verifica indipendente. MT CN 13 con rilevazioni KPI tracciate e Vendor Rating 30/70, senza azioni automatiche sui fornitori. Import Turtle in anteprima o come processi inattivi con fonte e SHA-256, senza sovrascritture. File: `sistema_gestione/{models,audit_forms,audit_views,audit_exports,processi_views,procedure_forms,procedure_views,urls,acl_bootstrap,tests_audit,tests_procedure}.py`, servizi `audit/audit_automation/procedure/fonti`, comando `importa_turtle_processi`, migration 0008, template audit/processi/programma/procedura; `gestione_specifiche/{forms,views_ofi}.py` e dettaglio Registro OFI. Checklist: `docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md`.
+
+- **Automazioni audit e prove documentali**: checklist versionate per processo, proposte di domande da scopo/input/output/rischi/KPI/documenti da validare, editor guidato con autosalvataggio e controllo conflitti, evidenze strutturate e allegati privati cifrati PDF/PNG/JPEG con SHA-256 e deduplica. NC/OFI emesse solo alla registrazione esplicita completa; riepilogo fattuale automatico, priorita spiegabili e inserimento idempotente nel programma in bozza, verifica indipendente di efficacia e revisione formale del rapporto firmato con archivio PDF. Migration SG 0007; nuove route/binding ai permessi audit esistenti. Deploy separato: migrate, bootstrap ACL, collectstatic e riavvio.
+
+- **Audit guidati e catalogo processi revisionato** (`django_app/sistema_gestione/{models.py,audit_forms.py,audit_views.py,processi_views.py,urls.py,acl_bootstrap.py,services/audit.py,tests_audit.py,tests_processi.py}`, migrazioni `0005`/`0006`, template audit/catalogo e componenti). Nuovo catalogo con codice, responsabile, ingressi/risultati, rischi, indicatori, documenti, punti norma e frequenza; storico revisioni con autore/motivo e protezione da salvataggi obsoleti. Selezione strutturata in programma, piano e agenda, copie delle schede conservate nell'audit. Piano in quattro sezioni; guida ai dati mancanti; approvazione piano e firma rapporto bloccate se incompleti. Correzione di persone/agenda in bozza, invalidazione della firma Lead e comunicazione dopo modifiche, transizioni serializzate e conservazione delle evidenze in caso di errore. Catalogo ricercabile, archivio e storico audit con prossima verifica indicativa. Nuove route protette dai permessi audit esistenti, senza nuovi grant. Deploy: migrate sistema_gestione, bootstrap ACL e riavvio; nessuna conversione automatica dei testi storici in processi.
+
+
+- SNMP: autodetect con sonde lette al primo polling; scheda dispositivi stampante con contatori e toner automatici Printer-MIB, storico e informazioni mancanti esplicite. Migration contatori 0013; compatibile con il polling schedulato esistente.
+
+### Contatori - catalogo profili SNMP multi-produttore
+
+- Catalogo UI modificabile con oltre 35 preset per stampanti/MFC, firewall, switch/router/Wi-Fi, server/hypervisor, NAS/storage e UPS; autodetect tramite sysObjectID/sysDescr e applicazione delle colonne al dispositivo.
+- Sonde GET/WALK con aggregazione; configurazione porta/versione/timeout per apparato; profili MFC custom con mapping esplicito dei quattro contatori.
+- Migrazioni Contatori 0008-0012; override community read-only per apparato, tracciamento delle sonde generate dai profili, `snmp_discover` generico e messaggi del recupero mensile completi di apparato, IP ed errore.
+
+### Assets — reportistica programmata e archivio privato
+
+- Nuova sezione Impostazioni → Reportistica: data/cadenza, filtri inventario, MFC/SNMP collegati, PDF/Excel con tema portale; estrazione manuale o automatica, storico congelato, dettaglio web e andamento a perimetro costante.
+- Job `assets_reportistica` nello scheduler esistente, ogni minuto, con deduplica e retry; file archiviati nel DB e download protetti/auditati. Migrazioni Assets 0119/0120; binding canonici separati per gestione e consultazione senza nuovi grant.
+- Runbook `docs/ASSET_REPORTISTICA.md`: attivazione e limiti, inclusa diagnosi `Unknown command: leggi_contatori_mensili` su installazioni senza il nuovo codice.
+
+### Contatori — scheduler centralizzato e letture mensili
+
+- Registrati `contatori_poll_snmp` (5 minuti) e `contatori_letture_mensili` (giorno 1 alle 08:00) nello scheduler django-q2 esistente, gestibili in Task pianificati.
+- Job per apparato con limite di durata e controllo duplicati in cache; storico mensile MFC idempotente separato dai trimestri, timestamp effettivo e recupero delle sole letture mancanti tramite `leggi_contatori_mensili`.
+- Migration `contatori 0007`, tabella mensile nella scheda MFC e documentazione `docs/CONTATORI_AUTOMAZIONI.md`. Deploy: migrate, setup_q_schedules e riavvio del worker esistente; nessun nuovo task Windows.
+
+### Contatori — centrale MFC/SNMP e ponte Asset HUB
+
+- Nuovi dispositivi SNMP generici, sonde OID tipizzate con conversioni e soglie, storico valori/esiti, salute e latenza persistite; dashboard e monitor responsive per MFC, lettori, apparati, UPS e sensori.
+- Ponte Asset bidirezionale: FK opzionale, match automatico univoco seriale→`Asset.serial_number` o host→`AssetEndpoint.ip`, link nelle due schede e comando `collega_asset` esteso. Nessuna modifica automatica ai record Asset.
+- Polling esclusivamente GET, configurazione community centralizzata, OID numerici validati; comando schedulabile `poll_snmp_devices`. Migration `contatori 0006`.
+
+### Contatori MFC - fix opzione versione SNMP dei comandi
+
+- `snmp_discover` e `leggi_contatori` usano `--snmp-version {v1,v2c}` invece del nome riservato Django `--version`, eliminando il crash `argparse.ArgumentError` in fase di avvio.
+- Aggiunta copertura automatica sulla costruzione e sul parsing delle CLI.
+
 ### Sistema di gestione - correzioni audit interni EN 9100
 
 - Rapporto bloccato dopo firma e riapertura esplicita tracciata; convalida del responsabile di processo; KPI sulla sola revisione approvata e sui mesi del periodo; imparzialitÃ  a token interi; retry OFI con savepoint; download firmati tracciati; PDF riallineati ai modelli aziendali.

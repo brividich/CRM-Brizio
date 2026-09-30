@@ -119,6 +119,7 @@
 {% block assets_shell_title %}{{ reports_page_title|default:"Report manutenzione" }}{% endblock %}
 {% block assets_shell_subtitle %}<p>{{ reports_page_subtitle|default:"KPI in alto, riepilogo coerente sotto e un solo punto di approfondimento operativo per evitare effetto dashboard rumorosa." }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
+  <a class="btn btn-secondary" href="{% url 'assets:reporting_archive' %}">Archivio report e andamenti</a>
   {% if report_templates_manage_url %}
     <a class="btn btn-secondary" href="{{ report_templates_manage_url }}">Gestione template report</a>
   {% endif %}

@@ -41,7 +41,7 @@ body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
 </style>
 {% endblock %}
 
-{% block content %}
+{% block content %}<p><a href="{% url 'sistema_gestione:procedura_car' voce.pk %}">Azione correttiva MT CN 11: analisi, scadenze, proroga ed efficacia</a></p>
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
   <div class="fmd-wrap" style="max-width:960px;margin:0 auto;">

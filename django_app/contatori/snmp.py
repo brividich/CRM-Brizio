@@ -8,6 +8,7 @@ o, in produzione, su un modello dedicato. Qui e' un dizionario semplice.
 """
 import asyncio
 import functools
+import re
 
 CANON_BASE = "1.3.6.1.4.1.1602.1.11.1.3.1"  # tabella contatori Canon
 # Printer-MIB standard: prtMarkerSuppliesTable (toner, tamburi, fusore, ...)
@@ -29,8 +30,18 @@ COUNTER_MAP = {
 
 # Discovery di rete: OID standard per identificare il dispositivo.
 SYS_DESCR = "1.3.6.1.2.1.1.1.0"              # descrizione (contiene il modello)
+SYS_OBJECT_ID = "1.3.6.1.2.1.1.2.0"          # identificatore enterprise/modello
+SYS_UPTIME = "1.3.6.1.2.1.1.3.0"             # centesimi di secondo dall'avvio
+SYS_CONTACT = "1.3.6.1.2.1.1.4.0"            # referente configurato sul device
 SYS_NAME = "1.3.6.1.2.1.1.5.0"               # nome host della stampante
+SYS_LOCATION = "1.3.6.1.2.1.1.6.0"           # posizione configurata sul device
 PRT_SERIAL = "1.3.6.1.2.1.43.5.1.1.17.1"     # Printer-MIB: numero di serie (= matricola)
+
+SYSTEM_OIDS = (
+    SYS_DESCR, SYS_OBJECT_ID, SYS_UPTIME, SYS_CONTACT, SYS_NAME, SYS_LOCATION,
+    PRT_SERIAL,
+)
+_OID_RE = re.compile(r"^\d+(?:\.\d+)+$")
 
 # Cap di sicurezza: una scansione parte da una richiesta web, non deve poter
 # esplodere su un range enorme.
@@ -45,6 +56,133 @@ def _testo(valore):
     if isinstance(valore, bytes):
         return valore.decode("latin-1", "replace").strip()
     return str(valore).strip() if valore is not None else ""
+
+
+def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
+               version="v1"):
+    """Legge una lista esplicita di OID con sole operazioni GET.
+
+    Ritorna ``(valori, errori)`` indicizzati per OID. Un errore su una sonda non
+    interrompe le altre; se nessun OID risponde viene sollevato :class:`SNMPError`.
+    """
+    if not host:
+        raise SNMPError("host non impostato")
+    richiesti = list(dict.fromkeys(str(oid).strip() for oid in oids))
+    non_validi = [oid for oid in richiesti if not _OID_RE.fullmatch(oid)]
+    if non_validi:
+        raise SNMPError(f"OID non valido: {non_validi[0]}")
+
+    try:
+        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp.transport import send_udp
+    except ImportError as e:
+        raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
+
+    cred = V1(community) if version == "v1" else V2C(community)
+
+    async def _run():
+        sender = functools.partial(send_udp, timeout=timeout)
+        client = PyWrapper(Client(str(host), cred, port=port, sender=sender))
+        valori, errori = {}, {}
+        for oid in richiesti:
+            try:
+                valori[oid] = await client.get(oid)
+            except Exception as exc:  # ogni OID resta indipendente
+                errori[oid] = str(exc)[:500]
+        return valori, errori
+
+    try:
+        valori, errori = asyncio.run(_run())
+    except Exception as e:
+        raise SNMPError(f"{host}: {e}") from e
+    if not valori:
+        dettaglio = next(iter(errori.values()), "nessuna risposta")
+        raise SNMPError(f"{host}: {dettaglio}")
+    return valori, errori
+
+
+def leggi_colonna(host, oid, community="novicromprinter", port=161, timeout=3,
+                   version="v1"):
+    """Esegue un WALK read-only e restituisce i valori della colonna MIB."""
+    if not host:
+        raise SNMPError("host non impostato")
+    oid = str(oid).strip()
+    if not _OID_RE.fullmatch(oid):
+        raise SNMPError(f"OID non valido: {oid}")
+    try:
+        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp.transport import send_udp
+    except ImportError as e:
+        raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
+
+    cred = V1(community) if version == "v1" else V2C(community)
+
+    async def _run():
+        sender = functools.partial(send_udp, timeout=timeout)
+        client = PyWrapper(Client(str(host), cred, port=port, sender=sender))
+        valori = []
+        async for vb in client.walk(oid):
+            valori.append(vb.value)
+        return valori
+
+    try:
+        valori = asyncio.run(_run())
+    except Exception as e:
+        raise SNMPError(f"{host}: {e}") from e
+    if not valori:
+        raise SNMPError(f"{host}: colonna {oid} senza valori")
+    return valori
+
+
+def aggrega_colonna(valori, aggregazione="PRIMO"):
+    """Riduce una colonna WALK a un valore singolo secondo il profilo."""
+    if not valori:
+        raise SNMPError("colonna senza valori")
+    if aggregazione == "PRIMO":
+        return valori[0]
+    try:
+        numeri = [int(str(v).strip()) for v in valori]
+    except (TypeError, ValueError) as exc:
+        raise SNMPError("la colonna contiene valori non numerici") from exc
+    if aggregazione == "MASSIMO":
+        return max(numeri)
+    if aggregazione == "MINIMO":
+        return min(numeri)
+    if aggregazione == "SOMMA":
+        return sum(numeri)
+    raise SNMPError(f"aggregazione non supportata: {aggregazione}")
+
+
+def leggi_specifiche(host, specifiche, community="novicromprinter", port=161,
+                     timeout=3, version="v1"):
+    """Legge specifiche GET/WALK e ritorna ``(valori, errori)`` per OID."""
+    specifiche = list(specifiche)
+    get_oids = [s["oid"] for s in specifiche if s.get("modalita", "GET") == "GET"]
+    valori, errori = ({}, {})
+    if get_oids:
+        try:
+            valori, errori = leggi_oids(
+                host, get_oids, community=community, port=port,
+                timeout=timeout, version=version,
+            )
+        except SNMPError as exc:
+            errori.update({oid: str(exc) for oid in get_oids})
+    for spec in specifiche:
+        if spec.get("modalita", "GET") != "WALK":
+            continue
+        oid = spec["oid"]
+        try:
+            colonna = leggi_colonna(
+                host, oid, community=community, port=port,
+                timeout=timeout, version=version,
+            )
+            valori[oid] = aggrega_colonna(colonna, spec.get("aggregazione", "PRIMO"))
+        except SNMPError as exc:
+            errori[oid] = str(exc)
+    if not valori:
+        dettaglio = next(iter(errori.values()), "nessuna risposta")
+        raise SNMPError(f"{host}: {dettaglio}")
+    return valori, errori
 
 
 def scansiona_rete(rete, community="novicromprinter", port=161, timeout=2,
