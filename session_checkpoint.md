@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-10-01 (merge e allineamento release locale/remota)
+
+- Vista/aggiunta voce AGENT_CHANGELOG merge e allineamento release locale/remota. Watchdog gia presente in entrambe; uniti c9317e0b locale (SOC/AGENTS) ed e97faac0 remoto (Assenze) nel worktree isolato, senza conflitti e preservando il codice sorgente delle due linee.
+- 66 test mirati Automazioni/Assenze/Security verdi; check/drift/secret hygiene/diff check. README/CHANGELOG integrati; registro/checkpoint aggiornati. Nessun backup aggiuntivo, DB aziendale, email o deploy.
+- Push ordinario e fast-forward locale richiesti dall'utente, verifica hash/presenza watchdog e cartella parser pdf intatta. Rischi e attivazione server restano quelli del runbook QCLUSTER_WATCHDOG.md; nessuna nuova modifica globale di sicurezza.
+
 Data: 2026-09-30 (integrazione watchdog in release/prod)
 
 - Vista/aggiunta voce AGENT_CHANGELOG integrazione watchdog in release/prod. Autorizzazione esplicita utente; unita origin/release/prod 444606ba a cdf002fe nel worktree dedicato C:/Dev/pn-qcluster-watchdog. Conflitto solo CHANGELOG risolto mantenendo entrambe le linee; codice watchdog invariato.

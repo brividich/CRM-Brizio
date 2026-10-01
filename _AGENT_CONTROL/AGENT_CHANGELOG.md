@@ -1,5 +1,13 @@
 # Agent Changelog
 
+## 2026-10-01 - Codex (merge e allineamento release locale/remota)
+
+- Richiesta esplicita: completare il merge e aggiornare release/prod locale. Alla verifica il watchdog cdf002fe/bc3f5666 era gia presente sia in locale (c9317e0b) sia sul remoto (e97faac0); i rami divergevano per aggiornamenti SOC locali e scelta caporeparto Assenze remota. Merge preparato nel worktree isolato C:/Dev/pn-qcluster-watchdog; nessun conflitto, nessuna modifica alle implementazioni sorgenti. Cartella non tracciata parser pdf preservata. File controllo sessione/lock/critici assenti; checkpoint e delta letti.
+- File del merge rispetto al locale: CHANGELOG.md, README.md, assenze/views.py, assenze/tests.py, template assenze/pages/richiesta_assenze.html; rispetto al remoto conservati tutti i commit SOC/Assets e AGENTS.md locali. Modificati appositamente solo questo registro e session_checkpoint.md. README/CHANGELOG aggiornati: si, tramite merge; AGENT_CHANGELOG/checkpoint: si.
+- Controlli: 66 test mirati Automazioni/Assenze/Security verdi su SQLite sintetico, Django check, migration drift e secret hygiene; confronto codice SOC/watchdog con locale e Assenze con remoto senza differenze, git diff check. Gli errori payload/ZIP/CSRF nei test sono scenari negativi intenzionali. Nessun nuovo test funzionale scritto o suite globale.
+- File critici: nessuna modifica manuale aggiuntiva; integrata la logica di selezione caporeparto gia approvata in Assenze (UTENTE conserva assegnazione automatica). Nessuna variazione a middleware, settings, ACL globale, autenticazione, routing o navigazione globale. Backup aggiuntivi: nessuno, entrambi i commit originali preservati nel merge. Nessun database aziendale, email reale o deploy.
+- Esito previsto: commit merge, push ordinario senza force e fast-forward del checkout locale, esplicitamente richiesto dall'utente; verifica stessa hash e presenza watchdog in entrambi. Note altro agente: la sincronizzazione locale sostituisce l'avvertenza precedente sulla cartella non aggiornata. Restano deploy/migrazioni e installazione watchdog sul server secondo runbook; cartella parser pdf non inclusa nei commit.
+
 ## 2026-09-30 - Codex (integrazione watchdog in release/prod)
 
 - Autorizzazione esplicita dell'utente a integrare e pubblicare il watchdog dopo verifica dell'assenza in 3a181a7. Fetch: release remota gia avanzata a 444606ba; integrata nel worktree isolato C:/Dev/pn-qcluster-watchdog, feature/qcluster-watchdog, mantenendo cdf002fe e tutte le novita della release. Checkout condiviso e WIP altrui preservati; controlli sessione/lock/critical assenti, checkpoint/delta letti.
