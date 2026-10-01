@@ -194,3 +194,51 @@ def start_history_import(source, since_date, *, actor=None, request=None):
             break  # watermark fermo: evitare di rileggere all'infinito lo stesso blocco
     totals["reached"] = source.last_success_at
     return totals
+
+
+# ---- filtri pronti per fornitore e cartelle (pagina della casella) -----------------------------
+
+# Parole nell'oggetto delle mail dei report supportati. L'ordine conta: e' quello dei filtri consigliati.
+SUBJECT_PRESETS = [
+    ("watchguard", "WatchGuard (Firebox, Endpoint Security)", ["Firebox", "WatchGuard", "Threats detected", "Endpoint Security"]),
+    ("synology", "Synology Active Backup", ["Active Backup", "attività di backup"]),
+    ("veeam", "Veeam Backup & Replication", ["Veeam", "[Success]", "[Warning]", "[Failed]"]),
+    ("defender", "Microsoft Defender", ["Defender", "vulnerabilities notification"]),
+]
+
+
+def recommended_subject_filters():
+    return [word for _code, _label, words in SUBJECT_PRESETS for word in words]
+
+
+def subject_filter_state(source):
+    """``(preset attivi, righe extra)`` letti dal testo dei filtri della casella."""
+    lines = [line.strip() for line in (source.subject_include_text or "").splitlines() if line.strip()]
+    lowered = {line.lower() for line in lines}
+    active = [code for code, _label, words in SUBJECT_PRESETS if all(word.lower() in lowered for word in words)]
+    covered = {word.lower() for code, _label, words in SUBJECT_PRESETS if code in active for word in words}
+    extra = [line for line in lines if line.lower() not in covered]
+    return active, extra
+
+
+def build_subject_filters(presets, extra_text):
+    words = [word for code, _label, preset_words in SUBJECT_PRESETS if code in presets for word in preset_words]
+    for line in (extra_text or "").splitlines():
+        line = line.strip()
+        if line and line.lower() not in {w.lower() for w in words}:
+            words.append(line)
+    return "\n".join(words)
+
+
+def load_folders(source):
+    """Cartelle della casella da Graph, per sceglierle. Mai un'eccezione verso la pagina."""
+    from security.services.mailbox_providers import GraphMailboxProvider
+
+    try:
+        folders = GraphMailboxProvider().folder_tree(source)
+    except Exception as exc:  # credenziali, permessi, casella inesistente
+        return {"ok": False, "error": str(exc)[:400], "folders": []}
+    chosen = {entry.get("id") for entry in source.folders or [] if isinstance(entry, dict)}
+    for folder in folders:
+        folder["checked"] = folder["id"] in chosen
+    return {"ok": True, "error": "", "folders": folders}

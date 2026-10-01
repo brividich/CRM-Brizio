@@ -12,9 +12,9 @@
     <a href="{% url 'security:dashboard' %}" {% if url_name == 'dashboard' or url_name == 'security_dashboard' %}class="active"{% endif %}>Dashboard</a>
     <a href="{% url 'security:alerts_list' %}" {% if url_name == 'alerts_list' or url_name == 'alert_detail' %}class="active"{% endif %}>Alert</a>
     <a href="{% url 'security:tickets_list' %}" {% if url_name == 'tickets_list' or url_name == 'case_detail' %}class="active"{% endif %}>Ticket</a>
-    <a href="{% url 'security:kpis' %}" {% if url_name == 'kpis' %}class="active"{% endif %}>KPI</a>
+    <a href="{% url 'security:kpis' %}" {% if url_name == 'kpis' or url_name == 'kpi_detail' %}class="active"{% endif %}>KPI</a>
     <a href="{% url 'security:vpn_history' %}" {% if url_name == 'vpn_history' %}class="active"{% endif %}>Accessi VPN</a>
-    <a href="{% url 'security:pipeline' %}" {% if url_name == 'pipeline' %}class="active"{% endif %}>Pipeline</a>
+    <a href="{% url 'security:pipeline' %}" {% if url_name == 'pipeline' %}class="active"{% endif %}>Elaborazione</a>
     <a href="{% url 'security:assets' %}" {% if url_name == 'assets' %}class="active"{% endif %}>Asset</a>
     <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' and url_name != 'admin_autoconfig' and url_name|slice:':13' != 'admin_mailbox' %}class="active"{% endif %}>Config</a>
     <a href="{% url 'security:admin_mailbox_sources_list' %}" {% if url_name|slice:':13' == 'admin_mailbox' %}class="active"{% endif %}>Caselle mail</a>

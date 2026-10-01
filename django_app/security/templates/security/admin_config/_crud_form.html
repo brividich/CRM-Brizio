@@ -1,0 +1,22 @@
+<section class="sec-panel{% if editing %} cfg-editing{% endif %}" id="cfg-form">
+  <div class="sec-section-head">
+    <h2>{% if editing %}Modifica «{{ editing }}»{% else %}{{ new_title }}{% endif %}</h2>
+    {% if editing %}<a href="{{ page_url }}">Annulla</a>{% endif %}
+  </div>
+  {% if form.errors %}
+    <div class="sec-message sec-error" role="alert">
+      <strong>Non salvato.</strong> Correggi:
+      <ul style="margin:6px 0 0 18px;">
+        {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+        {% for field in form %}{% for error in field.errors %}<li><strong>{{ field.label }}</strong>: {{ error }}</li>{% endfor %}{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+  <form method="post" class="sec-grid sec-form">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save">
+    {% if editing %}<input type="hidden" name="object_id" value="{{ editing.pk }}">{% endif %}
+    {{ form.as_p }}
+    <div class="sec-actions"><button class="sec-button-primary" type="submit">{% if editing %}Salva modifiche{% else %}{{ save_label }}{% endif %}</button>{% if editing %}<a class="sec-button" href="{{ page_url }}">Annulla</a>{% endif %}</div>
+  </form>
+</section>

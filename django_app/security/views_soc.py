@@ -143,25 +143,84 @@ def vpn_history(request):
         qs = qs.filter(source_ip__startswith=filters["ip"])
     if filters["action"] in (SecurityVpnAccess.ACTION_ALLOWED, SecurityVpnAccess.ACTION_DENIED):
         qs = qs.filter(action=filters["action"])
+    # Periodo: date esplicite se date, altrimenti gli ultimi N giorni (pulsanti 7/30/90).
+    try:
+        days = int(request.GET.get("giorni") or 30)
+    except ValueError:
+        days = 30
+    days = days if days in (7, 30, 90) else 30
     day_from, day_to = _vpn_day(filters["from"]), _vpn_day(filters["to"])
+    custom = bool(day_from or day_to)
+    if not custom:
+        day_to = timezone.localdate()
+        day_from = day_to - timezone.timedelta(days=days - 1)
+    base = qs
     if day_from:
         qs = qs.filter(login_at__date__gte=day_from)
     if day_to:
         qs = qs.filter(login_at__date__lte=day_to)
+    previous = None
+    if day_from and day_to:
+        span = (day_to - day_from).days + 1
+        prev_to = day_from - timezone.timedelta(days=1)
+        previous = vpn_history_summary(base.filter(login_at__date__gte=prev_to - timezone.timedelta(days=span - 1), login_at__date__lte=prev_to))
+    summary = vpn_history_summary(qs)
+    daily = vpn_daily_series(qs, day_from, day_to, max_days=120)
     page = Paginator(qs, 25).get_page(request.GET.get("page"))
     query = request.GET.copy()
     query.pop("page", None)
+    chip_query = request.GET.copy()
+    for key in ("page", "giorni", "from", "to"):
+        chip_query.pop(key, None)
     return render(
         request,
         "security/vpn_history.html",
         {
             "page": page,
             "filters": filters,
-            "summary": vpn_history_summary(qs),
-            "daily": vpn_daily_series(qs, day_from, day_to),
+            "summary": summary,
+            "tiles": _vpn_tiles(summary, previous, daily),
+            "top_users": _with_share(summary["top_users"][:8]),
+            "top_ips": _with_share(summary["top_ips"][:8]),
+            "daily": daily,
             "hours": vpn_hour_profile(qs),
             "findings": vpn_findings(qs),
             "has_method": True,
             "query": query.urlencode(),
+            "chip_query": chip_query.urlencode(),
+            "days": days,
+            "custom": custom,
+            "day_from": day_from,
+            "day_to": day_to,
         },
     )
+
+
+def _with_share(rows):
+    peak = max([row["total"] for row in rows] or [1]) or 1
+    return [{**row, "share": round(100 * row["total"] / peak)} for row in rows]
+
+
+def _vpn_tiles(summary, previous, daily):
+    from security.services.kpi_dashboard import _sparkline
+
+    days = daily.get("days", [])
+    series = {
+        "total": [d["allowed"] + d["denied"] for d in days],
+        "allowed": [d["allowed"] for d in days],
+        "denied": [d["denied"] for d in days],
+    }
+    tiles = []
+    for key, label, spark in (
+        ("total", "Accessi", "total"), ("allowed", "Consentiti", "allowed"), ("denied", "Negati", "denied"),
+        ("unique_users", "Utenti distinti", None), ("avg", "Durata media sessione", None),
+    ):
+        value = summary.get(key) or 0
+        before = (previous or {}).get(key)
+        tiles.append({
+            "label": label, "key": key, "value": value,
+            "delta": None if before is None else value - before,
+            "spark": _sparkline(series[spark]) if spark else "",
+            "warn": key == "denied" and summary.get("denied_pct", 0) >= 20,
+        })
+    return tiles

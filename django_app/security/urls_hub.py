@@ -38,6 +38,7 @@ urlpatterns = [
     path("tickets/<int:pk>/tasks/<int:task_id>/toggle/", views_cases.case_task_toggle, name="case_task_toggle"),
     path("tickets/<int:pk>/tasks/<int:task_id>/delete/", views_cases.case_task_delete, name="case_task_delete"),
     path("kpis/", views.kpis_page, name="kpis"),
+    path("kpis/<slug:name>/", views.kpi_detail_page, name="kpi_detail"),
     path("assets/", views_soc.assets_list, name="assets"),
     path("vpn/", views_soc.vpn_history, name="vpn_history"),
     # B3 — pipeline (esecuzione sincrona via HTMX POST; nessuna coda/Celery)

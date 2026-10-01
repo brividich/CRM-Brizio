@@ -1,32 +1,77 @@
 {% extends "security/_base_soc.html" %}
+{% load security_i18n %}
 
-{% block title %}Pipeline | Security Center AI{% endblock %}
+{% block title %}Stato elaborazione | Security Center{% endblock %}
 {% block page_icon %}P{% endblock %}
-{% block page_marker %}Sala controllo pipeline{% endblock %}
-{% block page_title %}Report / Pipeline{% endblock %}
+{% block page_marker %}Stato elaborazione{% endblock %}
+{% block page_title %}Come arrivano i dati{% endblock %}
 
 {% block soc_content %}
-<section class="sec-grid sec-kpi-grid">
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Parser</span><strong class="sec-kpi-value">{{ status.parsers_registered }}</strong><span class="sec-kpi-delta {% if not status.parsers_disabled %}sec-good{% endif %}">{% if status.parsers_disabled %}{{ status.parsers_disabled }} disattivati{% else %}Registrati, tutti attivi{% endif %}</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">In coda</span><strong class="sec-kpi-value">{{ status.pending }}</strong><span class="sec-kpi-delta {% if not status.pending %}sec-good{% endif %}">{% if status.pending %}Da elaborare{% else %}Coda vuota{% endif %}</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">In errore</span><strong class="sec-kpi-value {% if status.failed %}critical{% endif %}">{{ status.failed }}</strong><span class="sec-kpi-delta {% if not status.failed %}sec-good{% endif %}">Ultimi {{ status.window_days }} giorni</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Scartati</span><strong class="sec-kpi-value">{{ status.skipped }}</strong><span class="sec-kpi-delta sec-good">Nessun parser / mittente non attendibile</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Regole attive</span><strong class="sec-kpi-value">{{ status.rules_enabled }}</strong><span class="sec-kpi-delta {% if not status.events_unevaluated %}sec-good{% endif %}">{% if status.events_unevaluated %}{{ status.events_unevaluated }} eventi da valutare{% else %}Tutti gli eventi valutati{% endif %}</span></div>
+<section class="sec-panel proc-intro">
+  <p>Il Security Center lavora da solo: <strong>ogni {{ p.schedule.minutes }} minuti</strong> legge le caselle e fa i quattro passi qui sotto. Questa pagina serve a vedere <strong>se sta funzionando</strong> e dove si è fermato qualcosa; di solito non c'è niente da premere.</p>
+  {% if p.schedule.registered %}
+    <span class="sec-badge ok">Lettura automatica attiva</span>{% if p.schedule.next_run %} <span class="sec-muted">prossimo giro {{ p.schedule.next_run|date:"d/m H:i" }}</span>{% endif %}
+  {% else %}
+    <span class="sec-badge high">Lettura automatica NON registrata</span> <span class="sec-muted">Va registrato lo schedule «security_cycle» (Centrale di comando › Registra schedule): senza, i dati arrivano solo premendo «Leggi ora».</span>
+  {% endif %}
 </section>
 
-<section class="sec-grid sec-two-col" style="margin-top: 12px;">
-  <div class="sec-panel">
-    <div class="sec-section-head"><h2>Operazioni pipeline</h2><span class="sec-badge open">HTMX live</span></div>
-    <div class="sec-actions">
-      <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'run-parsers' %}" hx-post="{% url 'security:pipeline_run' 'run-parsers' %}" hx-target="#pipeline-result">{% csrf_token %}<button type="submit">Esegui parser</button></form>
-      <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'evaluate-rules' %}" hx-post="{% url 'security:pipeline_run' 'evaluate-rules' %}" hx-target="#pipeline-result">{% csrf_token %}<button type="submit">Valuta regole</button></form>
-      <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'build-kpis' %}" hx-post="{% url 'security:pipeline_run' 'build-kpis' %}" hx-target="#pipeline-result">{% csrf_token %}<button type="submit">Genera KPI</button></form>
-      <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'full' %}" hx-post="{% url 'security:pipeline_run' 'full' %}" hx-target="#pipeline-result">{% csrf_token %}<button class="sec-button-primary" type="submit">Esegui pipeline completa</button></form>
-    </div>
-  </div>
+<section class="proc-steps" aria-label="Passi dell'elaborazione">
+  {% for s in p.steps %}
+    <article class="proc-step tone-{{ s.tone }}">
+      <div class="proc-step-head"><span class="proc-n">{{ s.n }}</span><h3>{{ s.title }}</h3></div>
+      <p class="sec-muted">{{ s.what }}</p>
+      <p class="proc-when">{% if s.when %}Ultima volta: <strong>{{ s.when|date:"d/m/Y H:i" }}</strong>{% else %}&nbsp;{% endif %}</p>
+      <p>{{ s.detail }}</p>
+      {% if s.problem %}<p class="proc-problem">{{ s.problem }}</p>{% else %}<p class="proc-ok">In regola</p>{% endif %}
+    </article>
+  {% endfor %}
+</section>
 
+<div class="sec-grid sec-two-col" style="margin-top: 12px;">
   <section class="sec-panel">
-    {% include "security/partials/pipeline_result.html" with last_pipeline_run=last_pipeline_run %}
+    <div class="sec-section-head"><h2>Da guardare</h2><span class="sec-muted">elementi in errore, ultimi {{ p.window_days }} giorni</span></div>
+    {% if p.failed_items %}
+      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+        <thead><tr><th>Quando</th><th>Cosa</th><th>Motivo</th></tr></thead>
+        <tbody>
+        {% for f in p.failed_items %}
+          <tr><td class="sec-nowrap">{{ f.when|date:"d/m H:i" }}</td><td class="sec-title-cell"><strong>{{ f.name|truncatechars:60 }}</strong><small>{{ f.kind }}{% if f.parser %} · {{ f.parser }}{% endif %}</small></td><td><small>{{ f.error|truncatechars:140 }}</small></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="sec-muted" style="margin-top:8px;">Dopo aver corretto un parser o una configurazione: <a href="{% url 'security:admin_config_parsers' %}">Parser › Rielabora</a> ripropone questi elementi.</p>
+    {% else %}
+      <p class="proc-ok">Nessun errore: ogni mail è stata riconosciuta oppure scartata perché non pertinente.</p>
+    {% endif %}
   </section>
-</section>
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Ultimi report elaborati</h2><a href="{% url 'security:kpis' %}">KPI</a></div>
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Arrivato</th><th>Report</th></tr></thead>
+      <tbody>
+      {% for r in p.recent_reports %}
+        <tr><td class="sec-nowrap">{{ r.created_at|date:"d/m H:i" }}</td><td class="sec-title-cell"><strong>{{ r.report_type|metric_label }}</strong><small>{{ r.title|truncatechars:70 }}</small></td></tr>
+      {% empty %}<tr><td colspan="2" class="sec-empty">Nessun report ancora: controlla le caselle mail.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<details class="sec-panel proc-manual" style="margin-top: 12px;">
+  <summary><strong>Esegui a mano</strong> <span class="sec-muted">— solo per verifiche: normalmente lo fa il giro automatico</span></summary>
+  <ul class="sec-muted">
+    <li><strong>Riconosci</strong>: elabora subito le mail/allegati in coda (passo 2).</li>
+    <li><strong>Valuta regole</strong>: applica le regole agli eventi non ancora valutati (passo 3).</li>
+    <li><strong>Calcola KPI</strong>: ricalcola gli indicatori di oggi (passo 4).</li>
+    <li><strong>Tutto</strong>: i tre passi insieme. Per leggere le caselle usa «Leggi ora» in Caselle mail.</li>
+  </ul>
+  <div class="sec-actions">
+    <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'run-parsers' %}" hx-post="{% url 'security:pipeline_run' 'run-parsers' %}" hx-target="#pipeline-result">{% csrf_token %}<button type="submit">Riconosci</button></form>
+    <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'evaluate-rules' %}" hx-post="{% url 'security:pipeline_run' 'evaluate-rules' %}" hx-target="#pipeline-result">{% csrf_token %}<button type="submit">Valuta regole</button></form>
+    <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'build-kpis' %}" hx-post="{% url 'security:pipeline_run' 'build-kpis' %}" hx-target="#pipeline-result">{% csrf_token %}<button type="submit">Calcola KPI</button></form>
+    <form class="sec-inline" method="post" action="{% url 'security:pipeline_run' 'full' %}" hx-post="{% url 'security:pipeline_run' 'full' %}" hx-target="#pipeline-result">{% csrf_token %}<button class="sec-button-primary" type="submit">Tutto</button></form>
+  </div>
+  <div style="margin-top: 10px;">{% include "security/partials/pipeline_result.html" with last_pipeline_run=last_pipeline_run %}</div>
+</details>
 {% endblock %}

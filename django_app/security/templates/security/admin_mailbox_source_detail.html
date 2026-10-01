@@ -130,17 +130,80 @@
   </div>
 
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Impostazioni</h2></div>
-    {% if can_manage %}
-      <form method="post" class="sec-grid sec-form">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="save">
-        {{ form.as_p }}
-        <button class="sec-button-primary" type="submit">Salva</button>
-      </form>
-    {% else %}
-      <p class="sec-empty">Serve il permesso di configurazione del Security Center.</p>
-    {% endif %}
+    <div class="sec-section-head"><h2>Cosa legge adesso</h2></div>
+    <ul class="mbx-summary">
+      <li><strong>Cartelle:</strong> {% if source.folders %}{% for f in source.folders %}{{ f.path }}{% if not forloop.last %}, {% endif %}{% endfor %} <span class="sec-muted">(con le sottocartelle)</span>{% else %}tutta la casella <span class="sec-muted">(tranne Posta inviata, Bozze, In uscita)</span>{% endif %}</li>
+      <li><strong>Oggetto:</strong> {% if source.subject_include_text %}deve contenere una tra «{{ source.subject_include_text|truncatechars:160 }}»{% else %}<span class="critical">qualsiasi (nessun filtro)</span>{% endif %}</li>
+      <li><strong>Mittenti:</strong> {% if source.sender_allowlist_text %}{{ source.sender_allowlist_text|truncatechars:100 }}{% else %}tutti{% endif %}{% if source.require_verified_sender %} · solo verificati{% endif %}</li>
+      <li><strong>Allegati:</strong> {% if source.process_attachments %}sì{% if source.attachment_extensions %} ({{ source.attachment_extensions }}){% else %}, tutti i tipi, ZIP aperti{% endif %}{% else %}no{% endif %} · <strong>testo della mail:</strong> {{ source.process_email_body|yesno:"sì,no" }}</li>
+      <li><strong>Per ogni lettura:</strong> al massimo {{ source.max_messages_per_run }} mail{% if source.expected_every_hours %} · alert se nessun report per {{ source.expected_every_hours }} ore{% endif %}</li>
+    </ul>
   </div>
 </section>
+
+{% if can_manage %}
+<section class="sec-panel mbx-settings" id="impostazioni" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Impostazioni</h2><span class="sec-muted">ogni sezione si salva da sola</span></div>
+
+  <details class="mbx-section" {% if open_section == "cartelle" or folder_list %}open{% endif %}>
+    <summary><strong>Cartelle da leggere</strong> <span class="sec-muted">— {% if source.folders %}{{ source.folders|length }} scelte{% else %}tutta la casella{% endif %}</span></summary>
+    <p class="sec-muted">Di default si legge tutta la casella, comprese le sottocartelle dove le regole di Outlook spostano i report, tranne Posta inviata, Bozze e In uscita. Se i report finiscono in cartelle precise, sceglile qui: ognuna include le sue sottocartelle.</p>
+    {% if not folder_list %}
+      <form method="post" class="sec-actions">{% csrf_token %}<input type="hidden" name="action" value="load_folders"><button class="sec-button" type="submit">Carica le cartelle dalla casella</button></form>
+    {% elif not folder_list.ok %}
+      <p class="sec-action-result sec-error"><strong>Cartelle non leggibili:</strong> {{ folder_list.error }}</p>
+    {% else %}
+      <form method="post" class="mbx-folders">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_folders">
+        <div class="mbx-mode">
+          <label><input type="radio" name="mode" value="all" {% if not source.folders %}checked{% endif %}> Tutta la casella</label>
+          <label><input type="radio" name="mode" value="selected" {% if source.folders %}checked{% endif %}> Solo le cartelle selezionate</label>
+        </div>
+        <div class="mbx-tree">
+          {% for f in folder_list.folders %}
+            <label class="mbx-folder{% if f.outgoing %} outgoing{% endif %}" style="--depth: {{ f.depth }};">
+              <input type="checkbox" name="folder" value="{{ f.id }}|{{ f.path }}" {% if f.checked %}checked{% endif %} onchange="if(this.checked){this.form.querySelector('input[value=selected]').checked=true;}">
+              <span>{{ f.name }}</span>
+              <small class="sec-muted">{{ f.total }} mail{% if f.outgoing %} · in uscita, esclusa di default{% endif %}</small>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="sec-actions"><button class="sec-button-primary" type="submit">Salva cartelle</button></div>
+      </form>
+    {% endif %}
+  </details>
+
+  <details class="mbx-section" {% if open_section == "filtri" or not source.subject_include_text %}open{% endif %}>
+    <summary><strong>Quali mail importare</strong> <span class="sec-muted">— filtri su oggetto e mittente</span></summary>
+    <form method="post" class="sec-form mbx-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_filters">
+      {{ filters_form.as_p }}
+      <p class="sec-muted">Basta che l'oggetto contenga <strong>una</strong> delle parole scelte. Senza nessuna scelta si importa tutto.</p>
+      <div class="sec-actions"><button class="sec-button-primary" type="submit">Salva filtri</button></div>
+    </form>
+  </details>
+
+  <details class="mbx-section" {% if open_section == "contenuto" %}open{% endif %}>
+    <summary><strong>Allegati e testo</strong></summary>
+    <form method="post" class="sec-form mbx-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_content">
+      {{ content_form.as_p }}
+      <div class="sec-actions"><button class="sec-button-primary" type="submit">Salva</button></div>
+    </form>
+  </details>
+
+  <details class="mbx-section" {% if open_section == "generale" %}open{% endif %}>
+    <summary><strong>Generale</strong> <span class="sec-muted">— nome, indirizzo, frequenza, controllo «sorgente silenziosa»</span></summary>
+    <form method="post" class="sec-form mbx-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save">
+      {{ form.as_p }}
+      <div class="sec-actions"><button class="sec-button-primary" type="submit">Salva</button></div>
+    </form>
+  </details>
+</section>
+{% endif %}
 {% endblock %}

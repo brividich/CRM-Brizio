@@ -174,6 +174,18 @@ class GraphMailboxProvider(MailboxProvider):
         # an Outlook rule moved into a subfolder was invisible. Read /messages (all folders)
         # and keep the ones in the wanted folder set instead.
         included, excluded = self._folder_scope(token, mailbox, folder)
+        chosen = [entry.get("id") for entry in (getattr(source, "folders", None) or []) if isinstance(entry, dict) and entry.get("id")]
+        if chosen:
+            # Cartelle scelte nella pagina della casella: valgono loro (con le sottocartelle),
+            # non l'impostazione globale GRAPH_MAIL_FOLDER.
+            included = set()
+            for folder_id in chosen:
+                try:
+                    included |= self._folder_subtree(token, mailbox, folder_id)
+                except MailboxProviderError as exc:
+                    logger.warning("Cartella %s non piu' trovata nella casella %s: %s", folder_id, source.code, exc)
+            if not included:
+                raise MailboxProviderConfigurationError("Nessuna delle cartelle scelte esiste ancora nella casella: sceglile di nuovo.")
         url = f"{GRAPH_API_BASE_URL}/users/{mailbox}/messages?{urllib.parse.urlencode(query)}"
 
         items: List[dict] = []
@@ -233,6 +245,46 @@ class GraphMailboxProvider(MailboxProvider):
             )
             root_id = data.get("id") or root_id
         return self._folder_subtree(token, mailbox, root_id), excluded
+
+    def folder_tree(self, source, max_folders=400):
+        """Albero delle cartelle della casella, appiattito in ordine di visualizzazione.
+
+        Ogni voce: id, nome, percorso, profondita', mail totali, e se e' una cartella in uscita
+        (Posta inviata, Bozze, In uscita) che la lettura «tutta la casella» salta.
+        """
+        if not source.mailbox_address:
+            raise MailboxProviderConfigurationError("Indirizzo della casella mancante")
+        token = self._acquire_token()
+        mailbox = urllib.parse.quote(source.mailbox_address, safe="")
+        _included, outgoing = self._folder_scope(token, mailbox, "")
+        fields = "$select=id,displayName,totalItemCount,childFolderCount&$top=100"
+
+        def children(url_part):
+            url = f"{GRAPH_API_BASE_URL}/users/{mailbox}/{url_part}?{fields}"
+            out = []
+            while url:
+                data = _request_json(url, headers=_graph_headers(token))
+                out.extend(data.get("value", []))
+                url = data.get("@odata.nextLink") or ""
+            return out
+
+        flat = []
+
+        def walk(items, depth, prefix):
+            for item in sorted(items, key=lambda f: str(f.get("displayName") or "").lower()):
+                if len(flat) >= max_folders:
+                    return
+                name = item.get("displayName") or "(senza nome)"
+                path = f"{prefix}/{name}" if prefix else name
+                flat.append({
+                    "id": item.get("id"), "name": name, "path": path, "depth": depth,
+                    "total": item.get("totalItemCount") or 0, "outgoing": item.get("id") in outgoing,
+                })
+                if item.get("childFolderCount"):
+                    walk(children(f"mailFolders/{urllib.parse.quote(item['id'], safe='')}/childFolders"), depth + 1, path)
+
+        walk(children("mailFolders"), 0, "")
+        return flat
 
     def _folder_subtree(self, token: str, mailbox: str, root_id: str) -> set:
         """Ids of ``root_id`` and every descendant folder (breadth first, paginated)."""

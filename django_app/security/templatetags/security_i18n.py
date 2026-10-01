@@ -296,6 +296,41 @@ def metric_display(snapshot):
 
 
 @register.filter
+def make_list_csv(value):
+    """«7,30,90» -> [7, 30, 90] (per i pulsanti di periodo)."""
+    return [int(part) for part in str(value).split(",") if part.strip().isdigit()]
+
+
+@register.filter
+def abs_value(value):
+    try:
+        return abs(value)
+    except TypeError:
+        return value
+
+
+@register.filter
+def metric_value(value, name):
+    """Come ``metric_display`` ma con valore e nome separati (riquadri KPI)."""
+    if value is None:
+        return "—"
+    from types import SimpleNamespace
+
+    return metric_display(SimpleNamespace(name=str(name or ""), value=value))
+
+
+@register.filter
+def metric_delta(value, name):
+    """Variazione con segno: «+12», «−3», «=» se invariata."""
+    if value is None:
+        return ""
+    if not value:
+        return "= invariato"
+    sign = "+" if value > 0 else "−"
+    return f"{sign}{metric_value(abs(value), name)}"
+
+
+@register.filter
 def metric_label(value):
     """Nome tecnico della metrica -> etichetta italiana (fallback: nome reso leggibile)."""
     text = str(value or "")
