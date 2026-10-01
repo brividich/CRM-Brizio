@@ -1,5 +1,11 @@
 # Agent Changelog
 
+## 2026-10-01 - Codex (confronto web discovery SNMP)
+
+- Richiesta utente: prendere spunto da soluzioni web. Verificate fonti ufficiali LibreNMS (configurazione/autodiscovery) e Zabbix (network discovery/regole/SNMP agent). Confronto e link in docs/ai/03_BACKEND_MODULES.md; evidenziati limiti: candidate transitorie, nessuna ripresa e nessun job web persistente nella patch 227cf77e.
+- File modificati: docs/ai/03_BACKEND_MODULES.md, questo registro e session_checkpoint.md. Nessun codice, file critico o backup aggiuntivo; nessuna modifica operativa. README/CHANGELOG invariati, AGENT_CHANGELOG/checkpoint aggiornati. Check: fonti primarie e git diff --check; test non ripetuti per sole note, 111 test verdi della patch precedente.
+- Esito: confronto documentato, nessun deploy. Rischi residui: 20s non garantiscono copertura di tutte le combinazioni; rete reale da collaudare. Altro agente: distinguere correzione corrente da evoluzione futura con catalogo community e job persistenti. Worktree dedicato pulito in apertura; file controllo sessione assenti gia verificati.
+
 ## 2026-10-01 - Codex (discovery SNMP e community multiple)
 
 - Worktree isolato C:/Dev/pn-snmp-discovery, feature/snmp-discovery-timeout, base cf87f521. Checkout condiviso lasciato intatto (cartella non tracciata parser pdf preesistente). Checkpoint e delta letti; ACTIVE_SESSION, WORK_LOCKS, CRITICAL_FILES, CRITICAL_CHANGE_REQUESTS assenti come gia documentato.
