@@ -1,5 +1,6 @@
 {
   "exclude_dir_names": [
+    ".claude",
     ".git",
     ".mypy_cache",
     ".pytest_cache",
@@ -13,6 +14,7 @@
     "htmlcov",
     "logs",
     "media",
+    "media_private",
     "node_modules",
     "releases",
     "staticfiles",
@@ -20,17 +22,22 @@
     "venv"
   ],
   "exclude_file_patterns": [
-    ".env",
+    "*.bak",
     "*.db",
+    "*.exe",
     "*.log",
     "*.pyc",
     "*.pyo",
     "*.sqlite3",
+    ".env",
     "acl_report*.json",
+    "config.ini",
     "conftest.py",
-    "DIPENDENTI.csv",
     "db.sqlite3",
     "deployment_validation*.json",
+    "DIPENDENTI.csv",
+    "medical-examinations-people.xlsx",
+    "rag_eval*.json",
     "test_*.py",
     "tests.py"
   ]
