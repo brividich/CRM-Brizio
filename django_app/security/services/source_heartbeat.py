@@ -56,6 +56,10 @@ def evaluate_source_heartbeat(now=None) -> list[SecurityEventRecord]:
     for mailbox_source in SecurityMailboxSource.objects.filter(enabled=True).exclude(expected_every_hours=0):
         verdict = _evaluate_one(mailbox_source, now)
         if verdict is None:
+            # In regola: se c'era un alert di silenzio aperto, il problema è rientrato.
+            from security.services.auto_resolution import resolve_source_back_online
+
+            resolve_source_back_online(SecuritySource.objects.filter(name=mailbox_source.name).first(), mailbox_source.code)
             continue
         event = _record_silence(mailbox_source, verdict, now)
         if event:

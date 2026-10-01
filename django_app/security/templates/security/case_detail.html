@@ -1,0 +1,139 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}Ticket #{{ case.pk }} | Security Center AI{% endblock %}
+{% block page_icon %}T{% endblock %}
+{% block page_marker %}Ticket #{{ case.pk }}{% endblock %}
+{% block page_title %}{{ case.title }}{% endblock %}
+
+{% block soc_content %}
+<p><a class="sec-button" href="{% url 'security:tickets_list' %}">&lt; Torna ai ticket</a></p>
+
+<section class="sec-detail-hero" style="align-items: start;">
+  <div class="sec-panel">
+    <div class="sec-section-head">
+      <div><span class="sec-badge {{ case.severity }}">{{ case.severity|ui_label }}</span> <span class="sec-badge {{ case.status }}">{{ case.status|ui_label }}</span></div>
+      <span class="sec-code">#{{ case.pk }} · {% if case.origin == "manual" %}aperto a mano{% else %}automatico{% endif %}</span>
+    </div>
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Responsabile</span><strong>{% if case.assignee %}{{ case.assignee.get_full_name|default:case.assignee.username }}{% else %}Non assegnato{% endif %}</strong></div>
+      <div class="sec-fact"><span>Sorgente</span><strong>{{ case.source.name }}</strong></div>
+      <div class="sec-fact"><span>Aperto il</span><strong>{{ case.created_at|date:"d M Y, H:i" }}</strong>{% if case.created_by %}<span>da {{ case.created_by.username }}</span>{% endif %}</div>
+      <div class="sec-fact"><span>{% if case.closed_at %}Chiuso il{% else %}Aggiornato il{% endif %}</span><strong>{{ case.closed_at|default:case.updated_at|date:"d M Y, H:i" }}</strong></div>
+    </div>
+    {% if case.description %}<p style="white-space: pre-line; margin-top: 12px;">{{ case.description }}</p>{% endif %}
+    {% if case.cve or case.cve_ids %}
+      <p>CVE: <strong>{% if case.cve_ids %}{{ case.cve_ids|join:", " }}{% else %}{{ case.cve }}{% endif %}</strong> · Prodotto: {{ case.affected_product|default:"-" }} · CVSS massimo {{ case.max_cvss }} · Dispositivi esposti {{ case.max_exposed_devices }}</p>
+    {% endif %}
+    {% if case.resolution %}<p style="margin-top: 12px;"><strong>Esito:</strong> {{ case.resolution }}</p>{% endif %}
+  </div>
+
+  <aside class="sec-panel">
+    <div class="sec-section-head"><h2>Gestione</h2></div>
+
+    <form class="sec-grid" method="post" action="{% url 'security:case_assign' case.pk %}">
+      {% csrf_token %}
+      <label>Responsabile
+        <select name="assignee">
+          <option value="">— Nessuno —</option>
+          {% for user in users %}<option value="{{ user.pk }}" {% if case.assignee_id == user.pk %}selected{% endif %}>{{ user.get_full_name|default:user.username }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="sec-actions">
+        <button type="submit">Assegna</button>
+        {% if case.assignee_id != request.user.pk %}<button type="submit" name="assignee" value="me" class="sec-button-primary">Prendo io</button>{% endif %}
+      </div>
+    </form>
+
+    <form class="sec-grid" style="margin-top: 14px;" method="post" action="{% url 'security:case_status' case.pk %}">
+      {% csrf_token %}
+      <label>Cambia stato
+        <select name="status" required>
+          {% for value, label in status_actions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Esito / motivo <textarea name="reason" rows="2" placeholder="Obbligatorio per chiudere: cosa è stato fatto"></textarea></label>
+      {% if active_alerts_count %}
+        <label class="sec-check"><input type="checkbox" name="close_alerts" value="1" checked> Chiudendo, chiudi anche {{ active_alerts_count }} alert ancora aperti</label>
+      {% endif %}
+      <button type="submit" class="sec-button-primary">Aggiorna stato</button>
+    </form>
+  </aside>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Attività</h2>{% if tasks %}<span class="sec-badge">{{ tasks_done }} / {{ tasks|length }} fatte</span>{% endif %}</div>
+    <ul class="sec-task-list">
+      {% for task in tasks %}
+        <li class="{% if task.done %}is-done{% endif %}">
+          <form class="sec-inline" method="post" action="{% url 'security:case_task_toggle' case.pk task.pk %}">{% csrf_token %}
+            <button type="submit" class="sec-task-check" aria-label="{% if task.done %}Segna da fare{% else %}Segna fatta{% endif %}">{% if task.done %}&#10003;{% endif %}</button>
+          </form>
+          <span class="sec-task-title">{{ task.title }}{% if task.done and task.done_by %}<small>fatta da {{ task.done_by.username }} il {{ task.done_at|date:"d/m H:i" }}</small>{% endif %}</span>
+          <form class="sec-inline" method="post" action="{% url 'security:case_task_delete' case.pk task.pk %}">{% csrf_token %}<button type="submit" class="sec-btn-link" aria-label="Elimina attività">Elimina</button></form>
+        </li>
+      {% empty %}
+        <li class="sec-muted">Nessuna attività. Aggiungi i passi da fare per chiudere il ticket.</li>
+      {% endfor %}
+    </ul>
+    <form class="sec-inline-form" method="post" action="{% url 'security:case_task_add' case.pk %}">
+      {% csrf_token %}
+      <input type="text" name="title" maxlength="255" placeholder="Nuova attività (es. aggiornare Chrome sui PC esposti)" required>
+      <button type="submit">Aggiungi</button>
+    </form>
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Nota di lavoro</h2></div>
+    <form class="sec-grid" method="post" action="{% url 'security:case_note' case.pk %}">
+      {% csrf_token %}
+      <textarea name="body" rows="3" placeholder="Cosa hai verificato, chi hai contattato, prossimi passi" required></textarea>
+      <button type="submit" class="sec-button-primary">Aggiungi nota</button>
+    </form>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Alert collegati</h2><span class="sec-badge">{{ alerts|length }}</span></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Severità</th><th>Alert</th><th>Stato</th><th>Creato</th></tr></thead>
+      <tbody>
+      {% for alert in alerts %}
+        <tr>
+          <td><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></td>
+          <td class="sec-title-cell"><a href="{% url 'security:alert_detail' alert.pk %}"><strong>{{ alert.title }}</strong></a>{% if alert.status_reason %}<small>{{ alert.status_reason }}</small>{% endif %}</td>
+          <td><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></td>
+          <td class="sec-nowrap">{{ alert.created_at|date:"d M Y, H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="sec-empty">Nessun alert collegato.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Timeline</h2></div>
+  <div class="sec-timeline">
+    {% for entry in timeline %}
+      <div class="sec-timeline-item{% if entry.kind == 'note' %} is-note{% endif %}">
+        <strong>{{ entry.at|date:"d M Y, H:i" }}</strong> · {% if not entry.actor or entry.actor == "system" %}sistema{% else %}{{ entry.actor }}{% endif %}<br>
+        {% if entry.kind == "note" %}
+          <span style="white-space: pre-line;">{{ entry.body }}</span>
+        {% else %}
+          {{ entry.action|action_label }}{% if entry.alert %} — <a href="{% url 'security:alert_detail' entry.alert.pk %}">{{ entry.alert.title|truncatechars:70 }}</a>{% endif %}
+          {% if entry.details.new_status %} <span class="sec-badge {{ entry.details.new_status }}">{{ entry.details.new_status|ui_label }}</span>{% endif %}
+          {% if entry.details.task %} «{{ entry.details.task }}»{% endif %}
+          {% if entry.details.assignee %} → {{ entry.details.assignee }}{% endif %}
+          {% if entry.details.reason %}<br><small class="sec-muted">{{ entry.details.reason }}</small>{% endif %}
+        {% endif %}
+      </div>
+    {% empty %}
+      <div class="sec-empty">Nessuna voce.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

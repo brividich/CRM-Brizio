@@ -678,6 +678,20 @@ class SecurityRemediationTicket(models.Model):
     occurrence_count = models.PositiveIntegerField(default=1)
     dedup_hash = models.CharField(max_length=64, db_index=True)
     evidence = models.ManyToManyField(SecurityEvidenceContainer, blank=True, related_name="tickets")
+    # Gestione del caso: il ticket è un alert "complesso" su cui si lavora.
+    ORIGIN_AUTO = "auto"
+    ORIGIN_MANUAL = "manual"
+    ORIGIN_CHOICES = [(ORIGIN_AUTO, "Automatico"), (ORIGIN_MANUAL, "Aperto a mano")]
+    origin = models.CharField(max_length=16, choices=ORIGIN_CHOICES, default=ORIGIN_AUTO, db_index=True)
+    description = models.TextField(blank=True)
+    assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="security_cases_assigned"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="security_cases_created"
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+    resolution = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -699,6 +713,37 @@ class SecurityRemediationTicket(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class SecurityCaseNote(models.Model):
+    """Nota di lavoro su un caso (ticket). Solo aggiunta: è parte della traccia."""
+
+    ticket = models.ForeignKey(SecurityRemediationTicket, on_delete=models.CASCADE, related_name="notes")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class SecurityCaseTask(models.Model):
+    """Attività spuntabile di un caso (es. «aggiornare Chrome sui 12 PC»)."""
+
+    ticket = models.ForeignKey(SecurityRemediationTicket, on_delete=models.CASCADE, related_name="tasks")
+    title = models.CharField(max_length=255)
+    done = models.BooleanField(default=False, db_index=True)
+    done_at = models.DateTimeField(null=True, blank=True)
+    done_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["done", "created_at", "id"]
 
 
 class SecurityAlertActionLog(models.Model):

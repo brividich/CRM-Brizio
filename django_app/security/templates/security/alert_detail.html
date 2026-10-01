@@ -45,14 +45,33 @@
   <div class="sec-panel">
     <div class="sec-section-head"><h2>Ticket</h2><a href="{% url 'security:tickets_list' %}">Tutti i ticket</a></div>
     {% if ticket %}
-      <p><strong>{{ ticket.title }}</strong></p>
-      <p>Stato: <span class="sec-badge {{ ticket.status }}">{{ ticket.status|ui_label }}</span> · Occorrenze {{ ticket.occurrence_count }}</p>
+      <p><a href="{% url 'security:case_detail' ticket.pk %}"><strong>#{{ ticket.pk }} · {{ ticket.title }}</strong></a></p>
+      <p>Stato: <span class="sec-badge {{ ticket.status }}">{{ ticket.status|ui_label }}</span> · Responsabile: {% if ticket.assignee %}{{ ticket.assignee.username }}{% else %}nessuno{% endif %} · Occorrenze {{ ticket.occurrence_count }}</p>
       {% if ticket.cve or ticket.cve_ids %}
         <p>CVE: {% if ticket.cve_ids %}{{ ticket.cve_ids|join:", " }}{% else %}{{ ticket.cve }}{% endif %} · Prodotto: {{ ticket.affected_product|default:"-" }}</p>
         <p>CVSS massimo {{ ticket.max_cvss }} · Dispositivi esposti massimi {{ ticket.max_exposed_devices }}</p>
       {% endif %}
+      <p><a class="sec-button" href="{% url 'security:case_detail' ticket.pk %}">Apri il ticket</a></p>
     {% else %}
-      <p class="sec-empty">Nessun ticket di remediation collegato.</p>
+      <p class="sec-muted">Nessun ticket collegato. Aprine uno per lavorare sull'alert con responsabile, attività e note.</p>
+      <form class="sec-grid" method="post" action="{% url 'security:case_create' %}">
+        {% csrf_token %}
+        <input type="hidden" name="alert_ids" value="{{ alert.pk }}">
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <label>Titolo <input type="text" name="title" value="{{ alert.title }}" maxlength="255"></label>
+        <label class="sec-check"><input type="checkbox" name="assign_to_me" value="1" checked> Assegnalo a me</label>
+        <button type="submit" class="sec-button-primary">Apri ticket</button>
+      </form>
+      {% if open_cases %}
+        <form class="sec-inline-form" style="margin-top: 10px;" method="post" action="{% url 'security:alerts_bulk' %}">
+          {% csrf_token %}
+          <input type="hidden" name="alert_ids" value="{{ alert.pk }}">
+          <input type="hidden" name="action" value="add_to_case">
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <select name="case_id" aria-label="Ticket aperto">{% for case in open_cases %}<option value="{{ case.pk }}">#{{ case.pk }} · {{ case.title|truncatechars:50 }}</option>{% endfor %}</select>
+          <button type="submit">Aggiungi a ticket</button>
+        </form>
+      {% endif %}
     {% endif %}
   </div>
   <div class="sec-panel">
