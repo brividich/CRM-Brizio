@@ -79,6 +79,10 @@ class GraphQueryTests(TestCase):
             mailbox_address="soc@example.test", max_messages_per_run=50,
         )
         self.provider = GraphMailboxProvider()
+        # Folder scoping has its own tests (FolderScopeTests): here only the message query.
+        patcher = mock.patch.object(GraphMailboxProvider, "_folder_scope", return_value=(None, set()))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _capture_urls(self, pages):
         calls = []
@@ -132,6 +136,106 @@ class GraphQueryTests(TestCase):
 
         self.assertEqual(len(items), GRAPH_MAX_PAGES)
         self.assertTrue(any("pagination stopped" in line for line in logs.output))
+
+
+class FolderScopeTests(TestCase):
+    """Mail sorted by an Outlook rule into a subfolder must be read too.
+
+    ``/mailFolders/{id}/messages`` returns only the folder's direct children: the SOC read
+    Inbox alone and every rule-sorted report (Inbox/WatchGuard, Inbox/Report/...) was lost.
+    """
+
+    def setUp(self):
+        self.source = SecurityMailboxSource.objects.create(
+            name="Graph", code="graph-scope", source_type="graph",
+            mailbox_address="soc@example.test", max_messages_per_run=50,
+        )
+        self.provider = GraphMailboxProvider()
+
+    def _fake_graph(self, messages, folders=None, children=None):
+        """Minimal Graph: well-known outgoing folders, a folder tree, one message page."""
+        folders = folders or {}
+        children = children or {}
+        calls = []
+
+        def fake_request(url, **kwargs):
+            calls.append(url)
+            path = urllib_unquote(url.split("graph.microsoft.com/v1.0", 1)[-1])
+            for well_known, folder_id in {"sentitems": "SENT", "drafts": "DRAFTS", "outbox": "OUTBOX"}.items():
+                if f"/mailFolders/{well_known}?" in path:
+                    return {"id": folder_id}
+            if "/childFolders" in path:
+                parent = path.split("/mailFolders/", 1)[1].split("/childFolders", 1)[0]
+                return {"value": [{"id": child} for child in children.get(parent, [])]}
+            if "/mailFolders?" in path:
+                name = path.split("displayName eq '", 1)[1].split("'", 1)[0]
+                return {"value": [{"id": folders[name]}] if name in folders else []}
+            if "/messages?" in path:
+                return {"value": messages}
+            raise AssertionError(f"unexpected Graph call: {path}")
+
+        return calls, fake_request
+
+    def _item(self, index, parent):
+        item = _graph_item(index, datetime(2026, 9, 29, index, tzinfo=dt_timezone.utc))
+        item["parentFolderId"] = parent
+        return item
+
+    def test_default_reads_whole_mailbox_including_subfolders(self):
+        messages = [
+            self._item(1, "INBOX"),
+            self._item(2, "INBOX-WATCHGUARD"),  # moved by a rule into Inbox/WatchGuard
+            self._item(3, "INBOX-REPORT-DEEP"),  # two levels down
+            self._item(4, "JUNK"),  # vendor report filtered as spam: still a report
+            self._item(5, "SENT"),  # outgoing: never a report
+            self._item(6, "DRAFTS"),
+        ]
+        calls, fake = self._fake_graph(messages)
+        with mock.patch("security.services.mailbox_providers.get_setting", return_value=""), \
+                mock.patch("security.services.mailbox_providers._request_json", side_effect=fake):
+            items = self.provider._get_messages("tok", self.source, limit=50)
+
+        self.assertEqual([item["id"] for item in items], ["id-1", "id-2", "id-3", "id-4"])
+        message_calls = [url for url in calls if "/messages?" in url]
+        self.assertEqual(len(message_calls), 1)
+        self.assertIn("/users/soc%40example.test/messages?", message_calls[0])
+        self.assertNotIn("/mailFolders/", message_calls[0])
+
+    def test_legacy_inbox_setting_means_whole_mailbox(self):
+        """GRAPH_MAIL_FOLDER=Inbox was the default: it must no longer hide subfolders."""
+        calls, fake = self._fake_graph([self._item(1, "INBOX-WATCHGUARD")])
+        with mock.patch("security.services.mailbox_providers.get_setting", return_value="Inbox"), \
+                mock.patch("security.services.mailbox_providers._request_json", side_effect=fake):
+            items = self.provider._get_messages("tok", self.source, limit=50)
+
+        self.assertEqual(len(items), 1)
+
+    def test_named_folder_includes_all_descendants(self):
+        messages = [
+            self._item(1, "SOC"),
+            self._item(2, "SOC-CHILD"),
+            self._item(3, "SOC-GRANDCHILD"),
+            self._item(4, "OTHER"),
+        ]
+        calls, fake = self._fake_graph(
+            messages,
+            folders={"Report SOC": "SOC"},
+            children={"SOC": ["SOC-CHILD"], "SOC-CHILD": ["SOC-GRANDCHILD"]},
+        )
+        with mock.patch("security.services.mailbox_providers.get_setting", return_value="Report SOC"), \
+                mock.patch("security.services.mailbox_providers._request_json", side_effect=fake):
+            items = self.provider._get_messages("tok", self.source, limit=50)
+
+        self.assertEqual([item["id"] for item in items], ["id-1", "id-2", "id-3"])
+
+    def test_parent_folder_id_is_requested(self):
+        calls, fake = self._fake_graph([])
+        with mock.patch("security.services.mailbox_providers.get_setting", return_value=""), \
+                mock.patch("security.services.mailbox_providers._request_json", side_effect=fake):
+            self.provider._get_messages("tok", self.source, limit=50)
+
+        message_call = next(url for url in calls if "/messages?" in url)
+        self.assertIn("parentFolderId", urllib_unquote(message_call))
 
 
 class WatermarkTests(TestCase):
