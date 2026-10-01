@@ -17,7 +17,7 @@
     </form>
   </div>
   <div id="ai-explain-body">
-    {% if ai %}{% include "security/partials/ai_explanation.html" %}{% else %}<p class="sec-muted">L'AI locale dell'azienda (nessun dato esce dalla rete) spiega cosa è successo, perché è scattato l'alert, quanto è urgente e cosa fare. Ci vuole qualche secondo.</p>{% endif %}
+    {% if ai %}{% include "security/partials/ai_explanation.html" %}{% else %}<p class="sec-muted">L'AI locale dell'azienda (nessun dato esce dalla rete) spiega cosa è successo, perché è scattato l'alert, quanto è urgente e cosa fare, tenendo conto dello storico qui sotto: accessi, precedenti, alert chiusi o scartati. Ci vuole qualche secondo.</p>{% endif %}
   </div>
 </section>
 
@@ -51,6 +51,45 @@
   </div>
 
   {% include "security/partials/alert_lifecycle_panel.html" %}
+</section>
+
+<section class="sec-grid sec-two-col inv-cols" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Cosa sappiamo</h2><span class="sec-muted">dagli altri dati del portale</span></div>
+    {% for fact in facts %}
+      <div class="inv-fact{% if fact.tone %} tone-{{ fact.tone }}{% endif %}">
+        <div class="inv-fact-head"><strong>{{ fact.label }}</strong>{% if fact.url %}<a href="{{ fact.url }}">{{ fact.link }}</a>{% endif %}</div>
+        <ul>{% for line in fact.lines %}<li>{{ line }}</li>{% endfor %}</ul>
+      </div>
+    {% empty %}
+      <p class="sec-muted">L'alert non cita indirizzi, utenti, computer o job da incrociare con lo storico.</p>
+    {% endfor %}
+    <div class="inv-fact{% if history.hint %} tone-warn{% endif %}">
+      <div class="inv-fact-head"><strong>Precedenti</strong>{% if history.total %}<a href="{% url 'security:history' %}">Analisi dello storico</a>{% endif %}</div>
+      <ul>
+        <li>{{ history.text }}</li>
+        {% for reason in history.reasons %}<li>{{ reason.at|date:"d/m/Y" }} · {{ reason.status }}: «{{ reason.text }}» <a href="{% url 'security:alert_detail' reason.pk %}">apri</a></li>{% endfor %}
+        {% for line in history.discarded %}<li>{{ line }}</li>{% endfor %}
+        {% if history.hint %}<li><strong>{{ history.hint }}</strong></li>{% endif %}
+      </ul>
+    </div>
+  </div>
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Come rispondere</h2><span class="sec-muted">{{ book.title }}</span></div>
+    <ol class="inv-steps">{% for step in book.steps %}<li>{{ step }}</li>{% endfor %}</ol>
+    {% if ticket %}
+      <p class="sec-muted">Il lavoro si segue nel <a href="{% url 'security:case_detail' ticket.pk %}">ticket #{{ ticket.pk }}</a>: lì puoi aggiungere questi passi come attività.</p>
+    {% else %}
+      <form method="post" action="{% url 'security:case_create' %}">
+        {% csrf_token %}
+        <input type="hidden" name="alert_ids" value="{{ alert.pk }}">
+        <input type="hidden" name="title" value="{{ alert.title }}">
+        <input type="hidden" name="assign_to_me" value="1">
+        <input type="hidden" name="with_playbook" value="1">
+        <button type="submit" class="sec-button-primary">Apri ticket con questi passi</button>
+      </form>
+    {% endif %}
+  </div>
 </section>
 
 <section class="sec-grid sec-two-col" style="margin-top: 12px;">

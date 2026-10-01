@@ -1,0 +1,15 @@
+{% if ai.ok and ai.steps %}
+  <form method="post" action="{% url 'security:case_tasks_add_many' case.pk %}" class="ai-steps">
+    {% csrf_token %}
+    <p class="sec-muted">Spunta quelli che vuoi tenere: diventano attività del ticket solo quando confermi.</p>
+    <ul>
+      {% for step in ai.steps %}
+        <li><label class="sec-check"><input type="checkbox" name="titles" value="{{ step }}" checked> {{ step }}</label></li>
+      {% endfor %}
+    </ul>
+    <button type="submit" class="sec-button-primary">Aggiungi le attività selezionate</button>
+  </form>
+  <p class="ai-foot">{{ ai.disclaimer }}{% if ai.model %} · modello {{ ai.model }}{% endif %}{% if ai.cached %} · risposta già pronta{% endif %}</p>
+{% else %}
+  {% include "security/partials/ai_explanation.html" %}
+{% endif %}

@@ -1,0 +1,6 @@
+<label>Esito / motivo <textarea name="reason" rows="5" placeholder="Obbligatorio per chiudere: cosa è stato fatto">{% if ai.ok %}{{ ai.text }}{% endif %}</textarea></label>
+{% if ai.ok %}
+  <p class="ai-foot">Bozza scritta dall'AI locale dalle attività e dalle note del ticket: rileggila e correggila prima di chiudere.{% if ai.model %} · modello {{ ai.model }}{% endif %}</p>
+{% else %}
+  <p class="sec-action-result sec-error"><strong>L'AI locale non ha risposto.</strong> {{ ai.error|default:"Riprova tra poco." }}<br>Scrivi l'esito a mano.</p>
+{% endif %}

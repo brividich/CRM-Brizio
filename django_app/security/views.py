@@ -202,6 +202,9 @@ def alert_detail(request, pk, ai=None):
         },
     }
     context.update(_alert_lifecycle_context(alert))
+    from security.services.investigation import playbook, precedents, related_facts
+
+    context.update({"facts": related_facts(alert), "history": precedents(alert), "book": playbook(alert)})
     return render(request, "security/alert_detail.html", context)
 
 
@@ -228,6 +231,37 @@ def overview_brief(request):
     if not can_view_security_center(request.user):
         return _security_center_denied(request)
     ai = daily_brief(attention_items(), user=request.user, refresh=request.POST.get("refresh") == "1")
+    return render(request, "security/partials/ai_explanation.html", {"ai": ai})
+
+
+def history_page(request):
+    """Analisi dello storico: cosa si ripete, cosa e' stato scartato o chiuso, cosa e' fermo."""
+    from security.services.history_review import build_review
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    try:
+        days = int(request.GET.get("giorni") or 30)
+    except ValueError:
+        days = 30
+    days = days if days in (7, 30, 90) else 30
+    return render(request, "security/history_review.html", {"review": build_review(days), "days": days})
+
+
+@require_POST
+def history_proposals(request):
+    """Proposte dell'AI locale sullo storico (sola lettura: non crea regole e non chiude nulla)."""
+    from security.services.ai_explain import review_history
+    from security.services.history_review import build_review, review_as_text
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    try:
+        days = int(request.POST.get("giorni") or 30)
+    except ValueError:
+        days = 30
+    days = days if days in (7, 30, 90) else 30
+    ai = review_history(review_as_text(build_review(days)), user=request.user, refresh=request.POST.get("refresh") == "1")
     return render(request, "security/partials/ai_explanation.html", {"ai": ai})
 
 

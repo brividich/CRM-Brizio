@@ -45,14 +45,17 @@
       </div>
     </form>
 
-    <form class="sec-grid" style="margin-top: 14px;" method="post" action="{% url 'security:case_status' case.pk %}">
+    <form class="inv-ai-inline" style="margin-top: 14px;" method="post" action="{% url 'security:case_ai_resolution' case.pk %}" hx-post="{% url 'security:case_ai_resolution' case.pk %}" hx-target="#case-reason">
+      {% csrf_token %}<button type="submit" class="sec-btn-link" data-busy-label="L'AI sta scrivendo l'esito…">Scrivi l'esito con l'AI</button>
+    </form>
+    <form class="sec-grid" method="post" action="{% url 'security:case_status' case.pk %}">
       {% csrf_token %}
       <label>Cambia stato
         <select name="status" required>
           {% for value, label in status_actions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
         </select>
       </label>
-      <label>Esito / motivo <textarea name="reason" rows="2" placeholder="Obbligatorio per chiudere: cosa è stato fatto"></textarea></label>
+      <div id="case-reason"><label>Esito / motivo <textarea name="reason" rows="2" placeholder="Obbligatorio per chiudere: cosa è stato fatto"></textarea></label></div>
       {% if active_alerts_count %}
         <label class="sec-check"><input type="checkbox" name="close_alerts" value="1" checked> Chiudendo, chiudi anche {{ active_alerts_count }} alert ancora aperti</label>
       {% endif %}
@@ -82,15 +85,34 @@
       <input type="text" name="title" maxlength="255" placeholder="Nuova attività (es. aggiornare Chrome sui PC esposti)" required>
       <button type="submit">Aggiungi</button>
     </form>
+    {% if book and book.missing %}
+      <form class="inv-book" method="post" action="{% url 'security:case_tasks_add_many' case.pk %}">
+        {% csrf_token %}
+        <p><strong>Procedura consigliata · {{ book.title }}</strong></p>
+        <ol class="inv-steps">{% for step in book.missing %}<li>{{ step }}<input type="hidden" name="titles" value="{{ step }}"></li>{% endfor %}</ol>
+        <button type="submit">Aggiungi {{ book.missing|length }} pass{{ book.missing|length|pluralize:"o,i" }} della procedura</button>
+      </form>
+    {% endif %}
   </div>
 
-  <div class="sec-panel">
-    <div class="sec-section-head"><h2>Nota di lavoro</h2></div>
-    <form class="sec-grid" method="post" action="{% url 'security:case_note' case.pk %}">
-      {% csrf_token %}
-      <textarea name="body" rows="3" placeholder="Cosa hai verificato, chi hai contattato, prossimi passi" required></textarea>
-      <button type="submit" class="sec-button-primary">Aggiungi nota</button>
-    </form>
+  <div>
+    <div class="sec-panel ai-panel">
+      <div class="sec-section-head">
+        <h2>Prossimi passi</h2>
+        <form method="post" action="{% url 'security:case_ai_steps' case.pk %}" hx-post="{% url 'security:case_ai_steps' case.pk %}" hx-target="#case-ai-steps">
+          {% csrf_token %}<button class="sec-button-primary" type="submit" data-busy-label="L'AI sta ragionando…">Proponi con l'AI</button>
+        </form>
+      </div>
+      <div id="case-ai-steps"><p class="sec-muted">L'AI locale legge il ticket (alert, attività fatte, note, precedenti e alert chiusi o scartati in passato) e propone cosa fare dopo. Scegli tu quali passi diventano attività.</p></div>
+    </div>
+    <div class="sec-panel" style="margin-top: 12px;">
+      <div class="sec-section-head"><h2>Nota di lavoro</h2></div>
+      <form class="sec-grid" method="post" action="{% url 'security:case_note' case.pk %}">
+        {% csrf_token %}
+        <textarea name="body" rows="3" placeholder="Cosa hai verificato, chi hai contattato, prossimi passi" required></textarea>
+        <button type="submit" class="sec-button-primary">Aggiungi nota</button>
+      </form>
+    </div>
   </div>
 </section>
 

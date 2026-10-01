@@ -2,6 +2,7 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
+from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -26,6 +27,7 @@ from .services.cases import (
     set_case_status,
     toggle_task,
 )
+from .services.investigation import playbook
 
 # Azioni di stato proposte nella scheda, nell'ordine in cui servono.
 CASE_STATUS_ACTIONS = [
@@ -97,6 +99,10 @@ def case_detail(request, pk):
     case = get_object_or_404(SecurityRemediationTicket.objects.select_related("source", "assignee", "created_by"), pk=pk)
     alerts = case_alerts(case)
     tasks = list(case.tasks.select_related("done_by"))
+    book = playbook(alerts[0]) if alerts else None
+    if book:
+        existing = {task.title.strip().lower() for task in tasks}
+        book["missing"] = [step for step in book["steps"] if step.lower() not in existing]
     return render(
         request,
         "security/case_detail.html",
@@ -111,6 +117,7 @@ def case_detail(request, pk):
             "status_actions": [(value, label) for value, label in CASE_STATUS_ACTIONS if value != case.status],
             "closed_statuses": CLOSED_CASE_STATUSES,
             "users": _assignable_users(),
+            "book": book,
         },
     )
 
@@ -126,8 +133,62 @@ def case_create(request):
         alerts, user=request.user, title=request.POST.get("title", ""),
         description=request.POST.get("description", ""), assignee=assignee,
     )
-    messages.success(request, f"Caso #{case.pk} aperto con {len(alerts)} alert.")
+    added = 0
+    if request.POST.get("with_playbook"):
+        for step in playbook(alerts[0])["steps"]:
+            add_task(case, step, user=request.user)
+            added += 1
+    messages.success(request, f"Caso #{case.pk} aperto con {len(alerts)} alert" + (f" e {added} passi della procedura." if added else "."))
     return redirect("security:case_detail", pk=case.pk)
+
+
+@require_POST
+def case_tasks_add_many(request, pk):
+    """Aggiunge le attivita' scelte (passi della procedura o proposti dall'AI e confermati dall'operatore)."""
+    case = get_object_or_404(SecurityRemediationTicket, pk=pk)
+    existing = {task.title.strip().lower() for task in case.tasks.all()}
+    added = 0
+    for title in request.POST.getlist("titles"):
+        title = (title or "").strip()[:255]
+        if title and title.lower() not in existing:
+            add_task(case, title, user=request.user)
+            existing.add(title.lower())
+            added += 1
+    if added:
+        messages.success(request, f"{added} attività aggiunte al ticket.")
+    else:
+        messages.info(request, "Nessuna attività nuova da aggiungere.")
+    return redirect("security:case_detail", pk=case.pk)
+
+
+def _ai_allowed(request):
+    from .permissions import can_view_security_center
+
+    return can_view_security_center(request.user)
+
+
+@require_POST
+def case_ai_steps(request, pk):
+    """Prossimi passi proposti dall'AI locale: diventano attivita' solo se l'operatore li spunta e conferma."""
+    from .services.ai_explain import propose_case_steps
+
+    if not _ai_allowed(request):
+        return HttpResponseForbidden("Accesso negato")
+    case = get_object_or_404(SecurityRemediationTicket, pk=pk)
+    ai = propose_case_steps(case, user=request.user, refresh=request.POST.get("refresh") == "1")
+    return render(request, "security/partials/case_ai_steps.html", {"ai": ai, "case": case})
+
+
+@require_POST
+def case_ai_resolution(request, pk):
+    """Bozza dell'esito di chiusura scritta dall'AI locale, da rileggere e correggere prima di chiudere."""
+    from .services.ai_explain import draft_resolution
+
+    if not _ai_allowed(request):
+        return HttpResponseForbidden("Accesso negato")
+    case = get_object_or_404(SecurityRemediationTicket, pk=pk)
+    ai = draft_resolution(case, user=request.user, refresh=request.POST.get("refresh") == "1")
+    return render(request, "security/partials/case_ai_resolution.html", {"ai": ai})
 
 
 @require_POST

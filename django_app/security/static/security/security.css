@@ -674,3 +674,17 @@ body.theme-dark .soc-module .sec-button:not(.sec-button-primary):hover { color: 
 .soc-module .ai-foot { margin: 6px 0 0; font-size: 11px; color: var(--text-light); }
 @media (max-width: 1200px) { .soc-module .ov-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .soc-module .ov-main { grid-template-columns: 1fr; } .soc-module .ov-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .soc-module .ov-list li { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Analisi e risposta */
+.soc-module .inv-fact { padding: 10px 12px; border-left: 4px solid var(--border); border-radius: 6px; background: var(--surface-alt, rgba(128,128,128,.06)); margin-bottom: 8px; }
+.soc-module .inv-fact.tone-warn { border-left-color: var(--warning); }
+.soc-module .inv-fact-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.soc-module .inv-fact ul { margin: 6px 0 0 16px; padding: 0; }
+.soc-module .inv-fact li { margin: 2px 0; color: var(--text-mid); }
+.soc-module .inv-steps { margin: 4px 0 12px 20px; padding: 0; }
+.soc-module .inv-steps li { margin: 4px 0; }
+.soc-module .inv-book { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.soc-module .inv-book p { margin: 0 0 4px; }
+.soc-module .inv-ai-inline { display: flex; justify-content: flex-end; }
+.soc-module .ai-steps ul { list-style: none; margin: 6px 0 10px; padding: 0; display: grid; gap: 6px; }
+.soc-module td.num, .soc-module th.num { text-align: right; font-variant-numeric: tabular-nums; }

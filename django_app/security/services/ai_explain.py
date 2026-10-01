@@ -33,10 +33,38 @@ _PAYLOAD_KEYS = (
 ALERT_INSTRUCTIONS = (
     "Sei un analista della sicurezza IT di una piccola azienda manifatturiera italiana. Spiega l'alert qui sotto "
     "a un responsabile IT che non è uno specialista di sicurezza. Scrivi in italiano semplice, frasi brevi, niente "
-    "gergo inutile. Usa esattamente queste quattro sezioni, ciascuna con il titolo in grassetto:\n"
+    "gergo inutile. Usa esattamente queste cinque sezioni, ciascuna con il titolo in grassetto:\n"
     "**Cosa è successo** (2-3 frasi)\n**Perché è scattato l'alert** (la regola e il valore che l'hanno fatto scattare)\n"
+    "**Cosa dice lo storico** (dai Precedenti e dai fatti collegati: quante volte è già successo, come è stato chiuso e "
+    "con quale motivo, eventi scartati; se lo storico fa pensare a un falso positivo dillo, ma verifica che i fatti di "
+    "oggi siano coerenti con quel motivo)\n"
     "**Quanto è urgente** (bassa, media o alta, con il motivo in una frase)\n**Cosa fare adesso** (al massimo 3 passi concreti, elenco puntato).\n"
-    "Usa solo i dati del contesto: se un'informazione manca, dillo invece di inventarla. Non ripetere il contesto."
+    "Usa solo i dati del contesto: se un'informazione manca, dillo invece di inventarla. Non ripetere il contesto.\n"
+    "Tieni conto di fatti collegati, precedenti ed eventi scartati: se in passato lo stesso alert è stato chiuso come "
+    "falso positivo o con un motivo, dillo e valuta se vale anche ora; se si ripete spesso, suggerisci di cercare la causa. "
+    "Per i passi parti dalla procedura standard del contesto, adattandola ai dati."
+)
+CASE_STEPS_INSTRUCTIONS = (
+    "Sei l'analista della sicurezza IT di una piccola azienda manifatturiera italiana. Dal ticket qui sotto (alert, "
+    "attività già fatte o da fare, note, precedenti, procedura standard) proponi i PROSSIMI passi concreti per chiuderlo. "
+    "Massimo 5 passi, uno per riga, ogni riga inizia con «- », frasi brevi all'infinito (es. «- Bloccare l'IP sul firewall»). "
+    "Non ripetere attività già presenti nel ticket. Niente titoli né spiegazioni oltre ai passi. Se non serve altro, "
+    "scrivi una sola riga: «- Chiudere il ticket scrivendo l'esito»."
+)
+CASE_RESOLUTION_INSTRUCTIONS = (
+    "Scrivi in italiano l'esito di chiusura del ticket di sicurezza qui sotto, da registrare per l'audit: 2-4 frasi, "
+    "un solo paragrafo, niente elenchi. Dì cosa è successo, cosa è stato fatto (dalle attività completate e dalle note) "
+    "e lo stato finale. Usa solo i dati forniti; se mancano informazioni su cosa è stato fatto, scrivilo chiaramente "
+    "(es. «nessuna attività registrata»). Non inventare azioni."
+)
+REVIEW_INSTRUCTIONS = (
+    "Sei l'analista della sicurezza IT di una piccola azienda manifatturiera italiana. Qui sotto c'è il riepilogo dello "
+    "storico del Security Center: alert ricorrenti con come sono stati chiusi, falsi positivi, eventi scartati dal motore, "
+    "alert e ticket fermi, regole di soppressione. Proponi al massimo 5 azioni, dalla più utile, come elenco numerato. "
+    "Per ogni azione: **cosa fare** in grassetto, poi in una frase il dato che la giustifica e l'effetto atteso. "
+    "Azioni tipiche: regola di soppressione per un falso positivo che si ripete; risolvere la causa di un problema che "
+    "torna; chiudere o riassegnare ticket e alert fermi; rivedere regole di soppressione mai usate o che scartano troppo. "
+    "Non proporre nulla senza un dato a sostegno. Usa solo i dati forniti."
 )
 BRIEF_INSTRUCTIONS = (
     "Sei l'assistente del responsabile IT di una piccola azienda manifatturiera italiana. Dall'elenco qui sotto "
@@ -98,6 +126,12 @@ def alert_context(alert):
     rule = {key: trace[key] for key in ("decision", "rule", "rule_code", "rule_name", "metric", "operator", "threshold", "value", "matched_rules", "reason") if key in trace}
     if rule:
         lines.append("Regola che ha deciso: " + json.dumps(rule, ensure_ascii=False, default=str)[:800])
+    try:
+        from security.services.investigation import facts_as_text
+
+        lines.append(facts_as_text(alert)[:2500])
+    except Exception:  # noqa: BLE001 - senza fatti collegati l'AI spiega comunque l'alert
+        logger.exception("Fatti collegati non disponibili per l'alert %s", alert.pk)
     return "\n".join(line for line in lines if line)
 
 
@@ -112,6 +146,76 @@ def explain_alert(alert, *, user=None, refresh=False):
     if result["ok"]:
         cache.set(key, result, CACHE_SECONDS)
     return {**result, "cached": False}
+
+
+def _cached_ask(prefix, instructions, context, *, action, user, object_type, object_id="", seconds=3600, refresh=False):
+    key = f"soc:ai:{prefix}:" + hashlib.sha256(f"{object_id}:{context}".encode()).hexdigest()[:32]
+    if not refresh:
+        cached = cache.get(key)
+        if cached:
+            return {**cached, "cached": True}
+    result = _ask(instructions, context, action=action, user=user, object_type=object_type, object_id=object_id)
+    if result["ok"]:
+        cache.set(key, result, seconds)
+    return {**result, "cached": False}
+
+
+def case_context(case):
+    """Il ticket in poche righe: alert, attivita', note di lavoro, fatti e procedura dell'alert principale."""
+    from security.services.cases import case_alerts
+    from security.services.investigation import facts_as_text
+
+    alerts = case_alerts(case)
+    tasks = list(case.tasks.all())
+    lines = [
+        f"Ticket #{case.pk}: {case.title}",
+        f"Severità: {case.severity} · Stato: {case.status} · Aperto il {case.created_at:%d/%m/%Y}",
+    ]
+    if case.description:
+        lines.append(f"Descrizione: {case.description[:500]}")
+    for alert in alerts[:8]:
+        lines.append(f"Alert: {alert.title} ({alert.severity}, {alert.status})")
+    lines += [f"Attività fatta: {task.title}" for task in tasks if task.done]
+    lines += [f"Attività da fare: {task.title}" for task in tasks if not task.done]
+    for note in case.notes.order_by("-created_at")[:6]:
+        lines.append(f"Nota del {note.created_at:%d/%m}: {note.body[:300]}")
+    if alerts:
+        try:
+            lines.append(facts_as_text(alerts[0])[:2000])
+        except Exception:  # noqa: BLE001
+            logger.exception("Fatti collegati non disponibili per il ticket %s", case.pk)
+    return "\n".join(lines)
+
+
+def _steps_from_text(text, existing):
+    """Righe «- passo» della risposta, senza doppioni rispetto alle attivita' gia' nel ticket."""
+    seen = {title.strip().lower() for title in existing}
+    steps = []
+    for line in text.splitlines():
+        line = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", line).strip().strip("*").strip()
+        if len(line) < 4 or line.endswith(":") or line.lower() in seen:
+            continue
+        seen.add(line.lower())
+        steps.append(line[:255])
+    return steps[:5]
+
+
+def propose_case_steps(case, *, user=None, refresh=False):
+    context = case_context(case)
+    result = _cached_ask("steps", CASE_STEPS_INSTRUCTIONS, context, action="case_next_steps", user=user,
+                         object_type="SecurityRemediationTicket", object_id=case.pk, refresh=refresh)
+    result["steps"] = _steps_from_text(result.get("text", ""), [task.title for task in case.tasks.all()]) if result["ok"] else []
+    return result
+
+
+def draft_resolution(case, *, user=None, refresh=False):
+    context = case_context(case)
+    return _cached_ask("resolution", CASE_RESOLUTION_INSTRUCTIONS, context, action="case_resolution_draft", user=user,
+                       object_type="SecurityRemediationTicket", object_id=case.pk, refresh=refresh)
+
+
+def review_history(review_text, *, user=None, refresh=False):
+    return _cached_ask("review", REVIEW_INSTRUCTIONS, review_text, action="history_review", user=user, object_type="history", refresh=refresh)
 
 
 def daily_brief(items, *, user=None, refresh=False):
