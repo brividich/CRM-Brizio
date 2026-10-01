@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Polling SNMP entro il timeout qcluster**: `django_app/contatori/snmp.py` limita gruppi GET/WALK a 30s, WALK a 10s/256 righe; conserva GET riusciti e rifiuta aggregati WALK incompleti. Nuovi test `django_app/contatori/tests_snmp_timeout.py`; README, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint aggiornati. Nessuna migrazione o cancellazione della coda.
+
 - **Deploy qcluster guidato**: nuova console PowerShell con menu/progresso e controlli per preparazione, configurazione, launcher, watchdog e riavvio; recupero dati separato con anteprima. Guida PDF stampabile in `deployment/docs/Guida_deploy_qcluster.pdf`; file e test elencati nel CHANGELOG root. Nessuna modifica al codice Django o nuova dipendenza.
 
 - **Qcluster - sorveglianza esterna e ripristino controllato**: heartbeat persistente, allarmi anche a coda vuota, email dirette con limite persistente e ripristino, incidenti nel monitoraggio e banner salute/watchdog. Task Windows indipendente ogni minuto, timeout probe, Event Log, pausa manutenzione, riavvio limitato di task fermi senza processi residui. File: `automazioni/{broker,flow_health,cluster_watchdog,models,tests_cluster_watchdog}.py`, comando `automation_health.py`, migration `0027_clusterheartbeat_clusterwatchdogstate.py`, template `pages/pianificati.html`; launcher/watchdog/installer/test PowerShell e documentazione elencati nel CHANGELOG root. TEST distribuito corretto a settings prod. Runbook `docs/QCLUSTER_WATCHDOG.md`; installazione server esplicita, nessuna nuova dipendenza/ACL.

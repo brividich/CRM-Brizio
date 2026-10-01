@@ -8,6 +8,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Polling SNMP entro il timeout qcluster**: `django_app/contatori/snmp.py` limita gruppi GET/WALK a 30s, WALK a 10s/256 righe; conserva GET riusciti e rifiuta aggregati WALK incompleti. Nuovi test `django_app/contatori/tests_snmp_timeout.py`; README, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint aggiornati. Nessuna migrazione o cancellazione della coda.
+
 - **Console qcluster: account completo**: `deployment/scripts/qcluster-console.ps1` risolve il SID del task in DOMINIO\utente prima della richiesta credenziali. Estesi `deployment/tests/test-qcluster-account.ps1` (7 casi); README, guida console, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint aggiornati.
 
 - **Fix account watchdog**: `deployment/scripts/install-qcluster-watchdog.ps1` confronta SID da XML task e credenziali, evitando falsi rifiuti dei nomi dominio abbreviati. Test `deployment/tests/test-qcluster-account.ps1` (5 casi); README, deployment/README_QCLUSTER_CONSOLE.md, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint aggiornati.

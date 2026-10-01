@@ -1,5 +1,14 @@
 # Agent Changelog
 
+## 2026-10-01 - Codex (timeout polling SNMP)
+
+- Evidenza utente: watchdog registra controlli, coda bloccata e worker reincarnati per timeout durante poll_dispositivo. Codice GET sequenziale e WALK generico senza budget complessivo. Correzione in worktree pn-qcluster-account; file controllo sessione/lock/critical assenti, checkpoint/delta letti.
+- File modificati: django_app/contatori/snmp.py; nuovo django_app/contatori/tests_snmp_timeout.py; README, CHANGELOG root/Django, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint. Budget 30s per gruppo condiviso fra GET/WALK; WALK 10s e 256 righe; cancellazione coroutine, errori espliciti, nessun aggregato parziale da WALK interrotto. API precedenti compatibili con nuovo keyword opzionale nelle primitive.
+- Critici: nessun file globale ACL/auth/settings/routing modificato. Impatto operativo polling Contatori richiesto dal blocco qcluster. Nessun DB produzione, task reale, email o dispositivo interrogato; nessuna nuova dipendenza. Backup: nessuno oltre Git; backup server previsto prima della copia del solo snmp.py.
+- Verifiche: 6 nuovi test trasporti sintetici cancellazione GET/WALK, budget condiviso, limite righe e successo; suite Contatori 102 test verdi con DB SQLite esclusivamente sintetico gia disponibile e keepdb, check Django verde. README/CHANGELOG/AGENT_CHANGELOG aggiornati si. Esito fix verificato localmente e da distribuire.
+- Rischi residui: rete e SQL reali da verificare; il limite interrompe colonne lente/grandi con errore dichiarato, non valori incompleti. Arretrato non eliminato; la sua consistenza richiede eventuale audit successivo. Nessuna garanzia che ogni timeout abbia esclusivamente causa SNMP. Altro agente: fermare worker con console2, backup/copia snmp.py, console9 nella stessa sessione; dopo avvio concedere tempo a un job e ricontrollare completamenti/coda, senza ripetere riavvii.
+
+
 ## 2026-10-01 - Codex (console account qualificato)
 
 - Correzione ulteriore dopo evidenza server: finestra credenziali ancora precompilata col nome breve. Critico operativo deployment/scripts/qcluster-console.ps1 ora risolve SID XML in account completo e lo mostra/precompila; risoluzione fallita blocca prima della richiesta. Nessuna modifica ACL/settings/auth portale o task reale.

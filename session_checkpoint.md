@@ -1,5 +1,10 @@
 # Session Checkpoint
 
+Data: 2026-10-01 (timeout polling SNMP)
+
+- Vista/aggiunta voce timeout polling SNMP. GET/WALK con budget e limite righe, 102 test Contatori verdi inclusi 6 nuovi; documenti aggiornati. Fix da applicare sul server; watchdog risulta attivo dai dati utente, arretrato non alterato e salute dopo patch ancora da verificare.
+
+
 Data: 2026-10-01 (console account qualificato)
 
 - Vista/aggiunta voce console account qualificato: prefilling da SID task, 7 test account e 15 scenari console verdi. README/CHANGELOG/docs/registro aggiornati; nessun deploy server.

@@ -1,5 +1,7 @@
 # Backend Modules
 
+Polling SNMP: letture GET/WALK con budget totale di 30s per gruppo; WALK massimo 10s e 256 righe, errore senza aggregati parziali. Due passaggi di specifiche e discovery stampante (20s) hanno un budget di rete complessivo di 80s, lasciando margine al job di 110s; SQL e apparati reali restano da verificare. Nessuna cancellazione o replay della coda.
+
 La console qcluster precompila ora il nome completo DOMINIO\utente risolto dal SID esportato del task, evitando la proposta ambigua del nome breve. Dopo la sostituzione della console occorre riaprirla e ripetere 2 e 9 per ricostruire i controlli di sessione.
 
 Watchdog Windows: installer con confronto SID da Export-ScheduledTask per evitare falsi rifiuti di account di dominio abbreviati da CIM. Test mirato deployment/tests/test-qcluster-account.ps1; identita non risolvibili e SID differenti restano bloccati.
