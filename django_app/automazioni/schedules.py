@@ -201,6 +201,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # Import dei saldi cedolini (ratei ferie/ROL/ex-festività) dal file XLSX
+        # su SharePoint, il primo del mese a mezzanotte: il file a quell'ora
+        # contiene già il mese appena chiuso. No-op se il link non è configurato
+        # (Anagrafica → Importazione cedolini).
+        "name": "import_cedolini_sharepoint",
+        "func": "anagrafica.tasks.run_import_cedolini_sharepoint",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 0 1 * *",        # il 1° di ogni mese alle 00:00
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Retention RunLog automazioni (GDPR): elimina i log oltre la finestra
         # configurata (SiteConfig automazioni_runlog_retention_days, default 90gg).
         "name": "cleanup_run_logs",

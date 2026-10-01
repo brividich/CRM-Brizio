@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 49
+**Totale automazioni disponibili:** 50
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -53,6 +53,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni lun, alle 07:00
 - **Task eseguito:** `anagrafica.tasks.run_idoneita_digest`
 - **Cosa fa:** Digest "idoneità alla mansione" (non idonei / con riserve) per RSPP / medico competente / HR. Fail-safe: no-op se non sono configurati i destinatari (SiteConfig idoneita_reminder_emails).
+
+### `import_cedolini_sharepoint`
+
+- **Quando gira:** il giorno 1 del mese, alle 00:00
+- **Task eseguito:** `anagrafica.tasks.run_import_cedolini_sharepoint`
+- **Cosa fa:** Import dei saldi cedolini (ratei ferie/ROL/ex-festività) dal file XLSX su SharePoint, il primo del mese a mezzanotte: il file a quell'ora contiene già il mese appena chiuso. No-op se il link non è configurato (Anagrafica → Importazione cedolini).
 
 ### `intake_referti_sanitari`
 
