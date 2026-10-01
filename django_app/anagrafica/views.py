@@ -8825,6 +8825,31 @@ def cedolini_import(request):
         messages.error(request, "Accesso riservato agli amministratori.")
         return redirect("anagrafica:dipendenti_list")
 
+    from .services import cedolini_sharepoint
+
+    azione = request.POST.get("azione", "") if request.method == "POST" else ""
+    if azione == "sharepoint_link":
+        url = (request.POST.get("sharepoint_url") or "").strip()
+        if url and not url.lower().startswith("https://"):
+            messages.error(request, "Il link SharePoint deve iniziare con https://.")
+        else:
+            cedolini_sharepoint.set_share_url(url)
+            messages.success(request, "Link SharePoint salvato." if url else "Link SharePoint rimosso.")
+        return redirect("anagrafica:cedolini_import")
+    if azione == "sharepoint_import":
+        try:
+            imp = cedolini_sharepoint.importa_da_sharepoint(user=request.user)
+            messages.success(
+                request,
+                f"Importazione da SharePoint completata ({imp.data_competenza:%m/%Y}): {imp.righe_ok} saldi salvati"
+                f"{f', {imp.righe_errore} errori' if imp.righe_errore else ''}"
+                f"{f', {imp.righe_non_trovate} CF non in anagrafica' if imp.righe_non_trovate else ''}.",
+            )
+        except Exception as exc:
+            logger.exception("Errore importazione cedolini da SharePoint")
+            messages.error(request, f"Errore durante l'importazione da SharePoint: {exc}")
+        return redirect("anagrafica:cedolini_import")
+
     if request.method == "POST":
         file_obj = request.FILES.get("file_xlsx")
         if not file_obj:
@@ -8852,6 +8877,7 @@ def cedolini_import(request):
     return render(request, "anagrafica/pages/cedolini_import.html", {
         "importazioni": importazioni,
         "is_admin": is_admin,
+        "sharepoint_url": cedolini_sharepoint.get_share_url(),
     })
 
 
