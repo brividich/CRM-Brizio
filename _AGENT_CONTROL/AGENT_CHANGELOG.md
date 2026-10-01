@@ -1,5 +1,12 @@
 # Agent Changelog
 
+## 2026-10-01 - Codex (pubblicazione branch discovery SNMP)
+
+- Push esplicitamente richiesto dall'utente. Worktree pn-snmp-discovery pulito, branch feature/snmp-discovery-timeout; origin verificato, nessun upstream iniziale. Commit applicativo 1d5770c9 e precedenti 227cf77e/cf42c91f.
+- Operazione prevista: push ordinario con upstream su origin/feature/snmp-discovery-timeout e verifica hash remoto. Nessun merge in release/prod o deploy.
+- File modificati in questa sessione: questo registro e session_checkpoint.md. Nessun file critico o backup aggiuntivo. README/CHANGELOG invariati (gia aggiornati con la funzionalita); AGENT_CHANGELOG/checkpoint aggiornati. Test applicativi non ripetuti: 138 verdi nella sessione precedente; diff check e stato Git verificati.
+- Esito implementazione: pronta e verificata; esito push riportato nella risposta finale dopo il confronto hash. Rischi residui e note altro agente: integrare nella release, applicare migrazioni 0014/0015, aggiornare statici e riavviare web/worker; collaudare SQL Server e rete reale.
+
 ## 2026-10-01 - Codex (discovery background e catalogo community)
 
 - Richiesta autorizzata dall'utente dopo confronto LibreNMS/Zabbix; implementazione nel worktree C:/Dev/pn-snmp-discovery, branch feature/snmp-discovery-timeout, base cf42c91f. Stato iniziale pulito; checkpoint/delta letti, file ACTIVE_SESSION/WORK_LOCKS/CRITICAL_FILES/CRITICAL_CHANGE_REQUESTS assenti come nella sessione precedente. Checkout condiviso preservato; solo screenshot QA temporanei nella directory ignorata .playwright-mcp del tool.

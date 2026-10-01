@@ -1,5 +1,9 @@
 # Session Checkpoint
 
+Data: 2026-10-01 (pubblicazione branch discovery SNMP)
+
+- Vista/aggiunta voce pubblicazione branch: push richiesto verso origin/feature/snmp-discovery-timeout, codice 1d5770c9; nessun merge release o deploy. Solo registro/checkpoint modificati, test precedenti 138 verdi. Esito remoto verificato prima del riepilogo finale.
+
 Data: 2026-10-01 (discovery background e catalogo community)
 
 - Vista/aggiunta voce background/catalogo: CommunitySNMP cifrate e riutilizzabili nel polling, DiscoverySNMP persistente con blocchi 16 host, revisione contro duplicati, stato HTMX e Interrompi/Riprendi. Migrazioni 0014/0015. Worktree pn-snmp-discovery, branch feature/snmp-discovery-timeout.
