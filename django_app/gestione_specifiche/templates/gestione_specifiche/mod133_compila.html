@@ -157,15 +157,38 @@ document.addEventListener('change', function(e){
 /* ---- Copilota AI (fetch JSON, sola proposta) ---------------------------- */
 function gsAiBox(html){ var b=document.getElementById('gs-ai-out'); b.style.display='block'; b.innerHTML=html; }
 function gsEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/* Storico: MOD.133 approvato della revisione precedente e argomenti ricorrenti dello stesso cliente (senza AI). */
+function gsAiStorico(st){
+  if(!st) return '';
+  var html='';
+  if(st.precedente && st.precedente.righe && st.precedente.righe.length){
+    html+='<div class="gs-eyebrow" style="margin-bottom:6px;">Già approvato nella revisione precedente ('+gsEsc(st.precedente.codice)+' rev. '+gsEsc(st.precedente.revisione||'-')+')</div>';
+    st.precedente.righe.forEach(function(r){
+      html+='<div style="font-size:11.5px;color:#5b6b82;margin-bottom:3px;"><strong>§'+gsEsc(r.rif_paragrafo||'—')+'</strong> '+gsEsc(r.argomento)+
+        (r.rif_doc_cn?' · doc CN '+gsEsc(r.rif_doc_cn):'')+(r.tag_processo?' <span class="gs-tag">'+gsEsc(r.tag_processo)+'</span>':'')+'</div>';
+    });
+    html+='<div style="height:9px;"></div>';
+  }
+  if(st.argomenti_cliente && st.argomenti_cliente.length){
+    html+='<div class="gs-eyebrow" style="margin-bottom:6px;">Ricorrenti nei MOD.133 approvati dello stesso cliente</div>';
+    st.argomenti_cliente.forEach(function(a){
+      html+='<div style="font-size:11.5px;color:#5b6b82;margin-bottom:3px;">'+gsEsc(a.argomento)+' · '+a.volte+' volte'+
+        (a.rif_doc_cn?' · doc CN '+gsEsc(a.rif_doc_cn):'')+(a.tag_processo?' <span class="gs-tag">'+gsEsc(a.tag_processo)+'</span>':'')+'</div>';
+    });
+    html+='<div style="height:9px;"></div>';
+  }
+  return html;
+}
 function gsAiRighe(){
   var btn=document.querySelector('[data-ai-righe]'); if(btn){btn.disabled=true; btn.classList.add('btn-loading');}
   gsAiBox('<div style="font-size:12.5px;color:#5b6b82;">Analisi del PDF in corso…</div>');
   fetch("{% url 'gestione_specifiche:ai_precompila_mod133' spec.pk %}", {headers:{'X-Requested-With':'XMLHttpRequest'}})
     .then(function(r){return r.json();}).then(function(d){
       if(btn){btn.disabled=false; btn.classList.remove('btn-loading');}
-      if(!d.ai_disponibile && (!d.righe||!d.righe.length)){ gsAiBox('<div style="font-size:12.5px;color:#a86a14;">Copilota AI non disponibile o PDF non leggibile. Compila le righe manualmente.</div>'); return; }
-      if(!d.righe||!d.righe.length){ gsAiBox('<div style="font-size:12.5px;color:#5b6b82;">Nessuna riga proposta dall\'AI.</div>'); return; }
-      var html='<div class="gs-eyebrow" style="margin-bottom:8px;">'+d.righe.length+' righe proposte · rivedi e inserisci manualmente</div>';
+      var storico=gsAiStorico(d.storico);
+      if(!d.ai_disponibile && (!d.righe||!d.righe.length)){ gsAiBox(storico+'<div style="font-size:12.5px;color:#a86a14;">Copilota AI non disponibile o PDF non leggibile. Compila le righe manualmente.</div>'); return; }
+      if(!d.righe||!d.righe.length){ gsAiBox(storico+'<div style="font-size:12.5px;color:#5b6b82;">Nessuna riga proposta dall\'AI.</div>'); return; }
+      var html=storico+'<div class="gs-eyebrow" style="margin-bottom:8px;">'+d.righe.length+' righe proposte · rivedi e inserisci manualmente</div>';
       d.righe.forEach(function(r){
         html+='<div style="background:#fff;border:1px solid #dce7f3;border-radius:11px;padding:10px 12px;margin-bottom:8px;">'+
           '<div style="font-size:12.5px;color:#1c2b42;"><strong>'+gsEsc(r.rif_paragrafo||'—')+'</strong> '+gsEsc(r.argomento||'')+'</div>'+
@@ -197,7 +220,7 @@ function gsAiDiff(){
     .then(function(r){return r.json();}).then(function(d){
       if(btn){btn.disabled=false; btn.classList.remove('btn-loading');}
       var camb=d.cambiamenti||[];
-      var html='';
+      var html=gsAiStorico(d.storico);
       if(camb.length){
         var col={aggiunto:'is-green',modificato:'is-blue',rimosso:''};
         html+='<div class="gs-eyebrow" style="margin-bottom:8px;">'+camb.length+' cambiamenti rilevati tra le revisioni</div>';

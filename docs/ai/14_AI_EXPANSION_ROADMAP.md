@@ -109,17 +109,9 @@ modello da 14B la sola istruzione nel prompt non basta.
 - ✅ **7.2 DPI / valutazione richieste** — `dpi/ai_richiesta.py`: ultima consegna rispetto alla vita
   utile, consegne dell'anno contro la media del reparto, doppioni, giacenza, motivi di rifiuto usati;
   proposta approvare / chiedere informazioni / rifiutare con messaggio. Al modello niente nomi.
-- ⏳ **7.3 Kickoff** (proposta) — da `Project`, `KickoffMeeting`, `MeetingIssue`, `MeetingDecision`,
-  `VRFRiskAssessment`, `GanttBaseline`: preparando un kickoff, rischi e punti emersi in commesse simili
-  (stesso cliente / categoria), fasi che in passato sono slittate rispetto alla baseline e di quanto,
-  azioni rimaste aperte. Apprendimento: punti all'ordine del giorno e rischi tenuti o scartati.
-- ⏳ **7.4 SGI / audit** (proposta) — da `AuditEsito`, `AzioneCorrettivaAudit`, `AuditVerificaEfficacia`,
-  `RilevazioneKpi`: bozza della `AuditPreparazione` (audit precedenti del processo, CAR e loro
-  efficacia, carenze da approfondire) e domande di checklist sui punti deboli ricorrenti.
-  Coordinarsi con i branch SGI in corso prima di toccare `sistema_gestione`.
-- ⏳ **7.5 Gestione specifiche** (proposta) — il copilota MOD.133 esiste gia': aggiungere come base
-  il MOD.133 approvato della revisione precedente della stessa specifica e le righe/TAG di specifiche
-  dello stesso cliente; apprendimento confrontando le righe proposte con quelle approvate.
+- ✅ **7.3 Kickoff** — `tasks/ai_kickoff.py`: nella pagina incontro «Dalle commesse simili» (stesso cliente/P/N/descrizione): problemi emersi e come sono finiti, problemi ricorrenti in piu' commesse, attivita' slittate rispetto alla baseline Gantt, rischi VRF alti, azioni rimaste aperte; l'AI propone i punti all'ordine del giorno, «Aggiungi» li mette in agenda con `source=ai`. Impara alla chiusura della minuta (punti tenuti / scartati).
+- ✅ **7.4 SGI / audit** — `sistema_gestione/ai_preparazione.py`: nella preparazione MT CN 12 «Prepara dagli audit precedenti» (NC/OFI sugli stessi processi, CAR e verifiche di efficacia, rilievi ripetuti, KPI sotto target) + bozza AI dei quattro campi da copiare nei campi vuoti. Impara alla registrazione della preparazione. Modifiche additive (file nuovi + include), per non urtare i branch SGI in corso.
+- ✅ **7.5 Gestione specifiche** — `gestione_specifiche/ai_storico.py`: il copilota MOD.133 parte dal MOD.133 approvato della revisione precedente, dagli argomenti ricorrenti e dai TAG dello stesso cliente (mostrati anche senza AI). Impara alla chiusura della compilazione. Corretto: testo del PDF e storico ora nel contesto (prima il prompt veniva tagliato a 2000 caratteri e l'AI leggeva solo l'inizio della specifica).
 
 ## Bloccato (solo dopo DPIA)
 - **Timbri/Presenze**: dato cronologico/sensibile. Nessun tool finché non c'è il sign-off privacy.

@@ -1,0 +1,38 @@
+<section class="rc-card sg-section" id="sg-ai">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div>
+      <h2 style="margin:0;">Prepara dagli audit precedenti</h2>
+      <p style="margin:4px 0 0;font-size:.85rem;color:var(--text-mid);">Raccoglie NC e OFI emerse sugli stessi processi, le CAR e se hanno funzionato, i KPI sotto target; l'AI locale scrive la bozza dei quattro campi. La copi tu nel modulo, la correggi e registri.</p>
+    </div>
+    <button type="button" class="btn" id="sg-ai-btn" data-url="{{ ai_prep_url }}">Prepara con l'AI</button>
+  </div>
+  <div id="sg-ai-out"></div>
+</section>
+<script>
+(function () {
+  var btn = document.getElementById('sg-ai-btn');
+  var out = document.getElementById('sg-ai-out');
+  if (!btn || !out) return;
+  function csrf() { var i = document.querySelector('input[name=csrfmiddlewaretoken]'); return i ? i.value : ''; }
+  btn.addEventListener('click', function () {
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Sto leggendo gli audit precedenti…';
+    fetch(btn.getAttribute('data-url'), {method: 'POST', headers: {'X-CSRFToken': csrf()}, credentials: 'same-origin'})
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(function (html) { out.innerHTML = html; })
+      .catch(function () { out.innerHTML = '<p>Copilota non disponibile, riprova tra poco.</p>'; })
+      .finally(function () { btn.disabled = false; btn.textContent = label; });
+  });
+  out.addEventListener('click', function (event) {
+    var copia = event.target.closest('[data-sg-copia]');
+    if (!copia) return;
+    var bozza = JSON.parse(document.getElementById('sg-ai-bozza').textContent || '{}');
+    Object.keys(bozza).forEach(function (campo) {
+      var el = document.querySelector('[name=' + campo + ']');
+      if (el && bozza[campo] && !el.value.trim()) el.value = bozza[campo];
+    });
+    copia.textContent = 'Copiata nei campi vuoti: rileggi e registra';
+  });
+})();
+</script>

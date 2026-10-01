@@ -136,6 +136,7 @@ _ROUTE_BINDINGS = {
     "tasks:project_meeting_send_invite": "tasks.kickoff.edit",
     "tasks:project_meeting_send_minute": "tasks.kickoff.edit",
     "tasks:project_meeting_minute_close": "tasks.kickoff.edit",
+    "tasks:project_meeting_ai_punti": "tasks.kickoff.edit",
     "tasks:project_meeting_minute_reopen": "tasks.kickoff.edit",
     # Commenti, sottotask, allegati e agenda incontri
     "tasks:add_comment": "tasks.kickoff.comment",

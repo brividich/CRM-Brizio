@@ -463,6 +463,9 @@ def mod133_chiudi(request, pk: int):
         mod.compilatore = request.user
     mod.data_chiusura_compilazione = timezone.now()
     mod.save(update_fields=["compilatore", "data_chiusura_compilazione", "updated_at"])
+    from .ai_storico import registra_esito_compilazione
+
+    registra_esito_compilazione(spec, user=request.user)
     vai_approva = request.POST.get("vai") == "approva"
     # #3: se l'auto-approvazione e' attiva, "Procedi con l'approvazione" approva a nome dell'MSO.
     if vai_approva and _auto_approva_se_configurata(request, spec, mod):
@@ -806,6 +809,9 @@ def ai_precompila_mod133(request, pk: int):
     spec = get_object_or_404(Specifica, pk=pk)
     proposta = proponi_righe_mod133(spec)
     proposta["nota"] = "Proposta AI: rivedi e inserisci manualmente. Nessuna riga è stata salvata."
+    from .ai_storico import registra_proposta_righe
+
+    registra_proposta_righe(spec, proposta["righe"], user=request.user)
     return JsonResponse(proposta)
 
 
@@ -814,8 +820,11 @@ def ai_proponi_tag(request, pk: int):
     """Proposta AI del TAG di processo (JSON). NON salva nulla."""
     spec = get_object_or_404(Specifica, pk=pk)
     testo = f"{spec.titolo}\n{spec.note}\n{spec.cliente}"
-    proposta = proponi_tag(testo)
+    proposta = proponi_tag(testo, spec=spec)
     proposta["nota"] = "Proposta AI: applica il TAG manualmente se corretto. Nessuna modifica salvata."
+    from .ai_storico import registra_proposta_tag
+
+    registra_proposta_tag(spec, proposta["tag"], user=request.user)
     return JsonResponse(proposta)
 
 
@@ -828,6 +837,9 @@ def ai_diff_mod133(request, pk: int):
     """
     spec = get_object_or_404(Specifica, pk=pk)
     proposta = proponi_righe_da_diff(spec)
+    from .ai_storico import registra_proposta_righe
+
+    registra_proposta_righe(spec, proposta["righe"], user=request.user)
     proposta.setdefault(
         "nota",
         "Proposta AI dal confronto con la revisione precedente: rivedi e inserisci manualmente. "

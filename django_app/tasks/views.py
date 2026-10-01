@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.views import redirect_to_login
 from django.db import DatabaseError, connections, transaction
 from django.db.models import Count, F, Max, Min, OuterRef, Prefetch, Q, Subquery
-from django.http import JsonResponse
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -7376,6 +7376,9 @@ def project_meeting_minute_close(request, project_id: int, meeting_id: int):
     meeting.minuta_chiusa_at = timezone.now()
     meeting.minuta_chiusa_da = request.user
     meeting.save(update_fields=["minuta_chiusa_at", "minuta_chiusa_da", "updated_at"])
+    from .ai_kickoff import registra_esito
+
+    registra_esito(meeting, user=request.user)
     log_action(
         request, "kickoff_meeting_minute_close", "tasks",
         {"meeting_id": meeting.pk, "meeting_numero": meeting.numero, "project_id": project_id},
@@ -8114,6 +8117,24 @@ def project_meeting_task_from_step(request, project_id: int, meeting_id: int):
 
 @require_POST
 @task_permissions_required("tasks_create")
+def project_meeting_ai_punti(request, project_id: int, meeting_id: int):
+    """Copilota: commesse simili e punti proposti per l'ordine del giorno. Non cambia l'agenda."""
+    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not _can_manage_project(request, project):
+        return HttpResponseForbidden("Non hai i permessi per preparare questo incontro.")
+    from .ai_kickoff import proponi_punti
+
+    proposta = proponi_punti(project, meeting, user=request.user)
+    log_action(request, "kickoff_ai_punti", "tasks", {
+        "meeting_id": meeting.pk, "simili": len(proposta["simili"]), "punti": len(proposta["punti"]),
+        "ai_disponibile": proposta["ai_disponibile"],
+    })
+    return render(request, "tasks/_meeting_ai_punti.html", {"p": proposta, "project": project, "meeting": meeting})
+
+
+@require_POST
+@task_permissions_required("tasks_create")
 def project_meeting_agenda_item_add(request, project_id: int, meeting_id: int):
     """Aggiunge un punto all'ordine del giorno mentre l'incontro e' in corso.
 
@@ -8158,8 +8179,8 @@ def project_meeting_agenda_item_add(request, project_id: int, meeting_id: int):
         "issue_id": None,
         "action_id": None,
         # Marcatura d'origine: nella minuta un punto aperto in riunione resta
-        # distinguibile da uno convocato.
-        "source": "live",
+        # distinguibile da uno convocato; «ai» = proposto dal copilota e aggiunto da chi gestisce.
+        "source": "ai" if request.POST.get("source") == "ai" else "live",
         "locked": False,
         "responsabile_id": responsabile.pk if responsabile else None,
         "responsabile_label": responsabile_label,

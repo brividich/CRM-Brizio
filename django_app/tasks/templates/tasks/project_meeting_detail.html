@@ -312,6 +312,20 @@
       </div>
     {% endif %}
 
+    {# Copilota: le commesse simili e i punti da portare all'incontro. #}
+    {% if can_manage and not meeting.is_svolto %}
+      <div class="md-card full" id="kai-card">
+        <div class="md-card-head">
+          <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
+          <span>Dalle commesse simili</span>
+          <button type="button" class="mf-btn-sm primary" style="margin-left:auto;" id="kai-btn" data-url="{% url 'tasks:project_meeting_ai_punti' project.id meeting.id %}" data-add-url="{% url 'tasks:project_meeting_agenda_item_add' project.id meeting.id %}">Prepara con l'AI</button>
+        </div>
+        <div class="md-card-body">
+          <div id="kai-out"><p class="kai-riga">Cerca le commesse con lo stesso cliente, lo stesso P/N o simili: problemi emersi, attività slittate, rischi VRF alti, azioni rimaste aperte. L'AI propone i punti da portare all'incontro; li aggiungi tu.</p></div>
+        </div>
+      </div>
+    {% endif %}
+
     {# Proposte di punti: chi è convocato propone, chi gestisce decide. #}
     {% if is_convocato or meeting_proposals %}
       <div class="md-card full">
@@ -556,8 +570,47 @@
 
   updateAgendaCounter();
 
+  /* ── Copilota: commesse simili e punti proposti ──────────────────────── */
+  const kaiBtn = document.getElementById('kai-btn');
+  const kaiOut = document.getElementById('kai-out');
+  if (kaiBtn && kaiOut) {
+    kaiBtn.addEventListener('click', function () {
+      const label = kaiBtn.textContent;
+      kaiBtn.disabled = true;
+      kaiBtn.textContent = 'Sto leggendo le commesse simili…';
+      fetch(kaiBtn.dataset.url, { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, credentials: 'same-origin' })
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+        .then(html => { kaiOut.innerHTML = html; })
+        .catch(() => { kaiOut.innerHTML = '<p class="kai-riga">Copilota non disponibile, riprova tra poco.</p>'; })
+        .finally(() => { kaiBtn.disabled = false; kaiBtn.textContent = label; });
+    });
+    kaiOut.addEventListener('click', function (event) {
+      const add = event.target.closest('[data-kai-add]');
+      if (!add) return;
+      const body = new FormData();
+      body.append('titolo', add.dataset.titolo || '');
+      body.append('nota', add.dataset.nota || '');
+      body.append('durata_minuti', add.dataset.durata || '');
+      body.append('source', 'ai');
+      add.disabled = true;
+      fetch(kaiBtn.dataset.addUrl, { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: body, credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(data => { add.textContent = data.ok ? 'Aggiunto: lo vedi ricaricando la pagina' : 'Non aggiunto'; if (!data.ok) add.disabled = false; })
+        .catch(() => { add.textContent = 'Non aggiunto'; add.disabled = false; });
+    });
+  }
+
 })();
 </script>
+<style>
+  #kai-card .kai { display:grid; gap:14px; }
+  #kai-card .kai-h { font-weight:700; font-size:.8rem; text-transform:uppercase; letter-spacing:.03em; color:var(--text-mid); margin-bottom:6px; }
+  #kai-card .kai-caso { padding:8px 10px; border-left:3px solid var(--border); background:var(--bg); border-radius:6px; margin-bottom:6px; font-size:.85rem; }
+  #kai-card .kai-riga { font-size:.82rem; color:var(--text-mid); margin-top:3px; }
+  #kai-card .kai-foot { font-size:.72rem; color:var(--text-light); }
+  #kai-card .md-action-row { align-items:center; gap:10px; }
+  #kai-card .kai-chip { display:inline-block; padding:1px 8px; margin-left:4px; border-radius:99px; font-size:.7rem; font-weight:600; background:var(--bg); border:1px solid var(--border); color:var(--text-mid); }
+</style>
 {% if can_manage %}
 {{ project_tasks_json|json_script:"project-tasks-data" }}
 <script>

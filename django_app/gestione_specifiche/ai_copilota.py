@@ -89,22 +89,45 @@ def _parse_righe_json(raw: str) -> list[dict]:
     return [_sanitizza_riga(d) for d in data if isinstance(d, dict)][:50]
 
 
+def _storico(spec) -> tuple[dict, str]:
+    """Storico della specifica (revisione precedente, stesso cliente) e il suo testo per l'AI. Fail-safe."""
+    try:
+        from .ai_storico import storico_spec, storico_testo
+
+        storico = storico_spec(spec)
+        return storico, storico_testo(storico)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("gs copilota storico non disponibile: %s", exc)
+        return {}, ""
+
+
+_REGOLA_STORICO = (
+    " Se nel contesto c'è il MOD.133 APPROVATO della revisione precedente, riprendi le sue righe ancora valide "
+    "(stessi argomenti, documenti CN e TAG) e cambia solo ciò che il testo nuovo modifica; usa gli argomenti "
+    "ricorrenti dello stesso cliente e segui le correzioni delle persone indicate nel contesto."
+)
+
+
 def proponi_righe_mod133(spec: Specifica) -> dict:
-    """Proposta (NON salvata) di righe MOD.133 dal PDF della specifica."""
+    """Proposta (NON salvata) di righe MOD.133 dal PDF della specifica, partendo dallo storico."""
     testo = _estrai_testo_pdf(spec.allegato)
+    storico, storico_txt = _storico(spec)
+    # Il testo lungo va nel contesto: il prompt e' tagliato a OLLAMA_CHAT_MAX_PROMPT_CHARS (2000).
     prompt = (
-        "Sei un assistente qualità. Dal testo della specifica tecnica proponi le "
+        "Sei un assistente qualità. Dal testo della specifica tecnica nel contesto proponi le "
         "righe del MOD.133 (flow-down requisiti) come SOLO JSON, lista di oggetti con "
-        "chiavi: rif_paragrafo, argomento, descrizione_modifiche, descrizione_impatto, "
+        "chiavi: rif_paragrafo, argomento, descrizione_modifiche, descrizione_impatto, rif_doc_cn, "
         "tag_processo, impatto_documenti (bool), impatto_operativo (bool). "
-        "Nessun testo fuori dal JSON.\n\nTESTO:\n" + (testo[:6000] if testo else "(PDF non disponibile)")
+        "Nessun testo fuori dal JSON." + _REGOLA_STORICO
     )
-    raw = _chiama_ai(prompt, runtime_context="Pre-compilazione MOD.133: proposta, l'umano valida e firma.")
+    contesto = (storico_txt + "\n\n" if storico_txt else "") + "TESTO DELLA SPECIFICA:\n" + (testo[:8000] if testo else "(PDF non disponibile)")
+    raw = _chiama_ai(prompt, runtime_context=contesto)
     return {
         "proposto": True,
         "fonte": "ai",
         "ai_disponibile": bool(raw),
         "righe": _parse_righe_json(raw),
+        "storico": storico,
     }
 
 
@@ -194,16 +217,16 @@ def proponi_righe_da_diff(spec_nuova: Specifica, spec_precedente: Specifica | No
                 "nota": "Nessun cambiamento testuale rilevato tra le due revisioni (o PDF non leggibili)."}
 
     blocchi = "\n".join(f"[{c['tipo'].upper()}] {c['testo']}" for c in cambiamenti)
+    storico, storico_txt = _storico(spec_nuova)
     prompt = (
-        "Sei un assistente qualità. Confronta la revisione PRECEDENTE e la NUOVA di una "
-        "specifica tecnica: qui sotto ci sono SOLO i blocchi cambiati (AGGIUNTO/MODIFICATO/"
-        "RIMOSSO). Proponi le righe del MOD.133 (flow-down dei NUOVI requisiti) come SOLO "
-        "JSON, lista di oggetti con chiavi: rif_paragrafo, argomento, descrizione_modifiche, "
-        "descrizione_impatto, tag_processo, impatto_documenti (bool), impatto_operativo (bool). "
-        "Concentrati sui cambiamenti reali; nessun testo fuori dal JSON.\n\nCAMBIAMENTI:\n"
-        + blocchi[:6000]
+        "Sei un assistente qualità. Nel contesto ci sono SOLO i blocchi cambiati (AGGIUNTO/MODIFICATO/"
+        "RIMOSSO) tra la revisione PRECEDENTE e la NUOVA di una specifica tecnica. Proponi le righe del "
+        "MOD.133 (flow-down dei NUOVI requisiti) come SOLO JSON, lista di oggetti con chiavi: rif_paragrafo, "
+        "argomento, descrizione_modifiche, descrizione_impatto, rif_doc_cn, tag_processo, impatto_documenti (bool), "
+        "impatto_operativo (bool). Concentrati sui cambiamenti reali; nessun testo fuori dal JSON." + _REGOLA_STORICO
     )
-    raw = _chiama_ai(prompt, runtime_context="Diff MOD.133 rev precedente↔nuova: proposta, l'umano valida e firma.")
+    contesto = (storico_txt + "\n\n" if storico_txt else "") + "CAMBIAMENTI:\n" + blocchi[:8000]
+    raw = _chiama_ai(prompt, runtime_context=contesto)
     return {
         "proposto": True,
         "fonte": "ai_diff",
@@ -211,18 +234,20 @@ def proponi_righe_da_diff(spec_nuova: Specifica, spec_precedente: Specifica | No
         "righe": _parse_righe_json(raw),
         "cambiamenti": cambiamenti,
         "n_cambiamenti": len(cambiamenti),
+        "storico": storico,
     }
 
 
 # --- 2. Classificazione TAG di processo (proposta) ---------------------------
 
-def proponi_tag(testo: str) -> dict:
+def proponi_tag(testo: str, spec: Specifica | None = None) -> dict:
+    storico_txt = _storico(spec)[1] if spec is not None else ""
     prompt = (
         "Classifica con UN SOLO tag di processo (parola in snake_case, minuscolo) "
-        "il seguente contenuto di una specifica/comunicazione. Rispondi col solo tag.\n\n"
-        + (testo or "")[:2000]
+        "il contenuto della specifica/comunicazione nel contesto. Se è simile a specifiche dello stesso "
+        "cliente, preferisci i TAG già usati per loro. Rispondi col solo tag."
     )
-    raw = _chiama_ai(prompt, runtime_context="Classificazione TAG: proposta, l'umano valida.")
+    raw = _chiama_ai(prompt, runtime_context=((storico_txt + "\n\n") if storico_txt else "") + "CONTENUTO:\n" + (testo or "")[:2000])
     tag = ""
     if raw:
         token = re.split(r"\s+", raw.strip())[0] if raw.strip() else ""

@@ -61,7 +61,7 @@ def _vuoto(value) -> bool:
     return _norm(value) in ("", ())
 
 
-def _breve(value, limite=160):
+def _breve(value, limite=600):
     if isinstance(value, (list, tuple)):
         return [str(v)[:limite] for v in list(value)[:10]]
     if isinstance(value, (bool, int, float)) or value is None:
