@@ -231,6 +231,7 @@ def _nc_post(request, nc, perm):
             nc_service.riapri(nc, user=request.user, motivo=_testo(request, "motivo", 300))
             messages.success(request, f"{nc.protocollo} riaperta.")
         _log(request, nc, action)
+        _impara(nc, action, request.user)
         return torna
 
     if not perm["modifica"]:
@@ -312,10 +313,43 @@ def _nc_post(request, nc, perm):
         if not nc.is_chiusa:
             nc_service.ricalcola_stato(nc)
     _log(request, nc, action)
+    _impara(nc, action, request.user)
     if action in ("contenimento", "analisi", "azione_nuova", "azione_aggiorna") or (
             action == "verifica" and not nc.is_chiusa):
         messages.success(request, "Salvato.")
     return torna
+
+
+def _impara(nc, action: str, user) -> None:
+    """Registra cosa e' stato salvato rispetto alla proposta del copilota (se ce n'era una)."""
+    try:
+        from . import ai_nc
+
+        if action == "analisi":
+            ai_nc.registra_esito_analisi(nc, user)
+        elif action in ("verifica", "chiudi"):
+            ai_nc.registra_esito_azioni(nc, user)
+    except Exception:  # noqa: BLE001 - l'apprendimento non deve mai bloccare il salvataggio
+        logger.exception("Apprendimento copilota NC non registrato")
+
+
+@login_required
+def nc_copilota(request, pk: int):
+    """Proposta AI di analisi e azioni, con le NC simili e il loro esito. Non salva nulla."""
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    nc = get_object_or_404(NC.objects.select_related("precedente"), pk=pk)
+    perm = _permessi(request, nc)
+    if not perm["modifica"]:
+        return HttpResponseForbidden("Permesso negato")
+    from .ai_nc import proponi_analisi_nc
+
+    proposta = proponi_analisi_nc(nc, user=request.user)
+    log_action(request, "nc_copilota", "anomalie", {
+        "nc": nc.protocollo, "simili": len(proposta["simili"]), "azioni": len(proposta["azioni"]),
+        "ai_disponibile": proposta["ai_disponibile"],
+    })
+    return render(request, "anomalie/partials/nc_copilota.html", {"p": proposta, "nc": nc})
 
 
 def _responsabile(request, nc) -> tuple[int | None, str]:

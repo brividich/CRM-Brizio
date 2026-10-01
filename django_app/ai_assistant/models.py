@@ -119,6 +119,54 @@ class AiChatFeedback(models.Model):
         return f"[{self.rating}] {(self.prompt or '')[:60]}"
 
 
+class AiProposta(models.Model):
+    """Una proposta dei copiloti AI e cosa ne ha fatto la persona: e' cosi' che l'AI «impara».
+
+    Il modello non viene riaddestrato: alla proposta successiva il copilota legge qui come sono
+    state trattate le sue proposte precedenti (accettate, corrette, scartate) e lo mette nel
+    contesto. Si salvano solo valori strutturati e brevi (etichette, codici, esiti), mai testi
+    personali o documenti.
+    """
+
+    IN_ATTESA = "in_attesa"
+    ACCETTATA = "accettata"
+    MODIFICATA = "modificata"
+    SCARTATA = "scartata"
+    SUPERATA = "superata"
+    ESITI = [
+        (IN_ATTESA, "In attesa"),
+        (ACCETTATA, "Accettata"),
+        (MODIFICATA, "Corretta"),
+        (SCARTATA, "Scartata"),
+        (SUPERATA, "Superata da una nuova proposta"),
+    ]
+
+    modulo = models.CharField(max_length=40, db_index=True)
+    azione = models.CharField(max_length=60, db_index=True)
+    oggetto_ref = models.CharField(max_length=80, db_index=True)
+    proposta = models.JSONField(default=dict, blank=True)
+    decisione = models.JSONField(default=dict, blank=True)
+    campi_corretti = models.JSONField(default=list, blank=True)
+    esito = models.CharField(max_length=12, choices=ESITI, default=IN_ATTESA, db_index=True)
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="ai_proposte",
+    )
+    deciso_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="ai_proposte_decise",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    deciso_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["modulo", "azione", "esito"])]
+        verbose_name = "proposta AI"
+        verbose_name_plural = "proposte AI"
+
+    def __str__(self) -> str:
+        return f"{self.modulo}.{self.azione} {self.oggetto_ref} [{self.esito}]"
+
+
 class AiKnowledgeEntry(models.Model):
     question = models.CharField(max_length=500)
     answer = models.TextField()

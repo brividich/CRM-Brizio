@@ -852,7 +852,16 @@ def gestione_detail(request, pk: int):
         else richiesta.categoria.vita_utile_giorni
     )
 
+    storico_ai = None
+    if richiesta.stato == StatoRichiesta.INVIATA:
+        from .ai_richiesta import storico_richiesta
+
+        try:
+            storico_ai = storico_richiesta(richiesta)
+        except Exception:  # noqa: BLE001 - lo storico e' un aiuto, la pagina deve aprirsi comunque
+            logger.exception("Storico richiesta DPI non disponibile")
     return render(request, "dpi/pages/gestione_detail.html", {
+        "storico_ai": storico_ai,
         "richiesta": richiesta,
         "commenti": commenti,
         "consegna": consegna,
@@ -891,6 +900,9 @@ def approva_richiesta(request, pk: int):
             is_interno=False,
         )
     log_action(request, "approva", "dpi", f"Approvata richiesta DPI {richiesta.numero}")
+    from .ai_richiesta import registra_esito
+
+    registra_esito(richiesta, "approvare", user=request.user)
     if richiesta.richiedente_legacy_id:
         from core.notifiche import invia_notifica
         from django.urls import reverse
@@ -928,6 +940,9 @@ def rifiuta_richiesta(request, pk: int):
             is_interno=False,
         )
     log_action(request, "rifiuta", "dpi", f"Rifiutata richiesta DPI {richiesta.numero}")
+    from .ai_richiesta import registra_esito
+
+    registra_esito(richiesta, "rifiutare", user=request.user)
     if richiesta.richiedente_legacy_id:
         from core.notifiche import invia_notifica
         from django.urls import reverse
@@ -1397,6 +1412,24 @@ def api_categorie(request):
         for c in cats
     ]
     return JsonResponse({"categorie": data})
+
+
+@require_POST
+@login_required
+def copilota_richiesta(request, pk: int):
+    """Proposta dell'AI su una richiesta (approvare / chiedere informazioni / rifiutare). Non cambia nulla."""
+    richiesta = get_object_or_404(
+        RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi"), pk=pk,
+    )
+    if not _can_approve(request, richiesta):
+        return HttpResponse("Accesso non autorizzato.", status=403)
+    from .ai_richiesta import proponi_valutazione
+
+    proposta = proponi_valutazione(richiesta, user=request.user)
+    log_action(request, "dpi_copilota_richiesta", "dpi", {
+        "richiesta": richiesta.numero, "decisione": proposta["decisione"], "ai_disponibile": proposta["ai_disponibile"],
+    })
+    return render(request, "dpi/components/_copilota_richiesta.html", {"p": proposta})
 
 
 @require_POST

@@ -1,0 +1,19 @@
+{% if p.ai_disponibile and p.decisione %}
+  <div class="dpi-ai-esito dpi-ai-{{ p.decisione }}">
+    <div><strong>Proposta: {{ p.decisione_label }}</strong>{% if p.motivazione %} — {{ p.motivazione }}{% endif %}</div>
+    {% if p.messaggio %}
+      <div class="dpi-ai-msg">«{{ p.messaggio }}»</div>
+      <button type="button" class="dpi-btn dpi-btn-gray" data-dpi-ai-copia="{% if p.decisione == 'approvare' %}nota-approva{% elif p.decisione == 'rifiutare' %}mot-rifiuto{% else %}testo-comm{% endif %}" data-testo="{{ p.messaggio }}">
+        Copia nel campo {% if p.decisione == 'approvare' %}«Nota» dell'approvazione{% elif p.decisione == 'rifiutare' %}«Motivazione rifiuto»{% else %}«Aggiungi nota»{% endif %}
+      </button>
+    {% endif %}
+  </div>
+{% elif p.ai_disponibile %}
+  <div class="dpi-ai-note">L'AI non ha dato una proposta chiara: decidi dai fatti qui sopra.</div>
+{% else %}
+  <div class="dpi-ai-note">L'AI locale non ha risposto: i fatti qui sopra bastano per decidere.</div>
+{% endif %}
+<div class="dpi-ai-note">
+  {% if p.apprendimento.totale %}Impara da voi: delle {{ p.apprendimento.totale }} richieste valutate finora, nel {{ p.apprendimento.percentuale_accettate }}% dei casi il gestore ha deciso come proposto.{% else %}Impara da voi: ogni decisione del gestore guida le prossime proposte.{% endif %}
+  La decisione resta tua; all'AI non arrivano nomi né firme.
+</div>

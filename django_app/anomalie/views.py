@@ -3867,6 +3867,14 @@ def api_anomalie_qualita(request):
             from anomalie import nc_service
             nc_service.aggancia_a_nc(scheda, row)
         try:
+            from ai_assistant.apprendimento import registra_decisione
+
+            registra_decisione(modulo="anomalie", azione="classificazione", oggetto_ref=local_id, user=request.user, decisione={
+                "tipo_difetto": scheda.tipo_difetto.nome if scheda.tipo_difetto_id else "", "gravita": scheda.gravita,
+            })
+        except Exception:  # noqa: BLE001
+            logger.exception("Decisione classificazione non registrata")
+        try:
             log_action(request, "anomalia_scheda_qualita", "anomalie", {
                 "local_id": local_id, "op_id": op_id,
                 "nc": scheda.nc.protocollo if scheda.nc_id else None,
@@ -3917,6 +3925,14 @@ def api_anomalie_qualita_copilota(request):
         tipi_difetto=list(AnomaliaTipoDifetto.objects.filter(attivo=True).values_list("id", "nome")),
         gravita=AnomaliaSchedaQualita.Gravita.choices,
     )
+    try:
+        from ai_assistant.apprendimento import registra_proposta
+
+        tipo = AnomaliaTipoDifetto.objects.filter(pk=proposta.get("tipo_difetto")).values_list("nome", flat=True).first()
+        registra_proposta(modulo="anomalie", azione="classificazione", oggetto_ref=local_id,
+                          proposta={"tipo_difetto": tipo or "", "gravita": proposta.get("gravita") or ""}, user=request.user)
+    except Exception:  # noqa: BLE001 - l'apprendimento non blocca la proposta
+        logger.exception("Proposta classificazione non registrata")
     return JsonResponse({"success": True, "proposta": proposta})
 
 

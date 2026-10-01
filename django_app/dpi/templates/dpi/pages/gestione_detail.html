@@ -104,6 +104,29 @@ body.theme-dark .dpi-badge-APPROVATA { background:rgba(146,64,14,.25); color:#fc
 body.theme-dark .dpi-badge-CONSEGNATA{ background:rgba(6,95,70,.25);   color:#6ee7b7; }
 body.theme-dark .dpi-badge-RIFIUTATA { background:rgba(153,27,27,.2);  color:#fca5a5; }
 body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94a3b8; }
+
+/* Copilota: storico e proposta */
+.dpi-ai-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; color:#0f172a; }
+.dpi-ai-fatti { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.dpi-ai-fatti li { font-size:13px; color:#374151; padding:7px 10px; border-left:4px solid #cbd5e1; background:#f8fafc; border-radius:6px; }
+.dpi-ai-fatti li.dpi-ai-warn { border-left-color:#f59e0b; }
+.dpi-ai-fatti li.dpi-ai-ok { border-left-color:#16a34a; }
+.dpi-ai-esito { margin-top:12px; padding:12px 14px; border-radius:10px; border:1px solid #e2e8f0; font-size:13px; color:#0f172a; display:grid; gap:8px; justify-items:start; }
+.dpi-ai-esito.dpi-ai-approvare { border-left:4px solid #16a34a; }
+.dpi-ai-esito.dpi-ai-chiedere_info { border-left:4px solid #f59e0b; }
+.dpi-ai-esito.dpi-ai-rifiutare { border-left:4px solid #dc2626; }
+.dpi-ai-msg { font-style:italic; color:#475569; }
+.dpi-ai-note { margin-top:10px; font-size:11px; color:#64748b; }
+body.theme-dark .dpi-ai-head, body.theme-dark .dpi-ai-esito { color:var(--text); }
+body.theme-dark .dpi-ai-fatti li { background:var(--surface-alt); color:var(--text-mid); border-left-color:var(--border); }
+body.theme-dark .dpi-ai-fatti li.dpi-ai-warn { border-left-color:#f59e0b; }
+body.theme-dark .dpi-ai-fatti li.dpi-ai-ok { border-left-color:#16a34a; }
+body.theme-dark .dpi-ai-esito { border-color:var(--border); }
+body.theme-dark .dpi-ai-esito.dpi-ai-approvare { border-left-color:#16a34a; }
+body.theme-dark .dpi-ai-esito.dpi-ai-chiedere_info { border-left-color:#f59e0b; }
+body.theme-dark .dpi-ai-esito.dpi-ai-rifiutare { border-left-color:#dc2626; }
+body.theme-dark .dpi-ai-msg { color:var(--text-mid); }
+body.theme-dark .dpi-ai-note { color:var(--text-light); }
 </style>
 {% endblock %}
 
@@ -200,6 +223,21 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
           {% if consegna.firma_immagine %}<dt>Firma</dt><dd><img class="dpi-signature-preview" src="{{ consegna.firma_immagine }}" alt="Firma consegna"></dd>{% endif %}
           {% if consegna.note_consegna %}<dt>Note</dt><dd>{{ consegna.note_consegna }}</dd>{% endif %}
         </dl>
+      </div>
+      {% endif %}
+
+      {% if storico_ai %}
+      <!-- Copilota: storico e proposta -->
+      <div class="dpi-card dpi-ai">
+        <div class="dpi-ai-head">
+          <div style="font-size:15px; font-weight:700;">Prima di decidere</div>
+          <button type="button" class="dpi-btn dpi-btn-blue" id="dpi-ai-btn" data-url="{% url 'dpi:copilota_richiesta' richiesta.pk %}">Proponi con l'AI</button>
+        </div>
+        <ul class="dpi-ai-fatti">
+          {% for s in storico_ai.segnali %}<li class="dpi-ai-{{ s.livello }}">{{ s.testo }}</li>{% empty %}<li>Nessuno storico per questa richiesta.</li>{% endfor %}
+          {% if storico_ai.motivi_rifiuto %}<li>Motivi usati per rifiutare richieste simili: {% for m in storico_ai.motivi_rifiuto %}«{{ m }}»{% if not forloop.last %}, {% endif %}{% endfor %}</li>{% endif %}
+        </ul>
+        <div id="dpi-ai-out"></div>
       </div>
       {% endif %}
 
@@ -328,6 +366,33 @@ body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94
   </div>
 </div>
 
+<script>
+(function () {
+  var btn = document.getElementById('dpi-ai-btn');
+  var out = document.getElementById('dpi-ai-out');
+  if (!btn || !out) return;
+  btn.addEventListener('click', function () {
+    var label = btn.textContent;
+    var token = document.querySelector('input[name=csrfmiddlewaretoken]');
+    btn.disabled = true;
+    btn.textContent = 'Sto leggendo lo storico…';
+    fetch(btn.getAttribute('data-url'), {method: 'POST', headers: {'X-CSRFToken': token ? token.value : ''}, credentials: 'same-origin'})
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(function (html) { out.innerHTML = html; })
+      .catch(function () { out.innerHTML = '<div class="dpi-ai-note">Copilota non disponibile, riprova tra poco.</div>'; })
+      .finally(function () { btn.disabled = false; btn.textContent = label; });
+  });
+  out.addEventListener('click', function (event) {
+    var copia = event.target.closest('[data-dpi-ai-copia]');
+    if (!copia) return;
+    var campo = document.getElementById(copia.getAttribute('data-dpi-ai-copia'));
+    if (!campo) return;
+    campo.value = copia.getAttribute('data-testo');
+    campo.scrollIntoView({behavior: 'smooth', block: 'center'});
+    campo.focus();
+  });
+})();
+</script>
 {% if vita_utile_consegna %}
 <script>
 (function() {
