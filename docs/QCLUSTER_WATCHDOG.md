@@ -1,5 +1,11 @@
 # Sorveglianza qcluster
 
+Per il deploy usare la [console PowerShell a menu](../deployment/README_QCLUSTER_CONSOLE.md)
+oppure seguire la [guida PDF stampabile](../deployment/docs/Guida_deploy_qcluster.pdf).
+Menu 2 prima del deploy, wizard abituale per distribuire/attivare il pacchetto,
+menu 9 dopo il deploy. Backup SQL e manutenzione del portale restano manuali;
+il recupero Assenze/broker e disponibile separatamente nelle opzioni 7/8.
+
 Il watchdog gira **fuori da django-q**, tramite un task Windows ogni minuto.
 Controlla il segnale della sentinella anche quando la coda è vuota. Il broker
 salva il segnale nel database ogni 15 secondi; dopo 120 secondi senza un worker

@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from security.models import SecurityAlert, SecurityAlertActionLog, SecurityAlertRuleConfig, SecurityAlertSuppressionRule, SecurityEventRecord, Severity, Status
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
+from security.services.auto_resolution import resolve_backup_recovered, resolve_vulnerability_cleared
 from security.services.evidence_builder import build_evidence_container
 from security.services.notifications import notify_alert_created
 from security.services.ticketing import create_backup_ticket, create_or_update_remediation_ticket_for_vulnerability_finding
@@ -109,6 +110,9 @@ def _evaluate_vulnerability(event):
         _mark_rule_triggered(exposed_rule)
     else:
         event.decision_trace = {"decision": "kpi_only", "reason": "Vulnerability not both critical and exposed"}
+        resolved = resolve_vulnerability_cleared(event)
+        if resolved:
+            event.decision_trace["auto_resolved_alerts"] = resolved
         event.save(update_fields=["decision_trace"])
 
 
@@ -236,6 +240,9 @@ def _evaluate_backup(event):
     status = event.payload.get("status", "").lower()
     if status == "completed":
         event.decision_trace = {"decision": "kpi_only", "rule": "Backup completed => KPI only"}
+        resolved = resolve_backup_recovered(event)
+        if resolved:
+            event.decision_trace["auto_resolved_alerts"] = resolved
         event.save(update_fields=["decision_trace"])
         return
     if status == "unknown":

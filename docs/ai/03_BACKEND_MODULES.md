@@ -6,6 +6,14 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 
 ## App Django (custom)
 
+Console deploy qcluster: `deployment/scripts/qcluster-console.ps1` (PS 5.1),
+menu 2 preparazione e menu 9 completamento dopo il wizard. Non distribuisce ZIP,
+non fa backup SQL/IIS, non termina worker automaticamente. Verifica task/env/root,
+processi residui e identita current; flag di sessione e interruzione ai fallimenti.
+Recupero dati separato 7/8, probe salute limitate. PDF versionato sotto deployment/docs,
+generatore ReportLab esistente in tools/build_qcluster_deploy_guide.py; istruzioni
+deployment/README_QCLUSTER_CONSOLE.md. Nessun nuovo requisito o cambiamento Setup Wizard.
+
 Qcluster: `FlowBroker.set_stat` persiste il heartbeat della sentinella in
 `ClusterHeartbeat` (0027) ogni 15s e ai cambi di stato. `automation_health`
 resta read-only salvo `--notify`: watchdog indipendente, stato/limite email

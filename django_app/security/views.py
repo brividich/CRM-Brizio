@@ -3,7 +3,7 @@ from pathlib import Path
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import Http404, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -160,6 +160,7 @@ def alerts_list(request):
         "status_choices": Status.choices,
         "filters": request.GET,
         "query_without_severity": _querystring_without(request, "severity"),
+        "open_cases": _open_cases(),
     }
     return render(request, "security/alerts_list.html", context)
 
@@ -174,7 +175,7 @@ def _querystring_without(request, key):
 def alert_detail(request, pk):
     alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event"), pk=pk)
     alert.short_dedup_hash = alert.dedup_hash[:12] if alert.dedup_hash else ""
-    ticket = alert.tickets.order_by("-updated_at").first()
+    ticket = _alert_case(alert)
     evidence = alert.evidence_containers.prefetch_related("items").order_by("-created_at")
     occurrences = SecurityEventRecord.objects.filter(dedup_hash=alert.dedup_hash).select_related("report").order_by("-occurred_at")[:25]
     action_logs = alert.action_logs.select_related("ticket").order_by("-created_at")[:25]
@@ -182,6 +183,7 @@ def alert_detail(request, pk):
     context = {
         "alert": alert,
         "ticket": ticket,
+        "open_cases": _open_cases(),
         "evidence": evidence,
         "occurrences": occurrences,
         "action_logs": action_logs,
@@ -229,32 +231,7 @@ def alert_action(request, pk, action):
     return redirect("security:alert_detail", pk=alert.pk)
 
 
-TICKET_OPEN_STATUSES = [Status.NEW, Status.OPEN, Status.IN_PROGRESS]
-
-
-@ensure_csrf_cookie
-def tickets_list(request):
-    tickets = SecurityRemediationTicket.objects.select_related("source", "alert").order_by("-updated_at")
-    status = request.GET.get("status", "")
-    if status == "active":
-        tickets = tickets.filter(status__in=TICKET_OPEN_STATUSES)
-    elif status in {s[0] for s in Status.choices}:
-        tickets = tickets.filter(status=status)
-    severity = request.GET.get("severity", "")
-    if severity in {s[0] for s in Severity.choices}:
-        tickets = tickets.filter(severity=severity)
-    total = tickets.count()
-    return render(
-        request,
-        "security/tickets_list.html",
-        {
-            "tickets": tickets[:200],
-            "total": total,
-            "filters": request.GET,
-            "status_choices": Status.choices,
-            "severity_choices": Severity.choices,
-        },
-    )
+from .views_cases import tickets_list  # noqa: E402,F401 - i ticket sono ora "casi" gestibili
 
 
 def kpis_page(request):
@@ -937,11 +914,25 @@ def _reports_for_inbox_item(item):
     return list(reports.filter(mailbox_message=item)[:5])
 
 
+def _alert_case(alert):
+    """Ticket più recente dell'alert: come alert principale o tra i collegati."""
+    return (
+        SecurityRemediationTicket.objects.filter(Q(alert=alert) | Q(linked_alerts=alert))
+        .distinct()
+        .order_by("-updated_at")
+        .first()
+    )
+
+
+def _open_cases():
+    return SecurityRemediationTicket.objects.filter(status__in=[Status.NEW, Status.OPEN, Status.IN_PROGRESS]).order_by("-updated_at")[:100]
+
+
 def _decorate_alerts(alerts):
     decorated = []
     for alert in alerts:
         alert.short_dedup_hash = alert.dedup_hash[:12] if alert.dedup_hash else ""
-        alert.linked_ticket = alert.tickets.order_by("-updated_at").first()
+        alert.linked_ticket = _alert_case(alert)
         alert.last_seen_at = alert.event.occurred_at if alert.event_id else alert.updated_at
         decorated.append(alert)
     return decorated

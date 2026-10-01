@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-10-01 (PDF e console PowerShell deploy qcluster)
+
+- Vista/aggiunta voce AGENT_CHANGELOG PDF e console PowerShell deploy qcluster. Nuovo deployment/scripts/qcluster-console.ps1, guida PDF 6 pagine deployment/docs/Guida_deploy_qcluster.pdf e generatore ReportLab; README/CHANGELOG/docs/registro aggiornati nel worktree dedicato, base b37952f6.
+- Menu 2 prepara, wizard esterno distribuisce/attiva, menu 9 completa; recupero 7/8 separato. Preflight, progresso reale per passi, backup launcher/task, controlli processi/current, stop agli errori, sonde limitate senza kill worker. Nessun nuovo requisito, modifica Django/ACL/settings/Setup Wizard o deploy live.
+- 15 scenari sintetici e prova nativa exit/failure/timeout verdi; PDF renderizzato e verificato visivamente su tutte le 6 pagine. Junction test rimossa. Nessun backup produzione o invio reale; pubblicazione in release/prod e allineamento locale nell'ambito gia autorizzato. Attivazione server e consegna email restano da collaudare.
+
 Data: 2026-10-01 (merge e allineamento release locale/remota)
 
 - Vista/aggiunta voce AGENT_CHANGELOG merge e allineamento release locale/remota. Watchdog gia presente in entrambe; uniti c9317e0b locale (SOC/AGENTS) ed e97faac0 remoto (Assenze) nel worktree isolato, senza conflitti e preservando il codice sorgente delle due linee.

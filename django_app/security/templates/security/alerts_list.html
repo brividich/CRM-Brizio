@@ -44,12 +44,34 @@
     <h2>Alert</h2>
     <span class="sec-badge">{% if total > alerts|length %}Mostrati {{ alerts|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
   </div>
+  <form id="sec-bulk-form" method="post" action="{% url 'security:alerts_bulk' %}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <div class="sec-bulk-bar" id="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong id="sec-bulk-n">0</strong> selezionati</span>
+    <select name="action" id="sec-bulk-action" aria-label="Azione sugli alert selezionati">
+      <option value="acknowledge">Prendi in carico</option>
+      <option value="open_case">Apri un ticket con i selezionati</option>
+      {% if open_cases %}<option value="add_to_case">Aggiungi a un ticket aperto</option>{% endif %}
+      <option value="close">Chiudi</option>
+      <option value="false_positive">Segna falso positivo</option>
+    </select>
+    <input type="text" name="title" id="sec-bulk-title" placeholder="Titolo del ticket (facoltativo)" hidden>
+    {% if open_cases %}
+      <select name="case_id" id="sec-bulk-case" aria-label="Ticket di destinazione" hidden>
+        {% for case in open_cases %}<option value="{{ case.pk }}">#{{ case.pk }} · {{ case.title|truncatechars:60 }}</option>{% endfor %}
+      </select>
+    {% endif %}
+    <input type="text" name="reason" id="sec-bulk-reason" placeholder="Motivo (facoltativo)">
+    <button type="submit" class="sec-button-primary" id="sec-bulk-go" disabled>Applica</button>
+  </div>
   <div class="sec-table-wrap">
     <table class="sec-table">
-      <thead><tr><th>Severità</th><th>Alert</th><th>Sorgente</th><th>Asset</th><th>Stato</th><th>Ultimo evento</th><th>Responsabile</th><th>Ticket</th></tr></thead>
+      <thead><tr><th class="sec-check-col"><input type="checkbox" id="sec-bulk-all" aria-label="Seleziona tutti"></th><th>Severità</th><th>Alert</th><th>Sorgente</th><th>Asset</th><th>Stato</th><th>Ultimo evento</th><th>Responsabile</th><th>Ticket</th></tr></thead>
       <tbody>
       {% for alert in alerts %}
         <tr>
+          <td class="sec-check-col"><input type="checkbox" name="alert_ids" value="{{ alert.pk }}" class="sec-bulk-item" aria-label="Seleziona {{ alert.title }}"></td>
           <td><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></td>
           <td class="sec-title-cell"><a href="{% url 'security:alert_detail' alert.pk %}"><strong>{{ alert.title }}</strong></a><small>{{ alert.short_dedup_hash }}{% if alert.evidence_count %} · evidenze {{ alert.evidence_count }}{% endif %}</small></td>
           <td>{{ alert.source.name }}</td>
@@ -57,13 +79,50 @@
           <td><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></td>
           <td class="sec-nowrap">{{ alert.last_seen_at|date:"d M, H:i" }}</td>
           <td>{{ alert.owner|default:"—" }}</td>
-          <td>{% if alert.linked_ticket %}<span class="sec-badge {{ alert.linked_ticket.status }}">{{ alert.linked_ticket.status|ui_label }}</span>{% else %}<span class="sec-muted">—</span>{% endif %}</td>
+          <td class="sec-nowrap">{% if alert.linked_ticket %}<a href="{% url 'security:case_detail' alert.linked_ticket.pk %}"><span class="sec-badge {{ alert.linked_ticket.status }}">#{{ alert.linked_ticket.pk }} {{ alert.linked_ticket.status|ui_label }}</span></a>{% else %}<span class="sec-muted">—</span>{% endif %}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="8" class="sec-empty">Nessun alert corrisponde ai filtri.</td></tr>
+        <tr><td colspan="9" class="sec-empty">Nessun alert corrisponde ai filtri.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  </form>
 </section>
+<script>
+(function () {
+  var form = document.getElementById("sec-bulk-form");
+  if (!form) return;
+  var items = form.querySelectorAll(".sec-bulk-item");
+  var all = document.getElementById("sec-bulk-all");
+  var count = document.getElementById("sec-bulk-n");
+  var go = document.getElementById("sec-bulk-go");
+  var action = document.getElementById("sec-bulk-action");
+  var title = document.getElementById("sec-bulk-title");
+  var caseSel = document.getElementById("sec-bulk-case");
+  function refresh() {
+    var n = form.querySelectorAll(".sec-bulk-item:checked").length;
+    count.textContent = n;
+    go.disabled = n === 0;
+    form.classList.toggle("has-selection", n > 0);
+    all.checked = n > 0 && n === items.length;
+    all.indeterminate = n > 0 && n < items.length;
+  }
+  var reason = document.getElementById("sec-bulk-reason");
+  function syncAction() {
+    title.hidden = action.value !== "open_case";
+    if (caseSel) caseSel.hidden = action.value !== "add_to_case";
+    reason.hidden = action.value === "open_case" || action.value === "add_to_case";
+  }
+  // «Seleziona tutti» prende solo le righe visibili (la ricerca della tabella nasconde le altre).
+  all.addEventListener("change", function () {
+    items.forEach(function (box) { if (box.offsetParent !== null || !all.checked) box.checked = all.checked; });
+    refresh();
+  });
+  items.forEach(function (box) { box.addEventListener("change", refresh); });
+  action.addEventListener("change", syncAction);
+  syncAction();
+  refresh();
+})();
+</script>
 {% endblock %}

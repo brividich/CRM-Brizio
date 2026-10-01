@@ -30,6 +30,27 @@ Due meccanismi impediscono le raffiche sullo stesso problema:
 - Il **cooldown** (minuti configurati sulla regola) impedisce che la stessa regola scatti di nuovo subito dopo aver generato un alert.
 - La **deduplica** garantisce, a livello database, un solo alert **attivo** per `(sorgente, dedup_hash)`. Lo stesso finding che arriva due volte non crea due alert. Un alert chiuso non blocca la riapertura se il problema si ripresenta.
 
-## Ticket collegati
+## Chiusura automatica quando il problema rientra
 
-Un alert può creare (o alimentare) un **ticket di remediation**. Più alert correlati — per esempio più CVE dello stesso prodotto — confluiscono in un unico ticket secondo la strategia di aggregazione configurata (vedi [Ticketing nella guida configurazione](/soc/docs/08-configuration-guide/)).
+Se un report successivo dimostra che l'anomalia non c'è più, l'alert si chiude da solo come **Risolto**, con il motivo e il riferimento al report che lo prova (voce «Risolto automaticamente» nella timeline). Le regole sono prudenti: nel dubbio l'alert resta aperto.
+
+| Alert | Si chiude quando |
+| --- | --- |
+| Backup fallito | Lo stesso job sullo stesso dispositivo viene completato **dopo** il fallimento |
+| CVE critica esposta | La stessa CVE sullo stesso prodotto viene riletta con **0 dispositivi esposti** (l'assenza dal report non basta) |
+| Sorgente silenziosa | La sorgente torna a inviare report nei tempi attesi |
+
+Picchi VPN, segnalazioni WatchGuard, spoofing del mittente e dati illeggibili non hanno un segnale di rientro affidabile: restano da chiudere a mano. Per disattivare la chiusura automatica impostare `SECURITY_AUTO_RESOLVE_ENABLED` a `false` nelle impostazioni del Security Center.
+
+## Ticket
+
+Il **ticket** è il caso su cui si lavora: raccoglie uno o più alert e porta responsabile, stato, attività spuntabili, note di lavoro e una timeline unica (azioni sul ticket, sugli alert collegati e note).
+
+- **Automatici**: CVE critiche (aggregate per prodotto) e backup falliti aprono o alimentano un ticket da soli.
+- **A mano**: dalla scheda di un alert («Apri ticket») o dalla coda alert, selezionando più alert e scegliendo «Apri un ticket con i selezionati» o «Aggiungi a un ticket aperto». Gli alert nuovi inseriti in un ticket passano a «Preso in carico».
+- **Stati**: Aperto → In lavorazione (automatico quando si assegna un responsabile o si aggiunge un'attività) → Risolto / Chiuso / Falso positivo. Per chiudere serve l'esito; si può chiudere insieme anche gli alert ancora aperti.
+- **Chiusura automatica**: quando tutti gli alert del ticket sono rientrati, il ticket si chiude da solo come Risolto. Se ha ancora attività da fare resta aperto e la timeline lo segnala.
+
+## Azioni massive
+
+Nella coda alert si selezionano più alert (casella in testa alla riga, o «seleziona tutti») e si applica: presa in carico, chiusura, falso positivo, apertura di un ticket o aggiunta a un ticket aperto. Gli alert in uno stato non compatibile (per esempio già chiusi) vengono saltati e il conteggio lo dice.
