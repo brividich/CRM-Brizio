@@ -1,5 +1,7 @@
 <div align="center">
 
+La console qcluster precompila ora il nome completo DOMINIO\utente risolto dal SID esportato del task, evitando la proposta ambigua del nome breve. Dopo la sostituzione della console occorre riaprirla e ripetere 2 e 9 per ricostruire i controlli di sessione.
+
 Nota account watchdog: l'installer confronta i SID Windows esportati dal task, anche quando Windows mostra solo il nome breve. Nella console indicare le credenziali come `DOMINIO\utente`.
 
 <img src="django_app/core/static/core/img/logo_novicrom.png" alt="NOVICROM HUB" height="96">

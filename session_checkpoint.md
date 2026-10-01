@@ -1,5 +1,10 @@
 # Session Checkpoint
 
+Data: 2026-10-01 (console account qualificato)
+
+- Vista/aggiunta voce console account qualificato: prefilling da SID task, 7 test account e 15 scenari console verdi. README/CHANGELOG/docs/registro aggiornati; nessun deploy server.
+
+
 Data: 2026-10-01 (fix identita account watchdog)
 
 - Vista/aggiunta voce fix identita account watchdog; SID task e credenziali sostituiscono confronto nomi. Installer e 5 test mirati, README/CHANGELOG/docs/registro aggiornati. Nessun deploy o task reale modificato; aggiornamento installer server e collaudo a cura operatore.

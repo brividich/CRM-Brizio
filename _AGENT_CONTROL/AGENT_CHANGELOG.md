@@ -1,5 +1,12 @@
 # Agent Changelog
 
+## 2026-10-01 - Codex (console account qualificato)
+
+- Correzione ulteriore dopo evidenza server: finestra credenziali ancora precompilata col nome breve. Critico operativo deployment/scripts/qcluster-console.ps1 ora risolve SID XML in account completo e lo mostra/precompila; risoluzione fallita blocca prima della richiesta. Nessuna modifica ACL/settings/auth portale o task reale.
+- File: console, deployment/tests/test-qcluster-account.ps1, README, CHANGELOG, deployment/README_QCLUSTER_CONSOLE.md, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint. Documenti obbligatori aggiornati si. Backup: solo fixture sintetiche, server richiede backup console prima della copia.
+- Verifiche: 7 casi account e 15 scenari console verdi, parser e diff check. Worktree pn-qcluster-account pulito in apertura; file lock/critical assenti. Esito fix verificato localmente, pubblicazione release autorizzata; server ancora da aggiornare. Rischi residui: password, salute coda e consegna email da collaudare. Altro agente: riaprire console aggiornata e ripetere 2/9, nessun nuovo deploy necessario.
+
+
 ## 2026-10-01 - Codex (fix identita account watchdog)
 
 - Diagnosi da output utente: SID task e sessione coincidono, CIM mostra nome breve; confronto testuale installer respinge erroneamente credenziali qualificate. Worktree isolato pn-qcluster-account, base 54a5837; file controllo sessione/lock/critical assenti, checkpoint/delta letti, nessun WIP tracciato.

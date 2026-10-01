@@ -1,5 +1,7 @@
 # Backend Modules
 
+La console qcluster precompila ora il nome completo DOMINIO\utente risolto dal SID esportato del task, evitando la proposta ambigua del nome breve. Dopo la sostituzione della console occorre riaprirla e ripetere 2 e 9 per ricostruire i controlli di sessione.
+
 Watchdog Windows: installer con confronto SID da Export-ScheduledTask per evitare falsi rifiuti di account di dominio abbreviati da CIM. Test mirato deployment/tests/test-qcluster-account.ps1; identita non risolvibili e SID differenti restano bloccati.
 
 Django app catalog and backend/module-specific operating notes moved out of root CLAUDE.md.

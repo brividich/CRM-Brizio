@@ -42,3 +42,14 @@ $failed=$false
 try { & $code } catch { $failed=$_.Exception.Message -like '*non interattivo*' }
 if (-not $failed) { throw 'Interactive account accepted' }
 Write-Host 'PASS: interactive logon rejected'
+
+. (Join-Path $PSScriptRoot '..\scripts\qcluster-console.ps1') -Environment test
+$script:testSid=$identity.User.Value
+$resolved=Get-QCWorkerAccount
+if ($resolved -ne $identity.Name) { throw 'Console did not resolve canonical account from task SID' }
+Write-Host 'PASS: console resolves full account from task SID'
+$script:testSid='S-1-invalid'
+$failed=$false
+try { Get-QCWorkerAccount } catch { $failed=$_.Exception.Message -like '*Impossibile risolvere*' }
+if (-not $failed) { throw 'Console accepted unresolvable account' }
+Write-Host 'PASS: console refuses unresolvable task account'

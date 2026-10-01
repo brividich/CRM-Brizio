@@ -231,6 +231,20 @@ function Update-QCLauncher {
     $script:QC.LauncherUpdated=$true
     Write-Host "Launcher verificato: $destination"
 }
+function Get-QCWorkerAccount {
+    [xml]$taskXml = Export-ScheduledTask -TaskPath '\PortaleNovicrom\' -TaskName (Get-QCTaskName)
+    $identity = [string]$taskXml.Task.Principals.Principal.UserId
+    try {
+        $sid = if ($identity -match '^S-1-') {
+            [Security.Principal.SecurityIdentifier]::new($identity)
+        } else {
+            [Security.Principal.NTAccount]::new($identity).Translate([Security.Principal.SecurityIdentifier])
+        }
+        $sid.Translate([Security.Principal.NTAccount]).Value
+    } catch {
+        throw 'Impossibile risolvere l account del task: verificare la connessione al dominio.'
+    }
+}
 function Install-QCWatchdog {
     Assert-QCVerified
     Set-QCMaintenance
@@ -238,7 +252,9 @@ function Install-QCWatchdog {
     $worker = Get-QCTask
     $options = @{Environment=$script:QC.Environment;PortaleRoot=$script:QC.Root}
     if ([string]$worker.Principal.LogonType -eq 'Password') {
-        $options.Credential = Get-Credential -UserName $worker.Principal.UserId -Message 'Account del task worker'
+        $account = Get-QCWorkerAccount
+        Write-Host "Account del worker verificato: $account"
+        $options.Credential = Get-Credential -UserName $account -Message "Password per $account (mantenere il nome completo)"
         if (-not $options.Credential) { throw 'Credenziali annullate.' }
     }
     & (Get-QCPath 'current\deployment\scripts\install-qcluster-watchdog.ps1') @options
