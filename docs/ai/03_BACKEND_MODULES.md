@@ -1,5 +1,7 @@
 # Backend Modules
 
+Watchdog Windows: installer con confronto SID da Export-ScheduledTask per evitare falsi rifiuti di account di dominio abbreviati da CIM. Test mirato deployment/tests/test-qcluster-account.ps1; identita non risolvibili e SID differenti restano bloccati.
+
 Django app catalog and backend/module-specific operating notes moved out of root CLAUDE.md.
 
 Important: Do not read all docs automatically. Open only the files relevant to the current task.

@@ -1,5 +1,14 @@
 # Agent Changelog
 
+## 2026-10-01 - Codex (fix identita account watchdog)
+
+- Diagnosi da output utente: SID task e sessione coincidono, CIM mostra nome breve; confronto testuale installer respinge erroneamente credenziali qualificate. Worktree isolato pn-qcluster-account, base 54a5837; file controllo sessione/lock/critical assenti, checkpoint/delta letti, nessun WIP tracciato.
+- Critico operativo modificato: deployment/scripts/install-qcluster-watchdog.ps1, solo controllo credenziali prima delle mutazioni. Legge SID autorevole da XML esportato, risolve credenziali e confronta SID; fail closed su identita non risolvibile/diversa. Nessuna ACL, autenticazione portale, settings, routing o middleware modificati.
+- File: installer, nuovo deployment/tests/test-qcluster-account.ps1; README, CHANGELOG, deployment/README_QCLUSTER_CONSOLE.md, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint. README/CHANGELOG/AGENT_CHANGELOG aggiornati: si.
+- Check: parser e 5 casi guardia credenziali verdi (alias stessa identita, SID diverso, risoluzione fallita, credenziali assenti, Interactive). Nessun task reale registrato, password reale letta, DB/email/deploy o dipendenza modificati. Backup locali: nessuno (Git); procedura server richiede backup installer prima della copia.
+- Esito: fix pronto per pubblicazione release/prod gia autorizzata e sostituzione singolo installer sul server. Rischi residui: verifica credenziali da Windows alla registrazione, salute coda e consegna email da collaudare; non dichiarare produzione risolta. Altro agente: console gia aperta carica installer da current a ogni opzione 5; usare nome dominio esplicito, poi 6 dopo successo.
+
+
 ## 2026-10-01 - Codex (PDF e console PowerShell deploy qcluster)
 
 - Richiesta: produrre PDF della procedura e script PowerShell con menu/opzioni/avanzamento. Worktree isolato C:/Dev/pn-qcluster-watchdog, feature/qcluster-watchdog, base b37952f6; scope release/merge mantenuto dalla conversazione. Checkpoint/delta letti, file controllo sessione/lock/critical assenti. Checkout condiviso con sola cartella parser pdf non tracciata, preservata.

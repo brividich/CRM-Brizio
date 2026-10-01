@@ -1,5 +1,10 @@
 # Session Checkpoint
 
+Data: 2026-10-01 (fix identita account watchdog)
+
+- Vista/aggiunta voce fix identita account watchdog; SID task e credenziali sostituiscono confronto nomi. Installer e 5 test mirati, README/CHANGELOG/docs/registro aggiornati. Nessun deploy o task reale modificato; aggiornamento installer server e collaudo a cura operatore.
+
+
 Data: 2026-10-01 (PDF e console PowerShell deploy qcluster)
 
 - Vista/aggiunta voce AGENT_CHANGELOG PDF e console PowerShell deploy qcluster. Nuovo deployment/scripts/qcluster-console.ps1, guida PDF 6 pagine deployment/docs/Guida_deploy_qcluster.pdf e generatore ReportLab; README/CHANGELOG/docs/registro aggiornati nel worktree dedicato, base b37952f6.

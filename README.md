@@ -1,5 +1,7 @@
 <div align="center">
 
+Nota account watchdog: l'installer confronta i SID Windows esportati dal task, anche quando Windows mostra solo il nome breve. Nella console indicare le credenziali come `DOMINIO\utente`.
+
 <img src="django_app/core/static/core/img/logo_novicrom.png" alt="NOVICROM HUB" height="96">
 
 # NOVICROM HUB

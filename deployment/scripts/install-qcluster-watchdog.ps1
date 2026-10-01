@@ -16,8 +16,24 @@ $destDir = Join-Path $PortaleRoot 'shared\scripts'
 $dest = Join-Path $destDir 'watch_qcluster.ps1'
 $logon = [string]$worker.Principal.LogonType
 if ($logon -eq 'Password') {
-    if (-not $Credential -or $Credential.UserName -ne $worker.Principal.UserId) {
+    if (-not $Credential) {
         throw 'Passare -Credential per lo stesso account del worker (Get-Credential). Nessuna password viene salvata nei file.'
+    }
+    # CIM may abbreviate DOMAIN\user to user. The exported task stores its SID.
+    [xml]$workerXml = Export-ScheduledTask -TaskPath $taskPath -TaskName $workerName
+    $workerIdentity = [string]$workerXml.Task.Principals.Principal.UserId
+    try {
+        $workerSid = if ($workerIdentity -match '^S-1-') {
+            [Security.Principal.SecurityIdentifier]::new($workerIdentity)
+        } else {
+            [Security.Principal.NTAccount]::new($workerIdentity).Translate([Security.Principal.SecurityIdentifier])
+        }
+        $credentialSid = [Security.Principal.NTAccount]::new($Credential.UserName).Translate([Security.Principal.SecurityIdentifier])
+    } catch {
+        throw 'Impossibile risolvere gli account Windows. Usare DOMINIO\utente e verificare la connessione al dominio.'
+    }
+    if ($credentialSid.Value -ne $workerSid.Value) {
+        throw 'Le credenziali appartengono a un account diverso dal worker (SID diverso). Nessun task modificato.'
     }
 } elseif ($logon -notin @('ServiceAccount', 'S4U')) {
     throw 'Il worker deve usare un account non interattivo (Password, ServiceAccount o S4U). Correggere prima il task worker.'
