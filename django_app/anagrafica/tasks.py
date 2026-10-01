@@ -250,3 +250,27 @@ def run_intake_referti_sanitari(limit: int | None = None) -> dict:
         logger.exception("run_intake_referti_sanitari: passaggio fallito")
         return {"ok": False, "riepilogo": "Errore nel passaggio sulla cartella"}
     return {"ok": True, **esito}
+
+
+def run_import_cedolini_sharepoint() -> dict:
+    """Import mensile dei saldi cedolini dal file XLSX su SharePoint.
+
+    **Fail-safe**: no-op se il link non è configurato (Anagrafica → Importazione
+    cedolini). Un errore di download o di lettura viene loggato e restituito
+    senza sollevare: il mese si recupera col pulsante "Importa da SharePoint".
+    """
+    from anagrafica.services.cedolini_sharepoint import get_share_url, importa_da_sharepoint
+
+    if not get_share_url():
+        return {"ok": True, "skipped": "link SharePoint cedolini non configurato"}
+    try:
+        imp = importa_da_sharepoint(user=None)
+    except Exception as exc:
+        logger.exception("run_import_cedolini_sharepoint: import fallito")
+        return {"ok": False, "errore": str(exc)}
+    return {
+        "ok": True,
+        "data_competenza": imp.data_competenza.isoformat() if imp else None,
+        "righe_ok": imp.righe_ok if imp else 0,
+        "righe_errore": imp.righe_errore if imp else 0,
+    }

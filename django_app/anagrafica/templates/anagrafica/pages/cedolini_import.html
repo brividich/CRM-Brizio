@@ -50,6 +50,11 @@
 .ci-alert-warn { background:#fffbeb; border:1px solid #fde68a; color:#92400e; }
 .ci-code { background:#dbeafe; padding:1px 5px; border-radius:4px; font-size:11px; }
 
+/* Import da SharePoint */
+.ci-sp-row { display:flex; gap:10px; flex-wrap:wrap; }
+.ci-sp-input { flex:1 1 320px; min-width:0; padding:8px 12px; border:1px solid #cbd5e1; border-radius:9px; font-size:13px; background:#fff; color:#1e293b; }
+.ci-btn:disabled { opacity:.5; cursor:not-allowed; }
+
 /* Dark mode — ribalta i colori hardcodati sopra sui token di theme.css */
 body.theme-dark .ci-title { color:var(--text); }
 body.theme-dark .ci-card { background:var(--surface); border-color:var(--border); }
@@ -67,6 +72,7 @@ body.theme-dark .ci-table tr:hover td { background:var(--tbody-hover); }
 body.theme-dark .ci-alert-info { background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.35); color:#93c5fd; }
 body.theme-dark .ci-alert-warn { background:rgba(217,119,6,.12); border-color:rgba(217,119,6,.35); color:#fcd34d; }
 body.theme-dark .ci-code { background:rgba(59,130,246,.25); }
+body.theme-dark .ci-sp-input { background:var(--surface-alt); color:var(--text); border-color:var(--border); }
 </style>
 {% endblock %}
 
@@ -92,6 +98,29 @@ body.theme-dark .ci-code { background:rgba(59,130,246,.25); }
     </div>
     {% endfor %}
   {% endif %}
+
+  <!-- Import da SharePoint -->
+  <div class="ci-card">
+    <div class="ci-card-head">
+      <div class="ci-card-title">☁ Importa da SharePoint</div>
+      <span style="font-size:12px;color:#94a3b8;">Automatico il 1° di ogni mese alle 00:00</span>
+    </div>
+    <div class="ci-card-body">
+      <form method="post" class="ci-sp-row">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="sharepoint_link">
+        <input type="url" name="sharepoint_url" class="ci-sp-input" value="{{ sharepoint_url }}"
+               placeholder="Link di condivisione del file XLSX (https://…sharepoint.com/…)" aria-label="Link SharePoint del file cedolini">
+        <button type="submit" class="ci-btn ci-btn-ghost">Salva link</button>
+      </form>
+      <form method="post" id="sp-import-form" style="margin-top:14px;">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="sharepoint_import">
+        <button type="submit" class="ci-btn ci-btn-primary" id="sp-import-btn" {% if not sharepoint_url %}disabled title="Salva prima il link SharePoint"{% endif %}>☁ Importa da SharePoint</button>
+        {% if not sharepoint_url %}<span style="font-size:12px;color:#94a3b8;margin-left:8px;">Nessun link configurato: l'import automatico è spento.</span>{% endif %}
+      </form>
+    </div>
+  </div>
 
   <!-- Upload form -->
   <div class="ci-card">
@@ -163,7 +192,7 @@ body.theme-dark .ci-code { background:rgba(59,130,246,.25); }
             <td><span class="ci-badge ci-badge-ok">{{ imp.righe_ok }}</span></td>
             <td>{% if imp.righe_errore %}<span class="ci-badge ci-badge-err">{{ imp.righe_errore }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
             <td>{% if imp.righe_non_trovate %}<span class="ci-badge ci-badge-warn">{{ imp.righe_non_trovate }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-            <td style="font-size:12px;">{{ imp.importato_da.get_full_name|default:imp.importato_da|default:"—" }}</td>
+            <td style="font-size:12px;">{% if imp.importato_da %}{{ imp.importato_da.get_full_name|default:imp.importato_da }}{% elif imp.file_nome|slice:":11" == "SharePoint " %}Automatico{% else %}—{% endif %}</td>
             <td style="font-size:12px;color:#64748b;">{{ imp.data_importazione|date:"d-m-Y H:i" }}</td>
           </tr>
           {% endfor %}
@@ -184,6 +213,11 @@ function updateLabel(input) {
   const label = document.getElementById('file-label');
   label.textContent = input.files.length ? input.files[0].name : 'Nessun file selezionato';
 }
+document.getElementById('sp-import-form').addEventListener('submit', function() {
+  const btn = document.getElementById('sp-import-btn');
+  btn.textContent = '⏳ Download e importazione in corso…';
+  btn.disabled = true;
+});
 document.getElementById('upload-form').addEventListener('submit', function() {
   document.getElementById('submit-btn').textContent = '⏳ Importazione in corso…';
   document.getElementById('submit-btn').disabled = true;
