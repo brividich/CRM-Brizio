@@ -26,6 +26,13 @@ GRAPH_API_BASE_URL = "https://graph.microsoft.com/v1.0"
 GRAPH_SCOPE = "https://graph.microsoft.com/.default"
 GRAPH_TIMEOUT_SECONDS = 30
 GRAPH_WELL_KNOWN_FOLDERS = {"archive", "deleteditems", "drafts", "inbox", "junkemail", "outbox", "sentitems"}
+# Folders that never hold incoming mail: the whole-mailbox read skips them. Junk and
+# Deleted Items are read on purpose - a vendor report filtered as spam or deleted after a
+# glance is still a report.
+GRAPH_OUTGOING_FOLDERS = ("sentitems", "drafts", "outbox")
+# GRAPH_MAIL_FOLDER values meaning "the whole mailbox" (Inbox kept for backward
+# compatibility: it was the default, and reading only it missed every rule-sorted subfolder).
+GRAPH_WHOLE_MAILBOX_VALUES = {"", "*", "inbox"}
 GRAPH_PAGE_SIZE = 50
 GRAPH_MAX_PAGES = 20
 # Re-read a window before the last success: Graph's clock is not ours, and a message can
@@ -150,7 +157,7 @@ class GraphMailboxProvider(MailboxProvider):
         folder = str(get_setting("GRAPH_MAIL_FOLDER", "") or "").strip() or os.getenv("GRAPH_MAIL_FOLDER", "").strip() or "Inbox"
         # internetMessageHeaders carries Authentication-Results (DKIM/SPF/DMARC), used to
         # tell a genuine vendor notification from a spoofed look-alike.
-        select_fields = "id,internetMessageId,subject,from,toRecipients,receivedDateTime,body,hasAttachments,internetMessageHeaders"
+        select_fields = "id,internetMessageId,subject,from,toRecipients,receivedDateTime,body,hasAttachments,internetMessageHeaders,parentFolderId"
         query = {
             "$top": page_size,
             "$select": select_fields,
@@ -163,14 +170,21 @@ class GraphMailboxProvider(MailboxProvider):
             query["$filter"] = f"receivedDateTime ge {since.strftime('%Y-%m-%dT%H:%M:%SZ')}"
 
         mailbox = urllib.parse.quote(source.mailbox_address, safe="")
-        folder_part = self._resolve_folder_part(token, mailbox, folder)
-        url = f"{GRAPH_API_BASE_URL}/users/{mailbox}/mailFolders/{folder_part}/messages?{urllib.parse.urlencode(query)}"
+        # /mailFolders/{id}/messages returns only the folder's direct children: every mail
+        # an Outlook rule moved into a subfolder was invisible. Read /messages (all folders)
+        # and keep the ones in the wanted folder set instead.
+        included, excluded = self._folder_scope(token, mailbox, folder)
+        url = f"{GRAPH_API_BASE_URL}/users/{mailbox}/messages?{urllib.parse.urlencode(query)}"
 
         items: List[dict] = []
         pages = 0
         while url and len(items) < max_messages and pages < GRAPH_MAX_PAGES:
             data = _request_json(url, headers=_graph_headers(token))
-            items.extend(data.get("value", []))
+            for item in data.get("value", []):
+                parent = item.get("parentFolderId")
+                if parent in excluded or (included is not None and parent not in included):
+                    continue
+                items.append(item)
             url = data.get("@odata.nextLink") or ""
             pages += 1
 
@@ -187,6 +201,55 @@ class GraphMailboxProvider(MailboxProvider):
                 len(items), source.code, max_messages,
             )
         return items[:max_messages]
+
+    def _folder_scope(self, token: str, mailbox: str, folder: str):
+        """Return ``(included, excluded)`` sets of folder ids for the whole-mailbox read.
+
+        Default (empty / ``Inbox`` / ``*``): every folder but the outgoing ones
+        (``included`` is None). A named folder: that folder and all its descendants, at any
+        depth - never its direct children only.
+        """
+        excluded = set()
+        for well_known in GRAPH_OUTGOING_FOLDERS:
+            try:
+                data = _request_json(
+                    f"{GRAPH_API_BASE_URL}/users/{mailbox}/mailFolders/{well_known}?$select=id",
+                    headers=_graph_headers(token),
+                )
+            except MailboxProviderError:
+                # A mailbox without e.g. an Outbox is not an error: nothing to exclude.
+                continue
+            if data.get("id"):
+                excluded.add(data["id"])
+
+        if folder.strip().lower() in GRAPH_WHOLE_MAILBOX_VALUES:
+            return None, excluded
+
+        root_id = urllib.parse.unquote(self._resolve_folder_part(token, mailbox, folder))
+        if root_id.lower() in GRAPH_WELL_KNOWN_FOLDERS:
+            data = _request_json(
+                f"{GRAPH_API_BASE_URL}/users/{mailbox}/mailFolders/{root_id}?$select=id",
+                headers=_graph_headers(token),
+            )
+            root_id = data.get("id") or root_id
+        return self._folder_subtree(token, mailbox, root_id), excluded
+
+    def _folder_subtree(self, token: str, mailbox: str, root_id: str) -> set:
+        """Ids of ``root_id`` and every descendant folder (breadth first, paginated)."""
+        seen = {root_id}
+        queue = [root_id]
+        while queue:
+            parent = urllib.parse.quote(queue.pop(0), safe="")
+            url = f"{GRAPH_API_BASE_URL}/users/{mailbox}/mailFolders/{parent}/childFolders?$select=id&$top=100"
+            while url:
+                data = _request_json(url, headers=_graph_headers(token))
+                for child in data.get("value", []):
+                    child_id = child.get("id")
+                    if child_id and child_id not in seen:
+                        seen.add(child_id)
+                        queue.append(child_id)
+                url = data.get("@odata.nextLink") or ""
+        return seen
 
     def _resolve_folder_part(self, token: str, mailbox: str, folder: str) -> str:
         folder = folder.strip() or "Inbox"
