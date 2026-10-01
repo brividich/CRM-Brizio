@@ -301,6 +301,24 @@ def _django_settings(environment: str) -> str:
     return f"config.settings.{_SETTINGS_MAP.get(environment, 'prod')}"
 
 
+# Marcatore della riga JSON stampata da `manage.py command_center status`
+# (django_app/monitoring/management/commands/command_center.py).
+_CC_JSON_MARKER = "@@COMMAND_CENTER_JSON@@"
+
+
+def _parse_command_center_output(text: str) -> dict | None:
+    """Estrae il JSON del command center dall'output (log e warning compresi)."""
+    for line in reversed((text or "").splitlines()):
+        idx = line.find(_CC_JSON_MARKER)
+        if idx >= 0:
+            try:
+                data = json.loads(line[idx + len(_CC_JSON_MARKER):])
+            except ValueError:
+                return None
+            return data if isinstance(data, dict) else None
+    return None
+
+
 _SQL_SERVER_DRIVER_PREFERENCE = (
     "ODBC Driver 18 for SQL Server",
     "ODBC Driver 17 for SQL Server",
@@ -3271,6 +3289,37 @@ class InstallPage(Page):
             self._log_line("  apply_sql_triggers fallito (non bloccante)", "warn")
         return ok
 
+    def _run_post_deploy_checks(self, *, venv_py, django_app, env_vars, settings, errors):
+        """Registra gli schedule django-q e verifica la release appena attivata.
+
+        Non bloccante: la release resta attiva, i problemi finiscono nel riepilogo
+        errori e si ricontrollano dal Server Dashboard (Command center).
+        """
+        cmd_file = Path(django_app) / "monitoring" / "management" / "commands" / "command_center.py"
+        if not cmd_file.exists():
+            self._log_line("  -> Release senza command center: registro solo gli schedule", "dim")
+            ok = self._cmd(
+                [str(venv_py), "manage.py", "setup_q_schedules", f"--settings={settings}"],
+                cwd=django_app, env=env_vars,
+            )
+            if ok:
+                self._log_line("  ✓ Schedule django-q registrati", "ok")
+            else:
+                self._append_error(errors, "setup_q_schedules")
+                self._log_line("  ✗ setup_q_schedules fallito (non bloccante)", "warn")
+            return ok
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "command_center", "post-deploy", f"--settings={settings}"],
+            cwd=django_app, env=env_vars,
+        )
+        if ok:
+            self._log_line("  ✓ Verifica post-deploy OK: schedule registrati, check, migrazioni, readyz", "ok")
+        else:
+            self._append_error(errors, "verifica post-deploy")
+            self._log_line("  ✗ Verifica post-deploy con problemi (dettagli sopra). "
+                           "Ricontrolla da Server Dashboard → Command center.", "warn")
+        return ok
+
     def _run_seed_pulsanti_descrizioni(self, *, venv_py, django_app, env_vars, settings):
         """Popola le descrizioni dei pulsanti via seed. Non bloccante."""
         self._log_line("  -> Seed descrizioni pulsanti", "dim")
@@ -3513,11 +3562,11 @@ class InstallPage(Page):
         self._log_line(f"    python manage.py runserver --settings=config.settings.dev", "dim")
         self._log_line(f"  (dalla cartella {django_app})", "dim")
 
-    # ── Flusso TEST / PROD (11 step) ─────────────────────────────────────────
+    # ── Flusso TEST / PROD (13 step) ─────────────────────────────────────────
 
     def _run_prod(self, cfg, ep, settings, errors):
         """Installa/aggiorna l'ambiente TEST o PROD (SQL Server, IIS)."""
-        N = 12
+        N = 13
         tag = datetime.now().strftime("%Y%m%d_%H%M%S")
         cfg.release_tag = tag
         rel_dir    = ep / "releases" / tag
@@ -3838,6 +3887,16 @@ class InstallPage(Page):
             self._log_line("  Skip — backup schedulato non registrato (release non attivata)", "warn")
         else:
             self._setup_scheduled_backup(cfg, ep, venv_py, settings, backup_dir_path)
+
+        # 13. Verifica post-deploy: schedule django-q + check + migrazioni + readyz
+        step(13, "Verifica post-deploy", 99)
+        if not activated_release:
+            self._log_line("  Skip — release non attivata", "warn")
+        else:
+            self._run_post_deploy_checks(
+                venv_py=venv_py, django_app=django_app,
+                env_vars=env_vars, settings=settings, errors=errors,
+            )
 
     # ── Helper condiviso tra DEV e PROD ──────────────────────────────────────
 
@@ -5427,6 +5486,37 @@ class ReleaseRunPage(Page):
             self._log_line("  apply_sql_triggers fallito (non bloccante)", "warn")
         return ok
 
+    def _run_post_deploy_checks(self, *, venv_py, django_app, env_vars, settings, errors):
+        """Registra gli schedule django-q e verifica la release appena attivata.
+
+        Non bloccante: la release resta attiva, i problemi finiscono nel riepilogo
+        errori e si ricontrollano dal Server Dashboard (Command center).
+        """
+        cmd_file = Path(django_app) / "monitoring" / "management" / "commands" / "command_center.py"
+        if not cmd_file.exists():
+            self._log_line("  -> Release senza command center: registro solo gli schedule", "dim")
+            ok = self._cmd(
+                [str(venv_py), "manage.py", "setup_q_schedules", f"--settings={settings}"],
+                cwd=django_app, env=env_vars,
+            )
+            if ok:
+                self._log_line("  ✓ Schedule django-q registrati", "ok")
+            else:
+                self._append_error(errors, "setup_q_schedules")
+                self._log_line("  ✗ setup_q_schedules fallito (non bloccante)", "warn")
+            return ok
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "command_center", "post-deploy", f"--settings={settings}"],
+            cwd=django_app, env=env_vars,
+        )
+        if ok:
+            self._log_line("  ✓ Verifica post-deploy OK: schedule registrati, check, migrazioni, readyz", "ok")
+        else:
+            self._append_error(errors, "verifica post-deploy")
+            self._log_line("  ✗ Verifica post-deploy con problemi (dettagli sopra). "
+                           "Ricontrolla da Server Dashboard → Command center.", "warn")
+        return ok
+
     def _run_seed_pulsanti_descrizioni(self, *, venv_py, django_app, env_vars, settings):
         """Popola le descrizioni dei pulsanti via seed. Non bloccante."""
         self._log_line("  -> Seed descrizioni pulsanti", "dim")
@@ -5508,7 +5598,7 @@ class ReleaseRunPage(Page):
         rel_dir    = ep / "releases" / tag
         django_app = rel_dir / "django_app"
         settings   = _django_settings(cfg.environment)
-        N = 7; errors = []
+        N = 8; errors = []
 
         def step(n, title, pct):
             self._set_progress(pct, f"[{n}/{N}] {title}")
@@ -5727,6 +5817,16 @@ class ReleaseRunPage(Page):
             except Exception as e:
                 self._append_error(errors, "iis recycle")
                 self._log_line(f"  ✗ IIS recycle: {e}", "err")
+
+        # 8. Verifica post-deploy: schedule django-q + check + migrazioni + readyz
+        step(8, "Verifica post-deploy", 96)
+        if not activated_release:
+            self._log_line("  Skip — release non attivata", "warn")
+        else:
+            self._run_post_deploy_checks(
+                venv_py=venv_py, django_app=django_app,
+                env_vars=env_vars, settings=settings, errors=errors,
+            )
 
         self._set_progress(100, "Deploy completato!")
         self._log_line("\n" + "─"*50, "step")
@@ -6668,11 +6768,11 @@ class ServerDashboard:
         self.root.configure(bg="white")
         self.root.resizable(True, True)
 
-        W, H = 920, 880
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
+        W, H = min(1180, sw - 40), min(920, sh - 80)
         self.root.geometry(f"{W}x{H}+{(sw-W)//2}+{max(0,(sh-H)//2 - 20)}")
-        self.root.minsize(860, 780)
+        self.root.minsize(min(980, W), min(760, H))
 
         self._selected_env = tk.StringVar(value="test")
         self._status_data: dict = {}
@@ -6681,6 +6781,17 @@ class ServerDashboard:
         self._terminal_proc = None
         self._terminal_running = False
         self._terminal_lock = threading.Lock()
+        # Viste del terminale (pannello in pagina + finestra grande): stesso
+        # processo, output replicato su tutte. Callback opzionale a fine comando.
+        self._terminal_views: list[dict] = []
+        self._terminal_on_done = None
+        self._big_term = None
+        # Command center (stato interno del portale via manage.py command_center)
+        self._cc_data: dict = {}
+        self._cc_loading = False
+        self._cc_after_id = None
+        self._cc_kpi: dict = {}
+        self._cc_tables: dict = {}
         # 4-tupla: (etichetta con emoji rischio 🟢/🟡/🔴 in stile RUNBOOK_COMANDI.md,
         # comando, descrizione breve, placeholder file o None). Il placeholder
         # "<file>" viene sostituito dal pulsante "Sfoglia file..." nel terminale.
@@ -6786,7 +6897,7 @@ class ServerDashboard:
         self._page_sb: "tk.Scrollbar | None" = None
         self._page_content: "tk.Frame | None" = None
         self._page_win = None
-        self._sec_status = self._sec_svc = self._sec_ctrl = None
+        self._sec_status = self._sec_svc = self._sec_ctrl = self._sec_cc = None
         self._sec_q = self._sec_ai = self._sec_log = self._sec_term = None
 
         self._build()
@@ -6837,6 +6948,10 @@ class ServerDashboard:
 
         # ── Pannello di controllo (blocchi di navigazione) ───────
         self._build_nav_blocks(main)
+
+        # ── Command center (stato interno del portale) ───────────
+        self._build_command_center(main)
+        frame(main, height=14).pack()
 
         # Status panel
         status_frame = frame(main, bg=GRAY50,
@@ -7041,6 +7156,7 @@ class ServerDashboard:
         self._sec_term = term_head
         tk.Label(term_head, text="Terminale ambiente", font=(SF, 9, "bold"),
                  fg=GRAY600, bg="white").pack(side="left")
+        SecondaryButton(term_head, "⤢  Apri grande", self._open_big_terminal).pack(side="right", padx=(8, 0))
         self._terminal_context_lbl = tk.Label(term_head, text="", font=FSM,
                                               fg=GRAY400, bg="white")
         self._terminal_context_lbl.pack(side="right")
@@ -7113,6 +7229,11 @@ class ServerDashboard:
         term_sb_y.pack(side="right", fill="y")
         term_sb_x.pack(side="bottom", fill="x")
         self._terminal_txt.pack(fill="both", expand=True, padx=8, pady=6)
+        self._terminal_views.append({
+            "txt": self._terminal_txt, "entry": self._terminal_entry,
+            "run": self._terminal_run_btn, "stop": self._terminal_stop_btn,
+            "preset": self._terminal_preset, "file": self._terminal_file_btn,
+        })
         self._append_terminal(
             "Console pronta. I comandi manage.py usano il virtualenv dell'ambiente selezionato.\n",
             "meta",
@@ -7138,6 +7259,7 @@ class ServerDashboard:
     def _build_nav_blocks(self, parent):
         """Griglia di blocchi cliccabili che portano alle sezioni sottostanti."""
         blocks = [
+            ("📊", "Command center",    "Schedule, qcluster, errori, verifiche", "_sec_cc", BRAND),
             ("🌐", "Stato servizi IIS", "Sito, App Pool e URL dell'ambiente",  "_sec_status", BRAND),
             ("🪟", "Servizi Windows",   "IIS e SQL Server: avvio/arresto",     "_sec_svc",    BRAND_DARK),
             ("🎛", "Controlli IIS",     "Avvia, ferma, riavvia, ricicla pool", "_sec_ctrl",   GREEN),
@@ -7145,6 +7267,7 @@ class ServerDashboard:
             ("🧠", "Assistente AI",     "Ollama + RAG: verifica, re-index",    "_sec_ai",     "#7c3aed"),
             ("📜", "Log waitress",      "Output recente del runtime",          "_sec_log",    GRAY600),
             ("💻", "Terminale",         "Comandi manage.py nell'ambiente",     "_sec_term",   GRAY700),
+            ("⤢",  "Terminale grande",  "Console in una finestra dedicata",    "cmd:_open_big_terminal", GRAY900),
         ]
         head = frame(parent, bg="white")
         head.pack(fill="x")
@@ -7155,7 +7278,7 @@ class ServerDashboard:
 
         grid = frame(parent, bg="white")
         grid.pack(fill="x", pady=(10, 0))
-        cols = 4
+        cols = 5
         for c in range(cols):
             grid.grid_columnconfigure(c, weight=1, uniform="navcol")
         for i, (icon, title, sub, target, accent) in enumerate(blocks):
@@ -7197,7 +7320,10 @@ class ServerDashboard:
             tile.configure(highlightbackground=GRAY200)
 
         def on_click(_e=None):
-            self._scroll_to(getattr(self, target_attr, None))
+            if target_attr.startswith("cmd:"):
+                getattr(self, target_attr[4:])()
+            else:
+                self._scroll_to(getattr(self, target_attr, None))
 
         for w in hot:
             w.bind("<Enter>", on_enter)
@@ -7243,6 +7369,13 @@ class ServerDashboard:
         try:
             if not cv.winfo_exists():
                 return
+            # Tabelle e log sotto il puntatore scorrono loro, non la pagina.
+            node = self.root.winfo_containing(e.x_root, e.y_root)
+            if isinstance(node, (ttk.Treeview, tk.Text)):
+                first, last = node.yview()
+                if first > 0.0 or last < 1.0:
+                    node.yview_scroll(-1 * (e.delta // 120), "units")
+                    return
             # Se il puntatore è sull'elenco servizi (con barra attiva), scorri quello
             svc = self._svc_scroll
             if svc is not None and svc.sb.winfo_ismapped():
@@ -7266,6 +7399,9 @@ class ServerDashboard:
         if self._after_id:
             self.root.after_cancel(self._after_id)
         self._refresh()
+        if self._cc_kpi:
+            self._cc_reset()
+            self._cc_refresh(full=True)
 
     def _refresh(self):
         env = self._selected_env.get()
@@ -7664,17 +7800,25 @@ if ($t) {{
             fg = RED
         self._terminal_context_lbl.configure(text=text, fg=fg)
 
-    def _on_terminal_preset(self, _event=None):
+    def _on_terminal_preset(self, event=None):
         selected = self._terminal_preset_var.get()
         for label, command, description, file_token in self._terminal_presets:
             if label == selected:
                 self._terminal_cmd_var.set(command)
                 self._terminal_desc_lbl.configure(text=description)
                 self._terminal_file_token = file_token
-                self._terminal_file_btn.set_enabled(file_token is not None)
+                for view in self._live_terminal_views():
+                    view["file"].set_enabled(file_token is not None)
+                    if "desc" in view:
+                        view["desc"].configure(text=description)
                 break
-        self._terminal_entry.focus_set()
-        self._terminal_entry.icursor("end")
+        # Il fuoco va al campo comando della finestra da cui è partita la scelta.
+        entry = self._terminal_entry
+        for view in self._live_terminal_views():
+            if event is not None and view["preset"] is event.widget:
+                entry = view["entry"]
+        entry.focus_set()
+        entry.icursor("end")
 
     def _browse_terminal_file(self):
         token = self._terminal_file_token
@@ -7689,24 +7833,135 @@ if ($t) {{
         self._terminal_entry.focus_set()
         self._terminal_entry.icursor("end")
 
+    def _live_terminal_views(self) -> list[dict]:
+        alive = []
+        for view in self._terminal_views:
+            try:
+                if view["txt"].winfo_exists():
+                    alive.append(view)
+            except tk.TclError:
+                pass
+        self._terminal_views = alive
+        return alive
+
     def _append_terminal(self, text, tag=None):
-        if not hasattr(self, "_terminal_txt"):
-            return
-        self._terminal_txt.configure(state="normal")
-        if tag:
-            self._terminal_txt.insert("end", text, tag)
-        else:
-            self._terminal_txt.insert("end", text)
-        self._terminal_txt.see("end")
-        self._terminal_txt.configure(state="disabled")
+        for view in self._live_terminal_views():
+            txt = view["txt"]
+            txt.configure(state="normal")
+            if tag:
+                txt.insert("end", text, tag)
+            else:
+                txt.insert("end", text)
+            txt.see("end")
+            txt.configure(state="disabled")
 
     def _set_terminal_running(self, running: bool):
-        self._terminal_run_btn.configure_text("In esecuzione..." if running else "Esegui")
-        self._terminal_stop_btn.set_enabled(running)
         state = "disabled" if running else "normal"
-        self._terminal_entry.configure(state=state)
-        self._terminal_preset.configure(state="disabled" if running else "readonly")
-        self._terminal_file_btn.set_enabled(False if running else self._terminal_file_token is not None)
+        for view in self._live_terminal_views():
+            view["run"].configure_text("In esecuzione..." if running else "Esegui")
+            view["stop"].set_enabled(running)
+            view["entry"].configure(state=state)
+            view["preset"].configure(state="disabled" if running else "readonly")
+            view["file"].set_enabled(False if running else self._terminal_file_token is not None)
+
+    def _clear_terminal(self):
+        for view in self._live_terminal_views():
+            view["txt"].configure(state="normal")
+            view["txt"].delete("1.0", "end")
+            view["txt"].configure(state="disabled")
+
+    def _open_big_terminal(self):
+        """Terminale in una finestra dedicata: stesso processo e stesso comando del pannello."""
+        if self._big_term is not None:
+            try:
+                if self._big_term.winfo_exists():
+                    self._big_term.deiconify()
+                    self._big_term.lift()
+                    self._big_term.focus_force()
+                    return
+            except tk.TclError:
+                pass
+        win = tk.Toplevel(self.root)
+        self._big_term = win
+        env = self._selected_env.get()
+        win.title(f"Portale Novicrom — Terminale {env.upper()}")
+        win.configure(bg="white")
+        sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
+        W, H = min(1400, sw - 60), min(860, sh - 100)
+        win.geometry(f"{W}x{H}+{(sw-W)//2}+{max(0,(sh-H)//2 - 20)}")
+        win.minsize(760, 420)
+
+        hdr = frame(win, bg=BRAND_DARK, height=44)
+        hdr.pack(fill="x"); hdr.pack_propagate(False)
+        tk.Label(hdr, text="Terminale ambiente", font=(SF, 11, "bold"),
+                 bg=BRAND_DARK, fg="white").pack(side="left", padx=16)
+        django_app = self._resolve_env_django_app(env)
+        tk.Label(hdr, text=f"{env.upper()} · {django_app or 'release corrente non trovata'}",
+                 font=FSM, bg=BRAND_DARK, fg="#bfdbfe").pack(side="left")
+
+        row = frame(win, bg="white")
+        row.pack(fill="x", padx=14, pady=(10, 6))
+        preset_values = [label for label, _cmd, _desc, _file in self._terminal_presets]
+        preset = ttk.Combobox(row, textvariable=self._terminal_preset_var, values=preset_values,
+                              state="readonly", width=34, font=FSM)
+        preset.pack(side="left", padx=(0, 8))
+        preset.bind("<<ComboboxSelected>>", self._on_terminal_preset)
+        entry = tk.Entry(row, textvariable=self._terminal_cmd_var, font=("Consolas", 11),
+                         relief="flat", bg=GRAY50, fg=GRAY800, insertbackground=BRAND,
+                         highlightthickness=1, highlightbackground=GRAY200, highlightcolor=BRAND)
+        entry.pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        entry.bind("<Return>", lambda _e: self._run_terminal_command())
+        file_btn = SecondaryButton(row, "📎  Sfoglia file…", self._browse_terminal_file)
+        file_btn.pack(side="left", padx=(8, 0))
+        file_btn.set_enabled(self._terminal_file_token is not None)
+        run_btn = PrimaryButton(row, "Esegui", self._run_terminal_command)
+        run_btn.pack(side="left", padx=(8, 0))
+        stop_btn = SecondaryButton(row, "Stop", self._stop_terminal_command)
+        stop_btn.pack(side="left", padx=(8, 0))
+        stop_btn.set_enabled(self._terminal_running)
+        SecondaryButton(row, "Pulisci", self._clear_terminal).pack(side="left", padx=(8, 0))
+
+        desc = tk.Label(win, text=self._terminal_desc_lbl.cget("text"), font=FSM,
+                        fg=GRAY500, bg="white", anchor="w")
+        desc.pack(fill="x", padx=14, pady=(0, 6))
+
+        body = frame(win, bg=CODE_BG, highlightthickness=1, highlightbackground=GRAY700)
+        body.pack(fill="both", expand=True, padx=14, pady=(0, 14))
+        txt = tk.Text(body, bg=CODE_BG, fg=CODE_FG, font=("Consolas", 11), relief="flat",
+                      state="disabled", wrap="none", insertbackground=CODE_FG)
+        for tag, color in (("meta", "#58a6ff"), ("error", "#f87171"), ("ok", "#7ee787")):
+            txt.tag_configure(tag, foreground=color)
+        sb_y = tk.Scrollbar(body, command=txt.yview)
+        sb_x = tk.Scrollbar(body, command=txt.xview, orient="horizontal")
+        txt.configure(yscrollcommand=sb_y.set, xscrollcommand=sb_x.set)
+        sb_y.pack(side="right", fill="y")
+        sb_x.pack(side="bottom", fill="x")
+        txt.pack(fill="both", expand=True, padx=10, pady=8)
+
+        # Riparte dallo storico del pannello in pagina.
+        try:
+            storico = self._terminal_txt.get("1.0", "end-1c")
+        except (tk.TclError, AttributeError):
+            storico = ""
+        txt.configure(state="normal")
+        txt.insert("end", storico)
+        txt.see("end")
+        txt.configure(state="disabled")
+
+        view = {"txt": txt, "entry": entry, "run": run_btn, "stop": stop_btn,
+                "preset": preset, "file": file_btn, "desc": desc}
+        self._terminal_views.append(view)
+        if self._terminal_running:
+            self._set_terminal_running(True)
+
+        def _close():
+            self._terminal_views = [v for v in self._terminal_views if v is not view]
+            self._big_term = None
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", _close)
+        entry.focus_set()
+        entry.icursor("end")
 
     def _split_terminal_command(self, command: str) -> list[str]:
         try:
@@ -7817,7 +8072,10 @@ if ($t) {{
             with self._terminal_lock:
                 self._terminal_proc = None
                 self._terminal_running = False
+            on_done, self._terminal_on_done = self._terminal_on_done, None
             self.root.after(0, lambda: self._set_terminal_running(False))
+            if on_done:
+                self.root.after(300, on_done)
 
     def _stop_terminal_command(self):
         with self._terminal_lock:
@@ -7831,6 +8089,495 @@ if ($t) {{
             self._append_terminal("\n[stop richiesto]\n", "meta")
         except Exception as exc:
             self._append_terminal(f"\nStop non riuscito: {exc}\n", "error")
+
+    # ── Command center (stato interno del portale) ───────────────
+    # I dati arrivano da `manage.py command_center status`, eseguito con il
+    # virtualenv e la release dell'ambiente selezionato: il dashboard resta fuori
+    # dal portale ma legge le stesse fonti della Centrale di comando web.
+
+    _CC_AUTO_MS = 120000          # aggiornamento automatico (senza readyz)
+    _CC_KPI = (
+        ("version", "Versione"), ("migrations", "Migrazioni"), ("qcluster", "qcluster"),
+        ("tasks", "Task 24 h"), ("schedules", "Schedule"), ("readyz", "Servizi"),
+    )
+    _CC_LEVEL_COLORS = {"ok": GREEN, "warn": ORANGE, "ko": RED, None: GRAY200}
+
+    def _build_command_center(self, parent):
+        card = frame(parent, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
+        card.pack(fill="x")
+        self._sec_cc = card
+
+        head = frame(card, bg=GRAY50)
+        head.pack(fill="x", padx=14, pady=(10, 6))
+        tk.Label(head, text="Command center", font=(SF, 11, "bold"),
+                 bg=GRAY50, fg=GRAY900).pack(side="left")
+        tk.Label(head, text="stato interno del portale dell'ambiente selezionato", font=FSM,
+                 bg=GRAY50, fg=GRAY500).pack(side="left", padx=(10, 0))
+        self._cc_status_lbl = tk.Label(head, text="—", font=FSM, bg=GRAY50, fg=GRAY400)
+        self._cc_status_lbl.pack(side="right")
+
+        btns = frame(card, bg=GRAY50)
+        btns.pack(fill="x", padx=14, pady=(0, 10))
+        for text, cmd in (
+            ("↻  Aggiorna stato", lambda: self._cc_refresh(full=True)),
+            ("▶  Esegui ora", self._cc_run_selected),
+            ("📅  Registra schedule", self._cc_register_schedules),
+            ("✅  Verifica post-deploy", self._cc_post_deploy),
+            ("⤢  Terminale grande", self._open_big_terminal),
+        ):
+            SecondaryButton(btns, text, cmd).pack(side="left", padx=(0, 8))
+
+        kpi = frame(card, bg=GRAY50)
+        kpi.pack(fill="x", padx=14, pady=(0, 10))
+        for c in range(len(self._CC_KPI)):
+            kpi.grid_columnconfigure(c, weight=1, uniform="cckpi")
+        for i, (key, title) in enumerate(self._CC_KPI):
+            tile = tk.Frame(kpi, bg="white", highlightthickness=1, highlightbackground=GRAY200)
+            tile.grid(row=0, column=i, sticky="nsew", padx=(0 if i == 0 else 8, 0))
+            bar = tk.Frame(tile, bg=GRAY200, height=3)
+            bar.pack(fill="x")
+            tk.Label(tile, text=title.upper(), font=(SF, 8, "bold"), fg=GRAY400,
+                     bg="white", anchor="w").pack(fill="x", padx=10, pady=(8, 0))
+            val = tk.Label(tile, text="—", font=(SF, 15, "bold"), fg=GRAY800, bg="white", anchor="w")
+            val.pack(fill="x", padx=10)
+            sub = tk.Label(tile, text="", font=FSM, fg=GRAY500, bg="white", anchor="nw",
+                           justify="left", wraplength=150, height=2)
+            sub.pack(fill="x", padx=10, pady=(0, 8))
+            self._cc_kpi[key] = (bar, val, sub)
+
+        style = ttk.Style(self.root)
+        style.configure("CC.Treeview", font=FSM, rowheight=22,
+                        background="white", fieldbackground="white", foreground=GRAY800)
+        style.configure("CC.Treeview.Heading", font=(SF, 9, "bold"), foreground=GRAY600)
+        style.configure("CC.TNotebook.Tab", font=(SF, 9, "bold"), padding=(12, 5))
+
+        nb = ttk.Notebook(card, style="CC.TNotebook")
+        nb.pack(fill="x", padx=14, pady=(0, 6))
+        self._cc_nb = nb
+        self._cc_tabs: dict = {}
+        self._cc_make_table(nb, "schedules", "Schedule", (
+            ("name", "Nome", 210), ("module", "Modulo", 95), ("cadence", "Cadenza", 210),
+            ("next_run", "Prossima", 105), ("last_run", "Ultima", 105),
+            ("last_ok", "Esito", 55), ("state", "Stato", 120),
+        ), height=11)
+        self._cc_make_table(nb, "failures", "Errori recenti", (
+            ("at", "Quando", 105), ("name", "Task", 200), ("func", "Funzione", 250), ("result", "Errore", 420),
+        ), height=11)
+        self._cc_make_table(nb, "readyz", "Servizi", (
+            ("name", "Check", 160), ("status", "Stato", 80), ("latency", "ms", 60), ("message", "Messaggio", 600),
+        ), height=11)
+        self._cc_make_table(nb, "details", "Dettagli", (
+            ("item", "Voce", 260), ("value", "Valore", 640),
+        ), height=11)
+
+        self._cc_detail_lbl = tk.Label(
+            card, text="Seleziona uno schedule per leggerne la descrizione. Doppio clic = Esegui ora.",
+            font=FSM, fg=GRAY500, bg=GRAY50, anchor="w", justify="left", wraplength=1000,
+        )
+        self._cc_detail_lbl.pack(fill="x", padx=14, pady=(0, 10))
+        card.bind("<Configure>", lambda e: self._cc_detail_lbl.configure(wraplength=max(300, e.width - 40)))
+
+        sched = self._cc_tables["schedules"]
+        sched.bind("<<TreeviewSelect>>", self._cc_on_select_schedule)
+        sched.bind("<Double-1>", lambda _e: self._cc_run_selected())
+        self._cc_tables["failures"].bind("<<TreeviewSelect>>", self._cc_on_select_failure)
+
+        self.root.after(600, lambda: self._cc_refresh(full=True))
+        self._cc_schedule_auto()
+
+    def _cc_make_table(self, nb, key, title, cols, height=10):
+        wrap = frame(nb, bg="white")
+        tree = ttk.Treeview(wrap, columns=[c[0] for c in cols], show="headings",
+                            height=height, style="CC.Treeview", selectmode="browse")
+        for col, label, width in cols:
+            tree.heading(col, text=label, anchor="w")
+            tree.column(col, width=width, minwidth=40, anchor="w", stretch=(col == cols[-1][0]))
+        sb = ttk.Scrollbar(wrap, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        tree.pack(side="left", fill="both", expand=True)
+        tree.tag_configure("ko", foreground=RED)
+        tree.tag_configure("warn", foreground=YELLOW_TX)
+        tree.tag_configure("off", foreground=GRAY400)
+        tree.tag_configure("ok", foreground=GREEN)
+        nb.add(wrap, text=title)
+        self._cc_tables[key] = tree
+        self._cc_tabs[key] = (wrap, title)
+        return tree
+
+    def _cc_set_tab_title(self, key, suffix=""):
+        wrap, title = self._cc_tabs[key]
+        self._cc_nb.tab(wrap, text=f"{title} {suffix}".strip())
+
+    def _cc_set_kpi(self, key, value, sub="", level=None):
+        bar, val, lbl = self._cc_kpi[key]
+        color = self._CC_LEVEL_COLORS.get(level, GRAY200)
+        bar.configure(bg=color)
+        val.configure(text=str(value), fg=RED if level == "ko" else GRAY800)
+        lbl.configure(text=sub)
+
+    def _cc_reset(self):
+        for key, _title in self._CC_KPI:
+            self._cc_set_kpi(key, "—")
+        for key, tree in self._cc_tables.items():
+            tree.delete(*tree.get_children())
+            self._cc_set_tab_title(key)
+        self._cc_data = {}
+
+    @staticmethod
+    def _cc_age(seconds) -> str:
+        if seconds is None:
+            return "—"
+        seconds = int(seconds)
+        if seconds < 60:
+            return "meno di 1 min"
+        if seconds < 3600:
+            return f"{seconds // 60} min"
+        if seconds < 86400:
+            return f"{seconds // 3600} h"
+        return f"{seconds // 86400} g"
+
+    @staticmethod
+    def _cc_is_late(value, grace_minutes=10) -> bool:
+        """Prossima esecuzione già passata da oltre `grace_minutes`: qcluster non l'ha presa."""
+        if not value:
+            return False
+        try:
+            dt = datetime.fromisoformat(str(value))
+        except ValueError:
+            return False
+        return (datetime.now(dt.tzinfo) - dt).total_seconds() > grace_minutes * 60
+
+    @staticmethod
+    def _cc_fmt_dt(value) -> str:
+        if not value:
+            return "—"
+        try:
+            dt = datetime.fromisoformat(str(value))
+        except ValueError:
+            return str(value)
+        if dt.date() == datetime.now(dt.tzinfo).date():
+            return f"oggi {dt:%H:%M}"
+        return f"{dt:%d/%m %H:%M}"
+
+    def _cc_schedule_auto(self):
+        if self._cc_after_id:
+            try:
+                self.root.after_cancel(self._cc_after_id)
+            except tk.TclError:
+                pass
+        self._cc_after_id = self.root.after(self._CC_AUTO_MS, self._cc_auto_tick)
+
+    def _cc_auto_tick(self):
+        self._cc_after_id = None
+        try:
+            if not self.root.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        if not self._cc_loading and not self._terminal_running:
+            self._cc_refresh(full=False)
+        self._cc_schedule_auto()
+
+    def _cc_refresh(self, full=True):
+        if self._cc_loading:
+            return
+        env = self._selected_env.get()
+        django_app = self._resolve_env_django_app(env)
+        venv_py = self._env_root(env) / "venv" / "Scripts" / "python.exe"
+        if not django_app or not venv_py.exists():
+            self._cc_status_lbl.configure(
+                text=f"{env.upper()}: release o virtualenv non trovati", fg=RED)
+            return
+        self._cc_loading = True
+        self._cc_status_lbl.configure(text="Lettura stato in corso…", fg=GRAY500)
+        args = [str(venv_py), "manage.py", "command_center", "status",
+                f"--settings={_django_settings(env)}"]
+        if not full:
+            args.append("--skip=readyz")
+        threading.Thread(target=self._cc_fetch_thread,
+                         args=(env, django_app, args, full), daemon=True).start()
+
+    def _cc_fetch_thread(self, env, django_app, args, full):
+        t0 = datetime.now()
+        data, err = None, None
+        try:
+            r = subprocess.run(
+                args, cwd=str(django_app), env=self._terminal_env_vars(env, django_app),
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=180, creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            data = _parse_command_center_output(r.stdout or "")
+            if data is None:
+                out = f"{r.stdout or ''}\n{r.stderr or ''}"
+                if "Unknown command" in out and "command_center" in out:
+                    err = "La release attiva non ha il command center: aggiorna il portale."
+                else:
+                    tail = [ln.strip() for ln in out.splitlines() if ln.strip()][-2:]
+                    err = "Lettura fallita: " + " | ".join(tail)[:300]
+        except subprocess.TimeoutExpired:
+            err = "Timeout (180 s) nella lettura dello stato."
+        except Exception as exc:
+            err = f"Errore: {exc}"
+        elapsed = (datetime.now() - t0).total_seconds()
+        try:
+            self.root.after(0, lambda: self._cc_apply(env, data, err, elapsed, full))
+        except (tk.TclError, RuntimeError):
+            pass
+
+    def _cc_apply(self, env, data, err, elapsed, full):
+        self._cc_loading = False
+        if env != self._selected_env.get():
+            return
+        if err:
+            self._cc_status_lbl.configure(text=err, fg=RED)
+            return
+        if not full and "readyz" in self._cc_data:
+            data["readyz"] = self._cc_data["readyz"]
+        self._cc_data = data
+        self._cc_fill_schedules(data.get("schedules") or {})
+        self._cc_fill_kpis(data)
+        self._cc_fill_failures(data.get("failures") or {})
+        self._cc_fill_readyz(data.get("readyz") or {})
+        self._cc_fill_details(data)
+        self._cc_status_lbl.configure(
+            text=f"Aggiornato alle {datetime.now():%H:%M:%S} · {elapsed:.1f} s · automatico ogni 2 min",
+            fg=GRAY400)
+
+    def _cc_fill_kpis(self, data):
+        b = data.get("build") or {}
+        if b.get("error"):
+            self._cc_set_kpi("version", "errore", b["error"], "ko")
+        elif b.get("packaged"):
+            drift = b.get("has_drift")
+            sub = f"commit {b.get('commit') or '?'} · {b.get('branch') or '?'}"
+            self._cc_set_kpi("version", b.get("version") or "?",
+                             sub + (" · NON tracciabile" if drift else ""), "ko" if drift else "ok")
+        else:
+            self._cc_set_kpi("version", b.get("version") or "?", "non da pacchetto (sviluppo)", "warn")
+
+        m = data.get("migrations") or {}
+        if m.get("error"):
+            self._cc_set_kpi("migrations", "errore", m["error"], "ko")
+        elif m.get("count"):
+            pending = m.get("pending") or []
+            extra = f" +{len(pending) - 2}" if len(pending) > 2 else ""
+            self._cc_set_kpi("migrations", f"{m['count']} da applicare", ", ".join(pending[:2]) + extra, "ko")
+        else:
+            self._cc_set_kpi("migrations", "OK", "tutte applicate", "ok")
+
+        q = data.get("qcluster") or {}
+        if q.get("error"):
+            self._cc_set_kpi("qcluster", "errore", q["error"], "ko")
+            self._cc_set_kpi("tasks", "—", "", None)
+        else:
+            clusters = q.get("clusters") or []
+            last = q.get("last_ok") or {}
+            age = last.get("age_s")
+            if clusters:
+                workers = sum(c.get("workers") or 0 for c in clusters)
+                self._cc_set_kpi("qcluster", "Attivo",
+                                 f"{len(clusters)} cluster · {workers} worker · ultimo task {self._cc_age(age)} fa", "ok")
+            elif age is not None and age <= 900:
+                self._cc_set_kpi("qcluster", "Attivo", f"ultimo task {self._cc_age(age)} fa", "ok")
+            elif age is not None:
+                self._cc_set_kpi("qcluster", "Fermo?", f"nessun task da {self._cc_age(age)}", "ko")
+            else:
+                self._cc_set_kpi("qcluster", "Nessun dato", "nessun task completato registrato", "warn")
+            failed = q.get("failed_24h") or 0
+            queue = q.get("queue") or 0
+            level = "ko" if failed else ("warn" if queue > 50 else "ok")
+            self._cc_set_kpi("tasks", f"{failed} errori" if failed else "OK",
+                             f"{q.get('ok_24h', 0)} completati · {queue} in coda", level)
+
+        s = data.get("schedules") or {}
+        if s.get("error"):
+            self._cc_set_kpi("schedules", "errore", s["error"], "ko")
+        else:
+            parts, level, value = [f"{s.get('total', 0)} schedule"], "ok", "OK"
+            late = getattr(self, "_cc_late", 0)
+            if late:
+                parts.append(f"{late} in ritardo")
+                level, value = "warn", f"{late} in ritardo"
+            if s.get("not_registered"):
+                parts.append(f"{s['not_registered']} non registrati")
+                level, value = "warn", f"{s['not_registered']} da registrare"
+            if s.get("last_failed"):
+                parts.append(f"{s['last_failed']} con ultimo esito KO")
+                level, value = "ko", f"{s['last_failed']} KO"
+            self._cc_set_kpi("schedules", value, " · ".join(parts), level)
+
+        r = data.get("readyz") or {}
+        if r.get("error"):
+            self._cc_set_kpi("readyz", "errore", r["error"], "ko")
+        elif r.get("status"):
+            bad = [c["name"] for c in r.get("checks") or [] if c.get("status") in ("fail", "warn")]
+            level = {"ok": "ok", "degraded": "warn", "warn": "warn"}.get(r["status"], "ko")
+            self._cc_set_kpi("readyz", r["status"].upper(),
+                             ("problemi: " + ", ".join(bad)) if bad else "tutti i servizi OK", level)
+
+    def _cc_fill_schedules(self, s):
+        tree = self._cc_tables["schedules"]
+        selected = tree.selection()
+        tree.delete(*tree.get_children())
+        self._cc_late = 0
+        if s.get("error"):
+            tree.insert("", "end", values=("errore", "", s["error"], "", "", "", ""), tags=("ko",))
+            return
+        rows = s.get("rows") or []
+        self._cc_late = 0
+        for row in rows:
+            if not row.get("enabled"):
+                state, tag = "spento", "off"
+            elif not row.get("registered"):
+                state, tag = "non registrato", "warn"
+            elif self._cc_is_late(row.get("next_run")):
+                state, tag = "in ritardo", "warn"
+                self._cc_late += 1
+            else:
+                state, tag = "attivo", ""
+            esito = {True: "✓", False: "✗"}.get(row.get("last_ok"), "—")
+            if row.get("last_ok") is False and tag != "off":
+                tag = "ko"
+            tree.insert("", "end", iid=row["name"], tags=(tag,) if tag else (), values=(
+                row["name"], row.get("module", ""), row.get("cadence", ""),
+                self._cc_fmt_dt(row.get("next_run")), self._cc_fmt_dt(row.get("last_run")),
+                esito, state,
+            ))
+        if selected and tree.exists(selected[0]):
+            tree.selection_set(selected[0])
+        ko = sum(1 for r in rows if r.get("last_ok") is False)
+        self._cc_set_tab_title("schedules", f"({len(rows)}{f' · {ko} KO' if ko else ''})")
+
+    def _cc_fill_failures(self, f):
+        tree = self._cc_tables["failures"]
+        tree.delete(*tree.get_children())
+        if f.get("error"):
+            tree.insert("", "end", values=("errore", "", "", f["error"]), tags=("ko",))
+            return
+        rows = f.get("rows") or []
+        self._cc_failure_text = {}
+        for i, row in enumerate(rows):
+            iid = f"f{i}"
+            self._cc_failure_text[iid] = row.get("result") or ""
+            tree.insert("", "end", iid=iid, tags=("ko",), values=(
+                self._cc_fmt_dt(row.get("at")), row.get("name", ""), row.get("func", ""),
+                " ".join((row.get("result") or "").split())[:200],
+            ))
+        if not rows:
+            tree.insert("", "end", values=("—", "Nessun errore registrato", "", ""), tags=("ok",))
+        self._cc_set_tab_title("failures", f"({len(rows)})" if rows else "")
+
+    def _cc_fill_readyz(self, r):
+        tree = self._cc_tables["readyz"]
+        tree.delete(*tree.get_children())
+        if r.get("error"):
+            tree.insert("", "end", values=("errore", "", "", r["error"]), tags=("ko",))
+            return
+        if not r.get("checks"):
+            tree.insert("", "end", values=("—", "", "", "premi «Aggiorna stato» per eseguire i check"), tags=("off",))
+            return
+        tags = {"ok": "ok", "warn": "warn", "fail": "ko", "skipped": "off"}
+        for c in r["checks"]:
+            tree.insert("", "end", tags=(tags.get(c.get("status"), ""),), values=(
+                c.get("name", ""), (c.get("status") or "").upper(), c.get("latency_ms", ""),
+                c.get("message") or "",
+            ))
+        self._cc_set_tab_title("readyz", f"({(r.get('status') or '').upper()})")
+
+    def _cc_fill_details(self, data):
+        tree = self._cc_tables["details"]
+        tree.delete(*tree.get_children())
+        b = data.get("build") or {}
+        q = data.get("qcluster") or {}
+        a = data.get("automations") or {}
+        last = q.get("last_ok") or {}
+        rows = [
+            ("Versione", b.get("version") or "—", ""),
+            ("Commit / branch", f"{b.get('commit') or '—'} · {b.get('branch') or '—'}", ""),
+            ("Pacchetto creato", b.get("packaged_at") or "—", ""),
+            ("Settings Django", b.get("settings") or "—", "warn" if b.get("debug") else ""),
+            ("Ultimo task completato", f"{last.get('func') or '—'} · {self._cc_fmt_dt(last.get('at'))}", ""),
+            ("Task in coda", q.get("queue", "—"), ""),
+            ("Task OK / falliti (24 h)", f"{q.get('ok_24h', '—')} / {q.get('failed_24h', '—')}",
+             "ko" if q.get("failed_24h") else ""),
+        ]
+        if a.get("error"):
+            rows.append(("Automazioni", a["error"], "ko"))
+        else:
+            sev = a.get("issues_by_severity") or {}
+            sev_txt = ", ".join(f"{k}: {v}" for k, v in sev.items()) or "nessuna"
+            rows.append(("Issue aperte (monitoring)", f"{a.get('open_issues', 0)} — {sev_txt}",
+                         "warn" if a.get("open_issues") else ""))
+            rows.append(("Esecuzioni automazioni fallite (24 h)", a.get("executions_failed_24h", 0),
+                         "ko" if a.get("executions_failed_24h") else ""))
+            missed = a.get("missed_jobs") or []
+            rows.append(("Job in ritardo", len(missed), "ko" if missed else ""))
+            for job in missed:
+                rows.append(("   ·", job, "ko"))
+        m = data.get("migrations") or {}
+        for name in (m.get("pending") or [])[:30]:
+            rows.append(("Migrazione da applicare", name, "ko"))
+        for item, value, tag in rows:
+            tree.insert("", "end", values=(item, value), tags=(tag,) if tag else ())
+
+    def _cc_selected_schedule(self) -> str | None:
+        sel = self._cc_tables["schedules"].selection()
+        if not sel:
+            return None
+        rows = (self._cc_data.get("schedules") or {}).get("rows") or []
+        return sel[0] if any(r["name"] == sel[0] for r in rows) else None
+
+    def _cc_on_select_schedule(self, _e=None):
+        name = self._cc_selected_schedule()
+        if not name:
+            return
+        row = next(r for r in self._cc_data["schedules"]["rows"] if r["name"] == name)
+        self._cc_detail_lbl.configure(
+            text=f"{name}  ·  {row['func']}  ·  {row['cadence']}\n{row.get('description') or 'Nessuna descrizione.'}",
+            fg=GRAY700)
+
+    def _cc_on_select_failure(self, _e=None):
+        sel = self._cc_tables["failures"].selection()
+        text = getattr(self, "_cc_failure_text", {}).get(sel[0]) if sel else None
+        if text:
+            self._cc_detail_lbl.configure(text=text, fg=RED)
+
+    def _cc_run_in_terminal(self, command: str):
+        if self._terminal_running:
+            messagebox.showinfo("Command center", "Un comando è già in esecuzione nel terminale.")
+            return
+        self._terminal_cmd_var.set(command)
+        descr = "Azione dal Command center: a fine comando lo stato si aggiorna da solo."
+        self._terminal_desc_lbl.configure(text=descr)
+        for view in self._live_terminal_views():
+            if "desc" in view:
+                view["desc"].configure(text=descr)
+        self._terminal_on_done = lambda: self._cc_refresh(full=False)
+        self._run_terminal_command()
+        if not self._terminal_running:      # annullato (conferma PROD) o non avviato
+            self._terminal_on_done = None
+            return
+        self._cc_status_lbl.configure(text=f"In esecuzione nel terminale: {command.split(' --settings')[0]}",
+                                      fg=BRAND)
+        if self._big_term is None:
+            self._scroll_to(self._sec_term)
+
+    def _cc_run_selected(self):
+        name = self._cc_selected_schedule()
+        if not name:
+            messagebox.showinfo("Command center", "Seleziona uno schedule nella tabella «Schedule».")
+            return
+        env = self._selected_env.get()
+        self._cc_run_in_terminal(f"manage.py command_center run {name} --settings={_django_settings(env)}")
+
+    def _cc_register_schedules(self):
+        env = self._selected_env.get()
+        self._cc_run_in_terminal(f"manage.py setup_q_schedules --settings={_django_settings(env)}")
+
+    def _cc_post_deploy(self):
+        env = self._selected_env.get()
+        self._cc_run_in_terminal(f"manage.py command_center post-deploy --settings={_django_settings(env)}")
 
     # ── Assistente AI (Ollama + RAG) ─────────────────────────────
 
