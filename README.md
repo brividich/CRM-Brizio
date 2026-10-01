@@ -20,6 +20,11 @@
 
 </div>
 
+**Deploy guidato qcluster:** disponibili la [console PowerShell a menu](deployment/README_QCLUSTER_CONSOLE.md)
+con avanzamento, interruzione agli errori e recupero separato, e la
+[guida PDF in sei pagine](deployment/docs/Guida_deploy_qcluster.pdf).
+Percorso ordinario: prepara con menu 2, distribuisci dal wizard abituale, completa con menu 9.
+
 **Sorveglianza automazioni:** il [watchdog qcluster](docs/QCLUSTER_WATCHDOG.md)
 controlla il worker ogni minuto da Task Scheduler, rileva gli arresti anche a
 coda vuota, registra allarmi ed email agli amministratori e tenta il riavvio
