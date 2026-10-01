@@ -9,6 +9,18 @@
 {% block soc_content %}
 <p><a class="sec-button" href="{% url 'security:alerts_list' %}">&lt; Torna alla coda alert</a></p>
 
+<section class="sec-panel ai-panel" id="ai-explain">
+  <div class="sec-section-head">
+    <h2>In parole semplici</h2>
+    <form method="post" action="{% url 'security:alert_explain' alert.pk %}" hx-post="{% url 'security:alert_explain' alert.pk %}" hx-target="#ai-explain-body">
+      {% csrf_token %}<button class="sec-button-primary" type="submit" data-busy-label="Sto chiedendo all'AI locale…">Spiega con l'AI</button>
+    </form>
+  </div>
+  <div id="ai-explain-body">
+    {% if ai %}{% include "security/partials/ai_explanation.html" %}{% else %}<p class="sec-muted">L'AI locale dell'azienda (nessun dato esce dalla rete) spiega cosa è successo, perché è scattato l'alert, quanto è urgente e cosa fare. Ci vuole qualche secondo.</p>{% endif %}
+  </div>
+</section>
+
 <section class="sec-detail-hero">
   <div class="sec-panel">
     <div class="sec-section-head">

@@ -117,6 +117,10 @@ def dashboard(request):
         "source_rows": source_status_rows(),
         "vpn_week": vpn_recent_stats(),
     }
+    from security.services.overview import area_cards, attention_items, overall
+
+    items = attention_items()
+    context.update({"items": items, "verdict": overall(items), "cards": area_cards(items), "now": timezone.localtime()})
     return render(request, "security/dashboard.html", context)
 
 
@@ -173,7 +177,7 @@ def _querystring_without(request, key):
 
 
 @ensure_csrf_cookie
-def alert_detail(request, pk):
+def alert_detail(request, pk, ai=None):
     alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event"), pk=pk)
     alert.short_dedup_hash = alert.dedup_hash[:12] if alert.dedup_hash else ""
     ticket = _alert_case(alert)
@@ -183,6 +187,7 @@ def alert_detail(request, pk):
     payload = alert.event.payload if alert.event_id else {}
     context = {
         "alert": alert,
+        "ai": ai,
         "ticket": ticket,
         "open_cases": _open_cases(),
         "evidence": evidence,
@@ -198,6 +203,32 @@ def alert_detail(request, pk):
     }
     context.update(_alert_lifecycle_context(alert))
     return render(request, "security/alert_detail.html", context)
+
+
+@require_POST
+def alert_explain(request, pk):
+    """Spiegazione dell'alert dall'AI locale (sola lettura: non cambia nulla dell'alert)."""
+    from security.services.ai_explain import explain_alert
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event", "event__report"), pk=pk)
+    ai = explain_alert(alert, user=request.user, refresh=request.POST.get("refresh") == "1")
+    if request.headers.get("HX-Request"):
+        return render(request, "security/partials/ai_explanation.html", {"ai": ai})
+    return alert_detail(request, pk, ai=ai)
+
+
+@require_POST
+def overview_brief(request):
+    """Sintesi del giorno della Panoramica, dall'AI locale."""
+    from security.services.ai_explain import daily_brief
+    from security.services.overview import attention_items
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    ai = daily_brief(attention_items(), user=request.user, refresh=request.POST.get("refresh") == "1")
+    return render(request, "security/partials/ai_explanation.html", {"ai": ai})
 
 
 @require_POST

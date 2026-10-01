@@ -9,7 +9,7 @@
 <div class="soc-module">
   {% with url_name=request.resolver_match.url_name %}
   <nav class="soc-nav" aria-label="Navigazione SOC">
-    <a href="{% url 'security:dashboard' %}" {% if url_name == 'dashboard' or url_name == 'security_dashboard' %}class="active"{% endif %}>Dashboard</a>
+    <a href="{% url 'security:dashboard' %}" {% if url_name == 'dashboard' or url_name == 'security_dashboard' %}class="active"{% endif %}>Panoramica</a>
     <a href="{% url 'security:alerts_list' %}" {% if url_name == 'alerts_list' or url_name == 'alert_detail' %}class="active"{% endif %}>Alert</a>
     <a href="{% url 'security:tickets_list' %}" {% if url_name == 'tickets_list' or url_name == 'case_detail' %}class="active"{% endif %}>Ticket</a>
     <a href="{% url 'security:kpis' %}" {% if url_name == 'kpis' or url_name == 'kpi_detail' %}class="active"{% endif %}>KPI</a>

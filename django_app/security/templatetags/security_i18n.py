@@ -246,6 +246,10 @@ METRIC_LABELS = {
     "watchguard_epdr_protected_endpoints": "Endpoint protetti",
     "watchguard_epdr_unprotected_endpoints": "Endpoint non protetti",
     "watchguard_epdr_outdated_agents": "Agent obsoleti",
+    "watchguard_epdr_unmanaged_computers": "Computer non gestiti",
+    "watchguard_epdr_risk_critical": "Computer a rischio critico",
+    "watchguard_epdr_license_days_left": "Licenza Endpoint: giorni rimasti",
+    "watchguard_license_days_left": "Licenza firewall: giorni rimasti",
     "watchguard_epdr_pending_actions": "Azioni EPDR in attesa",
     "watchguard_threatsync_total_count": "Incidenti ThreatSync",
     "watchguard_threatsync_critical_count": "ThreatSync critici",
@@ -293,6 +297,34 @@ def metric_display(snapshot):
     if float(value).is_integer():
         return f"{int(value):,}".replace(",", ".")
     return f"{value:.2f}".replace(".", ",")
+
+
+@register.filter
+def ai_markdown(value):
+    """Markdown minimo dell'AI -> HTML sicuro: escape PRIMA, poi grassetto, elenchi, a capo."""
+    import re
+
+    from django.utils.html import escape
+    from django.utils.safestring import mark_safe
+
+    html_lines, in_list = [], False
+    for raw in escape(str(value or "")).splitlines():
+        line = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", raw.strip())
+        bullet = re.match(r"^(?:[-*•]|\d+[.)])\s+(.*)$", line)
+        if bullet:
+            if not in_list:
+                html_lines.append("<ul>")
+                in_list = True
+            html_lines.append(f"<li>{bullet.group(1)}</li>")
+            continue
+        if in_list:
+            html_lines.append("</ul>")
+            in_list = False
+        if line:
+            html_lines.append(f"<p>{line}</p>")
+    if in_list:
+        html_lines.append("</ul>")
+    return mark_safe("".join(html_lines))
 
 
 @register.filter
