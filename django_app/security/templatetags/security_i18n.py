@@ -179,6 +179,19 @@ ACTION_LABELS = {
     "backup_ticket_created": "Ticket backup creato",
     "ticket_created": "Ticket creato",
     "ticket_updated": "Ticket aggiornato",
+    "ticket_updated_existing_vulnerability": "Nuova occorrenza sul ticket",
+    "backup_ticket_recurrence": "Nuovo fallimento sullo stesso ticket",
+    "case_opened": "Ticket aperto",
+    "case_alert_linked": "Alert collegato al ticket",
+    "case_assigned": "Responsabile assegnato",
+    "case_status_changed": "Stato del ticket cambiato",
+    "case_task_added": "Attività aggiunta",
+    "case_task_done": "Attività completata",
+    "case_task_reopened": "Attività riaperta",
+    "case_task_deleted": "Attività eliminata",
+    "auto_resolved": "Risolto automaticamente: il problema è rientrato",
+    "case_auto_resolved": "Ticket chiuso automaticamente: tutti gli alert sono rientrati",
+    "case_alerts_all_resolved": "Tutti gli alert sono rientrati (restano attività aperte)",
 }
 
 

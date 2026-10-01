@@ -7,7 +7,7 @@ API REST e mailbox-admin restano fuori (arrivano più avanti).
 from django.http import JsonResponse
 from django.urls import path
 
-from . import api, views, views_soc
+from . import api, views, views_cases, views_soc
 
 app_name = "security"
 
@@ -27,7 +27,16 @@ urlpatterns = [
     path("alerts/", views.alerts_list, name="alerts_list"),
     path("alerts/<int:pk>/", views.alert_detail, name="alert_detail"),
     path("alerts/<int:pk>/actions/<slug:action>/", views.alert_action, name="alert_action"),
-    path("tickets/", views.tickets_list, name="tickets_list"),
+    path("alerts/bulk/", views_cases.alerts_bulk, name="alerts_bulk"),
+    path("tickets/", views_cases.tickets_list, name="tickets_list"),
+    path("tickets/new/", views_cases.case_create, name="case_create"),
+    path("tickets/<int:pk>/", views_cases.case_detail, name="case_detail"),
+    path("tickets/<int:pk>/status/", views_cases.case_status, name="case_status"),
+    path("tickets/<int:pk>/assign/", views_cases.case_assign, name="case_assign"),
+    path("tickets/<int:pk>/notes/", views_cases.case_note, name="case_note"),
+    path("tickets/<int:pk>/tasks/", views_cases.case_task_add, name="case_task_add"),
+    path("tickets/<int:pk>/tasks/<int:task_id>/toggle/", views_cases.case_task_toggle, name="case_task_toggle"),
+    path("tickets/<int:pk>/tasks/<int:task_id>/delete/", views_cases.case_task_delete, name="case_task_delete"),
     path("kpis/", views.kpis_page, name="kpis"),
     path("assets/", views_soc.assets_list, name="assets"),
     path("vpn/", views_soc.vpn_history, name="vpn_history"),
