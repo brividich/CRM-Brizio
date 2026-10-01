@@ -1,5 +1,7 @@
 # Backend Modules
 
+Discovery SNMP: scansione di rete limitata a 20s, timeout applicativo per GET e risultati parziali conservati con avviso e conteggio host completati. Fino a 8 community read-only per scansione (una per riga); vuoto usa la globale. Risultati con indice della community, senza segreti; configurare poi la community corretta nella scheda MFC/dispositivo per il polling. Nessuna migrazione o nuova dipendenza. Se incompleta, restringere la rete o ridurre le community; il limite riguarda la rete SNMP, non i tempi SQL/rendering.
+
 Polling SNMP: letture GET/WALK con budget totale di 30s per gruppo; WALK massimo 10s e 256 righe, errore senza aggregati parziali. Due passaggi di specifiche e discovery stampante (20s) hanno un budget di rete complessivo di 80s, lasciando margine al job di 110s; SQL e apparati reali restano da verificare. Nessuna cancellazione o replay della coda.
 
 La console qcluster precompila ora il nome completo DOMINIO\utente risolto dal SID esportato del task, evitando la proposta ambigua del nome breve. Dopo la sostituzione della console occorre riaprirla e ripetere 2 e 9 per ricostruire i controlli di sessione.

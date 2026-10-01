@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- **Discovery SNMP: timeout e community multiple**: Discovery SNMP: scansione di rete limitata a 20s, timeout applicativo per GET e risultati parziali conservati con avviso e conteggio host completati. Fino a 8 community read-only per scansione (una per riga); vuoto usa la globale. Risultati con indice della community, senza segreti; configurare poi la community corretta nella scheda MFC/dispositivo per il polling. Nessuna migrazione o nuova dipendenza. Se incompleta, restringere la rete o ridurre le community; il limite riguarda la rete SNMP, non i tempi SQL/rendering. File: `django_app/contatori/snmp.py`, `views.py`, `templates/contatori/discovery.html`, `tests.py`, nuovo `tests_snmp_discovery.py`; README, CHANGELOG root/Django, docs AI backend/security, registro agente e checkpoint. Controllo ampiezza rete prima di enumerare gli host, anche IPv6.
+
+
 - **Polling SNMP entro il timeout qcluster**: `django_app/contatori/snmp.py` limita gruppi GET/WALK a 30s, WALK a 10s/256 righe; conserva GET riusciti e rifiuta aggregati WALK incompleti. Nuovi test `django_app/contatori/tests_snmp_timeout.py`; README, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint aggiornati. Nessuna migrazione o cancellazione della coda.
 
 - **Deploy qcluster guidato**: nuova console PowerShell con menu/progresso e controlli per preparazione, configurazione, launcher, watchdog e riavvio; recupero dati separato con anteprima. Guida PDF stampabile in `deployment/docs/Guida_deploy_qcluster.pdf`; file e test elencati nel CHANGELOG root. Nessuna modifica al codice Django o nuova dipendenza.

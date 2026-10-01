@@ -1,5 +1,16 @@
 # Agent Changelog
 
+## 2026-10-01 - Codex (discovery SNMP e community multiple)
+
+- Worktree isolato C:/Dev/pn-snmp-discovery, feature/snmp-discovery-timeout, base cf87f521. Checkout condiviso lasciato intatto (cartella non tracciata parser pdf preesistente). Checkpoint e delta letti; ACTIVE_SESSION, WORK_LOCKS, CRITICAL_FILES, CRITICAL_CHANGE_REQUESTS assenti come gia documentato.
+- Problema: scansione senza deadline; GET con retry interni e dati trattenuti fino a gather completo. La libreria locale passa timeout/retries propri al sender, sovrascrivendo il timeout del partial. Correzione: wait_for su ogni GET, budget globale 20s, cancellazione task e conservazione immediata dell'identita; avviso di copertura incompleta. Limite host verificato prima dell'enumerazione (IPv4/IPv6).
+- Community: fino a otto candidate transitorie, una per riga; prima risposta valida per host, indice nei risultati senza segreti. Vuoto = globale; la community per polling resta l'override gia presente sulla scheda MFC/dispositivo. Nessuna nuova persistenza o migrazione.
+- File modificati: django_app/contatori/snmp.py, views.py, templates/contatori/discovery.html, tests.py, nuovo tests_snmp_discovery.py; README.md, CHANGELOG.md, django_app/CHANGELOG.md, docs/ai/03_BACKEND_MODULES.md, docs/ai/05_SECURITY_BOUNDARIES.md, registro e session_checkpoint.md.
+- Critici: nessuna modifica a ACL, middleware, settings, routing, autenticazione, permessi o navigazione globale. Documento security allineato agli override gia introdotti dalla migration 0011; nessuna variazione delle autorizzazioni. Backup: nessuno aggiuntivo, tracciamento Git nel branch feature.
+- Test/check: 13 test primitivi/discovery verdi, ulteriori 7 discovery verdi dopo revisione; suite Contatori 111 test verdi e system check senza problemi. Primo giro 110/111: avviso messages non visibile nel layout; corretto con avviso inline nel template, suite ripetuta sul DB SQLite sintetico con keepdb e passata. Diff check verde. README/CHANGELOG/AGENT_CHANGELOG aggiornati si. Versione lasciata Unreleased per release coordinata.
+- Rischi residui e note altro agente: rete SNMP e SQL Server reali non verificati; il limite 20s non include SQL/rendering. Reti ampie con piu community possono restare incomplete: restringere CIDR o candidate; segreti da reinserire a ogni scansione. Nessun deploy, accesso a DB aziendale, cancellazione/replay coda o interrogazione dispositivi reali. Integrare il commit e distribuire tramite flusso ordinario; non confondere questo fix discovery web con la patch polling precedente.
+
+
 ## 2026-10-01 - Codex (timeout polling SNMP)
 
 - Evidenza utente: watchdog registra controlli, coda bloccata e worker reincarnati per timeout durante poll_dispositivo. Codice GET sequenziale e WALK generico senza budget complessivo. Correzione in worktree pn-qcluster-account; file controllo sessione/lock/critical assenti, checkpoint/delta letti.

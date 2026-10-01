@@ -536,6 +536,33 @@ class DiscoverySNMPTest(_AuthedClientMixin, TestCase):
         self.assertContains(r, "IP diverso")
         self.assertContains(r, "10.0.0.77")
 
+    def test_discovery_multiple_communities_and_partial_warning(self):
+        from .snmp import EsitoDiscovery
+        result = EsitoDiscovery()
+        result.incompleta = True
+        result.totali = 254
+        result.completati = 32
+        result.append({"host": "192.0.2.2", "descr": "test", "matricola": "", "community_index": 2})
+        with mock.patch("contatori.snmp.scansiona_rete", return_value=result) as scan:
+            response = self.client.post(reverse("contatori:discovery"), {
+                "rete": "192.0.2.0/24", "community": "synthetic-one\nsynthetic-two", "version": "v2c"})
+        self.assertEqual(scan.call_args.kwargs["communities"], ["synthetic-one", "synthetic-two"])
+        self.assertContains(response, "Scansione incompleta")
+        self.assertContains(response, "32/254")
+        self.assertContains(response, "192.0.2.2")
+        self.assertNotContains(response, "synthetic-one")
+        self.assertNotContains(response, "synthetic-two")
+
+    def test_discovery_empty_communities_uses_global_without_rendering_secret(self):
+        from .models import ImpostazioniSNMP
+        cfg = ImpostazioniSNMP.get_solo()
+        cfg.community = "synthetic-global"
+        cfg.save()
+        with mock.patch("contatori.snmp.scansiona_rete", return_value=[]) as scan:
+            response = self.client.post(reverse("contatori:discovery"), {"rete": "192.0.2.1/32"})
+        self.assertEqual(scan.call_args.kwargs["communities"], ["synthetic-global"])
+        self.assertNotContains(response, "synthetic-global")
+
     def test_applica_ip_corregge_la_macchina(self):
         m = Macchina.objects.first()
         m.host = "10.0.0.155"

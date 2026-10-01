@@ -38,7 +38,8 @@ def discovery(request):
 
     cfg = ImpostazioniSNMP.get_solo()
     rete = (request.POST.get("rete") or "").strip()
-    community = (request.POST.get("community") or cfg.community).strip()
+    community = (request.POST.get("community") or "").strip()
+    communities = [c.strip() for c in community.splitlines() if c.strip()] or [cfg.community]
     version = request.POST.get("version") or cfg.version
     try:
         timeout = max(1, min(10, int(request.POST.get("timeout") or 2)))
@@ -46,11 +47,16 @@ def discovery(request):
         timeout = 2
 
     righe, errore, eseguita = None, "", False
+    avviso = ""
     if request.method == "POST":
         eseguita = True
         try:
             trovati = scansiona_rete(rete, community=community, port=cfg.port,
-                                     timeout=timeout, version=version)
+                                     timeout=timeout, version=version, communities=communities)
+            if getattr(trovati, "incompleta", False):
+                avviso = (f"Scansione incompleta: raggiunto il limite di 20 secondi. "
+                                 f"Host completati: {trovati.completati}/{trovati.totali}. "
+                                 "Risultati parziali: restringi la rete o prova meno community.")
             righe = services.abbina_discovery(trovati)
             if not righe:
                 messages.warning(
@@ -64,12 +70,13 @@ def discovery(request):
 
     return render(request, "contatori/discovery.html", {
         "rete": rete or "10.0.0.0/24",
-        "community": community,
+        "community": "",
         "version": version,
         "timeout": timeout,
         "righe": righe,
         "errore": errore,
         "eseguita": eseguita,
+        "avviso": avviso,
         "cfg": cfg,
     })
 

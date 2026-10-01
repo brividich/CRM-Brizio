@@ -212,65 +212,94 @@ def leggi_specifiche(host, specifiche, community="novicromprinter", port=161,
     return valori, errori
 
 
+class EsitoDiscovery(list):
+    """Lista compatibile con i chiamanti storici, con copertura della scansione."""
+
+    def __init__(self):
+        super().__init__()
+        self.completati = 0
+        self.totali = 0
+        self.incompleta = False
+
+
 def scansiona_rete(rete, community="novicromprinter", port=161, timeout=2,
-                   version="v1", concurrency=32):
-    """Cerca in rete i dispositivi che rispondono in SNMP.
+                   version="v1", concurrency=32, *, communities=None, max_duration=20):
+    """GET limitati nel tempo; conserva host trovati anche senza OID opzionali.
 
-    Ritorna [{"host", "descr", "nome", "matricola"}] per i soli host che rispondono.
-    Solo letture (GET): non scrive nulla sui dispositivi.
-
-    Un host che non risponde viene semplicemente saltato: in SNMPv1/v2c non si puo'
-    distinguere "assente" da "community sbagliata" — entrambi danno timeout.
+    communities e' una lista ordinata, massimo otto community read-only.
+    Nei risultati compare solo la posizione della community, mai il segreto.
     """
     import ipaddress
 
     try:
         net = ipaddress.ip_network(str(rete).strip(), strict=False)
     except ValueError as e:
-        raise SNMPError(f"rete non valida ('{rete}'): usa una notazione tipo 10.0.0.0/24") from e
-
-    host_list = [str(h) for h in net.hosts()] or [str(net.network_address)]
-    if len(host_list) > MAX_HOST_SCAN:
-        raise SNMPError(
-            f"range troppo ampio: {len(host_list)} host (massimo {MAX_HOST_SCAN}). "
-            f"Restringi la maschera (es. /24)."
-        )
-
+        raise SNMPError("Rete non valida: usa una notazione tipo 10.0.0.0/24") from e
+    # Controllare prima di materializzare hosts(): anche un /0 deve fallire subito.
+    host_count = net.num_addresses - (2 if net.version == 4 and net.prefixlen < 31
+                                      else 1 if net.version == 6 and net.prefixlen < 127 else 0)
+    if host_count > MAX_HOST_SCAN:
+        raise SNMPError(f"Range troppo ampio: massimo {MAX_HOST_SCAN} host. Restringi la maschera.")
+    candidates = list(communities if communities is not None else [community])
+    if not candidates or len(candidates) > 8 or any(not c or len(c) > 60 for c in candidates):
+        raise SNMPError("Inserisci da 1 a 8 community, massimo 60 caratteri ciascuna.")
+    if version not in ("v1", "v2c"):
+        raise SNMPError("Versione SNMP non valida.")
+    if timeout <= 0 or max_duration <= 0:
+        raise SNMPError("Il timeout deve essere positivo.")
+    host_list = [str(h) for h in net.hosts()]
     try:
         from puresnmp import Client, V1, V2C, PyWrapper
         from puresnmp.transport import send_udp
     except ImportError as e:
         raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
 
-    cred = V1(community) if version == "v1" else V2C(community)
+    result = EsitoDiscovery()
+    result.totali = len(host_list)
 
     async def _sonda(host, sem):
         async with sem:
-            sender = functools.partial(send_udp, timeout=timeout)
-            client = PyWrapper(Client(host, cred, port=port, sender=sender))
-            try:
-                descr = await client.get(SYS_DESCR)
-            except Exception:
-                return None  # non risponde (assente / SNMP off / community errata)
-            trovato = {"host": host, "descr": _testo(descr), "nome": "", "matricola": ""}
-            for oid, chiave in ((SYS_NAME, "nome"), (PRT_SERIAL, "matricola")):
+            for index, candidate in enumerate(candidates, 1):
+                cred = V1(candidate) if version == "v1" else V2C(candidate)
+                sender = functools.partial(send_udp, timeout=timeout)
+                client = PyWrapper(Client(host, cred, port=port, sender=sender))
                 try:
-                    trovato[chiave] = _testo(await client.get(oid))
+                    descr = await asyncio.wait_for(client.get(SYS_DESCR), timeout=timeout)
                 except Exception:
-                    pass  # opzionali: alcuni device non li espongono
-            return trovato
+                    continue
+                trovato = {"host": host, "descr": _testo(descr), "nome": "",
+                           "matricola": "", "community_index": index}
+                result.append(trovato)
+                for oid, chiave in ((SYS_NAME, "nome"), (PRT_SERIAL, "matricola")):
+                    try:
+                        trovato[chiave] = _testo(await asyncio.wait_for(client.get(oid), timeout=timeout))
+                    except Exception:
+                        pass
+                break
+            result.completati += 1
 
     async def _run():
-        sem = asyncio.Semaphore(max(1, int(concurrency)))
-        esiti = await asyncio.gather(*[_sonda(h, sem) for h in host_list])
-        return [e for e in esiti if e]
+        sem = asyncio.Semaphore(max(1, min(64, int(concurrency))))
+        tasks = [asyncio.create_task(_sonda(h, sem)) for h in host_list]
+        try:
+            _, pending = await asyncio.wait(tasks, timeout=max_duration)
+            result.incompleta = bool(pending)
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            outcomes = await asyncio.gather(*tasks, return_exceptions=True)
+        if any(isinstance(item, Exception) for item in outcomes):
+            raise SNMPError("Errore interno nella scansione SNMP; controllare i parametri.")
+        result.sort(key=lambda row: ipaddress.ip_address(row["host"]))
+        return result
 
     try:
         return asyncio.run(_run())
     except SNMPError:
         raise
     except Exception as e:
-        raise SNMPError(f"scansione fallita: {e}") from e
+        raise SNMPError("Scansione SNMP fallita; controllare rete e parametri.") from e
 
 
 def _tabella(host, community, port, timeout, version):

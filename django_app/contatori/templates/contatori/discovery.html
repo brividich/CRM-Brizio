@@ -14,8 +14,9 @@
         <div class="pos" style="font-size:12px;margin-top:3px">Notazione CIDR. Max 512 host (usa /24).</div>
       </div>
       <div>
-        <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Community</label>
-        <input type="text" name="community" value="{{ community }}">
+        <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Community da provare</label>
+        <textarea name="community" rows="3" autocomplete="off" spellcheck="false" placeholder="Vuoto = community globale"></textarea>
+        <div class="pos" style="font-size:12px;margin-top:3px">Una per riga, massimo 8. Valide solo per questa scansione; non vengono riproposte dopo l’invio.</div>
       </div>
       <div>
         <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Versione</label>
@@ -33,9 +34,15 @@
   </form>
   <div class="pos" style="font-size:12px;margin-top:10px">
     ⚠ In SNMPv1/v2c una <strong>community sbagliata non da' errore: da' timeout</strong>, identico a un host assente.
-    Se non trovi nulla, riprova con un'altra community prima di concludere che le macchine sono irraggiungibili.
+    Durata massima: 20 secondi, con risultati parziali se il limite viene raggiunto.
+    La colonna Community indica il numero della riga inserita (1 = globale se il campo è vuoto).
+    Per il monitoraggio salva la community corretta nella scheda del dispositivo o della MFC.
   </div>
 </div>
+
+{% if avviso %}
+  <div class="panel" role="status"><p class="warn">{{ avviso }}</p></div>
+{% endif %}
 
 {% if errore %}
   <div class="panel"><p class="neg">{{ errore }}</p></div>
@@ -48,7 +55,7 @@
     <table class="tbl">
       <thead>
         <tr>
-          <th>IP</th><th>Matricola (SNMP)</th><th>Descrizione</th>
+          <th>IP</th><th>Community</th><th>Matricola (SNMP)</th><th>Descrizione</th>
           <th>In anagrafica</th><th>Stato</th><th></th>
         </tr>
       </thead>
@@ -56,6 +63,7 @@
       {% for r in righe %}
         <tr>
           <td><strong>{{ r.host }}</strong></td>
+          <td>{{ r.community_index|default:"—" }}</td>
           <td>{{ r.matricola|default:"—" }}</td>
           <td style="max-width:380px">{{ r.descr|default:"—" }}</td>
           <td>

@@ -1,5 +1,9 @@
 # Session Checkpoint
 
+Data: 2026-10-01 (discovery SNMP e community multiple)
+
+- Vista/aggiunta voce discovery SNMP e community multiple: worktree pn-snmp-discovery, GET limitati e deadline 20s con risultati parziali, fino a 8 community transitorie senza segreti nei risultati. README/changelog/docs/registro aggiornati; nessun deploy o DB aziendale. Suite Contatori 111 test verdi, check Django e diff check verdi; avviso inline verificato dal test pagina. Commit sul branch feature, integrazione/deploy da eseguire.
+
 Data: 2026-10-01 (timeout polling SNMP)
 
 - Vista/aggiunta voce timeout polling SNMP. GET/WALK con budget e limite righe, 102 test Contatori verdi inclusi 6 nuovi; documenti aggiornati. Fix da applicare sul server; watchdog risulta attivo dai dati utente, arretrato non alterato e salute dopo patch ancora da verificare.
