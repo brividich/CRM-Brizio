@@ -8,6 +8,9 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Discovery SNMP in background e catalogo community**: community nominate e cifrate (Fernet, chiave derivata da SECRET_KEY e fallback), riutilizzo nelle schede MFC/dispositivi, avanzamento persistente per utente con job da 16 host, Interrompi/Riprendi, protezione dai job duplicati e risultati parziali. Coda django-q2 esistente; migrazioni 0014/0015 e riavvio worker/web. Scansione rapida precedente mantenuta. File: `django_app/contatori/{models.py,forms.py,services.py,snmp.py,views.py,credential_crypto.py,discovery_jobs.py,discovery_views.py,tests_discovery_background.py}`, migrazioni `0014_community_discovery_background.py`, `0015_community_salvata_apparati.py`, template `discovery.html`, `_discovery_stato.html`, `_discovery_risultati.html`, `snmp_dispositivo_form.html`, CSS `static/contatori/contatori.css`; README, changelog root/Django, `docs/SNMP_DISCOVERY.md`, docs AI backend/security, registro e checkpoint. Nessuna nuova route, dipendenza o schedule.
+
+
 - **Discovery SNMP: timeout e community multiple**: Discovery SNMP: scansione di rete limitata a 20s, timeout applicativo per GET e risultati parziali conservati con avviso e conteggio host completati. Fino a 8 community read-only per scansione (una per riga); vuoto usa la globale. Risultati con indice della community, senza segreti; configurare poi la community corretta nella scheda MFC/dispositivo per il polling. Nessuna migrazione o nuova dipendenza. Se incompleta, restringere la rete o ridurre le community; il limite riguarda la rete SNMP, non i tempi SQL/rendering. File: `django_app/contatori/snmp.py`, `views.py`, `templates/contatori/discovery.html`, `tests.py`, nuovo `tests_snmp_discovery.py`; README, CHANGELOG root/Django, docs AI backend/security, registro agente e checkpoint. Controllo ampiezza rete prima di enumerare gli host, anche IPv6.
 
 

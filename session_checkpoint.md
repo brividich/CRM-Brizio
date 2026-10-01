@@ -1,5 +1,10 @@
 # Session Checkpoint
 
+Data: 2026-10-01 (discovery background e catalogo community)
+
+- Vista/aggiunta voce background/catalogo: CommunitySNMP cifrate e riutilizzabili nel polling, DiscoverySNMP persistente con blocchi 16 host, revisione contro duplicati, stato HTMX e Interrompi/Riprendi. Migrazioni 0014/0015. Worktree pn-snmp-discovery, branch feature/snmp-discovery-timeout.
+- 138 test Contatori/check/drift/diff/secret hygiene verdi; QA desktop/mobile con trasporto e coda sintetici, 30/30 host e prefill verificati. Docs/README/changelog/registro aggiornati, nessun file globale ACL/settings/routing modificato. Processi QA terminati; nessun DB aziendale, SNMP reale o deploy. Distribuzione richiede migrazioni, statici aggiornati e restart web/worker.
+
 Data: 2026-10-01 (confronto web discovery SNMP)
 
 - Vista/aggiunta voce confronto web discovery: fonti ufficiali LibreNMS/Zabbix e limiti della patch documentati in docs/ai/03_BACKEND_MODULES.md. Solo docs/registro/checkpoint, nessun deploy o modifica codice; 111 test precedenti invariati.

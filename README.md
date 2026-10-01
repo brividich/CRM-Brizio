@@ -1,6 +1,6 @@
 <div align="center">
 
-Discovery SNMP: scansione di rete limitata a 20s, timeout applicativo per GET e risultati parziali conservati con avviso e conteggio host completati. Fino a 8 community read-only per scansione (una per riga); vuoto usa la globale. Risultati con indice della community, senza segreti; configurare poi la community corretta nella scheda MFC/dispositivo per il polling. Nessuna migrazione o nuova dipendenza. Se incompleta, restringere la rete o ridurre le community; il limite riguarda la rete SNMP, non i tempi SQL/rendering.
+Discovery SNMP: catalogo di community nominate e cifrate, selezionabili anche nel polling MFC/dispositivi; scansioni in background persistenti con avanzamento, storico personale, Interrompi/Riprendi e risultati a blocchi. Coda django-q2 esistente, nessuna nuova schedule; migrazioni Contatori 0014/0015 e riavvio applicazione/worker necessari. Guida: [Discovery SNMP](docs/SNMP_DISCOVERY.md). La scansione rapida da 20s resta disponibile.
 
 Polling SNMP: letture GET/WALK con budget totale di 30s per gruppo; WALK massimo 10s e 256 righe, errore senza aggregati parziali. Due passaggi di specifiche e discovery stampante (20s) hanno un budget di rete complessivo di 80s, lasciando margine al job di 110s; SQL e apparati reali restano da verificare. Nessuna cancellazione o replay della coda.
 

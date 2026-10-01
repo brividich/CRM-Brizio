@@ -29,6 +29,11 @@ from .models import (
 
 
 def discovery(request):
+    from .discovery_views import discovery as discovery_page
+    return discovery_page(request)
+
+
+def _discovery_rapida(request):
     """Discovery SNMP di rete: trova le stampanti che rispondono e le abbina all'anagrafica.
 
     Serve soprattutto a scoprire un IP sbagliato: l'abbinamento e' sulla matricola
@@ -68,7 +73,9 @@ def discovery(request):
         except SNMPError as e:
             errore = str(e)
 
+    from .discovery_views import contesto_discovery
     return render(request, "contatori/discovery.html", {
+        **contesto_discovery(request),
         "rete": rete or "10.0.0.0/24",
         "community": "",
         "version": version,
@@ -373,6 +380,9 @@ def dispositivo_snmp_edit(request, pk=None):
             "nome": (request.GET.get("nome") or "").strip(),
             "matricola": (request.GET.get("matricola") or "").strip(),
             "note": (request.GET.get("descr") or "").strip(),
+            "community_salvata": request.GET.get("community_id") or None,
+            "versione": request.GET.get("versione") or "",
+            "porta": request.GET.get("porta") or None,
         }
     if request.method == "POST":
         form = DispositivoSNMPForm(request.POST, instance=dispositivo)

@@ -1,6 +1,9 @@
 """Modelli per la centrale MFC e il monitoraggio SNMP read-only."""
 from decimal import Decimal
+import uuid
+from datetime import timedelta
 
+from django.conf import settings
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 from django.utils import timezone
@@ -20,6 +23,73 @@ class StatoSNMP(models.TextChoices):
     OK = "OK", "Operativo"
     WARNING = "WARNING", "Attenzione"
     ERROR = "ERROR", "Errore"
+
+
+class CommunitySNMP(models.Model):
+    """Credenziale read-only nominata; il valore non viene mai reso nei form."""
+
+    nome = models.CharField(max_length=80, unique=True)
+    segreto_cifrato = models.TextField(editable=False)
+    versione = models.CharField(max_length=4, blank=True, choices=[
+        ("", "Versione della scansione"), ("v1", "SNMPv1"), ("v2c", "SNMPv2c")])
+    porta = models.PositiveIntegerField(null=True, blank=True)
+    ordine = models.PositiveIntegerField(default=0)
+    attiva = models.BooleanField(default=True)
+    aggiornata_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name_plural = "Community SNMP"
+
+    def __str__(self):
+        return self.nome
+
+
+class DiscoverySNMP(models.Model):
+    class Stato(models.TextChoices):
+        ATTESA = "ATTESA", "In coda"
+        CORSO = "CORSO", "In corso"
+        COMPLETA = "COMPLETA", "Completata"
+        ERRORE = "ERRORE", "Da riprendere"
+        ANNULLATA = "ANNULLATA", "Interrotta"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    richiesta_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True,
+                                    on_delete=models.SET_NULL)
+    rete = models.CharField(max_length=64)
+    hosts = models.JSONField(default=list)
+    community_ids = models.JSONField(default=list)  # 0 = globale; mai segreti
+    versione = models.CharField(max_length=4)
+    porta = models.PositiveIntegerField(default=161)
+    timeout = models.PositiveIntegerField(default=2)
+    stato = models.CharField(max_length=10, choices=Stato.choices, default=Stato.ATTESA)
+    cursore = models.PositiveIntegerField(default=0)
+    candidata = models.PositiveIntegerField(default=0)
+    revisione = models.PositiveIntegerField(default=0)
+    completati = models.PositiveIntegerField(default=0)
+    risultati = models.JSONField(default=list)
+    errore = models.CharField(max_length=250, blank=True)
+    creata_il = models.DateTimeField(auto_now_add=True)
+    aggiornata_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-creata_il"]
+
+    @property
+    def attiva(self):
+        return self.stato in (self.Stato.ATTESA, self.Stato.CORSO)
+
+    @property
+    def ferma(self):
+        return self.attiva and self.aggiornata_il < timezone.now() - timedelta(minutes=2)
+
+    @property
+    def riprendibile(self):
+        return self.ferma or self.stato in (self.Stato.ERRORE, self.Stato.ANNULLATA)
+
+    @property
+    def percentuale(self):
+        return int(100 * self.completati / len(self.hosts)) if self.hosts else 0
 
 
 class ProfiloSNMP(models.Model):
@@ -184,6 +254,9 @@ class Macchina(models.Model):
         null=True, blank=True, validators=[MinValueValidator(1)],
         help_text="Vuoto = profilo o configurazione globale.",
     )
+    community_salvata = models.ForeignKey(
+        CommunitySNMP, null=True, blank=True, on_delete=models.PROTECT, related_name="+",
+        help_text="Se selezionata, prevale sulla community manuale e globale.")
     snmp_community = models.CharField(
         max_length=60, blank=True,
         help_text="Vuoto = community globale; usare una community read-only.",
@@ -222,8 +295,8 @@ class Macchina(models.Model):
 class DispositivoSNMP(models.Model):
     """Nodo SNMP generico monitorato dalla centrale.
 
-    Le credenziali restano nel singleton :class:`ImpostazioniSNMP`: il record
-    non replica community o segreti e tutte le operazioni sono esclusivamente GET.
+    Community dal catalogo cifrato, dall'override manuale preesistente o dal
+    singleton globale. Tutte le operazioni SNMP sono esclusivamente in lettura.
     """
 
     class Categoria(models.TextChoices):
@@ -255,6 +328,9 @@ class DispositivoSNMP(models.Model):
         max_length=4, blank=True, choices=Versione.choices,
         help_text="Vuoto = versione SNMP globale.",
     )
+    community_salvata = models.ForeignKey(
+        CommunitySNMP, null=True, blank=True, on_delete=models.PROTECT, related_name="+",
+        help_text="Se selezionata, prevale sulla community manuale e globale.")
     community = models.CharField(
         max_length=60, blank=True,
         help_text="Vuoto = community globale; usare una community read-only.",

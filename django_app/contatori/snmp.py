@@ -222,13 +222,8 @@ class EsitoDiscovery(list):
         self.incompleta = False
 
 
-def scansiona_rete(rete, community="novicromprinter", port=161, timeout=2,
-                   version="v1", concurrency=32, *, communities=None, max_duration=20):
-    """GET limitati nel tempo; conserva host trovati anche senza OID opzionali.
-
-    communities e' una lista ordinata, massimo otto community read-only.
-    Nei risultati compare solo la posizione della community, mai il segreto.
-    """
+def hosts_rete(rete):
+    """Valida la dimensione prima di enumerare gli indirizzi."""
     import ipaddress
 
     try:
@@ -240,6 +235,27 @@ def scansiona_rete(rete, community="novicromprinter", port=161, timeout=2,
                                       else 1 if net.version == 6 and net.prefixlen < 127 else 0)
     if host_count > MAX_HOST_SCAN:
         raise SNMPError(f"Range troppo ampio: massimo {MAX_HOST_SCAN} host. Restringi la maschera.")
+    return [str(h) for h in net.hosts()]
+
+
+def scansiona_rete(rete, community="novicromprinter", port=161, timeout=2,
+                   version="v1", concurrency=32, *, communities=None, max_duration=20):
+    return scansiona_hosts(hosts_rete(rete), community=community, port=port,
+                           timeout=timeout, version=version, concurrency=concurrency,
+                           communities=communities, max_duration=max_duration)
+
+
+def scansiona_hosts(hosts, community="novicromprinter", port=161, timeout=2,
+                    version="v1", concurrency=32, *, communities=None, max_duration=20):
+    """Sonda un elenco limitato di IP, preservando risultati parziali."""
+    import ipaddress
+
+    if not hosts or len(hosts) > MAX_HOST_SCAN:
+        raise SNMPError("Elenco host vuoto o troppo ampio.")
+    try:
+        host_list = list(dict.fromkeys(str(ipaddress.ip_address(h)) for h in hosts))
+    except ValueError as e:
+        raise SNMPError("Indirizzo host non valido.") from e
     candidates = list(communities if communities is not None else [community])
     if not candidates or len(candidates) > 8 or any(not c or len(c) > 60 for c in candidates):
         raise SNMPError("Inserisci da 1 a 8 community, massimo 60 caratteri ciascuna.")
@@ -247,7 +263,6 @@ def scansiona_rete(rete, community="novicromprinter", port=161, timeout=2,
         raise SNMPError("Versione SNMP non valida.")
     if timeout <= 0 or max_duration <= 0:
         raise SNMPError("Il timeout deve essere positivo.")
-    host_list = [str(h) for h in net.hosts()]
     try:
         from puresnmp import Client, V1, V2C, PyWrapper
         from puresnmp.transport import send_udp

@@ -4,3 +4,15 @@
 .contatori-module input[type=checkbox]{width:auto;margin-right:7px}.contatori-module .banner{border-left:4px solid var(--cm-danger);background:color-mix(in srgb,var(--cm-danger) 10%,var(--cm-surface));color:var(--cm-danger);padding:12px 16px;border-radius:10px;margin-bottom:16px;font-weight:600}.contatori-module .banner.warn{border-color:var(--cm-warn);background:color-mix(in srgb,var(--cm-warn) 11%,var(--cm-surface));color:var(--cm-warn)}.contatori-module .banner.clean{border-color:var(--cm-ok);background:color-mix(in srgb,var(--cm-ok) 10%,var(--cm-surface));color:var(--cm-ok)}.contatori-module .neg{color:var(--cm-danger);font-weight:700}.contatori-module .pos,.contatori-module .muted{color:var(--cm-muted)}.contatori-module a.plain{color:var(--cm-primary-mid);text-decoration:none;font-weight:650}.contatori-module a.plain:hover{text-decoration:underline}.contatori-module .bar{height:8px;background:var(--cm-border);border-radius:6px;overflow:hidden;min-width:90px}.contatori-module .bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--cm-accent),var(--cm-primary-mid))}.contatori-module .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.92em}.contatori-module .empty{text-align:center;padding:32px 15px;color:var(--cm-muted)}.contatori-module .health-error{color:var(--cm-danger)}.contatori-module .health-warning{color:var(--cm-warn)}.contatori-module .health-ok{color:var(--cm-ok)}
 .contatori-module{--muted:var(--cm-muted);--cyan:var(--cm-accent);--navy2:var(--cm-primary-mid);--orange:#d97706}
 @media(max-width:760px){.contatori-module .grid-2,.contatori-module .form-grid{grid-template-columns:1fr}.contatori-module .hero{padding:22px 20px}.contatori-module .panel{padding:17px 15px}.contatori-module .filter-bar{grid-template-columns:1fr}.contatori-module h1{font-size:25px}.contatori-module .form-field.full{grid-column:auto}.contatori-module .hide-mobile{display:none}}
+
+/* Discovery: forms, live results and narrow screens, scoped to this page. */
+.contatori-module .discovery-page { min-width:0; }
+.contatori-module .discovery-page summary { cursor:pointer; font-weight:650; }
+.contatori-module .discovery-page details[open] > summary { margin-bottom:16px; }
+.contatori-module .discovery-page .form-grid { margin:16px 0; }
+.contatori-module .discovery-choices > div { display:flex; flex-wrap:wrap; gap:10px 24px; }
+.contatori-module .discovery-choices > div label { display:flex; align-items:center; gap:8px; margin:0; }
+.contatori-module .discovery-choices input[type=checkbox] { width:auto; margin:0; }
+.contatori-module .discovery-table { overflow-x:auto; max-width:100%; }
+.contatori-module .discovery-page .panel { min-width:0; }
+.contatori-module .discovery-page progress { accent-color:var(--cm-accent); }
