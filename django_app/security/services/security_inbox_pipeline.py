@@ -67,7 +67,7 @@ def process_mailbox_message(message: SecurityMailboxMessage, *, source=None, run
 
     result = _process_inbox_item(message)
 
-    message.parse_status = ParseStatus.PARSED if result["status"] == "success" else ParseStatus.FAILED
+    message.parse_status = _final_parse_status(result)
     message.pipeline_result = {k: v for k, v in result.items() if k not in ("errors", "warnings")}
     message.save(update_fields=["parse_status", "pipeline_result"])
 
@@ -85,10 +85,26 @@ def process_source_file(source_file: SecuritySourceFile, *, message=None, source
 
     result = _process_inbox_item(source_file)
 
-    source_file.parse_status = ParseStatus.PARSED if result["status"] == "success" else ParseStatus.FAILED
+    source_file.parse_status = _final_parse_status(result)
     source_file.save(update_fields=["parse_status"])
 
     return result
+
+
+def _final_parse_status(result: Dict[str, Any]) -> str:
+    """Stato finale di un elemento dopo la pipeline.
+
+    «Nessun parser lo riconosce» e' uno scarto, non un guasto: prima ogni esito diverso da
+    «success» diventava FAILED, quindi le mail non pertinenti di una casella personale
+    (RENTRI, assenze...) comparivano come errori e gonfiavano il contatore «In errore»,
+    nascondendo i veri guasti dei parser.
+    """
+    status = result.get("status")
+    if status == "success":
+        return ParseStatus.PARSED
+    if status == "skipped":
+        return ParseStatus.SKIPPED
+    return ParseStatus.FAILED
 
 
 def process_text_payload(text: str, *, subject: str = "", sender: str = "", source=None, dry_run=False) -> Dict[str, Any]:

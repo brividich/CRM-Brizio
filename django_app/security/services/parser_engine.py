@@ -17,6 +17,7 @@ from security.models import (
 from security.parsers.load import *  # noqa: F403,F401
 from security.parsers import parser_registry
 from security.services.dedup import make_hash
+from security.services.asset_signals import record_asset_signals
 from security.services.vpn_history import persist_vpn_accesses
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ def run_pending_parsers():
             for record in parsed.records:
                 if record.record_type != "vpn_access":
                     _persist_record(item.source, report, record)
+            record_asset_signals(item.source, report, parsed)
             item.parse_status = ParseStatus.PARSED
             item.save(update_fields=["parse_status"])
             parsed_count += 1

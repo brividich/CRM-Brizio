@@ -86,7 +86,9 @@ def preview_mailbox(source, days=PREVIEW_DAYS, limit=PREVIEW_LIMIT):
             body=message.body_text or message.body_html or "",
         )
         parser = _match_enabled_parser(probe)
-        detail = "" if parser else skip_reason(probe)[1]
+        attachments = _preview_attachments(message)
+        attachment_parsers = {a["parser"] for a in attachments if a["parser"]}
+        detail = "" if (parser or attachment_parsers) else skip_reason(probe)[1]
         rows.append(
             {
                 "received_at": message.received_at,
@@ -94,10 +96,39 @@ def preview_mailbox(source, days=PREVIEW_DAYS, limit=PREVIEW_LIMIT):
                 "subject": message.subject,
                 "accepted": accepted,
                 "parser": parser.name if parser else "",
+                "attachments": attachments,
+                "recognized": bool(parser or attachment_parsers),
+                "label": "Riconosciuta" if parser else ("Allegati letti" if attachment_parsers else "Non riconosciuta"),
                 "detail": detail,
             }
         )
     return {"ok": True, "error": "", "rows": rows}
+
+
+def _preview_attachments(message):
+    """Allegati di una mail (gli ZIP gia' aperti) e quale parser leggerebbe ciascuno."""
+    from security.models import SecuritySourceFile
+    from security.services.mailbox_ingestion import _expand_attachments
+    from security.services.parser_engine import _match_enabled_parser
+    from security.services.text_extraction import extract_text
+
+    rows = []
+    try:
+        expanded = list(_expand_attachments(message.attachments or []))
+    except Exception:  # noqa: BLE001 - l'anteprima non deve mai rompersi per un allegato
+        return rows
+    for attachment in expanded[:30]:
+        text, warnings = extract_text(attachment.filename, attachment.content_bytes)
+        probe = SecuritySourceFile(original_name=attachment.filename, content=text)
+        parser = _match_enabled_parser(probe)
+        rows.append({
+            "name": attachment.filename,
+            "size_kb": max(1, round((attachment.size_bytes or len(attachment.content_bytes)) / 1024)),
+            "from_zip": getattr(attachment, "from_archive", ""),
+            "parser": parser.name if parser else "",
+            "warning": warnings[0] if warnings else "",
+        })
+    return rows
 
 
 def run_summary(run):

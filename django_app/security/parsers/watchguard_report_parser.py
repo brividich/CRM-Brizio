@@ -15,6 +15,9 @@ from .watchguard import (
 )
 from .watchguard import routing
 
+# Sotto questa lunghezza il corpo di una mail non e' un report (e' la lettera di accompagnamento).
+MIN_REPORT_BODY_CHARS = 300
+
 _VPN_REPORT_TYPES = {"watchguard_firebox_authentication_allowed", "watchguard_firebox_authentication_denied"}
 
 _HANDLERS = {
@@ -37,7 +40,22 @@ class WatchGuardReportParser(BaseParser):
     name = "watchguard_report_parser"
 
     def can_parse(self, item) -> bool:
-        return self._kind(item) is not None or routing.looks_like_watchguard(_provenance(item))
+        kind = self._kind(item)
+        if self._is_covering_mail(item, kind):
+            # «Scheduled Firebox Report» / «EPDR ...» con poche parole e il report in allegato:
+            # il report vero e' l'allegato. Leggere il corpo produceva un report finto di soli zeri.
+            return False
+        return kind is not None or routing.looks_like_watchguard(_provenance(item))
+
+    @staticmethod
+    def _is_covering_mail(item, kind):
+        if getattr(item, "original_name", ""):
+            return False  # e' un file, non il corpo di una mail
+        body = str(getattr(item, "body", "") or "")
+        if len(body.strip()) >= MIN_REPORT_BODY_CHARS:
+            return False
+        # Corto ma con un report vero dentro (CSV incollato, «Threats detected...»): si legge.
+        return routing.detect_report("", body) is None
 
     def parse(self, item) -> ParsedReport:
         source_name = getattr(item, "original_name", "") or getattr(item, "subject", "")

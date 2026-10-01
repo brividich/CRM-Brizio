@@ -12,7 +12,7 @@
 
 .DESCRIPTION
     Lo script individua il venv dell'ambiente selezionato, avvia
-    'python manage.py qcluster --settings=config.settings.<env>'
+    'python manage.py qcluster --settings=config.settings.prod'
     e lo riavvia automaticamente se termina in modo inatteso.
 
     Registrare in Task Scheduler con:
@@ -41,7 +41,7 @@ param(
 
     [string]$PortaleRoot = "C:\PortaleNovicrom",
 
-    [int]$RestartDelaySec = 5,
+    [ValidateRange(1, 3600)][int]$RestartDelaySec = 5,
 
     [string]$LogFile = "",
 
@@ -56,7 +56,9 @@ $EnvRoot    = Join-Path $PortaleRoot $Environment
 $CurrentDir = Join-Path $EnvRoot "current\django_app"
 $VenvPython = Join-Path $EnvRoot "venv\Scripts\python.exe"
 $LogsDir    = Join-Path $EnvRoot "logs"
-$Settings   = "config.settings.$Environment"
+# Deployed TEST also uses SQL Server via prod settings and ENV/config/.env.
+# config.settings.test is reserved for isolated SQLite unit tests.
+$Settings   = "config.settings.prod"
 
 if (-not $LogFile) {
     $LogFile = Join-Path $LogsDir "qcluster.log"

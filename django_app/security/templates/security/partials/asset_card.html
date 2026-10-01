@@ -1,0 +1,39 @@
+{% load security_i18n %}{% if show %}
+<section class="af-card af-span-full" style="margin-top:18px;" id="asset-security-section">
+  <div class="af-card-head">
+    <div>
+      <div class="af-card-kicker">SICUREZZA E BACKUP</div>
+      <h3 class="af-card-title">Cosa dicono i report su questo asset</h3>
+    </div>
+    <a href="{% url 'security:assets' %}?stato=collegati" style="font-size:12px; font-weight:700;">Security Center →</a>
+  </div>
+  <div style="padding:16px 20px;">
+    {% if last_backup %}
+      <p style="margin:0 0 12px;">
+        <strong>Ultimo backup:</strong>
+        {{ last_backup.occurred_at|date:"d/m/Y H:i" }} —
+        <span style="font-weight:700;">{% if last_backup.status == "completed" %}riuscito{% elif last_backup.status == "warning" %}con avvisi{% elif last_backup.status == "failed" %}FALLITO{% else %}{{ last_backup.status }}{% endif %}</span>
+        <span style="opacity:.75;">· {{ last_backup.detail.job }}</span>
+      </p>
+    {% else %}
+      <p style="margin:0 0 12px; opacity:.75;">Nessun backup registrato dai report per questo asset.</p>
+    {% endif %}
+    {% if signals %}
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="text-align:left; opacity:.7;"><th style="padding:4px 8px 4px 0;">Quando</th><th style="padding:4px 8px;">Cosa</th><th style="padding:4px 8px;">Esito</th><th style="padding:4px 0 4px 8px;">Dispositivo</th></tr></thead>
+        <tbody>
+        {% for s in signals %}
+          <tr style="border-top:1px solid rgba(128,128,128,.25);">
+            <td style="padding:6px 8px 6px 0; white-space:nowrap;">{{ s.occurred_at|date:"d/m/Y H:i" }}</td>
+            <td style="padding:6px 8px;">{{ s.title }}</td>
+            <td style="padding:6px 8px;">{{ s.status|default:"—" }}</td>
+            <td style="padding:6px 0 6px 8px;">{{ s.asset.hostname }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% if total > signals|length %}<p style="margin:8px 0 0; opacity:.75; font-size:12px;">Mostrati {{ signals|length }} di {{ total }}.</p>{% endif %}
+    {% endif %}
+  </div>
+</section>
+{% endif %}

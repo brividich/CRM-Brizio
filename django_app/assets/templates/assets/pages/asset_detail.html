@@ -1,6 +1,7 @@
 {% extends "assets/base_shell.html" %}
 {% load assets_extras %}
 {% load static %}
+{% load security_asset %}
 
 {% block title %}{{ asset.asset_tag }}{% endblock %}
 
@@ -1738,6 +1739,9 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   </section>
   {% endif %}
   {% endif %}{# /asset_type != PRODOTTO_CHIMICO — corpo standard nascosto per i chimici #}
+
+  {# Segnali dei report di sicurezza/backup sul dispositivo collegato (solo a chi vede il Security Center). #}
+  {% security_asset_card asset %}
 
   {# Storico audit dell'asset: risponde a "chi ha modificato questa scadenza". #}
   <section class="af-card af-span-full" style="margin-top:18px;" id="asset-storico-section">

@@ -42,7 +42,20 @@
   {% include "automazioni/components/toasts.html" %}
   {% include "automazioni/components/subnav.html" %}
 
-  {% if health.stalled %}<div role="alert" style="padding:16px;border:2px solid #dc2626;border-radius:12px;margin-bottom:16px;">Attenzione: {{ health.queued }} esecuzioni in coda e nessun completamento recente. Ultimo completamento: {{ health.last_completed|date:"d/m/Y H:i"|default:"non disponibile" }}. Verificare il worker prima di aggiungere altre esecuzioni.</div>{% endif %}
+  {% if health.unhealthy %}
+  <div role="alert" style="padding:16px;border:2px solid #dc2626;border-radius:12px;margin-bottom:16px;">
+    <strong>Automazioni a rischio.</strong>
+    {% if not health.worker_alive %}Il worker non sta inviando un segnale di attività regolare.{% else %}La coda non avanza da almeno 10 minuti.{% endif %}
+    Esecuzioni in coda: {{ health.queued }}. Ultimo segnale: {{ health.last_heartbeat|date:"d/m/Y H:i:s"|default:"mai ricevuto" }}.
+    Ultimo completamento: {{ health.last_completed|date:"d/m/Y H:i"|default:"non disponibile" }}.
+  </div>
+  {% endif %}
+  {% if health.watchdog_stale %}
+  <div role="alert" style="padding:16px;border:2px solid #d97706;border-radius:12px;margin-bottom:16px;">
+    <strong>Sorveglianza esterna non attiva o in manutenzione.</strong>
+    Ultimo controllo: {{ health.watchdog_checked_at|date:"d/m/Y H:i"|default:"mai eseguito" }}. Verificare il task watchdog: gli avvisi automatici potrebbero non arrivare.
+  </div>
+  {% endif %}
   <div class="pian-stats">
     <div class="pian-stat"><div class="n">{{ totale }}</div><div class="l">Task pianificati</div></div>
     <div class="pian-stat"><div class="n" style="color:#166534;">{{ attivi }}</div><div class="l">Attivi</div></div>

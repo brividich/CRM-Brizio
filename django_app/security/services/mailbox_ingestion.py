@@ -230,6 +230,29 @@ def should_accept_message(source: SecurityMailboxSource, raw_message: MailboxMes
     return True
 
 
+def _expand_attachments(attachments):
+    """Gli ZIP diventano i file che contengono (con il loro nome), gli altri restano come sono."""
+    from types import SimpleNamespace
+
+    from security.services.text_extraction import expand_zip, is_zip
+
+    for attachment in attachments:
+        if not is_zip(attachment.filename, attachment.content_bytes):
+            yield attachment
+            continue
+        members, warnings = expand_zip(attachment.filename, attachment.content_bytes)
+        for warning in warnings:
+            logger.warning("Allegato %s: %s", attachment.filename, warning)
+        for name, content in members:
+            yield SimpleNamespace(
+                filename=name,
+                content_bytes=content,
+                size_bytes=len(content),
+                content_type="application/octet-stream",
+                from_archive=attachment.filename,
+            )
+
+
 def build_message_dedup_key(source: SecurityMailboxSource, raw_message: MailboxMessage) -> str:
     if raw_message.provider_message_id:
         seed = f"{source.id}:provider:{raw_message.provider_message_id}"
@@ -298,7 +321,7 @@ def ingest_mailbox_message(source: SecurityMailboxSource, raw_message: MailboxMe
         if source.process_attachments and raw_message.attachments:
             allowed_extensions = [ext.strip().lower() for ext in source.attachment_extensions.split(",") if ext.strip()]
 
-            for attachment in raw_message.attachments:
+            for attachment in _expand_attachments(raw_message.attachments):
                 if allowed_extensions:
                     ext = attachment.filename.split(".")[-1].lower() if "." in attachment.filename else ""
                     if ext not in allowed_extensions:
@@ -325,6 +348,7 @@ def ingest_mailbox_message(source: SecurityMailboxSource, raw_message: MailboxMe
                     raw_payload={
                         "size_bytes": attachment.size_bytes,
                         "content_type": attachment.content_type,
+                        "archive": getattr(attachment, "from_archive", ""),
                         "mailbox_message_id": message.id,
                         "mailbox_source_code": source.code,
                         "content_truncated": truncated,

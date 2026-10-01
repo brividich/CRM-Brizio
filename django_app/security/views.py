@@ -1149,6 +1149,13 @@ def admin_mailbox_source_detail(request, code):
         elif action == "history":
             _history_import_from_request(request, source)
             return redirect("security:admin_mailbox_source_detail", code=source.code)
+        elif action == "recommended_filters":
+            old = snapshot_instance(source)
+            source.subject_include_text = "\n".join(RECOMMENDED_SUBJECT_FILTERS)
+            source.save(update_fields=["subject_include_text"])
+            audit_model_form_changes(request.user, source, old, snapshot_instance(source), request=request)
+            messages.success(request, "Filtri applicati: da ora si leggono solo le mail dei report. Le mail già importate restano dove sono.")
+            return redirect("security:admin_mailbox_source_detail", code=source.code)
         else:
             old = snapshot_instance(source)
             form = SecurityMailboxSourceForm(request.POST, instance=source)
@@ -1167,10 +1174,44 @@ def admin_mailbox_source_detail(request, code):
         "recent_runs": source.ingestion_runs.order_by("-started_at")[:10],
         "recent_messages": SecurityMailboxMessage.objects.filter(source__name=source.name).order_by("-received_at")[:20],
         "page_title": f"Casella mail: {source.name}",
-        "history_default": (timezone.localdate() - timezone.timedelta(days=365)).isoformat(),
+        "history_default": _history_default_date(source).isoformat(),
         "history_max": (timezone.localdate() - timezone.timedelta(days=1)).isoformat(),
+        "unfiltered": not (source.subject_include_text or "").strip(),
+        "recommended_filters": RECOMMENDED_SUBJECT_FILTERS,
+        "not_relevant_count": SecurityMailboxMessage.objects.filter(source__name=source.name, parse_status="skipped").count(),
     }
     return render(request, "security/admin_mailbox_source_detail.html", context)
+
+
+# Parole che compaiono nell'oggetto delle mail dei report supportati (WatchGuard, Synology,
+# Veeam, Defender). Una casella personale contiene molto altro: senza filtro si importa tutto.
+RECOMMENDED_SUBJECT_FILTERS = [
+    "Firebox",
+    "WatchGuard",
+    "Threats detected",
+    "Endpoint Security",
+    "Active Backup",
+    "attività di backup",
+    "Veeam",
+    "[Success]",
+    "[Warning]",
+    "[Failed]",
+    "Defender",
+    "vulnerabilities notification",
+]
+
+
+def _history_default_date(source):
+    """Data proposta per «Importa storico»: da dove e' arrivata la lettura, non un anno fa.
+
+    Proporre sempre un anno fa riportava indietro il punto di lettura a ogni clic, e si
+    rileggeva ogni volta lo stesso primo blocco (tutto «già presente») senza mai avanzare.
+    """
+    today = timezone.localdate()
+    reached = getattr(source, "last_success_at", None)
+    if reached:
+        return min(timezone.localtime(reached).date(), today - timezone.timedelta(days=1))
+    return today - timezone.timedelta(days=365)
 
 
 def _history_import_from_request(request, source):

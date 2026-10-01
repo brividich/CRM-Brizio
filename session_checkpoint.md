@@ -1,5 +1,24 @@
 # Session Checkpoint
 
+Data: 2026-10-01 (merge e allineamento release locale/remota)
+
+- Vista/aggiunta voce AGENT_CHANGELOG merge e allineamento release locale/remota. Watchdog gia presente in entrambe; uniti c9317e0b locale (SOC/AGENTS) ed e97faac0 remoto (Assenze) nel worktree isolato, senza conflitti e preservando il codice sorgente delle due linee.
+- 66 test mirati Automazioni/Assenze/Security verdi; check/drift/secret hygiene/diff check. README/CHANGELOG integrati; registro/checkpoint aggiornati. Nessun backup aggiuntivo, DB aziendale, email o deploy.
+- Push ordinario e fast-forward locale richiesti dall'utente, verifica hash/presenza watchdog e cartella parser pdf intatta. Rischi e attivazione server restano quelli del runbook QCLUSTER_WATCHDOG.md; nessuna nuova modifica globale di sicurezza.
+
+Data: 2026-09-30 (integrazione watchdog in release/prod)
+
+- Vista/aggiunta voce AGENT_CHANGELOG integrazione watchdog in release/prod. Autorizzazione esplicita utente; unita origin/release/prod 444606ba a cdf002fe nel worktree dedicato C:/Dev/pn-qcluster-watchdog. Conflitto solo CHANGELOG risolto mantenendo entrambe le linee; codice watchdog invariato.
+- 42 test mirati nuovamente verdi sul merge, check/drift/secret hygiene/diff check; prove Windows precedenti valide per uguaglianza script. README/CHANGELOG integrati, registro/checkpoint aggiornati. Nessun backup aggiuntivo, deploy o DB aziendale.
+- Push ordinario su origin/release/prod e verifica remota; checkout condiviso non modificato. Prima del packaging da quella cartella sincronizzare il ramo locale. Attivare sul server con runbook (migrazione 0027, launcher, restart, installer watchdog, collaudo email). Critici e rischi della voce watchdog invariati.
+
+Data: 2026-09-30 (watchdog indipendente qcluster)
+
+- Vista/aggiunta voce AGENT_CHANGELOG watchdog indipendente qcluster; README, CHANGELOG root/Django e runbook docs/QCLUSTER_WATCHDOG.md aggiornati. Worktree C:/Dev/pn-qcluster-watchdog, feature/qcluster-watchdog, base a199474f; checkout condiviso preservato.
+- Heartbeat persistente sentinella, salute anche a coda vuota, email dirette con rate limit persistente e ripristino, incidenti monitoraggio e banner watchdog. Migration automazioni 0027. Task Windows esterno, probe limitata, Event Log, manutenzione a scadenza, riavvio conservativo massimo tre/30min senza residui.
+- 42 test Django mirati e 13 scenari Windows verdi; prova launcher sintetico >1MB/exit7, check/drift/parser/secret hygiene/diff check verdi. Corretto contesto del solo nuovo test template dopo prima esecuzione 41/42; riuso DB sintetico gia migrato per verifica finale. Critici operativi broker heartbeat e launcher TEST su settings prod; nessuna ACL/settings file/routing/auth/navigazione globale. Esito: commit locale feature, senza merge/push/deploy.
+- Nessun deploy, email reale o database aziendale toccato. Attivazione sul server: migrazione 0027, aggiornare launcher/riavviare worker, installer watchdog e collaudo account/SQL Server/email. Backup aggiuntivi nessuno; Unreleased per bump coordinato. Monitor esterno necessario per fermo intero server.
+
 Data: 2026-09-30 (flussi nel designer, recupero runtime e unione Assenze)
 
 - Vista/aggiunta voce AGENT_CHANGELOG flussi dei moduli nel designer e recupero automazioni; changelog Unreleased root/Django e docs aggiornati. Worktree C:/Dev/pn-automazioni-check, feature/automazioni-check-produzione; audit 019d0977, base5871b10a. Nessuna modifica al checkout condiviso.

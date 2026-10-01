@@ -15,17 +15,66 @@ from security.services.vpn_history import vpn_daily_series, vpn_findings, vpn_hi
 
 
 def assets_list(request):
-    """Elenco dei SecurityAsset con l'eventuale Asset HUB collegato (fase D2)."""
-    assets = (
-        SecurityAsset.objects.select_related("source", "hub_asset").order_by("hostname")
-    )
-    n_tot = assets.count()
-    n_linked = assets.exclude(hub_asset__isnull=True).count()
+    """Dispositivi citati dai report, con l'asset HUB collegato o proposto (conferma manuale)."""
+    from django.db.models import Count, Max
+
+    from security.services.asset_signals import link, suggest_hub_asset
+    from security.services.configuration import can_manage_security_config
+
+    can_manage = can_manage_security_config(request.user)
+    if request.method == "POST":
+        if not can_manage:
+            messages.error(request, "Serve il permesso di configurazione del Security Center.")
+            return redirect("security:assets")
+        _assets_post(request, link, suggest_hub_asset)
+        return redirect(request.get_full_path())
+
+    base = SecurityAsset.objects.select_related("source", "hub_asset")
+    n_tot = base.count()
+    n_linked = base.exclude(hub_asset__isnull=True).count()
+    view = request.GET.get("stato") or ("da_collegare" if n_tot - n_linked else "tutti")
+    qs = base.annotate(n_signals=Count("signals"), last_signal=Max("signals__occurred_at")).order_by("hostname")
+    if view == "da_collegare":
+        qs = qs.filter(hub_asset__isnull=True)
+    elif view == "collegati":
+        qs = qs.exclude(hub_asset__isnull=True)
+    rows = []
+    for asset in qs[:500]:
+        suggestion, reason = (None, "") if asset.hub_asset_id else suggest_hub_asset(asset)
+        rows.append({"asset": asset, "suggestion": suggestion, "reason": reason})
     return render(
         request,
         "security/soc_assets.html",
-        {"assets": assets, "n_tot": n_tot, "n_linked": n_linked},
+        {"rows": rows, "n_tot": n_tot, "n_linked": n_linked, "view": view, "can_manage": can_manage,
+         "n_suggested": sum(1 for r in rows if r["suggestion"])},
     )
+
+
+def _assets_post(request, link, suggest_hub_asset):
+    from assets.models import Asset
+
+    action = request.POST.get("action")
+    if action == "confirm":
+        asset = SecurityAsset.objects.filter(pk=request.POST.get("asset") or 0).first()
+        hub = Asset.objects.filter(pk=request.POST.get("hub") or 0).first()
+        if not asset or not hub:
+            messages.error(request, "Dispositivo o asset non trovato.")
+            return
+        link(asset, hub, actor=request.user, request=request)
+        messages.success(request, f"«{asset.hostname}» collegato a «{hub.name}».")
+    elif action == "confirm_all":
+        done = 0
+        for asset in SecurityAsset.objects.filter(hub_asset__isnull=True):
+            suggestion, _reason = suggest_hub_asset(asset)
+            if suggestion:
+                link(asset, suggestion, actor=request.user, request=request)
+                done += 1
+        messages.success(request, f"{done} dispositivi collegati (nome identico).")
+    elif action == "unlink":
+        asset = SecurityAsset.objects.filter(pk=request.POST.get("asset") or 0).first()
+        if asset and asset.hub_asset_id:
+            link(asset, None, actor=request.user, request=request)
+            messages.success(request, f"«{asset.hostname}» scollegato.")
 
 
 @require_POST
