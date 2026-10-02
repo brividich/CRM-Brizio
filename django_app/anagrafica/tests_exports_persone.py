@@ -207,14 +207,14 @@ class ExportPersoneTests(TestCase):
         n = self._assert_xlsx_and_pdf("dipendenti", scope="filtered")
         self.assertEqual(n, 2)  # il cessato non compare mai in questa lista
         nomi = [r["dipendente"] for r in self._rows("dipendenti")]
-        self.assertEqual(nomi, ["Anna Bianchi", "Mario Rossi"])
-        self.assertNotIn("Carlo Verdi", nomi)
+        self.assertEqual(nomi, ["BIANCHI ANNA", "ROSSI MARIO"])
+        self.assertNotIn("VERDI CARLO", nomi)
 
     def test_dipendenti_filtri_querystring(self):
         rows = self._rows("dipendenti", scope="filtered", q="rossi")
-        self.assertEqual([r["dipendente"] for r in rows], ["Mario Rossi"])
+        self.assertEqual([r["dipendente"] for r in rows], ["ROSSI MARIO"])
         rows = self._rows("dipendenti", scope="filtered", reparto="UFFICIO")
-        self.assertEqual([r["dipendente"] for r in rows], ["Anna Bianchi"])
+        self.assertEqual([r["dipendente"] for r in rows], ["BIANCHI ANNA"])
         # scope=full ignora la querystring
         self.assertEqual(len(self._rows("dipendenti", scope="full", q="rossi")), 2)
 
@@ -223,7 +223,7 @@ class ExportPersoneTests(TestCase):
         n = self._assert_xlsx_and_pdf("ex_dipendenti", scope="filtered")
         self.assertEqual(n, 1)
         row = self._rows("ex_dipendenti")[0]
-        self.assertEqual(row["dipendente"], "Carlo Verdi")
+        self.assertEqual(row["dipendente"], "VERDI CARLO")
         self.assertEqual(row["data_cessazione"], "31-01-2026")
         self.assertEqual(row["matricola"], "M003")
 
@@ -236,7 +236,7 @@ class ExportPersoneTests(TestCase):
         n = self._assert_xlsx_and_pdf("documenti", scope="filtered")
         self.assertEqual(n, 1)
         row = self._rows("documenti")[0]
-        self.assertEqual(row["dipendente"], "Mario Rossi")
+        self.assertEqual(row["dipendente"], "ROSSI MARIO")
         self.assertEqual(row["cartella"], "Contratti")
         self.assertEqual(row["file"], "contratto_sintetico.pdf")
 
@@ -268,16 +268,16 @@ class ExportPersoneTests(TestCase):
         self.assertEqual(n, 2)
         rows = self._rows("scadenzario")
         # Ordinamento per urgenza: prima la scaduta.
-        self.assertEqual(rows[0]["dipendente"], "Mario Rossi")
+        self.assertEqual(rows[0]["dipendente"], "ROSSI MARIO")
         self.assertEqual(rows[0]["stato"], "Scaduta")
         self.assertEqual(rows[0]["tipo"], "Qualifica")
         self.assertEqual(rows[0]["descrizione"], "Patentino carrello")
 
     def test_scadenzario_filtri_querystring(self):
         rows = self._rows("scadenzario", scope="filtered", stato="scaduta")
-        self.assertEqual([r["dipendente"] for r in rows], ["Mario Rossi"])
+        self.assertEqual([r["dipendente"] for r in rows], ["ROSSI MARIO"])
         rows = self._rows("scadenzario", scope="filtered", reparto="UFFICIO")
-        self.assertEqual([r["dipendente"] for r in rows], ["Anna Bianchi"])
+        self.assertEqual([r["dipendente"] for r in rows], ["BIANCHI ANNA"])
         rows = self._rows("scadenzario", scope="filtered", tipo="contratto")
         self.assertEqual(rows, [])
 
@@ -286,28 +286,28 @@ class ExportPersoneTests(TestCase):
         n = self._assert_xlsx_and_pdf("conformita", scope="filtered")
         self.assertEqual(n, 2)  # solo i dipendenti attivi
         rows = {r["dipendente"]: r for r in self._rows("conformita")}
-        self.assertIn("Mario Rossi", rows)
-        self.assertEqual(rows["Mario Rossi"]["reparto"], "PRODUZIONE")
-        self.assertEqual(rows["Mario Rossi"]["mansione"], "Saldatore")
-        self.assertTrue(rows["Mario Rossi"]["conformita"])
+        self.assertIn("ROSSI MARIO", rows)
+        self.assertEqual(rows["ROSSI MARIO"]["reparto"], "PRODUZIONE")
+        self.assertEqual(rows["ROSSI MARIO"]["mansione"], "Saldatore")
+        self.assertTrue(rows["ROSSI MARIO"]["conformita"])
 
     def test_conformita_filtro_reparto(self):
         rows = self._rows("conformita", scope="filtered", reparto="PRODUZIONE")
-        self.assertEqual([r["dipendente"] for r in rows], ["Mario Rossi"])
+        self.assertEqual([r["dipendente"] for r in rows], ["ROSSI MARIO"])
 
     # -- organigramma ---------------------------------------------------------
     def test_export_organigramma(self):
         n = self._assert_xlsx_and_pdf("organigramma", scope="filtered")
         self.assertEqual(n, 2)  # capo PRODUZIONE + 1 non mappato (UFFICIO non a catalogo)
         rows = {r["dipendente"]: r for r in self._rows("organigramma")}
-        self.assertEqual(rows["Mario Rossi"]["ruolo"], "Caporeparto")
-        self.assertEqual(rows["Mario Rossi"]["reparto"], "PRODUZIONE")
-        self.assertEqual(rows["Mario Rossi"]["responsabile"], "Mario Rossi")
-        self.assertEqual(rows["Anna Bianchi"]["ruolo"], "Reparto non a catalogo")
+        self.assertEqual(rows["ROSSI MARIO"]["ruolo"], "Caporeparto")
+        self.assertEqual(rows["ROSSI MARIO"]["reparto"], "PRODUZIONE")
+        self.assertEqual(rows["ROSSI MARIO"]["responsabile"], "ROSSI MARIO")
+        self.assertEqual(rows["BIANCHI ANNA"]["ruolo"], "Reparto non a catalogo")
 
     def test_organigramma_filtro_reparto(self):
         rows = self._rows("organigramma", scope="filtered", reparto="PRODUZIONE")
-        self.assertEqual([r["dipendente"] for r in rows], ["Mario Rossi"])
+        self.assertEqual([r["dipendente"] for r in rows], ["ROSSI MARIO"])
 
     # -- audit ----------------------------------------------------------------
     def test_audit_scritto_per_ogni_lista_persone(self):
