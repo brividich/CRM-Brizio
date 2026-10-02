@@ -1,5 +1,14 @@
 # Agent Changelog
 
+## 2026-10-02 - Codex (contenuti IT inline e categorie legacy)
+
+- Feedback utente: schede povere, dati desiderati dentro la pagina; screenshot stampante con tipo Altro. Worktree pn-asset-it-release, feature/assets-it-inline da main 1d35783c; checkpoint/delta letti, controlli sessione/lock/critical assenti. Risolta esclusione dal resolver usando categoria per OTHER (base esplicita o alias esatti/antenati), senza riclassificare dati, cercare per nome/IP o toccare CNC/WorkMachine/chimici.
+- Contenuti: specifiche/rete disponibili aperte, backup/segnali SOC popolati aperti; MFC con modello/IP/contratto e quattro contatori cumulativi, consumabili con percentuali/barre dopo pulsante nella scheda. Snapshot stampanti visibili direttamente. Nuovo frammento nel POST consumabili esistente, errori sintetici e date; nessun polling GET o storico persistente aggiunto.
+- File: assets/services/it_presentation.py e it_monitoring.py, assets/templates/assets/pages/asset_detail.html, partials/it_overview.html e it_monitoring.html, assets/static/assets/asset-it.css, assets/tests_it_infrastructure.py; contatori/views.py e nuovo templates/contatori/_consumabili_asset.html; security/templates/security/partials/asset_it_overview.html (tutti sotto django_app); README, CHANGELOG root/Django, checklist IT, registro/checkpoint.
+- Sicurezza/critici: nessun file ACL/settings/middleware/routing globale modificato; azione inline riusa route POST con ACL middleware e CSRF, visibilità subordinata al permesso specifico oltre a centrale/dettaglio. Errori rete grezzi non esposti nel nuovo frammento. Nessun database reale, credenziale, migrazione o dipendenza nuova.
+- Check: 60 test mirati IT/SOC/Printer-MIB verdi; aggiunto controllo CSRF senza polling, rerun in chiusura. Check Django, drift e secret hygiene/diff in chiusura. QA desktop1440/mobile390 scuro: categoria Stampanti+OTHER, contatori e progress 0/ignoto, clic HTMX con risposta sintetica realmente renderizzata dal view, nessun overflow. Anteprima con soli dati sintetici, 404 attesi per API non servite; nessuna interrogazione reale. Server QA fermato in chiusura.
+- Backup: copia DB sintetico QA; codice via Git. README/CHANGELOG/AGENT_CHANGELOG/checkpoint aggiornati sì. Pubblicazione seguendo feature → main → release/prod, senza deploy IIS. Rischi residui: rete/SQL Server reali da collaudare; livelli MFC transitori, storico/trend e policy restano nella checklist. Screenshot QA ignorati, condivisi solo come esempi sintetici.
+
 ## 2026-10-02 - Codex (correzione percorso merge via main)
 
 - Correzione esplicita di Brizio: passare SEMPRE da main. Il precedente merge diretto 810e4fa7 in release era un errore di procedura. Recuperata la feature con la relativa cronologia su origin/main ef6be692, poi promozione di main su origin/release/prod 1063c209; nessun reset, force push o revert delle modifiche visibili.

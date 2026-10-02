@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-10-02 (contenuti IT inline e categoria legacy)
+
+- Feedback pagine povere: corretto resolver OTHER da categoria; MFC mostra dati contatori/modello/IP/contratto e legge consumabili in pagina. Tecnica/SOC disponibili aperti; inventario non riclassificato.
+- 60 test mirati verdi, rerun CSRF/check/drift/secret hygiene in chiusura; QA desktop/mobile scuro e clic HTMX sintetico. Nessun polling reale, migrazione o file critico globale. README/changelog/checklist/registro aggiornati, backup solo copia DB sintetico.
+- Percorso di pubblicazione SEMPRE feature → main → release/prod. Nessun deploy IIS. Claude: trend/storico MFC, dati tecnici ulteriori e policy ancora aperti; vedere checklist.
+
 Data: 2026-10-02 (correzione merge via main)
 
 - Regola esplicita utente: SEMPRE feature → main → release/prod, registrata in CLAUDE e README. Corretto precedente salto di main recuperando 810e4fa7 su main ef6be692 e promuovendo main nella release 1063c209, senza riscrittura cronologia.

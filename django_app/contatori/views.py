@@ -277,6 +277,16 @@ def macchina_consumabili(request, pk):
     """Legge lo stato consumabili via SNMP; ritorna il frammento HTMX."""
     macchina = get_object_or_404(Macchina, pk=pk)
     consumabili, errore = _leggi_consumabili_cfg(macchina)
+    if request.POST.get("asset_inline") == "1":
+        # Same POST route and ACL as Contatori; never echo raw network errors.
+        supplies = []
+        for item in (consumabili or [])[:20]:
+            pct = item.get("pct")
+            supplies.append({"nome": item.get("nome", "Consumabile"),
+                             "display_pct": pct if type(pct) in (int, float) and 0 <= pct <= 100 else None})
+        return render(request, "contatori/_consumabili_asset.html", {
+            "supplies": supplies, "failed": bool(errore), "checked_at": timezone.now(),
+        })
     return render(request, "contatori/_consumabili.html",
                   {"consumabili": consumabili, "errore": errore, "macchina": macchina})
 

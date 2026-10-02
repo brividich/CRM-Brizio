@@ -1,0 +1,14 @@
+{% load l10n %}
+{% if checked_at %}<p class="af-note">Rilevazione consumabili: {{ checked_at|date:"d/m/Y H:i" }}.</p>{% endif %}
+{% if failed %}<p role="status">Lettura non riuscita. Verifica connessione e configurazione nel modulo Contatori, poi riprova.</p>{% endif %}
+<div class="af-it-supplies">
+{% for supply in supplies %}
+  <div class="af-it-supply">
+    <span>{{ supply.nome }}</span>
+    {% if supply.display_pct is not None %}
+      <strong>{{ supply.display_pct }}%</strong>
+      <progress max="100" value="{{ supply.display_pct|unlocalize }}" aria-label="{{ supply.nome }}: {{ supply.display_pct }}%"{% if supply.display_pct <= 15 %} class="af-it-low"{% endif %}></progress>
+    {% else %}<strong>Quantità non comunicata</strong>{% endif %}
+  </div>
+{% empty %}{% if not failed %}<p>Consumabili non disponibili nell'ultima rilevazione.</p>{% endif %}{% endfor %}
+</div>

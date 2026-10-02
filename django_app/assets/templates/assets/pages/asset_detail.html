@@ -550,7 +550,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   <div class="af-header">
     <div class="af-hero-main">
       <div class="af-title-row">
-        <div class="af-asset-mark">{{ asset.asset_type|default:"AST"|slice:":3"|upper }}</div>
+        <div class="af-asset-mark">{% if it_presentation %}{{ it_presentation.mark }}{% else %}{{ asset.asset_type|default:"AST"|slice:":3"|upper }}{% endif %}</div>
         <div class="af-title-copy">
           <div class="af-hero-kicker">{{ collection_label }}{% if asset.category_label %} / {{ asset.category_label }}{% endif %}</div>
           <h1 class="af-title">{{ asset.name }}</h1>
@@ -577,7 +577,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
         <span>{% if it_presentation %}Inventario aggiornato: {{ asset.updated_at|date:"d/m/Y H:i" }}{% else %}{{ sync_text }}{% endif %}</span>
       </div>
       <div class="af-hero-tags">
-        <span class="af-hero-tag"><span>Tipo</span>{{ asset.get_asset_type_display }}</span>
+        <span class="af-hero-tag"><span>{% if it_presentation.from_category %}Profilo{% else %}Tipo{% endif %}</span>{% if it_presentation.from_category %}{{ it_presentation.label }} · da categoria{% else %}{{ asset.get_asset_type_display }}{% endif %}</span>
         {% if asset.reparto %}<span class="af-hero-tag"><span>Reparto</span>{{ asset.reparto }}</span>{% endif %}
         {% if asset.manufacturer %}<span class="af-hero-tag"><span>Produttore</span>{{ asset.manufacturer }}</span>{% endif %}
         {% if asset.model %}<span class="af-hero-tag"><span>Modello</span>{{ asset.model }}</span>{% endif %}
