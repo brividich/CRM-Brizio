@@ -72,7 +72,7 @@ body.theme-dark .dpi-table td { border-color:var(--border); color:var(--text); }
         <select name="dipendente_id" id="dipendente_id" class="js-searchable" data-placeholder="Cerca dipendente…">
           <option value="">Seleziona dipendente</option>
           {% for d in dipendenti %}
-          <option value="{{ d.id }}"{% if dipendente_id == d.id|stringformat:"s" %} selected{% endif %}>{{ d.cognome }} {{ d.nome }}{% if d.reparto %} - {{ d.reparto }}{% endif %}{% if d.mansione %} / {{ d.mansione }}{% endif %}</option>
+          <option value="{{ d.id }}"{% if dipendente_id == d.id|stringformat:"s" %} selected{% endif %}>{{ d.nominativo }}{% if d.reparto %} - {{ d.reparto }}{% endif %}{% if d.mansione %} / {{ d.mansione }}{% endif %}</option>
           {% endfor %}
         </select>
       </div>

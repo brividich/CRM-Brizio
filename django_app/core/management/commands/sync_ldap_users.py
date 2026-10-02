@@ -10,6 +10,7 @@ from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand, CommandError
 from django.db import DatabaseError, transaction
 
+from core import naming
 from core.legacy_models import Ruolo, UtenteLegacy
 from core.legacy_utils import legacy_table_columns, sync_django_user_from_legacy
 
@@ -280,7 +281,7 @@ class Command(BaseCommand):
                     if suffix:
                         upn = f"{sam}@{suffix}".lower()
                 ident_email = upn or mail
-                full_name = display or " ".join([p for p in [given, sn] if p]).strip() or sam or ident_email
+                full_name = naming.normalizza_parte(display) or naming.nome_completo(given, sn) or sam or ident_email
 
                 if not ident_email:
                     totals["skipped"] += 1

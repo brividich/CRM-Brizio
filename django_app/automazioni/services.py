@@ -35,6 +35,7 @@ from .models import (
     get_teams_flow_endpoint_by_id,
 )
 from .source_registry import get_action_mapping_fields, get_source_definition, get_source_fields
+from core import naming
 
 
 _UNCASTABLE = object()
@@ -564,7 +565,7 @@ def _enrich_anagrafica_dipendenti_payload(payload: Any) -> Any:
 
     nome = str(enriched.get("nome") or "").strip()
     cognome = str(enriched.get("cognome") or "").strip()
-    dipendente_nome = f"{cognome} {nome}".strip()
+    dipendente_nome = naming.nome_completo(nome, cognome)
     if dipendente_nome:
         enriched.setdefault("dipendente_nome", dipendente_nome)
 

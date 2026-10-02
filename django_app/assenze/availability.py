@@ -25,6 +25,7 @@ from datetime import date, datetime
 from django.db import connections
 
 from core.legacy_utils import legacy_table_columns
+from core import naming
 
 logger = logging.getLogger(__name__)
 
@@ -252,7 +253,7 @@ def assenze_per_anagrafica(anagrafica_ids, start, end) -> dict[int, list[dict]]:
                     continue
                 seen.add(key)
                 info = identities.get(aid) or {}
-                nome = display or f"{info.get('cognome', '')} {info.get('nome', '')}".strip() or f"ID {aid}"
+                nome = display or naming.nome_completo(info.get('nome'), info.get('cognome')) or f"ID {aid}"
                 out.setdefault(aid, []).append({
                     "data_inizio": di,
                     "data_fine": df,
@@ -378,7 +379,7 @@ def disponibilita_per_anagrafica(anagrafica_ids, start, end, *, includi_pendenti
                     continue
                 seen.add(key)
                 info = identities.get(aid) or {}
-                nome = display or f"{info.get('cognome', '')} {info.get('nome', '')}".strip() or f"ID {aid}"
+                nome = display or naming.nome_completo(info.get('nome'), info.get('cognome')) or f"ID {aid}"
                 out.setdefault(aid, []).append({
                     "data_inizio": di,
                     "data_fine": df,

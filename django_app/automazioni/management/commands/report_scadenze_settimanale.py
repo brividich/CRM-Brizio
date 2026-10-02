@@ -33,6 +33,7 @@ from monitoring.automation import monitored_automation
 from monitoring.models import AutomationExecution
 
 from automazioni.scadenze_config import DEFAULT_GIORNI, get_scadenze_config
+from core import naming
 
 
 def _nominativi(legacy_ids: list[int]) -> dict[int, str]:
@@ -45,7 +46,7 @@ def _nominativi(legacy_ids: list[int]) -> dict[int, str]:
     for r in AnagraficaDipendente.objects.filter(id__in=legacy_ids).values("id", "cognome", "nome"):
         cognome = str(r.get("cognome") or "").strip()
         nome = str(r.get("nome") or "").strip()
-        out[r["id"]] = f"{cognome} {nome}".strip() or f"#{r['id']}"
+        out[r["id"]] = naming.nome_completo(nome, cognome) or f"#{r['id']}"
     return out
 
 

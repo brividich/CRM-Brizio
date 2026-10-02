@@ -143,6 +143,7 @@ from core.models import (
 from .decorators import legacy_admin_required
 from .forms import BulkRoleForm, PulsanteForm, UtenteCreateForm, UtenteUpdateForm
 from .security import sensitive_admin_operation_required
+from core import naming
 
 
 PERM_OPTIONAL_FIELDS = ("can_edit", "can_delete", "can_approve")
@@ -4283,7 +4284,7 @@ def ldap_import_utenti(request):
         sam = _first(data, "sAMAccountName")
         given = _first(data, "givenName")
         sn = _first(data, "sn")
-        display = _first(data, "displayName") or f"{given} {sn}".strip() or sam
+        display = naming.normalizza_parte(_first(data, "displayName")) or naming.nome_completo(given, sn) or sam
         if not upn and sam and upn_suffix:
             upn = f"{sam.lower()}@{upn_suffix.lstrip('@')}"
         ident = upn or mail
@@ -5895,7 +5896,7 @@ def utente_create(request):
     try:
         with transaction.atomic():
             utente = UtenteLegacy.objects.create(
-                nome=(data.get("nome") or "").strip(),
+                nome=naming.normalizza_parte(data.get("nome")),
                 email=(data.get("email") or "").strip(),
                 password=password_value,
                 ruolo=ruolo_name,
@@ -5974,7 +5975,7 @@ def utente_update(request, user_id: int):
         return redirect("admin_portale:utente_edit", user_id=user_id)
 
     data = form.cleaned_data
-    utente.nome = (data.get("nome") or "").strip()
+    utente.nome = naming.normalizza_parte(data.get("nome"))
     utente.email = (data.get("email") or "").strip()
     utente.attivo = bool(data.get("attivo"))
     utente.ruolo_id = _int_or_none(data.get("ruolo_id"))
@@ -7771,7 +7772,7 @@ def navigation_builder(request):
                 ana = AnagraficaDipendente.objects.filter(utente_id=nav_override_user_id).first()
                 cognome = str(getattr(ana, "cognome", "") or "").strip()
                 nome = str(getattr(nav_override_user, "nome", "") or "").strip()
-                nav_override_user_label = f"{cognome} {nome}".strip() or nome or nav_override_user.email or str(nav_override_user_id)
+                nav_override_user_label = (naming.nome_completo(ana.nome, ana.cognome) if ana else "") or nome or nav_override_user.email or str(nav_override_user_id)
             except Exception:
                 nav_override_user_label = str(getattr(nav_override_user, "nome", "") or nav_override_user_id)
             user_grants = {

@@ -34,3 +34,24 @@ class CoreConfig(AppConfig):
         from . import checks  # noqa: F401  (registra i system check di igiene runtime)
 
         post_migrate.connect(_ensure_legacy_anagrafica_columns, sender=self)
+        _install_user_full_name()
+
+
+def _user_get_full_name(self) -> str:
+    """Nominativo dell'utente nel formato unico del portale: ``COGNOME NOME``.
+
+    Gli utenti nascono da ``utenti.nome`` (displayName AD, già «Cognome Nome")
+    spezzato da ``core.legacy_utils._split_name``: ``first_name`` contiene quindi
+    il cognome. Si tiene l'ordine salvato e si uniforma il maiuscolo."""
+    from .naming import normalizza_parte
+
+    return normalizza_parte(f"{self.first_name} {self.last_name}")
+
+
+def _install_user_full_name():
+    """Tutti i nominativi utente del portale (tendine, assegnatari, email...) passano
+    da ``User.get_full_name()``: qui lo si allinea a ``core.naming`` invece di
+    ritoccare ogni template. Lo username resta il fallback dove il nome manca."""
+    from django.contrib.auth import get_user_model
+
+    get_user_model().get_full_name = _user_get_full_name

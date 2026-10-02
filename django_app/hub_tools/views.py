@@ -39,6 +39,7 @@ from admin_portale.decorators import legacy_admin_or_acl_required
 from config.app_version import build_module_version_env_block, load_app_version
 from config.env_config import primary_runtime_env_path, update_env_file_values
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+from core import naming
 
 logger = logging.getLogger(__name__)
 
@@ -1686,7 +1687,7 @@ def notifiche_hub(request):
             for r in rows:
                 uid = int(r.get("id") or 0)
                 if uid:
-                    user_names[uid] = f"{r.get('cognome','')} {r.get('nome','')}".strip()
+                    user_names[uid] = naming.nome_completo(r.get('nome'), r.get('cognome'))
         except Exception:
             pass
     for n in page.object_list:
@@ -1695,7 +1696,7 @@ def notifiche_hub(request):
     # Lista dipendenti per form invio
     try:
         dipendenti = [
-            {"id": int(r.get("id") or 0), "nome": f"{r.get('cognome','')} {r.get('nome','')}".strip(), "reparto": r.get("reparto","") or ""}
+            {"id": int(r.get("id") or 0), "nome": naming.nome_completo(r.get('nome'), r.get('cognome')), "reparto": r.get("reparto","") or ""}
             for r in fetch_anagrafica_rows()
             if int(r.get("id") or 0) > 0
         ]

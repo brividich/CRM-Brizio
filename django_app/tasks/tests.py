@@ -2179,8 +2179,8 @@ class TaskRoleAssignmentTests(TasksBaseTestCase):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("tasks:impostazioni"), {"tab": "ruoli", "q_user": "Danesi"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Alice")
-        self.assertNotContains(response, "Bob")
+        self.assertContains(response, "ALICE")
+        self.assertNotContains(response, "BOB")
 
     def test_ruoli_tab_search_syncs_missing_active_legacy_user(self):
         _legacy_upsert_by_id(
