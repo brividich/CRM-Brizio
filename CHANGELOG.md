@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori SNMP — cattura walk per la verifica dei preset (FASE 1)** (`django_app/contatori/snmp_capture.py`, `django_app/contatori/management/commands/snmp_capture.py`, `django_app/contatori/tests_snmp_capture.py`, `docs/snmp/RICOGNIZIONE.md`, `docs/snmp/CATTURA.md`, `README.md`):
+  - nuovo comando `snmp_capture`: walk completo read-only (GETBULK v2c/v3, GETNEXT v1) con output `.snmprec` (snmpsim) e `.txt` leggibile con nomi MIB;
+  - limiti: timeout 3 s, 2 retry, max-repetitions 25 dimezzato su *tooBig*, tetto di righe e di durata, stop su OID non crescenti;
+  - credenziali dal catalogo cifrato (`--community-id`), da variabile d'ambiente o da argomento; il segreto non finisce mai nei file e viene oscurato se compare nei valori; SNMP-COMMUNITY/USM/VACM/TARGET, `hrSWRunParameters` e utenti LanManager non vengono salvati;
+  - il walk grezzo viene rifiutato dentro il repository; `--sanitize` / `--sanitize-from` producono fixture pseudonimizzate (IP, MAC, email, nomi host/porte/vicini) per i test offline;
+  - SNMPv3: auth md5/sha1; la cifratura AES/DES richiede `puresnmp-crypto`, non ancora installato, con messaggio esplicito;
+  - test `ReadOnlyTests`: fallisce se nel modulo `contatori` compare una SET SNMP;
+  - deploy: nessuna migrazione.
 - **Nominativi: confronto unico fra tabelle e nome «COGNOME NOME» nelle pagine assenze** (`django_app/core/naming.py`, `django_app/assenze/{views.py,availability.py,tests_availability.py,tests_nominativo_display.py}`, `django_app/anomalie/views.py`, `django_app/timbri/views.py`, `django_app/suggestion_corner/management/commands/converti_sms_storico.py`, `django_app/anagrafica/tests_naming.py`, `README.md`):
   - nuove `naming.chiave_testo` / `naming.chiavi_confronto`: chiave di confronto unica (maiuscolo, spazi ridotti, apostrofi tipografici uniformati, accenti tolti, entrambi gli ordini) al posto dei normalizzatori ad hoc di assenze, disponibilità, anomalie, timbri e import SMS Suggestion Corner: `Niccolò D’Angelo` e `NICCOLO D'ANGELO` ora coincidono ovunque;
   - disponibilità operatori (`assenze/availability.py`): la query SQL cerca anche la forma grezza del nome (`UPPER(copia_nome)` non toglie accenti), così le righe con nomi accentati restano estratte;
