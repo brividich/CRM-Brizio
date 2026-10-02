@@ -201,7 +201,7 @@ class MeetingTwoStepFlowTests(TasksBaseTestCase):
         response = self.client.get(
             reverse("tasks:project_meeting_edit", args=[self.project.id, self.meeting.id])
         )
-        self.assertContains(response, "Mario Rossi - pm@example.com")
+        self.assertContains(response, "MARIO ROSSI - pm@example.com")
 
     def test_il_blocco_cc_ha_la_sua_ricerca(self):
         response = self.client.get(

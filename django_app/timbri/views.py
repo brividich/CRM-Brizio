@@ -25,6 +25,7 @@ from core.module_branding import get_module_branding_context, handle_module_bran
 
 from .forms import RegistroTimbroForm, save_variant_image
 from .models import OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue
+from core import naming
 
 logger = logging.getLogger(__name__)
 
@@ -239,7 +240,7 @@ def _legacy_role_value(row: dict) -> str:
 
 
 def _legacy_full_name(row: dict) -> str:
-    text = f"{_field_to_text(row.get('cognome'))} {_field_to_text(row.get('nome'))}".strip()
+    text = naming.nome_completo(row.get('nome'), row.get('cognome'))
     return " ".join(text.split()) or _field_to_text(row.get("aliasusername")) or f"anagrafica:{row.get('id')}"
 
 

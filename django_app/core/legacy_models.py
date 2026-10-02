@@ -1,4 +1,5 @@
 from django.db import models
+from . import naming
 
 
 class LegacyUnmanagedModel(models.Model):
@@ -63,7 +64,7 @@ class AnagraficaDipendente(LegacyUnmanagedModel):
         app_label = "core"
 
     def __str__(self) -> str:
-        return f"{self.cognome} {self.nome}".strip() or self.aliasusername or f"anagrafica:{self.id}"
+        return naming.nome_completo(self.nome, self.cognome) or self.aliasusername or f"anagrafica:{self.id}"
 
 
 class Pulsante(LegacyUnmanagedModel):

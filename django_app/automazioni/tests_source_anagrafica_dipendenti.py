@@ -52,7 +52,7 @@ class AnagraficaDipendentiSourceTests(TestCase):
         }
         enriched = enrich_payload_for_source("anagrafica_dipendenti", payload)
 
-        self.assertEqual(enriched["dipendente_nome"], "Rossi Mario")
+        self.assertEqual(enriched["dipendente_nome"], "ROSSI MARIO")
         self.assertEqual(enriched["dipendente_email"], "mario.rossi@example.local")
         self.assertEqual(enriched["sds_url"], "https://hub.example.local/schede-sicurezza/da-leggere/")
         self.assertEqual(

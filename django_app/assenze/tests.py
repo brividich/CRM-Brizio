@@ -324,7 +324,7 @@ class CertificazionePresenzaDipendentiTests(SimpleTestCase):
 
         names = _certificazione_presenza_dipendenti_attivi()
 
-        self.assertEqual(names, ["Marra Luca", "Romano Gianluca"])
+        self.assertEqual(names, ["MARRA LUCA", "ROMANO GIANLUCA"])
         sql = mock_fetch.call_args.args[0]
         self.assertIn("FROM anagrafica_dipendenti", sql)
         self.assertIn("attivo = 1", sql)
@@ -341,7 +341,7 @@ class CertificazionePresenzaDipendentiTests(SimpleTestCase):
 
         names = _certificazione_presenza_dipendenti_attivi()
 
-        self.assertEqual(names, ["MARRA LUCA", "Romano Gianluca"])
+        self.assertEqual(names, ["MARRA LUCA", "ROMANO GIANLUCA"])
 
 
 class AssenzeIdentityDisplayNameTests(SimpleTestCase):

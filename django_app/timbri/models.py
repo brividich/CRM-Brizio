@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from .storage import PrivateTimbriStorage
+from core import naming
 
 
 PNG_MAX_SIZE = 20 * 1024 * 1024
@@ -51,7 +52,7 @@ class OperatoreTimbri(models.Model):
 
     @property
     def full_name(self) -> str:
-        text = f"{self.cognome} {self.nome}".strip()
+        text = naming.nome_completo(self.nome, self.cognome)
         return " ".join(text.split()) or self.nome or self.matricola or f"operatore:{self.pk}"
 
 

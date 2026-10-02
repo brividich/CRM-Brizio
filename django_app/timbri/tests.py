@@ -184,7 +184,7 @@ class TimbriViewTests(TestCase):
         response = self.client.get(reverse("timbri:index"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Registro timbri")
-        self.assertContains(response, "Gentile Sara")
+        self.assertContains(response, "GENTILE SARA")
 
     def test_index_200_when_schema_is_missing(self):
         self.client.force_login(self.admin)
@@ -293,7 +293,7 @@ class TimbriViewTests(TestCase):
         self.assertEqual(OperatoreTimbri.objects.count(), 1)
         operatore = OperatoreTimbri.objects.get()
         self.assertEqual(operatore.legacy_anagrafica_id, self.legacy_id)
-        self.assertEqual(operatore.full_name, "Gentile Sara")
+        self.assertEqual(operatore.full_name, "GENTILE SARA")
 
     def test_reset_table_deduplicates_uppercase_legacy_rows(self):
         with connection.cursor() as cursor:
@@ -702,19 +702,19 @@ class TimbriQualificaFilterTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("timbri:index"), {"qualifica": "Cromatore"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Rossi Mario")
+        self.assertContains(response, "ROSSI MARIO")
 
     def test_filter_by_owned_qualifica_is_case_insensitive(self):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("timbri:index"), {"qualifica": "cromatore"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Rossi Mario")
+        self.assertContains(response, "ROSSI MARIO")
 
     def test_filter_by_missing_qualifica_excludes_employee(self):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("timbri:index"), {"qualifica": "Saldatore"})
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Rossi Mario")
+        self.assertNotContains(response, "ROSSI MARIO")
 
     def test_qualifiche_options_are_offered_in_the_filter(self):
         self.client.force_login(self.admin)

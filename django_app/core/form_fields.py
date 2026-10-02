@@ -11,13 +11,13 @@ from django import forms
 
 
 def user_display_label(user) -> str:
-    """Nome visualizzato di un utente: "Nome Cognome", fallback allo username."""
+    """Nome visualizzato di un utente: "COGNOME NOME", fallback allo username."""
     full = (user.get_full_name() or "").strip()
     return full or user.get_username()
 
 
 class UserChoiceField(forms.ModelChoiceField):
-    """``ModelChoiceField`` su ``User`` che mostra "Nome Cognome" non lo username."""
+    """``ModelChoiceField`` su ``User`` che mostra "COGNOME NOME" non lo username."""
 
     def label_from_instance(self, obj):
         return user_display_label(obj)

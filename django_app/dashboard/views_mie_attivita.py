@@ -28,6 +28,7 @@ from dashboard.views import (
     _board_data_assenze_da_approvare,
     _board_related_tickets_queryset,
 )
+from core import naming
 
 
 def _safe_url(name: str, *args) -> str:
@@ -274,7 +275,7 @@ def _safety_scadenze(request) -> list[dict] | None:
             for r in fetch_anagrafica_rows(ids=ids):
                 rid = int(r.get("id") or 0)
                 if rid:
-                    nomi[rid] = f"{r.get('cognome', '')} {r.get('nome', '')}".strip()
+                    nomi[rid] = naming.nome_completo(r.get('nome'), r.get('cognome'))
         url = _safe_url("anagrafica:scadenzario") + "?tipo=qualifica"
         out = []
         for q in qs:
