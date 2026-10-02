@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -123,6 +124,33 @@ class ITMonitoringTests(TestCase):
         self.assertNotContains(response, "Operativo")
         self.assertContains(response, "non la disponibilità attuale")
 
+    def test_probe_values_of_latest_snapshot_shown_without_error_details(self):
+        from contatori.models import SondaSNMP, ValoreSNMP
+
+        modello = SondaSNMP.objects.create(dispositivo=self.device, nome="Modello", oid="1.3.6.1.2.1.25.3.2.1.3.1",
+                                           tipo_valore="TESTO", ordine=1)
+        errori = SondaSNMP.objects.create(dispositivo=self.device, nome="Errori rilevati",
+                                          oid="1.3.6.1.2.1.25.3.5.1.2.1", tipo_valore="ERR_PRT", ordine=2)
+        temperatura = SondaSNMP.objects.create(dispositivo=self.device, nome="Temperatura", oid="1.3.6.1.4.1.9.1.0",
+                                               unita="°C", ordine=3)
+        vecchia = self.snapshot(rilevata_il=timezone.now() - timedelta(days=1), stato="WARNING")
+        ValoreSNMP.objects.create(rilevazione=vecchia, sonda=modello, valore_testo="Vecchio modello", stato="OK")
+        ultima = self.snapshot(stato="WARNING", dati_stampante={"consumabili": [
+            {"nome": "Toner demo", "pct": 40, "tipo": "toner", "colore": "nero"}]})
+        ValoreSNMP.objects.create(rilevazione=ultima, sonda=modello, valore_testo="Modello demo", stato="OK")
+        ValoreSNMP.objects.create(rilevazione=ultima, sonda=errori, valore_testo="carta inceppata", stato="ERROR")
+        ValoreSNMP.objects.create(rilevazione=ultima, sonda=temperatura, valore_numero=Decimal("43.000000"),
+                                  stato="ERROR", errore="PRIVATE-PROBE-ERROR")
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("assets:asset_view", args=[self.asset.pk]))
+        self.assertContains(response, "Valori rilevati")
+        self.assertContains(response, "Modello demo")
+        self.assertNotContains(response, "Vecchio modello")
+        self.assertContains(response, "carta inceppata")
+        self.assertContains(response, "43 °C")
+        self.assertContains(response, "(toner, nero)")
+        self.assertNotContains(response, "PRIVATE-PROBE-ERROR")
+
     def test_failed_latest_snapshot_does_not_reuse_old_consumables(self):
         self.snapshot(rilevata_il=timezone.now() - timedelta(days=1), dati_stampante={"consumabili": [{"nome": "Old", "pct": 99}]})
         latest = self.snapshot(stato="ERROR", dati_stampante={})
@@ -134,7 +162,8 @@ class ITMonitoringTests(TestCase):
         self.snapshot(dati_stampante={"contatori": [{"valore": 100, "unita": "fogli"}]})
         machine = Macchina.objects.create(reparto="Demo MFC", matricola="DEMO-SERIAL", asset=self.asset)
         reading = LetturaMensileContatori.objects.create(macchina=machine, mese=timezone.localdate().replace(day=1), a4_bn=300, a3_bn=5, a4_col=10, a3_col=2)
-        with patch("assets.services.it_monitoring.can_view_monitoring", return_value=True), self.assertNumQueries(4):
+        # 5 query fisse: dispositivi, rilevazioni, valori sonde, macchine, letture.
+        with patch("assets.services.it_monitoring.can_view_monitoring", return_value=True), self.assertNumQueries(5):
             data = monitoring_for_asset(self.request, self.asset)
         self.assertEqual(data["devices"][0]["counters"][0]["valore"], 100)
         self.assertEqual(data["machines"][0]["reading"]["id"], reading.pk)

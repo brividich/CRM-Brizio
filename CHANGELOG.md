@@ -8,6 +8,13 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Scheda asset — valori SNMP rilevati ed etichette dei codici di stato** (`django_app/assets/services/it_monitoring.py`, `django_app/assets/templates/assets/partials/it_monitoring.html`, `django_app/assets/tests_it_infrastructure.py`, `django_app/contatori/{models.py,services.py,forms.py,tests_snmp_preset.py}`, `django_app/contatori/migrations/{0020_etichette_valori.py,0021_etichette_preset_verificati.py}`, `docs/snmp/PRESET_CATALOG.md`, `README.md`):
+  - la scheda asset mostra nella sezione «Dati dal monitoraggio» i **Valori rilevati** dell'ultima rilevazione SNMP dei dispositivi collegati (fino a 30, con esito): modello, errori stampante, display, contatori Canon, salute NAS, CPU/RAM… Solo dati già raccolti, nessun polling, con gli stessi controlli ACL; i messaggi d'errore tecnici restano nella scheda dispositivo;
+  - numeri in formato italiano (migliaia, al massimo 2 decimali), uptime in giorni e ore; consumabili con tipo e colore;
+  - nuovo campo **Etichette** su colonne profilo e sonde (`1=Normale, 2=Guasto`): i codici numerici diventano testo nella scheda asset e nella centrale. Etichette caricate per i preset verificati Synology e stato dispositivo stampanti;
+  - correzione: lo stato RAID Synology ha codici oltre 12 (13 = verifica dati periodica). La soglia "critico > 10" avrebbe dato falsi allarmi a ogni scrubbing, quindi ora resta solo "attenzione" per qualunque stato diverso da normale;
+  - verificato a video in tema chiaro e scuro con dati sintetici;
+  - deploy: `migrate contatori` (0020, 0021).
 - **Contatori SNMP — preset stampanti verificati sulla flotta** (`django_app/contatori/{models.py,services.py,printer_snmp.py,snmp_capture.py}`, `django_app/contatori/management/commands/snmp_capture.py`, `django_app/contatori/migrations/{0018_tipo_valore_errori_stampante.py,0019_preset_stampanti_verificati.py}`, `django_app/contatori/fixtures/snmp/{canon_ir_adv_c5840,canon_ir_adv_c3822,canon_ir_adv_c5535_iii,kyocera_taskalfa_5054ci,hp_designjet_t730,zebra_zd421}.snmprec`, `django_app/contatori/{tests_snmp_preset.py,tests_printer_autodetect.py,tests_snmp_centrale.py}`, `docs/snmp/PRESET_CATALOG.md`, `docs/PROFILI_SNMP.md`):
   - walk di 9 stampanti (Canon iR-ADV C5840/C3822/C5535 III, Kyocera TASKalfa 5054ci/3554ci, HP DesignJet T730, Zebra ZD421);
   - colonne comuni verificate: modello, stato dispositivo con soglie, **errori rilevati** (nuovo tipo di valore che decodifica `hrPrinterDetectedErrorState` in testo e stato: toner/carta/sportello/inceppamento…), messaggio del display;

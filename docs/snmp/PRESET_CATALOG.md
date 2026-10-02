@@ -2,6 +2,8 @@
 
 Ogni OID qui elencato è stato **letto su un walk reale** (`snmp_capture`). La fixture pseudonimizzata è in `django_app/contatori/fixtures/snmp/`, i test in `contatori/tests_snmp_preset.py`. Le colonne compaiono nel profilo con **Verificata** e la fonte.
 
+I valori dell'ultima rilevazione compaiono anche nella **scheda asset** collegata al dispositivo, sezione «Dati dal monitoraggio». I codici di stato si leggono come testo grazie al campo **Etichette** della colonna (`1=Normale, 2=Guasto`).
+
 Gli OID non ancora verificati restano nei profili originali (migrazione 0009) con "Da verificare".
 
 ## Synology DSM — profilo `synology`

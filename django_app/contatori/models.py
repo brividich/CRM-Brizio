@@ -18,6 +18,26 @@ _oid_validator = RegexValidator(
 )
 
 
+def etichetta_valore(etichette, numero):
+    """Traduce un codice numerico con la mappa "1=Normale, 2=Guasto"; "" se assente."""
+    if not etichette or numero is None:
+        return ""
+    try:
+        chiave = int(numero)
+    except (TypeError, ValueError, ArithmeticError):
+        return ""
+    if chiave != numero:
+        return ""
+    for voce in etichette.split(","):
+        codice, sep, testo = voce.partition("=")
+        if sep and codice.strip().lstrip("-").isdigit() and int(codice) == chiave:
+            return testo.strip()
+    return ""
+
+
+ETICHETTE_HELP = "Testo per i codici numerici, es. 1=Normale, 2=Guasto."
+
+
 class StatoSNMP(models.TextChoices):
     MAI = "MAI", "Mai interrogato"
     OK = "OK", "Operativo"
@@ -208,6 +228,7 @@ class ColonnaProfiloSNMP(models.Model):
     soglia_warning_max = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
     soglia_critica_min = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
     soglia_critica_max = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
+    etichette = models.CharField(max_length=500, blank=True, help_text=ETICHETTE_HELP)
     verificata = models.BooleanField(
         default=False, help_text="OID confermato su un walk reale o su una MIB ufficiale.",
     )
@@ -441,6 +462,7 @@ class SondaSNMP(models.Model):
         max_digits=14, decimal_places=6, default=Decimal("1"),
         help_text="Moltiplicatore applicato al valore numerico grezzo.",
     )
+    etichette = models.CharField(max_length=500, blank=True, help_text=ETICHETTE_HELP)
     soglia_warning_min = models.DecimalField(
         max_digits=20, decimal_places=6, null=True, blank=True,
     )
@@ -532,6 +554,9 @@ class ValoreSNMP(models.Model):
     @property
     def valore_display(self):
         if self.valore_numero is not None:
+            etichetta = etichetta_valore(self.sonda.etichette, self.valore_numero)
+            if etichetta:
+                return etichetta
             valore = format(self.valore_numero.normalize(), "f")
             return f"{valore} {self.sonda.unita}".strip()
         return self.valore_testo or "—"

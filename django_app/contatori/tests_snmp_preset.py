@@ -116,6 +116,17 @@ class SynologyPresetTests(TestCase):
         self.assertEqual((sonda.soglia_warning_max, sonda.soglia_critica_max), (Decimal("55"), Decimal("65")))
         self.assertEqual(sonda.stato_per_valore(Decimal("70")), StatoSNMP.ERROR)
 
+    def test_status_codes_have_labels_and_raid_scrubbing_is_not_critical(self):
+        dispositivo = DispositivoSNMP.objects.create(nome="NAS", host="192.0.2.252", versione="v2c")
+        with mock.patch("contatori.snmp.leggi_specifiche", side_effect=self.agent.leggi_specifiche):
+            rilevazione = interroga_dispositivo(dispositivo)
+        valori = {v.sonda.nome: v for v in rilevazione.valori.select_related("sonda")}
+        self.assertEqual(valori["Stato sistema"].valore_display, "Normale")
+        self.assertEqual(valori["Aggiornamento DSM disponibile"].valore_display, "Nessuno")
+        raid = dispositivo.sonde.get(nome="Stato peggiore volumi/RAID")
+        self.assertEqual(raid.stato_per_valore(Decimal("13")), StatoSNMP.WARNING)
+        self.assertEqual(raid.stato_per_valore(Decimal("1")), StatoSNMP.OK)
+
     def test_fixture_contains_no_real_identifiers(self):
         text = SYNOLOGY.read_text(encoding="utf-8")
         self.assertNotIn("BACKUPNAS", text.upper().replace("DEVICE-1", ""))

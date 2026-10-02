@@ -442,7 +442,9 @@ _CAMPI_SOGLIA = ("soglia_warning_min", "soglia_warning_max", "soglia_critica_min
 
 
 def _soglie_colonna(colonna):
-    return {campo: getattr(colonna, campo) for campo in _CAMPI_SOGLIA}
+    """Soglie ed etichette dei valori: viaggiano dalla colonna del profilo alla sonda."""
+    return {**{campo: getattr(colonna, campo) for campo in _CAMPI_SOGLIA},
+            "etichette": colonna.etichette}
 
 
 def applica_profilo_dispositivo(dispositivo, profilo, *, sovrascrivi=False):
