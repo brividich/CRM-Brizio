@@ -3,21 +3,38 @@ from assets.models import Asset
 
 
 def is_workstation(asset):
-    # An industrial extension wins even if an old import used the PC type.
-    return (
-        asset.asset_type in (Asset.TYPE_PC, Asset.TYPE_NOTEBOOK)
-        and getattr(asset, "work_machine", None) is None
-        and not asset.prodotto_chimico_id
-    )
+    return it_profile(asset) == "workstation"
 
 
 def it_profile(asset):
     if getattr(asset, "work_machine", None) is not None or asset.prodotto_chimico_id:
         return None
-    return {
+    profiles = {
         Asset.TYPE_PC: "workstation", Asset.TYPE_NOTEBOOK: "workstation",
         Asset.TYPE_SERVER: "server", Asset.TYPE_VM: "vm", Asset.TYPE_STAMPANTE: "printer",
-    }.get(asset.asset_type)
+    }
+    if asset.asset_type != Asset.TYPE_OTHER:
+        return profiles.get(asset.asset_type)
+    # Legacy imports may leave the type as OTHER. Use category metadata only,
+    # never a device name/IP or an unauthorized monitoring relationship.
+    aliases = {
+        "stampante": "printer", "stampanti": "printer", "multifunzione": "printer",
+        "mfc": "printer", "stampanti e multifunzione": "printer",
+        "pc": "workstation", "computer": "workstation", "notebook": "workstation",
+        "portatili": "workstation", "server": "server", "server fisici": "server",
+        "vm": "vm", "macchine virtuali": "vm",
+    }
+    category = getattr(asset, "asset_category", None)
+    seen = set()
+    while category and category.pk not in seen and len(seen) < 8:
+        seen.add(category.pk)
+        if category.base_asset_type != Asset.TYPE_OTHER:
+            return profiles.get(category.base_asset_type)
+        match = aliases.get(category.label.strip().casefold())
+        if match:
+            return match
+        category = category.parent
+    return None
 
 
 def workstation_context(asset):
@@ -57,6 +74,8 @@ def it_context(asset):
             })
     return {
         "profile": profile,
+        "from_category": asset.asset_type == Asset.TYPE_OTHER,
+        "mark": {"workstation": "PC", "server": "SRV", "vm": "VM", "printer": "MFC"}[profile],
         "label": {"workstation": "Postazione IT", "server": "Server fisico", "vm": "Macchina virtuale", "printer": "Stampante / MFC"}[profile],
         "assignment_label": "Assegnatario" if profile == "workstation" else "Assegnazione censita",
         "location_label": "Posizione dichiarata" if profile == "vm" else "Posizione",

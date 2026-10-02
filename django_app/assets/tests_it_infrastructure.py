@@ -4,12 +4,12 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import DatabaseError
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from assets import views
-from assets.models import Asset, AssetDetailField, AssetITDetails, WorkMachine
+from assets.models import Asset, AssetCategory, AssetDetailField, AssetITDetails, WorkMachine
 from assets.services.it_monitoring import can_view_monitoring, monitoring_for_asset
 from assets.services.it_presentation import it_context
 from contatori.models import DispositivoSNMP, LetturaMensileContatori, Macchina, RilevazioneSNMP
@@ -79,6 +79,30 @@ class InfrastructureProfilesTests(TestCase):
         for source in ("computed:storage_free", "computed:purchase_date"):
             value = views._resolve_asset_detail_source_value(source_ref=source, asset=asset, it_details=details, work_machine=None, extra={}, custom_fields_by_code={}, sync_text="")
             self.assertEqual(value, "")
+
+    def test_legacy_other_printer_category_activates_inline_profile_without_reclassification(self):
+        category = AssetCategory.objects.create(code="demo-printers", label="Stampanti", base_asset_type="OTHER")
+        asset = self.asset("OTHER")
+        asset.asset_category = category
+        asset.save()
+        response = self.page(asset)
+        self.assertContains(response, "Stampante, consumabili e contatori")
+        self.assertContains(response, "Stampante / MFC · da categoria")
+        asset.refresh_from_db()
+        self.assertEqual(asset.asset_type, "OTHER")
+
+    def test_category_base_type_and_parent_but_not_device_name_are_used(self):
+        parent = AssetCategory.objects.create(code="demo-vms", label="Virtualizzazione", base_asset_type="VM")
+        child = AssetCategory.objects.create(code="demo-vm-child", label="Ambiente demo", parent=parent)
+        asset = self.asset("OTHER")
+        asset.asset_category = child
+        self.assertEqual(it_context(asset)["profile"], "vm")
+        asset.asset_type = "CNC"
+        self.assertIsNone(it_context(asset))
+        asset.asset_type = "OTHER"
+        asset.asset_category = None
+        asset.name = "Server stampante demo"
+        self.assertIsNone(it_context(asset))
 
 
 class ITMonitoringTests(TestCase):
@@ -155,3 +179,34 @@ class ITMonitoringTests(TestCase):
         response = self.client.get(reverse("assets:asset_view", args=[self.asset.pk]))
         self.assertContains(response, "Monitoraggio disattivato")
         self.assertContains(response, "Contatori non disponibili nell'ultima rilevazione")
+
+    def test_inline_mfc_action_respects_own_permission_and_never_polls_on_page_get(self):
+        machine = Macchina.objects.create(reparto="Demo", matricola="INLINE-DEMO", host="192.0.2.70", asset=self.asset)
+        action = reverse("contatori:macchina_consumabili", args=[machine.pk])
+        with patch("assets.services.it_monitoring.can_view_monitoring", side_effect=lambda request, path: path != action):
+            self.assertEqual(monitoring_for_asset(self.request, self.asset)["machines"][0]["supplies_url"], "")
+        self.client.force_login(self.user)
+        with patch("contatori.views._leggi_consumabili_cfg", side_effect=AssertionError("no automatic polling")):
+            response = self.client.get(reverse("assets:asset_view", args=[self.asset.pk]))
+        self.assertContains(response, "Leggi consumabili qui")
+        self.assertContains(response, "192.0.2.70")
+
+    def test_inline_mfc_consumables_post_renders_levels_and_sanitizes_errors(self):
+        machine = Macchina.objects.create(reparto="Demo", matricola="INLINE-POST", host="192.0.2.71", asset=self.asset)
+        action = reverse("contatori:macchina_consumabili", args=[machine.pk])
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(action).status_code, 405)
+        with patch("contatori.views._leggi_consumabili_cfg", return_value=([{"nome": "Nero demo", "pct": 0}, {"nome": "Ciano demo", "pct": None}], None)):
+            response = self.client.post(action, {"asset_inline": "1"})
+        self.assertContains(response, "0%")
+        self.assertContains(response, "Quantità non comunicata")
+        with patch("contatori.views._leggi_consumabili_cfg", return_value=(None, "PRIVATE-NETWORK-ERROR")):
+            response = self.client.post(action, {"asset_inline": "1"})
+        self.assertContains(response, "Lettura non riuscita")
+        self.assertNotContains(response, "PRIVATE-NETWORK-ERROR")
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+        csrf_client.cookies["csrftoken"] = "a" * 32
+        with patch("contatori.views._leggi_consumabili_cfg") as poll:
+            self.assertEqual(csrf_client.post(action, {"asset_inline": "1"}).status_code, 403)
+            poll.assert_not_called()
