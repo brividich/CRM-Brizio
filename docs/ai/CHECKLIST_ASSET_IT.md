@@ -1,7 +1,7 @@
 # Scheda asset IT — proposta e checklist di attuazione
 
 Data: 02/10/2026. Autore: Codex. Base analizzata: `f4bd2118`.
-Stato: **prima implementazione PC/portatile completata; estensioni successive aperte**.
+Stato: **profili PC/portatile, server, VM e stampante implementati con dati esistenti; arricchimenti e policy ancora aperti**.
 Richiesta: ripensare la pagina di un asset IT, ridurre le informazioni poco pertinenti e integrare SOC e altre informazioni utili. Dopo la proposta, l'utente ha autorizzato la prima versione PC/portatile con dati esistenti. Questo documento è il passaggio di consegne per Claude; pubblicazione e deploy restano separati.
 
 ## 1. Scelta consigliata
@@ -174,12 +174,12 @@ Legenda: `[x]` lavoro svolto in questa sessione; `[ ]` da fare. P0 = prima conse
 ### P0 — Prima scheda utile, con dati esistenti
 
 - [x] P01 — Regole e delta riletti; base applicativa invariata f4bd2118, sopra documento 06f08d22. Worktree dedicato pulito; file controllo sessione/lock assenti. Corretto riferimento alert: relazione tramite evento.
-- [x] P02 — Primo resolver conservativo per PC/NOTEBOOK; WorkMachine prevale sul tipo importato. Server, stampante e CNC mantengono il layout precedente, verificato nei test. Resolver esteso per categoria rimane P19.
-- [ ] P03 — Parziale: anteprima Django PC/portatile e CNC verificata a 1440/390 px, scuro, ancore e apertura dettagli. Server e stampante restano sul layout precedente (test HTTP verdi); anteprima dedicata dopo la loro implementazione.
+- [x] P02 — Resolver conservativo PC/NOTEBOOK/SERVER/VM/STAMPANTE; WorkMachine prevale sempre sul tipo importato. CNC, firewall generico, OTHER e altre famiglie mantengono layout precedente; nessuna riclassificazione. Resolver esteso per categoria rimane P19.
+- [x] P03 — Anteprima Django PC/portatile, server, VM, stampante e regressione CNC verificata. Desktop 1440/mobile 390, scuro, ancore/apertura dettagli; contatori mensili separati da Printer-MIB, toner 0% distinto da ignoto. Limiti anteprima statica sotto.
 - [ ] P04 — Parziale: panoramica PC/portatile riordinata, foto compatta, QR e sezioni gestionali espandibili; calendario già limitato a CNC/WorkMachine nel codice iniziale. Manutenzioni conservate e richiudibili; visibilità condizionale per obblighi/categoria ancora da definire.
-- [x] P05 — Nuova proiezione per PC/portatili, gate SOC esistente prima delle query; tre casi autorizzato collegato/non collegato e non autorizzato verificati. Card legacy conservata sugli altri profili.
-- [x] P06 — Per PC/portatili corretti fallback computed e default; test 512 GB e acquisto sconosciuto. Etichetta aggiornamento inventario distinta dal sync. Gli altri profili conservano comportamento precedente.
-- [ ] P07 — Parziale: SOC con fonte/date e backup per job nel campione esplicito, test doppio job e report tardivo verdi. Nessun verde su dati ignoti. Restano freschezza per dispositivo/policy e riprogettazione SNMP su altri profili.
+- [x] P05 — Nuova proiezione SOC sui cinque tipi IT, gate esistente prima delle query; casi autorizzato collegato/non collegato e non autorizzato verificati. Stampanti senza collegamento SOC omettono la card. Card legacy conservata sui profili non IT.
+- [x] P06 — Per tutti i cinque tipi IT corretti fallback computed/default: capacità non diventa spazio libero, censimento non diventa acquisto. Aggiornamento inventario distinto dal sync. Profili industriali conservati.
+- [ ] P07 — Parziale: SOC con fonte/date e backup per job nel campione esplicito; nuova proiezione SNMP con ACL, date e ultima rilevazione senza ripiegare su un successo precedente. Nessun verde su dati ignoti. Restano freschezza per dispositivo, cadenze attese e policy backup.
 - [x] P08 — Ticket IT con permesso nativo e asset precompilato; licenze, contratti, documenti e interventi esistenti conservati. Regressioni rendering ticket/licenze/documenti e layout verificate; nessun archivio parallelo.
 - [x] P09 — Campi, visibilità e ordine configurati conservati; test profilo nascosto e custom, oltre a regressioni esistenti. Nessuna riscrittura dei seed.
 - [x] P10 — Primo incremento: 36 test mirati, 10 regressioni, system check e nessun drift migrazioni; QA desktop/mobile/scuro e permessi, documenti/registri aggiornati. Commit feature locale; collaudo SQL Server e rilascio separati.
@@ -241,6 +241,8 @@ Documento nel worktree `C:/Dev/pn-asset-it-proposta`, branch `feature/assets-it-
 
 ### Primo incremento PC/portatile — limiti intenzionali
 
+Le note di questa sezione descrivono il primo commit `5d1212af`; il secondo incremento estende il perimetro come indicato sotto.
+
 - Selettore conservativo: solo tipi PC/NOTEBOOK senza estensione WorkMachine né prodotto chimico. Nessuna riclassificazione o migrazione; gli altri profili restano invariati.
 - Panoramica assegnazione e SOC sopra i dettagli; collegamento Apri ticket IT con permesso nativo; navigazione locale e sezioni espandibili, utilizzabili senza JavaScript. Layout personalizzati conservati; specifiche spostate in Tecnica e rete.
 - SOC letto solo dopo `can_view_security_center`, nessuna modifica al permesso. Alert attivi collegati via evento; al massimo 5 righe per gravità. Include rinviati/silenziati, come la definizione SOC di attivi. Nessun dato nuovo su QR o export.
@@ -249,10 +251,21 @@ Documento nel worktree `C:/Dev/pn-asset-it-proposta`, branch `feature/assets-it-
 - Nuovi servizi di sola lettura, query SOC costanti (quattro per proiezione, più conteggio collegamenti/permesso), nessuna rete o lavoro in coda all'apertura. Ordine legacy delle sezioni mantenuto.
 - Versione in Unreleased per bump coordinato al rilascio; nessuna modifica ai file `.env` o al wizard.
 
+### Secondo incremento — server, VM, stampanti
+
+- `it_profile` e `it_context` in `assets/services/it_presentation.py`: cinque tipi IT espliciti, priorità all'estensione industriale. Server/VM mostrano assegnazione censita, senza promuoverla a referente tecnico; VM non mostra la dichiarazione BIOS fisico né deduce l'hypervisor dall'IP.
+- Stampanti: monitoraggio prima del SOC, che appare solo se il dispositivo è collegato e l'utente autorizzato. Niente flag EDR/AD360/BIOS nel profilo stampante. I campi generici CPU/RAM/OS/disco/batteria/schermo sono esclusi solo per seed non modificati; campi custom, categoria e seed personalizzati restano disponibili.
+- `assets/services/it_monitoring.py` legge snapshot senza chiamare servizi SNMP: ACL identica al middleware mediante `acl_allows_path`, prima sulla centrale e poi sui singoli dettagli; errore DB = negazione. Il gate sostituisce la card SNMP diretta anche sui PC/portatili. Nessuna modifica a binding, grant, middleware o route globali.
+- Massimo 10 apparati e 10 MFC collegati, massimo 20 contatori/20 consumabili per rilevazione. Quattro query dati con collegamenti presenti, oltre alle verifiche ACL. Si consulta la centrale per la lista completa; nessun totale ottenuto sommando apparati diversi.
+- Ultima rilevazione selezionata per data/id: un fallimento non riusa dati di un vecchio successo. Data ultimo controllo e data snapshot esplicite; monitoraggio disattivato dichiarato. Nessuno stato “Operativo” dedotto da una vecchia risposta. Cadenze/freschezza restano non valutate.
+- Printer-MIB e contatori mensili MFC separati; lettura mensile = valore cumulativo, non consumo del mese. Percentuale 0 preservata, valori ignoti/invalidi non diventano zero. Errori grezzi e community non esposti; SQL seleziona i soli campi necessari degli apparati.
+- I consumabili delle MFC legacy richiedono la lettura esplicita già presente nel modulo Contatori: la GET asset non la avvia. Nessuna nuova migrazione o integrazione esterna.
+
 | Data / autore | Attività | Evidenza | Prossimo passo |
 | --- | --- | --- | --- |
 | 02/10/2026 — Codex | A01–A04 completate, documento pronto | Ricognizione statica dei file citati; tre fonti ufficiali consultate; nessun codice modificato | A05/A06, poi P01–P10 |
 | 02/10/2026 — Codex | Primo incremento autorizzato PC/portatile | 36 test mirati e 10 regressioni passati; system check e drift assets/security verdi. QA su HTML Django sintetico desktop 1440 e mobile 390, scuro, ancore/apertura, backup distinti, utente senza SOC e CNC | A06; completare P03/P04/P07 su ulteriori famiglie prima di P11–P22 |
+| 02/10/2026 — Codex | Proseguimento server/VM/stampante con SNMP autorizzato | 50 test IT/SOC e 16 regressioni Assets/Printer-MIB verdi (66 totali); check/drift verdi. QA desktop/mobile/scuro dei tre profili, contatori distinti, 0% e ignoti | A06 per policy; P04 visibilità manutenzioni; P11–P16 per dati strutturati e freschezza; P18/P19 altre relazioni e famiglie |
 
 Nota QA: anteprima statica dei template realmente renderizzati da Django; API globali notifiche/preferenze tabella e pannelli HTMX non serviti dall'anteprima restituiscono 404 attesi. Non equivale a collaudo delle integrazioni reali. Test HTTP di dettaglio eseguiti separatamente tramite Django Client. Screenshot nel worktree sotto `django_app/.tmp_tests/it_qa/`, non versionati.
 

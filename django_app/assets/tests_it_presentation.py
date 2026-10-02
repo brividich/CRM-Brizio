@@ -61,8 +61,8 @@ class WorkstationPresentationTests(TestCase):
         positions = [body.index(f'id="asset-section-{card["code"].lower()}"') for card in response.context["detail_section_cards"]]
         self.assertEqual(positions, sorted(positions))
 
-    def test_non_pc_profiles_keep_existing_page(self):
-        for kind in (Asset.TYPE_SERVER, Asset.TYPE_STAMPANTE, Asset.TYPE_CNC, Asset.TYPE_OTHER):
+    def test_non_it_profiles_keep_existing_page(self):
+        for kind in (Asset.TYPE_CNC, Asset.TYPE_OTHER, Asset.TYPE_FIREWALL):
             with self.subTest(kind=kind):
                 asset = Asset.objects.create(asset_tag=f"DEMO-{kind}", name=f"Demo {kind}", asset_type=kind)
                 response = self.page(asset)

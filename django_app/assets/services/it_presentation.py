@@ -1,4 +1,4 @@
-"""Read-only presentation for the first IT profile; no inventory reclassification."""
+"""Read-only IT profiles; no inventory reclassification or inferred ownership."""
 from assets.models import Asset
 
 
@@ -11,30 +11,55 @@ def is_workstation(asset):
     )
 
 
+def it_profile(asset):
+    if getattr(asset, "work_machine", None) is not None or asset.prodotto_chimico_id:
+        return None
+    return {
+        Asset.TYPE_PC: "workstation", Asset.TYPE_NOTEBOOK: "workstation",
+        Asset.TYPE_SERVER: "server", Asset.TYPE_VM: "vm", Asset.TYPE_STAMPANTE: "printer",
+    }.get(asset.asset_type)
+
+
 def workstation_context(asset):
-    if not is_workstation(asset):
+    """Compatibility entry point for callers needing specifically a workstation."""
+    return it_context(asset) if is_workstation(asset) else None
+
+
+def it_context(asset):
+    profile = it_profile(asset)
+    if profile is None:
         return None
     details = getattr(asset, "it_details", None)
     checks = []
-    if not asset.assignment_to:
+    if profile == "workstation" and not asset.assignment_to:
         checks.append("Assegnatario non indicato.")
-    if not asset.assignment_location:
+    if profile != "vm" and not asset.assignment_location:
         checks.append("Posizione del dispositivo non indicata.")
-    if not details or not details.os:
+    if profile != "printer" and (not details or not details.os):
         checks.append("Sistema operativo da censire.")
+    if profile in ("server", "vm"):
+        checks.append("Referente tecnico, servizio e criticità non sono ancora censiti come dati dedicati.")
+    if profile == "vm":
+        checks.append("Host di virtualizzazione non collegato: non viene dedotto dal nome o dall'indirizzo IP.")
     declarations = []
-    if details:
-        for key, label in (
+    if details and profile != "printer":
+        fields = [
             ("domain_joined", "Appartenenza al dominio"),
             ("edr_enabled", "EDR abilitato"),
             ("ad360_managed", "Gestione AD360"),
-            ("bios_pwd_set", "Password BIOS impostata"),
-        ):
+        ]
+        if profile != "vm":
+            fields.append(("bios_pwd_set", "Password BIOS impostata"))
+        for key, label in fields:
             declarations.append({
                 "label": label,
                 "value": "Sì, dichiarato" if getattr(details, key) else "No / non verificato",
             })
     return {
+        "profile": profile,
+        "label": {"workstation": "Postazione IT", "server": "Server fisico", "vm": "Macchina virtuale", "printer": "Stampante / MFC"}[profile],
+        "assignment_label": "Assegnatario" if profile == "workstation" else "Assegnazione censita",
+        "location_label": "Posizione dichiarata" if profile == "vm" else "Posizione",
         "checks": checks,
         "endpoints": list(asset.endpoints.all()),
         "declarations": declarations,

@@ -160,7 +160,7 @@ sequenceDiagram
 
 ### Tutti i 28 moduli custom a colpo d'occhio
 
-Assets: prima scheda dedicata a PC e portatili con assegnazione e SOC in evidenza, alert collegati, backup per job su campione dichiarato e approfondimenti espandibili per tecnica/rete, licenze, documenti e interventi. I dati manuali non attestano la protezione attuale. Le altre famiglie conservano la pagina esistente. [Checklist asset IT: implementazione, limiti e passi successivi](docs/ai/CHECKLIST_ASSET_IT.md).
+Assets: schede dedicate a PC, portatili, server, VM e stampanti con panoramica per famiglia e approfondimenti espandibili. SOC e backup per job su campione dichiarato; sulle stampanti precedenza a snapshot SNMP, consumabili e contatori, distinti dalle letture mensili MFC. Il monitoraggio richiede accesso alle pagine Contatori; nessuna interrogazione apparati all'apertura. Dati manuali e letture datate non attestano protezione o disponibilità attuali. Le altre famiglie conservano la pagina esistente. [Checklist asset IT: implementazione, limiti e passi successivi](docs/ai/CHECKLIST_ASSET_IT.md).
 
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|

@@ -5009,15 +5009,15 @@ def _resolve_asset_detail_source_value(
     if source_key == "cpu_load":
         return _coalesce_str(extra.get("avg_cpu_load"), extra.get("cpu_load"), "")
     if source_key == "storage_free":
-        from .services.it_presentation import is_workstation
-        capacity_fallback = "" if is_workstation(asset) else getattr(it_details, "disco", "")
+        from .services.it_presentation import it_profile
+        capacity_fallback = "" if it_profile(asset) else getattr(it_details, "disco", "")
         return _coalesce_str(extra.get("storage_free"), extra.get("free_storage"), capacity_fallback, "")
     if source_key == "purchase_date":
-        from .services.it_presentation import is_workstation
+        from .services.it_presentation import it_profile
         return _coalesce_str(
             asset.purchase_date.strftime("%d-%m-%Y") if asset.purchase_date else "",
             extra.get("purchase_date"),
-            asset.created_at.strftime("%d-%m-%Y") if asset.created_at and not is_workstation(asset) else "",
+            asset.created_at.strftime("%d-%m-%Y") if asset.created_at and not it_profile(asset) else "",
             "",
         )
     if source_key == "production_date":
@@ -5090,12 +5090,31 @@ def _build_configured_asset_detail_sections(
     sync_text: str,
 ) -> tuple[dict[str, list[dict[str, str]]], bool]:
     configured = list(AssetDetailField.objects.filter(is_active=True).order_by("section", "asset_scope", "sort_order", "id"))
+    from .services.it_presentation import it_profile
+    profile = it_profile(asset)
+    irrelevant_defaults = set()
+    if profile in ("server", "vm", "printer"):
+        irrelevant_defaults.update(("computed:battery_health", "extra:graphics", "extra:display"))
+    if profile == "printer":
+        irrelevant_defaults.update(("it:cpu", "it:ram", "it:os", "it:disco", "computed:cpu_load", "computed:storage_free"))
+    seeds = {
+        slugify(f"{row['section']}-{row['asset_scope']}-{row['source_ref']}")[:70]: row
+        for row in _default_asset_detail_field_seed_rows()
+        if row["source_ref"] in irrelevant_defaults
+    }
     sections: dict[str, list[dict[str, str]]] = defaultdict(list)
     has_matching_config = False
     for detail_field in configured:
         if not _detail_field_matches_asset_scope(detail_field, work_machine):
             continue
         has_matching_config = True
+        seed = seeds.get(detail_field.code)
+        if seed and all(getattr(detail_field, key) == seed[key] for key in (
+            "label", "section", "asset_scope", "source_ref", "value_format", "sort_order",
+        )) and detail_field.show_if_empty == bool(seed.get("show_if_empty", True)) and detail_field.card_size == AssetDetailField.CARD_THIRD:
+            # Only untouched generic defaults are suppressed. Explicit custom
+            # fields and category definitions remain authoritative.
+            continue
         raw_value = _resolve_asset_detail_source_value(
             source_ref=detail_field.source_ref,
             asset=asset,
@@ -9796,9 +9815,9 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         ]
         profile_card_title = "Anagrafica e assegnazione"
 
-    from .services.it_presentation import workstation_context
+    from .services.it_presentation import it_context
 
-    it_presentation = workstation_context(asset)
+    it_presentation = it_context(asset)
     it_ticket_create_url = ""
     if it_presentation is not None:
         from tickets.views import _can_open_tickets
@@ -9815,6 +9834,10 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             ("Schermo", extra.get("display", "")),
             ("Data acquisto", asset.purchase_date.strftime("%d-%m-%Y") if asset.purchase_date else extra.get("purchase_date", "")),
         ]
+        if it_presentation["profile"] in ("server", "vm"):
+            default_spec_pairs = [(label, value) for label, value in default_spec_pairs if label not in ("Grafica", "Schermo")]
+        elif it_presentation["profile"] == "printer":
+            default_spec_pairs = [("Numero seriale", asset.serial_number or ""), ("Data acquisto", asset.purchase_date.strftime("%d-%m-%Y") if asset.purchase_date else "")]
 
     default_assignment_rows = [
         {"label": "Reparto", "value": _coalesce_str(asset.assignment_reparto, "-")},
@@ -10379,6 +10402,10 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     from schede_sicurezza import pittogrammi as ghs
 
     scheda_chimica = asset.prodotto_chimico.scheda_corrente() if asset.prodotto_chimico_id else None
+    it_monitoring = None
+    if it_presentation is not None:
+        from .services.it_monitoring import monitoring_for_asset
+        it_monitoring = monitoring_for_asset(request, asset)
     return render(
         request,
         "assets/pages/asset_detail.html",
@@ -10407,6 +10434,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "detail_metrics": detail_metrics,
             "asset_primary_kpis": asset_primary_kpis,
             "it_presentation": it_presentation,
+            "it_monitoring": it_monitoring,
             "it_ticket_create_url": it_ticket_create_url,
             "asset_status_band": asset_status_band,
             "detail_specs_title": detail_specs_title,

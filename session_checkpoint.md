@@ -1,5 +1,12 @@
 # Session Checkpoint
 
+Data: 2026-10-02 (schede server, VM e stampanti)
+
+- Vista/aggiunta voce AGENT_CHANGELOG schede server/VM/stampanti; letti delta dalla prima implementazione PC. Worktree pn-asset-it-proposta, feature/assets-it-checklist, base 5d1212af; nessuna modifica al WIP condiviso.
+- Cinque profili IT con dati esistenti; monitoraggio SNMP autorizzato lato server e snapshot datati, MFC separato, personalizzazioni conservate. Nessuna modifica globale ACL/settings/routing, nuova dipendenza o migrazione.
+- 66 test mirati/regressione verdi; ultimi 14 riconfermati, check/drift e QA sintetica desktop/mobile/scuro positivi. Server anteprima fermato. README/changelog/checklist/registro aggiornati; backup solo DB sintetico. Commit locale, nessun push/deploy.
+- Claude: riprendere voci aperte nella checklist, in particolare policy A06, sezioni P04 e freschezza P07; arricchimento modelli e collaudo SQL Server/fonti reali separati.
+
 Data: 2026-10-02 (prima implementazione scheda PC e portatile)
 
 - Vista/aggiunta voce AGENT_CHANGELOG prima implementazione scheda PC/portatile, autorizzata dall'utente. Worktree C:/Dev/pn-asset-it-proposta, feature/assets-it-checklist, base 06f08d22/f4bd2118; checkout condiviso preservato, controlli sessione/lock assenti.

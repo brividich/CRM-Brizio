@@ -692,6 +692,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
     </section>
   {% endif %}
 
+  {% if not it_presentation %}
   {% with mfc_collegate=asset.contatori_macchine.all dispositivi_snmp=asset.dispositivi_snmp.all %}
   {% if mfc_collegate or dispositivi_snmp %}
   <section class="af-sections" aria-label="Monitoraggio SNMP collegato">
@@ -724,6 +725,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}
   {% endwith %}
 
+  {% endif %}
   <section class="af-sections">
     {% for card in detail_section_cards %}
       {% if it_presentation %}<details class="af-card af-it-disclosure {{ card.size_class }}" id="asset-section-{{ card.code|lower }}" data-card-code="{{ card.code|lower }}"><summary>{{ card.title }}</summary>
