@@ -160,7 +160,7 @@ sequenceDiagram
 
 ### Tutti i 28 moduli custom a colpo d'occhio
 
-Proposta da valutare per Assets: [scheda asset IT — struttura, confronto prodotti e checklist per implementazione](docs/ai/CHECKLIST_ASSET_IT.md). Analisi completata; funzionalità proposte non ancora implementate.
+Assets: prima scheda dedicata a PC e portatili con assegnazione e SOC in evidenza, alert collegati, backup per job su campione dichiarato e approfondimenti espandibili per tecnica/rete, licenze, documenti e interventi. I dati manuali non attestano la protezione attuale. Le altre famiglie conservano la pagina esistente. [Checklist asset IT: implementazione, limiti e passi successivi](docs/ai/CHECKLIST_ASSET_IT.md).
 
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|

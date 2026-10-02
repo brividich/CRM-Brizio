@@ -1,8 +1,8 @@
 # Scheda asset IT — proposta e checklist di attuazione
 
 Data: 02/10/2026. Autore: Codex. Base analizzata: `f4bd2118`.
-Stato: **analisi e proposta completate; implementazione non iniziata**.
-Richiesta: ripensare la pagina di un asset IT, ridurre le informazioni poco pertinenti e integrare SOC e altre informazioni utili. Questo documento è il passaggio di consegne per Claude; non costituisce autorizzazione a implementare o distribuire le modifiche.
+Stato: **prima implementazione PC/portatile completata; estensioni successive aperte**.
+Richiesta: ripensare la pagina di un asset IT, ridurre le informazioni poco pertinenti e integrare SOC e altre informazioni utili. Dopo la proposta, l'utente ha autorizzato la prima versione PC/portatile con dati esistenti. Questo documento è il passaggio di consegne per Claude; pubblicazione e deploy restano separati.
 
 ## 1. Scelta consigliata
 
@@ -136,7 +136,7 @@ I tipi `HW`, `OTHER`, `CCTV`, `FONIA` richiedono classificazione esplicita per c
 | Contenuto | Disponibilità verificata | Evoluzione proposta |
 | --- | --- | --- |
 | Ultimo backup e segnali minacce/rilevamenti | Segnali già associabili all'asset | Vista per job, filtri, provenienza e collegamenti al report autorizzato |
-| Alert/eventi sul dispositivo | `SecurityAlert.asset` e `SecurityEvent.asset` presenti | Query per tutte le identità collegate; rispettare stati, deduplica e permessi del SOC |
+| Alert/eventi sul dispositivo | `SecurityEventRecord.asset`; gli alert referenziano l'evento tramite `SecurityAlert.event` | Usare `event__asset__hub_asset`, non un campo diretto dell'alert; rispettare stati, deduplica e permessi del SOC |
 | Protezione EDR attuale | Flag manuale e segnali non bastano a garantirla | Indicatore osservato solo quando una fonte per endpoint lo dimostra |
 | CVE/patch specifiche del bene | Non dimostrate dalla ricognizione del collegamento asset | Verificare sorgenti e identità prima di promettere un conteggio per asset |
 | Disponibilità e risorse | Dati SNMP già presenti per apparati collegati | Esporre solo misure supportate; non dedurre disponibilità continua da una singola risposta |
@@ -168,21 +168,21 @@ Legenda: `[x]` lavoro svolto in questa sessione; `[ ]` da fare. P0 = prima conse
 - [x] A02 — Confronto con tre prodotti tramite documentazione ufficiale e link.
 - [x] A03 — Proposta di architettura pagina, matrice campi e differenze per famiglia.
 - [x] A04 — Distinzione fra dati già disponibili e integrazioni future.
-- [ ] A05 — Con Brizio scegliere A/B/C, confermare prime categorie e autorizzare l'implementazione. Default proposto: B incrementale, prima PC/portatile e server/VM.
+- [x] A05 — Utente ha autorizzato B incrementale, primo incremento A per PC/portatili, dati esistenti e approfondimenti espandibili. Server/VM e nuove integrazioni successivi.
 - [ ] A06 — Confermare referente IT, criteri criticità, policy backup e cadenze delle sorgenti. La UI deve funzionare con “non definito” finché mancano.
 
 ### P0 — Prima scheda utile, con dati esistenti
 
-- [ ] P01 — Rileggere regole/sessione/lock e aggiornare la ricognizione al commit di partenza. Verificare eventuali modifiche concorrenti a SOC/Assets. Esito: mappa delle differenze annotata.
-- [ ] P02 — Definire resolver profilo per categoria/tipo e fallback conservativo. Esito: PC, server, stampante e CNC hanno layout coerenti; legacy non riclassificato.
-- [ ] P03 — Preparare anteprima SSR con dati sintetici per PC, server e stampante, più regressione CNC. Esito: intestazione, priorità e contenuti leggibili desktop/mobile/tema scuro.
-- [ ] P04 — Riordinare panoramica; ridurre QR/foto/calendario; rendere manutenzioni e verifiche condizionali senza perdere dati. Esito: nessuna card industriale generica nel profilo IT; storico accessibile.
-- [ ] P05 — Integrare card SOC esistente nella nuova gerarchia. Esito: autorizzato con link vede dati; autorizzato senza link vede “non collegato”; non autorizzato non riceve contenuti SOC.
-- [ ] P06 — Correggere distinzione capacità/spazio libero e acquisto/censimento. Esito: capacità 512 GB non viene mostrata come spazio libero; acquisto ignoto non usa data creazione.
-- [ ] P07 — Mostrare fonte e data per SOC/SNMP; separare ultimo tentativo e ultimo successo backup, per job se identificabile. Esito: dato assente/vecchio non produce verde e un secondo job fallito resta visibile.
-- [ ] P08 — Collegare ticket, licenze, contratti e documenti già disponibili, rispettando permessi e URL esistenti. Esito: nessun nuovo archivio parallelo.
-- [ ] P09 — Verificare compatibilità con campi/sezioni personalizzati esistenti. Esito: seed non sovrascrive personalizzazioni; fallback documentato.
-- [ ] P10 — Eseguire test mirati e QA della matrice sotto; aggiornare README/CHANGELOG/registro/checkpoint. Esito: commit feature verificato, rilascio separato.
+- [x] P01 — Regole e delta riletti; base applicativa invariata f4bd2118, sopra documento 06f08d22. Worktree dedicato pulito; file controllo sessione/lock assenti. Corretto riferimento alert: relazione tramite evento.
+- [x] P02 — Primo resolver conservativo per PC/NOTEBOOK; WorkMachine prevale sul tipo importato. Server, stampante e CNC mantengono il layout precedente, verificato nei test. Resolver esteso per categoria rimane P19.
+- [ ] P03 — Parziale: anteprima Django PC/portatile e CNC verificata a 1440/390 px, scuro, ancore e apertura dettagli. Server e stampante restano sul layout precedente (test HTTP verdi); anteprima dedicata dopo la loro implementazione.
+- [ ] P04 — Parziale: panoramica PC/portatile riordinata, foto compatta, QR e sezioni gestionali espandibili; calendario già limitato a CNC/WorkMachine nel codice iniziale. Manutenzioni conservate e richiudibili; visibilità condizionale per obblighi/categoria ancora da definire.
+- [x] P05 — Nuova proiezione per PC/portatili, gate SOC esistente prima delle query; tre casi autorizzato collegato/non collegato e non autorizzato verificati. Card legacy conservata sugli altri profili.
+- [x] P06 — Per PC/portatili corretti fallback computed e default; test 512 GB e acquisto sconosciuto. Etichetta aggiornamento inventario distinta dal sync. Gli altri profili conservano comportamento precedente.
+- [ ] P07 — Parziale: SOC con fonte/date e backup per job nel campione esplicito, test doppio job e report tardivo verdi. Nessun verde su dati ignoti. Restano freschezza per dispositivo/policy e riprogettazione SNMP su altri profili.
+- [x] P08 — Ticket IT con permesso nativo e asset precompilato; licenze, contratti, documenti e interventi esistenti conservati. Regressioni rendering ticket/licenze/documenti e layout verificate; nessun archivio parallelo.
+- [x] P09 — Campi, visibilità e ordine configurati conservati; test profilo nascosto e custom, oltre a regressioni esistenti. Nessuna riscrittura dei seed.
+- [x] P10 — Primo incremento: 36 test mirati, 10 regressioni, system check e nessun drift migrazioni; QA desktop/mobile/scuro e permessi, documenti/registri aggiornati. Commit feature locale; collaudo SQL Server e rilascio separati.
 
 ### P1 — Dati strutturati e lettura operativa
 
@@ -237,10 +237,23 @@ Eseguire solo test delle aree modificate, system check e verifiche migrazioni qu
 
 Documento nel worktree `C:/Dev/pn-asset-it-proposta`, branch `feature/assets-it-checklist`; checkout condiviso lasciato invariato. Le istruzioni locali richiedono worktree isolati. Non assumere che questo documento sia già in `release/prod` o sul server.
 
-**Prima azione di Claude:** leggere questo documento e le regole di sessione, verificare lo stato Git e il delta rispetto a `f4bd2118`, poi presentare la scelta B incrementale usando A05/A06. L'implementazione resta da autorizzare; la richiesta corrente era una proposta in checklist.
+**Prima azione di Claude:** leggere questo documento e le regole di sessione, verificare lo stato Git e il delta rispetto al commit di implementazione, poi riprendere le voci aperte. La prima versione PC/portatile è autorizzata; policy e nuove integrazioni richiedono le decisioni A06.
+
+### Primo incremento PC/portatile — limiti intenzionali
+
+- Selettore conservativo: solo tipi PC/NOTEBOOK senza estensione WorkMachine né prodotto chimico. Nessuna riclassificazione o migrazione; gli altri profili restano invariati.
+- Panoramica assegnazione e SOC sopra i dettagli; collegamento Apri ticket IT con permesso nativo; navigazione locale e sezioni espandibili, utilizzabili senza JavaScript. Layout personalizzati conservati; specifiche spostate in Tecnica e rete.
+- SOC letto solo dopo `can_view_security_center`, nessuna modifica al permesso. Alert attivi collegati via evento; al massimo 5 righe per gravità. Include rinviati/silenziati, come la definizione SOC di attivi. Nessun dato nuovo su QR o export.
+- Backup: massimo 200 esecuzioni recenti, raggruppate per fonte/identità/job, massimo 12 gruppi visualizzati; il successo è il più recente **nel campione**, non una garanzia sullo storico completo. Campione e troncamenti espliciti. Job non identificati non fusi. L'esito può riguardare il job globale, non il singolo dispositivo: la UI lo dichiara.
+- Freschezza per dispositivo, copertura EDR e policy backup non ancora valutate. Nessun semaforo verde o soglia arbitraria. Fonte, data del fatto e acquisizione mostrate per i segnali; data di modifica inventario distinta.
+- Nuovi servizi di sola lettura, query SOC costanti (quattro per proiezione, più conteggio collegamenti/permesso), nessuna rete o lavoro in coda all'apertura. Ordine legacy delle sezioni mantenuto.
+- Versione in Unreleased per bump coordinato al rilascio; nessuna modifica ai file `.env` o al wizard.
 
 | Data / autore | Attività | Evidenza | Prossimo passo |
 | --- | --- | --- | --- |
 | 02/10/2026 — Codex | A01–A04 completate, documento pronto | Ricognizione statica dei file citati; tre fonti ufficiali consultate; nessun codice modificato | A05/A06, poi P01–P10 |
+| 02/10/2026 — Codex | Primo incremento autorizzato PC/portatile | 36 test mirati e 10 regressioni passati; system check e drift assets/security verdi. QA su HTML Django sintetico desktop 1440 e mobile 390, scuro, ancore/apertura, backup distinti, utente senza SOC e CNC | A06; completare P03/P04/P07 su ulteriori famiglie prima di P11–P22 |
+
+Nota QA: anteprima statica dei template realmente renderizzati da Django; API globali notifiche/preferenze tabella e pannelli HTMX non serviti dall'anteprima restituiscono 404 attesi. Non equivale a collaudo delle integrazioni reali. Test HTTP di dettaglio eseguiti separatamente tramite Django Client. Screenshot nel worktree sotto `django_app/.tmp_tests/it_qa/`, non versionati.
 
 Per ogni incremento aggiungere qui commit, voci completate, test realmente eseguiti, limiti e prossimo passo. Non spuntare un'integrazione solo perché esiste il campo o perché il layout è pronto.
