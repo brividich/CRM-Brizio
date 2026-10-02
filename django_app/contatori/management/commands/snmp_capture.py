@@ -93,7 +93,15 @@ class Command(BaseCommand):
             if not value:
                 raise CommandError(f"Variabile d'ambiente {opt['community_env']} vuota.")
             return value
-        return opt["community"] or ""
+        if opt["community"]:
+            return opt["community"]
+        # Nessuna fonte indicata: chiede la community a video senza mostrarla.
+        import getpass
+
+        try:
+            return getpass.getpass("Community SNMP (non viene mostrata mentre scrivi): ").strip()
+        except (EOFError, KeyboardInterrupt) as exc:
+            raise CommandError("Community non inserita.") from exc
 
     def _env(self, name):
         if not name:

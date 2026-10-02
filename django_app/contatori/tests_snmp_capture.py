@@ -179,6 +179,15 @@ class CommandTests(SimpleTestCase):
         self.assertNotIn("publicRO", body)
         self.assertIn("COMPLETO", body)
 
+    def test_prompts_for_community_when_not_given(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch("getpass.getpass", return_value="publicRO") as prompt, \
+                mock.patch("puresnmp.Client", lambda *a, **k: FakeClient(_agent())):
+            out = Path(tmp) / "nas.snmprec"
+            call_command("snmp_capture", host="192.0.2.10", out=str(out), stdout=mock.MagicMock())
+            self.assertNotIn("publicRO", out.read_text())
+        prompt.assert_called_once()
+
     def test_sanitize_from_raw_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             raw = Path(tmp) / "raw.snmprec"
