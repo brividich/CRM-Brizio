@@ -94,20 +94,28 @@ def _as_date(value):
 
 
 def _norm_key(text) -> str:
-    """Chiave di confronto: spazi compattati + UPPER (omogenea a copia_nome)."""
-    return " ".join(str(text or "").split()).upper()
+    """Chiave di confronto (omogenea a copia_nome): vedi ``core.naming.chiave_testo``."""
+    return naming.chiave_testo(text)
 
 
 def _name_variants(nome: str, cognome: str) -> set[str]:
     """Varianti normalizzate del nome, per assorbire l'ordine usato in copia_nome."""
-    nome = (nome or "").strip()
-    cognome = (cognome or "").strip()
-    out: set[str] = set()
-    if nome or cognome:
-        out.add(_norm_key(f"{cognome} {nome}"))
-        out.add(_norm_key(f"{nome} {cognome}"))
-    out.discard("")
-    return out
+    return naming.chiavi_confronto(nome, cognome)
+
+
+def _sql_name_variants(nome: str, cognome: str) -> set[str]:
+    """Nomi da cercare in SQL con ``UPPER(copia_nome) IN (...)``.
+
+    SQL Server non toglie accenti né uniforma gli apostrofi: oltre alle chiavi di
+    ``core.naming`` (usate per il confronto in Python) servono le forme "grezze",
+    solo maiuscole e con gli spazi ridotti, altrimenti un nome accentato a DB non
+    verrebbe più estratto dalla query."""
+    grezze = {
+        " ".join(f"{cognome or ''} {nome or ''}".split()).upper(),
+        " ".join(f"{nome or ''} {cognome or ''}".split()).upper(),
+    }
+    grezze.discard("")
+    return grezze | _name_variants(nome, cognome)
 
 
 def _fetch_dict(sql: str, params) -> list[dict]:
@@ -151,6 +159,7 @@ def _resolve_identities(anagrafica_ids) -> dict[int, dict]:
             "nome": nome,
             "cognome": cognome,
             "names": _name_variants(nome, cognome),
+            "sql_names": _sql_name_variants(nome, cognome),
             "emails": emails,
         }
     return out
@@ -203,8 +212,9 @@ def assenze_per_anagrafica(anagrafica_ids, start, end) -> dict[int, list[dict]]:
         who: list[str] = []
         who_params: list = []
         if has_copia and all_names:
-            who.append("UPPER(COALESCE(copia_nome,'')) IN (%s)" % ", ".join(["%s"] * len(all_names)))
-            who_params.extend(all_names)
+            sql_names = sorted({n for info in identities.values() for n in (info.get("sql_names") or info.get("names") or ())})
+            who.append("UPPER(COALESCE(copia_nome,'')) IN (%s)" % ", ".join(["%s"] * len(sql_names)))
+            who_params.extend(sql_names)
         if has_email and all_emails:
             who.append("UPPER(COALESCE(email_esterna,'')) IN (%s)" % ", ".join(["%s"] * len(all_emails)))
             who_params.extend(all_emails)
@@ -253,7 +263,13 @@ def assenze_per_anagrafica(anagrafica_ids, start, end) -> dict[int, list[dict]]:
                     continue
                 seen.add(key)
                 info = identities.get(aid) or {}
-                nome = display or naming.nome_completo(info.get('nome'), info.get('cognome')) or f"ID {aid}"
+                # Nominativo dall'anagrafica (formato unico); il testo salvato sulla
+                # richiesta (sincronizzato con SharePoint) resta solo come riserva.
+                nome = (
+                    naming.nome_completo(info.get("nome"), info.get("cognome"))
+                    or naming.normalizza_parte(display)
+                    or f"ID {aid}"
+                )
                 out.setdefault(aid, []).append({
                     "data_inizio": di,
                     "data_fine": df,
@@ -318,8 +334,9 @@ def disponibilita_per_anagrafica(anagrafica_ids, start, end, *, includi_pendenti
         who: list[str] = []
         who_params: list = []
         if has_copia and all_names:
-            who.append("UPPER(COALESCE(copia_nome,'')) IN (%s)" % ", ".join(["%s"] * len(all_names)))
-            who_params.extend(all_names)
+            sql_names = sorted({n for info in identities.values() for n in (info.get("sql_names") or info.get("names") or ())})
+            who.append("UPPER(COALESCE(copia_nome,'')) IN (%s)" % ", ".join(["%s"] * len(sql_names)))
+            who_params.extend(sql_names)
         if has_email and all_emails:
             who.append("UPPER(COALESCE(email_esterna,'')) IN (%s)" % ", ".join(["%s"] * len(all_emails)))
             who_params.extend(all_emails)
@@ -379,7 +396,13 @@ def disponibilita_per_anagrafica(anagrafica_ids, start, end, *, includi_pendenti
                     continue
                 seen.add(key)
                 info = identities.get(aid) or {}
-                nome = display or naming.nome_completo(info.get('nome'), info.get('cognome')) or f"ID {aid}"
+                # Nominativo dall'anagrafica (formato unico); il testo salvato sulla
+                # richiesta (sincronizzato con SharePoint) resta solo come riserva.
+                nome = (
+                    naming.nome_completo(info.get("nome"), info.get("cognome"))
+                    or naming.normalizza_parte(display)
+                    or f"ID {aid}"
+                )
                 out.setdefault(aid, []).append({
                     "data_inizio": di,
                     "data_fine": df,

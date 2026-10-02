@@ -250,7 +250,7 @@ def _load_legacy_employee(legacy_id: int) -> dict | None:
 
 
 def _normalize_text_key(value: str) -> str:
-    return " ".join(str(value or "").strip().lower().split())
+    return naming.chiave_testo(value)
 
 
 def _find_legacy_employee(*, lookup_value, label_value, matricola_value) -> dict | None:

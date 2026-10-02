@@ -34,3 +34,32 @@ def iniziali(nome: str | None, cognome: str | None) -> str:
 def chiave_ordinamento(nome: str | None, cognome: str | None) -> str:
     """Chiave di ordinamento: ``COGNOME NOME``, come nelle liste HR."""
     return nome_completo(nome, cognome)
+
+
+# Apostrofi tipografici e accenti "a mano" (NICCOLO') che nei nomi valgono come
+# l'apostrofo semplice.
+_APOSTROFI = str.maketrans({"’": "'", "‘": "'", "´": "'", "`": "'"})
+
+
+def chiave_testo(valore: str | None) -> str:
+    """Chiave di CONFRONTO di un testo (nome, cognome, nominativo, email...).
+
+    Non serve a mostrare: due scritture della stessa persona danno la stessa
+    chiave. MAIUSCOLO, spazi ridotti, apostrofi uniformati, accenti tolti
+    (``Niccolò`` = ``NICCOLO``, ``D’Angelo`` = ``d'angelo``).
+    """
+    import unicodedata
+
+    testo = str(valore or "").translate(_APOSTROFI)
+    testo = "".join(
+        ch for ch in unicodedata.normalize("NFKD", testo) if not unicodedata.combining(ch)
+    )
+    return " ".join(testo.split()).upper()
+
+
+def chiavi_confronto(nome: str | None, cognome: str | None) -> set[str]:
+    """Chiavi di confronto di una persona in entrambi gli ordini
+    (``COGNOME NOME`` e ``NOME COGNOME``): i testi delle altre tabelle usano l'uno o l'altro."""
+    chiavi = {chiave_testo(f"{cognome or ''} {nome or ''}"), chiave_testo(f"{nome or ''} {cognome or ''}")}
+    chiavi.discard("")
+    return chiavi

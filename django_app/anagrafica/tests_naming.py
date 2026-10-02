@@ -107,3 +107,17 @@ class FormNormalizzaTests(SimpleTestCase):
         form = DipendenteLegacyForm(data={"nome": "LUCA"})
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.cleaned_data["cognome"], "")
+
+
+class ChiaviConfrontoTests(SimpleTestCase):
+    def test_stessa_persona_scritta_in_modi_diversi(self):
+        self.assertEqual(naming.chiave_testo("Niccolò  D’Angelo"), naming.chiave_testo("NICCOLO D'ANGELO"))
+
+    def test_chiave_maiuscola_senza_spazi_doppi(self):
+        self.assertEqual(naming.chiave_testo("  rossi   mario "), "ROSSI MARIO")
+
+    def test_entrambi_gli_ordini(self):
+        self.assertEqual(naming.chiavi_confronto("Mario", "Rossi"), {"ROSSI MARIO", "MARIO ROSSI"})
+
+    def test_vuoto(self):
+        self.assertEqual(naming.chiavi_confronto("", None), set())
