@@ -1,5 +1,14 @@
 # Agent Changelog
 
+## 2026-10-02 - Codex (proposta e checklist scheda asset IT)
+
+- Richiesta: proporre struttura e informazioni della pagina IT, inclusi dati SOC e confronto prodotti, in checklist riprendibile da Claude. Ricognizione statica sulla base f4bd2118, fonti ufficiali Snipe-IT/GLPI/Microsoft Defender; nessun dato aziendale o report privato letto.
+- Worktree dedicato C:/Dev/pn-asset-it-proposta, branch feature/assets-it-checklist. Checkout condiviso preservato, cartella non tracciata parser pdf preesistente non toccata. Checkpoint e delta recenti letti (SOC eventi/KPI e AI); ACTIVE_SESSION, WORK_LOCKS, CRITICAL_FILES e CRITICAL_CHANGE_REQUESTS assenti, verificati anche nel worktree.
+- File modificati: docs/ai/CHECKLIST_ASSET_IT.md (nuovo), README.md (link alla proposta), CHANGELOG.md (nota documentale), questo registro e session_checkpoint.md. Nessun codice o comportamento operativo modificato; nessun file critico applicativo, ACL, routing, settings, autenticazione o navigazione globale modificato.
+- Esito: analisi/proposta completate; implementazione non iniziata e da autorizzare. Checklist con alternative, layout, matrice dati, limiti sorgenti, priorità, test futuri e riferimenti al codice. Backup aggiuntivi: nessuno; conservazione tramite commit feature locale. Nessun push, merge release o deploy.
+- Check: fonti ufficiali aperte, riscontro simboli/campi nel codice, controllo checklist/link locali e git diff --check in chiusura; test Django non richiesti per sole modifiche documentali. README/CHANGELOG/AGENT_CHANGELOG/checkpoint aggiornati sì.
+- Rischi residui/note altro agente: ricognizione statica, non QA del portale; validare policy backup, criticità, sorgenti e scelta B incrementale. Riprendere A05/A06 nella checklist, aggiornare il delta codice prima di implementare. Il documento è nel worktree dedicato e non ancora in release/prod.
+
 ## 2026-10-02 - Codex (integrazione SNMP in release/prod)
 
 - Richiesta esplicita: integrare e pubblicare le modifiche SNMP nella release. Worktree isolato C:/Dev/pn-snmp-release-20261002, base origin/release/prod 5ce17457; merge completo di origin/feature/snmp-discovery-timeout 0613caf4, incluso commit applicativo 1d5770c9 e fix 227cf77e. Checkout condiviso preservato; controlli sessione/lock/critical assenti, checkpoint e delta letti.

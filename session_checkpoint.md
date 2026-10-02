@@ -1,5 +1,10 @@
 # Session Checkpoint
 
+Data: 2026-10-02 (proposta scheda asset IT)
+
+- Vista/aggiunta voce AGENT_CHANGELOG proposta e checklist scheda asset IT; letti delta recenti CHANGELOG SOC eventi/KPI e AI. Nuovo docs/ai/CHECKLIST_ASSET_IT.md, README/CHANGELOG/registro aggiornati nel worktree C:/Dev/pn-asset-it-proposta, feature/assets-it-checklist, base f4bd2118.
+- Analisi statica Assets/SOC/SNMP e confronto fonti ufficiali completati; implementazione non iniziata. Nessun file critico applicativo, backup aggiuntivo, DB, push o deploy. Controlli documentali in chiusura; test Django non necessari. Claude: riprendere A05/A06, poi P0 dopo autorizzazione; non assumere presenza del documento nella release.
+
 Data: 2026-10-02 (integrazione release SNMP)
 
 - Vista/aggiunta voce integrazione SNMP in release/prod: merge feature 0613caf4 (codice 1d5770c9) su release 5ce17457 nel worktree pn-snmp-release-20261002. Conservate voci AI/SOC e SNMP del changelog, nessun conflitto codice.

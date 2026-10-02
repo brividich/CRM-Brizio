@@ -160,6 +160,8 @@ sequenceDiagram
 
 ### Tutti i 28 moduli custom a colpo d'occhio
 
+Proposta da valutare per Assets: [scheda asset IT — struttura, confronto prodotti e checklist per implementazione](docs/ai/CHECKLIST_ASSET_IT.md). Analisi completata; funzionalità proposte non ancora implementate.
+
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|
 | 1 | [`core`](django_app/core/) | Core | — (`/capa/`) | Middleware ACL, navigation registry, auth backends, audit, notifiche, export, ricerca globale, legacy models, **azioni CAPA** correttive/preventive trasversali |
