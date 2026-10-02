@@ -370,7 +370,7 @@ def subnav_anagrafica(context):
 
 @register.simple_tag(name="nominativo")
 def nominativo(oggetto=None, nome=None, cognome=None):
-    """Nominativo dipendente nel formato canonico ``Nome Cognome``.
+    """Nominativo dipendente nel formato canonico ``COGNOME NOME`` (maiuscolo).
 
     Accetta sia un oggetto con attributi/chiavi ``nome``/``cognome``
     (``{% nominativo dip %}``) sia i due valori sciolti
@@ -391,7 +391,7 @@ def nominativo_iniziali(oggetto=None, nome=None, cognome=None):
 
 @register.simple_tag(name="nominativo_sort")
 def nominativo_sort(oggetto=None, nome=None, cognome=None):
-    """Chiave di ordinamento delle liste: resta ``Cognome Nome``."""
+    """Chiave di ordinamento delle liste: ``COGNOME NOME``."""
     if oggetto is not None and nome is None and cognome is None:
         nome, cognome = _nome_cognome_da(oggetto)
     return naming.chiave_ordinamento(nome, cognome)
@@ -399,7 +399,7 @@ def nominativo_sort(oggetto=None, nome=None, cognome=None):
 
 @register.filter(name="parte_nome")
 def parte_nome(value):
-    """Normalizza in iniziali maiuscole un singolo nome o cognome."""
+    """Normalizza in MAIUSCOLO un singolo nome o cognome."""
     return naming.normalizza_parte(value)
 
 

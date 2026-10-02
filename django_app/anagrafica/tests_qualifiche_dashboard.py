@@ -83,7 +83,7 @@ class QualificheCruscottoTests(TestCase):
         self.assertIn("text/csv", resp["Content-Type"])
         body = resp.content.decode("utf-8-sig")
         self.assertIn("Patentino carrellista", body)
-        self.assertIn("Rossi Mario", body)
+        self.assertIn("ROSSI MARIO", body)
         self.assertIn("Ente", body)  # header colonna Fase 2
 
 

@@ -166,7 +166,7 @@ class LibrettoSanitarioTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         body = resp.content.decode()
         self.assertIn("Libretto sanitario aziendale", body)
-        self.assertIn("Sani", body)
+        self.assertIn("SANI LINO", body)
 
         ctx = resp.context
         self.assertEqual(ctx["conta_stato"]["ko"], 1)        # visita scaduta

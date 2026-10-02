@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connections, transaction
 from werkzeug.security import generate_password_hash
 
+from core import naming
 from core.legacy_anagrafica import resolve_notification_email
 from core.legacy_models import Ruolo, UtenteLegacy
 from core.legacy_utils import legacy_table_columns
@@ -209,8 +210,8 @@ class Command(BaseCommand):
                     if not nome:
                         nome = nm
 
-                cognome = _pretty_text(cognome)
-                nome = _pretty_text(nome)
+                cognome = naming.normalizza_parte(cognome)
+                nome = naming.normalizza_parte(nome)
 
                 # email = login_id (es. l.bova@example.local)
                 email_value = ""

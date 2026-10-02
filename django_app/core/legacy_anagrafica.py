@@ -451,7 +451,7 @@ def upsert_anagrafica_dipendente(
 
     cleaned = {
         "aliasusername": normalize_legacy_alias(aliasusername or email),
-        # Formato unico "Nome Cognome" a iniziali maiuscole: qui passano tutte
+        # Formato unico "COGNOME NOME" tutto maiuscolo: qui passano tutte
         # le scritture (form, import XLSX, recruiting, assegnazioni), quindi è
         # l'unico punto in cui garantire la normalizzazione.
         "nome": naming.normalizza_parte(nome),
