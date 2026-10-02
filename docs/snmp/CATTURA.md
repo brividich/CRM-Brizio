@@ -6,6 +6,21 @@ Il comando `snmp_capture` legge **tutto** l'albero SNMP di un apparato e lo salv
 
 Serve una volta per famiglia, per verificare gli OID dei preset. Non fa parte del polling.
 
+## Modo più semplice: tutta la rete in un colpo
+
+```powershell
+cd C:\Dev\pn-snmp-preset\django_app
+& "C:\Dev\Portale Novicrom\.venv\Scripts\python.exe" manage.py snmp_capture --settings=config.settings.test --network 10.0.0.0/24
+```
+
+Il comando funziona così:
+1. Chiede le community da provare, separate da virgola. Premendo solo Invio usa `public, novicromprinter`.
+2. Scansiona la rete (massimo 512 indirizzi): prima in v2c, poi in v1 sugli indirizzi che non hanno risposto.
+3. Cattura ogni apparato che risponde, 4 alla volta, in `C:\snmp_capture\<ip>_<descrizione>.snmprec`.
+4. Scrive l'elenco in `C:\snmp_capture\indice.txt`, senza community.
+
+Rilanciandolo, gli apparati già catturati vengono saltati; per ricatturarli c'è `--overwrite`. Gli apparati che non usano nessuna delle community provate non compaiono: si rilancia aggiungendo la loro.
+
 ## Garanzie
 
 - **Solo lettura.** Invia solo GETBULK (v2c/v3) o GETNEXT (v1). Un test (`ReadOnlyTests`) fallisce se nel modulo compare una SET.

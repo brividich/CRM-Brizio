@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori SNMP — `snmp_capture --network`** (`django_app/contatori/management/commands/snmp_capture.py`, `django_app/contatori/tests_snmp_capture.py`, `docs/snmp/CATTURA.md`):
+  - scansiona una rete (riusa la discovery del portale, max 512 host) con le community indicate, prima in v2c e poi in v1 sui restanti;
+  - cattura in sequenza ogni apparato che risponde (4 in parallelo, max 8) in `C:\snmp_capture\<ip>_<descrizione>.snmprec`, con `indice.txt` riepilogativo;
+  - riprende saltando i file già presenti (`--overwrite` per ricatturare); le community non finiscono né nei file né nell'indice.
 - **Contatori SNMP — preset Synology e Linux verificati su walk reale** (`django_app/contatori/{models.py,services.py,snmp.py,forms.py,snmp_capture.py}`, `django_app/contatori/migrations/{0016_profili_riconoscimento_soglie_verifica.py,0017_preset_synology_netsnmp.py}`, `django_app/contatori/management/commands/snmp_discover.py`, `django_app/contatori/templates/contatori/snmp_profilo_form.html`, `django_app/contatori/fixtures/snmp/synology_rs2423rp_dsm74.snmprec`, `django_app/contatori/tests_snmp_preset.py`, `docs/snmp/PRESET_CATALOG.md`, `docs/PROFILI_SNMP.md`, `README.md`):
   - profilo: nuovo **OID di riconoscimento**, letto con GET finché il dispositivo non ha profilo; se risponde, il profilo prevale su prefisso e pattern. Corregge il Synology, riconosciuto finora come "Linux / Net-SNMP" perché espone il `sysObjectID` net-snmp. Usato anche da `snmp_discover`;
   - colonne profilo: **soglie** avviso/critico copiate sulle sonde, flag **Verificata** con **Fonte** (visibile nell'elenco colonne), nuova aggregazione **Media**;

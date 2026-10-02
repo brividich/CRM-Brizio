@@ -188,6 +188,36 @@ class CommandTests(SimpleTestCase):
             self.assertNotIn("publicRO", out.read_text())
         prompt.assert_called_once()
 
+    def test_network_mode_scans_then_captures_each_responder(self):
+        from contatori.snmp import EsitoDiscovery
+
+        def scan(hosts, *, communities, version, **_kw):
+            esito = EsitoDiscovery()
+            if version == "v2c":
+                esito.append({"host": "192.0.2.2", "descr": "Linux nas01 5.10", "community_index": 2})
+            return esito
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch("contatori.snmp.scansiona_hosts", side_effect=scan) as scanner, \
+                mock.patch("puresnmp.Client", lambda *a, **k: FakeClient(_agent())):
+            out = mock.MagicMock()
+            call_command("snmp_capture", network="192.0.2.0/29", community="altra,publicRO",
+                         out_dir=tmp, stdout=out)
+            files = sorted(p.name for p in Path(tmp).iterdir())
+            indice = (Path(tmp) / "indice.txt").read_text()
+            body = (Path(tmp) / "192.0.2.2_linux-nas01-5-10.snmprec").read_text()
+        self.assertIn("192.0.2.2_linux-nas01-5-10.snmprec", files)
+        self.assertIn("COMPLETO", indice)
+        self.assertNotIn("publicRO", body + indice)
+        # v1 riprova solo gli host che non hanno risposto in v2c.
+        self.assertEqual([c.kwargs["version"] for c in scanner.call_args_list], ["v2c", "v1"])
+        self.assertNotIn("192.0.2.2", scanner.call_args_list[1].args[0])
+
+    def test_network_mode_refuses_repo_folder(self):
+        with self.assertRaisesMessage(CommandError, "fuori dal repository"):
+            call_command("snmp_capture", network="192.0.2.0/30", community="x",
+                         out_dir=str(Path(__file__).resolve().parent))
+
     def test_sanitize_from_raw_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             raw = Path(tmp) / "raw.snmprec"
