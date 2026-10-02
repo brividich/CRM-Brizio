@@ -8,6 +8,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori SNMP — preset stampanti verificati sulla flotta** (`django_app/contatori/{models.py,services.py,printer_snmp.py,snmp_capture.py}`, `django_app/contatori/management/commands/snmp_capture.py`, `django_app/contatori/migrations/{0018_tipo_valore_errori_stampante.py,0019_preset_stampanti_verificati.py}`, `django_app/contatori/fixtures/snmp/{canon_ir_adv_c5840,canon_ir_adv_c3822,canon_ir_adv_c5535_iii,kyocera_taskalfa_5054ci,hp_designjet_t730,zebra_zd421}.snmprec`, `django_app/contatori/{tests_snmp_preset.py,tests_printer_autodetect.py,tests_snmp_centrale.py}`, `docs/snmp/PRESET_CATALOG.md`, `docs/PROFILI_SNMP.md`):
+  - walk di 9 stampanti (Canon iR-ADV C5840/C3822/C5535 III, Kyocera TASKalfa 5054ci/3554ci, HP DesignJet T730, Zebra ZD421);
+  - colonne comuni verificate: modello, stato dispositivo con soglie, **errori rilevati** (nuovo tipo di valore che decodifica `hrPrinterDetectedErrorState` in testo e stato: toner/carta/sportello/inceppamento…), messaggio del display;
+  - Canon: contatori contrattuali marcati come verificati su tutti i modelli; nuovi firmware, totale, copie, stampe, scansioni, fronte-retro;
+  - Kyocera: totali B/N e colore proposti ma disattivati e "da confermare" (la tabella non riporta i nomi);
+  - HP: prefisso di riconoscimento `1.3.6.1.4.1.11.2.3.9` e pattern senza il solo "HP", così gli switch HPE/Aruba non finiscono nel profilo stampanti; Zebra: totale Printer-MIB disattivato (non esposto);
+  - consumabili: tipo e colore nello snapshot; sotto il 10% la stampante passa in "Attenzione";
+  - fixture: `--only` per tenere solo i rami utili, storico lavori Kyocera escluso, nome host non sostituito nei campi modello;
+  - test esistenti adeguati: il profilo Kyocera ha ora più colonne, quindi controllano il totale per OID;
+  - deploy: `migrate contatori` (0018, 0019).
 - **Contatori SNMP — `snmp_capture --network`** (`django_app/contatori/management/commands/snmp_capture.py`, `django_app/contatori/tests_snmp_capture.py`, `docs/snmp/CATTURA.md`):
   - scansiona una rete (riusa la discovery del portale, max 512 host) con le community indicate, prima in v2c e poi in v1 sui restanti;
   - cattura in sequenza ogni apparato che risponde (4 in parallelo, max 8) in `C:\snmp_capture\<ip>_<descrizione>.snmprec`, con `indice.txt` riepilogativo;

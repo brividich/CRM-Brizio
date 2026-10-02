@@ -164,6 +164,7 @@ class ColonnaProfiloSNMP(models.Model):
         NUMERO = "NUMERO", "Numero"
         TESTO = "TESTO", "Testo"
         TIMETICKS = "TIMETICKS", "Tempo (TimeTicks)"
+        ERRORI_STAMPANTE = "ERR_PRT", "Errori stampante (hrPrinterDetectedErrorState)"
 
     class Modalita(models.TextChoices):
         GET = "GET", "GET (OID esatto)"
@@ -403,6 +404,7 @@ class SondaSNMP(models.Model):
         NUMERO = "NUMERO", "Numero"
         TESTO = "TESTO", "Testo"
         TIMETICKS = "TIMETICKS", "Tempo (TimeTicks)"
+        ERRORI_STAMPANTE = "ERR_PRT", "Errori stampante (hrPrinterDetectedErrorState)"
 
     class Modalita(models.TextChoices):
         GET = "GET", "GET (OID esatto)"

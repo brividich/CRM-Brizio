@@ -122,6 +122,99 @@ class SynologyPresetTests(TestCase):
         self.assertNotIn("|64|10.", text)
 
 
+def _fixture_printer(agent):
+    """Sostituto di printer_snmp.leggi_stampante basato sulla fixture."""
+    from contatori.printer_snmp import COLUMNS, interpreta_stampante
+
+    def leggi(_dispositivo, **_kwargs):
+        tabelle = {}
+        for nome, base in COLUMNS.items():
+            tabelle[nome] = {k[len(base) + 1:]: v for k, v in agent.values.items()
+                             if k.startswith(base + ".")}
+        return interpreta_stampante(tabelle, {})
+    return leggi
+
+
+class PrinterPresetTests(TestCase):
+    def _poll(self, fixture, host):
+        agent = FixtureAgent(FIXTURES / fixture)
+        dispositivo = DispositivoSNMP.objects.create(nome=fixture, host=host, versione="v2c")
+        with mock.patch("contatori.snmp.leggi_specifiche", side_effect=agent.leggi_specifiche), \
+                mock.patch("contatori.printer_snmp.leggi_stampante", side_effect=_fixture_printer(agent)):
+            rilevazione = interroga_dispositivo(dispositivo)
+        dispositivo.refresh_from_db()
+        valori = {v.sonda.nome: v for v in rilevazione.valori.select_related("sonda")}
+        return dispositivo, rilevazione, valori
+
+    def test_decodifica_errori_stampante(self):
+        from contatori.printer_snmp import decodifica_errori_stampante
+
+        self.assertEqual(decodifica_errori_stampante(bytes.fromhex("2000")), ("toner in esaurimento", "WARNING"))
+        self.assertEqual(decodifica_errori_stampante("@"), ("carta esaurita", "WARNING"))
+        self.assertEqual(decodifica_errori_stampante(bytes.fromhex("0000")), ("nessun errore", "OK"))
+        self.assertEqual(decodifica_errori_stampante(bytes.fromhex("0c00"))[1], "ERROR")  # sportello + inceppata
+
+    def test_canon_c5840_full_preset(self):
+        dispositivo, rilevazione, valori = self._poll("canon_ir_adv_c5840.snmprec", "192.0.2.212")
+        self.assertEqual(dispositivo.profilo_snmp.slug, "canon-ir-adv")
+        self.assertEqual(valori["Modello"].valore_testo, "Canon iR-ADV C5840 19.43")
+        self.assertEqual(valori["Firmware"].valore_testo, "19.43")
+        self.assertEqual(valori["Errori rilevati"].valore_testo, "toner in esaurimento")
+        self.assertEqual(valori["Errori rilevati"].stato, StatoSNMP.WARNING)
+        self.assertEqual(valori["Stato dispositivo"].stato, StatoSNMP.WARNING)
+        self.assertEqual(valori["Messaggio display"].valore_testo, "toner is low (black).")
+        attesi = {"Totale (Total 1)": 213402, "Copie": 14671, "Stampe": 198731,
+                  "Scansioni": 91977, "Fronte-retro": 3364,
+                  "A4 BN Canon": 202416, "A3 BN Canon": 605, "A4 colore Canon": 9999, "A3 colore Canon": 382}
+        for nome, valore in attesi.items():
+            self.assertEqual(valori[nome].valore_numero, Decimal(valore), nome)
+        self.assertEqual(rilevazione.stato, StatoSNMP.WARNING)
+        nero = next(c for c in rilevazione.dati_stampante["consumabili"] if c["nome"].endswith("Black Toner"))
+        self.assertEqual((nero["pct"], nero["tipo"], nero["colore"]), (26, "toner", "nero"))
+
+    def test_canon_contract_counters_on_every_model(self):
+        for fixture in ("canon_ir_adv_c5840.snmprec", "canon_ir_adv_c3822.snmprec",
+                        "canon_ir_adv_c5535_iii.snmprec"):
+            agent = FixtureAgent(FIXTURES / fixture)
+            for numero in (112, 113, 122, 123, 101, 201, 301, 501, 114):
+                tabella = 3 if numero in (112, 113, 122, 123) else 4
+                self.assertIn(f"1.3.6.1.4.1.1602.1.11.1.{tabella}.1.4.{numero}", agent.values, fixture)
+
+    def test_supply_below_threshold_warns(self):
+        from contatori.printer_snmp import consumabili_in_esaurimento
+
+        _d, rilevazione, _v = self._poll("canon_ir_adv_c5535_iii.snmprec", "192.0.2.219")
+        bassi = consumabili_in_esaurimento(rilevazione.dati_stampante)
+        self.assertTrue(bassi)
+        self.assertEqual(rilevazione.stato, StatoSNMP.WARNING)
+
+    def test_kyocera_preset_and_unconfirmed_counters_stay_off(self):
+        dispositivo, rilevazione, valori = self._poll("kyocera_taskalfa_5054ci.snmprec", "192.0.2.217")
+        self.assertEqual(dispositivo.profilo_snmp.slug, "kyocera")
+        self.assertEqual(valori["Modello"].valore_testo, "TASKalfa 5054ci")
+        self.assertEqual(valori["Errori rilevati"].valore_testo, "nessun errore")
+        self.assertEqual(valori["Messaggio display"].valore_testo, "a riposo...")
+        self.assertNotIn("Totale B/N (da confermare)", valori)
+        self.assertEqual(rilevazione.stato, StatoSNMP.OK)
+
+    def test_hp_designjet_detected_with_specific_prefix(self):
+        dispositivo, _r, valori = self._poll("hp_designjet_t730.snmprec", "192.0.2.46")
+        self.assertEqual(dispositivo.profilo_snmp.slug, "hp-printer")
+        self.assertEqual(valori["Modello"].valore_testo, "HP DesignJet T730")
+        self.assertEqual(valori["Errori rilevati"].valore_testo, "carta esaurita")
+
+    def test_hp_switch_no_longer_matches_printer_profile(self):
+        profilo = trova_profilo_snmp(sys_object_id="1.3.6.1.4.1.11.2.3.7.11.181",
+                                     sys_description="HP J9729A 2920-48G-POE+ Switch")
+        self.assertEqual(profilo.slug, "hpe-aruba")
+
+    def test_zebra_preset(self):
+        dispositivo, _r, valori = self._poll("zebra_zd421.snmprec", "192.0.2.220")
+        self.assertEqual(dispositivo.profilo_snmp.slug, "zebra-printer")
+        self.assertEqual(valori["Modello"].valore_testo, "Zebra Technologies ZD421")
+        self.assertNotIn("Totale impressioni (Printer-MIB)", valori)
+
+
 class AggregazioneMediaTests(TestCase):
     def test_media(self):
         self.assertEqual(aggrega_colonna([34, 3, 9, 4]), 34)

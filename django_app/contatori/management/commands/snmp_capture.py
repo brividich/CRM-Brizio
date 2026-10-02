@@ -57,6 +57,7 @@ class Command(BaseCommand):
         parser.add_argument("--sanitize", action="store_true",
                             help="pseudonimizza IP/MAC/nomi ed esclude tabelle sensibili")
         parser.add_argument("--sanitize-from", help="converte un .snmprec grezzo gia' catturato in fixture")
+        parser.add_argument("--only", help="con --sanitize-from: tiene solo questi sottoalberi (separati da virgola)")
         parser.add_argument("--list-communities", action="store_true",
                             help="elenca il catalogo community (solo id e nome)")
         parser.add_argument("--network", help="scansiona una rete (es. 10.0.0.0/24) e cattura ogni apparato")
@@ -81,7 +82,8 @@ class Command(BaseCommand):
                 "oppure usare --sanitize."
             )
         if opt["sanitize_from"]:
-            return self._sanitize_file(Path(opt["sanitize_from"]), out)
+            only = tuple(p.strip().strip(".") for p in (opt["only"] or "").split(",") if p.strip())
+            return self._sanitize_file(Path(opt["sanitize_from"]), out, only)
         return self._capture(opt, out, sanitize)
 
     def _list_communities(self):
@@ -263,15 +265,16 @@ class Command(BaseCommand):
             "".join(" | ".join(r) + "\n" for r in indice), encoding="utf-8")
         self.stdout.write(f"\nFile in {out_dir} (elenco in indice.txt).")
 
-    def _sanitize_file(self, source, out):
+    def _sanitize_file(self, source, out, only=()):
         try:
             records = cap.parse_snmprec(source.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError) as exc:
             raise CommandError(f"File non leggibile: {source.name}") from exc
         except cap.CaptureError as exc:
             raise CommandError(str(exc)) from exc
-        records = cap.Sanitizer().apply(
-            [r for r in records if not cap.in_subtree(r.oid, cap.DROP_ALWAYS)])
+        records = [r for r in records if not cap.in_subtree(r.oid, cap.DROP_ALWAYS)
+                   and (not only or cap.in_subtree(r.oid, only))]
+        records = cap.Sanitizer().apply(records)
         header = [f"fixture da {source.name} (pseudonimizzata)", f"righe: {len(records)}"]
         self._write(out, records, header)
         self.stdout.write(self.style.SUCCESS(f"{len(records)} righe -> {out.name}"))

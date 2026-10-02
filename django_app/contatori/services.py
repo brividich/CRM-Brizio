@@ -747,9 +747,12 @@ def interroga_dispositivo(dispositivo):
     durata = _tempo_ms(inizio)
 
     esiti = []
+    from .printer_snmp import consumabili_in_esaurimento
+
     ha_warning = bool(stampante and (
         dati_stampante.get("errori") or not dati_stampante.get("contatori")
         or not dati_stampante.get("consumabili")
+        or consumabili_in_esaurimento(dati_stampante)
     ))
     ha_critico = False
     for sonda in sonde:
@@ -762,6 +765,17 @@ def interroga_dispositivo(dispositivo):
             })
             continue
         grezzo = valori[sonda.oid]
+        if sonda.tipo_valore == SondaSNMP.TipoValore.ERRORI_STAMPANTE:
+            from .printer_snmp import decodifica_errori_stampante
+
+            testo, stato = decodifica_errori_stampante(grezzo)
+            ha_warning = ha_warning or stato == StatoSNMP.WARNING
+            ha_critico = ha_critico or stato == StatoSNMP.ERROR
+            esiti.append({
+                "sonda": sonda, "numero": None, "testo": testo,
+                "stato": stato, "errore": "",
+            })
+            continue
         if sonda.tipo_valore == SondaSNMP.TipoValore.TESTO:
             esiti.append({
                 "sonda": sonda, "numero": None, "testo": _testo(grezzo),

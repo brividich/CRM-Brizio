@@ -44,6 +44,7 @@ DROP_SANITIZE = (
     "1.3.6.1.2.1.25.4",        # hrSWRun
     "1.3.6.1.2.1.25.5",        # hrSWRunPerf
     "1.3.6.1.4.1.77",          # LanManager
+    "1.3.6.1.4.1.1347.47",     # Kyocera: storico lavori (nomi dei documenti)
     "1.3.6.1.4.1.2021.2",      # UCD prTable (comandi)
     "1.3.6.1.4.1.2021.8",      # UCD extTable (comandi)
     "1.3.6.1.4.1.8072.1.3",    # NET-SNMP-EXTEND (comandi)
@@ -62,6 +63,16 @@ PSEUDONYM_COLUMNS = {
     "1.0.8802.1.1.2.1.4.1.1.9": "neighbor",    # lldpRemSysName
     "1.3.6.1.2.1.43.5.1.1.16": "printer",      # prtGeneralPrinterName
 }
+
+# Campi che descrivono il modello: non vi si sostituisce il nome host, che su
+# alcuni apparati coincide col modello (es. Zebra con sysName "ZD421").
+MODEL_COLUMNS = (
+    "1.3.6.1.2.1.25.3.2.1.3",      # hrDeviceDescr
+    "1.3.6.1.2.1.47.1.1.1.1.2",    # entPhysicalDescr
+    "1.3.6.1.2.1.47.1.1.1.1.13",   # entPhysicalModelName
+    "1.3.6.1.4.1.6574.1.5.1",      # Synology modelName
+    "1.3.6.1.4.1.1602.1.1.1.1",    # Canon modello
+)
 
 # Numeri di serie: nelle fixture diventano valori sintetici non vuoti.
 SERIAL_COLUMNS = (
@@ -385,7 +396,7 @@ class Sanitizer:
                     rec.value = self.name(PSEUDONYM_COLUMNS[column], rec.value)
                 else:
                     text = rec.value
-                    for host in hostnames:
+                    for host in ([] if in_subtree(rec.oid, MODEL_COLUMNS) else hostnames):
                         text = re.sub(re.escape(host), "device-1", text, flags=re.IGNORECASE)
                     rec.value = self._text(text)
             out.append(rec)
