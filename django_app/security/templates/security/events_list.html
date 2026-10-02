@@ -1,0 +1,139 @@
+{% extends "security/_base_soc.html" %}
+{% load l10n security_i18n %}
+
+{% block title %}Eventi | Security Center{% endblock %}
+{% block page_icon %}E{% endblock %}
+{% block page_marker %}Eventi ingeriti{% endblock %}
+{% block page_title %}Eventi{% endblock %}
+
+{% block soc_content %}
+<div class="kpi-filters">
+  <div class="kpi-chips" role="group" aria-label="Periodo">
+    {% for p in "1,7,30,90"|make_list_csv %}<a class="kpi-chip{% if not custom and p == days %} active{% endif %}" href="?{% if chip_query %}{{ chip_query }}&amp;{% endif %}giorni={{ p }}">{% if p == 1 %}Oggi{% else %}{{ p }} giorni{% endif %}</a>{% endfor %}
+  </div>
+  {% if selected_day %}
+    <span class="soc-day-chip">Giorno {{ selected_day|date:"D d/m/Y" }}<a href="?{{ day_query }}" title="Torna a tutto il periodo" aria-label="Togli il giorno">✕</a></span>
+  {% endif %}
+  <span class="sec-muted kpi-period">{{ day_from|date:"d/m/Y" }} – {{ day_to|date:"d/m/Y" }} · tutto ciò che è arrivato dai report, anche ciò che il motore ha giudicato a posto</span>
+</div>
+
+<section class="ev-decisions" aria-label="Eventi per decisione del motore">
+  <a class="ev-decision{% if not filters.decision %} active{% endif %}" href="?{{ decision_query }}"><strong>{{ total_count }}</strong><span>Tutti</span></a>
+  {% for row in decision_rows %}
+    <a class="ev-decision d-{{ row.code }}{% if filters.decision == row.code %} active{% endif %}" href="?{% if decision_query %}{{ decision_query }}&amp;{% endif %}decision={{ row.code }}" title="{{ row.help }}">
+      <strong>{{ row.count }}</strong><span>{{ row.label }}</span>
+    </a>
+  {% endfor %}
+</section>
+
+<form class="sec-filter-bar vpn-filters" method="get">
+  <label>Cerca <input type="text" name="q" value="{{ filters.q }}" placeholder="computer, utente, job, CVE…"></label>
+  <label>Tipo
+    <select name="type">
+      <option value="">Tutti</option>
+      {% for t in event_types %}<option value="{{ t }}" {% if filters.type == t %}selected{% endif %}>{{ t|metric_label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Severità
+    <select name="severity">
+      <option value="">Tutte</option>
+      {% for value, label in severity_choices %}<option value="{{ value }}" {% if filters.severity == value %}selected{% endif %}>{{ value|ui_label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Sorgente
+    <select name="source">
+      <option value="">Tutte</option>
+      {% for s in sources %}<option value="{{ s.pk }}" {% if filters.source == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+    </select>
+  </label>
+  {% if filters.decision %}<input type="hidden" name="decision" value="{{ filters.decision }}">{% endif %}
+  {% if not custom %}<input type="hidden" name="giorni" value="{{ days }}">{% endif %}
+  <label>Dal <input type="date" name="from" value="{{ filters.from }}"></label>
+  <label>Al <input type="date" name="to" value="{{ filters.to }}"></label>
+  <button class="sec-button-primary" type="submit">Filtra</button>
+  <a class="sec-button" href="{% url 'security:events' %}">Reimposta</a>
+</form>
+
+<section class="vpn-row">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Eventi per giorno</h2><small class="sec-muted">passa sopra a un giorno per i dettagli, clic per selezionarlo</small></div>
+    {% localize off %}
+    {% if chart.empty %}
+      <p class="sec-empty">Nessun evento nel periodo.</p>
+    {% else %}
+    <div class="vpn-chart soc-chart">
+      <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" aria-label="Eventi per giorno: con alert e senza alert">
+        <line class="grid" x1="{{ chart.left }}" x2="{{ chart.width }}" y1="{{ chart.top }}" y2="{{ chart.top }}"></line>
+        <line class="grid" x1="{{ chart.left }}" x2="{{ chart.width }}" y1="{{ chart.baseline }}" y2="{{ chart.baseline }}"></line>
+        <text class="axis-label" x="0" y="{{ chart.top|add:4 }}">{{ chart.peak }}</text>
+        <text class="axis-label" x="0" y="{{ chart.baseline }}">0</text>
+        {% for d in chart.days %}
+          <g tabindex="0" class="{% if d.selected %}is-selected{% elif selected_day %}is-dim{% endif %}"
+             data-tip-title="{{ d.date|date:'D d/m/Y' }} · {{ d.total }} eventi"
+             data-tip="var(--danger)::{{ d.alert }} con alert|var(--primary-mid)::{{ d.other }} senza alert{% for t, n in d.top_types %}|{{ t|metric_label }}: {{ n }}{% endfor %}"
+             data-href="?{% if day_query %}{{ day_query }}&amp;{% endif %}giorno={{ d.date|date:'Y-m-d' }}" data-href-label="Clic: mostra solo questo giorno">
+            <rect class="bar-hit" x="{{ d.x }}" y="{{ chart.top }}" width="{{ d.w }}" height="{{ chart.baseline|add:-12 }}"></rect>
+            {% if d.h_other %}<rect class="bar-other" x="{{ d.x }}" y="{{ d.y_other }}" width="{{ d.w }}" height="{{ d.h_other }}" rx="1.5"></rect>{% endif %}
+            {% if d.h_alert %}<rect class="bar-alert" x="{{ d.x }}" y="{{ d.y_alert }}" width="{{ d.w }}" height="{{ d.h_alert }}" rx="1.5"></rect>{% endif %}
+          </g>
+          {% if d.show_label %}<text class="axis-label" x="{{ d.label_x }}" y="{{ chart.baseline|add:16 }}" text-anchor="middle">{{ d.date|date:"d/m" }}</text>{% endif %}
+        {% endfor %}
+      </svg>
+      <div class="sec-trend-legend"><span style="--dot: var(--danger);">Con alert</span><span style="--dot: var(--primary-mid);">Senza alert (statistica, silenziati, da valutare)</span></div>
+    </div>
+    {% endif %}
+    {% endlocalize %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Regole apprese</h2>{% if learned_rules %}<span class="sec-badge">{{ learned_rules|length }}</span>{% endif %}</div>
+    {% if learned_rules %}
+      <ul class="ev-rules">
+        {% for rule in learned_rules %}
+          <li class="{% if not rule.is_active %}off{% endif %}">
+            <span><strong>{{ rule.name }}</strong>
+              <small>{{ rule.severity|ui_label }} · scattata {{ rule.hit_count }} volt{{ rule.hit_count|pluralize:"a,e" }}{% if rule.created_by %} · da {{ rule.created_by.get_full_name|default:rule.created_by.username }}{% endif %} il {{ rule.created_at|date:"d/m/Y" }}</small></span>
+            <form method="post" action="{% url 'security:escalation_rule_toggle' rule.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button class="sec-button" type="submit">{% if rule.is_active %}Disattiva{% else %}Riattiva{% endif %}</button></form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="sec-empty">Nessuna regola appresa. Quando promuovi ad alert un evento giudicato a posto, puoi dire al sistema di farlo da solo per gli eventi simili.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <h2>Registro eventi</h2>
+    <span class="sec-badge">{{ page.paginator.count }} risultati</span>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table ev-table" data-fm-table-skip="1">
+      <thead><tr><th>Quando</th><th>Evento</th><th>Severità</th><th>Decisione del motore</th><th>Sorgente</th><th></th></tr></thead>
+      <tbody>
+      {% for e in events %}
+        <tr class="ev-row">
+          <td class="sec-nowrap">{{ e.occurred_at|date:"d/m/Y H:i" }}</td>
+          <td><a href="{% url 'security:event_detail' e.pk %}"><strong>{{ e.event_type|metric_label }}</strong></a>{% if e.summary %}<span class="ev-summary" title="{{ e.summary }}">{{ e.summary }}</span>{% endif %}</td>
+          <td><span class="sec-badge {{ e.severity }}">{{ e.severity|ui_label }}</span></td>
+          <td><span class="ev-pill d-{{ e.decision_code }}">{{ e.decision_label }}</span></td>
+          <td>{{ e.source.name }}</td>
+          <td>{% if e.decision_code == "alert" or e.has_alert %}<a class="sec-button" href="{% url 'security:event_detail' e.pk %}">Vedi</a>{% else %}<a class="sec-button" href="{% url 'security:event_detail' e.pk %}#promuovi" title="Il motore l'ha giudicato a posto: se è un allarme, crea l'alert">È un allarme?</a>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="sec-empty">Nessun evento con questi filtri.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page.paginator.num_pages > 1 %}
+  <div class="vpn-pager">
+    {% if page.has_previous %}<a class="sec-button" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.previous_page_number }}">&lt; Precedente</a>{% endif %}
+    <span class="sec-muted">Pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="sec-button" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.next_page_number }}">Successiva &gt;</a>{% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

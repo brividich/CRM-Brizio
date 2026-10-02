@@ -4,6 +4,7 @@
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'security/security.css' %}">
 <script src="{% static 'security/htmx-lite.js' %}" defer></script>
+<script src="{% static 'security/soc-charts.js' %}" defer></script>
 {% endblock %}
 {% block content %}
 <div class="soc-module">
@@ -11,6 +12,7 @@
   <nav class="soc-nav" aria-label="Navigazione SOC">
     <a href="{% url 'security:dashboard' %}" {% if url_name == 'dashboard' or url_name == 'security_dashboard' %}class="active"{% endif %}>Panoramica</a>
     <a href="{% url 'security:alerts_list' %}" {% if url_name == 'alerts_list' or url_name == 'alert_detail' %}class="active"{% endif %}>Alert</a>
+    <a href="{% url 'security:events' %}" {% if url_name == 'events' or url_name == 'event_detail' %}class="active"{% endif %} title="Tutti gli eventi letti dai report, anche quelli giudicati a posto">Eventi</a>
     <a href="{% url 'security:tickets_list' %}" {% if url_name == 'tickets_list' or url_name == 'case_detail' %}class="active"{% endif %}>Ticket</a>
     <a href="{% url 'security:history' %}" {% if url_name == 'history' %}class="active"{% endif %}>Analisi</a>
     <a href="{% url 'security:kpis' %}" {% if url_name == 'kpis' or url_name == 'kpi_detail' %}class="active"{% endif %}>KPI</a>

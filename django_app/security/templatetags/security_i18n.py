@@ -17,6 +17,7 @@ LABELS = {
     "kpi_only": "Solo KPI",
     "alert": "Alert",
     "suppressed_kpi_only": "Soppresso (solo KPI)",
+    "diagnostic_event": "Diagnostica",
     "completed": "Completato",
     "in_progress": "In lavorazione",
     "low": "Basso",
@@ -192,6 +193,8 @@ ACTION_LABELS = {
     "auto_resolved": "Risolto automaticamente: il problema è rientrato",
     "case_auto_resolved": "Ticket chiuso automaticamente: tutti gli alert sono rientrati",
     "case_alerts_all_resolved": "Tutti gli alert sono rientrati (restano attività aperte)",
+    "manual_escalation": "Alert creato a mano da un evento giudicato a posto",
+    "learned_escalation": "Alert creato da una regola appresa",
 }
 
 

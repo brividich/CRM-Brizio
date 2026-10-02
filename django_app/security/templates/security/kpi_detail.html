@@ -20,21 +20,20 @@
 <section class="sec-panel">
   <div class="kpi-detail-head">
     <div>
-      <span class="kpi-label">{% if d.last_value %}Ultimo valore{% else %}Totale {{ start|date:"d/m" }} – {{ end|date:"d/m" }}{% endif %}</span>
+      <span class="kpi-label">{% if d.last_value %}Ultimo valore · è uno stato: i giorni non si sommano{% else %}Totale {{ start|date:"d/m" }} – {{ end|date:"d/m" }} · report doppi o sovrapposti contati una volta{% endif %}</span>
       <strong class="kpi-hero">{{ d.value|metric_value:d.name }}</strong>
     </div>
     <code class="sec-muted">{{ d.name }}</code>
   </div>
   {% localize off %}
-  <div class="kpi-chart">
+  <div class="kpi-chart soc-chart">
     <svg viewBox="0 0 {{ d.chart.width }} {{ d.chart.height }}" role="img" aria-label="Valore per giorno di {{ d.name|metric_label }}">
       <line class="grid" x1="{{ d.chart.left }}" x2="{{ d.chart.width }}" y1="{{ d.chart.top }}" y2="{{ d.chart.top }}"></line>
       <line class="grid" x1="{{ d.chart.left }}" x2="{{ d.chart.width }}" y1="{{ d.chart.baseline }}" y2="{{ d.chart.baseline }}"></line>
       <text class="axis-label" x="0" y="{{ d.chart.top|add:4 }}">{{ d.chart.peak|metric_value:d.name }}</text>
       <text class="axis-label" x="0" y="{{ d.chart.baseline }}">0</text>
       {% for b in d.chart.bars %}
-        <g tabindex="0">
-          <title>{{ b.date|date:"d/m/Y" }}: {{ b.value|metric_value:d.name }}</title>
+        <g tabindex="0" data-tip-title="{{ b.date|date:'D d/m/Y' }}" data-tip="{% if b.value is None %}nessun report{% else %}{{ b.value|metric_value:d.name }}{% endif %}" data-href="#giorno-{{ b.date|date:'Y-m-d' }}" data-href-label="Clic: vai alla riga del giorno">
           <rect class="bar-hit" x="{{ b.x }}" y="{{ d.chart.top }}" width="{{ b.w }}" height="{{ d.chart.baseline|add:-10 }}"></rect>
           {% if b.h %}<rect class="bar" x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" rx="2"></rect>{% endif %}
         </g>
@@ -50,10 +49,10 @@
     <div class="sec-section-head"><h2>Da dove arriva il numero</h2></div>
     {% if d.reports %}
       <table class="sec-table sec-table-compact" data-fm-table-skip="1">
-        <thead><tr><th>Giorno del report</th><th>Report</th><th class="sec-num">Valore</th></tr></thead>
+        <thead><tr><th>Giorno del report</th><th>Report</th><th class="sec-num">Valore</th><th>Conteggiato</th></tr></thead>
         <tbody>
         {% for m in d.reports %}
-          <tr><td class="sec-nowrap">{{ m.report.report_date|date:"d/m/Y" }}</td><td class="sec-title-cell"><strong>{{ m.report.title|truncatechars:70 }}</strong><small>{{ m.report.report_type|metric_label }} · {{ m.report.parser_name }}</small></td><td class="sec-num">{{ m.value|metric_value:d.name }}</td></tr>
+          <tr><td class="sec-nowrap">{{ m.report.report_date|date:"d/m/Y" }}</td><td class="sec-title-cell"><strong>{{ m.report.title|truncatechars:70 }}</strong><small>{{ m.report.report_type|metric_label }} · {{ m.report.parser_name }}</small></td><td class="sec-num">{{ m.value|metric_value:d.name }}</td><td>{% if m.counted %}<span class="ev-pill d-ok">sì</span>{% else %}<span class="ev-pill" title="Report doppio nello stesso giorno o periodo già coperto da un report più recente">no, doppione</span>{% endif %}</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -75,7 +74,7 @@
     <div class="sec-section-head"><h2>Giorno per giorno</h2></div>
     <table class="sec-table sec-table-compact" data-fm-table-skip="1">
       <thead><tr><th>Giorno</th><th class="sec-num">Valore</th></tr></thead>
-      <tbody>{% for r in d.rows %}<tr><td>{{ r.date|date:"D d/m/Y" }}</td><td class="sec-num">{{ r.value|metric_value:d.name }}</td></tr>{% endfor %}</tbody>
+      <tbody>{% for r in d.rows %}<tr id="giorno-{{ r.date|date:'Y-m-d' }}"><td>{{ r.date|date:"D d/m/Y" }}</td><td class="sec-num">{{ r.value|metric_value:d.name }}</td></tr>{% endfor %}</tbody>
     </table>
   </section>
 </div>

@@ -4,13 +4,15 @@ La pagina mostrava una tabella statica per «sorgente» (cioe' il nome della cas
 unico gruppo con 40 righe) e un solo giorno alla volta. Qui ogni metrica diventa un riquadro
 con il valore del periodo, il confronto col periodo precedente e l'andamento giornaliero.
 
-Valori giornalieri: le istantanee KPI (`SecurityKpiSnapshot`) quando esistono; per i giorni
-in cui l'istantanea non e' stata calcolata, la somma delle metriche dei report di quel giorno.
+Valori giornalieri: le metriche dei report, senza doppi conteggi (vedi `report_daily_values`);
+le istantanee KPI (`SecurityKpiSnapshot`) per i giorni senza report e per le metriche calcolate
+dallo storico (accessi VPN), che lì sono la fonte esatta.
 """
 from collections import defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.db.models import Sum
+from django.db.models.fields.json import KT
 
 from security.models import BackupJobRecord, SecurityEventRecord, SecurityKpiSnapshot, SecurityReportMetric
 
@@ -25,11 +27,20 @@ DOMAINS = [
 ]
 DOMAIN_TITLES = {code: title for code, title, _ in DOMAINS}
 
-# Metriche che sono uno «stato» (si guarda l'ultimo valore), non un conteggio da sommare.
+# Metriche che sono uno «stato» (si guarda l'ultimo valore), non un conteggio da sommare:
+# «12 computer senza protezione» lunedi' e ancora 12 martedi' sono 12 computer, non 24.
 _LAST_VALUE_MARKERS = ("_endpoints", "_licenses_", "_days_left", "_unique_", "_avg_", "_max_", "_size_total", "_protected", "_outdated",
-                       "_computers_", "_risk_", "_no_license", "_protection_errors", "_unmanaged", "_reported", "_sections", "_up_to_date")
+                       "_computers_", "_risk_", "_no_license", "_protection_errors", "_unmanaged", "_reported", "_sections", "_up_to_date",
+                       "_open_", "_pending_", "_expiring", "_sdwan_", "_concentration")
+_LAST_VALUE_NAMES = {
+    "watchguard_epdr_affected_computers", "watchguard_epdr_blocked_devices", "watchguard_epdr_critical_risk",
+    "watchguard_epdr_malware_critical_asset", "watchguard_threatsync_open_severe", "defender_exposed_devices_total",
+    "defender_critical_exposed_devices_total",
+}
 # Tecniche: utili al debug, non a chi guarda i KPI.
 _HIDDEN = {"watchguard_report_summary", "top_users", "top_source_ips"}
+# Calcolate dallo storico accessi (utenti unici, durate): l'istantanea e' esatta, i report no.
+_SNAPSHOT_FIRST_PREFIXES = ("vpn_",)
 
 
 def domain_for(name):
@@ -42,22 +53,78 @@ def domain_for(name):
 
 
 def is_last_value(name):
-    return any(marker in name for marker in _LAST_VALUE_MARKERS)
+    return name in _LAST_VALUE_NAMES or any(marker in name for marker in _LAST_VALUE_MARKERS)
+
+
+def _as_date(value, default):
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return default
+
+
+def report_daily_values(start, end, name=None, used=None):
+    """{name: {date: valore}} dalle metriche dei report, senza doppi conteggi.
+
+    Prima si sommava tutto quello che arrivava nello stesso giorno: lo stesso report letto due
+    volte (casella e storico, mail duplicata) raddoppiava il numero, e un report settimanale
+    che arriva ogni giorno contava la stessa settimana sette volte. Ora, per sorgente e tipo di report:
+    - un solo report per giorno (il piu' recente);
+    - i conteggi di report che coprono un periodo si sommano solo se i periodi non si sovrappongono
+      (si tiene il piu' recente);
+    - gli stati (computer senza protezione, licenze...) valgono per il giorno, mai sommati nel tempo.
+    """
+    metrics = SecurityReportMetric.objects.filter(report__report_date__range=(start, end))
+    if name:
+        metrics = metrics.filter(name=name)
+    rows = list(metrics.order_by().values_list(
+        "name", "value", "report_id", "report__source_id", "report__report_type", "report__report_date", "report__created_at"))
+    report_ids = {row[2] for row in rows}
+    periods = {}
+    if report_ids:
+        from security.models import SecurityReport
+
+        ids = list(report_ids)
+        for i in range(0, len(ids), 500):
+            for rid, p_start, p_end, day in SecurityReport.objects.filter(id__in=ids[i:i + 500]).values_list(
+                    "id", KT("parsed_payload__period_start"), KT("parsed_payload__period_end"), "report_date"):
+                p_end = _as_date(p_end, day)
+                periods[rid] = (min(_as_date(p_start, p_end), p_end), p_end)
+    groups = defaultdict(list)
+    for metric, value, rid, source_id, report_type, day, created in rows:
+        groups[(metric, source_id, report_type)].append((day, created, rid, value))
+    values = defaultdict(lambda: defaultdict(float))
+    for (metric, _source, _type), items in groups.items():
+        items.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+        state = is_last_value(metric)
+        seen, covered_from = set(), None
+        for day, _created, rid, value in items:
+            if day in seen:
+                continue  # stesso report (o rilettura) nello stesso giorno: vale il piu' recente
+            p_start, p_end = periods.get(rid, (day, day))
+            if not state and covered_from is not None and p_end >= covered_from:
+                continue  # periodo gia' contato da un report piu' recente
+            seen.add(day)
+            if used is not None:
+                used.add(rid)
+            covered_from = p_start if covered_from is None else min(covered_from, p_start)
+            values[metric][day] += value
+    return {metric: dict(by_day) for metric, by_day in values.items()}
 
 
 def _daily_values(start, end, name=None):
-    """{name: {date: valore}} sul periodo, istantanee prima, metriche dei report come ripiego."""
+    """{name: {date: valore}}: report deduplicati prima, istantanee per i giorni scoperti (e per le VPN)."""
     values = defaultdict(dict)
+    for metric, by_day in report_daily_values(start, end, name=name).items():
+        values[metric].update(by_day)
     snapshots = SecurityKpiSnapshot.objects.filter(snapshot_date__range=(start, end))
     if name:
         snapshots = snapshots.filter(name=name)
     for row in snapshots.order_by().values("name", "snapshot_date").annotate(total=Sum("value")):
-        values[row["name"]][row["snapshot_date"]] = row["total"]
-    metrics = SecurityReportMetric.objects.filter(report__report_date__range=(start, end))
-    if name:
-        metrics = metrics.filter(name=name)
-    for row in metrics.order_by().values("name", "report__report_date").annotate(total=Sum("value")):
-        values[row["name"]].setdefault(row["report__report_date"], row["total"])
+        if row["name"].startswith(_SNAPSHOT_FIRST_PREFIXES):
+            values[row["name"]][row["snapshot_date"]] = row["total"]
+        else:
+            values[row["name"]].setdefault(row["snapshot_date"], row["total"])
     return values
 
 
@@ -111,6 +178,8 @@ def kpi_overview(end, days):
 def kpi_detail(name, end, days):
     """Andamento giornaliero di una metrica + da dove arriva il numero."""
     start = end - timedelta(days=days - 1)
+    used = set()
+    report_daily_values(start, end, name=name, used=used)
     by_day = _daily_values(start, end, name=name).get(name, {})
     last = is_last_value(name)
     dates = [start + timedelta(days=i) for i in range(days)]
@@ -132,6 +201,8 @@ def kpi_detail(name, end, days):
         SecurityReportMetric.objects.filter(name=name, report__report_date__range=(start, end))
         .select_related("report", "report__source").order_by("-report__report_date", "-id")[:60]
     )
+    for metric in reports:
+        metric.counted = metric.report_id in used
     backups = list(BackupJobRecord.objects.filter(created_at__date__range=(start, end)).order_by("-started_at", "-id")[:60]) if name.startswith("backup_") else []
     events = list(SecurityEventRecord.objects.filter(event_type=name, occurred_at__date__range=(start, end)).order_by("-occurred_at")[:60]) if not reports else []
     return {

@@ -13,9 +13,15 @@
     <span class="ov-icon" aria-hidden="true">{% if level == "ok" %}✓{% elif level == "warning" %}!{% else %}!!{% endif %}</span>
     <div>
       <h2>{{ verdict.1 }}</h2>
-      <p class="sec-muted">Aggiornato alle {{ now|date:"H:i" }} · {{ items|length }} punt{{ items|length|pluralize:"o,i" }} da guardare · {{ open_alerts_count }} alert apert{{ open_alerts_count|pluralize:"o,i" }} ({{ critical_alerts_count }} critic{{ critical_alerts_count|pluralize:"o,i" }}) · {{ open_tickets_count }} ticket</p>
+      <p class="sec-muted">Aggiornato alle {{ now|date:"H:i" }} · {{ items|length }} punt{{ items|length|pluralize:"o,i" }} da guardare</p>
     </div>
   </div>
+  <nav class="ov-stats" aria-label="Indicatori rapidi">
+    <a class="ov-stat{% if open_alerts_count %} hot{% endif %}" href="{% url 'security:alerts_list' %}?status=active"><strong>{{ open_alerts_count }}</strong><span>alert aperti</span></a>
+    <a class="ov-stat{% if critical_alerts_count %} hot{% endif %}" href="{% url 'security:alerts_list' %}?status=active&amp;severity=critical"><strong>{{ critical_alerts_count }}</strong><span>critici</span></a>
+    <a class="ov-stat" href="{% url 'security:tickets_list' %}"><strong>{{ open_tickets_count }}</strong><span>ticket aperti</span></a>
+    <a class="ov-stat" href="{% url 'security:events' %}?giorni=1" title="Tutti gli eventi letti oggi dai report, anche quelli giudicati a posto"><strong>{{ events_today_count }}</strong><span>eventi oggi</span></a>
+  </nav>
 </section>
 {% endwith %}
 
@@ -53,9 +59,10 @@
       <div class="ov-card-head"><h3>{{ c.title }}</h3><span class="ov-state">{{ c.state_label }}</span></div>
       <div class="ov-numbers">
         {% for n in c.numbers %}
-          <a href="{% url 'security:kpi_detail' n.name %}" class="ov-number" title="Ultimi 7 giorni: apri l'andamento">
+          <a href="{% url 'security:kpi_detail' n.name %}" class="ov-number" title="{% if n.tile.last_value %}Ultimo valore{% else %}Totale ultimi 7 giorni{% endif %}{% if n.tile.delta is not None %} · {{ n.tile.delta|metric_delta:n.name }} rispetto ai 7 giorni prima{% endif %}: apri l'andamento">
             <strong>{% if n.tile %}{{ n.tile.value|metric_value:n.name }}{% else %}—{% endif %}</strong>
             <span>{{ n.label }}</span>
+            {% if n.tile.spark %}<svg class="ov-spark" viewBox="0 0 120 32" aria-hidden="true"><polyline points="{{ n.tile.spark }}"></polyline></svg>{% endif %}
           </a>
         {% endfor %}
       </div>

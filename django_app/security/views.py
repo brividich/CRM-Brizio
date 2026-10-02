@@ -103,6 +103,7 @@ def dashboard(request):
         "critical_alerts_count": SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES, severity=Severity.CRITICAL).count(),
         "open_tickets_count": SecurityRemediationTicket.objects.filter(status__in=[Status.NEW, Status.OPEN, Status.IN_PROGRESS]).count(),
         "reports_today_count": SecurityReport.objects.filter(created_at__date=today).count(),
+        "events_today_count": SecurityEventRecord.objects.filter(occurred_at__date=today).count(),
         "evidence_today_count": SecurityEvidenceContainer.objects.filter(created_at__date=today).count(),
         "latest_critical_cves": SecurityVulnerabilityFinding.objects.filter(severity=Severity.CRITICAL).order_by("-last_seen_at")[:8],
         "latest_defender_findings": _decorate_defender_findings(

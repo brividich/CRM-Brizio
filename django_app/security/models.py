@@ -1087,3 +1087,44 @@ class SecurityAssetSignal(models.Model):
 
     def __str__(self):
         return f"{self.kind} {self.asset_id} {self.status}"
+
+
+class SecurityEscalationRule(models.Model):
+    """Regola appresa: «questo tipo di evento e' un allarme», insegnata da chi gestisce il SOC.
+
+    Nasce quando una persona promuove ad alert un evento che il motore aveva giudicato a posto
+    (solo statistica, sotto soglia). Da li' in poi il motore crea l'alert da solo per gli eventi
+    con lo stesso tipo e gli stessi valori scelti (es. stesso computer, stesso job di backup).
+    Le regole di soppressione restano piu' forti: chi silenzia esplicitamente vince.
+    """
+
+    name = models.CharField(max_length=200)
+    source = models.ForeignKey(SecuritySource, on_delete=models.SET_NULL, null=True, blank=True)
+    event_type = models.CharField(max_length=120, db_index=True)
+    match_payload = models.JSONField(default=dict, blank=True)
+    severity = models.CharField(max_length=24, choices=Severity.choices, default=Severity.WARNING)
+    reason = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    origin_event = models.ForeignKey(SecurityEventRecord, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    origin_alert = models.ForeignKey(SecurityAlert, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    hit_count = models.PositiveIntegerField(default=0)
+    last_hit_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["event_type", "is_active"], name="sec_escal_type_active_idx")]
+
+    def matches(self, event):
+        if not self.is_active or self.event_type != event.event_type:
+            return False
+        if self.source_id and self.source_id != event.source_id:
+            return False
+        payload = event.payload or {}
+        return all(str(payload.get(key, "")).strip().casefold() == str(value).strip().casefold()
+                   for key, value in (self.match_payload or {}).items())
+
+    def __str__(self):
+        return self.name

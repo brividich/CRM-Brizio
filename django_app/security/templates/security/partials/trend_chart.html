@@ -2,7 +2,7 @@
 {% if trend.is_empty %}
   <p class="sec-empty">Nessun evento né alert negli ultimi {{ trend.days|length }} giorni.</p>
 {% else %}
-<div class="sec-trend">
+<div class="sec-trend soc-chart">
   <svg viewBox="0 0 {{ trend.width }} {{ trend.height|add:22 }}" role="img" aria-label="Andamento giornaliero di eventi, alert creati e alert critici">
     <line class="grid" x1="0" x2="{{ trend.width }}" y1="{{ trend.top }}" y2="{{ trend.top }}"></line>
     <line class="grid" x1="0" x2="{{ trend.width }}" y1="{{ trend.baseline }}" y2="{{ trend.baseline }}"></line>
@@ -11,10 +11,16 @@
       <line class="grid" x1="{{ day.x }}" x2="{{ day.x }}" y1="{{ trend.top }}" y2="{{ trend.baseline }}" stroke-dasharray="2 4"></line>
       <text class="axis-label" x="{{ day.x }}" y="{{ trend.height|add:14 }}" text-anchor="middle">{{ day.date|date:"d/m" }}</text>
     {% endfor %}
+    {% for col in trend.columns %}
+      <g tabindex="0" data-tip-title="{{ col.date|date:'D d/m/Y' }}" data-tip="{% for label, color, value in col.values %}{{ color }}::{{ label }}: {{ value }}{% if not forloop.last %}|{% endif %}{% endfor %}"
+         data-href="{% url 'security:events' %}?giorni=90&amp;giorno={{ col.date|date:'Y-m-d' }}" data-href-label="Clic: apri gli eventi del giorno">
+        <rect class="day-hit" x="{{ col.x }}" y="{{ trend.top }}" width="{{ col.w }}" height="{{ trend.baseline|add:-16 }}"></rect>
+      </g>
+    {% endfor %}
     {% for serie in trend.series reversed %}
-      <polyline points="{{ serie.points }}" style="stroke: {{ serie.color }};"></polyline>
+      <polyline points="{{ serie.points }}" style="stroke: {{ serie.color }}; pointer-events: none;"></polyline>
       {% for dot in serie.dots %}
-        <circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="3.5" style="fill: {{ serie.color }};"><title>{{ serie.label }} {{ dot.day|date:"d/m" }}: {{ dot.value }}</title></circle>
+        <circle cx="{{ dot.x }}" cy="{{ dot.y }}" r="3.5" style="fill: {{ serie.color }}; pointer-events: none;"></circle>
       {% endfor %}
     {% endfor %}
   </svg>

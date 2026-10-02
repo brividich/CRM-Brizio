@@ -1,4 +1,5 @@
 """Storico accessi VPN: salvataggio dei record dei report e statistiche per pagina/KPI."""
+from collections import defaultdict
 from datetime import timedelta
 
 from django.db.models import Avg, Count, Max, Q
@@ -137,6 +138,14 @@ def vpn_daily_series(qs, day_from=None, day_to=None, max_days=45):
         .annotate(allowed=Count("id", filter=Q(action=SecurityVpnAccess.ACTION_ALLOWED)), denied=Count("id", filter=Q(action=SecurityVpnAccess.ACTION_DENIED)))
     )
     by_day = {row["day"]: row for row in rows}
+    # Per il tooltip del giorno: utenti distinti e i piu' attivi (con i negati).
+    users_by_day = defaultdict(list)
+    for row in (
+        qs.filter(login_at__isnull=False).exclude(username="").annotate(day=TruncDate("login_at")).filter(day__gte=day_from, day__lte=day_to)
+        .order_by().values("day", "username")
+        .annotate(n=Count("id"), denied=Count("id", filter=Q(action=SecurityVpnAccess.ACTION_DENIED)))
+    ):
+        users_by_day[row["day"]].append(row)
     span = (day_to - day_from).days + 1
     width, height, top, left = 760, 170, 14, 34
     peak = max([r["allowed"] + r["denied"] for r in by_day.values()] or [1]) or 1
@@ -156,7 +165,9 @@ def vpn_daily_series(qs, day_from=None, day_to=None, max_days=45):
             "label_x": round(left + i * slot + slot / 2, 1),
             "y_allowed": round(baseline - h_allowed, 1), "h_allowed": round(h_allowed, 1),
             "y_denied": round(baseline - h_allowed - h_denied, 1), "h_denied": round(h_denied, 1),
-            "allowed": row["allowed"], "denied": row["denied"],
+            "allowed": row["allowed"], "denied": row["denied"], "total": row["allowed"] + row["denied"],
+            "users": len(users_by_day.get(day, [])),
+            "top_users": sorted(users_by_day.get(day, []), key=lambda u: (-u["n"], u["username"]))[:3],
             "show_label": i % max(span // 8, 1) == 0,
         })
     return {"days": days, "peak": peak, "width": width, "height": height + top + 24, "baseline": baseline, "top": top, "left": left,
