@@ -1,4 +1,4 @@
-"""Normalizza NOME e COGNOME dei dipendenti nel formato canonico a iniziali maiuscole.
+"""Normalizza NOME e COGNOME dei dipendenti nel formato canonico MAIUSCOLO.
 
 La tabella legacy ``anagrafica_dipendenti`` è stata popolata in momenti diversi:
 l'import massivo ha scritto tutto MAIUSCOLO, gli inserimenti a mano hanno scritto
@@ -23,8 +23,8 @@ from core import naming
 
 class Command(BaseCommand):
     help = (
-        "Uniforma nome e cognome dei dipendenti legacy nel formato a iniziali "
-        "maiuscole (dry-run di default, --apply per scrivere)."
+        "Uniforma nome e cognome dei dipendenti legacy in MAIUSCOLO "
+        "(dry-run di default, --apply per scrivere)."
     )
 
     def add_arguments(self, parser):
@@ -55,8 +55,8 @@ class Command(BaseCommand):
 
         for row_id, nome, cognome, nuovo_nome, nuovo_cognome in da_cambiare:
             self.stdout.write(
-                f"  [{row_id}] {nome or ''} {cognome or ''}"
-                f"  ->  {nuovo_nome} {nuovo_cognome}"
+                f"  [{row_id}] {cognome or ''} {nome or ''}"
+                f"  ->  {nuovo_cognome} {nuovo_nome}"
             )
 
         if not da_cambiare:

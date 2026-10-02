@@ -185,5 +185,5 @@ class ExportCcnlTests(TestCase):
 
         req = type("R", (), {"GET": {}})()
         rows = _formazione_ccnl_rows(req, "full")
-        riga = next(r for r in rows if r["nome"] == "Blu Test Dario" or "Dario" in r["nome"])
+        riga = next(r for r in rows if r["nome"] == "TEST DARIO" or "DARIO" in r["nome"])
         self.assertEqual(riga["ore_facoltative"], 12.0)

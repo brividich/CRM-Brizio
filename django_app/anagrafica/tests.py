@@ -186,7 +186,7 @@ class AnagraficaRateiExportTests(TestCase):
         self.assertEqual(ws["A1"].value, "Dipendente")
         self.assertEqual(ws["E1"].value, "Ferie")
         self.assertEqual(ws["E2"].value, "Anni Prec.")
-        self.assertEqual(ws["A3"].value, "Rossi Mario")
+        self.assertEqual(ws["A3"].value, "ROSSI MARIO")
         self.assertEqual(ws["B3"].value, "AMMINISTRAZIONE")
 
 
@@ -233,8 +233,8 @@ class AnagraficaDipendentiViewTests(TestCase):
             row = cursor.fetchone()
 
         self.assertIsNotNone(row)
-        self.assertEqual(row[0], "Mario")
-        self.assertEqual(row[1], "Rossi")
+        self.assertEqual(row[0], "MARIO")
+        self.assertEqual(row[1], "ROSSI")
         self.assertEqual(int(row[2] or 0), 0)
         self.assertIsNone(row[3])
 
@@ -385,8 +385,9 @@ class AnagraficaDipendentiViewTests(TestCase):
         response = self.client.get(reverse("anagrafica:dipendenti_list"))
         html = response.content.decode()
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(html.count(">Aksoy Derya<"), 1)
-        self.assertNotIn(">AKSOY DERYA<", html)
+        # Le due righe ("DERYA AKSOY" e "Derya Aksoy") si leggono entrambe
+        # "AKSOY DERYA": il conteggio a 1 è la prova della deduplica.
+        self.assertEqual(html.count(">AKSOY DERYA<"), 1)
 
     def test_ex_dipendenti_are_separated_from_active_list(self):
         """Un dipendente con data_cessazione non compare nella lista in forza
@@ -420,14 +421,14 @@ class AnagraficaDipendentiViewTests(TestCase):
         self.client.force_login(self.user)
 
         list_html = self.client.get(reverse("anagrafica:dipendenti_list")).content.decode()
-        self.assertIn(">Attivo Marco<", list_html)
-        self.assertNotIn(">Cessato Elia<", list_html)
+        self.assertIn(">ATTIVO MARCO<", list_html)
+        self.assertNotIn(">CESSATO ELIA<", list_html)
 
         ex_response = self.client.get(reverse("anagrafica:ex_dipendenti_list"))
         ex_html = ex_response.content.decode()
         self.assertEqual(ex_response.status_code, 200)
-        self.assertIn(">Cessato Elia<", ex_html)
-        self.assertNotIn(">Attivo Marco<", ex_html)
+        self.assertIn(">CESSATO ELIA<", ex_html)
+        self.assertNotIn(">ATTIVO MARCO<", ex_html)
         self.assertEqual(ex_response.context["page_obj"].paginator.count, 1)
 
     def test_dipendente_detail_dpi_tab_excludes_superseded_delivery(self):
@@ -556,8 +557,8 @@ class AnagraficaDipendentiViewTests(TestCase):
 
         list_html = self.client.get(reverse("anagrafica:dipendenti_list")).content.decode()
         ex_html = self.client.get(reverse("anagrafica:ex_dipendenti_list")).content.decode()
-        self.assertIn(">Licenziamento Luca<", list_html)
-        self.assertNotIn(">Licenziamento Luca<", ex_html)
+        self.assertIn(">LICENZIAMENTO LUCA<", list_html)
+        self.assertNotIn(">LICENZIAMENTO LUCA<", ex_html)
 
         detail_response = self.client.get(reverse("anagrafica:dipendente_detail", args=[legacy_id]))
         self.assertContains(detail_response, "Pratica offboarding in corso")
@@ -602,8 +603,8 @@ class AnagraficaDipendentiViewTests(TestCase):
 
         list_html = self.client.get(reverse("anagrafica:dipendenti_list")).content.decode()
         ex_html = self.client.get(reverse("anagrafica:ex_dipendenti_list")).content.decode()
-        self.assertNotIn(">Licenziamento Luca<", list_html)
-        self.assertIn(">Licenziamento Luca<", ex_html)
+        self.assertNotIn(">LICENZIAMENTO LUCA<", list_html)
+        self.assertIn(">LICENZIAMENTO LUCA<", ex_html)
 
     def test_offboarding_creates_tasks_from_configured_fields(self):
         with connection.cursor() as cursor:
@@ -742,8 +743,8 @@ class AnagraficaDipendentiViewTests(TestCase):
 
         list_html = self.client.get(reverse("anagrafica:dipendenti_list")).content.decode()
         ex_html = self.client.get(reverse("anagrafica:ex_dipendenti_list")).content.decode()
-        self.assertIn(">Forza Rita<", list_html)
-        self.assertNotIn(">Forza Rita<", ex_html)
+        self.assertIn(">FORZA RITA<", list_html)
+        self.assertNotIn(">FORZA RITA<", ex_html)
 
     def test_list_orders_employees_by_surname_and_name_on_first_load(self):
         with connection.cursor() as cursor:
@@ -771,7 +772,7 @@ class AnagraficaDipendentiViewTests(TestCase):
 
         html = response.content.decode()
         self.assertEqual(response.status_code, 200)
-        self.assertLess(html.index("Alfa Anna"), html.index("Zeta Zoe"))
+        self.assertLess(html.index("ALFA ANNA"), html.index("ZETA ZOE"))
 
     def test_list_uses_employee_photo_or_gray_avatar_fallback(self):
         with connection.cursor() as cursor:
@@ -1252,7 +1253,7 @@ class DocumentoDipendenteListTests(TestCase):
 
         self.assertEqual(resp.status_code, 200)
         body = resp.content.decode("utf-8", errors="ignore")
-        self.assertIn("Bianchi Luca", body)
+        self.assertIn("BIANCHI LUCA", body)
         self.assertIn("contratto.pdf", body)
 
 
@@ -2037,7 +2038,7 @@ class AttestatoFormazioneTests(TestCase):
         self.assertContains(resp, "Titolo storico corso")
         self.assertNotContains(resp, "Titolo attuale")
         # Nominativo dall'anagrafica + entrambi i blocchi firma
-        self.assertContains(resp, "Bianchi Anna")
+        self.assertContains(resp, "BIANCHI ANNA")
         self.assertContains(resp, "Il Responsabile del corso")
         self.assertContains(resp, "Il Dipendente")
         self.assertContains(resp, "Ing. Verdi")
@@ -2120,7 +2121,7 @@ class AttestatoFormazioneTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertTemplateUsed(resp, "anagrafica/pages/attestato_formazione_stampa.html")
-        self.assertContains(resp, "Bianchi Anna")
+        self.assertContains(resp, "BIANCHI ANNA")
         self.assertContains(resp, "Versione a colori")
 
     def test_default_usa_variante_a_colori(self):
@@ -2273,7 +2274,7 @@ class FormazioneRinnovoTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Candidati")
-        self.assertContains(resp, "Riva Mara")
+        self.assertContains(resp, "RIVA MARA")
 
     def test_bulk_enroll_crea_iscrizioni(self):
         from .models_formazione import TrainingEnrollment
@@ -2698,7 +2699,7 @@ class FormazioneComplianceTests(TestCase):
         resp = self.client.get(reverse("anagrafica:formazione_copertura"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Corso obbligo")
-        self.assertContains(resp, "Test Dario")  # 731 = Dario Test (cognome nome)
+        self.assertContains(resp, "TEST DARIO")  # 731 = Dario Test (COGNOME NOME)
 
     # Reminder sessione T-7: email all'iscritto + invito calendario .ics
     def test_session_reminder_email_e_ics(self):
@@ -2880,7 +2881,7 @@ class AttestatoArchivioTests(TestCase):
             resp = self.client.get(reverse("anagrafica:attestato_report_export"))
         self.assertEqual(resp.status_code, 200)
         self.assertIn("text/csv", resp["Content-Type"])
-        self.assertIn(b"Rossi Marco", resp.content)
+        self.assertIn(b"ROSSI MARCO", resp.content)
 
     def test_protocollo_progressivo_per_anno_e_stabile(self):
         from .services.attestato_pdf import assegna_numero_protocollo
@@ -3065,13 +3066,13 @@ class OrganigrammaTests(TestCase):
         content = resp.content.decode()
         self.assertIn("PROD", content)
         self.assertIn("IN1", content)                     # area aziendale mostrata come badge
-        self.assertIn("Reparto Capo", content)             # capo evidenziato
-        self.assertIn("Verdi Mario", content)               # membro (capo escluso dai membri)
+        self.assertIn("REPARTO CAPO", content)             # capo evidenziato
+        self.assertIn("VERDI MARIO", content)               # membro (capo escluso dai membri)
 
     def test_non_mappati_visibili(self):
         resp = self.client.get(reverse("anagrafica:organigramma"))
         content = resp.content.decode()
-        self.assertIn("Bianchi Luigi", content)
+        self.assertIn("BIANCHI LUIGI", content)
         self.assertIn("non a catalogo", content)
 
     def test_cessati_esclusi(self):
@@ -3838,15 +3839,15 @@ class ConformitaReportTests(TestCase):
     def test_report_elenca_attivi_ed_esclude_cessati(self):
         resp = self.client.get(reverse("anagrafica:conformita_report"))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Rossi Mario")
-        self.assertContains(resp, "Verdi Luigi")
+        self.assertContains(resp, "ROSSI MARIO")
+        self.assertContains(resp, "VERDI LUIGI")
         self.assertNotContains(resp, "Cessata")
 
     def test_report_filtro_esito_ko(self):
         resp = self.client.get(reverse("anagrafica:conformita_report"), {"esito": "ko"})
         content = resp.content.decode()
-        self.assertIn("Rossi Mario", content)       # non conforme
-        self.assertNotIn("Verdi Luigi", content)    # in regola: escluso dal filtro KO
+        self.assertIn("ROSSI MARIO", content)       # non conforme
+        self.assertNotIn("VERDI LUIGI", content)    # in regola: escluso dal filtro KO
 
     def test_report_csv_export(self):
         resp = self.client.get(reverse("anagrafica:conformita_report"), {"format": "csv"})
@@ -3857,7 +3858,7 @@ class ConformitaReportTests(TestCase):
         body = resp.content.decode("utf-8-sig")
         self.assertEqual(body.count("﻿"), 0)
         self.assertIn("Conformità", body)
-        self.assertIn("Rossi Mario", body)
+        self.assertIn("ROSSI MARIO", body)
         self.assertIn("Non conforme", body)
 
 
@@ -4636,8 +4637,8 @@ class FormazioneAllegatiReportTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("text/csv", resp["Content-Type"])
         body = resp.content.decode("utf-8")
-        self.assertIn("Neri Sara", body)
-        self.assertIn("Verdi Paolo", body)
+        self.assertIn("NERI SARA", body)
+        self.assertIn("VERDI PAOLO", body)
 
     def test_corso_attestati_zip(self):
         import io
@@ -4667,7 +4668,7 @@ class FormazioneAllegatiReportTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Antincendio rischio medio")
         resp2 = self.client.get(reverse("anagrafica:formazione_ricerca") + "?q=Neri")
-        self.assertContains(resp2, "Neri Sara")
+        self.assertContains(resp2, "NERI SARA")
 
     def test_ricerca_sicurezza_trova_mansione_qualifica_dipendente(self):
         from .models import Mansione, TipoQualifica
@@ -4679,7 +4680,7 @@ class FormazioneAllegatiReportTests(TestCase):
         r2 = self.client.get(reverse("anagrafica:sicurezza_ricerca") + "?q=Carrellista")
         self.assertContains(r2, "Carrellista sicurezza")
         r3 = self.client.get(reverse("anagrafica:sicurezza_ricerca") + "?q=Neri")
-        self.assertContains(r3, "Neri Sara")
+        self.assertContains(r3, "NERI SARA")
 
     def test_ricerca_sicurezza_vuota_non_esplode(self):
         resp = self.client.get(reverse("anagrafica:sicurezza_ricerca"))
@@ -4702,7 +4703,7 @@ class FormazioneAllegatiReportTests(TestCase):
         resp = self.client.get(reverse("anagrafica:qualifica_sessione_report_csv", args=[sess.id]))
         self.assertEqual(resp.status_code, 200)
         self.assertIn("text/csv", resp["Content-Type"])
-        self.assertIn("Neri Sara", resp.content.decode("utf-8"))
+        self.assertIn("NERI SARA", resp.content.decode("utf-8"))
 
 
 # ---------------------------------------------------------------------------
