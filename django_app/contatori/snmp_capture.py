@@ -31,13 +31,16 @@ DROP_ALWAYS = (
 # Ulteriori sottoalberi esclusi dalle fixture da versionare: traffico,
 # processi e comandi non servono ai preset e rivelano l'infrastruttura.
 DROP_SANITIZE = (
+    "1.3.6.1.2.1.3",           # atTable (ARP storico, indicizzato per IP)
     "1.3.6.1.2.1.4.21",        # ipRouteTable
     "1.3.6.1.2.1.4.24",        # ipForward / inetCidrRoute
+    "1.3.6.1.2.1.4.32",        # ipAddressPrefixTable (subnet negli indici)
     "1.3.6.1.2.1.6.13",        # tcpConnTable
     "1.3.6.1.2.1.6.19",        # tcpConnectionTable
     "1.3.6.1.2.1.6.20",        # tcpListenerTable
     "1.3.6.1.2.1.7.5",         # udpTable
     "1.3.6.1.2.1.7.7",         # udpEndpointTable
+    "1.3.6.1.2.1.25.1.4",      # hrSystemInitialLoadParameters (riga di boot: seriale, MAC)
     "1.3.6.1.2.1.25.4",        # hrSWRun
     "1.3.6.1.2.1.25.5",        # hrSWRunPerf
     "1.3.6.1.4.1.77",          # LanManager
@@ -59,6 +62,14 @@ PSEUDONYM_COLUMNS = {
     "1.0.8802.1.1.2.1.4.1.1.9": "neighbor",    # lldpRemSysName
     "1.3.6.1.2.1.43.5.1.1.16": "printer",      # prtGeneralPrinterName
 }
+
+# Numeri di serie: nelle fixture diventano valori sintetici non vuoti.
+SERIAL_COLUMNS = (
+    "1.3.6.1.2.1.43.5.1.1.17",     # prtGeneralSerialNumber
+    "1.3.6.1.2.1.47.1.1.1.1.11",   # entPhysicalSerialNum
+    "1.3.6.1.4.1.6574.1.5.2",      # Synology serialNumber
+    "1.3.6.1.4.1.6574.101.1.1.14", # Synology seriale disco (storageIO)
+)
 
 # Colonne che contengono MAC anche quando i byte risultano stampabili.
 MAC_COLUMNS = (
@@ -361,6 +372,8 @@ class Sanitizer:
                 rec.tag, rec.value = "4", "sede-sintetica" if r.value else ""
             elif rec.oid == SYS_NAME:
                 rec.tag, rec.value = "4", "device-1" if r.value else ""
+            elif in_subtree(rec.oid, SERIAL_COLUMNS) and rec.value:
+                rec.tag, rec.value = "4", self.name("SN-SINT", r.value)
             elif rec.tag == "64":
                 rec.value = self.ip(rec.value)
             elif data is not None and len(data) == 6 and (
@@ -373,7 +386,7 @@ class Sanitizer:
                 else:
                     text = rec.value
                     for host in hostnames:
-                        text = text.replace(host, "device-1")
+                        text = re.sub(re.escape(host), "device-1", text, flags=re.IGNORECASE)
                     rec.value = self._text(text)
             out.append(rec)
         return out

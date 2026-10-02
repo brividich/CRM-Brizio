@@ -199,7 +199,7 @@ class ProfiloSNMPForm(forms.ModelForm):
         model = ProfiloSNMP
         fields = [
             "slug", "nome", "produttore", "categoria", "famiglia_modelli",
-            "descrizione", "sys_object_id_prefix", "sys_descr_pattern",
+            "descrizione", "sys_object_id_prefix", "sys_descr_pattern", "oid_riconoscimento",
             "versione", "porta", "timeout", "attivo", "note",
         ]
         widgets = {
@@ -222,5 +222,6 @@ class ColonnaProfiloSNMPForm(forms.ModelForm):
         model = ColonnaProfiloSNMP
         fields = [
             "nome", "oid", "tipo_valore", "modalita", "aggregazione",
-            "unita", "fattore", "contatore_mfc", "ordine", "attiva",
+            "unita", "fattore", "contatore_mfc", "soglia_warning_min", "soglia_warning_max",
+            "soglia_critica_min", "soglia_critica_max", "verificata", "fonte", "ordine", "attiva",
         ]

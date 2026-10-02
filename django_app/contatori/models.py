@@ -127,6 +127,13 @@ class ProfiloSNMP(models.Model):
         max_length=255, blank=True,
         help_text="Espressione regolare opzionale applicata a sysDescr.",
     )
+    oid_riconoscimento = models.CharField(
+        max_length=255, blank=True, validators=[_oid_validator],
+        help_text=(
+            "OID letto con GET durante il riconoscimento: se risponde, il profilo prevale. "
+            "Per apparati con sysObjectID generico (es. Synology si presenta come net-snmp)."
+        ),
+    )
     versione = models.CharField(
         max_length=4, blank=True, choices=Versione.choices,
     )
@@ -167,6 +174,7 @@ class ColonnaProfiloSNMP(models.Model):
         MASSIMO = "MASSIMO", "Valore massimo"
         MINIMO = "MINIMO", "Valore minimo"
         SOMMA = "SOMMA", "Somma"
+        MEDIA = "MEDIA", "Media"
 
     class ContatoreMFC(models.TextChoices):
         NESSUNO = "", "Non e un contatore MFC"
@@ -193,6 +201,18 @@ class ColonnaProfiloSNMP(models.Model):
     fattore = models.DecimalField(max_digits=14, decimal_places=6, default=Decimal("1"))
     contatore_mfc = models.CharField(
         max_length=8, blank=True, choices=ContatoreMFC.choices,
+    )
+    # Soglie predefinite copiate sulle sonde quando il profilo viene applicato.
+    soglia_warning_min = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
+    soglia_warning_max = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
+    soglia_critica_min = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
+    soglia_critica_max = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
+    verificata = models.BooleanField(
+        default=False, help_text="OID confermato su un walk reale o su una MIB ufficiale.",
+    )
+    fonte = models.CharField(
+        max_length=200, blank=True,
+        help_text="Origine della verifica (walk apparato/firmware o MIB).",
     )
     ordine = models.PositiveIntegerField(default=0)
     attiva = models.BooleanField(default=True)
@@ -393,6 +413,7 @@ class SondaSNMP(models.Model):
         MASSIMO = "MASSIMO", "Valore massimo"
         MINIMO = "MINIMO", "Valore minimo"
         SOMMA = "SOMMA", "Somma"
+        MEDIA = "MEDIA", "Media"
 
     dispositivo = models.ForeignKey(
         DispositivoSNMP, on_delete=models.CASCADE, related_name="sonde",

@@ -8,6 +8,13 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori SNMP — preset Synology e Linux verificati su walk reale** (`django_app/contatori/{models.py,services.py,snmp.py,forms.py,snmp_capture.py}`, `django_app/contatori/migrations/{0016_profili_riconoscimento_soglie_verifica.py,0017_preset_synology_netsnmp.py}`, `django_app/contatori/management/commands/snmp_discover.py`, `django_app/contatori/templates/contatori/snmp_profilo_form.html`, `django_app/contatori/fixtures/snmp/synology_rs2423rp_dsm74.snmprec`, `django_app/contatori/tests_snmp_preset.py`, `docs/snmp/PRESET_CATALOG.md`, `docs/PROFILI_SNMP.md`, `README.md`):
+  - profilo: nuovo **OID di riconoscimento**, letto con GET finché il dispositivo non ha profilo; se risponde, il profilo prevale su prefisso e pattern. Corregge il Synology, riconosciuto finora come "Linux / Net-SNMP" perché espone il `sysObjectID` net-snmp. Usato anche da `snmp_discover`;
+  - colonne profilo: **soglie** avviso/critico copiate sulle sonde, flag **Verificata** con **Fonte** (visibile nell'elenco colonne), nuova aggregazione **Media**;
+  - preset Synology: modello, seriale, versione DSM, stato sistema, temperatura, alimentazione, ventole, aggiornamento disponibile, stato e salute peggiori dei dischi, temperatura massima dei dischi, stato peggiore volumi/RAID, con soglie;
+  - preset Linux/Net-SNMP (anche su Synology): carico CPU medio, RAM totale e disponibile (`memSysAvail`), uptime del sistema (`hrSystemUptime`);
+  - sanitizzazione delle fixture: oscura i seriali ed esclude riga di boot del kernel, `atTable` e prefissi IP; nome host oscurato anche in maiuscolo;
+  - deploy: `migrate contatori` (0016, 0017). Un NAS già registrato col profilo Linux va riassegnato a mano al profilo Synology con **Applica**.
 - **Contatori SNMP — cattura walk per la verifica dei preset (FASE 1)** (`django_app/contatori/snmp_capture.py`, `django_app/contatori/management/commands/snmp_capture.py`, `django_app/contatori/tests_snmp_capture.py`, `docs/snmp/RICOGNIZIONE.md`, `docs/snmp/CATTURA.md`, `README.md`):
   - nuovo comando `snmp_capture`: walk completo read-only (GETBULK v2c/v3, GETNEXT v1) con output `.snmprec` (snmpsim) e `.txt` leggibile con nomi MIB;
   - limiti: timeout 3 s, 2 retry, max-repetitions 25 dimezzato su *tooBig*, tetto di righe e di durata, stop su OID non crescenti;
