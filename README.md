@@ -1489,6 +1489,8 @@ Guida completa: [`deployment/README_DEPLOY_IIS_WINDOWS.md`](deployment/README_DE
 
 `deployment\scripts\package-release.ps1` esporta il **branch di release** (`release/prod` di default, `-Branch` per cambiarlo), **non** la cartella di lavoro: il codice non committato non finisce mai in un pacchetto.
 
+Il percorso obbligatorio di integrazione è **feature → main → release/prod**: prima integrare e verificare in `main`, poi promuovere `main` nella release. Non integrare feature direttamente in `release/prod`.
+
 Un **pre-flight** lo rende esplicito invece di lasciarlo scoprire al deploy:
 
 - **working tree sporco** → `exit 1`, con la lista dei file che *non sono in nessun commit* e quindi non finiranno nel pacchetto;

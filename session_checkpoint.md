@@ -1,5 +1,10 @@
 # Session Checkpoint
 
+Data: 2026-10-02 (correzione merge via main)
+
+- Regola esplicita utente: SEMPRE feature → main → release/prod, registrata in CLAUDE e README. Corretto precedente salto di main recuperando 810e4fa7 su main ef6be692 e promuovendo main nella release 1063c209, senza riscrittura cronologia.
+- Codice identico alla release corrente, nessuna nuova modifica applicativa o test necessario oltre ai 56 precedenti. Registro/changelog/checkpoint aggiornati; verifica diff, ancestry e hash remoti in chiusura. Nessun deploy, backup aggiuntivo o file critico applicativo modificato.
+
 Data: 2026-10-02 (merge asset IT nella release)
 
 - Vista/aggiunta voce merge schede IT: feature 23899d9e integrata su release 53f28647 nel worktree pn-asset-it-release. Solo conflitto changelog, conservate entrambe le sezioni; codice feature invariato.

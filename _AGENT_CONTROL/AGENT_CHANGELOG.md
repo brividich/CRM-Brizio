@@ -1,5 +1,12 @@
 # Agent Changelog
 
+## 2026-10-02 - Codex (correzione percorso merge via main)
+
+- Correzione esplicita di Brizio: passare SEMPRE da main. Il precedente merge diretto 810e4fa7 in release era un errore di procedura. Recuperata la feature con la relativa cronologia su origin/main ef6be692, poi promozione di main su origin/release/prod 1063c209; nessun reset, force push o revert delle modifiche visibili.
+- Worktree isolato pn-asset-it-release, branch feature/assets-it-main-fix; checkpoint/delta letti, file controllo sessione/lock/critical assenti. Regola persistente aggiunta in CLAUDE.md e README; aggiornati CHANGELOG, questo registro e checkpoint. Nessun file critico applicativo modificato.
+- Check: merge senza conflitti; codice Django identico alla release corrente, che include anche il lavoro parallelo sui nominativi. Nessuna nuova modifica applicativa: validi i 56 test sul precedente merge; diff check e verifica ancestry/hash remoti per main e release. Nessun nuovo backup, migrazione o deploy; README/CHANGELOG/AGENT_CHANGELOG aggiornati sì.
+- Nota per tutti gli agenti: feature → main → release/prod, anche per correzioni e piccoli incrementi. La cronologia conserva l'errore precedente; la correzione riallinea main e release senza cancellare lavoro altrui. Rischi applicativi invariati, vedere checklist IT.
+
 ## 2026-10-02 - Codex (merge schede asset IT nella release)
 
 - Richiesta esplicita: merge per vedere le modifiche e fornire feedback. Integrazione feature/assets-it-checklist 23899d9e su origin/release/prod 53f28647 nel worktree dedicato C:/Dev/pn-asset-it-release, branch feature/assets-it-release. Checkpoint/delta letti; file sessione/lock/critical assenti. Checkout condiviso inizialmente senza modifiche tracciate, sola cartella parser pdf preesistente.
