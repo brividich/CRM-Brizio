@@ -23,7 +23,7 @@
   {% for card in detail_section_cards %}<a href="#asset-section-{{ card.code|lower }}">{{ card.title }}</a>{% endfor %}
   <a href="#asset-storico-section">Storico modifiche</a>
 </nav>
-<details class="af-card af-it-disclosure" id="asset-it-technical">
+<details class="af-card af-it-disclosure" id="asset-it-technical"{% if spec_pairs and it_presentation.show_specs or it_presentation.endpoints or asset_primary_kpis %} open{% endif %}>
   <summary>Tecnica e rete</summary>
   <div class="af-it-body">
     <p class="af-note">Dati di inventario e campi configurati; non costituiscono misurazioni in tempo reale.</p>

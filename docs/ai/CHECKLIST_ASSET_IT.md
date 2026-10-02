@@ -6,6 +6,16 @@ Richiesta: ripensare la pagina di un asset IT, ridurre le informazioni poco pert
 
 ## 1. Scelta consigliata
 
+### Correzione dopo feedback: contenuti dentro la scheda
+
+- [x] Tipo legacy OTHER: usare categoria con base esplicita o alias esatti noti (Stampanti, MFC, PC, Notebook, Portatili, Server, VM); risalita antenati limitata e senza cicli. Nessun match sul nome/IP del bene, nessuna modifica dati. Tipo concreto e WorkMachine/chimico prevalgono.
+- [x] Specifiche e rete aperte se disponibili; backup e segnali SOC aperti quando popolati. Gli approfondimenti non devono nascondere i contenuti principali.
+- [x] MFC: modello, IP, riferimento contratto e quattro contatori cumulativi presenti nella pagina; consumabili con pulsante “Leggi consumabili qui”, risultato inline, percentuali/barre e stato ignoto distinto da zero.
+- [x] POST Contatori esistente con ACL e CSRF; pulsante subordinato anche al permesso specifico, host e monitoraggio attivo. Nessuna interrogazione all'apertura. Errori grezzi esclusi dal nuovo frammento. Ultima lettura mostrata con data, nessuna promessa di freschezza.
+- [ ] Consumabili MFC persistenti/storico, trend consumi e ulteriori dati tecnici: richiedono lavoro successivo sulle sorgenti. Il pulsante restituisce una lettura transitoria, non crea uno storico.
+
+Verifica: 60 test mirati IT/SOC/Contatori; QA desktop 1440 e mobile 390 scuro con HTML e risposta POST sintetici, clic HTMX e livelli mostrati dentro la pagina. Il caso dello screenshot (categoria Stampanti, tipo Altro) ha un test dedicato. Nessun dispositivo reale interrogato.
+
 Una scheda IT deve rispondere subito a quattro domande: **che dispositivo è, chi lo gestisce, quali problemi richiedono attenzione, quanto sono aggiornate le informazioni**.
 
 Propongo una **panoramica compatta con schede di approfondimento e profili per categoria**. Conservare l'identità unica dell'asset e i moduli già esistenti. Il SOC mantiene eventi, alert e valutazioni; Contatori mantiene la telemetria SNMP; la pagina asset ne mostra una sintesi contestuale autorizzata.
