@@ -545,7 +545,8 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 {% endblock %}
 
 {% block assets_shell_content %}
-<section class="af-page">
+{% if it_presentation %}<link rel="stylesheet" href="{% static 'assets/asset-it.css' %}">{% endif %}
+<section class="af-page{% if it_presentation %} af-it-page{% endif %}">
   <div class="af-header">
     <div class="af-hero-main">
       <div class="af-title-row">
@@ -573,7 +574,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             Scheda {{ asset_completeness.pct }}%
           </span>
         {% endif %}
-        <span>{{ sync_text }}</span>
+        <span>{% if it_presentation %}Inventario aggiornato: {{ asset.updated_at|date:"d/m/Y H:i" }}{% else %}{{ sync_text }}{% endif %}</span>
       </div>
       <div class="af-hero-tags">
         <span class="af-hero-tag"><span>Tipo</span>{{ asset.get_asset_type_display }}</span>
@@ -588,7 +589,8 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
     <div class="af-action-panel">
       <div class="af-action-title">Azioni rapide</div>
       <div class="af-header-actions">
-        <a class="af-btn af-btn-primary" href="{{ asset_create_workorder_url }}">Crea intervento</a>
+        {% if it_ticket_create_url %}<a class="af-btn af-btn-primary" href="{{ it_ticket_create_url }}">Apri ticket IT</a>{% endif %}
+        <a class="af-btn {% if it_presentation %}af-btn-secondary{% else %}af-btn-primary{% endif %}" href="{{ asset_create_workorder_url }}">Crea intervento</a>
         {% for button in header_action_buttons %}
           {% if button.href %}
             <a
@@ -637,6 +639,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}
 
   {% if asset.asset_type != "PRODOTTO_CHIMICO" %}
+  {% if it_presentation %}{% include "assets/partials/it_overview.html" %}{% endif %}
   {% if asset_status_band %}
     <section class="af-statusband">
       {% with c=asset_status_band.coverage %}
@@ -665,7 +668,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
     </section>
   {% endif %}
 
-  {% if asset_primary_kpis %}
+  {% if asset_primary_kpis and not it_presentation %}
     <section class="af-metrics af-metrics--primary">
       {% for metric in asset_primary_kpis %}
         <article class="af-metric {{ metric.size_class|default:'af-span-third' }}">
@@ -689,6 +692,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
     </section>
   {% endif %}
 
+  {% if not it_presentation %}
   {% with mfc_collegate=asset.contatori_macchine.all dispositivi_snmp=asset.dispositivi_snmp.all %}
   {% if mfc_collegate or dispositivi_snmp %}
   <section class="af-sections" aria-label="Monitoraggio SNMP collegato">
@@ -721,9 +725,11 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}
   {% endwith %}
 
+  {% endif %}
   <section class="af-sections">
     {% for card in detail_section_cards %}
-      <article class="af-card {{ card.size_class }}" data-card-code="{{ card.code|lower }}">
+      {% if it_presentation %}<details class="af-card af-it-disclosure {{ card.size_class }}" id="asset-section-{{ card.code|lower }}" data-card-code="{{ card.code|lower }}"><summary>{{ card.title }}</summary>
+      {% else %}<article class="af-card {{ card.size_class }}" data-card-code="{{ card.code|lower }}">{% endif %}
           <div class="af-card-head{% if card.code == 'MAINTENANCE' %} af-card-head--maintenance{% endif %}">
             <h2 class="af-card-title">{{ card.title }}</h2>
             {% if card.code == "MAINTENANCE" %}
@@ -1259,7 +1265,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
                 {% endfor %}
               </div>
             </div>
-            {% if spec_pairs %}
+            {% if spec_pairs and not it_presentation %}
             <div class="af-profile-group">
               <div class="af-profile-group-title">{{ detail_specs_title|default:"Specifiche tecniche" }}</div>
               <div class="af-specs">
@@ -1620,7 +1626,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
             {% endwith %}
           {% endfor %}
         {% endif %}
-      </article>
+      {% if it_presentation %}</details>{% else %}</article>{% endif %}
     {% endfor %}
   </section>
 
@@ -1741,7 +1747,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}{# /asset_type != PRODOTTO_CHIMICO — corpo standard nascosto per i chimici #}
 
   {# Segnali dei report di sicurezza/backup sul dispositivo collegato (solo a chi vede il Security Center). #}
-  {% security_asset_card asset %}
+  {% if not it_presentation %}{% security_asset_card asset %}{% endif %}
 
   {# Storico audit dell'asset: risponde a "chi ha modificato questa scadenza". #}
   <section class="af-card af-span-full" style="margin-top:18px;" id="asset-storico-section">
@@ -1749,6 +1755,28 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   </section>
 
 </section>
+
+{% if it_presentation %}
+<script>
+(() => {
+  function revealSection() {
+    const id = window.location.hash.slice(1);
+    if (!id.startsWith('asset-')) return;
+    const target = document.getElementById(id);
+    if (!target) return;
+    for (let node = target; node; node = node.parentElement) {
+      if (node.tagName === 'DETAILS') node.open = true;
+    }
+    target.scrollIntoView({block: 'start'});
+  }
+  window.addEventListener('hashchange', revealSection);
+  document.querySelector('.af-it-nav')?.addEventListener('click', (event) => {
+    if (event.target.closest('a')?.hash === window.location.hash) revealSection();
+  });
+  if (window.location.hash) revealSection();
+})();
+</script>
+{% endif %}
 
 {# Lightbox targhetta: popup leggero, senza librerie, coerente col tema. #}
 <div id="af-lightbox" class="af-lightbox" hidden aria-hidden="true">

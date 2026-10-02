@@ -1,0 +1,41 @@
+{% load security_asset %}
+<section class="af-card af-it-overview" id="asset-it-overview" aria-labelledby="asset-it-overview-title">
+  <div class="af-card-head"><div><div class="af-card-kicker">{{ it_presentation.label|upper }}</div><h2 class="af-card-title" id="asset-it-overview-title">Identità e responsabilità</h2></div></div>
+  <div class="af-it-body">
+    <div class="af-it-summary">
+      <div><span class="af-it-label">{{ it_presentation.assignment_label }}</span><strong>{{ asset.assignment_to|default:"Non indicata" }}</strong><span>{{ asset.assignment_reparto|default:asset.reparto|default:"Reparto non indicato" }}</span></div>
+      <div><span class="af-it-label">{{ it_presentation.location_label }}</span><strong>{{ asset.assignment_location|default:"Da indicare" }}</strong><span>Fonte: inventario{% if it_presentation.profile == 'vm' %}; non identifica l'hypervisor.{% endif %}</span></div>
+      <div><span class="af-it-label">Stato inventariale</span><strong>{{ asset.get_status_display }}</strong><span>Disponibilità e protezione da verificare separatamente.</span></div>
+    </div>
+    {% if it_presentation.checks %}<details class="af-it-disclosure"><summary>Dati da completare · {{ it_presentation.checks|length }}</summary><ul>{% for item in it_presentation.checks %}<li>{{ item }}</li>{% endfor %}</ul></details>{% endif %}
+    <p class="af-note">Ultima modifica della scheda: {{ asset.updated_at|date:"d/m/Y H:i" }}. Non è la data dell'ultima rilevazione tecnica.</p>
+  </div>
+</section>
+{% if it_presentation.profile == 'printer' %}
+  {% include "assets/partials/it_monitoring.html" %}
+  {% security_asset_it_overview asset require_link=True %}
+{% else %}
+  {% security_asset_it_overview asset %}
+  {% include "assets/partials/it_monitoring.html" %}
+{% endif %}
+<nav class="af-it-nav" aria-label="Approfondimenti asset IT">
+  <a href="#asset-it-technical">Tecnica e rete</a>
+  {% for card in detail_section_cards %}<a href="#asset-section-{{ card.code|lower }}">{{ card.title }}</a>{% endfor %}
+  <a href="#asset-storico-section">Storico modifiche</a>
+</nav>
+<details class="af-card af-it-disclosure" id="asset-it-technical">
+  <summary>Tecnica e rete</summary>
+  <div class="af-it-body">
+    <p class="af-note">Dati di inventario e campi configurati; non costituiscono misurazioni in tempo reale.</p>
+    {% if spec_pairs and it_presentation.show_specs %}<h3>{{ detail_specs_title }}</h3><div class="af-specs">{% for key, value in spec_pairs %}<div class="af-spec-item"><span class="af-spec-k">{{ key }}</span><span class="af-spec-v">{{ value }}</span></div>{% endfor %}</div>{% else %}<p>Specifiche non compilate o nascoste dal layout.</p>{% endif %}
+    {% if asset_primary_kpis %}<h3>Altri dati configurati</h3><div class="af-specs">{% for metric in asset_primary_kpis %}<div class="af-spec-item"><span class="af-spec-k">{{ metric.label }}</span><span class="af-spec-v">{{ metric.value }}</span></div>{% endfor %}</div>{% endif %}
+    <h3>Interfacce e collegamenti di rete</h3>
+    <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Endpoint</th><th>IP</th><th>VLAN</th><th>Switch / porta</th><th>Punto rete</th></tr></thead><tbody>
+    {% for endpoint in it_presentation.endpoints %}<tr><td>{{ endpoint.endpoint_name|default:"Non indicato" }}</td><td>{{ endpoint.ip|default:"Non indicato" }}</td><td>{{ endpoint.vlan|default_if_none:"—" }}</td><td>{{ endpoint.switch_name|default:"—" }} / {{ endpoint.switch_port|default:"—" }}</td><td>{{ endpoint.punto|default:"—" }}</td></tr>{% empty %}<tr><td colspan="5">Nessuna interfaccia censita.</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% if it_presentation.profile != 'printer' %}<h3>Configurazione dichiarata</h3>
+    <p class="af-note">I vecchi campi Sì/No non distinguono un controllo negativo da un dato mai verificato. Queste dichiarazioni non attestano lo stato attuale; MFA e credenziali si verificano nelle rispettive console.</p>
+    <div class="af-specs">{% for row in it_presentation.declarations %}<div class="af-spec-item"><span class="af-spec-k">{{ row.label }}</span><span class="af-spec-v">{{ row.value }}</span></div>{% empty %}<p>Profilo IT non compilato.</p>{% endfor %}</div>
+    {% endif %}
+  </div>
+</details>

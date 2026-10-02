@@ -1,0 +1,43 @@
+{% load security_i18n %}{% if show %}
+<section class="af-card af-it-soc" id="asset-security-section" aria-labelledby="asset-it-security-title">
+  <div class="af-card-head">
+    <div><div class="af-card-kicker">SICUREZZA E BACKUP</div><h2 class="af-card-title" id="asset-it-security-title">Cosa richiede attenzione</h2></div>
+    <a class="as-link-subtle" href="{% url 'security:assets' %}?stato=collegati">Apri dispositivi SOC</a>
+  </div>
+  <div class="af-it-body">
+    {% if not linked %}
+      <p><strong>Dispositivo non collegato al SOC.</strong> La protezione e i backup non sono verificabili da questa scheda.</p>
+      <a class="as-link-subtle" href="{% url 'security:assets' %}">Verifica i collegamenti nel SOC</a>
+    {% else %}
+      <div class="af-it-summary">
+        <div><span class="af-it-label">Alert attivi collegati</span><strong>{{ open_alert_count }}</strong><span>Comprende anche quelli rinviati o silenziati.</span></div>
+        <div><span class="af-it-label">Ultimo fatto ricevuto</span><strong>{% if last_signal %}{{ last_signal.occurred_at|date:"d/m/Y H:i" }}{% else %}Nessun segnale{% endif %}</strong><span>{% if last_signal %}Fonte: {{ last_signal.source.name|default:"Non disponibile" }}{% else %}Identità collegata, dati non disponibili.{% endif %}</span></div>
+      </div>
+      <p class="af-note">Nessun alert non significa dispositivo protetto. La freschezza per dispositivo e la copertura EDR non sono ancora valutate. Le date indicano il fatto riportato, non l'ultimo contatto del dispositivo.</p>
+      {% if open_alerts %}<ul class="af-it-alerts">{% for alert in open_alerts %}<li><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title }}</a> · {{ alert.severity|ui_label }} · {{ alert.source.name }}</li>{% endfor %}</ul>{% endif %}
+      {% if open_alert_count > 5 %}<p class="af-note">Mostrati i primi 5 alert, ordinati per gravità. Gli altri sono consultabili nel SOC.</p>{% endif %}
+      {% if backup_attention_count %}<p><strong>Backup da controllare: {{ backup_attention_count }}. Ultimo esito fallito o con avvisi nel campione.</strong> Apri il dettaglio dei job.</p>{% endif %}
+      <details class="af-it-disclosure">
+        <summary>Backup riportati per job{% if not backup_rows %} · nessun dato{% endif %}</summary>
+        {% if backup_rows %}
+          <p class="af-note">Esiti riportati dal job, non prova di ripristino del dispositivo. Campione: {{ backup_sample_size }} esecuzioni più recenti; il successo indicato è il più recente nel campione.</p>
+          {% if backup_sample_limited or backup_jobs_limited %}<p><strong>Storico parziale:</strong> massimo 200 esecuzioni e 12 gruppi. Altri job o successi meno recenti possono non comparire.</p>{% endif %}
+          <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Job / dispositivo / fonte</th><th>Ultimo tentativo nel campione</th><th>Esito riportato</th><th>Successo nel campione</th></tr></thead><tbody>
+          {% for row in backup_rows %}<tr>
+            <td>{{ row.job }}<br><small>{{ row.latest.asset.hostname }} · {{ row.latest.source.name|default:"Fonte non disponibile" }}</small></td>
+            <td>{{ row.latest.occurred_at|date:"d/m/Y H:i" }}</td>
+            <td>{% if row.latest.status == 'failed' %}<strong>Fallito</strong>{% elif row.latest.status == 'warning' %}<strong>Con avvisi</strong>{% elif row.latest.status == 'completed' %}Riuscito{% else %}{{ row.latest.status|default:"Non noto" }}{% endif %}</td>
+            <td>{% if row.success %}{{ row.success.occurred_at|date:"d/m/Y H:i" }}{% else %}Non presente{% endif %}</td>
+          </tr>{% endfor %}
+          </tbody></table></div>
+        {% else %}<p>Nessun backup riportato per questo asset. Policy e necessità di backup da verificare; non equivale a un backup fallito.</p>{% endif %}
+      </details>
+      <details class="af-it-disclosure"><summary>Ultimi segnali e provenienza</summary>
+        <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Quando è accaduto</th><th>Segnale / dispositivo</th><th>Fonte</th><th>Acquisito</th></tr></thead><tbody>
+          {% for signal in signals %}<tr><td>{{ signal.occurred_at|date:"d/m/Y H:i" }}</td><td>{{ signal.title }}<br><small>{{ signal.asset.hostname }} · {{ signal.status|default:"Esito non noto"|ui_label }}</small></td><td>{{ signal.source.name|default:"Non disponibile" }}</td><td>{{ signal.created_at|date:"d/m/Y H:i" }}</td></tr>{% empty %}<tr><td colspan="4">Nessun segnale disponibile.</td></tr>{% endfor %}
+        </tbody></table></div><p class="af-note">Fino a 10 segnali recenti delle identità collegate. Nessuna correlazione automatica per nome o IP.</p>
+      </details>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
