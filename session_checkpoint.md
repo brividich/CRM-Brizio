@@ -1,5 +1,27 @@
 # Session Checkpoint
 
+Data: 2026-10-02 (integrazione release SNMP)
+
+- Vista/aggiunta voce integrazione SNMP in release/prod: merge feature 0613caf4 (codice 1d5770c9) su release 5ce17457 nel worktree pn-snmp-release-20261002. Conservate voci AI/SOC e SNMP del changelog, nessun conflitto codice.
+- 138 test Contatori, system check, migration drift, secret hygiene e diff check verdi. Push release esplicitamente autorizzato, verifica remota nel riepilogo finale. Documenti integrati; nessun file critico globale o deploy. Migrazioni/statici/restart e collaudo reale necessari sul server.
+
+Data: 2026-10-01 (pubblicazione branch discovery SNMP)
+
+- Vista/aggiunta voce pubblicazione branch: push richiesto verso origin/feature/snmp-discovery-timeout, codice 1d5770c9; nessun merge release o deploy. Solo registro/checkpoint modificati, test precedenti 138 verdi. Esito remoto verificato prima del riepilogo finale.
+
+Data: 2026-10-01 (discovery background e catalogo community)
+
+- Vista/aggiunta voce background/catalogo: CommunitySNMP cifrate e riutilizzabili nel polling, DiscoverySNMP persistente con blocchi 16 host, revisione contro duplicati, stato HTMX e Interrompi/Riprendi. Migrazioni 0014/0015. Worktree pn-snmp-discovery, branch feature/snmp-discovery-timeout.
+- 138 test Contatori/check/drift/diff/secret hygiene verdi; QA desktop/mobile con trasporto e coda sintetici, 30/30 host e prefill verificati. Docs/README/changelog/registro aggiornati, nessun file globale ACL/settings/routing modificato. Processi QA terminati; nessun DB aziendale, SNMP reale o deploy. Distribuzione richiede migrazioni, statici aggiornati e restart web/worker.
+
+Data: 2026-10-01 (confronto web discovery SNMP)
+
+- Vista/aggiunta voce confronto web discovery: fonti ufficiali LibreNMS/Zabbix e limiti della patch documentati in docs/ai/03_BACKEND_MODULES.md. Solo docs/registro/checkpoint, nessun deploy o modifica codice; 111 test precedenti invariati.
+
+Data: 2026-10-01 (discovery SNMP e community multiple)
+
+- Vista/aggiunta voce discovery SNMP e community multiple: worktree pn-snmp-discovery, GET limitati e deadline 20s con risultati parziali, fino a 8 community transitorie senza segreti nei risultati. README/changelog/docs/registro aggiornati; nessun deploy o DB aziendale. Suite Contatori 111 test verdi, check Django e diff check verdi; avviso inline verificato dal test pagina. Commit sul branch feature, integrazione/deploy da eseguire.
+
 Data: 2026-10-01 (timeout polling SNMP)
 
 - Vista/aggiunta voce timeout polling SNMP. GET/WALK con budget e limite righe, 102 test Contatori verdi inclusi 6 nuovi; documenti aggiornati. Fix da applicare sul server; watchdog risulta attivo dai dati utente, arretrato non alterato e salute dopo patch ancora da verificare.

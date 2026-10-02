@@ -2,6 +2,6 @@
 {% block title %}{% if dispositivo %}Modifica {{ dispositivo.nome }}{% else %}Nuovo dispositivo SNMP{% endif %}{% endblock %}
 {% block modulo %}
 <h1>{% if dispositivo %}Modifica {{ dispositivo.nome }}{% else %}Nuovo dispositivo SNMP{% endif %}</h1>
-<p class="sub">Registra un lettore, apparato di rete, UPS o sensore. La community resta nella configurazione globale e non viene duplicata.</p>
+<p class="sub">Registra un lettore, apparato di rete, UPS o sensore. Puoi selezionare una community salvata nel catalogo del Discovery, specificarne una manualmente oppure usare quella globale.</p>
 <form method="post" class="panel">{% csrf_token %}<div class="form-grid">{% for field in form %}<div class="form-field {% if field.name == 'note' or field.name == 'asset' %}full{% endif %}">{{ field.label_tag }}{{ field }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}{{ field.errors }}</div>{% endfor %}</div><div class="actions" style="margin-top:20px"><button class="btn" type="submit">Salva dispositivo</button><a class="btn ghost" href="{% if dispositivo %}{% url 'contatori:snmp_dispositivo' dispositivo.pk %}{% else %}{% url 'contatori:snmp_centrale' %}{% endif %}">Annulla</a></div></form>
 {% endblock %}

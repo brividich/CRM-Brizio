@@ -1,12 +1,61 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}Discovery SNMP{% endblock %}
 {% block modulo %}
+<div class="discovery-page">
 <h1>Discovery SNMP</h1>
 <p class="sub">Individua gli endpoint che rispondono in SNMP. Le MFC vengono abbinate per matricola; lettori, apparati e sensori possono essere aggiunti direttamente al monitor. La scansione usa solo letture GET.</p>
 
+{% if scan %}{% include "contatori/_discovery_stato.html" %}{% endif %}
+<div class="panel">
+  <h2>{% if scan %}Avvia un'altra scansione{% else %}Scansione in background{% endif %}</h2>
+  <p>Seleziona fino a otto community. Puoi chiudere la pagina e ritrovare qui avanzamento e risultati. Massimo 512 indirizzi per scansione.</p>
+  <form method="post" action="{% url 'contatori:discovery' %}">
+    {% csrf_token %}<input type="hidden" name="azione" value="avvia">
+    {{ background_form.non_field_errors }}{{ background_form.richiesta }}{{ background_form.richiesta.errors }}
+    <div class="form-grid">
+      {% for field in background_form.visible_fields %}
+        <div class="form-field {% if field.name == 'communities' %}full discovery-choices{% endif %}">
+          {{ field.label_tag }}{{ field }}{{ field.errors }}
+        </div>
+      {% endfor %}
+    </div>
+    <button class="btn" type="submit">Avvia scansione</button>
+  </form>
+</div>
+
+<details class="panel" {% if community_form.errors or community_edit %}open{% endif %}>
+  <summary>Catalogo community salvate</summary>
+  {% if request.GET.catalogo_salvato %}<p class="pos">Community salvata.</p>{% endif %}
+  <p>I valori restano nascosti. La versione e la porta della community, se specificate, prevalgono su quelle della scansione. Le community vengono provate nell'ordine del catalogo, precedute dalla globale se selezionata.</p>
+  <div style="overflow-x:auto"><table class="tbl" data-fm-table-skip="1"><thead><tr><th>Nome</th><th>Versione</th><th>Porta</th><th>Ordine</th><th>Stato</th><th></th></tr></thead>
+  <tbody>{% for c in catalogo %}<tr>
+    <td>{{ c.nome }}</td><td>{{ c.get_versione_display }}</td><td>{{ c.porta|default:"Globale" }}</td><td>{{ c.ordine }}</td><td>{{ c.attiva|yesno:"Attiva,Disattivata" }}</td>
+    <td><a href="{% url 'contatori:discovery' %}?community={{ c.pk }}">Modifica</a></td>
+  </tr>{% empty %}<tr><td colspan="6">Nessuna community salvata. Puoi utilizzare quella globale o aggiungerne una.</td></tr>{% endfor %}</tbody></table></div>
+  <h3>{% if community_edit %}Modifica {{ community_edit.nome }}{% else %}Nuova community{% endif %}</h3>
+  <form method="post" action="{% url 'contatori:discovery' %}">
+    {% csrf_token %}<input type="hidden" name="azione" value="salva_community">
+    {% if community_edit %}<input type="hidden" name="community_id" value="{{ community_edit.pk }}">{% endif %}
+    {{ community_form.non_field_errors }}
+    <div class="form-grid">{% for field in community_form %}
+      <div class="form-field">{{ field.label_tag }}{{ field }}{{ field.errors }}
+        {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+      </div>
+    {% endfor %}</div>
+    <button class="btn" type="submit">Salva community</button>
+    {% if community_edit %}<a class="btn ghost" href="{% url 'contatori:discovery' %}">Nuova community</a>{% endif %}
+  </form>
+</details>
+
+{% if storico %}<details class="panel"><summary>Le tue ultime scansioni</summary>
+  <ul>{% for item in storico %}<li><a href="{% url 'contatori:discovery' %}?scan={{ item.pk }}">{{ item.creata_il|date:"d/m/Y H:i" }} · {{ item.rete }}</a> — {{ item.get_stato_display }} · {{ item.completati }} host completati</li>{% endfor %}</ul>
+</details>{% endif %}
+
+<details class="panel" {% if eseguita %}open{% endif %}>
+<summary>Scansione rapida su pochi indirizzi (massimo 20 secondi)</summary>
 <div class="panel">
   <form method="post">
-    {% csrf_token %}
+    {% csrf_token %}<input type="hidden" name="azione" value="rapida">
     <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
       <div>
         <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Rete</label>
@@ -14,8 +63,9 @@
         <div class="pos" style="font-size:12px;margin-top:3px">Notazione CIDR. Max 512 host (usa /24).</div>
       </div>
       <div>
-        <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Community</label>
-        <input type="text" name="community" value="{{ community }}">
+        <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Community da provare</label>
+        <textarea name="community" rows="3" autocomplete="off" spellcheck="false" placeholder="Vuoto = community globale"></textarea>
+        <div class="pos" style="font-size:12px;margin-top:3px">Una per riga, massimo 8. Valide solo per questa scansione; non vengono riproposte dopo l’invio.</div>
       </div>
       <div>
         <label style="display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Versione</label>
@@ -33,60 +83,22 @@
   </form>
   <div class="pos" style="font-size:12px;margin-top:10px">
     ⚠ In SNMPv1/v2c una <strong>community sbagliata non da' errore: da' timeout</strong>, identico a un host assente.
-    Se non trovi nulla, riprova con un'altra community prima di concludere che le macchine sono irraggiungibili.
+    Durata massima: 20 secondi, con risultati parziali se il limite viene raggiunto.
+    La colonna Community indica il numero della riga inserita (1 = globale se il campo è vuoto).
+    Per il monitoraggio salva la community corretta nella scheda del dispositivo o della MFC.
   </div>
 </div>
+
+</details>
+
+{% if avviso %}
+  <div class="panel" role="status"><p class="warn">{{ avviso }}</p></div>
+{% endif %}
 
 {% if errore %}
   <div class="panel"><p class="neg">{{ errore }}</p></div>
 {% endif %}
 
-{% if righe is not None %}
-  <div class="panel">
-    <h2>Dispositivi che rispondono ({{ righe|length }})</h2>
-    {% if righe %}
-    <table class="tbl">
-      <thead>
-        <tr>
-          <th>IP</th><th>Matricola (SNMP)</th><th>Descrizione</th>
-          <th>In anagrafica</th><th>Stato</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for r in righe %}
-        <tr>
-          <td><strong>{{ r.host }}</strong></td>
-          <td>{{ r.matricola|default:"—" }}</td>
-          <td style="max-width:380px">{{ r.descr|default:"—" }}</td>
-          <td>
-            {% if r.macchina %}
-              <a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a>
-              <div class="pos" style="font-size:12px">IP registrato: {{ r.macchina.host|default:"— nessuno —" }}</div>
-            {% else %}—{% endif %}
-          </td>
-          <td>
-            {% if r.stato == 'ok' %}<span class="pos">OK</span>
-            {% elif r.stato == 'ip_diverso' %}<span class="neg">IP diverso</span>
-            {% else %}<span class="warn">Non in anagrafica</span>{% endif %}
-          </td>
-          <td>
-            {% if r.stato == 'ip_diverso' %}
-              <form method="post" action="{% url 'contatori:discovery_applica_ip' r.macchina.pk %}" style="margin:0">
-                {% csrf_token %}
-                <input type="hidden" name="host" value="{{ r.host }}">
-                <button class="btn" type="submit">Correggi IP → {{ r.host }}</button>
-              </form>
-            {% elif r.stato == 'nuova' %}
-              <div class="actions"><a class="btn ghost small" href="{% url 'contatori:snmp_dispositivo_nuovo' %}?host={{ r.host|urlencode }}&nome={{ r.descr|default:'Dispositivo SNMP'|urlencode }}&matricola={{ r.matricola|urlencode }}&descr={{ r.descr|urlencode }}">Aggiungi al monitor</a><a class="btn ghost small" href="{% url 'contatori:macchina_nuova' %}">Aggiungi MFC</a></div>
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% elif eseguita %}
-      <p class="pos">Nessun dispositivo ha risposto su questa rete con questa community/versione.</p>
-    {% endif %}
-  </div>
-{% endif %}
+{% if not scan %}{% include "contatori/_discovery_risultati.html" %}{% endif %}
+</div>
 {% endblock %}

@@ -1,5 +1,7 @@
 # Backend Modules
 
+Discovery SNMP: catalogo di community nominate e cifrate, selezionabili anche nel polling MFC/dispositivi; scansioni in background persistenti con avanzamento, storico personale, Interrompi/Riprendi e risultati a blocchi. Coda django-q2 esistente, nessuna nuova schedule; migrazioni Contatori 0014/0015 e riavvio applicazione/worker necessari. Guida: [Discovery SNMP](../SNMP_DISCOVERY.md). La scansione rapida da 20s resta disponibile.
+
 Polling SNMP: letture GET/WALK con budget totale di 30s per gruppo; WALK massimo 10s e 256 righe, errore senza aggregati parziali. Due passaggi di specifiche e discovery stampante (20s) hanno un budget di rete complessivo di 80s, lasciando margine al job di 110s; SQL e apparati reali restano da verificare. Nessuna cancellazione o replay della coda.
 
 La console qcluster precompila ora il nome completo DOMINIO\utente risolto dal SID esportato del task, evitando la proposta ambigua del nome breve. Dopo la sostituzione della console occorre riaprirla e ripetere 2 e 9 per ricostruire i controlli di sessione.
@@ -225,3 +227,14 @@ Percorso: `/admin-portale/hub/` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â richiede 
 - `merge_assenze_flows`: anteprima/apply esplicito a processori fermi; nuova regola unica, originali conservati disattivati. Percorsi per tipo/durata, aggiornamento stato e split al termine della catena, fallback caporeparto. Shape inattese bloccano il merge; snapshot delle approvazioni pendenti conservati.
 - Migrazioni automazioni 0025/0026; quattro trigger SQL set-based con campi espliciti per visite, diario, incidenti e RENTRI. Dati clinici esclusi: il placeholder prescrizioni rinvia alla scheda riservata.
 - Settings critici: broker_class/catch_up in base e dev. Launcher Windows con stdout/stderr su file, mutex ambiente e verifica exit code. Nessuna modifica ACL, autenticazione, routing o navigazione globale. Rilascio/recupero e limiti: [runbook](../AUTOMAZIONI_FLUSSI_RUNTIME.md).
+
+
+## Discovery SNMP: confronto con soluzioni pubbliche (2026-10-01)
+
+Confronto richiesto dall'utente, successivo alla patch 227cf77e:
+
+- [LibreNMS, configurazione SNMP](https://docs.librenms.org/Support/Configuration/#snmp-settings): lista di community usata dal discovery, timeout di risposta distinto dal limite di esecuzione. Conferma l'utilita di community candidate multiple e di limiti separati; i valori numerici della patch HUB sono scelte locali, non default ripresi da LibreNMS.
+- [Zabbix, regole discovery](https://www.zabbix.com/documentation/current/en/manual/discovery/network_discovery/rule): controlli SNMPv1/v2 asincroni e concorrenza configurabile. [SNMP agent](https://www.zabbix.com/documentation/current/en/manual/config/items/itemtypes/snmp): i retry possono moltiplicare il tempo di attesa. La patch HUB limita ogni GET e la scansione, mantenendo concorrenza limitata.
+- [Zabbix, network discovery](https://www.zabbix.com/documentation/current/en/manual/discovery/network_discovery): discovery gestito da manager/worker. Valutazione per HUB: per completare reti grandi con molte candidate conviene separare il job dalla richiesta HTTP e mostrare avanzamento persistente; implementato nella successiva estensione background con job da 16 host e ripresa persistente.
+
+Limiti storici della sola patch rapida 227cf77e (superati dalla successiva modalita background; restano per la modalita rapida): la lista di community e transitoria (non un catalogo persistente come LibreNMS); il budget 20s puo interrompere prima di coprire la rete. Il retry della stessa rete riparte dall'inizio, non riprende: per ora restringere il CIDR/candidate. Gli override per singolo apparato restano persistenti. Nessuna fonte dimostra la causa dei timeout della rete aziendale: servono prove dal server verso gli apparati dopo deploy.

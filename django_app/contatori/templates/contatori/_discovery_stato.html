@@ -1,0 +1,23 @@
+<section id="discovery-stato" aria-live="polite"
+  {% if scan.attiva %}hx-get="{% url 'contatori:discovery' %}?scan={{ scan.pk }}&amp;partial=1" hx-trigger="every 4s" hx-swap="outerHTML"{% endif %}>
+  <div class="panel">
+    <h2>{{ scan.rete }} — {{ scan.get_stato_display }}</h2>
+    <progress value="{{ scan.completati }}" max="{{ scan.hosts|length }}" aria-label="Avanzamento scansione" style="width:100%"></progress>
+    <p>{{ scan.completati }} / {{ scan.hosts|length }} host completati ({{ scan.percentuale }}%) · {{ scan.risultati|length }} dispositivi trovati.</p>
+    <p class="sub">Ultimo aggiornamento: {{ scan.aggiornata_il|date:"d/m/Y H:i:s" }}. I risultati vengono salvati a blocchi. Un host senza risposta non prova che sia spento: anche community o versione errate possono causare silenzio.</p>
+    {% if scan.stato == 'ATTESA' %}<p>In attesa del servizio in background. Se il servizio è fermo o la coda è occupata, la scansione resta qui senza perdere i risultati.</p>{% endif %}
+    {% if scan.ferma %}<p class="warn">Nessun avanzamento da oltre due minuti. Verifica il servizio in background; puoi riprendere dal blocco rimasto.</p>{% endif %}
+    {% if scan.errore %}<p class="warn">{{ scan.errore }}</p>{% endif %}
+    <div class="actions">
+      <a class="btn ghost" href="{% url 'contatori:discovery' %}?scan={{ scan.pk }}">Aggiorna</a>
+      {% if scan.attiva %}<form method="post" action="{% url 'contatori:discovery' %}">{% csrf_token %}
+        <input type="hidden" name="scan" value="{{ scan.pk }}"><button class="btn ghost" name="azione" value="interrompi">Interrompi</button>
+      </form>{% endif %}
+      {% if scan.riprendibile %}<form method="post" action="{% url 'contatori:discovery' %}">{% csrf_token %}
+        <input type="hidden" name="scan" value="{{ scan.pk }}"><button class="btn" name="azione" value="riprendi">Riprendi</button>
+      </form>{% endif %}
+    </div>
+    <p>Per il monitoraggio periodico, seleziona nella scheda dell’apparato la community salvata indicata nei risultati.</p>
+  </div>
+  {% include "contatori/_discovery_risultati.html" with eseguita=True %}
+</section>
