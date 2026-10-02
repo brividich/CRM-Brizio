@@ -211,6 +211,7 @@ def build_trend(days=WINDOW_DAYS, today=None):
                 "dots": [{"x": x, "y": y, "value": v, "day": dates[i]} for i, ((x, y), v) in enumerate(zip(points, values[key]))],
             }
         )
+    column = step if days > 1 else inner_w
     return {
         "width": TREND_WIDTH,
         "height": TREND_HEIGHT,
@@ -218,6 +219,12 @@ def build_trend(days=WINDOW_DAYS, today=None):
         "top": TREND_PAD_Y,
         "peak": peak,
         "days": [{"date": day, "x": round(TREND_PAD_X + i * step, 1)} for i, day in enumerate(dates)],
+        # Colonne invisibili per giorno: tooltip con le tre serie e clic verso gli eventi del giorno.
+        "columns": [
+            {"date": day, "x": round(max(TREND_PAD_X + i * step - column / 2, 0), 1), "w": round(column, 1),
+             "values": [(label, color, values[key][i]) for key, label, color in TREND_SERIES]}
+            for i, day in enumerate(dates)
+        ],
         "series": series,
         "is_empty": all(s["total"] == 0 for s in series),
     }

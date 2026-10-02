@@ -7,7 +7,7 @@ API REST e mailbox-admin restano fuori (arrivano più avanti).
 from django.http import JsonResponse
 from django.urls import path
 
-from . import api, views, views_cases, views_soc
+from . import api, views, views_cases, views_events, views_soc
 
 app_name = "security"
 
@@ -30,6 +30,13 @@ urlpatterns = [
     path("alerts/<int:pk>/spiega/", views.alert_explain, name="alert_explain"),
     path("panoramica/sintesi/", views.overview_brief, name="overview_brief"),
     path("alerts/bulk/", views_cases.alerts_bulk, name="alerts_bulk"),
+    # Eventi ingeriti: tutti, anche quelli giudicati «a posto»; promozione ad alert (allarme mancato)
+    path("eventi/", views_events.events_list, name="events"),
+    path("eventi/<int:pk>/", views_events.event_detail, name="event_detail"),
+    path("eventi/<int:pk>/promuovi/", views_events.event_promote, name="event_promote"),
+    path("eventi/<int:pk>/a-posto/", views_events.event_confirm_ok, name="event_confirm_ok"),
+    path("eventi/<int:pk>/ai/", views_events.event_ai_triage, name="event_ai_triage"),
+    path("eventi/regole-apprese/<int:pk>/attiva/", views_events.escalation_rule_toggle, name="escalation_rule_toggle"),
     path("tickets/", views_cases.tickets_list, name="tickets_list"),
     path("tickets/new/", views_cases.case_create, name="case_create"),
     path("tickets/<int:pk>/", views_cases.case_detail, name="case_detail"),

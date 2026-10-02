@@ -37,7 +37,19 @@ def evaluate_security_rules():
         else:
             event.decision_trace = {"decision": "kpi_only", "reason": "No alert rule matched"}
             event.save(update_fields=["decision_trace"])
+        if (event.decision_trace or {}).get("decision") != "alert":
+            _apply_learned_escalation(event)
     return evaluated
+
+
+def _apply_learned_escalation(event):
+    """Regole apprese (eventi che le persone hanno promosso ad alert): dopo le regole standard."""
+    from security.services.event_triage import apply_learned_escalation
+
+    try:
+        apply_learned_escalation(event)
+    except Exception:  # noqa: BLE001 - una regola appresa difettosa non ferma la valutazione degli altri eventi
+        logger.exception("Regola appresa non applicata all'evento %s", event.pk)
 
 
 def _matching_suppression(event):

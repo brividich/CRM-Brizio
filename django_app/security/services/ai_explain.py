@@ -126,6 +126,13 @@ def alert_context(alert):
     rule = {key: trace[key] for key in ("decision", "rule", "rule_code", "rule_name", "metric", "operator", "threshold", "value", "matched_rules", "reason") if key in trace}
     if rule:
         lines.append("Regola che ha deciso: " + json.dumps(rule, ensure_ascii=False, default=str)[:800])
+    if trace.get("manual_escalation") or trace.get("learned_rule_id"):
+        lines.append(
+            "ALLARME MANCATO DAL MOTORE: il motore aveva giudicato l'evento a posto "
+            f"(«{trace.get('previous_reason') or trace.get('previous_decision') or 'solo statistica'}»); "
+            + ("una persona lo ha promosso ad alert" if trace.get("manual_escalation") else "una regola appresa da una persona lo ha riconosciuto")
+            + (f" con questo motivo: {trace.get('reason')}" if trace.get("reason") else "") + "."
+        )
     try:
         from security.services.investigation import facts_as_text
 

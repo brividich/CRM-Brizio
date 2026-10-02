@@ -159,18 +159,31 @@ def vpn_history(request):
         qs = qs.filter(login_at__date__gte=day_from)
     if day_to:
         qs = qs.filter(login_at__date__lte=day_to)
+    daily = vpn_daily_series(qs, day_from, day_to, max_days=120)
+    # Giorno scelto cliccando una barra: il grafico resta sul periodo, il resto della pagina va sul giorno.
+    selected_day = _vpn_day(request.GET.get("giorno"))
+    if selected_day and day_from and day_to and not (day_from <= selected_day <= day_to):
+        selected_day = None
+    if selected_day:
+        day_from_eff = day_to_eff = selected_day
+        qs = qs.filter(login_at__date=selected_day)
+    else:
+        day_from_eff, day_to_eff = day_from, day_to
     previous = None
-    if day_from and day_to:
-        span = (day_to - day_from).days + 1
-        prev_to = day_from - timezone.timedelta(days=1)
+    if day_from_eff and day_to_eff:
+        span = (day_to_eff - day_from_eff).days + 1
+        prev_to = day_from_eff - timezone.timedelta(days=1)
         previous = vpn_history_summary(base.filter(login_at__date__gte=prev_to - timezone.timedelta(days=span - 1), login_at__date__lte=prev_to))
     summary = vpn_history_summary(qs)
-    daily = vpn_daily_series(qs, day_from, day_to, max_days=120)
+    for day in daily.get("days", []):
+        day["selected"] = day["date"] == selected_day
     page = Paginator(qs, 25).get_page(request.GET.get("page"))
     query = request.GET.copy()
     query.pop("page", None)
+    day_query = query.copy()
+    day_query.pop("giorno", None)
     chip_query = request.GET.copy()
-    for key in ("page", "giorni", "from", "to"):
+    for key in ("page", "giorni", "from", "to", "giorno"):
         chip_query.pop(key, None)
     return render(
         request,
@@ -187,6 +200,8 @@ def vpn_history(request):
             "findings": vpn_findings(qs),
             "has_method": True,
             "query": query.urlencode(),
+            "day_query": day_query.urlencode(),
+            "selected_day": selected_day,
             "chip_query": chip_query.urlencode(),
             "days": days,
             "custom": custom,

@@ -38,20 +38,27 @@ def _build_vpn_kpi_snapshots(snapshot_date):
 
 
 def _build_report_metric_snapshots(snapshot_date):
+    """Istantanea per sorgente delle metriche dei report del giorno, senza doppi conteggi
+    (stesso report letto due volte = un valore solo; vedi `report_daily_values`)."""
+    from security.services.kpi_dashboard import report_daily_values
+
     created = 0
-    metric_rows = (
+    source_ids = (
         SecurityReportMetric.objects.filter(report__report_date=snapshot_date)
-        .values("report__source", "name")
-        .annotate(total=Count("id"))
+        .order_by().values_list("report__source", flat=True).distinct()
     )
-    for row in metric_rows:
-        values = SecurityReportMetric.objects.filter(
-            report__report_date=snapshot_date,
-            report__source=row["report__source"],
-            name=row["name"],
-        ).values_list("value", flat=True)
-        _upsert_snapshot(row["report__source"], snapshot_date, row["name"], sum(values))
-        created += 1
+    used = set()
+    report_daily_values(snapshot_date, snapshot_date, used=used)
+    for source_id in list(source_ids):
+        values = {}
+        for metric_name, value in (
+            SecurityReportMetric.objects.filter(report_id__in=used, report__source_id=source_id)
+            .values_list("name", "value")
+        ):
+            values[metric_name] = values.get(metric_name, 0) + value
+        for metric_name, total in values.items():
+            _upsert_snapshot(source_id, snapshot_date, metric_name, total)
+            created += 1
     return created
 
 

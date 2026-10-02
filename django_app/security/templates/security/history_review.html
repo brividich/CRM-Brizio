@@ -57,6 +57,12 @@
       {% for name, count in review.below_threshold %}<li><span>Senza alert · {{ name }}</span><strong>{{ count }}</strong></li>{% endfor %}
       {% if not review.discarded_by_rule and not review.below_threshold %}<li><span class="sec-muted">Nessun evento scartato nel periodo.</span></li>{% endif %}
     </ul>
+    <h3 class="sec-subhead">Allarmi mancati dal motore</h3>
+    <ul class="sec-mini-list">
+      {% for log in review.missed %}<li><span>{% if log.alert %}<a href="{% url 'security:alert_detail' log.alert.pk %}">{{ log.alert.title|truncatechars:60 }}</a>{% else %}alert eliminato{% endif %}<small class="sec-muted" style="display:block;">promosso a mano da {{ log.actor }} il {{ log.created_at|date:"d/m/Y" }}{% if log.details.reason %} · «{{ log.details.reason|truncatechars:90 }}»{% endif %}</small></span></li>
+      {% empty %}<li><span class="sec-muted">Nessun evento promosso ad alert a mano nel periodo. <a href="{% url 'security:events' %}">Rivedi gli eventi</a></span></li>{% endfor %}
+      {% for rule in review.learned_rules %}<li><span>Regola appresa «{{ rule.name }}»</span><strong title="volte che è scattata">{{ rule.hit_count }}</strong></li>{% endfor %}
+    </ul>
     {% if review.unused_rules %}
       <p class="sec-muted" style="margin-top: 8px;">Regole di soppressione attive mai usate negli ultimi 90 giorni: {% for rule in review.unused_rules %}«{{ rule.name }}»{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
     {% endif %}
