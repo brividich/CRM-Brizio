@@ -798,6 +798,9 @@ class SecurityMailboxSource(models.Model):
         ),
     )
     mark_as_read_after_import = models.BooleanField(default=False)
+    # Cartelle da leggere, scelte dalla pagina della casella: [{"id": <id Graph>, "path": "Posta in arrivo/Report"}].
+    # Vuoto = tutta la casella tranne Posta inviata, Bozze, In uscita. Ogni cartella include le sue sottocartelle.
+    folders = models.JSONField(default=list, blank=True)
     process_attachments = models.BooleanField(default=True)
     process_email_body = models.BooleanField(default=True)
     last_run_at = models.DateTimeField(null=True, blank=True)

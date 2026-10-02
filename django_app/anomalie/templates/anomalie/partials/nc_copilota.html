@@ -1,0 +1,67 @@
+<div class="nc-ai">
+  <div>
+    <h4>NC simili già lavorate</h4>
+    {% if p.simili %}
+      <ul>
+        {% for c in p.simili %}
+          <li>
+            <a href="{% url 'anomalie_nc_dettaglio' c.pk %}" target="_blank" rel="noopener"><strong>{{ c.protocollo }}</strong></a>
+            {% if c.non_efficace %}<span class="nc-pill ko">azioni non efficaci</span>{% elif c.ricaduta %}<span class="nc-pill ko">si è ripresentata</span>{% elif c.efficace %}<span class="nc-pill ok">azioni efficaci</span>{% else %}<span class="nc-pill wait">efficacia da verificare</span>{% endif %}
+            {% if c.motivi %}<span class="nc-sub">· {{ c.motivi|join:" · " }}</span>{% endif %}
+            {% if c.causa_radice %}<div class="nc-sub">Causa: {{ c.causa_radice }}</div>{% endif %}
+            {% if c.azioni %}<div class="nc-sub">Azioni: {% for a in c.azioni %}{{ a.descrizione }} ({{ a.stato|lower }}){% if not forloop.last %}; {% endif %}{% endfor %}</div>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="nc-sub">Nessuna NC simile già analizzata: è un caso nuovo.</div>
+    {% endif %}
+  </div>
+
+  {% if p.riuso %}
+    <div>
+      <h4>Già risultate efficaci su NC simili</h4>
+      <ul>
+        {% for a in p.riuso %}
+          <li>{{ a.descrizione }} <span class="nc-pill ok">efficace in {{ a.protocollo }}</span>
+            <button type="button" class="btn btn-sm btn-secondary nc-ai-use" data-nc-usa="azione" data-descrizione="{{ a.descrizione }}" data-tipo="CORRETTIVA">Usa</button>
+            {% if a.causa %}<div class="nc-sub">Causa allora: {{ a.causa }}</div>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if p.ai_disponibile %}
+    {% if p.perche or p.causa_radice %}
+      <div>
+        <h4>Analisi proposta</h4>
+        {% if p.perche %}<ol>{% for x in p.perche %}<li>{{ x }}</li>{% endfor %}</ol>{% endif %}
+        {% if p.causa_radice %}<p style="margin:8px 0 0;"><strong>Causa radice:</strong> {{ p.causa_radice }}</p>{% endif %}
+        {{ p.perche|json_script:"nc-ai-perche" }}{{ p.causa_radice|json_script:"nc-ai-causa" }}
+        <button type="button" class="btn btn-sm btn-secondary" style="margin-top:8px;" data-nc-usa="analisi">Copia nell'analisi</button>
+      </div>
+    {% endif %}
+    {% if p.azioni %}
+      <div>
+        <h4>Azioni proposte</h4>
+        <ul>
+          {% for a in p.azioni %}
+            <li>{{ a.descrizione }} <span class="nc-sub">({{ a.tipo|lower }})</span>
+              {% if a.da_storico %}<span class="nc-pill ok">come in {{ a.da_storico }}</span>{% endif %}
+              <button type="button" class="btn btn-sm btn-secondary nc-ai-use" data-nc-usa="azione" data-descrizione="{{ a.descrizione }}" data-tipo="{{ a.tipo }}">Usa</button>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+    {% if p.motivazione %}<div class="nc-sub">Perché: {{ p.motivazione }}</div>{% endif %}
+  {% else %}
+    <div class="notice">L'AI locale non ha risposto: qui sopra trovi comunque le NC simili e com'è andata.</div>
+  {% endif %}
+
+  <div class="nc-sub">
+    {% if p.apprendimento.totale %}Impara da voi: delle {{ p.apprendimento.totale }} analisi proposte finora, {{ p.apprendimento.percentuale_accettate }}% sono state tenute così com'erano.{% else %}Impara da voi: ogni analisi che salvate (tenuta, corretta o riscritta) guida le prossime proposte.{% endif %}
+    Testo generato dall'AI locale (nessun dato esce dall'azienda): è un'ipotesi da verificare.
+  </div>
+</div>

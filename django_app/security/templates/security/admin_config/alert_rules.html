@@ -10,7 +10,7 @@
     <div class="sec-section-head"><h2>Regole</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
     <div class="sec-table-wrap">
       <table class="sec-table">
-        <thead><tr><th>Codice</th><th>Sorgente</th><th>Stato</th><th>Metrica</th><th>Condizione</th><th>Severita</th><th>Trigger</th><th>Test</th></tr></thead>
+        <thead><tr><th>Codice</th><th>Sorgente</th><th>Stato</th><th>Metrica</th><th>Condizione</th><th>Severita</th><th>Trigger</th><th>Test</th><th>Azioni</th></tr></thead>
         <tbody>
           {% for object in objects %}
             <tr>
@@ -29,16 +29,13 @@
                 </form>
                 <small class="sec-muted">Simula la regola su metriche fittizie (es. <code>{&quot;value&quot;: 1}</code>): mostra se scatterebbe, senza creare alert.</small>
               </td>
-            </tr>
-          {% empty %}<tr><td colspan="8" class="sec-empty">Nessuna regola alert disponibile.</td></tr>{% endfor %}
+            <td>{% include "security/admin_config/_row_actions.html" with is_on=object.enabled %}</td></tr>
+          {% empty %}<tr><td colspan="9" class="sec-empty">Nessuna regola alert disponibile.</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>
     {% if test_result %}<p class="sec-panel">{% if test_result.error %}{{ test_result.error }}{% else %}Regola {{ test_result.rule.code }}: <strong>{{ test_result.matched|yesno:"corrisponde,non corrisponde" }}</strong>{% endif %}</p>{% endif %}
   </section>
-  <section class="sec-panel">
-    <div class="sec-section-head"><h2>Aggiungi / sostituisci regola</h2></div>
-    <form method="post" class="sec-grid">{% csrf_token %}{{ form.as_p }}<button class="sec-button-primary" type="submit">Salva regola</button></form>
-  </section>
+  {% include "security/admin_config/_crud_form.html" with new_title="Nuova regola alert" save_label="Crea regola" %}
 </div>
 {% endblock %}

@@ -1,0 +1,40 @@
+<div style="display:grid;gap:12px;margin-top:12px;">
+  <div>
+    <h3 style="margin:0 0 6px;">Cosa dicono gli audit precedenti</h3>
+    {% if p.storico.precedenti %}
+      <p style="margin:0 0 6px;">Audit chiusi sugli stessi processi: {% for a in p.storico.precedenti %}<a href="{% url 'sistema_gestione:audit_dettaglio' a.pk %}">{{ a.numero }}</a> ({{ a.data|date:"d/m/Y" }}){% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    {% else %}
+      <p style="margin:0 0 6px;">Nessun audit chiuso sugli stessi processi.</p>
+    {% endif %}
+    {% if p.storico.ricorrenti %}<p style="margin:0 0 6px;"><strong>Rilievi ripetuti:</strong> {{ p.storico.ricorrenti|join:" · " }}</p>{% endif %}
+    {% if p.storico.non_efficaci %}
+      <p style="margin:0 0 4px;"><strong>CAR aperte o azioni non efficaci</strong></p>
+      <ul style="margin:0 0 6px;padding-left:18px;">{% for r in p.storico.non_efficaci %}<li>{{ r.audit }} · {{ r.tipo }} · {{ r.domanda|default:r.scostamento }}{% if r.car %} — CAR {% if r.car.chiusa %}chiusa{% else %}aperta{% endif %}{% endif %}{% if r.efficacia %} — verifica di efficacia: {{ r.efficacia }}{% endif %}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if p.storico.kpi_sotto_target %}
+      <p style="margin:0 0 4px;"><strong>KPI sotto target</strong></p>
+      <ul style="margin:0;padding-left:18px;">{% for k in p.storico.kpi_sotto_target %}<li>{{ k.processo }} · {{ k.codice }} {{ k.periodo }}: {{ k.valore|floatformat:2 }} (target {{ k.target|floatformat:2 }})</li>{% endfor %}</ul>
+    {% endif %}
+    {% if not p.storico.rilievi and not p.storico.kpi_sotto_target %}<p style="margin:0;">Nessuna NC, OFI o KPI sotto target negli audit precedenti.</p>{% endif %}
+  </div>
+
+  {% if p.ai_disponibile and p.bozza.obiettivi_carenze %}
+    <div>
+      <h3 style="margin:0 0 6px;">Bozza proposta</h3>
+      <p style="margin:0 0 6px;"><strong>Audit precedenti:</strong> {{ p.bozza.audit_precedenti }}</p>
+      <p style="margin:0 0 6px;"><strong>CAR cliente:</strong> {{ p.bozza.car_cliente }}</p>
+      <p style="margin:0 0 6px;"><strong>Documenti e registrazioni:</strong> {{ p.bozza.documenti_registrazioni }}</p>
+      <p style="margin:0 0 6px;"><strong>Obiettivi e carenze:</strong> {{ p.bozza.obiettivi_carenze }}</p>
+      {{ p.bozza|json_script:"sg-ai-bozza" }}
+      <button type="button" class="btn" data-sg-copia>Copia nei campi vuoti</button>
+    </div>
+  {% elif p.ai_disponibile %}
+    <p>L'AI non ha restituito una bozza utilizzabile: i fatti qui sopra bastano per compilare.</p>
+  {% else %}
+    <p>L'AI locale non ha risposto: i fatti qui sopra bastano per compilare.</p>
+  {% endif %}
+  <p style="margin:0;font-size:.75rem;color:var(--text-light);">
+    {% if p.apprendimento.totale %}Impara da voi: delle {{ p.apprendimento.totale }} bozze proposte, {{ p.apprendimento.percentuale_accettate }}% registrate senza modifiche.{% else %}Impara da voi: la registrazione della preparazione guida le bozze successive.{% endif %}
+    Testo generato dall'AI locale: va verificato dall'auditor.
+  </p>
+</div>

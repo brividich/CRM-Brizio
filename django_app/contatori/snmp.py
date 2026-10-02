@@ -9,6 +9,12 @@ o, in produzione, su un modello dedicato. Qui e' un dizionario semplice.
 import asyncio
 import functools
 import re
+from time import monotonic
+
+# Two specification passes plus printer discovery must fit the 110s job limit.
+SPECIFICATION_BUDGET = 30.0
+WALK_BUDGET = 10.0
+MAX_WALK_ROWS = 256
 
 CANON_BASE = "1.3.6.1.4.1.1602.1.11.1.3.1"  # tabella contatori Canon
 # Printer-MIB standard: prtMarkerSuppliesTable (toner, tamburi, fusore, ...)
@@ -59,7 +65,7 @@ def _testo(valore):
 
 
 def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
-               version="v1"):
+               version="v1", *, max_duration=SPECIFICATION_BUDGET):
     """Legge una lista esplicita di OID con sole operazioni GET.
 
     Ritorna ``(valori, errori)`` indicizzati per OID. Un errore su una sonda non
@@ -84,9 +90,16 @@ def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
         sender = functools.partial(send_udp, timeout=timeout)
         client = PyWrapper(Client(str(host), cred, port=port, sender=sender))
         valori, errori = {}, {}
+        deadline = monotonic() + max_duration
         for oid in richiesti:
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                errori[oid] = 'Tempo complessivo di lettura SNMP superato'
+                continue
             try:
-                valori[oid] = await client.get(oid)
+                valori[oid] = await asyncio.wait_for(client.get(oid), timeout=remaining)
+            except asyncio.TimeoutError:
+                errori[oid] = 'Tempo complessivo di lettura SNMP superato'
             except Exception as exc:  # ogni OID resta indipendente
                 errori[oid] = str(exc)[:500]
         return valori, errori
@@ -102,7 +115,7 @@ def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
 
 
 def leggi_colonna(host, oid, community="novicromprinter", port=161, timeout=3,
-                   version="v1"):
+                   version="v1", *, max_duration=WALK_BUDGET):
     """Esegue un WALK read-only e restituisce i valori della colonna MIB."""
     if not host:
         raise SNMPError("host non impostato")
@@ -122,11 +135,18 @@ def leggi_colonna(host, oid, community="novicromprinter", port=161, timeout=3,
         client = PyWrapper(Client(str(host), cred, port=port, sender=sender))
         valori = []
         async for vb in client.walk(oid):
+            if len(valori) >= MAX_WALK_ROWS:
+                raise SNMPError('Colonna SNMP oltre il limite di 256 righe')
             valori.append(vb.value)
         return valori
 
+    async def _bounded():
+        return await asyncio.wait_for(_run(), timeout=max_duration)
+
     try:
-        valori = asyncio.run(_run())
+        valori = asyncio.run(_bounded())
+    except asyncio.TimeoutError as e:
+        raise SNMPError('Tempo complessivo del WALK SNMP superato') from e
     except Exception as e:
         raise SNMPError(f"{host}: {e}") from e
     if not valori:
@@ -157,6 +177,7 @@ def leggi_specifiche(host, specifiche, community="novicromprinter", port=161,
                      timeout=3, version="v1"):
     """Legge specifiche GET/WALK e ritorna ``(valori, errori)`` per OID."""
     specifiche = list(specifiche)
+    deadline = monotonic() + SPECIFICATION_BUDGET
     get_oids = [s["oid"] for s in specifiche if s.get("modalita", "GET") == "GET"]
     valori, errori = ({}, {})
     if get_oids:
@@ -164,6 +185,7 @@ def leggi_specifiche(host, specifiche, community="novicromprinter", port=161,
             valori, errori = leggi_oids(
                 host, get_oids, community=community, port=port,
                 timeout=timeout, version=version,
+                max_duration=max(0, deadline - monotonic()),
             )
         except SNMPError as exc:
             errori.update({oid: str(exc) for oid in get_oids})
@@ -171,10 +193,15 @@ def leggi_specifiche(host, specifiche, community="novicromprinter", port=161,
         if spec.get("modalita", "GET") != "WALK":
             continue
         oid = spec["oid"]
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            errori[oid] = 'Tempo complessivo di lettura SNMP superato'
+            continue
         try:
             colonna = leggi_colonna(
                 host, oid, community=community, port=port,
                 timeout=timeout, version=version,
+                max_duration=min(WALK_BUDGET, remaining),
             )
             valori[oid] = aggrega_colonna(colonna, spec.get("aggregazione", "PRIMO"))
         except SNMPError as exc:

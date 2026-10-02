@@ -1,0 +1,9 @@
+<div class="cfg-row-actions">
+  <a class="sec-button" href="{{ page_url }}?edit={{ object.pk }}#cfg-form">Modifica</a>
+  {% if toggle_field %}
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle"><input type="hidden" name="object_id" value="{{ object.pk }}"><button class="sec-button" type="submit">{% if is_on %}Disattiva{% else %}Attiva{% endif %}</button></form>
+  {% endif %}
+  {% if deletable %}
+    <form method="post" onsubmit="return confirm('Eliminare «{{ object|escapejs }}»? L\'operazione resta nel registro audit ma non si annulla.');">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="object_id" value="{{ object.pk }}"><button class="sec-button cfg-danger" type="submit">Elimina</button></form>
+  {% endif %}
+</div>

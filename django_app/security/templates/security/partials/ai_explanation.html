@@ -1,0 +1,7 @@
+{% load security_i18n %}{% if ai.ok %}
+  <div class="ai-text">{{ ai.text|ai_markdown }}</div>
+  <p class="ai-foot">{{ ai.disclaimer }}{% if ai.model %} · modello {{ ai.model }}{% endif %}{% if ai.cached %} · risposta già pronta{% endif %}</p>
+{% else %}
+  <p class="sec-action-result sec-error"><strong>L'AI locale non ha risposto.</strong> {{ ai.error|default:"Riprova tra poco." }}</p>
+  <p class="sec-muted">Se succede sempre, verifica che il servizio AI sul server sia acceso (Centrale di comando › AI).</p>
+{% endif %}

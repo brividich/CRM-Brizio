@@ -1,5 +1,30 @@
 # Agent Changelog
 
+## 2026-10-01 - Codex (timeout polling SNMP)
+
+- Evidenza utente: watchdog registra controlli, coda bloccata e worker reincarnati per timeout durante poll_dispositivo. Codice GET sequenziale e WALK generico senza budget complessivo. Correzione in worktree pn-qcluster-account; file controllo sessione/lock/critical assenti, checkpoint/delta letti.
+- File modificati: django_app/contatori/snmp.py; nuovo django_app/contatori/tests_snmp_timeout.py; README, CHANGELOG root/Django, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint. Budget 30s per gruppo condiviso fra GET/WALK; WALK 10s e 256 righe; cancellazione coroutine, errori espliciti, nessun aggregato parziale da WALK interrotto. API precedenti compatibili con nuovo keyword opzionale nelle primitive.
+- Critici: nessun file globale ACL/auth/settings/routing modificato. Impatto operativo polling Contatori richiesto dal blocco qcluster. Nessun DB produzione, task reale, email o dispositivo interrogato; nessuna nuova dipendenza. Backup: nessuno oltre Git; backup server previsto prima della copia del solo snmp.py.
+- Verifiche: 6 nuovi test trasporti sintetici cancellazione GET/WALK, budget condiviso, limite righe e successo; suite Contatori 102 test verdi con DB SQLite esclusivamente sintetico gia disponibile e keepdb, check Django verde. README/CHANGELOG/AGENT_CHANGELOG aggiornati si. Esito fix verificato localmente e da distribuire.
+- Rischi residui: rete e SQL reali da verificare; il limite interrompe colonne lente/grandi con errore dichiarato, non valori incompleti. Arretrato non eliminato; la sua consistenza richiede eventuale audit successivo. Nessuna garanzia che ogni timeout abbia esclusivamente causa SNMP. Altro agente: fermare worker con console2, backup/copia snmp.py, console9 nella stessa sessione; dopo avvio concedere tempo a un job e ricontrollare completamenti/coda, senza ripetere riavvii.
+
+
+## 2026-10-01 - Codex (console account qualificato)
+
+- Correzione ulteriore dopo evidenza server: finestra credenziali ancora precompilata col nome breve. Critico operativo deployment/scripts/qcluster-console.ps1 ora risolve SID XML in account completo e lo mostra/precompila; risoluzione fallita blocca prima della richiesta. Nessuna modifica ACL/settings/auth portale o task reale.
+- File: console, deployment/tests/test-qcluster-account.ps1, README, CHANGELOG, deployment/README_QCLUSTER_CONSOLE.md, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint. Documenti obbligatori aggiornati si. Backup: solo fixture sintetiche, server richiede backup console prima della copia.
+- Verifiche: 7 casi account e 15 scenari console verdi, parser e diff check. Worktree pn-qcluster-account pulito in apertura; file lock/critical assenti. Esito fix verificato localmente, pubblicazione release autorizzata; server ancora da aggiornare. Rischi residui: password, salute coda e consegna email da collaudare. Altro agente: riaprire console aggiornata e ripetere 2/9, nessun nuovo deploy necessario.
+
+
+## 2026-10-01 - Codex (fix identita account watchdog)
+
+- Diagnosi da output utente: SID task e sessione coincidono, CIM mostra nome breve; confronto testuale installer respinge erroneamente credenziali qualificate. Worktree isolato pn-qcluster-account, base 54a5837; file controllo sessione/lock/critical assenti, checkpoint/delta letti, nessun WIP tracciato.
+- Critico operativo modificato: deployment/scripts/install-qcluster-watchdog.ps1, solo controllo credenziali prima delle mutazioni. Legge SID autorevole da XML esportato, risolve credenziali e confronta SID; fail closed su identita non risolvibile/diversa. Nessuna ACL, autenticazione portale, settings, routing o middleware modificati.
+- File: installer, nuovo deployment/tests/test-qcluster-account.ps1; README, CHANGELOG, deployment/README_QCLUSTER_CONSOLE.md, docs/ai/03_BACKEND_MODULES.md, registro e checkpoint. README/CHANGELOG/AGENT_CHANGELOG aggiornati: si.
+- Check: parser e 5 casi guardia credenziali verdi (alias stessa identita, SID diverso, risoluzione fallita, credenziali assenti, Interactive). Nessun task reale registrato, password reale letta, DB/email/deploy o dipendenza modificati. Backup locali: nessuno (Git); procedura server richiede backup installer prima della copia.
+- Esito: fix pronto per pubblicazione release/prod gia autorizzata e sostituzione singolo installer sul server. Rischi residui: verifica credenziali da Windows alla registrazione, salute coda e consegna email da collaudare; non dichiarare produzione risolta. Altro agente: console gia aperta carica installer da current a ogni opzione 5; usare nome dominio esplicito, poi 6 dopo successo.
+
+
 ## 2026-10-01 - Codex (PDF e console PowerShell deploy qcluster)
 
 - Richiesta: produrre PDF della procedura e script PowerShell con menu/opzioni/avanzamento. Worktree isolato C:/Dev/pn-qcluster-watchdog, feature/qcluster-watchdog, base b37952f6; scope release/merge mantenuto dalla conversazione. Checkpoint/delta letti, file controllo sessione/lock/critical assenti. Checkout condiviso con sola cartella parser pdf non tracciata, preservata.

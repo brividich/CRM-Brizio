@@ -48,6 +48,10 @@
     buttons.forEach(function (button) {
       button.dataset.hxLiteDisabled = button.disabled ? "true" : "false";
       button.disabled = true;
+      if (button.dataset.busyLabel) {
+        button.dataset.hxLiteLabel = button.textContent;
+        button.textContent = button.dataset.busyLabel;
+      }
     });
 
     fetch(url, {
@@ -79,6 +83,10 @@
         buttons.forEach(function (button) {
           button.disabled = button.dataset.hxLiteDisabled === "true";
           delete button.dataset.hxLiteDisabled;
+          if (button.dataset.hxLiteLabel !== undefined) {
+            button.textContent = button.dataset.hxLiteLabel;
+            delete button.dataset.hxLiteLabel;
+          }
         });
       });
   }
@@ -88,7 +96,33 @@
     if (!form || !form.matches("form[hx-post]")) {
       return;
     }
+    // Il layout del portale carica anche htmx vero: se ha gia' preso il form non si manda una seconda richiesta.
+    if (event.defaultPrevented && window.htmx) {
+      return;
+    }
     event.preventDefault();
     submitHtmxForm(form);
+  });
+
+  // Etichetta d'attesa (data-busy-label) anche quando la richiesta la fa htmx vero.
+  function busyButtons(event) {
+    var elt = event.detail && event.detail.elt;
+    return elt && elt.querySelectorAll ? Array.prototype.slice.call(elt.querySelectorAll("button[data-busy-label]")) : [];
+  }
+  document.addEventListener("htmx:beforeRequest", function (event) {
+    busyButtons(event).forEach(function (button) {
+      button.dataset.hxLiteLabel = button.textContent;
+      button.textContent = button.dataset.busyLabel;
+      button.disabled = true;
+    });
+  });
+  document.addEventListener("htmx:afterRequest", function (event) {
+    busyButtons(event).forEach(function (button) {
+      if (button.dataset.hxLiteLabel !== undefined) {
+        button.textContent = button.dataset.hxLiteLabel;
+        delete button.dataset.hxLiteLabel;
+      }
+      button.disabled = false;
+    });
   });
 })();

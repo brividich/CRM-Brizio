@@ -14,6 +14,7 @@ urlpatterns = [
     # Non conformita' per OP (ISO 9001 §10.2): sotto /gestione-anomalie per ereditare il gate ACL.
     path("gestione-anomalie/nc/", nc_views.nc_lista, name="anomalie_nc_lista"),
     path("gestione-anomalie/nc/<int:pk>/", nc_views.nc_dettaglio, name="anomalie_nc_dettaglio"),
+    path("gestione-anomalie/nc/<int:pk>/copilota/", nc_views.nc_copilota, name="anomalie_nc_copilota"),
     path("gestione-anomalie/nc/<int:pk>/pdf/", nc_views.nc_pdf, name="anomalie_nc_pdf"),
     path("gestione-anomalie/nc/<int:pk>/allegati/<int:allegato_id>/", nc_views.nc_allegato, name="anomalie_nc_allegato"),
     path("gestione-anomalie/apertura", views.legacy_apertura_redirect, name="legacy_gestione_anomalie_apertura"),

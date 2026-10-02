@@ -1,0 +1,86 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}Analisi dello storico | Security Center{% endblock %}
+{% block page_icon %}A{% endblock %}
+{% block page_marker %}Analisi{% endblock %}
+{% block page_title %}Analisi dello storico{% endblock %}
+
+{% block soc_content %}
+<div class="kpi-filters">
+  <div class="kpi-chips" role="group" aria-label="Periodo">
+    {% for p in "7,30,90"|make_list_csv %}<a class="kpi-chip{% if p == days %} active{% endif %}" href="?giorni={{ p }}">{{ p }} giorni</a>{% endfor %}
+  </div>
+  <span class="sec-muted kpi-period">Dal {{ review.since|date:"d/m/Y" }}: {{ review.alerts_total }} alert, {{ review.closed_total }} chius{{ review.closed_total|pluralize:"o,i" }}, {{ review.false_positive_total }} fals{{ review.false_positive_total|pluralize:"o,i" }} positiv{{ review.false_positive_total|pluralize:"o,i" }}, {{ review.discarded_total }} event{{ review.discarded_total|pluralize:"o,i" }} scartat{{ review.discarded_total|pluralize:"o,i" }} dalle soppressioni</span>
+</div>
+
+<section class="sec-panel ai-panel" id="hist-ai">
+  <div class="sec-section-head">
+    <h2>Cosa propone l'AI</h2>
+    <form method="post" action="{% url 'security:history_proposals' %}" hx-post="{% url 'security:history_proposals' %}" hx-target="#hist-ai-body">
+      {% csrf_token %}<input type="hidden" name="giorni" value="{{ days }}">
+      <button class="sec-button-primary" type="submit" data-busy-label="L'AI sta analizzando lo storico…">Analizza con l'AI</button>
+    </form>
+  </div>
+  <div id="hist-ai-body"><p class="sec-muted">L'AI locale legge il riepilogo qui sotto (alert che si ripetono, come sono stati chiusi, cosa è stato scartato, cosa è fermo) e propone fino a 5 azioni: regole di soppressione, cause da risolvere alla radice, ticket da chiudere o riassegnare. Non cambia nulla: decidi tu.</p></div>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Alert che si ripetono</h2><span class="sec-badge">{{ review.recurring|length }}</span></div>
+    {% if review.recurring %}
+      <div class="sec-table-wrap"><table class="sec-table" data-fm-table-skip="1">
+        <thead><tr><th>Problema</th><th class="num">Volte</th><th>Com'è finita</th></tr></thead>
+        <tbody>
+        {% for row in review.recurring %}
+          <tr>
+            <td class="sec-title-cell"><a href="{{ row.url }}"><strong>{{ row.example|truncatechars:70 }}</strong></a><small>{{ row.label }}{% for r in row.reasons %} · «{{ r|truncatechars:60 }}»{% endfor %}</small></td>
+            <td class="num">{{ row.total }}</td>
+            <td>{{ row.status_text }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}<p class="sec-muted">Nessun alert si è ripetuto nel periodo.</p>{% endif %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Falsi positivi ricorrenti</h2><a href="{% url 'security:admin_config_suppressions' %}">Regole di soppressione</a></div>
+    {% for row in review.false_positives %}
+      <div class="inv-fact tone-warn"><div class="inv-fact-head"><strong>{{ row.example|truncatechars:70 }}</strong><a href="{{ row.url }}">apri</a></div>
+        <ul><li>{{ row.false_positive }} falsi positivi su {{ row.total }}: candidato a una regola di soppressione</li>{% for r in row.reasons %}<li>«{{ r }}»</li>{% endfor %}</ul></div>
+    {% empty %}<p class="sec-muted">Nessun falso positivo che si ripete.</p>{% endfor %}
+
+    <h3 class="sec-subhead">Scartati dal motore</h3>
+    <ul class="sec-mini-list">
+      {% for name, count in review.discarded_by_rule %}<li><span>Soppressione «{{ name }}»</span><strong>{{ count }}</strong></li>{% endfor %}
+      {% for name, count in review.below_threshold %}<li><span>Senza alert · {{ name }}</span><strong>{{ count }}</strong></li>{% endfor %}
+      {% if not review.discarded_by_rule and not review.below_threshold %}<li><span class="sec-muted">Nessun evento scartato nel periodo.</span></li>{% endif %}
+    </ul>
+    {% if review.unused_rules %}
+      <p class="sec-muted" style="margin-top: 8px;">Regole di soppressione attive mai usate negli ultimi 90 giorni: {% for rule in review.unused_rules %}«{{ rule.name }}»{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Fermi</h2><span class="sec-muted">alert aperti da più di 7 giorni, ticket fermi da più di 14</span></div>
+    <ul class="sec-mini-list">
+      {% for alert in review.stale_alerts %}<li><span><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title|truncatechars:70 }}</a><small class="sec-muted" style="display:block;">alert aperto dal {{ alert.created_at|date:"d/m/Y" }}</small></span><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></li>{% endfor %}
+      {% for case in review.stale_cases %}<li><span><a href="{% url 'security:case_detail' case.pk %}">#{{ case.pk }} {{ case.title|truncatechars:60 }}</a><small class="sec-muted" style="display:block;">ticket fermo dal {{ case.updated_at|date:"d/m/Y" }}{% if not case.assignee_id %} · senza responsabile{% endif %}</small></span><span class="sec-badge {{ case.severity }}">{{ case.severity|ui_label }}</span></li>{% endfor %}
+      {% if not review.stale_alerts and not review.stale_cases %}<li><span class="sec-muted">Niente di fermo.</span></li>{% endif %}
+    </ul>
+    {% if review.stale_alerts_total > review.stale_alerts|length %}<p class="sec-muted"><a href="{% url 'security:alerts_list' %}?status=active">Tutti i {{ review.stale_alerts_total }} alert fermi</a></p>{% endif %}
+    {% if review.unassigned_cases %}<p class="sec-muted">{{ review.unassigned_cases }} ticket attiv{{ review.unassigned_cases|pluralize:"o,i" }} senza responsabile · <a href="{% url 'security:tickets_list' %}?assignee=none">vedi</a></p>{% endif %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Come sono stati chiusi</h2><span class="sec-muted">motivi scritti da chi li ha gestiti</span></div>
+    <ul class="sec-mini-list">
+      {% for c in review.closures %}<li><span><a href="{% url 'security:alert_detail' c.pk %}">{{ c.title|truncatechars:60 }}</a><small class="sec-muted" style="display:block;">«{{ c.reason }}»</small></span><span class="sec-badge">{{ c.status }}</span></li>
+      {% empty %}<li><span class="sec-muted">Nessuna chiusura con motivo nel periodo.</span></li>{% endfor %}
+    </ul>
+  </div>
+</section>
+{% endblock %}

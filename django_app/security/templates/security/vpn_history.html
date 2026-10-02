@@ -7,6 +7,24 @@
 {% block page_title %}Storico accessi VPN{% endblock %}
 
 {% block soc_content %}
+<div class="kpi-filters">
+  <div class="kpi-chips" role="group" aria-label="Periodo">
+    {% for p in "7,30,90"|make_list_csv %}<a class="kpi-chip{% if not custom and p == days %} active{% endif %}" href="?{% if chip_query %}{{ chip_query }}&amp;{% endif %}giorni={{ p }}">{{ p }} giorni</a>{% endfor %}
+  </div>
+  <span class="sec-muted kpi-period">{{ day_from|date:"d/m/Y" }} – {{ day_to|date:"d/m/Y" }}{% if custom %} · periodo personalizzato{% endif %} · confronto con il periodo precedente</span>
+</div>
+
+<section class="vpn-tiles">
+  {% for t in tiles %}
+    <div class="kpi-tile{% if t.warn %} kpi-warn{% endif %}">
+      <span class="kpi-label">{{ t.label }}</span>
+      <strong class="kpi-value">{% if t.key == "avg" %}{{ t.value|duration_hms }}{% else %}{{ t.value }}{% endif %}</strong>
+      <span class="kpi-delta">{% if t.delta is not None %}{% if t.delta > 0 %}▲ +{% elif t.delta < 0 %}▼ −{% else %}= {% endif %}{% if t.key == "avg" %}{{ t.delta|abs_value|duration_hms }}{% elif t.delta %}{{ t.delta|abs_value }}{% else %}invariato{% endif %}{% endif %}{% if t.key == "denied" %} · {{ summary.denied_pct }}% del totale{% endif %}</span>
+      {% if t.spark %}<svg class="kpi-spark" viewBox="0 0 120 32" aria-hidden="true"><polyline points="{{ t.spark }}"></polyline></svg>{% endif %}
+    </div>
+  {% endfor %}
+</section>
+
 <form class="sec-filter-bar vpn-filters" method="get">
   <label>Utente <input type="text" name="user" value="{{ filters.user }}" placeholder="nome"></label>
   <label>IP origine <input type="text" name="ip" value="{{ filters.ip }}" placeholder="es. 203.0.113."></label>
@@ -26,19 +44,12 @@
       <option value="all" {% if filters.kind == "all" %}selected{% endif %}>Tutti</option>
     </select>
   </label>
+  {% if not custom %}<input type="hidden" name="giorni" value="{{ days }}">{% endif %}
   <label>Dal <input type="date" name="from" value="{{ filters.from }}"></label>
   <label>Al <input type="date" name="to" value="{{ filters.to }}"></label>
   <button class="sec-button-primary" type="submit">Filtra</button>
   <a class="sec-button" href="{% url 'security:vpn_history' %}">Reimposta</a>
 </form>
-
-<section class="vpn-kpis">
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Accessi</span><strong class="sec-kpi-value">{{ summary.total }}</strong><span class="sec-kpi-delta sec-good">nel periodo</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Consentiti</span><strong class="sec-kpi-value">{{ summary.allowed }}</strong><span class="sec-kpi-delta sec-good">riusciti</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Negati</span><strong class="sec-kpi-value {% if summary.denied_pct >= 20 %}critical{% endif %}">{{ summary.denied }}</strong><span class="sec-kpi-delta {% if summary.denied_pct < 20 %}sec-good{% endif %}">{{ summary.denied_pct }}% del totale</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Utenti distinti</span><strong class="sec-kpi-value">{{ summary.unique_users }}</strong><span class="sec-kpi-delta sec-good">che si sono collegati</span></div>
-  <div class="sec-kpi-card"><span class="sec-kpi-label">Durata media</span><strong class="sec-kpi-value">{{ summary.avg|duration_hms }}</strong><span class="sec-kpi-delta sec-good">per sessione</span></div>
-</section>
 
 <section class="vpn-row">
   <div class="sec-panel">
@@ -95,25 +106,19 @@
   </div>
   <div class="sec-panel">
     <div class="sec-section-head"><h3>Utenti più attivi</h3></div>
-    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
-      <thead><tr><th>Utente</th><th class="sec-num">Accessi</th><th class="sec-num">Negati</th></tr></thead>
-      <tbody>
-      {% for row in summary.top_users|slice:":6" %}
-        <tr><td><a href="?user={{ row.username|urlencode }}">{{ row.username }}</a></td><td class="sec-num">{{ row.total }}</td><td class="sec-num">{{ row.denied }}</td></tr>
-      {% empty %}<tr><td colspan="3" class="sec-empty">Nessun dato.</td></tr>{% endfor %}
-      </tbody>
-    </table>
+    <ul class="vpn-rank">
+      {% for row in top_users %}
+        <li><a href="?user={{ row.username|urlencode }}" title="{{ row.total }} accessi, {{ row.denied }} negati"><span class="vpn-rank-name">{{ row.username }}</span><span class="vpn-rank-num">{{ row.total }}{% if row.denied %} <em>· {{ row.denied }} negati</em>{% endif %}</span><span class="vpn-rank-bar" style="--w: {{ row.share|unlocalize }}%;"></span></a></li>
+      {% empty %}<li class="sec-empty">Nessun dato.</li>{% endfor %}
+    </ul>
   </div>
   <div class="sec-panel">
     <div class="sec-section-head"><h3>IP di origine</h3></div>
-    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
-      <thead><tr><th>IP</th><th class="sec-num">Accessi</th><th class="sec-num">Negati</th></tr></thead>
-      <tbody>
-      {% for row in summary.top_ips|slice:":6" %}
-        <tr><td><a href="?ip={{ row.source_ip|urlencode }}">{{ row.source_ip }}</a></td><td class="sec-num">{{ row.total }}</td><td class="sec-num">{{ row.denied }}</td></tr>
-      {% empty %}<tr><td colspan="3" class="sec-empty">Nessun dato.</td></tr>{% endfor %}
-      </tbody>
-    </table>
+    <ul class="vpn-rank">
+      {% for row in top_ips %}
+        <li><a href="?ip={{ row.source_ip|urlencode }}" title="{{ row.total }} accessi, {{ row.denied }} negati"><span class="vpn-rank-name">{{ row.source_ip }}</span><span class="vpn-rank-num">{{ row.total }}{% if row.denied %} <em>· {{ row.denied }} negati</em>{% endif %}</span><span class="vpn-rank-bar{% if row.denied and row.denied == row.total %} ko{% endif %}" style="--w: {{ row.share|unlocalize }}%;"></span></a></li>
+      {% empty %}<li class="sec-empty">Nessun dato.</li>{% endfor %}
+    </ul>
   </div>
 </section>
 

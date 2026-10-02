@@ -10,7 +10,7 @@
   <div class="sec-section-head"><h2>Sorgenti monitorate</h2><a href="{% url 'security:admin_config' %}">Home configurazione</a></div>
   <div class="sec-table-wrap">
     <table class="sec-table">
-      <thead><tr><th>Sorgente</th><th>Stato</th><th>Parser</th><th>Frequenza</th><th>Riconoscimento</th></tr></thead>
+      <thead><tr><th>Sorgente</th><th>Stato</th><th>Parser</th><th>Frequenza</th><th>Riconoscimento</th><th>Azioni</th></tr></thead>
       <tbody>
         {% for object in objects %}
           <tr>
@@ -23,8 +23,8 @@
               {% if object.mailbox_subject_patterns %}<div><span class="sec-muted">Oggetto:</span> {{ object.mailbox_subject_patterns|join:", " }}</div>{% endif %}
               {% if not object.mailbox_sender_patterns and not object.mailbox_subject_patterns %}<span class="sec-muted">Nessun pattern</span>{% endif %}
             </td>
-          </tr>
-        {% empty %}<tr><td colspan="5" class="sec-empty">Nessuna configurazione sorgente disponibile.</td></tr>{% endfor %}
+          <td>{% include "security/admin_config/_row_actions.html" with is_on=object.enabled %}</td></tr>
+        {% empty %}<tr><td colspan="6" class="sec-empty">Nessuna configurazione sorgente disponibile.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
@@ -52,13 +52,6 @@
     {% endif %}
   </section>
 
-  <section class="sec-panel">
-    <div class="sec-section-head"><h2>Aggiungi o sostituisci sorgente</h2></div>
-    <form method="post" class="sec-grid sec-form">
-      {% csrf_token %}
-      {{ form.as_p }}
-      <button class="sec-button-primary" type="submit">Salva sorgente</button>
-    </form>
-  </section>
+  {% include "security/admin_config/_crud_form.html" with new_title="Nuova sorgente" save_label="Crea sorgente" %}
 </div>
 {% endblock %}

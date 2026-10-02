@@ -1,0 +1,57 @@
+<div class="kai">
+  {% if p.ricorrenti %}
+    <div class="kai-sec">
+      <div class="kai-h">Problemi ricorrenti nelle commesse simili</div>
+      {% for r in p.ricorrenti %}
+        <div class="md-action-row">
+          <div class="md-action-main">
+            <div class="md-action-title">{{ r.titolo }}</div>
+            <div class="mf-issue-meta">{% for c in r.commesse %}<span class="kai-chip">{{ c }}</span>{% endfor %}</div>
+          </div>
+          <button type="button" class="mf-btn-sm ghost" data-kai-add data-titolo="{{ r.titolo }}" data-nota="Problema emerso in: {{ r.commesse|join:', ' }}">Aggiungi all'ordine del giorno</button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="kai-sec">
+    <div class="kai-h">Commesse simili</div>
+    {% for c in p.simili %}
+      <div class="kai-caso">
+        <div><a href="{% url 'tasks:project_meetings' c.pk %}" target="_blank" rel="noopener"><strong>{{ c.nome }}</strong></a>{% for m in c.motivi %} <span class="kai-chip">{{ m }}</span>{% endfor %}</div>
+        {% if c.problemi %}<div class="kai-riga">Problemi: {% for x in c.problemi %}{{ x.titolo }} <em>({% if x.risolto %}risolto{% else %}aperto{% endif %})</em>{% if not forloop.last %}; {% endif %}{% endfor %}</div>{% endif %}
+        {% if c.slittamenti %}<div class="kai-riga">Attività slittate: {{ c.slittamenti|join:"; " }}</div>{% endif %}
+        {% if c.rischi %}<div class="kai-riga">Rischi VRF alti: {{ c.rischi|join:"; " }}</div>{% endif %}
+        {% if c.azioni_aperte %}<div class="kai-riga">Azioni rimaste aperte: {{ c.azioni_aperte|join:"; " }}</div>{% endif %}
+        {% if c.decisioni %}<div class="kai-riga">Decisioni: {{ c.decisioni|join:"; " }}</div>{% endif %}
+      </div>
+    {% empty %}
+      <div class="kai-riga">Nessuna commessa simile con storico: è un caso nuovo.</div>
+    {% endfor %}
+  </div>
+
+  {% if p.ai_disponibile %}
+    {% if p.punti %}
+      <div class="kai-sec">
+        <div class="kai-h">Punti proposti dall'AI</div>
+        {% for punto in p.punti %}
+          <div class="md-action-row">
+            <div class="md-action-main">
+              <div class="md-action-title">{{ punto.titolo }}</div>
+              {% if punto.nota %}<div class="mf-issue-desc">{{ punto.nota }}</div>{% endif %}
+            </div>
+            <button type="button" class="mf-btn-sm primary" data-kai-add data-titolo="{{ punto.titolo }}" data-nota="{{ punto.nota }}" data-durata="{{ punto.durata_minuti|default_if_none:'' }}">Aggiungi all'ordine del giorno</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="kai-riga">L'AI non ha proposto punti nuovi rispetto all'agenda attuale.</div>
+    {% endif %}
+  {% else %}
+    <div class="kai-riga">L'AI locale non ha risposto: sopra trovi comunque le commesse simili.</div>
+  {% endif %}
+  <div class="kai-foot">
+    {% if p.apprendimento.totale %}Impara da voi: in {{ p.apprendimento.totale }} incontri con proposte, nel {{ p.apprendimento.percentuale_accettate }}% dei casi i punti sono stati tenuti.{% else %}Impara da voi: alla chiusura della minuta confronta i punti proposti con quelli tenuti.{% endif %}
+    Testo generato dall'AI locale: rileggilo prima della convocazione.
+  </div>
+</div>

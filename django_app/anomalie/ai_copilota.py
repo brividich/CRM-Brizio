@@ -186,6 +186,12 @@ def proponi_classificazione_qualita(*, descrizione: str, note: str = "", part_nu
 
     tipi_lines = "\n".join(f"- {n}" for _, n in tipi) or "(nessuno)"
     grav_lines = "\n".join(f"- {c}" for c in grav_codici) or "(nessuno)"
+    try:
+        from ai_assistant.apprendimento import lezioni_testo
+
+        lezioni = lezioni_testo("anomalie", "classificazione", etichette={"tipo_difetto": "tipo difetto", "gravita": "gravità"})
+    except Exception:  # noqa: BLE001
+        lezioni = ""
     simili_lines = "\n".join(
         f"- {c['protocollo']}: {c['tipo_difetto_label']} (gravita' {c['gravita'] or 'n.d.'}, "
         f"{c['disposizione']}) - {c['descrizione']}"
@@ -203,6 +209,7 @@ def proponi_classificazione_qualita(*, descrizione: str, note: str = "", part_nu
         "funzione o richiede deroga del cliente; CRITICA = rischio per la sicurezza.\n\n"
         f"CATALOGO DIFETTI:\n{tipi_lines}\n\nCODICI GRAVITA':\n{grav_lines}\n\n"
         f"CASI SIMILI GIA' CLASSIFICATI:\n{simili_lines}\n\n"
+        + (f"{lezioni}\n\n" if lezioni else "") +
         f"SEGNALAZIONE\n{(descrizione or '').strip()[:3000]}\n"
         f"NOTE\n{(note or '').strip()[:1500]}"
     )

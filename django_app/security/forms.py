@@ -362,6 +362,48 @@ class SecurityMailboxSourceForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        if data.get("source_type") == "graph" and not data.get("mailbox_address"):
+        if data.get("source_type") == "graph" and not data.get("mailbox_address") and "mailbox_address" in self.fields:
             self.add_error("mailbox_address", "Obbligatorio per leggere la casella con Microsoft Graph.")
         return data
+
+
+class MailboxGeneralForm(SecurityMailboxSourceForm):
+    """Sezione «Generale» della pagina casella."""
+
+    class Meta(SecurityMailboxSourceForm.Meta):
+        fields = ["name", "enabled", "source_type", "mailbox_address", "description", "expected_every_hours", "max_messages_per_run"]
+
+
+class MailboxContentForm(forms.ModelForm):
+    """Sezione «Allegati e testo»."""
+
+    class Meta:
+        model = SecurityMailboxSource
+        fields = ["process_attachments", "process_email_body", "attachment_extensions"]
+        labels = {
+            "process_attachments": "Analizza gli allegati (gli ZIP vengono aperti)",
+            "process_email_body": "Analizza il testo della mail",
+            "attachment_extensions": "Solo questi tipi di allegato",
+        }
+        help_texts = {"attachment_extensions": "Separati da virgola, es. csv,pdf,zip. Vuoto = tutti."}
+
+
+class MailboxFiltersForm(forms.Form):
+    """Sezione «Quali mail importare»: filtri pronti per fornitore + parole libere."""
+
+    presets = forms.MultipleChoiceField(label="Report di", required=False, widget=forms.CheckboxSelectMultiple)
+    extra_subjects = forms.CharField(label="Altre parole che l'oggetto può contenere", required=False,
+                                     widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Una per riga"}))
+    subject_exclude_text = forms.CharField(label="Escludi se l'oggetto contiene", required=False,
+                                           widget=forms.Textarea(attrs={"rows": 2, "placeholder": "Una per riga, es. RE: oppure I:"}))
+    sender_allowlist_text = forms.CharField(label="Solo da questi mittenti", required=False,
+                                            help_text="Uno per riga: indirizzo completo o dominio. Vuoto = tutti. Attenzione: se i report ti arrivano inoltrati, il mittente è chi inoltra.",
+                                            widget=forms.Textarea(attrs={"rows": 2, "placeholder": "watchguard.com"}))
+    require_verified_sender = forms.BooleanField(label="Accetta solo mittenti verificati (DKIM/SPF)", required=False,
+                                                 help_text="Più sicuro, ma scarta le mail inoltrate o senza intestazione Authentication-Results.")
+
+    def __init__(self, *args, **kwargs):
+        from security.services.mailbox_setup import SUBJECT_PRESETS
+
+        super().__init__(*args, **kwargs)
+        self.fields["presets"].choices = [(code, f"{label} — {', '.join(words)}") for code, label, words in SUBJECT_PRESETS]

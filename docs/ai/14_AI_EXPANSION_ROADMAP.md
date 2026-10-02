@@ -20,6 +20,10 @@ SGI) negli altri punti del portale. **Si esegue a ondate, a fasi con STOP di app
   `_estrai_testo_pdf`, output `proposto=True`, nessuna scrittura).
 - **RAG citabile**: `ai_assistant/services.py::_load_sgi_document_chunks` (aggiungere nuovi corpora).
 - **Embeddings su GPU**: TEI via `RAG_EMBED_BACKEND=openai` (regge migliaia di chunk).
+- **Apprendimento dalle decisioni**: `ai_assistant/apprendimento.py` + modello `AiProposta`.
+  `registra_proposta` quando il copilota propone, `registra_decisione` quando la persona salva
+  davvero (accettata / corretta / scartata), `lezioni_testo` nel prompt successivo. Il modello non
+  si riaddestra: impara leggendo come sono state trattate le sue proposte e lo storico del modulo.
 - **Resolver pronti**: `anagrafica/services/skillmatrix_resolver.py` (chi opera una macchina),
   `gestione_carichi_macchina` (saturazione/previsioni).
 
@@ -91,6 +95,23 @@ Moduli arrivati *dopo* le onde 1–5 e **non ancora raggiunti dall'AI**. Assi: V
 **Stato avanzamento Ondata 6 (✅ TUTTA)**: ✅ 6.1 Tool Contatori MFC · ✅ 6.2 RAG Schede Sicurezza · ✅ 6.3 Tool Schede Sicurezza · ✅ 6.4 Suggestion Corner (tool + copilota) · ✅ 6.5 Assets OdL interne/esterne (2026-07-12, branch `feat/modulo-security-center`).
 
 > Nota: `strumenti_misura` è oggi **solo studio di fattibilità** (non è un'app installata) → fuori scope AI finché non esiste il modulo.
+
+## Ondata 7 — I copiloti imparano dallo storico (2026-10-01)
+
+Regola comune: prima di proporre il copilota legge i casi gia' chiusi del modulo (com'e' finita,
+cosa ha funzionato) e le correzioni delle persone alle sue proposte precedenti (`AiProposta`).
+Il riuso di cio' che ha funzionato e' anche **deterministico** (mostrato sempre, senza AI): con un
+modello da 14B la sola istruzione nel prompt non basta.
+
+- ✅ **7.1 Anomalie / NC** — `anomalie/ai_nc.py`: NC simili (P/N, tipo difetto, OP, testo) con esito
+  reale (verifica efficace / non efficace, ricaduta); «Già risultate efficaci» con «Usa»; proposta di
+  5 perché, causa radice e azioni; apprendimento su causa radice, azioni e classificazione qualita'.
+- ✅ **7.2 DPI / valutazione richieste** — `dpi/ai_richiesta.py`: ultima consegna rispetto alla vita
+  utile, consegne dell'anno contro la media del reparto, doppioni, giacenza, motivi di rifiuto usati;
+  proposta approvare / chiedere informazioni / rifiutare con messaggio. Al modello niente nomi.
+- ✅ **7.3 Kickoff** — `tasks/ai_kickoff.py`: nella pagina incontro «Dalle commesse simili» (stesso cliente/P/N/descrizione): problemi emersi e come sono finiti, problemi ricorrenti in piu' commesse, attivita' slittate rispetto alla baseline Gantt, rischi VRF alti, azioni rimaste aperte; l'AI propone i punti all'ordine del giorno, «Aggiungi» li mette in agenda con `source=ai`. Impara alla chiusura della minuta (punti tenuti / scartati).
+- ✅ **7.4 SGI / audit** — `sistema_gestione/ai_preparazione.py`: nella preparazione MT CN 12 «Prepara dagli audit precedenti» (NC/OFI sugli stessi processi, CAR e verifiche di efficacia, rilievi ripetuti, KPI sotto target) + bozza AI dei quattro campi da copiare nei campi vuoti. Impara alla registrazione della preparazione. Modifiche additive (file nuovi + include), per non urtare i branch SGI in corso.
+- ✅ **7.5 Gestione specifiche** — `gestione_specifiche/ai_storico.py`: il copilota MOD.133 parte dal MOD.133 approvato della revisione precedente, dagli argomenti ricorrenti e dai TAG dello stesso cliente (mostrati anche senza AI). Impara alla chiusura della compilazione. Corretto: testo del PDF e storico ora nel contesto (prima il prompt veniva tagliato a 2000 caratteri e l'AI leggeva solo l'inizio della specifica).
 
 ## Bloccato (solo dopo DPIA)
 - **Timbri/Presenze**: dato cronologico/sensibile. Nessun tool finché non c'è il sign-off privacy.

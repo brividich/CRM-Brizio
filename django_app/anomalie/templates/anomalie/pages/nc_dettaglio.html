@@ -38,6 +38,15 @@
   .nc-eventi { display:grid; gap:0; }
   .nc-evento { display:grid; grid-template-columns:130px minmax(0,1fr) 160px; gap:10px; padding:7px 0; border-bottom:1px solid var(--border); font-size:var(--fs-sm); }
   .nc-evento:last-child { border-bottom:none; }
+  .nc-ai-box { border:1px dashed var(--border); border-radius:10px; padding:12px; margin-bottom:14px; background:var(--bg); }
+  .nc-ai-head { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  @media (max-width:640px) { .nc-ai-head { flex-direction:column; align-items:flex-start; } }
+  .nc-ai { display:grid; gap:12px; margin-top:12px; }
+  .nc-ai h4 { margin:0 0 6px; font-size:var(--fs-sm); }
+  .nc-ai ul, .nc-ai ol { margin:0; padding-left:18px; display:grid; gap:6px; }
+  .nc-pill.ko { background:var(--danger-bg); color:var(--danger); }
+  .nc-pill.wait { background:var(--surface-alt, var(--bg)); color:var(--text-mid); border:1px solid var(--border); }
+  .nc-ai-use { margin-left:6px; }
   @media (max-width:640px) { .nc-evento { grid-template-columns:1fr; gap:2px; } }
 </style>
 {% endblock %}
@@ -156,6 +165,15 @@
 <div class="card" id="analisi" style="margin-bottom:18px;">
   <div class="card-head"><div class="card-title"><span class="nc-num">2</span>Analisi delle cause</div></div>
   <div class="card-body">
+    {% if perm.modifica and not nc.is_chiusa %}
+    <div class="nc-ai-box">
+      <div class="nc-ai-head">
+        <div><strong>Copilota AI</strong><div class="nc-sub">Parte dalle NC simili già lavorate: riprende le azioni risultate efficaci ed evita quelle che non hanno funzionato. Propone soltanto: copi tu nei campi e salvi.</div></div>
+        <button type="button" class="btn btn-sm" id="nc-ai-btn" data-url="{% url 'anomalie_nc_copilota' nc.pk %}">Proponi analisi e azioni</button>
+      </div>
+      <div id="nc-ai-out"></div>
+    </div>
+    {% endif %}
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="analisi">
       <fieldset class="nc-fs" {% if nc.is_chiusa or not perm.modifica %}disabled{% endif %}>
         <div class="nc-fields">
@@ -316,6 +334,51 @@
   }
   sel.addEventListener('change', sync);
   sync();
+})();
+
+// Copilota AI: chiede la proposta e, su richiesta, la copia nei campi (che poi si salvano a mano).
+(function () {
+  var btn = document.getElementById('nc-ai-btn');
+  var out = document.getElementById('nc-ai-out');
+  if (!btn || !out) return;
+  function csrf() {
+    var input = document.querySelector('input[name=csrfmiddlewaretoken]');
+    return input ? input.value : '';
+  }
+  btn.addEventListener('click', function () {
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Sto leggendo lo storico…';
+    fetch(btn.getAttribute('data-url'), {method: 'POST', headers: {'X-CSRFToken': csrf()}, credentials: 'same-origin'})
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(function (html) { out.innerHTML = html; })
+      .catch(function () { out.innerHTML = '<div class="notice notice-danger">Copilota non disponibile, riprova tra poco.</div>'; })
+      .finally(function () { btn.disabled = false; btn.textContent = label; });
+  });
+  out.addEventListener('click', function (event) {
+    var usa = event.target.closest('[data-nc-usa]');
+    if (!usa) return;
+    if (usa.getAttribute('data-nc-usa') === 'analisi') {
+      var perche = JSON.parse(document.getElementById('nc-ai-perche').textContent || '[]');
+      var causa = JSON.parse(document.getElementById('nc-ai-causa').textContent || '""');
+      var metodo = document.getElementById('nc-metodo');
+      if (metodo && perche.length) { metodo.value = 'CINQUE_PERCHE'; metodo.dispatchEvent(new Event('change')); }
+      perche.forEach(function (testo, i) {
+        var campo = document.querySelector('[name=perche_' + (i + 1) + ']');
+        if (campo) campo.value = testo;
+      });
+      var area = document.querySelector('textarea[name=causa_radice]');
+      if (area && causa) area.value = causa;
+      document.getElementById('analisi').scrollIntoView({behavior: 'smooth'});
+    } else {
+      var desc = document.querySelector('#azioni textarea[name=descrizione]');
+      var tipo = document.querySelector('#azioni select[name=tipo]');
+      if (desc) desc.value = usa.getAttribute('data-descrizione');
+      if (tipo) tipo.value = usa.getAttribute('data-tipo');
+      if (desc) { desc.scrollIntoView({behavior: 'smooth', block: 'center'}); desc.focus(); }
+    }
+    usa.textContent = 'Copiata: rileggi e salva';
+  });
 })();
 </script>
 {% endblock %}

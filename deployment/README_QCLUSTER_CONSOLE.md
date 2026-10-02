@@ -1,5 +1,9 @@
 # Console deploy qcluster
 
+La console qcluster precompila ora il nome completo DOMINIO\utente risolto dal SID esportato del task, evitando la proposta ambigua del nome breve. Dopo la sostituzione della console occorre riaprirla e ripetere 2 e 9 per ricostruire i controlli di sessione.
+
+Correzione account Windows: il nome breve mostrato dal task puo rappresentare un account di dominio. Il confronto credenziali usa ora il SID del task esportato, non il nome visualizzato. Specificare `DOMINIO\utente` nella richiesta credenziali. Per una console gia aperta e configurata, sostituire solo `current/deployment/scripts/install-qcluster-watchdog.ps1` con la versione corretta (con backup), quindi ripetere 5 e, dopo successo, 6. Non occorre ripetere migrazioni o deploy.
+
 Guida stampabile: [Guida_deploy_qcluster.pdf](docs/Guida_deploy_qcluster.pdf).
 
 Da PowerShell amministrativa sul server, dalla directory del nuovo pacchetto:

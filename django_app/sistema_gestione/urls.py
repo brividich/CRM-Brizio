@@ -9,6 +9,7 @@ app_name = "sistema_gestione"
 
 urlpatterns = [
     path("audit/<int:pk>/preparazione/", procedure_views.preparazione, name="procedura_preparazione"),
+    path("audit/<int:pk>/preparazione/ai/", procedure_views.preparazione_ai, name="procedura_preparazione_ai"),
     path("audit/car/<int:pk>/", procedure_views.car, name="procedura_car"),
     path("audit/kpi/", procedure_views.kpi, name="procedura_kpi"),
     path("audit/<int:pk>/verifica/<int:esito_pk>/", automation_views.esito_editor, name="audit_esito_editor"),

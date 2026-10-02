@@ -1,46 +1,45 @@
 {% extends "security/_base_soc.html" %}
 {% load security_i18n %}
 
-{% block title %}KPI e trend | Security Center AI{% endblock %}
+{% block title %}KPI e trend | Security Center{% endblock %}
 {% block page_icon %}K{% endblock %}
 {% block page_marker %}KPI e trend{% endblock %}
 {% block page_title %}Analisi KPI{% endblock %}
 
 {% block soc_content %}
-<section class="sec-panel">
-  <div class="sec-section-head">
-    <h2>Snapshot KPI</h2>
-    <form class="sec-filters" method="get">
-      <a class="sec-button" href="{% url 'security:kpis' %}?date={{ previous_date|date:'Y-m-d' }}">&lt;</a>
-      <label>Data <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}"></label>
-      <button class="sec-button-primary" type="submit">Apri</button>
-      <a class="sec-button" href="{% url 'security:kpis' %}?date={{ next_date|date:'Y-m-d' }}">&gt;</a>
-    </form>
+<form class="kpi-filters" method="get">
+  <div class="kpi-chips" role="group" aria-label="Periodo">
+    {% for p in periods %}
+      <a class="kpi-chip{% if p == days %} active{% endif %}" href="?giorni={{ p }}&amp;al={{ end|date:'Y-m-d' }}">{{ p }} giorni</a>
+    {% endfor %}
   </div>
-  <p class="sec-muted" style="margin: 0 0 8px;">Andamento dei {{ trend.days|length }} giorni fino al {{ selected_date|date:"d/m/Y" }}.</p>
-  {% include "security/partials/trend_chart.html" %}
-</section>
+  <label>Fino al <input type="date" name="al" value="{{ end|date:'Y-m-d' }}"></label>
+  <input type="hidden" name="giorni" value="{{ days }}">
+  <button class="sec-button-primary" type="submit">Aggiorna</button>
+  <span class="sec-muted kpi-period">{{ start|date:"d/m/Y" }} – {{ end|date:"d/m/Y" }} · confronto con i {{ days }} giorni precedenti</span>
+</form>
 
-<section class="sec-grid sec-auto-grid" style="margin-top: 12px;">
-  {% for source_name, snapshots in grouped_kpis.items %}
-    <div class="sec-panel">
-      <div class="sec-section-head"><h3>{{ source_name }}</h3><span class="sec-badge">{{ snapshots|length }} metriche</span></div>
-      <div class="sec-table-wrap">
-        <table class="sec-table sec-table-compact" data-fm-table-skip="1">
-          <thead><tr><th>Metrica</th><th class="sec-num">Valore</th></tr></thead>
-          <tbody>
-          {% for snapshot in snapshots %}
-            <tr>
-              <td class="sec-title-cell"><strong>{{ snapshot.name|metric_label }}</strong><small>{{ snapshot.name }}</small></td>
-              <td class="sec-nowrap sec-num"><strong>{{ snapshot|metric_display }}</strong></td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
+{% for domain in domains %}
+  <section class="kpi-domain">
+    <div class="sec-section-head"><h2>{{ domain.title }}</h2><span class="sec-badge">{{ domain.tiles|length }}</span></div>
+    <div class="kpi-tiles">
+      {% for t in domain.tiles %}
+        <a class="kpi-tile" href="{% url 'security:kpi_detail' t.name %}?giorni={{ days }}&amp;al={{ end|date:'Y-m-d' }}" title="Apri il dettaglio: andamento e report di origine">
+          <span class="kpi-label">{{ t.name|metric_label }}</span>
+          <strong class="kpi-value">{{ t.value|metric_value:t.name }}</strong>
+          <span class="kpi-delta">{% if t.delta is not None %}{% if t.delta > 0 %}▲{% elif t.delta < 0 %}▼{% endif %} {{ t.delta|metric_delta:t.name }}{% else %}nessun confronto{% endif %}</span>
+          {% if t.spark %}<svg class="kpi-spark" viewBox="0 0 120 32" aria-hidden="true"><polyline points="{{ t.spark }}"></polyline></svg>{% endif %}
+          <span class="kpi-foot">{% if t.last_value %}ultimo valore{% else %}totale del periodo{% endif %}</span>
+        </a>
+      {% endfor %}
     </div>
-  {% empty %}
-    <div class="sec-panel sec-empty">Nessuno snapshot KPI per {{ selected_date|date:"Y-m-d" }}.</div>
-  {% endfor %}
+  </section>
+{% empty %}
+  <section class="sec-panel sec-empty">Nessun KPI nel periodo {{ start|date:"d/m/Y" }} – {{ end|date:"d/m/Y" }}: arrivano dai report letti dalle caselle mail.</section>
+{% endfor %}
+
+<section class="sec-panel" style="margin-top: 16px;">
+  <div class="sec-section-head"><h2>Eventi e alert</h2><span class="sec-muted">ultimi {{ trend.days|length }} giorni fino al {{ end|date:"d/m/Y" }}</span></div>
+  {% include "security/partials/trend_chart.html" %}
 </section>
 {% endblock %}

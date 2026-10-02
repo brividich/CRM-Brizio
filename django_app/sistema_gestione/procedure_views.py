@@ -31,9 +31,30 @@ def preparazione(request, pk):
             p.verificato_da = request.user
             p.save()
             log_action(request, "audit_preparazione", MODULE, {}, oggetto=audit)
+            from .ai_preparazione import registra_esito
+
+            registra_esito(p, user=request.user)
             return redirect("sistema_gestione:audit_dettaglio", pk=pk)
     precedenti = Audit.objects.filter(processi_catalogo__in=audit.processi_catalogo.all(), stato=Audit.STATO_CHIUSO, data_inizio__lt=audit.data_inizio).distinct().order_by("-data_inizio")[:10]
-    return render(request, "sistema_gestione/pages/procedura_form.html", {"page_title": "Preparazione MT CN 12 - " + audit.numero, "form": form, "modificabile": modificabile, "precedenti": precedenti, "indietro": reverse("sistema_gestione:audit_dettaglio", args=[pk])})
+    ai_prep_url = reverse("sistema_gestione:procedura_preparazione_ai", args=[pk]) if modificabile else ""
+    return render(request, "sistema_gestione/pages/procedura_form.html", {"page_title": "Preparazione MT CN 12 - " + audit.numero, "form": form, "modificabile": modificabile, "precedenti": precedenti, "indietro": reverse("sistema_gestione:audit_dettaglio", args=[pk]), "ai_prep_url": ai_prep_url})
+
+
+@login_required
+def preparazione_ai(request, pk):
+    """Bozza della preparazione dall'AI locale, costruita sugli audit precedenti. Non salva nulla."""
+    from django.http import HttpResponse, HttpResponseForbidden
+
+    from .ai_preparazione import proponi_preparazione
+
+    if request.method != "POST":
+        return HttpResponse(status=405)
+    audit = get_object_or_404(Audit, pk=pk)
+    if not (_has_perm(request, PERM_AUDIT_VIEW) and _assigned_executor(request, audit)):
+        return HttpResponseForbidden("Preparazione non modificabile.")
+    proposta = proponi_preparazione(audit, user=request.user)
+    log_action(request, "audit_preparazione_ai", MODULE, {"rilievi": len(proposta["storico"]["rilievi"]), "ai_disponibile": proposta["ai_disponibile"]}, oggetto=audit)
+    return render(request, "sistema_gestione/components/_ai_preparazione_esito.html", {"p": proposta})
 
 
 @login_required

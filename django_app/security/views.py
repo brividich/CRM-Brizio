@@ -61,6 +61,7 @@ from .services.alert_lifecycle import (
 from .services.kpi_service import build_daily_kpi_snapshots
 from .services.source_heartbeat import source_status_rows
 from .services.vpn_history import vpn_recent_stats
+from .services.mailbox_setup import recommended_subject_filters as _recommended_subject_filters
 from .services.mailbox_setup import graph_credentials_status, preview_mailbox, run_summary, start_history_import, unique_code_for
 from .services.posture import build_pipeline_status, build_posture, build_trend
 from .services.parser_engine import _match_enabled_parser, run_pending_parsers
@@ -116,6 +117,10 @@ def dashboard(request):
         "source_rows": source_status_rows(),
         "vpn_week": vpn_recent_stats(),
     }
+    from security.services.overview import area_cards, attention_items, overall
+
+    items = attention_items()
+    context.update({"items": items, "verdict": overall(items), "cards": area_cards(items), "now": timezone.localtime()})
     return render(request, "security/dashboard.html", context)
 
 
@@ -172,7 +177,7 @@ def _querystring_without(request, key):
 
 
 @ensure_csrf_cookie
-def alert_detail(request, pk):
+def alert_detail(request, pk, ai=None):
     alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event"), pk=pk)
     alert.short_dedup_hash = alert.dedup_hash[:12] if alert.dedup_hash else ""
     ticket = _alert_case(alert)
@@ -182,6 +187,7 @@ def alert_detail(request, pk):
     payload = alert.event.payload if alert.event_id else {}
     context = {
         "alert": alert,
+        "ai": ai,
         "ticket": ticket,
         "open_cases": _open_cases(),
         "evidence": evidence,
@@ -196,7 +202,67 @@ def alert_detail(request, pk):
         },
     }
     context.update(_alert_lifecycle_context(alert))
+    from security.services.investigation import playbook, precedents, related_facts
+
+    context.update({"facts": related_facts(alert), "history": precedents(alert), "book": playbook(alert)})
     return render(request, "security/alert_detail.html", context)
+
+
+@require_POST
+def alert_explain(request, pk):
+    """Spiegazione dell'alert dall'AI locale (sola lettura: non cambia nulla dell'alert)."""
+    from security.services.ai_explain import explain_alert
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event", "event__report"), pk=pk)
+    ai = explain_alert(alert, user=request.user, refresh=request.POST.get("refresh") == "1")
+    if request.headers.get("HX-Request"):
+        return render(request, "security/partials/ai_explanation.html", {"ai": ai})
+    return alert_detail(request, pk, ai=ai)
+
+
+@require_POST
+def overview_brief(request):
+    """Sintesi del giorno della Panoramica, dall'AI locale."""
+    from security.services.ai_explain import daily_brief
+    from security.services.overview import attention_items
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    ai = daily_brief(attention_items(), user=request.user, refresh=request.POST.get("refresh") == "1")
+    return render(request, "security/partials/ai_explanation.html", {"ai": ai})
+
+
+def history_page(request):
+    """Analisi dello storico: cosa si ripete, cosa e' stato scartato o chiuso, cosa e' fermo."""
+    from security.services.history_review import build_review
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    try:
+        days = int(request.GET.get("giorni") or 30)
+    except ValueError:
+        days = 30
+    days = days if days in (7, 30, 90) else 30
+    return render(request, "security/history_review.html", {"review": build_review(days), "days": days})
+
+
+@require_POST
+def history_proposals(request):
+    """Proposte dell'AI locale sullo storico (sola lettura: non crea regole e non chiude nulla)."""
+    from security.services.ai_explain import review_history
+    from security.services.history_review import build_review, review_as_text
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    try:
+        days = int(request.POST.get("giorni") or 30)
+    except ValueError:
+        days = 30
+    days = days if days in (7, 30, 90) else 30
+    ai = review_history(review_as_text(build_review(days)), user=request.user, refresh=request.POST.get("refresh") == "1")
+    return render(request, "security/partials/ai_explanation.html", {"ai": ai})
 
 
 @require_POST
@@ -234,25 +300,47 @@ def alert_action(request, pk, action):
 from .views_cases import tickets_list  # noqa: E402,F401 - i ticket sono ora "casi" gestibili
 
 
+KPI_PERIODS = (7, 30, 90)
+
+
+def _kpi_period(request):
+    try:
+        days = int(request.GET.get("giorni") or 7)
+    except ValueError:
+        days = 7
+    days = days if days in KPI_PERIODS else 7
+    end = _parse_date(request.GET.get("al")) or timezone.localdate()
+    return end, days
+
+
 def kpis_page(request):
-    selected_date = _parse_date(request.GET.get("date")) or timezone.localdate()
-    snapshots = SecurityKpiSnapshot.objects.select_related("source").filter(snapshot_date=selected_date).order_by("source__name", "name")
-    grouped = {}
-    for snapshot in snapshots:
-        source_name = snapshot.source.name if snapshot.source else "Global"
-        grouped.setdefault(source_name, []).append(snapshot)
+    from security.services.kpi_dashboard import kpi_overview
+
+    end, days = _kpi_period(request)
     context = {
-        "selected_date": selected_date,
-        "previous_date": selected_date - timezone.timedelta(days=1),
-        "next_date": selected_date + timezone.timedelta(days=1),
-        "grouped_kpis": grouped,
-        "trend": build_trend(today=selected_date),
+        "end": end,
+        "days": days,
+        "periods": KPI_PERIODS,
+        "start": end - timezone.timedelta(days=days - 1),
+        "domains": kpi_overview(end, days),
+        "trend": build_trend(today=end),
     }
     return render(request, "security/kpis.html", context)
 
 
+def kpi_detail_page(request, name):
+    from security.services.kpi_dashboard import kpi_detail
+
+    end, days = _kpi_period(request)
+    detail = kpi_detail(name, end, days)
+    return render(request, "security/kpi_detail.html", {"d": detail, "end": end, "days": days, "periods": KPI_PERIODS,
+                                                       "start": end - timezone.timedelta(days=days - 1)})
+
+
 def pipeline_page(request):
-    return render(request, "security/pipeline.html", {"last_pipeline_run": request.session.get("last_pipeline_run"), "status": build_pipeline_status()})
+    from security.services.processing import processing_status
+
+    return render(request, "security/pipeline.html", {"last_pipeline_run": request.session.get("last_pipeline_run"), "p": processing_status()})
 
 
 @ensure_csrf_cookie
@@ -376,26 +464,16 @@ def admin_config_sources(request):
     if not can_manage_security_config(request.user):
         return _security_config_denied(request)
     test_result = None
-    form = SecuritySourceConfigForm()
-    if request.method == "POST":
-        if request.POST.get("action") == "test-match":
-            config = get_object_or_404(SecuritySourceConfig, pk=request.POST.get("source_id"))
-            test_result = {
-                "source": config,
-                "matched": source_matches_sample(config, request.POST.get("sender"), request.POST.get("subject"), request.POST.get("body")),
-            }
-        else:
-            instance = get_object_or_404(SecuritySourceConfig, pk=request.POST.get("object_id")) if request.POST.get("object_id") else None
-            old = snapshot_instance(instance) if instance else {}
-            form = SecuritySourceConfigForm(request.POST, instance=instance)
-            if form.is_valid():
-                obj = form.save(commit=False)
-                obj.updated_by = request.user
-                obj.save()
-                audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request)
-                messages.success(request, "Configurazione sorgente salvata.")
-                return redirect("security:admin_config_sources")
-    return render(request, "security/admin_config/sources.html", {"objects": SecuritySourceConfig.objects.order_by("vendor", "name"), "form": form, "test_result": test_result, "section_help": CONFIG_SECTION_HELP["sources"]})
+    if request.method == "POST" and request.POST.get("action") == "test-match":
+        config = get_object_or_404(SecuritySourceConfig, pk=request.POST.get("source_id"))
+        test_result = {
+            "source": config,
+            "matched": source_matches_sample(config, request.POST.get("sender"), request.POST.get("subject"), request.POST.get("body")),
+        }
+        request.method = "GET"  # la prova non salva: si ridisegna la pagina con l'esito
+    return _config_model_page(request, SecuritySourceConfig, SecuritySourceConfigForm, "security/admin_config/sources.html", "admin_config_sources",
+                              extra_context={"test_result": test_result, "section_help": CONFIG_SECTION_HELP["sources"]},
+                              toggle_field="enabled", ordering=("vendor", "name"))
 
 
 @ensure_csrf_cookie
@@ -488,46 +566,43 @@ def admin_config_alert_rules(request):
             test_result = {"rule": rule, "matched": test_alert_rule(rule, metrics), "metrics": metrics}
         except json.JSONDecodeError:
             test_result = {"error": "Campione metriche JSON non valido."}
-    elif request.method == "POST":
-        return _save_config_form(request, SecurityAlertRuleConfig, SecurityAlertRuleConfigForm, "admin_config_alert_rules")
-    return render(request, "security/admin_config/alert_rules.html", {"objects": SecurityAlertRuleConfig.objects.order_by("source_type", "code"), "form": SecurityAlertRuleConfigForm(), "test_result": test_result, "section_help": CONFIG_SECTION_HELP["alert_rules"]})
+    extra = {"test_result": test_result, "section_help": CONFIG_SECTION_HELP["alert_rules"]}
+    if request.method == "POST" and request.POST.get("action") == "test-rule":
+        request.method = "GET"  # la prova non salva: si ridisegna la pagina con l'esito
+    return _config_model_page(request, SecurityAlertRuleConfig, SecurityAlertRuleConfigForm, "security/admin_config/alert_rules.html", "admin_config_alert_rules",
+                              extra_context=extra, toggle_field="enabled", ordering=("source_type", "code"))
 
 
 @ensure_csrf_cookie
 def admin_config_suppressions(request):
-    return _config_model_page(request, SecurityAlertSuppressionRule, SecurityAlertSuppressionRuleForm, "security/admin_config/suppressions.html", "admin_config_suppressions", extra_context={"section_help": CONFIG_SECTION_HELP["suppressions"]})
+    return _config_model_page(request, SecurityAlertSuppressionRule, SecurityAlertSuppressionRuleForm, "security/admin_config/suppressions.html", "admin_config_suppressions",
+                              extra_context={"section_help": CONFIG_SECTION_HELP["suppressions"]}, toggle_field="is_active")
 
 
 @ensure_csrf_cookie
 def admin_config_backups(request):
     extra = {"last_seen": {obj.pk: last_seen_backup_status(obj) for obj in BackupExpectedJobConfig.objects.all()}, "section_help": CONFIG_SECTION_HELP["backups"]}
-    return _config_model_page(request, BackupExpectedJobConfig, BackupExpectedJobConfigForm, "security/admin_config/backups.html", "admin_config_backups", extra_context=extra)
+    return _config_model_page(request, BackupExpectedJobConfig, BackupExpectedJobConfigForm, "security/admin_config/backups.html", "admin_config_backups",
+                              extra_context=extra, toggle_field="enabled", ordering=("job_name",))
+
+
+def _notification_before_save(obj, form):
+    replacement = form.cleaned_data.get("replace_webhook_secret")
+    if replacement:
+        obj.webhook_url_secret_ref = replacement
 
 
 @ensure_csrf_cookie
 def admin_config_notifications(request):
-    if not can_manage_security_config(request.user):
-        return _security_config_denied(request)
-    if request.method == "POST":
-        instance = get_object_or_404(SecurityNotificationChannel, pk=request.POST.get("object_id")) if request.POST.get("object_id") else None
-        old = snapshot_instance(instance) if instance else {}
-        form = SecurityNotificationChannelForm(request.POST, instance=instance)
-        if form.is_valid():
-            obj = form.save(commit=False)
-            replacement = form.cleaned_data.get("replace_webhook_secret")
-            if replacement:
-                obj.webhook_url_secret_ref = replacement
-            obj.updated_by = request.user
-            obj.save()
-            audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request, secret_fields={"webhook_url_secret_ref"})
-            messages.success(request, "Canale notifica salvato.")
-            return redirect("security:admin_config_notifications")
-    return render(request, "security/admin_config/notifications.html", {"objects": SecurityNotificationChannel.objects.order_by("channel_type", "name"), "form": SecurityNotificationChannelForm(), "section_help": CONFIG_SECTION_HELP["notifications"]})
+    return _config_model_page(request, SecurityNotificationChannel, SecurityNotificationChannelForm, "security/admin_config/notifications.html", "admin_config_notifications",
+                              extra_context={"section_help": CONFIG_SECTION_HELP["notifications"]}, toggle_field="enabled",
+                              before_save=_notification_before_save, ordering=("channel_type", "name"))
 
 
 @ensure_csrf_cookie
 def admin_config_ticketing(request):
-    return _config_model_page(request, SecurityTicketConfig, SecurityTicketConfigForm, "security/admin_config/ticketing.html", "admin_config_ticketing", extra_context={"section_help": CONFIG_SECTION_HELP["ticketing"]})
+    return _config_model_page(request, SecurityTicketConfig, SecurityTicketConfigForm, "security/admin_config/ticketing.html", "admin_config_ticketing",
+                              extra_context={"section_help": CONFIG_SECTION_HELP["ticketing"]}, deletable=False)
 
 
 @ensure_csrf_cookie
@@ -634,14 +709,62 @@ def admin_addon_detail(request, code):
     return render(request, "security/admin_addon_detail.html", {"addon": addon})
 
 
-def _config_model_page(request, model, form_class, template, redirect_name, extra_context=None):
+def _config_model_page(request, model, form_class, template, redirect_name, extra_context=None, toggle_field=None, deletable=True, before_save=None, ordering=None):
+    """Pagina elenco di configurazione: crea, MODIFICA, attiva/disattiva, elimina.
+
+    Prima c'era solo «aggiungi»: una regola esistente non si poteva correggere (stesso codice =
+    salvataggio rifiutato) e un errore di validazione si perdeva nel redirect, lasciando solo
+    «Configurazione non salvata» senza dire quale campo era sbagliato.
+    """
     if not can_manage_security_config(request.user):
         return _security_config_denied(request)
+    editing = None
+    form = form_class()
     if request.method == "POST":
-        return _save_config_form(request, model, form_class, redirect_name)
-    context = {"objects": model.objects.all(), "form": form_class()}
+        action = request.POST.get("action", "save")
+        instance = get_object_or_404(model, pk=request.POST.get("object_id")) if request.POST.get("object_id") else None
+        if action == "toggle" and instance is not None and toggle_field:
+            old_value = getattr(instance, toggle_field)
+            setattr(instance, toggle_field, not old_value)
+            if hasattr(instance, "updated_by"):
+                instance.updated_by = request.user
+            instance.save()
+            audit_config_change(request.user, "update", instance, toggle_field, old_value, not old_value, request=request)
+            messages.success(request, f"«{instance}» {'attivato' if not old_value else 'disattivato'}.")
+            return redirect(f"security:{redirect_name}")
+        if action == "delete" and instance is not None and deletable:
+            label = str(instance)
+            audit_config_change(request.user, "delete", instance, request=request)
+            instance.delete()
+            messages.success(request, f"«{label}» eliminato.")
+            return redirect(f"security:{redirect_name}")
+        old = snapshot_instance(instance) if instance else {}
+        form = form_class(request.POST, instance=instance)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            if before_save:
+                before_save(obj, form)
+            if hasattr(obj, "updated_by"):
+                obj.updated_by = request.user
+            if hasattr(obj, "created_by") and not obj.pk:
+                obj.created_by = request.user
+            obj.save()
+            audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request, secret_fields=getattr(form, "secret_fields", set()))
+            if not old:
+                audit_config_change(request.user, "create", obj, request=request)
+            messages.success(request, f"«{obj}» salvato.")
+            return redirect(f"security:{redirect_name}")
+        editing = instance
+        messages.error(request, "Non salvato: correggi i campi segnalati nel modulo.")
+    elif request.GET.get("edit"):
+        editing = get_object_or_404(model, pk=request.GET.get("edit"))
+        form = form_class(instance=editing)
+    objects = model.objects.all()
+    if ordering:
+        objects = objects.order_by(*ordering)
+    context = {"objects": objects, "form": form, "editing": editing, "toggle_field": toggle_field, "deletable": deletable, "page_url": reverse(f"security:{redirect_name}")}
     context.update(extra_context or {})
-    return render(request, template, context)
+    return render(request, template, context, status=400 if form.is_bound and not form.is_valid() else 200)
 
 
 def _save_config_form(request, model, form_class, redirect_name):
@@ -1120,16 +1243,72 @@ def admin_mailbox_sources_list(request):
 def admin_mailbox_source_detail(request, code):
     if not can_view_security_center(request.user):
         return HttpResponseForbidden("Accesso negato")
+    from security.forms import MailboxContentForm, MailboxFiltersForm, MailboxGeneralForm
+    from security.services.mailbox_setup import build_subject_filters, load_folders, subject_filter_state
+
     source = get_object_or_404(SecurityMailboxSource, code=code)
     can_manage = can_manage_security_config(request.user)
-    form = SecurityMailboxSourceForm(instance=source)
+    form = MailboxGeneralForm(instance=source)
+    content_form = MailboxContentForm(instance=source)
+    active_presets, extra_subjects = subject_filter_state(source)
+    filters_form = MailboxFiltersForm(initial={
+        "presets": active_presets, "extra_subjects": "\n".join(extra_subjects), "subject_exclude_text": source.subject_exclude_text,
+        "sender_allowlist_text": source.sender_allowlist_text, "require_verified_sender": source.require_verified_sender,
+    })
     preview = None
+    folder_list = None
+    open_section = request.GET.get("sezione", "")
+
+    def saved(text, section):
+        messages.success(request, text)
+        return redirect(f"{reverse('security:admin_mailbox_source_detail', args=[source.code])}?sezione={section}#impostazioni")
 
     if request.method == "POST":
         if not can_manage:
             return _security_config_denied(request)
         action = request.POST.get("action", "save")
-        if action == "preview":
+        if action == "load_folders":
+            folder_list = load_folders(source)
+            open_section = "cartelle"
+        elif action == "save_folders":
+            old = snapshot_instance(source)
+            if request.POST.get("mode") == "selected":
+                chosen = []
+                for value in request.POST.getlist("folder"):
+                    folder_id, _sep, path = value.partition("|")
+                    if folder_id:
+                        chosen.append({"id": folder_id, "path": path[:300]})
+                if not chosen:
+                    messages.error(request, "Nessuna cartella selezionata: scegline almeno una o torna a «Tutta la casella».")
+                    return redirect(f"{reverse('security:admin_mailbox_source_detail', args=[source.code])}?sezione=cartelle#impostazioni")
+                source.folders = chosen
+            else:
+                source.folders = []
+            source.save(update_fields=["folders"])
+            audit_model_form_changes(request.user, source, old, snapshot_instance(source), request=request)
+            return saved("Cartelle salvate: valgono dalla prossima lettura.", "cartelle")
+        elif action == "save_filters":
+            filters_form = MailboxFiltersForm(request.POST)
+            if filters_form.is_valid():
+                old = snapshot_instance(source)
+                data = filters_form.cleaned_data
+                source.subject_include_text = build_subject_filters(data["presets"], data["extra_subjects"])
+                source.subject_exclude_text = data["subject_exclude_text"]
+                source.sender_allowlist_text = data["sender_allowlist_text"]
+                source.require_verified_sender = data["require_verified_sender"]
+                source.save(update_fields=["subject_include_text", "subject_exclude_text", "sender_allowlist_text", "require_verified_sender"])
+                audit_model_form_changes(request.user, source, old, snapshot_instance(source), request=request)
+                return saved("Filtri salvati: valgono dalla prossima lettura (le mail già importate restano).", "filtri")
+            open_section = "filtri"
+        elif action == "save_content":
+            old = snapshot_instance(source)
+            content_form = MailboxContentForm(request.POST, instance=source)
+            if content_form.is_valid():
+                obj = content_form.save()
+                audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request)
+                return saved("Impostazioni su allegati e testo salvate.", "contenuto")
+            open_section = "contenuto"
+        elif action == "preview":
             preview = preview_mailbox(source)
         elif action == "run":
             from security.services.mailbox_ingestion import run_mailbox_ingestion
@@ -1149,16 +1328,21 @@ def admin_mailbox_source_detail(request, code):
             return redirect("security:admin_mailbox_source_detail", code=source.code)
         else:
             old = snapshot_instance(source)
-            form = SecurityMailboxSourceForm(request.POST, instance=source)
+            form = MailboxGeneralForm(request.POST, instance=source)
             if form.is_valid():
                 obj = form.save()
                 audit_model_form_changes(request.user, obj, old, snapshot_instance(obj), request=request)
                 messages.success(request, "Casella aggiornata.")
-                return redirect("security:admin_mailbox_source_detail", code=obj.code)
+                return redirect(f"{reverse('security:admin_mailbox_source_detail', args=[obj.code])}?sezione=generale#impostazioni")
+            open_section = "generale"
 
     context = {
         "source": source,
         "form": form,
+        "content_form": content_form,
+        "filters_form": filters_form,
+        "folder_list": folder_list,
+        "open_section": open_section,
         "can_manage": can_manage,
         "preview": preview,
         "graph": graph_credentials_status(),
@@ -1176,20 +1360,7 @@ def admin_mailbox_source_detail(request, code):
 
 # Parole che compaiono nell'oggetto delle mail dei report supportati (WatchGuard, Synology,
 # Veeam, Defender). Una casella personale contiene molto altro: senza filtro si importa tutto.
-RECOMMENDED_SUBJECT_FILTERS = [
-    "Firebox",
-    "WatchGuard",
-    "Threats detected",
-    "Endpoint Security",
-    "Active Backup",
-    "attività di backup",
-    "Veeam",
-    "[Success]",
-    "[Warning]",
-    "[Failed]",
-    "Defender",
-    "vulnerabilities notification",
-]
+RECOMMENDED_SUBJECT_FILTERS = _recommended_subject_filters()
 
 
 def _history_default_date(source):
