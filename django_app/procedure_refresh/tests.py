@@ -850,7 +850,7 @@ class AssignUsersNotificaTests(TestCase):
             )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.context["recipients_count"], 1)
-        self.assertIn("Anna Bianchi <bianchi@test.local>", resp.context["recipients_clipboard"])
+        self.assertIn("ANNA BIANCHI <bianchi@test.local>", resp.context["recipients_clipboard"])
         self.assertContains(resp, "Copia elenco destinatari")
 
     def test_campaign_detail_evidenzia_senza_email(self):
@@ -868,7 +868,7 @@ class AssignUsersNotificaTests(TestCase):
                 reverse("procedure_refresh:campaign_detail", kwargs={"pk": self.campaign.pk})
             )
         self.assertEqual(resp.context["recipients_count"], 0)
-        self.assertIn("Anna Bianchi", resp.context["recipients_senza_email"])
+        self.assertIn("ANNA BIANCHI", resp.context["recipients_senza_email"])
 
 
 class AdminDashboardReminderCardTests(TestCase):

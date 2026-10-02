@@ -157,7 +157,7 @@ class AdminSectionTest(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Assegna a")
         self.assertContains(r, "Gruppo IN1")
-        self.assertContains(r, "Mario MSO")  # utente del pool nel menu
+        self.assertContains(r, "MARIO MSO")  # utente del pool nel menu
 
     def test_notifica_nuova_specifica_invia_email(self):
         cfg = NotificaConfig.get_config()

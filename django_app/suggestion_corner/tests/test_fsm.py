@@ -25,7 +25,7 @@ class SuggestionCornerDropdownLabelTest(TestCase):
                 for obj in [con_nome, senza_nome]
             ]
         }
-        self.assertEqual(labels[con_nome.pk], "Mario Rossi")
+        self.assertEqual(labels[con_nome.pk], "MARIO ROSSI")
         # Fallback allo username quando nome/cognome mancano.
         self.assertEqual(labels[senza_nome.pk], "solouser")
 
