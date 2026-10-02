@@ -1,0 +1,29 @@
+.af-it-page .af-it-overview, .af-it-page .af-it-soc { margin-bottom: 16px; }
+.af-it-body { padding: 16px 20px; min-width: 0; }
+.af-it-body p { line-height: 1.55; }
+.af-it-body h3 { margin: 18px 0 10px; font-size: 17px; }
+.af-it-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 18px; }
+.af-it-summary > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.af-it-summary strong { font-size: 19px; overflow-wrap: anywhere; }
+.af-it-summary span { color: #64748b; font-size: 13px; }
+.af-it-label { font-weight: 700; }
+.af-it-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 12px; }
+.af-it-nav a { padding: 8px 12px; border: 1px solid #dbe1ea; border-radius: 8px; text-decoration: none; color: #1d4ed8; background: #fff; }
+.af-it-disclosure { margin-bottom: 12px; }
+.af-it-disclosure > summary { padding: 15px 20px; font-weight: 700; cursor: pointer; overflow-wrap: anywhere; }
+.af-it-disclosure > summary:focus-visible, .af-it-nav a:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.af-it-disclosure > summary::marker { color: #2563eb; }
+.af-it-disclosure[open] > summary { border-bottom: 1px solid #e5e7eb; }
+.af-it-page .af-sections { display: block; }
+.af-it-page .af-sections > .af-card { width: 100%; margin-bottom: 12px; }
+.af-it-page [id^="asset-"] { scroll-margin-top: 90px; }
+.af-it-page .af-targhetta { width: 64px; height: 48px; object-fit: contain; }
+.af-it-alerts { padding-left: 20px; line-height: 1.7; }
+.af-it-alerts a { color: #1d4ed8; }
+.af-it-page .af-table-wrap { max-width: 100%; }
+.af-it-page .af-table td { overflow-wrap: anywhere; }
+body.theme-dark .af-it-summary span { color: var(--text-light); }
+body.theme-dark .af-it-nav a { color: #93c5fd; background: var(--surface); border-color: var(--border); }
+body.theme-dark .af-it-disclosure[open] > summary { border-color: var(--border); }
+body.theme-dark .af-it-alerts a { color: #93c5fd; }
+@media (max-width: 600px) { .af-it-summary { grid-template-columns: 1fr; } .af-it-body { padding: 12px; } .af-it-page .af-table { min-width: 550px; } }

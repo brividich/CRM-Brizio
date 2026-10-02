@@ -1,5 +1,34 @@
 # Session Checkpoint
 
+Data: 2026-10-02 (correzione merge via main)
+
+- Regola esplicita utente: SEMPRE feature → main → release/prod, registrata in CLAUDE e README. Corretto precedente salto di main recuperando 810e4fa7 su main ef6be692 e promuovendo main nella release 1063c209, senza riscrittura cronologia.
+- Codice identico alla release corrente, nessuna nuova modifica applicativa o test necessario oltre ai 56 precedenti. Registro/changelog/checkpoint aggiornati; verifica diff, ancestry e hash remoti in chiusura. Nessun deploy, backup aggiuntivo o file critico applicativo modificato.
+
+Data: 2026-10-02 (merge asset IT nella release)
+
+- Vista/aggiunta voce merge schede IT: feature 23899d9e integrata su release 53f28647 nel worktree pn-asset-it-release. Solo conflitto changelog, conservate entrambe le sezioni; codice feature invariato.
+- 56 test mirati sul merge verdi; check/drift/secret hygiene/diff verificati in chiusura. README/changelog/checklist/registro integrati; backup solo DB sintetico. Nessun nuovo file critico o migrazione.
+- Richiesto merge per feedback: push ordinario release e fast-forward locale, preservando parser pdf e senza WIP altrui. Esito hash nel riepilogo finale; nessun deploy server. Claude: policy e arricchimenti ancora aperti nella checklist IT.
+
+Data: 2026-10-02 (schede server, VM e stampanti)
+
+- Vista/aggiunta voce AGENT_CHANGELOG schede server/VM/stampanti; letti delta dalla prima implementazione PC. Worktree pn-asset-it-proposta, feature/assets-it-checklist, base 5d1212af; nessuna modifica al WIP condiviso.
+- Cinque profili IT con dati esistenti; monitoraggio SNMP autorizzato lato server e snapshot datati, MFC separato, personalizzazioni conservate. Nessuna modifica globale ACL/settings/routing, nuova dipendenza o migrazione.
+- 66 test mirati/regressione verdi; ultimi 14 riconfermati, check/drift e QA sintetica desktop/mobile/scuro positivi. Server anteprima fermato. README/changelog/checklist/registro aggiornati; backup solo DB sintetico. Commit locale, nessun push/deploy.
+- Claude: riprendere voci aperte nella checklist, in particolare policy A06, sezioni P04 e freschezza P07; arricchimento modelli e collaudo SQL Server/fonti reali separati.
+
+Data: 2026-10-02 (prima implementazione scheda PC e portatile)
+
+- Vista/aggiunta voce AGENT_CHANGELOG prima implementazione scheda PC/portatile, autorizzata dall'utente. Worktree C:/Dev/pn-asset-it-proposta, feature/assets-it-checklist, base 06f08d22/f4bd2118; checkout condiviso preservato, controlli sessione/lock assenti.
+- Panoramica IT/SOC, backup per job con campione esplicito, rete e dettagli espandibili, ticket con permesso nativo, correzione fallback inventario. Nessuna modifica globale ACL/settings/routing, dipendenza o migrazione. Documenti e checklist aggiornati; 36 test mirati +10 regressioni verdi, check/drift e QA sintetica desktop/mobile/scuro. Preview conclusa, nessun DB aziendale o deploy.
+- Altro agente: vedere limiti e voci aperte A06/P03/P04/P07, collaudare SQL Server/fonti reali; integrazione release e distribuzione separate. Backup sola copia DB sintetico QA; commit locale feature in chiusura, nessun push.
+
+Data: 2026-10-02 (proposta scheda asset IT)
+
+- Vista/aggiunta voce AGENT_CHANGELOG proposta e checklist scheda asset IT; letti delta recenti CHANGELOG SOC eventi/KPI e AI. Nuovo docs/ai/CHECKLIST_ASSET_IT.md, README/CHANGELOG/registro aggiornati nel worktree C:/Dev/pn-asset-it-proposta, feature/assets-it-checklist, base f4bd2118.
+- Analisi statica Assets/SOC/SNMP e confronto fonti ufficiali completati; implementazione non iniziata. Nessun file critico applicativo, backup aggiuntivo, DB, push o deploy. Controlli documentali in chiusura; test Django non necessari. Claude: riprendere A05/A06, poi P0 dopo autorizzazione; non assumere presenza del documento nella release.
+
 Data: 2026-10-02 (integrazione release SNMP)
 
 - Vista/aggiunta voce integrazione SNMP in release/prod: merge feature 0613caf4 (codice 1d5770c9) su release 5ce17457 nel worktree pn-snmp-release-20261002. Conservate voci AI/SOC e SNMP del changelog, nessun conflitto codice.

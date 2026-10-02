@@ -100,6 +100,8 @@ Multiple Claude sessions work on this repo **at the same time**. The branch and 
 
 ## Disciplina git di sessione (ALWAYS)
 
+- **Percorso obbligatorio dei merge: feature → main → release/prod.** Integrare e verificare prima in `main`, poi promuovere `main` in `release/prod`. Non fare merge diretti delle feature nella release. Regola esplicita di Brizio (02/10/2026).
+
 Il server di sviluppo serve la **cartella di lavoro**: il codice "funziona" anche quando non è committato. Il packager invece esporta un **commit del branch di release**. Un file non committato quindi funziona in locale e non esiste per la produzione — e la divergenza si scopre al deploy.
 
 - **Ogni sessione APRE con `git status`.** Se il tree è già sporco, il lavoro precedente va chiuso prima: non si costruisce sopra il WIP di un altro.

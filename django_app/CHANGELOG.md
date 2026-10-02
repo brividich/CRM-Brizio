@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- **Assets server/VM/stampante**: estesi i profili IT, snapshot SNMP autorizzati e datati, contatori generici separati dalle letture mensili MFC, consumabili 0% distinti dagli ignoti. Conservate personalizzazioni e pagina industriale; nessuna migrazione, polling automatico o modifica ACL globale. Checklist `docs/ai/CHECKLIST_ASSET_IT.md`.
+
+- **Assets PC/portatile**: nuova panoramica con assegnazione e SOC autorizzato in evidenza, alert attivi collegati via evento, backup per fonte/dispositivo/job (campione dichiarato), tecnica/rete e approfondimenti espandibili. Riuso layout, ticket, documenti e licenze; nessuna migrazione/route o modifica ai profili industriali. Dettagli e limiti in `docs/ai/CHECKLIST_ASSET_IT.md`.
+
 - **Discovery SNMP in background e catalogo community**: community nominate e cifrate (Fernet, chiave derivata da SECRET_KEY e fallback), riutilizzo nelle schede MFC/dispositivi, avanzamento persistente per utente con job da 16 host, Interrompi/Riprendi, protezione dai job duplicati e risultati parziali. Coda django-q2 esistente; migrazioni 0014/0015 e riavvio worker/web. Scansione rapida precedente mantenuta. File: `django_app/contatori/{models.py,forms.py,services.py,snmp.py,views.py,credential_crypto.py,discovery_jobs.py,discovery_views.py,tests_discovery_background.py}`, migrazioni `0014_community_discovery_background.py`, `0015_community_salvata_apparati.py`, template `discovery.html`, `_discovery_stato.html`, `_discovery_risultati.html`, `snmp_dispositivo_form.html`, CSS `static/contatori/contatori.css`; README, changelog root/Django, `docs/SNMP_DISCOVERY.md`, docs AI backend/security, registro e checkpoint. Nessuna nuova route, dipendenza o schedule.
 
 

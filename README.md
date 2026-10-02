@@ -160,6 +160,8 @@ sequenceDiagram
 
 ### Tutti i 28 moduli custom a colpo d'occhio
 
+Assets: schede dedicate a PC, portatili, server, VM e stampanti con panoramica per famiglia e approfondimenti espandibili. SOC e backup per job su campione dichiarato; sulle stampanti precedenza a snapshot SNMP, consumabili e contatori, distinti dalle letture mensili MFC. Il monitoraggio richiede accesso alle pagine Contatori; nessuna interrogazione apparati all'apertura. Dati manuali e letture datate non attestano protezione o disponibilità attuali. Le altre famiglie conservano la pagina esistente. [Checklist asset IT: implementazione, limiti e passi successivi](docs/ai/CHECKLIST_ASSET_IT.md).
+
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|
 | 1 | [`core`](django_app/core/) | Core | — (`/capa/`) | Middleware ACL, navigation registry, auth backends, audit, notifiche, export, ricerca globale, legacy models, **azioni CAPA** correttive/preventive trasversali |
@@ -1486,6 +1488,8 @@ Guida completa: [`deployment/README_DEPLOY_IIS_WINDOWS.md`](deployment/README_DE
 ### Creazione del pacchetto di release
 
 `deployment\scripts\package-release.ps1` esporta il **branch di release** (`release/prod` di default, `-Branch` per cambiarlo), **non** la cartella di lavoro: il codice non committato non finisce mai in un pacchetto.
+
+Il percorso obbligatorio di integrazione è **feature → main → release/prod**: prima integrare e verificare in `main`, poi promuovere `main` nella release. Non integrare feature direttamente in `release/prod`.
 
 Un **pre-flight** lo rende esplicito invece di lasciarlo scoprire al deploy:
 
