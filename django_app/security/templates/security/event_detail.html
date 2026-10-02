@@ -1,0 +1,111 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}Evento #{{ event.pk }} | Security Center{% endblock %}
+{% block page_icon %}E{% endblock %}
+{% block page_marker %}Evento · {{ event.event_type|metric_label }}{% endblock %}
+{% block page_title %}{{ event.event_type|metric_label }}{% endblock %}
+
+{% block soc_content %}
+<div class="kpi-filters">
+  <a class="sec-button" href="{% url 'security:events' %}">← Tutti gli eventi</a>
+  <span class="ev-pill d-{{ event.decision_code }}">{{ event.decision_label }}</span>
+  <span class="sec-badge {{ event.severity }}">{{ event.severity|ui_label }}</span>
+  <span class="sec-muted kpi-period">{{ event.occurred_at|date:"D d/m/Y H:i" }} · {{ event.source.name }}</span>
+</div>
+
+<div class="sec-grid sec-two-col">
+  <div class="sec-grid" style="align-content:start;">
+    <section class="sec-panel">
+      <div class="sec-section-head"><h2>Cosa dice l'evento</h2>{% if event.report %}<small class="sec-muted">dal report «{{ event.report.title|truncatechars:60 }}» del {{ event.report.report_date|date:"d/m/Y" }}</small>{% endif %}</div>
+      {% if event.summary %}<p><strong>{{ event.summary }}</strong></p>{% endif %}
+      <dl class="sec-dl">
+        {% for label, value in event.payload|kv_items %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}
+        {% if event.asset %}<dt>Dispositivo</dt><dd>{{ event.asset.hostname }}{% if event.asset.ip_address %} · {{ event.asset.ip_address }}{% endif %}</dd>{% endif %}
+      </dl>
+    </section>
+
+    <section class="sec-panel">
+      <div class="sec-section-head"><h2>Come l'ha giudicato il motore</h2><span class="ev-pill d-{{ event.decision_code }}">{{ event.decision_label }}</span></div>
+      {% if event.decision_trace %}
+        <dl class="sec-dl">{% for label, value in event.decision_trace|kv_items %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
+      {% else %}
+        <p class="sec-empty">Non ancora valutato: passerà dal motore regole alla prossima elaborazione.</p>
+      {% endif %}
+      {% if matching_rules %}<p class="sec-muted">Regole apprese che lo riconoscono: {% for r in matching_rules %}«{{ r.name }}»{% if not forloop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+    </section>
+
+    {% if similar %}
+    <section class="sec-panel">
+      <div class="sec-section-head"><h2>Eventi simili</h2><small class="sec-muted">stesso tipo e sorgente</small></div>
+      <ul class="sec-mini-list">
+        {% for e in similar %}
+          <li><span><a href="{% url 'security:event_detail' e.pk %}">{{ e.occurred_at|date:"d/m/Y H:i" }}</a>{% if e.summary %}<small class="sec-muted" style="display:block;">{{ e.summary|truncatechars:90 }}</small>{% endif %}</span><span class="ev-pill d-{{ e.decision_code }}">{{ e.decision_label }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+
+  <div class="sec-grid" style="align-content:start;">
+    {% if alert %}
+      <section class="sec-panel">
+        <div class="sec-section-head"><h2>Alert</h2><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></div>
+        <p><a href="{% url 'security:alert_detail' alert.pk %}"><strong>{{ alert.title }}</strong></a></p>
+        <p class="sec-muted">{{ alert.status|ui_label }} · aperto il {{ alert.created_at|date:"d/m/Y H:i" }}</p>
+      </section>
+    {% else %}
+      <section class="sec-panel ai-panel" id="ev-ai">
+        <div class="sec-section-head">
+          <h2>È un allarme?</h2>
+          <form method="post" action="{% url 'security:event_ai_triage' event.pk %}" hx-post="{% url 'security:event_ai_triage' event.pk %}" hx-target="#ev-ai-body">
+            {% csrf_token %}<button class="sec-button" type="submit" data-busy-label="Sto valutando…">Chiedi all'AI</button>
+          </form>
+        </div>
+        <div id="ev-ai-body">
+          {% if ai %}{% include "security/partials/event_ai_triage.html" %}{% else %}
+          <p class="sec-muted">L'AI locale guarda l'evento, lo storico e gli allarmi che avete già promosso a mano, e propone un verdetto. Se lo correggi, impara.</p>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="sec-panel ev-promote" id="promuovi">
+        <div class="sec-section-head"><h2>Crea l'alert</h2><small class="sec-muted">il motore l'ha giudicato a posto, ma è un allarme</small></div>
+        <form method="post" action="{% url 'security:event_promote' event.pk %}">
+          {% csrf_token %}
+          <label>Titolo dell'alert <input type="text" name="title" value="{{ default_title }}" maxlength="255"></label>
+          <label>Gravità
+            <select name="severity">
+              {% for value, label in severity_choices %}<option value="{{ value }}" {% if value == default_severity %}selected{% endif %}>{{ value|ui_label }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Perché è un allarme <textarea name="reason" rows="3" required placeholder="es. il PC di produzione senza protezione da 3 giorni non è normale"></textarea></label>
+          <div class="ev-learn">
+            <label style="display:flex;align-items:center;gap:8px;font-weight:700;"><input type="checkbox" name="learn" value="1" checked> Impara: d'ora in poi crea l'alert da solo per gli eventi simili</label>
+            {% if signature %}
+              <small class="sec-muted">Simili = stesso tipo di evento{% if signature %} e stessi valori qui sotto{% endif %}. Togli la spunta per allargare (più alert), aggiungi per restringere.</small>
+              <ul class="ev-signature">
+                {% for s in signature %}<li><label><input type="checkbox" name="match" value="{{ s.key }}" {% if s.checked %}checked{% endif %}> {{ s.label }}: <strong>{{ s.value|truncatechars:40 }}</strong></label></li>{% endfor %}
+              </ul>
+            {% else %}
+              <small class="sec-muted">Simili = tutti gli eventi di tipo «{{ event.event_type|metric_label }}» da questa sorgente.</small>
+            {% endif %}
+          </div>
+          <div><button class="sec-button-primary" type="submit">Crea l'alert</button></div>
+        </form>
+        <form method="post" action="{% url 'security:event_confirm_ok' event.pk %}" style="margin-top:10px;">
+          {% csrf_token %}<button class="sec-button" type="submit" title="Registra che l'evento è a posto: se l'AI aveva detto «allarme», impara dalla correzione">È a posto, nessun alert</button>
+          {% if event.decision_trace.confirmed_ok_by %}<small class="sec-muted"> Confermato a posto da {{ event.decision_trace.confirmed_ok_by }}.</small>{% endif %}
+        </form>
+      </section>
+    {% endif %}
+
+    {% if alerts %}
+    <section class="sec-panel">
+      <div class="sec-section-head"><h2>Alert collegati</h2></div>
+      <ul class="sec-mini-list">{% for a in alerts %}<li><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-badge {{ a.status }}">{{ a.status|ui_label }}</span></li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

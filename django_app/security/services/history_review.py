@@ -88,6 +88,13 @@ def build_review(days=30, now=None):
         rule for rule in SecurityAlertSuppressionRule.objects.filter(is_active=True)
         if (not rule.last_hit_at or rule.last_hit_at < now - timedelta(days=90)) and rule.name not in discarded_by_rule
     ]
+    # Allarmi mancati: eventi che il motore aveva giudicato a posto e una persona ha promosso ad alert.
+    from security.models import SecurityAlertActionLog, SecurityEscalationRule
+
+    missed = list(
+        SecurityAlertActionLog.objects.filter(action="manual_escalation", created_at__gte=since).select_related("alert").order_by("-created_at")[:10]
+    )
+    learned_rules = list(SecurityEscalationRule.objects.filter(is_active=True).order_by("-hit_count", "-created_at")[:8])
     closures = [
         {"title": alert.title, "status": status_label(alert.status), "reason": alert.status_reason[:200], "pk": alert.pk}
         for alert in alerts if alert.status in CLOSED and (alert.status_reason or "").strip()
@@ -110,6 +117,8 @@ def build_review(days=30, now=None):
         "below_threshold": sorted(below_threshold.items(), key=lambda item: -item[1])[:8],
         "unused_rules": unused_rules[:8],
         "closures": closures,
+        "missed": missed,
+        "learned_rules": learned_rules,
     }
 
 
@@ -134,6 +143,11 @@ def review_as_text(review):
         lines.append(f"Eventi senza alert ({name}): {count}")
     for rule in review["unused_rules"]:
         lines.append(f"Regola di soppressione attiva mai usata negli ultimi 90 giorni: «{rule.name}»")
+    for log in review.get("missed", [])[:6]:
+        lines.append(f"Allarme mancato dal motore, promosso a mano: «{log.alert.title if log.alert else 'alert'}»"
+                     + (f" — motivo: {log.details.get('reason')}" if (log.details or {}).get("reason") else ""))
+    for rule in review.get("learned_rules", [])[:6]:
+        lines.append(f"Regola appresa attiva: «{rule.name}» (scattata {rule.hit_count} volte)")
     for closure in review["closures"][:6]:
         lines.append(f"Chiusura recente: «{closure['title']}» come {closure['status']}: {closure['reason']}")
     return "\n".join(lines)[:6000]

@@ -1,9 +1,11 @@
 import re
+import uuid
 
 from django import forms
 
 from .models import (
     ColonnaProfiloSNMP,
+    CommunitySNMP,
     DispositivoSNMP,
     ImpostazioniSNMP,
     LetturaContatori,
@@ -11,6 +13,71 @@ from .models import (
     ProfiloSNMP,
     SondaSNMP,
 )
+
+
+class CommunitySNMPForm(forms.ModelForm):
+    valore = forms.CharField(label="Community read-only", max_length=60, required=False,
+                             strip=False, widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+                             help_text="In modifica lascia vuoto per mantenere il valore salvato.")
+
+    class Meta:
+        model = CommunitySNMP
+        fields = ["nome", "valore", "versione", "porta", "ordine", "attiva"]
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("auto_id", "community_%s")
+        super().__init__(*args, **kwargs)
+
+    def clean_valore(self):
+        value = self.cleaned_data.get("valore", "")
+        if not value and not self.instance.pk:
+            raise forms.ValidationError("Inserisci la community.")
+        return value
+
+    def clean_porta(self):
+        value = self.cleaned_data.get("porta")
+        if value is not None and not 1 <= value <= 65535:
+            raise forms.ValidationError("La porta deve essere compresa tra 1 e 65535.")
+        return value
+
+    def save(self, commit=True):
+        from .credential_crypto import cifra
+        instance = super().save(commit=False)
+        if self.cleaned_data.get("valore"):
+            instance.segreto_cifrato = cifra(self.cleaned_data["valore"])
+        if commit:
+            instance.save()
+        return instance
+
+
+class DiscoveryBackgroundForm(forms.Form):
+    richiesta = forms.UUIDField(initial=uuid.uuid4, widget=forms.HiddenInput)
+    rete = forms.CharField(max_length=64, initial="10.0.0.0/24", label="Rete CIDR")
+    communities = forms.MultipleChoiceField(label="Community da provare", initial=["0"],
+                                            widget=forms.CheckboxSelectMultiple)
+    versione = forms.ChoiceField(choices=ImpostazioniSNMP.Versione.choices)
+    timeout = forms.IntegerField(min_value=1, max_value=10, initial=2,
+                                 label="Attesa per richiesta (secondi)")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["communities"].choices = [("0", "Globale")] + [
+            (str(c.pk), c.nome) for c in CommunitySNMP.objects.filter(attiva=True)]
+
+    def clean_rete(self):
+        from .snmp import SNMPError, hosts_rete
+        try:
+            self.hosts = hosts_rete(self.cleaned_data["rete"])
+        except SNMPError as e:
+            raise forms.ValidationError(str(e)) from e
+        return self.cleaned_data["rete"]
+
+    def clean_communities(self):
+        values = self.cleaned_data["communities"]
+        if len(values) > 8:
+            raise forms.ValidationError("Seleziona al massimo otto community.")
+        # Ordine stabile del catalogo; non dipende dall'ordine delle checkbox nel POST.
+        return [int(key) for key, _ in self.fields["communities"].choices if key in values]
 
 
 class LetturaForm(forms.ModelForm):
@@ -28,7 +95,7 @@ class MacchinaForm(forms.ModelForm):
         model = Macchina
         fields = [
             "reparto", "matricola", "modello", "contratto", "fornitore",
-            "host", "profilo_snmp", "snmp_community", "snmp_porta", "snmp_versione",
+            "host", "profilo_snmp", "community_salvata", "snmp_community", "snmp_porta", "snmp_versione",
             "snmp_timeout", "asset", "attiva",
         ]
 
@@ -64,7 +131,7 @@ class DispositivoSNMPForm(forms.ModelForm):
     class Meta:
         model = DispositivoSNMP
         fields = [
-            "nome", "categoria", "host", "profilo_snmp", "community", "porta", "versione",
+            "nome", "categoria", "host", "profilo_snmp", "community_salvata", "community", "porta", "versione",
             "timeout", "posizione", "produttore", "modello", "matricola",
             "asset", "note", "attivo",
         ]

@@ -11,6 +11,7 @@
   <div class="kpi-chips" role="group" aria-label="Periodo">
     {% for p in "7,30,90"|make_list_csv %}<a class="kpi-chip{% if not custom and p == days %} active{% endif %}" href="?{% if chip_query %}{{ chip_query }}&amp;{% endif %}giorni={{ p }}">{{ p }} giorni</a>{% endfor %}
   </div>
+  {% if selected_day %}<span class="soc-day-chip">Giorno {{ selected_day|date:"D d/m/Y" }} · confronto col giorno prima<a href="?{{ day_query }}" title="Torna a tutto il periodo" aria-label="Togli il giorno">✕</a></span>{% endif %}
   <span class="sec-muted kpi-period">{{ day_from|date:"d/m/Y" }} – {{ day_to|date:"d/m/Y" }}{% if custom %} · periodo personalizzato{% endif %} · confronto con il periodo precedente</span>
 </div>
 
@@ -53,20 +54,22 @@
 
 <section class="vpn-row">
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Accessi per giorno</h2></div>
+    <div class="sec-section-head"><h2>Accessi per giorno</h2><small class="sec-muted">passa sopra a un giorno per i dettagli, clic per selezionarlo</small></div>
     {% localize off %}
     {% if daily.empty %}
       <p class="sec-empty">Nessun accesso nel periodo.</p>
     {% else %}
-    <div class="vpn-chart">
+    <div class="vpn-chart soc-chart">
       <svg viewBox="0 0 {{ daily.width }} {{ daily.height }}" role="img" aria-label="Accessi VPN consentiti e negati per giorno">
         <line class="grid" x1="{{ daily.left }}" x2="{{ daily.width }}" y1="{{ daily.top }}" y2="{{ daily.top }}"></line>
         <line class="grid" x1="{{ daily.left }}" x2="{{ daily.width }}" y1="{{ daily.baseline }}" y2="{{ daily.baseline }}"></line>
         <text class="axis-label" x="0" y="{{ daily.top|add:4 }}">{{ daily.peak }}</text>
         <text class="axis-label" x="0" y="{{ daily.baseline }}">0</text>
         {% for d in daily.days %}
-          <g>
-            <title>{{ d.date|date:"d/m/Y" }}: {{ d.allowed }} consentiti, {{ d.denied }} negati</title>
+          <g tabindex="0" class="{% if d.selected %}is-selected{% elif selected_day %}is-dim{% endif %}"
+             data-tip-title="{{ d.date|date:'D d/m/Y' }} · {{ d.total }} access{{ d.total|pluralize:'o,i' }}"
+             data-tip="var(--success)::{{ d.allowed }} consentiti|var(--danger)::{{ d.denied }} negati|{{ d.users }} utent{{ d.users|pluralize:'e,i' }}{% for u in d.top_users %}|{{ u.username }}: {{ u.n }}{% if u.denied %} ({{ u.denied }} negati){% endif %}{% endfor %}"
+             data-href="?{% if day_query %}{{ day_query }}&amp;{% endif %}giorno={{ d.date|date:'Y-m-d' }}" data-href-label="Clic: dettaglio di questo giorno">
             <rect class="bar-hit" x="{{ d.x }}" y="{{ daily.top }}" width="{{ d.w }}" height="{{ daily.baseline|add:-14 }}"></rect>
             {% if d.h_allowed %}<rect class="bar-ok" x="{{ d.x }}" y="{{ d.y_allowed }}" width="{{ d.w }}" height="{{ d.h_allowed }}" rx="1.5"></rect>{% endif %}
             {% if d.h_denied %}<rect class="bar-ko" x="{{ d.x }}" y="{{ d.y_denied }}" width="{{ d.w }}" height="{{ d.h_denied }}" rx="1.5"></rect>{% endif %}
@@ -100,8 +103,8 @@
 <section class="vpn-row vpn-row-3">
   <div class="sec-panel">
     <div class="sec-section-head"><h3>Accessi per ora</h3><small class="sec-muted">consentiti · notte in evidenza</small></div>
-    <div class="vpn-hours" role="img" aria-label="Accessi consentiti per ora del giorno">
-      {% for h in hours %}<span class="{% if h.night %}night{% endif %}{% if not h.n %} zero{% endif %}" style="--h: {{ h.pct|unlocalize }}%;" title="{{ h.hour }}:00 — {{ h.n }} accessi"><i></i><b>{% if h.hour|divisibleby:6 %}{{ h.hour }}{% endif %}</b></span>{% endfor %}
+    <div class="vpn-hours soc-chart" role="img" aria-label="Accessi consentiti per ora del giorno">
+      {% for h in hours %}<span class="{% if h.night %}night{% endif %}{% if not h.n %} zero{% endif %}" style="--h: {{ h.pct|unlocalize }}%;" data-tip-title="Ore {{ h.hour }}:00–{{ h.hour }}:59" data-tip="{{ h.n }} accessi consentiti{% if h.night %}|orario notturno{% endif %}"><i></i><b>{% if h.hour|divisibleby:6 %}{{ h.hour }}{% endif %}</b></span>{% endfor %}
     </div>
   </div>
   <div class="sec-panel">

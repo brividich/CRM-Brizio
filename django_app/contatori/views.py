@@ -29,6 +29,11 @@ from .models import (
 
 
 def discovery(request):
+    from .discovery_views import discovery as discovery_page
+    return discovery_page(request)
+
+
+def _discovery_rapida(request):
     """Discovery SNMP di rete: trova le stampanti che rispondono e le abbina all'anagrafica.
 
     Serve soprattutto a scoprire un IP sbagliato: l'abbinamento e' sulla matricola
@@ -38,7 +43,8 @@ def discovery(request):
 
     cfg = ImpostazioniSNMP.get_solo()
     rete = (request.POST.get("rete") or "").strip()
-    community = (request.POST.get("community") or cfg.community).strip()
+    community = (request.POST.get("community") or "").strip()
+    communities = [c.strip() for c in community.splitlines() if c.strip()] or [cfg.community]
     version = request.POST.get("version") or cfg.version
     try:
         timeout = max(1, min(10, int(request.POST.get("timeout") or 2)))
@@ -46,11 +52,16 @@ def discovery(request):
         timeout = 2
 
     righe, errore, eseguita = None, "", False
+    avviso = ""
     if request.method == "POST":
         eseguita = True
         try:
             trovati = scansiona_rete(rete, community=community, port=cfg.port,
-                                     timeout=timeout, version=version)
+                                     timeout=timeout, version=version, communities=communities)
+            if getattr(trovati, "incompleta", False):
+                avviso = (f"Scansione incompleta: raggiunto il limite di 20 secondi. "
+                                 f"Host completati: {trovati.completati}/{trovati.totali}. "
+                                 "Risultati parziali: restringi la rete o prova meno community.")
             righe = services.abbina_discovery(trovati)
             if not righe:
                 messages.warning(
@@ -62,14 +73,17 @@ def discovery(request):
         except SNMPError as e:
             errore = str(e)
 
+    from .discovery_views import contesto_discovery
     return render(request, "contatori/discovery.html", {
+        **contesto_discovery(request),
         "rete": rete or "10.0.0.0/24",
-        "community": community,
+        "community": "",
         "version": version,
         "timeout": timeout,
         "righe": righe,
         "errore": errore,
         "eseguita": eseguita,
+        "avviso": avviso,
         "cfg": cfg,
     })
 
@@ -366,6 +380,9 @@ def dispositivo_snmp_edit(request, pk=None):
             "nome": (request.GET.get("nome") or "").strip(),
             "matricola": (request.GET.get("matricola") or "").strip(),
             "note": (request.GET.get("descr") or "").strip(),
+            "community_salvata": request.GET.get("community_id") or None,
+            "versione": request.GET.get("versione") or "",
+            "porta": request.GET.get("porta") or None,
         }
     if request.method == "POST":
         form = DispositivoSNMPForm(request.POST, instance=dispositivo)

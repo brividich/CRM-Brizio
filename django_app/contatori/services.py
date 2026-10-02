@@ -474,12 +474,15 @@ def applica_profilo_dispositivo(dispositivo, profilo, *, sovrascrivi=False):
 
 
 def _parametri_snmp(oggetto, cfg):
+    community = getattr(oggetto, "community_salvata", None)
     profilo = getattr(oggetto, "profilo_snmp", None)
     porta = (getattr(oggetto, "snmp_porta", None)
              or getattr(oggetto, "porta", None)
+             or (community.porta if community else None)
              or (profilo.porta if profilo else None) or cfg.port)
     versione = (getattr(oggetto, "snmp_versione", "")
                 or getattr(oggetto, "versione", "")
+                or (community.versione if community else "")
                 or (profilo.versione if profilo else "") or cfg.version)
     timeout = (getattr(oggetto, "snmp_timeout", None)
                or getattr(oggetto, "timeout", None)
@@ -488,6 +491,16 @@ def _parametri_snmp(oggetto, cfg):
 
 
 def _community_snmp(oggetto, cfg):
+    community = getattr(oggetto, "community_salvata", None)
+    if community is not None:
+        from .credential_crypto import decifra
+        from .snmp import SNMPError
+        if not community.attiva:
+            raise SNMPError("Community salvata disattivata: aggiorna la configurazione dell'apparato.")
+        try:
+            return decifra(community.segreto_cifrato)
+        except ValueError as e:
+            raise SNMPError("Community salvata non decifrabile: aggiorna il catalogo.") from e
     return (
         getattr(oggetto, "snmp_community", "")
         or getattr(oggetto, "community", "")

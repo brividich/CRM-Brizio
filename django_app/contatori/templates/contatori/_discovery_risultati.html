@@ -1,0 +1,49 @@
+{% if righe is not None %}
+  <div class="panel">
+    <h2>Dispositivi che rispondono ({{ righe|length }})</h2>
+    {% if righe %}
+    <div class="discovery-table"><table class="tbl">
+      <thead>
+        <tr>
+          <th>IP</th><th>Community</th><th>Matricola (SNMP)</th><th>Descrizione</th>
+          <th>In anagrafica</th><th>Stato</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in righe %}
+        <tr>
+          <td><strong>{{ r.host }}</strong></td>
+          <td>{% firstof r.community_nome r.community_index "—" %}</td>
+          <td>{{ r.matricola|default:"—" }}</td>
+          <td style="max-width:380px">{{ r.descr|default:"—" }}</td>
+          <td>
+            {% if r.macchina %}
+              <a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a>
+              <div class="pos" style="font-size:12px">IP registrato: {{ r.macchina.host|default:"— nessuno —" }}</div>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if r.stato == 'ok' %}<span class="pos">OK</span>
+            {% elif r.stato == 'ip_diverso' %}<span class="neg">IP diverso</span>
+            {% else %}<span class="warn">Non in anagrafica</span>{% endif %}
+          </td>
+          <td>
+            {% if r.stato == 'ip_diverso' %}
+              <form method="post" action="{% url 'contatori:discovery_applica_ip' r.macchina.pk %}" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="host" value="{{ r.host }}">
+                <button class="btn" type="submit">Correggi IP → {{ r.host }}</button>
+              </form>
+            {% elif r.stato == 'nuova' %}
+              <div class="actions"><a class="btn ghost small" href="{% url 'contatori:snmp_dispositivo_nuovo' %}?host={{ r.host|urlencode }}&nome={{ r.descr|default:'Dispositivo SNMP'|urlencode }}&matricola={{ r.matricola|urlencode }}&descr={{ r.descr|urlencode }}{% if r.community_id %}&community_id={{ r.community_id }}{% endif %}{% if r.versione %}&versione={{ r.versione|urlencode }}&porta={{ r.porta }}{% endif %}">Aggiungi al monitor</a><a class="btn ghost small" href="{% url 'contatori:macchina_nuova' %}">Aggiungi MFC</a></div>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% elif eseguita %}
+      <p>{% if scan.attiva %}Finora nessun dispositivo ha risposto. La scansione sta continuando.{% else %}Nessun dispositivo ha risposto con le community e versioni provate.{% endif %}</p>
+    {% endif %}
+  </div>
+{% endif %}

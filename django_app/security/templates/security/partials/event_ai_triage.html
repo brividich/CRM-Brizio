@@ -1,0 +1,12 @@
+{% load security_i18n %}
+{% if ai.ok %}
+  {% if ai.is_alarm is True %}
+    <div class="ev-verdict alarm">L'AI dice: è un allarme{% if ai.severity %} ({{ ai.severity|ui_label }}){% endif %}</div>
+  {% elif ai.is_alarm is False %}
+    <div class="ev-verdict ok">L'AI dice: è a posto</div>
+  {% endif %}
+  <div class="ai-text">{{ ai.body|default:ai.text|ai_markdown }}</div>
+  <p class="ai-foot">{{ ai.disclaimer }}{% if ai.cached %} · risposta già calcolata{% endif %} · La tua scelta qui sotto (crea l'alert / è a posto) viene confrontata con questa proposta: è così che l'AI impara.</p>
+{% else %}
+  <p class="sec-error">AI locale non disponibile: {{ ai.error|default:"nessuna risposta" }}. Puoi decidere comunque qui sotto.</p>
+{% endif %}

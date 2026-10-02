@@ -207,7 +207,7 @@ Tutte le app sono incluse in `config/urls.py`. Prefissi notevoli:
 
 - Le comunicazioni verso MFC e dispositivi usano esclusivamente SNMP GET/WALK; non esiste alcun percorso SET.
 - Le sonde accettano solo OID numerici puntati validati. La discovery limita ogni scansione a 512 host.
-- La community SNMP resta nel singleton globale `ImpostazioniSNMP`: non è duplicata nei dispositivi, nello storico, nei messaggi o nei log.
+- La community globale risiede in `ImpostazioniSNMP`; gli override per dispositivo/MFC sono gia supportati dalla migration 0011. Il discovery accetta fino a 8 community transitorie, mai nei risultati, URL o messaggi: mostra solo l’indice della candidata riuscita e non ripropone i segreti nel form. La modalita background aggiunge un catalogo cifrato e risultati persistenti per richiedente: job con soli ID/revisione, audit senza segreti, form password senza redisplay, risposte no-store. La stessa route e le ACL esistenti proteggono catalogo e scansioni; nessun grant o bypass nuovo. Dettagli in docs/SNMP_DISCOVERY.md.
 - Il ponte Asset è in sola lettura sul registro `assets`: l'automatch scrive soltanto la FK nel modulo `contatori`, e solo per un match univoco di seriale o endpoint IP. Ambiguità e assenze non vengono risolte automaticamente.
 
 ## Infrastruttura server (NON riproducibile in dev)

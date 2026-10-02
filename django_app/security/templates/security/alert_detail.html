@@ -145,8 +145,8 @@
       <tbody>
       {% for event in occurrences %}
         <tr>
-          <td class="sec-nowrap">{{ event.occurred_at|date:"d M, H:i" }}</td>
-          <td>{{ event.event_type }}</td>
+          <td class="sec-nowrap"><a href="{% url 'security:event_detail' event.pk %}" title="Apri l'evento">{{ event.occurred_at|date:"d M, H:i" }}</a></td>
+          <td>{{ event.event_type|metric_label }}</td>
           <td><span class="sec-badge {{ event.severity }}">{{ event.severity|ui_label }}</span></td>
           <td><dl class="sec-kv sec-kv-compact">{% for label, value in event.payload|kv_items:8 %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl></td>
         </tr>
