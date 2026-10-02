@@ -26,7 +26,7 @@ Fonte: walk di un RS2423RP+ con DSM 7.4-90080, 2026-10-02. Fixture: `synology_rs
 | Stato peggiore dischi | `1.3.6.1.4.1.6574.2.1.1.5` | WALK massimo | > 1 / > 3 | 1 normale … 5 guasto |
 | Salute peggiore dischi | `1.3.6.1.4.1.6574.2.1.1.13` | WALK massimo | > 1 / > 2 | 1 normale, 2 attenzione, 3 critico, 4 in guasto |
 | Temperatura massima dischi | `1.3.6.1.4.1.6574.2.1.1.6` | WALK massimo °C | > 50 / > 60 | |
-| Stato peggiore volumi/RAID | `1.3.6.1.4.1.6574.3.1.1.3` | WALK massimo | > 1 / > 10 | 2–10 operazioni in corso, 11 degradato, 12 guasto |
+| Stato peggiore volumi/RAID | `1.3.6.1.4.1.6574.3.1.1.3` | WALK massimo | > 1 / — | 2–10 operazioni in corso, 11 degradato, 12 guasto, 13 verifica dati: solo "attenzione" per non allarmare durante lo scrubbing |
 | + 4 colonne net-snmp | vedi sotto | | | |
 
 Le enumerazioni di stato seguono la Synology MIB Guide; nel walk tutti i valori sono 1 (normale).
