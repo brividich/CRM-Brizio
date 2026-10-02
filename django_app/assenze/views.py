@@ -2777,14 +2777,14 @@ def _load_events(
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_cert_col},
+            a.motivazione_richiesta{_cert_col}{_col_utente_id()},
             {capo_expr} AS capo
         FROM assenze a
         {joins}
         WHERE {' AND '.join(where_clauses)}
     """
     sql = _select_limited(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", limit)
-    rows = _fetch_all_dict(sql, params)
+    rows = _applica_nominativo(_fetch_all_dict(sql, params))
     resolved_colors = colors or _load_colors()
 
     events: list[dict] = []
@@ -3062,7 +3062,7 @@ def _load_pending_for_manager(
           AND COALESCE(a.moderation_status, 2) = 2
     """
     sql = _select_limited(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", limit)
-    rows = _fetch_all_dict(sql, manager_where_params)
+    rows = _applica_nominativo(_fetch_all_dict(sql, manager_where_params))
     out = []
     for row in rows:
         moderation_status, moderation_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
@@ -3186,7 +3186,7 @@ def _load_gestite_for_manager(
     base_sql += period_sql
     manager_where_params = [*manager_where_params, *period_params]
     sql = _select_paginated(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", offset=offset, limit=limit)
-    rows = _fetch_all_dict(sql, manager_where_params)
+    rows = _applica_nominativo(_fetch_all_dict(sql, manager_where_params))
     out = []
     for row in rows:
         moderation_status, moderation_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
@@ -3246,7 +3246,7 @@ def _load_assenze_car_periodo(
             a.data_inizio,
             a.data_fine,
             a.consenso,
-            a.moderation_status
+            a.moderation_status{_col_utente_id()}
         FROM assenze a
         {join_sql}
         WHERE {manager_where_sql}
@@ -3257,7 +3257,7 @@ def _load_assenze_car_periodo(
           AND COALESCE(a.moderation_status, 2) != 1
     """
     sql = _select_limited(base_sql, "ORDER BY a.data_inizio, a.id", limit)
-    rows = _fetch_all_dict(sql, [*manager_where_params, date_start, date_end])
+    rows = _applica_nominativo(_fetch_all_dict(sql, [*manager_where_params, date_start, date_end]))
     out = []
     for row in rows:
         _, moderation_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
@@ -3296,7 +3296,7 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
         WHERE COALESCE(a.moderation_status, 2) = 2
     """
     sql = _select_limited(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", limit)
-    rows = _fetch_all_dict(sql)
+    rows = _applica_nominativo(_fetch_all_dict(sql))
     out = []
     for row in rows:
         _, moderation_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
@@ -3339,7 +3339,7 @@ def _load_all_gestite(limit: int = 50, *, offset: int = 0, periodo: str = "tutte
             a.data_fine,
             a.consenso,
             a.moderation_status,
-            a.motivazione_richiesta{_note_col}{_cert_col}
+            a.motivazione_richiesta{_note_col}{_cert_col}{_col_utente_id()}
         FROM assenze a
         WHERE COALESCE(a.moderation_status, 2) IN (0, 1)
     """
@@ -3348,7 +3348,7 @@ def _load_all_gestite(limit: int = 50, *, offset: int = 0, periodo: str = "tutte
     base_sql += period_sql
     manager_where_params = [*manager_where_params, *period_params]
     sql = _select_paginated(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", offset=offset, limit=limit)
-    rows = _fetch_all_dict(sql, manager_where_params)
+    rows = _applica_nominativo(_fetch_all_dict(sql, manager_where_params))
     out = []
     for row in rows:
         _, moderation_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
@@ -3374,7 +3374,7 @@ def _load_all_assenze_periodo(date_start: datetime, date_end: datetime, limit: i
     """Tutte le assenze in un periodo (non rifiutate): per AMMINISTRAZIONE."""
     if not _table_exists("assenze"):
         return []
-    base_sql = """
+    base_sql = f"""
         SELECT
             a.id,
             a.copia_nome AS dipendente,
@@ -3383,7 +3383,7 @@ def _load_all_assenze_periodo(date_start: datetime, date_end: datetime, limit: i
             a.data_inizio,
             a.data_fine,
             a.consenso,
-            a.moderation_status
+            a.moderation_status{_col_utente_id()}
         FROM assenze a
         WHERE a.data_inizio IS NOT NULL
           AND a.data_fine IS NOT NULL
@@ -3392,7 +3392,7 @@ def _load_all_assenze_periodo(date_start: datetime, date_end: datetime, limit: i
           AND COALESCE(a.moderation_status, 2) != 1
     """
     sql = _select_limited(base_sql, "ORDER BY a.data_inizio, a.id", limit)
-    rows = _fetch_all_dict(sql, [date_start, date_end])
+    rows = _applica_nominativo(_fetch_all_dict(sql, [date_start, date_end]))
     out = []
     for row in rows:
         _, moderation_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
@@ -3722,7 +3722,64 @@ def _count_pending_for_car(
 
 
 def _norm_text_key(value: str | None) -> str:
-    return " ".join(str(value or "").strip().upper().split())
+    return naming.chiave_testo(value)
+
+
+def _col_utente_id(alias: str = "a") -> str:
+    """``, a.utente_id`` da aggiungere a una SELECT su assenze, se la colonna esiste."""
+    if not _has_assenze_column("utente_id"):
+        return ""
+    return f", {alias}.utente_id" if alias else ", utente_id"
+
+
+def _nominativi_per_utente(utente_ids) -> dict[int, str]:
+    """``utente_id`` → nominativo nel formato unico (``COGNOME NOME``).
+
+    Prima il dipendente collegato (nome e cognome separati: ordine certo), poi il
+    nome dell'utente del portale."""
+    ids = sorted({i for i in (_as_int(u) for u in utente_ids) if i})
+    if not ids:
+        return {}
+    out: dict[int, str] = {}
+    placeholders = ", ".join(["%s"] * len(ids))
+    try:
+        if _table_exists("anagrafica_dipendenti") and {"utente_id", "nome", "cognome"}.issubset(
+            legacy_table_columns("anagrafica_dipendenti")
+        ):
+            for row in _fetch_all_dict(
+                f"SELECT utente_id, nome, cognome FROM anagrafica_dipendenti WHERE utente_id IN ({placeholders})",
+                ids,
+            ):
+                uid = _as_int(row.get("utente_id"))
+                nominativo = naming.nome_completo(row.get("nome"), row.get("cognome"))
+                if uid and nominativo:
+                    out.setdefault(uid, nominativo)
+        mancanti = [i for i in ids if i not in out]
+        if mancanti and _table_exists("utenti"):
+            for row in _fetch_all_dict(
+                f"SELECT id, nome FROM utenti WHERE id IN ({', '.join(['%s'] * len(mancanti))})",
+                mancanti,
+            ):
+                uid = _as_int(row.get("id"))
+                nominativo = naming.normalizza_parte(row.get("nome"))
+                if uid and nominativo:
+                    out[uid] = nominativo
+    except Exception:
+        logger.warning("assenze: nominativi per utente non risolti", exc_info=True)
+    return out
+
+
+def _applica_nominativo(rows: list[dict], campo: str = "dipendente") -> list[dict]:
+    """Sostituisce nel campo mostrato il nome salvato sulla richiesta con il
+    nominativo nel formato unico.
+
+    ``copia_nome`` resta invariato a DB: è sincronizzato con SharePoint. Qui si
+    cambia solo ciò che si vede; se la richiesta non è collegata a un utente si
+    mostra il testo salvato, in MAIUSCOLO."""
+    mappa = _nominativi_per_utente(r.get("utente_id") for r in rows)
+    for row in rows:
+        row[campo] = mappa.get(_as_int(row.get("utente_id"))) or naming.normalizza_parte(row.get(campo))
+    return rows
 
 
 def _capo_option_value(capo: dict) -> str:
@@ -3780,11 +3837,7 @@ def _find_reparto_for_user(name: str, email: str, username: str) -> str:
             continue
         nome = str(row.get("nome") or "").strip()
         cognome = str(row.get("cognome") or "").strip()
-        candidates = {
-            _norm_text_key(f"{cognome} {nome}"),
-            _norm_text_key(f"{nome} {cognome}"),
-        }
-        candidates.discard("")
+        candidates = naming.chiavi_confronto(nome, cognome)
         if target_name in candidates:
             return reparto
     return ""
@@ -3851,11 +3904,7 @@ def _resolve_anagrafica_employee_id_for_user(
     for row in _fetch_all_dict(sql):
         nome = str(row.get("nome") or "").strip()
         cognome = str(row.get("cognome") or "").strip()
-        candidates = {
-            _norm_text_key(f"{cognome} {nome}"),
-            _norm_text_key(f"{nome} {cognome}"),
-        }
-        candidates.discard("")
+        candidates = naming.chiavi_confronto(nome, cognome)
         if target_name in candidates:
             return _as_int(row.get("id"))
     return None
@@ -6046,7 +6095,7 @@ def _admin_assenze_overview(
         SELECT
             id, copia_nome AS dipendente, tipo_assenza,
             data_inizio, data_fine, consenso,
-            moderation_status, motivazione_richiesta{creata_col}
+            moderation_status, motivazione_richiesta{creata_col}{_col_utente_id("")}
         FROM assenze
         {where_clause}
     """
@@ -6061,7 +6110,7 @@ def _admin_assenze_overview(
     )
 
     assenze: list[dict] = []
-    for row in _fetch_all_dict(sql, params):
+    for row in _applica_nominativo(_fetch_all_dict(sql, params)):
         _, mod_label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
         assenze.append({
             "id": row.get("id"),

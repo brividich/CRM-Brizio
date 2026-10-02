@@ -54,7 +54,7 @@ class AssenzePerAnagraficaTests(SimpleTestCase):
         self.assertIn(42, out)
         self.assertEqual(len(out[42]), 2)
         self.assertEqual(out[42][0]["tipo"], "Ferie")
-        self.assertEqual(out[42][0]["nome"], "Rossi Mario")
+        self.assertEqual(out[42][0]["nome"], "ROSSI MARIO")
         # 43 non ha assenze in queste righe
         self.assertNotIn(43, out)
 
@@ -201,3 +201,30 @@ class ResolveIdentitiesTests(SimpleTestCase):
         self.assertEqual(out[42]["names"], {"ROSSI MARIO", "MARIO ROSSI"})
         # 'rossim' (username legacy senza @) scartato, resta solo l'email vera
         self.assertEqual(out[42]["emails"], {"M.ROSSI@X.IT"})
+
+
+class ChiaviNomeAccentatoTests(SimpleTestCase):
+    """Le chiavi Python tolgono gli accenti, SQL Server no: la query deve cercare
+    anche la forma grezza, altrimenti un nome accentato a DB sparisce."""
+
+    def test_sql_cerca_anche_la_forma_grezza(self):
+        v = av._sql_name_variants("Niccolò", "D’Angelo")
+        self.assertIn("D’ANGELO NICCOLÒ", v)  # come lo confronta UPPER(copia_nome)
+        self.assertIn("D'ANGELO NICCOLO", v)  # chiave di confronto Python
+
+    def test_riga_accentata_associata_al_dipendente(self):
+        identities = {
+            7: {"nome": "Niccolò", "cognome": "D’Angelo",
+                "names": av._name_variants("Niccolò", "D’Angelo"),
+                "sql_names": av._sql_name_variants("Niccolò", "D’Angelo"),
+                "emails": set()},
+        }
+        riga = {"data_inizio": date(2026, 6, 24), "data_fine": date(2026, 6, 24),
+                "copia_nome": "d'angelo  niccolo", "email_esterna": "", "tipo_assenza": "Ferie",
+                "moderation_status": 0, "consenso": "Approvato"}
+        with mock.patch.object(av, "_resolve_identities", return_value=identities), \
+             mock.patch.object(av, "legacy_table_columns", return_value=AssenzePerAnagraficaTests.COLS), \
+             mock.patch.object(av, "_fetch_dict", return_value=[riga]) as fetch:
+            out = av.assenze_per_anagrafica([7], date(2026, 6, 22), date(2026, 6, 28))
+        self.assertIn("D’ANGELO NICCOLÒ", fetch.call_args[0][1])
+        self.assertEqual(out[7][0]["nome"], "D’ANGELO NICCOLÒ")

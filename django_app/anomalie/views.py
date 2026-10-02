@@ -50,6 +50,7 @@ from .models import (
     AnomalieRoleType,
     AnomalieUserAccessRule,
 )
+from core import naming
 
 
 logger = logging.getLogger(__name__)
@@ -1280,7 +1281,7 @@ def _request_legacy_role_id(request) -> int | None:
 
 
 def _normalize_identity_text(value: str) -> str:
-    return re.sub(r"\s+", " ", str(value or "").strip()).casefold()
+    return naming.chiave_testo(value)
 
 
 def _current_user_identity(request) -> dict[str, str]:

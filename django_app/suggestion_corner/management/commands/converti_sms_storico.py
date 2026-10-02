@@ -25,9 +25,10 @@ import csv
 import io
 import json
 import re
-import unicodedata
 
 from django.core.management.base import BaseCommand, CommandError
+
+from core import naming
 
 # Ordine colonne del registro storico (32 colonne)
 COL = {
@@ -50,12 +51,8 @@ _ESITO_CHECK = {"positivo": "POSITIVO", "negativo": "NEGATIVO", "rinviato": "RIN
 _ESITO_DO = {"si": "SI", "sì": "SI", "no": "NO"}
 
 
-def _strip_accents(s: str) -> str:
-    return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
-
-
 def _norm_name(s: str) -> str:
-    return re.sub(r"\s+", " ", _strip_accents(str(s or "")).casefold()).strip()
+    return naming.chiave_testo(s)
 
 
 def _vero(v: str) -> bool:
