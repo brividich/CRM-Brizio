@@ -43,6 +43,7 @@ from core.models import (
     UserNavigationOverride,
     UserPermissionGrant,
 )
+from core import naming
 
 STATUS_CANONICAL_BOUND = "CANONICAL_BOUND"
 STATUS_LEGACY_FALLBACK = "LEGACY_FALLBACK"
@@ -936,7 +937,7 @@ def acl_canonico(request):
         for u in all_legacy_users:
             anag = anag_map.get(u["id"])
             if anag and anag.cognome:
-                u["display"] = f"{anag.cognome} {anag.nome or ''}".strip() + f" — {u['email'] or ''}"
+                u["display"] = naming.nome_completo(anag.nome, anag.cognome) + f" — {u['email'] or ''}"
             else:
                 u["display"] = f"{u['nome']} — {u['email'] or ''}"
     except DatabaseError:
@@ -952,7 +953,7 @@ def acl_canonico(request):
             try:
                 anag = AnagraficaDipendente.objects.filter(utente_id=selected_user_id).first()
                 if anag and anag.cognome:
-                    selected_user_label = f"{anag.cognome} {anag.nome or ''}".strip()
+                    selected_user_label = naming.nome_completo(anag.nome, anag.cognome)
                 else:
                     selected_user_label = selected_user.nome or selected_user.email or f"#{selected_user_id}"
             except DatabaseError:
@@ -983,7 +984,7 @@ def acl_canonico(request):
             try:
                 anag = AnagraficaDipendente.objects.filter(utente_id=nav_ov_user_id).first()
                 if anag and anag.cognome:
-                    nav_ov_user_label = f"{anag.cognome} {anag.nome or ''}".strip()
+                    nav_ov_user_label = naming.nome_completo(anag.nome, anag.cognome)
                 else:
                     nav_ov_user_label = nav_ov_user.nome or nav_ov_user.email or f"#{nav_ov_user_id}"
             except DatabaseError:
@@ -1231,7 +1232,7 @@ def api_acl_legacy_user_search(request):
         for u in qs:
             anag = anag_map.get(u.id)
             if anag and anag.cognome:
-                nome_display = f"{anag.cognome} {anag.nome or ''}".strip()
+                nome_display = naming.nome_completo(anag.nome, anag.cognome)
             else:
                 nome_display = u.nome or ""
             results.append({

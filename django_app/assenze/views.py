@@ -39,6 +39,7 @@ from .constants import (
     PERMESSO_MIN_MINUTES,
     PERMESSO_MAX_HOURS,
 )
+from core import naming
 
 logger = logging.getLogger(__name__)
 
@@ -473,7 +474,7 @@ def _certificazione_presenza_dipendenti_attivi() -> list[str]:
     names: list[str] = []
     seen: set[str] = set()
     for row in rows:
-        full_name = f"{str(row.get('cognome') or '').strip()} {str(row.get('nome') or '').strip()}".strip()
+        full_name = naming.nome_completo(row.get('nome'), row.get('cognome'))
         if not full_name:
             continue
         key = re.sub(r"\s+", " ", full_name).casefold()
@@ -505,7 +506,7 @@ def _load_dipendenti_attivi_list() -> list[dict]:
             continue
         cognome = str(row.get("cognome") or "").strip()
         nome = str(row.get("nome") or "").strip()
-        full_name = f"{cognome} {nome}".strip()
+        full_name = naming.nome_completo(nome, cognome)
         key = re.sub(r"\s+", " ", full_name).casefold()
         if not key or key in seen:
             continue

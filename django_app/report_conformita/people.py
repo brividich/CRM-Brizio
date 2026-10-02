@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass
 from datetime import date
 from typing import Iterable
+from core import naming
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ def persone(legacy_ids: Iterable[int | None], *, today: date | None = None) -> d
         from core.legacy_models import AnagraficaDipendente
 
         for row in AnagraficaDipendente.objects.filter(pk__in=ids).values("id", "nome", "cognome", "reparto"):
-            nominativo = f"{(row.get('cognome') or '').strip()} {(row.get('nome') or '').strip()}".strip()
+            nominativo = naming.nome_completo(row.get('nome'), row.get('cognome'))
             nomi[int(row["id"])] = (nominativo, (row.get("reparto") or "").strip())
     except Exception:
         logger.warning("report_conformita: anagrafica legacy non leggibile", exc_info=True)

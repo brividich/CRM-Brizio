@@ -68,7 +68,7 @@ class ActionRegisterTests(TestCase):
 
         self.assertEqual(set(by_origin), {"issue", "task", "subtask"})
         self.assertEqual(by_origin["issue"].source_label, "Incontro 3")
-        self.assertEqual(by_origin["issue"].owner_label, "Ada Rossi")
+        self.assertEqual(by_origin["issue"].owner_label, "ADA ROSSI")
         self.assertEqual(
             by_origin["issue"].url,
             f"{reverse('tasks:project_meeting_detail', args=[self.project.pk, self.meeting.pk])}#issue-{issue.pk}",

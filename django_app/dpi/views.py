@@ -43,6 +43,7 @@ from .models import (
     TipoDPI,
     normalizza_icona_dpi,
 )
+from core import naming
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +200,7 @@ def _richiedente_info(request, legacy_id: int | None = None) -> dict:
             pk=legacy_id if legacy_id is not None else get_legacy_anagrafica_id(request.user)
         ).first()
         if ad:
-            nome = f"{getattr(ad, 'nome', '') or ''} {getattr(ad, 'cognome', '') or ''}".strip()
+            nome = naming.nome_completo(getattr(ad, 'nome', ''), getattr(ad, 'cognome', ''))
             reparto = str(getattr(ad, "reparto", "") or "").strip()
             if per_altri:
                 email = (getattr(ad, "email_notifica", "") or "").strip()
@@ -229,7 +230,7 @@ def _dipendenti_selezionabili(request) -> list[dict]:
         if ids is not None:
             qs = qs.filter(pk__in=list(ids | ({own} if own else set())))
         return [
-            {"id": ad.pk, "nome": f"{ad.cognome or ''} {ad.nome or ''}".strip() or ad.aliasusername or f"#{ad.pk}"}
+            {"id": ad.pk, "nome": naming.nome_completo(ad.nome, ad.cognome) or ad.aliasusername or f"#{ad.pk}"}
             for ad in qs.order_by("cognome", "nome")
         ]
     except Exception:
@@ -688,6 +689,10 @@ def report_conformita(request):
             str(row.get("aliasusername") or "").casefold(),
         ),
     )[:100]
+    dipendenti = [
+        {**row, "nominativo": naming.nome_completo(row.get("nome"), row.get("cognome"))}
+        for row in dipendenti
+    ]
 
     categorie_qs = CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome")
     categorie_obbligatorie = categorie_qs.filter(obbligatoria_mansionario=True)
@@ -753,7 +758,7 @@ def report_conformita(request):
                 _scad.strftime("%d-%m-%Y") if _scad else "",
                 _c.richiesta.numero if _c and _c.richiesta_id else "",
             ])
-        _nome = f"{dipendente.get('cognome', '')} {dipendente.get('nome', '')}".strip() or "dipendente"
+        _nome = naming.nome_completo(dipendente.get('nome'), dipendente.get('cognome')) or "dipendente"
         log_action(request, "dpi_conformita_export_xlsx", "dpi", {
             "dipendente_id": dipendente_id_raw,
             "rows": len(_rows),

@@ -34,6 +34,7 @@ from core.upload_mime import (
 from .acl_bootstrap import PERM_IMPOSTAZIONI_MANAGE
 from .forms import SegnalazioneForm
 from .models import DiarioPrepostoImpostazioni, SegnalazioneAllegato, SegnalazionePreposto
+from core import naming
 
 logger = logging.getLogger(__name__)
 
@@ -930,7 +931,7 @@ def api_cerca_utenti(request):
         ).order_by("cognome", "nome")[:20]
 
         for a in qs:
-            nome_completo = f"{(a.nome or '').strip()} {(a.cognome or '').strip()}".strip()
+            nome_completo = naming.nome_completo(a.nome, a.cognome)
             username = (a.aliasusername or "").strip()      # fonte unica username
             email_login = (a.email or "").strip()           # UPN / mail aziendale
             results.append({
@@ -944,7 +945,7 @@ def api_cerca_utenti(request):
         User = get_user_model()
         qs = User.objects.filter(username__icontains=q).order_by("last_name", "first_name")[:20]
         for u in qs:
-            nome = f"{u.first_name} {u.last_name}".strip() or u.username
+            nome = u.get_full_name() or u.username
             results.append({
                 "nome": nome,
                 "username": u.username,

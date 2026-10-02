@@ -12,6 +12,7 @@ from django.core.cache import cache
 from django.db import DatabaseError, IntegrityError, connections, transaction
 
 from core.legacy_models import Ruolo, UtenteLegacy
+from core import naming
 from core.models import Profile
 
 logger = logging.getLogger(__name__)
@@ -217,9 +218,9 @@ def resolve_ldap_identity(alias: str, upn_hint: str = "", *, conn=None) -> tuple
 
             resolved_alias = extract_identity_alias(sam or alias_norm)
             resolved_upn = canonicalize_ldap_upn(resolved_alias, ldap_upn or preferred_upn or ldap_mail)
-            full_name = display or " ".join([p for p in [given, sn] if p]).strip()
+            full_name = naming.normalizza_parte(display) or naming.nome_completo(given, sn)
             if not full_name and resolved_alias:
-                full_name = resolved_alias.replace(".", " ").title()
+                full_name = naming.normalizza_parte(resolved_alias.replace(".", " "))
             return resolved_upn, full_name
     except Exception as exc:
         logger.warning("resolve_ldap_identity: LDAP search failed for alias=%s: %s", alias_norm, exc)
@@ -486,6 +487,7 @@ def provision_legacy_user(upn: str, *, full_name: str = "", alias: str = "") -> 
     """
     upn = str(upn or "").strip().lower()
     alias_norm = extract_identity_alias(alias or upn)
+    full_name = naming.normalizza_parte(full_name)
     try:
         legacy_user = UtenteLegacy.objects.filter(email__iexact=upn).first()
         if legacy_user is None and alias_norm:
@@ -494,7 +496,7 @@ def provision_legacy_user(upn: str, *, full_name: str = "", alias: str = "") -> 
         if legacy_user is None:
             ruolo_utente = Ruolo.objects.filter(nome__iexact="utente").first()
             ruolo_id = ruolo_utente.id if ruolo_utente else None
-            display_name = (full_name or "").strip() or upn.split("@", 1)[0].replace(".", " ").title()
+            display_name = full_name or naming.normalizza_parte(upn.split("@", 1)[0].replace(".", " "))
             model_fields = {f.name for f in UtenteLegacy._meta.fields}
             create_kwargs = {
                 "nome": display_name,
