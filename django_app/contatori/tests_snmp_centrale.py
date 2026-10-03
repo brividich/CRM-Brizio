@@ -118,7 +118,8 @@ class ProfiliSNMPTest(TestCase):
         poll = services.interroga_dispositivo(device)
         device.refresh_from_db()
         self.assertEqual(device.profilo_snmp.slug, "kyocera")
-        self.assertEqual(poll.valori.get().valore_numero, 1234)
+        totale = poll.valori.get(sonda__oid="1.3.6.1.2.1.43.10.2.1.4")
+        self.assertEqual(totale.valore_numero, 1234)
         self.assertEqual(poll.dati_stampante["consumabili"][0]["pct"], 45)
         self.assertEqual(device.matricola, "KY-TEST-001")
         self.assertTrue(device.sonde.filter(

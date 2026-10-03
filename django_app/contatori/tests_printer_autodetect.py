@@ -10,6 +10,9 @@ from .models import DispositivoSNMP, ProfiloSNMP, StatoSNMP
 from .printer_snmp import interpreta_stampante, leggi_stampante
 from .snmp import SNMPError, SYS_DESCR, SYS_OBJECT_ID, SYS_NAME
 
+# Il profilo Kyocera ha piu' colonne: i test guardano il totale Printer-MIB.
+TOTALE_PRINTER_MIB = "1.3.6.1.2.1.43.10.2.1.4"
+
 
 class PrinterDecodingTest(SimpleTestCase):
     def test_indices_zero_unknown_and_multiple_markers(self):
@@ -62,7 +65,7 @@ class PrinterAutodetectTest(TestCase):
         self.device.profilo_snmp = ProfiloSNMP.objects.get(slug="kyocera")
         self.device.save()
         poll = self.poll()
-        self.assertEqual(poll.valori.get().valore_numero, 4321)
+        self.assertEqual(poll.valori.get(sonda__oid=TOTALE_PRINTER_MIB).valore_numero, 4321)
         self.assertEqual(poll.dati_stampante, self.snapshot)
         self.device.refresh_from_db()
         self.assertEqual(self.device.categoria, "STAMPANTE")
@@ -76,11 +79,13 @@ class PrinterAutodetectTest(TestCase):
     def test_first_poll_autodetect_and_history_same_cycle(self):
         first = self.poll()
         second = self.poll({**self.snapshot, "consumabili": [], "errori": {"livelli": "timeout"}})
-        self.assertEqual(first.valori.count(), 1)
+        self.assertEqual(first.valori.filter(sonda__oid=TOTALE_PRINTER_MIB).count(), 1)
         self.assertEqual(second.stato, StatoSNMP.WARNING)
         first.refresh_from_db()
         self.assertEqual(first.dati_stampante["consumabili"][0]["pct"], 0)
-        self.assertEqual(self.device.sonde.count(), 1)
+        # Due polling non duplicano le sonde: una per colonna attiva del profilo.
+        attive = ProfiloSNMP.objects.get(slug="kyocera").colonne.filter(attiva=True).count()
+        self.assertEqual(self.device.sonde.count(), attive)
 
     def test_failed_poll_does_not_present_old_snapshot_as_current(self):
         self.poll()

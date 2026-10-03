@@ -378,10 +378,36 @@ def _numero_sonda(sonda, valore):
         return None
 
 
-def trova_profilo_snmp(*, sys_object_id="", sys_description=""):
-    """Restituisce il profilo attivo piu specifico compatibile con l'identita'."""
+MAX_OID_RICONOSCIMENTO = 20
+
+
+def oid_riconoscimento_attivi():
+    """OID di riconoscimento dei profili attivi, da leggere con GET se il device non ha profilo."""
+    return list(dict.fromkeys(
+        ProfiloSNMP.objects.filter(attivo=True).exclude(oid_riconoscimento="")
+        .order_by("pk").values_list("oid_riconoscimento", flat=True)[:MAX_OID_RICONOSCIMENTO]
+    ))
+
+
+def trova_profilo_snmp(*, sys_object_id="", sys_description="", valori_riconoscimento=None):
+    """Restituisce il profilo attivo piu specifico compatibile con l'identita'.
+
+    Un profilo il cui ``oid_riconoscimento`` ha risposto con un valore prevale su
+    prefisso e pattern: serve per apparati con sysObjectID generico.
+    """
     object_id = str(sys_object_id or "").strip().lstrip(".")
     description = str(sys_description or "")
+    risposte = {
+        oid for oid, valore in (valori_riconoscimento or {}).items()
+        if valore is not None and str(valore).strip() not in ("", "b''")
+    }
+    if risposte:
+        sondati = [
+            p for p in ProfiloSNMP.objects.filter(attivo=True, oid_riconoscimento__in=risposte)
+            .order_by("pk")
+        ]
+        if len(sondati) == 1:
+            return sondati[0]
     candidati = []
     for profilo in ProfiloSNMP.objects.filter(attivo=True):
         prefix = (profilo.sys_object_id_prefix or "").strip().lstrip(".")
@@ -410,6 +436,15 @@ def trova_profilo_snmp(*, sys_object_id="", sys_description=""):
         if len(pari) > 1:
             return None
     return migliore[2]
+
+
+_CAMPI_SOGLIA = ("soglia_warning_min", "soglia_warning_max", "soglia_critica_min", "soglia_critica_max")
+
+
+def _soglie_colonna(colonna):
+    """Soglie ed etichette dei valori: viaggiano dalla colonna del profilo alla sonda."""
+    return {**{campo: getattr(colonna, campo) for campo in _CAMPI_SOGLIA},
+            "etichette": colonna.etichette}
 
 
 def applica_profilo_dispositivo(dispositivo, profilo, *, sovrascrivi=False):
@@ -463,6 +498,7 @@ def applica_profilo_dispositivo(dispositivo, profilo, *, sovrascrivi=False):
             "fattore": colonna.fattore,
             "ordine": colonna.ordine,
             "attiva": True,
+            **_soglie_colonna(colonna),
         }
         _, created = SondaSNMP.objects.update_or_create(
             dispositivo=dispositivo, oid=colonna.oid,
@@ -597,9 +633,13 @@ def interroga_dispositivo(dispositivo):
 
     cfg = ImpostazioniSNMP.get_solo()
     sonde = list(dispositivo.sonde.filter(attiva=True))
+    # Solo finche' il device non ha profilo: OID di riconoscimento dei profili.
+    probe_oids = [] if dispositivo.profilo_snmp_id else [
+        oid for oid in oid_riconoscimento_attivi() if oid not in SYSTEM_OIDS
+    ]
     specifiche = [
         {"oid": oid, "modalita": "GET", "aggregazione": "PRIMO"}
-        for oid in SYSTEM_OIDS
+        for oid in (*SYSTEM_OIDS, *probe_oids)
     ] + [
         {
             "oid": sonda.oid, "modalita": sonda.modalita,
@@ -645,6 +685,7 @@ def interroga_dispositivo(dispositivo):
     if not dispositivo.profilo_snmp_id:
         profilo = trova_profilo_snmp(
             sys_object_id=sys_object_id, sys_description=sys_description,
+            valori_riconoscimento={oid: valori.get(oid) for oid in probe_oids if oid in valori},
         )
         if profilo is not None:
             if not dispositivo.versione:
@@ -660,6 +701,7 @@ def interroga_dispositivo(dispositivo):
                 "tipo_valore": colonna.tipo_valore, "modalita": colonna.modalita,
                 "aggregazione": colonna.aggregazione, "unita": colonna.unita,
                 "fattore": colonna.fattore, "ordine": colonna.ordine,
+                **_soglie_colonna(colonna),
             })
     nuove_sonde = list(dispositivo.sonde.filter(attiva=True).exclude(
         pk__in=[s.pk for s in sonde],
@@ -707,9 +749,12 @@ def interroga_dispositivo(dispositivo):
     durata = _tempo_ms(inizio)
 
     esiti = []
+    from .printer_snmp import consumabili_in_esaurimento
+
     ha_warning = bool(stampante and (
         dati_stampante.get("errori") or not dati_stampante.get("contatori")
         or not dati_stampante.get("consumabili")
+        or consumabili_in_esaurimento(dati_stampante)
     ))
     ha_critico = False
     for sonda in sonde:
@@ -722,6 +767,17 @@ def interroga_dispositivo(dispositivo):
             })
             continue
         grezzo = valori[sonda.oid]
+        if sonda.tipo_valore == SondaSNMP.TipoValore.ERRORI_STAMPANTE:
+            from .printer_snmp import decodifica_errori_stampante
+
+            testo, stato = decodifica_errori_stampante(grezzo)
+            ha_warning = ha_warning or stato == StatoSNMP.WARNING
+            ha_critico = ha_critico or stato == StatoSNMP.ERROR
+            esiti.append({
+                "sonda": sonda, "numero": None, "testo": testo,
+                "stato": stato, "errore": "",
+            })
+            continue
         if sonda.tipo_valore == SondaSNMP.TipoValore.TESTO:
             esiti.append({
                 "sonda": sonda, "numero": None, "testo": _testo(grezzo),

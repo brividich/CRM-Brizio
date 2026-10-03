@@ -170,6 +170,8 @@ def aggrega_colonna(valori, aggregazione="PRIMO"):
         return min(numeri)
     if aggregazione == "SOMMA":
         return sum(numeri)
+    if aggregazione == "MEDIA":
+        return round(sum(numeri) / len(numeri), 2)
     raise SNMPError(f"aggregazione non supportata: {aggregazione}")
 
 

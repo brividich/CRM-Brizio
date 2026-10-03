@@ -6,6 +6,15 @@
     {% for device in it_monitoring.devices %}
       <h3><a href="{{ device.url }}">{{ device.nome }}</a> · {{ device.host }}</h3>
       <p>{% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }} · {{ device.state_label }}{% else %}mai registrato{% endif %}.</p>
+      {% if device.readings %}
+      <details class="af-it-disclosure"{% if it_presentation.profile != 'printer' %} open{% endif %}><summary>Valori rilevati</summary>
+        <p>Fonte: rilevazione SNMP del {{ device.snapshot.rilevata_il|date:"d/m/Y H:i" }}.</p>
+        <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Dato</th><th>Valore</th><th>Esito</th></tr></thead><tbody>
+          {% for reading in device.readings %}<tr><td>{{ reading.name }}</td><td>{{ reading.value }}</td><td>{% if reading.state == 'OK' %}{{ reading.state_label }}{% else %}<strong>{{ reading.state_label }}</strong>{% endif %}</td></tr>{% endfor %}
+        </tbody></table></div>
+        <p class="af-note">Fino a 30 valori, nell'ordine del profilo SNMP. I dettagli tecnici degli errori sono nella scheda del dispositivo.</p>
+      </details>
+      {% endif %}
       {% if it_presentation.profile == 'printer' %}
       <details class="af-it-disclosure" open><summary>Contatori e consumabili rilevati</summary>
         {% if device.snapshot %}<p>Fonte: rilevazione SNMP del {{ device.snapshot.rilevata_il|date:"d/m/Y H:i" }}. Esito: {{ device.snapshot.state_label }}.</p>{% endif %}

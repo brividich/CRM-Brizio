@@ -8,6 +8,47 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Schede asset IT/stampanti/MFC a tutta pagina e più compatte** (`django_app/assets/static/assets/asset-it.css`, `django_app/contatori/templates/contatori/_consumabili_asset.html`, `django_app/assets/templates/assets/partials/it_monitoring.html`):
+  - le schede asset con presentazione IT (stampanti, MFC, PC, server…) usano tutta la larghezza, senza il limite centrale di 1480 px;
+  - spazi ridotti nella sezione «Dati dal monitoraggio» e nei riquadri della scheda: intestazioni apribili, titoli, paragrafi, riquadri modello/IP/contratto, contatori MFC, righe tabella, schede consumabili su una riga con percentuale a destra (pagina MFC di prova a 1920 px: da circa 2.770 a 2.290 px di altezza);
+  - consumabili con tipo e colore; barre di livello leggibili anche in tema scuro;
+  - integra `main` (consumabili a schede «contenuti IT inline») con i valori SNMP rilevati della feature; verificato a video in chiaro e scuro.
+- **Scheda asset — valori SNMP rilevati ed etichette dei codici di stato** (`django_app/assets/services/it_monitoring.py`, `django_app/assets/templates/assets/partials/it_monitoring.html`, `django_app/assets/tests_it_infrastructure.py`, `django_app/contatori/{models.py,services.py,forms.py,tests_snmp_preset.py}`, `django_app/contatori/migrations/{0020_etichette_valori.py,0021_etichette_preset_verificati.py}`, `docs/snmp/PRESET_CATALOG.md`, `README.md`):
+  - la scheda asset mostra nella sezione «Dati dal monitoraggio» i **Valori rilevati** dell'ultima rilevazione SNMP dei dispositivi collegati (fino a 30, con esito): modello, errori stampante, display, contatori Canon, salute NAS, CPU/RAM… Solo dati già raccolti, nessun polling, con gli stessi controlli ACL; i messaggi d'errore tecnici restano nella scheda dispositivo;
+  - numeri in formato italiano (migliaia, al massimo 2 decimali), uptime in giorni e ore; consumabili con tipo e colore;
+  - nuovo campo **Etichette** su colonne profilo e sonde (`1=Normale, 2=Guasto`): i codici numerici diventano testo nella scheda asset e nella centrale. Etichette caricate per i preset verificati Synology e stato dispositivo stampanti;
+  - correzione: lo stato RAID Synology ha codici oltre 12 (13 = verifica dati periodica). La soglia "critico > 10" avrebbe dato falsi allarmi a ogni scrubbing, quindi ora resta solo "attenzione" per qualunque stato diverso da normale;
+  - verificato a video in tema chiaro e scuro con dati sintetici;
+  - deploy: `migrate contatori` (0020, 0021).
+- **Contatori SNMP — preset stampanti verificati sulla flotta** (`django_app/contatori/{models.py,services.py,printer_snmp.py,snmp_capture.py}`, `django_app/contatori/management/commands/snmp_capture.py`, `django_app/contatori/migrations/{0018_tipo_valore_errori_stampante.py,0019_preset_stampanti_verificati.py}`, `django_app/contatori/fixtures/snmp/{canon_ir_adv_c5840,canon_ir_adv_c3822,canon_ir_adv_c5535_iii,kyocera_taskalfa_5054ci,hp_designjet_t730,zebra_zd421}.snmprec`, `django_app/contatori/{tests_snmp_preset.py,tests_printer_autodetect.py,tests_snmp_centrale.py}`, `docs/snmp/PRESET_CATALOG.md`, `docs/PROFILI_SNMP.md`):
+  - walk di 9 stampanti (Canon iR-ADV C5840/C3822/C5535 III, Kyocera TASKalfa 5054ci/3554ci, HP DesignJet T730, Zebra ZD421);
+  - colonne comuni verificate: modello, stato dispositivo con soglie, **errori rilevati** (nuovo tipo di valore che decodifica `hrPrinterDetectedErrorState` in testo e stato: toner/carta/sportello/inceppamento…), messaggio del display;
+  - Canon: contatori contrattuali marcati come verificati su tutti i modelli; nuovi firmware, totale, copie, stampe, scansioni, fronte-retro;
+  - Kyocera: totali B/N e colore proposti ma disattivati e "da confermare" (la tabella non riporta i nomi);
+  - HP: prefisso di riconoscimento `1.3.6.1.4.1.11.2.3.9` e pattern senza il solo "HP", così gli switch HPE/Aruba non finiscono nel profilo stampanti; Zebra: totale Printer-MIB disattivato (non esposto);
+  - consumabili: tipo e colore nello snapshot; sotto il 10% la stampante passa in "Attenzione";
+  - fixture: `--only` per tenere solo i rami utili, storico lavori Kyocera escluso, nome host non sostituito nei campi modello;
+  - test esistenti adeguati: il profilo Kyocera ha ora più colonne, quindi controllano il totale per OID;
+  - deploy: `migrate contatori` (0018, 0019).
+- **Contatori SNMP — `snmp_capture --network`** (`django_app/contatori/management/commands/snmp_capture.py`, `django_app/contatori/tests_snmp_capture.py`, `docs/snmp/CATTURA.md`):
+  - scansiona una rete (riusa la discovery del portale, max 512 host) con le community indicate, prima in v2c e poi in v1 sui restanti;
+  - cattura in sequenza ogni apparato che risponde (4 in parallelo, max 8) in `C:\snmp_capture\<ip>_<descrizione>.snmprec`, con `indice.txt` riepilogativo;
+  - riprende saltando i file già presenti (`--overwrite` per ricatturare); le community non finiscono né nei file né nell'indice.
+- **Contatori SNMP — preset Synology e Linux verificati su walk reale** (`django_app/contatori/{models.py,services.py,snmp.py,forms.py,snmp_capture.py}`, `django_app/contatori/migrations/{0016_profili_riconoscimento_soglie_verifica.py,0017_preset_synology_netsnmp.py}`, `django_app/contatori/management/commands/snmp_discover.py`, `django_app/contatori/templates/contatori/snmp_profilo_form.html`, `django_app/contatori/fixtures/snmp/synology_rs2423rp_dsm74.snmprec`, `django_app/contatori/tests_snmp_preset.py`, `docs/snmp/PRESET_CATALOG.md`, `docs/PROFILI_SNMP.md`, `README.md`):
+  - profilo: nuovo **OID di riconoscimento**, letto con GET finché il dispositivo non ha profilo; se risponde, il profilo prevale su prefisso e pattern. Corregge il Synology, riconosciuto finora come "Linux / Net-SNMP" perché espone il `sysObjectID` net-snmp. Usato anche da `snmp_discover`;
+  - colonne profilo: **soglie** avviso/critico copiate sulle sonde, flag **Verificata** con **Fonte** (visibile nell'elenco colonne), nuova aggregazione **Media**;
+  - preset Synology: modello, seriale, versione DSM, stato sistema, temperatura, alimentazione, ventole, aggiornamento disponibile, stato e salute peggiori dei dischi, temperatura massima dei dischi, stato peggiore volumi/RAID, con soglie;
+  - preset Linux/Net-SNMP (anche su Synology): carico CPU medio, RAM totale e disponibile (`memSysAvail`), uptime del sistema (`hrSystemUptime`);
+  - sanitizzazione delle fixture: oscura i seriali ed esclude riga di boot del kernel, `atTable` e prefissi IP; nome host oscurato anche in maiuscolo;
+  - deploy: `migrate contatori` (0016, 0017). Un NAS già registrato col profilo Linux va riassegnato a mano al profilo Synology con **Applica**.
+- **Contatori SNMP — cattura walk per la verifica dei preset (FASE 1)** (`django_app/contatori/snmp_capture.py`, `django_app/contatori/management/commands/snmp_capture.py`, `django_app/contatori/tests_snmp_capture.py`, `docs/snmp/RICOGNIZIONE.md`, `docs/snmp/CATTURA.md`, `README.md`):
+  - nuovo comando `snmp_capture`: walk completo read-only (GETBULK v2c/v3, GETNEXT v1) con output `.snmprec` (snmpsim) e `.txt` leggibile con nomi MIB;
+  - limiti: timeout 3 s, 2 retry, max-repetitions 25 dimezzato su *tooBig*, tetto di righe e di durata, stop su OID non crescenti;
+  - credenziali dal catalogo cifrato (`--community-id`), da variabile d'ambiente o da argomento; il segreto non finisce mai nei file e viene oscurato se compare nei valori; SNMP-COMMUNITY/USM/VACM/TARGET, `hrSWRunParameters` e utenti LanManager non vengono salvati;
+  - il walk grezzo viene rifiutato dentro il repository; `--sanitize` / `--sanitize-from` producono fixture pseudonimizzate (IP, MAC, email, nomi host/porte/vicini) per i test offline;
+  - SNMPv3: auth md5/sha1; la cifratura AES/DES richiede `puresnmp-crypto`, non ancora installato, con messaggio esplicito;
+  - test `ReadOnlyTests`: fallisce se nel modulo `contatori` compare una SET SNMP;
+  - deploy: nessuna migrazione.
 - **Nominativi: confronto unico fra tabelle e nome «COGNOME NOME» nelle pagine assenze** (`django_app/core/naming.py`, `django_app/assenze/{views.py,availability.py,tests_availability.py,tests_nominativo_display.py}`, `django_app/anomalie/views.py`, `django_app/timbri/views.py`, `django_app/suggestion_corner/management/commands/converti_sms_storico.py`, `django_app/anagrafica/tests_naming.py`, `README.md`):
   - nuove `naming.chiave_testo` / `naming.chiavi_confronto`: chiave di confronto unica (maiuscolo, spazi ridotti, apostrofi tipografici uniformati, accenti tolti, entrambi gli ordini) al posto dei normalizzatori ad hoc di assenze, disponibilità, anomalie, timbri e import SMS Suggestion Corner: `Niccolò D’Angelo` e `NICCOLO D'ANGELO` ora coincidono ovunque;
   - disponibilità operatori (`assenze/availability.py`): la query SQL cerca anche la forma grezza del nome (`UPPER(copia_nome)` non toglie accenti), così le righe con nomi accentati restano estratte;
