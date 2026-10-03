@@ -18,6 +18,26 @@ _oid_validator = RegexValidator(
 )
 
 
+def etichetta_valore(etichette, numero):
+    """Traduce un codice numerico con la mappa "1=Normale, 2=Guasto"; "" se assente."""
+    if not etichette or numero is None:
+        return ""
+    try:
+        chiave = int(numero)
+    except (TypeError, ValueError, ArithmeticError):
+        return ""
+    if chiave != numero:
+        return ""
+    for voce in etichette.split(","):
+        codice, sep, testo = voce.partition("=")
+        if sep and codice.strip().lstrip("-").isdigit() and int(codice) == chiave:
+            return testo.strip()
+    return ""
+
+
+ETICHETTE_HELP = "Testo per i codici numerici, es. 1=Normale, 2=Guasto."
+
+
 class StatoSNMP(models.TextChoices):
     MAI = "MAI", "Mai interrogato"
     OK = "OK", "Operativo"
@@ -127,6 +147,13 @@ class ProfiloSNMP(models.Model):
         max_length=255, blank=True,
         help_text="Espressione regolare opzionale applicata a sysDescr.",
     )
+    oid_riconoscimento = models.CharField(
+        max_length=255, blank=True, validators=[_oid_validator],
+        help_text=(
+            "OID letto con GET durante il riconoscimento: se risponde, il profilo prevale. "
+            "Per apparati con sysObjectID generico (es. Synology si presenta come net-snmp)."
+        ),
+    )
     versione = models.CharField(
         max_length=4, blank=True, choices=Versione.choices,
     )
@@ -157,6 +184,7 @@ class ColonnaProfiloSNMP(models.Model):
         NUMERO = "NUMERO", "Numero"
         TESTO = "TESTO", "Testo"
         TIMETICKS = "TIMETICKS", "Tempo (TimeTicks)"
+        ERRORI_STAMPANTE = "ERR_PRT", "Errori stampante (hrPrinterDetectedErrorState)"
 
     class Modalita(models.TextChoices):
         GET = "GET", "GET (OID esatto)"
@@ -167,6 +195,7 @@ class ColonnaProfiloSNMP(models.Model):
         MASSIMO = "MASSIMO", "Valore massimo"
         MINIMO = "MINIMO", "Valore minimo"
         SOMMA = "SOMMA", "Somma"
+        MEDIA = "MEDIA", "Media"
 
     class ContatoreMFC(models.TextChoices):
         NESSUNO = "", "Non e un contatore MFC"
@@ -193,6 +222,19 @@ class ColonnaProfiloSNMP(models.Model):
     fattore = models.DecimalField(max_digits=14, decimal_places=6, default=Decimal("1"))
     contatore_mfc = models.CharField(
         max_length=8, blank=True, choices=ContatoreMFC.choices,
+    )
+    # Soglie predefinite copiate sulle sonde quando il profilo viene applicato.
+    soglia_warning_min = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
+    soglia_warning_max = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
+    soglia_critica_min = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
+    soglia_critica_max = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True)
+    etichette = models.CharField(max_length=500, blank=True, help_text=ETICHETTE_HELP)
+    verificata = models.BooleanField(
+        default=False, help_text="OID confermato su un walk reale o su una MIB ufficiale.",
+    )
+    fonte = models.CharField(
+        max_length=200, blank=True,
+        help_text="Origine della verifica (walk apparato/firmware o MIB).",
     )
     ordine = models.PositiveIntegerField(default=0)
     attiva = models.BooleanField(default=True)
@@ -383,6 +425,7 @@ class SondaSNMP(models.Model):
         NUMERO = "NUMERO", "Numero"
         TESTO = "TESTO", "Testo"
         TIMETICKS = "TIMETICKS", "Tempo (TimeTicks)"
+        ERRORI_STAMPANTE = "ERR_PRT", "Errori stampante (hrPrinterDetectedErrorState)"
 
     class Modalita(models.TextChoices):
         GET = "GET", "GET (OID esatto)"
@@ -393,6 +436,7 @@ class SondaSNMP(models.Model):
         MASSIMO = "MASSIMO", "Valore massimo"
         MINIMO = "MINIMO", "Valore minimo"
         SOMMA = "SOMMA", "Somma"
+        MEDIA = "MEDIA", "Media"
 
     dispositivo = models.ForeignKey(
         DispositivoSNMP, on_delete=models.CASCADE, related_name="sonde",
@@ -418,6 +462,7 @@ class SondaSNMP(models.Model):
         max_digits=14, decimal_places=6, default=Decimal("1"),
         help_text="Moltiplicatore applicato al valore numerico grezzo.",
     )
+    etichette = models.CharField(max_length=500, blank=True, help_text=ETICHETTE_HELP)
     soglia_warning_min = models.DecimalField(
         max_digits=20, decimal_places=6, null=True, blank=True,
     )
@@ -509,6 +554,9 @@ class ValoreSNMP(models.Model):
     @property
     def valore_display(self):
         if self.valore_numero is not None:
+            etichetta = etichetta_valore(self.sonda.etichette, self.valore_numero)
+            if etichetta:
+                return etichetta
             valore = format(self.valore_numero.normalize(), "f")
             return f"{valore} {self.sonda.unita}".strip()
         return self.valore_testo or "—"

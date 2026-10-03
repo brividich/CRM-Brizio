@@ -40,6 +40,12 @@ Da **Profili SNMP → Nuovo profilo** indicare produttore, categoria e almeno un
 
 Applicare un profilo aggiorna o crea le sonde corrispondenti senza cancellare le sonde personalizzate estranee al profilo.
 
+Altri campi:
+- **OID di riconoscimento** (profilo): un OID letto con GET finché il dispositivo non ha profilo. Se risponde, quel profilo prevale su prefisso e pattern. Serve agli apparati con `sysObjectID` generico; il Synology, per esempio, si presenta come net-snmp.
+- **Soglie** (colonna): avviso/critico, minimo/massimo. Vengono copiate sulle sonde quando il profilo viene applicato.
+- **Verificata / Fonte** (colonna): l'OID è stato confermato su un walk reale o su una MIB. Il catalogo dei preset verificati è in [snmp/PRESET_CATALOG.md](snmp/PRESET_CATALOG.md).
+- Aggregazione **Media**: per esempio il carico CPU su tutti i core.
+
 ## Diagnostica
 
 ```powershell
@@ -54,4 +60,4 @@ Il comando mostra identità, seriale, profilo suggerito e, per le stampanti, il 
 python manage.py migrate contatori --settings=config.settings.prod
 ```
 
-Le migrazioni 0008-0012 creano il catalogo e caricano i preset; la 0013 aggiunge lo snapshot stampante allo storico SNMP. Non servono nuove dipendenze né nuovi task Windows. Dopo il deploy riavviare web e qcluster esistenti e premere Interroga ora sulla Kyocera gia' configurata (oppure attendere il polling programmato).
+Le migrazioni 0008-0012 creano il catalogo e caricano i preset; la 0013 aggiunge lo snapshot stampante allo storico SNMP. La 0016 aggiunge OID di riconoscimento, soglie, verifica e aggregazione Media; la 0017 carica i preset verificati Synology e Linux/Net-SNMP; la 0018 aggiunge il tipo di valore "Errori stampante"; la 0019 arricchisce i profili Canon, Kyocera, HP e Zebra e rende più specifico il riconoscimento HP. Le nuove colonne arrivano sulle stampanti già configurate al primo polling successivo. Un NAS Synology già registrato e riconosciuto come "Linux / Net-SNMP" non cambia profilo da solo: nella sua scheda scegli il profilo Synology e premi **Applica**. Non servono nuove dipendenze né nuovi task Windows. Dopo il deploy riavviare web e qcluster esistenti e premere Interroga ora sulla Kyocera gia' configurata (oppure attendere il polling programmato).

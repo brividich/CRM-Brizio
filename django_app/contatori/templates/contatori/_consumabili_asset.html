@@ -4,7 +4,7 @@
 <div class="af-it-supplies">
 {% for supply in supplies %}
   <div class="af-it-supply">
-    <span>{{ supply.nome }}</span>
+    <span>{{ supply.nome }}{% if supply.tipo or supply.colore %} <small>({{ supply.tipo }}{% if supply.tipo and supply.colore %}, {% endif %}{{ supply.colore }})</small>{% endif %}</span>
     {% if supply.display_pct is not None %}
       <strong>{{ supply.display_pct }}%</strong>
       <progress max="100" value="{{ supply.display_pct|unlocalize }}" aria-label="{{ supply.nome }}: {{ supply.display_pct }}%"{% if supply.display_pct <= 15 %} class="af-it-low"{% endif %}></progress>

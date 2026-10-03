@@ -55,8 +55,9 @@ class Command(BaseCommand):
         )
 
         try:
+            probe_oids = services.oid_riconoscimento_attivi()
             identita, _ = leggi_oids(
-                host, [SYS_DESCR, SYS_OBJECT_ID, SYS_NAME, PRT_SERIAL],
+                host, [SYS_DESCR, SYS_OBJECT_ID, SYS_NAME, PRT_SERIAL, *probe_oids],
                 community=community, port=port, timeout=timeout, version=version,
             )
         except SNMPError as exc:
@@ -71,6 +72,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  seriale:     {_testo(identita.get(PRT_SERIAL)) or '-'}")
         profilo = services.trova_profilo_snmp(
             sys_object_id=object_id, sys_description=descr,
+            valori_riconoscimento={oid: identita.get(oid) for oid in probe_oids if oid in identita},
         )
         self.stdout.write(f"  profilo:     {profilo or 'nessun profilo rilevato'}")
 
