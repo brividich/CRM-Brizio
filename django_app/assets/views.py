@@ -10446,6 +10446,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "timeline_events": timeline_events,
             "detail_timeline_title": detail_timeline_title,
             "can_manage_asset_timeline": can_manage_asset_timeline,
+            "can_edit_asset_image": _can_edit_asset(request, asset.id),
             "asset_timeline_manual_enabled": asset_timeline_manual_enabled,
             "asset_timeline_color_choices": _ui_choices(AssetTimelineEntry.COLOR_CHOICES),
             "maintenance_rows": maintenance_rows,
@@ -11180,6 +11181,68 @@ def asset_create(request: HttpRequest) -> HttpResponse:
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
         },
     )
+
+
+ASSET_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+ASSET_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+
+
+def _can_edit_asset(request: HttpRequest, asset_id: int) -> bool:
+    """Chi puo' aprire la modifica dell'asset puo' anche cambiarne l'immagine."""
+    from core.middleware import acl_allows_path
+
+    try:
+        return bool(acl_allows_path(reverse("assets:asset_edit", args=[asset_id]),
+                                    django_user=request.user, request=request))
+    except Exception:
+        return False
+
+
+def _validate_asset_image(upload) -> str:
+    """Ritorna un messaggio d'errore, oppure stringa vuota se l'immagine e' valida."""
+    if Path(getattr(upload, "name", "") or "").suffix.lower() not in ASSET_IMAGE_EXTENSIONS:
+        return "Carica un'immagine PNG, JPG o WEBP."
+    if int(getattr(upload, "size", 0) or 0) > ASSET_IMAGE_MAX_BYTES:
+        return "L'immagine non puo' superare 10 MB."
+    try:
+        from PIL import Image
+
+        with Image.open(upload) as image:
+            image.verify()
+    except Exception:
+        return "Il file non e' un'immagine valida."
+    finally:
+        upload.seek(0)
+    return ""
+
+
+@login_required
+def asset_image_upload(request: HttpRequest, id: int) -> HttpResponse:
+    """Carica, sostituisce o rimuove l'immagine mostrata come icona della scheda."""
+    if request.method != "POST":
+        return HttpResponseForbidden("Metodo non consentito.")
+    asset = get_object_or_404(Asset, pk=id)
+    if not _can_edit_asset(request, asset.id):
+        return HttpResponseForbidden("Non hai il permesso di modificare questo asset.")
+    previous = asset.immagine.name if asset.immagine else ""
+    if request.POST.get("clear_immagine") == "1":
+        asset.immagine = None
+        messages.success(request, "Immagine rimossa.")
+    else:
+        upload = request.FILES.get("immagine")
+        if upload is None:
+            messages.error(request, "Seleziona un'immagine da caricare.")
+            return redirect("assets:asset_view", id=asset.id)
+        error = _validate_asset_image(upload)
+        if error:
+            messages.error(request, error)
+            return redirect("assets:asset_view", id=asset.id)
+        asset.immagine = upload
+        messages.success(request, "Immagine aggiornata.")
+    asset.save(update_fields=["immagine"])
+    if previous and previous != (asset.immagine.name if asset.immagine else ""):
+        Asset._meta.get_field("immagine").storage.delete(previous)
+    return redirect("assets:asset_view", id=asset.id)
 
 
 @login_required

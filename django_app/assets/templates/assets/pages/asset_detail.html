@@ -15,7 +15,7 @@
   text-decoration:none; box-shadow:0 8px 18px rgba(15,23,42,.04);
 }
 .as-page-head h1 .af-shell-back:hover { background:#eff6ff; border-color:#bfdbfe; }
-.af-page { display: grid; gap: 12px; width: 100%; max-width: 1480px; margin: 0 auto; }
+.af-page { display: grid; gap: 12px; width: 100%; }
 .af-header {
   position:relative; overflow:visible; z-index:3;
   display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,390px); align-items:stretch; gap:0;
@@ -36,6 +36,19 @@
   background:#0f172a; color:#fff; font-size:var(--fs-title-lg); font-weight:800;
   box-shadow:0 12px 24px rgba(15,23,42,.18);
 }
+.af-asset-mark--img { padding:0; overflow:hidden; background:#fff; border:1px solid #e2e8f0; }
+.af-asset-mark--img img { width:100%; height:100%; object-fit:cover; display:block; }
+body.theme-dark .af-asset-mark--img { background:#0b1220; border-color:var(--border); }
+.af-mark-col { display:grid; gap:4px; justify-items:center; flex:0 0 auto; }
+.af-mark-col .af-asset-mark--img { width:72px; height:72px; }
+.af-mark-col .af-mark-trigger { padding:0; border:0; background:none; cursor:zoom-in; border-radius:10px; }
+.af-mark-tools { display:flex; gap:6px; font-size:var(--fs-2xs); }
+.af-mark-tools label, .af-mark-tools button { cursor:pointer; color:#1d4ed8; background:none; border:0; padding:0; font:inherit; font-weight:700; }
+.af-mark-tools button { color:#b91c1c; }
+.af-mark-tools input[type=file] { position:absolute; width:1px; height:1px; opacity:0; }
+.af-mark-tools label:focus-within { outline:2px solid #2563eb; outline-offset:2px; }
+body.theme-dark .af-mark-tools label { color:#93c5fd; }
+body.theme-dark .af-mark-tools button { color:#fca5a5; }
 .af-targhetta {
   width:180px; height:120px; flex:0 0 auto; object-fit:contain;
   border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:5px;
@@ -374,7 +387,6 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
   .af-metrics--primary > .af-metric { grid-column: span 1 !important; }
 }
 @media (max-width: 1180px) {
-  .af-page { max-width: 980px; }
   .af-sections { column-count: 1; }
   .af-header { grid-template-columns:1fr; }
   .af-action-panel { border-left:none; border-top:1px solid #dbe3ef; border-radius:0 0 10px 10px; }
@@ -550,7 +562,22 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   <div class="af-header">
     <div class="af-hero-main">
       <div class="af-title-row">
-        <div class="af-asset-mark">{% if it_presentation %}{{ it_presentation.mark }}{% else %}{{ asset.asset_type|default:"AST"|slice:":3"|upper }}{% endif %}</div>
+        <div class="af-mark-col">
+          {% if asset.immagine %}
+            <button type="button" class="af-mark-trigger af-targhetta-trigger" data-lightbox-src="{{ asset.immagine.url }}" aria-label="Ingrandisci immagine {{ asset.name }}">
+              <span class="af-asset-mark af-asset-mark--img"><img src="{{ asset.immagine.url }}" alt="Immagine {{ asset.name }}" loading="lazy"></span>
+            </button>
+          {% else %}
+            <div class="af-asset-mark">{% if it_presentation %}{{ it_presentation.mark }}{% else %}{{ asset.asset_type|default:"AST"|slice:":3"|upper }}{% endif %}</div>
+          {% endif %}
+          {% if can_edit_asset_image %}
+            <form class="af-mark-tools" method="post" enctype="multipart/form-data" action="{% url 'assets:asset_image_upload' asset.id %}">
+              {% csrf_token %}
+              <label title="Carica una foto o un'immagine dell'asset (PNG, JPG o WEBP, max 10 MB)">{% if asset.immagine %}Cambia{% else %}+ Immagine{% endif %}<input type="file" name="immagine" accept="image/png,image/jpeg,image/webp" onchange="this.form.submit()"></label>
+              {% if asset.immagine %}<button type="submit" name="clear_immagine" value="1" onclick="return confirm('Rimuovere l\'immagine dell\'asset?')">Rimuovi</button>{% endif %}
+            </form>
+          {% endif %}
+        </div>
         <div class="af-title-copy">
           <div class="af-hero-kicker">{{ collection_label }}{% if asset.category_label %} / {{ asset.category_label }}{% endif %}</div>
           <h1 class="af-title">{{ asset.name }}</h1>
@@ -1778,9 +1805,9 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 </script>
 {% endif %}
 
-{# Lightbox targhetta: popup leggero, senza librerie, coerente col tema. #}
+{# Lightbox targhetta e immagine asset: popup leggero, senza librerie, coerente col tema. #}
 <div id="af-lightbox" class="af-lightbox" hidden aria-hidden="true">
-  <img class="af-lightbox-img" src="" alt="Targhetta ingrandita">
+  <img class="af-lightbox-img" src="" alt="Immagine ingrandita">
 </div>
 <style>
   .af-targhetta-trigger {
