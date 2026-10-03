@@ -1,0 +1,72 @@
+{% comment %}
+Anteprima "a foglio" del documento: stessi dati del PDF/Excel (stesso Documento).
+I paragrafi arrivano già escapati dal motore (solo <b> e <br/> ammessi): |safe è voluto.
+{% endcomment %}
+<article class="rp-doc" aria-label="Anteprima del documento" data-fm-table-skip="1">
+  <h1>{{ documento.titolo }}</h1>
+  {% if documento.sottotitolo %}<p class="rp-doc-sub">{{ documento.sottotitolo }}</p>{% endif %}
+  <table class="rp-doc-info">
+    <tr><th>Destinatario</th><td>{{ documento.destinatario|default:"—" }}</td></tr>
+    <tr><th>Periodo di riferimento</th><td>{{ documento.periodo_label }}</td></tr>
+    <tr><th>Perimetro</th><td>{{ documento.perimetro_label }}</td></tr>
+    <tr><th>Norme di riferimento</th><td>{{ documento.norme|join:", "|default:"—" }}</td></tr>
+    <tr><th>Classificazione</th><td>{{ documento.riservatezza }}</td></tr>
+  </table>
+
+  {% for e in documento.elementi %}
+    {% if e.tipo == "pagina" %}
+      <div class="rp-pagebreak"><span>nuova pagina</span></div>
+    {% elif e.tipo == "firme" %}
+      <h2>{{ e.titolo }}</h2>
+      <div class="rp-firme">
+        <div><b>Redatto da</b>{{ documento.redatto_da }}<div class="rp-firma">Firma e data</div></div>
+        <div><b>Verificato da</b>{{ documento.verificato_da }}<div class="rp-firma">Firma e data</div></div>
+        <div><b>Approvato da</b>{{ documento.approvato_da }}<div class="rp-firma">Firma e data</div></div>
+      </div>
+    {% else %}
+      {% if e.titolo %}<h2>{{ e.titolo }}</h2>{% endif %}
+      {% if e.tipo == "sezione" %}
+        {% if e.riferimenti %}<div class="rp-rif"><b>Riferimenti:</b> {{ e.riferimenti }}</div>{% endif %}
+        {% if e.mostra_indicatori and e.risultato.kpis %}
+        <div class="rp-kpis">
+          {% for k in e.risultato.kpis %}
+          <div class="rp-kpi{% if k.tone %} rp-{{ k.tone }}{% endif %}">
+            <div class="rp-kpi-l">{{ k.label }}</div>
+            <div class="rp-kpi-v">{{ k.value }}</div>
+            {% if k.hint %}<div class="rp-kpi-h">{{ k.hint }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if e.mostra_tabella and e.colonne %}
+          {% if e.righe %}
+          <div class="rp-tablewrap">
+            <table class="rp-table">
+              <thead><tr>{% for _k, label in e.colonne %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+              <tbody>
+                {% for riga, tono in e.righe_con_tono|slice:":200" %}
+                <tr{% if tono == "warn" or tono == "danger" %} class="rp-{{ tono }}"{% endif %}>{% for v in riga %}<td>{{ v }}</td>{% endfor %}</tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% if e.righe|length > 200 %}<div class="rp-more">Anteprima limitata a 200 righe: il file ne contiene {{ e.righe|length }}.</div>{% endif %}
+          </div>
+          {% else %}
+          <p class="rp-omessa">Nessun dato nel perimetro selezionato.</p>
+          {% endif %}
+        {% endif %}
+        {% if e.mostra_note and e.risultato.note %}
+        <ul class="rp-note">{% for n in e.risultato.note %}<li>{{ n }}</li>{% endfor %}</ul>
+        {% endif %}
+      {% endif %}
+      {% if e.tipo == "negata" or e.tipo == "errore" %}<div class="rp-omessa">{% for _kind, markup in e.paragrafi %}{{ markup|safe }} {% endfor %}</div>
+      {% else %}
+        {% for kind, markup in e.paragrafi %}
+          {% if kind == "h" %}<h3>{{ markup|safe }}</h3>
+          {% elif kind == "li" %}<ul><li>{{ markup|safe }}</li></ul>
+          {% else %}<p>{{ markup|safe }}</p>{% endif %}
+        {% endfor %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+</article>
