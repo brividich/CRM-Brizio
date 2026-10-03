@@ -16,6 +16,13 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - ACL v2: permessi `anagrafica.reportistica.view` / `.manage` con binding su tutte le route (grant di default admin, hr, qualita), chiave bootstrap `v15`; sezione omessa con dicitura esplicita se manca il permesso di sezione, copia d'archivio riscaricabile solo da chi potrebbe rigenerarla;
   - deploy: `migrate anagrafica` (0128, 0129). Il vecchio «Report dipendenti» resta e rimanda alla nuova pagina.
 
+- **Assets — immagine dell'asset come icona e schede a tutta pagina** (`django_app/assets/{models.py,views.py,urls.py,tests_asset_immagine.py}`, `django_app/assets/migrations/0121_asset_immagine.py`, `django_app/assets/templates/assets/pages/asset_detail.html`, `README.md`):
+  - nuovo campo `Asset.immagine` («Immagine asset»): nella scheda prende il posto del riquadro con la sigla del tipo (es. «MFC», «CNC») e si apre in lightbox. Sotto l'icona ci sono «+ Immagine» / «Cambia» / «Rimuovi»;
+  - caricamento su `/assets/edit/<id>/immagine/` (solo POST): stesso permesso ACL della modifica asset, ricontrollato nella vista; chi non può modificare non vede i controlli;
+  - validazione: PNG/JPG/WEBP, max 10 MB, contenuto verificato con Pillow (un file rinominato non passa); il file precedente viene eliminato quando si sostituisce o si rimuove;
+  - tutte le schede asset (`/assets/view/<id>`, qualunque tipo) a tutta larghezza: tolti i limiti di 1480 px e di 980 px sotto i 1180 px di schermo;
+  - verificato a video in tema chiaro e scuro;
+  - deploy: `migrate assets` (0121).
 - **Schede asset IT/stampanti/MFC a tutta pagina e più compatte** (`django_app/assets/static/assets/asset-it.css`, `django_app/contatori/templates/contatori/_consumabili_asset.html`, `django_app/assets/templates/assets/partials/it_monitoring.html`):
   - le schede asset con presentazione IT (stampanti, MFC, PC, server…) usano tutta la larghezza, senza il limite centrale di 1480 px;
   - spazi ridotti nella sezione «Dati dal monitoraggio» e nei riquadri della scheda: intestazioni apribili, titoli, paragrafi, riquadri modello/IP/contratto, contatori MFC, righe tabella, schede consumabili su una riga con percentuale a destra (pagina MFC di prova a 1920 px: da circa 2.770 a 2.290 px di altezza);
