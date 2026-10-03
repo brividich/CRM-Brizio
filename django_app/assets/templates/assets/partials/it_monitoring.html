@@ -2,7 +2,7 @@
 <section class="af-card af-it-soc" id="asset-it-monitoring" aria-labelledby="asset-it-monitoring-title">
   <div class="af-card-head"><div><div class="af-card-kicker">DATI DAL MONITORAGGIO</div><h2 class="af-card-title" id="asset-it-monitoring-title">{% if it_presentation.profile == 'printer' %}Stampante, consumabili e contatori{% else %}Ultimi controlli SNMP{% endif %}</h2></div><a class="as-link-subtle" href="{{ it_monitoring.central_url }}">Apri centrale</a></div>
   <div class="af-it-body">
-    <p class="af-note">Dati già raccolti: questa pagina non interroga gli apparati. Un esito riuscito riguarda la data indicata, non la disponibilità attuale. Freschezza per dispositivo non ancora valutata.</p>
+    <p class="af-note">Un esito riuscito riguarda la data indicata, non la disponibilità attuale. Le letture salvate sono mostrate qui; il pulsante consumabili esegue una nuova lettura su richiesta.</p>
     {% for device in it_monitoring.devices %}
       <h3><a href="{{ device.url }}">{{ device.nome }}</a> · {{ device.host }}</h3>
       <p>{% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }} · {{ device.state_label }}{% else %}mai registrato{% endif %}.</p>
@@ -16,28 +16,42 @@
       </details>
       {% endif %}
       {% if it_presentation.profile == 'printer' %}
-      <details class="af-it-disclosure"><summary>Contatori e consumabili rilevati</summary>
+      <details class="af-it-disclosure" open><summary>Contatori e consumabili rilevati</summary>
         {% if device.snapshot %}<p>Fonte: rilevazione SNMP del {{ device.snapshot.rilevata_il|date:"d/m/Y H:i" }}. Esito: {{ device.snapshot.state_label }}.</p>{% endif %}
         {% if device.partial %}<p><strong>Rilevazione parziale.</strong> Alcuni dati non sono disponibili; consulta la scheda del dispositivo.</p>{% endif %}
         <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Indice contatore</th><th>Valore cumulativo</th><th>Unità</th></tr></thead><tbody>
           {% for counter in device.counters %}<tr><td>{{ counter.indice }}</td><td>{{ counter.valore|default_if_none:"Non noto" }}</td><td>{{ counter.unita }}</td></tr>{% empty %}<tr><td colspan="3">Contatori non disponibili nell'ultima rilevazione.</td></tr>{% endfor %}
         </tbody></table></div>
-        <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Consumabile</th><th>Livello riportato</th></tr></thead><tbody>
-          {% for supply in device.supplies %}<tr><td>{{ supply.nome }}{% if supply.tipo or supply.colore %} <span class="af-note">({{ supply.tipo }}{% if supply.tipo and supply.colore %}, {% endif %}{{ supply.colore }})</span>{% endif %}</td><td>{% if supply.display_pct is not None %}{{ supply.display_pct }}%{% else %}{{ supply.nota|default:"Quantità non comunicata" }}{% endif %}</td></tr>{% empty %}<tr><td colspan="2">Consumabili non disponibili nell'ultima rilevazione.</td></tr>{% endfor %}
-        </tbody></table></div>
+        {% include "contatori/_consumabili_asset.html" with supplies=device.supplies checked_at=device.snapshot.rilevata_il %}
         <p class="af-note">Fino a 20 contatori e 20 consumabili. I contatori Printer-MIB non sono una ripartizione contrattuale A4/A3 o B/N/colore.</p>
       </details>
       {% endif %}
     {% endfor %}
     {% for machine in it_monitoring.machines %}
       <h3><a href="{{ machine.url }}">MFC · {{ machine.reparto }}</a> · {{ machine.matricola }}</h3>
+      <div class="af-it-facts">
+        {% if machine.modello %}<div><span>Modello</span><strong>{{ machine.modello }}</strong></div>{% endif %}
+        {% if machine.host %}<div><span>Indirizzo IP</span><strong>{{ machine.host }}</strong></div>{% endif %}
+        {% if machine.contratto %}<div><span>Contratto MFC</span><strong>{{ machine.contratto }}</strong><small>{{ machine.fornitore }} · riferimento, non verifica di copertura</small></div>{% endif %}
+      </div>
       <p>{% if not machine.attiva %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if machine.snmp_ultimo_controllo %}{{ machine.snmp_ultimo_controllo|date:"d/m/Y H:i" }} · {{ machine.state_label }}{% else %}mai registrato{% endif %}.</p>
-      <details class="af-it-disclosure"><summary>Contatori mensili MFC</summary>
+      <details class="af-it-disclosure" open><summary>Contatori mensili MFC</summary>
       {% with reading=machine.reading %}{% if reading %}
         <p>Fonte: lettura mensile MFC · mese {{ reading.mese|date:"m/Y" }} · rilevata il {{ reading.rilevata_il|date:"d/m/Y H:i" }}. Valori cumulativi, non consumo del mese.</p>
-        <div class="af-table-wrap"><table class="af-table"><thead><tr><th>A4 B/N</th><th>A3 B/N</th><th>A4 colore</th><th>A3 colore</th></tr></thead><tbody><tr><td>{{ reading.a4_bn }}</td><td>{{ reading.a3_bn }}</td><td>{{ reading.a4_col }}</td><td>{{ reading.a3_col }}</td></tr></tbody></table></div>
+        <div class="af-it-facts af-it-counters"><div><span>A4 B/N</span><strong>{{ reading.a4_bn }}</strong></div><div><span>A3 B/N</span><strong>{{ reading.a3_bn }}</strong></div><div><span>A4 colore</span><strong>{{ reading.a4_col }}</strong></div><div><span>A3 colore</span><strong>{{ reading.a3_col }}</strong></div></div>
       {% else %}<p>Nessuna lettura mensile disponibile.</p>{% endif %}{% endwith %}
-      <p class="af-note">Consumabili MFC non inclusi: si consultano nel modulo Contatori con lettura esplicita.</p></details>
+      </details>
+      <div class="af-it-live">
+        <h3>Consumabili MFC</h3>
+        {% if machine.supplies_url %}
+        <form method="post" action="{{ machine.supplies_url }}" hx-post="{{ machine.supplies_url }}" hx-target="#mfc-supplies-{{ machine.id }}" hx-disabled-elt="find button" hx-indicator="#mfc-loading-{{ machine.id }}" hx-on::response-error="document.getElementById('mfc-supplies-{{ machine.id }}').textContent='Lettura non disponibile. Verifica i permessi o riprova.'" hx-on::send-error="document.getElementById('mfc-supplies-{{ machine.id }}').textContent='Connessione non disponibile. Riprova.'">
+          {% csrf_token %}<input type="hidden" name="asset_inline" value="1">
+          <button class="af-btn af-btn-secondary" type="submit">Leggi consumabili qui</button>
+          <span class="htmx-indicator" id="mfc-loading-{{ machine.id }}" role="status">Lettura in corso…</span>
+        </form>
+        <div id="mfc-supplies-{{ machine.id }}" aria-live="polite"><p class="af-note">Premi per vedere toner e altri consumabili in questa scheda. La lettura contatta la stampante e può richiedere alcuni secondi.</p></div>
+        {% else %}<p class="af-note">Lettura consumabili non disponibile: occorrono monitoraggio attivo, indirizzo IP e permesso di lettura.</p>{% endif %}
+      </div>
     {% endfor %}
     {% if not it_monitoring.devices and not it_monitoring.machines %}<p>Nessun monitoraggio collegato consultabile. Non equivale a dispositivo spento.</p>{% endif %}
     <p class="af-note">Massimo 10 collegamenti per tipo. Consulta la centrale per l'elenco completo; apparati diversi non vengono sommati.</p>

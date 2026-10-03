@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Schede IT: fallback di presentazione da categoria per tipo Altro; dati tecnici/SOC disponibili aperti. MFC con modello/IP/contratto/contatori e lettura consumabili nella scheda tramite POST protetto esistente, senza polling al caricamento. Nuovo frammento Contatori con livelli/ignoti/errori sintetici; nessuna migrazione. File e verifiche nel changelog root e checklist IT.
+
 - **Assets server/VM/stampante**: estesi i profili IT, snapshot SNMP autorizzati e datati, contatori generici separati dalle letture mensili MFC, consumabili 0% distinti dagli ignoti. Conservate personalizzazioni e pagina industriale; nessuna migrazione, polling automatico o modifica ACL globale. Checklist `docs/ai/CHECKLIST_ASSET_IT.md`.
 
 - **Assets PC/portatile**: nuova panoramica con assegnazione e SOC autorizzato in evidenza, alert attivi collegati via evento, backup per fonte/dispositivo/job (campione dichiarato), tecnica/rete e approfondimenti espandibili. Riuso layout, ticket, documenti e licenze; nessuna migrazione/route o modifica ai profili industriali. Dettagli e limiti in `docs/ai/CHECKLIST_ASSET_IT.md`.

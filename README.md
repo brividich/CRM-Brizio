@@ -162,6 +162,8 @@ sequenceDiagram
 
 Assets: schede dedicate a PC, portatili, server, VM e stampanti con panoramica per famiglia e approfondimenti espandibili. SOC e backup per job su campione dichiarato; sulle stampanti precedenza a snapshot SNMP, consumabili e contatori, distinti dalle letture mensili MFC. Il monitoraggio richiede accesso alle pagine Contatori; nessuna interrogazione apparati all'apertura. Dati manuali e letture datate non attestano protezione o disponibilità attuali. Le altre famiglie conservano la pagina esistente. [Checklist asset IT: implementazione, limiti e passi successivi](docs/ai/CHECKLIST_ASSET_IT.md).
 
+Anche gli asset legacy di tipo Altro possono usare il profilo IT della categoria, senza cambiare l'anagrafica. Specifiche/rete, backup e segnali popolati sono visibili direttamente; nelle MFC compaiono modello, IP, riferimento contratto, quattro contatori e il pulsante **Leggi consumabili qui**, con risultato nella scheda. Il pulsante esegue una lettura esplicita con i permessi Contatori e CSRF esistenti; non è un aggiornamento automatico né uno storico dei consumabili.
+
 | # | App Django | Area | URL prefisso | Sintesi |
 |---|---|---|---|---|
 | 1 | [`core`](django_app/core/) | Core | — (`/capa/`) | Middleware ACL, navigation registry, auth backends, audit, notifiche, export, ricerca globale, legacy models, **azioni CAPA** correttive/preventive trasversali |

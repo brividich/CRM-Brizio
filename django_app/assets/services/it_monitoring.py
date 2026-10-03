@@ -108,11 +108,13 @@ def monitoring_for_asset(request, asset):
     last_reading = LetturaMensileContatori.objects.filter(macchina_id=OuterRef("pk")).order_by("-rilevata_il", "-pk")
     machines = list(Macchina.objects.filter(asset=asset).order_by("reparto", "pk").annotate(
         reading_id=Subquery(last_reading.values("pk")[:1]),
-    ).values("id", "reparto", "matricola", "attiva", "snmp_stato", "snmp_ultimo_controllo", "reading_id")[:LINK_LIMIT])
+    ).values("id", "reparto", "matricola", "modello", "host", "contratto", "fornitore", "attiva", "snmp_stato", "snmp_ultimo_controllo", "reading_id")[:LINK_LIMIT])
     permitted_machines = []
     for machine in machines:
         machine["url"] = reverse("contatori:macchina", args=[machine["id"]])
         if can_view_monitoring(request, machine["url"]):
+            supplies_url = reverse("contatori:macchina_consumabili", args=[machine["id"]])
+            machine["supplies_url"] = supplies_url if machine["host"] and machine["attiva"] and can_view_monitoring(request, supplies_url) else ""
             permitted_machines.append(machine)
     readings = {row["id"]: row for row in LetturaMensileContatori.objects.filter(
         pk__in=[row["reading_id"] for row in permitted_machines if row["reading_id"]],

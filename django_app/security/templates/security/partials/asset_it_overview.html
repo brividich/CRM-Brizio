@@ -17,7 +17,7 @@
       {% if open_alerts %}<ul class="af-it-alerts">{% for alert in open_alerts %}<li><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title }}</a> · {{ alert.severity|ui_label }} · {{ alert.source.name }}</li>{% endfor %}</ul>{% endif %}
       {% if open_alert_count > 5 %}<p class="af-note">Mostrati i primi 5 alert, ordinati per gravità. Gli altri sono consultabili nel SOC.</p>{% endif %}
       {% if backup_attention_count %}<p><strong>Backup da controllare: {{ backup_attention_count }}. Ultimo esito fallito o con avvisi nel campione.</strong> Apri il dettaglio dei job.</p>{% endif %}
-      <details class="af-it-disclosure">
+      <details class="af-it-disclosure"{% if backup_rows %} open{% endif %}>
         <summary>Backup riportati per job{% if not backup_rows %} · nessun dato{% endif %}</summary>
         {% if backup_rows %}
           <p class="af-note">Esiti riportati dal job, non prova di ripristino del dispositivo. Campione: {{ backup_sample_size }} esecuzioni più recenti; il successo indicato è il più recente nel campione.</p>
@@ -32,7 +32,7 @@
           </tbody></table></div>
         {% else %}<p>Nessun backup riportato per questo asset. Policy e necessità di backup da verificare; non equivale a un backup fallito.</p>{% endif %}
       </details>
-      <details class="af-it-disclosure"><summary>Ultimi segnali e provenienza</summary>
+      <details class="af-it-disclosure"{% if signals %} open{% endif %}><summary>Ultimi segnali e provenienza</summary>
         <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Quando è accaduto</th><th>Segnale / dispositivo</th><th>Fonte</th><th>Acquisito</th></tr></thead><tbody>
           {% for signal in signals %}<tr><td>{{ signal.occurred_at|date:"d/m/Y H:i" }}</td><td>{{ signal.title }}<br><small>{{ signal.asset.hostname }} · {{ signal.status|default:"Esito non noto"|ui_label }}</small></td><td>{{ signal.source.name|default:"Non disponibile" }}</td><td>{{ signal.created_at|date:"d/m/Y H:i" }}</td></tr>{% empty %}<tr><td colspan="4">Nessun segnale disponibile.</td></tr>{% endfor %}
         </tbody></table></div><p class="af-note">Fino a 10 segnali recenti delle identità collegate. Nessuna correlazione automatica per nome o IP.</p>
