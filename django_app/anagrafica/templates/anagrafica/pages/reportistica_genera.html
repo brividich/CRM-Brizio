@@ -1,0 +1,112 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ modello.nome }} | Reportistica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+{% include "core/components/_hub_formkit.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:reportistica_index' %}">Reportistica</a>
+          <span class="fmd-sep"> / </span><span class="fmd-cur">{{ modello.nome }}</span>
+        </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-doc"/></svg>{{ modello.nome }}</h1>
+        <p class="fmd-ph-sub">Controlla l'anteprima, ritocca periodo, persone e testi, poi scarica: la copia consegnata resta in archivio.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% if can_manage %}<a href="{% url 'anagrafica:reportistica_modello_edit' modello.pk %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica struttura</a>{% endif %}
+      </div>
+    </div>
+
+    <div class="rp-layout">
+      <aside class="rp-side">
+        <form method="post" class="fmd-panel" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}<div class="hub-err" style="margin-bottom:10px;">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+          <div class="hub-fsec">
+            <div class="hub-fsec-h">Documento</div>
+            <div class="hub-form-stack">
+              {% include "core/forms/_field.html" with field=form.titolo %}
+              {% include "core/forms/_field.html" with field=form.sottotitolo %}
+              {% include "core/forms/_field.html" with field=form.destinatario %}
+            </div>
+          </div>
+          <div class="hub-fsec">
+            <div class="hub-fsec-h">Periodo e perimetro</div>
+            <div class="hub-form-stack">
+              {% include "core/forms/_field.html" with field=form.periodo_tipo %}
+              <div class="hub-form-grid">
+                {% include "core/forms/_field.html" with field=form.data_da %}
+                {% include "core/forms/_field.html" with field=form.data_a %}
+              </div>
+              {% include "core/forms/_field.html" with field=form.reparti %}
+              {% include "core/forms/_field.html" with field=form.aree %}
+              {% include "core/forms/_field.html" with field=form.mansioni %}
+              <div>
+                <input type="search" class="rp-filtro" data-rp-filtra="{{ form.persone.id_for_label }}" placeholder="Filtra persone per nome o matricola…" aria-label="Filtra persone">
+                {% include "core/forms/_field.html" with field=form.persone %}
+              </div>
+              {% include "core/forms/_field.html" with field=form.includi_cessati %}
+            </div>
+          </div>
+          {% if form.blocchi_testo %}
+          <div class="hub-fsec">
+            <div class="hub-fsec-h">Testi del documento</div>
+            <div class="hub-fsec-d">Segnaposto: {% for chiave, descr in segnaposto %}<code title="{{ descr }}">{{ chiave }}</code> {% endfor %}</div>
+            <div class="hub-form-stack">
+              {% for field in form.campi_testo %}{% include "core/forms/_field.html" %}{% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          <div class="hub-fsec">
+            <div class="hub-form-stack">
+              {% include "core/forms/_field.html" with field=form.note_archivio %}
+              {% if can_manage %}{% include "core/forms/_field.html" with field=form.salva_nel_modello %}{% endif %}
+            </div>
+          </div>
+          {% if documento.contiene_dati_personali %}
+          <div class="rp-avviso" style="margin-top:10px;">
+            Il documento contiene <b>dati personali nominativi</b>: invialo solo a chi ne ha titolo (contratto, capitolato,
+            richiesta dell'ente di certificazione) e con un canale protetto.
+          </div>
+          {% endif %}
+          <div class="rp-actions">
+            <button type="submit" name="azione" value="anteprima" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Aggiorna anteprima</button>
+            <button type="submit" name="azione" value="pdf" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-download"/></svg>PDF</button>
+            <button type="submit" name="azione" value="xlsx" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-download"/></svg>Excel</button>
+          </div>
+        </form>
+      </aside>
+
+      <section>
+        {% if documento %}
+          {% include "anagrafica/partials/_reportistica_documento.html" %}
+        {% else %}
+          <div class="fmd-panel fmd-empty"><span class="fmd-et">Correggi i campi per vedere l'anteprima</span></div>
+        {% endif %}
+      </section>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'anagrafica/js/reportistica.js' %}?v=1"></script>
+{% endblock %}

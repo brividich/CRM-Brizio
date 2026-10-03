@@ -74,6 +74,7 @@ body.theme-dark .ana-badge-count { background:var(--surface-alt); color:var(--te
       <div class="ana-sub">Filtra e analizza i dipendenti per area, contratto, consenso e categorie protette</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="ana-btn ana-btn-primary ana-btn-sm" href="{% url 'anagrafica:reportistica_index' %}" title="Modelli pronti per clienti e audit (PDF/Excel)">Reportistica</a>
       <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?{{ request.GET.urlencode }}&format=csv" title="Esporta CSV (no dati sensibili)">⬇ Esporta CSV</a>
       <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Lista dipendenti</a>
     </div>

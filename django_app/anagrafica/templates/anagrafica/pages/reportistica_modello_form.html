@@ -1,0 +1,132 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{% if modello %}Modifica modello{% else %}Nuovo modello{% endif %} | Reportistica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+{% include "core/components/_hub_formkit.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:reportistica_index' %}">Reportistica</a>
+          <span class="fmd-sep"> / </span><span class="fmd-cur">{% if modello %}{{ modello.nome }}{% else %}Nuovo modello{% endif %}</span>
+        </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-edit"/></svg>{% if modello %}Modifica modello{% else %}Nuovo modello di report{% endif %}</h1>
+        <p class="fmd-ph-sub">Intestazione, perimetro e periodo predefiniti, poi i blocchi del documento nell'ordine di stampa.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% if modello %}
+        <a href="{% url 'anagrafica:reportistica_genera' modello.pk %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-download"/></svg>Genera</a>
+        <form method="post" action="{% url 'anagrafica:reportistica_modello_elimina' modello.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare il modello? I documenti già generati restano in archivio.');">{% csrf_token %}
+          <button type="submit" class="fmd-btn fmd-btn-ghost">Elimina modello</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="post" id="rp-form" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="fmd-alert"><div class="fmd-alert-body"><div class="fmd-alert-t">{{ form.non_field_errors|join:" " }}</div></div></div>{% endif %}
+
+      <section class="fmd-panel fmd-block">
+        <div class="hub-fsec">
+          <div class="hub-fsec-h">Intestazione</div>
+          <div class="hub-fsec-d">Come il modello appare nell'elenco e cosa viene stampato in testa al documento.</div>
+          <div class="hub-form-grid">
+            {% include "core/forms/_field.html" with field=form.nome %}
+            {% include "core/forms/_field.html" with field=form.descrizione %}
+            {% include "core/forms/_field.html" with field=form.titolo_documento %}
+            {% include "core/forms/_field.html" with field=form.sottotitolo %}
+            {% include "core/forms/_field.html" with field=form.destinatario %}
+            {% include "core/forms/_field.html" with field=form.riservatezza %}
+            <div class="hub-field hub-col-full">
+              <label>{{ form.norme.label }}</label>
+              <div class="rp-flags">{% for cb in form.norme %}<label class="hub-check">{{ cb.tag }}<span>{{ cb.choice_label }}</span></label>{% endfor %}</div>
+            </div>
+          </div>
+        </div>
+        <div class="hub-fsec">
+          <div class="hub-fsec-h">Periodo e perimetro predefiniti</div>
+          <div class="hub-fsec-d">Valgono per tutte le sezioni con dati di persone; si possono cambiare al momento della generazione.</div>
+          <div class="hub-form-grid">
+            {% include "core/forms/_field.html" with field=form.periodo_tipo %}
+            {% include "core/forms/_field.html" with field=form.data_da %}
+            {% include "core/forms/_field.html" with field=form.data_a %}
+            {% include "core/forms/_field.html" with field=form.reparti %}
+            {% include "core/forms/_field.html" with field=form.aree %}
+            {% include "core/forms/_field.html" with field=form.mansioni %}
+            <div class="hub-col-full">
+              <input type="search" class="rp-filtro" data-rp-filtra="{{ form.persone.id_for_label }}" placeholder="Filtra persone per nome o matricola…" aria-label="Filtra persone">
+              {% include "core/forms/_field.html" with field=form.persone %}
+            </div>
+            {% include "core/forms/_field.html" with field=form.includi_cessati %}
+          </div>
+        </div>
+        <div class="hub-fsec">
+          <div class="hub-fsec-h">Firme</div>
+          <div class="hub-fsec-d">Nomi stampati nel riquadro firme e nei segnaposto <code>{% templatetag openvariable %}redatto_da{% templatetag closevariable %}</code> / <code>{% templatetag openvariable %}approvato_da{% templatetag closevariable %}</code>.</div>
+          <div class="hub-form-grid">
+            {% include "core/forms/_field.html" with field=form.redatto_da %}
+            {% include "core/forms/_field.html" with field=form.verificato_da %}
+            {% include "core/forms/_field.html" with field=form.approvato_da %}
+          </div>
+        </div>
+      </section>
+
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-doc"/></svg>Contenuto del documento</div>
+          <span class="fmd-block-aside">i blocchi si stampano in quest'ordine</span>
+        </div>
+        {{ formset.management_form }}
+        {% if formset.non_form_errors %}<div class="hub-err">{{ formset.non_form_errors|join:" " }}</div>{% endif %}
+        <div class="rp-blocchi" id="rp-blocchi">
+          {% for f in formset %}{% include "anagrafica/partials/_reportistica_blocco.html" %}{% endfor %}
+        </div>
+        <div class="rp-addbar" style="margin-top:10px;">
+          <span class="rp-addbar-l">Aggiungi:</span>
+          <button type="button" class="fmd-btn fmd-btn-ghost" data-rp-aggiungi="TESTO"><svg class="fmd-ico"><use href="#i-plus"/></svg>Testo libero</button>
+          <button type="button" class="fmd-btn fmd-btn-ghost" data-rp-aggiungi="SEZIONE"><svg class="fmd-ico"><use href="#i-plus"/></svg>Sezione dati</button>
+          <button type="button" class="fmd-btn fmd-btn-ghost" data-rp-aggiungi="PAGINA"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova pagina</button>
+          <button type="button" class="fmd-btn fmd-btn-ghost" data-rp-aggiungi="FIRME"><svg class="fmd-ico"><use href="#i-plus"/></svg>Riquadro firme</button>
+        </div>
+        <div class="rp-segnaposto" style="margin-top:12px;">
+          <b>Nei testi:</b> riga che inizia con <code>##</code> = sottotitolo · riga che inizia con <code>-</code> = elenco puntato ·
+          <code>**parola**</code> = grassetto · riga vuota = nuovo paragrafo.<br>
+          <b>Segnaposto</b> sostituiti alla generazione:
+          {% for chiave, descr in segnaposto %}<code title="{{ descr }}">{{ chiave }}</code> {% endfor %}
+        </div>
+      </section>
+
+      <div class="fmd-panel" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+        <a href="{% url 'anagrafica:reportistica_index' %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        <button type="submit" name="dopo" value="resta" class="fmd-btn fmd-btn-ghost">Salva</button>
+        <button type="submit" name="dopo" value="genera" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-download"/></svg>Salva e genera</button>
+      </div>
+    </form>
+
+    <template id="rp-tpl">{% with f=formset.empty_form %}{% include "anagrafica/partials/_reportistica_blocco.html" %}{% endwith %}</template>
+    {{ sezioni_info|json_script:"rp-sezioni" }}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'anagrafica/js/reportistica.js' %}?v=1"></script>
+{% endblock %}

@@ -2883,3 +2883,4 @@ from .models_recruiting import *  # noqa: E402, F401, F403
 # Acquisizione referti di sorveglianza sanitaria (strato additivo: non tocca
 # TipoVisitaMedica/VisitaMedica, descrive solo il tragitto della scansione).
 from .models_sorveglianza import *  # noqa: E402, F401, F403
+from .models_reportistica import *  # noqa: E402, F401, F403
