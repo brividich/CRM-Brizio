@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from . import views_mpq
 from . import views_recruiting
+from . import views_reportistica
 from . import views_sorveglianza
 
 app_name = "anagrafica"
@@ -187,6 +188,17 @@ urlpatterns = [
 
     # Report dipendenti
     path("dipendenti/report/", views.dipendenti_report, name="dipendenti_report"),
+
+    # Reportistica componibile (modelli a blocchi, PDF/Excel, archivio)
+    path("reportistica/", views_reportistica.reportistica_index, name="reportistica_index"),
+    path("reportistica/modelli/nuovo/", views_reportistica.reportistica_modello_create, name="reportistica_modello_create"),
+    path("reportistica/modelli/<int:pk>/", views_reportistica.reportistica_genera, name="reportistica_genera"),
+    path("reportistica/modelli/<int:pk>/modifica/", views_reportistica.reportistica_modello_edit, name="reportistica_modello_edit"),
+    path("reportistica/modelli/<int:pk>/duplica/", views_reportistica.reportistica_modello_duplica, name="reportistica_modello_duplica"),
+    path("reportistica/modelli/<int:pk>/elimina/", views_reportistica.reportistica_modello_elimina, name="reportistica_modello_elimina"),
+    path("reportistica/predefiniti/", views_reportistica.reportistica_predefiniti, name="reportistica_predefiniti"),
+    path("reportistica/archivio/<int:pk>/", views_reportistica.reportistica_archivio_download, name="reportistica_archivio_download"),
+    path("reportistica/archivio/<int:pk>/elimina/", views_reportistica.reportistica_archivio_elimina, name="reportistica_archivio_elimina"),
 
     # Mansioni catalogo
     path("mansioni/", views.mansioni_list, name="mansioni_list"),

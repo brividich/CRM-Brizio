@@ -1,0 +1,60 @@
+{% comment %}
+Un blocco dell'editor dei modelli di report (anche come stampo per i blocchi nuovi:
+in quel caso il prefisso contiene __prefix__ e il tipo lo imposta il JS).
+{% endcomment %}
+<div class="rp-blocco" data-tipo="{{ f.tipo.value|default:'TESTO' }}" data-rp-blocco>
+  {{ f.id }}{{ f.ordine }}{{ f.tipo.as_hidden }}
+  <span class="rp-blocco-hidden">{{ f.DELETE }}</span>
+  <div class="rp-blocco-head">
+    <span class="rp-blocco-n" data-rp-n></span>
+    <span class="rp-blocco-tipo" data-rp-tipo-label></span>
+    <span class="rp-blocco-anteprima" data-rp-anteprima></span>
+    <span class="rp-blocco-tools">
+      <button type="button" data-rp-su title="Sposta su" aria-label="Sposta su">↑</button>
+      <button type="button" data-rp-giu title="Sposta giù" aria-label="Sposta giù">↓</button>
+      <button type="button" class="rp-del" data-rp-elimina title="Elimina il blocco" aria-label="Elimina il blocco">✕</button>
+    </span>
+  </div>
+  <div class="rp-blocco-body">
+    {% if f.non_field_errors %}<div class="hub-err">{{ f.non_field_errors|join:" " }}</div>{% endif %}
+    <div class="rp-only-sez">
+      {% include "core/forms/_field.html" with field=f.sezione %}
+      <div class="rp-sez-info" data-rp-sez-info></div>
+    </div>
+    <div class="rp-only-titolo">
+      <div class="hub-field{% if f.titolo.errors %} hub-field-err{% endif %}">
+        <label for="{{ f.titolo.id_for_label }}">Titolo <span class="rp-only-sez" style="font-weight:400;">(vuoto = titolo della sezione)</span></label>
+        {{ f.titolo }}
+        {% for err in f.titolo.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="rp-only-sez">
+      <div class="rp-cols-h">Cosa mostrare</div>
+      <div class="rp-flags">
+        <label class="hub-check">{{ f.mostra_indicatori }}<span>Indicatori</span></label>
+        <label class="hub-check">{{ f.mostra_tabella }}<span>Tabella di dettaglio</span></label>
+        <label class="hub-check">{{ f.mostra_note }}<span>Note di calcolo</span></label>
+      </div>
+    </div>
+    <div class="rp-only-sez">
+      {% for sez_key, colonne in colonne_per_sezione %}
+      <div class="rp-cols rp-blocco-hidden" data-rp-cols="{{ sez_key }}">
+        <div class="rp-cols-h" style="grid-column:1/-1;">Colonne della tabella</div>
+        {% for val, label in colonne %}
+        <label><input type="checkbox" name="{{ f.colonne.html_name }}" value="{{ val }}"{% if val in f.colonne.value %} checked{% endif %}> {{ label }}</label>
+        {% endfor %}
+      </div>
+      {% endfor %}
+      <div class="rp-sez-info rp-blocco-hidden" data-rp-cols-fisse>Colonne fisse: la tabella è quella del report conformità di origine.</div>
+    </div>
+    <div class="rp-only-testo">
+      <div class="hub-field{% if f.testo.errors %} hub-field-err{% endif %}">
+        <label for="{{ f.testo.id_for_label }}"><span class="rp-only-sez">Commento sotto la sezione (facoltativo)</span><span data-rp-label-testo>Testo</span></label>
+        {{ f.testo }}
+        {% for err in f.testo.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="rp-only-firme rp-sez-info">Riquadro con i nomi di <b>Redatto / Verificato / Approvato</b> dell'intestazione e lo spazio per firma e data.</div>
+    <div class="rp-only-pagina rp-sez-info">Il blocco successivo inizia su una nuova pagina del PDF.</div>
+  </div>
+</div>

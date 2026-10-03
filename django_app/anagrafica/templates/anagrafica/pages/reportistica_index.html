@@ -1,0 +1,160 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Reportistica | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+{% include "core/components/_hub_formkit.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Reportistica</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-doc"/></svg>Report pronti per clienti e audit</h1>
+          <p class="fmd-sub">Modelli salvati per ISO 9001, EN 9100, ISO 45001, ISO 27001 e UNI/PdR 125: scegli il modello, aggiorna periodo, persone e testi, scarica PDF o Excel. Ogni documento consegnato resta in archivio.</p>
+        </div>
+        <div class="fmd-hero-actions">
+          {% if can_manage %}
+          <a href="{% url 'anagrafica:reportistica_modello_create' %}" class="fmd-btn-template"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo modello</a>
+          {% endif %}
+          <a href="{% url 'anagrafica:dipendenti_report' %}" class="fmd-btn-template"><svg class="fmd-ico"><use href="#i-users"/></svg>Elenco dipendenti filtrabile</a>
+          <a href="{% url 'report_conformita:index' %}" class="fmd-btn-template"><svg class="fmd-ico"><use href="#i-shield"/></svg>Report conformità</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-grid"/></svg>Modelli</div>
+        <span class="fmd-block-aside">{{ modelli|length }} modell{{ modelli|length|pluralize:"o,i" }}</span>
+      </div>
+      {% if modelli %}
+      <div class="rp-grid">
+        {% for m in modelli %}
+        <article class="rp-card">
+          <div class="rp-card-head">
+            <div class="rp-card-title">{{ m.nome }}</div>
+            {% if m.codice_sistema %}<span class="rp-sistema" title="Modello predefinito, modificabile">Pronto</span>{% endif %}
+          </div>
+          {% if m.descrizione %}<div class="rp-card-desc">{{ m.descrizione }}</div>{% endif %}
+          <div class="rp-card-meta">
+            {% for n in m.norme %}<span class="rp-norma{% if 'PdR' in n %} rp-norma-pdr{% endif %}">{{ n }}</span>{% endfor %}
+          </div>
+          <div class="rp-card-meta">
+            <span>{{ m.n_blocchi }} blocchi</span>
+            <span>·</span><span>{{ m.get_periodo_tipo_display }}</span>
+            {% if m.destinatario %}<span>·</span><span>Per: {{ m.destinatario }}</span>{% endif %}
+            <span>·</span><span>{% if m.ultima_generazione %}ultimo invio {{ m.ultima_generazione|date:"d/m/Y" }}{% else %}mai generato{% endif %}</span>
+          </div>
+          <div class="rp-card-actions">
+            <a href="{% url 'anagrafica:reportistica_genera' m.pk %}" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-download"/></svg>Genera</a>
+            {% if can_manage %}
+            <a href="{% url 'anagrafica:reportistica_modello_edit' m.pk %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica</a>
+            <form method="post" action="{% url 'anagrafica:reportistica_modello_duplica' m.pk %}">{% csrf_token %}
+              <button type="submit" class="fmd-btn fmd-btn-ghost">Duplica</button>
+            </form>
+            {% endif %}
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-et">Nessun modello</span>
+        <span class="fmd-em">Ripristina i modelli predefiniti o creane uno nuovo.</span>
+      </div>
+      {% endif %}
+      {% if can_manage %}
+      <form method="post" action="{% url 'anagrafica:reportistica_predefiniti' %}" style="margin-top:12px;">{% csrf_token %}
+        <button type="submit" class="fmd-btn fmd-btn-ghost" title="Ricrea solo i modelli predefiniti eliminati; non tocca quelli esistenti">
+          <svg class="fmd-ico"><use href="#i-refresh"/></svg>Ripristina modelli predefiniti
+        </button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Archivio dei documenti generati</div>
+        <span class="fmd-block-aside">ultimi 60 · chi, quando, per chi</span>
+      </div>
+      <form method="get" class="fmd-filterbar" style="margin-bottom:10px;">
+        <div class="fmd-filtf">
+          <label for="rp-q">Cerca</label>
+          <input type="text" id="rp-q" name="q" value="{{ q }}" placeholder="Titolo, destinatario, modello…">
+        </div>
+        <div class="fmd-filtf fmd-go">
+          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-search"/></svg>Cerca</button>
+          {% if q %}<a href="{% url 'anagrafica:reportistica_index' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>{% endif %}
+        </div>
+      </form>
+      {% if archivio %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr>
+            <th>Generato</th><th>Documento</th><th>Destinatario</th><th>Periodo</th><th>Formato</th><th>Da</th><th>Nota</th><th></th>
+          </tr></thead>
+          <tbody>
+          {% for d in archivio %}
+            <tr>
+              <td class="fmd-nowrap">{{ d.generato_il|date:"d/m/Y H:i" }}</td>
+              <td>
+                <div class="fmd-cell-main">{{ d.titolo }}</div>
+                <div class="fmd-cell-sub">{{ d.modello_nome }}{% if d.contiene_dati_personali %} · <span title="Contiene dati personali nominativi">dati personali</span>{% endif %}</div>
+              </td>
+              <td>{{ d.destinatario|default:"—" }}</td>
+              <td class="fmd-nowrap">{{ d.data_da|date:"d/m/Y" }} – {{ d.data_a|date:"d/m/Y" }}</td>
+              <td>{{ d.get_formato_display }}</td>
+              <td>{{ d.generato_da.get_full_name|default:d.generato_da.username|default:"—" }}</td>
+              <td>{{ d.note|default:"" }}</td>
+              <td class="fmd-nowrap">
+                <a href="{% url 'anagrafica:reportistica_archivio_download' d.pk %}" class="fmd-btn fmd-btn-ghost fmd-btn-mini" title="Scarica la copia archiviata (identica a quella consegnata)"><svg class="fmd-ico"><use href="#i-download"/></svg></a>
+                {% if can_manage %}
+                <form method="post" action="{% url 'anagrafica:reportistica_archivio_elimina' d.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare il documento dall\'archivio?');">{% csrf_token %}
+                  <button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini" title="Elimina dall'archivio">✕</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty"><span class="fmd-et">{% if q %}Nessun documento trovato{% else %}Nessun documento generato{% endif %}</span></div>
+      {% endif %}
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-book"/></svg>Sezioni dati disponibili</div>
+        <span class="fmd-block-aside">da combinare nei modelli</span>
+      </div>
+      <div class="rp-catalogo">
+        {% for gruppo, voci in catalogo %}
+        <div>
+          <h4>{{ gruppo }}</h4>
+          <ul>{% for s in voci %}<li title="{{ s.descrizione }}">{{ s.titolo }}</li>{% endfor %}</ul>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+  </div>
+</div>
+{% endblock %}

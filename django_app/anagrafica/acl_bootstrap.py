@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 #   (PERM_DOCUMENTI_RISERVATI). La cache vive nel DB e sopravvive ai deploy: senza
 #   chiave nuova un ambiente già a v12 non registrerebbe il permesso.
 # Bump alla v14: permesso e binding della rimozione motivata visite mediche.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v14"
+# Bump alla v15: permessi e binding della Reportistica componibile.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v15"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -166,6 +167,47 @@ _RECR_ROUTE_BINDINGS = {
 _RECR_ROLE_GRANTS = {
     "admin": {PERM_RECR_VIEW, PERM_RECR_MANAGE},
     "amministrazione": {PERM_RECR_VIEW, PERM_RECR_MANAGE},
+}
+
+
+# ── ACL v2 canonico — Reportistica componibile (modelli, generazione, archivio) ──
+# Documenti per clienti ed enti di certificazione con dati nominativi del
+# personale: grant di default solo ai ruoli che li producono. Le sezioni con dati
+# particolari (visite mediche) chiedono in view il loro permesso di sezione.
+PERM_REP_VIEW = "anagrafica.reportistica.view"
+PERM_REP_MANAGE = "anagrafica.reportistica.manage"
+
+_REP_CANONICAL = {
+    PERM_REP_VIEW: {
+        "label": "Anagrafica - Reportistica (genera e consulta)",
+        "description": (
+            "Generazione dei report da modello (PDF/Excel) e consultazione dell'archivio dei "
+            "documenti consegnati. Contiene dati nominativi del personale."
+        ),
+    },
+    PERM_REP_MANAGE: {
+        "label": "Anagrafica - Reportistica (gestisci modelli)",
+        "description": "Creazione, modifica, duplicazione ed eliminazione dei modelli di report e dell'archivio.",
+    },
+}
+
+_REP_ROUTE_BINDINGS = {
+    "anagrafica:reportistica_index": PERM_REP_VIEW,
+    "anagrafica:reportistica_genera": PERM_REP_VIEW,
+    "anagrafica:reportistica_archivio_download": PERM_REP_VIEW,
+    "anagrafica:reportistica_modello_create": PERM_REP_MANAGE,
+    "anagrafica:reportistica_modello_edit": PERM_REP_MANAGE,
+    "anagrafica:reportistica_modello_duplica": PERM_REP_MANAGE,
+    "anagrafica:reportistica_modello_elimina": PERM_REP_MANAGE,
+    "anagrafica:reportistica_predefiniti": PERM_REP_MANAGE,
+    "anagrafica:reportistica_archivio_elimina": PERM_REP_MANAGE,
+}
+
+# Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).
+_REP_ROLE_GRANTS = {
+    "admin": {PERM_REP_VIEW, PERM_REP_MANAGE},
+    "hr": {PERM_REP_VIEW, PERM_REP_MANAGE},
+    "qualita": {PERM_REP_VIEW, PERM_REP_MANAGE},
 }
 
 
@@ -512,14 +554,59 @@ def _bootstrap_recruiting_canonical() -> bool:
     return changed
 
 
+def _bootstrap_reportistica_canonical() -> bool:
+    """Permessi canonici Reportistica + binding route + grant di default (stesso pattern di Recruiting)."""
+    from core.legacy_models import Ruolo
+    from core.models import (
+        PermissionDefinition, RolePermissionGrant, RoutePermissionBinding,
+    )
+
+    changed = False
+    with transaction.atomic():
+        for code, payload in _REP_CANONICAL.items():
+            _, created = PermissionDefinition.objects.get_or_create(
+                code=code,
+                defaults={"module": MODULE, "label": payload["label"],
+                          "description": payload["description"], "is_active": True},
+            )
+            changed = changed or created
+
+        for route_name, code in _REP_ROUTE_BINDINGS.items():
+            binding, created = RoutePermissionBinding.objects.get_or_create(
+                route_name=route_name, path_pattern="",
+                defaults={"match_strategy": RoutePermissionBinding.MATCH_EXACT,
+                          "permission_id": code, "source_app": MODULE,
+                          "note": "[REP_BOOTSTRAP] binding Reportistica",
+                          "priority": 80, "is_active": True},
+            )
+            changed = changed or created
+            if not created and (binding.permission_id != code or not binding.is_active):
+                binding.permission_id = code
+                binding.is_active = True
+                binding.save(update_fields=["permission", "is_active", "updated_at"])
+                changed = True
+
+        roles = {int(r.id): _norm(r.nome) for r in Ruolo.objects.all()}
+        for rid, rname in roles.items():
+            grants = _REP_ROLE_GRANTS.get(rname, set())
+            for code in (PERM_REP_VIEW, PERM_REP_MANAGE):
+                _, created = RolePermissionGrant.objects.get_or_create(
+                    legacy_role_id=rid, permission_id=code,
+                    defaults={"enabled": code in grants, "note": "[REP_BOOTSTRAP] default"},
+                )
+                changed = changed or created
+    return changed
+
+
 def _bootstrap_anagrafica_canonical() -> bool:
-    """Bootstrap canonico delle aree anagrafica governate da ACL v2 (SKM + MPQ + Recruiting + export + sezioni)."""
+    """Bootstrap canonico delle aree anagrafica governate da ACL v2 (SKM + MPQ + Recruiting + Reportistica + export + sezioni)."""
     changed_skm = _bootstrap_skillmatrix_canonical()
     changed_mpq = _bootstrap_mpq_canonical()
     changed_recr = _bootstrap_recruiting_canonical()
+    changed_rep = _bootstrap_reportistica_canonical()
     changed_export = _bootstrap_export_canonical()
     changed_sezioni = _bootstrap_sezioni_canonical()
-    return bool(changed_skm or changed_mpq or changed_recr or changed_export or changed_sezioni)
+    return bool(changed_skm or changed_mpq or changed_recr or changed_rep or changed_export or changed_sezioni)
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "anagrafica", "codice": "anagrafica_index", "label": "Anagrafica - Dashboard", "url": "/anagrafica/", "hide": False},
