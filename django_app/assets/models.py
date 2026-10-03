@@ -102,6 +102,13 @@ class Asset(models.Model):
         verbose_name="Foto targhetta",
         help_text="Foto della targhetta identificativa della macchina, mostrata in cima alla scheda dell'asset.",
     )
+    immagine = models.ImageField(
+        upload_to="assets/immagini/",
+        null=True,
+        blank=True,
+        verbose_name="Immagine asset",
+        help_text="Foto o immagine dell'asset, mostrata come icona in cima alla scheda.",
+    )
     part_145 = models.BooleanField(
         default=False,
         verbose_name="Rientra in PART 145",
