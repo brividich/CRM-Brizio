@@ -8,6 +8,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Schede asset IT/stampanti/MFC a tutta pagina e più compatte** (`django_app/assets/static/assets/asset-it.css`, `django_app/contatori/templates/contatori/_consumabili_asset.html`, `django_app/assets/templates/assets/partials/it_monitoring.html`):
+  - le schede asset con presentazione IT (stampanti, MFC, PC, server…) usano tutta la larghezza, senza il limite centrale di 1480 px;
+  - spazi ridotti nella sezione «Dati dal monitoraggio» e nei riquadri della scheda: intestazioni apribili, titoli, paragrafi, riquadri modello/IP/contratto, contatori MFC, righe tabella, schede consumabili su una riga con percentuale a destra (pagina MFC di prova a 1920 px: da circa 2.770 a 2.290 px di altezza);
+  - consumabili con tipo e colore; barre di livello leggibili anche in tema scuro;
+  - integra `main` (consumabili a schede «contenuti IT inline») con i valori SNMP rilevati della feature; verificato a video in chiaro e scuro.
 - **Scheda asset — valori SNMP rilevati ed etichette dei codici di stato** (`django_app/assets/services/it_monitoring.py`, `django_app/assets/templates/assets/partials/it_monitoring.html`, `django_app/assets/tests_it_infrastructure.py`, `django_app/contatori/{models.py,services.py,forms.py,tests_snmp_preset.py}`, `django_app/contatori/migrations/{0020_etichette_valori.py,0021_etichette_preset_verificati.py}`, `docs/snmp/PRESET_CATALOG.md`, `README.md`):
   - la scheda asset mostra nella sezione «Dati dal monitoraggio» i **Valori rilevati** dell'ultima rilevazione SNMP dei dispositivi collegati (fino a 30, con esito): modello, errori stampante, display, contatori Canon, salute NAS, CPU/RAM… Solo dati già raccolti, nessun polling, con gli stessi controlli ACL; i messaggi d'errore tecnici restano nella scheda dispositivo;
   - numeri in formato italiano (migliaia, al massimo 2 decimali), uptime in giorni e ore; consumabili con tipo e colore;
