@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori/SNMP — contatori contrattuali Kyocera TASKalfa** (`django_app/contatori/migrations/0023_kyocera_contatori_mfc.py`, `django_app/contatori/tests_snmp_preset.py`, `django_app/contatori/fixtures/snmp/kyocera_taskalfa_5054ci.snmprec`, `docs/snmp/PRESET_CATALOG.md`):
+  - il profilo «Kyocera MFP e stampanti» non aveva i quattro contatori MFC (A4/A3 B/N e colore): la lettura delle TASKalfa nella Centrale Contatori falliva sempre («profilo incompleto» o «modello senza counter_map»);
+  - aggiunti dalla tabella KYOCERA per formato `1347.42.3.1.6.1.1.<colore>.<formato>`, verificati su 5054ci e 3554ci: A3 + A4 coincidono al foglio con i totali B/N e colore, che passano da «da confermare» a verificati e attivi;
+  - le MFC con modello «TASKalfa» senza profilo ricevono il profilo Kyocera; gli apparati SNMP già associati ricevono subito le nuove sonde;
+  - deploy: `migrate contatori` (0023). Le Kyocera rispondono solo alla community `public`: va impostata sulla scheda macchina se la community predefinita è un'altra.
+
 - **Contatori/SNMP — preset HPE ProLiant / iLO verificato** (`django_app/contatori/migrations/0022_preset_hpe_ilo_verificato.py`, `django_app/contatori/tests_snmp_preset.py`, `django_app/contatori/fixtures/snmp/hpe_ilo5_dl360_gen10.snmprec`, `docs/snmp/PRESET_CATALOG.md`, `README.md`):
   - il profilo «HPE ProLiant / iLO» aveva solo le sonde server generiche (processi e utenti attivi, HOST-RESOURCES-MIB), che l'iLO non espone: ogni lettura falliva. Le due colonne sono rimosse, insieme alle sonde che avevano generato;
   - 15 sonde verificate su un DL360 Gen10 con iLO 5 2.72: modello, seriale, firmware iLO, stato di salute generale, temperature, ventole, alimentatori, memoria, processori, storage/controller, schede di rete, iLO, batteria di sistema (OK = 2, attenzione oltre 2, critico oltre 3, con etichette), temperatura massima dei sensori, consumo in watt;
