@@ -5,18 +5,30 @@
 {% block assets_shell_title %}{% if is_edit %}Modifica asset{% else %}Nuovo asset{% endif %}{% endblock %}
 
 {% block assets_shell_content %}
-<section style="max-width:980px;display:grid;gap:14px;">
+<section style="max-width:1120px;display:grid;gap:18px;margin:0 auto;">
   <header>
     <a href="{% if asset %}{% url 'assets:asset_view' asset.id %}{% else %}{% url 'assets:asset_list' %}{% endif %}" class="as-backlink">&larr; Indietro</a>
   </header>
 
-  <form method="post" enctype="multipart/form-data" style="display:grid;gap:10px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+  {% if not is_edit %}
+    <div style="padding:20px 22px;border:1px solid #dbe1ea;border-radius:16px;background:linear-gradient(120deg,#fff 0%,#f3f7ff 100%);box-shadow:0 8px 24px rgba(15,23,42,.05);">
+      <div style="font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#52627a;">Inventario asset</div>
+      <h2 style="margin:5px 0 6px;font-size:23px;color:#10233f;">Registra un nuovo bene</h2>
+      <p style="margin:0;max-width:760px;color:#52627a;line-height:1.5;">Inserisci nome e categoria, poi completa i dati disponibili. Il tag viene assegnato automaticamente quando lasci vuoto il campo; i dettagli specifici compaiono dopo la scelta della categoria.</p>
+    </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" style="display:grid;gap:16px;border:1px solid #dbe1ea;border-radius:16px;background:#fff;padding:22px;box-shadow:0 8px 24px rgba(15,23,42,.05);">
     {% csrf_token %}
     {% if form.non_field_errors %}
       <div style="padding:10px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:10px;">
         {{ form.non_field_errors }}
       </div>
     {% endif %}
+    <div style="padding-bottom:12px;border-bottom:1px solid #e8edf4;">
+      <h3 class="as-section-title" style="margin:0 0 4px;">Identificazione e dati principali</h3>
+      <div class="as-help">Nome e categoria identificano il bene; puoi completare o aggiornare gli altri dati in seguito.</div>
+    </div>
     <div class="as-form-grid-3">
       {% for field in form %}
         {% if field.name in base_field_names and field.name != 'assignment_to' and field.name != 'assignment_reparto' and field.name != 'assignment_location' %}

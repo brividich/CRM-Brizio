@@ -173,7 +173,26 @@ class Asset(models.Model):
         )
 
     def _asset_tag_prefix(self) -> str:
-        if self.asset_type in {
+        asset_type = self.asset_type
+        # Le categorie di inventario create dagli utenti possono rimanere con
+        # base_asset_type=OTHER (default storico). Usa comunque la categoria
+        # PC per scegliere il prefisso IT quando il tipo tecnico non è stato
+        # classificato.
+        if asset_type == self.TYPE_OTHER and self.asset_category_id:
+            category = self.asset_category
+            labels = [category.label]
+            if category.parent_id:
+                labels.append(category.parent.label)
+            from .services.asset_catalog_import import classify_asset_type
+
+            inferred_type = self.TYPE_OTHER
+            for label in labels:
+                inferred_type = classify_asset_type(label)
+                if inferred_type != self.TYPE_OTHER:
+                    break
+            asset_type = inferred_type
+
+        if asset_type in {
             self.TYPE_PC,
             self.TYPE_NOTEBOOK,
             self.TYPE_SERVER,
@@ -184,13 +203,13 @@ class Asset(models.Model):
             self.TYPE_FONIA,
         }:
             return "IT"
-        if self.asset_type == self.TYPE_CNC:
+        if asset_type == self.TYPE_CNC:
             return "CNC"
-        if self.asset_type == self.TYPE_WORK_MACHINE:
+        if asset_type == self.TYPE_WORK_MACHINE:
             return "ML"
-        if self.asset_type == self.TYPE_CARROPONTE:
+        if asset_type == self.TYPE_CARROPONTE:
             return "CP"
-        if self.asset_type == self.TYPE_CCTV:
+        if asset_type == self.TYPE_CCTV:
             return "CCTV"
         return "AST"
 

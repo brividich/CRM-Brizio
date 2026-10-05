@@ -518,6 +518,10 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             else {}
         )
         self._setup_category_fields(work_machine_only=False)
+        self.fields["asset_tag"].help_text = (
+            "Lascia vuoto per assegnare il tag automaticamente in base alla categoria. "
+            "Per i PC il formato è IT-000001."
+        )
         self.fields["periodic_verification_ids"].queryset = PeriodicVerification.objects.order_by("name", "id")
         self.fields["periodic_verification_ids"].help_text = "Ogni asset puo appartenere a piu piani di manutenzione periodica."
         if self.instance and self.instance.pk:

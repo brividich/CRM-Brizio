@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-10-05 (tag PC e form inventario)
+
+- Categoria PC legacy con tipo tecnico OTHER generava `AST`; il prefisso automatico ora riconosce la categoria/antenato e sceglie `IT`. Form: chiarita l'assegnazione automatica e migliorata intestazione di creazione.
+- Worktree feature/assets-pc-tag-form da origin/release/prod; nessun dato esistente cambiato. Nessun test/check applicativo, database o deploy; diff check in chiusura. README, CHANGELOG, doc AI, registro e checkpoint aggiornati.
+- Resta da sistemare manualmente il tag dell'asset già creato (se il suo asset_tag è stato memorizzato come AST); la patch vale per le nuove creazioni. Nessun push/merge/deploy.
+
 Data: 2026-10-02 (contenuti IT inline e categoria legacy)
 
 - Feedback pagine povere: corretto resolver OTHER da categoria; MFC mostra dati contatori/modello/IP/contratto e legge consumabili in pagina. Tecnica/SOC disponibili aperti; inventario non riclassificato.

@@ -1,5 +1,12 @@
 # Agent Changelog
 
+## 2026-10-05 - Codex (tag PC e form inventario)
+
+- Richiesta: correggere il tag AST assegnato a un asset PC e rendere più chiara la creazione. Worktree `C:/Dev/pn-asset-pc-tag`, branch `feature/assets-pc-tag-form`, base `origin/release/prod`; checkout condiviso lasciato intatto (preservata la cartella non tracciata `parser pdf/`). File controllo sessione/lock/critical non presenti.
+- Causa: categorie PC legacy possono avere `base_asset_type=OTHER`; il modello sceglieva così il prefisso generico `AST`. Ora `_asset_tag_prefix()` riusa la classificazione esistente della categoria/antenato per scegliere `IT`. Nessun record esistente è stato modificato. Il form spiega il tag automatico e ha un'intestazione più leggibile.
+- File: `django_app/assets/models.py`, `forms.py`, `templates/assets/pages/asset_form.html`, `README.md`, `CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- Nessun file critico globale, migrazione, dipendenza o database modificato. Nessun backup. Check automatici/test non eseguiti; controllato il diff. Commit feature locale; nessun push, merge o deploy. README/CHANGELOG/registro/checkpoint aggiornati sì. Rischio residuo: tag inseriti manualmente e asset già creati non vengono riscritti automaticamente; per quello mostrato serve correggere il tag a `IT-000040` dalla scheda. Nessun esito browser verificato.
+
 ## 2026-10-02 - Codex (contenuti IT inline e categorie legacy)
 
 - Feedback utente: schede povere, dati desiderati dentro la pagina; screenshot stampante con tipo Altro. Worktree pn-asset-it-release, feature/assets-it-inline da main 1d35783c; checkpoint/delta letti, controlli sessione/lock/critical assenti. Risolta esclusione dal resolver usando categoria per OTHER (base esplicita o alias esatti/antenati), senza riclassificare dati, cercare per nome/IP o toccare CNC/WorkMachine/chimici.
