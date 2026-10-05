@@ -96,6 +96,38 @@ Lo storico lavori (`1347.47`) contiene i nomi dei documenti: è escluso dalle fi
 
 **Zebra ZD421.** Espone stato ed errori, ma non contatori, consumabili, seriale né display.
 
+## HPE ProLiant / iLO — profilo `hpe-server`
+
+Fonte: walk di un ProLiant DL360 Gen10 con iLO 5 2.72, 2026-10-05. Fixture: `hpe_ilo5_dl360_gen10.snmprec`, ridotta ai soli OID del preset: il walk completo contiene il registro eventi dell'iLO con nomi di PC e accessi.
+
+**Prerequisiti sull'iLO** (*Gestione → SNMP*): una **Read Community** compilata (senza, l'iLO scarta le richieste in silenzio e la lettura va in timeout) e, per SNMP v1, la casella **SNMPv1**. Su iLO 5/6 le Read Community si sbloccano solo dopo aver attivato SNMPv1. In Security State High Security/FIPS/CNSA l'iLO accetta solo SNMPv3, che il motore non supporta.
+
+**Riconoscimento.** `sysObjectID` `1.3.6.1.4.1.232.9.4.11`: basta il prefisso `1.3.6.1.4.1.232`.
+
+Le colonne generiche della migrazione 0009 (processi e utenti attivi, HOST-RESOURCES-MIB) sono state **rimosse**: l'iLO non le espone e risponde `noSuchName`. Quei dati, insieme a CPU e RAM del sistema operativo, vanno letti dall'host (ESXi/Windows), non dall'iLO.
+
+Le "condition" delle MIB HPE/Compaq hanno tutte la stessa scala: **1** altro/non presente, **2** OK, **3** degradato, **4** guasto. Soglie: avviso > 2, critico > 3. Nelle colonne WALK il massimo è il componente peggiore; gli slot vuoti valgono 1 e non pesano.
+
+| Colonna | OID | Lettura | Soglie | Note |
+|---|---|---|---|---|
+| Modello | `1.3.6.1.4.1.232.2.2.4.2.0` | GET testo | — | es. ProLiant DL360 Gen10 |
+| Seriale | `1.3.6.1.4.1.232.2.2.2.1.0` | GET testo | — | |
+| Firmware iLO | `1.3.6.1.4.1.232.9.2.2.2.0` | GET testo | — | |
+| Salute generale | `1.3.6.1.4.1.232.6.1.3.0` | GET | > 2 / > 3 | stato complessivo calcolato dall'iLO |
+| Temperature | `1.3.6.1.4.1.232.6.2.6.1.0` | GET | > 2 / > 3 | |
+| Ventole | `1.3.6.1.4.1.232.6.2.6.4.0` | GET | > 2 / > 3 | |
+| Alimentatori | `1.3.6.1.4.1.232.6.2.9.1.0` | GET | > 2 / > 3 | |
+| Memoria | `1.3.6.1.4.1.232.6.2.14.4.0` | GET | > 2 / > 3 | |
+| Processori | `1.3.6.1.4.1.232.1.1.3.0` | GET | > 2 / > 3 | |
+| Storage / controller | `1.3.6.1.4.1.232.3.1.3.0` | GET | > 2 / > 3 | |
+| Schede di rete | `1.3.6.1.4.1.232.18.1.3.0` | GET | > 2 / > 3 | |
+| Stato iLO | `1.3.6.1.4.1.232.9.1.3.0` | GET | > 2 / > 3 | |
+| Batteria di sistema | `1.3.6.1.4.1.232.6.2.17.2.1.4` | WALK massimo | > 2 / > 3 | Smart Storage Battery |
+| Temperatura massima sensori | `1.3.6.1.4.1.232.6.2.6.8.1.4` | WALK massimo °C | — | informativa: ogni sensore ha la sua soglia (`.8.1.5`), l'allarme lo dà «Temperature» |
+| Consumo elettrico | `1.3.6.1.4.1.232.6.2.15.3.0` | GET W | — | |
+
+**Visti nel walk ma non nel preset**: soglia e condizione per sensore (`232.6.2.6.8.1.5`, `.6`), ventole e alimentatori per singolo componente (`232.6.2.6.7.1.9`, `232.6.2.9.3.1.4`), carico degli alimentatori in % (`232.6.2.9.3.1.7`), moduli di memoria (`232.6.2.14.13.1.20`). Le tabelle dei dischi `232.3.2.3`/`232.3.2.5` sono vuote su questo server.
+
 ## Ancora da verificare
 
-Servono i walk di: switch Aruba/HPE (stack VSF), Cisco SG250, WatchGuard, ESXi, UPS, iDRAC/iLO, Windows. Hanno community diverse da `public`/`novicromprinter`. Procedura in [CATTURA.md](CATTURA.md).
+Servono i walk di: switch Aruba/HPE (stack VSF), Cisco SG250, WatchGuard, ESXi, UPS, iDRAC, Windows. Hanno community diverse da `public`/`novicromprinter`. Procedura in [CATTURA.md](CATTURA.md).

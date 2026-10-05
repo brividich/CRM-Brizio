@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori/SNMP — preset HPE ProLiant / iLO verificato** (`django_app/contatori/migrations/0022_preset_hpe_ilo_verificato.py`, `django_app/contatori/tests_snmp_preset.py`, `django_app/contatori/fixtures/snmp/hpe_ilo5_dl360_gen10.snmprec`, `docs/snmp/PRESET_CATALOG.md`, `README.md`):
+  - il profilo «HPE ProLiant / iLO» aveva solo le sonde server generiche (processi e utenti attivi, HOST-RESOURCES-MIB), che l'iLO non espone: ogni lettura falliva. Le due colonne sono rimosse, insieme alle sonde che avevano generato;
+  - 15 sonde verificate su un DL360 Gen10 con iLO 5 2.72: modello, seriale, firmware iLO, stato di salute generale, temperature, ventole, alimentatori, memoria, processori, storage/controller, schede di rete, iLO, batteria di sistema (OK = 2, attenzione oltre 2, critico oltre 3, con etichette), temperatura massima dei sensori, consumo in watt;
+  - gli apparati già associati al profilo ricevono subito le nuove sonde (le sonde manuali restano intatte); fixture SNMP ridotta ai soli OID del preset, con identificativi sintetici;
+  - deploy: `migrate contatori` (0022). Sull'iLO servono una Read Community compilata e, per SNMP v1, la casella «SNMPv1» attiva.
+
 - **Assets — dashboard: le liste nei widget «I tuoi indicatori» non escono più dal riquadro** (`django_app/assets/templates/assets/pages/asset_dashboard.html`):
   - nei widget «Scadenze scadute» / «Scadenze nei prossimi 30 gg» / «Verifiche nei prossimi 30 gg» nome, matricola e data stavano su una riga sola: con matricole lunghe (es. `HVAC-CHILL-…`) la data sforava di oltre 100 px dalla card;
   - ora nome sopra, matricola sotto (troncata con «…»), data allineata a destra: tutto resta nella colonna da 260 px;
