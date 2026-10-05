@@ -1,5 +1,12 @@
 # Agent Changelog
 
+## 2026-10-05 - Codex (sidebar inventario IT)
+
+- Richiesta: riorganizzare la sidebar Assets dopo l'estensione dell'inventario IT, lasciando completa la parte Officina. File modificati: `django_app/assets/views.py`, `django_app/assets/migrations/0122_sidebar_inventario_it.py`, `README.md`, `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- Modifica: voci «Inventario completo» e «Inventario IT» distinte; sotto Inventario IT sono raccolti Server, PC e portatili, Macchine virtuali, Rete, Stampanti e Altri dispositivi. «Officina» è una voce autonoma. Migrazione idempotente che aggiorna le voci standard e aggiunge i nuovi figli IT, mantenendo la visibilità eventualmente configurata.
+- File critici globali: nessuno; sono stati toccati solo il menu del modulo Assets e la relativa migrazione dati. Motivo/impatto: rendere più leggibile la navigazione tra inventario IT e officina. Rischi residui: la sidebar salvata si aggiorna all'applicazione della migrazione 0122; nessun ambiente è stato migrato.
+- Check: `git diff --check` in chiusura. Test applicativi non eseguiti. Nessun backup, database, push, merge o deploy. README/CHANGELOG/AGENT_CHANGELOG/checkpoint aggiornati sì. Note: migrazione inclusa nel normale deploy Django.
+
 ## 2026-10-05 - Codex (tag PC e form inventario)
 
 - Richiesta: correggere il tag AST assegnato a un asset PC e rendere più chiara la creazione. Worktree `C:/Dev/pn-asset-pc-tag`, branch `feature/assets-pc-tag-form`, base `origin/release/prod`; checkout condiviso lasciato intatto (preservata la cartella non tracciata `parser pdf/`). File controllo sessione/lock/critical non presenti.
