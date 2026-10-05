@@ -61,6 +61,27 @@
         });
       </script>
 
+      <div data-it-network-section
+           data-category-ids="{{ form.it_network_category_ids|join:',' }}"
+           data-initial-visible="{{ form.show_it_network_fields|yesno:'true,false' }}"
+           style="grid-column:1/-1;display:{% if form.show_it_network_fields %}grid{% else %}none{% endif %};gap:10px;border:1px solid #bfdbfe;border-radius:12px;padding:14px;background:#f5f9ff;">
+        <div>
+          <h3 class="as-section-title" style="margin:0 0 4px;">Rete e cablaggio</h3>
+          <div class="as-help">Per PC e dispositivi IT: indirizzo IP, switch e porte di collegamento.</div>
+        </div>
+        <div class="as-form-grid-3">
+          {% for field in form %}
+            {% if field.name == 'network_ip' or field.name == 'network_switch_name' or field.name == 'network_switch_port' or field.name == 'network_patch_panel_port' %}
+              <div>
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
       <div style="grid-column:1/-1;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:2px;">
         <h3 class="as-section-title" style="margin-bottom:10px;">Assegnazione</h3>
         <div class="as-form-grid-3" data-assignment-box>
@@ -220,12 +241,13 @@
 <script>
 (function () {
   const categorySelect = document.getElementById("{{ form.asset_category.id_for_label }}");
-  if (!categorySelect) return;
   const groups = Array.from(document.querySelectorAll("[data-category-group]"));
   const emptyState = document.querySelector("[data-category-empty]");
+  const networkSection = document.querySelector("[data-it-network-section]");
+  const networkCategoryIds = new Set((networkSection?.dataset.categoryIds || "").split(",").filter(Boolean));
 
   function toggleCategoryFields() {
-    const selected = (categorySelect.value || "").trim();
+    const selected = (categorySelect?.value || "").trim();
     let anyVisible = false;
     groups.forEach(function (group) {
       const visible = group.getAttribute("data-category-group") === selected;
@@ -235,9 +257,13 @@
     if (emptyState) {
       emptyState.style.display = anyVisible ? "none" : "block";
     }
+    if (networkSection) {
+      const initialVisible = networkSection.dataset.initialVisible === "true";
+      networkSection.style.display = initialVisible || networkCategoryIds.has(selected) ? "grid" : "none";
+    }
   }
 
-  categorySelect.addEventListener("change", toggleCategoryFields);
+  categorySelect?.addEventListener("change", toggleCategoryFields);
   toggleCategoryFields();
 })();
 

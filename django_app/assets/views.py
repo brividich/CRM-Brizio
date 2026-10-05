@@ -359,7 +359,10 @@ ASSET_LIST_BASE_COLUMN_CHOICES = [
     ("reparto", "Reparto"),
     ("vlan", "VLAN"),
     ("ip", "IP"),
+    ("switch_port", "Porta SW"),
+    ("patch_panel_port", "Porta patch panel"),
 ]
+ASSET_LIST_IT_COLUMNS = ["ip", "switch_port", "patch_panel_port"]
 ASSET_LIST_COMMON_COLUMNS = [
     "name",
     "status",
@@ -8109,7 +8112,10 @@ def _asset_list_context(asset_type: str) -> tuple[str, str]:
 
 
 def _asset_list_default_columns(asset_type: str) -> list[str]:
-    return list(ASSET_LIST_COMMON_COLUMNS)
+    columns = list(ASSET_LIST_COMMON_COLUMNS)
+    if _clean_string(asset_type).upper() in {Asset.TYPE_PC, Asset.TYPE_NOTEBOOK}:
+        columns.extend(ASSET_LIST_IT_COLUMNS)
+    return columns
 
 
 def _default_asset_list_layout_rows() -> list[dict[str, object]]:
@@ -8169,7 +8175,7 @@ def _ensure_default_asset_list_layouts() -> list[AssetListLayout]:
 
 
 def _asset_list_valid_column_keys(custom_fields: list[AssetCustomField]) -> set[str]:
-    return set(ASSET_LIST_COMMON_COLUMNS)
+    return set(ASSET_LIST_COMMON_COLUMNS) | set(ASSET_LIST_IT_COLUMNS)
 
 
 def _sanitize_asset_list_visible_columns(columns: object, valid_keys: set[str], fallback: list[str] | None = None) -> list[str]:
@@ -8382,14 +8388,25 @@ def _asset_endpoint_column_summary(asset: Asset) -> dict[str, str]:
 
     vlan_values = []
     ip_values = []
+    switch_port_values = []
+    patch_panel_values = []
     for endpoint in endpoints:
         if endpoint.vlan is not None:
             vlan_values.append(str(endpoint.vlan))
         if endpoint.ip:
             ip_values.append(str(endpoint.ip))
+        if endpoint.switch_port:
+            switch_label = " · ".join(
+                value for value in (_clean_string(endpoint.switch_name), _clean_string(endpoint.switch_port)) if value
+            )
+            switch_port_values.append(switch_label)
+        if endpoint.punto:
+            patch_panel_values.append(endpoint.punto)
     return {
         "vlan": _join_unique(vlan_values),
         "ip": _join_unique(ip_values),
+        "switch_port": _join_unique(switch_port_values),
+        "patch_panel_port": _join_unique(patch_panel_values),
     }
 
 
@@ -9085,6 +9102,8 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         endpoint_summary = _asset_endpoint_column_summary(asset)
         asset.endpoint_vlan_display = endpoint_summary["vlan"]
         asset.endpoint_ip_display = endpoint_summary["ip"]
+        asset.endpoint_switch_port_display = endpoint_summary["switch_port"]
+        asset.endpoint_patch_panel_display = endpoint_summary["patch_panel_port"]
 
     recent_alerts: list[dict[str, str]] = []
     open_wo_alerts = _dashboard_open_workorder_alert_rows(limit=4)

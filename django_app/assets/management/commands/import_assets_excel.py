@@ -92,7 +92,10 @@ HEADER_ALIASES = {
     "ip": ["IP", "IP ADDRESS", "INDIRIZZO IP"],
     "switch_name": ["SWITCH", "SWITCH NAME", "NOME SWITCH"],
     "switch_port": ["PORTA SWITCH", "PORTA SW", "SWITCH PORT", "PORT SWITCH"],
-    "punto": ["PUNTO", "PRESA", "PATCH", "LOCATION POINT"],
+    "punto": [
+        "PUNTO", "PRESA", "PATCH", "PATCH PANEL", "PATCH PANEL PORT",
+        "PORTA PATCH", "PORTA PATCH PANEL", "PORTA PATCH PANEL PORT", "LOCATION POINT",
+    ],
     "os": ["OS", "OPERATING SYSTEM", "SISTEMA OPERATIVO"],
     "cpu": ["CPU", "PROCESSOR", "PROCESSORE"],
     "ram": ["RAM", "MEMORY", "MEMORIA", "MEMORIA RAM"],
@@ -322,7 +325,7 @@ def _canonical_from_header(header_label: str, alias_map: dict[str, str]) -> str 
         return "vlan"
     if normalized in {"IP", "INDIRIZZO IP", "IP ADDRESS"}:
         return "ip"
-    if "PUNTO" in normalized or "PRESA" in normalized:
+    if "PUNTO" in normalized or "PRESA" in normalized or "PATCH" in normalized:
         return "punto"
     if "REPARTO" in normalized:
         return "reparto"

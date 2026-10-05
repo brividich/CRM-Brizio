@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-10-05 (inventario IT: rete e cablaggio)
+
+- Dal file `CN - Asset Inventory.xlsx`: identificati IP e colonne base; per il portale riusati i campi `AssetEndpoint` esistenti (`ip`, `switch_name`, `switch_port`, `punto`/PATCH), senza migrazione o import dati. Import Excel esteso agli header Porta patch panel.
+- Form: compilazione endpoint primario per categorie IT; testata dettaglio con IP/Porta SW/Porta patch panel; tabella Tecnica e rete con colonne separate; inventario PC/portatili con colonne IP e porte visibili di default.
+- README, CHANGELOG, doc AI, registro e checkpoint aggiornati. Non importati valori dal workbook e non modificati asset reali. Test applicativi non eseguiti; `git diff --check` passato. Worktree feature/assets-pc-tag-form, nessun push/merge/deploy.
+
 Data: 2026-10-05 (tag PC e form inventario)
 
 - Categoria PC legacy con tipo tecnico OTHER generava `AST`; il prefisso automatico ora riconosce la categoria/antenato e sceglie `IT`. Form: chiarita l'assegnazione automatica e migliorata intestazione di creazione.
