@@ -1082,3 +1082,5 @@ Nota: i file di controllo sessione `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOC
 - Checklist anomalie aggiornata 2026-10-05: risposte per singola descrizione disponibili sia dal dettaglio del portale sia dalla pagina protetta e-mail; autore e timestamp persistiti. Scheda qualità nascosta in UI. UAT e migrazioni restano da verificare.
 
 - Revisione statica anomalie 2026-10-05: confermati nel codice controlli token revocato/scaduto/usato e log azioni; UAT effettivo ancora aperto.
+
+- UI nuova segnalazione aggiornata 2026-10-05: selezione seriali per ogni descrizione e seriali manuali aggiuntivi; allegati delle descrizioni ulteriori validati per formato e dimensione. Verifica tecnica da completare.

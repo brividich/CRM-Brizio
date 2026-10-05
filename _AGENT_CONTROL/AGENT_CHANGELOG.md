@@ -2026,3 +2026,9 @@
 - Verificati nel codice i controlli token revocato/scaduto/usato, il blocco di riutilizzo e la registrazione delle azioni; checklist aggiornata come verifica statica.
 - Lasciate aperte le prove UAT di scadenza/monouso, rendering dei client mail, risposte e migrazioni. Nessuna modifica al codice applicativo.
 - Check: revisione mirata di `mail_action_views.py` e `api_salva` in `views.py`; nessun test eseguito.
+
+## 2026-10-05 - Codex - Seriali per singola descrizione
+- Modificato `apertura_segnalazione.html`: selezione multipla dei seriali per ciascuna descrizione, seriali manuali aggiuntivi, validazione che ogni voce abbia seriali e testo; i file aggiuntivi sono sottoposti ai limiti di estensione e 20 MB già applicati alla prima voce.
+- Chiarita la gerarchia OP → segnalazione per fase → descrizioni; aggiornata checklist, README e changelog.
+- File critici modificati: nessuno.
+- Check ancora da eseguire; controlli automatici/UI non ancora effettuati.

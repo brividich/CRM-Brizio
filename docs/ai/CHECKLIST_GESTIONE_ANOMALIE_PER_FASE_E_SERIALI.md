@@ -96,8 +96,8 @@ L’e-mail riepilogherà le descrizioni in blocchi numerati con i rispettivi ser
 - [x] Implementare **+ Nuovo seriale** e la selezione multipla dei seriali per ogni descrizione.
 - [x] Consentire l’inserimento manuale del seriale.
 - [x] Implementare **+ Nuova descrizione** con selezione seriali, testo e allegati per voce.
-- [ ] Rendere chiara la gerarchia OP → anomalia → fase/segnalazioni → descrizioni.
-- [ ] Curare stati vuoti, errori di validazione, caricamento allegati e layout responsive.
+- [x] Rendere chiara la gerarchia OP → segnalazione per fase → descrizioni numerate.
+- [x] Curare selezione seriali per ogni descrizione, stati vuoti degli allegati, errori di validazione e adattamento dei controlli alla larghezza disponibile (revisione statica UI).
 
 ### Fase D — Elenchi e dettaglio
 
@@ -156,6 +156,6 @@ La modifica è completa quando il reparto può aprire una segnalazione indicando
 
 ## Avanzamento implementazione (5 ottobre 2026)
 
-Completati pulsante di apertura, fase obbligatoria per le nuove segnalazioni, collegamento della fase alla NC dell’OP, gruppi aggiuntivi di seriali, descrizioni multiple con seriali selezionabili/digitabili e allegati distinti, distinzione del collaudo di benestare negli elenchi e risposte separate per descrizione sia nel dettaglio di Gestione anomalie sia nella pagina protetta raggiunta dall’e-mail. Ogni risposta registra autore e data/ora. La Scheda qualità è nascosta nell’interfaccia; modelli e storico restano disponibili.
+Completati pulsante di apertura, fase obbligatoria per le nuove segnalazioni, collegamento della fase alla NC dell’OP, gruppi aggiuntivi di seriali, selezione multipla a caselle dei seriali per ogni descrizione con inserimento manuale aggiuntivo e allegati distinti con limiti di formato/dimensione, distinzione del collaudo di benestare negli elenchi e risposte separate per descrizione sia nel dettaglio di Gestione anomalie sia nella pagina protetta raggiunta dall’e-mail. Ogni risposta registra autore e data/ora. La Scheda qualità è nascosta nell’interfaccia; modelli e storico restano disponibili.
 
 **Migrazioni da applicare:** `0013_anomaliasegnalazionemeta.py` e `0014_anomaliadescrizione_anomaliadescrizioneallegato.py`. Per le segnalazioni storiche la fase non viene inventata: rimane vuota fino a eventuale compilazione esplicita. La ricognizione e i controlli statici sono stati eseguiti, inclusa la verifica delle condizioni token valido/non scaduto/non revocato/non usato e della registrazione delle azioni. Restano da fare UAT dei due canali di risposta, della scadenza/monouso effettivo, del rendering e-mail e della migrazione dati; le caselle di verifica/rilascio restano aperte fino a tale validazione.
