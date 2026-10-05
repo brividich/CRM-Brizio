@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Anomalie — segnalazioni per fase e descrizioni per seriale** (`django_app/anomalie`): fase obbligatoria per nuova segnalazione collegata alla NC dell'OP; selezione multipla a caselle dei seriali per ogni descrizione con inserimento manuale; allegati per voce con controllo formato/dimensione; compatibilità con le righe legacy; risposte del capocommessa per descrizione nel portale e nel flusso protetto via mail. Test mirati in `django_app/anomalie/tests_mail_action.py`. Badge distinti per collaudo di benestare/altro controllo; Scheda qualità nascosta nella UI. Migrazioni 0013/0014 da applicare. Piano e note storico: `docs/ai/CHECKLIST_GESTIONE_ANOMALIE_PER_FASE_E_SERIALI.md`.
+
 - Schede IT: fallback di presentazione da categoria per tipo Altro; dati tecnici/SOC disponibili aperti. MFC con modello/IP/contratto/contatori e lettura consumabili nella scheda tramite POST protetto esistente, senza polling al caricamento. Nuovo frammento Contatori con livelli/ignoti/errori sintetici; nessuna migrazione. File e verifiche nel changelog root e checklist IT.
 
 - **Assets server/VM/stampante**: estesi i profili IT, snapshot SNMP autorizzati e datati, contatori generici separati dalle letture mensili MFC, consumabili 0% distinti dagli ignoti. Conservate personalizzazioni e pagina industriale; nessuna migrazione, polling automatico o modifica ACL globale. Checklist `docs/ai/CHECKLIST_ASSET_IT.md`.

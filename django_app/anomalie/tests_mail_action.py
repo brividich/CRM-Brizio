@@ -15,6 +15,7 @@ Copertura:
 from __future__ import annotations
 
 from datetime import timedelta
+import json
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -217,6 +218,29 @@ class AnomaliaMailActionPostTests(TestCase):
         self.assertIsNotNone(log)
         self.assertIn("Capocommessa", log.user_display)
 
+    def test_risposta_mail_salvata_solo_sulla_descrizione_della_riga(self):
+        from anomalie.quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
+
+        token_obj = self._create_token(action="prendi_in_carico")
+        meta_target = AnomaliaSegnalazioneMeta.objects.create(anomalia_id=1, fase="Collaudo")
+        meta_other = AnomaliaSegnalazioneMeta.objects.create(anomalia_id=99, fase="Finitura")
+        target = AnomaliaDescrizione.objects.create(segnalazione=meta_target, ordine=0, seriali=["SN-1"], testo="Difetto A")
+        other = AnomaliaDescrizione.objects.create(segnalazione=meta_other, ordine=0, seriali=["SN-2"], testo="Difetto B")
+        url = reverse("anomalie_mail_action", kwargs={"token": token_obj.token})
+        payload = {"1": {"descrizioni_risposte": {str(target.pk): "Risposta corretta", str(other.pk): "Non autorizzata"}}}
+        with patch("anomalie.mail_action_views._load_anomalie_live", return_value=_make_anomalie_rows(1)), \
+             patch("anomalie.mail_action_views._load_first_images", return_value=[]), \
+             patch("anomalie.mail_action_views._apply_action_to_anomalia", return_value=True):
+            response = self.client.post(url, {"aggiornamenti_json": json.dumps(payload)})
+
+        self.assertIn(response.status_code, [302, 301])
+        target.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual(target.risposta_capocommessa, "Risposta corretta")
+        self.assertEqual(target.risposta_da, "Capocommessa Test")
+        self.assertIsNotNone(target.risposta_il)
+        self.assertEqual(other.risposta_capocommessa, "")
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
 class AnomaliaEmailRenderingTests(TestCase):
@@ -258,6 +282,41 @@ class AnomaliaEmailRenderingTests(TestCase):
         _, _, body_html, _ = self._build_email(1)
         self.assertIn("OP-EMAIL-TEST", body_html)
         self.assertIn("Anomalia test #1", body_html)
+
+
+    def test_email_include_descrizioni_e_allegati_per_seriale(self):
+        _, _, _, token_obj = self._build_email(1)
+        from anomalie.quality_models import (
+            AnomaliaDescrizione,
+            AnomaliaDescrizioneAllegato,
+            AnomaliaSegnalazioneMeta,
+        )
+        meta = AnomaliaSegnalazioneMeta.objects.create(anomalia_id=1, fase="Collaudo finale")
+        detail = AnomaliaDescrizione.objects.create(
+            segnalazione=meta, ordine=0, seriali=["SN-0001", "SN-0002"], testo="Segno superficiale",
+        )
+        AnomaliaDescrizioneAllegato.objects.create(
+            descrizione=detail, nome="foto.jpg", file_rel="test/foto.jpg", size=123, mime="image/jpeg",
+        )
+        rows = _make_anomalie_rows(1)
+        from anomalie.mail_action_service import build_anomalie_action_email
+        _, text_rendered, html_rendered = build_anomalie_action_email(
+            recipient_email="dest@example.local",
+            recipient_display="Destinatario Test",
+            op_id="OP-EMAIL-TEST",
+            op_nominativo="Test flangia",
+            anomalie_rows=rows,
+            action="visualizza",
+            token_str=token_obj.token,
+            expires_at=token_obj.expires_at,
+            site_url=_FAKE_SITE_URL,
+        )
+        self.assertIn("Collaudo finale", text_rendered)
+        self.assertIn("SN-0001, SN-0002", text_rendered)
+        self.assertIn("foto.jpg", text_rendered)
+        self.assertIn("Segno superficiale", html_rendered)
+        self.assertIn("SN-0001, SN-0002", html_rendered)
+        self.assertIn("foto.jpg", html_rendered)
 
     def test_email_10_anomalie_mostra_tutte(self):
         _, _, body_html, _ = self._build_email(10)
