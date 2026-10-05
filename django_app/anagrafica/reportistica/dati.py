@@ -85,12 +85,36 @@ def periodo_da_tipo(tipo: str, *, oggi: date, data_da: date | None = None,
     return oggi - timedelta(days=365), oggi
 
 
+def _interi(raw) -> list[int]:
+    out = []
+    for x in raw if isinstance(raw, list) else []:
+        try:
+            out.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    return sorted(set(out))
+
+
+def _data(raw) -> date | None:
+    try:
+        return date.fromisoformat(str(raw)[:10]) if raw else None
+    except ValueError:
+        return None
+
+
 @dataclass
 class Perimetro:
     reparti: list[str] = field(default_factory=list)
     aree: list[str] = field(default_factory=list)
     mansioni: list[str] = field(default_factory=list)
+    contratti: list[str] = field(default_factory=list)
+    livelli: list[str] = field(default_factory=list)
     persone: list[int] = field(default_factory=list)
+    escludi: list[int] = field(default_factory=list)
+    # Persone che possiedono almeno una di queste qualifiche (TipoQualifica) non scaduta.
+    qualifiche: list[int] = field(default_factory=list)
+    assunti_dal: date | None = None
+    assunti_al: date | None = None
     includi_cessati: bool = False
 
     @classmethod
@@ -101,36 +125,44 @@ class Perimetro:
             raw = data.get(key) or []
             return [str(x).strip() for x in raw if str(x).strip()] if isinstance(raw, list) else []
 
-        persone = []
-        for raw in data.get("persone") or []:
-            try:
-                persone.append(int(raw))
-            except (TypeError, ValueError):
-                continue
         return cls(
             reparti=_lista("reparti"), aree=_lista("aree"), mansioni=_lista("mansioni"),
-            persone=sorted(set(persone)), includi_cessati=bool(data.get("includi_cessati")),
+            contratti=_lista("contratti"), livelli=_lista("livelli"),
+            persone=_interi(data.get("persone")), escludi=_interi(data.get("escludi")),
+            qualifiche=_interi(data.get("qualifiche")),
+            assunti_dal=_data(data.get("assunti_dal")), assunti_al=_data(data.get("assunti_al")),
+            includi_cessati=bool(data.get("includi_cessati")),
         )
 
     def as_dict(self) -> dict:
         return {
             "reparti": self.reparti, "aree": self.aree, "mansioni": self.mansioni,
-            "persone": self.persone, "includi_cessati": self.includi_cessati,
+            "contratti": self.contratti, "livelli": self.livelli,
+            "persone": self.persone, "escludi": self.escludi, "qualifiche": self.qualifiche,
+            "assunti_dal": self.assunti_dal.isoformat() if self.assunti_dal else "",
+            "assunti_al": self.assunti_al.isoformat() if self.assunti_al else "",
+            "includi_cessati": self.includi_cessati,
         }
 
     def label(self, nomi_persone: dict[int, str] | None = None) -> str:
+        nomi_persone = nomi_persone or {}
         parti = []
-        if self.reparti:
-            parti.append("Reparti: " + ", ".join(self.reparti))
-        if self.aree:
-            parti.append("Aree: " + ", ".join(self.aree))
-        if self.mansioni:
-            parti.append("Mansioni: " + ", ".join(self.mansioni))
+        for etichetta, valori in (("Reparti", self.reparti), ("Aree", self.aree), ("Mansioni", self.mansioni),
+                                  ("Contratti", self.contratti), ("Livelli", self.livelli)):
+            if valori:
+                parti.append(f"{etichetta}: " + ", ".join(valori))
         if self.persone:
-            if nomi_persone and len(self.persone) <= 6:
+            if len(self.persone) <= 6:
                 parti.append("Persone: " + ", ".join(nomi_persone.get(p, f"#{p}") for p in self.persone))
             else:
                 parti.append(f"Persone selezionate: {len(self.persone)}")
+        if self.escludi:
+            parti.append(f"Escluse: {len(self.escludi)} persone")
+        if self.qualifiche:
+            parti.append(f"Con qualifica valida ({len(self.qualifiche)} tipi)")
+        if self.assunti_dal or self.assunti_al:
+            parti.append("Assunti " + (f"dal {self.assunti_dal:%d/%m/%Y} " if self.assunti_dal else "")
+                         + (f"al {self.assunti_al:%d/%m/%Y}" if self.assunti_al else "")).strip()
         parti.append("inclusi i cessati" if self.includi_cessati else "solo personale in forza")
         return " · ".join(parti)
 
@@ -214,10 +246,14 @@ class Contesto:
             reparti = {x.casefold() for x in p.reparti}
             aree = {x.casefold() for x in p.aree}
             mansioni = {x.casefold() for x in p.mansioni}
+            livelli = {x.casefold() for x in p.livelli}
+            contratti = set(p.contratti)
             persone = set(p.persone)
+            escludi = set(p.escludi)
+            con_qualifica = self._con_qualifica(p.qualifiche) if p.qualifiche else None
             out = []
             for dip in self._tutti():
-                if persone and dip.id not in persone:
+                if dip.id in escludi or (persone and dip.id not in persone):
                     continue
                 if reparti and dip.reparto.casefold() not in reparti:
                     continue
@@ -225,9 +261,30 @@ class Contesto:
                     continue
                 if mansioni and dip.mansione.casefold() not in mansioni:
                     continue
+                if contratti and dip.contratto not in contratti:
+                    continue
+                if livelli and dip.livello.casefold() not in livelli:
+                    continue
+                if con_qualifica is not None and dip.id not in con_qualifica:
+                    continue
+                if p.assunti_dal and not (dip.data_assunzione and dip.data_assunzione >= p.assunti_dal):
+                    continue
+                if p.assunti_al and not (dip.data_assunzione and dip.data_assunzione <= p.assunti_al):
+                    continue
                 out.append(dip)
             self._cache["perimetro"] = out
         return self._cache["perimetro"]
+
+    def _con_qualifica(self, tipi: list[int]) -> set[int]:
+        from django.db.models import Q
+
+        from anagrafica.models import DipendenteQualifica
+
+        return set(
+            DipendenteQualifica.objects.filter(tipo_id__in=tipi)
+            .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=self.today))
+            .values_list("legacy_anagrafica_id", flat=True)
+        )
 
     def dipendenti(self) -> list[Dipendente]:
         """Persone da elencare: in forza oggi, oppure tutte se richiesto."""

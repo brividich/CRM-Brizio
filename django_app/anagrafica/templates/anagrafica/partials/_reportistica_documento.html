@@ -2,9 +2,12 @@
 Anteprima "a foglio" del documento: stessi dati del PDF/Excel (stesso Documento).
 I paragrafi arrivano già escapati dal motore (solo <b> e <br/> ammessi): |safe è voluto.
 {% endcomment %}
-<article class="rp-doc" aria-label="Anteprima del documento" data-fm-table-skip="1">
+<article class="rp-doc{% if documento.orientamento == 'VERTICALE' %} rp-doc-verticale{% endif %}" aria-label="Anteprima del documento" data-fm-table-skip="1">
+  {% if documento.filigrana %}<div class="rp-filigrana" aria-hidden="true">{{ documento.filigrana }}</div>{% endif %}
+  {% if documento.intestazione %}<div class="rp-doc-codice">{{ documento.intestazione }}</div>{% endif %}
   <h1>{{ documento.titolo }}</h1>
   {% if documento.sottotitolo %}<p class="rp-doc-sub">{{ documento.sottotitolo }}</p>{% endif %}
+  {% if documento.mostra_frontespizio %}
   <table class="rp-doc-info">
     <tr><th>Destinatario</th><td>{{ documento.destinatario|default:"—" }}</td></tr>
     <tr><th>Periodo di riferimento</th><td>{{ documento.periodo_label }}</td></tr>
@@ -12,6 +15,11 @@ I paragrafi arrivano già escapati dal motore (solo <b> e <br/> ammessi): |safe 
     <tr><th>Norme di riferimento</th><td>{{ documento.norme|join:", "|default:"—" }}</td></tr>
     <tr><th>Classificazione</th><td>{{ documento.riservatezza }}</td></tr>
   </table>
+  {% endif %}
+  {% if documento.mostra_indice and documento.indice %}
+  <h2>Indice</h2>
+  <ol class="rp-indice">{% for voce in documento.indice %}<li>{{ voce }}</li>{% endfor %}</ol>
+  {% endif %}
 
   {% for e in documento.elementi %}
     {% if e.tipo == "pagina" %}
@@ -39,25 +47,26 @@ I paragrafi arrivano già escapati dal motore (solo <b> e <br/> ammessi): |safe 
         </div>
         {% endif %}
         {% if e.mostra_tabella and e.colonne %}
-          {% if e.righe %}
-          <div class="rp-tablewrap">
-            <table class="rp-table">
-              <thead><tr>{% for _k, label in e.colonne %}<th>{{ label }}</th>{% endfor %}</tr></thead>
-              <tbody>
-                {% for riga, tono in e.righe_con_tono|slice:":200" %}
-                <tr{% if tono == "warn" or tono == "danger" %} class="rp-{{ tono }}"{% endif %}>{% for v in riga %}<td>{{ v }}</td>{% endfor %}</tr>
-                {% endfor %}
-              </tbody>
-            </table>
-            {% if e.righe|length > 200 %}<div class="rp-more">Anteprima limitata a 200 righe: il file ne contiene {{ e.righe|length }}.</div>{% endif %}
-          </div>
+          {% if e.n_righe %}
+            {% for g in e.gruppi %}
+            {% if g.etichetta %}<h3 class="rp-gruppo">{{ g.etichetta }} <span>({{ g.righe|length }})</span></h3>{% endif %}
+            <div class="rp-tablewrap">
+              <table class="rp-table{% if e.matrice %} rp-matrice{% endif %}">
+                <thead><tr>{% for _k, label in e.colonne %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+                <tbody>
+                  {% for r in g.righe|slice:":200" %}
+                  <tr{% if not e.matrice and r.tono == "warn" or not e.matrice and r.tono == "danger" %} class="rp-{{ r.tono }}"{% endif %}>{% for testo, tono in r.celle %}<td{% if tono %} class="rp-c-{{ tono }}"{% endif %}>{{ testo }}</td>{% endfor %}</tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% if g.righe|length > 200 %}<div class="rp-more">Anteprima limitata a 200 righe: il file ne contiene {{ g.righe|length }}.</div>{% endif %}
+            </div>
+            {% endfor %}
           {% else %}
           <p class="rp-omessa">Nessun dato nel perimetro selezionato.</p>
           {% endif %}
         {% endif %}
-        {% if e.mostra_note and e.risultato.note %}
-        <ul class="rp-note">{% for n in e.risultato.note %}<li>{{ n }}</li>{% endfor %}</ul>
-        {% endif %}
+        {% if e.note %}<ul class="rp-note">{% for n in e.note %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
       {% endif %}
       {% if e.tipo == "negata" or e.tipo == "errore" %}<div class="rp-omessa">{% for _kind, markup in e.paragrafi %}{{ markup|safe }} {% endfor %}</div>
       {% else %}
@@ -69,4 +78,5 @@ I paragrafi arrivano già escapati dal motore (solo <b> e <br/> ammessi): |safe 
       {% endif %}
     {% endif %}
   {% endfor %}
+  {% if documento.piede_pagina %}<div class="rp-doc-piede">{{ documento.piede_pagina }}</div>{% endif %}
 </article>

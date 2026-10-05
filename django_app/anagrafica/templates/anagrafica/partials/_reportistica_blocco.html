@@ -1,6 +1,7 @@
 {% comment %}
 Un blocco dell'editor dei modelli di report (anche come stampo per i blocchi nuovi:
 in quel caso il prefisso contiene __prefix__ e il tipo lo imposta il JS).
+Colonne e opzioni sono rese per OGNI sezione e mostrate solo per quella scelta.
 {% endcomment %}
 <div class="rp-blocco" data-tipo="{{ f.tipo.value|default:'TESTO' }}" data-rp-blocco>
   {{ f.id }}{{ f.ordine }}{{ f.tipo.as_hidden }}
@@ -10,6 +11,7 @@ in quel caso il prefisso contiene __prefix__ e il tipo lo imposta il JS).
     <span class="rp-blocco-tipo" data-rp-tipo-label></span>
     <span class="rp-blocco-anteprima" data-rp-anteprima></span>
     <span class="rp-blocco-tools">
+      <button type="button" data-rp-apri title="Comprimi / espandi" aria-label="Comprimi o espandi il blocco">▾</button>
       <button type="button" data-rp-su title="Sposta su" aria-label="Sposta su">↑</button>
       <button type="button" data-rp-giu title="Sposta giù" aria-label="Sposta giù">↓</button>
       <button type="button" class="rp-del" data-rp-elimina title="Elimina il blocco" aria-label="Elimina il blocco">✕</button>
@@ -37,15 +39,35 @@ in quel caso il prefisso contiene __prefix__ e il tipo lo imposta il JS).
       </div>
     </div>
     <div class="rp-only-sez">
-      {% for sez_key, colonne in colonne_per_sezione %}
-      <div class="rp-cols rp-blocco-hidden" data-rp-cols="{{ sez_key }}">
-        <div class="rp-cols-h" style="grid-column:1/-1;">Colonne della tabella</div>
-        {% for val, label in colonne %}
-        <label><input type="checkbox" name="{{ f.colonne.html_name }}" value="{{ val }}"{% if val in f.colonne.value %} checked{% endif %}> {{ label }}</label>
-        {% endfor %}
+      {% for g in f.gruppi_sezione %}
+      <div class="rp-sez-opz rp-blocco-hidden" data-rp-opz="{{ g.key }}">
+        {% if g.colonne %}
+        <div class="rp-cols-wrap">
+          <div class="rp-cols-h">Colonne della tabella <span class="rp-cols-aiuto">spunta quelle da stampare, ordinale con ↑ ↓</span></div>
+          <ol class="rp-cols-list" data-rp-cols>
+            {% for val, label, checked in g.colonne %}
+            <li class="rp-col{% if checked %} rp-col-on{% endif %}">
+              <label><input type="checkbox" name="{{ g.nome_colonne }}" value="{{ val }}"{% if checked %} checked{% endif %}> {{ label }}</label>
+              <span class="rp-col-tools"><button type="button" data-rp-col-su aria-label="Colonna prima">↑</button><button type="button" data-rp-col-giu aria-label="Colonna dopo">↓</button></span>
+            </li>
+            {% endfor %}
+          </ol>
+        </div>
+        {% else %}
+        <div class="rp-sez-info">Colonne decise dai dati (matrice o report conformità di origine).</div>
+        {% endif %}
+        {% if g.specifiche %}
+        <div class="rp-opz-box">
+          <div class="rp-cols-h">Contenuto della sezione</div>
+          <div class="rp-opz-grid">{% for o in g.specifiche %}{% include "anagrafica/partials/_reportistica_opzione.html" %}{% endfor %}</div>
+        </div>
+        {% endif %}
+        <details class="rp-opz-box rp-opz-generali"{% if g.generali_attive %} open{% endif %}>
+          <summary class="rp-cols-h">Ordinamento, raggruppamento e filtri della tabella</summary>
+          <div class="rp-opz-grid">{% for o in g.generali %}{% include "anagrafica/partials/_reportistica_opzione.html" %}{% endfor %}</div>
+        </details>
       </div>
       {% endfor %}
-      <div class="rp-sez-info rp-blocco-hidden" data-rp-cols-fisse>Colonne fisse: la tabella è quella del report conformità di origine.</div>
     </div>
     <div class="rp-only-testo">
       <div class="hub-field{% if f.testo.errors %} hub-field-err{% endif %}">

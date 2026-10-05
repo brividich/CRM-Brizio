@@ -114,14 +114,60 @@ MODELLI = [
 ]
 
 
+MODELLI += [
+    {
+        "codice_sistema": "matrice_commessa",
+        "nome": "Matrice competenze per commessa",
+        "descrizione": "Griglia persone × qualifiche e abilitazioni ai processi speciali per il personale di una commessa.",
+        "titolo_documento": "Matrice delle competenze del personale di commessa",
+        "sottotitolo": "Situazione al {{oggi}}",
+        "norme": ["ISO 9001", "EN 9100"],
+        "riservatezza": "DATI_PERSONALI",
+        "periodo_tipo": "ULTIMI_12_MESI",
+        "formato_predefinito": "xlsx",
+        "blocchi": [
+            {"tipo": "TESTO", "titolo": "Premessa", "testo": (
+                "Spett.le {{destinatario}},\n\nsi trasmette la matrice delle competenze del personale "
+                "({{n_persone}} persone) previsto per la commessa, alla data del {{oggi}}. "
+                "Selezionare le persone nel perimetro prima della generazione.")},
+            {"tipo": "SEZIONE", "sezione": "matrice_qualifiche"},
+            {"tipo": "SEZIONE", "sezione": "abilitazioni_processi", "opzioni": {"mostra_indicatori": False}},
+            {"tipo": "SEZIONE", "sezione": "matrice_formazione",
+             "opzioni": {"valori": {"solo_sicurezza": True}}},
+            _FIRME,
+        ],
+    },
+    {
+        "codice_sistema": "scadenzario_mensile",
+        "nome": "Scadenzario mensile del personale",
+        "descrizione": "Scadenze dei prossimi 90 giorni (qualifiche, formazione, certificazioni), raggruppate per mese.",
+        "titolo_documento": "Scadenzario del personale",
+        "sottotitolo": "Prossimi 90 giorni dal {{oggi}}",
+        "norme": ["ISO 9001", "ISO 45001"],
+        "riservatezza": "INTERNO",
+        "periodo_tipo": "ULTIMI_12_MESI",
+        "blocchi": [
+            {"tipo": "SEZIONE", "sezione": "scadenzario_unico",
+             "opzioni": {"colonne": ["scadenza", "giorni", "tipo", "nominativo", "reparto", "voce"],
+                         "valori": {"raggruppa_per": "mese"}}},
+        ],
+    },
+]
+
+
 def crea_predefiniti(Modello, Blocco, *, solo_mancanti: bool = True) -> int:
-    """Crea i modelli predefiniti mancanti. Ritorna quanti ne ha creati."""
+    """Crea i modelli predefiniti mancanti. Ritorna quanti ne ha creati.
+
+    Funziona anche con i modelli storici delle migrazioni: i campi che a quella
+    migrazione non esistono ancora vengono ignorati.
+    """
     esistenti = set(Modello.objects.exclude(codice_sistema="").values_list("codice_sistema", flat=True))
+    nomi_campi = {f.name for f in Modello._meta.get_fields()}
     creati = 0
     for spec in MODELLI:
         if solo_mancanti and spec["codice_sistema"] in esistenti:
             continue
-        campi = {k: v for k, v in spec.items() if k != "blocchi"}
+        campi = {k: v for k, v in spec.items() if k != "blocchi" and k in nomi_campi}
         modello = Modello.objects.create(**campi)
         for ordine, b in enumerate(spec["blocchi"], start=1):
             Blocco.objects.create(
