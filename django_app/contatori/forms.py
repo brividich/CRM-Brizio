@@ -155,14 +155,62 @@ class ImpostazioniSNMPForm(forms.ModelForm):
 
 
 class DispositivoSNMPForm(forms.ModelForm):
+    v3_utente = forms.CharField(label="SNMPv3 - utente", max_length=64, required=False,
+                                help_text="Solo SNMPv3, se non selezioni una credenziale salvata.")
+    v3_auth = forms.ChoiceField(label="SNMPv3 - autenticazione", required=False,
+                                choices=[("", "Nessuna"), ("sha1", "SHA"), ("md5", "MD5")])
+    v3_auth_key = forms.CharField(label="SNMPv3 - chiave di autenticazione", max_length=128,
+                                  required=False, strip=False,
+                                  widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}))
+    v3_priv = forms.ChoiceField(label="SNMPv3 - cifratura", required=False,
+                                choices=[("", "Nessuna"), ("aes", "AES"), ("des", "DES")])
+    v3_priv_key = forms.CharField(label="SNMPv3 - chiave di cifratura", max_length=128,
+                                  required=False, strip=False,
+                                  widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+                                  help_text="Le credenziali vengono salvate cifrate nel catalogo "
+                                            "community. In modifica reinseriscile tutte per sostituirle.")
+
     class Meta:
         model = DispositivoSNMP
         fields = [
             "nome", "categoria", "host", "profilo_snmp", "community_salvata", "community", "porta", "versione",
+            "v3_utente", "v3_auth", "v3_auth_key", "v3_priv", "v3_priv_key",
             "timeout", "posizione", "produttore", "modello", "matricola",
             "asset", "note", "attivo",
         ]
         widgets = {"note": forms.Textarea(attrs={"rows": 3})}
+
+    def clean(self):
+        from .snmp import SNMPError, segreto_v3
+        data = super().clean()
+        self._segreto_v3 = ""
+        if data.get("versione") == "v3" and not data.get("community_salvata"):
+            if not data.get("v3_utente") and self.instance.pk and not any(
+                    data.get(k) for k in ("v3_auth_key", "v3_priv_key")):
+                return data  # modifica senza toccare le credenziali
+            try:
+                self._segreto_v3 = segreto_v3(
+                    data.get("v3_utente", ""), data.get("v3_auth", ""),
+                    data.get("v3_auth_key", ""), data.get("v3_priv", ""),
+                    data.get("v3_priv_key", ""))
+            except SNMPError as e:
+                self.add_error("v3_utente", str(e))
+        return data
+
+    def save(self, commit=True):
+        from .credential_crypto import cifra
+        instance = super().save(commit=False)
+        if self._segreto_v3:
+            nome = f"Dispositivo {instance.host}"[:80]
+            community, _ = CommunitySNMP.objects.get_or_create(
+                nome=nome, defaults={"versione": "v3", "segreto_cifrato": ""})
+            community.versione = "v3"
+            community.segreto_cifrato = cifra(self._segreto_v3)
+            community.save()
+            instance.community_salvata = community
+        if commit:
+            instance.save()
+        return instance
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
