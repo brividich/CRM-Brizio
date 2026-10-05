@@ -226,6 +226,59 @@ class PrinterPresetTests(TestCase):
         self.assertNotIn("Totale impressioni (Printer-MIB)", valori)
 
 
+class HpeIloPresetTests(TestCase):
+    FIXTURE = FIXTURES / "hpe_ilo5_dl360_gen10.snmprec"
+
+    def setUp(self):
+        self.agent = FixtureAgent(self.FIXTURE)
+
+    def test_generic_server_columns_removed_and_all_verified(self):
+        profilo = ProfiloSNMP.objects.get(slug="hpe-server")
+        colonne = list(profilo.colonne.filter(attiva=True))
+        self.assertGreaterEqual(len(colonne), 15)
+        self.assertTrue(all(c.verificata and c.fonte for c in colonne))
+        self.assertFalse(profilo.colonne.filter(oid__startswith="1.3.6.1.2.1.25.1.").exists())
+
+    def test_every_verified_oid_answers_in_fixture(self):
+        for colonna in ColonnaProfiloSNMP.objects.filter(profilo__slug="hpe-server", attiva=True):
+            valori, errori = self.agent.leggi_specifiche("h", [{
+                "oid": colonna.oid, "modalita": colonna.modalita,
+                "aggregazione": colonna.aggregazione,
+            }])
+            self.assertIn(colonna.oid, valori, f"{colonna.nome}: {errori}")
+
+    def test_poll_detects_ilo_and_reads_health(self):
+        dispositivo = DispositivoSNMP.objects.create(nome="iLO", host="192.0.2.2", versione="v2c")
+        with mock.patch("contatori.snmp.leggi_specifiche", side_effect=self.agent.leggi_specifiche):
+            rilevazione = interroga_dispositivo(dispositivo)
+        dispositivo.refresh_from_db()
+        self.assertEqual(dispositivo.profilo_snmp.slug, "hpe-server")
+        self.assertEqual(dispositivo.categoria, DispositivoSNMP.Categoria.SERVER)
+        valori = {v.sonda.nome: v for v in rilevazione.valori.select_related("sonda")}
+        self.assertEqual(valori["Modello"].valore_testo, "ProLiant DL360 Gen10")
+        self.assertEqual(valori["Firmware iLO"].valore_testo, "2.72")
+        self.assertEqual(valori["Salute generale"].valore_display, "OK")
+        self.assertEqual(valori["Temperatura massima sensori"].valore_numero, Decimal("69"))
+        self.assertEqual(valori["Consumo elettrico"].valore_numero, Decimal("94"))
+        self.assertEqual(rilevazione.stato, StatoSNMP.OK, {
+            k: (v.stato, v.errore) for k, v in valori.items() if v.stato != StatoSNMP.OK})
+
+    def test_condition_thresholds(self):
+        dispositivo = DispositivoSNMP.objects.create(nome="iLO", host="192.0.2.3", versione="v2c")
+        with mock.patch("contatori.snmp.leggi_specifiche", side_effect=self.agent.leggi_specifiche):
+            interroga_dispositivo(dispositivo)
+        sonda = dispositivo.sonde.get(nome="Alimentatori")
+        self.assertEqual(sonda.stato_per_valore(Decimal("1")), StatoSNMP.OK)
+        self.assertEqual(sonda.stato_per_valore(Decimal("2")), StatoSNMP.OK)
+        self.assertEqual(sonda.stato_per_valore(Decimal("3")), StatoSNMP.WARNING)
+        self.assertEqual(sonda.stato_per_valore(Decimal("4")), StatoSNMP.ERROR)
+
+    def test_fixture_contains_no_real_identifiers(self):
+        text = self.FIXTURE.read_text(encoding="utf-8").upper()
+        for reale in ("CNOVICROM", "ESX1", "CZJ", "|64|"):
+            self.assertNotIn(reale, text)
+
+
 class AggregazioneMediaTests(TestCase):
     def test_media(self):
         self.assertEqual(aggrega_colonna([34, 3, 9, 4]), 34)
