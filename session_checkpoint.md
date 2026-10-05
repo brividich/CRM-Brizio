@@ -1080,3 +1080,5 @@ Nota: i file di controllo sessione `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOC
 - Completamento UI risposte 2026-10-05: `django_app/anomalie/static/anomalie/js/src/gestione_anomalie.jsx` e bundle espongono campi risposta per voce anche nel dettaglio Gestione anomalie; `api_salva` persiste autore e timestamp, mantenendo anche il flusso di risposta via e-mail.
 
 - Checklist anomalie aggiornata 2026-10-05: risposte per singola descrizione disponibili sia dal dettaglio del portale sia dalla pagina protetta e-mail; autore e timestamp persistiti. Scheda qualità nascosta in UI. UAT e migrazioni restano da verificare.
+
+- Revisione statica anomalie 2026-10-05: confermati nel codice controlli token revocato/scaduto/usato e log azioni; UAT effettivo ancora aperto.

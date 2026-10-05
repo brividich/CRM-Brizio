@@ -2021,3 +2021,8 @@
 - Marcato come completato il nascondimento UI della Scheda qualità, mantenendo invariati modelli e storico.
 - Nessun file critico o codice applicativo modificato in questo aggiornamento documentale.
 - Check: `git diff --check`; UAT end-to-end ancora da svolgere.
+
+## 2026-10-05 - Codex - Revisione statica flusso mail anomalie
+- Verificati nel codice i controlli token revocato/scaduto/usato, il blocco di riutilizzo e la registrazione delle azioni; checklist aggiornata come verifica statica.
+- Lasciate aperte le prove UAT di scadenza/monouso, rendering dei client mail, risposte e migrazioni. Nessuna modifica al codice applicativo.
+- Check: revisione mirata di `mail_action_views.py` e `api_salva` in `views.py`; nessun test eseguito.

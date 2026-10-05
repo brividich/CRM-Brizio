@@ -112,7 +112,7 @@ L’e-mail riepilogherà le descrizioni in blocchi numerati con i rispettivi ser
 - [x] Adattare il contenuto e-mail e la pagina collegata per mostrare le voci con seriali e allegati pertinenti.
 - [x] Fornire un canale di risposta distinto per ciascuna descrizione.
 - [x] Persistire ciascuna risposta sulla voce corretta, con autore e data/ora, e mostrarla sia nel dettaglio del portale sia nella pagina protetta e-mail.
-- [ ] Mantenere le protezioni, la scadenza/monouso dei token e il log delle azioni del flusso attuale.
+- [x] Mantenere le protezioni, la scadenza/monouso dei token e il log delle azioni del flusso attuale (verifica statica del codice; resta UAT).
 - [ ] Verificare rendering e leggibilità della mail su client comuni senza dipendere da sole immagini o colori.
 
 ### Fase F — Verifica e rilascio
@@ -158,4 +158,4 @@ La modifica è completa quando il reparto può aprire una segnalazione indicando
 
 Completati pulsante di apertura, fase obbligatoria per le nuove segnalazioni, collegamento della fase alla NC dell’OP, gruppi aggiuntivi di seriali, descrizioni multiple con seriali selezionabili/digitabili e allegati distinti, distinzione del collaudo di benestare negli elenchi e risposte separate per descrizione sia nel dettaglio di Gestione anomalie sia nella pagina protetta raggiunta dall’e-mail. Ogni risposta registra autore e data/ora. La Scheda qualità è nascosta nell’interfaccia; modelli e storico restano disponibili.
 
-**Migrazioni da applicare:** `0013_anomaliasegnalazionemeta.py` e `0014_anomaliadescrizione_anomaliadescrizioneallegato.py`. Per le segnalazioni storiche la fase non viene inventata: rimane vuota fino a eventuale compilazione esplicita. La ricognizione e i controlli statici sono stati eseguiti. Restano da fare UAT dei due canali di risposta, e-mail e migrazione dati; le caselle di verifica/rilascio restano aperte fino a tale validazione.
+**Migrazioni da applicare:** `0013_anomaliasegnalazionemeta.py` e `0014_anomaliadescrizione_anomaliadescrizioneallegato.py`. Per le segnalazioni storiche la fase non viene inventata: rimane vuota fino a eventuale compilazione esplicita. La ricognizione e i controlli statici sono stati eseguiti, inclusa la verifica delle condizioni token valido/non scaduto/non revocato/non usato e della registrazione delle azioni. Restano da fare UAT dei due canali di risposta, della scadenza/monouso effettivo, del rendering e-mail e della migrazione dati; le caselle di verifica/rilascio restano aperte fino a tale validazione.
