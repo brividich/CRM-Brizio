@@ -104,7 +104,7 @@ class SezioniTest(_ConPersone):
         ctx = self.ctx()
         for sezione in catalogo.catalogo():
             with self.subTest(sezione=sezione.key):
-                res = sezione.builder(ctx)
+                res = sezione.calcola(ctx)
                 self.assertIsInstance(res, catalogo.Risultato)
                 self.assertEqual(len(res.righe), len(res.toni))
 
@@ -123,7 +123,7 @@ class SezioniTest(_ConPersone):
         self.assertEqual({d.id for d in self.ctx(persone=[903]).dipendenti()}, {903})
 
     def test_organico_movimenti_e_turnover(self):
-        res = catalogo.get("organico_indicatori").builder(self.ctx())
+        res = catalogo.get("organico_indicatori").calcola(self.ctx())
         kpi = {k.label: k.value for k in res.kpis}
         self.assertEqual(kpi["Persone in forza"], 3)
         self.assertEqual(kpi["Assunzioni nel periodo"], 1)
@@ -133,7 +133,7 @@ class SezioniTest(_ConPersone):
         self.assertTrue(all(set(r) == {"dimensione", "voce", "n", "pct"} for r in res.righe))
 
     def test_parita_genere_solo_aggregati(self):
-        res = catalogo.get("pdr125_indicatori").builder(self.ctx())
+        res = catalogo.get("pdr125_indicatori").calcola(self.ctx())
         kpi = {k.label: k.value for k in res.kpis}
         self.assertEqual(kpi["Donne in organico"], "67%")
         self.assertEqual(kpi["Genere non registrato"], 0)
@@ -146,7 +146,8 @@ class SezioniTest(_ConPersone):
     def test_colonne_scelte_e_predefinite(self):
         sezione = catalogo.get("personale_elenco")
         self.assertEqual(sezione.colonne_effettive([]), list(sezione.predefinite))
-        self.assertEqual(sezione.colonne_effettive(["mansione", "nominativo", "inventata"]), ["nominativo", "mansione"])
+        # Ordine scelto dall'utente, colonne sconosciute scartate.
+        self.assertEqual(sezione.colonne_effettive(["mansione", "nominativo", "inventata"]), ["mansione", "nominativo"])
 
 
 class PredefinitiTest(TestCase):
@@ -262,7 +263,10 @@ class VisteTest(_ConPersone):
             "blocchi-TOTAL_FORMS": "3", "blocchi-INITIAL_FORMS": "0",
             "blocchi-MIN_NUM_FORMS": "0", "blocchi-MAX_NUM_FORMS": "1000",
             "blocchi-0-tipo": "SEZIONE", "blocchi-0-ordine": "20", "blocchi-0-sezione": "personale_elenco",
-            "blocchi-0-colonne": ["personale_elenco:nominativo", "personale_elenco:mansione", "personale_qualifiche:stato"],
+            "blocchi-0-col__personale_elenco": ["mansione", "nominativo"],
+            "blocchi-0-col__personale_qualifiche": ["stato"],
+            "blocchi-0-o__personale_elenco__ordina_per": "nominativo",
+            "blocchi-0-o__personale_elenco__ordine": "desc",
             "blocchi-0-mostra_tabella": "on",
             "blocchi-1-tipo": "TESTO", "blocchi-1-ordine": "10", "blocchi-1-testo": "Premessa",
             "blocchi-2-tipo": "TESTO", "blocchi-2-ordine": "30", "blocchi-2-testo": "", "blocchi-2-DELETE": "on",
@@ -276,13 +280,15 @@ class VisteTest(_ConPersone):
         blocchi = list(m.blocchi.all())
         self.assertEqual([b.tipo for b in blocchi], ["TESTO", "SEZIONE"])
         self.assertEqual([b.ordine for b in blocchi], [10, 20])
-        self.assertEqual(blocchi[1].opzioni["colonne"], ["nominativo", "mansione"])
+        self.assertEqual(blocchi[1].opzioni["colonne"], ["mansione", "nominativo"])
+        self.assertEqual(blocchi[1].opzioni["valori"]["ordina_per"], "nominativo")
+        self.assertEqual(blocchi[1].opzioni["valori"]["ordine"], "desc")
         self.assertFalse(blocchi[1].opzioni["mostra_indicatori"])
 
         doc = motore.componi(m, motore.Parametri.dal_modello(m), type("R", (), {"user": self.admin})())
         sezione = doc.sezioni_calcolate[0]
-        self.assertEqual([label for _k, label in sezione.colonne], ["Nominativo", "Mansione"])
-        self.assertEqual([r[0] for r in sezione.righe], ["ROSSI ANNA", "VERDI GIULIA"])
+        self.assertEqual([label for _k, label in sezione.colonne], ["Mansione", "Nominativo"])
+        self.assertEqual([r.valori[1] for r in sezione.righe], ["VERDI GIULIA", "ROSSI ANNA"])
 
     def test_sezione_obbligatoria_nel_blocco_sezione(self):
         self.client.force_login(self.admin)

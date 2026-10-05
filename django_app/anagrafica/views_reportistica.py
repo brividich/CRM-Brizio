@@ -18,8 +18,6 @@ from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.http import Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
-from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
@@ -103,8 +101,7 @@ def _editor(request, modello: ReportModello | None):
 
     sezioni_info = {
         s.key: {"descrizione": s.descrizione, "riferimenti": " · ".join(s.riferimenti),
-                "perimetro": s.usa_perimetro, "periodo": s.usa_periodo,
-                "predefinite": [f"{s.key}:{c}" for c in s.predefinite]}
+                "perimetro": s.usa_perimetro, "periodo": s.usa_periodo, "dinamiche": s.colonne_dinamiche}
         for s in catalogo.catalogo()
     }
     return render(request, "anagrafica/pages/reportistica_modello_form.html", {
@@ -113,10 +110,8 @@ def _editor(request, modello: ReportModello | None):
         "formset": formset,
         "modello": None if creazione else modello,
         "sezioni_info": sezioni_info,
-        "colonne_per_sezione": [
-            (s.key, [(f"{s.key}:{k}", label) for k, label in s.colonne]) for s in catalogo.catalogo() if s.colonne
-        ],
         "segnaposto": motore.SEGNAPOSTO,
+        "segnaposto_file": motore.SEGNAPOSTO_FILE,
     })
 
 
@@ -205,6 +200,7 @@ def reportistica_genera(request, pk: int):
             data_a=form.cleaned_data.get("data_a"), perimetro=form.perimetro(),
             titolo=form.cleaned_data["titolo"], sottotitolo=form.cleaned_data.get("sottotitolo") or "",
             destinatario=form.cleaned_data.get("destinatario") or "", testi=form.testi(),
+            escludi_blocchi=form.escludi_blocchi(),
         )
         if form.cleaned_data.get("salva_nel_modello"):
             if can_manage(request):
@@ -259,11 +255,7 @@ def _scarica_nuovo(request, modello, documento: motore.Documento, parametri, for
         contenuto, content_type = motore.render_pdf(documento), "application/pdf"
     else:
         contenuto, content_type = motore.render_xlsx(documento), _XLSX
-    stamp = timezone.localtime().strftime("%Y%m%d_%H%M")
-    base = slugify(documento.titolo)[:60] or "report"
-    if documento.destinatario:
-        base = f"{base}_{slugify(documento.destinatario)[:30]}"
-    nome_file = f"{base}_{stamp}.{formato}"
+    nome_file = motore.nome_file(modello, documento, formato)
     sezioni_usate = [e.sezione.key for e in documento.sezioni_calcolate if e.sezione is not None]
     archiviato = ReportGenerato.objects.create(
         modello=modello, modello_nome=modello.nome, titolo=documento.titolo[:200],

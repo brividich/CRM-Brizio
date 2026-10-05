@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
 {% include "core/components/_hub_formkit.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=1">
+<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -65,16 +65,30 @@
           <div class="hub-fsec-d">Valgono per tutte le sezioni con dati di persone; si possono cambiare al momento della generazione.</div>
           <div class="hub-form-grid">
             {% include "core/forms/_field.html" with field=form.periodo_tipo %}
-            {% include "core/forms/_field.html" with field=form.data_da %}
-            {% include "core/forms/_field.html" with field=form.data_a %}
-            {% include "core/forms/_field.html" with field=form.reparti %}
-            {% include "core/forms/_field.html" with field=form.aree %}
-            {% include "core/forms/_field.html" with field=form.mansioni %}
-            <div class="hub-col-full">
-              <input type="search" class="rp-filtro" data-rp-filtra="{{ form.persone.id_for_label }}" placeholder="Filtra persone per nome o matricola…" aria-label="Filtra persone">
-              {% include "core/forms/_field.html" with field=form.persone %}
+            <div class="rp-due">
+              {% include "core/forms/_field.html" with field=form.data_da %}
+              {% include "core/forms/_field.html" with field=form.data_a %}
             </div>
-            {% include "core/forms/_field.html" with field=form.includi_cessati %}
+          </div>
+          {% include "anagrafica/partials/_reportistica_perimetro.html" %}
+        </div>
+        <div class="hub-fsec">
+          <div class="hub-fsec-h">Impaginazione e controllo documentale</div>
+          <div class="hub-fsec-d">Codice e revisione del modulo di sistema, aspetto del PDF e del file Excel.</div>
+          <div class="hub-form-grid">
+            {% include "core/forms/_field.html" with field=form.codice_documento %}
+            {% include "core/forms/_field.html" with field=form.revisione %}
+            {% include "core/forms/_field.html" with field=form.orientamento %}
+            {% include "core/forms/_field.html" with field=form.formato_predefinito %}
+            {% include "core/forms/_field.html" with field=form.filigrana %}
+            {% include "core/forms/_field.html" with field=form.piede_pagina %}
+            <div class="hub-col-full">
+              {% include "core/forms/_field.html" with field=form.nome_file %}
+              <div class="rp-segnaposto">Segnaposto del nome file: {% for s in segnaposto_file %}<code>{{ s }}</code> {% endfor %}— vuoto = <code>{titolo}_{destinatario}_{data}</code>.</div>
+            </div>
+          </div>
+          <div class="rp-flags" style="margin-top:10px;">
+            {% for field in form.campi_opzioni_stampa %}<label class="hub-check">{{ field }}<span>{{ field.label }}</span></label>{% endfor %}
           </div>
         </div>
         <div class="hub-fsec">
@@ -128,5 +142,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'anagrafica/js/reportistica.js' %}?v=1"></script>
+<script src="{% static 'anagrafica/js/reportistica.js' %}?v=2"></script>
 {% endblock %}

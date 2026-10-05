@@ -66,6 +66,28 @@ class ReportModello(models.Model):
     redatto_da = models.CharField(max_length=120, blank=True, default="")
     verificato_da = models.CharField(max_length=120, blank=True, default="")
     approvato_da = models.CharField(max_length=120, blank=True, default="")
+
+    # ── Impaginazione e controllo documentale ──
+    ORIENTAMENTO_ORIZZONTALE = "ORIZZONTALE"
+    ORIENTAMENTO_VERTICALE = "VERTICALE"
+    ORIENTAMENTO_CHOICES = [(ORIENTAMENTO_ORIZZONTALE, "Orizzontale"), (ORIENTAMENTO_VERTICALE, "Verticale")]
+    FORMATO_CHOICES = [("pdf", "PDF"), ("xlsx", "Excel")]
+
+    codice_documento = models.CharField(max_length=50, blank=True, default="",
+                                        help_text="Codice del modulo di sistema, es. MOD.230.")
+    revisione = models.CharField(max_length=20, blank=True, default="")
+    orientamento = models.CharField(max_length=12, choices=ORIENTAMENTO_CHOICES, default=ORIENTAMENTO_ORIZZONTALE)
+    formato_predefinito = models.CharField(max_length=5, choices=FORMATO_CHOICES, default="pdf")
+    mostra_frontespizio = models.BooleanField(default=True)
+    mostra_indice = models.BooleanField(default=False)
+    mostra_riferimenti = models.BooleanField(default=True)
+    mostra_note_calcolo = models.BooleanField(default=True)
+    filigrana = models.CharField(max_length=40, blank=True, default="", help_text="Es. BOZZA o COPIA NON CONTROLLATA.")
+    piede_pagina = models.CharField(max_length=200, blank=True, default="")
+    nome_file = models.CharField(max_length=150, blank=True, default="",
+                                 help_text="Ammessi i segnaposto, es. {titolo}_{destinatario}_{data}.")
+    excel_foglio_indicatori = models.BooleanField(default=True)
+    excel_foglio_documento = models.BooleanField(default=True)
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

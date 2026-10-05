@@ -45,22 +45,10 @@
   function aggiornaColonne(blocco) {
     var sel = campo(blocco, "sezione");
     var chiave = sel ? sel.value : "";
-    var trovato = false;
-    blocco.querySelectorAll("[data-rp-cols]").forEach(function (gruppo) {
-      var attivo = gruppo.getAttribute("data-rp-cols") === chiave;
-      gruppo.classList.toggle("rp-blocco-hidden", !attivo);
-      if (attivo) {
-        trovato = true;
-        var boxes = gruppo.querySelectorAll('input[type="checkbox"]');
-        var spuntate = Array.prototype.some.call(boxes, function (b) { return b.checked; });
-        // Nessuna colonna scelta = colonne predefinite: le si mostra spuntate.
-        if (!spuntate && sezioni[chiave]) {
-          boxes.forEach(function (b) { b.checked = sezioni[chiave].predefinite.indexOf(b.value) !== -1; });
-        }
-      }
+    // Colonne e opzioni sono rese per ogni sezione: si mostra solo il gruppo di quella scelta.
+    blocco.querySelectorAll("[data-rp-opz]").forEach(function (gruppo) {
+      gruppo.classList.toggle("rp-blocco-hidden", gruppo.getAttribute("data-rp-opz") !== chiave);
     });
-    var fisse = blocco.querySelector("[data-rp-cols-fisse]");
-    if (fisse) fisse.classList.toggle("rp-blocco-hidden", !chiave || trovato);
     var info = blocco.querySelector("[data-rp-sez-info]");
     if (info) {
       var s = sezioni[chiave];
@@ -110,6 +98,23 @@
       if (del) del.checked = true;
       blocco.classList.add("rp-eliminato");
       rinumera();
+    });
+    blocco.querySelector("[data-rp-apri]").addEventListener("click", function () {
+      blocco.classList.toggle("rp-chiuso");
+    });
+    // Colonne: spunta = stampata; ↑ ↓ = ordine di stampa (il browser invia le spunte nell'ordine del DOM).
+    blocco.addEventListener("click", function (ev) {
+      var su = ev.target.closest("[data-rp-col-su]");
+      var giu = ev.target.closest("[data-rp-col-giu]");
+      if (!su && !giu) return;
+      var voce = ev.target.closest(".rp-col");
+      if (su && voce.previousElementSibling) voce.parentNode.insertBefore(voce, voce.previousElementSibling);
+      if (giu && voce.nextElementSibling) voce.parentNode.insertBefore(voce.nextElementSibling, voce);
+    });
+    blocco.addEventListener("change", function (ev) {
+      if (ev.target.matches(".rp-col input[type=checkbox]")) {
+        ev.target.closest(".rp-col").classList.toggle("rp-col-on", ev.target.checked);
+      }
     });
     var sel = campo(blocco, "sezione");
     if (sel) sel.addEventListener("change", function () { aggiornaColonne(blocco); rinumera(); });

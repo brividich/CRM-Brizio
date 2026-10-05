@@ -1,0 +1,18 @@
+{% comment %}Un'opzione di sezione (o.tipo: scelta | multi | intero | si_no), nome già prefissato dal form.{% endcomment %}
+{% if o.tipo == "si_no" %}
+<label class="hub-check rp-opz-check"><input type="checkbox" name="{{ o.nome }}" value="1"{% if o.valore %} checked{% endif %}><span>{{ o.etichetta }}</span></label>
+{% else %}
+<div class="hub-field{% if o.tipo == 'multi' %} rp-opz-multi{% endif %}">
+  <label>{{ o.etichetta }}</label>
+  {% if o.tipo == "intero" %}
+  <input type="number" name="{{ o.nome }}" value="{{ o.valore }}" min="{{ o.minimo }}" max="{{ o.massimo }}">
+  {% elif o.tipo == "scelta" %}
+  <select name="{{ o.nome }}">{% for k, l, sel in o.scelte %}<option value="{{ k }}"{% if sel %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  {% elif o.molte %}
+  <select name="{{ o.nome }}" multiple size="6">{% for k, l, sel in o.scelte %}<option value="{{ k }}"{% if sel %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  {% else %}
+  <div class="rp-opz-scelte">{% for k, l, sel in o.scelte %}<label><input type="checkbox" name="{{ o.nome }}" value="{{ k }}"{% if sel %} checked{% endif %}> {{ l }}</label>{% empty %}<span class="hub-help">Nessuna voce in catalogo.</span>{% endfor %}</div>
+  {% endif %}
+  {% if o.aiuto %}<div class="hub-help">{{ o.aiuto }}</div>{% endif %}
+</div>
+{% endif %}
