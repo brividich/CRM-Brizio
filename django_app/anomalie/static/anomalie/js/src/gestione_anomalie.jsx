@@ -1134,12 +1134,12 @@
               {!isMobile && (
                 <a className="text-base font-semibold" href={nuovaAnomaliaUrl} title="Inserisci una nuova anomalia / segnalazione" style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
-                  background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
-                  borderRadius: 8, padding: "7px 16px", color: "#e2e8f0",
-                  fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap",
+                  background: "#f97316", border: "1px solid #fb923c",
+                  borderRadius: 8, padding: "7px 16px", color: "#fff",
+                  fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap",
                 }}>
                   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg>
-                  Nuova anomalia
+                  + NUOVA SEGNALAZIONE
                 </a>
               )}
               {isMobile && (
@@ -1353,7 +1353,10 @@
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                         <span className="text-md font-bold" style={{ fontWeight: 700, color: "var(--text)" }}>{o.id}</span>
-                        {o.stato && <StatusBadge text={o.stato} variant="benestare" />}
+                        <StatusBadge
+                          text={String(o.stato || "").toLowerCase() === "benestare" ? "Collaudo benestare" : "Altro controllo"}
+                          variant={String(o.stato || "").toLowerCase() === "benestare" ? "benestare" : "aperto"}
+                        />
                       </div>
                       <div className="text-sm" style={{ color: "var(--text-mid)", marginBottom: 4, fontFamily: "ui-monospace,monospace", letterSpacing: "-0.02em" }}>
                         P/N: {o.pn}
@@ -1567,6 +1570,7 @@
                     <div className="text-md font-medium" style={{ fontWeight: 500, color: "var(--text-mid)", fontFamily: "ui-monospace,monospace" }}>
                       {sn.sn || '\u2014'}
                     </div>
+                    {sn.fase && <div className="text-sm" style={{ color: "var(--text-mid)", marginTop: 4 }}>Fase: {sn.fase}</div>}
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <FieldLabel>Identificativo</FieldLabel>
@@ -1641,6 +1645,20 @@
                         onBlur={e  => e.target.style.borderColor="var(--border)"}
                       />
                     </div>
+
+                    {Array.isArray(sn.descrizioni) && sn.descrizioni.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <FieldLabel>Descrizioni e risposte capocommessa</FieldLabel>
+                        {sn.descrizioni.map((detail, index) => (
+                          <div key={detail.id} style={{ border: "1px solid var(--border)", borderRadius: 9, padding: 10, background: "var(--surface)" }}>
+                            <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>Descrizione {index + 1} · S/N {(detail.seriali || []).join(", ") || "—"}</div>
+                            <div className="text-sm" style={{ whiteSpace: "pre-wrap", color: "var(--text-mid)", marginTop: 4 }}>{detail.testo}</div>
+                            {detail.risposta && <div className="text-sm" style={{ whiteSpace: "pre-wrap", marginTop: 7, padding: 8, borderRadius: 6, background: "var(--accent-light)", color: "var(--text)" }}><strong>Risposta capocommessa:</strong> {detail.risposta}</div>}
+                            {(detail.allegati || []).map(file => <a key={file.id} className="text-sm" href={`${API.allegati_file}?local_id=${encodeURIComponent(sn.local_id)}&file_id=${encodeURIComponent(`descrizione:${file.id}`)}`} target="_blank" rel="noreferrer">{file.nome}</a>)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     <div style={{ background: "var(--bg)", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14, border: "1px solid var(--border)" }}>
                       <Toggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditSelected} onChange={() => setPezziPrec(!pezziPrec)} />
@@ -1885,9 +1903,7 @@
                     )}
                   </div>
                 </div>
-                {sn.sn && (
-                  <SchedaQualita localId={currentLocalId} canEdit={canEditCurrentOp} reloadKey={qualitaTick} isMobile={isMobile} />
-                )}
+                {/* Scheda qualità temporaneamente nascosta su richiesta del reparto. */}
                 {op.id && op.id !== '—' && (
                   <TimelineOp opId={op.id} opItemId={op.item_id} />
                 )}
@@ -1982,4 +1998,3 @@
         React.createElement(GestioneAnomalie, null)
       )
     );
-  

@@ -747,19 +747,17 @@ def _remove_attachment_sync_meta_entry(local_id: int, file_id: str) -> None:
 
 def _list_attachments_for_local(local_id: int) -> list[dict]:
     folder = _attachment_dir_for_local(local_id, create=False)
-    if not folder.exists():
-        return []
-
     paths: list[Path] = []
-    for path in folder.iterdir():
-        if not path.is_file():
-            continue
-        file_id = path.name
-        if file_id == ALLEGATI_SYNC_META_FILENAME:
-            continue
-        if not _ALLEGATI_FILE_ID_RE.match(file_id):
-            continue
-        paths.append(path)
+    if folder.exists():
+        for path in folder.iterdir():
+            if not path.is_file():
+                continue
+            file_id = path.name
+            if file_id == ALLEGATI_SYNC_META_FILENAME:
+                continue
+            if not _ALLEGATI_FILE_ID_RE.match(file_id):
+                continue
+            paths.append(path)
     paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
 
     items: list[dict] = []
@@ -778,6 +776,19 @@ def _list_attachments_for_local(local_id: int) -> list[dict]:
                 "modified": mtime,
             }
         )
+    from .quality_models import AnomaliaDescrizioneAllegato
+    for attachment in AnomaliaDescrizioneAllegato.objects.filter(
+        descrizione__segnalazione__anomalia_id=local_id,
+    ).select_related("descrizione"):
+        items.append({
+            "file_id": f"descrizione:{attachment.pk}",
+            "name": attachment.nome,
+            "size": attachment.size,
+            "mime_type": attachment.mime or "application/octet-stream",
+            "is_image": _is_image_attachment(attachment.nome, attachment.mime),
+            "modified": attachment.created_at.isoformat(),
+            "descrizione_id": attachment.descrizione_id,
+        })
     return items
 
 
@@ -2298,7 +2309,40 @@ def api_anomalie(request):
                 continue
             seen_ids.add(rid)
             unique_rows.append(r)
-        return JsonResponse(_serialize_anomalie_rows(unique_rows), safe=False)
+        payload_rows = _serialize_anomalie_rows(unique_rows)
+        from .quality_models import AnomaliaSegnalazioneMeta
+        fasi_by_id = dict(AnomaliaSegnalazioneMeta.objects.filter(
+            anomalia_id__in=[int(row["id"]) for row in unique_rows if row.get("id") is not None]
+        ).values_list("anomalia_id", "fase"))
+        for payload_row in payload_rows:
+            try:
+                local_id = int(payload_row.get("local_id"))
+            except (TypeError, ValueError):
+                continue
+            payload_row["fase"] = fasi_by_id.get(local_id, "")
+        from .quality_models import AnomaliaDescrizione
+        descrizioni_by_id: dict[int, list[dict]] = {}
+        details = AnomaliaDescrizione.objects.filter(
+            segnalazione__anomalia_id__in=[int(row["id"]) for row in unique_rows if row.get("id") is not None]
+        ).prefetch_related("allegati")
+        for detail in details:
+            descrizioni_by_id.setdefault(detail.segnalazione.anomalia_id, []).append({
+                "id": detail.pk,
+                "ordine": detail.ordine,
+                "seriali": detail.seriali if isinstance(detail.seriali, list) else [],
+                "testo": detail.testo,
+                "risposta": detail.risposta_capocommessa,
+                "risposta_da": detail.risposta_da,
+                "risposta_il": detail.risposta_il.isoformat() if detail.risposta_il else "",
+                "allegati": list(detail.allegati.values("id", "nome", "size")),
+            })
+        for payload_row in payload_rows:
+            try:
+                local_id = int(payload_row.get("local_id"))
+            except (TypeError, ValueError):
+                continue
+            payload_row["descrizioni"] = descrizioni_by_id.get(local_id, [])
+        return JsonResponse(payload_rows, safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)
 
@@ -2478,7 +2522,18 @@ def api_anomalie_allegati_delete(request):
         op_id = str(row.get("ex_op_nominativo") or "").strip()
         if not _can_edit_anomalie_for_op(request, op_id):
             return _json_error("Permesso negato", status=403)
-        path = _attachment_file_path(local_id, file_id)
+        if file_id.startswith("descrizione:") and file_id.split(":", 1)[1].isdigit():
+            from .quality_models import AnomaliaDescrizioneAllegato
+            attached = AnomaliaDescrizioneAllegato.objects.filter(
+                pk=int(file_id.split(":", 1)[1]),
+                descrizione__segnalazione__anomalia_id=local_id,
+            ).first()
+            folder = _attachment_dir_for_local(local_id, create=False).resolve()
+            path = (folder / attached.file_rel).resolve() if attached else None
+            if path and not path.is_relative_to(folder):
+                path = None
+        else:
+            path = _attachment_file_path(local_id, file_id)
         if not path or not path.exists() or not path.is_file():
             return _json_error("Allegato non trovato", status=404)
         deleted_name = _attachment_display_name(path.name)
@@ -2486,6 +2541,8 @@ def api_anomalie_allegati_delete(request):
             path.unlink()
         except OSError as exc:
             return _json_error(str(exc), status=500)
+        if file_id.startswith("descrizione:") and attached:
+            attached.delete()
         _remove_attachment_sync_meta_entry(local_id, file_id)
         try:
             log_action(
@@ -2500,6 +2557,64 @@ def api_anomalie_allegati_delete(request):
     except Exception as exc:
         logger.exception("[anomalie] errore api_anomalie_allegati_delete")
         return _json_error(f"Errore eliminazione allegato: {exc}", status=500)
+
+
+@login_required
+def api_anomalie_descrizione_allegati_upload(request):
+    """Carica allegati privati associandoli a una specifica descrizione."""
+    if request.method != "POST":
+        return _json_error("Metodo non consentito", status=405)
+    local_id_raw = str(request.POST.get("local_id") or "").strip()
+    descrizione_id_raw = str(request.POST.get("descrizione_id") or "").strip()
+    if not local_id_raw.isdigit() or not descrizione_id_raw.isdigit():
+        return _json_error("Riferimento segnalazione o descrizione non valido", status=400)
+    local_id = int(local_id_raw)
+    row = _anomaly_local_row(local_id)
+    if not row:
+        return _json_error("Anomalia non trovata", status=404)
+    op_id = str(row.get("ex_op_nominativo") or "").strip()
+    if not _can_edit_anomalie_for_op(request, op_id):
+        return _json_error("Permesso negato", status=403)
+    from .quality_models import AnomaliaDescrizione, AnomaliaDescrizioneAllegato
+    descrizione = AnomaliaDescrizione.objects.filter(
+        pk=int(descrizione_id_raw), segnalazione__anomalia_id=local_id,
+    ).first()
+    if not descrizione:
+        return _json_error("Descrizione non trovata", status=404)
+    files = request.FILES.getlist("files")
+    if not files:
+        return _json_error("Nessun file caricato", status=400)
+    folder = _attachment_dir_for_local(local_id, create=True)
+    saved = []
+    errors = []
+    for uploaded in files:
+        name = _safe_attachment_filename(getattr(uploaded, "name", ""))
+        size = int(getattr(uploaded, "size", 0) or 0)
+        if not name or not _is_allowed_attachment(name):
+            errors.append("Formato o nome file non supportato")
+            continue
+        if size <= 0 or size > ALLEGATI_MAX_FILE_SIZE:
+            errors.append(f"{name}: dimensione non valida o oltre 20 MB")
+            continue
+        file_rel = f"{uuid4().hex}__{name}"
+        target = folder / file_rel
+        try:
+            with target.open("wb") as destination:
+                for chunk in uploaded.chunks():
+                    destination.write(chunk)
+            attachment = AnomaliaDescrizioneAllegato.objects.create(
+                descrizione=descrizione,
+                nome=name,
+                file_rel=file_rel,
+                size=size,
+                mime=getattr(uploaded, "content_type", "") or mimetypes.guess_type(name)[0] or "",
+                uploaded_by=request.user,
+            )
+            saved.append({"id": attachment.pk, "nome": name, "size": size})
+        except OSError:
+            logger.exception("Upload allegato descrizione fallito: anomalia=%s", local_id)
+            errors.append(f"{name}: scrittura fallita")
+    return JsonResponse({"success": bool(saved) and not errors, "allegati": saved, "errors": errors}, status=200 if saved else 400)
 
 
 @login_required
@@ -2518,7 +2633,18 @@ def api_anomalie_allegati_file(request):
         op_id = str(row.get("ex_op_nominativo") or "").strip()
         if not _can_view_anomalie_for_op(request, op_id):
             return _json_error("Permesso negato", status=403)
-        path = _attachment_file_path(local_id, file_id)
+        if file_id.startswith("descrizione:") and file_id.split(":", 1)[1].isdigit():
+            from .quality_models import AnomaliaDescrizioneAllegato
+            attached = AnomaliaDescrizioneAllegato.objects.filter(
+                pk=int(file_id.split(":", 1)[1]),
+                descrizione__segnalazione__anomalia_id=local_id,
+            ).first()
+            folder = _attachment_dir_for_local(local_id, create=False).resolve()
+            path = (folder / attached.file_rel).resolve() if attached else None
+            if path and not path.is_relative_to(folder):
+                path = None
+        else:
+            path = _attachment_file_path(local_id, file_id)
         if not path or not path.exists() or not path.is_file():
             return _json_error("Allegato non trovato", status=404)
 
@@ -2570,8 +2696,11 @@ def api_salva(request):
 
     item_id = _safe_text(data.get("item_id"), 100)
     op_id = _safe_text(data.get("op_id"), 100)
+    fase_segnalazione = _safe_text(data.get("fase"), 100)
     if not op_id:
         return _json_error("op_id obbligatorio", status=400)
+    if not item_id and not fase_segnalazione:
+        return _json_error("Fase obbligatoria", status=400)
     if not _can_edit_anomalie_for_op(request, op_id):
         return _json_error("Permesso negato: non autorizzato a modificare questo OP", status=403)
 
@@ -2787,12 +2916,56 @@ def api_salva(request):
         # Scheda qualita' + NC dell'OP (fire-and-forget, savepoint: un errore qui
         # non deve mai invalidare il salvataggio della segnalazione).
         protocollo = ""
+        descrizioni_response = []
         if local_id is not None:
             try:
                 from anomalie.qualita_service import sync_da_anomalia
+                from anomalie.quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
                 with transaction.atomic():
                     scheda = sync_da_anomalia(local_id)
+                    meta, _ = AnomaliaSegnalazioneMeta.objects.get_or_create(
+                        anomalia_id=local_id,
+                        defaults={"fase": fase_segnalazione},
+                    )
+                    if fase_segnalazione:
+                        meta.fase = fase_segnalazione
+                    meta.nc = scheda.nc if scheda and scheda.nc_id else None
+                    meta.save(update_fields=["fase", "nc", "updated_at"])
+                    descrizioni_raw = data.get("descrizioni")
+                    if isinstance(descrizioni_raw, list):
+                        descrizioni_valid = []
+                        for index, item in enumerate(descrizioni_raw[:30]):
+                            if not isinstance(item, dict):
+                                continue
+                            testo = _safe_text(item.get("testo"), 5000)
+                            if not testo:
+                                continue
+                            seriali = item.get("seriali")
+                            if not isinstance(seriali, list):
+                                seriali = []
+                            seriali = list(dict.fromkeys(
+                                _safe_text(value, 100) for value in seriali if _safe_text(value, 100)
+                            ))[:100]
+                            descrizioni_valid.append((index, seriali, testo))
+                        if descrizioni_valid:
+                            meta.descrizioni.all().delete()
+                            AnomaliaDescrizione.objects.bulk_create([
+                                AnomaliaDescrizione(
+                                    segnalazione=meta, ordine=index, seriali=seriali, testo=testo,
+                                )
+                                for index, seriali, testo in descrizioni_valid
+                            ])
+                    elif not meta.descrizioni.exists():
+                        testo_legacy = _safe_text(data.get("desc"), 5000)
+                        if testo_legacy:
+                            seriale_legacy = _safe_text(data.get("sn"), 200)
+                            meta.descrizioni.create(
+                                ordine=0,
+                                seriali=[seriale_legacy] if seriale_legacy else [],
+                                testo=testo_legacy,
+                            )
                 protocollo = scheda.nc.protocollo if scheda and scheda.nc_id else ""
+                descrizioni_response = list(meta.descrizioni.order_by("ordine", "id").values("id", "ordine"))
             except Exception:
                 logger.warning("api_salva: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
 
@@ -2802,6 +2975,7 @@ def api_salva(request):
                 "item_id": returned_item_id,
                 "local_id": local_id,
                 "protocollo": protocollo,
+                "descrizioni": descrizioni_response,
             }
         )
     except DatabaseError as exc:

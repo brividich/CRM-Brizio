@@ -191,6 +191,33 @@ def build_anomalie_action_email(
     if site_url is None:
         site_url = getattr(settings, "SITE_URL", "").rstrip("/")
 
+    anomalie_rows = [dict(row) for row in anomalie_rows]
+    try:
+        from .quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
+        ids = [int(row["id"]) for row in anomalie_rows if row.get("id") is not None]
+        fasi = dict(AnomaliaSegnalazioneMeta.objects.filter(
+            anomalia_id__in=ids,
+        ).values_list("anomalia_id", "fase"))
+        details_by_id: dict[int, list[dict]] = {}
+        for detail in AnomaliaDescrizione.objects.filter(
+            segnalazione__anomalia_id__in=ids,
+        ).prefetch_related("allegati").order_by("segnalazione__anomalia_id", "ordine", "id"):
+            details_by_id.setdefault(detail.segnalazione.anomalia_id, []).append({
+                "seriali": detail.seriali if isinstance(detail.seriali, list) else [],
+                "testo": detail.testo,
+                "allegati": [{"id": attachment.pk, "nome": attachment.nome} for attachment in detail.allegati.all()],
+            })
+        for row in anomalie_rows:
+            try:
+                row_id = int(row.get("id"))
+            except (TypeError, ValueError):
+                continue
+            row["fase"] = fasi.get(row_id, "")
+            row["descrizioni"] = details_by_id.get(row_id, [])
+    except Exception:
+        # Durante una migrazione o per email legacy, resta disponibile il riepilogo storico.
+        logger.info("Dettagli per fase non disponibili nel riepilogo mail anomalie", exc_info=True)
+
     action_url = site_url + reverse("anomalie_mail_action", kwargs={"token": token_str})
 
     n_tot = len(anomalie_rows)
@@ -355,7 +382,17 @@ def _build_plain_text(
     for a in anomalie_visibili:
         desc = a.get("descrizione") or a.get("descrizione_breve") or "(nessuna descrizione)"
         stato = a.get("avanzamento") or a.get("stato") or ""
-        lines.append(f"  • #{a.get('id', '?')} — {desc[:120]}" + (f" [{stato}]" if stato else ""))
+        if not a.get("descrizioni"):
+            lines.append(f"  • #{a.get('id', '?')} — {desc[:120]}" + (f" [{stato}]" if stato else ""))
+        else:
+            lines.append(f"  • #{a.get('id', '?')}" + (f" [{stato}]" if stato else ""))
+        if a.get("fase"):
+            lines.append(f"    Fase: {a['fase']}")
+        for index, detail in enumerate(a.get("descrizioni") or [], start=1):
+            seriali = ", ".join(detail.get("seriali") or [])
+            lines.append(f"    Descrizione {index}" + (f" · S/N {seriali}" if seriali else "") + f": {str(detail.get('testo') or '')[:500]}")
+            for filename in detail.get("allegati") or []:
+                lines.append(f"      Allegato: {filename.get('nome') if isinstance(filename, dict) else filename}")
     if troncato:
         lines.append(f"  … e altre {n_tot - len(anomalie_visibili)} anomalie (apri il link per vedere tutto)")
     lines += [

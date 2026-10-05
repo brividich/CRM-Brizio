@@ -1612,12 +1612,12 @@ function GestioneAnomalie() {
       display: "inline-flex",
       alignItems: "center",
       gap: 6,
-      background: "rgba(255,255,255,.08)",
-      border: "1px solid rgba(255,255,255,.12)",
+      background: "#f97316",
+      border: "1px solid #fb923c",
       borderRadius: 8,
       padding: "7px 16px",
-      color: "#e2e8f0",
-      fontWeight: 600,
+      color: "#fff",
+      fontWeight: 700,
       textDecoration: "none",
       whiteSpace: "nowrap"
     }
@@ -1630,7 +1630,7 @@ function GestioneAnomalie() {
     viewBox: "0 0 24 24"
   }, /*#__PURE__*/React.createElement("path", {
     d: "M12 5v14m-7-7h14"
-  })), "Nuova anomalia"), isMobile && /*#__PURE__*/React.createElement("a", {
+  })), "+ NUOVA SEGNALAZIONE"), isMobile && /*#__PURE__*/React.createElement("a", {
     href: nuovaAnomaliaUrl,
     title: "Nuova anomalia / segnalazione",
     style: {
@@ -2016,9 +2016,9 @@ function GestioneAnomalie() {
       fontWeight: 700,
       color: "var(--text)"
     }
-  }, o.id), o.stato && /*#__PURE__*/React.createElement(StatusBadge, {
-    text: o.stato,
-    variant: "benestare"
+  }, o.id), /*#__PURE__*/React.createElement(StatusBadge, {
+    text: String(o.stato || "").toLowerCase() === "benestare" ? "Collaudo benestare" : "Altro controllo",
+    variant: String(o.stato || "").toLowerCase() === "benestare" ? "benestare" : "aperto"
   })), /*#__PURE__*/React.createElement("div", {
     className: "text-sm",
     style: {
@@ -2465,7 +2465,13 @@ function GestioneAnomalie() {
       color: "var(--text-mid)",
       fontFamily: "ui-monospace,monospace"
     }
-  }, sn.sn || '\u2014')), /*#__PURE__*/React.createElement("div", {
+  }, sn.sn || '\u2014'), sn.fase && /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: "var(--text-mid)",
+      marginTop: 4
+    }
+  }, "Fase: ", sn.fase)), /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "right"
     }
@@ -2572,7 +2578,49 @@ function GestioneAnomalie() {
     },
     onFocus: e => e.target.style.borderColor = "rgba(249,115,22,.5)",
     onBlur: e => e.target.style.borderColor = "var(--border)"
-  })), /*#__PURE__*/React.createElement("div", {
+  })), Array.isArray(sn.descrizioni) && sn.descrizioni.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Descrizioni e risposte capocommessa"), sn.descrizioni.map((detail, index) => /*#__PURE__*/React.createElement("div", {
+    key: detail.id,
+    style: {
+      border: "1px solid var(--border)",
+      borderRadius: 9,
+      padding: 10,
+      background: "var(--surface)"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-sm font-semibold",
+    style: {
+      color: "var(--text)"
+    }
+  }, "Descrizione ", index + 1, " \xB7 S/N ", (detail.seriali || []).join(", ") || "—"), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      whiteSpace: "pre-wrap",
+      color: "var(--text-mid)",
+      marginTop: 4
+    }
+  }, detail.testo), detail.risposta && /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      whiteSpace: "pre-wrap",
+      marginTop: 7,
+      padding: 8,
+      borderRadius: 6,
+      background: "var(--accent-light)",
+      color: "var(--text)"
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "Risposta capocommessa:"), " ", detail.risposta), (detail.allegati || []).map(file => /*#__PURE__*/React.createElement("a", {
+    key: file.id,
+    className: "text-sm",
+    href: `${API.allegati_file}?local_id=${encodeURIComponent(sn.local_id)}&file_id=${encodeURIComponent(`descrizione:${file.id}`)}`,
+    target: "_blank",
+    rel: "noreferrer"
+  }, file.nome))))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--bg)",
       borderRadius: 12,
@@ -2886,12 +2934,7 @@ function GestioneAnomalie() {
     },
     onFocus: e => e.target.style.borderColor = "#93c5fd",
     onBlur: e => e.target.style.borderColor = "#e2e8f0"
-  })))), sn.sn && /*#__PURE__*/React.createElement(SchedaQualita, {
-    localId: currentLocalId,
-    canEdit: canEditCurrentOp,
-    reloadKey: qualitaTick,
-    isMobile: isMobile
-  }), op.id && op.id !== '—' && /*#__PURE__*/React.createElement(TimelineOp, {
+  })))), op.id && op.id !== '—' && /*#__PURE__*/React.createElement(TimelineOp, {
     opId: op.id,
     opItemId: op.item_id
   })))), isMobile && saveMsg && /*#__PURE__*/React.createElement("div", {

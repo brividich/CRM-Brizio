@@ -81,6 +81,28 @@ def mail_action_view(request: HttpRequest, token: str) -> HttpResponse:
     else:
         anomalie_live = _load_anomalie_live(token_obj.anomalie_ids, op_id)
 
+    if anomalie_live:
+        from .quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
+        by_anomalia: dict[int, list[dict]] = {}
+        fasi = dict(AnomaliaSegnalazioneMeta.objects.filter(
+            anomalia_id__in=[int(a["id"]) for a in anomalie_live if a.get("id")]
+        ).values_list("anomalia_id", "fase"))
+        detail_rows = AnomaliaDescrizione.objects.filter(
+            segnalazione__anomalia_id__in=[int(a["id"]) for a in anomalie_live if a.get("id")]
+        ).prefetch_related("allegati")
+        for detail in detail_rows:
+            by_anomalia.setdefault(detail.segnalazione.anomalia_id, []).append({
+                "id": detail.pk,
+                "ordine": detail.ordine,
+                "seriali": detail.seriali if isinstance(detail.seriali, list) else [],
+                "testo": detail.testo,
+                "risposta": detail.risposta_capocommessa,
+                "allegati": list(detail.allegati.values("id", "nome", "size")),
+            })
+        for anomaly in anomalie_live:
+            anomaly["descrizioni"] = by_anomalia.get(int(anomaly["id"]), [])
+            anomaly["fase"] = fasi.get(int(anomaly["id"]), "")
+
     first_images = []
     if anomalie_live:
         first_images = _load_first_images(anomalie_live[0]["id"])
@@ -157,6 +179,7 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
             riga_aprire_rdc = bool(per_riga.get("aprire_rdc"))
             riga_segnalare = bool(per_riga.get("segnalare"))
             riga_chiudere = bool(per_riga.get("chiudere"))
+            descrizioni_risposte = per_riga.get("descrizioni_risposte", {})
             prev = anomalia.get(_STATO_FIELD) or ""
             ok = _apply_action_to_anomalia(
                 anomalia_id=anomalia_id,
@@ -168,6 +191,23 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                 segnalare=riga_segnalare,
                 chiudere=riga_chiudere,
             )
+            if ok and isinstance(descrizioni_risposte, dict):
+                try:
+                    from .quality_models import AnomaliaDescrizione
+                    risposta_da = token_obj.recipient_display or token_obj.recipient_email or "Capocommessa"
+                    for detail_id, response_text in descrizioni_risposte.items():
+                        response_text = str(response_text or "").strip()[:5000]
+                        if not response_text or not str(detail_id).isdigit():
+                            continue
+                        AnomaliaDescrizione.objects.filter(
+                            pk=int(detail_id), segnalazione__anomalia_id=anomalia_id,
+                        ).update(
+                            risposta_capocommessa=response_text,
+                            risposta_da=risposta_da[:200],
+                            risposta_il=timezone.now(),
+                        )
+                except Exception:
+                    logger.exception("mail_action: salvataggio risposte descrizione fallito id=%s", anomalia_id)
             results.append({
                 "id": anomalia_id,
                 "ok": ok,

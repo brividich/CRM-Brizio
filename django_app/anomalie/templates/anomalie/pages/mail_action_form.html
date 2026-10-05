@@ -313,6 +313,7 @@
         <div class="anomalia-row-info">
           <span class="anomalia-num">#{{ a.id }}</span>
           {% if a.seriale %}<span class="anomalia-sn">{{ a.seriale }}</span>{% endif %}
+          {% if a.fase %}<span class="stato-pill">Fase {{ a.fase }}</span>{% endif %}
           <span class="anomalia-desc-compact">{{ a.descrizione|default:"(nessuna descrizione)"|truncatechars:80 }}</span>
           <span class="superficie-badge" id="sup-{{ a.id }}" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"/><path d="M2 7h20"/><path d="M2 17h20"/></svg>
@@ -327,7 +328,17 @@
       </div>
       <div class="anomalia-body">
         <div class="body-inner">
+          {% if a.descrizioni %}
+          {% for descrizione in a.descrizioni %}
+          <div class="body-desc-full" style="padding:10px;border:1px solid #e2e8f0;border-radius:8px;">
+            <strong>Descrizione {{ forloop.counter }} · S/N {{ descrizione.seriali|join:", " }}</strong><br>{{ descrizione.testo }}
+            {% for allegato in descrizione.allegati %}<div style="font-size:12px;color:#64748b">Allegato: <a href="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id=descrizione:{{ allegato.id }}">{{ allegato.nome }}</a> ({{ allegato.size|filesizeformat }})</div>{% endfor %}
+            {% if descrizione.risposta %}<div class="body-note-existing">Risposta capocommessa: {{ descrizione.risposta }}</div>{% endif %}
+          </div>
+          {% endfor %}
+          {% else %}
           <div class="body-desc-full" id="bodydesc-{{ a.id }}">{{ a.descrizione|default:"(nessuna descrizione)" }}</div>
+          {% endif %}
           {% if a.note_capocommessa %}
           <div class="body-note-existing">Note: {{ a.note_capocommessa }}</div>
           {% endif %}
@@ -360,6 +371,12 @@
             </div>
 
             <div class="decisione-fields">
+              {% for descrizione in a.descrizioni %}
+              <div>
+                <div class="field-label">Risposta alla descrizione {{ forloop.counter }} · S/N {{ descrizione.seriali|join:", " }}</div>
+                <textarea class="field-textarea" data-descrizione-risposta="{{ descrizione.id }}" placeholder="Risposta del capocommessa...">{{ descrizione.risposta }}</textarea>
+              </div>
+              {% endfor %}
               <div>
                 <div class="field-label">Nuovo avanzamento</div>
                 <select class="field-select" id="av-{{ a.id }}" onchange="onToggleChange({{ a.id }})">
@@ -603,6 +620,10 @@
       aprire_rdc: aprireRdc,
       segnalare: segnalare,
       chiudere: chiudere,
+      descrizioni_risposte: Array.prototype.slice.call(document.querySelectorAll('#panel-' + id + ' [data-descrizione-risposta]')).reduce(function(out, field) {
+        out[field.dataset.descrizioneRisposta] = field.value.trim();
+        return out;
+      }, {}),
       salvato: true,
     };
 

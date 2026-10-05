@@ -2002,3 +2002,16 @@
 - Rischi residui: creato anche `hotfix/hotfix-v1.0.1-20260519_115759.zip` durante un primo tentativo, ma contiene entry appiattite (`views.py`, `asset_detail.html`) e non va usato; il pacchetto valido e verificato e quello `115839`.
 - Test/check: verifica zip OK con entry `django_app/...` complete.
 - Note: nessuna migrazione, dipendenza o collectstatic richiesti per questa fix.
+
+## 2026-10-05 - Codex
+
+- Area: `django_app/anomalie`.
+- File modificati: `django_app/anomalie/quality_models.py`, `models.py`, `views.py`, `urls.py`, `mail_action_service.py`, `mail_action_views.py`, `templates/anomalie/pages/apertura_segnalazione.html`, `templates/anomalie/pages/mail_action_form.html`, `templates/anomalie/email/anomalie_action_email.html`, `static/anomalie/js/src/gestione_anomalie.jsx`, `static/anomalie/js/gestione_anomalie.bundle.js`, migrazioni `0013_anomaliasegnalazionemeta.py` e `0014_anomaliadescrizione_anomaliadescrizioneallegato.py`, README, changelog root/Django, checklist anomalie, checkpoint.
+- Richiesta: realizzare le modifiche concordate per Gestione anomalie; Scheda qualità temporaneamente nascosta.
+- Motivo tecnico: la tabella legacy conserva una riga per anomalia senza attributo fase né entità figlie per le descrizioni; i dati aggiuntivi devono quindi vivere in modelli Django collegati tramite l'id legacy, mantenendo il flusso mail-action protetto.
+- Modifica: CTA arancione, fase obbligatoria memorizzata per riga e collegata alla NC dell’OP, aggiunta di seriali e descrizioni multiple con allegati privati per descrizione, risposte distinte del capocommessa via flusso protetto e visualizzazione nel dettaglio, badge espliciti per collaudo di benestare e altri controlli. Nascosta la Scheda qualità nella UI senza rimuovere modelli o storico.
+- File critici modificati: nessuno individuato; `_AGENT_CONTROL/CRITICAL_FILES.md` non disponibile.
+- Impatto: richiede migrazioni anomalie 0013 e 0014 prima dell’uso; le segnalazioni storiche non ricevono una fase inventata e restano con fase vuota.
+- Check: `makemigrations anomalie` ha generato 0013/0014; build UI React completata; `compileall` Python completato. Nessuna suite di test eseguita.
+- Rischi residui: da fare UAT end-to-end su e-mail/risposte/allegati e verifica rilascio con migrazioni su DB di test; risposte storiche non sono associate retroattivamente a nuove voci.
+- Note: modifiche sul branch `feature/anomalie-fasi-seriali` nel worktree dedicato `C:\Dev\pn-anomalie-fasi-seriali`. `ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti.

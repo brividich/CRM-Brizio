@@ -33,6 +33,7 @@ urlpatterns = [
     path("api/anomalie/anomalie", views.api_anomalie, name="api_anomalie_anomalie"),
     path("api/anomalie/allegati", views.api_anomalie_allegati, name="api_anomalie_allegati"),
     path("api/anomalie/allegati/upload", views.api_anomalie_allegati_upload, name="api_anomalie_allegati_upload"),
+    path("api/anomalie/descrizione-allegati/upload", views.api_anomalie_descrizione_allegati_upload, name="api_anomalie_descrizione_allegati_upload"),
     path("api/anomalie/allegati/delete", views.api_anomalie_allegati_delete, name="api_anomalie_allegati_delete"),
     path("api/anomalie/allegati/file", views.api_anomalie_allegati_file, name="api_anomalie_allegati_file"),
     path("api/anomalie/campi", views.api_campi, name="api_anomalie_campi"),
