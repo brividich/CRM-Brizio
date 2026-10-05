@@ -199,14 +199,40 @@ class PrinterPresetTests(TestCase):
         self.assertTrue(bassi)
         self.assertEqual(rilevazione.stato, StatoSNMP.WARNING)
 
-    def test_kyocera_preset_and_unconfirmed_counters_stay_off(self):
+    def test_kyocera_preset_with_contract_counters(self):
         dispositivo, rilevazione, valori = self._poll("kyocera_taskalfa_5054ci.snmprec", "192.0.2.217")
         self.assertEqual(dispositivo.profilo_snmp.slug, "kyocera")
         self.assertEqual(valori["Modello"].valore_testo, "TASKalfa 5054ci")
         self.assertEqual(valori["Errori rilevati"].valore_testo, "nessun errore")
         self.assertEqual(valori["Messaggio display"].valore_testo, "a riposo...")
-        self.assertNotIn("Totale B/N (da confermare)", valori)
+        attesi = {"A4 BN Kyocera": 329067, "A3 BN Kyocera": 18214,
+                  "A4 colore Kyocera": 11708, "A3 colore Kyocera": 1856,
+                  "Totale B/N": 347299, "Totale colore": 13564}
+        for nome, valore in attesi.items():
+            self.assertEqual(valori[nome].valore_numero, Decimal(valore), nome)
         self.assertEqual(rilevazione.stato, StatoSNMP.OK)
+
+    def test_kyocera_formats_add_up_to_totals(self):
+        agent = FixtureAgent(FIXTURES / "kyocera_taskalfa_5054ci.snmprec")
+        base = "1.3.6.1.4.1.1347.42.3.1.6.1.1"
+        self.assertEqual(agent.values["1.3.6.1.4.1.1347.42.2.1.1.1.2.1.1"], "A3")
+        self.assertEqual(agent.values["1.3.6.1.4.1.1347.42.2.1.1.1.2.1.3"], "A4")
+        for colore, totale in ((1, "1.3.6.1.4.1.1347.42.3.1.1.1.1.1"), (2, "1.3.6.1.4.1.1347.42.3.1.1.1.1.2")):
+            somma = sum(v for k, v in agent.values.items() if k.startswith(f"{base}.{colore}."))
+            self.assertEqual(somma, agent.values[totale])
+
+    def test_kyocera_mfc_reads_four_contract_counters(self):
+        from contatori.models import Macchina
+        from contatori.services import interroga_macchina
+
+        agent = FixtureAgent(FIXTURES / "kyocera_taskalfa_5054ci.snmprec")
+        macchina = Macchina.objects.create(
+            reparto="Test", matricola="KY-SINT-1", modello="TASKalfa 5054ci", host="192.0.2.217",
+            profilo_snmp=ProfiloSNMP.objects.get(slug="kyocera"),
+        )
+        with mock.patch("contatori.snmp.leggi_specifiche", side_effect=agent.leggi_specifiche):
+            valori = interroga_macchina(macchina)
+        self.assertEqual(valori, {"a4_bn": 329067, "a3_bn": 18214, "a4_col": 11708, "a3_col": 1856})
 
     def test_hp_designjet_detected_with_specific_prefix(self):
         dispositivo, _r, valori = self._poll("hp_designjet_t730.snmprec", "192.0.2.46")

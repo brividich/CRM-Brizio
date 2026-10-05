@@ -86,9 +86,25 @@ Verificato sui walk: Canon con display "toner is low" → bit *toner in esaurime
 
 Il walk espone 39 contatori, tutti con nome: per esempio copie/stampe a colori, grande formato, ricezione fax. Si possono aggiungere come colonne dalla UI.
 
-**Kyocera** (`1.3.6.1.4.1.1347`). La tabella `1347.42.3.1` non riporta i nomi dei contatori. `…1.1.1.1.1` e `…1.1.1.1.2` sono coerenti con la somma per funzione e sembrano totale B/N e totale colore. Sono nel profilo come **"da confermare", disattivate**: vanno confrontate con la pagina contatori del pannello prima di attivarle.
-- TASKalfa 5054ci: 347.299 / 13.564;
-- TASKalfa 3554ci: 39.109 / 48.095.
+**Kyocera** (`1.3.6.1.4.1.1347`). Contatori per formato nella tabella `1347.42.3.1.6.1.<funzione>.<colore>.<formato>`:
+- funzione: 1 = totale, cioè 2 stampa + 3 copia;
+- colore: 1 = B/N, 2 = colore;
+- formato: indice della tabella dei nomi `1347.42.2.1.1.1.2.1`, dove 1 = A3 e 3 = A4 (verificato su entrambi i modelli).
+
+Letta il 2026-10-05 su TASKalfa 5054ci e 3554ci: A3 + A4 (+ banner) coincide al foglio con i totali `1347.42.3.1.1.1.1.1` (B/N) e `.2` (colore), che diventano anch'essi verificati e attivi (migrazione 0023).
+
+| Colonna | OID | Contatore MFC |
+|---|---|---|
+| A4 BN Kyocera | `1347.42.3.1.6.1.1.1.3` | `a4_bn` |
+| A3 BN Kyocera | `1347.42.3.1.6.1.1.1.1` | `a3_bn` |
+| A4 colore Kyocera | `1347.42.3.1.6.1.1.2.3` | `a4_col` |
+| A3 colore Kyocera | `1347.42.3.1.6.1.1.2.1` | `a3_col` |
+| Totale B/N | `1347.42.3.1.1.1.1.1` | — |
+| Totale colore | `1347.42.3.1.1.1.1.2` | — |
+
+Esempio (5054ci): A4 B/N 329.067 + A3 B/N 18.214 + banner 18 = totale B/N 347.299; A4 colore 11.708 + A3 colore 1.856 = totale colore 13.564.
+
+Le MFC Kyocera della Centrale Contatori senza profilo ricevono il profilo `kyocera` (modello che contiene "TASKalfa"). **Le Kyocera rispondono solo alla community `public`**, non a quella delle Canon: sulla scheda macchina va impostata la community corretta.
 
 Lo storico lavori (`1347.47`) contiene i nomi dei documenti: è escluso dalle fixture.
 
