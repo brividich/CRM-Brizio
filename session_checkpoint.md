@@ -2,6 +2,11 @@
 
 Data: 2026-10-05 (sidebar inventario IT)
 
+Data: 2026-10-05 (migrazione Kyocera contatori MFC)
+
+- Dal log di promozione: `contatori.0023_kyocera_contatori_mfc` falliva perché `update_or_create` cercava per OID e tentava di assegnare `a4_bn` già presente su un'altra colonna dello stesso profilo, violando il vincolo univoco SQL Server. La release non è stata attivata e IIS non è stato riavviato.
+- Modificata la migrazione per riusare la riga già associata alla chiave MFC oppure liberare la chiave della riga precedente quando esiste già quella con OID canonico, preservando le righe e le sonde. Worktree `feature/contatori-kyocera-migration-upsert` da `origin/release/prod`; nessun test applicativo eseguito. Nessun README perché non cambia comportamento utente; CHANGELOG e registro agente aggiornati.
+
 - Sidebar Assets riordinata: Inventario completo; Inventario IT con Server, PC/portatili, VM, Rete, Stampanti e Altri dispositivi; Officina rimane separata con le sue pagine.
 - Aggiunta migrazione dati `assets.0122_sidebar_inventario_it` per aggiornare la sidebar persistita, rendere visibile il ramo IT e aggiungere le nuove voci. La sezione dinamica «Inventario per categoria» non viene modificata. Nessuna migrazione applicata, push, merge o deploy; test non eseguiti, diff check in chiusura.
 
