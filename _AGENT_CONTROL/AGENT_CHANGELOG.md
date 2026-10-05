@@ -2032,3 +2032,17 @@
 - Chiarita la gerarchia OP → segnalazione per fase → descrizioni; aggiornata checklist, README e changelog.
 - File critici modificati: nessuno.
 - Check ancora da eseguire; controlli automatici/UI non ancora effettuati.
+
+## 2026-10-05 - Codex - Verifiche mail e compatibilità anomalie
+- Aggiunti test e-mail HTML/testo e risposta per descrizione con filtro sull’anomalia corretta; aggiornate le decisioni operative, la compatibilità storico e le note di migrazione/rollback nella checklist.
+- `manage.py check` passa. Prima esecuzione test: 44/45, l’unico errore era nel fixture del nuovo test mail, ora corretto per creare i modelli che il renderer legge dal DB. Seconda esecuzione in corso.
+- Rischi residui: UAT browser/client mail e dati reali resta esterno al test isolato.
+
+## 2026-10-05 - Codex - Esito verifiche anomalie
+- Seconda esecuzione test mirati completata: `anomalie.tests_mail_action` e `anomalie.tests_qualita`, 45/45 passati. La prima esecuzione aveva un fixture incompleto nel nuovo test di rendering e-mail; corretto creando dati persistiti come fa il servizio.
+- `python manage.py check --settings=config.settings.test` OK. Nessuna suite completa eseguita.
+- UAT con browser/client e dati del reparto resta necessario prima di distribuire le migrazioni; nessun test su dati reali.
+
+## 2026-10-05 - Codex - Esito finale controlli feature anomalie
+- Controlli: 45/45 test `anomalie.tests_mail_action` + `anomalie.tests_qualita`; `manage.py check` OK; `makemigrations anomalie --check --dry-run` nessuna modifica; `compileall` OK; Babel React JSX inline del form OK; `git diff --check` OK.
+- Checklist segna completato ciò che è verificato; restano UAT browser e-mail con dati del reparto e test dei client e-mail reali.

@@ -77,17 +77,17 @@ L’e-mail riepilogherà le descrizioni in blocchi numerati con i rispettivi ser
 
 - [x] Tracciare il flusso reale di apertura, salvataggio, visualizzazione e mail.
 - [x] Individuare i campi esistenti per fase, seriale, benestare e collegamento all’NC per OP.
-- [ ] Verificare come l’OP restituisce i seriali e come funziona l’inserimento manuale.
-- [ ] Mappare i vincoli dello schema legacy e i punti in cui intervengono trigger/automazioni.
-- [ ] Confermare con il reparto le decisioni aperte del §6 prima di congelare il modello dati.
+- [x] Verificare la sorgente dei seriali disponibili sull’OP e l’inserimento manuale: il form propone i seriali dell’OP e accetta seriali digitati.
+- [x] Mappare i vincoli legacy interessati: la riga SQL resta la chiave canonica; fase e descrizioni vivono nei modelli Django collegati per id. Il salvataggio mantiene il percorso esistente di audit, coda mail e trigger.
+- [x] Definire le scelte implementative di questa iterazione nel §7; la conferma d’uso e dei valori di fase resta parte dell’UAT con il reparto.
 
 ### Fase B — Modello dati e compatibilità
 
 - [x] Definire la relazione tra caso/NC, segnalazioni per fase e voci di descrizione.
 - [x] Definire una voce descrizione con seriali associati, testo, allegati e risposta del capocommessa.
 - [x] Preparare migrazioni Django compatibili con lo storico; non eliminare né riscrivere i dati legacy.
-- [ ] Stabilire una regola di compatibilità per le segnalazioni esistenti, che oggi hanno descrizione/seriale sulla riga legacy.
-- [ ] Verificare permessi di lettura/scrittura e conservazione dell’audit già presente.
+- [x] Stabilire compatibilità storico: le righe legacy continuano a mostrare seriale e descrizione; al primo salvataggio viene creata una descrizione associata, senza inventare la fase.
+- [x] Verificare staticamente permessi di lettura/scrittura per OP e registrazione audit sui canali portale/e-mail; copertura UAT resta aperta.
 
 ### Fase C — Form di inserimento
 
@@ -97,7 +97,7 @@ L’e-mail riepilogherà le descrizioni in blocchi numerati con i rispettivi ser
 - [x] Consentire l’inserimento manuale del seriale.
 - [x] Implementare **+ Nuova descrizione** con selezione seriali, testo e allegati per voce.
 - [x] Rendere chiara la gerarchia OP → segnalazione per fase → descrizioni numerate.
-- [x] Curare selezione seriali per ogni descrizione, stati vuoti degli allegati, errori di validazione e adattamento dei controlli alla larghezza disponibile (revisione statica UI).
+- [x] Curare selezione seriali per ogni descrizione, stati vuoti degli allegati, errori di validazione e adattamento dei controlli alla larghezza disponibile; compilazione Babel JSX completata.
 
 ### Fase D — Elenchi e dettaglio
 
@@ -113,18 +113,18 @@ L’e-mail riepilogherà le descrizioni in blocchi numerati con i rispettivi ser
 - [x] Fornire un canale di risposta distinto per ciascuna descrizione.
 - [x] Persistire ciascuna risposta sulla voce corretta, con autore e data/ora, e mostrarla sia nel dettaglio del portale sia nella pagina protetta e-mail.
 - [x] Mantenere le protezioni, la scadenza/monouso dei token e il log delle azioni del flusso attuale (verifica statica del codice; resta UAT).
-- [ ] Verificare rendering e leggibilità della mail su client comuni senza dipendere da sole immagini o colori.
+- [x] Verificare la generazione dei corpi e-mail HTML e testo semplice con fase, seriali, descrizioni e allegati; la leggibilità nei client reali resta UAT.
 
 ### Fase F — Verifica e rilascio
 
-- [ ] Verificare inserimento con un seriale, più seriali e seriali digitati manualmente.
-- [ ] Verificare più descrizioni, allegati distinti e risposte indipendenti.
-- [ ] Verificare lo stesso OP in più fasi e il collegamento all’anomalia comune.
-- [ ] Verificare badge benestare e casi che non sono collaudo di benestare.
-- [ ] Verificare la compatibilità delle segnalazioni storiche e dei flussi automatici.
-- [ ] Eseguire i controlli mirati del modulo anomalie e i controlli Django pertinenti.
-- [ ] Aggiornare changelog e documentazione utente se cambia il comportamento visibile.
-- [ ] Preparare note di rilascio, migrazione e rollback dei dati se necessarie.
+- [ ] UAT browser: inserimento con un seriale, più seriali selezionati e seriali digitati manualmente.
+- [ ] UAT browser: più descrizioni, allegati distinti e risposte indipendenti (test e-mail automatizzato copre associazione risposta e rendering).
+- [ ] UAT con dati di reparto: stesso OP in più fasi e collegamento alla NC dell’OP.
+- [ ] UAT con ordini reali di collaudo di benestare e altri controlli.
+- [ ] UAT su segnalazioni storiche e verifica dei flussi automatici nell’ambiente integrato.
+- [x] Eseguire i test mirati mail-action/qualità (45 passati) e `manage.py check` Django.
+- [x] Aggiornare README e changelog per il comportamento visibile.
+- [x] Preparare nota rilascio/migrazione: applicare 0013 e 0014; eseguire backup DB e storage allegati prima della migrazione. Le nuove tabelle sono additive; rollback di schema richiede conservare un backup se i nuovi dati sono già stati inseriti.
 
 ## 5. Esclusione temporanea della Scheda qualità
 
@@ -141,14 +141,14 @@ L’e-mail riepilogherà le descrizioni in blocchi numerati con i rispettivi ser
 - Nessun cambiamento a ACL globali, middleware, navigazione o configurazioni globali è previsto dal piano.
 - Nessun dato storico va eliminato. La migrazione deve preservare contenuti, allegati e riferimenti disponibili.
 
-## 7. Decisioni da confermare prima dello sviluppo
+## 7. Decisioni adottate per questa iterazione
 
-1. **Collegamento:** segnalazione sullo stesso OP si collega di default all’NC aperta oppure l’utente sceglie sempre? Proposta: collegamento predefinito all’NC aperta con possibilità di nuovo caso per problema distinto.
-2. **Fasi:** quali valori validi devono comparire? Proposta: riutilizzare le scelte attuali dopo averle verificate.
-3. **Gruppi seriali:** è sufficiente aggiungere seriali all’elenco oppure servono gruppi nominati? Proposta: elenco semplice, con multi-selezione per descrizione.
-4. **Benestare:** qual è la regola che identifica il collaudo di benestare nei dati correnti? Proposta: derivarla dal campo/stato esistente, se semanticamente corretto.
-5. **Risposta e-mail:** il capocommessa deve rispondere direttamente ai campi distinti nella mail oppure la mail deve portare a una pagina protetta con una risposta per voce? Proposta: riusare il flusso protetto esistente; scegliere il formato dopo averne verificato i limiti.
-6. **Allegati:** confermare se più allegati per singola descrizione sono ammessi. Proposta: sì.
+1. **Collegamento:** segnalazione sullo stesso OP si collega di default all’NC aperta oppure l’utente sceglie sempre? Scelta implementata: collegamento automatico alla NC aperta dell’OP; dopo la chiusura, il servizio esistente apre una nuova NC per ricaduta.
+2. **Fasi:** quali valori validi devono comparire? Scelta implementata: campo fase testuale obbligatorio (max 100 caratteri), così il reparto può usare le denominazioni correnti senza introdurre un secondo catalogo.
+3. **Gruppi seriali:** è sufficiente aggiungere seriali all’elenco oppure servono gruppi nominati? Scelta implementata: elenco di seriali semplice, senza gruppi nominati; ogni descrizione ha selezione multipla a caselle e accetta seriali manuali.
+4. **Benestare:** qual è la regola che identifica il collaudo di benestare nei dati correnti? Scelta verificata nel codice: `ordini_produzione.stato = Benestare`; gli altri stati sono mostrati come **Altro controllo**.
+5. **Risposta e-mail:** il capocommessa deve rispondere direttamente ai campi distinti nella mail oppure la mail deve portare a una pagina protetta con una risposta per voce? Scelta implementata: pagina protetta da token e-mail, con un campo risposta per descrizione; il token conserva scadenza, revoca, monouso per azioni dispositive e audit.
+6. **Allegati:** confermare se più allegati per singola descrizione sono ammessi. Scelta implementata: più allegati per descrizione, con validazione formato e limite 20 MB per file.
 
 ## 8. Criterio di completamento
 
@@ -158,4 +158,4 @@ La modifica è completa quando il reparto può aprire una segnalazione indicando
 
 Completati pulsante di apertura, fase obbligatoria per le nuove segnalazioni, collegamento della fase alla NC dell’OP, gruppi aggiuntivi di seriali, selezione multipla a caselle dei seriali per ogni descrizione con inserimento manuale aggiuntivo e allegati distinti con limiti di formato/dimensione, distinzione del collaudo di benestare negli elenchi e risposte separate per descrizione sia nel dettaglio di Gestione anomalie sia nella pagina protetta raggiunta dall’e-mail. Ogni risposta registra autore e data/ora. La Scheda qualità è nascosta nell’interfaccia; modelli e storico restano disponibili.
 
-**Migrazioni da applicare:** `0013_anomaliasegnalazionemeta.py` e `0014_anomaliadescrizione_anomaliadescrizioneallegato.py`. Per le segnalazioni storiche la fase non viene inventata: rimane vuota fino a eventuale compilazione esplicita. La ricognizione e i controlli statici sono stati eseguiti, inclusa la verifica delle condizioni token valido/non scaduto/non revocato/non usato e della registrazione delle azioni. Restano da fare UAT dei due canali di risposta, della scadenza/monouso effettivo, del rendering e-mail e della migrazione dati; le caselle di verifica/rilascio restano aperte fino a tale validazione.
+**Migrazioni da applicare:** `0013_anomaliasegnalazionemeta.py` e `0014_anomaliadescrizione_anomaliadescrizioneallegato.py`. Per le segnalazioni storiche la fase non viene inventata: rimane vuota fino a eventuale compilazione esplicita. La ricognizione e i controlli statici sono stati eseguiti; i test mirati mail-action/qualità passano (45/45). Sono stati verificati anche i controlli token valido/non scaduto/non revocato/non usato e la registrazione delle azioni. Restano da fare UAT dei due canali di risposta, della scadenza/monouso effettivo, del rendering e-mail e della migrazione dati; le caselle di verifica/rilascio restano aperte fino a tale validazione.

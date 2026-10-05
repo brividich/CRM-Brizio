@@ -1084,3 +1084,9 @@ Nota: i file di controllo sessione `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOC
 - Revisione statica anomalie 2026-10-05: confermati nel codice controlli token revocato/scaduto/usato e log azioni; UAT effettivo ancora aperto.
 
 - UI nuova segnalazione aggiornata 2026-10-05: selezione seriali per ogni descrizione e seriali manuali aggiuntivi; allegati delle descrizioni ulteriori validati per formato e dimensione. Verifica tecnica da completare.
+
+- Checklist completamento aggiornata 2026-10-05: compatibilità legacy, permessi/audit, semantica Benestare e flusso migrazione/rollback specificati. Aggiunti test mail HTML/testo e risposta descrizione con vincolo anomalia; esecuzione ripetuta dopo fix fixture.
+
+- Test mirati anomalie 2026-10-05: `anomalie.tests_mail_action` + `anomalie.tests_qualita` passati 45/45; check Django OK. L’unico primo fallimento era un fixture mail incompleto, corretto e riprovato con esito positivo. UAT reparto/client mail ancora aperto.
+
+- Controlli finali anomalie 2026-10-05: 45/45 test mirati; Django check, migration check, compileall e Babel JSX template passati. UAT reparto/client mail ancora aperto.
