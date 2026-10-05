@@ -58,6 +58,60 @@ class SNMPError(RuntimeError):
     pass
 
 
+V3_AUTH = ("md5", "sha1")
+V3_PRIV = ("des", "aes")
+
+
+def segreto_v3(utente, auth="", auth_key="", priv="", priv_key=""):
+    """Serializza le credenziali SNMPv3 nel "segreto" unico (poi cifrato dal chiamante)."""
+    import json
+    if not utente:
+        raise SNMPError("SNMPv3 richiede un utente")
+    if auth and auth not in V3_AUTH:
+        raise SNMPError(f"Protocollo di autenticazione SNMPv3 non valido: {auth}")
+    if priv and priv not in V3_PRIV:
+        raise SNMPError(f"Protocollo di cifratura SNMPv3 non valido: {priv}")
+    if priv and not auth:
+        raise SNMPError("SNMPv3 con cifratura richiede anche l'autenticazione")
+    if (auth and not auth_key) or (priv and not priv_key):
+        raise SNMPError("Chiave SNMPv3 mancante")
+    return json.dumps({"u": utente, "a": auth, "ak": auth_key, "p": priv, "pk": priv_key})
+
+
+def costruisci_credenziali(segreto, version):
+    """Unico punto che crea le credenziali puresnmp: V1, V2C o V3.
+
+    Per v3 ``segreto`` e' il JSON prodotto da :func:`segreto_v3`. I messaggi
+    d'errore non contengono mai chiavi.
+    """
+    try:
+        from puresnmp import V1, V2C
+        from puresnmp.credentials import V3, Auth, Priv
+    except ImportError as e:
+        raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
+    if version == "v1":
+        return V1(segreto)
+    if version != "v3":
+        return V2C(segreto)
+    import importlib.util
+    import json
+    try:
+        d = json.loads(segreto)
+        utente = d["u"]
+    except (ValueError, KeyError, TypeError) as e:
+        raise SNMPError("Credenziali SNMPv3 non valide: aggiorna il catalogo") from e
+    auth = Auth(d.get("ak", "").encode(), d["a"]) if d.get("a") else None
+    priv = None
+    if d.get("p"):
+        if auth is None:
+            raise SNMPError("SNMPv3 con cifratura richiede anche l'autenticazione")
+        if importlib.util.find_spec(f"puresnmp_plugins.priv.{d['p']}") is None:
+            raise SNMPError(f"Cifratura SNMPv3 '{d['p']}' non disponibile: "
+                            "installare puresnmp-crypto")
+        priv = Priv(d.get("pk", "").encode(), d["p"])
+    return V3(utente, auth=auth, priv=priv)
+
+
 def _testo(valore):
     if isinstance(valore, bytes):
         return valore.decode("latin-1", "replace").strip()
@@ -79,12 +133,12 @@ def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
         raise SNMPError(f"OID non valido: {non_validi[0]}")
 
     try:
-        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp import Client, PyWrapper
         from puresnmp.transport import send_udp
     except ImportError as e:
         raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
 
-    cred = V1(community) if version == "v1" else V2C(community)
+    cred = costruisci_credenziali(community, version)
 
     async def _run():
         sender = functools.partial(send_udp, timeout=timeout)
@@ -123,12 +177,12 @@ def leggi_colonna(host, oid, community="novicromprinter", port=161, timeout=3,
     if not _OID_RE.fullmatch(oid):
         raise SNMPError(f"OID non valido: {oid}")
     try:
-        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp import Client, PyWrapper
         from puresnmp.transport import send_udp
     except ImportError as e:
         raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
 
-    cred = V1(community) if version == "v1" else V2C(community)
+    cred = costruisci_credenziali(community, version)
 
     async def _run():
         sender = functools.partial(send_udp, timeout=timeout)
@@ -259,14 +313,15 @@ def scansiona_hosts(hosts, community="novicromprinter", port=161, timeout=2,
     except ValueError as e:
         raise SNMPError("Indirizzo host non valido.") from e
     candidates = list(communities if communities is not None else [community])
-    if not candidates or len(candidates) > 8 or any(not c or len(c) > 60 for c in candidates):
+    if not candidates or len(candidates) > 8 or any(
+            not c or len(c) > (1000 if version == "v3" else 60) for c in candidates):
         raise SNMPError("Inserisci da 1 a 8 community, massimo 60 caratteri ciascuna.")
-    if version not in ("v1", "v2c"):
+    if version not in ("v1", "v2c", "v3"):
         raise SNMPError("Versione SNMP non valida.")
     if timeout <= 0 or max_duration <= 0:
         raise SNMPError("Il timeout deve essere positivo.")
     try:
-        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp import Client, PyWrapper
         from puresnmp.transport import send_udp
     except ImportError as e:
         raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
@@ -277,7 +332,7 @@ def scansiona_hosts(hosts, community="novicromprinter", port=161, timeout=2,
     async def _sonda(host, sem):
         async with sem:
             for index, candidate in enumerate(candidates, 1):
-                cred = V1(candidate) if version == "v1" else V2C(candidate)
+                cred = costruisci_credenziali(candidate, version)
                 sender = functools.partial(send_udp, timeout=timeout)
                 client = PyWrapper(Client(host, cred, port=port, sender=sender))
                 try:
@@ -321,12 +376,12 @@ def scansiona_hosts(hosts, community="novicromprinter", port=161, timeout=2,
 
 def _tabella(host, community, port, timeout, version):
     try:
-        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp import Client, PyWrapper
         from puresnmp.transport import send_udp
     except ImportError as e:
         raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
 
-    cred = V1(community) if version == "v1" else V2C(community)
+    cred = costruisci_credenziali(community, version)
 
     async def _run():
         sender = functools.partial(send_udp, timeout=timeout)
@@ -353,12 +408,12 @@ def _tabella(host, community, port, timeout, version):
 def _consumabili_raw(host, community, port, timeout, version):
     """Legge prtMarkerSuppliesTable -> lista ordinata di (nome, livello, max)."""
     try:
-        from puresnmp import Client, V1, V2C, PyWrapper
+        from puresnmp import Client, PyWrapper
         from puresnmp.transport import send_udp
     except ImportError as e:
         raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
 
-    cred = V1(community) if version == "v1" else V2C(community)
+    cred = costruisci_credenziali(community, version)
 
     async def _run():
         sender = functools.partial(send_udp, timeout=timeout)

@@ -18,7 +18,22 @@ from .models import (
 class CommunitySNMPForm(forms.ModelForm):
     valore = forms.CharField(label="Community read-only", max_length=60, required=False,
                              strip=False, widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
-                             help_text="In modifica lascia vuoto per mantenere il valore salvato.")
+                             help_text="In modifica lascia vuoto per mantenere il valore salvato. "
+                                       "Non usata con SNMPv3.")
+    v3_utente = forms.CharField(label="SNMPv3 - utente", max_length=64, required=False,
+                                help_text="Solo SNMPv3.")
+    v3_auth = forms.ChoiceField(label="SNMPv3 - autenticazione", required=False,
+                                choices=[("", "Nessuna"), ("sha1", "SHA"), ("md5", "MD5")])
+    v3_auth_key = forms.CharField(label="SNMPv3 - chiave di autenticazione", max_length=128,
+                                  required=False, strip=False,
+                                  widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}))
+    v3_priv = forms.ChoiceField(label="SNMPv3 - cifratura", required=False,
+                                choices=[("", "Nessuna"), ("aes", "AES"), ("des", "DES")])
+    v3_priv_key = forms.CharField(label="SNMPv3 - chiave di cifratura", max_length=128,
+                                  required=False, strip=False,
+                                  widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+                                  help_text="In modifica SNMPv3 reinserisci tutte le chiavi: "
+                                            "il segreto viene riscritto per intero.")
 
     class Meta:
         model = CommunitySNMP
@@ -28,23 +43,35 @@ class CommunitySNMPForm(forms.ModelForm):
         kwargs.setdefault("auto_id", "community_%s")
         super().__init__(*args, **kwargs)
 
-    def clean_valore(self):
-        value = self.cleaned_data.get("valore", "")
-        if not value and not self.instance.pk:
-            raise forms.ValidationError("Inserisci la community.")
-        return value
-
     def clean_porta(self):
         value = self.cleaned_data.get("porta")
         if value is not None and not 1 <= value <= 65535:
             raise forms.ValidationError("La porta deve essere compresa tra 1 e 65535.")
         return value
 
+    def clean(self):
+        from .snmp import SNMPError, segreto_v3
+        data = super().clean()
+        self._segreto = ""
+        if data.get("versione") == "v3":
+            try:
+                self._segreto = segreto_v3(
+                    data.get("v3_utente", ""), data.get("v3_auth", ""),
+                    data.get("v3_auth_key", ""), data.get("v3_priv", ""),
+                    data.get("v3_priv_key", ""))
+            except SNMPError as e:
+                self.add_error(None, str(e))
+        elif data.get("valore"):
+            self._segreto = data["valore"]
+        elif not self.instance.pk or self.instance.versione == "v3":
+            self.add_error("valore", "Inserisci la community.")
+        return data
+
     def save(self, commit=True):
         from .credential_crypto import cifra
         instance = super().save(commit=False)
-        if self.cleaned_data.get("valore"):
-            instance.segreto_cifrato = cifra(self.cleaned_data["valore"])
+        if self._segreto:
+            instance.segreto_cifrato = cifra(self._segreto)
         if commit:
             instance.save()
         return instance
