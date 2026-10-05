@@ -1,0 +1,17 @@
+{% comment %}Campi del perimetro di persone (form del modello e form di generazione).{% endcomment %}
+<div class="rp-perimetro">
+  {% for field in form.campi_perimetro %}{% include "core/forms/_field.html" %}{% endfor %}
+  <div>
+    <input type="search" class="rp-filtro" data-rp-filtra="{{ form.persone.id_for_label }}" placeholder="Filtra per nome o matricola…" aria-label="Filtra le persone da includere">
+    {% include "core/forms/_field.html" with field=form.persone %}
+  </div>
+  <div>
+    <input type="search" class="rp-filtro" data-rp-filtra="{{ form.escludi.id_for_label }}" placeholder="Filtra per nome o matricola…" aria-label="Filtra le persone da escludere">
+    {% include "core/forms/_field.html" with field=form.escludi %}
+  </div>
+  <div class="rp-due">
+    {% include "core/forms/_field.html" with field=form.assunti_dal %}
+    {% include "core/forms/_field.html" with field=form.assunti_al %}
+  </div>
+  {% include "core/forms/_field.html" with field=form.includi_cessati %}
+</div>

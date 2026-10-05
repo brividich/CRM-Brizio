@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
 {% include "core/components/_hub_formkit.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=1">
+<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -55,15 +55,17 @@
                 {% include "core/forms/_field.html" with field=form.data_da %}
                 {% include "core/forms/_field.html" with field=form.data_a %}
               </div>
-              {% include "core/forms/_field.html" with field=form.reparti %}
-              {% include "core/forms/_field.html" with field=form.aree %}
-              {% include "core/forms/_field.html" with field=form.mansioni %}
-              <div>
-                <input type="search" class="rp-filtro" data-rp-filtra="{{ form.persone.id_for_label }}" placeholder="Filtra persone per nome o matricola…" aria-label="Filtra persone">
-                {% include "core/forms/_field.html" with field=form.persone %}
-              </div>
-              {% include "core/forms/_field.html" with field=form.includi_cessati %}
             </div>
+            <details class="rp-opz-box" style="margin-top:10px;">
+              <summary class="rp-cols-h">Filtri sulle persone (reparti, mansioni, contratti, qualifiche…)</summary>
+              {% include "anagrafica/partials/_reportistica_perimetro.html" %}
+            </details>
+          </div>
+          <div class="hub-fsec">
+            <div class="hub-fsec-h">Blocchi</div>
+            <input type="hidden" name="blocchi_inviati" value="1">
+            <div class="rp-opz-scelte rp-opz-colonna">{% for cb in form.includi_blocchi %}<label>{{ cb.tag }} {{ cb.choice_label }}</label>{% endfor %}</div>
+            <div class="hub-help">{{ form.includi_blocchi.help_text }}</div>
           </div>
           {% if form.blocchi_testo %}
           <div class="hub-fsec">
@@ -88,8 +90,8 @@
           {% endif %}
           <div class="rp-actions">
             <button type="submit" name="azione" value="anteprima" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Aggiorna anteprima</button>
-            <button type="submit" name="azione" value="pdf" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-download"/></svg>PDF</button>
-            <button type="submit" name="azione" value="xlsx" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-download"/></svg>Excel</button>
+            <button type="submit" name="azione" value="pdf" class="fmd-btn {% if modello.formato_predefinito == 'pdf' %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %}"><svg class="fmd-ico"><use href="#i-download"/></svg>PDF</button>
+            <button type="submit" name="azione" value="xlsx" class="fmd-btn {% if modello.formato_predefinito == 'xlsx' %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %}"><svg class="fmd-ico"><use href="#i-download"/></svg>Excel</button>
           </div>
         </form>
       </aside>
@@ -108,5 +110,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'anagrafica/js/reportistica.js' %}?v=1"></script>
+<script src="{% static 'anagrafica/js/reportistica.js' %}?v=2"></script>
 {% endblock %}
