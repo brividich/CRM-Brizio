@@ -1,5 +1,12 @@
 # Agent Changelog
 
+## 2026-10-05 - Codex (migrazione Kyocera contatori MFC)
+
+- Richiesta: diagnosticare il fallimento della promozione dal log `release_promote_20261005_120923.log` e correggere la causa. Errore: `contatori.0023_kyocera_contatori_mfc` assegnava `a4_bn` a una riga cercata per OID mentre la stessa chiave esisteva già su un'altra riga del profilo Kyocera. Il vincolo univoco SQL Server interrompeva la migrazione. La release non è stata attivata né IIS riavviato.
+- File modificati: `django_app/contatori/migrations/0023_kyocera_contatori_mfc.py`, `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`. La migrazione riusa la riga trovata per chiave MFC se manca quella con OID canonico; se entrambe esistono, rimuove solo la chiave MFC dalla riga precedente e conserva i dati/la riga, aggiornando quella canonica. Nessuna modifica a sicurezza, ACL, middleware, routing o settings.
+- File critici: nessuno dei file globali elencati in `CRITICAL_FILES.md` (file assente nella workspace). Impatto previsto: `migrate` completa 0023 senza duplicare `(profilo, contatore_mfc)`. Rischio residuo: non verificato contro il database di produzione; la promozione corretta deve essere eseguita con un pacchetto che includa questa correzione.
+- Test/check: test applicativi non eseguiti; nessun database reale interrogato o modificato. README non aggiornato (nessun cambiamento visibile all'utente); CHANGELOG/registro/checkpoint aggiornati. Nessun backup, merge, push o deploy.
+
 ## 2026-10-05 - Codex (sidebar inventario IT)
 
 - Richiesta: riorganizzare la sidebar Assets dopo l'estensione dell'inventario IT, lasciando completa la parte Officina. File modificati: `django_app/assets/views.py`, `django_app/assets/migrations/0122_sidebar_inventario_it.py`, `README.md`, `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.

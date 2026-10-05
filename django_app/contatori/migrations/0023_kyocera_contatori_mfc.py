@@ -42,11 +42,31 @@ def forwards(apps, schema_editor):
         return
     columns = []
     for order, (chiave, nome, oid) in enumerate(CONTATORI, 1):
-        column, _ = Column.objects.update_or_create(profilo=kyocera, oid=oid, defaults={
+        defaults = {
             "nome": nome, "tipo_valore": "NUMERO", "modalita": "GET", "aggregazione": "PRIMO",
             "unita": "copie", "fattore": D("1"), "contatore_mfc": chiave,
             "verificata": True, "fonte": FONTE, "ordine": order, "attiva": True,
-        })
+        }
+        # Il profilo può già avere questa chiave MFC associata a un OID provvisorio
+        # (per esempio creato dalla UI). Cerca anche per chiave, così l'upsert non
+        # tenta di duplicare l'indice univoco (profilo, contatore_mfc).
+        column = Column.objects.filter(profilo=kyocera, oid=oid).first()
+        keyed_column = Column.objects.filter(
+            profilo=kyocera, contatore_mfc=chiave,
+        ).first()
+        if column is None:
+            column = keyed_column
+        elif keyed_column is not None and keyed_column.pk != column.pk:
+            # Mantiene la riga già presente per l'OID canonico e libera la chiave
+            # sulla vecchia riga; i suoi dati e le sonde collegate restano intatti.
+            keyed_column.contatore_mfc = ""
+            keyed_column.save(update_fields=["contatore_mfc"])
+
+        if column is None:
+            column = Column.objects.create(profilo=kyocera, oid=oid, **defaults)
+        else:
+            Column.objects.filter(pk=column.pk).update(oid=oid, **defaults)
+            column.refresh_from_db()
         columns.append(column)
     for oid, nome in TOTALI.items():
         Column.objects.filter(profilo=kyocera, oid=oid).update(
