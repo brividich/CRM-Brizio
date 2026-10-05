@@ -176,6 +176,7 @@
       notifica_op: "{% url 'api_anomalie_notifica_op' %}",
       seriali_op: "{% url 'api_anomalie_seriali_op' %}",
       allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
+      descrizione_allegati_upload: "{% url 'api_anomalie_descrizione_allegati_upload' %}",
       copilota: "{% url 'api_anomalie_copilota' %}",
     };
   </script>
@@ -189,6 +190,7 @@
     notifica_op: '/api/anomalie/notifica-op',
     seriali_op: '/api/anomalie/seriali-op',
     allegati_upload: '/api/anomalie/allegati/upload',
+    descrizione_allegati_upload: '/api/anomalie/descrizione-allegati/upload',
     copilota: '/api/anomalie/copilota',
   };
 
@@ -588,7 +590,11 @@
     const [isRange,   setIsRange]   = useState(false);
     const [snInizio,  setSnInizio]  = useState('');
     const [snFine,    setSnFine]    = useState('');
+    const [serialGroups, setSerialGroups] = useState([]);
     const [desc,      setDesc]      = useState('');
+    const [selectedDescSerials, setSelectedDescSerials] = useState(null);
+    const [extraDescriptions, setExtraDescriptions] = useState([]);
+    const [fase,      setFase]      = useState('');
     const [note,      setNote]      = useState('');
     const [copSug,     setCopSug]     = useState(null);
     const [copLoading, setCopLoading] = useState(false);
@@ -675,6 +681,50 @@
       setPendingFiles(prev => prev.filter((_, i) => i !== idx));
     };
 
+    const updateExtraDescription = (index, key, value) => {
+      setExtraDescriptions(prev => prev.map((row, i) => i === index ? { ...row, [key]: value } : row));
+    };
+
+    const toggleDescriptionSerial = (descriptionIndex, serial, checked) => {
+      if (descriptionIndex === 0) {
+        setSelectedDescSerials(current => {
+          const selected = current === null ? tokensFromInput() : current;
+          return checked ? Array.from(new Set([...selected, serial])) : selected.filter(value => value !== serial);
+        });
+        return;
+      }
+      const extraIndex = descriptionIndex - 1;
+      setExtraDescriptions(current => current.map((row, index) => {
+        if (index !== extraIndex) return row;
+        const selected = Array.isArray(row.seriali) ? row.seriali : tokensFromInput();
+        return { ...row, seriali: checked ? Array.from(new Set([...selected, serial])) : selected.filter(value => value !== serial) };
+      }));
+    };
+
+    const selectExtraDescriptionFiles = (index, event) => {
+      const selected = Array.from((event.target && event.target.files) || []);
+      event.target.value = '';
+      const valid = [];
+      const errors = [];
+      for (const file of selected) {
+        const dot = String(file.name || '').lastIndexOf('.');
+        const ext = dot >= 0 ? String(file.name).slice(dot).toLowerCase() : '';
+        if (!ALLEGATI_ALLOWED_EXT.has(ext)) errors.push(`${file.name}: formato non supportato`);
+        else if (Number(file.size || 0) > ALLEGATI_MAX_SIZE) errors.push(`${file.name}: supera 20 MB`);
+        else valid.push(file);
+      }
+      if (valid.length) updateExtraDescription(index, 'files', [...(extraDescriptions[index].files || []), ...valid]);
+      setAttachMsg(errors.join(' | '));
+    };
+
+    const makeDescriptionsPayload = () => [
+      { seriali: Array.from(new Set(selectedDescSerials === null ? tokensFromInput() : selectedDescSerials)), testo: desc.trim() },
+      ...extraDescriptions.map(row => ({
+        seriali: Array.from(new Set([...(Array.isArray(row.seriali) ? row.seriali : tokensFromInput()), ...String(row.serialiManuali || '').split(',').map(value => value.trim()).filter(Boolean)])),
+        testo: String(row.testo || '').trim(),
+      })),
+    ];
+
     /* Copilota AI: proposta di triage read-only (non modifica i campi). */
     const proponiCopilota = async () => {
       if (!desc.trim()) { setCopErr('Scrivi prima la descrizione.'); return; }
@@ -697,10 +747,13 @@
 
     const validate = () => {
       if (!window._AP_HAS_ANOMALIE) return 'Tabella anomalie non disponibile.';
+      if (!fase.trim()) return 'Fase del controllo obbligatoria.';
       if (!desc.trim()) return 'Descrizione anomalia obbligatoria.';
-      if (!isRange && !sn.trim()) return 'S/N obbligatorio.';
+      if (makeDescriptionsPayload().some(row => !row.seriali.length || !row.testo)) {
+        return 'Associa almeno un seriale e inserisci la descrizione per ogni voce.';
+      }
+      if (!isRange && !sn.trim() && !serialGroups.some(value => value.trim())) return 'S/N obbligatorio.';
       if (isRange && (!snInizio.trim() || !snFine.trim())) return 'Specificare seriale iniziale e finale.';
-      if (isRange && pendingFiles.length) return 'Con range S/N non puoi allegare file. Usa un singolo S/N.';
       return '';
     };
 
@@ -714,10 +767,11 @@
 
     /* Tokenizza l'input S/N libero: lista virgola, oppure singolo. */
     const tokensFromInput = () => {
+      const extra = serialGroups.flatMap(value => value.split(',').map(item => item.trim()).filter(Boolean));
       if (isRange) {
-        return [snInizio.trim(), snFine.trim()].filter(Boolean);
+        return [...[snInizio.trim(), snFine.trim()].filter(Boolean), ...extra];
       }
-      return sn.split(',').map(x => x.trim()).filter(Boolean);
+      return [...sn.split(',').map(x => x.trim()).filter(Boolean), ...extra];
     };
 
     /* Numero di pezzi coperti dall'input corrente. */
@@ -740,7 +794,9 @@
     const buildSeriale = () => {
       if (isRange) {
         const n = countPezzi();
-        return `${snInizio.trim()}-${snFine.trim()} (${n} pezz${n === 1 ? 'o' : 'i'})`;
+        const range = `${snInizio.trim()}-${snFine.trim()} (${n} pezz${n === 1 ? 'o' : 'i'})`;
+        const extra = serialGroups.flatMap(value => value.split(',').map(item => item.trim()).filter(Boolean));
+        return extra.length ? `${range}, ${extra.join(', ')}` : range;
       }
       const toks = tokensFromInput();
       if (toks.length <= 1) return toks[0] || '';
@@ -810,8 +866,10 @@
     const buildPayload = (snVal) => ({
       op_id:       op.id,
       op_item_id:  op.item_id,
+      fase:        fase.trim(),
       sn:          snVal,
-      desc:        desc.trim(),
+      desc:        makeDescriptionsPayload().map((row, index) => `Descrizione ${index + 1} [${row.seriali.join(', ')}]: ${row.testo}`).join('\n\n'),
+      descrizioni: makeDescriptionsPayload(),
       note:        buildNota(note.trim()),
       avanzamento: 'In attesa',
       pezzi_prec:  false,
@@ -823,7 +881,11 @@
     /* Salva UNA sola anomalia col seriale composito (range/lista in un'unica riga). */
     const doSave = async () => {
       const csrf = getCsrf();
-      const snVal = buildSeriale();
+      const allSerials = Array.from(new Set([
+        ...tokensFromInput(),
+        ...extraDescriptions.flatMap(row => [...(Array.isArray(row.seriali) ? row.seriali : tokensFromInput()), ...String(row.serialiManuali || '').split(',').map(value => value.trim()).filter(Boolean)]),
+      ]));
+      const snVal = isRange ? buildSeriale() : (allSerials.length > 1 ? `${allSerials.join(', ')} (${allSerials.length} pezzi)` : (allSerials[0] || ''));
       const r = await fetch(API.salva, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
@@ -832,7 +894,21 @@
       });
       const j = await parseJsonStrict(r, 'Salvataggio anomalia');
       if (!r.ok || !j.success) throw new Error(j.error || 'Errore salvataggio');
-      return j.local_id ? [j.local_id] : [];
+      return j.local_id ? [{ localId: j.local_id, descrizioni: j.descrizioni || [] }] : [];
+    };
+
+    const uploadDescriptionAttachments = async (localId, descrizioneId, files) => {
+      if (!files.length) return;
+      if (!localId || !descrizioneId) throw new Error('Descrizione salvata senza identificativo; gli allegati restano da caricare.');
+      const form = new FormData();
+      form.append('local_id', String(localId));
+      form.append('descrizione_id', String(descrizioneId));
+      files.forEach(file => form.append('files', file));
+      const r = await fetch(API.descrizione_allegati_upload, {
+        method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: form, credentials: 'same-origin',
+      });
+      const j = await parseJsonStrict(r, 'Upload allegati descrizione');
+      if (!r.ok || !j.success) throw new Error(j.error || 'Errore upload allegati descrizione');
     };
 
     const uploadPendingAttachments = async (localId) => {
@@ -863,11 +939,20 @@
       setAttachMsg('');
       setSaving(true);
       try {
-        const localIds = await doSave();
-        // Allegati ammessi solo su singolo S/N (no range, no lista multipla)
-        const isMultiplo = isRange || tokensFromInput().length > 1;
-        if (!isMultiplo && pendingFiles.length && localIds.length) {
-          await uploadPendingAttachments(localIds[0]);
+        const saved = await doSave();
+        const firstId = saved[0] && saved[0].localId;
+        const savedDescriptions = saved[0] && saved[0].descrizioni || [];
+        try {
+          if (firstId && pendingFiles.length) {
+            await uploadDescriptionAttachments(firstId, savedDescriptions[0] && savedDescriptions[0].id, pendingFiles);
+          }
+          for (let index = 0; index < extraDescriptions.length; index += 1) {
+            const files = extraDescriptions[index].files || [];
+            const detail = savedDescriptions[index + 1];
+            if (files.length) await uploadDescriptionAttachments(firstId, detail && detail.id, files);
+          }
+        } catch (uploadError) {
+          setAttachMsg(`Segnalazione salvata, ma un allegato non è stato caricato: ${uploadError.message}`);
         }
         // La notifica mail parte SEMPRE e da sola: `api/anomalie/salva` accoda l'OP nella
         // coda di debounce a ogni salvataggio (qualsiasi pulsante), e il task periodico
@@ -904,6 +989,25 @@
         </div>
 
         <div className="form-body">
+          <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>OP {op.id} <span aria-hidden="true">→</span> Segnalazione per fase</h3>
+          <div className="field-group">
+            <label className="field-label" htmlFor="segnalazione-fase">
+              Fase del controllo <span className="req">*</span>
+            </label>
+            <input
+              id="segnalazione-fase"
+              className="text-input"
+              type="text"
+              placeholder="Es. fase 1, collaudo finale..."
+              value={fase}
+              onChange={e => setFase(e.target.value)}
+              maxLength={100}
+            />
+            <div className="text-sm" style={{ color: 'var(--text-mid)' }}>
+              Lo stesso OP può avere segnalazioni collegate riferite a fasi diverse.
+            </div>
+          </div>
+
           {/* Stato superficie */}
           <div className="field-group">
             <label className="field-label">Stato superficie</label>
@@ -961,6 +1065,13 @@
                 />
               </div>
             )}
+            {serialGroups.map((value, index) => (
+              <div key={`gruppo-seriali-${index}`} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <input className="text-input" type="text" list="seriali-segnalazione" placeholder="Altro seriale o gruppo (separati da virgola)" value={value} onChange={e => setSerialGroups(prev => prev.map((item, i) => i === index ? e.target.value : item))} />
+                <button type="button" className="btn-secondary" onClick={() => setSerialGroups(prev => prev.filter((_, i) => i !== index))}>Rimuovi</button>
+              </div>
+            ))}
+            <button type="button" className="btn-outline" onClick={() => setSerialGroups(prev => [...prev, ''])} style={{ alignSelf: 'flex-start', marginTop: 8 }}>+ Nuovo seriale</button>
             {/* Anteprima seriale composito + numero pezzi */}
             {(isRange ? (snInizio.trim() && snFine.trim()) : sn.trim()) && (
               <div className="sn-preview">
@@ -1005,18 +1116,40 @@
             )}
           </div>
 
-          {/* Descrizione anomalia */}
+          {/* Descrizioni dell'anomalia */}
           <div className="field-group">
-            <label className="field-label">
-              Descrizione anomalia <span className="req">*</span>
-            </label>
-            <textarea
+            <div className="field-label">Descrizioni dell’anomalia <span className="req">*</span></div>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, display: 'grid', gap: 8, background: 'var(--surface)' }}>
+              <div className="field-label" id="descrizione-seriali-1">Descrizione 1 · seriali associati</div>
+              <div id="descrizione-seriali-aiuto" role="group" aria-label="Seriali associati alla descrizione 1" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {tokensFromInput().map(value => <label key={value} className="checkbox-item" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}><input type="checkbox" checked={(selectedDescSerials === null ? tokensFromInput() : selectedDescSerials).includes(value)} onChange={event => toggleDescriptionSerial(0, value, event.target.checked)} /><span>{value}</span></label>)}
+              </div>
+              <div className="text-sm" style={{ color: 'var(--text-mid)' }}>Seleziona uno o più seriali; inizialmente sono associati tutti.</div>
+              <textarea
               className="textarea-input"
               rows={4}
               placeholder="Descrivi l'anomalia riscontrata..."
               value={desc}
               onChange={e => setDesc(e.target.value)}
-            />
+              />
+            </div>
+            <datalist id="seriali-segnalazione">
+              {Array.from(new Set(tokensFromInput())).map(value => <option key={value} value={value} />)}
+            </datalist>
+            {extraDescriptions.map((row, index) => (
+              <div key={`descrizione-${index}`} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, display: 'grid', gap: 8, marginTop: 10, background: 'var(--surface)' }}>
+                <div className="field-label">Descrizione {index + 2} · seriali associati</div>
+                <div role="group" aria-label={`Seriali della descrizione ${index + 2}`} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {tokensFromInput().map(value => <label key={value} className="checkbox-item" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}><input type="checkbox" checked={(Array.isArray(row.seriali) ? row.seriali : tokensFromInput()).includes(value)} onChange={event => toggleDescriptionSerial(index + 1, value, event.target.checked)} /><span>{value}</span></label>)}
+                </div>
+                <input className="text-input" type="text" placeholder="Aggiungi seriali manuali separati da virgola (facoltativo)" value={row.serialiManuali || ''} onChange={e => updateExtraDescription(index, 'serialiManuali', e.target.value)} />
+                <textarea className="textarea-input" rows={3} placeholder="Descrivi il rilievo per questi seriali..." value={row.testo} onChange={e => updateExtraDescription(index, 'testo', e.target.value)} />
+                <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv" onChange={e => selectExtraDescriptionFiles(index, e)} />
+                <div className="text-sm" style={{ color: 'var(--text-mid)' }}>{(row.files || []).map(file => file.name).join(' · ') || 'Nessun allegato selezionato.'}</div>
+                <button type="button" className="btn-secondary" onClick={() => setExtraDescriptions(prev => prev.filter((_, i) => i !== index))}>Rimuovi descrizione</button>
+              </div>
+            ))}
+            <button type="button" className="btn-outline" onClick={() => setExtraDescriptions(prev => [...prev, { seriali: null, serialiManuali: '', testo: '', files: [] }])} style={{ alignSelf: 'flex-start', marginTop: 8 }}>+ Nuova descrizione</button>
           </div>
 
           {/* Copilota AI: proposta di triage (read-only, non modifica i campi) */}
@@ -1054,7 +1187,7 @@
 
           {/* Allegati */}
           <div className="field-group">
-            <label className="field-label">Allegati anomalia</label>
+            <label className="field-label">Allegati descrizione 1</label>
             <input
               ref={fileInputRef}
               type="file"
@@ -1074,15 +1207,13 @@
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                 <div className="text-sm" style={{ color: 'var(--text-mid)' }}>
-                  {isRange
-                    ? 'Con range S/N gli allegati sono disabilitati.'
-                    : 'Carica immagini o documenti (PDF, Word, Excel). Max 20 MB per file.'}
+                  Carica allegati relativi alla prima descrizione (PDF, immagini, Word o Excel). Max 20 MB per file.
                 </div>
                 <button
                   className="btn-secondary"
                   type="button"
                   onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                  disabled={saving || isRange}
+                  disabled={saving}
                 >
                   Aggiungi allegati
                 </button>

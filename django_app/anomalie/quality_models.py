@@ -183,6 +183,70 @@ class AnomaliaSchedaQualita(models.Model):
         return f"anomalia {self.anomalia_id}"
 
 
+class AnomaliaSegnalazioneMeta(models.Model):
+    """Dati di collegamento della segnalazione alla NC dell'OP e alla fase."""
+
+    # Chiave della riga legacy ``anomalie``; la tabella legacy non è gestita da Django.
+    anomalia_id = models.IntegerField(unique=True, db_index=True)
+    nc = models.ForeignKey(
+        AnomaliaNC, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="segnalazioni_fase",
+    )
+    fase = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-id"]
+        verbose_name = "Fase segnalazione anomalia"
+        verbose_name_plural = "Fasi segnalazioni anomalie"
+
+    def __str__(self) -> str:
+        return f"Anomalia {self.anomalia_id} · fase {self.fase}"
+
+
+class AnomaliaDescrizione(models.Model):
+    """Descrizione autonoma, associata a uno o più seriali della segnalazione."""
+
+    segnalazione = models.ForeignKey(
+        AnomaliaSegnalazioneMeta, on_delete=models.CASCADE, related_name="descrizioni",
+    )
+    ordine = models.PositiveIntegerField(default=0)
+    seriali = models.JSONField(default=list, blank=True)
+    testo = models.TextField()
+    risposta_capocommessa = models.TextField(blank=True, default="")
+    risposta_da = models.CharField(max_length=200, blank=True, default="")
+    risposta_il = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        verbose_name = "Descrizione segnalazione anomalia"
+        verbose_name_plural = "Descrizioni segnalazioni anomalie"
+
+
+class AnomaliaDescrizioneAllegato(models.Model):
+    """Allegato privato legato a una singola descrizione dell'anomalia."""
+
+    descrizione = models.ForeignKey(
+        AnomaliaDescrizione, on_delete=models.CASCADE, related_name="allegati",
+    )
+    nome = models.CharField(max_length=255)
+    file_rel = models.CharField(max_length=400)
+    size = models.PositiveIntegerField(default=0)
+    mime = models.CharField(max_length=100, blank=True, default="")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Allegato descrizione anomalia"
+        verbose_name_plural = "Allegati descrizioni anomalia"
+
+
 class AnomaliaNCAzione(models.Model):
     class Tipo(models.TextChoices):
         CORRETTIVA = "CORRETTIVA", "Correttiva"

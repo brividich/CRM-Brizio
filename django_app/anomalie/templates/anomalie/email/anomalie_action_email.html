@@ -104,11 +104,23 @@
                           <tr>
                             <td>
                               <div style="font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
-                                Anomalia #{{ a.id }}{% if a.seriale %} &middot; {{ a.seriale }}{% endif %}
+                                Anomalia #{{ a.id }}{% if a.seriale %} &middot; {{ a.seriale }}{% endif %}{% if a.fase %} &middot; Fase {{ a.fase }}{% endif %}
                               </div>
+                              {% if a.descrizioni %}
+                              <div style="margin-top:9px;padding:9px 11px;background:#ffffff;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;line-height:1.45;">
+                                {% for dettaglio in a.descrizioni %}
+                                <div style="padding:4px 0;{% if not forloop.first %}border-top:1px solid #f1f5f9;{% endif %}">
+                                  <strong>Descrizione {{ forloop.counter }}{% if dettaglio.seriali %} · S/N {{ dettaglio.seriali|join:", " }}{% endif %}:</strong> {{ dettaglio.testo }}
+                                  {% for allegato in dettaglio.allegati %}<div style="font-size:11px;color:#64748b;">Allegato: <a href="{{ site_url }}{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id=descrizione:{{ allegato.id }}">{{ allegato.nome }}</a></div>{% endfor %}
+                                </div>
+                                {% endfor %}
+                              </div>
+                              {% endif %}
+                              {% if not a.descrizioni %}
                               <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
                                 {{ a.descrizione|default:"(nessuna descrizione)"|truncatechars:140 }}
                               </div>
+                              {% endif %}
                               {% if a.avanzamento %}
                               <div style="margin-top:6px;">
                                 <span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;">

@@ -1066,3 +1066,27 @@ Ultime voci viste/aggiunte in questa sessione:
 - `hotfix/hotfix-v1.0.1-20260519_115839.zip` -> pacchetto hotfix valido e verificato
 
 Nota: i file di controllo sessione `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md` e `CRITICAL_CHANGE_REQUESTS.md` non erano presenti nella workspace all'avvio.
+
+## Sessione 2026-10-05 - Codex - Gestione anomalie
+- `django_app/anomalie/quality_models.py`, `models.py`, migrazioni 0013/0014 -> metadati fase della segnalazione, descrizioni per seriale/voce, allegati e risposte del capocommessa.
+- `django_app/anomalie/views.py`, `urls.py`, `mail_action_views.py` -> salvataggio fase/dettagli, upload privato legato alla descrizione, elenco/download/cancellazione protetti; pagina mail mostra descrizioni e persiste risposta per voce.
+- `django_app/anomalie/templates/anomalie/pages/apertura_segnalazione.html` -> fase obbligatoria, gruppi seriali aggiungibili, descrizioni multiple con seriali e allegati distinti.
+- `django_app/anomalie/templates/anomalie/pages/mail_action_form.html` -> risposte separate del capocommessa per descrizione.
+- `django_app/anomalie/static/anomalie/js/src/gestione_anomalie.jsx` + bundle -> Scheda qualità nascosta, CTA arancione, badge collaudo/non collaudo, fase/descrizioni/risposte mostrate nel dettaglio.
+- `docs/ai/CHECKLIST_GESTIONE_ANOMALIE_PER_FASE_E_SERIALI.md` -> avanzamento aggiornato e migrazioni richieste.
+- README e changelog root/Django aggiornati.
+- Check: migrazioni generate, build React e compileall completati; test non eseguiti. Lavoro nel worktree `C:\Dev\pn-anomalie-fasi-seriali`, branch `feature/anomalie-fasi-seriali`.
+
+- Completamento UI risposte 2026-10-05: `django_app/anomalie/static/anomalie/js/src/gestione_anomalie.jsx` e bundle espongono campi risposta per voce anche nel dettaglio Gestione anomalie; `api_salva` persiste autore e timestamp, mantenendo anche il flusso di risposta via e-mail.
+
+- Checklist anomalie aggiornata 2026-10-05: risposte per singola descrizione disponibili sia dal dettaglio del portale sia dalla pagina protetta e-mail; autore e timestamp persistiti. Scheda qualità nascosta in UI. UAT e migrazioni restano da verificare.
+
+- Revisione statica anomalie 2026-10-05: confermati nel codice controlli token revocato/scaduto/usato e log azioni; UAT effettivo ancora aperto.
+
+- UI nuova segnalazione aggiornata 2026-10-05: selezione seriali per ogni descrizione e seriali manuali aggiuntivi; allegati delle descrizioni ulteriori validati per formato e dimensione. Verifica tecnica da completare.
+
+- Checklist completamento aggiornata 2026-10-05: compatibilità legacy, permessi/audit, semantica Benestare e flusso migrazione/rollback specificati. Aggiunti test mail HTML/testo e risposta descrizione con vincolo anomalia; esecuzione ripetuta dopo fix fixture.
+
+- Test mirati anomalie 2026-10-05: `anomalie.tests_mail_action` + `anomalie.tests_qualita` passati 45/45; check Django OK. L’unico primo fallimento era un fixture mail incompleto, corretto e riprovato con esito positivo. UAT reparto/client mail ancora aperto.
+
+- Controlli finali anomalie 2026-10-05: 45/45 test mirati; Django check, migration check, compileall e Babel JSX template passati. UAT reparto/client mail ancora aperto.

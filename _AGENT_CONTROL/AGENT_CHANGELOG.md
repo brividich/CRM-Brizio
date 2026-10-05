@@ -2002,3 +2002,47 @@
 - Rischi residui: creato anche `hotfix/hotfix-v1.0.1-20260519_115759.zip` durante un primo tentativo, ma contiene entry appiattite (`views.py`, `asset_detail.html`) e non va usato; il pacchetto valido e verificato e quello `115839`.
 - Test/check: verifica zip OK con entry `django_app/...` complete.
 - Note: nessuna migrazione, dipendenza o collectstatic richiesti per questa fix.
+
+## 2026-10-05 - Codex
+
+- Area: `django_app/anomalie`.
+- File modificati: `django_app/anomalie/quality_models.py`, `models.py`, `views.py`, `urls.py`, `mail_action_service.py`, `mail_action_views.py`, `templates/anomalie/pages/apertura_segnalazione.html`, `templates/anomalie/pages/mail_action_form.html`, `templates/anomalie/email/anomalie_action_email.html`, `static/anomalie/js/src/gestione_anomalie.jsx`, `static/anomalie/js/gestione_anomalie.bundle.js`, migrazioni `0013_anomaliasegnalazionemeta.py` e `0014_anomaliadescrizione_anomaliadescrizioneallegato.py`, README, changelog root/Django, checklist anomalie, checkpoint.
+- Richiesta: realizzare le modifiche concordate per Gestione anomalie; Scheda qualità temporaneamente nascosta.
+- Motivo tecnico: la tabella legacy conserva una riga per anomalia senza attributo fase né entità figlie per le descrizioni; i dati aggiuntivi devono quindi vivere in modelli Django collegati tramite l'id legacy, mantenendo il flusso mail-action protetto.
+- Modifica: CTA arancione, fase obbligatoria memorizzata per riga e collegata alla NC dell’OP, aggiunta di seriali e descrizioni multiple con allegati privati per descrizione, risposte distinte del capocommessa dal dettaglio del portale e via flusso e-mail protetto, badge espliciti per collaudo di benestare e altri controlli. Nascosta la Scheda qualità nella UI senza rimuovere modelli o storico.
+- File critici modificati: nessuno individuato; `_AGENT_CONTROL/CRITICAL_FILES.md` non disponibile.
+- Impatto: richiede migrazioni anomalie 0013 e 0014 prima dell’uso; le segnalazioni storiche non ricevono una fase inventata e restano con fase vuota.
+- Check: `makemigrations anomalie` ha generato 0013/0014; build UI React completata; `compileall` Python completato. Nessuna suite di test eseguita.
+- Rischi residui: da fare UAT end-to-end su e-mail/risposte/allegati e verifica rilascio con migrazioni su DB di test; risposte storiche non sono associate retroattivamente a nuove voci.
+- Note: modifiche sul branch `feature/anomalie-fasi-seriali` nel worktree dedicato `C:\Dev\pn-anomalie-fasi-seriali`. `ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti.
+
+## 2026-10-05 - Codex - Aggiornamento checklist anomalie
+- Aggiornata la checklist per distinguere la risposta per descrizione nel dettaglio del portale e nel flusso protetto via e-mail; entrambe registrano autore e data/ora.
+- Marcato come completato il nascondimento UI della Scheda qualità, mantenendo invariati modelli e storico.
+- Nessun file critico o codice applicativo modificato in questo aggiornamento documentale.
+- Check: `git diff --check`; UAT end-to-end ancora da svolgere.
+
+## 2026-10-05 - Codex - Revisione statica flusso mail anomalie
+- Verificati nel codice i controlli token revocato/scaduto/usato, il blocco di riutilizzo e la registrazione delle azioni; checklist aggiornata come verifica statica.
+- Lasciate aperte le prove UAT di scadenza/monouso, rendering dei client mail, risposte e migrazioni. Nessuna modifica al codice applicativo.
+- Check: revisione mirata di `mail_action_views.py` e `api_salva` in `views.py`; nessun test eseguito.
+
+## 2026-10-05 - Codex - Seriali per singola descrizione
+- Modificato `apertura_segnalazione.html`: selezione multipla dei seriali per ciascuna descrizione, seriali manuali aggiuntivi, validazione che ogni voce abbia seriali e testo; i file aggiuntivi sono sottoposti ai limiti di estensione e 20 MB già applicati alla prima voce.
+- Chiarita la gerarchia OP → segnalazione per fase → descrizioni; aggiornata checklist, README e changelog.
+- File critici modificati: nessuno.
+- Check ancora da eseguire; controlli automatici/UI non ancora effettuati.
+
+## 2026-10-05 - Codex - Verifiche mail e compatibilità anomalie
+- Aggiunti test e-mail HTML/testo e risposta per descrizione con filtro sull’anomalia corretta; aggiornate le decisioni operative, la compatibilità storico e le note di migrazione/rollback nella checklist.
+- `manage.py check` passa. Prima esecuzione test: 44/45, l’unico errore era nel fixture del nuovo test mail, ora corretto per creare i modelli che il renderer legge dal DB. Seconda esecuzione in corso.
+- Rischi residui: UAT browser/client mail e dati reali resta esterno al test isolato.
+
+## 2026-10-05 - Codex - Esito verifiche anomalie
+- Seconda esecuzione test mirati completata: `anomalie.tests_mail_action` e `anomalie.tests_qualita`, 45/45 passati. La prima esecuzione aveva un fixture incompleto nel nuovo test di rendering e-mail; corretto creando dati persistiti come fa il servizio.
+- `python manage.py check --settings=config.settings.test` OK. Nessuna suite completa eseguita.
+- UAT con browser/client e dati del reparto resta necessario prima di distribuire le migrazioni; nessun test su dati reali.
+
+## 2026-10-05 - Codex - Esito finale controlli feature anomalie
+- Controlli: 45/45 test `anomalie.tests_mail_action` + `anomalie.tests_qualita`; `manage.py check` OK; `makemigrations anomalie --check --dry-run` nessuna modifica; `compileall` OK; Babel React JSX inline del form OK; `git diff --check` OK.
+- Checklist segna completato ciò che è verificato; restano UAT browser e-mail con dati del reparto e test dei client e-mail reali.
