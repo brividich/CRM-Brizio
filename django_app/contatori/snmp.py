@@ -313,9 +313,10 @@ def scansiona_hosts(hosts, community="novicromprinter", port=161, timeout=2,
     except ValueError as e:
         raise SNMPError("Indirizzo host non valido.") from e
     candidates = list(communities if communities is not None else [community])
-    if not candidates or len(candidates) > 8 or any(not c or len(c) > 60 for c in candidates):
+    if not candidates or len(candidates) > 8 or any(
+            not c or len(c) > (1000 if version == "v3" else 60) for c in candidates):
         raise SNMPError("Inserisci da 1 a 8 community, massimo 60 caratteri ciascuna.")
-    if version not in ("v1", "v2c"):
+    if version not in ("v1", "v2c", "v3"):
         raise SNMPError("Versione SNMP non valida.")
     if timeout <= 0 or max_duration <= 0:
         raise SNMPError("Il timeout deve essere positivo.")

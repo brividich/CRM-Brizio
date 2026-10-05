@@ -9,7 +9,8 @@ Stato (2026-10-05): **fasi 1-4 e 5 (test) fatte** su `feature/contatori-snmp-v3`
 - Fase 4: `CommunitySNMPForm` ha i campi v3; in modifica v3 si reinseriscono tutte le chiavi. I campi v3 sono sempre visibili (nessun JS di mostra/nascondi).
 - Nomi protocolli puresnmp: auth `md5`/`sha1`; priv `des`/`aes`.
 - **Dipendenza (risolta)**: `puresnmp` 2.0.1 NON include AES/DES. Servono i plugin `puresnmp-crypto` (`puresnmp_plugins.priv.*`), oggi assenti: il piano "nessuna nuova dipendenza" vale solo per authNoPriv. L'iLO 5 e NIS2 vogliono authPriv: aggiunto `puresnmp-crypto` in `requirements.in`/`.txt` (wheel pura, 4 kB, MIT). Al deploy serve `pip install -r requirements.txt`; verificare che il pacchetto/wheelhouse del packager lo includa.
-- Da fare: verifica budget/timeout v3 (primo scambio = discovery engine ID, +1 round-trip), lettura reale su iLO, discovery con credenziale v3 (`scansiona_hosts` accetta già il segreto, ma la UI discovery propone solo v1/v2c globali).
+- Discovery: `scansiona_hosts` ora accetta v3 (prima rifiutava la versione e il segreto >60 caratteri); una community v3 del catalogo è usata dal job in background.
+- Da fare: verifica budget/timeout v3 (primo scambio = discovery engine ID, +1 round-trip), lettura reale su iLO.
 
 ## Contesto
 

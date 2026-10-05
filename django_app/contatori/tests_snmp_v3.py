@@ -67,3 +67,22 @@ class CommunityV3FormTests(TestCase):
         self.assertIn("valore", form.errors)
         self.assertTrue(CommunitySNMPForm(
             {**self.base, "versione": "v2c", "valore": "pub"}).is_valid())
+
+
+class DiscoveryV3Tests(SimpleTestCase):
+    def test_scansione_accetta_v3_e_segreto_lungo(self):
+        from .snmp import scansiona_hosts
+        segreto = segreto_v3(U, "sha1", AK)
+
+        class Client:
+            def __init__(self, *a, **k):
+                pass
+
+            async def get(self, oid):
+                raise OSError("nessuna risposta")
+
+        with mock.patch("puresnmp.PyWrapper", lambda c: c), \
+                mock.patch("puresnmp.Client", Client):
+            self.assertEqual(list(scansiona_hosts(
+                ["10.0.0.1"], communities=[segreto + " " * 80], version="v3",
+                timeout=1, max_duration=5)), [])
