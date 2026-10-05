@@ -2,7 +2,7 @@
 import asyncio
 import functools
 
-from .snmp import SNMPError, _testo
+from .snmp import SNMPError, _testo, costruisci_credenziali
 
 LIFE_COUNT = "1.3.6.1.2.1.43.10.2.1.4"
 COUNTER_UNIT = "1.3.6.1.2.1.43.10.2.1.3"
@@ -121,13 +121,13 @@ def leggi_stampante(dispositivo, *, community, port, timeout, version):
     dei WALK concorrenti lascia tempo al job del polling (110s).
     """
     try:
-        from puresnmp import Client, PyWrapper, V1, V2C
+        from puresnmp import Client, PyWrapper
         from puresnmp.transport import send_udp
     except ImportError as exc:
         raise SNMPError("puresnmp non installato") from exc
 
     async def colonna(base):
-        cred = V1(community) if version == "v1" else V2C(community)
+        cred = costruisci_credenziali(community, version)
         client = PyWrapper(Client(
             str(dispositivo.host), cred, port=port,
             sender=functools.partial(send_udp, timeout=timeout),

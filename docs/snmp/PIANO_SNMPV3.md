@@ -1,6 +1,15 @@
 # Piano: supporto SNMPv3 nel modulo contatori
 
-Stato: **da implementare** (piano del 2026-10-05). Nessun codice scritto.
+Stato (2026-10-05): **fasi 1-4 e 5 (test) fatte** su `feature/contatori-snmp-v3`; restano 3 (verifica budget v3), 7, 8 e la decisione su `puresnmp-crypto`.
+
+### Fatto e scostamenti dal piano
+
+- Fase 1: invece di colonne separate, le credenziali v3 sono un **JSON cifrato dentro `segreto_cifrato`** (`snmp.segreto_v3`). Nessun nuovo campo; la migrazione `0024` cambia solo le `choices` di `versione`.
+- Fase 2: `snmp.costruisci_credenziali(segreto, versione)` usato da `snmp.py` (5 punti) e `printer_snmp.py`. Fase 3: `services._community_snmp` restituisce già il segreto decifrato, quindi non serve altro; `snmp_capture.py` ha già il suo `build_credentials` v3.
+- Fase 4: `CommunitySNMPForm` ha i campi v3; in modifica v3 si reinseriscono tutte le chiavi. I campi v3 sono sempre visibili (nessun JS di mostra/nascondi).
+- Nomi protocolli puresnmp: auth `md5`/`sha1`; priv `des`/`aes`.
+- **Blocco**: `puresnmp` 2.0.1 NON include AES/DES. Servono i plugin `puresnmp-crypto` (`puresnmp_plugins.priv.*`), oggi assenti: il piano "nessuna nuova dipendenza" vale solo per authNoPriv. L'iLO 5 e NIS2 vogliono authPriv: serve approvare la dipendenza (`requirements.in` + `.txt` con hash/pip-compile, attenzione al marker Windows).
+- Da fare: verifica budget/timeout v3 (primo scambio = discovery engine ID, +1 round-trip), lettura reale su iLO, discovery con credenziale v3 (`scansiona_hosts` accetta già il segreto, ma la UI discovery propone solo v1/v2c globali).
 
 ## Contesto
 

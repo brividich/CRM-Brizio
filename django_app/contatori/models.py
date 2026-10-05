@@ -51,7 +51,8 @@ class CommunitySNMP(models.Model):
     nome = models.CharField(max_length=80, unique=True)
     segreto_cifrato = models.TextField(editable=False)
     versione = models.CharField(max_length=4, blank=True, choices=[
-        ("", "Versione della scansione"), ("v1", "SNMPv1"), ("v2c", "SNMPv2c")])
+        ("", "Versione della scansione"), ("v1", "SNMPv1"), ("v2c", "SNMPv2c"),
+        ("v3", "SNMPv3")])
     porta = models.PositiveIntegerField(null=True, blank=True)
     ordine = models.PositiveIntegerField(default=0)
     attiva = models.BooleanField(default=True)
@@ -129,6 +130,7 @@ class ProfiloSNMP(models.Model):
         GLOBALE = "", "Usa configurazione globale"
         V1 = "v1", "SNMPv1"
         V2C = "v2c", "SNMPv2c"
+        V3 = "v3", "SNMPv3"
 
     slug = models.SlugField(max_length=80, unique=True)
     nome = models.CharField(max_length=120)
@@ -356,6 +358,7 @@ class DispositivoSNMP(models.Model):
         GLOBALE = "", "Usa configurazione globale"
         V1 = "v1", "SNMPv1"
         V2C = "v2c", "SNMPv2c"
+        V3 = "v3", "SNMPv3"
 
     nome = models.CharField(max_length=100)
     categoria = models.CharField(
