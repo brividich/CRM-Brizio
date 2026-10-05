@@ -1028,6 +1028,7 @@ function GestioneAnomalie() {
 
   // â"€â"€ Campi form â"€â"€
   const [desc, setDesc] = useState("");
+  const [descrizioneAnswers, setDescrizioneAnswers] = useState({});
   const [note, setNote] = useState("");
   const [pezziPrec, setPezziPrec] = useState(false);
   const [aprireRdc, setAprireRdc] = useState(false);
@@ -1049,6 +1050,7 @@ function GestioneAnomalie() {
   const clearForm = () => {
     setDesc("");
     setNote("");
+    setDescrizioneAnswers({});
     setPezziPrec(false);
     setAprireRdc(false);
     setSegnalare(false);
@@ -1189,6 +1191,7 @@ function GestioneAnomalie() {
       setCurrentItemId(a.item_id || null);
       setCurrentLocalId(a.local_id || null);
       setDesc(a.desc || "");
+      setDescrizioneAnswers(Object.fromEntries((a.descrizioni || []).map(detail => [String(detail.id), detail.risposta || ""])));
       setNote(a.note || "");
       setPezziPrec(!!a.pezzi_prec);
       setAprireRdc(!!a.aprire_rdc);
@@ -1283,6 +1286,7 @@ function GestioneAnomalie() {
         op_id: op.id,
         sn: sn.sn || "",
         desc,
+        descrizioni_risposte: descrizioneAnswers,
         note,
         pezzi_prec: pezziPrec,
         aprire_rdc: aprireRdc,
@@ -1323,6 +1327,12 @@ function GestioneAnomalie() {
           sn: sn.sn || "",
           desc,
           note,
+          fase: sn.fase || "",
+          descrizioni: (sn.descrizioni || []).map(detail => ({
+            ...detail,
+            risposta: descrizioneAnswers[String(detail.id)] || "",
+            risposta_da: detail.risposta_da || ""
+          })),
           pezzi_prec: pezziPrec,
           aprire_rdc: aprireRdc,
           numero_rdc: rdcNum,
@@ -2604,17 +2614,41 @@ function GestioneAnomalie() {
       color: "var(--text-mid)",
       marginTop: 4
     }
-  }, detail.testo), detail.risposta && /*#__PURE__*/React.createElement("div", {
+  }, detail.testo), /*#__PURE__*/React.createElement("label", {
     className: "text-sm",
     style: {
-      whiteSpace: "pre-wrap",
-      marginTop: 7,
-      padding: 8,
-      borderRadius: 6,
-      background: "var(--accent-light)",
-      color: "var(--text)"
+      display: "block",
+      marginTop: 8,
+      color: "var(--text-mid)"
     }
-  }, /*#__PURE__*/React.createElement("strong", null, "Risposta capocommessa:"), " ", detail.risposta), (detail.allegati || []).map(file => /*#__PURE__*/React.createElement("a", {
+  }, /*#__PURE__*/React.createElement("strong", null, "Risposta capocommessa"), /*#__PURE__*/React.createElement("textarea", {
+    rows: 2,
+    value: descrizioneAnswers[String(detail.id)] || "",
+    onChange: event => setDescrizioneAnswers(prev => ({
+      ...prev,
+      [String(detail.id)]: event.target.value
+    })),
+    disabled: !canEditSelected || isSelectedClosed,
+    placeholder: "Risposta per questa descrizione...",
+    style: {
+      display: "block",
+      width: "100%",
+      marginTop: 4,
+      padding: 8,
+      border: "1px solid var(--border)",
+      borderRadius: 6,
+      color: "var(--text)",
+      background: "var(--surface)",
+      font: "inherit",
+      resize: "vertical"
+    }
+  })), detail.risposta_da && /*#__PURE__*/React.createElement("div", {
+    className: "text-xs",
+    style: {
+      color: "var(--text-light)",
+      marginTop: 3
+    }
+  }, "Risposta registrata da ", detail.risposta_da, detail.risposta_il ? ` · ${new Date(detail.risposta_il).toLocaleString("it-IT")}` : ""), (detail.allegati || []).map(file => /*#__PURE__*/React.createElement("a", {
     key: file.id,
     className: "text-sm",
     href: `${API.allegati_file}?local_id=${encodeURIComponent(sn.local_id)}&file_id=${encodeURIComponent(`descrizione:${file.id}`)}`,

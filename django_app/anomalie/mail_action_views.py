@@ -205,6 +205,7 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                             risposta_capocommessa=response_text,
                             risposta_da=risposta_da[:200],
                             risposta_il=timezone.now(),
+                            updated_at=timezone.now(),
                         )
                 except Exception:
                     logger.exception("mail_action: salvataggio risposte descrizione fallito id=%s", anomalia_id)

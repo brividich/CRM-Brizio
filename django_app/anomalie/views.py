@@ -2964,6 +2964,21 @@ def api_salva(request):
                                 seriali=[seriale_legacy] if seriale_legacy else [],
                                 testo=testo_legacy,
                             )
+                    risposte_raw = data.get("descrizioni_risposte")
+                    if isinstance(risposte_raw, dict):
+                        identity = _current_user_identity(request)
+                        risposta_da = _safe_text(identity.get("name") or request.user.get_full_name() or request.user.username, 200)
+                        for detail_id, risposta in risposte_raw.items():
+                            if not str(detail_id).isdigit():
+                                continue
+                            AnomaliaDescrizione.objects.filter(
+                                pk=int(detail_id), segnalazione=meta,
+                            ).update(
+                                risposta_capocommessa=_safe_text(risposta, 5000) or "",
+                                risposta_da=risposta_da or "",
+                                risposta_il=timezone.now(),
+                                updated_at=timezone.now(),
+                            )
                 protocollo = scheda.nc.protocollo if scheda and scheda.nc_id else ""
                 descrizioni_response = list(meta.descrizioni.order_by("ordine", "id").values("id", "ordine"))
             except Exception:

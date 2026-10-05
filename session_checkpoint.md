@@ -1076,3 +1076,5 @@ Nota: i file di controllo sessione `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOC
 - `docs/ai/CHECKLIST_GESTIONE_ANOMALIE_PER_FASE_E_SERIALI.md` -> avanzamento aggiornato e migrazioni richieste.
 - README e changelog root/Django aggiornati.
 - Check: migrazioni generate, build React e compileall completati; test non eseguiti. Lavoro nel worktree `C:\Dev\pn-anomalie-fasi-seriali`, branch `feature/anomalie-fasi-seriali`.
+
+- Completamento UI risposte 2026-10-05: `django_app/anomalie/static/anomalie/js/src/gestione_anomalie.jsx` e bundle espongono campi risposta per voce anche nel dettaglio Gestione anomalie; `api_salva` persiste autore e timestamp, mantenendo anche il flusso di risposta via e-mail.

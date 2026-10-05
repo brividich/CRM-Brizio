@@ -651,6 +651,7 @@
 
       // â"€â"€ Campi form â"€â"€
       const [desc,        setDesc]        = useState("");
+      const [descrizioneAnswers, setDescrizioneAnswers] = useState({});
       const [note,        setNote]        = useState("");
       const [pezziPrec,   setPezziPrec]   = useState(false);
       const [aprireRdc,   setAprireRdc]   = useState(false);
@@ -668,6 +669,7 @@
 
       const clearForm = () => {
         setDesc(""); setNote("");
+        setDescrizioneAnswers({});
         setPezziPrec(false); setAprireRdc(false);
         setSegnalare(false);
         setAvanzamento(DEFAULT_AVANZAMENTO); setRdcNum("");
@@ -821,6 +823,7 @@
           setCurrentItemId(a.item_id || null);
           setCurrentLocalId(a.local_id || null);
           setDesc(a.desc || "");
+          setDescrizioneAnswers(Object.fromEntries((a.descrizioni || []).map(detail => [String(detail.id), detail.risposta || ""])));
           setNote(a.note || "");
           setPezziPrec(!!a.pezzi_prec);
           setAprireRdc(!!a.aprire_rdc);
@@ -894,6 +897,7 @@
             op_id:      op.id,
             sn:         sn.sn || "",
             desc,
+            descrizioni_risposte: descrizioneAnswers,
             note,
             pezzi_prec: pezziPrec,
             aprire_rdc: aprireRdc,
@@ -927,6 +931,12 @@
               op_id:      op.id,
               sn:         sn.sn || "",
               desc, note,
+              fase: sn.fase || "",
+              descrizioni: (sn.descrizioni || []).map(detail => ({
+                ...detail,
+                risposta: descrizioneAnswers[String(detail.id)] || "",
+                risposta_da: detail.risposta_da || "",
+              })),
               pezzi_prec: pezziPrec,
               aprire_rdc: aprireRdc,
               numero_rdc: rdcNum,
@@ -1653,7 +1663,12 @@
                           <div key={detail.id} style={{ border: "1px solid var(--border)", borderRadius: 9, padding: 10, background: "var(--surface)" }}>
                             <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>Descrizione {index + 1} · S/N {(detail.seriali || []).join(", ") || "—"}</div>
                             <div className="text-sm" style={{ whiteSpace: "pre-wrap", color: "var(--text-mid)", marginTop: 4 }}>{detail.testo}</div>
-                            {detail.risposta && <div className="text-sm" style={{ whiteSpace: "pre-wrap", marginTop: 7, padding: 8, borderRadius: 6, background: "var(--accent-light)", color: "var(--text)" }}><strong>Risposta capocommessa:</strong> {detail.risposta}</div>}
+                            <label className="text-sm" style={{ display: "block", marginTop: 8, color: "var(--text-mid)" }}>
+                              <strong>Risposta capocommessa</strong>
+                              <textarea rows={2} value={descrizioneAnswers[String(detail.id)] || ""} onChange={event => setDescrizioneAnswers(prev => ({ ...prev, [String(detail.id)]: event.target.value }))} disabled={!canEditSelected || isSelectedClosed}
+                                placeholder="Risposta per questa descrizione..." style={{ display: "block", width: "100%", marginTop: 4, padding: 8, border: "1px solid var(--border)", borderRadius: 6, color: "var(--text)", background: "var(--surface)", font: "inherit", resize: "vertical" }} />
+                            </label>
+                            {detail.risposta_da && <div className="text-xs" style={{ color: "var(--text-light)", marginTop: 3 }}>Risposta registrata da {detail.risposta_da}{detail.risposta_il ? ` · ${new Date(detail.risposta_il).toLocaleString("it-IT")}` : ""}</div>}
                             {(detail.allegati || []).map(file => <a key={file.id} className="text-sm" href={`${API.allegati_file}?local_id=${encodeURIComponent(sn.local_id)}&file_id=${encodeURIComponent(`descrizione:${file.id}`)}`} target="_blank" rel="noreferrer">{file.nome}</a>)}
                           </div>
                         ))}
