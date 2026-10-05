@@ -177,11 +177,12 @@ details.ad-cats-more[open] > summary { display:none; }
 .ad-w-link { display:inline-block; margin-top:8px; font-size:var(--fs-xs); color:#1d4ed8; text-decoration:none; font-weight:800; }
 .ad-w-link:hover { text-decoration:underline; }
 .ad-list { margin:8px 0 0; list-style:none; padding:0; display:grid; gap:2px; }
-.ad-list-item { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--border); font-size:var(--fs-sm); }
+/* Nome sopra, matricola sotto, data a destra: in una colonna da 260px i tre pezzi in fila sforavano. */
+.ad-list-item { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:8px; row-gap:1px; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); font-size:var(--fs-sm); }
 .ad-list-item:last-child { border-bottom:none; }
-.ad-list-name { color:var(--text); font-weight:700; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:none; }
-.ad-list-tag { font-size:var(--fs-xs); color:var(--text-light); }
-.ad-list-badge { font-size:var(--fs-xs); font-weight:800; border-radius:999px; padding:1px 7px; flex-shrink:0; }
+.ad-list-name { grid-column:1; grid-row:1; color:var(--text); font-weight:700; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:none; }
+.ad-list-tag { grid-column:1; grid-row:2; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:var(--fs-xs); color:var(--text-light); }
+.ad-list-badge { grid-column:2; grid-row:1; font-size:var(--fs-xs); font-weight:800; border-radius:999px; padding:1px 7px; white-space:nowrap; }
 .ad-list-badge.red { background:#fee2e2; color:#b91c1c; }
 .ad-list-badge.yellow { background:#fef9c3; color:#854d0e; }
 .ad-bars { margin:10px 0 0; display:grid; gap:7px; }
