@@ -2015,3 +2015,9 @@
 - Check: `makemigrations anomalie` ha generato 0013/0014; build UI React completata; `compileall` Python completato. Nessuna suite di test eseguita.
 - Rischi residui: da fare UAT end-to-end su e-mail/risposte/allegati e verifica rilascio con migrazioni su DB di test; risposte storiche non sono associate retroattivamente a nuove voci.
 - Note: modifiche sul branch `feature/anomalie-fasi-seriali` nel worktree dedicato `C:\Dev\pn-anomalie-fasi-seriali`. `ACTIVE_SESSION.md`, `WORK_LOCKS.md`, `CRITICAL_FILES.md`, `CRITICAL_CHANGE_REQUESTS.md` non presenti.
+
+## 2026-10-05 - Codex - Aggiornamento checklist anomalie
+- Aggiornata la checklist per distinguere la risposta per descrizione nel dettaglio del portale e nel flusso protetto via e-mail; entrambe registrano autore e data/ora.
+- Marcato come completato il nascondimento UI della Scheda qualità, mantenendo invariati modelli e storico.
+- Nessun file critico o codice applicativo modificato in questo aggiornamento documentale.
+- Check: `git diff --check`; UAT end-to-end ancora da svolgere.

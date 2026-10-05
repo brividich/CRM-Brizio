@@ -104,13 +104,14 @@ L’e-mail riepilogherà le descrizioni in blocchi numerati con i rispettivi ser
 - [x] Evidenziare collaudo di benestare e altro controllo negli elenchi OP.
 - [x] Mostrare la fase nel dettaglio della segnalazione e mantenere il collegamento all’NC dell’OP.
 - [x] Mostrare ogni descrizione con seriali, allegati e risposte nel dettaglio.
-- [x] Mostrare e raccogliere una risposta per ogni descrizione nel flusso protetto di presa in carico via mail.
+- [x] Mostrare ogni descrizione nel dettaglio di Gestione anomalie e raccogliere lì una risposta distinta per voce.
+- [x] Raccogliere una risposta distinta per descrizione anche nella pagina protetta raggiunta dall’e-mail.
 
 ### Fase E — Mail e risposta
 
 - [x] Adattare il contenuto e-mail e la pagina collegata per mostrare le voci con seriali e allegati pertinenti.
 - [x] Fornire un canale di risposta distinto per ciascuna descrizione.
-- [x] Persistire ciascuna risposta sulla voce corretta e mostrarla nel dettaglio dell’anomalia.
+- [x] Persistire ciascuna risposta sulla voce corretta, con autore e data/ora, e mostrarla sia nel dettaglio del portale sia nella pagina protetta e-mail.
 - [ ] Mantenere le protezioni, la scadenza/monouso dei token e il log delle azioni del flusso attuale.
 - [ ] Verificare rendering e leggibilità della mail su client comuni senza dipendere da sole immagini o colori.
 
@@ -127,9 +128,9 @@ L’e-mail riepilogherà le descrizioni in blocchi numerati con i rispettivi ser
 
 ## 5. Esclusione temporanea della Scheda qualità
 
-- [ ] Nascondere temporaneamente l’accesso e la presentazione della **Scheda qualità** nell’interfaccia di Gestione anomalie.
-- [ ] Escludere la Scheda qualità dai nuovi passaggi di inserimento descritti in questo piano.
-- [ ] Lasciare invariati modello, dati storici e logica backend: la richiesta riguarda il nascondimento temporaneo, non la cancellazione o la disattivazione dei dati.
+- [x] Nascondere temporaneamente l’accesso e la presentazione della **Scheda qualità** nell’interfaccia di Gestione anomalie.
+- [x] Escludere la Scheda qualità dai nuovi passaggi di inserimento descritti in questo piano.
+- [x] Lasciare invariati modello, dati storici e logica backend: la richiesta riguarda il nascondimento temporaneo, non la cancellazione o la disattivazione dei dati.
 - [ ] Valutare la riattivazione in una fase futura, fuori dal rilascio corrente.
 
 ## 6. Perimetro e cautele
@@ -155,6 +156,6 @@ La modifica è completa quando il reparto può aprire una segnalazione indicando
 
 ## Avanzamento implementazione (5 ottobre 2026)
 
-Completati pulsante di apertura, fase obbligatoria per le nuove segnalazioni, collegamento della fase alla NC dell’OP, gruppi aggiuntivi di seriali, descrizioni multiple con seriali selezionabili/digitabili e allegati distinti, distinzione del collaudo di benestare negli elenchi e risposte separate nella pagina protetta raggiunta dall’e-mail. La Scheda qualità è nascosta nell’interfaccia; modelli e storico restano disponibili.
+Completati pulsante di apertura, fase obbligatoria per le nuove segnalazioni, collegamento della fase alla NC dell’OP, gruppi aggiuntivi di seriali, descrizioni multiple con seriali selezionabili/digitabili e allegati distinti, distinzione del collaudo di benestare negli elenchi e risposte separate per descrizione sia nel dettaglio di Gestione anomalie sia nella pagina protetta raggiunta dall’e-mail. Ogni risposta registra autore e data/ora. La Scheda qualità è nascosta nell’interfaccia; modelli e storico restano disponibili.
 
-**Migrazioni da applicare:** `0013_anomaliasegnalazionemeta.py` e `0014_anomaliadescrizione_anomaliadescrizioneallegato.py`. Per le segnalazioni storiche la fase non viene inventata: rimane vuota fino a eventuale compilazione esplicita. La ricognizione e il controllo statico sono stati eseguiti; i test funzionali UAT e-mail e migrazione dati restano da fare.
+**Migrazioni da applicare:** `0013_anomaliasegnalazionemeta.py` e `0014_anomaliadescrizione_anomaliadescrizioneallegato.py`. Per le segnalazioni storiche la fase non viene inventata: rimane vuota fino a eventuale compilazione esplicita. La ricognizione e i controlli statici sono stati eseguiti. Restano da fare UAT dei due canali di risposta, e-mail e migrazione dati; le caselle di verifica/rilascio restano aperte fino a tale validazione.
