@@ -359,7 +359,10 @@ ASSET_LIST_BASE_COLUMN_CHOICES = [
     ("reparto", "Reparto"),
     ("vlan", "VLAN"),
     ("ip", "IP"),
+    ("switch_port", "Porta SW"),
+    ("patch_panel_port", "Porta patch panel"),
 ]
+ASSET_LIST_IT_COLUMNS = ["ip", "switch_port", "patch_panel_port"]
 ASSET_LIST_COMMON_COLUMNS = [
     "name",
     "status",
@@ -5360,17 +5363,20 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Cruscotto",
+            "label": "Inventario completo",
             "url": f"{base_list}?rows={rows}",
             "is_subitem": False,
             "active": not current_type and current_route == "asset_list",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Dispositivi",
-            "url": f"{base_list}?asset_type=HW&rows={rows}",
+            "label": "Inventario IT",
+            "url": reverse("assets:device_list"),
             "is_subitem": False,
-            "active": current_type == Asset.TYPE_HW and current_route == "asset_list",
+            "active": current_route == "device_list" or current_type in {
+                Asset.TYPE_PC, Asset.TYPE_NOTEBOOK, Asset.TYPE_SERVER, Asset.TYPE_VM,
+                Asset.TYPE_FIREWALL, Asset.TYPE_STAMPANTE, Asset.TYPE_HW,
+            },
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -5381,10 +5387,17 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Postazioni di lavoro",
+            "label": "PC e portatili",
             "url": f"{base_list}?asset_type={Asset.TYPE_PC}&rows={rows}",
             "is_subitem": True,
             "active": current_type in {Asset.TYPE_PC, Asset.TYPE_NOTEBOOK} and current_route == "asset_list",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Macchine virtuali",
+            "url": f"{base_list}?asset_type={Asset.TYPE_VM}&rows={rows}",
+            "is_subitem": True,
+            "active": current_type == Asset.TYPE_VM and current_route == "asset_list",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -5392,6 +5405,20 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "url": f"{base_list}?asset_type={Asset.TYPE_FIREWALL}&rows={rows}",
             "is_subitem": True,
             "active": current_type == Asset.TYPE_FIREWALL and current_route == "asset_list",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Stampanti",
+            "url": f"{base_list}?asset_type={Asset.TYPE_STAMPANTE}&rows={rows}",
+            "is_subitem": True,
+            "active": current_type == Asset.TYPE_STAMPANTE and current_route == "asset_list",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Altri dispositivi",
+            "url": f"{base_list}?asset_type={Asset.TYPE_HW}&rows={rows}",
+            "is_subitem": True,
+            "active": current_type == Asset.TYPE_HW and current_route == "asset_list",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -5499,7 +5526,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Macchine di lavoro",
+            "label": "Officina",
             "url": production_assets_url,
             "is_subitem": False,
             "active": (current_route == "asset_list" and current_group == "production")
@@ -5583,7 +5610,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "dashboard",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Cruscotto",
+            "label": "Inventario completo",
             "target_url": "django:assets:asset_list?rows={rows}",
             "active_match": "",
             "is_subitem": False,
@@ -5594,9 +5621,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "hardware",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Dispositivi",
-            "target_url": "django:assets:asset_list?asset_type=HW&rows={rows}",
-            "active_match": "asset_type=HW",
+            "label": "Inventario IT",
+            "target_url": "django:assets:device_list",
+            "active_match": "/assets/dispositivi/",
             "is_subitem": False,
             "parent_code": "",
             "sort_order": 20,
@@ -5616,12 +5643,23 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "workstations",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Postazioni di lavoro",
+            "label": "PC e portatili",
             "target_url": "django:assets:asset_list?asset_type=PC&rows={rows}",
             "active_match": "asset_type=PC",
             "is_subitem": True,
             "parent_code": "hardware",
             "sort_order": 40,
+            "is_visible": True,
+        },
+        {
+            "code": "virtual_machines",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Macchine virtuali",
+            "target_url": "django:assets:asset_list?asset_type=VM&rows={rows}",
+            "active_match": "asset_type=VM",
+            "is_subitem": True,
+            "parent_code": "hardware",
+            "sort_order": 45,
             "is_visible": True,
         },
         {
@@ -5636,9 +5674,31 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "is_visible": True,
         },
         {
+            "code": "printers",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Stampanti",
+            "target_url": "django:assets:asset_list?asset_type=STAMPANTE&rows={rows}",
+            "active_match": "asset_type=STAMPANTE",
+            "is_subitem": True,
+            "parent_code": "hardware",
+            "sort_order": 55,
+            "is_visible": True,
+        },
+        {
+            "code": "hardware_devices",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Altri dispositivi",
+            "target_url": "django:assets:asset_list?asset_type=HW&rows={rows}",
+            "active_match": "asset_type=HW",
+            "is_subitem": True,
+            "parent_code": "hardware",
+            "sort_order": 60,
+            "is_visible": True,
+        },
+        {
             "code": "work_machines",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Macchine di lavoro",
+            "label": "Officina",
             # Confluita nell'inventario unico: stessa pagina/lista, filtrata al
             # gruppo produzione (?group=production).
             "target_url": "django:assets:asset_list?group=production&rows={rows}",
@@ -5656,7 +5716,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/work-machines/dashboard/",
             "is_subitem": True,
             "parent_code": "work_machines",
-            "sort_order": 61,
+            "sort_order": 60,
             "is_visible": True,
         },
         {
@@ -8109,7 +8169,10 @@ def _asset_list_context(asset_type: str) -> tuple[str, str]:
 
 
 def _asset_list_default_columns(asset_type: str) -> list[str]:
-    return list(ASSET_LIST_COMMON_COLUMNS)
+    columns = list(ASSET_LIST_COMMON_COLUMNS)
+    if _clean_string(asset_type).upper() in {Asset.TYPE_PC, Asset.TYPE_NOTEBOOK}:
+        columns.extend(ASSET_LIST_IT_COLUMNS)
+    return columns
 
 
 def _default_asset_list_layout_rows() -> list[dict[str, object]]:
@@ -8169,7 +8232,7 @@ def _ensure_default_asset_list_layouts() -> list[AssetListLayout]:
 
 
 def _asset_list_valid_column_keys(custom_fields: list[AssetCustomField]) -> set[str]:
-    return set(ASSET_LIST_COMMON_COLUMNS)
+    return set(ASSET_LIST_COMMON_COLUMNS) | set(ASSET_LIST_IT_COLUMNS)
 
 
 def _sanitize_asset_list_visible_columns(columns: object, valid_keys: set[str], fallback: list[str] | None = None) -> list[str]:
@@ -8382,14 +8445,25 @@ def _asset_endpoint_column_summary(asset: Asset) -> dict[str, str]:
 
     vlan_values = []
     ip_values = []
+    switch_port_values = []
+    patch_panel_values = []
     for endpoint in endpoints:
         if endpoint.vlan is not None:
             vlan_values.append(str(endpoint.vlan))
         if endpoint.ip:
             ip_values.append(str(endpoint.ip))
+        if endpoint.switch_port:
+            switch_label = " · ".join(
+                value for value in (_clean_string(endpoint.switch_name), _clean_string(endpoint.switch_port)) if value
+            )
+            switch_port_values.append(switch_label)
+        if endpoint.punto:
+            patch_panel_values.append(endpoint.punto)
     return {
         "vlan": _join_unique(vlan_values),
         "ip": _join_unique(ip_values),
+        "switch_port": _join_unique(switch_port_values),
+        "patch_panel_port": _join_unique(patch_panel_values),
     }
 
 
@@ -9085,6 +9159,8 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         endpoint_summary = _asset_endpoint_column_summary(asset)
         asset.endpoint_vlan_display = endpoint_summary["vlan"]
         asset.endpoint_ip_display = endpoint_summary["ip"]
+        asset.endpoint_switch_port_display = endpoint_summary["switch_port"]
+        asset.endpoint_patch_panel_display = endpoint_summary["patch_panel_port"]
 
     recent_alerts: list[dict[str, str]] = []
     open_wo_alerts = _dashboard_open_workorder_alert_rows(limit=4)

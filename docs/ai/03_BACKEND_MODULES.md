@@ -1,5 +1,9 @@
 # Backend Modules
 
+Tag asset: `Asset._asset_tag_prefix()` deve considerare la categoria quando il tipo tecnico salvato è `OTHER`, perché categorie legacy come PC possono mantenere quel default; la classificazione riusa `classify_asset_type` del catalogo import, senza modificare i record preesistenti.
+
+Inventario IT di rete: IP, switch, porta switch e porta patch panel sono dati di `AssetEndpoint` (`punto` è il campo storico per la porta patch). Il form asset aggiorna l'endpoint primario; la testata e la tabella «Tecnica e rete» mostrano i dati del singolo asset, mentre l'inventario lista aggrega valori distinti nelle colonne IT.
+
 Discovery SNMP: catalogo di community nominate e cifrate, selezionabili anche nel polling MFC/dispositivi; scansioni in background persistenti con avanzamento, storico personale, Interrompi/Riprendi e risultati a blocchi. Coda django-q2 esistente, nessuna nuova schedule; migrazioni Contatori 0014/0015 e riavvio applicazione/worker necessari. Guida: [Discovery SNMP](../SNMP_DISCOVERY.md). La scansione rapida da 20s resta disponibile.
 
 Polling SNMP: letture GET/WALK con budget totale di 30s per gruppo; WALK massimo 10s e 256 righe, errore senza aggregati parziali. Due passaggi di specifiche e discovery stampante (20s) hanno un budget di rete complessivo di 80s, lasciando margine al job di 110s; SQL e apparati reali restano da verificare. Nessuna cancellazione o replay della coda.

@@ -673,6 +673,9 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
             <label class="checkline"><input type="checkbox" data-col-toggle="manufacturer" {% if "manufacturer" in asset_list_default_visible_columns %}checked{% endif %}> Produttore</label>
             <label class="checkline"><input type="checkbox" data-col-toggle="model" {% if "model" in asset_list_default_visible_columns %}checked{% endif %}> Modello</label>
             <label class="checkline"><input type="checkbox" data-col-toggle="serial_number" {% if "serial_number" in asset_list_default_visible_columns %}checked{% endif %}> Seriale</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="ip" {% if "ip" in asset_list_default_visible_columns %}checked{% endif %}> IP</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="switch_port" {% if "switch_port" in asset_list_default_visible_columns %}checked{% endif %}> Porta SW</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="patch_panel_port" {% if "patch_panel_port" in asset_list_default_visible_columns %}checked{% endif %}> Porta patch panel</label>
             <label class="checkline"><input type="checkbox" data-col-toggle="last_seen" {% if "last_seen" in asset_list_default_visible_columns %}checked{% endif %}> Ultimo aggiornamento</label>
           </div>
           <div class="muted text-sm" style="margin-top:8px;">
@@ -732,6 +735,9 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
                 <th data-col="manufacturer">Produttore<span class="col-resizer" data-col-resizer></span></th>
                 <th data-col="model">Modello<span class="col-resizer" data-col-resizer></span></th>
                 <th data-col="serial_number">Seriale<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="ip">IP<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="switch_port">Porta SW<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="patch_panel_port">Porta patch panel<span class="col-resizer" data-col-resizer></span></th>
                 <th data-col="last_seen">Aggiornato<span class="col-resizer" data-col-resizer></span></th>
                 <th class="act-col">Azioni</th>
               </tr>
@@ -748,6 +754,9 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
                   <td data-col="manufacturer">{{ asset.manufacturer|default:"-" }}</td>
                   <td data-col="model">{{ asset.model|default:"-" }}</td>
                   <td data-col="serial_number">{{ asset.serial_number|default:"-" }}</td>
+                  <td data-col="ip">{{ asset.endpoint_ip_display|default:"-" }}</td>
+                  <td data-col="switch_port">{{ asset.endpoint_switch_port_display|default:"-" }}</td>
+                  <td data-col="patch_panel_port">{{ asset.endpoint_patch_panel_display|default:"-" }}</td>
                   <td data-col="last_seen"><span title="{{ asset.updated_at|date:'d-m-Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
                   <td class="act-col"><a class="row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
                 </tr>
@@ -1978,7 +1987,8 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
   const DEFAULT_COLUMN_WIDTHS = {
     "name": 260, "status": 110, "category": 160, "assigned": 180,
     "assignment_location": 180, "manufacturer": 140, "model": 150,
-    "serial_number": 150, "last_seen": 120
+    "serial_number": 150, "ip": 150, "switch_port": 160,
+    "patch_panel_port": 170, "last_seen": 120
   };
   const CAN_PERSIST_TABLE_LAYOUT = {{ asset_table_layout_can_persist|yesno:"true,false" }};
   const TABLE_LAYOUT_SAVE_URL = "{% url 'assets:asset_list' %}";

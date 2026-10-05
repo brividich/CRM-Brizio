@@ -20,6 +20,7 @@ from schede_sicurezza.models import ProdottoChimico
 from .maintenance import build_workorder_prefill_payload, get_applicable_assistance_contracts, resolve_asset_maintenance_rules
 from .models import (
     Asset,
+    AssetEndpoint,
     AssetAdministrativeDeadline,
     AssetCategory,
     AssetCategoryField,
@@ -349,6 +350,10 @@ class AssetCategoryFieldMixin:
 
 class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.ModelForm):
     asset_tag = forms.CharField(required=False)
+    network_ip = forms.CharField(required=False, label="IP", max_length=80)
+    network_switch_name = forms.CharField(required=False, label="Switch", max_length=120)
+    network_switch_port = forms.CharField(required=False, label="Porta SW", max_length=120)
+    network_patch_panel_port = forms.CharField(required=False, label="Porta patch panel", max_length=120)
     periodic_verification_ids = forms.ModelMultipleChoiceField(
         required=False,
         queryset=PeriodicVerification.objects.none(),
@@ -495,9 +500,28 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         self._apply_assignment_chooser(instance)
         if commit:
             instance.save()
+            self._save_network_endpoint(instance)
             self.save_m2m()
             instance.periodic_verifications.set(self.cleaned_data.get("periodic_verification_ids") or [])
         return instance
+
+    def _save_network_endpoint(self, instance: Asset) -> None:
+        endpoint = instance.endpoints.order_by("id").first()
+        values = {
+            "ip": (self.cleaned_data.get("network_ip") or "").strip() or None,
+            "switch_name": (self.cleaned_data.get("network_switch_name") or "").strip(),
+            "switch_port": (self.cleaned_data.get("network_switch_port") or "").strip(),
+            # Il modello storico chiama questo dato `punto`; nell'inventario
+            # IT viene usato per la porta del patch panel.
+            "punto": (self.cleaned_data.get("network_patch_panel_port") or "").strip(),
+        }
+        if endpoint is None:
+            if not any(values.values()):
+                return
+            endpoint = AssetEndpoint(asset=instance, endpoint_name="Collegamento principale")
+        for name, value in values.items():
+            setattr(endpoint, name, value)
+        endpoint.save()
 
     def __init__(self, *args, **kwargs):
         custom_fields = kwargs.pop("custom_fields", None)
@@ -518,6 +542,39 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             else {}
         )
         self._setup_category_fields(work_machine_only=False)
+        self.it_network_category_ids: list[int] = []
+        it_network_types = {
+            Asset.TYPE_PC, Asset.TYPE_NOTEBOOK, Asset.TYPE_SERVER, Asset.TYPE_VM,
+            Asset.TYPE_FIREWALL, Asset.TYPE_STAMPANTE, Asset.TYPE_HW, Asset.TYPE_FONIA,
+        }
+        from .services.asset_catalog_import import classify_asset_type
+
+        for category in self.category_queryset.select_related("parent"):
+            category_type = category.base_asset_type
+            current = category
+            seen = set()
+            while category_type == Asset.TYPE_OTHER and current and current.pk not in seen:
+                seen.add(current.pk)
+                category_type = classify_asset_type(current.label)
+                current = current.parent
+            if category_type in it_network_types:
+                self.it_network_category_ids.append(category.pk)
+        self.show_it_network_fields = bool(
+            self.instance.pk and (
+                self.instance.asset_type in it_network_types
+                or self.instance.asset_category_id in self.it_network_category_ids
+            )
+        )
+        endpoint = self.instance.endpoints.order_by("id").first() if self.instance.pk else None
+        if endpoint:
+            self.initial.setdefault("network_ip", endpoint.ip or "")
+            self.initial.setdefault("network_switch_name", endpoint.switch_name or "")
+            self.initial.setdefault("network_switch_port", endpoint.switch_port or "")
+            self.initial.setdefault("network_patch_panel_port", endpoint.punto or "")
+        self.fields["asset_tag"].help_text = (
+            "Lascia vuoto per assegnare il tag automaticamente in base alla categoria. "
+            "Per i PC il formato è IT-000001."
+        )
         self.fields["periodic_verification_ids"].queryset = PeriodicVerification.objects.order_by("name", "id")
         self.fields["periodic_verification_ids"].help_text = "Ogni asset puo appartenere a piu piani di manutenzione periodica."
         if self.instance and self.instance.pk:

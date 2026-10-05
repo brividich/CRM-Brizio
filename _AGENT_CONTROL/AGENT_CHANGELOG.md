@@ -1,5 +1,20 @@
 # Agent Changelog
 
+## 2026-10-05 - Codex (sidebar inventario IT)
+
+- Richiesta: riorganizzare la sidebar Assets dopo l'estensione dell'inventario IT, lasciando completa la parte Officina. File modificati: `django_app/assets/views.py`, `django_app/assets/migrations/0122_sidebar_inventario_it.py`, `README.md`, `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- Modifica iniziale: voci «Inventario completo» e «Inventario IT» distinte; sotto Inventario IT sono raccolti Server, PC e portatili, Macchine virtuali, Rete, Stampanti e Altri dispositivi. «Officina» è autonoma. Dal riscontro visivo, corretto il difetto della migrazione: il ramo hardware poteva restare nascosto se la configurazione precedente lo aveva disattivato, lasciando i figli orfani e senza il nuovo titolo. La migrazione ora rende visibili le voci standard riallineate; la sezione dinamica categorie resta intatta.
+- File critici globali: nessuno; sono stati toccati solo il menu del modulo Assets e la relativa migrazione dati. Motivo/impatto: rendere navigabile e leggibile la separazione tra inventario IT e officina. Rischi residui: la sidebar salvata si aggiorna all'applicazione della migrazione 0122; nessun ambiente è stato migrato.
+- Check: `git diff --check` in chiusura. Test applicativi non eseguiti. Nessun backup, database, push, merge o deploy. README/CHANGELOG/AGENT_CHANGELOG/checkpoint aggiornati sì. Note: migrazione inclusa nel normale deploy Django.
+
+## 2026-10-05 - Codex (tag PC e form inventario)
+
+- Richiesta: correggere il tag AST assegnato a un asset PC e rendere più chiara la creazione. Worktree `C:/Dev/pn-asset-pc-tag`, branch `feature/assets-pc-tag-form`, base `origin/release/prod`; checkout condiviso lasciato intatto (preservata la cartella non tracciata `parser pdf/`). File controllo sessione/lock/critical non presenti.
+- Causa: categorie PC legacy possono avere `base_asset_type=OTHER`; il modello sceglieva così il prefisso generico `AST`. Ora `_asset_tag_prefix()` riusa la classificazione esistente della categoria/antenato per scegliere `IT`. Nessun record esistente è stato modificato. Il form spiega il tag automatico e ha un'intestazione più leggibile.
+- File: `django_app/assets/models.py`, `forms.py`, `templates/assets/pages/asset_form.html`, `README.md`, `CHANGELOG.md`, `docs/ai/03_BACKEND_MODULES.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`.
+- Nessun file critico globale, migrazione, dipendenza o database modificato. Nessun backup. Check automatici/test non eseguiti; controllato il diff. Commit feature locale; nessun push, merge o deploy. README/CHANGELOG/registro/checkpoint aggiornati sì. Rischio residuo: tag inseriti manualmente e asset già creati non vengono riscritti automaticamente; per quello mostrato serve correggere il tag a `IT-000040` dalla scheda. Nessun esito browser verificato.
+- Estensione richiesta il 2026-10-05 per l'inventario IT: aggiunti al form i dati endpoint IP/switch/porta SW/porta patch panel; la modifica salva sul primo endpoint senza introdurre un nuovo modello. Testata asset e tabella tecnica espongono le porte con nomi espliciti; la lista PC/portatili propone le tre colonne di rete. Nessuna migrazione: `AssetEndpoint` aveva già i campi; `punto` riusato come porta patch panel, come nell'import Excel. Aggiunti all'import alias «Porta patch panel» e varianti. La lista aggrega i valori distinti presenti su più endpoint. Form di rete condizionato alle categorie IT riconosciute. Diff check in chiusura, test applicativi non eseguiti. Nessun dato Excel importato o asset reale modificato.
+
 ## 2026-10-02 - Codex (contenuti IT inline e categorie legacy)
 
 - Feedback utente: schede povere, dati desiderati dentro la pagina; screenshot stampante con tipo Altro. Worktree pn-asset-it-release, feature/assets-it-inline da main 1d35783c; checkpoint/delta letti, controlli sessione/lock/critical assenti. Risolta esclusione dal resolver usando categoria per OTHER (base esplicita o alias esatti/antenati), senza riclassificare dati, cercare per nome/IP o toccare CNC/WorkMachine/chimici.

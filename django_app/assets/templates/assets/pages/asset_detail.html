@@ -611,6 +611,11 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
         {% if asset.serial_number %}<span class="af-hero-tag"><span>Seriale</span>{{ asset.serial_number }}</span>{% endif %}
         {% if asset.purchase_date %}<span class="af-hero-tag"><span>Data acquisto</span>{{ asset.purchase_date|date:"d-m-Y" }}</span>{% endif %}
         {% if asset.production_date %}<span class="af-hero-tag"><span>Data fabbricazione</span>{{ asset.production_date|date:"d-m-Y" }}</span>{% endif %}
+        {% if it_presentation %}{% for endpoint in it_presentation.endpoints %}
+          {% if endpoint.ip %}<span class="af-hero-tag"><span>IP</span>{{ endpoint.ip }}</span>{% endif %}
+          {% if endpoint.switch_port %}<span class="af-hero-tag"><span>Porta SW{% if endpoint.switch_name %} · {{ endpoint.switch_name }}{% endif %}</span>{{ endpoint.switch_port }}</span>{% endif %}
+          {% if endpoint.punto %}<span class="af-hero-tag"><span>Porta patch panel</span>{{ endpoint.punto }}</span>{% endif %}
+        {% endfor %}{% endif %}
       </div>
     </div>
     <div class="af-action-panel">
