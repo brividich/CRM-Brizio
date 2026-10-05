@@ -69,6 +69,30 @@ class CommunityV3FormTests(TestCase):
             {**self.base, "versione": "v2c", "valore": "pub"}).is_valid())
 
 
+class DispositivoV3FormTests(TestCase):
+    base = {"nome": "ilo", "categoria": "STAMPANTE", "host": "192.0.2.10", "versione": "v3"}
+
+    def _form(self, **extra):
+        from .forms import DispositivoSNMPForm
+        return DispositivoSNMPForm({**self.base, **extra})
+
+    def test_v3_inline_crea_credenziale_cifrata(self):
+        form = self._form(v3_utente=U, v3_auth="sha1", v3_auth_key=AK)
+        self.assertTrue(form.is_valid(), form.errors)
+        obj = form.save()
+        self.assertEqual(obj.community_salvata.versione, "v3")
+        self.assertNotIn(AK, obj.community_salvata.segreto_cifrato)
+        self.assertIn(AK, decifra(obj.community_salvata.segreto_cifrato))
+
+    def test_v3_senza_credenziali_invalido(self):
+        form = self._form()
+        self.assertFalse(form.is_valid())
+        self.assertIn("v3_utente", form.errors)
+
+    def test_v2c_non_richiede_credenziali_v3(self):
+        self.assertTrue(self._form(versione="v2c").is_valid())
+
+
 class DiscoveryV3Tests(SimpleTestCase):
     def test_scansione_accetta_v3_e_segreto_lungo(self):
         from .snmp import scansiona_hosts

@@ -4,4 +4,20 @@
 <h1>{% if dispositivo %}Modifica {{ dispositivo.nome }}{% else %}Nuovo dispositivo SNMP{% endif %}</h1>
 <p class="sub">Registra un lettore, apparato di rete, UPS o sensore. Puoi selezionare una community salvata nel catalogo del Discovery, specificarne una manualmente oppure usare quella globale.</p>
 <form method="post" class="panel">{% csrf_token %}<div class="form-grid">{% for field in form %}<div class="form-field {% if field.name == 'note' or field.name == 'asset' %}full{% endif %}">{{ field.label_tag }}{{ field }}{% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}{{ field.errors }}</div>{% endfor %}</div><div class="actions" style="margin-top:20px"><button class="btn" type="submit">Salva dispositivo</button><a class="btn ghost" href="{% if dispositivo %}{% url 'contatori:snmp_dispositivo' dispositivo.pk %}{% else %}{% url 'contatori:snmp_centrale' %}{% endif %}">Annulla</a></div></form>
+<script>
+(function () {
+  var versione = document.getElementById("id_versione");
+  if (!versione) return;
+  var campi = ["utente", "auth", "auth_key", "priv", "priv_key"].map(function (n) {
+    var el = document.getElementById("id_v3_" + n);
+    return el ? el.closest(".form-field") : null;
+  }).filter(Boolean);
+  function aggiorna() {
+    var v3 = versione.value === "v3";
+    campi.forEach(function (c) { c.style.display = v3 ? "" : "none"; });
+  }
+  versione.addEventListener("change", aggiorna);
+  aggiorna();
+})();
+</script>
 {% endblock %}
