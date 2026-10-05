@@ -2046,3 +2046,20 @@
 ## 2026-10-05 - Codex - Esito finale controlli feature anomalie
 - Controlli: 45/45 test `anomalie.tests_mail_action` + `anomalie.tests_qualita`; `manage.py check` OK; `makemigrations anomalie --check --dry-run` nessuna modifica; `compileall` OK; Babel React JSX inline del form OK; `git diff --check` OK.
 - Checklist segna completato ciò che è verificato; restano UAT browser e-mail con dati del reparto e test dei client e-mail reali.
+
+## 2026-10-05 - Codex - Pianificazione iniziale anomalie
+
+- Area: pianificazione django_app/anomalie.
+- Richiesta: preparare un piano dettagliato e una checklist per le modifiche concordate con il reparto Controllo.
+- Modifica: documentate proposta funzionale, scelte progettuali, fasi operative, decisioni da confermare e criteri di completamento; nessun codice applicativo modificato in quella fase.
+- File critici modificati: nessuno.
+- Check: ricognizione read-only di modelli e UI esistenti; git status iniziale verificato.
+- Note: ACTIVE_SESSION.md, WORK_LOCKS.md, CRITICAL_FILES.md e CRITICAL_CHANGE_REQUESTS.md non presenti. Workspace iniziale conteneva untracked preesistente parser pdf/, lasciato intatto.
+
+## 2026-10-05 - Codex - Aggiornamento piano Scheda qualità
+
+- Area: pianificazione django_app/anomalie.
+- Richiesta: mantenere temporaneamente nascosta la Scheda qualità.
+- Modifica: aggiunto al piano il nascondimento dell’accesso e della presentazione UI, esclusa la Scheda qualità dai nuovi flussi; backend e dati storici restano preservati.
+- File critici modificati: nessuno.
+- Check: verifica testuale del piano; nessun codice applicativo modificato.
