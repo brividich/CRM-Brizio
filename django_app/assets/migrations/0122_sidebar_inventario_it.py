@@ -19,7 +19,9 @@ def avanti(apps, schema_editor):
     if hardware is None:
         return
 
-    Button.objects.filter(code="dashboard").update(label="Inventario completo", sort_order=10)
+    Button.objects.filter(code="dashboard").update(
+        label="Inventario completo", sort_order=10, is_visible=True
+    )
     Button.objects.filter(pk=hardware.pk).update(
         label="Inventario IT",
         target_url="django:assets:device_list",
@@ -27,8 +29,11 @@ def avanti(apps, schema_editor):
         is_subitem=False,
         parent=None,
         sort_order=20,
+        is_visible=True,
     )
-    Button.objects.filter(code="work_machines").update(label="Officina", sort_order=60)
+    Button.objects.filter(code="work_machines").update(
+        label="Officina", sort_order=60, is_visible=True
+    )
 
     for code, label, target, match, order in VOCI:
         defaults = {
@@ -39,10 +44,11 @@ def avanti(apps, schema_editor):
             "active_match": match,
             "is_subitem": True,
             "sort_order": order,
+            "is_visible": True,
         }
         row = Button.objects.filter(code=code).first()
         if row is None:
-            Button.objects.create(code=code, is_visible=True, **defaults)
+            Button.objects.create(code=code, **defaults)
         else:
             Button.objects.filter(pk=row.pk).update(**defaults)
 

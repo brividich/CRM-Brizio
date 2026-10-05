@@ -3,7 +3,7 @@
 Data: 2026-10-05 (sidebar inventario IT)
 
 - Sidebar Assets riordinata: Inventario completo; Inventario IT con Server, PC/portatili, VM, Rete, Stampanti e Altri dispositivi; Officina rimane separata con le sue pagine.
-- Aggiunta migrazione dati `assets.0122_sidebar_inventario_it` per aggiornare la sidebar persistita e aggiungere le voci IT, rispettando la visibilità personalizzata. Nessuna migrazione applicata, push, merge o deploy; test non eseguiti, diff check in chiusura.
+- Aggiunta migrazione dati `assets.0122_sidebar_inventario_it` per aggiornare la sidebar persistita, rendere visibile il ramo IT e aggiungere le nuove voci. La sezione dinamica «Inventario per categoria» non viene modificata. Nessuna migrazione applicata, push, merge o deploy; test non eseguiti, diff check in chiusura.
 
 Data: 2026-10-05 (inventario IT: rete e cablaggio)
 
