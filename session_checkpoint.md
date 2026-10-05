@@ -1,5 +1,10 @@
 # Session Checkpoint
 
+Data: 2026-10-05 (fix sidebar codici storici)
+
+- L'utente è sul commit `d31172a`, ma la sidebar resta nella forma precedente. Diagnosi: i seed persistiti usano `inventario`/`device_list` (migrations 0079/0050), diversi dai codici `dashboard`/`hardware` che 0122 assumeva. Aggiunta migrazione 0123 per riallineare entrambi i layout, rendere visibile il ramo IT e assegnare i figli IT; menu categorie non toccato.
+- Nessun accesso o cambiamento al database live e nessun deploy; test non eseguiti. `git diff --check` passato. Da completare: commit e percorso feature → main → release/prod.
+
 Data: 2026-10-05 (sidebar inventario IT)
 
 Data: 2026-10-05 (migrazione Kyocera contatori MFC)

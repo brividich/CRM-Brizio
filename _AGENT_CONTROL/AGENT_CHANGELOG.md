@@ -1,5 +1,12 @@
 # Agent Changelog
 
+## 2026-10-05 - Codex (fix sidebar menu storico)
+
+- Riscontro di Brizio sul commit `d31172a`: screenshot ancora con PC/Server/Rete orfani sotto «Inventario completo», nessun «Inventario IT» e label precedenti. Causa verificata nel repository: le migrazioni storiche persistono i codici `inventario` (`0079`) e `device_list` (`0050`), ma la migrazione 0122 aggiornava `dashboard` e dipendeva dalla presenza di `hardware`; così non riallineava necessariamente il menu reale.
+- Aggiunta `assets.0123_sidebar_inventario_it_codici_storici`: riconosce i codici storici, usa `hardware` o `device_list` come radice IT, la rende visibile, sposta sotto di essa Server/PC/Rete e nuove categorie, nasconde l'eventuale voce `device_list` duplicata e rinomina Officina. «Inventario per categoria» e le categorie aziendali restano intatte.
+- File: `django_app/assets/migrations/0123_sidebar_inventario_it_codici_storici.py`, `CHANGELOG.md`, `_AGENT_CONTROL/AGENT_CHANGELOG.md`, `session_checkpoint.md`. Nessun file critico globale, database reale o dato asset modificato. Rischio residuo: la sidebar cambia dopo l'applicazione della migrazione tramite deploy.
+- Check: letti i codici storici dalle migrazioni; `git diff --check` passato. Test non eseguiti; README invariato perché il comportamento documentato resta quello atteso. Nessun deploy.
+
 ## 2026-10-05 - Codex (migrazione Kyocera contatori MFC)
 
 - Richiesta: diagnosticare il fallimento della promozione dal log `release_promote_20261005_120923.log` e correggere la causa. Errore: `contatori.0023_kyocera_contatori_mfc` assegnava `a4_bn` a una riga cercata per OID mentre la stessa chiave esisteva già su un'altra riga del profilo Kyocera. Il vincolo univoco SQL Server interrompeva la migrazione. La release non è stata attivata né IIS riavviato.
