@@ -14,8 +14,13 @@
 {% endif %}
 
 <div class="panel">
+  <div class="panel-head"><div><h2>Copie prodotte per trimestre</h2><p>Differenza tra due letture consecutive, divisa in bianco/nero e colore. Passa sopra una barra per il dettaglio.</p></div></div>
+  {% include "contatori/_grafico_produzione.html" %}
+</div>
+
+<div class="panel">
   <h2>Letture trimestrali di riconciliazione</h2>
-  <table>
+  <div class="table-wrap"><table data-fm-table-skip="1">
     <thead><tr><th>Trimestre</th><th>Data</th>
       <th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th>
       <th class="num">Totale</th><th>Fonte</th><th></th></tr></thead>
@@ -31,32 +36,16 @@
       <tr><td colspan="9" class="pos">Nessuna lettura registrata. <a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">Inserisci la prima</a>.</td></tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 
 <div class="panel">
   <h2>Letture mensili automatiche</h2>
   <p class="muted">Ultimi 24 mesi: contatori cumulativi alla data effettiva della lettura. Le rilevazioni mensili restano separate dalle letture trimestrali.</p>
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table data-fm-table-skip="1">
     <thead><tr><th>Mese rilevazione</th><th>Rilevata il</th><th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th><th class="num">Totale</th></tr></thead>
     <tbody>{% for l in letture_mensili %}<tr><td>{{ l.mese|date:"m/Y" }}</td><td>{{ l.rilevata_il|date:"d/m/Y H:i" }}</td><td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td><td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td><td class="num">{{ l.totale }}</td></tr>{% empty %}<tr><td colspan="7" class="muted">Nessuna lettura mensile. La raccolta si gestisce da Automazioni → Task pianificati.</td></tr>{% endfor %}</tbody>
   </table></div>
-</div>
-<div class="panel">
-  <h2>Andamento totale copie</h2>
-  {% with serie=dati.serie %}
-  <table>
-    {% for cat, valori in serie.items %}
-      <tr><td style="width:80px">{{ cat }}</td>
-        <td>
-          <div class="bar"><span style="width:{% if valori %}100{% else %}0{% endif %}%"></span></div>
-        </td>
-        <td class="num" style="width:120px"><strong>{{ valori|last|default:0 }}</strong></td>
-      </tr>
-    {% endfor %}
-  </table>
-  <p class="pos" style="margin-top:8px">Trimestri: {{ dati.trimestri|join:" · " }}</p>
-  {% endwith %}
 </div>
 <div class="panel">
   <div class="row">

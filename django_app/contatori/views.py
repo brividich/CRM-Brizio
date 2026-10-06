@@ -113,19 +113,14 @@ def discovery_applica_ip(request, pk):
 
 
 def dashboard(request):
-    trimestri = services.trimestri_disponibili()
-    ultimo = trimestri[0] if trimestri else None
-    riepilogo = None
-    if ultimo:
-        _, riepilogo = services.riconcilia(ultimo)
-    problemi = services.controllo_monotonia()
-    macchine = Macchina.objects.filter(attiva=True).select_related("asset")
-    dispositivi = DispositivoSNMP.objects.filter(attivo=True).select_related("asset")[:8]
-    ultime = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=ultimo)} if ultimo else {}
+    cruscotto = services.cruscotto_operativo()
+    trimestre = cruscotto["trimestre"]
+    macchine = Macchina.objects.filter(attiva=True).select_related("asset").order_by("reparto")
+    letture = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=trimestre)}
     return render(request, "contatori/dashboard.html", {
-        "trimestri": trimestri, "ultimo": ultimo, "riepilogo": riepilogo,
-        "problemi": problemi, "macchine": macchine, "ultime": ultime,
-        "dispositivi_snmp": dispositivi,
+        "c": cruscotto, "macchine": macchine, "ultime": letture,
+        "dispositivi_snmp": DispositivoSNMP.objects.filter(attivo=True)
+        .order_by("snmp_stato", "nome")[:8],
         "snmp_riepilogo": services.centrale_snmp_riepilogo(),
     })
 
@@ -204,6 +199,7 @@ def macchina_detail(request, pk):
     dati = services.storico_macchina(macchina)
     return render(request, "contatori/macchina.html", {
         "macchina": macchina, "dati": dati,
+        "produzione": services.produzione_macchina(macchina),
         "letture_mensili": macchina.letture_mensili.all()[:24],
     })
 

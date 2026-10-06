@@ -5,48 +5,80 @@
 <section class="hero">
   <div class="row">
     <div>
-      <div class="eyebrow">Dashboard contatori · osservabilità</div>
+      <div class="eyebrow">Trimestre in corso · {{ c.trimestre }}</div>
       <h1>Centrale MFC &amp; SNMP</h1>
-      <p class="sub">Contatori, riconciliazione e salute dei dispositivi in un unico punto.</p>
+      <p class="sub">Cosa resta da fare su letture, fatture e stampanti, con il link per farlo.</p>
     </div>
     <div class="spacer"></div>
     <div class="actions">
-      <a class="btn ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" href="{% url 'contatori:snmp_centrale' %}">Apri monitor</a>
-      <form method="post" action="{% url 'contatori:leggi_snmp' %}">{% csrf_token %}<button class="btn">Leggi MFC ora</button></form>
+      <a class="btn ghost on-hero" href="{% url 'contatori:importa_lettura' %}">+ Lettura manuale</a>
+      <form method="post" action="{% url 'contatori:leggi_snmp' %}" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Lettura in corso…'">{% csrf_token %}<button class="btn" title="Legge via SNMP le MFC senza lettura manuale nel trimestre">Leggi MFC ora</button></form>
     </div>
   </div>
 </section>
 
-<div class="cards">
-  <div class="card"><div class="k">Endpoint monitorati</div><div class="v">{{ snmp_riepilogo.totale }}</div><div class="meta">{{ snmp_riepilogo.sonde }} lettori OID attivi</div></div>
-  <div class="card"><div class="k">Operativi</div><div class="v health-ok">{{ snmp_riepilogo.ok }}</div><div class="meta">Ultimo controllo riuscito</div></div>
-  <div class="card"><div class="k">Da verificare</div><div class="v {% if snmp_riepilogo.errori %}health-error{% elif snmp_riepilogo.warning %}health-warning{% endif %}">{{ snmp_riepilogo.errori|add:snmp_riepilogo.warning }}</div><div class="meta">{{ snmp_riepilogo.errori }} errori · {{ snmp_riepilogo.warning }} avvisi</div></div>
-  <div class="card link" onclick="location='{% url 'contatori:riconciliazione' %}'"><div class="k">Anomalie fattura</div><div class="v {% if riepilogo.anomalie %}health-error{% else %}health-ok{% endif %}">{{ riepilogo.anomalie|default:"0" }}</div><div class="meta">Trimestre {{ ultimo|default:"—" }}</div></div>
+<div class="cards kpi-cards">
+  <a class="card link" href="#parco">
+    <div class="k">Letture {{ c.trimestre }}</div>
+    <div class="v {% if c.letture_fatte < c.mfc_attive %}health-warning{% else %}health-ok{% endif %}">{{ c.letture_fatte }}<small> / {{ c.mfc_attive }}</small></div>
+    <div class="meta">{% if c.letture_fatte < c.mfc_attive %}Mancano {{ c.senza_lettura_ids|length }} MFC{% else %}Tutte le MFC attive lette{% endif %}</div>
+  </a>
+  <a class="card link" href="{% url 'contatori:analisi' %}">
+    <div class="k">Copie prodotte{% if c.consumo_ultimo %} {{ c.consumo_ultimo.trimestre }}{% endif %}</div>
+    <div class="v">{% if c.consumo_ultimo %}{{ c.consumo_ultimo.totale }}{% else %}—{% endif %}</div>
+    <div class="meta">{% if c.variazione is not None %}<span class="{% if c.variazione > 0 %}trend-up{% elif c.variazione < 0 %}trend-down{% endif %}">{% if c.variazione > 0 %}+{% endif %}{{ c.variazione }}%</span> rispetto al {{ c.consumo_precedente.trimestre }}{% else %}Servono due trimestri di letture{% endif %}</div>
+  </a>
+  <a class="card link" href="{% url 'contatori:macchine' %}">
+    <div class="k">MFC raggiungibili</div>
+    {% if c.con_host %}<div class="v {% if c.raggiungibili < c.con_host %}health-warning{% else %}health-ok{% endif %}">{{ c.raggiungibili }}<small> / {{ c.con_host }}</small></div>
+    <div class="meta">MFC attive con IP, secondo l'ultimo controllo SNMP</div>
+    {% else %}<div class="v">—</div><div class="meta">Nessuna MFC con indirizzo IP</div>{% endif %}
+  </a>
+  <a class="card link" href="{% url 'contatori:riconciliazione_trim' c.trimestre_prec %}">
+    <div class="k">Riconciliazione {{ c.trimestre_prec }}</div>
+    {% if c.riconciliazione %}
+      <div class="v {% if c.riconciliazione.anomalie %}health-error{% elif c.riconciliazione.letture_mancanti %}health-warning{% else %}health-ok{% endif %}">{% if c.riconciliazione.ok %}Corretta{% elif c.riconciliazione.anomalie %}{{ c.riconciliazione.anomalie }}<small> da controllare</small>{% else %}Incompleta{% endif %}</div>
+      <div class="meta">Fattura {{ c.riconciliazione.fatture|join:", " }}</div>
+    {% else %}
+      <div class="v health-warning">—</div><div class="meta">Fattura non ancora caricata</div>
+    {% endif %}
+  </a>
 </div>
-
-{% if snmp_riepilogo.errori %}<div class="banner">Ci sono {{ snmp_riepilogo.errori }} endpoint in errore e {{ snmp_riepilogo.warning }} in attenzione. <a class="plain" href="{% url 'contatori:snmp_centrale' %}">Apri il monitor SNMP</a>.</div>{% elif snmp_riepilogo.warning %}<div class="banner warn">{{ snmp_riepilogo.warning }} endpoint in attenzione. <a class="plain" href="{% url 'contatori:snmp_centrale' %}">Apri il monitor SNMP</a>.</div>{% elif snmp_riepilogo.mai %}<div class="banner warn">{{ snmp_riepilogo.mai }} endpoint non sono ancora stati interrogati.</div>{% else %}<div class="banner clean">Tutti gli endpoint controllati risultano operativi.</div>{% endif %}
-
-<div class="grid-2">
-  <section class="panel">
-    <div class="panel-head"><div><h2>Dispositivi e lettori SNMP</h2><p>Stato live dell'infrastruttura non-MFC.</p></div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:snmp_dispositivo_nuovo' %}">+ Dispositivo</a></div>
-    <div class="device-grid">
-      {% for d in dispositivi_snmp %}<a class="device-card" href="{% url 'contatori:snmp_dispositivo' d.pk %}"><div class="row"><h3>{{ d.nome }}</h3><div class="spacer"></div><span class="pill {% if d.snmp_stato == 'OK' %}ok{% elif d.snmp_stato == 'WARNING' or d.snmp_stato == 'MAI' %}warn{% else %}danger{% endif %}"><span class="status-dot"></span>{{ d.get_snmp_stato_display }}</span></div><p>{{ d.get_categoria_display }} · <span class="mono">{{ d.host }}</span></p><p>{% if d.snmp_ultimo_controllo %}{{ d.snmp_ultimo_controllo|timesince }} fa · {{ d.snmp_tempo_risposta_ms }} ms{% else %}Mai interrogato{% endif %}</p></a>{% empty %}<div class="empty">Nessun dispositivo generico. Aggiungi lettori, UPS, switch o sensori.</div>{% endfor %}
-    </div>
-  </section>
-  <section class="panel">
-    <div class="panel-head"><div><h2>Controlli contabili</h2><p>Qualità delle letture e fatturazione.</p></div></div>
-    <div class="cards" style="margin:0"><div class="card"><div class="k">Ultimo trimestre</div><div class="v">{{ ultimo|default:"—" }}</div></div><div class="card"><div class="k">Cali di lettura</div><div class="v {% if problemi %}health-error{% else %}health-ok{% endif %}">{{ problemi|length }}</div></div></div>
-    {% if riepilogo %}<p class="muted">{{ riepilogo.contatori|default:0 }} contatori verificati{% if riepilogo.ok %}, nessuna eccedenza rilevata.{% else %}, {{ riepilogo.anomalie }} da controllare.{% endif %}</p>{% else %}<p class="muted">Importa letture e fatture per attivare la riconciliazione.</p>{% endif %}
-    <div class="actions"><a class="btn ghost" href="{% url 'contatori:riconciliazione' %}">Riconcilia</a><a class="btn ghost" href="{% url 'contatori:analisi' %}">Analizza consumi</a></div>
-  </section>
-</div>
-
-{% if problemi %}<section class="panel"><h2>Cali di lettura interni</h2><div class="table-wrap"><table><thead><tr><th>Macchina</th><th>Contatore</th><th class="num">Da</th><th class="num">A</th></tr></thead><tbody>{% for p in problemi %}<tr><td>{{ p.macchina }}</td><td>{{ p.contatore }}</td><td class="num">{{ p.da_val }} <span class="muted">({{ p.da_trim }})</span></td><td class="num neg">{{ p.a_val }} <span class="muted">({{ p.a_trim }})</span></td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
 
 <section class="panel">
-  <div class="panel-head"><div><h2>Parco MFC</h2><p>Ultime letture del trimestre {{ ultimo|default:"—" }} e stato di raggiungibilità.</p></div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:macchine' %}">Gestisci MFC</a></div>
-  <div class="table-wrap"><table><thead><tr><th>Reparto</th><th>Host</th><th>Salute SNMP</th><th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th><th class="num">Totale</th></tr></thead><tbody>
-  {% for m in macchine %}{% with l=ultime|get:m.id %}<tr><td><a class="plain" href="{% url 'contatori:macchina' m.pk %}">{{ m.reparto }}</a><div class="muted">{{ m.matricola }}</div></td><td class="mono">{{ m.host|default:"—" }}</td><td><span class="pill {% if m.snmp_stato == 'OK' %}ok{% elif m.snmp_stato == 'WARNING' or m.snmp_stato == 'MAI' %}warn{% else %}danger{% endif %}"><span class="status-dot"></span>{{ m.get_snmp_stato_display }}</span>{% if m.snmp_tempo_risposta_ms %}<div class="muted">{{ m.snmp_tempo_risposta_ms }} ms</div>{% endif %}</td>{% if l %}<td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td><td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td><td class="num"><strong>{{ l.totale }}</strong></td>{% else %}<td class="num muted" colspan="5">nessuna lettura</td>{% endif %}</tr>{% endwith %}{% empty %}<tr><td colspan="8" class="empty">Nessuna MFC configurata.</td></tr>{% endfor %}
+  <div class="panel-head"><div><h2>Da fare</h2><p>In ordine di urgenza. Ogni voce porta dove si risolve.</p></div></div>
+  {% if c.da_fare %}
+  <ul class="todo-list">
+    {% for t in c.da_fare %}<li class="todo {{ t.livello }}">
+      <span class="todo-dot" aria-hidden="true"></span>
+      <div class="todo-body"><strong>{{ t.titolo }}</strong><span>{{ t.dettaglio }}</span></div>
+      <a class="btn ghost small" href="{{ t.url }}">{{ t.azione }}</a>
+    </li>{% endfor %}
+  </ul>
+  {% else %}
+  <div class="banner clean">Nessuna attività in sospeso: letture, fatture e stampanti sono in ordine.</div>
+  {% endif %}
+</section>
+
+<section class="panel" id="parco">
+  <div class="panel-head"><div><h2>Parco MFC · {{ c.trimestre }}</h2><p>Lettura del trimestre in corso e raggiungibilità di ogni stampante.</p></div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:macchine' %}">Gestisci MFC</a></div>
+  <div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Reparto</th><th>Host</th><th>SNMP</th><th class="num">A4 B/N</th><th class="num">A3 B/N</th><th class="num">A4 col</th><th class="num">A3 col</th><th class="num">Totale</th><th></th></tr></thead><tbody>
+  {% for m in macchine %}{% with l=ultime|get:m.id %}<tr>
+    <td><a class="plain" href="{% url 'contatori:macchina' m.pk %}">{{ m.reparto }}</a><div class="muted">{{ m.matricola }}</div></td>
+    <td class="mono">{{ m.host|default:"—" }}</td>
+    <td><span class="pill {% if m.snmp_stato == 'OK' %}ok{% elif m.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ m.get_snmp_stato_display }}</span></td>
+    {% if l %}<td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td><td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td><td class="num"><strong>{{ l.totale }}</strong><div class="muted">{{ l.get_fonte_display }} · {{ l.data|date:"d/m" }}</div></td><td><a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a></td>
+    {% else %}<td class="num muted" colspan="5">nessuna lettura {{ c.trimestre }}</td><td><a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ m.pk }}&amp;trimestre={{ c.trimestre }}">+ Inserisci</a></td>{% endif %}
+  </tr>{% endwith %}{% empty %}<tr><td colspan="9" class="empty">Nessuna MFC attiva. <a class="plain" href="{% url 'contatori:macchina_nuova' %}">Aggiungi la prima</a>.</td></tr>{% endfor %}
   </tbody></table></div>
+</section>
+
+{% if c.cali %}<section class="panel" id="cali"><div class="panel-head"><div><h2>Cali di lettura</h2><p>Un contatore cumulativo non scende: correggi la lettura sbagliata o conferma l'azzeramento.</p></div></div><div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Macchina</th><th>Contatore</th><th class="num">Da</th><th class="num">A</th></tr></thead><tbody>{% for p in c.cali %}<tr><td>{{ p.macchina }}</td><td>{{ p.contatore }}</td><td class="num">{{ p.da_val }} <span class="muted">({{ p.da_trim }})</span></td><td class="num neg">{{ p.a_val }} <span class="muted">({{ p.a_trim }})</span></td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+
+<section class="panel">
+  <div class="panel-head"><div><h2>Dispositivi SNMP</h2><p>{{ snmp_riepilogo.totale }} endpoint monitorati · {{ snmp_riepilogo.ok }} operativi · {{ snmp_riepilogo.errori }} in errore · {{ snmp_riepilogo.warning }} in attenzione. Prima quelli con problemi.</p></div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:snmp_centrale' %}">Apri monitor</a><a class="btn ghost small" href="{% url 'contatori:snmp_dispositivo_nuovo' %}">+ Dispositivo</a></div>
+  <div class="device-grid">
+    {% for d in dispositivi_snmp %}<a class="device-card" href="{% url 'contatori:snmp_dispositivo' d.pk %}"><div class="row"><h3>{{ d.nome }}</h3><div class="spacer"></div><span class="pill {% if d.snmp_stato == 'OK' %}ok{% elif d.snmp_stato == 'WARNING' or d.snmp_stato == 'MAI' %}warn{% else %}danger{% endif %}"><span class="status-dot"></span>{{ d.get_snmp_stato_display }}</span></div><p>{{ d.get_categoria_display }} · <span class="mono">{{ d.host }}</span></p><p>{% if d.snmp_ultimo_controllo %}{{ d.snmp_ultimo_controllo|timesince }} fa · {{ d.snmp_tempo_risposta_ms }} ms{% else %}Mai interrogato{% endif %}</p></a>{% empty %}<div class="empty">Nessun dispositivo. Aggiungi lettori, UPS, switch o sensori.</div>{% endfor %}
+  </div>
 </section>
 {% endblock %}
