@@ -6166,6 +6166,8 @@ def _sidebar_button_payload(
         "url": url,
         "is_subitem": button.is_subitem if force_subitem is None else force_subitem,
         "active": _is_sidebar_button_active(request, button, url),
+        # Voce senza destinazione (es. area categorie): il clic apre le sotto-voci.
+        "is_container": not _clean_string(button.target_url),
         "badge": _da_fare_badge(request) if button.code == "maintenance_da_fare" else None,
     }
 
