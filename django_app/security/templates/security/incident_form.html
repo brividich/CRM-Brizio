@@ -1,0 +1,59 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}{% if incident %}Modifica {{ incident.code }}{% else %}Nuovo incidente{% endif %} | Security Center AI{% endblock %}
+{% block page_icon %}I{% endblock %}
+{% block page_marker %}Incidenti{% endblock %}
+{% block page_title %}{% if incident %}Modifica {{ incident.code }}{% else %}Registra incidente{% endif %}{% endblock %}
+
+{% block soc_content %}
+<p><a class="sec-button" href="{% if incident %}{% url 'security:incident_detail' incident.pk %}{% else %}{% url 'security:incidents' %}{% endif %}">&lt; Annulla</a></p>
+
+<form method="post" class="sec-form inc-form" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="sec-message sec-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+
+  <section class="sec-panel">
+    <div class="sec-section-head"><h2>Cosa è successo</h2></div>
+    <div class="inc-grid">
+      {% include "security/partials/incident_field.html" with field=form.title wide=True %}
+      {% include "security/partials/incident_field.html" with field=form.category %}
+      {% include "security/partials/incident_field.html" with field=form.severity %}
+      {% include "security/partials/incident_field.html" with field=form.status %}
+      {% include "security/partials/incident_field.html" with field=form.owner %}
+      {% include "security/partials/incident_field.html" with field=form.detected_at %}
+      {% include "security/partials/incident_field.html" with field=form.occurred_at %}
+      {% include "security/partials/incident_field.html" with field=form.resolved_at %}
+      {% include "security/partials/incident_field.html" with field=form.description wide=True %}
+    </div>
+  </section>
+
+  <section class="sec-panel" style="margin-top: 12px;">
+    <div class="sec-section-head"><h2>Valutazione NIS2 e GDPR</h2></div>
+    <p class="sec-muted sec-small" style="margin-top:0;">È significativo se soddisfa almeno uno dei due criteri. In caso di dubbio meglio valutarlo significativo: la pre-notifica entro 24 h può essere ritirata, il ritardo no.</p>
+    <div class="inc-grid">
+      {% include "security/partials/incident_field.html" with field=form.significance_criteria wide=True %}
+      {% include "security/partials/incident_field.html" with field=form.is_significant wide=True %}
+      {% include "security/partials/incident_field.html" with field=form.suspected_malicious %}
+      {% include "security/partials/incident_field.html" with field=form.cross_border %}
+      {% include "security/partials/incident_field.html" with field=form.personal_data_breach wide=True %}
+      {% include "security/partials/incident_field.html" with field=form.csirt_reference %}
+    </div>
+  </section>
+
+  <section class="sec-panel" style="margin-top: 12px;">
+    <div class="sec-section-head"><h2>Impatto e gestione</h2></div>
+    <div class="inc-grid">
+      {% include "security/partials/incident_field.html" with field=form.affected_services %}
+      {% include "security/partials/incident_field.html" with field=form.affected_users_count %}
+      {% include "security/partials/incident_field.html" with field=form.impact_description wide=True %}
+      {% include "security/partials/incident_field.html" with field=form.root_cause wide=True %}
+      {% include "security/partials/incident_field.html" with field=form.actions_taken wide=True %}
+      {% include "security/partials/incident_field.html" with field=form.lessons_learned wide=True %}
+    </div>
+  </section>
+
+  <div class="sec-actions" style="margin-top: 12px;">
+    <button type="submit" class="sec-button-primary">{% if incident %}Salva modifiche{% else %}Registra incidente{% endif %}</button>
+  </div>
+</form>
+{% endblock %}

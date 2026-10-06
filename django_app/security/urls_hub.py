@@ -7,7 +7,9 @@ API REST e mailbox-admin restano fuori (arrivano più avanti).
 from django.http import JsonResponse
 from django.urls import path
 
-from . import api, views, views_cases, views_events, views_soc
+from . import api, views, views_cases, views_events, views_incidents, views_report, views_soc
+
+from .permissions import soc_view_required as _guard
 
 app_name = "security"
 
@@ -21,15 +23,15 @@ def _api_non_montata(request, *args, **kwargs):
     return JsonResponse({"detail": "API non disponibile in questa fase (SOC IT - CN B3)."}, status=501)
 
 urlpatterns = [
-    path("", views.dashboard, name="dashboard"),
-    path("panoramica/", views.dashboard, name="security_dashboard"),
+    path("", _guard(views.dashboard), name="dashboard"),
+    path("panoramica/", _guard(views.dashboard), name="security_dashboard"),
     # B2 — Alert / Ticket / KPI
-    path("alerts/", views.alerts_list, name="alerts_list"),
-    path("alerts/<int:pk>/", views.alert_detail, name="alert_detail"),
-    path("alerts/<int:pk>/actions/<slug:action>/", views.alert_action, name="alert_action"),
+    path("alerts/", _guard(views.alerts_list), name="alerts_list"),
+    path("alerts/<int:pk>/", _guard(views.alert_detail), name="alert_detail"),
+    path("alerts/<int:pk>/actions/<slug:action>/", _guard(views.alert_action), name="alert_action"),
     path("alerts/<int:pk>/spiega/", views.alert_explain, name="alert_explain"),
     path("panoramica/sintesi/", views.overview_brief, name="overview_brief"),
-    path("alerts/bulk/", views_cases.alerts_bulk, name="alerts_bulk"),
+    path("alerts/bulk/", _guard(views_cases.alerts_bulk), name="alerts_bulk"),
     # Eventi ingeriti: tutti, anche quelli giudicati «a posto»; promozione ad alert (allarme mancato)
     path("eventi/", views_events.events_list, name="events"),
     path("eventi/<int:pk>/", views_events.event_detail, name="event_detail"),
@@ -37,27 +39,40 @@ urlpatterns = [
     path("eventi/<int:pk>/a-posto/", views_events.event_confirm_ok, name="event_confirm_ok"),
     path("eventi/<int:pk>/ai/", views_events.event_ai_triage, name="event_ai_triage"),
     path("eventi/regole-apprese/<int:pk>/attiva/", views_events.escalation_rule_toggle, name="escalation_rule_toggle"),
-    path("tickets/", views_cases.tickets_list, name="tickets_list"),
-    path("tickets/new/", views_cases.case_create, name="case_create"),
-    path("tickets/<int:pk>/", views_cases.case_detail, name="case_detail"),
-    path("tickets/<int:pk>/status/", views_cases.case_status, name="case_status"),
-    path("tickets/<int:pk>/assign/", views_cases.case_assign, name="case_assign"),
-    path("tickets/<int:pk>/notes/", views_cases.case_note, name="case_note"),
-    path("tickets/<int:pk>/tasks/", views_cases.case_task_add, name="case_task_add"),
-    path("tickets/<int:pk>/tasks/many/", views_cases.case_tasks_add_many, name="case_tasks_add_many"),
+    # Registro incidenti (NIS2 / GDPR) e report periodico
+    path("incidenti/", views_incidents.incidents_list, name="incidents"),
+    path("incidenti/nuovo/", views_incidents.incident_create, name="incident_create"),
+    path("incidenti/registro.pdf", views_incidents.incidents_register_pdf, name="incidents_register_pdf"),
+    path("incidenti/da-ticket/<int:case_pk>/", views_incidents.incident_from_case, name="incident_from_case"),
+    path("incidenti/<int:pk>/", views_incidents.incident_detail, name="incident_detail"),
+    path("incidenti/<int:pk>/modifica/", views_incidents.incident_edit, name="incident_edit"),
+    path("incidenti/<int:pk>/notifica/<slug:key>/", views_incidents.incident_milestone, name="incident_milestone"),
+    path("incidenti/<int:pk>/note/", views_incidents.incident_note, name="incident_note"),
+    path("incidenti/<int:pk>/ticket/", views_incidents.incident_link_case, name="incident_link_case"),
+    path("incidenti/<int:pk>/pdf/", views_incidents.incident_pdf, name="incident_pdf"),
+    path("report/", views_report.report_page, name="report"),
+    path("report/pdf/", views_report.report_pdf, name="report_pdf"),
+    path("tickets/", _guard(views_cases.tickets_list), name="tickets_list"),
+    path("tickets/new/", _guard(views_cases.case_create), name="case_create"),
+    path("tickets/<int:pk>/", _guard(views_cases.case_detail), name="case_detail"),
+    path("tickets/<int:pk>/status/", _guard(views_cases.case_status), name="case_status"),
+    path("tickets/<int:pk>/assign/", _guard(views_cases.case_assign), name="case_assign"),
+    path("tickets/<int:pk>/notes/", _guard(views_cases.case_note), name="case_note"),
+    path("tickets/<int:pk>/tasks/", _guard(views_cases.case_task_add), name="case_task_add"),
+    path("tickets/<int:pk>/tasks/many/", _guard(views_cases.case_tasks_add_many), name="case_tasks_add_many"),
     path("tickets/<int:pk>/ai/passi/", views_cases.case_ai_steps, name="case_ai_steps"),
     path("tickets/<int:pk>/ai/esito/", views_cases.case_ai_resolution, name="case_ai_resolution"),
     path("analisi/", views.history_page, name="history"),
     path("analisi/proposte/", views.history_proposals, name="history_proposals"),
-    path("tickets/<int:pk>/tasks/<int:task_id>/toggle/", views_cases.case_task_toggle, name="case_task_toggle"),
-    path("tickets/<int:pk>/tasks/<int:task_id>/delete/", views_cases.case_task_delete, name="case_task_delete"),
-    path("kpis/", views.kpis_page, name="kpis"),
-    path("kpis/<slug:name>/", views.kpi_detail_page, name="kpi_detail"),
+    path("tickets/<int:pk>/tasks/<int:task_id>/toggle/", _guard(views_cases.case_task_toggle), name="case_task_toggle"),
+    path("tickets/<int:pk>/tasks/<int:task_id>/delete/", _guard(views_cases.case_task_delete), name="case_task_delete"),
+    path("kpis/", _guard(views.kpis_page), name="kpis"),
+    path("kpis/<slug:name>/", _guard(views.kpi_detail_page), name="kpi_detail"),
     path("assets/", views_soc.assets_list, name="assets"),
     path("vpn/", views_soc.vpn_history, name="vpn_history"),
     # B3 — pipeline (esecuzione sincrona via HTMX POST; nessuna coda/Celery)
-    path("pipeline/", views.pipeline_page, name="pipeline"),
-    path("pipeline/run/<slug:action>/", views.pipeline_run, name="pipeline_run"),
+    path("pipeline/", _guard(views.pipeline_page), name="pipeline"),
+    path("pipeline/run/<slug:action>/", _guard(views.pipeline_run), name="pipeline_run"),
     # B3 — inbox & help
     path("inbox/", views.inbox_page, name="inbox"),
     path("help/", views.help_page, name="help"),

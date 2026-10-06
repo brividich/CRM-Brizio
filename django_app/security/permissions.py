@@ -44,6 +44,23 @@ def can_view_security_center(user):
     return bool(decision.get("allowed"))
 
 
+def soc_view_required(view):
+    """Stesso cancello di lettura dentro la view, per le pagine che si affidavano solo
+    all'``ACLMiddleware``: se una rotta /soc/ restasse senza binding o il middleware venisse
+    escluso per un percorso, la view non deve aprirsi da sola (coda alert, ticket, azioni)."""
+    from functools import wraps
+
+    @wraps(view)
+    def _wrapped(request, *args, **kwargs):
+        if not can_view_security_center(request.user):
+            from security.views import _security_center_denied
+
+            return _security_center_denied(request)
+        return view(request, *args, **kwargs)
+
+    return _wrapped
+
+
 class CanViewSecurityCenter(BasePermission):
     def has_permission(self, request, view):
         return can_view_security_center(request.user)

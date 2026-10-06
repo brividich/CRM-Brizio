@@ -1,0 +1,93 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}Registro incidenti | Security Center AI{% endblock %}
+{% block page_icon %}I{% endblock %}
+{% block page_marker %}Incidenti{% endblock %}
+{% block page_title %}Registro incidenti{% endblock %}
+
+{% block soc_content %}
+{% if urgent %}
+<section class="sec-panel sec-callout sec-callout-warning" role="alert">
+  <div class="sec-section-head"><h2>Notifiche da inviare</h2><span class="sec-badge sec-badge-critical">{{ urgent|length }}</span></div>
+  <div class="inc-urgent">
+    {% for row in urgent %}
+      <a class="inc-urgent-row" href="{% url 'security:incident_detail' row.incident.pk %}">
+        <span class="sec-badge sec-badge-{{ row.deadline.tone }}">{{ row.deadline.state_label }}</span>
+        <span class="inc-urgent-what"><strong>{{ row.deadline.label }}</strong><small>{{ row.incident.code }} · {{ row.incident.title }}</small></span>
+        <span class="inc-urgent-when">entro <strong>{{ row.deadline.due_at|date:"d/m H:i" }}</strong></span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="sec-panel"{% if urgent %} style="margin-top: 12px;"{% endif %}>
+  <form class="sec-filter-bar" method="get">
+    <label>Stato
+      <select name="status">
+        <option value="active" {% if filters.status == "active" %}selected{% endif %}>Aperti e contenuti</option>
+        <option value="all" {% if filters.status == "all" %}selected{% endif %}>Tutti</option>
+        {% for value, label in status_choices %}<option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Ambito
+      <select name="scope">
+        <option value="">Tutti</option>
+        <option value="nis2" {% if filters.scope == "nis2" %}selected{% endif %}>Significativi NIS2</option>
+        <option value="gdpr" {% if filters.scope == "gdpr" %}selected{% endif %}>Con dati personali</option>
+      </select>
+    </label>
+    <label>Anno
+      <select name="year">
+        <option value="">Tutti</option>
+        {% for y in years %}<option value="{{ y }}" {% if filters.year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Cerca <input type="search" name="q" value="{{ filters.q }}" placeholder="Codice, titolo, riferimento CSIRT"></label>
+    <button class="sec-button-primary" type="submit">Filtra</button>
+    <a class="sec-button" href="{% url 'security:incidents' %}">Reimposta</a>
+  </form>
+  <div class="sec-actions" style="margin-top: 10px;">
+    <a class="sec-button sec-button-primary" href="{% url 'security:incident_create' %}">Registra incidente</a>
+    <a class="sec-button" href="{% url 'security:incidents_register_pdf' %}{% if filters.year %}?year={{ filters.year }}{% endif %}">Scarica registro PDF{% if filters.year %} {{ filters.year }}{% endif %}</a>
+  </div>
+  <p class="sec-muted sec-small" style="margin:10px 0 0;">Un incidente si registra quando un evento ha avuto (o poteva avere) un impatto reale. Se è <strong>significativo</strong> (NIS2, D.Lgs. 138/2024) scattano pre-notifica al CSIRT Italia entro 24 h, notifica entro 72 h e relazione finale entro un mese; se coinvolge <strong>dati personali</strong>, notifica al Garante entro 72 h. Dai ticket c'è il pulsante «Apri incidente».</p>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head">
+    <h2>Incidenti</h2>
+    <span class="sec-badge">{% if total > incidents|length %}Mostrati {{ incidents|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Codice</th><th>Stato</th><th>Gravità</th><th>Incidente</th><th>Rilevato</th><th>Prossima scadenza</th><th>Responsabile</th></tr></thead>
+      <tbody>
+      {% for incident in incidents %}
+        <tr class="sec-row-link">
+          <td class="sec-nowrap"><a href="{% url 'security:incident_detail' incident.pk %}">{{ incident.code }}</a></td>
+          <td><span class="sec-badge {% if incident.status == 'open' %}open{% elif incident.status == 'closed' %}closed{% else %}sec-badge-muted{% endif %}">{{ incident.get_status_display }}</span></td>
+          <td><span class="sec-badge {{ incident.severity }}">{{ incident.severity|ui_label }}</span></td>
+          <td class="sec-title-cell">
+            <a href="{% url 'security:incident_detail' incident.pk %}"><strong>{{ incident.title }}</strong></a>
+            <small>{{ incident.get_category_display }}{% if incident.is_significant %} · <strong>significativo NIS2</strong>{% endif %}{% if incident.personal_data_breach %} · dati personali{% endif %}</small>
+          </td>
+          <td class="sec-nowrap">{{ incident.detected_at|date:"d M Y, H:i" }}</td>
+          <td>
+            {% if incident.next_deadline %}
+              <span class="sec-badge sec-badge-{{ incident.next_deadline.tone }}">{{ incident.next_deadline.state_label }}</span>
+              <small class="sec-nowrap">{{ incident.next_deadline.label }} · {{ incident.next_deadline.due_at|date:"d/m H:i" }}</small>
+            {% elif incident.deadline_list %}<span class="sec-badge sec-badge-success">Notifiche inviate</span>
+            {% else %}<span class="sec-muted">Nessuna dovuta</span>{% endif %}
+          </td>
+          <td>{% if incident.owner %}{{ incident.owner.get_full_name|default:incident.owner.username }}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="sec-empty">Nessun incidente corrisponde ai filtri.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

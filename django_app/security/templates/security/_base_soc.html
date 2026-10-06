@@ -10,19 +10,30 @@
 <div class="soc-module">
   {% with url_name=request.resolver_match.url_name %}
   <nav class="soc-nav" aria-label="Navigazione SOC">
-    <a href="{% url 'security:dashboard' %}" {% if url_name == 'dashboard' or url_name == 'security_dashboard' %}class="active"{% endif %}>Panoramica</a>
-    <a href="{% url 'security:alerts_list' %}" {% if url_name == 'alerts_list' or url_name == 'alert_detail' %}class="active"{% endif %}>Alert</a>
-    <a href="{% url 'security:events' %}" {% if url_name == 'events' or url_name == 'event_detail' %}class="active"{% endif %} title="Tutti gli eventi letti dai report, anche quelli giudicati a posto">Eventi</a>
-    <a href="{% url 'security:tickets_list' %}" {% if url_name == 'tickets_list' or url_name == 'case_detail' %}class="active"{% endif %}>Ticket</a>
-    <a href="{% url 'security:history' %}" {% if url_name == 'history' %}class="active"{% endif %}>Analisi</a>
-    <a href="{% url 'security:kpis' %}" {% if url_name == 'kpis' or url_name == 'kpi_detail' %}class="active"{% endif %}>KPI</a>
-    <a href="{% url 'security:vpn_history' %}" {% if url_name == 'vpn_history' %}class="active"{% endif %}>Accessi VPN</a>
-    <a href="{% url 'security:pipeline' %}" {% if url_name == 'pipeline' %}class="active"{% endif %}>Elaborazione</a>
-    <a href="{% url 'security:assets' %}" {% if url_name == 'assets' %}class="active"{% endif %}>Asset</a>
-    <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' and url_name != 'admin_autoconfig' and url_name|slice:':13' != 'admin_mailbox' %}class="active"{% endif %}>Config</a>
-    <a href="{% url 'security:admin_mailbox_sources_list' %}" {% if url_name|slice:':13' == 'admin_mailbox' %}class="active"{% endif %}>Caselle mail</a>
-    <a href="{% url 'security:admin_autoconfig' %}" {% if url_name == 'admin_autoconfig' %}class="active"{% endif %}>Autoconfig</a>
-    <a href="{% url 'security:help' %}" {% if url_name == 'help' or url_name == 'doc_detail' %}class="active"{% endif %}>Guida</a>
+    <div class="soc-nav-group">
+      <span class="soc-nav-label">Lavoro</span>
+      <a href="{% url 'security:dashboard' %}" {% if url_name == 'dashboard' or url_name == 'security_dashboard' %}class="active"{% endif %}>Panoramica</a>
+      <a href="{% url 'security:alerts_list' %}" {% if url_name == 'alerts_list' or url_name == 'alert_detail' %}class="active"{% endif %}>Alert</a>
+      <a href="{% url 'security:events' %}" {% if url_name == 'events' or url_name == 'event_detail' %}class="active"{% endif %} title="Tutti gli eventi letti dai report, anche quelli giudicati a posto">Eventi</a>
+      <a href="{% url 'security:tickets_list' %}" {% if url_name == 'tickets_list' or url_name == 'case_detail' %}class="active"{% endif %}>Ticket</a>
+      <a href="{% url 'security:incidents' %}" {% if url_name|slice:':8' == 'incident' %}class="active"{% endif %} title="Registro incidenti con le scadenze di notifica NIS2 e GDPR">Incidenti</a>
+    </div>
+    <div class="soc-nav-group">
+      <span class="soc-nav-label">Analisi</span>
+      <a href="{% url 'security:report' %}" {% if url_name == 'report' %}class="active"{% endif %} title="Report settimanale o mensile, scaricabile in PDF">Report</a>
+      <a href="{% url 'security:history' %}" {% if url_name == 'history' %}class="active"{% endif %}>Storico</a>
+      <a href="{% url 'security:kpis' %}" {% if url_name == 'kpis' or url_name == 'kpi_detail' %}class="active"{% endif %}>KPI</a>
+      <a href="{% url 'security:vpn_history' %}" {% if url_name == 'vpn_history' %}class="active"{% endif %}>Accessi VPN</a>
+      <a href="{% url 'security:assets' %}" {% if url_name == 'assets' %}class="active"{% endif %}>Asset</a>
+    </div>
+    <div class="soc-nav-group">
+      <span class="soc-nav-label">Gestione</span>
+      <a href="{% url 'security:pipeline' %}" {% if url_name == 'pipeline' %}class="active"{% endif %}>Elaborazione</a>
+      <a href="{% url 'security:admin_mailbox_sources_list' %}" {% if url_name|slice:':13' == 'admin_mailbox' %}class="active"{% endif %}>Caselle mail</a>
+      <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' and url_name != 'admin_autoconfig' and url_name|slice:':13' != 'admin_mailbox' %}class="active"{% endif %}>Config</a>
+      <a href="{% url 'security:admin_autoconfig' %}" {% if url_name == 'admin_autoconfig' %}class="active"{% endif %}>Autoconfig</a>
+      <a href="{% url 'security:help' %}" {% if url_name == 'help' or url_name == 'doc_detail' %}class="active"{% endif %}>Guida</a>
+    </div>
   </nav>
   {% endwith %}
   {# Esiti delle azioni (salvataggi, letture caselle, errori): prima nell'HUB non comparivano mai. #}
