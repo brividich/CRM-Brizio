@@ -142,7 +142,8 @@ details.sb-section[open] > .sb-section-summary .ga-chevron { transform:rotate(18
 .sbc-field { display:grid; gap:6px; min-width:0; flex:1; align-content:start; }
 .sbc-field label { font-size:var(--fs-sm); font-weight:700; color:#0f172a; text-transform:none; }
 .sbc-field input[type=text], .sbc-field input[type=number], .sbc-field select { width:100%; min-height:36px; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#0f172a; font:inherit; box-sizing:border-box; }
-.sbc-field input[hidden] { display:none; }
+.sbc-field input[hidden], .sbc-target-edit input[hidden] { display:none; }
+.sbc-target-edit { display:grid; gap:6px; }
 .sbc-field input:focus, .sbc-field select:focus { outline:none; border-color:#1f64d8; box-shadow:0 0 0 3px rgba(31,100,216,.15); }
 .sbc-field select:disabled { opacity:.6; }
 .sbc-field small { font-size:var(--fs-xs); color:#64748b; line-height:1.35; }
@@ -852,7 +853,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
             <summary class="sidebar-editor-summary">
               <div class="sidebar-editor-title">
                 <strong>{{ item.label }}</strong>
-                {% if item.target_url %}<span class="muted-note"><code>{{ item.target_url }}</code></span>{% endif %}
+                <span class="muted-note" title="{{ item.target_url }}">&rarr; {{ item.target_label }}</span>
               </div>
               <div class="sidebar-editor-summary-right">
                 <span class="chip-soft {% if item.is_visible %}green{% else %}slate{% endif %}">{% if item.is_visible %}Visibile{% else %}Nascosta{% endif %}</span>
@@ -871,7 +872,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
               <div class="sidebar-editor-title">
                 <span class="sb-child-arrow">&#8627;</span>
                 <strong>{{ child.label }}</strong>
-                {% if child.target_url %}<span class="muted-note"><code>{{ child.target_url }}</code></span>{% endif %}
+                <span class="muted-note" title="{{ child.target_url }}">&rarr; {{ child.target_label }}</span>
               </div>
               <div class="sidebar-editor-summary-right">
                 <span class="chip-soft {% if child.is_visible %}green{% else %}slate{% endif %}">{% if child.is_visible %}Visibile{% else %}Nascosta{% endif %}</span>

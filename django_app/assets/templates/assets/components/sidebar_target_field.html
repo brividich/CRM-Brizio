@@ -1,0 +1,12 @@
+{# Partial: scelta destinazione voce sidebar con nomi leggibili. Variabili: id_prefix + id_key + id_suffix (id del select), current (target_url attuale) #}
+<select id="{{ id_prefix }}{{ id_key }}{{ id_suffix }}" name="target_preset" data-sbc-target>
+  <option value="" {% if not current %}selected{% endif %}>Nessuna destinazione (solo contenitore)</option>
+  {% regroup sidebar_target_suggestions by group as target_groups %}
+  {% for target_group in target_groups %}
+    <optgroup label="{{ target_group.grouper }}">
+      {% for option in target_group.list %}<option value="{{ option.value }}" {% if current == option.value %}selected{% endif %}>{{ option.label|default:option.value }}</option>{% endfor %}
+    </optgroup>
+  {% endfor %}
+  <option value="__custom__">Altro: indirizzo personalizzato…</option>
+</select>
+<input type="text" name="target_url" list="assets-sidebar-target-options" placeholder="Es. /assets/dispositivi/" aria-label="Indirizzo personalizzato" data-sbc-custom hidden>

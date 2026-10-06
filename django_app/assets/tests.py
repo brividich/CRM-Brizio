@@ -3354,6 +3354,37 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(created.target_url, "/assets/custom/")
         self.assertFalse(created.is_visible)
 
+    def test_sidebar_target_label_is_readable(self):
+        labels = {"django:assets:reports": "Report asset"}
+
+        self.assertEqual(asset_views._sidebar_target_label("django:assets:reports", labels), "Report asset")
+        self.assertEqual(
+            asset_views._sidebar_target_label("django:assets:reports?scope=x", labels),
+            "Report asset (con filtro)",
+        )
+        self.assertEqual(asset_views._sidebar_target_label("", labels), "Nessuna destinazione (solo contenitore)")
+        self.assertNotIn("django:", asset_views._sidebar_target_label("django:assets:wo_list", {}))
+
+    def test_sidebar_update_uses_target_preset(self):
+        AssetSidebarButton.objects.all().delete()
+        button = AssetSidebarButton.objects.create(
+            code="voce", label="Voce", target_url="django:assets:wo_list", sort_order=10, is_visible=True
+        )
+
+        self._post_gestione_admin(
+            {
+                "action": "update_sidebar_button",
+                "sidebar_button_id": str(button.id),
+                "label": "Voce",
+                "target_preset": "django:assets:reports",
+                "target_url": "",
+                "is_visible": "1",
+            }
+        )
+
+        button.refresh_from_db()
+        self.assertEqual(button.target_url, "django:assets:reports")
+
     def test_sidebar_input_suggestions_include_routes_and_filters(self):
         target_suggestions, active_match_suggestions = asset_views._sidebar_input_suggestions()
 

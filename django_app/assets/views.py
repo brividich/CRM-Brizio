@@ -6091,12 +6091,42 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
     ]:
         add_active_match(value, label)
 
-    for button in AssetSidebarButton.objects.exclude(target_url="").only("target_url"):
-        add_target(button.target_url, button.target_url, "Già usati nel menu")
+    # Le pagine del menu predefinito portano gia' un nome leggibile.
+    for row in _default_sidebar_seed_rows():
+        add_target(row["target_url"], row["label"])
+
+    known_labels = {row["value"]: row["label"] for row in target_suggestions}
+    for button in AssetSidebarButton.objects.exclude(target_url="").only("target_url", "label"):
+        if button.target_url in known_labels:
+            continue
+        # Pagina fuori catalogo: il nome della voce che la usa e' piu'
+        # parlante del percorso, che resta come riferimento.
+        path = _resolve_sidebar_url(button.target_url)
+        add_target(button.target_url, f"{button.label} · {path}", "Già usati nel menu")
     for button in AssetSidebarButton.objects.exclude(active_match="").only("active_match"):
         add_active_match(button.active_match, "Gia configurato")
 
+    # Gruppi contigui: il template li rende come <optgroup> con {% regroup %}.
+    group_order = ["Pagine del modulo", "Inventario per tipo", "Inventario per categoria", "Già usati nel menu"]
+    target_suggestions.sort(key=lambda row: group_order.index(row["group"]) if row["group"] in group_order else len(group_order))
     return target_suggestions, active_match_suggestions
+
+
+def _sidebar_target_label(target_url: str, known_labels: dict[str, str]) -> str:
+    """Nome leggibile di una destinazione sidebar al posto di ``django:assets:...``."""
+    target = _clean_string(target_url)
+    if not target:
+        return "Nessuna destinazione (solo contenitore)"
+    if known_labels.get(target):
+        return known_labels[target]
+    if target.startswith("django:"):
+        route_part, _, query = target.partition("?")
+        base_label = known_labels.get(route_part)
+        if base_label:
+            return f"{base_label} (con filtro)" if query else base_label
+        resolved = _resolve_sidebar_url(target)
+        return f"Pagina {resolved}" if resolved != "#" else "Pagina non trovata"
+    return f"Indirizzo {target}"
 
 
 def _dashboard_open_workorder_alert_rows(limit: int = 4) -> list[WorkOrder]:
@@ -6516,6 +6546,10 @@ def _handle_sidebar_button_request(request: HttpRequest) -> tuple[bool, str]:
         button.parent = parent_button
         button.label = label[:120]
         button.target_url = _clean_string(request.POST.get("target_url"))
+        if "target_preset" in request.POST:
+            target_preset = _clean_string(request.POST.get("target_preset"))
+            if target_preset != "__custom__":
+                button.target_url = target_preset
         button.active_match = _clean_string(request.POST.get("active_match"))
         button.is_subitem = True if parent_button is not None else bool(request.POST.get("is_subitem"))
         button.sort_order = _as_int(request.POST.get("sort_order"), default=button.sort_order)
@@ -9082,6 +9116,9 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     sidebar_buttons = list(AssetSidebarButton.objects.select_related("parent").order_by("section", "sort_order", "label", "id"))
     sidebar_parent_choices = _sidebar_parent_choices()
     sidebar_target_suggestions, sidebar_active_match_suggestions = _sidebar_input_suggestions()
+    sidebar_target_labels = {row["value"]: row["label"] for row in sidebar_target_suggestions}
+    for sidebar_item in sidebar_buttons:
+        sidebar_item.target_label = _sidebar_target_label(sidebar_item.target_url, sidebar_target_labels)
     for button in action_buttons:
         button.label = _ui_label(button.label)
     for detail_item in detail_fields:
@@ -18237,8 +18274,10 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
     sidebar_buttons = list(AssetSidebarButton.objects.select_related("parent").order_by("section", "sort_order", "label", "id"))
     sidebar_parent_choices = _sidebar_parent_choices()
     sidebar_target_suggestions, sidebar_active_match_suggestions = _sidebar_input_suggestions()
+    sidebar_target_labels = {row["value"]: row["label"] for row in sidebar_target_suggestions}
     for sidebar_item in sidebar_buttons:
         sidebar_item.label = _ui_label(sidebar_item.label)
+        sidebar_item.target_label = _sidebar_target_label(sidebar_item.target_url, sidebar_target_labels)
     for parent_item in sidebar_parent_choices:
         parent_item.label = _ui_label(parent_item.label)
 

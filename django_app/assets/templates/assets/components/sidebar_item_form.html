@@ -1,6 +1,6 @@
 {# Partial: form modifica voce sidebar. Variabile: item (AssetSidebarButton) #}
 {# Il form di eliminazione sta FUORI dal form di modifica: i form annidati non esistono in HTML, il browser fonde i campi e "Salva" inviava action=delete_sidebar_button. #}
-<form id="sidebar-edit-{{ item.id }}" method="post" style="display:grid;gap:10px;">
+<form id="sidebar-edit-{{ item.id }}" method="post" style="display:grid;gap:10px;" data-sbc-form>
   {% csrf_token %}
   <input type="hidden" name="action" value="update_sidebar_button">
   <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
@@ -33,8 +33,8 @@
   </div>
   <div class="sidebar-editor-grid routes">
     <div class="form-group" style="max-width:none;">
-      <label>URL destinazione</label>
-      <input type="text" name="target_url" list="assets-sidebar-target-options" value="{{ item.target_url }}">
+      <label for="sidebar-target-{{ item.id }}">Dove porta</label>
+      <div class="sbc-target-edit">{% include "assets/components/sidebar_target_field.html" with id_prefix="sidebar-target-" id_key=item.id id_suffix="" current=item.target_url %}</div>
     </div>
     <div class="form-group" style="max-width:none;">
       <label>Criterio attivo</label>

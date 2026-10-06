@@ -30,17 +30,7 @@
       <span class="sbc-num">2</span>
       <div class="sbc-field">
         <label for="sbc-{{ sbc_prefix }}-{{ sbc_key }}-target">Dove porta</label>
-        <select id="sbc-{{ sbc_prefix }}-{{ sbc_key }}-target" name="target_preset" data-sbc-target>
-          <option value="">Scegli una pagina…</option>
-          {% regroup sidebar_target_suggestions by group as target_groups %}
-          {% for target_group in target_groups %}
-            <optgroup label="{{ target_group.grouper }}">
-              {% for option in target_group.list %}<option value="{{ option.value }}">{{ option.label|default:option.value }}</option>{% endfor %}
-            </optgroup>
-          {% endfor %}
-          <option value="__custom__">Altro: indirizzo personalizzato…</option>
-        </select>
-        <input type="text" name="target_url" list="assets-sidebar-target-options" placeholder="/assets/... oppure django:assets:nome_rotta" data-sbc-custom hidden>
+        {% with id_prefix="sbc-"|add:sbc_prefix|add:"-" %}{% include "assets/components/sidebar_target_field.html" with id_key=sbc_key id_suffix="-target" current="" %}{% endwith %}
         <small>Senza destinazione la voce fa solo da contenitore per le sottovoci.</small>
       </div>
     </div>
