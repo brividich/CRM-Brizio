@@ -45,6 +45,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CONTATORI — livelli dei consumabili MFC ogni mattina alle 07:30, un job per MFC.
+        # Alimenta storico, stima dei giorni residui e la voce «Da fare» della Centrale.
+        "name": "contatori_consumabili",
+        "func": "contatori.tasks.run_letture_consumabili",
+        "schedule_type": "C",
+        "cron": "30 7 * * *",
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         "name": "automation_queue",
         "func": "automazioni.tasks.run_automation_queue",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)

@@ -5,10 +5,12 @@ from django.forms.models import model_to_dict
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 from . import services
+from .permessi import richiede_gestione
 from .forms import (
     ColonnaProfiloSNMPForm,
     DispositivoSNMPForm,
@@ -35,6 +37,7 @@ from .models import (
 )
 
 
+@richiede_gestione
 def discovery(request):
     from .discovery_views import discovery as discovery_page
     return discovery_page(request)
@@ -95,6 +98,7 @@ def _discovery_rapida(request):
     })
 
 
+@richiede_gestione
 @require_POST
 def discovery_applica_ip(request, pk):
     """Scrive sulla macchina l'IP realmente trovato in rete."""
@@ -154,6 +158,7 @@ def _righe_formset(fattura, data=None):
     return cls(data, instance=fattura, prefix="righe", initial=initial)
 
 
+@richiede_gestione
 def fattura_edit(request, pk=None):
     """Inserimento/modifica fattura fornitore con le letture per contratto."""
     fattura = get_object_or_404(Fattura, pk=pk) if pk else Fattura()
@@ -183,6 +188,7 @@ def fattura_edit(request, pk=None):
     })
 
 
+@richiede_gestione
 @require_POST
 def fattura_elimina(request, pk):
     fattura = get_object_or_404(Fattura, pk=pk)
@@ -200,10 +206,12 @@ def macchina_detail(request, pk):
     return render(request, "contatori/macchina.html", {
         "macchina": macchina, "dati": dati,
         "produzione": services.produzione_macchina(macchina),
+        "consumabili_stato": services.stato_consumabili([macchina]).get(macchina.pk),
         "letture_mensili": macchina.letture_mensili.all()[:24],
     })
 
 
+@richiede_gestione
 def importa_lettura(request, pk=None):
     """Inserimento (pk assente) o correzione di una lettura trimestrale."""
     lettura = get_object_or_404(LetturaContatori.objects.select_related("macchina"), pk=pk) if pk else None
@@ -228,6 +236,32 @@ def importa_lettura(request, pk=None):
     return render(request, "contatori/importa_lettura.html", {"form": form, "lettura": lettura})
 
 
+@richiede_gestione
+def letture_proposte(request):
+    """Letture trimestrali ricavate dalle mensili SNMP, da confermare (singole o in blocco)."""
+    trimestre = request.GET.get("trimestre") or request.POST.get("trimestre") or ""
+    if not services.trimestre_valido(trimestre):
+        trimestre = services.trimestre_precedente(services.trimestre_corrente())
+    proposte = services.proposte_letture_trimestrali(trimestre)
+    if request.method == "POST":
+        scelte = set(request.POST.getlist("macchina"))
+        create = []
+        for p in proposte:
+            if str(p["macchina"].pk) in scelte and not p["incoerente"]:
+                lettura, creata = services.conferma_proposta(p, trimestre)
+                if creata:
+                    create.append(lettura)
+        log_action(request, "letture_da_mensili", "contatori",
+                   dettaglio={"trimestre": trimestre, "confermate": len(create)})
+        messages.success(request, f"{len(create)} letture {trimestre} confermate dalle letture mensili.")
+        return redirect(f"{reverse('contatori:letture_proposte')}?trimestre={trimestre}")
+    return render(request, "contatori/letture_proposte.html", {
+        "trimestre": trimestre, "proposte": proposte,
+        "trimestri": services.opzioni_trimestri(extra=[trimestre]),
+    })
+
+
+@richiede_gestione
 @require_POST
 def lettura_elimina(request, pk):
     lettura = get_object_or_404(LetturaContatori.objects.select_related("macchina"), pk=pk)
@@ -239,6 +273,7 @@ def lettura_elimina(request, pk):
     return redirect("contatori:macchina", pk=macchina_id)
 
 
+@richiede_gestione
 def leggi_snmp(request):
     """Legge via SNMP le MFC attive con host e salva la lettura del trimestre corrente.
 
@@ -292,6 +327,7 @@ def leggi_snmp(request):
 
 # --- Gestione stampanti & SNMP ---------------------------------------------
 
+@richiede_gestione(solo_post=True)
 def macchine_list(request):
     """Elenco stampanti + form parametri SNMP globali (salvati sul singleton)."""
     cfg = ImpostazioniSNMP.get_solo()
@@ -316,6 +352,7 @@ def macchine_list(request):
     })
 
 
+@richiede_gestione
 def macchina_edit(request, pk=None):
     """Crea (pk assente) o modifica una macchina."""
     macchina = get_object_or_404(Macchina, pk=pk) if pk else None
@@ -369,15 +406,11 @@ def analisi(request):
 
 
 def _leggi_consumabili_cfg(macchina):
-    """Legge i consumabili usando la config SNMP globale. Ritorna (lista, errore)."""
-    from .snmp import leggi_consumabili, SNMPError
-    cfg = ImpostazioniSNMP.get_solo()
-    try:
-        porta, timeout, versione = services._parametri_snmp(macchina, cfg)
-        return leggi_consumabili(macchina, community=services._community_snmp(macchina, cfg), port=porta,
-                                 timeout=timeout, version=versione), None
-    except SNMPError as e:
-        return None, str(e)
+    """Legge i consumabili e, se la lettura riesce, la salva nello storico."""
+    consumabili, errore = services.leggi_consumabili_macchina(macchina)
+    if consumabili:
+        services.salva_consumabili(macchina, consumabili)
+    return consumabili, errore
 
 
 @require_POST
@@ -399,11 +432,44 @@ def macchina_consumabili(request, pk):
                   {"consumabili": consumabili, "errore": errore, "macchina": macchina})
 
 
+def _riga_consumabili(macchina, stato):
+    """Dati di una riga della pagina flotta, con la chiave di ordinamento per criticita'."""
+    if stato is None:
+        rango, livello = 2, 101
+    elif stato["critici"]:
+        rango, livello = 0, stato["peggiore"]["pct"]
+    else:
+        rango, livello = 1 if stato["peggiore"] is None else 3, (stato["peggiore"] or {}).get("pct", 100)
+    return {"macchina": macchina, "stato": stato, "ordine": (rango, livello, macchina.reparto)}
+
+
 def consumabili_flotta(request):
-    """Pagina flotta: tutte le macchine attive con host, riepilogo consumabili lazy."""
-    # host è GenericIPAddressField: gli IP vuoti sono salvati come NULL, mai "".
-    macchine = Macchina.objects.filter(attiva=True, host__isnull=False)
-    return render(request, "contatori/consumabili.html", {"macchine": macchine})
+    """Ultimo livello salvato dei consumabili di ogni MFC attiva con IP, i critici in cima.
+
+    Nessuna interrogazione SNMP all'apertura: i dati arrivano dal task giornaliero o
+    da «Leggi ora». host e' GenericIPAddressField: gli IP vuoti sono NULL, mai "".
+    """
+    macchine = list(Macchina.objects.filter(attiva=True, host__isnull=False))
+    stati = services.stato_consumabili(macchine)
+    righe = sorted((_riga_consumabili(m, stati.get(m.pk)) for m in macchine), key=lambda r: r["ordine"])
+    return render(request, "contatori/consumabili.html", {
+        "righe": righe,
+        "critici": sum(1 for r in righe if r["stato"] and r["stato"]["critici"]),
+        "mai_lette": sum(1 for r in righe if r["stato"] is None),
+        "soglia": services.SOGLIA_CONSUMABILE_PCT,
+    })
+
+
+@require_POST
+def consumabili_aggiorna(request, pk):
+    """«Leggi ora» di una riga: lettura SNMP, salvataggio, riga aggiornata (HTMX)."""
+    macchina = get_object_or_404(Macchina, pk=pk, attiva=True)
+    _, errore = _leggi_consumabili_cfg(macchina)
+    stato = services.stato_consumabili([macchina]).get(macchina.pk)
+    return render(request, "contatori/_consumabili_riga.html", {
+        "r": _riga_consumabili(macchina, stato), "errore": errore,
+        "soglia": services.SOGLIA_CONSUMABILE_PCT,
+    })
 
 
 def macchina_consumabili_riepilogo(request, pk):
@@ -489,6 +555,7 @@ def dispositivo_snmp_detail(request, pk):
     })
 
 
+@richiede_gestione
 def dispositivo_snmp_edit(request, pk=None):
     dispositivo = get_object_or_404(DispositivoSNMP, pk=pk) if pk else None
     initial = {}
@@ -543,6 +610,7 @@ def profili_snmp(request):
     })
 
 
+@richiede_gestione
 def profilo_snmp_edit(request, pk=None):
     profilo = get_object_or_404(ProfiloSNMP, pk=pk) if pk else None
     if request.method == "POST":
@@ -560,6 +628,7 @@ def profilo_snmp_edit(request, pk=None):
     })
 
 
+@richiede_gestione
 def colonna_profilo_snmp_edit(request, profilo_pk, pk=None):
     profilo = get_object_or_404(ProfiloSNMP, pk=profilo_pk)
     colonna = ColonnaProfiloSNMP(profilo=profilo)
@@ -582,6 +651,7 @@ def colonna_profilo_snmp_edit(request, profilo_pk, pk=None):
     })
 
 
+@richiede_gestione
 @require_POST
 def dispositivo_snmp_applica_profilo(request, pk):
     dispositivo = get_object_or_404(DispositivoSNMP, pk=pk)
@@ -599,6 +669,7 @@ def dispositivo_snmp_applica_profilo(request, pk):
     return redirect("contatori:snmp_dispositivo", pk=dispositivo.pk)
 
 
+@richiede_gestione
 def sonda_snmp_edit(request, dispositivo_pk, pk=None):
     dispositivo = get_object_or_404(DispositivoSNMP, pk=dispositivo_pk)
     sonda = SondaSNMP(dispositivo=dispositivo)

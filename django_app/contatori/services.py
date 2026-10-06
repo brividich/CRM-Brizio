@@ -23,6 +23,7 @@ from .models import (
     Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
+    LetturaConsumabile,
     LetturaMensileContatori,
     Macchina,
     ProfiloSNMP,
@@ -983,12 +984,12 @@ def cruscotto_operativo(oggi=None):
     da_fare = []
     if senza_lettura:
         da_fare.append({"livello": "warn", "titolo": f"{len(senza_lettura)} MFC senza lettura {trim}",
-                        "dettaglio": nomi(senza_lettura), "azione": "Inserisci lettura",
+                        "dettaglio": nomi(senza_lettura), "azione": "Inserisci lettura", "scrittura": True,
                         "url": f"{reverse('contatori:importa_lettura')}?macchina={senza_lettura[0].pk}&trimestre={trim}"})
     if letture_prec and not fattura_prec:
         da_fare.append({"livello": "warn", "titolo": f"Fattura {prec} non caricata",
                         "dettaglio": "Senza fattura la riconciliazione del trimestre non parte.",
-                        "azione": "Inserisci fattura", "url": f"{reverse('contatori:fattura_nuova')}?trimestre={prec}"})
+                        "azione": "Inserisci fattura", "scrittura": True, "url": f"{reverse('contatori:fattura_nuova')}?trimestre={prec}"})
     if riconc and (riconc["anomalie"] or riconc["letture_mancanti"]):
         parti = []
         if riconc["anomalie"]:
@@ -1007,6 +1008,29 @@ def cruscotto_operativo(oggi=None):
         da_fare.append({"livello": "danger", "titolo": f"{len(non_raggiungibili)} MFC non raggiungibili",
                         "dettaglio": nomi(non_raggiungibili), "azione": "Verifica stampanti",
                         "url": reverse("contatori:macchine")})
+    proposte = proposte_letture_trimestrali(prec)
+    pronte = [p for p in proposte if not p["incoerente"]]
+    if proposte:
+        dettaglio = "Ricavate dalle letture SNMP mensili: controlla e conferma."
+        if len(pronte) < len(proposte):
+            dettaglio += f" {len(proposte) - len(pronte)} più basse del trimestre precedente vanno inserite a mano."
+        da_fare.append({"livello": "warn",
+                        "titolo": ((f"1 lettura {prec} pronta dalle mensili" if len(pronte) == 1
+                                    else f"{len(pronte)} letture {prec} pronte dalle mensili") if pronte
+                                   else f"Letture {prec} dalle mensili da verificare"),
+                        "dettaglio": dettaglio,
+                        "azione": "Controlla e conferma", "scrittura": True,
+                        "url": f"{reverse('contatori:letture_proposte')}?trimestre={prec}"})
+    stati_cons = stato_consumabili([m for m in attive if m.host])
+    da_ordinare = [m for m in attive if stati_cons.get(m.id) and stati_cons[m.id]["critici"]]
+    if da_ordinare:
+        dettagli = []
+        for m in da_ordinare[:4]:
+            v = min(stati_cons[m.id]["critici"], key=lambda x: x["pct"])
+            dettagli.append(f"{m.reparto} ({v['nome']} {v['pct']}%)")
+        da_fare.append({"livello": "warn", "titolo": f"{len(da_ordinare)} MFC con consumabili da ordinare",
+                        "dettaglio": ", ".join(dettagli) + (f" e altre {len(da_ordinare) - 4}" if len(da_ordinare) > 4 else ""),
+                        "azione": "Vedi consumabili", "url": reverse("contatori:consumabili")})
     if mensili_mancanti:
         da_fare.append({"livello": "warn", "titolo": f"{len(mensili_mancanti)} letture mensili non registrate",
                         "dettaglio": f"{oggi:%m/%Y}: {nomi(mensili_mancanti)}. Controlla il task pianificato.",
@@ -1053,3 +1077,143 @@ def produzione_macchina(macchina, ultimi=8):
         # Stringa con il punto: finisce in uno style inline, indipendente dal locale.
         r["altezza"] = f"{r['totale'] * 100 / massimo:.1f}"
     return righe
+
+
+# --- Consumabili: storico e stima -------------------------------------------
+
+SOGLIA_CONSUMABILE_PCT = 15          # sotto questa soglia il consumabile va ordinato
+_FINESTRA_STIMA_GIORNI = 60          # storico usato per il ritmo di consumo
+
+
+def leggi_consumabili_macchina(macchina):
+    """Legge i consumabili via SNMP con i parametri dell'MFC. Ritorna (lista, errore)."""
+    from .snmp import SNMPError, leggi_consumabili
+    cfg = ImpostazioniSNMP.get_solo()
+    try:
+        porta, timeout, versione = _parametri_snmp(macchina, cfg)
+        return leggi_consumabili(macchina, community=_community_snmp(macchina, cfg), port=porta,
+                                 timeout=timeout, version=versione), None
+    except SNMPError as e:
+        return None, str(e)
+
+
+def salva_consumabili(macchina, consumabili, quando=None):
+    """Salva una lettura (una riga per consumabile). Senza consumabili non salva nulla."""
+    quando = quando or timezone.now()
+    righe = [LetturaConsumabile(macchina=macchina, nome=(c.get("nome") or "Consumabile")[:120],
+                                pct=c["pct"] if type(c.get("pct")) is int and 0 <= c["pct"] <= 100 else None,
+                                rilevata_il=quando)
+             for c in (consumabili or [])[:30]]
+    LetturaConsumabile.objects.bulk_create(righe)
+    return len(righe)
+
+
+def _stima_giorni(storico, ora):
+    """Giorni al 0% dal ritmo di consumo dopo l'ultima sostituzione (pct risalito).
+
+    `storico` = [(rilevata_il, pct)] crescente nel tempo, ultimo = valore attuale.
+    None se il ritmo non e' stimabile (meno di 2 giorni di dati o nessun consumo).
+    """
+    validi = [(t, p) for t, p in storico if p is not None]
+    if len(validi) < 2:
+        return None
+    # Ultima sostituzione: dopo l'ultimo punto in cui il livello e' risalito.
+    inizio = 0
+    for i in range(1, len(validi)):
+        if validi[i][1] > validi[i - 1][1]:
+            inizio = i
+    tratto = validi[inizio:]
+    (t0, p0), (t1, p1) = tratto[0], tratto[-1]
+    giorni = (t1 - t0).total_seconds() / 86400
+    if giorni < 2 or p0 <= p1:
+        return None
+    return max(0, round(p1 / ((p0 - p1) / giorni)))
+
+
+def stato_consumabili(macchine, ora=None):
+    """Ultimo livello salvato per ogni consumabile delle MFC, con stima giorni residui.
+
+    {macchina_id: {"rilevata_il", "voci": [{nome, pct, giorni, critico}], "critici", "peggiore"}}
+    Solo dati a DB: nessuna interrogazione SNMP.
+    """
+    from datetime import timedelta
+    ora = ora or timezone.now()
+    ids = [m.pk for m in macchine]
+    storico = defaultdict(lambda: defaultdict(list))
+    ultima = {}
+    for macchina_id, nome, pct, quando in (
+            LetturaConsumabile.objects.filter(macchina_id__in=ids,
+                                              rilevata_il__gte=ora - timedelta(days=_FINESTRA_STIMA_GIORNI))
+            .order_by("rilevata_il").values_list("macchina_id", "nome", "pct", "rilevata_il")):
+        storico[macchina_id][nome].append((quando, pct))
+        ultima[macchina_id] = max(ultima.get(macchina_id, quando), quando)
+    out = {}
+    for macchina_id, per_nome in storico.items():
+        quando = ultima[macchina_id]
+        voci = []
+        for nome, serie in sorted(per_nome.items()):
+            if serie[-1][0] != quando:
+                continue  # consumabile non presente nell'ultima lettura (es. sostituito il modello)
+            pct = serie[-1][1]
+            voci.append({"nome": nome, "pct": pct, "giorni": _stima_giorni(serie, ora),
+                         "critico": pct is not None and pct <= SOGLIA_CONSUMABILE_PCT})
+        misurabili = [v for v in voci if v["pct"] is not None]
+        out[macchina_id] = {
+            "rilevata_il": quando, "voci": voci,
+            "critici": [v for v in voci if v["critico"]],
+            "peggiore": min(misurabili, key=lambda v: v["pct"]) if misurabili else None,
+        }
+    return out
+
+
+# --- Letture trimestrali proposte dalle mensili -------------------------------
+
+def limiti_trimestre(trimestre):
+    """(primo giorno, primo giorno del trimestre successivo) di "AAAA-Qn"."""
+    from datetime import date
+    anno, q = map(int, _TRIMESTRE_RE.match(trimestre).groups())
+    inizio = date(anno, 3 * q - 2, 1)
+    fine = date(anno + 1, 1, 1) if q == 4 else date(anno, 3 * q + 1, 1)
+    return inizio, fine
+
+
+def proposte_letture_trimestrali(trimestre):
+    """Per le MFC attive senza lettura del trimestre propone la lettura mensile SNMP
+    piu' vicina alla chiusura (idealmente quella del giorno 1 del mese successivo).
+
+    Finestra: dall'inizio del trimestre a un mese dopo la chiusura. Una proposta piu'
+    bassa della lettura del trimestre precedente e' marcata `incoerente` e non si
+    conferma in blocco. Nessuna scrittura: le proposte vanno confermate.
+    """
+    from datetime import datetime, time, timedelta
+    inizio, chiusura = limiti_trimestre(trimestre)
+    riferimento = timezone.make_aware(datetime.combine(chiusura, time(8, 0)))
+    attive = list(Macchina.objects.filter(attiva=True).order_by("reparto"))
+    gia_lette = set(LetturaContatori.objects.filter(trimestre=trimestre).values_list("macchina_id", flat=True))
+    mancanti = [m for m in attive if m.id not in gia_lette]
+    candidate = defaultdict(list)
+    for mensile in LetturaMensileContatori.objects.filter(
+            macchina__in=mancanti, mese__gte=inizio, mese__lte=chiusura + timedelta(days=31)):
+        candidate[mensile.macchina_id].append(mensile)
+    proposte = []
+    for m in mancanti:
+        if not candidate[m.id]:
+            continue
+        scelta = min(candidate[m.id], key=lambda x: abs((x.rilevata_il - riferimento).total_seconds()))
+        prima = m.letture.filter(trimestre__lt=trimestre).order_by("-trimestre").first()
+        incoerente = bool(prima and any(getattr(scelta, c) < getattr(prima, c) for c in CAMPI))
+        proposte.append({"macchina": m, "mensile": scelta, "incoerente": incoerente, "precedente": prima,
+                         "delta": scelta.totale - prima.totale if prima else None})
+    return proposte
+
+
+def conferma_proposta(proposta, trimestre):
+    """Crea la lettura trimestrale dalla mensile proposta (fonte SNMP, data reale)."""
+    mensile = proposta["mensile"]
+    lettura, creata = LetturaContatori.objects.get_or_create(
+        macchina=proposta["macchina"], trimestre=trimestre,
+        defaults={**{c: getattr(mensile, c) for c in CAMPI},
+                  "data": timezone.localtime(mensile.rilevata_il).date(),
+                  "fonte": LetturaContatori.Fonte.SNMP,
+                  "note": f"Da lettura mensile del {mensile.mese:%m/%Y}"})
+    return lettura, creata

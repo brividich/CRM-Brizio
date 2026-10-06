@@ -1,6 +1,6 @@
 {% extends "contatori/_base_modulo.html" %}
-{% block modulo %}
-<div class="row"><div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a><a class="btn" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">+ Nuova lettura</a></div></div>
+{% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
+<div class="row"><div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div>{% if g %}<div class="actions"><a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a><a class="btn" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">+ Nuova lettura</a></div>{% endif %}</div>
 
 <div class="cards"><div class="card"><div class="k">Stato SNMP</div><div class="v" style="font-size:20px"><span class="pill {% if macchina.snmp_stato == 'OK' %}ok{% elif macchina.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ macchina.get_snmp_stato_display }}</span></div></div><div class="card"><div class="k">Host</div><div class="v mono" style="font-size:20px">{{ macchina.host|default:"—" }}</div></div><div class="card"><div class="k">Ultimo controllo</div><div class="v" style="font-size:20px">{{ macchina.snmp_ultimo_controllo|date:"d/m/Y H:i"|default:"Mai" }}</div></div><div class="card"><div class="k">Latenza</div><div class="v">{% if macchina.snmp_tempo_risposta_ms is not None %}{{ macchina.snmp_tempo_risposta_ms }}<small> ms</small>{% else %}—{% endif %}</div></div></div>
 {% if macchina.snmp_ultimo_errore %}<div class="banner">{{ macchina.snmp_ultimo_errore }}</div>{% endif %}
@@ -31,9 +31,9 @@
           <td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td>
           <td class="num"><strong>{{ l.totale }}</strong></td>
           <td><span class="pill ok">{{ l.get_fonte_display }}</span></td>
-          <td><a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a></td></tr>
+          <td>{% if g %}<a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a>{% endif %}</td></tr>
     {% empty %}
-      <tr><td colspan="9" class="pos">Nessuna lettura registrata. <a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">Inserisci la prima</a>.</td></tr>
+      <tr><td colspan="9" class="pos">Nessuna lettura registrata.{% if g %} <a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">Inserisci la prima</a>.{% endif %}</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
@@ -60,7 +60,10 @@
             hx-indicator="#cons-load">Leggi ora via SNMP</button>
   </div>
   <div id="cons-load" class="htmx-indicator pos" style="margin-top:8px">Lettura in corso…</div>
-  <div id="consumabili"><p class="pos" style="margin-top:8px">Premi «Leggi ora» per interrogare la macchina.</p></div>
+  <div id="consumabili">{% if consumabili_stato %}
+    <p class="muted" style="margin:8px 0">Ultima lettura salvata: {{ consumabili_stato.rilevata_il|date:"d/m/Y H:i" }}. La stima dei giorni usa il consumo dall'ultima sostituzione.</p>
+    <div class="cons-voci">{% for v in consumabili_stato.voci %}<div class="cons-voce{% if v.critico %} critico{% endif %}"><span class="cons-nome">{{ v.nome }}</span>{% if v.pct is not None %}<span class="cons-bar"><span style="width:{{ v.pct }}%"></span></span><strong class="cons-pct">{{ v.pct }}%</strong>{% else %}<span class="muted">n/d</span><span></span>{% endif %}<span class="cons-giorni muted">{% if v.giorni is not None %}{% if v.giorni == 0 %}esaurito{% elif v.giorni > 365 %}oltre 1 anno{% else %}~{{ v.giorni }} gg{% endif %}{% endif %}</span></div>{% endfor %}</div>
+  {% else %}<p class="pos" style="margin-top:8px">Nessuna lettura salvata: premi «Leggi ora via SNMP».</p>{% endif %}</div>
 </div>
 
 <a class="btn ghost" href="{% url 'contatori:dashboard' %}">← Dashboard</a>

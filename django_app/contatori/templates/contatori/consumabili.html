@@ -2,54 +2,21 @@
 {% block title %}Consumabili flotta{% endblock %}
 {% block modulo %}
 <h1>Consumabili flotta</h1>
-<p class="sub">Livello di toner, tamburi e fusore letto ora via SNMP su tutte le MFC attive con IP. Le macchine con consumabili sotto il 15% salgono in cima man mano che rispondono.</p>
+<p class="sub">Ultimo livello letto di toner, tamburi e fusore per ogni MFC attiva con IP. La lettura automatica gira ogni mattina; «Leggi ora» aggiorna una macchina subito. La stima dei giorni usa il consumo dall'ultima sostituzione.</p>
 
-{% if not macchine %}
+{% if not righe %}
   <div class="panel"><p class="muted">Nessuna MFC attiva con IP impostato. Aggiungi l'indirizzo dalle <a class="plain" href="{% url 'contatori:macchine' %}">Stampanti MFC</a>.</p></div>
 {% else %}
-<div class="cards kpi-cards" id="cons-kpi">
-  <div class="card"><div class="k">Da sostituire presto</div><div class="v health-error" data-kpi="critico">0</div><div class="meta">MFC con un consumabile sotto il 15%</div></div>
-  <div class="card"><div class="k">Non raggiungibili</div><div class="v health-warning" data-kpi="errore">0</div><div class="meta">Nessuna risposta SNMP</div></div>
-  <div class="card"><div class="k">In ordine</div><div class="v health-ok" data-kpi="ok">0</div><div class="meta">Lette: <span data-kpi="lette">0</span> / {{ macchine|length }}</div></div>
+<div class="cards kpi-cards">
+  <div class="card"><div class="k">Da ordinare</div><div class="v {% if critici %}health-error{% else %}health-ok{% endif %}">{{ critici }}</div><div class="meta">MFC con un consumabile sotto il {{ soglia }}%</div></div>
+  <div class="card"><div class="k">Mai lette</div><div class="v {% if mai_lette %}health-warning{% endif %}">{{ mai_lette }}</div><div class="meta">Nessun livello salvato</div></div>
+  <div class="card"><div class="k">MFC controllate</div><div class="v">{{ righe|length }}</div><div class="meta">Attive con indirizzo IP</div></div>
 </div>
 <section class="panel">
-  <div class="table-wrap"><table data-fm-table-skip="1">
-    <thead><tr><th>MFC</th><th>IP</th><th>Stato consumabili</th></tr></thead>
-    <tbody id="cons-body">
-    {% for m in macchine %}
-      <tr>
-        <td><a class="plain" href="{% url 'contatori:macchina' m.pk %}">{{ m.reparto }}</a><div class="muted">{{ m.modello|default:m.matricola }}</div></td>
-        <td class="mono">{{ m.host }}</td>
-        <td hx-get="{% url 'contatori:consumabili_riepilogo' m.pk %}" hx-trigger="load" hx-swap="innerHTML"><span class="muted">lettura in corso…</span></td>
-      </tr>
-    {% endfor %}
-    </tbody>
+  <div class="table-wrap"><table class="cons-table" data-fm-table-skip="1">
+    <thead><tr><th>MFC</th><th>Livelli</th><th>Ultima lettura</th></tr></thead>
+    <tbody>{% for r in righe %}{% include "contatori/_consumabili_riga.html" %}{% endfor %}</tbody>
   </table></div>
-  <p class="muted" style="margin-top:10px">Per il dettaglio di ogni consumabile apri la scheda della MFC.</p>
 </section>
-<script>
-(function () {
-  var body = document.getElementById("cons-body");
-  if (!body) return;
-  var ordine = {critico: 0, errore: 1, ok: 2};
-  function chiave(tr) {
-    var e = tr.querySelector(".cons-esito");
-    if (!e) return [3, 0];
-    return [ordine[e.dataset.stato] ?? 3, parseInt(e.dataset.peggiore, 10) || 0];
-  }
-  function aggiorna() {
-    var righe = Array.prototype.slice.call(body.rows);
-    righe.sort(function (a, b) { var x = chiave(a), y = chiave(b); return x[0] - y[0] || x[1] - y[1]; });
-    righe.forEach(function (r) { body.appendChild(r); });
-    var conta = {critico: 0, errore: 0, ok: 0, lette: 0};
-    body.querySelectorAll(".cons-esito").forEach(function (e) { conta[e.dataset.stato]++; conta.lette++; });
-    Object.keys(conta).forEach(function (k) {
-      var el = document.querySelector('#cons-kpi [data-kpi="' + k + '"]');
-      if (el) el.textContent = conta[k];
-    });
-  }
-  document.body.addEventListener("htmx:afterSettle", function (ev) { if (body.contains(ev.target)) aggiorna(); });
-})();
-</script>
 {% endif %}
 {% endblock %}
