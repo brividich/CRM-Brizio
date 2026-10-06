@@ -70,7 +70,7 @@
                 {{ n_tot }} anomalie su OP {{ op_id }} — {{ action_label }}
               {% endif %}
             </h2>
-            {% if op_nominativo %}
+            {% if op_nominativo and op_nominativo != op_id %}
             <p style="margin:8px 0 0;color:#64748b;font-size:14px;">{{ op_nominativo }}</p>
             {% endif %}
             <p style="margin:10px 0 0;color:#475569;font-size:15px;line-height:1.6;">
@@ -90,54 +90,45 @@
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
                    style="width:100%;border-collapse:collapse;">
 
-              {% for a in anomalie_visibili %}
+              {% for gruppo in gruppi %}
               <tr class="an-row">
-                <td style="padding:0 0 10px;">
+                <td style="padding:0 0 14px;">
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
                          style="width:100%;border-collapse:collapse;background:#f8fafc;
                                 border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
                     <tr>
-                      <!-- Indicatore priorità laterale -->
-                      <td style="width:6px;background:#1f5c91;border-radius:10px 0 0 10px;">&nbsp;</td>
-                      <td style="padding:14px 16px;">
-                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
-                          <tr>
-                            <td>
-                              <div style="font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
-                                Anomalia #{{ a.id }}{% if a.seriale %} &middot; {{ a.seriale }}{% endif %}{% if a.fase %} &middot; Fase {{ a.fase }}{% endif %}
-                              </div>
-                              {% if a.descrizioni %}
-                              <div style="margin-top:9px;padding:9px 11px;background:#ffffff;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;line-height:1.45;">
-                                {% for dettaglio in a.descrizioni %}
-                                <div style="padding:4px 0;{% if not forloop.first %}border-top:1px solid #f1f5f9;{% endif %}">
-                                  <strong>Descrizione {{ forloop.counter }}{% if dettaglio.seriali %} · S/N {{ dettaglio.seriali|join:", " }}{% endif %}:</strong> {{ dettaglio.testo }}
-                                  {% for allegato in dettaglio.allegati %}<div style="font-size:11px;color:#64748b;">Allegato: <a href="{{ site_url }}{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id=descrizione:{{ allegato.id }}">{{ allegato.nome }}</a></div>{% endfor %}
-                                </div>
-                                {% endfor %}
-                              </div>
-                              {% endif %}
-                              {% if not a.descrizioni %}
-                              <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.4;">
-                                {{ a.descrizione|default:"(nessuna descrizione)"|truncatechars:140 }}
-                              </div>
-                              {% endif %}
-                              {% if a.avanzamento %}
-                              <div style="margin-top:6px;">
-                                <span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;">
-                                  {{ a.avanzamento }}
-                                </span>
-                              </div>
-                              {% endif %}
-                              {% if a.note_capocommessa %}
-                              <div style="margin-top:8px;font-size:13px;color:#64748b;font-style:italic;">
-                                Note: {{ a.note_capocommessa|truncatechars:200 }}
-                              </div>
-                              {% endif %}
-                            </td>
-                          </tr>
-                        </table>
+                      <td style="padding:11px 16px;background:#eef3f8;border-bottom:1px solid #e2e8f0;">
+                        <div style="font-size:11px;color:#64748b;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Seriali</div>
+                        <div style="font-size:15px;color:#182232;font-weight:800;font-family:Consolas,monospace;margin-top:2px;">{{ gruppo.titolo|default:"(S/N non indicato)" }}</div>
+                        {% if gruppo.sottotitolo %}<div style="font-size:12px;color:#64748b;margin-top:3px;">{{ gruppo.sottotitolo }}</div>{% endif %}
                       </td>
                     </tr>
+                    {% for a in gruppo.righe %}
+                    <tr>
+                      <td style="padding:12px 16px;{% if not forloop.first %}border-top:1px solid #e2e8f0;{% endif %}">
+                        <div style="font-size:11px;color:#94a3b8;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;">
+                          Anomalia {{ forloop.counter }}{% if gruppo.righe|length > 1 %} di {{ gruppo.righe|length }}{% endif %} &middot; #{{ a.id }}
+                          {% if a.avanzamento %}<span style="display:inline-block;margin-left:6px;background:#dbeafe;color:#1e40af;font-size:10px;font-weight:700;border-radius:999px;padding:2px 8px;text-transform:none;letter-spacing:0;">{{ a.avanzamento }}</span>{% endif %}
+                        </div>
+                        {% if a.descrizioni %}
+                        {% for dettaglio in a.descrizioni %}
+                        <div style="padding:4px 0;font-size:14px;line-height:1.45;color:#182232;{% if not forloop.first %}border-top:1px solid #f1f5f9;{% endif %}">
+                          <strong>Descrizione {{ forloop.counter }}{% if dettaglio.seriali %} · S/N {{ dettaglio.seriali|join:", " }}{% endif %}:</strong> {{ dettaglio.testo }}
+                          {% for allegato in dettaglio.allegati %}<div style="font-size:11px;color:#64748b;">Allegato: {{ allegato.nome }}</div>{% endfor %}
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div style="font-size:15px;color:#182232;font-weight:600;line-height:1.45;white-space:pre-line;">{{ a.testo|default:a.descrizione|default:"(nessuna descrizione)"|truncatechars:400 }}</div>
+                        {% endif %}
+                        {% if a.stato_superficie %}
+                        <div style="margin-top:6px;font-size:12px;color:#475569;">Stato superficie: <strong>{{ a.stato_superficie }}</strong></div>
+                        {% endif %}
+                        {% if a.note_capocommessa %}
+                        <div style="margin-top:6px;font-size:13px;color:#64748b;font-style:italic;">Note: {{ a.note_capocommessa|truncatechars:200 }}</div>
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
                   </table>
                 </td>
               </tr>
@@ -170,6 +161,8 @@
                             background:#12395f;mso-padding-alt:14px 32px;">
                     {% if action == "visualizza" %}
                       Visualizza anomali{% if n_tot == 1 %}a{% else %}e{% endif %} sul portale
+                    {% elif action == "aggiorna_avanzamento" %}
+                      Decidi sulle anomalie
                     {% else %}
                       {{ action_label }} — Apri modulo sul portale
                     {% endif %}

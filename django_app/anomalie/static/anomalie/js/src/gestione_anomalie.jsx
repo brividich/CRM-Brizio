@@ -658,6 +658,7 @@
       const [segnalare,   setSegnalare]   = useState(false);
       const [avanzamento, setAvanzamento] = useState(DEFAULT_AVANZAMENTO);
       const [rdcNum,      setRdcNum]      = useState("");
+      const [applicaBlocco, setApplicaBlocco] = useState(false);
       const filterButtons = [
         { value: "", label: "Tutte" },
         { value: "aperte", label: "Aperte" },
@@ -833,6 +834,7 @@
         } else {
           clearForm();
         }
+        setApplicaBlocco(false);
       }, [selectedSn, filteredSeriali]);
 
       const loadAttachments = async (localId) => {
@@ -863,6 +865,12 @@
         }
         loadAttachments(currentLocalId);
       }, [currentLocalId]);
+
+      const fratelliBlocco = useMemo(() => (
+        sn && sn.blocco_id
+          ? anomalie.filter((x) => x.blocco_id === sn.blocco_id && x.item_id !== sn.item_id && !x.chiudere)
+          : []
+      ), [anomalie, sn && sn.blocco_id, sn && sn.item_id]);
 
       const getStatoBadge = (s) => {
         if (!s || !s.avanzamento) return { text: "Aperto", variant: "aperto" };
@@ -948,11 +956,44 @@
               const idx = prev.findIndex(a => a.item_id === currentItemId);
               if (idx >= 0) {
                 const next = [...prev];
-                next[idx] = updatedRecord;
+                next[idx] = { ...prev[idx], ...updatedRecord };
                 return next;
               }
               return [...prev, updatedRecord];
             });
+            if (applicaBlocco && fratelliBlocco.length) {
+              // Stessa decisione sulle altre anomalie aperte del blocco: ognuna resta
+              // una riga a sé (testo, seriali e allegati propri), cambiano solo i campi
+              // della decisione.
+              let ok = 0;
+              const errori = [];
+              for (const f of fratelliBlocco) {
+                try {
+                  const rf = await fetch(API.salva, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+                    body: JSON.stringify({
+                      item_id: f.item_id, op_id: op.id, sn: f.sn || "", desc: f.desc || "",
+                      note, pezzi_prec: !!f.pezzi_prec, aprire_rdc: aprireRdc, numero_rdc: rdcNum,
+                      segnalare, chiudere: chiudereAuto, avanzamento,
+                    }),
+                    credentials: "same-origin",
+                  });
+                  const df = await readJsonOrThrow(rf, "Salvataggio anomalia del blocco");
+                  if (!df.success) throw new Error(df.error || "errore");
+                  ok += 1;
+                  setAnomalie(prev => prev.map(a => (a.item_id === f.item_id ? {
+                    ...a, note, aprire_rdc: aprireRdc, numero_rdc: rdcNum, segnalare, chiudere: chiudereAuto, avanzamento,
+                  } : a)));
+                } catch (err) {
+                  errori.push(`#${f.local_id}: ${err.message}`);
+                }
+              }
+              setApplicaBlocco(false);
+              setSaveMsg(errori.length
+                ? { ok: false, text: `Salvato; blocco: ${ok} aggiornate, ${errori.length} non aggiornate (${errori.join("; ")})` }
+                : { ok: true, text: `Salvato anche sulle altre ${ok} anomalie del blocco` });
+            }
           } else {
             setSaveMsg({ ok: false, text: "Errore: " + (data.error || "risposta non valida") });
           }
@@ -1469,6 +1510,7 @@
                     const renderSnCard = ({ a, i }) => {
                       const col = snColor(a.avanzamento);
                       const closed = Boolean(a.chiudere);
+                      const inBlocco = Boolean(a.blocco_id);
                       return (
                         <div key={a.item_id || i} onClick={() => { setSelectedSn(i); if (isMobile) setMobilePanel("dettaglio"); }} style={{
                           padding: "10px 12px", borderRadius: 10, cursor: "pointer", marginBottom: 4,
@@ -1480,9 +1522,15 @@
                         }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                             <div style={{ width: 10, height: 10, borderRadius: "50%", background: col, boxShadow: `0 0 0 3px ${col}22` }} />
-                            <span className="text-base font-semibold" style={{ fontWeight: 600, color: "var(--text)", fontFamily: "ui-monospace,monospace" }}>
-                              S/N: {a.sn || '\u2014'}
-                            </span>
+                            {inBlocco ? (
+                              <span className="text-base" style={{ fontWeight: 600, color: "var(--text)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={a.testo || a.desc || ""}>
+                                {a.testo || a.desc || "(nessuna descrizione)"}
+                              </span>
+                            ) : (
+                              <span className="text-base font-semibold" style={{ fontWeight: 600, color: "var(--text)", fontFamily: "ui-monospace,monospace" }}>
+                                S/N: {a.sn || '\u2014'}
+                              </span>
+                            )}
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 18 }}>
                             <span className="text-sm" style={{ color: "var(--text-mid)" }}>{a.avanzamento || "Aperto"}</span>
@@ -1517,9 +1565,32 @@
                         </div>
                       );
                     };
+                    // Anomalie nate dallo stesso blocco di seriali: un'intestazione con i S/N
+                    // e la fase, poi una scheda per anomalia (ognuna con la sua decisione).
+                    const renderGrouped = (list) => list.map((x, idx) => {
+                      const prev = idx > 0 ? list[idx - 1].a : null;
+                      const head = x.a.blocco_id && (!prev || prev.blocco_id !== x.a.blocco_id);
+                      if (!head) return renderSnCard(x);
+                      const nBlocco = list.filter((y) => y.a.blocco_id === x.a.blocco_id).length;
+                      return (
+                        <React.Fragment key={`blk-${x.a.blocco_id}-${x.i}`}>
+                          <div style={{ margin: idx ? "10px 4px 4px" : "2px 4px 4px", padding: "6px 8px", borderLeft: "3px solid var(--accent)", background: "var(--surface)", borderRadius: 6 }}>
+                            <div className="text-sm" style={{ fontWeight: 700, color: "var(--text)", fontFamily: "ui-monospace,monospace", wordBreak: "break-word" }}>
+                              S/N: {x.a.blocco_label || x.a.sn || '\u2014'}
+                            </div>
+                            <div className="text-2xs" style={{ color: "var(--text-mid)" }}>
+                              {[x.a.fase ? `Fase ${x.a.fase}` : "", `${nBlocco} anomali${nBlocco === 1 ? "a" : "e"}`, x.a.controllo_operatore,
+                                x.a.controllo_data ? new Date(x.a.controllo_data).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" }) : ""]
+                                .filter(Boolean).join(" · ")}
+                            </div>
+                          </div>
+                          {renderSnCard(x)}
+                        </React.Fragment>
+                      );
+                    });
                     return (
                       <React.Fragment>
-                        {openSeriali.map(renderSnCard)}
+                        {renderGrouped(openSeriali)}
                         {closedSeriali.length > 0 && (
                           <div style={{ marginTop: openSeriali.length ? 10 : 0 }}>
                             <button type="button" onClick={() => setClosedCollapsed((v) => !v)} style={{
@@ -1535,7 +1606,7 @@
                                 Chiuse ({closedSeriali.length})
                               </span>
                             </button>
-                            {!closedCollapsed && closedSeriali.map(renderSnCard)}
+                            {!closedCollapsed && renderGrouped(closedSeriali)}
                           </div>
                         )}
                       </React.Fragment>
@@ -1577,9 +1648,10 @@
                   </div>
                   <div>
                     <FieldLabel>S/N selezionato</FieldLabel>
-                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "var(--text-mid)", fontFamily: "ui-monospace,monospace" }}>
-                      {sn.sn || '\u2014'}
+                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "var(--text-mid)", fontFamily: "ui-monospace,monospace", wordBreak: "break-word" }}>
+                      {sn.blocco_label || sn.sn || '\u2014'}
                     </div>
+                    {sn.stato_superficie && <div className="text-sm" style={{ color: "var(--text-mid)", marginTop: 4 }}>Stato superficie: {sn.stato_superficie}</div>}
                     {sn.fase && <div className="text-sm" style={{ color: "var(--text-mid)", marginTop: 4 }}>Fase: {sn.fase}</div>}
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -1608,6 +1680,15 @@
                     <FieldLabel>Avanzamento</FieldLabel>
                     <StatoStepper avanzamento={sn.avanzamento} chiuso={Boolean(sn.chiudere)} />
                   </div>
+                )}
+                {canEditSelected && fratelliBlocco.length > 0 && (
+                  <label className="text-sm" style={{
+                    display: "flex", alignItems: "center", gap: 8, marginTop: 12, padding: "9px 12px",
+                    border: "1px dashed var(--accent)", borderRadius: 8, background: "var(--bg)", color: "var(--text)", cursor: "pointer",
+                  }}>
+                    <input type="checkbox" checked={applicaBlocco} onChange={e => setApplicaBlocco(e.target.checked)} style={{ accentColor: "var(--accent)", minHeight: 0, width: 16, height: 16 }} />
+                    <span>Al salvataggio applica la stessa decisione (avanzamento, RDC, cliente, note) anche alle altre <strong>{fratelliBlocco.length}</strong> anomali{fratelliBlocco.length === 1 ? "a" : "e"} aperte di questi seriali</span>
+                  </label>
                 )}
                 {!canEditCurrentOp && op.id && op.id !== '\u2014' && (
                   <div className="text-sm font-semibold" style={{

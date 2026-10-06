@@ -1177,6 +1177,64 @@ def _serialize_anomalie_rows(rows: list[dict]) -> list[dict]:
     ]
 
 
+def _arricchisci_con_blocchi(payload_rows: list[dict]) -> None:
+    """Aggiunge fase, blocco di seriali e controllo di provenienza a ogni anomalia
+    e rende contigue le anomalie dello stesso blocco (ordine di prima comparsa),
+    così la gestione le mostra raggruppate senza cambiare l'ordine dei blocchi."""
+    from .controllo_service import separa_descrizione
+    from .quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
+
+    ids = []
+    for row in payload_rows:
+        try:
+            ids.append(int(row.get("local_id")))
+        except (TypeError, ValueError):
+            continue
+    metas = {
+        m.anomalia_id: m
+        for m in AnomaliaSegnalazioneMeta.objects.filter(anomalia_id__in=ids).select_related("blocco", "controllo")
+    }
+    descrizioni_by_id: dict[int, list[dict]] = {}
+    for detail in AnomaliaDescrizione.objects.filter(
+        segnalazione__anomalia_id__in=ids
+    ).select_related("segnalazione").prefetch_related("allegati"):
+        descrizioni_by_id.setdefault(detail.segnalazione.anomalia_id, []).append({
+            "id": detail.pk,
+            "ordine": detail.ordine,
+            "seriali": detail.seriali if isinstance(detail.seriali, list) else [],
+            "testo": detail.testo,
+            "risposta": detail.risposta_capocommessa,
+            "risposta_da": detail.risposta_da,
+            "risposta_il": detail.risposta_il.isoformat() if detail.risposta_il else "",
+            "allegati": [{"id": a.pk, "nome": a.nome, "size": a.size} for a in detail.allegati.all()],
+        })
+    for row in payload_rows:
+        try:
+            local_id = int(row.get("local_id"))
+        except (TypeError, ValueError):
+            local_id = None
+        meta = metas.get(local_id)
+        stati, testo = separa_descrizione(row.get("desc"))
+        row["testo"] = testo
+        row["stato_superficie"] = ", ".join(stati)
+        row["fase"] = meta.fase if meta else ""
+        row["blocco_id"] = meta.blocco_id if meta and meta.blocco_id else None
+        row["blocco_label"] = (meta.blocco.seriale_label if meta and meta.blocco_id else "") or row.get("sn") or ""
+        controllo = meta.controllo if meta and meta.controllo_id else None
+        row["controllo_id"] = controllo.pk if controllo else None
+        row["controllo_operatore"] = controllo.operatore_display if controllo else ""
+        row["controllo_data"] = controllo.created_at.isoformat() if controllo and controllo.created_at else ""
+        # Le descrizioni multiple esistono solo per le righe della prima versione del form.
+        descrizioni = descrizioni_by_id.get(local_id, []) if local_id is not None else []
+        row["descrizioni"] = descrizioni if len(descrizioni) > 1 else []
+    ordine: dict = {}
+    for index, row in enumerate(payload_rows):
+        chiave = f"b{row['blocco_id']}" if row.get("blocco_id") else f"r{index}"
+        ordine.setdefault(chiave, len(ordine))
+        row["_gruppo"] = ordine[chiave]
+    payload_rows.sort(key=lambda r: r.pop("_gruppo"))
+
+
 def _as_bool_int(value) -> int:
     return 1 if bool(value) else 0
 
@@ -2310,38 +2368,7 @@ def api_anomalie(request):
             seen_ids.add(rid)
             unique_rows.append(r)
         payload_rows = _serialize_anomalie_rows(unique_rows)
-        from .quality_models import AnomaliaSegnalazioneMeta
-        fasi_by_id = dict(AnomaliaSegnalazioneMeta.objects.filter(
-            anomalia_id__in=[int(row["id"]) for row in unique_rows if row.get("id") is not None]
-        ).values_list("anomalia_id", "fase"))
-        for payload_row in payload_rows:
-            try:
-                local_id = int(payload_row.get("local_id"))
-            except (TypeError, ValueError):
-                continue
-            payload_row["fase"] = fasi_by_id.get(local_id, "")
-        from .quality_models import AnomaliaDescrizione
-        descrizioni_by_id: dict[int, list[dict]] = {}
-        details = AnomaliaDescrizione.objects.filter(
-            segnalazione__anomalia_id__in=[int(row["id"]) for row in unique_rows if row.get("id") is not None]
-        ).prefetch_related("allegati")
-        for detail in details:
-            descrizioni_by_id.setdefault(detail.segnalazione.anomalia_id, []).append({
-                "id": detail.pk,
-                "ordine": detail.ordine,
-                "seriali": detail.seriali if isinstance(detail.seriali, list) else [],
-                "testo": detail.testo,
-                "risposta": detail.risposta_capocommessa,
-                "risposta_da": detail.risposta_da,
-                "risposta_il": detail.risposta_il.isoformat() if detail.risposta_il else "",
-                "allegati": list(detail.allegati.values("id", "nome", "size")),
-            })
-        for payload_row in payload_rows:
-            try:
-                local_id = int(payload_row.get("local_id"))
-            except (TypeError, ValueError):
-                continue
-            payload_row["descrizioni"] = descrizioni_by_id.get(local_id, [])
+        _arricchisci_con_blocchi(payload_rows)
         return JsonResponse(payload_rows, safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)
@@ -2695,18 +2722,83 @@ def api_salva(request):
         return _json_error("Body JSON non valido", status=400)
 
     item_id = _safe_text(data.get("item_id"), 100)
-    op_id = _safe_text(data.get("op_id"), 100)
     fase_segnalazione = _safe_text(data.get("fase"), 100)
-    if not op_id:
-        return _json_error("op_id obbligatorio", status=400)
     if not item_id and not fase_segnalazione:
         return _json_error("Fase obbligatoria", status=400)
+
+    result = _salva_riga_anomalia(request, data)
+    if not result.get("success"):
+        return JsonResponse({"success": False, "error": result.get("error", "")}, status=result.get("status", 500))
+    local_id = result.get("local_id")
+
+    # Scheda qualita' + NC dell'OP (fire-and-forget, savepoint: un errore qui
+    # non deve mai invalidare il salvataggio della segnalazione).
+    protocollo = ""
+    if local_id is not None:
+        try:
+            from anomalie.qualita_service import sync_da_anomalia
+            from anomalie.quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
+            with transaction.atomic():
+                scheda = sync_da_anomalia(local_id)
+                meta = AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=local_id).first()
+                if meta is None and fase_segnalazione:
+                    meta = AnomaliaSegnalazioneMeta.objects.create(anomalia_id=local_id, fase=fase_segnalazione)
+                if meta is not None:
+                    if fase_segnalazione:
+                        meta.fase = fase_segnalazione
+                    meta.nc = scheda.nc if scheda and scheda.nc_id else None
+                    meta.save(update_fields=["fase", "nc", "updated_at"])
+                    # Risposte per descrizione (segnalazioni con piu' descrizioni nella
+                    # stessa riga): si registra solo cio' che e' davvero cambiato, cosi'
+                    # autore e data della risposta restano quelli di chi l'ha scritta.
+                    risposte_raw = data.get("descrizioni_risposte")
+                    if isinstance(risposte_raw, dict):
+                        identity = _current_user_identity(request)
+                        risposta_da = _safe_text(identity.get("name") or request.user.get_full_name() or request.user.username, 200)
+                        for detail in meta.descrizioni.all():
+                            if str(detail.pk) not in risposte_raw:
+                                continue
+                            nuova = _safe_text(risposte_raw.get(str(detail.pk)), 5000) or ""
+                            if nuova == (detail.risposta_capocommessa or ""):
+                                continue
+                            detail.risposta_capocommessa = nuova
+                            detail.risposta_da = risposta_da or ""
+                            detail.risposta_il = timezone.now()
+                            detail.save(update_fields=["risposta_capocommessa", "risposta_da", "risposta_il", "updated_at"])
+            protocollo = scheda.nc.protocollo if scheda and scheda.nc_id else ""
+        except Exception:
+            logger.warning("api_salva: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
+
+    return JsonResponse(
+        {
+            "success": True,
+            "item_id": result.get("item_id"),
+            "local_id": local_id,
+            "protocollo": protocollo,
+        }
+    )
+
+
+def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True) -> dict:
+    """Inserisce o aggiorna UNA riga della tabella legacy ``anomalie``.
+
+    Percorso unico per il portale (``api_salva``) e per l'inserimento a blocchi
+    (``controllo_views``): permessi per OP, audit, timeline e notifiche restano
+    gli stessi. ``notifica_debounce=False`` lascia fuori la riga dalla coda della
+    mail di riepilogo, quando la mail la gestisce il controllo.
+
+    Ritorna ``{"success", "error", "status", "local_id", "item_id", "created"}``.
+    """
+    item_id = _safe_text(data.get("item_id"), 100)
+    op_id = _safe_text(data.get("op_id"), 100)
+    if not op_id:
+        return {"success": False, "error": "op_id obbligatorio", "status": 400}
     if not _can_edit_anomalie_for_op(request, op_id):
-        return _json_error("Permesso negato: non autorizzato a modificare questo OP", status=403)
+        return {"success": False, "error": "Permesso negato: non autorizzato a modificare questo OP", "status": 403}
 
     cols = legacy_table_columns("anomalie")
     if not cols:
-        return _json_error("Schema tabella anomalie non rilevato", status=500)
+        return {"success": False, "error": "Schema tabella anomalie non rilevato", "status": 500}
 
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
 
@@ -2836,165 +2928,91 @@ def api_salva(request):
                     cursor.execute("SELECT TOP 1 id FROM anomalie ORDER BY id DESC")
                 row = cursor.fetchone()
                 local_id = int(row[0]) if row and row[0] is not None else None
+    except DatabaseError as exc:
+        return {"success": False, "error": str(exc), "status": 500}
 
-        returned_item_id = f"local:{local_id}" if local_id is not None else None
+    returned_item_id = f"local:{local_id}" if local_id is not None else None
 
-        # Audit log (fire-and-forget)
+    # Audit log (fire-and-forget)
+    try:
+        log_action(request, "anomalia_creata" if updated <= 0 else "anomalia_modificata", "anomalie", {
+            "local_id": local_id,
+            "item_id": returned_item_id,
+            "op_id": op_id,
+            "sn": payload_map.get("seriale"),
+        })
+    except Exception:
+        pass
+
+    # Timeline azioni (fire-and-forget): registra il cambio stato dal portale
+    # cosi' AnomaliaActionLog copre sia il canale mail sia quello web.
+    try:
+        new_status = "Chiusa" if chiudere_val else (payload_map.get("avanzamento") or "In attesa")
+        action_kind = "crea" if updated <= 0 else ("chiudi" if chiudere_val else "aggiorna")
+        identity = _current_user_identity(request)
+        from anomalie.mail_action_service import log_anomalia_portal_action
+        log_anomalia_portal_action(
+            anomalia_id=local_id,
+            op_id=op_id,
+            action=action_kind,
+            user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=identity.get("name") or request.user.username,
+            previous_status=previous_status,
+            new_status=new_status,
+            ip_address=(request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+                        or request.META.get("REMOTE_ADDR") or None),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+    except Exception:
+        logger.warning("api_salva: timeline log fallita op=%s", op_id, exc_info=True)
+
+    # Notifiche in-app (fire-and-forget)
+    sn_val = _safe_text(data.get("sn")) or ""
+    if segnalare_val:
+        _notify_anomalia_event(request, "segnalare", local_id, op_id, sn_val)
+    if chiudere_val:
+        _notify_anomalia_event(request, "chiudere", local_id, op_id, sn_val)
+
+    # Mail di conferma post-salvataggio: parte SEMPRE, su qualsiasi salvataggio
+    # (INSERT di nuova anomalia o UPDATE), da qualsiasi pulsante. Per evitare di
+    # inondare CC/CAR quando si salva più volte di fila sullo stesso OP, l'invio è
+    # gestito dalla coda di DEBOUNCE: `register_pending_update` accumula gli update e
+    # il task periodico `anomalie_pending_notifications` invia UNA mail riepilogativa
+    # quando l'OP è fermo da più della soglia (~5 min). Niente più ramo "immediato"
+    # legato a un bottone dedicato: la notifica è implicita in ogni "Salva".
+    if local_id is not None and notifica_debounce:
         try:
-            log_action(request, "anomalia_creata" if updated <= 0 else "anomalia_modificata", "anomalie", {
-                "local_id": local_id,
-                "item_id": returned_item_id,
-                "op_id": op_id,
-                "sn": payload_map.get("seriale"),
-            })
-        except Exception:
-            pass
-
-        # Timeline azioni (fire-and-forget): registra il cambio stato dal portale
-        # cosi' AnomaliaActionLog copre sia il canale mail sia quello web.
-        try:
-            new_status = "Chiusa" if chiudere_val else (payload_map.get("avanzamento") or "In attesa")
-            action_kind = "crea" if updated <= 0 else ("chiudi" if chiudere_val else "aggiorna")
             identity = _current_user_identity(request)
-            from anomalie.mail_action_service import log_anomalia_portal_action
-            log_anomalia_portal_action(
-                anomalia_id=local_id,
+            modified_by = identity.get("name") or request.user.username
+            update_row = {
+                "id": local_id,
+                "seriale": sn_val,
+                "avanzamento": payload_map.get("avanzamento") or "",
+                "descrizione": _safe_text(data.get("desc")) or "",
+                "numero_rdc": _safe_text(data.get("numero_rdc"), 100) or "",
+                "pezzi_recuperato": bool(_as_bool_int(data.get("pezzi_prec"))),
+                "note": _safe_text(data.get("note")) or "",
+                "aprire_rdc": bool(payload_map.get("aprire_rdc")),
+                "segnalare": bool(segnalare_val),
+                "chiudere": bool(chiudere_val),
+            }
+            from anomalie.mail_action_service import register_pending_update
+            register_pending_update(
                 op_id=op_id,
-                action=action_kind,
-                user=request.user,
-                legacy_user_id=int(legacy_user.id) if legacy_user else None,
-                user_display=identity.get("name") or request.user.username,
-                previous_status=previous_status,
-                new_status=new_status,
-                ip_address=(request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
-                            or request.META.get("REMOTE_ADDR") or None),
-                user_agent=request.META.get("HTTP_USER_AGENT", ""),
+                op_nominativo=op_id,
+                update_row=update_row,
+                modified_by=modified_by,
             )
         except Exception:
-            logger.warning("api_salva: timeline log fallita op=%s", op_id, exc_info=True)
+            logger.warning("api_salva: gestione conferma salvataggio fallita op=%s", op_id, exc_info=True)
 
-        # Notifiche in-app (fire-and-forget)
-        sn_val = _safe_text(data.get("sn")) or ""
-        if segnalare_val:
-            _notify_anomalia_event(request, "segnalare", local_id, op_id, sn_val)
-        if chiudere_val:
-            _notify_anomalia_event(request, "chiudere", local_id, op_id, sn_val)
-
-        # Mail di conferma post-salvataggio: parte SEMPRE, su qualsiasi salvataggio
-        # (INSERT di nuova anomalia o UPDATE), da qualsiasi pulsante. Per evitare di
-        # inondare CC/CAR quando si salva più volte di fila sullo stesso OP, l'invio è
-        # gestito dalla coda di DEBOUNCE: `register_pending_update` accumula gli update e
-        # il task periodico `anomalie_pending_notifications` invia UNA mail riepilogativa
-        # quando l'OP è fermo da più della soglia (~5 min). Niente più ramo "immediato"
-        # legato a un bottone dedicato: la notifica è implicita in ogni "Salva".
-        if local_id is not None:
-            try:
-                identity = _current_user_identity(request)
-                modified_by = identity.get("name") or request.user.username
-                update_row = {
-                    "id": local_id,
-                    "seriale": sn_val,
-                    "avanzamento": payload_map.get("avanzamento") or "",
-                    "descrizione": _safe_text(data.get("desc")) or "",
-                    "numero_rdc": _safe_text(data.get("numero_rdc"), 100) or "",
-                    "pezzi_recuperato": bool(_as_bool_int(data.get("pezzi_prec"))),
-                    "note": _safe_text(data.get("note")) or "",
-                    "aprire_rdc": bool(payload_map.get("aprire_rdc")),
-                    "segnalare": bool(segnalare_val),
-                    "chiudere": bool(chiudere_val),
-                }
-                from anomalie.mail_action_service import register_pending_update
-                register_pending_update(
-                    op_id=op_id,
-                    op_nominativo=op_id,
-                    update_row=update_row,
-                    modified_by=modified_by,
-                )
-            except Exception:
-                logger.warning("api_salva: gestione conferma salvataggio fallita op=%s", op_id, exc_info=True)
-
-        # Scheda qualita' + NC dell'OP (fire-and-forget, savepoint: un errore qui
-        # non deve mai invalidare il salvataggio della segnalazione).
-        protocollo = ""
-        descrizioni_response = []
-        if local_id is not None:
-            try:
-                from anomalie.qualita_service import sync_da_anomalia
-                from anomalie.quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
-                with transaction.atomic():
-                    scheda = sync_da_anomalia(local_id)
-                    meta, _ = AnomaliaSegnalazioneMeta.objects.get_or_create(
-                        anomalia_id=local_id,
-                        defaults={"fase": fase_segnalazione},
-                    )
-                    if fase_segnalazione:
-                        meta.fase = fase_segnalazione
-                    meta.nc = scheda.nc if scheda and scheda.nc_id else None
-                    meta.save(update_fields=["fase", "nc", "updated_at"])
-                    descrizioni_raw = data.get("descrizioni")
-                    if isinstance(descrizioni_raw, list):
-                        descrizioni_valid = []
-                        for index, item in enumerate(descrizioni_raw[:30]):
-                            if not isinstance(item, dict):
-                                continue
-                            testo = _safe_text(item.get("testo"), 5000)
-                            if not testo:
-                                continue
-                            seriali = item.get("seriali")
-                            if not isinstance(seriali, list):
-                                seriali = []
-                            seriali = list(dict.fromkeys(
-                                _safe_text(value, 100) for value in seriali if _safe_text(value, 100)
-                            ))[:100]
-                            descrizioni_valid.append((index, seriali, testo))
-                        if descrizioni_valid:
-                            meta.descrizioni.all().delete()
-                            AnomaliaDescrizione.objects.bulk_create([
-                                AnomaliaDescrizione(
-                                    segnalazione=meta, ordine=index, seriali=seriali, testo=testo,
-                                )
-                                for index, seriali, testo in descrizioni_valid
-                            ])
-                    elif not meta.descrizioni.exists():
-                        testo_legacy = _safe_text(data.get("desc"), 5000)
-                        if testo_legacy:
-                            seriale_legacy = _safe_text(data.get("sn"), 200)
-                            meta.descrizioni.create(
-                                ordine=0,
-                                seriali=[seriale_legacy] if seriale_legacy else [],
-                                testo=testo_legacy,
-                            )
-                    risposte_raw = data.get("descrizioni_risposte")
-                    if isinstance(risposte_raw, dict):
-                        identity = _current_user_identity(request)
-                        risposta_da = _safe_text(identity.get("name") or request.user.get_full_name() or request.user.username, 200)
-                        for detail_id, risposta in risposte_raw.items():
-                            if not str(detail_id).isdigit():
-                                continue
-                            AnomaliaDescrizione.objects.filter(
-                                pk=int(detail_id), segnalazione=meta,
-                            ).update(
-                                risposta_capocommessa=_safe_text(risposta, 5000) or "",
-                                risposta_da=risposta_da or "",
-                                risposta_il=timezone.now(),
-                                updated_at=timezone.now(),
-                            )
-                protocollo = scheda.nc.protocollo if scheda and scheda.nc_id else ""
-                descrizioni_response = list(meta.descrizioni.order_by("ordine", "id").values("id", "ordine"))
-            except Exception:
-                logger.warning("api_salva: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
-
-        return JsonResponse(
-            {
-                "success": True,
-                "item_id": returned_item_id,
-                "local_id": local_id,
-                "protocollo": protocollo,
-                "descrizioni": descrizioni_response,
-            }
-        )
-    except DatabaseError as exc:
-        return JsonResponse({"success": False, "error": str(exc)}, status=500)
+    return {
+        "success": True,
+        "local_id": local_id,
+        "item_id": returned_item_id,
+        "created": updated <= 0,
+    }
 
 
 # Etichette leggibili per le action loggate (mail + portale), per la timeline.
@@ -3194,31 +3212,15 @@ def api_seriali_op(request):
             {"seriale": seriale_orig, "descrizione": descr, "avanzamento": avanz, "autore": autore},
         )
 
+    from .seriali import espandi_seriale_composito
+
     for val, descr, avanz, autore_id in rows:
         autore = autori_by_id.get(autore_id, "") if autore_id else ""
         if not val:
             continue
-        # rimuovi eventuale suffisso "(N pezzi)"
-        base = re.sub(r"\s*\(\d+\s*pezz[io]\)\s*$", "", val, flags=re.IGNORECASE).strip()
-        # lista separata da virgola
-        if "," in base:
-            for tok in base.split(","):
-                _registra(tok, base, descr, avanz, autore)
-            continue
-        # range con trattino: prefisso + numero
-        m = re.match(r"^(.*?)(\d+)\s*-\s*(?:\1)?(\d+)$", base)
-        if m:
-            prefix, a, b = m.group(1), m.group(2), m.group(3)
-            try:
-                na, nb = int(a), int(b)
-                pad = len(a)
-                if na <= nb and nb - na <= 1000:
-                    for i in range(na, nb + 1):
-                        _registra(f"{prefix}{str(i).zfill(pad)}", base, descr, avanz, autore)
-                    continue
-            except ValueError:
-                pass
-        _registra(base, base, descr, avanz, autore)
+        base = val.strip()
+        for tok in espandi_seriale_composito(base):
+            _registra(tok, base, descr, avanz, autore)
 
     return JsonResponse({"seriali": sorted(seriali), "dettagli": dettagli})
 

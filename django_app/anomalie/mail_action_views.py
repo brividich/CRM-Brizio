@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 # Azioni che modificano lo stato: monouso.
 _DISPOSITIVE_ACTIONS = {"prendi_in_carico", "approva", "respingi", "richiedi_modifica", "chiudi", "aggiorna_avanzamento"}
 _STATO_FIELD = "avanzamento"
+# Azioni in cui la nota generale del form vale come nota di ogni anomalia.
+_NOTE_GLOBALE_ACTIONS = {"approva", "respingi", "richiedi_modifica"}
 
 # Mapping azione → valore da scrivere nel campo avanzamento (tabella legacy)
 # aggiorna_avanzamento non ha default: il valore arriva sempre per-riga dal form.
@@ -81,34 +83,10 @@ def mail_action_view(request: HttpRequest, token: str) -> HttpResponse:
     else:
         anomalie_live = _load_anomalie_live(token_obj.anomalie_ids, op_id)
 
-    if anomalie_live:
-        from .quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
-        by_anomalia: dict[int, list[dict]] = {}
-        fasi = dict(AnomaliaSegnalazioneMeta.objects.filter(
-            anomalia_id__in=[int(a["id"]) for a in anomalie_live if a.get("id")]
-        ).values_list("anomalia_id", "fase"))
-        detail_rows = AnomaliaDescrizione.objects.filter(
-            segnalazione__anomalia_id__in=[int(a["id"]) for a in anomalie_live if a.get("id")]
-        ).prefetch_related("allegati")
-        for detail in detail_rows:
-            by_anomalia.setdefault(detail.segnalazione.anomalia_id, []).append({
-                "id": detail.pk,
-                "ordine": detail.ordine,
-                "seriali": detail.seriali if isinstance(detail.seriali, list) else [],
-                "testo": detail.testo,
-                "risposta": detail.risposta_capocommessa,
-                "allegati": list(detail.allegati.values("id", "nome", "size")),
-            })
-        for anomaly in anomalie_live:
-            anomaly["descrizioni"] = by_anomalia.get(int(anomaly["id"]), [])
-            anomaly["fase"] = fasi.get(int(anomaly["id"]), "")
-
-    first_images = []
-    if anomalie_live:
-        first_images = _load_first_images(anomalie_live[0]["id"])
-
     if request.method == "POST":
         return _handle_post(request, token_obj, anomalie_live)
+
+    gruppi = _raggruppa(token_obj, anomalie_live)
 
     return render(
         request,
@@ -116,7 +94,8 @@ def mail_action_view(request: HttpRequest, token: str) -> HttpResponse:
         {
             "token": token_obj,
             "anomalie": anomalie_live,
-            "first_images": first_images,
+            "gruppi": gruppi,
+            "ha_nuove": any(g.get("nuovo") for g in gruppi),
             "action": action,
             "action_label": _action_label(action),
             "op_id": op_id,
@@ -172,13 +151,28 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
             anomalia_id = anomalia.get("id")
             if not anomalia_id:
                 continue
-            # Per-riga: usa il valore salvato individualmente se presente, altrimenti il default
-            per_riga = aggiornamenti_per_id.get(str(anomalia_id), {})
-            riga_avanzamento = (per_riga.get("avanzamento") or "").strip() or default_avanzamento
-            riga_note = (per_riga.get("note") or "").strip() or note
-            riga_aprire_rdc = bool(per_riga.get("aprire_rdc"))
-            riga_segnalare = bool(per_riga.get("segnalare"))
-            riga_chiudere = bool(per_riga.get("chiudere"))
+            # Solo le anomalie che il capocommessa ha salvato nella pagina cambiano
+            # flag, note e numero RDC; le altre ricevono al massimo l'avanzamento
+            # di default dell'azione (prima i flag non toccati venivano azzerati).
+            toccata = str(anomalia_id) in aggiornamenti_per_id
+            per_riga = aggiornamenti_per_id.get(str(anomalia_id)) or {}
+            if not isinstance(per_riga, dict):
+                per_riga, toccata = {}, False
+            riga_avanzamento = str(per_riga.get("avanzamento") or "").strip()[:100] or default_avanzamento
+            if toccata:
+                riga_note = str(per_riga.get("note") or "").strip()[:2000]
+                if not riga_note and note and action in _NOTE_GLOBALE_ACTIONS:
+                    riga_note = note
+                riga_aprire_rdc = bool(per_riga.get("aprire_rdc"))
+                riga_segnalare = bool(per_riga.get("segnalare"))
+                riga_chiudere = bool(per_riga.get("chiudere"))
+                riga_numero_rdc = str(per_riga.get("numero_rdc") or "").strip()[:100]
+            else:
+                riga_note = note if (note and action in _NOTE_GLOBALE_ACTIONS) else None
+                riga_aprire_rdc = riga_segnalare = riga_chiudere = None
+                riga_numero_rdc = None
+                if not riga_avanzamento and action != "chiudi":
+                    continue
             descrizioni_risposte = per_riga.get("descrizioni_risposte", {})
             prev = anomalia.get(_STATO_FIELD) or ""
             ok = _apply_action_to_anomalia(
@@ -190,6 +184,7 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                 aprire_rdc=riga_aprire_rdc,
                 segnalare=riga_segnalare,
                 chiudere=riga_chiudere,
+                numero_rdc=riga_numero_rdc,
             )
             if ok and isinstance(descrizioni_risposte, dict):
                 try:
@@ -201,7 +196,7 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                             continue
                         AnomaliaDescrizione.objects.filter(
                             pk=int(detail_id), segnalazione__anomalia_id=anomalia_id,
-                        ).update(
+                        ).exclude(risposta_capocommessa=response_text).update(
                             risposta_capocommessa=response_text,
                             risposta_da=risposta_da[:200],
                             risposta_il=timezone.now(),
@@ -213,7 +208,8 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                 "id": anomalia_id,
                 "ok": ok,
                 "prev": prev,
-                "new": riga_avanzamento if ok else prev,
+                "new": (riga_avanzamento or prev) if ok else prev,
+                "toccata": toccata,
             })
 
         _write_action_log(
@@ -253,14 +249,18 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                 if not r.get("ok"):
                     continue
                 a = by_id.get(str(r["id"]), {})
-                per_riga = aggiornamenti_per_id.get(str(r["id"]), {})
+                per_riga = aggiornamenti_per_id.get(str(r["id"])) or {}
+                if not isinstance(per_riga, dict):
+                    per_riga = {}
                 updates_summary.append({
                     "id": r["id"],
                     "seriale": a.get("seriale") or "",
+                    "descrizione": a.get("descrizione") or "",
                     "avanzamento": r.get("new") or "",
-                    "note": (per_riga.get("note") or note or "").strip(),
-                    "aprire_rdc": bool(per_riga.get("aprire_rdc")),
-                    "segnalare": bool(per_riga.get("segnalare")),
+                    "note": str(per_riga.get("note") or note or "").strip(),
+                    "numero_rdc": str(per_riga.get("numero_rdc") or "").strip(),
+                    "aprire_rdc": bool(per_riga.get("aprire_rdc")) if r.get("toccata") else bool(a.get("aprire_rdc")),
+                    "segnalare": bool(per_riga.get("segnalare")) if r.get("toccata") else bool(a.get("segnalare_cliente")),
                     "chiudere": bool(per_riga.get("chiudere")) or action == "chiudi",
                 })
             if updates_summary:
@@ -325,6 +325,23 @@ def _render_error(request: HttpRequest, messaggio: str, codice: str) -> HttpResp
     )
 
 
+_BASE_COLS = (
+    "id, ex_op_nominativo, seriale, descrizione, note_capocommessa,"
+    " avanzamento, pezzo_recuperato, aprire_rdc, segnalare_cliente, chiudere"
+)
+
+
+def _select_cols() -> str:
+    """Colonne lette dalla tabella legacy; ``numero_rdc`` solo se esiste."""
+    try:
+        from core.legacy_utils import legacy_table_columns
+        if "numero_rdc" in (legacy_table_columns("anomalie") or set()):
+            return _BASE_COLS + ", numero_rdc"
+    except Exception:
+        pass
+    return _BASE_COLS
+
+
 def _load_anomalie_live(anomalie_ids: list, op_id: str) -> list[dict]:
     """Carica le righe anomalie live dalla tabella legacy SQL."""
     if not anomalie_ids:
@@ -334,9 +351,7 @@ def _load_anomalie_live(anomalie_ids: list, op_id: str) -> list[dict]:
         with connections["default"].cursor() as cur:
             placeholders = ",".join(["%s"] * len(anomalie_ids))
             cur.execute(
-                f"SELECT id, ex_op_nominativo, seriale, descrizione, note_capocommessa,"
-                f" avanzamento, pezzo_recuperato, aprire_rdc, segnalare_cliente, chiudere"
-                f" FROM anomalie WHERE id IN ({placeholders}) ORDER BY id",
+                f"SELECT {_select_cols()} FROM anomalie WHERE id IN ({placeholders}) ORDER BY id",
                 anomalie_ids,
             )
             cols = [c[0] for c in cur.description]
@@ -352,28 +367,79 @@ def _load_anomalie_live_by_op(op_id: str) -> list[dict]:
         return []
     try:
         from django.db import connections, connection as _conn
+        op_expr = "LOWER(ex_op_nominativo)" if _conn.vendor == "sqlite" else "LOWER(CAST(ex_op_nominativo AS NVARCHAR(MAX)))"
         with connections["default"].cursor() as cur:
-            if _conn.vendor == "sqlite":
-                cur.execute(
-                    "SELECT id, ex_op_nominativo, seriale, descrizione, note_capocommessa,"
-                    " avanzamento, pezzo_recuperato, aprire_rdc, segnalare_cliente, chiudere"
-                    " FROM anomalie WHERE LOWER(ex_op_nominativo) = LOWER(%s)"
-                    " AND (chiudere IS NULL OR chiudere = 0) ORDER BY id",
-                    [op_id],
-                )
-            else:
-                cur.execute(
-                    "SELECT id, ex_op_nominativo, seriale, descrizione, note_capocommessa,"
-                    " avanzamento, pezzo_recuperato, aprire_rdc, segnalare_cliente, chiudere"
-                    " FROM anomalie WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(MAX))) = LOWER(%s)"
-                    " AND (chiudere IS NULL OR chiudere = 0) ORDER BY id",
-                    [op_id],
-                )
+            cur.execute(
+                f"SELECT {_select_cols()} FROM anomalie WHERE {op_expr} = LOWER(%s)"
+                " AND (chiudere IS NULL OR chiudere = 0) ORDER BY id",
+                [op_id],
+            )
             cols = [c[0] for c in cur.description]
             return [dict(zip(cols, row)) for row in cur.fetchall()]
     except Exception:
         logger.exception("mail_action: impossibile caricare anomalie per op_id=%s", op_id)
         return []
+
+
+def _raggruppa(token_obj, anomalie_live: list[dict]) -> list[dict]:
+    """Anomalie per blocco di seriali: prima i blocchi con le anomalie della mail
+    («da decidere»), poi le altre anomalie aperte dell'OP."""
+    if not anomalie_live:
+        return []
+    nuove = set()
+    for value in token_obj.anomalie_ids or []:
+        try:
+            nuove.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    try:
+        from anomalie.views import _list_attachments_for_local
+
+        from .controllo_service import gruppi_per_blocco
+        from .quality_models import AnomaliaDescrizione
+
+        details: dict[int, list[dict]] = {}
+        for detail in AnomaliaDescrizione.objects.filter(
+            segnalazione__anomalia_id__in=[int(a["id"]) for a in anomalie_live if a.get("id")]
+        ).select_related("segnalazione").prefetch_related("allegati").order_by("ordine", "id"):
+            details.setdefault(detail.segnalazione.anomalia_id, []).append({
+                "id": detail.pk,
+                "seriali": detail.seriali if isinstance(detail.seriali, list) else [],
+                "testo": detail.testo,
+                "risposta": detail.risposta_capocommessa,
+                "allegati": list(detail.allegati.values("id", "nome", "size")),
+            })
+        for anomaly in anomalie_live:
+            anomaly_id = int(anomaly["id"])
+            righe_descrizione = details.get(anomaly_id, [])
+            # Le descrizioni multiple esistono solo per le righe della prima versione
+            # del form; con una sola descrizione basta il testo dell'anomalia.
+            anomaly["descrizioni"] = righe_descrizione if len(righe_descrizione) > 1 else []
+            anomaly["nuova"] = anomaly_id in nuove
+            try:
+                allegati = _list_attachments_for_local(anomaly_id)
+            except Exception:
+                allegati = []
+            anomaly["allegati"] = allegati
+            anomaly["immagini"] = [a for a in allegati if a.get("is_image")][:4]
+        gruppi = gruppi_per_blocco(anomalie_live)
+    except Exception:
+        logger.exception("mail_action: raggruppamento anomalie fallito op=%s", token_obj.op_id)
+        for anomaly in anomalie_live:
+            anomaly.setdefault("testo", anomaly.get("descrizione") or "")
+            anomaly["nuova"] = int(anomaly["id"]) in nuove
+        gruppi = [
+            {"chiave": f"r{a['id']}", "titolo": a.get("seriale") or "", "sottotitolo": "", "righe": [a]}
+            for a in anomalie_live
+        ]
+    for gruppo in gruppi:
+        gruppo["nuovo"] = any(r.get("nuova") for r in gruppo["righe"])
+    gruppi.sort(key=lambda g: 0 if g["nuovo"] else 1)
+    if any(g["nuovo"] for g in gruppi):
+        primo_altro = next((g for g in gruppi if not g["nuovo"]), None)
+        if primo_altro is not None:
+            primo_altro["primo_altri"] = True
+    return gruppi
 
 
 def _load_first_images(anomalia_id: int) -> list[dict]:
@@ -397,6 +463,7 @@ def _apply_action_to_anomalia(
     aprire_rdc: bool | None = None,
     segnalare: bool | None = None,
     chiudere: bool | None = None,
+    numero_rdc: str | None = None,
 ) -> bool:
     """Applica l'azione (update avanzamento / campi / flag) alla riga anomalia legacy."""
     try:
@@ -412,8 +479,13 @@ def _apply_action_to_anomalia(
         # chiudere: dall'azione "chiudi" oppure dal flag automatico per-riga
         if action == "chiudi" or chiudere:
             updates["chiudere"] = 1
-        if action in ("approva", "respingi", "richiedi_modifica") and note:
+        # note=None: campo non toccato; stringa (anche vuota): risposta del capocommessa.
+        if note is not None:
             updates["note_capocommessa"] = note
+        if numero_rdc is not None:
+            from core.legacy_utils import legacy_table_columns
+            if "numero_rdc" in (legacy_table_columns("anomalie") or set()):
+                updates["numero_rdc"] = numero_rdc
 
         if not updates:
             return True

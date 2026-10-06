@@ -189,6 +189,8 @@ from .quality_models import (  # noqa: E402,F401
     AnomaliaNCEvento,
     AnomaliaSchedaQualita,
     AnomaliaSegnalazioneMeta,
+    AnomaliaControllo,
+    AnomaliaBlocco,
     AnomaliaDescrizione,
     AnomaliaDescrizioneAllegato,
     AnomaliaTipoDifetto,

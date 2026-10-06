@@ -1035,6 +1035,7 @@ function GestioneAnomalie() {
   const [segnalare, setSegnalare] = useState(false);
   const [avanzamento, setAvanzamento] = useState(DEFAULT_AVANZAMENTO);
   const [rdcNum, setRdcNum] = useState("");
+  const [applicaBlocco, setApplicaBlocco] = useState(false);
   const filterButtons = [{
     value: "",
     label: "Tutte"
@@ -1201,6 +1202,7 @@ function GestioneAnomalie() {
     } else {
       clearForm();
     }
+    setApplicaBlocco(false);
   }, [selectedSn, filteredSeriali]);
   const loadAttachments = async localId => {
     if (!localId) {
@@ -1232,6 +1234,7 @@ function GestioneAnomalie() {
     }
     loadAttachments(currentLocalId);
   }, [currentLocalId]);
+  const fratelliBlocco = useMemo(() => sn && sn.blocco_id ? anomalie.filter(x => x.blocco_id === sn.blocco_id && x.item_id !== sn.item_id && !x.chiudere) : [], [anomalie, sn && sn.blocco_id, sn && sn.item_id]);
   const getStatoBadge = s => {
     if (!s || !s.avanzamento) return {
       text: "Aperto",
@@ -1344,11 +1347,68 @@ function GestioneAnomalie() {
           const idx = prev.findIndex(a => a.item_id === currentItemId);
           if (idx >= 0) {
             const next = [...prev];
-            next[idx] = updatedRecord;
+            next[idx] = {
+              ...prev[idx],
+              ...updatedRecord
+            };
             return next;
           }
           return [...prev, updatedRecord];
         });
+        if (applicaBlocco && fratelliBlocco.length) {
+          // Stessa decisione sulle altre anomalie aperte del blocco: ognuna resta
+          // una riga a sé (testo, seriali e allegati propri), cambiano solo i campi
+          // della decisione.
+          let ok = 0;
+          const errori = [];
+          for (const f of fratelliBlocco) {
+            try {
+              const rf = await fetch(API.salva, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-CSRFToken": getCsrfToken()
+                },
+                body: JSON.stringify({
+                  item_id: f.item_id,
+                  op_id: op.id,
+                  sn: f.sn || "",
+                  desc: f.desc || "",
+                  note,
+                  pezzi_prec: !!f.pezzi_prec,
+                  aprire_rdc: aprireRdc,
+                  numero_rdc: rdcNum,
+                  segnalare,
+                  chiudere: chiudereAuto,
+                  avanzamento
+                }),
+                credentials: "same-origin"
+              });
+              const df = await readJsonOrThrow(rf, "Salvataggio anomalia del blocco");
+              if (!df.success) throw new Error(df.error || "errore");
+              ok += 1;
+              setAnomalie(prev => prev.map(a => a.item_id === f.item_id ? {
+                ...a,
+                note,
+                aprire_rdc: aprireRdc,
+                numero_rdc: rdcNum,
+                segnalare,
+                chiudere: chiudereAuto,
+                avanzamento
+              } : a));
+            } catch (err) {
+              errori.push(`#${f.local_id}: ${err.message}`);
+            }
+          }
+          setApplicaBlocco(false);
+          setSaveMsg(errori.length ? {
+            ok: false,
+            text: `Salvato; blocco: ${ok} aggiornate, ${errori.length} non aggiornate (${errori.join("; ")})`
+          } : {
+            ok: true,
+            text: `Salvato anche sulle altre ${ok} anomalie del blocco`
+          });
+        }
       } else {
         setSaveMsg({
           ok: false,
@@ -2258,6 +2318,7 @@ function GestioneAnomalie() {
     }) => {
       const col = snColor(a.avanzamento);
       const closed = Boolean(a.chiudere);
+      const inBlocco = Boolean(a.blocco_id);
       return /*#__PURE__*/React.createElement("div", {
         key: a.item_id || i,
         onClick: () => {
@@ -2290,7 +2351,18 @@ function GestioneAnomalie() {
           background: col,
           boxShadow: `0 0 0 3px ${col}22`
         }
-      }), /*#__PURE__*/React.createElement("span", {
+      }), inBlocco ? /*#__PURE__*/React.createElement("span", {
+        className: "text-base",
+        style: {
+          fontWeight: 600,
+          color: "var(--text)",
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap"
+        },
+        title: a.testo || a.desc || ""
+      }, a.testo || a.desc || "(nessuna descrizione)") : /*#__PURE__*/React.createElement("span", {
         className: "text-base font-semibold",
         style: {
           fontWeight: 600,
@@ -2372,7 +2444,43 @@ function GestioneAnomalie() {
         d: "M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
       })), "Duplica")));
     };
-    return /*#__PURE__*/React.createElement(React.Fragment, null, openSeriali.map(renderSnCard), closedSeriali.length > 0 && /*#__PURE__*/React.createElement("div", {
+    // Anomalie nate dallo stesso blocco di seriali: un'intestazione con i S/N
+    // e la fase, poi una scheda per anomalia (ognuna con la sua decisione).
+    const renderGrouped = list => list.map((x, idx) => {
+      const prev = idx > 0 ? list[idx - 1].a : null;
+      const head = x.a.blocco_id && (!prev || prev.blocco_id !== x.a.blocco_id);
+      if (!head) return renderSnCard(x);
+      const nBlocco = list.filter(y => y.a.blocco_id === x.a.blocco_id).length;
+      return /*#__PURE__*/React.createElement(React.Fragment, {
+        key: `blk-${x.a.blocco_id}-${x.i}`
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          margin: idx ? "10px 4px 4px" : "2px 4px 4px",
+          padding: "6px 8px",
+          borderLeft: "3px solid var(--accent)",
+          background: "var(--surface)",
+          borderRadius: 6
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "text-sm",
+        style: {
+          fontWeight: 700,
+          color: "var(--text)",
+          fontFamily: "ui-monospace,monospace",
+          wordBreak: "break-word"
+        }
+      }, "S/N: ", x.a.blocco_label || x.a.sn || '\u2014'), /*#__PURE__*/React.createElement("div", {
+        className: "text-2xs",
+        style: {
+          color: "var(--text-mid)"
+        }
+      }, [x.a.fase ? `Fase ${x.a.fase}` : "", `${nBlocco} anomali${nBlocco === 1 ? "a" : "e"}`, x.a.controllo_operatore, x.a.controllo_data ? new Date(x.a.controllo_data).toLocaleDateString("it-IT", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit"
+      }) : ""].filter(Boolean).join(" · "))), renderSnCard(x));
+    });
+    return /*#__PURE__*/React.createElement(React.Fragment, null, renderGrouped(openSeriali), closedSeriali.length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: openSeriali.length ? 10 : 0
       }
@@ -2410,7 +2518,7 @@ function GestioneAnomalie() {
       style: {
         fontWeight: 600
       }
-    }, "Chiuse (", closedSeriali.length, ")")), !closedCollapsed && closedSeriali.map(renderSnCard)));
+    }, "Chiuse (", closedSeriali.length, ")")), !closedCollapsed && renderGrouped(closedSeriali)));
   })())), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--surface)",
@@ -2473,9 +2581,16 @@ function GestioneAnomalie() {
     style: {
       fontWeight: 500,
       color: "var(--text-mid)",
-      fontFamily: "ui-monospace,monospace"
+      fontFamily: "ui-monospace,monospace",
+      wordBreak: "break-word"
     }
-  }, sn.sn || '\u2014'), sn.fase && /*#__PURE__*/React.createElement("div", {
+  }, sn.blocco_label || sn.sn || '\u2014'), sn.stato_superficie && /*#__PURE__*/React.createElement("div", {
+    className: "text-sm",
+    style: {
+      color: "var(--text-mid)",
+      marginTop: 4
+    }
+  }, "Stato superficie: ", sn.stato_superficie), sn.fase && /*#__PURE__*/React.createElement("div", {
     className: "text-sm",
     style: {
       color: "var(--text-mid)",
@@ -2527,7 +2642,31 @@ function GestioneAnomalie() {
   }, /*#__PURE__*/React.createElement(FieldLabel, null, "Avanzamento"), /*#__PURE__*/React.createElement(StatoStepper, {
     avanzamento: sn.avanzamento,
     chiuso: Boolean(sn.chiudere)
-  })), !canEditCurrentOp && op.id && op.id !== '\u2014' && /*#__PURE__*/React.createElement("div", {
+  })), canEditSelected && fratelliBlocco.length > 0 && /*#__PURE__*/React.createElement("label", {
+    className: "text-sm",
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 12,
+      padding: "9px 12px",
+      border: "1px dashed var(--accent)",
+      borderRadius: 8,
+      background: "var(--bg)",
+      color: "var(--text)",
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: applicaBlocco,
+    onChange: e => setApplicaBlocco(e.target.checked),
+    style: {
+      accentColor: "var(--accent)",
+      minHeight: 0,
+      width: 16,
+      height: 16
+    }
+  }), /*#__PURE__*/React.createElement("span", null, "Al salvataggio applica la stessa decisione (avanzamento, RDC, cliente, note) anche alle altre ", /*#__PURE__*/React.createElement("strong", null, fratelliBlocco.length), " anomali", fratelliBlocco.length === 1 ? "a" : "e", " aperte di questi seriali")), !canEditCurrentOp && op.id && op.id !== '\u2014' && /*#__PURE__*/React.createElement("div", {
     className: "text-sm font-semibold",
     style: {
       marginTop: 12,

@@ -183,6 +183,68 @@ class AnomaliaSchedaQualita(models.Model):
         return f"anomalia {self.anomalia_id}"
 
 
+class AnomaliaControllo(models.Model):
+    """Sessione di controllo di un OP: l'operatore registra blocchi di seriali e,
+    per ciascun blocco, una o più anomalie (una riga legacy ``anomalie`` ciascuna).
+
+    Serve a raggruppare le anomalie nate insieme e a decidere quando parte la mail
+    al capocommessa: a ogni salvataggio di blocco (con il debounce) oppure una sola
+    volta a fine controllo.
+    """
+
+    class MailMode(models.TextChoices):
+        SUBITO = "subito", "A ogni salvataggio"
+        FINE = "fine", "Unica mail a fine controllo"
+
+    op_id = models.CharField(max_length=100, db_index=True)
+    op_item_id = models.CharField(max_length=100, blank=True, default="")
+    fase = models.CharField(max_length=100)
+    mail_mode = models.CharField(max_length=10, choices=MailMode.choices, default=MailMode.SUBITO)
+    operatore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    operatore_display = models.CharField(max_length=200, blank=True, default="")
+    terminato_at = models.DateTimeField(null=True, blank=True)
+    ultimo_salvataggio_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    # Id delle righe legacy salvate e non ancora comunicate al capocommessa.
+    da_notificare = models.JSONField(default=list, blank=True)
+    ultima_mail_at = models.DateTimeField(null=True, blank=True)
+    mail_tentativi = models.PositiveSmallIntegerField(default=0)
+    mail_errore = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-id"]
+        verbose_name = "Controllo OP"
+        verbose_name_plural = "Controlli OP"
+
+    def __str__(self) -> str:
+        return f"Controllo OP {self.op_id} · {self.fase}"
+
+
+class AnomaliaBlocco(models.Model):
+    """Gruppo di seriali (singoli, liste, range) con le anomalie riscontrate su di essi."""
+
+    controllo = models.ForeignKey(AnomaliaControllo, on_delete=models.CASCADE, related_name="blocchi")
+    ordine = models.PositiveIntegerField(default=0)
+    fase = models.CharField(max_length=100)
+    # Voci come digitate: "LCN00001", "LCN00005-LCN00010".
+    seriali = models.JSONField(default=list, blank=True)
+    seriale_label = models.CharField(max_length=200, blank=True, default="")
+    stato_superficie = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        verbose_name = "Blocco seriali controllo"
+        verbose_name_plural = "Blocchi seriali controllo"
+
+    def __str__(self) -> str:
+        return f"Blocco {self.ordine} · {self.seriale_label}"
+
+
 class AnomaliaSegnalazioneMeta(models.Model):
     """Dati di collegamento della segnalazione alla NC dell'OP e alla fase."""
 
@@ -192,6 +254,13 @@ class AnomaliaSegnalazioneMeta(models.Model):
         AnomaliaNC, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="segnalazioni_fase",
     )
+    controllo = models.ForeignKey(
+        AnomaliaControllo, on_delete=models.SET_NULL, null=True, blank=True, related_name="segnalazioni",
+    )
+    blocco = models.ForeignKey(
+        AnomaliaBlocco, on_delete=models.SET_NULL, null=True, blank=True, related_name="segnalazioni",
+    )
+    ordine_nel_blocco = models.PositiveIntegerField(default=0)
     fase = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
