@@ -58,6 +58,24 @@
     .op-info-chip { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.20); border-radius: 6px; padding: 3px 10px; font-size: var(--fs-sm); color: rgba(255,255,255,.90); }
     .op-info-chip strong { color: #fff; font-weight: 700; }
     .form-body { padding: 20px 28px 24px; display: flex; flex-direction: column; gap: 20px; }
+    .form-intro { display: grid; gap: 12px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(135deg, var(--surface), var(--bg)); }
+    .form-intro-title { color: var(--text); font-size: var(--fs-md); font-weight: 800; }
+    .form-intro-copy { max-width: 62ch; color: var(--text-mid); font-size: var(--fs-sm); }
+    .form-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .form-flow-step { display: flex; align-items: center; gap: 8px; color: var(--text-mid); font-size: var(--fs-sm); font-weight: 600; }
+    .form-flow-step b { display: grid; place-items: center; width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; background: var(--accent-light); color: var(--accent); font-size: var(--fs-xs); }
+    .field-hint { color: var(--text-mid); font-size: var(--fs-sm); line-height: 1.45; }
+    .field-example { color: var(--text-light); font-size: var(--fs-xs); }
+    .description-list { display: grid; gap: 12px; }
+    .description-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 2px 8px rgba(15,23,42,.035); }
+    .description-card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .description-card__title { color: var(--text); font-weight: 800; }
+    .description-card__meta { color: var(--text-light); font-size: var(--fs-xs); }
+    .serial-choice { border: 1px solid var(--border); border-radius: 999px; padding: 7px 11px; background: var(--bg); transition: border-color .15s, background .15s; }
+    .serial-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-light); color: var(--text); }
+    .description-add { align-self: flex-start; }
+    body.theme-dark .form-intro { background: linear-gradient(135deg, var(--surface), var(--bg)); }
+    body.theme-dark .serial-choice:has(input:checked) { background: rgba(249,115,22,.13); }
     .field-group { display: flex; flex-direction: column; gap: 6px; }
     .field-label { font-size: var(--fs-base); font-weight: 700; color: var(--text); }
     .req { color: var(--danger); margin-left: 2px; }
@@ -138,6 +156,7 @@
       .step-header { padding: 16px 18px 14px; }
       .create-op-wrap, .search-wrap, .op-row, .form-body { padding-left: 18px; padding-right: 18px; }
       .create-grid { grid-template-columns: 1fr; }
+      .form-flow { grid-template-columns: 1fr; }
       .op-info-bar { padding: 10px 14px; align-items: flex-start; }
       .op-info-items { flex-basis: 100%; }
       .toast { white-space: normal; max-width: calc(100vw - 32px); text-align: center; }
@@ -989,7 +1008,17 @@
         </div>
 
         <div className="form-body">
-          <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>OP {op.id} <span aria-hidden="true">→</span> Segnalazione per fase</h3>
+          <div className="form-intro">
+            <div>
+              <div className="form-intro-title">Segnalazione per OP {op.id}</div>
+              <p className="form-intro-copy">Registra il controllo svolto e descrivi ogni rilievo insieme ai seriali interessati. Così chi prenderà in carico la segnalazione troverà subito il contesto e le evidenze corrette.</p>
+            </div>
+            <div className="form-flow" aria-label="Passaggi della segnalazione">
+              <div className="form-flow-step"><b>1</b><span>Indica la fase</span></div>
+              <div className="form-flow-step"><b>2</b><span>Seleziona i seriali</span></div>
+              <div className="form-flow-step"><b>3</b><span>Descrivi e allega</span></div>
+            </div>
+          </div>
           <div className="field-group">
             <label className="field-label" htmlFor="segnalazione-fase">
               Fase del controllo <span className="req">*</span>
@@ -1003,9 +1032,8 @@
               onChange={e => setFase(e.target.value)}
               maxLength={100}
             />
-            <div className="text-sm" style={{ color: 'var(--text-mid)' }}>
-              Lo stesso OP può avere segnalazioni collegate riferite a fasi diverse.
-            </div>
+            <div className="field-hint">Specifica il momento in cui è stato rilevato il problema. Puoi aprire più segnalazioni per lo stesso OP, una per ogni fase controllata.</div>
+            <div className="field-example">Esempi: accettazione materiale · lavorazione · collaudo finale</div>
           </div>
 
           {/* Stato superficie */}
@@ -1028,8 +1056,9 @@
           {/* S/N */}
           <div className="field-group">
             <label className="field-label">
-              S/N <span className="req">*</span>
+              Seriali coinvolti <span className="req">*</span>
             </label>
+            <div className="field-hint">Aggiungi i seriali interessati; potrai poi associare a ciascun rilievo solo quelli pertinenti.</div>
             <label className="checkbox-item" style={{ marginBottom: '8px' }}>
               <input
                 type="checkbox"
@@ -1118,38 +1147,43 @@
 
           {/* Descrizioni dell'anomalia */}
           <div className="field-group">
-            <div className="field-label">Descrizioni dell’anomalia <span className="req">*</span></div>
-            <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, display: 'grid', gap: 8, background: 'var(--surface)' }}>
-              <div className="field-label" id="descrizione-seriali-1">Descrizione 1 · seriali associati</div>
-              <div id="descrizione-seriali-aiuto" role="group" aria-label="Seriali associati alla descrizione 1" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {tokensFromInput().map(value => <label key={value} className="checkbox-item" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}><input type="checkbox" checked={(selectedDescSerials === null ? tokensFromInput() : selectedDescSerials).includes(value)} onChange={event => toggleDescriptionSerial(0, value, event.target.checked)} /><span>{value}</span></label>)}
+            <div className="field-label">Rilievi da segnalare <span className="req">*</span></div>
+            <div className="field-hint">Crea una descrizione per ogni problema distinto. Ogni rilievo avrà i propri seriali e allegati, così la risposta del capocommessa sarà riferita al punto giusto.</div>
+            <div className="description-list">
+            <div className="description-card">
+              <div className="description-card__head"><div><div className="description-card__title">Rilievo 1</div><div className="description-card__meta">Prima descrizione · obbligatoria</div></div><span className="badge">Richiesto</span></div>
+              <div className="field-label" id="descrizione-seriali-1">A quali seriali si riferisce?</div>
+              <div id="descrizione-seriali-aiuto" role="group" aria-label="Seriali associati al rilievo 1" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {tokensFromInput().map(value => <label key={value} className="checkbox-item serial-choice"><input type="checkbox" checked={(selectedDescSerials === null ? tokensFromInput() : selectedDescSerials).includes(value)} onChange={event => toggleDescriptionSerial(0, value, event.target.checked)} /><span>{value}</span></label>)}
               </div>
-              <div className="text-sm" style={{ color: 'var(--text-mid)' }}>Seleziona uno o più seriali; inizialmente sono associati tutti.</div>
+              <div className="field-hint">Inizialmente sono selezionati tutti i seriali inseriti sopra. Togli la selezione da quelli non coinvolti.</div>
               <textarea
               className="textarea-input"
               rows={4}
-              placeholder="Descrivi l'anomalia riscontrata..."
+              aria-label="Descrizione del rilievo 1"
+              placeholder="Descrivi cosa hai rilevato, dove si trova e qual è il difetto osservato..."
               value={desc}
               onChange={e => setDesc(e.target.value)}
               />
+            </div>
             </div>
             <datalist id="seriali-segnalazione">
               {Array.from(new Set(tokensFromInput())).map(value => <option key={value} value={value} />)}
             </datalist>
             {extraDescriptions.map((row, index) => (
-              <div key={`descrizione-${index}`} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, display: 'grid', gap: 8, marginTop: 10, background: 'var(--surface)' }}>
-                <div className="field-label">Descrizione {index + 2} · seriali associati</div>
+              <div key={`descrizione-${index}`} className="description-card">
+                <div className="description-card__head"><div><div className="description-card__title">Rilievo {index + 2}</div><div className="description-card__meta">Descrizione aggiuntiva</div></div><button type="button" className="btn-secondary" onClick={() => setExtraDescriptions(prev => prev.filter((_, i) => i !== index))}>Rimuovi</button></div>
+                <div className="field-label">A quali seriali si riferisce?</div>
                 <div role="group" aria-label={`Seriali della descrizione ${index + 2}`} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {tokensFromInput().map(value => <label key={value} className="checkbox-item" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}><input type="checkbox" checked={(Array.isArray(row.seriali) ? row.seriali : tokensFromInput()).includes(value)} onChange={event => toggleDescriptionSerial(index + 1, value, event.target.checked)} /><span>{value}</span></label>)}
+                  {tokensFromInput().map(value => <label key={value} className="checkbox-item serial-choice"><input type="checkbox" checked={(Array.isArray(row.seriali) ? row.seriali : tokensFromInput()).includes(value)} onChange={event => toggleDescriptionSerial(index + 1, value, event.target.checked)} /><span>{value}</span></label>)}
                 </div>
                 <input className="text-input" type="text" placeholder="Aggiungi seriali manuali separati da virgola (facoltativo)" value={row.serialiManuali || ''} onChange={e => updateExtraDescription(index, 'serialiManuali', e.target.value)} />
-                <textarea className="textarea-input" rows={3} placeholder="Descrivi il rilievo per questi seriali..." value={row.testo} onChange={e => updateExtraDescription(index, 'testo', e.target.value)} />
+                <textarea className="textarea-input" rows={3} aria-label={`Descrizione del rilievo ${index + 2}`} placeholder="Descrivi cosa hai rilevato, dove si trova e qual è il difetto osservato..." value={row.testo} onChange={e => updateExtraDescription(index, 'testo', e.target.value)} />
                 <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv" onChange={e => selectExtraDescriptionFiles(index, e)} />
                 <div className="text-sm" style={{ color: 'var(--text-mid)' }}>{(row.files || []).map(file => file.name).join(' · ') || 'Nessun allegato selezionato.'}</div>
-                <button type="button" className="btn-secondary" onClick={() => setExtraDescriptions(prev => prev.filter((_, i) => i !== index))}>Rimuovi descrizione</button>
               </div>
             ))}
-            <button type="button" className="btn-outline" onClick={() => setExtraDescriptions(prev => [...prev, { seriali: null, serialiManuali: '', testo: '', files: [] }])} style={{ alignSelf: 'flex-start', marginTop: 8 }}>+ Nuova descrizione</button>
+            <button type="button" className="btn-outline description-add" onClick={() => setExtraDescriptions(prev => [...prev, { seriali: null, serialiManuali: '', testo: '', files: [] }])}>+ Aggiungi un altro rilievo</button>
           </div>
 
           {/* Copilota AI: proposta di triage (read-only, non modifica i campi) */}
