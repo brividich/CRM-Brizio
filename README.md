@@ -4,7 +4,7 @@ Discovery SNMP: catalogo di community nominate e cifrate, selezionabili anche ne
 
 Polling SNMP: letture GET/WALK con budget totale di 30s per gruppo; WALK massimo 10s e 256 righe, errore senza aggregati parziali. Due passaggi di specifiche e discovery stampante (20s) hanno un budget di rete complessivo di 80s, lasciando margine al job di 110s; SQL e apparati reali restano da verificare. Nessuna cancellazione o replay della coda.
 
-SNMPv3: nel catalogo community scegli «SNMPv3» e inserisci utente, autenticazione (SHA/MD5) e, se serve, cifratura (AES/DES); le chiavi sono cifrate come le community e non vengono mai mostrate. La cifratura usa il pacchetto `puresnmp-crypto` (nuovo in requirements: `pip install -r` al deploy); migrazione Contatori 0024. Piano: [PIANO_SNMPV3](docs/snmp/PIANO_SNMPV3.md).
+SNMPv3: nel catalogo community scegli «SNMPv3» e inserisci utente, autenticazione (SHA/MD5) e, se serve, cifratura (AES/DES); le chiavi sono cifrate come le community e non vengono mai mostrate. Le stesse credenziali si possono inserire direttamente nel form di un dispositivo SNMP o di una stampante: vengono salvate nel catalogo come «SNMPv3 dispositivo <IP>» / «SNMPv3 stampante <matricola>». I campi v3 compaiono solo scegliendo la versione SNMPv3. La cifratura usa il pacchetto `puresnmp-crypto` (nuovo in requirements: `pip install -r` al deploy); migrazione Contatori 0024. Piano: [PIANO_SNMPV3](docs/snmp/PIANO_SNMPV3.md).
 
 La console qcluster precompila ora il nome completo DOMINIO\utente risolto dal SID esportato del task, evitando la proposta ambigua del nome breve. Dopo la sostituzione della console occorre riaprirla e ripetere 2 e 9 per ricostruire i controlli di sessione.
 

@@ -3,7 +3,7 @@ from unittest import mock
 from django.test import SimpleTestCase, TestCase
 
 from .credential_crypto import decifra
-from .forms import CommunitySNMPForm
+from .forms import CAMPI_V3, CommunitySNMPForm
 from .snmp import SNMPError, costruisci_credenziali, segreto_v3
 
 # Valori sintetici: nessuna credenziale reale.
@@ -61,6 +61,14 @@ class CommunityV3FormTests(TestCase):
     def test_v3_senza_utente_invalido(self):
         self.assertFalse(CommunitySNMPForm({**self.base, "v3_auth": "sha1"}).is_valid())
 
+    def test_modifica_v3_senza_chiavi_mantiene_segreto(self):
+        obj = CommunitySNMPForm({**self.base, "v3_utente": U, "v3_auth": "sha1",
+                                 "v3_auth_key": AK}).save()
+        prima = obj.segreto_cifrato
+        form = CommunitySNMPForm({**self.base, "nome": "ilo-rinominata"}, instance=obj)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.save().segreto_cifrato, prima)
+
     def test_v2c_richiede_community(self):
         form = CommunitySNMPForm({**self.base, "versione": "v2c"})
         self.assertFalse(form.is_valid())
@@ -84,13 +92,58 @@ class DispositivoV3FormTests(TestCase):
         self.assertNotIn(AK, obj.community_salvata.segreto_cifrato)
         self.assertIn(AK, decifra(obj.community_salvata.segreto_cifrato))
 
+        self.assertEqual(obj.community_salvata.nome, "SNMPv3 dispositivo 192.0.2.10")
+
     def test_v3_senza_credenziali_invalido(self):
         form = self._form()
         self.assertFalse(form.is_valid())
         self.assertIn("v3_utente", form.errors)
 
+    def test_v3_con_community_salvata_senza_campi(self):
+        from .models import CommunitySNMP
+        c = CommunitySNMP.objects.create(nome="v3-catalogo", versione="v3", segreto_cifrato="x")
+        self.assertTrue(self._form(community_salvata=c.pk).is_valid())
+
+    def test_v3_inline_sostituisce_credenziale_esistente(self):
+        obj = self._form(v3_utente=U, v3_auth="sha1", v3_auth_key=AK).save()
+        from .forms import DispositivoSNMPForm
+        form = DispositivoSNMPForm({**self.base, "community_salvata": obj.community_salvata_id,
+                                    "v3_utente": U, "v3_auth": "sha1", "v3_auth_key": "nuova-chiave"},
+                                   instance=obj)
+        self.assertTrue(form.is_valid(), form.errors)
+        obj2 = form.save()
+        self.assertEqual(obj2.community_salvata_id, obj.community_salvata_id)
+        self.assertIn("nuova-chiave", decifra(obj2.community_salvata.segreto_cifrato))
+
     def test_v2c_non_richiede_credenziali_v3(self):
         self.assertTrue(self._form(versione="v2c").is_valid())
+
+    def test_campi_v3_dopo_versione_e_marcati(self):
+        form = self._form()
+        nomi = list(form.fields)
+        i = nomi.index("versione")
+        self.assertEqual(nomi[i + 1:i + 6], list(CAMPI_V3))
+        self.assertIn("data-snmp-versione", form.fields["versione"].widget.attrs)
+        self.assertIn("data-snmp-v3", form.fields["v3_auth_key"].widget.attrs)
+
+
+class MacchinaV3FormTests(TestCase):
+    base = {"reparto": "Ufficio", "matricola": "SYN-001", "fornitore": "BASE",
+            "snmp_versione": "v3", "attiva": "on"}
+
+    def test_v3_inline_crea_credenziale(self):
+        from .forms import MacchinaForm
+        form = MacchinaForm({**self.base, "v3_utente": U, "v3_auth": "sha1", "v3_auth_key": AK})
+        self.assertTrue(form.is_valid(), form.errors)
+        m = form.save()
+        self.assertEqual(m.community_salvata.nome, "SNMPv3 stampante SYN-001")
+        self.assertIn(AK, decifra(m.community_salvata.segreto_cifrato))
+
+    def test_v3_senza_credenziali_invalido(self):
+        from .forms import MacchinaForm
+        form = MacchinaForm(self.base)
+        self.assertFalse(form.is_valid())
+        self.assertIn("v3_utente", form.errors)
 
 
 class DiscoveryV3Tests(SimpleTestCase):

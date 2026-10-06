@@ -15,25 +15,62 @@ from .models import (
 )
 
 
-class CommunitySNMPForm(forms.ModelForm):
-    valore = forms.CharField(label="Community read-only", max_length=60, required=False,
-                             strip=False, widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
-                             help_text="In modifica lascia vuoto per mantenere il valore salvato. "
-                                       "Non usata con SNMPv3.")
-    v3_utente = forms.CharField(label="SNMPv3 - utente", max_length=64, required=False,
-                                help_text="Solo SNMPv3.")
+_PASSWORD = {"autocomplete": "new-password"}
+CAMPI_V3 = ("v3_utente", "v3_auth", "v3_auth_key", "v3_priv", "v3_priv_key")
+
+
+class CredenzialiV3Form(forms.Form):
+    """Campi SNMPv3 comuni ai form; il JS `snmp_v3.js` li mostra solo con versione v3.
+
+    `campo_versione` indica il campo che seleziona la versione SNMP.
+    """
+    campo_versione = "versione"
+
+    v3_utente = forms.CharField(label="SNMPv3 - utente", max_length=64, required=False)
     v3_auth = forms.ChoiceField(label="SNMPv3 - autenticazione", required=False,
                                 choices=[("", "Nessuna"), ("sha1", "SHA"), ("md5", "MD5")])
     v3_auth_key = forms.CharField(label="SNMPv3 - chiave di autenticazione", max_length=128,
                                   required=False, strip=False,
-                                  widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}))
+                                  widget=forms.PasswordInput(attrs=_PASSWORD))
     v3_priv = forms.ChoiceField(label="SNMPv3 - cifratura", required=False,
                                 choices=[("", "Nessuna"), ("aes", "AES"), ("des", "DES")])
     v3_priv_key = forms.CharField(label="SNMPv3 - chiave di cifratura", max_length=128,
                                   required=False, strip=False,
-                                  widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
-                                  help_text="In modifica SNMPv3 reinserisci tutte le chiavi: "
+                                  widget=forms.PasswordInput(attrs=_PASSWORD),
+                                  help_text="Per sostituire le credenziali reinseriscile tutte: "
                                             "il segreto viene riscritto per intero.")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields[self.campo_versione].widget.attrs["data-snmp-versione"] = ""
+        for nome in CAMPI_V3:
+            self.fields[nome].widget.attrs["data-snmp-v3"] = ""
+        # Campi v3 subito dopo il selettore di versione.
+        ordine = [n for n in self.fields if n not in CAMPI_V3]
+        pos = ordine.index(self.campo_versione) + 1
+        self.order_fields(ordine[:pos] + list(CAMPI_V3) + ordine[pos:])
+
+    def _v3_richiesta(self):
+        return self.cleaned_data.get(self.campo_versione) == "v3"
+
+    def _v3_compilata(self):
+        return any(self.cleaned_data.get(k) for k in ("v3_utente", "v3_auth_key", "v3_priv_key"))
+
+    def _segreto_v3(self):
+        """Segreto serializzato oppure "" con errore sul form."""
+        from .snmp import SNMPError, segreto_v3
+        try:
+            return segreto_v3(*(self.cleaned_data.get(k, "") for k in CAMPI_V3))
+        except SNMPError as e:
+            self.add_error("v3_utente", str(e))
+            return ""
+
+
+class CommunitySNMPForm(CredenzialiV3Form, forms.ModelForm):
+    valore = forms.CharField(label="Community read-only", max_length=60, required=False,
+                             strip=False, widget=forms.PasswordInput(attrs=_PASSWORD),
+                             help_text="In modifica lascia vuoto per mantenere il valore salvato. "
+                                       "Non usata con SNMPv3.")
 
     class Meta:
         model = CommunitySNMP
@@ -42,6 +79,7 @@ class CommunitySNMPForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("auto_id", "community_%s")
         super().__init__(*args, **kwargs)
+        self.fields["valore"].widget.attrs["data-snmp-non-v3"] = ""
 
     def clean_porta(self):
         value = self.cleaned_data.get("porta")
@@ -50,20 +88,16 @@ class CommunitySNMPForm(forms.ModelForm):
         return value
 
     def clean(self):
-        from .snmp import SNMPError, segreto_v3
         data = super().clean()
         self._segreto = ""
-        if data.get("versione") == "v3":
-            try:
-                self._segreto = segreto_v3(
-                    data.get("v3_utente", ""), data.get("v3_auth", ""),
-                    data.get("v3_auth_key", ""), data.get("v3_priv", ""),
-                    data.get("v3_priv_key", ""))
-            except SNMPError as e:
-                self.add_error(None, str(e))
+        era_v3 = self.instance.pk and self.instance.versione == "v3"
+        if self._v3_richiesta():
+            # In modifica di una credenziale già v3 i campi vuoti la lasciano invariata.
+            if self._v3_compilata() or not era_v3:
+                self._segreto = self._segreto_v3()
         elif data.get("valore"):
             self._segreto = data["valore"]
-        elif not self.instance.pk or self.instance.versione == "v3":
+        elif not self.instance.pk or era_v3:
             self.add_error("valore", "Inserisci la community.")
         return data
 
@@ -74,6 +108,78 @@ class CommunitySNMPForm(forms.ModelForm):
             instance.segreto_cifrato = cifra(self._segreto)
         if commit:
             instance.save()
+        return instance
+
+
+class SezioniFormMixin:
+    """Raggruppa i campi in sezioni per `_form_sezioni.html`.
+
+    `sezioni_def`: tuple (titolo, descrizione, campi). I campi v3 finiscono nel
+    riquadro dedicato della loro sezione; quelli non elencati nell'ultima.
+    """
+    sezioni_def = ()
+    campi_full = frozenset({"note", "asset"})
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("label_suffix", "")
+        super().__init__(*args, **kwargs)
+        if "profilo_snmp" in self.fields:
+            self.fields["profilo_snmp"].label = "Profilo SNMP"
+
+    def sezioni(self):
+        usati, out = set(), []
+        for titolo, descrizione, campi in self.sezioni_def:
+            nomi = [n for n in campi if n in self.fields]
+            usati.update(nomi)
+            out.append({"titolo": titolo, "descrizione": descrizione,
+                        "campi": [self[n] for n in nomi if n not in CAMPI_V3],
+                        "v3": [self[n] for n in nomi if n in CAMPI_V3]})
+        out[-1]["campi"] += [self[n] for n in self.fields if n not in usati]
+        return out
+
+
+_DESCR_SNMP = ("Indirizzo e parametri di lettura. I campi vuoti usano il profilo "
+               "o la configurazione globale.")
+
+
+class CredenzialeV3InlineMixin(CredenzialiV3Form):
+    """Credenziali v3 inserite sull'apparato: salvate cifrate nel catalogo community.
+
+    I campi compilati prevalgono sulla credenziale selezionata; se non compilati
+    serve una credenziale salvata.
+    """
+
+    campo_community = "community"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields[self.campo_community].widget.attrs["data-snmp-non-v3"] = ""
+
+    def nome_credenziale_v3(self, instance):
+        raise NotImplementedError
+
+    def clean(self):
+        data = super().clean()
+        self._segreto_v3_inline = ""
+        if self._v3_richiesta():
+            if self._v3_compilata():
+                self._segreto_v3_inline = self._segreto_v3()
+            elif not data.get("community_salvata"):
+                self.add_error("v3_utente", "SNMPv3: inserisci le credenziali "
+                                            "o seleziona una community salvata.")
+        return data
+
+    def save(self, commit=True):
+        from .credential_crypto import cifra
+        instance = super().save(commit=False)
+        if self._segreto_v3_inline:
+            community, _ = CommunitySNMP.objects.update_or_create(
+                nome=self.nome_credenziale_v3(instance)[:80],
+                defaults={"versione": "v3", "segreto_cifrato": cifra(self._segreto_v3_inline)})
+            instance.community_salvata = community
+        if commit:
+            instance.save()
+            self.save_m2m()
         return instance
 
 
@@ -117,7 +223,28 @@ class LetturaForm(forms.ModelForm):
         widgets = {"data": forms.DateInput(attrs={"type": "date"})}
 
 
-class MacchinaForm(forms.ModelForm):
+def _imposta_campo_asset(field):
+    field.required = False
+    field.empty_label = "— nessun asset collegato —"
+    try:
+        from assets.models import Asset
+        field.queryset = Asset.objects.order_by("asset_tag", "name")
+    except Exception:  # pragma: no cover
+        pass
+
+
+class MacchinaForm(SezioniFormMixin, CredenzialeV3InlineMixin, forms.ModelForm):
+    campo_versione = "snmp_versione"
+    campo_community = "snmp_community"
+    sezioni_def = (
+        ("Macchina", "Dati di contratto e fatturazione.",
+         ("reparto", "matricola", "modello", "contratto", "fornitore")),
+        ("Connessione SNMP", _DESCR_SNMP,
+         ("host", "profilo_snmp", "snmp_versione", "snmp_porta", "snmp_timeout",
+          "community_salvata", "snmp_community", *CAMPI_V3)),
+        ("Collegamenti", "", ("asset", "attiva")),
+    )
+
     class Meta:
         model = Macchina
         fields = [
@@ -129,13 +256,10 @@ class MacchinaForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["asset"].label = "Asset collegato (registro HUB)"
-        self.fields["asset"].required = False
-        self.fields["asset"].empty_label = "— nessun asset collegato —"
-        try:
-            from assets.models import Asset
-            self.fields["asset"].queryset = Asset.objects.order_by("asset_tag", "name")
-        except Exception:  # pragma: no cover
-            pass
+        _imposta_campo_asset(self.fields["asset"])
+
+    def nome_credenziale_v3(self, instance):
+        return f"SNMPv3 stampante {instance.matricola}"
 
     def clean(self):
         cleaned = super().clean()
@@ -154,73 +278,31 @@ class ImpostazioniSNMPForm(forms.ModelForm):
         fields = ["community", "port", "timeout", "version"]
 
 
-class DispositivoSNMPForm(forms.ModelForm):
-    v3_utente = forms.CharField(label="SNMPv3 - utente", max_length=64, required=False,
-                                help_text="Solo SNMPv3, se non selezioni una credenziale salvata.")
-    v3_auth = forms.ChoiceField(label="SNMPv3 - autenticazione", required=False,
-                                choices=[("", "Nessuna"), ("sha1", "SHA"), ("md5", "MD5")])
-    v3_auth_key = forms.CharField(label="SNMPv3 - chiave di autenticazione", max_length=128,
-                                  required=False, strip=False,
-                                  widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}))
-    v3_priv = forms.ChoiceField(label="SNMPv3 - cifratura", required=False,
-                                choices=[("", "Nessuna"), ("aes", "AES"), ("des", "DES")])
-    v3_priv_key = forms.CharField(label="SNMPv3 - chiave di cifratura", max_length=128,
-                                  required=False, strip=False,
-                                  widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
-                                  help_text="Le credenziali vengono salvate cifrate nel catalogo "
-                                            "community. In modifica reinseriscile tutte per sostituirle.")
+class DispositivoSNMPForm(SezioniFormMixin, CredenzialeV3InlineMixin, forms.ModelForm):
+    sezioni_def = (
+        ("Identità", "Come riconoscere l'apparato nella centrale.",
+         ("nome", "categoria", "posizione", "produttore", "modello", "matricola")),
+        ("Connessione SNMP", _DESCR_SNMP,
+         ("host", "profilo_snmp", "versione", "porta", "timeout",
+          "community_salvata", "community", *CAMPI_V3)),
+        ("Collegamenti e note", "", ("asset", "note", "attivo")),
+    )
 
     class Meta:
         model = DispositivoSNMP
         fields = [
             "nome", "categoria", "host", "profilo_snmp", "community_salvata", "community", "porta", "versione",
-            "v3_utente", "v3_auth", "v3_auth_key", "v3_priv", "v3_priv_key",
             "timeout", "posizione", "produttore", "modello", "matricola",
             "asset", "note", "attivo",
         ]
         widgets = {"note": forms.Textarea(attrs={"rows": 3})}
 
-    def clean(self):
-        from .snmp import SNMPError, segreto_v3
-        data = super().clean()
-        self._segreto_v3 = ""
-        if data.get("versione") == "v3" and not data.get("community_salvata"):
-            if not data.get("v3_utente") and self.instance.pk and not any(
-                    data.get(k) for k in ("v3_auth_key", "v3_priv_key")):
-                return data  # modifica senza toccare le credenziali
-            try:
-                self._segreto_v3 = segreto_v3(
-                    data.get("v3_utente", ""), data.get("v3_auth", ""),
-                    data.get("v3_auth_key", ""), data.get("v3_priv", ""),
-                    data.get("v3_priv_key", ""))
-            except SNMPError as e:
-                self.add_error("v3_utente", str(e))
-        return data
-
-    def save(self, commit=True):
-        from .credential_crypto import cifra
-        instance = super().save(commit=False)
-        if self._segreto_v3:
-            nome = f"Dispositivo {instance.host}"[:80]
-            community, _ = CommunitySNMP.objects.get_or_create(
-                nome=nome, defaults={"versione": "v3", "segreto_cifrato": ""})
-            community.versione = "v3"
-            community.segreto_cifrato = cifra(self._segreto_v3)
-            community.save()
-            instance.community_salvata = community
-        if commit:
-            instance.save()
-        return instance
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["asset"].required = False
-        self.fields["asset"].empty_label = "— nessun asset collegato —"
-        try:
-            from assets.models import Asset
-            self.fields["asset"].queryset = Asset.objects.order_by("asset_tag", "name")
-        except Exception:  # pragma: no cover
-            pass
+        _imposta_campo_asset(self.fields["asset"])
+
+    def nome_credenziale_v3(self, instance):
+        return f"SNMPv3 dispositivo {instance.host}"
 
     def clean_porta(self):
         porta = self.cleaned_data.get("porta")

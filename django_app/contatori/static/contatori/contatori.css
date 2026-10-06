@@ -16,3 +16,24 @@
 .contatori-module .discovery-table { overflow-x:auto; max-width:100%; }
 .contatori-module .discovery-page .panel { min-width:0; }
 .contatori-module .discovery-page progress { accent-color:var(--cm-accent); }
+/* Form a sezioni (dispositivo SNMP, stampante) */
+.contatori-module .form-sezioni{max-width:1040px}
+.contatori-module .form-section{padding:22px 24px}
+.contatori-module .form-section-head{display:flex;gap:14px;align-items:flex-start;margin:0 0 18px;padding-bottom:14px;border-bottom:1px solid var(--cm-border)}
+.contatori-module .form-section-head h2{font-size:16px;margin:0}
+.contatori-module .form-section-head p{margin:3px 0 0;color:var(--cm-muted);font-size:13px}
+.contatori-module .form-section-num{flex:0 0 auto;display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;font-weight:750;font-size:13px;color:var(--cm-accent);background:color-mix(in srgb,var(--cm-accent) 13%,var(--cm-surface))}
+.contatori-module .form-sezioni .form-field label{font-size:12px;letter-spacing:.01em}
+.contatori-module .form-sezioni .req{color:var(--cm-danger);margin-left:3px}
+.contatori-module .form-sezioni input:focus,.contatori-module .form-sezioni select:focus,.contatori-module .form-sezioni textarea:focus{outline:none;border-color:var(--cm-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--cm-accent) 20%,transparent)}
+.contatori-module .form-sezioni .has-error input,.contatori-module .form-sezioni .has-error select,.contatori-module .form-sezioni .has-error textarea{border-color:var(--cm-danger)}
+.contatori-module .check-field{display:inline-flex!important;align-items:center;gap:9px;cursor:pointer;color:var(--cm-text)!important;font-size:14px!important;font-weight:600!important;margin:6px 0 0!important}
+.contatori-module .check-field input{width:18px;height:18px;margin:0;accent-color:var(--cm-accent)}
+.contatori-module .v3-box{margin-top:20px;padding:18px 20px;border:1px solid color-mix(in srgb,var(--cm-accent) 35%,var(--cm-border));border-left:4px solid var(--cm-accent);border-radius:13px;background:color-mix(in srgb,var(--cm-accent) 6%,var(--cm-surface))}
+.contatori-module .v3-box-head{display:flex;gap:11px;align-items:flex-start;margin-bottom:15px;color:var(--cm-accent)}
+.contatori-module .v3-box-head svg{flex:0 0 auto;margin-top:2px}
+.contatori-module .v3-box-head h3{margin:0;font-size:14px;color:var(--cm-text)}
+.contatori-module .v3-box-head p{margin:3px 0 0;font-size:12px;color:var(--cm-muted)}
+.contatori-module .form-actions{position:sticky;bottom:0;z-index:2;display:flex;justify-content:flex-end;gap:10px;padding:14px 0;background:linear-gradient(to top,var(--bg,var(--cm-surface)) 70%,transparent)}
+@media(max-width:760px){.contatori-module .form-section{padding:17px 15px}.contatori-module .form-actions .btn{flex:1}}
+.contatori-module .form-actions .btn.ghost{color:var(--cm-text);background:var(--cm-surface)}
