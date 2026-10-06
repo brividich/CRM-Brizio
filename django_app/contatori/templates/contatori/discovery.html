@@ -36,12 +36,7 @@
   <form method="post" action="{% url 'contatori:discovery' %}">
     {% csrf_token %}<input type="hidden" name="azione" value="salva_community">
     {% if community_edit %}<input type="hidden" name="community_id" value="{{ community_edit.pk }}">{% endif %}
-    {{ community_form.non_field_errors }}
-    <div class="form-grid">{% for field in community_form %}
-      <div class="form-field">{{ field.label_tag }}{{ field }}{{ field.errors }}
-        {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
-      </div>
-    {% endfor %}</div>
+    <div class="form-sezioni compatta">{% include "contatori/_form_sezioni.html" with form=community_form %}</div>
     <button class="btn" type="submit">Salva community</button>
     {% if community_edit %}<a class="btn ghost" href="{% url 'contatori:discovery' %}">Nuova community</a>{% endif %}
   </form>
