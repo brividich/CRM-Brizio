@@ -1,0 +1,103 @@
+{# Partial: form guidato "nuova voce di menu". Variabili: sbc_prefix + sbc_key (id univoco), sbc_section (codice, opzionale), sbc_parent (AssetSidebarButton, opzionale) #}
+<form id="sbc-{{ sbc_prefix }}-{{ sbc_key }}" class="sbc-form" method="post" data-sbc-form{% if not sbc_open %} hidden{% endif %}>
+  {% csrf_token %}
+  <input type="hidden" name="action" value="create_sidebar_button">
+
+  <div class="sbc-head">
+    <div>
+      <div class="sbc-title">{% if sbc_parent %}Nuova sottovoce di &ldquo;{{ sbc_parent.label }}&rdquo;{% else %}Nuova voce di menu{% endif %}</div>
+      <div class="sbc-sub">Tre passi: nome, destinazione, posizione. Il resto è facoltativo.</div>
+    </div>
+    <div class="sbc-preview" aria-hidden="true">
+      <span class="sbc-preview-label">Anteprima</span>
+      <span class="sbc-preview-item{% if sbc_parent %} is-child{% endif %}" data-sbc-preview-item>
+        <span class="sbc-preview-dot"></span><span data-sbc-preview-text>Nuova voce</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="sbc-steps">
+    <div class="sbc-step">
+      <span class="sbc-num">1</span>
+      <div class="sbc-field">
+        <label for="sbc-{{ sbc_prefix }}-{{ sbc_key }}-label">Nome nel menu</label>
+        <input id="sbc-{{ sbc_prefix }}-{{ sbc_key }}-label" type="text" name="label" maxlength="120" placeholder="Es. Macchine CNC" required data-sbc-label>
+        <small>Il testo che gli utenti vedono nella barra laterale.</small>
+      </div>
+    </div>
+
+    <div class="sbc-step">
+      <span class="sbc-num">2</span>
+      <div class="sbc-field">
+        <label for="sbc-{{ sbc_prefix }}-{{ sbc_key }}-target">Dove porta</label>
+        <select id="sbc-{{ sbc_prefix }}-{{ sbc_key }}-target" name="target_preset" data-sbc-target>
+          <option value="">Scegli una pagina…</option>
+          {% regroup sidebar_target_suggestions by group as target_groups %}
+          {% for target_group in target_groups %}
+            <optgroup label="{{ target_group.grouper }}">
+              {% for option in target_group.list %}<option value="{{ option.value }}">{{ option.label|default:option.value }}</option>{% endfor %}
+            </optgroup>
+          {% endfor %}
+          <option value="__custom__">Altro: indirizzo personalizzato…</option>
+        </select>
+        <input type="text" name="target_url" list="assets-sidebar-target-options" placeholder="/assets/... oppure django:assets:nome_rotta" data-sbc-custom hidden>
+        <small>Senza destinazione la voce fa solo da contenitore per le sottovoci.</small>
+      </div>
+    </div>
+
+    <div class="sbc-step">
+      <span class="sbc-num">3</span>
+      <div class="sbc-field">
+        <label>Posizione</label>
+        {% if sbc_parent %}
+          <input type="hidden" name="parent_sidebar_button_id" value="{{ sbc_parent.id }}">
+          <input type="hidden" name="section" value="{{ sbc_parent.section }}">
+          <div class="sbc-fixed">Sotto <strong>{{ sbc_parent.label }}</strong> &middot; {{ sbc_parent.get_section_display }}</div>
+        {% else %}
+          <div class="sbc-pos-grid">
+            <select name="section" aria-label="Sezione" data-sbc-section>
+              {% for section_code, section_label in sidebar_section_choices %}
+                <option value="{{ section_code }}" {% if sbc_section == section_code %}selected{% endif %}>{{ section_label }}</option>
+              {% endfor %}
+            </select>
+            <select name="parent_sidebar_button_id" aria-label="Voce padre" data-sbc-parent>
+              <option value="">Voce principale (primo livello)</option>
+              {% for parent_item in sidebar_parent_choices %}
+                <option value="{{ parent_item.id }}" data-section="{{ parent_item.section }}">Sotto &ldquo;{{ parent_item.label }}&rdquo;</option>
+              {% endfor %}
+            </select>
+          </div>
+        {% endif %}
+        <small>La voce viene aggiunta in fondo; l'ordine si cambia dalle opzioni avanzate.</small>
+      </div>
+    </div>
+  </div>
+
+  <details class="sbc-adv">
+    <summary>Opzioni avanzate</summary>
+    <div class="sbc-adv-grid">
+      <div class="sbc-field">
+        <label>Criterio di evidenziazione</label>
+        <input type="text" name="active_match" list="assets-sidebar-active-match-options" placeholder="Automatico (consigliato)">
+        <small>Quando la voce risulta "attiva". Vuoto = dedotto dalla destinazione.</small>
+      </div>
+      <div class="sbc-field">
+        <label>Ordine</label>
+        <input type="number" name="sort_order" placeholder="In fondo">
+        <small>Numeri più bassi salgono in alto.</small>
+      </div>
+    </div>
+  </details>
+
+  <div class="sbc-foot">
+    <label class="sbc-switch">
+      <input type="checkbox" name="is_visible" value="1" checked>
+      <span class="sbc-switch-track"></span>
+      <span>Visibile subito</span>
+    </label>
+    <div class="sbc-actions">
+      <button type="button" class="btn btn-sm" data-sbc-close>Annulla</button>
+      <button type="submit" class="btn btn-primary btn-sm">Crea voce</button>
+    </div>
+  </div>
+</form>

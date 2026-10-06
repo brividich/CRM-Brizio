@@ -6004,12 +6004,12 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
     seen_targets: set[str] = set()
     seen_active_matches: set[str] = set()
 
-    def add_target(value: str, label: str = "") -> None:
+    def add_target(value: str, label: str = "", group: str = "Pagine del modulo") -> None:
         normalized = _clean_string(value)
         if not normalized or normalized in seen_targets:
             return
         seen_targets.add(normalized)
-        target_suggestions.append({"value": normalized, "label": label})
+        target_suggestions.append({"value": normalized, "label": label, "group": group})
 
     def add_active_match(value: str, label: str = "") -> None:
         normalized = _clean_string(value)
@@ -6045,6 +6045,7 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         add_target(
             f"django:assets:asset_list?asset_type={asset_type_code}&rows={{rows}}",
             f"Lista asset: {asset_type_label}",
+            "Inventario per tipo",
         )
         add_active_match(f"asset_type={asset_type_code}", f"Filtro asset_type: {asset_type_label}")
 
@@ -6052,6 +6053,7 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         add_target(
             f"django:assets:asset_list?asset_category={category.id}&rows={{rows}}",
             f"Lista categoria: {category.label}",
+            "Inventario per categoria",
         )
         add_active_match(f"asset_category={category.id}", f"Filtro categoria: {category.label}")
 
@@ -6090,7 +6092,7 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         add_active_match(value, label)
 
     for button in AssetSidebarButton.objects.exclude(target_url="").only("target_url"):
-        add_target(button.target_url, "Gia configurato")
+        add_target(button.target_url, button.target_url, "Già usati nel menu")
     for button in AssetSidebarButton.objects.exclude(active_match="").only("active_match"):
         add_active_match(button.active_match, "Gia configurato")
 
@@ -6401,6 +6403,12 @@ def _handle_header_tool_request(request: HttpRequest) -> tuple[bool, str]:
 
 
 def _handle_sidebar_button_request(request: HttpRequest) -> tuple[bool, str]:
+    # Una POST con due "action" diverse (form annidati: il browser fonde i
+    # campi del form interno in quello esterno) e' ambigua: QueryDict.get()
+    # restituisce l'ultimo valore, cosi' il tasto Salva finiva per eliminare
+    # la voce. Meglio rifiutare che indovinare.
+    if len({_clean_string(value) for value in request.POST.getlist("action")}) > 1:
+        return False, "Richiesta menu ambigua: nessuna modifica applicata."
     action = _clean_string(request.POST.get("action"))
     valid_sections = {key for key, _ in AssetSidebarButton.SECTION_CHOICES}
 
@@ -6456,15 +6464,28 @@ def _handle_sidebar_button_request(request: HttpRequest) -> tuple[bool, str]:
         if parent_button is not None:
             section = parent_button.section
         code = _unique_sidebar_button_code(label, request.POST.get("code"))
+        # Il form guidato propone le destinazioni da una tendina
+        # (target_preset); il campo libero target_url vince se compilato.
+        target_url = _clean_string(request.POST.get("target_url"))
+        target_preset = _clean_string(request.POST.get("target_preset"))
+        if not target_url and target_preset != "__custom__":
+            target_url = target_preset
+        # Ordine vuoto = in fondo, dopo l'ultima voce sorella.
+        if _clean_string(request.POST.get("sort_order")):
+            sort_order = _as_int(request.POST.get("sort_order"), default=100)
+        else:
+            siblings = AssetSidebarButton.objects.filter(section=section, parent=parent_button)
+            last_order = siblings.aggregate(last=Max("sort_order"))["last"]
+            sort_order = (last_order or 0) + 10
         AssetSidebarButton.objects.create(
             code=code,
             section=section,
             parent=parent_button,
             label=label[:120],
-            target_url=_clean_string(request.POST.get("target_url")),
+            target_url=target_url,
             active_match=_clean_string(request.POST.get("active_match")),
             is_subitem=True if parent_button is not None else bool(request.POST.get("is_subitem")),
-            sort_order=_as_int(request.POST.get("sort_order"), default=100),
+            sort_order=sort_order,
             is_visible=bool(request.POST.get("is_visible")),
         )
         return True, f"Voce menu \"{label}\" creata."
@@ -18311,7 +18332,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
-            return config_redirect
+            return redirect(f"{reverse('assets:gestione_admin')}?tab=sidebar")
 
         if action == "save_assets_logo":
             logo_file = request.FILES.get("logo_file")

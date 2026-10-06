@@ -1,4 +1,5 @@
 {# Partial: form modifica voce sidebar. Variabile: item (AssetSidebarButton) #}
+{# Il form di eliminazione sta FUORI dal form di modifica: i form annidati non esistono in HTML, il browser fonde i campi e "Salva" inviava action=delete_sidebar_button. #}
 <form id="sidebar-edit-{{ item.id }}" method="post" style="display:grid;gap:10px;">
   {% csrf_token %}
   <input type="hidden" name="action" value="update_sidebar_button">
@@ -20,9 +21,9 @@
       <label>Voce padre</label>
       <select name="parent_sidebar_button_id">
         <option value="">Nessuna (primo livello)</option>
-        {% for parent_item in sidebar_parent_choices %}
+        {% for parent_item in sidebar_parent_choices %}{% if parent_item.id != item.id %}
           <option value="{{ parent_item.id }}" {% if item.parent_id == parent_item.id %}selected{% endif %}>{{ parent_item.label }}</option>
-        {% endfor %}
+        {% endif %}{% endfor %}
       </select>
     </div>
     <div class="form-group">
@@ -40,19 +41,19 @@
       <input type="text" name="active_match" list="assets-sidebar-active-match-options" value="{{ item.active_match }}">
     </div>
   </div>
-  <div class="sidebar-editor-footer">
-    <div class="sidebar-editor-flags">
-      <label class="sidebar-editor-check"><input type="checkbox" name="is_subitem" value="1" {% if item.is_subitem %}checked{% endif %}> Sottovoce</label>
-      <label class="sidebar-editor-check"><input type="checkbox" name="is_visible" value="1" {% if item.is_visible %}checked{% endif %}> Visibile</label>
-    </div>
-    <div class="sidebar-editor-actions">
-      <form method="post" style="margin:0;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="delete_sidebar_button">
-        <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
-        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Eliminare &quot;{{ item.label|escapejs }}&quot;?')">Elimina</button>
-      </form>
-      <button type="submit" form="sidebar-edit-{{ item.id }}" class="btn btn-primary btn-sm">Salva</button>
-    </div>
-  </div>
 </form>
+<form id="sidebar-delete-{{ item.id }}" method="post" style="display:none;" onsubmit="return confirm('Eliminare &quot;{{ item.label|escapejs }}&quot;?')">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="delete_sidebar_button">
+  <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
+</form>
+<div class="sidebar-editor-footer">
+  <div class="sidebar-editor-flags">
+    <label class="sidebar-editor-check"><input type="checkbox" form="sidebar-edit-{{ item.id }}" name="is_subitem" value="1" {% if item.is_subitem %}checked{% endif %}> Sottovoce</label>
+    <label class="sidebar-editor-check"><input type="checkbox" form="sidebar-edit-{{ item.id }}" name="is_visible" value="1" {% if item.is_visible %}checked{% endif %}> Visibile</label>
+  </div>
+  <div class="sidebar-editor-actions">
+    <button type="submit" form="sidebar-delete-{{ item.id }}" class="btn btn-danger btn-sm">Elimina</button>
+    <button type="submit" form="sidebar-edit-{{ item.id }}" class="btn btn-primary btn-sm">Salva</button>
+  </div>
+</div>

@@ -124,8 +124,45 @@ details.sb-section[open] > .sb-section-summary .ga-chevron { transform:rotate(18
 .sb-add-child-btn, .sb-add-root-btn { background:transparent; border:1px dashed #cbd5e1; color:#64748b; font-size:var(--fs-sm); width:100%; text-align:left; }
 .sb-add-child-btn:hover, .sb-add-root-btn:hover { background:#f8fbff; border-color:#93c5fd; color:#1d4ed8; }
 .sb-add-root { margin-top:6px; border-top:1px dashed #e5ecf6; padding-top:10px; }
-.sb-inline-form-grid { display:grid; grid-template-columns:1fr 1fr 1fr 80px; gap:8px; align-items:end; }
-.sb-inline-form-footer { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+/* Form guidato "nuova voce" */
+.sbc-form { display:grid; gap:14px; margin:8px 0 4px; padding:16px; border:1px solid #bfdbfe; border-radius:12px; background:linear-gradient(180deg,#f5f9ff 0%,#fff 70%); box-shadow:0 6px 18px rgba(31,100,216,.08); }
+.sbc-form[hidden] { display:none; }
+.sb-toolbar + .sbc-form { margin:0 0 14px; }
+.sbc-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+.sbc-title { font-weight:800; font-size:var(--fs-base); color:#0f172a; }
+.sbc-sub { font-size:var(--fs-sm); color:#64748b; margin-top:2px; }
+.sbc-preview { display:grid; gap:4px; justify-items:end; }
+.sbc-preview-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.04em; font-weight:700; color:#94a3b8; }
+.sbc-preview-item { display:inline-flex; align-items:center; gap:8px; min-width:180px; padding:7px 12px; border-radius:9px; background:#1f64d8; color:#fff; font-weight:600; font-size:var(--fs-sm); }
+.sbc-preview-item.is-child { background:#e8f0fe; color:#1d4ed8; margin-left:18px; min-width:162px; }
+.sbc-preview-dot { width:7px; height:7px; border-radius:50%; background:currentColor; opacity:.75; flex-shrink:0; }
+.sbc-steps { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; }
+.sbc-step { display:flex; gap:10px; align-items:flex-start; }
+.sbc-num { flex-shrink:0; width:24px; height:24px; border-radius:50%; background:#1f64d8; color:#fff; font-size:var(--fs-xs); font-weight:800; display:inline-flex; align-items:center; justify-content:center; margin-top:2px; }
+.sbc-field { display:grid; gap:6px; min-width:0; flex:1; align-content:start; }
+.sbc-field label { font-size:var(--fs-sm); font-weight:700; color:#0f172a; text-transform:none; }
+.sbc-field input[type=text], .sbc-field input[type=number], .sbc-field select { width:100%; min-height:36px; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#0f172a; font:inherit; box-sizing:border-box; }
+.sbc-field input[hidden] { display:none; }
+.sbc-field input:focus, .sbc-field select:focus { outline:none; border-color:#1f64d8; box-shadow:0 0 0 3px rgba(31,100,216,.15); }
+.sbc-field select:disabled { opacity:.6; }
+.sbc-field small { font-size:var(--fs-xs); color:#64748b; line-height:1.35; }
+.sbc-pos-grid { display:grid; gap:6px; }
+.sbc-fixed { min-height:36px; display:flex; align-items:center; padding:7px 10px; border:1px dashed #bfdbfe; border-radius:8px; background:#f8fbff; font-size:var(--fs-sm); color:#334155; }
+.sbc-adv { border-top:1px dashed #dbe3f0; padding-top:10px; }
+.sbc-adv > summary { cursor:pointer; font-size:var(--fs-sm); font-weight:700; color:#1f64d8; list-style:none; }
+.sbc-adv > summary::-webkit-details-marker { display:none; }
+.sbc-adv > summary::before { content:"\25B8"; display:inline-block; margin-right:6px; transition:transform .15s; }
+.sbc-adv[open] > summary::before { transform:rotate(90deg); }
+.sbc-adv-grid { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-top:10px; }
+.sbc-foot { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.sbc-actions { display:flex; gap:8px; }
+.sbc-switch { position:relative; display:inline-flex; align-items:center; gap:10px; cursor:pointer; font-size:var(--fs-sm); color:#0f172a; text-transform:none; }
+.sbc-switch input { position:absolute; opacity:0; width:1px; height:1px; }
+.sbc-switch-track { position:relative; width:36px; height:20px; border-radius:999px; background:#cbd5e1; transition:background .15s; flex-shrink:0; }
+.sbc-switch-track::after { content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2); transition:transform .15s; }
+.sbc-switch input:checked + .sbc-switch-track { background:#16a34a; }
+.sbc-switch input:checked + .sbc-switch-track::after { transform:translateX(16px); }
+.sbc-switch input:focus-visible + .sbc-switch-track { box-shadow:0 0 0 3px rgba(31,100,216,.25); }
 .sb-empty { padding:24px; border:1px dashed #cbd5e1; border-radius:12px; text-align:center; display:grid; gap:12px; place-items:center; color:#64748b; }
 /* Dark mode sidebar tab */
 body.theme-dark .sb-toolbar { background:var(--surface-alt); border-color:var(--border); }
@@ -140,8 +177,17 @@ body.theme-dark .sb-add-child-btn, body.theme-dark .sb-add-root-btn { border-col
 body.theme-dark .sb-add-child-btn:hover, body.theme-dark .sb-add-root-btn:hover { background:var(--surface-alt); border-color:#3b82f6; color:#93c5fd; }
 body.theme-dark .sb-add-root { border-color:var(--border); }
 body.theme-dark .sb-empty { border-color:var(--border); color:var(--text-light); }
-@media (max-width:900px) { .sb-inline-form-grid { grid-template-columns:1fr 1fr; } }
-@media (max-width:600px) { .sb-inline-form-grid { grid-template-columns:1fr; } }
+body.theme-dark .sbc-form { background:var(--surface-alt); border-color:rgba(147,197,253,.3); box-shadow:none; }
+body.theme-dark .sbc-title, body.theme-dark .sbc-field label, body.theme-dark .sbc-switch { color:var(--text); }
+body.theme-dark .sbc-sub, body.theme-dark .sbc-field small { color:var(--text-light); }
+body.theme-dark .sbc-field input[type=text], body.theme-dark .sbc-field input[type=number], body.theme-dark .sbc-field select { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .sbc-fixed { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .sbc-preview-item.is-child { background:rgba(37,99,235,.2); color:#93c5fd; }
+body.theme-dark .sbc-adv { border-color:var(--border); }
+body.theme-dark .sbc-adv > summary { color:#93c5fd; }
+body.theme-dark .sbc-switch-track { background:var(--border); }
+@media (max-width:900px) { .sbc-steps { grid-template-columns:1fr; } .sbc-preview { justify-items:start; } }
+@media (max-width:600px) { .sbc-adv-grid { grid-template-columns:1fr; } }
 /* Collapsible card */
 details.card { margin-bottom:14px; }
 details.card > summary { list-style:none; cursor:pointer; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; user-select:none; -webkit-user-select:none; }
@@ -277,54 +323,62 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
 {% block assets_shell_scripts %}
 <script>
 (function () {
-  // ── Sidebar inline add forms ──────────────────────────────────────
-  function sbSubmitInline(form) {
-    var redirect = form.dataset.redirect || window.location.href;
-    var data = new FormData(form);
-    fetch(window.location.pathname, { method: "POST", body: data })
-      .then(function () { window.location.href = redirect; })
-      .catch(function () { form.submit(); });
+  // ── Sidebar: form guidato "nuova voce" ───────────────────────────
+  function sbcSync(form) {
+    var target = form.querySelector("[data-sbc-target]");
+    var custom = form.querySelector("[data-sbc-custom]");
+    if (target && custom) {
+      var isCustom = target.value === "__custom__";
+      custom.hidden = !isCustom;
+      if (!isCustom) custom.value = "";
+    }
+    var parent = form.querySelector("[data-sbc-parent]");
+    var section = form.querySelector("[data-sbc-section]");
+    var preview = form.querySelector("[data-sbc-preview-item]");
+    if (parent && section) {
+      var opt = parent.options[parent.selectedIndex];
+      var parentSection = opt && opt.dataset.section;
+      // Una sottovoce eredita la sezione del padre: il server la forza comunque.
+      if (parentSection) section.value = parentSection;
+      section.disabled = !!parentSection;
+      if (preview) preview.classList.toggle("is-child", !!parentSection);
+    }
+    var label = form.querySelector("[data-sbc-label]");
+    var text = form.querySelector("[data-sbc-preview-text]");
+    if (label && text) text.textContent = label.value.trim() || "Nuova voce";
+  }
+  function sbcToggle(key) {
+    var form = document.getElementById("sbc-" + key);
+    if (!form) return;
+    form.hidden = !form.hidden;
+    if (!form.hidden) {
+      sbcSync(form);
+      var label = form.querySelector("[data-sbc-label]");
+      if (label) label.focus();
+    }
   }
 
   document.addEventListener("click", function (e) {
-    // Toggle sottovoce form
-    var addChildBtn = e.target.closest(".sb-add-child-btn");
-    if (addChildBtn) {
-      var pid = addChildBtn.dataset.parentId;
-      var frm = document.querySelector(".sb-add-child-form[data-parent-id='" + pid + "']");
-      if (frm) { frm.style.display = frm.style.display === "none" ? "grid" : "none"; frm.querySelector("[name=label]").focus(); }
-      return;
-    }
-    var cancelChild = e.target.closest(".sb-add-child-cancel");
-    if (cancelChild) {
-      var pid = cancelChild.dataset.parentId;
-      var frm = document.querySelector(".sb-add-child-form[data-parent-id='" + pid + "']");
-      if (frm) frm.style.display = "none";
-      return;
-    }
-    // Toggle primo livello form
-    var addRootBtn = e.target.closest(".sb-add-root-btn");
-    if (addRootBtn) {
-      var sec = addRootBtn.dataset.section;
-      var frm = document.querySelector(".sb-add-root-form[data-section='" + sec + "']");
-      if (frm) { frm.style.display = frm.style.display === "none" ? "grid" : "none"; frm.querySelector("[name=label]").focus(); }
-      return;
-    }
-    var cancelRoot = e.target.closest(".sb-add-root-cancel");
-    if (cancelRoot) {
-      var sec = cancelRoot.dataset.section;
-      var frm = document.querySelector(".sb-add-root-form[data-section='" + sec + "']");
-      if (frm) frm.style.display = "none";
-      return;
+    var opener = e.target.closest("[data-sbc-open]");
+    if (opener) { sbcToggle(opener.dataset.sbcOpen); return; }
+    var closer = e.target.closest("[data-sbc-close]");
+    if (closer) {
+      var form = closer.closest("[data-sbc-form]");
+      if (form) { form.reset(); sbcSync(form); form.hidden = true; }
     }
   });
-
+  ["input", "change"].forEach(function (evt) {
+    document.addEventListener(evt, function (e) {
+      var form = e.target.closest && e.target.closest("[data-sbc-form]");
+      if (form) sbcSync(form);
+    });
+  });
   document.addEventListener("submit", function (e) {
-    var form = e.target;
-    if (form.classList.contains("sb-add-child-form") || form.classList.contains("sb-add-root-form")) {
-      e.preventDefault();
-      sbSubmitInline(form);
-    }
+    var form = e.target.closest && e.target.closest("[data-sbc-form]");
+    if (!form) return;
+    // I select disabilitati non vengono inviati: riabilita la sezione.
+    var section = form.querySelector("[data-sbc-section]");
+    if (section) section.disabled = false;
   });
 
   // ── Category dialogs ──────────────────────────────────────────────
@@ -759,6 +813,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
     </div>
     <div class="sb-toolbar-actions">
       {% if sidebar_buttons %}
+        <button type="button" class="btn btn-primary btn-sm" data-sbc-open="top-main">+ Nuova voce</button>
         <form method="post" onsubmit="return confirm('Sostituire tutte le voci con i predefiniti aggiornati?')">
           {% csrf_token %}<input type="hidden" name="action" value="reset_sidebar_buttons">
           <button type="submit" class="btn btn-sm btn-reset">Reimposta predefiniti</button>
@@ -777,6 +832,7 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
   </div>
 
   {% if sidebar_buttons %}
+    {% include "assets/components/sidebar_create_form.html" with sbc_prefix="top" sbc_key="main" sbc_section="" sbc_parent=None sbc_open=False %}
     {# Raggruppa per sezione, poi per voce padre #}
     {% regroup sidebar_buttons by get_section_display as section_groups %}
     {% for section_group in section_groups %}
@@ -828,41 +884,12 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
           </details>
           {% endif %}{% endfor %}
 
-          {# Form inline aggiungi sottovoce #}
+          {# Aggiungi sottovoce: form guidato #}
           <div class="sb-add-child">
-            <button type="button" class="btn btn-sm sb-add-child-btn" data-parent-id="{{ item.id }}" data-parent-label="{{ item.label|escapejs }}" data-section="{{ item.section }}">
+            <button type="button" class="btn btn-sm sb-add-child-btn" data-sbc-open="child-{{ item.id }}">
               + Aggiungi sottovoce a &ldquo;{{ item.label }}&rdquo;
             </button>
-            <form class="sb-add-child-form" data-parent-id="{{ item.id }}" style="display:none;" data-redirect="{% url 'assets:gestione_admin' %}?tab=sidebar">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="create_sidebar_button">
-              <input type="hidden" name="parent_sidebar_button_id" value="{{ item.id }}">
-              <input type="hidden" name="section" value="{{ item.section }}">
-              <input type="hidden" name="is_subitem" value="1">
-              <input type="hidden" name="is_visible" value="1">
-              <div class="sb-inline-form-grid">
-                <div class="form-group">
-                  <label>Etichetta</label>
-                  <input type="text" name="label" placeholder="Es. Lista CNC" required>
-                </div>
-                <div class="form-group">
-                  <label>URL</label>
-                  <input type="text" name="target_url" list="assets-sidebar-target-options" placeholder="django:assets:asset_list">
-                </div>
-                <div class="form-group">
-                  <label>Criterio attivo</label>
-                  <input type="text" name="active_match" list="assets-sidebar-active-match-options" placeholder="asset_type=CNC">
-                </div>
-                <div class="form-group">
-                  <label>Ordine</label>
-                  <input type="number" name="sort_order" value="100" style="width:80px;">
-                </div>
-              </div>
-              <div class="sb-inline-form-footer">
-                <button type="submit" class="btn btn-primary btn-sm">Aggiungi</button>
-                <button type="button" class="btn btn-sm sb-add-child-cancel" data-parent-id="{{ item.id }}">Annulla</button>
-              </div>
-            </form>
+            {% include "assets/components/sidebar_create_form.html" with sbc_prefix="child" sbc_key=item.id sbc_parent=item sbc_section=item.section sbc_open=False %}
           </div>
         </div>
         {% endif %}{% endfor %}
@@ -872,49 +899,12 @@ body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
           {% for check in section_group.list %}{% if check.id == item.parent_id %}{% with found=1 %}{% endwith %}{% endif %}{% endfor %}
         {% endwith %}{% endif %}{% endfor %}
 
-        {# Form aggiungi voce di primo livello in questa sezione #}
+        {# Aggiungi voce in questa sezione: form guidato #}
         <div class="sb-add-root">
-          <button type="button" class="btn btn-sm sb-add-root-btn" data-section="{{ section_group.list.0.section }}">
+          <button type="button" class="btn btn-sm sb-add-root-btn" data-sbc-open="sec-{{ forloop.counter }}">
             + Nuova voce in &ldquo;{{ section_group.grouper }}&rdquo;
           </button>
-          <form class="sb-add-root-form" data-section="{{ section_group.list.0.section }}" style="display:none;" data-redirect="{% url 'assets:gestione_admin' %}?tab=sidebar">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create_sidebar_button">
-            <input type="hidden" name="section" value="{{ section_group.list.0.section }}">
-            <input type="hidden" name="is_visible" value="1">
-            <div class="sb-inline-form-grid">
-              <div class="form-group">
-                <label>Etichetta</label>
-                <input type="text" name="label" placeholder="Es. Macchine" required>
-              </div>
-              <div class="form-group">
-                <label>Voce padre</label>
-                <select name="parent_sidebar_button_id">
-                  <option value="">Nessuna (primo livello)</option>
-                  {% for parent_item in sidebar_parent_choices %}{% if parent_item.section == section_group.list.0.section %}
-                    <option value="{{ parent_item.id }}">{{ parent_item.label }}</option>
-                  {% endif %}{% endfor %}
-                </select>
-              </div>
-              <div class="form-group">
-                <label>URL</label>
-                <input type="text" name="target_url" list="assets-sidebar-target-options" placeholder="django:assets:asset_list">
-              </div>
-              <div class="form-group">
-                <label>Criterio attivo</label>
-                <input type="text" name="active_match" list="assets-sidebar-active-match-options">
-              </div>
-              <div class="form-group">
-                <label>Ordine</label>
-                <input type="number" name="sort_order" value="100" style="width:80px;">
-              </div>
-            </div>
-            <div class="sb-inline-form-footer">
-              <label class="sidebar-editor-check"><input type="checkbox" name="is_subitem" value="1"> Sottovoce</label>
-              <button type="submit" class="btn btn-primary btn-sm">Aggiungi</button>
-              <button type="button" class="btn btn-sm sb-add-root-cancel" data-section="{{ section_group.list.0.section }}">Annulla</button>
-            </div>
-          </form>
+          {% include "assets/components/sidebar_create_form.html" with sbc_prefix="sec" sbc_key=forloop.counter sbc_section=section_group.list.0.section sbc_parent=None sbc_open=False %}
         </div>
 
       </div>
