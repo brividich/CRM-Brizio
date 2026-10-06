@@ -147,15 +147,14 @@ def _from_epdr_threat(source, report, entry, payload):
 # ---- collegamento all'asset del registro HUB (conferma manuale) ---------------------------------
 
 def suggest_hub_asset(security_asset):
-    """``(asset_hub, motivo)``: propone SOLO il nome identico (senza maiuscole) e univoco."""
-    from assets.models import Asset
+    """``(asset_hub, motivo)``: proposta univoca per IP o nome (resta da confermare).
 
-    matches = list(Asset.objects.filter(name__iexact=security_asset.hostname.strip())[:3])
-    if len(matches) == 1:
-        return matches[0], "nome identico"
-    if len(matches) > 1:
-        return None, "piu' asset con lo stesso nome"
-    return None, "nessun asset con questo nome"
+    Stesso algoritmo della centrale SNMP (``assets.services.identity_match``):
+    IP sugli endpoint o gia' collegato in SNMP, poi nome identico o nome host corto.
+    """
+    from assets.services.identity_match import match_hub_asset
+
+    return match_hub_asset(ip=security_asset.ip_address or "", hostname=security_asset.hostname)
 
 
 def link(security_asset, hub_asset, *, actor=None, request=None):

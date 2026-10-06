@@ -1,7 +1,13 @@
 """Bounded, read-only SOC projection. Caller must enforce SOC permission."""
 from django.db.models import Case, IntegerField, Value, When
 
-from security.models import SecurityAlert, SecurityAssetSignal, Severity
+from security.models import (
+    SecurityAlert,
+    SecurityAssetSignal,
+    SecurityEventRecord,
+    SecurityVulnerabilityFinding,
+    Severity,
+)
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 
 BACKUP_SAMPLE_LIMIT = 200
@@ -32,7 +38,18 @@ def overview_for_hub_asset(asset):
         When(severity=Severity.WARNING, then=Value(3)),
         default=Value(4), output_field=IntegerField(),
     )).select_related("source").order_by("priority", "-created_at", "-id")
+    # Vulnerabilita' ancora aperte sui dispositivi collegati: le piu' gravi in alto.
+    vulnerabilities = SecurityVulnerabilityFinding.objects.filter(
+        asset__hub_asset=asset, status__in=ACTIVE_ALERT_STATUSES,
+    ).select_related("source", "asset")
+    # Eventi grezzi (firewall, EDR, ...) riferiti al dispositivo: i soppressi sono rumore noto.
+    events = SecurityEventRecord.objects.filter(
+        asset__hub_asset=asset, suppressed=False,
+    ).select_related("source", "asset").order_by("-occurred_at", "-id")
     return {
+        "open_vulnerability_count": vulnerabilities.count(),
+        "open_vulnerabilities": list(vulnerabilities.order_by("-cvss", "-last_seen_at", "-id")[:8]),
+        "recent_events": list(events[:10]),
         "signals": recent,
         "last_signal": recent[0] if recent else None,
         "backup_rows": list(groups.values())[:12],

@@ -69,7 +69,7 @@ def _assets_post(request, link, suggest_hub_asset):
             if suggestion:
                 link(asset, suggestion, actor=request.user, request=request)
                 done += 1
-        messages.success(request, f"{done} dispositivi collegati (nome identico).")
+        messages.success(request, f"{done} dispositivi collegati alle proposte univoche (IP o nome).")
     elif action == "unlink":
         asset = SecurityAsset.objects.filter(pk=request.POST.get("asset") or 0).first()
         if asset and asset.hub_asset_id:
