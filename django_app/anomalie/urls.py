@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from . import mail_action_views
 from . import nc_views
+from . import controllo_views
 
 
 urlpatterns = [
@@ -40,6 +41,12 @@ urlpatterns = [
     path("api/anomalie/salva", views.api_salva, name="api_anomalie_salva"),
     path("api/anomalie/notifica-op", views.api_notifica_op, name="api_anomalie_notifica_op"),
     path("api/anomalie/seriali-op", views.api_seriali_op, name="api_anomalie_seriali_op"),
+    path("api/anomalie/controlli", controllo_views.api_controlli, name="api_anomalie_controlli"),
+    path("api/anomalie/controlli/apri", controllo_views.api_controllo_apri, name="api_anomalie_controllo_apri"),
+    path("api/anomalie/controlli/<int:pk>", controllo_views.api_controllo_dettaglio, name="api_anomalie_controllo_dettaglio"),
+    path("api/anomalie/controlli/<int:pk>/impostazioni", controllo_views.api_controllo_impostazioni, name="api_anomalie_controllo_impostazioni"),
+    path("api/anomalie/controlli/<int:pk>/blocco", controllo_views.api_controllo_blocco, name="api_anomalie_controllo_blocco"),
+    path("api/anomalie/controlli/<int:pk>/termina", controllo_views.api_controllo_termina, name="api_anomalie_controllo_termina"),
     path("api/anomalie/timeline", views.api_anomalie_timeline, name="api_anomalie_timeline"),
     path("api/anomalie/sync", views.api_sync, name="api_anomalie_sync"),
     path("api/anomalie/copilota", views.api_copilota_anomalia, name="api_anomalie_copilota"),

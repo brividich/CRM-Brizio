@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Apertura Segnalazione | Portale Applicativo</title>
+  <title>Controllo anomalie | NOVICROM HUB</title>
   <link rel="stylesheet" href="{% static 'core/vendor/outfit/outfit.css' %}">
   <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
   <script src="{% static 'anomalie/js/react.development.js' %}"></script>
@@ -58,6 +58,24 @@
     .op-info-chip { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.20); border-radius: 6px; padding: 3px 10px; font-size: var(--fs-sm); color: rgba(255,255,255,.90); }
     .op-info-chip strong { color: #fff; font-weight: 700; }
     .form-body { padding: 20px 28px 24px; display: flex; flex-direction: column; gap: 20px; }
+    .form-intro { display: grid; gap: 12px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(135deg, var(--surface), var(--bg)); }
+    .form-intro-title { color: var(--text); font-size: var(--fs-md); font-weight: 800; }
+    .form-intro-copy { max-width: 62ch; color: var(--text-mid); font-size: var(--fs-sm); }
+    .form-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .form-flow-step { display: flex; align-items: center; gap: 8px; color: var(--text-mid); font-size: var(--fs-sm); font-weight: 600; }
+    .form-flow-step b { display: grid; place-items: center; width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; background: var(--accent-light); color: var(--accent); font-size: var(--fs-xs); }
+    .field-hint { color: var(--text-mid); font-size: var(--fs-sm); line-height: 1.45; }
+    .field-example { color: var(--text-light); font-size: var(--fs-xs); }
+    .description-list { display: grid; gap: 12px; }
+    .description-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 2px 8px rgba(15,23,42,.035); }
+    .description-card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .description-card__title { color: var(--text); font-weight: 800; }
+    .description-card__meta { color: var(--text-light); font-size: var(--fs-xs); }
+    .serial-choice { border: 1px solid var(--border); border-radius: 999px; padding: 7px 11px; background: var(--bg); transition: border-color .15s, background .15s; }
+    .serial-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-light); color: var(--text); }
+    .description-add { align-self: flex-start; }
+    body.theme-dark .form-intro { background: linear-gradient(135deg, var(--surface), var(--bg)); }
+    body.theme-dark .serial-choice:has(input:checked) { background: rgba(249,115,22,.13); }
     .field-group { display: flex; flex-direction: column; gap: 6px; }
     .field-label { font-size: var(--fs-base); font-weight: 700; color: var(--text); }
     .req { color: var(--danger); margin-left: 2px; }
@@ -128,6 +146,99 @@
     body.theme-dark .badge { border-color: rgba(56,161,105,.45); }
     body.theme-dark .text-input:disabled, body.theme-dark .textarea-input:disabled { background: rgba(255,255,255,.03); color: var(--text-light); border-style: dashed; opacity: 1; }
     .toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: var(--success); color: #fff; padding: 12px 28px; border-radius: 10px; font-weight: 700; font-size: var(--fs-md); box-shadow: 0 4px 20px rgba(0,0,0,.20); z-index: 9999; white-space: nowrap; }
+    /* ── Controllo a blocchi ── */
+    .step-card--wide { max-width: 940px; }
+    .op-info-chip.is-benestare { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 800; }
+    .ctl-head { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; justify-content: space-between; padding: 14px 28px; border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 52px; z-index: 20; }
+    .ctl-head__fase, .ctl-head__mail { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .ctl-head__val { font-size: var(--fs-md); font-weight: 800; color: var(--text); }
+    .ctl-head__edit { display: inline-flex; gap: 6px; align-items: center; }
+    .ctl-head__edit .text-input { width: 240px; padding: 6px 10px; }
+    .seg-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--surface); }
+    .seg-toggle button { border: 0; background: transparent; color: var(--text-mid); font: inherit; font-size: var(--fs-sm); font-weight: 700; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+    .seg-toggle button.is-on { background: var(--primary); color: #fff; }
+    .link-btn { background: none; border: 0; padding: 0; color: var(--primary-mid); font: inherit; font-size: var(--fs-sm); font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    .link-btn:disabled { opacity: .5; cursor: default; }
+    .link-btn--danger { color: var(--danger); }
+    .btn-sm { padding: 6px 12px; font-size: var(--fs-sm); }
+    .resume-box { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-light); }
+    .resume-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+    .mail-mode { border: 0; display: grid; gap: 8px; }
+    .mail-mode__opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--surface); }
+    .mail-mode__opt.is-on { border-color: var(--accent); background: var(--accent-light); }
+    .mail-mode__opt input { margin-top: 4px; accent-color: var(--accent); min-height: 0; }
+    .mail-mode__opt > span { display: grid; gap: 2px; }
+    .blk { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+    .blk.is-frozen { background: var(--bg); gap: 8px; }
+    .blk.is-editing { border: 2px solid var(--accent); box-shadow: 0 6px 22px rgba(249,115,22,.10); }
+    .blk-head { display: flex; align-items: center; gap: 12px; }
+    .blk-head__main { flex: 1; min-width: 0; }
+    .blk-num { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; display: grid; place-items: center; background: var(--border); color: var(--text-mid); font-weight: 800; font-size: var(--fs-sm); }
+    .blk-num.is-active { background: var(--accent); color: #fff; }
+    .blk-title { font-weight: 800; color: var(--text); font-size: var(--fs-md); }
+    .blk-sn { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-weight: 800; color: var(--text); word-break: break-word; }
+    .blk-meta { font-size: var(--fs-sm); color: var(--text-mid); }
+    .blk-lock { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); font-weight: 800; color: var(--success); background: var(--success-bg); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+    .blk-list { list-style: none; display: grid; gap: 4px; padding-left: 42px; }
+    .blk-item__btn { width: 100%; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+    .blk-item__n, .anom-card__n { flex: 0 0 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-light); color: var(--accent); font-size: var(--fs-xs); font-weight: 800; }
+    .blk-item__txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-sm); }
+    .blk-item__txt.is-open { white-space: pre-wrap; }
+    .blk-item__att, .anom-card__att { font-size: var(--fs-xs); color: var(--text-mid); white-space: nowrap; }
+    .blk-item__note { margin: 4px 0 2px 32px; font-size: var(--fs-sm); color: var(--text-mid); white-space: pre-wrap; }
+    .blk-foot { display: flex; justify-content: flex-end; }
+    .blk-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; padding-top: 6px; border-top: 1px solid var(--border); }
+    .pill { display: inline-flex; align-items: center; font-size: var(--fs-xs); font-weight: 700; border-radius: 999px; padding: 2px 9px; white-space: nowrap; border: 1px solid transparent; }
+    .pill-wait { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .pill-info { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .pill-ok { background: var(--success-bg); color: var(--success); }
+    .sn-field { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 44px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); cursor: text; }
+    .sn-field:focus-within { border-color: rgba(249,115,22,.5); background: var(--surface); box-shadow: 0 0 0 3px rgba(249,115,22,.12); }
+    .sn-field.is-disabled { cursor: default; opacity: .85; }
+    .sn-field__input { flex: 1; min-width: 220px; border: 0 !important; outline: 0; background: transparent !important; box-shadow: none !important; font: inherit; font-size: var(--fs-md); color: var(--text); padding: 4px; min-height: 0 !important; }
+    .sn-chip { display: inline-flex; align-items: center; gap: 6px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-weight: 700; font-size: var(--fs-sm); color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px 6px 3px 11px; }
+    .sn-chip.is-range { border-color: var(--accent); background: var(--accent-light); }
+    .sn-chip__arrow { color: var(--accent); }
+    .sn-chip__n { font-family: "Outfit", sans-serif; font-size: var(--fs-xs); color: var(--text-mid); }
+    .sn-chip__x { border: 0; background: transparent; color: var(--text-light); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px; min-height: 0; }
+    .sn-chip__x:hover { color: var(--danger); }
+    .anom-list { display: grid; gap: 8px; }
+    .anom-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .anom-card.is-collapsed { display: flex; align-items: center; gap: 10px; padding: 9px 12px; font: inherit; color: var(--text); text-align: left; cursor: pointer; width: 100%; }
+    .anom-card.is-collapsed:hover { border-color: var(--accent); }
+    .anom-card__txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-sm); }
+    .anom-card__edit { font-size: var(--fs-xs); font-weight: 700; color: var(--primary-mid); }
+    .anom-card.is-active { padding: 12px; display: grid; gap: 10px; border-color: var(--accent); box-shadow: 0 2px 10px rgba(15,23,42,.05); }
+    .anom-card.is-gestita { background: var(--bg); }
+    .anom-card__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .anom-card__title { font-weight: 800; color: var(--text); flex: 1; }
+    .anom-add { align-self: flex-start; }
+    .drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 10px 12px; background: var(--bg); display: grid; gap: 10px; transition: border-color .15s, background .15s; }
+    .drop-zone.is-over { border-color: var(--accent); background: var(--accent-light); }
+    .drop-zone.is-disabled { border-style: solid; }
+    .drop-zone__hint { display: flex; align-items: center; gap: 8px; color: var(--text-mid); font-size: var(--fs-sm); }
+    .drop-zone__hint kbd { font-family: inherit; font-size: var(--fs-xs); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--surface); }
+    .thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+    .thumb { position: relative; width: 104px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; display: grid; }
+    .thumb img { width: 100%; height: 72px; object-fit: cover; display: block; }
+    .thumb__ext { height: 72px; display: grid; place-items: center; font-weight: 800; color: var(--text-mid); background: var(--bg); }
+    .thumb.is-saved .thumb__ext { color: var(--success); }
+    .thumb__name { font-size: 10px; color: var(--text-mid); padding: 3px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .thumb__x { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; min-height: 0; border-radius: 50%; border: 0; background: rgba(15,23,42,.65); color: #fff; font-size: 13px; line-height: 20px; cursor: pointer; padding: 0; }
+    .copilot-inline { display: grid; gap: 6px; justify-items: start; }
+    .confirm-box { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid #fcd34d; border-left: 4px solid #f59e0b; border-radius: 10px; background: #fffbeb; color: #78350f; }
+    .ctl-footer { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0 4px; background: var(--surface); border-top: 1px solid var(--border); }
+    .btn-termina { background: var(--primary); }
+    .esito-card { display: grid; gap: 10px; justify-items: center; text-align: center; padding: 24px 8px; }
+    .esito-card__icon { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; font-weight: 800; color: var(--success); background: var(--success-bg); }
+    .esito-card h2 { font-size: var(--fs-title-md); color: var(--text); }
+    .esito-ok { color: var(--success); font-weight: 600; }
+    .esito-muted { color: var(--text-mid); }
+    body.theme-dark .pill-wait { background: rgba(249,115,22,.14); color: #fdba74; border-color: rgba(249,115,22,.4); }
+    body.theme-dark .pill-info { background: rgba(59,130,246,.14); color: #93c5fd; border-color: rgba(96,165,250,.4); }
+    body.theme-dark .confirm-box { background: rgba(245,158,11,.10); color: #fcd34d; border-color: rgba(245,158,11,.45); }
+    body.theme-dark .resume-box, body.theme-dark .mail-mode__opt.is-on { background: rgba(249,115,22,.10); }
+    body.theme-dark .seg-toggle button.is-on { background: var(--accent); }
     *::-webkit-scrollbar { width: 5px; }
     *::-webkit-scrollbar-track { background: transparent; }
     *::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -138,9 +249,12 @@
       .step-header { padding: 16px 18px 14px; }
       .create-op-wrap, .search-wrap, .op-row, .form-body { padding-left: 18px; padding-right: 18px; }
       .create-grid { grid-template-columns: 1fr; }
+      .form-flow { grid-template-columns: 1fr; }
       .op-info-bar { padding: 10px 14px; align-items: flex-start; }
       .op-info-items { flex-basis: 100%; }
-      .toast { white-space: normal; max-width: calc(100vw - 32px); text-align: center; }
+      .ctl-head { padding: 12px 18px; top: 52px; }
+      .blk-list { padding-left: 0; }
+      .ctl-footer { flex-direction: column; align-items: stretch; }
     }
     @media (max-width: 480px) {
       .topbar { padding: 0 10px; gap: 6px; }
@@ -176,8 +290,13 @@
       notifica_op: "{% url 'api_anomalie_notifica_op' %}",
       seriali_op: "{% url 'api_anomalie_seriali_op' %}",
       allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
-      descrizione_allegati_upload: "{% url 'api_anomalie_descrizione_allegati_upload' %}",
       copilota: "{% url 'api_anomalie_copilota' %}",
+      controlli: "{% url 'api_anomalie_controlli' %}",
+      controllo_apri: "{% url 'api_anomalie_controllo_apri' %}",
+      controllo_dettaglio: "{% url 'api_anomalie_controllo_dettaglio' 0 %}",
+      controllo_impostazioni: "{% url 'api_anomalie_controllo_impostazioni' 0 %}",
+      controllo_blocco: "{% url 'api_anomalie_controllo_blocco' 0 %}",
+      controllo_termina: "{% url 'api_anomalie_controllo_termina' 0 %}",
     };
   </script>
 
@@ -190,8 +309,13 @@
     notifica_op: '/api/anomalie/notifica-op',
     seriali_op: '/api/anomalie/seriali-op',
     allegati_upload: '/api/anomalie/allegati/upload',
-    descrizione_allegati_upload: '/api/anomalie/descrizione-allegati/upload',
     copilota: '/api/anomalie/copilota',
+    controlli: '/api/anomalie/controlli',
+    controllo_apri: '/api/anomalie/controlli/apri',
+    controllo_dettaglio: '/api/anomalie/controlli/0',
+    controllo_impostazioni: '/api/anomalie/controlli/0/impostazioni',
+    controllo_blocco: '/api/anomalie/controlli/0/blocco',
+    controllo_termina: '/api/anomalie/controlli/0/termina',
   };
 
   const cfgLists = window._AP_CONFIG_LISTS || {};
@@ -581,724 +705,818 @@
     );
   };
 
-  /* Step 2: Form Anomalia */
+  /* ── Step 2: controllo dell'OP a blocchi di seriali ──
+     Un blocco = un gruppo di seriali (singoli, liste, range) con una o più anomalie.
+     Ogni anomalia diventa una riga a sé: il capocommessa decide su ciascuna. */
   const STATI_SUPERFICIE = CFG_STATI_SUPERFICIE;
+  const SN_PATTERN = /^[A-Za-z]{3}\d{5}$/;
+  const MAX_RANGE = 1000;
+  const MAIL_MODES = [
+    { value: 'subito', label: 'A ogni blocco salvato', hint: 'La mail parte qualche minuto dopo l’ultimo salvataggio: più blocchi salvati di seguito arrivano in un’unica mail.' },
+    { value: 'fine', label: 'Una sola mail a fine controllo', hint: 'La mail parte quando premi «Termina controllo» (o da sola dopo 4 ore senza salvataggi).' },
+  ];
 
-  const Step2Form = ({ op, initialSn, onBack, onSaved }) => {
-    const [statiSup,  setStatiSup]  = useState([]);
-    const [sn,        setSn]        = useState(initialSn || '');
-    const [isRange,   setIsRange]   = useState(false);
-    const [snInizio,  setSnInizio]  = useState('');
-    const [snFine,    setSnFine]    = useState('');
-    const [serialGroups, setSerialGroups] = useState([]);
-    const [desc,      setDesc]      = useState('');
-    const [selectedDescSerials, setSelectedDescSerials] = useState(null);
-    const [extraDescriptions, setExtraDescriptions] = useState([]);
-    const [fase,      setFase]      = useState('');
-    const [note,      setNote]      = useState('');
-    const [copSug,     setCopSug]     = useState(null);
-    const [copLoading, setCopLoading] = useState(false);
-    const [copErr,     setCopErr]     = useState('');
-    const [saving,    setSaving]    = useState(false);
-    const [error,     setError]     = useState('');
-    const [attachMsg, setAttachMsg] = useState('');
-    const [pendingFiles, setPendingFiles] = useState([]);
-    const fileInputRef = useRef(null);
-    // Seriali con anomalie aperte sull'OP (per check duplicati live)
-    const [serialiEsistenti, setSerialiEsistenti] = useState([]);
-    // Mappa token (lowercase) -> { seriale, descrizione, avanzamento } per il popup d'aiuto
-    const [serialiDettagli, setSerialiDettagli] = useState({});
-    const [snWarn, setSnWarn] = useState('');
-    const [snDuplicati, setSnDuplicati] = useState([]);
+  const urlFor = (tpl, id) => String(tpl).replace('/controlli/0', `/controlli/${id}`);
 
-    // Carica i seriali già presenti (anomalie aperte) sull'OP selezionato.
-    useEffect(() => {
-      if (!op || !op.id) { setSerialiEsistenti([]); setSerialiDettagli({}); return; }
-      let alive = true;
+  const postJson = async (url, body, context) => {
+    const r = await fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(body || {}),
+    });
+    const j = await parseJsonStrict(r, context);
+    if (!r.ok && r.status !== 207) throw new Error(j.error || `${context}: HTTP ${r.status}`);
+    return j;
+  };
+
+  const getJson = async (url, context) => {
+    const r = await fetch(url, { credentials: 'same-origin' });
+    const j = await parseJsonStrict(r, context);
+    if (!r.ok) throw new Error(j.error || `${context}: HTTP ${r.status}`);
+    return j;
+  };
+
+  /* Seriali: stessa logica di anomalie/seriali.py */
+  const parseVoce = (raw) => {
+    const voce = String(raw || '').trim().replace(/\s*-\s*/g, '-');
+    if (!voce) return null;
+    const m = voce.match(/^(.*?)(\d+)-(.*?)(\d+)$/);
+    if (m && (!m[3] || m[3].toLowerCase() === m[1].toLowerCase())) {
+      const a = parseInt(m[2], 10), b = parseInt(m[4], 10);
+      if (a <= b && b - a <= MAX_RANGE) {
+        const tokens = [];
+        for (let i = a; i <= b; i += 1) tokens.push(`${m[1]}${String(i).padStart(m[2].length, '0')}`);
+        return { voce, range: true, da: tokens[0], a: tokens[tokens.length - 1], tokens };
+      }
+    }
+    return { voce, range: false, tokens: [voce] };
+  };
+  const splitSerialText = (text) => String(text || '')
+    .replace(/\s*-\s*/g, '-')
+    .split(/[\s,;]+/)
+    .map(v => v.trim())
+    .filter(Boolean);
+  const tokensOf = (voci) => {
+    const seen = new Set();
+    const out = [];
+    (voci || []).forEach(v => {
+      const p = parseVoce(v);
+      (p ? p.tokens : []).forEach(t => {
+        const k = t.toLowerCase();
+        if (!seen.has(k)) { seen.add(k); out.push(t); }
+      });
+    });
+    return out;
+  };
+  const labelVoci = (voci) => {
+    const n = tokensOf(voci).length;
+    const txt = (voci || []).join(', ');
+    return n > 1 ? `${txt} (${n} pezzi)` : txt;
+  };
+
+  const fileExt = (name) => {
+    const dot = String(name || '').lastIndexOf('.');
+    return dot >= 0 ? String(name).slice(dot).toLowerCase() : '';
+  };
+  const isImageFile = (f) => /^image\//.test(String(f.type || '')) || ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(fileExt(f.name));
+  const stamp = () => {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  };
+  /* Le immagini incollate dagli appunti arrivano come "image.png": nome leggibile e univoco. */
+  const nameClipboardFiles = (files) => files.map((f, i) => {
+    const ext = fileExt(f.name) || (String(f.type || '').split('/')[1] ? `.${String(f.type).split('/')[1]}` : '.png');
+    if (f.name && !/^image\.\w+$/i.test(f.name)) return f;
+    try { return new File([f], `appunti-${stamp()}-${i + 1}${ext === '.jpeg' ? '.jpg' : ext}`, { type: f.type || 'image/png' }); }
+    catch (_) { return f; }
+  });
+  const validateFiles = (files) => {
+    const ok = [];
+    const errors = [];
+    files.forEach(f => {
+      if (!ALLEGATI_ALLOWED_EXT.has(fileExt(f.name))) errors.push(`${f.name || 'file'}: formato non supportato`);
+      else if (Number(f.size || 0) <= 0) errors.push(`${f.name || 'file'}: file vuoto`);
+      else if (Number(f.size || 0) > ALLEGATI_MAX_SIZE) errors.push(`${f.name || 'file'}: supera 20 MB`);
+      else ok.push(f);
+    });
+    return { ok, errors };
+  };
+
+  let _uid = 0;
+  const uid = () => `n${Date.now()}_${_uid += 1}`;
+  const newAnomalia = () => ({ key: uid(), localId: null, testo: '', files: [], existing: [], gestita: false, avanzamento: '' });
+  const newEditor = () => ({ bloccoId: null, voci: [], stati: [], anomalie: [newAnomalia()], attiva: 0, bloccato: false });
+  const editorFromBlocco = (b) => ({
+    bloccoId: b.id,
+    voci: [...(b.seriali || [])],
+    stati: [...(b.stato_superficie || [])],
+    anomalie: (b.anomalie || []).map(a => ({
+      key: `s${a.local_id}`, localId: a.local_id, testo: a.testo || '', files: [], existing: a.allegati || [],
+      gestita: !!a.gestita, avanzamento: a.avanzamento || '',
+    })),
+    attiva: -1,
+    bloccato: !!b.bloccato,
+  });
+  const editorDirty = (ed) => !!ed && (
+    ed.bloccoId !== null
+    || ed.voci.length > 0
+    || ed.stati.length > 0
+    || ed.anomalie.some(a => a.testo.trim() || a.files.length)
+  );
+
+  const StatoPill = ({ a }) => {
+    if (a.chiusa) return <span className="pill pill-ok">Chiusa</span>;
+    if (a.gestita) return <span className="pill pill-info">{a.avanzamento || 'Gestita'}</span>;
+    return <span className="pill pill-wait">In attesa del capocommessa</span>;
+  };
+
+  /* Campo seriali a «chip»: Invio, virgola o spazio confermano; si incollano anche elenchi. */
+  const SerialInput = ({ voci, onChange, disabled, inputRef }) => {
+    const [text, setText] = useState('');
+    const add = (parts) => {
+      if (!parts.length) return;
+      const next = [...voci];
+      parts.forEach(p => {
+        const v = p.replace(/\s*-\s*/g, '-');
+        if (!next.some(x => x.toLowerCase() === v.toLowerCase())) next.push(v);
+      });
+      onChange(next);
+    };
+    const commit = () => { const parts = splitSerialText(text); setText(''); add(parts); };
+    return (
+      <div className={`sn-field${disabled ? ' is-disabled' : ''}`} onClick={() => inputRef && inputRef.current && inputRef.current.focus()}>
+        {voci.map(v => {
+          const p = parseVoce(v);
+          return (
+            <span key={v} className={`sn-chip${p && p.range ? ' is-range' : ''}`}>
+              {p && p.range ? <>{p.da}<span className="sn-chip__arrow">→</span>{p.a}<span className="sn-chip__n">{p.tokens.length} pz</span></> : v}
+              {!disabled && (
+                <button type="button" className="sn-chip__x" aria-label={`Rimuovi ${v}`} onClick={(e) => { e.stopPropagation(); onChange(voci.filter(x => x !== v)); }}>×</button>
+              )}
+            </span>
+          );
+        })}
+        {!disabled && (
+          <input
+            ref={inputRef}
+            className="sn-field__input"
+            type="text"
+            value={text}
+            placeholder={voci.length ? 'Aggiungi altri seriali…' : 'Es. LCN00001 · LCN00005-LCN00010 · più seriali separati da virgola'}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ',' || e.key === ';' || (e.key === ' ' && !/-\s*$/.test(text))) {
+                if (text.trim()) { e.preventDefault(); commit(); }
+                else if (e.key === 'Enter') e.preventDefault();
+              } else if (e.key === 'Backspace' && !text && voci.length) {
+                onChange(voci.slice(0, -1));
+              }
+            }}
+            onBlur={commit}
+            onPaste={e => {
+              const t = e.clipboardData ? e.clipboardData.getData('text') : '';
+              if (t && /[\s,;]/.test(t.trim())) { e.preventDefault(); add(splitSerialText(t)); }
+            }}
+          />
+        )}
+      </div>
+    );
+  };
+
+  /* Allegati di una anomalia: trascina, sfoglia o incolla (Ctrl+V) dagli appunti. */
+  const AttachmentZone = ({ files, existing, onAdd, onRemove, disabled }) => {
+    const [over, setOver] = useState(false);
+    const inputRef = useRef(null);
+    const previews = React.useMemo(() => files.map(f => (isImageFile(f) ? URL.createObjectURL(f) : '')), [files]);
+    useEffect(() => () => previews.forEach(u => u && URL.revokeObjectURL(u)), [previews]);
+    return (
+      <div
+        className={`drop-zone${over ? ' is-over' : ''}${disabled ? ' is-disabled' : ''}`}
+        onDragOver={e => { if (disabled) return; e.preventDefault(); setOver(true); }}
+        onDragLeave={() => setOver(false)}
+        onDrop={e => { if (disabled) return; e.preventDefault(); setOver(false); onAdd(Array.from(e.dataTransfer.files || [])); }}
+      >
+        <input ref={inputRef} type="file" multiple hidden
+          accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv"
+          onChange={e => { const sel = Array.from(e.target.files || []); e.target.value = ''; onAdd(sel); }} />
+        {!disabled && (
+          <div className="drop-zone__hint">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Trascina qui foto e documenti, <button type="button" className="link-btn" onClick={() => inputRef.current && inputRef.current.click()}>sfoglia</button> oppure incolla con <kbd>Ctrl</kbd>+<kbd>V</kbd></span>
+          </div>
+        )}
+        {(existing.length > 0 || files.length > 0) && (
+          <div className="thumbs">
+            {existing.map(f => (
+              <div key={f.file_id} className="thumb is-saved" title={`${f.name} · già caricato`}>
+                <span className="thumb__ext">{fileExt(f.name).replace('.', '').toUpperCase() || 'FILE'}</span>
+                <span className="thumb__name">{f.name}</span>
+              </div>
+            ))}
+            {files.map((f, i) => (
+              <div key={`${f.name}-${f.size}-${i}`} className="thumb" title={`${f.name} · ${formatBytes(f.size)}`}>
+                {previews[i] ? <img src={previews[i]} alt="" /> : <span className="thumb__ext">{fileExt(f.name).replace('.', '').toUpperCase() || 'FILE'}</span>}
+                <span className="thumb__name">{f.name}</span>
+                {!disabled && <button type="button" className="thumb__x" aria-label={`Rimuovi ${f.name}`} onClick={() => onRemove(i)}>×</button>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* Blocco già salvato: sola lettura, compatto. */
+  const BloccoCongelato = ({ b, index, onEdit, canEdit }) => {
+    const [open, setOpen] = useState(false);
+    return (
+      <div className="blk is-frozen">
+        <div className="blk-head">
+          <div className="blk-num">{index + 1}</div>
+          <div className="blk-head__main">
+            <div className="blk-sn">{b.seriale_label}</div>
+            <div className="blk-meta">
+              Fase {b.fase} · {b.anomalie.length} anomali{b.anomalie.length === 1 ? 'a' : 'e'}
+              {b.stato_superficie.length > 0 && <> · {b.stato_superficie.join(', ')}</>}
+            </div>
+          </div>
+          <span className="blk-lock" title="Blocco salvato">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Salvato
+          </span>
+        </div>
+        <ol className="blk-list">
+          {b.anomalie.map((a, i) => (
+            <li key={a.local_id} className="blk-item">
+              <button type="button" className="blk-item__btn" onClick={() => setOpen(open === a.local_id ? false : a.local_id)} aria-expanded={open === a.local_id}>
+                <span className="blk-item__n">{i + 1}</span>
+                <span className={`blk-item__txt${open === a.local_id ? ' is-open' : ''}`}>{a.testo}</span>
+                {a.allegati.length > 0 && <span className="blk-item__att">📎 {a.allegati.length}</span>}
+                <StatoPill a={a} />
+              </button>
+              {open === a.local_id && a.note_capocommessa && (
+                <div className="blk-item__note"><strong>Capocommessa:</strong> {a.note_capocommessa}</div>
+              )}
+            </li>
+          ))}
+        </ol>
+        {canEdit && (
+          <div className="blk-foot">
+            <button type="button" className="btn-secondary btn-sm" onClick={onEdit}>Modifica o aggiungi anomalie</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const Step2Controllo = ({ op, onBack, onDone }) => {
+    const [loading, setLoading] = useState(true);
+    const [controllo, setControllo] = useState(null);
+    const [riprendibili, setRiprendibili] = useState([]);
+    const [fasiNote, setFasiNote] = useState([]);
+    const [fase, setFase] = useState('');
+    const [mailMode, setMailMode] = useState('subito');
+    const [editingFase, setEditingFase] = useState(false);
+    const [editor, setEditor] = useState(newEditor());
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const [notice, setNotice] = useState('');
+    const [attachErr, setAttachErr] = useState('');
+    const [confirmTermina, setConfirmTermina] = useState(false);
+    const [esito, setEsito] = useState(null);
+    const [serialiAperti, setSerialiAperti] = useState({ seriali: [], dettagli: {} });
+    const [copilot, setCopilot] = useState({ key: '', loading: false, sug: null, err: '' });
+    const snRef = useRef(null);
+    const isBenestare = String(op.stato || '').toLowerCase().includes('benestare');
+
+    const loadSerialiAperti = () => {
+      if (!op || !op.id) return;
       fetch(`${API.seriali_op}?op_id=${encodeURIComponent(op.id)}`, { credentials: 'same-origin' })
-        .then(r => r.ok ? r.json() : { seriali: [], dettagli: {} })
-        .then(d => {
-          if (!alive) return;
-          setSerialiEsistenti(Array.isArray(d.seriali) ? d.seriali : []);
-          setSerialiDettagli(d && d.dettagli && typeof d.dettagli === 'object' ? d.dettagli : {});
-        })
-        .catch(() => { if (alive) { setSerialiEsistenti([]); setSerialiDettagli({}); } });
-      return () => { alive = false; };
-    }, [op && op.id]);
-
-    const toggleStato = (s) =>
-      setStatiSup(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
-
-    const buildNota = (userNote) => {
-      const prefix = statiSup.length ? `Stato superficie: ${statiSup.join(', ')}\n\n` : '';
-      return prefix + (userNote || '');
+        .then(r => (r.ok ? r.json() : { seriali: [], dettagli: {} }))
+        .then(d => setSerialiAperti({ seriali: Array.isArray(d.seriali) ? d.seriali : [], dettagli: d.dettagli || {} }))
+        .catch(() => {});
     };
 
-    const onSelectFiles = (event) => {
-      const selected = Array.from((event.target && event.target.files) || []);
-      event.target.value = '';
-      if (!selected.length) return;
-
-      const ok = [];
-      const errors = [];
-      for (const f of selected) {
-        const name = String(f.name || '').trim();
-        const dot = name.lastIndexOf('.');
-        const ext = dot >= 0 ? name.slice(dot).toLowerCase() : '';
-        if (!ALLEGATI_ALLOWED_EXT.has(ext)) {
-          errors.push(`${name || 'file'}: formato non supportato`);
-          continue;
-        }
-        if (Number(f.size || 0) > ALLEGATI_MAX_SIZE) {
-          errors.push(`${name || 'file'}: supera 20 MB`);
-          continue;
-        }
-        ok.push(f);
-      }
-
-      if (ok.length) {
-        setPendingFiles(prev => {
-          const next = [...prev];
-          ok.forEach((f) => {
-            const exists = next.some((x) =>
-              x.name === f.name &&
-              Number(x.size || 0) === Number(f.size || 0) &&
-              Number(x.lastModified || 0) === Number(f.lastModified || 0)
-            );
-            if (!exists) next.push(f);
-          });
-          return next;
-        });
-      }
-      if (errors.length) {
-        setAttachMsg(errors.join(' | '));
-      } else {
-        setAttachMsg('');
-      }
-    };
-
-    const removePendingFile = (idx) => {
-      setPendingFiles(prev => prev.filter((_, i) => i !== idx));
-    };
-
-    const updateExtraDescription = (index, key, value) => {
-      setExtraDescriptions(prev => prev.map((row, i) => i === index ? { ...row, [key]: value } : row));
-    };
-
-    const toggleDescriptionSerial = (descriptionIndex, serial, checked) => {
-      if (descriptionIndex === 0) {
-        setSelectedDescSerials(current => {
-          const selected = current === null ? tokensFromInput() : current;
-          return checked ? Array.from(new Set([...selected, serial])) : selected.filter(value => value !== serial);
-        });
-        return;
-      }
-      const extraIndex = descriptionIndex - 1;
-      setExtraDescriptions(current => current.map((row, index) => {
-        if (index !== extraIndex) return row;
-        const selected = Array.isArray(row.seriali) ? row.seriali : tokensFromInput();
-        return { ...row, seriali: checked ? Array.from(new Set([...selected, serial])) : selected.filter(value => value !== serial) };
-      }));
-    };
-
-    const selectExtraDescriptionFiles = (index, event) => {
-      const selected = Array.from((event.target && event.target.files) || []);
-      event.target.value = '';
-      const valid = [];
-      const errors = [];
-      for (const file of selected) {
-        const dot = String(file.name || '').lastIndexOf('.');
-        const ext = dot >= 0 ? String(file.name).slice(dot).toLowerCase() : '';
-        if (!ALLEGATI_ALLOWED_EXT.has(ext)) errors.push(`${file.name}: formato non supportato`);
-        else if (Number(file.size || 0) > ALLEGATI_MAX_SIZE) errors.push(`${file.name}: supera 20 MB`);
-        else valid.push(file);
-      }
-      if (valid.length) updateExtraDescription(index, 'files', [...(extraDescriptions[index].files || []), ...valid]);
-      setAttachMsg(errors.join(' | '));
-    };
-
-    const makeDescriptionsPayload = () => [
-      { seriali: Array.from(new Set(selectedDescSerials === null ? tokensFromInput() : selectedDescSerials)), testo: desc.trim() },
-      ...extraDescriptions.map(row => ({
-        seriali: Array.from(new Set([...(Array.isArray(row.seriali) ? row.seriali : tokensFromInput()), ...String(row.serialiManuali || '').split(',').map(value => value.trim()).filter(Boolean)])),
-        testo: String(row.testo || '').trim(),
-      })),
-    ];
-
-    /* Copilota AI: proposta di triage read-only (non modifica i campi). */
-    const proponiCopilota = async () => {
-      if (!desc.trim()) { setCopErr('Scrivi prima la descrizione.'); return; }
-      setCopLoading(true); setCopErr(''); setCopSug(null);
-      try {
-        const csrf = getCsrf();
-        const r = await fetch(API.copilota, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-          body: JSON.stringify({ descrizione: desc }),
-        });
-        const d = await r.json();
-        if (!r.ok || !d.success) { setCopErr((d && d.error) || 'Errore.'); }
-        else if (!d.proposta || !d.proposta.ai_disponibile) { setCopErr('AI non disponibile al momento.'); }
-        else { setCopSug(d.proposta); }
-      } catch (e) { setCopErr('Errore di rete.'); }
-      setCopLoading(false);
-    };
-
-    const validate = () => {
-      if (!window._AP_HAS_ANOMALIE) return 'Tabella anomalie non disponibile.';
-      if (!fase.trim()) return 'Fase del controllo obbligatoria.';
-      if (!desc.trim()) return 'Descrizione anomalia obbligatoria.';
-      if (makeDescriptionsPayload().some(row => !row.seriali.length || !row.testo)) {
-        return 'Associa almeno un seriale e inserisci la descrizione per ogni voce.';
-      }
-      if (!isRange && !sn.trim() && !serialGroups.some(value => value.trim())) return 'S/N obbligatorio.';
-      if (isRange && (!snInizio.trim() || !snFine.trim())) return 'Specificare seriale iniziale e finale.';
-      return '';
-    };
-
-    /* Scompone un seriale in prefisso (non numerico finale) + parte numerica. */
-    const splitSeriale = (s) => {
-      const t = String(s || '').trim();
-      const m = t.match(/^(.*?)(\d+)$/);
-      if (!m) return { prefix: t, num: null, pad: 0 };
-      return { prefix: m[1], num: m[2], pad: m[2].length };
-    };
-
-    /* Tokenizza l'input S/N libero: lista virgola, oppure singolo. */
-    const tokensFromInput = () => {
-      const extra = serialGroups.flatMap(value => value.split(',').map(item => item.trim()).filter(Boolean));
-      if (isRange) {
-        return [...[snInizio.trim(), snFine.trim()].filter(Boolean), ...extra];
-      }
-      return [...sn.split(',').map(x => x.trim()).filter(Boolean), ...extra];
-    };
-
-    /* Numero di pezzi coperti dall'input corrente. */
-    const countPezzi = () => {
-      if (isRange) {
-        const a = splitSeriale(snInizio), b = splitSeriale(snFine);
-        if (a.num !== null && b.num !== null && a.prefix === b.prefix) {
-          const n1 = parseInt(a.num, 10), n2 = parseInt(b.num, 10);
-          if (!isNaN(n1) && !isNaN(n2) && n1 <= n2) return n2 - n1 + 1;
-        }
-        return 2; // inizio + fine non numerici coerenti: conta 2
-      }
-      return tokensFromInput().length;
-    };
-
-    /* Costruisce il seriale composito da salvare (UNA anomalia):
-       - range:  "LCN0001-LCN0010 (10 pezzi)"
-       - lista:  "LCN0001, LCN0005 (2 pezzi)"
-       - singolo: "LCN0001" */
-    const buildSeriale = () => {
-      if (isRange) {
-        const n = countPezzi();
-        const range = `${snInizio.trim()}-${snFine.trim()} (${n} pezz${n === 1 ? 'o' : 'i'})`;
-        const extra = serialGroups.flatMap(value => value.split(',').map(item => item.trim()).filter(Boolean));
-        return extra.length ? `${range}, ${extra.join(', ')}` : range;
-      }
-      const toks = tokensFromInput();
-      if (toks.length <= 1) return toks[0] || '';
-      return `${toks.join(', ')} (${toks.length} pezzi)`;
-    };
-
-    /* Formato seriale canonico: 3 lettere + 5 cifre (es. LCN00001). */
-    const SN_PATTERN = /^[A-Za-z]{3}\d{5}$/;
-
-    /* Check live formato: formato canonico + coerenza prefisso.
-       NON bloccante: ritorna un messaggio di warning o ''.
-       (I duplicati hanno un popup dedicato con la descrizione, vedi sotto.) */
-    const computeSnWarn = () => {
-      const toks = tokensFromInput();
-      if (!toks.length) return '';
-      const warns = [];
-
-      // 1) Formato canonico 3 lettere + 5 cifre su ogni token
-      const fuoriFormato = toks.filter(t => !SN_PATTERN.test(t));
-      if (fuoriFormato.length) {
-        warns.push(`Formato atteso "AAA00000" (3 lettere + 5 cifre): ${fuoriFormato.join(', ')}`);
-      }
-
-      // 2) Coerenza prefisso lettere col primo seriale valido
-      const primo = toks.find(t => SN_PATTERN.test(t));
-      if (primo) {
-        const prefixPrimo = primo.slice(0, 3).toUpperCase();
-        const diversi = toks.filter(t => SN_PATTERN.test(t) && t.slice(0, 3).toUpperCase() !== prefixPrimo);
-        if (diversi.length) {
-          warns.push(`Prefisso diverso da "${prefixPrimo}": ${diversi.join(', ')}`);
-        }
-      }
-
-      return warns.join(' · ');
-    };
-
-    /* Duplicati: per ogni token in input che ha già un'anomalia aperta sull'OP,
-       restituisce { token, descrizione, avanzamento, seriale } per il popup
-       d'aiuto che mostra all'operatore la descrizione di quell'anomalia. */
-    const computeSnDuplicati = () => {
-      if (!serialiEsistenti.length) return [];
-      const existSet = new Set(serialiEsistenti.map(x => x.toLowerCase()));
-      const seen = new Set();
-      const out = [];
-      for (const t of tokensFromInput()) {
-        const key = t.toLowerCase();
-        if (!existSet.has(key) || seen.has(key)) continue;
-        seen.add(key);
-        const info = (serialiDettagli && serialiDettagli[key]) || {};
-        out.push({
-          token: t,
-          descrizione: info.descrizione || '',
-          avanzamento: info.avanzamento || '',
-          autore: info.autore || '',
-          seriale: info.seriale || t,
-        });
-      }
-      return out;
-    };
-
-    // Ricalcola warning e duplicati quando cambia l'input o i seriali esistenti.
     useEffect(() => {
-      setSnWarn(computeSnWarn());
-      setSnDuplicati(computeSnDuplicati());
-    }, [sn, snInizio, snFine, isRange, serialiEsistenti, serialiDettagli]);
+      let alive = true;
+      getJson(`${API.controlli}?op_id=${encodeURIComponent(op.id)}`, 'Controlli in corso')
+        .then(j => {
+          if (!alive) return;
+          setRiprendibili(j.controlli || []);
+          setFasiNote(j.fasi || []);
+        })
+        .catch(e => alive && setError(e.message))
+        .finally(() => alive && setLoading(false));
+      loadSerialiAperti();
+      return () => { alive = false; };
+    }, [op.id]);
 
-    const buildPayload = (snVal) => ({
-      op_id:       op.id,
-      op_item_id:  op.item_id,
-      fase:        fase.trim(),
-      sn:          snVal,
-      desc:        makeDescriptionsPayload().map((row, index) => `Descrizione ${index + 1} [${row.seriali.join(', ')}]: ${row.testo}`).join('\n\n'),
-      descrizioni: makeDescriptionsPayload(),
-      note:        buildNota(note.trim()),
-      avanzamento: 'In attesa',
-      pezzi_prec:  false,
-      aprire_rdc:  false,
-      segnalare:   false,
-      chiudere:    false,
+    // Avviso se si chiude la pagina con un blocco non salvato o una mail «a fine controllo» in sospeso.
+    useEffect(() => {
+      const handler = (e) => {
+        const pendingMail = controllo && controllo.mail_mode === 'fine' && controllo.da_notificare > 0 && !controllo.terminato;
+        if (editorDirty(editor) || pendingMail) { e.preventDefault(); e.returnValue = ''; }
+      };
+      window.addEventListener('beforeunload', handler);
+      return () => window.removeEventListener('beforeunload', handler);
+    }, [editor, controllo]);
+
+    const addFiles = (index, rawFiles, fromClipboard) => {
+      const named = fromClipboard ? nameClipboardFiles(rawFiles) : rawFiles;
+      const { ok, errors } = validateFiles(named);
+      setAttachErr(errors.join(' · '));
+      if (!ok.length) return;
+      setEditor(prev => {
+        // Incolla senza un'anomalia aperta: va all'ultima ancora modificabile.
+        let idx = index === null ? prev.attiva : index;
+        if (idx < 0) idx = prev.anomalie.map(a => !a.gestita).lastIndexOf(true);
+        if (idx < 0 || !prev.anomalie[idx] || prev.anomalie[idx].gestita) return prev;
+        return {
+          ...prev,
+          attiva: idx,
+          anomalie: prev.anomalie.map((a, i) => {
+            if (i !== idx) return a;
+            const next = [...a.files];
+            ok.forEach(f => {
+              if (!next.some(x => x.name === f.name && x.size === f.size && x.lastModified === f.lastModified)) next.push(f);
+            });
+            return { ...a, files: next };
+          }),
+        };
+      });
+    };
+
+    // Ctrl+V di immagini (screenshot, foto copiate) ovunque nella pagina: va all'anomalia aperta.
+    useEffect(() => {
+      if (!controllo) return undefined;
+      const onPaste = (e) => {
+        const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
+        const files = items.filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean);
+        if (!files.length) return;
+        // Testo copiato da Word/Outlook porta con sé anche un'immagine: in un campo di
+        // testo vince il testo.
+        const inText = e.target && /^(TEXTAREA|INPUT)$/.test(e.target.tagName);
+        if (inText && items.some(it => it.kind === 'string' && it.type === 'text/plain')) return;
+        e.preventDefault();
+        addFiles(null, files, true);
+      };
+      document.addEventListener('paste', onPaste);
+      return () => document.removeEventListener('paste', onPaste);
+    }, [controllo]);
+
+    const apriControllo = async () => {
+      if (!fase.trim()) { setError('Indica la fase del controllo.'); return; }
+      setError(''); setSaving(true);
+      try {
+        const j = await postJson(API.controllo_apri, { op_id: op.id, op_item_id: op.item_id, fase: fase.trim(), mail_mode: mailMode }, 'Avvio controllo');
+        setControllo(j.controllo);
+        setEditor(newEditor());
+        setTimeout(() => snRef.current && snRef.current.focus(), 50);
+      } catch (e) { setError(e.message); }
+      finally { setSaving(false); }
+    };
+
+    const riprendi = async (c) => {
+      setSaving(true); setError('');
+      try {
+        const j = await getJson(urlFor(API.controllo_dettaglio, c.id), 'Ripresa controllo');
+        setControllo(j.controllo);
+        setFase(j.controllo.fase);
+        setMailMode(j.controllo.mail_mode);
+        setEditor(newEditor());
+      } catch (e) { setError(e.message); }
+      finally { setSaving(false); }
+    };
+
+    const salvaImpostazioni = async (patch) => {
+      setError('');
+      try {
+        const j = await postJson(urlFor(API.controllo_impostazioni, controllo.id), patch, 'Impostazioni controllo');
+        setControllo(prev => ({ ...prev, fase: j.controllo.fase, mail_mode: j.controllo.mail_mode }));
+        if (patch.fase) setEditingFase(false);
+        if (patch.mail_mode) setMailMode(patch.mail_mode);
+      } catch (e) { setError(e.message); }
+    };
+
+    const updAnomalia = (i, patch) => setEditor(prev => ({
+      ...prev,
+      anomalie: prev.anomalie.map((a, idx) => (idx === i ? { ...a, ...patch } : a)),
+    }));
+
+    const nuovaAnomalia = () => setEditor(prev => {
+      // L'ultima anomalia vuota si riusa invece di aggiungerne un'altra.
+      const last = prev.anomalie[prev.anomalie.length - 1];
+      if (last && !last.localId && !last.testo.trim() && !last.files.length) return { ...prev, attiva: prev.anomalie.length - 1 };
+      return { ...prev, anomalie: [...prev.anomalie, newAnomalia()], attiva: prev.anomalie.length };
     });
 
-    /* Salva UNA sola anomalia col seriale composito (range/lista in un'unica riga). */
-    const doSave = async () => {
-      const csrf = getCsrf();
-      const allSerials = Array.from(new Set([
-        ...tokensFromInput(),
-        ...extraDescriptions.flatMap(row => [...(Array.isArray(row.seriali) ? row.seriali : tokensFromInput()), ...String(row.serialiManuali || '').split(',').map(value => value.trim()).filter(Boolean)]),
-      ]));
-      const snVal = isRange ? buildSeriale() : (allSerials.length > 1 ? `${allSerials.join(', ')} (${allSerials.length} pezzi)` : (allSerials[0] || ''));
-      const r = await fetch(API.salva, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-        body: JSON.stringify(buildPayload(snVal)),
-        credentials: 'same-origin',
-      });
-      const j = await parseJsonStrict(r, 'Salvataggio anomalia');
-      if (!r.ok || !j.success) throw new Error(j.error || 'Errore salvataggio');
-      return j.local_id ? [{ localId: j.local_id, descrizioni: j.descrizioni || [] }] : [];
-    };
+    const rimuoviAnomalia = (i) => setEditor(prev => {
+      const anomalie = prev.anomalie.filter((_, idx) => idx !== i);
+      return { ...prev, anomalie: anomalie.length ? anomalie : [newAnomalia()], attiva: Math.max(0, Math.min(prev.attiva, anomalie.length - 1)) };
+    });
 
-    const uploadDescriptionAttachments = async (localId, descrizioneId, files) => {
-      if (!files.length) return;
-      if (!localId || !descrizioneId) throw new Error('Descrizione salvata senza identificativo; gli allegati restano da caricare.');
+    const uploadFiles = async (localId, files) => {
       const form = new FormData();
       form.append('local_id', String(localId));
-      form.append('descrizione_id', String(descrizioneId));
-      files.forEach(file => form.append('files', file));
-      const r = await fetch(API.descrizione_allegati_upload, {
-        method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: form, credentials: 'same-origin',
-      });
-      const j = await parseJsonStrict(r, 'Upload allegati descrizione');
-      if (!r.ok || !j.success) throw new Error(j.error || 'Errore upload allegati descrizione');
+      files.forEach(f => form.append('files', f));
+      const r = await fetch(API.allegati_upload, { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: form, credentials: 'same-origin' });
+      const j = await parseJsonStrict(r, 'Caricamento allegati');
+      if (Array.isArray(j.errors) && j.errors.length) throw new Error(j.errors.join(' · '));
+      if (!r.ok) throw new Error(j.error || `Caricamento allegati: HTTP ${r.status}`);
     };
 
-    const uploadPendingAttachments = async (localId) => {
-      if (!localId || !pendingFiles.length) return;
-      const csrf = getCsrf();
-      const form = new FormData();
-      form.append('local_id', String(localId));
-      pendingFiles.forEach((f) => form.append('files', f));
-      const r = await fetch(API.allegati_upload, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': csrf },
-        body: form,
-        credentials: 'same-origin',
-      });
-      const j = await parseJsonStrict(r, 'Upload allegati');
-      if (!r.ok) throw new Error(j.error || 'Errore upload allegati');
-      if (Array.isArray(j.errors) && j.errors.length) {
-        setAttachMsg('Upload parziale: ' + j.errors.join(' | '));
-      } else {
-        setAttachMsg(`${pendingFiles.length} allegato/i caricato/i`);
-      }
-    };
-
-    const handleSave = async (action) => {
-      const validErr = validate();
-      if (validErr) { setError(validErr); return; }
-      setError('');
-      setAttachMsg('');
-      setSaving(true);
+    const salvaBlocco = async () => {
+      const ed = editor;
+      const anomalie = ed.anomalie.filter(a => a.localId || a.testo.trim() || a.files.length);
+      if (!ed.voci.length) { setError('Inserisci almeno un seriale (premi Invio dopo averlo scritto).'); snRef.current && snRef.current.focus(); return false; }
+      if (!anomalie.length) { setError('Descrivi almeno un’anomalia.'); return false; }
+      const vuota = ed.anomalie.findIndex(a => (a.files.length || a.localId) && !a.testo.trim());
+      if (vuota >= 0) { setError(`L’anomalia ${vuota + 1} ha allegati ma nessuna descrizione.`); setEditor(prev => ({ ...prev, attiva: vuota })); return false; }
+      setError(''); setNotice(''); setSaving(true);
       try {
-        const saved = await doSave();
-        const firstId = saved[0] && saved[0].localId;
-        const savedDescriptions = saved[0] && saved[0].descrizioni || [];
-        try {
-          if (firstId && pendingFiles.length) {
-            await uploadDescriptionAttachments(firstId, savedDescriptions[0] && savedDescriptions[0].id, pendingFiles);
+        const j = await postJson(urlFor(API.controllo_blocco, controllo.id), {
+          blocco_id: ed.bloccoId,
+          seriali: ed.voci,
+          stato_superficie: ed.stati,
+          anomalie: anomalie.map(a => ({ local_id: a.localId, testo: a.testo.trim() })),
+        }, 'Salvataggio blocco');
+        const risultati = j.risultati || [];
+        const uploadErrors = [];
+        for (let i = 0; i < anomalie.length; i += 1) {
+          const res = risultati[i];
+          if (res && res.ok && res.local_id && anomalie[i].files.length) {
+            try { await uploadFiles(res.local_id, anomalie[i].files); }
+            catch (e) { uploadErrors.push(`anomalia ${i + 1}: ${e.message}`); }
           }
-          for (let index = 0; index < extraDescriptions.length; index += 1) {
-            const files = extraDescriptions[index].files || [];
-            const detail = savedDescriptions[index + 1];
-            if (files.length) await uploadDescriptionAttachments(firstId, detail && detail.id, files);
-          }
-        } catch (uploadError) {
-          setAttachMsg(`Segnalazione salvata, ma un allegato non è stato caricato: ${uploadError.message}`);
         }
-        // La notifica mail parte SEMPRE e da sola: `api/anomalie/salva` accoda l'OP nella
-        // coda di debounce a ogni salvataggio (qualsiasi pulsante), e il task periodico
-        // invia 1 mail riepilogativa quando l'OP è fermo da ~5 min. Niente più chiamata
-        // diretta a notifica_op qui, che avrebbe prodotto una seconda mail (doppione).
-        // Per "stesso S/N" rilancia solo se è un singolo seriale, non range/lista
-        const singleSn = (!isRange && tokensFromInput().length === 1) ? sn.trim() : null;
-        onSaved(action, singleSn);
+        if (!j.success) {
+          // Salvataggio parziale: le anomalie riuscite tengono il loro id, così un nuovo
+          // tentativo le aggiorna invece di duplicarle.
+          const byKey = {};
+          anomalie.forEach((a, i) => { if (risultati[i] && risultati[i].ok) byKey[a.key] = risultati[i].local_id; });
+          setEditor(prev => ({
+            ...prev,
+            bloccoId: j.blocco_id || prev.bloccoId,
+            anomalie: prev.anomalie.map(a => (byKey[a.key] ? { ...a, localId: byKey[a.key], files: [] } : a)),
+          }));
+          setControllo(j.controllo);
+          setError(`Blocco salvato solo in parte: ${j.error}`);
+          return false;
+        }
+        const fresh = await getJson(urlFor(API.controllo_dettaglio, controllo.id), 'Aggiornamento controllo');
+        setControllo(fresh.controllo);
+        setEditor(newEditor());
+        loadSerialiAperti();
+        const n = anomalie.length;
+        setNotice(`Salvato: ${n} anomali${n === 1 ? 'a' : 'e'} su ${labelVoci(ed.voci)}.`
+          + (uploadErrors.length ? ` Attenzione, allegati non caricati (${uploadErrors.join('; ')}): riapri il blocco con «Modifica» e riallegali.` : ''));
+        setTimeout(() => snRef.current && snRef.current.focus(), 50);
+        return true;
       } catch (e) {
         setError(e.message);
+        return false;
       } finally {
         setSaving(false);
       }
     };
 
-    return (
-      <div className="step-card">
-        {/* OP info bar */}
-        <div className="op-info-bar">
-          <button className="op-info-back" onClick={onBack} disabled={saving}>
-            ← Cambio OP
-          </button>
-          <div className="op-info-items">
-            <div className="op-info-chip"><strong>{op.id}</strong></div>
-            {op.pn   && <div className="op-info-chip"><strong>P/N</strong> {op.pn}</div>}
-            {op.capo && <div className="op-info-chip"><strong>Capo</strong> {op.capo}</div>}
-            {op.car  && <div className="op-info-chip"><strong>CAR</strong> {op.car}</div>}
-          </div>
-        </div>
+    const termina = async (salvaPrima) => {
+      if (salvaPrima && !(await salvaBlocco())) return;
+      setConfirmTermina(false); setSaving(true); setError('');
+      try {
+        const j = await postJson(urlFor(API.controllo_termina, controllo.id), {}, 'Termina controllo');
+        setControllo(j.controllo);
+        setEditor(newEditor());
+        setEsito(j.mail || {});
+      } catch (e) { setError(e.message); }
+      finally { setSaving(false); }
+    };
 
-        <div className="step-header">
-          <div className="step-num">2</div>
-          <h2>Nuova Segnalazione Anomalia</h2>
-        </div>
+    const proponiCopilota = async (a) => {
+      if (!a.testo.trim()) { setCopilot({ key: a.key, loading: false, sug: null, err: 'Scrivi prima la descrizione.' }); return; }
+      setCopilot({ key: a.key, loading: true, sug: null, err: '' });
+      try {
+        const r = await fetch(API.copilota, {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+          body: JSON.stringify({ descrizione: a.testo }),
+        });
+        const d = await parseJsonSafe(r, {});
+        if (!r.ok || !d.success) setCopilot({ key: a.key, loading: false, sug: null, err: (d && d.error) || 'Suggerimento non disponibile.' });
+        else if (!d.proposta || !d.proposta.ai_disponibile) setCopilot({ key: a.key, loading: false, sug: null, err: 'AI non disponibile al momento.' });
+        else setCopilot({ key: a.key, loading: false, sug: d.proposta, err: '' });
+      } catch (_) { setCopilot({ key: a.key, loading: false, sug: null, err: 'Errore di rete.' }); }
+    };
 
-        <div className="form-body">
-          <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>OP {op.id} <span aria-hidden="true">→</span> Segnalazione per fase</h3>
-          <div className="field-group">
-            <label className="field-label" htmlFor="segnalazione-fase">
-              Fase del controllo <span className="req">*</span>
-            </label>
-            <input
-              id="segnalazione-fase"
-              className="text-input"
-              type="text"
-              placeholder="Es. fase 1, collaudo finale..."
-              value={fase}
-              onChange={e => setFase(e.target.value)}
-              maxLength={100}
-            />
-            <div className="text-sm" style={{ color: 'var(--text-mid)' }}>
-              Lo stesso OP può avere segnalazioni collegate riferite a fasi diverse.
+    /* Avvisi sui seriali digitati: formato, prefisso diverso, anomalie già aperte. */
+    const controlloTokens = React.useMemo(() => {
+      const own = new Set();
+      ((controllo && controllo.blocchi) || []).forEach(b => tokensOf(b.seriali).forEach(t => own.add(t.toLowerCase())));
+      return own;
+    }, [controllo]);
+    const tokens = tokensOf(editor.voci);
+    const fuoriFormato = tokens.filter(t => !SN_PATTERN.test(t));
+    const primo = tokens.find(t => SN_PATTERN.test(t));
+    const prefissoDiverso = primo ? tokens.filter(t => SN_PATTERN.test(t) && t.slice(0, 3).toUpperCase() !== primo.slice(0, 3).toUpperCase()) : [];
+    const giaNelControllo = editor.bloccoId === null ? tokens.filter(t => controlloTokens.has(t.toLowerCase())) : [];
+    const duplicati = (() => {
+      const exist = new Set((serialiAperti.seriali || []).map(x => x.toLowerCase()));
+      const out = [];
+      tokens.forEach(t => {
+        const k = t.toLowerCase();
+        if (!exist.has(k) || controlloTokens.has(k)) return;
+        const info = serialiAperti.dettagli[k] || {};
+        out.push({ token: t, ...info });
+      });
+      return out.slice(0, 6);
+    })();
+
+    const blocchi = (controllo && controllo.blocchi) || [];
+    const dirty = editorDirty(editor);
+
+    if (loading) return <div className="step-card"><div className="loading-msg">Caricamento…</div></div>;
+
+    const opBar = (
+      <div className="op-info-bar">
+        <button className="op-info-back" onClick={onBack} disabled={saving || (dirty && !!controllo)} title={dirty ? 'Salva o svuota il blocco in corso prima di cambiare OP' : ''}>← Cambio OP</button>
+        <div className="op-info-items">
+          <div className="op-info-chip"><strong>{op.id}</strong></div>
+          {op.pn && op.pn !== '—' && <div className="op-info-chip"><strong>P/N</strong> {op.pn}</div>}
+          {op.capo && op.capo !== '—' && <div className="op-info-chip"><strong>Capocommessa</strong> {op.capo}</div>}
+          {op.car && op.car !== '—' && <div className="op-info-chip"><strong>CAR</strong> {op.car}</div>}
+          <div className={`op-info-chip ${isBenestare ? 'is-benestare' : ''}`}>{isBenestare ? 'Collaudo di benestare' : 'Altro controllo'}</div>
+        </div>
+      </div>
+    );
+
+    /* Esito di fine controllo */
+    if (esito) {
+      return (
+        <div className="step-card">
+          {opBar}
+          <div className="form-body">
+            <div className="esito-card">
+              <div className="esito-card__icon">✓</div>
+              <h2>Controllo terminato</h2>
+              <p>{blocchi.length} blocch{blocchi.length === 1 ? 'o' : 'i'} di seriali, {blocchi.reduce((n, b) => n + b.anomalie.length, 0)} anomalie registrate sull’OP {op.id}.</p>
+              {esito.sent && <p className="esito-ok">Mail con il link di decisione inviata a <strong>{esito.to}</strong>{esito.cc ? <> (in copia {esito.cc})</> : null}.</p>}
+              {!esito.sent && esito.reason === 'nessuna_anomalia' && <p className="esito-muted">Nessuna mail da inviare ora: le anomalie erano già state comunicate al capocommessa.</p>}
+              {!esito.sent && esito.reason === 'errore' && <p className="error-msg">Mail al capocommessa non inviata: {esito.error}. Il sistema riproverà in automatico.</p>}
+              <div className="action-bar">
+                <button className="btn-secondary" onClick={() => onDone('menu')}>Torna al menu</button>
+                <button className="btn-outline" onClick={() => onDone('altro_op')}>Controlla un altro OP</button>
+                <button className="btn-primary" onClick={() => onDone('stesso_op')}>Nuovo controllo su questo OP</button>
+              </div>
             </div>
           </div>
+        </div>
+      );
+    }
 
-          {/* Stato superficie */}
-          <div className="field-group">
-            <label className="field-label">Stato superficie</label>
-            <div className="checkbox-row">
-              {STATI_SUPERFICIE.map(s => (
-                <label key={s} className="checkbox-item">
-                  <input
-                    type="checkbox"
-                    checked={statiSup.includes(s)}
-                    onChange={() => toggleStato(s)}
-                  />
-                  <span>{s}</span>
-                </label>
-              ))}
-            </div>
+    /* Avvio: fase + modalità mail, oppure ripresa di un controllo lasciato aperto */
+    if (!controllo) {
+      return (
+        <div className="step-card">
+          {opBar}
+          <div className="step-header">
+            <div className="step-num">2</div>
+            <h2>Nuovo controllo</h2>
           </div>
-
-          {/* S/N */}
-          <div className="field-group">
-            <label className="field-label">
-              S/N <span className="req">*</span>
-            </label>
-            <label className="checkbox-item" style={{ marginBottom: '8px' }}>
-              <input
-                type="checkbox"
-                checked={isRange}
-                onChange={e => setIsRange(e.target.checked)}
-              />
-              <span>Inserisci range di seriali</span>
-            </label>
-            {!isRange ? (
-              <input
-                className="text-input"
-                type="text"
-                placeholder="Numero seriale (o più separati da virgola: LCN0001, LCN0005)"
-                value={sn}
-                onChange={e => setSn(e.target.value)}
-              />
-            ) : (
-              <div className="range-row">
-                <input
-                  className="text-input"
-                  type="text"
-                  placeholder="Seriale iniziale"
-                  value={snInizio}
-                  onChange={e => setSnInizio(e.target.value)}
-                />
-                <span className="range-sep">&#8594;</span>
-                <input
-                  className="text-input"
-                  type="text"
-                  placeholder="Seriale finale"
-                  value={snFine}
-                  onChange={e => setSnFine(e.target.value)}
-                />
-              </div>
-            )}
-            {serialGroups.map((value, index) => (
-              <div key={`gruppo-seriali-${index}`} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <input className="text-input" type="text" list="seriali-segnalazione" placeholder="Altro seriale o gruppo (separati da virgola)" value={value} onChange={e => setSerialGroups(prev => prev.map((item, i) => i === index ? e.target.value : item))} />
-                <button type="button" className="btn-secondary" onClick={() => setSerialGroups(prev => prev.filter((_, i) => i !== index))}>Rimuovi</button>
-              </div>
-            ))}
-            <button type="button" className="btn-outline" onClick={() => setSerialGroups(prev => [...prev, ''])} style={{ alignSelf: 'flex-start', marginTop: 8 }}>+ Nuovo seriale</button>
-            {/* Anteprima seriale composito + numero pezzi */}
-            {(isRange ? (snInizio.trim() && snFine.trim()) : sn.trim()) && (
-              <div className="sn-preview">
-                Verrà salvata <strong>1 anomalia</strong> · S/N: <strong>{buildSeriale()}</strong>
-              </div>
-            )}
-            {/* Warning live non bloccante: formato / coerenza prefisso seriale */}
-            {snWarn && (
-              <div className="sn-warn">⚠ {snWarn}</div>
-            )}
-            {/* Popup d'aiuto: anomalie GIA' aperte per i S/N digitati, con descrizione */}
-            {snDuplicati.length > 0 && (
-              <div className="sn-dup-pop" role="status" aria-live="polite">
-                <div className="sn-dup-pop__head">
-                  <span className="sn-dup-pop__icon">!</span>
-                  {snDuplicati.length === 1
-                    ? 'Esiste già un’anomalia aperta per questo S/N'
-                    : `Esistono già ${snDuplicati.length} anomalie aperte per questi S/N`}
-                </div>
-                {snDuplicati.map((d, i) => (
-                  <div className="sn-dup-card" key={d.token + '_' + i}>
-                    <div className="sn-dup-card__top">
-                      <span className="sn-dup-card__sn">{d.token}</span>
-                      {d.avanzamento && (
-                        <span className="sn-dup-card__stato">{d.avanzamento}</span>
-                      )}
+          <div className="form-body">
+            {riprendibili.length > 0 && (
+              <div className="resume-box">
+                <div className="field-label">Hai un controllo ancora aperto su questo OP</div>
+                {riprendibili.map(c => (
+                  <div key={c.id} className="resume-row">
+                    <div>
+                      <strong>Fase {c.fase}</strong> · {new Date(c.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      <div className="field-hint">{c.blocchi.length} blocch{c.blocchi.length === 1 ? 'o' : 'i'} salvat{c.blocchi.length === 1 ? 'o' : 'i'}{c.da_notificare ? ` · ${c.da_notificare} anomalie non ancora comunicate` : ''}</div>
                     </div>
-                    <div className="sn-dup-card__desc">
-                      {d.descrizione
-                        ? d.descrizione
-                        : <em>(nessuna descrizione registrata)</em>}
-                    </div>
-                    {d.autore && (
-                      <div className="sn-dup-card__meta">Inserita da <strong>{d.autore}</strong></div>
-                    )}
-                    {d.seriale && d.seriale.toLowerCase() !== d.token.toLowerCase() && (
-                      <div className="sn-dup-card__from">Fa parte di: {d.seriale}</div>
-                    )}
+                    <button className="btn-outline" onClick={() => riprendi(c)} disabled={saving}>Riprendi</button>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Descrizioni dell'anomalia */}
-          <div className="field-group">
-            <div className="field-label">Descrizioni dell’anomalia <span className="req">*</span></div>
-            <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, display: 'grid', gap: 8, background: 'var(--surface)' }}>
-              <div className="field-label" id="descrizione-seriali-1">Descrizione 1 · seriali associati</div>
-              <div id="descrizione-seriali-aiuto" role="group" aria-label="Seriali associati alla descrizione 1" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {tokensFromInput().map(value => <label key={value} className="checkbox-item" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}><input type="checkbox" checked={(selectedDescSerials === null ? tokensFromInput() : selectedDescSerials).includes(value)} onChange={event => toggleDescriptionSerial(0, value, event.target.checked)} /><span>{value}</span></label>)}
-              </div>
-              <div className="text-sm" style={{ color: 'var(--text-mid)' }}>Seleziona uno o più seriali; inizialmente sono associati tutti.</div>
-              <textarea
-              className="textarea-input"
-              rows={4}
-              placeholder="Descrivi l'anomalia riscontrata..."
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-              />
+            <div className="field-group">
+              <label className="field-label" htmlFor="controllo-fase">Fase del controllo <span className="req">*</span></label>
+              <input id="controllo-fase" className="text-input" type="text" list="fasi-op" maxLength={100} autoFocus
+                placeholder="Es. accettazione materiale, lavorazione, collaudo finale…"
+                value={fase} onChange={e => setFase(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') apriControllo(); }} />
+              <datalist id="fasi-op">{fasiNote.map(f => <option key={f} value={f} />)}</datalist>
+              <div className="field-hint">Vale per tutti i blocchi che salverai; la puoi cambiare durante il controllo.</div>
             </div>
-            <datalist id="seriali-segnalazione">
-              {Array.from(new Set(tokensFromInput())).map(value => <option key={value} value={value} />)}
-            </datalist>
-            {extraDescriptions.map((row, index) => (
-              <div key={`descrizione-${index}`} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, display: 'grid', gap: 8, marginTop: 10, background: 'var(--surface)' }}>
-                <div className="field-label">Descrizione {index + 2} · seriali associati</div>
-                <div role="group" aria-label={`Seriali della descrizione ${index + 2}`} style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {tokensFromInput().map(value => <label key={value} className="checkbox-item" style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px' }}><input type="checkbox" checked={(Array.isArray(row.seriali) ? row.seriali : tokensFromInput()).includes(value)} onChange={event => toggleDescriptionSerial(index + 1, value, event.target.checked)} /><span>{value}</span></label>)}
+            <fieldset className="mail-mode">
+              <legend className="field-label">Mail al capocommessa</legend>
+              {MAIL_MODES.map(m => (
+                <label key={m.value} className={`mail-mode__opt${mailMode === m.value ? ' is-on' : ''}`}>
+                  <input type="radio" name="mail-mode" value={m.value} checked={mailMode === m.value} onChange={() => setMailMode(m.value)} />
+                  <span><strong>{m.label}</strong><span className="field-hint">{m.hint}</span></span>
+                </label>
+              ))}
+            </fieldset>
+            {error && <div className="error-msg">{error}</div>}
+            <div className="action-bar">
+              <button className="btn-secondary" onClick={() => onDone('menu')} disabled={saving}>Esci</button>
+              <button className="btn-primary" onClick={apriControllo} disabled={saving || !fase.trim()}>{saving ? 'Avvio…' : 'Inizia controllo'}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const editorCard = (
+      <div className={`blk is-editing${editor.bloccoId ? ' is-reopened' : ''}`} key="editor">
+        <div className="blk-head">
+          <div className="blk-num is-active">{editor.bloccoId ? blocchi.findIndex(b => b.id === editor.bloccoId) + 1 : blocchi.length + 1}</div>
+          <div className="blk-head__main">
+            <div className="blk-title">{editor.bloccoId ? 'Modifica blocco' : 'Nuovo blocco di seriali'}</div>
+            <div className="blk-meta">Fase {controllo.fase}</div>
+          </div>
+        </div>
+
+        <div className="field-group">
+          <label className="field-label">Seriali <span className="req">*</span></label>
+          <SerialInput voci={editor.voci} disabled={editor.bloccato} inputRef={snRef}
+            onChange={voci => setEditor(prev => ({ ...prev, voci }))} />
+          {editor.bloccato
+            ? <div className="field-hint">Il capocommessa ha già deciso su almeno un’anomalia: i seriali non si possono più cambiare. Puoi aggiungere nuove anomalie.</div>
+            : <div className="field-hint">Un seriale, un range (<code>LCN00005-LCN00010</code>) o più seriali separati da virgola; Invio per confermare.{tokens.length > 1 && <> Totale: <strong>{tokens.length} pezzi</strong>.</>}</div>}
+          {(fuoriFormato.length > 0 || prefissoDiverso.length > 0 || giaNelControllo.length > 0) && (
+            <div className="sn-warn">
+              {fuoriFormato.length > 0 && <div>⚠ Formato atteso «AAA00000»: {fuoriFormato.slice(0, 8).join(', ')}{fuoriFormato.length > 8 ? '…' : ''}</div>}
+              {prefissoDiverso.length > 0 && <div>⚠ Prefisso diverso da «{primo.slice(0, 3).toUpperCase()}»: {prefissoDiverso.slice(0, 8).join(', ')}</div>}
+              {giaNelControllo.length > 0 && <div>⚠ Già presenti in un blocco di questo controllo: {giaNelControllo.slice(0, 8).join(', ')}. Per aggiungere anomalie a quei pezzi usa «Modifica» sul blocco.</div>}
+            </div>
+          )}
+          {duplicati.length > 0 && (
+            <div className="sn-dup-pop" role="status" aria-live="polite">
+              <div className="sn-dup-pop__head"><span className="sn-dup-pop__icon">!</span>{duplicati.length === 1 ? 'Questo S/N ha già un’anomalia aperta' : 'Questi S/N hanno già anomalie aperte'}</div>
+              {duplicati.map(d => (
+                <div className="sn-dup-card" key={d.token}>
+                  <div className="sn-dup-card__top"><span className="sn-dup-card__sn">{d.token}</span>{d.avanzamento && <span className="sn-dup-card__stato">{d.avanzamento}</span>}</div>
+                  <div className="sn-dup-card__desc">{d.descrizione || <em>(nessuna descrizione registrata)</em>}</div>
+                  {d.autore && <div className="sn-dup-card__meta">Inserita da <strong>{d.autore}</strong></div>}
                 </div>
-                <input className="text-input" type="text" placeholder="Aggiungi seriali manuali separati da virgola (facoltativo)" value={row.serialiManuali || ''} onChange={e => updateExtraDescription(index, 'serialiManuali', e.target.value)} />
-                <textarea className="textarea-input" rows={3} placeholder="Descrivi il rilievo per questi seriali..." value={row.testo} onChange={e => updateExtraDescription(index, 'testo', e.target.value)} />
-                <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv" onChange={e => selectExtraDescriptionFiles(index, e)} />
-                <div className="text-sm" style={{ color: 'var(--text-mid)' }}>{(row.files || []).map(file => file.name).join(' · ') || 'Nessun allegato selezionato.'}</div>
-                <button type="button" className="btn-secondary" onClick={() => setExtraDescriptions(prev => prev.filter((_, i) => i !== index))}>Rimuovi descrizione</button>
-              </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="field-group">
+          <div className="field-label">Stato superficie</div>
+          <div className="checkbox-row">
+            {STATI_SUPERFICIE.map(s => (
+              <label key={s} className="checkbox-item">
+                <input type="checkbox" disabled={editor.bloccato} checked={editor.stati.includes(s)}
+                  onChange={() => setEditor(prev => ({ ...prev, stati: prev.stati.includes(s) ? prev.stati.filter(x => x !== s) : [...prev.stati, s] }))} />
+                <span>{s}</span>
+              </label>
             ))}
-            <button type="button" className="btn-outline" onClick={() => setExtraDescriptions(prev => [...prev, { seriali: null, serialiManuali: '', testo: '', files: [] }])} style={{ alignSelf: 'flex-start', marginTop: 8 }}>+ Nuova descrizione</button>
           </div>
+        </div>
 
-          {/* Copilota AI: proposta di triage (read-only, non modifica i campi) */}
-          <div className="copilot-box">
-            <div className="copilot-head">
-              <strong className="copilot-title">Copilota AI &mdash; triage</strong>
-              <button type="button" className="copilot-btn" onClick={proponiCopilota} disabled={copLoading}>
-                {copLoading ? 'Analisi…' : 'Proponi triage'}
-              </button>
-            </div>
-            <div className="copilot-hint">Suggerimento dalla descrizione: <strong>rivedi tu</strong>, non modifica i campi automaticamente.</div>
-            {copErr ? <div className="copilot-err">{copErr}</div> : null}
-            {copSug ? (
-              <div className="copilot-sug">
-                {copSug.stato_superficie ? <div><strong>Stato superficie:</strong> {copSug.stato_superficie}</div> : null}
-                {copSug.avanzamento ? <div><strong>Avanzamento:</strong> {copSug.avanzamento}</div> : null}
-                <div><strong>Serve RDC/cliente:</strong> {copSug.serve_rdc ? 'sì' : 'no'}</div>
-                {copSug.bozza_descrizione ? <div className="copilot-sug__row"><strong>Bozza:</strong> {copSug.bozza_descrizione}</div> : null}
-                {copSug.motivazione ? <div className="copilot-sug__row copilot-sug__why"><em>{copSug.motivazione}</em></div> : null}
-              </div>
-            ) : null}
-          </div>
-
-          {/* Note aggiuntive */}
-          <div className="field-group">
-            <label className="field-label">Note aggiuntive</label>
-            <textarea
-              className="textarea-input"
-              rows={3}
-              placeholder="Note opzionali..."
-              value={note}
-              onChange={e => setNote(e.target.value)}
-            />
-          </div>
-
-          {/* Allegati */}
-          <div className="field-group">
-            <label className="field-label">Allegati descrizione 1</label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv"
-              onChange={onSelectFiles}
-              style={{ display: 'none' }}
-            />
-            <div style={{
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              background: 'var(--bg)',
-              padding: '10px 12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <div className="text-sm" style={{ color: 'var(--text-mid)' }}>
-                  Carica allegati relativi alla prima descrizione (PDF, immagini, Word o Excel). Max 20 MB per file.
-                </div>
-                <button
-                  className="btn-secondary"
-                  type="button"
-                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                  disabled={saving}
-                >
-                  Aggiungi allegati
-                </button>
-              </div>
-
-              {!pendingFiles.length ? (
-                <div className="text-sm" style={{ color: 'var(--text-light)' }}>Nessun allegato selezionato.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
-                  {pendingFiles.map((f, idx) => (
-                    <div key={`${f.name}-${f.size}-${f.lastModified}-${idx}`} style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 8,
-                      border: '1px solid var(--border)',
-                      background: 'var(--surface)',
-                      borderRadius: 8,
-                      padding: '7px 9px',
-                    }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div className="text-base font-semibold" style={{ color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {f.name}
-                        </div>
-                        <div className="text-xs" style={{ color: 'var(--text-mid)' }}>
-                          {formatBytes(f.size)}
-                        </div>
-                      </div>
-                      <button
-                        className="btn-secondary"
-                        type="button"
-                        onClick={() => removePendingFile(idx)}
-                        disabled={saving}
-                        className="text-sm"
-                        style={{ padding: '6px 10px' }}
-                      >
-                        Rimuovi
+        <div className="field-group">
+          <div className="field-label">Anomalie su questi seriali <span className="req">*</span></div>
+          <div className="anom-list">
+            {editor.anomalie.map((a, i) => {
+              const attiva = editor.attiva === i;
+              const nAll = a.files.length + a.existing.length;
+              if (!attiva) {
+                return (
+                  <button type="button" key={a.key} className={`anom-card is-collapsed${a.gestita ? ' is-gestita' : ''}`}
+                    onClick={() => setEditor(prev => ({ ...prev, attiva: i }))}>
+                    <span className="anom-card__n">{i + 1}</span>
+                    <span className="anom-card__txt">{a.testo.trim() || <em>Anomalia senza descrizione</em>}</span>
+                    {nAll > 0 && <span className="anom-card__att">📎 {nAll}</span>}
+                    {a.gestita && <span className="pill pill-info">{a.avanzamento || 'Gestita'}</span>}
+                    <span className="anom-card__edit">{a.gestita ? 'Vedi' : 'Apri'}</span>
+                  </button>
+                );
+              }
+              return (
+                <div key={a.key} className={`anom-card is-active${a.gestita ? ' is-gestita' : ''}`}>
+                  <div className="anom-card__head">
+                    <span className="anom-card__n">{i + 1}</span>
+                    <span className="anom-card__title">Anomalia {i + 1}{a.localId ? ` · #${a.localId}` : ''}</span>
+                    {a.gestita && <span className="pill pill-info">Gestita dal capocommessa: {a.avanzamento || 'decisione presa'}</span>}
+                    {!a.localId && editor.anomalie.length > 1 && (
+                      <button type="button" className="link-btn link-btn--danger" onClick={() => rimuoviAnomalia(i)}>Rimuovi</button>
+                    )}
+                    <button type="button" className="link-btn" onClick={() => setEditor(prev => ({ ...prev, attiva: -1 }))}>Comprimi</button>
+                  </div>
+                  <textarea className="textarea-input" rows={4} autoFocus={!a.gestita} disabled={a.gestita}
+                    aria-label={`Descrizione anomalia ${i + 1}`}
+                    placeholder="Cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza…"
+                    value={a.testo} onChange={e => updAnomalia(i, { testo: e.target.value })} />
+                  <AttachmentZone files={a.files} existing={a.existing} disabled={a.gestita}
+                    onAdd={files => addFiles(i, files, false)}
+                    onRemove={fi => updAnomalia(i, { files: a.files.filter((_, idx) => idx !== fi) })} />
+                  {!a.gestita && (
+                    <div className="copilot-inline">
+                      <button type="button" className="link-btn" onClick={() => proponiCopilota(a)} disabled={copilot.loading}>
+                        {copilot.loading && copilot.key === a.key ? 'Analisi…' : 'Suggerimento AI sul triage'}
                       </button>
+                      {copilot.key === a.key && copilot.err && <span className="copilot-err">{copilot.err}</span>}
+                      {copilot.key === a.key && copilot.sug && (
+                        <div className="copilot-sug">
+                          {copilot.sug.stato_superficie && <div><strong>Stato superficie:</strong> {copilot.sug.stato_superficie}</div>}
+                          {copilot.sug.avanzamento && <div><strong>Avanzamento:</strong> {copilot.sug.avanzamento}</div>}
+                          <div><strong>Serve RDC/cliente:</strong> {copilot.sug.serve_rdc ? 'sì' : 'no'}</div>
+                          {copilot.sug.bozza_descrizione && <div className="copilot-sug__row"><strong>Bozza:</strong> {copilot.sug.bozza_descrizione}</div>}
+                          {copilot.sug.motivazione && <div className="copilot-sug__row copilot-sug__why"><em>{copilot.sug.motivazione}</em></div>}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
+              );
+            })}
+          </div>
+          <button type="button" className="btn-outline anom-add" onClick={nuovaAnomalia} disabled={saving}>+ Nuova anomalia su questi seriali</button>
+          {attachErr && <div className="sn-warn">⚠ {attachErr}</div>}
+        </div>
+
+        <div className="blk-actions">
+          {editor.bloccoId !== null && (
+            <button type="button" className="btn-secondary" onClick={() => { setEditor(newEditor()); setError(''); }} disabled={saving}>Annulla modifiche</button>
+          )}
+          {editor.bloccoId === null && dirty && (
+            <button type="button" className="btn-secondary" onClick={() => { setEditor(newEditor()); setError(''); }} disabled={saving}>Svuota</button>
+          )}
+          <button type="button" className="btn-primary" onClick={salvaBlocco} disabled={saving}>
+            {saving ? 'Salvataggio…' : (editor.bloccoId ? 'Salva modifiche' : 'Salva blocco')}
+          </button>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="step-card step-card--wide">
+        {opBar}
+        <div className="ctl-head">
+          <div className="ctl-head__fase">
+            <span className="field-label">Fase</span>
+            {editingFase ? (
+              <span className="ctl-head__edit">
+                <input className="text-input" type="text" list="fasi-op" maxLength={100} value={fase} autoFocus
+                  onChange={e => setFase(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') salvaImpostazioni({ fase: fase.trim() }); }} />
+                <datalist id="fasi-op">{fasiNote.map(f => <option key={f} value={f} />)}</datalist>
+                <button className="btn-primary btn-sm" onClick={() => salvaImpostazioni({ fase: fase.trim() })} disabled={!fase.trim()}>OK</button>
+                <button className="btn-secondary btn-sm" onClick={() => { setFase(controllo.fase); setEditingFase(false); }}>Annulla</button>
+              </span>
+            ) : (
+              <span className="ctl-head__val">{controllo.fase} <button type="button" className="link-btn" onClick={() => setEditingFase(true)}>Cambia</button></span>
+            )}
+          </div>
+          <div className="ctl-head__mail" role="radiogroup" aria-label="Mail al capocommessa">
+            <span className="field-label">Mail al capocommessa</span>
+            <div className="seg-toggle">
+              {MAIL_MODES.map(m => (
+                <button key={m.value} type="button" role="radio" aria-checked={controllo.mail_mode === m.value}
+                  className={controllo.mail_mode === m.value ? 'is-on' : ''} title={m.hint}
+                  onClick={() => controllo.mail_mode !== m.value && salvaImpostazioni({ mail_mode: m.value })}>
+                  {m.value === 'subito' ? 'A ogni blocco' : 'A fine controllo'}
+                </button>
+              ))}
             </div>
           </div>
+        </div>
 
-          {!window._AP_HAS_ANOMALIE && (
-            <div className="error-msg">
-              Tabella <code>anomalie</code> non disponibile nel database.
+        <div className="form-body">
+          {blocchi.map((b, i) => (
+            editor.bloccoId === b.id
+              ? <React.Fragment key={b.id}>{editorCard}</React.Fragment>
+              : <BloccoCongelato key={b.id} b={b} index={i} canEdit={!dirty && !saving}
+                  onEdit={() => { setEditor(editorFromBlocco(b)); setError(''); setNotice(''); }} />
+          ))}
+          {editor.bloccoId === null && editorCard}
+
+          {notice && <div className="info-msg">{notice}</div>}
+          {error && <div className="error-msg">{error}</div>}
+
+          {confirmTermina && (
+            <div className="confirm-box">
+              <div><strong>Il blocco in corso non è salvato.</strong> Vuoi salvarlo prima di terminare?</div>
+              <div className="action-bar">
+                <button className="btn-secondary" onClick={() => setConfirmTermina(false)}>Annulla</button>
+                <button className="btn-outline" onClick={() => termina(false)}>Scarta e termina</button>
+                <button className="btn-primary" onClick={() => termina(true)}>Salva e termina</button>
+              </div>
             </div>
           )}
 
-          {attachMsg && <div className="info-msg">{attachMsg}</div>}
-          {error && <div className="error-msg">{error}</div>}
-
-          {/* Azioni */}
-          <div className="action-bar">
-            <button
-              className="btn-secondary"
-              onClick={() => window.location.href = '/anomalie-menu'}
-              disabled={saving}
-            >
-              Esci
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => handleSave('exit')}
-              disabled={saving}
-            >
-              {saving ? 'Salvataggio...' : 'Salva ed esci'}
-            </button>
-            {!isRange && (
-              <button
-                className="btn-outline"
-                onClick={() => handleSave('new_same_sn')}
-                disabled={saving}
-              >
-                Salva e nuova (stesso S/N)
-              </button>
-            )}
-            <button
-              className="btn-outline"
-              onClick={() => handleSave('new')}
-              disabled={saving}
-            >
-              Salva e nuova
+          <div className="ctl-footer">
+            <div className="field-hint">
+              {controllo.mail_mode === 'fine'
+                ? (controllo.da_notificare ? `${controllo.da_notificare} anomalie in attesa: partiranno in un’unica mail con «Termina controllo».` : 'La mail partirà con «Termina controllo».')
+                : (controllo.da_notificare ? `${controllo.da_notificare} anomalie in coda: la mail parte pochi minuti dopo l’ultimo salvataggio.` : 'Ogni blocco salvato viene comunicato al capocommessa.')}
+              {controllo.mail_errore && <div className="copilot-err">Ultimo invio non riuscito: {controllo.mail_errore}</div>}
+            </div>
+            <button className="btn-primary btn-termina" onClick={() => (dirty ? setConfirmTermina(true) : termina(false))} disabled={saving || (!blocchi.length && !dirty)}>
+              Termina controllo
             </button>
           </div>
         </div>
@@ -1306,26 +1524,14 @@
     );
   };
 
-  /* ── Toast ── */
-  const Toast = ({ msg, onDone }) => {
-    useEffect(() => {
-      const t = setTimeout(onDone, 2500);
-      return () => clearTimeout(t);
-    }, []);
-    return <div className="toast">{msg}</div>;
-  };
-
   /* ── App Root ── */
   const AperturaSegnalazione = () => {
     const [step,       setStep]       = useState(1);
     const [selectedOp, setSelectedOp] = useState(null);
     const [formKey,    setFormKey]    = useState(0);
-    const [initialSn,  setInitialSn]  = useState('');
-    const [toast,      setToast]      = useState('');
 
-    const handleSelectOp = (op) => { setSelectedOp(op); setStep(2); };
-
-    const handleBack = () => { setStep(1); setSelectedOp(null); setInitialSn(''); };
+    const handleSelectOp = (op) => { setSelectedOp(op); setStep(2); setFormKey(k => k + 1); };
+    const handleBack = () => { setStep(1); setSelectedOp(null); };
 
     // Preselezione OP da query string (?op_id=...): salta direttamente allo Step 2.
     useEffect(() => {
@@ -1344,21 +1550,10 @@
       return () => { alive = false; };
     }, []);
 
-    const handleSaved = (action, lastSn) => {
-      if (action === 'exit') {
-        setToast('Segnalazione salvata!');
-        setTimeout(() => { window.location.href = '/anomalie-menu'; }, 1800);
-      } else if (action === 'new_same_sn') {
-        setToast(`S/N ${lastSn} salvato. Nuova segnalazione...`);
-        setInitialSn(lastSn || '');
-        setFormKey(k => k + 1);
-        setTimeout(() => setToast(''), 2200);
-      } else {
-        setToast('Salvato! Nuova segnalazione...');
-        setInitialSn('');
-        setFormKey(k => k + 1);
-        setTimeout(() => setToast(''), 2200);
-      }
+    const handleDone = (action) => {
+      if (action === 'menu') { window.location.href = '/anomalie-menu'; return; }
+      if (action === 'altro_op') { handleBack(); return; }
+      setFormKey(k => k + 1);
     };
 
     return (
@@ -1367,7 +1562,7 @@
         <div className="topbar">
           <a href="/anomalie-menu" className="topbar-back">&#8592; Menu Anomalie</a>
           <div className="topbar-sep"></div>
-          <div className="topbar-title">Apertura Segnalazione</div>
+          <div className="topbar-title">Controllo e segnalazione anomalie</div>
           {window._AP_CAN_MANAGE_CONFIG && (
             <>
               <a href="/gestione-anomalie/configurazione" className="topbar-back">Config Liste</a>
@@ -1382,17 +1577,14 @@
           {step === 1 ? (
             <Step1SelectOP onSelect={handleSelectOp} />
           ) : (
-            <Step2Form
+            <Step2Controllo
               key={formKey}
               op={selectedOp}
-              initialSn={initialSn}
               onBack={handleBack}
-              onSaved={handleSaved}
+              onDone={handleDone}
             />
           )}
         </div>
-
-        {toast && <Toast msg={toast} onDone={() => setToast('')} />}
       </div>
     );
   };

@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-10-06 (rifinitura form apertura anomalie)
+
+- Il form accompagna l'utente in tre passaggi: fase, seriali, rilievi. Esempi e istruzioni contestuali chiariscono l'associazione seriali/descrizioni; i rilievi aggiuntivi sono schede distinte. Nessuna variazione a modello, validazione o salvataggio.
+- Lavoro in `C:\Dev\pn-anomalie-form-polish`, branch `feature/anomalie-form-polish`, base `origin/release/prod`. README, CHANGELOG e registro agente aggiornati; nessun file critico modificato.
+- Test e QA browser non eseguiti. Da verificare la resa desktop/mobile e tema scuro prima della promozione.
+
 Data: 2026-10-05 (fix sidebar codici storici)
 
 - L'utente è sul commit `d31172a`, ma la sidebar resta nella forma precedente. Diagnosi: i seed persistiti usano `inventario`/`device_list` (migrations 0079/0050), diversi dai codici `dashboard`/`hardware` che 0122 assumeva. Aggiunta migrazione 0123 per riallineare entrambi i layout, rendere visibile il ramo IT e assegnare i figli IT; menu categorie non toccato.

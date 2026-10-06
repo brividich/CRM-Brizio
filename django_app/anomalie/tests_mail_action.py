@@ -298,6 +298,10 @@ class AnomaliaEmailRenderingTests(TestCase):
         AnomaliaDescrizioneAllegato.objects.create(
             descrizione=detail, nome="foto.jpg", file_rel="test/foto.jpg", size=123, mime="image/jpeg",
         )
+        # Le descrizioni separate compaiono solo quando la riga ne ha piu' di una.
+        AnomaliaDescrizione.objects.create(
+            segnalazione=meta, ordine=1, seriali=["SN-0003"], testo="Bava sul bordo",
+        )
         rows = _make_anomalie_rows(1)
         from anomalie.mail_action_service import build_anomalie_action_email
         _, text_rendered, html_rendered = build_anomalie_action_email(

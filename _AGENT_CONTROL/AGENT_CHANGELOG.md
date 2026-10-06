@@ -1,5 +1,11 @@
 # Agent Changelog
 
+## 2026-10-06 - Codex (rifinitura form apertura anomalie)
+
+- Area `django_app/anomalie`; richiesta: rendere più concreta e rifinita l'impostazione approvata per l'inserimento.
+- Modificato il template `apertura_segnalazione.html`: guida fase → seriali → rilievi, esempi e aiuti contestuali, schede numerate e selettori seriale più leggibili, con adattamento a schermi stretti. Modello, validazione e salvataggio invariati.
+- README e CHANGELOG aggiornati. File critici: nessuno. Backup: nessuno. Test/QA browser non eseguiti; resta da verificare desktop, mobile e tema scuro. Lavoro sul branch `feature/anomalie-form-polish`, worktree `C:\Dev\pn-anomalie-form-polish`.
+
 ## 2026-10-05 - Codex (fix sidebar menu storico)
 
 - Riscontro di Brizio sul commit `d31172a`: screenshot ancora con PC/Server/Rete orfani sotto «Inventario completo», nessun «Inventario IT» e label precedenti. Causa verificata nel repository: le migrazioni storiche persistono i codici `inventario` (`0079`) e `device_list` (`0050`), ma la migrazione 0122 aggiornava `dashboard` e dipendeva dalla presenza di `hardware`; così non riallineava necessariamente il menu reale.

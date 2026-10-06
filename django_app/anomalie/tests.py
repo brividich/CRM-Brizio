@@ -43,6 +43,7 @@ class AnomalieOrdiniApiTests(TestCase):
                 "stato": "Aperto",
                 "anomalie_count": 4,
                 "anomalie_aperte_count": 2,
+                "anomalie_da_decidere_count": 1,
             }
         ]
 
@@ -65,6 +66,7 @@ class AnomalieOrdiniApiTests(TestCase):
                     "stato": "Aperto",
                     "anomalie_count": 4,
                     "anomalie_aperte_count": 2,
+                    "anomalie_da_decidere_count": 1,
                 }
             ],
         )
