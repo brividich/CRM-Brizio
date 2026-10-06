@@ -67,3 +67,28 @@ def leggi_mensile(pk, mese):
         return {"lettura_id": lettura.pk, "creata": creata}
     finally:
         cache.delete(key)
+
+
+def run_letture_consumabili():
+    """Lettura giornaliera dei consumabili: un job per MFC attiva con IP."""
+    queued = sum(
+        _enqueue("contatori.tasks.leggi_consumabili", pk)
+        for pk in Macchina.objects.filter(attiva=True, host__isnull=False).values_list("pk", flat=True)
+    )
+    return {"accodati": queued}
+
+
+def leggi_consumabili(pk):
+    from .services import leggi_consumabili_macchina, salva_consumabili
+
+    key = f"contatori:queued:contatori.tasks.leggi_consumabili:{pk}"
+    try:
+        macchina = Macchina.objects.filter(pk=pk, attiva=True).first()
+        if macchina is None or not macchina.host:
+            return {"saltato": True}
+        consumabili, errore = leggi_consumabili_macchina(macchina)
+        if errore:
+            raise RuntimeError(f"Lettura consumabili fallita per MFC {pk}; consultare la pagina Consumabili.")
+        return {"macchina_id": pk, "salvati": salva_consumabili(macchina, consumabili)}
+    finally:
+        cache.delete(key)

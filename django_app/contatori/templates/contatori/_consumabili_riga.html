@@ -1,0 +1,19 @@
+<tr id="cons-{{ r.macchina.pk }}">
+  <td><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a><div class="muted">{{ r.macchina.modello|default:r.macchina.matricola }} · <span class="mono">{{ r.macchina.host }}</span></div></td>
+  <td>
+    {% if errore %}<div class="cons-errore">Lettura non riuscita: {{ errore|truncatechars:90 }}</div>{% endif %}
+    {% if r.stato %}
+      <div class="cons-voci">{% for v in r.stato.voci %}
+        <div class="cons-voce{% if v.critico %} critico{% endif %}">
+          <span class="cons-nome">{{ v.nome }}</span>
+          {% if v.pct is not None %}<span class="cons-bar"><span style="width:{{ v.pct }}%"></span></span><strong class="cons-pct">{{ v.pct }}%</strong>{% else %}<span class="muted">n/d</span><span></span>{% endif %}
+          <span class="cons-giorni muted">{% if v.giorni is not None %}{% if v.giorni == 0 %}esaurito{% elif v.giorni > 365 %}oltre 1 anno{% else %}~{{ v.giorni }} gg{% endif %}{% endif %}</span>
+        </div>{% endfor %}
+      </div>
+    {% else %}<span class="muted">Mai letta: premi «Leggi ora».</span>{% endif %}
+  </td>
+  <td class="cons-azioni">
+    {% if r.stato %}<div class="muted">{{ r.stato.rilevata_il|date:"d/m H:i" }}</div>{% endif %}
+    <button class="btn ghost small" hx-post="{% url 'contatori:consumabili_aggiorna' r.macchina.pk %}" hx-target="#cons-{{ r.macchina.pk }}" hx-swap="outerHTML" hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}' hx-disabled-elt="this">Leggi ora</button>
+  </td>
+</tr>

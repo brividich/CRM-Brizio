@@ -1,11 +1,11 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}Riconciliazione{% if trimestre %} {{ trimestre }}{% endif %}{% endblock %}
-{% block modulo %}
+{% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
 <div class="row"><div>
   <h1>Riconciliazione trimestrale</h1>
   <p class="sub">Fattura fornitore contro lettura interna. La lettura interna, fatta qualche giorno dopo, deve essere maggiore o uguale a quella del fornitore.</p>
 </div><div class="spacer"></div>
-<a class="btn" href="{% url 'contatori:fattura_nuova' %}{% if trimestre %}?trimestre={{ trimestre }}{% endif %}">+ Nuova fattura</a></div>
+{% if g %}<a class="btn" href="{% url 'contatori:fattura_nuova' %}{% if trimestre %}?trimestre={{ trimestre }}{% endif %}">+ Nuova fattura</a>{% endif %}</div>
 
 <section class="panel">
   <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
@@ -30,10 +30,10 @@
   <div class="panel-head"><div><h2>Fatture del trimestre</h2><p>Correggi una fattura se una lettura del fornitore è stata trascritta male.</p></div></div>
   {% if fatture %}
   <div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Numero</th><th>Data</th><th>Fornitore</th><th>Chiusura letture</th><th class="num">Contratti</th><th></th></tr></thead><tbody>
-  {% for f in fatture %}<tr><td><strong>{{ f.numero }}</strong></td><td>{{ f.data|date:"d/m/Y" }}</td><td>{{ f.fornitore }}</td><td>{{ f.periodo_al|date:"d/m/Y" }}</td><td class="num">{{ f.righe.all|length }}</td><td><a class="plain" href="{% url 'contatori:fattura_edit' f.pk %}">Modifica</a></td></tr>{% endfor %}
+  {% for f in fatture %}<tr><td><strong>{{ f.numero }}</strong></td><td>{{ f.data|date:"d/m/Y" }}</td><td>{{ f.fornitore }}</td><td>{{ f.periodo_al|date:"d/m/Y" }}</td><td class="num">{{ f.righe.all|length }}</td><td>{% if g %}<a class="plain" href="{% url 'contatori:fattura_edit' f.pk %}">Modifica</a>{% endif %}</td></tr>{% endfor %}
   </tbody></table></div>
   {% else %}
-  <div class="banner warn">Nessuna fattura caricata per il {{ trimestre }}. <a class="plain" href="{% url 'contatori:fattura_nuova' %}?trimestre={{ trimestre }}">Inseriscila ora</a> per avviare il confronto.</div>
+  <div class="banner warn">Nessuna fattura caricata per il {{ trimestre }}.{% if g %} <a class="plain" href="{% url 'contatori:fattura_nuova' %}?trimestre={{ trimestre }}">Inseriscila ora</a> per avviare il confronto.{% endif %}</div>
   {% endif %}
 </section>
 {% endif %}
@@ -52,7 +52,7 @@
         <td class="num">{% if r.ns is not None %}{{ r.ns }}{% else %}—{% endif %}</td>
         <td class="num {% if r.scarto is not None and r.scarto < 0 %}neg{% endif %}">{% if r.scarto is not None %}{{ r.scarto }}{% else %}—{% endif %}</td>
         <td><span class="pill {{ r.livello }}">{{ r.esito }}</span>
-          {% if r.mancanti and r.contatore == "A4 BN" %}<div class="azioni-mancanti">{% for m in r.mancanti %}<a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ m.pk }}&amp;trimestre={{ trimestre }}">+ Lettura {{ m.reparto }}</a>{% endfor %}</div>{% endif %}
+          {% if g and r.mancanti and r.contatore == "A4 BN" %}<div class="azioni-mancanti">{% for m in r.mancanti %}<a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ m.pk }}&amp;trimestre={{ trimestre }}">+ Lettura {{ m.reparto }}</a>{% endfor %}</div>{% endif %}
         </td>
       </tr>
     {% endfor %}
