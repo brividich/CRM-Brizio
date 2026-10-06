@@ -443,7 +443,7 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
           {% if item.has_children %}
             <div class="as-nav-group{% if item.expanded %} open{% endif %}" data-as-nav-group data-as-nav-key="{{ item.id|default:item.label|slugify }}">
               <div class="as-nav-parent">
-                <a class="as-link{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+                <a class="as-link{% if item.active %} active{% endif %}" href="{% if item.is_container %}#{% else %}{{ item.url }}{% endif %}"{% if item.is_container %} data-as-nav-container role="button"{% endif %}>{{ item.label }}</a>
                 <button class="as-nav-toggle" type="button" aria-label="Apri sottovoci {{ item.label }}" aria-expanded="{% if item.expanded %}true{% else %}false{% endif %}" data-as-nav-toggle>
                   <span class="as-nav-arrow" aria-hidden="true">&#8250;</span>
                 </button>
@@ -545,6 +545,11 @@ body.theme-dark tr[data-row-href]:hover > td { background: rgba(96,165,250,.10);
       if (shouldOpen) { closeOtherGroups(group); }
       setGroupOpen(group, shouldOpen);
     });
+    // Voce contenitore (senza pagina propria): il nome apre/chiude il gruppo.
+    var container = group.querySelector("[data-as-nav-container]");
+    if (container) {
+      container.addEventListener("click", function (e) { e.preventDefault(); toggle.click(); });
+    }
   });
 
   // ── Filtro voci ──────────────────────────────────────────────────────────
