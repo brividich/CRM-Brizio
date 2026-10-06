@@ -76,6 +76,49 @@ def _macchine_per_contratto(contratto):
     return list(Macchina.objects.filter(contratto=contratto))
 
 
+# --- Trimestri ----------------------------------------------------------------
+
+_TRIMESTRE_RE = re.compile(r"^(\d{4})-Q([1-4])$")
+
+
+def trimestre_di(data):
+    return f"{data.year}-Q{(data.month - 1) // 3 + 1}"
+
+
+def trimestre_corrente():
+    return trimestre_di(timezone.localdate())
+
+
+def trimestre_valido(valore):
+    return bool(_TRIMESTRE_RE.match(valore or ""))
+
+
+def opzioni_trimestri(indietro=8, extra=()):
+    """Trimestre corrente, i precedenti `indietro` e quelli gia' presenti a DB.
+
+    Ordinati dal piu' recente; usati come scelte nei form (niente testo libero).
+    """
+    anno, q = map(int, _TRIMESTRE_RE.match(trimestre_corrente()).groups())
+    valori = set()
+    for _ in range(indietro + 1):
+        valori.add(f"{anno}-Q{q}")
+        q -= 1
+        if q == 0:
+            anno, q = anno - 1, 4
+    valori |= {t for t in trimestri_disponibili() if trimestre_valido(t)}
+    valori |= {t for t in extra if trimestre_valido(t)}
+    return sorted(valori, reverse=True)
+
+
+def contratti_attivi():
+    """[(contratto, descrizione)] delle MFC attive, per precompilare le fatture."""
+    reparti = defaultdict(list)
+    for contratto, reparto in (Macchina.objects.filter(attiva=True).exclude(contratto="")
+                               .order_by("contratto", "reparto").values_list("contratto", "reparto")):
+        reparti[contratto].append(reparto)
+    return [(c, " + ".join(r)) for c, r in sorted(reparti.items())]
+
+
 def riconcilia(trimestre):
     """
     Ritorna (righe, riepilogo) per un trimestre.
@@ -92,6 +135,7 @@ def riconcilia(trimestre):
             letture = {l.macchina_id: l for l in LetturaContatori.objects.filter(
                 trimestre=trimestre, macchina__in=macchine)}
             pool = len(macchine) > 1
+            mancanti = [m for m in macchine if m.id not in letture]
             for campo, etichetta in CONTATORI:
                 forn = getattr(rf, campo)
                 if letture and len(letture) == len(macchine):
@@ -100,12 +144,14 @@ def riconcilia(trimestre):
                 else:
                     ns = None
                     ns_disp = None
-                if ns is None:
+                if not macchine:
+                    scarto, esito, livello = None, "nessuna MFC con questo contratto", "warn"
+                elif ns is None:
                     scarto, esito, livello = None, "lettura interna mancante", "warn"
                 else:
                     scarto = ns - forn
                     if scarto < 0:
-                        esito, livello = "⚠ CONTROLLARE (fornitore > macchina)", "danger"
+                        esito, livello = "Da controllare: fornitore > interno", "danger"
                         anomalie += 1
                     elif scarto == 0:
                         esito, livello = "OK esatto", "ok"
@@ -121,6 +167,7 @@ def riconcilia(trimestre):
                     "scarto": scarto,
                     "esito": esito,
                     "livello": livello,
+                    "mancanti": mancanti,
                 })
 
     riepilogo = {
@@ -129,6 +176,7 @@ def riconcilia(trimestre):
         "anomalie": anomalie,
         "ok": anomalie == 0 and len(righe_out) > 0,
         "fatture": [f.numero for f in fatture],
+        "letture_mancanti": len({m.id for r in righe_out for m in r["mancanti"]}),
     }
     return righe_out, riepilogo
 
@@ -882,3 +930,126 @@ def centrale_snmp_riepilogo():
         "mai": stati.count(StatoSNMP.MAI),
         "sonde": SondaSNMP.objects.filter(attiva=True, dispositivo__attivo=True).count(),
     }
+
+
+# --- Cruscotto operativo ------------------------------------------------------
+
+def trimestre_precedente(trimestre):
+    anno, q = map(int, _TRIMESTRE_RE.match(trimestre).groups())
+    return f"{anno - 1}-Q4" if q == 1 else f"{anno}-Q{q - 1}"
+
+
+def cruscotto_operativo(oggi=None):
+    """KPI e attivita' in sospeso della Centrale, ognuna con il link per risolverla.
+
+    Solo dati gia' a DB: nessuna interrogazione SNMP all'apertura della pagina.
+    """
+    from django.urls import reverse
+
+    oggi = oggi or timezone.localdate()
+    trim = trimestre_di(oggi)
+    prec = trimestre_precedente(trim)
+    attive = list(Macchina.objects.filter(attiva=True).order_by("reparto"))
+    con_lettura = set(LetturaContatori.objects.filter(trimestre=trim, macchina__in=attive)
+                      .values_list("macchina_id", flat=True))
+    senza_lettura = [m for m in attive if m.id not in con_lettura]
+    non_raggiungibili = [m for m in attive if m.host and m.snmp_stato == StatoSNMP.ERROR]
+    dispositivi = DispositivoSNMP.objects.filter(attivo=True)
+    disp_errore = dispositivi.filter(snmp_stato=StatoSNMP.ERROR).count()
+    disp_attenzione = dispositivi.filter(snmp_stato=StatoSNMP.WARNING).count()
+
+    fattura_prec = Fattura.objects.filter(trimestre=prec).exists()
+    riconc = riconcilia(prec)[1] if fattura_prec else None
+    letture_prec = LetturaContatori.objects.filter(trimestre=prec).exists()
+
+    mensili_mancanti = []
+    if oggi.day >= 2:  # la raccolta automatica gira il giorno 1 alle 08:00
+        mese = oggi.replace(day=1)
+        lette = set(LetturaMensileContatori.objects.filter(mese=mese).values_list("macchina_id", flat=True))
+        mensili_mancanti = [m for m in attive if m.host and m.id not in lette]
+
+    consumo, _ = consumo_per_trimestre()
+    ultimo = consumo[-1] if consumo else None
+    precedente = consumo[-2] if len(consumo) > 1 else None
+    variazione = None
+    if ultimo and precedente and precedente["totale"]:
+        variazione = round((ultimo["totale"] - precedente["totale"]) * 100 / precedente["totale"])
+    cali = controllo_monotonia()
+
+    def nomi(macchine, n=4):
+        testo = ", ".join(m.reparto for m in macchine[:n])
+        return testo + (f" e altre {len(macchine) - n}" if len(macchine) > n else "")
+
+    da_fare = []
+    if senza_lettura:
+        da_fare.append({"livello": "warn", "titolo": f"{len(senza_lettura)} MFC senza lettura {trim}",
+                        "dettaglio": nomi(senza_lettura), "azione": "Inserisci lettura",
+                        "url": f"{reverse('contatori:importa_lettura')}?macchina={senza_lettura[0].pk}&trimestre={trim}"})
+    if letture_prec and not fattura_prec:
+        da_fare.append({"livello": "warn", "titolo": f"Fattura {prec} non caricata",
+                        "dettaglio": "Senza fattura la riconciliazione del trimestre non parte.",
+                        "azione": "Inserisci fattura", "url": f"{reverse('contatori:fattura_nuova')}?trimestre={prec}"})
+    if riconc and (riconc["anomalie"] or riconc["letture_mancanti"]):
+        parti = []
+        if riconc["anomalie"]:
+            parti.append(f"{riconc['anomalie']} contatori fatturati in eccesso")
+        if riconc["letture_mancanti"]:
+            parti.append(f"{riconc['letture_mancanti']} letture interne mancanti")
+        da_fare.append({"livello": "danger" if riconc["anomalie"] else "warn",
+                        "titolo": f"Riconciliazione {prec} da verificare", "dettaglio": ", ".join(parti),
+                        "azione": "Apri riconciliazione", "url": reverse("contatori:riconciliazione_trim", args=[prec])})
+    if cali:
+        da_fare.append({"livello": "danger",
+                        "titolo": "1 calo di lettura" if len(cali) == 1 else f"{len(cali)} cali di lettura",
+                        "dettaglio": "Un contatore è sceso tra due trimestri: refuso o azzeramento.",
+                        "azione": "Vedi elenco", "url": "#cali"})
+    if non_raggiungibili:
+        da_fare.append({"livello": "danger", "titolo": f"{len(non_raggiungibili)} MFC non raggiungibili",
+                        "dettaglio": nomi(non_raggiungibili), "azione": "Verifica stampanti",
+                        "url": reverse("contatori:macchine")})
+    if mensili_mancanti:
+        da_fare.append({"livello": "warn", "titolo": f"{len(mensili_mancanti)} letture mensili non registrate",
+                        "dettaglio": f"{oggi:%m/%Y}: {nomi(mensili_mancanti)}. Controlla il task pianificato.",
+                        "azione": "Verifica stampanti", "url": reverse("contatori:macchine")})
+    if disp_errore or disp_attenzione:
+        da_fare.append({"livello": "danger" if disp_errore else "warn",
+                        "titolo": f"{disp_errore + disp_attenzione} dispositivi SNMP da verificare",
+                        "dettaglio": f"{disp_errore} in errore, {disp_attenzione} in attenzione.",
+                        "azione": "Apri monitor",
+                        "url": reverse("contatori:snmp_centrale") + ("?stato=ERROR" if disp_errore else "?stato=WARNING")})
+    da_fare.sort(key=lambda x: x["livello"] != "danger")
+
+    return {
+        "trimestre": trim, "trimestre_prec": prec,
+        "mfc_attive": len(attive), "letture_fatte": len(con_lettura),
+        "senza_lettura_ids": {m.id for m in senza_lettura},
+        "raggiungibili": sum(1 for m in attive if m.host and m.snmp_stato == StatoSNMP.OK),
+        "con_host": sum(1 for m in attive if m.host),
+        "consumo_ultimo": ultimo, "consumo_precedente": precedente, "variazione": variazione,
+        "riconciliazione": riconc, "fattura_prec": fattura_prec,
+        "cali": cali, "da_fare": da_fare,
+    }
+
+
+def produzione_macchina(macchina, ultimi=8):
+    """Copie prodotte per trimestre (differenza tra letture consecutive) di una MFC.
+
+    [{trimestre, bn, col, totale, calo, altezza}] sugli ultimi `ultimi`
+    trimestri; `calo` = un contatore e' sceso (refuso o azzeramento): il
+    trimestre non ha un valore affidabile. `altezza` = % della barra piu' alta.
+    """
+    letture = list(macchina.letture.order_by("trimestre"))
+    righe = []
+    for prec, curr in zip(letture, letture[1:]):
+        delta = {c: getattr(curr, c) - getattr(prec, c) for c in CAMPI}
+        calo = any(v < 0 for v in delta.values())
+        bn = 0 if calo else delta["a4_bn"] + delta["a3_bn"]
+        col = 0 if calo else delta["a4_col"] + delta["a3_col"]
+        righe.append({"trimestre": curr.trimestre, "bn": bn, "col": col,
+                      "totale": bn + col, "calo": calo})
+    righe = righe[-ultimi:]
+    massimo = max((r["totale"] for r in righe), default=0) or 1
+    for r in righe:
+        # Stringa con il punto: finisce in uno style inline, indipendente dal locale.
+        r["altezza"] = f"{r['totale'] * 100 / massimo:.1f}"
+    return righe
