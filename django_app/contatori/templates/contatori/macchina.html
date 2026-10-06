@@ -1,6 +1,6 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block modulo %}
-<div class="row"><div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div><a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a></div>
+<div class="row"><div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a><a class="btn" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">+ Nuova lettura</a></div></div>
 
 <div class="cards"><div class="card"><div class="k">Stato SNMP</div><div class="v" style="font-size:20px"><span class="pill {% if macchina.snmp_stato == 'OK' %}ok{% elif macchina.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ macchina.get_snmp_stato_display }}</span></div></div><div class="card"><div class="k">Host</div><div class="v mono" style="font-size:20px">{{ macchina.host|default:"—" }}</div></div><div class="card"><div class="k">Ultimo controllo</div><div class="v" style="font-size:20px">{{ macchina.snmp_ultimo_controllo|date:"d/m/Y H:i"|default:"Mai" }}</div></div><div class="card"><div class="k">Latenza</div><div class="v">{% if macchina.snmp_tempo_risposta_ms is not None %}{{ macchina.snmp_tempo_risposta_ms }}<small> ms</small>{% else %}—{% endif %}</div></div></div>
 {% if macchina.snmp_ultimo_errore %}<div class="banner">{{ macchina.snmp_ultimo_errore }}</div>{% endif %}
@@ -14,48 +14,38 @@
 {% endif %}
 
 <div class="panel">
+  <div class="panel-head"><div><h2>Copie prodotte per trimestre</h2><p>Differenza tra due letture consecutive, divisa in bianco/nero e colore. Passa sopra una barra per il dettaglio.</p></div></div>
+  {% include "contatori/_grafico_produzione.html" %}
+</div>
+
+<div class="panel">
   <h2>Letture trimestrali di riconciliazione</h2>
-  <table>
+  <div class="table-wrap"><table data-fm-table-skip="1">
     <thead><tr><th>Trimestre</th><th>Data</th>
       <th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th>
-      <th class="num">Totale</th><th>Fonte</th></tr></thead>
+      <th class="num">Totale</th><th>Fonte</th><th></th></tr></thead>
     <tbody>
     {% for l in dati.letture %}
       <tr><td>{{ l.trimestre }}</td><td>{{ l.data }}</td>
           <td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td>
           <td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td>
           <td class="num"><strong>{{ l.totale }}</strong></td>
-          <td><span class="pill ok">{{ l.get_fonte_display }}</span></td></tr>
+          <td><span class="pill ok">{{ l.get_fonte_display }}</span></td>
+          <td><a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a></td></tr>
     {% empty %}
-      <tr><td colspan="8" class="pos">Nessuna lettura registrata.</td></tr>
+      <tr><td colspan="9" class="pos">Nessuna lettura registrata. <a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">Inserisci la prima</a>.</td></tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </div>
 
 <div class="panel">
   <h2>Letture mensili automatiche</h2>
   <p class="muted">Ultimi 24 mesi: contatori cumulativi alla data effettiva della lettura. Le rilevazioni mensili restano separate dalle letture trimestrali.</p>
-  <div class="table-wrap"><table>
+  <div class="table-wrap"><table data-fm-table-skip="1">
     <thead><tr><th>Mese rilevazione</th><th>Rilevata il</th><th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th><th class="num">Totale</th></tr></thead>
     <tbody>{% for l in letture_mensili %}<tr><td>{{ l.mese|date:"m/Y" }}</td><td>{{ l.rilevata_il|date:"d/m/Y H:i" }}</td><td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td><td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td><td class="num">{{ l.totale }}</td></tr>{% empty %}<tr><td colspan="7" class="muted">Nessuna lettura mensile. La raccolta si gestisce da Automazioni → Task pianificati.</td></tr>{% endfor %}</tbody>
   </table></div>
-</div>
-<div class="panel">
-  <h2>Andamento totale copie</h2>
-  {% with serie=dati.serie %}
-  <table>
-    {% for cat, valori in serie.items %}
-      <tr><td style="width:80px">{{ cat }}</td>
-        <td>
-          <div class="bar"><span style="width:{% if valori %}100{% else %}0{% endif %}%"></span></div>
-        </td>
-        <td class="num" style="width:120px"><strong>{{ valori|last|default:0 }}</strong></td>
-      </tr>
-    {% endfor %}
-  </table>
-  <p class="pos" style="margin-top:8px">Trimestri: {{ dati.trimestri|join:" · " }}</p>
-  {% endwith %}
 </div>
 <div class="panel">
   <div class="row">

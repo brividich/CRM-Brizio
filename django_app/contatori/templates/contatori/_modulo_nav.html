@@ -1,11 +1,14 @@
-<nav class="cnav">
-  <a href="{% url 'contatori:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Centrale</a>
-  <a href="{% url 'contatori:snmp_centrale' %}" class="{% if 'snmp_' in request.resolver_match.url_name %}active{% endif %}">Monitor SNMP</a>
-  <a href="{% url 'contatori:snmp_profili' %}" class="{% if 'snmp_profil' in request.resolver_match.url_name %}active{% endif %}">Profili SNMP</a>
-  <a href="{% url 'contatori:riconciliazione' %}" class="{% if 'riconciliazione' in request.resolver_match.url_name %}active{% endif %}">Riconciliazione</a>
-  <a href="{% url 'contatori:analisi' %}" class="{% if request.resolver_match.url_name == 'analisi' %}active{% endif %}">Analisi</a>
-  <a href="{% url 'contatori:consumabili' %}" class="{% if 'consumabili' in request.resolver_match.url_name %}active{% endif %}">Consumabili</a>
-  <a href="{% url 'contatori:importa_lettura' %}" class="{% if request.resolver_match.url_name == 'importa_lettura' %}active{% endif %}">Nuova lettura</a>
-  <a href="{% url 'contatori:macchine' %}" class="{% if request.resolver_match.url_name == 'macchine' or request.resolver_match.url_name == 'macchina_nuova' or request.resolver_match.url_name == 'macchina_edit' or request.resolver_match.url_name == 'macchina' %}active{% endif %}">MFC</a>
-  <a href="{% url 'contatori:discovery' %}" class="{% if 'discovery' in request.resolver_match.url_name %}active{% endif %}">Discovery</a>
+{% with n=request.resolver_match.url_name %}
+<nav class="cnav" aria-label="Sezioni contatori">
+  <a href="{% url 'contatori:dashboard' %}" class="{% if n == 'dashboard' %}active{% endif %}">Centrale</a>
+  <a href="{% url 'contatori:macchine' %}" class="{% if n in 'macchine macchina_nuova macchina_edit macchina importa_lettura lettura_edit' %}active{% endif %}">Stampanti MFC</a>
+  <a href="{% url 'contatori:riconciliazione' %}" class="{% if n in 'riconciliazione riconciliazione_trim fattura_nuova fattura_edit' %}active{% endif %}">Riconciliazione</a>
+  <a href="{% url 'contatori:analisi' %}" class="{% if n == 'analisi' %}active{% endif %}">Analisi</a>
+  <a href="{% url 'contatori:consumabili' %}" class="{% if n == 'consumabili' %}active{% endif %}">Consumabili</a>
+  <a href="{% url 'contatori:snmp_centrale' %}" class="{% if n in 'snmp_centrale snmp_dispositivo snmp_dispositivo_nuovo snmp_dispositivo_edit snmp_sonda_nuova snmp_sonda_edit' %}active{% endif %}">Monitor SNMP</a>
+  <span class="cnav-sep" aria-hidden="true"></span>
+  <span class="cnav-label">Configurazione</span>
+  <a href="{% url 'contatori:snmp_profili' %}" class="cnav-config {% if n in 'snmp_profili snmp_profilo_nuovo snmp_profilo_edit snmp_profilo_colonna_nuova snmp_profilo_colonna_edit' %}active{% endif %}">Profili SNMP</a>
+  <a href="{% url 'contatori:discovery' %}" class="cnav-config {% if n == 'discovery' %}active{% endif %}">Discovery</a>
 </nav>
+{% endwith %}

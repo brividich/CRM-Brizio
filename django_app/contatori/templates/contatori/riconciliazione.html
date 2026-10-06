@@ -1,49 +1,67 @@
 {% extends "contatori/_base_modulo.html" %}
+{% block title %}Riconciliazione{% if trimestre %} {{ trimestre }}{% endif %}{% endblock %}
 {% block modulo %}
-<h1>Riconciliazione trimestrale</h1>
-<p class="sub">Fattura fornitore vs rilevazione interna. Regola: la lettura interna (fatta più tardi) dev'essere ≥ a quella del fornitore.</p>
+<div class="row"><div>
+  <h1>Riconciliazione trimestrale</h1>
+  <p class="sub">Fattura fornitore contro lettura interna. La lettura interna, fatta qualche giorno dopo, deve essere maggiore o uguale a quella del fornitore.</p>
+</div><div class="spacer"></div>
+<a class="btn" href="{% url 'contatori:fattura_nuova' %}{% if trimestre %}?trimestre={{ trimestre }}{% endif %}">+ Nuova fattura</a></div>
 
-<div class="panel">
-  <div class="row">
-    <label>Trimestre:</label>
-    <select aria-label="Trimestre" onchange="if(this.value){location=this.value}">
-      {% for t in trimestri %}
-        <option value="{% url 'contatori:riconciliazione_trim' t %}" {% if t == trimestre %}selected{% endif %}>{{ t }}</option>
-      {% endfor %}
-    </select>
+<section class="panel">
+  <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
+    <div class="form-field" style="min-width:180px">
+      <label for="sel-trimestre">Trimestre</label>
+      <select id="sel-trimestre" onchange="if(this.value){location=this.value}">
+        {% for t in trimestri %}<option value="{% url 'contatori:riconciliazione_trim' t %}" {% if t == trimestre %}selected{% endif %}>{{ t }}</option>{% empty %}<option value="">Nessun trimestre</option>{% endfor %}
+      </select>
+    </div>
     <div class="spacer"></div>
-    {% if riepilogo %}
-      {% if riepilogo.ok %}<span class="pill ok">✅ Fattura corretta</span>
-      {% else %}<span class="pill danger">⚠ {{ riepilogo.anomalie }} da controllare</span>{% endif %}
-      <span class="pos">· fatt. {{ riepilogo.fatture|join:", " }}</span>
+    {% if riepilogo and righe %}
+      {% if riepilogo.ok %}<span class="pill ok">Fattura corretta</span>
+      {% elif riepilogo.anomalie %}<span class="pill danger">{{ riepilogo.anomalie }} da controllare</span>{% endif %}
+      {% if riepilogo.letture_mancanti %}<span class="pill warn">{{ riepilogo.letture_mancanti }} letture interne mancanti</span>{% endif %}
+      <a class="btn ghost small" href="{% url 'contatori:export_riconciliazione' trimestre %}">Esporta .xlsx</a>
     {% endif %}
   </div>
-  {% if righe %}<a class="btn ghost" href="{% url 'contatori:export_riconciliazione' trimestre %}">⬇ Esporta .xlsx</a>{% endif %}
-</div>
+</section>
+
+{% if trimestre %}
+<section class="panel">
+  <div class="panel-head"><div><h2>Fatture del trimestre</h2><p>Correggi una fattura se una lettura del fornitore è stata trascritta male.</p></div></div>
+  {% if fatture %}
+  <div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Numero</th><th>Data</th><th>Fornitore</th><th>Chiusura letture</th><th class="num">Contratti</th><th></th></tr></thead><tbody>
+  {% for f in fatture %}<tr><td><strong>{{ f.numero }}</strong></td><td>{{ f.data|date:"d/m/Y" }}</td><td>{{ f.fornitore }}</td><td>{{ f.periodo_al|date:"d/m/Y" }}</td><td class="num">{{ f.righe.all|length }}</td><td><a class="plain" href="{% url 'contatori:fattura_edit' f.pk %}">Modifica</a></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}
+  <div class="banner warn">Nessuna fattura caricata per il {{ trimestre }}. <a class="plain" href="{% url 'contatori:fattura_nuova' %}?trimestre={{ trimestre }}">Inseriscila ora</a> per avviare il confronto.</div>
+  {% endif %}
+</section>
+{% endif %}
 
 {% if righe %}
-<div class="panel">
-  <table>
-    <thead><tr>
-      <th>Contratto</th><th>Unità</th><th>Contatore</th>
-      <th class="num">Fornitore</th><th class="num">Interno</th><th class="num">Scarto</th><th>Esito</th>
-    </tr></thead>
+<section class="panel">
+  <div class="panel-head"><div><h2>Confronto per contatore</h2><p>Scarto = interno − fornitore. Negativo significa copie fatturate che la macchina non mostra.</p></div></div>
+  <div class="table-wrap"><table class="riconc-table" data-fm-table-skip="1">
+    <thead><tr><th>Contratto</th><th>Contatore</th><th class="num">Fornitore</th><th class="num">Interno</th><th class="num">Scarto</th><th>Esito</th></tr></thead>
     <tbody>
     {% for r in righe %}
-      <tr>
-        <td>{{ r.contratto }}{% if r.pool %} <span class="pill warn">pool</span>{% endif %}</td>
-        <td class="pos">{{ r.descrizione }}</td>
+      <tr class="{% ifchanged r.contratto %}gruppo-inizio{% endifchanged %}">
+        <td>{% ifchanged r.contratto %}<strong>{{ r.contratto }}</strong>{% if r.pool %} <span class="pill warn">pool</span>{% endif %}<div class="muted">{{ r.descrizione }}</div>{% endifchanged %}</td>
         <td>{{ r.contatore }}</td>
         <td class="num">{{ r.fornitore }}</td>
         <td class="num">{% if r.ns is not None %}{{ r.ns }}{% else %}—{% endif %}</td>
-        <td class="num {% if r.scarto and r.scarto < 0 %}neg{% endif %}">{% if r.scarto is not None %}{{ r.scarto }}{% else %}—{% endif %}</td>
-        <td><span class="pill {{ r.livello }}">{{ r.esito }}</span></td>
+        <td class="num {% if r.scarto is not None and r.scarto < 0 %}neg{% endif %}">{% if r.scarto is not None %}{{ r.scarto }}{% else %}—{% endif %}</td>
+        <td><span class="pill {{ r.livello }}">{{ r.esito }}</span>
+          {% if r.mancanti and r.contatore == "A4 BN" %}<div class="azioni-mancanti">{% for m in r.mancanti %}<a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ m.pk }}&amp;trimestre={{ trimestre }}">+ Lettura {{ m.reparto }}</a>{% endfor %}</div>{% endif %}
+        </td>
       </tr>
     {% endfor %}
     </tbody>
-  </table>
-</div>
-{% else %}
-  <div class="panel"><p class="pos">Nessun dato per questo trimestre. Carica una fattura e le letture interne.</p></div>
+  </table></div>
+</section>
+{% elif trimestre and fatture %}
+<section class="panel"><p class="muted">Le fatture del trimestre non contengono righe.</p></section>
+{% elif not trimestre %}
+<section class="panel"><p class="muted">Nessun dato ancora. Inserisci la prima fattura e le letture interne del trimestre.</p></section>
 {% endif %}
 {% endblock %}

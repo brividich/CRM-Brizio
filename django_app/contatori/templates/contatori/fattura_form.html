@@ -1,0 +1,48 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}{% if fattura %}Fattura {{ fattura.numero }}{% else %}Nuova fattura{% endif %}{% endblock %}
+{% block modulo %}
+<div class="eyebrow">Riconciliazione</div>
+<h1>{% if fattura %}Fattura {{ fattura.numero }}{% else %}Nuova fattura fornitore{% endif %}</h1>
+<p class="sub">Riporta le letture stampate in fattura per ogni contratto. La riconciliazione le confronta con le letture interne dello stesso trimestre.</p>
+<form method="post" class="form-sezioni" id="fattura-form">{% csrf_token %}
+  {% include "contatori/_form_sezioni.html" %}
+  <section class="panel form-section">
+    <header class="form-section-head">
+      <span class="form-section-num" aria-hidden="true">3</span>
+      <div><h2>Letture del fornitore</h2><p>Una riga per contratto. Per i contratti in pool inserisci il totale come in fattura. Le righe lasciate a zero non vengono salvate.</p></div>
+    </header>
+    {{ righe.management_form }}
+    {% if righe.non_form_errors %}<div class="banner">{{ righe.non_form_errors|join:" " }}</div>{% endif %}
+    <div class="table-wrap"><table class="righe-table" data-fm-table-skip="1">
+      <thead><tr><th>Contratto</th><th>Descrizione</th><th class="num">A4 B/N</th><th class="num">A3 B/N</th><th class="num">A4 colore</th><th class="num">A3 colore</th><th>{% if fattura %}Elimina{% endif %}</th></tr></thead>
+      <tbody id="righe-body">
+      {% for r in righe %}{% include "contatori/_fattura_riga.html" with r=r %}{% endfor %}
+      </tbody>
+    </table></div>
+    <template id="riga-vuota">{% include "contatori/_fattura_riga.html" with r=righe.empty_form %}</template>
+    <button class="btn ghost small" type="button" id="aggiungi-riga" style="margin-top:12px">+ Aggiungi contratto</button>
+  </section>
+  <div class="form-actions">
+    <a class="btn ghost" href="{% if fattura %}{% url 'contatori:riconciliazione_trim' fattura.trimestre %}{% else %}{% url 'contatori:riconciliazione' %}{% endif %}">Annulla</a>
+    <button class="btn" type="submit">Salva fattura</button>
+  </div>
+</form>
+{% if fattura %}
+<form method="post" action="{% url 'contatori:fattura_elimina' fattura.pk %}" onsubmit="return confirm('Eliminare la fattura {{ fattura.numero|escapejs }} e tutte le sue righe?')">{% csrf_token %}
+  <button class="btn ghost danger" type="submit">Elimina fattura</button>
+</form>
+{% endif %}
+<script>
+(function () {
+  var btn = document.getElementById("aggiungi-riga");
+  var total = document.getElementById("id_righe-TOTAL_FORMS");
+  var tpl = document.getElementById("riga-vuota");
+  if (!btn || !total || !tpl) return;
+  btn.addEventListener("click", function () {
+    var n = parseInt(total.value, 10);
+    document.getElementById("righe-body").insertAdjacentHTML("beforeend", tpl.innerHTML.replace(/__prefix__/g, n));
+    total.value = n + 1;
+  });
+})();
+</script>
+{% endblock %}

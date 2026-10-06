@@ -2,15 +2,18 @@ import re
 import uuid
 
 from django import forms
+from django.db import models
 
 from .models import (
     ColonnaProfiloSNMP,
     CommunitySNMP,
     DispositivoSNMP,
+    Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
     Macchina,
     ProfiloSNMP,
+    RigaFattura,
     SondaSNMP,
 )
 
@@ -240,17 +243,67 @@ class DiscoveryBackgroundForm(forms.Form):
 class LetturaForm(SezioniFormMixin, forms.ModelForm):
     sezioni_def = (
         ("Rilevazione", "", ("macchina", "trimestre", "data", "fonte")),
-        ("Contatori", "Valori letti sul display o sul report della macchina.",
-         ("a4_bn", "a3_bn", "a4_col", "a3_col")),
+        ("Contatori", "Valori cumulativi letti sul display o sul report della macchina.",
+         ("a4_bn", "a3_bn", "a4_col", "a3_col", "conferma_calo")),
         ("Note", "", ("note",)),
     )
+    campi_full = frozenset({"note", "conferma_calo"})
+    conferma_calo = forms.BooleanField(
+        required=False, widget=forms.HiddenInput,
+        label="Confermo i valori: il contatore è stato azzerato o la macchina sostituita")
+
     class Meta:
         model = LetturaContatori
         fields = [
             "macchina", "trimestre", "data", "a4_bn", "a3_bn",
             "a4_col", "a3_col", "fonte", "note",
         ]
-        widgets = {"data": forms.DateInput(attrs={"type": "date"})}
+        widgets = {"data": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["trimestre"] = campo_trimestre(self.instance.trimestre)
+        macchine = Macchina.objects.filter(attiva=True)
+        if self.instance.macchina_id:
+            macchine = Macchina.objects.filter(
+                models.Q(attiva=True) | models.Q(pk=self.instance.macchina_id))
+        self.fields["macchina"].queryset = macchine.order_by("reparto", "matricola")
+        self.fields["macchina"].empty_label = "— scegli la stampante —"
+
+    def _vicine(self, macchina, trimestre):
+        """Letture della stessa macchina subito prima e subito dopo il trimestre."""
+        altre = LetturaContatori.objects.filter(macchina=macchina).exclude(pk=self.instance.pk)
+        prima = altre.filter(trimestre__lt=trimestre).order_by("-trimestre").first()
+        dopo = altre.filter(trimestre__gt=trimestre).order_by("trimestre").first()
+        return prima, dopo
+
+    def clean(self):
+        from .models import CONTATORI
+        data = super().clean()
+        macchina, trimestre = data.get("macchina"), data.get("trimestre")
+        if not macchina or not trimestre:
+            return data
+        doppia = LetturaContatori.objects.filter(macchina=macchina, trimestre=trimestre)             .exclude(pk=self.instance.pk).first()
+        if doppia:
+            self.add_error("trimestre", f"Esiste già una lettura di {macchina.reparto} per il "
+                                        f"{trimestre} (del {doppia.data:%d/%m/%Y}): modifica quella.")
+            return data
+        prima, dopo = self._vicine(macchina, trimestre)
+        incoerenze = {}
+        for campo, _ in CONTATORI:
+            valore = data.get(campo)
+            if valore is None:
+                continue
+            if prima and valore < getattr(prima, campo):
+                incoerenze[campo] = f"Più basso del {prima.trimestre} ({getattr(prima, campo)})."
+            elif dopo and valore > getattr(dopo, campo):
+                incoerenze[campo] = f"Più alto del {dopo.trimestre} ({getattr(dopo, campo)})."
+        # Un contatore non scende: si blocca, salvo conferma esplicita (reset/sostituzione).
+        if incoerenze and not data.get("conferma_calo"):
+            self.fields["conferma_calo"].widget = forms.CheckboxInput()
+            for campo, messaggio in incoerenze.items():
+                self.add_error(campo, messaggio)
+        return data
 
 
 def _imposta_campo_asset(field):
@@ -436,3 +489,70 @@ class ColonnaProfiloSNMPForm(SezioniFormMixin, forms.ModelForm):
             "unita", "fattore", "contatore_mfc", "soglia_warning_min", "soglia_warning_max",
             "soglia_critica_min", "soglia_critica_max", "etichette", "verificata", "fonte", "ordine", "attiva",
         ]
+
+
+_DATA = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
+
+
+def campo_trimestre(valore_attuale=""):
+    from .services import opzioni_trimestri
+    return forms.ChoiceField(label="Trimestre", choices=[
+        (t, t) for t in opzioni_trimestri(extra=[valore_attuale] if valore_attuale else ())])
+
+
+class FatturaForm(SezioniFormMixin, forms.ModelForm):
+    sezioni_def = (
+        ("Fattura", "", ("numero", "data", "fornitore")),
+        ("Periodo fatturato", "Le letture del fornitore si riferiscono alla data di chiusura.",
+         ("trimestre", "periodo_dal", "periodo_al")),
+    )
+
+    class Meta:
+        model = Fattura
+        fields = ["numero", "data", "fornitore", "trimestre", "periodo_dal", "periodo_al"]
+        labels = {"numero": "Numero fattura", "data": "Data fattura",
+                  "periodo_dal": "Periodo dal", "periodo_al": "Chiusura letture fornitore"}
+        help_texts = {"periodo_al": "", "trimestre": ""}
+        widgets = {"data": _DATA, "periodo_dal": _DATA, "periodo_al": _DATA}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["trimestre"] = campo_trimestre(self.instance.trimestre)
+        self.fields["fornitore"] = forms.ChoiceField(label="Fornitore",
+                                                     choices=Macchina.Fornitore.choices)
+
+    def clean(self):
+        data = super().clean()
+        dal, al = data.get("periodo_dal"), data.get("periodo_al")
+        if dal and al and dal > al:
+            self.add_error("periodo_al", "La chiusura deve essere successiva all'inizio del periodo.")
+        return data
+
+
+class RigaFatturaForm(forms.ModelForm):
+    class Meta:
+        model = RigaFattura
+        fields = ["contratto", "descrizione", "a4_bn", "a3_bn", "a4_col", "a3_col"]
+
+    def has_changed(self):
+        # Una riga nuova con tutti i contatori a zero e' una riga non compilata:
+        # il formset la salta (niente validazione, niente salvataggio).
+        if self.instance.pk is None:
+            try:
+                if not any(int(self[c].value() or 0) for c in ("a4_bn", "a3_bn", "a4_col", "a3_col")):
+                    return False
+            except (TypeError, ValueError):
+                pass
+        return super().has_changed()
+
+    def clean_contratto(self):
+        contratto = (self.cleaned_data.get("contratto") or "").strip()
+        if contratto and not Macchina.objects.filter(contratto=contratto).exists():
+            raise forms.ValidationError("Nessuna MFC con questo contratto: controlla il numero "
+                                        "o aggiornalo nell'anagrafica stampanti.")
+        return contratto
+
+
+RigheFatturaFormSet = forms.inlineformset_factory(
+    Fattura, RigaFattura, form=RigaFatturaForm, extra=0, can_delete=True,
+)
