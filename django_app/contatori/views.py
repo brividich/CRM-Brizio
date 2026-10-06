@@ -208,45 +208,89 @@ def macchina_detail(request, pk):
     })
 
 
-def importa_lettura(request):
+def importa_lettura(request, pk=None):
+    """Inserimento (pk assente) o correzione di una lettura trimestrale."""
+    lettura = get_object_or_404(LetturaContatori.objects.select_related("macchina"), pk=pk) if pk else None
     if request.method == "POST":
-        form = LetturaForm(request.POST)
+        form = LetturaForm(request.POST, instance=lettura)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Lettura salvata.")
-            return redirect("contatori:dashboard")
+            lettura = form.save()
+            log_action(request, "lettura_modificata" if pk else "lettura_creata", "contatori",
+                       oggetto=lettura, dettaglio={"trimestre": lettura.trimestre, "fonte": lettura.fonte,
+                                                   "calo_confermato": form.cleaned_data.get("conferma_calo", False)})
+            messages.success(request, f"Lettura {lettura.trimestre} di {lettura.macchina.reparto} salvata.")
+            return redirect("contatori:macchina", pk=lettura.macchina_id)
     else:
-        initial = {"data": timezone.localdate(), "trimestre": services.trimestre_corrente()}
-        if request.GET.get("macchina", "").isdigit():
-            initial["macchina"] = request.GET["macchina"]
-        if services.trimestre_valido(request.GET.get("trimestre")):
-            initial["trimestre"] = request.GET["trimestre"]
-        form = LetturaForm(initial=initial)
-    return render(request, "contatori/importa_lettura.html", {"form": form})
+        initial = {}
+        if lettura is None:
+            initial = {"data": timezone.localdate(), "trimestre": services.trimestre_corrente()}
+            if request.GET.get("macchina", "").isdigit():
+                initial["macchina"] = request.GET["macchina"]
+            if services.trimestre_valido(request.GET.get("trimestre")):
+                initial["trimestre"] = request.GET["trimestre"]
+        form = LetturaForm(instance=lettura, initial=initial)
+    return render(request, "contatori/importa_lettura.html", {"form": form, "lettura": lettura})
+
+
+@require_POST
+def lettura_elimina(request, pk):
+    lettura = get_object_or_404(LetturaContatori.objects.select_related("macchina"), pk=pk)
+    macchina_id = lettura.macchina_id
+    log_action(request, "lettura_eliminata", "contatori", oggetto=lettura,
+               dettaglio={"trimestre": lettura.trimestre, "totale": lettura.totale})
+    lettura.delete()
+    messages.success(request, "Lettura eliminata.")
+    return redirect("contatori:macchina", pk=macchina_id)
 
 
 def leggi_snmp(request):
-    """Legge via SNMP tutte le macchine attive con host. Salva le letture del trimestre corrente."""
+    """Legge via SNMP le MFC attive con host e salva la lettura del trimestre corrente.
+
+    Non sovrascrive mai una lettura manuale o da fattura e non salva valori piu'
+    bassi del trimestre precedente (contatore azzerato o IP che punta a un'altra
+    macchina): in entrambi i casi la macchina viene solo segnalata.
+    """
     if request.method != "POST":
         return redirect("contatori:dashboard")
+    from .models import CONTATORI
     from .snmp import SNMPError
     oggi = timezone.localdate()
-    q = (oggi.month - 1) // 3 + 1
-    trimestre = f"{oggi.year}-Q{q}"
-    ok, ko = 0, []
-    for m in Macchina.objects.filter(attiva=True).exclude(host__isnull=True):
+    trimestre = services.trimestre_di(oggi)
+    presenti = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=trimestre)}
+    lette, manuali, incoerenti, errori = 0, [], [], []
+    for m in Macchina.objects.filter(attiva=True).exclude(host__isnull=True).order_by("reparto"):
+        esistente = presenti.get(m.id)
+        if esistente and esistente.fonte != LetturaContatori.Fonte.SNMP:
+            manuali.append(m.reparto)
+            continue
         try:
             vals = services.interroga_macchina(m)
-            LetturaContatori.objects.update_or_create(
-                macchina=m, trimestre=trimestre,
-                defaults={**vals, "data": oggi, "fonte": "SNMP"})
-            ok += 1
         except SNMPError as e:
-            ko.append(f"{m.reparto}: {e}")
-    if ok:
-        messages.success(request, f"{ok} macchine lette via SNMP ({trimestre}).")
-    for msg in ko:
-        messages.warning(request, msg)
+            errori.append(f"{m.reparto} ({e})")
+            continue
+        prima = m.letture.filter(trimestre__lt=trimestre).order_by("-trimestre").first()
+        if prima and any(vals[c] < getattr(prima, c) for c, _ in CONTATORI):
+            incoerenti.append(m.reparto)
+            continue
+        LetturaContatori.objects.update_or_create(
+            macchina=m, trimestre=trimestre,
+            defaults={**vals, "data": oggi, "fonte": LetturaContatori.Fonte.SNMP})
+        lette += 1
+    log_action(request, "letture_snmp", "contatori", dettaglio={
+        "trimestre": trimestre, "lette": lette, "manuali": len(manuali),
+        "incoerenti": len(incoerenti), "errori": len(errori)})
+    if lette:
+        messages.success(request, f"{lette} MFC lette via SNMP per il {trimestre}.")
+    if manuali:
+        messages.info(request, "Non sovrascritte (lettura manuale già presente): " + ", ".join(manuali) + ".")
+    if incoerenti:
+        messages.warning(request, "Valori più bassi del trimestre precedente, non salvati: "
+                         + ", ".join(incoerenti) + ". Verifica IP o azzeramento del contatore.")
+    if errori:
+        messages.error(request, "Non raggiungibili: " + "; ".join(errori[:10])
+                       + (f" e altre {len(errori) - 10}." if len(errori) > 10 else "."))
+    if not (lette or manuali or incoerenti or errori):
+        messages.info(request, "Nessuna MFC attiva con indirizzo IP da leggere.")
     return redirect("contatori:dashboard")
 
 

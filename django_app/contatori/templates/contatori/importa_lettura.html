@@ -1,12 +1,19 @@
 {% extends "contatori/_base_modulo.html" %}
+{% block title %}{% if lettura %}Lettura {{ lettura.trimestre }}{% else %}Nuova lettura{% endif %}{% endblock %}
 {% block modulo %}
-<h1>Nuova lettura</h1>
-<p class="sub">Inserimento manuale di una rilevazione contatori.</p>
+{% if lettura %}<div class="eyebrow">{{ lettura.macchina.reparto }} · {{ lettura.macchina.matricola }}</div>{% endif %}
+<h1>{% if lettura %}Correggi lettura {{ lettura.trimestre }}{% else %}Nuova lettura{% endif %}</h1>
+<p class="sub">I contatori sono cumulativi: non possono scendere rispetto al trimestre precedente. Il portale lo controlla e chiede conferma solo in caso di azzeramento o sostituzione della macchina.</p>
 <form method="post" class="form-sezioni">{% csrf_token %}
   {% include "contatori/_form_sezioni.html" %}
   <div class="form-actions">
-    <a class="btn ghost" href="{% url 'contatori:dashboard' %}">Annulla</a>
+    <a class="btn ghost" href="{% if lettura %}{% url 'contatori:macchina' lettura.macchina_id %}{% else %}{% url 'contatori:dashboard' %}{% endif %}">Annulla</a>
     <button class="btn" type="submit">Salva lettura</button>
   </div>
 </form>
+{% if lettura %}
+<form method="post" action="{% url 'contatori:lettura_elimina' lettura.pk %}" onsubmit="return confirm('Eliminare la lettura {{ lettura.trimestre }} di {{ lettura.macchina.reparto|escapejs }}?')">{% csrf_token %}
+  <button class="btn ghost danger" type="submit">Elimina lettura</button>
+</form>
+{% endif %}
 {% endblock %}

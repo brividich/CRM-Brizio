@@ -1,6 +1,6 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block modulo %}
-<div class="row"><div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div><a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a></div>
+<div class="row"><div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a><a class="btn" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">+ Nuova lettura</a></div></div>
 
 <div class="cards"><div class="card"><div class="k">Stato SNMP</div><div class="v" style="font-size:20px"><span class="pill {% if macchina.snmp_stato == 'OK' %}ok{% elif macchina.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ macchina.get_snmp_stato_display }}</span></div></div><div class="card"><div class="k">Host</div><div class="v mono" style="font-size:20px">{{ macchina.host|default:"—" }}</div></div><div class="card"><div class="k">Ultimo controllo</div><div class="v" style="font-size:20px">{{ macchina.snmp_ultimo_controllo|date:"d/m/Y H:i"|default:"Mai" }}</div></div><div class="card"><div class="k">Latenza</div><div class="v">{% if macchina.snmp_tempo_risposta_ms is not None %}{{ macchina.snmp_tempo_risposta_ms }}<small> ms</small>{% else %}—{% endif %}</div></div></div>
 {% if macchina.snmp_ultimo_errore %}<div class="banner">{{ macchina.snmp_ultimo_errore }}</div>{% endif %}
@@ -18,16 +18,17 @@
   <table>
     <thead><tr><th>Trimestre</th><th>Data</th>
       <th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th>
-      <th class="num">Totale</th><th>Fonte</th></tr></thead>
+      <th class="num">Totale</th><th>Fonte</th><th></th></tr></thead>
     <tbody>
     {% for l in dati.letture %}
       <tr><td>{{ l.trimestre }}</td><td>{{ l.data }}</td>
           <td class="num">{{ l.a4_bn }}</td><td class="num">{{ l.a3_bn }}</td>
           <td class="num">{{ l.a4_col }}</td><td class="num">{{ l.a3_col }}</td>
           <td class="num"><strong>{{ l.totale }}</strong></td>
-          <td><span class="pill ok">{{ l.get_fonte_display }}</span></td></tr>
+          <td><span class="pill ok">{{ l.get_fonte_display }}</span></td>
+          <td><a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a></td></tr>
     {% empty %}
-      <tr><td colspan="8" class="pos">Nessuna lettura registrata.</td></tr>
+      <tr><td colspan="9" class="pos">Nessuna lettura registrata. <a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">Inserisci la prima</a>.</td></tr>
     {% endfor %}
     </tbody>
   </table>
