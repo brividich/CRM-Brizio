@@ -1,7 +1,7 @@
 """Test per il layout dello scadenzario HR: viste (gruppi/calendario/affiancata),
 visite collassate, ↻ Rinnovo per singola visita e rinnovo formazione da selezione.
 
-Piano: docs/superpowers/plans/2026-07-16-anagrafica-scadenzario-layout.md
+Piano: docs/superpowers/plans/2026-07-16-anagrafica-scadenzario-layout.md (rimosso dal repo, storico git 018367f1)
 """
 from datetime import timedelta
 
