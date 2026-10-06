@@ -1,5 +1,11 @@
 # Agent Changelog
 
+## 2026-10-06 - Codex (rifinitura form apertura anomalie)
+
+- Area `django_app/anomalie`; richiesta: rendere più concreta e rifinita l'impostazione approvata per l'inserimento.
+- Modificato il template `apertura_segnalazione.html`: guida fase → seriali → rilievi, esempi e aiuti contestuali, schede numerate e selettori seriale più leggibili, con adattamento a schermi stretti. Modello, validazione e salvataggio invariati.
+- README e CHANGELOG aggiornati. File critici: nessuno. Backup: nessuno. Test/QA browser non eseguiti; resta da verificare desktop, mobile e tema scuro. Lavoro sul branch `feature/anomalie-form-polish`, worktree `C:\Dev\pn-anomalie-form-polish`.
+
 ## 2026-10-05 - Codex (fix sidebar menu storico)
 
 - Riscontro di Brizio sul commit `d31172a`: screenshot ancora con PC/Server/Rete orfani sotto «Inventario completo», nessun «Inventario IT» e label precedenti. Causa verificata nel repository: le migrazioni storiche persistono i codici `inventario` (`0079`) e `device_list` (`0050`), ma la migrazione 0122 aggiornava `dashboard` e dipendeva dalla presenza di `hardware`; così non riallineava necessariamente il menu reale.
@@ -2046,3 +2052,20 @@
 ## 2026-10-05 - Codex - Esito finale controlli feature anomalie
 - Controlli: 45/45 test `anomalie.tests_mail_action` + `anomalie.tests_qualita`; `manage.py check` OK; `makemigrations anomalie --check --dry-run` nessuna modifica; `compileall` OK; Babel React JSX inline del form OK; `git diff --check` OK.
 - Checklist segna completato ciò che è verificato; restano UAT browser e-mail con dati del reparto e test dei client e-mail reali.
+
+## 2026-10-05 - Codex - Pianificazione iniziale anomalie
+
+- Area: pianificazione django_app/anomalie.
+- Richiesta: preparare un piano dettagliato e una checklist per le modifiche concordate con il reparto Controllo.
+- Modifica: documentate proposta funzionale, scelte progettuali, fasi operative, decisioni da confermare e criteri di completamento; nessun codice applicativo modificato in quella fase.
+- File critici modificati: nessuno.
+- Check: ricognizione read-only di modelli e UI esistenti; git status iniziale verificato.
+- Note: ACTIVE_SESSION.md, WORK_LOCKS.md, CRITICAL_FILES.md e CRITICAL_CHANGE_REQUESTS.md non presenti. Workspace iniziale conteneva untracked preesistente parser pdf/, lasciato intatto.
+
+## 2026-10-05 - Codex - Aggiornamento piano Scheda qualità
+
+- Area: pianificazione django_app/anomalie.
+- Richiesta: mantenere temporaneamente nascosta la Scheda qualità.
+- Modifica: aggiunto al piano il nascondimento dell’accesso e della presentazione UI, esclusa la Scheda qualità dai nuovi flussi; backend e dati storici restano preservati.
+- File critici modificati: nessuno.
+- Check: verifica testuale del piano; nessun codice applicativo modificato.

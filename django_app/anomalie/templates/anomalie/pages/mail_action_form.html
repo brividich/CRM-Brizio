@@ -129,7 +129,35 @@
       border-left: 3px solid #e2e8f0; margin-bottom: 12px;
     }
 
-    .anomalia-images { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .anomalia-images { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .allegati-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; align-items: center; }
+    .allegato-chip { font-size: 12px; color: #1f5c91; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; padding: 2px 10px; text-decoration: none; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .allegati-hint { font-size: 11px; color: #94a3b8; flex-basis: 100%; }
+    .allegati-badge { flex-shrink: 0; font-size: 11px; font-weight: 700; color: #475569; }
+    .body-desc-box { padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .allegato-line { font-size: 12px; color: #64748b; }
+
+    /* Gruppi per blocco di seriali */
+    .gruppo { background: #f8fafc; border: 1px solid #dbe3ec; border-radius: 14px; padding: 12px; margin-bottom: 14px; }
+    .gruppo-nuovo { border-color: #fdba74; box-shadow: 0 0 0 3px rgba(255,107,0,.08); background: #fffaf5; }
+    .gruppo-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 2px 4px 10px; }
+    .gruppo-overline { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .07em; }
+    .gruppo-nuovo .gruppo-overline { color: #c2410c; }
+    .gruppo-sn { font-family: Consolas, "Cascadia Mono", monospace; font-size: 15px; font-weight: 800; color: #12395f; word-break: break-word; }
+    .gruppo-sub { font-size: 12px; color: #64748b; }
+    .gruppo-count { flex-shrink: 0; font-size: 12px; font-weight: 700; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 2px 10px; }
+    .gruppo .anomalie-list { margin-bottom: 0; }
+    .gruppo-bulk { background: #fff; border: 1px dashed #cbd5e1; border-radius: 10px; margin: 0 0 10px; }
+    .gruppo-bulk summary { cursor: pointer; padding: 9px 12px; font-size: 13px; font-weight: 700; color: #1f5c91; }
+    .gruppo-bulk-body { padding: 4px 12px 12px; }
+    .altri-divider { margin: 22px 0 10px; font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .07em; display: flex; align-items: center; gap: 10px; }
+    .altri-divider::after { content: ""; flex: 1; height: 1px; background: #dbe3ec; }
+    .anomalia-row.is-nuova .anomalia-row-stripe { background: #ff6b00; }
+    .toggle-inline { flex-direction: row; flex-wrap: wrap; gap: 8px 20px; }
+    .field-wide { grid-column: 1 / -1; }
+    .field-input { width: 100%; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 13px; font-family: inherit; color: #1e293b; background: #fff; outline: none; }
+    .field-input:focus { border-color: #1f5c91; }
+    .rdc-num-wrap[hidden] { display: none; }
     .anomalia-images img {
       width: 90px; height: 70px; object-fit: cover;
       border-radius: 6px; border: 1px solid #e2e8f0; cursor: pointer;
@@ -153,7 +181,7 @@
     .toggle-readonly { color: #94a3b8; cursor: default; }
     .toggle-readonly input { cursor: not-allowed; }
     .decisione-fields {
-      display: grid; grid-template-columns: 220px 1fr auto; gap: 10px; align-items: end;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: end;
     }
     .field-label { font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
     .field-select {
@@ -277,7 +305,7 @@
 
 <div class="main">
 
-  <div class="badge-op">OP {{ op_id }}{% if op_nominativo %} — {{ op_nominativo }}{% endif %}</div>
+  <div class="badge-op">OP {{ op_id }}{% if op_nominativo and op_nominativo != op_id %} — {{ op_nominativo }}{% endif %}</div>
   <h1>{{ action_label }} anomali{% if anomalie|length == 1 %}a{% else %}e{% endif %}</h1>
   <p class="sub-title">
     {% with n=anomalie|length %}
@@ -305,102 +333,160 @@
     <button type="button" class="expand-all-btn" onclick="toggleAll()">Espandi tutte</button>
   </div>
 
-  <div class="anomalie-list" id="anomalie-list">
-    {% for a in anomalie %}
-    <div class="anomalia-row" id="row-{{ a.id }}" data-id="{{ a.id }}" data-desc="{{ a.descrizione|default:'' }}">
-      <div class="anomalia-row-header" onclick="toggleRow('row-{{ a.id }}')">
-        <div class="anomalia-row-stripe"></div>
-        <div class="anomalia-row-info">
-          <span class="anomalia-num">#{{ a.id }}</span>
-          {% if a.seriale %}<span class="anomalia-sn">{{ a.seriale }}</span>{% endif %}
-          {% if a.fase %}<span class="stato-pill">Fase {{ a.fase }}</span>{% endif %}
-          <span class="anomalia-desc-compact">{{ a.descrizione|default:"(nessuna descrizione)"|truncatechars:80 }}</span>
-          <span class="superficie-badge" id="sup-{{ a.id }}" style="display:none">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"/><path d="M2 7h20"/><path d="M2 17h20"/></svg>
-            <span class="superficie-badge-text"></span>
-          </span>
-          <span class="flag-badge rdc" id="flag-rdc-{{ a.id }}">RDC</span>
-          <span class="flag-badge seg" id="flag-seg-{{ a.id }}">Cliente</span>
-          <span class="decisione-badge" id="badge-{{ a.id }}"></span>
-          {% if a.avanzamento %}<span class="stato-pill" id="stato-{{ a.id }}" data-stato="{{ a.avanzamento|escapejs }}">{{ a.avanzamento }}</span>{% endif %}
-        </div>
-        <div class="chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
+  {% for gruppo in gruppi %}
+  {% if gruppo.primo_altri %}
+  <div class="altri-divider">Altre anomalie ancora aperte su questo OP</div>
+  {% endif %}
+  <section class="gruppo{% if gruppo.nuovo %} gruppo-nuovo{% endif %}" data-gruppo="{{ gruppo.chiave }}">
+    <div class="gruppo-head">
+      <div class="gruppo-head-main">
+        <div class="gruppo-overline">{% if gruppo.nuovo and ha_nuove %}Da decidere · {% endif %}Seriali</div>
+        <div class="gruppo-sn">{{ gruppo.titolo|default:"(S/N non indicato)" }}</div>
+        {% if gruppo.sottotitolo %}<div class="gruppo-sub">{{ gruppo.sottotitolo }}</div>{% endif %}
       </div>
-      <div class="anomalia-body">
-        <div class="body-inner">
-          {% if a.descrizioni %}
-          {% for descrizione in a.descrizioni %}
-          <div class="body-desc-full" style="padding:10px;border:1px solid #e2e8f0;border-radius:8px;">
-            <strong>Descrizione {{ forloop.counter }} · S/N {{ descrizione.seriali|join:", " }}</strong><br>{{ descrizione.testo }}
-            {% for allegato in descrizione.allegati %}<div style="font-size:12px;color:#64748b">Allegato: <a href="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id=descrizione:{{ allegato.id }}">{{ allegato.nome }}</a> ({{ allegato.size|filesizeformat }})</div>{% endfor %}
-            {% if descrizione.risposta %}<div class="body-note-existing">Risposta capocommessa: {{ descrizione.risposta }}</div>{% endif %}
-          </div>
-          {% endfor %}
-          {% else %}
-          <div class="body-desc-full" id="bodydesc-{{ a.id }}">{{ a.descrizione|default:"(nessuna descrizione)" }}</div>
-          {% endif %}
-          {% if a.note_capocommessa %}
-          <div class="body-note-existing">Note: {{ a.note_capocommessa }}</div>
-          {% endif %}
-          {% if forloop.first and first_images %}
-          <div class="anomalia-images">
-            {% for img in first_images %}
-            <img src="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&file_id={{ img.file_id }}"
-                 alt="{{ img.filename }}" title="{{ img.filename }}" loading="lazy">
-            {% endfor %}
-          </div>
-          {% endif %}
-          {% if is_dispositive and can_edit %}
-          <div class="decisione-panel" id="panel-{{ a.id }}">
-            <div class="decisione-panel-title">Aggiorna avanzamento</div>
-
-            <!-- Toggle Aprire RDC / Segnalare a cliente (regole Power Apps) -->
-            <div class="toggle-group">
-              <label class="toggle-row">
-                <input type="checkbox" id="rdc-{{ a.id }}" onchange="onToggleChange({{ a.id }})">
-                <span>Aprire RDC?</span>
-              </label>
-              <label class="toggle-row">
-                <input type="checkbox" id="seg-{{ a.id }}" onchange="onToggleChange({{ a.id }})">
-                <span>Segnalare a cliente?</span>
-              </label>
-              <label class="toggle-row toggle-readonly">
-                <input type="checkbox" id="chiudi-{{ a.id }}" disabled>
-                <span>Chiudere? (automatico)</span>
-              </label>
-            </div>
-
-            <div class="decisione-fields">
-              {% for descrizione in a.descrizioni %}
-              <div>
-                <div class="field-label">Risposta alla descrizione {{ forloop.counter }} · S/N {{ descrizione.seriali|join:", " }}</div>
-                <textarea class="field-textarea" data-descrizione-risposta="{{ descrizione.id }}" placeholder="Risposta del capocommessa...">{{ descrizione.risposta }}</textarea>
-              </div>
-              {% endfor %}
-              <div>
-                <div class="field-label">Nuovo avanzamento</div>
-                <select class="field-select" id="av-{{ a.id }}" onchange="onToggleChange({{ a.id }})">
-                  <option value="">— invariato —</option>
-                </select>
-              </div>
-              <div>
-                <div class="field-label">Note</div>
-                <textarea class="field-textarea" id="note-{{ a.id }}" placeholder="Note per questa anomalia..."></textarea>
-              </div>
-              <div>
-                <button type="button" class="salva-btn" onclick="salvaIndividuale({{ a.id }})">Salva</button>
-              </div>
-            </div>
-            <div class="salva-esito" id="esito-{{ a.id }}">&#10003; Salvato</div>
-          </div>
-          {% endif %}
-        </div>
-      </div>
+      <div class="gruppo-count">{{ gruppo.righe|length }} anomali{{ gruppo.righe|length|pluralize:"a,e" }}</div>
     </div>
-    {% empty %}
-    <p style="color:#94a3b8;font-size:14px;">Nessuna anomalia trovata. Potrebbero essere state eliminate o modificate.</p>
-    {% endfor %}
-  </div>
+
+    {% if is_dispositive and can_edit and gruppo.righe|length > 1 %}
+    <details class="gruppo-bulk" id="bulk-{{ gruppo.chiave }}">
+      <summary>Stessa decisione per tutte le {{ gruppo.righe|length }} anomalie di questi seriali</summary>
+      <div class="gruppo-bulk-body">
+        <div class="toggle-group toggle-inline">
+          <label class="toggle-row"><input type="checkbox" data-bulk="rdc" onchange="onBulkChange('{{ gruppo.chiave }}')"><span>Aprire RDC?</span></label>
+          <label class="toggle-row"><input type="checkbox" data-bulk="seg" onchange="onBulkChange('{{ gruppo.chiave }}')"><span>Segnalare a cliente?</span></label>
+        </div>
+        <div class="decisione-fields">
+          <div>
+            <div class="field-label">Nuovo avanzamento</div>
+            <select class="field-select" data-bulk="av"><option value="">— invariato —</option></select>
+          </div>
+          <div class="rdc-num-wrap" data-bulk-wrap="num" hidden>
+            <div class="field-label">N° RDC</div>
+            <input class="field-input" type="text" data-bulk="num" maxlength="100" placeholder="Numero RDC">
+          </div>
+          <div class="field-wide">
+            <div class="field-label">Risposta / note (per tutte)</div>
+            <textarea class="field-textarea" data-bulk="note" placeholder="Lascia vuoto per non cambiare le note delle singole anomalie"></textarea>
+          </div>
+          <div>
+            <button type="button" class="salva-btn" onclick="applicaGruppo('{{ gruppo.chiave }}')">Applica a tutte</button>
+          </div>
+        </div>
+      </div>
+    </details>
+    {% endif %}
+
+    <div class="anomalie-list">
+      {% for a in gruppo.righe %}
+      <div class="anomalia-row{% if a.nuova %} is-nuova{% endif %}" id="row-{{ a.id }}" data-id="{{ a.id }}" data-gruppo="{{ gruppo.chiave }}">
+        <div class="anomalia-row-header" onclick="toggleRow('row-{{ a.id }}')">
+          <div class="anomalia-row-stripe"></div>
+          <div class="anomalia-row-info">
+            <span class="anomalia-num">#{{ a.id }}</span>
+            <span class="anomalia-desc-compact">{{ a.testo|default:a.descrizione|default:"(nessuna descrizione)"|truncatechars:90 }}</span>
+            {% if a.stato_superficie %}
+            <span class="superficie-badge" title="Stato superficie: {{ a.stato_superficie }}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20"/><path d="M2 7h20"/><path d="M2 17h20"/></svg>
+              <span class="superficie-badge-text">{{ a.stato_superficie }}</span>
+            </span>
+            {% endif %}
+            {% if a.allegati %}<span class="allegati-badge" title="Allegati">&#128206; {{ a.allegati|length }}</span>{% endif %}
+            <span class="flag-badge rdc{% if a.aprire_rdc %} show{% endif %}" id="flag-rdc-{{ a.id }}">RDC</span>
+            <span class="flag-badge seg{% if a.segnalare_cliente %} show{% endif %}" id="flag-seg-{{ a.id }}">Cliente</span>
+            <span class="decisione-badge" id="badge-{{ a.id }}"></span>
+            {% if a.avanzamento %}<span class="stato-pill" id="stato-{{ a.id }}" data-stato="{{ a.avanzamento }}">{{ a.avanzamento }}</span>{% endif %}
+          </div>
+          <div class="chevron"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
+        </div>
+        <div class="anomalia-body">
+          <div class="body-inner">
+            {% if a.descrizioni %}
+            {% for descrizione in a.descrizioni %}
+            <div class="body-desc-full body-desc-box">
+              <strong>Descrizione {{ forloop.counter }} · S/N {{ descrizione.seriali|join:", " }}</strong><br>{{ descrizione.testo }}
+              {% for allegato in descrizione.allegati %}<div class="allegato-line">Allegato: <a href="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id=descrizione:{{ allegato.id }}" target="_blank" rel="noopener">{{ allegato.nome }}</a> ({{ allegato.size|filesizeformat }})</div>{% endfor %}
+              {% if descrizione.risposta %}<div class="body-note-existing">Risposta capocommessa: {{ descrizione.risposta }}</div>{% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="body-desc-full">{{ a.testo|default:a.descrizione|default:"(nessuna descrizione)"|linebreaksbr }}</div>
+            {% endif %}
+
+            {% if a.immagini %}
+            <div class="anomalia-images">
+              {% for img in a.immagini %}
+              <a href="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id={{ img.file_id|urlencode }}" target="_blank" rel="noopener">
+                <img src="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id={{ img.file_id|urlencode }}" alt="{{ img.name }}" title="{{ img.name }}" loading="lazy">
+              </a>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if a.allegati %}
+            <div class="allegati-list">
+              {% for f in a.allegati %}
+              <a class="allegato-chip" href="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id={{ f.file_id|urlencode }}" target="_blank" rel="noopener">{{ f.name }}</a>
+              {% endfor %}
+              <div class="allegati-hint">Gli allegati si aprono con l'accesso al portale.</div>
+            </div>
+            {% endif %}
+
+            {% if is_dispositive and can_edit %}
+            <div class="decisione-panel" id="panel-{{ a.id }}">
+              <div class="decisione-panel-title">Decisione su questa anomalia</div>
+              <div class="toggle-group toggle-inline">
+                <label class="toggle-row">
+                  <input type="checkbox" id="rdc-{{ a.id }}" {% if a.aprire_rdc %}checked{% endif %} onchange="onToggleChange({{ a.id }})">
+                  <span>Aprire RDC?</span>
+                </label>
+                <label class="toggle-row">
+                  <input type="checkbox" id="seg-{{ a.id }}" {% if a.segnalare_cliente %}checked{% endif %} onchange="onToggleChange({{ a.id }})">
+                  <span>Segnalare a cliente?</span>
+                </label>
+                <label class="toggle-row toggle-readonly">
+                  <input type="checkbox" id="chiudi-{{ a.id }}" disabled>
+                  <span>Chiudere? (automatico)</span>
+                </label>
+              </div>
+
+              <div class="decisione-fields">
+                {% for descrizione in a.descrizioni %}
+                <div class="field-wide">
+                  <div class="field-label">Risposta alla descrizione {{ forloop.counter }} · S/N {{ descrizione.seriali|join:", " }}</div>
+                  <textarea class="field-textarea" data-descrizione-risposta="{{ descrizione.id }}" placeholder="Risposta del capocommessa...">{{ descrizione.risposta }}</textarea>
+                </div>
+                {% endfor %}
+                <div>
+                  <div class="field-label">Nuovo avanzamento</div>
+                  <select class="field-select" id="av-{{ a.id }}" onchange="onToggleChange({{ a.id }})">
+                    <option value="">— invariato —</option>
+                  </select>
+                </div>
+                <div class="rdc-num-wrap" id="numwrap-{{ a.id }}" {% if not a.aprire_rdc %}hidden{% endif %}>
+                  <div class="field-label">N° RDC</div>
+                  <input class="field-input" type="text" id="num-{{ a.id }}" maxlength="100" value="{{ a.numero_rdc|default:'' }}" placeholder="Numero RDC">
+                </div>
+                <div class="field-wide">
+                  <div class="field-label">Risposta / note del capocommessa</div>
+                  <textarea class="field-textarea" id="note-{{ a.id }}" placeholder="Decisione, istruzioni per il reparto...">{{ a.note_capocommessa|default:'' }}</textarea>
+                </div>
+                <div>
+                  <button type="button" class="salva-btn" onclick="salvaIndividuale({{ a.id }})">Salva</button>
+                </div>
+              </div>
+              <div class="salva-esito" id="esito-{{ a.id }}">&#10003; Salvato</div>
+            </div>
+            {% elif a.note_capocommessa %}
+            <div class="body-note-existing">Note capocommessa: {{ a.note_capocommessa }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% empty %}
+  <p style="color:#94a3b8;font-size:14px;">Nessuna anomalia aperta trovata. Potrebbero essere già state chiuse o modificate.</p>
+  {% endfor %}
 
   <!-- Form riepilogo globale -->
   <div class="action-card">
@@ -458,7 +544,7 @@
     <div class="modal-title">Confermi gli aggiornamenti?</div>
     <p class="modal-sub">Le modifiche verranno registrate e il link non sarà più utilizzabile.</p>
     <div class="modal-detail">
-      <div><strong>OP:</strong> {{ op_id }}{% if op_nominativo %} — {{ op_nominativo }}{% endif %}</div>
+      <div><strong>OP:</strong> {{ op_id }}{% if op_nominativo and op_nominativo != op_id %} — {{ op_nominativo }}{% endif %}</div>
       <div class="modal-detail-table-wrap">
         <table class="modal-table" id="modal-table-body">
           <thead><tr><th>#</th><th>Avanzamento</th><th>Note</th></tr></thead>
@@ -532,23 +618,14 @@
       av.style.cursor = disabled ? 'not-allowed' : 'pointer';
     }
     if (chk) chk.checked = shouldAutoClose(rdc && rdc.checked, av ? av.value : '');
+    var numWrap = document.getElementById('numwrap-' + id);
+    if (numWrap) numWrap.hidden = !(rdc && rdc.checked);
 
     // Badge di risalto sulla riga
     var fr = document.getElementById('flag-rdc-' + id);
     var fs = document.getElementById('flag-seg-' + id);
     if (fr) fr.classList.toggle('show', !!(rdc && rdc.checked));
     if (fs) fs.classList.toggle('show', !!(seg && seg.checked));
-  }
-
-  // ── Stato superficie: estratto dal prefisso "Stato superficie: ..." della descrizione ──
-  // (la pagina di apertura lo antepone come "Stato superficie: X, Y\n\n" + nota utente)
-  var SUP_RE = /^\s*Stato superficie:\s*([^\n]+)\n*/i;
-
-  function splitSuperficie(raw) {
-    var s = String(raw || '');
-    var m = s.match(SUP_RE);
-    if (!m) return { superficie: '', resto: s.trim() };
-    return { superficie: m[1].trim(), resto: s.slice(m[0].length).trim() };
   }
 
   // Mappa avanzamento → classe colore della pill.
@@ -564,31 +641,6 @@
 
   // Inizializza tutte le righe al load.
   document.addEventListener('DOMContentLoaded', function() {
-    // 1) Estrai stato superficie + ripulisci descrizioni
-    document.querySelectorAll('.anomalia-row').forEach(function(row){
-      var id = row.dataset.id;
-      var parsed = splitSuperficie(row.dataset.desc || '');
-      // Badge stato superficie
-      if (parsed.superficie) {
-        var sup = document.getElementById('sup-' + id);
-        if (sup) {
-          var t = sup.querySelector('.superficie-badge-text');
-          if (t) t.textContent = parsed.superficie;
-          sup.style.display = 'inline-flex';
-          sup.title = 'Stato superficie: ' + parsed.superficie;
-        }
-      }
-      // Descrizione compatta (testo senza il prefisso)
-      var compact = row.querySelector('.anomalia-desc-compact');
-      if (compact) {
-        var resto = parsed.resto || '(nessuna descrizione)';
-        compact.textContent = resto.length > 80 ? resto.slice(0, 80) + '…' : resto;
-      }
-      // Descrizione completa nel corpo
-      var full = document.getElementById('bodydesc-' + id);
-      if (full) full.textContent = parsed.resto || '(nessuna descrizione)';
-    });
-
     // 2) Colora le pill di stato
     document.querySelectorAll('.stato-pill[data-stato]').forEach(function(pill){
       var cls = statoClass(pill.dataset.stato);
@@ -600,7 +652,56 @@
       var id = p.id.replace('panel-', '');
       onToggleChange(id);
     });
+    document.querySelectorAll('.gruppo-bulk').forEach(function(b){
+      onBulkChange(b.id.replace('bulk-', ''));
+    });
   });
+
+  function bulkField(key, name) {
+    return document.querySelector('#bulk-' + key + ' [data-bulk="' + name + '"]');
+  }
+
+  function onBulkChange(key) {
+    var rdc = bulkField(key, 'rdc');
+    var seg = bulkField(key, 'seg');
+    var av = bulkField(key, 'av');
+    if (av) {
+      var prev = av.value;
+      av.innerHTML = '<option value="">— invariato —</option>';
+      buildAvanzamentoOptions(rdc && rdc.checked).forEach(function(o){
+        var op = document.createElement('option');
+        op.value = o; op.textContent = o;
+        av.appendChild(op);
+      });
+      if (prev) av.value = prev;
+      av.disabled = !!(seg && seg.checked);
+    }
+    var wrap = document.querySelector('#bulk-' + key + ' [data-bulk-wrap="num"]');
+    if (wrap) wrap.hidden = !(rdc && rdc.checked);
+  }
+
+  // Copia la decisione del blocco su ogni anomalia del gruppo e la salva.
+  function applicaGruppo(key) {
+    var rdc = bulkField(key, 'rdc'), seg = bulkField(key, 'seg');
+    var av = bulkField(key, 'av'), num = bulkField(key, 'num'), note = bulkField(key, 'note');
+    document.querySelectorAll('.anomalia-row[data-gruppo="' + key + '"]').forEach(function(row){
+      var id = row.dataset.id;
+      var r = document.getElementById('rdc-' + id), s = document.getElementById('seg-' + id);
+      if (r) r.checked = !!(rdc && rdc.checked);
+      if (s) s.checked = !!(seg && seg.checked);
+      onToggleChange(id);
+      var a = document.getElementById('av-' + id);
+      if (a && av) a.value = av.value;
+      var n = document.getElementById('num-' + id);
+      if (n && num && num.value.trim()) n.value = num.value.trim();
+      var t = document.getElementById('note-' + id);
+      if (t && note && note.value.trim()) t.value = note.value.trim();
+      onToggleChange(id);
+      salvaIndividuale(id);
+    });
+    var box = document.getElementById('bulk-' + key);
+    if (box) box.open = false;
+  }
 
   function salvaIndividuale(id) {
     var av   = document.getElementById('av-' + id);
@@ -613,10 +714,12 @@
     var aprireRdc = !!(rdc && rdc.checked);
     var segnalare = !!(seg && seg.checked);
     var chiudere = shouldAutoClose(aprireRdc, av.value);
+    var num = document.getElementById('num-' + id);
 
     aggiornamenti[id] = {
-      avanzamento: av.value,
+      avanzamento: av.disabled ? '' : av.value,
       note: note ? note.value.trim() : '',
+      numero_rdc: (num && aprireRdc) ? num.value.trim() : "",
       aprire_rdc: aprireRdc,
       segnalare: segnalare,
       chiudere: chiudere,
@@ -629,6 +732,10 @@
 
     var badge = document.getElementById('badge-' + id);
     if (badge) { badge.textContent = av.value || 'Aggiornato'; }
+    var fr = document.getElementById('flag-rdc-' + id);
+    if (fr) fr.classList.toggle('show', aprireRdc);
+    var fs = document.getElementById('flag-seg-' + id);
+    if (fs) fs.classList.toggle('show', segnalare);
 
     var row = document.getElementById('row-' + id);
     if (row) row.classList.add('st-verde');
@@ -677,7 +784,7 @@
       var tr = document.createElement('tr');
       tr.innerHTML = '<td>#' + id + '</td>'
         + '<td>' + (d && d.avanzamento ? esc(d.avanzamento) : '<em style="color:#94a3b8">invariato</em>') + '</td>'
-        + '<td>' + (d && d.note ? esc(d.note.substring(0,40)) + (d.note.length > 40 ? '…' : '') : '—') + '</td>';
+        + '<td>' + (d && d.note ? esc(d.note.substring(0,40)) + (d.note.length > 40 ? '…' : '') : (d ? '—' : '<em style="color:#94a3b8">non toccata</em>')) + '</td>';
       tbody.appendChild(tr);
     });
 

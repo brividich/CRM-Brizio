@@ -1,5 +1,11 @@
 # Session Checkpoint
 
+Data: 2026-10-06 (rifinitura form apertura anomalie)
+
+- Il form accompagna l'utente in tre passaggi: fase, seriali, rilievi. Esempi e istruzioni contestuali chiariscono l'associazione seriali/descrizioni; i rilievi aggiuntivi sono schede distinte. Nessuna variazione a modello, validazione o salvataggio.
+- Lavoro in `C:\Dev\pn-anomalie-form-polish`, branch `feature/anomalie-form-polish`, base `origin/release/prod`. README, CHANGELOG e registro agente aggiornati; nessun file critico modificato.
+- Test e QA browser non eseguiti. Da verificare la resa desktop/mobile e tema scuro prima della promozione.
+
 Data: 2026-10-05 (fix sidebar codici storici)
 
 - L'utente è sul commit `d31172a`, ma la sidebar resta nella forma precedente. Diagnosi: i seed persistiti usano `inventario`/`device_list` (migrations 0079/0050), diversi dai codici `dashboard`/`hardware` che 0122 assumeva. Aggiunta migrazione 0123 per riallineare entrambi i layout, rendere visibile il ramo IT e assegnare i figli IT; menu categorie non toccato.
@@ -1090,3 +1096,9 @@ Nota: i file di controllo sessione `_AGENT_CONTROL/ACTIVE_SESSION.md`, `WORK_LOC
 - Test mirati anomalie 2026-10-05: `anomalie.tests_mail_action` + `anomalie.tests_qualita` passati 45/45; check Django OK. L’unico primo fallimento era un fixture mail incompleto, corretto e riprovato con esito positivo. UAT reparto/client mail ancora aperto.
 
 - Controlli finali anomalie 2026-10-05: 45/45 test mirati; Django check, migration check, compileall e Babel JSX template passati. UAT reparto/client mail ancora aperto.
+
+## Sessione pianificazione iniziale 2026-10-05 - Codex
+- docs/ai/CHECKLIST_GESTIONE_ANOMALIE_PER_FASE_E_SERIALI.md -> piano dettagliato per fase, collegamento per OP, seriali multipli, descrizioni/allegati per seriali e risposte capocomessa.
+- _AGENT_CONTROL/AGENT_CHANGELOG.md -> registrata la sessione di pianificazione.
+- Aggiornamento: Scheda qualità nascosta dall’interfaccia per questa fase, esclusa dai nuovi flussi; dati e backend preservati.
+- Controlli sessione assenti: ACTIVE_SESSION.md, WORK_LOCKS.md, CRITICAL_FILES.md, CRITICAL_CHANGE_REQUESTS.md. `parser pdf/` preesistente lasciato intatto.

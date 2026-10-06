@@ -192,16 +192,17 @@ def build_anomalie_action_email(
         site_url = getattr(settings, "SITE_URL", "").rstrip("/")
 
     anomalie_rows = [dict(row) for row in anomalie_rows]
+    gruppi: list[dict] = []
     try:
-        from .quality_models import AnomaliaDescrizione, AnomaliaSegnalazioneMeta
+        from .controllo_service import gruppi_per_blocco
+        from .quality_models import AnomaliaDescrizione
+
         ids = [int(row["id"]) for row in anomalie_rows if row.get("id") is not None]
-        fasi = dict(AnomaliaSegnalazioneMeta.objects.filter(
-            anomalia_id__in=ids,
-        ).values_list("anomalia_id", "fase"))
         details_by_id: dict[int, list[dict]] = {}
+        # Righe con piu' descrizioni nella stessa anomalia (prima versione del form).
         for detail in AnomaliaDescrizione.objects.filter(
             segnalazione__anomalia_id__in=ids,
-        ).prefetch_related("allegati").order_by("segnalazione__anomalia_id", "ordine", "id"):
+        ).select_related("segnalazione").prefetch_related("allegati").order_by("segnalazione__anomalia_id", "ordine", "id"):
             details_by_id.setdefault(detail.segnalazione.anomalia_id, []).append({
                 "seriali": detail.seriali if isinstance(detail.seriali, list) else [],
                 "testo": detail.testo,
@@ -209,14 +210,18 @@ def build_anomalie_action_email(
             })
         for row in anomalie_rows:
             try:
-                row_id = int(row.get("id"))
+                details = details_by_id.get(int(row.get("id")), [])
             except (TypeError, ValueError):
-                continue
-            row["fase"] = fasi.get(row_id, "")
-            row["descrizioni"] = details_by_id.get(row_id, [])
+                details = []
+            row["descrizioni"] = details if len(details) > 1 else []
+        gruppi = gruppi_per_blocco(anomalie_rows[:MAX_ANOMALIE_IN_EMAIL])
     except Exception:
         # Durante una migrazione o per email legacy, resta disponibile il riepilogo storico.
-        logger.info("Dettagli per fase non disponibili nel riepilogo mail anomalie", exc_info=True)
+        logger.info("Raggruppamento per blocco non disponibile nel riepilogo mail anomalie", exc_info=True)
+        gruppi = [
+            {"titolo": row.get("seriale") or "", "sottotitolo": "", "righe": [row]}
+            for row in anomalie_rows[:MAX_ANOMALIE_IN_EMAIL]
+        ]
 
     action_url = site_url + reverse("anomalie_mail_action", kwargs={"token": token_str})
 
@@ -231,6 +236,7 @@ def build_anomalie_action_email(
         "richiedi_modifica": "Richiedi modifica",
         "chiudi": "Chiudi",
         "visualizza": "Visualizza",
+        "aggiorna_avanzamento": "Decisione",
     }
     action_label = action_labels.get(action, action.replace("_", " ").title())
 
@@ -250,7 +256,7 @@ def build_anomalie_action_email(
         recipient_display=recipient_display,
         op_id=op_id,
         op_nominativo=op_nominativo,
-        anomalie_visibili=anomalie_visibili,
+        gruppi=gruppi,
         n_tot=n_tot,
         troncato=troncato,
         action_label=action_label,
@@ -265,6 +271,7 @@ def build_anomalie_action_email(
             "op_id": op_id,
             "op_nominativo": op_nominativo,
             "anomalie_visibili": anomalie_visibili,
+            "gruppi": gruppi,
             "n_tot": n_tot,
             "troncato": troncato,
             "max_in_email": MAX_ANOMALIE_IN_EMAIL,
@@ -294,6 +301,7 @@ def send_anomalie_action_email(
     created_by=None,
     site_url: str | None = None,
     from_email: str | None = None,
+    cc: list[str] | None = None,
 ) -> "AnomaliaMailActionToken":
     """Crea il token, costruisce l'email e la invia.
 
@@ -337,6 +345,7 @@ def send_anomalie_action_email(
         body_html=body_html,
         from_email=from_email,
         to=[recipient_email],
+        cc=cc or None,
         op_id=op_id,
         context={
             "action": action,
@@ -363,43 +372,46 @@ def _build_plain_text(
     recipient_display: str,
     op_id: str,
     op_nominativo: str,
-    anomalie_visibili: list[dict],
+    gruppi: list[dict],
     n_tot: int,
     troncato: bool,
     action_label: str,
     action_url: str,
     expires_at: Any,
 ) -> str:
+    plurale = n_tot != 1
     lines = [
         f"Gentile {recipient_display},",
         "",
-        f"Hai {'un'if n_tot == 1 else str(n_tot)} anomali{'a' if n_tot == 1 else 'e'} "
-        f"sull'OP {op_id}{(' — ' + op_nominativo) if op_nominativo else ''} "
-        f"che {'richiede' if n_tot == 1 else 'richiedono'} la tua attenzione.",
+        f"Hai {n_tot if plurale else 'un'} anomali{'e' if plurale else 'a'} "
+        f"sull'OP {op_id}{(' — ' + op_nominativo) if op_nominativo and op_nominativo != op_id else ''} "
+        f"che {'richiedono' if plurale else 'richiede'} la tua decisione.",
         "",
-        "ANOMALIE:",
     ]
-    for a in anomalie_visibili:
-        desc = a.get("descrizione") or a.get("descrizione_breve") or "(nessuna descrizione)"
-        stato = a.get("avanzamento") or a.get("stato") or ""
-        if not a.get("descrizioni"):
-            lines.append(f"  • #{a.get('id', '?')} — {desc[:120]}" + (f" [{stato}]" if stato else ""))
-        else:
-            lines.append(f"  • #{a.get('id', '?')}" + (f" [{stato}]" if stato else ""))
-        if a.get("fase"):
-            lines.append(f"    Fase: {a['fase']}")
-        for index, detail in enumerate(a.get("descrizioni") or [], start=1):
-            seriali = ", ".join(detail.get("seriali") or [])
-            lines.append(f"    Descrizione {index}" + (f" · S/N {seriali}" if seriali else "") + f": {str(detail.get('testo') or '')[:500]}")
-            for filename in detail.get("allegati") or []:
-                lines.append(f"      Allegato: {filename.get('nome') if isinstance(filename, dict) else filename}")
+    for gruppo in gruppi:
+        titolo = gruppo.get("titolo") or "(S/N non indicato)"
+        lines.append(f"S/N {titolo}" + (f" — {gruppo['sottotitolo']}" if gruppo.get("sottotitolo") else ""))
+        for a in gruppo.get("righe") or []:
+            stato = a.get("avanzamento") or ""
+            testo = a.get("testo") or a.get("descrizione") or "(nessuna descrizione)"
+            lines.append(f"  • #{a.get('id', '?')}" + (f" [{stato}]" if stato else "") + f": {str(testo)[:500]}")
+            if a.get("stato_superficie"):
+                lines.append(f"    Stato superficie: {a['stato_superficie']}")
+            for index, detail in enumerate(a.get("descrizioni") or [], start=1):
+                seriali = ", ".join(detail.get("seriali") or [])
+                lines.append(
+                    f"    Descrizione {index}" + (f" · S/N {seriali}" if seriali else "")
+                    + f": {str(detail.get('testo') or '')[:500]}"
+                )
+                for allegato in detail.get("allegati") or []:
+                    lines.append(f"      Allegato: {allegato.get('nome') if isinstance(allegato, dict) else allegato}")
+        lines.append("")
     if troncato:
-        lines.append(f"  … e altre {n_tot - len(anomalie_visibili)} anomalie (apri il link per vedere tutto)")
+        lines += ["… e altre anomalie (apri il link per vedere tutto)", ""]
     lines += [
-        "",
         f"AZIONE RICHIESTA: {action_label}",
         "",
-        f"Apri la pagina sicura del portale per rispondere:",
+        "Apri la pagina sicura del portale per decidere su ogni anomalia:",
         action_url,
         "",
     ]
@@ -499,6 +511,7 @@ def send_anomalie_update_confirmation(
     source_label: str = "",
     extra_emails: list[str] | None = None,
     from_email: str | None = None,
+    include_op_recipients: bool = True,
 ) -> bool:
     """Invia la mail di RIEPILOGO delle modifiche registrate (no token, no azione).
 
@@ -531,8 +544,8 @@ def send_anomalie_update_confirmation(
     if seg_email:
         destinatari.append(seg_email)
 
-    # 2) CC e CAR dell'OP
-    for rec in _resolve_op_recipients(op_id):
+    # 2) CC e CAR dell'OP (esclusi quando hanno già ricevuto la mail con il link)
+    for rec in (_resolve_op_recipients(op_id) if include_op_recipients else []):
         if rec.get("email"):
             destinatari.append(rec["email"])
 
@@ -785,6 +798,12 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
             sent += 1
         flushed_ops.append(p.op_id)
     result = {"sent": sent, "failed": failed, "given_up": given_up, "checked": len(pending)}
+    # Controlli OP a blocchi: mail al capocommessa con il link di decisione.
+    try:
+        from .controllo_service import flush_controlli
+        result.update(flush_controlli())
+    except Exception:
+        logger.warning("flush_pending_update_notifications: invio mail controlli fallito", exc_info=True)
     if flushed_ops:
         # Automazione «OP completato»: se con queste modifiche l'OP ha chiuso l'ultima
         # anomalia aperta, CC/CAR ricevono subito la mail (idempotente, vedi marcatori).
