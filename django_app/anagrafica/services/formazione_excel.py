@@ -1,7 +1,7 @@
 """Servizi di import/export Excel per il modulo Formazione HR.
 
 PATCH-05: stub `import_iscritti_from_xlsx` predisposto — implementazione in PATCH-07.
-PATCH-07: implementare tutti gli 8 export definiti in BOZZA_MODULO_FORMAZIONE.md § F.
+PATCH-07: implementare tutti gli 8 export definiti in BOZZA_MODULO_FORMAZIONE.md (rimosso dal repo, storico git 018367f1) § F.
 """
 from __future__ import annotations
 

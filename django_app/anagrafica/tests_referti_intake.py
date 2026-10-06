@@ -1,6 +1,6 @@
 """Acquisizione automatica dei referti di sorveglianza sanitaria.
 
-ADR: docs/superpowers/specs/2026-08-06-sorveglianza-sanitaria-intake-referti-design.md
+ADR: docs/superpowers/specs/2026-08-06-sorveglianza-sanitaria-intake-referti-design.md (rimosso dal repo, storico git 018367f1)
 
 I testi usati qui riproducono il **layout** di un certificato Winasped, compresi
 gli errori tipici dell'OCR misurati su una scansione reale (data corrotta,

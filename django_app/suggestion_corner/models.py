@@ -1,7 +1,7 @@
 """Modelli del modulo Suggestion Corner (SMS — Sistema di Miglioramento/Segnalazione).
 
-Vedi docs/superpowers/specs/2026-07-08-suggestion-corner-design.md e
-docs/BUILD_SPEC_suggestion_corner.md.
+Vedi docs/superpowers/specs/2026-07-08-suggestion-corner-design.md (rimosso dal repo, storico git 018367f1) e
+docs/BUILD_SPEC_suggestion_corner.md (rimosso dal repo, storico git 018367f1).
 """
 from __future__ import annotations
 

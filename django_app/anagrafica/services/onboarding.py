@@ -128,7 +128,7 @@ def _corsi_obbligatori(
     Nota: il match per area aziendale derivata dal reparto non è più
     possibile dopo l'inversione della gerarchia Reparto/AreaAziendale (un
     Reparto ha ora più Aree aziendali figlie, non una sola) — vedi Fase 2
-    nello spec `docs/superpowers/specs/2026-07-08-inversione-reparto-area-aziendale-design.md`.
+    nello spec `docs/superpowers/specs/2026-07-08-inversione-reparto-area-aziendale-design.md` (rimosso dal repo, storico git 018367f1).
     """
     from ..models_formazione import TrainingRequirementRule
 
