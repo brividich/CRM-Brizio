@@ -596,6 +596,28 @@ class LetturaContatori(models.Model):
         return self.a4_bn + self.a3_bn + self.a4_col + self.a3_col
 
 
+class LetturaConsumabile(models.Model):
+    """Livello di un consumabile (toner, tamburo, fusore) letto via SNMP.
+
+    Una riga per consumabile e lettura: lo storico serve alla stima dei giorni
+    residui e a mostrare i livelli senza interrogare le stampanti all'apertura.
+    """
+    macchina = models.ForeignKey(Macchina, on_delete=models.CASCADE, related_name="consumabili")
+    nome = models.CharField(max_length=120)
+    pct = models.PositiveSmallIntegerField(null=True, blank=True,
+                                           help_text="Livello in %; vuoto se la stampante non lo dichiara")
+    rilevata_il = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-rilevata_il", "nome"]
+        indexes = [models.Index(fields=["macchina", "nome", "rilevata_il"], name="contatori_cons_mac_nome_dt")]
+        verbose_name = "Lettura consumabile"
+        verbose_name_plural = "Letture consumabili"
+
+    def __str__(self):
+        return f"{self.macchina} {self.nome} {self.pct}%"
+
+
 class LetturaMensileContatori(models.Model):
     """Snapshot cumulativo mensile, indipendente dalla riconciliazione trimestrale."""
 

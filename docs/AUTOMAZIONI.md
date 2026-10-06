@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 50
+**Totale automazioni disponibili:** 51
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -311,6 +311,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 07:15
 - **Task eseguito:** `checklist_operativa.tasks.run_checklist_chiusura_reminders`
 - **Cosa fa:** CHECKLIST OPERATIVA — promemoria in-app ai responsabili con task non confermati per le chiusure aziendali in arrivo (soglie 7/3/1/0 giorni).
+
+### `contatori_consumabili`
+
+- **Quando gira:** ogni giorno, alle 07:30
+- **Task eseguito:** `contatori.tasks.run_letture_consumabili`
+- **Cosa fa:** CONTATORI — livelli dei consumabili MFC ogni mattina alle 07:30, un job per MFC. Alimenta storico, stima dei giorni residui e la voce «Da fare» della Centrale.
 
 ### `contatori_letture_mensili`
 

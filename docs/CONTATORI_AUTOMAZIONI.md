@@ -8,6 +8,7 @@ La centrale usa lo scheduler **django-q2 già presente nel portale**. Windows av
 | --- | --- | --- |
 | `contatori_poll_snmp` | Ogni 5 minuti | Stato e storico sonde dei dispositivi attivi del Monitor SNMP |
 | `contatori_letture_mensili` | Giorno 1 alle 08:00, fuso del portale (predefinito Europe/Rome) | Una lettura cumulativa per MFC attiva con IP e mese |
+| `contatori_consumabili` | Ogni giorno alle 07:30 | Livelli dei consumabili per MFC attiva con IP: storico, stima giorni residui, voce «Da fare» in Centrale |
 
 Non occorre creare altri task Windows. Se era stato creato un task separato per `poll_snmp_devices`, disabilitarlo quando si attiva questa integrazione, per evitare rilevazioni doppie.
 
@@ -39,3 +40,9 @@ python manage.py leggi_contatori_mensili --settings=config.settings.prod
 ```
 
 Il comando conserva i successi e restituisce errore se alcune macchine non rispondono. Il riepilogo del task di smistamento indica gli apparati **accodati**, non quanti hanno già risposto: verificare gli esiti dei job figli e il Monitor SNMP/schede MFC. Il polling generico non raccoglie automaticamente i quattro contatori Canon: questo è il compito del job mensile MFC.
+
+## Consumabili e letture trimestrali dalle mensili
+
+`contatori_consumabili` salva ogni mattina il livello di toner, tamburi e fusore (tabella `LetturaConsumabile`, migrazione `contatori 0026`). La pagina **Consumabili** e la **Centrale** usano solo questi dati salvati: aprirle non interroga le stampanti. «Leggi ora» su una riga aggiorna subito quella macchina. La stima dei giorni residui usa il consumo dall'ultima sostituzione (livello risalito) negli ultimi 60 giorni.
+
+A fine trimestre la Centrale propone **«N letture AAAA-Qn pronte dalle mensili»**: per le MFC senza lettura trimestrale il portale propone la lettura mensile SNMP più vicina alla chiusura (di solito quella del giorno 1 del mese successivo). La pagina `/contatori/letture/proposte/` le mostra con l'incremento rispetto al trimestre precedente; si confermano in blocco. Una proposta più bassa del trimestre precedente non è confermabile in blocco e va inserita a mano. Nessuna lettura viene scritta senza conferma.
