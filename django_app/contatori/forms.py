@@ -19,12 +19,56 @@ _PASSWORD = {"autocomplete": "new-password"}
 CAMPI_V3 = ("v3_utente", "v3_auth", "v3_auth_key", "v3_priv", "v3_priv_key")
 
 
+# Etichette leggibili per campi il cui verbose_name e' tecnico o senza accenti.
+_ETICHETTE = {
+    "oid": "OID", "modalita": "Modalità", "unita": "Unità", "profilo_snmp": "Profilo SNMP",
+    "port": "Porta", "version": "Versione", "timeout": "Timeout (secondi)",
+    "a4_bn": "A4 B/N", "a3_bn": "A3 B/N", "a4_col": "A4 colore", "a3_col": "A3 colore",
+    "sys_object_id_prefix": "Prefisso sysObjectID", "sys_descr_pattern": "Pattern sysDescr",
+    "oid_riconoscimento": "OID di riconoscimento", "contatore_mfc": "Contatore MFC",
+    "soglia_warning_min": "Avviso - minimo", "soglia_warning_max": "Avviso - massimo",
+    "soglia_critica_min": "Critica - minimo", "soglia_critica_max": "Critica - massimo",
+}
+
+
+class SezioniFormMixin:
+    """Raggruppa i campi in sezioni per `_form_sezioni.html`.
+
+    `sezioni_def`: tuple (titolo, descrizione, campi). I campi v3 finiscono nel
+    riquadro dedicato della loro sezione; quelli non elencati nell'ultima.
+    """
+    sezioni_def = ()
+    campi_full = frozenset({"note", "asset"})
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("label_suffix", "")
+        super().__init__(*args, **kwargs)
+        for nome, etichetta in _ETICHETTE.items():
+            if nome in self.fields:
+                self.fields[nome].label = etichetta
+
+    def sezioni(self):
+        usati, out = set(), []
+        for titolo, descrizione, campi in self.sezioni_def:
+            nomi = [n for n in campi if n in self.fields]
+            usati.update(nomi)
+            out.append({"titolo": titolo, "descrizione": descrizione,
+                        "campi": [self[n] for n in nomi if n not in CAMPI_V3],
+                        "v3": [self[n] for n in nomi if n in CAMPI_V3]})
+        resto = [self[n] for n in self.fields if n not in usati]
+        if not out:
+            out.append({"titolo": "", "descrizione": "", "campi": [], "v3": []})
+        out[-1]["campi"] += resto
+        return out
+
+
 class CredenzialiV3Form(forms.Form):
     """Campi SNMPv3 comuni ai form; il JS `snmp_v3.js` li mostra solo con versione v3.
 
     `campo_versione` indica il campo che seleziona la versione SNMP.
     """
     campo_versione = "versione"
+    testo_v3 = "Le chiavi sono salvate cifrate e non vengono mai mostrate."
 
     v3_utente = forms.CharField(label="SNMPv3 - utente", max_length=64, required=False)
     v3_auth = forms.ChoiceField(label="SNMPv3 - autenticazione", required=False,
@@ -66,7 +110,12 @@ class CredenzialiV3Form(forms.Form):
             return ""
 
 
-class CommunitySNMPForm(CredenzialiV3Form, forms.ModelForm):
+class CommunitySNMPForm(SezioniFormMixin, CredenzialiV3Form, forms.ModelForm):
+    sezioni_def = (
+        ("Credenziale", "Il valore resta cifrato e non viene mai mostrato.",
+         ("nome", "versione", "valore", "porta", "ordine", "attiva", *CAMPI_V3)),
+    )
+
     valore = forms.CharField(label="Community read-only", max_length=60, required=False,
                              strip=False, widget=forms.PasswordInput(attrs=_PASSWORD),
                              help_text="In modifica lascia vuoto per mantenere il valore salvato. "
@@ -111,33 +160,6 @@ class CommunitySNMPForm(CredenzialiV3Form, forms.ModelForm):
         return instance
 
 
-class SezioniFormMixin:
-    """Raggruppa i campi in sezioni per `_form_sezioni.html`.
-
-    `sezioni_def`: tuple (titolo, descrizione, campi). I campi v3 finiscono nel
-    riquadro dedicato della loro sezione; quelli non elencati nell'ultima.
-    """
-    sezioni_def = ()
-    campi_full = frozenset({"note", "asset"})
-
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault("label_suffix", "")
-        super().__init__(*args, **kwargs)
-        if "profilo_snmp" in self.fields:
-            self.fields["profilo_snmp"].label = "Profilo SNMP"
-
-    def sezioni(self):
-        usati, out = set(), []
-        for titolo, descrizione, campi in self.sezioni_def:
-            nomi = [n for n in campi if n in self.fields]
-            usati.update(nomi)
-            out.append({"titolo": titolo, "descrizione": descrizione,
-                        "campi": [self[n] for n in nomi if n not in CAMPI_V3],
-                        "v3": [self[n] for n in nomi if n in CAMPI_V3]})
-        out[-1]["campi"] += [self[n] for n in self.fields if n not in usati]
-        return out
-
-
 _DESCR_SNMP = ("Indirizzo e parametri di lettura. I campi vuoti usano il profilo "
                "o la configurazione globale.")
 
@@ -150,6 +172,8 @@ class CredenzialeV3InlineMixin(CredenzialiV3Form):
     """
 
     campo_community = "community"
+    testo_v3 = ("Salvate cifrate nel catalogo community. Lascia vuoto se hai "
+                "selezionato una community salvata v3.")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -213,7 +237,13 @@ class DiscoveryBackgroundForm(forms.Form):
         return [int(key) for key, _ in self.fields["communities"].choices if key in values]
 
 
-class LetturaForm(forms.ModelForm):
+class LetturaForm(SezioniFormMixin, forms.ModelForm):
+    sezioni_def = (
+        ("Rilevazione", "", ("macchina", "trimestre", "data", "fonte")),
+        ("Contatori", "Valori letti sul display o sul report della macchina.",
+         ("a4_bn", "a3_bn", "a4_col", "a3_col")),
+        ("Note", "", ("note",)),
+    )
     class Meta:
         model = LetturaContatori
         fields = [
@@ -272,7 +302,7 @@ class MacchinaForm(SezioniFormMixin, CredenzialeV3InlineMixin, forms.ModelForm):
         return cleaned
 
 
-class ImpostazioniSNMPForm(forms.ModelForm):
+class ImpostazioniSNMPForm(SezioniFormMixin, forms.ModelForm):
     class Meta:
         model = ImpostazioniSNMP
         fields = ["community", "port", "timeout", "version"]
@@ -311,7 +341,15 @@ class DispositivoSNMPForm(SezioniFormMixin, CredenzialeV3InlineMixin, forms.Mode
         return porta
 
 
-class SondaSNMPForm(forms.ModelForm):
+class SondaSNMPForm(SezioniFormMixin, forms.ModelForm):
+    campi_full = frozenset({"oid", "etichette"})
+    sezioni_def = (
+        ("Valore da leggere", "Solo OID numerici puntati, letti con SNMP GET.",
+         ("nome", "oid", "tipo_valore", "modalita", "aggregazione", "unita", "fattore")),
+        ("Soglie", "Lascia vuoto per non segnalare. La massima deve essere maggiore o uguale alla minima.",
+         ("soglia_warning_min", "soglia_warning_max", "soglia_critica_min", "soglia_critica_max")),
+        ("Visualizzazione", "", ("etichette", "ordine", "attiva")),
+    )
     class Meta:
         model = SondaSNMP
         fields = [
@@ -351,7 +389,15 @@ class SondaSNMPForm(forms.ModelForm):
         return cleaned
 
 
-class ProfiloSNMPForm(forms.ModelForm):
+class ProfiloSNMPForm(SezioniFormMixin, forms.ModelForm):
+    campi_full = frozenset({"descrizione", "note"})
+    sezioni_def = (
+        ("Profilo", "", ("nome", "slug", "produttore", "categoria", "famiglia_modelli", "descrizione")),
+        ("Riconoscimento automatico", "Come il portale associa il profilo a un apparato trovato in rete.",
+         ("sys_object_id_prefix", "sys_descr_pattern", "oid_riconoscimento")),
+        ("Parametri SNMP", "Vuoti = configurazione globale.", ("versione", "porta", "timeout")),
+        ("Stato e note", "", ("attivo", "note")),
+    )
     class Meta:
         model = ProfiloSNMP
         fields = [
@@ -374,7 +420,15 @@ class ProfiloSNMPForm(forms.ModelForm):
         return pattern
 
 
-class ColonnaProfiloSNMPForm(forms.ModelForm):
+class ColonnaProfiloSNMPForm(SezioniFormMixin, forms.ModelForm):
+    campi_full = frozenset({"oid", "etichette", "fonte"})
+    sezioni_def = (
+        ("Colonna", "Copiata come lettore OID sui dispositivi che usano il profilo.",
+         ("nome", "oid", "tipo_valore", "modalita", "aggregazione", "unita", "fattore", "contatore_mfc")),
+        ("Soglie", "Lascia vuoto per non segnalare. La massima deve essere maggiore o uguale alla minima.",
+         ("soglia_warning_min", "soglia_warning_max", "soglia_critica_min", "soglia_critica_max")),
+        ("Verifica e visualizzazione", "", ("verificata", "fonte", "etichette", "ordine", "attiva")),
+    )
     class Meta:
         model = ColonnaProfiloSNMP
         fields = [
