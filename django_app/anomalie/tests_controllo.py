@@ -65,6 +65,53 @@ class SerialiTests(SimpleTestCase):
         self.assertTrue(cs.riga_gestita({"avanzamento": "", "note_capocommessa": "rilavorare"}))
 
 
+class InsertIdTests(SimpleTestCase):
+    """Su SQL Server l'id si legge nello stesso batch; i trigger possono anteporre result set."""
+
+    class _Cursor:
+        def __init__(self, sets):
+            self.sets = sets
+            self.i = 0
+            self.sql = ""
+
+        def execute(self, sql, params):
+            self.sql = sql
+
+        @property
+        def description(self):
+            cols = self.sets[self.i][0]
+            return [(c,) for c in cols] if cols else None
+
+        def fetchone(self):
+            return self.sets[self.i][1]
+
+        def nextset(self):
+            self.i += 1
+            return self.i < len(self.sets)
+
+    def _run(self, sets):
+        from anomalie import views
+
+        cur = self._Cursor(sets)
+        with patch.object(views, "connections") as conns:
+            conns.__getitem__.return_value.vendor = "microsoft"
+            return views._insert_anomalia_return_id(cur, "[descrizione]", "%s", ["x"]), cur.sql
+
+    def test_id_letto_nello_stesso_batch(self):
+        local_id, sql = self._run([(["nuova_anomalia_id"], (42,))])
+        self.assertEqual(local_id, 42)
+        self.assertIn("OUTPUT INSERTED.id INTO @nuove_anomalie", sql)
+        self.assertNotIn("SCOPE_IDENTITY", sql)
+
+    def test_result_set_dei_trigger_ignorati(self):
+        local_id, _ = self._run([(["coda_id"], (999,)), (None, None), (["nuova_anomalia_id"], (7,))])
+        self.assertEqual(local_id, 7)
+
+    def test_nessun_id(self):
+        local_id, _ = self._run([(None, None)])
+        self.assertIsNone(local_id)
+
+
 class LegacyTableMixin:
     def crea_tabella(self):
         with connection.cursor() as cur:

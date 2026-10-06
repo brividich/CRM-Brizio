@@ -253,7 +253,12 @@ def api_controllo_blocco(request, pk: int):
         if not esito.get("success"):
             risultati.append({"local_id": a["local_id"], "ok": False, "error": esito.get("error", "")})
             continue
-        local_id = esito["local_id"]
+        local_id = esito.get("local_id")
+        if not local_id:
+            # La riga potrebbe essere stata scritta senza che il DB ne restituisse l'id:
+            # meglio un errore leggibile che un 500 (e nessun collegamento a caso).
+            risultati.append({"local_id": None, "ok": False, "error": "Il database non ha restituito il numero dell'anomalia salvata"})
+            continue
         AnomaliaSegnalazioneMeta.objects.update_or_create(
             anomalia_id=local_id,
             defaults={
