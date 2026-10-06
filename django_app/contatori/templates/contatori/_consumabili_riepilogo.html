@@ -1,13 +1,10 @@
 {% if riepilogo %}
-  {% if riepilogo.critici %}
-    <span class="pill danger">⚠ {{ riepilogo.critici|length }} critico/i</span>
-    {% for c in riepilogo.critici %}<span class="pos" style="margin-left:6px">{{ c.nome }} <strong class="neg">{{ c.pct }}%</strong></span>{% endfor %}
-  {% else %}
-    <span class="pill ok">✓ tutti ok</span>
-  {% endif %}
-  {% if riepilogo.peggiore %}
-    <span class="pos" style="margin-left:10px">min: {{ riepilogo.peggiore.nome }} {{ riepilogo.peggiore.pct }}%</span>
-  {% endif %}
+<span class="cons-esito" data-stato="{% if riepilogo.critici %}critico{% else %}ok{% endif %}" data-peggiore="{{ riepilogo.peggiore.pct|default_if_none:'100' }}">
+  {% if riepilogo.critici %}<span class="pill danger">{{ riepilogo.critici|length }} sotto il 15%</span>
+    {% for c in riepilogo.critici %}<span class="cons-item">{{ c.nome }} <strong class="neg">{{ c.pct }}%</strong></span>{% endfor %}
+  {% else %}<span class="pill ok">Tutti sopra il 15%</span>{% endif %}
+  {% if riepilogo.peggiore and not riepilogo.critici %}<span class="cons-item muted">più basso: {{ riepilogo.peggiore.nome }} {{ riepilogo.peggiore.pct }}%</span>{% endif %}
+</span>
 {% else %}
-  <span class="pill danger">⚠ {{ errore }}</span>
+<span class="cons-esito" data-stato="errore" data-peggiore="101"><span class="pill warn">Non raggiungibile</span> <span class="cons-item muted">{{ errore|truncatechars:80 }}</span></span>
 {% endif %}

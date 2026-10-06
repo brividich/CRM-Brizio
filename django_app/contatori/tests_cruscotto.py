@@ -74,3 +74,27 @@ class DashboardTests(_AuthedClientMixin, TestCase):
         dispositivo.assert_not_called()
         self.assertContains(r, "Da fare")
         self.assertContains(r, "+ Inserisci")
+
+
+class NavigazioneTests(_AuthedClientMixin, TestCase):
+    def _attive(self, url):
+        import re
+        html = self.client.get(url).content.decode()
+        nav = html[html.index('<nav class="cnav"'):html.index("</nav>", html.index('<nav class="cnav"'))]
+        return re.findall(r'class="[^"]*\bactive\b[^"]*">([^<]+)<', nav)
+
+    def test_una_sola_voce_attiva(self):
+        self.assertEqual(self._attive(reverse("contatori:snmp_profili")), ["Profili SNMP"])
+        self.assertEqual(self._attive(reverse("contatori:snmp_centrale")), ["Monitor SNMP"])
+        self.assertEqual(self._attive(reverse("contatori:importa_lettura")), ["Stampanti MFC"])
+        self.assertEqual(self._attive(reverse("contatori:fattura_nuova")), ["Riconciliazione"])
+
+
+class ConsumabiliTests(_AuthedClientMixin, TestCase):
+    def test_riepilogo_non_raggiungibile_marcato_per_ordinamento(self):
+        from . import views
+        m = Macchina.objects.create(reparto="Alfa", matricola="SYN-8", host="192.0.2.48")
+        with mock.patch.object(views, "_leggi_consumabili_cfg", return_value=(None, "timeout")):
+            r = self.client.get(reverse("contatori:consumabili_riepilogo", args=[m.pk]))
+        self.assertContains(r, 'data-stato="errore"')
+        self.assertContains(r, "Non raggiungibile")
