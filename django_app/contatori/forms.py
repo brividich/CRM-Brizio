@@ -7,10 +7,12 @@ from .models import (
     ColonnaProfiloSNMP,
     CommunitySNMP,
     DispositivoSNMP,
+    Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
     Macchina,
     ProfiloSNMP,
+    RigaFattura,
     SondaSNMP,
 )
 
@@ -436,3 +438,70 @@ class ColonnaProfiloSNMPForm(SezioniFormMixin, forms.ModelForm):
             "unita", "fattore", "contatore_mfc", "soglia_warning_min", "soglia_warning_max",
             "soglia_critica_min", "soglia_critica_max", "etichette", "verificata", "fonte", "ordine", "attiva",
         ]
+
+
+_DATA = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
+
+
+def campo_trimestre(valore_attuale=""):
+    from .services import opzioni_trimestri
+    return forms.ChoiceField(label="Trimestre", choices=[
+        (t, t) for t in opzioni_trimestri(extra=[valore_attuale] if valore_attuale else ())])
+
+
+class FatturaForm(SezioniFormMixin, forms.ModelForm):
+    sezioni_def = (
+        ("Fattura", "", ("numero", "data", "fornitore")),
+        ("Periodo fatturato", "Le letture del fornitore si riferiscono alla data di chiusura.",
+         ("trimestre", "periodo_dal", "periodo_al")),
+    )
+
+    class Meta:
+        model = Fattura
+        fields = ["numero", "data", "fornitore", "trimestre", "periodo_dal", "periodo_al"]
+        labels = {"numero": "Numero fattura", "data": "Data fattura",
+                  "periodo_dal": "Periodo dal", "periodo_al": "Chiusura letture fornitore"}
+        help_texts = {"periodo_al": "", "trimestre": ""}
+        widgets = {"data": _DATA, "periodo_dal": _DATA, "periodo_al": _DATA}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["trimestre"] = campo_trimestre(self.instance.trimestre)
+        self.fields["fornitore"] = forms.ChoiceField(label="Fornitore",
+                                                     choices=Macchina.Fornitore.choices)
+
+    def clean(self):
+        data = super().clean()
+        dal, al = data.get("periodo_dal"), data.get("periodo_al")
+        if dal and al and dal > al:
+            self.add_error("periodo_al", "La chiusura deve essere successiva all'inizio del periodo.")
+        return data
+
+
+class RigaFatturaForm(forms.ModelForm):
+    class Meta:
+        model = RigaFattura
+        fields = ["contratto", "descrizione", "a4_bn", "a3_bn", "a4_col", "a3_col"]
+
+    def has_changed(self):
+        # Una riga nuova con tutti i contatori a zero e' una riga non compilata:
+        # il formset la salta (niente validazione, niente salvataggio).
+        if self.instance.pk is None:
+            try:
+                if not any(int(self[c].value() or 0) for c in ("a4_bn", "a3_bn", "a4_col", "a3_col")):
+                    return False
+            except (TypeError, ValueError):
+                pass
+        return super().has_changed()
+
+    def clean_contratto(self):
+        contratto = (self.cleaned_data.get("contratto") or "").strip()
+        if contratto and not Macchina.objects.filter(contratto=contratto).exists():
+            raise forms.ValidationError("Nessuna MFC con questo contratto: controlla il numero "
+                                        "o aggiornalo nell'anagrafica stampanti.")
+        return contratto
+
+
+RigheFatturaFormSet = forms.inlineformset_factory(
+    Fattura, RigaFattura, form=RigaFatturaForm, extra=0, can_delete=True,
+)

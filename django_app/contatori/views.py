@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import OuterRef, Subquery
 from django.forms.models import model_to_dict
 from django.http import HttpResponse
@@ -6,23 +7,28 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.audit import log_action
 from . import services
 from .forms import (
     ColonnaProfiloSNMPForm,
     DispositivoSNMPForm,
+    FatturaForm,
     ImpostazioniSNMPForm,
     LetturaForm,
     MacchinaForm,
     ProfiloSNMPForm,
+    RigaFatturaForm,
     SondaSNMPForm,
 )
 from .models import (
     ColonnaProfiloSNMP,
     DispositivoSNMP,
+    Fattura,
     ImpostazioniSNMP,
     LetturaContatori,
     Macchina,
     ProfiloSNMP,
+    RigaFattura,
     SondaSNMP,
     StatoSNMP,
     ValoreSNMP,
@@ -132,9 +138,65 @@ def riconciliazione(request, trimestre=None):
     if trimestre:
         righe, riepilogo = services.riconcilia(trimestre)
     return render(request, "contatori/riconciliazione.html", {
-        "trimestri": trimestri, "trimestre": trimestre,
+        "trimestri": services.opzioni_trimestri(extra=[trimestre] if trimestre else ()),
+        "trimestre": trimestre,
         "righe": righe, "riepilogo": riepilogo,
+        "fatture": Fattura.objects.filter(trimestre=trimestre).prefetch_related("righe")
+        if trimestre else [],
     })
+
+
+def _righe_formset(fattura, data=None):
+    """Formset righe; una fattura nuova parte con una riga per contratto MFC attivo."""
+    from django.forms import inlineformset_factory
+    # Stesse iniziali anche in POST: le righe precompilate non toccate risultano
+    # invariate e il formset non le salva.
+    initial = []
+    if fattura.pk is None:
+        initial = [{"contratto": c, "descrizione": d} for c, d in services.contratti_attivi()]
+    cls = inlineformset_factory(Fattura, RigaFattura, form=RigaFatturaForm,
+                                extra=len(initial), can_delete=True)
+    return cls(data, instance=fattura, prefix="righe", initial=initial)
+
+
+def fattura_edit(request, pk=None):
+    """Inserimento/modifica fattura fornitore con le letture per contratto."""
+    fattura = get_object_or_404(Fattura, pk=pk) if pk else Fattura()
+    if request.method == "POST":
+        form = FatturaForm(request.POST, instance=fattura)
+        righe = _righe_formset(fattura, request.POST)
+        if form.is_valid() and righe.is_valid():
+            with transaction.atomic():
+                fattura = form.save()
+                righe.instance = fattura
+                righe.save()
+            log_action(request, "fattura_salvata" if pk else "fattura_creata", "contatori",
+                       oggetto=fattura, dettaglio={"trimestre": fattura.trimestre,
+                                                   "righe": fattura.righe.count()})
+            messages.success(request, f"Fattura {fattura.numero} salvata.")
+            return redirect("contatori:riconciliazione_trim", trimestre=fattura.trimestre)
+    else:
+        initial = {}
+        if pk is None:
+            trimestre = request.GET.get("trimestre") or ""
+            initial = {"trimestre": trimestre if services.trimestre_valido(trimestre)
+                       else services.trimestre_corrente()}
+        form = FatturaForm(instance=fattura, initial=initial)
+        righe = _righe_formset(fattura)
+    return render(request, "contatori/fattura_form.html", {
+        "form": form, "righe": righe, "fattura": fattura if pk else None,
+    })
+
+
+@require_POST
+def fattura_elimina(request, pk):
+    fattura = get_object_or_404(Fattura, pk=pk)
+    trimestre, numero = fattura.trimestre, fattura.numero
+    log_action(request, "fattura_eliminata", "contatori", oggetto=fattura,
+               dettaglio={"trimestre": trimestre, "numero": numero})
+    fattura.delete()
+    messages.success(request, f"Fattura {numero} eliminata.")
+    return redirect("contatori:riconciliazione_trim", trimestre=trimestre)
 
 
 def macchina_detail(request, pk):
@@ -154,7 +216,12 @@ def importa_lettura(request):
             messages.success(request, "Lettura salvata.")
             return redirect("contatori:dashboard")
     else:
-        form = LetturaForm(initial={"data": timezone.now().date()})
+        initial = {"data": timezone.localdate(), "trimestre": services.trimestre_corrente()}
+        if request.GET.get("macchina", "").isdigit():
+            initial["macchina"] = request.GET["macchina"]
+        if services.trimestre_valido(request.GET.get("trimestre")):
+            initial["trimestre"] = request.GET["trimestre"]
+        form = LetturaForm(initial=initial)
     return render(request, "contatori/importa_lettura.html", {"form": form})
 
 

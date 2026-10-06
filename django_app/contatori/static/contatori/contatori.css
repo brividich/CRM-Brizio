@@ -42,3 +42,18 @@
 .contatori-module .form-sezioni.compatta .form-section-head{display:none}
 .contatori-module .form-sezioni>.banner{margin-top:4px}
 body.theme-dark .contatori-module .btn.ghost,body.theme-dark .contatori-module .cnav a:hover,body.theme-dark .contatori-module .cnav a.active{color:var(--cm-text)}
+/* Fatture e riconciliazione */
+.contatori-module .righe-table td{vertical-align:top;padding:7px 6px}
+.contatori-module .righe-table input{min-width:96px}
+.contatori-module .righe-table td.num input{text-align:right}
+.contatori-module .righe-table ul.errorlist{margin:4px 0 0;padding-left:15px;color:var(--cm-danger);font-size:12px}
+.contatori-module .righe-table tr.has-error input{border-color:var(--cm-danger)}
+.contatori-module .riconc-table tr.gruppo-inizio td{border-top:2px solid var(--cm-border)}
+.contatori-module .azioni-mancanti{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:13px}
+.contatori-module .btn.ghost.danger{color:var(--cm-danger);border-color:color-mix(in srgb,var(--cm-danger) 40%,var(--cm-border))}
+.contatori-module .btn.ghost.danger:hover{background:color-mix(in srgb,var(--cm-danger) 9%,var(--cm-surface))}
+.contatori-module .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.contatori-module .table-wrap{position:relative}
+.contatori-module .banner a.plain{color:inherit;text-decoration:underline}
+.contatori-module .righe-table input[type=checkbox]{min-width:0;width:18px;height:18px}
+body.theme-dark .contatori-module a.plain{color:var(--cm-accent)}

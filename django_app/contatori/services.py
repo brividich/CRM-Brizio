@@ -76,6 +76,49 @@ def _macchine_per_contratto(contratto):
     return list(Macchina.objects.filter(contratto=contratto))
 
 
+# --- Trimestri ----------------------------------------------------------------
+
+_TRIMESTRE_RE = re.compile(r"^(\d{4})-Q([1-4])$")
+
+
+def trimestre_di(data):
+    return f"{data.year}-Q{(data.month - 1) // 3 + 1}"
+
+
+def trimestre_corrente():
+    return trimestre_di(timezone.localdate())
+
+
+def trimestre_valido(valore):
+    return bool(_TRIMESTRE_RE.match(valore or ""))
+
+
+def opzioni_trimestri(indietro=8, extra=()):
+    """Trimestre corrente, i precedenti `indietro` e quelli gia' presenti a DB.
+
+    Ordinati dal piu' recente; usati come scelte nei form (niente testo libero).
+    """
+    anno, q = map(int, _TRIMESTRE_RE.match(trimestre_corrente()).groups())
+    valori = set()
+    for _ in range(indietro + 1):
+        valori.add(f"{anno}-Q{q}")
+        q -= 1
+        if q == 0:
+            anno, q = anno - 1, 4
+    valori |= {t for t in trimestri_disponibili() if trimestre_valido(t)}
+    valori |= {t for t in extra if trimestre_valido(t)}
+    return sorted(valori, reverse=True)
+
+
+def contratti_attivi():
+    """[(contratto, descrizione)] delle MFC attive, per precompilare le fatture."""
+    reparti = defaultdict(list)
+    for contratto, reparto in (Macchina.objects.filter(attiva=True).exclude(contratto="")
+                               .order_by("contratto", "reparto").values_list("contratto", "reparto")):
+        reparti[contratto].append(reparto)
+    return [(c, " + ".join(r)) for c, r in sorted(reparti.items())]
+
+
 def riconcilia(trimestre):
     """
     Ritorna (righe, riepilogo) per un trimestre.
@@ -92,6 +135,7 @@ def riconcilia(trimestre):
             letture = {l.macchina_id: l for l in LetturaContatori.objects.filter(
                 trimestre=trimestre, macchina__in=macchine)}
             pool = len(macchine) > 1
+            mancanti = [m for m in macchine if m.id not in letture]
             for campo, etichetta in CONTATORI:
                 forn = getattr(rf, campo)
                 if letture and len(letture) == len(macchine):
@@ -100,12 +144,14 @@ def riconcilia(trimestre):
                 else:
                     ns = None
                     ns_disp = None
-                if ns is None:
+                if not macchine:
+                    scarto, esito, livello = None, "nessuna MFC con questo contratto", "warn"
+                elif ns is None:
                     scarto, esito, livello = None, "lettura interna mancante", "warn"
                 else:
                     scarto = ns - forn
                     if scarto < 0:
-                        esito, livello = "⚠ CONTROLLARE (fornitore > macchina)", "danger"
+                        esito, livello = "Da controllare: fornitore > interno", "danger"
                         anomalie += 1
                     elif scarto == 0:
                         esito, livello = "OK esatto", "ok"
@@ -121,6 +167,7 @@ def riconcilia(trimestre):
                     "scarto": scarto,
                     "esito": esito,
                     "livello": livello,
+                    "mancanti": mancanti,
                 })
 
     riepilogo = {
@@ -129,6 +176,7 @@ def riconcilia(trimestre):
         "anomalie": anomalie,
         "ok": anomalie == 0 and len(righe_out) > 0,
         "fatture": [f.numero for f in fatture],
+        "letture_mancanti": len({m.id for r in righe_out for m in r["mancanti"]}),
     }
     return righe_out, riepilogo
 

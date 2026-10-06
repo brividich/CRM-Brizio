@@ -1,0 +1,9 @@
+<tr class="{% if r.errors %}has-error{% endif %}">
+  <td>{% for h in r.hidden_fields %}{{ h }}{% endfor %}{{ r.contratto }}{{ r.contratto.errors }}</td>
+  <td>{{ r.descrizione }}{{ r.descrizione.errors }}</td>
+  <td class="num">{{ r.a4_bn }}{{ r.a4_bn.errors }}</td>
+  <td class="num">{{ r.a3_bn }}{{ r.a3_bn.errors }}</td>
+  <td class="num">{{ r.a4_col }}{{ r.a4_col.errors }}</td>
+  <td class="num">{{ r.a3_col }}{{ r.a3_col.errors }}</td>
+  <td>{% if r.instance.pk %}<label class="check-field" title="Elimina riga">{{ r.DELETE }}<span class="sr-only">Elimina</span></label>{% endif %}{{ r.non_field_errors }}</td>
+</tr>
