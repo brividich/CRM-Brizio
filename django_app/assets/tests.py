@@ -3251,6 +3251,140 @@ class AssetsRoutingTests(TestCase):
         self.assertTrue(AssetSidebarButton.objects.filter(code="dashboard").exists())
         self.assertTrue(AssetSidebarButton.objects.filter(code="software_licenses").exists())
 
+    def _post_gestione_admin(self, data):
+        request = self.factory.post(reverse("assets:gestione_admin"), data)
+        _attach_session(request)
+        request.user = self.user
+        request.legacy_user = None
+        setattr(request, "_messages", FallbackStorage(request))
+        return asset_views.gestione_admin.__wrapped__(request)
+
+    def test_sidebar_edit_form_does_not_nest_delete_form(self):
+        AssetSidebarButton.objects.all().delete()
+        AssetSidebarButton.objects.create(code="voce", label="Voce", sort_order=10, is_visible=True)
+
+        request = self.factory.get(reverse("assets:gestione_admin"), {"tab": "sidebar"})
+        _attach_session(request)
+        request.user = self.user
+        request.legacy_user = None
+        setattr(request, "_messages", FallbackStorage(request))
+        response = asset_views.gestione_admin.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn('data-sbc-open="top-main"', html)
+        edit_start = html.index('id="sidebar-edit-')
+        edit_end = html.index("</form>", edit_start)
+        # Il form di modifica non deve contenere l'azione di eliminazione.
+        self.assertNotIn("delete_sidebar_button", html[edit_start:edit_end])
+        self.assertIn('form="sidebar-delete-', html)
+
+    def test_sidebar_save_with_ambiguous_action_does_not_delete(self):
+        AssetSidebarButton.objects.all().delete()
+        button = AssetSidebarButton.objects.create(code="voce", label="Voce", sort_order=10, is_visible=True)
+        request = self.factory.post(
+            reverse("assets:gestione_admin"),
+            {
+                "action": ["update_sidebar_button", "delete_sidebar_button"],
+                "sidebar_button_id": [str(button.id), str(button.id)],
+                "label": "Voce rinominata",
+            },
+        )
+
+        ok, _text = asset_views._handle_sidebar_button_request(request)
+
+        self.assertFalse(ok)
+        self.assertTrue(AssetSidebarButton.objects.filter(pk=button.pk, label="Voce").exists())
+
+    def test_sidebar_save_updates_and_returns_to_sidebar_tab(self):
+        AssetSidebarButton.objects.all().delete()
+        button = AssetSidebarButton.objects.create(code="voce", label="Voce", sort_order=10, is_visible=True)
+
+        response = self._post_gestione_admin(
+            {
+                "action": "update_sidebar_button",
+                "sidebar_button_id": str(button.id),
+                "label": "Voce rinominata",
+                "section": button.section,
+                "sort_order": "10",
+                "is_visible": "1",
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("tab=sidebar", response["Location"])
+        button.refresh_from_db()
+        self.assertEqual(button.label, "Voce rinominata")
+
+    def test_sidebar_guided_create_uses_preset_and_appends_last(self):
+        AssetSidebarButton.objects.all().delete()
+        AssetSidebarButton.objects.create(code="a", label="A", sort_order=10, is_visible=True)
+        AssetSidebarButton.objects.create(code="b", label="B", sort_order=40, is_visible=True)
+
+        self._post_gestione_admin(
+            {
+                "action": "create_sidebar_button",
+                "label": "Report",
+                "target_preset": "django:assets:reports",
+                "target_url": "",
+                "section": AssetSidebarButton.SECTION_MAIN,
+                "sort_order": "",
+                "is_visible": "1",
+            }
+        )
+
+        created = AssetSidebarButton.objects.get(label="Report")
+        self.assertEqual(created.target_url, "django:assets:reports")
+        self.assertEqual(created.sort_order, 50)
+        self.assertTrue(created.is_visible)
+
+    def test_sidebar_guided_create_custom_url_wins_over_preset(self):
+        AssetSidebarButton.objects.all().delete()
+
+        self._post_gestione_admin(
+            {
+                "action": "create_sidebar_button",
+                "label": "Esterno",
+                "target_preset": "__custom__",
+                "target_url": "/assets/custom/",
+            }
+        )
+
+        created = AssetSidebarButton.objects.get(label="Esterno")
+        self.assertEqual(created.target_url, "/assets/custom/")
+        self.assertFalse(created.is_visible)
+
+    def test_sidebar_target_label_is_readable(self):
+        labels = {"django:assets:reports": "Report asset"}
+
+        self.assertEqual(asset_views._sidebar_target_label("django:assets:reports", labels), "Report asset")
+        self.assertEqual(
+            asset_views._sidebar_target_label("django:assets:reports?scope=x", labels),
+            "Report asset (con filtro)",
+        )
+        self.assertEqual(asset_views._sidebar_target_label("", labels), "Nessuna destinazione (solo contenitore)")
+        self.assertNotIn("django:", asset_views._sidebar_target_label("django:assets:wo_list", {}))
+
+    def test_sidebar_update_uses_target_preset(self):
+        AssetSidebarButton.objects.all().delete()
+        button = AssetSidebarButton.objects.create(
+            code="voce", label="Voce", target_url="django:assets:wo_list", sort_order=10, is_visible=True
+        )
+
+        self._post_gestione_admin(
+            {
+                "action": "update_sidebar_button",
+                "sidebar_button_id": str(button.id),
+                "label": "Voce",
+                "target_preset": "django:assets:reports",
+                "target_url": "",
+                "is_visible": "1",
+            }
+        )
+
+        button.refresh_from_db()
+        self.assertEqual(button.target_url, "django:assets:reports")
+
     def test_sidebar_input_suggestions_include_routes_and_filters(self):
         target_suggestions, active_match_suggestions = asset_views._sidebar_input_suggestions()
 
