@@ -573,6 +573,20 @@ class DiscoverySNMPTest(_AuthedClientMixin, TestCase):
         m.refresh_from_db()
         self.assertEqual(str(m.host), "10.0.0.77")
 
+    def test_applica_ip_non_azzera_configurazione_snmp(self):
+        from .models import CommunitySNMP
+        community = CommunitySNMP.objects.create(nome="synthetic-v2", segreto_cifrato="x")
+        m = Macchina.objects.first()
+        m.community_salvata = community
+        m.snmp_porta = 1161
+        m.save(update_fields=["community_salvata", "snmp_porta"])
+        self.client.post(reverse("contatori:discovery_applica_ip", args=[m.pk]),
+                         {"host": "10.0.0.78"})
+        m.refresh_from_db()
+        self.assertEqual(str(m.host), "10.0.0.78")
+        self.assertEqual(m.community_salvata_id, community.pk)
+        self.assertEqual(m.snmp_porta, 1161)
+
 
 class ExportXlsxInjectionTest(_AuthedClientMixin, TestCase):
     """Formula injection: descrizioni/reparti dei contatori sono testo libero e

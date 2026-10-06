@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.db.models import OuterRef, Subquery
+from django.forms.models import model_to_dict
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
@@ -93,10 +94,10 @@ def discovery_applica_ip(request, pk):
     """Scrive sulla macchina l'IP realmente trovato in rete."""
     macchina = get_object_or_404(Macchina, pk=pk)
     host = (request.POST.get("host") or "").strip()
-    form = MacchinaForm({**{f: getattr(macchina, f) for f in
-                            ("reparto", "matricola", "modello", "contratto", "fornitore")},
-                         "host": host, "attiva": macchina.attiva,
-                         "asset": macchina.asset_id}, instance=macchina)
+    # Tutti i campi attuali: quelli assenti dal POST verrebbero azzerati
+    # (profilo, community salvata, parametri SNMP).
+    dati = model_to_dict(macchina, fields=MacchinaForm._meta.fields)
+    form = MacchinaForm({**dati, "host": host}, instance=macchina)
     if form.is_valid():
         form.save()
         messages.success(request, f"{macchina.reparto}: IP aggiornato a {host}.")
