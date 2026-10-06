@@ -2787,6 +2787,38 @@ def api_salva(request):
     )
 
 
+def _insert_anomalia_return_id(cursor, quoted_cols: str, placeholders: str, params: list) -> int | None:
+    """INSERT nella tabella legacy ``anomalie`` restituendo l'id della nuova riga.
+
+    Su SQL Server l'id va letto NELLO STESSO batch dell'INSERT: con pyodbc un
+    ``SELECT SCOPE_IDENTITY()`` eseguito con una chiamata successiva gira in un
+    altro scope e restituisce sempre NULL (cosi' il salvataggio non riportava mai
+    l'id delle anomalie nuove). ``OUTPUT INSERTED`` diretto non e' ammesso sulle
+    tabelle con trigger (errore 334), ``OUTPUT ... INTO`` una variabile tabella si'.
+    La colonna ha un alias riconoscibile perche' i trigger possono aggiungere
+    altri result set prima di quello dell'id.
+    """
+    if connections["default"].vendor == "sqlite":
+        cursor.execute(f"INSERT INTO anomalie ({quoted_cols}) VALUES ({placeholders})", params)
+        return int(cursor.lastrowid) if getattr(cursor, "lastrowid", None) else None
+    cursor.execute(
+        "SET NOCOUNT ON; DECLARE @nuove_anomalie TABLE (id INT); "
+        f"INSERT INTO anomalie ({quoted_cols}) OUTPUT INSERTED.id INTO @nuove_anomalie VALUES ({placeholders}); "
+        "SELECT TOP 1 id AS nuova_anomalia_id FROM @nuove_anomalie;",
+        params,
+    )
+    while True:
+        description = getattr(cursor, "description", None)
+        if description and str(description[0][0]).lower() == "nuova_anomalia_id":
+            row = cursor.fetchone()
+            return int(row[0]) if row and row[0] is not None else None
+        try:
+            if not cursor.nextset():
+                return None
+        except Exception:
+            return None
+
+
 def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True) -> dict:
     """Inserisce o aggiorna UNA riga della tabella legacy ``anomalie``.
 
@@ -2919,16 +2951,9 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
                         insert_placeholders.append("%s")
                         insert_params.append(val)
                 # sharepoint_item_id rimane NULL per record locali non ancora sincronizzati
-                # OUTPUT INSERTED non è compatibile con trigger su SQL Server (err 334);
-                # si usa SCOPE_IDENTITY() + SELECT separato.
-                quoted_insert_cols = _quoted_columns(insert_cols)
-                cursor.execute(
-                    f"INSERT INTO anomalie ({quoted_insert_cols}) VALUES ({', '.join(insert_placeholders)})",
-                    insert_params,
+                local_id = _insert_anomalia_return_id(
+                    cursor, _quoted_columns(insert_cols), ", ".join(insert_placeholders), insert_params,
                 )
-                cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS INT)")
-                id_row = cursor.fetchone()
-                local_id = int(id_row[0]) if id_row and id_row[0] is not None else None
             else:
                 if where_clause == "id = %s":
                     cursor.execute("SELECT id FROM anomalie WHERE id = %s", [where_params[0]])
