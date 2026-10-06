@@ -4,6 +4,21 @@
 <div class="eyebrow">Riconciliazione</div>
 <h1>{% if fattura %}Fattura {{ fattura.numero }}{% else %}Nuova fattura fornitore{% endif %}</h1>
 <p class="sub">Riporta le letture stampate in fattura per ogni contratto. La riconciliazione le confronta con le letture interne dello stesso trimestre.</p>
+{% if not fattura %}
+<section class="panel import-fattura">
+  <div class="panel-head"><div><h2>Importa dal file della fattura</h2><p>Carica la fattura elettronica (XML, consigliato) o la sua stampa PDF: la pagina si compila da sola e la controlli prima di salvare. Il file non viene conservato.</p></div></div>
+  <form method="post" enctype="multipart/form-data" class="row" style="gap:10px;flex-wrap:wrap">{% csrf_token %}<input type="hidden" name="azione" value="importa">
+    <input type="file" name="file_fattura" accept=".xml,.pdf,application/pdf,text/xml,application/xml" required style="max-width:420px">
+    <button class="btn ghost" type="submit">Leggi la fattura</button>
+  </form>
+</section>
+{% endif %}
+{% if file_letto %}
+<div class="banner {% if avvisi_import %}warn{% else %}clean{% endif %}">
+  Dati letti da «{{ file_letto }}». {% if avvisi_import %}Controlla questi punti prima di salvare:{% else %}Nessuna anomalia: controlla e salva.{% endif %}
+  {% if avvisi_import %}<ul class="avvisi-import">{% for a in avvisi_import %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}
+</div>
+{% endif %}
 <form method="post" class="form-sezioni" id="fattura-form">{% csrf_token %}
   {% include "contatori/_form_sezioni.html" %}
   <section class="panel form-section">

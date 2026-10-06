@@ -13,6 +13,7 @@ charset-normalizer==3.4.7  # via reportlab, requests
 colorama==0.4.6           # via qrcode
 croniter==6.2.4           # via -r requirements.in
 cryptography==44.0.3      # via msal, pyjwt, pyopenssl, pyspnego
+defusedxml==0.7.1         # via -r requirements.in (fattura elettronica contatori)
 django==5.2.16            # via -r requirements.in, django-axes, django-extensions, django-htmx, django-picklefield, django-q2, mssql-django
 django-axes==7.1.0        # via -r requirements.in
 django-extensions==4.1    # via -r requirements.in
