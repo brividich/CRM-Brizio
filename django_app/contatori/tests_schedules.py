@@ -81,13 +81,14 @@ class SchedulerIntegrationTests(TestCase):
 
     def test_registrazione_idempotente_con_cron_mensile(self):
         from django_q.models import Schedule
-        for name in ("contatori_poll_snmp", "contatori_letture_mensili"):
+        for name in ("contatori_poll_snmp", "contatori_letture_mensili", "contatori_letture_mensili_recupero"):
             spec = spec_by_name(name)
             register_schedule(spec)
             register_schedule(spec)
             self.assertEqual(Schedule.objects.filter(name=name).count(), 1)
         mensile = Schedule.objects.get(name="contatori_letture_mensili")
-        self.assertEqual(mensile.cron, "0 8 1 * *")
+        self.assertEqual(mensile.cron, "0 0 1 * *")
+        self.assertEqual(Schedule.objects.get(name="contatori_letture_mensili_recupero").cron, "0 8 1 * *")
         self.assertGreater(mensile.next_run, timezone.now())
 
     @patch("contatori.tasks.async_task")

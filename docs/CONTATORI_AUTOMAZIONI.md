@@ -7,7 +7,8 @@ La centrale usa lo scheduler **django-q2 già presente nel portale**. Windows av
 | Lavoro | Cadenza | Risultato |
 | --- | --- | --- |
 | `contatori_poll_snmp` | Ogni 5 minuti | Stato e storico sonde dei dispositivi attivi del Monitor SNMP |
-| `contatori_letture_mensili` | Giorno 1 alle 08:00, fuso del portale (predefinito Europe/Rome) | Una lettura cumulativa per MFC attiva con IP e mese |
+| `contatori_letture_mensili` | Giorno 1 alle 00:00, fuso del portale (predefinito Europe/Rome) | Una lettura cumulativa per MFC attiva con IP e mese, allineata alla chiusura del fornitore («Lett. al 30/09») |
+| `contatori_letture_mensili_recupero` | Giorno 1 alle 08:00 | Rilegge solo le MFC rimaste senza lettura del mese (spente o in sospensione a mezzanotte) |
 | `contatori_consumabili` | Ogni giorno alle 07:30 | Livelli dei consumabili per MFC attiva con IP: storico, stima giorni residui, voce «Da fare» in Centrale |
 
 Non occorre creare altri task Windows. Se era stato creato un task separato per `poll_snmp_devices`, disabilitarlo quando si attiva questa integrazione, per evitare rilevazioni doppie.
