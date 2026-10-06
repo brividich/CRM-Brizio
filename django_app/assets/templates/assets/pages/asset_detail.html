@@ -558,6 +558,50 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 
 {% block assets_shell_content %}
 {% if it_presentation %}<link rel="stylesheet" href="{% static 'assets/asset-it.css' %}">{% endif %}
+<style>
+/* Cruscotto per tipo di asset */
+.af-kpiband { margin:0 0 14px; padding:14px 16px; border:1px solid #dbe3f0; border-radius:14px; background:linear-gradient(180deg,#f7faff 0%,#fff 100%); }
+.af-kpiband-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.af-kpiband-title { margin:0; font-size:var(--fs-base); font-weight:800; color:#0f172a; }
+.af-kpiband-note { font-size:var(--fs-xs); color:#64748b; }
+.af-kpiband-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; }
+.af-kpi2 { display:grid; gap:3px; align-content:start; padding:10px 12px; border:1px solid #e2e8f0; border-left:4px solid #cbd5e1; border-radius:10px; background:#fff; text-decoration:none; color:inherit; min-width:0; }
+a.af-kpi2:hover { border-color:#93c5fd; }
+.af-kpi2-label { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+.af-kpi2-value { font-size:var(--fs-display-sm); font-weight:800; color:#0f172a; line-height:1.15; overflow-wrap:break-word; hyphens:none; }
+.af-kpi2-sub { font-size:var(--fs-xs); color:#64748b; overflow-wrap:anywhere; }
+.af-kpi2--ok { border-left-color:#16a34a; }
+.af-kpi2--warn { border-left-color:#d97706; }
+.af-kpi2--warn .af-kpi2-value { color:#92400e; }
+.af-kpi2--bad { border-left-color:#dc2626; }
+.af-kpi2--bad .af-kpi2-value { color:#b91c1c; }
+/* Schede della pagina */
+.af-tabs { position:sticky; top:0; z-index:5; display:flex; gap:4px; overflow-x:auto; margin:0 0 14px; padding:6px; border:1px solid #dbe3f0; border-radius:12px; background:rgba(248,251,255,.96); backdrop-filter:blur(4px); scrollbar-width:thin; }
+.af-tabs[hidden] { display:none; }
+.af-tab { flex:0 0 auto; border:0; background:transparent; padding:7px 14px; border-radius:8px; font:inherit; font-size:var(--fs-sm); font-weight:700; color:#475569; cursor:pointer; white-space:nowrap; }
+.af-tab:hover { background:#eef4ff; color:#1d4ed8; }
+.af-tab[aria-selected="true"] { background:#1f64d8; color:#fff; }
+.af-tab-count { margin-left:6px; padding:0 6px; border-radius:999px; background:rgba(15,23,42,.08); font-size:var(--fs-2xs); }
+.af-tab[aria-selected="true"] .af-tab-count { background:rgba(255,255,255,.25); }
+.af-page.af-tabbed [data-af-tab][data-af-hidden] { display:none !important; }
+.af-page.af-tabbed [data-af-tabs-hide] { display:none !important; }
+.af-page.af-tabbed details[data-af-tab] > summary { display:none; }
+body.theme-dark .af-kpiband { background:var(--surface); border-color:var(--border); }
+body.theme-dark .af-kpiband-title, body.theme-dark .af-kpi2-value { color:var(--text); }
+body.theme-dark .af-kpiband-note, body.theme-dark .af-kpi2-label, body.theme-dark .af-kpi2-sub { color:var(--text-light); }
+body.theme-dark .af-kpi2 { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .af-kpi2--ok { border-left-color:#22c55e; }
+body.theme-dark .af-kpi2--warn { border-left-color:#f59e0b; }
+body.theme-dark .af-kpi2--warn .af-kpi2-value { color:#fde68a; }
+body.theme-dark .af-kpi2--bad { border-left-color:#ef4444; }
+body.theme-dark .af-kpi2--bad .af-kpi2-value { color:#fca5a5; }
+body.theme-dark .af-tabs { background:rgba(15,23,42,.92); border-color:var(--border); }
+body.theme-dark .af-tab { color:var(--text-light); }
+body.theme-dark .af-tab:hover { background:rgba(255,255,255,.07); color:#93c5fd; }
+body.theme-dark .af-tab[aria-selected="true"] { background:#2563eb; color:#fff; }
+body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
+@media (max-width:640px) { .af-kpiband-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+</style>
 <section class="af-page{% if it_presentation %} af-it-page{% endif %}">
   <div class="af-header">
     <div class="af-hero-main">
@@ -666,6 +710,9 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
     </div>
   </div>
 
+  {% include "assets/partials/asset_kpi_band.html" %}
+  <nav class="af-tabs" data-af-tabs hidden aria-label="Sezioni della scheda"></nav>
+
   {% if asset.asset_type == "PRODOTTO_CHIMICO" %}
     {% include "assets/partials/_chemical_detail.html" %}
   {% endif %}
@@ -673,7 +720,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% if asset.asset_type != "PRODOTTO_CHIMICO" %}
   {% if it_presentation %}{% include "assets/partials/it_overview.html" %}{% endif %}
   {% if asset_status_band %}
-    <section class="af-statusband">
+    <section class="af-statusband" data-af-tab="Panoramica">
       {% with c=asset_status_band.coverage %}
         <div class="af-statusband-col">
           <div class="af-metric-head">
@@ -701,7 +748,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}
 
   {% if asset_primary_kpis and not it_presentation %}
-    <section class="af-metrics af-metrics--primary">
+    <section class="af-metrics af-metrics--primary" data-af-tab="Panoramica">
       {% for metric in asset_primary_kpis %}
         <article class="af-metric {{ metric.size_class|default:'af-span-third' }}">
           <div class="af-metric-head">
@@ -727,7 +774,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% if not it_presentation %}
   {% with mfc_collegate=asset.contatori_macchine.all dispositivi_snmp=asset.dispositivi_snmp.all %}
   {% if mfc_collegate or dispositivi_snmp %}
-  <section class="af-sections" aria-label="Monitoraggio SNMP collegato">
+  <section class="af-sections" aria-label="Monitoraggio SNMP collegato" data-af-tab="Monitoraggio">
     <article class="af-card af-span-full">
       <div class="af-card-head">
         <h2 class="af-card-title">Monitoraggio MFC e SNMP</h2>
@@ -760,8 +807,8 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}
   <section class="af-sections">
     {% for card in detail_section_cards %}
-      {% if it_presentation %}<details class="af-card af-it-disclosure {{ card.size_class }}" id="asset-section-{{ card.code|lower }}" data-card-code="{{ card.code|lower }}"><summary>{{ card.title }}</summary>
-      {% else %}<article class="af-card {{ card.size_class }}" data-card-code="{{ card.code|lower }}">{% endif %}
+      {% if it_presentation %}<details class="af-card af-it-disclosure {{ card.size_class }}" id="asset-section-{{ card.code|lower }}" data-card-code="{{ card.code|lower }}" data-af-tab="{% if card.code == "MAINTENANCE" %}Manutenzione{% elif card.code == "TICKETS" %}Interventi e ticket{% elif card.code == "DOCUMENTS" %}Documenti{% elif card.code == "LICENSES" %}Licenze{% else %}Panoramica{% endif %}"><summary>{{ card.title }}</summary>
+      {% else %}<article class="af-card {{ card.size_class }}" data-card-code="{{ card.code|lower }}" id="asset-section-{{ card.code|lower }}" data-af-tab="{% if card.code == "MAINTENANCE" %}Manutenzione{% elif card.code == "TICKETS" %}Interventi e ticket{% elif card.code == "DOCUMENTS" %}Documenti{% elif card.code == "LICENSES" %}Licenze{% else %}Panoramica{% endif %}">{% endif %}
           <div class="af-card-head{% if card.code == 'MAINTENANCE' %} af-card-head--maintenance{% endif %}">
             <h2 class="af-card-title">{{ card.title }}</h2>
             {% if card.code == "MAINTENANCE" %}
@@ -1663,7 +1710,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   </section>
 
   {% if asset_upcoming_task_rows %}
-    <section class="af-card" style="margin-top:18px;">
+    <section class="af-card" style="margin-top:18px;" data-af-tab="Attività">
       <div class="af-card-head">
         <div>
           <div class="af-card-kicker">AdL PREVISTE</div>
@@ -1706,7 +1753,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}
 
   {% if asset_linked_task_rows %}
-    <section class="af-card" style="margin-top:18px;">
+    <section class="af-card" style="margin-top:18px;" data-af-tab="Attività">
       <div class="af-card-head">
         <div>
           <div class="af-card-kicker">KICK-OFF</div>
@@ -1748,7 +1795,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 
   {# ---- CALENDARIO MACCHINA ---- #}
   {% if asset.asset_type == "WORK_MACHINE" or asset.asset_type == "CNC" %}
-  <section class="af-card af-span-full" style="margin-top:18px;" id="asset-cal-section">
+  <section class="af-card af-span-full" style="margin-top:18px;" id="asset-cal-section" data-af-tab="Manutenzione">
     <div class="af-card-head">
       <div>
         <div class="af-card-kicker">PIANIFICAZIONE</div>
@@ -1779,14 +1826,72 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
   {% endif %}{# /asset_type != PRODOTTO_CHIMICO — corpo standard nascosto per i chimici #}
 
   {# Segnali dei report di sicurezza/backup sul dispositivo collegato (solo a chi vede il Security Center). #}
-  {% if not it_presentation %}{% security_asset_card asset %}{% endif %}
+  {% if not it_presentation %}<div data-af-tab="Sicurezza">{% security_asset_card asset %}</div>{% endif %}
 
   {# Storico audit dell'asset: risponde a "chi ha modificato questa scadenza". #}
-  <section class="af-card af-span-full" style="margin-top:18px;" id="asset-storico-section">
+  <section class="af-card af-span-full" style="margin-top:18px;" id="asset-storico-section" data-af-tab="Storico">
     {% include "core/components/_storico_modifiche.html" with storico=storico_audit titolo="Storico modifiche dell'asset" vuoto="Nessuna modifica tracciata per questo asset." %}
   </section>
 
 </section>
+<script>
+(() => {
+  // Schede della pagina asset: raggruppa le sezioni marcate data-af-tab.
+  // Senza JS tutto resta visibile in colonna, come prima.
+  const page = document.querySelector('.af-page');
+  const nav = page && page.querySelector('[data-af-tabs]');
+  if (!page || !nav) return;
+  const panels = Array.from(page.querySelectorAll('[data-af-tab]')).filter((el) => el.textContent.trim() !== '');
+  const order = [];
+  panels.forEach((el) => { const name = el.dataset.afTab; if (!order.includes(name)) order.push(name); });
+  if (order.length < 2) return;
+  const slug = (name) => 'tab-' + name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const storeKey = 'af-asset-tab';
+  const buttons = {};
+  order.forEach((name) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'af-tab';
+    btn.setAttribute('role', 'tab');
+    btn.textContent = name;
+    btn.addEventListener('click', () => select(name, true));
+    nav.appendChild(btn);
+    buttons[name] = btn;
+  });
+  nav.setAttribute('role', 'tablist');
+  function select(name, remember) {
+    if (!buttons[name]) name = order[0];
+    order.forEach((n) => buttons[n].setAttribute('aria-selected', n === name ? 'true' : 'false'));
+    panels.forEach((el) => {
+      if (el.dataset.afTab === name) {
+        el.removeAttribute('data-af-hidden');
+        if (el.tagName === 'DETAILS') el.open = true;
+      } else {
+        el.setAttribute('data-af-hidden', '');
+      }
+    });
+    if (remember) {
+      try { localStorage.setItem(storeKey, name); } catch (e) { /* storage non disponibile */ }
+      history.replaceState(null, '', '#' + slug(name));
+    }
+  }
+  function fromHash() {
+    const id = window.location.hash.slice(1);
+    if (!id) return null;
+    const byTab = order.find((n) => slug(n) === id);
+    if (byTab) return byTab;
+    const target = document.getElementById(id);
+    const owner = target && target.closest('[data-af-tab]');
+    return owner ? owner.dataset.afTab : null;
+  }
+  let initial = fromHash();
+  if (!initial) { try { initial = localStorage.getItem(storeKey); } catch (e) { initial = null; } }
+  page.classList.add('af-tabbed');
+  nav.hidden = false;
+  select(initial || order[0], false);
+  window.addEventListener('hashchange', () => { const name = fromHash(); if (name) select(name, false); });
+})();
+</script>
 
 {% if it_presentation %}
 <script>

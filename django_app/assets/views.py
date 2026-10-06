@@ -10579,6 +10579,9 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
 
             it_monitoring["identity_diffs"] = snmp_identity_diffs(asset)
             it_monitoring["can_apply_identity"] = _can_edit_asset(request, asset.id)
+    from .services.asset_kpis import device_kpis as _device_kpis
+
+    device_kpis = _device_kpis(request, asset, it_presentation)
     return render(
         request,
         "assets/pages/asset_detail.html",
@@ -10608,6 +10611,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "asset_primary_kpis": asset_primary_kpis,
             "it_presentation": it_presentation,
             "it_monitoring": it_monitoring,
+            "device_kpis": device_kpis,
             "it_ticket_create_url": it_ticket_create_url,
             "asset_status_band": asset_status_band,
             "detail_specs_title": detail_specs_title,

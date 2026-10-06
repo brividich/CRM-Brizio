@@ -1,5 +1,5 @@
 {% if it_monitoring %}
-<section class="af-card af-it-soc" id="asset-it-monitoring" aria-labelledby="asset-it-monitoring-title">
+<section class="af-card af-it-soc" id="asset-it-monitoring" aria-labelledby="asset-it-monitoring-title" data-af-tab="Monitoraggio">
   <div class="af-card-head"><div><div class="af-card-kicker">DATI DAL MONITORAGGIO</div><h2 class="af-card-title" id="asset-it-monitoring-title">{% if it_presentation.profile == 'printer' %}Stampante, consumabili e contatori{% else %}Ultimi controlli SNMP{% endif %}</h2></div><a class="as-link-subtle" href="{{ it_monitoring.central_url }}">Apri centrale</a></div>
   <div class="af-it-body">
     <p class="af-note">Un esito riuscito riguarda la data indicata, non la disponibilità attuale. Le letture salvate sono mostrate qui; il pulsante consumabili esegue una nuova lettura su richiesta.</p>

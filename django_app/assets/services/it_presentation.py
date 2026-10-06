@@ -12,6 +12,7 @@ def it_profile(asset):
     profiles = {
         Asset.TYPE_PC: "workstation", Asset.TYPE_NOTEBOOK: "workstation",
         Asset.TYPE_SERVER: "server", Asset.TYPE_VM: "vm", Asset.TYPE_STAMPANTE: "printer",
+        Asset.TYPE_FIREWALL: "network",
     }
     if asset.asset_type != Asset.TYPE_OTHER:
         return profiles.get(asset.asset_type)
@@ -23,6 +24,8 @@ def it_profile(asset):
         "pc": "workstation", "computer": "workstation", "notebook": "workstation",
         "portatili": "workstation", "server": "server", "server fisici": "server",
         "vm": "vm", "macchine virtuali": "vm",
+        "firewall": "network", "firewall e apparati rete": "network", "rete": "network",
+        "apparati di rete": "network", "access point": "network", "switch": "network",
     }
     category = getattr(asset, "asset_category", None)
     seen = set()
@@ -52,14 +55,14 @@ def it_context(asset):
         checks.append("Assegnatario non indicato.")
     if profile != "vm" and not asset.assignment_location:
         checks.append("Posizione del dispositivo non indicata.")
-    if profile != "printer" and (not details or not details.os):
+    if profile not in ("printer", "network") and (not details or not details.os):
         checks.append("Sistema operativo da censire.")
     if profile in ("server", "vm"):
         checks.append("Referente tecnico, servizio e criticità non sono ancora censiti come dati dedicati.")
     if profile == "vm":
         checks.append("Host di virtualizzazione non collegato: non viene dedotto dal nome o dall'indirizzo IP.")
     declarations = []
-    if details and profile != "printer":
+    if details and profile not in ("printer", "network"):
         fields = [
             ("domain_joined", "Appartenenza al dominio"),
             ("edr_enabled", "EDR abilitato"),
@@ -75,8 +78,8 @@ def it_context(asset):
     return {
         "profile": profile,
         "from_category": asset.asset_type == Asset.TYPE_OTHER,
-        "mark": {"workstation": "PC", "server": "SRV", "vm": "VM", "printer": "MFC"}[profile],
-        "label": {"workstation": "Postazione IT", "server": "Server fisico", "vm": "Macchina virtuale", "printer": "Stampante / MFC"}[profile],
+        "mark": {"workstation": "PC", "server": "SRV", "vm": "VM", "printer": "MFC", "network": "NET"}[profile],
+        "label": {"workstation": "Postazione IT", "server": "Server fisico", "vm": "Macchina virtuale", "printer": "Stampante / MFC", "network": "Firewall / apparato di rete"}[profile],
         "assignment_label": "Assegnatario" if profile == "workstation" else "Assegnazione censita",
         "location_label": "Posizione dichiarata" if profile == "vm" else "Posizione",
         "checks": checks,

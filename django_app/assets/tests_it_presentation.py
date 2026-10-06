@@ -62,7 +62,8 @@ class WorkstationPresentationTests(TestCase):
         self.assertEqual(positions, sorted(positions))
 
     def test_non_it_profiles_keep_existing_page(self):
-        for kind in (Asset.TYPE_CNC, Asset.TYPE_OTHER, Asset.TYPE_FIREWALL):
+        # Il firewall ha ora un profilo IT proprio ("network"): vedi DeviceKpiBandTests.
+        for kind in (Asset.TYPE_CNC, Asset.TYPE_OTHER):
             with self.subTest(kind=kind):
                 asset = Asset.objects.create(asset_tag=f"DEMO-{kind}", name=f"Demo {kind}", asset_type=kind)
                 response = self.page(asset)

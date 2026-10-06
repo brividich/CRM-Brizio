@@ -1,0 +1,18 @@
+{# Cruscotto per tipo di asset (assets.services.asset_kpis.device_kpis). Variabile: device_kpis #}
+{% if device_kpis %}
+<section class="af-kpiband af-kpiband--{{ device_kpis.profile }}" aria-labelledby="af-kpiband-title">
+  <div class="af-kpiband-head">
+    <h2 class="af-kpiband-title" id="af-kpiband-title">{{ device_kpis.title }}</h2>
+    <span class="af-kpiband-note">Dati già raccolti da monitoraggio e SOC, non letture in tempo reale</span>
+  </div>
+  <div class="af-kpiband-grid">
+    {% for tile in device_kpis.tiles %}
+      {% if tile.href %}<a class="af-kpi2 af-kpi2--{{ tile.level }}" href="{{ tile.href }}">{% else %}<div class="af-kpi2 af-kpi2--{{ tile.level }}">{% endif %}
+        <span class="af-kpi2-label">{{ tile.label }}</span>
+        <strong class="af-kpi2-value">{{ tile.value }}</strong>
+        {% if tile.sub %}<span class="af-kpi2-sub">{{ tile.sub }}</span>{% endif %}
+      {% if tile.href %}</a>{% else %}</div>{% endif %}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
