@@ -1,0 +1,11 @@
+{# Partial: badge copertura monitoraggio di un asset IT. Variabile: cov (da it_coverage.coverage_for_assets) #}
+{% if cov.snmp or cov.soc %}
+  <div class="dv-cov">
+    {% if cov.snmp %}<span class="dv-cov-badge {{ cov.snmp.level }}" title="{% if cov.snmp.last %}Ultimo contatto: {{ cov.snmp.last|date:'d-m-Y H:i' }}{% else %}Mai interrogato{% endif %}">{{ cov.snmp.label }}</span>{% endif %}
+    {% if cov.soc %}<span class="dv-cov-badge {{ cov.soc.level }}" title="{% if cov.soc.last %}Ultimo segnale: {{ cov.soc.last|date:'d-m-Y H:i' }}{% else %}Nessun segnale ricevuto{% endif %}">{{ cov.soc.label }}</span>{% endif %}
+  </div>
+{% elif cov.monitored %}
+  <span class="dv-cell-muted">Monitorato</span>
+{% else %}
+  <span class="dv-cov-badge none">Non monitorato</span>
+{% endif %}

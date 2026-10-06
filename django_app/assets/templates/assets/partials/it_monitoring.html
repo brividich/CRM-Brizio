@@ -3,6 +3,19 @@
   <div class="af-card-head"><div><div class="af-card-kicker">DATI DAL MONITORAGGIO</div><h2 class="af-card-title" id="asset-it-monitoring-title">{% if it_presentation.profile == 'printer' %}Stampante, consumabili e contatori{% else %}Ultimi controlli SNMP{% endif %}</h2></div><a class="as-link-subtle" href="{{ it_monitoring.central_url }}">Apri centrale</a></div>
   <div class="af-it-body">
     <p class="af-note">Un esito riuscito riguarda la data indicata, non la disponibilità attuale. Le letture salvate sono mostrate qui; il pulsante consumabili esegue una nuova lettura su richiesta.</p>
+    {% if it_monitoring.identity_diffs %}
+      <div class="af-it-diff" role="group" aria-label="Differenze con l'anagrafica">
+        <p><strong>Il monitoraggio legge dati diversi dall'anagrafica.</strong> Nulla viene sovrascritto da solo: applica solo quello che è corretto.</p>
+        <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Dato</th><th>In anagrafica</th><th>Letto via SNMP</th><th></th></tr></thead><tbody>
+          {% for diff in it_monitoring.identity_diffs %}<tr>
+            <td>{{ diff.label }}</td>
+            <td>{{ diff.asset_value|default:"— vuoto —" }}</td>
+            <td><strong>{{ diff.snmp_value }}</strong><br><small>{{ diff.origin }}</small></td>
+            <td>{% if it_monitoring.can_apply_identity %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="apply_snmp_identity"><input type="hidden" name="field" value="{{ diff.field }}"><input type="hidden" name="value" value="{{ diff.snmp_value }}"><button class="af-btn af-btn-secondary" type="submit">Applica</button></form>{% endif %}</td>
+          </tr>{% endfor %}
+        </tbody></table></div>
+      </div>
+    {% endif %}
     {% for device in it_monitoring.devices %}
       <h3><a href="{{ device.url }}">{{ device.nome }}</a> · {{ device.host }}</h3>
       <p>{% if not device.attivo %}<strong>Monitoraggio disattivato.</strong> {% endif %}Ultimo controllo: {% if device.snmp_ultimo_controllo %}{{ device.snmp_ultimo_controllo|date:"d/m/Y H:i" }} · {{ device.state_label }}{% else %}mai registrato{% endif %}.</p>

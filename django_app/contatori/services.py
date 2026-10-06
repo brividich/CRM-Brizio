@@ -41,29 +41,15 @@ BN = ("a4_bn", "a3_bn")
 
 
 def trova_asset_snmp(*, seriale="", host=None):
-    """Trova un Asset HUB univoco per seriale, poi per endpoint IP.
+    """Trova un Asset HUB univoco per seriale, poi per IP (endpoint o collegamenti SOC).
 
     Restituisce ``(asset, motivo)``. In caso di nessun match o ambiguità non
     sceglie arbitrariamente: ``asset`` resta ``None`` e il motivo spiega perché.
+    Stesso algoritmo del SOC: ``assets.services.identity_match``.
     """
-    from assets.models import Asset
+    from assets.services.identity_match import match_hub_asset
 
-    seriale = (seriale or "").strip()
-    if seriale:
-        candidati = list(Asset.objects.filter(serial_number__iexact=seriale)[:2])
-        if len(candidati) == 1:
-            return candidati[0], "seriale"
-        if len(candidati) > 1:
-            return None, "seriale ambiguo"
-    if host:
-        candidati = list(
-            Asset.objects.filter(endpoints__ip=str(host)).distinct()[:2]
-        )
-        if len(candidati) == 1:
-            return candidati[0], "indirizzo IP"
-        if len(candidati) > 1:
-            return None, "indirizzo IP ambiguo"
-    return None, "nessuna corrispondenza"
+    return match_hub_asset(serial=seriale, ip=host or "")
 COL = ("a4_col", "a3_col")
 A4 = ("a4_bn", "a4_col")
 A3 = ("a3_bn", "a3_col")
