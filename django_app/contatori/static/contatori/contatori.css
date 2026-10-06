@@ -120,3 +120,5 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .cons-errore{color:var(--cm-danger);font-size:12px;margin-bottom:6px}
 .contatori-module .panel .form-actions{position:static;background:none;padding:14px 0 0}
 .contatori-module .cons-giorni{white-space:nowrap}
+.contatori-module .avvisi-import{margin:8px 0 0;padding-left:18px;font-weight:500}
+.contatori-module .import-fattura input[type=file]{padding:7px}

@@ -34,10 +34,21 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
-        # CONTATORI — snapshot mensile MFC il giorno 1 alle 08:00 (fuso del portale).
+        # CONTATORI — snapshot mensile MFC il giorno 1 alle 00:00 (fuso del portale):
+        # coincide con la chiusura usata dal fornitore in fattura ("Lett. al 30/09").
         # Una lettura per macchina/mese; Esegui ora recupera solo le letture mancanti.
         # Lo storico mensile non sovrascrive le letture trimestrali di riconciliazione.
         "name": "contatori_letture_mensili",
+        "func": "contatori.tasks.run_letture_mensili",
+        "schedule_type": "C",
+        "cron": "0 0 1 * *",
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # CONTATORI — recupero alle 08:00 dello stesso giorno per le MFC spente o in
+        # sospensione a mezzanotte: accoda solo quelle ancora senza lettura del mese.
+        "name": "contatori_letture_mensili_recupero",
         "func": "contatori.tasks.run_letture_mensili",
         "schedule_type": "C",
         "cron": "0 8 1 * *",

@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 51
+**Totale automazioni disponibili:** 52
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -320,9 +320,15 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ### `contatori_letture_mensili`
 
+- **Quando gira:** il giorno 1 del mese, alle 00:00
+- **Task eseguito:** `contatori.tasks.run_letture_mensili`
+- **Cosa fa:** CONTATORI — snapshot mensile MFC il giorno 1 alle 00:00 (fuso del portale): coincide con la chiusura usata dal fornitore in fattura ("Lett. al 30/09"). Una lettura per macchina/mese; Esegui ora recupera solo le letture mancanti. Lo storico mensile non sovrascrive le letture trimestrali di riconciliazione.
+
+### `contatori_letture_mensili_recupero`
+
 - **Quando gira:** il giorno 1 del mese, alle 08:00
 - **Task eseguito:** `contatori.tasks.run_letture_mensili`
-- **Cosa fa:** CONTATORI — snapshot mensile MFC il giorno 1 alle 08:00 (fuso del portale). Una lettura per macchina/mese; Esegui ora recupera solo le letture mancanti. Lo storico mensile non sovrascrive le letture trimestrali di riconciliazione.
+- **Cosa fa:** CONTATORI — recupero alle 08:00 dello stesso giorno per le MFC spente o in sospensione a mezzanotte: accoda solo quelle ancora senza lettura del mese.
 
 ### `contatori_poll_snmp`
 
