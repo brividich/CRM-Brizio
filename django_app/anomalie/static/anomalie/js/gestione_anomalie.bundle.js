@@ -985,13 +985,252 @@ const Toggle = ({
   }
 }, label));
 
-// â"€â"€â"€ Componente principale â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ─── Componente principale ───────────────────────────────────────────────
+// Tre colonne: Ordini di produzione → anomalie dell'OP (raggruppate per blocco
+// di seriali) → dettaglio con «Segnalazione» (cosa ha trovato il reparto) e
+// «Decisione del capocommessa» (stato, RDC, cliente, note). Le selezioni sono
+// per id, così ricerche e filtri non cambiano l'anomalia aperta né perdono le
+// modifiche; le modifiche non salvate chiedono conferma prima di cambiare.
+const opKey = o => String((o && (o.item_id ?? o.id)) ?? "");
+const isDaDecidere = a => !a.chiudere && !a.aprire_rdc && !a.segnalare && !String(a.note || "").trim() && ["", "in attesa"].includes(String(a.avanzamento || "").trim().toLowerCase());
+const statoAnomalia = a => {
+  if (!a || !a.item_id) return {
+    text: "—",
+    variant: "chiuso"
+  };
+  if (a.chiudere) return {
+    text: "Chiusa",
+    variant: "chiuso"
+  };
+  if (isDaDecidere(a)) return {
+    text: "Da decidere",
+    variant: "attesa"
+  };
+  return {
+    text: a.avanzamento || "In lavorazione",
+    variant: "aperto"
+  };
+};
+const fmtData = iso => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit"
+  });
+};
+const ALLEGATI_ACCEPT = ".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv";
+const nomeAppunti = files => files.map((f, i) => {
+  if (f.name && !/^image\.\w+$/i.test(f.name)) return f;
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  const ext = fileExt(f.name) || ".png";
+  try {
+    return new File([f], `appunti-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${i + 1}${ext}`, {
+      type: f.type || "image/png"
+    });
+  } catch (_) {
+    return f;
+  }
+});
+const Ico = {
+  back: /*#__PURE__*/React.createElement("svg", {
+    width: "16",
+    height: "16",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.2",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M15 18l-6-6 6-6"
+  })),
+  plus: /*#__PURE__*/React.createElement("svg", {
+    width: "14",
+    height: "14",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.4",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M12 5v14m-7-7h14"
+  })),
+  search: /*#__PURE__*/React.createElement("svg", {
+    width: "15",
+    height: "15",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "11",
+    cy: "11",
+    r: "8"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "m21 21-4.35-4.35"
+  })),
+  more: /*#__PURE__*/React.createElement("svg", {
+    width: "16",
+    height: "16",
+    fill: "currentColor",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "5",
+    cy: "12",
+    r: "2"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "12",
+    cy: "12",
+    r: "2"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "19",
+    cy: "12",
+    r: "2"
+  })),
+  prev: /*#__PURE__*/React.createElement("svg", {
+    width: "16",
+    height: "16",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.4",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M15 18l-6-6 6-6"
+  })),
+  next: /*#__PURE__*/React.createElement("svg", {
+    width: "16",
+    height: "16",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.4",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M9 18l6-6-6-6"
+  })),
+  user: /*#__PURE__*/React.createElement("svg", {
+    width: "12",
+    height: "12",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "12",
+    cy: "7",
+    r: "4"
+  })),
+  clip: /*#__PURE__*/React.createElement("svg", {
+    width: "12",
+    height: "12",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"
+  })),
+  upload: /*#__PURE__*/React.createElement("svg", {
+    width: "18",
+    height: "18",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
+  }), /*#__PURE__*/React.createElement("polyline", {
+    points: "17 8 12 3 7 8"
+  }), /*#__PURE__*/React.createElement("line", {
+    x1: "12",
+    y1: "3",
+    x2: "12",
+    y2: "15"
+  })),
+  check: /*#__PURE__*/React.createElement("svg", {
+    width: "14",
+    height: "14",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.6",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M5 13l4 4L19 7"
+  })),
+  list: /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"
+  }), /*#__PURE__*/React.createElement("rect", {
+    x: "9",
+    y: "3",
+    width: "6",
+    height: "4",
+    rx: "1"
+  })),
+  rows: /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M4 6h16M4 10h16M4 14h16M4 18h16"
+  })),
+  edit: /*#__PURE__*/React.createElement("svg", {
+    width: "20",
+    height: "20",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+  }))
+};
+const Chip = ({
+  active,
+  onClick,
+  children,
+  count,
+  tone
+}) => /*#__PURE__*/React.createElement("button", {
+  type: "button",
+  className: `ga-chip${active ? " is-on" : ""}${tone ? ` ga-chip--${tone}` : ""}`,
+  onClick: onClick
+}, children, count !== undefined && /*#__PURE__*/React.createElement("span", {
+  className: "ga-chip__n"
+}, count));
+const FlagToggle = ({
+  label,
+  hint,
+  checked,
+  onChange,
+  disabled
+}) => /*#__PURE__*/React.createElement("label", {
+  className: `ga-flag${checked ? " is-on" : ""}${disabled ? " is-disabled" : ""}`,
+  title: hint || ""
+}, /*#__PURE__*/React.createElement("input", {
+  type: "checkbox",
+  checked: !!checked,
+  disabled: disabled,
+  onChange: onChange
+}), /*#__PURE__*/React.createElement("span", {
+  className: "ga-flag__box"
+}, checked ? Ico.check : null), /*#__PURE__*/React.createElement("span", null, label));
 function GestioneAnomalie() {
-  // â"€â"€ Dati dalla API â"€â"€
+  // ── Dati ──
   const [ordini, setOrdini] = useState([]);
-  const [anomalie, setAnomalie] = useState([]); // record anomalie per l'OP selezionato
-
-  // â"€â"€ Stato caricamento / salvataggio â"€â"€
+  const [anomalie, setAnomalie] = useState([]);
   const [loadingOrdini, setLoadingOrdini] = useState(true);
   const [loadingAnom, setLoadingAnom] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1001,32 +1240,37 @@ function GestioneAnomalie() {
   const [attachments, setAttachments] = useState([]);
   const [loadingAttachments, setLoadingAttachments] = useState(false);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
-  const [selectedAttachmentId, setSelectedAttachmentId] = useState(null);
-  const [qualitaTick, setQualitaTick] = useState(0); // ricarica la scheda qualita' dopo "Salva"
   const fileInputRef = useRef(null);
 
-  // â"€â"€ Selezione e ricerca â"€â"€
-  const [selectedOp, setSelectedOp] = useState(0);
-  const [selectedSn, setSelectedSn] = useState(0);
+  // ── Selezione, ricerca, filtri ──
+  const [selectedOpKey, setSelectedOpKey] = useState("");
+  const [selectedSnId, setSelectedSnId] = useState("");
   const [searchOp, setSearchOp] = useState("");
   const [searchSn, setSearchSn] = useState("");
   const [pageFilter, setPageFilter] = useState(ACTIVE_FILTER);
+  const [snFilter, setSnFilter] = useState("tutte"); // "tutte" | "da_decidere"
   const [closedCollapsed, setClosedCollapsed] = useState(true);
+  const [pendingNav, setPendingNav] = useState(null); // azione rinviata per modifiche non salvate
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editDesc, setEditDesc] = useState(false);
+  const [lightbox, setLightbox] = useState(null); // file_id immagine ingrandita
+  const [dropOver, setDropOver] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
-  // ── Mobile / tablet navigation ──
+  // ── Mobile / tablet ──
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1100);
+  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1180);
   const [mobilePanel, setMobilePanel] = useState("ordini"); // "ordini" | "serie" | "dettaglio"
   useEffect(() => {
     const onResize = () => {
       setIsMobile(window.innerWidth < 768);
-      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1100);
+      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1180);
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // â"€â"€ Campi form â"€â"€
+  // ── Campi della decisione ──
   const [desc, setDesc] = useState("");
   const [descrizioneAnswers, setDescrizioneAnswers] = useState({});
   const [note, setNote] = useState("");
@@ -1036,18 +1280,12 @@ function GestioneAnomalie() {
   const [avanzamento, setAvanzamento] = useState(DEFAULT_AVANZAMENTO);
   const [rdcNum, setRdcNum] = useState("");
   const [applicaBlocco, setApplicaBlocco] = useState(false);
-  const filterButtons = [{
-    value: "",
-    label: "Tutte"
-  }, {
-    value: "aperte",
-    label: "Aperte"
-  }, {
-    value: "in_carico",
-    label: "In carico"
-  }];
   const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
   const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
+  const flash = (msg, ms = 4500) => {
+    setSaveMsg(msg);
+    if (ms) setTimeout(() => setSaveMsg(cur => cur === msg ? null : cur), ms);
+  };
   const clearForm = () => {
     setDesc("");
     setNote("");
@@ -1060,17 +1298,16 @@ function GestioneAnomalie() {
     setCurrentItemId(null);
     setCurrentLocalId(null);
     setAttachments([]);
-    setSelectedAttachmentId(null);
+    setApplicaBlocco(false);
+    setEditDesc(false);
   };
   useEffect(() => {
     const current = normalizeChoice(avanzamento).toLowerCase();
     const exists = avanzamentoOptions.some(opt => normalizeChoice(opt).toLowerCase() === current);
-    if (!exists) {
-      setAvanzamento(avanzamentoOptions[0] || DEFAULT_AVANZAMENTO);
-    }
+    if (!exists) setAvanzamento(avanzamentoOptions[0] || DEFAULT_AVANZAMENTO);
   }, [avanzamento, avanzamentoOptions]);
 
-  // Carica ordini dal DB locale.
+  // ── Ordini ──
   const loadOrdini = () => {
     setLoadingOrdini(true);
     fetch(API.ordini, {
@@ -1088,371 +1325,202 @@ function GestioneAnomalie() {
   }, []);
   useEffect(() => {
     const nextUrl = new URL(window.location.href);
-    if (pageFilter) {
-      nextUrl.searchParams.set("filter", pageFilter);
-    } else {
-      nextUrl.searchParams.delete("filter");
-    }
+    if (pageFilter) nextUrl.searchParams.set("filter", pageFilter);else nextUrl.searchParams.delete("filter");
     window.history.replaceState({}, "", nextUrl.toString());
   }, [pageFilter]);
-  const orderMatchesPageFilter = order => {
-    const openCount = Number(order?.anomalie_aperte_count ?? order?.anomalie_count ?? 0);
-    if (pageFilter === "aperte") return openCount > 0;
-    if (pageFilter === "in_carico") return openCount > 0 && canUserEditOp(order?.capo, order?.car);
+  const apertiDi = o => Number(o?.anomalie_aperte_count ?? o?.anomalie_count ?? 0);
+  const daDecidereDi = o => Number(o?.anomalie_da_decidere_count ?? 0);
+  const orderMatches = (o, filtro) => {
+    if (filtro === "aperte") return apertiDi(o) > 0;
+    if (filtro === "in_carico") return apertiDi(o) > 0 && canUserEditOp(o?.capo, o?.car);
     return true;
   };
-
-  // NB: nel filtro "aperte"/"in_carico" le anomalie chiuse NON vengono piu'
-  // escluse: restano consultabili in una sezione collassata "Chiuse (N)" in
-  // fondo alla lista (vedi rendering). Qui si filtra solo per la ricerca S/N.
-  const anomalyMatchesPageFilter = () => true;
+  const ordiniCercati = useMemo(() => {
+    const q = searchOp.trim().toLowerCase();
+    if (!q) return ordini;
+    return ordini.filter(o => [o.id, o.pn, o.capo, o.car].some(v => String(v || "").toLowerCase().includes(q)));
+  }, [ordini, searchOp]);
+  const contatoriFiltro = useMemo(() => ({
+    "": ordiniCercati.length,
+    aperte: ordiniCercati.filter(o => orderMatches(o, "aperte")).length,
+    in_carico: ordiniCercati.filter(o => orderMatches(o, "in_carico")).length
+  }), [ordiniCercati]);
   const filteredOrdini = useMemo(() => {
-    const search = searchOp.toLowerCase();
-    return ordini.filter(o => {
-      const matchesSearch = (o.id || "").toLowerCase().includes(search) || (o.pn || "").toLowerCase().includes(search) || (o.capo || "").toLowerCase().includes(search);
-      return matchesSearch && orderMatchesPageFilter(o);
-    });
-  }, [ordini, searchOp, pageFilter]);
-  const op = filteredOrdini[selectedOp] || {};
+    const list = ordiniCercati.filter(o => orderMatches(o, pageFilter));
+    // Nei filtri operativi prima gli OP con decisioni in sospeso.
+    if (pageFilter) return [...list].sort((a, b) => daDecidereDi(b) - daDecidereDi(a));
+    return list;
+  }, [ordiniCercati, pageFilter]);
+
+  // L'OP resta selezionato anche se una ricerca lo nasconde dall'elenco.
+  const op = useMemo(() => ordini.find(o => opKey(o) === selectedOpKey) || filteredOrdini[0] || {}, [ordini, filteredOrdini, selectedOpKey]);
   const canEditCurrentOp = useMemo(() => canUserEditOp(op.capo, op.car), [op.capo, op.car]);
+  const nuovaAnomaliaUrl = op.id && op.id !== "—" ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(op.id)}` : "/gestione-anomalie/nuova-segnalazione";
 
-  // URL "Nuova anomalia" → pagina Apertura Segnalazione, preselezionando l'OP corrente se presente.
-  const nuovaAnomaliaUrl = op.id && op.id !== '—' ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(op.id)}` : "/gestione-anomalie/nuova-segnalazione";
-  const filteredSeriali = useMemo(() => {
-    const search = searchSn.toLowerCase();
-    return anomalie.filter(a => {
-      const matchesSearch = (a.sn || "").toLowerCase().includes(search);
-      return matchesSearch && anomalyMatchesPageFilter(a);
-    });
-  }, [anomalie, searchSn, pageFilter]);
-
-  // Separa le anomalie in aperte e chiuse conservando l'indice originale in
-  // filteredSeriali (selectedSn indicizza quell'array): le chiuse vanno in
-  // fondo, in una sezione collassata e in sola lettura.
-  const openSeriali = useMemo(() => filteredSeriali.map((a, i) => ({
-    a,
-    i
-  })).filter(x => !Boolean(x.a.chiudere)), [filteredSeriali]);
-  const closedSeriali = useMemo(() => filteredSeriali.map((a, i) => ({
-    a,
-    i
-  })).filter(x => Boolean(x.a.chiudere)), [filteredSeriali]);
-  const sn = filteredSeriali[selectedSn] || {};
-  // Anomalia selezionata chiusa => form in sola lettura (congelata):
-  // consultabile ma non modificabile, anche se l'utente avrebbe i permessi sull'OP.
-  const isSelectedClosed = Boolean(sn.chiudere);
-  // Editabilita' effettiva dei campi del dettaglio: serve il permesso sull'OP
-  // E che l'anomalia selezionata non sia chiusa.
-  const canEditSelected = canEditCurrentOp && !isSelectedClosed;
-  useEffect(() => {
-    if (selectedOp < filteredOrdini.length) return;
-    setSelectedOp(0);
-  }, [filteredOrdini.length, selectedOp]);
-
-  // Preselezione da ?op= (una sola volta, al primo caricamento degli ordini).
+  // Preselezione da ?op= (promemoria in dashboard, mail).
   const initialOpApplied = useRef(false);
   useEffect(() => {
-    if (initialOpApplied.current || !INITIAL_OP || !filteredOrdini.length) return;
+    if (initialOpApplied.current || !ordini.length) return;
     initialOpApplied.current = true;
-    const idx = filteredOrdini.findIndex(o => String(o.id || "").trim().toLowerCase() === INITIAL_OP);
-    if (idx >= 0) {
-      setSelectedOp(idx);
-      if (isMobile) setMobilePanel("serie");
-    }
-  }, [filteredOrdini]);
-  useEffect(() => {
-    if (selectedSn < filteredSeriali.length) return;
-    setSelectedSn(0);
-  }, [filteredSeriali.length, selectedSn]);
+    const found = INITIAL_OP ? ordini.find(o => String(o.id || "").trim().toLowerCase() === INITIAL_OP) : null;
+    const target = found || filteredOrdini[0];
+    if (target) setSelectedOpKey(opKey(target));
+    if (found && isMobile) setMobilePanel("serie");
+  }, [ordini]);
 
-  // Carica anomalie dal DB locale quando cambia OP.
+  // ── Anomalie dell'OP ──
+  const filteredSeriali = useMemo(() => {
+    const q = searchSn.trim().toLowerCase();
+    return anomalie.filter(a => {
+      if (snFilter === "da_decidere" && !isDaDecidere(a)) return false;
+      if (!q) return true;
+      return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.local_id && `#${a.local_id}`].some(v => String(v || "").toLowerCase().includes(q));
+    });
+  }, [anomalie, searchSn, snFilter]);
+  const openSeriali = useMemo(() => filteredSeriali.filter(a => !a.chiudere), [filteredSeriali]);
+  const closedSeriali = useMemo(() => filteredSeriali.filter(a => a.chiudere), [filteredSeriali]);
+  const ordineVisibile = useMemo(() => [...openSeriali, ...closedSeriali], [openSeriali, closedSeriali]);
+  const nDaDecidere = useMemo(() => anomalie.filter(isDaDecidere).length, [anomalie]);
+  const nAperte = useMemo(() => anomalie.filter(a => !a.chiudere).length, [anomalie]);
+  const sn = useMemo(() => anomalie.find(a => a.item_id === selectedSnId) || {}, [anomalie, selectedSnId]);
+  const posizione = ordineVisibile.findIndex(a => a.item_id === sn.item_id);
+  const isSelectedClosed = Boolean(sn.chiudere);
+  const canEditSelected = canEditCurrentOp && !isSelectedClosed && !!sn.item_id;
   useEffect(() => {
-    setSelectedSn(0);
     clearForm();
+    setSelectedSnId("");
     if (!op || !op.item_id) {
       setAnomalie([]);
-      return;
+      return undefined;
     }
+    // Una risposta arrivata dopo un cambio di OP va scartata: altrimenti l'elenco
+    // mostrerebbe le anomalie di un altro OP sotto l'intestazione di questo, e un
+    // salvataggio scriverebbe l'OP sbagliato sulla riga.
+    let alive = true;
+    setAnomalie([]);
     setLoadingAnom(true);
     fetch(`${API.anomalie}?op_item_id=${encodeURIComponent(op.item_id)}&op_id=${encodeURIComponent(op.id || "")}`, {
       credentials: "same-origin"
     }).then(r => readJsonOrThrow(r, "Caricamento anomalie")).then(data => {
-      setAnomalie(Array.isArray(data) ? data : []);
+      if (!alive) return;
+      const list = Array.isArray(data) ? data : [];
+      setAnomalie(list);
+      // Si apre la prima anomalia che aspetta una decisione.
+      const first = list.find(isDaDecidere) || list.find(a => !a.chiudere) || list[0];
+      setSelectedSnId(first ? first.item_id : "");
       setLoadingAnom(false);
     }).catch(e => {
-      console.error("Errore caricamento anomalie:", e);
-      setLoadingAnom(false);
+      if (alive) {
+        console.error("Errore caricamento anomalie:", e);
+        setLoadingAnom(false);
+      }
     });
+    return () => {
+      alive = false;
+    };
   }, [op.item_id]);
 
-  // â"€â"€ Popola form quando cambia S/N â"€â"€
+  // Valori «di partenza» della decisione: servono a capire se ci sono modifiche.
+  const baseline = useMemo(() => {
+    const opts = buildAvanzamentoOptions(!!sn.aprire_rdc);
+    const av = sn.avanzamento || DEFAULT_AVANZAMENTO;
+    return {
+      desc: sn.desc || "",
+      note: sn.note || "",
+      pezziPrec: !!sn.pezzi_prec,
+      aprireRdc: !!sn.aprire_rdc,
+      rdcNum: sn.numero_rdc || "",
+      segnalare: !!sn.segnalare,
+      avanzamento: opts.some(o => o.toLowerCase() === av.toLowerCase()) ? av : opts[0] || DEFAULT_AVANZAMENTO,
+      risposte: Object.fromEntries((sn.descrizioni || []).map(d => [String(d.id), d.risposta || ""]))
+    };
+  }, [sn.item_id, sn.desc, sn.note, sn.pezzi_prec, sn.aprire_rdc, sn.numero_rdc, sn.segnalare, sn.avanzamento, sn.descrizioni]);
   useEffect(() => {
-    const a = filteredSeriali[selectedSn];
-    if (a) {
-      setCurrentItemId(a.item_id || null);
-      setCurrentLocalId(a.local_id || null);
-      setDesc(a.desc || "");
-      setDescrizioneAnswers(Object.fromEntries((a.descrizioni || []).map(detail => [String(detail.id), detail.risposta || ""])));
-      setNote(a.note || "");
-      setPezziPrec(!!a.pezzi_prec);
-      setAprireRdc(!!a.aprire_rdc);
-      setRdcNum(a.numero_rdc || "");
-      setSegnalare(!!a.segnalare);
-      setAvanzamento(a.avanzamento || DEFAULT_AVANZAMENTO);
-    } else {
+    if (!sn.item_id) {
       clearForm();
-    }
-    setApplicaBlocco(false);
-  }, [selectedSn, filteredSeriali]);
-  const loadAttachments = async localId => {
-    if (!localId) {
-      setAttachments([]);
       return;
     }
+    setCurrentItemId(sn.item_id);
+    setCurrentLocalId(sn.local_id || null);
+    setDesc(baseline.desc);
+    setDescrizioneAnswers(baseline.risposte);
+    setNote(baseline.note);
+    setPezziPrec(baseline.pezziPrec);
+    setAprireRdc(baseline.aprireRdc);
+    setRdcNum(baseline.rdcNum);
+    setSegnalare(baseline.segnalare);
+    setAvanzamento(baseline.avanzamento);
+    setApplicaBlocco(false);
+    setEditDesc(false);
+  }, [sn.item_id]);
+  const dirty = !!sn.item_id && canEditSelected && (desc !== baseline.desc || note !== baseline.note || pezziPrec !== baseline.pezziPrec || aprireRdc !== baseline.aprireRdc || segnalare !== baseline.segnalare || aprireRdc && rdcNum !== baseline.rdcNum || normalizeChoice(avanzamento).toLowerCase() !== normalizeChoice(baseline.avanzamento).toLowerCase() || Object.keys(descrizioneAnswers).some(k => (descrizioneAnswers[k] || "") !== (baseline.risposte[k] || "")));
+
+  // Cambio di anomalia/OP con modifiche non salvate: si chiede cosa fare.
+  const guard = action => {
+    if (dirty) {
+      setPendingNav(() => action);
+      return;
+    }
+    action();
+  };
+  const selectSn = a => guard(() => {
+    setSelectedSnId(a.item_id);
+    if (isMobile) setMobilePanel("dettaglio");
+  });
+  const selectOp = o => guard(() => {
+    setSelectedOpKey(opKey(o));
+    if (isMobile) setMobilePanel("serie");
+  });
+  const vaiA = delta => {
+    if (posizione < 0) return;
+    const target = ordineVisibile[posizione + delta];
+    if (target) selectSn(target);
+  };
+
+  // Altre anomalie aperte dello stesso blocco di seriali.
+  const fratelliBlocco = useMemo(() => sn && sn.blocco_id ? anomalie.filter(x => x.blocco_id === sn.blocco_id && x.item_id !== sn.item_id && !x.chiudere) : [], [anomalie, sn && sn.blocco_id, sn && sn.item_id]);
+
+  // ── Allegati ──
+  const attachmentsFor = useRef(null);
+  const loadAttachments = async localId => {
+    attachmentsFor.current = localId;
+    setAttachments([]);
+    if (!localId) return;
     setLoadingAttachments(true);
     try {
       const r = await fetch(`${API.allegati_list}?local_id=${encodeURIComponent(localId)}`, {
         credentials: "same-origin"
       });
       const d = await readJsonOrThrow(r, "Allegati");
+      if (attachmentsFor.current !== localId) return;
       if (!r.ok || !d.success) throw new Error(d.error || "Errore caricamento allegati");
       setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
     } catch (e) {
       setAttachments([]);
-      setSaveMsg({
+      flash({
         ok: false,
         text: "Errore allegati: " + e.message
       });
-      setTimeout(() => setSaveMsg(null), 4000);
     }
     setLoadingAttachments(false);
   };
   useEffect(() => {
-    if (!currentLocalId) {
-      setAttachments([]);
-      return;
-    }
     loadAttachments(currentLocalId);
   }, [currentLocalId]);
-  const fratelliBlocco = useMemo(() => sn && sn.blocco_id ? anomalie.filter(x => x.blocco_id === sn.blocco_id && x.item_id !== sn.item_id && !x.chiudere) : [], [anomalie, sn && sn.blocco_id, sn && sn.item_id]);
-  const getStatoBadge = s => {
-    if (!s || !s.avanzamento) return {
-      text: "Aperto",
-      variant: "aperto"
-    };
-    if (s.avanzamento === "Accetto lo stato") return {
-      text: "Accettato",
-      variant: "accettato"
-    };
-    if (s.avanzamento === "In attesa") return {
-      text: "In Attesa",
-      variant: "attesa"
-    };
-    return {
-      text: s.avanzamento,
-      variant: "aperto"
-    };
-  };
-  const statoBadge = getStatoBadge(sn);
-
-  // â"€â"€ Salva anomalia â"€â"€
-  const handleSave = async notifyUpdate => {
-    if (!op.id || op.id === '\u2014') {
-      setSaveMsg({
-        ok: false,
-        text: "Seleziona un ordine prima di salvare"
-      });
-      setTimeout(() => setSaveMsg(null), 3000);
-      return;
-    }
+  const uploadFiles = async files => {
+    if (!files.length) return;
     if (!canEditCurrentOp) {
-      setSaveMsg({
-        ok: false,
-        text: "Permesso negato: non puoi modificare questo OP"
-      });
-      setTimeout(() => setSaveMsg(null), 3000);
-      return;
-    }
-    if (isSelectedClosed) {
-      setSaveMsg({
-        ok: false,
-        text: "Anomalia chiusa: in sola lettura, non modificabile"
-      });
-      setTimeout(() => setSaveMsg(null), 3000);
-      return;
-    }
-    setSaving(true);
-    setSaveMsg(null);
-    try {
-      const body = {
-        item_id: currentItemId,
-        op_id: op.id,
-        sn: sn.sn || "",
-        desc,
-        descrizioni_risposte: descrizioneAnswers,
-        note,
-        pezzi_prec: pezziPrec,
-        aprire_rdc: aprireRdc,
-        numero_rdc: rdcNum,
-        segnalare,
-        chiudere: chiudereAuto,
-        avanzamento,
-        notify_update: !!notifyUpdate
-      };
-      const r = await fetch(API.salva, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": getCsrfToken()
-        },
-        body: JSON.stringify(body),
-        credentials: "same-origin"
-      });
-      const data = await readJsonOrThrow(r, "Salvataggio anomalia");
-      if (data.success) {
-        const newItemId = data.item_id || currentItemId;
-        const newLocalId = data.local_id || currentLocalId;
-        setCurrentItemId(newItemId);
-        setCurrentLocalId(newLocalId || null);
-        setSaveMsg({
-          ok: true,
-          text: data.protocollo ? `Salvato · ${data.protocollo}` : "Salvato"
-        });
-        if (newLocalId) {
-          loadAttachments(newLocalId);
-        }
-        setQualitaTick(n => n + 1);
-        // Optimistic update: aggiorna lo stato locale senza re-fetch
-        const updatedRecord = {
-          item_id: newItemId,
-          local_id: newLocalId || null,
-          op_id: op.id,
-          sn: sn.sn || "",
-          desc,
-          note,
-          fase: sn.fase || "",
-          descrizioni: (sn.descrizioni || []).map(detail => ({
-            ...detail,
-            risposta: descrizioneAnswers[String(detail.id)] || "",
-            risposta_da: detail.risposta_da || ""
-          })),
-          pezzi_prec: pezziPrec,
-          aprire_rdc: aprireRdc,
-          numero_rdc: rdcNum,
-          segnalare,
-          chiudere: chiudereAuto,
-          avanzamento
-        };
-        setAnomalie(prev => {
-          const idx = prev.findIndex(a => a.item_id === currentItemId);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = {
-              ...prev[idx],
-              ...updatedRecord
-            };
-            return next;
-          }
-          return [...prev, updatedRecord];
-        });
-        if (applicaBlocco && fratelliBlocco.length) {
-          // Stessa decisione sulle altre anomalie aperte del blocco: ognuna resta
-          // una riga a sé (testo, seriali e allegati propri), cambiano solo i campi
-          // della decisione.
-          let ok = 0;
-          const errori = [];
-          for (const f of fratelliBlocco) {
-            try {
-              const rf = await fetch(API.salva, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-CSRFToken": getCsrfToken()
-                },
-                body: JSON.stringify({
-                  item_id: f.item_id,
-                  op_id: op.id,
-                  sn: f.sn || "",
-                  desc: f.desc || "",
-                  note,
-                  pezzi_prec: !!f.pezzi_prec,
-                  aprire_rdc: aprireRdc,
-                  numero_rdc: rdcNum,
-                  segnalare,
-                  chiudere: chiudereAuto,
-                  avanzamento
-                }),
-                credentials: "same-origin"
-              });
-              const df = await readJsonOrThrow(rf, "Salvataggio anomalia del blocco");
-              if (!df.success) throw new Error(df.error || "errore");
-              ok += 1;
-              setAnomalie(prev => prev.map(a => a.item_id === f.item_id ? {
-                ...a,
-                note,
-                aprire_rdc: aprireRdc,
-                numero_rdc: rdcNum,
-                segnalare,
-                chiudere: chiudereAuto,
-                avanzamento
-              } : a));
-            } catch (err) {
-              errori.push(`#${f.local_id}: ${err.message}`);
-            }
-          }
-          setApplicaBlocco(false);
-          setSaveMsg(errori.length ? {
-            ok: false,
-            text: `Salvato; blocco: ${ok} aggiornate, ${errori.length} non aggiornate (${errori.join("; ")})`
-          } : {
-            ok: true,
-            text: `Salvato anche sulle altre ${ok} anomalie del blocco`
-          });
-        }
-      } else {
-        setSaveMsg({
-          ok: false,
-          text: "Errore: " + (data.error || "risposta non valida")
-        });
-      }
-    } catch (e) {
-      setSaveMsg({
-        ok: false,
-        text: "Errore di rete: " + e.message
-      });
-    }
-    setSaving(false);
-    setTimeout(() => setSaveMsg(null), 5000);
-  };
-  const openAttachmentPicker = () => {
-    if (!canEditCurrentOp) {
-      setSaveMsg({
+      flash({
         ok: false,
         text: "Permesso negato: non puoi caricare allegati su questo OP"
       });
-      setTimeout(() => setSaveMsg(null), 3000);
       return;
     }
     if (!currentLocalId) {
-      setSaveMsg({
+      flash({
         ok: false,
-        text: "Salva prima l'anomalia, poi puoi caricare allegati."
+        text: "Seleziona un'anomalia salvata per caricare allegati."
       });
-      setTimeout(() => setSaveMsg(null), 3000);
-      return;
-    }
-    if (fileInputRef.current) fileInputRef.current.click();
-  };
-  const handleAttachmentInput = async event => {
-    const files = Array.from(event.target && event.target.files || []);
-    event.target.value = "";
-    if (!files.length) return;
-    if (!currentLocalId) {
-      setSaveMsg({
-        ok: false,
-        text: "Salva prima l'anomalia, poi puoi caricare allegati."
-      });
-      setTimeout(() => setSaveMsg(null), 3000);
       return;
     }
     setUploadingAttachments(true);
@@ -1469,29 +1537,24 @@ function GestioneAnomalie() {
         credentials: "same-origin"
       });
       const d = await readJsonOrThrow(r, "Upload allegati");
-      if (!r.ok) throw new Error(d.error || "Upload non riuscito");
-      setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
-      if (Array.isArray(d.errors) && d.errors.length) {
-        setSaveMsg({
-          ok: false,
-          text: "Upload parziale: " + d.errors.join(" | ")
-        });
-      } else {
-        setSaveMsg({
-          ok: true,
-          text: "Allegati caricati correttamente."
-        });
-      }
+      if (Array.isArray(d.attachments)) setAttachments(d.attachments);
+      if (Array.isArray(d.errors) && d.errors.length) flash({
+        ok: false,
+        text: "Upload parziale: " + d.errors.join(" | ")
+      });else if (!r.ok) throw new Error(d.error || "Upload non riuscito");else flash({
+        ok: true,
+        text: `${files.length} allegat${files.length === 1 ? "o caricato" : "i caricati"}`
+      });
     } catch (e) {
-      setSaveMsg({
+      flash({
         ok: false,
         text: "Errore upload allegati: " + e.message
       });
     }
     setUploadingAttachments(false);
-    setTimeout(() => setSaveMsg(null), 5000);
   };
   const handleDeleteAttachment = async fileId => {
+    setConfirmDelete(null);
     if (!currentLocalId || !fileId) return;
     try {
       const r = await fetch(API.allegati_delete, {
@@ -1510,1717 +1573,765 @@ function GestioneAnomalie() {
       if (!r.ok || !d.success) throw new Error(d.error || "Eliminazione non riuscita");
       setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
     } catch (e) {
-      setSaveMsg({
+      flash({
         ok: false,
         text: "Errore eliminazione allegato: " + e.message
       });
-      setTimeout(() => setSaveMsg(null), 4000);
     }
-  };
-  const openAttachment = (fileId, forceDownload = false) => {
-    if (!currentLocalId || !fileId) return;
-    const q = `local_id=${encodeURIComponent(currentLocalId)}&file_id=${encodeURIComponent(fileId)}${forceDownload ? "&download=1" : ""}`;
-    window.open(`${API.allegati_file}?${q}`, "_blank", "noopener");
   };
   const getAttachmentUrl = (fileId, forceDownload = false) => `${API.allegati_file}?local_id=${encodeURIComponent(currentLocalId)}&file_id=${encodeURIComponent(fileId)}${forceDownload ? "&download=1" : ""}`;
+  const immagini = attachments.filter(f => f.is_image);
+  const lightboxIdx = immagini.findIndex(f => f.file_id === lightbox);
+
+  // ── Salvataggio ──
+  const handleSave = async () => {
+    if (!op.id || op.id === "—") {
+      flash({
+        ok: false,
+        text: "Seleziona un ordine prima di salvare"
+      });
+      return false;
+    }
+    if (!canEditCurrentOp) {
+      flash({
+        ok: false,
+        text: "Permesso negato: non puoi modificare questo OP"
+      });
+      return false;
+    }
+    if (isSelectedClosed) {
+      flash({
+        ok: false,
+        text: "Anomalia chiusa: in sola lettura"
+      });
+      return false;
+    }
+    if (!currentItemId) {
+      flash({
+        ok: false,
+        text: "Seleziona un'anomalia"
+      });
+      return false;
+    }
+    setSaving(true);
+    let ok = false;
+    try {
+      const r = await fetch(API.salva, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: JSON.stringify({
+          item_id: currentItemId,
+          op_id: op.id,
+          sn: sn.sn || "",
+          desc,
+          descrizioni_risposte: descrizioneAnswers,
+          note,
+          pezzi_prec: pezziPrec,
+          aprire_rdc: aprireRdc,
+          numero_rdc: aprireRdc ? rdcNum : "",
+          segnalare,
+          chiudere: chiudereAuto,
+          avanzamento
+        }),
+        credentials: "same-origin"
+      });
+      const data = await readJsonOrThrow(r, "Salvataggio anomalia");
+      if (!data.success) throw new Error(data.error || "risposta non valida");
+      ok = true;
+      const aggiornato = {
+        desc,
+        note,
+        pezzi_prec: pezziPrec,
+        aprire_rdc: aprireRdc,
+        numero_rdc: aprireRdc ? rdcNum : "",
+        segnalare,
+        chiudere: chiudereAuto,
+        avanzamento,
+        descrizioni: (sn.descrizioni || []).map(d => ({
+          ...d,
+          risposta: descrizioneAnswers[String(d.id)] || ""
+        }))
+      };
+      setAnomalie(prev => prev.map(a => a.item_id === currentItemId ? {
+        ...a,
+        ...aggiornato
+      } : a));
+      let testo = chiudereAuto ? "Decisione salvata · anomalia chiusa" : "Decisione salvata";
+      if (applicaBlocco && fratelliBlocco.length) {
+        let n = 0;
+        const errori = [];
+        for (const f of fratelliBlocco) {
+          try {
+            const rf = await fetch(API.salva, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCsrfToken()
+              },
+              body: JSON.stringify({
+                item_id: f.item_id,
+                op_id: op.id,
+                sn: f.sn || "",
+                desc: f.desc || "",
+                note,
+                pezzi_prec: !!f.pezzi_prec,
+                aprire_rdc: aprireRdc,
+                numero_rdc: aprireRdc ? rdcNum : "",
+                segnalare,
+                chiudere: chiudereAuto,
+                avanzamento
+              }),
+              credentials: "same-origin"
+            });
+            const df = await readJsonOrThrow(rf, "Salvataggio anomalia del blocco");
+            if (!df.success) throw new Error(df.error || "errore");
+            n += 1;
+            setAnomalie(prev => prev.map(a => a.item_id === f.item_id ? {
+              ...a,
+              note,
+              aprire_rdc: aprireRdc,
+              numero_rdc: aprireRdc ? rdcNum : "",
+              segnalare,
+              chiudere: chiudereAuto,
+              avanzamento
+            } : a));
+          } catch (err) {
+            errori.push(`#${f.local_id}: ${err.message}`);
+          }
+        }
+        setApplicaBlocco(false);
+        if (errori.length) {
+          flash({
+            ok: false,
+            text: `Salvata; sul blocco ${n} aggiornate e ${errori.length} no (${errori.join("; ")})`
+          }, 8000);
+          testo = "";
+        } else {
+          testo += ` · applicata anche ad altre ${n}`;
+        }
+      }
+      if (testo) flash({
+        ok: true,
+        text: data.protocollo ? `${testo} · ${data.protocollo}` : testo
+      });
+      loadOrdini();
+    } catch (e) {
+      flash({
+        ok: false,
+        text: "Errore: " + e.message
+      }, 7000);
+    }
+    setSaving(false);
+    return ok;
+  };
+  const salvaEProssima = async () => {
+    // La prossima è la successiva in elenco ancora da decidere (o la successiva aperta).
+    const dopo = ordineVisibile.slice(posizione + 1);
+    const prossima = dopo.find(a => isDaDecidere(a) && a.item_id !== sn.item_id) || ordineVisibile.find(a => isDaDecidere(a) && a.item_id !== sn.item_id) || dopo.find(a => !a.chiudere);
+    if (!(await handleSave())) return;
+    if (prossima) setSelectedSnId(prossima.item_id);else flash({
+      ok: true,
+      text: "Decisione salvata · nessun'altra anomalia da decidere su questo OP"
+    });
+  };
+  const annullaModifiche = () => {
+    setDesc(baseline.desc);
+    setNote(baseline.note);
+    setPezziPrec(baseline.pezziPrec);
+    setAprireRdc(baseline.aprireRdc);
+    setRdcNum(baseline.rdcNum);
+    setSegnalare(baseline.segnalare);
+    setAvanzamento(baseline.avanzamento);
+    setDescrizioneAnswers(baseline.risposte);
+    setEditDesc(false);
+  };
+  const duplica = () => {
+    setMenuOpen(false);
+    setCurrentItemId(null);
+    flash({
+      ok: true,
+      text: "Copia pronta: modifica e salva per creare un nuovo record"
+    });
+  };
+
+  // Ctrl+S salva, frecce Alt+↑/↓ scorrono le anomalie.
   useEffect(() => {
-    if (!attachments.length) {
-      setSelectedAttachmentId(null);
-      return;
-    }
-    const exists = attachments.some(f => f.file_id === selectedAttachmentId);
-    if (!exists) {
-      const preferred = attachments.find(f => f.is_image) || attachments[0];
-      setSelectedAttachmentId(preferred.file_id);
-    }
-  }, [attachments, selectedAttachmentId]);
-  const selectedAttachment = useMemo(() => attachments.find(f => f.file_id === selectedAttachmentId) || null, [attachments, selectedAttachmentId]);
+    const onKey = e => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (canEditSelected && !saving) handleSave();
+      } else if (e.altKey && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+        e.preventDefault();
+        vaiA(e.key === "ArrowDown" ? 1 : -1);
+      } else if (e.key === "Escape") {
+        setLightbox(null);
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+  useEffect(() => {
+    const handler = e => {
+      if (dirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
   const handleOpenReport = format => {
+    setMenuOpen(false);
     const params = new URLSearchParams();
-    if (op.item_id) {
-      params.set("op_item_id", op.item_id);
-    } else if (op.id) {
-      params.set("op_id", op.id);
-    } else if (currentLocalId) {
-      params.set("id", currentLocalId);
-    } else {
-      return;
-    }
+    if (op.item_id) params.set("op_item_id", op.item_id);else if (op.id) params.set("op_id", op.id);else if (currentLocalId) params.set("id", currentLocalId);else return;
     if (format === "pdf") params.set("format", "pdf");
     window.open(`${API.report}?${params.toString()}`, "_blank", "noopener");
   };
+  const statoSel = statoAnomalia(sn);
+  const isBenestare = String(op.stato || "").toLowerCase() === "benestare";
+  const showCol = name => !isMobile || mobilePanel === name;
 
-  // â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── Rendering elenco anomalie (con intestazione per blocco di seriali) ──
+  const renderAnomalia = a => {
+    const st = statoAnomalia(a);
+    const selected = a.item_id === sn.item_id;
+    return /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      key: a.item_id,
+      className: `ga-an${selected ? " is-sel" : ""}${a.chiudere ? " is-closed" : ""}`,
+      onClick: () => selectSn(a)
+    }, /*#__PURE__*/React.createElement("span", {
+      className: `ga-an__dot ga-an__dot--${st.variant}`
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "ga-an__main"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-an__txt"
+    }, a.blocco_id ? a.testo || a.desc || "(nessuna descrizione)" : a.sn ? `S/N ${a.sn}` : a.testo || a.desc || "—"), /*#__PURE__*/React.createElement("span", {
+      className: "ga-an__meta"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: `ga-pill ga-pill--${st.variant}`
+    }, st.text), a.aprire_rdc && /*#__PURE__*/React.createElement("span", {
+      className: "ga-pill ga-pill--rdc"
+    }, "RDC", a.numero_rdc ? ` ${a.numero_rdc}` : ""), a.segnalare && /*#__PURE__*/React.createElement("span", {
+      className: "ga-pill ga-pill--cli"
+    }, "Cliente"), !a.blocco_id && (a.testo || a.desc) && /*#__PURE__*/React.createElement("span", {
+      className: "ga-an__sub"
+    }, a.testo || a.desc), /*#__PURE__*/React.createElement("span", {
+      className: "ga-an__id"
+    }, "#", a.local_id))));
+  };
+  const renderGrouped = list => list.map((a, idx) => {
+    const prev = idx > 0 ? list[idx - 1] : null;
+    if (!a.blocco_id || prev && prev.blocco_id === a.blocco_id) return renderAnomalia(a);
+    const delBlocco = list.filter(y => y.blocco_id === a.blocco_id);
+    const daDec = delBlocco.filter(isDaDecidere).length;
+    return /*#__PURE__*/React.createElement(React.Fragment, {
+      key: `blk-${a.blocco_id}-${a.item_id}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "ga-blk"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "ga-blk__sn"
+    }, a.blocco_label || a.sn || "—"), /*#__PURE__*/React.createElement("div", {
+      className: "ga-blk__meta"
+    }, [a.fase ? `Fase ${a.fase}` : "", a.controllo_operatore, fmtData(a.controllo_data)].filter(Boolean).join(" · "), daDec > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "ga-blk__todo"
+    }, daDec, " da decidere"))), renderAnomalia(a));
+  });
   return /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "inherit",
-      background: "var(--bg)",
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column"
-    }
+    className: `ga${isMobile ? " ga--mobile" : ""}`
   }, /*#__PURE__*/React.createElement("header", {
-    style: {
-      background: "var(--primary)",
-      padding: isMobile ? "0 12px" : "0 28px",
-      height: 56,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      boxShadow: "0 2px 12px rgba(0,0,0,.15)",
-      position: "sticky",
-      top: 0,
-      zIndex: 100
-    }
+    className: "ga-top"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: isMobile ? 8 : 16
-    }
+    className: "ga-top__left"
   }, /*#__PURE__*/React.createElement("a", {
     href: "/anomalie-menu",
-    title: "Torna al menu anomalie",
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      background: "rgba(255,255,255,0.08)",
-      border: "1px solid rgba(255,255,255,0.12)",
-      color: "#94a3b8",
-      textDecoration: "none"
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "16",
-    height: "16",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2.2",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M15 18l-6-6 6-6"
-  }))), !isMobile && /*#__PURE__*/React.createElement("h1", {
-    className: "text-lg font-bold",
-    style: {
-      margin: 0,
-      fontWeight: 700,
-      color: "#fff",
-      letterSpacing: "-0.01em"
-    }
-  }, "Gestione Anomalie"), isMobile && mobilePanel === "dettaglio" && sn.sn && /*#__PURE__*/React.createElement("span", {
-    className: "text-base font-semibold",
-    style: {
-      fontWeight: 600,
-      color: "#e2e8f0"
-    }
-  }, op.id ? `${op.id} / ${sn.sn}` : sn.sn), isMobile && mobilePanel === "serie" && op.id && /*#__PURE__*/React.createElement("span", {
-    className: "text-base font-semibold",
-    style: {
-      fontWeight: 600,
-      color: "#e2e8f0"
-    }
-  }, op.id), isMobile && mobilePanel === "ordini" && /*#__PURE__*/React.createElement("span", {
-    className: "text-base font-bold",
-    style: {
-      fontWeight: 700,
-      color: "#fff"
-    }
-  }, "Gestione Anomalie"), !isMobile && op.id && /*#__PURE__*/React.createElement("span", {
-    className: "text-sm font-medium",
-    style: {
-      background: "rgba(255,255,255,.1)",
-      padding: "3px 12px",
-      borderRadius: 99,
-      color: "#94a3b8",
-      fontWeight: 500
-    }
-  }, op.id)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: isMobile ? 8 : 12
-    }
-  }, !isMobile && IS_ADMIN && ADMIN_URL && /*#__PURE__*/React.createElement("a", {
-    className: "text-base font-bold",
-    href: ADMIN_URL,
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6,
-      background: "var(--accent)",
-      color: "#fff",
-      borderRadius: 8,
-      padding: "6px 12px",
-      fontWeight: 700,
-      textDecoration: "none",
-      boxShadow: "0 2px 8px rgba(249,115,22,.25)",
-      whiteSpace: "nowrap"
-    }
-  }, "\u2699 Gestione Admin"), isMobile && IS_ADMIN && ADMIN_URL && /*#__PURE__*/React.createElement("a", {
-    href: ADMIN_URL,
-    title: "Gestione Admin",
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      background: "var(--accent)",
-      color: "#fff",
-      textDecoration: "none",
-      fontSize: 16
-    }
-  }, "\u2699"), !isMobile && /*#__PURE__*/React.createElement("a", {
-    className: "text-base font-semibold",
+    className: "ga-iconbtn",
+    title: "Torna al menu anomalie"
+  }, Ico.back), /*#__PURE__*/React.createElement("h1", {
+    className: "ga-top__title"
+  }, isMobile && mobilePanel !== "ordini" && op.id ? op.id : "Gestione anomalie"), !isMobile && op.id && /*#__PURE__*/React.createElement("span", {
+    className: "ga-top__op"
+  }, op.id, op.pn && op.pn !== "—" ? ` · ${op.pn}` : "")), /*#__PURE__*/React.createElement("div", {
+    className: "ga-top__right"
+  }, /*#__PURE__*/React.createElement("a", {
+    className: "ga-btn ga-btn--accent",
     href: nuovaAnomaliaUrl,
-    title: "Inserisci una nuova anomalia / segnalazione",
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6,
-      background: "#f97316",
-      border: "1px solid #fb923c",
-      borderRadius: 8,
-      padding: "7px 16px",
-      color: "#fff",
-      fontWeight: 700,
-      textDecoration: "none",
-      whiteSpace: "nowrap"
+    title: "Apri un nuovo controllo con segnalazione di anomalie"
+  }, Ico.plus, !isMobile && /*#__PURE__*/React.createElement("span", null, "Nuova segnalazione")), !isMobile && API.nc_lista && /*#__PURE__*/React.createElement("a", {
+    className: "ga-btn ga-btn--ghost",
+    href: API.nc_lista
+  }, "Non conformit\xE0"), /*#__PURE__*/React.createElement("div", {
+    className: "ga-menu"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-iconbtn",
+    title: "Altre azioni",
+    "aria-expanded": menuOpen,
+    onClick: () => setMenuOpen(v => !v)
+  }, Ico.more), menuOpen && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "ga-menu__scrim",
+    onClick: () => setMenuOpen(false)
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "ga-menu__pop",
+    role: "menu"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "menuitem",
+    disabled: !op.id,
+    onClick: () => handleOpenReport()
+  }, "Report OP"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "menuitem",
+    disabled: !op.id,
+    onClick: () => handleOpenReport("pdf")
+  }, "Report OP in PDF"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "menuitem",
+    disabled: !canEditSelected,
+    onClick: duplica
+  }, "Duplica anomalia come nuovo record"), isMobile && API.nc_lista && /*#__PURE__*/React.createElement("a", {
+    role: "menuitem",
+    href: API.nc_lista
+  }, "Non conformit\xE0"), IS_ADMIN && ADMIN_URL && /*#__PURE__*/React.createElement("a", {
+    role: "menuitem",
+    href: ADMIN_URL
+  }, "Configurazione modulo")))))), /*#__PURE__*/React.createElement("div", {
+    className: "ga-cols",
+    style: isMobile ? undefined : {
+      gridTemplateColumns: isTablet ? "250px 270px minmax(0,1fr)" : "310px 330px minmax(0,1fr)"
     }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "14",
-    height: "14",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2.4",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M12 5v14m-7-7h14"
-  })), "+ NUOVA SEGNALAZIONE"), isMobile && /*#__PURE__*/React.createElement("a", {
-    href: nuovaAnomaliaUrl,
-    title: "Nuova anomalia / segnalazione",
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "ga-col ga-col--op",
     style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      background: "rgba(255,255,255,.08)",
-      border: "1px solid rgba(255,255,255,.12)",
-      color: "#e2e8f0",
-      textDecoration: "none"
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "16",
-    height: "16",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2.4",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M12 5v14m-7-7h14"
-  }))), !isMobile && API.nc_lista && /*#__PURE__*/React.createElement("a", {
-    className: "text-base font-semibold",
-    href: API.nc_lista,
-    title: "Non conformit\xE0 per OP",
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6,
-      background: "rgba(255,255,255,.08)",
-      border: "1px solid rgba(255,255,255,.12)",
-      borderRadius: 8,
-      padding: "7px 16px",
-      color: "#e2e8f0",
-      fontWeight: 600,
-      textDecoration: "none",
-      whiteSpace: "nowrap"
-    }
-  }, "Non conformit\xE0"), saveMsg && !isMobile && /*#__PURE__*/React.createElement("span", {
-    className: "text-base font-medium",
-    style: {
-      fontWeight: 500,
-      color: saveMsg.ok ? "#86efac" : "#fca5a5",
-      background: "rgba(255,255,255,.07)",
-      padding: "5px 12px",
-      borderRadius: 6
-    }
-  }, saveMsg.text), !isMobile && /*#__PURE__*/React.createElement("button", {
-    style: {
-      background: "rgba(255,255,255,.08)",
-      border: "1px solid rgba(255,255,255,.12)",
-      borderRadius: 8,
-      padding: "7px 16px",
-      color: "#e2e8f0",
-      fontWeight: 500,
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "14",
-    height: "14",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-  })), "Cartella file"), !isMobile && currentItemId && /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      setCurrentItemId(null);
-      setSaveMsg({
-        ok: true,
-        text: "Dati copiati - modifica e salva come nuovo record"
-      });
-      setTimeout(() => setSaveMsg(null), 4000);
-    },
-    style: {
-      background: "rgba(255,255,255,.08)",
-      border: "1px solid rgba(255,255,255,.12)",
-      borderRadius: 8,
-      padding: "7px 16px",
-      color: "#e2e8f0",
-      fontWeight: 500,
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "13",
-    height: "13",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("rect", {
-    x: "9",
-    y: "9",
-    width: "13",
-    height: "13",
-    rx: "2"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
-  })), "Duplica"), !isMobile && (op.item_id || op.id || currentLocalId) && /*#__PURE__*/React.createElement("button", {
-    onClick: () => handleOpenReport(),
-    title: "Apri il report riepilogativo dell'OP (HTML)",
-    style: {
-      background: "rgba(255,255,255,.08)",
-      border: "1px solid rgba(255,255,255,.12)",
-      borderRadius: 8,
-      padding: "7px 16px",
-      color: "#e2e8f0",
-      fontWeight: 500,
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "14",
-    height: "14",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
-  }), /*#__PURE__*/React.createElement("polyline", {
-    points: "14 2 14 8 20 8"
-  }), /*#__PURE__*/React.createElement("line", {
-    x1: "16",
-    y1: "13",
-    x2: "8",
-    y2: "13"
-  }), /*#__PURE__*/React.createElement("line", {
-    x1: "16",
-    y1: "17",
-    x2: "8",
-    y2: "17"
-  }), /*#__PURE__*/React.createElement("polyline", {
-    points: "10 9 9 9 8 9"
-  })), "Report OP"), !isMobile && (op.item_id || op.id || currentLocalId) && /*#__PURE__*/React.createElement("button", {
-    onClick: () => handleOpenReport("pdf"),
-    title: "Scarica il report riepilogativo dell'OP in PDF",
-    style: {
-      background: "rgba(255,255,255,.08)",
-      border: "1px solid rgba(255,255,255,.12)",
-      borderRadius: 8,
-      padding: "7px 16px",
-      color: "#e2e8f0",
-      fontWeight: 500,
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "14",
-    height: "14",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
-  }), /*#__PURE__*/React.createElement("polyline", {
-    points: "14 2 14 8 20 8"
-  }), /*#__PURE__*/React.createElement("polyline", {
-    points: "14 2 14 8 20 8"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "M9 15h1.5a1.5 1.5 0 000-3H9v6"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "M15 18v-6h1.8M15 15h1.6"
-  })), "PDF"), /*#__PURE__*/React.createElement("button", {
-    className: isMobile ? "text-md font-semibold" : "text-base font-semibold",
-    onClick: () => handleSave(false),
-    disabled: saving || !canEditSelected,
-    title: isSelectedClosed ? "Anomalia chiusa: sola lettura" : "Salva l'anomalia: la mail di conferma a segnalante, CC e CAR parte automaticamente",
-    style: {
-      background: saving ? "var(--primary-mid)" : "var(--accent)",
-      border: "none",
-      borderRadius: 8,
-      padding: isMobile ? "8px 16px" : "7px 18px",
-      color: "#fff",
-      fontWeight: 600,
-      cursor: saving || !canEditSelected ? "not-allowed" : "pointer",
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
-      boxShadow: "0 2px 8px rgba(249,115,22,.3)",
-      opacity: saving || !canEditSelected ? 0.8 : 1
-    }
-  }, saving ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("svg", {
-    width: "14",
-    height: "14",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2.5",
-    style: {
-      animation: "spin 1s linear infinite"
-    }
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-    strokeOpacity: ".3"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "M21 12a9 9 0 00-9-9"
-  })), isMobile ? "…" : "Salvataggio…") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("svg", {
-    width: "14",
-    height: "14",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2.5",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M5 13l4 4L19 7"
-  })), "Salva")))), /*#__PURE__*/React.createElement("style", null, `
-      @keyframes spin { to { transform: rotate(360deg); } }
-      @keyframes fadeInUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-    `), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : isTablet ? "260px 220px 1fr" : "340px 280px 1fr",
-      height: isMobile ? "auto" : "calc(100vh - 56px)",
-      overflow: isMobile ? "visible" : "hidden"
+      display: showCol("ordini") ? undefined : "none"
     }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      borderRight: isMobile ? "none" : "1px solid var(--border)",
-      background: "var(--surface)",
-      display: isMobile && mobilePanel !== "ordini" ? "none" : "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-      minHeight: isMobile ? "calc(100dvh - 112px)" : undefined
-    }
+    className: "ga-col__head"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "16px 16px 12px",
-      borderBottom: "1px solid var(--border)"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 12
-    }
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-base font-bold",
-    style: {
-      margin: 0,
-      fontWeight: 700,
-      color: "var(--text)",
-      textTransform: "uppercase",
-      letterSpacing: "0.05em"
-    }
-  }, "Ordini di Produzione"), /*#__PURE__*/React.createElement("span", {
-    className: "text-xs font-semibold",
-    style: {
-      background: "var(--bg)",
-      padding: "2px 8px",
-      borderRadius: 99,
-      fontWeight: 600,
-      color: "var(--text-mid)"
-    }
-  }, loadingOrdini ? "…" : filteredOrdini.length)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 6,
-      flexWrap: "wrap",
-      marginBottom: 12
-    }
-  }, filterButtons.map(filterOpt => {
-    const active = pageFilter === filterOpt.value;
-    return /*#__PURE__*/React.createElement("button", {
-      key: filterOpt.value || "all",
-      onClick: () => {
-        setPageFilter(filterOpt.value);
-        setSelectedOp(0);
-        setSelectedSn(0);
-      },
-      style: {
-        border: active ? "1px solid var(--accent)" : "1px solid var(--border)",
-        background: active ? "var(--accent-light)" : "var(--surface)",
-        color: active ? "var(--accent)" : "var(--text-mid)",
-        borderRadius: 999,
-        padding: "6px 10px",
-        fontWeight: 700,
-        letterSpacing: "0.02em",
-        cursor: "pointer"
-      },
-      className: "text-xs font-bold"
-    }, filterOpt.label);
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "relative"
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "15",
-    height: "15",
-    fill: "none",
-    stroke: "#94a3b8",
-    strokeWidth: "2",
-    viewBox: "0 0 24 24",
-    style: {
-      position: "absolute",
-      left: 10,
-      top: "50%",
-      transform: "translateY(-50%)"
-    }
-  }, /*#__PURE__*/React.createElement("circle", {
-    cx: "11",
-    cy: "11",
-    r: "8"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "m21 21-4.35-4.35"
-  })), /*#__PURE__*/React.createElement("input", {
+    className: "ga-col__title"
+  }, "Ordini di produzione"), /*#__PURE__*/React.createElement("div", {
+    className: "ga-chips"
+  }, [["", "Tutti"], ["aperte", "Con aperte"], ["in_carico", "In carico a me"]].map(([v, l]) => /*#__PURE__*/React.createElement(Chip, {
+    key: v || "all",
+    active: pageFilter === v,
+    count: loadingOrdini ? "…" : contatoriFiltro[v],
+    onClick: () => setPageFilter(v)
+  }, l))), /*#__PURE__*/React.createElement("div", {
+    className: "ga-search"
+  }, Ico.search, /*#__PURE__*/React.createElement("input", {
     value: searchOp,
     onChange: e => setSearchOp(e.target.value),
-    placeholder: "Cerca OP, P/N, capocommessa...",
-    style: {
-      width: "100%",
-      padding: "9px 12px 9px 32px",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      outline: "none",
-      background: "var(--bg)",
-      color: "var(--text)"
-    },
-    onFocus: e => e.target.style.borderColor = "rgba(249,115,22,.5)",
-    onBlur: e => e.target.style.borderColor = "var(--border)"
+    placeholder: "Cerca OP, P/N, capocommessa, CAR\u2026"
   }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      overflowY: "auto",
-      padding: "8px"
-    }
+    className: "ga-col__body"
   }, loadingOrdini ? /*#__PURE__*/React.createElement("div", {
-    className: "text-base",
-    style: {
-      padding: 24,
-      textAlign: "center",
-      color: "#94a3b8"
-    }
+    className: "ga-empty"
   }, "Caricamento ordini\u2026") : filteredOrdini.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "text-base",
+    className: "ga-empty"
+  }, pageFilter === "in_carico" ? "Nessun OP con anomalie aperte in carico a te." : pageFilter === "aperte" ? "Nessun OP con anomalie aperte." : "Nessun ordine trovato.") : filteredOrdini.map(o => {
+    const sel = opKey(o) === opKey(op);
+    const tot = Number(o.anomalie_count || 0);
+    const aperte = apertiDi(o);
+    const daDec = daDecidereDi(o);
+    const chiuse = Math.max(0, tot - aperte);
+    return /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      key: opKey(o),
+      className: `ga-op${sel ? " is-sel" : ""}`,
+      onClick: () => selectOp(o)
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-op__row"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-op__id"
+    }, o.id), String(o.stato || "").toLowerCase() === "benestare" && /*#__PURE__*/React.createElement("span", {
+      className: "ga-pill ga-pill--ben"
+    }, "Benestare"), daDec > 0 && /*#__PURE__*/React.createElement("span", {
+      className: "ga-op__todo",
+      title: "Anomalie in attesa di decisione"
+    }, daDec)), /*#__PURE__*/React.createElement("span", {
+      className: "ga-op__pn"
+    }, "P/N ", o.pn), /*#__PURE__*/React.createElement("span", {
+      className: "ga-op__people"
+    }, Ico.user, o.capo, o.car && o.car !== "—" ? ` · CAR ${o.car}` : ""), tot > 0 ? /*#__PURE__*/React.createElement("span", {
+      className: "ga-op__bar",
+      title: `${chiuse} chiuse su ${tot}`
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "ga-op__bar-fill",
+      style: {
+        width: `${Math.round(chiuse / tot * 100)}%`
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "ga-op__bar-txt"
+    }, aperte, " apert", aperte === 1 ? "a" : "e", " \xB7 ", tot, " total", tot === 1 ? "e" : "i")) : /*#__PURE__*/React.createElement("span", {
+      className: "ga-op__none"
+    }, "Nessuna anomalia"));
+  }))), /*#__PURE__*/React.createElement("section", {
+    className: "ga-col ga-col--sn",
     style: {
-      padding: 24,
-      textAlign: "center",
-      color: "#94a3b8"
-    }
-  }, pageFilter === "in_carico" ? "Nessuna anomalia in carico per l'utente corrente" : pageFilter === "aperte" ? "Nessun ordine con anomalie aperte" : "Nessun ordine trovato") : filteredOrdini.map((o, i) => /*#__PURE__*/React.createElement("div", {
-    key: o.item_id || i,
-    onClick: () => {
-      setSelectedOp(i);
-      if (isMobile) setMobilePanel("serie");
-    },
-    style: {
-      padding: "12px 14px",
-      borderRadius: 10,
-      cursor: "pointer",
-      marginBottom: 4,
-      background: selectedOp === i ? "var(--accent-light)" : "transparent",
-      border: selectedOp === i ? "1px solid rgba(249,115,22,.25)" : "1px solid transparent",
-      transition: "all 0.15s ease"
+      display: showCol("serie") ? undefined : "none"
     }
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      marginBottom: 6,
-      flexWrap: "wrap"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "text-md font-bold",
-    style: {
-      fontWeight: 700,
-      color: "var(--text)"
-    }
-  }, o.id), /*#__PURE__*/React.createElement(StatusBadge, {
-    text: String(o.stato || "").toLowerCase() === "benestare" ? "Collaudo benestare" : "Altro controllo",
-    variant: String(o.stato || "").toLowerCase() === "benestare" ? "benestare" : "aperto"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "text-sm",
-    style: {
-      color: "var(--text-mid)",
-      marginBottom: 4,
-      fontFamily: "ui-monospace,monospace",
-      letterSpacing: "-0.02em"
-    }
-  }, "P/N: ", o.pn), /*#__PURE__*/React.createElement("div", {
-    className: "text-sm",
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-      color: "#94a3b8"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "12",
-    height: "12",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"
-  }), /*#__PURE__*/React.createElement("circle", {
-    cx: "12",
-    cy: "7",
-    r: "4"
-  })), o.capo)), selectedOp === i && /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 6,
-      marginTop: 10,
-      paddingTop: 10,
-      borderTop: "1px solid var(--border)"
-    }
-  }, /*#__PURE__*/React.createElement(IconBtn, {
-    accent: true,
-    title: "Inserisci una nuova anomalia su questo OP",
-    onClick: () => {
-      window.location.href = o.id ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(o.id)}` : "/gestione-anomalie/nuova-segnalazione";
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "13",
-    height: "13",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2.5",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M12 5v14m-7-7h14"
-  })), "Anomalia"), /*#__PURE__*/React.createElement(IconBtn, {
-    title: "Duplica - copia i dati nel form come nuovo record",
-    onClick: () => {
-      setCurrentItemId(null);
-      setSaveMsg({
-        ok: true,
-        text: "Dati copiati - modifica e salva come nuovo record"
-      });
-      setTimeout(() => setSaveMsg(null), 4000);
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "13",
-    height: "13",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("rect", {
-    x: "9",
-    y: "9",
-    width: "13",
-    height: "13",
-    rx: "2"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
-  })), "Duplica"))))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "12px 16px",
-      borderTop: "1px solid var(--border)",
-      display: "flex",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "text-base font-semibold",
-    onClick: () => history.back(),
-    style: {
-      flex: 1,
-      padding: "9px",
-      border: "1px solid rgba(229,62,62,.3)",
-      borderRadius: 8,
-      background: "var(--danger-bg)",
-      color: "var(--danger)",
-      fontWeight: 600,
-      cursor: "pointer"
-    }
-  }, "Indietro"), /*#__PURE__*/React.createElement("button", {
-    className: "text-base font-medium",
-    onClick: loadOrdini,
-    style: {
-      flex: 1,
-      padding: "9px",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      background: "var(--surface)",
-      color: "var(--text-mid)",
-      fontWeight: 500,
-      cursor: "pointer"
-    }
-  }, "Aggiorna"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      borderRight: isMobile ? "none" : "1px solid var(--border)",
-      background: "var(--bg)",
-      display: isMobile && mobilePanel !== "serie" ? "none" : "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-      minHeight: isMobile ? "calc(100dvh - 112px)" : undefined
-    }
-  }, isMobile && /*#__PURE__*/React.createElement("button", {
-    className: "text-base font-semibold",
-    onClick: () => setMobilePanel("ordini"),
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
-      padding: "10px 14px",
-      background: "none",
-      border: "none",
-      borderBottom: "1px solid var(--border)",
-      color: "var(--primary-mid)",
-      fontWeight: 600,
-      cursor: "pointer",
-      width: "100%"
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "16",
-    height: "16",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2.5",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M15 18l-6-6 6-6"
-  })), "Ordini di Produzione"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "16px 14px 12px",
-      borderBottom: "1px solid var(--border)"
-    }
-  }, /*#__PURE__*/React.createElement("h2", {
-    className: "text-base font-bold",
-    style: {
-      margin: "0 0 12px",
-      fontWeight: 700,
-      color: "var(--text)",
-      textTransform: "uppercase",
-      letterSpacing: "0.05em"
-    }
-  }, isMobile && op.id ? `S/N — ${op.id}` : "Numeri di Serie"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "relative"
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "15",
-    height: "15",
-    fill: "none",
-    stroke: "#94a3b8",
-    strokeWidth: "2",
-    viewBox: "0 0 24 24",
-    style: {
-      position: "absolute",
-      left: 10,
-      top: "50%",
-      transform: "translateY(-50%)"
-    }
-  }, /*#__PURE__*/React.createElement("circle", {
-    cx: "11",
-    cy: "11",
-    r: "8"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "m21 21-4.35-4.35"
-  })), /*#__PURE__*/React.createElement("input", {
+    className: "ga-col__head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-col__title"
+  }, "Anomalie ", op.id ? /*#__PURE__*/React.createElement("span", {
+    className: "ga-col__sub"
+  }, nAperte, " apert", nAperte === 1 ? "a" : "e", " su ", anomalie.length) : null), /*#__PURE__*/React.createElement("div", {
+    className: "ga-chips"
+  }, /*#__PURE__*/React.createElement(Chip, {
+    active: snFilter === "tutte",
+    onClick: () => setSnFilter("tutte"),
+    count: anomalie.length
+  }, "Tutte"), /*#__PURE__*/React.createElement(Chip, {
+    active: snFilter === "da_decidere",
+    onClick: () => setSnFilter("da_decidere"),
+    count: nDaDecidere,
+    tone: "warn"
+  }, "Da decidere")), /*#__PURE__*/React.createElement("div", {
+    className: "ga-search"
+  }, Ico.search, /*#__PURE__*/React.createElement("input", {
     value: searchSn,
     onChange: e => setSearchSn(e.target.value),
-    placeholder: "Cerca S/N...",
-    style: {
-      width: "100%",
-      padding: "9px 12px 9px 32px",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      outline: "none",
-      background: "var(--surface)",
-      color: "var(--text)"
-    },
-    onFocus: e => e.target.style.borderColor = "rgba(249,115,22,.5)",
-    onBlur: e => e.target.style.borderColor = "var(--border)"
+    placeholder: "Cerca S/N, testo, #numero\u2026"
   }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      flex: 1,
-      overflowY: "auto",
-      padding: "8px"
-    }
+    className: "ga-col__body"
   }, loadingAnom ? /*#__PURE__*/React.createElement("div", {
-    className: "text-base",
+    className: "ga-empty"
+  }, "Caricamento\u2026") : !op.id ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-empty"
+  }, "Seleziona un ordine.") : filteredSeriali.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-empty"
+  }, snFilter === "da_decidere" && anomalie.length ? "Nessuna anomalia da decidere: tutto gestito. ✓" : searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.", canEditCurrentOp && !anomalie.length && /*#__PURE__*/React.createElement("a", {
+    className: "ga-btn ga-btn--accent ga-btn--sm",
+    href: nuovaAnomaliaUrl
+  }, Ico.plus, "Nuova segnalazione")) : /*#__PURE__*/React.createElement(React.Fragment, null, renderGrouped(openSeriali), closedSeriali.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ga-closed"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-closed__toggle",
+    onClick: () => setClosedCollapsed(v => !v)
+  }, /*#__PURE__*/React.createElement("span", {
     style: {
-      padding: 20,
-      textAlign: "center",
-      color: "#94a3b8"
+      transform: closedCollapsed ? "rotate(-90deg)" : "none"
     }
-  }, "Caricamento\u2026") : filteredSeriali.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "text-base",
+  }, "\u25BE"), " Chiuse (", closedSeriali.length, ")"), !closedCollapsed && renderGrouped(closedSeriali))))), /*#__PURE__*/React.createElement("section", {
+    className: "ga-col ga-col--det",
     style: {
-      padding: 20,
-      textAlign: "center",
-      color: "#94a3b8"
+      display: showCol("dettaglio") ? undefined : "none"
     }
-  }, op.id && op.id !== '\u2014' ? pageFilter === "aperte" || pageFilter === "in_carico" ? "Nessuna anomalia aperta per questo ordine" : "Nessuna anomalia registrata" : "Seleziona un ordine") : (() => {
-    const renderSnCard = ({
-      a,
-      i
-    }) => {
-      const col = snColor(a.avanzamento);
-      const closed = Boolean(a.chiudere);
-      const inBlocco = Boolean(a.blocco_id);
-      return /*#__PURE__*/React.createElement("div", {
-        key: a.item_id || i,
-        onClick: () => {
-          setSelectedSn(i);
-          if (isMobile) setMobilePanel("dettaglio");
-        },
-        style: {
-          padding: "10px 12px",
-          borderRadius: 10,
-          cursor: "pointer",
-          marginBottom: 4,
-          background: selectedSn === i ? "var(--surface)" : "transparent",
-          border: selectedSn === i ? "1px solid var(--border)" : "1px solid transparent",
-          boxShadow: selectedSn === i ? "0 1px 4px rgba(0,0,0,.06)" : "none",
-          opacity: closed ? 0.7 : 1,
-          transition: "all 0.15s"
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 4
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          width: 10,
-          height: 10,
-          borderRadius: "50%",
-          background: col,
-          boxShadow: `0 0 0 3px ${col}22`
-        }
-      }), inBlocco ? /*#__PURE__*/React.createElement("span", {
-        className: "text-base",
-        style: {
-          fontWeight: 600,
-          color: "var(--text)",
-          minWidth: 0,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap"
-        },
-        title: a.testo || a.desc || ""
-      }, a.testo || a.desc || "(nessuna descrizione)") : /*#__PURE__*/React.createElement("span", {
-        className: "text-base font-semibold",
-        style: {
-          fontWeight: 600,
-          color: "var(--text)",
-          fontFamily: "ui-monospace,monospace"
-        }
-      }, "S/N: ", a.sn || '\u2014')), /*#__PURE__*/React.createElement("div", {
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          paddingLeft: 18
-        }
-      }, /*#__PURE__*/React.createElement("span", {
-        className: "text-sm",
-        style: {
-          color: "var(--text-mid)"
-        }
-      }, a.avanzamento || "Aperto"), a.modified && /*#__PURE__*/React.createElement("span", {
-        className: "text-2xs",
-        style: {
-          color: "#94a3b8"
-        }
-      }, new Date(a.modified).toLocaleDateString("it-IT", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "2-digit"
-      })), a.pezzi_prec && /*#__PURE__*/React.createElement("span", {
-        className: "text-2xs font-medium",
-        style: {
-          padding: "1px 6px",
-          borderRadius: 4,
-          background: "var(--bg)",
-          color: "var(--primary-mid)",
-          border: "1px solid var(--border)",
-          fontWeight: 500
-        }
-      }, "prec. benestare"), closed && /*#__PURE__*/React.createElement("span", {
-        className: "text-2xs font-medium",
-        style: {
-          padding: "1px 6px",
-          borderRadius: 4,
-          background: "var(--success-bg)",
-          color: "var(--success)",
-          border: "1px solid #c6f6d5",
-          fontWeight: 500
-        }
-      }, "chiusa")), selectedSn === i && !closed && /*#__PURE__*/React.createElement("div", {
-        style: {
-          marginTop: 8,
-          paddingLeft: 18,
-          display: "flex",
-          gap: 6
-        }
-      }, /*#__PURE__*/React.createElement(IconBtn, {
-        title: "Duplica - copia i dati nel form come nuovo record",
-        onClick: () => {
-          setCurrentItemId(null);
-          setSaveMsg({
-            ok: true,
-            text: "Dati copiati - modifica e salva come nuovo record"
-          });
-          setTimeout(() => setSaveMsg(null), 4000);
-        }
-      }, /*#__PURE__*/React.createElement("svg", {
-        width: "12",
-        height: "12",
-        fill: "none",
-        stroke: "currentColor",
-        strokeWidth: "2",
-        viewBox: "0 0 24 24"
-      }, /*#__PURE__*/React.createElement("rect", {
-        x: "9",
-        y: "9",
-        width: "13",
-        height: "13",
-        rx: "2"
-      }), /*#__PURE__*/React.createElement("path", {
-        d: "M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
-      })), "Duplica")));
-    };
-    // Anomalie nate dallo stesso blocco di seriali: un'intestazione con i S/N
-    // e la fase, poi una scheda per anomalia (ognuna con la sua decisione).
-    const renderGrouped = list => list.map((x, idx) => {
-      const prev = idx > 0 ? list[idx - 1].a : null;
-      const head = x.a.blocco_id && (!prev || prev.blocco_id !== x.a.blocco_id);
-      if (!head) return renderSnCard(x);
-      const nBlocco = list.filter(y => y.a.blocco_id === x.a.blocco_id).length;
-      return /*#__PURE__*/React.createElement(React.Fragment, {
-        key: `blk-${x.a.blocco_id}-${x.i}`
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          margin: idx ? "10px 4px 4px" : "2px 4px 4px",
-          padding: "6px 8px",
-          borderLeft: "3px solid var(--accent)",
-          background: "var(--surface)",
-          borderRadius: 6
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        className: "text-sm",
-        style: {
-          fontWeight: 700,
-          color: "var(--text)",
-          fontFamily: "ui-monospace,monospace",
-          wordBreak: "break-word"
-        }
-      }, "S/N: ", x.a.blocco_label || x.a.sn || '\u2014'), /*#__PURE__*/React.createElement("div", {
-        className: "text-2xs",
-        style: {
-          color: "var(--text-mid)"
-        }
-      }, [x.a.fase ? `Fase ${x.a.fase}` : "", `${nBlocco} anomali${nBlocco === 1 ? "a" : "e"}`, x.a.controllo_operatore, x.a.controllo_data ? new Date(x.a.controllo_data).toLocaleDateString("it-IT", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "2-digit"
-      }) : ""].filter(Boolean).join(" · "))), renderSnCard(x));
-    });
-    return /*#__PURE__*/React.createElement(React.Fragment, null, renderGrouped(openSeriali), closedSeriali.length > 0 && /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginTop: openSeriali.length ? 10 : 0
-      }
-    }, /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      onClick: () => setClosedCollapsed(v => !v),
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        width: "100%",
-        padding: "8px 12px",
-        background: "var(--bg)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        cursor: "pointer",
-        color: "var(--text-mid)",
-        marginBottom: 4
-      }
-    }, /*#__PURE__*/React.createElement("svg", {
-      width: "14",
-      height: "14",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2.5",
-      viewBox: "0 0 24 24",
-      style: {
-        transform: closedCollapsed ? "rotate(-90deg)" : "none",
-        transition: "transform .15s"
-      }
-    }, /*#__PURE__*/React.createElement("path", {
-      d: "M6 9l6 6 6-6"
-    })), /*#__PURE__*/React.createElement("span", {
-      className: "text-sm font-semibold",
-      style: {
-        fontWeight: 600
-      }
-    }, "Chiuse (", closedSeriali.length, ")")), !closedCollapsed && renderGrouped(closedSeriali)));
-  })())), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "var(--surface)",
-      overflowY: "auto",
-      display: isMobile && mobilePanel !== "dettaglio" ? "none" : "flex",
-      flexDirection: "column"
-    }
-  }, isMobile && /*#__PURE__*/React.createElement("button", {
-    className: "text-base font-semibold",
-    onClick: () => setMobilePanel("serie"),
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 6,
-      padding: "10px 14px",
-      background: "none",
-      border: "none",
-      borderBottom: "1px solid var(--border)",
-      color: "var(--primary-mid)",
-      fontWeight: 600,
-      cursor: "pointer",
-      width: "100%"
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    width: "16",
-    height: "16",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2.5",
-    viewBox: "0 0 24 24"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M15 18l-6-6 6-6"
-  })), "S/N \u2014 ", sn.sn || "lista"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: isMobile ? "12px 16px" : "20px 24px 16px",
-      borderBottom: "1px solid var(--border)",
-      background: "var(--surface)"
-    }
+  }, !sn.item_id ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-empty ga-empty--big"
+  }, op.id ? "Seleziona un'anomalia dall'elenco." : "Seleziona un ordine di produzione.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "ga-det__head"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto",
-      gap: isMobile ? 12 : 16,
-      alignItems: "start"
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Capocommessa"), /*#__PURE__*/React.createElement("div", {
-    className: "text-md font-semibold",
-    style: {
-      fontWeight: 600,
-      color: "var(--text)"
-    }
-  }, op.capo || '\u2014')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "CAR"), /*#__PURE__*/React.createElement("div", {
-    className: "text-md font-medium",
-    style: {
-      fontWeight: 500,
-      color: "var(--text)"
-    }
-  }, op.car || '\u2014')), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "S/N selezionato"), /*#__PURE__*/React.createElement("div", {
-    className: "text-md font-medium",
-    style: {
-      fontWeight: 500,
-      color: "var(--text-mid)",
-      fontFamily: "ui-monospace,monospace",
-      wordBreak: "break-word"
-    }
-  }, sn.blocco_label || sn.sn || '\u2014'), sn.stato_superficie && /*#__PURE__*/React.createElement("div", {
-    className: "text-sm",
-    style: {
-      color: "var(--text-mid)",
-      marginTop: 4
-    }
-  }, "Stato superficie: ", sn.stato_superficie), sn.fase && /*#__PURE__*/React.createElement("div", {
-    className: "text-sm",
-    style: {
-      color: "var(--text-mid)",
-      marginTop: 4
-    }
-  }, "Fase: ", sn.fase)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "right"
-    }
-  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Identificativo"), /*#__PURE__*/React.createElement("span", {
-    className: "text-base font-bold",
-    style: {
-      display: "inline-block",
-      padding: "4px 12px",
-      borderRadius: 6,
-      background: "var(--bg)",
-      fontWeight: 700,
-      color: "var(--text)",
-      fontFamily: "ui-monospace,monospace"
-    }
-  }, op.id || '\u2014'))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 16,
-      marginTop: 12,
-      paddingTop: 12,
-      borderTop: "1px solid var(--border)"
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "P/N"), /*#__PURE__*/React.createElement("span", {
-    className: "text-base",
-    style: {
-      fontFamily: "'JetBrains Mono',monospace",
-      color: "var(--text-mid)"
-    }
-  }, op.pn || '\u2014')), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginLeft: "auto"
-    }
-  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Stato"), /*#__PURE__*/React.createElement(StatusBadge, {
-    text: statoBadge.text,
-    variant: statoBadge.variant
-  }))), sn.sn && /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 14,
-      paddingTop: 14,
-      borderTop: "1px solid var(--border)"
-    }
-  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Avanzamento"), /*#__PURE__*/React.createElement(StatoStepper, {
-    avanzamento: sn.avanzamento,
-    chiuso: Boolean(sn.chiudere)
-  })), canEditSelected && fratelliBlocco.length > 0 && /*#__PURE__*/React.createElement("label", {
-    className: "text-sm",
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      marginTop: 12,
-      padding: "9px 12px",
-      border: "1px dashed var(--accent)",
-      borderRadius: 8,
-      background: "var(--bg)",
-      color: "var(--text)",
-      cursor: "pointer"
-    }
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "checkbox",
-    checked: applicaBlocco,
-    onChange: e => setApplicaBlocco(e.target.checked),
-    style: {
-      accentColor: "var(--accent)",
-      minHeight: 0,
-      width: 16,
-      height: 16
-    }
-  }), /*#__PURE__*/React.createElement("span", null, "Al salvataggio applica la stessa decisione (avanzamento, RDC, cliente, note) anche alle altre ", /*#__PURE__*/React.createElement("strong", null, fratelliBlocco.length), " anomali", fratelliBlocco.length === 1 ? "a" : "e", " aperte di questi seriali")), !canEditCurrentOp && op.id && op.id !== '\u2014' && /*#__PURE__*/React.createElement("div", {
-    className: "text-sm font-semibold",
-    style: {
-      marginTop: 12,
-      padding: "10px 12px",
-      borderRadius: 8,
-      border: "1px solid var(--warning)",
-      background: "var(--warning-bg)",
-      color: "var(--warning)",
-      fontWeight: 600
-    }
-  }, "Modalit\xE0 sola lettura: puoi visualizzare i dati ma non modificare questo OP."), canEditCurrentOp && isSelectedClosed && /*#__PURE__*/React.createElement("div", {
-    className: "text-sm font-semibold",
-    style: {
-      marginTop: 12,
-      padding: "10px 12px",
-      borderRadius: 8,
-      border: "1px solid #c6f6d5",
-      background: "var(--success-bg)",
-      color: "var(--success)",
-      fontWeight: 600
-    }
-  }, "Anomalia chiusa: in sola lettura. I dati restano consultabili ma non modificabili.")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: isMobile ? "16px" : "20px 24px",
-      flex: 1,
-      paddingBottom: isMobile ? 72 : 24
-    }
+    className: "ga-det__crumb"
+  }, /*#__PURE__*/React.createElement("span", null, op.id), /*#__PURE__*/React.createElement("span", {
+    className: "ga-det__sep"
+  }, "\u203A"), /*#__PURE__*/React.createElement("span", {
+    className: "ga-mono"
+  }, "S/N ", sn.blocco_label || sn.sn || "—"), sn.fase && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    className: "ga-det__sep"
+  }, "\u203A"), /*#__PURE__*/React.createElement("span", null, "Fase ", sn.fase)), /*#__PURE__*/React.createElement("span", {
+    className: `ga-pill ${isBenestare ? "ga-pill--ben" : "ga-pill--muted"}`
+  }, isBenestare ? "Collaudo di benestare" : "Altro controllo")), /*#__PURE__*/React.createElement("div", {
+    className: "ga-det__titlerow"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "ga-det__title"
+  }, "Anomalia #", sn.local_id), /*#__PURE__*/React.createElement("span", {
+    className: `ga-pill ga-pill--${statoSel.variant} ga-pill--lg`
+  }, statoSel.text), /*#__PURE__*/React.createElement("div", {
+    className: "ga-det__nav"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-iconbtn ga-iconbtn--light",
+    disabled: posizione <= 0,
+    onClick: () => vaiA(-1),
+    title: "Anomalia precedente (Alt+\u2191)"
+  }, Ico.prev), /*#__PURE__*/React.createElement("span", null, posizione + 1, " di ", ordineVisibile.length), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-iconbtn ga-iconbtn--light",
+    disabled: posizione < 0 || posizione >= ordineVisibile.length - 1,
+    onClick: () => vaiA(1),
+    title: "Anomalia successiva (Alt+\u2193)"
+  }, Ico.next))), /*#__PURE__*/React.createElement("div", {
+    className: "ga-det__people"
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Capocommessa"), " ", op.capo || "—"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "CAR"), " ", op.car || "—"), sn.controllo_operatore && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata da"), " ", sn.controllo_operatore, sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : ""))), /*#__PURE__*/React.createElement("div", {
+    className: "ga-det__body"
+  }, !canEditCurrentOp && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, "Sola lettura: puoi consultare ma non decidere su questo OP."), canEditCurrentOp && isSelectedClosed && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--ok"
+  }, "Anomalia chiusa: i dati restano consultabili ma non modificabili."), /*#__PURE__*/React.createElement("div", {
+    className: "ga-card"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-      gap: isMobile ? 16 : 24
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 20
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, {
-    required: true
-  }, "Descrizione anomalia"), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-card__head"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-card__title"
+  }, "Segnalazione"), sn.stato_superficie && /*#__PURE__*/React.createElement("span", {
+    className: "ga-pill ga-pill--sup"
+  }, sn.stato_superficie), canEditSelected && !editDesc && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    onClick: () => setEditDesc(true)
+  }, "Modifica testo")), editDesc ? /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 4,
     value: desc,
     onChange: e => setDesc(e.target.value),
-    rows: 4,
-    disabled: !canEditSelected,
-    style: {
-      width: "100%",
-      padding: "10px 14px",
-      border: "1px solid var(--border)",
-      borderRadius: 10,
-      fontFamily: "inherit",
-      resize: "vertical",
-      outline: "none",
-      lineHeight: 1.5,
-      color: "var(--text)",
-      background: canEditSelected ? "var(--bg)" : "var(--border)"
-    },
-    onFocus: e => e.target.style.borderColor = "rgba(249,115,22,.5)",
-    onBlur: e => e.target.style.borderColor = "var(--border)"
-  })), Array.isArray(sn.descrizioni) && sn.descrizioni.length > 0 && /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Descrizioni e risposte capocommessa"), sn.descrizioni.map((detail, index) => /*#__PURE__*/React.createElement("div", {
+    autoFocus: true
+  }) : /*#__PURE__*/React.createElement("div", {
+    className: "ga-desc"
+  }, sn.testo || sn.desc || "(nessuna descrizione)"), Array.isArray(sn.descrizioni) && sn.descrizioni.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ga-multi"
+  }, sn.descrizioni.map((detail, index) => /*#__PURE__*/React.createElement("div", {
     key: detail.id,
-    style: {
-      border: "1px solid var(--border)",
-      borderRadius: 9,
-      padding: 10,
-      background: "var(--surface)"
-    }
+    className: "ga-multi__item"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm font-semibold",
-    style: {
-      color: "var(--text)"
-    }
+    className: "ga-multi__title"
   }, "Descrizione ", index + 1, " \xB7 S/N ", (detail.seriali || []).join(", ") || "—"), /*#__PURE__*/React.createElement("div", {
-    className: "text-sm",
-    style: {
-      whiteSpace: "pre-wrap",
-      color: "var(--text-mid)",
-      marginTop: 4
-    }
-  }, detail.testo), /*#__PURE__*/React.createElement("label", {
-    className: "text-sm",
-    style: {
-      display: "block",
-      marginTop: 8,
-      color: "var(--text-mid)"
-    }
-  }, /*#__PURE__*/React.createElement("strong", null, "Risposta capocommessa"), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-desc"
+  }, detail.testo), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
     rows: 2,
+    placeholder: "Risposta per questa descrizione\u2026",
     value: descrizioneAnswers[String(detail.id)] || "",
-    onChange: event => setDescrizioneAnswers(prev => ({
+    disabled: !canEditSelected,
+    onChange: e => setDescrizioneAnswers(prev => ({
       ...prev,
-      [String(detail.id)]: event.target.value
-    })),
-    disabled: !canEditSelected || isSelectedClosed,
-    placeholder: "Risposta per questa descrizione...",
-    style: {
-      display: "block",
-      width: "100%",
-      marginTop: 4,
-      padding: 8,
-      border: "1px solid var(--border)",
-      borderRadius: 6,
-      color: "var(--text)",
-      background: "var(--surface)",
-      font: "inherit",
-      resize: "vertical"
+      [String(detail.id)]: e.target.value
+    }))
+  }), detail.risposta_da && /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Risposta di ", detail.risposta_da, detail.risposta_il ? ` · ${new Date(detail.risposta_il).toLocaleString("it-IT")}` : "")))), /*#__PURE__*/React.createElement("div", {
+    className: `ga-att${dropOver ? " is-over" : ""}`,
+    tabIndex: canEditCurrentOp ? 0 : -1,
+    onDragOver: e => {
+      if (!canEditCurrentOp) return;
+      e.preventDefault();
+      setDropOver(true);
+    },
+    onDragLeave: () => setDropOver(false),
+    onDrop: e => {
+      e.preventDefault();
+      setDropOver(false);
+      if (canEditCurrentOp) uploadFiles(Array.from(e.dataTransfer.files || []));
+    },
+    onPaste: e => {
+      const files = Array.from(e.clipboardData && e.clipboardData.items || []).filter(it => it.kind === "file").map(it => it.getAsFile()).filter(Boolean);
+      if (files.length && canEditCurrentOp) {
+        e.preventDefault();
+        uploadFiles(nomeAppunti(files));
+      }
     }
-  })), detail.risposta_da && /*#__PURE__*/React.createElement("div", {
-    className: "text-xs",
-    style: {
-      color: "var(--text-light)",
-      marginTop: 3
+  }, /*#__PURE__*/React.createElement("input", {
+    ref: fileInputRef,
+    type: "file",
+    multiple: true,
+    hidden: true,
+    accept: ALLEGATI_ACCEPT,
+    onChange: e => {
+      const f = Array.from(e.target.files || []);
+      e.target.value = "";
+      uploadFiles(f);
     }
-  }, "Risposta registrata da ", detail.risposta_da, detail.risposta_il ? ` · ${new Date(detail.risposta_il).toLocaleString("it-IT")}` : ""), (detail.allegati || []).map(file => /*#__PURE__*/React.createElement("a", {
-    key: file.id,
-    className: "text-sm",
-    href: `${API.allegati_file}?local_id=${encodeURIComponent(sn.local_id)}&file_id=${encodeURIComponent(`descrizione:${file.id}`)}`,
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "ga-att__head"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-card__sub"
+  }, Ico.clip, " Allegati ", attachments.length ? `(${attachments.length})` : ""), canEditCurrentOp && /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint"
+  }, uploadingAttachments ? "Caricamento…" : /*#__PURE__*/React.createElement(React.Fragment, null, "Trascina qui, ", /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    onClick: () => fileInputRef.current && fileInputRef.current.click()
+  }, "sfoglia"), " o clicca e premi Ctrl+V"))), loadingAttachments ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Caricamento allegati\u2026") : attachments.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Nessun allegato.") : /*#__PURE__*/React.createElement("div", {
+    className: "ga-att__grid"
+  }, attachments.map(file => /*#__PURE__*/React.createElement("div", {
+    key: file.file_id,
+    className: "ga-att__item",
+    title: `${file.name} · ${formatBytes(file.size)}`
+  }, file.is_image ? /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-att__thumb",
+    onClick: () => setLightbox(file.file_id)
+  }, /*#__PURE__*/React.createElement("img", {
+    src: getAttachmentUrl(file.file_id),
+    alt: file.name,
+    loading: "lazy"
+  })) : /*#__PURE__*/React.createElement("a", {
+    className: "ga-att__thumb ga-att__thumb--file",
+    href: getAttachmentUrl(file.file_id),
     target: "_blank",
-    rel: "noreferrer"
-  }, file.nome))))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      background: "var(--bg)",
-      borderRadius: 12,
-      padding: "16px 18px",
-      display: "flex",
-      flexDirection: "column",
-      gap: 14,
-      border: "1px solid var(--border)"
-    }
-  }, /*#__PURE__*/React.createElement(Toggle, {
+    rel: "noopener"
+  }, (fileExt(file.name).replace(".", "").toUpperCase() || "FILE").slice(0, 4)), /*#__PURE__*/React.createElement("div", {
+    className: "ga-att__name"
+  }, file.name), /*#__PURE__*/React.createElement("div", {
+    className: "ga-att__acts"
+  }, /*#__PURE__*/React.createElement("a", {
+    href: getAttachmentUrl(file.file_id, true),
+    title: "Scarica"
+  }, "Scarica"), canEditCurrentOp && (confirmDelete === file.file_id ? /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "is-danger",
+    onClick: () => handleDeleteAttachment(file.file_id)
+  }, "Conferma") : /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setConfirmDelete(file.file_id)
+  }, "Elimina")))))))), /*#__PURE__*/React.createElement("div", {
+    className: `ga-card ga-card--decision${dirty ? " is-dirty" : ""}`
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-card__head"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-card__title"
+  }, "Decisione del capocommessa")), /*#__PURE__*/React.createElement(StatoStepper, {
+    avanzamento: sn.avanzamento,
+    chiuso: Boolean(sn.chiudere)
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "ga-flags"
+  }, /*#__PURE__*/React.createElement(FlagToggle, {
+    label: "Aprire RDC",
+    checked: aprireRdc,
+    disabled: !canEditSelected,
+    onChange: () => setAprireRdc(!aprireRdc)
+  }), /*#__PURE__*/React.createElement(FlagToggle, {
+    label: "Segnalare al cliente",
+    checked: segnalare,
+    disabled: !canEditSelected,
+    onChange: () => setSegnalare(!segnalare)
+  }), /*#__PURE__*/React.createElement(FlagToggle, {
     label: "Pezzi precedenti al benestare",
     checked: pezziPrec,
     disabled: !canEditSelected,
     onChange: () => setPezziPrec(!pezziPrec)
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      height: 1,
-      background: "var(--border)"
-    }
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Aprire RDC?",
-    checked: aprireRdc,
-    disabled: !canEditSelected,
-    onChange: () => setAprireRdc(!aprireRdc)
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      height: 1,
-      background: "var(--border)"
-    }
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Segnalare a cliente?",
-    checked: segnalare,
-    disabled: !canEditSelected,
-    onChange: () => setSegnalare(!segnalare)
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      height: 1,
-      background: "var(--border)"
-    }
-  }), /*#__PURE__*/React.createElement(Toggle, {
-    label: "Chiudere? (automatico)",
-    checked: chiudereAuto,
-    disabled: true
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Avanzamento"), /*#__PURE__*/React.createElement("select", {
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "ga-grid2"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Avanzamento"), /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
     value: avanzamento,
     onChange: e => setAvanzamento(e.target.value),
-    disabled: segnalare || !canEditSelected,
-    style: {
-      width: "100%",
-      padding: "9px 14px",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      color: "var(--text)",
-      background: segnalare || !canEditSelected ? "var(--bg)" : "var(--surface)",
-      outline: "none",
-      cursor: segnalare || !canEditSelected ? "not-allowed" : "pointer",
-      opacity: segnalare || !canEditSelected ? 0.75 : 1
-    }
+    disabled: segnalare || !canEditSelected
   }, avanzamentoOptions.map(opt => /*#__PURE__*/React.createElement("option", {
     key: opt
-  }, opt))))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 20
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, {
-    required: true
-  }, "Note capocommessa"), /*#__PURE__*/React.createElement("textarea", {
-    value: note,
-    onChange: e => setNote(e.target.value),
-    rows: 3,
-    disabled: !canEditSelected,
-    style: {
-      width: "100%",
-      padding: "10px 14px",
-      border: "1px solid var(--border)",
-      borderRadius: 10,
-      fontFamily: "inherit",
-      resize: "vertical",
-      outline: "none",
-      lineHeight: 1.5,
-      color: "var(--text)",
-      background: canEditSelected ? "var(--bg)" : "var(--border)"
-    },
-    onFocus: e => e.target.style.borderColor = "rgba(249,115,22,.5)",
-    onBlur: e => e.target.style.borderColor = "var(--border)"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Allegati anomalia"), /*#__PURE__*/React.createElement("input", {
-    ref: fileInputRef,
-    type: "file",
-    multiple: true,
-    accept: ".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv",
-    onChange: handleAttachmentInput,
-    style: {
-      display: "none"
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      borderRadius: 12,
-      border: "1px solid var(--border)",
-      background: "var(--surface)",
-      padding: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 8,
-      marginBottom: 10
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "text-sm",
-    style: {
-      color: "var(--text-mid)"
-    }
-  }, currentLocalId ? `Record locale #${currentLocalId}` : "Salva prima la segnalazione per abilitare gli allegati"), /*#__PURE__*/React.createElement(IconBtn, {
-    onClick: openAttachmentPicker,
-    disabled: !canEditCurrentOp || !currentLocalId || uploadingAttachments,
-    accent: true,
-    title: "Carica allegati"
-  }, uploadingAttachments ? "Caricamento..." : "Carica file")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 8
-    }
-  }, loadingAttachments ? /*#__PURE__*/React.createElement("div", {
-    className: "text-sm",
-    style: {
-      color: "var(--text-mid)"
-    }
-  }, "Caricamento allegati...") : attachments.length === 0 ? /*#__PURE__*/React.createElement("div", {
-    className: "text-sm",
-    style: {
-      color: "#94a3b8"
-    }
-  }, "Nessun allegato. Formati ammessi: immagini, PDF, Word, Excel.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      border: "1px solid var(--border)",
-      borderRadius: 10,
-      background: "var(--primary)",
-      overflow: "hidden",
-      position: "relative",
-      aspectRatio: "16/9"
-    }
-  }, selectedAttachment && selectedAttachment.is_image ? /*#__PURE__*/React.createElement("img", {
-    src: getAttachmentUrl(selectedAttachment.file_id),
-    alt: selectedAttachment.name,
-    style: {
-      width: "100%",
-      height: "100%",
-      objectFit: "contain",
-      background: "var(--primary)",
-      cursor: "pointer"
-    },
-    onClick: () => openAttachment(selectedAttachment.file_id, false)
-  }) : selectedAttachment ? /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 10,
-      color: "rgba(255,255,255,.85)",
-      padding: 16,
-      textAlign: "center"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 64,
-      height: 64,
-      borderRadius: 12,
-      border: "1px solid rgba(255,255,255,.2)",
-      background: "rgba(255,255,255,.1)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontWeight: 700,
-      color: "#fff"
-    }
-  }, (fileExt(selectedAttachment.name).replace(".", "").toUpperCase() || "FILE").slice(0, 4)), /*#__PURE__*/React.createElement("div", {
-    className: "text-base font-semibold",
-    style: {
-      fontWeight: 600
-    }
-  }, selectedAttachment.name), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 8
-    }
-  }, /*#__PURE__*/React.createElement(IconBtn, {
-    onClick: () => openAttachment(selectedAttachment.file_id, false),
-    accent: true,
-    title: "Apri allegato"
-  }, "Apri"), /*#__PURE__*/React.createElement(IconBtn, {
-    onClick: () => openAttachment(selectedAttachment.file_id, true),
-    title: "Scarica allegato"
-  }, "Scarica"))) : null), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 8,
-      maxHeight: 220,
-      overflowY: "auto",
-      paddingRight: 4
-    }
-  }, attachments.map(file => {
-    const inlineUrl = getAttachmentUrl(file.file_id);
-    const ext = fileExt(file.name).replace(".", "").toUpperCase() || "FILE";
-    const selected = file.file_id === selectedAttachmentId;
-    return /*#__PURE__*/React.createElement("div", {
-      key: file.file_id,
-      onClick: () => setSelectedAttachmentId(file.file_id),
-      style: {
-        border: selected ? "1px solid var(--accent)" : "1px solid var(--border)",
-        borderRadius: 10,
-        padding: 8,
-        display: "grid",
-        gridTemplateColumns: "54px 1fr auto",
-        gap: 10,
-        alignItems: "center",
-        background: selected ? "var(--accent-light)" : "var(--surface)",
-        cursor: "pointer"
-      }
-    }, file.is_image ? /*#__PURE__*/React.createElement("img", {
-      src: inlineUrl,
-      alt: file.name,
-      style: {
-        width: 54,
-        height: 54,
-        borderRadius: 8,
-        objectFit: "cover",
-        border: "1px solid var(--border)"
-      }
-    }) : /*#__PURE__*/React.createElement("div", {
-      className: "text-xs font-bold",
-      style: {
-        width: 54,
-        height: 54,
-        borderRadius: 8,
-        border: "1px solid var(--border)",
-        background: "var(--bg)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontWeight: 700,
-        color: "var(--text-mid)"
-      }
-    }, ext), /*#__PURE__*/React.createElement("div", {
-      style: {
-        minWidth: 0
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "text-base font-semibold",
-      title: file.name,
-      style: {
-        color: "var(--text)",
-        fontWeight: 600,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap"
-      }
-    }, file.name), /*#__PURE__*/React.createElement("div", {
-      className: "text-xs",
-      style: {
-        color: "var(--text-mid)",
-        marginTop: 2
-      }
-    }, formatBytes(file.size), " \u2022 ", file.mime_type || "file")), /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        gap: 6,
-        alignItems: "center"
-      }
-    }, /*#__PURE__*/React.createElement(IconBtn, {
-      onClick: e => {
-        e.stopPropagation();
-        openAttachment(file.file_id, false);
-      },
-      title: "Apri"
-    }, "Apri"), /*#__PURE__*/React.createElement(IconBtn, {
-      onClick: e => {
-        e.stopPropagation();
-        openAttachment(file.file_id, true);
-      },
-      title: "Scarica"
-    }, "Scarica"), /*#__PURE__*/React.createElement(IconBtn, {
-      onClick: e => {
-        e.stopPropagation();
-        handleDeleteAttachment(file.file_id);
-      },
-      disabled: !canEditCurrentOp,
-      title: "Elimina allegato"
-    }, "Elimina")));
-  })))))), aprireRdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
-    placeholder: "Inserisci numero RDC...",
+  }, opt))), segnalare && /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Con \xABSegnalare al cliente\xBB l'avanzamento resta quello attuale.")), aprireRdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
+    className: "ga-input",
+    placeholder: "Es. RDC-2026-014",
     value: rdcNum,
     onChange: e => setRdcNum(e.target.value),
-    disabled: !canEditCurrentOp,
-    style: {
-      width: "100%",
-      padding: "9px 14px",
-      border: "1px solid var(--border)",
-      borderRadius: 8,
-      outline: "none",
-      color: "var(--text)",
-      background: canEditCurrentOp ? "var(--surface)" : "var(--bg)"
-    },
-    onFocus: e => e.target.style.borderColor = "#93c5fd",
-    onBlur: e => e.target.style.borderColor = "#e2e8f0"
-  })))), op.id && op.id !== '—' && /*#__PURE__*/React.createElement(TimelineOp, {
+    disabled: !canEditSelected
+  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Risposta / note per il reparto"), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 3,
+    value: note,
+    onChange: e => setNote(e.target.value),
+    disabled: !canEditSelected,
+    placeholder: "Decisione, istruzioni di rilavorazione, riferimenti\u2026"
+  })), canEditSelected && chiudereAuto && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--ok"
+  }, "Con questa decisione l'anomalia verr\xE0 ", /*#__PURE__*/React.createElement("b", null, "chiusa"), " al salvataggio."), canEditSelected && fratelliBlocco.length > 0 && /*#__PURE__*/React.createElement("label", {
+    className: "ga-apply"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: applicaBlocco,
+    onChange: e => setApplicaBlocco(e.target.checked)
+  }), /*#__PURE__*/React.createElement("span", null, "Applica la stessa decisione anche alle altre ", /*#__PURE__*/React.createElement("b", null, fratelliBlocco.length), " anomali", fratelliBlocco.length === 1 ? "a" : "e", " aperte di questi seriali"))), op.id && op.id !== "—" && /*#__PURE__*/React.createElement(TimelineOp, {
     opId: op.id,
     opItemId: op.item_id
-  })))), isMobile && saveMsg && /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "fixed",
-      bottom: 64,
-      left: 12,
-      right: 12,
-      zIndex: 200,
-      background: saveMsg.ok ? "#059669" : "#dc2626",
-      color: "#fff",
-      padding: "12px 16px",
-      borderRadius: 10,
-      fontWeight: 600,
-      fontSize: 14,
-      lineHeight: 1.4,
-      boxShadow: "0 4px 16px rgba(0,0,0,.25)",
-      animation: "fadeInUp 0.2s ease"
+  })), canEditSelected && /*#__PURE__*/React.createElement("div", {
+    className: "ga-det__foot"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: `ga-det__state${dirty ? " is-dirty" : ""}`
+  }, dirty ? "● Modifiche non salvate" : "Nessuna modifica"), dirty && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost-dark",
+    onClick: annullaModifiche,
+    disabled: saving
+  }, "Annulla"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline",
+    onClick: handleSave,
+    disabled: saving,
+    title: "Ctrl+S"
+  }, saving ? "Salvataggio…" : "Salva"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--accent",
+    onClick: salvaEProssima,
+    disabled: saving
+  }, "Salva e prossima ", Ico.next))))), pendingNav && /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal",
+    role: "dialog",
+    "aria-modal": "true"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__box"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__title"
+  }, "Modifiche non salvate"), /*#__PURE__*/React.createElement("p", null, "Hai cambiato la decisione sull'anomalia #", sn.local_id, " senza salvarla."), /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__acts"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost-dark",
+    onClick: () => setPendingNav(null)
+  }, "Resta qui"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline",
+    onClick: () => {
+      const nav = pendingNav;
+      setPendingNav(null);
+      annullaModifiche();
+      nav();
     }
+  }, "Scarta"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--accent",
+    onClick: async () => {
+      const nav = pendingNav;
+      setPendingNav(null);
+      if (await handleSave()) nav();
+    }
+  }, "Salva e continua")))), lightbox && lightboxIdx >= 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ga-lightbox",
+    onClick: () => setLightbox(null)
+  }, /*#__PURE__*/React.createElement("img", {
+    src: getAttachmentUrl(lightbox),
+    alt: immagini[lightboxIdx].name,
+    onClick: e => e.stopPropagation()
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "ga-lightbox__bar",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    disabled: lightboxIdx <= 0,
+    onClick: () => setLightbox(immagini[lightboxIdx - 1].file_id)
+  }, Ico.prev), /*#__PURE__*/React.createElement("span", null, immagini[lightboxIdx].name, " \xB7 ", lightboxIdx + 1, "/", immagini.length), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    disabled: lightboxIdx >= immagini.length - 1,
+    onClick: () => setLightbox(immagini[lightboxIdx + 1].file_id)
+  }, Ico.next), /*#__PURE__*/React.createElement("a", {
+    href: getAttachmentUrl(lightbox, true)
+  }, "Scarica"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setLightbox(null)
+  }, "Chiudi"))), saveMsg && /*#__PURE__*/React.createElement("div", {
+    className: `ga-toast${saveMsg.ok ? "" : " is-err"}`
   }, saveMsg.text), isMobile && /*#__PURE__*/React.createElement("nav", {
-    style: {
-      position: "fixed",
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: 56,
-      background: "#1e293b",
-      borderTop: "1px solid rgba(255,255,255,.12)",
-      display: "flex",
-      zIndex: 150
-    }
-  }, [{
-    id: "ordini",
-    label: "Ordini",
-    icon: /*#__PURE__*/React.createElement("svg", {
-      width: "20",
-      height: "20",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2",
-      viewBox: "0 0 24 24"
-    }, /*#__PURE__*/React.createElement("path", {
-      d: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"
-    }), /*#__PURE__*/React.createElement("rect", {
-      x: "9",
-      y: "3",
-      width: "6",
-      height: "4",
-      rx: "1"
-    }), /*#__PURE__*/React.createElement("line", {
-      x1: "9",
-      y1: "12",
-      x2: "15",
-      y2: "12"
-    }), /*#__PURE__*/React.createElement("line", {
-      x1: "9",
-      y1: "16",
-      x2: "13",
-      y2: "16"
-    }))
-  }, {
-    id: "serie",
-    label: "S/N",
-    icon: /*#__PURE__*/React.createElement("svg", {
-      width: "20",
-      height: "20",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2",
-      viewBox: "0 0 24 24"
-    }, /*#__PURE__*/React.createElement("path", {
-      d: "M4 6h16M4 10h16M4 14h16M4 18h16"
-    }))
-  }, {
-    id: "dettaglio",
-    label: "Dettaglio",
-    icon: /*#__PURE__*/React.createElement("svg", {
-      width: "20",
-      height: "20",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2",
-      viewBox: "0 0 24 24"
-    }, /*#__PURE__*/React.createElement("path", {
-      d: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"
-    }), /*#__PURE__*/React.createElement("path", {
-      d: "M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
-    }))
-  }].map(tab => {
-    const active = mobilePanel === tab.id;
-    return /*#__PURE__*/React.createElement("button", {
-      key: tab.id,
-      onClick: () => setMobilePanel(tab.id),
-      style: {
-        flex: 1,
-        background: "none",
-        border: "none",
-        color: active ? "#60a5fa" : "#64748b",
-        cursor: "pointer",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 3,
-        borderTop: active ? "2px solid #60a5fa" : "2px solid transparent",
-        fontSize: 10,
-        fontWeight: active ? 700 : 500,
-        letterSpacing: "0.04em",
-        transition: "color 0.15s, border-color 0.15s",
-        WebkitTapHighlightColor: "transparent"
-      }
-    }, tab.icon, tab.label);
-  })));
+    className: "ga-tabs"
+  }, [["ordini", "Ordini", Ico.list], ["serie", "Anomalie", Ico.rows], ["dettaglio", "Dettaglio", Ico.edit]].map(([id, label, icon]) => /*#__PURE__*/React.createElement("button", {
+    key: id,
+    type: "button",
+    className: mobilePanel === id ? "is-on" : "",
+    onClick: () => setMobilePanel(id)
+  }, icon, label, id === "serie" && nDaDecidere > 0 ? /*#__PURE__*/React.createElement("span", {
+    className: "ga-tabs__n"
+  }, nDaDecidere) : null))));
 }
 class ErrorBoundary extends React.Component {
   constructor(props) {

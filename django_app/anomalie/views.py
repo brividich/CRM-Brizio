@@ -2039,7 +2039,12 @@ def api_db_ordini(request):
                 op.capocomessa,
                 op.stato,
                 COUNT(a.id) AS anomalie_count,
-                SUM(CASE WHEN COALESCE(a.chiudere, 0) = 0 THEN 1 ELSE 0 END) AS anomalie_aperte_count
+                SUM(CASE WHEN COALESCE(a.chiudere, 0) = 0 THEN 1 ELSE 0 END) AS anomalie_aperte_count,
+                SUM(CASE WHEN COALESCE(a.chiudere, 0) = 0
+                          AND COALESCE(a.aprire_rdc, 0) = 0 AND COALESCE(a.segnalare_cliente, 0) = 0
+                          AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) IN ('', 'in attesa')
+                          AND LTRIM(RTRIM(COALESCE(CAST(a.note_capocommessa AS NVARCHAR(200)), ''))) = ''
+                     THEN 1 ELSE 0 END) AS anomalie_da_decidere_count
             FROM ordini_produzione op
             LEFT JOIN anomalie a
                 ON a.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)
@@ -2060,6 +2065,9 @@ def api_db_ordini(request):
                 "stato": r.get("stato"),
                 "anomalie_count": int(r.get("anomalie_count") or 0),
                 "anomalie_aperte_count": int(r.get("anomalie_aperte_count") or 0),
+            # Aperte su cui il capocommessa non ha ancora deciso nulla (stessa regola
+            # di controllo_service.riga_gestita): ordinano e segnalano gli OP in carico.
+            "anomalie_da_decidere_count": int(r.get("anomalie_da_decidere_count") or 0),
             }
             for r in rows
         ]
