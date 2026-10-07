@@ -266,6 +266,20 @@ body.theme-dark .dv-maint-strip {
 body.theme-dark .dv-card-head {
   background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.01) 100%);
 }
+/* Copertura monitoraggio (SNMP / SOC) */
+.dv-cov-filter { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.dv-cov-filter-label { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-right:2px; }
+.dv-cov { display:flex; flex-direction:column; gap:3px; align-items:flex-start; }
+.dv-cov-badge { display:inline-block; white-space:nowrap; padding:2px 8px; border-radius:999px; font-size:var(--fs-xs); font-weight:700; }
+.dv-cov-badge.ok { background:#dcfce7; color:#166534; }
+.dv-cov-badge.warn { background:#fef3c7; color:#92400e; }
+.dv-cov-badge.bad { background:#fee2e2; color:#991b1b; }
+.dv-cov-badge.none { background:#f1f5f9; color:#64748b; }
+body.theme-dark .dv-cov-filter-label { color:var(--text-light); }
+body.theme-dark .dv-cov-badge.ok { background:rgba(21,128,61,.22); color:#86efac; }
+body.theme-dark .dv-cov-badge.warn { background:rgba(146,64,14,.25); color:#fde68a; }
+body.theme-dark .dv-cov-badge.bad { background:rgba(185,28,28,.25); color:#fca5a5; }
+body.theme-dark .dv-cov-badge.none { background:rgba(255,255,255,.08); color:var(--text-light); }
 </style>
 {% endblock %}
 
@@ -393,6 +407,12 @@ body.theme-dark .dv-card-head {
         </h2>
         <p>{{ visible_count }} dispositivi{% if request.GET.q %} · "{{ request.GET.q }}"{% endif %}</p>
       </div>
+      <nav class="dv-cov-filter" aria-label="Copertura monitoraggio">
+        <span class="dv-cov-filter-label">Monitoraggio</span>
+        {% for opt in coverage_options %}
+          <a class="dv-chip {% if opt.active %}active{% endif %}" href="{{ opt.url }}">{{ opt.label }}{% if opt.count is not None %} <strong>{{ opt.count }}</strong>{% endif %}</a>
+        {% endfor %}
+      </nav>
     </div>
 
     <div id="dv-bulk-toolbar" class="dv-bulk-toolbar">
@@ -414,6 +434,7 @@ body.theme-dark .dv-card-head {
             <th>Produttore</th>
             <th>Modello</th>
             <th>Seriale</th>
+            <th>Monitoraggio</th>
             <th>Aggiornato</th>
             <th class="dv-act">Azioni</th>
           </tr>
@@ -442,11 +463,12 @@ body.theme-dark .dv-card-head {
             <td>{{ asset.manufacturer|default:"-" }}</td>
             <td>{{ asset.model|default:"-" }}</td>
             <td>{{ asset.serial_number|default:"-" }}</td>
+            <td>{% include "assets/components/it_coverage_badges.html" with cov=asset.coverage %}</td>
             <td><span title="{{ asset.updated_at|date:'d-m-Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
             <td class="dv-act"><a class="dv-row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
           </tr>
           {% empty %}
-          <tr><td colspan="11" class="dv-empty"><div class="dv-empty-text">Nessun dispositivo trovato</div><div class="dv-empty-sub">Prova a modificare i filtri di ricerca.</div></td></tr>
+          <tr><td colspan="12" class="dv-empty"><div class="dv-empty-text">Nessun dispositivo trovato</div><div class="dv-empty-sub">Prova a modificare i filtri di ricerca.</div></td></tr>
           {% endfor %}
         </tbody>
       </table>

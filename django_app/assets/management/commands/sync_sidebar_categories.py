@@ -1,6 +1,8 @@
 """Rigenera i gruppi sidebar asset dall'albero delle categorie.
 
-La sidebar asset ha un gruppo per ogni categoria radice e una voce per ogni
+Le categorie radice note sono raggruppate per area d'uso (Produzione,
+Sollevamento e movimentazione, Impianti e servizi, IT, ...: vedi
+``CATEGORY_AREAS``); le altre hanno un gruppo proprio con una voce per
 sotto-categoria. Quando aggiungi, rinomini, riordini o disattivi categorie
 nell'admin, esegui questo command per riallineare la sidebar.
 
@@ -25,7 +27,7 @@ class Command(BaseCommand):
         groups, items = rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
         self.stdout.write(
             self.style.SUCCESS(
-                f"Sidebar categorie rigenerata: {groups} gruppi (categorie radice), "
-                f"{items} voci (sotto-categorie)."
+                f"Sidebar categorie rigenerata: {groups} gruppi (aree e categorie radice), "
+                f"{items} voci."
             )
         )

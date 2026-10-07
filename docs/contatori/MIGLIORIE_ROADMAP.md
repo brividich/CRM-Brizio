@@ -10,7 +10,7 @@ modulo tutti i giorni. Ogni voce indica se richiede una migrazione.
 | 2 | Storico consumabili con avviso e stima giorni residui | Alta | Sì | Fatto (2026-10-06) |
 | 3 | Lettura trimestrale proposta dalle letture mensili | Alta | No | Fatto (2026-10-06) |
 | 4 | Costi per copia e anagrafica Contratto | Media | Sì | Da fare |
-| 5 | Import fattura da PDF/Excel del fornitore | Media | No | Da fare (serve un esempio reale) |
+| 5 | Import fattura da PDF/Excel del fornitore | Media | No | Fatto (2026-10-06) |
 | 6 | Riepilogo «Da fare» settimanale via email/Teams | Media | No | Da fare |
 | 7 | Analisi: filtri periodo/reparto, confronto anno su anno, separatore migliaia | Media | No | Da fare |
 | 8 | «Leggi MFC ora» in background (django-q) | Tecnico | No | Da fare |
@@ -67,9 +67,13 @@ libero sulla MFC.
 
 ## 5. Import fattura da file
 
-Caricamento del PDF/Excel del fornitore con estrazione delle righe per contratto e
-precompilazione della pagina fattura. Prerequisito: un esempio reale (anonimizzato)
-del formato fattura.
+Fatto: nella pagina «Nuova fattura» si carica la fattura elettronica del fornitore (XML
+FatturaPA, consigliato, o la sua stampa PDF). Per ogni «N. Contratto» si leggono le righe
+«COPIE EFFETTUATE» con la lettura di chiusura; il contatore si ricava dal prezzo per copia
+(A4 B/N = x, A3 B/N = 2x, A4 colore = 10x, A3 colore = 20x). Righe ambigue, totali che non
+tornano, contatori assenti e contratti sconosciuti sono segnalati; nulla si salva senza
+conferma e il file non viene conservato. XML letto con `defusedxml` (DTD/entità vietate).
+I prezzi per copia letti dalla fattura sono la base naturale per la miglioria 4 (costi).
 
 ## 6. Riepilogo settimanale
 

@@ -6166,6 +6166,8 @@ def _sidebar_button_payload(
         "url": url,
         "is_subitem": button.is_subitem if force_subitem is None else force_subitem,
         "active": _is_sidebar_button_active(request, button, url),
+        # Voce senza destinazione (es. area categorie): il clic apre le sotto-voci.
+        "is_container": not _clean_string(button.target_url),
         "badge": _da_fare_badge(request) if button.code == "maintenance_da_fare" else None,
     }
 
@@ -9718,6 +9720,52 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 )
                 messages.success(request, f"Voce \"{entry.title}\" aggiornata.")
             return redirect("assets:asset_view", id=asset.id)
+        if action == "link_soc_device":
+            # Stessa regola della pagina dispositivi SOC: serve il permesso di
+            # configurazione del Security Center, e si collega solo un dispositivo
+            # che l'abbinatore assegna proprio a questo asset.
+            from security.services.asset_signals import link as link_soc_device
+            from security.services.configuration import can_manage_security_config
+            from security.templatetags.security_asset import unlinked_candidates
+
+            if not can_manage_security_config(request.user):
+                messages.error(request, "Serve il permesso di configurazione del Security Center.")
+                return redirect("assets:asset_view", id=asset.id)
+            device_id = _as_int(request.POST.get("device"), default=0)
+            row = next((r for r in unlinked_candidates(asset) if r["device"].pk == device_id), None)
+            if row is None:
+                messages.error(request, "Dispositivo SOC non più proponibile per questo asset.")
+                return redirect("assets:asset_view", id=asset.id)
+            link_soc_device(row["device"], asset, actor=request.user, request=request)
+            messages.success(request, f"«{row['device'].hostname}» collegato a «{asset.name}».")
+            return redirect(f"{reverse('assets:asset_view', args=[asset.id])}#tab-sicurezza")
+        if action == "apply_snmp_identity":
+            # Il valore deve essere uno di quelli letti via SNMP e mostrati in
+            # scheda: niente testo libero dalla POST, e solo per chi puo' modificare l'asset.
+            if not _can_edit_asset(request, asset.id):
+                messages.error(request, "Permessi insufficienti per modificare l'asset.")
+                return redirect("assets:asset_view", id=asset.id)
+            from .services.it_identity_diff import snmp_identity_diffs
+
+            field = _clean_string(request.POST.get("field"))
+            value = _clean_string(request.POST.get("value"))
+            diff = next((row for row in snmp_identity_diffs(asset) if row["field"] == field and row["snmp_value"] == value), None)
+            if diff is None:
+                messages.error(request, "Dato SNMP non più disponibile o già allineato.")
+                return redirect("assets:asset_view", id=asset.id)
+            old_value = getattr(asset, field) or ""
+            setattr(asset, field, diff["snmp_value"])
+            asset.save(update_fields=[field, "updated_at"])
+            log_action(
+                request,
+                "apply_snmp_identity",
+                "assets",
+                {"asset_id": asset.id, "field": field, "old_value": old_value, "new_value": diff["snmp_value"], "origin": diff["origin"]},
+                oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                oggetto_id=asset.id,
+            )
+            messages.success(request, f"{diff['label']} aggiornato dal monitoraggio: «{diff['snmp_value']}».")
+            return redirect("assets:asset_view", id=asset.id)
         if action == "hide_asset_timeline_event":
             # Gli eventi automatici non sono righe di database: "eliminarli"
             # significa registrare che su questo asset non vanno piu' mostrati.
@@ -10099,6 +10147,11 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 "entry_description": entry.description,
             }
         )
+    # Fatti dal monitoraggio SNMP e dal SOC (dispositivo muto, alert gravi,
+    # vulnerabilita' critiche): ricalcolati, mai salvati, nel rispetto dei permessi.
+    from .services.it_timeline import monitoring_timeline_events
+
+    timeline_events.extend(monitoring_timeline_events(request, asset))
     hidden_auto_keys = _asset_timeline_hidden_keys(asset)
     if hidden_auto_keys:
         # Gli eventi automatici rimossi restano fuori dalla timeline: la riga di
@@ -10540,6 +10593,14 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     if it_presentation is not None:
         from .services.it_monitoring import monitoring_for_asset
         it_monitoring = monitoring_for_asset(request, asset)
+        if it_monitoring is not None:
+            from .services.it_identity_diff import snmp_identity_diffs
+
+            it_monitoring["identity_diffs"] = snmp_identity_diffs(asset)
+            it_monitoring["can_apply_identity"] = _can_edit_asset(request, asset.id)
+    from .services.asset_kpis import device_kpis as _device_kpis
+
+    device_kpis = _device_kpis(request, asset, it_presentation)
     return render(
         request,
         "assets/pages/asset_detail.html",
@@ -10569,6 +10630,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "asset_primary_kpis": asset_primary_kpis,
             "it_presentation": it_presentation,
             "it_monitoring": it_monitoring,
+            "device_kpis": device_kpis,
             "it_ticket_create_url": it_ticket_create_url,
             "asset_status_band": asset_status_band,
             "detail_specs_title": detail_specs_title,
@@ -13430,6 +13492,13 @@ def device_list(request: HttpRequest) -> HttpResponse:
                 Q(reparto__icontains=reparto) | Q(assignment_reparto__icontains=reparto)
             )
 
+    from .services.it_coverage import COVERAGE_FILTERS, apply_coverage_filter, coverage_for_assets, coverage_totals
+
+    coverage_filter = _clean_string(request.GET.get("copertura"))
+    if coverage_filter not in COVERAGE_FILTERS:
+        coverage_filter = ""
+    devices_qs = apply_coverage_filter(devices_qs, coverage_filter)
+
     device_base_qs = Asset.objects.filter(asset_type__in=IT_DEVICE_TYPES)
     total = device_base_qs.count()
     in_use_total = device_base_qs.filter(status=Asset.STATUS_IN_USE).count()
@@ -13455,7 +13524,21 @@ def device_list(request: HttpRequest) -> HttpResponse:
     paginator = Paginator(devices_qs, rows)
     page_number = _as_int(request.GET.get("page"), default=1)
     page_obj = paginator.get_page(page_number)
-    devices = page_obj.object_list
+    devices = list(page_obj.object_list)
+    coverage = coverage_for_assets(request, [device.id for device in devices])
+    for device in devices:
+        device.coverage = coverage.get(device.id)
+    coverage_counts = coverage_totals(device_base_qs.exclude(status=Asset.STATUS_RETIRED))
+    coverage_options = [
+        {
+            "value": value,
+            "label": label,
+            "count": coverage_counts.get(value),
+            "active": value == coverage_filter,
+            "url": _query_url(request, copertura=value or None, page=1),
+        }
+        for value, label in COVERAGE_FILTERS.items()
+    ]
     page_start = ((page_obj.number - 1) * rows + 1) if visible_count else 0
     page_end = (page_start + len(devices) - 1) if visible_count else 0
 
@@ -13483,6 +13566,8 @@ def device_list(request: HttpRequest) -> HttpResponse:
         "page_title": "Dispositivi IT",
         "filters_form": form,
         "devices": devices,
+        "coverage_options": coverage_options,
+        "coverage_filter": coverage_filter,
         "visible_count": visible_count,
         "total": total,
         "in_use_total": in_use_total,

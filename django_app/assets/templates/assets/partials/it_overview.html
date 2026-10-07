@@ -1,5 +1,5 @@
 {% load security_asset %}
-<section class="af-card af-it-overview" id="asset-it-overview" aria-labelledby="asset-it-overview-title">
+<section class="af-card af-it-overview" id="asset-it-overview" aria-labelledby="asset-it-overview-title" data-af-tab="Panoramica">
   <div class="af-card-head"><div><div class="af-card-kicker">{{ it_presentation.label|upper }}</div><h2 class="af-card-title" id="asset-it-overview-title">Identità e responsabilità</h2></div></div>
   <div class="af-it-body">
     <div class="af-it-summary">
@@ -18,12 +18,12 @@
   {% security_asset_it_overview asset %}
   {% include "assets/partials/it_monitoring.html" %}
 {% endif %}
-<nav class="af-it-nav" aria-label="Approfondimenti asset IT">
+<nav class="af-it-nav" aria-label="Approfondimenti asset IT" data-af-tabs-hide>
   <a href="#asset-it-technical">Tecnica e rete</a>
   {% for card in detail_section_cards %}<a href="#asset-section-{{ card.code|lower }}">{{ card.title }}</a>{% endfor %}
   <a href="#asset-storico-section">Storico modifiche</a>
 </nav>
-<details class="af-card af-it-disclosure" id="asset-it-technical"{% if spec_pairs and it_presentation.show_specs or it_presentation.endpoints or asset_primary_kpis %} open{% endif %}>
+<details class="af-card af-it-disclosure" id="asset-it-technical" data-af-tab="Tecnica e rete"{% if spec_pairs and it_presentation.show_specs or it_presentation.endpoints or asset_primary_kpis %} open{% endif %}>
   <summary>Tecnica e rete</summary>
   <div class="af-it-body">
     <p class="af-note">Dati di inventario e campi configurati; non costituiscono misurazioni in tempo reale.</p>

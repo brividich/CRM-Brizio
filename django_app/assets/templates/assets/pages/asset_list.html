@@ -538,7 +538,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
           {% if item.has_children %}
             <div class="li-nav-group{% if item.expanded %} open{% endif %}" data-li-nav-group>
               <div class="li-nav-parent">
-                <a class="ma{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+                <a class="ma{% if item.active %} active{% endif %}" href="{% if item.is_container %}#{% else %}{{ item.url }}{% endif %}"{% if item.is_container %} data-li-nav-container role="button"{% endif %}>{{ item.label }}</a>
                 <button class="li-nav-toggle" type="button" aria-label="Apri sottovoci {{ item.label }}" aria-expanded="{% if item.expanded %}true{% else %}false{% endif %}" data-li-nav-toggle>
                   <span class="li-nav-arrow" aria-hidden="true">&#8250;</span>
                 </button>
@@ -1891,6 +1891,11 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
         }
         setGroupOpen(group, shouldOpen);
       });
+      // Voce contenitore (senza pagina propria): il nome apre/chiude il gruppo.
+      var container = group.querySelector("[data-li-nav-container]");
+      if (container) {
+        container.addEventListener("click", function (e) { e.preventDefault(); btn.click(); });
+      }
     });
 
     // Filtro voci: con oltre venti voci di primo livello, scorrere costa piu'

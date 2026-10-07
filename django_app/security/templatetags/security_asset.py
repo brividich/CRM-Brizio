@@ -16,8 +16,41 @@ def security_asset_it_overview(context, asset, require_link=False):
     linked = asset.security_assets.count()
     if require_link and not linked:
         return {"show": False}
-    data = overview_for_hub_asset(asset) if linked else {}
+    if linked:
+        data = overview_for_hub_asset(asset)
+    else:
+        from security.services.configuration import can_manage_security_config
+
+        data = {
+            "candidates": unlinked_candidates(asset),
+            "can_link": can_manage_security_config(getattr(request, "user", None)),
+            "asset": asset,
+            # Il tag di inclusione non eredita il contesto: serve al form di conferma.
+            "csrf_token": context.get("csrf_token"),
+        }
     return {"show": True, "linked": linked, **data}
+
+
+def unlinked_candidates(asset):
+    """Dispositivi SOC non collegati che l'abbinatore assegnerebbe proprio a questo asset."""
+    from django.db.models import Q
+
+    from security.models import SecurityAsset
+    from security.services.asset_signals import suggest_hub_asset
+
+    ips = [ip for ip in asset.endpoints.exclude(ip__isnull=True).exclude(ip="").values_list("ip", flat=True)]
+    name = (asset.name or "").strip()
+    query = Q(ip_address__in=ips) if ips else Q()
+    if name:
+        query |= Q(hostname__iexact=name) | Q(hostname__istartswith=f"{name}.")
+    if not query:
+        return []
+    out = []
+    for device in SecurityAsset.objects.filter(query, hub_asset__isnull=True).select_related("source")[:5]:
+        suggestion, reason = suggest_hub_asset(device)
+        if suggestion is not None and suggestion.pk == asset.pk:
+            out.append({"device": device, "reason": reason})
+    return out
 
 
 @register.inclusion_tag("security/partials/asset_card.html", takes_context=True)

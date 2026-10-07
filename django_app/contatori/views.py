@@ -145,14 +145,16 @@ def riconciliazione(request, trimestre=None):
     })
 
 
-def _righe_formset(fattura, data=None):
-    """Formset righe; una fattura nuova parte con una riga per contratto MFC attivo."""
+def _righe_formset(fattura, data=None, initial=None):
+    """Formset righe; una fattura nuova parte con una riga per contratto MFC attivo
+    (o con le righe lette dal file della fattura, se passate in `initial`)."""
     from django.forms import inlineformset_factory
     # Stesse iniziali anche in POST: le righe precompilate non toccate risultano
     # invariate e il formset non le salva.
-    initial = []
-    if fattura.pk is None:
-        initial = [{"contratto": c, "descrizione": d} for c, d in services.contratti_attivi()]
+    if initial is None:
+        initial = []
+        if fattura.pk is None:
+            initial = [{"contratto": c, "descrizione": d} for c, d in services.contratti_attivi()]
     cls = inlineformset_factory(Fattura, RigaFattura, form=RigaFatturaForm,
                                 extra=len(initial), can_delete=True)
     return cls(data, instance=fattura, prefix="righe", initial=initial)
@@ -162,6 +164,28 @@ def _righe_formset(fattura, data=None):
 def fattura_edit(request, pk=None):
     """Inserimento/modifica fattura fornitore con le letture per contratto."""
     fattura = get_object_or_404(Fattura, pk=pk) if pk else Fattura()
+    if request.method == "POST" and request.POST.get("azione") == "importa" and pk is None:
+        from .fattura_import import MAX_BYTES, FatturaNonLeggibile, leggi_fattura
+        caricato = request.FILES.get("file_fattura")
+        try:
+            if caricato is None:
+                raise FatturaNonLeggibile("Scegli il file XML o PDF della fattura.")
+            if caricato.size > MAX_BYTES:
+                raise FatturaNonLeggibile("File troppo grande (massimo 5 MB).")
+            letta = leggi_fattura(caricato.name, caricato.read())
+        except FatturaNonLeggibile as e:
+            messages.error(request, f"Fattura non importata: {e}")
+            return redirect("contatori:fattura_nuova")
+        # Il file non viene conservato: si usano solo i dati per precompilare la pagina.
+        log_action(request, "fattura_letta_da_file", "contatori",
+                   dettaglio={"numero": letta["testata"]["numero"], "righe": len(letta["righe"])})
+        testata = {k: v for k, v in letta["testata"].items() if v}
+        form = FatturaForm(instance=fattura, initial=testata)
+        righe = _righe_formset(fattura, initial=letta["righe"])
+        return render(request, "contatori/fattura_form.html", {
+            "form": form, "righe": righe, "fattura": None,
+            "avvisi_import": letta["avvisi"], "file_letto": caricato.name,
+        })
     if request.method == "POST":
         form = FatturaForm(request.POST, instance=fattura)
         righe = _righe_formset(fattura, request.POST)

@@ -41,29 +41,15 @@ BN = ("a4_bn", "a3_bn")
 
 
 def trova_asset_snmp(*, seriale="", host=None):
-    """Trova un Asset HUB univoco per seriale, poi per endpoint IP.
+    """Trova un Asset HUB univoco per seriale, poi per IP (endpoint o collegamenti SOC).
 
     Restituisce ``(asset, motivo)``. In caso di nessun match o ambiguità non
     sceglie arbitrariamente: ``asset`` resta ``None`` e il motivo spiega perché.
+    Stesso algoritmo del SOC: ``assets.services.identity_match``.
     """
-    from assets.models import Asset
+    from assets.services.identity_match import match_hub_asset
 
-    seriale = (seriale or "").strip()
-    if seriale:
-        candidati = list(Asset.objects.filter(serial_number__iexact=seriale)[:2])
-        if len(candidati) == 1:
-            return candidati[0], "seriale"
-        if len(candidati) > 1:
-            return None, "seriale ambiguo"
-    if host:
-        candidati = list(
-            Asset.objects.filter(endpoints__ip=str(host)).distinct()[:2]
-        )
-        if len(candidati) == 1:
-            return candidati[0], "indirizzo IP"
-        if len(candidati) > 1:
-            return None, "indirizzo IP ambiguo"
-    return None, "nessuna corrispondenza"
+    return match_hub_asset(serial=seriale, ip=host or "")
 COL = ("a4_col", "a3_col")
 A4 = ("a4_bn", "a4_col")
 A3 = ("a3_bn", "a3_col")
@@ -964,7 +950,7 @@ def cruscotto_operativo(oggi=None):
     letture_prec = LetturaContatori.objects.filter(trimestre=prec).exists()
 
     mensili_mancanti = []
-    if oggi.day >= 2:  # la raccolta automatica gira il giorno 1 alle 08:00
+    if oggi.day >= 2:  # raccolta automatica il giorno 1 alle 00:00, recupero alle 08:00
         mese = oggi.replace(day=1)
         lette = set(LetturaMensileContatori.objects.filter(mese=mese).values_list("macchina_id", flat=True))
         mensili_mancanti = [m for m in attive if m.host and m.id not in lette]
@@ -1187,7 +1173,7 @@ def proposte_letture_trimestrali(trimestre):
     """
     from datetime import datetime, time, timedelta
     inizio, chiusura = limiti_trimestre(trimestre)
-    riferimento = timezone.make_aware(datetime.combine(chiusura, time(8, 0)))
+    riferimento = timezone.make_aware(datetime.combine(chiusura, time(0, 0)))
     attive = list(Macchina.objects.filter(attiva=True).order_by("reparto"))
     gia_lette = set(LetturaContatori.objects.filter(trimestre=trimestre).values_list("macchina_id", flat=True))
     mancanti = [m for m in attive if m.id not in gia_lette]

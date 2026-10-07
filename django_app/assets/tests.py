@@ -8354,6 +8354,44 @@ class CategorySidebarTests(TestCase):
         # I report restano raggiungibili.
         self.assertTrue(AssetSidebarButton.objects.filter(code="report_asset").exists())
 
+    def test_radici_raggruppate_per_area(self):
+        """Le radici note finiscono sotto la loro area; le altre restano a se'."""
+        from assets.services.sidebar_categories import rebuild_category_sidebar
+        from assets.views import _build_sidebar_groups
+
+        cnc = AssetCategory.objects.create(code="cnc", label="CNC")
+        AssetCategory.objects.create(code="cnc-m", label="Macchine CNC", parent=cnc)
+        no_ce = AssetCategory.objects.create(code="noce", label="macchine  no ce")
+        chimici = AssetCategory.objects.create(code="chim", label="Prodotti Chimici")
+
+        rebuild_category_sidebar(AssetCategory, AssetSidebarButton)
+
+        area = AssetSidebarButton.objects.get(code="catnav-area-produzione")
+        self.assertEqual(area.label, "Produzione")
+        self.assertEqual(area.target_url, "")
+        self.assertEqual(
+            list(AssetSidebarButton.objects.filter(parent=area).order_by("sort_order").values_list("label", flat=True)),
+            ["CNC", "macchine  no ce"],
+        )
+        cnc_btn = AssetSidebarButton.objects.get(code=f"catnav-root-{cnc.id}")
+        self.assertIn(f"asset_category={cnc.id}", cnc_btn.target_url)
+        self.assertFalse(AssetSidebarButton.objects.filter(code=f"catnav-root-{no_ce.id}", parent__isnull=True).exists())
+        # Area con una radice senza figlie: voce semplice col nome della categoria.
+        chimici_btn = AssetSidebarButton.objects.get(code=f"catnav-root-{chimici.id}")
+        self.assertEqual(chimici_btn.label, "Prodotti Chimici")
+        self.assertIsNone(chimici_btn.parent_id)
+        # Radice fuori dalle aree: gruppo a se', dopo le aree.
+        hvac_btn = AssetSidebarButton.objects.get(code=f"catnav-root-{self.other_root.id}")
+        self.assertGreater(hvac_btn.sort_order, area.sort_order)
+
+        request = RequestFactory().get(reverse("assets:asset_list"), {"asset_category": cnc.id})
+        request.user = self.user
+        categorie = [g for g in _build_sidebar_groups(request) if g["section"] == AssetSidebarButton.SECTION_CATEGORIES][0]
+        area_payload = next(item for item in categorie["items"] if item["label"] == "Produzione")
+        self.assertTrue(area_payload["is_container"])
+        self.assertFalse(area_payload["active"])
+        self.assertTrue(area_payload["expanded"])
+
     def test_categorie_stanno_nella_sezione_dedicata(self):
         """Le categorie sono un filtro sull'inventario, non destinazioni: tredici
         radici in "Navigazione" sommergevano le pagine che si usano davvero."""

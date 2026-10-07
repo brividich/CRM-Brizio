@@ -1,7 +1,7 @@
 """Test per la sessione visite mediche "consona" e la coerenza delle scadenze.
 
-Spec:  docs/superpowers/specs/2026-07-15-visite-mediche-sessione-design.md
-Piano: docs/superpowers/plans/2026-07-15-visite-mediche-sessione-scadenze.md
+Spec:  docs/superpowers/specs/2026-07-15-visite-mediche-sessione-design.md (rimosso dal repo, storico git 018367f1)
+Piano: docs/superpowers/plans/2026-07-15-visite-mediche-sessione-scadenze.md (rimosso dal repo, storico git 018367f1)
 """
 from __future__ import annotations
 
