@@ -41,6 +41,7 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 - **23 modelli Django** (Profile, AuditLog, SiteConfig, Notifica, Checklist*, OptioneConfig, ecc.)
 - **Ricerca unificata** Ctrl+K (o barra «Cerca o vai a…» in topnav): pagine recenti, salto a qualsiasi pagina di navigazione (ACL-filtrata) e ricerca dati su 7 sorgenti (dipendenti, asset, ticket, progetti, task, procedure, DPI), con modulo e preview risultato
 - **Topnav**: voci in eccesso raccolte in «Altro», hamburger da ≤1100px, menu utente (profilo, preferenze, tema chiaro/scuro, segnala problema, esci), approvazioni assenze in attesa come «N da approvare». Struttura: Per me · Tickets · Produzione · Persone · Sicurezza e ambiente · Qualità · IT · Suggestion Corner, con sottocategorie da `NavigationItem.group`; si applica con `python manage.py riorganizza_topbar --apply` (dry-run senza `--apply`)
+- **Messaggi di conferma subito, in ogni modulo** (`core/flash_messages.py`): `core/base.html` chiude con `{% flash_messages_fallback %}`, che mostra come toast (in basso a destra; successo/info spariscono dopo 7 s, avvisi/errori restano fino alla ×) i messaggi che la pagina non ha già stampato; le pagine che li stampano da sé non cambiano. Sulle risposte HTMX non-redirect `HtmxFlashMessagesMiddleware` (dopo `MessageMiddleware`) consegna i messaggi nell'header `HX-Trigger` (evento `hubFlash`). Prima restavano in sessione e comparivano tutti insieme in un'altra pagina.
 
 ## Hardening ottobre 2026
 

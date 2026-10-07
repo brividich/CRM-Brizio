@@ -1,0 +1,51 @@
+{# Toast dei messaggi flash: fallback per le pagine che non li stampano + evento HTMX hubFlash. Vedi core/flash_messages.py #}
+<div class="hub-flash-stack" data-hub-flash-stack aria-live="polite" aria-atomic="false">
+  {% for item in flash_items %}
+    <div class="hub-flash hub-flash-{{ item.level_tag|default:'info' }}" role="{% if item.level_tag == 'error' %}alert{% else %}status{% endif %}">
+      <span class="hub-flash-text">{{ item }}</span>
+      <button type="button" class="hub-flash-close" aria-label="Chiudi messaggio">&times;</button>
+    </div>
+  {% endfor %}
+</div>
+<script>
+(function () {
+  var stack = document.querySelector('[data-hub-flash-stack]');
+  if (!stack) return;
+  function close(el) {
+    if (!el || !el.parentNode) return;
+    el.classList.add('hub-flash-out');
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 180);
+  }
+  function arm(el) {
+    var level = (el.className.match(/hub-flash-(success|info|debug)\b/) || [])[1];
+    if (level) setTimeout(function () { close(el); }, 7000);
+  }
+  stack.addEventListener('click', function (e) {
+    var btn = e.target.closest('.hub-flash-close');
+    if (btn) close(btn.closest('.hub-flash'));
+  });
+  Array.prototype.forEach.call(stack.querySelectorAll('.hub-flash'), arm);
+  document.body.addEventListener('hubFlash', function (evt) {
+    var items = (evt.detail && evt.detail.value) || evt.detail || [];
+    if (!Array.isArray(items)) return;
+    items.forEach(function (item) {
+      var level = String(item.level || 'info').replace(/[^a-z]/g, '') || 'info';
+      var el = document.createElement('div');
+      el.className = 'hub-flash hub-flash-' + level;
+      el.setAttribute('role', level === 'error' ? 'alert' : 'status');
+      var text = document.createElement('span');
+      text.className = 'hub-flash-text';
+      text.textContent = String(item.text || '');
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hub-flash-close';
+      btn.setAttribute('aria-label', 'Chiudi messaggio');
+      btn.innerHTML = '&times;';
+      el.appendChild(text);
+      el.appendChild(btn);
+      stack.appendChild(el);
+      arm(el);
+    });
+  });
+})();
+</script>
