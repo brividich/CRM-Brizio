@@ -24,6 +24,10 @@ LOW_TONER_PCT = 15
 PROBE_TILES = 3
 
 
+TAB_MONITORING = "#tab-monitoraggio"
+TAB_SECURITY = "#tab-sicurezza"
+
+
 def _tile(label, value, sub="", level="none", href=""):
     return {"label": label, "value": value, "sub": sub, "level": level, "href": href}
 
@@ -57,7 +61,7 @@ def _snmp_state_tile(objs, now):
         else:
             rank, value, level = 0, "Raggiungibile", "ok"
         if rank > worst_rank:
-            worst_rank, worst = rank, _tile("Monitoraggio SNMP", value, f"Ultimo contatto {_when(last)}" if last else "Nessun contatto registrato", level)
+            worst_rank, worst = rank, _tile("Monitoraggio SNMP", value, f"Ultimo contatto {_when(last)}" if last else "Nessun contatto registrato", level, TAB_MONITORING)
     return worst
 
 
@@ -102,8 +106,8 @@ def _printer_tiles(asset, now):
         month = [rows[0].totale - rows[1].totale for rows in by_machine.values() if len(rows) > 1]
         last_month = max(rows[0].mese for rows in by_machine.values())
         if month:
-            tiles.append(_tile("Pagine ultimo mese", _fmt_int(sum(month)), f"Lettura di {last_month:%m/%Y}", "none"))
-        tiles.append(_tile("Pagine totali", _fmt_int(total), "Contatore cumulativo", "none"))
+            tiles.append(_tile("Pagine ultimo mese", _fmt_int(sum(month)), f"Lettura di {last_month:%m/%Y}", "none", TAB_MONITORING))
+        tiles.append(_tile("Pagine totali", _fmt_int(total), "Contatore cumulativo", "none", TAB_MONITORING))
         if total:
             tiles.append(_tile("Quota colore", f"{round(100 * colour / total)}%", "Sul totale stampato", "none"))
     # Toner: ultimo livello per consumabile (MFC) o dall'ultima rilevazione SNMP (dispositivi).
@@ -125,7 +129,7 @@ def _printer_tiles(asset, now):
                 levels.append((pct, str(supply.get("nome") or "Consumabile")))
     if levels:
         pct, name = min(levels)
-        tiles.append(_tile("Consumabile più basso", f"{int(pct)}%", name[:40], "bad" if pct <= LOW_TONER_PCT else "ok"))
+        tiles.append(_tile("Consumabile più basso", f"{int(pct)}%", name[:40], "bad" if pct <= LOW_TONER_PCT else "ok", TAB_MONITORING))
     return tiles
 
 
@@ -137,7 +141,7 @@ def _probe_tiles(asset):
     tiles = []
     for device in DispositivoSNMP.objects.filter(asset=asset, attivo=True)[:2]:
         if device.sys_uptime_seconds:
-            tiles.append(_tile("Uptime", _fmt_uptime(device.sys_uptime_seconds), device.nome, "none"))
+            tiles.append(_tile("Uptime", _fmt_uptime(device.sys_uptime_seconds), device.nome, "none", TAB_MONITORING))
         snap = RilevazioneSNMP.objects.filter(dispositivo=device).order_by("-rilevata_il", "-pk").first()
         if snap is None:
             continue
@@ -147,7 +151,7 @@ def _probe_tiles(asset):
             label = etichetta_valore(value.sonda.etichette, value.valore_numero)
             shown = label or _format_reading(value.valore_numero, value.sonda.unita)
             level = {"OK": "ok", "WARNING": "warn", "ERROR": "bad"}.get(value.stato, "none")
-            tiles.append(_tile(value.sonda.nome[:40], shown, f"Letto {_when(snap.rilevata_il)}", level))
+            tiles.append(_tile(value.sonda.nome[:40], shown, f"Letto {_when(snap.rilevata_il)}", level, TAB_MONITORING))
     return tiles
 
 
@@ -162,32 +166,32 @@ def _soc_tiles(asset, profile, now):
     if profile in ("workstation", "server", "vm"):
         backup = signals.filter(kind=SecurityAssetSignal.KIND_BACKUP).order_by("-occurred_at", "-id").first()
         if backup is None:
-            tiles.append(_tile("Ultimo backup", "Nessun dato", "Nessun job riportato", "none"))
+            tiles.append(_tile("Ultimo backup", "Nessun dato", "Nessun job riportato", "none", TAB_SECURITY))
         else:
             ok = backup.status == "completed"
             old = now - backup.occurred_at > timedelta(days=2)
             value = {"completed": "Riuscito", "failed": "Fallito", "warning": "Con avvisi"}.get(backup.status, backup.status or "Non noto")
             tiles.append(_tile("Ultimo backup", value, _when(backup.occurred_at),
-                               "bad" if backup.status == "failed" else ("warn" if not ok or old else "ok")))
+                               "bad" if backup.status == "failed" else ("warn" if not ok or old else "ok"), TAB_SECURITY))
         since = now - timedelta(days=30)
         detections = signals.filter(kind__in=(SecurityAssetSignal.KIND_DETECTIONS, SecurityAssetSignal.KIND_THREAT),
                                     occurred_at__gte=since).count()
         details = getattr(asset, "it_details", None)
         edr = "EDR dichiarato" if details and details.edr_enabled else "EDR non dichiarato"
         tiles.append(_tile("Antivirus / EDR", (f"{detections} rilevamenti" if detections > 1 else "1 rilevamento") if detections else "Nessun rilevamento",
-                           f"Ultimi 30 giorni · {edr}", "warn" if detections else "ok"))
+                           f"Ultimi 30 giorni · {edr}", "warn" if detections else "ok", TAB_SECURITY))
     alerts = SecurityAlert.objects.filter(event__asset__hub_asset=asset, status__in=ACTIVE_ALERT_STATUSES).count()
-    tiles.append(_tile("Alert SOC aperti", str(alerts), "Compresi rinviati e silenziati", "bad" if alerts else "ok"))
+    tiles.append(_tile("Alert SOC aperti", str(alerts), "Compresi rinviati e silenziati", "bad" if alerts else "ok", TAB_SECURITY))
     if profile == "network":
         events = SecurityEventRecord.objects.filter(asset__hub_asset=asset, suppressed=False,
                                                     occurred_at__gte=now - timedelta(days=7)).count()
-        tiles.append(_tile("Eventi 7 giorni", str(events), "Dai report del firewall", "none"))
+        tiles.append(_tile("Eventi 7 giorni", str(events), "Dai report del firewall", "none", TAB_SECURITY))
     else:
         vulns = SecurityVulnerabilityFinding.objects.filter(asset__hub_asset=asset, status__in=ACTIVE_ALERT_STATUSES)
         critical = vulns.filter(cvss__gte=9.0).count()
         total = vulns.count()
         tiles.append(_tile("Vulnerabilità aperte", str(total), (f"{critical} critiche" if critical > 1 else "1 critica") if critical else "Nessuna critica",
-                           "bad" if critical else ("warn" if total else "ok")))
+                           "bad" if critical else ("warn" if total else "ok"), TAB_SECURITY))
     return tiles
 
 

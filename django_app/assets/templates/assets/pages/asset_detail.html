@@ -359,6 +359,16 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 }
 .af-export-pop a { display:block; padding:8px 10px; border-radius:8px; color:#1d4ed8; text-decoration:none; font-weight:600; font-size:var(--fs-sm); }
 .af-export-pop a:hover { background:#eff6ff; }
+.af-pop-item { display:block; width:100%; text-align:left; padding:8px 10px; border:0; border-radius:8px; background:none; color:#1d4ed8; font:inherit; font-weight:600; font-size:var(--fs-sm); cursor:pointer; }
+.af-pop-item:hover { background:#eff6ff; }
+.af-pop-item.is-danger { color:#b91c1c; }
+.af-pop-item.is-danger:hover { background:#fee2e2; }
+/* Testata compatta: la fascia del modulo con il solo "Torna indietro" non serve, il ritorno sta nel titolo. */
+.as-page-head { display:none; }
+.af-back { color:inherit; text-decoration:none; }
+.af-back:hover { color:#1d4ed8; text-decoration:underline; }
+.af-action-panel { padding:12px 14px; gap:8px; }
+.af-header-actions .af-btn { min-height:34px; padding:6px 10px; }
 .af-card-head--maintenance { align-items:flex-start; }
 .af-card-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .af-card-actions--maintenance {
@@ -489,6 +499,11 @@ body.theme-dark .af-mini-meta { color:var(--text-light); }
 body.theme-dark .af-bar { background:rgba(255,255,255,.08); }
 body.theme-dark .af-export-pop { background:var(--surface); border-color:var(--border); }
 body.theme-dark .af-export-pop a:hover { background:rgba(37,99,235,.12); }
+body.theme-dark .af-pop-item { color:#93c5fd; }
+body.theme-dark .af-pop-item:hover { background:rgba(37,99,235,.12); }
+body.theme-dark .af-pop-item.is-danger { color:#fca5a5; }
+body.theme-dark .af-pop-item.is-danger:hover { background:rgba(185,28,28,.18); }
+body.theme-dark .af-back:hover { color:#93c5fd; }
 body.theme-dark .af-statusband-col { background:var(--surface); border-color:var(--border); }
 </style>
 {% if asset.asset_type == "WORK_MACHINE" or asset.asset_type == "CNC" %}
@@ -553,7 +568,7 @@ body.theme-dark .ac-legend-item { color:var(--text-light); }
 {% endblock %}
 
 {% block assets_shell_title %}
-<a class="af-shell-back" href="{{ collection_url }}" data-af-back-link>&larr; Torna indietro</a>
+<a class="af-shell-back" href="{{ collection_url }}">&larr; Torna indietro</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -586,6 +601,11 @@ a.af-kpi2:hover { border-color:#93c5fd; }
 .af-page.af-tabbed [data-af-tab][data-af-hidden] { display:none !important; }
 .af-page.af-tabbed [data-af-tabs-hide] { display:none !important; }
 .af-page.af-tabbed details[data-af-tab] > summary { display:none; }
+.af-page.af-tabbed .af-sections { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; align-items:start; column-count:auto; }
+.af-page.af-tabbed .af-sections > .af-card { margin:0; }
+.af-page.af-tabbed .af-sections > .af-card.af-span-full { grid-column:1 / -1; }
+.af-page.af-tabbed .af-sections > [data-af-hidden] { display:none !important; }
+@media (max-width:900px) { .af-page.af-tabbed .af-sections { grid-template-columns:1fr; } }
 body.theme-dark .af-kpiband { background:var(--surface); border-color:var(--border); }
 body.theme-dark .af-kpiband-title, body.theme-dark .af-kpi2-value { color:var(--text); }
 body.theme-dark .af-kpiband-note, body.theme-dark .af-kpi2-label, body.theme-dark .af-kpi2-sub { color:var(--text-light); }
@@ -623,7 +643,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           {% endif %}
         </div>
         <div class="af-title-copy">
-          <div class="af-hero-kicker">{{ collection_label }}{% if asset.category_label %} / {{ asset.category_label }}{% endif %}</div>
+          <div class="af-hero-kicker"><a class="af-back" href="{{ collection_url }}" data-af-back-link title="Torna all'elenco">&larr; {{ collection_label }}</a>{% if asset.category_label %} / {{ asset.category_label }}{% endif %}</div>
           <h1 class="af-title">{{ asset.name }}</h1>
           <div class="af-title-code-row">
             <span class="af-title-code">#{{ asset.asset_tag }}</span>
@@ -667,42 +687,33 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
       <div class="af-header-actions">
         {% if it_ticket_create_url %}<a class="af-btn af-btn-primary" href="{{ it_ticket_create_url }}">Apri ticket IT</a>{% endif %}
         <a class="af-btn {% if it_presentation %}af-btn-secondary{% else %}af-btn-primary{% endif %}" href="{{ asset_create_workorder_url }}">Crea intervento</a>
-        {% for button in header_action_buttons %}
+        {% for button in header_action_buttons %}{% if button.style == 'PRIMARY' %}
           {% if button.href %}
-            <a
-              class="af-btn {% if button.style == 'PRIMARY' %}af-btn-primary{% elif button.style == 'SECONDARY' %}af-btn-secondary{% elif button.style == 'DANGER' %}af-btn-danger{% endif %}"
-              href="{{ button.href }}"
-              {% if button.new_tab %}target="_blank" rel="noopener"{% endif %}
-              data-ui-action="{{ button.data_action|default:'' }}"
-            >{{ button.label }}</a>
+            <a class="af-btn af-btn-primary" href="{{ button.href }}" {% if button.new_tab %}target="_blank" rel="noopener"{% endif %} data-ui-action="{{ button.data_action|default:'' }}">{{ button.label }}</a>
           {% else %}
-            <button
-              class="af-btn {% if button.style == 'PRIMARY' %}af-btn-primary{% elif button.style == 'SECONDARY' %}af-btn-secondary{% elif button.style == 'DANGER' %}af-btn-danger{% endif %}"
-              type="button"
-              data-ui-action="{{ button.data_action|default:'' }}"
-            >{{ button.label }}</button>
+            <button class="af-btn af-btn-primary" type="button" data-ui-action="{{ button.data_action|default:'' }}">{{ button.label }}</button>
           {% endif %}
-        {% endfor %}
-        {% if can_retire_asset %}
-          {% if asset_is_retired %}
-            <button type="button" class="af-btn af-btn-secondary" id="af-retire-btn"
-              data-target-status="IN_USE"
-              data-confirm="Riportare «{{ asset.name }}» in uso?">Riattiva</button>
-          {% else %}
-            <button type="button" class="af-btn af-btn-danger" id="af-retire-btn"
-              data-target-status="RETIRED"
-              data-confirm="Mettere fuori uso «{{ asset.name }}»? Verrà segnato come «Dismesso» e nascosto dagli elenchi (reversibile con «Riattiva»).">Metti fuori uso</button>
-          {% endif %}
-        {% endif %}
+        {% endif %}{% endfor %}
+        {# Azioni meno frequenti in un unico menu: la testata resta su poche righe. #}
         <details class="af-export-menu">
-          <summary class="af-btn af-btn-secondary">Esporta / Altro &#9662;</summary>
+          <summary class="af-btn af-btn-secondary">Altro &#9662;</summary>
           <div class="af-export-pop">
-            {% if asset_report_pdf_url %}
-              <a href="{{ asset_report_pdf_url }}" target="_blank" rel="noopener">&#8595; Report PDF</a>
-            {% endif %}
+            {% for button in header_action_buttons %}{% if button.style != 'PRIMARY' %}
+              {% if button.href %}
+                <a href="{{ button.href }}" {% if button.new_tab %}target="_blank" rel="noopener"{% endif %} data-ui-action="{{ button.data_action|default:'' }}">{{ button.label }}</a>
+              {% else %}
+                <button class="af-pop-item{% if button.style == 'DANGER' %} is-danger{% endif %}" type="button" data-ui-action="{{ button.data_action|default:'' }}">{{ button.label }}</button>
+              {% endif %}
+            {% endif %}{% endfor %}
+            {% if asset_report_pdf_url %}<a href="{{ asset_report_pdf_url }}" target="_blank" rel="noopener">&#8595; Report PDF</a>{% endif %}
             <a href="{% url 'assets:asset_detail_export_xlsx' asset.id %}" title="Scarica scheda in Excel">&#8595; Scarica XLSX</a>
-            {% if layout_manage_url %}
-              <a href="{{ layout_manage_url }}">Configura layout</a>
+            {% if layout_manage_url %}<a href="{{ layout_manage_url }}">Configura layout</a>{% endif %}
+            {% if can_retire_asset %}
+              {% if asset_is_retired %}
+                <button type="button" class="af-pop-item" id="af-retire-btn" data-target-status="IN_USE" data-confirm="Riportare «{{ asset.name }}» in uso?">Riattiva</button>
+              {% else %}
+                <button type="button" class="af-pop-item is-danger" id="af-retire-btn" data-target-status="RETIRED" data-confirm="Mettere fuori uso «{{ asset.name }}»? Verrà segnato come «Dismesso» e nascosto dagli elenchi (reversibile con «Riattiva»).">Metti fuori uso</button>
+              {% endif %}
             {% endif %}
           </div>
         </details>
@@ -1374,7 +1385,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
               </div>
             </div>
             {% if timeline_events or can_manage_asset_timeline %}
-            <div class="af-profile-group">
+            <div class="af-profile-group" data-af-move-tab="Timeline" data-af-move-title="{{ detail_timeline_title|default:'Storico ciclo di vita' }}">
               <div class="af-tl-head">
                 <div class="af-profile-group-title" style="margin-bottom:0;">{{ detail_timeline_title|default:"Storico ciclo di vita" }}</div>
                 {% if can_manage_asset_timeline and asset_timeline_manual_enabled %}
@@ -1841,6 +1852,18 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   const page = document.querySelector('.af-page');
   const nav = page && page.querySelector('[data-af-tabs]');
   if (!page || !nav) return;
+  // Blocchi che meritano una scheda propria (es. la timeline dentro "Anagrafica").
+  page.querySelectorAll('[data-af-move-tab]').forEach((block) => {
+    const card = document.createElement('section');
+    card.className = 'af-card af-span-full';
+    card.dataset.afTab = block.dataset.afMoveTab;
+    const body = document.createElement('div');
+    body.className = 'af-card-body';
+    card.appendChild(body);
+    const anchor = page.querySelector('#asset-storico-section') || page.lastElementChild;
+    anchor.parentNode.insertBefore(card, anchor);
+    body.appendChild(block);
+  });
   const panels = Array.from(page.querySelectorAll('[data-af-tab]')).filter((el) => el.textContent.trim() !== '');
   const order = [];
   panels.forEach((el) => { const name = el.dataset.afTab; if (!order.includes(name)) order.push(name); });
@@ -1870,6 +1893,11 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
         el.setAttribute('data-af-hidden', '');
       }
     });
+    // Contenitori di sezioni senza card visibili: niente spazio vuoto sopra la scheda.
+    page.querySelectorAll('.af-sections').forEach((box) => {
+      const visible = Array.from(box.children).some((child) => !child.hasAttribute('data-af-hidden'));
+      box.style.display = visible ? '' : 'none';
+    });
     if (remember) {
       try { localStorage.setItem(storeKey, name); } catch (e) { /* storage non disponibile */ }
       history.replaceState(null, '', '#' + slug(name));
@@ -1889,7 +1917,13 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   page.classList.add('af-tabbed');
   nav.hidden = false;
   select(initial || order[0], false);
-  window.addEventListener('hashchange', () => { const name = fromHash(); if (name) select(name, false); });
+  window.addEventListener('hashchange', () => {
+    const name = fromHash();
+    if (!name) return;
+    select(name, false);
+    // Arrivando da un riquadro del cruscotto, porta in vista la barra delle schede.
+    if (window.location.hash.startsWith('#tab-')) nav.scrollIntoView({block: 'start', behavior: 'smooth'});
+  });
 })();
 </script>
 
