@@ -43,3 +43,4 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 ## Hardening ottobre 2026
 
 - Link mail-action: il token si prende in modo atomico prima di aggiornare le anomalie, quindi un doppio invio non applica due volte le modifiche né manda due conferme; se l'aggiornamento fallisce il token torna utilizzabile.
+- Correzione 07/10: «Nuova segnalazione» (`/gestione-anomalie/nuova-segnalazione`) era a pagina bianca perché il limite allegati da `.env` finiva come testo letterale dentro lo script React (`{% verbatim %}`). Ora il limite arriva da una variabile JS valorizzata fuori dal blocco verbatim.
