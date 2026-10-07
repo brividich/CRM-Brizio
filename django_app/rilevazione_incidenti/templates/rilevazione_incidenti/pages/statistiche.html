@@ -111,9 +111,6 @@ body.theme-dark .sic-error { background:rgba(153,27,27,.2); border-color:rgba(25
 {% block content %}
 <div id="sic-root">
 
-  {% for msg in messages %}
-  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;">{{ msg }}</div>
-  {% endfor %}
 
   {% if error %}<div class="sic-error">&#9888; {{ error }}</div>{% endif %}
 

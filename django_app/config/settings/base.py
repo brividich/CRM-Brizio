@@ -518,7 +518,7 @@ MIDDLEWARE = [
     "core.middleware.ACLMiddleware",
     "notizie.mandatory_middleware.NotizieMandatoryMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "core.flash_messages.HtmxFlashMessagesMiddleware",  # dopo MessageMiddleware
+    "core.flash_messages.FlashMessagesDeliveryMiddleware",  # dopo MessageMiddleware
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 

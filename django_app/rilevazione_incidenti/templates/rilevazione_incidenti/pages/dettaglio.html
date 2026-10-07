@@ -103,13 +103,6 @@ body.theme-dark .sic-btn-rspp { background:rgba(29,78,216,.2); color:#93c5fd; }
 {% block content %}
 <div id="sic-root">
 
-  {% if messages %}
-    {% for msg in messages %}
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;">
-      {{ msg }}
-    </div>
-    {% endfor %}
-  {% endif %}
 
   {% if error %}
   <div class="sic-error">&#9888; {{ error }}</div>

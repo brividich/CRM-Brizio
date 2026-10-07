@@ -49,13 +49,6 @@ body.theme-dark .pr-badge-respinta { background:rgba(220,38,38,.2); color:#fca5a
     <div style="font-size:13px;color:#64748b;">Aperte: <strong>{{ n_open }}</strong></div>
   </div>
 
-  {% if messages %}
-    <div style="display:grid;gap:8px;">
-      {% for message in messages %}
-        <div class="pr-filter-card" style="padding:12px 16px;">{{ message }}</div>
-      {% endfor %}
-    </div>
-  {% endif %}
 
   <form method="get" class="pr-filter-card">
     <div class="pr-filter-row">

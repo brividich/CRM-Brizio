@@ -90,14 +90,6 @@ body.theme-dark .ci-sp-input { background:var(--surface-alt); color:var(--text);
     <a href="{% url 'anagrafica:ratei_list' %}" class="ci-btn ci-btn-ghost">← Ratei Ferie/Permessi</a>
   </div>
 
-  {% if messages %}
-    {% for msg in messages %}
-    <div class="ci-alert {% if msg.tags == 'error' %}ci-alert-warn{% else %}ci-alert-info{% endif %}">
-      <span style="flex-shrink:0;">{% if msg.tags == 'error' %}⚠{% else %}✓{% endif %}</span>
-      <span>{{ msg }}</span>
-    </div>
-    {% endfor %}
-  {% endif %}
 
   <!-- Import da SharePoint -->
   <div class="ci-card">

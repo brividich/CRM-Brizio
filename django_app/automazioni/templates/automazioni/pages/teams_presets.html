@@ -53,11 +53,6 @@
   <p class="page-subtitle">Gestisci sia i webhook legacy di canale sia gli endpoint Power Automate / Teams Workflow usati per recapitare richieste di approvazione al singolo utente.</p>
 </div>
 
-{% if messages %}
-  {% for message in messages %}
-  <div class="alert alert-{{ message.tags }}" style="margin-bottom:16px;">{{ message }}</div>
-  {% endfor %}
-{% endif %}
 
 <div class="tp-help">
   <strong>Webhook legacy</strong>: invia una card nel canale Teams con il comportamento storico.<br>

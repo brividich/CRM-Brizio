@@ -1,0 +1,27 @@
+/* Messaggi flash (toast) — core/components/flash_toasts.html + core/js/hub-flash.js.
+   Valori di ripiego per le pagine fuori da core/base.html senza i token del tema. */
+.hub-flash-stack{position:fixed;right:18px;bottom:18px;z-index:1260;display:flex;flex-direction:column;gap:8px;width:min(420px,calc(100vw - 32px));max-height:calc(100vh - 36px);pointer-events:none}
+.hub-flash{pointer-events:auto;display:flex;align-items:flex-start;gap:10px;padding:11px 10px 11px 14px;border-radius:10px;border:1px solid var(--border,#d7e0ea);border-left:4px solid var(--primary-mid,#2f5f89);background:var(--surface,#fff);color:var(--text,#1a202c);font-size:var(--fs-sm,14px);line-height:1.4;box-shadow:0 12px 32px rgba(15,23,42,.18);animation:hubFlashIn .18s ease-out;transition:opacity .18s,transform .18s}
+.hub-flash-body{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
+.hub-flash-text,.hub-flash-detail{flex:1 1 100%;min-width:0;overflow-wrap:anywhere}
+.hub-flash-text{flex-basis:0;flex-grow:1}
+.hub-flash-detail{max-height:40vh;overflow:auto;white-space:pre-line}
+.hub-flash-count{flex:none;padding:1px 7px;border-radius:999px;background:var(--hover-bg,rgba(15,23,42,.06));color:var(--text-mid,#4a5568);font-size:12px;font-weight:700}
+.hub-flash-more{order:1;flex:none;padding:0;border:0;background:none;color:var(--primary-mid,#2f5f89);font:inherit;font-size:12px;font-weight:700;text-decoration:underline;cursor:pointer}
+.hub-flash-close{flex:none;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--text-mid,#4a5568);font-size:18px;line-height:1;cursor:pointer}
+.hub-flash-close:hover{background:var(--hover-bg,rgba(15,23,42,.06))}
+.hub-flash-success{border-left-color:var(--success,#38a169)}
+.hub-flash-warning{border-left-color:var(--warning,#d69e2e)}
+.hub-flash-error{border-left-color:var(--danger,#e53e3e)}
+.hub-flash-out{opacity:0;transform:translateY(6px)}
+.hub-flash-overflow{display:none}
+.hub-flash-bar{pointer-events:auto;align-self:flex-end;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-mid,#4a5568)}
+.hub-flash-bar[hidden]{display:none}
+.hub-flash-closeall{padding:4px 10px;border:1px solid var(--border,#d7e0ea);border-radius:999px;background:var(--surface,#fff);color:var(--text-mid,#4a5568);font:inherit;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(15,23,42,.12)}
+.hub-flash-closeall:hover{color:var(--text,#1a202c)}
+body.theme-dark .hub-flash{box-shadow:0 12px 32px rgba(0,0,0,.4)}
+body.theme-dark .hub-flash-more{color:#93c5fd}
+body.theme-dark .hub-flash-count,body.theme-dark .hub-flash-close:hover{background:rgba(255,255,255,.08)}
+@keyframes hubFlashIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.hub-flash{animation:none;transition:none}}
+@media print{.hub-flash-stack{display:none}}

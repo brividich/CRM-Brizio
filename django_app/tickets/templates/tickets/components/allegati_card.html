@@ -79,11 +79,6 @@ body.theme-dark .tka-upload-badge.is-ok { background:rgba(6,95,70,.25); color:#6
     {% if n_da_validare %}<span class="tka-pending-pill">{{ n_da_validare }} da validare</span>{% endif %}
   </div>
 
-  {% if messages %}
-    {% for m in messages %}
-      <div class="tka-msg {% if m.tags == 'error' %}tka-msg-error{% else %}tka-msg-success{% endif %}">{{ m }}</div>
-    {% endfor %}
-  {% endif %}
 
   {% if allegati %}
   <div class="tka-list">
