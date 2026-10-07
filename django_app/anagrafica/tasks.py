@@ -81,12 +81,15 @@ def run_ricalcolo_scadenze() -> dict:
     manuale: scadenzario, KPI e promemoria del mattino mostravano stati vecchi.
     """
     from anagrafica.services.cambio_mansione import aggiorna_piani
+    from anagrafica.services.onboarding import aggiorna_pratiche
     from anagrafica.services.scadenze import ricalcola_tutto
 
     try:
-        # Prima le scadenze, poi i piani dei cambi mansione: un corso o una visita
-        # appena registrati chiudono da soli l'adempimento corrispondente.
-        return {"ok": True, **ricalcola_tutto(), "piani_cambio_mansione": aggiorna_piani()}
+        # Prima le scadenze, poi i piani dei cambi mansione e le pratiche di
+        # onboarding: un corso o una visita appena registrati chiudono da soli
+        # l'adempimento o la voce corrispondente.
+        return {"ok": True, **ricalcola_tutto(), "piani_cambio_mansione": aggiorna_piani(),
+                "pratiche_onboarding": aggiorna_pratiche()}
     except Exception:
         logger.exception("run_ricalcolo_scadenze: eccezione inattesa")
         raise

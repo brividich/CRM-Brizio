@@ -1,0 +1,93 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Posizioni aperte | Recruiting{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+    {% include "anagrafica/partials/_recruiting_tabs.html" with attiva="posizioni" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a><span class="fmd-sep"> / </span><span class="fmd-cur">Posizioni aperte</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-building"/></svg>Posizioni aperte</h1>
+        <p class="fmd-ph-sub">Le richieste di personale da coprire. Una posizione passa da sola a «Coperta» quando gli assunti raggiungono i posti richiesti.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% if can_manage %}<a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:recruiting_posizione_create' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova posizione</a>{% endif %}
+      </div>
+    </div>
+
+    <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Posizioni in sintesi">
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-building" valore=kpi.aperte label="Posizioni attive" sub="aperte o sospese" url="?" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-users" valore=kpi.posti_aperti label="Posti richiesti" sub="sulle posizioni attive" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.in_ritardo|yesno:"orange,green" icona="i-alarm" valore=kpi.in_ritardo label="In ritardo" sub="oltre la data entro cui servono" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=kpi.coperte_12m label="Coperte" sub="negli ultimi 12 mesi" url="?stato=COPERTA" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-clock" valore=kpi.giorni_medi_copertura|default:"—" label="Giorni medi" sub="dalla richiesta alla copertura" %}
+    </section>
+
+    <section class="fmd-panel">
+      <form method="get" class="fmd-toolbar">
+        <select name="stato" class="fmd-select" aria-label="Filtra per stato" onchange="this.form.submit()">
+          <option value="" {% if not filtro_stato %}selected{% endif %}>Attive</option>
+          {% for value, label in stato_choices %}<option value="{{ value }}" {% if filtro_stato == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          <option value="tutte" {% if filtro_stato == "tutte" %}selected{% endif %}>Tutte</option>
+        </select>
+      </form>
+
+      {% if righe %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead>
+            <tr><th>Posizione</th><th>Reparto</th><th>Motivo</th><th class="fmd-nowrap">Serve entro</th><th>Copertura</th><th class="fmd-r">Candidati</th><th>Stato</th></tr>
+          </thead>
+          <tbody>
+            {% for r in righe %}{% with p=r.posizione %}
+            <tr>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:recruiting_posizione_detail' p.id %}">{{ p.titolo }}</a>
+                <div class="fmd-cell-sub">{{ p.mansione|default:"" }}{% if p.richiesta_da %} · richiesta da {{ p.richiesta_da }}{% endif %}</div>
+              </td>
+              <td>{% if p.reparto %}<span class="fmd-badge fmd-b-cyan">{{ p.reparto }}</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td class="fmd-muted">{{ p.get_motivo_display }}</td>
+              <td class="fmd-nowrap">{% if p.entro_il %}{% if r.in_ritardo %}<span class="fmd-badge fmd-b-red">{{ p.entro_il|date:"d/m/Y" }}</span>{% else %}{{ p.entro_il|date:"d/m/Y" }}{% endif %}{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td>
+                <div class="rcr-posti" title="{{ r.assunti }} assunti su {{ p.posti }} posti">
+                  <div class="rcr-posti-bar"><span style="width:{% widthratio r.assunti p.posti 100 %}%"></span></div>
+                  <span class="rcr-posti-n">{{ r.assunti }}/{{ p.posti }}</span>
+                </div>
+              </td>
+              <td class="fmd-r fmd-num">{{ r.in_corso }}<span class="fmd-muted"> in corso</span>{% if r.offerte %} · {{ r.offerte }} offert{{ r.offerte|pluralize:"a,e" }}{% endif %}</td>
+              <td>
+                {% if p.stato == "APERTA" %}<span class="fmd-badge fmd-b-cyan">Aperta</span>
+                {% elif p.stato == "SOSPESA" %}<span class="fmd-badge fmd-b-amber">Sospesa</span>
+                {% elif p.stato == "COPERTA" %}<span class="fmd-badge fmd-b-green">Coperta{% if p.giorni_copertura is not None %} in {{ p.giorni_copertura }} gg{% endif %}</span>
+                {% else %}<span class="fmd-badge fmd-b-grey">Annullata</span>{% endif %}
+              </td>
+            </tr>
+            {% endwith %}{% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-et">Nessuna posizione</span>
+        <span class="fmd-em">{% if can_manage %}Apri una posizione per collegarvi i candidati della selezione.{% else %}Non ci sono richieste di personale in questo stato.{% endif %}</span>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

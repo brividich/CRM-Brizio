@@ -699,8 +699,12 @@ class SubnavTests(TestCase):
         from .models import SubnavLinkAnagrafica
         from .urls import urlpatterns
 
-        link = SubnavLinkAnagrafica.objects.get(url_value="anagrafica:recruiting_list")
-        attivi = {t.strip() for t in (link.active_view_names or "").split(",") if t.strip()}
+        # Le pagine delle posizioni accendono la loro voce («Posizioni aperte»).
+        attivi = set()
+        for link in SubnavLinkAnagrafica.objects.filter(
+            url_value__in=["anagrafica:recruiting_list", "anagrafica:recruiting_posizioni"],
+        ):
+            attivi |= {t.strip() for t in (link.active_view_names or "").split(",") if t.strip()}
         dichiarate = {
             f"anagrafica:{p.name}"
             for p in urlpatterns
@@ -716,6 +720,9 @@ class SubnavTests(TestCase):
             "anagrafica:recruiting_criterio_toggle",
             "anagrafica:recruiting_criterio_delete",
             "anagrafica:recruiting_criterio_move",
+            "anagrafica:recruiting_sposta",
+            "anagrafica:recruiting_offerta",
+            "anagrafica:recruiting_offerta_esito",
         }
         self.assertEqual(dichiarate - azioni - attivi, set())
 

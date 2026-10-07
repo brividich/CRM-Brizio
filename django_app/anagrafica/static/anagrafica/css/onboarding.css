@@ -1,0 +1,108 @@
+/* Onboarding a fasi — cruscotto (onboarding_list) e pratica a timeline
+ * (onboarding_detail). Vive dentro il guscio `.fmd` (formazione_design.css):
+ * qui solo i pezzi propri, prefisso `obd-` (pagina), `obf-` (fase), `obv-` (voce).
+ */
+
+/* ── Chip categoria / responsabile ──────────────────────────────────────── */
+.obd-cat { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+  background: #eef2ff; color: #3730a3; white-space: nowrap; }
+
+/* ── Avanzamento ─────────────────────────────────────────────────────────── */
+.obd-prog { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.obd-prog-bar { flex: 1; height: 7px; border-radius: 999px; background: #e9eef5; overflow: hidden; }
+.obd-prog-bar > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #1f87cd, #16a34a); }
+.obd-prog-n { font-family: var(--fmd-mono); font-size: 11.5px; font-weight: 800; color: #0c2545; min-width: 34px; text-align: right; }
+.obd-prog-lg .obd-prog-bar { height: 10px; }
+.obd-prog-lg .obd-prog-n { font-size: 14px; }
+.obd-late { color: #c2410c; font-weight: 700; }
+
+/* ── Filtro per responsabile ────────────────────────────────────────────── */
+.obd-resp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 14px; }
+.obd-resp-lbl { font-family: var(--fmd-mono); font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #6b7488; margin-right: 4px; }
+.obd-resp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px;
+  border: 1px solid var(--fmd-line); background: #fff; font-size: 12.5px; font-weight: 600; color: #334155; text-decoration: none; }
+.obd-resp-chip b { font-family: var(--fmd-mono); font-size: 11px; color: #1f87cd; }
+.obd-resp-chip:hover { border-color: #b9d6ee; color: #0c2545; }
+.obd-resp-chip.on { background: #0c2545; border-color: #0c2545; color: #fff; }
+.obd-resp-chip.on b { color: #7cc4f0; }
+.obd-resp-late b { color: #c2410c; }
+
+/* ── Testata della pratica ──────────────────────────────────────────────── */
+.obd-head { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.obd-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0; }
+.obd-facts dt { font-family: var(--fmd-mono); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #6b7488; }
+.obd-facts dd { margin: 3px 0 0; font-size: 14px; font-weight: 700; color: #0c2545; }
+.obd-progress { display: flex; flex-direction: column; gap: 5px; }
+.obd-progress-txt { font-size: 12.5px; color: #64748b; }
+.obd-dates summary, .obv-exc summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: #1f87cd; }
+.obd-dates-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 10px; }
+.obd-dates-form label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; font-weight: 700; color: #475569; }
+.obd-dates-form input, .obv-exc input { border: 1px solid var(--fmd-line); border-radius: 8px; padding: 7px 9px; font-family: inherit; font-size: 13px; background: #fff; color: #0f172a; }
+.obd-note { font-size: 13px; color: #475569; }
+
+/* ── Timeline per fase ──────────────────────────────────────────────────── */
+.obd-timeline { position: relative; display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
+.obf { position: relative; background: #fff; border: 1px solid var(--fmd-line); border-radius: 12px; overflow: hidden; }
+.obf-head { display: flex; align-items: center; gap: 10px; padding: 11px 16px; background: #f7f9fc; border-bottom: 1px solid var(--fmd-line); }
+.obf-dot { width: 10px; height: 10px; border-radius: 50%; background: #1f87cd; box-shadow: 0 0 0 4px rgba(31,135,205,.15); }
+.obf-title { font-size: 13.5px; font-weight: 800; color: #0c2545; }
+.obf-date { font-size: 12px; color: #64748b; }
+.obf-n { margin-left: auto; font-family: var(--fmd-mono); font-size: 11.5px; font-weight: 800; color: #1f87cd; }
+.obf-list { list-style: none; margin: 0; padding: 0; }
+
+/* ── Voce ────────────────────────────────────────────────────────────────── */
+.obv { display: grid; grid-template-columns: 30px 1fr auto; gap: 12px; align-items: start; padding: 12px 16px; border-top: 1px solid #f1f5f9; }
+.obv:first-child { border-top: none; }
+.obv-check { margin: 0; }
+.obv-box { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #cbd5e1; background: #fff; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #fff; padding: 0; }
+.obv-box:hover { border-color: #1f87cd; }
+.obv-box-on { background: #16a34a; border-color: #16a34a; }
+.obv-eccezione .obv-box-on { background: #d97706; border-color: #d97706; }
+.obv-title { font-size: 13.5px; font-weight: 700; color: #1e293b; }
+.obv-completato .obv-title { color: #64748b; text-decoration: line-through; text-decoration-color: rgba(100,116,139,.5); }
+.obv-desc { font-size: 12px; color: #64748b; margin-top: 2px; line-height: 1.45; }
+.obv-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.obv-auto { font-size: 10.5px; font-weight: 700; color: #1f87cd; border: 1px dashed #9cc9ea; border-radius: 999px; padding: 0 7px; }
+.obv-done-auto { font-size: 11.5px; font-weight: 600; color: #15803d; }
+.obv-done { font-size: 11.5px; color: #64748b; }
+.obv-note { font-size: 12px; color: #92400e; background: #fef7ed; border-radius: 6px; padding: 4px 8px; margin-top: 6px; }
+.obv-exc { margin-top: 6px; }
+.obv-exc form { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.obv-exc input { flex: 1; min-width: 220px; }
+.obv-due { white-space: nowrap; text-align: right; }
+.obv-date { font-family: var(--fmd-mono); font-size: 12px; font-weight: 700; color: #334155; }
+.obv-tbd { font-family: inherit; font-weight: 600; color: #94a3b8; }
+.obv-late { background: #fff8f5; }
+.htmx-request.obv-check .obv-box, .htmx-request .obv-box { opacity: .5; }
+
+/* ── Chiusura ───────────────────────────────────────────────────────────── */
+.obd-close { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; }
+.obd-close-actions { display: flex; gap: 8px; }
+.obd-close-actions form { margin: 0; }
+
+@media (max-width: 720px) {
+  .obv { grid-template-columns: 28px 1fr; }
+  .obv-due { grid-column: 2; text-align: left; }
+}
+
+/* ── Tema scuro ─────────────────────────────────────────────────────────── */
+body.theme-dark .obd-cat { background: #1e2a4a; color: #a5b4fc; }
+body.theme-dark .obd-prog-bar { background: var(--border); }
+body.theme-dark .obd-prog-n, body.theme-dark .obd-facts dd, body.theme-dark .obf-title { color: var(--text); }
+body.theme-dark .obd-resp-chip { background: var(--surface); border-color: var(--border); color: var(--text-mid); }
+body.theme-dark .obd-resp-chip.on { background: #0c2545; border-color: #1f87cd; color: #fff; }
+body.theme-dark .obf { background: var(--surface); border-color: var(--border); }
+body.theme-dark .obf-head { background: var(--surface-alt); border-color: var(--border); }
+body.theme-dark .obv { border-color: var(--border); }
+body.theme-dark .obv-title { color: var(--text); }
+body.theme-dark .obv-desc, body.theme-dark .obd-progress-txt, body.theme-dark .obd-note, body.theme-dark .obf-date { color: var(--text-light); }
+body.theme-dark .obv-box { background: var(--surface-alt); border-color: var(--border); }
+body.theme-dark .obv-box-on { background: #16a34a; border-color: #16a34a; }
+body.theme-dark .obv-date { color: var(--text); }
+body.theme-dark .obv-late { background: #2a1d17; }
+body.theme-dark .obv-note { background: #2a2116; color: #fbbf77; }
+body.theme-dark .obd-dates-form input, body.theme-dark .obv-exc input { background: var(--surface-alt); border-color: var(--border); color: var(--text); }
+body.theme-dark .obd-dates-form label { color: var(--text-light); }
+body.theme-dark .obv-completato .obv-title { color: var(--text-light); text-decoration: line-through; }

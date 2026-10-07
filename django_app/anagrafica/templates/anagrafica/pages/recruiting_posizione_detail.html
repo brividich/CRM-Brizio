@@ -1,0 +1,83 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ posizione.titolo }} | Posizioni aperte{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+    {% include "anagrafica/partials/_recruiting_tabs.html" with attiva="posizioni" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:recruiting_posizioni' %}">Posizioni aperte</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ posizione.titolo }}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-building"/></svg>{{ posizione.titolo }}</h1>
+        <p class="fmd-ph-sub">{{ posizione.get_motivo_display }}{% if posizione.reparto %} · {{ posizione.reparto }}{% endif %}{% if posizione.richiesta_da %} · richiesta da {{ posizione.richiesta_da }}{% endif %} · il {{ posizione.data_richiesta|date:"d/m/Y" }}</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:recruiting_pipeline' %}?posizione={{ posizione.id }}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Pipeline</a>
+        {% if can_manage %}
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:recruiting_posizione_edit' posizione.id %}"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica</a>
+        <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:recruiting_create' %}?posizione={{ posizione.id }}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo candidato</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Posizione in sintesi">
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=riga.assunti label="Assunti" sub="sui posti richiesti" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=posizione.posti label="Posti" sub=posizione.get_stato_display %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-clipboard" valore=riga.in_corso label="In selezione" sub="candidati con iter aperto" %}
+      {% if posizione.entro_il %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=riga.in_ritardo|yesno:"orange,green" icona="i-alarm" valore=posizione.entro_il|date:"d/m" label="Serve entro" sub=posizione.entro_il|date:"Y" %}
+      {% endif %}
+      {% if posizione.giorni_copertura is not None %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-clock" valore=posizione.giorni_copertura label="Giorni" sub="per coprire la posizione" %}
+      {% elif riga.giorni_aperta is not None %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-clock" valore=riga.giorni_aperta label="Giorni aperta" sub="dalla richiesta" %}
+      {% endif %}
+    </section>
+
+    {% if posizione.note %}
+    <section class="fmd-panel fmd-block"><div class="fmd-cell-sub">{{ posizione.note|linebreaksbr }}</div></section>
+    {% endif %}
+
+    <section class="fmd-panel">
+      <div class="fmd-block-head" style="padding:14px 16px 0;">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Candidati della posizione</div>
+        <span class="fmd-count">{{ candidati|length }}</span>
+      </div>
+      {% if candidati %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Candidato</th><th>Fase</th><th class="fmd-r">Punteggio</th><th>Canale</th><th class="fmd-nowrap">Ingresso</th></tr></thead>
+          <tbody>
+            {% for c in candidati %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:recruiting_detail' c.id %}">{{ c.etichetta }}</a></td>
+              <td>{% if c.stato == "ASSUNTO" %}<span class="fmd-badge fmd-b-green">Assunto</span>{% elif c.iter_chiuso %}<span class="fmd-badge fmd-b-grey">{{ c.get_stato_display }}</span>{% else %}<span class="fmd-badge fmd-b-cyan">{{ c.get_stato_display }}</span>{% endif %}</td>
+              <td class="fmd-r fmd-num">{{ c.punteggio_ponderato|default:"—" }}</td>
+              <td class="fmd-muted">{{ c.get_canale_provenienza_display }}</td>
+              <td class="fmd-nowrap fmd-muted">{{ c.data_assunzione|date:"d/m/Y"|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty"><span class="fmd-et">Nessun candidato collegato</span><span class="fmd-em">Collega i candidati dalla loro scheda (campo «Posizione aperta»).</span></div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

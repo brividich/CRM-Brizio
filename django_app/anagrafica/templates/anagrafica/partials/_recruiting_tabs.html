@@ -1,0 +1,12 @@
+{# Sezioni del Recruiting. Parametro: attiva = candidati|pipeline|posizioni|cruscotto|criteri #}
+<nav class="rcr-tabs" aria-label="Sezioni Recruiting">
+  <a href="{% url 'anagrafica:recruiting_list' %}" class="rcr-tab{% if attiva == 'candidati' %} on{% endif %}"{% if attiva == 'candidati' %} aria-current="page"{% endif %}><svg class="fmd-ico"><use href="#i-users"/></svg>Candidati</a>
+  <a href="{% url 'anagrafica:recruiting_pipeline' %}" class="rcr-tab{% if attiva == 'pipeline' %} on{% endif %}"{% if attiva == 'pipeline' %} aria-current="page"{% endif %}><svg class="fmd-ico"><use href="#i-grid"/></svg>Pipeline</a>
+  <a href="{% url 'anagrafica:recruiting_posizioni' %}" class="rcr-tab{% if attiva == 'posizioni' %} on{% endif %}"{% if attiva == 'posizioni' %} aria-current="page"{% endif %}><svg class="fmd-ico"><use href="#i-building"/></svg>Posizioni aperte</a>
+  <a href="{% url 'anagrafica:recruiting_dashboard' %}" class="rcr-tab{% if attiva == 'cruscotto' %} on{% endif %}"{% if attiva == 'cruscotto' %} aria-current="page"{% endif %}><svg class="fmd-ico"><use href="#i-award"/></svg>Cruscotto KPI</a>
+  {% if can_manage %}
+  <a href="{% url 'anagrafica:recruiting_criteri' %}" class="rcr-tab{% if attiva == 'criteri' %} on{% endif %}"{% if attiva == 'criteri' %} aria-current="page"{% endif %}><svg class="fmd-ico"><use href="#i-gear"/></svg>Criteri</a>
+  {% endif %}
+  <span class="rcr-tabs-sp"></span>
+  <a href="{% url 'anagrafica:onboarding_list' %}" class="rcr-tab rcr-tab-link"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Onboarding</a>
+</nav>

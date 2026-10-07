@@ -227,17 +227,31 @@ def genera_piano(assegnazione, *, mansione_precedente: str, area_precedente_id: 
 
 def _soddisfatto(adempimento, ctx, persona) -> str:
     """Motivo di chiusura automatica, o stringa vuota se l'adempimento e' ancora da fare."""
+    return requisito_soddisfatto(
+        adempimento.tipo, adempimento.riferimento_id, ctx=ctx, persona=persona,
+        dal=adempimento.assegnazione.created_at.date(), mansione=adempimento.assegnazione.mansione,
+    )
+
+
+def requisito_soddisfatto(tipo_voce: str, riferimento_id: int | None, *, ctx, persona,
+                          dal: date, mansione: str) -> str:
+    """Verifica condivisa (piano cambio mansione e onboarding): motivo di chiusura
+    automatica, o stringa vuota se il requisito e' ancora da soddisfare.
+
+    ``tipo_voce`` e' uno fra VISITA / FORMAZIONE / DPI / SDS; ``dal`` e' la data
+    da cui una visita generica conta (nascita della voce, con tolleranza).
+    """
     from ..models import AdempimentoCambioMansione as A, TipoVisitaMedica, VisitaMedica
 
     oggi = timezone.localdate()
-    if adempimento.tipo == A.TIPO_VISITA:
-        if adempimento.riferimento_id is None:
-            soglia = adempimento.assegnazione.created_at.date() - timedelta(days=TOLLERANZA_VISITA_GIORNI)
+    if tipo_voce == A.TIPO_VISITA:
+        if riferimento_id is None:
+            soglia = dal - timedelta(days=TOLLERANZA_VISITA_GIORNI)
             visita = (VisitaMedica.objects.filter(legacy_anagrafica_id__in=persona.tutti_gli_id,
                                                   data_svolgimento__gte=soglia, superata_il__isnull=True)
                       .order_by("-data_svolgimento").first())
             return f"Visita registrata il {visita.data_svolgimento:%d/%m/%Y}" if visita else ""
-        tipo = TipoVisitaMedica.objects.filter(pk=adempimento.riferimento_id).first()
+        tipo = TipoVisitaMedica.objects.filter(pk=riferimento_id).first()
         if tipo is None:
             return "Tipo di visita non più a catalogo"
         famiglia = requisiti._famiglia(tipo)
@@ -250,21 +264,23 @@ def _soddisfatto(adempimento, ctx, persona) -> str:
             if scadenza is None or scadenza >= oggi:
                 return f"Visita «{v.tipo.nome}» del {v.data_svolgimento:%d/%m/%Y}"
         return ""
-    if adempimento.tipo == A.TIPO_FORMAZIONE:
-        if adempimento.riferimento_id is None:
+    if tipo_voce == A.TIPO_FORMAZIONE:
+        if riferimento_id is None:
             return ""  # informazione/formazione generica: si chiude a mano
-        ultimo = requisiti.ultimi_completamenti(ctx, {persona.id: persona}).get((persona.id, adempimento.riferimento_id))
+        ultimo = requisiti.ultimi_completamenti(ctx, {persona.id: persona}).get((persona.id, riferimento_id))
         if ultimo and (ultimo[1] is None or ultimo[1] >= oggi):
             return f"Corso completato il {ultimo[0]:%d/%m/%Y}"
         return ""
-    if adempimento.tipo == A.TIPO_DPI:
-        return "DPI consegnato" if adempimento.riferimento_id in _dpi_consegnati(list(persona.tutti_gli_id)) else ""
-    if adempimento.tipo == A.TIPO_SDS:
+    if tipo_voce == A.TIPO_DPI:
+        return "DPI consegnato" if riferimento_id in _dpi_consegnati(list(persona.tutti_gli_id)) else ""
+    if tipo_voce == A.TIPO_SDS:
         try:
             from schede_sicurezza.services.assegnazioni import sds_da_leggere_per_dipendente
-            dovute = sds_da_leggere_per_dipendente(persona.id, adempimento.assegnazione.mansione)
+            dovute = sds_da_leggere_per_dipendente(persona.id, mansione)
         except Exception:
             return ""
+        if dovute.legacy_user_id is None:
+            return ""  # senza account la presa visione non e' registrabile: non e' «tutto letto»
         return "" if dovute.da_leggere else "Tutte le schede lette"
     return ""
 
