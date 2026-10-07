@@ -92,6 +92,49 @@ class VisiteTest(_Base):
         v.refresh_from_db()
         self.assertEqual(v.data_scadenza, _add_months(fatta, 12))
 
+    def test_verifica_integrita_sola_lettura(self):
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=902, ruolo=self.ruolo)
+        fatta = OGGI - timedelta(days=30)
+        sbagliato = TipoVisitaMedica.objects.create(nome="Visita medica quinquennale", durata_mesi=12)
+        v = VisitaMedica.objects.create(legacy_anagrafica_id=902, tipo=self.biennale, data_svolgimento=fatta)
+        # Scadenza del tipo rimasta senza ricalcolo (anticipo atteso a 12 mesi).
+        VisitaMedica.objects.filter(pk=v.pk).update(data_scadenza=_add_months(fatta, 24), scadenza_nota="")
+        rotta = VisitaMedica.objects.create(legacy_anagrafica_id=901, tipo=self.annuale, data_svolgimento=fatta)
+        VisitaMedica.objects.filter(pk=rotta.pk).update(data_scadenza=fatta - timedelta(days=1))
+
+        out = StringIO()
+        call_command("verifica_scadenze_visite", stdout=out)
+        testo = out.getvalue()
+        self.assertIn(f"tipo #{sbagliato.pk}", testo)
+        self.assertIn(f"visita #{v.pk}", testo.split("2a.")[1].split("2b.")[0])
+        self.assertIn(f"visita #{rotta.pk}", testo.split("3b.")[1].split("3c.")[0])
+        v.refresh_from_db()
+        self.assertEqual(v.data_scadenza, _add_months(fatta, 24))  # non scrive
+
+        scadenze.ricalcola_visite()
+        VisitaMedica.objects.filter(pk=rotta.pk).update(data_scadenza=_add_months(fatta, 12))
+        sbagliato.delete()
+        out = StringIO()
+        call_command("verifica_scadenze_visite", stdout=out)
+        self.assertIn("Nessuna anomalia", out.getvalue())
+        self.assertIn(f"visita #{v.pk}", out.getvalue().split("2b.")[1])
+
+    def test_scheda_visita_spiega_scadenza_anticipata(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=902, ruolo=self.ruolo)
+        fatta = OGGI - timedelta(days=30)
+        v = VisitaMedica.objects.create(legacy_anagrafica_id=902, tipo=self.biennale, data_svolgimento=fatta)
+        scadenze.ricalcola_visite()
+        admin = get_user_model().objects.create_superuser("vm_admin", "vm@example.test", "x")
+        self.client.force_login(admin)
+        with patch("anagrafica.views._can_view_visite_mediche", return_value=True):
+            resp = self.client.get(reverse("anagrafica:visita_medica_dettaglio", args=[v.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Scadenza anticipata")
+        self.assertContains(resp, f"{_add_months(fatta, 24):%d/%m/%Y} previsto dal tipo")
+
     def test_dettaglio_visite_dal_motore(self):
         DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=902, ruolo=self.ruolo)
         VisitaMedica.objects.create(legacy_anagrafica_id=902, tipo=self.biennale,

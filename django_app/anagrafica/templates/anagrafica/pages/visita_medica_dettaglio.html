@@ -14,6 +14,7 @@
 .vm-detail-field dd { margin:0; color:#0f172a; font-size:14px; font-weight:600; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
 .vm-detail-wide { grid-column:1 / -1; padding-top:14px; border-top:1px solid #f1f5f9; }
 .vm-detail-sub { color:#64748b; font-size:12px; line-height:1.5; }
+.vm-scadenza-nota { margin-top:4px; font-weight:500; white-space:normal; }
 .vm-detail-docs { margin:0; padding:0; list-style:none; display:grid; gap:8px; }
 .vm-detail-docs a { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 11px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; color:#0c2545; font-size:13px; font-weight:700; text-decoration:none; }
 .vm-detail-docs a:hover { background:#eff6ff; border-color:#bfdbfe; }
@@ -65,7 +66,7 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
         </div>
         <div class="fmd-hero-side">
           <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ visita.data_svolgimento|date:"d/m/Y" }}</span><span class="fmd-lbl">Data visita</span></div>
-          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ visita.data_scadenza|date:"d/m/Y"|default:"—" }}</span><span class="fmd-lbl">Scadenza</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ visita.data_scadenza|date:"d/m/Y"|default:"—" }}</span><span class="fmd-lbl">Scadenza{% if scadenza_anticipata %} anticipata{% endif %}</span></div>
         </div>
       </div>
     </section>
@@ -85,7 +86,7 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
             <div class="vm-detail-field"><dt>Dipendente</dt><dd>{{ dipendente_nome }}</dd></div>
             <div class="vm-detail-field"><dt>Tipo visita</dt><dd>{{ visita.tipo.nome }}</dd></div>
             <div class="vm-detail-field"><dt>Data visita</dt><dd>{{ visita.data_svolgimento|date:"d/m/Y" }}</dd></div>
-            <div class="vm-detail-field"><dt>Scadenza</dt><dd>{{ visita.data_scadenza|date:"d/m/Y"|default:"Nessuna scadenza" }}</dd></div>
+            <div class="vm-detail-field"><dt>Scadenza</dt><dd>{{ visita.data_scadenza|date:"d/m/Y"|default:"Nessuna scadenza" }}{% if scadenza_anticipata %}<div class="vm-detail-sub vm-scadenza-nota">Anticipata rispetto al {{ scadenza_tipo|date:"d/m/Y" }} previsto dal tipo di visita.{% if visita.scadenza_nota %} {{ visita.scadenza_nota }}{% endif %}</div>{% endif %}</dd></div>
             <div class="vm-detail-field"><dt>Esito</dt><dd>{{ visita.get_esito_display }}</dd></div>
             <div class="vm-detail-field"><dt>Medico competente</dt><dd>{{ visita.medico_competente|default:"—" }}</dd></div>
             <div class="vm-detail-field vm-detail-wide"><dt>Prescrizioni</dt><dd>{{ visita.prescrizioni|default:"—" }}</dd></div>
@@ -138,7 +139,7 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
     <section class="hr-card vm-detail-edit" aria-labelledby="vm-modifica" style="margin-top:14px;">
       <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-modifica">Modifica visita</h2><div class="hr-card-desc">Correggi i dati della registrazione</div></div></div>
       <div class="hr-card-pad" style="padding:20px;">
-        <p class="vm-detail-sub" style="margin:0 0 16px;">La scadenza viene ricalcolata dal tipo e dalla data della visita. Un nuovo referto sostituisce quello principale.</p>
+        <p class="vm-detail-sub" style="margin:0 0 16px;">La scadenza viene ricalcolata dal tipo e dalla data della visita, e anticipata se la mansione richiede oggi una periodicità più stretta. Un nuovo referto sostituisce quello principale.</p>
         <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:dipendente_visita_edit' visita.legacy_anagrafica_id visita.pk %}">
           {% csrf_token %}
           <div class="vm-detail-form">{% for field in form %}<div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}</div>

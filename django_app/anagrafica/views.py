@@ -10878,8 +10878,16 @@ def visita_medica_dettaglio(request, v_id: int):
             ) or dipendente_nome
     except Exception:
         logger.exception("Errore lookup dipendente per visita %s", v_id)
+    from anagrafica.models import _add_months
+
+    # Scadenza secondo il tipo della visita fatta: se diversa da quella salvata, la
+    # scheda spiega l'anticipo (ricalcolo prudente, services.scadenze.ricalcola_visite).
+    durata = visita.tipo.durata_mesi or 0
+    scadenza_tipo = _add_months(visita.data_svolgimento, durata) if durata > 0 else None
     return render(request, "anagrafica/pages/visita_medica_dettaglio.html", {
         "visita": visita,
+        "scadenza_tipo": scadenza_tipo,
+        "scadenza_anticipata": bool(scadenza_tipo and visita.data_scadenza and visita.data_scadenza < scadenza_tipo),
         "dipendente_nome": dipendente_nome,
         "form": VisitaMedicaForm(instance=visita),
         "can_delete_visite": _has_canonical_grant(request, PERM_VISITE_DELETE),
