@@ -144,6 +144,18 @@ Le "condition" delle MIB HPE/Compaq hanno tutte la stessa scala: **1** altro/non
 
 **Visti nel walk ma non nel preset**: soglia e condizione per sensore (`232.6.2.6.8.1.5`, `.6`), ventole e alimentatori per singolo componente (`232.6.2.6.7.1.9`, `232.6.2.9.3.1.4`), carico degli alimentatori in % (`232.6.2.9.3.1.7`), moduli di memoria (`232.6.2.14.13.1.20`). Le tabelle dei dischi `232.3.2.3`/`232.3.2.5` sono vuote su questo server.
 
+## Catalogo dalle MIB ufficiali
+
+`django_app/contatori/data/oid_mib.json` contiene 980 OID numerici ricavati dalle MIB ufficiali, con nome, descrizione, unità, codici di stato e modalità (GET scalare o WALK colonna). Comprende WatchGuard, HPE ArubaOS-Switch, Cisco Small Business, Synology, UniFi e VMware, più le MIB standard.
+
+Lo usa «Verifica OID» (scheda dispositivo SNMP) per dare un nome agli OID che rispondono sull'apparato. Una voce del catalogo **non** rende un OID valido per un modello: diventa colonna del profilo solo ciò che l'apparato ha risposto.
+
+Rigenerazione, dalla root del repo, con i file MIB in una cartella (es. `mibs/` di github.com/librenms/librenms):
+
+```
+python tools/snmp/genera_catalogo_mib.py <cartella_mib>
+```
+
 ## Ancora da verificare
 
 Servono i walk di: switch Aruba/HPE (stack VSF), Cisco SG250, WatchGuard, ESXi, UPS, iDRAC, Windows. Hanno community diverse da `public`/`novicromprinter`. Procedura in [CATTURA.md](CATTURA.md).

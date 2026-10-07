@@ -133,7 +133,21 @@ class PropostaAITests(SimpleTestCase):
         proposte = verifica_oid.proposte_catalogo(cand)
         self.assertEqual(proposte["1.3.6.1.4.1.3097.6.3.77.0"]["fattore"], "0.01")
         self.assertEqual(proposte["1.3.6.1.2.1.2.2.1.8.3"]["nome"], "Stato porte (riga 3)")
-        self.assertNotIn("1.3.6.1.4.1.3097.6.3.30.0", proposte)  # sconosciuto: resta all'AI
+        # Non curato ma presente nella MIB ufficiale WatchGuard: nome tecnico, da tradurre con l'AI.
+        self.assertEqual(proposte["1.3.6.1.4.1.3097.6.3.30.0"]["nome"], "wgSystemStreamReqTotal")
+        self.assertEqual(proposte["1.3.6.1.4.1.3097.6.3.30.0"]["fonte"], "mib")
+        self.assertIn("wgSystemCpuUtil1", proposte["1.3.6.1.4.1.3097.6.3.77.0"]["motivo"])
+
+    def test_catalogo_mib_generato(self):
+        from contatori.oid_noti import catalogo_mib
+
+        mib = catalogo_mib()
+        self.assertGreater(len(mib), 500)
+        stato = mib["1.3.6.1.4.1.11.2.14.11.1.2.6.1.4"]  # hpicfSensorStatus, colonna di tabella
+        self.assertEqual((stato["modalita"], stato["etichette"][:9]), ("WALK", "1=unknown"))
+        self.assertEqual(mib["1.3.6.1.4.1.9.6.1.101.1.8.0"]["nome"], "rlCpuUtilDuringLastMinute")
+        sconosciuto = verifica_oid.proposte_catalogo([dict(self.CAND[0], oid="1.3.6.1.4.1.99999.1.0")])
+        self.assertEqual(sconosciuto, {})
 
     def test_ai_non_disponibile(self):
         with mock.patch("ai_assistant.services.chat_with_ollama", side_effect=RuntimeError("giu")):

@@ -112,22 +112,28 @@ def _selezionati(request, candidati):
     return scelti
 
 
+def _senza_nome_italiano(proposte, candidato):
+    """Riga ancora da proporre: senza nome o col solo nome tecnico della MIB."""
+    proposta = proposte.get(candidato["oid"])
+    return proposta is None or proposta.get("fonte") == "mib"
+
+
 def _proponi(request, dispositivo, stato):
     candidati = stato["candidati"]
     proposte = stato.get("proposte") or {}
     scelti = [c for _, c in _selezionati(request, candidati)]
-    # Senza selezione: le righe che non hanno ancora un nome, a blocchi.
-    da_proporre = scelti or [c for c in candidati if c["oid"] not in proposte]
+    # Senza selezione: le righe senza nome italiano (anche quelle col nome tecnico MIB), a blocchi.
+    da_proporre = scelti or [c for c in candidati if _senza_nome_italiano(proposte, c)]
     blocco = da_proporre[:verifica_oid.MAX_AI_PER_VOLTA]
     nuove = verifica_oid.proponi_con_ai(dispositivo, blocco)
     proposte.update(nuove)
     stato["proposte"] = proposte
     _salva_stato(request, dispositivo.pk, stato)
-    restano = sum(1 for c in candidati if c["oid"] not in proposte)
+    restano = sum(1 for c in candidati if _senza_nome_italiano(proposte, c))
     if nuove:
         testo = f"L'AI ha proposto {len(nuove)} nomi su {len(blocco)} OID: controllali prima di aggiungerli."
         if restano and not scelti:
-            testo += f" Restano {restano} righe senza nome: premi di nuovo per il blocco successivo."
+            testo += f" Restano {restano} righe senza nome in italiano: premi di nuovo per il blocco successivo."
         messages.success(request, testo)
     elif not blocco:
         messages.info(request, "Tutte le righe hanno già un nome. Seleziona le righe da riproporre con l'AI.")
