@@ -1,0 +1,131 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}Report periodico | Security Center AI{% endblock %}
+{% block page_icon %}R{% endblock %}
+{% block page_marker %}Report{% endblock %}
+{% block page_title %}Report periodico{% endblock %}
+
+{% block soc_content %}
+{% with a=report.alerts b=report.backup v=report.vulnerabilities vpn=report.vpn t=report.tickets inc=report.incidents ing=report.ingestion %}
+<section class="sec-panel">
+  <form class="sec-filter-bar" method="get" id="report-period">
+    <label>Periodo
+      <select name="period" data-toggle-custom>
+        {% for value, label in presets %}<option value="{{ value }}" {% if preset == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label data-custom-field {% if preset != "custom" %}hidden{% endif %}>Dal <input type="date" name="from" value="{{ report.start|date:'Y-m-d' }}"></label>
+    <label data-custom-field {% if preset != "custom" %}hidden{% endif %}>Al <input type="date" name="to" value="{{ report.end|date:'Y-m-d' }}"></label>
+    <button class="sec-button-primary" type="submit">Mostra</button>
+    <a class="sec-button" href="{% url 'security:report_pdf' %}{% if query %}?{{ query }}{% endif %}">Scarica PDF</a>
+  </form>
+  <p class="sec-muted sec-small" style="margin:10px 0 0;">Report <strong>{{ report.label }}</strong> ({{ report.days }} giorni), generato il {{ report.generated_at|date:"d/m/Y H:i" }}. Il PDF contiene gli stessi dati di questa pagina: è pensato per la direzione e per gli audit (niente nomi utente, niente contenuti delle mail).</p>
+</section>
+
+<section class="sec-grid sec-kpi-grid" style="margin-top: 12px;">
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:alerts_list' %}?status=all">
+    <span class="sec-kpi-label">Alert creati</span>
+    <strong class="sec-kpi-value">{{ a.created }}</strong>
+    <span class="sec-kpi-delta{% if not a.open_now %} sec-good{% endif %}">{{ a.open_now }} ancora apert{{ a.open_now|pluralize:"o,i" }}</span>
+  </a>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Tempo medio di chiusura</span>
+    <strong class="sec-kpi-value">{% if a.mean_hours_to_close is not None %}{{ a.mean_hours_to_close|floatformat:1 }} h{% else %}—{% endif %}</strong>
+    <span class="sec-kpi-delta sec-good">{{ a.closed }} alert chius{{ a.closed|pluralize:"o,i" }}</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Backup riusciti</span>
+    <strong class="sec-kpi-value{% if b.failed %} critical{% endif %}">{% if b.success_rate is not None %}{{ b.success_rate|floatformat:1 }}%{% else %}—{% endif %}</strong>
+    <span class="sec-kpi-delta{% if not b.failed %} sec-good{% endif %}">{{ b.failed }} fallit{{ b.failed|pluralize:"o,i" }} su {{ b.total }}</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">CVE aperte esposte</span>
+    <strong class="sec-kpi-value{% if v.top %} critical{% endif %}">{{ v.open_now }}</strong>
+    <span class="sec-kpi-delta{% if not v.new_in_period %} sec-good{% endif %}">{{ v.new_in_period }} nuov{{ v.new_in_period|pluralize:"a,e" }} nel periodo</span>
+  </div>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="{% url 'security:incidents' %}?status=all">
+    <span class="sec-kpi-label">Incidenti</span>
+    <strong class="sec-kpi-value{% if inc.significant %} critical{% endif %}">{{ inc.total }}</strong>
+    <span class="sec-kpi-delta{% if not inc.significant %} sec-good{% endif %}">{{ inc.significant }} significativ{{ inc.significant|pluralize:"o,i" }} NIS2</span>
+  </a>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Postura attuale</h2></div>
+    <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+      <thead><tr><th>Area</th><th class="sec-num">Indice</th><th>Giudizio</th></tr></thead>
+      <tbody>
+      {% for p in report.posture %}
+        <tr title="{{ p.detail }}"><td>{{ p.label }}</td><td class="sec-num"><strong>{{ p.score|default_if_none:"n.d." }}</strong></td><td><span class="sec-badge sec-badge-{% if p.tone == 'danger' %}critical{% else %}{{ p.tone }}{% endif %}">{{ p.grade }}</span></td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <p class="sec-muted sec-small">Valori al momento della generazione; passa sopra una riga per la formula.</p>
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Alert per gravità</h2></div>
+    <div class="sec-chip-row">
+      {% for s in a.by_severity %}<span class="sec-badge {{ s.key }}">{{ s.label }}: {{ s.count }}</span>{% empty %}<span class="sec-muted">Nessun alert nel periodo.</span>{% endfor %}
+    </div>
+    {% if a.top_titles %}
+      <h3 class="sec-subhead">Più frequenti</h3>
+      <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+        <tbody>{% for row in a.top_titles %}<tr><td>{{ row.title }}</td><td class="sec-num">{{ row.count }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    {% endif %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Backup</h2><span class="sec-badge">{{ b.completed }} ok · {{ b.warning }} avvisi · {{ b.failed }} falliti</span></div>
+    {% if b.problems %}
+      <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+        <thead><tr><th>Job</th><th>Dispositivo</th><th>Esito</th><th>Quando</th></tr></thead>
+        <tbody>{% for p in b.problems %}<tr><td>{{ p.job }}</td><td>{{ p.device|default:"—" }}</td><td><span class="sec-badge {% if p.status == 'failed' %}sec-badge-critical{% else %}sec-badge-warning{% endif %}">{{ p.status|ui_label }}</span></td><td class="sec-nowrap">{{ p.when|date:"d/m H:i" }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    {% else %}<p class="sec-muted">{% if b.total %}Nessun job fallito o con avvisi.{% else %}Nessun job di backup nel periodo.{% endif %}</p>{% endif %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Vulnerabilità critiche e alte</h2></div>
+    {% if v.top %}
+      <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+        <thead><tr><th>CVE</th><th>Prodotto</th><th class="sec-num">CVSS</th><th class="sec-num">Disp.</th></tr></thead>
+        <tbody>{% for f in v.top %}<tr><td class="sec-nowrap">{{ f.cve }}</td><td>{{ f.product }}</td><td class="sec-num">{{ f.cvss|floatformat:1 }}</td><td class="sec-num">{{ f.devices }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    {% else %}<p class="sec-muted">Nessuna CVE critica o alta aperta con dispositivi esposti.</p>{% endif %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Accessi VPN e ticket</h2></div>
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Accessi VPN consentiti</span><strong>{{ vpn.allowed }}</strong><span>{{ vpn.distinct_users }} utenti distinti</span></div>
+      <div class="sec-fact"><span>Tentativi VPN negati</span><strong>{{ vpn.denied }}</strong></div>
+      <div class="sec-fact"><span>Ticket aperti / chiusi</span><strong>{{ t.opened }} / {{ t.closed }}</strong><span>{{ t.open_now }} ancora aperti</span></div>
+      <div class="sec-fact"><span>Report elaborati</span><strong>{{ ing.reports }}</strong><span>{{ ing.failed }} in errore</span></div>
+    </div>
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Incidenti del periodo</h2></div>
+    {% if inc.rows %}
+      <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
+        <thead><tr><th>Codice</th><th>Incidente</th><th>Stato</th><th>Scadenze mancate</th></tr></thead>
+        <tbody>{% for r in inc.rows %}<tr><td class="sec-nowrap">{{ r.code }}</td><td>{{ r.title }}{% if r.significant %} <span class="sec-badge sec-badge-critical">NIS2</span>{% endif %}</td><td>{{ r.status }}</td><td class="sec-num">{% if r.late %}<span class="sec-badge sec-badge-critical">{{ r.late }}</span>{% else %}0{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    {% else %}<p class="sec-muted">Nessun incidente registrato nel periodo.</p>{% endif %}
+  </div>
+</section>
+{% endwith %}
+<script>
+(function () {
+  var select = document.querySelector("#report-period [data-toggle-custom]");
+  if (!select) return;
+  select.addEventListener("change", function () {
+    document.querySelectorAll("#report-period [data-custom-field]").forEach(function (el) { el.hidden = select.value !== "custom"; });
+  });
+})();
+</script>
+{% endblock %}

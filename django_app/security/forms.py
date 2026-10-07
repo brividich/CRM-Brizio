@@ -7,6 +7,7 @@ from .models import (
     SecurityAlertRuleConfig,
     SecurityAlertSuppressionRule,
     SecurityCenterSetting,
+    SecurityIncident,
     SecurityNotificationChannel,
     SecurityParserConfig,
     SecuritySourceConfig,
@@ -407,3 +408,75 @@ class MailboxFiltersForm(forms.Form):
 
         super().__init__(*args, **kwargs)
         self.fields["presets"].choices = [(code, f"{label} — {', '.join(words)}") for code, label, words in SUBJECT_PRESETS]
+
+
+def _datetime_widget():
+    # Senza format il browser riceve «2026-10-06 10:00:00» e il campo resta vuoto in modifica.
+    return forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M")
+
+
+class SecurityIncidentForm(forms.ModelForm):
+    """Modulo del registro incidenti. Le date di notifica si registrano con i pulsanti
+    dedicati (lasciano traccia con il riferimento), non da qui."""
+
+    significance_criteria = forms.MultipleChoiceField(
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label="Criteri di significatività (art. 25 c. 3 D.Lgs. 138/2024)",
+    )
+
+    class Meta:
+        model = SecurityIncident
+        fields = [
+            "title", "category", "severity", "status", "owner", "detected_at", "occurred_at", "resolved_at",
+            "description", "is_significant", "significance_criteria", "suspected_malicious", "cross_border",
+            "personal_data_breach", "affected_services", "affected_users_count", "impact_description",
+            "root_cause", "actions_taken", "lessons_learned", "csirt_reference",
+        ]
+        widgets = {
+            "detected_at": _datetime_widget(),
+            "occurred_at": _datetime_widget(),
+            "resolved_at": _datetime_widget(),
+            "description": forms.Textarea(attrs={"rows": 3}),
+            "affected_services": forms.Textarea(attrs={"rows": 2}),
+            "impact_description": forms.Textarea(attrs={"rows": 3}),
+            "root_cause": forms.Textarea(attrs={"rows": 3}),
+            "actions_taken": forms.Textarea(attrs={"rows": 3}),
+            "lessons_learned": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        from django.contrib.auth import get_user_model
+
+        from security.services.incidents import FIELD_LABELS, SIGNIFICANCE_CRITERIA
+
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            if name in FIELD_LABELS and name != "significance_criteria":
+                field.label = FIELD_LABELS[name]
+        self.fields["significance_criteria"].choices = SIGNIFICANCE_CRITERIA
+        # Le scelte del modello sono in inglese («Critical»): in pagina come nel resto del SOC.
+        from security.services.periodic_report import SEVERITY_LABELS, SEVERITY_ORDER
+
+        self.fields["severity"].choices = [(value, SEVERITY_LABELS[value]) for value in SEVERITY_ORDER]
+        from core.form_fields import user_display_label
+
+        self.fields["owner"].queryset = get_user_model().objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        self.fields["owner"].label_from_instance = user_display_label
+        self.fields["owner"].required = False
+        for name in ("detected_at", "occurred_at", "resolved_at"):
+            self.fields[name].input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"]
+        self.fields["detected_at"].help_text = "Quando ve ne siete accorti: da qui partono le scadenze 24 h / 72 h."
+        self.fields["is_significant"].help_text = "Se sì, scattano pre-notifica (24 h), notifica (72 h) e relazione finale (1 mese) al CSIRT Italia."
+        self.fields["personal_data_breach"].help_text = "Se sì, scatta la notifica al Garante entro 72 h (GDPR art. 33)."
+
+    def clean(self):
+        cleaned = super().clean()
+        detected, occurred, resolved = cleaned.get("detected_at"), cleaned.get("occurred_at"), cleaned.get("resolved_at")
+        if detected and occurred and occurred > detected:
+            self.add_error("occurred_at", "Non può essere successivo alla rilevazione.")
+        if detected and resolved and resolved < detected:
+            self.add_error("resolved_at", "Non può precedere la rilevazione.")
+        if cleaned.get("significance_criteria") and not cleaned.get("is_significant"):
+            self.add_error("is_significant", "Hai indicato un criterio di significatività: l'incidente è significativo.")
+        return cleaned

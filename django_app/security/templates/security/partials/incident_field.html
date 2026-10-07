@@ -1,0 +1,10 @@
+<div class="inc-field{% if wide %} inc-field-wide{% endif %}{% if field.errors %} inc-field-error{% endif %}{% if field.field.widget.input_type == 'checkbox' and not field.field.widget.allow_multiple_selected %} inc-field-check{% endif %}">
+  {% if field.field.widget.input_type == 'checkbox' and not field.field.widget.allow_multiple_selected %}
+    <label>{{ field }} {{ field.label }}</label>
+  {% else %}
+    <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+    {{ field }}
+  {% endif %}
+  {% if field.help_text %}<small class="helptext">{{ field.help_text }}</small>{% endif %}
+  {% for error in field.errors %}<small class="sec-error">{{ error }}</small>{% endfor %}
+</div>
