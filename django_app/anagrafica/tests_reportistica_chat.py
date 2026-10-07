@@ -109,6 +109,19 @@ class SpecificaTest(_Base):
         self.assertEqual(spec["sezioni"][1]["opzioni"], {"stati": ["SCADUTO"]})
         self.assertEqual(spec["sezioni"][2]["opzioni"], {"stati": []})  # tutti gli stati = filtro vuoto
 
+    def test_colonne_per_etichetta_e_identita_aggiunta(self):
+        spec, avvisi = self.normalizza({"sezioni": [
+            {"sezione": "formazione_erogata", "colonne": ["Nominativo", "matricola=Matricola", "ore"],
+             "opzioni": {"dettaglio": "persona", "confronto_ore": "meno di", "soglia_ore": "5 ore"}},
+            {"sezione": "formazione_erogata", "colonne": ["reparto", "mansione", "ore"]},
+        ]})
+        self.assertEqual(avvisi, [])
+        self.assertEqual(spec["sezioni"][0]["colonne"], ["nominativo", "matricola", "ore"])
+        self.assertEqual(spec["sezioni"][0]["opzioni"],
+                         {"dettaglio": "persona", "confronto_ore": "meno_di", "soglia_ore": 5})
+        # Senza colonna che dica di chi e' la riga, la tabella sarebbe di soli reparti e ore.
+        self.assertEqual(spec["sezioni"][1]["colonne"], ["voce", "reparto", "mansione", "ore"])
+
     def test_massimo_sezioni(self):
         spec, avvisi = self.normalizza({"sezioni": ["personale_elenco"] * 12})
         self.assertEqual(len(spec["sezioni"]), conversazione.MAX_SEZIONI)
@@ -157,6 +170,19 @@ class InterpretaTest(_Base):
         self.assertFalse(esito.ai)
         self.assertEqual([s["sezione"] for s in esito.specifica["sezioni"]], ["organico_indicatori"])
         self.assertEqual(esito.specifica["periodo"]["tipo"], "ANNO_PRECEDENTE")
+
+    def test_parole_chiave_soglia_ore_e_anno(self):
+        anno = conversazione.timezone.localdate().year
+        with patch(CHAT_AI, side_effect=RuntimeError):
+            esito = self._interpreta(f"elenco dei dipendenti con ore di formazione nel {anno} minore di 5 ore")
+        self.assertEqual(esito.specifica["periodo"]["tipo"], "ANNO_CORRENTE")
+        self.assertEqual(esito.specifica["sezioni"], [{"sezione": "formazione_erogata", "colonne": [], "opzioni": {
+            "confronto_ore": "meno_di", "soglia_ore": 5, "dettaglio": "persona"}}])
+        self.assertEqual(conversazione._soglia_ore("NON MENO DI 8 ORE"), ("almeno", 8))
+        self.assertEqual(conversazione._soglia_ore("PIU DI 16 ORE"), ("piu_di", 16))
+        self.assertIsNone(conversazione._soglia_ore("FORMAZIONE DEL 2026"))
+        self.assertEqual(conversazione._periodo_anno(anno - 3),
+                         {"tipo": "PERSONALIZZATO", "da": f"{anno - 3}-01-01", "a": f"{anno - 3}-12-31"})
 
     def test_parole_chiave_modifica_e_aggiunta(self):
         base = conversazione.normalizza_specifica({"sezioni": ["personale_elenco"]}, self.request,
