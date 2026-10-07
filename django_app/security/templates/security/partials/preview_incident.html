@@ -1,0 +1,18 @@
+{% load security_i18n %}
+<header class="pv-head">
+  <div class="pv-badges"><span class="sec-badge {{ incident.severity }}">{{ incident.severity|ui_label }}</span><span class="sec-badge sec-badge-muted">{{ incident.get_status_display }}</span>{% if incident.is_significant %}<span class="sec-badge sec-badge-critical">NIS2</span>{% endif %}{% if incident.personal_data_breach %}<span class="sec-badge sec-badge-warning">Dati personali</span>{% endif %}</div>
+  <h2>{{ incident.code }} · {{ incident.title }}</h2>
+  <p class="pv-sub">{{ incident.get_category_display }} · rilevato {{ incident.detected_at|date:"d/m/Y H:i" }} · {% if incident.owner %}{{ incident.owner.get_full_name|default:incident.owner.username }}{% else %}senza responsabile{% endif %}</p>
+</header>
+{% if deadlines %}
+<ul class="pv-deadlines">
+  {% for d in deadlines %}<li class="inc-deadline-{{ d.tone }}"><span>{{ d.label }}</span><span class="sec-badge sec-badge-{{ d.tone }}">{{ d.state_label }}</span><small>{% if d.done_at %}inviata {{ d.done_at|date:"d/m H:i" }}{% else %}entro {{ d.due_at|date:"d/m H:i" }} · {{ d.remaining_label }}{% endif %}</small></li>{% endfor %}
+</ul>
+{% else %}<p class="sec-muted pv-text">Nessuna notifica dovuta.</p>{% endif %}
+{% if incident.impact_description %}<p class="pv-text"><strong>Impatto:</strong> {{ incident.impact_description|truncatechars:240 }}</p>{% endif %}
+<section class="pv-ai">
+  <form method="post" action="{% url 'security:incident_ai_check' incident.pk %}" data-drawer-form data-drawer-target="#pv-ai-out">{% csrf_token %}<button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta controllando l'incidente…">Controlla con l'AI</button></form>
+  <div id="pv-ai-out" class="pv-ai-out" aria-live="polite"></div>
+</section>
+{% if logs %}<h3 class="pv-h">Traccia</h3><ul class="pv-list">{% for log in logs %}<li><span>{{ log.body|truncatechars:90 }}</span><small>{{ log.created_at|date:"d/m H:i" }} · {{ log.actor }}</small></li>{% endfor %}</ul>{% endif %}
+<footer class="pv-foot"><a class="sec-button sec-button-primary" href="{% url 'security:incident_detail' incident.pk %}">Apri la scheda</a><a class="sec-button" href="{% url 'security:incident_pdf' incident.pk %}">PDF</a></footer>

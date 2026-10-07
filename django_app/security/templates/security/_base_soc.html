@@ -1,10 +1,12 @@
 {% extends "core/base.html" %}
-{% load static %}
+{% load static soc_live %}
 {% block title %}Security Center · SOC IT - CN{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'security/security.css' %}">
+<link rel="stylesheet" href="{% static 'security/soc-live.css' %}">
 <script src="{% static 'security/htmx-lite.js' %}" defer></script>
 <script src="{% static 'security/soc-charts.js' %}" defer></script>
+<script src="{% static 'security/soc-ui.js' %}" defer></script>
 {% endblock %}
 {% block content %}
 <div class="soc-module">
@@ -44,6 +46,8 @@
     </div>
   </nav>
   {% endwith %}
+  {# Barra di stato: resa con la pagina, poi riletta ogni minuto da soc-ui.js. #}
+  <div class="soc-live" data-live-url="{% url 'security:live_strip' %}" data-live-every="60" aria-label="Stato del SOC">{% soc_live_strip %}</div>
   {# Esiti delle azioni (salvataggi, letture caselle, errori): prima nell'HUB non comparivano mai. #}
   {% if messages %}
     <div class="sec-message-stack" role="status">

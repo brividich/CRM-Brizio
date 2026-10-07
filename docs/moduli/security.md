@@ -50,8 +50,17 @@ Security Center (Security Center AI innestato): **Panoramica IT** (`/soc/`: verd
 - **Ricerca** (casella nella barra del SOC, `/soc/cerca/?q=`): incidenti, ticket, alert, PC e server (dispositivi SOC e PC dei backup), vulnerabilità.
 - **Scheda PC** `/soc/pc/?nome=…` (`services/pc_overview.py`): verdetto, backup, alert e vulnerabilità aperti, protezione endpoint, eventi, link all'asset HUB. Il nome host è la chiave comune ai fornitori (confronto senza maiuscole).
 
+## Sala controllo: barra live, anteprime, multiselezione, AI
+
+- **Barra di stato** (`services/live_status.py`, cache 60 s, `/soc/stato/` riletta ogni minuto da `static/security/soc-ui.js`): critici e alti, scadenze NIS2, PC backup ko, sorgenti mute, senza responsabile, miei.
+- **Anteprima a pannello** (`/soc/anteprima/<tipo>/<id>/`, `/soc/anteprima/pc/?nome=`): righe con `data-preview`; ← → Esc; i form `data-drawer-form` agiscono senza uscire dalla lista.
+- **Multiselezione** (`form[data-bulk]` + `soc-ui.js`): ticket `/soc/tickets/bulk/`, incidenti `/soc/incidenti/bulk/`, eventi `/soc/eventi/bulk/`, PC del Backup `/soc/backup/ticket/`; alert come prima; gravità degli alert a scelta multipla.
+- **Controlli AI**: `/soc/incidenti/<id>/ai/` e `/soc/pc/ai/` (`ai_explain.check_incident`, `check_pc`), con cache 30 minuti e registro `SecurityAiInteractionLog`.
+- **Sezioni vive** (`data-autorefresh`): Panoramica ogni 2-5 minuti, mai mentre si scrive o con righe selezionate. Suggerimenti in pagina chiudibili (`partials/tip.html`).
+
 ## Note di rilascio
 
 - **Registro incidenti, report periodico, parser transazionali** — deploy: `migrate security` (0019). Nuove rotte sotto `/soc/` (stesso binding ACL). Il motore parser salva ogni elemento in una transazione: un errore a metà non lascia più report parziali che bloccavano la rielaborazione; nel `raw_payload` restano parser, tempo (`parse_ms`) ed esito (`parse_outcome`). Pagine alert, ticket, KPI ed Elaborazione controllano il permesso di lettura SOC anche nella view (`soc_view_required`).
 - **Sezione Backup** — nessuna migrazione: legge i job di backup già importati.
 - **Avvisi automatici, impostazioni, Il mio lavoro, ricerca, scheda PC** — nessuna migrazione. Dopo il deploy: aprire Impostazioni, scegliere i canali e accendere gli avvisi voluti.
+- **Sala controllo (barra live, anteprime, multiselezione, controlli AI)** — nessuna migrazione.

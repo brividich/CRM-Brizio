@@ -7,6 +7,7 @@
 {% block page_title %}Eventi{% endblock %}
 
 {% block soc_content %}
+{% include "security/partials/tip.html" with tip_id="events-v1" tip="<strong>Clic su una riga</strong> per i dettagli dell'evento e il parere dell'AI; seleziona più eventi per confermarli a posto o trasformarli in alert in un colpo." %}
 <div class="kpi-filters">
   <div class="kpi-chips" role="group" aria-label="Periodo">
     {% for p in "1,7,30,90"|make_list_csv %}<a class="kpi-chip{% if not custom and p == days %} active{% endif %}" href="?{% if chip_query %}{{ chip_query }}&amp;{% endif %}giorni={{ p }}">{% if p == 1 %}Oggi{% else %}{{ p }} giorni{% endif %}</a>{% endfor %}
@@ -109,12 +110,26 @@
     <h2>Registro eventi</h2>
     <span class="sec-badge">{{ page.paginator.count }} risultati</span>
   </div>
+  <form method="post" action="{% url 'security:events_bulk' %}" data-bulk>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <div class="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+    <select name="action" aria-label="Azione sugli eventi selezionati">
+      <option value="ok">Sono a posto</option>
+      <option value="promote">Sono allarmi: crea gli alert</option>
+    </select>
+    <select name="severity" aria-label="Gravità degli alert" data-show-for="promote"><option value="warning">Attenzione</option><option value="high">Alta</option><option value="critical">Critica</option><option value="medium">Media</option></select>
+    <input type="text" name="reason" placeholder="Perché sono allarmi (obbligatorio)" data-show-for="promote">
+    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Applica</button>
+  </div>
   <div class="sec-table-wrap">
     <table class="sec-table ev-table" data-fm-table-skip="1">
-      <thead><tr><th>Quando</th><th>Evento</th><th>Severità</th><th>Decisione del motore</th><th>Sorgente</th><th></th></tr></thead>
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti"></th><th>Quando</th><th>Evento</th><th>Severità</th><th>Decisione del motore</th><th>Sorgente</th><th></th></tr></thead>
       <tbody>
       {% for e in events %}
-        <tr class="ev-row">
+        <tr class="ev-row" data-preview="{% url 'security:preview' 'event' e.pk %}">
+          <td class="sec-check-col"><input type="checkbox" name="event_ids" value="{{ e.pk }}" class="sec-bulk-item" aria-label="Seleziona l'evento {{ e.pk }}"></td>
           <td class="sec-nowrap">{{ e.occurred_at|date:"d/m/Y H:i" }}</td>
           <td><a href="{% url 'security:event_detail' e.pk %}"><strong>{{ e.event_type|metric_label }}</strong></a>{% if e.summary %}<span class="ev-summary" title="{{ e.summary }}">{{ e.summary }}</span>{% endif %}</td>
           <td><span class="sec-badge {{ e.severity }}">{{ e.severity|ui_label }}</span></td>
@@ -123,11 +138,12 @@
           <td>{% if e.decision_code == "alert" or e.has_alert %}<a class="sec-button" href="{% url 'security:event_detail' e.pk %}">Vedi</a>{% else %}<a class="sec-button" href="{% url 'security:event_detail' e.pk %}#promuovi" title="Il motore l'ha giudicato a posto: se è un allarme, crea l'alert">È un allarme?</a>{% endif %}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="6" class="sec-empty">Nessun evento con questi filtri.</td></tr>
+        <tr><td colspan="7" class="sec-empty">Nessun evento con questi filtri.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  </form>
   {% if page.paginator.num_pages > 1 %}
   <div class="vpn-pager">
     {% if page.has_previous %}<a class="sec-button" href="?{% if query %}{{ query }}&amp;{% endif %}page={{ page.previous_page_number }}">&lt; Precedente</a>{% endif %}

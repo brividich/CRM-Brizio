@@ -1,0 +1,25 @@
+{% load security_i18n %}
+<header class="pv-head">
+  <div class="pv-badges"><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></div>
+  <h2>{{ alert.title }}</h2>
+  <p class="pv-sub">Alert #{{ alert.pk }} · {{ alert.source.name }} · creato {{ alert.created_at|date:"d/m/Y H:i" }}</p>
+</header>
+<dl class="pv-facts">
+  <div><dt>Dispositivo</dt><dd>{% if alert.event.asset %}<a href="{% url 'security:pc_detail' %}?nome={{ alert.event.asset.hostname|urlencode }}">{{ alert.event.asset.hostname }}</a>{% else %}—{% endif %}</dd></div>
+  <div><dt>Responsabile</dt><dd>{{ alert.owner|default:"nessuno" }}</dd></div>
+  <div><dt>Ticket</dt><dd>{% if case %}<a href="{% url 'security:case_detail' case.pk %}">#{{ case.pk }} {{ case.status|ui_label }}</a>{% else %}nessuno{% endif %}</dd></div>
+  <div><dt>Regola</dt><dd>{{ rule }}</dd></div>
+</dl>
+{% if active %}
+<div class="pv-actions">
+  <form method="post" action="{% url 'security:alert_action' alert.pk 'acknowledge' %}" data-drawer-form>{% csrf_token %}<button type="submit" class="sec-button">Prendi in carico</button></form>
+  <form method="post" action="{% url 'security:alert_action' alert.pk 'false-positive' %}" data-drawer-form>{% csrf_token %}<input type="hidden" name="reason" value="Falso positivo (dall'anteprima)"><button type="submit" class="sec-button">Falso positivo</button></form>
+  <form method="post" action="{% url 'security:alert_action' alert.pk 'close' %}" data-drawer-form class="pv-reason">{% csrf_token %}<input type="text" name="reason" placeholder="Motivo della chiusura" aria-label="Motivo della chiusura"><button type="submit" class="sec-button">Chiudi</button></form>
+</div>
+{% endif %}
+<section class="pv-ai">
+  <form method="post" action="{% url 'security:alert_explain' alert.pk %}" data-drawer-form data-drawer-target="#pv-ai-out">{% csrf_token %}<button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta leggendo l'alert…">Spiega con l'AI</button></form>
+  <div id="pv-ai-out" class="pv-ai-out" aria-live="polite"></div>
+</section>
+{% if logs %}<h3 class="pv-h">Ultime azioni</h3><ul class="pv-list">{% for log in logs %}<li><span>{{ log.action|action_label }}</span><small>{{ log.created_at|date:"d/m H:i" }} · {{ log.actor }}</small></li>{% endfor %}</ul>{% endif %}
+<footer class="pv-foot"><a class="sec-button sec-button-primary" href="{% url 'security:alert_detail' alert.pk %}">Apri la scheda completa</a></footer>

@@ -89,6 +89,28 @@ def open_case_from_alerts(alerts, *, user, title="", description="", assignee=No
     return case
 
 
+def open_manual_case(*, source, title, user, description="", severity=Severity.WARNING, assignee=None, tasks=()):
+    """Caso aperto a mano senza alert (es. dai PC selezionati nella pagina Backup), con le sue attività."""
+    actor = actor_name(user)
+    case = SecurityRemediationTicket.objects.create(
+        source=source,
+        title=(title or "Caso aperto a mano")[:255],
+        description=description or "",
+        status=Status.IN_PROGRESS if assignee else Status.OPEN,
+        severity=severity,
+        origin=SecurityRemediationTicket.ORIGIN_MANUAL,
+        created_by=user if getattr(user, "pk", None) else None,
+        assignee=assignee,
+        dedup_hash=make_hash("manual_case", uuid.uuid4().hex),
+    )
+    _log(case, "case_opened", actor)
+    if assignee:
+        _log(case, "case_assigned", actor, assignee=assignee.get_username())
+    for title_task in tasks:
+        add_task(case, title_task, user=user)
+    return case
+
+
 def add_alerts_to_case(case, alerts, *, user):
     actor = actor_name(user)
     added = 0

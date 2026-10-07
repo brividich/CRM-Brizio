@@ -15,6 +15,7 @@ import time
 
 from django.conf import settings
 from django.core.cache import cache
+from django.utils.timezone import localtime
 
 from security.models import SecurityAiInteractionLog, SecurityEventRecord
 
@@ -237,3 +238,87 @@ def daily_brief(items, *, user=None, refresh=False):
     if result["ok"]:
         cache.set(key, result, 3600)
     return {**result, "cached": False}
+
+
+# --- Controlli AI su incidente e PC ---------------------------------------------------------
+
+INCIDENT_CHECK_INSTRUCTIONS = (
+    "Sei il consulente sicurezza e conformità NIS2/GDPR di una piccola azienda manifatturiera italiana. Controlla la "
+    "scheda dell'incidente qui sotto e scrivi in italiano semplice, con queste tre sezioni con il titolo in grassetto:\n"
+    "**Cosa manca** (campi vuoti o incoerenti che servono per notifiche e audit: impatto, causa, misure, servizi, "
+    "valutazione di significatività, date; elenco puntato, al massimo 5 voci; se è tutto completo dillo)\n"
+    "**Scadenze** (per ogni notifica dovuta: rispettata, in ritardo o da fare, con la data; se nessuna è dovuta dillo)\n"
+    "**Prossimi passi** (al massimo 3, concreti, elenco puntato).\n"
+    "Usa solo i dati forniti, non inventare fatti. Non dare pareri legali definitivi: se un punto va verificato col "
+    "consulente o col DPO, scrivilo."
+)
+PC_CHECK_INSTRUCTIONS = (
+    "Sei l'analista della sicurezza IT di una piccola azienda manifatturiera italiana. Dalla scheda del dispositivo "
+    "qui sotto (backup, alert aperti, vulnerabilità, segnalazioni della protezione endpoint) scrivi in italiano semplice "
+    "tre sezioni con il titolo in grassetto:\n**Stato** (2 frasi: com'è messo il dispositivo e perché)\n"
+    "**Rischi** (al massimo 3, elenco puntato, dal più serio, ognuno con il dato che lo giustifica)\n"
+    "**Cosa fare** (al massimo 3 passi concreti, elenco puntato).\nUsa solo i dati forniti; se mancano dati dillo."
+)
+
+
+def incident_context(incident):
+    from security.services.incidents import SIGNIFICANCE_LABELS, deadlines
+
+    def fmt(value):
+        return localtime(value).strftime("%d/%m/%Y %H:%M") if value else "non indicata"
+
+    lines = [
+        f"Incidente {incident.code}: {incident.title}",
+        f"Categoria: {incident.get_category_display()} · gravità {incident.severity} · stato {incident.get_status_display()}",
+        f"Rilevato (conoscenza): {fmt(incident.detected_at)} · avvenuto: {fmt(incident.occurred_at)} · risolto: {fmt(incident.resolved_at)}",
+        f"Significativo NIS2: {'sì' if incident.is_significant else 'no'}"
+        + (f" (criteri: {'; '.join(SIGNIFICANCE_LABELS.get(c, c) for c in incident.significance_criteria)})" if incident.significance_criteria else ""),
+        f"Dati personali coinvolti: {'sì' if incident.personal_data_breach else 'no'} · sospetto malevolo: {'sì' if incident.suspected_malicious else 'no'} · transfrontaliero: {'sì' if incident.cross_border else 'no'}",
+        f"Responsabile: {incident.owner.get_username() if incident.owner_id else 'nessuno'}",
+    ]
+    for label, value in (("Descrizione", incident.description), ("Servizi coinvolti", incident.affected_services),
+                         ("Utenti coinvolti", incident.affected_users_count), ("Impatto", incident.impact_description),
+                         ("Causa", incident.root_cause), ("Misure adottate", incident.actions_taken),
+                         ("Lezioni apprese", incident.lessons_learned), ("Riferimento CSIRT", incident.csirt_reference)):
+        lines.append(f"{label}: {str(value).strip()[:400] if value not in (None, '') else 'VUOTO'}")
+    dues = deadlines(incident)
+    lines.append("Notifiche dovute:" if dues else "Notifiche dovute: nessuna")
+    for d in dues:
+        lines.append(f"- {d['label']}: scadenza {fmt(d['due_at'])}, inviata {fmt(d['done_at'])}, stato {d['state_label']}")
+    tickets = list(incident.tickets.order_by("-updated_at")[:5])
+    if tickets:
+        lines.append("Ticket collegati: " + "; ".join(f"#{t.pk} {t.title} ({t.status})" for t in tickets))
+    notes = list(incident.logs.filter(action="note").order_by("-created_at")[:5])
+    if notes:
+        lines.append("Ultime note: " + " | ".join(n.body[:200] for n in notes))
+    return "\n".join(lines)
+
+
+def check_incident(incident, *, user=None, refresh=False):
+    context = incident_context(incident)
+    return _cached_ask("incident-check", INCIDENT_CHECK_INSTRUCTIONS, context, action="incident_check", user=user,
+                       object_type="incident", object_id=incident.pk, seconds=1800, refresh=refresh)
+
+
+def pc_context(pc):
+    lines = [f"Dispositivo: {pc['name']}" + (f" ({pc['asset_type']})" if pc.get("asset_type") else ""),
+             f"Giudizio della scheda: {pc['status'][1]}"]
+    backup = pc.get("backup")
+    if backup:
+        lines.append(
+            f"Backup: ultimo esito {backup['last_label']} il {localtime(backup['last_at']):%d/%m/%Y %H:%M}; ultimo riuscito "
+            + (f"{localtime(backup['last_ok']):%d/%m/%Y %H:%M} ({backup['days_since_ok']} giorni fa)" if backup["last_ok"] else "mai nel periodo")
+            + f"; riuscite {backup['ok']} su {backup['runs']}; job {', '.join(backup['jobs'])}"
+        )
+    else:
+        lines.append("Backup: il dispositivo non compare nei report di backup")
+    lines.append(f"Alert aperti: {pc['alert_count']}" + (": " + "; ".join(f"{a.title} ({a.severity})" for a in pc["alerts"][:5]) if pc["alerts"] else ""))
+    lines.append(f"Vulnerabilità aperte: {pc['vuln_count']}" + (": " + "; ".join(f"{v.cve} {v.affected_product} CVSS {v.cvss}" for v in pc["vulns"][:5]) if pc["vulns"] else ""))
+    endpoint = pc.get("endpoint") or []
+    lines.append(f"Segnalazioni protezione endpoint: {len(endpoint)}" + (": " + "; ".join(e["signal"].title for e in endpoint[:5]) if endpoint else ""))
+    return "\n".join(lines)
+
+
+def check_pc(pc, *, user=None, refresh=False):
+    return _cached_ask("pc-check", PC_CHECK_INSTRUCTIONS, pc_context(pc), action="pc_check", user=user,
+                       object_type="device", object_id=pc["name"][:80], seconds=1800, refresh=refresh)

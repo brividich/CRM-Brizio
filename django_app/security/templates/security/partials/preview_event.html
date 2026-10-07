@@ -1,0 +1,19 @@
+{% load security_i18n %}
+<header class="pv-head">
+  <div class="pv-badges"><span class="sec-badge {{ event.severity }}">{{ event.severity|ui_label }}</span>{% if alerts %}<span class="sec-badge sec-badge-warning">già in alert</span>{% endif %}{% if event.suppressed %}<span class="sec-badge sec-badge-muted">soppresso</span>{% endif %}</div>
+  <h2>{{ event.event_type|ui_label }}</h2>
+  <p class="pv-sub">Evento #{{ event.pk }} · {{ event.source.name }} · {{ event.occurred_at|date:"d/m/Y H:i" }}{% if event.asset %} · <a href="{% url 'security:pc_detail' %}?nome={{ event.asset.hostname|urlencode }}">{{ event.asset.hostname }}</a>{% endif %}</p>
+</header>
+{% if payload %}<dl class="pv-kv">{% for k, v in payload %}<div><dt>{{ k }}</dt><dd>{{ v|truncatechars:80 }}</dd></div>{% endfor %}</dl>{% endif %}
+{% if alerts %}<h3 class="pv-h">Alert</h3><ul class="pv-list">{% for a in alerts %}<li><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-badge {{ a.status }}">{{ a.status|ui_label }}</span></li>{% endfor %}</ul>
+{% else %}
+<div class="pv-actions">
+  <form method="post" action="{% url 'security:event_confirm_ok' event.pk %}" data-drawer-form>{% csrf_token %}<button type="submit" class="sec-button">È a posto</button></form>
+  <a class="sec-button" href="{% url 'security:event_detail' event.pk %}">Promuovi ad alert…</a>
+</div>
+{% endif %}
+<section class="pv-ai">
+  <form method="post" action="{% url 'security:event_ai_triage' event.pk %}" data-drawer-form data-drawer-target="#pv-ai-out">{% csrf_token %}<button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta valutando l'evento…">È un allarme? Chiedi all'AI</button></form>
+  <div id="pv-ai-out" class="pv-ai-out" aria-live="polite"></div>
+</section>
+<footer class="pv-foot"><a class="sec-button sec-button-primary" href="{% url 'security:event_detail' event.pk %}">Apri l'evento</a></footer>
