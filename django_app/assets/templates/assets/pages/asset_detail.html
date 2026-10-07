@@ -204,16 +204,10 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 .af-file-input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
 .af-doc-upload-actions { display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap; }
 .af-doc-file-status { color:#64748b; font-size:var(--fs-sm); }
-.af-doc-item {
-  border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; display: flex; justify-content: space-between; gap: 10px; align-items: center;
-}
-.af-doc-item-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.af-doc-item-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; justify-content:flex-end; }
 .af-doc-delete { display:inline; margin:0; }
 .af-doc-name { font-weight: 600; color: #0f172a; font-size: var(--fs-md); }
-.af-doc-meta { color: #64748b; font-size: var(--fs-sm); }
 .af-doc-empty { color: #64748b; font-size: var(--fs-base); margin: 0; }
-.af-doc-folder-head { font-weight: 600; color: #334155; font-size: var(--fs-sm); margin: 6px 0 2px; padding: 4px 8px; background: #f1f5f9; border-radius: 8px; }
-.af-doc-item-nested { margin-left: 16px; }
 .af-doc-folder-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
 .af-doc-folder-add input[type="text"] { flex: 1; min-width: 220px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: var(--fs-sm); }
 .af-doc-folder-remove { margin-top: 10px; }
@@ -293,6 +287,14 @@ body.theme-dark .af-targhetta { background:#0b1220; border-color:var(--border); 
 .af-acc > summary::after { content:"\25BE"; margin-left:auto; color:#94a3b8; transition:transform .15s; }
 .af-acc[open] > summary::after { transform:rotate(180deg); }
 .af-acc-label { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.af-acc--flush { border-top:none; }
+.af-acc-count { font-size:11px; font-weight:700; color:#475569; background:#f1f5f9; border-radius:999px; padding:1px 8px; }
+.af-acc-tools { display:flex; justify-content:flex-end; padding:0 16px 6px; }
+.af-doc-group { border:1px solid #e2e8f0; border-radius:10px; margin-top:8px; background:#fff; }
+.af-doc-group > summary { padding:9px 12px; }
+.af-doc-group-label { text-transform:none; letter-spacing:0; font-size:var(--fs-sm); color:#334155; }
+.af-doc-group .af-table-wrap { padding:0 8px 8px; }
+.af-doc-table .af-doc-name { font-size:var(--fs-sm); word-break:break-word; }
 
 /* ── status band (copertura + scadenze unite) ─────────────── */
 .af-statusband {
@@ -476,10 +478,11 @@ body.theme-dark .af-doc-tab { color:var(--text-light); }
 body.theme-dark .af-doc-tab.is-active { color:#93c5fd; border-bottom-color:#93c5fd; }
 body.theme-dark .af-drop { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
 body.theme-dark .af-drop.is-dragging { border-color:#93c5fd; background:rgba(37,99,235,.14); color:#bfdbfe; }
-body.theme-dark .af-doc-item { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .af-doc-name { color:var(--text); }
-body.theme-dark .af-doc-meta, body.theme-dark .af-doc-empty, body.theme-dark .af-note { color:var(--text-light); }
-body.theme-dark .af-doc-folder-head { background:var(--surface-alt); color:var(--text); }
+body.theme-dark .af-doc-empty, body.theme-dark .af-note { color:var(--text-light); }
+body.theme-dark .af-doc-group { background:var(--surface); border-color:var(--border); }
+body.theme-dark .af-doc-group-label { color:var(--text); }
+body.theme-dark .af-acc-count { background:var(--surface-alt); color:var(--text-light); }
 body.theme-dark .af-doc-folder-add input[type="text"] { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark .af-link-value { color:var(--text); }
 body.theme-dark .af-hint { border-color:var(--border); }
@@ -875,13 +878,13 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
             Tutte le scadenze dell'asset in un posto: manutenzioni, adempimenti,
             licenze e contratti, dalla stessa fonte di Calendario e Scadenzario.
           {% endcomment %}
-          <div class="af-subhead af-subhead--flush">
-            <div class="af-subhead-label">
-              Scadenze di questo asset
+          <details class="af-acc af-acc--flush" data-af-acc="asset:scadenze">
+            <summary>
+              <span class="af-acc-label">Scadenze di questo asset</span>
+              <span class="af-acc-count">{% if asset_deadline_total %}{{ asset_deadline_total }}{% else %}{{ asset_deadline_rows|length }}{% endif %}</span>
               {% if asset_deadline_overdue %}<span class="as-badge as-badge--danger">{{ asset_deadline_overdue }} scadut{{ asset_deadline_overdue|pluralize:"a,e" }}</span>{% endif %}
-            </div>
-            <a class="as-link-subtle" href="{{ asset_deadline_list_url }}">Apri nello Scadenzario{% if asset_deadline_total > 12 %} ({{ asset_deadline_total }}){% endif %}</a>
-          </div>
+            </summary>
+            <div class="af-acc-tools"><a class="as-link-subtle" href="{{ asset_deadline_list_url }}">Apri nello Scadenzario{% if asset_deadline_total > 12 %} ({{ asset_deadline_total }}){% endif %}</a></div>
           {% if asset_deadline_rows %}
             <div class="af-table-wrap">
               <table class="af-table">
@@ -903,6 +906,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           {% else %}
             <div class="af-doc-empty" style="padding:4px 16px;">Nessuna scadenza aperta nei prossimi 12 mesi.</div>
           {% endif %}
+          </details>
 
           {% comment %}
             Piani del nuovo dominio. Quando ci sono, sono la fonte: il blocco storico
@@ -911,10 +915,13 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
             stessa scheda con due date diverse.
           {% endcomment %}
           {% if asset_plan_rows %}
-            <div class="af-subhead{% if not asset_next_maintenance_row %} af-subhead--flush{% endif %}">
-              <div class="af-subhead-label">Piani di manutenzione</div>
-              <a class="as-link-subtle" href="{% url 'assets:asset_maintenance_plans' asset.id %}">Gestisci i piani di questo asset</a>
-            </div>
+          <details class="af-acc" data-af-acc="asset:piani">
+            <summary>
+              <span class="af-acc-label">Piani di manutenzione</span>
+              <span class="af-acc-count">{{ asset_plan_rows|length }}</span>
+              {% if asset_plan_conflict_count %}<span class="as-badge as-badge--danger">{{ asset_plan_conflict_count }} in conflitto</span>{% endif %}
+            </summary>
+            <div class="af-acc-tools"><a class="as-link-subtle" href="{% url 'assets:asset_maintenance_plans' asset.id %}">Gestisci i piani di questo asset</a></div>
             {% if asset_plan_conflict_count %}
               <div class="af-doc-empty" style="padding:4px 16px;color:#b91c1c;">
                 {{ asset_plan_conflict_count }} piano/i arriva/no su questo asset da più gruppi con periodicità diverse:
@@ -968,13 +975,16 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
                 </tbody>
               </table>
             </div>
+          </details>
           {% endif %}
 
           {% if not asset_plan_rows %}
           <!-- Manutenzione pianificata (regole periodiche per questo asset) -->
-          <div class="af-subhead{% if not asset_next_maintenance_row %} af-subhead--flush{% endif %}">
-            <div class="af-subhead-label">Manutenzione pianificata</div>
-          </div>
+          <details class="af-acc" data-af-acc="asset:pianificata">
+            <summary>
+              <span class="af-acc-label">Manutenzione pianificata</span>
+              <span class="af-acc-count">{{ asset_schedule_rows|length }}</span>
+            </summary>
           {% if asset_schedule_rows %}
             <div class="af-table-wrap">
               <table class="af-table">
@@ -1034,11 +1044,14 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           {% else %}
             <div class="af-doc-empty" style="padding:4px 16px 12px;">Nessuna regola manutenzione pianificata per questo asset.</div>
           {% endif %}
+          </details>
           {% endif %}
           <!-- Interventi straordinari -->
-          <div class="af-subhead">
-            <div class="af-subhead-label">Interventi straordinari</div>
-          </div>
+          <details class="af-acc" data-af-acc="asset:interventi">
+            <summary>
+              <span class="af-acc-label">Interventi straordinari</span>
+              <span class="af-acc-count">{{ maintenance_rows|length }}</span>
+            </summary>
           <div class="af-table-wrap">
             <table class="af-table">
               <thead>
@@ -1106,6 +1119,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
               </tbody>
             </table>
           </div>
+          </details>
 
           {# ── Scadenze eseguite (completamenti amministrativi) ──────── #}
           {% if deadline_completion_history %}
@@ -1540,37 +1554,49 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
             </div>
           </div>
         {% elif card.code == "LICENSES" %}
-          <div class="af-card-body">
-            <div class="af-cust-grid">
-              {% for row in asset_license_rows %}
-                <div class="af-cust-row" style="align-items:flex-start;gap:14px;">
-                  <div>
-                    <div class="af-cust-name">{{ row.license.product_name }}{% if row.license.edition %} - {{ row.license.edition }}{% endif %}</div>
-                    <div class="af-cust-sub">
-                      {{ row.license.get_category_display }}
-                      {% if row.license.vendor %} | {{ row.license.vendor }}{% endif %}
-                      {% if row.license.expiry_date %} | scade {{ row.license.expiry_date|date:"d-m-Y" }}{% endif %}
-                    </div>
-                    {% if row.license.assigned_to_display %}
-                      <div class="af-cust-sub">
-                        Assegnata a {{ row.license.assigned_to_display }}
-                      </div>
-                    {% endif %}
-                  </div>
-                  <div style="text-align:right;">
-                    <span class="as-badge as-badge--{{ row.state.badge_class }}">{{ row.state.label }}</span>
-                    {% if row.employee_url %}
-                      <div><a href="{{ row.employee_url }}" style="color:#2563eb;text-decoration:none;">Scheda dipendente</a></div>
-                    {% endif %}
-                  </div>
-                </div>
-              {% empty %}
-                <div class="af-doc-empty">Nessuna licenza software assegnata a questo asset.</div>
-              {% endfor %}
+          {% if asset_license_rows %}
+          <details class="af-acc af-acc--flush" data-af-acc="asset:licenze">
+            <summary>
+              <span class="af-acc-label">Licenze assegnate</span>
+              <span class="af-acc-count">{{ asset_license_rows|length }}</span>
+            </summary>
+            <div class="af-table-wrap">
+              <table class="af-table">
+                <thead>
+                  <tr><th>Prodotto</th><th>Categoria</th><th>Fornitore</th><th>Scadenza</th><th>Assegnata a</th><th>Stato</th></tr>
+                </thead>
+                <tbody>
+                  {% for row in asset_license_rows %}
+                    <tr>
+                      <td>{{ row.license.product_name }}{% if row.license.edition %} - {{ row.license.edition }}{% endif %}</td>
+                      <td>{{ row.license.get_category_display }}</td>
+                      <td>{{ row.license.vendor|default:"" }}</td>
+                      <td style="white-space:nowrap;">{% if row.license.expiry_date %}{{ row.license.expiry_date|date:"d-m-Y" }}{% endif %}</td>
+                      <td>
+                        {% if row.employee_url %}
+                          <a href="{{ row.employee_url }}" style="color:#2563eb;text-decoration:none;" title="Scheda dipendente">{{ row.license.assigned_to_display|default:"Scheda dipendente" }}</a>
+                        {% else %}
+                          {{ row.license.assigned_to_display|default:"" }}
+                        {% endif %}
+                      </td>
+                      <td><span class="as-badge as-badge--{{ row.state.badge_class }}">{{ row.state.label }}</span></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
-          </div>
-        {% elif card.code == "TICKETS" %}
+          </details>
+          {% else %}
           <div class="af-card-body">
+            <div class="af-doc-empty">Nessuna licenza software assegnata a questo asset.</div>
+          </div>
+          {% endif %}
+        {% elif card.code == "TICKETS" %}
+          <details class="af-acc af-acc--flush" data-af-acc="asset:ticket">
+            <summary>
+              <span class="af-acc-label">Ticket collegati</span>
+              <span class="af-acc-count">{{ ticket_rows|length }}</span>
+            </summary>
             <div class="af-table-wrap">
               <table class="af-table">
                 <thead>
@@ -1603,7 +1629,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
                 </tbody>
               </table>
             </div>
-          </div>
+          </details>
         {% elif card.code == "MAP" %}
           <div class="af-card-body">
             <div style="position:relative;border-radius:10px;overflow:hidden;border:1px solid #dbe1ea;margin-bottom:12px;background:#eef4ff;">
@@ -1673,38 +1699,54 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
               </form>
               {% with groups=documents_by_category|dict_get:key %}
                 {% if groups %}
+                  {% comment %}
+                    Un riquadro richiudibile per cartella caricata (chiuso di default,
+                    lo stato resta ricordato); i file singoli stanno in un riquadro
+                    proprio, aperto solo se non ci sono cartelle. Ogni elenco e' una
+                    tabella, cosi' fm-table-enhanced aggiunge ricerca e filtri per colonna.
+                  {% endcomment %}
                   {% for group in groups %}
-                    {% if group.folder %}
-                      <div class="af-doc-folder-head" title="Cartella caricata">&#128193; {{ group.folder }}</div>
-                    {% endif %}
-                    {% for doc in group.documents %}
-                      <div class="af-doc-item{% if group.folder %} af-doc-item-nested{% endif %}">
-                        <div>
-                          <div class="af-doc-name">{{ doc.name }}</div>
-                          <div class="af-doc-meta">
-                            {{ doc.size|default:"" }}
-                            {% if doc.date %} | {{ doc.date }}{% endif %}
-                            {% if doc.kind == "uploaded" %} | File portale{% else %} | Collegamento{% endif %}
-                            {% if doc.meta %} | {{ doc.meta }}{% endif %}
-                          </div>
-                        </div>
-                        <div class="af-doc-item-actions">
-                          {% if doc.url %}
-                            <a class="af-btn" href="{{ doc.url }}" target="_blank" rel="noopener">Apri</a>
-                          {% else %}
-                            <button class="af-btn" type="button" disabled>Apri</button>
-                          {% endif %}
-                          {% if doc.id %}
-                            <form method="post" class="af-doc-delete" onsubmit="return confirm('Eliminare definitivamente questo documento? Il file verra rimosso dal portale.');">
-                              {% csrf_token %}
-                              <input type="hidden" name="action" value="delete_asset_document">
-                              <input type="hidden" name="document_id" value="{{ doc.id }}">
-                              <button class="af-btn af-btn-danger" type="submit" title="Elimina documento" aria-label="Elimina documento">&#128465;</button>
-                            </form>
-                          {% endif %}
-                        </div>
+                    <details class="af-acc af-doc-group" data-af-acc="doc:{{ asset.id }}:{{ key }}:{{ group.folder|default:'-' }}"{% if not group.folder and groups|length == 1 %} open{% endif %}>
+                      <summary>
+                        <span class="af-acc-label af-doc-group-label">{% if group.folder %}&#128193; {{ group.folder }}{% else %}File singoli{% endif %}</span>
+                        <span class="af-acc-count">{{ group.documents|length }}</span>
+                      </summary>
+                      <div class="af-table-wrap">
+                        <table class="af-table af-doc-table">
+                          <thead>
+                            <tr><th>Nome</th><th>Dimensione</th><th>Data</th><th>Origine</th><th>Note</th><th></th></tr>
+                          </thead>
+                          <tbody>
+                            {% for doc in group.documents %}
+                              <tr>
+                                <td class="af-doc-name">{{ doc.name }}</td>
+                                <td style="white-space:nowrap;">{{ doc.size|default:"" }}</td>
+                                <td style="white-space:nowrap;">{{ doc.date|default:"" }}</td>
+                                <td>{% if doc.kind == "uploaded" %}File portale{% else %}Collegamento{% endif %}</td>
+                                <td>{{ doc.meta|default:"" }}</td>
+                                <td>
+                                  <div class="af-doc-item-actions">
+                                    {% if doc.url %}
+                                      <a class="af-btn" href="{{ doc.url }}" target="_blank" rel="noopener">Apri</a>
+                                    {% else %}
+                                      <button class="af-btn" type="button" disabled>Apri</button>
+                                    {% endif %}
+                                    {% if doc.id %}
+                                      <form method="post" class="af-doc-delete" onsubmit="return confirm('Eliminare definitivamente questo documento? Il file verra rimosso dal portale.');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete_asset_document">
+                                        <input type="hidden" name="document_id" value="{{ doc.id }}">
+                                        <button class="af-btn af-btn-danger" type="submit" title="Elimina documento" aria-label="Elimina documento">&#128465;</button>
+                                      </form>
+                                    {% endif %}
+                                  </div>
+                                </td>
+                              </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
                       </div>
-                    {% endfor %}
+                    </details>
                   {% endfor %}
                 {% else %}
                   <div class="af-doc-empty">Nessun documento nella categoria {{ label }}.</div>
@@ -1736,6 +1778,11 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
         </div>
         <div style="color:#64748b; font-size:12px;">{{ asset_upcoming_task_rows|length }} pianificate</div>
       </div>
+      <details class="af-acc" data-af-acc="asset:adl-previste">
+        <summary>
+          <span class="af-acc-label">Elenco attività pianificate</span>
+          <span class="af-acc-count">{{ asset_upcoming_task_rows|length }}</span>
+        </summary>
       <div class="af-table-wrap">
         <table class="af-table">
           <thead>
@@ -1766,6 +1813,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           </tbody>
         </table>
       </div>
+      </details>
     </section>
   {% endif %}
 
@@ -1779,6 +1827,11 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
         </div>
         <div style="color:#64748b; font-size:12px;">{{ asset_linked_task_rows|length }} attivita</div>
       </div>
+      <details class="af-acc" data-af-acc="asset:kickoff">
+        <summary>
+          <span class="af-acc-label">Elenco attività kickoff</span>
+          <span class="af-acc-count">{{ asset_linked_task_rows|length }}</span>
+        </summary>
       <div class="af-table-wrap">
         <table class="af-table">
           <thead>
@@ -1807,6 +1860,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           </tbody>
         </table>
       </div>
+      </details>
     </section>
   {% endif %}
 
@@ -1852,6 +1906,20 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
 
 </section>
 <script>
+(() => {
+  // Riquadri richiudibili (details[data-af-acc]): ricorda aperto/chiuso per
+  // utente. Lo storage puo' mancare (navigazione privata): allora valgono i default.
+  const prefix = 'af-acc:';
+  const read = (key) => { try { return window.localStorage.getItem(prefix + key); } catch (e) { return null; } };
+  const write = (key, value) => { try { window.localStorage.setItem(prefix + key, value); } catch (e) { /* storage non disponibile */ } };
+  document.querySelectorAll('details[data-af-acc]').forEach((box) => {
+    const key = box.dataset.afAcc;
+    const saved = read(key);
+    if (saved === '1') box.open = true;
+    else if (saved === '0') box.open = false;
+    box.addEventListener('toggle', () => write(key, box.open ? '1' : '0'));
+  });
+})();
 (() => {
   // Schede della pagina asset: raggruppa le sezioni marcate data-af-tab.
   // Senza JS tutto resta visibile in colonna, come prima.
