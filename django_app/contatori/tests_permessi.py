@@ -88,5 +88,6 @@ class MigrazioneAclTests(TestCase):
         from django.urls import get_resolver
         modulo = {k for k, _ in get_resolver().namespace_dict["contatori"][1].reverse_dict.items() if isinstance(k, str)}
         self.assertTrue(modulo)
-        self.assertEqual(modulo - set(MIG.ROUTE_VIEW) - set(MIG.ROUTE_GESTIONE), set(),
+        mig27 = import_module("contatori.migrations.0027_acl_verifica_oid")
+        self.assertEqual(modulo - set(MIG.ROUTE_VIEW) - set(MIG.ROUTE_GESTIONE) - set(mig27.ROUTE_GESTIONE), set(),
                          "Route nuova senza binding ACL: aggiungila a ROUTE_VIEW o ROUTE_GESTIONE")

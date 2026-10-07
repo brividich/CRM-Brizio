@@ -1,0 +1,71 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Verifica OID · {{ dispositivo.nome }}{% endblock %}
+{% block modulo %}
+<div class="eyebrow">{{ dispositivo.nome }} · <span class="mono">{{ dispositivo.host }}</span></div>
+<h1>Verifica OID</h1>
+<p class="sub">Incolla gli OID da un catalogo, da una MIB o da qualunque testo: il portale li interroga davvero su questo apparato, in sola lettura, e ti mostra quali rispondono e con che valore. Nel profilo entrano solo quelli che hanno risposto.</p>
+
+<section class="panel">
+  <form method="post" class="voi-form">{% csrf_token %}
+    <input type="hidden" name="azione" value="verifica">
+    <label for="voi-oids"><strong>OID da verificare</strong> <span class="muted">— anche un testo intero: gli OID vengono estratti da soli (massimo 40)</span></label>
+    <textarea id="voi-oids" name="oids" rows="6" placeholder="Es. 1.3.6.1.4.1.11.2.14.11.5.1.9.6.1.0&#10;1.3.6.1.2.1.2.2.1.8">{{ testo }}</textarea>
+    <label class="check-field"><input type="checkbox" name="esplora" value="1" {% if stato.esplora %}checked{% endif %}> Esplora anche i rami noti per questo apparato</label>
+    <details class="voi-rami"><summary class="muted">Quali rami ({{ rami|length }})</summary><ul>{% for base, nome in rami %}<li><span class="mono">{{ base }}</span> — {{ nome }}</li>{% endfor %}</ul></details>
+    <div class="form-actions">
+      <a class="btn ghost" href="{% url 'contatori:snmp_dispositivo' dispositivo.pk %}">← Scheda dispositivo</a>
+      <button class="btn" type="submit">Verifica sull'apparato</button>
+    </div>
+  </form>
+</section>
+
+{% if stato %}
+{% if stato.errore %}<div class="banner">{{ stato.errore }}</div>{% endif %}
+<section class="panel">
+  <div class="panel-head voi-head">
+    <div><h2>Risultato</h2><p>Verifica del {{ stato.eseguita_il }}: <strong>{{ righe|length }}</strong> OID rispondono{% if stato.assenti %}, <strong>{{ stato.assenti|length }}</strong> non esistono su questo apparato{% endif %}.</p></div>
+    <div class="spacer"></div>
+    {% if righe %}<form method="post">{% csrf_token %}<input type="hidden" name="azione" value="proponi"><button class="btn ghost small" type="submit" data-voi-attesa="L'AI sta preparando la proposta…">{% if con_proposte %}Rigenera proposta AI{% else %}Proponi nomi e soglie con AI{% endif %}</button></form>{% endif %}
+    <form method="post">{% csrf_token %}<input type="hidden" name="azione" value="azzera"><button class="btn ghost small" type="submit">Azzera</button></form>
+  </div>
+  {% if righe %}
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="azione" value="aggiungi">
+    <div class="table-wrap"><table class="voi-table" data-fm-table-skip="1">
+      <thead><tr><th></th><th>OID</th><th>Letto</th><th>Nome colonna</th><th>Unità</th><th class="num">Fattore</th><th>Aggregazione</th><th class="num">Avviso sopra</th><th class="num">Critico sopra</th><th>Etichette codici</th></tr></thead>
+      <tbody>{% for r in righe %}
+        <tr>
+          <td><input type="checkbox" name="sel" value="{{ r.i }}" aria-label="Seleziona {{ r.oid }}" {% if r.proposta %}checked{% endif %}></td>
+          <td><div class="mono">{{ r.oid }}</div><div class="muted voi-meta">{{ r.modalita }}{% if r.modalita == 'WALK' %} · {{ r.righe }} righe{% endif %} · {{ r.tipo|lower }} · {{ r.origine }}</div></td>
+          <td class="voi-valore"><span class="mono">{{ r.campione|default:"(vuoto)" }}</span>{% if r.min != "" %}<div class="muted voi-meta">min {{ r.min }} · max {{ r.max }}</div>{% endif %}{% if r.proposta.motivo %}<div class="voi-motivo">AI: {{ r.proposta.motivo }}</div>{% endif %}</td>
+          <td><input name="nome_{{ r.i }}" value="{{ r.nome }}" maxlength="100" placeholder="Nome"></td>
+          <td><input name="unita_{{ r.i }}" value="{{ r.proposta.unita|default:'' }}" maxlength="24" class="voi-corto"></td>
+          <td><input name="fattore_{{ r.i }}" value="{{ r.proposta.fattore|default:'1' }}" inputmode="decimal" class="voi-corto num"></td>
+          <td>{% if r.modalita == 'WALK' %}<select name="aggregazione_{{ r.i }}">{% for v, l in aggregazioni %}<option value="{{ v }}" {% if v == r.aggregazione %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% else %}<span class="muted">valore singolo</span>{% endif %}</td>
+          <td><input name="avviso_{{ r.i }}" value="{{ r.proposta.avviso_sopra|default:'' }}" inputmode="decimal" class="voi-corto num"></td>
+          <td><input name="critico_{{ r.i }}" value="{{ r.proposta.critico_sopra|default:'' }}" inputmode="decimal" class="voi-corto num"></td>
+          <td><input name="etichette_{{ r.i }}" value="{{ r.proposta.etichette|default:'' }}" maxlength="500"{% if r.tipo == "NUMERO" %} placeholder="1=Ok, 2=Guasto"{% endif %}></td>
+        </tr>{% endfor %}
+      </tbody>
+    </table></div>
+    <div class="voi-dest">
+      <label class="check-field"><input type="radio" name="destinazione" value="profilo" checked> Aggiungi al profilo</label>
+      <select name="profilo" aria-label="Profilo">{% for p in profili %}<option value="{{ p.pk }}" {% if dispositivo.profilo_snmp_id == p.pk %}selected{% endif %}>{{ p.produttore }} · {{ p.nome }}</option>{% endfor %}</select>
+      <label class="check-field"><input type="radio" name="destinazione" value="dispositivo"> Solo su questo dispositivo</label>
+    </div>
+    <div class="banner clean">Le colonne del profilo vengono segnate «Verificata» con la data e il modello di questo apparato. I valori letti sono reali; nomi, unità e soglie proposte dall'AI vanno controllati.</div>
+    <div class="form-actions"><button class="btn" type="submit">Aggiungi gli OID selezionati</button></div>
+  </form>
+  {% else %}<div class="empty">Nessun OID ha risposto.</div>{% endif %}
+  {% if stato.assenti %}<details class="voi-assenti"><summary>OID che non esistono su questo apparato ({{ stato.assenti|length }})</summary><p class="mono">{% for o in stato.assenti %}{{ o }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</p><p class="muted">L'apparato ha risposto «noSuchName»: questi OID non vanno nel profilo.</p></details>{% endif %}
+</section>
+{% endif %}
+<script>
+document.querySelectorAll("[data-voi-attesa]").forEach(function (b) {
+  b.form.addEventListener("submit", function () { b.disabled = true; b.textContent = b.dataset.voiAttesa; });
+});
+document.querySelectorAll(".voi-form").forEach(function (f) {
+  f.addEventListener("submit", function () { var b = f.querySelector("button[type=submit]"); b.disabled = true; b.textContent = "Verifica in corso…"; });
+});
+</script>
+{% endblock %}
