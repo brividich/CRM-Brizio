@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Reportistica — «Formazione erogata» per persona con filtro sulle ore; «Chiedi un report» non perde più nominativo e soglie** (`django_app/anagrafica/reportistica/sezioni.py`, `reportistica/conversazione.py`, `tests_reportistica_dati_corretti.py`, `tests_reportistica_chat.py`, `docs/moduli/anagrafica.md`).
+  - Richiesta «dipendenti con meno di 5 ore di formazione nel 2026»: prima usciva una tabella di soli reparto/mansione/ore (nominativo e matricola «non disponibili»), senza alcun filtro sulle ore e senza chi non aveva fatto formazione.
+  - Nuove opzioni della sezione: **Filtro sulle ore** (meno di / al massimo / almeno / più di) + **Soglia ore**, ed **Elenca anche chi non ha formazione nel periodo**. Con «meno di»/«al massimo» e dettaglio per persona compaiono anche le persone a 0 ore (in arancione). Indicatore «Persone con meno di N ore».
+  - Colonne **Nominativo** e **Matricola** esplicite (restano «Persona / corso / reparto» e «Matricola / codice» per i modelli salvati).
+  - **Indicatori coerenti**: persone formate, ore e media pro capite contano le stesse persone (in forza a fine periodo, o tutte con «Includi il personale cessato»). Prima «146 persone formate su 134 in forza» perché il numeratore includeva i cessati. Stesso perimetro per «Attestati di formazione».
+  - **Ore di un completamento**: ore frequentate, altrimenti durata salvata, altrimenti durata del corso (prima 0 ore → falsi «sotto soglia»); vale anche per l'indicatore PdR 125 «Opportunità di crescita».
+  - Chiedi un report: all'AI il catalogo mostra le colonne con l'etichetta; le colonne si accettano anche per etichetta; se una tabella resta senza la colonna che identifica la riga, viene aggiunta; regole per soglie di ore e anni solari («nel 2026»). L'interprete senza AI riconosce «meno di / minore di / almeno / più di N ore» e l'anno.
+
 - **Anomalie — controllo a blocchi: stato superficie obbligatorio per blocco, riepilogo finale, S/N ripetuti confermati, niente mail doppie dalle automazioni** (`django_app/anomalie/controllo_service.py`, `controllo_views.py`, `templates/anomalie/pages/apertura_segnalazione.html`, `tests_controllo.py`, `django_app/automazioni/services.py`, `docs/moduli/anomalie.md`).
   - **Stato superficie per blocco**: scelta a pulsanti, obbligatoria (lato pagina e API) quando la configurazione liste ne prevede; mostrata come etichetta su ogni blocco salvato. Un blocco già deciso dal capocommessa resta com'era.
   - **Riepilogo finale**: «Termina controllo…» apre il riepilogo (blocchi, pezzi, anomalie, allegati, stato superficie, a chi parte la mail) da confermare; dopo la chiusura il riepilogo resta a video ed è stampabile. In testa al controllo i contatori blocchi/pezzi/anomalie.

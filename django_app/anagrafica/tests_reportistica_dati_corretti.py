@@ -136,6 +136,45 @@ class AnagraficheDoppieTest(_Base):
         self.assertEqual([r["stato"] for r in res.righe], ["Valida"])
 
 
+class FormazioneErogataSogliaTest(_Base):
+    """«Dipendenti con meno di 5 ore di formazione»: righe per persona, chi ha 0 ore compreso."""
+
+    def setUp(self):
+        super().setUp()
+        corso = self.corso("C1")  # 4 ore
+        self.completamento(901, corso, 30)
+        self.completamento(951, corso, 20)  # doppione di 901: 8 ore in tutto
+        self.completamento(902, corso, 10)  # 4 ore
+        self.completamento(903, corso, 60)  # cessato 10 giorni fa: fuori dal perimetro «in forza»
+
+    def test_meno_di_5_ore_comprende_chi_ne_ha_zero(self):
+        res = self.calcola("formazione_erogata", dettaglio="persona", confronto_ore="meno_di", soglia_ore=5)
+        self.assertEqual([(r["nominativo"], r["ore"]) for r in res.righe],
+                         [("BIANCHI LUCA", 4), ("VERDI GIULIA", 0)])
+        self.assertEqual(res.righe[0]["matricola"], res.righe[0]["codice"])
+
+    def test_almeno_5_ore(self):
+        res = self.calcola("formazione_erogata", dettaglio="persona", confronto_ore="almeno", soglia_ore=5)
+        self.assertEqual([r["nominativo"] for r in res.righe], ["ROSSI ANNA"])
+
+    def test_indicatori_sulle_stesse_persone(self):
+        res = self.calcola("formazione_erogata")
+        kpi = {k.label: k for k in res.kpis}
+        # 3 in forza (901, 902, 904): le persone formate non possono superarle.
+        self.assertEqual(kpi["Persone formate"].value, 2)
+        self.assertIn("su 3 in forza", kpi["Persone formate"].hint)
+        self.assertEqual(kpi["Ore di formazione erogate"].value, "12,0")
+        self.assertEqual(kpi["Ore medie pro capite"].value, "4,0")
+        con_cessati = self.calcola("formazione_erogata", self.ctx(includi_cessati=True))
+        self.assertEqual({k.label: k for k in con_cessati.kpis}["Persone formate"].value, 3)
+
+    def test_senza_filtro_niente_righe_a_zero(self):
+        res = self.calcola("formazione_erogata")
+        self.assertEqual([r["voce"] for r in res.righe], ["BIANCHI LUCA", "ROSSI ANNA"])
+        res = self.calcola("formazione_erogata", includi_non_formati=True)
+        self.assertEqual([r["voce"] for r in res.righe], ["BIANCHI LUCA", "ROSSI ANNA", "VERDI GIULIA"])
+
+
 class FormazioneAllaDataTest(_Base):
     def test_cache_stantia_non_inganna_il_report(self):
         corso = self.corso("C-SCAD")

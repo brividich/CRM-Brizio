@@ -87,7 +87,8 @@ def catalogo_per_ai(request, scelte_perimetro: dict, *, limite: int = 60) -> dic
             continue
         voce = {"chiave": s.key, "titolo": s.titolo, "descrizione": s.descrizione[:160]}
         if s.colonne and not s.colonne_dinamiche:
-            voce["colonne"] = [k for k, _l in s.colonne]
+            # Con l'etichetta: «voce» o «codice» da sole non dicono all'AI che cosa contengono.
+            voce["colonne"] = _scelte_compatte(list(s.colonne), 100)
         opzioni = {}
         for o in s.tutte_le_opzioni():
             if o.nome in _OPZIONI_SOLO_IMPAGINAZIONE:
@@ -139,6 +140,11 @@ ISTRUZIONI = (
     "Regole: «scaduti/scadute» = opzione stati con i valori di scadenza; «in Excel» = formato xlsx; "
     "«anno scorso» = ANNO_PRECEDENTE; persone e reparti vanno nel perimetro, non nelle opzioni; "
     "i numeri in perimetro.persone sono persone già scelte: conservali se l'utente non chiede di cambiarle. "
+    "Colonne: scrivi la CHIAVE della colonna; in un elenco di persone metti sempre la colonna del nominativo. "
+    "Ore di formazione per persona («dipendenti con meno di N ore», «chi ha fatto almeno N ore») = sezione "
+    "formazione_erogata con opzioni dettaglio=persona, confronto_ore (meno_di, al_massimo, almeno, piu_di) e "
+    "soglia_ore=N. Un anno solare («nel 2026») = ANNO_CORRENTE se è l'anno in corso, ANNO_PRECEDENTE se è "
+    "il precedente, altrimenti PERSONALIZZATO dal 1° gennaio al 31 dicembre. "
     "Se la richiesta non è chiara, lascia sezioni vuote e chiedi in «risposta» cosa serve."
 )
 
@@ -217,6 +223,32 @@ def _opzioni_sezione(sezione, grezze, avvisi: list[str]) -> dict:
                 continue
             valore = int(numero.group())
         out[nome] = o.normalizza(valore)
+    return out
+
+
+# Colonne che dicono di chi (o di che cosa) e' la riga, in ordine di preferenza.
+_COLONNE_IDENTITA = ("voce", "nominativo")
+
+
+def _colonne(sezione, grezze, avvisi: list[str]) -> list[str]:
+    """Colonne proposte -> chiavi valide (chiave, etichetta o «chiave=Etichetta»).
+
+    Una tabella senza la colonna che identifica la riga e' illeggibile (righe di sole
+    ore o di soli reparti): se manca, si aggiunge in testa.
+    """
+    scelte = list(sezione.colonne)
+    scartate: list[str] = []
+    out = _abbina(grezze, scelte, "Colonna", scartate)
+    if scartate:
+        nomi = [m.split("«", 1)[1].split("»", 1)[0] for m in scartate if "«" in m]
+        avvisi.append(f"Colonne non disponibili in «{sezione.titolo}»: {', '.join(nomi)}.")
+    validi = dict(scelte)
+    if out and not any(c in out for c in _COLONNE_IDENTITA):
+        identita = next((c for c in _COLONNE_IDENTITA if c in validi), None)
+        if identita:
+            out.insert(0, identita)
+    if "voce" in out and "nominativo" in out:
+        out.remove("nominativo")  # stessa informazione due volte
     return out
 
 
@@ -302,11 +334,7 @@ def normalizza_specifica(grezza, request, scelte_perimetro: dict, dipendenti) ->
             continue
         colonne = []
         if sezione.colonne and not sezione.colonne_dinamiche:
-            validi = dict(sezione.colonne)
-            colonne = [c for c in dict.fromkeys(str(c) for c in _lista(voce.get("colonne"))) if c in validi]
-            scartate = [c for c in _lista(voce.get("colonne")) if str(c) not in validi]
-            if scartate:
-                avvisi.append(f"Colonne non disponibili in «{sezione.titolo}»: {', '.join(_testo(c, 30) for c in scartate)}.")
+            colonne = _colonne(sezione, voce.get("colonne"), avvisi)
         spec["sezioni"].append({"sezione": chiave, "colonne": colonne,
                                 "opzioni": _opzioni_sezione(sezione, voce.get("opzioni"), avvisi)})
     if len(_lista(grezza.get("sezioni"))) > MAX_SEZIONI:
@@ -446,6 +474,36 @@ _PAROLE_PERIODO = (
 )
 
 
+_SOGLIE_ORE = (
+    (("MENO DI", "MINORE DI", "MINORI DI", "INFERIORE A", "INFERIORI A", "SOTTO LE", "SOTTO I", "SOTTO",
+      "< "), "meno_di"),
+    (("AL MASSIMO", "NON PIU DI", "FINO A"), "al_massimo"),
+    (("ALMENO", "NON MENO DI", "MINIMO"), "almeno"),
+    (("PIU DI", "OLTRE", "MAGGIORE DI", "MAGGIORI DI", "SUPERIORE A", "SUPERIORI A", "SOPRA LE", "> "), "piu_di"),
+)
+
+
+def _soglia_ore(testo: str) -> tuple[str, int] | None:
+    """«meno di 5 ore», «minore di 5 ore», «almeno 8 ore»… -> (confronto, soglia)."""
+    for parole, confronto in _SOGLIE_ORE:
+        for parola in parole:
+            # «non meno di» / «non più di» appartengono a un altro confronto: qui si saltano.
+            m = re.search(rf"(?<![A-Z]){re.escape(parola.strip())}\s*(\d+)\s*(?:ORE|ORA|H)\b", testo)
+            if m and not (confronto in ("meno_di", "piu_di") and testo[:m.start()].rstrip().endswith("NON")):
+                return confronto, int(m.group(1))
+    return None
+
+
+def _periodo_anno(anno: int) -> dict:
+    """Un anno solare detto a parole («nel 2026») -> periodo della specifica."""
+    corrente = timezone.localdate().year
+    if anno == corrente:
+        return {"tipo": "ANNO_CORRENTE", "da": "", "a": ""}
+    if anno == corrente - 1:
+        return {"tipo": "ANNO_PRECEDENTE", "da": "", "a": ""}
+    return {"tipo": "PERSONALIZZATO", "da": f"{anno}-01-01", "a": f"{anno}-12-31"}
+
+
 def _contiene(testo: str, voce: str) -> bool:
     """``voce`` compare in ``testo`` come parola intera (testo gia' in forma ``chiave_testo``)."""
     chiave = naming.chiave_testo(voce)
@@ -480,6 +538,10 @@ def interpreta_senza_ai(messaggio: str, specifica: dict, scelte_perimetro: dict)
         if any(naming.chiave_testo(p) in testo for p in parole):
             spec["periodo"] = {"tipo": tipo, "da": "", "a": ""}
             break
+    else:
+        anno = re.search(r"(?<!\d)(20\d\d)(?!\d)", testo)
+        if anno:
+            spec["periodo"] = _periodo_anno(int(anno.group(1)))
     perimetro = spec.setdefault("perimetro", {})
     for campo in ("reparti", "aree", "mansioni"):
         valori = [lab for _k, lab in scelte_perimetro.get(campo, []) if lab and _contiene(testo, lab)]
@@ -502,6 +564,10 @@ def interpreta_senza_ai(messaggio: str, specifica: dict, scelte_perimetro: dict)
         opzioni = voce.setdefault("opzioni", {})
         if _contiene(testo, "sicurezza") and "solo_sicurezza" in nomi:
             opzioni["solo_sicurezza"] = True
+        soglia = _soglia_ore(testo)
+        if soglia and "confronto_ore" in nomi:
+            opzioni["confronto_ore"], opzioni["soglia_ore"] = soglia
+            opzioni.setdefault("dettaglio", "persona")
         if solo_scadute and "stati" in nomi:
             stati = {k for k, _l in next(o for o in sezione.tutte_le_opzioni() if o.nome == "stati").elenco_scelte()}
             opzioni["stati"] = [s for s in ("scaduta", "SCADUTO") if s in stati]
