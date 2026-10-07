@@ -14,8 +14,14 @@ def _compute_stato(
     validita_mesi: int,
     today: date,
 ) -> tuple[str, int | None]:
-    """Ritorna (stato_scadenza, giorni_alla_scadenza)."""
-    if validita_mesi == 0 or data_scadenza is None:
+    """Ritorna (stato_scadenza, giorni_alla_scadenza).
+
+    Decide la scadenza scritta sull'attestato, non la validita' attuale del
+    corso: un corso portato a «una tantum» (validita' 0) dopo che gli attestati
+    erano stati emessi con scadenza li rendeva eterni (in prod 177 attestati,
+    73 gia' scaduti mostrati validi). ``validita_mesi`` resta per compatibilita'.
+    """
+    if data_scadenza is None:
         return "UNA_TANTUM", None
     giorni = (data_scadenza - today).days
     if giorni < 0:

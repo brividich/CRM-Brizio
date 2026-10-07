@@ -15105,6 +15105,13 @@ def _crea_employee_record(enrollment: TrainingEnrollment, created_by) -> Trainin
     oggi = _tz.localdate()
 
     data_completamento = enrollment.data_completamento or oggi
+    if data_completamento > oggi:
+        # Sessione con date future (pianificata, anno sbagliato): il corso si chiude
+        # oggi. In prod c'erano completamenti al 31/12 e al 2029 che, presi per
+        # «ultimi», nascondevano quelli veri nel motore dei requisiti.
+        logger.warning("Completamento iscrizione %s datato %s nel futuro: registrato a oggi",
+                       enrollment.pk, data_completamento)
+        data_completamento = oggi
     data_scadenza = None
     if corso.validita_mesi:
         data_scadenza = _add_months(data_completamento, corso.validita_mesi)
