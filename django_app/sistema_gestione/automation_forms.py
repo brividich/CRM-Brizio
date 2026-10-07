@@ -2,6 +2,7 @@ from django import forms
 from django.utils import timezone
 from core.upload_mime import validate_extension_and_mime, UploadMimeValidationError
 from .models import ChecklistProcesso, AuditVerificaEfficacia
+from core.upload_limits import DOCUMENT_MAX_BYTES, DOCUMENT_MAX_MB
 
 
 class ChecklistProcessoForm(forms.ModelForm):
@@ -30,13 +31,13 @@ class ChecklistProcessoForm(forms.ModelForm):
 
 
 class AllegatoEvidenzaForm(forms.Form):
-    file = forms.FileField(label="Evidenza (PDF, PNG o JPEG, massimo 20 MB)")
+    file = forms.FileField(label=f"Evidenza (PDF, PNG o JPEG, massimo {DOCUMENT_MAX_MB} MB)")
 
     def clean_file(self):
         file = self.cleaned_data["file"]
         try:
             validate_extension_and_mime(file, allowed_extensions={".pdf", ".png", ".jpg", ".jpeg"},
-                allowed_mimes={"application/pdf", "image/png", "image/jpeg"}, max_bytes=20*1024*1024,
+                allowed_mimes={"application/pdf", "image/png", "image/jpeg"}, max_bytes=DOCUMENT_MAX_BYTES,
                 allow_empty=False, label="Evidenza")
         except UploadMimeValidationError as exc:
             raise forms.ValidationError(str(exc)) from exc

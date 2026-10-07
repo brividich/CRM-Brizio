@@ -10,10 +10,11 @@ from core.upload_mime import (
 )
 
 from .models import Notizia, NotiziaAllegato, NotiziaAudience
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 
-# Allegati notizie: documenti, immagini, e file Office. 25 MB.
-NOTIZIE_ALLEGATO_MAX_BYTES = 25 * 1024 * 1024
+# Allegati notizie: documenti, immagini, e file Office. Limite UPLOAD_MAX_FILE_MB.
+NOTIZIE_ALLEGATO_MAX_BYTES = DOCUMENT_MAX_BYTES
 NOTIZIE_ALLEGATO_EXTENSIONS = {
     ".pdf",
     ".png",

@@ -5,6 +5,7 @@ from django import forms
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from .models import SoaVoce, ThreatIntelligence
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 _DATE = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
 
@@ -102,7 +103,7 @@ class CopiaFirmataForm(forms.Form):
                 caricato,
                 allowed_extensions={".pdf"},
                 allowed_mimes={"application/pdf"},
-                max_bytes=20 * 1024 * 1024,
+                max_bytes=DOCUMENT_MAX_BYTES,
                 label="Copia firmata",
                 allow_empty=False,
             )

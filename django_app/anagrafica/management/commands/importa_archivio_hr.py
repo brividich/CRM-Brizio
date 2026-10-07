@@ -38,10 +38,11 @@ from django.core.files import File
 from django.core.management.base import BaseCommand, CommandError
 
 from anagrafica.models import CartellaDocumentoDipendente, DocumentoDipendente
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 RIFERIMENTO_TIPO = "archivio.hrtools"
 AUTORE = "Importazione archivio storico"
-MAX_BYTES = 50 * 1024 * 1024  # stesso limite dell'upload manuale
+MAX_BYTES = DOCUMENT_MAX_BYTES  # stesso limite dell'upload manuale
 
 ESTENSIONI_AMMESSE = {
     ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".webp", ".msg", ".html",

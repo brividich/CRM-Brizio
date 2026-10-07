@@ -27,12 +27,13 @@ from .reports import matrice_presa_visione, prodotti_senza_mansioni, prodotti_se
 from .services.assegnazioni import notifica_nuova_versione, profilo_sds_utente
 from .services.ingestion import estrai_sds, pittogrammi_proposti
 from .services.qr import genera_qr_png
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 logger = logging.getLogger(__name__)
 
 SDS_ALLOWED_EXTENSIONS = {".pdf"}
 SDS_ALLOWED_MIMES = {"application/pdf"}
-SDS_MAX_BYTES = 25 * 1024 * 1024  # 25 MB
+SDS_MAX_BYTES = DOCUMENT_MAX_BYTES
 
 PERM_VIEW = "schede_sicurezza.prodotto.view"
 PERM_GESTISCI = "schede_sicurezza.prodotto.gestisci"

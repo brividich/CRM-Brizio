@@ -171,6 +171,7 @@ from .acl_bootstrap import (
     PERM_VISITE_VIEW,
     PERM_VISITE_DELETE,
 )
+from core.upload_limits import DOCUMENT_MAX_BYTES, DOCUMENT_MAX_MB
 
 logger = logging.getLogger(__name__)
 
@@ -3183,7 +3184,7 @@ def formazione_allegato_upload(request, sessione_id: int):
         messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
         return _back()
     if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 50 MB.")
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
         return _back()
     try:
         from core.upload_mime import sniff_mime
@@ -3319,7 +3320,7 @@ def formazione_corso_allegato_upload(request, corso_id: int):
         messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
         return _back()
     if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 50 MB.")
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
         return _back()
     try:
         from core.upload_mime import sniff_mime
@@ -5049,8 +5050,8 @@ def dipendente_qualifica_add(request, legacy_id: int):
         if suffix not in allowed:
             messages.error(request, "Formato evidenza non ammesso (usa PDF o immagine).")
             return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
-        if documento.size > 50 * 1024 * 1024:
-            messages.error(request, "Evidenza troppo grande (max 50 MB).")
+        if documento.size > DOCUMENT_MAX_BYTES:
+            messages.error(request, f"Evidenza troppo grande (max {DOCUMENT_MAX_MB} MB).")
             return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
         documento_nome = documento.name
 
@@ -11134,7 +11135,7 @@ def referto_gestione(request, doc_id: int):
                 elif uploaded.size > _MAX_DOC_SIZE:
                     messages.error(
                         request,
-                        f"File troppo grande ({uploaded.size // (1024 * 1024)} MB). Limite: 50 MB.",
+                        f"File troppo grande ({uploaded.size // (1024 * 1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.",
                     )
                 else:
                     try:
@@ -11428,7 +11429,7 @@ _ALLOWED_MANUAL_DOC_MIMES = _ALLOWED_DOC_MIMES | {
     "text/html",
 }
 _ALLOWED_MANUAL_DOC_EXTENSIONS = _ALLOWED_DOC_EXTENSIONS | {".msg", ".html"}
-_MAX_DOC_SIZE = 50 * 1024 * 1024  # 50 MB
+_MAX_DOC_SIZE = DOCUMENT_MAX_BYTES
 
 
 @login_required
@@ -11458,7 +11459,7 @@ def documento_dipendente_upload(request, legacy_id: int):
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
     if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 50 MB.")
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
     try:
@@ -14253,7 +14254,7 @@ def _salva_documento_ente(request, *, azienda=None, docente=None):
     if suffix not in _ALLOWED_DOC_EXTENSIONS:
         return f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS."
     if uploaded.size > _MAX_DOC_SIZE:
-        return f"File troppo grande ({uploaded.size // (1024 * 1024)} MB). Limite: 50 MB."
+        return f"File troppo grande ({uploaded.size // (1024 * 1024)} MB). Limite: {DOCUMENT_MAX_MB} MB."
     try:
         from core.upload_mime import sniff_mime
         mime = sniff_mime(uploaded)
@@ -15491,7 +15492,7 @@ def formazione_iscrizione_attestato_upload(request, sessione_id: int, iscrizione
         messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
     if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: 50 MB.")
+        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
     try:
         from core.upload_mime import sniff_mime
@@ -19079,9 +19080,9 @@ def formazione_slide_import(request, corso_id: int):
     if not f:
         messages.error(request, "Nessun file selezionato.")
         return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
-    # Limite dimensione (50 MB) per evitare upload abnormi
-    if f.size and f.size > 50 * 1024 * 1024:
-        messages.error(request, "File troppo grande (massimo 50 MB).")
+    # Limite dimensione (UPLOAD_MAX_FILE_MB) per evitare upload abnormi
+    if f.size and f.size > DOCUMENT_MAX_BYTES:
+        messages.error(request, f"File troppo grande (massimo {DOCUMENT_MAX_MB} MB).")
         return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
     from .services.elearning_import import importa_slides_da_file, ImportError_
     try:

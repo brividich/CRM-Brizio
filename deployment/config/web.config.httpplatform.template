@@ -85,14 +85,15 @@
     </httpProtocol>
 
     <!-- ================================================================
-         Limite dimensione richiesta: consente upload fino a 50 MB.
+         Limite dimensione richiesta: consente upload fino a 100 MB
+         per richiesta (es. caricamento di una cartella intera).
          Senza questo IIS applica il default ~28,6 MB e blocca i file
          grandi PRIMA che arrivino a Django (errore 404.13).
-         50 MB = 52428800 byte. Allineato ai limiti applicativi Django.
+         100 MB = 104857600 byte. Deve restare >= UPLOAD_MAX_FILE_MB del .env.
          ================================================================ -->
     <security>
       <requestFiltering>
-        <requestLimits maxAllowedContentLength="52428800" />
+        <requestLimits maxAllowedContentLength="104857600" />
       </requestFiltering>
     </security>
 

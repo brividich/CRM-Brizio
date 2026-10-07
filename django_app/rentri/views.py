@@ -32,6 +32,7 @@ from core.module_branding import get_module_branding_context, handle_module_bran
 from core.upload_mime import safe_filename, validate_filename, validate_extension_and_mime, UploadMimeValidationError
 
 from .acl_bootstrap import PERM_RENTRI_MANAGE
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 
 _RENTRI_CSV_MAX_BYTES = 5 * 1024 * 1024
@@ -53,7 +54,7 @@ def _validate_rentri_csv(uploaded_file):
     return None
 
 
-_ALLEGATO_MAX_BYTES = 10 * 1024 * 1024
+_ALLEGATO_MAX_BYTES = DOCUMENT_MAX_BYTES
 _ALLEGATO_ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".webp"}
 _ALLEGATO_ALLOWED_MIMES = {
     "application/pdf",
