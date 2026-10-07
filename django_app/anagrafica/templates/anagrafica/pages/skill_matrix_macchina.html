@@ -5,6 +5,7 @@
 {% block title %}Skill Matrix — Abilitazioni macchina (MOD.187){% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <style>
@@ -77,12 +78,18 @@ body.theme-dark .sm-table th.name, body.theme-dark .sm-table td.name { backgroun
     <a class="sm-tab" href="{% url 'anagrafica:matrice_competenze' %}">Processi qualificati</a>
   </div>
 
-  <div class="sm-kpis">
-    <div class="sm-kpi"><div class="v">{{ kpi.prontezza.percentuale }}%</div><div class="l">Prontezza squadra (≥ soglia)</div></div>
-    <div class="sm-kpi {% if kpi.scoperte %}bad{% endif %}"><div class="v">{{ kpi.scoperte }}</div><div class="l">Macchine scoperte (0 in lista)</div></div>
-    <div class="sm-kpi {% if kpi.uomo_solo %}warn{% endif %}"><div class="v">{{ kpi.uomo_solo }}</div><div class="l">Rischio uomo-solo (&lt; {{ config.soglia_uomo_solo }})</div></div>
-    <div class="sm-kpi {% if kpi.continuita_persa %}bad{% endif %}"><div class="v">{{ kpi.continuita_persa }}</div><div class="l">Continuità persa</div></div>
-  </div>
+  <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Skill Matrix in sintesi">
+    <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span>
+      <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi.prontezza.percentuale }}%</span></div>
+      <div class="fmd-mtr-lbl">Prontezza squadra</div><div class="fmd-mtr-sub">macchine con abilitati ≥ soglia</div>
+    </div>
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.scoperte|yesno:"orange,green" icona="i-alert-tri" valore=kpi.scoperte label="Macchine scoperte" sub="nessun abilitato in lista" %}
+    <div class="fmd-mtr fmd-t-{{ kpi.uomo_solo|yesno:'amber,green' }}"><span class="fmd-ribbon"></span>
+      <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ kpi.uomo_solo }}</span></div>
+      <div class="fmd-mtr-lbl">Rischio uomo-solo</div><div class="fmd-mtr-sub">meno di {{ config.soglia_uomo_solo }} abilitati</div>
+    </div>
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.continuita_persa|yesno:"orange,green" icona="i-refresh" valore=kpi.continuita_persa label="Continuità persa" %}
+  </section>
 
   <form method="get" class="sm-toolbar">
     <label class="sm-rep">Reparto</label>

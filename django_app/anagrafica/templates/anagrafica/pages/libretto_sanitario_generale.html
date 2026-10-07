@@ -14,7 +14,7 @@ Privacy: i nomi delle visite seguono can_view_visite.
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 <style>
 .lsg-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:14px 16px; }
 .lsg-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:140px; }
@@ -105,36 +105,25 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
   </div>
 
   <!-- KPI -->
-  <div class="hr-metric-grid">
-    <div class="hr-metric">
-      <div class="hr-metric-ico red">⛔</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Requisiti scaduti</span><span class="hr-metric-val">{{ conta_stato.ko }}</span></div>
-        <div class="hr-metric-sub">{{ n_persone_ko }} person{{ n_persone_ko|pluralize:"a,e" }} non conform{{ n_persone_ko|pluralize:"e,i" }}</div>
-      </div>
+  {# Le righe di dettaglio con plurali restano scritte qui: l'include accetta solo valori singoli. #}
+  <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Libretto sanitario in sintesi">
+    <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span>
+      <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ conta_stato.ko }}</span></div>
+      <div class="fmd-mtr-lbl">Requisiti scaduti</div>
+      <div class="fmd-mtr-sub">{{ n_persone_ko }} person{{ n_persone_ko|pluralize:"a,e" }} non conform{{ n_persone_ko|pluralize:"e,i" }}</div>
     </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico amber">⏰</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">In scadenza (60 gg)</span><span class="hr-metric-val">{{ conta_stato.warn }}</span></div>
-        <div class="hr-metric-sub">Da rinnovare prima della scadenza</div>
-      </div>
+    {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alarm" valore=conta_stato.warn label="In scadenza (60 gg)" sub="da rinnovare prima della scadenza" %}
+    <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span>
+      <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ conta_stato.mancante }}</span></div>
+      <div class="fmd-mtr-lbl">Da acquisire</div>
+      <div class="fmd-mtr-sub">{{ n_persone_incomplete }} person{{ n_persone_incomplete|pluralize:"a,e" }} con requisiti mai assolti</div>
     </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico blue">📋</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Da acquisire</span><span class="hr-metric-val">{{ conta_stato.mancante }}</span></div>
-        <div class="hr-metric-sub">{{ n_persone_incomplete }} person{{ n_persone_incomplete|pluralize:"a,e" }} con requisiti mai assolti</div>
-      </div>
+    <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span>
+      <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ copertura }}%</span></div>
+      <div class="fmd-mtr-lbl">Copertura</div>
+      <div class="fmd-mtr-sub">{{ conta_stato.ok }} requisiti validi su {{ n_obblighi }} · {{ n_persone }} in forza</div>
     </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico green">✅</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Copertura</span><span class="hr-metric-val">{{ copertura }}%</span></div>
-        <div class="hr-metric-sub">{{ conta_stato.ok }} requisiti validi su {{ n_obblighi }} · {{ n_persone }} in forza</div>
-      </div>
-    </div>
-  </div>
+  </section>
 
   <!-- Composizione per ambito -->
   <div class="hr-card">

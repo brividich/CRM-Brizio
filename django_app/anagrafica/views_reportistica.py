@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -18,6 +19,7 @@ from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.http import Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
@@ -53,12 +55,20 @@ def reportistica_index(request):
         .order_by("nome")
     )
     archivio = ReportGenerato.objects.defer("contenuto").select_related("generato_da")
+    trenta_giorni_fa = timezone.now() - timedelta(days=30)
+    kpi = {
+        "modelli": len(modelli),
+        "archivio": ReportGenerato.objects.count(),
+        "ultimi_30": ReportGenerato.objects.filter(generato_il__gte=trenta_giorni_fa).count(),
+        "dati_personali": ReportGenerato.objects.filter(contiene_dati_personali=True).count(),
+    }
     if q:
         archivio = archivio.filter(Q(titolo__icontains=q) | Q(destinatario__icontains=q) | Q(modello_nome__icontains=q))
     return render(request, "anagrafica/pages/reportistica_index.html", {
         "page_title": "Reportistica",
         "modelli": modelli,
         "archivio": list(archivio[:60]),
+        "kpi": kpi,
         "q": q,
         "can_manage": can_manage(request),
         "catalogo": catalogo.catalogo_per_gruppo(request),
