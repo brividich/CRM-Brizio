@@ -255,18 +255,21 @@ def verifica_dispositivo(dispositivo, oids, *, esplora=False):
 
 
 # --- Proposta con l'AI interna -------------------------------------------------
+# Il modello locale ha un limite di token in uscita (OLLAMA_NUM_PREDICT): poche
+# righe per volta e una riga per OID, cosi' una risposta troncata conserva comunque
+# le righe complete (un JSON troncato andrebbe perso tutto).
+
+MAX_AI_PER_VOLTA = 15
 
 ISTRUZIONI = (
-    "Sei un tecnico di rete che configura il monitoraggio SNMP. Ricevi il modello di un apparato e l'elenco degli "
-    "OID che hanno RISPOSTO davvero, con modalità (GET valore singolo, WALK colonna di tabella), numero di righe, tipo "
-    "e valori letti. Per ciascun OID utile al monitoraggio (salute, temperature, ventole, alimentatori, CPU, memoria, "
-    "stato porte, traffico, PoE, versione firmware, modello, seriale) proponi una colonna. Ignora OID poco utili. "
-    "Rispondi SOLO con JSON: {\"colonne\": [{\"oid\": OID identico a quello ricevuto, \"nome\": nome breve in italiano, "
-    "\"unita\": unità o \"\", \"fattore\": numero che moltiplica il valore (es. 0.01 se il valore è in centesimi), "
-    "\"aggregazione\": PRIMO|MASSIMO|MINIMO|SOMMA|MEDIA (per WALK: MASSIMO per stati e temperature, MEDIA per CPU), "
-    "\"avviso_sopra\": numero o null, \"critico_sopra\": numero o null, \"etichette\": codici come \"1=Ok, 2=Guasto\" "
-    "o \"\", \"motivo\": frase breve su cosa misura}]}. Usa SOLO gli OID dell'elenco. Se non riconosci un OID, "
-    "deducilo dai valori e dillo nel motivo. Non inventare."
+    "Sei un tecnico di rete che configura il monitoraggio SNMP. Ricevi il modello di un apparato e alcuni OID che "
+    "hanno RISPOSTO davvero, con modalità (GET valore singolo, WALK colonna di tabella), righe, tipo e valori letti. "
+    "Per OGNI OID ricevuto scrivi UNA riga, senza altro testo, nel formato:\n"
+    "OID | nome breve in italiano | unità | fattore | aggregazione | avviso sopra | critico sopra | etichette | motivo\n"
+    "fattore: numero che moltiplica il valore (0.01 se è in centesimi, altrimenti 1). aggregazione: PRIMO per GET; "
+    "per WALK MASSIMO (stati, temperature), MEDIA (CPU) o SOMMA (traffico, errori). Soglie vuote se non servono. "
+    "etichette: solo per codici di stato, es. 1=Ok, 2=Guasto. motivo: cosa misura, in poche parole; se non riconosci "
+    "l'OID scrivi 'da verificare' e deducilo dai valori. Usa solo gli OID ricevuti. Non inventare."
 )
 
 AGGREGAZIONI = set(ColonnaProfiloSNMP.Aggregazione.values)
@@ -278,70 +281,98 @@ def contesto_ai(dispositivo, candidati) -> str:
         f"sysObjectID: {dispositivo.sys_object_id or 'n.d.'}",
         "OID che hanno risposto (oid | modalità | righe | tipo | valori | min-max):",
     ]
-    for c in candidati[:80]:
+    for c in candidati[:MAX_AI_PER_VOLTA]:
         intervallo = f"{c['min']}..{c['max']}" if c.get("min") != "" else ""
         righe.append(f"{c['oid']} | {c['modalita']} | {c['righe']} | {c['tipo']} | {c['campione'][:80]} | {intervallo}")
     return "\n".join(righe)
 
 
 def _decimale(v):
-    if v in (None, "", "null"):
+    if v in (None, "", "null", "None", "-"):
         return None
     try:
-        d = Decimal(str(v).replace(",", "."))
+        d = Decimal(str(v).strip().replace(",", "."))
         return d if d.is_finite() and abs(d) < Decimal("1e18") else None
     except InvalidOperation:
         return None
-
-
-def normalizza_proposta(data, candidati) -> dict:
-    """Tiene solo proposte su OID verificati e con valori ammessi."""
-    validi = {c["oid"]: c for c in candidati}
-    proposte = {}
-    for voce in (data or {}).get("colonne") or []:
-        if not isinstance(voce, dict):
-            continue
-        oid = str(voce.get("oid") or "").strip().lstrip(".")
-        if oid not in validi or oid in proposte:
-            continue
-        cand = validi[oid]
-        aggregazione = str(voce.get("aggregazione") or "").upper()
-        if cand["modalita"] == "GET" or aggregazione not in AGGREGAZIONI:
-            aggregazione = "PRIMO" if cand["modalita"] == "GET" else "MASSIMO"
-        fattore = _decimale(voce.get("fattore")) or Decimal("1")
-        proposte[oid] = {
-            "nome": str(voce.get("nome") or "").strip()[:100],
-            "unita": str(voce.get("unita") or "").strip()[:24],
-            "fattore": str(fattore.normalize()) if fattore != 1 else "1",
-            "aggregazione": aggregazione,
-            "avviso_sopra": _testo_num(_decimale(voce.get("avviso_sopra"))),
-            "critico_sopra": _testo_num(_decimale(voce.get("critico_sopra"))),
-            "etichette": str(voce.get("etichette") or "").strip()[:500],
-            "motivo": str(voce.get("motivo") or "").strip()[:200],
-        }
-    return proposte
 
 
 def _testo_num(d):
     return "" if d is None else format(d.normalize(), "f")
 
 
+def _voce(voce, cand) -> dict:
+    aggregazione = str(voce.get("aggregazione") or "").strip().upper()
+    if cand["modalita"] == "GET" or aggregazione not in AGGREGAZIONI:
+        aggregazione = "PRIMO" if cand["modalita"] == "GET" else "MASSIMO"
+    fattore = _decimale(voce.get("fattore")) or Decimal("1")
+    return {
+        "nome": str(voce.get("nome") or "").strip()[:100],
+        "unita": str(voce.get("unita") or "").strip()[:24],
+        "fattore": _testo_num(fattore) if fattore != 1 else "1",
+        "aggregazione": aggregazione,
+        "avviso_sopra": _testo_num(_decimale(voce.get("avviso_sopra"))),
+        "critico_sopra": _testo_num(_decimale(voce.get("critico_sopra"))),
+        "etichette": str(voce.get("etichette") or "").strip()[:500],
+        "motivo": str(voce.get("motivo") or "").strip()[:200],
+        "fonte": "ai",
+    }
+
+
+CAMPI_RIGA = ("oid", "nome", "unita", "fattore", "aggregazione", "avviso_sopra", "critico_sopra", "etichette", "motivo")
+
+
+def leggi_risposta(raw: str, candidati) -> dict:
+    """Righe «OID | nome | ...» (o il vecchio JSON) -> {oid: proposta} solo su OID verificati."""
+    validi = {c["oid"]: c for c in candidati}
+    voci = []
+    for riga in (raw or "").splitlines():
+        parti = [p.strip().strip("`*") for p in riga.strip().strip("|").split("|")]
+        if len(parti) >= 2:
+            voci.append(dict(zip(CAMPI_RIGA, parti)))
+    if not voci:
+        match = re.search(r"\{.*\}", raw or "", re.DOTALL)
+        try:
+            voci = (json.loads(match.group(0)) if match else {}).get("colonne") or []
+        except (ValueError, AttributeError):
+            voci = []
+    proposte = {}
+    for voce in voci:
+        if not isinstance(voce, dict):
+            continue
+        oid = str(voce.get("oid") or "").strip().lstrip(".")
+        if oid in validi and oid not in proposte and str(voce.get("nome") or "").strip():
+            proposte[oid] = _voce(voce, validi[oid])
+    return proposte
+
+
+def normalizza_proposta(data, candidati) -> dict:
+    """Compatibilita': proposta JSON {"colonne": [...]}."""
+    return leggi_risposta(json.dumps(data or {}), candidati)
+
+
 def proponi_con_ai(dispositivo, candidati) -> dict:
-    """{oid: proposta}; vuoto se l'AI non e' disponibile o non risponde in JSON."""
+    """{oid: proposta} per al massimo MAX_AI_PER_VOLTA candidati; vuoto se l'AI non risponde."""
+    candidati = list(candidati)[:MAX_AI_PER_VOLTA]
     if not candidati:
         return {}
-    raw = ""
     try:
         from ai_assistant.services import chat_with_ollama
 
         raw = getattr(chat_with_ollama(ISTRUZIONI, runtime_context=contesto_ai(dispositivo, candidati),
-                                       timeout=120), "content", "") or ""
+                                       timeout=90), "content", "") or ""
     except Exception as exc:  # noqa: BLE001
         logger.info("verifica OID: AI non disponibile: %s", exc)
         return {}
-    match = re.search(r"\{.*\}", raw, re.DOTALL)
-    try:
-        data = json.loads(match.group(0)) if match else {}
-    except ValueError:
-        data = {}
-    return normalizza_proposta(data, candidati)
+    return leggi_risposta(raw, candidati)
+
+
+def proposte_catalogo(candidati) -> dict:
+    from .oid_noti import proposta_nota
+
+    proposte = {}
+    for c in candidati:
+        nota = proposta_nota(c["oid"], c["modalita"])
+        if nota:
+            proposte[c["oid"]] = nota
+    return proposte

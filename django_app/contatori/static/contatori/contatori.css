@@ -138,3 +138,4 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .voi-dest input[type=radio]{width:auto;margin:0}
 .contatori-module .voi-assenti{margin-top:14px}
 .contatori-module .voi-head{flex-wrap:wrap;gap:10px}.contatori-module .voi-head>div:first-child{flex:1 1 280px}
+.contatori-module .voi-ai{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 12px}.contatori-module .voi-ai .muted{font-size:12.5px}

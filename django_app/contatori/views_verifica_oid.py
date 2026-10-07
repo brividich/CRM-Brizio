@@ -68,7 +68,7 @@ def dispositivo_snmp_verifica_oid(request, pk):
         "testo": stato.get("testo", ""),
         "profili": profili,
         "aggregazioni": ColonnaProfiloSNMP.Aggregazione.choices,
-        "con_proposte": bool(proposte),
+        "max_ai": verifica_oid.MAX_AI_PER_VOLTA,
         "rami": verifica_oid.rami_noti(dispositivo.sys_object_id),
     })
 
@@ -85,7 +85,8 @@ def _verifica(request, dispositivo):
     _salva_stato(request, dispositivo.pk, {
         "testo": testo[:5000], "esplora": esplora, "richiesti": len(oids),
         "candidati": esito["candidati"], "assenti": esito["assenti"], "errore": esito["errore"],
-        "eseguita_il": timezone.localtime().strftime("%d/%m/%Y %H:%M"), "proposte": {},
+        "eseguita_il": timezone.localtime().strftime("%d/%m/%Y %H:%M"),
+        "proposte": verifica_oid.proposte_catalogo(esito["candidati"]),
     })
     log_action(request, "snmp_verifica_oid", "contatori", oggetto=dispositivo, dettaglio={
         "richiesti": len(oids), "esplora": esplora, "rispondono": len(esito["candidati"]),
@@ -99,21 +100,7 @@ def _verifica(request, dispositivo):
     return redirect("contatori:snmp_dispositivo_verifica_oid", pk=dispositivo.pk)
 
 
-def _proponi(request, dispositivo, stato):
-    proposte = verifica_oid.proponi_con_ai(dispositivo, stato["candidati"])
-    stato["proposte"] = proposte
-    _salva_stato(request, dispositivo.pk, stato)
-    if proposte:
-        messages.success(request, f"L'AI ha proposto {len(proposte)} colonne su OID verificati: "
-                                  "controlla nomi, unità e soglie prima di aggiungerle.")
-    else:
-        messages.warning(request, "L'AI interna non ha dato una proposta (non disponibile o risposta non valida). "
-                                  "Puoi compilare i nomi a mano.")
-    return redirect("contatori:snmp_dispositivo_verifica_oid", pk=dispositivo.pk)
-
-
-def _aggiungi(request, dispositivo, stato):
-    candidati = stato["candidati"]
+def _selezionati(request, candidati):
     scelti = []
     for valore in request.POST.getlist("sel"):
         try:
@@ -122,6 +109,36 @@ def _aggiungi(request, dispositivo, stato):
             continue
         if 0 <= indice < len(candidati):
             scelti.append((indice, candidati[indice]))
+    return scelti
+
+
+def _proponi(request, dispositivo, stato):
+    candidati = stato["candidati"]
+    proposte = stato.get("proposte") or {}
+    scelti = [c for _, c in _selezionati(request, candidati)]
+    # Senza selezione: le righe che non hanno ancora un nome, a blocchi.
+    da_proporre = scelti or [c for c in candidati if c["oid"] not in proposte]
+    blocco = da_proporre[:verifica_oid.MAX_AI_PER_VOLTA]
+    nuove = verifica_oid.proponi_con_ai(dispositivo, blocco)
+    proposte.update(nuove)
+    stato["proposte"] = proposte
+    _salva_stato(request, dispositivo.pk, stato)
+    restano = sum(1 for c in candidati if c["oid"] not in proposte)
+    if nuove:
+        testo = f"L'AI ha proposto {len(nuove)} nomi su {len(blocco)} OID: controllali prima di aggiungerli."
+        if restano and not scelti:
+            testo += f" Restano {restano} righe senza nome: premi di nuovo per il blocco successivo."
+        messages.success(request, testo)
+    elif not blocco:
+        messages.info(request, "Tutte le righe hanno già un nome. Seleziona le righe da riproporre con l'AI.")
+    else:
+        messages.warning(request, "L'AI interna non ha risposto in tempo o in un formato leggibile. "
+                                  "Riprova selezionando meno righe, oppure compila i nomi a mano.")
+    return redirect("contatori:snmp_dispositivo_verifica_oid", pk=dispositivo.pk)
+
+
+def _aggiungi(request, dispositivo, stato):
+    scelti = _selezionati(request, stato["candidati"])
     if not scelti:
         messages.error(request, "Seleziona almeno un OID da aggiungere.")
         return redirect("contatori:snmp_dispositivo_verifica_oid", pk=dispositivo.pk)
