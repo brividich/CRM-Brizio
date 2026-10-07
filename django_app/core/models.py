@@ -429,16 +429,32 @@ class Notifica(models.Model):
         ("generico", "Generico"),
     ]
 
+    ARCHIVIO_MOTIVI = [
+        ("scadenza_non_letta", "Non letta entro la scadenza"),
+        ("scadenza_letta", "Letta da tempo"),
+        ("utente", "Archiviata dall'utente"),
+        ("admin", "Archiviata dall'amministratore"),
+    ]
+
     legacy_user_id = models.IntegerField(db_index=True)
     tipo = models.CharField(max_length=50, choices=TIPI, default="generico")
     messaggio = models.CharField(max_length=500)
     url_azione = models.CharField(max_length=255, blank=True, default="")
     letta = models.BooleanField(default=False)
+    letta_il = models.DateTimeField(null=True, blank=True)
     popup_shown = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Archivio: la notifica esce da campanella/badge/banner ma resta consultabile
+    # in «Notifiche → Archiviate» (vedi core.notifiche_archivio).
+    archiviata = models.BooleanField(default=False, db_index=True)
+    archiviata_il = models.DateTimeField(null=True, blank=True)
+    archiviata_motivo = models.CharField(max_length=30, choices=ARCHIVIO_MOTIVI, blank=True, default="")
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["legacy_user_id", "archiviata", "letta"], name="core_notif_user_stato_idx"),
+        ]
 
     def __str__(self) -> str:
         return f"Notifica<user={self.legacy_user_id} tipo={self.tipo} letta={self.letta}>"

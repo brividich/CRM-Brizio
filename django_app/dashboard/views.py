@@ -1343,7 +1343,7 @@ def _board_data_notifiche(legacy_user_id: int | None, params: dict) -> list[dict
         from core.models import Notifica
         max_items = min(int(params.get("max_items") or 6), MAX_BOARD_WIDGET_ITEMS)
         solo_non_lette = bool(params.get("solo_non_lette", False))
-        qs = Notifica.objects.filter(legacy_user_id=legacy_user_id)
+        qs = Notifica.objects.filter(legacy_user_id=legacy_user_id, archiviata=False)
         if solo_non_lette:
             qs = qs.filter(letta=False)
         qs = qs[:max_items]

@@ -366,7 +366,7 @@ document.addEventListener("htmx:configRequest", function(evt) {
           (item.created_label ? '<div class="notify-live-meta">' + escapeHtml(item.created_label) + '</div>' : '') +
         '</div>' +
         '<div class="notify-live-actions">' +
-          (item.url_azione ? '<a class="notify-live-open" href="' + escapeHtml(item.url_azione) + '">Apri</a>' : '') +
+          (item.url_azione ? '<a class="notify-live-open" data-notifica-open="' + id + '" href="' + escapeHtml(item.url_azione) + '">Apri</a>' : '') +
           '<button type="button" class="notify-live-close" aria-label="Chiudi notifica">&times;</button>' +
         '</div>';
       var closeBtn = toast.querySelector('.notify-live-close');
@@ -427,6 +427,22 @@ document.addEventListener("htmx:configRequest", function(evt) {
       setNotificationBadges(0);
       refreshPanel();
     }).finally(function () { btn.disabled = false; });
+  });
+  // «Apri» su una notifica (campanella, banner, popup, pagina) = letta.
+  // keepalive: la richiesta sopravvive alla navigazione verso url_azione.
+  var readUrlTpl = "{% url 'api_notifica_leggi' 0 %}";
+  document.addEventListener('click', function (event) {
+    var link = event.target.closest('[data-notifica-open]');
+    if (!link) return;
+    var id = Number(link.getAttribute('data-notifica-open'));
+    if (!id) return;
+    try {
+      fetch(readUrlTpl.replace('/0/', '/' + id + '/'), {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }
+      }).catch(function () {});
+    } catch (e) {}
   });
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') pollLiveNotifications();

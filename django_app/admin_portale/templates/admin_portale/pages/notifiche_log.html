@@ -61,6 +61,7 @@
             <option value="" {% if not filtro_stato %}selected{% endif %}>— Tutte —</option>
             <option value="non_lette" {% if filtro_stato == 'non_lette' %}selected{% endif %}>Non lette</option>
             <option value="lette" {% if filtro_stato == 'lette' %}selected{% endif %}>Lette</option>
+            <option value="archiviate" {% if filtro_stato == 'archiviate' %}selected{% endif %}>Archiviate</option>
           </select>
         </div>
         <div>
@@ -105,7 +106,7 @@
                   <td style="padding:10px 14px;font-size:13px;color:#1e293b;">{{ n.utente_display }}<span style="color:#cbd5e1;font-size:11px;"> · #{{ n.legacy_user_id }}</span></td>
                   <td style="padding:10px 14px;font-size:13px;white-space:nowrap;"><span aria-hidden="true">{{ n.meta.icona }}</span> {{ n.meta.label }}</td>
                   <td style="padding:10px 14px;font-size:13px;color:#334155;">{{ n.messaggio }}{% if n.url_azione %}<br><a href="{{ n.url_azione }}" style="font-size:11px;color:#2563eb;text-decoration:none;">{{ n.url_azione }}</a>{% endif %}</td>
-                  <td style="padding:10px 14px;text-align:center;">{% if n.letta %}<span style="color:#16a34a;">✓</span>{% else %}<span style="color:#f59e0b;font-weight:600;">•</span>{% endif %}</td>
+                  <td style="padding:10px 14px;text-align:center;">{% if n.letta %}<span style="color:#16a34a;">✓</span>{% else %}<span style="color:#f59e0b;font-weight:600;">•</span>{% endif %}{% if n.archiviata %} <span title="Archiviata il {{ n.archiviata_il|date:'d-m-Y' }} · {{ n.get_archiviata_motivo_display }}">🗄️</span>{% endif %}</td>
                 </tr>
               {% endfor %}
             </tbody>

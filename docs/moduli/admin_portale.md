@@ -6,7 +6,7 @@ Area **Core** · URL `/admin-portale/` · codice [`django_app/admin_portale/`](.
 
 ## Sintesi
 
-Pannello admin custom: ACL canonico, diagnostica, mappa permessi, attivita utente, log notifiche, branding e template PDF
+Pannello admin custom: ACL canonico, diagnostica, mappa permessi, attivita utente, log e archiviazione notifiche, branding e template PDF
 
 ## Dettaglio
 
@@ -23,7 +23,7 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 - **Navigation Builder** con vista tabellare + **vista drag&drop orizzontale** per sezione
 - **Vista attività utente** (`/admin-portale/attivita-utenti/`) sugli ultimi 30 giorni da `AuditLog`, con filtri utente/modulo/testo e export CSV/XLSX
 - **Log notifiche** (`/admin-portale/notifiche-log/`): elenco **cross-utente** di tutte le notifiche in-app con destinatario risolto, etichetta/icona dal registro tipi, filtri (tipo/utente/stato/giorni), **conteggi per tipo** ed export CSV/XLSX — per verificare cosa parte e a chi (`Notifica` registrata anche nel Django admin)
-- **Gestione notifiche** (`/admin-portale/notifiche-config/`): interruttore admin **globale** per accendere/spegnere ciascuna categoria di notifica (assenze/comunicazioni/scadenzari/ticket/operatività) per tutti; enforcement reale via `core.notifiche_prefs.should_notify` in `invia_notifica`. L'utente gestisce le proprie preferenze da **`/notifiche/impostazioni/`** (l'admin ha la precedenza)
+- **Gestione notifiche** (`/admin-portale/notifiche-config/`): interruttore admin **globale** per accendere/spegnere ciascuna categoria di notifica (assenze/comunicazioni/scadenzari/ticket/operatività) per tutti; enforcement reale via `core.notifiche_prefs.should_notify` in `invia_notifica`. L'utente gestisce le proprie preferenze da **`/notifiche/impostazioni/`** (l'admin ha la precedenza). Nella stessa pagina le **regole di archiviazione automatica** (giorni per non lette / lette / conservazione dell'archivio, 0 = mai), i contatori attive/non lette/archiviate e «Esegui ora»; il Log notifiche filtra anche le archiviate
 - **Export audit/notifiche**: audit log, attività utente e centro notifiche mantengono i filtri GET negli export CSV/XLSX
 - **LDAP settings** + sync/import utenti AD con service account effettivo; nei deploy TEST/PROD salva sul `config/.env` persistente, non sul `.env` della release attiva
 - **Branding portale** (favicon, logo, login banner, pagina login personalizzabile)

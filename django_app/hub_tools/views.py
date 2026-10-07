@@ -872,12 +872,15 @@ def api_db_cleanup(request):
         logger.error("[hub_tools] cleanup EventQueue fallito", exc_info=True)
         results.append("EventQueue: errore (controlla i log).")
 
-    # Notifiche lette > 30 giorni
+    # Notifiche: stesse regole del giro notturno (archivia scadute, elimina
+    # archiviate oltre la conservazione) — soglie in Admin → Gestione notifiche.
     try:
-        from core.models import Notifica
-        cutoff = timezone.now() - __import__("datetime").timedelta(days=30)
-        deleted, _ = Notifica.objects.filter(letta=True, creata_il__lt=cutoff).delete()
-        results.append(f"Notifiche lette > 30gg eliminate: {deleted}")
+        from core.notifiche_archivio import archivia_scadute
+        esito = archivia_scadute()
+        results.append(
+            f"Notifiche archiviate: {esito['non_lette'] + esito['lette']} · "
+            f"archiviate eliminate: {esito['eliminate']}"
+        )
     except Exception:
         logger.error("[hub_tools] cleanup notifiche fallito", exc_info=True)
         results.append("Notifiche: errore (controlla i log).")
@@ -1645,9 +1648,11 @@ def notifiche_hub(request):
     if f_tipo:
         qs = qs.filter(tipo=f_tipo)
     if f_letta == "si":
-        qs = qs.filter(letta=True)
+        qs = qs.filter(letta=True, archiviata=False)
     elif f_letta == "no":
-        qs = qs.filter(letta=False)
+        qs = qs.filter(letta=False, archiviata=False)
+    elif f_letta == "archiviate":
+        qs = qs.filter(archiviata=True)
     if f_user_id and f_user_id.isdigit():
         qs = qs.filter(legacy_user_id=int(f_user_id))
     if f_q:
@@ -1661,9 +1666,10 @@ def notifiche_hub(request):
 
     # Stats
     totale     = Notifica.objects.count()
-    non_lette  = Notifica.objects.filter(letta=False).count()
-    lette      = totale - non_lette
-    popup_pend = Notifica.objects.filter(letta=False, popup_shown=False).count()
+    archiviate = Notifica.objects.filter(archiviata=True).count()
+    non_lette  = Notifica.objects.filter(letta=False, archiviata=False).count()
+    lette      = totale - archiviate - non_lette
+    popup_pend = Notifica.objects.filter(letta=False, popup_shown=False, archiviata=False).count()
 
     # Conteggio per tipo
     from django.db.models import Count
@@ -1717,6 +1723,7 @@ def notifiche_hub(request):
         "non_lette":   non_lette,
         "lette":       lette,
         "popup_pend":  popup_pend,
+        "archiviate":  archiviate,
         "per_tipo_list": per_tipo_list,
         "dipendenti":  dipendenti,
         "reparti":     reparti,
@@ -2405,7 +2412,18 @@ def api_notifiche_bulk(request):
         return JsonResponse({"ok": True, "count": deleted, "message": f"Eliminate {deleted} notifiche per l'utente."})
 
     elif azione == "segna_lette_tutte":
-        updated = Notifica.objects.filter(letta=False).update(letta=True, popup_shown=True)
+        from core.notifiche_archivio import segna_lette
+        updated = segna_lette(Notifica.objects.all())
         return JsonResponse({"ok": True, "count": updated, "message": f"Segnate come lette {updated} notifiche."})
+
+    elif azione == "archivia_scadute":
+        from core.notifiche_archivio import archivia_scadute
+        esito = archivia_scadute()
+        archiviate = esito["non_lette"] + esito["lette"]
+        return JsonResponse({
+            "ok": True,
+            "count": archiviate,
+            "message": f"Archiviate {archiviate} notifiche, eliminate {esito['eliminate']} archiviate.",
+        })
 
     return JsonResponse({"ok": False, "error": "Azione non riconosciuta"}, status=400)
