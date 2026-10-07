@@ -58,6 +58,87 @@ class SNMPError(RuntimeError):
     pass
 
 
+NESSUNA_RISPOSTA = (
+    "nessuna risposta dall'apparato entro il tempo massimo. Cause possibili: apparato "
+    "spento o irraggiungibile; servizio SNMP disattivato; community o versione SNMP "
+    "errata (molti apparati scartano in silenzio le richieste non autorizzate); "
+    "IP del portale non tra i gestori ammessi; porta UDP 161 bloccata dal firewall"
+)
+
+# error-status RFC 3416 -> (nome, spiegazione e cosa fare)
+_ERRORI_PDU = {
+    1: ("tooBig", "risposta troppo grande per un singolo pacchetto: riduci gli OID "
+                  "letti insieme"),
+    2: ("noSuchName", "l'OID{oid} non esiste su questo apparato: il profilo usa un OID "
+                      "che il modello non espone. Disattiva la colonna o assegna un "
+                      "profilo adatto al modello"),
+    5: ("genErr", "l'agente SNMP dell'apparato non e' riuscito a calcolare il valore"
+                  "{oid}: riprova; se si ripete disattiva la colonna"),
+    6: ("noAccess", "la community/utente non ha accesso all'OID{oid}: la vista SNMP "
+                    "configurata sull'apparato non include questo ramo"),
+    13: ("resourceUnavailable", "l'apparato non ha risorse libere per rispondere: "
+                                "riprova piu' tardi"),
+    16: ("authorizationError", "l'apparato riceve la richiesta ma la rifiuta. Non e' un "
+                               "problema di OID. Controlla: la community deve essere "
+                               "identica a quella dell'apparato (maiuscole comprese) e "
+                               "avere permesso di lettura (su HPE Aruba: operator o "
+                               "manager); l'apparato non deve accettare solo SNMPv3 "
+                               "(Aruba: 'snmpv3 only' - in quel caso imposta v3 nel "
+                               "portale); l'IP del portale deve essere tra i gestori "
+                               "ammessi (Aruba: 'ip authorized-managers')"),
+}
+
+# Report SNMPv3 (USM) e altri messaggi della libreria -> spiegazione
+_ERRORI_TESTO = (
+    ("unknown user", "utente SNMPv3 sconosciuto all'apparato: controlla il nome utente"),
+    ("wrong message digest", "autenticazione SNMPv3 fallita: chiave o protocollo "
+                             "(MD5/SHA) diversi da quelli dell'apparato"),
+    ("unable to decrypt", "cifratura SNMPv3 errata: chiave o protocollo (DES/AES) "
+                          "diversi da quelli dell'apparato"),
+    ("not in time window", "SNMPv3 fuori finestra temporale: riprova la lettura"),
+    ("unknown engine-id", "engine-id SNMPv3 non riconosciuto: riprova la lettura"),
+    ("unsupported security level", "livello di sicurezza SNMPv3 non accettato "
+                                   "dall'apparato: allinea autenticazione e cifratura"),
+    ("mismatching community", "l'apparato ha risposto con una community diversa"),
+)
+
+
+def descrivi_errore(exc, oid=None):
+    """Traduce un'eccezione puresnmp/rete in un messaggio italiano azionabile.
+
+    Il testo non contiene mai la community ne' le chiavi v3.
+    """
+    if isinstance(exc, SNMPError):
+        return str(exc)
+    if isinstance(exc, asyncio.TimeoutError):
+        return NESSUNA_RISPOSTA
+    nome_classe = type(exc).__name__
+    stato = getattr(exc, "error_status", None)
+    if isinstance(stato, int) and stato:
+        offending = str(getattr(exc, "offending_oid", "") or oid or "").lstrip(".")
+        nome, spiegazione = _ERRORI_PDU.get(
+            stato, (nome_classe, "errore restituito dall'apparato{oid}"))
+        dettaglio = spiegazione.format(oid=f" {offending}" if offending else "")
+        return f"{dettaglio} (errore SNMP {nome}, codice {stato})"
+    if nome_classe == "Timeout":
+        return NESSUNA_RISPOSTA
+    testo = str(exc)
+    minuscolo = testo.lower()
+    for chiave, spiegazione in _ERRORI_TESTO:
+        if chiave in minuscolo:
+            return spiegazione
+    if nome_classe == "AuthenticationError":
+        return _ERRORI_TESTO[1][1]
+    if nome_classe == "DecryptionError":
+        return _ERRORI_TESTO[2][1]
+    if isinstance(exc, ConnectionResetError):
+        return ("l'apparato ha rifiutato la connessione sulla porta UDP 161: "
+                "il servizio SNMP non e' attivo")
+    if isinstance(exc, OSError):
+        return f"errore di rete verso l'apparato: {testo or nome_classe}"
+    return testo or nome_classe
+
+
 V3_AUTH = ("md5", "sha1")
 V3_PRIV = ("des", "aes")
 
@@ -152,16 +233,14 @@ def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
                 continue
             try:
                 valori[oid] = await asyncio.wait_for(client.get(oid), timeout=remaining)
-            except asyncio.TimeoutError:
-                errori[oid] = 'Tempo complessivo di lettura SNMP superato'
             except Exception as exc:  # ogni OID resta indipendente
-                errori[oid] = str(exc)[:500]
+                errori[oid] = descrivi_errore(exc, oid)[:500]
         return valori, errori
 
     try:
         valori, errori = asyncio.run(_run())
     except Exception as e:
-        raise SNMPError(f"{host}: {e}") from e
+        raise SNMPError(f"{host}: {descrivi_errore(e)}") from e
     if not valori:
         dettaglio = next(iter(errori.values()), "nessuna risposta")
         raise SNMPError(f"{host}: {dettaglio}")
@@ -200,9 +279,11 @@ def leggi_colonna(host, oid, community="novicromprinter", port=161, timeout=3,
     try:
         valori = asyncio.run(_bounded())
     except asyncio.TimeoutError as e:
-        raise SNMPError('Tempo complessivo del WALK SNMP superato') from e
+        raise SNMPError(f"Tempo complessivo del WALK SNMP superato: {NESSUNA_RISPOSTA}") from e
+    except SNMPError:
+        raise
     except Exception as e:
-        raise SNMPError(f"{host}: {e}") from e
+        raise SNMPError(f"{host}: {descrivi_errore(e, oid)}") from e
     if not valori:
         raise SNMPError(f"{host}: colonna {oid} senza valori")
     return valori
@@ -402,7 +483,7 @@ def _tabella(host, community, port, timeout, version):
     except SNMPError:
         raise
     except Exception as e:
-        raise SNMPError(f"{host}: {e}") from e
+        raise SNMPError(f"{host}: {descrivi_errore(e)}") from e
 
 
 def _consumabili_raw(host, community, port, timeout, version):
@@ -443,7 +524,7 @@ def _consumabili_raw(host, community, port, timeout, version):
     except SNMPError:
         raise
     except Exception as e:
-        raise SNMPError(f"{host}: {e}") from e
+        raise SNMPError(f"{host}: {descrivi_errore(e)}") from e
 
 
 def leggi_consumabili(macchina, community="novicromprinter", port=161, timeout=3, version="v1"):

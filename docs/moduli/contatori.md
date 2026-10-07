@@ -10,6 +10,8 @@ Area **SOC IT - CN** · URL `/contatori/` · codice [`django_app/contatori/`](..
 
 ## Note di rilascio
 
+Errori SNMP leggibili (ottobre 2026): gli errori del protocollo non compaiono più come «unknown error (status-code: N)». Ogni lettura (dispositivi, MFC, consumabili) riporta in italiano il nome dell'errore, il codice e cosa controllare. Per esempio il codice 16 (`authorizationError`) indica che l'apparato rifiuta la richiesta per permessi, non per un OID sbagliato: va controllata la community o la configurazione `snmpv3 only` / `authorized-managers` sugli HPE Aruba. Il codice 2 (`noSuchName`) indica un OID che il modello non espone. Sono tradotti anche i report SNMPv3 (utente sconosciuto, digest o cifratura errati) e il timeout, con le cause possibili. Nessuna migrazione.
+
 Discovery SNMP: catalogo di community nominate e cifrate, selezionabili anche nel polling MFC/dispositivi; scansioni in background persistenti con avanzamento, storico personale, Interrompi/Riprendi e risultati a blocchi. Coda django-q2 esistente, nessuna nuova schedule; migrazioni Contatori 0014/0015 e riavvio applicazione/worker necessari. Guida: [Discovery SNMP](../../docs/SNMP_DISCOVERY.md). La scansione rapida da 20s resta disponibile.
 
 Polling SNMP: letture GET/WALK con budget totale di 30s per gruppo; WALK massimo 10s e 256 righe, errore senza aggregati parziali. Due passaggi di specifiche e discovery stampante (20s) hanno un budget di rete complessivo di 80s, lasciando margine al job di 110s; SQL e apparati reali restano da verificare. Nessuna cancellazione o replay della coda.
