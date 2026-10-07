@@ -8,6 +8,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from core.private_attachments import PrivateAttachmentStorage
+
 logger = logging.getLogger(__name__)
 
 STATO_BOZZA = "bozza"
@@ -76,7 +78,13 @@ class NotiziaAllegato(models.Model):
 
     notizia = models.ForeignKey(Notizia, on_delete=models.CASCADE, related_name="allegati")
     nome_file = models.CharField(max_length=300)
-    file = models.FileField(upload_to="notizie/allegati/", null=True, blank=True)
+    # Storage privato: download solo da notizie_allegato_download (visibilita' della notizia).
+    file = models.FileField(
+        upload_to="notizie/allegati/",
+        storage=PrivateAttachmentStorage(download_hint="Usa {% url 'notizie_allegato_download' a.id %}."),
+        null=True,
+        blank=True,
+    )
     url_esterno = models.CharField(max_length=500, blank=True)
     hash_file = models.CharField(max_length=64, blank=True)
     dimensione_bytes = models.PositiveIntegerField(null=True, blank=True)

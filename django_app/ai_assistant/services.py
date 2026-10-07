@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import re
+import threading
 import time
 import unicodedata
 import urllib.error
@@ -1803,6 +1804,65 @@ def _apply_ollama_tuning(payload: dict[str, Any], provider: str) -> None:
         payload["keep_alive"] = keep_alive
 
 
+# ── Limite di chiamate AI contemporanee (per processo) ─────────────────────────
+# Il portale gira con un solo processo waitress e pochi thread: ogni chiamata al
+# modello tiene occupato un thread fino a OLLAMA_REQUEST_TIMEOUT_SECONDS. Senza
+# limite, poche chat lente bloccano l'intero portale. Oltre il limite si risponde
+# subito "assistente occupato" invece di accodare thread.
+_AI_SLOTS_LOCK = threading.Lock()
+_AI_SLOTS: threading.BoundedSemaphore | None = None
+_AI_SLOT_WAIT_SECONDS = 5
+
+
+def _ai_slots() -> threading.BoundedSemaphore:
+    global _AI_SLOTS
+    with _AI_SLOTS_LOCK:
+        if _AI_SLOTS is None:
+            limit = max(1, int(getattr(settings, "OLLAMA_MAX_CONCURRENT_REQUESTS", 3) or 3))
+            _AI_SLOTS = threading.BoundedSemaphore(limit)
+        return _AI_SLOTS
+
+
+def _acquire_ai_slot() -> threading.BoundedSemaphore:
+    slots = _ai_slots()
+    if not slots.acquire(timeout=_AI_SLOT_WAIT_SECONDS):
+        raise OllamaChatError(
+            "L'assistente AI è occupato con altre richieste: riprova fra qualche secondo."
+        )
+    return slots
+
+
+class _SlotReleasingResponse:
+    """Stream HTTP che libera lo slot AI alla chiusura (una sola volta)."""
+
+    def __init__(self, response: Any, slots: threading.BoundedSemaphore):
+        self._response = response
+        self._slots = slots
+        self._released = False
+
+    def __iter__(self):
+        return iter(self._response)
+
+    def __getattr__(self, name):
+        return getattr(self._response, name)
+
+    def close(self):
+        try:
+            self._response.close()
+        finally:
+            if not self._released:
+                self._released = True
+                self._slots.release()
+
+    def __del__(self):
+        if not self._released:
+            self._released = True
+            try:
+                self._slots.release()
+            except ValueError:
+                pass
+
+
 def chat_with_ollama(
     prompt: str,
     history: Any = None,
@@ -1859,6 +1919,7 @@ def chat_with_ollama(
         method="POST",
     )
 
+    slots = _acquire_ai_slot()
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             raw = response.read().decode("utf-8", errors="replace")
@@ -1876,6 +1937,8 @@ def chat_with_ollama(
         raise OllamaChatError(_timeout_message(timeout)) from exc
     except OSError as exc:
         raise OllamaChatError(f"Errore di rete verso Ollama: {exc}") from exc
+    finally:
+        slots.release()
 
     try:
         data = json.loads(raw)
@@ -2047,22 +2110,30 @@ def open_ollama_stream(
         method="POST",
     )
 
+    slots = _acquire_ai_slot()
     try:
         response = urllib.request.urlopen(request, timeout=timeout)
     except urllib.error.HTTPError as exc:
+        slots.release()
         detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
         hint = _ollama_endpoint_hint(base_url, http_status=exc.code)
         if provider == "openwebui" and exc.code in {401, 403}:
             hint = "Rigenera la API key in Open WebUI e salvala nella console Gestione AI."
         raise OllamaChatError(f"Ollama ha risposto con HTTP {exc.code}: {detail[:300]} {hint}") from exc
     except urllib.error.URLError as exc:
+        slots.release()
         if isinstance(getattr(exc, "reason", None), TimeoutError):
             raise OllamaChatError(_timeout_message(timeout)) from exc
         raise OllamaChatError(f"Ollama non raggiungibile: {exc.reason}") from exc
     except TimeoutError as exc:
+        slots.release()
         raise OllamaChatError(_timeout_message(timeout)) from exc
     except OSError as exc:
+        slots.release()
         raise OllamaChatError(f"Errore di rete verso Ollama: {exc}") from exc
+    # Lo slot resta occupato per tutta la durata dello stream: lo libera la close()
+    # chiamata da iter_ollama_stream (o il garbage collector se lo stream e' abbandonato).
+    response = _SlotReleasingResponse(response, slots)
 
     meta = {
         "model": model,

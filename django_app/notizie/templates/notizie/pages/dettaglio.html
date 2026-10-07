@@ -79,7 +79,7 @@ body.theme-dark .compliance-non_letto { background:var(--surface-alt); color:var
       <li>
         <span style="font-size:1rem;">&#128206;</span>
         {% if a.file %}
-          <a href="{{ a.file.url }}" target="_blank" rel="noopener">{{ a.nome_file }}</a>
+          <a href="{% url 'notizie_allegato_download' a.id %}" target="_blank" rel="noopener">{{ a.nome_file }}</a>
         {% elif a.url_esterno %}
           <a href="{{ a.url_esterno }}" target="_blank" rel="noopener">{{ a.nome_file }}</a>
         {% else %}

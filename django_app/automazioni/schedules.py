@@ -14,6 +14,12 @@ SCHEDULES: list[dict] = [
         "schedule_type": "I", "minutes": 15, "repeats": -1, "kwargs": {},
     },
     {
+        # Riprende le azioni post-decisione rimaste a meta' (crash/riavvio durante il ramo).
+        "name": "approval_branch_recovery",
+        "func": "automazioni.approval_links.recover_stuck_branches",
+        "schedule_type": "I", "minutes": 15, "repeats": -1, "kwargs": {},
+    },
+    {
         # ASSETS — reportistica programmata dalle Impostazioni: controlla le scadenze,
         # archivia snapshot e PDF/Excel, recupera gli errori temporanei (max 3 tentativi).
         "name": "assets_reportistica",

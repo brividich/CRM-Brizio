@@ -70,11 +70,9 @@ def qr_rate_limited(request, asset_id: int) -> bool:
     """
     from django.core.cache import cache
 
-    ip = ""
-    remote = request.META.get("REMOTE_ADDR", "") or ""
-    if remote in set(getattr(settings, "TRUSTED_PROXY_IPS", set()) or set()):
-        ip = (request.META.get("HTTP_X_FORWARDED_FOR", "") or "").split(",")[0].strip()
-    ip = ip or remote or "unknown"
+    from core.net import client_ip
+
+    ip = client_ip(request) or "unknown"
     keys = ((f"tkt_qr_rl_ip:{ip}", QR_RATE_LIMIT_IP), (f"tkt_qr_rl_asset:{asset_id}", QR_RATE_LIMIT_ASSET))
     try:
         for key, limit in keys:

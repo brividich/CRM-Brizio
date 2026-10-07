@@ -14,7 +14,10 @@ param(
     [switch]$WithLive,
     # -WithTests abilita la test suite Django e i contract test.
     # Di default i test sono saltati per velocizzare la build locale.
-    [switch]$WithTests
+    [switch]$WithTests,
+    # -FailOnVulnerabilities rende bloccanti le vulnerabilita' note trovate da
+    # pip-audit sulle dipendenze. Senza, vengono solo segnalate (WARN).
+    [switch]$FailOnVulnerabilities
 )
 
 Set-StrictMode -Version Latest
@@ -592,6 +595,27 @@ if (-not $pythonExe) {
         Receive-GuardJobResult -Job $jobContracts -Label "Contract tests (livello A)" `
             -FailOnPattern @("Found 0 test", "NO TESTS RAN") `
             -FailOnMessage "Contract tests gate invalid: zero tests scoperti."
+    }
+
+    # ── Vulnerabilita' note nelle dipendenze (pip-audit) ─────────────────────
+    # Facoltativo: serve il pacchetto pip-audit e l'accesso al database OSV/PyPI.
+    # Se manca si segnala e si prosegue; con -FailOnVulnerabilities i CVE bloccano.
+    $requirementsFile = Join-Path $SourcePath "django_app\requirements.txt"
+    & $pythonExe -m pip_audit --version *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[release_guard][WARN] pip-audit non installato: controllo CVE dipendenze saltato (pip install pip-audit)." -ForegroundColor Yellow
+    } else {
+        $auditOut = & $pythonExe -m pip_audit -r $requirementsFile --progress-spinner off 2>&1 | ForEach-Object { "$_" }
+        $auditExit = $LASTEXITCODE
+        if ($auditExit -eq 0) {
+            Write-GuardInfo "pip-audit OK: nessuna vulnerabilita' nota nelle dipendenze"
+        } elseif ($FailOnVulnerabilities) {
+            Add-Failure("pip-audit ha trovato vulnerabilita' note nelle dipendenze (exit $auditExit)")
+            if (-not $Quiet) { $auditOut | ForEach-Object { Write-Host "  $_" } }
+        } else {
+            Write-Host "[release_guard][WARN] pip-audit: vulnerabilita' note o controllo non riuscito (exit $auditExit). Usa -FailOnVulnerabilities per bloccare." -ForegroundColor Yellow
+            if (-not $Quiet) { $auditOut | ForEach-Object { Write-Host "  $_" } }
+        }
     }
 
     # ── WAVE 2: bootstrap + ACL coverage + validation (sequenziali) ──────────

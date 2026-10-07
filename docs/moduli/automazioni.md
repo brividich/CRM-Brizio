@@ -27,6 +27,9 @@ Il modulo più complesso del portale: motore di automazione event-driven con des
 - **Pacchetti regola pronti** (`automazioni/packages/*.automation_package.json`): 39 flussi importabili via designer (anomalie, approvazioni a catena, escalation, KPI, presidio scadenze, istruttoria incidenti, sorveglianza sanitaria, conversioni Power Automate), tutti draft+disattivi all'import
 - **Arricchimento payload per sorgente**: tickets (nome/tag asset), assenze (email caporeparto/dipendente), anomalie (`modified_by_role` CC/CAR per notifiche filtrate per ruolo)
 - **Approvazioni multi-canale**: email classica, webhook Teams legacy, **Teams chat Flow** (Power Automate), Entra Application Proxy one-click
+- **Link di approvazione personali** (ottobre 2026): ogni destinatario riceve il proprio link `/approval-actions/r/<segreto>/approva|rifiuta/` (a DB solo l'hash, monouso, scade con la richiesta). Chi lo apre decide a nome di quel destinatario senza login; GET mostra solo la conferma. I link della richiesta (`/automazioni/approvazione/<uuid>/…`, `/approval-actions/approve|reject/<uuid>/`) e il webhook Teams condiviso richiedono il login di un approvatore. Nessun header HTTP di identità viene letto. L'uuid resta il RID delle risposte via casella mail
+- **Ramo riprendibile**: dopo la decisione le azioni salvano il progresso (`branch_status`/`branch_progress`); lo schedule `approval_branch_recovery` (15 min, comando `recover_approval_branches [--dry-run]`) riprende i rami interrotti dall'azione successiva
+- **Azione HTTP**: solo URL `http`/`https`, timeout massimo 30 secondi
 - **Template email approvazioni** riutilizzabili con `portal_links` / `mail_reply` / `hybrid`
 - **Mailbox poller Graph** (Microsoft 365 compatible, no Basic Auth): policy "first valid decision wins", dedup persistente, fail-closed sui mittenti
 - **Import Power Automate** (`.zip`/`.json`) con analisi, remediation, preview, handoff a draft nel designer

@@ -232,8 +232,9 @@ def _to_audit_text(value):
 def _request_ip(request):
     if not request:
         return None
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    return (forwarded.split(",")[0].strip() if forwarded else request.META.get("REMOTE_ADDR")) or None
+    from core.net import client_ip
+
+    return client_ip(request)
 
 
 def source_config_for_parser(parser_name):

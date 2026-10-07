@@ -75,10 +75,9 @@ def _can_manage(request) -> bool:
 
 
 def _client_ip(request) -> str:
-    ip = request.META.get("HTTP_X_FORWARDED_FOR", request.META.get("REMOTE_ADDR", ""))
-    if ip and "," in ip:
-        ip = ip.split(",")[0].strip()
-    return ip or ""
+    from core.net import client_ip
+
+    return client_ip(request) or ""
 
 
 def _audit_detail(message: str, **extra) -> dict:

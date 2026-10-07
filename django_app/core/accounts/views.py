@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
@@ -16,6 +18,8 @@ from core.accounts.redirects import get_safe_redirect_target
 from core.branding import get_portal_branding
 from core.legacy_models import UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled
+
+logger = logging.getLogger(__name__)
 
 
 def _is_smartphone_request(request) -> bool:
@@ -107,7 +111,7 @@ class LegacyLoginView(LoginView):
                 "origine": _ip_origin_label(ip),
             })
         except Exception:
-            pass
+            logger.warning("audit login_ok non registrato", exc_info=True)
 
         legacy_user = get_legacy_user(user)
         if legacy_auth_enabled() and legacy_user and bool(legacy_user.deve_cambiare_password):
@@ -184,7 +188,7 @@ def cambia_password(request):
                     from core.audit import log_action
                     log_action(request, "cambio_password", "core")
                 except Exception:
-                    pass
+                    logger.warning("audit cambio_password non registrato", exc_info=True)
                 messages.success(request, "Password aggiornata con successo.")
                 return redirect("dashboard_home")
     else:
@@ -213,6 +217,6 @@ def logout_view(request):
                 "origine": _ip_origin_label(ip),
             })
     except Exception:
-        pass
+        logger.warning("audit logout non registrato", exc_info=True)
     logout(request)
     return redirect(f"{reverse('login')}?reason=logout")

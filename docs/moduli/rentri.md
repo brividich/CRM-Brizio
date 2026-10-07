@@ -23,3 +23,7 @@ Gestione registro rifiuti secondo normativa **RENTRI** (Registro Elettronico Naz
 - **Giacenze per CER** (`/rentri/giacenze/`): giacenza = carico − scarico effettivo − rettifiche per codice EER, **semaforo deposito temporaneo** su soglie giorni configurabili (`SiteConfig`), flag rifiuti pericolosi, export CSV; alimenta lo Scadenzario Globale `/scadenze`
 - **Report periodico** per MUD e adempimenti
 - **Audit log download** allegati sensibili (non loggati path fisici, contenuto file, token o segreti)
+
+## Hardening ottobre 2026
+
+- Allegati dei carichi in storage privato cifrato (`PRIVATE_ATTACHMENTS_ROOT`), mai serviti da `/media/`. Migrazione `rentri 0006`.

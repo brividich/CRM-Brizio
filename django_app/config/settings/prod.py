@@ -66,6 +66,17 @@ except Exception as _exc:
         f"DOCUMENT_ENCRYPTION_KEY non è una chiave Fernet valida: {_exc}"
     )
 
+# ── Guard ACL ──────────────────────────────────────────────────────────────────
+# LEGACY_AUTH_ENABLED=False spegne l'intero controllo accessi dell'ACLMiddleware:
+# ogni utente autenticato aprirebbe ogni pagina. In produzione serve una conferma
+# esplicita (ACL_DISABLE_ACKNOWLEDGED=1), cosi' non succede per un .env sbagliato.
+from .base import LEGACY_AUTH_ENABLED  # noqa: E402
+if not LEGACY_AUTH_ENABLED and not env_bool("ACL_DISABLE_ACKNOWLEDGED", False):
+    raise ImproperlyConfigured(
+        "LEGACY_AUTH_ENABLED=0 disattiva tutti i controlli di accesso (ACL). "
+        "In produzione serve anche ACL_DISABLE_ACKNOWLEDGED=1 nel file .env per confermarlo."
+    )
+
 DATABASES = {"default": build_database_from_env("sqlserver")}
 
 # â”€â”€ Cache condivisa tra worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

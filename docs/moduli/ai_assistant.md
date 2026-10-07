@@ -41,3 +41,7 @@ Superficie minima ed estendibile per chat AI locale, servita da Django e protett
 - Apprendimento controllato: gli admin possono salvare dalla chat o dalla console admin una coppia domanda/risposta nella FAQ AI, poi indicizzata dal RAG senza salvare automaticamente le conversazioni
 - Le richieste partono dal server Django verso Ollama; il browser non parla direttamente con la workstation
 - Audit trail solo su metadati tecnici (modello, lunghezze, latenza, errori), senza salvare prompt o risposte
+
+## Hardening ottobre 2026
+
+- Al massimo `OLLAMA_MAX_CONCURRENT_REQUESTS` (default 3) chiamate al modello contemporanee per processo: oltre il limite l'utente riceve subito «assistente occupato» invece di occupare un thread del server web.

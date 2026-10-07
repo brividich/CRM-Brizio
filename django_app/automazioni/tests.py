@@ -3992,8 +3992,12 @@ class AutomationApprovalExecutorTests(TestCase):
         self.assertEqual(payload["recipient_email"], "manager@test.local")
         self.assertEqual(payload["subject"], "Teams approval #77")
         self.assertEqual(payload["message"], "Richiesta Ferie per Mario Rossi")
-        self.assertTrue(payload["approve_url"].endswith(f"/automazioni/approvazione/{approval.token}/approva/"))
-        self.assertTrue(payload["reject_url"].endswith(f"/automazioni/approvazione/{approval.token}/rifiuta/"))
+        # Link personale del destinatario Teams: niente token condiviso della richiesta nell'URL.
+        self.assertIn("/approval-actions/r/", payload["approve_url"])
+        self.assertTrue(payload["approve_url"].endswith("/approva/"))
+        self.assertTrue(payload["reject_url"].endswith("/rifiuta/"))
+        self.assertNotIn(str(approval.token), payload["approve_url"])
+        self.assertEqual(approval.links.get().recipient_email, "manager@test.local")
         self.assertTrue(payload["expires_at"].endswith("Z"))
         self.assertEqual(payload["facts"][0]["value"], "Ferie")
         self.assertIn("Teams chat flow inviato a manager@test.local (HTTP 202).", run_log.result_message)
@@ -7325,11 +7329,11 @@ class ApprovalSecurityTests(TestCase):
 
 class ApprovalProxyEndpointTests(TestCase):
     """
-    Test degli endpoint GET /approval-actions/approve|reject/<token>/.
+    Test degli endpoint /approval-actions/approve|reject/<uuid>/ (link della richiesta).
 
-    L'endpoint ora valida l'attore via validate_approval_actor() prima di
-    chiamare process_approval_decision(). Fail-closed:
-      - identità vuota → NO_IDENTITY (bloccato)
+    Dall'hardening di ottobre 2026 l'identità viene SOLO dalla sessione Django:
+    senza login si va al login, gli header X-MS-CLIENT-PRINCIPAL-NAME /
+    X-Forwarded-Email sono ignorati (falsificabili). Poi validate_approval_actor():
       - attore non in approver_emails → UNAUTHORIZED (bloccato)
       - approval già decisa / scaduta → bloccato prima del processing
     """
@@ -7363,14 +7367,18 @@ class ApprovalProxyEndpointTests(TestCase):
             expires_at=expires_at,
         )
 
-    # ── Happy path: attore autorizzato ───────────────────────────────────────
+    def _login(self, email=None):
+        email = email or self.ACTOR
+        user = User.objects.create_user(username=email.split("@")[0], email=email, password="test")
+        self.client.force_login(user)
+        return user
+
+    # ── Happy path: approvatore autenticato ──────────────────────────────────
 
     def test_approve_authorized_actor_get_requires_confirmation(self):
         approval = self._make_approval()
-        response = self.client.get(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        self._login()
+        response = self.client.get(f"/approval-actions/approve/{approval.token}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Conferma Approvazione")
         approval.refresh_from_db()
@@ -7378,10 +7386,8 @@ class ApprovalProxyEndpointTests(TestCase):
 
     def test_approve_authorized_actor_post_succeeds(self):
         approval = self._make_approval()
-        response = self.client.post(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        self._login()
+        response = self.client.post(f"/approval-actions/approve/{approval.token}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Richiesta Approvata")
         approval.refresh_from_db()
@@ -7389,14 +7395,9 @@ class ApprovalProxyEndpointTests(TestCase):
 
     def test_second_post_does_not_overwrite_processed_decision(self):
         approval = self._make_approval()
-        first = self.client.post(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
-        second = self.client.post(
-            f"/approval-actions/reject/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        self._login()
+        first = self.client.post(f"/approval-actions/approve/{approval.token}/")
+        second = self.client.post(f"/approval-actions/reject/{approval.token}/")
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
@@ -7407,10 +7408,8 @@ class ApprovalProxyEndpointTests(TestCase):
 
     def test_reject_authorized_actor_post_succeeds(self):
         approval = self._make_approval()
-        response = self.client.post(
-            f"/approval-actions/reject/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        self._login()
+        response = self.client.post(f"/approval-actions/reject/{approval.token}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Richiesta Rifiutata")
         approval.refresh_from_db()
@@ -7419,39 +7418,24 @@ class ApprovalProxyEndpointTests(TestCase):
     # ── Estrazione identità ──────────────────────────────────────────────────
 
     def test_identity_from_django_session(self):
-        user = User.objects.create_user(
-            username="proxy.user", email=self.ACTOR, password="test"
-        )
         approval = self._make_approval()
-        self.client.force_login(user)
+        self._login()
         self.client.post(f"/approval-actions/approve/{approval.token}/")
         approval.refresh_from_db()
         self.assertEqual(approval.decided_by_email, self.ACTOR)
 
-    def test_identity_from_entra_principal_header(self):
+    def test_identity_headers_without_session_go_to_login(self):
         approval = self._make_approval()
-        self.client.post(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        for header in ("HTTP_X_MS_CLIENT_PRINCIPAL_NAME", "HTTP_X_FORWARDED_EMAIL"):
+            response = self.client.post(f"/approval-actions/approve/{approval.token}/", **{header: self.ACTOR})
+            self.assertEqual(response.status_code, 302)
+            self.assertIn("/login", response["Location"])
         approval.refresh_from_db()
-        self.assertEqual(approval.decided_by_email, self.ACTOR)
-
-    def test_identity_from_forwarded_email_header(self):
-        approval = self._make_approval()
-        self.client.post(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_FORWARDED_EMAIL=self.ACTOR,
-        )
-        approval.refresh_from_db()
-        self.assertEqual(approval.decided_by_email, self.ACTOR)
+        self.assertEqual(approval.status, "pending")
 
     def test_session_identity_takes_priority_over_entra_header(self):
-        user = User.objects.create_user(
-            username="session.user", email=self.ACTOR, password="test"
-        )
         approval = self._make_approval()
-        self.client.force_login(user)
+        self._login()
         self.client.post(
             f"/approval-actions/approve/{approval.token}/",
             HTTP_X_MS_CLIENT_PRINCIPAL_NAME="entra.ignored@corp.local",
@@ -7462,41 +7446,33 @@ class ApprovalProxyEndpointTests(TestCase):
     # ── Blocchi di sicurezza: approval status ────────────────────────────────
 
     def test_not_found_token_shows_denied_page(self):
+        self._login()
         fake_token = "00000000-0000-0000-0000-000000000000"
-        response = self.client.get(
-            f"/approval-actions/approve/{fake_token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        response = self.client.get(f"/approval-actions/approve/{fake_token}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Link non valido")
         self.assertIn(b'data-error-code="not_found"', response.content)
 
     def test_already_decided_shows_denied_page(self):
         approval = self._make_approval(status="approved")
-        response = self.client.get(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        self._login()
+        response = self.client.get(f"/approval-actions/approve/{approval.token}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Richiesta già elaborata")
         self.assertIn(b'data-error-code="already_decided"', response.content)
 
     def test_expired_shows_denied_page(self):
         approval = self._make_approval(expired=True)
-        response = self.client.get(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        self._login()
+        response = self.client.get(f"/approval-actions/approve/{approval.token}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Richiesta scaduta")
         self.assertIn(b'data-error-code="expired"', response.content)
 
     def test_expired_post_is_blocked(self):
         approval = self._make_approval(expired=True)
-        response = self.client.post(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        self._login()
+        response = self.client.post(f"/approval-actions/approve/{approval.token}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Richiesta scaduta")
         approval.refresh_from_db()
@@ -7504,43 +7480,35 @@ class ApprovalProxyEndpointTests(TestCase):
 
     # ── Blocchi di sicurezza: identità / autorizzazione ──────────────────────
 
-    def test_empty_identity_blocked_with_no_identity_page(self):
-        """Nessuna sessione, nessun header → NO_IDENTITY, approval non toccata."""
+    def test_anonymous_get_goes_to_login(self):
+        """Nessuna sessione → login, approval non toccata."""
         approval = self._make_approval()
         response = self.client.get(f"/approval-actions/approve/{approval.token}/")
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Identità non disponibile")
-        self.assertIn(b'data-error-code="no_identity"', response.content)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login", response["Location"])
         approval.refresh_from_db()
-        self.assertEqual(approval.status, "pending")  # immutato
+        self.assertEqual(approval.status, "pending")
 
     def test_unauthorized_actor_blocked(self):
-        """Attore presente ma non in approver_emails → UNAUTHORIZED, approval non toccata."""
+        """Utente loggato ma non in approver_emails → UNAUTHORIZED, approval non toccata."""
         approval = self._make_approval(approver_emails=["allowed@example.com"])
-        response = self.client.get(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME="intruder@example.com",
-        )
+        self._login("intruder@example.com")
+        response = self.client.get(f"/approval-actions/approve/{approval.token}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Utente non autorizzato")
         self.assertIn(b'data-error-code="unauthorized"', response.content)
         approval.refresh_from_db()
-        self.assertEqual(approval.status, "pending")  # immutato
+        self.assertEqual(approval.status, "pending")
 
     def test_actor_removed_before_post_is_blocked(self):
         approval = self._make_approval()
-        get_response = self.client.get(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        self._login()
+        get_response = self.client.get(f"/approval-actions/approve/{approval.token}/")
         self.assertEqual(get_response.status_code, 200)
         approval.approver_emails = ["other@example.com"]
         approval.save(update_fields=["approver_emails"])
 
-        post_response = self.client.post(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
-        )
+        post_response = self.client.post(f"/approval-actions/approve/{approval.token}/")
 
         self.assertEqual(post_response.status_code, 200)
         self.assertContains(post_response, "Utente non autorizzato")
@@ -7548,25 +7516,20 @@ class ApprovalProxyEndpointTests(TestCase):
         self.assertEqual(approval.status, "pending")
 
     def test_no_approvers_configured_blocks_any_actor(self):
-        """approver_emails vuota → NO_APPROVERS (fail-closed), anche con attore valido."""
+        """approver_emails vuota → NO_APPROVERS (fail-closed), anche con attore loggato."""
         approval = self._make_approval(approver_emails=[])
-        response = self.client.get(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME="anyone@example.com",
-        )
+        self._login("anyone@example.com")
+        response = self.client.get(f"/approval-actions/approve/{approval.token}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Configurazione non valida")
         self.assertIn(b'data-error-code="no_approvers"', response.content)
         approval.refresh_from_db()
         self.assertEqual(approval.status, "pending")
 
-    # ── POST method not allowed ──────────────────────────────────────────────
-
-    def test_post_without_identity_is_denied(self):
+    def test_post_without_session_is_redirected_to_login(self):
         approval = self._make_approval()
         response = self.client.post(f"/approval-actions/approve/{approval.token}/")
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Identit")
+        self.assertEqual(response.status_code, 302)
         approval.refresh_from_db()
         self.assertEqual(approval.status, "pending")
 
@@ -7574,11 +7537,8 @@ class ApprovalProxyEndpointTests(TestCase):
 
     def test_audit_log_written_on_successful_approve(self):
         from core.models import AuditLog
-        user = User.objects.create_user(
-            username="audit.approve", email=self.ACTOR, password="test"
-        )
         approval = self._make_approval()
-        self.client.force_login(user)
+        self._login()
         self.client.post(f"/approval-actions/approve/{approval.token}/")
 
         entry = AuditLog.objects.filter(azione="approval_proxy_decision", modulo="automazioni").last()
@@ -7589,11 +7549,8 @@ class ApprovalProxyEndpointTests(TestCase):
 
     def test_audit_log_written_on_successful_reject(self):
         from core.models import AuditLog
-        user = User.objects.create_user(
-            username="audit.reject", email=self.ACTOR, password="test"
-        )
         approval = self._make_approval()
-        self.client.force_login(user)
+        self._login()
         self.client.post(f"/approval-actions/reject/{approval.token}/")
 
         entry = AuditLog.objects.filter(azione="approval_proxy_decision", modulo="automazioni").last()
@@ -7604,11 +7561,8 @@ class ApprovalProxyEndpointTests(TestCase):
     def test_audit_denial_logged_when_not_found(self):
         """Token non trovato → azione 'approval_proxy_denied' con error_code not_found."""
         from core.models import AuditLog
-        user = User.objects.create_user(
-            username="audit.denied", email=self.ACTOR, password="test"
-        )
+        self._login()
         fake_token = "ffffffff-ffff-ffff-ffff-ffffffffffff"
-        self.client.force_login(user)
         self.client.post(f"/approval-actions/approve/{fake_token}/")
 
         entry = AuditLog.objects.filter(azione="approval_proxy_denied", modulo="automazioni").last()
@@ -7620,31 +7574,12 @@ class ApprovalProxyEndpointTests(TestCase):
         """Attore non autorizzato → azione 'approval_proxy_denied' con error_code unauthorized."""
         from core.models import AuditLog
         approval = self._make_approval(approver_emails=["allowed@example.com"])
-        user = User.objects.create_user(
-            username="audit.unauth", email="intruder@example.com", password="test"
-        )
-        self.client.force_login(user)
+        self._login("intruder@example.com")
         self.client.post(f"/approval-actions/approve/{approval.token}/")
 
         entry = AuditLog.objects.filter(azione="approval_proxy_denied", modulo="automazioni").last()
         self.assertIsNotNone(entry)
         self.assertEqual(entry.dettaglio["error_code"], "unauthorized")
-
-    def test_audit_log_works_with_anonymous_entra_header(self):
-        """
-        Nessuna sessione Django, identità da header Entra:
-        log_action non deve crashare (display_name_for_user ora gestisce AnonymousUser).
-        """
-        from core.models import AuditLog
-        approval = self._make_approval(approver_emails=["entra.ok@corp.local"])
-        self.client.post(
-            f"/approval-actions/approve/{approval.token}/",
-            HTTP_X_MS_CLIENT_PRINCIPAL_NAME="entra.ok@corp.local",
-        )
-        entry = AuditLog.objects.filter(azione="approval_proxy_decision", modulo="automazioni").last()
-        self.assertIsNotNone(entry)
-        self.assertTrue(entry.dettaglio["ok"])
-        self.assertEqual(entry.dettaglio["actor"], "entra.ok@corp.local")
 
 
 class ExclusionGroupProcessingTests(TestCase):

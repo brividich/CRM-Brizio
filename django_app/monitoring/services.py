@@ -841,13 +841,9 @@ def count_consecutive_failures(job: AutomationJob, *, limit: int = 10, exclude_p
 
 
 def _get_client_ip(request) -> str:
-    remote_addr = request.META.get("REMOTE_ADDR", "") or ""
-    trusted_proxies = getattr(settings, "TRUSTED_PROXY_IPS", set()) or set()
-    if remote_addr in trusted_proxies:
-        forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "") or ""
-        if forwarded:
-            return forwarded.split(",", 1)[0].strip()
-    return remote_addr
+    from core.net import client_ip
+
+    return client_ip(request) or ""
 
 
 def _normalize_path(value: str) -> str:

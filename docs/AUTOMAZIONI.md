@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 52
+**Totale automazioni disponibili:** 53
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -269,6 +269,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Cosa fa:** CORE — digest mattutino caporeparto: DPI in attesa + incidenti aperti del reparto (fonte capi = Reparto.caporeparto_legacy_id; email = email_notifica). Fail-safe: no-op senza capi/voci; assenze (SharePoint dismesso) e ticket (nessun legame reparto) esclusi per design.
 
 ## Motore automazioni
+
+### `approval_branch_recovery`
+
+- **Quando gira:** ogni 15 minuti
+- **Task eseguito:** `automazioni.approval_links.recover_stuck_branches`
+- **Cosa fa:** Riprende le azioni post-decisione rimaste a meta' (crash/riavvio durante il ramo).
 
 ### `approval_expiry_reconciliation`
 
