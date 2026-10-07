@@ -218,6 +218,16 @@ def _ore(value) -> Decimal:
         return Decimal(0)
 
 
+def _ore_record(r) -> Decimal:
+    """Ore di un completamento: frequentate, altrimenti durata salvata, altrimenti durata del corso.
+
+    Un completamento senza ore registrate non vale 0 ore: falserebbe totali, medie e
+    i filtri «meno di N ore».
+    """
+    return (_ore(r.ore_frequentate) or _ore(r.duration_hours_snapshot)
+            or _ore(getattr(r.corso, "durata_ore_teorica", 0)))
+
+
 def _fmt_ore(value: Decimal | None) -> str:
     if value is None:
         return "n/d"
@@ -542,46 +552,105 @@ _registra(Sezione(
 ))
 
 
+def _persone_del_periodo(ctx: Contesto) -> dict:
+    """Persone di una sezione di periodo: in forza a fine periodo, o tutte se si includono i cessati.
+
+    Le stesse persone sono numeratore e denominatore degli indicatori: chi e' uscito
+    nel periodo, senza «Includi il personale cessato», non e' contato da nessuna parte
+    (i suoi completamenti sono segnalati come esclusi).
+    """
+    persone = ctx.dipendenti_perimetro()
+    if not ctx.perimetro.includi_cessati:
+        persone = [p for p in persone if p.in_forza_al(ctx.date_to)]
+    return {p.id: p for p in persone}
+
+
+_CONFRONTI_ORE = (("", "— nessun filtro —"), ("meno_di", "Meno di"), ("al_massimo", "Al massimo"),
+                  ("almeno", "Almeno"), ("piu_di", "Più di"))
+
+
+def _filtro_ore(o: dict):
+    """Filtro sulle ore della riga (None = nessun filtro). «Meno di 5» comprende chi ha 0 ore."""
+    confronto, soglia = o.get("confronto_ore") or "", Decimal(o.get("soglia_ore") or 0)
+    return {
+        "meno_di": lambda ore: ore < soglia,
+        "al_massimo": lambda ore: ore <= soglia,
+        "almeno": lambda ore: ore >= soglia,
+        "piu_di": lambda ore: ore > soglia,
+    }.get(confronto)
+
+
 def _formazione_erogata(ctx: Contesto, o: dict) -> Risultato:
     res = Risultato()
-    persone = {p.id: p for p in ctx.dipendenti_perimetro()}
+    persone = _persone_del_periodo(ctx)
     record = _completamenti(ctx, o, persone)
+    filtro = _filtro_ore(o)
+    per_persona = o["dettaglio"] == "persona"
     per_chiave: dict[str, dict] = {}
+
+    def _base_persona(p) -> dict:
+        return {"voce": p.nominativo, "codice": p.matricola, "nominativo": p.nominativo, "matricola": p.matricola,
+                "reparto": p.reparto, "mansione": p.mansione}
+
     for r in record:
         p = persone[ctx.canonico(r.legacy_anagrafica_id)]
         if o["dettaglio"] == "corso":
             chiave, base = r.course_code_snapshot or r.course_title_snapshot, {
                 "voce": r.course_title_snapshot or r.course_code_snapshot, "codice": r.course_code_snapshot}
         elif o["dettaglio"] == "reparto":
-            chiave, base = p.reparto or "—", {"voce": p.reparto or "Senza reparto", "codice": ""}
+            chiave, base = p.reparto or "—", {"voce": p.reparto or "Senza reparto", "codice": "",
+                                              "reparto": p.reparto or "Senza reparto"}
         else:
-            chiave, base = str(p.id), {"voce": p.nominativo, "codice": p.matricola,
-                                        "reparto": p.reparto, "mansione": p.mansione}
+            chiave, base = str(p.id), _base_persona(p)
         acc = per_chiave.setdefault(chiave, {**base, "completamenti": 0, "ore": Decimal(0), "persone": set(), "corsi": []})
         acc["completamenti"] += 1
-        acc["ore"] += _ore(r.ore_frequentate) or _ore(r.duration_hours_snapshot)
+        acc["ore"] += _ore_record(r)
         acc["persone"].add(p.id)
         titolo = r.course_title_snapshot or r.course_code_snapshot
         if titolo and titolo not in acc["corsi"]:
             acc["corsi"].append(titolo)
-    for acc in sorted(per_chiave.values(), key=lambda a: str(a["voce"]).casefold()):
+    # Chi non ha formazione nel periodo ha 0 ore: compare se chiesto, o se il filtro sulle
+    # ore lo comprende («meno di 5 ore» deve elencare anche chi non ne ha fatta nessuna).
+    senza_formazione = 0
+    if per_persona and (o["includi_non_formati"] or (filtro and filtro(Decimal(0)))):
+        for p in persone.values():
+            if str(p.id) not in per_chiave:
+                senza_formazione += 1
+                per_chiave[str(p.id)] = {**_base_persona(p), "completamenti": 0, "ore": Decimal(0),
+                                         "persone": {p.id}, "corsi": []}
+    righe = list(per_chiave.values())
+    if filtro:
+        righe = [acc for acc in righe if filtro(acc["ore"])]
+    for acc in sorted(righe, key=lambda a: str(a["voce"]).casefold()):
         res.riga({
-            "voce": acc["voce"], "codice": acc.get("codice", ""), "reparto": acc.get("reparto", ""),
+            "voce": acc["voce"], "codice": acc.get("codice", ""), "nominativo": acc.get("nominativo", ""),
+            "matricola": acc.get("matricola", ""), "reparto": acc.get("reparto", ""),
             "mansione": acc.get("mansione", ""), "completamenti": acc["completamenti"], "ore": acc["ore"],
             "persone": len(acc["persone"]), "corsi": "; ".join(acc["corsi"][:10]),
-        })
-    ore_tot = sum((_ore(r.ore_frequentate) or _ore(r.duration_hours_snapshot) for r in record), Decimal(0))
-    in_forza = [p for p in persone.values() if p.in_forza_al(ctx.date_to)]
+        }, TONE_WARN if per_persona and not acc["completamenti"] else "")
+    ore_tot = sum((_ore_record(r) for r in record), Decimal(0))
     formati = {ctx.canonico(r.legacy_anagrafica_id) for r in record}
+    chi = "nel perimetro (cessati compresi)" if ctx.perimetro.includi_cessati else "in forza a fine periodo"
     res.kpis = [
         Kpi("Ore di formazione erogate", _fmt_ore(ore_tot)),
-        Kpi("Persone formate", len(formati), hint=f"su {len(in_forza)} in forza a fine periodo"),
-        Kpi("Ore medie pro capite", _fmt_ore(ore_tot / len(in_forza)) if in_forza else "n/d",
-            hint="ore erogate / persone in forza"),
+        Kpi("Persone formate", len(formati), hint=f"su {len(persone)} {chi}"),
+        Kpi("Ore medie pro capite", _fmt_ore(ore_tot / len(persone)) if persone else "n/d",
+            hint=f"ore erogate / persone {chi}"),
         Kpi("Completamenti", len(record)),
     ]
+    if filtro:
+        etichetta = dict(_CONFRONTI_ORE)[o["confronto_ore"]].lower()
+        cosa = {"persona": "Persone", "corso": "Corsi", "reparto": "Reparti"}[o["dettaglio"]]
+        res.kpis.append(Kpi(f"{cosa} con {etichetta} {o['soglia_ore']} ore", len(res.righe),
+                            TONE_WARN if res.righe and o["confronto_ore"] in ("meno_di", "al_massimo") else ""))
     res.note = [f"Completamenti registrati nel periodo {ctx.periodo_label}, dettaglio per "
-                f"{dict(_DETTAGLI_EROGATA)[o['dettaglio']].lower()}."]
+                f"{dict(_DETTAGLI_EROGATA)[o['dettaglio']].lower()}. Ore = ore frequentate, "
+                "o durata del corso se non registrate."]
+    if filtro:
+        res.note.append(f"Solo le righe con {dict(_CONFRONTI_ORE)[o['confronto_ore']].lower()} "
+                        f"{o['soglia_ore']} ore nel periodo.")
+    if senza_formazione:
+        res.note.append(f"Comprese {senza_formazione} persone senza formazione registrata nel periodo (0 ore).")
     return res
 
 
@@ -612,7 +681,8 @@ _registra(Sezione(
     builder=_formazione_erogata,
     riferimenti=(f"{ISO_9001} §7.2", f"{ISO_45001} §7.2", f"{PDR_125} – Opportunità di crescita"),
     colonne=(
-        ("voce", "Persona / corso / reparto"), ("codice", "Matricola / codice"), ("reparto", "Reparto"),
+        ("voce", "Persona / corso / reparto"), ("codice", "Matricola / codice"),
+        ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"),
         ("mansione", "Mansione"), ("completamenti", "Completamenti"), ("ore", "Ore"),
         ("persone", "Persone"), ("corsi", "Corsi"),
     ),
@@ -621,6 +691,11 @@ _registra(Sezione(
         Opzione("dettaglio", "Dettaglio per", SCELTA, _DETTAGLI_EROGATA, "persona"),
         Opzione("fonti", "Fonte dell'obbligo", MULTI, _scelte_fonti, aiuto="Vuoto = tutte."),
         Opzione("solo_sicurezza", "Solo formazione sicurezza", SI_NO, predefinito=False),
+        Opzione("confronto_ore", "Filtro sulle ore", SCELTA, _CONFRONTI_ORE, "",
+                aiuto="Con «Meno di»/«Al massimo» e dettaglio per persona compare anche chi ha 0 ore."),
+        Opzione("soglia_ore", "Soglia ore", INTERO, predefinito=0, massimo=10000),
+        Opzione("includi_non_formati", "Elenca anche chi non ha formazione nel periodo", SI_NO, predefinito=False,
+                aiuto="Solo con dettaglio per persona: righe a 0 ore."),
     ),
     usa_periodo=True,
 ))
@@ -628,7 +703,7 @@ _registra(Sezione(
 
 def _attestati(ctx: Contesto, o: dict) -> Risultato:
     res = Risultato()
-    persone = {p.id: p for p in ctx.dipendenti_perimetro()}
+    persone = _persone_del_periodo(ctx)
     record = _completamenti(ctx, o, persone)
     for r in sorted(record, key=lambda x: (persone[ctx.canonico(x.legacy_anagrafica_id)].nominativo.casefold(),
                                            x.data_completamento)):
@@ -636,7 +711,7 @@ def _attestati(ctx: Contesto, o: dict) -> Risultato:
         res.riga({
             "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto,
             "corso": r.course_title_snapshot, "codice": r.course_code_snapshot,
-            "data": r.data_completamento, "ore": _ore(r.ore_frequentate) or _ore(r.duration_hours_snapshot),
+            "data": r.data_completamento, "ore": _ore_record(r),
             "protocollo": r.numero_protocollo, "docente": r.teacher_name_snapshot,
             "esito": "Idoneo" if r.idoneo else "Non idoneo", "scadenza": r.data_scadenza,
         }, "" if r.idoneo else TONE_WARN)
@@ -1353,13 +1428,14 @@ def _parita_genere(ctx: Contesto, o: dict) -> Risultato:
         per_id = {p.id: p for p in tutti}
         for r in TrainingEmployeeRecord.objects.filter(
             legacy_anagrafica_id__in=ctx.id_estesi(per_id), data_completamento__range=(ctx.date_from, ctx.date_to),
-        ).only("legacy_anagrafica_id", "ore_frequentate", "duration_hours_snapshot"):
+        ).select_related("corso").only("legacy_anagrafica_id", "ore_frequentate", "duration_hours_snapshot",
+                                       "corso__durata_ore_teorica"):
             pid = ctx.canonico(r.legacy_anagrafica_id)
             if pid not in per_id:
                 continue
             g = per_id[pid].genere
             g = g if g in ("F", "M") else "ND"
-            ore[g] += _ore(r.ore_frequentate) or _ore(r.duration_hours_snapshot)
+            ore[g] += _ore_record(r)
             formati.add(pid)
         _riga("Opportunità di crescita", "Persone formate nel periodo", [per_id[i] for i in formati])
         ore_tot = sum(ore.values(), Decimal(0))
