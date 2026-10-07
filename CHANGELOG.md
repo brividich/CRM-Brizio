@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Anomalie — controllo a blocchi: stato superficie obbligatorio per blocco, riepilogo finale, S/N ripetuti confermati, niente mail doppie dalle automazioni** (`django_app/anomalie/controllo_service.py`, `controllo_views.py`, `templates/anomalie/pages/apertura_segnalazione.html`, `tests_controllo.py`, `django_app/automazioni/services.py`, `docs/moduli/anomalie.md`).
+  - **Stato superficie per blocco**: scelta a pulsanti, obbligatoria (lato pagina e API) quando la configurazione liste ne prevede; mostrata come etichetta su ogni blocco salvato. Un blocco già deciso dal capocommessa resta com'era.
+  - **Riepilogo finale**: «Termina controllo…» apre il riepilogo (blocchi, pezzi, anomalie, allegati, stato superficie, a chi parte la mail) da confermare; dopo la chiusura il riepilogo resta a video ed è stampabile. In testa al controllo i contatori blocchi/pezzi/anomalie.
+  - **Stesso S/N in due blocchi**: ammesso ma con conferma esplicita («Sì, è voluto»); l'API risponde 409 `seriali_ripetuti` senza la conferma, l'audit registra i seriali ripetuti. Vale anche riaprendo un blocco.
+  - **Automazioni**: le azioni «mail-action anomalie» (singola e per OP) saltano, con log «skipped», le righe nate da un controllo OP — la mail con il link la manda già il controllo; prima una regola su INSERT avrebbe mandato una mail per riga.
+  - Nessuna migrazione.
 - **Visite mediche — scadenza anticipata spiegata in scheda + check di integrità** (`django_app/anagrafica/views.py`, `templates/anagrafica/pages/visita_medica_dettaglio.html`, `management/commands/verifica_scadenze_visite.py` nuovo, `tests_scadenze_hr.py`, `docs/moduli/anagrafica.md`).
   - La scheda visita mostrava una scadenza più corta del tipo (es. «Quinquennale» che scade dopo 1 anno) senza dire perché. Ora, quando la scadenza è anticipata dal ricalcolo prudente, sotto la data compaiono la scadenza prevista dal tipo e il motivo (`scadenza_nota`); il riquadro in alto dice «Scadenza anticipata». Corretto il testo del form di modifica.
   - Nuovo `manage.py verifica_scadenze_visite [--legacy-id N] [--righe N]`, in sola lettura (gira anche con `--settings=config.settings.prod_readonly`): tipi con durata incoerente col nome, visite correnti con scadenza diversa dal motore (si sistemano con `ricalcola_scadenze_hr`), anticipate dalla mansione (informativo), visite senza scadenza, che scadono prima di essere fatte o oltre il tipo.
