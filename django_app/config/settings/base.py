@@ -270,6 +270,9 @@ OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_CHAT_MODEL = env("OLLAMA_CHAT_MODEL", "qwen2.5:14b-instruct")
 OPENWEBUI_API_KEY = env("OPENWEBUI_API_KEY", "")
 OLLAMA_REQUEST_TIMEOUT_SECONDS = int(env("OLLAMA_REQUEST_TIMEOUT_SECONDS", "180") or "180")
+# Massimo di chiamate al modello contemporanee per processo: le altre ricevono
+# subito "assistente occupato" invece di occupare i thread del server web.
+OLLAMA_MAX_CONCURRENT_REQUESTS = int(env("OLLAMA_MAX_CONCURRENT_REQUESTS", "3") or "3")
 OLLAMA_CHAT_TEMPERATURE = env("OLLAMA_CHAT_TEMPERATURE", "0.3")
 OLLAMA_CHAT_MAX_PROMPT_CHARS = int(env("OLLAMA_CHAT_MAX_PROMPT_CHARS", "2000") or "2000")
 OLLAMA_CHAT_MAX_HISTORY_MESSAGES = int(env("OLLAMA_CHAT_MAX_HISTORY_MESSAGES", "16") or "16")
@@ -636,6 +639,9 @@ ANAGRAFICA_PRIVATE_ROOT = Path(env("ANAGRAFICA_PRIVATE_ROOT", str(BASE_DIR / "me
 # Storage privato cifrato FUORI webroot, servito SOLO da dashboard:hub_link_download (ACL + audit).
 # Default persistente (fuori da `current`) come GESTIONE_SPECIFICHE_PRIVATE_ROOT: sopravvive ai deploy.
 HUB_BACHECA_PRIVATE_ROOT = Path(env("HUB_BACHECA_PRIVATE_ROOT", str(MEDIA_ROOT.parent / "media_private")))
+# Allegati di modulo un tempo serviti da /media/ (notizie, rentri, suggestion corner):
+# storage privato cifrato, download solo da view protette (core/private_attachments.py).
+PRIVATE_ATTACHMENTS_ROOT = Path(env("PRIVATE_ATTACHMENTS_ROOT", str(MEDIA_ROOT.parent / "media_private")))
 # Allegati specifiche tecniche (gestione_specifiche): storage privato cifrato,
 # mai esposto da IIS; accessibile solo via view protetta con ACL.
 # Default derivato da MEDIA_ROOT (persistente, fuori da `current`) e NON da BASE_DIR: gli allegati
@@ -732,6 +738,14 @@ Q_CLUSTER = {
 }
 
 CSRF_FAILURE_VIEW = "core.views.csrf_failure"
+
+# DRF (API del SOC): default espliciti. Senza, DRF usa AllowAny + Basic auth:
+# la protezione resterebbe affidata solo all'ACLMiddleware. Le view dichiarano
+# comunque i propri permission_classes; Basic auth non serve a nessun client.
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+}
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard_hub_preview"

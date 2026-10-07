@@ -6,12 +6,10 @@ se il file .env non è ancora stato configurato.
 Il check è puramente file-based (legge .env direttamente) in modo che
 il middleware funzioni anche prima che il database sia disponibile.
 """
-from pathlib import Path
-
 from django.conf import settings
 from django.shortcuts import redirect
 
-_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+from .state import setup_needed as _setup_needed
 
 # Prefissi esenti dal redirect al wizard (sempre raggiungibili)
 _SETUP_EXEMPT = (
@@ -25,18 +23,6 @@ _SETUP_EXEMPT = (
     "/readyz",
     "/version",
 )
-
-
-def _setup_needed() -> bool:
-    """Ritorna True se il wizard non è ancora stato completato."""
-    if not _ENV_PATH.exists():
-        return True
-    for raw in _ENV_PATH.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if line.startswith("SETUP_COMPLETED="):
-            val = line.split("=", 1)[1].strip().strip("'\"")
-            return val not in ("1", "true", "yes")
-    return True
 
 
 class SetupRequiredMiddleware:

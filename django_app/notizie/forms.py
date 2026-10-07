@@ -110,6 +110,9 @@ class NotiziaAllegatoForm(forms.ModelForm):
         fields = ("nome_file", "file", "url_esterno")
         widgets = {
             "nome_file": forms.TextInput(attrs={"placeholder": "Nome allegato"}),
+            # FileInput e non ClearableFileInput: lo storage e' privato e non ha URL;
+            # il link "Attuale" lo rende il template con la view protetta.
+            "file": forms.FileInput(),
             "url_esterno": forms.URLInput(attrs={"placeholder": "https://..."}),
         }
 

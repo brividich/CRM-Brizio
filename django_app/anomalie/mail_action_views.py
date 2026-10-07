@@ -144,147 +144,181 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
         return redirect(reverse("anomalie_mail_action_done", kwargs={"token": token_obj.token}))
 
     # Azioni dispositive: aggiorna il DB legacy e marca il token monouso
-    results = []
     if is_dispositive:
-        default_avanzamento = nuovo_avanzamento or _ACTION_TO_AVANZAMENTO.get(action, "")
-        for anomalia in anomalie_live:
-            anomalia_id = anomalia.get("id")
-            if not anomalia_id:
-                continue
-            # Solo le anomalie che il capocommessa ha salvato nella pagina cambiano
-            # flag, note e numero RDC; le altre ricevono al massimo l'avanzamento
-            # di default dell'azione (prima i flag non toccati venivano azzerati).
-            toccata = str(anomalia_id) in aggiornamenti_per_id
-            per_riga = aggiornamenti_per_id.get(str(anomalia_id)) or {}
-            if not isinstance(per_riga, dict):
-                per_riga, toccata = {}, False
-            riga_avanzamento = str(per_riga.get("avanzamento") or "").strip()[:100] or default_avanzamento
-            if toccata:
-                riga_note = str(per_riga.get("note") or "").strip()[:2000]
-                if not riga_note and note and action in _NOTE_GLOBALE_ACTIONS:
-                    riga_note = note
-                riga_aprire_rdc = bool(per_riga.get("aprire_rdc"))
-                riga_segnalare = bool(per_riga.get("segnalare"))
-                riga_chiudere = bool(per_riga.get("chiudere"))
-                riga_numero_rdc = str(per_riga.get("numero_rdc") or "").strip()[:100]
-            else:
-                riga_note = note if (note and action in _NOTE_GLOBALE_ACTIONS) else None
-                riga_aprire_rdc = riga_segnalare = riga_chiudere = None
-                riga_numero_rdc = None
-                if not riga_avanzamento and action != "chiudi":
-                    continue
-            descrizioni_risposte = per_riga.get("descrizioni_risposte", {})
-            prev = anomalia.get(_STATO_FIELD) or ""
-            ok = _apply_action_to_anomalia(
-                anomalia_id=anomalia_id,
-                op_id=token_obj.op_id,
-                action=action,
-                nuovo_avanzamento=riga_avanzamento,
-                note=riga_note,
-                aprire_rdc=riga_aprire_rdc,
-                segnalare=riga_segnalare,
-                chiudere=riga_chiudere,
-                numero_rdc=riga_numero_rdc,
-            )
-            if ok and isinstance(descrizioni_risposte, dict):
-                try:
-                    from .quality_models import AnomaliaDescrizione
-                    risposta_da = token_obj.recipient_display or token_obj.recipient_email or "Capocommessa"
-                    for detail_id, response_text in descrizioni_risposte.items():
-                        response_text = str(response_text or "").strip()[:5000]
-                        if not response_text or not str(detail_id).isdigit():
-                            continue
-                        AnomaliaDescrizione.objects.filter(
-                            pk=int(detail_id), segnalazione__anomalia_id=anomalia_id,
-                        ).exclude(risposta_capocommessa=response_text).update(
-                            risposta_capocommessa=response_text,
-                            risposta_da=risposta_da[:200],
-                            risposta_il=timezone.now(),
-                            updated_at=timezone.now(),
-                        )
-                except Exception:
-                    logger.exception("mail_action: salvataggio risposte descrizione fallito id=%s", anomalia_id)
-            results.append({
-                "id": anomalia_id,
-                "ok": ok,
-                "prev": prev,
-                "new": (riga_avanzamento or prev) if ok else prev,
-                "toccata": toccata,
-            })
-
-        _write_action_log(
-            request=request,
-            token_obj=token_obj,
-            anomalie=anomalie_live,
-            action=action,
-            note=note,
-            previous_status=", ".join({r["prev"] for r in results if r["prev"]}),
-            new_status=", ".join({r["new"] for r in results if r["new"] and r["ok"]}),
-            source=AnomaliaActionLog.Source.MAIL_ACTION,
-        )
-        token_obj.mark_used(
-            ip_address=_get_ip(request),
-            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
-        )
-        log_action(
-            request,
-            azione=f"anomalia_mail_action_{action}",
-            modulo="anomalie",
-            dettaglio={
-                "op_id": token_obj.op_id,
-                "anomalie_ids": token_obj.anomalie_ids,
-                "note": note,
-                "results": results,
-                "token": token_obj.token[:8],
-                "recipient": token_obj.recipient_display,
-            },
-        )
-
-        # Mail di conferma post-aggiornamento al segnalante + CC/CAR + lista fissa.
+        # Presa in carico atomica del token PRIMA di toccare le anomalie: con due invii
+        # simultanei (doppio click, due schede) solo uno passa. Se l'applicazione
+        # solleva un'eccezione il token torna disponibile per un nuovo tentativo.
+        if not _claim_token(token_obj, request):
+            return _render_error(request, "Questa azione è già stata registrata.", "already_used")
         try:
-            from anomalie.mail_action_service import send_anomalie_update_confirmation
-            by_id = {str(a.get("id")): a for a in anomalie_live}
-            updates_summary = []
-            for r in results:
-                if not r.get("ok"):
-                    continue
-                a = by_id.get(str(r["id"]), {})
-                per_riga = aggiornamenti_per_id.get(str(r["id"])) or {}
-                if not isinstance(per_riga, dict):
-                    per_riga = {}
-                updates_summary.append({
-                    "id": r["id"],
-                    "seriale": a.get("seriale") or "",
-                    "descrizione": a.get("descrizione") or "",
-                    "avanzamento": r.get("new") or "",
-                    "note": str(per_riga.get("note") or note or "").strip(),
-                    "numero_rdc": str(per_riga.get("numero_rdc") or "").strip(),
-                    "aprire_rdc": bool(per_riga.get("aprire_rdc")) if r.get("toccata") else bool(a.get("aprire_rdc")),
-                    "segnalare": bool(per_riga.get("segnalare")) if r.get("toccata") else bool(a.get("segnalare_cliente")),
-                    "chiudere": bool(per_riga.get("chiudere")) or action == "chiudi",
-                })
-            if updates_summary:
-                send_anomalie_update_confirmation(
-                    op_id=token_obj.op_id,
-                    op_nominativo=token_obj.op_nominativo or "",
-                    anomalie_rows=anomalie_live,
-                    updates_summary=updates_summary,
-                    source_label=f"Risposta da mail ({token_obj.recipient_display})",
-                )
+            return _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_avanzamento, aggiornamenti_per_id)
         except Exception:
-            logger.warning("mail_action: invio conferma aggiornamento fallito op=%s", token_obj.op_id, exc_info=True)
-    else:
-        _write_action_log(
-            request=request,
-            token_obj=token_obj,
-            anomalie=anomalie_live,
-            action=action,
-            note=note,
-            previous_status="",
-            new_status="",
-            source=AnomaliaActionLog.Source.MAIL_ACTION,
-        )
+            _release_token(token_obj)
+            raise
+    _write_action_log(
+        request=request,
+        token_obj=token_obj,
+        anomalie=anomalie_live,
+        action=action,
+        note=note,
+        previous_status="",
+        new_status="",
+        source=AnomaliaActionLog.Source.MAIL_ACTION,
+    )
+    return redirect(reverse("anomalie_mail_action_done", kwargs={"token": token_obj.token}))
 
+
+def _claim_token(token_obj, request: HttpRequest) -> bool:
+    from .mail_action_models import AnomaliaMailActionToken
+
+    now = timezone.now()
+    claimed = AnomaliaMailActionToken.objects.filter(
+        pk=token_obj.pk, is_used=False, is_revoked=False, expires_at__gte=now,
+    ).update(
+        is_used=True,
+        used_at=now,
+        ip_address_used=_get_ip(request),
+        user_agent_used=request.META.get("HTTP_USER_AGENT", "")[:500],
+    )
+    if claimed:
+        token_obj.refresh_from_db()
+    return bool(claimed)
+
+
+def _release_token(token_obj) -> None:
+    from .mail_action_models import AnomaliaMailActionToken
+
+    AnomaliaMailActionToken.objects.filter(pk=token_obj.pk).update(is_used=False, used_at=None)
+    logger.warning("mail_action: applicazione fallita, token %s… rilasciato", str(token_obj.token)[:8])
+
+
+def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_avanzamento, aggiornamenti_per_id):
+    from .mail_action_models import AnomaliaActionLog
+
+    results = []
+    default_avanzamento = nuovo_avanzamento or _ACTION_TO_AVANZAMENTO.get(action, "")
+    for anomalia in anomalie_live:
+        anomalia_id = anomalia.get("id")
+        if not anomalia_id:
+            continue
+        # Solo le anomalie che il capocommessa ha salvato nella pagina cambiano
+        # flag, note e numero RDC; le altre ricevono al massimo l'avanzamento
+        # di default dell'azione (prima i flag non toccati venivano azzerati).
+        toccata = str(anomalia_id) in aggiornamenti_per_id
+        per_riga = aggiornamenti_per_id.get(str(anomalia_id)) or {}
+        if not isinstance(per_riga, dict):
+            per_riga, toccata = {}, False
+        riga_avanzamento = str(per_riga.get("avanzamento") or "").strip()[:100] or default_avanzamento
+        if toccata:
+            riga_note = str(per_riga.get("note") or "").strip()[:2000]
+            if not riga_note and note and action in _NOTE_GLOBALE_ACTIONS:
+                riga_note = note
+            riga_aprire_rdc = bool(per_riga.get("aprire_rdc"))
+            riga_segnalare = bool(per_riga.get("segnalare"))
+            riga_chiudere = bool(per_riga.get("chiudere"))
+            riga_numero_rdc = str(per_riga.get("numero_rdc") or "").strip()[:100]
+        else:
+            riga_note = note if (note and action in _NOTE_GLOBALE_ACTIONS) else None
+            riga_aprire_rdc = riga_segnalare = riga_chiudere = None
+            riga_numero_rdc = None
+            if not riga_avanzamento and action != "chiudi":
+                continue
+        descrizioni_risposte = per_riga.get("descrizioni_risposte", {})
+        prev = anomalia.get(_STATO_FIELD) or ""
+        ok = _apply_action_to_anomalia(
+            anomalia_id=anomalia_id,
+            op_id=token_obj.op_id,
+            action=action,
+            nuovo_avanzamento=riga_avanzamento,
+            note=riga_note,
+            aprire_rdc=riga_aprire_rdc,
+            segnalare=riga_segnalare,
+            chiudere=riga_chiudere,
+            numero_rdc=riga_numero_rdc,
+        )
+        if ok and isinstance(descrizioni_risposte, dict):
+            try:
+                from .quality_models import AnomaliaDescrizione
+                risposta_da = token_obj.recipient_display or token_obj.recipient_email or "Capocommessa"
+                for detail_id, response_text in descrizioni_risposte.items():
+                    response_text = str(response_text or "").strip()[:5000]
+                    if not response_text or not str(detail_id).isdigit():
+                        continue
+                    AnomaliaDescrizione.objects.filter(
+                        pk=int(detail_id), segnalazione__anomalia_id=anomalia_id,
+                    ).exclude(risposta_capocommessa=response_text).update(
+                        risposta_capocommessa=response_text,
+                        risposta_da=risposta_da[:200],
+                        risposta_il=timezone.now(),
+                        updated_at=timezone.now(),
+                    )
+            except Exception:
+                logger.exception("mail_action: salvataggio risposte descrizione fallito id=%s", anomalia_id)
+        results.append({
+            "id": anomalia_id,
+            "ok": ok,
+            "prev": prev,
+            "new": (riga_avanzamento or prev) if ok else prev,
+            "toccata": toccata,
+        })
+
+    _write_action_log(
+        request=request,
+        token_obj=token_obj,
+        anomalie=anomalie_live,
+        action=action,
+        note=note,
+        previous_status=", ".join({r["prev"] for r in results if r["prev"]}),
+        new_status=", ".join({r["new"] for r in results if r["new"] and r["ok"]}),
+        source=AnomaliaActionLog.Source.MAIL_ACTION,
+    )
+    log_action(
+        request,
+        azione=f"anomalia_mail_action_{action}",
+        modulo="anomalie",
+        dettaglio={
+            "op_id": token_obj.op_id,
+            "anomalie_ids": token_obj.anomalie_ids,
+            "note": note,
+            "results": results,
+            "token": token_obj.token[:8],
+            "recipient": token_obj.recipient_display,
+        },
+    )
+
+    # Mail di conferma post-aggiornamento al segnalante + CC/CAR + lista fissa.
+    try:
+        from anomalie.mail_action_service import send_anomalie_update_confirmation
+        by_id = {str(a.get("id")): a for a in anomalie_live}
+        updates_summary = []
+        for r in results:
+            if not r.get("ok"):
+                continue
+            a = by_id.get(str(r["id"]), {})
+            per_riga = aggiornamenti_per_id.get(str(r["id"])) or {}
+            if not isinstance(per_riga, dict):
+                per_riga = {}
+            updates_summary.append({
+                "id": r["id"],
+                "seriale": a.get("seriale") or "",
+                "descrizione": a.get("descrizione") or "",
+                "avanzamento": r.get("new") or "",
+                "note": str(per_riga.get("note") or note or "").strip(),
+                "numero_rdc": str(per_riga.get("numero_rdc") or "").strip(),
+                "aprire_rdc": bool(per_riga.get("aprire_rdc")) if r.get("toccata") else bool(a.get("aprire_rdc")),
+                "segnalare": bool(per_riga.get("segnalare")) if r.get("toccata") else bool(a.get("segnalare_cliente")),
+                "chiudere": bool(per_riga.get("chiudere")) or action == "chiudi",
+            })
+        if updates_summary:
+            send_anomalie_update_confirmation(
+                op_id=token_obj.op_id,
+                op_nominativo=token_obj.op_nominativo or "",
+                anomalie_rows=anomalie_live,
+                updates_summary=updates_summary,
+                source_label=f"Risposta da mail ({token_obj.recipient_display})",
+            )
+    except Exception:
+        logger.warning("mail_action: invio conferma aggiornamento fallito op=%s", token_obj.op_id, exc_info=True)
     return redirect(reverse("anomalie_mail_action_done", kwargs={"token": token_obj.token}))
 
 

@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load safe_json %}
 {% block title %}Applica timbri · {{ spec.codice }}{% endblock %}
 {% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}
 <style>
@@ -74,7 +75,7 @@
 
 <script>
 (function(){
-  var ESIST = {{ esistenti_json|safe }};
+  var ESIST = {{ esistenti_json|js_json }};
   function getCookie(n){ var m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
 
   function mkStamp(page, timbro, uri, isRic, left, top, w){

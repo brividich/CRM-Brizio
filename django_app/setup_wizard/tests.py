@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -26,7 +27,7 @@ class SetupRequiredMiddlewareTests(SimpleTestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             env_path = Path(tmpdir) / ".env"
             env_path.write_text("SETUP_COMPLETED=0\n", encoding="utf-8")
-            with patch("setup_wizard.middleware._ENV_PATH", env_path), override_settings(
+            with patch.dict(os.environ, {"PORTAL_CONFIG_ENV_FILE": str(env_path)}), override_settings(
                 SETUP_WIZARD_REQUIRED=False
             ):
                 response = self._middleware()(request)
@@ -135,7 +136,7 @@ class SetupWizardFinalizeDatabaseTests(SimpleTestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             env_path = Path(tmpdir) / ".env"
             env_path.write_text("SETUP_COMPLETED=0\n", encoding="utf-8")
-            with patch("setup_wizard.middleware._ENV_PATH", env_path), override_settings(
+            with patch.dict(os.environ, {"PORTAL_CONFIG_ENV_FILE": str(env_path)}), override_settings(
                 SETUP_WIZARD_REQUIRED=True
             ):
                 response = self._middleware()(request)
@@ -143,13 +144,27 @@ class SetupWizardFinalizeDatabaseTests(SimpleTestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/setup/")
 
+    def test_persistent_env_wins_over_release_copy(self):
+        """Il flag nel .env persistente (ENV/config/.env) basta: una copia nella
+        release senza SETUP_COMPLETED non deve riaprire il wizard anonimo."""
+        from setup_wizard.state import setup_needed
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            persistent = Path(tmpdir) / "config.env"
+            persistent.write_text("SETUP_COMPLETED=1\n", encoding="utf-8")
+            with patch.dict(os.environ, {"PORTAL_CONFIG_ENV_FILE": str(persistent)}):
+                self.assertFalse(setup_needed())
+            persistent.write_text("SETUP_COMPLETED=0\n", encoding="utf-8")
+            with patch.dict(os.environ, {"PORTAL_CONFIG_ENV_FILE": str(persistent)}):
+                self.assertTrue(setup_needed())
+
     def test_allows_request_when_setup_is_completed(self):
         request = self.factory.get("/")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             env_path = Path(tmpdir) / ".env"
             env_path.write_text("SETUP_COMPLETED=1\n", encoding="utf-8")
-            with patch("setup_wizard.middleware._ENV_PATH", env_path), override_settings(
+            with patch.dict(os.environ, {"PORTAL_CONFIG_ENV_FILE": str(env_path)}), override_settings(
                 SETUP_WIZARD_REQUIRED=True
             ):
                 response = self._middleware()(request)

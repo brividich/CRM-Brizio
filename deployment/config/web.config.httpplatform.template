@@ -45,10 +45,10 @@
         processPath="%%VENV_PATH%%\Scripts\python.exe"
         arguments="-m waitress
                    --port=%%HTTP_PLATFORM_PORT%%
-                   --threads=8
-                   --backlog=128
+                   --threads=24
+                   --backlog=256
                    --channel-timeout=120
-                   --connection-limit=200
+                   --connection-limit=500
                    config.wsgi:application"
         stdoutLogEnabled="true"
         stdoutLogFile="%%LOGS_PATH%%\waitress_stdout.log"
@@ -99,7 +99,7 @@
     <!-- ================================================================
          Logging IIS (opzionale, aiuta debug)
          ================================================================ -->
-    <httpErrors errorMode="Detailed" />
+    <httpErrors errorMode="DetailedLocalOnly" />
 
     <!-- ================================================================
          Compressione HTTP
@@ -243,4 +243,52 @@
     </system.webServer>
   </location>
 
+
+  <!-- Allegati di modulo passati a storage privato (notizie, rentri, suggestion
+       corner) e file storici del Diario Preposto: i vecchi file restano in
+       /media/ ma si leggono SOLO dalle view Django protette. -->
+  <location path="media/notizie">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/rentri">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/suggestion_corner">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/diario_preposto">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
 </configuration>

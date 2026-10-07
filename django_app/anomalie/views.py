@@ -26,6 +26,7 @@ from core.csv_export import CSV_CONTENT_TYPE, bom_first, safe_csv_writer
 from core.acl import user_can_modulo_action
 from core.acl_v2 import request_has_permission_code
 from core.audit import log_action
+from core.net import client_ip as _client_ip
 from core.upload_mime import (
     UploadMimeValidationError,
     safe_filename,
@@ -2993,8 +2994,7 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
             user_display=identity.get("name") or request.user.username,
             previous_status=previous_status,
             new_status=new_status,
-            ip_address=(request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
-                        or request.META.get("REMOTE_ADDR") or None),
+            ip_address=_client_ip(request),
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
         )
     except Exception:

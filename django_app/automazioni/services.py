@@ -1929,6 +1929,9 @@ def _coerce_db_value(value: Any, data_type: str) -> Any:
     return value
 
 
+HTTP_ACTION_MAX_TIMEOUT_SECONDS = 30
+
+
 def _coerce_timeout_seconds(raw_value: Any, *, default: int = 20) -> int:
     try:
         timeout = int(raw_value)
@@ -1965,8 +1968,13 @@ def _http_request_payload(config: dict[str, Any], payload_context: Any) -> tuple
         for key, value in (headers_raw.items() if isinstance(headers_raw, dict) else [])
         if str(key).strip()
     }
+    # Solo http/https (niente file:, ftp:, gopher:...) e timeout limitato: una regola
+    # con timeout enorme bloccherebbe uno dei due worker django-q.
+    scheme = url.split(":", 1)[0].lower() if ":" in url else ""
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"http_request: schema URL non ammesso ({scheme or 'mancante'}). Usare http o https.")
     body = _render_action_value(config.get("body_template"), payload_context)
-    timeout_seconds = _coerce_timeout_seconds(config.get("timeout_seconds"), default=20)
+    timeout_seconds = min(_coerce_timeout_seconds(config.get("timeout_seconds"), default=20), HTTP_ACTION_MAX_TIMEOUT_SECONDS)
     expected_statuses = [
         int(status)
         for status in (config.get("expected_statuses") or [])
@@ -2386,21 +2394,11 @@ def _send_approval_teams_webhook_legacy(
                 "markdown": True,
             }
         ],
+        # OpenUri e non HttpPOST: la decisione si prende nel portale dopo il login,
+        # il POST anonimo da Teams non e' piu' accettato.
         "potentialAction": [
-            {
-                "@type": "HttpPOST",
-                "name": approve_label,
-                "target": approve_url,
-                "body": '{"action":"approve"}',
-                "bodyContentType": "application/json",
-            },
-            {
-                "@type": "HttpPOST",
-                "name": reject_label,
-                "target": reject_url,
-                "body": '{"action":"reject"}',
-                "bodyContentType": "application/json",
-            },
+            {"@type": "OpenUri", "name": approve_label, "targets": [{"os": "default", "uri": approve_url}]},
+            {"@type": "OpenUri", "name": reject_label, "targets": [{"os": "default", "uri": reject_url}]},
         ],
     }
     response = _perform_http_request(
@@ -3962,13 +3960,17 @@ def execute_action(
                 approved_actions=approved_actions,
                 rejected_actions=rejected_actions,
             )
-            approve_url, reject_url = _build_approval_links(approval)
+            # Link personali: ogni destinatario riceve il proprio segreto, cosi' la
+            # decisione e' attribuita a lui senza login (vedi approval_links.py).
+            from .approval_links import build_link_urls, create_link
 
-            # ── Se presente un template, rende il corpo HTML/text e opzionalmente
-            #    sovrascrive subject se non è stato valorizzato esplicitamente
-            html_body_override: str | None = None
-            text_body_override: str | None = None
-            if email_template is not None:
+            def _personal_links(email: str) -> tuple[str, str]:
+                return build_link_urls(create_link(approval, email))
+
+            def _render_with_template(approve_url: str, reject_url: str) -> tuple[str | None, str | None, str | None]:
+                """(subject, html, text) dal template email, oppure (None, None, None)."""
+                if email_template is None:
+                    return None, None, None
                 try:
                     from .approval_email_templates import build_template_context, render_approval_email
                     tpl_context = build_template_context(
@@ -3977,7 +3979,6 @@ def execute_action(
                         approve_url=approve_url,
                         reject_url=reject_url,
                     )
-                    # Aggiunge expires_at nel context per il rendering del template
                     if approval.expires_at:
                         tpl_context["expires_at"] = timezone.localtime(approval.expires_at).strftime("%d-%m-%Y %H:%M")
                     rendered = render_approval_email(
@@ -3989,10 +3990,10 @@ def execute_action(
                     # Usa il subject del template solo se non è stato esplicitamente
                     # configurato nella regola (config ha subject_template vuoto/default)
                     raw_rule_subject = str(config.get("subject_template") or "").strip()
+                    tpl_subject = None
                     if not raw_rule_subject or raw_rule_subject == "Richiesta di approvazione":
-                        subject = rendered["subject"] or subject
-                    html_body_override = rendered["html_body"]
-                    text_body_override = rendered["text_body"]
+                        tpl_subject = rendered["subject"] or None
+                    return tpl_subject, rendered["html_body"], rendered["text_body"]
                 except Exception:
                     logger.warning(
                         "send_approval: errore rendering ApprovalEmailTemplate id=%s. "
@@ -4000,12 +4001,11 @@ def execute_action(
                         getattr(email_template, "pk", "?"),
                         exc_info=True,
                     )
-                    html_body_override = None
-                    text_body_override = None
+                    return None, None, None
 
             result_message_parts = [
                 f"Richiesta approvazione creata per {', '.join(approver_emails)}.",
-                f"Token: {approval.token}.",
+                f"Richiesta #{approval.pk}.",
                 f"Scadenza: {expiry_days} giorni.",
             ]
             if email_template is not None:
@@ -4015,23 +4015,31 @@ def execute_action(
 
             try:
                 if delivery_mode in email_delivery_modes:
-                    result_message_parts.append(
+                    for approver_email in email_approver_emails:
+                        approve_url, reject_url = _personal_links(approver_email)
+                        tpl_subject, html_override, text_override = _render_with_template(approve_url, reject_url)
                         _send_approval_email(
-                            approver_emails=email_approver_emails,
-                            subject=subject,
+                            approver_emails=[approver_email],
+                            subject=tpl_subject or subject,
                             message_body=message_body,
                             approve_url=approve_url,
                             reject_url=reject_url,
                             approve_label=approve_label,
                             reject_label=reject_label,
                             expires_at=approval.expires_at,
-                            html_body_override=html_body_override,
-                            text_body_override=text_body_override,
+                            html_body_override=html_override,
+                            text_body_override=text_override,
                         )
+                    result_message_parts.append(
+                        f"Email approvazione inviata a {', '.join(email_approver_emails)}."
                     )
                     delivery_success = True
 
                 if delivery_mode == ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY:
+                    # Canale Teams condiviso: nessun destinatario individuale, quindi
+                    # nessun link personale. I pulsanti aprono la pagina portale, dove
+                    # si decide solo dopo il login come approvatore autorizzato.
+                    portal_approve_url, portal_reject_url = _build_approval_links(approval)
                     try:
                         result_message_parts.append(
                             _send_approval_teams_webhook_legacy(
@@ -4039,8 +4047,8 @@ def execute_action(
                                 payload_context=payload_context,
                                 subject=subject,
                                 message_body=message_body,
-                                approve_url=approve_url,
-                                reject_url=reject_url,
+                                approve_url=portal_approve_url,
+                                reject_url=portal_reject_url,
                                 approve_label=approve_label,
                                 reject_label=reject_label,
                             )
@@ -4051,14 +4059,15 @@ def execute_action(
 
                 if delivery_mode in flow_delivery_modes:
                     try:
+                        flow_approve_url, flow_reject_url = _personal_links(flow_recipient_email)
                         flow_result = _send_approval_teams_chat_flow(
                             config=config,
                             approval=approval,
                             payload_context=payload_context,
                             subject=subject,
                             message_body=message_body,
-                            approve_url=approve_url,
-                            reject_url=reject_url,
+                            approve_url=flow_approve_url,
+                            reject_url=flow_reject_url,
                         )
                         result_message_parts.append(flow_result["result_message"])
                         delivery_success = True
@@ -5067,7 +5076,12 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
         approval.status = decision
         approval.decided_by_email = decided_by_email or ""
         approval.decided_at = timezone.now()
-        approval.save(update_fields=["status", "decided_by_email", "decided_at"])
+        approval.branch_status = AutomationApproval.BranchStatus.RUNNING
+        approval.branch_progress = 0
+        approval.branch_updated_at = approval.decided_at
+        approval.save(update_fields=[
+            "status", "decided_by_email", "decided_at", "branch_status", "branch_progress", "branch_updated_at",
+        ])
 
         # Recupera il run_log originale e aggiorna il suo status
         run_log = approval.run_log
@@ -5077,21 +5091,60 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
         )
         run_log.save(update_fields=["status", "result_message"])
 
-    # Esegui le azioni del ramo corrispondente
-    branch_actions = approval.approved_actions if decision == "approved" else approval.rejected_actions
+    branch = run_approval_branch(approval)
+    return {
+        "ok": True,
+        "approval_id": approval.pk,
+        "decision": decision,
+        "actions_run": branch["actions_run"],
+        "actions_errors": branch["actions_errors"],
+        "message": (
+            f"Decisione '{decision}' elaborata. "
+            f"Azioni eseguite: {branch['actions_run']} (errori: {branch['actions_errors']})."
+        ),
+    }
+
+
+def run_approval_branch(approval) -> dict[str, int]:
+    """Esegue (o riprende) le azioni del ramo deciso, salvando il progresso dopo ognuna.
+
+    Riparte da ``branch_progress``: un ramo interrotto (crash, riavvio IIS) viene
+    ripreso da ``recover_approval_branches`` senza rieseguire le azioni completate.
+    Garanzia at-least-once sull'azione in corso al momento dell'interruzione.
+    """
+    from .models import AutomationApproval, AutomationRunLogStatus
+
+    decision = approval.status
+    branch_actions = list((approval.approved_actions if decision == "approved" else approval.rejected_actions) or [])
     payload = approval.resume_payload if isinstance(approval.resume_payload, dict) else {}
     old_payload = approval.resume_old_payload if isinstance(approval.resume_old_payload, dict) else None
+    run_log = approval.run_log
 
     actions_run = 0
     actions_errors = 0
-    for child_cfg in (branch_actions or []):
-        parent_action = approval.action
-        res = _execute_inline_action(child_cfg, payload, old_payload=old_payload, run_log=run_log, parent_action=parent_action)
+    errors: list[str] = []
+    start = int(approval.branch_progress or 0)
+    for index in range(start, len(branch_actions)):
+        res = _execute_inline_action(
+            branch_actions[index], payload, old_payload=old_payload, run_log=run_log, parent_action=approval.action
+        )
         actions_run += 1
-        if res.get("status") == AutomationActionLogStatus.ERROR:
+        failed = res.get("status") == AutomationActionLogStatus.ERROR
+        if failed:
             actions_errors += 1
-            if getattr(run_log.rule, "stop_on_first_failure", False):
-                break
+            errors.append(f"#{index + 1}: {str(res.get('result_message') or '')[:300]}")
+        AutomationApproval.objects.filter(pk=approval.pk).update(
+            branch_progress=index + 1, branch_updated_at=timezone.now()
+        )
+        if failed and getattr(run_log.rule, "stop_on_first_failure", False):
+            break
+
+    final_status = (
+        AutomationApproval.BranchStatus.PARTIAL_ERROR if actions_errors else AutomationApproval.BranchStatus.DONE
+    )
+    AutomationApproval.objects.filter(pk=approval.pk).update(
+        branch_status=final_status, branch_error="\n".join(errors), branch_updated_at=timezone.now()
+    )
 
     if actions_errors:
         run_log.status = AutomationRunLogStatus.ERROR
@@ -5101,14 +5154,4 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
         run_log.status = AutomationRunLogStatus.WAITING_APPROVAL
         run_log.save(update_fields=["status"])
 
-    return {
-        "ok": True,
-        "approval_id": approval.pk,
-        "decision": decision,
-        "actions_run": actions_run,
-        "actions_errors": actions_errors,
-        "message": (
-            f"Decisione '{decision}' elaborata. "
-            f"Azioni eseguite: {actions_run} (errori: {actions_errors})."
-        ),
-    }
+    return {"actions_run": actions_run, "actions_errors": actions_errors}

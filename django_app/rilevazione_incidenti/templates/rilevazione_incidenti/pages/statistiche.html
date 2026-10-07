@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load safe_json %}
 {% load static %}
 
 {% block title %}Statistiche Sicurezza | Portale Applicativo{% endblock %}
@@ -297,10 +298,10 @@ body.theme-dark .sic-error { background:rgba(153,27,27,.2); border-color:rgba(25
 </div>
 
 <script>
-const _tipologie = {{ chart_tipologie|safe }};
-const _stati     = {{ chart_stati|safe }};
-const _trend     = {{ chart_trend|safe }};
-const _reparti   = {{ chart_reparti|safe }};
+const _tipologie = {{ chart_tipologie|js_json }};
+const _stati     = {{ chart_stati|js_json }};
+const _trend     = {{ chart_trend|js_json }};
+const _reparti   = {{ chart_reparti|js_json }};
 
 Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 Chart.defaults.font.size = 12;

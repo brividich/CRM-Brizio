@@ -11604,7 +11604,9 @@ def documento_sposta_cartella(request, doc_id: int):
     doc.save(update_fields=["cartella"])
     messages.success(request, "Documento spostato.")
     nxt = request.POST.get("next") or ""
-    if nxt.startswith("/") and not nxt.startswith("//"):
+    from core.redirects import safe_next
+
+    if nxt and safe_next(request, nxt, "") == nxt:
         return redirect(nxt)
     return redirect("anagrafica:documenti_list")
 
@@ -14565,7 +14567,9 @@ def formazione_rinnovo_da_scadenzario(request):
                 ids.append(lid)
     if not ids:
         messages.warning(request, "Nessun dipendente selezionato.")
-        return redirect(request.POST.get("back") or "anagrafica:scadenzario")
+        from core.redirects import safe_next
+
+        return redirect(safe_next(request, request.POST.get("back"), reverse("anagrafica:scadenzario")))
     request.session["rinnovo_preselect"] = {"corso": corso.pk, "ids": ids}
     messages.info(request, f"{len(ids)} dipendenti pronti per il rinnovo: compila la sessione.")
     return redirect(f"{reverse('anagrafica:formazione_sessione_create')}?corso={corso.pk}")
@@ -18871,7 +18875,9 @@ def formazione_elearning_publish_toggle(request, corso_id: int):
             messages.success(request, "Corso pubblicato: ora visibile in «Corsi online».")
     # Ritorna alla pagina di provenienza interna, altrimenti alla cabina di regia
     nxt = request.POST.get("next") or ""
-    if nxt.startswith("/") and not nxt.startswith("//"):
+    from core.redirects import safe_next
+
+    if nxt and safe_next(request, nxt, "") == nxt:
         return redirect(nxt)
     return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
 

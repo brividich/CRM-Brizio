@@ -23,20 +23,12 @@ from config.env_config import update_env_file_values
 
 # Percorsi assoluti calcolati relativamente a questo file
 # setup_wizard/views.py → django_app/ → progetto root
+from .state import runtime_env_path, setup_needed as _setup_needed
+
 _APP_DIR = Path(__file__).resolve().parent.parent       # django_app/
-_ENV_PATH = _APP_DIR / ".env"
+# Stesso .env del runtime (in TEST/PROD: ENV/config/.env), non la copia nella release.
+_ENV_PATH = runtime_env_path()
 _BRANDING_DIR = _APP_DIR / "core" / "static" / "core" / "img"
-
-
-def _setup_needed() -> bool:
-    if not _ENV_PATH.exists():
-        return True
-    for raw in _ENV_PATH.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if line.startswith("SETUP_COMPLETED="):
-            val = line.split("=", 1)[1].strip().strip("'\"")
-            return val not in ("1", "true", "yes")
-    return True
 
 
 # Estensioni immagine ammesse per logo/favicon caricati dal wizard. Funge da

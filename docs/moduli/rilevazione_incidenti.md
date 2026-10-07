@@ -21,3 +21,7 @@ Segnalazione e tracciamento incidenti/mancati incidenti con **SharePoint** come 
 - **KPI sicurezza**: TRIR, giorni senza infortuni, headcount anagrafica e trend mensile pubblicati anche nel dashboard hub
 - **Heatmap planimetria** in `/rilevazione-incidenti/heatmap/` con FK opzionale ad area layout e overlay SVG dei punti incidente
 - **Statistiche** per reparto, causa, gravità e categoria evento
+
+## Hardening ottobre 2026
+
+- In modalità SharePoint la lista è in cache per 60 secondi (invalidata a ogni creazione/modifica/eliminazione) e la paginazione Graph ha un tempo massimo di 45 secondi: lista, statistiche ed export non tengono più occupato un thread per ogni apertura.

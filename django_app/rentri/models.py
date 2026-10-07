@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 
+from core.private_attachments import PrivateAttachmentStorage
+
 
 class RegistroRifiuti(models.Model):
     TIPO_CHOICES = [
@@ -27,7 +29,13 @@ class RegistroRifiuti(models.Model):
     arrivo_fir = models.CharField(max_length=200, blank=True, default="")
     aggiornato = models.DateTimeField(null=True, blank=True)
     # Solo per tipo=C
-    allegato = models.FileField(upload_to="rentri/allegati/", null=True, blank=True)
+    # Storage privato (formulari rifiuti): mai serviti da /media/.
+    allegato = models.FileField(
+        upload_to="rentri/allegati/",
+        storage=PrivateAttachmentStorage(download_hint="Allegato RENTRI: non esposto via URL."),
+        null=True,
+        blank=True,
+    )
     sharepoint_item_id = models.CharField(max_length=64, blank=True, default="")
     inserito_da = models.CharField(max_length=200, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)

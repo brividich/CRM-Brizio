@@ -4043,7 +4043,7 @@ Write-Host "OK $taskName"
            modules="httpPlatformHandler" resourceType="Unspecified" requireAccess="Script" />
     </handlers>
     <httpPlatform processPath="{venv}\\Scripts\\python.exe"
-        arguments="-m waitress --port=%HTTP_PLATFORM_PORT% --threads=8 config.wsgi:application"
+        arguments="-m waitress --port=%HTTP_PLATFORM_PORT% --threads=24 --connection-limit=500 config.wsgi:application"
         stdoutLogEnabled="true" stdoutLogFile="{logs}\\waitress_stdout.log"
         startupTimeLimit="120" startupRetryCount="3" requestTimeout="00:04:00">
       <environmentVariables>
@@ -4067,6 +4067,15 @@ Write-Host "OK $taskName"
           modules="StaticFileModule" resourceType="File" /></handlers>
     </system.webServer>
   </location>
+  <!-- Allegati privati: i file storici restano in /media/ ma passano solo dalle view Django -->
+  <location path="media/tickets"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/assets_documents"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/assets_workorders"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/notizie"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/rentri"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/suggestion_corner"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media/diario_preposto"><system.webServer><security><requestFiltering><denyUrlSequences><add sequence="." /></denyUrlSequences></requestFiltering></security></system.webServer></location>
+  <location path="media_private"><system.webServer><security><authorization><remove users="*" roles="" verbs="" /><add accessType="Deny" users="*" /></authorization></security></system.webServer></location>
 </configuration>"""
         (ep/"web.config").write_text(xml, encoding="utf-8")
 
