@@ -90,6 +90,7 @@ def tickets_list(request):
             "filters": {"status": status, "severity": severity, "assignee": assignee, "origin": origin, "q": query},
             "status_choices": [(value, value) for value in CASE_STATUSES],
             "severity_choices": Severity.choices,
+            "users": _assignable_users(),
         },
     )
 

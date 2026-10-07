@@ -79,6 +79,16 @@
   </aside>
 </section>
 
+<section class="sec-panel ai-panel" style="margin-top: 12px;">
+  <div class="sec-section-head">
+    <h2>Controllo con l'AI</h2>
+    <form method="post" action="{% url 'security:incident_ai_check' incident.pk %}" hx-post="{% url 'security:incident_ai_check' incident.pk %}" hx-target="#inc-ai-out">
+      {% csrf_token %}<button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta controllando…">Controlla l'incidente</button>
+    </form>
+  </div>
+  <div id="inc-ai-out"><p class="sec-muted sec-small" style="margin:0;">L'AI locale verifica cosa manca per notifiche e audit, lo stato delle scadenze e propone i prossimi passi. Nessun dato esce dall'azienda.</p></div>
+</section>
+
 <section class="sec-grid sec-two-col" style="margin-top: 12px;">
   <div class="sec-panel">
     <div class="sec-section-head"><h2>Impatto e gestione</h2></div>

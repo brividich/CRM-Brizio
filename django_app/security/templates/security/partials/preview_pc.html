@@ -1,0 +1,22 @@
+{% load security_i18n %}
+{% with b=pc.backup %}
+<header class="pv-head">
+  <div class="pv-badges"><span class="sec-badge sec-badge-{{ pc.status.0 }}">{{ pc.status.1 }}</span>{% if pc.asset_type %}<span class="sec-badge sec-badge-muted">{{ pc.asset_type }}</span>{% endif %}</div>
+  <h2>{{ pc.name }}</h2>
+  <p class="pv-sub">{% if pc.ip %}{{ pc.ip }} · {% endif %}{% if pc.sources %}{{ pc.sources|join:", " }}{% else %}solo report di backup{% endif %}</p>
+</header>
+<dl class="pv-facts">
+  <div><dt>Backup</dt><dd>{% if b %}<span class="pc-tone-{{ b.last_tone }}">{{ b.last_label }}</span>{% else %}nessun dato{% endif %}</dd></div>
+  <div><dt>Ultimo riuscito</dt><dd>{% if b and b.last_ok %}{{ b.last_ok|date:"d/m H:i" }}{% else %}—{% endif %}</dd></div>
+  <div><dt>Alert aperti</dt><dd>{{ pc.alert_count }}</dd></div>
+  <div><dt>Vulnerabilità</dt><dd>{{ pc.vuln_count }}</dd></div>
+</dl>
+{% if b %}<div class="bk-strip bk-strip-lg">{% for s in b.strip %}<i class="bk-dot bk-{{ s.tone }}" title="{{ s.at|date:'d/m H:i' }} · {{ s.label }}"></i>{% endfor %}</div>{% endif %}
+{% if pc.alerts %}<h3 class="pv-h">Alert</h3><ul class="pv-list">{% for a in pc.alerts|slice:":4" %}<li><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-badge {{ a.severity }}">{{ a.severity|ui_label }}</span></li>{% endfor %}</ul>{% endif %}
+{% if pc.vulns %}<h3 class="pv-h">Vulnerabilità</h3><ul class="pv-list">{% for v in pc.vulns|slice:":4" %}<li><span><strong>{{ v.cve }}</strong> {{ v.affected_product|truncatechars:40 }}</span><small>CVSS {{ v.cvss|floatformat:1 }}</small></li>{% endfor %}</ul>{% endif %}
+<section class="pv-ai">
+  <form method="post" action="{% url 'security:pc_ai_check' %}" data-drawer-form data-drawer-target="#pv-ai-out">{% csrf_token %}<input type="hidden" name="nome" value="{{ pc.name }}"><button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta controllando il PC…">Controlla con l'AI</button></form>
+  <div id="pv-ai-out" class="pv-ai-out" aria-live="polite"></div>
+</section>
+<footer class="pv-foot"><a class="sec-button sec-button-primary" href="{% url 'security:pc_detail' %}?nome={{ name_q }}">Apri la scheda PC</a>{% if pc.hub_asset %}<a class="sec-button" href="{% url 'assets:asset_view' pc.hub_asset.id %}">Asset nel portale</a>{% endif %}</footer>
+{% endwith %}

@@ -147,13 +147,16 @@ def alerts_list(request):
     # Conteggi per severità calcolati PRIMA del filtro severità: i chip mostrano quanti
     # alert ci sono per ciascuna severità con gli altri filtri applicati.
     severity_counts = {row["severity"]: row["n"] for row in alerts.order_by().values("severity").annotate(n=Count("id"))}
-    severity = request.GET.get("severity", "")
-    if severity in {s[0] for s in Severity.choices}:
-        alerts = alerts.filter(severity=severity)
+    # Gravità a scelta multipla: ogni chip accende o spegne la sua gravità (?severity=critical&severity=high).
+    valid = {s[0] for s in Severity.choices}
+    severities = [value for value in request.GET.getlist("severity") if value in valid]
+    if severities:
+        alerts = alerts.filter(severity__in=severities)
 
     total = alerts.count()
     severity_chips = [
-        {"value": value, "count": severity_counts.get(value, 0), "active": severity == value}
+        {"value": value, "count": severity_counts.get(value, 0), "active": value in severities,
+         "toggle": _toggle_query(request, "severity", value)}
         for value, _label in reversed(Severity.choices)
     ]
     context = {
@@ -165,10 +168,19 @@ def alerts_list(request):
         "severity_choices": Severity.choices,
         "status_choices": Status.choices,
         "filters": request.GET,
+        "selected_severities": severities,
         "query_without_severity": _querystring_without(request, "severity"),
         "open_cases": _open_cases(),
     }
     return render(request, "security/alerts_list.html", context)
+
+
+def _toggle_query(request, key, value):
+    """Query string con ``value`` aggiunto o tolto dalla lista ``key`` (filtri a scelta multipla)."""
+    params = request.GET.copy()
+    values = params.getlist(key)
+    params.setlist(key, [v for v in values if v != value] if value in values else values + [value])
+    return params.urlencode()
 
 
 def _querystring_without(request, key):

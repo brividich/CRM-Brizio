@@ -7,6 +7,7 @@
 {% block page_title %}Registro incidenti{% endblock %}
 
 {% block soc_content %}
+{% include "security/partials/tip.html" with tip_id="incidents-v1" tip="<strong>Clic su una riga</strong> per scadenze e controllo dell'AI senza uscire dall'elenco; seleziona più incidenti per prenderli in carico o cambiarne lo stato." %}
 {% if urgent %}
 <section class="sec-panel sec-callout sec-callout-warning" role="alert">
   <div class="sec-section-head"><h2>Notifiche da inviare</h2><span class="sec-badge sec-badge-critical">{{ urgent|length }}</span></div>
@@ -60,12 +61,25 @@
     <h2>Incidenti</h2>
     <span class="sec-badge">{% if total > incidents|length %}Mostrati {{ incidents|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
   </div>
+  <form method="post" action="{% url 'security:incidents_bulk' %}" data-bulk>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <div class="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+    <select name="action" aria-label="Azione sugli incidenti selezionati">
+      <option value="owner_me">Diventa responsabile</option>
+      <option value="status">Cambia stato</option>
+    </select>
+    <select name="status" aria-label="Nuovo stato" data-show-for="status">{% for value, label in status_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Applica</button>
+  </div>
   <div class="sec-table-wrap">
     <table class="sec-table">
-      <thead><tr><th>Codice</th><th>Stato</th><th>Gravità</th><th>Incidente</th><th>Rilevato</th><th>Prossima scadenza</th><th>Responsabile</th></tr></thead>
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti"></th><th>Codice</th><th>Stato</th><th>Gravità</th><th>Incidente</th><th>Rilevato</th><th>Prossima scadenza</th><th>Responsabile</th></tr></thead>
       <tbody>
       {% for incident in incidents %}
-        <tr class="sec-row-link">
+        <tr class="sec-row-link" data-preview="{% url 'security:preview' 'incident' incident.pk %}">
+          <td class="sec-check-col"><input type="checkbox" name="incident_ids" value="{{ incident.pk }}" class="sec-bulk-item" aria-label="Seleziona {{ incident.code }}"></td>
           <td class="sec-nowrap"><a href="{% url 'security:incident_detail' incident.pk %}">{{ incident.code }}</a></td>
           <td><span class="sec-badge {% if incident.status == 'open' %}open{% elif incident.status == 'closed' %}closed{% else %}sec-badge-muted{% endif %}">{{ incident.get_status_display }}</span></td>
           <td><span class="sec-badge {{ incident.severity }}">{{ incident.severity|ui_label }}</span></td>
@@ -84,10 +98,11 @@
           <td>{% if incident.owner %}{{ incident.owner.get_full_name|default:incident.owner.username }}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="7" class="sec-empty">Nessun incidente corrisponde ai filtri.</td></tr>
+        <tr><td colspan="8" class="sec-empty">Nessun incidente corrisponde ai filtri.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  </form>
 </section>
 {% endblock %}

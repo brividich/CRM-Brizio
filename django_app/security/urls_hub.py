@@ -7,7 +7,7 @@ API REST e mailbox-admin restano fuori (arrivano più avanti).
 from django.http import JsonResponse
 from django.urls import path
 
-from . import api, views, views_backup, views_cases, views_events, views_incidents, views_report, views_soc, views_work
+from . import api, views, views_backup, views_cases, views_events, views_incidents, views_report, views_live, views_soc, views_work
 
 from .permissions import soc_view_required as _guard
 
@@ -50,6 +50,15 @@ urlpatterns = [
     path("incidenti/<int:pk>/note/", views_incidents.incident_note, name="incident_note"),
     path("incidenti/<int:pk>/ticket/", views_incidents.incident_link_case, name="incident_link_case"),
     path("incidenti/<int:pk>/pdf/", views_incidents.incident_pdf, name="incident_pdf"),
+    path("stato/", views_live.live_strip, name="live_strip"),
+    path("anteprima/pc/", views_live.preview, {"kind": "pc"}, name="preview_pc"),
+    path("anteprima/<slug:kind>/<int:pk>/", views_live.preview, name="preview"),
+    path("incidenti/<int:pk>/ai/", views_live.incident_ai_check, name="incident_ai_check"),
+    path("pc/ai/", views_live.pc_ai_check, name="pc_ai_check"),
+    path("tickets/bulk/", views_live.tickets_bulk, name="tickets_bulk"),
+    path("incidenti/bulk/", views_live.incidents_bulk, name="incidents_bulk"),
+    path("eventi/bulk/", views_live.events_bulk, name="events_bulk"),
+    path("backup/ticket/", views_live.backup_bulk_case, name="backup_bulk_case"),
     path("impostazioni/", views_work.settings_page, name="soc_settings"),
     path("impostazioni/esegui/", views_work.settings_run_now, name="soc_settings_run"),
     path("mio-lavoro/", views_work.my_work, name="my_work"),

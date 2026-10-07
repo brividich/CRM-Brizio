@@ -40,6 +40,16 @@
   </div>
 </section>
 
+<section class="sec-panel ai-panel" style="margin-top: 12px;">
+  <div class="sec-section-head">
+    <h2>Controllo con l'AI</h2>
+    <form method="post" action="{% url 'security:pc_ai_check' %}" hx-post="{% url 'security:pc_ai_check' %}" hx-target="#pc-ai-out">
+      {% csrf_token %}<input type="hidden" name="nome" value="{{ pc.name }}"><button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta controllando…">Controlla il dispositivo</button>
+    </form>
+  </div>
+  <div id="pc-ai-out"><p class="sec-muted sec-small" style="margin:0;">L'AI locale legge backup, alert, vulnerabilità e protezione del dispositivo e dice cosa rischia e cosa fare.</p></div>
+</section>
+
 <section class="sec-grid sec-two-col" style="margin-top: 12px; align-items: start;">
   <div class="sec-panel" id="backup">
     <div class="sec-section-head"><h2>Backup</h2>{% if b %}<a class="sec-small" href="{% url 'security:backup_log' %}?q={{ pc.name|urlencode }}">Log completo</a>{% endif %}</div>

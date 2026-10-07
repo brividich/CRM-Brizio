@@ -7,15 +7,16 @@
 {% block page_title %}Coda alert{% endblock %}
 
 {% block soc_content %}
+{% include "security/partials/tip.html" with tip_id="alerts-v1" tip="<strong>Clic su una riga</strong> per l'anteprima con azioni e spiegazione dell'AI, <kbd>←</kbd> <kbd>→</kbd> per scorrere. Seleziona più alert (anche con <kbd>Maiusc</kbd>+clic) per agire su tutti insieme. Le gravità si combinano: clicca più chip." %}
 <section class="sec-panel">
   <div class="sec-chip-row" aria-label="Filtra per severità">
     <a class="sec-chip{% if not filters.severity %} is-active{% endif %}" href="?{{ query_without_severity }}">Tutte <strong>{{ all_count }}</strong></a>
     {% for chip in severity_chips %}
-      <a class="sec-chip sev-{{ chip.value }}{% if chip.active %} is-active{% endif %}{% if not chip.count %} is-empty{% endif %}" href="?{% if query_without_severity %}{{ query_without_severity }}&amp;{% endif %}severity={{ chip.value }}">{{ chip.value|ui_label }} <strong>{{ chip.count }}</strong></a>
+      <a class="sec-chip sev-{{ chip.value }}{% if chip.active %} is-active{% endif %}{% if not chip.count %} is-empty{% endif %}" href="?{{ chip.toggle }}" aria-pressed="{% if chip.active %}true{% else %}false{% endif %}" title="Clic per {% if chip.active %}togliere{% else %}aggiungere{% endif %} questa gravità">{{ chip.value|ui_label }} <strong>{{ chip.count }}</strong></a>
     {% endfor %}
   </div>
   <form class="sec-filter-bar" method="get">
-    {% if filters.severity %}<input type="hidden" name="severity" value="{{ filters.severity }}">{% endif %}
+    {% for value in selected_severities %}<input type="hidden" name="severity" value="{{ value }}">{% endfor %}
     <label>Stato
       <select name="status">
         <option value="">Tutti</option>
@@ -44,11 +45,11 @@
     <h2>Alert</h2>
     <span class="sec-badge">{% if total > alerts|length %}Mostrati {{ alerts|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
   </div>
-  <form id="sec-bulk-form" method="post" action="{% url 'security:alerts_bulk' %}">
+  <form id="sec-bulk-form" method="post" action="{% url 'security:alerts_bulk' %}" data-bulk>
   {% csrf_token %}
   <input type="hidden" name="next" value="{{ request.get_full_path }}">
   <div class="sec-bulk-bar" id="sec-bulk-bar">
-    <span class="sec-bulk-count"><strong id="sec-bulk-n">0</strong> selezionati</span>
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
     <select name="action" id="sec-bulk-action" aria-label="Azione sugli alert selezionati">
       <option value="acknowledge">Prendi in carico</option>
       <option value="open_case">Apri un ticket con i selezionati</option>
@@ -56,21 +57,21 @@
       <option value="close">Chiudi</option>
       <option value="false_positive">Segna falso positivo</option>
     </select>
-    <input type="text" name="title" id="sec-bulk-title" placeholder="Titolo del ticket (facoltativo)" hidden>
+    <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" data-show-for="open_case">
     {% if open_cases %}
-      <select name="case_id" id="sec-bulk-case" aria-label="Ticket di destinazione" hidden>
+      <select name="case_id" aria-label="Ticket di destinazione" data-show-for="add_to_case">
         {% for case in open_cases %}<option value="{{ case.pk }}">#{{ case.pk }} · {{ case.title|truncatechars:60 }}</option>{% endfor %}
       </select>
     {% endif %}
-    <input type="text" name="reason" id="sec-bulk-reason" placeholder="Motivo (facoltativo)">
-    <button type="submit" class="sec-button-primary" id="sec-bulk-go" disabled>Applica</button>
+    <input type="text" name="reason" placeholder="Motivo (facoltativo)" data-show-for="acknowledge close false_positive">
+    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Applica</button>
   </div>
   <div class="sec-table-wrap">
     <table class="sec-table">
-      <thead><tr><th class="sec-check-col"><input type="checkbox" id="sec-bulk-all" aria-label="Seleziona tutti"></th><th>Severità</th><th>Alert</th><th>Sorgente</th><th>Asset</th><th>Stato</th><th>Ultimo evento</th><th>Responsabile</th><th>Ticket</th></tr></thead>
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti"></th><th>Severità</th><th>Alert</th><th>Sorgente</th><th>Asset</th><th>Stato</th><th>Ultimo evento</th><th>Responsabile</th><th>Ticket</th></tr></thead>
       <tbody>
       {% for alert in alerts %}
-        <tr>
+        <tr data-preview="{% url 'security:preview' 'alert' alert.pk %}">
           <td class="sec-check-col"><input type="checkbox" name="alert_ids" value="{{ alert.pk }}" class="sec-bulk-item" aria-label="Seleziona {{ alert.title }}"></td>
           <td><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></td>
           <td class="sec-title-cell"><a href="{% url 'security:alert_detail' alert.pk %}"><strong>{{ alert.title }}</strong></a><small>{{ alert.short_dedup_hash }}{% if alert.evidence_count %} · evidenze {{ alert.evidence_count }}{% endif %}</small></td>
@@ -89,40 +90,4 @@
   </div>
   </form>
 </section>
-<script>
-(function () {
-  var form = document.getElementById("sec-bulk-form");
-  if (!form) return;
-  var items = form.querySelectorAll(".sec-bulk-item");
-  var all = document.getElementById("sec-bulk-all");
-  var count = document.getElementById("sec-bulk-n");
-  var go = document.getElementById("sec-bulk-go");
-  var action = document.getElementById("sec-bulk-action");
-  var title = document.getElementById("sec-bulk-title");
-  var caseSel = document.getElementById("sec-bulk-case");
-  function refresh() {
-    var n = form.querySelectorAll(".sec-bulk-item:checked").length;
-    count.textContent = n;
-    go.disabled = n === 0;
-    form.classList.toggle("has-selection", n > 0);
-    all.checked = n > 0 && n === items.length;
-    all.indeterminate = n > 0 && n < items.length;
-  }
-  var reason = document.getElementById("sec-bulk-reason");
-  function syncAction() {
-    title.hidden = action.value !== "open_case";
-    if (caseSel) caseSel.hidden = action.value !== "add_to_case";
-    reason.hidden = action.value === "open_case" || action.value === "add_to_case";
-  }
-  // «Seleziona tutti» prende solo le righe visibili (la ricerca della tabella nasconde le altre).
-  all.addEventListener("change", function () {
-    items.forEach(function (box) { if (box.offsetParent !== null || !all.checked) box.checked = all.checked; });
-    refresh();
-  });
-  items.forEach(function (box) { box.addEventListener("change", refresh); });
-  action.addEventListener("change", syncAction);
-  syncAction();
-  refresh();
-})();
-</script>
 {% endblock %}
