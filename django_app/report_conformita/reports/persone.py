@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import timedelta
 
-from ..people import cessati_ids, persone
+from ..people import persone
 from ..registry import (
     AREA_PERSONE,
     EN_9100,
@@ -32,60 +32,50 @@ _STATI_COPERTI = {"VALIDO", "IN_SCADENZA_30", "IN_SCADENZA_90", "UNA_TANTUM"}
 
 
 def _competenze(params: ReportParams) -> ReportResult:
-    from anagrafica.models import DipendenteQualifica, TrainingDeadline
+    from anagrafica.models import DipendenteQualifica
+    from anagrafica.reportistica import calcoli
+    from anagrafica.reportistica.dati import Contesto, Perimetro
 
     result = ReportResult()
-    esclusi = cessati_ids(params.today)
+    # Stesso calcolo della reportistica di anagrafica: personale in forza oggi,
+    # requisiti dalle fonti del libretto sanitario, stato calcolato alla data.
+    ctx = Contesto(date_from=params.date_from, date_to=params.date_to, perimetro=Perimetro(), today=params.today)
+    in_forza = {p.id: p for p in ctx.dipendenti()}
 
-    scadenze = list(
-        TrainingDeadline.objects.filter(is_required=True)
-        .exclude(legacy_anagrafica_id__in=esclusi)
-        .select_related("corso")
-        .only("legacy_anagrafica_id", "stato_scadenza", "data_scadenza", "corso__titolo", "corso__codice")
-    )
-    totale_req = len(scadenze)
-    coperti = sum(1 for s in scadenze if s.stato_scadenza in _STATI_COPERTI)
+    voci = [v for v in calcoli.formazione(ctx, in_forza) if v.obbligatorio]
+    totale_req = len(voci)
+    coperti = sum(1 for v in voci if v.stato in _STATI_COPERTI)
     conteggi = defaultdict(int)
-    for s in scadenze:
-        conteggi[s.stato_scadenza] += 1
+    for v in voci:
+        conteggi[v.stato] += 1
 
     limite_qualifiche = params.today + timedelta(days=60)
-    qualifiche = list(
-        DipendenteQualifica.objects.filter(data_scadenza__isnull=False, data_scadenza__lte=limite_qualifiche)
-        .exclude(legacy_anagrafica_id__in=esclusi)
-        .select_related("tipo")
-        .order_by("data_scadenza")
+    correnti, _sostituite = calcoli.qualifiche_correnti(ctx, DipendenteQualifica.objects.all(), in_forza)
+    qualifiche = sorted(
+        (q for q in correnti.values() if q.data_scadenza and q.data_scadenza <= limite_qualifiche),
+        key=lambda q: q.data_scadenza,
     )
-    # Una qualifica rinnovata lascia la riga vecchia: conta solo l'ultima per tipo.
-    rinnovate = {
-        (q["legacy_anagrafica_id"], q["tipo_id"])
-        for q in DipendenteQualifica.objects.filter(data_scadenza__gt=limite_qualifiche).values(
-            "legacy_anagrafica_id", "tipo_id"
-        )
-    }
-    qualifiche = [q for q in qualifiche if (q.legacy_anagrafica_id, q.tipo_id) not in rinnovate]
-
-    ko = [s for s in scadenze if s.stato_scadenza in _STATI_KO]
-    anag = persone([s.legacy_anagrafica_id for s in ko] + [q.legacy_anagrafica_id for q in qualifiche])
 
     result.columns = ["Dipendente", "Reparto", "Tipo", "Voce", "Scadenza", "Stato"]
     righe = []
-    for s in ko:
-        p = anag.get(s.legacy_anagrafica_id)
-        tone = TONE_WARN if s.stato_scadenza == "IN_SCADENZA_30" else TONE_DANGER
-        corso = getattr(s.corso, "titolo", "") or getattr(s.corso, "codice", "")
-        righe.append(((p.reparto if p else ""), (p.nominativo if p else ""),
-                      [p.nominativo if p else "", p.reparto if p else "", "Formazione obbligatoria",
-                       corso, d(s.data_scadenza), _STATI_KO[s.stato_scadenza]], tone))
+    for v in voci:
+        if v.stato not in _STATI_KO:
+            continue
+        p = in_forza[v.persona]
+        tone = TONE_WARN if v.stato == "IN_SCADENZA_30" else TONE_DANGER
+        corso = getattr(v.corso, "titolo", "") or getattr(v.corso, "codice", "")
+        righe.append((p.reparto, p.nominativo,
+                      [p.nominativo, p.reparto, "Formazione obbligatoria", corso, d(v.scadenza), _STATI_KO[v.stato]],
+                      tone))
     qual_scadute = 0
     for q in qualifiche:
-        p = anag.get(q.legacy_anagrafica_id)
+        p = in_forza[ctx.canonico(q.legacy_anagrafica_id)]
         stato, tone = scadenza_stato(q.data_scadenza, params.today, preavviso=60)
         if tone == TONE_DANGER:
             qual_scadute += 1
-        righe.append(((p.reparto if p else ""), (p.nominativo if p else ""),
-                      [p.nominativo if p else "", p.reparto if p else "", "Qualifica",
-                       getattr(q.tipo, "nome", ""), d(q.data_scadenza), stato], tone))
+        righe.append((p.reparto, p.nominativo,
+                      [p.nominativo, p.reparto, "Qualifica", getattr(q.tipo, "nome", ""), d(q.data_scadenza), stato],
+                      tone))
     for _rep, _nom, values, tone in sorted(righe, key=lambda r: (r[0].casefold(), r[1].casefold())):
         result.add_row(values, tone)
 
@@ -99,7 +89,8 @@ def _competenze(params: ReportParams) -> ReportResult:
         Kpi("Qualifiche scadute", qual_scadute, TONE_DANGER if qual_scadute else TONE_OK),
     ]
     result.notes = [
-        "Solo dipendenti in forza. Requisiti di formazione derivati da mansione, ruolo e regole (scadenzario formazione).",
+        "Solo dipendenti in forza. Requisiti di formazione da mansione e fattori di rischio, area, ruoli operativi, "
+        "regole in vigore e processi qualificati; stato calcolato alla data odierna dall'ultimo completamento idoneo.",
         "Righe: requisiti scaduti, mai frequentati o in scadenza entro 30 giorni; qualifiche scadute o in scadenza entro 60.",
     ]
     result.links = links(("Scadenzario formazione", "anagrafica:formazione_scadenzario"),

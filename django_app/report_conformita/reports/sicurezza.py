@@ -182,14 +182,19 @@ def _scadenziario_legale(params: ReportParams) -> ReportResult:
     esclusi = cessati_ids(oggi)
     voci = []
 
+    ctx = in_forza = None
     try:
-        from anagrafica.models import TrainingDeadline
+        from anagrafica.reportistica import calcoli
+        from anagrafica.reportistica.dati import Contesto, Perimetro
 
-        qs = TrainingDeadline.objects.filter(is_required=True).exclude(legacy_anagrafica_id__in=esclusi)
+        # Stato calcolato alla data (non la cache delle scadenze), personale in forza.
+        ctx = Contesto(date_from=params.date_from, date_to=params.date_to, perimetro=Perimetro(), today=oggi)
+        in_forza = {p.id: p for p in ctx.dipendenti()}
+        richieste = [v for v in calcoli.formazione(ctx, in_forza) if v.obbligatorio]
         voci.append(_conta(
             "Formazione obbligatoria", "D.Lgs. 81/08 artt. 36-37, Accordo Stato-Regioni",
-            qs.filter(stato_scadenza__in=("SCADUTO", "MAI_FREQUENTATO")).count(),
-            qs.filter(stato_scadenza="IN_SCADENZA_30").count(), qs.count(),
+            sum(1 for v in richieste if v.stato in ("SCADUTO", "MAI_FREQUENTATO")),
+            sum(1 for v in richieste if v.stato == "IN_SCADENZA_30"), len(richieste),
             "anagrafica:formazione_scadenzario",
         ))
     except Exception:
@@ -199,7 +204,10 @@ def _scadenziario_legale(params: ReportParams) -> ReportResult:
         from anagrafica.models import VisitaMedica
         from anagrafica.services.visite import ultime_visite_correnti_ids
 
-        correnti = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids(), data_scadenza__isnull=False)
+        # Visite correnti del solo personale in forza (stessa regola degli altri ambiti).
+        ids_visite = (ultime_visite_correnti_ids(ctx.id_estesi(in_forza), includi_cessati=True)
+                      if in_forza is not None else ultime_visite_correnti_ids())
+        correnti = VisitaMedica.objects.filter(id__in=ids_visite, data_scadenza__isnull=False)
         voci.append(_conta(
             "Sorveglianza sanitaria (visite)", "D.Lgs. 81/08 art. 41",
             correnti.filter(data_scadenza__lt=oggi).count(),
