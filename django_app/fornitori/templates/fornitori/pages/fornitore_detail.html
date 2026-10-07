@@ -128,9 +128,6 @@ body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-
     {{ fornitore.ragione_sociale }}
   </div>
 
-  {% if messages %}
-  <div>{% for m in messages %}<div class="ana-msg {% if m.tags == 'success' %}ana-msg-success{% else %}ana-msg-error{% endif %}">{{ m }}</div>{% endfor %}</div>
-  {% endif %}
 
   <!-- Hero -->
   <div class="ana-hero">

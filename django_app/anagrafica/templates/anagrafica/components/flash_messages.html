@@ -1,7 +1,1 @@
-{% if messages %}
-  <div class="messages-wrap">
-    {% for message in messages %}
-      <div class="notice{% if message.tags == 'error' %} notice-danger{% elif message.tags == 'success' %} notice-success{% endif %}">{{ message }}</div>
-    {% endfor %}
-  </div>
-{% endif %}
+{# Messaggi flash: li mostra core/base.html come toast (core/flash_messages.py). Include lasciato per compatibilita'. #}

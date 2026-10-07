@@ -1,9 +1,1 @@
-{% if messages %}
-  <div class="assets-messages">
-    {% for message in messages %}
-      <div class="assets-message assets-message-{{ message.tags|default:'info' }}">
-        {{ message }}
-      </div>
-    {% endfor %}
-  </div>
-{% endif %}
+{# Messaggi flash: li mostra core/base.html come toast (core/flash_messages.py). Include lasciato per compatibilita'. #}

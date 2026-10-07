@@ -245,13 +245,6 @@ body.theme-dark .pdf-preview-footer {
 {% block content %}
   {% include "admin_portale/components/page_header.html" with page_title="Template PDF" page_subtitle="Gestisci logo, colori e footer comuni dei PDF generati dal portale." %}
 
-  {% if messages %}
-    <div class="messages-wrap" style="margin-bottom:20px;">
-      {% for message in messages %}
-        <div class="notice{% if message.tags == 'success' %} notice-success{% elif message.tags == 'error' %} notice-danger{% endif %}">{{ message }}</div>
-      {% endfor %}
-    </div>
-  {% endif %}
 
   <div class="pdf-template-layout">
     <form class="card" method="post" action="{% url 'admin_portale:api_pdf_template_config_save' %}" enctype="multipart/form-data">

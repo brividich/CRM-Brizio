@@ -46,11 +46,6 @@ body.theme-dark .ss-rail a .ss-n { background:#93c5fd; color:#0b1220; }
 
 <div class="fmd ss-page">
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div class="fmd-panel" style="padding:12px 16px;margin-bottom:12px;font-size:13px;font-weight:600;color:{% if 'error' in msg.tags %}#c53030{% else %}#15803d{% endif %};">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
 
   {# ── Hero ───────────────────────────────────────────────────────────── #}
   <section class="fmd-hero">

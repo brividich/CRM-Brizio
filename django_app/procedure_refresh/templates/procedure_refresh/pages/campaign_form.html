@@ -34,11 +34,6 @@ body.theme-dark .pr-btn-cancel { background:var(--surface-alt); color:var(--text
 <div id="pr-root">
   <a href="{% url 'procedure_refresh:campaign_list' %}" style="font-size:13px;color:#64748b;text-decoration:none;">← Torna alle sessioni</a>
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div style="padding:12px 16px;border-radius:10px;background:#fee2e2;color:#dc2626;font-size:13px;font-weight:600;">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
 
   <div class="pr-card">
     <div class="pr-card-title">{% if campaign %}Modifica sessione{% else %}Nuova sessione{% endif %}</div>

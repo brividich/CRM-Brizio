@@ -16,13 +16,6 @@
 {% block content %}
   {% include "admin_portale/components/page_header.html" with page_title="Branding portale" page_subtitle="Personalizza il favicon che appare nella scheda del browser per tutte le pagine del portale." %}
 
-  {% if messages %}
-    <div class="messages-wrap" style="margin-bottom:20px;">
-      {% for message in messages %}
-        <div class="notice{% if message.tags == 'success' %} notice-success{% elif message.tags == 'error' %} notice-danger{% endif %}">{{ message }}</div>
-      {% endfor %}
-    </div>
-  {% endif %}
 
   <div class="bc-layout">
 

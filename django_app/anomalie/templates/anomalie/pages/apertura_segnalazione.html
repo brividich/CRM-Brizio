@@ -234,6 +234,46 @@
     .esito-card h2 { font-size: var(--fs-title-md); color: var(--text); }
     .esito-ok { color: var(--success); font-weight: 600; }
     .esito-muted { color: var(--text-mid); }
+    /* Stato superficie per blocco: scelta a chip, obbligatoria */
+    .sup-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .sup-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; font-size: var(--fs-sm); font-weight: 700; border-radius: 999px; padding: 6px 14px; cursor: pointer; min-height: 0; }
+    .sup-chip:hover:not(:disabled) { border-color: var(--accent); }
+    .sup-chip.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .sup-chip:disabled { cursor: default; opacity: .75; }
+    .sup-chips.is-missing .sup-chip:not(.is-on) { border-color: var(--danger); }
+    .pill-sup { background: var(--accent-light); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+    .pill-rep { background: #fffbeb; color: #92400e; border-color: #fcd34d; }
+    .ctl-stats { display: flex; gap: 6px; flex-wrap: wrap; }
+    .ctl-stat { font-size: var(--fs-xs); font-weight: 700; color: var(--text-mid); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; }
+    .ctl-stat strong { color: var(--text); }
+    /* Riepilogo finale per l'operatore */
+    .riep { display: grid; gap: 14px; }
+    .riep-head { display: grid; gap: 4px; }
+    .riep-head h2 { font-size: var(--fs-title-md); color: var(--text); }
+    .riep-kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .riep-kpi > div { border: 1px solid var(--border); border-radius: 10px; background: var(--bg); padding: 10px 12px; display: grid; gap: 2px; }
+    .riep-kpi strong { font-size: var(--fs-title-md); color: var(--text); line-height: 1.1; }
+    .riep-kpi span { font-size: var(--fs-xs); color: var(--text-mid); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .riep-mail { border: 1px solid var(--border); border-left: 4px solid var(--primary-mid); border-radius: 10px; padding: 10px 14px; font-size: var(--fs-sm); color: var(--text); display: grid; gap: 2px; }
+    .riep-blk { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .riep-blk__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .riep-blk__head .blk-sn { flex: 1; min-width: 160px; }
+    .riep-list { list-style: none; display: grid; }
+    .riep-list li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: start; padding: 8px 14px; border-top: 1px solid var(--border); font-size: var(--fs-sm); color: var(--text); }
+    .riep-list li:first-child { border-top: 0; }
+    .riep-list__txt { white-space: pre-wrap; word-break: break-word; }
+    .riep-list__side { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+    .riep-warn { font-size: var(--fs-sm); color: #92400e; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 8px 12px; font-weight: 600; }
+    .riep-actions { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    body.theme-dark .pill-rep, body.theme-dark .riep-warn, body.theme-dark .sn-warn { background: rgba(245,158,11,.10); color: #fcd34d; border-color: rgba(245,158,11,.45); }
+    @media (max-width: 760px) { .riep-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } .riep-list li { grid-template-columns: 22px 1fr; } .riep-list__side { grid-column: 2; justify-content: flex-start; } }
+    @media print {
+      .topbar, .op-info-back, .no-print, .action-bar, .riep-actions { display: none !important; }
+      .content { padding-top: 0; }
+      body { background: #fff !important; }
+      .step-card { box-shadow: none; border: 0; max-width: none; }
+      .riep-blk { break-inside: avoid; }
+    }
     body.theme-dark .pill-wait { background: rgba(249,115,22,.14); color: #fdba74; border-color: rgba(249,115,22,.4); }
     body.theme-dark .pill-info { background: rgba(59,130,246,.14); color: #93c5fd; border-color: rgba(96,165,250,.4); }
     body.theme-dark .confirm-box { background: rgba(245,158,11,.10); color: #fcd34d; border-color: rgba(245,158,11,.45); }
@@ -711,6 +751,7 @@
      Un blocco = un gruppo di seriali (singoli, liste, range) con una o più anomalie.
      Ogni anomalia diventa una riga a sé: il capocommessa decide su ciascuna. */
   const STATI_SUPERFICIE = CFG_STATI_SUPERFICIE;
+  const MSG_SUP = 'Indica lo stato superficie del blocco.';
   const SN_PATTERN = /^[A-Za-z]{3}\d{5}$/;
   const MAX_RANGE = 1000;
   const MAIL_MODES = [
@@ -728,7 +769,11 @@
       body: JSON.stringify(body || {}),
     });
     const j = await parseJsonStrict(r, context);
-    if (!r.ok && r.status !== 207) throw new Error(j.error || `${context}: HTTP ${r.status}`);
+    if (!r.ok && r.status !== 207) {
+      const err = new Error(j.error || `${context}: HTTP ${r.status}`);
+      err.data = j;
+      throw err;
+    }
     return j;
   };
 
@@ -809,7 +854,7 @@
   let _uid = 0;
   const uid = () => `n${Date.now()}_${_uid += 1}`;
   const newAnomalia = () => ({ key: uid(), localId: null, testo: '', files: [], existing: [], gestita: false, avanzamento: '' });
-  const newEditor = () => ({ bloccoId: null, voci: [], stati: [], anomalie: [newAnomalia()], attiva: 0, bloccato: false });
+  const newEditor = () => ({ bloccoId: null, voci: [], stati: [], anomalie: [newAnomalia()], attiva: 0, bloccato: false, confermaRipetuti: false });
   const editorFromBlocco = (b) => ({
     bloccoId: b.id,
     voci: [...(b.seriali || [])],
@@ -820,6 +865,7 @@
     })),
     attiva: -1,
     bloccato: !!b.bloccato,
+    confermaRipetuti: false,
   });
   const editorDirty = (ed) => !!ed && (
     ed.bloccoId !== null
@@ -940,8 +986,8 @@
           <div className="blk-head__main">
             <div className="blk-sn">{b.seriale_label}</div>
             <div className="blk-meta">
-              Fase {b.fase} · {b.anomalie.length} anomali{b.anomalie.length === 1 ? 'a' : 'e'}
-              {b.stato_superficie.length > 0 && <> · {b.stato_superficie.join(', ')}</>}
+              Fase {b.fase} · {tokensOf(b.seriali).length} pezz{tokensOf(b.seriali).length === 1 ? 'o' : 'i'} · {b.anomalie.length} anomali{b.anomalie.length === 1 ? 'a' : 'e'}
+              {b.stato_superficie.map(s => <span key={s} className="pill pill-sup" style={{ marginLeft: 6 }}>{s}</span>)}
             </div>
           </div>
           <span className="blk-lock" title="Blocco salvato">
@@ -973,6 +1019,70 @@
     );
   };
 
+  /* S/N presenti in più blocchi dello stesso controllo. */
+  const serialiMultiBlocco = (blocchi) => {
+    const map = {};
+    (blocchi || []).forEach((b, i) => tokensOf(b.seriali).forEach(t => {
+      const k = t.toLowerCase();
+      (map[k] = map[k] || { token: t, blocchi: [] }).blocchi.push(i + 1);
+    }));
+    return Object.values(map).filter(x => x.blocchi.length > 1);
+  };
+
+  /* Riepilogo del controllo: prima di terminare (da confermare) e dopo (da stampare). */
+  const RiepilogoControllo = ({ op, controllo, destinatari }) => {
+    const blocchi = controllo.blocchi || [];
+    const pezzi = new Set();
+    blocchi.forEach(b => tokensOf(b.seriali).forEach(t => pezzi.add(t.toLowerCase())));
+    const nAnom = blocchi.reduce((n, b) => n + b.anomalie.length, 0);
+    const nAll = blocchi.reduce((n, b) => n + b.anomalie.reduce((m, a) => m + (a.allegati || []).length, 0), 0);
+    const ripetuti = serialiMultiBlocco(blocchi);
+    const senzaSup = STATI_SUPERFICIE.length ? blocchi.filter(b => !(b.stato_superficie || []).length).map((b, i) => b.ordine || i + 1) : [];
+    return (
+      <div className="riep">
+        <div className="riep-kpi">
+          <div><strong>{blocchi.length}</strong><span>Blocchi</span></div>
+          <div><strong>{pezzi.size}</strong><span>Pezzi</span></div>
+          <div><strong>{nAnom}</strong><span>Anomalie</span></div>
+          <div><strong>{nAll}</strong><span>Allegati</span></div>
+        </div>
+        <div className="riep-mail">
+          <div><strong>OP {op.id}</strong> · fase <strong>{controllo.fase}</strong>{controllo.operatore ? <> · operatore {controllo.operatore}</> : null}</div>
+          {destinatari && destinatari.to
+            ? <div>Mail con il link di decisione a <strong>{destinatari.to}</strong>{destinatari.cc ? <> · in copia {destinatari.cc}</> : null}</div>
+            : <div className="copilot-err">Capocommessa e CAR dell’OP senza indirizzo email: la mail non potrà partire, avvisa l’ufficio.</div>}
+        </div>
+        {ripetuti.length > 0 && (
+          <div className="riep-warn">S/N in più blocchi (confermato in inserimento): {ripetuti.slice(0, 10).map(r => `${r.token} → blocchi ${r.blocchi.join(', ')}`).join(' · ')}{ripetuti.length > 10 ? '…' : ''}</div>
+        )}
+        {senzaSup.length > 0 && <div className="riep-warn">Stato superficie non indicato nei blocchi {senzaSup.join(', ')}.</div>}
+        {blocchi.map((b, i) => (
+          <div className="riep-blk" key={b.id}>
+            <div className="riep-blk__head">
+              <div className="blk-num">{i + 1}</div>
+              <div className="blk-sn">{b.seriale_label}</div>
+              {(b.stato_superficie || []).map(s => <span key={s} className="pill pill-sup">{s}</span>)}
+              <span className="blk-meta">Fase {b.fase}</span>
+            </div>
+            <ol className="riep-list">
+              {b.anomalie.map((a, j) => (
+                <li key={a.local_id}>
+                  <span className="blk-item__n">{j + 1}</span>
+                  <span className="riep-list__txt">{a.testo}</span>
+                  <span className="riep-list__side">
+                    <span className="blk-meta">#{a.local_id}</span>
+                    {(a.allegati || []).length > 0 && <span className="blk-item__att">📎 {a.allegati.length}</span>}
+                    <StatoPill a={a} />
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const Step2Controllo = ({ op, onBack, onDone }) => {
     const [loading, setLoading] = useState(true);
     const [controllo, setControllo] = useState(null);
@@ -988,6 +1098,9 @@
     const [attachErr, setAttachErr] = useState('');
     const [confirmTermina, setConfirmTermina] = useState(false);
     const [esito, setEsito] = useState(null);
+    const [riepilogo, setRiepilogo] = useState(false);
+    const [destinatari, setDestinatari] = useState(null);
+    const [confirmRipetuti, setConfirmRipetuti] = useState(null);
     const [serialiAperti, setSerialiAperti] = useState({ seriali: [], dettagli: {} });
     const [copilot, setCopilot] = useState({ key: '', loading: false, sug: null, err: '' });
     const snRef = useRef(null);
@@ -1085,6 +1198,7 @@
       try {
         const j = await getJson(urlFor(API.controllo_dettaglio, c.id), 'Ripresa controllo');
         setControllo(j.controllo);
+        setDestinatari(j.destinatari || null);
         setFase(j.controllo.fase);
         setMailMode(j.controllo.mail_mode);
         setEditor(newEditor());
@@ -1134,6 +1248,8 @@
       const anomalie = ed.anomalie.filter(a => a.localId || a.testo.trim() || a.files.length);
       if (!ed.voci.length) { setError('Inserisci almeno un seriale (premi Invio dopo averlo scritto).'); snRef.current && snRef.current.focus(); return false; }
       if (!anomalie.length) { setError('Descrivi almeno un’anomalia.'); return false; }
+      if (STATI_SUPERFICIE.length && !ed.stati.length && !ed.bloccato) { setError(MSG_SUP); return false; }
+      if (ripetutiEditor.length && !ed.confermaRipetuti) { setError(''); setConfirmRipetuti(ripetutiEditor.map(r => ({ seriale: r.token, blocco: r.blocco }))); return false; }
       const vuota = ed.anomalie.findIndex(a => (a.files.length || a.localId) && !a.testo.trim());
       if (vuota >= 0) { setError(`L’anomalia ${vuota + 1} ha allegati ma nessuna descrizione.`); setEditor(prev => ({ ...prev, attiva: vuota })); return false; }
       setError(''); setNotice(''); setSaving(true);
@@ -1142,6 +1258,7 @@
           blocco_id: ed.bloccoId,
           seriali: ed.voci,
           stato_superficie: ed.stati,
+          conferma_seriali_ripetuti: !!ed.confermaRipetuti,
           anomalie: anomalie.map(a => ({ local_id: a.localId, testo: a.testo.trim() })),
         }, 'Salvataggio blocco');
         const risultati = j.risultati || [];
@@ -1169,7 +1286,9 @@
         }
         const fresh = await getJson(urlFor(API.controllo_dettaglio, controllo.id), 'Aggiornamento controllo');
         setControllo(fresh.controllo);
+        setDestinatari(fresh.destinatari || null);
         setEditor(newEditor());
+        setConfirmRipetuti(null);
         loadSerialiAperti();
         const n = anomalie.length;
         setNotice(`Salvato: ${n} anomali${n === 1 ? 'a' : 'e'} su ${labelVoci(ed.voci)}.`
@@ -1177,20 +1296,48 @@
         setTimeout(() => snRef.current && snRef.current.focus(), 50);
         return true;
       } catch (e) {
-        setError(e.message);
+        if (e.data && e.data.code === 'seriali_ripetuti') { setConfirmRipetuti(e.data.seriali_ripetuti || []); setError(''); }
+        else setError(e.message);
         return false;
       } finally {
         setSaving(false);
       }
     };
 
-    const termina = async (salvaPrima) => {
-      if (salvaPrima && !(await salvaBlocco())) return;
+    // Stesso S/N in un altro blocco: ammesso (es. altra fase o altro stato superficie),
+    // ma va confermato esplicitamente; poi si risalva con la conferma.
+    const [salvaDopoConferma, setSalvaDopoConferma] = useState(false);
+    const confermaESalva = () => {
+      setEditor(prev => ({ ...prev, confermaRipetuti: true }));
+      setConfirmRipetuti(null);
+      setSalvaDopoConferma(true);
+    };
+    useEffect(() => {
+      if (salvaDopoConferma && editor.confermaRipetuti) { setSalvaDopoConferma(false); salvaBlocco(); }
+    }, [salvaDopoConferma, editor.confermaRipetuti]);
+
+    // «Termina controllo» passa sempre dal riepilogo: l'operatore vede tutto prima della mail.
+    const apriRiepilogo = async (salvaPrima) => {
+      if (salvaPrima && !(await salvaBlocco())) { setConfirmTermina(false); return; }
+      setConfirmTermina(false); setSaving(true); setError('');
+      try {
+        const fresh = await getJson(urlFor(API.controllo_dettaglio, controllo.id), 'Riepilogo controllo');
+        setControllo(fresh.controllo);
+        setDestinatari(fresh.destinatari || null);
+        setEditor(newEditor());
+        setRiepilogo(true);
+        window.scrollTo(0, 0);
+      } catch (e) { setError(e.message); }
+      finally { setSaving(false); }
+    };
+
+    const termina = async () => {
       setConfirmTermina(false); setSaving(true); setError('');
       try {
         const j = await postJson(urlFor(API.controllo_termina, controllo.id), {}, 'Termina controllo');
         setControllo(j.controllo);
         setEditor(newEditor());
+        setRiepilogo(false);
         setEsito(j.mail || {});
       } catch (e) { setError(e.message); }
       finally { setSaving(false); }
@@ -1213,16 +1360,20 @@
     };
 
     /* Avvisi sui seriali digitati: formato, prefisso diverso, anomalie già aperte. */
+    // Token dei blocchi già salvati (escluso quello riaperto) → numero del blocco.
     const controlloTokens = React.useMemo(() => {
-      const own = new Set();
-      ((controllo && controllo.blocchi) || []).forEach(b => tokensOf(b.seriali).forEach(t => own.add(t.toLowerCase())));
+      const own = new Map();
+      ((controllo && controllo.blocchi) || []).forEach((b, i) => {
+        if (b.id === editor.bloccoId) return;
+        tokensOf(b.seriali).forEach(t => { if (!own.has(t.toLowerCase())) own.set(t.toLowerCase(), i + 1); });
+      });
       return own;
-    }, [controllo]);
+    }, [controllo, editor.bloccoId]);
     const tokens = tokensOf(editor.voci);
     const fuoriFormato = tokens.filter(t => !SN_PATTERN.test(t));
     const primo = tokens.find(t => SN_PATTERN.test(t));
     const prefissoDiverso = primo ? tokens.filter(t => SN_PATTERN.test(t) && t.slice(0, 3).toUpperCase() !== primo.slice(0, 3).toUpperCase()) : [];
-    const giaNelControllo = editor.bloccoId === null ? tokens.filter(t => controlloTokens.has(t.toLowerCase())) : [];
+    const ripetutiEditor = tokens.filter(t => controlloTokens.has(t.toLowerCase())).map(t => ({ token: t, blocco: controlloTokens.get(t.toLowerCase()) }));
     const duplicati = (() => {
       const exist = new Set((serialiAperti.seriali || []).map(x => x.toLowerCase()));
       const out = [];
@@ -1237,6 +1388,8 @@
 
     const blocchi = (controllo && controllo.blocchi) || [];
     const dirty = editorDirty(editor);
+    const nPezzi = (() => { const set = new Set(); blocchi.forEach(b => tokensOf(b.seriali).forEach(t => set.add(t.toLowerCase()))); return set.size; })();
+    const nAnomalie = blocchi.reduce((n, b) => n + b.anomalie.length, 0);
 
     if (loading) return <div className="step-card"><div className="loading-msg">Caricamento…</div></div>;
 
@@ -1266,11 +1419,38 @@
               {esito.sent && <p className="esito-ok">Mail con il link di decisione inviata a <strong>{esito.to}</strong>{esito.cc ? <> (in copia {esito.cc})</> : null}.</p>}
               {!esito.sent && esito.reason === 'nessuna_anomalia' && <p className="esito-muted">Nessuna mail da inviare ora: le anomalie erano già state comunicate al capocommessa.</p>}
               {!esito.sent && esito.reason === 'errore' && <p className="error-msg">Mail al capocommessa non inviata: {esito.error}. Il sistema riproverà in automatico.</p>}
+            </div>
+            {blocchi.length > 0 && <RiepilogoControllo op={op} controllo={controllo} destinatari={destinatari} />}
+            <div className="esito-card no-print">
               <div className="action-bar">
+                {blocchi.length > 0 && <button className="btn-outline" onClick={() => window.print()}>Stampa riepilogo</button>}
                 <button className="btn-secondary" onClick={() => onDone('menu')}>Torna al menu</button>
                 <button className="btn-outline" onClick={() => onDone('altro_op')}>Controlla un altro OP</button>
                 <button className="btn-primary" onClick={() => onDone('stesso_op')}>Nuovo controllo su questo OP</button>
               </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* Riepilogo prima di terminare: l'operatore controlla tutto e conferma */
+    if (riepilogo && controllo) {
+      return (
+        <div className="step-card step-card--wide">
+          {opBar}
+          <div className="step-header">
+            <div className="step-num">✓</div>
+            <h2>Riepilogo del controllo</h2>
+          </div>
+          <div className="form-body">
+            <div className="field-hint">Controlla blocchi, stato superficie e anomalie. Con «Conferma e termina» il controllo si chiude{controllo.da_notificare ? ' e parte la mail al capocommessa' : ''}.</div>
+            {blocchi.length === 0 && <div className="info-msg">Nessun blocco salvato: il controllo si chiude senza anomalie.</div>}
+            <RiepilogoControllo op={op} controllo={controllo} destinatari={destinatari} />
+            {error && <div className="error-msg">{error}</div>}
+            <div className="riep-actions">
+              <button className="btn-secondary" onClick={() => setRiepilogo(false)} disabled={saving}>← Torna al controllo</button>
+              <button className="btn-primary" onClick={termina} disabled={saving}>{saving ? 'Chiusura…' : 'Conferma e termina'}</button>
             </div>
           </div>
         </div>
@@ -1346,11 +1526,14 @@
           {editor.bloccato
             ? <div className="field-hint">Il capocommessa ha già deciso su almeno un’anomalia: i seriali non si possono più cambiare. Puoi aggiungere nuove anomalie.</div>
             : <div className="field-hint">Un seriale, un range (<code>LCN00005-LCN00010</code>) o più seriali separati da virgola; Invio per confermare.{tokens.length > 1 && <> Totale: <strong>{tokens.length} pezzi</strong>.</>}</div>}
-          {(fuoriFormato.length > 0 || prefissoDiverso.length > 0 || giaNelControllo.length > 0) && (
+          {(fuoriFormato.length > 0 || prefissoDiverso.length > 0 || ripetutiEditor.length > 0) && (
             <div className="sn-warn">
               {fuoriFormato.length > 0 && <div>⚠ Formato atteso «AAA00000»: {fuoriFormato.slice(0, 8).join(', ')}{fuoriFormato.length > 8 ? '…' : ''}</div>}
               {prefissoDiverso.length > 0 && <div>⚠ Prefisso diverso da «{primo.slice(0, 3).toUpperCase()}»: {prefissoDiverso.slice(0, 8).join(', ')}</div>}
-              {giaNelControllo.length > 0 && <div>⚠ Già presenti in un blocco di questo controllo: {giaNelControllo.slice(0, 8).join(', ')}. Per aggiungere anomalie a quei pezzi usa «Modifica» sul blocco.</div>}
+              {ripetutiEditor.length > 0 && (
+                <div>⚠ Già in un altro blocco di questo controllo: {ripetutiEditor.slice(0, 8).map(r => `${r.token} (blocco ${r.blocco})`).join(', ')}{ripetutiEditor.length > 8 ? '…' : ''}.
+                  {editor.confermaRipetuti ? ' Confermato: è voluto.' : ' Se è voluto (altra fase o altro stato superficie) puoi salvare: ti chiederò conferma. Altrimenti usa «Modifica» sul blocco esistente.'}</div>
+              )}
             </div>
           )}
           {duplicati.length > 0 && (
@@ -1367,18 +1550,23 @@
           )}
         </div>
 
-        <div className="field-group">
-          <div className="field-label">Stato superficie</div>
-          <div className="checkbox-row">
-            {STATI_SUPERFICIE.map(s => (
-              <label key={s} className="checkbox-item">
-                <input type="checkbox" disabled={editor.bloccato} checked={editor.stati.includes(s)}
-                  onChange={() => setEditor(prev => ({ ...prev, stati: prev.stati.includes(s) ? prev.stati.filter(x => x !== s) : [...prev.stati, s] }))} />
-                <span>{s}</span>
-              </label>
-            ))}
+        {STATI_SUPERFICIE.length > 0 && (
+          <div className="field-group">
+            <div className="field-label" id="sup-label">Stato superficie del blocco {!editor.bloccato && <span className="req">*</span>}</div>
+            <div className={`sup-chips${!editor.bloccato && !editor.stati.length && error === MSG_SUP ? ' is-missing' : ''}`} role="group" aria-labelledby="sup-label">
+              {STATI_SUPERFICIE.map(s => {
+                const on = editor.stati.includes(s);
+                return (
+                  <button key={s} type="button" className={`sup-chip${on ? ' is-on' : ''}`} aria-pressed={on} disabled={editor.bloccato}
+                    onClick={() => { if (error === MSG_SUP) setError(''); setEditor(prev => ({ ...prev, stati: prev.stati.includes(s) ? prev.stati.filter(x => x !== s) : [...prev.stati, s] })); }}>
+                    {on ? '✓ ' : ''}{s}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="field-hint">{editor.bloccato ? 'Il capocommessa ha già deciso: lo stato superficie non si può più cambiare.' : 'Vale per tutti i pezzi del blocco. Pezzi in stati diversi? Mettili in blocchi separati.'}</div>
           </div>
-        </div>
+        )}
 
         <div className="field-group">
           <div className="field-label">Anomalie su questi seriali <span className="req">*</span></div>
@@ -1441,6 +1629,17 @@
           {attachErr && <div className="sn-warn">⚠ {attachErr}</div>}
         </div>
 
+        {confirmRipetuti && (
+          <div className="confirm-box" role="alertdialog" aria-label="Seriali già in un altro blocco">
+            <div><strong>Questi seriali sono già in un altro blocco del controllo:</strong> {confirmRipetuti.slice(0, 10).map(r => `${r.seriale} (blocco ${r.blocco})`).join(', ')}{confirmRipetuti.length > 10 ? '…' : ''}.</div>
+            <div>È voluto? Per esempio lo stesso pezzo in un’altra fase o con un altro stato superficie. Se invece vuoi aggiungere anomalie a quei pezzi, annulla e usa «Modifica» sul blocco esistente.</div>
+            <div className="action-bar">
+              <button type="button" className="btn-secondary" onClick={() => setConfirmRipetuti(null)}>Annulla, correggo</button>
+              <button type="button" className="btn-primary" onClick={confermaESalva} disabled={saving}>Sì, è voluto: salva</button>
+            </div>
+          </div>
+        )}
+
         <div className="blk-actions">
           {editor.bloccoId !== null && (
             <button type="button" className="btn-secondary" onClick={() => { setEditor(newEditor()); setError(''); }} disabled={saving}>Annulla modifiche</button>
@@ -1448,7 +1647,7 @@
           {editor.bloccoId === null && dirty && (
             <button type="button" className="btn-secondary" onClick={() => { setEditor(newEditor()); setError(''); }} disabled={saving}>Svuota</button>
           )}
-          <button type="button" className="btn-primary" onClick={salvaBlocco} disabled={saving}>
+          <button type="button" className="btn-primary" onClick={() => salvaBlocco()} disabled={saving}>
             {saving ? 'Salvataggio…' : (editor.bloccoId ? 'Salva modifiche' : 'Salva blocco')}
           </button>
         </div>
@@ -1473,6 +1672,13 @@
               <span className="ctl-head__val">{controllo.fase} <button type="button" className="link-btn" onClick={() => setEditingFase(true)}>Cambia</button></span>
             )}
           </div>
+          {blocchi.length > 0 && (
+            <div className="ctl-stats" aria-label="Avanzamento del controllo">
+              <span className="ctl-stat"><strong>{blocchi.length}</strong> blocch{blocchi.length === 1 ? 'o' : 'i'}</span>
+              <span className="ctl-stat"><strong>{nPezzi}</strong> pezz{nPezzi === 1 ? 'o' : 'i'}</span>
+              <span className="ctl-stat"><strong>{nAnomalie}</strong> anomali{nAnomalie === 1 ? 'a' : 'e'}</span>
+            </div>
+          )}
           <div className="ctl-head__mail" role="radiogroup" aria-label="Mail al capocommessa">
             <span className="field-label">Mail al capocommessa</span>
             <div className="seg-toggle">
@@ -1501,11 +1707,11 @@
 
           {confirmTermina && (
             <div className="confirm-box">
-              <div><strong>Il blocco in corso non è salvato.</strong> Vuoi salvarlo prima di terminare?</div>
+              <div><strong>Il blocco in corso non è salvato.</strong> Vuoi salvarlo prima di vedere il riepilogo?</div>
               <div className="action-bar">
                 <button className="btn-secondary" onClick={() => setConfirmTermina(false)}>Annulla</button>
-                <button className="btn-outline" onClick={() => termina(false)}>Scarta e termina</button>
-                <button className="btn-primary" onClick={() => termina(true)}>Salva e termina</button>
+                <button className="btn-outline" onClick={() => apriRiepilogo(false)}>Scarta il blocco</button>
+                <button className="btn-primary" onClick={() => apriRiepilogo(true)}>Salva e vai al riepilogo</button>
               </div>
             </div>
           )}
@@ -1517,8 +1723,8 @@
                 : (controllo.da_notificare ? `${controllo.da_notificare} anomalie in coda: la mail parte pochi minuti dopo l’ultimo salvataggio.` : 'Ogni blocco salvato viene comunicato al capocommessa.')}
               {controllo.mail_errore && <div className="copilot-err">Ultimo invio non riuscito: {controllo.mail_errore}</div>}
             </div>
-            <button className="btn-primary btn-termina" onClick={() => (dirty ? setConfirmTermina(true) : termina(false))} disabled={saving || (!blocchi.length && !dirty)}>
-              Termina controllo
+            <button className="btn-primary btn-termina" onClick={() => (dirty ? setConfirmTermina(true) : apriRiepilogo(false))} disabled={saving || (!blocchi.length && !dirty)}>
+              Termina controllo…
             </button>
           </div>
         </div>

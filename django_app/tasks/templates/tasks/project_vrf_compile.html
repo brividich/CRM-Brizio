@@ -337,25 +337,6 @@
 </div>
 
 {# Toast fisso in alto a destra per feedback save_draft/info/warning/error (auto-dismiss success/info dopo 4s) #}
-{% if messages %}
-  <div id="vrfc-toast-wrap" aria-live="polite" style="position:fixed; top:72px; right:16px; z-index:9999; display:flex; flex-direction:column; gap:8px;">
-    {% for msg in messages %}
-      <div class="vrfc-toast" data-tag="{{ msg.tags }}" style="padding:12px 16px; background:{% if 'error' in msg.tags %}var(--danger){% elif 'warning' in msg.tags %}var(--warning){% elif 'success' in msg.tags %}var(--success){% else %}var(--primary-mid){% endif %}; color:#fff; border-radius:8px; box-shadow:0 6px 20px rgba(15,23,42,.2); font-size:13px; font-weight:600; max-width:360px;">{{ msg }}</div>
-    {% endfor %}
-  </div>
-  <script>
-    setTimeout(function() {
-      document.querySelectorAll('#vrfc-toast-wrap .vrfc-toast').forEach(function(el) {
-        var tag = el.dataset.tag || '';
-        if (tag.indexOf('error') === -1 && tag.indexOf('warning') === -1) {
-          el.style.transition = 'opacity .4s';
-          el.style.opacity = '0';
-          setTimeout(function(){ el.remove(); }, 500);
-        }
-      });
-    }, 4000);
-  </script>
-{% endif %}
 
 <script>
 (function() {

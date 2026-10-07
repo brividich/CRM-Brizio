@@ -74,13 +74,6 @@
   <a href="?tab=log" class="sub-a {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
 </div>
 
-{% if messages %}
-  <div class="messages-wrap">
-    {% for message in messages %}
-      <div class="notice {% if message.tags == 'error' %}notice-danger{% elif message.tags == 'success' %}notice-success{% endif %}">{{ message }}</div>
-    {% endfor %}
-  </div>
-{% endif %}
 
 {# ========== TAB RIEPILOGO ========== #}
 {% if tab == 'riepilogo' %}

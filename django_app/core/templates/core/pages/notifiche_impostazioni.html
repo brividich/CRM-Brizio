@@ -8,11 +8,6 @@
     <div class="page-sub">Scegli quali categorie di notifica ricevere</div>
   </div>
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div style="padding:12px 16px;border-radius:10px;margin-bottom:12px;background:#dcfce7;color:#15803d;font-size:13px;font-weight:600;">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
 
   <form method="post">
     {% csrf_token %}

@@ -75,14 +75,6 @@ body.theme-dark .ci-code { background:rgba(59,130,246,.25); }
     <a href="{% url 'anagrafica:dipendenti_list' %}" class="ci-btn ci-btn-ghost">← Dipendenti</a>
   </div>
 
-  {% if messages %}
-    {% for msg in messages %}
-    <div class="ci-alert {% if msg.tags == 'error' %}ci-alert-warn{% else %}ci-alert-info{% endif %}">
-      <span style="flex-shrink:0;">{% if msg.tags == 'error' %}⚠{% else %}✓{% endif %}</span>
-      <span>{{ msg }}</span>
-    </div>
-    {% endfor %}
-  {% endif %}
 
   <!-- Upload form -->
   <div class="ci-card">

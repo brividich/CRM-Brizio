@@ -49,11 +49,6 @@
   {# Barra di stato: resa con la pagina, poi riletta ogni minuto da soc-ui.js. #}
   <div class="soc-live" data-live-url="{% url 'security:live_strip' %}" data-live-every="60" aria-label="Stato del SOC">{% soc_live_strip %}</div>
   {# Esiti delle azioni (salvataggi, letture caselle, errori): prima nell'HUB non comparivano mai. #}
-  {% if messages %}
-    <div class="sec-message-stack" role="status">
-      {% for message in messages %}<div class="sec-message{% if message.level_tag == 'error' or message.level_tag == 'warning' %} sec-error{% endif %}">{{ message }}</div>{% endfor %}
-    </div>
-  {% endif %}
   {% block soc_content %}{% endblock %}
 </div>
 {% endblock %}
