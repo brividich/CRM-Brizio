@@ -34,22 +34,20 @@ def backup_overview(request):
         "devices_total": len(data["devices"]),
         "periods": svc.PERIODS,
         "query": query,
-        "stale_days": svc.STALE_DAYS,
+        "stale_days": svc.stale_days(),
     })
 
 
 def backup_device(request):
+    """Vecchio indirizzo della scheda backup del PC: ora tutto sta nella scheda PC unica."""
     if not can_view_security_center(request.user):
         return _denied(request)
-    # Il nome arriva in query string: i nomi dei PC possono contenere spazi, punti e barre.
-    name = request.GET.get("nome", "").strip()
-    if not name:
-        raise Http404("Dispositivo non indicato.")
-    days = _days(request, default=90)
-    row = svc.device_detail(name, days)
-    if row is None:
-        raise Http404("Nessun backup per questo dispositivo nel periodo.")
-    return render(request, "security/backup_device.html", {"dev": row, "days": days, "periods": svc.PERIODS})
+    from urllib.parse import urlencode
+
+    from django.shortcuts import redirect
+    from django.urls import reverse
+
+    return redirect(reverse("security:pc_detail") + "?" + urlencode({"nome": request.GET.get("nome", "")}))
 
 
 def backup_log(request):

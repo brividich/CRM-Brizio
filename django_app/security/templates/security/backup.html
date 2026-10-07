@@ -84,7 +84,7 @@
     <ul class="vpn-findings">
       {% for f in findings|slice:":8" %}
         <li class="{{ f.level }}">
-          {% if f.device %}<a href="{% url 'security:backup_device' %}?nome={{ f.device|urlencode }}"><strong>{{ f.title }}</strong></a>{% else %}<a href="{% url 'security:admin_config_backups' %}"><strong>{{ f.title }}</strong></a>{% endif %}
+          {% if f.device %}<a href="{% url 'security:pc_detail' %}?nome={{ f.device|urlencode }}"><strong>{{ f.title }}</strong></a>{% else %}<a href="{% url 'security:admin_config_backups' %}"><strong>{{ f.title }}</strong></a>{% endif %}
           <small>{{ f.detail }}</small>
         </li>
       {% endfor %}
@@ -108,7 +108,7 @@
       <tbody>
       {% for d in devices %}
         <tr class="sec-row-link{% if d.stale %} bk-row-stale{% endif %}">
-          <td class="sec-title-cell"><a href="{% url 'security:backup_device' %}?nome={{ d.name|urlencode }}"><strong>{{ d.name }}</strong></a>{% if d.job_level %}<small title="Il report Synology dà l'esito del job intero: il PC eredita l'esito del job">esito del job</small>{% endif %}</td>
+          <td class="sec-title-cell"><a href="{% url 'security:pc_detail' %}?nome={{ d.name|urlencode }}"><strong>{{ d.name }}</strong></a>{% if d.job_level %}<small title="Il report Synology dà l'esito del job intero: il PC eredita l'esito del job">esito del job</small>{% endif %}</td>
           <td><span class="sec-badge sec-badge-{{ d.last_tone }}">{{ d.last_label }}</span><small class="sec-nowrap sec-muted"> {{ d.last_at|date:"d/m H:i" }}</small></td>
           <td class="sec-nowrap">{% if d.last_ok %}{{ d.last_ok|date:"d/m H:i" }} <small class="{% if d.stale %}bk-late{% else %}sec-muted{% endif %}">({% if d.days_since_ok == 0 %}oggi{% else %}{{ d.days_since_ok }} g fa{% endif %})</small>{% else %}<span class="bk-late">mai nel periodo</span>{% endif %}</td>
           <td><span class="bk-strip" aria-label="Ultime {{ d.strip|length }} esecuzioni">{% for s in d.strip %}<i class="bk-dot bk-{{ s.tone }}" title="{{ s.at|date:'d/m H:i' }} · {{ s.label }} · {{ s.job }}"></i>{% endfor %}</span></td>

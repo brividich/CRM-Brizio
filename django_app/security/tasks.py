@@ -42,6 +42,13 @@ def ingest_security_mailboxes_task():
 
 
 
+def _scheduled_notifications():
+    """Avvisi programmati (scadenze incidenti, backup, report): accesi da /soc/impostazioni/."""
+    from security.services.proactive_alerts import run_scheduled_notifications
+
+    return run_scheduled_notifications()
+
+
 def run_security_cycle_task():
     """Ciclo periodico del Security Center (schedule `security_cycle`, ogni 15 minuti).
 
@@ -69,6 +76,7 @@ def run_security_cycle_task():
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),
         ("rules_after_heartbeat", evaluate_security_rules),
         ("kpis", build_daily_kpi_snapshots),
+        ("avvisi", _scheduled_notifications),
     )
     for name, step in steps:
         try:

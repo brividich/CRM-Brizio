@@ -81,6 +81,41 @@ def notify_ticket_created(ticket) -> list[SecurityNotificationLog]:
     )
 
 
+def deliver_once(channel, *, event_kind, severity, dedup_hash, subject, body, attachment=None):
+    """Avvisi programmati (scadenze, backup, report): stesso trasporto e stesso registro degli
+    alert, ma **una sola volta per (canale, tipo, dedup_hash)** invece del cooldown, e con un
+    eventuale allegato ``(nome, bytes, mime)`` per la mail. Ritorna il log, o None se già inviato.
+    Non solleva mai."""
+    already = SecurityNotificationLog.objects.filter(
+        channel=channel, event_kind=event_kind, dedup_hash=dedup_hash, outcome=SecurityNotificationLog.Outcome.SENT,
+    ).exists()
+    if already:
+        return None
+    try:
+        if channel.channel_type == "dashboard":
+            outcome, count, error = SecurityNotificationLog.Outcome.SENT, 0, ""
+        elif channel.channel_type == "email":
+            recipients = parse_recipients(channel.recipients)
+            if not recipients:
+                outcome, count, error = SecurityNotificationLog.Outcome.FAILED, 0, "Email channel has no recipients"
+            else:
+                _send_email(subject, body, recipients, attachment=attachment)
+                outcome, count, error = SecurityNotificationLog.Outcome.SENT, len(recipients), ""
+        elif channel.channel_type == "teams_webhook":
+            url = resolve_webhook_url(channel)
+            if not url:
+                outcome, count, error = SecurityNotificationLog.Outcome.FAILED, 0, "Teams channel has no webhook URL configured"
+            else:
+                _post_teams_webhook(url, subject, body, severity)
+                outcome, count, error = SecurityNotificationLog.Outcome.SENT, 1, ""
+        else:
+            outcome, count, error = SecurityNotificationLog.Outcome.FAILED, 0, f"Unsupported channel type: {channel.channel_type}"
+    except Exception as exc:  # fail-safe come per gli alert
+        logger.exception("Scheduled notification %s on channel %s failed: %s", event_kind, channel.name, exc)
+        outcome, count, error = SecurityNotificationLog.Outcome.FAILED, 0, str(exc)[:500]
+    return _log(channel, event_kind, severity, dedup_hash, None, None, outcome, error=error, recipients_count=count)
+
+
 def eligible_channels(event_kind: str, severity: str):
     """Enabled channels subscribed to this event kind and at or below this severity."""
     level = SEVERITY_ORDER.get(severity, SEVERITY_ORDER[Severity.INFO])
@@ -203,7 +238,14 @@ def resolve_webhook_url(channel) -> str:
     return str(get_setting(ref, "") or "").strip()
 
 
-def _send_email(subject: str, body: str, recipients: list[str]) -> None:
+def _send_email(subject: str, body: str, recipients: list[str], attachment=None) -> None:
+    if attachment:
+        from django.core.mail import EmailMessage
+
+        message = EmailMessage(subject=subject, body=body, from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None), to=recipients)
+        message.attach(*attachment)
+        message.send(fail_silently=False)
+        return
     send_mail(
         subject=subject,
         message=body,
@@ -264,7 +306,7 @@ def _alert_body(alert) -> str:
     if reason:
         lines.append(f"Reason   : {reason}")
     lines.append("")
-    lines.append(_link(f"/security/alerts/{alert.pk}/"))
+    lines.append(_link(f"/soc/alerts/{alert.pk}/"))
     return "\n".join(lines)
 
 
@@ -281,7 +323,7 @@ def _ticket_body(ticket) -> str:
         f"Exposed   : {ticket.max_exposed_devices} device(s)",
         f"Ticket id : {ticket.pk}",
         "",
-        _link(f"/security/tickets/{ticket.pk}/"),
+        _link(f"/soc/tickets/{ticket.pk}/"),
     ]
     return "\n".join(lines)
 
