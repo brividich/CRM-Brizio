@@ -135,8 +135,10 @@ class _Verifica:
             v = per_id.get(voce.visita_id)
             if v is None:
                 continue
-            if v.data_scadenza != voce.scadenza or (v.scadenza_nota or "") != voce.nota[:300]:
+            if v.data_scadenza != voce.scadenza:
                 divergenti.append(f"{desc(v)}: salvata {_d(v.data_scadenza)}, attesa {_d(voce.scadenza)}")
+            elif (v.scadenza_nota or "") != voce.nota[:300]:
+                divergenti.append(f"{desc(v)}: scadenza giusta ({_d(v.data_scadenza)}), nota da aggiornare")
             elif voce.nota:
                 anticipate.append(f"{desc(v)}: {_d(voce.scadenza_propria)} → {_d(voce.scadenza)} — {voce.nota}")
         self.add(a, "Visite correnti con scadenza diversa dal motore", "errore", divergenti,

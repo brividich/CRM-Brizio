@@ -16,6 +16,23 @@ _ANAGRAFICA_REQUIRED_EXTRAS = {
 }
 
 
+# Campi dell'anagrafica legacy che cambiano requisiti e scadenze HR (mansione,
+# reparto, in forza): la tabella si scrive in SQL diretto, senza segnali.
+_SCADENZE_CAMPI = {"mansione", "reparto", "attivo"}
+
+
+def _ricalcola_scadenze(legacy_id: int) -> None:
+    try:
+        from anagrafica.services.scadenze import ricalcola_dopo_commit
+
+        ricalcola_dopo_commit([legacy_id])
+    except Exception:
+        # Mai bloccare il salvataggio dell'anagrafica: lo riprende il ricalcolo notturno.
+        import logging
+
+        logging.getLogger(__name__).exception("ricalcolo scadenze non programmato per %s", legacy_id)
+
+
 def normalize_legacy_alias(raw: str) -> str:
     txt = (raw or "").strip().lower()
     if not txt:
@@ -501,6 +518,8 @@ def upsert_anagrafica_dipendente(
                     f"UPDATE anagrafica_dipendenti SET {set_sql} WHERE id = %s",
                     [*updates.values(), int(existing["id"])],
                 )
+            if _SCADENZE_CAMPI & set(updates):
+                _ricalcola_scadenze(int(existing["id"]))
         return _find_existing_row(row_id=int(existing["id"])) or existing
 
     if not cleaned["nome"] and not cleaned["cognome"] and not cleaned["aliasusername"]:
@@ -533,6 +552,7 @@ def upsert_anagrafica_dipendente(
     found = _find_existing_row(row_id=new_id)
     if not found:
         raise RuntimeError("Dipendente creato ma non riletto dalla tabella anagrafica_dipendenti.")
+    _ricalcola_scadenze(new_id)
     return found
 
 

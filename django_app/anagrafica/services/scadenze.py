@@ -111,14 +111,22 @@ def ricalcola_formazione(legacy_ids=None, *, oggi: date | None = None) -> dict[s
 
 def ricalcola_visite(legacy_ids=None, *, oggi: date | None = None) -> dict[str, int]:
     """Scrive la scadenza effettiva sulle visite correnti (e la ripristina dove non serve piu')."""
-    from anagrafica.models import VisitaMedica
+    from anagrafica.models import VisitaMedica, _add_months
 
     ctx = requisiti.ambito(oggi)
     persone = _persone(ctx, legacy_ids)
     voci = [v for v in requisiti.visite(ctx, persone) if v.visita_id] if persone else []
     attese = {v.visita_id: (v.scadenza, v.nota) for v in voci}
+    # Le visite non piu' correnti (superate da una piu' recente) tornano alla scadenza
+    # del proprio tipo: non devono tenere un anticipo o una durata ormai cambiati.
+    visite = filtra_in(VisitaMedica.objects.select_related("tipo")
+                       .only("pk", "data_scadenza", "scadenza_nota", "data_svolgimento", "tipo__durata_mesi"),
+                       "legacy_anagrafica_id", ctx.id_estesi(persone)) if persone else []
+    for visita in visite:
+        if visita.pk not in attese:
+            durata = visita.tipo.durata_mesi or 0
+            attese[visita.pk] = (_add_months(visita.data_svolgimento, durata) if durata > 0 else None, "")
     aggiornate = 0
-    visite = filtra_in(VisitaMedica.objects.only("pk", "data_scadenza", "scadenza_nota"), "pk", attese)
     with transaction.atomic():
         for visita in visite:
             scadenza, nota = attese[visita.pk]
@@ -126,7 +134,7 @@ def ricalcola_visite(legacy_ids=None, *, oggi: date | None = None) -> dict[str, 
                 # update(): niente save(), che ricalcolerebbe la scadenza dal solo tipo.
                 VisitaMedica.objects.filter(pk=visita.pk).update(data_scadenza=scadenza, scadenza_nota=nota[:300])
                 aggiornate += 1
-    esito = {"persone": len(persone), "visite": len(attese), "aggiornate": aggiornate}
+    esito = {"persone": len(persone), "visite": len(visite), "aggiornate": aggiornate}
     logger.info("ricalcolo scadenze visite: %s", esito)
     return esito
 
@@ -136,37 +144,49 @@ def ricalcola_tutto(legacy_ids=None, *, oggi: date | None = None) -> dict[str, d
             "visite": ricalcola_visite(legacy_ids, oggi=oggi)}
 
 
-class _RicalcoloInAttesa:
-    """Callback on_commit che accumula le persone toccate nella stessa transazione."""
+class _Accumulo:
+    """Persone da ricalcolare, condivise da tutti i callback della connessione."""
 
     def __init__(self):
         self.ids: set[int] = set()
+        self.tutti = False
 
-    def __call__(self):
-        try:
-            ricalcola_tutto(sorted(self.ids))
-        except Exception:
-            logger.exception("ricalcolo scadenze dopo il salvataggio fallito per %s", sorted(self.ids))
+
+def _esegui_ricalcolo(conn) -> None:
+    """Callback on_commit: il primo che parte ricalcola tutto l'accumulato, gli altri non trovano nulla."""
+    acc = getattr(conn, "_scadenze_accumulo", None)
+    conn._scadenze_accumulo = None
+    if acc is None or (not acc.tutti and not acc.ids):
+        return
+    bersaglio = None if acc.tutti else sorted(acc.ids)
+    try:
+        ricalcola_tutto(bersaglio)
+    except Exception:
+        logger.exception("ricalcolo scadenze dopo il salvataggio fallito per %s", bersaglio or "tutti")
 
 
 def ricalcola_dopo_commit(legacy_ids) -> None:
-    """Ricalcolo per le persone indicate a transazione conclusa; un errore non blocca chi salva.
+    """Ricalcolo a transazione conclusa; un errore non blocca chi salva.
 
-    Le persone si accumulano: un import che salva centinaia di visite nella stessa
-    transazione produce **un** ricalcolo su tutte, non uno per visita. Si riusa il
-    callback solo se e' ancora registrato sulla connessione (una transazione
-    annullata lo scarta, e allora se ne registra uno nuovo).
+    ``legacy_ids=None`` = tutto il personale (cambia un catalogo: tipo di visita,
+    corso, mansione, regola...). Costa meno di un secondo per l'intera azienda.
+
+    Le persone si accumulano sulla connessione: un import che salva centinaia di
+    visite nella stessa transazione produce **un** ricalcolo su tutte. Ogni
+    chiamata registra il proprio callback (se un savepoint viene annullato i suoi
+    callback spariscono, gli altri restano), ma esegue solo il primo: vuota
+    l'accumulo e i successivi non trovano piu' nulla. Un accumulo rimasto da una
+    transazione annullata costa al piu' un ricalcolo in piu', mai uno in meno.
     """
-    ids = {int(i) for i in legacy_ids if int(i or 0) > 0}
-    if not ids:
+    tutti = legacy_ids is None
+    ids = set() if tutti else {int(i) for i in legacy_ids if int(i or 0) > 0}
+    if not tutti and not ids:
         return
     conn = transaction.get_connection()
-    attivo = getattr(conn, "_scadenze_ricalcolo", None)
-    if attivo is not None and conn.in_atomic_block and any(
-            voce[1] is attivo for voce in conn.run_on_commit):
-        attivo.ids.update(ids)
-        return
-    callback = _RicalcoloInAttesa()
-    callback.ids.update(ids)
-    conn._scadenze_ricalcolo = callback
-    transaction.on_commit(callback)
+    acc = getattr(conn, "_scadenze_accumulo", None)
+    if acc is None:
+        acc = conn._scadenze_accumulo = _Accumulo()
+    acc.ids.update(ids)
+    acc.tutti = acc.tutti or tutti
+    # Fuori da una transazione on_commit esegue subito, con l'accumulo gia' riempito.
+    transaction.on_commit(lambda: _esegui_ricalcolo(conn))

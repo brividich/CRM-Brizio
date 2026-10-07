@@ -7,6 +7,10 @@ class AnagraficaConfig(AppConfig):
     verbose_name = "Anagrafica"
 
     def ready(self):
+        # Scadenze HR ricalcolate a ogni modifica dei dati da cui dipendono.
+        from .segnali_scadenze import collega
+
+        collega()
         try:
             from .acl_bootstrap import bootstrap_anagrafica_acl_endpoints
 
