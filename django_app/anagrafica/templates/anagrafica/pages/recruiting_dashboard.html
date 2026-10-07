@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
-<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=3">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -18,6 +18,7 @@
   <div class="fmd-wrap">
 
     {% include "anagrafica/components/flash_messages.html" %}
+    {% include "anagrafica/partials/_recruiting_tabs.html" with attiva="cruscotto" %}
 
     <section class="fmd-hero">
       <div class="fmd-hero-bg" aria-hidden="true"></div>
@@ -64,17 +65,50 @@
       </form>
     </section>
 
-    <section class="fmd-kpi rcr-kpi-3">
+    <section class="fmd-kpi fmd-kpi-auto">
       <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi.totale }}</span></div><div class="fmd-mtr-lbl">Candidati</div><div class="fmd-mtr-sub">Nel perimetro selezionato</div></div>
       <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ kpi.media_ponderata|floatformat:2|default:"—" }}</span></div><div class="fmd-mtr-lbl">Punteggio medio</div><div class="fmd-mtr-sub">Media dei ponderati (scala 1-5)</div></div>
       <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ kpi.tasso_assunzione }}%</span></div><div class="fmd-mtr-lbl">Tasso di assunzione</div><div class="fmd-mtr-sub">{{ kpi.assunti }} assunti su {{ kpi.totale }}</div></div>
     </section>
 
-    <section class="fmd-kpi rcr-kpi-3">
+    <section class="fmd-kpi fmd-kpi-auto">
       <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ kpi.pct_positivi }}%</span></div><div class="fmd-mtr-lbl">Esiti positivi</div><div class="fmd-mtr-sub">{{ kpi.positivi }} giudizi positivi</div></div>
       <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi.pct_negativi }}%</span></div><div class="fmd-mtr-lbl">Esiti negativi</div><div class="fmd-mtr-sub">{{ kpi.negativi }} giudizi negativi</div></div>
       <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi.giorni_medi_tra_colloqui|default:"—" }}</span></div><div class="fmd-mtr-lbl">Giorni tra i colloqui</div><div class="fmd-mtr-sub">Media 1° → 2° colloquio</div></div>
     </section>
+
+    <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Posizioni aperte">
+      {% url 'anagrafica:recruiting_posizioni' as u_pos %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-building" valore=kpi_posizioni.aperte label="Posizioni attive" sub="richieste di personale" url=u_pos %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=kpi_posizioni.in_ritardo|yesno:"orange,green" icona="i-alarm" valore=kpi_posizioni.in_ritardo label="Posizioni in ritardo" sub="oltre la data richiesta" url=u_pos %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-clock" valore=kpi_posizioni.giorni_medi_copertura|default:"—" label="Giorni per coprire" sub="media ultimi 12 mesi" %}
+      {% url 'anagrafica:recruiting_pipeline' as u_pipe %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-doc" valore=kpi.offerte label="Offerte in corso" sub="in attesa o accettate" url=u_pipe %}
+    </section>
+
+    {% if posizioni_ritardo %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alarm"/></svg>Posizioni in ritardo</div>
+        <span class="fmd-count">{{ posizioni_ritardo|length }}</span>
+      </div>
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Posizione</th><th class="fmd-nowrap">Serviva entro</th><th>Copertura</th><th class="fmd-r">In selezione</th></tr></thead>
+          <tbody>
+            {% for r in posizioni_ritardo %}
+            <tr>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:recruiting_posizione_detail' r.posizione.id %}">{{ r.posizione.titolo }}</a></td>
+              <td class="fmd-nowrap"><span class="fmd-badge fmd-b-red">{{ r.posizione.entro_il|date:"d/m/Y" }}</span></td>
+              <td class="rcr-posti-n">{{ r.assunti }}/{{ r.posizione.posti }}</td>
+              <td class="fmd-r fmd-num">{{ r.in_corso }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
 
     <div class="fmd-split">
       <section class="fmd-panel fmd-block">
@@ -84,12 +118,14 @@
         {% if kpi.per_canale %}
         <div class="fmd-tablewrap">
           <table class="fmd-table">
-            <thead><tr><th>Canale</th><th class="fmd-nowrap">Candidati</th><th class="fmd-nowrap">Punteggio medio</th></tr></thead>
+            <thead><tr><th>Canale</th><th class="fmd-nowrap">Candidati</th><th class="fmd-nowrap">Assunti</th><th class="fmd-nowrap">Conversione</th><th class="fmd-nowrap">Punteggio medio</th></tr></thead>
             <tbody>
               {% for riga in kpi.per_canale %}
               <tr>
                 <td>{{ riga.label }}</td>
                 <td class="fmd-num">{{ riga.n }}</td>
+                <td class="fmd-num">{{ riga.assunti }}</td>
+                <td class="fmd-num">{{ riga.conversione }}%</td>
                 <td class="fmd-num">{{ riga.media|floatformat:2|default:"—" }}</td>
               </tr>
               {% endfor %}

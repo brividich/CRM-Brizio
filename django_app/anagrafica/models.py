@@ -1451,11 +1451,14 @@ class OnboardingPratica(models.Model):
     ]
     STATI_APERTI = (STATO_IN_CORSO,)
 
-    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    # Vuoto nel pre-ingresso: la pratica nasce all'offerta accettata, prima che
+    # il dipendente esista in anagrafica; si collega all'assunzione.
+    legacy_anagrafica_id = models.IntegerField(null=True, blank=True, db_index=True)
     dipendente_nome = models.CharField(max_length=250, blank=True, default="")
     reparto = models.CharField(max_length=200, blank=True, default="")
     mansione = models.CharField(max_length=200, blank=True, default="")
-    data_assunzione = models.DateField(null=True, blank=True)
+    data_assunzione = models.DateField(null=True, blank=True, verbose_name="Data di ingresso")
+    fine_prova = models.DateField(null=True, blank=True, verbose_name="Fine periodo di prova")
     note_hr = models.TextField(blank=True, default="")
     stato = models.CharField(max_length=30, choices=STATO_CHOICES, default=STATO_IN_CORSO, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1499,8 +1502,45 @@ class OnboardingPratica(models.Model):
     def is_aperta(self) -> bool:
         return self.stato in self.STATI_APERTI
 
+    @property
+    def in_pre_ingresso(self) -> bool:
+        """Pratica aperta da un'offerta accettata, dipendente non ancora in anagrafica."""
+        return not self.legacy_anagrafica_id
+
 
 class OnboardingTask(models.Model):
+    # Fasi del percorso di inserimento, nell'ordine; la scadenza di ogni voce
+    # si calcola dalla data di ingresso (``services.onboarding.FASI``).
+    FASE_PRE = "PRE"
+    FASE_GIORNO1 = "GIORNO1"
+    FASE_SETTIMANA1 = "SETTIMANA1"
+    FASE_60GG = "60GG"
+    FASE_PROVA = "PROVA"
+    FASE_CHOICES = [
+        (FASE_PRE, "Prima dell'ingresso"),
+        (FASE_GIORNO1, "Primo giorno"),
+        (FASE_SETTIMANA1, "Prima settimana"),
+        (FASE_60GG, "Primi 60 giorni"),
+        (FASE_PROVA, "Fine periodo di prova"),
+    ]
+
+    # Voci che il portale sa verificare da solo (stesse del piano cambio mansione)
+    # più l'account; MANUALE si chiude solo a mano.
+    TIPO_MANUALE = "MANUALE"
+    TIPO_VISITA = "VISITA"
+    TIPO_FORMAZIONE = "FORMAZIONE"
+    TIPO_DPI = "DPI"
+    TIPO_SDS = "SDS"
+    TIPO_ACCOUNT = "ACCOUNT"
+    TIPO_CHOICES = [
+        (TIPO_MANUALE, "Manuale"),
+        (TIPO_VISITA, "Visita medica"),
+        (TIPO_FORMAZIONE, "Formazione"),
+        (TIPO_DPI, "DPI"),
+        (TIPO_SDS, "Schede di sicurezza"),
+        (TIPO_ACCOUNT, "Account portale"),
+    ]
+
     CATEGORIA_HR = "HR"
     CATEGORIA_IT = "IT"
     CATEGORIA_RESPONSABILE = "RESPONSABILE"
@@ -1532,6 +1572,13 @@ class OnboardingTask(models.Model):
     descrizione = models.TextField(blank=True, default="")
     stato = models.CharField(max_length=20, choices=STATO_CHOICES, default=STATO_DA_FARE, db_index=True)
     note = models.TextField(blank=True, default="")
+    fase = models.CharField(max_length=12, choices=FASE_CHOICES, default=FASE_PRE, db_index=True)
+    ordine = models.PositiveSmallIntegerField(default=100)
+    scadenza = models.DateField(null=True, blank=True, db_index=True)
+    tipo = models.CharField(max_length=12, choices=TIPO_CHOICES, default=TIPO_MANUALE)
+    riferimento_id = models.IntegerField(null=True, blank=True)
+    chiusura_automatica = models.BooleanField(default=False)
+    chiusura_nota = models.CharField(max_length=300, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -1543,8 +1590,17 @@ class OnboardingTask(models.Model):
         related_name="onboarding_task_completati",
     )
 
+    @property
+    def is_aperto(self) -> bool:
+        return self.stato == self.STATO_DA_FARE
+
+    @property
+    def in_ritardo(self) -> bool:
+        from django.utils import timezone
+        return self.is_aperto and self.scadenza is not None and self.scadenza < timezone.localdate()
+
     class Meta:
-        ordering = ["categoria", "id"]
+        ordering = ["ordine", "id"]
         unique_together = [("pratica", "codice")]
         indexes = [
             models.Index(fields=["pratica", "stato"]),

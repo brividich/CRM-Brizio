@@ -78,6 +78,7 @@ def subnav_svg_icon(label):
         ("mansion", "i-clipboard"),
         ("reparti", "i-building"),
         ("recruiting", "i-search"),
+        ("posizion", "i-building"),
         ("dipendent", "i-users"),
         ("retribuzion", "i-coins"),
         ("analisi", "i-coins"),

@@ -18450,76 +18450,171 @@ def libretto_sanitario_generale(request):
 # ---------------------------------------------------------------------------
 
 def _onboarding_counts(pratica) -> dict[str, int]:
-    tasks = list(pratica.tasks.all())
-    return {
-        "totale": len(tasks),
-        "da_fare": sum(1 for t in tasks if t.stato == OnboardingTask.STATO_DA_FARE),
-        "completati": sum(1 for t in tasks if t.stato == OnboardingTask.STATO_COMPLETATO),
-        "eccezioni": sum(1 for t in tasks if t.stato == OnboardingTask.STATO_ECCEZIONE),
-    }
+    return onboarding_service.riepilogo(pratica)
+
+
+def _onboarding_aggiorna_safe(**kwargs) -> None:
+    """Chiusura automatica delle voci verificabili; un errore non blocca la pagina."""
+    try:
+        onboarding_service.aggiorna_pratiche(**kwargs)
+    except Exception:
+        logger.exception("Verifica automatica voci onboarding fallita")
 
 
 @login_required
 def onboarding_list(request):
-    """Elenco pratiche onboarding con filtro stato e KPI. Gated HR."""
+    """Cruscotto onboarding: KPI, pratiche con avanzamento e coda per responsabile. Gated HR."""
     if not _check_hr_permission(request):
         messages.error(request, "Non hai i permessi per le pratiche di onboarding.")
         return redirect("anagrafica:index")
 
+    _onboarding_aggiorna_safe()
+    oggi = django_timezone.localdate()
     filtro_stato = (request.GET.get("stato") or "").strip()
+    filtro_resp = (request.GET.get("responsabile") or "").strip()
+    solo_ritardo = (request.GET.get("ritardo") or "").strip() == "1"
+    categorie = dict(OnboardingTask.CATEGORIA_CHOICES)
+
     qs = OnboardingPratica.objects.prefetch_related("tasks").all()
     valid_stati = {choice[0] for choice in OnboardingPratica.STATO_CHOICES}
     if filtro_stato in valid_stati:
         qs = qs.filter(stato=filtro_stato)
+    elif filtro_stato != "tutte":
+        qs = qs.filter(stato__in=OnboardingPratica.STATI_APERTI)
 
-    pratiche = list(qs)
-    for pratica in pratiche:
-        pratica.counts = _onboarding_counts(pratica)
+    pratiche = []
+    for pratica in qs.order_by("data_assunzione", "-created_at"):
+        tasks = list(pratica.tasks.all())
+        pratica.counts = onboarding_service.riepilogo(pratica, tasks)
+        if solo_ritardo and not pratica.counts["in_ritardo"]:
+            continue
+        if filtro_resp in categorie and not any(
+            t.categoria == filtro_resp and t.stato == OnboardingTask.STATO_DA_FARE for t in tasks
+        ):
+            continue
+        pratiche.append(pratica)
 
-    n_in_corso = OnboardingPratica.objects.filter(
-        stato__in=OnboardingPratica.STATI_APERTI
-    ).count()
-    n_chiuse = OnboardingPratica.objects.filter(
-        stato=OnboardingPratica.STATO_CHIUSA
-    ).count()
-    n_eccezioni = OnboardingPratica.objects.filter(
-        stato=OnboardingPratica.STATO_CHIUSA_CON_ECCEZIONI
-    ).count()
+    # Coda delle attività aperte del responsabile scelto (o di tutti, se in ritardo).
+    coda = []
+    if filtro_resp in categorie or solo_ritardo:
+        coda_qs = OnboardingTask.objects.filter(
+            stato=OnboardingTask.STATO_DA_FARE,
+            pratica__stato__in=OnboardingPratica.STATI_APERTI,
+        ).select_related("pratica").order_by("scadenza", "ordine")
+        if filtro_resp in categorie:
+            coda_qs = coda_qs.filter(categoria=filtro_resp)
+        if solo_ritardo:
+            coda_qs = coda_qs.filter(scadenza__lt=oggi)
+        coda = list(coda_qs[:200])
 
-    paginator = Paginator(pratiche, 30)
-    page_obj = paginator.get_page(request.GET.get("page"))
+    aperte = OnboardingPratica.objects.filter(stato__in=OnboardingPratica.STATI_APERTI)
+    task_ritardo = OnboardingTask.objects.filter(
+        stato=OnboardingTask.STATO_DA_FARE, pratica__stato__in=OnboardingPratica.STATI_APERTI,
+        scadenza__lt=oggi,
+    )
+    entro_30 = oggi + _timedelta(days=30)
+    kpi = {
+        "in_corso": aperte.count(),
+        "pre_ingresso": aperte.filter(legacy_anagrafica_id__isnull=True).count(),
+        "in_ritardo": task_ritardo.values("pratica_id").distinct().count(),
+        "voci_in_ritardo": task_ritardo.count(),
+        "ingressi_30": aperte.filter(data_assunzione__gte=oggi, data_assunzione__lte=entro_30).count(),
+        "fine_prova_30": aperte.filter(fine_prova__gte=oggi, fine_prova__lte=entro_30).count(),
+        "chiuse": OnboardingPratica.objects.filter(stato=OnboardingPratica.STATO_CHIUSA).count(),
+        "eccezioni": OnboardingPratica.objects.filter(stato=OnboardingPratica.STATO_CHIUSA_CON_ECCEZIONI).count(),
+    }
+    per_responsabile = {
+        riga["categoria"]: riga["n"]
+        for riga in OnboardingTask.objects.filter(
+            stato=OnboardingTask.STATO_DA_FARE, pratica__stato__in=OnboardingPratica.STATI_APERTI,
+        ).values("categoria").annotate(n=Count("id")).order_by()
+    }
 
+    page_obj = Paginator(pratiche, 30).get_page(request.GET.get("page"))
     return render(request, "anagrafica/pages/onboarding_list.html", {
         "page_obj": page_obj,
         "totale": len(pratiche),
         "filtro_stato": filtro_stato,
+        "filtro_resp": filtro_resp,
+        "solo_ritardo": solo_ritardo,
         "stato_choices": OnboardingPratica.STATO_CHOICES,
-        "n_in_corso": n_in_corso,
-        "n_chiuse": n_chiuse,
-        "n_eccezioni": n_eccezioni,
+        "responsabili": [
+            {"codice": codice, "label": label, "aperte": per_responsabile.get(codice, 0)}
+            for codice, label in OnboardingTask.CATEGORIA_CHOICES
+        ],
+        "coda": coda,
+        "kpi": kpi,
+        "oggi": oggi,
+        # Compatibilità con il template precedente / export.
+        "n_in_corso": kpi["in_corso"],
+        "n_chiuse": kpi["chiuse"],
+        "n_eccezioni": kpi["eccezioni"],
     })
+
+
+def _onboarding_contesto_pratica(pratica) -> dict:
+    tasks = list(pratica.tasks.all())
+    return {
+        "pratica": pratica,
+        "tasks": tasks,
+        "fasi": onboarding_service.fasi_con_voci(pratica, tasks),
+        "counts": onboarding_service.riepilogo(pratica, tasks),
+        "oggi": django_timezone.localdate(),
+    }
 
 
 @login_required
 def onboarding_detail(request, pratica_id: int):
-    """Dettaglio pratica onboarding con checklist task. Gated HR."""
+    """Pratica onboarding a timeline per fase. Gated HR."""
     if not _check_hr_permission(request):
         messages.error(request, "Non hai i permessi per le pratiche di onboarding.")
         return redirect("anagrafica:index")
 
-    pratica = get_object_or_404(
-        OnboardingPratica.objects.prefetch_related("tasks"), pk=pratica_id
-    )
-    tasks = list(pratica.tasks.all())
-    counts = _onboarding_counts(pratica)
-
+    pratica = get_object_or_404(OnboardingPratica, pk=pratica_id)
+    if pratica.is_aperta and pratica.legacy_anagrafica_id:
+        _onboarding_aggiorna_safe(pratiche=[pratica])
+    candidato = pratica.candidati_recruiting.order_by("-pk").first()
     return render(request, "anagrafica/pages/onboarding_detail.html", {
-        "pratica": pratica,
-        "tasks": tasks,
-        "counts": counts,
+        **_onboarding_contesto_pratica(pratica),
+        "candidato": candidato,
         "task_stato_choices": OnboardingTask.STATO_CHOICES,
         "is_admin": _offboarding_is_admin(request),
     })
+
+
+@login_required
+@require_POST
+def onboarding_date(request, pratica_id: int):
+    """Aggiorna data di ingresso e fine prova; le scadenze aperte si ricalcolano. Gated HR."""
+    if not _check_hr_permission(request):
+        messages.error(request, "Non hai i permessi per aggiornare la pratica onboarding.")
+        return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+
+    pratica = get_object_or_404(OnboardingPratica, pk=pratica_id, stato__in=OnboardingPratica.STATI_APERTI)
+    valori = {}
+    for campo in ("data_assunzione", "fine_prova"):
+        grezzo = (request.POST.get(campo) or "").strip()
+        try:
+            valori[campo] = date.fromisoformat(grezzo) if grezzo else None
+        except ValueError:
+            messages.error(request, "Data non valida.")
+            return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+    if valori["data_assunzione"] and valori["fine_prova"] and valori["fine_prova"] < valori["data_assunzione"]:
+        messages.error(request, "La fine della prova non può precedere l'ingresso.")
+        return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
+
+    prima = {"data_assunzione": str(pratica.data_assunzione or ""), "fine_prova": str(pratica.fine_prova or "")}
+    pratica.data_assunzione = valori["data_assunzione"]
+    pratica.fine_prova = valori["fine_prova"]
+    pratica.updated_by = request.user
+    pratica.save(update_fields=["data_assunzione", "fine_prova", "updated_by", "updated_at"])
+    n = onboarding_service.ricalcola_scadenze(pratica)
+    _audit_safe(request, "DIPENDENTE_ONBOARDING_DATE", "anagrafica", {
+        "pratica_id": pratica.pk, "prima": prima,
+        "dopo": {k: str(v or "") for k, v in valori.items()}, "scadenze_ricalcolate": n,
+    })
+    messages.success(request, f"Date aggiornate: {n} scadenze ricalcolate.")
+    return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
 
 
 @login_required
@@ -18622,6 +18717,15 @@ def onboarding_task_update(request, pratica_id: int, task_id: int):
         "stato_precedente": before,
         "stato_nuovo": task.stato,
     })
+    if getattr(request, "htmx", False):
+        # Aggiornamento in pagina: la voce si ridisegna e avanzamento/fase
+        # arrivano out-of-band, senza ricaricare la pratica.
+        contesto = _onboarding_contesto_pratica(task.pratica)
+        return render(request, "anagrafica/partials/_onboarding_voce_htmx.html", {
+            **contesto,
+            "task": task,
+            "fase": next((f for f in contesto["fasi"] if f["codice"] == task.fase), None),
+        })
     messages.success(request, f"Task onboarding aggiornato: {task.titolo}.")
     return redirect("anagrafica:onboarding_detail", pratica_id=pratica_id)
 

@@ -1,0 +1,12 @@
+{# Avanzamento della pratica. Parametro opzionale oob=True per l'aggiornamento out-of-band. #}
+<div class="obd-progress" id="ob-progress"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="obd-prog obd-prog-lg">
+    <div class="obd-prog-bar"><span style="width:{{ counts.percentuale }}%"></span></div>
+    <span class="obd-prog-n">{{ counts.percentuale }}%</span>
+  </div>
+  <div class="obd-progress-txt">
+    {{ counts.completati }} fatte{% if counts.eccezioni %} · {{ counts.eccezioni }} eccezioni{% endif %} · {{ counts.da_fare }} da fare
+    {% if counts.in_ritardo %}· <b class="obd-late">{{ counts.in_ritardo }} in ritardo</b>{% endif %}
+    {% if counts.fase_corrente %}· fase: <b>{{ counts.fase_corrente }}</b>{% endif %}
+  </div>
+</div>

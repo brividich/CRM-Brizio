@@ -1,0 +1,3 @@
+{% include "anagrafica/partials/_onboarding_voce.html" %}
+{% include "anagrafica/partials/_onboarding_avanzamento.html" with oob=True %}
+{% if fase %}<span class="obf-n" id="obf-n-{{ fase.codice }}" hx-swap-oob="true">{{ fase.fatte }}/{{ fase.voci|length }}</span>{% endif %}

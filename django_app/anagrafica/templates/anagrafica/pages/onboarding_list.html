@@ -6,6 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/onboarding.css' %}?v=2">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -18,39 +19,66 @@
 
     {% include "anagrafica/components/flash_messages.html" %}
 
-    {# ── Hero ───────────────────────────────────────────────────────────── #}
-    <section class="fmd-hero">
-      <div class="fmd-hero-bg" aria-hidden="true"></div>
-      <div class="fmd-hero-inner">
-        <div>
-          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Onboarding</div>
-          <h1><svg class="fmd-ico fmd-cap"><use href="#i-id"/></svg>Pratiche di onboarding</h1>
-          <p class="fmd-sub">Inserimento nuovi assunti con checklist di attivazione (account, badge, DPI, formazione, visita).</p>
-        </div>
-        <div class="fmd-hero-side">
-          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_in_corso }}</span><span class="fmd-lbl">In corso</span></div>
-          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ n_chiuse }}</span><span class="fmd-lbl">Chiuse</span></div>
-        </div>
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:index' %}">Anagrafica HR</a><span class="fmd-sep"> / </span><span class="fmd-cur">Onboarding</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-check"/></svg>Onboarding dei nuovi assunti</h1>
+        <p class="fmd-ph-sub">Piano di inserimento a fasi, dalla preparazione dell'ingresso alla fine del periodo di prova. Visite, corsi, DPI, schede di sicurezza e account si spuntano da soli quando il portale li registra.</p>
       </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:recruiting_pipeline' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Recruiting</a>
+      </div>
+    </div>
+
+    <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Onboarding in sintesi">
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=kpi.in_corso label="In corso" sub="pratiche aperte" url="?" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.in_ritardo|yesno:"orange,green" icona="i-alarm" valore=kpi.in_ritardo label="In ritardo" sub="pratiche con voci scadute" url="?ritardo=1" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-calendar" valore=kpi.ingressi_30 label="Ingressi a 30 giorni" sub="nuovi assunti in arrivo" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-award" valore=kpi.fine_prova_30 label="Fine prova a 30 giorni" sub="valutazioni da preparare" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-doc" valore=kpi.pre_ingresso label="Pre-ingresso" sub="offerta accettata, non ancora assunti" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=kpi.chiuse label="Chiuse" sub="inserimento completato" url="?stato=CHIUSA" %}
     </section>
 
-    {# ── KPI ────────────────────────────────────────────────────────────── #}
-    <section class="fmd-kpi" style="grid-template-columns:repeat(3,1fr);">
-      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-id"/></svg></span><span class="fmd-mtr-val">{{ n_in_corso }}</span></div><div class="fmd-mtr-lbl">In corso</div><div class="fmd-mtr-sub">Checklist da completare</div></div>
-      <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_chiuse }}</span></div><div class="fmd-mtr-lbl">Chiuse</div><div class="fmd-mtr-sub">Inserimento completato</div></div>
-      <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_eccezioni }}</span></div><div class="fmd-mtr-lbl">Con eccezioni</div><div class="fmd-mtr-sub">Chiuse con task non completati</div></div>
+    <section class="fmd-panel">
+      <div class="obd-resp" role="group" aria-label="Attività per responsabile">
+        <span class="obd-resp-lbl">Da fare per</span>
+        {% for r in responsabili %}
+        <a class="obd-resp-chip{% if filtro_resp == r.codice %} on{% endif %}" href="?responsabile={% if filtro_resp != r.codice %}{{ r.codice }}{% endif %}{% if solo_ritardo %}&ritardo=1{% endif %}">{{ r.label }} <b>{{ r.aperte }}</b></a>
+        {% endfor %}
+        <a class="obd-resp-chip obd-resp-late{% if solo_ritardo %} on{% endif %}" href="?{% if filtro_resp %}responsabile={{ filtro_resp }}&{% endif %}{% if not solo_ritardo %}ritardo=1{% endif %}">In ritardo <b>{{ kpi.voci_in_ritardo }}</b></a>
+      </div>
+
+      {% if coda %}
+      <div class="fmd-tablewrap">
+        <table class="fmd-table" data-ana-row-click="0">
+          <thead><tr><th>Attività</th><th>Persona</th><th>Fase</th><th>Responsabile</th><th class="fmd-nowrap">Scadenza</th></tr></thead>
+          <tbody>
+            {% for t in coda %}
+            <tr>
+              <td><b>{{ t.titolo }}</b></td>
+              <td><a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' t.pratica_id %}">{{ t.pratica.dipendente_nome|default:t.pratica.legacy_anagrafica_id }}</a></td>
+              <td class="fmd-muted">{{ t.get_fase_display }}</td>
+              <td><span class="obd-cat">{{ t.get_categoria_display }}</span></td>
+              <td class="fmd-nowrap">{% if t.scadenza %}{% if t.scadenza < oggi %}<span class="fmd-badge fmd-b-red">{{ t.scadenza|date:"d/m/Y" }}</span>{% else %}{{ t.scadenza|date:"d/m/Y" }}{% endif %}{% else %}<span class="fmd-muted">da definire</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
     </section>
 
-    {# ── Tabella + filtri ───────────────────────────────────────────────── #}
     <section class="fmd-panel">
       <form method="get" action="" class="fmd-toolbar">
         <select name="stato" class="fmd-select" aria-label="Filtra per stato" onchange="this.form.submit()">
-          <option value="" {% if not filtro_stato %}selected{% endif %}>Tutti gli stati</option>
-          {% for value, label in stato_choices %}
+          <option value="" {% if not filtro_stato %}selected{% endif %}>In corso</option>
+          {% for value, label in stato_choices %}{% if value != "IN_CORSO" %}
           <option value="{{ value }}" {% if filtro_stato == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
+          {% endif %}{% endfor %}
+          <option value="tutte" {% if filtro_stato == "tutte" %}selected{% endif %}>Tutte</option>
         </select>
-        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+        {% if filtro_resp %}<input type="hidden" name="responsabile" value="{{ filtro_resp }}">{% endif %}
+        {% if solo_ritardo %}<input type="hidden" name="ritardo" value="1">{% endif %}
         <a href="{% url 'anagrafica:onboarding_list' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>
         <span class="fmd-spacer"></span>
         {% include "anagrafica/partials/_export_buttons.html" with export_key="onboarding" %}
@@ -61,28 +89,44 @@
         <table class="fmd-table" data-table-id="anagrafica.onboarding">
           <thead>
             <tr>
-              <th>Dipendente</th>
-              <th>Reparto</th>
-              <th class="fmd-nowrap">Assunzione</th>
-              <th>Stato</th>
+              <th>Persona</th>
+              <th class="fmd-nowrap">Ingresso</th>
+              <th>Fase</th>
               <th>Avanzamento</th>
-              <th class="fmd-r">Azioni</th>
+              <th class="fmd-nowrap">Prossima scadenza</th>
+              <th>Da fare per</th>
+              <th>Stato</th>
             </tr>
           </thead>
           <tbody>
             {% for p in page_obj.object_list %}
             <tr>
-              <td><a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' p.id %}">{{ p.dipendente_nome|default:p.legacy_anagrafica_id }}</a></td>
-              <td>{% if p.reparto %}<span class="fmd-badge fmd-b-cyan">{{ p.reparto }}</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
-              <td class="fmd-nowrap fmd-muted">{{ p.data_assunzione|date:"d-m-Y"|default:"—" }}</td>
+              <td>
+                <a class="fmd-data-link" href="{% url 'anagrafica:onboarding_detail' p.id %}">{{ p.dipendente_nome|default:p.legacy_anagrafica_id }}</a>
+                <div class="fmd-cell-sub">{{ p.mansione|default:"" }}{% if p.reparto %} · {{ p.reparto }}{% endif %}</div>
+              </td>
+              <td class="fmd-nowrap">{{ p.data_assunzione|date:"d/m/Y"|default:"—" }}{% if p.in_pre_ingresso %}<div><span class="fmd-badge fmd-b-amber">Pre-ingresso</span></div>{% endif %}</td>
+              <td class="fmd-muted">{{ p.counts.fase_corrente|default:"—" }}</td>
+              <td>
+                <div class="obd-prog" title="{{ p.counts.completati }} completate, {{ p.counts.eccezioni }} eccezioni, {{ p.counts.da_fare }} da fare">
+                  <div class="obd-prog-bar"><span style="width:{{ p.counts.percentuale }}%"></span></div>
+                  <span class="obd-prog-n">{{ p.counts.percentuale }}%</span>
+                </div>
+              </td>
+              <td class="fmd-nowrap">
+                {% if p.counts.prossima %}
+                  {% if p.counts.prossima.in_ritardo %}<span class="fmd-badge fmd-b-red">{{ p.counts.prossima.scadenza|date:"d/m/Y" }}</span>{% else %}{{ p.counts.prossima.scadenza|date:"d/m/Y" }}{% endif %}
+                  <div class="fmd-cell-sub">{{ p.counts.prossima.titolo|truncatechars:42 }}</div>
+                {% else %}<span class="fmd-muted">—</span>{% endif %}
+                {% if p.counts.in_ritardo %}<div class="fmd-cell-sub obd-late">{{ p.counts.in_ritardo }} in ritardo</div>{% endif %}
+              </td>
+              <td>{% for r in p.counts.responsabili %}<span class="obd-cat">{{ r }}</span> {% empty %}<span class="fmd-muted">—</span>{% endfor %}</td>
               <td>
                 {% if p.stato == "IN_CORSO" %}<span class="fmd-badge fmd-b-cyan">In corso</span>
                 {% elif p.stato == "CHIUSA" %}<span class="fmd-badge fmd-b-green">Chiusa</span>
                 {% elif p.stato == "CHIUSA_CON_ECCEZIONI" %}<span class="fmd-badge fmd-b-amber">Con eccezioni</span>
                 {% else %}<span class="fmd-badge fmd-b-grey">Annullata</span>{% endif %}
               </td>
-              <td class="fmd-muted">{{ p.counts.completati }}/{{ p.counts.totale }} completati{% if p.counts.eccezioni %} · {{ p.counts.eccezioni }} eccezioni{% endif %}</td>
-              <td class="fmd-r"><a href="{% url 'anagrafica:onboarding_detail' p.id %}" class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;">Apri <svg class="fmd-ico"><use href="#i-arrow-right"/></svg></a></td>
             </tr>
             {% endfor %}
           </tbody>
@@ -93,18 +137,17 @@
         <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ totale }} pratiche</span>
         {% if page_obj.has_other_pages %}
         <div class="fmd-pager">
-          {% if page_obj.has_previous %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">‹</a>{% endif %}
+          {% if page_obj.has_previous %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">‹</a>{% endif %}
           <span class="fmd-page fmd-on">{{ page_obj.number }}</span>
-          {% if page_obj.has_next %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">›</a>{% endif %}
+          {% if page_obj.has_next %}<a href="?{% for k,v in request.GET.items %}{% if k != 'page' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">›</a>{% endif %}
         </div>
         {% endif %}
       </div>
 
       {% else %}
       <div class="fmd-empty">
-        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-id"/></svg></span>
-        <span class="fmd-et">Nessuna pratica onboarding</span>
-        <span class="fmd-em">Avvia una pratica dalla scheda di un dipendente.</span>
+        <span class="fmd-et">Nessuna pratica di onboarding</span>
+        <span class="fmd-em">Una pratica nasce da sola quando un candidato accetta l'offerta o viene assunto; si può avviare anche dalla scheda di un dipendente.</span>
       </div>
       {% endif %}
     </section>

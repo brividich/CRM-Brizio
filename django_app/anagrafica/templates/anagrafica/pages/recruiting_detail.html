@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 {% include "core/components/_hub_formkit.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=3">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -73,6 +73,7 @@
       </div>
 
       <dl class="rcr-dl">
+        <div><dt>Posizione aperta</dt><dd>{% if candidato.posizione %}<a href="{% url 'anagrafica:recruiting_posizione_detail' candidato.posizione.id %}">{{ candidato.posizione.titolo }}</a>{% else %}—{% endif %}</dd></div>
         <div><dt>Mansione cercata</dt><dd>{{ candidato.mansione_cercata|default:"—" }}</dd></div>
         <div><dt>Canale</dt><dd>{{ candidato.get_canale_provenienza_display }}{% if candidato.canale_dettaglio %} · {{ candidato.canale_dettaglio }}{% endif %}</dd></div>
         <div><dt>Contatti</dt><dd>{{ candidato.cellulare|default:"—" }}{% if candidato.email %}<br>{{ candidato.email }}{% endif %}</dd></div>
@@ -179,6 +180,57 @@
       {% endif %}
     </section>
 
+    {# Offerta (facoltativa) #}
+    {% if candidato.offerta_inviata_il or can_manage and not sola_lettura %}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head">
+        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-doc"/></svg>Offerta</div>
+        <span class="fmd-block-aside">Passaggio facoltativo prima dell'assunzione</span>
+      </div>
+
+      {% if candidato.offerta_inviata_il %}
+      <dl class="rcr-dl">
+        <div><dt>Inviata il</dt><dd>{{ candidato.offerta_inviata_il|date:"d-m-Y" }}</dd></div>
+        <div><dt>Esito</dt><dd>
+          {% if candidato.offerta_esito == "ACCETTATA" %}<span class="fmd-badge fmd-b-green">Accettata</span>
+          {% elif candidato.offerta_esito == "RIFIUTATA" %}<span class="fmd-badge fmd-b-red">Rifiutata</span>
+          {% else %}<span class="fmd-badge fmd-b-amber">In attesa di risposta</span>{% endif %}
+          {% if candidato.offerta_esito_il %} il {{ candidato.offerta_esito_il|date:"d-m-Y" }}{% endif %}
+        </dd></div>
+        <div><dt>Data di ingresso</dt><dd>{{ candidato.data_assunzione|date:"d-m-Y"|default:"—" }}</dd></div>
+        {% if candidato.offerta_note %}<div><dt>Condizioni</dt><dd>{{ candidato.offerta_note }}</dd></div>{% endif %}
+      </dl>
+      {% endif %}
+
+      {% if can_manage and not sola_lettura %}
+        {% if candidato.stato == "OFFERTA" and candidato.offerta_esito != "ACCETTATA" %}
+        <form method="post" action="{% url 'anagrafica:recruiting_offerta_esito' candidato.id %}" class="rcr-esito-row">
+          {% csrf_token %}
+          <div class="hub-field">
+            <label for="rcr-ingresso">Data di ingresso concordata</label>
+            <input type="date" id="rcr-ingresso" name="data_ingresso" value="{{ candidato.data_assunzione|date:'Y-m-d' }}">
+          </div>
+          <button type="submit" name="esito" value="ACCETTATA" class="fmd-btn fmd-btn-primary"{% if candidato.anagrafica_da_completare %} disabled title="Serve il nominativo"{% endif %}><svg class="fmd-ico"><use href="#i-check"/></svg>Accettata → apri pre-ingresso</button>
+          <button type="submit" name="esito" value="RIFIUTATA" class="fmd-btn fmd-btn-ghost"
+                  onclick="return confirm('Registrare l\'offerta come rifiutata? L\'iter si chiude per rinuncia del candidato.');">Rifiutata</button>
+        </form>
+        {% elif candidato.stato != "OFFERTA" %}
+        <form method="post" action="{% url 'anagrafica:recruiting_offerta' candidato.id %}">
+          {% csrf_token %}
+          <div class="rcr-offerta-grid">
+            {% include "core/forms/_field.html" with field=offerta_form.inviata_il %}
+            {% include "core/forms/_field.html" with field=offerta_form.data_ingresso %}
+            {% include "core/forms/_field.html" with field=offerta_form.note %}
+          </div>
+          <div class="rcr-actions">
+            <button type="submit" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-doc"/></svg>Registra offerta inviata</button>
+          </div>
+        </form>
+        {% endif %}
+      {% endif %}
+    </section>
+    {% endif %}
+
     {# Esito dell'iter #}
     {% if can_manage and not sola_lettura %}
     <section class="fmd-panel fmd-block">
@@ -186,7 +238,14 @@
         <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Esito dell'iter</div>
       </div>
 
-      {% if candidato.onboarding_pratica %}
+      {% if candidato.onboarding_pratica and candidato.onboarding_pratica.in_pre_ingresso %}
+      <p class="hub-fsec-d rcr-lead">
+        Offerta accettata: la <a href="{% url 'anagrafica:onboarding_detail' candidato.onboarding_pratica.id %}">pratica di pre-ingresso</a>
+        è aperta. All'assunzione si collega al nuovo dipendente, senza aprirne un'altra.
+      </p>
+      {% endif %}
+
+      {% if candidato.onboarding_pratica and not candidato.onboarding_pratica.in_pre_ingresso %}
       <p class="hub-fsec-d rcr-lead">
         Candidato assunto: dipendente creato in anagrafica (id legacy {{ candidato.legacy_anagrafica_id }})
         e pratica di onboarding avviata.

@@ -37,6 +37,7 @@ from core import naming
 
 __all__ = [
     "RecruitingCriterio",
+    "PosizioneAperta",
     "Candidato",
     "CandidatoPunteggio",
     "CandidatoLog",
@@ -126,6 +127,81 @@ class RecruitingCriterio(models.Model):
         return f"{self.label} ({self.peso_percentuale}%)"
 
 
+class PosizioneAperta(models.Model):
+    """Richiesta di personale da coprire: il «perché» di una selezione.
+
+    I candidati si legano alla posizione; quando gli assunti raggiungono i posti
+    richiesti la posizione passa da sola a «Coperta» (``services.recruiting``).
+    I giorni di copertura (richiesta → chiusura) sono il KPI principale del
+    processo di selezione.
+    """
+
+    STATO_APERTA = "APERTA"
+    STATO_SOSPESA = "SOSPESA"
+    STATO_COPERTA = "COPERTA"
+    STATO_ANNULLATA = "ANNULLATA"
+    STATO_CHOICES = [
+        (STATO_APERTA, "Aperta"),
+        (STATO_SOSPESA, "Sospesa"),
+        (STATO_COPERTA, "Coperta"),
+        (STATO_ANNULLATA, "Annullata"),
+    ]
+    STATI_ATTIVI = (STATO_APERTA, STATO_SOSPESA)
+
+    MOTIVO_SOSTITUZIONE = "SOSTITUZIONE"
+    MOTIVO_INCREMENTO = "INCREMENTO"
+    MOTIVO_NUOVO_RUOLO = "NUOVO_RUOLO"
+    MOTIVO_STAGIONALE = "STAGIONALE"
+    MOTIVO_ALTRO = "ALTRO"
+    MOTIVO_CHOICES = [
+        (MOTIVO_SOSTITUZIONE, "Sostituzione"),
+        (MOTIVO_INCREMENTO, "Incremento organico"),
+        (MOTIVO_NUOVO_RUOLO, "Nuovo ruolo"),
+        (MOTIVO_STAGIONALE, "Picco / stagionale"),
+        (MOTIVO_ALTRO, "Altro"),
+    ]
+
+    titolo = models.CharField(max_length=160)
+    mansione = models.CharField(max_length=160, blank=True, default="", db_index=True)
+    reparto = models.CharField(max_length=200, blank=True, default="")
+    posti = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1)])
+    motivo = models.CharField(max_length=20, choices=MOTIVO_CHOICES, default=MOTIVO_SOSTITUZIONE)
+    richiesta_da = models.CharField(
+        max_length=160, blank=True, default="",
+        help_text="Chi ha chiesto la risorsa (es. responsabile di reparto).",
+    )
+    data_richiesta = models.DateField(db_index=True)
+    entro_il = models.DateField(null=True, blank=True, help_text="Data entro cui la risorsa serve in reparto.")
+    stato = models.CharField(max_length=12, choices=STATO_CHOICES, default=STATO_APERTA, db_index=True)
+    chiusa_il = models.DateField(null=True, blank=True)
+    note = models.TextField(blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="posizioni_recruiting_create",
+    )
+
+    class Meta:
+        ordering = ["stato", "entro_il", "-data_richiesta"]
+        verbose_name = "Posizione aperta (Recruiting)"
+        verbose_name_plural = "Posizioni aperte (Recruiting)"
+
+    def __str__(self) -> str:
+        return self.titolo
+
+    @property
+    def is_attiva(self) -> bool:
+        return self.stato in self.STATI_ATTIVI
+
+    @property
+    def giorni_copertura(self) -> int | None:
+        if self.stato != self.STATO_COPERTA or not self.chiusa_il:
+            return None
+        return (self.chiusa_il - self.data_richiesta).days
+
+
 class Candidato(models.Model):
     """Scheda candidato: anagrafica, esito CV, colloquio 1, colloquio 2, esito.
 
@@ -138,6 +214,7 @@ class Candidato(models.Model):
     STATO_CV_VALUTATO = "CV_VALUTATO"
     STATO_COLLOQUIO_1 = "COLLOQUIO_1"
     STATO_COLLOQUIO_2 = "COLLOQUIO_2"
+    STATO_OFFERTA = "OFFERTA"
     STATO_ASSUNTO = "ASSUNTO"
     STATO_IN_DATABASE = "IN_DATABASE"
     STATO_SCARTATO = "SCARTATO"
@@ -149,6 +226,7 @@ class Candidato(models.Model):
         (STATO_CV_VALUTATO, "CV valutato"),
         (STATO_COLLOQUIO_1, "Primo colloquio effettuato"),
         (STATO_COLLOQUIO_2, "Secondo colloquio effettuato"),
+        (STATO_OFFERTA, "Offerta inviata"),
         (STATO_ASSUNTO, "Assunto"),
         (STATO_IN_DATABASE, "In database per future opportunità"),
         (STATO_SCARTATO, "Non idoneo"),
@@ -164,6 +242,20 @@ class Candidato(models.Model):
     # dagli esiti reali del processo (assunto/non idoneo/rinuncia): serve per le
     # schede inserite per errore o ritirate amministrativamente.
     STATI_ARCHIVIATI = (STATO_ANNULLATO,)
+    # Colonne della pipeline, nell'ordine dell'iter. L'Offerta è facoltativa:
+    # dal secondo colloquio si può passare direttamente ad Assunto.
+    STATI_PIPELINE = (
+        STATO_NUOVO, STATO_CV_VALUTATO, STATO_COLLOQUIO_1, STATO_COLLOQUIO_2, STATO_OFFERTA, STATO_ASSUNTO,
+    )
+
+    OFFERTA_IN_ATTESA = ""
+    OFFERTA_ACCETTATA = "ACCETTATA"
+    OFFERTA_RIFIUTATA = "RIFIUTATA"
+    OFFERTA_ESITO_CHOICES = [
+        (OFFERTA_IN_ATTESA, "In attesa di risposta"),
+        (OFFERTA_ACCETTATA, "Accettata"),
+        (OFFERTA_RIFIUTATA, "Rifiutata"),
+    ]
 
     # --- Canale di provenienza del CV --------------------------------------
     CANALE_AUTOCANDIDATURA = "AUTOCANDIDATURA"
@@ -284,7 +376,20 @@ class Candidato(models.Model):
     comunicazione_esito = models.CharField(
         max_length=12, choices=COMUNICAZIONE_CHOICES, blank=True, default="",
     )
-    data_assunzione = models.DateField(null=True, blank=True)
+    data_assunzione = models.DateField(
+        null=True, blank=True, verbose_name="Data di ingresso",
+        help_text="Primo giorno di lavoro: da qui partono le scadenze dell'onboarding.",
+    )
+
+    # --- Posizione e offerta -------------------------------------------------
+    posizione = models.ForeignKey(
+        PosizioneAperta, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="candidati", verbose_name="Posizione aperta",
+    )
+    offerta_inviata_il = models.DateField(null=True, blank=True)
+    offerta_esito = models.CharField(max_length=10, choices=OFFERTA_ESITO_CHOICES, blank=True, default="")
+    offerta_esito_il = models.DateField(null=True, blank=True)
+    offerta_note = models.CharField(max_length=300, blank=True, default="")
 
     # --- Esito dell'iter ----------------------------------------------------
     stato = models.CharField(
