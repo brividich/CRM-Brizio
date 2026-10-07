@@ -10,6 +10,14 @@ Area **SOC IT - CN** · URL `/contatori/` · codice [`django_app/contatori/`](..
 
 ## Note di rilascio
 
+**Verifica OID** (ottobre 2026), pulsante «Verifica OID» sulla scheda del dispositivo SNMP (`/contatori/snmp/dispositivi/<id>/verifica-oid/`, permesso gestione):
+- Incolli un elenco di OID o un testo qualsiasi (catalogo, MIB, risposta di un'AI esterna): il portale estrae gli OID e li interroga davvero sull'apparato, in sola lettura (GET, oppure WALK se è una tabella). Facoltativa l'esplorazione dei «rami noti» per produttore: HPE Aruba, Cisco Small Business/IOS, WatchGuard, UniFi, VMware, iLO e Synology, più i rami standard (CPU, memoria, porte, PoE, sensori, UPS).
+- Per ogni OID che risponde mostra modalità, numero di righe, tipo e valori letti; gli OID inesistenti (`noSuchName`) sono elencati a parte e non entrano nel profilo.
+- **«Proponi nomi e soglie con AI»**: l'AI interna riceve solo gli OID verificati con i loro valori e propone nome, unità, fattore, aggregazione, soglie ed etichette. Le proposte su OID non verificati vengono scartate.
+- Gli OID selezionati diventano colonne del profilo scelto, segnate «Verificata» con data e modello, oppure lettori OID del solo dispositivo. Se il profilo è quello del dispositivo, le sonde vengono create subito.
+- Audit `snmp_verifica_oid` / `snmp_verifica_oid_aggiunti`. Migrazione `contatori 0027` (binding ACL della nuova route).
+- Corretto anche: i valori TimeTicks (es. uptime) letti come `timedelta` da puresnmp non venivano convertiti, quindi «Uptime» restava vuoto e le sonde di tipo Tempo andavano in errore.
+
 Errori SNMP leggibili (ottobre 2026): gli errori del protocollo non compaiono più come «unknown error (status-code: N)». Ogni lettura (dispositivi, MFC, consumabili) riporta in italiano il nome dell'errore, il codice e cosa controllare. Per esempio il codice 16 (`authorizationError`) indica che l'apparato rifiuta la richiesta per permessi, non per un OID sbagliato: va controllata la community o la configurazione `snmpv3 only` / `authorized-managers` sugli HPE Aruba. Il codice 2 (`noSuchName`) indica un OID che il modello non espone. Sono tradotti anche i report SNMPv3 (utente sconosciuto, digest o cifratura errati) e il timeout, con le cause possibili. Nessuna migrazione.
 
 Discovery SNMP: catalogo di community nominate e cifrate, selezionabili anche nel polling MFC/dispositivi; scansioni in background persistenti con avanzamento, storico personale, Interrompi/Riprendi e risultati a blocchi. Coda django-q2 esistente, nessuna nuova schedule; migrazioni Contatori 0014/0015 e riavvio applicazione/worker necessari. Guida: [Discovery SNMP](../../docs/SNMP_DISCOVERY.md). La scansione rapida da 20s resta disponibile.

@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views, views_verifica_oid
 
 app_name = "contatori"
 urlpatterns = [
@@ -44,6 +44,9 @@ urlpatterns = [
     path("snmp/dispositivi/<int:pk>/applica-profilo/",
          views.dispositivo_snmp_applica_profilo,
          name="snmp_dispositivo_applica_profilo"),
+    path("snmp/dispositivi/<int:pk>/verifica-oid/",
+         views_verifica_oid.dispositivo_snmp_verifica_oid,
+         name="snmp_dispositivo_verifica_oid"),
     path("snmp/dispositivi/<int:dispositivo_pk>/sonde/nuova/", views.sonda_snmp_edit,
          name="snmp_sonda_nuova"),
     path("snmp/dispositivi/<int:dispositivo_pk>/sonde/<int:pk>/modifica/",

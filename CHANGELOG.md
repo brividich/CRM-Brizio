@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori SNMP — «Verifica OID» con proposta AI** (`django_app/contatori/verifica_oid.py` nuovo, `views_verifica_oid.py` nuovo, `urls.py`, `services.py`, `migrations/0027_acl_verifica_oid.py` nuova, `templates/contatori/snmp_verifica_oid.html` nuovo, `templates/contatori/snmp_dispositivo_detail.html`, `static/contatori/contatori.css`, `tests_verifica_oid.py` nuovo, `tests_permessi.py`, `docs/moduli/contatori.md`).
+  - Nuovo pulsante «Verifica OID» sulla scheda del dispositivo SNMP: incolli OID o un testo qualsiasi e il portale li interroga in sola lettura sull'apparato (GET, oppure WALK raggruppato per colonna). Facoltativa l'esplorazione dei rami noti per produttore e dei rami standard.
+  - Restano solo gli OID che rispondono, con i valori letti; quelli inesistenti sono elencati a parte.
+  - «Proponi nomi e soglie con AI»: l'AI interna (Ollama) vede solo OID verificati e valori, mai la community, e le sue proposte su OID non verificati vengono scartate.
+  - Gli OID scelti diventano colonne del profilo («Verificata», con data e modello) oppure lettori del solo dispositivo; audit dedicato.
+  - Migrazione `contatori 0027`: binding ACL gestione della nuova route.
+  - **CORRETTO**: i TimeTicks restituiti da puresnmp come `timedelta` non erano convertiti, quindi l'uptime restava vuoto e le sonde «Tempo» andavano in errore.
+
 - **Contatori SNMP — messaggi d'errore dettagliati** (`django_app/contatori/snmp.py`, `django_app/contatori/printer_snmp.py`, `django_app/contatori/tests_snmp_errori.py` nuovo, `docs/moduli/contatori.md`). Gli errori SNMP non compaiono più come «unknown error (status-code: 16) on OID …». Il nuovo `descrivi_errore()` traduce in italiano gli error-status RFC 3416 (nome, codice, OID e cosa controllare) e anche:
   - i report SNMPv3 (utente sconosciuto, digest o cifratura errati, finestra temporale);
   - il timeout, con l'elenco delle cause possibili;
