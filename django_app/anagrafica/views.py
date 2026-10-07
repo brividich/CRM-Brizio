@@ -501,6 +501,8 @@ _COSE_DA_GESTIRE_KINDS = [
     ("formazione", "📘", "Corsi obbligatori"),
     ("contratto",  "📄", "Contratti e periodi di prova"),
 ]
+# Concordanza: «Corsi obbligatori scaduti», «Contratti … scaduti», «Visite … scadute».
+_COSE_DA_GESTIRE_MASCHILI = {"formazione", "contratto"}
 
 
 def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
@@ -525,7 +527,7 @@ def _build_cose_da_gestire(request, dip_map: dict) -> list[dict]:
         if n_scadute:
             scadute.append({
                 "icona": icona,
-                "titolo": f"{label} scadute",
+                "titolo": f"{label} {'scaduti' if kind in _COSE_DA_GESTIRE_MASCHILI else 'scadute'}",
                 "count": n_scadute,
                 "urgente": True,
                 "url": f"{base}?tipo={kind}&stato=scaduta",
@@ -583,6 +585,18 @@ def index(request):
     dip_map = {int(row["id"]): row for row in rows if row.get("id")}
     cose_da_gestire = _build_cose_da_gestire(request, dip_map)
 
+    # Cruscotto HR dal motore unico dei requisiti (stessi numeri di libretto,
+    # reportistica e scadenzario). Un errore qui non deve togliere la dashboard.
+    cruscotto = None
+    try:
+        from .services.cruscotto_hr import calcola as calcola_cruscotto
+        cruscotto = calcola_cruscotto(include_visite=can_view_visite)
+        n_dipendenti = cruscotto.persone
+        n_qualifiche_scadute = cruscotto.n_qualifiche_scadute
+        n_qualifiche_scadenza = cruscotto.n_qualifiche_in_scadenza
+    except Exception:
+        logger.exception("Cruscotto HR non calcolabile")
+
     return render(request, "anagrafica/pages/index.html", {
         "n_dipendenti": n_dipendenti,
         "n_reparti": n_reparti,
@@ -598,6 +612,12 @@ def index(request):
         "can_view_visite": can_view_visite,
         "n_visite_scadute": n_visite_scadute,
         "cose_da_gestire": cose_da_gestire,
+        "cruscotto": cruscotto,
+        "cruscotto_coperture": (
+            [("Formazione obbligatoria", cruscotto.formazione)]
+            + ([("Sorveglianza sanitaria", cruscotto.visite)] if cruscotto.visite else [])
+        ) if cruscotto else [],
+        "can_admin": _is_anagrafica_admin(request),
         # Fascia «Vai a»: i sottomoduli gated non compaiono a chi vedrebbe solo un
         # rifiuto. La nav non è un confine di sicurezza — le view restano gated.
         "can_view_formazione": _can_view_formazione(request),
@@ -2246,7 +2266,22 @@ def dipendente_detail(request, legacy_id: int):
             .select_related("area_aziendale", "area_aziendale__reparto", "created_by")
             .order_by("-data_inizio", "-created_at")[:30]
         )
+        # Piano di adeguamento dei cambi mansione: prima si chiudono da soli gli
+        # adempimenti già soddisfatti (visita registrata, corso fatto, DPI consegnato).
+        try:
+            from .models import AdempimentoCambioMansione
+            from .services.cambio_mansione import aggiorna_piani
+
+            aggiorna_piani([legacy_id])
+            _piani: dict[int, list] = {}
+            for _ad in AdempimentoCambioMansione.objects.filter(assegnazione__in=[a.pk for a in assegnazioni]):
+                _piani.setdefault(_ad.assegnazione_id, []).append(_ad)
+        except Exception:
+            logger.warning("Piani di adeguamento non leggibili per %s", legacy_id, exc_info=True)
+            _piani = {}
         for _ass in assegnazioni:
+            _ass.piano = _piani.get(_ass.pk, [])
+            _ass.piano_aperti = sum(1 for _ad in _ass.piano if _ad.aperto)
             _ass.responsabile_label = _dip_label_map.get(
                 _responsabile_di(_ass.reparto, _ass.area_aziendale) or 0, ""
             )
@@ -4368,11 +4403,19 @@ def dipendente_assegnazione_verifica(request, legacy_id: int):
         return JsonResponse({"detail": "Permesso negato."}, status=403)
 
     from .services.assegnazioni import verifica_idoneita
-    esito = verifica_idoneita(
-        legacy_id,
-        (request.GET.get("mansione") or "").strip(),
-        include_visite_dettaglio=_can_view_visite_mediche(request),
-    )
+    mansione = (request.GET.get("mansione") or "").strip()
+    dettaglio_visite = _can_view_visite_mediche(request)
+    esito = verifica_idoneita(legacy_id, mansione, include_visite_dettaglio=dettaglio_visite)
+    # Cosa cambia passando alla nuova mansione: rischi, formazione, visite, DPI, SDS.
+    area_raw = (request.GET.get("area_aziendale") or "").strip()
+    try:
+        from .services.cambio_mansione import confronta
+        esito["confronto"] = confronta(
+            legacy_id, mansione, area_nuova_id=int(area_raw) if area_raw.isdigit() else None,
+        ).as_dict(include_visite_dettaglio=dettaglio_visite) if mansione else None
+    except Exception:
+        logger.warning("Confronto cambio mansione non calcolabile per %s", legacy_id, exc_info=True)
+        esito["confronto"] = None
     return JsonResponse(esito)
 
 
@@ -8322,7 +8365,14 @@ def _build_scadenzario_voci(
         else:
             qs_q = qs_q.filter(data_scadenza__lte=soglia_60)
 
+        # Solo la qualifica corrente per persona e tipo: un rinnovo registrato come
+        # nuova riga non deve lasciare la vecchia «scaduta» (filtro in Python: un
+        # IN con migliaia di id supererebbe il limite parametri di SQL Server).
+        from .services.requisiti import id_qualifiche_correnti
+        correnti_q = id_qualifiche_correnti()
         for q in qs_q:
+            if q.pk not in correnti_q:
+                continue
             dip = dip_map.get(q.legacy_anagrafica_id, {})
             reparto = str(dip.get("reparto") or "").strip()
             if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():

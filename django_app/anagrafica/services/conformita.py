@@ -2,10 +2,13 @@
 
 Aggrega in un semaforo unico quattro domini già gestiti dai rispettivi moduli:
 
-- **Formazione obbligatoria**: cache ``TrainingDeadline`` (``is_required=True``).
-- **Visite mediche**: stesse regole di ``services.visite.stato_visite`` ma in
-  versione batch (le visite richieste derivano dai ruoli operativi).
-- **Qualifiche professionali**: ``DipendenteQualifica`` con scadenza.
+- **Formazione obbligatoria** e **visite mediche**: dal motore unico
+  ``services.requisiti`` (requisiti da mansione e rischi, area, ruoli operativi,
+  regole in vigore, protocollo sanitario, processi MOD.128; stato alla data;
+  visite per famiglia con il ricalcolo prudente della periodicita'). Prima la
+  formazione leggeva la cache ``TrainingDeadline`` mai ricalcolata e le visite
+  solo i ruoli operativi, valutate per tipo.
+- **Qualifiche professionali**: qualifica corrente per persona e tipo.
 - **DPI**: consegne per categoria obbligatoria da mansionario (stessa logica
   del report conformità del modulo ``dpi``; import difensivo, il modulo può
   non essere migrato in dev).
@@ -33,8 +36,7 @@ from typing import Any, Iterable
 from django.utils import timezone
 
 from . import mansionario
-from ..models import DipendenteQualifica, DipendenteRuoloOperativo, TipoVisitaMedica, VisitaMedica
-from ..models_formazione import TrainingDeadline
+from ..models import DipendenteQualifica, VisitaMedica
 
 ESITO_OK = "ok"
 ESITO_WARN = "warn"
@@ -57,29 +59,72 @@ def _dominio(esito: str, dettagli: list[str]) -> dict[str, Any]:
     return {"esito": esito, "dettagli": dettagli}
 
 
-def _formazione_batch(legacy_ids: list[int]) -> dict[int, dict[str, Any]]:
-    out: dict[int, dict[str, Any]] = {}
-    per_dip: dict[int, list[TrainingDeadline]] = {}
-    qs = (
-        TrainingDeadline.objects
-        .filter(is_required=True, legacy_anagrafica_id__in=legacy_ids)
-        .select_related("corso")
-    )
-    for d in qs:
-        per_dip.setdefault(d.legacy_anagrafica_id, []).append(d)
+def _persone(legacy_ids: list[int], mansioni_per_legacy: dict[int, str] | None = None):
+    """(contesto, ``{id richiesto: Dipendente}``) dal motore unico.
 
-    for legacy_id, deadlines in per_dip.items():
+    Gli id richiesti vengono ricondotti alla persona (anagrafiche doppie). Con
+    ``mansioni_per_legacy`` si simula un'altra mansione (cambio mansione): i
+    requisiti seguono la mansione indicata, il resto resta quello della persona.
+    """
+    from dataclasses import replace
+
+    from anagrafica.reportistica.dati import Dipendente
+
+    from . import requisiti
+
+    ctx = requisiti.ambito()
+    tutti = {d.id: d for d in ctx._tutti()}
+    out = {}
+    for lid in legacy_ids:
+        pid = ctx.canonico(lid)
+        persona = tutti.get(pid) or Dipendente(id=pid, nominativo=f"Dipendente #{pid}")
+        if mansioni_per_legacy and lid in mansioni_per_legacy:
+            persona = replace(persona, mansione=(mansioni_per_legacy.get(lid) or "").strip())
+        out[lid] = persona
+    return ctx, out
+
+
+def _per_persona(voci, richiesti: dict) -> dict[int, list]:
+    """Voci del motore raggruppate per id richiesto (piu' id possono puntare alla stessa persona)."""
+    per_pid: dict[int, list] = {}
+    for v in voci:
+        per_pid.setdefault(v.persona, []).append(v)
+    return {lid: per_pid.get(p.id, []) for lid, p in richiesti.items()}
+
+
+def _voci_formazione(ctx, richiesti: dict) -> dict[int, list]:
+    from . import requisiti
+
+    persone = {p.id: p for p in richiesti.values()}
+    return _per_persona([v for v in requisiti.formazione(ctx, persone) if v.obbligatorio], richiesti)
+
+
+def _voci_visite(ctx, richiesti: dict) -> dict[int, list]:
+    from . import requisiti
+
+    persone = {p.id: p for p in richiesti.values()}
+    return _per_persona([v for v in requisiti.visite(ctx, persone) if v.richiesta], richiesti)
+
+
+def _formazione_batch(legacy_ids: list[int], voci: dict[int, list] | None = None) -> dict[int, dict[str, Any]]:
+    if voci is None:
+        ctx, richiesti = _persone(legacy_ids)
+        voci = _voci_formazione(ctx, richiesti)
+    out: dict[int, dict[str, Any]] = {}
+    for legacy_id, elenco in voci.items():
+        if not elenco:
+            continue
         esiti, dettagli = [], []
-        for d in deadlines:
-            if d.stato_scadenza == "SCADUTO":
+        for v in elenco:
+            if v.stato == "SCADUTO":
                 esiti.append(ESITO_KO)
-                dettagli.append(f"{d.corso.titolo}: scaduto")
-            elif d.stato_scadenza == "MAI_FREQUENTATO":
+                dettagli.append(f"{v.corso.titolo}: scaduto")
+            elif v.stato == "MAI_FREQUENTATO":
                 # Mai frequentato = dato non registrato, non non-conformità.
                 esiti.append(ESITO_NA)
-            elif d.stato_scadenza in ("IN_SCADENZA_30", "IN_SCADENZA_90"):
+            elif v.stato in ("IN_SCADENZA_30", "IN_SCADENZA_90"):
                 esiti.append(ESITO_WARN)
-                dettagli.append(f"{d.corso.titolo}: in scadenza")
+                dettagli.append(f"{v.corso.titolo}: in scadenza")
             else:
                 esiti.append(ESITO_OK)
         out[legacy_id] = _dominio(_peggiore(esiti), dettagli)
@@ -87,7 +132,7 @@ def _formazione_batch(legacy_ids: list[int]) -> dict[int, dict[str, Any]]:
 
 
 def _ultime_visite_map(legacy_ids: list[int]) -> dict[tuple[int, int], VisitaMedica]:
-    """Ultima ``VisitaMedica`` per ``(legacy_id, tipo_id)`` — 1 query."""
+    """Ultima ``VisitaMedica`` per ``(legacy_id, tipo_id)`` — 1 query (usata dai DPI/altri chiamanti)."""
     ultima: dict[tuple[int, int], VisitaMedica] = {}
     for visita in (
         VisitaMedica.objects
@@ -122,65 +167,29 @@ def _consegne_dpi_map(legacy_ids: list[int]) -> dict[tuple[int, int], Any] | Non
     return consegna_per_dip_cat
 
 
-def _visite_batch(legacy_ids: list[int], include_dettaglio: bool) -> dict[int, dict[str, Any]]:
-    """Versione batch delle regole di ``stato_visite`` (4 query totali)."""
+def _visite_batch(legacy_ids: list[int], include_dettaglio: bool,
+                  voci: dict[int, list] | None = None) -> dict[int, dict[str, Any]]:
+    """Visite dovute per persona dal motore unico (per famiglia, scadenza effettiva)."""
     oggi = timezone.localdate()
-
-    ruoli_per_dip: dict[int, set[int]] = {}
-    for legacy_id, ruolo_id in (
-        DipendenteRuoloOperativo.objects
-        .filter(legacy_anagrafica_id__in=legacy_ids)
-        .values_list("legacy_anagrafica_id", "ruolo_id")
-    ):
-        ruoli_per_dip.setdefault(legacy_id, set()).add(ruolo_id)
-
-    tipi_per_ruolo: dict[int, list[TipoVisitaMedica]] = {}
-    for tipo in (
-        TipoVisitaMedica.objects
-        .filter(is_active=True, obbligatoria=True)
-        .prefetch_related("ruoli_operativi")
-    ):
-        for ruolo in tipo.ruoli_operativi.all():
-            tipi_per_ruolo.setdefault(ruolo.id, []).append(tipo)
-
-    # Terza sorgente, come in ``stato_visite``: il protocollo dell'ultimo certificato.
-    requisiti_per_dip: dict[int, dict[int, TipoVisitaMedica]] = {}
-    try:
-        from ..models_sorveglianza import RequisitoVisitaDipendente
-
-        for requisito in (
-            RequisitoVisitaDipendente.objects
-            .filter(legacy_anagrafica_id__in=legacy_ids, attivo=True,
-                    tipo__isnull=False, tipo__is_active=True)
-            .select_related("tipo")
-        ):
-            requisiti_per_dip.setdefault(requisito.legacy_anagrafica_id, {})[requisito.tipo_id] = requisito.tipo
-    except Exception:
-        requisiti_per_dip = {}
-
-    ultima_per_dip_tipo = _ultime_visite_map(legacy_ids)
-
+    if voci is None:
+        ctx, richiesti = _persone(legacy_ids)
+        voci = _voci_visite(ctx, richiesti)
     out: dict[int, dict[str, Any]] = {}
-    for legacy_id in set(ruoli_per_dip) | set(requisiti_per_dip):
-        tipi_richiesti: dict[int, TipoVisitaMedica] = dict(requisiti_per_dip.get(legacy_id, {}))
-        for ruolo_id in ruoli_per_dip.get(legacy_id, set()):
-            for tipo in tipi_per_ruolo.get(ruolo_id, []):
-                tipi_richiesti[tipo.id] = tipo
-        if not tipi_richiesti:
+    for legacy_id, elenco in voci.items():
+        if not elenco:
             continue
         esiti, dettagli = [], []
-        for tipo in tipi_richiesti.values():
-            etichetta = tipo.nome if include_dettaglio else "Visita richiesta"
-            ultima = ultima_per_dip_tipo.get((legacy_id, tipo.id))
-            if ultima is None:
+        for v in elenco:
+            etichetta = v.tipo_da_mostrare.nome if include_dettaglio else "Visita richiesta"
+            if v.ultima is None:
                 # Visita mai registrata = dato mancante, non scaduto.
                 esiti.append(ESITO_NA)
-            elif ultima.data_scadenza is None:
+            elif v.scadenza is None:
                 esiti.append(ESITO_OK)
-            elif ultima.data_scadenza < oggi:
+            elif v.scadenza < oggi:
                 esiti.append(ESITO_KO)
                 dettagli.append(f"{etichetta}: scaduta")
-            elif (ultima.data_scadenza - oggi).days <= SOGLIA_WARN_GIORNI:
+            elif (v.scadenza - oggi).days <= SOGLIA_WARN_GIORNI:
                 esiti.append(ESITO_WARN)
                 dettagli.append(f"{etichetta}: in scadenza")
             else:
@@ -190,18 +199,22 @@ def _visite_batch(legacy_ids: list[int], include_dettaglio: bool) -> dict[int, d
 
 
 def _qualifiche_batch(legacy_ids: list[int]) -> dict[int, dict[str, Any]]:
+    """Qualifica corrente per persona e tipo: una qualifica rinnovata non lascia la vecchia «scaduta»."""
+    from . import requisiti
+
     oggi = timezone.localdate()
     soglia = oggi + timedelta(days=SOGLIA_WARN_GIORNI)
+    ctx, richiesti = _persone(legacy_ids)
+    persone = {p.id: p for p in richiesti.values()}
+    correnti, _sostituite = requisiti.qualifiche_correnti(ctx, DipendenteQualifica.objects.all(), persone)
+    per_pid: dict[int, list] = {}
+    for (pid, _tipo), q in correnti.items():
+        per_pid.setdefault(pid, []).append(q)
     out: dict[int, dict[str, Any]] = {}
-    per_dip: dict[int, list[DipendenteQualifica]] = {}
-    for q in (
-        DipendenteQualifica.objects
-        .filter(legacy_anagrafica_id__in=legacy_ids)
-        .select_related("tipo")
-    ):
-        per_dip.setdefault(q.legacy_anagrafica_id, []).append(q)
-
-    for legacy_id, qualifiche in per_dip.items():
+    for legacy_id, persona in richiesti.items():
+        qualifiche = per_pid.get(persona.id)
+        if not qualifiche:
+            continue
         esiti, dettagli = [], []
         for q in qualifiche:
             if q.data_scadenza is None:
@@ -274,10 +287,11 @@ def _idoneita_batch(
     *,
     include_visite_dettaglio: bool,
 ) -> dict[int, dict[str, Any]]:
-    """Idoneità alla mansione: requisiti della "mansione di rischio" vs posseduti.
+    """Idoneità alla mansione: requisiti della mansione (anche solo ipotizzata) vs posseduti.
 
-    Per i domini DPI / visite / formazione confronta i requisiti risolti dalla
-    mansione del dipendente (``services.mansionario``) con i record effettivi:
+    Corsi e visite dal motore unico calcolato **sulla mansione indicata** (requisiti
+    da mansione e rischi, area, ruoli, regole, protocollo, processi); DPI dalla
+    mansione e dai processi come prima.
 
     - requisito **mancante** (mai registrato) → WARN (avviso, da soddisfare);
     - requisito **scaduto** → KO;
@@ -288,60 +302,38 @@ def _idoneita_batch(
     tipologia solo se ``include_visite_dettaglio``.
     """
     oggi = timezone.localdate()
+    ctx, richiesti = _persone(legacy_ids, mansioni_per_legacy)
+    corsi = _voci_formazione(ctx, richiesti)
+    visite = _voci_visite(ctx, richiesti)
 
-    req_per_nome = mansionario.requisiti_per_nome(set(mansioni_per_legacy.values()))
-
-    # Requisiti aggiuntivi dai processi qualificati (MOD.128) per persona: si
-    # sommano a quelli della mansione (DPI/visite/corsi richiesti dal processo).
+    # DPI: mansione + processi qualificati (stesso resolver di prima).
+    req_dpi_nome = mansionario.requisiti_per_nome({p.mansione for p in richiesti.values() if p.mansione})
     try:
         from .mpq_idoneita import requisiti_processo_per_legacy
         proc_req = requisiti_processo_per_legacy(legacy_ids)
     except Exception:
         proc_req = {}
-
-    def _dedup_pk(items):
-        seen, out_l = set(), []
-        for x in items:
-            if x.pk not in seen:
-                seen.add(x.pk)
-                out_l.append(x)
-        return out_l
-
-    req_per_legacy: dict[int, dict[str, list]] = {}
-    for legacy_id in legacy_ids:
-        nome = (mansioni_per_legacy.get(legacy_id) or "").strip().casefold()
-        m = req_per_nome.get(nome) or {"dpi": [], "visite": [], "corsi": []}
-        pr = proc_req.get(legacy_id) or {"dpi": [], "visite": [], "corsi": []}
-        merged = {
-            "dpi": _dedup_pk(list(m["dpi"]) + list(pr["dpi"])),
-            "visite": _dedup_pk(list(m["visite"]) + list(pr["visite"])),
-            "corsi": _dedup_pk(list(m["corsi"]) + list(pr["corsi"])),
-        }
-        if merged["dpi"] or merged["visite"] or merged["corsi"]:
-            req_per_legacy[legacy_id] = merged
-    if not req_per_legacy:
-        return {}
-
-    coinvolti = list(req_per_legacy.keys())
-    consegne = _consegne_dpi_map(coinvolti) or {}
-    ultime_visite = _ultime_visite_map(coinvolti)
-
-    corso_ids = {c.pk for req in req_per_legacy.values() for c in req["corsi"]}
-    deadline_per_dip_corso: dict[tuple[int, int], TrainingDeadline] = {}
-    if corso_ids:
-        for d in (
-            TrainingDeadline.objects
-            .filter(legacy_anagrafica_id__in=coinvolti, corso_id__in=corso_ids)
-        ):
-            deadline_per_dip_corso[(d.legacy_anagrafica_id, d.corso_id)] = d
+    dpi_req: dict[int, list] = {}
+    for legacy_id, persona in richiesti.items():
+        voci_dpi = list((req_dpi_nome.get(persona.mansione.casefold()) or {}).get("dpi") or [])
+        voci_dpi += list((proc_req.get(legacy_id) or {}).get("dpi") or [])
+        visti, unici = set(), []
+        for categoria in voci_dpi:
+            if categoria.pk not in visti:
+                visti.add(categoria.pk)
+                unici.append(categoria)
+        dpi_req[legacy_id] = unici
+    consegne = _consegne_dpi_map([lid for lid, v in dpi_req.items() if v]) or {}
 
     out: dict[int, dict[str, Any]] = {}
-    for legacy_id, req in req_per_legacy.items():
+    for legacy_id in richiesti:
+        if not (dpi_req.get(legacy_id) or corsi.get(legacy_id) or visite.get(legacy_id)):
+            continue
         esiti: list[str] = []
         mancanti: list[str] = []
         scaduti: list[str] = []
 
-        for categoria in req["dpi"]:
+        for categoria in dpi_req.get(legacy_id, []):
             consegna = consegne.get((legacy_id, categoria.pk))
             if consegna is None:
                 esiti.append(ESITO_WARN)
@@ -357,31 +349,29 @@ def _idoneita_batch(
             else:
                 esiti.append(ESITO_OK)
 
-        for tipo in req["visite"]:
-            etichetta = tipo.nome if include_visite_dettaglio else "Visita richiesta"
-            ultima = ultime_visite.get((legacy_id, tipo.pk))
-            if ultima is None:
+        for v in visite.get(legacy_id, []):
+            etichetta = v.tipo_da_mostrare.nome if include_visite_dettaglio else "Visita richiesta"
+            if v.ultima is None:
                 esiti.append(ESITO_WARN)
                 mancanti.append(f"Visita: {etichetta}")
-            elif ultima.data_scadenza is None:
+            elif v.scadenza is None:
                 esiti.append(ESITO_OK)
-            elif ultima.data_scadenza < oggi:
+            elif v.scadenza < oggi:
                 esiti.append(ESITO_KO)
                 scaduti.append(f"Visita: {etichetta}")
-            elif (ultima.data_scadenza - oggi).days <= SOGLIA_WARN_GIORNI:
+            elif (v.scadenza - oggi).days <= SOGLIA_WARN_GIORNI:
                 esiti.append(ESITO_WARN)
             else:
                 esiti.append(ESITO_OK)
 
-        for corso in req["corsi"]:
-            d = deadline_per_dip_corso.get((legacy_id, corso.pk))
-            if d is None or d.stato_scadenza == "MAI_FREQUENTATO":
+        for v in corsi.get(legacy_id, []):
+            if v.stato == "MAI_FREQUENTATO":
                 esiti.append(ESITO_WARN)
-                mancanti.append(f"Corso: {corso.titolo}")
-            elif d.stato_scadenza == "SCADUTO":
+                mancanti.append(f"Corso: {v.corso.titolo}")
+            elif v.stato == "SCADUTO":
                 esiti.append(ESITO_KO)
-                scaduti.append(f"Corso: {corso.titolo}")
-            elif d.stato_scadenza in ("IN_SCADENZA_30", "IN_SCADENZA_90"):
+                scaduti.append(f"Corso: {v.corso.titolo}")
+            elif v.stato in ("IN_SCADENZA_30", "IN_SCADENZA_90"):
                 esiti.append(ESITO_WARN)
             else:
                 esiti.append(ESITO_OK)
@@ -414,8 +404,10 @@ def stato_conformita_batch(
     if not legacy_ids:
         return {}
 
-    formazione = _formazione_batch(legacy_ids)
-    visite = _visite_batch(legacy_ids, include_visite_dettaglio)
+    # Un solo calcolo del motore per formazione e visite, condiviso dai due domini.
+    ctx, richiesti = _persone(legacy_ids)
+    formazione = _formazione_batch(legacy_ids, _voci_formazione(ctx, richiesti))
+    visite = _visite_batch(legacy_ids, include_visite_dettaglio, _voci_visite(ctx, richiesti))
     qualifiche = _qualifiche_batch(legacy_ids)
     dpi = _dpi_batch(legacy_ids)
     idoneita = (

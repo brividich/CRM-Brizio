@@ -5,6 +5,7 @@ from . import views_mpq
 from . import views_recruiting
 from . import views_reportistica
 from . import views_reportistica_chat
+from . import views_cambio_mansione
 from . import views_sorveglianza
 
 app_name = "anagrafica"
@@ -89,6 +90,8 @@ urlpatterns = [
     # core.middleware.API_ACL_GATE_PATHS — altrimenti a un utente senza permessi il
     # middleware risponderebbe con un redirect HTML invece che con un 403 JSON.
     path("api/dipendenti/<int:legacy_id>/assegnazione-verifica", views.dipendente_assegnazione_verifica, name="dipendente_assegnazione_verifica"),
+    path("dipendenti/<int:legacy_id>/adempimenti/<int:adempimento_id>/stato", views_cambio_mansione.adempimento_cambio_mansione_stato, name="adempimento_cambio_mansione_stato"),
+    path("cambi-mansione/", views_cambio_mansione.cambi_mansione, name="cambi_mansione"),
     # Matricola dipendente (aggiorna campo legacy; preinserimento/recruiting)
     path("dipendenti/<int:legacy_id>/matricola/set", views.dipendente_matricola_set, name="dipendente_matricola_set"),
     # Username dipendente (aliasusername)

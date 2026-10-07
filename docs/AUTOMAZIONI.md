@@ -4,13 +4,19 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 52
+**Totale automazioni disponibili:** 54
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
 ---
 
 ## Anagrafica · HR, Formazione e Visite
+
+### `anagrafica_ricalcolo_scadenze`
+
+- **Quando gira:** ogni giorno, alle 00:20
+- **Task eseguito:** `anagrafica.tasks.run_ricalcolo_scadenze`
+- **Cosa fa:** ANAGRAFICA HR — ricalcolo notturno delle scadenze dal motore unico dei requisiti: cache formazione (TrainingDeadline, prima mai ricalcolata: stati vecchi nello scadenzario e nei promemoria) e scadenza effettiva delle visite (ricalcolo prudente al cambio di periodicità). Dopo il cambio di giorno, prima dei promemoria.
 
 ### `archivia_attestati_mancanti`
 
@@ -97,6 +103,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 06:00
 - **Task eseguito:** `assets.tasks.run_generate_maintenance_occurrences`
 - **Cosa fa:** ASSETS — genera le OCCORRENZE di manutenzione dovute dai piani attivi. Non apre più un OdL per ogni asset: raggruppare le manutenzioni in ordini di lavoro è una decisione umana (pagina "Da fare"). Idempotente: la terna (piano, asset, scadenza) è unica a DB. Gira PRIMA del promemoria manutenzione così le nuove scadenze rientrano nella mail del giorno.
+
+### `assets_it_monitoring_alerts`
+
+- **Quando gira:** ogni giorno, alle 07:15
+- **Task eseguito:** `assets.tasks.run_it_monitoring_alerts`
+- **Cosa fa:** ASSETS — avvisi del monitoraggio IT: dispositivi SNMP in errore o muti, consumabili MFC sotto soglia. Digest a SiteConfig assets_it_monitoring_emails (poi assets_reminder_emails, poi ADMINS/superuser) + notifica in app solo per i problemi nuovi. Disattivabile dalla Centrale di comando.
 
 ### `assets_maintenance_reminders`
 

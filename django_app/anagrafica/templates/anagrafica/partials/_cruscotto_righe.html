@@ -1,0 +1,19 @@
+{% comment %}
+Righe di un riquadro del cruscotto HR: persona, voce, data e stato.
+Parametri: righe (services.cruscotto_hr.Riga), vuoto (testo se non ci sono righe),
+etichetta_data (opzionale, es. «entro il»).
+{% endcomment %}
+<ul class="hrg-righe">
+  {% for r in righe %}
+  <li>
+    <a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">
+      <span>{{ r.nominativo }}<small>{{ r.testo }}</small></span>
+      {% if r.tono == "ko" %}<span class="hrg-pill hrg-pill-danger">{% if etichetta_data %}{{ etichetta_data }} {% else %}scaduto {% endif %}{{ r.data|date:"d/m/Y" }}</span>
+      {% elif r.tono == "mancante" %}<span class="hrg-pill">da acquisire</span>
+      {% else %}<span class="hrg-pill hrg-pill-warn">{% if etichetta_data %}{{ etichetta_data }}{% else %}scade{% endif %} {{ r.data|date:"d/m/Y" }}</span>{% endif %}
+    </a>
+  </li>
+  {% empty %}
+  <li class="hrg-vuoto">{{ vuoto }}</li>
+  {% endfor %}
+</ul>

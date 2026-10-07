@@ -7,7 +7,6 @@ di verità.
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import Any, Iterable
 
 from django.db.models import Max
@@ -161,29 +160,39 @@ def stato_visite(legacy_id: int, soglia_giorni_avviso: int = 60) -> list[dict[st
             "data_scadenza": date | None,
             "stato": "mancante" | "valida" | "in_scadenza" | "scaduta",
             "giorni_a_scadenza": int | None,
+            "nota": str,          # perche' la scadenza e' anticipata (ricalcolo prudente)
+            "origini": [str],     # perche' la visita e' dovuta
         }
+
+    Dal motore unico ``services.requisiti``: visite dovute da ruoli operativi,
+    protocollo sanitario, mansione e rischi, processi; ultima visita per
+    **famiglia** (una biennale fatta copre la famiglia «Visita medica») e scadenza
+    effettiva con il ricalcolo prudente; in piu' ``nota`` spiega un'eventuale
+    scadenza anticipata.
     """
-    tipi = tipi_visita_richiesti_per_dipendente(legacy_id)
-    if not tipi:
-        return []
-    ultime = ultime_visite_per_tipo(legacy_id)
+    from . import requisiti
+
+    ctx = requisiti.ambito()
+    pid = ctx.canonico(int(legacy_id))
+    persona = next((d for d in ctx._tutti() if d.id == pid), None)
+    if persona is None:
+        # Id senza riga in anagrafica (es. dato importato prima della scheda): si
+        # calcola comunque su quell'id, come fa il semaforo di conformita'.
+        from anagrafica.reportistica.dati import Dipendente
+
+        persona = Dipendente(id=pid, nominativo=f"Dipendente #{pid}")
+    voci = [v for v in requisiti.visite(ctx, {pid: persona}) if v.richiesta]
+    visite_db = VisitaMedica.objects.select_related("tipo").in_bulk([v.visita_id for v in voci if v.visita_id])
     oggi = timezone.localdate()
     out: list[dict[str, Any]] = []
-    for tipo in tipi:
-        ultima = ultime.get(tipo.id)
-        if ultima is None:
-            out.append({
-                "tipo": tipo,
-                "ultima": None,
-                "data_scadenza": None,
-                "stato": STATO_MANCANTE,
-                "giorni_a_scadenza": None,
-            })
+    for v in sorted(voci, key=lambda x: x.tipo_da_mostrare.nome):
+        if v.ultima is None:
+            out.append({"tipo": v.tipo_da_mostrare, "ultima": None, "data_scadenza": None, "stato": STATO_MANCANTE,
+                        "giorni_a_scadenza": None, "nota": "", "origini": list(v.origini)})
             continue
-        scadenza = ultima.data_scadenza
+        scadenza = v.scadenza
         if scadenza is None:
-            stato = STATO_VALIDA
-            giorni = None
+            stato, giorni = STATO_VALIDA, None
         else:
             giorni = (scadenza - oggi).days
             if giorni < 0:
@@ -192,13 +201,8 @@ def stato_visite(legacy_id: int, soglia_giorni_avviso: int = 60) -> list[dict[st
                 stato = STATO_IN_SCADENZA
             else:
                 stato = STATO_VALIDA
-        out.append({
-            "tipo": tipo,
-            "ultima": ultima,
-            "data_scadenza": scadenza,
-            "stato": stato,
-            "giorni_a_scadenza": giorni,
-        })
+        out.append({"tipo": v.tipo_da_mostrare, "ultima": visite_db.get(v.visita_id), "data_scadenza": scadenza,
+                    "stato": stato, "giorni_a_scadenza": giorni, "nota": v.nota, "origini": list(v.origini)})
     return out
 
 

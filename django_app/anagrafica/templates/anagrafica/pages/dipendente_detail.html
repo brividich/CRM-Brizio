@@ -367,8 +367,36 @@ body.theme-dark .dp-hr-badge { background:rgba(146,64,14,.2); color:#fcd34d; bor
 .sp-idoneita-titolo { font-size:11px; color:#64748b; font-weight:600; }
 .sp-idoneita-gap { margin-top:8px; font-size:12px; }
 .sp-dominio { margin-bottom:6px; }
+.sp-confronto { margin-top:10px; padding-top:8px; border-top:1px dashed #e2e8f0; font-size:12px; }
+.sp-confronto-voci { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:6px 14px; margin-top:4px; }
+.sp-confronto-voci ul { margin:2px 0 0; padding-left:16px; }
+.sp-confronto-piu ul { color:#92400e; }
+.sp-confronto-meno ul { color:#64748b; }
+.sp-confronto-nota { margin-top:6px; font-size:11px; color:#64748b; }
+body.theme-dark .sp-confronto { border-top-color:var(--border); }
+body.theme-dark .sp-confronto-piu ul { color:#fcd34d; }
+body.theme-dark .sp-confronto-meno ul, body.theme-dark .sp-confronto-nota { color:var(--text-light); }
 .sp-dominio-nome { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
 .sp-dominio-voci { margin:2px 0 0; padding-left:16px; color:#92400e; }
+.sp-piano { margin-top:8px; padding:8px 10px; border-radius:10px; background:#f8fafc; border:1px solid #e2e8f0; }
+.sp-piano-lista { list-style:none; margin:4px 0 0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.sp-piano-voce { display:grid; grid-template-columns:auto 1fr; gap:4px 8px; align-items:start; font-size:12px; color:#334155; }
+.sp-piano-voce > .sp-piano-azione, .sp-piano-voce > form { grid-column:2; }
+.sp-piano-stato { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:2px 6px; border-radius:999px; background:#fef3c7; color:#92400e; white-space:nowrap; }
+.sp-piano-ritardo .sp-piano-stato { background:#fee2e2; color:#991b1b; }
+.sp-piano-chiuso { color:#64748b; }
+.sp-piano-chiuso .sp-piano-stato { background:#dcfce7; color:#166534; }
+.sp-piano-motivo { display:block; font-size:11px; color:#64748b; }
+.sp-piano-azione summary { cursor:pointer; font-size:11px; font-weight:700; color:#0369a1; white-space:nowrap; }
+.sp-piano-azione form { display:flex; gap:6px; margin-top:4px; }
+.sp-piano-voce form { margin:0; }
+body.theme-dark .sp-piano { background:var(--surface-alt, rgba(255,255,255,.04)); border-color:var(--border); }
+body.theme-dark .sp-piano-voce { color:var(--text-mid); }
+body.theme-dark .sp-piano-motivo, body.theme-dark .sp-piano-chiuso { color:var(--text-light); }
+body.theme-dark .sp-piano-stato { background:rgba(245,158,11,.18); color:#fcd34d; }
+body.theme-dark .sp-piano-ritardo .sp-piano-stato { background:rgba(239,68,68,.2); color:#fca5a5; }
+body.theme-dark .sp-piano-chiuso .sp-piano-stato { background:rgba(34,197,94,.18); color:#86efac; }
+body.theme-dark .sp-piano-azione summary { color:#7dd3fc; }
 body.theme-dark .sp-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .sp-card-programmata { background:rgba(146,64,14,.12); border-color:rgba(253,230,138,.35); }
 body.theme-dark .sp-card-attuale { background:var(--surface-alt, rgba(255,255,255,.04)); border-color:var(--border); }
@@ -1591,6 +1619,11 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               <span class="sp-idoneita-titolo">Verifica per la mansione selezionata</span>
             </div>
             <div id="sp-idoneita-gap" class="sp-idoneita-gap"></div>
+            <div id="sp-confronto" class="sp-confronto" hidden>
+              <div class="sp-gap-titolo">Cosa cambia con la nuova mansione</div>
+              <div id="sp-confronto-voci" class="sp-confronto-voci"></div>
+              <div class="sp-confronto-nota">Registrando lo spostamento nasce il piano di adeguamento: visita, formazione, DPI e schede di sicurezza da completare entro la decorrenza.</div>
+            </div>
           </div>
 
           <div style="display:flex;gap:8px;margin-top:14px;">
@@ -1651,6 +1684,43 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               <div class="sp-gap-titolo">Da soddisfare per questa mansione</div>
               <ul class="sp-gap-lista">
                 {% for voce in a.idoneita_gap %}<li>{{ voce }}</li>{% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+            {% if a.piano %}
+            <div class="sp-piano">
+              <div class="sp-gap-titolo">Piano di adeguamento al cambio mansione{% if a.piano_aperti %} · {{ a.piano_aperti }} da fare{% else %} · completato{% endif %}</div>
+              <ul class="sp-piano-lista">
+                {% for ad in a.piano %}
+                <li class="sp-piano-voce{% if not ad.aperto %} sp-piano-chiuso{% elif ad.in_ritardo %} sp-piano-ritardo{% endif %}">
+                  <span class="sp-piano-stato">{% if ad.aperto %}{% if ad.in_ritardo %}In ritardo{% else %}Da fare{% endif %}{% else %}{{ ad.get_stato_display }}{% endif %}</span>
+                  <span class="sp-piano-testo">
+                    <b>{% if ad.tipo == "VISITA" and ad.riferimento_id and not can_view_visite %}Visita medica richiesta dalla nuova mansione{% else %}{{ ad.descrizione }}{% endif %}</b>
+                    {% if ad.aperto %} · entro il {{ ad.entro_il|date:"d-m-Y" }}{% endif %}
+                    {% if ad.motivo %}<span class="sp-piano-motivo">{{ ad.motivo }}</span>{% endif %}
+                    {% if ad.chiusura_nota %}<span class="sp-piano-motivo">{{ ad.chiusura_nota }}{% if not ad.chiusura_automatica and ad.chiuso_da %} — {{ ad.chiuso_da.get_full_name|default:ad.chiuso_da.username }}{% endif %}</span>{% endif %}
+                  </span>
+                  {% if is_admin %}
+                  {% if ad.aperto %}
+                  <details class="sp-piano-azione">
+                    <summary>Non necessario</summary>
+                    <form method="post" action="{% url 'anagrafica:adempimento_cambio_mansione_stato' legacy_id ad.pk %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="azione" value="non_necessario">
+                      <input type="text" name="motivo" class="dp-input" maxlength="300" required placeholder="Perché (es. valutato dal medico competente)">
+                      <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs">Conferma</button>
+                    </form>
+                  </details>
+                  {% elif not ad.chiusura_automatica %}
+                  <form method="post" action="{% url 'anagrafica:adempimento_cambio_mansione_stato' legacy_id ad.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="azione" value="riapri">
+                    <button type="submit" class="dp-btn dp-btn-ghost dp-btn-xs">Riapri</button>
+                  </form>
+                  {% endif %}
+                  {% endif %}
+                </li>
+                {% endfor %}
               </ul>
             </div>
             {% endif %}
@@ -2980,10 +3050,42 @@ function toggleMatricolaForm() {
   if (!selMansione || !pannello || !badge || !gapBox) return;
 
   var NOMI_DOMINIO = { formazione: 'Competenze', dpi: 'DPI', visite: 'Visite mediche' };
+  var confrontoBox = document.getElementById('sp-confronto');
+  var confrontoVoci = document.getElementById('sp-confronto-voci');
+  var selArea = document.getElementById('sp-area');
+  var GRUPPI_CONFRONTO = [
+    ['rischi_acquisiti', 'Rischi acquisiti', 'piu'], ['corsi_nuovi', 'Formazione in più', 'piu'],
+    ['visite_nuove', 'Visite mediche in più', 'piu'], ['dpi_nuovi', 'DPI in più', 'piu'],
+    ['sds_da_leggere', 'Schede di sicurezza da leggere', 'piu'], ['rischi_persi', 'Rischi non più presenti', 'meno'],
+    ['corsi_non_piu_dovuti', 'Formazione non più dovuta', 'meno'],
+    ['visite_non_piu_dovute', 'Visite non più dovute', 'meno'], ['dpi_non_piu_dovuti', 'DPI non più dovuti', 'meno']
+  ];
+
+  function renderConfronto(confronto) {
+    if (!confrontoBox || !confrontoVoci) return;
+    confrontoVoci.innerHTML = '';
+    if (!confronto || !confronto.cambia_qualcosa) { confrontoBox.hidden = true; return; }
+    GRUPPI_CONFRONTO.forEach(function(g) {
+      var voci = confronto[g[0]] || [];
+      if (!voci.length) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'sp-dominio sp-confronto-' + g[2];
+      var titolo = document.createElement('div');
+      titolo.className = 'sp-dominio-nome';
+      titolo.textContent = g[1];
+      var lista = document.createElement('ul');
+      voci.forEach(function(v) { var li = document.createElement('li'); li.textContent = v; lista.appendChild(li); });
+      wrap.appendChild(titolo);
+      wrap.appendChild(lista);
+      confrontoVoci.appendChild(wrap);
+    });
+    confrontoBox.hidden = false;
+  }
   var base = "{% url 'anagrafica:dipendente_assegnazione_verifica' legacy_id %}";
   var richiestaCorrente = 0;
 
   function render(dati) {
+    renderConfronto(dati.confronto);
     badge.textContent = dati.label || 'Da verificare';
     badge.style.background = dati.colore || '#64748b';
     gapBox.innerHTML = '';
@@ -3021,8 +3123,10 @@ function toggleMatricolaForm() {
     badge.textContent = 'Verifica in corso…';
     badge.style.background = '#64748b';
     gapBox.innerHTML = '';
+    if (confrontoBox) confrontoBox.hidden = true;
     var mia = ++richiestaCorrente;
-    fetch(base + '?mansione=' + encodeURIComponent(mansione), {
+    var area = selArea && selArea.value ? '&area_aziendale=' + encodeURIComponent(selArea.value) : '';
+    fetch(base + '?mansione=' + encodeURIComponent(mansione) + area, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin'
     })
       .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
@@ -3036,6 +3140,7 @@ function toggleMatricolaForm() {
   }
 
   selMansione.addEventListener('change', verifica);
+  if (selArea) selArea.addEventListener('change', function() { if (selMansione.value) verifica(); });
   if (selMansione.value) verifica();
 })();
 
