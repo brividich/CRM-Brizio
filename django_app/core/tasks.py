@@ -24,3 +24,16 @@ def run_caporeparto_morning_digest() -> dict:
     except Exception:
         logger.exception("run_caporeparto_morning_digest: eccezione inattesa")
         raise
+
+
+def run_notifiche_archivio() -> dict:
+    """Archivia le notifiche in-app scadute ed elimina le archiviate oltre soglia.
+
+    Soglie da ``core.notifiche_archivio.get_politica`` (SiteConfig)."""
+    from core.notifiche_archivio import archivia_scadute
+
+    try:
+        return {"ok": True, **archivia_scadute()}
+    except Exception:
+        logger.exception("run_notifiche_archivio: eccezione inattesa")
+        raise

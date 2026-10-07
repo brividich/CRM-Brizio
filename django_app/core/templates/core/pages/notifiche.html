@@ -8,59 +8,232 @@
 {% endblock %}
 
 {% block content %}
-  <div class="page-header">
-    <div class="page-h">Notifiche</div>
-    <div class="page-sub">I tuoi eventi recenti nel portale</div>
+<style>
+  .ntf-info { display:flex; gap:10px; align-items:flex-start; padding:10px 14px; margin-bottom:14px;
+    border:1px solid var(--hub-color-border); border-radius:var(--hub-radius-lg);
+    background:var(--hub-status-info-bg); color:var(--hub-color-text-muted); font-size:13px; line-height:1.5; }
+  .ntf-info strong { color:var(--hub-color-text); }
+  .ntf-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;
+    padding:12px 16px; border-bottom:1px solid var(--hub-color-border); }
+  .ntf-tabs { display:flex; gap:4px; flex-wrap:wrap; }
+  .ntf-tab { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px;
+    font-size:13px; font-weight:600; color:var(--hub-color-text-muted); text-decoration:none;
+    border:1px solid transparent; }
+  .ntf-tab:hover { background:var(--hover-bg, rgba(15,23,42,.04)); }
+  .ntf-tab.is-active { background:var(--hub-color-surface-raised); color:var(--hub-color-text);
+    border-color:var(--hub-color-border); }
+  .ntf-tab-count { font-size:11px; padding:1px 7px; border-radius:999px; background:var(--hub-status-neutral-bg);
+    color:var(--hub-status-neutral); }
+  .ntf-tab.is-active .ntf-tab-count { background:var(--hub-color-orange); color:#fff; }
+  .ntf-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .ntf-filters select, .ntf-filters input[type=search] { height:32px; padding:0 10px; font-size:13px;
+    border:1px solid var(--hub-color-border); border-radius:var(--hub-radius-md);
+    background:var(--hub-color-surface); color:var(--hub-color-text); }
+  .ntf-filters input[type=search] { min-width:200px; }
+  .ntf-btn { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; font-size:12px;
+    font-weight:600; border:1px solid var(--hub-color-border); border-radius:var(--hub-radius-md);
+    background:var(--hub-color-surface); color:var(--hub-color-text-muted); text-decoration:none; cursor:pointer;
+    white-space:nowrap; }
+  .ntf-btn:hover { color:var(--hub-color-text); border-color:var(--hub-color-text-soft); }
+  .ntf-btn:disabled { opacity:.55; cursor:default; }
+  .ntf-btn-primary { color:var(--hub-color-text); font-weight:700; }
+  .ntf-btn-primary:hover { border-color:var(--hub-color-orange); }
+  .ntf-actions-bar { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;
+    padding:10px 16px; border-bottom:1px solid var(--hub-color-border); }
+  .ntf-item { display:flex; align-items:flex-start; gap:14px; padding:14px 16px;
+    border-bottom:1px solid var(--hub-color-border); transition:opacity .2s; }
+  .ntf-item:last-child { border-bottom:none; }
+  .ntf-item.is-unread { background:var(--hub-status-info-bg); }
+  .ntf-item.is-leaving { opacity:0; }
+  .ntf-ico { flex-shrink:0; width:32px; height:32px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; font-size:16px; background:var(--hub-status-neutral-bg); }
+  .ntf-body { flex:1; min-width:0; }
+  .ntf-msg { font-size:14px; color:var(--hub-color-text); line-height:1.45; word-wrap:break-word; }
+  .ntf-item.is-unread .ntf-msg { font-weight:600; }
+  .ntf-meta { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:4px; font-size:12px; color:var(--hub-color-text-soft); }
+  .ntf-label { text-transform:uppercase; font-size:11px; font-weight:700; letter-spacing:.02em; }
+  .ntf-tono-ok { color:var(--hub-status-success); }
+  .ntf-tono-danger { color:var(--hub-status-danger); }
+  .ntf-tono-warn { color:var(--hub-status-warning); }
+  .ntf-tono-info { color:var(--hub-status-info); }
+  .ntf-expiry-soon { color:var(--hub-status-warning); font-weight:600; }
+  .ntf-item-actions { display:flex; gap:6px; flex-shrink:0; align-items:center; }
+  .ntf-empty { padding:56px 20px; text-align:center; color:var(--hub-color-text-soft); }
+  .ntf-empty-ico { font-size:38px; margin-bottom:12px; }
+  .ntf-pager { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 16px;
+    border-top:1px solid var(--hub-color-border); font-size:13px; color:var(--hub-color-text-muted); }
+  @media (max-width: 720px) {
+    .ntf-item { flex-wrap:wrap; }
+    .ntf-item-actions { width:100%; justify-content:flex-end; }
+    .ntf-filters input[type=search] { min-width:0; flex:1; }
+  }
+</style>
+
+<div class="page-header">
+  <div class="page-h">Notifiche</div>
+  <div class="page-sub">I tuoi eventi nel portale</div>
+</div>
+
+{% if politica.non_lette or politica.lette %}
+<div class="ntf-info" role="note">
+  <span aria-hidden="true">🗄️</span>
+  <div>
+    Archiviazione automatica:
+    {% if politica.non_lette %}le notifiche <strong>non lette</strong> passano in archivio dopo <strong>{{ politica.non_lette }} giorni</strong>{% endif %}{% if politica.non_lette and politica.lette %}, {% endif %}{% if politica.lette %}quelle <strong>lette</strong> dopo <strong>{{ politica.lette }} giorni</strong>{% endif %}.
+    Restano consultabili in <em>Archiviate</em>{% if politica.elimina %} per {{ politica.elimina }} giorni{% endif %} e puoi ripristinarle quando vuoi.
+  </div>
+</div>
+{% endif %}
+
+<div class="card" data-ntf-root
+     data-url-leggi="{% url 'api_notifica_leggi' 0 %}"
+     data-url-archivia="{% url 'api_notifica_archivia' 0 %}"
+     data-url-archivia-lette="{% url 'api_notifiche_archivia_lette' %}">
+  <div class="ntf-toolbar">
+    <nav class="ntf-tabs" aria-label="Viste notifiche">
+      <a class="ntf-tab{% if vista == 'attive' %} is-active{% endif %}" href="?vista=attive{% if categoria %}&categoria={{ categoria }}{% endif %}">
+        🔔 Attive <span class="ntf-tab-count">{{ conteggi.attive }}</span>
+      </a>
+      <a class="ntf-tab{% if vista == 'non_lette' %} is-active{% endif %}" href="?vista=non_lette{% if categoria %}&categoria={{ categoria }}{% endif %}">
+        ● Da leggere <span class="ntf-tab-count">{{ conteggi.non_lette }}</span>
+      </a>
+      <a class="ntf-tab{% if vista == 'archiviate' %} is-active{% endif %}" href="?vista=archiviate{% if categoria %}&categoria={{ categoria }}{% endif %}">
+        🗄️ Archiviate <span class="ntf-tab-count">{{ conteggi.archiviate }}</span>
+      </a>
+    </nav>
+    <form class="ntf-filters" method="get">
+      <input type="hidden" name="vista" value="{{ vista }}">
+      <select name="categoria" aria-label="Categoria" onchange="this.form.submit()">
+        <option value="">Tutte le categorie</option>
+        {% for key, label in categorie %}
+          <option value="{{ key }}"{% if key == categoria %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input type="search" name="q" value="{{ q }}" placeholder="Cerca nel testo…" aria-label="Cerca nel testo">
+      <button type="submit" class="ntf-btn">Cerca</button>
+    </form>
   </div>
 
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">🔔 Cronologia notifiche</div>
-      <div style="display:flex;align-items:center;gap:12px;">
-        <span class="cell-muted">Ultime 50{% if unread_count %} · {{ unread_count }} non lette{% endif %}</span>
-        <a href="{% url 'notifiche_impostazioni' %}" style="padding:5px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;text-decoration:none;">⚙️ Impostazioni</a>
-        {% if notifiche_list %}
-          <button type="button" data-notification-mark-read
-                  style="padding:5px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;background:#fff;color:#334155;cursor:pointer;">
-            Segna tutte come lette
-          </button>
-        {% endif %}
-      </div>
-    </div>
-    <div class="card-body" style="padding:0;">
-      {% if notifiche_list %}
-        {% for n in notifiche_list %}
-          {% with m=n.tipo|notifica_meta %}
-          <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 18px;border-bottom:1px solid #f1f5f9;{% if not n.letta %}background:#eff6ff;{% endif %}">
-            <div style="flex-shrink:0;margin-top:2px;font-size:18px;line-height:1;" aria-hidden="true">{{ m.icona }}</div>
-            <div style="flex:1;">
-              <div style="font-size:14px;font-weight:{% if not n.letta %}600{% else %}400{% endif %};color:#1e293b;">
-                {{ n.messaggio }}
-              </div>
-              <div style="font-size:12px;color:#94a3b8;margin-top:4px;">
-                {{ n.created_at|date:"d-m-Y H:i" }}
-                &nbsp;·&nbsp;
-                <span style="text-transform:uppercase;font-size:11px;font-weight:600;
-                  color:{% if m.tono == 'ok' %}#16a34a{% elif m.tono == 'danger' %}#dc2626{% elif m.tono == 'warn' %}#d97706{% else %}#3b82f6{% endif %};">
-                  {{ m.label }}
-                </span>
-              </div>
+  <div class="ntf-actions-bar">
+    {% if vista != 'archiviate' and conteggi.non_lette %}
+      <button type="button" class="ntf-btn" data-notification-mark-read data-ntf-reload>✓ Segna tutte come lette</button>
+    {% endif %}
+    {% if vista != 'archiviate' and conteggi.attive > conteggi.non_lette %}
+      <button type="button" class="ntf-btn" data-ntf-bulk="archivia-lette">🗄️ Archivia le lette</button>
+    {% endif %}
+    <a class="ntf-btn" href="?{{ filtri_qs }}{% if filtri_qs %}&{% endif %}export=csv">⬇ CSV</a>
+    <a class="ntf-btn" href="{% url 'notifiche_impostazioni' %}">⚙️ Impostazioni</a>
+  </div>
+
+  <div class="card-body" style="padding:0;">
+    {% if notifiche_list %}
+      {% for n in notifiche_list %}
+        {% with m=n.tipo|notifica_meta %}
+        <article class="ntf-item{% if not n.letta and not n.archiviata %} is-unread{% endif %}" data-ntf-item="{{ n.id }}">
+          <div class="ntf-ico" aria-hidden="true">{{ m.icona }}</div>
+          <div class="ntf-body">
+            <div class="ntf-msg">{{ n.messaggio }}</div>
+            <div class="ntf-meta">
+              <span>{{ n.created_at|date:"d-m-Y H:i" }}</span>
+              <span class="ntf-label ntf-tono-{{ m.tono }}">{{ m.label }}</span>
+              {% if n.archiviata %}
+                <span>Archiviata il {{ n.archiviata_il|date:"d-m-Y" }}{% if n.archiviata_motivo %} · {{ n.get_archiviata_motivo_display|lower }}{% endif %}</span>
+              {% elif n.archivio_il %}
+                <span{% if n.archivio_presto %} class="ntf-expiry-soon"{% endif %} title="Archiviazione automatica">Si archivia il {{ n.archivio_il|date:"d-m-Y" }}</span>
+              {% endif %}
             </div>
+          </div>
+          <div class="ntf-item-actions">
             {% if n.url_azione %}
-              <a href="{{ n.url_azione }}" style="flex-shrink:0;padding:5px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;text-decoration:none;">
-                Apri →
-              </a>
+              <a class="ntf-btn ntf-btn-primary" href="{{ n.url_azione }}" data-notifica-open="{{ n.id }}">Apri →</a>
+            {% endif %}
+            {% if n.archiviata %}
+              <button type="button" class="ntf-btn" data-ntf-action="ripristina" data-id="{{ n.id }}" title="Riporta tra le attive">↩ Ripristina</button>
+            {% else %}
+              {% if not n.letta %}
+                <button type="button" class="ntf-btn" data-ntf-action="leggi" data-id="{{ n.id }}" title="Segna come letta">✓ Letta</button>
+              {% endif %}
+              <button type="button" class="ntf-btn" data-ntf-action="archivia" data-id="{{ n.id }}" title="Sposta in Archiviate">Archivia</button>
             {% endif %}
           </div>
-          {% endwith %}
-        {% endfor %}
-      {% else %}
-        <div style="padding:60px;text-align:center;color:#94a3b8;">
-          <div style="font-size:40px;margin-bottom:14px;">🔔</div>
-          <div style="font-size:15px;">Nessuna notifica.</div>
+        </article>
+        {% endwith %}
+      {% endfor %}
+    {% else %}
+      <div class="ntf-empty">
+        <div class="ntf-empty-ico">{% if vista == 'archiviate' %}🗄️{% else %}🔔{% endif %}</div>
+        {% if q or categoria %}
+          <div>Nessuna notifica corrisponde ai filtri.</div>
+        {% elif vista == 'archiviate' %}
+          <div>L'archivio è vuoto.</div>
+        {% elif vista == 'non_lette' %}
+          <div>Hai letto tutto. 👍</div>
+        {% else %}
+          <div>Nessuna notifica attiva.</div>
           <div style="font-size:13px;margin-top:6px;">Le notifiche appariranno qui quando le tue richieste vengono gestite.</div>
-        </div>
-      {% endif %}
-    </div>
+        {% endif %}
+      </div>
+    {% endif %}
   </div>
+
+  {% if page_obj and page_obj.paginator.num_pages > 1 %}
+  <div class="ntf-pager">
+    <span>Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} notifiche</span>
+    <span style="display:flex;gap:6px;">
+      {% if page_obj.has_previous %}<a class="ntf-btn" href="?{{ filtri_qs }}&page={{ page_obj.previous_page_number }}">← Precedenti</a>{% endif %}
+      {% if page_obj.has_next %}<a class="ntf-btn" href="?{{ filtri_qs }}&page={{ page_obj.next_page_number }}">Successive →</a>{% endif %}
+    </span>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  var root = document.querySelector('[data-ntf-root]');
+  if (!root) return;
+  function csrf() {
+    var meta = document.querySelector("meta[name='csrf-token']");
+    return meta ? meta.getAttribute('content') : '';
+  }
+  function post(url) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function (r) { return r.ok ? r.json() : null; });
+  }
+  function idUrl(attr, id) { return root.getAttribute(attr).replace('/0/', '/' + id + '/'); }
+
+  root.addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-ntf-action]');
+    if (btn) {
+      var id = btn.getAttribute('data-id');
+      var action = btn.getAttribute('data-ntf-action');
+      var item = root.querySelector('[data-ntf-item="' + id + '"]');
+      var url = action === 'leggi' ? idUrl('data-url-leggi', id) : idUrl('data-url-archivia', id);
+      if (action === 'ripristina') url += '?azione=ripristina';
+      btn.disabled = true;
+      post(url).then(function (data) {
+        if (!data || !data.ok) { btn.disabled = false; return; }
+        if (action === 'leggi') {
+          if (item) item.classList.remove('is-unread');
+          btn.remove();
+        } else if (item) {
+          item.classList.add('is-leaving');
+          setTimeout(function () { item.remove(); }, 200);
+        }
+      }).catch(function () { btn.disabled = false; });
+      return;
+    }
+    var bulk = event.target.closest('[data-ntf-bulk="archivia-lette"]');
+    if (bulk) {
+      bulk.disabled = true;
+      post(root.getAttribute('data-url-archivia-lette')).then(function () { window.location.reload(); });
+      return;
+    }
+    if (event.target.closest('[data-ntf-reload]')) {
+      setTimeout(function () { window.location.reload(); }, 400);
+    }
+  });
+})();
+</script>
 {% endblock %}

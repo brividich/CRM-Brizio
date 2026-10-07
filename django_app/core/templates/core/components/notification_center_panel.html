@@ -21,7 +21,7 @@
           <div class="notify-center-time">{{ n.created_at|date:"d-m-Y H:i" }}</div>
         </div>
         {% if n.url_azione %}
-          <a href="{{ n.url_azione }}" class="notify-center-open">Apri</a>
+          <a href="{{ n.url_azione }}" class="notify-center-open" data-notifica-open="{{ n.id }}">Apri</a>
         {% endif %}
       </article>
       {% endwith %}
@@ -29,8 +29,8 @@
   </div>
   <div class="notify-center-actions">
     <button type="button" class="notify-center-mark" data-notification-mark-read>Segna tutte come lette</button>
-    <a href="{% url 'notifiche' %}?export=csv" class="notify-center-export">CSV</a>
+    <a href="{% url 'notifiche' %}?vista=archiviate" class="notify-center-export">Archivio</a>
   </div>
 {% else %}
-  <div class="notify-center-empty">Nessuna notifica recente.</div>
+  <div class="notify-center-empty">Nessuna notifica recente. <a href="{% url 'notifiche' %}?vista=archiviate">Apri l'archivio</a></div>
 {% endif %}

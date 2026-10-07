@@ -271,7 +271,7 @@ def _notification_panel_context(request) -> dict:
     legacy_user_id = _current_legacy_user_id(request)
     if not legacy_user_id:
         return {"notifications": [], "unread_count": 0, "latest_count": 0}
-    qs = Notifica.objects.filter(legacy_user_id=legacy_user_id)
+    qs = Notifica.objects.filter(legacy_user_id=legacy_user_id, archiviata=False)
     notifications = list(qs.order_by("-created_at")[:8])
     unread_count = qs.filter(letta=False).count()
     return {
@@ -846,36 +846,98 @@ def organigramma(request):
     )
 
 
+_NOTIFICHE_VISTE = ("attive", "non_lette", "archiviate")
+
+
+def _filtra_categoria_notifiche(qs, categoria: str):
+    """Filtra per categoria (core.notifiche_meta): i tipi non registrati ricadono
+    in «operativita», come nell'enforcement delle preferenze."""
+    from core.notifiche_meta import CATEGORIE, TIPO_META
+
+    if categoria not in CATEGORIE:
+        return qs
+    if categoria == "operativita":
+        altri = [t for t, m in TIPO_META.items() if m.get("categoria") != "operativita"]
+        return qs.exclude(tipo__in=altri)
+    return qs.filter(tipo__in=[t for t, m in TIPO_META.items() if m.get("categoria") == categoria])
+
+
 @login_required
 def notifiche(request):
+    """Centro notifiche personale: attive / da leggere / archiviate, con filtri.
+
+    Aprire la pagina NON marca nulla come letto: si marca aprendo la singola
+    notifica (api_notifica_leggi) o con «Segna tutte come lette»."""
+    from datetime import timedelta
+
+    from django.core.paginator import Paginator
+
     from core.models import Notifica
-    from core.notifiche_meta import notifica_meta
+    from core.notifiche_archivio import data_archiviazione, get_politica
+    from core.notifiche_meta import CATEGORIE, notifica_meta
+
+    vista = (request.GET.get("vista") or "attive").strip()
+    if vista not in _NOTIFICHE_VISTE:
+        vista = "attive"
+    categoria = (request.GET.get("categoria") or "").strip()
+    if categoria not in CATEGORIE:
+        categoria = ""
+    q = (request.GET.get("q") or "").strip()[:100]
+    politica = get_politica()
+
     legacy_user = get_legacy_user(request.user)
-    if not legacy_user:
-        lista = []
-    else:
-        qs = Notifica.objects.filter(legacy_user_id=legacy_user.id)
+    conteggi = {"attive": 0, "non_lette": 0, "archiviate": 0}
+    page = None
+    if legacy_user:
+        base = Notifica.objects.filter(legacy_user_id=legacy_user.id)
+        conteggi = {
+            "attive": base.filter(archiviata=False).count(),
+            "non_lette": base.filter(archiviata=False, letta=False).count(),
+            "archiviate": base.filter(archiviata=True).count(),
+        }
+        if vista == "archiviate":
+            qs = base.filter(archiviata=True)
+        elif vista == "non_lette":
+            qs = base.filter(archiviata=False, letta=False)
+        else:
+            qs = base.filter(archiviata=False)
+        qs = _filtra_categoria_notifiche(qs, categoria)
+        if q:
+            qs = qs.filter(messaggio__icontains=q)
+        qs = qs.order_by("-created_at")
         if (request.GET.get("export") or "").strip().lower() in {"csv", "xlsx"}:
             return export_rows_response(
-                rows=qs.order_by("-created_at")[:500],
+                rows=qs[:1000],
                 columns=[
                     ("Data", "created_at"),
                     ("Tipo", lambda n: notifica_meta(n.tipo)["label"]),
                     ("Messaggio", "messaggio"),
                     ("Letta", lambda n: "Si" if n.letta else "No"),
+                    ("Archiviata", lambda n: n.archiviata_il if n.archiviata else ""),
                     ("URL", "url_azione"),
                 ],
                 filename="notifiche",
                 fmt=request.GET.get("export"),
             )
-        lista = list(qs[:50])
-        # NB: aprire la pagina NON marca più tutto come letto (troppo aggressivo).
-        # Le singole si marcano leggendole (api_notifica_leggi); c'è il pulsante
-        # esplicito «Segna tutte come lette» (api_notifiche_mark_all_read).
+        page = Paginator(qs, 25).get_page(request.GET.get("page"))
+        presto = timezone.now() + timedelta(days=7)
+        for n in page.object_list:
+            n.archivio_il = data_archiviazione(n, politica)
+            n.archivio_presto = bool(n.archivio_il and not n.letta and n.archivio_il <= presto)
+
+    filtri_qs = urlencode({k: v for k, v in (("vista", vista), ("categoria", categoria), ("q", q)) if v})
     return render(request, "core/pages/notifiche.html", {
         "page_title": "Notifiche",
-        "notifiche_list": lista,
-        "unread_count": sum(1 for n in lista if not n.letta),
+        "page_obj": page,
+        "notifiche_list": list(page.object_list) if page else [],
+        "vista": vista,
+        "categoria": categoria,
+        "q": q,
+        "categorie": list(CATEGORIE.items()),
+        "conteggi": conteggi,
+        "unread_count": conteggi["non_lette"],
+        "politica": politica,
+        "filtri_qs": filtri_qs,
     })
 
 
@@ -956,8 +1018,53 @@ def api_notifica_leggi(request, notifica_id: int):
     legacy_user = get_legacy_user(request.user)
     if not legacy_user:
         return JsonResponse({"ok": False, "error": "Utente non trovato"}, status=403)
-    updated = Notifica.objects.filter(id=notifica_id, legacy_user_id=legacy_user.id).update(letta=True)
-    return JsonResponse({"ok": bool(updated)})
+    from core.notifiche_archivio import segna_lette
+
+    qs = Notifica.objects.filter(id=notifica_id, legacy_user_id=legacy_user.id)
+    if not qs.exists():
+        return JsonResponse({"ok": False, "error": "Notifica non trovata"}, status=404)
+    segna_lette(qs)
+    return JsonResponse({"ok": True, "unread_count": _unread_notifiche(legacy_user.id)})
+
+
+def _unread_notifiche(legacy_user_id: int) -> int:
+    from core.models import Notifica
+
+    return Notifica.objects.filter(legacy_user_id=legacy_user_id, archiviata=False, letta=False).count()
+
+
+@login_required
+@require_POST
+def api_notifica_archivia(request, notifica_id: int):
+    """Archivia (o ripristina con ``?azione=ripristina``) una notifica propria."""
+    from core.models import Notifica
+    from core.notifiche_archivio import MOTIVO_UTENTE, archivia, ripristina
+
+    legacy_user_id = _current_legacy_user_id(request)
+    if not legacy_user_id:
+        return JsonResponse({"ok": False, "error": "Utente non trovato"}, status=403)
+    qs = Notifica.objects.filter(id=notifica_id, legacy_user_id=legacy_user_id)
+    if not qs.exists():
+        return JsonResponse({"ok": False, "error": "Notifica non trovata"}, status=404)
+    if (request.GET.get("azione") or request.POST.get("azione") or "") == "ripristina":
+        ripristina(qs)
+    else:
+        archivia(qs, MOTIVO_UTENTE)
+    return JsonResponse({"ok": True, "unread_count": _unread_notifiche(legacy_user_id)})
+
+
+@login_required
+@require_POST
+def api_notifiche_archivia_lette(request):
+    """Archivia in blocco tutte le notifiche già lette dell'utente."""
+    from core.models import Notifica
+    from core.notifiche_archivio import MOTIVO_UTENTE, archivia
+
+    legacy_user_id = _current_legacy_user_id(request)
+    if not legacy_user_id:
+        return JsonResponse({"ok": False, "error": "Utente non trovato"}, status=403)
+    updated = archivia(Notifica.objects.filter(legacy_user_id=legacy_user_id, letta=True), MOTIVO_UTENTE)
+    return JsonResponse({"ok": True, "updated": updated, "unread_count": _unread_notifiche(legacy_user_id)})
 
 
 @login_required
@@ -994,7 +1101,7 @@ def api_notifiche_live(request):
     legacy_user_id = _current_legacy_user_id(request)
     if not legacy_user_id:
         return JsonResponse({"ok": False, "error": "Utente non trovato"}, status=403)
-    qs = Notifica.objects.filter(legacy_user_id=legacy_user_id)
+    qs = Notifica.objects.filter(legacy_user_id=legacy_user_id, archiviata=False)
     popup_notifications = list(
         qs.filter(letta=False, popup_shown=False).order_by("-created_at")[:5]
     )
@@ -1017,7 +1124,9 @@ def api_notifiche_mark_all_read(request):
     legacy_user_id = _current_legacy_user_id(request)
     if not legacy_user_id:
         return JsonResponse({"ok": False, "error": "Utente non trovato"}, status=403)
-    updated = Notifica.objects.filter(legacy_user_id=legacy_user_id, letta=False).update(letta=True)
+    from core.notifiche_archivio import segna_lette
+
+    updated = segna_lette(Notifica.objects.filter(legacy_user_id=legacy_user_id, archiviata=False))
     return JsonResponse({"ok": True, "updated": updated})
 
 
