@@ -27,7 +27,7 @@ Esempio: controllo l'OP X e trovo **1 S/N con N anomalie**. Inserisco il S/N, la
 1. Scelta OP (invariata). Se l'utente ha un controllo ancora aperto su quell'OP negli ultimi 7 giorni, può **riprenderlo**.
 2. Avvio: fase (con suggerimenti dalle fasi già usate sull'OP) e modalità mail → «Inizia controllo».
 3. Blocco: seriali a «chip» (Invio, virgola o spazio confermano; si incollano elenchi; i range mostrano il numero di pezzi), stato superficie, anomalie. Avvisi non bloccanti: formato `AAA00000`, prefisso diverso, S/N già in un altro blocco del controllo, S/N con anomalie già aperte sull'OP (con descrizione, stato e autore).
-4. Allegati per anomalia: trascina, «sfoglia», **Ctrl+V** ovunque nella pagina (va all'anomalia aperta; nei campi di testo vince il testo). Le immagini incollate prendono il nome `appunti-AAAAMMGG-hhmmss-n.png`. Limiti invariati: formati ammessi, 20 MB per file.
+4. Allegati per anomalia: trascina, «sfoglia», **Ctrl+V** ovunque nella pagina (va all'anomalia aperta; nei campi di testo vince il testo). Le immagini incollate prendono il nome `appunti-AAAAMMGG-hhmmss-n.png`. Limiti invariati: formati ammessi; dimensione per file da `UPLOAD_MAX_FILE_MB` (default 100 MB).
 5. «Salva blocco» → una riga per anomalia (stesso percorso di `api_salva`: permessi per OP, audit, timeline), blocco congelato, nuovo blocco pronto. Un salvataggio parziale conserva gli id già creati, così un nuovo tentativo non duplica.
 6. «Termina controllo» → se c'è un blocco non salvato chiede se salvarlo o scartarlo; manda subito le mail ancora in coda e mostra a chi sono andate.
 

@@ -410,7 +410,7 @@ body.theme-dark .qrl-upload-body { background: var(--surface, #1e293b); border-c
                 </label>
                 <span class="upl-status" data-upload-status aria-live="polite"></span>
                 <button type="submit" class="upl-btn upl-btn--block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>Invia al ticket {{ t.numero }}</button>
-                <p class="qrl-hint">{% if qr_public %}Max 5 file da 15 MB. Il team manutenzione verificherà il documento.{% else %}Max 20 MB per file. Se non gestisci il ticket, il team manutenzione verificherà il documento.{% endif %}</p>
+                <p class="qrl-hint">{% if qr_public %}Max 5 file da 15 MB. Il team manutenzione verificherà il documento.{% else %}Max {{ upload_max_mb }} MB per file. Se non gestisci il ticket, il team manutenzione verificherà il documento.{% endif %}</p>
               </form>
               </div>
             </details>

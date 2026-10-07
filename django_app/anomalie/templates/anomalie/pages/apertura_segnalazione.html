@@ -373,7 +373,7 @@
     '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.csv'
   ]);
-  const ALLEGATI_MAX_SIZE = 20 * 1024 * 1024;
+  const ALLEGATI_MAX_SIZE = {{ upload_max_mb|default:100 }} * 1024 * 1024;
 
   /* ── Step 1: Selezione OP ── */
   const makeNewOpDraft = () => ({
@@ -798,7 +798,7 @@
     files.forEach(f => {
       if (!ALLEGATI_ALLOWED_EXT.has(fileExt(f.name))) errors.push(`${f.name || 'file'}: formato non supportato`);
       else if (Number(f.size || 0) <= 0) errors.push(`${f.name || 'file'}: file vuoto`);
-      else if (Number(f.size || 0) > ALLEGATI_MAX_SIZE) errors.push(`${f.name || 'file'}: supera 20 MB`);
+      else if (Number(f.size || 0) > ALLEGATI_MAX_SIZE) errors.push(`${f.name || 'file'}: supera {{ upload_max_mb|default:100 }} MB`);
       else ok.push(f);
     });
     return { ok, errors };

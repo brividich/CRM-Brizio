@@ -44,6 +44,7 @@ from .models import (
     normalizza_icona_dpi,
 )
 from core import naming
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ DPI_DOCUMENT_ALLOWED_MIMES = {
     "image/jpeg",
     "image/png",
 }
-DPI_DOCUMENT_MAX_BYTES = 25 * 1024 * 1024
+DPI_DOCUMENT_MAX_BYTES = DOCUMENT_MAX_BYTES
 DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS = DPI_ALLOWED_IMAGE_EXTENSIONS
 DPI_CATEGORY_ALLOWED_IMAGE_MIMES = DPI_ALLOWED_IMAGE_MIMES
 # Guard di copertura policy MIME su tutti i FileField/ImageField del modulo DPI.

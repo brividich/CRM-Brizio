@@ -47,6 +47,7 @@ from config.env_config import get_first_env_value, load_env_file_values, resolve
 from core.acl import user_can_modulo_action
 from core.public_headers import risposta_pubblica
 from core.audit import log_action, storico_oggetto
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 # Etichetta con cui le voci di audit si agganciano all'asset: e' la stessa che
 # `core.audit.storico_oggetto` usa per ripescarle sulla scheda. Costante e non
@@ -216,7 +217,7 @@ ASSET_DOCUMENT_ALLOWED_MIMES = {
 }
 # File di sistema da ignorare silenziosamente negli upload di intere cartelle.
 ASSET_DOCUMENT_IGNORED_FILENAMES = {"thumbs.db", "desktop.ini", ".ds_store"}
-ASSET_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024
+ASSET_DOCUMENT_MAX_BYTES = DOCUMENT_MAX_BYTES
 ASSET_DOCUMENT_UPLOAD_FIELDS = {
     AssetDocument.CATEGORY_SPECIFICHE: "upload_specs_files",
     AssetDocument.CATEGORY_MANUALI: "upload_manuals_files",

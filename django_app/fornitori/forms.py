@@ -17,9 +17,10 @@ from core.upload_mime import (
     safe_filename,
     validate_extension_and_mime,
 )
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 
-FORNITORE_DOC_MAX_BYTES = 15 * 1024 * 1024
+FORNITORE_DOC_MAX_BYTES = DOCUMENT_MAX_BYTES
 FORNITORE_DOC_EXTENSIONS = {
     ".pdf",
     ".png",
