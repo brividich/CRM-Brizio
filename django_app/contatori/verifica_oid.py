@@ -268,7 +268,8 @@ ISTRUZIONI = (
     "OID | nome breve in italiano | unità | fattore | aggregazione | avviso sopra | critico sopra | etichette | motivo\n"
     "fattore: numero che moltiplica il valore (0.01 se è in centesimi, altrimenti 1). aggregazione: PRIMO per GET; "
     "per WALK MASSIMO (stati, temperature), MEDIA (CPU) o SOMMA (traffico, errori). Soglie vuote se non servono. "
-    "etichette: solo per codici di stato, es. 1=Ok, 2=Guasto. motivo: cosa misura, in poche parole; se non riconosci "
+    "etichette: solo per codici di stato, es. 1=Ok, 2=Guasto (traduci in italiano quelle della MIB). Se c'è la "
+    "definizione della MIB ufficiale, basati su quella. motivo: cosa misura, in poche parole; se non riconosci "
     "l'OID scrivi 'da verificare' e deducilo dai valori. Usa solo gli OID ricevuti. Non inventare."
 )
 
@@ -281,9 +282,13 @@ def contesto_ai(dispositivo, candidati) -> str:
         f"sysObjectID: {dispositivo.sys_object_id or 'n.d.'}",
         "OID che hanno risposto (oid | modalità | righe | tipo | valori | min-max):",
     ]
+    from .oid_noti import _da_mib
+
     for c in candidati[:MAX_AI_PER_VOLTA]:
         intervallo = f"{c['min']}..{c['max']}" if c.get("min") != "" else ""
-        righe.append(f"{c['oid']} | {c['modalita']} | {c['righe']} | {c['tipo']} | {c['campione'][:80]} | {intervallo}")
+        mib = _da_mib(c["oid"], c["modalita"])
+        nota = f" | MIB ufficiale: {mib['nome']} = {mib['motivo'][:120]}" if mib else ""
+        righe.append(f"{c['oid']} | {c['modalita']} | {c['righe']} | {c['tipo']} | {c['campione'][:80]} | {intervallo}{nota}")
     return "\n".join(righe)
 
 

@@ -31,14 +31,14 @@
   {% if righe %}
   <form method="post">{% csrf_token %}
     <input type="hidden" name="azione" value="aggiungi">
-    <div class="voi-ai"><button class="btn ghost small" type="submit" name="azione" value="proponi" data-voi-attesa="L'AI sta preparando la proposta…">Proponi nomi con AI</button><span class="muted">Sulle righe spuntate, oppure sulle prossime {{ max_ai }} senza nome. I nomi già compilati vengono dal catalogo MIB.</span></div>
+    <div class="voi-ai"><button class="btn ghost small" type="submit" name="azione" value="proponi" data-voi-attesa="L'AI sta preparando la proposta…">Proponi nomi con AI</button><span class="muted">Sulle righe spuntate, oppure sulle prossime {{ max_ai }} senza nome. I nomi già compilati vengono dalle MIB ufficiali dei produttori.</span></div>
     <div class="table-wrap"><table class="voi-table" data-fm-table-skip="1">
       <thead><tr><th></th><th>OID</th><th>Letto</th><th>Nome colonna</th><th>Unità</th><th class="num">Fattore</th><th>Aggregazione</th><th class="num">Avviso sopra</th><th class="num">Critico sopra</th><th title="Solo per codici di stato, es. 1=Ok, 2=Guasto">Etichette codici</th></tr></thead>
       <tbody>{% for r in righe %}
         <tr>
           <td><input type="checkbox" name="sel" value="{{ r.i }}" aria-label="Seleziona {{ r.oid }}"></td>
           <td><div class="mono">{{ r.oid }}</div><div class="muted voi-meta">{{ r.modalita }}{% if r.modalita == 'WALK' %} · {{ r.righe }} righe{% endif %} · {{ r.tipo|lower }} · {{ r.origine }}</div></td>
-          <td class="voi-valore"><span class="mono">{{ r.campione|default:"(vuoto)" }}</span>{% if r.min != "" %}<div class="muted voi-meta">min {{ r.min }} · max {{ r.max }}</div>{% endif %}{% if r.proposta.motivo %}<div class="voi-motivo">{% if r.proposta.fonte == "catalogo" %}Catalogo{% else %}AI{% endif %}: {{ r.proposta.motivo }}</div>{% endif %}</td>
+          <td class="voi-valore"><span class="mono">{{ r.campione|default:"(vuoto)" }}</span>{% if r.min != "" %}<div class="muted voi-meta">min {{ r.min }} · max {{ r.max }}</div>{% endif %}{% if r.proposta.motivo %}<div class="voi-motivo">{% if r.proposta.fonte == "catalogo" %}Catalogo{% elif r.proposta.fonte == "mib" %}MIB{% else %}AI{% endif %}: {{ r.proposta.motivo }}</div>{% endif %}</td>
           <td><input name="nome_{{ r.i }}" value="{{ r.nome }}" maxlength="100" placeholder="Nome"></td>
           <td><input name="unita_{{ r.i }}" value="{{ r.proposta.unita|default:'' }}" maxlength="24" class="voi-corto"></td>
           <td><input name="fattore_{{ r.i }}" value="{{ r.proposta.fattore|default:'1' }}" inputmode="decimal" class="voi-corto num"></td>
