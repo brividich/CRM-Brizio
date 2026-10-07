@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 <style>
 .cr-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:14px 16px; }
 .cr-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:130px; }
@@ -64,36 +64,12 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
   </div>
 
   <!-- KPI -->
-  <div class="hr-metric-grid">
-    <div class="hr-metric">
-      <div class="hr-metric-ico red">⛔</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Non conformi</span><span class="hr-metric-val">{{ n_ko }}</span></div>
-        <div class="hr-metric-sub">Almeno un adempimento scaduto/mancante</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico amber">⏰</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">In scadenza</span><span class="hr-metric-val">{{ n_warn }}</span></div>
-        <div class="hr-metric-sub">Da rinnovare a breve</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico green">✅</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">In regola</span><span class="hr-metric-val">{{ n_ok }}</span></div>
-        <div class="hr-metric-sub">Tutti gli adempimenti validi</div>
-      </div>
-    </div>
-    <div class="hr-metric">
-      <div class="hr-metric-ico blue">➖</div>
-      <div class="hr-metric-body">
-        <div class="hr-metric-top"><span class="hr-metric-lbl">Senza requisiti</span><span class="hr-metric-val">{{ n_na }}</span></div>
-        <div class="hr-metric-sub">Nessun obbligo applicabile</div>
-      </div>
-    </div>
-  </div>
+  <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Conformità in sintesi">
+    {% include "anagrafica/components/_kpi_tile.html" with tono="orange" icona="i-alert-tri" valore=n_ko label="Non conformi" sub="almeno un adempimento scaduto o mancante" url="?esito=ko" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alarm" valore=n_warn label="In scadenza" sub="da rinnovare a breve" url="?esito=warn" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=n_ok label="In regola" sub="tutti gli adempimenti validi" url="?esito=ok" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-grid" valore=n_na label="Senza requisiti" sub="nessun obbligo applicabile" url="?esito=na" %}
+  </section>
 
   <!-- Filtri -->
   <div class="hr-card">

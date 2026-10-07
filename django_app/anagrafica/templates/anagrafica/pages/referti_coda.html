@@ -4,6 +4,7 @@
 {% block title %}Referti da rivedere | Visite mediche | Anagrafica HR{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <style>
@@ -110,20 +111,12 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
     <button type="submit" class="hr-btn hr-btn-primary">Leggi</button>
   </form>
 
-  <div class="rf-kpi">
-    <div class="rf-kpi-box">
-      <div class="rf-kpi-num">{{ conteggi.da_rivedere }}</div>
-      <div class="rf-kpi-lbl">In attesa di revisione</div>
-    </div>
-    <div class="rf-kpi-box rf-kpi-pronti">
-      <div class="rf-kpi-num">{{ conteggi.pronti }}</div>
-      <div class="rf-kpi-lbl">Con data di nascita confermata</div>
-    </div>
-    <div class="rf-kpi-box">
-      <div class="rf-kpi-num">{{ conteggi.registrati }}</div>
-      <div class="rf-kpi-lbl">Già registrati</div>
-    </div>
-  </div>
+  <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Referti in sintesi">
+    {% include "anagrafica/components/_kpi_tile.html" with tono=conteggi.da_rivedere|yesno:"amber,green" icona="i-clipboard" valore=conteggi.da_rivedere label="In attesa di revisione" sub="referti da abbinare" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=conteggi.pronti label="Pronti" sub="data di nascita confermata" %}
+    {% url 'anagrafica:referti_registro' as u_reg %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-doc" valore=conteggi.registrati label="Già registrati" sub="nel registro referti" url=u_reg %}
+  </section>
 
   {% if righe %}
   <!-- Un form solo per tutta la coda: le azioni di gruppo leggono le caselle

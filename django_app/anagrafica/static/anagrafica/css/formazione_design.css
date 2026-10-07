@@ -324,6 +324,10 @@ a.fmd-mtr:hover{ transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,43,92,
   .fmd-areas{ grid-template-columns:1fr; }
   .fmd-hero-inner{ flex-direction:column; align-items:flex-start; }
 }
+/* Minidashboard dei sotto-moduli (components/_kpi_tile.html): le colonne
+   seguono il numero di tessere invece di una griglia fissa a 6 o 4. */
+.fmd-kpi.fmd-kpi-auto{ grid-template-columns:repeat(auto-fit, minmax(175px, 1fr)); }
+@media (max-width:720px){ .fmd-kpi.fmd-kpi-auto{ grid-template-columns:repeat(2, 1fr); } }
 
 /* ── E-learning player: slide (testo o immagine) ─────────────────────────── */
 .fm-slide-meta{ margin-bottom:6px; }

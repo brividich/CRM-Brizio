@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 <style>
 .rg-page { display:flex; flex-direction:column; gap:14px; }
 .rg-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:11px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; border:1px solid transparent; transition:background .15s; }
@@ -77,6 +77,18 @@
     </div>
     <a class="hr-btn hr-btn-outline" href="{% url 'anagrafica:dipendenti_list' %}">← Dipendenti</a>
   </div>
+
+  <section class="fmd fmd-kpi fmd-kpi-auto" style="margin-bottom:0;" aria-label="Amministrazione in sintesi">
+    {% url 'anagrafica:retribuzioni_import' as u_imp %}
+    {% if periodi %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-calendar" valore=periodi.0|date:"m/Y" label="Ultima mensilità" sub="caricata nel portale" url=u_imp title="Importa retribuzioni" %}
+    {% else %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-calendar" valore="—" label="Ultima mensilità" sub="nessuna mensilità caricata" url=u_imp title="Importa retribuzioni" %}
+    {% endif %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-cal-clock" valore=periodi|length label="Mensilità" sub="in archivio" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-users" valore=dipendenti_options|length label="Dipendenti" sub="con voci retributive" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-coins" valore=totale label="Righe" sub="dipendente × mese con i filtri attivi" %}
+  </section>
 
   <!-- Filtri -->
   <form method="get" id="rg-filter-form" class="rg-filter-bar">
