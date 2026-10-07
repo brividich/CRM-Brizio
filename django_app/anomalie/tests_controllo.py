@@ -175,6 +175,8 @@ class ControlloApiTests(LegacyTableMixin, TestCase):
             patch("anomalie.views._salva_riga_anomalia", side_effect=_salva_finta),
             patch("anomalie.controllo_views._sync_scheda"),
             patch("anomalie.controllo_service._allegati", return_value=[]),
+            # Lo stato superficie obbligatorio ha i suoi test: qui non interferisce.
+            patch("anomalie.controllo_service.stati_superficie_configurati", return_value=False),
         ]
         for p in self._patches:
             p.start()
@@ -286,6 +288,48 @@ class ControlloApiTests(LegacyTableMixin, TestCase):
         invio.assert_called_once()
         self.assertEqual(len(invio.call_args.args[0].da_notificare), 3)
         self.assertIsNotNone(AnomaliaControllo.objects.get(pk=cid).terminato_at)
+
+    def test_stato_superficie_obbligatorio_se_configurato(self):
+        cid = self.apri()
+        with patch("anomalie.controllo_service.stati_superficie_configurati", return_value=True):
+            r = self.post("api_anomalie_controllo_blocco", {"seriali": ["LCN00001"], "anomalie": [{"testo": "Bava"}]}, cid)
+            self.assertEqual(r.status_code, 400)
+            self.assertIn("stato superficie", r.json()["error"])
+            r = self.post("api_anomalie_controllo_blocco", {
+                "seriali": ["LCN00001"], "stato_superficie": ["Con sovrametallo"], "anomalie": [{"testo": "Bava"}],
+            }, cid)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()["controllo"]["blocchi"][0]["stato_superficie"], ["Con sovrametallo"])
+
+    def test_stesso_seriale_in_due_blocchi_richiede_conferma(self):
+        cid = self.apri()
+        r = self.post("api_anomalie_controllo_blocco", {"seriali": ["LCN00001-LCN00003"], "anomalie": [{"testo": "Bava"}]}, cid)
+        blocco_id = r.json()["blocco_id"]
+        body = {"seriali": ["LCN00002", "LCN00009"], "anomalie": [{"testo": "Graffio"}]}
+        r = self.post("api_anomalie_controllo_blocco", body, cid)
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.json()["code"], "seriali_ripetuti")
+        self.assertEqual(r.json()["seriali_ripetuti"], [{"seriale": "LCN00002", "blocco": 1}])
+        self.assertEqual(AnomaliaBlocco.objects.filter(controllo_id=cid).count(), 1)
+        r = self.post("api_anomalie_controllo_blocco", dict(body, conferma_seriali_ripetuti=True), cid)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(AnomaliaBlocco.objects.filter(controllo_id=cid).count(), 2)
+        # Riaprire il primo blocco non confronta i seriali con sé stesso.
+        primo = r.json()["controllo"]["blocchi"][0]["anomalie"][0]["local_id"]
+        r = self.post("api_anomalie_controllo_blocco", {
+            "blocco_id": blocco_id, "seriali": ["LCN00001"], "anomalie": [{"local_id": primo, "testo": "Bava"}],
+        }, cid)
+        self.assertEqual(r.status_code, 200, r.content)
+
+    def test_dettaglio_riporta_i_destinatari_della_mail(self):
+        cid = self.apri()
+        with patch(
+            "anomalie.controllo_service._destinatari",
+            return_value=({"email": "cc@example.local", "display": "Capo Commessa"}, {"email": "car@example.local"}),
+        ):
+            r = self.client.get(reverse("api_anomalie_controllo_dettaglio", args=[cid]))
+        self.assertEqual(r.json()["destinatari"], {"to": "Capo Commessa", "cc": "car@example.local"})
+        self.assertEqual(cs.controllo_di_anomalia(None), None)
 
     def test_elenco_controlli_riprendibili(self):
         cid = self.apri()
@@ -465,3 +509,42 @@ class MailActionDecisioneTests(LegacyTableMixin, TestCase):
         row = self.riga(self.ids[0])
         self.assertEqual(row["aprire_rdc"], 1)
         self.assertEqual(row["numero_rdc"], "RDC-12")
+
+
+class AutomazioniNonDuplicanoLaMailTests(TestCase):
+    """Le regole «mail-action anomalie» saltano le righe nate da un controllo OP:
+    la mail al capocommessa la manda già il controllo."""
+
+    def _azione(self, action_type):
+        from automazioni.models import AutomationAction, AutomationRule
+
+        rule = AutomationRule.objects.create(code=f"anom-{action_type}", name="Nuova anomalia", source_code="anomalie",
+                                             operation_type="insert")
+        return AutomationAction.objects.create(rule=rule, order=1, action_type=action_type,
+                                               config_json={"to": "cc@example.local"})
+
+    def test_riga_del_controllo_saltata(self):
+        from automazioni.models import AutomationActionLogStatus, AutomationActionType
+        from automazioni.services import execute_action
+
+        user = User.objects.create_user(username="op-auto", password="pass12345")
+        controllo = AnomaliaControllo.objects.create(op_id=OP, fase="Collaudo", operatore=user)
+        blocco = AnomaliaBlocco.objects.create(controllo=controllo, ordine=1, fase="Collaudo")
+        AnomaliaSegnalazioneMeta.objects.create(anomalia_id=501, controllo=controllo, blocco=blocco, fase="Collaudo")
+        for action_type in (AutomationActionType.SEND_ANOMALIE_MAIL_ACTION, AutomationActionType.SEND_ANOMALIE_MAIL_ACTION_BY_OP):
+            with patch("anomalie.mail_action_service.send_anomalie_action_email") as invio:
+                esito = execute_action(self._azione(action_type), {"id": 501, "ex_op_nominativo": OP})
+            self.assertEqual(esito["status"], AutomationActionLogStatus.SKIPPED, esito)
+            self.assertIn(f"controllo OP #{controllo.pk}", esito["result_message"])
+            invio.assert_not_called()
+
+    def test_riga_fuori_controllo_inviata(self):
+        from automazioni.models import AutomationActionLogStatus, AutomationActionType
+        from automazioni.services import execute_action
+
+        with patch("anomalie.mail_action_service.send_anomalie_action_email") as invio:
+            invio.return_value.token = "abcdef123456"
+            esito = execute_action(self._azione(AutomationActionType.SEND_ANOMALIE_MAIL_ACTION),
+                                   {"id": 777, "ex_op_nominativo": OP})
+        self.assertEqual(esito["status"], AutomationActionLogStatus.SUCCESS, esito)
+        invio.assert_called_once()

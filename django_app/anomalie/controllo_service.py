@@ -66,6 +66,44 @@ def riga_gestita(row: dict) -> bool:
     return str(row.get("avanzamento") or "").strip().lower() not in _STATI_LIBERI
 
 
+def controllo_di_anomalia(anomalia_id) -> int | None:
+    """Id del controllo OP che ha creato l'anomalia, se c'è (mai bloccante)."""
+    try:
+        anomalia_id = int(anomalia_id)
+    except (TypeError, ValueError):
+        return None
+    try:
+        from .quality_models import AnomaliaSegnalazioneMeta
+
+        return (
+            AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=anomalia_id, controllo__isnull=False)
+            .values_list("controllo_id", flat=True)
+            .first()
+        )
+    except Exception:
+        logger.warning("controllo: lookup controllo per anomalia %s fallito", anomalia_id, exc_info=True)
+        return None
+
+
+def seriali_ripetuti(controllo, voci: list[str], *, escludi_blocco_id=None) -> dict[str, int]:
+    """S/N del nuovo blocco già presenti in altri blocchi dello stesso controllo
+    (token minuscolo → ordine del blocco). Ammesso — può essere voluto — ma tracciato."""
+    from .seriali import espandi_voce
+
+    def _tokens(items) -> list[str]:
+        return [t for item in items or [] for t in espandi_voce(item)]
+
+    nuovi = {t.lower() for t in _tokens(voci)}
+    out: dict[str, int] = {}
+    for blocco in controllo.blocchi.all().order_by("ordine", "id"):
+        if escludi_blocco_id and blocco.pk == escludi_blocco_id:
+            continue
+        for t in _tokens(blocco.seriali if isinstance(blocco.seriali, list) else []):
+            if t.lower() in nuovi:
+                out.setdefault(t, blocco.ordine)
+    return out
+
+
 def carica_righe(ids: list[int]) -> dict[int, dict]:
     """Righe legacy per id, con i campi che servono al controllo."""
     ids = [int(i) for i in ids if i is not None]
@@ -235,6 +273,28 @@ def _destinatari(op_id: str) -> tuple[dict | None, dict | None]:
         if rec and rec is not primary and (not primary or rec["email"].lower() != primary["email"].lower()):
             secondary = rec
     return primary, secondary
+
+
+def destinatari_display(op_id: str) -> dict:
+    """Chi riceverà la mail del controllo, per il riepilogo dell'operatore."""
+    try:
+        primary, secondary = _destinatari(op_id)
+    except Exception:
+        logger.warning("controllo: destinatari non risolti op=%s", op_id, exc_info=True)
+        return {"to": "", "cc": ""}
+    nome = lambda rec: (rec.get("display") or rec.get("email") or "") if rec else ""  # noqa: E731
+    return {"to": nome(primary), "cc": nome(secondary)}
+
+
+def stati_superficie_configurati() -> bool:
+    """True se la configurazione liste prevede scelte di stato superficie."""
+    try:
+        from .views import _load_anomalie_lists
+
+        return bool(_load_anomalie_lists().get("stati_superficie"))
+    except Exception:
+        logger.warning("controllo: liste anomalie non leggibili", exc_info=True)
+        return False
 
 
 def invia_mail_controllo(controllo) -> dict:

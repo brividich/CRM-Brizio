@@ -92,7 +92,11 @@ def api_controllo_dettaglio(request, pk: int):
     controllo, error = _get_controllo(request, pk)
     if error:
         return error
-    return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo)})
+    return JsonResponse({
+        "success": True,
+        "controllo": cs.serializza_controllo(controllo),
+        "destinatari": cs.destinatari_display(controllo.op_id),
+    })
 
 
 @login_required
@@ -183,6 +187,7 @@ def api_controllo_blocco(request, pk: int):
 
     blocco = None
     esistenti: dict[int, dict] = {}
+    gestite: set[int] = set()
     if data.get("blocco_id"):
         blocco = AnomaliaBlocco.objects.filter(pk=data.get("blocco_id"), controllo=controllo).first()
         if blocco is None:
@@ -207,6 +212,23 @@ def api_controllo_blocco(request, pk: int):
                     return _err(f"L'anomalia #{a['local_id']} è già stata gestita dal capocommessa e non si può modificare.", 409)
     elif any(a["local_id"] for a in anomalie):
         return _err("Anomalia non appartenente al blocco", 400)
+
+    # Stato superficie obbligatorio per blocco (se la configurazione ne prevede).
+    # Un blocco già deciso dal capocommessa resta com'era: non si può più cambiare.
+    bloccato = bool(blocco is not None and gestite)
+    if not stati and not bloccato and cs.stati_superficie_configurati():
+        return _err("Indica lo stato superficie del blocco", 400)
+
+    # Stesso S/N in più blocchi: ammesso (es. due fasi o due stati superficie diversi)
+    # ma solo dopo che l'operatore l'ha confermato esplicitamente.
+    ripetuti = cs.seriali_ripetuti(controllo, voci, escludi_blocco_id=blocco.pk if blocco else None)
+    if ripetuti and not data.get("conferma_seriali_ripetuti"):
+        return JsonResponse({
+            "success": False,
+            "code": "seriali_ripetuti",
+            "error": "Alcuni seriali sono già in un altro blocco di questo controllo.",
+            "seriali_ripetuti": [{"seriale": t, "blocco": n} for t, n in ripetuti.items()],
+        }, status=409)
 
     with transaction.atomic():
         if blocco is None:
@@ -278,6 +300,7 @@ def api_controllo_blocco(request, pk: int):
     log_action(request, "anomalie_controllo_blocco", "anomalie", {
         "controllo_id": controllo.pk, "blocco_id": blocco.pk, "op_id": controllo.op_id,
         "seriali": label, "anomalie": [r.get("local_id") for r in risultati], "errori": len(errori),
+        "stato_superficie": stati, "seriali_ripetuti": sorted(ripetuti),
     })
     controllo.refresh_from_db()
     return JsonResponse({

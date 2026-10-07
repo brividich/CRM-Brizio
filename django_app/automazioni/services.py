@@ -3787,6 +3787,30 @@ def execute_action(
             )
             return {"status": AutomationActionLogStatus.SKIPPED, "result_message": result_message, "action_log": action_log}
 
+        # Anomalie inserite da un «controllo OP» a blocchi: la mail con il link di
+        # decisione la manda già il controllo (a ogni blocco o a fine controllo).
+        # Una regola su INSERT/UPDATE manderebbe un doppione per ogni riga.
+        if action.action_type in (
+            AutomationActionType.SEND_ANOMALIE_MAIL_ACTION,
+            AutomationActionType.SEND_ANOMALIE_MAIL_ACTION_BY_OP,
+        ):
+            from anomalie.controllo_service import controllo_di_anomalia
+
+            pk_field = str((source_definition or {}).get("pk_field") or "id")
+            controllo_id = controllo_di_anomalia(payload_context.get(pk_field))
+            if controllo_id:
+                result_message = (
+                    f"Action saltata: anomalia del controllo OP #{controllo_id}, "
+                    "la mail al capocommessa la invia il controllo."
+                )
+                action_log = _create_action_log(
+                    run_log=run_log,
+                    action=action,
+                    status=AutomationActionLogStatus.SKIPPED,
+                    result_message=result_message,
+                )
+                return {"status": AutomationActionLogStatus.SKIPPED, "result_message": result_message, "action_log": action_log}
+
         if action.action_type == AutomationActionType.NATIVE_PROCESS:
             from .managed_flows import invoke_native
             result = invoke_native(action, run_log)
