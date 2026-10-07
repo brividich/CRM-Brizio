@@ -4,6 +4,7 @@ Uso:
     python manage.py pulisci_scadenze_hr                       # anteprima di tutto
     python manage.py pulisci_scadenze_hr --doppioni --applica  # elimina gli attestati doppi
     python manage.py pulisci_scadenze_hr --validita-corsi --applica
+    python manage.py pulisci_scadenze_hr --scadenze-mancanti --applica
 
 Senza ``--applica`` non scrive nulla. Con ``--applica`` lavora in una
 transazione, registra ogni modifica in AuditLog e ricalcola le scadenze delle
@@ -16,6 +17,9 @@ persone toccate.
 - ``--validita-corsi``: corsi a validita' 0 («una tantum») i cui attestati hanno
   una scadenza. Si imposta la validita' piu' frequente fra gli attestati, solo se
   vale per almeno l'80% di essi.
+- ``--scadenze-mancanti``: attestati senza scadenza di corsi che oggi hanno una
+  validita' (emessi quando il corso era «una tantum»): scadenza = completamento
+  + validita' del corso. Senza, non scadrebbero mai.
 
 Date future e persone inesistenti non hanno una correzione deducibile: restano
 nel rapporto di ``verifica_scadenze_hr`` e vanno sistemate a mano.
@@ -35,16 +39,19 @@ class _Anteprima(Exception):
 
 
 class Command(BaseCommand):
-    help = "Elimina attestati doppi e allinea la validita' dei corsi (anteprima se manca --applica)."
+    help = ("Elimina attestati doppi, allinea la validita' dei corsi e completa le scadenze mancanti "
+            "(anteprima se manca --applica).")
 
     def add_arguments(self, parser) -> None:
         parser.add_argument("--doppioni", action="store_true", help="Attestati doppi (persona, corso, data).")
         parser.add_argument("--validita-corsi", action="store_true",
                             help="Validita' dei corsi una tantum con attestati che scadono.")
+        parser.add_argument("--scadenze-mancanti", action="store_true",
+                            help="Scadenza agli attestati che non l'hanno, di corsi con validita'.")
         parser.add_argument("--applica", action="store_true", help="Scrive le modifiche (default: anteprima).")
 
     def handle(self, *args, **options) -> None:
-        tutti = not (options["doppioni"] or options["validita_corsi"])
+        tutti = not (options["doppioni"] or options["validita_corsi"] or options["scadenze_mancanti"])
         applica = options["applica"]
         self.persone: set[int] = set()
         try:
@@ -53,6 +60,9 @@ class Command(BaseCommand):
                     self._doppioni()
                 if tutti or options["validita_corsi"]:
                     self._validita_corsi()
+                # Dopo l'allineamento delle validita': i corsi appena sistemati contano gia'.
+                if tutti or options["scadenze_mancanti"]:
+                    self._scadenze_mancanti()
                 if not applica:
                     raise _Anteprima
                 if self.persone:
@@ -158,3 +168,26 @@ class Command(BaseCommand):
             corso.validita_mesi = mesi
             corso.save(update_fields=["validita_mesi"])
             self.persone.update(lid for lid, _m in righe)
+
+    # ── Attestati senza scadenza di corsi con validita' ───────────────────
+    def _scadenze_mancanti(self) -> None:
+        from anagrafica.models import _add_months
+        from anagrafica.models_formazione import TrainingEmployeeRecord
+
+        recs = list(TrainingEmployeeRecord.objects.filter(data_scadenza__isnull=True, corso__validita_mesi__gt=0)
+                    .select_related("corso").order_by("corso__codice", "data_completamento"))
+        self.stdout.write(self.style.MIGRATE_HEADING(f"\n== Attestati senza scadenza di corsi con validita': {len(recs)} =="))
+        per_corso = Counter()
+        for r in recs:
+            scadenza = _add_months(r.data_completamento, r.corso.validita_mesi)
+            per_corso[(r.corso.codice, r.corso.titolo[:60], r.corso.validita_mesi)] += 1
+            self._audit("formazione_scadenza_attestato_completata", "anagrafica.trainingemployeerecord", r.pk, {
+                "legacy_anagrafica_id": r.legacy_anagrafica_id, "corso": r.corso.codice,
+                "data_completamento": r.data_completamento.isoformat(), "data_scadenza": scadenza.isoformat(),
+                "validita_mesi": r.corso.validita_mesi,
+            })
+            # update(): e' una correzione di dato, il ricalcolo lo fa il comando a fine lavoro.
+            TrainingEmployeeRecord.objects.filter(pk=r.pk).update(data_scadenza=scadenza)
+            self.persone.add(r.legacy_anagrafica_id)
+        for (codice, titolo, mesi), n in sorted(per_corso.items()):
+            self.stdout.write(f"  corso {codice} «{titolo}»: {n} attestati → completamento + {mesi} mesi")
