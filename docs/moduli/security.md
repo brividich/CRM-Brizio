@@ -35,7 +35,23 @@ Security Center (Security Center AI innestato): **Panoramica IT** (`/soc/`: verd
 - **Log esecuzioni** `/soc/backup/log/` (filtri esito, job, periodo, PC) e **scheda dispositivo** `/soc/backup/dispositivo/?nome=…` (storico, collegamento all'asset HUB se il nome host coincide con un dispositivo SOC collegato).
 - Granularità: **Veeam** dà l'esito di ogni macchina (`payload.objects`); **Synology Active Backup** solo quello del job, che i PC del job ereditano (in pagina «esito del job»).
 
+## Impostazioni e avvisi automatici
+
+`/soc/impostazioni/` (Gestione › Impostazioni, modifica con il permesso di configurazione SOC). Tutto **spento di default**; ogni sezione sceglie i canali tra quelli di Config › Notifiche.
+
+- **Scadenze incidenti**: avviso quando una notifica NIS2/GDPR entra nell'anticipo impostato (ore) e quando scade.
+- **Backup PC**: avviso per i PC senza backup riuscito oltre la soglia (giorni; la stessa soglia usata dalla pagina Backup) e, se scelto, per l'ultimo backup fallito. Riparte solo dopo un nuovo backup riuscito.
+- **Report periodico**: settimanale (lunedì) o mensile (giorno 1), dalle 7; via mail con il PDF allegato, su Teams riassunto e link.
+- Motore: `services/proactive_alerts.py`, passo `avvisi` di `security_cycle`; deduplica per canale e stato con `notifications.deliver_once` sul registro `SecurityNotificationLog`. «Esegui i controlli ora» lancia subito i controlli accesi.
+
+## Il mio lavoro, ricerca, scheda PC
+
+- **Il mio lavoro** `/soc/mio-lavoro/`: incidenti di cui sono responsabile (prossima scadenza in alto), ticket assegnati, alert presi in carico.
+- **Ricerca** (casella nella barra del SOC, `/soc/cerca/?q=`): incidenti, ticket, alert, PC e server (dispositivi SOC e PC dei backup), vulnerabilità.
+- **Scheda PC** `/soc/pc/?nome=…` (`services/pc_overview.py`): verdetto, backup, alert e vulnerabilità aperti, protezione endpoint, eventi, link all'asset HUB. Il nome host è la chiave comune ai fornitori (confronto senza maiuscole).
+
 ## Note di rilascio
 
 - **Registro incidenti, report periodico, parser transazionali** — deploy: `migrate security` (0019). Nuove rotte sotto `/soc/` (stesso binding ACL). Il motore parser salva ogni elemento in una transazione: un errore a metà non lascia più report parziali che bloccavano la rielaborazione; nel `raw_payload` restano parser, tempo (`parse_ms`) ed esito (`parse_outcome`). Pagine alert, ticket, KPI ed Elaborazione controllano il permesso di lettura SOC anche nella view (`soc_view_required`).
 - **Sezione Backup** — nessuna migrazione: legge i job di backup già importati.
+- **Avvisi automatici, impostazioni, Il mio lavoro, ricerca, scheda PC** — nessuna migrazione. Dopo il deploy: aprire Impostazioni, scegliere i canali e accendere gli avvisi voluti.

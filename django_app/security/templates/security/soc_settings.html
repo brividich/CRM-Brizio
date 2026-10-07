@@ -1,0 +1,89 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Impostazioni | Security Center AI{% endblock %}
+{% block page_icon %}S{% endblock %}
+{% block page_marker %}Impostazioni{% endblock %}
+{% block page_title %}Impostazioni avvisi e report{% endblock %}
+
+{% block soc_content %}
+{% if errors %}<div class="sec-message sec-error" role="alert">{{ errors|join:" " }}</div>{% endif %}
+{% if not can_edit %}<p class="sec-message">Puoi vedere le impostazioni ma non modificarle: serve il permesso di configurazione del SOC.</p>{% endif %}
+{% if not channels %}
+  <section class="sec-panel sec-callout sec-callout-warning">
+    <strong>Nessun canale di notifica.</strong> Gli avvisi partono verso i canali (mail o Teams): creane uno in <a href="{% url 'security:admin_config_notifications' %}">Config › Notifiche</a>.
+  </section>
+{% endif %}
+
+<form method="post" class="st-form">
+  {% csrf_token %}
+  <div class="st-grid">
+  {% for section in sections %}
+    <section class="sec-panel st-card{% if section.active %} is-on{% endif %}">
+      <div class="sec-section-head">
+        <h2>{{ section.title }}</h2>
+        <span class="sec-badge {% if section.active %}sec-badge-success{% else %}sec-badge-muted{% endif %}">{% if section.active %}Attivo{% else %}Spento{% endif %}</span>
+      </div>
+      <p class="sec-muted sec-small st-intro">{{ section.intro }}</p>
+      {% for f in section.fields %}
+        {% if f.option.kind == "bool" %}
+          <label class="st-switch"><input type="checkbox" name="{{ f.name }}" {% if f.value %}checked{% endif %} {% if not can_edit %}disabled{% endif %}><span>{{ f.option.label }}</span></label>
+          {% if f.option.help %}<small class="st-help">{{ f.option.help }}</small>{% endif %}
+        {% elif f.option.kind == "int" %}
+          <label class="st-field">{{ f.option.label }}
+            <span class="st-inline"><input type="number" name="{{ f.name }}" value="{{ f.value }}" min="{{ f.option.min_value }}" max="{{ f.option.max_value }}" {% if not can_edit %}disabled{% endif %}>{% if "giorni" in f.option.key %} giorni{% else %} ore{% endif %}</span>
+          </label>
+          {% if f.option.help %}<small class="st-help">{{ f.option.help }}</small>{% endif %}
+        {% elif f.option.kind == "choice" %}
+          <label class="st-field">{{ f.option.label }}
+            <select name="{{ f.name }}" {% if not can_edit %}disabled{% endif %}>{% for value, label in f.option.choices %}<option value="{{ value }}" {% if f.value == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          </label>
+          {% if f.option.help %}<small class="st-help">{{ f.option.help }}</small>{% endif %}
+        {% elif f.option.kind == "channels" %}
+          <fieldset class="st-channels">
+            <legend>{{ f.option.label }}</legend>
+            {% for ch in channels %}
+              <label><input type="checkbox" name="{{ f.name }}" value="{{ ch.pk }}" {% if ch.pk in f.value %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                <span>{{ ch.name }} <small class="sec-muted">{% if ch.channel_type == "email" %}mail{% elif ch.channel_type == "teams_webhook" %}Teams{% else %}solo pannello{% endif %}{% if not ch.enabled %} · disattivato{% endif %}</small></span></label>
+            {% empty %}<small class="sec-muted">Nessun canale disponibile.</small>{% endfor %}
+          </fieldset>
+        {% endif %}
+      {% endfor %}
+      <p class="st-preview">
+        {% if section.code == "incidenti" %}{% if preview.incidenti is not None %}Adesso: <strong>{{ preview.incidenti }}</strong> scadenz{{ preview.incidenti|pluralize:"a,e" }} da avvisare.{% endif %}
+        {% elif section.code == "backup" %}{% if preview.backup is not None %}Adesso: <strong>{{ preview.backup }}</strong> PC da segnalare. <a href="{% url 'security:backup' %}">Vedi Backup</a>{% endif %}
+        {% elif section.code == "report" %}{% if preview.report %}Prossimo invio: <strong>{{ preview.report|date:"l d/m/Y" }}</strong> dalle 7. <a href="{% url 'security:report' %}">Vedi il report</a>{% endif %}{% endif %}
+      </p>
+    </section>
+  {% endfor %}
+  </div>
+  {% if can_edit %}
+    <div class="sec-actions st-actions">
+      <button type="submit" class="sec-button sec-button-primary">Salva impostazioni</button>
+      <button type="submit" form="st-run-now" class="sec-button" title="Esegue subito i controlli accesi; gli avvisi già inviati non ripartono">Esegui i controlli ora</button>
+      <span class="sec-muted sec-small">I controlli girano da soli ogni 15 minuti con il ciclo del SOC.</span>
+    </div>
+  {% endif %}
+</form>
+{% if can_edit %}<form id="st-run-now" method="post" action="{% url 'security:soc_settings_run' %}">{% csrf_token %}</form>{% endif %}
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Ultimi avvisi inviati</h2><a class="sec-small" href="{% url 'security:admin_config_notifications' %}">Canali di notifica</a></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-table-enhanced="0">
+      <thead><tr><th>Quando</th><th>Tipo</th><th>Canale</th><th>Esito</th></tr></thead>
+      <tbody>
+      {% for log in recent_logs %}
+        <tr>
+          <td class="sec-nowrap">{{ log.created_at|date:"d/m/Y H:i" }}</td>
+          <td>{% for key, label in event_labels.items %}{% if key == log.event_kind %}{{ label }}{% endif %}{% endfor %}</td>
+          <td>{{ log.channel.name }}</td>
+          <td>{% if log.outcome == "sent" %}<span class="sec-badge sec-badge-success">Inviato</span>{% else %}<span class="sec-badge sec-badge-critical" title="{{ log.error_message }}">Non inviato</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="sec-empty">Nessun avviso automatico inviato finora.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

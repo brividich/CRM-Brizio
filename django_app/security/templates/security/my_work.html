@@ -1,0 +1,54 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}Il mio lavoro | Security Center AI{% endblock %}
+{% block page_icon %}M{% endblock %}
+{% block page_marker %}Il mio lavoro{% endblock %}
+{% block page_title %}Il mio lavoro{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel mw-head">
+  <div>
+    <h2>{% if total %}Hai {{ total }} cos{{ total|pluralize:"a,e" }} in carico{% else %}Niente in carico a te{% endif %}</h2>
+    <p class="sec-muted sec-small" style="margin: 4px 0 0;">Incidenti di cui sei responsabile, ticket assegnati a te e alert presi in carico. Le scadenze più vicine in alto.</p>
+  </div>
+  <div class="mw-free">
+    <a href="{% url 'security:tickets_list' %}?assignee=none" class="sec-button">{{ unassigned.tickets }} ticket senza responsabile</a>
+    <a href="{% url 'security:incidents' %}" class="sec-button">{{ unassigned.incidents }} incident{{ unassigned.incidents|pluralize:"e,i" }} senza responsabile</a>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Incidenti</h2><span class="sec-badge">{{ incidents|length }}</span></div>
+  {% if incidents %}
+  <div class="inc-urgent">
+    {% for i in incidents %}
+      <a class="inc-urgent-row" href="{% url 'security:incident_detail' i.pk %}">
+        {% if i.next_deadline %}<span class="sec-badge sec-badge-{{ i.next_deadline.tone }}">{{ i.next_deadline.state_label }}</span>{% else %}<span class="sec-badge sec-badge-muted">{{ i.get_status_display }}</span>{% endif %}
+        <span class="inc-urgent-what"><strong>{{ i.code }} · {{ i.title }}</strong><small>{% if i.next_deadline %}{{ i.next_deadline.label }}{% else %}nessuna notifica dovuta{% endif %}</small></span>
+        <span class="inc-urgent-when">{% if i.next_deadline %}entro <strong>{{ i.next_deadline.due_at|date:"d/m H:i" }}</strong>{% else %}rilevato {{ i.detected_at|date:"d/m" }}{% endif %}</span>
+      </a>
+    {% endfor %}
+  </div>
+  {% else %}<p class="sec-empty">Nessun incidente aperto di cui sei responsabile.</p>{% endif %}
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px; align-items: start;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Ticket</h2><span class="sec-badge">{{ tickets|length }}</span></div>
+    <ul class="sec-mini-list">
+      {% for t in tickets %}
+        <li><a href="{% url 'security:case_detail' t.pk %}">#{{ t.pk }} {{ t.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ t.severity }}">{{ t.severity|ui_label }}</span></span></li>
+      {% empty %}<li class="sec-muted">Nessun ticket assegnato a te.</li>{% endfor %}
+    </ul>
+  </div>
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Alert presi in carico</h2><span class="sec-badge">{{ alerts|length }}</span></div>
+    <ul class="sec-mini-list">
+      {% for a in alerts %}
+        <li><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ a.severity }}">{{ a.severity|ui_label }}</span></span></li>
+      {% empty %}<li class="sec-muted">Nessun alert preso in carico da te.</li>{% endfor %}
+    </ul>
+  </div>
+</section>
+{% endblock %}

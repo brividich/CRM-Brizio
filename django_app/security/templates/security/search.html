@@ -1,0 +1,33 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Cerca{% if query %} «{{ query }}»{% endif %} | Security Center AI{% endblock %}
+{% block page_icon %}?{% endblock %}
+{% block page_marker %}Cerca{% endblock %}
+{% block page_title %}Cerca nel SOC{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <form method="get" class="bk-search" role="search">
+    <input type="search" name="q" value="{{ query }}" placeholder="Codice incidente, ticket, alert, nome PC, CVE…" aria-label="Cerca nel SOC" autofocus>
+    <button class="sec-button sec-button-primary" type="submit">Cerca</button>
+  </form>
+  {% if too_short %}<p class="sec-muted sec-small">Scrivi almeno due caratteri.</p>{% endif %}
+</section>
+
+{% if query and not too_short %}
+  {% if groups %}
+    <div class="sr-grid">
+    {% for label, rows in groups %}
+      <section class="sec-panel">
+        <div class="sec-section-head"><h2>{{ label }}</h2><span class="sec-badge">{{ rows|length }}</span></div>
+        <ul class="sec-mini-list sec-stack">
+          {% for r in rows %}<li><a href="{{ r.url }}"><strong>{{ r.title }}</strong></a><small class="sec-muted">{{ r.meta }}</small></li>{% endfor %}
+        </ul>
+      </section>
+    {% endfor %}
+    </div>
+  {% else %}
+    <section class="sec-panel" style="margin-top: 12px;"><p class="sec-empty">Nessun risultato per «{{ query }}».</p></section>
+  {% endif %}
+{% endif %}
+{% endblock %}
