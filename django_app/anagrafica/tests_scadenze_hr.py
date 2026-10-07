@@ -85,10 +85,18 @@ class VisiteTest(_Base):
     def test_salvataggio_della_visita_ricalcola_dopo_il_commit(self):
         DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=902, ruolo=self.ruolo)
         fatta = OGGI - timedelta(days=30)
-        with self.captureOnCommitCallbacks(execute=True) as callbacks:
-            v = VisitaMedica.objects.create(legacy_anagrafica_id=902, tipo=self.biennale, data_svolgimento=fatta)
-            VisitaMedica.objects.create(legacy_anagrafica_id=901, tipo=self.annuale, data_svolgimento=fatta)
-        self.assertEqual(len(callbacks), 1)  # un solo ricalcolo per transazione
+        conta = {"n": 0}
+        vero = scadenze.ricalcola_tutto
+
+        def contato(*a, **k):
+            conta["n"] += 1
+            return vero(*a, **k)
+
+        with patch.object(scadenze, "ricalcola_tutto", side_effect=contato):
+            with self.captureOnCommitCallbacks(execute=True):
+                v = VisitaMedica.objects.create(legacy_anagrafica_id=902, tipo=self.biennale, data_svolgimento=fatta)
+                VisitaMedica.objects.create(legacy_anagrafica_id=901, tipo=self.annuale, data_svolgimento=fatta)
+        self.assertEqual(conta["n"], 1)  # un solo ricalcolo per transazione
         v.refresh_from_db()
         self.assertEqual(v.data_scadenza, _add_months(fatta, 12))
 
@@ -276,6 +284,18 @@ class PuliziaTest(_Base):
         call_command("pulisci_scadenze_hr", "--doppioni", "--applica", stdout=out)
         self.assertIn("da vedere a mano", out.getvalue())
         self.assertEqual(TrainingEmployeeRecord.objects.count(), 2)
+
+    def test_scadenze_mancanti_completate(self):
+        corso = self.corso("ASR2", validita=60)
+        fatto = OGGI - timedelta(days=200)
+        r = TrainingEmployeeRecord.objects.create(corso=corso, legacy_anagrafica_id=902, idoneo=True,
+                                                  data_completamento=fatto)  # emesso quando era una tantum
+        call_command("pulisci_scadenze_hr", "--scadenze-mancanti", stdout=StringIO())
+        r.refresh_from_db()
+        self.assertIsNone(r.data_scadenza)  # anteprima
+        call_command("pulisci_scadenze_hr", "--scadenze-mancanti", "--applica", stdout=StringIO())
+        r.refresh_from_db()
+        self.assertEqual(r.data_scadenza, _add_months(fatto, 60))
 
     def test_validita_corso_allineata(self):
         corso = self.corso("ASR", validita=0)
