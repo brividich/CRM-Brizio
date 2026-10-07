@@ -7,6 +7,7 @@
 {% block page_title %}Backup{% endblock %}
 
 {% block soc_content %}
+{% include "security/partials/tip.html" with tip_id="backup-v1" tip="<strong>Clic su un PC</strong> per backup, alert e vulnerabilità in un pannello; seleziona più PC per aprire un unico ticket con un'attività per ciascuno." %}
 {% include "security/partials/backup_subnav.html" with active="overview" %}
 
 <div class="kpi-filters">
@@ -102,12 +103,22 @@
     <span class="sec-badge">{% if query %}{{ devices|length }} di {{ devices_total }}{% else %}{{ devices_total }}{% endif %}</span>
   </div>
   <p class="sec-muted sec-small" style="margin-top:0;">In cima chi ha l'ultimo backup fallito o nessun backup riuscito da oltre {{ stale_days }} giorni. La striscia mostra le ultime esecuzioni, dalla più vecchia (sinistra) alla più recente.</p>
+  <form method="post" action="{% url 'security:backup_bulk_case' %}" data-bulk>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <div class="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+    <input type="hidden" name="action" value="case">
+    <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)">
+    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
+  </div>
   <div class="sec-table-wrap">
     <table class="sec-table" data-table-enhanced="0">
-      <thead><tr><th>Dispositivo</th><th>Ultimo esito</th><th>Ultimo riuscito</th><th>Ultime esecuzioni</th><th class="sec-num">Riuscite</th><th class="sec-num">Dati</th><th class="sec-num">Durata media</th><th>Job</th></tr></thead>
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti"></th><th>Dispositivo</th><th>Ultimo esito</th><th>Ultimo riuscito</th><th>Ultime esecuzioni</th><th class="sec-num">Riuscite</th><th class="sec-num">Dati</th><th class="sec-num">Durata media</th><th>Job</th></tr></thead>
       <tbody>
       {% for d in devices %}
-        <tr class="sec-row-link{% if d.stale %} bk-row-stale{% endif %}">
+        <tr class="sec-row-link{% if d.stale %} bk-row-stale{% endif %}" data-preview="{% url 'security:preview_pc' %}?nome={{ d.name|urlencode }}">
+          <td class="sec-check-col"><input type="checkbox" name="devices" value="{{ d.name }}" class="sec-bulk-item" aria-label="Seleziona {{ d.name }}"></td>
           <td class="sec-title-cell"><a href="{% url 'security:pc_detail' %}?nome={{ d.name|urlencode }}"><strong>{{ d.name }}</strong></a>{% if d.job_level %}<small title="Il report Synology dà l'esito del job intero: il PC eredita l'esito del job">esito del job</small>{% endif %}</td>
           <td><span class="sec-badge sec-badge-{{ d.last_tone }}">{{ d.last_label }}</span><small class="sec-nowrap sec-muted"> {{ d.last_at|date:"d/m H:i" }}</small></td>
           <td class="sec-nowrap">{% if d.last_ok %}{{ d.last_ok|date:"d/m H:i" }} <small class="{% if d.stale %}bk-late{% else %}sec-muted{% endif %}">({% if d.days_since_ok == 0 %}oggi{% else %}{{ d.days_since_ok }} g fa{% endif %})</small>{% else %}<span class="bk-late">mai nel periodo</span>{% endif %}</td>
@@ -118,11 +129,12 @@
           <td><small>{{ d.jobs|join:", " }}</small></td>
         </tr>
       {% empty %}
-        <tr><td colspan="8" class="sec-empty">{% if query %}Nessun dispositivo corrisponde alla ricerca.{% else %}Nessun dispositivo nei report di backup del periodo. Veeam e Synology indicano le macchine protette nel report: se mancano, il job non le elenca.{% endif %}</td></tr>
+        <tr><td colspan="9" class="sec-empty">{% if query %}Nessun dispositivo corrisponde alla ricerca.{% else %}Nessun dispositivo nei report di backup del periodo. Veeam e Synology indicano le macchine protette nel report: se mancano, il job non le elenca.{% endif %}</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  </form>
   <div class="sec-trend-legend" style="margin-top: 8px;"><span style="--dot: var(--success);">Riuscito</span><span style="--dot: var(--warning);">Con avvisi</span><span style="--dot: var(--danger);">Fallito</span></div>
 </section>
 

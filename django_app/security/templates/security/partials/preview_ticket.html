@@ -1,0 +1,26 @@
+{% load security_i18n %}
+<header class="pv-head">
+  <div class="pv-badges"><span class="sec-badge {{ case.severity }}">{{ case.severity|ui_label }}</span><span class="sec-badge {{ case.status }}">{{ case.status|ui_label }}</span></div>
+  <h2>{{ case.title }}</h2>
+  <p class="pv-sub">Ticket #{{ case.pk }} · {{ case.source.name }} · aggiornato {{ case.updated_at|date:"d/m/Y H:i" }}</p>
+</header>
+<dl class="pv-facts">
+  <div><dt>Responsabile</dt><dd>{% if case.assignee %}{{ case.assignee.get_full_name|default:case.assignee.username }}{% else %}nessuno{% endif %}</dd></div>
+  <div><dt>Attività</dt><dd>{% if tasks %}{{ tasks_open }} da fare su {{ tasks|length }}{% else %}nessuna{% endif %}</dd></div>
+  <div><dt>Alert</dt><dd>{{ alerts|length }}</dd></div>
+  <div><dt>Aperto</dt><dd>{{ case.created_at|date:"d/m/Y" }}</dd></div>
+</dl>
+{% if case.description %}<p class="pv-text">{{ case.description|truncatechars:280 }}</p>{% endif %}
+{% if active %}
+<div class="pv-actions">
+  {% if case.assignee_id != request.user.pk %}<form method="post" action="{% url 'security:case_assign' case.pk %}" data-drawer-form>{% csrf_token %}<input type="hidden" name="assignee" value="me"><button type="submit" class="sec-button">Prendo io</button></form>{% endif %}
+  <form method="post" action="{% url 'security:case_note' case.pk %}" data-drawer-form class="pv-reason">{% csrf_token %}<input type="text" name="body" placeholder="Aggiungi una nota" aria-label="Nota" required><button type="submit" class="sec-button">Nota</button></form>
+</div>
+{% endif %}
+{% if tasks %}<h3 class="pv-h">Attività</h3><ul class="pv-list">{% for t in tasks|slice:":6" %}<li class="{% if t.done %}is-done{% endif %}"><span>{% if t.done %}&#10003; {% endif %}{{ t.title }}</span></li>{% endfor %}</ul>{% endif %}
+<section class="pv-ai">
+  <form method="post" action="{% url 'security:case_ai_steps' case.pk %}" data-drawer-form data-drawer-target="#pv-ai-out">{% csrf_token %}<button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta leggendo il ticket…">Prossimi passi con l'AI</button></form>
+  <div id="pv-ai-out" class="pv-ai-out" aria-live="polite"></div>
+</section>
+{% if alerts %}<h3 class="pv-h">Alert collegati</h3><ul class="pv-list">{% for a in alerts %}<li><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-badge {{ a.status }}">{{ a.status|ui_label }}</span></li>{% endfor %}</ul>{% endif %}
+<footer class="pv-foot"><a class="sec-button sec-button-primary" href="{% url 'security:case_detail' case.pk %}">Apri il ticket</a></footer>

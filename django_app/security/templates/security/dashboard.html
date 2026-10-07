@@ -8,7 +8,7 @@
 
 {% block soc_content %}
 {% with level=verdict.0 %}
-<section class="ov-hero tone-{{ level }}">
+<section class="ov-hero tone-{{ level }}" id="ov-hero" data-autorefresh="120">
   <div class="ov-verdict">
     <span class="ov-icon" aria-hidden="true">{% if level == "ok" %}✓{% elif level == "warning" %}!{% else %}!!{% endif %}</span>
     <div>
@@ -26,7 +26,7 @@
 {% endwith %}
 
 <section class="ov-main">
-  <div class="sec-panel">
+  <div class="sec-panel" id="ov-attention" data-autorefresh="120">
     <div class="sec-section-head"><h2>Da guardare adesso</h2><span class="sec-muted">dal più grave</span></div>
     {% if items %}
       <ul class="ov-list">
@@ -53,7 +53,7 @@
   </div>
 </section>
 
-<section class="ov-cards">
+<section class="ov-cards" id="ov-cards" data-autorefresh="300">
   {% for c in cards %}
     <article class="ov-card state-{{ c.state }}">
       <div class="ov-card-head"><h3>{{ c.title }}</h3><span class="ov-state">{{ c.state_label }}</span></div>

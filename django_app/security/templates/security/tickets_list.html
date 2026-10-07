@@ -7,6 +7,7 @@
 {% block page_title %}Ticket{% endblock %}
 
 {% block soc_content %}
+{% include "security/partials/tip.html" with tip_id="tickets-v1" tip="<strong>Clic su una riga</strong> per l'anteprima (prendi in carico, nota, prossimi passi con l'AI); seleziona più ticket per assegnarli o chiuderli insieme." %}
 <section class="sec-panel">
   <form class="sec-filter-bar" method="get">
     <label>Stato
@@ -52,12 +53,36 @@
     <h2>Ticket</h2>
     <span class="sec-badge">{% if total > tickets|length %}Mostrati {{ tickets|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
   </div>
+  <form method="post" action="{% url 'security:tickets_bulk' %}" data-bulk>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <div class="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+    <select name="action" aria-label="Azione sui ticket selezionati">
+      <option value="assign_me">Assegna a me</option>
+      <option value="assign">Assegna a…</option>
+      <option value="status">Cambia stato</option>
+    </select>
+    <select name="assignee" aria-label="Responsabile" data-show-for="assign">
+      {% for u in users %}<option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+    </select>
+    <select name="status" aria-label="Nuovo stato" data-show-for="status">
+      <option value="in_progress">In lavorazione</option>
+      <option value="resolved">Risolto</option>
+      <option value="closed">Chiuso</option>
+      <option value="false_positive">Falso positivo</option>
+    </select>
+    <input type="text" name="reason" placeholder="Esito (obbligatorio per chiudere)" data-show-for="status">
+    <label class="sec-check" data-show-for="status"><input type="checkbox" name="close_alerts" value="1" checked> chiudi anche gli alert</label>
+    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Applica</button>
+  </div>
   <div class="sec-table-wrap">
     <table class="sec-table">
-      <thead><tr><th>#</th><th>Stato</th><th>Severità</th><th>Ticket</th><th>Responsabile</th><th>Attività</th><th>Aggiornato</th></tr></thead>
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti"></th><th>#</th><th>Stato</th><th>Severità</th><th>Ticket</th><th>Responsabile</th><th>Attività</th><th>Aggiornato</th></tr></thead>
       <tbody>
       {% for ticket in tickets %}
-        <tr class="sec-row-link">
+        <tr class="sec-row-link" data-preview="{% url 'security:preview' 'ticket' ticket.pk %}">
+          <td class="sec-check-col"><input type="checkbox" name="ticket_ids" value="{{ ticket.pk }}" class="sec-bulk-item" aria-label="Seleziona il ticket {{ ticket.pk }}"></td>
           <td class="sec-nowrap"><a href="{% url 'security:case_detail' ticket.pk %}">#{{ ticket.pk }}</a></td>
           <td><span class="sec-badge {{ ticket.status }}">{{ ticket.status|ui_label }}</span></td>
           <td><span class="sec-badge {{ ticket.severity }}">{{ ticket.severity|ui_label }}</span></td>
@@ -70,10 +95,11 @@
           <td class="sec-nowrap">{{ ticket.updated_at|date:"d M Y, H:i" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="7" class="sec-empty">Nessun ticket corrisponde ai filtri.</td></tr>
+        <tr><td colspan="8" class="sec-empty">Nessun ticket corrisponde ai filtri.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  </form>
 </section>
 {% endblock %}
