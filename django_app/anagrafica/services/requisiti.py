@@ -222,8 +222,10 @@ def ultimi_completamenti(ctx, persone: dict) -> dict[tuple[int, int], tuple[date
     from anagrafica.models_formazione import TrainingEmployeeRecord
 
     out: dict[tuple[int, int], tuple[date, date | None]] = {}
+    # Un completamento con data futura (sessione ancora pianificata, anno sbagliato)
+    # non e' avvenuto: contandolo diventerebbe «l'ultimo» e coprirebbe quello vero.
     for lid, corso_id, completato, scadenza in filtra_in(
-        TrainingEmployeeRecord.objects.filter(idoneo=True)
+        TrainingEmployeeRecord.objects.filter(idoneo=True, data_completamento__lte=ctx.today)
         .values_list("legacy_anagrafica_id", "corso_id", "data_completamento", "data_scadenza"),
         "legacy_anagrafica_id", ctx.id_estesi(persone),
     ):
@@ -422,7 +424,9 @@ def visite(ctx, persone: dict) -> list[VoceVisita]:
         effettiva = scadenza_prudente(v.data_svolgimento, v.tipo.durata_mesi, mesi)
         nota = ""
         if effettiva and (propria is None or effettiva < propria):
-            nota = (f"Scadenza anticipata: la mansione richiede «{tipo_richiesto.nome}» "
+            # L'obbligo puo' venire da mansione, ruolo, protocollo o processo: si dice da dove.
+            fonte = ", ".join(origini or []) or "il requisito"
+            nota = (f"Scadenza anticipata: {fonte} richiede «{tipo_richiesto.nome}» "
                     f"(ogni {mesi} mesi), la visita fatta era «{v.tipo.nome}».")
         if origini and tipo_richiesto is None:
             # Richiesta senza periodicita' (durata 0): si mostra il primo tipo richiesto della famiglia.
