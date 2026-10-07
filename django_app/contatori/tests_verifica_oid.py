@@ -148,6 +148,40 @@ class PropostaAITests(SimpleTestCase):
         self.assertEqual(mib["1.3.6.1.4.1.9.6.1.101.1.8.0"]["nome"], "rlCpuUtilDuringLastMinute")
         sconosciuto = verifica_oid.proposte_catalogo([dict(self.CAND[0], oid="1.3.6.1.4.1.99999.1.0")])
         self.assertEqual(sconosciuto, {})
+        # Nomi riusati da MIB di altri produttori non devono rubare l'OID standard.
+        self.assertEqual(mib["1.3.6.1.2.1.25.2.3.1.6"]["modulo"], "HOST-RESOURCES-MIB")
+        self.assertEqual(mib["1.3.6.1.4.1.3097.6.6.3.0"]["nome"], "wgFirstMemberRole")
+
+    def test_generatore_risolve_nomi_per_modulo(self):
+        import importlib.util
+        import tempfile
+        from pathlib import Path
+
+        from django.conf import settings
+
+        percorso = Path(settings.BASE_DIR).parent / "tools" / "snmp" / "genera_catalogo_mib.py"
+        spec = importlib.util.spec_from_file_location("genera_catalogo_mib", percorso)
+        gen = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gen)
+        mib_a = ('A-MIB DEFINITIONS ::= BEGIN IMPORTS enterprises FROM SNMPv2-SMI;\n'
+                 'aRoot OBJECT IDENTIFIER ::= { enterprises 99991 }\n'
+                 'stato OBJECT-TYPE SYNTAX INTEGER { ok(1), guasto(2) } MAX-ACCESS read-only STATUS current\n'
+                 ' DESCRIPTION "Stato A. Altro." ::= { aRoot 1 }\nEND\n')
+        mib_b = ('B-MIB DEFINITIONS ::= BEGIN IMPORTS enterprises FROM SNMPv2-SMI;\n'
+                 'bRoot OBJECT IDENTIFIER ::= { enterprises 99992 }\n'
+                 'stato OBJECT-TYPE SYNTAX Integer32 UNITS "C" MAX-ACCESS read-only STATUS current\n'
+                 ' DESCRIPTION "Stato B." ::= { bRoot 7 }\nEND\n')
+        with tempfile.TemporaryDirectory() as cartella:
+            Path(cartella, "A-MIB").write_text(mib_a)
+            Path(cartella, "B-MIB").write_text(mib_b)
+            definizioni, importati, convenzioni = gen.leggi_cartella(Path(cartella))
+            oid, mancanti, per_nome = gen.risolvi(definizioni, importati)
+            voci = gen.catalogo(definizioni, importati, convenzioni, oid, per_nome)
+        self.assertEqual(voci["1.3.6.1.4.1.99991.1.0"]["etichette"], "1=ok, 2=guasto")
+        self.assertEqual(voci["1.3.6.1.4.1.99991.1.0"]["descrizione"], "Stato A.")
+        self.assertEqual((voci["1.3.6.1.4.1.99992.7.0"]["modulo"], voci["1.3.6.1.4.1.99992.7.0"]["unita"]),
+                         ("B-MIB", "C"))
+        self.assertEqual(mancanti, [])
 
     def test_ai_non_disponibile(self):
         with mock.patch("ai_assistant.services.chat_with_ollama", side_effect=RuntimeError("giu")):

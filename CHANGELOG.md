@@ -8,6 +8,18 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori «Verifica OID» — catalogo MIB completato e corretto** (`django_app/contatori/data/oid_mib.json`, `tools/snmp/genera_catalogo_mib.py`, `django_app/contatori/verifica_oid.py`, `tests_verifica_oid.py`, `docs/moduli/contatori.md`, `docs/snmp/PRESET_CATALOG.md`).
+  - **Da 980 a 4.578 OID, da 29 a 68 MIB.** Aggiunte:
+    - **WatchGuard:** stato del cluster (ruolo e salute dei due nodi), HA, policy, tunnel e SA IPsec, utenti autenticati, configurazione;
+    - **ArubaOS-Switch 2530/2930:** alimentatori, ventole, transceiver, stack, memoria/processi, fault finder, porte estese;
+    - **HPE ProLiant/iLO:** salute, temperature, ventole, alimentatori, controller e dischi (CPQHLTH, CPQSTDEQ, CPQSINFO, CPQIDA, CPQHOST);
+    - **Cisco Small Business:** parametri dispositivo, stack, porte, statistiche porte, Green Ethernet, inventario;
+    - **MIB standard:** Printer-MIB (consumabili, vassoi, contatori, avvisi), EtherLike, ENTITY-STATE, IP/TCP/UDP, LLDP, BRIDGE; HP LaserJet/DesignJet.
+  - **CORRETTO:** con più MIB caricate, le MIB dei produttori che riusano i nomi degli oggetti standard (es. `hrStorageUsed` nella MIB HP LaserJet) prendevano il posto degli OID standard. Ora ogni nome si risolve nel suo modulo e negli `IMPORTS`. Stesso trattamento per i file che dichiarano il nome di un altro modulo (es. la MIB del cluster WatchGuard).
+  - «Esplora rami noti» comprende ora anche il ramo del cluster WatchGuard (`3097.6.6`).
+  - Canon e Kyocera non pubblicano le MIB private: per le loro stampanti restano i preset verificati e la Printer-MIB standard.
+  - Nessuna migrazione.
+
 - **Scadenze HR ricalcolate a ogni modifica, non solo di notte** (`django_app/anagrafica/segnali_scadenze.py` nuovo, `anagrafica/apps.py`, `anagrafica/services/scadenze.py`, `django_app/dpi/segnali_scadenze.py` nuovo, `dpi/apps.py`, `django_app/core/legacy_anagrafica.py`, `anagrafica/tests_scadenze_eventi.py` nuovo, `docs/moduli/anagrafica.md`, `docs/moduli/dpi.md`).
   - Prima lo scadenzario formazione e le scadenze effettive delle visite si riallineavano solo salvando una visita, chiudendo un corso, registrando uno spostamento e alle 00:20: un ruolo assegnato, una visita aggiunta alla mansione, la durata di un tipo di visita cambiata o un attestato cancellato restavano sbagliati fino alla notte.
   - Ora ogni salvataggio o cancellazione di un dato letto dal motore dei requisiti ricalcola a transazione conclusa (uno per transazione, un errore non blocca il salvataggio). **Dati della persona**: visite, attestati, ruoli operativi, protocollo sanitario, scheda aziendale, spostamenti, abilitazioni ai processi, regole ed esposizioni individuali, anagrafica (mansione, reparto, in forza): ricalcolo della persona, e della precedente se il record cambia persona. **Cataloghi**: tipi di visita (durata, famiglia, obbligatorietà, attivo), corsi (validità, attivo, piano, categoria), piani, mansioni e visite richieste, fattori di rischio, categorie corso, ruoli, aree, processi qualificati, regole ed esposizioni di mansione/ruolo/area, e le loro relazioni: ricalcolo di tutti (meno di un secondo per l'azienda). Cambiare solo un nome o una descrizione non ricalcola.

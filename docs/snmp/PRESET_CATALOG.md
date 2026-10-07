@@ -146,7 +146,7 @@ Le "condition" delle MIB HPE/Compaq hanno tutte la stessa scala: **1** altro/non
 
 ## Catalogo dalle MIB ufficiali
 
-`django_app/contatori/data/oid_mib.json` contiene 980 OID numerici ricavati dalle MIB ufficiali, con nome, descrizione, unità, codici di stato e modalità (GET scalare o WALK colonna). Comprende WatchGuard, HPE ArubaOS-Switch, Cisco Small Business, Synology, UniFi e VMware, più le MIB standard.
+`django_app/contatori/data/oid_mib.json` contiene 4.578 OID numerici ricavati da 68 MIB ufficiali, con nome, descrizione, unità, codici di stato e modalità (GET scalare o WALK colonna). Comprende WatchGuard (anche cluster e IPsec), HPE ArubaOS-Switch, HPE ProLiant/iLO (CPQ), Cisco Small Business, Synology, UniFi, VMware e HP LaserJet, più le MIB standard (anche Printer-MIB, LLDP, EtherLike, ENTITY-STATE). Canon e Kyocera non pubblicano MIB private: valgono i preset verificati. Il generatore risolve ogni nome nel suo modulo e negli IMPORTS, perché alcune MIB dei produttori riusano i nomi degli oggetti standard.
 
 Lo usa «Verifica OID» (scheda dispositivo SNMP) per dare un nome agli OID che rispondono sull'apparato. Una voce del catalogo **non** rende un OID valido per un modello: diventa colonna del profilo solo ciò che l'apparato ha risposto.
 

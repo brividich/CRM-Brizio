@@ -67,6 +67,7 @@ RAMI_PRODUTTORE = {
     ),
     "1.3.6.1.4.1.3097": (           # WatchGuard Fireware
         ("1.3.6.1.4.1.3097.6.3", "WatchGuard statistiche di sistema"),
+        ("1.3.6.1.4.1.3097.6.6", "WatchGuard stato del cluster"),
     ),
     "1.3.6.1.4.1.41112": (          # Ubiquiti UniFi
         ("1.3.6.1.4.1.41112.1.6", "UniFi AP"),
