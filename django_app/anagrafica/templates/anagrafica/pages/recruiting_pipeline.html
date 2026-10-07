@@ -1,0 +1,136 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Pipeline | Recruiting{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+    {% include "anagrafica/partials/_recruiting_tabs.html" with attiva="pipeline" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:recruiting_list' %}">Recruiting</a><span class="fmd-sep"> / </span><span class="fmd-cur">Pipeline</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>Pipeline di selezione <span class="fmd-count">{{ totale }}</span></h1>
+        <p class="fmd-ph-sub">Una colonna per fase.{% if can_manage %} Trascina una scheda per spostarla, oppure usa il menu sulla scheda.{% endif %} L'offerta è facoltativa; l'assunzione si fa dalla scheda candidato. Gli assunti restano qui 30 giorni.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% if can_manage %}<a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:recruiting_create' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuovo candidato</a>{% endif %}
+      </div>
+    </div>
+
+    <form method="get" class="fmd-toolbar" style="margin-bottom:12px;">
+      <span class="fmd-search">
+        <svg class="fmd-ico"><use href="#i-search"/></svg>
+        <input type="text" name="q" value="{{ q }}" placeholder="Nome o mansione…" autocomplete="off" data-ana-live-skip="1">
+      </span>
+      <select class="fmd-select" name="posizione" aria-label="Filtra per posizione" onchange="this.form.submit()">
+        <option value="">Tutte le posizioni</option>
+        {% for p in posizioni %}<option value="{{ p.id }}"{% if filtro_posizione == p.id|stringformat:"d" %} selected{% endif %}>{{ p.titolo }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+      {% if q or filtro_posizione %}<a href="{% url 'anagrafica:recruiting_pipeline' %}" class="fmd-btn fmd-btn-ghost">Azzera</a>{% endif %}
+    </form>
+
+    <div class="rcr-board" id="rcr-board" data-can-move="{{ can_manage|yesno:'1,0' }}">
+      {% for col in colonne %}
+      <section class="rcr-col" data-stato="{{ col.stato }}" data-droppable="{{ col.spostabile|yesno:'1,0' }}" aria-label="{{ col.label }}">
+        <div class="rcr-col-head">
+          <span class="rcr-col-title">{{ col.label }}</span>
+          <span class="rcr-col-n">{{ col.candidati|length }}</span>
+        </div>
+        <div class="rcr-col-body">
+          {% for c in col.candidati %}
+          <div class="rcr-card" data-id="{{ c.id }}"
+             {% if can_manage and col.spostabile %}draggable="true"{% endif %}>
+            <a class="rcr-card-name" href="{% url 'anagrafica:recruiting_detail' c.id %}">{{ c.etichetta }}</a>
+            <div class="rcr-card-sub">{{ c.posizione.titolo|default:c.mansione_cercata|default:"—" }}</div>
+            {% if c.stato == "OFFERTA" %}
+              <div class="rcr-card-sub">
+                {% if c.offerta_esito == "ACCETTATA" %}<span class="fmd-badge fmd-b-green">Accettata</span>
+                {% else %}<span class="fmd-badge fmd-b-amber">In attesa</span>{% endif %}
+                {% if c.data_assunzione %} · ingresso {{ c.data_assunzione|date:"d/m" }}{% endif %}
+              </div>
+            {% elif c.stato == "ASSUNTO" and c.data_assunzione %}
+              <div class="rcr-card-sub">Ingresso {{ c.data_assunzione|date:"d/m/Y" }}</div>
+            {% endif %}
+            <div class="rcr-card-foot">
+              <span class="rcr-card-score">{% if c.punteggio_ponderato %}{{ c.punteggio_ponderato }}{% else %}—{% endif %}</span>
+              {% if can_manage and col.spostabile %}
+              <select class="rcr-card-move" data-id="{{ c.id }}" aria-label="Sposta {{ c.etichetta }} in un'altra fase">
+                {% for valore, etichetta in stati_spostabili %}<option value="{{ valore }}"{% if valore == c.stato %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+              </select>
+              {% endif %}
+            </div>
+          </div>
+          {% empty %}
+          <div class="rcr-col-empty">Nessuna scheda</div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    </div>
+
+  </div>
+</div>
+
+{% if can_manage %}
+<form id="rcr-sposta-form" method="post" style="display:none">{% csrf_token %}<input type="hidden" name="stato"></form>
+<script>
+/* Pipeline: trascina una scheda (o usa il menu) per cambiarne la fase.
+   Lo spostamento passa da recruiting_sposta (POST + CSRF); a esito positivo si
+   ricarica la pagina, così colonne e contatori restano quelli del server. */
+(function(){
+  var board = document.getElementById("rcr-board");
+  if(!board) return;
+  var csrf = document.querySelector("#rcr-sposta-form input[name=csrfmiddlewaretoken]").value;
+  var base = "{% url 'anagrafica:recruiting_sposta' 0 %}";
+  function sposta(id, stato){
+    var body = new URLSearchParams(); body.append("stato", stato);
+    fetch(base.replace("/0/", "/" + id + "/"), {
+      method: "POST", credentials: "same-origin",
+      headers: {"X-CSRFToken": csrf, "X-Requested-With": "fetch"}, body: body
+    }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok && d.ok, d: d}; }); })
+      .then(function(res){
+        if(res.ok){ window.location.reload(); }
+        else { window.alert(res.d.errore || "Spostamento non riuscito."); window.location.reload(); }
+      }).catch(function(){ window.location.reload(); });
+  }
+  var trascinata = null;
+  board.querySelectorAll('.rcr-card[draggable="true"]').forEach(function(card){
+    card.addEventListener("dragstart", function(e){
+      trascinata = card; card.classList.add("rcr-dragging");
+      e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", card.dataset.id);
+    });
+    card.addEventListener("dragend", function(){ card.classList.remove("rcr-dragging"); trascinata = null; });
+  });
+  board.querySelectorAll('.rcr-col[data-droppable="1"]').forEach(function(col){
+    col.addEventListener("dragover", function(e){ if(trascinata){ e.preventDefault(); col.classList.add("rcr-drop"); } });
+    col.addEventListener("dragleave", function(){ col.classList.remove("rcr-drop"); });
+    col.addEventListener("drop", function(e){
+      e.preventDefault(); col.classList.remove("rcr-drop");
+      if(!trascinata) return;
+      var origine = trascinata.closest(".rcr-col");
+      if(origine === col) return;
+      col.querySelector(".rcr-col-body").appendChild(trascinata);
+      sposta(trascinata.dataset.id, col.dataset.stato);
+    });
+  });
+  board.querySelectorAll(".rcr-card-move").forEach(function(sel){
+    sel.addEventListener("change", function(){ sposta(sel.dataset.id, sel.value); });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

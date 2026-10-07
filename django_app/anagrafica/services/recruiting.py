@@ -13,6 +13,7 @@ Tre responsabilità, tenute fuori dalle view:
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Iterable, Mapping
 
@@ -23,6 +24,7 @@ from ..models_recruiting import (
     Candidato,
     CandidatoLog,
     CandidatoPunteggio,
+    PosizioneAperta,
     RecruitingCriterio,
 )
 
@@ -221,10 +223,14 @@ def assumi_e_avvia_onboarding(candidato: Candidato, *, user=None, reparto: str =
     se il candidato è già collegato a una pratica la ritorna senza duplicare
     nulla, così un doppio click o un retry non creano due dipendenti.
 
+    Se l'offerta era stata accettata la pratica esiste già in pre-ingresso: la si
+    collega al dipendente invece di aprirne una seconda.
+
     Ritorna la ``OnboardingPratica``.
     """
-    if candidato.onboarding_pratica_id:
-        return candidato.onboarding_pratica
+    pratica_pre = candidato.onboarding_pratica if candidato.onboarding_pratica_id else None
+    if pratica_pre is not None and pratica_pre.legacy_anagrafica_id and candidato.stato == Candidato.STATO_ASSUNTO:
+        return pratica_pre
 
     from core.legacy_anagrafica import (
         fetch_anagrafica_rows,
@@ -265,15 +271,22 @@ def assumi_e_avvia_onboarding(candidato: Candidato, *, user=None, reparto: str =
         if not legacy_id:
             raise TransizioneError("Creazione del dipendente in anagrafica non riuscita.")
 
-    pratica = onboarding_service.pratica_aperta(legacy_id) or onboarding_service.avvia_onboarding(
-        legacy_id=legacy_id,
-        dipendente_nome=candidato.nominativo or f"#{legacy_id}",
-        reparto=reparto.strip(),
-        mansione=candidato.mansione_cercata.strip(),
-        data_assunzione=candidato.data_assunzione,
-        note_hr=f"Da selezione MOD. 05-01 (candidato #{candidato.pk}).",
-        user=user,
-    )
+    reparto = reparto.strip() or (candidato.posizione.reparto if candidato.posizione_id else "")
+    if pratica_pre is not None and pratica_pre.is_aperta and not pratica_pre.legacy_anagrafica_id:
+        pratica = onboarding_service.collega_dipendente(
+            pratica_pre, legacy_id, user=user, reparto=reparto,
+            mansione=candidato.mansione_cercata.strip(), data_assunzione=candidato.data_assunzione,
+        )
+    else:
+        pratica = onboarding_service.pratica_aperta(legacy_id) or onboarding_service.avvia_onboarding(
+            legacy_id=legacy_id,
+            dipendente_nome=candidato.nominativo or f"#{legacy_id}",
+            reparto=reparto,
+            mansione=candidato.mansione_cercata.strip(),
+            data_assunzione=candidato.data_assunzione,
+            note_hr=f"Da selezione MOD. 05-01 (candidato #{candidato.pk}).",
+            user=user,
+        )
 
     stato_prima = candidato.stato
     candidato.legacy_anagrafica_id = legacy_id
@@ -287,7 +300,175 @@ def assumi_e_avvia_onboarding(candidato: Candidato, *, user=None, reparto: str =
         candidato, stato_prima, candidato.stato, user=user,
         note=f"Onboarding avviato (pratica #{pratica.pk}).",
     )
+    aggiorna_copertura(candidato.posizione)
     return pratica
+
+
+# ---------------------------------------------------------------------------
+# Pipeline: spostamento di fase e offerta
+# ---------------------------------------------------------------------------
+
+# Fasi raggiungibili spostando la scheda nella pipeline. «Assunto» no: crea il
+# dipendente e passa dal pulsante dedicato in scheda.
+STATI_SPOSTABILI = (
+    Candidato.STATO_NUOVO, Candidato.STATO_CV_VALUTATO, Candidato.STATO_COLLOQUIO_1,
+    Candidato.STATO_COLLOQUIO_2, Candidato.STATO_OFFERTA,
+)
+
+
+def _utente(user):
+    return user if (user and getattr(user, "is_authenticated", False)) else None
+
+
+def sposta_in_fase(candidato: Candidato, stato: str, *, user=None) -> None:
+    """Sposta una scheda aperta in un'altra fase della pipeline (tracciato)."""
+    if stato not in STATI_SPOSTABILI:
+        raise TransizioneError("Fase non raggiungibile da qui: per l'assunzione usa la scheda candidato.")
+    if candidato.iter_chiuso:
+        raise TransizioneError("La scheda è a iter chiuso: riapri l'iter prima di spostarla.")
+    if stato == candidato.stato:
+        return
+    stato_prima = candidato.stato
+    candidato.stato = stato
+    campi = ["stato", "updated_by", "updated_at"]
+    if stato == Candidato.STATO_OFFERTA and not candidato.offerta_inviata_il:
+        candidato.offerta_inviata_il = timezone.localdate()
+        campi.append("offerta_inviata_il")
+    candidato.updated_by = _utente(user)
+    candidato.save(update_fields=campi)
+    registra_cambio_stato(candidato, stato_prima, stato, user=user, note="Spostata nella pipeline.")
+
+
+def invia_offerta(candidato: Candidato, *, inviata_il, data_ingresso=None, note: str = "", user=None) -> None:
+    """Registra l'offerta inviata: la scheda passa in fase «Offerta»."""
+    if candidato.iter_chiuso:
+        raise TransizioneError("La scheda è a iter chiuso: riapri l'iter prima di registrare un'offerta.")
+    stato_prima = candidato.stato
+    candidato.stato = Candidato.STATO_OFFERTA
+    candidato.offerta_inviata_il = inviata_il or timezone.localdate()
+    candidato.offerta_esito = Candidato.OFFERTA_IN_ATTESA
+    candidato.offerta_esito_il = None
+    candidato.offerta_note = (note or "").strip()[:300]
+    if data_ingresso:
+        candidato.data_assunzione = data_ingresso
+    candidato.updated_by = _utente(user)
+    candidato.save()
+    registra_cambio_stato(candidato, stato_prima, candidato.stato, user=user,
+                          note=f"Offerta inviata il {candidato.offerta_inviata_il:%d/%m/%Y}.")
+
+
+def registra_esito_offerta(candidato: Candidato, esito: str, *, user=None, data_ingresso=None):
+    """Accettata → apre la pratica di pre-ingresso; rifiutata → rinuncia del candidato.
+
+    Ritorna la pratica di onboarding se l'offerta è accettata, altrimenti ``None``.
+    L'offerta è un passaggio facoltativo: «Assunto» resta raggiungibile anche senza.
+    """
+    from . import onboarding as onboarding_service
+
+    if esito not in (Candidato.OFFERTA_ACCETTATA, Candidato.OFFERTA_RIFIUTATA):
+        raise TransizioneError("Esito dell'offerta non valido.")
+    if candidato.stato != Candidato.STATO_OFFERTA:
+        raise TransizioneError("Registra prima l'offerta inviata.")
+    candidato.offerta_esito = esito
+    candidato.offerta_esito_il = timezone.localdate()
+    if data_ingresso:
+        candidato.data_assunzione = data_ingresso
+    candidato.updated_by = _utente(user)
+
+    if esito == Candidato.OFFERTA_RIFIUTATA:
+        stato_prima = candidato.stato
+        candidato.stato = Candidato.STATO_RINUNCIA
+        candidato.save()
+        registra_log(candidato, tipo=CandidatoLog.TIPO_STATO, campo="Offerta",
+                     valore_prima="Inviata", valore_dopo="Rifiutata", user=user)
+        registra_cambio_stato(candidato, stato_prima, candidato.stato, user=user, note="Offerta rifiutata.")
+        return None
+
+    if candidato.anagrafica_da_completare:
+        raise TransizioneError("Il candidato non ha nome né cognome: completa la scheda prima di accettare l'offerta.")
+    pratica = candidato.onboarding_pratica if candidato.onboarding_pratica_id else None
+    if pratica is None:
+        pratica = onboarding_service.avvia_onboarding(
+            legacy_id=None,
+            dipendente_nome=candidato.nominativo,
+            reparto=candidato.posizione.reparto if candidato.posizione_id else "",
+            mansione=candidato.mansione_cercata.strip(),
+            data_assunzione=candidato.data_assunzione,
+            note_hr=f"Pre-ingresso da offerta accettata (candidato #{candidato.pk}).",
+            user=user,
+            notifica_dpi=False,
+        )
+        candidato.onboarding_pratica = pratica
+    elif data_ingresso and pratica.is_aperta:
+        pratica.data_assunzione = data_ingresso
+        pratica.save(update_fields=["data_assunzione", "updated_at"])
+        onboarding_service.ricalcola_scadenze(pratica)
+    candidato.save()
+    registra_log(candidato, tipo=CandidatoLog.TIPO_STATO, campo="Offerta",
+                 valore_prima="Inviata", valore_dopo="Accettata", user=user,
+                 note=f"Pre-ingresso avviato (pratica #{pratica.pk}).")
+    return pratica
+
+
+# ---------------------------------------------------------------------------
+# Posizioni aperte
+# ---------------------------------------------------------------------------
+
+def aggiorna_copertura(posizione: PosizioneAperta | None) -> bool:
+    """Chiude come «Coperta» la posizione che ha raggiunto i posti richiesti."""
+    if posizione is None or not posizione.is_attiva:
+        return False
+    assunti = posizione.candidati.filter(stato=Candidato.STATO_ASSUNTO).count()
+    if assunti < posizione.posti:
+        return False
+    posizione.stato = PosizioneAperta.STATO_COPERTA
+    posizione.chiusa_il = timezone.localdate()
+    posizione.save(update_fields=["stato", "chiusa_il", "updated_at"])
+    return True
+
+
+def righe_posizioni(qs) -> list[dict]:
+    """Posizioni con conteggi per fase, assunti, ritardo: pronte per lista e cruscotto."""
+    from django.db.models import Count
+
+    oggi = timezone.localdate()
+    posizioni = list(qs)
+    conteggi: dict[int, dict[str, int]] = {}
+    for riga in (Candidato.objects.filter(posizione__in=posizioni)
+                 .values("posizione_id", "stato").annotate(n=Count("id")).order_by()):
+        conteggi.setdefault(riga["posizione_id"], {})[riga["stato"]] = riga["n"]
+    righe = []
+    for p in posizioni:
+        per_stato = conteggi.get(p.pk, {})
+        assunti = per_stato.get(Candidato.STATO_ASSUNTO, 0)
+        in_corso = sum(n for s, n in per_stato.items() if s not in Candidato.STATI_CHIUSI)
+        righe.append({
+            "posizione": p,
+            "candidati": sum(per_stato.values()),
+            "in_corso": in_corso,
+            "assunti": assunti,
+            "offerte": per_stato.get(Candidato.STATO_OFFERTA, 0),
+            "in_ritardo": bool(p.is_attiva and p.entro_il and p.entro_il < oggi),
+            "giorni_aperta": (oggi - p.data_richiesta).days if p.is_attiva else None,
+        })
+    return righe
+
+
+def kpi_posizioni() -> dict:
+    """KPI delle posizioni: aperte, in ritardo, coperte negli ultimi 12 mesi, giorni medi di copertura."""
+    oggi = timezone.localdate()
+    attive = PosizioneAperta.objects.filter(stato__in=PosizioneAperta.STATI_ATTIVI)
+    coperte = list(PosizioneAperta.objects.filter(
+        stato=PosizioneAperta.STATO_COPERTA, chiusa_il__gte=oggi - timedelta(days=365),
+    ))
+    giorni = [p.giorni_copertura for p in coperte if p.giorni_copertura is not None]
+    return {
+        "aperte": attive.count(),
+        "posti_aperti": sum(p.posti for p in attive),
+        "in_ritardo": attive.filter(entro_il__lt=oggi).count(),
+        "coperte_12m": len(coperte),
+        "giorni_medi_copertura": round(sum(giorni) / len(giorni)) if giorni else None,
+    }
 
 
 def archivia_in_database(candidato: Candidato, *, user=None) -> None:
@@ -356,7 +537,7 @@ def riapri_iter(candidato: Candidato, *, user=None) -> str:
 
 def calcola_kpi(queryset) -> dict:
     """KPI di processo sul queryset filtrato (evidenze per audit UNI/PdR 125)."""
-    from django.db.models import Avg, Count
+    from django.db.models import Avg, Count, Q
 
     candidati = list(
         queryset.values(
@@ -390,11 +571,14 @@ def calcola_kpi(queryset) -> dict:
         "assunti": assunti,
         "tasso_assunzione": _pct(assunti, totale),
         "giorni_medi_tra_colloqui": round(sum(scarti) / len(scarti), 1) if scarti else None,
-        "per_canale": list(
-            queryset.values("canale_provenienza")
-            .annotate(n=Count("id"), media=Avg("punteggio_ponderato"))
+        "per_canale": [
+            {**riga, "conversione": _pct(riga["assunti"], riga["n"])}
+            for riga in queryset.values("canale_provenienza")
+            .annotate(n=Count("id"), media=Avg("punteggio_ponderato"),
+                      assunti=Count("id", filter=Q(stato=Candidato.STATO_ASSUNTO)))
             .order_by("-n")
-        ),
+        ],
+        "offerte": sum(1 for c in candidati if c["stato"] == Candidato.STATO_OFFERTA),
         "per_mansione": list(
             queryset.exclude(mansione_cercata="")
             .values("mansione_cercata")

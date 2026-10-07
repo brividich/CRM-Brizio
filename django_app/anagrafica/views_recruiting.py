@@ -16,7 +16,7 @@ Importato da ``urls.py`` come modulo dedicato (``from . import views_recruiting`
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib import messages
@@ -29,11 +29,21 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .forms_recruiting import CandidatoForm, CandidatoStep2Form, RecruitingCriterioForm
+from django.http import JsonResponse
+from django.utils import timezone
+
+from .forms_recruiting import (
+    CandidatoForm,
+    CandidatoStep2Form,
+    OffertaForm,
+    PosizioneApertaForm,
+    RecruitingCriterioForm,
+)
 from .models_recruiting import (
     Candidato,
     CandidatoLog,
     CandidatoPunteggio,
+    PosizioneAperta,
     RecruitingCriterio,
     RecruitingPermission,
 )
@@ -187,7 +197,7 @@ def recruiting_list(request):
     if not _can_view_recruiting(request):
         return _denied(request)
 
-    qs = _filtra_candidati(request).select_related("onboarding_pratica")
+    qs = _filtra_candidati(request).select_related("onboarding_pratica", "posizione")
     totale = qs.count()
     page_obj = Paginator(qs, PAGE_SIZE).get_page(request.GET.get("page"))
 
@@ -268,7 +278,13 @@ def recruiting_create(request):
             return redirect("anagrafica:recruiting_detail", candidato_id=candidato.pk)
         messages.error(request, "Controlla i campi evidenziati.")
     else:
-        form = CandidatoForm()
+        iniziali = {}
+        posizione_id = (request.GET.get("posizione") or "").strip()
+        if posizione_id.isdigit():
+            posizione = PosizioneAperta.objects.filter(pk=int(posizione_id)).first()
+            if posizione:
+                iniziali = {"posizione": posizione.pk, "mansione_cercata": posizione.mansione or posizione.titolo}
+        form = CandidatoForm(initial=iniziali)
 
     return render(request, "anagrafica/pages/recruiting_form.html", {
         "form": form,
@@ -285,7 +301,7 @@ def recruiting_detail(request, candidato_id: int):
         return _denied(request)
 
     candidato = get_object_or_404(
-        Candidato.objects.select_related("onboarding_pratica"), pk=candidato_id,
+        Candidato.objects.select_related("onboarding_pratica", "posizione"), pk=candidato_id,
     )
     criteri = recruiting_service.criteri_attivi()
 
@@ -293,6 +309,11 @@ def recruiting_detail(request, candidato_id: int):
         "candidato": candidato,
         "righe_criteri": _righe_criteri(criteri, candidato),
         "step2_form": CandidatoStep2Form(instance=candidato),
+        "offerta_form": OffertaForm(initial={
+            "inviata_il": candidato.offerta_inviata_il or timezone.localdate(),
+            "data_ingresso": candidato.data_assunzione,
+            "note": candidato.offerta_note,
+        }),
         "log": list(candidato.log_modifiche.all()[:50]),
         "can_manage": _can_manage_recruiting(request),
         "peso_totale": sum((c.peso_percentuale for c in criteri), start=0),
@@ -487,6 +508,242 @@ def recruiting_riapri(request, candidato_id: int):
 
 
 # ---------------------------------------------------------------------------
+# Offerta (fase facoltativa prima dell'assunzione)
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def recruiting_offerta(request, candidato_id: int):
+    """Registra l'offerta inviata: la scheda passa in fase «Offerta»."""
+    if not _can_manage_recruiting(request):
+        return _denied(request, "registrare un'offerta")
+
+    candidato = get_object_or_404(Candidato, pk=candidato_id)
+    form = OffertaForm(request.POST)
+    if not form.is_valid():
+        for errori in form.errors.values():
+            for errore in errori:
+                messages.error(request, errore)
+        return redirect("anagrafica:recruiting_detail", candidato_id=candidato_id)
+    try:
+        recruiting_service.invia_offerta(
+            candidato, inviata_il=form.cleaned_data["inviata_il"],
+            data_ingresso=form.cleaned_data.get("data_ingresso"),
+            note=form.cleaned_data.get("note") or "", user=request.user,
+        )
+    except recruiting_service.TransizioneError as exc:
+        messages.error(request, str(exc))
+        return redirect("anagrafica:recruiting_detail", candidato_id=candidato_id)
+    _audit(request, "RECRUITING_OFFERTA_INVIATA", {"candidato_id": candidato.pk})
+    messages.success(request, "Offerta registrata. Quando il candidato risponde, registra l'esito.")
+    return redirect("anagrafica:recruiting_detail", candidato_id=candidato.pk)
+
+
+@login_required
+@require_POST
+def recruiting_offerta_esito(request, candidato_id: int):
+    """Esito dell'offerta: accettata apre il pre-ingresso, rifiutata chiude per rinuncia."""
+    if not _can_manage_recruiting(request):
+        return _denied(request, "registrare l'esito dell'offerta")
+
+    candidato = get_object_or_404(Candidato.objects.select_related("posizione"), pk=candidato_id)
+    esito = (request.POST.get("esito") or "").strip()
+    data_ingresso = None
+    grezzo = (request.POST.get("data_ingresso") or "").strip()
+    if grezzo:
+        try:
+            data_ingresso = date.fromisoformat(grezzo)
+        except ValueError:
+            messages.error(request, "Data di ingresso non valida.")
+            return redirect("anagrafica:recruiting_detail", candidato_id=candidato_id)
+    try:
+        pratica = recruiting_service.registra_esito_offerta(
+            candidato, esito, user=request.user, data_ingresso=data_ingresso,
+        )
+    except recruiting_service.TransizioneError as exc:
+        messages.error(request, str(exc))
+        return redirect("anagrafica:recruiting_detail", candidato_id=candidato_id)
+    except Exception:
+        logger.exception("Esito offerta fallito per candidato %s", candidato_id)
+        messages.error(request, "Errore durante la registrazione dell'esito.")
+        return redirect("anagrafica:recruiting_detail", candidato_id=candidato_id)
+
+    _audit(request, "RECRUITING_OFFERTA_ESITO", {
+        "candidato_id": candidato.pk, "esito": esito, "pratica_id": getattr(pratica, "pk", None),
+    })
+    if pratica is None:
+        messages.success(request, "Offerta rifiutata: iter chiuso per rinuncia del candidato.")
+    else:
+        messages.success(
+            request,
+            "Offerta accettata: aperta la pratica di pre-ingresso. All'assunzione si collegherà al dipendente.",
+        )
+    return redirect("anagrafica:recruiting_detail", candidato_id=candidato.pk)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline a colonne
+# ---------------------------------------------------------------------------
+
+GIORNI_ASSUNTI_IN_PIPELINE = 30
+
+
+@login_required
+def recruiting_pipeline(request):
+    """Vista a colonne per fase; la scheda si sposta trascinandola (o col menu)."""
+    if not _can_view_recruiting(request):
+        return _denied(request)
+
+    qs = Candidato.objects.select_related("posizione", "onboarding_pratica").exclude(
+        stato__in=[s for s in Candidato.STATI_CHIUSI if s != Candidato.STATO_ASSUNTO],
+    )
+    # Gli assunti restano visibili per un mese: poi la colonna diventerebbe un archivio.
+    soglia = timezone.now() - timedelta(days=GIORNI_ASSUNTI_IN_PIPELINE)
+    qs = qs.exclude(stato=Candidato.STATO_ASSUNTO, updated_at__lt=soglia)
+
+    posizione_id = (request.GET.get("posizione") or "").strip()
+    if posizione_id.isdigit():
+        qs = qs.filter(posizione_id=int(posizione_id))
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        qs = qs.filter(Q(cognome__icontains=q) | Q(nome__icontains=q) | Q(mansione_cercata__icontains=q))
+
+    etichette = dict(Candidato.STATO_CHOICES)
+    brevi = {
+        Candidato.STATO_NUOVO: "Nuovi", Candidato.STATO_CV_VALUTATO: "CV valutato",
+        Candidato.STATO_COLLOQUIO_1: "1° colloquio", Candidato.STATO_COLLOQUIO_2: "2° colloquio",
+        Candidato.STATO_OFFERTA: "Offerta", Candidato.STATO_ASSUNTO: "Assunti",
+    }
+    candidati = list(qs.order_by("-punteggio_ponderato", "cognome"))
+    colonne = [
+        {
+            "stato": stato,
+            "label": brevi.get(stato, etichette[stato]),
+            "candidati": [c for c in candidati if c.stato == stato],
+            "spostabile": stato in recruiting_service.STATI_SPOSTABILI,
+        }
+        for stato in Candidato.STATI_PIPELINE
+    ]
+    return render(request, "anagrafica/pages/recruiting_pipeline.html", {
+        "colonne": colonne,
+        "totale": len(candidati),
+        "posizioni": PosizioneAperta.objects.filter(stato__in=PosizioneAperta.STATI_ATTIVI).order_by("titolo"),
+        "filtro_posizione": posizione_id,
+        "q": q,
+        "can_manage": _can_manage_recruiting(request),
+        "stati_spostabili": [(s, brevi[s]) for s in recruiting_service.STATI_SPOSTABILI],
+    })
+
+
+@login_required
+@require_POST
+def recruiting_sposta(request, candidato_id: int):
+    """Sposta la scheda in un'altra fase. Risponde JSON alle chiamate dalla pipeline."""
+    vuole_json = request.headers.get("x-requested-with") == "fetch"
+    if not _can_manage_recruiting(request):
+        if vuole_json:
+            return JsonResponse({"ok": False, "errore": "Permessi insufficienti."}, status=403)
+        return _denied(request, "spostare le schede candidato")
+
+    candidato = get_object_or_404(Candidato, pk=candidato_id)
+    stato = (request.POST.get("stato") or "").strip()
+    try:
+        recruiting_service.sposta_in_fase(candidato, stato, user=request.user)
+    except recruiting_service.TransizioneError as exc:
+        if vuole_json:
+            return JsonResponse({"ok": False, "errore": str(exc)}, status=400)
+        messages.error(request, str(exc))
+        return redirect("anagrafica:recruiting_pipeline")
+    _audit(request, "RECRUITING_CANDIDATO_SPOSTATO", {"candidato_id": candidato.pk, "stato": stato})
+    if vuole_json:
+        return JsonResponse({"ok": True, "stato": candidato.stato})
+    return redirect("anagrafica:recruiting_pipeline")
+
+
+# ---------------------------------------------------------------------------
+# Posizioni aperte
+# ---------------------------------------------------------------------------
+
+@login_required
+def recruiting_posizioni(request):
+    """Elenco delle richieste di personale con avanzamento e KPI."""
+    if not _can_view_recruiting(request):
+        return _denied(request)
+
+    stato = (request.GET.get("stato") or "").strip()
+    qs = PosizioneAperta.objects.all()
+    if stato in {c[0] for c in PosizioneAperta.STATO_CHOICES}:
+        qs = qs.filter(stato=stato)
+    elif stato != "tutte":
+        qs = qs.filter(stato__in=PosizioneAperta.STATI_ATTIVI)
+    return render(request, "anagrafica/pages/recruiting_posizioni.html", {
+        "righe": recruiting_service.righe_posizioni(qs.order_by("entro_il", "-data_richiesta")),
+        "kpi": recruiting_service.kpi_posizioni(),
+        "filtro_stato": stato,
+        "stato_choices": PosizioneAperta.STATO_CHOICES,
+        "can_manage": _can_manage_recruiting(request),
+    })
+
+
+@login_required
+def recruiting_posizione_detail(request, posizione_id: int):
+    """Una posizione: candidati per fase e copertura dei posti."""
+    if not _can_view_recruiting(request):
+        return _denied(request)
+
+    posizione = get_object_or_404(PosizioneAperta, pk=posizione_id)
+    riga = recruiting_service.righe_posizioni([posizione])[0]
+    candidati = list(posizione.candidati.select_related("onboarding_pratica").order_by("-punteggio_ponderato"))
+    return render(request, "anagrafica/pages/recruiting_posizione_detail.html", {
+        "posizione": posizione,
+        "riga": riga,
+        "candidati": candidati,
+        "can_manage": _can_manage_recruiting(request),
+    })
+
+
+def _posizione_form_view(request, posizione: PosizioneAperta | None):
+    if request.method == "POST":
+        form = PosizioneApertaForm(request.POST, instance=posizione)
+        if form.is_valid():
+            nuova = form.instance.pk is None
+            obj = form.save(commit=False)
+            if nuova:
+                obj.created_by = request.user
+            if obj.stato in PosizioneAperta.STATI_ATTIVI:
+                obj.chiusa_il = None
+            elif not obj.chiusa_il:
+                obj.chiusa_il = timezone.localdate()
+            obj.save()
+            _audit(request, "RECRUITING_POSIZIONE_SALVATA", {"posizione_id": obj.pk, "nuova": nuova})
+            messages.success(request, "Posizione salvata.")
+            return redirect("anagrafica:recruiting_posizione_detail", posizione_id=obj.pk)
+        messages.error(request, "Controlla i campi evidenziati.")
+    else:
+        form = PosizioneApertaForm(
+            instance=posizione,
+            initial=None if posizione else {"data_richiesta": timezone.localdate()},
+        )
+    return render(request, "anagrafica/pages/recruiting_posizione_form.html", {
+        "form": form, "posizione": posizione,
+    })
+
+
+@login_required
+def recruiting_posizione_create(request):
+    if not _can_manage_recruiting(request):
+        return _denied(request, "aprire posizioni")
+    return _posizione_form_view(request, None)
+
+
+@login_required
+def recruiting_posizione_edit(request, posizione_id: int):
+    if not _can_manage_recruiting(request):
+        return _denied(request, "modificare le posizioni")
+    return _posizione_form_view(request, get_object_or_404(PosizioneAperta, pk=posizione_id))
+
+
+# ---------------------------------------------------------------------------
 # Cruscotto KPI
 # ---------------------------------------------------------------------------
 
@@ -508,10 +765,17 @@ def recruiting_dashboard(request):
 
     return render(request, "anagrafica/pages/recruiting_dashboard.html", {
         "kpi": kpi,
+        "kpi_posizioni": recruiting_service.kpi_posizioni(),
+        "posizioni_ritardo": [
+            r for r in recruiting_service.righe_posizioni(
+                PosizioneAperta.objects.filter(stato__in=PosizioneAperta.STATI_ATTIVI).order_by("entro_il")
+            ) if r["in_ritardo"]
+        ],
         "filtri": _filtri_correnti(request),
         "stato_choices": Candidato.STATO_CHOICES,
         "canale_choices": Candidato.CANALE_CHOICES,
         "criteri": recruiting_service.criteri_attivi(),
+        "can_manage": _can_manage_recruiting(request),
     })
 
 
@@ -559,6 +823,7 @@ def recruiting_criteri(request):
             (c.peso_percentuale for c in criteri if c.is_active), start=0,
         ),
         "permessi": RecruitingPermission.get_instance(),
+        "can_manage": True,
     })
 
 

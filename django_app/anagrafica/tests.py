@@ -3914,8 +3914,10 @@ class OnboardingServiceTests(TestCase):
         pratica = onboarding.avvia_onboarding(
             legacy_id=803, dipendente_nome="Bianchi Luca", mansione="Saldatore"
         )
-        task_form = pratica.tasks.get(codice="formazione_corsi_obbligatori")
-        self.assertIn("Sicurezza saldatura", task_form.descrizione)
+        # Il corso obbligatorio della mansione è una voce propria, che si chiude da sola.
+        voce = pratica.tasks.get(codice=f"corso_{corso.pk}")
+        self.assertIn("Sicurezza saldatura", voce.titolo)
+        self.assertEqual(voce.tipo, "FORMAZIONE")
 
     def test_chiusura_tutti_completati(self):
         from .models import OnboardingPratica, OnboardingTask
@@ -3949,17 +3951,28 @@ class OnboardingMansioneRischioTests(TestCase):
         from .models import TipoVisitaMedica
         return TipoVisitaMedica.objects.create(nome=nome, obbligatoria=True, is_active=True)
 
-    def test_task_descrizioni_da_mansione_rischio(self):
-        from .models import Mansione
+    def test_voci_puntuali_da_mansione_rischio(self):
+        """DPI e visite della mansione diventano una voce ciascuna, che si chiude da sola."""
+        from .models import Mansione, OnboardingTask
         from .services import onboarding
         m = Mansione.objects.create(nome="Verniciatore")
-        m.dpi_richiesti.add(self._cat_dpi("Maschera vapori"))
-        m.visite_richieste.add(self._tipo_visita("Sorveglianza chimica"))
+        cat = self._cat_dpi("Maschera vapori")
+        tipo = self._tipo_visita("Sorveglianza chimica")
+        m.dpi_richiesti.add(cat)
+        m.visite_richieste.add(tipo)
         pratica = onboarding.avvia_onboarding(
             legacy_id=820, dipendente_nome="Neri Ugo", mansione="Verniciatore", notifica_dpi=False
         )
-        self.assertIn("Maschera vapori", pratica.tasks.get(codice="dpi_consegna_iniziale").descrizione)
-        self.assertIn("Sorveglianza chimica", pratica.tasks.get(codice="visita_preassuntiva").descrizione)
+        dpi = pratica.tasks.get(codice=f"dpi_{cat.pk}")
+        visita = pratica.tasks.get(codice=f"visita_{tipo.pk}")
+        self.assertIn("Maschera vapori", dpi.titolo)
+        self.assertEqual((dpi.tipo, dpi.riferimento_id, dpi.fase), (OnboardingTask.TIPO_DPI, cat.pk, OnboardingTask.FASE_GIORNO1))
+        self.assertIn("Sorveglianza chimica", visita.titolo)
+        self.assertEqual((visita.tipo, visita.fase), (OnboardingTask.TIPO_VISITA, OnboardingTask.FASE_PRE))
+        # Con requisiti a catalogo le voci generiche di fallback non servono.
+        codici = set(pratica.tasks.values_list("codice", flat=True))
+        self.assertNotIn("dpi_consegna_iniziale", codici)
+        self.assertNotIn("visita_preassuntiva", codici)
 
     def test_notifica_amm_e_car(self):
         from django.core import mail
@@ -4086,7 +4099,9 @@ class OnboardingViewTests(TestCase):
         pratica = OnboardingPratica.objects.get(legacy_anagrafica_id=811)
         resp = self.client.get(reverse("anagrafica:onboarding_detail", args=[pratica.id]))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Checklist di inserimento")
+        # Piano a fasi: la timeline mostra le fasi e il riquadro di avanzamento.
+        self.assertContains(resp, "Primo giorno")
+        self.assertContains(resp, 'id="ob-progress"')
 
 
 class QueryAssenzeDipendenteTests(TestCase):

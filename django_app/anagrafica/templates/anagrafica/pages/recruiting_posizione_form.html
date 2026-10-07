@@ -1,0 +1,64 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{% if posizione %}Modifica {{ posizione.titolo }}{% else %}Nuova posizione{% endif %} | Recruiting{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+{% include "core/components/_hub_formkit.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=3">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:recruiting_posizioni' %}">Posizioni aperte</a><span class="fmd-sep"> / </span><span class="fmd-cur">{% if posizione %}{{ posizione.titolo }}{% else %}Nuova posizione{% endif %}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-building"/></svg>{% if posizione %}Modifica posizione{% else %}Nuova posizione aperta{% endif %}</h1>
+        <p class="fmd-ph-sub">La richiesta di personale da coprire: i candidati della selezione si collegano qui.</p>
+      </div>
+    </div>
+
+    <form method="post" action="" novalidate>
+      {% csrf_token %}
+      <section class="fmd-panel fmd-block">
+        {% if form.non_field_errors %}<div class="fmd-alert">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="hub-form-stack">
+          <div class="hub-fsec">
+            <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Cosa serve</div>
+            <div class="hub-form-grid">
+              {% include "core/forms/_field.html" with field=form.titolo %}
+              {% include "core/forms/_field.html" with field=form.mansione %}
+              {% include "core/forms/_field.html" with field=form.reparto %}
+              {% include "core/forms/_field.html" with field=form.posti %}
+              {% include "core/forms/_field.html" with field=form.motivo %}
+            </div>
+          </div>
+          <div class="hub-fsec">
+            <div class="hub-fsec-h"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Chi e quando</div>
+            <div class="hub-form-grid">
+              {% include "core/forms/_field.html" with field=form.richiesta_da %}
+              {% include "core/forms/_field.html" with field=form.data_richiesta %}
+              {% include "core/forms/_field.html" with field=form.entro_il %}
+              {% include "core/forms/_field.html" with field=form.stato %}
+              <div class="hub-col-full">{% include "core/forms/_field.html" with field=form.note %}</div>
+            </div>
+          </div>
+        </div>
+        <div class="rcr-actions">
+          <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva posizione</button>
+          <a href="{% if posizione %}{% url 'anagrafica:recruiting_posizione_detail' posizione.id %}{% else %}{% url 'anagrafica:recruiting_posizioni' %}{% endif %}" class="fmd-btn fmd-btn-ghost">Annulla</a>
+        </div>
+      </section>
+    </form>
+  </div>
+</div>
+{% endblock %}

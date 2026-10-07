@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 {% include "core/components/_hub_formkit.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=2">
+<link rel="stylesheet" href="{% static 'anagrafica/css/recruiting.css' %}?v=3">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -19,6 +19,7 @@
   <div class="fmd-wrap">
 
     {% include "anagrafica/components/flash_messages.html" %}
+    {% include "anagrafica/partials/_recruiting_tabs.html" with attiva="criteri" %}
 
     <div class="fmd-pagehead">
       <div class="fmd-crumb">

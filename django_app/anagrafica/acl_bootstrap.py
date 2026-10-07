@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 #   chiave nuova un ambiente già a v12 non registrerebbe il permesso.
 # Bump alla v14: permesso e binding della rimozione motivata visite mediche.
 # Bump alla v15: permessi e binding della Reportistica componibile.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v15"
+# Bump alla v16: binding Recruiting di pipeline, offerta e posizioni aperte.
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v16"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -161,6 +162,15 @@ _RECR_ROUTE_BINDINGS = {
     "anagrafica:recruiting_criterio_toggle": PERM_RECR_MANAGE,
     "anagrafica:recruiting_criterio_delete": PERM_RECR_MANAGE,
     "anagrafica:recruiting_criterio_move": PERM_RECR_MANAGE,
+    # Pipeline, offerta e posizioni aperte (v16)
+    "anagrafica:recruiting_pipeline": PERM_RECR_VIEW,
+    "anagrafica:recruiting_posizioni": PERM_RECR_VIEW,
+    "anagrafica:recruiting_posizione_detail": PERM_RECR_VIEW,
+    "anagrafica:recruiting_sposta": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_offerta": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_offerta_esito": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_posizione_create": PERM_RECR_MANAGE,
+    "anagrafica:recruiting_posizione_edit": PERM_RECR_MANAGE,
 }
 
 # Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).

@@ -1,0 +1,51 @@
+{# Una voce della pratica di onboarding. Contesto: task, pratica, oggi. Ridisegnata via HTMX da onboarding_task_update. #}
+<li class="obv obv-{{ task.stato|lower }}{% if task.in_ritardo %} obv-late{% endif %}" id="obv-{{ task.id }}">
+  {% if pratica.is_aperta %}
+  <form class="obv-check" hx-post="{% url 'anagrafica:onboarding_task_update' pratica.id task.id %}" hx-target="#obv-{{ task.id }}" hx-swap="outerHTML"
+        method="post" action="{% url 'anagrafica:onboarding_task_update' pratica.id task.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="note" value="{{ task.note }}">
+    {% if task.stato == "DA_FARE" %}
+    <button type="submit" name="stato" value="COMPLETATO" class="obv-box" title="Segna come fatta" aria-label="Segna «{{ task.titolo }}» come fatta"></button>
+    {% else %}
+    <button type="submit" name="stato" value="DA_FARE" class="obv-box obv-box-on" title="Riapri la voce" aria-label="Riapri «{{ task.titolo }}»">{% if task.stato == "ECCEZIONE" %}!{% else %}✓{% endif %}</button>
+    {% endif %}
+  </form>
+  {% else %}
+  <span class="obv-box{% if task.stato != 'DA_FARE' %} obv-box-on{% endif %}" aria-hidden="true">{% if task.stato == "ECCEZIONE" %}!{% elif task.stato == "COMPLETATO" %}✓{% endif %}</span>
+  {% endif %}
+
+  <div class="obv-body">
+    <div class="obv-title">{{ task.titolo }}</div>
+    {% if task.descrizione %}<div class="obv-desc">{{ task.descrizione }}</div>{% endif %}
+    <div class="obv-meta">
+      <span class="obd-cat">{{ task.get_categoria_display }}</span>
+      {% if task.tipo != "MANUALE" and task.stato == "DA_FARE" %}<span class="obv-auto" title="Il portale la chiude da solo quando registra il dato">automatica</span>{% endif %}
+      {% if task.stato == "COMPLETATO" and task.chiusura_automatica %}
+        <span class="obv-done-auto">Chiusa in automatico · {{ task.chiusura_nota }}</span>
+      {% elif task.stato != "DA_FARE" and task.completed_at %}
+        <span class="obv-done">{{ task.get_stato_display }} il {{ task.completed_at|date:"d/m/Y" }}{% if task.completed_by %} · {{ task.completed_by.get_full_name|default:task.completed_by.username }}{% endif %}</span>
+      {% endif %}
+    </div>
+    {% if task.note %}<div class="obv-note">{{ task.note }}</div>{% endif %}
+    {% if pratica.is_aperta and task.stato == "DA_FARE" %}
+    <details class="obv-exc">
+      <summary>Non applicabile / eccezione</summary>
+      <form hx-post="{% url 'anagrafica:onboarding_task_update' pratica.id task.id %}" hx-target="#obv-{{ task.id }}" hx-swap="outerHTML"
+            method="post" action="{% url 'anagrafica:onboarding_task_update' pratica.id task.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="stato" value="ECCEZIONE">
+        <input type="text" name="note" value="{{ task.note }}" maxlength="1000" placeholder="Motivo (es. già consegnato, non richiesto dal medico)" required>
+        <button type="submit" class="fmd-btn-mini">Segna eccezione</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+
+  <div class="obv-due">
+    {% if task.scadenza %}
+      {% if task.in_ritardo %}<span class="fmd-badge fmd-b-red">{{ task.scadenza|date:"d/m/Y" }}</span>
+      {% else %}<span class="obv-date">{{ task.scadenza|date:"d/m/Y" }}</span>{% endif %}
+    {% elif task.stato == "DA_FARE" %}<span class="obv-date obv-tbd">data da definire</span>{% endif %}
+  </div>
+</li>
