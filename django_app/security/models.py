@@ -1128,3 +1128,99 @@ class SecurityEscalationRule(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class SecurityIncident(models.Model):
+    """Registro degli incidenti di sicurezza (NIS2, D.Lgs. 138/2024 art. 25; GDPR art. 33).
+
+    Un alert è un segnale, un ticket è il lavoro tecnico: l'incidente è il fatto che
+    l'organizzazione deve poter ricostruire e, se significativo, notificare al CSIRT Italia
+    entro scadenze che partono dal momento in cui se ne è venuti a conoscenza
+    (``detected_at``): pre-notifica 24 h, notifica 72 h, relazione finale entro un mese
+    dalla notifica. Se coinvolge dati personali, notifica al Garante entro 72 h.
+    Le scadenze sono calcolate, non salvate: cambiano se si corregge ``detected_at``.
+    """
+
+    STATUS_OPEN = "open"
+    STATUS_CONTAINED = "contained"
+    STATUS_RESOLVED = "resolved"
+    STATUS_CLOSED = "closed"
+    STATUS_CHOICES = [
+        (STATUS_OPEN, "Aperto"),
+        (STATUS_CONTAINED, "Contenuto"),
+        (STATUS_RESOLVED, "Risolto"),
+        (STATUS_CLOSED, "Chiuso"),
+    ]
+
+    CATEGORY_CHOICES = [
+        ("malware", "Malware / ransomware"),
+        ("phishing", "Phishing / ingegneria sociale"),
+        ("unauthorized_access", "Accesso non autorizzato"),
+        ("account_compromise", "Account compromesso"),
+        ("data_leak", "Fuga o perdita di dati"),
+        ("denial_of_service", "Indisponibilità / DoS"),
+        ("vulnerability_exploit", "Sfruttamento di vulnerabilità"),
+        ("misconfiguration", "Errore di configurazione"),
+        ("hardware_failure", "Guasto hardware / infrastruttura"),
+        ("physical", "Evento fisico (furto, incendio, allagamento)"),
+        ("other", "Altro"),
+    ]
+
+    code = models.CharField(max_length=32, blank=True, db_index=True)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=40, choices=CATEGORY_CHOICES, default="other", db_index=True)
+    severity = models.CharField(max_length=24, choices=Severity.choices, default=Severity.WARNING, db_index=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_OPEN, db_index=True)
+    detected_at = models.DateTimeField(default=timezone.now, db_index=True, help_text="Momento in cui se ne è venuti a conoscenza: da qui partono le scadenze.")
+    occurred_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    is_significant = models.BooleanField(default=False, db_index=True)
+    significance_criteria = models.JSONField(default=list, blank=True)
+    significance_assessed_at = models.DateTimeField(null=True, blank=True)
+    significance_assessed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    suspected_malicious = models.BooleanField(default=False)
+    cross_border = models.BooleanField(default=False)
+    personal_data_breach = models.BooleanField(default=False, db_index=True)
+
+    affected_services = models.TextField(blank=True)
+    affected_users_count = models.PositiveIntegerField(null=True, blank=True)
+    impact_description = models.TextField(blank=True)
+    root_cause = models.TextField(blank=True)
+    actions_taken = models.TextField(blank=True)
+    lessons_learned = models.TextField(blank=True)
+
+    early_warning_at = models.DateTimeField(null=True, blank=True)
+    notification_at = models.DateTimeField(null=True, blank=True)
+    final_report_at = models.DateTimeField(null=True, blank=True)
+    gdpr_notified_at = models.DateTimeField(null=True, blank=True)
+    csirt_reference = models.CharField(max_length=120, blank=True)
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="security_incidents_owned")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    tickets = models.ManyToManyField(SecurityRemediationTicket, blank=True, related_name="incidents")
+    alerts = models.ManyToManyField(SecurityAlert, blank=True, related_name="incidents")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-detected_at", "-id"]
+        indexes = [models.Index(fields=["status", "is_significant"], name="sec_incident_status_sig_idx")]
+
+    def __str__(self):
+        return f"{self.code or self.pk} {self.title}"
+
+
+class SecurityIncidentLog(models.Model):
+    """Traccia dell'incidente: ogni modifica, notifica e nota. Solo aggiunta."""
+
+    incident = models.ForeignKey(SecurityIncident, on_delete=models.CASCADE, related_name="logs")
+    action = models.CharField(max_length=60, db_index=True)
+    actor = models.CharField(max_length=150, default="system")
+    body = models.TextField(blank=True)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]

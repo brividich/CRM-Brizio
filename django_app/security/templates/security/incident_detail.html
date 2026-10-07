@@ -1,0 +1,136 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n %}
+
+{% block title %}{{ incident.code }} | Security Center AI{% endblock %}
+{% block page_icon %}I{% endblock %}
+{% block page_marker %}Incidente {{ incident.code }}{% endblock %}
+{% block page_title %}{{ incident.title }}{% endblock %}
+
+{% block soc_content %}
+<div class="sec-actions" style="margin-bottom: 12px;">
+  <a class="sec-button" href="{% url 'security:incidents' %}">&lt; Registro incidenti</a>
+  <a class="sec-button sec-button-primary" href="{% url 'security:incident_edit' incident.pk %}">Modifica</a>
+  <a class="sec-button" href="{% url 'security:incident_pdf' incident.pk %}">Scarica scheda PDF</a>
+</div>
+
+<section class="sec-detail-hero" style="align-items: start;">
+  <div class="sec-panel">
+    <div class="sec-section-head">
+      <div>
+        <span class="sec-badge {{ incident.severity }}">{{ incident.severity|ui_label }}</span>
+        <span class="sec-badge {% if incident.status == 'open' %}open{% elif incident.status == 'closed' %}closed{% else %}sec-badge-muted{% endif %}">{{ incident.get_status_display }}</span>
+        {% if incident.is_significant %}<span class="sec-badge sec-badge-critical">Significativo NIS2</span>{% endif %}
+        {% if incident.personal_data_breach %}<span class="sec-badge sec-badge-warning">Dati personali</span>{% endif %}
+      </div>
+      <span class="sec-code">{{ incident.code }} · {{ incident.get_category_display }}</span>
+    </div>
+    <div class="sec-fact-grid">
+      <div class="sec-fact"><span>Rilevato il (conoscenza)</span><strong>{{ incident.detected_at|date:"d M Y, H:i" }}</strong></div>
+      <div class="sec-fact"><span>Avvenuto il</span><strong>{{ incident.occurred_at|date:"d M Y, H:i"|default:"—" }}</strong></div>
+      <div class="sec-fact"><span>Risolto il</span><strong>{{ incident.resolved_at|date:"d M Y, H:i"|default:"—" }}</strong></div>
+      <div class="sec-fact"><span>Responsabile</span><strong>{% if incident.owner %}{{ incident.owner.get_full_name|default:incident.owner.username }}{% else %}Non assegnato{% endif %}</strong></div>
+    </div>
+    {% if incident.description %}<p style="white-space: pre-line; margin-top: 12px;">{{ incident.description }}</p>{% endif %}
+
+    <h3 class="sec-subhead">Valutazione</h3>
+    {% if incident.is_significant %}
+      <ul class="sec-mini-list">{% for label in criteria_labels %}<li>{{ label }}</li>{% empty %}<li class="sec-muted">Significativo, criterio non indicato.</li>{% endfor %}</ul>
+    {% else %}
+      <p class="sec-muted">Non valutato significativo ai fini NIS2.{% if not incident.significance_assessed_at %} <a href="{% url 'security:incident_edit' incident.pk %}">Valuta ora</a>.{% endif %}</p>
+    {% endif %}
+    <p class="sec-small sec-muted">
+      Sospetto atto malevolo: <strong>{{ incident.suspected_malicious|yesno:"sì,no" }}</strong> ·
+      Impatto transfrontaliero: <strong>{{ incident.cross_border|yesno:"sì,no" }}</strong>
+      {% if incident.significance_assessed_at %} · valutato il {{ incident.significance_assessed_at|date:"d/m/Y H:i" }}{% if incident.significance_assessed_by %} da {{ incident.significance_assessed_by.username }}{% endif %}{% endif %}
+      {% if incident.csirt_reference %} · rif. CSIRT <span class="sec-code">{{ incident.csirt_reference }}</span>{% endif %}
+    </p>
+  </div>
+
+  <aside class="sec-panel">
+    <div class="sec-section-head"><h2>Notifiche</h2></div>
+    {% for d in incident.deadline_list %}
+      <div class="inc-deadline inc-deadline-{{ d.tone }}">
+        <div class="inc-deadline-head">
+          <strong>{{ d.label }}</strong>
+          <span class="sec-badge sec-badge-{{ d.tone }}">{{ d.state_label }}</span>
+        </div>
+        <small class="inc-deadline-when">Entro {{ d.due_at|date:"d/m/Y H:i" }}{% if d.done_at %} · inviata il {{ d.done_at|date:"d/m/Y H:i" }}{% else %} · <strong>{{ d.remaining_label }}</strong>{% endif %}</small>
+        {% if d.done_at %}
+          <form method="post" action="{% url 'security:incident_milestone' incident.pk d.key %}" class="inc-deadline-form">
+            {% csrf_token %}<button type="submit" name="clear" value="1" class="sec-btn-link">Annulla data di invio</button>
+          </form>
+        {% else %}
+          {# Aperto solo il modulo della prossima scadenza: tre moduli insieme confondevano. #}
+          <details class="inc-deadline-details"{% if incident.next_deadline.key == d.key %} open{% endif %}>
+            <summary>Registra l'invio</summary>
+            <form method="post" action="{% url 'security:incident_milestone' incident.pk d.key %}" class="inc-deadline-form">
+              {% csrf_token %}
+              <label>Inviata il <input type="datetime-local" name="sent_at" value="{{ now_local }}" required></label>
+              {% if d.key != "gdpr" %}<label>Protocollo <input type="text" name="reference" maxlength="120" placeholder="Rif. CSIRT"></label>{% endif %}
+              <button type="submit" class="sec-button sec-button-primary">Registra invio</button>
+            </form>
+          </details>
+        {% endif %}
+      </div>
+    {% empty %}
+      <p class="sec-muted">Nessuna notifica dovuta: l'incidente non è significativo e non coinvolge dati personali. Se cambia la valutazione, <a href="{% url 'security:incident_edit' incident.pk %}">modificalo</a> e le scadenze compaiono qui.</p>
+    {% endfor %}
+    <p class="sec-small sec-muted">Le scadenze partono dalla data di rilevazione. La relazione finale va inviata entro un mese dalla notifica.</p>
+  </aside>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Impatto e gestione</h2></div>
+    <dl class="sec-dl">
+      <dt>Servizi coinvolti</dt><dd style="white-space: pre-line;">{{ incident.affected_services|default:"—" }}</dd>
+      <dt>Utenti coinvolti</dt><dd>{{ incident.affected_users_count|default_if_none:"—" }}</dd>
+      <dt>Impatto</dt><dd style="white-space: pre-line;">{{ incident.impact_description|default:"—" }}</dd>
+      <dt>Causa</dt><dd style="white-space: pre-line;">{{ incident.root_cause|default:"—" }}</dd>
+      <dt>Misure adottate</dt><dd style="white-space: pre-line;">{{ incident.actions_taken|default:"—" }}</dd>
+      <dt>Lezioni apprese</dt><dd style="white-space: pre-line;">{{ incident.lessons_learned|default:"—" }}</dd>
+    </dl>
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Ticket e alert collegati</h2></div>
+    <ul class="sec-mini-list">
+      {% for ticket in tickets %}
+        <li><a href="{% url 'security:case_detail' ticket.pk %}">#{{ ticket.pk }} {{ ticket.title }}</a> <span class="sec-badge {{ ticket.status }}">{{ ticket.status|ui_label }}</span></li>
+      {% empty %}<li class="sec-muted">Nessun ticket collegato.</li>{% endfor %}
+    </ul>
+    {% if linkable_tickets %}
+      <form class="sec-inline-form" method="post" action="{% url 'security:incident_link_case' incident.pk %}">
+        {% csrf_token %}
+        <select name="ticket" aria-label="Ticket da collegare">
+          {% for ticket in linkable_tickets %}<option value="{{ ticket.pk }}">#{{ ticket.pk }} {{ ticket.title|truncatechars:70 }}</option>{% endfor %}
+        </select>
+        <button type="submit">Collega ticket</button>
+      </form>
+    {% endif %}
+    {% if alerts %}
+      <h3 class="sec-subhead">Alert ({{ alerts|length }})</h3>
+      <ul class="sec-mini-list">
+        {% for alert in alerts %}<li><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title|truncatechars:90 }}</a> <small class="sec-muted">{{ alert.created_at|date:"d/m H:i" }}</small></li>{% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Traccia</h2><span class="sec-badge">{{ logs|length }}</span></div>
+  <form class="sec-inline-form" method="post" action="{% url 'security:incident_note' incident.pk %}">
+    {% csrf_token %}
+    <input type="text" name="body" maxlength="4000" placeholder="Aggiungi una nota (es. «chiamato il fornitore, ripristino in corso»)" required>
+    <button type="submit">Aggiungi nota</button>
+  </form>
+  <div class="sec-timeline" style="margin-top: 14px;">
+    {% for entry in logs %}
+      <div class="sec-timeline-item{% if entry.action == 'note' %} is-note{% endif %}">
+        <strong>{{ entry.created_at|date:"d M, H:i" }}</strong> · {{ entry.actor }}{% if entry.action == 'note' %} · nota{% endif %}
+        <div class="inc-log-body">{{ entry.body }}</div>
+      </div>
+    {% empty %}<p class="sec-muted">Nessuna voce.</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}

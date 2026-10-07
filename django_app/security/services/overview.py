@@ -54,6 +54,16 @@ def attention_items(now=None):
     """Cose da guardare adesso, dalla piu' grave. Ogni voce ha un link al dettaglio."""
     now = now or timezone.now()
     items = []
+    # Notifiche NIS2/GDPR scadute o in scadenza: hanno un termine di legge, vengono prima di tutto.
+    from security.services.incidents import urgent_incidents
+
+    for row in urgent_incidents(now):
+        incident, deadline = row["incident"], row["deadline"]
+        overdue = deadline["state"] == "overdue"
+        items.append(_item("critical" if overdue else "high", "Incidenti",
+                           f"{incident.code}: {deadline['label']} {'scaduta' if overdue else 'in scadenza'}",
+                           f"entro il {timezone.localtime(deadline['due_at']):%d/%m %H:%M} · {incident.title[:80]}",
+                           reverse("security:incident_detail", args=[incident.pk])))
     alerts = SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES, severity__in=[Severity.CRITICAL, Severity.HIGH]).select_related("source").order_by("-updated_at")
     for alert in alerts[:5]:
         items.append(_item("critical" if alert.severity == Severity.CRITICAL else "high", "Alert", alert.title,

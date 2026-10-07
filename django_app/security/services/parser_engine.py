@@ -1,6 +1,8 @@
 import logging
+import time
 from decimal import Decimal
 
+from django.db import transaction
 from django.utils import timezone
 
 from security.models import (
@@ -25,42 +27,32 @@ logger = logging.getLogger(__name__)
 
 def run_pending_parsers():
     parsed_count = 0
+    # Configurazione dei parser letta una volta per giro, non una volta per mail (due query
+    # per elemento: con «Importa storico» erano migliaia di letture della stessa tabella).
+    configs = _parser_configs()
     for item in _pending_items():
-        parser = _match_enabled_parser(item)
+        parser = _match_enabled_parser(item, configs)
         if not parser:
-            mark_skipped(item)
+            mark_skipped(item, configs)
             continue
         try:
+            started = time.monotonic()
             parsed = parser.parse(item)
-            report_date = _parse_report_date(parsed.payload.get("report_date")) or timezone.localdate()
-            report_dedup_key = parsed.payload.get("dedup_key")
-            if report_dedup_key and SecurityReport.objects.filter(source=item.source, parsed_payload__dedup_key=report_dedup_key).exists():
-                item.parse_status = ParseStatus.PARSED
-                item.save(update_fields=["parse_status"])
-                parsed_count += 1
-                continue
-            report = SecurityReport.objects.create(
-                source=item.source,
-                mailbox_message=item if hasattr(item, "subject") else None,
-                source_file=item if isinstance(item, SecuritySourceFile) else None,
-                report_type=parsed.report_type,
-                title=parsed.title,
-                report_date=report_date,
-                parser_name=parsed.parser_name,
-                parsed_payload=parsed.payload,
-            )
-            for name, value in parsed.metrics.items():
-                if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
-                    SecurityReportMetric.objects.create(report=report, name=name, value=float(value))
-            vpn_rows = [record.payload for record in parsed.records if record.record_type == "vpn_access"]
-            if vpn_rows:
-                persist_vpn_accesses(item.source, report, vpn_rows)
-            for record in parsed.records:
-                if record.record_type != "vpn_access":
-                    _persist_record(item.source, report, record)
-            record_asset_signals(item.source, report, parsed)
+            # Tutto o niente: se un record a metà report fallisce non restano report, metriche ed
+            # eventi parziali che, alla rielaborazione, sembravano un «già letto» (dedup_key) e
+            # bloccavano il report completo.
+            with transaction.atomic():
+                outcome = _store_parsed(item, parsed)
+            elapsed_ms = int((time.monotonic() - started) * 1000)
             item.parse_status = ParseStatus.PARSED
-            item.save(update_fields=["parse_status"])
+            item.raw_payload = {
+                **(item.raw_payload or {}),
+                "parser_name": getattr(parser, "name", ""),
+                "parse_ms": elapsed_ms,
+                "parse_outcome": outcome,
+            }
+            item.raw_payload.pop("parser_error", None)
+            item.save(update_fields=["parse_status", "raw_payload"])
             parsed_count += 1
         except Exception as exc:
             # A parser that starts failing (vendor changed the format) used to be silent:
@@ -78,6 +70,39 @@ def run_pending_parsers():
             }
             item.save(update_fields=["parse_status", "raw_payload"])
     return parsed_count
+
+
+def _store_parsed(item, parsed):
+    """Salva report, metriche, accessi VPN ed eventi. Ritorna ``"duplicate"`` o ``"stored"``."""
+    report_date = _parse_report_date(parsed.payload.get("report_date")) or timezone.localdate()
+    report_dedup_key = parsed.payload.get("dedup_key")
+    if report_dedup_key and SecurityReport.objects.filter(source=item.source, parsed_payload__dedup_key=report_dedup_key).exists():
+        return "duplicate"
+    report = SecurityReport.objects.create(
+        source=item.source,
+        mailbox_message=item if hasattr(item, "subject") else None,
+        source_file=item if isinstance(item, SecuritySourceFile) else None,
+        report_type=parsed.report_type,
+        title=parsed.title,
+        report_date=report_date,
+        parser_name=parsed.parser_name,
+        parsed_payload=parsed.payload,
+    )
+    for name, value in parsed.metrics.items():
+        if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
+            SecurityReportMetric.objects.create(report=report, name=name, value=float(value))
+    vpn_rows = [record.payload for record in parsed.records if record.record_type == "vpn_access"]
+    if vpn_rows:
+        persist_vpn_accesses(item.source, report, vpn_rows)
+    for record in parsed.records:
+        if record.record_type != "vpn_access":
+            _persist_record(item.source, report, record)
+    record_asset_signals(item.source, report, parsed)
+    return "stored"
+
+
+def _parser_configs():
+    return {config.parser_name: config for config in SecurityParserConfig.objects.all()}
 
 
 def _pending_items():
@@ -98,13 +123,13 @@ SKIP_REASON_LABELS = {
 }
 
 
-def skip_reason(item):
+def skip_reason(item, configs=None):
     """Why no parser took this item: ``(code, detail)``.
 
     An item marked SKIPPED without a reason is indistinguishable from noise, and a spoofed
     vendor notification looked exactly like an unknown newsletter.
     """
-    configs = {config.parser_name: config for config in SecurityParserConfig.objects.all()}
+    configs = _parser_configs() if configs is None else configs
     for parser in parser_registry.all():
         config = configs.get(parser.name)
         if config and not config.enabled and parser.can_parse(item):
@@ -116,9 +141,9 @@ def skip_reason(item):
     return SKIP_NO_PARSER, SKIP_REASON_LABELS[SKIP_NO_PARSER]
 
 
-def mark_skipped(item):
+def mark_skipped(item, configs=None):
     """Mark an item SKIPPED with its reason; a suspected spoof becomes an event (-> alert)."""
-    code, detail = skip_reason(item)
+    code, detail = skip_reason(item, configs)
     item.parse_status = ParseStatus.SKIPPED
     item.raw_payload = {**(item.raw_payload or {}), "skip_reason": code, "skip_detail": detail}
     item.save(update_fields=["parse_status", "raw_payload"])
@@ -146,11 +171,8 @@ def _record_spoofing_suspect(item, detail):
     _create_event(item.source, None, "possible_sender_spoofing", Severity.WARNING, dedup_hash, payload)
 
 
-def _match_enabled_parser(item):
-    configs = {
-        config.parser_name: config
-        for config in SecurityParserConfig.objects.all()
-    }
+def _match_enabled_parser(item, configs=None):
+    configs = _parser_configs() if configs is None else configs
     parsers = parser_registry.all()
     parsers.sort(key=lambda parser: configs.get(parser.name).priority if parser.name in configs else 100)
     for parser in parsers:

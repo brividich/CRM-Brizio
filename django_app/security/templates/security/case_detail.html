@@ -45,6 +45,17 @@
       </div>
     </form>
 
+    <div class="sec-actions" style="margin-top: 14px;">
+      {% for incident in case.incidents.all %}
+        <a class="sec-button" href="{% url 'security:incident_detail' incident.pk %}">Incidente {{ incident.code }}</a>
+      {% empty %}
+        <form class="sec-inline" method="post" action="{% url 'security:incident_from_case' case.pk %}">
+          {% csrf_token %}
+          <button type="submit" title="Registra nel registro incidenti (NIS2 / GDPR) con titolo, alert e responsabile di questo ticket">Apri incidente</button>
+        </form>
+      {% endfor %}
+    </div>
+
     <form class="inv-ai-inline" style="margin-top: 14px;" method="post" action="{% url 'security:case_ai_resolution' case.pk %}" hx-post="{% url 'security:case_ai_resolution' case.pk %}" hx-target="#case-reason">
       {% csrf_token %}<button type="submit" class="sec-btn-link" data-busy-label="L'AI sta scrivendo l'esito…">Scrivi l'esito con l'AI</button>
     </form>

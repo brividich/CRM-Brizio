@@ -1,0 +1,56 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Backup {{ dev.name }} | Security Center AI{% endblock %}
+{% block page_icon %}B{% endblock %}
+{% block page_marker %}Backup{% endblock %}
+{% block page_title %}{{ dev.name }}{% endblock %}
+
+{% block soc_content %}
+{% include "security/partials/backup_subnav.html" with active="" %}
+
+<section class="sec-panel">
+  <div class="sec-section-head">
+    <div>
+      <span class="sec-badge sec-badge-{{ dev.last_tone }}">Ultimo: {{ dev.last_label }}</span>
+      {% if dev.stale %}<span class="sec-badge sec-badge-critical">Nessun backup riuscito da oltre 3 giorni</span>{% endif %}
+    </div>
+    <div class="kpi-chips" role="group" aria-label="Periodo">
+      {% for value, label in periods %}<a class="kpi-chip{% if days == value %} active{% endif %}" href="?nome={{ dev.name|urlencode }}&amp;giorni={{ value }}">{{ label }}</a>{% endfor %}
+    </div>
+  </div>
+  <div class="sec-fact-grid">
+    <div class="sec-fact"><span>Ultimo backup riuscito</span><strong>{% if dev.last_ok %}{{ dev.last_ok|date:"d M Y, H:i" }}{% else %}mai nel periodo{% endif %}</strong>{% if dev.last_ok %}<span>{% if dev.days_since_ok == 0 %}oggi{% else %}{{ dev.days_since_ok }} giorn{{ dev.days_since_ok|pluralize:"o,i" }} fa{% endif %}</span>{% endif %}</div>
+    <div class="sec-fact"><span>Esecuzioni riuscite</span><strong>{% if dev.rate is not None %}{{ dev.rate|floatformat:0 }}%{% else %}—{% endif %}</strong><span>{{ dev.ok }} su {{ dev.runs }}{% if dev.fail %} · {{ dev.fail }} fallit{{ dev.fail|pluralize:"a,e" }}{% endif %}</span></div>
+    <div class="sec-fact"><span>Dati trasferiti</span><strong>{% if dev.gb %}{{ dev.gb|floatformat:1 }} GB{% else %}—{% endif %}</strong><span>{% if dev.avg_minutes %}durata media {{ dev.avg_minutes|floatformat:0 }} min{% else %}durata non indicata{% endif %}</span></div>
+    <div class="sec-fact"><span>Job</span><strong>{{ dev.jobs|length }}</strong><span>{{ dev.jobs|join:", " }}</span></div>
+  </div>
+  <div style="margin-top: 14px;">
+    <span class="sec-small sec-muted">Ultime esecuzioni (dalla più vecchia alla più recente)</span>
+    <div class="bk-strip bk-strip-lg">{% for s in dev.strip %}<i class="bk-dot bk-{{ s.tone }}" title="{{ s.at|date:'d/m H:i' }} · {{ s.label }} · {{ s.job }}"></i>{% endfor %}</div>
+    <div class="sec-trend-legend"><span style="--dot: var(--success);">Riuscito</span><span style="--dot: var(--warning);">Con avvisi</span><span style="--dot: var(--danger);">Fallito</span></div>
+  </div>
+  {% if dev.job_level %}<p class="sec-muted sec-small">Per i job Synology il report dà l'esito, la durata e i dati del job intero: questo dispositivo eredita l'esito del job.</p>{% endif %}
+  {% if dev.asset %}<p class="sec-small">Asset HUB: <a href="{% url 'assets:asset_view' dev.asset.id %}">{{ dev.asset }}</a></p>{% endif %}
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Storico</h2><span class="sec-badge">{{ dev.history|length }}</span></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-table-enhanced="0">
+      <thead><tr><th>Quando</th><th>Esito</th><th>Job</th><th class="sec-num">Dati</th><th class="sec-num">Durata</th><th>Dettaglio</th></tr></thead>
+      <tbody>
+      {% for r in dev.history %}
+        <tr>
+          <td class="sec-nowrap">{{ r.at|date:"d/m/Y H:i" }}</td>
+          <td><span class="sec-badge sec-badge-{{ r.tone }}">{{ r.label }}</span></td>
+          <td>{{ r.job }}{% if r.job_level %} <small class="sec-muted">(esito del job)</small>{% endif %}</td>
+          <td class="sec-num sec-nowrap">{% if r.gb is not None %}{{ r.gb|floatformat:1 }} GB{% else %}—{% endif %}</td>
+          <td class="sec-num sec-nowrap">{% if r.minutes %}{{ r.minutes|floatformat:0 }} min{% else %}—{% endif %}</td>
+          <td><small>{{ r.detail|default:"" }}</small></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

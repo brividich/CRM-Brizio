@@ -1,0 +1,5 @@
+<nav class="bk-subnav" aria-label="Sezione backup">
+  <a href="{% url 'security:backup' %}"{% if active == "overview" %} class="active" aria-current="page"{% endif %}>Panoramica</a>
+  <a href="{% url 'security:backup_log' %}"{% if active == "log" %} class="active" aria-current="page"{% endif %}>Log esecuzioni</a>
+  <a href="{% url 'security:admin_config_backups' %}">Backup attesi</a>
+</nav>
