@@ -63,14 +63,29 @@ def persone(legacy_ids: Iterable[int | None], *, today: date | None = None) -> d
 
 
 def cessati_ids(today: date) -> set[int]:
-    """legacy_anagrafica_id dei dipendenti cessati (data_cessazione <= oggi)."""
+    """legacy_anagrafica_id di chi non e' in forza alla data (da escludere dai report).
+
+    Stessa regola della reportistica di anagrafica (``Dipendente.in_forza_al``):
+    cessati dopo l'ultimo giorno di lavoro, spenti nel legacy senza data di
+    cessazione, non ancora assunti; un riassunto con la vecchia cessazione sulla
+    scheda e' in forza. Gli id delle anagrafiche doppie sono compresi.
+    Se l'anagrafica legacy non e' leggibile si ripiega sulla sola data di cessazione.
+    """
+    try:
+        from anagrafica.reportistica.dati import carica_dipendenti
+
+        dipendenti = carica_dipendenti()
+        if dipendenti:
+            return {i for d in dipendenti if not d.in_forza_al(today) for i in d.tutti_gli_id}
+    except Exception:
+        logger.warning("report_conformita: organico non calcolabile, uso la sola data di cessazione", exc_info=True)
     try:
         from anagrafica.models import DipendenteAnagraficaAziendale
 
         return {
             int(x)
             for x in DipendenteAnagraficaAziendale.objects.filter(
-                data_cessazione__isnull=False, data_cessazione__lte=today
+                data_cessazione__isnull=False, data_cessazione__lt=today
             ).values_list("legacy_anagrafica_id", flat=True)
             if x
         }

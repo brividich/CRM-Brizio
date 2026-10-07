@@ -30,6 +30,7 @@ from typing import Callable
 
 from report_conformita.registry import TONE_DANGER, TONE_OK, TONE_WARN, Kpi
 
+from . import calcoli
 from .dati import Contesto, anni_compiuti
 from .permessi import has_perm, perm_check
 
@@ -306,7 +307,7 @@ def _elenco_personale(ctx: Contesto, o: dict) -> Risultato:
             "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "area": p.area,
             "mansione": p.mansione, "ruolo": p.ruolo_aziendale, "contratto": p.contratto_label,
             "livello": p.livello, "assunzione": p.data_assunzione, "anzianita": anni,
-            "titolo_studio": p.titolo_studio, "cessazione": p.data_cessazione,
+            "titolo_studio": p.titolo_studio, "cessazione": p.cessazione_effettiva,
             "stato": "In forza" if p.in_forza_al(ctx.today) else "Cessato",
         })
     res.kpis = [
@@ -336,53 +337,85 @@ _registra(Sezione(
 ))
 
 
-def _qualifiche_personale(ctx: Contesto, o: dict) -> Risultato:
+def _qualifiche_filtrate(o: dict):
+    """Qualifiche che rispettano i filtri di sezione, senza ancora il filtro sulle persone."""
     from anagrafica.models import DipendenteQualifica
+
+    qs = DipendenteQualifica.objects.all()
+    if o.get("categorie"):
+        qs = qs.filter(tipo__categoria__in=o["categorie"])
+    if o.get("tipi"):
+        qs = qs.filter(tipo_id__in=[int(t) for t in o["tipi"]])
+    if o.get("solo_verificate"):
+        qs = qs.filter(verificata=True)
+    return qs
+
+
+_qualifiche_correnti = calcoli.qualifiche_correnti
+
+
+def _riga_qualifica(p, q, *, conseguita, scadenza, numero, livello, ente, stato, verificata, oggi) -> dict:
+    tipo = q.tipo
+    return {
+        "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "mansione": p.mansione,
+        "qualifica": getattr(tipo, "nome", ""),
+        "categoria": tipo.get_categoria_display() if tipo and getattr(tipo, "categoria", "") else "",
+        "livello": livello or "", "numero": numero or "", "ente": ente or "",
+        "conseguita": conseguita, "scadenza": scadenza,
+        "giorni": (scadenza - oggi).days if scadenza else None,
+        "stato": stato, "verificata": "Sì" if verificata else "No",
+    }
+
+
+def _qualifiche_personale(ctx: Contesto, o: dict) -> Risultato:
+    from anagrafica.models import DipendenteQualificaStorico
 
     res = Risultato()
     persone = {p.id: p for p in ctx.dipendenti()}
-    qs = DipendenteQualifica.objects.filter(legacy_anagrafica_id__in=list(persone)).select_related("tipo")
-    if o["categorie"]:
-        qs = qs.filter(tipo__categoria__in=o["categorie"])
-    if o["tipi"]:
-        qs = qs.filter(tipo_id__in=[int(t) for t in o["tipi"]])
-    if o["solo_verificate"]:
-        qs = qs.filter(verificata=True)
-    registrazioni = list(qs.order_by("legacy_anagrafica_id", "tipo_id", "data_conseguimento", "id"))
-    if not o["storico"]:
-        # Una qualifica rinnovata lascia la riga vecchia: per persona e tipo vale l'ultima.
-        ultime: dict[tuple[int, int], DipendenteQualifica] = {}
-        for q in registrazioni:
-            ultime[(q.legacy_anagrafica_id, q.tipo_id)] = q
-        registrazioni = list(ultime.values())
+    base = _qualifiche_filtrate(o)
+    correnti, sostituite = _qualifiche_correnti(ctx, base, persone)
     conteggi = Counter()
     con_qualifica: set[int] = set()
-    for q in sorted(registrazioni, key=lambda x: (persone[x.legacy_anagrafica_id].nominativo.casefold(),
-                                                  getattr(x.tipo, "nome", "").casefold())):
+    righe: list[tuple[dict, str]] = []
+    for (pid, _t), q in correnti.items():
         codice, stato, tono = _stato_scadenza(q.data_scadenza, ctx.today, o["preavviso"])
         if o["stati"] and codice not in o["stati"]:
             continue
         conteggi[codice] += 1
-        p = persone[q.legacy_anagrafica_id]
-        con_qualifica.add(p.id)
-        tipo = q.tipo
-        res.riga({
-            "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "mansione": p.mansione,
-            "qualifica": getattr(tipo, "nome", ""),
-            "categoria": tipo.get_categoria_display() if tipo and getattr(tipo, "categoria", "") else "",
-            "livello": q.livello or "", "numero": q.numero or "", "ente": q.ente or "",
-            "conseguita": q.data_conseguimento, "scadenza": q.data_scadenza,
-            "giorni": (q.data_scadenza - ctx.today).days if q.data_scadenza else None,
-            "stato": stato, "verificata": "Sì" if q.verificata else "No",
-        }, tono)
+        con_qualifica.add(pid)
+        righe.append((_riga_qualifica(persone[pid], q, conseguita=q.data_conseguimento, scadenza=q.data_scadenza,
+                                      numero=q.numero, livello=q.livello, ente=q.ente, stato=stato,
+                                      verificata=q.verificata, oggi=ctx.today), tono))
+    if o["storico"]:
+        # Rinnovi: le registrazioni superate e gli snapshot dello storico (DipendenteQualificaStorico).
+        attuali = {(q.pk, q.data_conseguimento, q.data_scadenza) for q in correnti.values()}
+        for q in sostituite:
+            p = persone[ctx.canonico(q.legacy_anagrafica_id)]
+            righe.append((_riga_qualifica(p, q, conseguita=q.data_conseguimento, scadenza=q.data_scadenza,
+                                          numero=q.numero, livello=q.livello, ente=q.ente,
+                                          stato="Sostituita da rinnovo", verificata=q.verificata, oggi=ctx.today), ""))
+        per_pk = {q.pk: q for q in list(correnti.values()) + sostituite}
+        for snap in DipendenteQualificaStorico.objects.filter(qualifica_id__in=list(per_pk)):
+            q = per_pk[snap.qualifica_id]
+            if (q.pk, snap.data_conseguimento, snap.data_scadenza) in attuali:
+                continue  # snapshot dello stato corrente: e' gia' la riga principale
+            p = persone[ctx.canonico(q.legacy_anagrafica_id)]
+            righe.append((_riga_qualifica(p, q, conseguita=snap.data_conseguimento, scadenza=snap.data_scadenza,
+                                          numero=snap.numero, livello=snap.livello, ente=snap.ente,
+                                          stato="Sostituita da rinnovo", verificata=False, oggi=ctx.today), ""))
+    for riga, tono in sorted(righe, key=lambda rt: (rt[0]["nominativo"].casefold(), rt[0]["qualifica"].casefold(),
+                                                     rt[0]["conseguita"] or date.min)):
+        res.riga(riga, tono)
     res.kpis = [
         Kpi("Persone con qualifiche", len(con_qualifica), hint=f"su {len(persone)} nel perimetro"),
-        Kpi("Valide", conteggi["valida"] + conteggi["senza"], TONE_OK if conteggi["valida"] else ""),
+        Kpi("Valide", conteggi["valida"] + conteggi["senza"], TONE_OK if conteggi["valida"] + conteggi["senza"] else ""),
         Kpi(f"In scadenza entro {o['preavviso']} gg", conteggi["in_scadenza"], TONE_WARN if conteggi["in_scadenza"] else ""),
         Kpi("Scadute", conteggi["scaduta"], TONE_DANGER if conteggi["scaduta"] else TONE_OK),
     ]
-    res.note = ["Storico completo delle registrazioni." if o["storico"] else
-                "Per ogni persona e tipo di qualifica è riportata l'ultima registrazione (i rinnovi sostituiscono le precedenti)."]
+    res.note = ["Per ogni persona e tipo di qualifica vale la registrazione conseguita per ultima."
+                + (" Sono elencate anche le registrazioni sostituite dai rinnovi." if o["storico"] else "")]
+    ctx.segnala_esclusi(base.values_list("legacy_anagrafica_id", flat=True),
+                                 incluse=persone, cosa="qualifiche")
     return res
 
 
@@ -425,43 +458,43 @@ def _corso_sicurezza(corso) -> bool:
     return getattr(corso, "fonte_obbligo", "") in _FONTI_SICUREZZA or bool(getattr(corso, "categoria_id", None))
 
 
-def _scadenze_formazione(ctx: Contesto, o: dict, persone: dict, *, solo_sicurezza: bool) -> list:
-    from anagrafica.models import TrainingDeadline
-
-    qs = TrainingDeadline.objects.filter(legacy_anagrafica_id__in=list(persone)).select_related("corso")
-    if o.get("solo_obbligatori", True):
-        qs = qs.filter(is_required=True)
+def _voci_formazione(ctx: Contesto, o: dict, persone: dict, *, solo_sicurezza: bool) -> list:
+    """Voci di formazione (persona × corso) filtrate dalle opzioni di sezione."""
+    voci = calcoli.formazione(ctx, persone, solo_obbligatori=o.get("solo_obbligatori", True))
     if o.get("fonti"):
-        qs = qs.filter(corso__fonte_obbligo__in=o["fonti"])
-    scadenze = [s for s in qs if not (solo_sicurezza and not _corso_sicurezza(s.corso))]
+        voci = [v for v in voci if getattr(v.corso, "fonte_obbligo", "") in o["fonti"]]
+    if solo_sicurezza:
+        voci = [v for v in voci if _corso_sicurezza(v.corso)]
     if o.get("stati"):
-        scadenze = [s for s in scadenze if s.stato_scadenza in o["stati"]]
-    return scadenze
+        voci = [v for v in voci if v.stato in o["stati"]]
+    return voci
 
 
 def _formazione_obbligatoria(ctx: Contesto, o: dict, *, solo_sicurezza: bool) -> Risultato:
     res = Risultato()
     persone = {p.id: p for p in ctx.dipendenti()}
-    scadenze = _scadenze_formazione(ctx, o, persone, solo_sicurezza=solo_sicurezza)
-    conteggi = Counter(s.stato_scadenza for s in scadenze)
-    coperti = sum(1 for s in scadenze if s.stato_scadenza in _STATI_COPERTI)
-    persone_ko = {s.legacy_anagrafica_id for s in scadenze if s.stato_scadenza in ("SCADUTO", "MAI_FREQUENTATO")}
-    for s in sorted(scadenze, key=lambda x: (persone[x.legacy_anagrafica_id].nominativo.casefold(),
-                                             getattr(x.corso, "titolo", "").casefold())):
-        p = persone[s.legacy_anagrafica_id]
-        stato, tono = _STATI_FORMAZIONE.get(s.stato_scadenza, (s.stato_scadenza, ""))
-        corso = s.corso
+    voci = _voci_formazione(ctx, o, persone, solo_sicurezza=solo_sicurezza)
+    richieste = [v for v in voci if v.obbligatorio]
+    conteggi = Counter(v.stato for v in richieste)
+    coperti = sum(1 for v in richieste if v.stato in _STATI_COPERTI)
+    persone_ko = {v.persona for v in richieste if v.stato in ("SCADUTO", "MAI_FREQUENTATO")}
+    for v in sorted(voci, key=lambda x: (persone[x.persona].nominativo.casefold(),
+                                         getattr(x.corso, "titolo", "").casefold())):
+        p = persone[v.persona]
+        stato, tono = _STATI_FORMAZIONE.get(v.stato, (v.stato, ""))
+        corso = v.corso
         res.riga({
             "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "mansione": p.mansione,
             "corso": getattr(corso, "titolo", ""), "codice": getattr(corso, "codice", ""),
             "fonte": corso.get_fonte_obbligo_display() if getattr(corso, "fonte_obbligo", "") else "",
             "riferimento": getattr(corso, "riferimento_fonte", "") or "",
             "ore": _ore(getattr(corso, "durata_ore_teorica", 0)),
-            "obbligatorio": "Sì" if s.is_required else "No",
-            "completato": s.data_ultimo_completamento, "scadenza": s.data_scadenza,
-            "giorni": s.giorni_alla_scadenza, "stato": stato,
-        }, tono)
-    totale = len(scadenze)
+            "obbligatorio": "Sì" if v.obbligatorio else "No",
+            "origine": "; ".join(v.origini),
+            "completato": v.completato, "scadenza": v.scadenza,
+            "giorni": v.giorni, "stato": stato,
+        }, tono if v.obbligatorio else "")
+    totale = len(richieste)
     res.kpis = [
         Kpi("Copertura requisiti", _pct(coperti, totale),
             (TONE_OK if coperti * 100 >= totale * 95 else TONE_WARN) if totale else "",
@@ -471,7 +504,11 @@ def _formazione_obbligatoria(ctx: Contesto, o: dict, *, solo_sicurezza: bool) ->
         Kpi("In scadenza entro 30 gg", conteggi["IN_SCADENZA_30"], TONE_WARN if conteggi["IN_SCADENZA_30"] else ""),
         Kpi("Persone con lacune", len(persone_ko), TONE_DANGER if persone_ko else TONE_OK),
     ]
-    res.note = ["Requisiti derivati da mansione, ruolo e regole dello scadenzario formazione."]
+    res.note = [
+        f"Stato calcolato al {ctx.today:%d/%m/%Y} dall'ultimo completamento idoneo di ogni corso.",
+        "Requisiti da mansione e fattori di rischio, esposizioni di area, ruoli operativi, regole di "
+        "obbligatorietà in vigore e processi qualificati (MOD.128): la colonna «Richiesto da» ne indica l'origine.",
+    ]
     if solo_sicurezza:
         res.note.append("Formazione sicurezza: corsi con obbligo di legge / Accordo Stato-Regioni "
                         "o legati ai fattori di rischio (D.Lgs. 81/2008 artt. 36-37).")
@@ -481,13 +518,15 @@ def _formazione_obbligatoria(ctx: Contesto, o: dict, *, solo_sicurezza: bool) ->
 _COLONNE_FORMAZIONE = (
     ("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("mansione", "Mansione"),
     ("corso", "Corso"), ("codice", "Codice"), ("fonte", "Fonte obbligo"), ("riferimento", "Riferimento"),
-    ("ore", "Ore"), ("obbligatorio", "Obbligatorio"), ("completato", "Ultimo completamento"),
-    ("scadenza", "Scadenza"), ("giorni", "Giorni alla scadenza"), ("stato", "Stato"),
+    ("ore", "Ore"), ("obbligatorio", "Obbligatorio"), ("origine", "Richiesto da"),
+    ("completato", "Ultimo completamento"), ("scadenza", "Scadenza"), ("giorni", "Giorni alla scadenza"),
+    ("stato", "Stato"),
 )
 _OPZ_FORMAZIONE = (
     Opzione("stati", "Stati da includere", MULTI, _SCELTE_STATI_FORMAZIONE, aiuto="Vuoto = tutti."),
     Opzione("fonti", "Fonte dell'obbligo", MULTI, _scelte_fonti, aiuto="Vuoto = tutte."),
-    Opzione("solo_obbligatori", "Solo requisiti obbligatori", SI_NO, predefinito=True),
+    Opzione("solo_obbligatori", "Solo requisiti obbligatori", SI_NO, predefinito=True,
+            aiuto="Senza spunta compaiono anche i corsi frequentati ma non richiesti."),
 )
 
 _registra(Sezione(
@@ -509,7 +548,7 @@ def _formazione_erogata(ctx: Contesto, o: dict) -> Risultato:
     record = _completamenti(ctx, o, persone)
     per_chiave: dict[str, dict] = {}
     for r in record:
-        p = persone[r.legacy_anagrafica_id]
+        p = persone[ctx.canonico(r.legacy_anagrafica_id)]
         if o["dettaglio"] == "corso":
             chiave, base = r.course_code_snapshot or r.course_title_snapshot, {
                 "voce": r.course_title_snapshot or r.course_code_snapshot, "codice": r.course_code_snapshot}
@@ -533,7 +572,7 @@ def _formazione_erogata(ctx: Contesto, o: dict) -> Risultato:
         })
     ore_tot = sum((_ore(r.ore_frequentate) or _ore(r.duration_hours_snapshot) for r in record), Decimal(0))
     in_forza = [p for p in persone.values() if p.in_forza_al(ctx.date_to)]
-    formati = {r.legacy_anagrafica_id for r in record}
+    formati = {ctx.canonico(r.legacy_anagrafica_id) for r in record}
     res.kpis = [
         Kpi("Ore di formazione erogate", _fmt_ore(ore_tot)),
         Kpi("Persone formate", len(formati), hint=f"su {len(in_forza)} in forza a fine periodo"),
@@ -547,16 +586,19 @@ def _formazione_erogata(ctx: Contesto, o: dict) -> Risultato:
 
 
 def _completamenti(ctx: Contesto, o: dict, persone: dict) -> list:
+    """Completamenti nel periodo delle persone; quelli trovati ma esclusi diventano avvisi."""
     from anagrafica.models import TrainingEmployeeRecord
 
-    qs = TrainingEmployeeRecord.objects.filter(
-        legacy_anagrafica_id__in=list(persone), data_completamento__range=(ctx.date_from, ctx.date_to),
+    base = TrainingEmployeeRecord.objects.filter(
+        data_completamento__range=(ctx.date_from, ctx.date_to),
     ).select_related("corso")
     if o.get("fonti"):
-        qs = qs.filter(corso__fonte_obbligo__in=o["fonti"])
-    record = list(qs.order_by("data_completamento", "id"))
+        base = base.filter(corso__fonte_obbligo__in=o["fonti"])
+    tutti = list(base.order_by("data_completamento", "id"))
     if o.get("solo_sicurezza"):
-        record = [r for r in record if _corso_sicurezza(r.corso)]
+        tutti = [r for r in tutti if _corso_sicurezza(r.corso)]
+    record = [r for r in tutti if ctx.canonico(r.legacy_anagrafica_id) in persone]
+    ctx.segnala_esclusi([r.legacy_anagrafica_id for r in tutti], incluse=persone, cosa="completamenti del periodo")
     return record
 
 
@@ -588,8 +630,9 @@ def _attestati(ctx: Contesto, o: dict) -> Risultato:
     res = Risultato()
     persone = {p.id: p for p in ctx.dipendenti_perimetro()}
     record = _completamenti(ctx, o, persone)
-    for r in sorted(record, key=lambda x: (persone[x.legacy_anagrafica_id].nominativo.casefold(), x.data_completamento)):
-        p = persone[r.legacy_anagrafica_id]
+    for r in sorted(record, key=lambda x: (persone[ctx.canonico(x.legacy_anagrafica_id)].nominativo.casefold(),
+                                           x.data_completamento)):
+        p = persone[ctx.canonico(r.legacy_anagrafica_id)]
         res.riga({
             "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto,
             "corso": r.course_title_snapshot, "codice": r.course_code_snapshot,
@@ -598,7 +641,7 @@ def _attestati(ctx: Contesto, o: dict) -> Risultato:
             "esito": "Idoneo" if r.idoneo else "Non idoneo", "scadenza": r.data_scadenza,
         }, "" if r.idoneo else TONE_WARN)
     res.kpis = [Kpi("Attestati nel periodo", len(record)),
-                Kpi("Persone", len({r.legacy_anagrafica_id for r in record}))]
+                Kpi("Persone", len({ctx.canonico(r.legacy_anagrafica_id) for r in record}))]
     res.note = [f"Completamenti registrati nel periodo {ctx.periodo_label}: evidenza delle attività formative svolte."]
     return res
 
@@ -629,22 +672,23 @@ def _abilitazioni_processi(ctx: Contesto, o: dict) -> Risultato:
 
     res = Risultato()
     persone = {p.id: p for p in ctx.dipendenti()}
-    qs = AbilitazioneProcesso.objects.filter(legacy_anagrafica_id__in=list(persone)).select_related(
-        "processo", "processo__cliente")
+    base = AbilitazioneProcesso.objects.exclude(legacy_anagrafica_id=0)
     if o["solo_attive"]:
-        qs = qs.filter(stato="ATTIVA")
+        base = base.filter(stato=AbilitazioneProcesso.STATO_ATTIVA)
     if o["processi"]:
-        qs = qs.filter(processo_id__in=[int(x) for x in o["processi"]])
-    abilitazioni = list(qs)
+        base = base.filter(processo_id__in=[int(x) for x in o["processi"]])
+    abilitazioni = [a for a in base.filter(legacy_anagrafica_id__in=ctx.id_estesi(persone))
+                    .select_related("processo", "processo__cliente")
+                    if ctx.canonico(a.legacy_anagrafica_id) in persone]
     cert: dict[int, date] = {}
     for c in CertificazioneIndividuale.objects.filter(
         abilitazione__in=abilitazioni, stato="ATTIVA", data_scadenza__isnull=False,
     ).order_by("data_scadenza"):
         cert.setdefault(c.abilitazione_id, c.data_scadenza)
     scadute = 0
-    for a in sorted(abilitazioni, key=lambda x: (persone[x.legacy_anagrafica_id].nominativo.casefold(),
+    for a in sorted(abilitazioni, key=lambda x: (persone[ctx.canonico(x.legacy_anagrafica_id)].nominativo.casefold(),
                                                  x.processo.nome.casefold())):
-        p = persone[a.legacy_anagrafica_id]
+        p = persone[ctx.canonico(a.legacy_anagrafica_id)]
         ruoli = [lbl for flag, lbl in ((a.is_qualificato, "Qualificato"), (a.is_addetto, "Addetto"),
                                        (a.is_controllore, "Controllore"), (a.is_part145, "Part 145")) if flag]
         scad = cert.get(a.id)
@@ -657,9 +701,12 @@ def _abilitazioni_processi(ctx: Contesto, o: dict) -> Risultato:
             "cliente": str(a.processo.cliente or ""), "ruoli": ", ".join(ruoli),
             "dal": a.data_ingresso, "certificazione": scad, "stato": stato,
         }, tono)
-    res.kpis = [Kpi("Abilitazioni", len(abilitazioni)), Kpi("Persone abilitate", len({a.legacy_anagrafica_id for a in abilitazioni})),
+    res.kpis = [Kpi("Abilitazioni", len(abilitazioni)),
+                Kpi("Persone abilitate", len({ctx.canonico(a.legacy_anagrafica_id) for a in abilitazioni})),
                 Kpi("Certificazioni scadute", scadute, TONE_DANGER if scadute else TONE_OK)]
     res.note = ["Processi speciali qualificati (MOD.128): EN 9100 §8.5.1.2 richiede la qualifica del personale."]
+    ctx.segnala_esclusi(base.values_list("legacy_anagrafica_id", flat=True), incluse=persone,
+                                 cosa="abilitazioni")
     return res
 
 
@@ -761,17 +808,14 @@ def _matrice_qualifiche(ctx: Contesto, o: dict) -> Risultato:
 
     res = Risultato()
     persone = ctx.dipendenti()
-    ids = [p.id for p in persone]
     tipi_qs = TipoQualifica.objects.all()
     if o["categorie"]:
         tipi_qs = tipi_qs.filter(categoria__in=o["categorie"])
     if o["tipi"]:
         tipi_qs = tipi_qs.filter(pk__in=[int(t) for t in o["tipi"]])
     tipi = {t.pk: t for t in tipi_qs.order_by("categoria", "nome")}
-    ultime: dict[tuple[int, int], DipendenteQualifica] = {}
-    for q in DipendenteQualifica.objects.filter(legacy_anagrafica_id__in=ids, tipo_id__in=list(tipi)).order_by(
-            "legacy_anagrafica_id", "tipo_id", "data_conseguimento", "id"):
-        ultime[(q.legacy_anagrafica_id, q.tipo_id)] = q
+    ultime, _sostituite = _qualifiche_correnti(
+        ctx, DipendenteQualifica.objects.filter(tipo_id__in=list(tipi)), {p.id: p for p in persone})
     if o["solo_tipi_posseduti"]:
         posseduti = {t for (_p, t) in ultime}
         tipi = {k: v for k, v in tipi.items() if k in posseduti}
@@ -825,11 +869,11 @@ def _matrice_formazione(ctx: Contesto, o: dict) -> Risultato:
     res = Risultato()
     persone = ctx.dipendenti()
     per_id = {p.id: p for p in persone}
-    scadenze = _scadenze_formazione(ctx, o, per_id, solo_sicurezza=o["solo_sicurezza"])
+    voci = _voci_formazione(ctx, o, per_id, solo_sicurezza=o["solo_sicurezza"])
     corsi = {}
-    for s in sorted(scadenze, key=lambda x: getattr(x.corso, "codice", "")):
-        corsi.setdefault(s.corso_id, s.corso)
-    mappa = {(s.legacy_anagrafica_id, s.corso_id): s for s in scadenze}
+    for v in sorted(voci, key=lambda x: (getattr(x.corso, "codice", "") or "", x.corso.pk)):
+        corsi.setdefault(v.corso.pk, v.corso)
+    mappa = {(v.persona, v.corso.pk): v for v in voci}
     etichetta = (lambda c: c.codice) if o["intestazione"] == "codice" else (lambda c: c.titolo)
     res.colonne = [("nominativo", "Nominativo"), ("mansione", "Mansione")] + [(f"c{k}", etichetta(c)) for k, c in corsi.items()]
     critiche = 0
@@ -837,13 +881,15 @@ def _matrice_formazione(ctx: Contesto, o: dict) -> Risultato:
         riga: dict = {"nominativo": p.nominativo, "mansione": p.mansione, "_toni": {}}
         tono_riga = ""
         for k in corsi:
-            s = mappa.get((p.id, k))
-            if s is None:
+            v = mappa.get((p.id, k))
+            if v is None:
                 riga[f"c{k}"] = ""
                 continue
-            codice, sigla = _SIGLE_FORMAZIONE.get(s.stato_scadenza, ("", "?"))
-            stato, tono = _STATI_FORMAZIONE.get(s.stato_scadenza, (s.stato_scadenza, ""))
-            riga[f"c{k}"] = (s.data_scadenza or sigla) if o["cella"] == "scadenza" else (stato if o["cella"] == "stato" else sigla)
+            codice, sigla = _SIGLE_FORMAZIONE.get(v.stato, ("", "?"))
+            stato, tono = _STATI_FORMAZIONE.get(v.stato, (v.stato, ""))
+            if not v.obbligatorio:
+                tono = ""  # corso frequentato ma non richiesto: informativo, mai critico
+            riga[f"c{k}"] = (v.scadenza or sigla) if o["cella"] == "scadenza" else (stato if o["cella"] == "stato" else sigla)
             riga["_toni"][f"c{k}"] = tono
             if tono in (TONE_DANGER, TONE_WARN):
                 tono_riga = TONE_DANGER if TONE_DANGER in (tono, tono_riga) else TONE_WARN
@@ -852,7 +898,8 @@ def _matrice_formazione(ctx: Contesto, o: dict) -> Risultato:
         res.toni.append(tono_riga)
     res.kpis = [Kpi("Persone", len(persone)), Kpi("Corsi in matrice", len(corsi)),
                 Kpi("Celle critiche", critiche, TONE_WARN if critiche else TONE_OK)]
-    res.note = ["Legenda: OK valida · ! in scadenza entro 30 gg · X scaduta · MAI mai frequentata · vuoto = non richiesta."]
+    res.note = ["Legenda: OK valida · ! in scadenza entro 30 gg · X scaduta · MAI mai frequentata · vuoto = non richiesta.",
+                f"Stato calcolato al {ctx.today:%d/%m/%Y} dall'ultimo completamento idoneo di ogni corso."]
     if o["intestazione"] == "codice" and corsi:
         res.note.append("Corsi: " + "; ".join(f"{c.codice} = {c.titolo}" for c in list(corsi.values())[:40]))
     return res
@@ -897,6 +944,8 @@ def _scadenzario(ctx: Contesto, o: dict) -> Risultato:
     visite_ok = "visite" in tipi and has_perm(ctx.request, PERM_VISITE)
     if visite_ok:
         r = _sorveglianza(ctx, {"preavviso": o["giorni"], "stati": [], "tipi": [], "includi_senza_visita": False})
+        # Solo le visite dovute: una visita non richiesta non e' una scadenza da presidiare.
+        r.righe = [x for x in r.righe if x["richiesta"] == "Sì"]
         voci += [(x["scadenza"], "Visita medica", x["nominativo"], x["reparto"], x["visita"]) for x in r.righe if x["scadenza"]]
     scadute = 0
     for scad, tipo, nom, rep, voce in sorted(voci, key=lambda v: (v[0], v[2].casefold())):
@@ -1084,27 +1133,43 @@ def _organigramma(ctx: Contesto, o: dict) -> Risultato:
     res = Risultato()
     persone = ctx.dipendenti()
     nomi = {p.id: p.nominativo for p in ctx._tutti()}
-    per_area = Counter(p.area for p in persone)
-    per_reparto = Counter(p.reparto for p in persone)
-    for rep in Reparto.objects.filter(is_active=True).order_by("nome"):
-        n_rep = per_reparto.get(rep.nome, 0)
+
+    def _nome(legacy_id) -> str:
+        return nomi.get(ctx.canonico(legacy_id), "") if legacy_id else ""
+
+    per_area = Counter(p.area.casefold() for p in persone if p.area)
+    per_reparto = Counter(p.reparto.casefold() for p in persone if p.reparto)
+    reparti_catalogo = list(Reparto.objects.filter(is_active=True).order_by("nome"))
+    for rep in reparti_catalogo:
+        n_rep = per_reparto.get(rep.nome.casefold(), 0)
         if o["solo_con_persone"] and not n_rep:
             continue
         res.riga({"reparto": rep.nome, "area": "", "livello": "Reparto",
-                  "responsabile": nomi.get(rep.caporeparto_legacy_id or 0, ""), "persone": n_rep})
+                  "responsabile": _nome(rep.caporeparto_legacy_id), "persone": n_rep})
         if not o["includi_aree"]:
             continue
         for area in AreaAziendale.objects.filter(is_active=True, reparto=rep).order_by("nome"):
-            n_area = per_area.get(area.nome, 0)
+            n_area = per_area.get(area.nome.casefold(), 0)
             if o["solo_con_persone"] and not n_area:
                 continue
             res.riga({"reparto": rep.nome, "area": area.nome, "livello": "Area",
-                      "responsabile": nomi.get(area.responsabile_legacy_id or 0, ""), "persone": n_area})
-    senza = sum(1 for r in res.righe if not r["responsabile"])
+                      "responsabile": _nome(area.responsabile_legacy_id), "persone": n_area})
+    # Chi ha un reparto che non e' nel catalogo, o nessun reparto, non deve sparire dai conteggi.
+    noti = {r.nome.casefold() for r in reparti_catalogo}
+    fuori = Counter(p.reparto or "" for p in persone if p.reparto.casefold() not in noti)
+    for nome_rep, n in sorted(fuori.items(), key=lambda kv: kv[0].casefold()):
+        res.riga({"reparto": nome_rep or "Senza reparto", "area": "", "livello": "Fuori catalogo",
+                  "responsabile": "", "persone": n}, TONE_WARN)
+    senza = sum(1 for r in res.righe if r["livello"] != "Fuori catalogo" and not r["responsabile"])
     res.kpis = [Kpi("Reparti", sum(1 for r in res.righe if r["livello"] == "Reparto")),
                 Kpi("Aree", sum(1 for r in res.righe if r["livello"] == "Area")),
-                Kpi("Senza responsabile", senza, TONE_WARN if senza else TONE_OK)]
-    res.note = ["Struttura dal catalogo reparti/aree; persone conteggiate nel perimetro del documento."]
+                Kpi("Senza responsabile", senza, TONE_WARN if senza else TONE_OK),
+                Kpi("Persone fuori catalogo", sum(fuori.values()), TONE_WARN if fuori else TONE_OK)]
+    res.note = ["Struttura dal catalogo reparti/aree; persone conteggiate nel perimetro del documento.",
+                f"Totale persone: {len(persone)}."]
+    if fuori:
+        res.note.append("«Fuori catalogo»: persone con un reparto non presente nel catalogo reparti (o senza "
+                        "reparto): vanno assegnate a un reparto dalla scheda.")
     return res
 
 
@@ -1141,51 +1206,61 @@ _registra(Sezione(
 
 
 def _sorveglianza(ctx: Contesto, o: dict) -> Risultato:
-    from anagrafica.models import VisitaMedica
-
     res = Risultato()
     persone = {p.id: p for p in ctx.dipendenti()}
-    qs = VisitaMedica.objects.filter(legacy_anagrafica_id__in=list(persone), superata_il__isnull=True).select_related("tipo")
+    voci = calcoli.visite(ctx, persone)
     if o["tipi"]:
-        qs = qs.filter(tipo_id__in=[int(t) for t in o["tipi"]])
-    ultime: dict[tuple[int, int], VisitaMedica] = {}
-    for v in qs.only("legacy_anagrafica_id", "tipo_id", "tipo__nome", "data_svolgimento", "data_scadenza").order_by(
-            "legacy_anagrafica_id", "tipo_id", "data_svolgimento", "id"):
-        ultime[(v.legacy_anagrafica_id, v.tipo_id)] = v
-    con_visita: set[int] = set()
+        scelti = {int(t) for t in o["tipi"]}
+        voci = [v for v in voci if v.tipo.pk in scelti]
+    soggette: set[int] = set()
     scadute: set[int] = set()
     in_scadenza: set[int] = set()
-    for v in sorted(ultime.values(), key=lambda x: (persone[x.legacy_anagrafica_id].nominativo.casefold(),
-                                                    getattr(x.tipo, "nome", "").casefold())):
-        p = persone[v.legacy_anagrafica_id]
-        codice, stato, tono = _stato_scadenza(v.data_scadenza, ctx.today, o["preavviso"])
-        con_visita.add(p.id)
-        if tono == TONE_DANGER:
-            scadute.add(p.id)
-        elif tono == TONE_WARN:
-            in_scadenza.add(p.id)
+    incomplete: set[int] = set()
+    mancanti = 0
+    righe: list[tuple[dict, str]] = []
+    for v in voci:
+        if v.richiesta:
+            soggette.add(v.persona)
+        if v.ultima is None:
+            codice, stato, tono = "mancante", "Dovuta, mai registrata", TONE_WARN
+            mancanti += 1
+            incomplete.add(v.persona)
+        else:
+            codice, stato, tono = _stato_scadenza(v.scadenza, ctx.today, o["preavviso"])
+            if not v.richiesta:
+                tono = ""  # visita non richiesta: informativa, non pesa sugli indicatori
+            elif tono == TONE_DANGER:
+                scadute.add(v.persona)
+            elif tono == TONE_WARN:
+                in_scadenza.add(v.persona)
+        if codice == "mancante" and not o["includi_senza_visita"]:
+            continue
         if o["stati"] and codice not in o["stati"]:
             continue
-        res.riga({
+        p = persone[v.persona]
+        righe.append(({
             "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "mansione": p.mansione,
-            "visita": getattr(v.tipo, "nome", ""), "ultima": v.data_svolgimento, "scadenza": v.data_scadenza,
-            "giorni": (v.data_scadenza - ctx.today).days if v.data_scadenza else None, "stato": stato,
-        }, tono)
-    senza = [p for p in persone.values() if p.id not in con_visita]
-    if o["includi_senza_visita"]:
-        for p in senza:
-            res.riga({"nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto,
-                      "mansione": p.mansione, "visita": "", "ultima": None, "scadenza": None, "giorni": None,
-                      "stato": "Nessuna visita registrata"}, TONE_WARN)
-    validi = len(con_visita - scadute)
+            "visita": getattr(v.tipo, "nome", ""), "richiesta": "Sì" if v.richiesta else "No",
+            "origine": "; ".join(v.origini), "ultima": v.ultima, "scadenza": v.scadenza,
+            "giorni": (v.scadenza - ctx.today).days if v.scadenza else None, "stato": stato,
+        }, tono))
+    for riga, tono in sorted(righe, key=lambda rt: (rt[0]["nominativo"].casefold(), rt[0]["visita"].casefold())):
+        res.riga(riga, tono)
+    in_regola = soggette - scadute - incomplete
     res.kpis = [
-        Kpi("Persone con visita valida", _pct(validi, len(persone)),
-            TONE_OK if persone and validi == len(persone) else TONE_WARN, f"{validi} su {len(persone)}"),
-        Kpi("Visite scadute", len(scadute), TONE_DANGER if scadute else TONE_OK, "persone"),
+        Kpi("Persone soggette a sorveglianza", len(soggette), hint=f"su {len(persone)} nel perimetro"),
+        Kpi("In regola", _pct(len(in_regola), len(soggette)),
+            (TONE_OK if len(in_regola) == len(soggette) else TONE_WARN) if soggette else "",
+            f"{len(in_regola)} su {len(soggette)} persone soggette"),
+        Kpi("Con visite scadute", len(scadute), TONE_DANGER if scadute else TONE_OK, "persone"),
         Kpi(f"In scadenza entro {o['preavviso']} gg", len(in_scadenza), TONE_WARN if in_scadenza else "", "persone"),
-        Kpi("Senza visite registrate", len(senza), TONE_WARN if senza else TONE_OK),
+        Kpi("Visite dovute mai registrate", mancanti, TONE_WARN if mancanti else TONE_OK),
     ]
     res.note = [
+        "Per ogni famiglia di visita vale l'ultima registrata (es. il passaggio da visita annuale a biennale "
+        "supera la precedente); le visite segnate come superate non contano.",
+        "Visite dovute: ruoli operativi in essere, protocollo sanitario dell'ultimo certificato, mansione e "
+        "fattori di rischio, processi qualificati. La colonna «Richiesta da» ne indica l'origine.",
         "Riporta solo data e validità della visita: giudizio di idoneità, limitazioni e prescrizioni "
         "restano riservati al medico competente e al datore di lavoro (GDPR art. 9, D.Lgs. 81/2008 art. 41).",
     ]
@@ -1196,18 +1271,20 @@ _registra(Sezione(
     key="sicurezza_sorveglianza",
     titolo="Sorveglianza sanitaria – validità delle visite",
     gruppo=GRUPPO_SICUREZZA,
-    descrizione="Ultima visita e scadenza per persona e tipo di visita, senza giudizio né prescrizioni.",
+    descrizione="Visite dovute e ultima visita per persona e famiglia di visita, senza giudizio né prescrizioni.",
     builder=_sorveglianza,
     riferimenti=(f"{ISO_45001} §8.1", "D.Lgs. 81/2008 art. 41"),
     colonne=(("nominativo", "Nominativo"), ("matricola", "Matricola"), ("reparto", "Reparto"), ("mansione", "Mansione"),
-             ("visita", "Tipo visita"), ("ultima", "Ultima visita"), ("scadenza", "Scadenza"),
-             ("giorni", "Giorni alla scadenza"), ("stato", "Stato")),
+             ("visita", "Tipo visita"), ("richiesta", "Dovuta"), ("origine", "Richiesta da"),
+             ("ultima", "Ultima visita"), ("scadenza", "Scadenza"), ("giorni", "Giorni alla scadenza"), ("stato", "Stato")),
     predefinite=("nominativo", "mansione", "visita", "ultima", "scadenza", "stato"),
     opzioni=(
         Opzione("tipi", "Tipi di visita", MULTI, _scelte_tipi_visita, aiuto="Vuoto = tutti."),
-        Opzione("stati", "Stati da includere", MULTI, _STATI_SCADENZA, aiuto="Vuoto = tutti."),
+        Opzione("stati", "Stati da includere", MULTI, _STATI_SCADENZA + (("mancante", "Dovuta, mai registrata"),),
+                aiuto="Vuoto = tutti."),
         Opzione("preavviso", "Giorni di preavviso «in scadenza»", INTERO, predefinito=30),
-        Opzione("includi_senza_visita", "Elenca le persone senza visite registrate", SI_NO, predefinito=True),
+        Opzione("includi_senza_visita", "Elenca le visite dovute e mai registrate", SI_NO, predefinito=True,
+                aiuto="Solo per chi è soggetto a sorveglianza: chi non ha visite dovute non compare come mancante."),
     ),
     permesso=perm_check(PERM_VISITE),
 ))
@@ -1220,8 +1297,10 @@ _registra(Sezione(
 def _responsabili_ids() -> set[int]:
     from anagrafica.models import AreaAziendale, Reparto
 
-    ids = set(Reparto.objects.filter(caporeparto_legacy_id__isnull=False).values_list("caporeparto_legacy_id", flat=True))
-    ids |= set(AreaAziendale.objects.filter(responsabile_legacy_id__isnull=False).values_list("responsabile_legacy_id", flat=True))
+    ids = set(Reparto.objects.filter(is_active=True, caporeparto_legacy_id__isnull=False)
+              .values_list("caporeparto_legacy_id", flat=True))
+    ids |= set(AreaAziendale.objects.filter(is_active=True, responsabile_legacy_id__isnull=False)
+               .values_list("responsabile_legacy_id", flat=True))
     return {int(x) for x in ids if x}
 
 
@@ -1260,7 +1339,7 @@ def _parita_genere(ctx: Contesto, o: dict) -> Risultato:
                   [p for p in in_forza if _valore_dimensione(p, dim, ctx.today) == v])
     resp = {"F": 0, "M": 0, "ND": 0}
     if "governance" in o["aree"]:
-        responsabili = _responsabili_ids()
+        responsabili = {ctx.canonico(i) for i in _responsabili_ids()}
         resp = _riga("Governance", "Responsabili di reparto / area", [p for p in in_forza if p.id in responsabili])
     ass = {"F": 0, "M": 0, "ND": 0}
     if "processi_hr" in o["aree"]:
@@ -1273,12 +1352,15 @@ def _parita_genere(ctx: Contesto, o: dict) -> Risultato:
         formati: set[int] = set()
         per_id = {p.id: p for p in tutti}
         for r in TrainingEmployeeRecord.objects.filter(
-            legacy_anagrafica_id__in=list(per_id), data_completamento__range=(ctx.date_from, ctx.date_to),
+            legacy_anagrafica_id__in=ctx.id_estesi(per_id), data_completamento__range=(ctx.date_from, ctx.date_to),
         ).only("legacy_anagrafica_id", "ore_frequentate", "duration_hours_snapshot"):
-            g = per_id[r.legacy_anagrafica_id].genere
+            pid = ctx.canonico(r.legacy_anagrafica_id)
+            if pid not in per_id:
+                continue
+            g = per_id[pid].genere
             g = g if g in ("F", "M") else "ND"
             ore[g] += _ore(r.ore_frequentate) or _ore(r.duration_hours_snapshot)
-            formati.add(r.legacy_anagrafica_id)
+            formati.add(pid)
         _riga("Opportunità di crescita", "Persone formate nel periodo", [per_id[i] for i in formati])
         ore_tot = sum(ore.values(), Decimal(0))
         res.riga({"area": "Opportunità di crescita", "indicatore": "Ore di formazione nel periodo",

@@ -1,0 +1,210 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Chiedi un report | Reportistica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+{% include "core/components/_hub_formkit.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/reportistica.css' %}?v=4">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb">
+          <a href="{% url 'anagrafica:reportistica_index' %}">Reportistica</a>
+          <span class="fmd-sep"> / </span><span class="fmd-cur">Chiedi un report</span>
+        </div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-doc"/></svg>Chiedi un report</h1>
+        <p class="fmd-ph-sub">Scrivi cosa ti serve: il portale sceglie sezioni, filtri e periodo dal catalogo della reportistica e ti mostra l'anteprima. Correggi a parole finché è giusto, poi scarica.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <form method="post">{% csrf_token %}
+          <button type="submit" name="azione" value="nuova" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Nuova richiesta</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="rp-layout">
+      <aside class="rp-side">
+        <div class="fmd-panel rp-chat">
+          <div class="rp-chat-log" id="rp-chat-log" aria-live="polite">
+            {% if not stato.storico %}
+              <div class="rp-msg rp-msg-ai">
+                Dimmi quale report ti serve, per chi e per quale periodo. Per esempio:
+              </div>
+              <form method="post" class="rp-esempi">{% csrf_token %}
+                <input type="hidden" name="azione" value="messaggio">
+                {% for esempio in esempi %}
+                <button type="submit" name="messaggio" value="{{ esempio }}" class="rp-esempio" data-rp-invia>{{ esempio }}</button>
+                {% endfor %}
+              </form>
+            {% endif %}
+            {% for m in stato.storico %}
+              <div class="rp-msg {% if m.role == 'user' %}rp-msg-utente{% else %}rp-msg-ai{% endif %}">{{ m.content|linebreaksbr }}</div>
+            {% endfor %}
+          </div>
+
+          {% if not stato.ai %}
+          <div class="rp-avviso rp-chat-avviso">L'assistente AI non era raggiungibile: la richiesta è stata interpretata con le parole chiave. Controlla bene l'anteprima.</div>
+          {% endif %}
+          {% if stato.avvisi %}
+          <ul class="rp-chat-avvisi" aria-label="Cose non applicate">
+            {% for a in stato.avvisi %}<li>{{ a }}</li>{% endfor %}
+          </ul>
+          {% endif %}
+
+          <form method="post" class="rp-chat-form" id="rp-chat-form">{% csrf_token %}
+            <input type="hidden" name="azione" value="messaggio">
+            <label for="rp-messaggio" class="rp-sr">Richiesta</label>
+            <textarea id="rp-messaggio" name="messaggio" rows="3" maxlength="1500" required
+                      placeholder="{% if specifica.sezioni %}Correggi: «togli le visite», «solo reparto Qualità», «in Excel»…{% else %}Es. qualifiche scadute del reparto Produzione, per il cliente…{% endif %}"></textarea>
+            <div class="rp-chat-form-foot">
+              <span class="rp-chat-hint">Invio con Ctrl+Invio</span>
+              <button type="submit" class="fmd-btn fmd-btn-primary" data-rp-invia><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Invia</button>
+            </div>
+            <div class="rp-chat-attesa" id="rp-chat-attesa" hidden>Sto preparando il report…</div>
+          </form>
+        </div>
+
+        {% if specifica.sezioni %}
+        <div class="fmd-panel rp-capito">
+          <div class="hub-fsec-h">Cosa ho capito</div>
+          <ol class="rp-capito-sez">
+            {% for r in riepilogo %}
+            <li>
+              <div class="rp-capito-riga">
+                <b>{{ r.titolo }}</b>
+                <form method="post">{% csrf_token %}
+                  <input type="hidden" name="azione" value="togli"><input type="hidden" name="indice" value="{{ r.indice }}">
+                  <button type="submit" class="rp-capito-togli" title="Togli questa sezione" aria-label="Togli {{ r.titolo }}">✕</button>
+                </form>
+              </div>
+              {% if r.dettagli %}<div class="rp-capito-det">{{ r.dettagli|join:" · " }}</div>{% endif %}
+            </li>
+            {% endfor %}
+          </ol>
+
+          <form method="post" class="hub-form-stack rp-capito-form">{% csrf_token %}
+            <input type="hidden" name="azione" value="imposta">
+            <div class="hub-field">
+              <label for="rp-titolo">Titolo</label>
+              <input type="text" id="rp-titolo" name="titolo" maxlength="200" value="{{ specifica.titolo }}">
+            </div>
+            <div class="hub-field">
+              <label for="rp-dest">Destinatario</label>
+              <input type="text" id="rp-dest" name="destinatario" maxlength="200" value="{{ specifica.destinatario }}" placeholder="Cliente o ente (facoltativo)">
+            </div>
+            <div class="hub-form-grid">
+              <div class="hub-field">
+                <label for="rp-periodo">Periodo</label>
+                <select id="rp-periodo" name="periodo_tipo" data-rp-periodo>
+                  {% for k, label in periodi %}<option value="{{ k }}"{% if specifica.periodo.tipo == k %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="hub-field">
+                <label for="rp-formato">Formato</label>
+                <select id="rp-formato" name="formato">
+                  <option value="pdf"{% if specifica.formato == "pdf" %} selected{% endif %}>PDF</option>
+                  <option value="xlsx"{% if specifica.formato == "xlsx" %} selected{% endif %}>Excel</option>
+                </select>
+              </div>
+            </div>
+            <div class="hub-form-grid" data-rp-date{% if specifica.periodo.tipo != "PERSONALIZZATO" %} hidden{% endif %}>
+              <div class="hub-field"><label for="rp-da">Dal</label><input type="date" id="rp-da" name="data_da" value="{{ specifica.periodo.da }}"></div>
+              <div class="hub-field"><label for="rp-a">Al</label><input type="date" id="rp-a" name="data_a" value="{{ specifica.periodo.a }}"></div>
+            </div>
+            <label class="rp-capito-check"><input type="checkbox" name="includi_cessati"{% if specifica.perimetro.includi_cessati %} checked{% endif %}> Includi il personale cessato</label>
+            <button type="submit" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Applica</button>
+          </form>
+        </div>
+
+        <div class="fmd-panel rp-capito">
+          <form method="post" action="{% url 'anagrafica:reportistica_chat_scarica' %}" class="hub-form-stack">{% csrf_token %}
+            <div class="hub-field">
+              <label for="rp-nota">Nota per l'archivio</label>
+              <input type="text" id="rp-nota" name="note_archivio" maxlength="300" placeholder="Es. inviato al cliente il…">
+            </div>
+            {% if documento.contiene_dati_personali %}
+            <div class="rp-avviso">Il documento contiene <b>dati personali nominativi</b>: invialo solo a chi ne ha titolo e con un canale protetto.</div>
+            {% endif %}
+            <div class="rp-actions">
+              <button type="submit" name="formato" value="pdf" class="fmd-btn {% if specifica.formato == 'pdf' %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %}"><svg class="fmd-ico"><use href="#i-download"/></svg>PDF</button>
+              <button type="submit" name="formato" value="xlsx" class="fmd-btn {% if specifica.formato == 'xlsx' %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %}"><svg class="fmd-ico"><use href="#i-download"/></svg>Excel</button>
+            </div>
+          </form>
+          {% if can_manage %}
+          <form method="post" action="{% url 'anagrafica:reportistica_chat_salva' %}" class="rp-salva">{% csrf_token %}
+            <label for="rp-nome" class="rp-sr">Nome del modello</label>
+            <input type="text" id="rp-nome" name="nome" maxlength="150" placeholder="Nome del modello" value="{{ specifica.titolo }}">
+            <button type="submit" class="fmd-btn fmd-btn-ghost" title="Per riusarlo ogni settimana o per rifinire testi e impaginazione"><svg class="fmd-ico"><use href="#i-plus"/></svg>Salva come modello</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endif %}
+      </aside>
+
+      <section>
+        {% if documento %}
+          {% include "anagrafica/partials/_reportistica_documento.html" %}
+        {% else %}
+          <div class="fmd-panel fmd-empty">
+            <span class="fmd-et">L'anteprima comparirà qui</span>
+            <span class="fmd-em">Gli stessi dati, colonne e permessi dei modelli salvati: niente che tu non possa già generare a mano.</span>
+          </div>
+        {% endif %}
+      </section>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  "use strict";
+  var log = document.getElementById("rp-chat-log");
+  if (log) { log.scrollTop = log.scrollHeight; }
+
+  // Una sola richiesta per volta: l'AI puo' impiegare qualche secondo.
+  document.querySelectorAll("form").forEach(function (form) {
+    form.addEventListener("submit", function () {
+      if (!form.querySelector("[data-rp-invia]")) { return; }
+      var attesa = document.getElementById("rp-chat-attesa");
+      if (attesa) { attesa.hidden = false; }
+      setTimeout(function () {
+        document.querySelectorAll("[data-rp-invia]").forEach(function (b) { b.disabled = true; });
+      }, 0);
+    });
+  });
+
+  var area = document.getElementById("rp-messaggio");
+  if (area) {
+    area.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey) && area.value.trim()) {
+        ev.preventDefault();
+        document.getElementById("rp-chat-form").requestSubmit();
+      }
+    });
+  }
+
+  var periodo = document.querySelector("[data-rp-periodo]");
+  var date = document.querySelector("[data-rp-date]");
+  if (periodo && date) {
+    periodo.addEventListener("change", function () { date.hidden = periodo.value !== "PERSONALIZZATO"; });
+  }
+})();
+</script>
+{% endblock %}
