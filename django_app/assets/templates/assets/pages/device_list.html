@@ -412,6 +412,7 @@ body.theme-dark .dv-cov-badge.none { background:rgba(255,255,255,.08); color:var
         {% for opt in coverage_options %}
           <a class="dv-chip {% if opt.active %}active{% endif %}" href="{{ opt.url }}">{{ opt.label }}{% if opt.count is not None %} <strong>{{ opt.count }}</strong>{% endif %}</a>
         {% endfor %}
+        <a class="dv-chip" href="{% url 'assets:it_reconciliation' %}">Riconcilia dispositivi &rsaquo;</a>
       </nav>
     </div>
 

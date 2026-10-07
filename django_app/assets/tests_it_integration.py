@@ -232,3 +232,77 @@ class AssetPageUxTests(TestCase):
         self.assertEqual(response.status_code, 302)
         device.refresh_from_db()
         self.assertEqual(device.hub_asset_id, asset.pk)
+
+class TrendsReconciliationAlertsTests(TestCase):
+    """Andamenti nei KPI, riconciliazione dispositivi, avvisi proattivi."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser("rc-demo", "rc@example.test", "synthetic-only")
+        self.client.force_login(self.user)
+
+    def test_probe_sparkline_and_backup_bars(self):
+        from contatori.models import RilevazioneSNMP, SondaSNMP, ValoreSNMP
+        from security.models import SecurityAssetSignal, SecuritySource
+
+        fw = Asset.objects.create(asset_tag="TR-FW", name="FW trend", asset_type="FIREWALL")
+        device = DispositivoSNMP.objects.create(nome="fw", host="192.0.2.97", categoria="FIREWALL", asset=fw,
+                                                snmp_stato="OK", snmp_ultimo_controllo=timezone.now())
+        probe = SondaSNMP.objects.create(dispositivo=device, nome="CPU", oid="1.3.6.1.4.1.9", unita="%")
+        for i, value in enumerate((20, 35, 50)):
+            snap = RilevazioneSNMP.objects.create(dispositivo=device, stato="OK", rilevata_il=timezone.now() - timedelta(hours=3 - i))
+            ValoreSNMP.objects.create(rilevazione=snap, sonda=probe, valore_numero=value, stato="OK")
+        self.assertContains(self.client.get(reverse("assets:asset_view", args=[fw.pk])), "af-kpi2-spark")
+
+        pc = Asset.objects.create(asset_tag="TR-PC", name="PC trend", asset_type="PC")
+        source = SecuritySource.objects.create(name="Fonte trend", source_type="manual")
+        soc = SecurityAsset.objects.create(source=source, hostname="pc-trend", hub_asset=pc)
+        for i, status in enumerate(("completed", "failed", "completed")):
+            SecurityAssetSignal.objects.create(asset=soc, source=source, kind="backup", status=status, title="Backup",
+                                               occurred_at=timezone.now() - timedelta(days=3 - i), dedup_hash=f"t{i}")
+        response = self.client.get(reverse("assets:asset_view", args=[pc.pk]))
+        self.assertContains(response, "af-kpi2-bars")
+        self.assertContains(response, 'class="is-bad"')
+
+    def test_reconciliation_lists_and_links_proposals(self):
+        printer = Asset.objects.create(asset_tag="RC-PRN", name="Stampante rc", asset_type="STAMPANTE", serial_number="RC-SN-1")
+        device = DispositivoSNMP.objects.create(nome="prn", host="192.0.2.98", matricola="RC-SN-1")
+        orphan = DispositivoSNMP.objects.create(nome="ignoto", host="192.0.2.99")
+        url = reverse("assets:it_reconciliation")
+        page = self.client.get(url)
+        self.assertContains(page, "Stampante rc")
+        self.assertNotContains(page, "ignoto")
+        # Una chiave che punta a un asset diverso dalla proposta viene rifiutata.
+        self.client.post(url, {"row": [f"snmp:{orphan.pk}:{printer.pk}"]})
+        orphan.refresh_from_db()
+        self.assertIsNone(orphan.asset_id)
+        self.client.post(url, {"row": [f"snmp:{device.pk}:{printer.pk}"]})
+        device.refresh_from_db()
+        self.assertEqual(device.asset_id, printer.pk)
+
+    def test_alerts_flag_only_new_problems(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from contatori.models import LetturaConsumabile, Macchina, RilevazioneSNMP
+        from assets.management.commands.notify_it_monitoring import collect_problems
+
+        fresh = DispositivoSNMP.objects.create(nome="nuovo-guasto", host="192.0.2.100", snmp_stato="ERROR",
+                                               snmp_ultimo_controllo=timezone.now())
+        RilevazioneSNMP.objects.create(dispositivo=fresh, stato="OK", rilevata_il=timezone.now() - timedelta(days=1))
+        RilevazioneSNMP.objects.create(dispositivo=fresh, stato="ERROR", rilevata_il=timezone.now())
+        old = DispositivoSNMP.objects.create(nome="guasto-vecchio", host="192.0.2.101", snmp_stato="ERROR",
+                                             snmp_ultimo_controllo=timezone.now())
+        RilevazioneSNMP.objects.create(dispositivo=old, stato="ERROR", rilevata_il=timezone.now() - timedelta(days=1))
+        RilevazioneSNMP.objects.create(dispositivo=old, stato="ERROR", rilevata_il=timezone.now())
+        machine = Macchina.objects.create(reparto="Uff", matricola="AL-1", host="192.0.2.102", snmp_stato="OK",
+                                          snmp_ultimo_controllo=timezone.now())
+        LetturaConsumabile.objects.create(macchina=machine, nome="Toner nero", pct=40, rilevata_il=timezone.now() - timedelta(days=1))
+        LetturaConsumabile.objects.create(macchina=machine, nome="Toner nero", pct=10, rilevata_il=timezone.now())
+        problems = {p["title"]: p["new"] for p in collect_problems()}
+        self.assertTrue(problems["nuovo-guasto non risponde al monitoraggio"])
+        self.assertFalse(problems["guasto-vecchio non risponde al monitoraggio"])
+        self.assertTrue(problems["MFC Uff: Toner nero al 10%"])
+        out = StringIO()
+        call_command("notify_it_monitoring", "--dry-run", "--recipients", "it@example.test", stdout=out)
+        self.assertIn("[NUOVO] nuovo-guasto", out.getvalue())

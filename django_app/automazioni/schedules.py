@@ -513,6 +513,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ASSETS — avvisi del monitoraggio IT: dispositivi SNMP in errore o muti,
+        # consumabili MFC sotto soglia. Digest a SiteConfig assets_it_monitoring_emails
+        # (poi assets_reminder_emails, poi ADMINS/superuser) + notifica in app solo
+        # per i problemi nuovi. Disattivabile dalla Centrale di comando.
+        "name": "assets_it_monitoring_alerts",
+        "func": "assets.tasks.run_it_monitoring_alerts",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "15 7 * * *",       # ogni mattina alle 07:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # DPI — promemoria DPI scaduti / in scadenza (+ notifica in-app). Destinatari
         # da impostazioni DPI/SiteConfig con fallback ADMINS/superuser (non no-op
         # puro): disattivabile dalla Centrale di comando.

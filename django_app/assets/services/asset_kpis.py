@@ -28,8 +28,24 @@ TAB_MONITORING = "#tab-monitoraggio"
 TAB_SECURITY = "#tab-sicurezza"
 
 
+SPARK_POINTS = 12
+BACKUP_BARS = 14
+
+
 def _tile(label, value, sub="", level="none", href=""):
     return {"label": label, "value": value, "sub": sub, "level": level, "href": href}
+
+
+def _spark(values, hint="") -> dict | None:
+    """Mini-andamento (polyline SVG 100x24) dai valori piu' vecchi ai piu' recenti."""
+    values = [float(v) for v in values if v is not None][-SPARK_POINTS:]
+    if len(values) < 2:
+        return None
+    low, high = min(values), max(values)
+    span = (high - low) or 1.0
+    step = 100 / (len(values) - 1)
+    points = " ".join(f"{i * step:.1f},{22 - (v - low) / span * 20:.1f}" for i, v in enumerate(values))
+    return {"points": points, "hint": hint}
 
 
 def _fmt_int(value) -> str:
@@ -106,7 +122,13 @@ def _printer_tiles(asset, now):
         month = [rows[0].totale - rows[1].totale for rows in by_machine.values() if len(rows) > 1]
         last_month = max(rows[0].mese for rows in by_machine.values())
         if month:
-            tiles.append(_tile("Pagine ultimo mese", _fmt_int(sum(month)), f"Lettura di {last_month:%m/%Y}", "none", TAB_MONITORING))
+            tile = _tile("Pagine ultimo mese", _fmt_int(sum(month)), f"Lettura di {last_month:%m/%Y}", "none", TAB_MONITORING)
+            per_month = {}
+            for rows in by_machine.values():
+                for newer, older in zip(rows, rows[1:]):
+                    per_month[newer.mese] = per_month.get(newer.mese, 0) + max(newer.totale - older.totale, 0)
+            tile["spark"] = _spark([per_month[key] for key in sorted(per_month)], "Pagine al mese")
+            tiles.append(tile)
         tiles.append(_tile("Pagine totali", _fmt_int(total), "Contatore cumulativo", "none", TAB_MONITORING))
         if total:
             tiles.append(_tile("Quota colore", f"{round(100 * colour / total)}%", "Sul totale stampato", "none"))
@@ -151,7 +173,11 @@ def _probe_tiles(asset):
             label = etichetta_valore(value.sonda.etichette, value.valore_numero)
             shown = label or _format_reading(value.valore_numero, value.sonda.unita)
             level = {"OK": "ok", "WARNING": "warn", "ERROR": "bad"}.get(value.stato, "none")
-            tiles.append(_tile(value.sonda.nome[:40], shown, f"Letto {_when(snap.rilevata_il)}", level, TAB_MONITORING))
+            tile = _tile(value.sonda.nome[:40], shown, f"Letto {_when(snap.rilevata_il)}", level, TAB_MONITORING)
+            history = list(ValoreSNMP.objects.filter(sonda=value.sonda, valore_numero__isnull=False)
+                           .order_by("-rilevazione__rilevata_il").values_list("valore_numero", flat=True)[:SPARK_POINTS])
+            tile["spark"] = _spark(list(reversed(history)), "Ultime rilevazioni")
+            tiles.append(tile)
     return tiles
 
 
@@ -171,8 +197,13 @@ def _soc_tiles(asset, profile, now):
             ok = backup.status == "completed"
             old = now - backup.occurred_at > timedelta(days=2)
             value = {"completed": "Riuscito", "failed": "Fallito", "warning": "Con avvisi"}.get(backup.status, backup.status or "Non noto")
-            tiles.append(_tile("Ultimo backup", value, _when(backup.occurred_at),
-                               "bad" if backup.status == "failed" else ("warn" if not ok or old else "ok"), TAB_SECURITY))
+            tile = _tile("Ultimo backup", value, _when(backup.occurred_at),
+                         "bad" if backup.status == "failed" else ("warn" if not ok or old else "ok"), TAB_SECURITY)
+            runs = list(signals.filter(kind=SecurityAssetSignal.KIND_BACKUP).order_by("-occurred_at", "-id")
+                        .values_list("status", flat=True)[:BACKUP_BARS])
+            if len(runs) > 1:
+                tile["bars"] = [{"completed": "ok", "failed": "bad"}.get(status, "warn") for status in reversed(runs)]
+            tiles.append(tile)
         since = now - timedelta(days=30)
         detections = signals.filter(kind__in=(SecurityAssetSignal.KIND_DETECTIONS, SecurityAssetSignal.KIND_THREAT),
                                     occurred_at__gte=since).count()

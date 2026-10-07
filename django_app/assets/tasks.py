@@ -28,6 +28,21 @@ def run_generate_maintenance_occurrences() -> dict:
         raise
 
 
+def run_it_monitoring_alerts() -> dict:
+    """Avvisi del monitoraggio IT (dispositivi muti/in errore, consumabili bassi).
+
+    Wrappa ``notify_it_monitoring``: digest + notifiche in app solo per i problemi nuovi.
+    """
+    from django.core.management import call_command
+
+    try:
+        call_command("notify_it_monitoring", verbosity=0)
+        return {"ok": True}
+    except Exception:
+        logger.exception("run_it_monitoring_alerts: eccezione inattesa")
+        raise
+
+
 def run_maintenance_reminders() -> dict:
     """Promemoria email scadenze manutenzione/verifiche periodiche + OdL scaduti.
 

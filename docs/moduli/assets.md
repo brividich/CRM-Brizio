@@ -111,6 +111,9 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
   - **Scheda asset compatta** (`asset_detail`): in testa il cruscotto con i KPI del tipo di asset (`services/asset_kpis.py`: MFC pagine/toner; firewall SNMP, uptime, sonde, alert, eventi 7 gg; PC/server backup, antivirus/EDR, alert, vulnerabilità), ogni riquadro porta alla scheda pertinente. Sotto, le sezioni raccolte in schede (Panoramica, Sicurezza, Monitoraggio, Tecnica e rete, Manutenzione, Interventi e ticket, Documenti, Licenze, Attività, Timeline, Storico; solo quelle con contenuto), indirizzabili con `#tab-…`. Testata senza fascia «Torna indietro» (ritorno nel titolo) e azioni secondarie nel menu «Altro»
   - **Integrazione IT ↔ SNMP ↔ SOC**: abbinatore unico `services/identity_match.py` (seriale → IP, anche da collegamenti dell'altro modulo → nome host) usato da centrale SNMP e SOC; colonna «Monitoraggio» e filtri copertura nell'Inventario IT; nella scheda vulnerabilità/eventi SOC, differenze SNMP vs anagrafica applicabili su conferma, fatti di monitoraggio in timeline, conferma del dispositivo SOC proposto («Collega a questo asset», permesso configurazione SOC)
 
+  - **Riconciliazione dispositivi IT** (`/assets/dispositivi/riconciliazione/`): proposte di collegamento SNMP, MFC e SOC in un'unica tabella con conferma multipla; righe visibili solo con il permesso del modulo proprietario, proposta ricalcolata alla conferma
+  - **Avvisi del monitoraggio IT** (`notify_it_monitoring`, schedule `assets_it_monitoring_alerts` 07:15): digest dei dispositivi in errore/muti e dei consumabili sotto il 15%, notifica in app solo per i problemi nuovi; destinatari `SiteConfig['assets_it_monitoring_emails']` → `assets_reminder_emails` → admin
+
 ## Note di rilascio
 
 Assets: schede dedicate a PC, portatili, server, VM e stampanti con panoramica per famiglia e approfondimenti espandibili. SOC e backup per job su campione dichiarato; sulle stampanti precedenza a snapshot SNMP, consumabili e contatori, distinti dalle letture mensili MFC. Il monitoraggio richiede accesso alle pagine Contatori; nessuna interrogazione apparati all'apertura. Dati manuali e letture datate non attestano protezione o disponibilità attuali. Le altre famiglie conservano la pagina esistente. [Checklist asset IT: implementazione, limiti e passi successivi](../../docs/ai/CHECKLIST_ASSET_IT.md).
@@ -121,3 +124,5 @@ Gli interventi Assets supportano una coda operativa distinta tra aperti, assegna
 
 
 Scheda asset: cruscotto con i KPI del tipo di dispositivo (MFC, firewall, PC/server) e sezioni in schede; testata compatta con menu «Altro»; timeline in una scheda propria; dispositivo SOC proposto collegabile dalla scheda per chi gestisce la configurazione SOC.
+
+Asset IT: mini-andamenti nel cruscotto (pagine MFC, sonde SNMP, esiti backup); pagina «Riconciliazione dispositivi» per collegare in blocco SNMP, MFC e SOC agli asset; avvisi giornalieri per dispositivi muti o in errore e consumabili bassi (dopo il deploy: `setup_q_schedules`).

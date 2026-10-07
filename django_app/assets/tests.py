@@ -832,11 +832,13 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, 'data-col-toggle="assignment_location" checked', html=False)
         self.assertContains(response, 'data-col-toggle="serial_number" checked', html=False)
         self.assertNotContains(response, 'data-col-toggle="vlan"', html=False)
-        self.assertNotContains(response, 'data-col-toggle="ip"', html=False)
+        # La colonna IP e' disponibile in tutto l'inventario da 62ca41aa (dati endpoint IT).
+        self.assertContains(response, 'data-col-toggle="ip"', html=False)
         self.assertNotContains(response, 'data-col-toggle="custom_rack_label"', html=False)
         self.assertContains(response, "Firewall bordo rete")
         self.assertContains(response, "FGT123456")
-        self.assertNotContains(response, "192.0.2.10")
+        # L'IP dell'endpoint compare nella riga (colonna IP), la VLAN no.
+        self.assertContains(response, "192.0.2.10")
 
     def test_asset_dashboard_redirects_legacy_filtered_list_urls(self):
         self.client.force_login(self.user)
