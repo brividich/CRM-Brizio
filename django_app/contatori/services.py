@@ -10,6 +10,7 @@ Due controlli indipendenti:
      Un calo = refuso interno o reset da verificare.
 """
 from collections import defaultdict
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation, Overflow
 import re
 from time import perf_counter
@@ -388,7 +389,15 @@ def _tempo_ms(inizio):
     return max(0, round((perf_counter() - inizio) * 1000))
 
 
+def _ticks(valore):
+    """puresnmp (PyWrapper) restituisce i TimeTicks come timedelta: tornano centesimi."""
+    if isinstance(valore, timedelta):
+        return round(valore.total_seconds() * 100)
+    return valore
+
+
 def _intero_grezzo(valore):
+    valore = _ticks(valore)
     try:
         return int(valore)
     except (TypeError, ValueError):
@@ -400,7 +409,7 @@ def _intero_grezzo(valore):
 
 def _numero_sonda(sonda, valore):
     try:
-        numero = Decimal(str(valore).strip())
+        numero = Decimal(str(_ticks(valore)).strip())
         if not numero.is_finite():
             return None
         if sonda.tipo_valore == SondaSNMP.TipoValore.TIMETICKS:
