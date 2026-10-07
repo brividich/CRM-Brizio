@@ -246,6 +246,52 @@ class FormazioneTest(_Base):
         self.assertEqual(len(sezioni["Scadenzario formazione non aggiornato"]), 1)
 
 
+class PuliziaTest(_Base):
+    def test_doppioni_anteprima_poi_applica(self):
+        from core.models import AuditLog
+
+        corso = self.corso("DUP")
+        fatto = OGGI - timedelta(days=100)
+        tenuto = TrainingEmployeeRecord.objects.create(corso=corso, legacy_anagrafica_id=902, idoneo=True,
+                                                       data_completamento=fatto, numero_protocollo="ATT-1")
+        copia = TrainingEmployeeRecord.objects.create(corso=corso, legacy_anagrafica_id=902, idoneo=True,
+                                                      data_completamento=fatto)
+        out = StringIO()
+        call_command("pulisci_scadenze_hr", "--doppioni", stdout=out)
+        self.assertIn(f"elimina persona 902 corso DUP", out.getvalue())
+        self.assertEqual(TrainingEmployeeRecord.objects.count(), 2)  # anteprima
+
+        call_command("pulisci_scadenze_hr", "--doppioni", "--applica", stdout=StringIO())
+        self.assertEqual(list(TrainingEmployeeRecord.objects.values_list("pk", flat=True)), [tenuto.pk])
+        self.assertTrue(AuditLog.objects.filter(azione="formazione_attestato_doppio_eliminato",
+                                                oggetto_id=str(copia.pk)).exists())
+
+    def test_doppione_collegato_resta_a_mano(self):
+        corso = self.corso("DUP2")
+        fatto = OGGI - timedelta(days=100)
+        for protocollo in ("ATT-1", "ATT-2"):
+            TrainingEmployeeRecord.objects.create(corso=corso, legacy_anagrafica_id=902, idoneo=True,
+                                                  data_completamento=fatto, numero_protocollo=protocollo)
+        out = StringIO()
+        call_command("pulisci_scadenze_hr", "--doppioni", "--applica", stdout=out)
+        self.assertIn("da vedere a mano", out.getvalue())
+        self.assertEqual(TrainingEmployeeRecord.objects.count(), 2)
+
+    def test_validita_corso_allineata(self):
+        corso = self.corso("ASR", validita=0)
+        TrainingRequirementRule.objects.create(corso=corso, legacy_anagrafica_id=902)
+        fatto = OGGI - timedelta(days=2000)
+        TrainingEmployeeRecord.objects.create(corso=corso, legacy_anagrafica_id=902, idoneo=True,
+                                              data_completamento=fatto, data_scadenza=_add_months(fatto, 60))
+        call_command("pulisci_scadenze_hr", "--validita-corsi", stdout=StringIO())
+        corso.refresh_from_db()
+        self.assertEqual(corso.validita_mesi, 0)  # anteprima
+        call_command("pulisci_scadenze_hr", "--validita-corsi", "--applica", stdout=StringIO())
+        corso.refresh_from_db()
+        self.assertEqual(corso.validita_mesi, 60)
+        self.assertEqual(TrainingDeadline.objects.get().stato_scadenza, "SCADUTO")
+
+
 class IntegritaDpiQualificheTest(_Base):
     def test_dpi_e_qualifiche(self):
         from anagrafica.models import DipendenteQualifica, TipoQualifica
