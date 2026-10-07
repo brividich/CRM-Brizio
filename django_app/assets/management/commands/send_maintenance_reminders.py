@@ -460,7 +460,7 @@ class Command(BaseCommand):
         if overdue_wo:
             lines.append(f"OdL APERTI DA PIÙ DI {wo_overdue_days} GIORNI ({len(overdue_wo)}):")
             for wo in overdue_wo:
-                age = (today - wo.opened_at.date()).days
+                age = (today - timezone.localdate(wo.opened_at)).days
                 lines.append(f"  [{age}gg] #{wo.pk} {wo.asset.asset_tag} — {wo.title}")
             lines.append("")
 
@@ -588,7 +588,7 @@ class Command(BaseCommand):
                         f"/assets/manutenzione/verifiche/?edit={v.pk}",
                     )
                 for wo in overdue_wo:
-                    age = (today - wo.opened_at.date()).days
+                    age = (today - timezone.localdate(wo.opened_at)).days
                     invia_notifica_email(
                         email,
                         "asset_scadenza",
@@ -609,7 +609,7 @@ class Command(BaseCommand):
             for wo in overdue_wo:
                 if wo.assigned_to_id is None:
                     continue
-                age = (today - wo.opened_at.date()).days
+                age = (today - timezone.localdate(wo.opened_at)).days
                 if notify_user_about_workorder(
                     wo.assigned_to,
                     wo,

@@ -585,6 +585,12 @@ a.af-kpi2:hover { border-color:#93c5fd; }
 .af-kpi2-label { font-size:var(--fs-xs); font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
 .af-kpi2-value { font-size:var(--fs-display-sm); font-weight:800; color:#0f172a; line-height:1.15; overflow-wrap:break-word; hyphens:none; }
 .af-kpi2-sub { font-size:var(--fs-xs); color:#64748b; overflow-wrap:anywhere; }
+.af-kpi2-spark { width:100%; height:24px; color:#2563eb; margin-top:2px; }
+.af-kpi2-bars { display:flex; gap:2px; height:14px; align-items:stretch; margin-top:4px; }
+.af-kpi2-bars i { flex:1; border-radius:2px; background:#16a34a; }
+.af-kpi2-bars i.is-warn { background:#d97706; }
+.af-kpi2-bars i.is-bad { background:#dc2626; }
+body.theme-dark .af-kpi2-spark { color:#60a5fa; }
 .af-kpi2--ok { border-left-color:#16a34a; }
 .af-kpi2--warn { border-left-color:#d97706; }
 .af-kpi2--warn .af-kpi2-value { color:#92400e; }
