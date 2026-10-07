@@ -417,6 +417,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ANAGRAFICA HR — ricalcolo notturno delle scadenze dal motore unico dei requisiti:
+        # cache formazione (TrainingDeadline, prima mai ricalcolata: stati vecchi nello
+        # scadenzario e nei promemoria) e scadenza effettiva delle visite (ricalcolo
+        # prudente al cambio di periodicità). Dopo il cambio di giorno, prima dei promemoria.
+        "name": "anagrafica_ricalcolo_scadenze",
+        "func": "anagrafica.tasks.run_ricalcolo_scadenze",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "20 0 * * *",       # ogni notte alle 00:20
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # ANAGRAFICA HR — reminder visite mediche scadute/in scadenza: digest ai
         # responsabili (card+badge nel frame HUB) + notifica in-app al dipendente.
         # Destinatari visite_reminder_emails con fallback amministrativo da verificare.

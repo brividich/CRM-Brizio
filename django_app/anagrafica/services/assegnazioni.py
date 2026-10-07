@@ -263,10 +263,40 @@ def crea_assegnazione(
         created_by=user if getattr(user, "is_authenticated", False) else None,
     )
 
+    _genera_piano(assegnazione, mansione_precedente=corrente["mansione"],
+                  area_precedente_id=corrente["area_aziendale_id"])
+
     if data_inizio <= timezone.localdate():
         attiva_assegnazione(assegnazione, user=user)
 
     return assegnazione
+
+
+def _genera_piano(assegnazione, *, mansione_precedente: str, area_precedente_id) -> None:
+    """Piano di adeguamento del cambio mansione; un errore non blocca lo spostamento."""
+    try:
+        from .cambio_mansione import genera_piano
+
+        genera_piano(assegnazione, mansione_precedente=mansione_precedente,
+                     area_precedente_id=area_precedente_id)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception(
+            "Piano di adeguamento non generato per lo spostamento %s", assegnazione.pk)
+
+
+def _assetto_precedente(assegnazione) -> tuple[str, int | None]:
+    """Mansione e area **prima** di questa assegnazione (la card che la precede)."""
+    precedente = (
+        DipendenteAssegnazione.objects
+        .filter(legacy_anagrafica_id=assegnazione.legacy_anagrafica_id, data_inizio__lt=assegnazione.data_inizio)
+        .exclude(pk=assegnazione.pk)
+        .order_by("-data_inizio", "-created_at")
+        .first()
+    )
+    if precedente is None:
+        return "", None
+    return precedente.mansione or "", precedente.area_aziendale_id
 
 
 @transaction.atomic
@@ -310,6 +340,7 @@ def modifica_assegnazione(
 
     reparto = ((reparto or "").strip() or assegnazione.reparto)[:200]
     mansione_prima = assegnazione.mansione
+    area_prima_id = assegnazione.area_aziendale_id
     mansione = ((mansione or "").strip() or mansione_prima)[:200]
     ruolo_parallelo = bool(ruolo_parallelo) and bool((ruolo_aziendale or "").strip())
     ruolo_aziendale = ((ruolo_aziendale or "").strip() or assegnazione.ruolo_aziendale)[:200]
@@ -349,6 +380,11 @@ def modifica_assegnazione(
     assegnazione.modificata_il = timezone.now()
     assegnazione.modificata_da = user if getattr(user, "is_authenticated", False) else None
     assegnazione.save()
+
+    if mansione != mansione_prima or area_valida_id != area_prima_id:
+        mansione_prec, area_prec = _assetto_precedente(assegnazione)
+        _genera_piano(assegnazione, mansione_precedente=mansione_prec or mansione_prima,
+                      area_precedente_id=area_prec)
 
     if era_programmata:
         if data_inizio <= timezone.localdate():
@@ -491,6 +527,11 @@ def attiva_assegnazione(assegnazione: DipendenteAssegnazione, *, user=None) -> b
     assegnazione.attivata_il = timezone.now()
     assegnazione.save(update_fields=["attivata_il"])
     _notifica_sds_cambio_mansione(legacy_id, mansione_nuova, mansione_vecchia)
+    # Nuova mansione = nuovi requisiti: scadenze (periodicita' delle visite, corsi
+    # dovuti) ricalcolate a transazione conclusa.
+    from .scadenze import ricalcola_dopo_commit
+
+    ricalcola_dopo_commit([legacy_id])
     return True
 
 

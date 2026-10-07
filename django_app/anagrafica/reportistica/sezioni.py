@@ -30,7 +30,7 @@ from typing import Callable
 
 from report_conformita.registry import TONE_DANGER, TONE_OK, TONE_WARN, Kpi
 
-from . import calcoli
+from anagrafica.services import requisiti as calcoli
 from .dati import Contesto, anni_compiuti
 from .permessi import has_perm, perm_check
 
@@ -1211,7 +1211,7 @@ def _sorveglianza(ctx: Contesto, o: dict) -> Risultato:
     voci = calcoli.visite(ctx, persone)
     if o["tipi"]:
         scelti = {int(t) for t in o["tipi"]}
-        voci = [v for v in voci if v.tipo.pk in scelti]
+        voci = [v for v in voci if v.tipo.pk in scelti or v.tipo_da_mostrare.pk in scelti]
     soggette: set[int] = set()
     scadute: set[int] = set()
     in_scadenza: set[int] = set()
@@ -1240,7 +1240,7 @@ def _sorveglianza(ctx: Contesto, o: dict) -> Risultato:
         p = persone[v.persona]
         righe.append(({
             "nominativo": p.nominativo, "matricola": p.matricola, "reparto": p.reparto, "mansione": p.mansione,
-            "visita": getattr(v.tipo, "nome", ""), "richiesta": "Sì" if v.richiesta else "No",
+            "visita": v.tipo_da_mostrare.nome, "richiesta": "Sì" if v.richiesta else "No",
             "origine": "; ".join(v.origini), "ultima": v.ultima, "scadenza": v.scadenza,
             "giorni": (v.scadenza - ctx.today).days if v.scadenza else None, "stato": stato,
         }, tono))

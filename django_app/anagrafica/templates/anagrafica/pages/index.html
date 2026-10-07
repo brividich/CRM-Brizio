@@ -5,7 +5,10 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/hr_gestionale.css' %}?v=1">
 <style>
+/* Hero: tre numeri affiancati sugli schermi larghi (la griglia base ne prevede due). */
+@media (min-width: 1100px) { .hr-hero-stats { grid-template-columns:repeat(3,minmax(150px,1fr)); } }
 /* index — strutture per la modalità personalizzazione widget (logica esistente) */
 #ana-root { display:flex; flex-direction:column; gap:14px; }
 
@@ -111,12 +114,18 @@ body.theme-dark .hr-goto-title { color:var(--text-light); }
     <div class="hr-hero-stats">
       <a class="hr-hero-stat" href="{% url 'anagrafica:dipendenti_list' %}">
         <div class="hr-hero-stat-val">{{ n_dipendenti }}</div>
-        <div class="hr-hero-stat-lbl">Dipendenti in organico</div>
+        <div class="hr-hero-stat-lbl">Persone in forza</div>
       </a>
-      <a class="hr-hero-stat" href="{% url 'anagrafica:scadenzario' %}">
-        <div class="hr-hero-stat-val">{{ n_qualifiche_scadenza }}</div>
-        <div class="hr-hero-stat-lbl">Qualifiche in scadenza</div>
+      {% if cruscotto %}
+      <a class="hr-hero-stat" href="{% url 'anagrafica:libretto_sanitario_generale' %}">
+        <div class="hr-hero-stat-val">{{ cruscotto.copertura_totale.pct_in_regola }}%</div>
+        <div class="hr-hero-stat-lbl">Obblighi in regola</div>
       </a>
+      <a class="hr-hero-stat" href="{% url 'anagrafica:scadenzario' %}?stato=scaduta">
+        <div class="hr-hero-stat-val">{{ cruscotto.persone_ko }}</div>
+        <div class="hr-hero-stat-lbl">Persone con obblighi scaduti</div>
+      </a>
+      {% endif %}
     </div>
   </section>
 
@@ -160,6 +169,105 @@ body.theme-dark .hr-goto-title { color:var(--text-light); }
       {% endif %}
     </div>
   </div>
+
+  {% if cruscotto %}
+  <!-- ── Widget: Stato di conformità (motore unico dei requisiti) ── -->
+  <div class="ana-widget" data-wid="conformita">
+    <div class="ana-widget-bar">
+      <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
+      <span class="ana-widget-label">Stato di conformità</span>
+      <button class="ana-widget-hide" data-wid="conformita" title="Nascondi">✕</button>
+    </div>
+    <div class="hr-card hr-card-pad hrg-box">
+      <div class="hrg-box-head">
+        <span class="hrg-box-title">📊 Obblighi del personale in forza</span>
+        <a class="hrg-box-link" href="{% url 'anagrafica:libretto_sanitario_generale' %}">Libretto sanitario generale →</a>
+      </div>
+      {% for nome, cop in cruscotto_coperture %}
+      {% if cop.totale %}
+      <div>
+        <div class="hrg-riga" style="padding:0 0 4px;"><span><b>{{ nome }}</b> <small>{{ cop.totale }} requisiti · {{ cop.pct_in_regola }}% in regola</small></span></div>
+        <div class="hrg-barra" role="img" aria-label="{{ nome }}: {{ cop.ok }} in regola, {{ cop.warn }} in scadenza, {{ cop.ko }} scaduti, {{ cop.mancante }} da acquisire">
+          {% if cop.ok %}<span class="hrg-barra-ok" style="flex:{{ cop.ok }}"></span>{% endif %}
+          {% if cop.warn %}<span class="hrg-barra-warn" style="flex:{{ cop.warn }}"></span>{% endif %}
+          {% if cop.ko %}<span class="hrg-barra-ko" style="flex:{{ cop.ko }}"></span>{% endif %}
+          {% if cop.mancante %}<span class="hrg-barra-mancante" style="flex:{{ cop.mancante }}"></span>{% endif %}
+        </div>
+        <div class="hrg-legenda" style="margin-top:4px;">
+          <span><i class="hrg-barra-ok"></i>In regola {{ cop.ok }}</span>
+          <span><i class="hrg-barra-warn"></i>In scadenza {{ cop.warn }}</span>
+          <span><i class="hrg-barra-ko"></i>Scaduti {{ cop.ko }}</span>
+          <span><i class="hrg-barra-mancante"></i>Da acquisire {{ cop.mancante }}</span>
+        </div>
+      </div>
+      {% endif %}
+      {% empty %}
+      <div class="hrg-vuoto">Nessun requisito configurato per mansioni, ruoli o processi.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Widget: In evidenza ── -->
+  <div class="ana-widget" data-wid="evidenza">
+    <div class="ana-widget-bar">
+      <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
+      <span class="ana-widget-label">In evidenza</span>
+      <button class="ana-widget-hide" data-wid="evidenza" title="Nascondi">✕</button>
+    </div>
+    <div class="hrg-dash-grid">
+      <section class="hr-card hrg-box">
+        <div class="hrg-box-head">
+          <span class="hrg-box-title">📘 Formazione da sistemare</span>
+          <a class="hrg-box-link" href="{% if can_view_formazione %}{% url 'anagrafica:formazione_scadenzario' %}{% else %}{% url 'anagrafica:scadenzario' %}?tipo=formazione{% endif %}">Scadenzario →</a>
+        </div>
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_formazione vuoto="Tutta la formazione obbligatoria è in regola." %}
+      </section>
+      {% if cruscotto.visite %}
+      <section class="hr-card hrg-box">
+        <div class="hrg-box-head">
+          <span class="hrg-box-title">🩺 Sorveglianza sanitaria</span>
+          <a class="hrg-box-link" href="{% url 'anagrafica:visite_mediche_dashboard' %}">Visite mediche →</a>
+        </div>
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_visite vuoto="Nessuna visita scaduta o in scadenza nei prossimi 60 giorni." %}
+      </section>
+      {% endif %}
+      <section class="hr-card hrg-box">
+        <div class="hrg-box-head">
+          <span class="hrg-box-title">🔁 Cambi mansione{% if cruscotto.cambi_ritardo %} <span class="hrg-pill hrg-pill-danger">{{ cruscotto.cambi_ritardo }} in ritardo</span>{% endif %}</span>
+          {% if can_admin or can_view_hr %}<a class="hrg-box-link" href="{% url 'anagrafica:cambi_mansione' %}">Piani di adeguamento →</a>{% endif %}
+        </div>
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_cambi vuoto="Nessun adempimento aperto per cambi mansione." etichetta_data="entro il" %}
+      </section>
+      <section class="hr-card hrg-box">
+        <div class="hrg-box-head">
+          <span class="hrg-box-title">🎓 Qualifiche e abilitazioni</span>
+          <a class="hrg-box-link" href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica">Scadenzario →</a>
+        </div>
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_qualifiche vuoto="Nessuna qualifica scaduta o in scadenza nei prossimi 60 giorni." %}
+      </section>
+      <section class="hr-card hrg-box">
+        <div class="hrg-box-head">
+          <span class="hrg-box-title">👥 Movimenti di personale</span>
+          <a class="hrg-box-link" href="{% url 'anagrafica:dipendenti_list' %}">Dipendenti →</a>
+        </div>
+        <ul class="hrg-righe">
+          {% for p in cruscotto.assunti_30 %}
+          <li><a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' p.id %}"><span>{{ p.nominativo }}<small>Assunzione · {{ p.mansione|default:"mansione da definire" }}</small></span><span class="hrg-pill hrg-pill-ok">{{ p.data_assunzione|date:"d/m" }}</span></a></li>
+          {% endfor %}
+          {% for p in cruscotto.cessati_30 %}
+          <li><a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' p.id %}"><span>{{ p.nominativo }}<small>Cessazione</small></span><span class="hrg-pill">{{ p.data_cessazione|date:"d/m" }}</span></a></li>
+          {% endfor %}
+          {% for a in cruscotto.programmati %}
+          <li><a class="hrg-riga" href="{% url 'anagrafica:dipendente_detail' a.legacy_anagrafica_id %}"><span>{{ a.nominativo }}<small>Spostamento programmato · {{ a.mansione|default:a.reparto }}</small></span><span class="hrg-pill hrg-pill-warn">{{ a.data_inizio|date:"d/m" }}</span></a></li>
+          {% endfor %}
+          {% if not cruscotto.assunti_30 and not cruscotto.cessati_30 and not cruscotto.programmati %}
+          <li class="hrg-vuoto">Nessun ingresso, uscita o spostamento negli ultimi 30 giorni.</li>
+          {% endif %}
+        </ul>
+      </section>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- ── Widget: KPI ── -->
   <div class="ana-widget" data-wid="kpi">
@@ -227,6 +335,11 @@ body.theme-dark .hr-goto-title { color:var(--text-light); }
         <a class="hr-goto-pill" href="{% url 'anagrafica:scadenzario' %}"><span class="hr-goto-ico">📅</span> Scadenzario</a>
         <a class="hr-goto-pill" href="{% url 'anagrafica:organigramma' %}"><span class="hr-goto-ico">🏛️</span> Organigramma</a>
         <a class="hr-goto-pill" href="{% url 'anagrafica:qualifiche_dashboard' %}"><span class="hr-goto-ico">✅</span> Cruscotto qualifiche</a>
+        <a class="hr-goto-pill" href="{% url 'anagrafica:libretto_sanitario_generale' %}"><span class="hr-goto-ico">📋</span> Libretto sanitario</a>
+        {% if can_admin or can_view_hr %}
+        <a class="hr-goto-pill" href="{% url 'anagrafica:cambi_mansione' %}"><span class="hr-goto-ico">🔁</span> Cambi mansione</a>
+        {% endif %}
+        <a class="hr-goto-pill" href="{% url 'anagrafica:reportistica_index' %}"><span class="hr-goto-ico">📄</span> Reportistica</a>
         {% if can_view_formazione %}
         <a class="hr-goto-pill" href="{% url 'anagrafica:formazione_dashboard' %}"><span class="hr-goto-ico">📘</span> Formazione</a>
         {% endif %}
@@ -253,9 +366,12 @@ body.theme-dark .hr-goto-title { color:var(--text-light); }
 
 <script>
 (function () {
-  var STORAGE_KEY = 'ana_dash_prefs_v1';
+  // v2: nuove sezioni del cruscotto HR, l'ordine salvato prima non le conosceva.
+  var STORAGE_KEY = 'ana_dash_prefs_v2';
   var WIDGET_LABELS = {
     todo: 'Cose da gestire',
+    conformita: 'Stato di conformità',
+    evidenza: 'In evidenza',
     kpi:  'KPI — Metriche principali',
     vai:  'Vai a — sottomoduli HR'
   };

@@ -41,6 +41,8 @@ class Dipendente:
     # una riga sola, ma formazione, visite e qualifiche possono essere
     # agganciate a uno qualsiasi degli id fusi. Vuoto = solo ``id``.
     ids: tuple[int, ...] = ()
+    # Area aziendale (FK) della scheda: requisiti di area e simulazione del cambio mansione.
+    area_aziendale_id: int | None = None
 
     @property
     def tutti_gli_id(self) -> tuple[int, ...]:
@@ -274,6 +276,7 @@ def carica_dipendenti() -> list[Dipendente]:
             titolo_studio=(civ.get_titolo_studio_display() if civ and civ.titolo_studio else ""),
             attivo_legacy=bool(row.get("attivo", True)),
             ids=fusi,
+            area_aziendale_id=az.area_aziendale_id if az else None,
         ))
     out.sort(key=lambda d: d.nominativo.casefold())
     return out

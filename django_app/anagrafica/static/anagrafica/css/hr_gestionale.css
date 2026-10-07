@@ -1,0 +1,99 @@
+/* HR gestionale — componenti del cruscotto HR e del quadro cambi mansione.
+ *
+ * Usato sia dentro il guscio `.fmd` (formazione_design.css, ne eredita i token
+ * --fmd-*) sia nella dashboard HR, che non ha `.fmd`: ogni token ha quindi un
+ * valore di riserva e il tema scuro non dipende da `.fmd`. Prefisso `hrg-` per
+ * non collidere con `_hr_restyle.html` (che usa `hr-`) né con i CSS globali.
+ */
+
+/* ── KPI cliccabili ─────────────────────────────────────────────────────── */
+.hrg-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin: 4px 0 16px; }
+.hrg-kpi {
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 12px;
+  background: #fff; border: 1px solid var(--fmd-line, #e7edf3); box-shadow: var(--fmd-card-sh, 0 1px 3px rgba(12,37,69,.05), 0 6px 18px rgba(12,37,69,.045));
+  color: var(--fmd-ink, #2d3a55); text-decoration: none; min-width: 0;
+}
+a.hrg-kpi:hover { border-color: var(--fmd-cyan, #1f87cd); }
+.hrg-kpi-l { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--fmd-muted, #6b7a90); }
+.hrg-kpi-v { font-size: 28px; font-weight: 800; line-height: 1.1; color: var(--fmd-navy, #0c2545); }
+.hrg-kpi-h { font-size: 12px; color: var(--fmd-muted, #6b7a90); }
+.hrg-kpi-ok { border-left: 4px solid #16a34a; }
+.hrg-kpi-warn { border-left: 4px solid #d97706; }
+.hrg-kpi-danger { border-left: 4px solid #dc2626; }
+.hrg-kpi-danger .hrg-kpi-v { color: #b91c1c; }
+
+/* ── Filtri a pillola ───────────────────────────────────────────────────── */
+.hrg-filtri { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.hrg-filtro { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--fmd-line, #e7edf3); background: #fff;
+  font-size: 12.5px; font-weight: 700; color: var(--fmd-ink, #2d3a55); text-decoration: none; }
+.hrg-filtro:hover { border-color: var(--fmd-cyan, #1f87cd); }
+.hrg-filtro-on { background: var(--fmd-navy, #0c2545); border-color: var(--fmd-navy, #0c2545); color: #fff; }
+
+/* ── Pillole di stato ───────────────────────────────────────────────────── */
+.hrg-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+  font-weight: 800; white-space: nowrap; background: #eef2f7; color: #334155; }
+.hrg-pill-ok { background: #dcfce7; color: #166534; }
+.hrg-pill-warn { background: #fef3c7; color: #92400e; }
+.hrg-pill-danger { background: #fee2e2; color: #991b1b; }
+
+/* ── Quadro cambi mansione ──────────────────────────────────────────────── */
+.hrg-cm-lista { display: grid; gap: 12px; }
+.hrg-cm { padding: 14px 16px; }
+.hrg-cm-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.hrg-cm-nome { font-size: 15px; font-weight: 800; color: var(--fmd-navy, #0c2545); text-decoration: none; }
+.hrg-cm-nome:hover { text-decoration: underline; }
+.hrg-cm-sub { font-size: 12px; color: var(--fmd-muted, #6b7a90); margin-top: 2px; }
+.hrg-cm-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.hrg-cm-voci { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.hrg-cm-voci li { display: grid; grid-template-columns: 120px 1fr auto; gap: 10px; align-items: start; padding: 7px 10px;
+  border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a; font-size: 13px; }
+.hrg-cm-voci li.hrg-cm-ritardo { background: #fef2f2; border-color: #fecaca; }
+.hrg-cm-voci li.hrg-cm-chiuso { background: #f8fafc; border-color: var(--fmd-line, #e7edf3); color: var(--fmd-muted, #6b7a90); }
+.hrg-cm-tipo { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--fmd-muted, #6b7a90); }
+.hrg-cm-testo small { display: block; font-size: 11.5px; color: var(--fmd-muted, #6b7a90); }
+.hrg-cm-data { font-size: 12px; font-weight: 700; white-space: nowrap; }
+@media (max-width: 640px) {
+  .hrg-cm-voci li { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* ── Cruscotto HR (dashboard anagrafica) ────────────────────────────────── */
+.hrg-dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.hrg-box { padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.hrg-box-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.hrg-box-title { font-size: 14px; font-weight: 800; color: var(--fmd-navy, #0c2545); display: flex; align-items: center; gap: 8px; }
+.hrg-box-link { font-size: 12px; font-weight: 700; color: var(--fmd-cyan, #1f87cd); text-decoration: none; white-space: nowrap; }
+.hrg-box-link:hover { text-decoration: underline; }
+.hrg-righe { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.hrg-riga { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 8px;
+  font-size: 13px; color: var(--fmd-ink, #2d3a55); text-decoration: none; }
+a.hrg-riga:hover { background: #f1f5f9; }
+.hrg-riga small { display: block; font-size: 11.5px; color: var(--fmd-muted, #6b7a90); }
+.hrg-vuoto { font-size: 13px; color: var(--fmd-muted, #6b7a90); padding: 6px 8px; }
+.hrg-barra { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: #eef2f7; }
+.hrg-barra span { display: block; height: 100%; }
+.hrg-barra-ok { background: #16a34a; }
+.hrg-barra-warn { background: #d97706; }
+.hrg-barra-ko { background: #dc2626; }
+.hrg-barra-mancante { background: #94a3b8; }
+.hrg-legenda { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--fmd-muted, #6b7a90); }
+.hrg-legenda i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+/* ── Tema scuro ─────────────────────────────────────────────────────────── */
+body.theme-dark .hrg-kpi,
+body.theme-dark .hrg-filtro { background: var(--surface); border-color: var(--border); color: var(--text); box-shadow: none; }
+body.theme-dark .hrg-kpi-v,
+body.theme-dark .hrg-cm-nome,
+body.theme-dark .hrg-box-title { color: var(--text); }
+body.theme-dark .hrg-kpi-danger .hrg-kpi-v { color: #fca5a5; }
+body.theme-dark .hrg-filtro-on { background: #1f87cd; border-color: #1f87cd; color: #fff; }
+body.theme-dark .hrg-pill { background: rgba(148,163,184,.18); color: var(--text-mid); }
+body.theme-dark .hrg-pill-ok { background: rgba(34,197,94,.18); color: #86efac; }
+body.theme-dark .hrg-pill-warn { background: rgba(245,158,11,.18); color: #fcd34d; }
+body.theme-dark .hrg-pill-danger { background: rgba(239,68,68,.2); color: #fca5a5; }
+body.theme-dark .hrg-cm-voci li { background: rgba(245,158,11,.10); border-color: rgba(245,158,11,.30); }
+body.theme-dark .hrg-cm-voci li.hrg-cm-ritardo { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.35); }
+body.theme-dark .hrg-cm-voci li.hrg-cm-chiuso { background: var(--surface-alt, rgba(255,255,255,.04)); border-color: var(--border); }
+body.theme-dark a.hrg-riga:hover { background: var(--surface-alt, rgba(255,255,255,.05)); }
+body.theme-dark .hrg-riga { color: var(--text); }
+body.theme-dark .hrg-barra { background: rgba(148,163,184,.2); }
+body.theme-dark .hrg-box-link { color: #7dd3fc; }

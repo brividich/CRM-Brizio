@@ -184,7 +184,7 @@ def _scadenziario_legale(params: ReportParams) -> ReportResult:
 
     ctx = in_forza = None
     try:
-        from anagrafica.reportistica import calcoli
+        from anagrafica.services import requisiti as calcoli
         from anagrafica.reportistica.dati import Contesto, Perimetro
 
         # Stato calcolato alla data (non la cache delle scadenze), personale in forza.
