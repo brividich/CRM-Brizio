@@ -2,8 +2,12 @@
 
 Servono a dare un nome leggibile alle righe di «Verifica OID» senza AI. Non
 rendono valido un OID: nel profilo entra solo cio' che l'apparato ha risposto.
-Ogni voce: (nome, unita, fattore, aggregazione, etichette).
+Ogni voce: (nome, unita, fattore, aggregazione, etichette). Gli OID non elencati
+qui vengono cercati nel catalogo generato dalle MIB ufficiali (data/oid_mib.json).
 """
+import json
+from functools import lru_cache
+from pathlib import Path
 
 OPER_STATUS = "1=Su, 2=Giù, 3=Test, 4=Sconosciuto, 5=Dormiente, 6=Assente, 7=Livello inferiore giù"
 HP_SENSORE = "1=Sconosciuto, 2=Guasto, 3=Attenzione, 4=Ok, 5=Assente"
@@ -128,8 +132,45 @@ SOGLIE = {
 }
 
 
+CATALOGO_MIB = Path(__file__).resolve().parent / "data" / "oid_mib.json"
+
+
+@lru_cache(maxsize=1)
+def catalogo_mib() -> dict:
+    """OID numerici dalle MIB ufficiali (generato da tools/snmp/genera_catalogo_mib.py)."""
+    try:
+        return json.loads(CATALOGO_MIB.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _da_mib(oid: str, modalita: str) -> dict | None:
+    mib = catalogo_mib()
+    voce, suffisso = mib.get(oid), ""
+    if voce is None and modalita == "GET":
+        genitore, _, indice = oid.rpartition(".")
+        voce = mib.get(genitore)
+        if voce is not None and voce.get("modalita") == "WALK":
+            suffisso = f" (riga {indice})"
+        elif voce is not None:
+            voce = None
+    if voce is None:
+        return None
+    descrizione = voce.get("descrizione") or ""
+    return {
+        "nome": (voce["nome"] + suffisso)[:100],
+        "unita": (voce.get("unita") or "")[:24],
+        "fattore": "1",
+        "aggregazione": "PRIMO" if modalita == "GET" else "MASSIMO",
+        "etichette": voce.get("etichette") or "",
+        "avviso_sopra": "", "critico_sopra": "",
+        "motivo": f"{descrizione} ({voce.get('modulo', 'MIB')})"[:200],
+        "fonte": "mib",
+    }
+
+
 def proposta_nota(oid: str, modalita: str) -> dict | None:
-    """Proposta dal catalogo per un OID verificato, o None se sconosciuto."""
+    """Proposta per un OID verificato: nomi curati, poi MIB ufficiale; None se sconosciuto."""
     voce = OID_NOTI.get(oid)
     suffisso = ""
     if voce is None and modalita == "GET":
@@ -138,7 +179,7 @@ def proposta_nota(oid: str, modalita: str) -> dict | None:
         if voce is not None:
             suffisso = f" (riga {indice})"
     if voce is None:
-        return None
+        return _da_mib(oid, modalita)
     proposta = dict(zip(CAMPI, voce))
     proposta["nome"] = (proposta["nome"] + suffisso)[:100]
     if modalita == "GET":
@@ -146,4 +187,7 @@ def proposta_nota(oid: str, modalita: str) -> dict | None:
     avviso, critico = SOGLIE.get(oid, ("", ""))
     proposta.update({"avviso_sopra": avviso, "critico_sopra": critico,
                      "motivo": "Nome dal catalogo MIB", "fonte": "catalogo"})
+    ufficiale = _da_mib(oid, modalita)
+    if ufficiale:
+        proposta["motivo"] = f"{ufficiale['nome']}: {ufficiale['motivo']}"[:200]
     return proposta
