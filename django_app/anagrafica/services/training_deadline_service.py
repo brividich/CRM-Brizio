@@ -1,18 +1,12 @@
 """Service layer per il calcolo delle scadenze formazione.
 
-NON usare signal per il ricalcolo effettivo — i signal settano solo needs_refresh=True.
-Questa funzione è l'unica fonte di verità per TrainingDeadline.
-
-Copertura MVP PATCH-06:
-  - TrainingEmployeeRecord (idoneo=True): calcola stato da data_scadenza.
-  - TrainingRequirementRule con legacy_anagrafica_id diretto: MAI_FREQUENTATO se nessun record.
-  - TODO PATCH-09: cross-reference mansione/area/ruolo con AnagraficaDipendente.
+Il calcolo vero e' in ``services.requisiti`` (motore unico) e la scrittura in
+``services.scadenze``: qui restano la regola di stato ``_compute_stato`` e
+``refresh_deadlines`` per i chiamanti storici.
 """
 from __future__ import annotations
 
 from datetime import date
-
-from django.utils import timezone
 
 
 def _compute_stato(
@@ -37,150 +31,16 @@ def refresh_deadlines(
     legacy_id: int | None = None,
     corso_id: int | None = None,
 ) -> int:
-    """Ricalcola TrainingDeadline per i filtri indicati.
+    """Ricalcola TrainingDeadline con il motore unico dei requisiti.
 
-    Se legacy_id e corso_id sono None ricalcola tutti i record.
-    Restituisce il numero di record aggiornati/creati.
+    Delegato a :func:`anagrafica.services.scadenze.ricalcola_formazione`: requisiti
+    da mansione, fattori di rischio, area, ruoli, regole in vigore e processi,
+    stato alla data, righe non piu' valide cancellate. Con ``legacy_id`` si
+    ricalcola solo quella persona; ``corso_id`` da solo ricalcola tutti (un corso
+    tocca le persone di piu' fonti, ricalcolarle tutte e' l'unico modo corretto).
+    Restituisce il numero di righe valide dopo il ricalcolo.
     """
-    from django.db.models import Q  # noqa: PLC0415
+    from .scadenze import ricalcola_formazione  # noqa: PLC0415
 
-    from anagrafica.models_formazione import (  # noqa: PLC0415
-        TrainingCourse,
-        TrainingDeadline,
-        TrainingEmployeeRecord,
-        TrainingRequirementRule,
-    )
-
-    # localdate() e non date.today(): la seconda legge la data del sistema
-    # operativo, che sotto IIS puo' essere UTC — a cavallo di mezzanotte una
-    # scadenza risulterebbe ancora aperta (o gia' scaduta) di un giorno.
-    today = timezone.localdate()
-    updated = 0
-
-    # ── 1. Ricalcola da record completamento ────────────────────────────────
-    rec_qs = (
-        TrainingEmployeeRecord.objects
-        .filter(idoneo=True)
-        .select_related("corso")
-    )
-    if legacy_id is not None:
-        rec_qs = rec_qs.filter(legacy_anagrafica_id=legacy_id)
-    if corso_id is not None:
-        rec_qs = rec_qs.filter(corso_id=corso_id)
-
-    # Per (dipendente, corso) teniamo solo il record più recente (ultimo completamento)
-    pairs: dict[tuple[int, int], TrainingEmployeeRecord] = {}
-    for rec in rec_qs.order_by("legacy_anagrafica_id", "corso_id", "-data_completamento"):
-        key = (rec.legacy_anagrafica_id, rec.corso_id)
-        if key not in pairs:
-            pairs[key] = rec
-
-    # Indice regole dirette per (legacy_id, corso_id) — per is_required
-    direct_rule_map: dict[tuple[int, int], TrainingRequirementRule] = {}
-    rules_idx_qs = TrainingRequirementRule.objects.filter(
-        is_active=True,
-        legacy_anagrafica_id__isnull=False,
-        corso__isnull=False,
-    ).select_related()
-    if legacy_id is not None:
-        rules_idx_qs = rules_idx_qs.filter(legacy_anagrafica_id=legacy_id)
-    if corso_id is not None:
-        rules_idx_qs = rules_idx_qs.filter(corso_id=corso_id)
-    for r in rules_idx_qs:
-        direct_rule_map[(r.legacy_anagrafica_id, r.corso_id)] = r
-
-    # Requisiti MOD.128: (legacy_id, corso) resi obbligatori dai processi qualificati.
-    process_pairs: dict[tuple[int, int], TrainingCourse] = {}
-    try:
-        from .mpq_formazione import coppie_richieste_da_processo
-        for _lid, _corso in coppie_richieste_da_processo(corso_id=corso_id, legacy_id=legacy_id):
-            process_pairs[(_lid, _corso.pk)] = _corso
-    except Exception:
-        process_pairs = {}
-    handled_rule_keys: set[tuple[int, int]] = set()
-
-    for (lid, cid), rec in pairs.items():
-        stato, giorni = _compute_stato(rec.data_scadenza, rec.corso.validita_mesi, today)
-        rule = direct_rule_map.get((lid, cid))
-        TrainingDeadline.objects.update_or_create(
-            corso_id=cid,
-            legacy_anagrafica_id=lid,
-            defaults={
-                "requirement_rule": rule,
-                "assignment": None,
-                "ultimo_completamento": rec,
-                "data_ultimo_completamento": rec.data_completamento,
-                "data_scadenza": rec.data_scadenza,
-                "stato_scadenza": stato,
-                "giorni_alla_scadenza": giorni,
-                "is_required": (rule.is_mandatory if rule else False) or ((lid, cid) in process_pairs),
-                "needs_refresh": False,
-                "last_recalculation_source": "refresh_deadlines",
-            },
-        )
-        updated += 1
-
-    # ── 2. Regole per singolo dipendente senza record completamento ──────────
-    rules_qs = TrainingRequirementRule.objects.filter(
-        is_active=True,
-        legacy_anagrafica_id__isnull=False,
-    ).select_related("corso", "piano")
-    if legacy_id is not None:
-        rules_qs = rules_qs.filter(legacy_anagrafica_id=legacy_id)
-
-    for rule in rules_qs:
-        corsi: list[TrainingCourse] = []
-        if rule.corso_id:
-            corsi.append(rule.corso)
-        elif rule.piano_id:
-            corsi = list(TrainingCourse.objects.filter(piano_id=rule.piano_id, is_active=True))
-
-        for corso in corsi:
-            if corso_id is not None and corso.pk != corso_id:
-                continue
-            key = (rule.legacy_anagrafica_id, corso.pk)
-            if key in pairs:
-                continue  # Già gestito con il record completamento
-
-            TrainingDeadline.objects.update_or_create(
-                corso=corso,
-                legacy_anagrafica_id=rule.legacy_anagrafica_id,
-                defaults={
-                    "requirement_rule": rule,
-                    "assignment": None,
-                    "ultimo_completamento": None,
-                    "data_ultimo_completamento": None,
-                    "data_scadenza": None,
-                    "stato_scadenza": "MAI_FREQUENTATO",
-                    "giorni_alla_scadenza": None,
-                    "is_required": rule.is_mandatory or (key in process_pairs),
-                    "needs_refresh": False,
-                    "last_recalculation_source": "refresh_deadlines",
-                },
-            )
-            handled_rule_keys.add(key)
-            updated += 1
-
-    # ── 3. Requisiti MOD.128 senza regola né record: obbligo dal processo ────
-    for (lid, cid), corso in process_pairs.items():
-        if (lid, cid) in pairs or (lid, cid) in handled_rule_keys:
-            continue
-        TrainingDeadline.objects.update_or_create(
-            corso=corso,
-            legacy_anagrafica_id=lid,
-            defaults={
-                "requirement_rule": None,
-                "assignment": None,
-                "ultimo_completamento": None,
-                "data_ultimo_completamento": None,
-                "data_scadenza": None,
-                "stato_scadenza": "MAI_FREQUENTATO",
-                "giorni_alla_scadenza": None,
-                "is_required": True,
-                "needs_refresh": False,
-                "last_recalculation_source": "refresh_deadlines",
-            },
-        )
-        updated += 1
-
-    return updated
+    esito = ricalcola_formazione([legacy_id] if legacy_id is not None else None)
+    return esito["righe"]

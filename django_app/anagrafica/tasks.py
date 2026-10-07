@@ -74,6 +74,24 @@ def run_formazione_session_reminders(days: list | None = None) -> dict:
         raise
 
 
+def run_ricalcolo_scadenze() -> dict:
+    """Ricalcolo notturno delle scadenze HR dal motore unico (formazione + visite).
+
+    Senza questo la cache ``TrainingDeadline`` restava ferma all'ultimo ricalcolo
+    manuale: scadenzario, KPI e promemoria del mattino mostravano stati vecchi.
+    """
+    from anagrafica.services.cambio_mansione import aggiorna_piani
+    from anagrafica.services.scadenze import ricalcola_tutto
+
+    try:
+        # Prima le scadenze, poi i piani dei cambi mansione: un corso o una visita
+        # appena registrati chiudono da soli l'adempimento corrispondente.
+        return {"ok": True, **ricalcola_tutto(), "piani_cambio_mansione": aggiorna_piani()}
+    except Exception:
+        logger.exception("run_ricalcolo_scadenze: eccezione inattesa")
+        raise
+
+
 def run_visite_expiry_reminders(days: int = 60) -> dict:
     """Reminder visite mediche scadute/in scadenza (digest HR + notifica al dipendente).
 

@@ -2131,6 +2131,81 @@ class DipendenteAssegnazione(models.Model):
         return 1
 
 
+class AdempimentoCambioMansione(models.Model):
+    """Una cosa da fare perché la persona cambia mansione: il «piano di adeguamento».
+
+    Nasce dal confronto fra i requisiti della mansione attuale e di quella di
+    destinazione (``services.cambio_mansione``) quando lo spostamento viene
+    registrato — anche se programmato, così HR prepara visita, formazione e DPI
+    prima della decorrenza. D.Lgs. 81/2008: visita medica in occasione del cambio
+    della mansione (art. 41 c. 2 lett. d), formazione al cambiamento di mansioni
+    (art. 37 c. 4 lett. b), DPI adeguati ai rischi (art. 77).
+
+    Si chiude **da solo** quando il requisito risulta soddisfatto (visita
+    registrata, corso completato, DPI consegnato, SDS lette: lo verifica il motore
+    dei requisiti, ogni notte e alla consultazione), oppure a mano come «non
+    necessario» con un motivo (es. il medico competente non ritiene la visita).
+    """
+
+    TIPO_VISITA = "VISITA"
+    TIPO_FORMAZIONE = "FORMAZIONE"
+    TIPO_DPI = "DPI"
+    TIPO_SDS = "SDS"
+    TIPO_CHOICES = [
+        (TIPO_VISITA, "Visita medica"),
+        (TIPO_FORMAZIONE, "Formazione"),
+        (TIPO_DPI, "DPI"),
+        (TIPO_SDS, "Schede di sicurezza"),
+    ]
+    STATO_APERTO = "APERTO"
+    STATO_COMPLETATO = "COMPLETATO"
+    STATO_NON_NECESSARIO = "NON_NECESSARIO"
+    STATO_CHOICES = [
+        (STATO_APERTO, "Da fare"),
+        (STATO_COMPLETATO, "Fatto"),
+        (STATO_NON_NECESSARIO, "Non necessario"),
+    ]
+
+    assegnazione = models.ForeignKey(
+        DipendenteAssegnazione, on_delete=models.CASCADE, related_name="adempimenti",
+    )
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    tipo = models.CharField(max_length=12, choices=TIPO_CHOICES)
+    # Oggetto del requisito: tipo visita, corso o categoria DPI (secondo ``tipo``).
+    # Null = adempimento generico (es. visita al cambio mansione senza un tipo preciso).
+    riferimento_id = models.IntegerField(null=True, blank=True)
+    descrizione = models.CharField(max_length=300)
+    motivo = models.CharField(max_length=300, blank=True, default="",
+                              help_text="Perché è dovuto (nuovo rischio, mansione, regola…).")
+    obbligatorio = models.BooleanField(default=True)
+    entro_il = models.DateField(help_text="Di norma la decorrenza dello spostamento.")
+    stato = models.CharField(max_length=15, choices=STATO_CHOICES, default=STATO_APERTO, db_index=True)
+    chiuso_il = models.DateTimeField(null=True, blank=True)
+    chiuso_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    chiusura_automatica = models.BooleanField(default=False)
+    chiusura_nota = models.CharField(max_length=300, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["stato", "entro_il", "tipo", "descrizione"]
+        verbose_name = "Adempimento cambio mansione"
+        verbose_name_plural = "Adempimenti cambio mansione"
+        indexes = [models.Index(fields=["stato", "entro_il"])]
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] {self.get_tipo_display()}: {self.descrizione}"
+
+    @property
+    def aperto(self) -> bool:
+        return self.stato == self.STATO_APERTO
+
+    @property
+    def in_ritardo(self) -> bool:
+        return self.aperto and self.entro_il < timezone.localdate()
+
+
 class StoricoContratto(models.Model):
     legacy_anagrafica_id = models.IntegerField(null=True, blank=True, db_index=True)
     tax_code = models.CharField(max_length=16, blank=True, default="", db_index=True)
@@ -2728,10 +2803,15 @@ class VisitaMedica(models.Model):
         related_name="visite",
     )
     data_svolgimento = models.DateField()
+    # Scadenza EFFETTIVA: quella del tipo, anticipata se la mansione richiede una
+    # periodicità più stretta (vedi scadenza_nota, services.scadenze.ricalcola_visite).
     data_scadenza = models.DateField(
         null=True, blank=True,
         help_text="Calcolata automaticamente: data_svolgimento + durata_mesi del tipo.",
     )
+    # Perché la scadenza è anticipata rispetto al tipo della visita fatta (ricalcolo
+    # prudente, services.scadenze.ricalcola_visite). Vuoto = scadenza del tipo.
+    scadenza_nota = models.CharField(max_length=300, blank=True, default="")
     esito = models.CharField(
         max_length=20, choices=Esito.choices, default=Esito.IDONEO
     )
@@ -2802,7 +2882,14 @@ class VisitaMedica(models.Model):
         if self.data_svolgimento and self.tipo_id:
             durata = self.tipo.durata_mesi or 0
             self.data_scadenza = _add_months(self.data_svolgimento, durata) if durata > 0 else None
+            self.scadenza_nota = ""
         super().save(*args, **kwargs)
+        # La scadenza del tipo va confrontata con la periodicità richiesta dalla mansione
+        # (ricalcolo prudente): lo fa il motore dei requisiti a transazione conclusa.
+        if self.legacy_anagrafica_id:
+            from .services.scadenze import ricalcola_dopo_commit
+
+            ricalcola_dopo_commit([self.legacy_anagrafica_id])
 
     @property
     def is_scaduta(self) -> bool:

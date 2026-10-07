@@ -33,7 +33,7 @@ _STATI_COPERTI = {"VALIDO", "IN_SCADENZA_30", "IN_SCADENZA_90", "UNA_TANTUM"}
 
 def _competenze(params: ReportParams) -> ReportResult:
     from anagrafica.models import DipendenteQualifica
-    from anagrafica.reportistica import calcoli
+    from anagrafica.services import requisiti as calcoli
     from anagrafica.reportistica.dati import Contesto, Perimetro
 
     result = ReportResult()

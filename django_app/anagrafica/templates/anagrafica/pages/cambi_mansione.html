@@ -1,0 +1,84 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Cambi mansione | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'anagrafica/css/hr_gestionale.css' %}?v=1">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:index' %}">Anagrafica</a><span class="fmd-sep"> / </span><span class="fmd-cur">Cambi mansione</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Cambi mansione</h1>
+        <p class="fmd-ph-sub">Cosa va fatto per chi cambia mansione: visita medica (D.Lgs. 81/2008 art. 41 c.2 lett. d), formazione (art. 37 c.4 lett. b), DPI e schede di sicurezza. Gli adempimenti si chiudono da soli quando il portale registra la visita, il corso o la consegna.</p>
+      </div>
+    </div>
+
+    <div class="hrg-kpis">
+      <a class="hrg-kpi{% if n_ritardo %} hrg-kpi-danger{% else %} hrg-kpi-ok{% endif %}" href="?stato=ritardo">
+        <span class="hrg-kpi-l">In ritardo</span><span class="hrg-kpi-v">{{ n_ritardo }}</span><span class="hrg-kpi-h">oltre la decorrenza</span>
+      </a>
+      <a class="hrg-kpi{% if n_aperti %} hrg-kpi-warn{% endif %}" href="?stato=aperti">
+        <span class="hrg-kpi-l">Da fare</span><span class="hrg-kpi-v">{{ n_aperti }}</span><span class="hrg-kpi-h">adempimenti aperti</span>
+      </a>
+      <a class="hrg-kpi" href="?stato=aperti">
+        <span class="hrg-kpi-l">Persone coinvolte</span><span class="hrg-kpi-v">{{ n_persone }}</span><span class="hrg-kpi-h">con almeno un adempimento</span>
+      </a>
+    </div>
+
+    <div class="hrg-filtri" role="group" aria-label="Filtro">
+      <a href="?stato=aperti" class="hrg-filtro{% if filtro == 'aperti' %} hrg-filtro-on{% endif %}">Da fare</a>
+      <a href="?stato=ritardo" class="hrg-filtro{% if filtro == 'ritardo' %} hrg-filtro-on{% endif %}">In ritardo</a>
+      <a href="?stato=tutti" class="hrg-filtro{% if filtro == 'tutti' %} hrg-filtro-on{% endif %}">Tutti</a>
+    </div>
+
+    {% if gruppi %}
+    <div class="hrg-cm-lista">
+      {% for g in gruppi %}
+      <section class="fmd-panel hrg-cm">
+        <div class="hrg-cm-head">
+          <div>
+            <a class="hrg-cm-nome" href="{% url 'anagrafica:dipendente_detail' g.legacy_id %}">{{ g.nome }}</a>
+            <div class="hrg-cm-sub">Mansione «{{ g.assegnazione.mansione|default:"—" }}» dal {{ g.assegnazione.data_inizio|date:"d-m-Y" }} · {{ g.assegnazione.stato_label }}</div>
+          </div>
+          <div class="hrg-cm-badges">
+            {% if g.ritardo %}<span class="hrg-pill hrg-pill-danger">{{ g.ritardo }} in ritardo</span>{% endif %}
+            {% if g.aperti %}<span class="hrg-pill hrg-pill-warn">{{ g.aperti }} da fare</span>{% else %}<span class="hrg-pill hrg-pill-ok">Completato</span>{% endif %}
+          </div>
+        </div>
+        <ul class="hrg-cm-voci">
+          {% for ad in g.voci %}
+          <li class="{% if not ad.aperto %}hrg-cm-chiuso{% elif ad.in_ritardo %}hrg-cm-ritardo{% endif %}">
+            <span class="hrg-cm-tipo">{{ ad.get_tipo_display }}</span>
+            <span class="hrg-cm-testo">
+              {% if ad.tipo == "VISITA" and ad.riferimento_id and not can_view_visite %}Visita medica richiesta dalla nuova mansione{% else %}{{ ad.descrizione }}{% endif %}
+              {% if ad.motivo %}<small>{{ ad.motivo }}</small>{% endif %}
+              {% if ad.chiusura_nota %}<small>{{ ad.get_stato_display }}: {{ ad.chiusura_nota }}</small>{% endif %}
+            </span>
+            <span class="hrg-cm-data">{% if ad.aperto %}entro il {{ ad.entro_il|date:"d-m-Y" }}{% else %}{{ ad.chiuso_il|date:"d-m-Y" }}{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="fmd-panel fmd-empty">
+      <span class="fmd-et">{% if filtro == 'tutti' %}Nessun cambio mansione con adempimenti{% else %}Niente da fare{% endif %}</span>
+      <span class="fmd-em">Il piano nasce quando si registra uno spostamento con una nuova mansione (scheda dipendente → Spostamenti).</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

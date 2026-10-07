@@ -75,10 +75,15 @@ class CoperturaTests(TestCase):
 class ScadenzeTests(TestCase):
     def test_refresh_crea_deadline_obbligatoria(self):
         from .services.training_deadline_service import refresh_deadlines
+        from core.legacy_models import AnagraficaDipendente
+
         c = _corso("C5")
-        _processo_con_corso(c, legacy_ids=(77,))
+        # La cache delle scadenze si costruisce per le persone in anagrafica (motore unico):
+        # un id senza anagrafica non avrebbe nome ne' stato di servizio.
+        dip = AnagraficaDipendente.objects.create(nome="Mario", cognome="Rossi", aliasusername="mrossi.mpq")
+        _processo_con_corso(c, legacy_ids=(dip.id,))
         refresh_deadlines(corso_id=c.id)
-        d = TrainingDeadline.objects.get(legacy_anagrafica_id=77, corso=c)
+        d = TrainingDeadline.objects.get(legacy_anagrafica_id=dip.id, corso=c)
         self.assertTrue(d.is_required)
         self.assertEqual(d.stato_scadenza, "MAI_FREQUENTATO")
 
