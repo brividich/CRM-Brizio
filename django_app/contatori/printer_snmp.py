@@ -2,7 +2,7 @@
 import asyncio
 import functools
 
-from .snmp import SNMPError, _testo, costruisci_credenziali
+from .snmp import SNMPError, _testo, costruisci_credenziali, descrivi_errore
 
 LIFE_COUNT = "1.3.6.1.2.1.43.10.2.1.4"
 COUNTER_UNIT = "1.3.6.1.2.1.43.10.2.1.3"
@@ -153,7 +153,7 @@ def leggi_stampante(dispositivo, *, community, port, timeout, version):
         if isinstance(risultato, Exception):
             if nome in COLONNE_FACOLTATIVE:
                 continue  # tipo/colore arricchiscono, non devono generare avvisi
-            errori[nome] = (str(risultato) or "Tempo di lettura superato")[:300]
+            errori[nome] = descrivi_errore(risultato)[:300]
         else:
             tabelle[nome] = risultato
     return interpreta_stampante(tabelle, errori)
