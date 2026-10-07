@@ -282,6 +282,7 @@
     window._AP_HAS_ORDINI  = {% if db_has_ordini %}true{% else %}false{% endif %};
     window._AP_HAS_ANOMALIE = {% if db_has_anomalie %}true{% else %}false{% endif %};
     window._AP_CAN_MANAGE_CONFIG = {% if can_manage_config %}true{% else %}false{% endif %};
+    window._AP_UPLOAD_MAX_MB = Number("{{ upload_max_mb|default:100 }}") || 100;
     window._AP_CONFIG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
     window._AP_API = {
       db_ordini: "{% url 'api_anomalie_db_ordini' %}",
@@ -373,7 +374,8 @@
     '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.csv'
   ]);
-  const ALLEGATI_MAX_SIZE = {{ upload_max_mb|default:100 }} * 1024 * 1024;
+  const ALLEGATI_MAX_MB = window._AP_UPLOAD_MAX_MB || 100;
+  const ALLEGATI_MAX_SIZE = ALLEGATI_MAX_MB * 1024 * 1024;
 
   /* ── Step 1: Selezione OP ── */
   const makeNewOpDraft = () => ({
@@ -798,7 +800,7 @@
     files.forEach(f => {
       if (!ALLEGATI_ALLOWED_EXT.has(fileExt(f.name))) errors.push(`${f.name || 'file'}: formato non supportato`);
       else if (Number(f.size || 0) <= 0) errors.push(`${f.name || 'file'}: file vuoto`);
-      else if (Number(f.size || 0) > ALLEGATI_MAX_SIZE) errors.push(`${f.name || 'file'}: supera {{ upload_max_mb|default:100 }} MB`);
+      else if (Number(f.size || 0) > ALLEGATI_MAX_SIZE) errors.push(`${f.name || 'file'}: supera ${ALLEGATI_MAX_MB} MB`);
       else ok.push(f);
     });
     return { ok, errors };
