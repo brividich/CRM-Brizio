@@ -25,7 +25,13 @@ OK, WARN, FAIL = "completed", "warning", "failed"
 STATUS_LABELS = {OK: "Riuscito", WARN: "Con avvisi", FAIL: "Fallito", "unknown": "Sconosciuto"}
 STATUS_TONES = {OK: "success", WARN: "warning", FAIL: "critical"}
 PERIODS = [(7, "7 giorni"), (30, "30 giorni"), (90, "90 giorni")]
-STALE_DAYS = 3  # un PC senza backup riuscito da più di 3 giorni va guardato
+STALE_DAYS = 3  # default: la soglia vera sta in Impostazioni (avvisi.backup.giorni)
+
+
+def stale_days():
+    from security.services.soc_settings import backup_stale_days
+
+    return backup_stale_days()
 STRIP_RUNS = 14  # esecuzioni mostrate nella striscia di ogni dispositivo
 
 
@@ -148,7 +154,8 @@ def overview(days=30, now=None):
             dev["jobs"].add(run["job"])
             dev["job_level"] = dev["job_level"] or run["job_level"]
 
-    device_rows = [_device_row(dev, now) for dev in devices.values()]
+    threshold = stale_days()
+    device_rows = [_device_row(dev, now, threshold) for dev in devices.values()]
     # Prima chi è in difficoltà: ultimo esito fallito, poi senza riuscito recente, poi tasso basso.
     device_rows.sort(key=lambda r: (r["last_status"] != FAIL, not r["stale"], r["rate"] if r["rate"] is not None else 100, r["name"].casefold()))
     job_rows = []
@@ -211,7 +218,7 @@ def overview(days=30, now=None):
     }
 
 
-def _device_row(dev, now):
+def _device_row(dev, now, threshold=STALE_DAYS):
     runs = sorted(dev["runs"], key=lambda r: r["at"])
     last = runs[-1]
     ok_runs = [r for r in runs if r["status"] == OK]
@@ -234,7 +241,8 @@ def _device_row(dev, now):
         "last_at": last["at"],
         "last_ok": last_ok,
         "days_since_ok": days_since_ok,
-        "stale": last_ok is None or days_since_ok > STALE_DAYS,
+        "stale": last_ok is None or days_since_ok > threshold,
+        "stale_days": threshold,
         "gb": sum(r["gb"] for r in runs if r["gb"] is not None) or None,
         "avg_minutes": (_mean([r["seconds"] for r in runs]) or 0) / 60 if _mean([r["seconds"] for r in runs]) else None,
         "job_level": dev["job_level"],
@@ -252,7 +260,7 @@ def device_detail(name, days=90, now=None):
     if not runs:
         return None
     dev = {"name": runs[0]["device"], "runs": runs, "jobs": {r["job"] for r in runs}, "job_level": any(r["job_level"] for r in runs)}
-    row = _device_row(dev, now)
+    row = _device_row(dev, now, stale_days())
     for run in runs:
         run["label"] = STATUS_LABELS.get(run["status"], run["status"])
         run["tone"] = STATUS_TONES.get(run["status"], "muted")

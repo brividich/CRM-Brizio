@@ -310,7 +310,7 @@ class HelpersAndCommandTests(NotificationBaseTest):
 
         notify_alert_created(alert)
 
-        self.assertIn(f"https://soc.example.test/security/alerts/{alert.pk}/", mail.outbox[0].body)
+        self.assertIn(f"https://soc.example.test/soc/alerts/{alert.pk}/", mail.outbox[0].body)
 
     def test_test_notification_command_sends(self):
         self._email_channel()

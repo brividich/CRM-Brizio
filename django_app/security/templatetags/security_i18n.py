@@ -5,6 +5,9 @@ register = template.Library()
 
 
 LABELS = {
+    "endpoint_threat": "Minaccia endpoint",
+    "endpoint_detections": "Rilevamenti endpoint",
+    "backup_job": "Job di backup",
     "acknowledged": "Preso in carico",
     "closed": "Chiuso",
     "critical": "Critico",

@@ -45,7 +45,7 @@
           <td class="sec-nowrap">{{ r.at|date:"d/m/Y H:i" }}</td>
           <td><span class="sec-badge sec-badge-{{ r.tone }}">{{ r.label }}</span>{% if r.objects_error %} <small class="bk-late">{{ r.objects_error }} in errore</small>{% endif %}</td>
           <td class="sec-title-cell"><strong>{{ r.record.job_name }}</strong><small>{{ r.vendor|capfirst|default:"—" }}{% if r.record.payload.nas_name %} · {{ r.record.payload.nas_name }}{% endif %}</small></td>
-          <td>{% for d in r.devices|slice:":6" %}<a href="{% url 'security:backup_device' %}?nome={{ d|urlencode }}">{{ d }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="sec-muted">—</span>{% endfor %}{% if r.devices|length > 6 %} <small class="sec-muted">e altri {{ r.devices|length|add:-6 }}</small>{% endif %}</td>
+          <td>{% for d in r.devices|slice:":6" %}<a href="{% url 'security:pc_detail' %}?nome={{ d|urlencode }}">{{ d }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="sec-muted">—</span>{% endfor %}{% if r.devices|length > 6 %} <small class="sec-muted">e altri {{ r.devices|length|add:-6 }}</small>{% endif %}</td>
           <td class="sec-num sec-nowrap">{% if r.gb is not None %}{{ r.gb|floatformat:1 }} GB{% else %}—{% endif %}</td>
           <td class="sec-num sec-nowrap">{% if r.minutes %}{{ r.minutes|floatformat:0 }} min{% else %}—{% endif %}</td>
           <td><small class="sec-muted">{{ r.record.source.name }}</small></td>

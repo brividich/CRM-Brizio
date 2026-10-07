@@ -33,7 +33,14 @@
       <a href="{% url 'security:admin_mailbox_sources_list' %}" {% if url_name|slice:':13' == 'admin_mailbox' %}class="active"{% endif %}>Caselle mail</a>
       <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' and url_name != 'admin_autoconfig' and url_name|slice:':13' != 'admin_mailbox' %}class="active"{% endif %}>Config</a>
       <a href="{% url 'security:admin_autoconfig' %}" {% if url_name == 'admin_autoconfig' %}class="active"{% endif %}>Autoconfig</a>
+      <a href="{% url 'security:soc_settings' %}" {% if url_name == 'soc_settings' %}class="active"{% endif %} title="Avvisi automatici e report programmato">Impostazioni</a>
       <a href="{% url 'security:help' %}" {% if url_name == 'help' or url_name == 'doc_detail' %}class="active"{% endif %}>Guida</a>
+    </div>
+    <div class="soc-nav-tools">
+      <a href="{% url 'security:my_work' %}" class="soc-nav-mine{% if url_name == 'my_work' %} active{% endif %}">Il mio lavoro</a>
+      <form method="get" action="{% url 'security:search' %}" role="search" class="soc-nav-search">
+        <input type="search" name="q" placeholder="Cerca PC, ticket, CVE…" aria-label="Cerca nel SOC" value="{% if url_name == 'search' %}{{ request.GET.q }}{% endif %}">
+      </form>
     </div>
   </nav>
   {% endwith %}
