@@ -1,0 +1,153 @@
+{% extends "security/_base_soc.html" %}
+{% load security_i18n l10n %}
+
+{% block title %}Backup | Security Center AI{% endblock %}
+{% block page_icon %}B{% endblock %}
+{% block page_marker %}Backup{% endblock %}
+{% block page_title %}Backup{% endblock %}
+
+{% block soc_content %}
+{% include "security/partials/backup_subnav.html" with active="overview" %}
+
+<div class="kpi-filters">
+  <div class="kpi-chips" role="group" aria-label="Periodo">
+    {% for value, label in periods %}<a class="kpi-chip{% if days == value %} active{% endif %}" href="?giorni={{ value }}{% if query %}&amp;q={{ query|urlencode }}{% endif %}">{{ label }}</a>{% endfor %}
+  </div>
+  <form class="bk-search" method="get" role="search">
+    <input type="hidden" name="giorni" value="{{ days }}">
+    <input type="search" name="q" value="{{ query }}" placeholder="Cerca PC, server o job" aria-label="Cerca PC, server o job">
+    <button class="sec-button" type="submit">Cerca</button>
+  </form>
+  <span class="sec-muted kpi-period">{{ since|date:"d/m/Y" }} – oggi</span>
+</div>
+
+<section class="sec-grid sec-kpi-grid" >
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Esecuzioni riuscite</span>
+    <strong class="sec-kpi-value{% if kpi.fail %} critical{% endif %}">{% if kpi.rate is not None %}{{ kpi.rate|floatformat:1 }}%{% else %}—{% endif %}</strong>
+    <span class="sec-kpi-delta{% if not kpi.fail %} sec-good{% endif %}">{{ kpi.ok }} ok · {{ kpi.warn }} avvisi · {{ kpi.fail }} fallit{{ kpi.fail|pluralize:"o,i" }}</span>
+  </div>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="#pc">
+    <span class="sec-kpi-label">PC e server protetti</span>
+    <strong class="sec-kpi-value">{{ kpi.devices }}</strong>
+    <span class="sec-kpi-delta{% if not kpi.devices_stale %} sec-good{% endif %}">{{ kpi.devices_stale }} senza backup riuscito da oltre {{ stale_days }} giorni</span>
+  </a>
+  <a class="sec-panel sec-kpi-card sec-card-link" href="#job">
+    <span class="sec-kpi-label">Job</span>
+    <strong class="sec-kpi-value{% if kpi.missing %} critical{% endif %}">{{ kpi.jobs }}</strong>
+    <span class="sec-kpi-delta{% if not kpi.missing %} sec-good{% endif %}">{% if kpi.missing %}{{ kpi.missing }} attes{{ kpi.missing|pluralize:"o,i" }} non arrivat{{ kpi.missing|pluralize:"o,i" }}{% else %}nessun job atteso mancante{% endif %}</span>
+  </a>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Dati trasferiti</span>
+    <strong class="sec-kpi-value">{{ kpi.gb|floatformat:1 }} GB</strong>
+    <span class="sec-kpi-delta sec-good">nel periodo</span>
+  </div>
+  <div class="sec-panel sec-kpi-card">
+    <span class="sec-kpi-label">Durata media</span>
+    <strong class="sec-kpi-value">{% if kpi.avg_minutes is not None %}{{ kpi.avg_minutes|floatformat:0 }} min{% else %}—{% endif %}</strong>
+    <span class="sec-kpi-delta sec-good">{{ kpi.runs }} esecuzion{{ kpi.runs|pluralize:"e,i" }}</span>
+  </div>
+</section>
+
+<section class="vpn-row" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Esecuzioni per giorno</h2><small class="sec-muted">passa sopra a un giorno per il dettaglio</small></div>
+  {% localize off %}
+  {% if daily.empty %}
+    <p class="sec-empty">Nessun backup nel periodo.</p>
+  {% else %}
+  <div class="vpn-chart soc-chart">
+    <svg viewBox="0 0 {{ daily.width }} {{ daily.height }}" role="img" aria-label="Esecuzioni di backup per giorno: riuscite, con avvisi, fallite">
+      <line class="grid" x1="{{ daily.left }}" x2="{{ daily.width }}" y1="{{ daily.top }}" y2="{{ daily.top }}"></line>
+      <line class="grid" x1="{{ daily.left }}" x2="{{ daily.width }}" y1="{{ daily.baseline }}" y2="{{ daily.baseline }}"></line>
+      <text class="axis-label" x="0" y="{{ daily.top|add:4 }}">{{ daily.peak }}</text>
+      <text class="axis-label" x="0" y="{{ daily.baseline }}">0</text>
+      {% for d in daily.days %}
+        <g tabindex="0" data-tip-title="{{ d.date|date:'D d/m/Y' }} · {{ d.total }} esecuzion{{ d.total|pluralize:'e,i' }}"
+           data-tip="var(--success)::{{ d.ok }} riuscit{{ d.ok|pluralize:'o,i' }}|var(--warning)::{{ d.warn }} con avvisi|var(--danger)::{{ d.fail }} fallit{{ d.fail|pluralize:'o,i' }}"
+           data-href="{% url 'security:backup_log' %}?giorni={{ days }}" data-href-label="Clic: apri il log">
+          <rect class="bar-hit" x="{{ d.x }}" y="{{ daily.top }}" width="{{ d.w }}" height="{{ daily.baseline|add:-14 }}"></rect>
+          {% for s in d.segments %}<rect class="{{ s.css }}" x="{{ d.x }}" y="{{ s.y }}" width="{{ d.w }}" height="{{ s.h }}" rx="1.5"></rect>{% endfor %}
+        </g>
+        {% if d.show_label %}<text class="axis-label" x="{{ d.label_x }}" y="{{ daily.baseline|add:16 }}" text-anchor="middle">{{ d.date|date:"d/m" }}</text>{% endif %}
+      {% endfor %}
+    </svg>
+    <div class="sec-trend-legend"><span style="--dot: var(--success);">Riusciti</span><span style="--dot: var(--warning);">Con avvisi</span><span style="--dot: var(--danger);">Falliti</span></div>
+  </div>
+  {% endif %}
+  {% endlocalize %}
+  </div>
+
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Da controllare</h2>{% if findings %}<span class="sec-badge">{{ findings|length }}</span>{% endif %}</div>
+    {% if findings %}
+    <ul class="vpn-findings">
+      {% for f in findings|slice:":8" %}
+        <li class="{{ f.level }}">
+          {% if f.device %}<a href="{% url 'security:backup_device' %}?nome={{ f.device|urlencode }}"><strong>{{ f.title }}</strong></a>{% else %}<a href="{% url 'security:admin_config_backups' %}"><strong>{{ f.title }}</strong></a>{% endif %}
+          <small>{{ f.detail }}</small>
+        </li>
+      {% endfor %}
+    </ul>
+    {% if findings|length > 8 %}<p class="sec-muted sec-small">e altri {{ findings|length|add:-8 }}: vedi la tabella sotto.</p>{% endif %}
+    {% else %}
+      <p class="sec-empty">Nessun problema: tutti i PC hanno un backup riuscito recente e i job attesi sono arrivati.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;" id="pc">
+  <div class="sec-section-head">
+    <h2>Per PC e server</h2>
+    <span class="sec-badge">{% if query %}{{ devices|length }} di {{ devices_total }}{% else %}{{ devices_total }}{% endif %}</span>
+  </div>
+  <p class="sec-muted sec-small" style="margin-top:0;">In cima chi ha l'ultimo backup fallito o nessun backup riuscito da oltre {{ stale_days }} giorni. La striscia mostra le ultime esecuzioni, dalla più vecchia (sinistra) alla più recente.</p>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-table-enhanced="0">
+      <thead><tr><th>Dispositivo</th><th>Ultimo esito</th><th>Ultimo riuscito</th><th>Ultime esecuzioni</th><th class="sec-num">Riuscite</th><th class="sec-num">Dati</th><th class="sec-num">Durata media</th><th>Job</th></tr></thead>
+      <tbody>
+      {% for d in devices %}
+        <tr class="sec-row-link{% if d.stale %} bk-row-stale{% endif %}">
+          <td class="sec-title-cell"><a href="{% url 'security:backup_device' %}?nome={{ d.name|urlencode }}"><strong>{{ d.name }}</strong></a>{% if d.job_level %}<small title="Il report Synology dà l'esito del job intero: il PC eredita l'esito del job">esito del job</small>{% endif %}</td>
+          <td><span class="sec-badge sec-badge-{{ d.last_tone }}">{{ d.last_label }}</span><small class="sec-nowrap sec-muted"> {{ d.last_at|date:"d/m H:i" }}</small></td>
+          <td class="sec-nowrap">{% if d.last_ok %}{{ d.last_ok|date:"d/m H:i" }} <small class="{% if d.stale %}bk-late{% else %}sec-muted{% endif %}">({% if d.days_since_ok == 0 %}oggi{% else %}{{ d.days_since_ok }} g fa{% endif %})</small>{% else %}<span class="bk-late">mai nel periodo</span>{% endif %}</td>
+          <td><span class="bk-strip" aria-label="Ultime {{ d.strip|length }} esecuzioni">{% for s in d.strip %}<i class="bk-dot bk-{{ s.tone }}" title="{{ s.at|date:'d/m H:i' }} · {{ s.label }} · {{ s.job }}"></i>{% endfor %}</span></td>
+          <td class="sec-num">{% if d.rate is not None %}<strong>{{ d.rate|floatformat:0 }}%</strong> <small class="sec-muted">{{ d.ok }}/{{ d.runs }}</small>{% else %}—{% endif %}</td>
+          <td class="sec-num sec-nowrap">{% if d.gb %}{{ d.gb|floatformat:1 }} GB{% else %}—{% endif %}</td>
+          <td class="sec-num sec-nowrap">{% if d.avg_minutes %}{{ d.avg_minutes|floatformat:0 }} min{% else %}—{% endif %}</td>
+          <td><small>{{ d.jobs|join:", " }}</small></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="sec-empty">{% if query %}Nessun dispositivo corrisponde alla ricerca.{% else %}Nessun dispositivo nei report di backup del periodo. Veeam e Synology indicano le macchine protette nel report: se mancano, il job non le elenca.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="sec-trend-legend" style="margin-top: 8px;"><span style="--dot: var(--success);">Riuscito</span><span style="--dot: var(--warning);">Con avvisi</span><span style="--dot: var(--danger);">Fallito</span></div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;" id="job">
+  <div class="sec-section-head"><h2>Per job</h2><span class="sec-badge">{{ jobs|length }}</span></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-table-enhanced="0">
+      <thead><tr><th>Job</th><th>Ultimo esito</th><th>Ultimo riuscito</th><th class="sec-num">Esecuzioni</th><th class="sec-num">Riuscite</th><th class="sec-num">Dati medi</th><th class="sec-num">Durata media</th><th class="sec-num">Dispositivi</th></tr></thead>
+      <tbody>
+      {% for j in jobs %}
+        <tr>
+          <td class="sec-title-cell"><a href="{% url 'security:backup_log' %}?job={{ j.name|urlencode }}&amp;giorni={{ days }}"><strong>{{ j.name }}</strong></a><small>{{ j.vendor|capfirst|default:"—" }}{% if j.nas %} · {{ j.nas }}{% endif %}</small></td>
+          <td><span class="sec-badge sec-badge-{{ j.tone }}">{{ j.last_label }}</span><small class="sec-nowrap sec-muted"> {{ j.last_at|date:"d/m H:i" }}</small></td>
+          <td class="sec-nowrap">{{ j.last_ok|date:"d/m H:i"|default:"mai nel periodo" }}</td>
+          <td class="sec-num">{{ j.runs }}</td>
+          <td class="sec-num">{% if j.rate is not None %}<strong>{{ j.rate|floatformat:0 }}%</strong>{% if j.fail %} <small class="bk-late">{{ j.fail }} fallit{{ j.fail|pluralize:"o,i" }}</small>{% endif %}{% else %}—{% endif %}</td>
+          <td class="sec-num sec-nowrap">{% if j.avg_gb %}{{ j.avg_gb|floatformat:1 }} GB{% else %}—{% endif %}</td>
+          <td class="sec-num sec-nowrap">{% if j.avg_minutes %}{{ j.avg_minutes|floatformat:0 }} min{% else %}—{% endif %}</td>
+          <td class="sec-num">{{ j.devices|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="sec-empty">Nessun job di backup nel periodo.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

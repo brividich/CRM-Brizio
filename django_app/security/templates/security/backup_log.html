@@ -1,0 +1,60 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Log backup | Security Center AI{% endblock %}
+{% block page_icon %}B{% endblock %}
+{% block page_marker %}Backup{% endblock %}
+{% block page_title %}Log esecuzioni backup{% endblock %}
+
+{% block soc_content %}
+{% include "security/partials/backup_subnav.html" with active="log" %}
+
+<section class="sec-panel">
+  <form class="sec-filter-bar" method="get">
+    <label>Esito
+      <select name="esito">
+        <option value="">Tutti</option>
+        {% for value, label in status_choices %}<option value="{{ value }}" {% if filters.esito == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Job
+      <select name="job">
+        <option value="">Tutti</option>
+        {% for job in jobs %}<option value="{{ job }}" {% if filters.job == job %}selected{% endif %}>{{ job }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Periodo
+      <select name="giorni">
+        <option value="">Tutto</option>
+        {% for value, label in periods %}<option value="{{ value }}" {% if filters.giorni == value|stringformat:"s" %}selected{% endif %}>Ultimi {{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>PC o job <input type="search" name="q" value="{{ filters.q }}" placeholder="Nome PC o job"></label>
+    <button class="sec-button sec-button-primary" type="submit">Filtra</button>
+    <a class="sec-button" href="{% url 'security:backup_log' %}">Reimposta</a>
+  </form>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Esecuzioni</h2><span class="sec-badge">{% if rows|length >= 300 %}prime 300{% else %}{{ rows|length }}{% endif %}</span></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-table-enhanced="0">
+      <thead><tr><th>Quando</th><th>Esito</th><th>Job</th><th>Dispositivi</th><th class="sec-num">Dati</th><th class="sec-num">Durata</th><th>Report</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="sec-nowrap">{{ r.at|date:"d/m/Y H:i" }}</td>
+          <td><span class="sec-badge sec-badge-{{ r.tone }}">{{ r.label }}</span>{% if r.objects_error %} <small class="bk-late">{{ r.objects_error }} in errore</small>{% endif %}</td>
+          <td class="sec-title-cell"><strong>{{ r.record.job_name }}</strong><small>{{ r.vendor|capfirst|default:"—" }}{% if r.record.payload.nas_name %} · {{ r.record.payload.nas_name }}{% endif %}</small></td>
+          <td>{% for d in r.devices|slice:":6" %}<a href="{% url 'security:backup_device' %}?nome={{ d|urlencode }}">{{ d }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="sec-muted">—</span>{% endfor %}{% if r.devices|length > 6 %} <small class="sec-muted">e altri {{ r.devices|length|add:-6 }}</small>{% endif %}</td>
+          <td class="sec-num sec-nowrap">{% if r.gb is not None %}{{ r.gb|floatformat:1 }} GB{% else %}—{% endif %}</td>
+          <td class="sec-num sec-nowrap">{% if r.minutes %}{{ r.minutes|floatformat:0 }} min{% else %}—{% endif %}</td>
+          <td><small class="sec-muted">{{ r.record.source.name }}</small></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="sec-empty">Nessuna esecuzione corrisponde ai filtri.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
