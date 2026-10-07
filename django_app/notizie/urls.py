@@ -21,4 +21,7 @@ urlpatterns = [
     path("report/export-csv/", views.report_csv, name="notizie_report_csv"),
     path("<int:notizia_id>/", views.dettaglio, name="notizie_dettaglio"),
     path("<int:notizia_id>/conferma/", views.conferma, name="notizie_conferma"),
+    # Path condiviso nel middleware ACL (/notizie/allegato/): la view applica la
+    # stessa visibilita' del dettaglio notizia (o il permesso di gestione).
+    path("allegato/<int:allegato_id>/", views.allegato_download, name="notizie_allegato_download"),
 ]

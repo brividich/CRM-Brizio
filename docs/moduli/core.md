@@ -41,3 +41,7 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 - **23 modelli Django** (Profile, AuditLog, SiteConfig, Notifica, Checklist*, OptioneConfig, ecc.)
 - **Ricerca unificata** Ctrl+K (o barra «Cerca o vai a…» in topnav): pagine recenti, salto a qualsiasi pagina di navigazione (ACL-filtrata) e ricerca dati su 7 sorgenti (dipendenti, asset, ticket, progetti, task, procedure, DPI), con modulo e preview risultato
 - **Topnav**: voci in eccesso raccolte in «Altro», hamburger da ≤1100px, menu utente (profilo, preferenze, tema chiaro/scuro, segnala problema, esci), approvazioni assenze in attesa come «N da approvare». Struttura: Per me · Tickets · Produzione · Persone · Sicurezza e ambiente · Qualità · IT · Suggestion Corner, con sottocategorie da `NavigationItem.group`; si applica con `python manage.py riorganizza_topbar --apply` (dry-run senza `--apply`)
+
+## Hardening ottobre 2026
+
+- Helper di sicurezza: `core.net.client_ip` (IP client, `X-Forwarded-For` solo da `TRUSTED_PROXY_IPS`), `core.redirects.safe_next` (redirect di ritorno validati sull'host), filtro template `js_json` (`{% load safe_json %}`, dati negli `<script>` senza XSS), `core.private_attachments.PrivateAttachmentStorage` (allegati privati cifrati con lettura dei file storici). In produzione `LEGACY_AUTH_ENABLED=0` blocca l'avvio senza `ACL_DISABLE_ACKNOWLEDGED=1`; DRF ha default espliciti (sessione + utente autenticato).

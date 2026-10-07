@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load safe_json %}
 
 {% block title %}Impostazioni Ticket | Portale Applicativo{% endblock %}
 
@@ -641,14 +642,14 @@ const API_CERCA  = "{% url 'tickets:api_cerca_utenti' %}";
 // Stato JS
 const state = {
   IT: {
-    team_gestori: {{ cfg_it.team_gestori|safe }},
-    acl_apertura: {{ cfg_it.acl_apertura|safe }},
-    acl_gestione: {{ cfg_it.acl_gestione|safe }},
+    team_gestori: {{ cfg_it.team_gestori|js_json }},
+    acl_apertura: {{ cfg_it.acl_apertura|js_json }},
+    acl_gestione: {{ cfg_it.acl_gestione|js_json }},
   },
   MAN: {
-    team_gestori: {{ cfg_man.team_gestori|safe }},
-    acl_apertura: {{ cfg_man.acl_apertura|safe }},
-    acl_gestione: {{ cfg_man.acl_gestione|safe }},
+    team_gestori: {{ cfg_man.team_gestori|js_json }},
+    acl_apertura: {{ cfg_man.acl_apertura|js_json }},
+    acl_gestione: {{ cfg_man.acl_gestione|js_json }},
   }
 };
 

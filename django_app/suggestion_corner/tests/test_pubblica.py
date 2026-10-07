@@ -83,7 +83,9 @@ class FormPubblicoTest(TestCase):
 
     def test_rate_limit_per_ip(self):
         payload = {"reparto_provenienza": self.reparto.pk, "opportunity": "x"}
+        # IP non di loopback: da 127.0.0.1 (richieste via IIS senza proxy fidato)
+        # vale solo il limite globale, non quello per IP.
         for _ in range(5):
-            self.client.post(self.url, payload)
-        resp = self.client.post(self.url, payload)  # 6° oltre il limite
+            self.client.post(self.url, payload, REMOTE_ADDR="10.0.0.20")
+        resp = self.client.post(self.url, payload, REMOTE_ADDR="10.0.0.20")  # 6° oltre il limite
         self.assertEqual(resp.status_code, 429)

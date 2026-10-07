@@ -206,7 +206,7 @@ body.theme-dark .tiny { color:var(--text-light); }
               <td>
                 {{ f.file }}
                 {% if f.instance.pk and f.instance.file %}
-                  <div class="tiny">Attuale: <a href="{{ f.instance.file.url }}" target="_blank" rel="noopener">{{ f.instance.nome_file }}</a></div>
+                  <div class="tiny">Attuale: <a href="{% url 'notizie_allegato_download' f.instance.id %}" target="_blank" rel="noopener">{{ f.instance.nome_file }}</a></div>
                 {% endif %}
                 {% if f.file.errors %}<div class="errors">{{ f.file.errors|join:", " }}</div>{% endif %}
               </td>

@@ -39,3 +39,7 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 - **API gate** `/api/anomalie/` protetta da ACL canonico
 - **Export CSV** tracciato in AuditLog
 - **ACL**: il launcher resta accessibile ai ruoli con almeno un permesso operativo (`anomalie_aperte` o `inserimento_anomalie`) anche senza grant del contenitore
+
+## Hardening ottobre 2026
+
+- Link mail-action: il token si prende in modo atomico prima di aggiornare le anomalie, quindi un doppio invio non applica due volte le modifiche né manda due conferme; se l'aggiornamento fallisce il token torna utilizzabile.

@@ -1,4 +1,5 @@
-﻿{% extends "core/base.html" %}
+{% extends "core/base.html" %}
+{% load safe_json %}
 {% load assets_extras %}
 
 {% block title %}Cruscotto inventario asset{% endblock %}
@@ -1987,8 +1988,8 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
   }
 
   const TABLE_CONTEXT_KEY = "assets.list.{{ asset_list_context_key }}";
-  const DEFAULT_VISIBLE_COLUMNS = {{ asset_list_default_visible_columns_json|safe }};
-  const SERVER_TABLE_LAYOUT = {{ asset_table_saved_layout_json|safe }};
+  const DEFAULT_VISIBLE_COLUMNS = {{ asset_list_default_visible_columns_json|js_json }};
+  const SERVER_TABLE_LAYOUT = {{ asset_table_saved_layout_json|js_json }};
   const DEFAULT_COLUMN_WIDTHS = {
     "name": 260, "status": 110, "category": 160, "assigned": 180,
     "assignment_location": 180, "manufacturer": 140, "model": 150,

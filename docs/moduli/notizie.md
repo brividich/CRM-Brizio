@@ -18,3 +18,7 @@ Sistema di comunicazione top-down con target per ruolo/reparto.
 - **Tracking letture** per misurare engagement
 - **KPI dashboard** apertura per notizia
 - **ACL bootstrap automatico** degli endpoint API all'avvio
+
+## Hardening ottobre 2026
+
+- Allegati in storage privato cifrato (`PRIVATE_ATTACHMENTS_ROOT`): si scaricano solo da `/notizie/allegato/<id>/`, con la stessa visibilità della notizia (o con il permesso di gestione). I file già caricati restano leggibili; IIS non serve più `media/notizie`. Migrazione `notizie 0004`.

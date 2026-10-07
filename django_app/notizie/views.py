@@ -716,7 +716,9 @@ def dashboard_publish(request, notizia_id: int):
         request,
         "Notizia pubblicata." if prima_pubblicazione else "Notizia ripubblicata con nuova versione.",
     )
-    return redirect(request.POST.get("next") or reverse("notizie_dashboard"))
+    from core.redirects import safe_next
+
+    return redirect(safe_next(request, request.POST.get("next"), reverse("notizie_dashboard")))
 
 
 @login_required
@@ -734,7 +736,9 @@ def dashboard_archive(request, notizia_id: int):
         messages.success(request, "Notizia archiviata.")
     else:
         messages.info(request, "La notizia era gia archiviata.")
-    return redirect(request.POST.get("next") or reverse("notizie_dashboard"))
+    from core.redirects import safe_next
+
+    return redirect(safe_next(request, request.POST.get("next"), reverse("notizie_dashboard")))
 
 
 @login_required
@@ -767,6 +771,36 @@ def dettaglio(request, notizia_id: int):
         "lettura": lettura,
         "conferma_token": _build_conferma_token(notizia, legacy_user_id),
     })
+
+
+@login_required
+def allegato_download(request, allegato_id: int):
+    """Download di un allegato: chi vede la notizia pubblicata, oppure chi gestisce le notizie."""
+    import mimetypes
+    import os
+
+    from django.http import FileResponse, Http404
+
+    from .models import NotiziaAllegato
+
+    allegato = get_object_or_404(NotiziaAllegato.objects.select_related("notizia"), pk=allegato_id)
+    notizia = allegato.notizia
+    can_manage = _can_manage_notizie_dashboard(request)
+    if not can_manage:
+        if notizia.stato != STATO_PUBBLICATA or not is_visible_to_user(notizia, _get_legacy_role_id(request)):
+            return HttpResponseForbidden("Allegato non disponibile.")
+    if not allegato.file or not allegato.file.name:
+        raise Http404("Allegato senza file.")
+    try:
+        handle = allegato.file.storage.open(allegato.file.name, "rb")
+    except FileNotFoundError:
+        raise Http404("File non trovato.")
+
+    filename = os.path.basename(allegato.file.name)
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    response = FileResponse(handle, as_attachment=True, filename=filename, content_type=content_type)
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @login_required

@@ -5937,204 +5937,244 @@ def api_test_rule_ajax(request, rule_id: int):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Approval Decision Views (accessibili senza login, protetti da token UUID)
-# ─────────────────────────────────────────────────────────────────────────────
-
-@risposta_pubblica
-@csrf_exempt
-def approval_decision_page(request, token: str, decision: str):
-    """
-    Pagina di approvazione/rifiuto accessibile tramite link email o Teams Actionable Message.
-    Non richiede login: il token UUID è la credenziale.
-    decision deve essere 'approva' o 'rifiuta'.
-
-    Quando chiamata da Teams (POST con Content-Type: application/json), risponde con
-    HTTP 200 e l'header CARD-ACTION-STATUS che Teams mostra al posto dei bottoni.
-    """
-    from .models import AutomationApproval
-
-    # Rileva chiamata Teams / API: POST con body JSON, senza form browser
-    is_teams_call = (
-        request.method == "POST"
-        and "application/json" in (request.content_type or "").lower()
-    )
-
-    normalized = "approved" if decision == "approva" else "rejected" if decision == "rifiuta" else None
-    if normalized is None:
-        if is_teams_call:
-            resp = HttpResponse("Azione non valida.", status=400, content_type="text/plain")
-            resp["CARD-ACTION-STATUS"] = "Azione non valida."
-            return resp
-        return render(request, "automazioni/pages/approval_decision.html", {
-            "error": "Azione non valida.",
-            "token": token,
-        })
-
-    try:
-        approval = AutomationApproval.objects.select_related("run_log__rule").get(token=token)
-    except AutomationApproval.DoesNotExist:
-        if is_teams_call:
-            resp = HttpResponse("Richiesta non trovata.", status=404, content_type="text/plain")
-            resp["CARD-ACTION-STATUS"] = "Richiesta di approvazione non trovata."
-            return resp
-        return render(request, "automazioni/pages/approval_decision.html", {
-            "error": "Richiesta di approvazione non trovata o link non valido.",
-            "token": token,
-        })
-
-    # Mostra form di conferma su GET; processa su POST
-    if request.method == "GET":
-        already = approval.status != AutomationApproval.Status.PENDING
-        just_done = already and request.GET.get("done") == "1"
-        return render(request, "automazioni/pages/approval_decision.html", {
-            "approval": approval,
-            "decision": normalized,
-            "decision_label": "Approvare" if normalized == "approved" else "Rifiutare",
-            "decision_verb": "approva" if normalized == "approved" else "rifiuta",
-            "token": token,
-            "is_expired": approval.is_expired(),
-            "already_decided": already and not just_done,
-            "just_done": just_done,
-        })
-
-    # POST: esegui la decisione
-    if is_teams_call:
-        # La decisione è nell'URL; il body JSON di Teams non è necessario
-        decided_by = "Teams"
-    else:
-        decided_by = ""
-        if request.user.is_authenticated:
-            decided_by = str(getattr(request.user, "email", "") or request.user.username or "")
-
-    result = process_approval_decision(str(token), normalized, decided_by_email=decided_by)
-
-    if is_teams_call:
-        if result.get("ok"):
-            status_msg = "Approvato con successo." if normalized == "approved" else "Rifiutato con successo."
-        else:
-            status_msg = str(result.get("message") or "Impossibile processare la richiesta.")
-        resp = HttpResponse("1", content_type="text/plain", status=200)
-        resp["CARD-ACTION-STATUS"] = status_msg
-        return resp
-
-    if result.get("ok"):
-        return redirect(request.path + "?done=1")
-
-    return render(request, "automazioni/pages/approval_decision.html", {
-        "approval": approval,
-        "decision": normalized,
-        "token": token,
-        "result": result,
-        "already_decided": not result.get("ok") and "già" in str(result.get("message") or ""),
-    })
-
-
-@risposta_pubblica
-def approval_status_page(request, token: str):
-    """Stato attuale di una richiesta di approvazione (link publico tramite token)."""
-    from .models import AutomationApproval
-
-    try:
-        approval = AutomationApproval.objects.select_related("run_log__rule").get(token=token)
-    except AutomationApproval.DoesNotExist:
-        return render(request, "automazioni/pages/approval_decision.html", {
-            "error": "Richiesta non trovata.",
-            "token": token,
-        })
-    return render(request, "automazioni/pages/approval_decision.html", {
-        "approval": approval,
-        "token": token,
-        "status_only": True,
-    })
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Approval Proxy — endpoint GET ottimizzati per Entra Application Proxy
+# Approval Decision Views
 #
-# Sicurezza: prima di chiamare process_approval_decision(), l'endpoint
-# valida l'attore tramite validate_approval_actor() (approval_security.py),
-# lo stesso helper usato dal canale mailbox Graph. Fail-closed.
-#
-# Identità approvatore (ordine di priorità):
-#   1. request.user.email / username  (sessione Django / SSO passthrough)
-#   2. HTTP_X_MS_CLIENT_PRINCIPAL_NAME  (Entra Application Proxy)
-#   3. HTTP_X_FORWARDED_EMAIL           (altri proxy compatibili)
-#   4. stringa vuota → bloccato con NO_IDENTITY
+# Due modi di decidere, entrambi con identita' certa dell'approvatore:
+#   1. link personale  /approval-actions/r/<segreto>/<approva|rifiuta>/
+#      Il segreto e' stato inviato a UN destinatario: chi lo apre decide come lui,
+#      senza login (approval_links.py). E' il link delle email.
+#   2. link della richiesta  /automazioni/approvazione/<uuid>/<approva|rifiuta>/
+#      e  /approval-actions/approve|reject/<uuid>/  (link inviati prima dei link
+#      personali, canale Teams condiviso). L'uuid identifica la richiesta ma NON
+#      chi decide: serve il login, e l'utente deve essere fra gli approvatori.
+# Nessun header HTTP di identita' viene letto: il client li puo' falsificare.
+# GET mostra sempre una conferma senza effetti (i link scanner delle mail aprono
+# i link in GET); la decisione avviene solo in POST.
 # ─────────────────────────────────────────────────────────────────────────────
 
 import logging as _logging
 
 _proxy_logger = _logging.getLogger(__name__)
 
+_DECISION_SLUGS = {"approva": "approved", "rifiuta": "rejected", "approve": "approved", "reject": "rejected"}
 
-def _extract_approver_identity(request) -> str:
-    """Restituisce l'email dell'approvatore dal contesto della request."""
-    if getattr(request, "user", None) and request.user.is_authenticated:
-        return str(
-            getattr(request.user, "email", "") or getattr(request.user, "username", "") or ""
-        ).strip()
-    # Entra Application Proxy standard headers
-    for header in ("HTTP_X_MS_CLIENT_PRINCIPAL_NAME", "HTTP_X_FORWARDED_EMAIL"):
-        value = request.META.get(header, "").strip()
-        if value:
-            return value
-    return ""
+
+def _session_approver_email(request) -> str:
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return ""
+    return str(getattr(user, "email", "") or getattr(user, "username", "") or "").strip()
+
+
+def _login_redirect(request):
+    from urllib.parse import urlencode
+
+    from django.urls import reverse
+
+    return redirect(f"{reverse('login')}?{urlencode({'next': request.get_full_path()})}")
+
+
+def _render_decision(request, context: dict, status: int = 200):
+    return render(request, "automazioni/pages/approval_decision.html", context, status=status)
 
 
 @risposta_pubblica
-@csrf_exempt
+@csrf_exempt  # il segreto nell'URL fa da protezione CSRF: un sito terzo non lo conosce
+@require_http_methods(["GET", "POST"])
+def approval_link_page(request, token: str, decision: str):
+    """Link personale delle email: GET conferma, POST decide come il destinatario del link."""
+    from .approval_links import decide_with_link, get_link
+    from .models import AutomationApproval
+
+    normalized = _DECISION_SLUGS.get(decision)
+    link = get_link(token)
+    if normalized is None or link is None:
+        return _render_decision(request, {"error": "Link di approvazione non valido."}, status=404)
+
+    approval = link.approval
+    base_context = {
+        "approval": approval,
+        "decision": normalized,
+        "token": "",
+        "link_mode": True,
+        "decider_email": link.recipient_email,
+    }
+
+    if request.method == "GET":
+        if request.GET.get("done") == "1" and approval.status != AutomationApproval.Status.PENDING:
+            return _render_decision(request, {**base_context, "just_done": True})
+        if link.used_at is not None or approval.status != AutomationApproval.Status.PENDING:
+            return _render_decision(request, {**base_context, "already_decided": True})
+        return _render_decision(request, {**base_context, "is_expired": approval.is_expired()})
+
+    result = decide_with_link(token, normalized)
+    log_action(
+        request,
+        "approval_link_decision" if result.get("ok") else "approval_link_denied",
+        "automazioni",
+        {
+            "approval_id": approval.pk,
+            "link_id": link.pk,
+            "decision": normalized,
+            "actor": link.recipient_email,
+            "ok": bool(result.get("ok")),
+            "code": result.get("code"),
+            "message": result.get("message"),
+        },
+    )
+    if result.get("ok"):
+        return redirect(request.path + "?done=1")
+    approval.refresh_from_db()
+    return _render_decision(request, {
+        **base_context,
+        "result": {k: v for k, v in result.items() if k != "link"},
+        "already_decided": result.get("code") in {"already_decided", "already_used"},
+    })
+
+
+def _decide_as_session_user(request, token: str, normalized: str, *, via: str):
+    """Decisione sul link della richiesta: solo utente loggato e fra gli approvatori."""
+    from .approval_security import validate_approval_actor
+
+    decided_by = _session_approver_email(request)
+    validation = validate_approval_actor(str(token), decided_by)
+    if not validation.allowed:
+        log_action(request, "approval_proxy_denied", "automazioni", {
+            "approval_id": validation.approval_id,
+            "decision": normalized,
+            "actor": decided_by or "(vuoto)",
+            "error_code": validation.error_code,
+            "via": via,
+        })
+        return None, validation
+
+    result = process_approval_decision(str(token), normalized, decided_by_email=decided_by)
+    log_action(request, "approval_proxy_decision", "automazioni", {
+        "approval_id": result.get("approval_id"),
+        "decision": normalized,
+        "actor": decided_by,
+        "ok": result.get("ok"),
+        "message": result.get("message"),
+        "via": via,
+    })
+    return result, validation
+
+
+@risposta_pubblica
+@require_http_methods(["GET", "POST"])
+def approval_decision_page(request, token: str, decision: str):
+    """Link della richiesta (uuid): GET conferma, POST decide solo con login da approvatore."""
+    from .models import AutomationApproval
+
+    normalized = _DECISION_SLUGS.get(decision)
+    if normalized is None:
+        return _render_decision(request, {"error": "Azione non valida.", "token": token}, status=400)
+
+    if not request.user.is_authenticated:
+        return _login_redirect(request)
+
+    try:
+        approval = AutomationApproval.objects.select_related("run_log__rule").get(token=token)
+    except AutomationApproval.DoesNotExist:
+        return _render_decision(
+            request, {"error": "Richiesta di approvazione non trovata o link non valido.", "token": token}, status=404
+        )
+
+    base_context = {
+        "approval": approval,
+        "decision": normalized,
+        "decision_label": "Approvare" if normalized == "approved" else "Rifiutare",
+        "decision_verb": "approva" if normalized == "approved" else "rifiuta",
+        "token": token,
+        "decider_email": _session_approver_email(request),
+    }
+
+    if request.method == "GET":
+        already = approval.status != AutomationApproval.Status.PENDING
+        just_done = already and request.GET.get("done") == "1"
+        return _render_decision(request, {
+            **base_context,
+            "is_expired": approval.is_expired(),
+            "already_decided": already and not just_done,
+            "just_done": just_done,
+        })
+
+    result, validation = _decide_as_session_user(request, token, normalized, via="portal_link")
+    if result is None:
+        return _render_decision(request, {
+            **base_context,
+            "result": {"ok": False, "message": validation.error_message},
+            "already_decided": validation.error_code == "already_decided",
+        }, status=403)
+    if result.get("ok"):
+        return redirect(request.path + "?done=1")
+    return _render_decision(request, {
+        **base_context,
+        "result": result,
+        "already_decided": "già" in str(result.get("message") or ""),
+    })
+
+
+@risposta_pubblica
+@require_GET
+def approval_status_page(request, token: str):
+    """Stato di una richiesta: solo utenti loggati fra gli approvatori (o admin)."""
+    from .models import AutomationApproval
+
+    if not request.user.is_authenticated:
+        return _login_redirect(request)
+    try:
+        approval = AutomationApproval.objects.get(token=token)
+    except AutomationApproval.DoesNotExist:
+        return _render_decision(request, {"error": "Richiesta non trovata.", "token": token}, status=404)
+
+    from core.legacy_utils import get_legacy_user, is_legacy_admin
+    from .approval_security import normalize_actor_email
+
+    approvers = {normalize_actor_email(e) for e in (approval.approver_emails or [])}
+    me = normalize_actor_email(_session_approver_email(request))
+    if not (request.user.is_superuser or is_legacy_admin(get_legacy_user(request.user)) or (me and me in approvers)):
+        return _render_decision(request, {"error": "Non sei fra gli approvatori di questa richiesta.", "token": token}, status=403)
+    return _render_decision(request, {"approval": approval, "token": token, "status_only": True})
+
+
+@risposta_pubblica
 @require_http_methods(["GET", "POST"])
 def approval_proxy_approve(request, token):
-    """GET conferma, POST approva (Entra Proxy)."""
+    """Compat: vecchio link /approval-actions/approve/<uuid>/ — richiede login da approvatore."""
     return _handle_approval_proxy(request, token, "approved")
 
 
 @risposta_pubblica
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def approval_proxy_reject(request, token):
-    """GET conferma, POST rifiuta (Entra Proxy)."""
+    """Compat: vecchio link /approval-actions/reject/<uuid>/ — richiede login da approvatore."""
     return _handle_approval_proxy(request, token, "rejected")
 
 
 def _handle_approval_proxy(request, token, decision: str):
-    """
-    Gestisce una decisione di approvazione via GET (Entra Application Proxy).
-
-    Pipeline:
-      1. Estrai identità approvatore (sessione → Entra headers → vuota)
-      2. Valida identità e token via validate_approval_actor()  ← fail-closed
-      3. Solo se validazione ok: chiama process_approval_decision()
-      4. Scrivi AuditLog con identità effettiva
-      5. Ritorna pagina esito con stato distinto per ogni tipo di errore
-    """
-    from .approval_security import validate_approval_actor, ErrorCode
+    from .approval_security import ErrorCode, validate_approval_actor
 
     token_str = str(token)
-    decided_by = _extract_approver_identity(request)
+    if not request.user.is_authenticated:
+        return _login_redirect(request)
 
-    # ── Validazione attore (fail-closed) ─────────────────────────────────────
-    validation = validate_approval_actor(token_str, decided_by)
-
-    if not validation.allowed:
-        _proxy_logger.warning(
-            "approval_proxy: validazione fallita token=%s decision=%s code=%s actor=%r reason=%s",
-            token_str, decision, validation.error_code, decided_by or "(vuoto)", validation.error_message,
-        )
-        log_action(
-            request,
-            "approval_proxy_denied",
-            "automazioni",
-            {
-                "token": token_str,
+    decided_by = _session_approver_email(request)
+    if request.method == "GET":
+        validation = validate_approval_actor(token_str, decided_by)
+        if validation.allowed:
+            return render(request, "automazioni/pages/approval_proxy_result.html", {
+                "requires_confirmation": True,
                 "decision": decision,
-                "actor": decided_by or "(vuoto)",
-                "error_code": validation.error_code,
-                "message": validation.error_message,
-                "via": "entra_proxy",
-                "phase": request.method.lower(),
-            },
-        )
+                "token": token_str,
+                "decided_by": decided_by,
+                "approval_id": validation.approval_id,
+            })
+        result, validation = None, validation
+    else:
+        result, validation = _decide_as_session_user(request, token_str, decision, via="entra_proxy")
+
+    if result is None:
         return render(request, "automazioni/pages/approval_proxy_result.html", {
             "denied": True,
             "error_code": validation.error_code,
@@ -6142,7 +6182,6 @@ def _handle_approval_proxy(request, token, decision: str):
             "decision": decision,
             "token": token_str,
             "decided_by": decided_by,
-            # Flag distinti per il template
             "is_no_identity":     validation.error_code == ErrorCode.NO_IDENTITY,
             "is_not_found":       validation.error_code == ErrorCode.NOT_FOUND,
             "is_already_decided": validation.error_code == ErrorCode.ALREADY_DECIDED,
@@ -6151,45 +6190,18 @@ def _handle_approval_proxy(request, token, decision: str):
             "is_no_approvers":    validation.error_code == ErrorCode.NO_APPROVERS,
         })
 
-    # ── Decisione (validazione passata) ──────────────────────────────────────
-    if request.method == "GET":
-        return render(request, "automazioni/pages/approval_proxy_result.html", {
-            "requires_confirmation": True,
-            "decision": decision,
-            "token": token_str,
-            "decided_by": decided_by,
-            "approval_id": validation.approval_id,
-        })
-
-    result = process_approval_decision(token_str, decision, decided_by_email=decided_by)
-
-    log_action(
-        request,
-        "approval_proxy_decision",
-        "automazioni",
-        {
-            "token": token_str,
-            "decision": decision,
-            "actor": decided_by,
-            "ok": result.get("ok"),
-            "approval_id": result.get("approval_id"),
-            "message": result.get("message"),
-            "via": "entra_proxy",
-        },
-    )
-
     if not result.get("ok"):
         _proxy_logger.warning(
-            "approval_proxy: process_approval_decision ko token=%s decision=%s reason=%s",
-            token_str, decision, result.get("message"),
+            "approval_proxy: process_approval_decision ko approval=%s decision=%s reason=%s",
+            result.get("approval_id"), decision, result.get("message"),
         )
-
     return render(request, "automazioni/pages/approval_proxy_result.html", {
         "result": result,
         "decision": decision,
         "token": token_str,
         "decided_by": decided_by,
     })
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

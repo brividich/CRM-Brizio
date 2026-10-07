@@ -223,6 +223,9 @@
             Questa azione è irreversibile. Una volta confermata,
             {% if decision == "approved" %}le azioni di approvazione verranno eseguite automaticamente.{% else %}le azioni di rifiuto verranno eseguite automaticamente.{% endif %}
           </div>
+          {% if decider_email %}
+          <div class="confirm-text">La decisione sarà registrata a nome di <strong>{{ decider_email }}</strong>.</div>
+          {% endif %}
         </div>
       {% endif %}
 
@@ -235,7 +238,7 @@
           <button type="submit" class="btn {% if decision == 'approved' %}btn-approve{% else %}btn-reject{% endif %}">
             {% if decision == "approved" %}✅ Conferma Approvazione{% else %}❌ Conferma Rifiuto{% endif %}
           </button>
-          <a href="/automazioni/approvazione/{{ token }}/" class="btn btn-neutral">Annulla</a>
+          {% if not link_mode %}<a href="/automazioni/approvazione/{{ token }}/" class="btn btn-neutral">Annulla</a>{% endif %}
         </form>
       {% elif status_only %}
         {% if approval.status == "pending" and not approval.is_expired %}

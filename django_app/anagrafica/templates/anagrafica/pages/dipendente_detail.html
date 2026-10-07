@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load safe_json %}
 {% load anagrafica_extras %}
 {% load dpi_extras %}
 
@@ -3173,8 +3174,8 @@ function toggleContrattoEdit(id) {
 // dal form "Nuovo spostamento" sia dal form completo "Modifica dati aziendali";
 // entrambi ricostruiscono le opzioni dallo stesso blob JSON.
 (function() {
-  var repartiData = {{ reparto_autofill_json|safe }};
-  var areeByReparto = {{ aree_by_reparto_json|safe }};
+  var repartiData = {{ reparto_autofill_json|js_json }};
+  var areeByReparto = {{ aree_by_reparto_json|js_json }};
 
   function syncAreaOptions(repartoSel, areaSel) {
     if (!repartoSel || !areaSel) return;

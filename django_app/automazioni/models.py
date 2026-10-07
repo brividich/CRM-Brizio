@@ -555,6 +555,24 @@ class AutomationApproval(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
+    class BranchStatus(models.TextChoices):
+        NONE = "", "Nessuna"
+        RUNNING = "running", "In esecuzione"
+        DONE = "done", "Completate"
+        PARTIAL_ERROR = "partial_error", "Completate con errori"
+
+    # Esecuzione del ramo dopo la decisione: la decisione e' committata prima delle
+    # azioni, quindi lo stato del ramo va tracciato a parte per poter riprendere
+    # (recover_approval_branches) un ramo interrotto senza rieseguire le azioni gia' fatte.
+    branch_status = models.CharField(
+        max_length=20, choices=BranchStatus.choices, default="", blank=True, db_index=True
+    )
+    branch_progress = models.PositiveIntegerField(
+        default=0, help_text="Numero di azioni del ramo gia' eseguite."
+    )
+    branch_error = models.TextField(blank=True, default="")
+    branch_updated_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["-created_at", "-id"]
         indexes = [
@@ -563,12 +581,34 @@ class AutomationApproval(models.Model):
 
     def __str__(self) -> str:
         rule_code = getattr(getattr(self.run_log, "rule", None), "code", "?") if self.run_log_id else "?"
-        return f"Approval<{rule_code}:{self.status}:{self.token}>"
+        return f"Approval<{rule_code}:{self.status}:#{self.pk}>"
 
     def is_expired(self) -> bool:
         if self.expires_at is None:
             return False
         return timezone.now() > self.expires_at
+
+
+class AutomationApprovalLink(models.Model):
+    """Link di decisione personale: uno per destinatario di una richiesta di approvazione.
+
+    Il segreto viaggia solo nell'URL inviato a quel destinatario; a DB resta l'hash
+    SHA-256. Chi apre il link decide come ``recipient_email``: nessun login e nessun
+    header di identita'. Monouso: la prima decisione lo consuma.
+    """
+
+    approval = models.ForeignKey(AutomationApproval, on_delete=models.CASCADE, related_name="links")
+    recipient_email = models.CharField(max_length=255)
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+    used_decision = models.CharField(max_length=20, blank=True, default="")
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self) -> str:
+        return f"ApprovalLink<#{self.approval_id}:{self.recipient_email}>"
 
 
 class ApprovalEmailTemplateDeliveryMode(models.TextChoices):

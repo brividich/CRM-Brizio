@@ -252,8 +252,36 @@ def _sp_base_url() -> str:
     return f"https://graph.microsoft.com/v1.0/sites/{site_id}/lists/{list_id}"
 
 
+# Lista, statistiche ed export leggono TUTTA la lista SharePoint: senza cache ogni
+# apertura di pagina tiene occupato un thread del server per l'intera paginazione.
+# Cache breve, invalidata da ogni scrittura (_create/_update/_delete_item).
+_SP_ITEMS_CACHE_KEY = "rilevazione_incidenti:sp_items:v1"
+_SP_ITEMS_CACHE_TTL = 60
+_SP_FETCH_BUDGET_SECONDS = 45
+
+
+def _invalidate_items_cache() -> None:
+    from django.core.cache import cache
+
+    try:
+        cache.delete(_SP_ITEMS_CACHE_KEY)
+    except Exception:
+        logger.warning("rilevazione_incidenti: invalidazione cache lista fallita", exc_info=True)
+
+
 def _fetch_items() -> list[dict]:
-    """Recupera tutti gli item dalla lista SharePoint."""
+    """Recupera tutti gli item dalla lista SharePoint (cache 60s, tempo massimo 45s)."""
+    import time
+
+    from django.core.cache import cache
+
+    try:
+        cached = cache.get(_SP_ITEMS_CACHE_KEY)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return cached
+
     url = (
         _sp_base_url()
         + "/items?$expand=fields"
@@ -262,12 +290,20 @@ def _fetch_items() -> list[dict]:
     )
     headers = _graph_headers()
     items = []
+    deadline = time.monotonic() + _SP_FETCH_BUDGET_SECONDS
     while url:
-        resp = requests.get(url, headers=headers, timeout=30)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("SharePoint non ha risposto in tempo: riprovare fra poco.")
+        resp = requests.get(url, headers=headers, timeout=min(30, max(5, remaining)))
         resp.raise_for_status()
         data = resp.json()
         items.extend(data.get("value", []))
         url = data.get("@odata.nextLink")
+    try:
+        cache.set(_SP_ITEMS_CACHE_KEY, items, timeout=_SP_ITEMS_CACHE_TTL)
+    except Exception:
+        logger.warning("rilevazione_incidenti: salvataggio cache lista fallito", exc_info=True)
     return items
 
 
@@ -283,6 +319,7 @@ def _create_item(fields: dict) -> dict:
     payload = {"fields": fields}
     resp = requests.post(url, json=payload, headers=_graph_headers(), timeout=15)
     resp.raise_for_status()
+    _invalidate_items_cache()
     return resp.json()
 
 
@@ -290,12 +327,14 @@ def _update_item(sp_id: str, fields: dict) -> None:
     url = _sp_base_url() + f"/items/{sp_id}/fields"
     resp = requests.patch(url, json=fields, headers=_graph_headers(), timeout=15)
     resp.raise_for_status()
+    _invalidate_items_cache()
 
 
 def _delete_item(sp_id: str) -> None:
     url = _sp_base_url() + f"/items/{sp_id}"
     resp = requests.delete(url, headers=_graph_headers(), timeout=15)
     resp.raise_for_status()
+    _invalidate_items_cache()
 
 
 # ---------------------------------------------------------------------------

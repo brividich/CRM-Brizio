@@ -1,4 +1,5 @@
 {% extends "assets/base_shell.html" %}
+{% load safe_json %}
 
 {% block title %}Nuovo intervento{% endblock %}
 
@@ -659,10 +660,10 @@ body.theme-dark .wof-advanced-body { border-color:var(--border); }
   const descriptionEl = document.getElementById("id_description");
   const attachmentsEl = document.getElementById("id_attachments");
   const attachmentsStatusEl = document.getElementById("attachmentsStatus");
-  const supplierMap = {{ periodic_verification_supplier_map_json|safe }};
-  const ruleMap = {{ maintenance_rule_suggestion_map_json|safe }};
-  const contractMap = {{ contract_suggestion_map_json|safe }};
-  const siblingAssetMap = {{ sibling_asset_map_json|safe }};
+  const supplierMap = {{ periodic_verification_supplier_map_json|js_json }};
+  const ruleMap = {{ maintenance_rule_suggestion_map_json|js_json }};
+  const contractMap = {{ contract_suggestion_map_json|js_json }};
+  const siblingAssetMap = {{ sibling_asset_map_json|js_json }};
   const siblingField = document.getElementById("siblingAssetsField");
   const siblingList = document.getElementById("siblingAssetsList");
   const baseSupplierHelp = suggestionEl ? suggestionEl.textContent.trim() : "";

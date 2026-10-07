@@ -13,6 +13,8 @@ from django.db import models
 from django.utils import timezone
 from django_fsm import FSMField, transition
 
+from core.private_attachments import PrivateAttachmentStorage
+
 logger = logging.getLogger("suggestion_corner")
 
 
@@ -371,7 +373,11 @@ class SuggestionCornerAllegato(models.Model):
     segnalazione = models.ForeignKey(
         SuggestionCorner, on_delete=models.CASCADE, related_name="allegati",
     )
-    file = models.FileField(upload_to="suggestion_corner/%Y/", blank=True)
+    file = models.FileField(
+        upload_to="suggestion_corner/%Y/",
+        storage=PrivateAttachmentStorage(download_hint="Allegato segnalazione: non esposto via URL."),
+        blank=True,
+    )
     link_esterno = models.URLField(blank=True, max_length=500)
     caricato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,

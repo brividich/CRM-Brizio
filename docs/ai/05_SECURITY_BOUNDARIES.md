@@ -113,8 +113,14 @@ Questi path bypassano completamente l'`ACLMiddleware`:
 
 Ogni nuova app che deve essere accessibile senza autenticazione va aggiunta a `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py`.
 
-**`/approval-actions/` â€” Entra Application Proxy**: endpoint pensati per essere pubblicati selettivamente su Entra Application Proxy. `GET /approval-actions/approve|reject/<token>/` mostra conferma senza side effect; solo `POST` chiama `process_approval_decision()`. L'identitÃ  viene estratta da sessione Django â†’ `X-MS-CLIENT-PRINCIPAL-NAME` â†’ `X-Forwarded-Email`. Ogni decisione Ã¨ tracciata in AuditLog. Pubblicare **solo** `/approval-actions/*` nell'Application Proxy, non l'intero `/automazioni/`. URL file: `automazioni/approval_proxy_urls.py`.
+**`/approval-actions/` — Entra Application Proxy**: endpoint pensati per essere pubblicati selettivamente su Entra Application Proxy. Pubblicare **solo** `/approval-actions/*`, non l'intero `/automazioni/`. URL file: `automazioni/approval_proxy_urls.py`.
 
+- `GET|POST /approval-actions/r/<segreto>/<approva|rifiuta>/` — **link personale** inviato a un solo destinatario (`AutomationApprovalLink`, a DB solo hash SHA-256, monouso). Decide a nome di `recipient_email` senza login. È il link delle email.
+- `GET|POST /approval-actions/approve|reject/<uuid>/` e `/automazioni/approvazione/<uuid>/<approva|rifiuta>/` — link della richiesta: **login obbligatorio** e utente fra gli approvatori (`validate_approval_actor`). La pagina di stato `/automazioni/approvazione/<uuid>/` è visibile solo ad approvatori e admin.
+- GET mostra sempre una conferma senza effetti; solo POST decide. Ogni decisione è in AuditLog (`approval_link_decision`, `approval_proxy_decision`, `*_denied`).
+- **Mai** ricavare l'identità da header HTTP (`X-MS-CLIENT-PRINCIPAL-NAME`, `X-Forwarded-Email`): IIS li inoltra anche quando li scrive il client. Mai accettare decisioni anonime "da Teams".
+- L'IP del client si legge solo con `core.net.client_ip` (`X-Forwarded-For` solo da `TRUSTED_PROXY_IPS`).
+- Allegati di modulo: mai su storage pubblico `/media/`; usare `core.private_attachments.PrivateAttachmentStorage` (o lo storage privato del modulo) + view protetta, e aggiungere il `<location path="media/...">` di deny per i file storici.
 Path auth-only condivisi gestiti direttamente da `ACLMiddleware` (senza grant ACL dedicati):
 - `/onboarding/` per tutti gli utenti autenticati non superuser interessati al primo accesso
 - `/notifiche/` e `/api/notifiche/...` per tutti gli utenti autenticati, cosi il centro notifiche e il popup ack restano sempre disponibili indipendentemente dal ruolo

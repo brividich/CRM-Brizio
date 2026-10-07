@@ -89,6 +89,8 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     "/api/employee-board/widget/",
     "/gestione_utenti/modifica/",
     "/diario-preposto/allegato/",
+    # Allegati notizie: visibilita' della notizia verificata dentro la view.
+    "/notizie/allegato/",
     # CAPA: gating fail-closed dentro le view (gestore vs responsabile),
     # la middleware non deve bloccare per no_pulsante_match.
     "/capa/",
@@ -346,7 +348,8 @@ class ACLMiddleware:
                         )
                     return redirect(onboarding_path)
             except Exception:
-                pass  # non bloccare l'accesso in caso di errore DB
+                # non bloccare l'accesso in caso di errore DB, ma lasciarne traccia
+                _log_acl_once("warning", "onboarding_check_failed", "ACL: verifica onboarding fallita (accesso non bloccato).")
 
         if not legacy_auth_enabled():
             return self.get_response(request)

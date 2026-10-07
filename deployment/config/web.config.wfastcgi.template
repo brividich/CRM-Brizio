@@ -131,4 +131,52 @@
       </security>
     </system.webServer>
   </location>
+
+  <!-- Allegati di modulo passati a storage privato (notizie, rentri, suggestion
+       corner) e file storici del Diario Preposto: i vecchi file restano in
+       /media/ ma si leggono SOLO dalle view Django protette. -->
+  <location path="media/notizie">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/rentri">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/suggestion_corner">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+  <location path="media/diario_preposto">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
 </configuration>
