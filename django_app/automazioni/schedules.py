@@ -454,6 +454,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CORE — archivio automatico notifiche in-app: archivia le non lette e le
+        # lette oltre soglia, elimina le archiviate oltre la conservazione.
+        # Soglie in SiteConfig (Admin portale → Gestione notifiche); 0 = mai.
+        "name": "notifiche_archivio",
+        "func": "core.tasks.run_notifiche_archivio",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 2 * * *",       # ogni notte alle 02:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CORE — digest mattutino caporeparto: DPI in attesa + incidenti aperti del
         # reparto (fonte capi = Reparto.caporeparto_legacy_id; email = email_notifica).
         # Fail-safe: no-op senza capi/voci; assenze (SharePoint dismesso) e ticket

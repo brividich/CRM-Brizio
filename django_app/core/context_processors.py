@@ -771,12 +771,13 @@ def legacy_nav(request):
         try:
             from core.models import Notifica
             result["notifiche_count"] = Notifica.objects.filter(
-                legacy_user_id=int(legacy_user_id), letta=False
+                legacy_user_id=int(legacy_user_id), letta=False, archiviata=False
             ).count()
             result["notifiche_popup"] = list(
                 Notifica.objects.filter(
                     legacy_user_id=int(legacy_user_id),
                     letta=False,
+                    archiviata=False,
                     popup_shown=False,
                 ).order_by("-created_at")[:5]
             )

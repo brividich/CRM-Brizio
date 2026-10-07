@@ -9325,6 +9325,8 @@ def notifiche_log_view(request):
         qs = qs.filter(letta=True)
     elif filtro_stato == "non_lette":
         qs = qs.filter(letta=False)
+    elif filtro_stato == "archiviate":
+        qs = qs.filter(archiviata=True)
     qs = qs.order_by("-created_at")
 
     # Conteggi per tipo nella finestra (con etichetta/icona dal registro).
@@ -9354,6 +9356,7 @@ def notifiche_log_view(request):
                 ("Tipo", lambda n: notifica_meta(n.tipo)["label"]),
                 ("Messaggio", "messaggio"),
                 ("Letta", lambda n: "Si" if n.letta else "No"),
+                ("Archiviata", lambda n: n.get_archiviata_motivo_display() if n.archiviata else ""),
                 ("URL", "url_azione"),
             ],
             filename="notifiche_log",
@@ -9385,14 +9388,35 @@ def notifiche_log_view(request):
 def notifiche_config_view(request):
     """Interruttore admin globale: accende/spegne per TUTTI ciascuna categoria di
     notifica (in-app; l'email lo eredita dove il sender consulta l'enforcement)."""
+    from core import notifiche_archivio
     from core.notifiche_meta import CATEGORIE
     from core.notifiche_prefs import is_category_enabled_globally, set_category_global
 
     if request.method == "POST":
-        for cat in CATEGORIE:
-            set_category_global(cat, enabled=(request.POST.get(f"cat_{cat}") == "1"))
-        log_action(request, "notifiche_config", "admin_portale", {"categorie": list(CATEGORIE)})
-        messages.success(request, "Interruttori notifiche aggiornati.")
+        sezione = (request.POST.get("sezione") or "categorie").strip()
+        if sezione == "archivio":
+            politica = notifiche_archivio.set_politica(
+                non_lette=request.POST.get("non_lette"),
+                lette=request.POST.get("lette"),
+                elimina=request.POST.get("elimina"),
+            )
+            log_action(request, "notifiche_archivio_config", "admin_portale", {
+                "non_lette": politica.non_lette, "lette": politica.lette, "elimina": politica.elimina,
+            })
+            messages.success(request, "Regole di archiviazione salvate.")
+        elif sezione == "archivia_ora":
+            esito = notifiche_archivio.archivia_scadute()
+            log_action(request, "notifiche_archivio_run", "admin_portale", esito)
+            messages.success(
+                request,
+                f"Archiviazione eseguita: {esito['non_lette']} non lette e {esito['lette']} lette archiviate, "
+                f"{esito['eliminate']} eliminate.",
+            )
+        else:
+            for cat in CATEGORIE:
+                set_category_global(cat, enabled=(request.POST.get(f"cat_{cat}") == "1"))
+            log_action(request, "notifiche_config", "admin_portale", {"categorie": list(CATEGORIE)})
+            messages.success(request, "Interruttori notifiche aggiornati.")
         return redirect("admin_portale:notifiche_config")
 
     categorie = [
@@ -9402,6 +9426,9 @@ def notifiche_config_view(request):
     return render(request, "admin_portale/pages/notifiche_config.html", {
         "page_title": "Gestione notifiche",
         "categorie": categorie,
+        "politica": notifiche_archivio.get_politica(),
+        "stats": notifiche_archivio.statistiche(),
+        "max_giorni": notifiche_archivio.MAX_GIORNI,
     })
 
 

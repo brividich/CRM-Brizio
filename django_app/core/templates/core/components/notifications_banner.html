@@ -35,7 +35,7 @@
             <div class="notify-banner-meta">{{ n.created_at|date:"d-m-Y H:i" }}</div>
           </div>
           {% if n.url_azione %}
-            <a class="notify-banner-item-link" href="{{ n.url_azione }}">Apri</a>
+            <a class="notify-banner-item-link" href="{{ n.url_azione }}" data-notifica-open="{{ n.id }}">Apri</a>
           {% endif %}
         </article>
         {% endwith %}

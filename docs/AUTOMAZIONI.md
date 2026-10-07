@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 52
+**Totale automazioni disponibili:** 53
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -267,6 +267,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** da lun a ven, alle 07:00
 - **Task eseguito:** `core.tasks.run_caporeparto_morning_digest`
 - **Cosa fa:** CORE — digest mattutino caporeparto: DPI in attesa + incidenti aperti del reparto (fonte capi = Reparto.caporeparto_legacy_id; email = email_notifica). Fail-safe: no-op senza capi/voci; assenze (SharePoint dismesso) e ticket (nessun legame reparto) esclusi per design.
+
+### `notifiche_archivio`
+
+- **Quando gira:** ogni giorno, alle 02:30
+- **Task eseguito:** `core.tasks.run_notifiche_archivio`
+- **Cosa fa:** CORE — archivio automatico notifiche in-app: archivia le non lette e le lette oltre soglia, elimina le archiviate oltre la conservazione. Soglie in SiteConfig (Admin portale → Gestione notifiche); 0 = mai.
 
 ## Motore automazioni
 

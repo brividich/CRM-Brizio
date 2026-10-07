@@ -135,6 +135,10 @@ body.theme-dark .hn-page-btn:not(.active):hover{background:var(--surface-alt,#17
       <div class="hn-stat-num" style="color:#1d4ed8;">{{ popup_pend }}</div>
       <div class="hn-stat-label">Banner in attesa</div>
     </div>
+    <div class="hn-stat" style="border-color:#cbd5e1;">
+      <div class="hn-stat-num" style="color:#64748b;">{{ archiviate }}</div>
+      <div class="hn-stat-label">Archiviate</div>
+    </div>
   </div>
 
   <div class="hn-layout">
@@ -146,6 +150,7 @@ body.theme-dark .hn-page-btn:not(.active):hover{background:var(--surface-alt,#17
       <div class="hn-bulk">
         <span class="hn-bulk-label">Azioni rapide:</span>
         <button class="hn-btn hn-btn-ghost hn-btn-sm" onclick="bulkAction('segna_lette_tutte')">✓ Segna tutte come lette</button>
+        <button class="hn-btn hn-btn-ghost hn-btn-sm" onclick="bulkAction('archivia_scadute')">🗄 Archivia scadute ora</button>
         <button class="hn-btn hn-btn-danger hn-btn-sm" onclick="bulkAction('elimina_lette')">🗑 Elimina tutte le lette</button>
         {% if f_user_id %}
           <button class="hn-btn hn-btn-danger hn-btn-sm" onclick="bulkAction('elimina_utente', {{ f_user_id }})">🗑 Elimina tutte di questo utente</button>
@@ -165,6 +170,7 @@ body.theme-dark .hn-page-btn:not(.active):hover{background:var(--surface-alt,#17
           <option value="">Tutte</option>
           <option value="no" {% if f_letta == "no" %}selected{% endif %}>Non lette</option>
           <option value="si" {% if f_letta == "si" %}selected{% endif %}>Lette</option>
+          <option value="archiviate" {% if f_letta == "archiviate" %}selected{% endif %}>Archiviate</option>
         </select>
         <select class="hn-select" name="user_id" style="min-width:180px;">
           <option value="">Tutti gli utenti</option>
@@ -420,6 +426,7 @@ function eliminaNotifica(id) {
 function bulkAction(azione, userId) {
   var msgs = {
     'segna_lette_tutte': 'Segnare tutte le notifiche come lette?',
+    'archivia_scadute':  'Archiviare ora le notifiche oltre le soglie (Admin → Gestione notifiche)?',
     'elimina_lette':     'Eliminare tutte le notifiche già lette?',
     'elimina_utente':    'Eliminare tutte le notifiche di questo utente?'
   };
