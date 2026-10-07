@@ -115,13 +115,6 @@ body.theme-dark .sic-btn-back { background:var(--surface-alt); color:var(--text-
 {% block content %}
 <div id="sic-root">
 
-  {% if messages %}
-    {% for msg in messages %}
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;">
-      &#10003; {{ msg }}
-    </div>
-    {% endfor %}
-  {% endif %}
 
   <div class="sic-hero">
     <div class="sic-breadcrumb"><a href="{% url 'rilevazione_incidenti:lista' %}">&#8592; Rilevazioni Sicurezza</a></div>

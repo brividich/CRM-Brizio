@@ -64,11 +64,6 @@
   </div>
 </div>
 
-{% if messages %}
-  <div class="messages-wrap">
-    {% for message in messages %}<div class="notice {% if message.tags == 'error' %}notice-danger{% elif message.tags == 'success' %}notice-success{% endif %}">{{ message }}</div>{% endfor %}
-  </div>
-{% endif %}
 
 <div class="card" style="margin-bottom:18px;">
   <div class="card-body">

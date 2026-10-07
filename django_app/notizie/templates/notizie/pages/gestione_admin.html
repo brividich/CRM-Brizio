@@ -692,15 +692,6 @@
 
 {% block content %}
   <div class="news-settings-shell">
-    {% if messages %}
-      <div class="news-settings-messages">
-        {% for message in messages %}
-          <div class="news-settings-message{% if 'error' in message.tags or 'danger' in message.tags %} is-error{% elif 'warning' in message.tags %} is-warning{% endif %}">
-            {{ message }}
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
 
     <section class="news-settings-hero" aria-labelledby="news-settings-title">
       <div>

@@ -38,7 +38,6 @@ Context (vedi core/views_capa.py::capa_detail): a, can_manage, can_close, giorni
 
 {% block content %}
 <div class="cd-wrap">
-  {% if messages %}{% for msg in messages %}<div class="cd-msg">{{ msg }}</div>{% endfor %}{% endif %}
 
   <a class="cd-back" href="{% url 'capa_list' %}">← Tutte le azioni</a>
 

@@ -45,11 +45,6 @@ body.theme-dark .pr-help { color:var(--text-light); }
 <div id="pr-root">
   <a href="{% url 'procedure_refresh:document_list' %}" class="pr-back">Torna ai documenti</a>
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div class="pr-message" style="background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
 
   <div class="pr-doc-info">
     Documento: <strong>{{ document.code }}</strong> - {{ document.title }}

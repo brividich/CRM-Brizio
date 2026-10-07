@@ -194,11 +194,6 @@
 {% block tasks_shell_content %}
 <div class="ts-stack">
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div class="ts-note-box {% if 'error' in msg.tags %}danger{% endif %}">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
 
   {% if not preview_rows %}
     {# --- STEP 1: form upload --- #}

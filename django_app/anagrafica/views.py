@@ -10268,7 +10268,7 @@ def _visite_mediche_response(request):
     if request.headers.get("HX-Request"):
         return render(
             request, "anagrafica/partials/_visite_mediche_panel_wrapper.html",
-            {**_visite_mediche_panel_ctx(request), "show_htmx_messages": True},
+            _visite_mediche_panel_ctx(request),
         )
     return _redirect_impostazioni("visite-mediche")
 
