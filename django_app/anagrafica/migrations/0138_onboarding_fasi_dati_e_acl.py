@@ -58,6 +58,15 @@ def avanti(apps, schema_editor):
         recruiting.active_view_names = ",".join(nomi + ["anagrafica:recruiting_pipeline"])
         recruiting.save(update_fields=["active_view_names"])
 
+    # La pratica di onboarding accende la voce Onboarding del menu.
+    for link in Link.objects.filter(url_value="anagrafica:onboarding_list"):
+        nomi = [n.strip() for n in (link.active_view_names or "").split(",") if n.strip()]
+        for nome in ("anagrafica:onboarding_list", "anagrafica:onboarding_detail"):
+            if nome not in nomi:
+                nomi.append(nome)
+        link.active_view_names = ",".join(nomi)
+        link.save(update_fields=["active_view_names"])
+
     Binding = apps.get_model("core", "RoutePermissionBinding")
     for rotta, sorella in ROTTE.items():
         if Binding.objects.filter(route_name=rotta).exists():

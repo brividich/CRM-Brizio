@@ -105,3 +105,4 @@ body.theme-dark .obv-late { background: #2a1d17; }
 body.theme-dark .obv-note { background: #2a2116; color: #fbbf77; }
 body.theme-dark .obd-dates-form input, body.theme-dark .obv-exc input { background: var(--surface-alt); border-color: var(--border); color: var(--text); }
 body.theme-dark .obd-dates-form label { color: var(--text-light); }
+body.theme-dark .obv-completato .obv-title { color: var(--text-light); text-decoration: line-through; }
