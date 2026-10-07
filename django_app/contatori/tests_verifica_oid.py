@@ -108,6 +108,33 @@ class PropostaAITests(SimpleTestCase):
         self.assertEqual(proposte[CPU]["critico_sopra"], "95")
         self.assertEqual(proposte[SENSORI]["aggregazione"], "MASSIMO")  # non ammessa -> default
 
+    def test_risposta_a_righe_anche_troncata(self):
+        raw = (f"{CPU} | CPU | % | 1 | PRIMO | 85 | 95 |  | carico CPU\n"
+               f"{INVENTATO} | Inventato | | 1 | PRIMO | | | | x\n"
+               f"{SENSORI} | Sensori | | 1 | MAS")  # troncata a meta' riga
+        proposte = verifica_oid.leggi_risposta(raw, self.CAND)
+        self.assertEqual(proposte[CPU]["nome"], "CPU")
+        self.assertEqual(proposte[CPU]["critico_sopra"], "95")
+        self.assertEqual(proposte[SENSORI]["aggregazione"], "MASSIMO")  # valore troncato -> default
+        self.assertNotIn(INVENTATO, proposte)
+
+    def test_al_modello_al_massimo_un_blocco(self):
+        molti = [dict(self.CAND[0], oid=f"1.3.6.1.4.1.9.9.{i}.0") for i in range(40)]
+        disp = SimpleNamespace(sys_description="x", modello="", nome="x", sys_object_id="")
+        with mock.patch("ai_assistant.services.chat_with_ollama", return_value=SimpleNamespace(content="")) as m:
+            verifica_oid.proponi_con_ai(disp, molti)
+        contesto = m.call_args.kwargs["runtime_context"]
+        self.assertEqual(contesto.count("1.3.6.1.4.1.9.9."), verifica_oid.MAX_AI_PER_VOLTA)
+
+    def test_catalogo_nomi_noti(self):
+        cand = [dict(self.CAND[0], oid="1.3.6.1.4.1.3097.6.3.77.0"),
+                dict(self.CAND[0], oid="1.3.6.1.2.1.2.2.1.8.3"),
+                dict(self.CAND[0], oid="1.3.6.1.4.1.3097.6.3.30.0")]
+        proposte = verifica_oid.proposte_catalogo(cand)
+        self.assertEqual(proposte["1.3.6.1.4.1.3097.6.3.77.0"]["fattore"], "0.01")
+        self.assertEqual(proposte["1.3.6.1.2.1.2.2.1.8.3"]["nome"], "Stato porte (riga 3)")
+        self.assertNotIn("1.3.6.1.4.1.3097.6.3.30.0", proposte)  # sconosciuto: resta all'AI
+
     def test_ai_non_disponibile(self):
         with mock.patch("ai_assistant.services.chat_with_ollama", side_effect=RuntimeError("giu")):
             self.assertEqual(verifica_oid.proponi_con_ai(SimpleNamespace(
@@ -175,6 +202,13 @@ class PaginaTests(TestCase):
         self.assertEqual((sens.modalita, sens.aggregazione), ("WALK", "MASSIMO"))
         self.assertTrue(self.disp.sonde.filter(oid=SENSORI).exists())  # profilo riapplicato
         self.assertFalse(ColonnaProfiloSNMP.objects.filter(oid=INVENTATO).exists())
+
+    def test_proponi_solo_righe_spuntate(self):
+        self._verifica()
+        with mock.patch.object(verifica_oid, "proponi_con_ai", return_value={}) as m:
+            self.client.post(self.url, {"azione": ["aggiungi", "proponi"], "sel": ["1"]})
+        self.assertEqual([c["oid"] for c in m.call_args.args[1]], [SENSORI])
+        self.assertFalse(ColonnaProfiloSNMP.objects.filter(oid=SENSORI).exists())  # proponi non aggiunge
 
     def test_solo_sul_dispositivo(self):
         self._verifica()
