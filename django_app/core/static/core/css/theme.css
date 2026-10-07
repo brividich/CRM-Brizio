@@ -554,3 +554,11 @@ body.theme-dark .card-ind-chip{background:var(--surface-alt)}
 body.theme-dark .card-stamp{border-color:rgba(255,255,255,.18)}
 body.theme-dark .card-stamp::before{background:var(--bg)}
 body.theme-dark .card-ghost{border-color:rgba(255,255,255,.12)}
+/* Messaggi flash (core/components/flash_toasts.html) */
+.hub-flash-stack{position:fixed;right:18px;bottom:18px;z-index:1260;display:grid;gap:8px;width:min(420px,calc(100vw - 32px));pointer-events:none}
+.hub-flash{pointer-events:auto;display:flex;align-items:flex-start;gap:10px;padding:11px 12px 11px 14px;border-radius:10px;border:1px solid var(--border);border-left:4px solid var(--primary-mid);background:var(--surface);color:var(--text);font-size:var(--fs-sm);line-height:1.4;box-shadow:0 12px 32px rgba(15,23,42,.18);animation:notifyLiveIn .18s ease-out;transition:opacity .18s,transform .18s}
+.hub-flash-text{flex:1;min-width:0;overflow-wrap:anywhere}
+.hub-flash-close{flex:none;width:24px;height:24px;border:0;border-radius:6px;background:transparent;color:var(--text-mid);font-size:18px;line-height:1;cursor:pointer}.hub-flash-close:hover{background:var(--border)}
+.hub-flash-success{border-left-color:var(--success)}.hub-flash-warning{border-left-color:var(--warning)}.hub-flash-error{border-left-color:var(--danger)}
+.hub-flash-out{opacity:0;transform:translateY(6px)}
+body.theme-dark .hub-flash{box-shadow:0 12px 32px rgba(0,0,0,.4)}
