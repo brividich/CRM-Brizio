@@ -115,7 +115,7 @@ Il server di sviluppo serve la **cartella di lavoro**: il codice "funziona" anch
 - Read only the relevant AI doc(s), not the whole `docs/ai` folder.
 - Keep edits scoped and compatible with existing module boundaries.
 - **MANDATORY after every code change:** update `CHANGELOG.md` with all modified files and a description under `[Unreleased]`. Do this automatically, without waiting for an explicit request.
-- **MANDATORY when visible functionality, URLs, setup, dependencies, or user-facing docs change:** update `README.md` (module catalog table and/or the relevant `<details>` section). Do this automatically, without waiting for an explicit request.
+- **MANDATORY when visible functionality, URLs, setup, dependencies, or user-facing docs change:** update the module sheet `docs/moduli/<app>.md` (feature detail, commands, release notes) and, only if the one-line summary or URL changes, the module catalog table in `README.md`. Keep README rows short: long-form text never goes into the README. Do this automatically, without waiting for an explicit request.
 - Update root `CLAUDE.md` only for concise operational changes; put long-form details in the relevant `docs/ai/*.md` file.
 - If user-facing behavior changes, follow the version-bump checklist in [docs/ai/06_TESTING_AND_QUALITY_GATES.md](docs/ai/06_TESTING_AND_QUALITY_GATES.md).
 - If `deployment/setup_wizard.py` changes, regenerate `deployment/dist/SetupWizard.exe` and respect bundle exclusions.
