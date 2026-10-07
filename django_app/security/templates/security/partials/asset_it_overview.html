@@ -9,8 +9,10 @@
       <p><strong>Dispositivo non collegato al SOC.</strong> La protezione e i backup non sono verificabili da questa scheda.</p>
       {% if candidates %}
         <p><strong>Possibili dispositivi SOC per questo asset:</strong></p>
-        <ul class="af-it-alerts">{% for row in candidates %}<li>{{ row.device.hostname }}{% if row.device.ip_address %} · {{ row.device.ip_address }}{% endif %} · trovato per {{ row.reason }}{% if row.device.source %} · {{ row.device.source.name }}{% endif %}</li>{% endfor %}</ul>
-        <a class="as-link-subtle" href="{% url 'security:assets' %}?stato=da_collegare">Conferma il collegamento nel SOC</a>
+        <ul class="af-it-alerts">{% for row in candidates %}<li>{{ row.device.hostname }}{% if row.device.ip_address %} · {{ row.device.ip_address }}{% endif %} · trovato per {{ row.reason }}{% if row.device.source %} · {{ row.device.source.name }}{% endif %}
+          {% if can_link %}<form method="post" action="{% url 'assets:asset_view' asset.id %}" style="display:inline;margin-left:8px;">{% csrf_token %}<input type="hidden" name="action" value="link_soc_device"><input type="hidden" name="device" value="{{ row.device.pk }}"><button class="af-btn af-btn-secondary" type="submit">Collega a questo asset</button></form>{% endif %}
+        </li>{% endfor %}</ul>
+        {% if not can_link %}<a class="as-link-subtle" href="{% url 'security:assets' %}?stato=da_collegare">Conferma il collegamento nel SOC</a>{% endif %}
       {% else %}
         <a class="as-link-subtle" href="{% url 'security:assets' %}">Verifica i collegamenti nel SOC</a>
       {% endif %}

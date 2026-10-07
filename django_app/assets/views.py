@@ -9720,6 +9720,25 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
                 )
                 messages.success(request, f"Voce \"{entry.title}\" aggiornata.")
             return redirect("assets:asset_view", id=asset.id)
+        if action == "link_soc_device":
+            # Stessa regola della pagina dispositivi SOC: serve il permesso di
+            # configurazione del Security Center, e si collega solo un dispositivo
+            # che l'abbinatore assegna proprio a questo asset.
+            from security.services.asset_signals import link as link_soc_device
+            from security.services.configuration import can_manage_security_config
+            from security.templatetags.security_asset import unlinked_candidates
+
+            if not can_manage_security_config(request.user):
+                messages.error(request, "Serve il permesso di configurazione del Security Center.")
+                return redirect("assets:asset_view", id=asset.id)
+            device_id = _as_int(request.POST.get("device"), default=0)
+            row = next((r for r in unlinked_candidates(asset) if r["device"].pk == device_id), None)
+            if row is None:
+                messages.error(request, "Dispositivo SOC non più proponibile per questo asset.")
+                return redirect("assets:asset_view", id=asset.id)
+            link_soc_device(row["device"], asset, actor=request.user, request=request)
+            messages.success(request, f"«{row['device'].hostname}» collegato a «{asset.name}».")
+            return redirect(f"{reverse('assets:asset_view', args=[asset.id])}#tab-sicurezza")
         if action == "apply_snmp_identity":
             # Il valore deve essere uno di quelli letti via SNMP e mostrati in
             # scheda: niente testo libero dalla POST, e solo per chi puo' modificare l'asset.
