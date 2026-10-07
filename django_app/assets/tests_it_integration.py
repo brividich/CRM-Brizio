@@ -201,3 +201,34 @@ class DeviceKpiBandTests(TestCase):
         self.assertContains(response, "Ultimo backup")
         self.assertContains(response, "Fallito")
         self.assertContains(response, "Antivirus / EDR")
+
+class AssetPageUxTests(TestCase):
+    """Scheda asset: KPI che portano alla scheda giusta, collegamento SOC dalla scheda."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser("ux-demo", "ux@example.test", "synthetic-only")
+        self.client.force_login(self.user)
+
+    def test_kpi_tiles_link_to_tabs_and_header_menu(self):
+        asset = Asset.objects.create(asset_tag="UX-FW", name="FW ux", asset_type="FIREWALL")
+        DispositivoSNMP.objects.create(nome="fw", host="192.0.2.95", categoria="FIREWALL", asset=asset,
+                                       snmp_stato="OK", snmp_ultimo_controllo=timezone.now())
+        response = self.client.get(reverse("assets:asset_view", args=[asset.pk]))
+        self.assertContains(response, 'href="#tab-monitoraggio"')
+        self.assertContains(response, "data-af-back-link")
+        self.assertContains(response, "Altro &#9662;")
+
+    def test_link_soc_device_from_asset_page(self):
+        asset = Asset.objects.create(asset_tag="UX-PC", name="PC-UX-01", asset_type="PC")
+        device = SecurityAsset.objects.create(hostname="pc-ux-01.dominio.local")
+        url = reverse("assets:asset_view", args=[asset.pk])
+        self.assertContains(self.client.get(url), "Collega a questo asset")
+        other = SecurityAsset.objects.create(hostname="altro-device")
+        # Un dispositivo che l'abbinatore non assegna a questo asset viene rifiutato.
+        self.client.post(url, {"action": "link_soc_device", "device": other.pk})
+        other.refresh_from_db()
+        self.assertIsNone(other.hub_asset_id)
+        response = self.client.post(url, {"action": "link_soc_device", "device": device.pk})
+        self.assertEqual(response.status_code, 302)
+        device.refresh_from_db()
+        self.assertEqual(device.hub_asset_id, asset.pk)

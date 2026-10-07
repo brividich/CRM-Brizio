@@ -16,11 +16,22 @@ def security_asset_it_overview(context, asset, require_link=False):
     linked = asset.security_assets.count()
     if require_link and not linked:
         return {"show": False}
-    data = overview_for_hub_asset(asset) if linked else {"candidates": _unlinked_candidates(asset)}
+    if linked:
+        data = overview_for_hub_asset(asset)
+    else:
+        from security.services.configuration import can_manage_security_config
+
+        data = {
+            "candidates": unlinked_candidates(asset),
+            "can_link": can_manage_security_config(getattr(request, "user", None)),
+            "asset": asset,
+            # Il tag di inclusione non eredita il contesto: serve al form di conferma.
+            "csrf_token": context.get("csrf_token"),
+        }
     return {"show": True, "linked": linked, **data}
 
 
-def _unlinked_candidates(asset):
+def unlinked_candidates(asset):
     """Dispositivi SOC non collegati che l'abbinatore assegnerebbe proprio a questo asset."""
     from django.db.models import Q
 
