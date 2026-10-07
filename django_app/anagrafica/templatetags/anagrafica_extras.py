@@ -66,6 +66,18 @@ def subnav_svg_icon(label):
         return ""
     rules = [
         ("impostazion", "i-gear"),
+        ("chiedi", "i-search"),
+        ("report", "i-clipboard"),
+        ("persone", "i-users"),
+        ("competenze", "i-cap"),
+        ("amministrazion", "i-coins"),
+        ("referti", "i-doc"),
+        ("sessioni", "i-calendar"),
+        ("conformit", "i-check"),
+        ("cambi", "i-refresh"),
+        ("mansion", "i-clipboard"),
+        ("reparti", "i-building"),
+        ("recruiting", "i-search"),
         ("dipendent", "i-users"),
         ("retribuzion", "i-coins"),
         ("analisi", "i-coins"),
@@ -75,15 +87,16 @@ def subnav_svg_icon(label):
         ("medic", "i-pill"),
         ("sanitar", "i-pill"),
         ("document", "i-doc"),
-        ("onboarding", "i-id"),
-        ("pratich", "i-id"),
+        # «i-id» non esiste nello sprite _fm_icons.html: l'icona restava vuota.
+        ("onboarding", "i-check"),
+        ("pratich", "i-clipboard"),
         ("scadenz", "i-alarm"),
         ("sicurezza", "i-shield"),
         ("salute", "i-shield"),
         ("formazion", "i-cap"),
         ("qualific", "i-cap"),
         ("organigramma", "i-building"),
-        ("rubrica", "i-id"),
+        ("rubrica", "i-users"),
         ("anagrafica", "i-grid"),
     ]
     for needle, icon in rules:

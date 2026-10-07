@@ -4,6 +4,7 @@
 {% block title %}Scadenzario abilitazioni — Skill Matrix MOD.187{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <style>
@@ -42,11 +43,12 @@
     <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
   </div>
 
-  <div class="sc-kpis">
-    <span class="sc-chip {% if kpi.reparti_scaduti %}bad{% endif %}">Reparti con arretrati <b>{{ kpi.reparti_scaduti }}</b></span>
-    <span class="sc-chip {% if kpi.abil_scadute %}warn{% endif %}">Abilitazioni scadute <b>{{ kpi.abil_scadute }}</b></span>
-    <span class="sc-chip">Campagne aperte <b>{{ kpi.campagne_aperte }}</b></span>
-  </div>
+  <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Scadenzario in sintesi">
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.reparti_scaduti|yesno:"orange,green" icona="i-building" valore=kpi.reparti_scaduti label="Reparti con arretrati" sub="refresh semestrale scaduto" url="?stato=scaduto" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.abil_scadute|yesno:"amber,green" icona="i-alarm" valore=kpi.abil_scadute label="Abilitazioni scadute" sub="da rinnovare" %}
+    {% url 'anagrafica:skm_refresh' as u_ref %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-refresh" valore=kpi.campagne_aperte label="Campagne aperte" sub="refresh in corso" url=u_ref %}
+  </section>
 
   <form method="get" class="sc-toolbar">
     <label style="font-size:12px;color:#64748b;font-weight:700;">Stato</label>

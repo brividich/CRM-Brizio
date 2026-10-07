@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=5">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 <link rel="stylesheet" href="{% static 'anagrafica/css/hr_gestionale.css' %}?v=1">
 {% endblock %}
 
@@ -25,17 +25,11 @@
       </div>
     </div>
 
-    <div class="hrg-kpis">
-      <a class="hrg-kpi{% if n_ritardo %} hrg-kpi-danger{% else %} hrg-kpi-ok{% endif %}" href="?stato=ritardo">
-        <span class="hrg-kpi-l">In ritardo</span><span class="hrg-kpi-v">{{ n_ritardo }}</span><span class="hrg-kpi-h">oltre la decorrenza</span>
-      </a>
-      <a class="hrg-kpi{% if n_aperti %} hrg-kpi-warn{% endif %}" href="?stato=aperti">
-        <span class="hrg-kpi-l">Da fare</span><span class="hrg-kpi-v">{{ n_aperti }}</span><span class="hrg-kpi-h">adempimenti aperti</span>
-      </a>
-      <a class="hrg-kpi" href="?stato=aperti">
-        <span class="hrg-kpi-l">Persone coinvolte</span><span class="hrg-kpi-v">{{ n_persone }}</span><span class="hrg-kpi-h">con almeno un adempimento</span>
-      </a>
-    </div>
+    <section class="fmd-kpi fmd-kpi-auto" aria-label="Cambi mansione in sintesi">
+      {% include "anagrafica/components/_kpi_tile.html" with tono=n_ritardo|yesno:"orange,green" icona="i-alert-tri" valore=n_ritardo label="In ritardo" sub="oltre la decorrenza" url="?stato=ritardo" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono=n_aperti|yesno:"amber,green" icona="i-clipboard" valore=n_aperti label="Da fare" sub="adempimenti aperti" url="?stato=aperti" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_persone label="Persone coinvolte" sub="con almeno un adempimento" url="?stato=aperti" %}
+    </section>
 
     <div class="hrg-filtri" role="group" aria-label="Filtro">
       <a href="?stato=aperti" class="hrg-filtro{% if filtro == 'aperti' %} hrg-filtro-on{% endif %}">Da fare</a>

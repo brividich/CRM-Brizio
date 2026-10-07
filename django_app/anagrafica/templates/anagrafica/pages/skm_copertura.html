@@ -4,6 +4,7 @@
 {% block title %}Copertura minima — Skill Matrix MOD.187{% endblock %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <style>
@@ -43,12 +44,12 @@
     <a href="{% url 'anagrafica:skill_matrix_macchina' %}" class="hr-btn hr-btn-outline">↩ Torna alla matrice</a>
   </div>
 
-  <div class="sc-kpis">
-    <span class="sc-chip">Soglie configurate <b>{{ kpi.totali }}</b></span>
-    <span class="sc-chip {% if kpi.scoperte %}bad{% endif %}">Non coperte <b>{{ kpi.scoperte }}</b></span>
-    <span class="sc-chip {% if kpi.gap_totale %}warn{% endif %}">Gap totale (persone) <b>{{ kpi.gap_totale }}</b></span>
-    {% if kpi.non_valutabili %}<span class="sc-chip">Ambiti manuali <b>{{ kpi.non_valutabili }}</b></span>{% endif %}
-  </div>
+  <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Copertura in sintesi">
+    {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-shield" valore=kpi.totali label="Soglie configurate" sub="copertura minima richiesta" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.scoperte|yesno:"orange,green" icona="i-alert-tri" valore=kpi.scoperte label="Non coperte" sub="soglie sotto il minimo" %}
+    {% include "anagrafica/components/_kpi_tile.html" with tono=kpi.gap_totale|yesno:"amber,green" icona="i-users" valore=kpi.gap_totale label="Gap totale" sub="persone mancanti" %}
+    {% if kpi.non_valutabili %}{% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-edit" valore=kpi.non_valutabili label="Ambiti manuali" sub="da valutare a mano" %}{% endif %}
+  </section>
 
   {% if righe %}
   <table class="sc-table">
