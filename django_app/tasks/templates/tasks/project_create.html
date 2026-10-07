@@ -16,11 +16,6 @@
 
   {% include "tasks/_percorso_lifecycle.html" with current="anagrafica" %}
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div class="ts-note-box {% if 'error' in msg.tags %}danger{% endif %}">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
 
   <div class="ts-note-box">
     Se inserisci un <strong>P/N con revisione e versione già esistenti</strong>, il sistema riusa il kickoff corrispondente invece di crearne un duplicato.

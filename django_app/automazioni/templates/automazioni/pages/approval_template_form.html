@@ -53,11 +53,6 @@
   <h1 class="page-title">{{ page_title }}</h1>
 </div>
 
-{% if messages %}
-  {% for message in messages %}
-  <div class="alert alert-{{ message.tags }}" style="margin-bottom:16px;">{{ message }}</div>
-  {% endfor %}
-{% endif %}
 
 <form method="post">
 {% csrf_token %}

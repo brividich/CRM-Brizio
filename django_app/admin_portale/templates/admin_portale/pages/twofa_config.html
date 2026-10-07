@@ -26,13 +26,6 @@ body.theme-dark #method-modal > div { background: var(--surface) !important; }
 {% block content %}
   {% include "admin_portale/components/page_header.html" with page_title="Autenticazione a due fattori (2FA)" page_subtitle="Configura la policy globale e gestisci le impostazioni per singolo utente." %}
 
-  {% if messages %}
-    <div style="margin-bottom:16px;">
-      {% for message in messages %}
-        <div class="notice{% if message.tags == 'success' %} notice-success{% elif message.tags == 'error' %} notice-danger{% elif message.tags == 'warning' %} notice-warning{% endif %}">{{ message }}</div>
-      {% endfor %}
-    </div>
-  {% endif %}
 
   <div class="tfa-grid">
     <!-- Colonna sinistra: policy globale + tabella utenti -->

@@ -132,13 +132,6 @@
       </div>
     {% endif %}
 
-    {% if messages %}
-      <div class="abs-msg-stack">
-        {% for msg in messages %}
-          <div class="abs-msg abs-msg-{{ msg.tags|default:'info' }}">{{ msg }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
 
     <section class="ms-card" id="visibilita">
       <div class="ms-card-head">

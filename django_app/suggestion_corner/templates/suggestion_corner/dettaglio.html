@@ -15,9 +15,6 @@
     {% if is_team %}<a href="{% url 'suggestion_corner:modifica' seg.pk %}" class="hub-btn">Modifica</a>{% endif %}
   </div>
 
-  {% if messages %}
-    {% for m in messages %}<div class="hub-alert hub-alert-{{ m.tags }}">{{ m }}</div>{% endfor %}
-  {% endif %}
 
   <div class="sc-detail-grid">
 

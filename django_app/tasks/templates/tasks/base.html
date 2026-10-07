@@ -12,13 +12,6 @@
   {% include "core/components/page_header.html" with eyebrow=page_eyebrow|default:"Workflow operativo" title=page_title|default:"KICK-OFF" subtitle=page_subtitle only %}
   {% block page_actions %}{% endblock %}
 
-  {% if messages %}
-    <div class="tk-messages">
-      {% for message in messages %}
-        <div class="tk-message tk-message--{{ message.tags|default:'info' }}">{{ message }}</div>
-      {% endfor %}
-    </div>
-  {% endif %}
 
   {% block tasks_content %}{% endblock %}
 {% endblock %}

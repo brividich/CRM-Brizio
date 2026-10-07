@@ -626,13 +626,6 @@ body.theme-dark .pr-alert-error { background: rgba(220,38,38,.14); border-color:
     </div>
   </section>
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div class="pr-alert{% if 'error' in msg.tags %} pr-alert-error{% endif %}">
-        {{ msg }}
-      </div>
-    {% endfor %}
-  {% endif %}
 
   <div class="pr-workspace">
     <main class="pr-main" aria-label="Assegnazioni procedure">

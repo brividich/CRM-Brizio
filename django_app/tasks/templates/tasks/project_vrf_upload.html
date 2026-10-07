@@ -22,11 +22,6 @@
 {% block tasks_shell_content %}
 <div class="ts-stack">
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div class="ts-note-box {% if 'error' in msg.tags %}danger{% endif %}">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
 
   {% include "tasks/_percorso_lifecycle.html" with current="vrf" %}
 

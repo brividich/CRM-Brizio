@@ -40,6 +40,14 @@ Rendering icone navigazione: `render_icon` supporta alias SVG semantici (`layout
 
 Sidebar nav side: i gruppi aperti devono restare visivamente distinti dal primo livello tramite pannello annidato, rientro e stato aperto evidente, senza rompere la leggibilita in modalita `sb-collapsed` o mobile.
 
+## Messaggi flash (django.contrib.messages)
+
+- I template dei moduli **non** stampano `messages`: li mostra `core/base.html` come toast (`{% flash_messages_fallback %}`, `core/js/hub-flash.js`, `core/css/hub-flash.css`). Non aggiungere nuovi `{% for m in messages %}` nelle pagine; i vecchi include (`*/components/flash_messages.html`, `assets/components/messages.html`, `automazioni/components/toasts.html`, `gestione_specifiche/partials/_messages.html`) sono vuoti e restano solo per compatibilita'.
+- Eccezioni con riquadro proprio: `core/pages/login*.html` e `assets/pages/asset_qr_landing.html` (pagina pubblica standalone). Se una pagina stampa i messaggi da se', la base non li duplica.
+- Risposte HTMX/fetch/XHR: `core.flash_messages.FlashMessagesDeliveryMiddleware` mette nell'header `X-Hub-Flash` solo i messaggi aggiunti da quella richiesta (un polling non ruba quelli della pagina successiva). Con `HX-Redirect`/`HX-Location`/`HX-Refresh` o redirect 3xx restano alla pagina successiva. Download (`Content-Disposition: attachment`): cookie `hub_flash` (120 s) letto dalla pagina aperta.
+- Da JS: `window.hubFlash.show([{level: 'success', text: '...'}])`. Messaggi identici raggruppati (×N), oltre 160 caratteri riassunti con «Dettagli», max 5 visibili + «Chiudi tutti», Esc li chiude; successo/info spariscono dopo 7 s, avvisi ed errori restano.
+- Una pagina standalone (senza `core/base.html`) che vuole i toast deve includere `core/css/hub-flash.css` e `core/js/hub-flash.js` nel `<head>` e `{% load flash_messages %}{% flash_messages_fallback %}` prima di `</body>`.
+
 ## Dashboard / Module Boundary
 
 | `/admin/` | Django admin nativo |

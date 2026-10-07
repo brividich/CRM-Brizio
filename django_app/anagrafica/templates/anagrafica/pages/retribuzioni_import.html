@@ -63,14 +63,6 @@
     <a href="{% url 'anagrafica:dipendenti_list' %}" class="ri-btn ri-btn-ghost">← Dipendenti</a>
   </div>
 
-  {% if messages %}
-    {% for msg in messages %}
-    <div class="ri-alert {% if msg.tags == 'error' %}ri-alert-warn{% else %}ri-alert-info{% endif %}">
-      <span style="flex-shrink:0;">{% if msg.tags == 'error' %}⚠{% else %}✓{% endif %}</span>
-      <span>{{ msg }}</span>
-    </div>
-    {% endfor %}
-  {% endif %}
 
   <!-- Upload form -->
   <div class="ri-card">

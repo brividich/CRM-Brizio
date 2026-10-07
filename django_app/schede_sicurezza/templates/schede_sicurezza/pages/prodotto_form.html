@@ -5,11 +5,6 @@
 {% block content %}
 {% include "schede_sicurezza/components/_ghs_icons.html" %}
 <div style="max-width:860px;display:flex;flex-direction:column;gap:16px;">
-  {% if messages %}
-    {% for msg in messages %}
-      <div style="padding:12px 16px;border-radius:10px;background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};font-size:13px;font-weight:600;">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
 
   <div style="font-size:20px;font-weight:900;">{% if prodotto %}Modifica prodotto{% else %}Nuovo prodotto chimico{% endif %}</div>
 

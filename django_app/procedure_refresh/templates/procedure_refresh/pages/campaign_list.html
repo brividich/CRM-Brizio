@@ -57,11 +57,6 @@ body.theme-dark .pr-empty { color:var(--text-light); }
 <div id="pr-root">
   {% include "procedure_refresh/components/subnav.html" with is_manager=True %}
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div style="padding:12px 16px;border-radius:10px;background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};font-size:13px;font-weight:600;">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
 
   <div class="pr-header-row">
     <div class="pr-page-title">Sessioni refresh</div>

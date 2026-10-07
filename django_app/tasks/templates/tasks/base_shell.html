@@ -36,13 +36,6 @@
   {% endif %}
   {% block tasks_shell_tabs_extra %}{% endblock %}
 
-  {% if messages %}
-    <div class="ts-messages">
-      {% for message in messages %}
-        <div class="ts-message {{ message.tags|default:'info' }}">{{ message }}</div>
-      {% endfor %}
-    </div>
-  {% endif %}
 
   {% block tasks_shell_kpis %}{% endblock %}
   {% block tasks_shell_content %}{% endblock %}

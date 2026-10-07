@@ -73,13 +73,6 @@ body.theme-dark .modal h3{color:var(--text)}
   <a href="{% url 'hub_tools:hub_moduli' %}" class="btn-sm btn-edit" style="padding:8px 16px;"><- Torna ai Moduli</a>
 </div>
 
-{% if messages %}
-<div class="flash-stack">
-  {% for message in messages %}
-    <div class="flash {{ message.tags }}">{{ message }}</div>
-  {% endfor %}
-</div>
-{% endif %}
 
 <div class="form-card">
   <div style="font-size:.88rem;font-weight:700;color:#475569;margin-bottom:8px;">Branding login e loghi</div>
