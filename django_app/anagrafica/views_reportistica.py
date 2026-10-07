@@ -250,7 +250,8 @@ def _salva_scelte(request, modello: ReportModello, form: GeneraForm, parametri: 
                oggetto_tipo="report_modello", oggetto_id=str(modello.pk))
 
 
-def _scarica_nuovo(request, modello, documento: motore.Documento, parametri, formato: str, nota: str):
+def _scarica_nuovo(request, modello, documento: motore.Documento, parametri, formato: str, nota: str,
+                   *, extra: dict | None = None):
     if formato == ReportGenerato.FORMATO_PDF:
         contenuto, content_type = motore.render_pdf(documento), "application/pdf"
     else:
@@ -258,10 +259,11 @@ def _scarica_nuovo(request, modello, documento: motore.Documento, parametri, for
     nome_file = motore.nome_file(modello, documento, formato)
     sezioni_usate = [e.sezione.key for e in documento.sezioni_calcolate if e.sezione is not None]
     archiviato = ReportGenerato.objects.create(
-        modello=modello, modello_nome=modello.nome, titolo=documento.titolo[:200],
+        # Report a conversazione: il modello non e' salvato, l'archivio tiene la specifica.
+        modello=modello if modello.pk else None, modello_nome=modello.nome, titolo=documento.titolo[:200],
         destinatario=documento.destinatario[:200], formato=formato,
         data_da=documento.date_from, data_a=documento.date_to,
-        parametri={**parametri.as_dict(), "sezioni": sezioni_usate},
+        parametri={**parametri.as_dict(), "sezioni": sezioni_usate, **(extra or {})},
         contiene_dati_personali=documento.contiene_dati_personali,
         nome_file=nome_file, contenuto=contenuto, dimensione=len(contenuto),
         sha256=hashlib.sha256(contenuto).hexdigest(), note=nota[:300], generato_da=request.user,

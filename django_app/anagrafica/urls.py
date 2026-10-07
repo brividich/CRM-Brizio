@@ -4,6 +4,7 @@ from . import views
 from . import views_mpq
 from . import views_recruiting
 from . import views_reportistica
+from . import views_reportistica_chat
 from . import views_sorveglianza
 
 app_name = "anagrafica"
@@ -191,6 +192,9 @@ urlpatterns = [
 
     # Reportistica componibile (modelli a blocchi, PDF/Excel, archivio)
     path("reportistica/", views_reportistica.reportistica_index, name="reportistica_index"),
+    path("reportistica/chiedi/", views_reportistica_chat.reportistica_chat, name="reportistica_chat"),
+    path("reportistica/chiedi/scarica/", views_reportistica_chat.reportistica_chat_scarica, name="reportistica_chat_scarica"),
+    path("reportistica/chiedi/salva/", views_reportistica_chat.reportistica_chat_salva, name="reportistica_chat_salva"),
     path("reportistica/modelli/nuovo/", views_reportistica.reportistica_modello_create, name="reportistica_modello_create"),
     path("reportistica/modelli/<int:pk>/", views_reportistica.reportistica_genera, name="reportistica_genera"),
     path("reportistica/modelli/<int:pk>/modifica/", views_reportistica.reportistica_modello_edit, name="reportistica_modello_edit"),

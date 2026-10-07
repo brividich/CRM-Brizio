@@ -242,7 +242,9 @@ def _nome_utente(user) -> str:
     return ((getattr(user, "get_full_name", lambda: "")() or getattr(user, "username", "")) or "").strip()
 
 
-def componi(modello, parametri: Parametri, request) -> Documento:
+def componi(modello, parametri: Parametri, request, *, blocchi=None) -> Documento:
+    """Documento dal modello. ``blocchi`` (non salvati) sostituisce i blocchi del modello:
+    serve ai report a conversazione, che non creano record finche' non li si salva."""
     oggi = timezone.localdate()
     date_from, date_to = periodo_da_tipo(parametri.periodo_tipo, oggi=oggi,
                                          data_da=parametri.data_da, data_a=parametri.data_a)
@@ -292,8 +294,8 @@ def componi(modello, parametri: Parametri, request) -> Documento:
         excel_foglio_documento=modello.excel_foglio_documento,
     )
 
-    for blocco in modello.blocchi.all():
-        if blocco.pk in parametri.escludi_blocchi:
+    for blocco in (blocchi if blocchi is not None else modello.blocchi.all()):
+        if blocco.pk is not None and blocco.pk in parametri.escludi_blocchi:
             continue
         testo = parametri.testi.get(blocco.pk, blocco.testo)
         if blocco.tipo == "TESTO":
@@ -319,6 +321,7 @@ def _elemento_sezione(blocco, commento: str, ctx: Contesto, request, sost, model
         return Elemento("negata", blocco.pk, titolo,
                         paragrafi("Sezione omessa: non hai i permessi per questi dati."), sezione=sezione)
     valori = sezione.valori_opzioni(opzioni_salvate.get("valori"))
+    ctx.raccogli_avvisi()
     try:
         risultato = sezione.builder(ctx, valori)
     except Exception:
@@ -336,7 +339,8 @@ def _elemento_sezione(blocco, commento: str, ctx: Contesto, request, sost, model
 
     # Opzioni generali di tabella, nello stesso ordine per tutte le sezioni.
     righe = list(zip(risultato.righe, risultato.toni))
-    note_extra: list[str] = []
+    # Gli avvisi (dati non leggibili) restano visibili anche con le note di calcolo nascoste.
+    note_extra: list[str] = ctx.raccogli_avvisi()
     if valori.get("solo_criticita"):
         righe = [(r, t) for r, t in righe
                  if t in TONI_EVIDENZA or any(v in TONI_EVIDENZA for v in (r.get("_toni") or {}).values())]

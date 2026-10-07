@@ -20,11 +20,11 @@ _SELECT_MULTI = {"size": 6, "data-reportistica-multi": "1"}
 _DATE = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
 
 
-def scelte_perimetro() -> dict[str, list[tuple[str, str]]]:
+def scelte_perimetro(dipendenti=None) -> dict[str, list[tuple[str, str]]]:
     """Valori selezionabili per il perimetro: cataloghi canonici + persone."""
     from anagrafica.models import AreaAziendale, DipendenteAnagraficaAziendale, Mansione, Reparto, TipoQualifica
 
-    dipendenti = carica_dipendenti()
+    dipendenti = carica_dipendenti() if dipendenti is None else dipendenti
     mansioni = {m for m in Mansione.objects.values_list("nome", flat=True) if m}
     mansioni |= {d.mansione for d in dipendenti if d.mansione}
     oggi = timezone.localdate()
