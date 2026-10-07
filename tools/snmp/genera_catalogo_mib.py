@@ -58,16 +58,28 @@ def _enum(syntax: str) -> str:
 
 
 def leggi_cartella(cartella: Path):
-    definizioni = {}   # nome -> (genitore, numeri, modulo, tipo, corpo, stringhe)
-    convenzioni = {}   # tipo TC -> sintassi
-    for file in sorted(cartella.iterdir()):
-        if not file.is_file():
-            continue
-        grezzo = file.read_text(encoding="latin-1")
-        testo, stringhe = _pulisci(grezzo)
-        modulo = (re.match(r"\s*([A-Za-z][\w-]*)\s+DEFINITIONS", testo) or [None, file.name])[1]
+    """Definizioni per (modulo, nome): nomi uguali in MIB diverse non si confondono."""
+    definizioni = {}   # (modulo, nome) -> (genitore, numeri, tipo, corpo, stringhe)
+    importati = {}     # modulo -> {nome: modulo di origine}
+    convenzioni = {}   # (modulo, tipo TC) -> sintassi
+    file_mib = sorted(f for f in cartella.iterdir() if f.is_file())
+    nomi_file = {f.stem for f in file_mib}
+    for file in file_mib:
+        testo, stringhe = _pulisci(file.read_text(encoding="latin-1"))
+        modulo = (re.match(r"\s*([A-Za-z][\w-]*)\s+DEFINITIONS", testo) or [None, file.stem])[1]
+        if modulo != file.stem and modulo in nomi_file:
+            # File che dichiara il nome di un altro modulo (copia-incolla nei MIB dei produttori).
+            modulo = file.stem
+        imp = re.search(r"\bIMPORTS\b(.*?);", testo, re.DOTALL)
+        mappa = {}
+        if imp:
+            for nomi, origine in re.findall(r"(.*?)\bFROM\s+([A-Za-z][\w-]*)", imp.group(1), re.DOTALL):
+                for n in re.split(r"[\s,]+", nomi.strip()):
+                    if n:
+                        mappa[n] = origine
+        importati[modulo] = mappa
         for m in re.finditer(r"\b([A-Z][\w-]*)\s*::=\s*(?:TEXTUAL-CONVENTION.*?SYNTAX\s+)?(INTEGER\s*\{[^}]*\})", testo, re.DOTALL):
-            convenzioni.setdefault(m.group(1), m.group(2))
+            convenzioni.setdefault((modulo, m.group(1)), m.group(2))
         for m in re.finditer(rf"\b([a-z][\w-]*)\s+({TIPI_DEF})\b(.*?)::=\s*\{{([^}}]*)\}}", testo, re.DOTALL):
             nome, tipo, corpo, valore = m.groups()
             parti = valore.split()
@@ -79,51 +91,76 @@ def leggi_cartella(cartella: Path):
                 genitore, numeri = "", parti
             if not all(n.isdigit() for n in numeri):
                 continue
-            definizioni.setdefault(nome, (genitore, numeri, modulo, tipo, corpo, stringhe))
-    return definizioni, convenzioni
+            definizioni.setdefault((modulo, nome), (genitore, numeri, tipo, corpo, stringhe))
+    return definizioni, importati, convenzioni
 
 
-def risolvi(definizioni):
-    oid = dict(RADICI)
+def _trova(nome, modulo, definizioni, importati, per_nome):
+    """Chiave della definizione di ``nome`` vista dal modulo: stesso modulo, poi IMPORTS, poi unica."""
+    if (modulo, nome) in definizioni:
+        return (modulo, nome)
+    origine = importati.get(modulo, {}).get(nome)
+    if origine and (origine, nome) in definizioni:
+        return (origine, nome)
+    candidati = per_nome.get(nome, [])
+    return candidati[0] if len(candidati) == 1 else None
+
+
+def risolvi(definizioni, importati):
+    per_nome = {}
+    for chiave in definizioni:
+        per_nome.setdefault(chiave[1], []).append(chiave)
+    oid = {}
     cambiato = True
     while cambiato:
         cambiato = False
-        for nome, (genitore, numeri, *_rest) in definizioni.items():
-            if nome in oid:
+        for chiave, (genitore, numeri, *_rest) in definizioni.items():
+            if chiave in oid:
                 continue
-            base = oid.get(genitore) if genitore else ""
-            if genitore and base is None:
-                continue
-            oid[nome] = ".".join(filter(None, [base, *numeri]))
+            base = ""
+            if genitore:
+                fonte = _trova(genitore, chiave[0], definizioni, importati, per_nome)
+                base = oid.get(fonte) if fonte else RADICI.get(genitore)
+                if base is None and fonte is None:
+                    base = RADICI.get(genitore)
+                if base is None:
+                    continue
+            oid[chiave] = ".".join(filter(None, [base, *numeri]))
             cambiato = True
-    mancanti = sorted({d[0] for n, d in definizioni.items() if n not in oid and d[0]})
-    return oid, mancanti
+    mancanti = sorted({d[0] for k, d in definizioni.items() if k not in oid and d[0]})
+    return oid, mancanti, per_nome
 
 
-def catalogo(definizioni, convenzioni, oid):
+def catalogo(definizioni, importati, convenzioni, oid, per_nome):
     sintassi = {}
-    for nome, (_g, _n, _m, tipo, corpo, _s) in definizioni.items():
+    for chiave, (_g, _n, tipo, corpo, _s) in definizioni.items():
         if tipo == "OBJECT-TYPE":
             s = re.search(r"SYNTAX\s+(.*?)\s+(?:UNITS|MAX-ACCESS|ACCESS)\b", corpo, re.DOTALL)
-            sintassi[nome] = s.group(1).strip() if s else ""
+            sintassi[chiave] = s.group(1).strip() if s else ""
     voci = {}
-    for nome, (genitore, _n, modulo, tipo, corpo, stringhe) in definizioni.items():
-        if tipo != "OBJECT-TYPE" or nome not in oid:
+    for chiave, (genitore, _n, tipo, corpo, stringhe) in definizioni.items():
+        modulo, nome = chiave
+        if tipo != "OBJECT-TYPE" or chiave not in oid:
             continue
         accesso = re.search(r"\b(?:MAX-ACCESS|ACCESS)\s+([\w-]+)", corpo)
         if not accesso or accesso.group(1) not in LEGGIBILI:
             continue
-        syn = sintassi.get(nome, "")
+        syn = sintassi.get(chiave, "")
         if syn.startswith("SEQUENCE"):
             continue
-        colonna = sintassi.get(genitore, "") and not sintassi.get(genitore, "").startswith("SEQUENCE") \
-            and genitore in sintassi and re.search(r"\bINDEX\b|\bAUGMENTS\b", definizioni[genitore][4] or "")
+        padre = _trova(genitore, modulo, definizioni, importati, per_nome)
+        colonna = bool(padre and padre in sintassi and not sintassi[padre].startswith("SEQUENCE")
+                       and re.search(r"\bINDEX\b|\bAUGMENTS\b", definizioni[padre][3] or ""))
         unita = re.search(r"\bUNITS\s+(\"§\d+§\")", corpo)
         descr = re.search(r"\bDESCRIPTION\s+(\"§\d+§\")", corpo)
         tipo_base = syn.split("(")[0].split("{")[0].strip()
-        etichette = _enum(syn) or _enum(convenzioni.get(tipo_base, ""))
-        chiave = oid[nome] if colonna else oid[nome] + ".0"
-        voci[chiave] = {
+        tc = _trova(tipo_base, modulo, {k: 1 for k in convenzioni}, importati,
+                    {}) if tipo_base else None
+        sintassi_tc = convenzioni.get(tc) or next(
+            (v for (m, n), v in convenzioni.items() if n == tipo_base), "")
+        etichette = _enum(syn) or _enum(sintassi_tc)
+        chiave_oid = oid[chiave] if colonna else oid[chiave] + ".0"
+        voci[chiave_oid] = {
             "nome": nome,
             "modulo": modulo,
             "modalita": "WALK" if colonna else "GET",
@@ -134,15 +171,14 @@ def catalogo(definizioni, convenzioni, oid):
         }
     return dict(sorted(voci.items(), key=lambda kv: [int(p) for p in kv[0].split(".")]))
 
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("cartella", type=Path)
     parser.add_argument("--out", type=Path, default=Path("django_app/contatori/data/oid_mib.json"))
     args = parser.parse_args(argv)
-    definizioni, convenzioni = leggi_cartella(args.cartella)
-    oid, mancanti = risolvi(definizioni)
-    voci = catalogo(definizioni, convenzioni, oid)
+    definizioni, importati, convenzioni = leggi_cartella(args.cartella)
+    oid, mancanti, per_nome = risolvi(definizioni, importati)
+    voci = catalogo(definizioni, importati, convenzioni, oid, per_nome)
     if mancanti:
         print("Genitori non risolti (MIB mancanti):", ", ".join(mancanti[:30]), file=sys.stderr)
     args.out.parent.mkdir(parents=True, exist_ok=True)
