@@ -31,6 +31,7 @@ from . import nc_service
 from .acl_bootstrap import PERM_ANOMALIE_NC
 from .quality_models import AnomaliaNC as NC
 from .quality_models import AnomaliaNCAllegato, AnomaliaNCAzione
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ ALLEGATI_MIME = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
-ALLEGATI_MAX = 20 * 1024 * 1024
+ALLEGATI_MAX = DOCUMENT_MAX_BYTES
 LISTA_MAX = 300
 
 

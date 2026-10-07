@@ -35,6 +35,7 @@ from .acl_bootstrap import PERM_IMPOSTAZIONI_MANAGE
 from .forms import SegnalazioneForm
 from .models import DiarioPrepostoImpostazioni, SegnalazioneAllegato, SegnalazionePreposto
 from core import naming
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ CHECKLIST_ISPEZIONE_PREPOSTO = "preposto_ispezione"
 # Validazione allegati segnalazioni
 # ---------------------------------------------------------------------------
 
-DIARIO_ALLEGATO_MAX_BYTES = 20 * 1024 * 1024  # 20 MB
+DIARIO_ALLEGATO_MAX_BYTES = DOCUMENT_MAX_BYTES
 DIARIO_ALLEGATO_EXTENSIONS = {
     ".pdf",
     ".png",

@@ -17,10 +17,11 @@ from core.upload_mime import (
     validate_extension_and_mime,
 )
 from attrezzature.models import Attrezzatura
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 
-# Allegati task/progetto: 30 MB, formati office/immagini/PDF.
-TASKS_ATTACHMENT_MAX_BYTES = 30 * 1024 * 1024
+# Allegati task/progetto: limite UPLOAD_MAX_FILE_MB, formati office/immagini/PDF.
+TASKS_ATTACHMENT_MAX_BYTES = DOCUMENT_MAX_BYTES
 TASKS_ATTACHMENT_EXTENSIONS = {
     ".pdf",
     ".png",

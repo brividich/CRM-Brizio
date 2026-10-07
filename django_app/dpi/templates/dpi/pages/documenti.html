@@ -145,7 +145,7 @@ body.theme-dark .dpi-empty strong { color:var(--text-mid); }
         <input type="file" name="files" multiple required accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" id="dpi-files">
         <span class="dpi-drop-ico"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
         <strong>Scegli i file o trascinali qui</strong>
-        <small>PDF, Word, Excel, immagini · max 25 MB ciascuno</small>
+        <small>PDF, Word, Excel, immagini · max {{ upload_max_mb }} MB ciascuno</small>
         <span class="dpi-drop-names" id="dpi-names"></span>
       </label>
       <div class="dpi-form-side">

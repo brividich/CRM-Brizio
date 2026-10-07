@@ -51,6 +51,7 @@ from .models import (
     AnomalieUserAccessRule,
 )
 from core import naming
+from core.upload_limits import DOCUMENT_MAX_BYTES, DOCUMENT_MAX_MB
 
 
 logger = logging.getLogger(__name__)
@@ -141,7 +142,7 @@ ALLEGATI_ALLOWED_EXTENSIONS = {
     ".xlsm",
     ".csv",
 }
-ALLEGATI_MAX_FILE_SIZE = 20 * 1024 * 1024
+ALLEGATI_MAX_FILE_SIZE = DOCUMENT_MAX_BYTES
 _ALLEGATI_FILE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 ALLEGATI_SYNC_META_FILENAME = "__sync_meta__.json"
 ALLEGATI_SYNC_PENDING = "pending"
@@ -2479,7 +2480,7 @@ def api_anomalie_allegati_upload(request):
                 errors.append(f"{original}: file vuoto")
                 continue
             if file_size > ALLEGATI_MAX_FILE_SIZE:
-                errors.append(f"{original}: supera 20 MB")
+                errors.append(f"{original}: supera {DOCUMENT_MAX_MB} MB")
                 continue
             file_id = f"{uuid4().hex}__{safe_name}"
             target = folder / file_id
@@ -2629,7 +2630,7 @@ def api_anomalie_descrizione_allegati_upload(request):
             errors.append("Formato o nome file non supportato")
             continue
         if size <= 0 or size > ALLEGATI_MAX_FILE_SIZE:
-            errors.append(f"{name}: dimensione non valida o oltre 20 MB")
+            errors.append(f"{name}: dimensione non valida o oltre {DOCUMENT_MAX_MB} MB")
             continue
         file_rel = f"{uuid4().hex}__{name}"
         target = folder / file_rel

@@ -51,6 +51,7 @@ from .models import (
     get_categorie,
 )
 from core import naming
+from core.upload_limits import DOCUMENT_MAX_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -1154,7 +1155,7 @@ def ticket_carica_allegati(request, pk: int):
                     da_validare=not auto_valida,
                     allowed_extensions=TICKET_ALLOWED_UPLOAD_EXTENSIONS,
                     allowed_mimes=TICKET_ALLOWED_UPLOAD_MIMES,
-                    max_bytes=20 * 1024 * 1024,
+                    max_bytes=DOCUMENT_MAX_BYTES,
                 )
             )
         except AllegatoError as exc:
@@ -1824,7 +1825,7 @@ def api_allegato(request):
             da_validare=not auto_valida,
             allowed_extensions=TICKET_ALLOWED_UPLOAD_EXTENSIONS,
             allowed_mimes=TICKET_ALLOWED_UPLOAD_MIMES,
-            max_bytes=20 * 1024 * 1024,
+            max_bytes=DOCUMENT_MAX_BYTES,
         )
     except AllegatoError as exc:
         return _json_err(str(exc))

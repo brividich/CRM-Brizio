@@ -20,9 +20,10 @@ from core.legacy_models import Ruolo
 from core.models import HubLink, HubLinkCategory, HubLinkRoleAccess
 
 from .decorators import legacy_admin_required
+from core.upload_limits import DOCUMENT_MAX_BYTES, DOCUMENT_MAX_MB
 
 ALLOWED_UPLOAD_EXT = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".png", ".jpg", ".jpeg"}
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+MAX_UPLOAD_BYTES = DOCUMENT_MAX_BYTES
 
 
 def _json_body(request) -> dict:
@@ -155,7 +156,7 @@ def api_hub_link_create(request):
         if ext not in ALLOWED_UPLOAD_EXT:
             return JsonResponse({"ok": False, "error": f"Estensione {ext} non ammessa."}, status=400)
         if upload.size > MAX_UPLOAD_BYTES:
-            return JsonResponse({"ok": False, "error": "File troppo grande (max 25 MB)."}, status=400)
+            return JsonResponse({"ok": False, "error": f"File troppo grande (max {DOCUMENT_MAX_MB} MB)."}, status=400)
         link.file = upload
         link.original_filename = upload.name
         link.file_size = upload.size

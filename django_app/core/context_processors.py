@@ -26,6 +26,7 @@ from core.navigation_registry import (
     get_subnav_nodes,
     get_topbar_nodes,
 )
+from core.upload_limits import DOCUMENT_MAX_MB
 from core.versioning import get_changelog_entries, get_current_release, get_module_versions
 
 _NAV_LOG_ONCE_TTL_SECONDS = 300
@@ -951,4 +952,5 @@ def app_meta(_request):
         "current_release": current_release,
         "release_notes_preview": list(current_release.get("items") or [])[:6],
         "recent_releases": get_changelog_entries(limit=3),
+        "upload_max_mb": DOCUMENT_MAX_MB,
     }

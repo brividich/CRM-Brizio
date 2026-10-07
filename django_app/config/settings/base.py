@@ -173,6 +173,12 @@ ANOMALIE_SP_FOLDER_URL = env("ANOMALIE_SP_FOLDER_URL", "#")
 # i capicommessa del modulo anomalie. L'appartenenza al reparto conferisce
 # automaticamente il ruolo. Configurabile per non vincolare al codice "IN1".
 ANOMALIE_CAPOCOMMESSA_REPARTO = env("ANOMALIE_CAPOCOMMESSA_REPARTO", "IN1").strip()
+# Upload documenti/allegati: limite per singolo file condiviso da tutti i moduli
+# (core/upload_limits.py) e numero massimo di file in una sola richiesta
+# (caricamento cartelle). Il tetto IIS sull'intera richiesta resta nel
+# web.config (maxAllowedContentLength) e va tenuto allineato.
+UPLOAD_MAX_FILE_MB = int(env("UPLOAD_MAX_FILE_MB", "100") or "100")
+DATA_UPLOAD_MAX_NUMBER_FILES = int(env("DATA_UPLOAD_MAX_NUMBER_FILES", "1000") or "1000")
 SQL_LOG_ENABLED = env_bool("SQL_LOG_ENABLED", False)
 SQL_LOG_LEVEL = env("SQL_LOG_LEVEL", "DEBUG").strip().upper() or "DEBUG"
 SQL_LOG_FORCE_DEBUG_CURSOR = env_bool("SQL_LOG_FORCE_DEBUG_CURSOR", SQL_LOG_ENABLED)

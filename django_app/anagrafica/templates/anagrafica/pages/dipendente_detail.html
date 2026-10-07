@@ -2225,7 +2225,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
               <input type="text" name="note" class="dp-select" maxlength="255" placeholder="Note opzionali" style="width:100%;">
             </div>
             <div class="dp-qual-field" style="grid-column:1/-1;">
-              <label class="dp-qual-label">Evidenza (certificato PDF/immagine, max 50 MB){% info_hint "qualifica_evidenza" %}</label>
+              <label class="dp-qual-label">Evidenza (certificato PDF/immagine, max {{ upload_max_mb }} MB){% info_hint "qualifica_evidenza" %}</label>
               <input type="file" name="documento" class="dp-select" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.tif,.tiff" style="width:100%;">
             </div>
           </div>
@@ -2550,7 +2550,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
                 </select>
               </div>
               <div class="dp-qual-field" style="grid-column:1/-1;">
-                <label class="dp-qual-label">File (PDF, DOCX, XLS, JPG, PNG, MSG, HTML — max 50 MB) *</label>
+                <label class="dp-qual-label">File (PDF, DOCX, XLS, JPG, PNG, MSG, HTML — max {{ upload_max_mb }} MB) *</label>
                 <input type="file" name="file" class="dp-select" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.msg,.html" required style="width:100%;">
               </div>
               <div class="dp-qual-field" style="grid-column:1/-1;">

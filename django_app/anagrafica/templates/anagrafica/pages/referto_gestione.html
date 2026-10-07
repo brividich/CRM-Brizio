@@ -150,7 +150,7 @@ body.theme-dark .vm-detail-danger h3 { color:#fca5a5; }
     <section class="hr-card" aria-labelledby="rg-file" style="margin-top:14px;">
       <div class="hr-card-head"><div><h2 class="hr-card-title" id="rg-file">Sostituisci il file</h2><div class="hr-card-desc">Il referto resta lo stesso record: cambia solo il file allegato</div></div></div>
       <div class="hr-card-pad" style="padding:20px;">
-        <p class="vm-detail-sub" style="margin:0 0 16px;">Il file precedente viene rimosso dall'archivio privato e la sostituzione resta nell'audit con nome e dimensione di prima e dopo. Formati ammessi: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, WEBP (max 50 MB).</p>
+        <p class="vm-detail-sub" style="margin:0 0 16px;">Il file precedente viene rimosso dall'archivio privato e la sostituzione resta nell'audit con nome e dimensione di prima e dopo. Formati ammessi: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, WEBP (max {{ upload_max_mb }} MB).</p>
         <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:referto_gestione' doc.pk %}">
           {% csrf_token %}
           <input type="hidden" name="azione" value="sostituisci">

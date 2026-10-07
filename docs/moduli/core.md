@@ -10,6 +10,19 @@ Middleware ACL, navigation registry, auth backends, audit, notifiche, export, ri
 
 ## Dettaglio
 
+### Limiti di upload (`core/upload_limits.py`)
+
+Un solo limite per file vale per tutti gli upload di documenti e allegati: assets, anagrafica, anomalie e NC, tickets, tasks, DPI, SDS, diario preposto, RENTRI, fornitori, notizie, sistema di gestione e bacheca. Lo stesso limite vale per l'import dell'archivio HR.
+
+| Variabile `.env` | Default | Effetto |
+|---|---|---|
+| `UPLOAD_MAX_FILE_MB` | 100 | Dimensione massima del singolo file; i testi «max N MB» nelle pagine la leggono da `upload_max_mb` (context processor `app_meta`). |
+| `DATA_UPLOAD_MAX_NUMBER_FILES` | 1000 | File per singolo invio (caricamento di una cartella intera). |
+
+Il tetto sull'intera richiesta lo applica IIS: `maxAllowedContentLength` nel `web.config` (template: 104857600 = 100 MB). Va tenuto >= `UPLOAD_MAX_FILE_MB`, altrimenti IIS risponde 404.13 prima di Django. Il `web.config` di produzione non viene ridistribuito con il pacchetto: va aggiornato a mano sul server.
+
+Restano fuori, con i limiti dedicati: loghi e immagini di branding, foto/planimetrie, import Excel/CSV/JSON, upload anonimi dalla landing QR pubblica (15 MB) e caselle SOC.
+
 L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolver ACL, legacy models, auth backends, audit trail e context processors.
 
 - **ACL middleware** con resolver canonico v2 + fallback legacy, logging throttled delle decisioni
