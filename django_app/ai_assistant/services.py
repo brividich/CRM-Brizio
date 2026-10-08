@@ -460,6 +460,21 @@ def _sgi_table_budget(max_chars: int) -> int:
     return max(100, max_chars - overlap)
 
 
+def _sgi_doc_label(code: str, rev: str, title: str = "") -> str:
+    """Etichetta del documento nei chunk SGI: ``"<codice> Rev.<n>"``.
+
+    Con ``OLLAMA_RAG_SGI_CHUNK_TITLE`` aggiunge il titolo del documento: ogni
+    frammento sa di che documento parla anche quando il testo non lo ripete
+    (misura A1 in dev: ``ai_eval --rag-sgi`` recall 27->31/32, MRR 0,623 -> 0,772).
+    """
+    label = f"{code} Rev.{rev}" if rev else code
+    if not getattr(settings, "OLLAMA_RAG_SGI_CHUNK_TITLE", False):
+        return label
+    clean_title = _clean_text(title, limit=120)
+    if clean_title and clean_title.lower() != (code or "").lower():
+        label = f"{label} {clean_title}"
+    return label
+
 def _sgi_split_tables(body: str, max_chars: int) -> str:
     """Spezza le pipe-table più lunghe di ``max_chars`` in paragrafi per righe intere,
     ripetendo l'intestazione: lo split a caratteri a valle non taglia più una riga.
@@ -744,7 +759,7 @@ def _load_sgi_specifiche_chunks() -> list[KnowledgeChunk]:
                 esclusi.append(codice)
                 continue
             rev = _clean_text(spec.revisione, limit=30)
-            doc_label = f"{codice} Rev.{rev}" if rev else codice
+            doc_label = _sgi_doc_label(codice, rev, getattr(spec, "titolo", ""))
             source = f"spec:{codice}#rev{rev}" if rev else f"spec:{codice}"
             text = _sgi_extract_specifica_text(spec) or _sgi_specifica_metadata(spec)
             chunks.extend(_sgi_chunks_from_text(source=source, doc_label=doc_label, text=text, max_chars=max_chars))
@@ -792,7 +807,7 @@ def _load_sgi_procedure_chunks() -> list[KnowledgeChunk]:
                 esclusi.append(code)
                 continue
             rev_code = _clean_text(rev.revision_code, limit=50)
-            doc_label = f"{code} Rev.{rev_code}" if rev_code else code
+            doc_label = _sgi_doc_label(code, rev_code, getattr(doc, "title", ""))
             source = f"proc:{code}#rev{rev_code}" if rev_code else f"proc:{code}"
             text = _sgi_extract_procedure_text(rev) or _sgi_procedure_metadata(doc)
             chunks.extend(_sgi_chunks_from_text(source=source, doc_label=doc_label, text=text, max_chars=max_chars))

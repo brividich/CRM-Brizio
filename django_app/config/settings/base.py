@@ -372,6 +372,10 @@ SGI_ESTRAZIONE_PERSISTITA_ENABLED = env_bool("SGI_ESTRAZIONE_PERSISTITA_ENABLED"
 # Cambiare uno dei due invalida la cache embeddings: rilanciare index_sgi_documents.
 OLLAMA_RAG_SGI_CHUNK_CHARS = int(env("OLLAMA_RAG_SGI_CHUNK_CHARS", str(OLLAMA_RAG_CHUNK_CHARS)) or OLLAMA_RAG_CHUNK_CHARS)
 OLLAMA_RAG_SGI_CHUNK_HEADER = env_bool("OLLAMA_RAG_SGI_CHUNK_HEADER", False)
+# Titolo del documento nell'etichetta dei chunk SGI ("MT CN 06 Rev.21 Risorse
+# Umane — §4.2 ..."): misurato in dev: SGI recall 27->31/32, MRR 0,623 -> 0,772; KB invariata. Invalida la cache
+# embeddings: dopo averlo acceso rilanciare index_sgi_documents.
+OLLAMA_RAG_SGI_CHUNK_TITLE = env_bool("OLLAMA_RAG_SGI_CHUNK_TITLE", False)
 # Retrieval semantico (embeddings via Ollama nativo). OPT-IN: richiede un modello
 # di embedding scaricato in Ollama (es. `ollama pull nomic-embed-text`). Fail-safe:
 # se non disponibile il retrieval resta BM25-only. Solo provider "ollama".

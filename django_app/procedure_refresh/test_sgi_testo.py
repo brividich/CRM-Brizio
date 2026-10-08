@@ -382,6 +382,28 @@ class ChunkingSgiTests(TestCase):
         self.assertTrue(all(c.content.startswith("XX Rev.3 — §") for c in chunks))
         self.assertIn("XX Rev.3 — §2 Tabella\n", chunks[-1].content)
 
+    def test_titolo_documento_nell_etichetta(self):
+        from ai_assistant.services import _sgi_doc_label
+
+        self.assertEqual(_sgi_doc_label("XX ZZ 01", "3", "Documento sintetico"), "XX ZZ 01 Rev.3")
+        with override_settings(OLLAMA_RAG_SGI_CHUNK_TITLE=True):
+            self.assertEqual(_sgi_doc_label("XX ZZ 01", "3", "Documento sintetico"), "XX ZZ 01 Rev.3 Documento sintetico")
+            self.assertEqual(_sgi_doc_label("XX ZZ 01", "", "XX ZZ 01"), "XX ZZ 01")  # titolo = codice: niente doppione
+            self.assertEqual(_sgi_doc_label("XX ZZ 01", "3", ""), "XX ZZ 01 Rev.3")
+
+    @override_settings(OLLAMA_RAG_SGI_CHUNK_TITLE=True, SGI_ESTRAZIONE_PERSISTITA_ENABLED=False)
+    def test_loader_procedure_usa_il_titolo(self):
+        from ai_assistant.services import _load_sgi_procedure_chunks
+
+        doc = ProcedureDocument.objects.create(code="XX ZZ 09", title="Gestione sintetica", document_type=DocumentType.ALTRO)
+        ProcedureRevision.objects.create(
+            document=doc, revision_code="2", revision_date=date(2026, 1, 1), effective_date=date(2026, 1, 1),
+            source_type=SourceType.FILESERVER, source_path="", file_name="x.pdf", is_current=True,
+        )
+        chunks = [c for c in _load_sgi_procedure_chunks() if c.source.startswith("proc:XX ZZ 09")]
+        self.assertTrue(chunks)
+        self.assertTrue(all(c.title.startswith("XX ZZ 09 Rev.2 Gestione sintetica") for c in chunks))
+
     def test_chunk_chars_sgi_default_e_override(self):
         from ai_assistant.services import _sgi_chunk_chars
 

@@ -138,6 +138,7 @@ Tutti con default che lasciano il comportamento invariato. Si impostano nel `.en
 | `SGI_ESTRAZIONE_PERSISTITA_ENABLED` | `False` | l'assistente legge `SgiTestoEstratto` (se l'hash coincide) e la sync notturna accoda l'estrazione |
 | `OLLAMA_RAG_SGI_CHUNK_CHARS` | = `OLLAMA_RAG_CHUNK_CHARS` | dimensione chunk SGI |
 | `OLLAMA_RAG_SGI_CHUNK_HEADER` | `False` | intestazione «codice Rev.n — § sezione» nel testo del chunk |
+| `OLLAMA_RAG_SGI_CHUNK_TITLE` | `False` | titolo del documento nell'etichetta dei chunk SGI. **Consigliato `True`**: in dev SGI recall 27→31/32, MRR 0,623→0,772, KB invariata. Poi `index_sgi_documents` |
 | `OLLAMA_RAG_SGI_MAX_PROCS` | `400` (era 300) | tetto revisioni procedura nel corpus RAG |
 
 Passi (solo quando si decide di accendere l'estrazione persistita, dopo misura `ai_eval --rag-sgi` non peggiorativa):
