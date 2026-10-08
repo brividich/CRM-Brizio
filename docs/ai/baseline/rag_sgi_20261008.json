@@ -1,0 +1,188 @@
+{
+  "fase": "F0",
+  "data": "2026-10-08",
+  "ambiente": "dev (config.settings.dev), corpus = revisioni correnti DB dev su \\\\novisrv\\sistema gestione integrato",
+  "comando": "manage.py ai_eval --rag-sgi --json",
+  "golden": "ai_assistant/eval/golden_sgi.jsonl",
+  "nota": "solo metriche: nessun testo di documento, nessuna query; caso = numero di riga valida del golden",
+  "summary": {
+    "mode": "rag-sgi",
+    "rag_enabled": true,
+    "embeddings_enabled": true,
+    "stemming_enabled": false,
+    "top_k": 6,
+    "source_paths": [
+      "README.md",
+      "django_app/ai_assistant/knowledge"
+    ],
+    "chunks_indexed": 7198,
+    "sgi_chunks": 6986,
+    "cases": 32,
+    "recall_hits": 27,
+    "mrr": 0.623,
+    "rank1_hits": 15,
+    "kb_files_uncovered": null
+  },
+  "casi": [
+    {
+      "caso": 1,
+      "recall_ok": true,
+      "rank": 2
+    },
+    {
+      "caso": 2,
+      "recall_ok": true,
+      "rank": 2
+    },
+    {
+      "caso": 3,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 4,
+      "recall_ok": true,
+      "rank": 4
+    },
+    {
+      "caso": 5,
+      "recall_ok": true,
+      "rank": 6
+    },
+    {
+      "caso": 6,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 7,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 8,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 9,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 10,
+      "recall_ok": true,
+      "rank": 2
+    },
+    {
+      "caso": 11,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 12,
+      "recall_ok": false,
+      "rank": 10
+    },
+    {
+      "caso": 13,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 14,
+      "recall_ok": true,
+      "rank": 2
+    },
+    {
+      "caso": 15,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 16,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 17,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 18,
+      "recall_ok": false,
+      "rank": 7
+    },
+    {
+      "caso": 19,
+      "recall_ok": true,
+      "rank": 3
+    },
+    {
+      "caso": 20,
+      "recall_ok": false,
+      "rank": 19
+    },
+    {
+      "caso": 21,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 22,
+      "recall_ok": true,
+      "rank": 2
+    },
+    {
+      "caso": 23,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 24,
+      "recall_ok": true,
+      "rank": 3
+    },
+    {
+      "caso": 25,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 26,
+      "recall_ok": true,
+      "rank": 2
+    },
+    {
+      "caso": 27,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 28,
+      "recall_ok": true,
+      "rank": 5
+    },
+    {
+      "caso": 29,
+      "recall_ok": true,
+      "rank": 4
+    },
+    {
+      "caso": 30,
+      "recall_ok": false,
+      "rank": 9
+    },
+    {
+      "caso": 31,
+      "recall_ok": true,
+      "rank": 1
+    },
+    {
+      "caso": 32,
+      "recall_ok": false,
+      "rank": null
+    }
+  ]
+}

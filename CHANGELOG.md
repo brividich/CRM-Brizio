@@ -11,6 +11,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 - **Procedure — inventario SGI in sola lettura (F0 database SGI)** (`django_app/procedure_refresh/management/commands/sgi_inventario.py` nuovo, `procedure_refresh/test_sgi_inventario.py` nuovo, `docs/moduli/procedure_refresh.md`).
   - Comando `sgi_inventario [--root] [--json] [--sample N] [--senza-tabelle] [--output FILE]`: per la cartella SGI conta i file per formato e per area, i PDF a testo nativo e quelli scansionati (con le pagine), le pagine con tabelle, i documenti con almeno due sezioni `§`, i nomi non riconosciuti, i codici presenti sia in PDF sia in Word/Excel e le revisioni correnti rispetto al limite `OLLAMA_RAG_SGI_MAX_PROCS`.
   - Sola lettura: non scrive nel DB né sulla share e non usa l'AI. Riusa scansione, parser dei nomi e filtro `SUPERATO` di `import_sgi_da_share`. Il report contiene solo numeri e codici; `--output` non accetta percorsi sotto la share.
+  - Baseline `ai_eval --rag-sgi` di partenza in `docs/ai/baseline/rag_sgi_20261008.json` (solo metriche: recall 27/32, MRR 0,623, misurata in dev con stemming spento).
   - Nessuna migrazione, nessun cambio di comportamento a runtime.
 
 - **Contatori «Verifica OID» — catalogo MIB completato e corretto** (`django_app/contatori/data/oid_mib.json`, `tools/snmp/genera_catalogo_mib.py`, `django_app/contatori/verifica_oid.py`, `tests_verifica_oid.py`, `docs/moduli/contatori.md`, `docs/snmp/PRESET_CATALOG.md`).
