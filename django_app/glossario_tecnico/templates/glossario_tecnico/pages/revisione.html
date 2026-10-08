@@ -1,0 +1,53 @@
+{% extends "core/base.html" %}
+{% block title %}Revisione — Glossario tecnico{% endblock %}
+{% block extra_head %}{% include "glossario_tecnico/components/_styles.html" %}{% endblock %}
+{% block content %}<div class="rc-wrap">
+<a class="rc-back" href="{% url 'glossario_tecnico:index' %}">← Glossario tecnico</a>
+<div class="page-header"><div><h1>Da rivedere</h1><p class="page-sub">Le bozze e le proposte dell'AI entrano nell'assistente solo dopo la validazione di una persona.</p></div></div>
+
+<section class="rc-card sg-section"><h2>Proposte dell'AI ({{ proposte|length }})</h2>
+{% if proposte %}<p class="sg-muted">Termini trovati spesso nei documenti SGI e non ancora nel glossario. Accetta, correggi prima di accettare, oppure scarta: le tue scelte guidano le proposte successive.</p>
+<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Proposta</th><th>Categoria</th><th>Definizione</th><th>Decisione</th></tr></thead><tbody>
+{% for p in proposte %}<tr>
+  <td><strong>{{ p.proposta.termine }}</strong><br><span class="sg-muted">dal testo: «{{ p.proposta.candidato }}»</span>{% if p.proposta.varianti %}<div class="gl-var">{% for v in p.proposta.varianti %}<span>{{ v }}</span>{% endfor %}</div>{% endif %}</td>
+  <td>{{ p.categoria_label }}</td>
+  <td><div class="gl-def">{{ p.proposta.definizione }}</div></td>
+  <td><form method="post" action="{% url 'glossario_tecnico:proposta_decidi' p.pk %}" class="gl-row-actions">{% csrf_token %}
+    <button class="btn" name="azione" value="accetta">Accetta</button>
+    <a class="btn btn-secondary" href="{% url 'glossario_tecnico:proposta_decidi' p.pk %}">Correggi</a>
+    <button class="btn btn-secondary" name="azione" value="scarta">Scarta</button>
+  </form></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p class="sg-muted">Nessuna proposta in attesa. Le proposte si generano con il comando <code>glossario_candidati --ai</code>.</p>{% endif %}
+</section>
+
+<section class="rc-card sg-section"><h2>Bozze da validare ({{ bozze|length }})</h2>
+{% if bozze %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Termine</th><th>Categoria</th><th>Definizione</th><th>Decisione</th></tr></thead><tbody>
+{% for t in bozze %}<tr id="gl-bozza-{{ t.pk }}">
+  <td>{% if t.simbolo %}<span class="gl-sym" aria-hidden="true">{{ t.simbolo }}</span> {% endif %}<a class="gl-term" href="{% url 'glossario_tecnico:termine' t.pk %}">{{ t.termine }}</a>{% if t.varianti.all %}<div class="gl-var">{% for v in t.varianti.all|slice:":6" %}<span>{{ v.testo }}</span>{% endfor %}</div>{% endif %}{% if t.note_interne %}<div class="sg-muted" style="margin-top:4px">{{ t.note_interne }}</div>{% endif %}</td>
+  <td>{{ t.get_categoria_display }}</td>
+  <td><div class="gl-def">{{ t.definizione }}</div></td>
+  <td><div class="gl-row-actions">
+    <button class="btn" type="button" hx-post="{% url 'glossario_tecnico:api_stato' t.pk %}" hx-vals='{"stato": "validato"}' hx-swap="none" hx-on::after-request="if(event.detail.successful) document.getElementById('gl-bozza-{{ t.pk }}').remove()">Valida</button>
+    <a class="btn btn-secondary" href="{% url 'glossario_tecnico:termine_modifica' t.pk %}">Correggi</a>
+    <button class="btn btn-secondary" type="button" hx-post="{% url 'glossario_tecnico:api_stato' t.pk %}" hx-vals='{"stato": "deprecato"}' hx-swap="none" hx-on::after-request="if(event.detail.successful) document.getElementById('gl-bozza-{{ t.pk }}').remove()">Scarta</button>
+  </div></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p class="sg-muted">Nessuna bozza da validare.</p>{% endif %}
+</section>
+
+<section class="rc-card sg-section" id="gl-parole-comuni"><h2>Parole comuni{% if comuni %} ({{ comuni.voci|length }}){% endif %}</h2>
+{% if comuni %}<p class="sg-muted">Varianti che compaiono in più del {{ soglia_comune }}% dei {{ comuni.chunk_sgi }} brani dei documenti SGI: aiutano poco l'assistente e possono confonderlo. Nessuna è stata esclusa: valuta tu se togliere «usa nell'assistente» dal termine. Calcolo del {{ comuni.calcolato|slice:":10" }}.</p>
+{% if comuni.voci %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Variante</th><th>Termine</th><th>Brani SGI</th><th></th></tr></thead><tbody>
+{% for r in comuni.voci %}<tr>
+  <td><strong>{{ r.testo }}</strong> <span class="gl-badge-comune">parola comune: valutare usa_nel_rag</span></td>
+  <td><a class="gl-term" href="{% url 'glossario_tecnico:termine' r.termine_id %}">{{ r.termine }}</a></td>
+  <td>{{ r.chunk }} ({{ r.percentuale }}%)</td>
+  <td><a class="btn btn-secondary" href="{% url 'glossario_tecnico:termine_modifica' r.termine_id %}">Modifica termine</a></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p class="sg-muted">Nessuna variante supera la soglia.</p>{% endif %}
+{% else %}<p class="sg-muted">Calcolo non ancora eseguito: si aggiorna con il comando <code>glossario_varianti_comuni</code> dopo l'indicizzazione dei documenti SGI.</p>{% endif %}
+</section></div>{% endblock %}

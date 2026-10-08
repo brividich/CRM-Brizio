@@ -1,0 +1,20 @@
+{% extends "core/base.html" %}
+{% block title %}Correggi proposta — Glossario tecnico{% endblock %}
+{% block extra_head %}{% include "glossario_tecnico/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'glossario_tecnico:revisione' %}">← Da rivedere</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">Proposta AI per «{{ proposta.proposta.candidato }}»</div></div></div>
+  <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
+    {% for err in form.non_field_errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+    <p class="sg-muted">Correggi quello che serve: il termine viene aggiunto come validato e la correzione aiuta l'AI nelle proposte successive.</p>
+    <div class="sg-form-grid">
+      {% include "core/forms/_field.html" with field=form.termine %}
+      {% include "core/forms/_field.html" with field=form.categoria %}
+      <div class="full">{% include "core/forms/_field.html" with field=form.definizione %}</div>
+      <div class="full">{% include "core/forms/_field.html" with field=form.varianti %}</div>
+    </div>
+    <div class="sg-actions"><button class="btn" type="submit" name="azione" value="correggi">Salva e accetta</button>
+      <button class="btn btn-secondary" type="submit" name="azione" value="scarta" formnovalidate>Scarta</button>
+      <a class="btn btn-secondary" href="{% url 'glossario_tecnico:revisione' %}">Annulla</a></div>
+  </form>
+</div>{% endblock %}

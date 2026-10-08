@@ -376,6 +376,13 @@ OLLAMA_RAG_SGI_CHUNK_HEADER = env_bool("OLLAMA_RAG_SGI_CHUNK_HEADER", False)
 # Umane — §4.2 ..."): misurato in dev: SGI recall 27->31/32, MRR 0,623 -> 0,772; KB invariata. Invalida la cache
 # embeddings: dopo averlo acceso rilanciare index_sgi_documents.
 OLLAMA_RAG_SGI_CHUNK_TITLE = env_bool("OLLAMA_RAG_SGI_CHUNK_TITLE", False)
+# Glossario tecnico nel retrieval (fase B2): token canonici gl_<id> per varianti e
+# simboli, pattern protetti (H7, M8x1.25, Ra 0,8) su query e indice, termini validati
+# come conoscenza curata. Il testo dei chunk non cambia: niente ricalcolo embeddings.
+OLLAMA_RAG_GLOSSARIO_ENABLED = env_bool("OLLAMA_RAG_GLOSSARIO_ENABLED", False)
+# SOLO per misurare in dev: include anche i termini in bozza. MAI in produzione: le
+# bozze non sono state verificate dalla Qualita'.
+OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE = env_bool("OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE", False)
 # Retrieval semantico (embeddings via Ollama nativo). OPT-IN: richiede un modello
 # di embedding scaricato in Ollama (es. `ollama pull nomic-embed-text`). Fail-safe:
 # se non disponibile il retrieval resta BM25-only. Solo provider "ollama".
@@ -515,6 +522,7 @@ INSTALLED_APPS = [
     "schede_sicurezza.apps.SchedeSicurezzaConfig",
     "report_conformita.apps.ReportConformitaConfig",
     "sistema_gestione.apps.SistemaGestioneConfig",
+    "glossario_tecnico.apps.GlossarioTecnicoConfig",
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",
     "checklist_operativa.apps.ChecklistOperativaConfig",

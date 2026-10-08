@@ -39,6 +39,9 @@ API_ACL_GATE_PATHS = {
     # per ogni record; senza mappatura, con ACL_STRICT_CANONICAL una route nuova
     # e senza binding canonico verrebbe negata.
     "/assenze/api/admin/bulk-consenso": "/assenze/impostazioni/",
+    # API glossario tecnico: gate di consultazione come la lista. La gestione
+    # (cambio stato) e' verificata nella view con il permesso dedicato, in JSON.
+    "/glossario/api/": "/glossario/",
 }
 _ACL_MIDDLEWARE_LOG_TTL_SECONDS = 300
 logger = logging.getLogger(__name__)

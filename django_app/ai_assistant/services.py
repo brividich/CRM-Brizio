@@ -11,13 +11,15 @@ import unicodedata
 import urllib.error
 import urllib.request
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core.cache import cache
+
+from . import glossario_rag
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,9 @@ class KnowledgeChunk:
     title: str
     content: str
     tokens: Counter[str]
+    # Token del titolo, precalcolati da _build_index (boost BM25): a ogni ricerca si
+    # tokenizza solo la query, mai i chunk (pre-pass del glossario compreso).
+    title_tokens: frozenset[str] | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -159,6 +164,11 @@ def _tokenize(value: str) -> list[str]:
         stemmer = _get_italian_stemmer()
         if stemmer is not None:
             tokens = [stemmer.stemWord(token) for token in tokens]
+    # Glossario tecnico (OLLAMA_RAG_GLOSSARIO_ENABLED): token canonici gl_<id> e pattern
+    # protetti (H7, M8, Ra) che la regex sopra scarta. A flag spento non aggiunge nulla.
+    extra = glossario_rag.token_aggiuntivi(value)
+    if extra:
+        tokens.extend(extra)
     return tokens
 
 
@@ -325,6 +335,46 @@ def _load_curated_knowledge_chunks() -> list[KnowledgeChunk]:
                 title=title,
                 content=content,
                 tokens=Counter(_tokenize(f"{title}\n{question}\n{answer}")),
+            )
+        )
+    return chunks
+
+
+def _load_glossario_chunks() -> list[KnowledgeChunk]:
+    """Termini del glossario tecnico come conoscenza curata (OLLAMA_RAG_GLOSSARIO_ENABLED).
+
+    Un chunk per termine: definizione, varianti, simbolo, esempio a disegno e codice norma. Fonte
+    ``glossario:<id>#<termine>``. Solo termini validati con «usa nell'assistente»
+    (le bozze solo con OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE, strumento di misura in dev).
+    Le note interne non entrano mai.
+    """
+    chunks: list[KnowledgeChunk] = []
+    for voce in glossario_rag.voci_per_chunk():
+        termine = _clean_text(voce.termine, limit=150)
+        if not termine:
+            continue
+        righe = [f"{termine}" + (f" (EN: {voce.termine_en})" if voce.termine_en else "")]
+        if voce.categoria:
+            righe.append(f"Categoria: {voce.categoria}")
+        righe.append(f"Definizione: {_clean_text(voce.definizione, limit=700)}")
+        if voce.varianti:
+            righe.append("Detto anche: " + ", ".join(voce.varianti[:20]))
+        if voce.simbolo:
+            righe.append(f"Simbolo: {voce.simbolo}")
+        if voce.esempio_disegno:
+            # Deviazione approvata da §B2.2: l'esempio («⌀20 H7») porta i token protetti.
+            righe.append(f"Esempio a disegno: {_clean_text(voce.esempio_disegno, limit=200)}")
+        if voce.norma_rif:
+            righe.append(f"Norma: {voce.norma_rif}")
+        content = "\n".join(righe)
+        title = f"Glossario — {termine}"
+        slug = re.sub(r"\s+", "-", _fold_accents(termine.lower())).strip("-")
+        chunks.append(
+            KnowledgeChunk(
+                source=f"glossario:{voce.id}#{slug}",
+                title=title,
+                content=content,
+                tokens=Counter(_tokenize(f"{title}\n{content}")),
             )
         )
     return chunks
@@ -989,6 +1039,10 @@ def _build_index(chunks: list[KnowledgeChunk]) -> KnowledgeIndex:
     n = len(chunks)
     if not n:
         return KnowledgeIndex(chunks=(), idf={}, avgdl=0.0)
+    chunks = [
+        chunk if chunk.title_tokens is not None else replace(chunk, title_tokens=frozenset(_tokenize(chunk.title)))
+        for chunk in chunks
+    ]
     document_frequency: Counter[str] = Counter()
     total_length = 0
     for chunk in chunks:
@@ -1417,6 +1471,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
         tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in files),
         _curated_knowledge_signature(),
         _sgi_documents_signature(),
+        glossario_rag.firma(),
     )
     ttl = int(getattr(settings, "OLLAMA_RAG_CACHE_SECONDS", 300) or 0)
     now = time.monotonic()
@@ -1440,6 +1495,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
         text = raw_text[:max_file_chars]
         chunks.extend(_chunk_document(path, text))
     chunks.extend(_load_curated_knowledge_chunks())
+    chunks.extend(_load_glossario_chunks())
     if bool(getattr(settings, "OLLAMA_RAG_SGI_ENABLED", True)):
         chunks.extend(_load_sgi_document_chunks())
 
@@ -1476,7 +1532,7 @@ def _bm25_score(
     b = float(getattr(settings, "OLLAMA_RAG_BM25_B", 0.75) or 0.75)
     doc_length = sum(chunk.tokens.values()) or 1
     norm = k1 * (1.0 - b + b * (doc_length / avgdl if avgdl else 1.0))
-    title_tokens = set(_tokenize(chunk.title))
+    title_tokens = chunk.title_tokens if chunk.title_tokens is not None else set(_tokenize(chunk.title))
     score = 0.0
     for token in query_tokens:
         frequency = chunk.tokens.get(token, 0)
