@@ -3,6 +3,7 @@ curati, bozze escluse, cache invalidata). Solo testi sintetici."""
 
 from __future__ import annotations
 
+import io
 import re
 import unicodedata
 from collections import Counter
@@ -223,3 +224,43 @@ class VariantiComuniTests(_Base):
         html = self.client.get(reverse("glossario_tecnico:revisione")).content.decode()
         self.assertIn("parola comune: valutare usa_nel_rag", html)
         self.assertIn("parolacomune", html)
+
+
+@override_settings(SGI_ESTRAZIONE_PERSISTITA_ENABLED=False, OLLAMA_RAG_SGI_ENABLED=True)
+class VariantiComuniTestoPersistitoTests(_Base):
+    def _rev(self, code, file_hash):
+        from datetime import date
+
+        from procedure_refresh.models import DocumentType, ProcedureDocument, ProcedureRevision, SourceType
+
+        doc = ProcedureDocument.objects.create(code=code, title="Documento sintetico", document_type=DocumentType.ALTRO)
+        return ProcedureRevision.objects.create(
+            document=doc, revision_code="1", revision_date=date(2026, 1, 1), effective_date=date(2026, 1, 1),
+            source_type=SourceType.FILESERVER, source_path=f"C:/inesistente/{code}.pdf", file_name=f"{code}.pdf",
+            file_hash=file_hash, is_current=True,
+        )
+
+    def test_usa_testo_persistito_anche_a_flag_spento_e_pdf_solo_per_i_mancanti(self):
+        from pathlib import Path
+        from unittest import mock
+
+        from django.core.management import call_command
+
+        from procedure_refresh.models import SgiTestoEstratto
+
+        from .services import varianti_comuni_salvate
+
+        aggiungi_variante(self.lamatura, "parolacomune", "sinonimo")
+        con_testo = self._rev("MT CN 901", "hash-sintetico-1")
+        SgiTestoEstratto.objects.create(revision=con_testo, file_hash="hash-sintetico-1", formato="pdf", metodo="t",
+                                        testo="1. Scopo\nparolacomune nel testo persistito")
+        self._rev("MT CN 902", "hash-sintetico-2")
+        with mock.patch.object(services, "_sgi_safe_pdf_path", return_value=Path("x.pdf")), \
+                mock.patch.object(services, "_extract_pdf_text", return_value="testo dal pdf") as pdf, \
+                mock.patch.object(services, "_sgi_cached_text", return_value=None):
+            call_command("glossario_varianti_comuni", "--soglia", "0.1", stdout=io.StringIO())
+        self.assertEqual(pdf.call_count, 1)  # solo MT CN 902, senza testo persistito
+        esito = varianti_comuni_salvate()
+        self.assertIn("parolacomune", [r["testo"] for r in esito["voci"]])
+        # Fuori dal comando il flag spento resta rispettato.
+        self.assertIsNone(services._sgi_persisted_text(con_testo, "hash-sintetico-1"))

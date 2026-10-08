@@ -5,8 +5,10 @@ poco il retrieval e può avvicinare documenti che non c'entrano. Il comando la s
 nella pagina «Da rivedere» con l'etichetta «parola comune: valutare usa_nel_rag».
 Nessuna esclusione automatica: decide la Qualità.
 
-Sola lettura sui documenti; scrive solo il risultato in cache. Da lanciare dopo
-``index_sgi_documents`` (o quando cambia il glossario).
+Sola lettura sui documenti; scrive solo il risultato in cache. Usa sempre il testo
+persistito da ``sgi_estrai_testi`` quando è allineato al file, a prescindere da
+``SGI_ESTRAZIONE_PERSISTITA_ENABLED`` (che governa solo la lettura per il RAG); estrae
+dai PDF solo i documenti senza testo. Da lanciare dopo ``index_sgi_documents``.
 
 Esempi:
     python manage.py glossario_varianti_comuni
@@ -30,7 +32,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from ai_assistant import services
 
-        testi = [f"{c.title}\n{c.content}" for c in services._load_sgi_document_chunks()]
+        # Testo persistito (sgi_estrai_testi) quando l'hash è allineato, PDF solo per i mancanti.
+        with services.usa_testo_persistito():
+            testi = [f"{c.title}\n{c.content}" for c in services._load_sgi_document_chunks()]
         if not testi:
             self.stdout.write(self.style.WARNING("Nessun chunk SGI: indicizzare prima i documenti."))
             return

@@ -8,6 +8,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Glossario — «Parole comuni» dal testo persistito** (`django_app/ai_assistant/services.py`, `glossario_tecnico/management/commands/glossario_varianti_comuni.py`, `glossario_tecnico/tests_rag.py`, `docs/moduli/glossario_tecnico.md`): `glossario_varianti_comuni` usa sempre il testo estratto da `sgi_estrai_testi` quando è allineato al file, anche con `SGI_ESTRAZIONE_PERSISTITA_ENABLED` spento (il flag governa solo la lettura dell'assistente); estrae dai PDF solo i documenti senza testo. Tempo: da ~7 minuti a meno di un minuto dopo `sgi_estrai_testi`.
 - **Setup Wizard — hotfix da commit, verificato e tracciato** (`deployment/setup_wizard.py`, `deployment/scripts/patch-release.ps1`, `django_app/core/build_info.py`, `django_app/monitoring/management/commands/command_center.py`, `docs/ai/06_TESTING_AND_QUALITY_GATES.md`, `docs/moduli/setup_wizard.md`).
   - **CORRETTO:** «Crea Hotfix» prendeva i file dal working tree (`git diff HEAD` + file non tracciati): finivano in prod modifiche non committate, WIP di altre sessioni e file mai entrati in `release/prod`, e il server non sapeva più quale commit eseguiva.
   - Ora si indicano il commit in produzione (base) e quello da distribuire (target, default `origin/release/prod`): il target deve essere in `release/prod`, i file escono da `git show`, migration e requirements bloccano il pacchetto, `docs`/`media`/`deployment` restano fuori come nel pacchetto completo. Lo zip porta `HOTFIX_INFO.json`.
