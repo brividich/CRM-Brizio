@@ -15,6 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch, Q
+from django.db.models.functions import Lower
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -85,7 +86,7 @@ def index(request):
     elif stato != "tutti":
         qs = qs.exclude(stato=Termine.DEPRECATO)
     qs = _filtra(qs, q).prefetch_related(Prefetch("varianti", queryset=Variante.objects.order_by("tipo", "testo")))
-    pagina = Paginator(qs.order_by("termine"), 50).get_page(request.GET.get("page"))
+    pagina = Paginator(qs.order_by(Lower("termine"), "termine"), 50).get_page(request.GET.get("page"))
     conteggi = dict(Termine.objects.values_list("stato").annotate(n=Count("id")).order_by())
     puo_gestire = _has_perm(request, PERM_GESTIONE)
     return render(request, "glossario_tecnico/pages/index.html", {
