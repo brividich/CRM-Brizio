@@ -432,6 +432,11 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
         SiteConfig.set(_LAST_SYNC_KEY, json.dumps(payload), "Presa visione: esito ultima sync SGI automatica.")
 
         changed = result["created"] + result["updated"] + result["revisions"]
+        # Testo persistito (A1): accoda l'estrazione delle revisioni nuove/cambiate,
+        # un documento per task; il re-index (se richiesto) parte a fine catena.
+        if accoda_estrazione_sgi(reindex=bool(reindex and changed)):
+            result["estrazione_accodata"] = True
+            return result
         if reindex and changed:
             try:
                 from django_q.tasks import async_task
@@ -444,6 +449,70 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
         logger.exception("run_sgi_auto_sync fallito: %s", exc)
         result.update(ok=False, error=str(exc))
         return result
+
+
+_ESTRAZIONE_MAX_CODA = 500
+
+
+def accoda_estrazione_sgi(*, reindex: bool = False) -> bool:
+    """Accoda (a catena) l'estrazione del testo delle revisioni da aggiornare.
+
+    Solo con ``SGI_ESTRAZIONE_PERSISTITA_ENABLED``. Ritorna True se ha accodato
+    almeno un task. Fail-safe: mai eccezioni.
+    """
+    if not getattr(settings, "SGI_ESTRAZIONE_PERSISTITA_ENABLED", False):
+        return False
+    try:
+        from procedure_refresh.sgi_testo import revisioni_da_estrarre
+
+        ids = [rev.pk for rev in revisioni_da_estrarre()][:_ESTRAZIONE_MAX_CODA]
+        if not ids:
+            return False
+        from django_q.tasks import async_task
+
+        async_task(
+            "procedure_refresh.tasks.run_sgi_estrazione_un_documento",
+            ids[0], coda=ids[1:], reindex=reindex,
+        )
+        return True
+    except Exception:
+        logger.exception("accoda_estrazione_sgi: accodamento fallito")
+        return False
+
+
+def run_sgi_estrazione_un_documento(revision_id: int, coda: list[int] | None = None, reindex: bool = False, **kwargs) -> dict:
+    """Estrae e persiste il testo di UNA revisione, poi accoda la successiva.
+
+    Un documento per task (timeout django-q 120 s, ogni estrazione resta ben sotto i
+    90 s). A fine catena accoda il re-index RAG se richiesto. Fail-safe: un errore
+    sul documento non interrompe la catena.
+    """
+    result: dict = {"revision_id": revision_id, "stato": "", "rimanenti": len(coda or [])}
+    try:
+        if not getattr(settings, "SGI_ESTRAZIONE_PERSISTITA_ENABLED", False):
+            result["stato"] = "saltato: SGI_ESTRAZIONE_PERSISTITA_ENABLED spento"
+            return result
+        from procedure_refresh.models import ProcedureRevision
+        from procedure_refresh.sgi_testo import persisti_estrazione
+
+        rev = ProcedureRevision.objects.select_related("document").filter(pk=revision_id).first()
+        result["stato"] = persisti_estrazione(rev) if rev is not None else "saltato: revisione inesistente"
+    except Exception as exc:
+        logger.exception("run_sgi_estrazione_un_documento: errore su revisione %s", revision_id)
+        result["stato"] = f"errore: {type(exc).__name__}"
+    try:
+        from django_q.tasks import async_task
+
+        if coda:
+            async_task(
+                "procedure_refresh.tasks.run_sgi_estrazione_un_documento",
+                coda[0], coda=coda[1:], reindex=reindex,
+            )
+        elif reindex:
+            async_task("ai_assistant.tasks.run_index_sgi_documents")
+    except Exception:
+        logger.exception("run_sgi_estrazione_un_documento: accodamento successivo fallito")
+    return result
 
 
 def run_sgi_share_check(**kwargs) -> dict:

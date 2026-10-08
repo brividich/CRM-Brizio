@@ -10,7 +10,10 @@ from .models import (
     ProcedureQuizAttempt,
     ProcedureReadEvent,
     ProcedureRevision,
+    SgiDocumentoProcesso,
+    SgiRiferimento,
     SgiSyncLog,
+    SgiTestoEstratto,
 )
 
 
@@ -103,3 +106,48 @@ class SgiSyncLogAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False  # append-only: scritto solo dai task di sync
+
+
+@admin.register(SgiTestoEstratto)
+class SgiTestoEstrattoAdmin(admin.ModelAdmin):
+    """Sola lettura: scritto solo da ``sgi_estrai_testi`` e dal task di estrazione.
+    In lista solo metadati; il testo compare nel dettaglio e solo ai superuser."""
+
+    list_display = ("revision", "metodo", "n_pagine", "n_caratteri", "n_sezioni", "ha_testo_nativo", "estratto_il")
+    list_filter = ("metodo", "ha_testo_nativo", "ocr_usato")
+    search_fields = ("revision__document__code",)
+    list_select_related = ("revision__document",)
+    _META = (
+        "revision", "file_hash", "formato", "metodo", "n_pagine", "n_caratteri", "n_sezioni",
+        "ha_testo_nativo", "ocr_usato", "avvisi", "estratto_il",
+    )
+
+    def get_fields(self, request, obj=None):
+        return (*self._META, "testo") if request.user.is_superuser else self._META
+
+    def get_readonly_fields(self, request, obj=None):
+        return self.get_fields(request, obj)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+@admin.register(SgiRiferimento)
+class SgiRiferimentoAdmin(admin.ModelAdmin):
+    list_display = ("da_revisione", "codice_citato", "a_documento", "sezione", "occorrenze", "risolto")
+    list_filter = ("risolto",)
+    search_fields = ("codice_citato", "da_revisione__document__code", "a_documento__code")
+    raw_id_fields = ("da_revisione", "a_documento")
+
+
+@admin.register(SgiDocumentoProcesso)
+class SgiDocumentoProcessoAdmin(admin.ModelAdmin):
+    """Proposte di sgi_collega_processi: una persona le conferma (confermato=True)."""
+
+    list_display = ("processo", "documento", "codice_citato", "origine", "confermato", "created_at")
+    list_editable = ("confermato",)
+    list_filter = ("confermato", "origine")
+    search_fields = ("processo__codice", "documento__code", "codice_citato")
+    raw_id_fields = ("documento", "processo")
