@@ -1256,7 +1256,6 @@ class AiAssistantTests(TestCase):
             assignment_location="Ufficio A",
             serial_number="SEGRETO_SERIALE",
             notes="SEGRETO_NOTE_ASSET",
-            sharepoint_folder_path="SEGRETO_SHAREPOINT",
         )
         AssetAdministrativeDeadline.objects.create(
             asset=asset,
@@ -1291,7 +1290,6 @@ class AiAssistantTests(TestCase):
         self.assertIn("Verifica annuale", context.text)
         self.assertNotIn("SEGRETO_SERIALE", context.text)
         self.assertNotIn("SEGRETO_NOTE_ASSET", context.text)
-        self.assertNotIn("SEGRETO_SHAREPOINT", context.text)
         self.assertNotIn("SEGRETO_DESCRIZIONE_ODL", context.text)
         self.assertNotIn("SEGRETO_RISOLUZIONE_ODL", context.text)
         self.assertNotIn("123", context.text)
@@ -1456,6 +1454,7 @@ class AiAssistantTests(TestCase):
 
     def test_runtime_anomalie_context_regular_user_filters_assigned_ops(self):
         from anomalie.models import AnomalieAccessLevel
+        from core.naming import chiave_testo
 
         rows = [
             {
@@ -1484,9 +1483,10 @@ class AiAssistantTests(TestCase):
             "anomalie.views._request_anomalie_global_access_level",
             return_value=AnomalieAccessLevel.NONE,
         ), patch("anomalie.views._fetch_all_dict", return_value=rows), patch(
-            "anomalie.views._current_user_name_norms", return_value={"mario rossi"}
+            # Chiave di confronto come la produce il codice (naming.chiave_testo, MAIUSCOLO).
+            "anomalie.views._current_user_name_norms", return_value={chiave_testo("Mario Rossi")}
         ), patch(
-            "anomalie.views._current_user_identity", return_value={"name_norm": "mario rossi"}
+            "anomalie.views._current_user_identity", return_value={"name_norm": chiave_testo("Mario Rossi")}
         ):
             context = build_runtime_context(request, "mostra le mie anomalie aperte")
 
