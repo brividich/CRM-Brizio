@@ -579,6 +579,16 @@ class SgiRiferimento(models.Model):
     sezione = models.CharField(max_length=160, blank=True, default="", verbose_name="Sezione")
     occorrenze = models.PositiveIntegerField(default=1, verbose_name="Occorrenze")
     risolto = models.BooleanField(default=False, db_index=True, verbose_name="Risolto")
+    TIPI_RISOLUZIONE = [
+        ("esatto", "Codice esatto"),
+        ("normalizzato", "Codice con altra grafia"),
+        ("disambiguato", "Codice disambiguato dall'import"),
+        ("allegato_base", "Allegato sul documento base"),
+        ("senza_cn", "Citazione abbreviata senza CN"),
+        ("famiglia", "Famiglia di documenti (X_n)"),
+    ]
+    tipo_risoluzione = models.CharField(max_length=20, blank=True, default="", choices=TIPI_RISOLUZIONE,
+                                        verbose_name="Tipo di risoluzione")
 
     class Meta:
         verbose_name = "Riferimento SGI"
@@ -589,6 +599,15 @@ class SgiRiferimento(models.Model):
 
     def __str__(self) -> str:
         return f"{self.da_revisione_id} -> {self.codice_citato}"
+
+    def documenti_famiglia(self):
+        """Documenti della famiglia citata (``<codice>_n``), per i riferimenti di famiglia."""
+        if self.tipo_risoluzione != "famiglia":
+            return ProcedureDocument.objects.none()
+        from procedure_refresh.sgi_riferimenti import Catalogo
+
+        famiglia = Catalogo().dettaglio(self.codice_citato).famiglia
+        return ProcedureDocument.objects.filter(pk__in=[d.pk for d in famiglia]).order_by("code")
 
 
 class SgiDocumentoProcesso(models.Model):

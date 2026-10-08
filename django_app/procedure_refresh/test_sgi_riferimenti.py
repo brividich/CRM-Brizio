@@ -202,3 +202,77 @@ class CatenaEstrazioneTests(TestCase):
                 self.assertEqual(sgi_testo.persisti_estrazione(rev, forza=True), "estratto")
         self.assertEqual(sorted(SgiRiferimento.objects.filter(da_revisione=rev).values_list("codice_citato", "risolto")),
                          [("MOD.093", True), ("MT CN 999", False)])
+
+
+class FamigliaTests(TestCase):
+    def setUp(self):
+        self.f5 = _rev("MT CN 777_5").document
+        self.f10 = _rev("MT CN 777_10").document
+        _rev("MOD.093")
+
+    def test_codice_di_famiglia_risolto_con_i_documenti_x_n(self):
+        cat = Catalogo()
+        esito = cat.dettaglio("MT CN 777")
+        self.assertTrue(esito.risolto)
+        self.assertEqual(esito.tipo, "famiglia")
+        self.assertIsNone(esito.documento)
+        self.assertEqual({d.pk for d in esito.famiglia}, {self.f5.pk, self.f10.pk})
+        self.assertEqual(cat.dettaglio("MT 777").tipo, "famiglia")  # anche abbreviato senza CN
+        self.assertIsNone(cat.risolvi("MT CN 777"))  # nessun documento singolo
+        # Non è famiglia: «MT CN 77» non ha documenti «MT CN 77_n» (MT CN 777_5 non conta).
+        self.assertFalse(cat.dettaglio("MT CN 77").risolto)
+        # Un documento proprio vince sulla famiglia.
+        proprio = _rev("MT CN 777").document
+        self.assertEqual(Catalogo().dettaglio("MT CN 777").documento, proprio)
+
+    def test_ricostruisci_e_report(self):
+        rev = _rev("MT CN 81")
+        ricostruisci(rev, "vedi MT CN 777 e MOD.093 e MT CN 999")
+        rif = {r.codice_citato: r for r in SgiRiferimento.objects.filter(da_revisione=rev)}
+        self.assertTrue(rif["MT CN 777"].risolto)
+        self.assertEqual(rif["MT CN 777"].tipo_risoluzione, "famiglia")
+        self.assertIsNone(rif["MT CN 777"].a_documento)
+        self.assertEqual(set(rif["MT CN 777"].documenti_famiglia()), {self.f5, self.f10})
+        self.assertEqual(rif["MOD.093"].tipo_risoluzione, "esatto")
+        self.assertEqual(rif["MT CN 999"].tipo_risoluzione, "")
+        SgiTestoEstratto.objects.create(revision=rev, file_hash="h", formato="pdf", metodo="t",
+                                        testo="vedi MT CN 777 e MOD.093 e MT CN 999")
+        out = io.StringIO()
+        call_command("sgi_riferimenti", "--dry-run", stdout=out)
+        report = __import__("json").loads(out.getvalue())
+        self.assertEqual(report["risolti"], 2)
+        self.assertEqual(report["quota_risolti"], round(2 / 3, 3))
+        self.assertEqual(report["risolti_per_tipo"]["famiglia"], 1)
+        self.assertEqual(report["famiglie_citate"][0]["codice"], "MT CN 777")
+        self.assertEqual([c["codice"] for c in report["top15_codici_inesistenti"]], ["MT CN 999"])
+
+
+class ImportUtenteEFileElencatiTests(TestCase):
+    def test_utente_di_processo_e_avviso_se_cambia_il_numero_di_file(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from core.models import SiteConfig
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for nome in ("MT CN 901 Rev.1_Procedura sintetica.pdf", "MOD.991 - Modulo sintetico Rev.0.pdf"):
+                (root / nome).write_bytes(b"%PDF-1.4 sintetico")
+            out = io.StringIO()
+            call_command("import_sgi_da_share", "--root", str(root), "--apply", "--json", stdout=out)
+            s = json.loads(out.getvalue())["summary"]
+            self.assertTrue(s["utente_processo"])
+            self.assertEqual(s["file_elencati"], 2)
+            self.assertEqual(s["avviso_file_elencati"], "")
+            registrata = json.loads(SiteConfig.get("pr_sgi_scan_ultima", ""))
+            self.assertEqual(registrata["file_elencati"], 2)
+
+            (root / "MT CN 902 Rev.0_Altra procedura.pdf").write_bytes(b"%PDF-1.4 sintetico")
+            out = io.StringIO()
+            call_command("import_sgi_da_share", "--root", str(root), stdout=out)  # dry-run, testo
+            self.assertIn("ATTENZIONE: File elencati sulla share: 3", out.getvalue())
+            self.assertIn("erano 2", out.getvalue())
+            # Il dry-run non registra nulla e non cambia cosa si importerebbe.
+            self.assertEqual(json.loads(SiteConfig.get("pr_sgi_scan_ultima", ""))["file_elencati"], 2)
+            self.assertIn("MT CN 902", out.getvalue())

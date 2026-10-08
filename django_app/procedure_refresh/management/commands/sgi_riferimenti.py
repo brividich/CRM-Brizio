@@ -67,24 +67,33 @@ class Command(BaseCommand):
         mancanti: Counter = Counter()
         citati: Counter = Counter()
         norme: Counter = Counter()
+        per_tipo: Counter = Counter()
+        famiglie: Counter = Counter()
         for rev, testo in self._testi(opts["da_file"], opts["limit"]):
             revisioni += 1
             norme.update(norme_citate(testo))
             documenti_citati = set()
             codici_mancanti = set()
+            famiglie_citate = set()
             for c in estrai_citazioni(testo, rev.document.code):
-                doc = catalogo.risolvi(c.codice)
+                esito = catalogo.dettaglio(c.codice)
+                doc = esito.documento
                 if doc is not None and doc.pk == rev.document_id:
                     continue
                 righe += 1
                 occorrenze += c.occorrenze
-                if doc is None:
+                per_tipo[esito.tipo or "non_risolto"] += 1
+                if not esito.risolto:
                     codici_mancanti.add(c.codice)
-                else:
-                    risolte += 1
+                    continue
+                risolte += 1
+                if doc is not None:
                     documenti_citati.add(doc.code)
+                else:
+                    famiglie_citate.add(c.codice)
             mancanti.update(codici_mancanti)
             citati.update(documenti_citati)
+            famiglie.update(famiglie_citate)
             if not opts["dry_run"]:
                 ricostruisci(rev, testo, catalogo=catalogo)
 
@@ -94,6 +103,8 @@ class Command(BaseCommand):
             "occorrenze": occorrenze,
             "risolti": risolte,
             "quota_risolti": round(risolte / righe, 3) if righe else 0.0,
+            "risolti_per_tipo": dict(per_tipo),
+            "famiglie_citate": [{"codice": c, "revisioni_che_citano": n} for c, n in famiglie.most_common()],
             "codici_inesistenti_distinti": len(mancanti),
             "top15_codici_inesistenti": [{"codice": c, "revisioni_che_citano": n} for c, n in mancanti.most_common(15)],
             "top10_documenti_citati": [{"codice": c, "revisioni_che_citano": n} for c, n in citati.most_common(10)],
