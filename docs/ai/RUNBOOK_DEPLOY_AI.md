@@ -156,3 +156,29 @@ Riferimenti tra documenti (A2, nessun flag: dati deterministici, non toccano l'a
 1. `migrate procedure_refresh` (0009, due tabelle nuove).
 2. Dopo `sgi_estrai_testi`: `sgi_riferimenti` (primo popolamento + report; poi si aggiornano da soli a ogni nuova estrazione).
 3. `sgi_collega_processi --dry-run`, poi `--apply`: le proposte restano da confermare in admin (Procedure › Documenti SGI di processo).
+
+## Checklist deploy — blocco database SGI (A1, A2) + glossario tecnico (B1, B2), v2
+
+Su SERVER, venv prod, `--settings=config.settings.prod`. Tempi stimati da dev (la reindicizzazione con embeddings va misurata in prod). Dopo `migrate` nulla è distruttivo: i comandi scrivono solo tabelle nuove o metadati.
+
+| # | Passo | Tempo | Rollback |
+|---|---|---|---|
+| 0a | **Backup completo del DB SQL Server**, verificato (`RESTORE VERIFYONLY`), prima di qualsiasi `migrate` o `--apply` | 5–15 min | è il punto di ripristino di tutto il blocco |
+| 0b | **Baseline di produzione, PRIMA del deploy**: `ai_eval --rag --json` e `ai_eval --rag-sgi --json`, salvati FUORI dal repo e dalla cartella di release (es. `D:\backup\ai_baseline_prod_<data>_rag.json`, `..._rag_sgi.json`) | ~10 min | — (solo lettura) |
+| 0c | **Verifiche prod**: `PROCEDURE_REFRESH_SGI_SHARE_ROOT` valorizzato nel `config\.env`; l'utente del pool IIS legge la share (`import_sgi_da_share` in dry-run mostra utente e file elencati); in django-q presenti e attivi `pr_sgi_auto_sync`, `sgi_share_check`, `ai_index_sgi_documents` (03:30), `ai_rag_quality_alert`; valore di SiteConfig `pr_sgi_auto_sync_attivo` | 10 min | — |
+| 0d | **Permessi MTSI (decisione Brizio)**: se l'utente di servizio vede documenti riservati, impostare `escludi_dal_rag` sui relativi `ProcedureDocument` PRIMA del passo 8 | 5–15 min | togliere il flag e reindicizzare |
+| 1 | Merge `main` → `release/prod`, pacchetto da `release/prod`, deploy | ~15 min | ridistribuire il pacchetto precedente |
+| 2 | `migrate procedure_refresh` (0008, 0009, 0010) e `migrate glossario_tecnico` (0001, 0002) | < 1 min | `migrate procedure_refresh 0007`, `migrate glossario_tecnico zero` (reversibilità verificata) |
+| 3 | `.env`: `OLLAMA_RAG_SGI_CHUNK_TITLE=True`, `OLLAMA_RAG_GLOSSARIO_ENABLED=False`, `SGI_ESTRAZIONE_PERSISTITA_ENABLED=False`, mai `OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE`; riavvio sito e qcluster | 2 min | ripristinare il `.env`, riavvio |
+| 4 | `import_sgi_da_share --json` (dry-run: controllare utente, file elencati, eventuale avviso), poi `--apply` | 5–10 min | i documenti restano storicizzati; disattivazione manuale |
+| 5 | `sgi_estrai_testi --dry-run`, poi `sgi_estrai_testi` (**obbligatorio**, sola lettura sulla share; popola anche i riferimenti A2) | ~7 min | innocuo con la lettura spenta; `migrate procedure_refresh 0007` elimina la tabella |
+| 6 | `sgi_riferimenti` (allinea tutti i riferimenti + report) | 1–2 min | `migrate procedure_refresh 0008` o lasciare i dati |
+| 7 | `sgi_collega_processi --dry-run` (`--apply` solo dopo revisione) | < 1 min | dopo un `--apply`: cancellare in admin i collegamenti non confermati |
+| 8 | `index_sgi_documents` (ricalcola gli embeddings: il titolo cambia il testo dei chunk) | 10–30 min (da misurare) | `CHUNK_TITLE=False` + reindicizzare |
+| 9 | `glossario_varianti_comuni` (usa il testo del passo 5; PDF solo per i documenti senza testo) | < 1 min | nessuno (solo cache) |
+| 10 | `riorganizza_topbar --apply` | < 1 min | nascondere la voce «Glossario» in Admin › Navigazione |
+| 11 | Admin › ACL: `glossario_tecnico.gestione` all'Ufficio tecnico | 2 min | revocare il permesso |
+| 12 | `ai_eval --rag --json` e `ai_eval --rag-sgi --json` confrontati **caso per caso con la baseline 0b** (non con quella dev): KB nessun caso peggiorato; SGI atteso migliore (titolo nei chunk). Il golden SGI ora ha un caso in più (FAI, il 33°): confrontare i 32 comuni | ~10 min | se peggiora: rollback del passo 3 + reindicizzazione |
+| — | **Dopo il deploy, a carico Qualità**: validazione del glossario (prima i ~20 termini prioritari), revisione del CSV delle clausole, rinomina dei file con nome non standard, decisione sui 10 documenti senza traccia | — | — |
+
+Il glossario nell'assistente si accende dopo, come passo separato: `OLLAMA_RAG_GLOSSARIO_ENABLED=True`, riavvio, `ai_eval` contro la baseline del passo 12.
