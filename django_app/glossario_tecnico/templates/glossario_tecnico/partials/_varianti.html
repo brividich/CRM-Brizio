@@ -1,0 +1,13 @@
+<h2>Varianti</h2>
+<p class="sg-muted">Sinonimi, gergo, sigle, simboli e traduzioni che indicano lo stesso termine. Ogni variante appartiene a un solo termine.</p>
+{% for v in varianti %}<div class="gl-vrow"><div><b>{{ v.testo }}</b> <span class="sg-muted">· {{ v.get_tipo_display }}{% if v.lingua %} · {{ v.lingua|upper }}{% endif %}</span></div>
+{% if puo_gestire %}<form hx-post="{% url 'glossario_tecnico:variante_elimina' v.pk %}" hx-target="#gl-varianti" hx-swap="innerHTML" hx-confirm="Togliere la variante «{{ v.testo }}»?"><button class="btn btn-secondary" type="submit" aria-label="Togli {{ v.testo }}">Togli</button></form>{% endif %}</div>
+{% empty %}<p class="sg-muted">Nessuna variante.</p>{% endfor %}
+{% if puo_gestire and variante_form %}<form class="gl-vadd" hx-post="{% url 'glossario_tecnico:variante_aggiungi' t.pk %}" hx-target="#gl-varianti" hx-swap="innerHTML">
+  <input type="text" name="testo" maxlength="150" placeholder="Nuova variante" aria-label="Testo variante" value="{{ variante_form.testo.value|default:'' }}" required>
+  <select name="tipo" aria-label="Tipo variante">{% for val, label in variante_form.fields.tipo.choices %}{% if val %}<option value="{{ val }}"{% if variante_form.tipo.value == val %} selected{% endif %}>{{ label }}</option>{% endif %}{% endfor %}</select>
+  <input type="text" name="lingua" maxlength="2" size="3" value="{{ variante_form.lingua.value|default:'it' }}" aria-label="Lingua">
+  <button class="btn" type="submit">Aggiungi</button>
+</form>
+{% for field in variante_form %}{% for err in field.errors %}<div class="gl-err">{{ err }}</div>{% endfor %}{% endfor %}{% for err in variante_form.non_field_errors %}<div class="gl-err">{{ err }}</div>{% endfor %}
+{% endif %}

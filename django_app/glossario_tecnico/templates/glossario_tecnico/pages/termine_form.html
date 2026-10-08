@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}
+{% block title %}{% if t %}Modifica {{ t.termine }}{% else %}Nuovo termine{% endif %} — Glossario tecnico{% endblock %}
+{% block extra_head %}{% include "glossario_tecnico/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}<div class="rc-wrap">
+  <a class="rc-back" href="{% if t %}{% url 'glossario_tecnico:termine' t.pk %}{% else %}{% url 'glossario_tecnico:index' %}{% endif %}">← {% if t %}{{ t.termine }}{% else %}Glossario tecnico{% endif %}</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">{% if t %}Modifica «{{ t.termine }}»{% else %}Nuovo termine{% endif %}</div></div></div>
+  <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
+    {% for err in form.non_field_errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+    <div class="sg-form-grid">
+      {% include "core/forms/_field.html" with field=form.termine %}
+      {% include "core/forms/_field.html" with field=form.termine_en %}
+      {% include "core/forms/_field.html" with field=form.categoria %}
+      {% include "core/forms/_field.html" with field=form.simbolo %}
+      <div class="full">{% include "core/forms/_field.html" with field=form.definizione %}</div>
+      {% include "core/forms/_field.html" with field=form.esempio_disegno %}
+      {% include "core/forms/_field.html" with field=form.norma_rif %}
+      <div class="full">{% include "core/forms/_field.html" with field=form.usa_nel_rag %}</div>
+      <div class="full">{% include "core/forms/_field.html" with field=form.note_interne %}</div>
+    </div>
+    <p class="sg-muted">{% if t %}Le varianti si gestiscono dalla scheda del termine.{% else %}Il termine nasce in bozza; le varianti si aggiungono dalla scheda dopo il salvataggio.{% endif %}</p>
+    <div class="sg-actions"><button class="btn" type="submit">Salva</button>
+      <a class="btn btn-secondary" href="{% if t %}{% url 'glossario_tecnico:termine' t.pk %}{% else %}{% url 'glossario_tecnico:index' %}{% endif %}">Annulla</a></div>
+  </form>
+</div>{% endblock %}

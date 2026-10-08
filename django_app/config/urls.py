@@ -74,6 +74,7 @@ urlpatterns = [
     path("schede-sicurezza/", include(("schede_sicurezza.urls", "schede_sicurezza"), namespace="schede_sicurezza")),
     path("report-conformita/", include(("report_conformita.urls", "report_conformita"), namespace="report_conformita")),
     path("sistema-gestione/", include(("sistema_gestione.urls", "sistema_gestione"), namespace="sistema_gestione")),
+    path("glossario/", include(("glossario_tecnico.urls", "glossario_tecnico"), namespace="glossario_tecnico")),
     path("contatori/", include(("contatori.urls", "contatori"), namespace="contatori")),
     path("checklist-operativa/", include(("checklist_operativa.urls", "checklist_operativa"), namespace="checklist_operativa")),
     path("soc/", include(("security.urls_hub", "security"), namespace="security")),
