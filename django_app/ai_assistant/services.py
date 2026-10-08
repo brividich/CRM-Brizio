@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import hashlib
 import json
 import logging
@@ -684,14 +686,34 @@ def _sgi_safe_pdf_path(raw_path: str) -> Path | None:
     return _sgi_safe_doc_path(raw_path, (".pdf",))
 
 
+# Strumenti di analisi (es. glossario_varianti_comuni) usano SEMPRE il testo persistito
+# quando c'è: il flag SGI_ESTRAZIONE_PERSISTITA_ENABLED governa solo la lettura per il RAG.
+_FORZA_TESTO_PERSISTITO: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "sgi_forza_testo_persistito", default=False
+)
+
+
+@contextlib.contextmanager
+def usa_testo_persistito():
+    """Dentro il blocco i documenti SGI usano il testo persistito allineato all'hash, a
+    prescindere dal flag; i PDF si estraggono solo per le revisioni senza testo."""
+    token = _FORZA_TESTO_PERSISTITO.set(True)
+    try:
+        yield
+    finally:
+        _FORZA_TESTO_PERSISTITO.reset(token)
+
+
 def _sgi_persisted_text(rev, file_hash: str) -> str | None:
     """Testo persistito (procedure_refresh.SgiTestoEstratto) se l'hash coincide.
 
-    Solo con ``SGI_ESTRAZIONE_PERSISTITA_ENABLED``. None = usa il percorso attuale
-    (riga assente, hash diverso, testo vuoto o app non disponibile). Import lazy:
-    nessun import cross-app a livello di modulo.
+    Con ``SGI_ESTRAZIONE_PERSISTITA_ENABLED`` (lettura RAG) o dentro
+    ``usa_testo_persistito()``. None = usa il percorso attuale (riga assente, hash
+    diverso, testo vuoto o app non disponibile). Import lazy: nessun import
+    cross-app a livello di modulo.
     """
-    if not getattr(settings, "SGI_ESTRAZIONE_PERSISTITA_ENABLED", False) or not file_hash:
+    attivo = getattr(settings, "SGI_ESTRAZIONE_PERSISTITA_ENABLED", False) or _FORZA_TESTO_PERSISTITO.get()
+    if not attivo or not file_hash:
         return None
     try:
         from procedure_refresh.models import SgiTestoEstratto
