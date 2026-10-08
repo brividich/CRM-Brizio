@@ -4612,6 +4612,7 @@ class ReleaseConfig:
         self.base_dir     = r"C:\PortaleNovicrom"
         # Hotfix (DEV crea il pacchetto -> server lo applica)
         self.hotfix_files   = []    # file selezionati per il pacchetto (Crea Hotfix)
+        self.hotfix_plan    = None  # piano git base..target calcolato da _git_hotfix_plan
         self.hotfix_package = ""    # percorso del pacchetto hotfix .zip (Applica Hotfix)
         self.hotfix_manage  = []    # management command opzionali dopo l'applicazione
         self.hotfix_recycle = True  # riciclo App Pool IIS dopo l'applicazione
@@ -4825,32 +4826,111 @@ class ReleaseConfigPromote(Page):
         return bool(self.cfg.base_dir)
 
 
-def _git_changed_files(repo: str):
-    """File modificati/nuovi rilevati da git. Ritorna (lista_relpath, errore)."""
+HOTFIX_MANIFEST = "HOTFIX_INFO.json"
+
+# Stessa allowlist di package-release.ps1: un hotfix non puo' portare in prod
+# niente che il pacchetto completo non porterebbe.
+_HOTFIX_INCLUDE_DIRS = ("django_app/", "sql/", "tools/")
+_HOTFIX_INCLUDE_ROOT = ("VERSION", "README.md", "CHANGELOG.md", "CLAUDE.md")
+_HOTFIX_EXCLUDE_SEGMENTS = {
+    ".git", ".claude", ".tmp_py", ".tmp_tests", ".venv", "venv", "node_modules",
+    "__pycache__", "logs", "media", "media_private", "doc", "docs", "dist", "build",
+    "htmlcov", "releases", ".mypy_cache", ".pytest_cache",
+}
+
+
+def _git(repo, *args, binary=False):
+    """Esegue git nel repo. Ritorna (returncode, stdout, stderr)."""
+    r = subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True,
+        creationflags=subprocess.CREATE_NO_WINDOW)
+    out = r.stdout if binary else r.stdout.decode("utf-8", "replace")
+    return r.returncode, out, r.stderr.decode("utf-8", "replace").strip()
+
+
+def _hotfix_path_class(rel: str) -> str:
+    """'blocked' (serve una release), 'skip' (non va in prod), 'static', 'app'."""
+    parts = rel.split("/")
+    name = parts[-1].lower()
+    if rel.startswith("django_app/") and "migrations" in parts and name.endswith(".py"):
+        return "blocked"
+    if name.startswith("requirements") and name.endswith(".txt"):
+        return "blocked"
+    if not (rel.startswith(_HOTFIX_INCLUDE_DIRS) or rel in _HOTFIX_INCLUDE_ROOT):
+        return "skip"
+    if any(p in _HOTFIX_EXCLUDE_SEGMENTS for p in parts[:-1]):
+        return "skip"
+    if name == ".env" or name.endswith((".pyc", ".pyo", ".sqlite3", ".db", ".exe", ".bak")):
+        return "skip"
+    if rel.startswith("django_app/") and "static" in parts:
+        return "static"
+    return "app"
+
+
+def _git_hotfix_plan(repo: str, base: str, target: str,
+                     release_branch: str = "release/prod"):
+    """Piano di un hotfix: differenza fra il commit IN PRODUZIONE e un commit di release/prod.
+
+    Il pacchetto nasce sempre da commit, mai dal working tree: cio' che va in prod e'
+    ricostruibile e il server sa esattamente su quale commit si trova dopo l'hotfix.
+    Ritorna (piano, errore).
+    """
     repo_path = Path(repo)
     if not (repo_path / ".git").exists():
-        return [], "La cartella indicata non è un repository git (.git assente)."
-    files = []
+        return None, "La cartella indicata non è un repository git (.git assente)."
     try:
-        for args in (["diff", "--name-only", "HEAD"],
-                     ["ls-files", "--others", "--exclude-standard"]):
-            r = subprocess.run(
-                ["git", "-C", str(repo_path), *args],
-                capture_output=True, text=True, encoding="utf-8",
-                errors="replace", creationflags=subprocess.CREATE_NO_WINDOW)
-            if r.returncode == 0:
-                for line in r.stdout.splitlines():
-                    s = line.strip().replace("\\", "/")
-                    if s and s not in files:
-                        files.append(s)
-            elif not files:
-                err = (r.stderr or "").strip()
-                return [], f"git: {err[:200]}" if err else "git ha restituito un errore."
+        shas = {}
+        for label, ref in (("base", base), ("target", target)):
+            if not ref:
+                return None, f"Commit {label} mancante."
+            rc, out, err = _git(repo_path, "rev-parse", "--verify", f"{ref}^{{commit}}")
+            if rc != 0:
+                return None, f"Commit {label} '{ref}' non trovato: {err[:160]}"
+            shas[label] = out.strip()
+        if shas["base"] == shas["target"]:
+            return None, "Base e target coincidono: in produzione c'è già questo commit."
+
+        # Il target deve gia' stare sulla linea di release (feature -> main -> release/prod).
+        in_release = False
+        for ref in (f"origin/{release_branch}", release_branch):
+            rc, _, _ = _git(repo_path, "merge-base", "--is-ancestor", shas["target"], ref)
+            if rc == 0:
+                in_release = True
+                break
+        if not in_release:
+            return None, (f"Il commit target non è in {release_branch}: "
+                          "prima main, poi promozione in release/prod, poi hotfix.")
+        rc, _, _ = _git(repo_path, "merge-base", "--is-ancestor", shas["base"], shas["target"])
+        if rc != 0:
+            return None, ("Il commit in produzione non è un antenato del target: "
+                          "base sbagliata o storia divergente. Serve una release completa.")
+
+        rc, out, err = _git(repo_path, "diff", "--name-status", "--no-renames",
+                            shas["base"], shas["target"])
+        if rc != 0:
+            return None, f"git diff: {err[:200]}"
     except FileNotFoundError:
-        return [], "git non trovato nel PATH di sistema."
+        return None, "git non trovato nel PATH di sistema."
     except Exception as e:
-        return [], f"Errore git: {e}"
-    return sorted(files), ""
+        return None, f"Errore git: {e}"
+
+    plan = {"base": shas["base"], "target": shas["target"], "files": [], "deleted": [],
+            "blocked": [], "skipped": [], "needs_collectstatic": False}
+    for line in out.splitlines():
+        status, _, rel = line.partition("\t")
+        rel = rel.strip().replace("\\", "/")
+        if not rel:
+            continue
+        kind = _hotfix_path_class(rel)
+        if kind == "blocked":
+            plan["blocked"].append(rel)
+        elif kind == "skip":
+            plan["skipped"].append(rel)
+        else:
+            plan["deleted" if status.startswith("D") else "files"].append(rel)
+            if kind == "static":
+                plan["needs_collectstatic"] = True
+    return plan, ""
 
 
 def find_latest_hotfix_zip(base_dir):
@@ -4863,14 +4943,18 @@ def find_latest_hotfix_zip(base_dir):
 
 
 class ReleaseConfigHotfixCreate(Page):
-    """Crea Hotfix (DEV): rileva i file modificati con git e li impacchetta in un .zip."""
+    """Crea Hotfix (DEV): impacchetta la differenza fra il commit in produzione e un
+    commit di release/prod. I file escono da git, mai dal working tree."""
 
     def __init__(self, parent, cfg):
         super().__init__(parent, "Crea Hotfix",
-                         "Rileva i file modificati con git e crea un piccolo pacchetto .zip")
+                         "Differenza fra il commit in produzione e release/prod, in un piccolo .zip")
         self.cfg = cfg
         self._src = tk.StringVar(value=cfg.source_dir or r"C:\Dev\Portale Novicrom")
         self._out = tk.StringVar(value=cfg.output_dir or "")
+        self._base_ref   = tk.StringVar()
+        self._target_ref = tk.StringVar(value="origin/release/prod")
+        self._plan = None
         b = self.body
 
         frame(b, height=8).pack()
@@ -4889,27 +4973,42 @@ class ReleaseConfigHotfixCreate(Page):
 
         frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
 
+        for label, var, hint in (
+            ("Commit in produzione (base)", self._base_ref,
+             "Lo trovi nella Centrale di comando del server (BUILD_INFO). Hash completo o abbreviato."),
+            ("Commit da distribuire (target)", self._target_ref,
+             "Deve già essere in release/prod. Default: origin/release/prod."),
+        ):
+            tk.Label(sec, text=label, font=(SF,9,"bold"),
+                     fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+            tk.Entry(sec, textvariable=var, font=FMO,
+                     relief="flat", bg=GRAY50, fg=GRAY800,
+                     highlightthickness=1, highlightbackground=GRAY200,
+                     highlightcolor=BRAND).pack(fill="x", ipady=7, ipadx=8)
+            tk.Label(sec, text=hint, font=FSM, fg=GRAY400, bg="white").pack(anchor="w", pady=(3,10))
+
         hdr = frame(sec)
         hdr.pack(fill="x")
-        tk.Label(hdr, text="File da includere nell'hotfix",
+        tk.Label(hdr, text="Contenuto dell'hotfix (calcolato da git, non modificabile)",
                  font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(side="left")
-        SecondaryButton(hdr, "  + Aggiungi file…  ", self._browse_files).pack(side="right")
-        SecondaryButton(hdr, "  ⟳ Rileva da git  ",
-                        lambda: self._detect_git(silent=False)).pack(side="right", padx=(0,6))
+        SecondaryButton(hdr, "  ⟳ Calcola da git  ",
+                        lambda: self._detect_git(silent=False)).pack(side="right")
 
         txt_wrap = frame(sec, highlightthickness=1, highlightbackground=GRAY200)
         txt_wrap.pack(fill="x", pady=(6,0))
-        self._files = tk.Text(txt_wrap, font=FMO, height=8, bg=GRAY50, fg=GRAY800,
-                              relief="flat", padx=8, pady=6, wrap="none")
+        self._files = tk.Text(txt_wrap, font=FMO, height=10, bg=GRAY50, fg=GRAY800,
+                              relief="flat", padx=8, pady=6, wrap="none", state="disabled")
         self._files.pack(fill="x")
-        self._status = tk.Label(sec, text="", font=FSM, fg=GRAY400, bg="white")
+        self._status = tk.Label(sec, text="", font=FSM, fg=GRAY400, bg="white",
+                                wraplength=520, justify="left")
         self._status.pack(anchor="w", pady=(3,0))
 
         warn = frame(sec, bg=YELLOW_BG, highlightthickness=1, highlightbackground=YELLOW_BD)
         warn.pack(fill="x", pady=(10,0))
         tk.Label(warn,
-                 text="⚠  L'hotfix è solo per file applicativi (.py, template, .sql, .css/.js). "
-                      "Se tra i file compaiono migration o requirements.txt usa Crea Release.",
+                 text="⚠  Hotfix solo per codice, template, SQL e statici. Migration o "
+                      "requirements bloccano il pacchetto: in quel caso Crea Release + Promuovi. "
+                      "Il server rifiuta l'hotfix se il suo commit non è la base indicata qui.",
                  font=FSM, bg=YELLOW_BG, fg=YELLOW_TX,
                  wraplength=520, justify="left").pack(anchor="w", padx=14, pady=10)
 
@@ -4932,83 +5031,71 @@ class ReleaseConfigHotfixCreate(Page):
     def on_enter(self):
         if not self._out.get():
             self._out.set(str(Path(r"C:\PortaleNovicrom") / "shared" / "packages"))
-        src = self._src.get().strip()
-        if not self._parsed_files() and src and Path(src).exists():
-            self._detect_git(silent=True)
-
     def _browse_repo(self):
         d = filedialog.askdirectory()
         if d:
             self._src.set(d)
-            self._detect_git(silent=True)
+
+    def _show_plan(self, lines):
+        self._files.configure(state="normal")
+        self._files.delete("1.0", "end")
+        self._files.insert("end", "\n".join(lines))
+        self._files.configure(state="disabled")
 
     def _detect_git(self, silent=True):
+        """Calcola il piano base..target. Ritorna True se il pacchetto si può creare."""
+        self._plan = None
         repo = self._src.get().strip()
         if not repo or not Path(repo).exists():
             if not silent:
                 messagebox.showerror("Errore", "Cartella repo non trovata.")
-            return
-        files, err = _git_changed_files(repo)
+            return False
+        plan, err = _git_hotfix_plan(repo, self._base_ref.get().strip(),
+                                     self._target_ref.get().strip())
         if err:
+            self._show_plan([])
             self._status.configure(text=err, fg="#b45309")
             if not silent:
                 messagebox.showwarning("git", err)
-            return
-        if not files:
-            self._status.configure(text="Nessuna modifica rilevata da git.", fg=GRAY400)
-            return
-        existing = {l.strip() for l in self._files.get("1.0", "end").splitlines() if l.strip()}
-        added = 0
-        for f in files:
-            if f not in existing:
-                self._files.insert("end", f + "\n")
-                existing.add(f)
-                added += 1
-        self._status.configure(
-            text=f"{len(files)} file rilevati da git · {added} aggiunti all'elenco.", fg=GREEN)
-
-    def _browse_files(self):
-        repo = self._src.get().strip()
-        init = repo if repo and Path(repo).exists() else None
-        paths = filedialog.askopenfilenames(
-            title="Seleziona i file da includere", initialdir=init)
-        if not paths:
-            return
-        existing = {l.strip() for l in self._files.get("1.0", "end").splitlines() if l.strip()}
-        for p in paths:
-            rel = p
-            if repo:
-                try:
-                    rel = str(Path(p).resolve().relative_to(Path(repo).resolve()))
-                except Exception:
-                    rel = p
-            rel = rel.replace("\\", "/")
-            if rel not in existing:
-                self._files.insert("end", rel + "\n")
-                existing.add(rel)
-
-    def _parsed_files(self):
-        out = []
-        for line in self._files.get("1.0", "end").splitlines():
-            s = line.strip()
-            if s and not s.startswith("#"):
-                out.append(s.replace("\\", "/"))
-        return out
+            return False
+        lines = [f"M  {f}" for f in plan["files"]] + [f"D  {f}" for f in plan["deleted"]]
+        lines += [f"!! {f}   (BLOCCA: serve una release)" for f in plan["blocked"]]
+        lines += [f"-- {f}   (non va in prod, ignorato)" for f in plan["skipped"]]
+        self._show_plan(lines)
+        summary = (f"{plan['base'][:8]} → {plan['target'][:8]} · "
+                   f"{len(plan['files'])} file · {len(plan['deleted'])} eliminati · "
+                   f"{len(plan['skipped'])} ignorati")
+        if plan["needs_collectstatic"]:
+            summary += " · collectstatic automatico"
+        if plan["blocked"]:
+            self._status.configure(
+                text=f"{summary}\n✗ {len(plan['blocked'])} migration/requirements: "
+                     "questo NON è un hotfix. Usa Crea Release.", fg="#b91c1c")
+            if not silent:
+                messagebox.showerror("Hotfix non possibile",
+                                     "Tra le modifiche ci sono migration o requirements.\n"
+                                     "Serve una release completa (Crea Release + Promuovi).")
+            return False
+        if not plan["files"] and not plan["deleted"]:
+            self._status.configure(text=f"{summary}\nNessun file applicativo da distribuire.",
+                                   fg=GRAY400)
+            return False
+        self._status.configure(text=summary, fg=GREEN)
+        self._plan = plan
+        return True
 
     def validate(self):
         src = self._src.get().strip()
         if not Path(src).exists():
             messagebox.showerror("Errore", "Cartella sorgente non trovata.")
             return False
-        files = self._parsed_files()
-        if not files:
-            messagebox.showerror(
-                "Errore",
-                "Nessun file da includere. Usa 'Rileva da git' o aggiungi i file manualmente.")
+        # Ricalcolo sempre: il ref target puo' essersi mosso dopo l'ultimo "Calcola".
+        if not self._detect_git(silent=False):
             return False
         self.cfg.source_dir   = src
         self.cfg.output_dir   = self._out.get().strip() or str(Path(src).parent)
-        self.cfg.hotfix_files = files
+        self.cfg.hotfix_plan  = self._plan
+        self.cfg.hotfix_files = list(self._plan["files"])
         return True
 
 
@@ -5032,9 +5119,10 @@ class ReleaseConfigHotfixApply(Page):
         warn = frame(sec, bg=YELLOW_BG, highlightthickness=1, highlightbackground=YELLOW_BD)
         warn.pack(fill="x")
         tk.Label(warn,
-                 text="⚠  L'hotfix sovrascrive i file nel release attivo (current\\): "
-                      "non crea una nuova release e non aggiorna la junction. "
-                      "Per migration, dipendenze o nuovi statici usa Promuovi Release.",
+                 text="⚠  L'hotfix aggiorna i file nel release attivo (current\\) senza nuova "
+                      "release. Viene rifiutato se il server non è sul commit base del pacchetto; "
+                      "i file sostituiti finiscono in hotfix_backups\\ e BUILD_INFO.json registra "
+                      "il nuovo commit. Per migration o dipendenze usa Promuovi Release.",
                  font=FSM, bg=YELLOW_BG, fg=YELLOW_TX,
                  wraplength=520, justify="left").pack(anchor="w", padx=14, pady=10)
 
@@ -5858,11 +5946,14 @@ class ReleaseRunPage(Page):
         cfg = self.cfg
         src     = Path(cfg.source_dir)
         out_dir = Path(cfg.output_dir)
-        ver = _read_release_version(src, APP_VERSION)
+        plan    = cfg.hotfix_plan or {}
+        target  = plan.get("target", "")
+        rc, ver_out, _ = _git(src, "show", f"{target}:VERSION")
+        ver = (ver_out.strip().lstrip("﻿") if rc == 0 else "") or _read_release_version(src, APP_VERSION)
         tag = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_name = f"hotfix-v{ver}-{tag}.zip"
+        out_name = f"hotfix-v{ver}-{target[:8]}-{tag}.zip"
         out_path = out_dir / out_name
-        files = list(cfg.hotfix_files)
+        files = list(plan.get("files", []))
         N = 3; errors = []
 
         def step(n, title, pct):
@@ -5870,8 +5961,11 @@ class ReleaseRunPage(Page):
             self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
 
         step(1, "Preparazione", 8)
-        self._log_line(f"  Versione rilevata    : v{ver}", "ok")
-        self._log_line(f"  File da impacchettare: {len(files)}", "dim")
+        self._log_line(f"  Versione (al target) : v{ver}", "ok")
+        self._log_line(f"  Base (in produzione) : {plan.get('base', '')}", "dim")
+        self._log_line(f"  Target (release/prod): {target}", "dim")
+        self._log_line(f"  File da distribuire  : {len(files)} · da eliminare: "
+                       f"{len(plan.get('deleted', []))}", "dim")
         try:
             out_dir.mkdir(parents=True, exist_ok=True)
             self._log_line(f"  Output: {out_path}", "ok")
@@ -5879,29 +5973,40 @@ class ReleaseRunPage(Page):
             errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
 
         step(2, f"Creazione {out_name}", 30)
-        added = skipped = 0
+        added = 0
         try:
             with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
                 for rel in files:
-                    rel_norm = rel.replace("/", os.sep)
-                    fp = src / rel_norm
-                    if not fp.exists():
-                        self._log_line(f"  [MANCANTE] {rel}", "warn")
-                        skipped += 1
+                    # Contenuto dal COMMIT target, mai dal working tree.
+                    rc, data, err = _git(src, "show", f"{target}:{rel}", binary=True)
+                    if rc != 0:
+                        errors.append(f"git show {rel}")
+                        self._log_line(f"  ✗ {rel}: {err[:160]}", "err")
                         continue
-                    if "migrations" in rel.split("/") or rel.endswith("requirements.txt"):
-                        self._log_line(
-                            f"  ⚠ {rel} — migration/dipendenza in un hotfix: valuta Crea Release",
-                            "warn")
-                    zf.write(fp, rel.replace("\\", "/"))
+                    zf.writestr(rel, data)
                     self._log_line(f"  ✓ {rel}", "ok")
                     added += 1
-            if added == 0:
-                errors.append("nessun file incluso")
-                self._log_line("  ✗ Nessun file incluso nel pacchetto", "err")
+                for rel in plan.get("deleted", []):
+                    self._log_line(f"  ✓ (elimina) {rel}", "ok")
+                manifest = {
+                    "kind": "hotfix",
+                    "version": ver,
+                    "base_commit": plan.get("base"),
+                    "commit": target,
+                    "commit_short": target[:7],
+                    "files": files,
+                    "deleted": list(plan.get("deleted", [])),
+                    "needs_collectstatic": bool(plan.get("needs_collectstatic")),
+                    "built_at": datetime.now().isoformat(timespec="seconds"),
+                    "built_by": os.environ.get("USERNAME", ""),
+                }
+                zf.writestr(HOTFIX_MANIFEST, json.dumps(manifest, indent=2, ensure_ascii=False))
+            if added != len(files):
+                errors.append("pacchetto incompleto")
+                self._log_line("  ✗ Pacchetto incompleto: NON applicarlo", "err")
             else:
                 sz = round(out_path.stat().st_size / 1024, 1)
-                self._log_line(f"  ✓ {added} file · {sz} KB · {skipped} non trovati", "ok")
+                self._log_line(f"  ✓ {added} file · {sz} KB · manifest {HOTFIX_MANIFEST}", "ok")
         except Exception as e:
             errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
 
@@ -5919,7 +6024,14 @@ class ReleaseRunPage(Page):
             except Exception as e:
                 errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
 
-        self._set_progress(100, "Hotfix creato!")
+        if errors and out_path.exists():
+            # Un pacchetto parziale non deve restare in giro: lo si applicherebbe per errore.
+            try:
+                out_path.unlink()
+                self._log_line("  Pacchetto incompleto eliminato.", "warn")
+            except OSError:
+                pass
+        self._set_progress(100, "Hotfix creato!" if not errors else "Hotfix NON creato")
         self._finish_hotfix(errors)
 
     # ── Applica Hotfix (server) ──────────────────────────────
@@ -5954,40 +6066,67 @@ class ReleaseRunPage(Page):
             self._finish_hotfix(["pacchetto mancante"])
             return
 
-        # 1. Applicazione file
-        step(1, "Applicazione file hotfix", 12)
-        applied = 0
-        current_resolved = str(current.resolve())
+        # 1. Verifica + applicazione file (con backup e ripristino)
+        step(1, "Verifica e applicazione file hotfix", 12)
+        manifest, refuse = self._hotfix_preflight(pkg, current)
+        if refuse:
+            self._log_line(f"  ✗ {refuse}", "err")
+            self._log_line("  Nessun file è stato toccato.", "warn")
+            self._set_progress(100, "Hotfix rifiutato")
+            self._finish_hotfix([refuse])
+            return
+        self._log_line(f"  ✓ Base {manifest['base_commit'][:8]} = commit in esecuzione", "ok")
+        self._log_line(f"  Target: {manifest['commit'][:8]} (v{manifest.get('version', '?')})", "dim")
+
+        tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dir = ep / "hotfix_backups" / f"{tag}-{manifest['commit'][:8]}"
+        touched = []   # (dest, backup|None) per il ripristino
         try:
             with zipfile.ZipFile(pkg, "r") as zf:
-                for member in zf.infolist():
-                    if member.is_dir():
-                        continue
-                    name = member.filename
-                    dest = (current / name).resolve()
-                    if not str(dest).startswith(current_resolved):
-                        self._append_error(errors, f"percorso non valido: {name}")
-                        self._log_line(f"  ✗ Percorso fuori da current\\ ignorato: {name}", "err")
-                        continue
-                    try:
+                ops = [(rel, "write") for rel in manifest["files"]]
+                ops += [(rel, "delete") for rel in manifest["deleted"]]
+                for rel, op in ops:
+                    dest = (current / rel).resolve()
+                    if not dest.is_relative_to(current.resolve()):
+                        raise RuntimeError(f"percorso fuori da current\\: {rel}")
+                    bak = None
+                    if dest.exists():
+                        bak = backup_dir / rel
+                        bak.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(dest, bak)
+                    touched.append((dest, bak))
+                    if op == "write":
                         dest.parent.mkdir(parents=True, exist_ok=True)
-                        with zf.open(member) as srcf, open(dest, "wb") as dstf:
+                        with zf.open(rel) as srcf, open(dest, "wb") as dstf:
                             shutil.copyfileobj(srcf, dstf)
-                        self._log_line(f"  ✓ {name}", "ok")
-                        applied += 1
-                    except Exception as e:
-                        self._append_error(errors, f"scrittura {name}")
-                        self._log_line(f"  ✗ {name}: {e}", "err")
-            self._log_line(f"  {applied} file applicati nel release attivo.", "dim")
-            if applied == 0:
-                self._append_error(errors, "nessun file applicato")
+                        self._log_line(f"  ✓ {rel}", "ok")
+                    elif dest.exists():
+                        dest.unlink()
+                        self._log_line(f"  ✓ (eliminato) {rel}", "ok")
+            self._write_hotfix_build_info(current, manifest, pkg, backup_dir)
+            self._log_line(f"  {len(touched)} file aggiornati · backup in {backup_dir}", "dim")
         except Exception as e:
-            self._append_error(errors, str(e))
-            self._log_line(f"  ✗ Estrazione hotfix fallita: {e}", "err")
+            self._log_line(f"  ✗ Applicazione fallita: {e}", "err")
+            self._log_line("  Ripristino dei file già toccati…", "warn")
+            for dest, bak in reversed(touched):
+                try:
+                    if bak is not None:
+                        shutil.copy2(bak, dest)
+                    elif dest.exists():
+                        dest.unlink()
+                except Exception as re_err:
+                    self._log_line(f"  ✗ Ripristino {dest}: {re_err}", "err")
+            self._set_progress(100, "Hotfix fallito — ripristinato")
+            self._finish_hotfix([f"applicazione fallita: {e}"])
+            return
 
         # 2. Management command Django
         step(2, "Management command Django", 50)
         manage = list(cfg.hotfix_manage)
+        if manifest.get("needs_collectstatic") and not any(
+                c.split()[0] == "collectstatic" for c in manage if c.split()):
+            manage.append("collectstatic --noinput")
+            self._log_line("  L'hotfix contiene statici: collectstatic aggiunto.", "dim")
         if not manage:
             self._log_line("  Nessun comando da eseguire — saltato.", "dim")
         elif not venv_py.exists():
@@ -6037,6 +6176,58 @@ class ReleaseRunPage(Page):
 
         self._set_progress(100, "Hotfix applicato!")
         self._finish_hotfix(errors)
+
+    def _hotfix_preflight(self, pkg, current):
+        """Legge il manifest e verifica che il server sia sul commit base. Ritorna (manifest, rifiuto)."""
+        try:
+            with zipfile.ZipFile(pkg, "r") as zf:
+                if zf.testzip():
+                    return None, "Pacchetto hotfix corrotto."
+                try:
+                    manifest = json.loads(zf.read(HOTFIX_MANIFEST).decode("utf-8-sig"))
+                except KeyError:
+                    return None, (f"Pacchetto senza {HOTFIX_MANIFEST}: creato con un wizard "
+                                  "vecchio o a mano. Ricrealo con Crea Hotfix.")
+        except Exception as e:
+            return None, f"Pacchetto illeggibile: {e}"
+        if not manifest.get("base_commit") or not manifest.get("commit"):
+            return None, "Manifest hotfix senza commit base/target."
+        manifest.setdefault("files", [])
+        manifest.setdefault("deleted", [])
+
+        bi_path = current / "BUILD_INFO.json"
+        try:
+            running = json.loads(bi_path.read_text(encoding="utf-8-sig")).get("commit") or ""
+        except (OSError, ValueError):
+            running = ""
+        if not running:
+            return None, ("BUILD_INFO.json assente o senza commit nel release attivo: "
+                          "non so su cosa applicare l'hotfix. Serve una release completa.")
+        if running != manifest["base_commit"]:
+            return None, (f"Il server esegue {running[:8]}, l'hotfix è costruito su "
+                          f"{manifest['base_commit'][:8]}. Ricrea l'hotfix con la base giusta "
+                          "o fai una release completa.")
+        return manifest, ""
+
+    def _write_hotfix_build_info(self, current, manifest, pkg, backup_dir):
+        """Il server dichiara il commit che esegue davvero, con la traccia dell'hotfix."""
+        bi_path = current / "BUILD_INFO.json"
+        info = json.loads(bi_path.read_text(encoding="utf-8-sig"))
+        info.setdefault("hotfixes", []).append({
+            "from_commit": manifest["base_commit"],
+            "to_commit": manifest["commit"],
+            "package": Path(pkg).name,
+            "files": len(manifest["files"]),
+            "deleted": len(manifest["deleted"]),
+            "applied_at": datetime.now().isoformat(timespec="seconds"),
+            "applied_by": os.environ.get("USERNAME", ""),
+            "backup_dir": str(backup_dir),
+        })
+        info["commit"] = manifest["commit"]
+        info["commit_short"] = manifest["commit"][:7]
+        if manifest.get("version"):
+            info["version"] = manifest["version"]
+        bi_path.write_text(json.dumps(info, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def _finish_hotfix(self, errors):
         create = self.cfg.mode == "hotfix-create"
@@ -8505,6 +8696,8 @@ if ($t) {{
             ("Versione", b.get("version") or "—", ""),
             ("Commit / branch", f"{b.get('commit') or '—'} · {b.get('branch') or '—'}", ""),
             ("Pacchetto creato", b.get("packaged_at") or "—", ""),
+            ("Hotfix applicati", (f"{b['hotfix_count']} · ultimo {b.get('last_hotfix_at') or '?'}"
+                                  if b.get("hotfix_count") else "nessuno"), ""),
             ("Settings Django", b.get("settings") or "—", "warn" if b.get("debug") else ""),
             ("Ultimo task completato", f"{last.get('func') or '—'} · {self._cc_fmt_dt(last.get('at'))}", ""),
             ("Task in coda", q.get("queue", "—"), ""),
