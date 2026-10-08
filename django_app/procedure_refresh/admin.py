@@ -136,8 +136,9 @@ class SgiTestoEstrattoAdmin(admin.ModelAdmin):
 
 @admin.register(SgiRiferimento)
 class SgiRiferimentoAdmin(admin.ModelAdmin):
-    list_display = ("da_revisione", "codice_citato", "a_documento", "sezione", "occorrenze", "risolto")
-    list_filter = ("risolto",)
+    list_display = ("da_revisione", "codice_citato", "a_documento", "tipo_risoluzione", "sezione", "occorrenze",
+                    "risolto")
+    list_filter = ("risolto", "tipo_risoluzione")
     search_fields = ("codice_citato", "da_revisione__document__code", "a_documento__code")
     raw_id_fields = ("da_revisione", "a_documento")
 

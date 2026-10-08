@@ -45,13 +45,17 @@ class Command(BaseCommand):
             esistenti = set()
         proposte = nuove = gia_presenti = 0
         non_trovati: dict[str, set[str]] = {}
+        famiglie: dict[str, set[str]] = {}
         for processo in Processo.objects.order_by("codice"):
             testo = f"{processo.procedure or ''}\n{processo.fonte_documentale or ''}"
             visti = set()
             for codice in codici_citati(testo):
-                doc = catalogo.risolvi(codice)
+                esito = catalogo.dettaglio(codice)
+                doc = esito.documento
                 if doc is None:
-                    non_trovati.setdefault(codice, set()).add(processo.codice)
+                    # Famiglia (es. «MT CN 125»): nessun documento singolo da collegare.
+                    destinazione = famiglie if esito.tipo == "famiglia" else non_trovati
+                    destinazione.setdefault(codice, set()).add(processo.codice)
                     continue
                 if doc.pk in visti:
                     continue
@@ -69,6 +73,10 @@ class Command(BaseCommand):
                 nuove += 1
         verbo = "create" if opts["apply"] else "da creare"
         self.stdout.write(f"Collegamenti trovati: {proposte} · {verbo}: {nuove} · già presenti: {gia_presenti}")
+        if famiglie:
+            self.stdout.write(f"Famiglie di documenti citate (non collegate a un documento singolo): {len(famiglie)}")
+            for codice in sorted(famiglie):
+                self.stdout.write(f"  {codice} (processi: {', '.join(sorted(famiglie[codice]))})")
         if non_trovati:
             self.stdout.write(f"Codici citati nei processi ma non nel catalogo: {len(non_trovati)}")
             for codice in sorted(non_trovati):

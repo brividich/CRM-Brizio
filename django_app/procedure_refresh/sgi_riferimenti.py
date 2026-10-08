@@ -121,6 +121,20 @@ def estrai_citazioni(testo: str, codice_proprio: str = "") -> list[Citazione]:
     return [Citazione(codice=c, sezione=s, occorrenze=n) for (c, s), n in conteggi.items()]
 
 
+@dataclass(frozen=True)
+class Risoluzione:
+    """Esito della risoluzione di un codice citato. ``famiglia``: il codice non ha un
+    documento proprio ma esistono i documenti ``<codice>_n`` (es. «MT CN 125»)."""
+
+    documento: object | None = None
+    tipo: str = ""
+    famiglia: tuple = ()
+
+    @property
+    def risolto(self) -> bool:
+        return self.documento is not None or bool(self.famiglia)
+
+
 class Catalogo:
     """Risolve un codice citato su ``ProcedureDocument`` (una query, poi in memoria)."""
 
@@ -137,23 +151,42 @@ class Catalogo:
         self.documenti = documenti
 
     def risolvi(self, codice: str):
-        doc = self.esatti.get(codice.upper()) or self.normalizzati.get(chiave(codice))
+        """Il documento citato, o None (anche per i riferimenti di famiglia)."""
+        return self.dettaglio(codice).documento
+
+    def dettaglio(self, codice: str) -> Risoluzione:
+        doc = self.esatti.get(codice.upper())
         if doc is not None:
-            return doc
+            return Risoluzione(doc, "esatto")
+        doc = self.normalizzati.get(chiave(codice))
+        if doc is not None:
+            return Risoluzione(doc, "normalizzato")
         # Codice disambiguato dall'import: «IDOR CN 02» → «IDOR CN 02 ISMS» se il nudo non c'è.
         prefisso = codice.upper() + " "
         for d in self.documenti:
             if d.code.upper().startswith(prefisso):
-                return d
+                return Risoluzione(d, "disambiguato")
         base = _ALLEGATO_RE.sub("", codice)
         if base != codice:
-            return self.risolvi(base)
+            esito = self.dettaglio(base)
+            if esito.documento is not None:
+                return Risoluzione(esito.documento, "allegato_base")
+            return esito
         # Citazione abbreviata senza «CN» («MT.12», «MT 279»): vale solo se il documento
         # con «CN» esiste (le famiglie MT/MTSI/IDOR/IDPR del catalogo lo hanno sempre).
-        con_cn = _SENZA_CN_RE.sub(r"\1CN", chiave(codice))
-        if con_cn != chiave(codice):
-            return self.normalizzati.get(con_cn)
-        return None
+        chiavi = [chiave(codice)]
+        con_cn = _SENZA_CN_RE.sub(r"\1CN", chiavi[0])
+        if con_cn != chiavi[0]:
+            doc = self.normalizzati.get(con_cn)
+            if doc is not None:
+                return Risoluzione(doc, "senza_cn")
+            chiavi.append(con_cn)
+        # Famiglia: nessun documento «X» ma esistono «X_1», «X_2», ... (es. MT CN 125).
+        for k in chiavi:
+            famiglia = tuple(d for d in self.documenti if chiave(d.code).startswith(k + "_"))
+            if famiglia:
+                return Risoluzione(None, "famiglia", famiglia)
+        return Risoluzione()
 
 
 def ricostruisci(rev, testo: str, *, catalogo: Catalogo | None = None) -> int:
@@ -163,11 +196,12 @@ def ricostruisci(rev, testo: str, *, catalogo: Catalogo | None = None) -> int:
     catalogo = catalogo or Catalogo()
     righe = []
     for c in estrai_citazioni(testo, rev.document.code):
-        doc = catalogo.risolvi(c.codice)
-        if doc is not None and doc.pk == rev.document_id:
+        esito = catalogo.dettaglio(c.codice)
+        if esito.documento is not None and esito.documento.pk == rev.document_id:
             continue  # autocitazione con un'altra grafia
-        righe.append(SgiRiferimento(da_revisione=rev, codice_citato=c.codice[:60], a_documento=doc,
-                                    sezione=c.sezione, occorrenze=c.occorrenze, risolto=doc is not None))
+        righe.append(SgiRiferimento(da_revisione=rev, codice_citato=c.codice[:60], a_documento=esito.documento,
+                                    sezione=c.sezione, occorrenze=c.occorrenze, risolto=esito.risolto,
+                                    tipo_risoluzione=esito.tipo))
     with transaction.atomic():
         SgiRiferimento.objects.filter(da_revisione=rev).delete()
         SgiRiferimento.objects.bulk_create(righe)
