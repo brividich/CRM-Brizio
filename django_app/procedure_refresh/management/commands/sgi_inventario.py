@@ -37,13 +37,12 @@ from procedure_refresh.management.commands.import_sgi_da_share import (
     parse_sgi_filename,
     scan_share_candidates,
 )
+from procedure_refresh.sgi_testo import SOGLIA_SCANSIONE_CHARS
 
 # Formati riportati singolarmente; tutto il resto finisce in "altro".
 FORMATI_NOTI = (".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx")
 # Formati "editabili" per il confronto PDF vs sorgente.
 FORMATI_EDITABILI = (".docx", ".doc", ".xlsx", ".xls", ".pptx")
-# Soglia: sotto questa media di caratteri/pagina il PDF e' considerato una scansione.
-SOGLIA_SCANSIONE_CHARS = 50
 # Quanti codici di esempio riportare (solo codici, mai titoli o testo).
 N_ESEMPI = 10
 

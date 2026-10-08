@@ -180,10 +180,11 @@ def dedup_candidates(parsed: list[dict]) -> tuple[list[dict], list[dict]]:
         for it in items:
             by_title[_title_key(it.get("title", ""))].append(it)
 
-        # Vincitore per ciascun titolo: revisione piu' alta (a parita', nome file).
+        # Vincitore per ciascun titolo: revisione piu' alta; a parita' il PDF (copia
+        # controllata, PROCEDURE_REFRESH_SGI_PREFER_PDF) e poi il nome file.
         per_title_winners: list[dict] = []
         for group in by_title.values():
-            ordered = sorted(group, key=lambda d: (_rev_int(d), d["file_name"]))
+            ordered = sorted(group, key=lambda d: (_rev_int(d), _pdf_rank(d), d["file_name"]))
             winner = ordered[-1]
             per_title_winners.append(winner)
             for it in ordered[:-1]:
@@ -215,6 +216,30 @@ def dedup_candidates(parsed: list[dict]) -> tuple[list[dict], list[dict]]:
     return candidates, conflicts
 
 
+def sgi_extensions() -> set[str]:
+    """Estensioni scandite (``PROCEDURE_REFRESH_SGI_EXTENSIONS``, default solo ``.pdf``)."""
+    raw = getattr(settings, "PROCEDURE_REFRESH_SGI_EXTENSIONS", None) or [".pdf"]
+    return {str(e).strip().lower() for e in raw if str(e).strip()} or {".pdf"}
+
+
+def _scan_files(root: Path) -> list[Path]:
+    """File della share con estensione ammessa, in ordine stabile (lock Office ``~$`` esclusi)."""
+    exts = sgi_extensions()
+    if exts == {".pdf"}:
+        return sorted(root.rglob("*.pdf"))  # percorso storico, identico a prima
+    return sorted(
+        p for p in root.rglob("*")
+        if p.suffix.lower() in exts and not p.name.startswith("~$") and p.is_file()
+    )
+
+
+def _pdf_rank(info: dict) -> int:
+    """1 se il file e' un PDF e la regola «vince il PDF» e' attiva (a parita' di revisione)."""
+    if not getattr(settings, "PROCEDURE_REFRESH_SGI_PREFER_PDF", True):
+        return 0
+    return int(str(info.get("file_name", "")).lower().endswith(".pdf"))
+
+
 def scan_share_candidates(
     root: Path, *, solo_procedure: bool = False, limit: int = 0
 ) -> tuple[list[dict], list[dict], list[dict]]:
@@ -225,7 +250,7 @@ def scan_share_candidates(
     """
     parsed: list[dict] = []
     skipped: list[dict] = []
-    for pdf in sorted(root.rglob("*.pdf")):
+    for pdf in _scan_files(root):
         full = str(pdf)
         if _SUPERATO_RE.search(full):
             continue

@@ -124,3 +124,25 @@ python django_app\manage.py setup_q_schedules --settings=config.settings.prod
 - **django-q2**: lo schedule usa `schedule_type='C'` (CRON) → niente crash dei tipi `'S'` (SECONDS). Cluster via Task Scheduler `QCluster_PROD`.
 - **`.env`**: fonte di verità = `C:\PortaleNovicrom\prod\config\.env`. L'attivo `current\django_app\.env` è usa-e-getta (riscritto a ogni deploy).
 - **Doppio flusso wizard**: le pagine `InstallPage` e `ReleaseRunPage` hanno entrambe il migrate + safety-net; una modifica futura va replicata in entrambe.
+
+---
+
+## Database SGI — setting e passi (traccia A, fase A1)
+
+Tutti con default che lasciano il comportamento invariato. Si impostano nel `.env` persistente (`config\.env`).
+
+| Setting | Default | Effetto |
+|---|---|---|
+| `PROCEDURE_REFRESH_SGI_EXTENSIONS` | `.pdf` | estensioni scandite sulla share (lista con `,`); la share oggi ha solo PDF |
+| `PROCEDURE_REFRESH_SGI_PREFER_PDF` | `True` | a parità di codice+revisione vince il PDF |
+| `SGI_ESTRAZIONE_PERSISTITA_ENABLED` | `False` | l'assistente legge `SgiTestoEstratto` (se l'hash coincide) e la sync notturna accoda l'estrazione |
+| `OLLAMA_RAG_SGI_CHUNK_CHARS` | = `OLLAMA_RAG_CHUNK_CHARS` | dimensione chunk SGI |
+| `OLLAMA_RAG_SGI_CHUNK_HEADER` | `False` | intestazione «codice Rev.n — § sezione» nel testo del chunk |
+| `OLLAMA_RAG_SGI_MAX_PROCS` | `400` (era 300) | tetto revisioni procedura nel corpus RAG |
+
+Passi (solo quando si decide di accendere l'estrazione persistita, dopo misura `ai_eval --rag-sgi` non peggiorativa):
+1. `migrate procedure_refresh` (0008, solo nuova tabella).
+2. `sgi_estrai_testi --dry-run`, poi `sgi_estrai_testi` (~7 min per ~250 PDF, sola lettura sulla share).
+3. `SGI_ESTRAZIONE_PERSISTITA_ENABLED=True` nel `.env`, riavvio sito e qcluster.
+4. `index_sgi_documents`: il testo dei chunk cambia, quindi **gli embeddings vanno ricalcolati** (stesso discorso se si cambiano `OLLAMA_RAG_SGI_CHUNK_CHARS` o `OLLAMA_RAG_SGI_CHUNK_HEADER`).
+5. `ai_eval --rag-sgi` e confronto con `docs/ai/baseline/`.

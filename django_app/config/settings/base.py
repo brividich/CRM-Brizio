@@ -315,7 +315,9 @@ OLLAMA_RAG_CHUNK_OVERLAP_CHARS = int(env("OLLAMA_RAG_CHUNK_OVERLAP_CHARS", "150"
 # file_hash (TTL dedicato). Il chunking riusa OLLAMA_RAG_CHUNK_CHARS/_OVERLAP_CHARS.
 OLLAMA_RAG_SGI_ENABLED = env_bool("OLLAMA_RAG_SGI_ENABLED", True)
 OLLAMA_RAG_SGI_MAX_SPECS = int(env("OLLAMA_RAG_SGI_MAX_SPECS", "300") or "300")
-OLLAMA_RAG_SGI_MAX_PROCS = int(env("OLLAMA_RAG_SGI_MAX_PROCS", "300") or "300")
+# 400 (STOP 0 database SGI, 10/2026): la share ha ~250 documenti correnti; oltre il
+# cap il loader scarta in silenzio le revisioni piu' vecchie, il margine costa zero.
+OLLAMA_RAG_SGI_MAX_PROCS = int(env("OLLAMA_RAG_SGI_MAX_PROCS", "400") or "400")
 OLLAMA_RAG_SGI_MAX_PDF_CHARS = int(env("OLLAMA_RAG_SGI_MAX_PDF_CHARS", "200000") or "200000")
 OLLAMA_RAG_SGI_TEXT_CACHE_TTL = int(env("OLLAMA_RAG_SGI_TEXT_CACHE_TTL", "2592000") or "2592000")
 # Schede di Sicurezza (SDS chimici) nel corpus RAG (Ondata 6.2): indicizza le schede
@@ -350,6 +352,26 @@ OLLAMA_RAG_STEMMING_ENABLED = env_bool("OLLAMA_RAG_STEMMING_ENABLED", False)
 # registra i PDF come documenti procedura citabili dall'AI. Vuoto = obbligatorio
 # passare --root. Esclude sempre la sottocartella SUPERATO (revisioni obsolete).
 PROCEDURE_REFRESH_SGI_SHARE_ROOT = env("PROCEDURE_REFRESH_SGI_SHARE_ROOT", "")
+# Database SGI (traccia A, fase A1). Estensioni scandite sulla share: default solo
+# PDF (STOP 0: sulla share non ci sono Word/Excel) -> comportamento invariato. Se
+# lo stesso codice+revisione esiste in PDF e in editabile vince il PDF (copia
+# controllata) finche' PROCEDURE_REFRESH_SGI_PREFER_PDF resta True.
+PROCEDURE_REFRESH_SGI_EXTENSIONS = [
+    e.strip().lower() if e.strip().startswith(".") else "." + e.strip().lower()
+    for e in env_list("PROCEDURE_REFRESH_SGI_EXTENSIONS", [".pdf"])
+    if e.strip()
+]
+PROCEDURE_REFRESH_SGI_PREFER_PDF = env_bool("PROCEDURE_REFRESH_SGI_PREFER_PDF", True)
+# Testo SGI estratto e persistito (SgiTestoEstratto: ordine di lettura, tabelle in
+# pipe-table, intestazioni/pie' di pagina ripetuti rimossi). OFF: l'assistente legge
+# il PDF "piatto" come prima. ON: legge il testo persistito se l'hash coincide,
+# altrimenti ripiega sul percorso attuale; la sync notturna accoda l'estrazione.
+SGI_ESTRAZIONE_PERSISTITA_ENABLED = env_bool("SGI_ESTRAZIONE_PERSISTITA_ENABLED", False)
+# Dimensione dei chunk SGI (default = OLLAMA_RAG_CHUNK_CHARS -> nessuna variazione) e
+# intestazione "<codice> Rev.<n> — <§ sezione>" nel TESTO del chunk (oltre al titolo).
+# Cambiare uno dei due invalida la cache embeddings: rilanciare index_sgi_documents.
+OLLAMA_RAG_SGI_CHUNK_CHARS = int(env("OLLAMA_RAG_SGI_CHUNK_CHARS", str(OLLAMA_RAG_CHUNK_CHARS)) or OLLAMA_RAG_CHUNK_CHARS)
+OLLAMA_RAG_SGI_CHUNK_HEADER = env_bool("OLLAMA_RAG_SGI_CHUNK_HEADER", False)
 # Retrieval semantico (embeddings via Ollama nativo). OPT-IN: richiede un modello
 # di embedding scaricato in Ollama (es. `ollama pull nomic-embed-text`). Fail-safe:
 # se non disponibile il retrieval resta BM25-only. Solo provider "ollama".

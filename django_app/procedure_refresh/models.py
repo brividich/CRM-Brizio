@@ -185,6 +185,42 @@ class ProcedureRevision(models.Model):
         super().save(*args, **kwargs)
 
 
+class SgiTestoEstratto(models.Model):
+    """Testo estratto e persistito di una revisione SGI (file server), per il RAG.
+
+    Valido finché ``file_hash`` coincide con quello della revisione: se il file
+    cambia, il testo viene ri-estratto (``sgi_estrai_testi`` / task a catena). Il
+    testo è markdown leggero (heading, tabelle in pipe-table) senza intestazioni e
+    piè di pagina ripetuti. Letto dall'assistente solo con
+    ``SGI_ESTRAZIONE_PERSISTITA_ENABLED``.
+    """
+
+    revision = models.OneToOneField(
+        ProcedureRevision,
+        on_delete=models.CASCADE,
+        related_name="testo_estratto",
+        verbose_name="Revisione",
+    )
+    file_hash = models.CharField(max_length=128, db_index=True, verbose_name="Hash file estratto")
+    formato = models.CharField(max_length=10, verbose_name="Formato")
+    metodo = models.CharField(max_length=30, verbose_name="Metodo")
+    testo = models.TextField(blank=True, default="", verbose_name="Testo")
+    n_pagine = models.PositiveIntegerField(null=True, blank=True, verbose_name="Pagine")
+    n_caratteri = models.PositiveIntegerField(default=0, verbose_name="Caratteri")
+    n_sezioni = models.PositiveIntegerField(default=0, verbose_name="Sezioni §")
+    ha_testo_nativo = models.BooleanField(default=True, verbose_name="Testo nativo")
+    ocr_usato = models.BooleanField(default=False, verbose_name="OCR usato")
+    avvisi = models.TextField(blank=True, default="", verbose_name="Avvisi")
+    estratto_il = models.DateTimeField(auto_now=True, verbose_name="Estratto il")
+
+    class Meta:
+        verbose_name = "Testo estratto SGI"
+        verbose_name_plural = "Testi estratti SGI"
+
+    def __str__(self) -> str:
+        return f"{self.revision} [{self.metodo}]"
+
+
 class ProcedureCampaign(models.Model):
     name = models.CharField(max_length=200, verbose_name="Nome campagna")
     description = models.TextField(blank=True, default="", verbose_name="Descrizione")

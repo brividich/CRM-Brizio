@@ -54,7 +54,7 @@ Una superficie alla volta, ognuna con: F1 backend → F1b UI → privacy review 
 |----|-----------|--------|------|
 | **3.1** | **Sinonimi/acronimi** (DPI↔dispositivi, NC↔non conformità, MT/MOD/CN) in `_tokenize` query | M | dizionario curato + misura |
 | **3.2** | **Reranker cross-encoder** (`bge-reranker-v2-m3` su stesso TEI) sui top-20 RRF | L | salto MRR maggiore; verificare VRAM A4000 |
-| **3.3** | **Revisione chunking** (900→1100-1300, codice doc nel testo, boost-titolo ∝ IDF) | M | invalida cache embeddings → re-warm |
+| **3.3** | **Revisione chunking** (900→1100-1300, codice doc nel testo, boost-titolo ∝ IDF) | M | invalida cache embeddings → re-warm. **Stato 08/10/2026 (A1 database SGI)**: implementati, spenti di default, `OLLAMA_RAG_SGI_CHUNK_CHARS` e `OLLAMA_RAG_SGI_CHUNK_HEADER` (codice+rev+§ nel testo) e tabelle non spezzate a metà riga. Misurati in dev: codice+rev nel testo e chunk 1200 **peggiorano** (MRR 0,623 → 0,59–0,60). Il **titolo del documento** nel label del chunk porta MRR a 0,81 (recall 31/32) in diagnostica: è il prossimo passo da decidere (STOP A1) |
 
 ---
 

@@ -8,6 +8,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Procedure — testo SGI estratto e persistito (A1 database SGI, tutto spento di default)** (`django_app/procedure_refresh/models.py`, `migrations/0008_sgitestoestratto.py` nuova, `admin.py`, `sgi_testo.py` nuovo, `tasks.py`, `management/commands/sgi_estrai_testi.py` nuovo, `management/commands/import_sgi_da_share.py`, `management/commands/sgi_inventario.py`, `test_sgi_testo.py` nuovo, `django_app/ai_assistant/services.py`, `django_app/config/settings/base.py`, `docs/moduli/procedure_refresh.md`, `docs/ai/RUNBOOK_DEPLOY_AI.md`, `docs/ai/15_AI_NEXT_STEPS.md`).
+  - Nuovo modello `SgiTestoEstratto` (uno per revisione, valido finché l'hash del file coincide) con admin in sola lettura: in lista solo i metadati, il testo solo ai superuser.
+  - Estrattore PDF (`sgi_testo.estrai`): segue l'ordine di lettura, ricostruisce le tabelle come pipe-table senza duplicarle nel testo, tiene una sola volta le intestazioni e i piè di pagina ripetuti, ricompone le sillabazioni. Una cornice di pagina non viene trattata come tabella. Non solleva mai eccezioni: in caso di errore restituisce testo vuoto e un avviso. Solo PDF: sulla share non ci sono Word né Excel (decisione STOP 0), quindi nessuna nuova dipendenza e niente OCR.
+  - Comando `sgi_estrai_testi [--solo CODICE] [--forza] [--limit N] [--dry-run]`, idempotente sull'hash del file. Salta i documenti esclusi dal RAG (flag o deny-list roster).
+  - Task `run_sgi_estrazione_un_documento`: un documento per task, accodati a catena dalla sync notturna; il re-index parte a fine catena.
+  - L'assistente legge il testo persistito solo con `SGI_ESTRAZIONE_PERSISTITA_ENABLED`, prima della cache del testo; se l'hash non coincide ripiega sul percorso di prima.
+  - Chunking SGI: le pipe-table non vengono più spezzate a metà riga (intestazione ripetuta, overlap per righe intere). Nuovi setting `OLLAMA_RAG_SGI_CHUNK_CHARS` (default = `OLLAMA_RAG_CHUNK_CHARS`) e `OLLAMA_RAG_SGI_CHUNK_HEADER` (default spento: intestazione «codice Rev.n — § sezione» nel testo del chunk).
+  - `scan_share_candidates` legge le estensioni da `PROCEDURE_REFRESH_SGI_EXTENSIONS` (default `.pdf`, comportamento invariato). A parità di codice e revisione vince il PDF (`PROCEDURE_REFRESH_SGI_PREFER_PDF`). `_sgi_safe_doc_path` con whitelist delle estensioni; `_sgi_safe_pdf_path` resta come alias.
+  - `OLLAMA_RAG_SGI_MAX_PROCS`: default da 300 a 400 (decisione STOP 0).
+  - **Misura**: con l'estrazione nuova, `ai_eval --rag-sgi` peggiora (MRR 0,594 contro 0,623 di baseline): per questo `SGI_ESTRAZIONE_PERSISTITA_ENABLED` resta spento. Analisi nel report di fase A1.
+
 - **Procedure — inventario SGI in sola lettura (F0 database SGI)** (`django_app/procedure_refresh/management/commands/sgi_inventario.py` nuovo, `procedure_refresh/test_sgi_inventario.py` nuovo, `docs/moduli/procedure_refresh.md`).
   - Comando `sgi_inventario [--root] [--json] [--sample N] [--senza-tabelle] [--output FILE]`: per la cartella SGI conta i file per formato e per area, i PDF a testo nativo e quelli scansionati (con le pagine), le pagine con tabelle, i documenti con almeno due sezioni `§`, i nomi non riconosciuti, i codici presenti sia in PDF sia in Word/Excel e le revisioni correnti rispetto al limite `OLLAMA_RAG_SGI_MAX_PROCS`.
   - Sola lettura: non scrive nel DB né sulla share e non usa l'AI. Riusa scansione, parser dei nomi e filtro `SUPERATO` di `import_sgi_da_share`. Il report contiene solo numeri e codici; `--output` non accetta percorsi sotto la share.
