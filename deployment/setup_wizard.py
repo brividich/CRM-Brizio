@@ -4830,7 +4830,7 @@ HOTFIX_MANIFEST = "HOTFIX_INFO.json"
 
 # Stessa allowlist di package-release.ps1: un hotfix non puo' portare in prod
 # niente che il pacchetto completo non porterebbe.
-_HOTFIX_INCLUDE_DIRS = ("django_app/", "sql/", "tools/")
+_HOTFIX_INCLUDE_DIRS = ("django_app/", "deployment/", "sql/", "tools/")
 _HOTFIX_INCLUDE_ROOT = ("VERSION", "README.md", "CHANGELOG.md", "CLAUDE.md")
 _HOTFIX_EXCLUDE_SEGMENTS = {
     ".git", ".claude", ".tmp_py", ".tmp_tests", ".venv", "venv", "node_modules",
