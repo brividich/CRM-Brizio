@@ -8,6 +8,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori SNMP — WALK con GETBULK su v2c/v3** (`django_app/contatori/snmp.py`, `django_app/contatori/verifica_oid.py`, `tests_snmp_timeout.py`, `tests_verifica_oid.py`, `docs/moduli/contatori.md`).
+  - **CORRETTO:** su uno switch Aruba 2930F in SNMPv3 la colonna «Traffico trasmesso interfacce» andava in «Tempo complessivo del WALK SNMP superato»: il WALK chiedeva una riga per volta (GETNEXT) e, con decine di interfacce e la cifratura v3, superava i 10 secondi.
+  - Con v2c e v3 i WALK (polling e «Verifica OID») usano ora GETBULK, 20 righe per richiesta. Con v1, che non ha GETBULK, resta GETNEXT.
+
 - **Contatori «Verifica OID» — catalogo MIB completato e corretto** (`django_app/contatori/data/oid_mib.json`, `tools/snmp/genera_catalogo_mib.py`, `django_app/contatori/verifica_oid.py`, `tests_verifica_oid.py`, `docs/moduli/contatori.md`, `docs/snmp/PRESET_CATALOG.md`).
   - **Da 980 a 4.578 OID, da 29 a 68 MIB.** Aggiunte:
     - **WatchGuard:** stato del cluster (ruolo e salute dei due nodi), HA, policy, tunnel e SA IPsec, utenti autenticati, configurazione;

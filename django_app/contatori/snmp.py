@@ -15,6 +15,16 @@ from time import monotonic
 SPECIFICATION_BUDGET = 30.0
 WALK_BUDGET = 10.0
 MAX_WALK_ROWS = 256
+# Righe per richiesta GETBULK (v2c/v3): uno switch con 50+ porte in v3 richiede
+# troppi round-trip GETNEXT per stare nel WALK_BUDGET.
+BULK_SIZE = 20
+
+
+def scorri(client, oid, version):
+    """WALK di ``oid``: GETBULK con v2c/v3, GETNEXT con v1 (che non ha GETBULK)."""
+    if version == "v1":
+        return client.walk(oid)
+    return client.bulkwalk([oid], bulk_size=BULK_SIZE)
 
 CANON_BASE = "1.3.6.1.4.1.1602.1.11.1.3.1"  # tabella contatori Canon
 # Printer-MIB standard: prtMarkerSuppliesTable (toner, tamburi, fusore, ...)
@@ -267,7 +277,7 @@ def leggi_colonna(host, oid, community="novicromprinter", port=161, timeout=3,
         sender = functools.partial(send_udp, timeout=timeout)
         client = PyWrapper(Client(str(host), cred, port=port, sender=sender))
         valori = []
-        async for vb in client.walk(oid):
+        async for vb in scorri(client, oid, version):
             if len(valori) >= MAX_WALK_ROWS:
                 raise SNMPError('Colonna SNMP oltre il limite di 256 righe')
             valori.append(vb.value)

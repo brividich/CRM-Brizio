@@ -177,7 +177,7 @@ def verifica(host, oids, *, community, porta, timeout, versione, rami=()):
     from puresnmp import Client, PyWrapper
     from puresnmp.transport import send_udp
 
-    from .snmp import NESSUNA_RISPOSTA, costruisci_credenziali, descrivi_errore
+    from .snmp import NESSUNA_RISPOSTA, costruisci_credenziali, descrivi_errore, scorri
 
     cred = costruisci_credenziali(community, versione)
     esito = {"candidati": [], "assenti": [], "errore": ""}
@@ -185,7 +185,7 @@ def verifica(host, oids, *, community, porta, timeout, versione, rami=()):
 
     async def _walk(client, base):
         foglie = []
-        async for vb in client.walk(base):
+        async for vb in scorri(client, base, versione):
             oid = str(vb.oid).lstrip(".")
             if not oid.startswith(base + "."):
                 break
