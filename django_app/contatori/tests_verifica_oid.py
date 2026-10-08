@@ -63,8 +63,8 @@ class _Client:
             return 7
         raise ErrorResponse.construct(2, ObjectIdentifier(oid))
 
-    async def walk(self, base):
-        if base == SENSORI:
+    async def bulkwalk(self, oids, bulk_size=10):
+        if oids == [SENSORI]:
             for i, v in ((1, 4), (2, 4), (3, 2)):
                 yield SimpleNamespace(oid=f"{SENSORI}.{i}", value=v)
 

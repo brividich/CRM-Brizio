@@ -71,6 +71,14 @@ class SnmpTimeoutTest(TestCase):
         self.assertEqual(values, {'1.2.1': 42})
         self.assertIn('1.2.2', errors)
 
+    def test_v2c_e_v3_usano_getbulk(self):
+        async def bulkwalk(oids, bulk_size):
+            self.assertEqual((oids, bulk_size), (['1.2.1'], snmp.BULK_SIZE))
+            yield SimpleNamespace(value=5)
+        self.client.bulkwalk = bulkwalk
+        self.client.walk = mock.Mock(side_effect=AssertionError('GETNEXT con v2c'))
+        self.assertEqual(snmp.leggi_colonna('192.0.2.1', '1.2.1', version='v2c'), [5])
+
     def test_successful_walk_unchanged(self):
         async def walk(oid):
             yield SimpleNamespace(value=12)
