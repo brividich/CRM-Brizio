@@ -7,6 +7,8 @@ class GlossarioTecnicoConfig(AppConfig):
     verbose_name = "Glossario tecnico"
 
     def ready(self):
+        from . import signals  # noqa: F401  (invalidazione cache glossario nel RAG)
+
         try:
             from .acl_bootstrap import bootstrap_glossario_tecnico_acl
 

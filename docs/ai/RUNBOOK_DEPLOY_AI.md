@@ -140,6 +140,8 @@ Tutti con default che lasciano il comportamento invariato. Si impostano nel `.en
 | `OLLAMA_RAG_SGI_CHUNK_HEADER` | `False` | intestazione «codice Rev.n — § sezione» nel testo del chunk |
 | `OLLAMA_RAG_SGI_CHUNK_TITLE` | `False` | titolo del documento nell'etichetta dei chunk SGI. **Consigliato `True`**: in dev SGI recall 27→31/32, MRR 0,623→0,772, KB invariata. Poi `index_sgi_documents` |
 | `OLLAMA_RAG_SGI_MAX_PROCS` | `400` (era 300) | tetto revisioni procedura nel corpus RAG |
+| `OLLAMA_RAG_GLOSSARIO_ENABLED` | `False` | glossario tecnico nella ricerca (token comuni per le varianti, H7/M8/Ra protetti, termini validati come conoscenza). Da accendere solo dopo che la Qualità ha validato i termini |
+| `OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE` | `False` | **MAI in prod**: include le bozze, serve solo per misurare in dev |
 
 Passi (solo quando si decide di accendere l'estrazione persistita, dopo misura `ai_eval --rag-sgi` non peggiorativa):
 1. `migrate procedure_refresh` (0008, solo nuova tabella).

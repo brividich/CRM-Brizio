@@ -1,0 +1,23 @@
+# Golden glossario tecnico (fase B2): domande sintetiche su terminologia.
+# "expect" = frammenti della fonte attesa (glossario:<id>#<termine-slug>), basta uno.
+# Le domande usano apposta sinonimi, gergo, sigle e simboli invece del termine canonico.
+{"q": "cos'è una lamatura?", "expect": ["#lamatura"]}
+{"q": "cosa significa spot face sul disegno?", "expect": ["#lamatura"]}
+{"q": "che vuol dire il simbolo ⌴ accanto al foro?", "expect": ["#lamatura"]}
+{"q": "differenza tra planarità e parallelismo", "expect": ["#planarita", "#parallelismo"]}
+{"q": "cosa indica H7 su una quota ⌀20 H7?", "expect": ["#campo-di-tolleranza", "#sistema-foro-base", "#grado-di-tolleranza"]}
+{"q": "come si fa la FAI secondo AS9102?", "expect": ["#ispezione-del-primo-articolo"]}
+{"q": "cosa vuol dire M8x1 a disegno?", "expect": ["#filettatura-metrica-a-passo-fine"]}
+{"q": "Ra 0,8 cosa significa?", "expect": ["#rugosita-media-aritmetica"]}
+{"q": "cos'è una svasatura per viti a testa piatta?", "expect": ["#svasatura"]}
+{"q": "che cos'è una NC?", "expect": ["#non-conformita"]}
+{"q": "a cosa serve la cementazione?", "expect": ["#cementazione"]}
+{"q": "cosa indica il simbolo ◎ nel riquadro di tolleranza?", "expect": ["#coassialita"]}
+{"q": "come funziona un tampone passa non passa?", "expect": ["#calibro-passa-non-passa"]}
+{"q": "cosa misura la tridimensionale CMM?", "expect": ["#macchina-di-misura-a-coordinate"]}
+{"q": "cos'è il runout circolare?", "expect": ["#oscillazione-circolare"]}
+{"q": "a cosa serve lo shot peening?", "expect": ["#pallinatura"]}
+{"q": "cosa significa foro base nel sistema ISO?", "expect": ["#sistema-foro-base"]}
+{"q": "perché il disegno va ballonato prima del collaudo?", "expect": ["#ballonatura"]}
+{"q": "cosa vuol dire MMC sulla tolleranza di posizione?", "expect": ["#condizione-di-massimo-materiale"]}
+{"q": "che differenza c'è tra tempra e rinvenimento?", "expect": ["#tempra", "#rinvenimento"]}

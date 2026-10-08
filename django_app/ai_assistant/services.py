@@ -19,6 +19,8 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.core.cache import cache
 
+from . import glossario_rag
+
 logger = logging.getLogger(__name__)
 
 
@@ -159,6 +161,11 @@ def _tokenize(value: str) -> list[str]:
         stemmer = _get_italian_stemmer()
         if stemmer is not None:
             tokens = [stemmer.stemWord(token) for token in tokens]
+    # Glossario tecnico (OLLAMA_RAG_GLOSSARIO_ENABLED): token canonici gl_<id> e pattern
+    # protetti (H7, M8, Ra) che la regex sopra scarta. A flag spento non aggiunge nulla.
+    extra = glossario_rag.token_aggiuntivi(value)
+    if extra:
+        tokens.extend(extra)
     return tokens
 
 
@@ -325,6 +332,43 @@ def _load_curated_knowledge_chunks() -> list[KnowledgeChunk]:
                 title=title,
                 content=content,
                 tokens=Counter(_tokenize(f"{title}\n{question}\n{answer}")),
+            )
+        )
+    return chunks
+
+
+def _load_glossario_chunks() -> list[KnowledgeChunk]:
+    """Termini del glossario tecnico come conoscenza curata (OLLAMA_RAG_GLOSSARIO_ENABLED).
+
+    Un chunk per termine: definizione, varianti, simbolo e codice norma. Fonte
+    ``glossario:<id>#<termine>``. Solo termini validati con «usa nell'assistente»
+    (le bozze solo con OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE, strumento di misura in dev).
+    Le note interne non entrano mai.
+    """
+    chunks: list[KnowledgeChunk] = []
+    for voce in glossario_rag.voci_per_chunk():
+        termine = _clean_text(voce.termine, limit=150)
+        if not termine:
+            continue
+        righe = [f"{termine}" + (f" (EN: {voce.termine_en})" if voce.termine_en else "")]
+        if voce.categoria:
+            righe.append(f"Categoria: {voce.categoria}")
+        righe.append(f"Definizione: {_clean_text(voce.definizione, limit=700)}")
+        if voce.varianti:
+            righe.append("Detto anche: " + ", ".join(voce.varianti[:20]))
+        if voce.simbolo:
+            righe.append(f"Simbolo: {voce.simbolo}")
+        if voce.norma_rif:
+            righe.append(f"Norma: {voce.norma_rif}")
+        content = "\n".join(righe)
+        title = f"Glossario — {termine}"
+        slug = re.sub(r"\s+", "-", _fold_accents(termine.lower())).strip("-")
+        chunks.append(
+            KnowledgeChunk(
+                source=f"glossario:{voce.id}#{slug}",
+                title=title,
+                content=content,
+                tokens=Counter(_tokenize(f"{title}\n{content}")),
             )
         )
     return chunks
@@ -1417,6 +1461,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
         tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in files),
         _curated_knowledge_signature(),
         _sgi_documents_signature(),
+        glossario_rag.firma(),
     )
     ttl = int(getattr(settings, "OLLAMA_RAG_CACHE_SECONDS", 300) or 0)
     now = time.monotonic()
@@ -1440,6 +1485,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
         text = raw_text[:max_file_chars]
         chunks.extend(_chunk_document(path, text))
     chunks.extend(_load_curated_knowledge_chunks())
+    chunks.extend(_load_glossario_chunks())
     if bool(getattr(settings, "OLLAMA_RAG_SGI_ENABLED", True)):
         chunks.extend(_load_sgi_document_chunks())
 

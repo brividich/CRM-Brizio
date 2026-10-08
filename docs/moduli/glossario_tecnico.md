@@ -30,6 +30,10 @@ python django_app\manage.py glossario_candidati --limit 20 --ai
 python django_app\manage.py riorganizza_topbar --apply
 ```
 
+## Nell'assistente AI (B2)
+
+Con `OLLAMA_RAG_GLOSSARIO_ENABLED=True` l'assistente riconosce nelle domande e nei documenti i termini validati e le loro varianti: «spot face», «⌴» e «lamatura» sono la stessa cosa. Riconosce anche classi di tolleranza (`⌀20 H7`), filetti (`M8x1.25`) e rugosità (`Ra 0,8`), che prima ignorava. I termini validati diventano anche voci di conoscenza citabili. Le bozze non entrano mai in produzione. Ogni modifica al glossario aggiorna l'assistente entro pochi minuti.
+
 ## Note di rilascio
 
 - **B1 (10/2026)**: app nuova, migrazioni 0001 (schema) e 0002 (elenco iniziale, reversibile). Nessun effetto sull'assistente finché non arriva la fase B2 (`OLLAMA_RAG_GLOSSARIO_ENABLED`).
