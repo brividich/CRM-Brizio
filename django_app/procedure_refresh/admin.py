@@ -10,6 +10,8 @@ from .models import (
     ProcedureQuizAttempt,
     ProcedureReadEvent,
     ProcedureRevision,
+    SgiDocumentoProcesso,
+    SgiRiferimento,
     SgiSyncLog,
     SgiTestoEstratto,
 )
@@ -131,3 +133,21 @@ class SgiTestoEstrattoAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+@admin.register(SgiRiferimento)
+class SgiRiferimentoAdmin(admin.ModelAdmin):
+    list_display = ("da_revisione", "codice_citato", "a_documento", "sezione", "occorrenze", "risolto")
+    list_filter = ("risolto",)
+    search_fields = ("codice_citato", "da_revisione__document__code", "a_documento__code")
+    raw_id_fields = ("da_revisione", "a_documento")
+
+
+@admin.register(SgiDocumentoProcesso)
+class SgiDocumentoProcessoAdmin(admin.ModelAdmin):
+    """Proposte di sgi_collega_processi: una persona le conferma (confermato=True)."""
+
+    list_display = ("processo", "documento", "codice_citato", "origine", "confermato", "created_at")
+    list_editable = ("confermato",)
+    list_filter = ("confermato", "origine")
+    search_fields = ("processo__codice", "documento__code", "codice_citato")
+    raw_id_fields = ("documento", "processo")

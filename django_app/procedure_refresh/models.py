@@ -550,3 +550,82 @@ class ProcedureQuizAttempt(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} - {self.quiz} ({self.score}/{self.total_questions})"
+
+
+class SgiRiferimento(models.Model):
+    """Codice SGI citato nel testo di una revisione (A2, grafo dei riferimenti).
+
+    Deterministico, zero AI: ricostruito per revisione a ogni nuova estrazione del testo
+    (``sgi_riferimenti.ricostruisci``). ``a_documento`` vuoto = codice citato che non
+    esiste nel catalogo (documento mancante o refuso). Le norme esterne (ISO, EN, ...)
+    non sono riferimenti SGI e non entrano qui.
+    """
+
+    da_revisione = models.ForeignKey(
+        ProcedureRevision,
+        on_delete=models.CASCADE,
+        related_name="riferimenti_uscenti",
+        verbose_name="Revisione che cita",
+    )
+    codice_citato = models.CharField(max_length=60, db_index=True, verbose_name="Codice citato")
+    a_documento = models.ForeignKey(
+        ProcedureDocument,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="riferimenti_entranti",
+        verbose_name="Documento citato",
+    )
+    sezione = models.CharField(max_length=160, blank=True, default="", verbose_name="Sezione")
+    occorrenze = models.PositiveIntegerField(default=1, verbose_name="Occorrenze")
+    risolto = models.BooleanField(default=False, db_index=True, verbose_name="Risolto")
+
+    class Meta:
+        verbose_name = "Riferimento SGI"
+        verbose_name_plural = "Riferimenti SGI"
+        constraints = [
+            models.UniqueConstraint(fields=["da_revisione", "codice_citato", "sezione"], name="uq_sgi_rif"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.da_revisione_id} -> {self.codice_citato}"
+
+
+class SgiDocumentoProcesso(models.Model):
+    """Collegamento proposto documento SGI ↔ processo (``sgi_collega_processi``).
+
+    Nasce da un codice citato nel testo libero del processo (``procedure``,
+    ``fonte_documentale``) e resta ``confermato=False`` finché una persona non lo
+    conferma. Il testo del processo non viene mai modificato.
+    """
+
+    ORIGINE_PROCESSO_TESTO = "processo_testo"
+    ORIGINI = [(ORIGINE_PROCESSO_TESTO, "Testo del processo")]
+
+    documento = models.ForeignKey(
+        ProcedureDocument,
+        on_delete=models.CASCADE,
+        related_name="processi_collegati",
+        verbose_name="Documento",
+    )
+    processo = models.ForeignKey(
+        "sistema_gestione.Processo",
+        on_delete=models.CASCADE,
+        related_name="documenti_sgi",
+        verbose_name="Processo",
+    )
+    origine = models.CharField(max_length=20, choices=ORIGINI, default=ORIGINE_PROCESSO_TESTO,
+                               verbose_name="Origine")
+    codice_citato = models.CharField(max_length=60, blank=True, default="", verbose_name="Codice citato")
+    confermato = models.BooleanField(default=False, db_index=True, verbose_name="Confermato")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creato il")
+
+    class Meta:
+        verbose_name = "Documento SGI di processo"
+        verbose_name_plural = "Documenti SGI di processo"
+        constraints = [
+            models.UniqueConstraint(fields=["documento", "processo"], name="uq_sgi_doc_processo"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.processo_id} <-> {self.documento_id}"

@@ -314,5 +314,9 @@ def persisti_estrazione(rev, *, forza: bool = False) -> str:
             "avvisi": "\n".join(res.avvisi),
         },
     )
+    # A2: il grafo dei riferimenti segue il testo (ricostruito per revisione, fail-safe).
+    from procedure_refresh.sgi_riferimenti import ricostruisci_sicuro
+
+    ricostruisci_sicuro(rev, res.testo)
     return "estratto"
 

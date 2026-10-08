@@ -147,3 +147,8 @@ Passi (solo quando si decide di accendere l'estrazione persistita, dopo misura `
 3. `SGI_ESTRAZIONE_PERSISTITA_ENABLED=True` nel `.env`, riavvio sito e qcluster.
 4. `index_sgi_documents`: il testo dei chunk cambia, quindi **gli embeddings vanno ricalcolati** (stesso discorso se si cambiano `OLLAMA_RAG_SGI_CHUNK_CHARS` o `OLLAMA_RAG_SGI_CHUNK_HEADER`).
 5. `ai_eval --rag-sgi` e confronto con `docs/ai/baseline/`.
+
+Riferimenti tra documenti (A2, nessun flag: dati deterministici, non toccano l'assistente):
+1. `migrate procedure_refresh` (0009, due tabelle nuove).
+2. Dopo `sgi_estrai_testi`: `sgi_riferimenti` (primo popolamento + report; poi si aggiornano da soli a ogni nuova estrazione).
+3. `sgi_collega_processi --dry-run`, poi `--apply`: le proposte restano da confermare in admin (Procedure › Documenti SGI di processo).
