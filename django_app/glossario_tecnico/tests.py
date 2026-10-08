@@ -54,6 +54,55 @@ class ModelliTests(TestCase):
             _termine("passo sintetico", "filettatura")
 
 
+class UnicitaCaseInsensitiveTests(TestCase):
+    """«Lamatura» e «lamatura» nella stessa categoria sono lo stesso termine su ogni DB:
+    errore di validazione leggibile, mai IntegrityError."""
+
+    def test_form(self):
+        from .forms import TermineForm
+
+        form = TermineForm(data={"termine": "Lamatura", "categoria": "lavorazione",
+                                 "definizione": "Doppione sintetico.", "usa_nel_rag": "on"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("Esiste già «lamatura»", form.errors["termine"][0])
+        altra = TermineForm(data={"termine": "Lamatura", "categoria": "quotatura",
+                                  "definizione": "Stesso nome, altra categoria.", "usa_nel_rag": "on"})
+        self.assertTrue(altra.is_valid(), altra.errors)
+
+    def test_full_clean_e_modifica_se_stesso(self):
+        t = Termine.objects.get(termine="lamatura")
+        t.termine = "LAMATURA"
+        t.full_clean()  # rinominare se stesso cambiando le maiuscole e' lecito
+        nuovo = Termine(termine="  lamatura ", categoria="lavorazione", definizione="x")
+        with self.assertRaises(ValidationError) as ctx:
+            nuovo.full_clean()
+        self.assertIn("termine", ctx.exception.message_dict)
+
+    def test_import_csv_e_proposta(self):
+        esito = services.importa_csv(
+            "termine;termine_en;categoria;definizione;simbolo;norma_rif;varianti\n"
+            "LAMATURA;;lavorazione;Doppione;;;\n"
+        )
+        self.assertEqual((esito.importati, esito.saltati), (0, 1))
+        from ai_assistant.apprendimento import registra_proposta
+
+        p = registra_proposta(modulo="glossario", azione="nuovo_termine", oggetto_ref="cand:lamatura",
+                              proposta={"candidato": "lamatura", "termine": "Lamatura",
+                                        "categoria": "lavorazione", "definizione": "Doppione."})
+        with self.assertRaises(ValidationError):
+            services.accetta_proposta(p, None)
+        self.assertEqual(Termine.objects.filter(termine__iexact="lamatura", categoria="lavorazione").count(), 1)
+
+    def test_vista_nuovo_termine_non_va_in_500(self):
+        admin = User.objects.create_user(username="gl_ci", password="x", is_superuser=True)
+        self.client.force_login(admin)
+        resp = self.client.post(reverse("glossario_tecnico:termine_nuovo"), {
+            "termine": "Lamatura", "categoria": "lavorazione", "definizione": "Doppione.", "usa_nel_rag": "on",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Esiste già")
+
+
 class SeedTests(TestCase):
     def test_seed_caricato_in_bozza(self):
         self.assertGreaterEqual(Termine.objects.filter(fonte="seed").count(), 80)

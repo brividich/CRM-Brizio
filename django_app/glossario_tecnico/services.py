@@ -118,18 +118,20 @@ def importa_csv(contenuto: str, *, dry_run: bool = False) -> EsitoImport:
             except ValueError as exc:
                 esito.errori.append(f"Riga {n}: {exc}")
                 continue
-            if Termine.objects.filter(termine=termine_txt, categoria=categoria).exists():
+            if Termine.objects.filter(termine__iexact=termine_txt, categoria=categoria).exists():
                 esito.saltati += 1
                 continue
             try:
                 with transaction.atomic():
-                    termine = Termine.objects.create(
+                    termine = Termine(
                         termine=termine_txt, categoria=categoria, definizione=definizione,
                         termine_en=(riga.get("termine_en") or "").strip()[:150],
                         simbolo=(riga.get("simbolo") or "").strip()[:20],
                         norma_rif=(riga.get("norma_rif") or "").strip()[:60],
                         stato=Termine.BOZZA, fonte="import_csv",
                     )
+                    termine.full_clean(exclude=["validato_da"])
+                    termine.save()
                     for tipo, testo in varianti:
                         aggiungi_variante(termine, testo, tipo, "en" if tipo == "traduzione" else "it")
             except ValidationError as exc:

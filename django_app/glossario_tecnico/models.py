@@ -7,6 +7,8 @@ diventa utilizzabile dall'assistente solo quando una persona lo valida.
 
 from __future__ import annotations
 
+import re
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -67,6 +69,23 @@ class Termine(models.Model):
 
     def __str__(self) -> str:
         return self.termine
+
+    def clean(self) -> None:
+        """Unicità termine+categoria SENZA distinzione maiuscole/minuscole, uguale su
+        ogni database: SQL Server (prod) confronta in modo case-insensitive, SQLite no.
+        Qui l'errore è leggibile, prima che il vincolo DB sollevi IntegrityError."""
+        self.termine = re.sub(r"\s+", " ", self.termine or "").strip()
+        if not self.termine or not self.categoria:
+            return
+        doppione = (
+            Termine.objects.filter(termine__iexact=self.termine, categoria=self.categoria)
+            .exclude(pk=self.pk).first()
+        )
+        if doppione is not None:
+            raise ValidationError({
+                "termine": f"Esiste già «{doppione.termine}» nella categoria "
+                           f"«{self.get_categoria_display()}» (maiuscole e minuscole non contano).",
+            })
 
 
 class Variante(models.Model):
