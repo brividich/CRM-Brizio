@@ -43,6 +43,8 @@ _NORMA_RE = re.compile(
 # «MT CN» a fine riga e numero a capo: _CODE_RE ammette un solo spazio dopo CN.
 _CN_A_CAPO_RE = re.compile(r"(?<=CN)[ \t]*\r?\n[ \t]*(?=\d)")
 RIPETIZIONI_CARTIGLIO = 3
+# Chiave senza «CN» dopo il prefisso di famiglia: «MT12» → «MTCN12» (vedi Catalogo.risolvi).
+_SENZA_CN_RE = re.compile(r"^(MTSI|MT|IDOR|IDPR)(?!CN)(?=\d)")
 
 
 def _ricuci(testo: str) -> str:
@@ -146,6 +148,11 @@ class Catalogo:
         base = _ALLEGATO_RE.sub("", codice)
         if base != codice:
             return self.risolvi(base)
+        # Citazione abbreviata senza «CN» («MT.12», «MT 279»): vale solo se il documento
+        # con «CN» esiste (le famiglie MT/MTSI/IDOR/IDPR del catalogo lo hanno sempre).
+        con_cn = _SENZA_CN_RE.sub(r"\1CN", chiave(codice))
+        if con_cn != chiave(codice):
+            return self.normalizzati.get(con_cn)
         return None
 
 

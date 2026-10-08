@@ -104,6 +104,14 @@ class RisoluzioneTests(TestCase):
         self.assertEqual(cat.risolvi("IDOR CN 01 Allegato A"), self.idor)
         self.assertIsNone(cat.risolvi("MT CN 999"))
 
+    def test_citazione_abbreviata_senza_cn(self):
+        cat = Catalogo()
+        self.assertEqual(cat.risolvi("MT.6"), self.mt06)
+        self.assertEqual(cat.risolvi("MT 06"), self.mt06)
+        self.assertEqual(codici_citati("vedi MT.6 e MT 06"), ["MT.6", "MT 06"])
+        self.assertIsNone(cat.risolvi("MT 999"))
+        self.assertIsNone(cat.risolvi("MOD 06"))  # MOD non ha la famiglia CN
+
     def test_ricostruisci_in_transazione_e_inesistenti(self):
         rev = _rev("MT CN 77").document.revisions.get()
         testo = "1. Scopo\nvedi MOD.093 e MT CN 999\n2. Altro\nancora MOD.093 e MOD.093"
