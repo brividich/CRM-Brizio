@@ -14,6 +14,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - «Applica Hotfix» rifiuta il pacchetto se `BUILD_INFO.json` del server non è sul commit base, fa backup in `hotfix_backups\`, ripristina in caso di errore, gestisce i file eliminati, lancia collectstatic se servono statici e aggiorna `BUILD_INFO.json` al nuovo commit con la storia in `hotfixes[]`; il Command center mostra gli hotfix applicati.
   - `patch-release.ps1` dichiarato percorso di sola emergenza. Tabella «Hotfix o release?» nella guida quality gates.
 
+- **Test assistente AI allineati al codice attuale** (`django_app/ai_assistant/tests.py`): il test del riepilogo asset non passa più `sharepoint_folder_path` (campo rimosso con l'integrazione SharePoint, `15f3a899`); il test delle anomalie «in carico» usa la chiave di confronto dei nomi del codice (`naming.chiave_testo`, maiuscolo, da `489cba76`) invece del vecchio formato minuscolo. Nessuna modifica al codice applicativo.
 - **Contatori SNMP — WALK con GETBULK su v2c/v3** (`django_app/contatori/snmp.py`, `django_app/contatori/verifica_oid.py`, `tests_snmp_timeout.py`, `tests_verifica_oid.py`, `docs/moduli/contatori.md`).
   - **CORRETTO:** su uno switch Aruba 2930F in SNMPv3 la colonna «Traffico trasmesso interfacce» andava in «Tempo complessivo del WALK SNMP superato»: il WALK chiedeva una riga per volta (GETNEXT) e, con decine di interfacce e la cifratura v3, superava i 10 secondi.
   - Con v2c e v3 i WALK (polling e «Verifica OID») usano ora GETBULK, 20 righe per richiesta. Con v1, che non ha GETBULK, resta GETNEXT.
