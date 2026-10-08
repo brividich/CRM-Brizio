@@ -9,6 +9,11 @@
     Pensato per hotfix su file Python/template/SQL che non richiedono
     migrate, collectstatic o aggiornamento dipendenze.
 
+    SOLO EMERGENZA. Copia dal working tree (anche file non committati) e NON
+    aggiorna BUILD_INFO.json: il server non sa piu' quale commit esegue.
+    Il percorso normale e' Setup Wizard > Crea Hotfix / Applica Hotfix
+    (pacchetto da commit di release/prod, verifica del commit base, backup).
+
     ATTENZIONE: sovrascrive direttamente i file in current\. Non crea un
     nuovo release né aggiorna la junction. Usare solo per patch minime e
     testate. Per modifiche strutturali usare il deploy completo.
@@ -76,6 +81,8 @@ $ErrorActionPreference = "Stop"
 
 Assert-Admin
 Assert-ValidEnvironment -Env $Environment
+
+Write-Warning "patch-release.ps1 e' un percorso di EMERGENZA: copia dal working tree e non aggiorna BUILD_INFO.json. Usa Setup Wizard > Crea/Applica Hotfix."
 
 # ---------------------------------------------------------------------------
 # Risolvi percorsi

@@ -111,6 +111,36 @@ class ReadBuildInfoTests(SimpleTestCase):
         with BuildInfoTempRoot('["lista", "non", "oggetto"]'):
             self.assertTrue(build_info.read_build_info()["malformed"])
 
+    def test_hotfix_applicati_dal_wizard(self):
+        """Applica Hotfix sposta 'commit' sul target e lascia la storia in 'hotfixes'."""
+        payload = {
+            "source": "branch",
+            "commit": "c" * 40,
+            "commit_short": "ccccccc",
+            "branch": "release/prod",
+            "dirty": False,
+            "delta_vs_export_branch": 0,
+            "hotfixes": [
+                {"from_commit": "a" * 40, "to_commit": "b" * 40, "applied_at": "2026-10-08T10:00:00"},
+                "voce spuria",
+                {"from_commit": "b" * 40, "to_commit": "c" * 40, "applied_at": "2026-10-09T10:00:00"},
+            ],
+        }
+        with BuildInfoTempRoot(json.dumps(payload)):
+            info = build_info.read_build_info()
+
+        self.assertEqual(info["commit_short"], "ccccccc")
+        self.assertEqual(info["hotfix_count"], 2)
+        self.assertEqual(info["last_hotfix"]["applied_at"], "2026-10-09T10:00:00")
+        self.assertFalse(info["has_drift"])
+
+    def test_pacchetto_senza_hotfix(self):
+        with BuildInfoTempRoot(json.dumps({"source": "branch", "commit": "d" * 40})):
+            info = build_info.read_build_info()
+
+        self.assertEqual(info["hotfix_count"], 0)
+        self.assertIsNone(info["last_hotfix"])
+
 
 class PorcelainParsingTests(SimpleTestCase):
     def test_parsing_stati_e_raggruppamento_per_app(self):

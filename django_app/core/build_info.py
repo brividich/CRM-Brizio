@@ -79,8 +79,18 @@ def read_build_info() -> dict | None:
     except (TypeError, ValueError):
         delta = None
 
+    # Hotfix applicati sopra il pacchetto dal Setup Wizard: "commit" e' gia' quello
+    # finale, qui resta la traccia di come ci si e' arrivati.
+    hotfixes = raw.get("hotfixes")
+    if not isinstance(hotfixes, list):
+        hotfixes = []
+    hotfixes = [h for h in hotfixes if isinstance(h, dict)]
+
     return {
         "malformed": False,
+        "hotfixes": hotfixes,
+        "hotfix_count": len(hotfixes),
+        "last_hotfix": hotfixes[-1] if hotfixes else None,
         "path": str(path),
         "source": str(raw.get("source") or "") or None,
         "commit": raw.get("commit") or None,
