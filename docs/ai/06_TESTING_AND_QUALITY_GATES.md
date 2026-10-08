@@ -101,10 +101,21 @@ L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le 
 ### Release Manager (`--mode release` / `create` / `promote` / `hotfix-create` / `hotfix-apply`)
 
 - Quattro operazioni nel Gestore Release (`ReleaseApp`): `create` (zip completo da DEV), `promote` (deploy zip su TEST/PROD) e il flusso Hotfix a due fasi `hotfix-create` + `hotfix-apply`.
-- `hotfix-create` (`ReleaseConfigHotfixCreate` + `ReleaseRunPage._run_hotfix_create`, lato DEV): rileva i file modificati/nuovi con git tramite l'helper `_git_changed_files` (`git diff --name-only HEAD` + `git ls-files --others --exclude-standard`) e li impacchetta in un `hotfix-vX.Y.Z-<timestamp>.zip` con verifica di integrità.
-- `hotfix-apply` (`ReleaseConfigHotfixApply` + `ReleaseRunPage._run_hotfix_apply`, lato server): estrae il pacchetto hotfix sul release attivo `current\` con guard anti zip-slip, esegue eventuali management command Django con `--settings` coerente e ricicla l'App Pool IIS, senza creare una nuova release né aggiornare la junction.
+- `hotfix-create` (`ReleaseConfigHotfixCreate` + `ReleaseRunPage._run_hotfix_create`, lato DEV): **nasce da commit, mai dal working tree**. Input: commit in produzione (base, da Centrale di comando/BUILD_INFO) e commit target (default `origin/release/prod`). `_git_hotfix_plan` rifiuta se il target non è in `release/prod` o se la base non ne è antenata; calcola `git diff --name-status base target` e filtra con la stessa allowlist di `package-release.ps1` (`django_app/`, `sql/`, `tools/`, root md/VERSION; esclusi `docs`, `media*`, ecc.). Migration o `requirements*.txt` **bloccano** il pacchetto. I file escono da `git show target:path`; lo zip `hotfix-vX.Y.Z-<target8>-<timestamp>.zip` contiene `HOTFIX_INFO.json` (base, target, file, eliminati, `needs_collectstatic`). Pacchetto incompleto = eliminato.
+- `hotfix-apply` (`ReleaseConfigHotfixApply` + `ReleaseRunPage._run_hotfix_apply`, lato server): fail-closed. Rifiuta se manca `HOTFIX_INFO.json` o se `current\BUILD_INFO.json` non ha `commit` uguale alla base del pacchetto. Copia i file sostituiti in `<env>\hotfix_backups\<timestamp>-<target8>\`, applica scritture ed eliminazioni (guard zip-slip con `is_relative_to`), in caso di errore ripristina tutto. Poi aggiorna `BUILD_INFO.json` (`commit` = target, voce in `hotfixes[]`), esegue `collectstatic` se servono statici, i management command opzionali e ricicla l'App Pool IIS. Non crea release né tocca la junction.
 - `promote` conserva i grant e i binding ACL gia presenti: dopo `migrate` esegue `bootstrap_acl_v2 --apply` senza `--import-legacy`, e non esegue `seed_acl_uat --reset` neppure su TEST. Il seed UAT resta opzionale nell'installazione iniziale TEST.
-- Flusso: su DEV `hotfix-create` → copia del pacchetto sul server → `hotfix-apply` su TEST/PROD. Per migration, dipendenze o nuovi statici resta obbligatorio `promote`. L'hotfix non aggiorna la junction e va sempre riportato nel `.zip` di release successivo.
+- Flusso: fix su feature → main → `release/prod` (come sempre) → su DEV `hotfix-create` → copia sul server → `hotfix-apply` su TEST poi PROD. `deployment/scripts/patch-release.ps1` resta solo per emergenze: copia dal working tree e non aggiorna BUILD_INFO.
+
+#### Hotfix o release?
+
+| Hotfix (Crea/Applica Hotfix) | Release (Crea Release + Promuovi) |
+|---|---|
+| Il server è su un commit noto (BUILD_INFO con `commit`) | Pacchetto in prod senza BUILD_INFO/commit, o costruito da working tree |
+| Diff base→target senza migration né `requirements*.txt` | Qualunque migration o dipendenza nuova |
+| Codice, template, SQL, statici (collectstatic automatico) | Modifiche a `.env`, `web.config`, schedule `setup_q_schedules`, comandi post-deploy (`normalizza_*`, `ricalcola_*`) |
+| Correzione urgente, pochi file, rischio basso | Versione nuova (bump `VERSION`), più funzionalità accumulate, lavoro da collaudare su TEST |
+
+Regola pratica: se anche un solo punto cade nella colonna destra, è una release. Il wizard la impone comunque bloccando migration/requirements e base sbagliata.
 
 ### Selezione moduli (ModulesPage â€” step 11)
 

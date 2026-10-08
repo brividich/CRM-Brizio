@@ -68,6 +68,8 @@ def section_build() -> dict:
         "packaged_at": info.get("built_at") or "",
         "has_drift": bool(info.get("has_drift")),
         "packaged": bool(info),
+        "hotfix_count": int(info.get("hotfix_count") or 0),
+        "last_hotfix_at": (info.get("last_hotfix") or {}).get("applied_at") or "",
         "settings": getattr(settings, "SETTINGS_MODULE", ""),
         "debug": bool(settings.DEBUG),
     }
