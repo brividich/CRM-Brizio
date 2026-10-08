@@ -217,10 +217,16 @@ def revisione(request):
     proposte = list(services.proposte_in_attesa().order_by("-created_at")[:200])
     for p in proposte:
         p.categoria_label = etichette.get((p.proposta or {}).get("categoria", ""), "")
+    comuni = services.varianti_comuni_salvate()
+    if comuni:
+        for r in comuni.get("voci") or []:
+            r["percentuale"] = round(float(r.get("quota") or 0) * 100)
     return render(request, "glossario_tecnico/pages/revisione.html", {
         "page_title": "Glossario — revisione",
         "bozze": bozze,
         "proposte": proposte,
+        "comuni": comuni,
+        "soglia_comune": round(services.SOGLIA_PAROLA_COMUNE * 100),
     })
 
 

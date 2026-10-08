@@ -11,7 +11,7 @@ import unicodedata
 import urllib.error
 import urllib.request
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -43,6 +43,9 @@ class KnowledgeChunk:
     title: str
     content: str
     tokens: Counter[str]
+    # Token del titolo, precalcolati da _build_index (boost BM25): a ogni ricerca si
+    # tokenizza solo la query, mai i chunk (pre-pass del glossario compreso).
+    title_tokens: frozenset[str] | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -340,7 +343,7 @@ def _load_curated_knowledge_chunks() -> list[KnowledgeChunk]:
 def _load_glossario_chunks() -> list[KnowledgeChunk]:
     """Termini del glossario tecnico come conoscenza curata (OLLAMA_RAG_GLOSSARIO_ENABLED).
 
-    Un chunk per termine: definizione, varianti, simbolo e codice norma. Fonte
+    Un chunk per termine: definizione, varianti, simbolo, esempio a disegno e codice norma. Fonte
     ``glossario:<id>#<termine>``. Solo termini validati con «usa nell'assistente»
     (le bozze solo con OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE, strumento di misura in dev).
     Le note interne non entrano mai.
@@ -358,6 +361,9 @@ def _load_glossario_chunks() -> list[KnowledgeChunk]:
             righe.append("Detto anche: " + ", ".join(voce.varianti[:20]))
         if voce.simbolo:
             righe.append(f"Simbolo: {voce.simbolo}")
+        if voce.esempio_disegno:
+            # Deviazione approvata da §B2.2: l'esempio («⌀20 H7») porta i token protetti.
+            righe.append(f"Esempio a disegno: {_clean_text(voce.esempio_disegno, limit=200)}")
         if voce.norma_rif:
             righe.append(f"Norma: {voce.norma_rif}")
         content = "\n".join(righe)
@@ -1033,6 +1039,10 @@ def _build_index(chunks: list[KnowledgeChunk]) -> KnowledgeIndex:
     n = len(chunks)
     if not n:
         return KnowledgeIndex(chunks=(), idf={}, avgdl=0.0)
+    chunks = [
+        chunk if chunk.title_tokens is not None else replace(chunk, title_tokens=frozenset(_tokenize(chunk.title)))
+        for chunk in chunks
+    ]
     document_frequency: Counter[str] = Counter()
     total_length = 0
     for chunk in chunks:
@@ -1522,7 +1532,7 @@ def _bm25_score(
     b = float(getattr(settings, "OLLAMA_RAG_BM25_B", 0.75) or 0.75)
     doc_length = sum(chunk.tokens.values()) or 1
     norm = k1 * (1.0 - b + b * (doc_length / avgdl if avgdl else 1.0))
-    title_tokens = set(_tokenize(chunk.title))
+    title_tokens = chunk.title_tokens if chunk.title_tokens is not None else set(_tokenize(chunk.title))
     score = 0.0
     for token in query_tokens:
         frequency = chunk.tokens.get(token, 0)

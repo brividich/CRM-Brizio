@@ -93,6 +93,7 @@ class Voce:
     simbolo: str = ""
     norma_rif: str = ""
     varianti: list[str] = field(default_factory=list)
+    esempio_disegno: str = ""
 
 
 @dataclass
@@ -132,18 +133,20 @@ def bump_versione() -> None:
     _STATO.update({"versione": None, "controllato": 0.0, "matcher": None, "voci": None})
 
 
-def carica_voci() -> list[Voce]:
+def carica_voci(stati: list[str] | None = None) -> list[Voce]:
     """Termini usabili nel RAG: validati con usa_nel_rag (più le bozze solo con
-    OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE). Lista vuota se l'app non c'è."""
+    OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE). ``stati`` forza l'elenco (revisione).
+    Lista vuota se l'app non c'è."""
     try:
         from glossario_tecnico.models import Termine
 
-        stati = ["validato", "bozza"] if includi_bozze() else ["validato"]
+        if stati is None:
+            stati = ["validato", "bozza"] if includi_bozze() else ["validato"]
         qs = Termine.objects.filter(stato__in=stati, usa_nel_rag=True).prefetch_related("varianti")
         return [
             Voce(id=t.pk, termine=t.termine, termine_en=t.termine_en, categoria=t.get_categoria_display(),
                  definizione=t.definizione, simbolo=t.simbolo, norma_rif=t.norma_rif,
-                 varianti=[v.testo for v in t.varianti.all()])
+                 varianti=[v.testo for v in t.varianti.all()], esempio_disegno=t.esempio_disegno)
             for t in qs
         ]
     except Exception:
@@ -218,6 +221,36 @@ def token_glossario(testo: str) -> list[str]:
     if m.simboli is not None:
         out.extend(f"gl_{m.mappa_simboli[x.group(0)]}" for x in m.simboli.finditer(nfc))
     return out
+
+
+def varianti_comuni(testi: list[str], voci: list[Voce], soglia: float) -> list[dict]:
+    """Varianti (o termini) trovate in più di ``soglia`` (0–1) dei testi, con le stesse
+    regole del pre-pass. Solo segnalazione per la revisione: nessuna esclusione."""
+    if not testi or not voci:
+        return []
+    m = _costruisci(voci)
+    frequenza: dict[tuple[str, str], int] = {}
+    for testo in testi:
+        trovate: set[tuple[str, str]] = set()
+        if m.piegato is not None:
+            trovate.update(("p", x.group(0)) for x in m.piegato.finditer(_piega(testo)))
+        nfc = unicodedata.normalize("NFC", testo)
+        if m.esatto is not None:
+            trovate.update(("e", x.group(0)) for x in m.esatto.finditer(nfc))
+        if m.simboli is not None:
+            trovate.update(("s", x.group(0)) for x in m.simboli.finditer(nfc))
+        for chiave in trovate:
+            frequenza[chiave] = frequenza.get(chiave, 0) + 1
+    mappe = {"p": m.mappa_piegato, "e": m.mappa_esatto, "s": m.mappa_simboli}
+    nomi = {v.id: v.termine for v in voci}
+    n = len(testi)
+    out = []
+    for (gruppo, testo), conteggio in frequenza.items():
+        if conteggio / n > soglia:
+            termine_id = mappe[gruppo][testo]
+            out.append({"termine_id": termine_id, "termine": nomi.get(termine_id, ""), "testo": testo,
+                        "chunk": conteggio, "quota": round(conteggio / n, 3)})
+    return sorted(out, key=lambda r: (-r["quota"], r["testo"]))
 
 
 def token_aggiuntivi(testo: str) -> list[str]:

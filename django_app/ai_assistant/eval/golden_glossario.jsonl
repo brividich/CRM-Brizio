@@ -6,11 +6,15 @@
 {"q": "che vuol dire il simbolo ⌴ accanto al foro?", "expect": ["#lamatura"]}
 {"q": "differenza tra planarità e parallelismo", "expect": ["#planarita", "#parallelismo"]}
 {"q": "cosa indica H7 su una quota ⌀20 H7?", "expect": ["#campo-di-tolleranza", "#sistema-foro-base", "#grado-di-tolleranza"]}
-{"q": "come si fa la FAI secondo AS9102?", "expect": ["#ispezione-del-primo-articolo"]}
+# 08/10/2026: «come si fa la FAI secondo AS9102?» spostata in golden_sgi.jsonl (domanda procedurale:
+# risponde la procedura MT CN 15); sostituita dalla domanda di definizione qui sotto.
+{"q": "cos'è la FAI (First Article Inspection)?", "expect": ["#ispezione-del-primo-articolo"]}
 {"q": "cosa vuol dire M8x1 a disegno?", "expect": ["#filettatura-metrica-a-passo-fine"]}
 {"q": "Ra 0,8 cosa significa?", "expect": ["#rugosita-media-aritmetica"]}
 {"q": "cos'è una svasatura per viti a testa piatta?", "expect": ["#svasatura"]}
 {"q": "che cos'è una NC?", "expect": ["#non-conformita"]}
+# 08/10/2026: aggiunta come domanda di definizione sulla sigla (la precedente resta invariata).
+{"q": "cosa significa la sigla NC?", "expect": ["#non-conformita"]}
 {"q": "a cosa serve la cementazione?", "expect": ["#cementazione"]}
 {"q": "cosa indica il simbolo ◎ nel riquadro di tolleranza?", "expect": ["#coassialita"]}
 {"q": "come funziona un tampone passa non passa?", "expect": ["#calibro-passa-non-passa"]}

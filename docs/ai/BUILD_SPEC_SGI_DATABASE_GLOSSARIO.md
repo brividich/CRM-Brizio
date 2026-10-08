@@ -227,7 +227,9 @@ Soluzione, in `ai_assistant/services.py`, dietro flag `OLLAMA_RAG_GLOSSARIO_ENAB
 4. `_tokenize` resta invariato a flag spento (test di non regressione byte-per-byte sui token).
 
 ### B2.2 Glossario come conoscenza
-Termini `validato` diventano chunk curati (`source="glossario:<id>"`, titolo = termine, testo = definizione + varianti + simbolo + norma_rif) caricati in `_load_knowledge_index` accanto a `_load_curated_knowledge_chunks`, con signature inclusa nella firma dell'indice. Il vecchio `08_glossario.md` resta (sigle portale).
+Termini `validato` diventano chunk curati (`source="glossario:<id>"`, titolo = termine, testo = definizione + varianti + simbolo + esempio_disegno + norma_rif) caricati in `_load_knowledge_index` accanto a `_load_curated_knowledge_chunks`, con signature inclusa nella firma dell'indice. Il vecchio `08_glossario.md` resta (sigle portale).
+
+> **Deviazione approvata (08/10/2026, chiusura B2):** il testo del chunk include anche `esempio_disegno` (es. `⌀20 H7`), così il pre-pass genera i token protetti (`iso286_h7`) anche dal chunk del glossario. Senza l'esempio la domanda «cosa indica H7 su una quota ⌀20 H7?» non trovava il termine.
 
 ### Acceptance B2
 - Nuovo golden `ai_assistant/eval/golden_glossario.jsonl` (≥ 15 domande sintetiche: "cos'è una lamatura", "differenza tra planarità e parallelismo", "cosa indica H7"…), eseguibile con `ai_eval` (aggiungi `--rag-glossario` riusando la logica di `--rag-sgi`).

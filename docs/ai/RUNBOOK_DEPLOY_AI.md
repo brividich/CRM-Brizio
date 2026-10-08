@@ -143,6 +143,8 @@ Tutti con default che lasciano il comportamento invariato. Si impostano nel `.en
 | `OLLAMA_RAG_GLOSSARIO_ENABLED` | `False` | glossario tecnico nella ricerca (token comuni per le varianti, H7/M8/Ra protetti, termini validati come conoscenza). Da accendere solo dopo che la Qualità ha validato i termini |
 | `OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE` | `False` | **MAI in prod**: include le bozze, serve solo per misurare in dev |
 
+Dopo `index_sgi_documents`: `glossario_varianti_comuni` aggiorna la sezione «Parole comuni» della pagina «Da rivedere» del glossario (sola lettura sui documenti, scrive solo in cache).
+
 Passi (solo quando si decide di accendere l'estrazione persistita, dopo misura `ai_eval --rag-sgi` non peggiorativa):
 1. `migrate procedure_refresh` (0008, solo nuova tabella).
 2. `sgi_estrai_testi --dry-run`, poi `sgi_estrai_testi` (~7 min per ~250 PDF, sola lettura sulla share).

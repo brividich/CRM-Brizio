@@ -15,6 +15,7 @@ Termini di lavorazione, quotatura, tolleranze dimensionali e geometriche, rugosi
 - **Elenco**: ricerca su termine, inglese, simbolo e varianti (es. «spot face» o «⌴» trovano la lamatura); filtri per categoria e stato.
 - **Scheda termine**: definizione, esempio a disegno, norma, stato e chi l'ha validato; varianti aggiunte e tolte in linea (HTMX).
 - **Da rivedere** (`/glossario/revisione/`): bozze da validare (Valida / Correggi / Scarta) e proposte dell'AI (Accetta / Correggi / Scarta). Ogni decisione sulle proposte finisce in `AiProposta`, così le proposte successive tengono conto delle correzioni.
+- **Parole comuni** (in «Da rivedere»): varianti che compaiono in più del 20% dei brani dei documenti SGI, con l'etichetta «parola comune: valutare usa_nel_rag». Aiutano poco l'assistente; nessuna viene esclusa da sola, decide la Qualità togliendo «usa nell'assistente» dal termine. Si aggiornano con `glossario_varianti_comuni` dopo l'indicizzazione dei documenti SGI.
 - **Import CSV**: `glossario_import_csv --file X.csv [--dry-run]`, colonne `termine;termine_en;categoria;definizione;simbolo;norma_rif;varianti` con varianti `tipo:testo` separate da `|` (pensato per un export IATE filtrato a mano). Righe importate in bozza; le righe con errori vengono scartate per intero e riportate.
 - **Candidati dai documenti SGI**: `glossario_candidati [--limit N] [--min-documenti N] [--ai] [--sincrono]` legge il testo persistito dei documenti SGI (`sgi_estrai_testi`) e propone le espressioni di 1–3 parole presenti in almeno N documenti e non ancora nel glossario. Esclude i nomi degli utenti del portale. Con `--ai` l'LLM on-premise propone termine, categoria, definizione e varianti (un task per gruppo di 5, < 90 s); le proposte restano in attesa finché una persona non le accetta.
 - **Permessi (ACL v2)**: `glossario_tecnico.termini.view` (consultazione, tutti i ruoli) e `glossario_tecnico.gestione` (inserire, modificare, validare, decidere le proposte: ruoli admin e qualità). L'Ufficio tecnico si abilita per utente o gruppo in Admin › ACL. Le API (`/glossario/api/`) rispondono sempre JSON, anche 401/403.
@@ -27,13 +28,15 @@ python django_app\manage.py migrate glossario_tecnico
 python django_app\manage.py glossario_import_csv --file termini.csv --dry-run
 python django_app\manage.py glossario_candidati --limit 30
 python django_app\manage.py glossario_candidati --limit 20 --ai
+python django_app\manage.py glossario_varianti_comuni
 python django_app\manage.py riorganizza_topbar --apply
 ```
 
 ## Nell'assistente AI (B2)
 
-Con `OLLAMA_RAG_GLOSSARIO_ENABLED=True` l'assistente riconosce nelle domande e nei documenti i termini validati e le loro varianti: «spot face», «⌴» e «lamatura» sono la stessa cosa. Riconosce anche classi di tolleranza (`⌀20 H7`), filetti (`M8x1.25`) e rugosità (`Ra 0,8`), che prima ignorava. I termini validati diventano anche voci di conoscenza citabili. Le bozze non entrano mai in produzione. Ogni modifica al glossario aggiorna l'assistente entro pochi minuti.
+Con `OLLAMA_RAG_GLOSSARIO_ENABLED=True` l'assistente riconosce nelle domande e nei documenti i termini validati e le loro varianti: «spot face», «⌴» e «lamatura» sono la stessa cosa. Riconosce anche classi di tolleranza (`⌀20 H7`), filetti (`M8x1.25`) e rugosità (`Ra 0,8`), che prima ignorava. I termini validati diventano anche voci di conoscenza citabili, con definizione, varianti, simbolo, esempio a disegno e norma. Le bozze non entrano mai in produzione. Ogni modifica al glossario aggiorna l'assistente entro pochi minuti.
 
 ## Note di rilascio
 
 - **B1 (10/2026)**: app nuova, migrazioni 0001 (schema) e 0002 (elenco iniziale, reversibile). Nessun effetto sull'assistente finché non arriva la fase B2 (`OLLAMA_RAG_GLOSSARIO_ENABLED`).
+- **B2 (10/2026)**: glossario nella ricerca dell'assistente, spento di default (`OLLAMA_RAG_GLOSSARIO_ENABLED`). Sezione «Parole comuni» e comando `glossario_varianti_comuni`.

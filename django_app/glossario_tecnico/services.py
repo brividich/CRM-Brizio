@@ -339,6 +339,39 @@ def proponi_con_ai(candidati_batch: list[str], *, user=None) -> int:
 _CAMPI_DECISIONE = ["termine", "categoria", "definizione", "varianti"]
 
 
+# ── Parole comuni (varianti presenti in troppi chunk SGI) ──────────────────────
+VARIANTI_COMUNI_CACHE_KEY = "glossario_tecnico:varianti_comuni"
+SOGLIA_PAROLA_COMUNE = 0.20
+
+
+def calcola_varianti_comuni(testi: list[str], *, soglia: float = SOGLIA_PAROLA_COMUNE) -> dict:
+    """Varianti dei termini (bozze e validati con «usa nell'assistente») presenti in più
+    di ``soglia`` dei chunk SGI. Salva il risultato in cache per la pagina «Da rivedere».
+    Solo segnalazione: decide la Qualità se togliere «usa nell'assistente»."""
+    from django.core.cache import cache
+
+    from ai_assistant import glossario_rag
+
+    voci = glossario_rag.carica_voci(stati=[Termine.BOZZA, Termine.VALIDATO])
+    esito = {
+        "calcolato": timezone.now().isoformat(timespec="minutes"),
+        "chunk_sgi": len(testi),
+        "soglia": soglia,
+        "voci": glossario_rag.varianti_comuni(testi, voci, soglia),
+    }
+    cache.set(VARIANTI_COMUNI_CACHE_KEY, esito, timeout=None)
+    return esito
+
+
+def varianti_comuni_salvate() -> dict | None:
+    from django.core.cache import cache
+
+    try:
+        return cache.get(VARIANTI_COMUNI_CACHE_KEY)
+    except Exception:
+        return None
+
+
 def proposte_in_attesa():
     from ai_assistant.models import AiProposta
 

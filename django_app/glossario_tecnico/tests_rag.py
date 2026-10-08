@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 
 from django.test import TestCase, override_settings
 
@@ -159,3 +160,66 @@ class ChunkCuratiTests(_Base):
         ranked = services._select_chunk_indices(query, Counter(services._tokenize(query)), index)
         self.assertTrue(index.chunks[ranked[0]].source.endswith("#lamatura"))
         services.clear_knowledge_cache()
+
+
+class EsempioDisegnoTests(_Base):
+    @override_settings(OLLAMA_RAG_GLOSSARIO_ENABLED=True)
+    def test_esempio_nel_chunk_con_token_protetti(self):
+        campo = Termine.objects.get(termine="campo di tolleranza")
+        valida(campo, None)
+        glossario_rag.bump_versione()
+        chunk = next(c for c in services._load_glossario_chunks() if c.source.endswith("#campo-di-tolleranza"))
+        self.assertIn("Esempio a disegno: ⌀20 H7", chunk.content)
+        self.assertIn("iso286_h7", chunk.tokens)
+
+
+@override_settings(OLLAMA_RAG_GLOSSARIO_ENABLED=True, OLLAMA_RAG_SGI_ENABLED=False, OLLAMA_RAG_SOURCE_PATHS=[],
+                   OLLAMA_EMBED_ENABLED=False, RAG_EMBED_BACKEND="ollama")
+class PrestazioniRicercaTests(_Base):
+    def test_pre_pass_sui_chunk_solo_alla_costruzione(self):
+        from unittest import mock
+
+        services.clear_knowledge_cache()
+        index = services._load_knowledge_index()
+        self.assertTrue(all(c.title_tokens is not None for c in index.chunks))
+        query = "cosa significa spot face su ⌀20 H7?"
+        query_tokens = Counter(services._tokenize(query))
+        originale = glossario_rag.token_aggiuntivi
+        with mock.patch.object(glossario_rag, "token_aggiuntivi", side_effect=originale) as spia:
+            ranked = services._select_chunk_indices(query, query_tokens, index)
+            self.assertIs(services._load_knowledge_index(), index)  # indice dalla cache
+        self.assertEqual(spia.call_count, 0)
+        self.assertTrue(index.chunks[ranked[0]].source.endswith("#lamatura"))
+        services.clear_knowledge_cache()
+
+    def test_token_titolo_uguali_al_calcolo_al_volo(self):
+        chunk = services.KnowledgeChunk(source="x", title="Lamatura ⌴ e foro ⌀20 H7", content="c",
+                                        tokens=Counter({"c": 1}))
+        index = services._build_index([chunk])
+        self.assertEqual(index.chunks[0].title_tokens, frozenset(services._tokenize(chunk.title)))
+
+
+class VariantiComuniTests(_Base):
+    def test_segnala_solo_oltre_soglia_e_non_esclude(self):
+        aggiungi_variante(self.lamatura, "parolacomune", "sinonimo")
+        testi = ["la parolacomune del pezzo"] * 3 + ["altro testo"] * 7 + ["spot face"]
+        esito = glossario_rag.varianti_comuni(testi, glossario_rag.carica_voci(stati=["validato"]), 0.20)
+        self.assertEqual([r["testo"] for r in esito], ["parolacomune"])
+        self.assertEqual(esito[0]["termine_id"], self.lamatura.pk)
+        self.assertEqual(esito[0]["chunk"], 3)
+        self.lamatura.refresh_from_db()
+        self.assertTrue(self.lamatura.usa_nel_rag)
+
+    def test_pagina_da_rivedere_mostra_etichetta(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        from .services import calcola_varianti_comuni
+
+        aggiungi_variante(self.lamatura, "parolacomune", "sinonimo")
+        calcola_varianti_comuni(["parolacomune"] * 3 + ["altro"] * 2)
+        admin = get_user_model().objects.create_user(username="gl_comuni", password="x", is_superuser=True)
+        self.client.force_login(admin)
+        html = self.client.get(reverse("glossario_tecnico:revisione")).content.decode()
+        self.assertIn("parola comune: valutare usa_nel_rag", html)
+        self.assertIn("parolacomune", html)
