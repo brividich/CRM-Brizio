@@ -41,6 +41,9 @@ Il modulo più complesso del portale: motore di automazione event-driven con des
 - **Picker valori smart** per condizioni: `allowed_values` registry + valori distinti DB
 - **Queue admin** con azioni `Stoppa` / `Elimina`, card salute poller, timezone-aware
 - **Schema drift difensivo**: UI resta funzionante anche se migration non ancora applicate (warning leggibili)
+- **Tabelle protette** (audit 09/10): insert/update non scrivono mai su tabelle di permessi, profili, audit, autenticazione e automazioni (`core_*` salvo notifiche/action item/checklist, `automazioni_*`, `auth_*`, `django_*`, `axes_*`, `twofa_*`, legacy `utenti`/`ruoli`/`permessi`/`pulsanti`), anche se in whitelist. Il «Test» di una regola esegue insert/update/HTTP solo in anteprima
+- **http_request sicuro**: niente loopback, link-local e reti private (salvo host in `AUTOMATION_HTTP_ALLOWED_HOSTS`, accetta `*.dominio`), niente redirect, corpo della risposta non salvato nel run log
+- **Eventi bloccati**: gli eventi rimasti in `processing` oltre 15 minuti (worker interrotto) tornano in coda a ogni giro, in errore dopo 5 tentativi; il check `automation_queue` di `/readyz` li conta. `cleanup_run_logs` cancella anche gli eventi `done` della coda oltre la stessa retention
 
 ## Note di rilascio
 

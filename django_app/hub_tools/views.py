@@ -1081,8 +1081,15 @@ def guide_serve(request, filename):
 def api_reconfigure(request):
     """
     Salva la configurazione nel .env senza verificare SETUP_COMPLETED.
+    Solo superuser (audit M6): database, LDAP e SMTP del portale.
     Richiamato dal Setup Wizard hub (riconfigura sistema giÃ  installato).
     """
+    real_user = getattr(request, "impersonator_user", None) or request.user
+    if not getattr(real_user, "is_superuser", False):
+        return JsonResponse(
+            {"ok": False, "error": "Solo un superuser puo' modificare la configurazione di sistema."},
+            status=403,
+        )
     try:
         data = json.loads(request.body)
     except Exception:
@@ -1199,8 +1206,8 @@ def api_reconfigure(request):
 # Categorie moduli
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-_BRAND_IMAGE_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
-_BRAND_IMAGE_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/svg+xml", "image/webp"}
+_BRAND_IMAGE_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp"}  # niente SVG (audit A9)
+_BRAND_IMAGE_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/webp"}
 _BRAND_FAVICON_ALLOWED_EXTS = _BRAND_IMAGE_ALLOWED_EXTS | {".ico"}
 _BRAND_FAVICON_ALLOWED_MIMES = _BRAND_IMAGE_ALLOWED_MIMES | {
     "image/x-icon",
@@ -1993,8 +2000,8 @@ def api_hub_kpi_save(request):
 
 _HUB_PULSANTI_LOGO_DIR = "hub_pulsanti_logos"
 _HUB_PULSANTI_LOGO_MAX_BYTES = 2 * 1024 * 1024
-_HUB_PULSANTI_LOGO_ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
-_HUB_PULSANTI_LOGO_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp", "image/svg+xml"}
+_HUB_PULSANTI_LOGO_ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".webp"}  # niente SVG (audit A9)
+_HUB_PULSANTI_LOGO_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}
 
 _HUB_BRANDING_DIR = "hub_branding"
 _HUB_BRANDING_MAX_BYTES = 2 * 1024 * 1024

@@ -11,6 +11,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import DatabaseError, transaction
 
 from core import naming
+from core.ldap_conn import build_ldap_server, ldap_receive_timeout
 from core.legacy_models import Ruolo, UtenteLegacy
 from core.legacy_utils import legacy_table_columns, sync_django_user_from_legacy
 
@@ -197,7 +198,7 @@ class Command(BaseCommand):
             return attempts
 
         try:
-            server = Server(server_url, connect_timeout=timeout, get_info=NONE)
+            server = build_ldap_server(server_url, timeout)
             conn = None
             last_result = None
             for bind_user, authentication in _bind_attempts():
@@ -209,6 +210,7 @@ class Command(BaseCommand):
                     auto_bind=False,
                     auto_referrals=False,
                     raise_exceptions=False,
+                    receive_timeout=ldap_receive_timeout(),
                 )
                 ok = candidate.bind()
                 if ok:

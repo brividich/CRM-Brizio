@@ -19,8 +19,8 @@ from core.module_registry import (
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 
-_LOGO_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
-_LOGO_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/svg+xml", "image/webp"}
+_LOGO_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp"}  # niente SVG (audit A9)
+_LOGO_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/webp"}
 _LOGO_MAX_BYTES = 512 * 1024
 
 

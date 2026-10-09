@@ -82,7 +82,8 @@ DATABASES = {"default": build_database_from_env("sqlserver")}
 # â”€â”€ Cache condivisa tra worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Con 2+ worker IIS, LocMemCache (default Django) Ã¨ per-processo: bump_legacy_cache_version()
 # non si propaga agli altri worker. DatabaseCache usa SQL Server come backend condiviso,
-# rende cache.incr() atomico e garantisce invalidazione ACL immediata su tutti i worker.
+# cosi' l'invalidazione ACL arriva a tutti i worker. Nota: cache.incr() su DatabaseCache NON e'
+# atomico; la versione ACL usa percio' valori basati sul tempo (core.legacy_cache, audit S4).
 # Setup una-tantum: python manage.py createcachetable
 _CACHE_TABLE = env("DJANGO_CACHE_TABLE", "django_cache")
 # MAX_ENTRIES deve superare il numero di chunk indicizzati dal RAG: gli embeddings

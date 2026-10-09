@@ -33,7 +33,7 @@ def readyz(request):
     if not is_ip_allowed(request):
         return JsonResponse({"status": "forbidden"}, status=403)
     report = run_readyz_checks()
-    return JsonResponse(report.to_payload(), status=http_status_for(report))
+    return JsonResponse(report.to_public_payload(), status=http_status_for(report))
 
 
 @login_required

@@ -12,9 +12,9 @@ cffi==2.0.0               # via cryptography
 charset-normalizer==3.4.7  # via reportlab, requests
 colorama==0.4.6           # via qrcode
 croniter==6.2.4           # via -r requirements.in
-cryptography==44.0.3      # via msal, pyjwt, pyopenssl, pyspnego
+cryptography==50.0.2      # via msal, pyjwt, pyopenssl, pyspnego
 defusedxml==0.7.1         # via -r requirements.in (fattura elettronica contatori)
-django==5.2.16            # via -r requirements.in, django-axes, django-extensions, django-htmx, django-picklefield, django-q2, mssql-django
+django==5.2.17            # via -r requirements.in, django-axes, django-extensions, django-htmx, django-picklefield, django-q2, mssql-django
 django-axes==7.1.0        # via -r requirements.in
 django-extensions==4.1    # via -r requirements.in
 django-fsm-2==4.2.4       # via -r requirements.in
@@ -23,25 +23,25 @@ django-ninja==1.6.2       # via -r requirements.in
 django-picklefield==3.4.0  # via django-q2
 django-stubs-ext==6.0.6   # via django-ninja
 django-q2==1.9.0          # via -r requirements.in
-djangorestframework==3.17.1  # via -r requirements.in (app security / SC-AI)
+djangorestframework==3.17.2  # via -r requirements.in (app security / SC-AI)
 et-xmlfile==2.0.0         # via openpyxl
-idna==3.13                # via requests
+idna==3.15                # via requests
 ldap3==2.9.1              # via -r requirements.in
 markupsafe==3.0.3         # via werkzeug
-msal==1.29.0              # via -r requirements.in
+msal==1.39.0              # via -r requirements.in
 mssql-django==1.7.4         # via -r requirements.in
 numpy==2.2.6              # via -r requirements.in (lettura planimetrie verifiche periodiche)
 openpyxl==3.1.5           # via -r requirements.in
 pillow==12.3.0            # via -r requirements.in, qrcode, reportlab
-pyasn1==0.6.3             # via ldap3
+pyasn1==0.6.4             # via ldap3
 pycparser==3.0            # via cffi
 xlrd==2.0.1               # legacy .xls reader (intake export gestionale Specifiche)
 pydantic==2.13.4          # via django-ninja
 pydantic-core==2.46.4     # via pydantic
-pyjwt==2.12.1             # via msal, pyjwt
+pyjwt==2.15.0             # via msal, pyjwt
 pymupdf==1.28.0         # via -r requirements.in
 pyodbc==5.3.0             # via -r requirements.in, mssql-django
-pyopenssl==25.1.0         # via -r requirements.in
+pyopenssl==26.4.0         # via -r requirements.in
 pyotp==2.10.0              # via -r requirements.in
 pyspnego==0.12.1          # via -r requirements.in
 python-dateutil==2.9.0.post0  # via croniter
@@ -57,11 +57,12 @@ reportlab==4.4.10         # via -r requirements.in
 requests==2.33.1          # via -r requirements.in, msal
 six==1.17.0               # via python-dateutil
 snowballstemmer==3.1.1    # via -r requirements.in
-sqlparse==0.5.5           # via django
+sqlparse==0.6.0           # via django
 sspilib==0.5.0            # via pyspnego
 tzdata==2026.2            # via django
+typing-extensions==4.16.0  # via pydantic, pyopenssl
 typing-inspection==0.4.2  # via pydantic
-urllib3==2.6.3            # via requests
+urllib3==2.8.0            # via requests
 waitress==3.0.2           # via -r requirements.in
-werkzeug==3.0.3           # via -r requirements.in
+werkzeug==3.1.9           # via -r requirements.in
 zxing-cpp==3.1.1          # via -r requirements.in (lettura QR/barcode da scansioni)

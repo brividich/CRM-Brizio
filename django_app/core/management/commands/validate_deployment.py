@@ -533,6 +533,19 @@ class DeploymentValidator:
         else:
             self.add("ldap", "configuration", OK, "Configurazione LDAP/AD minima presente.")
 
+        from core.ldap_conn import ldap_transport_is_insecure
+
+        if server and ldap_transport_is_insecure(server):
+            # Audit A10: con ldap:// le password AD viaggiano in chiaro sulla LAN.
+            self.add(
+                "ldap",
+                "transport",
+                WARN,
+                "LDAP_SERVER usa ldap:// (password in chiaro): passare a ldaps:// con certificato verificato.",
+            )
+        elif server:
+            self.add("ldap", "transport", OK, "LDAP su ldaps:// con verifica del certificato.")
+
     def check_email(self) -> None:
         backend = _text(getattr(settings, "EMAIL_BACKEND", ""))
         host = _text(getattr(settings, "EMAIL_HOST", ""))

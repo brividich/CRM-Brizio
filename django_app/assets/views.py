@@ -18463,8 +18463,8 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             logo_file = request.FILES.get("logo_file")
             logo_url = request.POST.get("logo_url", "").strip()
             if logo_file:
-                _LOGO_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
-                _LOGO_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/svg+xml", "image/webp"}
+                _LOGO_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp"}  # niente SVG (audit A9)
+                _LOGO_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/webp"}
                 if logo_file.size > 512 * 1024:
                     messages.error(request, "Immagine troppo grande (max 512 KB).")
                     return config_redirect

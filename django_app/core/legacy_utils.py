@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import DatabaseError, IntegrityError, connections, transaction
 
+from core.ldap_conn import build_ldap_server, ldap_receive_timeout
 from core.legacy_models import Ruolo, UtenteLegacy
 from core import naming
 from core.models import Profile
@@ -102,7 +103,35 @@ def _ldap_entry_first(entry_dict: dict, key: str, default: str = "") -> str:
     return values[0]
 
 
-def resolve_ldap_identity(alias: str, upn_hint: str = "", *, conn=None) -> tuple[str, str]:
+def ldap_group_cns(member_of) -> list[str]:
+    """CN dei gruppi da un attributo ``memberOf`` (DN completi)."""
+    values = member_of if isinstance(member_of, (list, tuple)) else ([member_of] if member_of else [])
+    cns: list[str] = []
+    for dn in values:
+        for part in str(dn or "").split(","):
+            chunk = part.strip()
+            if chunk.upper().startswith("CN="):
+                cns.append(chunk[3:].strip())
+                break
+    return cns
+
+
+def ldap_login_group_allowed(groups: list[str]) -> bool:
+    """SEC (audit M2): con ``LDAP_GROUP_ALLOWLIST`` valorizzata entra solo chi è in
+    uno di quei gruppi (match diretto su ``memberOf``, come la sync utenti).
+    Lista vuota o ``LDAP_GROUP_ALLOWLIST_ON_LOGIN=0`` = nessun filtro.
+    """
+    if not bool(getattr(settings, "LDAP_GROUP_ALLOWLIST_ON_LOGIN", True)):
+        return True
+    allowlist = {str(v).strip().casefold() for v in (getattr(settings, "LDAP_GROUP_ALLOWLIST", []) or []) if str(v).strip()}
+    if not allowlist:
+        return True
+    return any(str(g).strip().casefold() in allowlist for g in groups or [])
+
+
+def resolve_ldap_identity(
+    alias: str, upn_hint: str = "", *, conn=None, groups_out: list[str] | None = None
+) -> tuple[str, str]:
     alias_norm = extract_identity_alias(alias or upn_hint)
     preferred_upn = canonicalize_ldap_upn(alias_norm or alias, upn_hint)
     full_name = ""
@@ -137,7 +166,7 @@ def resolve_ldap_identity(alias: str, upn_hint: str = "", *, conn=None) -> tuple
             return preferred_upn, full_name
 
         try:
-            server = Server(server_url, connect_timeout=timeout, get_info=NONE)
+            server = build_ldap_server(server_url, timeout)
             if "\\" in service_user:
                 bind_attempts = [(service_user, NTLM)]
             elif "@" in service_user:
@@ -160,6 +189,7 @@ def resolve_ldap_identity(alias: str, upn_hint: str = "", *, conn=None) -> tuple
                     auto_bind=False,
                     auto_referrals=False,
                     raise_exceptions=False,
+                    receive_timeout=ldap_receive_timeout(),
                 )
                 ok = candidate.bind()
                 if ok:
@@ -197,7 +227,7 @@ def resolve_ldap_identity(alias: str, upn_hint: str = "", *, conn=None) -> tuple
 
     identity_filter = "".join(dict.fromkeys(lookup_keys))
     search_filter = f"(&{user_filter}(|{identity_filter}))"
-    attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName"]
+    attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName", "memberOf"]
 
     try:
         ok = active_conn.search(
@@ -215,6 +245,8 @@ def resolve_ldap_identity(alias: str, upn_hint: str = "", *, conn=None) -> tuple
             given = _ldap_entry_first(data, "givenName").strip()
             sn = _ldap_entry_first(data, "sn").strip()
             display = _ldap_entry_first(data, "displayName").strip()
+            if groups_out is not None:
+                groups_out.extend(ldap_group_cns(data.get("memberOf")))
 
             resolved_alias = extract_identity_alias(sam or alias_norm)
             resolved_upn = canonicalize_ldap_upn(resolved_alias, ldap_upn or preferred_upn or ldap_mail)

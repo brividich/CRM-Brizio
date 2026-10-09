@@ -4610,7 +4610,10 @@ class AutomationExtendedActionExecutorTests(TestCase):
             },
         )
 
-        result = execute_action(action, self.payload, old_payload=self.old_payload, run_log=self.run_log)
+        # Il guard SSRF risolve l'host: lo si fa puntare a un IP pubblico.
+        public_addr = [(2, 1, 6, "", ("93.184.216.34", 443))]
+        with patch("socket.getaddrinfo", return_value=public_addr):
+            result = execute_action(action, self.payload, old_payload=self.old_payload, run_log=self.run_log)
 
         self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
         kwargs = mock_request.call_args.kwargs

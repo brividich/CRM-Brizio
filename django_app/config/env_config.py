@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
+
+_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def default_env_path() -> Path:
@@ -146,6 +149,17 @@ def update_env_file_values(
         if str(key).strip()
     }
     normalized_delete_keys = [str(key).strip() for key in (delete_keys or []) if str(key).strip()]
+
+    # SEC (audit M6): un a-capo in un valore aggiungerebbe righe arbitrarie al .env
+    # (es. «LDAP_SERVER=...» o «DJANGO_DEBUG=1» da un campo di testo dell'admin).
+    for key, value in normalized_updates.items():
+        if not _ENV_KEY_RE.match(key):
+            raise ValueError(f"Nome variabile .env non valido: {key!r}")
+        if any(ch in value for ch in ("\r", "\n", "\x00")):
+            raise ValueError(f"Valore non valido per {key}: a-capo e caratteri nulli non sono ammessi.")
+    for key in normalized_delete_keys:
+        if not _ENV_KEY_RE.match(key):
+            raise ValueError(f"Nome variabile .env non valido: {key!r}")
 
     for key, value in normalized_updates.items():
         rendered = f"{key}={value}"
