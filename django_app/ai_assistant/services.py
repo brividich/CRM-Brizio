@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import hashlib
 import json
 import logging
@@ -11,13 +13,15 @@ import unicodedata
 import urllib.error
 import urllib.request
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core.cache import cache
+
+from . import glossario_rag
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +45,9 @@ class KnowledgeChunk:
     title: str
     content: str
     tokens: Counter[str]
+    # Token del titolo, precalcolati da _build_index (boost BM25): a ogni ricerca si
+    # tokenizza solo la query, mai i chunk (pre-pass del glossario compreso).
+    title_tokens: frozenset[str] | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -159,6 +166,11 @@ def _tokenize(value: str) -> list[str]:
         stemmer = _get_italian_stemmer()
         if stemmer is not None:
             tokens = [stemmer.stemWord(token) for token in tokens]
+    # Glossario tecnico (OLLAMA_RAG_GLOSSARIO_ENABLED): token canonici gl_<id> e pattern
+    # protetti (H7, M8, Ra) che la regex sopra scarta. A flag spento non aggiunge nulla.
+    extra = glossario_rag.token_aggiuntivi(value)
+    if extra:
+        tokens.extend(extra)
     return tokens
 
 
@@ -216,6 +228,10 @@ def _overlap_tail(text: str, overlap_chars: int) -> str:
     if overlap_chars <= 0 or len(text) <= overlap_chars:
         return text if overlap_chars > 0 else ""
     tail = text[-overlap_chars:]
+    if text.rsplit("\n", 1)[-1].lstrip().startswith("|"):
+        # Coda di una pipe-table: solo righe intere, mai un frammento di riga.
+        newline = tail.find("\n")
+        return tail[newline + 1:] if newline != -1 else ""
     space = tail.find(" ")
     return tail[space + 1:] if space != -1 else tail
 
@@ -326,6 +342,46 @@ def _load_curated_knowledge_chunks() -> list[KnowledgeChunk]:
     return chunks
 
 
+def _load_glossario_chunks() -> list[KnowledgeChunk]:
+    """Termini del glossario tecnico come conoscenza curata (OLLAMA_RAG_GLOSSARIO_ENABLED).
+
+    Un chunk per termine: definizione, varianti, simbolo, esempio a disegno e codice norma. Fonte
+    ``glossario:<id>#<termine>``. Solo termini validati con «usa nell'assistente»
+    (le bozze solo con OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE, strumento di misura in dev).
+    Le note interne non entrano mai.
+    """
+    chunks: list[KnowledgeChunk] = []
+    for voce in glossario_rag.voci_per_chunk():
+        termine = _clean_text(voce.termine, limit=150)
+        if not termine:
+            continue
+        righe = [f"{termine}" + (f" (EN: {voce.termine_en})" if voce.termine_en else "")]
+        if voce.categoria:
+            righe.append(f"Categoria: {voce.categoria}")
+        righe.append(f"Definizione: {_clean_text(voce.definizione, limit=700)}")
+        if voce.varianti:
+            righe.append("Detto anche: " + ", ".join(voce.varianti[:20]))
+        if voce.simbolo:
+            righe.append(f"Simbolo: {voce.simbolo}")
+        if voce.esempio_disegno:
+            # Deviazione approvata da §B2.2: l'esempio («⌀20 H7») porta i token protetti.
+            righe.append(f"Esempio a disegno: {_clean_text(voce.esempio_disegno, limit=200)}")
+        if voce.norma_rif:
+            righe.append(f"Norma: {voce.norma_rif}")
+        content = "\n".join(righe)
+        title = f"Glossario — {termine}"
+        slug = re.sub(r"\s+", "-", _fold_accents(termine.lower())).strip("-")
+        chunks.append(
+            KnowledgeChunk(
+                source=f"glossario:{voce.id}#{slug}",
+                title=title,
+                content=content,
+                tokens=Counter(_tokenize(f"{title}\n{content}")),
+            )
+        )
+    return chunks
+
+
 def _curated_knowledge_signature() -> tuple[int, str]:
     try:
         from .models import AiKnowledgeEntry
@@ -420,12 +476,109 @@ def _sgi_sections(text: str) -> list[tuple[str, str]]:
 
 
 def _sgi_chunks_from_text(*, source: str, doc_label: str, text: str, max_chars: int) -> list[KnowledgeChunk]:
-    """Costruisce i chunk citabili di un documento: sezione-aware + split lungo."""
+    """Costruisce i chunk citabili di un documento: sezione-aware + split lungo.
+
+    Con ``OLLAMA_RAG_SGI_CHUNK_HEADER`` ogni chunk porta anche nel TESTO
+    l'intestazione ``"<codice> Rev.<n> — <§ sezione>"`` (oggi è solo nel titolo):
+    gli embeddings vedono a quale documento/sezione appartiene il frammento. Le
+    tabelle in pipe-table non vengono mai spezzate a metà riga.
+    """
+    header_on = bool(getattr(settings, "OLLAMA_RAG_SGI_CHUNK_HEADER", False))
     chunks: list[KnowledgeChunk] = []
     for label, body in _sgi_sections(text):
         title = f"{doc_label} — {label}" if label else doc_label
-        chunks.extend(_split_long_section(source, title, body, max_chars=max_chars))
+        if not header_on:
+            chunks.extend(_split_long_section(source, title, _sgi_split_tables(body, _sgi_table_budget(max_chars)), max_chars=max_chars))
+            continue
+        header = title + "\n"
+        budget = max(200, max_chars - len(header))
+        for piece in _split_long_section(source, title, _sgi_split_tables(body, _sgi_table_budget(budget)), max_chars=budget):
+            content = header + piece.content
+            chunks.append(
+                KnowledgeChunk(
+                    source=piece.source,
+                    title=piece.title,
+                    content=content,
+                    tokens=Counter(_tokenize(f"{title}\n{content}")),
+                )
+            )
     return chunks
+
+
+def _sgi_table_budget(max_chars: int) -> int:
+    """Dimensione dei pezzi di tabella: lascia spazio all'overlap, che a valle viene
+    anteposto al pezzo (e l'ultimo chunk e' troncato a max_chars)."""
+    overlap = int(getattr(settings, "OLLAMA_RAG_CHUNK_OVERLAP_CHARS", 0) or 0)
+    return max(100, max_chars - overlap)
+
+
+def _sgi_doc_label(code: str, rev: str, title: str = "") -> str:
+    """Etichetta del documento nei chunk SGI: ``"<codice> Rev.<n>"``.
+
+    Con ``OLLAMA_RAG_SGI_CHUNK_TITLE`` aggiunge il titolo del documento: ogni
+    frammento sa di che documento parla anche quando il testo non lo ripete
+    (misura A1 in dev: ``ai_eval --rag-sgi`` recall 27->31/32, MRR 0,623 -> 0,772).
+    """
+    label = f"{code} Rev.{rev}" if rev else code
+    if not getattr(settings, "OLLAMA_RAG_SGI_CHUNK_TITLE", False):
+        return label
+    clean_title = _clean_text(title, limit=120)
+    if clean_title and clean_title.lower() != (code or "").lower():
+        label = f"{label} {clean_title}"
+    return label
+
+def _sgi_split_tables(body: str, max_chars: int) -> str:
+    """Spezza le pipe-table più lunghe di ``max_chars`` in paragrafi per righe intere,
+    ripetendo l'intestazione: lo split a caratteri a valle non taglia più una riga.
+
+    Testo senza pipe-table (estrazione "piatta") -> ritornato identico.
+    """
+    if "\n|" not in "\n" + body:
+        return body
+    out: list[str] = []
+    for para in re.split(r"\n\s*\n", body):
+        if len(para) <= max_chars:
+            out.append(para)
+            continue
+        # Separa le righe di tabella dal testo attorno (es. heading di sezione).
+        runs: list[tuple[bool, list[str]]] = []
+        for ln in para.splitlines():
+            is_row = ln.lstrip().startswith("|")
+            if runs and runs[-1][0] == is_row:
+                runs[-1][1].append(ln)
+            else:
+                runs.append((is_row, [ln]))
+        for is_row, lines in runs:
+            text = "\n".join(lines)
+            if not is_row or len(lines) < 3 or len(text) <= max_chars:
+                out.append(text)
+                continue
+            out.extend(_sgi_table_pieces(lines, max_chars))
+    return "\n\n".join(out)
+
+
+def _sgi_table_pieces(lines: list[str], max_chars: int) -> list[str]:
+    """Pezzi di una pipe-table per righe intere, intestazione ripetuta in ognuno."""
+    out: list[str] = []
+    head = lines[:2]
+    head_len = sum(len(h) + 1 for h in head)
+    current: list[str] = []
+    size = head_len
+    for row in lines[2:]:
+        if current and size + len(row) + 1 > max_chars:
+            out.append("\n".join(head + current))
+            current, size = [], head_len
+        current.append(row)
+        size += len(row) + 1
+    if current:
+        out.append("\n".join(head + current))
+    return out
+
+
+def _sgi_chunk_chars() -> int:
+    """Dimensione chunk SGI (OLLAMA_RAG_SGI_CHUNK_CHARS, default = OLLAMA_RAG_CHUNK_CHARS)."""
+    base = int(getattr(settings, "OLLAMA_RAG_CHUNK_CHARS", 900) or 900)
+    return int(getattr(settings, "OLLAMA_RAG_SGI_CHUNK_CHARS", base) or base)
 
 
 def _sgi_text_cache_key(file_hash: str) -> str:
@@ -513,19 +666,68 @@ def _sgi_extract_specifica_text(spec) -> str:
     return text
 
 
-def _sgi_safe_pdf_path(raw_path: str) -> Path | None:
-    """Path file server leggibile e con estensione .pdf, altrimenti None.
+def _sgi_safe_doc_path(raw_path: str, extensions: tuple[str, ...] = (".pdf",)) -> Path | None:
+    """Path file server leggibile e con estensione in whitelist, altrimenti None.
 
-    Estraiamo solo PDF: un .docx/.xlsx ripiega sui metadati a monte. Nessuna
-    scrittura, sola lettura per l'indicizzazione.
+    Nessuna scrittura, sola lettura per l'indicizzazione.
     """
     try:
         path = Path(raw_path)
-        if path.is_file() and path.suffix.lower() == ".pdf":
+        if path.is_file() and path.suffix.lower() in extensions:
             return path
     except OSError:
         return None
     return None
+
+
+def _sgi_safe_pdf_path(raw_path: str) -> Path | None:
+    """Alias storico: l'estrazione "piatta" legge solo PDF (un .docx/.xlsx ripiega
+    sui metadati a monte)."""
+    return _sgi_safe_doc_path(raw_path, (".pdf",))
+
+
+# Strumenti di analisi (es. glossario_varianti_comuni) usano SEMPRE il testo persistito
+# quando c'è: il flag SGI_ESTRAZIONE_PERSISTITA_ENABLED governa solo la lettura per il RAG.
+_FORZA_TESTO_PERSISTITO: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "sgi_forza_testo_persistito", default=False
+)
+
+
+@contextlib.contextmanager
+def usa_testo_persistito():
+    """Dentro il blocco i documenti SGI usano il testo persistito allineato all'hash, a
+    prescindere dal flag; i PDF si estraggono solo per le revisioni senza testo."""
+    token = _FORZA_TESTO_PERSISTITO.set(True)
+    try:
+        yield
+    finally:
+        _FORZA_TESTO_PERSISTITO.reset(token)
+
+
+def _sgi_persisted_text(rev, file_hash: str) -> str | None:
+    """Testo persistito (procedure_refresh.SgiTestoEstratto) se l'hash coincide.
+
+    Con ``SGI_ESTRAZIONE_PERSISTITA_ENABLED`` (lettura RAG) o dentro
+    ``usa_testo_persistito()``. None = usa il percorso attuale (riga assente, hash
+    diverso, testo vuoto o app non disponibile). Import lazy: nessun import
+    cross-app a livello di modulo.
+    """
+    attivo = getattr(settings, "SGI_ESTRAZIONE_PERSISTITA_ENABLED", False) or _FORZA_TESTO_PERSISTITO.get()
+    if not attivo or not file_hash:
+        return None
+    try:
+        from procedure_refresh.models import SgiTestoEstratto
+
+        row = (
+            SgiTestoEstratto.objects.filter(revision_id=rev.pk, file_hash=file_hash)
+            .only("testo")
+            .first()
+        )
+    except Exception:
+        return None
+    if row is None or not (row.testo or "").strip():
+        return None
+    return row.testo
 
 
 def _sgi_extract_procedure_text(rev) -> str:
@@ -540,6 +742,10 @@ def _sgi_extract_procedure_text(rev) -> str:
         return ""
     max_pdf_chars = int(getattr(settings, "OLLAMA_RAG_SGI_MAX_PDF_CHARS", 200000) or 200000)
     file_hash = _clean_text(getattr(rev, "file_hash", ""), limit=128)
+    # Prima del cache: per lo stesso hash il cache tiene il testo "piatto".
+    persisted = _sgi_persisted_text(rev, file_hash)
+    if persisted is not None:
+        return persisted[:max_pdf_chars]
     if file_hash:
         cached = _sgi_cached_text(file_hash)
         if cached is not None:
@@ -613,7 +819,7 @@ def _load_sgi_specifiche_chunks() -> list[KnowledgeChunk]:
     except Exception:
         return []
 
-    max_chars = int(getattr(settings, "OLLAMA_RAG_CHUNK_CHARS", 900) or 900)
+    max_chars = _sgi_chunk_chars()
     chunks: list[KnowledgeChunk] = []
     esclusi: list[str] = []
     for spec in specifiche:
@@ -625,7 +831,7 @@ def _load_sgi_specifiche_chunks() -> list[KnowledgeChunk]:
                 esclusi.append(codice)
                 continue
             rev = _clean_text(spec.revisione, limit=30)
-            doc_label = f"{codice} Rev.{rev}" if rev else codice
+            doc_label = _sgi_doc_label(codice, rev, getattr(spec, "titolo", ""))
             source = f"spec:{codice}#rev{rev}" if rev else f"spec:{codice}"
             text = _sgi_extract_specifica_text(spec) or _sgi_specifica_metadata(spec)
             chunks.extend(_sgi_chunks_from_text(source=source, doc_label=doc_label, text=text, max_chars=max_chars))
@@ -657,7 +863,7 @@ def _load_sgi_procedure_chunks() -> list[KnowledgeChunk]:
     except Exception:
         return []
 
-    max_chars = int(getattr(settings, "OLLAMA_RAG_CHUNK_CHARS", 900) or 900)
+    max_chars = _sgi_chunk_chars()
     chunks: list[KnowledgeChunk] = []
     esclusi: list[str] = []
     for rev in revisions:
@@ -673,7 +879,7 @@ def _load_sgi_procedure_chunks() -> list[KnowledgeChunk]:
                 esclusi.append(code)
                 continue
             rev_code = _clean_text(rev.revision_code, limit=50)
-            doc_label = f"{code} Rev.{rev_code}" if rev_code else code
+            doc_label = _sgi_doc_label(code, rev_code, getattr(doc, "title", ""))
             source = f"proc:{code}#rev{rev_code}" if rev_code else f"proc:{code}"
             text = _sgi_extract_procedure_text(rev) or _sgi_procedure_metadata(doc)
             chunks.extend(_sgi_chunks_from_text(source=source, doc_label=doc_label, text=text, max_chars=max_chars))
@@ -855,6 +1061,10 @@ def _build_index(chunks: list[KnowledgeChunk]) -> KnowledgeIndex:
     n = len(chunks)
     if not n:
         return KnowledgeIndex(chunks=(), idf={}, avgdl=0.0)
+    chunks = [
+        chunk if chunk.title_tokens is not None else replace(chunk, title_tokens=frozenset(_tokenize(chunk.title)))
+        for chunk in chunks
+    ]
     document_frequency: Counter[str] = Counter()
     total_length = 0
     for chunk in chunks:
@@ -1283,6 +1493,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
         tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path in files),
         _curated_knowledge_signature(),
         _sgi_documents_signature(),
+        glossario_rag.firma(),
     )
     ttl = int(getattr(settings, "OLLAMA_RAG_CACHE_SECONDS", 300) or 0)
     now = time.monotonic()
@@ -1306,6 +1517,7 @@ def _load_knowledge_index() -> KnowledgeIndex:
         text = raw_text[:max_file_chars]
         chunks.extend(_chunk_document(path, text))
     chunks.extend(_load_curated_knowledge_chunks())
+    chunks.extend(_load_glossario_chunks())
     if bool(getattr(settings, "OLLAMA_RAG_SGI_ENABLED", True)):
         chunks.extend(_load_sgi_document_chunks())
 
@@ -1342,7 +1554,7 @@ def _bm25_score(
     b = float(getattr(settings, "OLLAMA_RAG_BM25_B", 0.75) or 0.75)
     doc_length = sum(chunk.tokens.values()) or 1
     norm = k1 * (1.0 - b + b * (doc_length / avgdl if avgdl else 1.0))
-    title_tokens = set(_tokenize(chunk.title))
+    title_tokens = chunk.title_tokens if chunk.title_tokens is not None else set(_tokenize(chunk.title))
     score = 0.0
     for token in query_tokens:
         frequency = chunk.tokens.get(token, 0)

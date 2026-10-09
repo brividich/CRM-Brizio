@@ -140,6 +140,16 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
+            "--rag-glossario",
+            action="store_true",
+            dest="rag_glossario",
+            help=(
+                "Come --rag-sgi ma sul golden del glossario tecnico "
+                "(ai_assistant/eval/golden_glossario.jsonl): le fonti attese sono i termini "
+                "(glossario:<id>#<termine>). Ha senso con OLLAMA_RAG_GLOSSARIO_ENABLED=1."
+            ),
+        )
+        parser.add_argument(
             "--top-k",
             type=int,
             default=0,
@@ -197,15 +207,21 @@ class Command(BaseCommand):
         as_json = bool(options.get("json"))
         custom = list(options.get("query") or [])
 
-        if options.get("rag") or options.get("rag_sgi"):
+        if options.get("rag") or options.get("rag_sgi") or options.get("rag_glossario"):
             sgi = bool(options.get("rag_sgi"))
+            glossario = bool(options.get("rag_glossario")) and not sgi
+            if glossario:
+                golden = self._load_sgi_golden("golden_glossario.jsonl")
+            else:
+                golden = self._load_sgi_golden() if sgi else None
             self._handle_rag(
                 as_json=as_json,
                 custom=custom,
                 top_k=int(options.get("top_k") or 0),
                 sources=str(options.get("sources") or "").strip(),
-                golden=self._load_sgi_golden() if sgi else None,
+                golden=golden,
                 sgi=sgi,
+                modo="rag-glossario" if glossario else "",
             )
             return
 
@@ -333,6 +349,7 @@ class Command(BaseCommand):
         sources: str = "",
         golden: "list[tuple[str, frozenset[str]]] | None" = None,
         sgi: bool = False,
+        modo: str = "",
     ) -> None:
         rag_enabled = bool(getattr(settings, "OLLAMA_RAG_ENABLED", True))
         embeddings_on = services.embeddings_enabled()
@@ -396,9 +413,12 @@ class Command(BaseCommand):
             )
 
         mrr = round(sum(reciprocal_ranks) / len(reciprocal_ranks), 3) if reciprocal_ranks else None
-        coverage = self._kb_golden_coverage() if (not custom and not sgi) else None
+        coverage = self._kb_golden_coverage() if (not custom and not sgi and not modo) else None
         summary = {
-            "mode": "rag-sgi" if sgi else "rag",
+            "mode": modo or ("rag-sgi" if sgi else "rag"),
+            "glossario_enabled": bool(getattr(settings, "OLLAMA_RAG_GLOSSARIO_ENABLED", False)),
+            "glossario_include_bozze": bool(getattr(settings, "OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE", False)),
+            "glossario_chunks": sum(1 for c in index.chunks if c.source.startswith("glossario:")),
             "rag_enabled": rag_enabled,
             "embeddings_enabled": embeddings_on,
             "stemming_enabled": stemming_on,
@@ -494,7 +514,7 @@ class Command(BaseCommand):
                 uncovered.append(path.name)
         return uncovered
 
-    def _load_sgi_golden(self) -> "list[tuple[str, frozenset[str]]]":
+    def _load_sgi_golden(self, filename: str = "golden_sgi.jsonl") -> "list[tuple[str, frozenset[str]]]":
         """Golden set SGI da ai_assistant/eval/golden_sgi.jsonl (vuoto se assente).
 
         Ogni riga JSON: {"q": "<domanda>", "expect": ["<frammento fonte attesa>", ...]}.
@@ -502,7 +522,7 @@ class Command(BaseCommand):
         """
         from pathlib import Path
 
-        path = Path(services.__file__).resolve().parent / "eval" / "golden_sgi.jsonl"
+        path = Path(services.__file__).resolve().parent / "eval" / filename
         golden: list[tuple[str, frozenset[str]]] = []
         try:
             lines = path.read_text(encoding="utf-8").splitlines()

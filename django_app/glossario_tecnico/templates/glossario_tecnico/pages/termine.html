@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}
+{% block title %}{{ t.termine }} — Glossario tecnico{% endblock %}
+{% block extra_head %}{% include "glossario_tecnico/components/_styles.html" %}{% endblock %}
+{% block content %}<div class="rc-wrap">
+<a class="rc-back" href="{% url 'glossario_tecnico:index' %}">← Glossario tecnico</a>
+<div class="page-header"><div><h1>{% if t.simbolo %}<span class="gl-sym" aria-hidden="true">{{ t.simbolo }}</span> {% endif %}{{ t.termine }}</h1><p class="page-sub">{{ t.get_categoria_display }}{% if t.termine_en %} · EN: {{ t.termine_en }}{% endif %}</p></div>
+{% if puo_gestire %}<div class="sg-actions" id="gl-azioni-stato">
+  <a class="btn btn-secondary" href="{% url 'glossario_tecnico:termine_modifica' t.pk %}">Modifica</a>
+  {% if t.stato != 'validato' %}<button class="btn" type="button" hx-post="{% url 'glossario_tecnico:api_stato' t.pk %}" hx-vals='{"stato": "validato"}' hx-swap="none" hx-on::after-request="if(event.detail.successful) window.location.reload()">Valida</button>{% endif %}
+  {% if t.stato != 'deprecato' %}<button class="btn btn-secondary" type="button" hx-post="{% url 'glossario_tecnico:api_stato' t.pk %}" hx-vals='{"stato": "deprecato"}' hx-swap="none" hx-confirm="Segnare «{{ t.termine }}» come deprecato? Non verrà più usato dall'assistente." hx-on::after-request="if(event.detail.successful) window.location.reload()">Depreca</button>{% endif %}
+</div>{% endif %}</div>
+
+<div class="gl-detail">
+  <section class="rc-card sg-section">
+    <h2>Definizione</h2>
+    <p class="gl-def">{{ t.definizione|linebreaksbr }}</p>
+    <dl style="margin-top:14px">
+      {% if t.esempio_disegno %}<dt>Esempio a disegno</dt><dd><code>{{ t.esempio_disegno }}</code></dd>{% endif %}
+      {% if t.norma_rif %}<dt>Norma</dt><dd>{{ t.norma_rif }}</dd>{% endif %}
+      <dt>Stato</dt><dd>{% if t.stato == 'validato' %}<span class="sg-badge ok">Validato</span>{% if t.validato_da %} da {{ t.validato_da.get_full_name|default:t.validato_da.username }}{% endif %}{% if t.validato_il %} il {{ t.validato_il|date:'d/m/Y' }}{% endif %}{% elif t.stato == 'bozza' %}<span class="sg-badge warn">Bozza — da verificare</span>{% else %}<span class="sg-badge">Deprecato</span>{% endif %}</dd>
+      <dt>Origine</dt><dd>{{ t.get_fonte_display }}</dd>
+      <dt>Assistente</dt><dd>{% if t.usa_nel_rag %}Usato quando validato{% else %}Escluso{% endif %}</dd>
+      {% if puo_gestire and t.note_interne %}<dt>Note interne</dt><dd>{{ t.note_interne|linebreaksbr }}</dd>{% endif %}
+    </dl>
+  </section>
+  <section class="rc-card sg-section" id="gl-varianti">
+    {% include "glossario_tecnico/partials/_varianti.html" %}
+  </section>
+</div></div>{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "core/base.html" %}
+{% block title %}Glossario tecnico{% endblock %}
+{% block extra_head %}{% include "glossario_tecnico/components/_styles.html" %}{% endblock %}
+{% block content %}<div class="rc-wrap">
+<div class="page-header"><div><h1>Glossario tecnico</h1><p class="page-sub">Lavorazioni, quotatura, tolleranze, trattamenti, controlli e sigle del sistema di gestione, con sinonimi, gergo d'officina, simboli e traduzione inglese.</p></div>
+{% if puo_gestire %}<div class="sg-actions"><a class="btn btn-secondary" href="{% url 'glossario_tecnico:revisione' %}">Da rivedere{% if conteggi.bozza or proposte_in_attesa %} ({{ conteggi.bozza|default:0|add:proposte_in_attesa }}){% endif %}</a><a class="btn" href="{% url 'glossario_tecnico:termine_nuovo' %}">Nuovo termine</a></div>{% endif %}</div>
+
+<div class="sg-kpis">
+  <div class="sg-kpi"><span>Validati</span><strong>{{ conteggi.validato|default:0 }}</strong></div>
+  <div class="sg-kpi"><span>In bozza</span><strong>{{ conteggi.bozza|default:0 }}</strong></div>
+  {% if puo_gestire %}<div class="sg-kpi"><span>Proposte AI da decidere</span><strong>{{ proposte_in_attesa }}</strong></div>{% endif %}
+</div>
+
+<section class="rc-card sg-section"><form method="get" class="sg-actions">
+  <label for="q">Cerca</label><input id="q" type="text" name="q" value="{{ q }}" placeholder="Termine, sinonimo, sigla o simbolo">
+  <label for="categoria">Categoria</label><select id="categoria" name="categoria"><option value="">Tutte</option>{% for c, label in categorie %}<option value="{{ c }}"{% if c == categoria %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  <label for="stato">Mostra</label><select id="stato" name="stato"><option value="attivi">Validati e bozze</option><option value="validato"{% if stato == 'validato' %} selected{% endif %}>Solo validati</option><option value="bozza"{% if stato == 'bozza' %} selected{% endif %}>Solo bozze</option><option value="deprecato"{% if stato == 'deprecato' %} selected{% endif %}>Deprecati</option><option value="tutti"{% if stato == 'tutti' %} selected{% endif %}>Tutti</option></select>
+  <button class="btn btn-secondary">Filtra</button>
+</form></section>
+
+<section class="rc-card sg-section">
+<p class="sg-muted">{{ pagina.paginator.count }} termin{{ pagina.paginator.count|pluralize:"e,i" }}. Le bozze non sono ancora state verificate dalla Qualità: l'assistente usa solo i termini validati.</p>
+<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Termine</th><th>Categoria</th><th>Definizione</th><th>Stato</th></tr></thead><tbody>
+{% for t in pagina %}<tr>
+  <td>{% if t.simbolo %}<span class="gl-sym" aria-hidden="true">{{ t.simbolo }}</span> {% endif %}<a class="gl-term" href="{% url 'glossario_tecnico:termine' t.pk %}">{{ t.termine }}</a>{% if t.termine_en %}<br><span class="gl-en">{{ t.termine_en }}</span>{% endif %}</td>
+  <td>{{ t.get_categoria_display }}</td>
+  <td><div class="gl-def">{{ t.definizione|truncatechars:220 }}</div>{% if t.varianti.all %}<div class="gl-var">{% for v in t.varianti.all|slice:":6" %}<span title="{{ v.get_tipo_display }}"><b>{{ v.testo }}</b></span>{% endfor %}</div>{% endif %}</td>
+  <td>{% if t.stato == 'validato' %}<span class="sg-badge ok">Validato</span>{% elif t.stato == 'bozza' %}<span class="sg-badge warn">Bozza</span>{% else %}<span class="sg-badge">Deprecato</span>{% endif %}</td>
+</tr>{% empty %}<tr><td colspan="4"><h3>Nessun termine trovato</h3><p>Prova con un sinonimo, una sigla (es. «FAI») o un simbolo (es. «⌴»), oppure togli i filtri.</p></td></tr>{% endfor %}
+</tbody></table></div>
+{% if pagina.has_other_pages %}<div class="sg-actions" style="margin-top:10px">{% if pagina.has_previous %}<a class="btn btn-secondary" href="?q={{ q|urlencode }}&categoria={{ categoria }}&stato={{ stato }}&page={{ pagina.previous_page_number }}">← Precedenti</a>{% endif %}<span class="sg-muted">Pagina {{ pagina.number }} di {{ pagina.paginator.num_pages }}</span>{% if pagina.has_next %}<a class="btn btn-secondary" href="?q={{ q|urlencode }}&categoria={{ categoria }}&stato={{ stato }}&page={{ pagina.next_page_number }}">Successivi →</a>{% endif %}</div>{% endif %}
+</section></div>{% endblock %}

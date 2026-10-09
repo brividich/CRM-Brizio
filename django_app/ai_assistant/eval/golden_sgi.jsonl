@@ -64,3 +64,7 @@
 
 # --- Modulistica nota ---
 {"q": "dove trovo la skill matrix / matrice delle competenze?", "expect": ["MOD.187"]}
+
+# --- Dal golden del glossario (08/10/2026) ---
+# Domanda procedurale sulla FAI: risponde la procedura SGI, non la definizione del glossario.
+{"q": "come si fa la FAI secondo AS9102?", "expect": ["MT CN 15"]}

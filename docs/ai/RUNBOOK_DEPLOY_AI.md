@@ -124,3 +124,61 @@ python django_app\manage.py setup_q_schedules --settings=config.settings.prod
 - **django-q2**: lo schedule usa `schedule_type='C'` (CRON) → niente crash dei tipi `'S'` (SECONDS). Cluster via Task Scheduler `QCluster_PROD`.
 - **`.env`**: fonte di verità = `C:\PortaleNovicrom\prod\config\.env`. L'attivo `current\django_app\.env` è usa-e-getta (riscritto a ogni deploy).
 - **Doppio flusso wizard**: le pagine `InstallPage` e `ReleaseRunPage` hanno entrambe il migrate + safety-net; una modifica futura va replicata in entrambe.
+
+---
+
+## Database SGI — setting e passi (traccia A, fase A1)
+
+Tutti con default che lasciano il comportamento invariato. Si impostano nel `.env` persistente (`config\.env`).
+
+| Setting | Default | Effetto |
+|---|---|---|
+| `PROCEDURE_REFRESH_SGI_EXTENSIONS` | `.pdf` | estensioni scandite sulla share (lista con `,`); la share oggi ha solo PDF |
+| `PROCEDURE_REFRESH_SGI_PREFER_PDF` | `True` | a parità di codice+revisione vince il PDF |
+| `SGI_ESTRAZIONE_PERSISTITA_ENABLED` | `False` | l'assistente legge `SgiTestoEstratto` (se l'hash coincide) e la sync notturna accoda l'estrazione |
+| `OLLAMA_RAG_SGI_CHUNK_CHARS` | = `OLLAMA_RAG_CHUNK_CHARS` | dimensione chunk SGI |
+| `OLLAMA_RAG_SGI_CHUNK_HEADER` | `False` | intestazione «codice Rev.n — § sezione» nel testo del chunk |
+| `OLLAMA_RAG_SGI_CHUNK_TITLE` | `False` | titolo del documento nell'etichetta dei chunk SGI. **Consigliato `True`**: in dev SGI recall 27→31/32, MRR 0,623→0,772, KB invariata. Poi `index_sgi_documents` |
+| `OLLAMA_RAG_SGI_MAX_PROCS` | `400` (era 300) | tetto revisioni procedura nel corpus RAG |
+| `OLLAMA_RAG_GLOSSARIO_ENABLED` | `False` | glossario tecnico nella ricerca (token comuni per le varianti, H7/M8/Ra protetti, termini validati come conoscenza). Da accendere solo dopo che la Qualità ha validato i termini |
+| `OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE` | `False` | **MAI in prod**: include le bozze, serve solo per misurare in dev |
+
+Dopo `index_sgi_documents`: `glossario_varianti_comuni` aggiorna la sezione «Parole comuni» della pagina «Da rivedere» del glossario (sola lettura sui documenti, scrive solo in cache).
+
+Passi (solo quando si decide di accendere l'estrazione persistita, dopo misura `ai_eval --rag-sgi` non peggiorativa):
+1. `migrate procedure_refresh` (0008, solo nuova tabella).
+2. `sgi_estrai_testi --dry-run`, poi `sgi_estrai_testi` (~7 min per ~250 PDF, sola lettura sulla share).
+3. `SGI_ESTRAZIONE_PERSISTITA_ENABLED=True` nel `.env`, riavvio sito e qcluster.
+4. `index_sgi_documents`: il testo dei chunk cambia, quindi **gli embeddings vanno ricalcolati** (stesso discorso se si cambiano `OLLAMA_RAG_SGI_CHUNK_CHARS` o `OLLAMA_RAG_SGI_CHUNK_HEADER`).
+5. `ai_eval --rag-sgi` e confronto con `docs/ai/baseline/`.
+
+Riferimenti tra documenti (A2, nessun flag: dati deterministici, non toccano l'assistente):
+1. `migrate procedure_refresh` (0009, due tabelle nuove).
+2. Dopo `sgi_estrai_testi`: `sgi_riferimenti` (primo popolamento + report; poi si aggiornano da soli a ogni nuova estrazione).
+3. `sgi_collega_processi --dry-run`, poi `--apply`: le proposte restano da confermare in admin (Procedure › Documenti SGI di processo).
+
+## Checklist deploy — blocco database SGI (A1, A2) + glossario tecnico (B1, B2), v2
+
+Su SERVER, venv prod, `--settings=config.settings.prod`. Tempi stimati da dev (la reindicizzazione con embeddings va misurata in prod). Dopo `migrate` nulla è distruttivo: i comandi scrivono solo tabelle nuove o metadati.
+
+| # | Passo | Tempo | Rollback |
+|---|---|---|---|
+| 0a | **Backup completo del DB SQL Server**, verificato (`RESTORE VERIFYONLY`), prima di qualsiasi `migrate` o `--apply` | 5–15 min | è il punto di ripristino di tutto il blocco |
+| 0b | **Baseline di produzione, PRIMA del deploy**: `ai_eval --rag --json` e `ai_eval --rag-sgi --json`, salvati FUORI dal repo e dalla cartella di release (es. `D:\backup\ai_baseline_prod_<data>_rag.json`, `..._rag_sgi.json`) | ~10 min | — (solo lettura) |
+| 0c | **Verifiche prod**: `PROCEDURE_REFRESH_SGI_SHARE_ROOT` valorizzato nel `config\.env`; l'utente del pool IIS legge la share (`import_sgi_da_share` in dry-run mostra utente e file elencati); in django-q presenti e attivi `pr_sgi_auto_sync`, `sgi_share_check`, `ai_index_sgi_documents` (03:30), `ai_rag_quality_alert`; valore di SiteConfig `pr_sgi_auto_sync_attivo` | 10 min | — |
+| 0d | **Permessi MTSI (decisione Brizio)**: se l'utente di servizio vede documenti riservati, impostare `escludi_dal_rag` sui relativi `ProcedureDocument` PRIMA del passo 8 | 5–15 min | togliere il flag e reindicizzare |
+| 1 | Merge `main` → `release/prod`, pacchetto da `release/prod`, deploy | ~15 min | ridistribuire il pacchetto precedente |
+| 2 | `migrate procedure_refresh` (0008, 0009, 0010) e `migrate glossario_tecnico` (0001, 0002) | < 1 min | `migrate procedure_refresh 0007`, `migrate glossario_tecnico zero` (reversibilità verificata) |
+| 3 | `.env`: `OLLAMA_RAG_SGI_CHUNK_TITLE=True`, `OLLAMA_RAG_GLOSSARIO_ENABLED=False`, `SGI_ESTRAZIONE_PERSISTITA_ENABLED=False`, mai `OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE`; riavvio sito e qcluster | 2 min | ripristinare il `.env`, riavvio |
+| 4 | `import_sgi_da_share --json` (dry-run: controllare utente, file elencati, eventuale avviso), poi `--apply` | 5–10 min | i documenti restano storicizzati; disattivazione manuale |
+| 5 | `sgi_estrai_testi --dry-run`, poi `sgi_estrai_testi` (**obbligatorio**, sola lettura sulla share; popola anche i riferimenti A2) | ~7 min | innocuo con la lettura spenta; `migrate procedure_refresh 0007` elimina la tabella |
+| 6 | `sgi_riferimenti` (allinea tutti i riferimenti + report) | 1–2 min | `migrate procedure_refresh 0008` o lasciare i dati |
+| 7 | `sgi_collega_processi --dry-run` (`--apply` solo dopo revisione) | < 1 min | dopo un `--apply`: cancellare in admin i collegamenti non confermati |
+| 8 | `index_sgi_documents` (ricalcola gli embeddings: il titolo cambia il testo dei chunk) | 10–30 min (da misurare) | `CHUNK_TITLE=False` + reindicizzare |
+| 9 | `glossario_varianti_comuni` (usa il testo del passo 5; PDF solo per i documenti senza testo) | < 1 min | nessuno (solo cache) |
+| 10 | `riorganizza_topbar --apply` | < 1 min | nascondere la voce «Glossario» in Admin › Navigazione |
+| 11 | Admin › ACL: `glossario_tecnico.gestione` all'Ufficio tecnico | 2 min | revocare il permesso |
+| 12 | `ai_eval --rag --json` e `ai_eval --rag-sgi --json` confrontati **caso per caso con la baseline 0b** (non con quella dev): KB nessun caso peggiorato; SGI atteso migliore (titolo nei chunk). Il golden SGI ora ha un caso in più (FAI, il 33°): confrontare i 32 comuni | ~10 min | se peggiora: rollback del passo 3 + reindicizzazione |
+| — | **Dopo il deploy, a carico Qualità**: validazione del glossario (prima i ~20 termini prioritari), revisione del CSV delle clausole, rinomina dei file con nome non standard, decisione sui 10 documenti senza traccia | — | — |
+
+Il glossario nell'assistente si accende dopo, come passo separato: `OLLAMA_RAG_GLOSSARIO_ENABLED=True`, riavvio, `ai_eval` contro la baseline del passo 12.

@@ -180,10 +180,11 @@ def dedup_candidates(parsed: list[dict]) -> tuple[list[dict], list[dict]]:
         for it in items:
             by_title[_title_key(it.get("title", ""))].append(it)
 
-        # Vincitore per ciascun titolo: revisione piu' alta (a parita', nome file).
+        # Vincitore per ciascun titolo: revisione piu' alta; a parita' il PDF (copia
+        # controllata, PROCEDURE_REFRESH_SGI_PREFER_PDF) e poi il nome file.
         per_title_winners: list[dict] = []
         for group in by_title.values():
-            ordered = sorted(group, key=lambda d: (_rev_int(d), d["file_name"]))
+            ordered = sorted(group, key=lambda d: (_rev_int(d), _pdf_rank(d), d["file_name"]))
             winner = ordered[-1]
             per_title_winners.append(winner)
             for it in ordered[:-1]:
@@ -215,6 +216,30 @@ def dedup_candidates(parsed: list[dict]) -> tuple[list[dict], list[dict]]:
     return candidates, conflicts
 
 
+def sgi_extensions() -> set[str]:
+    """Estensioni scandite (``PROCEDURE_REFRESH_SGI_EXTENSIONS``, default solo ``.pdf``)."""
+    raw = getattr(settings, "PROCEDURE_REFRESH_SGI_EXTENSIONS", None) or [".pdf"]
+    return {str(e).strip().lower() for e in raw if str(e).strip()} or {".pdf"}
+
+
+def _scan_files(root: Path) -> list[Path]:
+    """File della share con estensione ammessa, in ordine stabile (lock Office ``~$`` esclusi)."""
+    exts = sgi_extensions()
+    if exts == {".pdf"}:
+        return sorted(root.rglob("*.pdf"))  # percorso storico, identico a prima
+    return sorted(
+        p for p in root.rglob("*")
+        if p.suffix.lower() in exts and not p.name.startswith("~$") and p.is_file()
+    )
+
+
+def _pdf_rank(info: dict) -> int:
+    """1 se il file e' un PDF e la regola «vince il PDF» e' attiva (a parita' di revisione)."""
+    if not getattr(settings, "PROCEDURE_REFRESH_SGI_PREFER_PDF", True):
+        return 0
+    return int(str(info.get("file_name", "")).lower().endswith(".pdf"))
+
+
 def scan_share_candidates(
     root: Path, *, solo_procedure: bool = False, limit: int = 0
 ) -> tuple[list[dict], list[dict], list[dict]]:
@@ -225,7 +250,7 @@ def scan_share_candidates(
     """
     parsed: list[dict] = []
     skipped: list[dict] = []
-    for pdf in sorted(root.rglob("*.pdf")):
+    for pdf in _scan_files(root):
         full = str(pdf)
         if _SUPERATO_RE.search(full):
             continue
@@ -458,6 +483,59 @@ def detect_share_drift(root: Path, *, solo_procedure: bool = False) -> dict:
     }
 
 
+SCANSIONE_ULTIMA_KEY = "pr_sgi_scan_ultima"
+
+
+def utente_processo() -> str:
+    """Utente Windows con cui gira la scansione (DOMINIO e utente): con l'enumerazione per
+    permessi della share, utenti diversi possono vedere elenchi di file diversi."""
+    import getpass
+    import os
+
+    try:
+        utente = getpass.getuser()
+    except Exception:
+        utente = os.environ.get("USERNAME", "") or "sconosciuto"
+    dominio = os.environ.get("USERDOMAIN", "")
+    return f"{dominio}\\{utente}" if dominio else utente
+
+
+def confronto_scansione(n_elencati: int, utente: str) -> tuple[dict | None, str]:
+    """Ultima scansione registrata (solo da --apply) e avviso se il numero di file
+    elencati è diverso. Solo segnalazione: non cambia cosa viene importato."""
+    from core.models import SiteConfig
+
+    try:
+        ultima = json.loads(SiteConfig.get(SCANSIONE_ULTIMA_KEY, "") or "null")
+    except (TypeError, ValueError):
+        ultima = None
+    if not isinstance(ultima, dict) or "file_elencati" not in ultima:
+        return None, ""
+    precedenti = int(ultima.get("file_elencati") or 0)
+    if precedenti == n_elencati:
+        return ultima, ""
+    altro_utente = ultima.get("utente") and ultima.get("utente") != utente
+    return ultima, (
+        f"File elencati sulla share: {n_elencati}, all'ultima esecuzione registrata "
+        f"({ultima.get('data', '?')}, utente {ultima.get('utente', '?')}) erano {precedenti}. "
+        + ("L'utente di processo è diverso: " if altro_utente else "")
+        + "verificare i permessi di lettura dell'utente sulla share prima di --apply."
+    )
+
+
+def registra_scansione(n_elencati: int, utente: str, root: str) -> None:
+    from django.utils import timezone
+
+    from core.models import SiteConfig
+
+    SiteConfig.set(
+        SCANSIONE_ULTIMA_KEY,
+        json.dumps({"file_elencati": n_elencati, "utente": utente, "root": root,
+                    "data": timezone.localtime().strftime("%Y-%m-%d %H:%M")}),
+        "Import SGI: file elencati e utente dell'ultima esecuzione con --apply.",
+    )
+
+
 class Command(BaseCommand):
     help = "Importa il corpus documentale SGI (PDF) da una share come documenti procedura citabili dall'AI."
 
@@ -493,6 +571,12 @@ class Command(BaseCommand):
         if not root.exists():
             raise CommandError(f"Root non raggiungibile o inesistente: {raw_root}")
 
+        # 0) Chi scandisce e quanti file vede: con l'enumerazione per permessi, utenti
+        #    diversi vedono elenchi diversi (es. documenti riservati). Solo segnalazione.
+        utente = utente_processo()
+        n_elencati = len(_scan_files(root))
+        ultima_scansione, avviso_scansione = confronto_scansione(n_elencati, utente)
+
         # 1) Scansione + 2) dedup titolo-aware (logica riusabile, vedi scan_share_candidates).
         candidates, skipped, conflicts = scan_share_candidates(
             root, solo_procedure=solo_procedure, limit=limit
@@ -507,11 +591,18 @@ class Command(BaseCommand):
                 updated_docs += int(c_doc == "updated")
                 created_revs += int(c_rev)
 
+            if not limit:
+                registra_scansione(n_elencati, utente, raw_root)
+
         fallback_count = sum(1 for d in candidates if d.get("fallback"))
         disambiguated = [d for d in candidates if d.get("disambiguated_from")]
         summary = {
             "mode": "apply" if apply else "dry-run",
             "root": raw_root,
+            "utente_processo": utente,
+            "file_elencati": n_elencati,
+            "ultima_esecuzione_registrata": ultima_scansione,
+            "avviso_file_elencati": avviso_scansione,
             # ogni PDF parserizzato e' o un candidato (tenuto) o un conflitto (scartato)
             "pdf_validi": len(candidates) + len(conflicts),
             "documenti_unici": len(candidates),
@@ -538,8 +629,11 @@ class Command(BaseCommand):
             return
 
         self.stdout.write(
-            f"{'APPLY' if apply else 'DRY-RUN'} | root={raw_root}"
+            f"{'APPLY' if apply else 'DRY-RUN'} | root={raw_root} | utente di processo={utente} "
+            f"| file elencati={n_elencati}"
         )
+        if avviso_scansione:
+            self.stdout.write(self.style.WARNING(f"ATTENZIONE: {avviso_scansione}"))
         self.stdout.write(
             f"PDF validi={len(candidates) + len(conflicts)} | documenti unici={len(candidates)} "
             f"(di cui fallback nome={fallback_count}, codici disambiguati={len(disambiguated)}) "
