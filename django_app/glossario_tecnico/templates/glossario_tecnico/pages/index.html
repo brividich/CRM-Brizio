@@ -3,7 +3,7 @@
 {% block extra_head %}{% include "glossario_tecnico/components/_styles.html" %}{% endblock %}
 {% block content %}<div class="rc-wrap">
 <div class="page-header"><div><h1>Glossario tecnico</h1><p class="page-sub">Lavorazioni, quotatura, tolleranze, trattamenti, controlli e sigle del sistema di gestione, con sinonimi, gergo d'officina, simboli e traduzione inglese.</p></div>
-{% if puo_gestire %}<div class="sg-actions"><a class="btn btn-secondary" href="{% url 'glossario_tecnico:revisione' %}">Da rivedere{% if conteggi.bozza or proposte_in_attesa %} ({{ conteggi.bozza|default:0|add:proposte_in_attesa }}){% endif %}</a><a class="btn" href="{% url 'glossario_tecnico:termine_nuovo' %}">Nuovo termine</a></div>{% endif %}</div>
+<div class="sg-actions"><a class="btn btn-secondary" href="{% url 'glossario_tecnico:guida' %}">Guida</a>{% if puo_gestire %}<a class="btn btn-secondary" href="{% url 'glossario_tecnico:revisione' %}">Da rivedere{% if conteggi.bozza or proposte_in_attesa %} ({{ conteggi.bozza|default:0|add:proposte_in_attesa }}){% endif %}</a><a class="btn" href="{% url 'glossario_tecnico:termine_nuovo' %}">Nuovo termine</a>{% endif %}</div></div>
 
 <div class="sg-kpis">
   <div class="sg-kpi"><span>Validati</span><strong>{{ conteggi.validato|default:0 }}</strong></div>

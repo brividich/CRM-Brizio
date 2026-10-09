@@ -6,6 +6,7 @@ app_name = "glossario_tecnico"
 
 urlpatterns = [
     path("", views.index, name="index"),
+    path("guida/", views.guida, name="guida"),
     path("termini/nuovo/", views.termine_nuovo, name="termine_nuovo"),
     path("termini/<int:pk>/", views.termine, name="termine"),
     path("termini/<int:pk>/modifica/", views.termine_modifica, name="termine_modifica"),

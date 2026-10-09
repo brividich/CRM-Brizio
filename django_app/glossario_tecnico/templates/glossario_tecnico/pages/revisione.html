@@ -3,7 +3,7 @@
 {% block extra_head %}{% include "glossario_tecnico/components/_styles.html" %}{% endblock %}
 {% block content %}<div class="rc-wrap">
 <a class="rc-back" href="{% url 'glossario_tecnico:index' %}">← Glossario tecnico</a>
-<div class="page-header"><div><h1>Da rivedere</h1><p class="page-sub">Le bozze e le proposte dell'AI entrano nell'assistente solo dopo la validazione di una persona.</p></div></div>
+<div class="page-header"><div><h1>Da rivedere</h1><p class="page-sub">Le bozze e le proposte dell'AI entrano nell'assistente solo dopo la validazione di una persona.</p></div><div class="sg-actions"><a class="btn btn-secondary" href="{% url 'glossario_tecnico:guida' %}#revisione">Guida alla revisione</a></div></div>
 
 <section class="rc-card sg-section"><h2>Proposte dell'AI ({{ proposte|length }})</h2>
 {% if proposte %}<p class="sg-muted">Termini trovati spesso nei documenti SGI e non ancora nel glossario. Accetta, correggi prima di accettare, oppure scarta: le tue scelte guidano le proposte successive.</p>

@@ -13,7 +13,7 @@ from django.db import transaction
 from core.acl_bootstrap_base import run_bootstrap
 
 MODULE = "glossario_tecnico"
-_BOOTSTRAP_CACHE_KEY = "glossario_tecnico_acl_bootstrap_v1"
+_BOOTSTRAP_CACHE_KEY = "glossario_tecnico_acl_bootstrap_v2"  # v2: binding della guida
 
 PERM_VIEW = "glossario_tecnico.termini.view"
 PERM_GESTIONE = "glossario_tecnico.gestione"
@@ -31,6 +31,7 @@ _CANONICAL = {
 
 _ROUTE_BINDINGS = {
     "glossario_tecnico:index": PERM_VIEW,
+    "glossario_tecnico:guida": PERM_VIEW,
     "glossario_tecnico:termine": PERM_VIEW,
     "glossario_tecnico:api_cerca": PERM_VIEW,
     "glossario_tecnico:termine_nuovo": PERM_GESTIONE,
