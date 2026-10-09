@@ -173,14 +173,15 @@ def inventory_map(request, pk):
         messages.error(request, str(exc))
         return redirect("security:inventory")
     preview = None
+    date_format = request.POST.get("date_format", "") if request.method == "POST" else (item.preset.date_format if item.preset else "")
     if not software_inventory.validate_mapping(item.headers, item.column_map):
-        preview = software_inventory.build_preview(table, item.column_map, request.POST.get("date_format", "") if request.method == "POST" else "")
+        preview = software_inventory.build_preview(table, item.column_map, date_format)
     return render(request, "security/vuln_inventory_map.html", {
         "item": item, "fields": software_inventory.FIELD_LABELS, "required": SoftwareImportPreset.REQUIRED_FIELDS,
         "headers": item.headers, "errors": errors, "preview": preview,
         "sample_rows": [row[: len(item.headers)] for row in table.rows[:5]],
         "valid_sample": preview.valid[:15] if preview else [], "skipped_sample": preview.skipped[:50] if preview else [],
-        "date_format": request.POST.get("date_format", "") if request.method == "POST" else "",
+        "date_format": date_format,
     })
 
 
@@ -232,12 +233,9 @@ def inventory_discard(request, pk):
 
 def _queue_recompute():
     """Ricalcolo degli impatti in coda django-q (fuori dalla request); senza cluster resta al job orario."""
-    try:
-        from django_q.tasks import async_task
+    from .services.cve_feeds import queue_recompute
 
-        async_task("security.services.cve_impact.recompute_all", timeout=110)
-    except Exception:  # noqa: BLE001 - la coda non disponibile non deve far fallire l'import
-        logger.exception("Ricalcolo impatti CVE non accodato")
+    return queue_recompute()
 
 
 # --- Normalizzazione e mappatura CPE ---------------------------------------------------------
@@ -342,8 +340,15 @@ def _software_mapping_post(request):
             logger.exception("Ricerca CPE non accodata")
             messages.error(request, "Coda dei job non disponibile: riprova più tardi.")
     elif action == "nvd_key":
-        set_nvd_api_key(request.POST.get("nvd_key", "").strip()[:200], actor=request.user)
-        messages.success(request, "API key NVD salvata (cifrata)." if request.POST.get("nvd_key", "").strip() else "API key NVD rimossa.")
+        key = request.POST.get("nvd_key", "").strip()[:200]
+        if not key:
+            messages.error(request, "Incolla la API key NVD (per toglierla usa «Rimuovi»).")
+        else:
+            set_nvd_api_key(key, actor=request.user)
+            messages.success(request, "API key NVD salvata (cifrata).")
+    elif action == "nvd_key_remove":
+        set_nvd_api_key("", actor=request.user)
+        messages.success(request, "API key NVD rimossa.")
     elif action == "recompute":
         _queue_recompute()
         messages.info(request, "Ricalcolo degli impatti accodato.")

@@ -58,9 +58,44 @@ Security Center (Security Center AI innestato): **Panoramica IT** (`/soc/`: verd
 - **Controlli AI**: `/soc/incidenti/<id>/ai/` e `/soc/pc/ai/` (`ai_explain.check_incident`, `check_pc`), con cache 30 minuti e registro `SecurityAiInteractionLog`.
 - **Sezioni vive** (`data-autorefresh`): Panoramica ogni 2-5 minuti, mai mentre si scrive o con righe selezionate. Suggerimenti in pagina chiudibili (`partials/tip.html`).
 
+## Soppressione appresa
+
+Quando lo stesso alert viene **disattivato** più volte a mano, il sistema impara a non disturbare più (`services/learned_suppression.py`).
+
+- **Impronta** dell'alert: sorgente + tipo di evento + campi che identificano il soggetto, mai timestamp, ID o conteggi. Per tipo: backup → job, dispositivo, NAS; CVE (Defender) → CVE, prodotto, organizzazione; candidati WatchGuard → tipo + utente/IP/computer/firewall; VPN → utente/IP; sorgente silenziosa → codice sorgente e motivo; spoofing → vendor dichiarato e dominio. Senza almeno un campo-soggetto (es. solo il «tipo») l'alert non è apprendibile.
+- **Disattivazione** = falso positivo, chiusura «Non rilevante» o «Rischio accettato», **Silenzia**: sempre con motivo. «Risolto» e le chiusure automatiche non contano; un'azione massiva (o la chiusura di un caso) conta una volta.
+- Alla **3ª disattivazione** nella finestra (90 giorni), se almeno una è di chi ha il permesso di configurazione del SOC, nasce una regola `owner=system:learned` con ambito esatto, motivo che elenca chi/quando/perché, scadenza 180 giorni; audit in `SecurityConfigurationAuditLog` e avviso ai canali scelti (o, se nessuno, a quelli che ricevono i nuovi alert).
+- Dalla 4ª occorrenza: nessun alert, l'evento resta in **Eventi soppressi** (`/soc/eventi/?decision=suppressed`) con la regola nel `decision_trace`; `hit_count`/`last_hit_at` aggiornati.
+- **Guardrail** (impostazioni, accesi di default): mai per severità critica (anche CVSS ≥ 9), CVE in CISA KEV o non verificabile (catalogo KEV assente o più vecchio di 48 h), minacce/malware/ransomware/botnet; alert comunque se la severità sale oltre quella delle disattivazioni. Riaprire a mano l'alert, o promuovere un evento soppresso, spegne la regola e azzera il conteggio; anche la revoca azzera.
+- Pagina **Soppressioni** (`/soc/soppressioni/`): apprese/manuali, attive/in scadenza/scadute, hit, revoca con motivo (permesso di configurazione), ultime disattivazioni. Nel dettaglio alert il badge «2/3 disattivazioni: la prossima creerà una soppressione automatica».
+- Impostazioni in `/soc/impostazioni/` › «Soppressione appresa»: on/off, soglia, finestra, durata, guardrail, tipi esclusi, canali.
+
+## Automatismi di rientro
+
+`/soc/admin/config/automatismi/` (permesso di configurazione). Registro in `services/auto_resolution.py`: per ogni regola condizione, prova richiesta, azione; interruttore `autoresolve.<codice>.attivo`. Prima di accendere una regola va eseguita la **simulazione sugli ultimi 30 giorni** (valida 7 giorni): mostra quali alert avrebbe chiuso, senza chiudere nulla.
+
+| Regola | Default | Prova |
+| --- | --- | --- |
+| Backup tornato a buon fine | accesa | esecuzione completata dello stesso job/dispositivo dopo il fallimento |
+| CVE senza più dispositivi esposti | accesa | report successivo con 0 dispositivi esposti |
+| Sorgente di nuovo regolare (heartbeat OK) | accesa | report e lettura casella di nuovo nei tempi |
+| VPN tornata nei limiti | spenta | N giorni (default 7) sotto soglia **con dati VPN arrivati ogni giorno** |
+| CVE con patch installata (inventario) | spenta | impatti recenti: solo versioni fuori range, nessun host da verificare, inventario che copre almeno i dispositivi esposti; mai KEV o critiche |
+
+Ogni chiusura scrive motivo e prova in `status_reason` e nella timeline (`auto_resolved` con `rule`); il caso si chiude solo senza attività aperte.
+
+## Impatto CVE sugli asset
+
+- **Inventario software** (`/soc/admin/config/inventario/`): CSV o XLSX (max 15 MB, 100.000 righe), validato con `validate_extension_and_mime`, tenuto cifrato nello storage privato solo fino all'import (anteprime abbandonate eliminate dopo 2 giorni). Mappatura colonne (hostname, prodotto, versione obbligatorie; vendor, data rilevamento) salvabile come **preset per fonte** (WatchGuard EPDR/Panda, BusinessLog, altro). Anteprima con righe scartate e motivo. Import idempotente (chiave fonte+host+vendor+prodotto+versione); i software spariti dagli host del file diventano «non più rilevati», mai cancellati. Il formato reale degli export non è cablato: si mappa da UI.
+- **Normalizzazione e CPE** (`/soc/admin/config/software/`): alias vendor/prodotto modificabili; mappatura verso CPE (vendor:product) con suggerimenti dalle CVE note e, a richiesta, dal dizionario CPE NVD (in coda); vale solo dopo **conferma** di una persona. API key NVD salvata cifrata.
+- **Arricchimento** (job `security_cve_enrichment`, ogni ora, spento finché non si accende «Impatto CVE sugli asset» in Impostazioni): NVD CVE API 2.0 (range `versionStart*/versionEnd*`), CISA KEV, EPSS facoltativo; cache dedicata `SecurityExternalFeedCache` (NVD 7 giorni, KEV/EPSS 24 h), timeout 20 s, 3 tentativi con backoff, rate limit 5 req/30 s senza key e 50 con key, budget 90 s per giro. Il ricalcolo degli impatti gira in un task separato.
+- **Esiti** per (CVE, host): **Impatta** (prodotto mappato, versione nel range), **Non impatta** (versione fuori range, o prodotto assente da un inventario recente, con la data), **Da verificare** (versione non confrontabile, CPE non confermato, inventario oltre 30 giorni, CVE valida solo su una piattaforma). Ogni esito ha la spiegazione, es. «7-Zip 23.01 installato su PC-XX; vulnerabile < 24.07; fonte: export WatchGuard del gg/mm/aaaa».
+- **Dove si vede**: cruscotto `/soc/vulnerabilita/` (CVE ordinate per KEV, CVSS, EPSS, host; asset più esposti; software senza mappatura), dettaglio `/soc/vulnerabilita/<CVE>/`, sezione «Impatto sugli asset» negli alert e nei ticket CVE (con proposta di chiusura, **mai automatica** se KEV o critica), sezione «Vulnerabilità» sulla pagina asset HUB.
+
 ## Note di rilascio
 
 - **Registro incidenti, report periodico, parser transazionali** — deploy: `migrate security` (0019). Nuove rotte sotto `/soc/` (stesso binding ACL). Il motore parser salva ogni elemento in una transazione: un errore a metà non lascia più report parziali che bloccavano la rielaborazione; nel `raw_payload` restano parser, tempo (`parse_ms`) ed esito (`parse_outcome`). Pagine alert, ticket, KPI ed Elaborazione controllano il permesso di lettura SOC anche nella view (`soc_view_required`).
 - **Sezione Backup** — nessuna migrazione: legge i job di backup già importati.
 - **Avvisi automatici, impostazioni, Il mio lavoro, ricerca, scheda PC** — nessuna migrazione. Dopo il deploy: aprire Impostazioni, scegliere i canali e accendere gli avvisi voluti.
 - **Sala controllo (barra live, anteprime, multiselezione, controlli AI)** — nessuna migrazione.
+- **Soppressione appresa, automatismi di rientro, impatto CVE** — deploy: `migrate security` (0020), `pip install -r requirements.txt` (nuova dipendenza `packaging`), `setup_q_schedules` (nuovo schedule `security_cve_enrichment`, orario). Nuove rotte sotto `/soc/` e `/soc/admin/config/` (stessi binding ACL a prefisso; le view controllano comunque i permessi). Soppressione appresa accesa di default con guardrail; regole di rientro nuove e arricchimento CVE spenti finché non accesi. Serve accesso Internet dal server verso `services.nvd.nist.gov`, `www.cisa.gov`, `api.first.org`.

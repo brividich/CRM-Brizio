@@ -50,6 +50,9 @@ class VersionCompareTests(SimpleTestCase):
         ("1.10", "1.9", 1),
         ("21H2", "22H2", None),
         ("abc", "1.0", None),
+        ("1.1.1b", "1.1.1", None),
+        ("1.1.1w", "1.1.1w", 0),
+        ("1.2.3rc1", "1.2.3", -1),
     ]
 
     def test_compare_table(self):
@@ -130,6 +133,30 @@ class InventoryImportTests(_Base):
         self.assertFalse(old.still_detected)
         self.assertEqual(item.rows_marked_missing, 1)
         self.assertTrue(SoftwareInstallation.objects.get(host="pc-demo-02", version_raw="24.09").still_detected)
+
+    def test_product_names_with_numbers_are_kept(self):
+        self.assertEqual(software_inventory.normalize_product("Windows 10", {}, "10.0.19045.4651"), "windows 10")
+        self.assertEqual(software_inventory.normalize_product("Microsoft Office 365", {}, "16.0.1"), "microsoft office 365")
+        self.assertEqual(software_inventory.normalize_product("7-Zip 23.01 (x64)", {}, "23.01"), "7-zip")
+        self.assertEqual(software_inventory.normalize_product("DemoTool 5", {}, "5"), "demotool")
+
+    def test_numeric_xlsx_version_is_skipped(self):
+        table = software_inventory.ParsedTable(headers=["Computer", "Software", "Versione"], rows=[["PC-DEMO-05", "DemoApp", 2.1]])
+        preview = software_inventory.build_preview(table, {"hostname": "Computer", "product": "Software", "version": "Versione"})
+        self.assertEqual(preview.valid, [])
+        self.assertIn("numero", preview.skipped[0][1])
+
+    def test_malformed_csv_is_user_error(self):
+        huge = b"Computer;Software;Versione\n\"" + b"x" * 200000 + b"\";a;1\n"
+        with self.assertRaises(software_inventory.InventoryFileError):
+            software_inventory.read_table(huge, "bad.csv")
+
+    def test_stale_previews_are_cleaned(self):
+        item = SoftwareInventoryImport.objects.create(original_name="a.csv", file_sha256="y", stored_name="")
+        SoftwareInventoryImport.objects.filter(pk=item.pk).update(created_at=timezone.now() - timedelta(days=5))
+        self.assertEqual(software_inventory.cleanup_stale_previews(days=2), 1)
+        item.refresh_from_db()
+        self.assertEqual(item.status, SoftwareInventoryImport.STATUS_FAILED)
 
     def test_alias_applies_on_import(self):
         SoftwareAlias.objects.create(kind=SoftwareAlias.KIND_VENDOR, raw="igor pavlov", canonical="7-zip")
@@ -251,7 +278,7 @@ class FeedTests(_Base):
         calls = []
         SecurityCveRecord.objects.create(cve_id="CVE-2099-0001")
         with patch.object(cve_feeds, "http_get", self._fake(calls)):
-            result = cve_feeds.run_enrichment(sleep=lambda s: None)
+            result = cve_feeds.run_enrichment(sleep=lambda s: None, recompute=lambda: "test")
         record = SecurityCveRecord.objects.get(cve_id="CVE-2099-0001")
         self.assertEqual(result["nvd"], 1)
         self.assertEqual(record.cvss, 7.8)
@@ -263,6 +290,21 @@ class FeedTests(_Base):
         with patch.object(cve_feeds, "http_get", self._fake(calls)):
             cve_feeds.fetch_nvd_cve("CVE-2099-0001")
         self.assertEqual(calls, [])  # servito dalla cache dedicata
+
+    def test_time_budget_stops_the_run(self):
+        clock = [0.0]
+
+        def slow(url, params=None, headers=None, timeout=None):
+            clock[0] += 40  # ogni richiesta «costa» 40 s
+            return 200, self.NVD if url == cve_feeds.NVD_CVE_URL else ({"vulnerabilities": []} if url == cve_feeds.KEV_URL else {"data": []})
+
+        for n in range(1, 6):
+            SecurityCveRecord.objects.create(cve_id=f"CVE-2099-02{n:02d}")
+        with patch.object(cve_feeds, "http_get", slow):
+            result = cve_feeds.run_enrichment(time_budget_seconds=90, clock=lambda: clock[0], sleep=lambda s: None, recompute=lambda: "test")
+        self.assertLess(result["nvd"], 5)
+        self.assertTrue(any("budget" in e for e in result["errors"]))
+        self.assertLess(clock[0], 140)
 
     def test_retry_with_backoff_then_error(self):
         attempts, sleeps = [], []
@@ -300,6 +342,13 @@ class FeedTests(_Base):
         limiter.wait()
         self.assertEqual(len(slept), 1)
         self.assertGreaterEqual(slept[0], 30.0)
+
+    def test_epss_cache_key_is_hashed(self):
+        calls = []
+        SecurityCveRecord.objects.create(cve_id="CVE-2099-0001")
+        with patch.object(cve_feeds, "http_get", self._fake(calls)):
+            cve_feeds.refresh_epss(["CVE-2099-0001"], sleep=lambda s: None)
+        self.assertEqual(len(SecurityExternalFeedCache.objects.get(feed="epss").key), 64)
 
     def test_api_key_encrypted_and_sent(self):
         cve_feeds.set_nvd_api_key("chiave-sintetica-123", actor=self.user)

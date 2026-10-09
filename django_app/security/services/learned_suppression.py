@@ -22,6 +22,7 @@ Le azioni massive contano una volta sola per impronta (``batch``).
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -58,6 +59,14 @@ DEFAULT_FINGERPRINT_FIELDS = (
     "type", "computer", "hostname", "device_name", "job_name", "cve", "affected_product", "user", "username", "source_ip",
 )
 THREAT_KEYWORDS = ("malware", "ransomware", "threat", "minacc", "virus", "trojan", "botnet", "exploit", "intrusion")
+# Campi che identificano un soggetto (chi/cosa): senza almeno uno l'impronta coprirebbe un
+# intero tipo di evento della sorgente, troppo largo per una soppressione automatica.
+SUBJECT_FIELDS = {
+    "computer", "hostname", "device_name", "job_name", "nas_name", "cve", "affected_product", "user", "username",
+    "source_ip", "firebox_name", "source_code", "claimed_vendor", "sender_domain",
+}
+CVE_PATTERN = re.compile(r"CVE-\d{4}-\d{4,7}", re.I)
+KEV_CATALOG_MAX_AGE_HOURS = 48
 
 
 @dataclass(frozen=True)
@@ -84,7 +93,7 @@ def event_fingerprint(event):
         if value in (None, "", [], {}) or isinstance(value, (dict, list)):
             continue
         fields[key] = str(value).strip()[:255]
-    if not fields:
+    if not fields or not (set(fields) & SUBJECT_FIELDS):
         return None
     parts = [f"{key}={_norm(fields[key])}" for key in sorted(fields)]
     return Fingerprint(make_hash(event.source_id, event.event_type, *parts), fields, event.event_type, event.source_id)
@@ -100,20 +109,57 @@ def enabled():
 
 # --- Guardrail ------------------------------------------------------------------------------
 
+def _payload_cves(payload):
+    found = set()
+    for value in payload.values():
+        if isinstance(value, (list, tuple)):
+            value = " ".join(str(v) for v in value)
+        if isinstance(value, str):
+            found.update(match.upper() for match in CVE_PATTERN.findall(value))
+    return found
+
+
+def _kev_catalog_fresh():
+    from security.models import SecurityExternalFeedCache
+
+    since = timezone.now() - timedelta(hours=KEV_CATALOG_MAX_AGE_HOURS)
+    return SecurityExternalFeedCache.objects.filter(feed="kev", key="catalog", fetched_at__gte=since).exists()
+
+
 def _is_kev(event):
+    """True se una CVE dell'evento è in CISA KEV **o se non si può escluderlo** (catalogo assente/vecchio)."""
     payload = event.payload or {}
     if payload.get("kev") or payload.get("known_exploited") or payload.get("cisa_kev"):
         return True
-    cve = str(payload.get("cve") or "").strip().upper()
-    if not cve:
+    cves = _payload_cves(payload)
+    if not cves:
         return False
     try:
         from security.models import SecurityCveRecord
 
-        return SecurityCveRecord.objects.filter(cve_id=cve, kev=True).exists()
-    except Exception:  # noqa: BLE001 - catalogo non disponibile: nel dubbio è KEV (fail-closed)
-        logger.exception("Catalogo KEV non leggibile per %s: trattata come KEV", cve)
+        if SecurityCveRecord.objects.filter(cve_id__in=cves, kev=True).exists():
+            return True
+        # Fail-closed: senza un catalogo KEV recente non si può dire che la CVE non sia sfruttata.
+        return not _kev_catalog_fresh()
+    except Exception:  # noqa: BLE001 - catalogo non leggibile: nel dubbio è KEV
+        logger.exception("Catalogo KEV non leggibile per %s: trattata come KEV", ", ".join(sorted(cves)))
         return True
+
+
+def effective_severity(event, alert=None):
+    """Severità con cui l'evento diventerebbe alert: la più alta tra evento, alert e regola CVE (CVSS >= 9 = critica)."""
+    candidates = [event.severity or Severity.INFO]
+    if alert is not None and alert.severity:
+        candidates.append(alert.severity)
+    payload = event.payload or {}
+    if payload.get("severity") in SEVERITY_RANK:
+        candidates.append(payload["severity"])
+    try:
+        if float(payload.get("cvss") or 0) >= 9:
+            candidates.append(Severity.CRITICAL)
+    except (TypeError, ValueError):
+        pass
+    return max(candidates, key=lambda s: SEVERITY_RANK.get(s, 0))
 
 
 def _is_threat(event):
@@ -125,7 +171,7 @@ def _is_threat(event):
 
 def guardrail_reason(event, *, severity=None):
     """Motivo per cui un evento non può essere soppresso da una regola appresa (o "")."""
-    severity = severity or event.severity
+    severity = severity or effective_severity(event)
     if soc_settings.value("soppressione.appresa.escludi_critici") and severity == Severity.CRITICAL:
         return "severità critica"
     if _norm(event.event_type) in soc_settings.text_list("soppressione.appresa.tipi_esclusi"):
@@ -147,7 +193,7 @@ def learned_rule_matches(rule, event):
     if fingerprint is None or fingerprint.hash != rule.fingerprint:
         return False
     if (soc_settings.value("soppressione.appresa.blocca_aggravamento") and rule.max_severity
-            and SEVERITY_RANK.get(event.severity, 0) > SEVERITY_RANK.get(rule.max_severity, 0)):
+            and SEVERITY_RANK.get(effective_severity(event), 0) > SEVERITY_RANK.get(rule.max_severity, 0)):
         return False
     return not guardrail_reason(event)
 
@@ -177,7 +223,7 @@ def active_learned_rule(fingerprint_hash):
     return None
 
 
-def record_dismissal(alert, *, kind, actor, reason, batch=""):
+def record_dismissal(alert, *, kind, actor, reason, batch="", user=None):
     """Registra una disattivazione manuale e, se si raggiunge la soglia, crea la regola appresa.
 
     Ritorna la regola creata o None. Non solleva: l'azione sull'alert è già avvenuta e non va
@@ -190,8 +236,8 @@ def record_dismissal(alert, *, kind, actor, reason, batch=""):
         SecurityAlertDismissal.objects.create(
             alert=alert, source=alert.source, event_type=event.event_type if event else "",
             fingerprint=fingerprint.hash if fingerprint else "", fingerprint_fields=fingerprint.fields if fingerprint else {},
-            kind=kind, severity=(event.severity if event else alert.severity), actor=str(actor)[:120],
-            reason=reason.strip()[:2000], batch=(batch or "")[:64],
+            kind=kind, severity=(effective_severity(event, alert) if event else alert.severity), actor=str(actor)[:120],
+            reason=reason.strip()[:2000], batch=(batch or "")[:64], by_config_user=_is_config_user(user),
         )
         if fingerprint is None or not enabled():
             return None
@@ -201,11 +247,24 @@ def record_dismissal(alert, *, kind, actor, reason, batch=""):
         return None
 
 
+def _is_config_user(user):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    from security.services.configuration import can_manage_security_config
+
+    return bool(can_manage_security_config(user))
+
+
 def _maybe_learn(alert, fingerprint):
     threshold = soc_settings.value("soppressione.appresa.soglia")
     with transaction.atomic():
         dismissals = list(counted_dismissals(fingerprint.hash).select_for_update())
         if dismissal_units(dismissals) < threshold or active_learned_rule(fingerprint.hash):
+            return None
+        if not any(d.by_config_user for d in dismissals):
+            # Una regola vale mesi e solo la configurazione la revoca: serve che almeno una
+            # delle disattivazioni sia di chi ha il permesso di configurazione del SOC.
+            logger.info("Soppressione appresa in attesa: nessuna disattivazione da un responsabile SOC (%s)", fingerprint.hash[:12])
             return None
         max_severity = max((d.severity or Severity.INFO for d in dismissals), key=lambda s: SEVERITY_RANK.get(s, 0))
         blocked = guardrail_reason(alert.event, severity=max_severity) if alert.event else "evento mancante"
@@ -260,15 +319,16 @@ def _notify_learned(rule):
     from security.services.notifications import _link, deliver_once
 
     ids = soc_settings.value("soppressione.appresa.canali")
-    if not ids:
-        return 0
+    channels = SecurityNotificationChannel.objects.filter(enabled=True)
+    # Senza canali scelti: i canali del SOC che ricevono i nuovi alert.
+    channels = channels.filter(pk__in=ids) if ids else channels.filter(notify_on_new_alert=True)
     sent = 0
     body = (
         f"Nuova soppressione appresa: {rule.name}\n"
         f"Valida fino al {timezone.localtime(rule.expires_at).strftime('%d/%m/%Y')}.\n\n{rule.reason}\n\n"
         f"Revoca: {_link('/soc/soppressioni/')}"
     )
-    for channel in SecurityNotificationChannel.objects.filter(pk__in=ids, enabled=True):
+    for channel in channels:
         log = deliver_once(channel, event_kind=EVENT_KIND_LEARNED, severity=Severity.INFO, dedup_hash=f"learned:{rule.pk}",
                            subject=f"[SOC] Soppressione appresa: {rule.name}"[:200], body=body)
         sent += bool(log and log.outcome == "sent")
@@ -328,6 +388,6 @@ def dismissal_progress(alert):
     info["count"] = dismissal_units(list(counted_dismissals(fingerprint.hash)))
     info["rule"] = active_learned_rule(fingerprint.hash)
     if alert.event is not None:
-        info["blocked"] = guardrail_reason(alert.event)
+        info["blocked"] = guardrail_reason(alert.event, severity=effective_severity(alert.event, alert))
     info["next_creates_rule"] = bool(info["enabled"] and not info["rule"] and not info["blocked"] and info["count"] == threshold - 1)
     return info

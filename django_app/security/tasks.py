@@ -56,6 +56,13 @@ def _periodic_recoveries():
     return run_periodic_recoveries()
 
 
+def _cleanup_inventory_previews():
+    """File di inventario caricati e mai importati: eliminati dopo 2 giorni."""
+    from security.services.software_inventory import cleanup_stale_previews
+
+    return cleanup_stale_previews(days=2)
+
+
 def enrich_cve_task():
     """Arricchimento CVE (schedule `security_cve_enrichment`, ogni ora): NVD, CISA KEV, EPSS, impatti.
 
@@ -112,6 +119,7 @@ def run_security_cycle_task():
         ("rules_after_heartbeat", evaluate_security_rules),
         ("kpis", build_daily_kpi_snapshots),
         ("rientri", _periodic_recoveries),
+        ("pulizia_inventario", _cleanup_inventory_previews),
         ("avvisi", _scheduled_notifications),
     )
     for name, step in steps:

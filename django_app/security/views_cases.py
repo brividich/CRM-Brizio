@@ -298,7 +298,7 @@ def alerts_bulk(request):
     handlers = {
         "acknowledge": (lambda alert: acknowledge_alert(alert, actor=actor, reason=reason or "Presa in carico massiva"), {Status.NEW, Status.OPEN}),
         "close": (lambda alert: close_alert(alert, actor=actor, reason=reason or "Chiusura massiva"), set(ACTIVE_ALERT_STATUSES)),
-        "false_positive": (lambda alert: mark_false_positive(alert, actor=actor, reason=reason, batch=batch), set(ACTIVE_ALERT_STATUSES)),
+        "false_positive": (lambda alert: mark_false_positive(alert, actor=actor, reason=reason, batch=batch, user=request.user), set(ACTIVE_ALERT_STATUSES)),
     }
     if action not in handlers:
         messages.error(request, "Azione non supportata.")

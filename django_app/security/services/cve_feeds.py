@@ -39,6 +39,10 @@ class FeedError(RuntimeError):
     pass
 
 
+class BudgetExhausted(FeedError):
+    """Il giro del job ha finito il tempo: si riprende al prossimo."""
+
+
 # --- Trasporto -------------------------------------------------------------------------------
 
 def http_get(url, *, params=None, headers=None, timeout=TIMEOUT_SECONDS):
@@ -73,13 +77,19 @@ class RateLimiter:
         self.calls.append(self.clock())
 
 
-def _get_json(url, *, params=None, headers=None, limiter=None, sleep=time.sleep):
+def _get_json(url, *, params=None, headers=None, limiter=None, sleep=time.sleep, deadline=None, clock=time.monotonic):
+    """``deadline`` (secondi di ``clock``): nessuna attesa o richiesta lo supera."""
     last_error = ""
     for attempt in range(RETRIES):
+        if deadline is not None and clock() >= deadline:
+            raise BudgetExhausted(f"{url}: tempo del job esaurito")
         if limiter:
             limiter.wait()
+        timeout = TIMEOUT_SECONDS
+        if deadline is not None:
+            timeout = max(1, min(TIMEOUT_SECONDS, int(deadline - clock())))
         try:
-            status, body = http_get(url, params=params, headers=headers)
+            status, body = http_get(url, params=params, headers=headers, timeout=timeout)
         except Exception as exc:  # noqa: BLE001 - errori di rete: riprovo con backoff, poi FeedError
             status, body, last_error = 0, None, f"{exc.__class__.__name__}: {exc}"[:300]
         else:
@@ -90,7 +100,10 @@ def _get_json(url, *, params=None, headers=None, limiter=None, sleep=time.sleep)
             last_error = f"HTTP {status}"
             if status not in (0, 403, 429, 500, 502, 503, 504):
                 raise FeedError(f"{url}: {last_error}")
-        sleep(2 ** (attempt + 1))  # 2, 4, 8 s (NVD risponde 403/429 quando si supera il limite)
+        pause = 2 ** (attempt + 1)  # 2, 4, 8 s (NVD risponde 403/429 quando si supera il limite)
+        if deadline is not None and clock() + pause >= deadline:
+            raise BudgetExhausted(f"{url}: tempo del job esaurito ({last_error})")
+        sleep(pause)
     raise FeedError(f"{url}: {last_error or 'nessuna risposta'}")
 
 
@@ -199,21 +212,24 @@ def _aware(value):
     return value
 
 
-def fetch_nvd_cve(cve_id, limiter=None, sleep=time.sleep):
+def fetch_nvd_cve(cve_id, limiter=None, sleep=time.sleep, deadline=None, clock=time.monotonic):
     cached = cache_get("nvd_cve", cve_id)
     if cached is not None:
         return cached
-    body = _get_json(NVD_CVE_URL, params={"cveId": cve_id}, headers=_nvd_headers(), limiter=limiter, sleep=sleep)
+    body = _get_json(NVD_CVE_URL, params={"cveId": cve_id}, headers=_nvd_headers(), limiter=limiter, sleep=sleep,
+                     deadline=deadline, clock=clock)
     items = body.get("vulnerabilities") or []
     payload = items[0].get("cve", {}) if items else {}
     cache_put("nvd_cve", cve_id, payload)
     return payload
 
 
-def enrich_cve(cve_id, limiter=None, sleep=time.sleep):
+def enrich_cve(cve_id, limiter=None, sleep=time.sleep, deadline=None, clock=time.monotonic):
     record, _ = SecurityCveRecord.objects.get_or_create(cve_id=cve_id)
     try:
-        payload = fetch_nvd_cve(cve_id, limiter=limiter, sleep=sleep)
+        payload = fetch_nvd_cve(cve_id, limiter=limiter, sleep=sleep, deadline=deadline, clock=clock)
+    except BudgetExhausted:
+        raise
     except FeedError as exc:
         record.nvd_error = str(exc)[:300]
         record.save(update_fields=["nvd_error"])
@@ -236,10 +252,10 @@ def enrich_cve(cve_id, limiter=None, sleep=time.sleep):
 
 # --- CISA KEV e EPSS -------------------------------------------------------------------------
 
-def refresh_kev(sleep=time.sleep):
+def refresh_kev(sleep=time.sleep, deadline=None, clock=time.monotonic):
     catalog = cache_get("kev", "catalog")
     if catalog is None:
-        body = _get_json(KEV_URL, sleep=sleep)
+        body = _get_json(KEV_URL, sleep=sleep, deadline=deadline, clock=clock)
         catalog = {
             item["cveID"].upper(): {"added": item.get("dateAdded", ""), "due": item.get("dueDate", "")}
             for item in body.get("vulnerabilities") or [] if item.get("cveID")
@@ -265,15 +281,18 @@ def _date(entry, key):
         return None
 
 
-def refresh_epss(cve_ids, sleep=time.sleep):
+def refresh_epss(cve_ids, sleep=time.sleep, deadline=None, clock=time.monotonic):
+    import hashlib
+
     updated = 0
     ids = sorted({c.upper() for c in cve_ids})
     for start in range(0, len(ids), 100):
         chunk = ids[start:start + 100]
-        key = ",".join(chunk)
+        joined = ",".join(chunk)
+        key = hashlib.sha256(joined.encode()).hexdigest()  # la lista intera supera la colonna: niente collisioni
         data = cache_get("epss", key)
         if data is None:
-            body = _get_json(EPSS_URL, params={"cve": key}, sleep=sleep)
+            body = _get_json(EPSS_URL, params={"cve": joined}, sleep=sleep, deadline=deadline, clock=clock)
             data = {row["cve"].upper(): [row.get("epss"), row.get("percentile")] for row in body.get("data") or [] if row.get("cve")}
             cache_put("epss", key, data)
         for cve_id, (score, percentile) in data.items():
@@ -327,33 +346,52 @@ def stale_cve_ids(limit):
     return missing[:limit]
 
 
-def run_enrichment(time_budget_seconds=90, clock=time.monotonic, sleep=time.sleep):
-    """Un giro del job: KEV, CVE NVD mancanti/scadute entro il budget di tempo, EPSS, impatti."""
-    from security.services.cve_impact import recompute_all
+def run_enrichment(time_budget_seconds=90, clock=time.monotonic, sleep=time.sleep, recompute=None):
+    """Un giro del job: KEV, CVE NVD mancanti/scadute, EPSS, poi il ricalcolo degli impatti.
 
-    started = clock()
-    result = {"nvd": 0, "nvd_errors": 0, "kev_updated": 0, "epss_updated": 0, "impacts": 0, "errors": []}
+    Ogni attesa e richiesta rispetta ``deadline`` (timeout worker 120 s): quando il tempo finisce
+    il giro si ferma e riprende al successivo; il ricalcolo degli impatti va in un task a parte.
+    """
+    deadline = clock() + time_budget_seconds
+    result = {"nvd": 0, "nvd_errors": 0, "kev_updated": 0, "epss_updated": 0, "recompute": "", "errors": []}
     for cve_id in known_cve_ids():
         SecurityCveRecord.objects.get_or_create(cve_id=cve_id)
     try:
-        result["kev_updated"] = refresh_kev(sleep=sleep)
+        result["kev_updated"] = refresh_kev(sleep=sleep, deadline=deadline, clock=clock)
     except FeedError as exc:
         result["errors"].append(f"KEV: {exc}")
         logger.warning("CISA KEV non aggiornato: %s", exc)
     limiter = RateLimiter(50 if nvd_api_key() else 5, 30.0, clock=clock, sleep=sleep)
-    for cve_id in stale_cve_ids(limit=200):
-        if clock() - started > time_budget_seconds:
-            result["errors"].append("budget di tempo esaurito: le CVE restanti al prossimo giro")
-            break
-        record = enrich_cve(cve_id, limiter=limiter, sleep=sleep)
-        result["nvd_errors" if record.nvd_error else "nvd"] += 1
-    if get_epss_enabled():
-        try:
-            result["epss_updated"] = refresh_epss(known_cve_ids(), sleep=sleep)
-        except FeedError as exc:
-            result["errors"].append(f"EPSS: {exc}")
-    result["impacts"] = recompute_all()
+    try:
+        for cve_id in stale_cve_ids(limit=200):
+            # Ultimo slot di rate limit troppo vicino alla scadenza: meglio fermarsi qui.
+            if clock() >= deadline:
+                raise BudgetExhausted("tempo del job esaurito")
+            record = enrich_cve(cve_id, limiter=limiter, sleep=sleep, deadline=deadline, clock=clock)
+            result["nvd_errors" if record.nvd_error else "nvd"] += 1
+        if get_epss_enabled():
+            try:
+                result["epss_updated"] = refresh_epss(known_cve_ids(), sleep=sleep, deadline=deadline, clock=clock)
+            except BudgetExhausted:
+                raise
+            except FeedError as exc:
+                result["errors"].append(f"EPSS: {exc}")
+    except BudgetExhausted:
+        result["errors"].append("budget di tempo esaurito: il resto al prossimo giro")
+    result["recompute"] = (recompute or queue_recompute)()
     return result
+
+
+def queue_recompute():
+    """Ricalcolo degli impatti in un task django-q separato (ha il suo timeout)."""
+    try:
+        from django_q.tasks import async_task
+
+        async_task("security.services.cve_impact.recompute_all", timeout=110)
+        return "accodato"
+    except Exception as exc:  # noqa: BLE001 - la coda non disponibile non annulla l'arricchimento
+        logger.exception("Ricalcolo impatti CVE non accodato")
+        return f"non accodato: {exc}"[:200]
 
 
 def get_epss_enabled():

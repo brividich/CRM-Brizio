@@ -53,11 +53,11 @@ class _Base(TestCase):
         for _ in range(n):
             _event, alert = self._alert_from_engine(**kwargs)
             if kind == "fp":
-                mark_false_positive(alert, actor="analista", reason="Job di test, non è un problema")
+                mark_false_positive(alert, actor="analista", reason="Job di test, non è un problema", user=self.user)
             elif kind == "mute":
-                mute_alert(alert, actor="analista", reason="Rumore noto")
+                mute_alert(alert, actor="analista", reason="Rumore noto", user=self.user)
             else:
-                close_alert(alert, actor="analista", reason="Accettato dal responsabile", outcome=kind)
+                close_alert(alert, actor="analista", reason="Accettato dal responsabile", outcome=kind, user=self.user)
             alerts.append(alert)
         return alerts
 
@@ -81,6 +81,10 @@ class FingerprintTests(_Base):
 
     def test_event_without_identifying_fields_is_not_learnable(self):
         self.assertIsNone(event_fingerprint(self._event({"count": 4}, event_type="generic_metric")))
+
+    def test_type_only_fingerprint_is_too_broad(self):
+        event = self._event({"type": "watchguard_blocked_url", "count": 9}, event_type="watchguard_alert_candidate")
+        self.assertIsNone(event_fingerprint(event))
 
 
 class LearningTests(_Base):
@@ -139,21 +143,21 @@ class LearningTests(_Base):
             close_alert(alert, actor="analista", reason="Backup rifatto", outcome="resolved")
         for _ in range(3):
             _event, alert = self._alert_from_engine()
-            mark_false_positive(alert, actor="system", reason="automatico")
+            mark_false_positive(alert, actor="system", reason="automatico", user=self.user)
         self.assertEqual(SecurityAlertDismissal.objects.count(), 0)
         self.assertFalse(SecurityAlertSuppressionRule.objects.exists())
 
     def test_dismissal_without_reason_does_not_count(self):
         for _ in range(3):
             _event, alert = self._alert_from_engine()
-            mark_false_positive(alert, actor="analista", reason="")
+            mark_false_positive(alert, actor="analista", reason="", user=self.user)
         self.assertFalse(SecurityAlertSuppressionRule.objects.exists())
 
     def test_bulk_action_counts_once(self):
         alerts = [self._alert_from_engine()[1] for _ in range(3)]
         # Tre alert attivi con la stessa impronta non possono coesistere solo se dedup diversi: qui lo sono.
         for alert in alerts:
-            mark_false_positive(alert, actor="analista", reason="Massivo", batch="bulk-1")
+            mark_false_positive(alert, actor="analista", reason="Massivo", batch="bulk-1", user=self.user)
         self.assertFalse(SecurityAlertSuppressionRule.objects.exists())
 
     def test_dismissals_outside_window_do_not_count(self):
@@ -177,6 +181,47 @@ class LearningTests(_Base):
 
 
 class GuardrailTests(_Base):
+    def test_view_only_dismissals_do_not_learn(self):
+        viewer = get_user_model().objects.create(username="soc_learn_viewer2")
+        for _ in range(3):
+            _event, alert = self._alert_from_engine()
+            mark_false_positive(alert, actor="viewer", reason="non serve", user=viewer)
+        self.assertEqual(SecurityAlertDismissal.objects.filter(by_config_user=False).count(), 3)
+        self.assertFalse(SecurityAlertSuppressionRule.objects.exists())
+        _event, alert = self._alert_from_engine()
+        mark_false_positive(alert, actor="analista", reason="confermo", user=self.user)
+        self.assertTrue(SecurityAlertSuppressionRule.objects.filter(owner="system:learned").exists())
+
+    def test_cvss_critical_with_high_event_severity_never_learns(self):
+        payload = {"cve": "CVE-2099-0100", "affected_product": "DemoApp", "cvss": 9.8, "severity": "high", "exposed_devices": 2}
+        for _ in range(3):
+            event = self._event(payload, event_type="vulnerability_finding", severity=Severity.HIGH)
+            alert = SecurityAlert.objects.create(source=self.source, event=event, title="CVE", severity=Severity.CRITICAL,
+                                                 dedup_hash=event.dedup_hash)
+            close_alert(alert, actor="analista", reason="accettato", outcome="accepted_risk", user=self.user)
+        self.assertFalse(SecurityAlertSuppressionRule.objects.exists())
+
+    def test_kev_unknown_when_enrichment_off_blocks_learning(self):
+        payload = {"cve": "CVE-2099-0101", "affected_product": "DemoApp", "cvss": 5.0, "severity": "medium", "exposed_devices": 1}
+        for _ in range(3):
+            event = self._event(payload, event_type="vulnerability_finding", severity=Severity.MEDIUM)
+            alert = SecurityAlert.objects.create(source=self.source, event=event, title="CVE", severity=Severity.MEDIUM,
+                                                 dedup_hash=event.dedup_hash)
+            mark_false_positive(alert, actor="analista", reason="non usato", user=self.user)
+        self.assertFalse(SecurityAlertSuppressionRule.objects.exists())
+
+    def test_cve_learnable_when_kev_catalog_fresh_and_not_listed(self):
+        from security.models import SecurityExternalFeedCache
+
+        SecurityExternalFeedCache.objects.create(feed="kev", key="catalog", payload={}, expires_at=timezone.now() + timedelta(hours=24))
+        payload = {"cve": "CVE-2099-0102", "affected_product": "DemoApp", "cvss": 5.0, "severity": "medium", "exposed_devices": 1}
+        for _ in range(3):
+            event = self._event(payload, event_type="vulnerability_finding", severity=Severity.MEDIUM)
+            alert = SecurityAlert.objects.create(source=self.source, event=event, title="CVE", severity=Severity.MEDIUM,
+                                                 dedup_hash=event.dedup_hash)
+            mark_false_positive(alert, actor="analista", reason="non usato", user=self.user)
+        self.assertTrue(SecurityAlertSuppressionRule.objects.filter(owner="system:learned").exists())
+
     def test_never_learns_on_critical(self):
         self._dismiss(3, severity=Severity.CRITICAL)
         self.assertFalse(SecurityAlertSuppressionRule.objects.exists())
@@ -213,12 +258,12 @@ class GuardrailTests(_Base):
 
     def test_manual_reopen_disables_rule_and_resets_count(self):
         alerts = self._dismiss(3)
-        reopen_alert(alerts[0], actor="analista", reason="Era un problema vero")
+        reopen_alert(alerts[0], actor="analista", reason="Era un problema vero", user=self.user)
         rule = SecurityAlertSuppressionRule.objects.get(owner="system:learned")
         self.assertFalse(rule.is_active)
         self.assertIn("riaperto", rule.revoked_reason)
         self.assertFalse(SecurityAlertDismissal.objects.filter(counted=True).exists())
-        mark_false_positive(alerts[0], actor="analista", reason="di nuovo")
+        mark_false_positive(alerts[0], actor="analista", reason="di nuovo", user=self.user)
         self.assertEqual(SecurityAlertSuppressionRule.objects.filter(is_active=True).count(), 0)
 
     def test_promoting_suppressed_event_resets_learning(self):

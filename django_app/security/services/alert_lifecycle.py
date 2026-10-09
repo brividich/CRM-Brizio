@@ -43,7 +43,7 @@ CLOSE_OUTCOMES = {
 }
 
 
-def close_alert(alert, actor="system", reason="", outcome="resolved", batch=""):
+def close_alert(alert, actor="system", reason="", outcome="resolved", batch="", user=None):
     outcome = outcome if outcome in CLOSE_OUTCOMES else "resolved"
     alert = _transition_alert(
         alert,
@@ -56,11 +56,11 @@ def close_alert(alert, actor="system", reason="", outcome="resolved", batch=""):
         snoozed_until=None,
     )
     if outcome != "resolved":
-        _record_dismissal(alert, outcome, actor, reason, batch)
+        _record_dismissal(alert, outcome, actor, reason, batch, user)
     return alert
 
 
-def mark_false_positive(alert, actor="system", reason="", batch=""):
+def mark_false_positive(alert, actor="system", reason="", batch="", user=None):
     alert = _transition_alert(
         alert,
         new_status=Status.FALSE_POSITIVE,
@@ -70,11 +70,11 @@ def mark_false_positive(alert, actor="system", reason="", batch=""):
         closed_at=timezone.now(),
         snoozed_until=None,
     )
-    _record_dismissal(alert, "false_positive", actor, reason, batch)
+    _record_dismissal(alert, "false_positive", actor, reason, batch, user)
     return alert
 
 
-def mute_alert(alert, actor="system", reason="", batch=""):
+def mute_alert(alert, actor="system", reason="", batch="", user=None):
     """Silenzia: l'alert resta in elenco ma non chiede attenzione. Conta come disattivazione."""
     alert = _transition_alert(
         alert,
@@ -85,14 +85,14 @@ def mute_alert(alert, actor="system", reason="", batch=""):
         closed_at=None,
         snoozed_until=None,
     )
-    _record_dismissal(alert, "mute", actor, reason, batch)
+    _record_dismissal(alert, "mute", actor, reason, batch, user)
     return alert
 
 
-def _record_dismissal(alert, kind, actor, reason, batch):
+def _record_dismissal(alert, kind, actor, reason, batch, user=None):
     from security.services.learned_suppression import record_dismissal
 
-    return record_dismissal(alert, kind=kind, actor=actor, reason=reason, batch=batch)
+    return record_dismissal(alert, kind=kind, actor=actor, reason=reason, batch=batch, user=user)
 
 
 def snooze_alert(alert, until, actor="system", reason=""):

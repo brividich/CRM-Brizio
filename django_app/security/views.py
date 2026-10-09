@@ -296,9 +296,9 @@ def alert_action(request, pk, action):
     outcome = request.POST.get("outcome", "resolved")
     handlers = {
         "acknowledge": lambda: acknowledge_alert(alert, actor=actor, reason=reason),
-        "close": lambda: close_alert(alert, actor=actor, reason=reason, outcome=outcome),
-        "false_positive": lambda: mark_false_positive(alert, actor=actor, reason=reason),
-        "mute": lambda: mute_alert(alert, actor=actor, reason=reason),
+        "close": lambda: close_alert(alert, actor=actor, reason=reason, outcome=outcome, user=request.user),
+        "false_positive": lambda: mark_false_positive(alert, actor=actor, reason=reason, user=request.user),
+        "mute": lambda: mute_alert(alert, actor=actor, reason=reason, user=request.user),
         "snooze": lambda: snooze_alert(alert, _parse_snooze_until(request.POST.get("snooze_until")), actor=actor, reason=reason),
         "reopen": lambda: reopen_alert(alert, actor=actor, reason=reason, user=request.user),
     }

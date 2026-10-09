@@ -585,6 +585,7 @@ class SecurityAlertDismissal(models.Model):
     actor = models.CharField(max_length=120)
     reason = models.TextField()
     batch = models.CharField(max_length=64, blank=True)
+    by_config_user = models.BooleanField(default=False)
     counted = models.BooleanField(default=True)
     learned_rule = models.ForeignKey(SecurityAlertSuppressionRule, on_delete=models.SET_NULL, null=True, blank=True, related_name="dismissals")
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
@@ -1491,4 +1492,3 @@ class SecurityCveImpact(models.Model):
 
     def __str__(self):
         return f"{self.cve_id} {self.host}: {self.outcome}"
-

@@ -21,6 +21,9 @@ except ImportError:  # pragma: no cover - packaging è in requirements; il fallb
 _PRE_TAGS = {"dev": -4, "alpha": -3, "a": -3, "beta": -2, "b": -2, "pre": -1, "preview": -1, "rc": -1}
 _TOKEN = re.compile(r"\d+|[a-z]+")
 _LEADING = re.compile(r"^[vV](?=\d)")
+# «1.1.1b» (stile OpenSSL) viene DOPO 1.1.1, ma PEP 440 lo leggerebbe come pre-release b0:
+# una lettera finale senza numero non è confrontabile in modo affidabile.
+_BARE_LETTER = re.compile(r"\d[a-z]$", re.I)
 _NOISE = re.compile(r"\s*\(.*?\)\s*|\s+(x64|x86|64-bit|32-bit|amd64)$", re.I)
 
 
@@ -72,6 +75,8 @@ def compare(a, b):
     a, b = normalize(a), normalize(b)
     if not a or not b:
         return None
+    if _BARE_LETTER.search(a) or _BARE_LETTER.search(b):
+        return 0 if a.lower() == b.lower() else None
     pa, pb = _pep440(a), _pep440(b)
     if pa is not None and pb is not None:
         return (pa > pb) - (pa < pb)

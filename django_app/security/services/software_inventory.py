@@ -15,7 +15,7 @@ import io
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db import transaction
 from django.utils import timezone
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_ROWS = 100_000
 MAX_SKIPPED_DETAILS = 200
+MAX_COLUMNS = 200
 ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
 ALLOWED_MIMES = {
     "text/csv", "text/plain", "application/csv", "application/vnd.ms-excel",
@@ -111,7 +112,10 @@ def _read_csv(data):
     except csv.Error:
         delimiter = ";" if sample.count(";") > sample.count(",") else ","
     reader = csv.reader(io.StringIO(text), delimiter=delimiter)
-    return _table_from_rows(reader)
+    try:
+        return _table_from_rows(reader)
+    except csv.Error as exc:
+        raise InventoryFileError(f"CSV non leggibile: {exc}.") from exc
 
 
 def _read_xlsx(data):
@@ -123,7 +127,10 @@ def _read_xlsx(data):
         raise InventoryFileError(f"XLSX non leggibile: {exc.__class__.__name__}.") from exc
     try:
         sheet = workbook.worksheets[0]
-        rows = ([("" if cell is None else cell) for cell in row] for row in sheet.iter_rows(values_only=True))
+        rows = (
+            [("" if cell is None else cell) for cell in row]
+            for row in sheet.iter_rows(values_only=True, max_col=MAX_COLUMNS)
+        )
         return _table_from_rows(rows)
     finally:
         workbook.close()
@@ -132,12 +139,15 @@ def _read_xlsx(data):
 def _table_from_rows(rows):
     headers, out, truncated = None, [], False
     for row in rows:
-        cells = list(row)
+        cells = list(row)[:MAX_COLUMNS]
         if headers is None:
             # Intestazione = prima riga con almeno due celle compilate (gli export hanno spesso un titolo sopra).
             if sum(1 for cell in cells if str(cell).strip()) >= 2:
                 headers = [str(cell).strip()[:120] for cell in cells]
+                while headers and not headers[-1]:
+                    headers.pop()  # colonne vuote in coda (openpyxl con max_col le riempie)
             continue
+        cells = cells[: len(headers)]
         if not any(str(cell).strip() for cell in cells):
             continue
         if len(out) >= MAX_ROWS:
@@ -212,7 +222,12 @@ def build_preview(table: ParsedTable, column_map, date_format="") -> RowPreview:
     for index, row in enumerate(table.rows, start=1):
         host = str(_cell(row, table.headers, column_map.get("hostname")) or "").strip()
         product = str(_cell(row, table.headers, column_map.get("product")) or "").strip()
-        version = str(_cell(row, table.headers, column_map.get("version")) or "").strip()
+        version_cell = _cell(row, table.headers, column_map.get("version"))
+        if isinstance(version_cell, float):
+            # Excel ha trasformato la versione in numero («2.10» → 2.1): non è affidabile.
+            preview.skipped.append((index, "versione salvata come numero nel foglio: formatta la colonna come testo"))
+            continue
+        version = str(version_cell or "").strip()
         vendor = str(_cell(row, table.headers, column_map.get("vendor")) or "").strip()
         if not host:
             preview.skipped.append((index, "hostname vuoto"))
@@ -252,15 +267,18 @@ def normalize_vendor(raw, aliases=None):
     return aliases.get(text, text)[:120]
 
 
-def normalize_product(raw, aliases=None):
+def normalize_product(raw, aliases=None, version=""):
     text = _ARCH.sub(" ", str(raw or "").lower())
     text = re.sub(r"\s+", " ", text).strip()
     aliases = _aliases(SoftwareAlias.KIND_PRODUCT) if aliases is None else aliases
     if text in aliases:
         return aliases[text]
-    # Gli export mettono spesso la versione nel nome («7-Zip 23.01»): via i token-versione finali.
+    # Gli export mettono spesso la versione nel nome («7-Zip 23.01»): via i token finali che
+    # sono la versione della riga o hanno un separatore («23.01», «1.2.3»). «Windows 10»,
+    # «Office 365», «Python 3» restano interi: il numero fa parte del nome del prodotto.
+    version = str(version or "").strip().lower()
     tokens = text.split(" ")
-    while len(tokens) > 1 and _VERSIONISH.match(tokens[-1]):
+    while len(tokens) > 1 and (tokens[-1] == version or (_VERSIONISH.match(tokens[-1]) and re.search(r"[._-]", tokens[-1]))):
         tokens.pop()
     text = " ".join(tokens).strip(" -")
     return aliases.get(text, text)[:160]
@@ -310,7 +328,7 @@ def run_import(inventory_import: SoftwareInventoryImport, preview: RowPreview):
     for row in preview.valid:
         host = normalize_host(row["host"])
         vendor = normalize_vendor(row["vendor"], vendor_aliases)
-        product = normalize_product(row["product"], product_aliases)
+        product = normalize_product(row["product"], product_aliases, row["version"])
         key = installation_key(source_kind, host, vendor, product, row["version"])
         rows.setdefault(key, {**row, "host_norm": host, "vendor_norm": vendor, "product_norm": product})
     hosts = {data["host_norm"] for data in rows.values()}
@@ -359,6 +377,19 @@ def run_import(inventory_import: SoftwareInventoryImport, preview: RowPreview):
         inventory_import.imported_at = now
         inventory_import.save()
     return inventory_import
+
+
+def cleanup_stale_previews(days=2):
+    """Elimina i file di import mai confermati (restano solo cifrati e solo per poco)."""
+    cutoff = timezone.now() - timedelta(days=days)
+    removed = 0
+    stale = SoftwareInventoryImport.objects.filter(status=SoftwareInventoryImport.STATUS_PREVIEW, created_at__lt=cutoff)
+    for item in stale:
+        discard_stored(item)
+        item.status = SoftwareInventoryImport.STATUS_FAILED
+        item.save(update_fields=["status"])
+        removed += 1
+    return removed
 
 
 def file_sha256(data: bytes):

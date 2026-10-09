@@ -151,6 +151,57 @@ class VpnRuleTests(_Base):
         self.assertEqual(auto_resolution.run_vpn_within_limits(today), 0)
 
 
+class CvePatchedRuleTests(_Base):
+    def setUp(self):
+        super().setUp()
+        from security.models import SecurityCveRecord, SoftwareCpeMapping, SoftwareInstallation, SoftwareInventoryImport
+        from security.services import cve_impact
+
+        imp = SoftwareInventoryImport.objects.create(original_name="inv.csv", file_sha256="z", status="imported", imported_at=timezone.now() - timedelta(hours=1))
+        for host, version in (("pc-demo-01", "24.08"), ("pc-demo-02", "24.09")):
+            SoftwareInstallation.objects.create(dedup_key=f"k-{host}", source_kind="watchguard", host=host, vendor="igor pavlov", product="7-zip",
+                                                product_raw="7-Zip", version_raw=version, last_import=imp)
+        SoftwareCpeMapping.objects.create(vendor="igor pavlov", product="7-zip", cpe_vendor="7-zip", cpe_product="7-zip", confirmed=True)
+        self.record = SecurityCveRecord.objects.create(cve_id="CVE-2099-0300", cvss=7.0, severity="high", nvd_fetched_at=timezone.now(), configurations=[
+            {"part": "a", "vendor": "7-zip", "product": "7-zip", "version": "*", "start_including": "", "start_excluding": "", "end_including": "",
+             "end_excluding": "24.07", "requires_platform": False}])
+        cve_impact.recompute(self.record)
+
+    def _cve_alert(self, exposed=2, severity=Severity.HIGH):
+        event = self._event("vulnerability_finding", {"cve": "CVE-2099-0300", "affected_product": "7-Zip", "exposed_devices": exposed})
+        alert = self._alert(event)
+        SecurityAlert.objects.filter(pk=alert.pk).update(severity=severity)
+        alert.refresh_from_db()
+        return alert
+
+    def _enable(self):
+        auto_resolution.simulate("cve_patched_inventory")
+        auto_resolution.set_rule_enabled("cve_patched_inventory", True)
+
+    def test_closes_when_inventory_shows_patched_versions(self):
+        alert = self._cve_alert()
+        self.assertEqual(auto_resolution.simulate("cve_patched_inventory")["would_close"], 1)
+        self._enable()
+        self.assertEqual(auto_resolution.run_cve_patched_inventory(), 1)
+        alert.refresh_from_db()
+        self.assertEqual(alert.status, Status.RESOLVED)
+        self.assertIn("versioni non vulnerabili", alert.status_reason)
+
+    def test_more_exposed_devices_than_inventory_stays_open(self):
+        self._cve_alert(exposed=5)
+        self._enable()
+        self.assertEqual(auto_resolution.run_cve_patched_inventory(), 0)
+
+    def test_kev_or_critical_never_closed(self):
+        self._cve_alert(severity=Severity.CRITICAL)
+        self._enable()
+        self.assertEqual(auto_resolution.run_cve_patched_inventory(), 0)
+        self.record.kev = True
+        self.record.save()
+        self._cve_alert()
+        self.assertEqual(auto_resolution.run_cve_patched_inventory(), 0)
+
+
 class AutomationViewTests(_Base):
     def test_page_simulate_and_toggle(self):
         response = self.client.get(reverse("security:automation"))

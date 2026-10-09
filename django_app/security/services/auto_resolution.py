@@ -354,11 +354,11 @@ def _vpn_day_ok(alert_payload, source, day):
     return True, count < VPN_MANY_SHORT_RECONNECTS_THRESHOLD
 
 
-def _vpn_candidate(alert, today):
+def _vpn_candidate(alert, today, days=None):
     payload = (alert.event.payload or {}) if alert.event else {}
     if payload.get("type") not in VPN_TYPES or not (payload.get("user") or payload.get("source_ip")):
         return None
-    days = vpn_days()
+    days = days or vpn_days()
     alert_day = timezone.localtime(alert.event.occurred_at).date() if alert.event.occurred_at else None
     window = [today - timedelta(days=offset) for offset in range(1, days + 1)]
     if alert_day is None or min(window) <= alert_day:
@@ -378,20 +378,26 @@ def run_vpn_within_limits(today=None):
         return 0
     today = today or timezone.localdate()
     alerts = SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES, event__event_type="watchguard_alert_candidate").select_related("event", "source")
-    return _apply("vpn_within_limits", [c for c in (_vpn_candidate(a, today) for a in alerts) if c])
+    days = vpn_days()
+    return _apply("vpn_within_limits", [c for c in (_vpn_candidate(a, today, days) for a in alerts) if c])
 
 
 def _simulate_vpn(since):
     found = {}
     today = timezone.localdate()
-    alerts = SecurityAlert.objects.filter(event__event_type="watchguard_alert_candidate", created_at__gte=since - timedelta(days=vpn_days())).select_related("event", "source")
+    days = vpn_days()
+    alerts = [
+        a for a in SecurityAlert.objects.filter(event__event_type="watchguard_alert_candidate", created_at__gte=since - timedelta(days=days))
+        .select_related("event", "source")
+        if ((a.event.payload or {}) if a.event else {}).get("type") in VPN_TYPES
+    ]
     for offset in range(0, SIMULATION_DAYS + 1, 1):
         day = today - timedelta(days=offset)
         moment = timezone.make_aware(datetime.combine(day, time.min))
         for alert in alerts:
             if alert.pk in found or alert.created_at > moment or (alert.closed_at and alert.closed_at <= moment):
                 continue
-            candidate = _vpn_candidate(alert, day)
+            candidate = _vpn_candidate(alert, day, days)
             if candidate:
                 found[alert.pk] = candidate
     return list(found.values())
@@ -399,23 +405,33 @@ def _simulate_vpn(since):
 
 # --- cve_patched_inventory -------------------------------------------------------------------
 
-def _cve_candidate(alert):
-    from security.models import SecurityCveRecord
+def _cve_candidate(alert, cache=None):
+    from security.models import SecurityCveRecord, SoftwareInventoryImport
     from security.services.cve_impact import summary
 
     payload = (alert.event.payload or {}) if alert.event else {}
     cve_id = str(payload.get("cve") or "").strip().upper()
-    if not cve_id:
+    if not cve_id or alert.severity == "critical":
         return None
-    record = SecurityCveRecord.objects.filter(cve_id=cve_id).first()
-    if record is None:
+    cache = {} if cache is None else cache
+    if cve_id not in cache:
+        record = SecurityCveRecord.objects.filter(cve_id=cve_id).first()
+        cache[cve_id] = (record, summary(record) if record else None)
+    record, info = cache[cve_id]
+    if record is None or record.kev or not info:
         return None
-    info = summary(record)
     proposable, _why = info["closure"]
     if not proposable or info["not_impacted"] == 0:
         return None  # serve la prova positiva: il prodotto c'è, in versioni non vulnerabili
-    if alert.severity == "critical":
+    last_import = SoftwareInventoryImport.objects.filter(status=SoftwareInventoryImport.STATUS_IMPORTED).order_by("-imported_at").first()
+    if not record.impact_computed_at or (last_import and last_import.imported_at and record.impact_computed_at < last_import.imported_at):
+        return None  # impatti calcolati prima dell'ultimo inventario: non sono una prova
+    try:
+        exposed = int(payload.get("exposed_devices") or 0)
+    except (TypeError, ValueError):
         return None
+    if exposed > info["not_impacted"]:
+        return None  # Defender vede più dispositivi esposti di quanti l'inventario ne copra
     return Candidate(
         alert,
         f"{cve_id}: inventario software del {info['inventory_date']:%d/%m/%Y} con {info['not_impacted']} host in versioni non vulnerabili "
@@ -428,7 +444,8 @@ def run_cve_patched_inventory():
     if not rule_enabled("cve_patched_inventory"):
         return 0
     alerts = SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES, event__event_type="vulnerability_finding").select_related("event")
-    return _apply("cve_patched_inventory", [c for c in (_cve_candidate(a) for a in alerts) if c])
+    cache = {}
+    return _apply("cve_patched_inventory", [c for c in (_cve_candidate(a, cache) for a in alerts) if c])
 
 
 def _simulate_cve(since):
@@ -436,7 +453,8 @@ def _simulate_cve(since):
     # degli ultimi 30 giorni ancora aperti, con l'inventario e gli impatti di oggi.
     alerts = SecurityAlert.objects.filter(event__event_type="vulnerability_finding", created_at__gte=since,
                                           status__in=ACTIVE_ALERT_STATUSES).select_related("event")
-    return [c for c in (_cve_candidate(a) for a in alerts) if c]
+    cache = {}
+    return [c for c in (_cve_candidate(a, cache) for a in alerts) if c]
 
 
 # --- Registro --------------------------------------------------------------------------------

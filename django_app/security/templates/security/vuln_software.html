@@ -78,9 +78,10 @@
     <p class="sec-muted sec-small">Senza key NVD concede 5 richieste ogni 30 secondi, con la key 50. La key è salvata cifrata e non viene mai mostrata.</p>
     <form method="post" class="sec-grid">
       {% csrf_token %}<input type="hidden" name="action" value="nvd_key">
-      <label>Nuova API key <input type="password" name="nvd_key" autocomplete="off" maxlength="200" placeholder="lascia vuoto per rimuoverla"></label>
+      <label>Nuova API key <input type="password" name="nvd_key" autocomplete="off" maxlength="200" required></label>
       <button type="submit" class="sec-button">Salva</button>
     </form>
+    {% if has_nvd_key %}<form method="post" class="sec-inline" style="margin-top: 6px;">{% csrf_token %}<input type="hidden" name="action" value="nvd_key_remove"><button type="submit" class="sec-button">Rimuovi la key</button></form>{% endif %}
   </div>
 </section>
 {% endblock %}
