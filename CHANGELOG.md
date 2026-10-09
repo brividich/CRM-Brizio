@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Contatori — Centrale a colpo d'occhio, menu raggruppato, schede Info** (`django_app/contatori/services.py`, `views.py`, `templates/contatori/dashboard.html`, `_modulo_nav.html`, `snmp_centrale.html`, `consumabili.html`, `macchina.html`, `snmp_dispositivo_detail.html`, `static/contatori/contatori.css`, `tests_cruscotto.py`, `docs/moduli/contatori.md`). Nessuna migrazione, nessuna route nuova.
+  - Centrale: riquadri «Stato flotta SNMP» (operativi, in attenzione, in errore, non interrogati da oltre 3 giorni), ognuno apre il Monitor SNMP filtrato con lo stesso criterio del conteggio (`?flotta=`); riquadri «Da gestire» (consumabili sotto soglia con nuovo filtro `?filtro=critici`, letture da confermare, fatture da riconciliare); «Ultimi errori SNMP» con la causa.
+  - Barra del modulo in Operatività / Economico / Configurazione; la Configurazione è visibile solo con il permesso di gestione.
+  - Schede MFC e dispositivo SNMP: sezione Info con parametri SNMP effettivi, origine credenziali (mai il segreto), profilo, ultimo controllo/ultima interrogazione riuscita e fallita con motivo, asset collegato.
+  - **CORRETTO:** `controllo_monotonia` e `_letture_ordinate_per_macchina` facevano una query per macchina (N+1 sulla Centrale e sull'Analisi): ora una query sola, risultati invariati.
+
 - **Glossario — fix migrate su SQL Server con collation `Latin1_General_CI_AS`** (`django_app/glossario_tecnico/migrations/0002_seed_glossario_base.py`).
   - In produzione il seed falliva con «Violazione del vincolo UNIQUE KEY … chiave duplicata (⏥)»: con le collation «vecchie» i simboli GD&T ⏤, ⏥ e ⫽ sono uguali tra loro. Su SQL Server la 0002 porta ora la colonna `glossario_tecnico_variante.chiave` a `Latin1_General_100_BIN2` (la chiave è già normalizzata in Python) prima del seed, ricreando vincolo e indici con lo stesso nome. Altri DB: nessuna modifica. La 0001 resta invariata.
 - **Procedure — riferimenti di famiglia e controllo dell'utente nell'import SGI** (`django_app/procedure_refresh/models.py`, `migrations/0010_sgiriferimento_tipo_risoluzione.py` nuova, `sgi_riferimenti.py`, `admin.py`, `management/commands/sgi_riferimenti.py`, `management/commands/sgi_collega_processi.py`, `management/commands/import_sgi_da_share.py`, `test_sgi_riferimenti.py`, `docs/moduli/procedure_refresh.md`, `docs/ai/RUNBOOK_DEPLOY_AI.md`: checklist di deploy v2 del blocco database SGI + glossario).

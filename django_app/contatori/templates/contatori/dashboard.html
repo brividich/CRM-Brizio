@@ -28,12 +28,6 @@
     <div class="v">{% if c.consumo_ultimo %}{{ c.consumo_ultimo.totale }}{% else %}—{% endif %}</div>
     <div class="meta">{% if c.variazione is not None %}<span class="{% if c.variazione > 0 %}trend-up{% elif c.variazione < 0 %}trend-down{% endif %}">{% if c.variazione > 0 %}+{% endif %}{{ c.variazione }}%</span> rispetto al {{ c.consumo_precedente.trimestre }}{% else %}Servono due trimestri di letture{% endif %}</div>
   </a>
-  <a class="card link" href="{% url 'contatori:macchine' %}">
-    <div class="k">MFC raggiungibili</div>
-    {% if c.con_host %}<div class="v {% if c.raggiungibili < c.con_host %}health-warning{% else %}health-ok{% endif %}">{{ c.raggiungibili }}<small> / {{ c.con_host }}</small></div>
-    <div class="meta">MFC attive con IP, secondo l'ultimo controllo SNMP</div>
-    {% else %}<div class="v">—</div><div class="meta">Nessuna MFC con indirizzo IP</div>{% endif %}
-  </a>
   <a class="card link" href="{% url 'contatori:riconciliazione_trim' c.trimestre_prec %}">
     <div class="k">Riconciliazione {{ c.trimestre_prec }}</div>
     {% if c.riconciliazione %}
@@ -44,6 +38,35 @@
     {% endif %}
   </a>
 </div>
+
+<section class="panel" id="flotta">
+  <div class="panel-head"><div><h2>Stato flotta SNMP</h2><p>{{ flotta.totale }} apparati monitorati: MFC attive con IP e dispositivi attivi, secondo l'ultimo controllo salvato. Ogni riquadro apre l'elenco filtrato.</p></div></div>
+  <div class="cards flotta-cards">
+    <a class="card link" href="{% url 'contatori:snmp_centrale' %}?flotta=ok"><div class="k">{{ etichette_flotta.ok }}</div><div class="v health-ok">{{ flotta.ok }}</div><div class="meta">Ultimo controllo riuscito</div></a>
+    <a class="card link" href="{% url 'contatori:snmp_centrale' %}?flotta=attenzione"><div class="k">{{ etichette_flotta.attenzione }}</div><div class="v {% if flotta.attenzione %}health-warning{% endif %}">{{ flotta.attenzione }}</div><div class="meta">Risponde, ma un valore è fuori soglia</div></a>
+    <a class="card link" href="{% url 'contatori:snmp_centrale' %}?flotta=errore"><div class="k">{{ etichette_flotta.errore }}</div><div class="v {% if flotta.errore %}health-error{% endif %}">{{ flotta.errore }}</div><div class="meta">Ultimo controllo fallito</div></a>
+    <a class="card link" href="{% url 'contatori:snmp_centrale' %}?flotta=non_interrogati"><div class="k">Non interrogati</div><div class="v {% if flotta.non_interrogati %}health-warning{% endif %}">{{ flotta.non_interrogati }}</div><div class="meta">Mai o da oltre {{ flotta.giorni }} giorni</div></a>
+  </div>
+  <h3>Da gestire</h3>
+  <div class="cards flotta-cards">
+    <a class="card link" href="{% url 'contatori:consumabili' %}?filtro=critici"><div class="k">Consumabili sotto soglia</div><div class="v {% if c.consumabili_critici %}health-warning{% endif %}">{{ c.consumabili_critici }}</div><div class="meta">MFC con un consumabile da ordinare</div></a>
+    {% if g %}<a class="card link" href="{% url 'contatori:letture_proposte' %}?trimestre={{ c.trimestre_prec }}">{% else %}<div class="card">{% endif %}<div class="k">Letture da confermare</div><div class="v {% if c.proposte_totali %}health-warning{% endif %}">{{ c.proposte_totali }}</div><div class="meta">{% if c.proposte_totali %}{{ c.proposte_pronte }} pronte dalle mensili {{ c.trimestre_prec }}{% else %}Nessuna proposta per il {{ c.trimestre_prec }}{% endif %}</div>{% if g %}</a>{% else %}</div>{% endif %}
+    {% with primo=da_riconciliare|first %}<a class="card link" href="{% if primo %}{% url 'contatori:riconciliazione_trim' primo.trimestre %}{% else %}{% url 'contatori:riconciliazione' %}{% endif %}"><div class="k">Fatture da riconciliare</div><div class="v {% if da_riconciliare %}health-warning{% endif %}">{{ da_riconciliare|length }}</div><div class="meta">{% if da_riconciliare %}Trimestri: {% for r in da_riconciliare %}{{ r.trimestre }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}Ultimi trimestri fatturati in ordine{% endif %}</div></a>{% endwith %}
+  </div>
+</section>
+
+<section class="panel" id="errori-snmp">
+  <div class="panel-head"><div><h2>Ultimi errori SNMP</h2><p>Apparati in errore con la causa registrata all'ultimo controllo, i più recenti prima.</p></div><div class="spacer"></div>{% if errori_snmp %}<a class="btn ghost small" href="{% url 'contatori:snmp_centrale' %}?flotta=errore">Vedi tutti</a>{% endif %}</div>
+  {% if errori_snmp %}
+  <ul class="errori-list">{% for e in errori_snmp %}<li>
+    <div><a class="plain" href="{{ e.url }}"><strong>{{ e.nome }}</strong></a><div class="muted">{{ e.tipo }}</div></div>
+    <div class="causa" title="{{ e.errore }}">{{ e.errore|truncatechars:160 }}</div>
+    <div class="muted">{% if e.quando %}{{ e.quando|date:"d/m/Y H:i" }}{% else %}data non registrata{% endif %}</div>
+  </li>{% endfor %}</ul>
+  {% else %}
+  <div class="banner clean">Nessun apparato in errore all'ultimo controllo.</div>
+  {% endif %}
+</section>
 
 <section class="panel">
   <div class="panel-head"><div><h2>Da fare</h2><p>In ordine di urgenza. Ogni voce porta dove si risolve.</p></div></div>
