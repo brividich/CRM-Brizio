@@ -1,6 +1,6 @@
 # Audit sicurezza 09/10/2026 — stato delle correzioni
 
-Branch `feature/security-audit-fase0` (worktree dedicato). Le Fasi 0–3 della roadmap dell'audit sono implementate nel codice; qui sotto c'è cosa resta da fare a mano e cosa non è stato toccato.
+Branch `feature/security-audit-fase0` (worktree dedicato). Le Fasi 0–3 della roadmap e i finding medi/bassi rimasti fuori sono implementati nel codice; qui sotto c'è cosa resta da fare a mano e cosa non è stato toccato.
 
 ## Prima del deploy in produzione
 
@@ -15,7 +15,11 @@ Branch `feature/security-audit-fase0` (worktree dedicato). Le Fasi 0–3 della r
    - opzionale `Q_CLUSTER_WORKERS` (default ora 3).
 3. `web.config` di produzione (non viene rideployato): aggiungere su `<location path="media">` l'header `Content-Security-Policy: script-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'` come nei template in `deployment/config/`.
 4. Dopo il deploy: `python manage.py setup_q_schedules` e riavvio del qcluster (timeout dedicato dell'indicizzazione AI, worker).
-5. Con la policy 2FA attiva, i superuser dovranno configurare il TOTP al primo accesso.
+5. Dopo il deploy: `python manage.py apply_sql_triggers` per riapplicare i trigger della coda con la gestione degli errori (S3). Prima in TEST.
+6. Con la policy 2FA attiva, i superuser dovranno configurare il TOTP al primo accesso.
+7. Utenti legacy: nuove password di almeno 12 caratteri; chi ha «deve cambiare password» non usa il portale finché non la cambia.
+8. Flussi Power Automate delle approvazioni su Teams: se usano il campo `token`, impostare `APPROVAL_TEAMS_INCLUDE_TOKEN=1` (ora arriva vuoto).
+9. Le FAQ salvate dalla chat AI nascono disattivate: rivederle in «FAQ & Knowledge AI».
 
 ## Azioni fuori dal codice (R1)
 
@@ -35,6 +39,7 @@ Branch `feature/security-audit-fase0` (worktree dedicato). Le Fasi 0–3 della r
 | CSP | Tolti gli host CDN. **Non fatto:** nonce senza `'unsafe-inline'` (~290 script inline e ~1000 handler `on*=` da spostare in file `.js` prima) |
 | M3 | Corretto (Fase 0) |
 | M11 | Corretto (Fase 3) |
-| M5, M9, M13, B1–B8, S3, S8, S9, S10 | **Non affrontati:** fuori dalle fasi della roadmap dell'audit |
+| M5, M9, M13, B1–B8, S3, S8, S9 | Corretti (fuori roadmap); S3 richiede `apply_sql_triggers` |
+| S10 | Parziale: corretti i KPI della dashboard assets; gli altri ~260 `except Exception: pass` restano, la CI li vieta nel codice nuovo |
 | Fase 3 — `views.py` > 8.000 righe in package | **Non fatto:** refactor strutturale, da pianificare a parte |
 | Fase 3 — test `fornitori`, `planimetria` | **Non fatto** (aggiunti invece i test su `twofa`) |

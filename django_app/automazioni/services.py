@@ -2625,7 +2625,10 @@ def _send_approval_teams_chat_flow(
     teams_subject = render_template_string(config.get("teams_title_template") or subject, payload_context).strip() or subject
     payload = {
         "approval_id": approval.pk,
-        "token": str(approval.token),
+        # SEC (audit B6): il token condiviso della richiesta non circola su Teams
+        # (i link sono personali per destinatario). Campo lasciato vuoto per non
+        # rompere lo schema dei flussi Power Automate esistenti.
+        "token": str(approval.token) if getattr(settings, "APPROVAL_TEAMS_INCLUDE_TOKEN", False) else "",
         "recipient_email": recipient_email,
         "subject": teams_subject,
         "message": message_body,

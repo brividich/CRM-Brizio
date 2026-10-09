@@ -13,6 +13,7 @@ from django.db import connection, transaction
 from django.db.utils import OperationalError as DjangoOperationalError, ProgrammingError as DjangoProgrammingError
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
@@ -5098,10 +5099,11 @@ def rule_toggle_view(request, rule_id: int):
     rule.save(update_fields=["is_active", "is_draft", "updated_by", "updated_at"])
     status_label = "attivata" if rule.is_active else "disattivata"
     messages.success(request, f"Regola {rule.name} {status_label}.")
-    next_url = str(request.POST.get("next") or "").strip()
-    if next_url:
-        return redirect(next_url)
-    return redirect("admin_portale:automazioni_rule_detail", rule_id=rule.id)
+    # SEC (audit B4): solo redirect verso il portale stesso.
+    from core.redirects import safe_next
+
+    fallback = reverse("admin_portale:automazioni_rule_detail", kwargs={"rule_id": rule.id})
+    return redirect(safe_next(request, request.POST.get("next"), fallback))
 
 
 @legacy_admin_or_acl_required("automazioni", "rule_delete_view")
@@ -5125,10 +5127,9 @@ def rule_delete_view(request, rule_id: int):
     except Exception:
         pass
     messages.success(request, f"Regola «{rule_name}» eliminata.")
-    next_url = str(request.POST.get("next") or "").strip()
-    if next_url:
-        return redirect(next_url)
-    return redirect("admin_portale:automazioni_rule_list")
+    from core.redirects import safe_next
+
+    return redirect(safe_next(request, request.POST.get("next"), reverse("admin_portale:automazioni_rule_list")))
 
 
 @legacy_admin_or_acl_required("automazioni", "rule_condition_reorder_view")
@@ -6431,6 +6432,11 @@ AFTER INSERT
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- Audit S3: un errore sulla coda automazioni non deve annullare la richiesta
+    -- dell utente (ferie, ticket). Errori di istruzione intercettati qui; se la
+    -- transazione e compromessa (XACT_STATE = -1) l errore viene rilanciato.
+    SET XACT_ABORT OFF;
+    BEGIN TRY
 
     IF NOT EXISTS (SELECT 1 FROM inserted)
     BEGIN
@@ -6456,6 +6462,11 @@ BEGIN
         NULL,
         N'pending'
     FROM inserted AS i;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() = -1
+            THROW;
+    END CATCH;
 END;
 GO
 """
@@ -6471,6 +6482,11 @@ AFTER UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- Audit S3: un errore sulla coda automazioni non deve annullare la richiesta
+    -- dell utente (ferie, ticket). Errori di istruzione intercettati qui; se la
+    -- transazione e compromessa (XACT_STATE = -1) l errore viene rilanciato.
+    SET XACT_ABORT OFF;
+    BEGIN TRY
 
     IF NOT EXISTS (SELECT 1 FROM inserted)
     BEGIN
@@ -6502,6 +6518,11 @@ BEGIN
     FROM inserted AS i
     INNER JOIN deleted AS d
         ON d.{pk_db_col} = i.{pk_db_col};
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() = -1
+            THROW;
+    END CATCH;
 END;
 GO
 """

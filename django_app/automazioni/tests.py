@@ -3988,7 +3988,8 @@ class AutomationApprovalExecutorTests(TestCase):
         self.assertEqual(mock_post.call_args.kwargs["timeout"], 10)
         payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(payload["approval_id"], approval.pk)
-        self.assertEqual(payload["token"], str(approval.token))
+        # Audit B6: il token condiviso non viaggia nel payload Teams.
+        self.assertEqual(payload["token"], "")
         self.assertEqual(payload["recipient_email"], "manager@test.local")
         self.assertEqual(payload["subject"], "Teams approval #77")
         self.assertEqual(payload["message"], "Richiesta Ferie per Mario Rossi")

@@ -556,6 +556,7 @@ MIDDLEWARE = [
     "core.session_middleware.SessionIdleTimeoutMiddleware",
     "setup_wizard.middleware.SetupRequiredMiddleware",   # ← prima di ACL/notizie
     "twofa.middleware.TwoFactorMiddleware",
+    "core.session_middleware.ForcedPasswordChangeMiddleware",  # audit B2
     "core.middleware.ACLMiddleware",
     "notizie.mandatory_middleware.NotizieMandatoryMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -635,7 +636,7 @@ DATABASES = {"default": build_database_from_env("sqlite")}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 12}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -816,6 +817,10 @@ TWOFA_EXTERNAL_PROXY_IPS: set[str] = set(env_list("TWOFA_EXTERNAL_PROXY_IPS", []
 # SEC (audit M7): host che le azioni http_request delle automazioni possono chiamare
 # anche se risolvono su una rete privata (servizi interni noti). Accetta «*.dominio».
 AUTOMATION_HTTP_ALLOWED_HOSTS: list[str] = env_list("AUTOMATION_HTTP_ALLOWED_HOSTS", [])
+
+# Audit B6: 1 = includi il token della richiesta nel payload dei flussi Teams
+# (solo se un flusso Power Automate esistente lo usa davvero).
+APPROVAL_TEAMS_INCLUDE_TOKEN = env_bool("APPROVAL_TEAMS_INCLUDE_TOKEN", False)
 
 # Prefissi URL esenti da autenticazione e timeout di sessione (usati da entrambi i middleware).
 MIDDLEWARE_EXEMPT_PREFIXES = (

@@ -1186,8 +1186,18 @@ class KickoffMeeting(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.pk and not self.numero:
-            last = KickoffMeeting.objects.filter(project=self.project).aggregate(m=Max("numero"))["m"]
-            self.numero = (last or 0) + 1
+            # Audit S8: due incontri creati insieme non vanno in 500 sul vincolo
+            # (project, numero): si ricalcola il numero e si riprova.
+            from core.numbering_retry import save_with_next_number
+
+            def assign():
+                last = KickoffMeeting.objects.filter(project=self.project).aggregate(m=Max("numero"))["m"]
+                self.numero = (last or 0) + 1
+
+            def reset():
+                self.numero = None
+
+            return save_with_next_number(assign, lambda: super(KickoffMeeting, self).save(*args, **kwargs), on_conflict=reset)
         super().save(*args, **kwargs)
 
     def get_all_attendee_emails(self) -> list[str]:

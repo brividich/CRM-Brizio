@@ -32,12 +32,12 @@ class LegacyChangePasswordForm(forms.Form):
     nuova_password = forms.CharField(
         label="Nuova password",
         widget=forms.PasswordInput(attrs={"autocomplete": "new-password", "placeholder": "Nuova password"}),
-        min_length=6,
+        min_length=12,
     )
     conferma_password = forms.CharField(
         label="Conferma password",
         widget=forms.PasswordInput(attrs={"autocomplete": "new-password", "placeholder": "Conferma password"}),
-        min_length=6,
+        min_length=12,
     )
 
     def clean(self):
@@ -46,5 +46,18 @@ class LegacyChangePasswordForm(forms.Form):
         conferma = cleaned.get("conferma_password")
         if nuova and conferma and nuova != conferma:
             raise forms.ValidationError("Le password non coincidono.")
+        if nuova:
+            # SEC (audit B2): stessi validatori di Django (password comuni, solo numeri...).
+            from django.contrib.auth import password_validation
+            from django.core.exceptions import ValidationError
+
+            try:
+                password_validation.validate_password(nuova, user=self.user)
+            except ValidationError as exc:
+                self.add_error("nuova_password", exc)
         return cleaned
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
 

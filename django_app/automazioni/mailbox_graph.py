@@ -80,6 +80,9 @@ class GraphMailboxMessage:
     command: str | None     # 'approvo' | 'rifiuto' | None
     token: str | None       # UUID stringa | None
     reason: str | None = None  # motivo rifiuto se presente nel corpo
+    # X-MS-Exchange-Organization-AuthAs (audit B6): "Internal" per i mittenti
+    # autenticati del tenant, "Anonymous" per la posta da Internet. None se assente.
+    auth_as: str | None = None
 
 
 @dataclass
@@ -336,6 +339,7 @@ def fetch_messages(
         "bodyPreview",
         "body",
         "isRead",
+        "internetMessageHeaders",
     ])
     params: dict[str, Any] = {
         "$select": select_fields,
@@ -382,6 +386,21 @@ def fetch_messages(
     return messages
 
 
+def _validate_sender_auth(auth_as: str | None) -> str:
+    """Errore se il messaggio non arriva da un mittente interno autenticato.
+
+    Header assente (tenant che non lo espone): si prosegue con il solo controllo
+    sul mittente, con un avviso nel log. Header presente e diverso da Internal
+    (posta esterna, anche con From falsificato): rifiutato.
+    """
+    if auth_as is None:
+        logger.warning("Approvazione via mail: header AuthAs assente, controllo solo sul mittente.")
+        return ""
+    if auth_as.strip().lower() != "internal":
+        return f"Mittente non autenticato come interno (AuthAs={auth_as}): decisione ignorata."
+    return ""
+
+
 def normalize_message(raw: dict[str, Any]) -> GraphMailboxMessage:
     """Converte un messaggio raw Graph in GraphMailboxMessage normalizzato."""
     graph_id = str(raw.get("id") or "")
@@ -411,6 +430,12 @@ def normalize_message(raw: dict[str, Any]) -> GraphMailboxMessage:
     # Parsing comando
     command, token, reason = parse_approval_command(subject, body_text)
 
+    auth_as = None
+    for header in raw.get("internetMessageHeaders") or []:
+        if str((header or {}).get("name") or "").strip().lower() == "x-ms-exchange-organization-authas":
+            auth_as = str(header.get("value") or "").strip()
+            break
+
     return GraphMailboxMessage(
         graph_id=graph_id,
         internet_message_id=internet_msg_id,
@@ -423,6 +448,7 @@ def normalize_message(raw: dict[str, Any]) -> GraphMailboxMessage:
         command=command,
         token=token,
         reason=reason,
+        auth_as=auth_as,
     )
 
 
@@ -620,8 +646,13 @@ def poll_graph_mailbox(
         try:
             from .services import process_approval_decision  # noqa: PLC0415
 
-            # Valida mittente vs approvatori attesi prima di delegare a services
-            sender_error = _validate_sender(msg.token, msg.from_email)
+            # SEC (audit B6): il campo From si falsifica; Exchange marca la posta
+            # arrivata da Internet con AuthAs=Anonymous. Solo i mittenti interni
+            # autenticati possono decidere un'approvazione.
+            sender_error = _validate_sender_auth(msg.auth_as)
+            if not sender_error:
+                # Valida mittente vs approvatori attesi prima di delegare a services
+                sender_error = _validate_sender(msg.token, msg.from_email)
             if sender_error:
                 logger.warning(
                     "Mittente non autorizzato: %s per token %s — %s",
