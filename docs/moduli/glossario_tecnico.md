@@ -20,6 +20,33 @@ Termini di lavorazione, quotatura, tolleranze dimensionali e geometriche, rugosi
 - **Candidati dai documenti SGI**: `glossario_candidati [--limit N] [--min-documenti N] [--ai] [--sincrono]` legge il testo persistito dei documenti SGI (`sgi_estrai_testi`) e propone le espressioni di 1–3 parole presenti in almeno N documenti e non ancora nel glossario. Esclude i nomi degli utenti del portale. Con `--ai` l'LLM on-premise propone termine, categoria, definizione e varianti (un task per gruppo di 5, < 90 s); le proposte restano in attesa finché una persona non le accetta.
 - **Permessi (ACL v2)**: `glossario_tecnico.termini.view` (consultazione, tutti i ruoli) e `glossario_tecnico.gestione` (inserire, modificare, validare, decidere le proposte: ruoli admin e qualità). L'Ufficio tecnico si abilita per utente o gruppo in Admin › ACL. Le API (`/glossario/api/`) rispondono sempre JSON, anche 401/403.
 - **Menu**: categoria «Qualità» della barra (`riorganizza_topbar`).
+- **Guida** (`/glossario/guida/`, pulsante «Guida» nell'elenco e «Guida alla revisione» in «Da rivedere»): consultazione, stati, varianti e uso nell'assistente per tutti; validazione, correzione, parole comuni, proposte AI, controlli prima di validare e import CSV solo per chi ha `glossario_tecnico.gestione`.
+
+## Attivazione nell'assistente (amministratore)
+
+Prerequisito: la Qualità ha validato almeno i ~20 termini prioritari (vedi sotto). Fino ad allora il flag resta spento e il glossario è solo consultabile.
+
+1. Baseline, da PowerShell sul server (cartella `django_app`, venv prod), con il flag ancora spento:
+   `python manage.py ai_eval --rag --json --settings=config.settings.prod | Out-File -Encoding utf8 C:\backup\ai_pre_glossario_rag.json`
+   e lo stesso con `--rag-sgi` (→ `ai_pre_glossario_rag_sgi.json`) e `--rag-glossario` (→ `ai_pre_glossario_rag_gl.json`).
+2. `config\.env`: `OLLAMA_RAG_GLOSSARIO_ENABLED=True`. **Mai** `OLLAMA_RAG_GLOSSARIO_INCLUDE_BOZZE` (solo misura in dev).
+3. Riavvio del sito (app pool IIS) e del qcluster (`QCluster_PROD`).
+4. `python manage.py index_sgi_documents --json --settings=config.settings.prod` (ricostruisce l'indice con i token del glossario; gli embeddings non cambiano).
+5. Le tre valutazioni del punto 1 rifatte con il flag acceso (`ai_post_glossario_*.json`), confronto caso per caso con lo stesso script del deploy: KB e SGI senza casi peggiorati, glossario migliore.
+6. **Rollback**: `OLLAMA_RAG_GLOSSARIO_ENABLED=False`, riavvio, `index_sgi_documents`.
+
+Dopo l'attivazione ogni validazione o modifica arriva all'assistente da sola, senza reindicizzare.
+
+## Lavoro della Qualità
+
+In ordine di priorità (dettaglio operativo nella guida in pagina, `/glossario/guida/`):
+
+1. **Permessi**: `glossario_tecnico.gestione` a chi valida (Qualità ce l'ha di default, Ufficio tecnico da Admin › ACL).
+2. **Validare i ~20 termini prioritari**: simboli GD&T più usati, lavorazioni comuni (lamatura, svasatura, alesatura, maschiatura…), sigle SGI e di controllo (ispezione del primo articolo/FAI, non conformità, rapporto di collaudo, caratteristica chiave). Poi il resto delle ~85 bozze, una categoria alla volta.
+3. **Confermare le sigle aziendali** MT, MTSI, IDOR, IDPR, CN: sono in bozza con la nota «da confermare» perché l'espansione non è documentata.
+4. **Parole comuni**: decidere per ognuna se togliere «usa nell'assistente».
+5. **Proposte AI** (quando l'amministratore le avvia con `glossario_candidati --limit 20 --ai`): accettare, correggere o scartare.
+6. Fuori dal glossario, dal deploy del database SGI: revisione del CSV delle clausole (righe UNI/PdR 125 da verificare sul testo), rinomina dei file con nome non standard, decisione sui documenti non raggiungibili e sui codici citati ma inesistenti, verifica permessi MTSI.
 
 ## Comandi
 
@@ -40,3 +67,4 @@ Con `OLLAMA_RAG_GLOSSARIO_ENABLED=True` l'assistente riconosce nelle domande e n
 
 - **B1 (10/2026)**: app nuova, migrazioni 0001 (schema) e 0002 (elenco iniziale, reversibile). Nessun effetto sull'assistente finché non arriva la fase B2 (`OLLAMA_RAG_GLOSSARIO_ENABLED`).
 - **B2 (10/2026)**: glossario nella ricerca dell'assistente, spento di default (`OLLAMA_RAG_GLOSSARIO_ENABLED`). Sezione «Parole comuni» e comando `glossario_varianti_comuni`.
+- **09/10/2026**: deployato in produzione (flag spento). Fix della 0002 su SQL Server con collation `Latin1_General_CI_AS` (chiave delle varianti in collation binaria). Pagina **Guida** (`/glossario/guida/`), nessuna migrazione.

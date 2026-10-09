@@ -253,6 +253,15 @@ class ViewsTests(TestCase):
         resp = self.client.get(reverse("glossario_tecnico:index") + "?q=spot face")
         self.assertContains(resp, "lamatura")  # trovata via variante del seed
 
+    def test_guida_gestore_vede_sezioni_revisione(self):
+        resp = self.client.get(reverse("glossario_tecnico:guida"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "{#")
+        self.assertContains(resp, 'id="revisione"')
+        self.assertContains(resp, 'id="proposte"')
+        self.assertContains(resp, "Gergo d&#x27;officina")
+        self.assertContains(self.client.get(reverse("glossario_tecnico:index")), reverse("glossario_tecnico:guida"))
+
     def test_variante_htmx_e_conflitto(self):
         url = reverse("glossario_tecnico:variante_aggiungi", args=[self.t.pk])
         resp = self.client.post(url, {"testo": "lamatura sintetica en", "tipo": "traduzione", "lingua": "en"})
@@ -326,6 +335,12 @@ class AclTests(TestCase):
             # la consultazione resta permessa
             self.assertEqual(self.client.get(reverse("glossario_tecnico:index")).status_code, 200)
             self.assertNotEqual(self.client.get(reverse("glossario_tecnico:revisione")).status_code, 200)
+            # la guida è per tutti, ma senza le sezioni di gestione
+            guida = self.client.get(reverse("glossario_tecnico:guida"))
+            self.assertEqual(guida.status_code, 200)
+            self.assertContains(guida, 'id="cercare"')
+            self.assertNotContains(guida, 'id="revisione"')
+            self.assertNotContains(guida, 'id="import"')
         self.t.refresh_from_db()
         self.assertEqual(self.t.stato, "bozza")
 
@@ -346,4 +361,7 @@ class AclTests(TestCase):
         self.assertTrue(PermissionDefinition.objects.filter(code=PERM_GESTIONE).exists())
         self.assertEqual(
             RoutePermissionBinding.objects.get(route_name="glossario_tecnico:api_stato").permission_id, PERM_GESTIONE,
+        )
+        self.assertEqual(
+            RoutePermissionBinding.objects.get(route_name="glossario_tecnico:guida").permission_id, PERM_VIEW,
         )

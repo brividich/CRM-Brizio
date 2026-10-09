@@ -103,6 +103,20 @@ def index(request):
 
 
 @login_required
+def guida(request):
+    """Guida d'uso: consultazione per tutti, lavoro di revisione per chi gestisce."""
+    if not _has_perm(request, PERM_VIEW):
+        return _nega(request, "Non hai accesso al glossario tecnico.")
+    return render(request, "glossario_tecnico/pages/guida.html", {
+        "page_title": "Glossario — guida",
+        "puo_gestire": _has_perm(request, PERM_GESTIONE),
+        "categorie": Termine.CATEGORIE,
+        "tipi_variante": Variante.TIPI,
+        "soglia_comune": round(services.SOGLIA_PAROLA_COMUNE * 100),
+    })
+
+
+@login_required
 def termine(request, pk: int):
     if not _has_perm(request, PERM_VIEW):
         return _nega(request, "Non hai accesso al glossario tecnico.")

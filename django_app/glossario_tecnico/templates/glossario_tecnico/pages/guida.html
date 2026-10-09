@@ -1,0 +1,188 @@
+{% extends "core/base.html" %}
+{% block title %}Guida — Glossario tecnico{% endblock %}
+{% block extra_head %}{% include "glossario_tecnico/components/_styles.html" %}
+<style>
+.gl-guida{max-width:980px}
+.gl-guida h2{margin-top:0}
+.gl-guida h3{margin:18px 0 6px;font-size:var(--fs-md)}
+.gl-guida p,.gl-guida li{color:var(--text-mid);font-size:var(--fs-sm);line-height:var(--lh-base)}
+.gl-guida ol,.gl-guida ul{margin:6px 0 10px;padding-left:22px}
+.gl-guida li{margin:4px 0}
+.gl-guida strong{color:var(--text)}
+.gl-guida code{overflow-wrap:anywhere;padding:1px 6px;border-radius:6px;background:var(--surface-soft);border:1px solid var(--border);color:var(--text)}
+.gl-toc{display:flex;flex-wrap:wrap;gap:6px}
+.gl-toc a{display:inline-flex;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface-soft);color:var(--text);font-size:var(--fs-xs);text-decoration:none}
+.gl-toc a:hover{border-color:var(--primary-mid);color:var(--primary-mid)}
+.gl-nota{margin:10px 0;padding:10px 12px;border-left:4px solid var(--primary-mid);border-radius:8px;background:var(--surface-soft);color:var(--text-mid);font-size:var(--fs-sm)}
+.gl-nota.warn{border-left-color:var(--warning)}
+.gl-esempi{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:8px 0}
+.gl-esempi div{padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:var(--fs-sm);color:var(--text-mid)}
+.gl-esempi div b{color:var(--text)}
+</style>{% endblock %}
+{% block content %}<div class="rc-wrap gl-guida">
+<a class="rc-back" href="{% url 'glossario_tecnico:index' %}">← Glossario tecnico</a>
+<div class="page-header"><div><h1>Guida al glossario tecnico</h1><p class="page-sub">Come si consulta, come lo usa l'assistente AI{% if puo_gestire %} e come si cura il contenuto (Qualità e Ufficio tecnico){% endif %}.</p></div></div>
+
+<nav class="rc-card sg-section gl-toc" aria-label="Indice della guida">
+  <a href="#a-cosa-serve">A cosa serve</a>
+  <a href="#cercare">Cercare un termine</a>
+  <a href="#scheda">La scheda del termine</a>
+  <a href="#stati">Bozza, validato, deprecato</a>
+  <a href="#varianti">Le varianti</a>
+  <a href="#assistente">Glossario e assistente AI</a>
+  {% if puo_gestire %}<a href="#revisione">Validare le bozze</a>
+  <a href="#modificare">Inserire e correggere</a>
+  <a href="#parole-comuni">Parole comuni</a>
+  <a href="#proposte">Proposte dell'AI</a>
+  <a href="#checklist">Prima di validare</a>
+  <a href="#import">Import da CSV</a>{% endif %}
+  <a href="#domande">Domande frequenti</a>
+</nav>
+
+<section class="rc-card sg-section" id="a-cosa-serve"><h2>A cosa serve</h2>
+<p>Il glossario raccoglie i termini tecnici che usiamo ogni giorno: <strong>lavorazioni, quotatura, tolleranze dimensionali e geometriche, rugosità, filettature, trattamenti, materiali, controlli qualità e sigle del sistema di gestione</strong>. Per ogni termine dà una definizione scritta con parole nostre e tutti i modi in cui lo stesso concetto viene chiamato: sinonimi, gergo d'officina, sigle, simboli a disegno, traduzione inglese.</p>
+<p>Serve a due cose:</p>
+<ul>
+  <li><strong>Alle persone</strong>: capire una sigla o un simbolo letto su un disegno, un capitolato o una procedura, e trovarne il nome corretto anche in inglese.</li>
+  <li><strong>All'assistente AI</strong>: riconoscere che «lamatura», «spot face» e il simbolo ⌴ sono la stessa cosa, e quindi trovare la procedura giusta anche quando la domanda usa parole diverse da quelle del documento.</li>
+</ul>
+</section>
+
+<section class="rc-card sg-section" id="cercare"><h2>Cercare un termine</h2>
+<ol>
+  <li>Apri <strong>Glossario tecnico</strong> dal menu in alto.</li>
+  <li>Scrivi nel campo <strong>Cerca</strong> quello che hai letto: il nome, un sinonimo, il gergo, la sigla o il simbolo. Maiuscole, accenti e spazi doppi non contano.</li>
+  <li>Se serve, restringi con <strong>Categoria</strong> (es. «Tolleranze geometriche (GD&amp;T)») e con <strong>Mostra</strong>.</li>
+  <li>Premi <strong>Filtra</strong> e apri il termine che ti interessa.</li>
+</ol>
+<div class="gl-esempi">
+  <div>Cerchi <b>spot face</b> → trovi <b>lamatura</b></div>
+  <div>Cerchi <b>⌴</b> → trovi <b>lamatura</b></div>
+  <div>Cerchi <b>FAI</b> → trovi <b>ispezione del primo articolo</b></div>
+  <div>Cerchi <b>planarita</b> (senza accento) → trovi <b>planarità</b></div>
+</div>
+<p>Il filtro <strong>Mostra</strong> parte da «Validati e bozze». Con «Solo validati» vedi solo i termini già verificati dalla Qualità; «Deprecati» mostra quelli ritirati.</p>
+<p>Le categorie sono: {% for c, label in categorie %}{{ label }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+</section>
+
+<section class="rc-card sg-section" id="scheda"><h2>La scheda del termine</h2>
+<ul>
+  <li><strong>Definizione</strong>: cosa significa, in breve e con parole nostre.</li>
+  <li><strong>Simbolo</strong> ed <strong>Esempio a disegno</strong>: come compare su un disegno (es. <code>⌴ ⌀12 ↧2</code>).</li>
+  <li><strong>Norma</strong>: solo il riferimento (es. «ISO 1101»), mai il testo della norma.</li>
+  <li><strong>Stato</strong>: bozza, validato o deprecato, con chi l'ha validato e quando.</li>
+  <li><strong>Origine</strong>: elenco iniziale, inserito a mano, proposta AI accettata o import da file.</li>
+  <li><strong>Assistente</strong>: dice se il termine viene usato dall'assistente AI quando è validato.</li>
+  <li><strong>Varianti</strong>: l'elenco a destra con tutti gli altri modi di chiamarlo.</li>
+</ul>
+</section>
+
+<section class="rc-card sg-section" id="stati"><h2>Bozza, validato, deprecato</h2>
+<ul>
+  <li><span class="sg-badge warn">Bozza</span> — il termine è stato inserito ma <strong>nessuno l'ha ancora verificato</strong>. Si può leggere, ma va preso con cautela. L'assistente AI <strong>non</strong> lo usa.</li>
+  <li><span class="sg-badge ok">Validato</span> — la Qualità (o l'Ufficio tecnico) ha controllato definizione e varianti. È il solo stato che l'assistente AI usa.</li>
+  <li><span class="sg-badge">Deprecato</span> — il termine è stato ritirato (doppione, errato, non più in uso). Resta visibile con il filtro «Deprecati» ma non viene più usato.</li>
+</ul>
+<div class="gl-nota">Regola di fondo: <strong>l'AI propone, una persona firma</strong>. Niente entra nell'assistente senza la validazione di una persona.</div>
+</section>
+
+<section class="rc-card sg-section" id="varianti"><h2>Le varianti</h2>
+<p>Una variante è un altro modo di indicare lo stesso termine. Tipi disponibili:</p>
+<div class="sg-table-scroll"><table class="sg-table" data-fm-hide-controls="1" data-fm-hide-search="1"><thead><tr><th>Tipo</th><th>Esempio</th></tr></thead><tbody>
+{% for codice, label in tipi_variante %}<tr><td>{{ label }}</td><td>{% if codice == 'sinonimo' %}«rotondità» per circolarità{% elif codice == 'gergo' %}il nome che si usa in reparto, anche se non è quello da disegno{% elif codice == 'abbreviazione' %}«FAI», «MMC»{% elif codice == 'simbolo' %}⌴, ⌀, ⊥{% elif codice == 'traduzione' %}«spot face», «flatness»{% else %}un errore di battitura frequente, per ritrovarlo comunque{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+<p><strong>Una variante appartiene a un solo termine.</strong> Se provi ad aggiungere a un termine una variante già usata da un altro, il portale lo blocca e ti dice quale termine la usa già: così l'assistente non confonde due concetti diversi.</p>
+</section>
+
+<section class="rc-card sg-section" id="assistente"><h2>Glossario e assistente AI</h2>
+<p>Quando l'uso del glossario nell'assistente è attivo (lo attiva l'amministratore del portale, dopo la validazione dei termini principali), succedono tre cose:</p>
+<ol>
+  <li><strong>Le varianti diventano la stessa parola.</strong> Se chiedi «come si fa uno spot face?», l'assistente cerca anche «lamatura» e ⌴ nelle procedure.</li>
+  <li><strong>Le quote non si perdono.</strong> Indicazioni come <code>⌀20 H7</code>, <code>M8x1,25</code> o <code>Ra 0,8</code> vengono riconosciute come un tutt'uno, anche se sono corte.</li>
+  <li><strong>Le definizioni validate diventano conoscenza dell'assistente</strong>, che può citarle come fonte («Glossario — <em>nome del termine</em>»). Le note interne non arrivano mai all'assistente.</li>
+</ol>
+<p>Usa solo i termini <strong>validati</strong> con «Usa nell'assistente» attivo. Ogni modifica (validazione, nuova variante, deprecazione) arriva all'assistente <strong>entro pochi minuti</strong>, senza dover reindicizzare i documenti.</p>
+<div class="gl-nota">Finché l'uso nell'assistente è spento, il glossario è solo da consultare: puoi validare e correggere senza alcun effetto sulle risposte dell'AI.</div>
+</section>
+
+{% if puo_gestire %}
+<section class="rc-card sg-section" id="revisione"><h2>Validare le bozze (Qualità / Ufficio tecnico)</h2>
+<p>Questa parte della guida la vede solo chi ha il permesso di gestione del glossario.</p>
+<ol>
+  <li>Apri <strong>Da rivedere</strong> (pulsante in alto nella pagina del glossario). Il numero tra parentesi conta bozze e proposte AI in attesa.</li>
+  <li>Nella sezione <strong>Bozze da validare</strong> leggi definizione e varianti di ogni termine.</li>
+  <li>Scegli:
+    <ul>
+      <li><strong>Valida</strong> — è tutto corretto. Il termine diventa validato, a tuo nome e con la data.</li>
+      <li><strong>Correggi</strong> — apre la modifica: sistema definizione, categoria, termine inglese, simbolo, poi torna indietro e valida dalla scheda.</li>
+      <li><strong>Scarta</strong> — il termine è errato o doppione: diventa deprecato.</li>
+    </ul>
+  </li>
+  <li>Per le varianti apri la scheda del termine: le aggiungi o le togli dal riquadro <strong>Varianti</strong> a destra.</li>
+</ol>
+<div class="gl-nota"><strong>Da dove partire.</strong> Le bozze iniziali sono circa 85. Conviene validare per primi i circa 20 termini più usati: i simboli GD&amp;T (planarità, localizzazione, perpendicolarità…), le lavorazioni più comuni (lamatura, svasatura, alesatura…) e le sigle SGI (FAI, NC, RDC…). Usa <strong>Mostra: Solo bozze</strong> più il filtro <strong>Categoria</strong> per lavorare un blocco alla volta.</div>
+</section>
+
+<section class="rc-card sg-section" id="modificare"><h2>Inserire, correggere, ritirare</h2>
+<h3>Nuovo termine</h3>
+<ol>
+  <li>Dalla pagina del glossario premi <strong>Nuovo termine</strong>.</li>
+  <li>Compila almeno <strong>termine</strong>, <strong>categoria</strong> e <strong>definizione</strong>. Il resto (inglese, simbolo, esempio a disegno, norma, note interne) è facoltativo ma utile.</li>
+  <li>Salva: si apre la scheda, dove aggiungi le varianti.</li>
+</ol>
+<p>Lo stesso termine non può esistere due volte nella stessa categoria (maiuscole e minuscole non contano); in categorie diverse sì, ad esempio «passo» in Filettatura e in Quotatura.</p>
+<h3>Correggere</h3>
+<p>Dalla scheda premi <strong>Modifica</strong>. Le <strong>Note interne</strong> le vede solo chi gestisce il glossario: usale per dubbi, fonti o motivazioni.</p>
+<h3>Ritirare</h3>
+<p>I termini non si cancellano: si <strong>deprecano</strong> (pulsante <strong>Depreca</strong> nella scheda). Così resta traccia di cosa c'era e di chi l'ha ritirato. Un termine deprecato si può rivalidare in qualsiasi momento.</p>
+</section>
+
+<section class="rc-card sg-section" id="parole-comuni"><h2>«Usa nell'assistente» e parole comuni</h2>
+<p>Alcune varianti sono parole molto generiche (es. «posizione», «passo»): compaiono in tantissimi documenti e all'assistente servono poco, anzi possono avvicinare procedure che non c'entrano.</p>
+<ol>
+  <li>In <strong>Da rivedere</strong> guarda la sezione <strong>Parole comuni</strong>: elenca le varianti presenti in più del {{ soglia_comune }}% dei brani dei documenti SGI, con l'etichetta «parola comune: valutare usa_nel_rag».</li>
+  <li>Per ognuna decidi: se la parola da sola è ambigua, apri <strong>Modifica termine</strong> e togli la spunta <strong>Usa nell'assistente</strong>, oppure elimina solo quella variante dalla scheda.</li>
+  <li>Se invece la parola è importante e non ambigua, lasciala com'è.</li>
+</ol>
+<p>Nessuna esclusione è automatica: decide sempre una persona. L'elenco si aggiorna quando l'amministratore ricalcola le parole comuni, dopo l'indicizzazione dei documenti.</p>
+</section>
+
+<section class="rc-card sg-section" id="proposte"><h2>Proposte dell'AI</h2>
+<p>Il portale cerca nei documenti SGI le espressioni che ricorrono in più documenti e non sono ancora nel glossario, e chiede all'AI di proporre termine, categoria, definizione e varianti. Le proposte arrivano in <strong>Da rivedere › Proposte dell'AI</strong>.</p>
+<ul>
+  <li><strong>Accetta</strong> — crea il termine così com'è, già validato a tuo nome.</li>
+  <li><strong>Correggi</strong> — apre la proposta in un modulo: sistemala e conferma. Il termine viene creato con le tue correzioni.</li>
+  <li><strong>Scarta</strong> — la proposta non serve.</li>
+</ul>
+<p>Ogni decisione (accettata, corretta, scartata) viene registrata e <strong>guida le proposte successive</strong>: l'AI impara dalle scelte della Qualità. Le proposte le avvia l'amministratore, non partono da sole.</p>
+<div class="gl-nota warn">Accettare una proposta equivale a validarla: leggila con la stessa attenzione di una bozza.</div>
+</section>
+
+<section class="rc-card sg-section" id="checklist"><h2>Prima di validare: cosa controllare</h2>
+<ol>
+  <li><strong>Definizione</strong> corretta, breve, scritta con parole nostre. Non copiare il testo di norme, capitolati o documenti dei clienti.</li>
+  <li><strong>Categoria</strong> giusta: è quella che la gente userà per filtrare.</li>
+  <li><strong>Termine inglese</strong> presente se il termine compare su disegni o capitolati in inglese.</li>
+  <li><strong>Simbolo</strong> ed <strong>esempio a disegno</strong> corretti (per GD&amp;T, quotatura e lavorazioni).</li>
+  <li><strong>Norma</strong>: solo il codice (es. «ISO 1101»).</li>
+  <li><strong>Varianti</strong>: ci sono il gergo d'officina e le sigle davvero usate? C'è qualche variante ambigua da togliere?</li>
+  <li><strong>Usa nell'assistente</strong>: lascialo attivo, a meno che il termine sia troppo generico.</li>
+</ol>
+</section>
+
+<section class="rc-card sg-section" id="import"><h2>Import da CSV (amministratore)</h2>
+<p>Per caricare molti termini insieme l'amministratore usa il comando <code>glossario_import_csv</code>: file UTF-8 con separatore <code>;</code> e colonne <code>termine;termine_en;categoria;definizione;simbolo;norma_rif;varianti</code>. Le varianti sono separate da <code>|</code> nel formato <code>tipo:testo</code> (es. <code>traduzione:spot face|simbolo:⌴</code>). Le righe importate entrano <strong>in bozza</strong>: vanno validate come le altre.</p>
+</section>
+{% endif %}
+
+<section class="rc-card sg-section" id="domande"><h2>Domande frequenti</h2>
+<h3>Non trovo un termine: cosa faccio?</h3>
+<p>Prova con un sinonimo, la sigla, il simbolo o il termine inglese, e togli i filtri. Se non c'è, segnalalo alla Qualità{% if puo_gestire %} o inseriscilo con <strong>Nuovo termine</strong>{% endif %}.</p>
+<h3>Una definizione è sbagliata.</h3>
+<p>{% if puo_gestire %}Correggila con <strong>Modifica</strong> e annota il motivo nelle note interne.{% else %}Segnalalo alla Qualità: può correggerla chi gestisce il glossario.{% endif %}</p>
+<h3>Posso fidarmi di un termine in bozza?</h3>
+<p>Con cautela: non è ancora stato verificato. I termini validati riportano chi li ha validati e quando.</p>
+<h3>L'assistente AI usa già il glossario?</h3>
+<p>Solo se l'amministratore ha attivato l'opzione, e comunque solo con i termini validati. Fino ad allora le risposte dell'assistente non cambiano.</p>
+</section>
+</div>{% endblock %}
