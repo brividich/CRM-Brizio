@@ -3318,10 +3318,10 @@ def formazione_allegato_download(request, attachment_id: int):
         fh = att.file.open("rb")
     except FileNotFoundError:
         return HttpResponse("File non trovato sul server.", status=404)
-    resp = FileResponse(fh, as_attachment=True, filename=att.nome_originale or f"allegato_{att.pk}.bin")
-    if att.tipo_mime:
-        resp["Content-Type"] = att.tipo_mime
-    return resp
+    filename = att.nome_originale or f"allegato_{att.pk}.bin"
+    resp = FileResponse(fh, as_attachment=True, filename=filename)
+    from core.download_security import harden_file_response
+    return harden_file_response(resp, filename, inline=False)
 
 
 @login_required
@@ -11406,10 +11406,12 @@ def documento_dipendente_download(request, doc_id: int):
         fh = doc.file.open("rb")
     except FileNotFoundError:
         return HttpResponse("File non trovato sul server.", status=404)
-    response = FileResponse(fh, as_attachment=False, filename=doc.nome_originale or f"documento_{doc.pk}.bin")
-    if doc.tipo_mime:
-        response["Content-Type"] = doc.tipo_mime
-    return response
+    filename = doc.nome_originale or f"documento_{doc.pk}.bin"
+    response = FileResponse(fh, as_attachment=False, filename=filename)
+    # SEC (audit A8): Content-Type dal nome file lato server, mai da doc.tipo_mime
+    # (dichiarato dal client); inline solo PDF/immagini, il resto come allegato.
+    from core.download_security import harden_file_response
+    return harden_file_response(response, filename, inline=True)
 
 
 @login_required
@@ -14424,10 +14426,10 @@ def formazione_ente_documento_download(request, documento_id: int):
         fh = doc.file.open("rb")
     except FileNotFoundError:
         return HttpResponse("File non trovato sul server.", status=404)
-    resp = FileResponse(fh, as_attachment=True, filename=doc.nome_originale or f"documento_{doc.pk}.bin")
-    if doc.tipo_mime:
-        resp["Content-Type"] = doc.tipo_mime
-    return resp
+    filename = doc.nome_originale or f"documento_{doc.pk}.bin"
+    resp = FileResponse(fh, as_attachment=True, filename=filename)
+    from core.download_security import harden_file_response
+    return harden_file_response(resp, filename, inline=False)
 
 
 # ── Espansione della tabella corsi: corso → edizioni → lezioni ───────────────

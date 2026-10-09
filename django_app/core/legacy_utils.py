@@ -315,6 +315,18 @@ def _pick_candidate_user(User, legacy_user: UtenteLegacy):
                     legacy_id,
                 )
                 continue
+            if existing_profile is None and (existing_user.is_superuser or existing_user.is_staff):
+                # SEC (audit A3): un account privilegiato senza Profile non viene mai
+                # agganciato in automatico a un utente legacy trovato per email/nome:
+                # basterebbe creare un utente legacy omonimo e impersonarlo per
+                # ereditare il superuser. Il collegamento va fatto a mano.
+                logger.warning(
+                    "sync_django_user_from_legacy: skip privileged username=%s user_id=%s requested_legacy=%s",
+                    candidate,
+                    existing_user.id,
+                    legacy_id,
+                )
+                continue
             return existing_user
 
     fallback_user = User(username=fallback_base)

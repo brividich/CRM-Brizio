@@ -6140,6 +6140,39 @@ def utente_force_change_password(request, user_id: int):
     return redirect(next_url)
 
 
+def _acting_is_superuser(request) -> bool:
+    """True se chi ha fatto login (non l'eventuale utente impersonato) e' superuser."""
+    real_user = getattr(request, "impersonator_user", None) or request.user
+    return bool(getattr(real_user, "is_superuser", False))
+
+
+def _django_user_is_privileged(django_user) -> bool:
+    if django_user is None:
+        return False
+    if getattr(django_user, "is_superuser", False) or getattr(django_user, "is_staff", False):
+        return True
+    try:
+        from core.legacy_utils import is_legacy_admin
+
+        return bool(is_legacy_admin(get_legacy_user(django_user)))
+    except Exception:
+        return False
+
+
+def _legacy_user_is_privileged(legacy_user: UtenteLegacy) -> bool:
+    """Utente legacy amministratore o collegato a un account Django privilegiato."""
+    try:
+        from core.legacy_utils import is_legacy_admin
+
+        if is_legacy_admin(legacy_user):
+            return True
+    except Exception:
+        return True  # fail-closed
+    profile = Profile.objects.select_related("user").filter(legacy_user_id=legacy_user.id).first()
+    user = profile.user if profile else None
+    return bool(user and (user.is_superuser or user.is_staff))
+
+
 @legacy_admin_required
 @csrf_protect
 @require_POST
@@ -6158,6 +6191,15 @@ def utente_impersonate(request, user_id: int):
 
     if admin_user and int(target_user.id) == int(admin_user.id):
         messages.info(request, "Sei gia' autenticato come questo utente.")
+        return redirect(next_url)
+
+    # SEC (audit A1): solo un superuser puo' impersonare un amministratore.
+    if not _acting_is_superuser(request) and _legacy_user_is_privileged(target_user):
+        _audit_safe(request, "impersonation_denied", "admin_portale", {
+            "target_legacy_user_id": int(target_user.id),
+            "reason": "target_privileged",
+        })
+        messages.error(request, "Non puoi impersonare un amministratore.")
         return redirect(next_url)
 
     context = start_impersonation(request, target_user)
@@ -11690,6 +11732,20 @@ def api_twofa_policy_save(request: HttpRequest):
     return redirect(reverse("admin_portale:twofa_config"))
 
 
+def _twofa_target_forbidden(request, target_user) -> JsonResponse | None:
+    """SEC (audit A1): il 2FA di un account privilegiato lo gestisce solo un superuser."""
+    if _acting_is_superuser(request) or not _django_user_is_privileged(target_user):
+        return None
+    _audit_safe(request, "twofa_user_change_denied", "twofa", {
+        "target_user": target_user.username,
+        "path": request.path,
+    })
+    return JsonResponse(
+        {"ok": False, "error": "Solo un superuser puo' modificare il 2FA di un amministratore."},
+        status=403,
+    )
+
+
 @legacy_admin_required
 @csrf_protect
 @require_POST
@@ -11699,6 +11755,9 @@ def api_twofa_user_toggle(request: HttpRequest, user_id: int):
 
     User = get_user_model()
     target_user = get_object_or_404(User, pk=user_id)
+    forbidden = _twofa_target_forbidden(request, target_user)
+    if forbidden is not None:
+        return forbidden
     u2f, _ = UserTwoFactor.objects.get_or_create(user=target_user)
     u2f.is_active = not u2f.is_active
     u2f.save(update_fields=["is_active"])
@@ -11719,6 +11778,9 @@ def api_twofa_user_reset(request: HttpRequest, user_id: int):
 
     User = get_user_model()
     target_user = get_object_or_404(User, pk=user_id)
+    forbidden = _twofa_target_forbidden(request, target_user)
+    if forbidden is not None:
+        return forbidden
     try:
         u2f = target_user.twofa
         u2f.totp_secret_enc = ""
@@ -11742,6 +11804,9 @@ def api_twofa_user_method_set(request: HttpRequest, user_id: int):
 
     User = get_user_model()
     target_user = get_object_or_404(User, pk=user_id)
+    forbidden = _twofa_target_forbidden(request, target_user)
+    if forbidden is not None:
+        return forbidden
     method = (request.POST.get("method") or "").strip()
     if method not in ("totp", "email"):
         return JsonResponse({"ok": False, "error": "Metodo non valido."}, status=400)
@@ -11772,6 +11837,9 @@ def api_twofa_user_email_set(request: HttpRequest, user_id: int):
 
     User = get_user_model()
     target_user = get_object_or_404(User, pk=user_id)
+    forbidden = _twofa_target_forbidden(request, target_user)
+    if forbidden is not None:
+        return forbidden
     email = (request.POST.get("email_override") or "").strip()
     if email:
         try:

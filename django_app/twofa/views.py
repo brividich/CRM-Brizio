@@ -43,11 +43,63 @@ def _get_next(request) -> str:
     return stored or reverse("dashboard_home")
 
 
+def _real_user(request):
+    """Utente che ha fatto login: durante l'impersonazione è l'admin, non il target.
+
+    Il 2FA protegge la sessione di chi si è autenticato (audit A1): la verifica e
+    l'enrollment non devono mai agire sul fattore dell'utente impersonato.
+    """
+    return getattr(request, "impersonator_user", None) or request.user
+
+
+def _has_established_factor(u2f) -> bool:
+    """True se l'utente ha già un secondo fattore attivo e confermato.
+
+    In questo caso l'enrollment self-service di un nuovo TOTP non è ammesso
+    (audit C1): sostituirlo con la sola password azzererebbe il 2FA. La
+    sostituzione passa dal reset admin (``force_setup``).
+    """
+    if u2f is None or getattr(u2f, "pk", None) is None:
+        return False
+    if not u2f.is_active or u2f.force_setup:
+        return False
+    if u2f.method == "totp":
+        return bool(u2f.totp_confirmed and u2f.totp_secret_enc)
+    return True  # metodo email configurato
+
+
+def _notify_totp_enrolled(user) -> None:
+    """Avvisa l'utente che sul suo account è stato registrato un autenticatore."""
+    recipient = (getattr(user, "email", "") or "").strip()
+    if not recipient:
+        return
+    try:
+        from django.conf import settings
+        from core.email_utils import send_hub_mail
+
+        portal_name = getattr(settings, "INSTANCE_NAME", "NOVICROM HUB")
+        send_hub_mail(
+            f"[{portal_name}] Nuovo autenticatore registrato",
+            (
+                f"Sul tuo account {portal_name} è stata appena configurata un'app Authenticator "
+                "per l'autenticazione a due fattori.\n\n"
+                "Se non sei stato tu, avvisa subito l'amministratore del portale."
+            ),
+            [recipient],
+            title="Nuovo autenticatore registrato",
+            email_type="Accesso",
+            footer_note="Messaggio automatico di sicurezza.",
+            fail_silently=True,
+        )
+    except Exception:
+        logger.warning("2FA: notifica enrollment TOTP non inviata a %s", recipient, exc_info=True)
+
+
 @never_cache
 @login_required(login_url="login")
 def verify(request):
     """Pagina di verifica 2FA. Accessibile solo se twofa_pending in sessione."""
-    user = request.user
+    user = _real_user(request)
 
     if not request.session.get("twofa_pending") and not should_require_2fa(request, user):
         return redirect(_get_next(request))
@@ -162,14 +214,33 @@ def verify(request):
 @login_required(login_url="login")
 @require_http_methods(["GET", "POST"])
 def setup_totp(request):
-    """Configurazione TOTP self-service (QR code + conferma primo codice)."""
-    user = request.user
+    """Configurazione TOTP self-service (QR code + conferma primo codice).
+
+    Ammessa solo per il primo enrollment o dopo un reset admin (``force_setup``).
+    Con un fattore già attivo la richiesta viene rimandata alla verifica.
+    """
+    user = _real_user(request)
 
     try:
         u2f = user.twofa
     except Exception:
         from twofa.models import UserTwoFactor
         u2f = UserTwoFactor(user=user, method="totp")
+
+    if _has_established_factor(u2f):
+        request.session.pop("twofa_totp_setup_secret", None)
+        try:
+            from core.audit import log_action
+            log_action(request, "2fa_totp_setup_denied", "twofa", {"method": u2f.method})
+        except Exception:
+            pass
+        if is_2fa_verified(request):
+            messages.info(
+                request,
+                "Il secondo fattore è già configurato. Per sostituire l'autenticatore chiedi un reset all'amministratore.",
+            )
+            return redirect(_get_next(request))
+        return redirect(reverse("twofa:verify"))
 
     # Usa secret già generato in sessione o ne crea uno nuovo
     pending_secret = request.session.get("twofa_totp_setup_secret")
@@ -204,6 +275,7 @@ def setup_totp(request):
                     log_action(request, "2fa_totp_setup", "twofa")
                 except Exception:
                     pass
+                _notify_totp_enrolled(user)
 
                 messages.success(request, "Autenticazione a due fattori configurata correttamente.")
                 next_url = _get_next(request)
@@ -230,7 +302,7 @@ def setup_totp(request):
 @require_http_methods(["POST"])
 def resend_otp(request):
     """Reinvia OTP email (AJAX/POST)."""
-    user = request.user
+    user = _real_user(request)
     try:
         u2f = user.twofa
         if u2f.method != "email":

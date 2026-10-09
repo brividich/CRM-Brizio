@@ -1177,6 +1177,28 @@ class LegacySyncHardeningTests(TestCase):
         self.assertEqual(Profile.objects.get(user=locked_user).legacy_user_id, 999)
         self.assertEqual(Profile.objects.get(user=synced_user).legacy_user_id, legacy_user.id)
 
+    def test_sync_never_links_privileged_user_without_profile(self):
+        """Audit A3: un utente legacy omonimo non eredita un superuser senza Profile."""
+        User = get_user_model()
+        superuser = User.objects.create_superuser(username="admin", password="pass12345", email="")
+
+        legacy_user = UtenteLegacy(
+            id=1002,
+            nome="Admin",
+            email="",
+            password="ignored",
+            ruolo="utente",
+            attivo=True,
+            deve_cambiare_password=False,
+            ruolo_id=2,
+        )
+
+        synced_user = sync_django_user_from_legacy(legacy_user)
+
+        self.assertNotEqual(synced_user.id, superuser.id)
+        self.assertFalse(synced_user.is_superuser)
+        self.assertFalse(Profile.objects.filter(user=superuser).exists())
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class ImpersonationFlowTests(TestCase):
@@ -1242,6 +1264,66 @@ class ImpersonationFlowTests(TestCase):
         stop_log = AuditLog.objects.get(azione="impersonation_stop")
         self.assertEqual(stop_log.legacy_user_id, self.admin_legacy.id)
         self.assertEqual(stop_log.dettaglio["target_legacy_user_id"], self.target_legacy.id)
+
+    def _insert_second_admin(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO utenti (id, nome, email, password, ruolo, attivo, deve_cambiare_password, ruolo_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                [300, "Altro Admin", "admin2@example.local", "x", "admin", True, False, 1],
+            )
+        return UtenteLegacy.objects.get(id=300)
+
+    def test_legacy_admin_cannot_impersonate_other_admin(self):
+        """Audit A1: un admin legacy non superuser non impersona un amministratore."""
+        other_admin = self._insert_second_admin()
+        self.client.force_login(self.admin_user)
+
+        response = self.client.post(
+            reverse("admin_portale:utente_impersonate", args=[other_admin.id]),
+            {"next": reverse("profilo")},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn(IMPERSONATION_SESSION_KEY, self.client.session)
+        self.assertTrue(AuditLog.objects.filter(azione="impersonation_denied").exists())
+
+    def test_superuser_can_impersonate_admin(self):
+        other_admin = self._insert_second_admin()
+        self.admin_user.is_superuser = True
+        self.admin_user.save(update_fields=["is_superuser"])
+        self.client.force_login(self.admin_user)
+
+        self.client.post(
+            reverse("admin_portale:utente_impersonate", args=[other_admin.id]),
+            {"next": reverse("profilo")},
+        )
+
+        self.assertEqual(self.client.session[IMPERSONATION_SESSION_KEY]["target_legacy_user_id"], other_admin.id)
+
+    def test_legacy_admin_cannot_change_2fa_of_superuser(self):
+        """Audit A1: toggle/reset/metodo/email 2FA di un superuser solo da superuser."""
+        from twofa.models import UserTwoFactor
+
+        superuser = get_user_model().objects.create_superuser(username="root", password="pass12345", email="")
+        self.client.force_login(self.admin_user)
+
+        for name, data in (
+            ("admin_portale:api_twofa_user_toggle", {}),
+            ("admin_portale:api_twofa_user_reset", {}),
+            ("admin_portale:api_twofa_user_method_set", {"method": "email"}),
+            ("admin_portale:api_twofa_user_email_set", {"email_override": "x@example.local"}),
+        ):
+            response = self.client.post(reverse(name, args=[superuser.id]), data)
+            self.assertEqual(response.status_code, 403, name)
+        self.assertFalse(UserTwoFactor.objects.filter(user=superuser).exists())
+
+    def test_legacy_admin_can_change_2fa_of_regular_user(self):
+        self.client.force_login(self.admin_user)
+        response = self.client.post(reverse("admin_portale:api_twofa_user_toggle", args=[self.target_user.id]))
+        self.assertEqual(response.status_code, 200)
 
     def test_impersonated_user_cannot_open_admin_portale(self):
         self.client.force_login(self.admin_user)

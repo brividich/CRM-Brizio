@@ -206,31 +206,41 @@ def get_client_ip(request) -> str:
 
 # ── Logica policy ─────────────────────────────────────────────────────────────
 
+def is_privileged_account(user) -> bool:
+    """Superuser e staff Django: soggetti al 2FA anche senza Profile/ruolo legacy."""
+    return bool(getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+
+
 def should_require_2fa(request, user) -> bool:
     """True se l'utente deve completare il 2FA per questa richiesta."""
     from twofa.models import TwoFactorPolicy
 
+    privileged = is_privileged_account(user)
     try:
         policy = TwoFactorPolicy.get()
     except Exception:
-        return False
+        # SEC (audit A2): fail-closed per gli account privilegiati; per gli altri
+        # resta fail-open per non bloccare il portale su un errore di lettura.
+        logger.exception("2FA: impossibile leggere la policy")
+        return privileged
 
     if not policy.enabled:
         return False
 
-    # Controlla ruolo legacy
-    try:
-        from core.legacy_utils import get_legacy_user
-        legacy_user = get_legacy_user(user)
-    except Exception:
-        legacy_user = None
+    if not privileged:
+        # Controlla ruolo legacy
+        try:
+            from core.legacy_utils import get_legacy_user
+            legacy_user = get_legacy_user(user)
+        except Exception:
+            legacy_user = None
 
-    if legacy_user is None:
-        return False
+        if legacy_user is None:
+            return False
 
-    ruolo_id = getattr(legacy_user, "ruolo_id", None)
-    if ruolo_id is None or int(ruolo_id) not in [int(r) for r in (policy.required_role_ids or [])]:
-        return False
+        ruolo_id = getattr(legacy_user, "ruolo_id", None)
+        if ruolo_id is None or int(ruolo_id) not in [int(r) for r in (policy.required_role_ids or [])]:
+            return False
 
     # Controlla se disabilitato per questo utente
     try:
