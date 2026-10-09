@@ -189,6 +189,13 @@ def cambia_password(request):
                     log_action(request, "cambio_password", "core")
                 except Exception:
                     logger.warning("audit cambio_password non registrato", exc_info=True)
+                from core.security_notify import notify_security_event
+
+                notify_security_event(
+                    request.user,
+                    "Password cambiata",
+                    "La password del tuo account del portale è stata appena cambiata.",
+                )
                 messages.success(request, "Password aggiornata con successo.")
                 return redirect("dashboard_home")
     else:

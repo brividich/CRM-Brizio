@@ -298,3 +298,6 @@ docs/gestione_carichi_macchina/GUIDA_UTILIZZO.pdf
 /*.xls
 /*.xlsx
 /*.csv
+
+# Output temporanei del runserver locale (audit 09/10)
+.tmp_runserver_*.txt

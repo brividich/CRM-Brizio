@@ -201,6 +201,14 @@ Questo si applica anche a dict arbitrari passati al template (es. campi SharePoi
 
 ---
 
+## CI GitHub (audit sicurezza 09/10)
+
+- **Security Gate** (push/PR su `main`): `pip-audit` per primo (eccezioni solo con `--ignore-vuln <ID>` commentato e con scadenza), `check`, drift migrazioni, `validate_deployment`, test sentinella e test di regressione dell'audit. Job `diff-scan`: gitleaks sui commit nuovi, bandit solo sui problemi introdotti nei file modificati, ruff `BLE001`/`S110` sui file Python nuovi (niente `except Exception: pass` nel codice nuovo).
+- **Nightly full test suite**: tutta la suite (`manage.py test .` da `django_app/`, `--parallel auto`), inclusi i guardrail lenti di `core.test_security_audit_fase3` (route esenti dal login aperte agli anonimi, IDOR generico sulle route con id). Una nuova route pubblica va aggiunta a `PUBLIC_VIEWS` con il motivo.
+- Senza etichette `manage.py test` esegue solo `DEFAULT_TEST_LABELS` (core, tasks, attrezzature).
+
+---
+
 
 ## Setup ambiente sviluppo
 

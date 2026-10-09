@@ -72,29 +72,13 @@ def _has_established_factor(u2f) -> bool:
 
 def _notify_totp_enrolled(user) -> None:
     """Avvisa l'utente che sul suo account è stato registrato un autenticatore."""
-    recipient = (getattr(user, "email", "") or "").strip()
-    if not recipient:
-        return
-    try:
-        from django.conf import settings
-        from core.email_utils import send_hub_mail
+    from core.security_notify import notify_security_event
 
-        portal_name = getattr(settings, "INSTANCE_NAME", "NOVICROM HUB")
-        send_hub_mail(
-            f"[{portal_name}] Nuovo autenticatore registrato",
-            (
-                f"Sul tuo account {portal_name} è stata appena configurata un'app Authenticator "
-                "per l'autenticazione a due fattori.\n\n"
-                "Se non sei stato tu, avvisa subito l'amministratore del portale."
-            ),
-            [recipient],
-            title="Nuovo autenticatore registrato",
-            email_type="Accesso",
-            footer_note="Messaggio automatico di sicurezza.",
-            fail_silently=True,
-        )
-    except Exception:
-        logger.warning("2FA: notifica enrollment TOTP non inviata a %s", recipient, exc_info=True)
+    notify_security_event(
+        user,
+        "Nuovo autenticatore registrato",
+        "Sul tuo account è stata appena configurata un'app Authenticator per l'autenticazione a due fattori.",
+    )
 
 
 @never_cache

@@ -6227,6 +6227,14 @@ def utente_impersonate(request, user_id: int):
         messages.error(request, "Impossibile avviare l'impersonazione per questo utente.")
         return redirect(next_url)
 
+    from core.security_notify import notify_security_event
+
+    notify_security_event(
+        context["target_user"],
+        "Accesso al tuo account da parte di un amministratore",
+        "Un amministratore del portale ha appena iniziato a usare il tuo account in modalità "
+        "impersonazione (assistenza o verifica dei permessi). L'operazione è registrata nel log di audit.",
+    )
     log_action(
         request,
         "impersonation_start",
@@ -11783,6 +11791,12 @@ def api_twofa_policy_save(request: HttpRequest):
     return redirect(reverse("admin_portale:twofa_config"))
 
 
+def _notify_twofa_changed(target_user, message: str) -> None:
+    from core.security_notify import notify_security_event
+
+    notify_security_event(target_user, "Autenticazione a due fattori modificata", message)
+
+
 def _twofa_target_forbidden(request, target_user) -> JsonResponse | None:
     """SEC (audit A1): il 2FA di un account privilegiato lo gestisce solo un superuser."""
     if _acting_is_superuser(request) or not _django_user_is_privileged(target_user):
@@ -11817,6 +11831,7 @@ def api_twofa_user_toggle(request: HttpRequest, user_id: int):
         "is_active": u2f.is_active,
     })
     stato = "attivato" if u2f.is_active else "disattivato"
+    _notify_twofa_changed(target_user, f"L'autenticazione a due fattori del tuo account è stata {stato} da un amministratore.")
     return JsonResponse({"ok": True, "is_active": u2f.is_active, "msg": f"2FA {stato} per {target_user.username}."})
 
 
@@ -11843,6 +11858,11 @@ def api_twofa_user_reset(request: HttpRequest, user_id: int):
     # Invalida challenge email attivi
     TwoFactorChallenge.objects.filter(user=target_user, used=False).update(used=True)
     _audit_safe(request, "twofa_user_reset", "twofa", {"target_user": target_user.username})
+    _notify_twofa_changed(
+        target_user,
+        "Un amministratore ha reimpostato l'autenticazione a due fattori del tuo account: "
+        "al prossimo accesso dovrai configurarla di nuovo.",
+    )
     return JsonResponse({"ok": True, "msg": f"2FA reimpostato per {target_user.username}. Al prossimo accesso dovrà ri-configurarlo."})
 
 
@@ -11874,6 +11894,7 @@ def api_twofa_user_method_set(request: HttpRequest, user_id: int):
         "target_user": target_user.username,
         "method": method,
     })
+    _notify_twofa_changed(target_user, f"Il metodo di verifica a due fattori del tuo account è stato impostato su «{method}» da un amministratore.")
     return JsonResponse({"ok": True, "msg": f"Metodo 2FA aggiornato a «{method}» per {target_user.username}."})
 
 
@@ -11901,6 +11922,10 @@ def api_twofa_user_email_set(request: HttpRequest, user_id: int):
     u2f.email_override = email
     u2f.save(update_fields=["email_override"])
     _audit_safe(request, "twofa_user_email_set", "twofa", {"target_user": target_user.username, "email_override": email})
+    _notify_twofa_changed(
+        target_user,
+        "L'indirizzo a cui arrivano i codici di verifica del tuo account è stato cambiato da un amministratore.",
+    )
     return JsonResponse({"ok": True, "msg": "Email OTP aggiornata."})
 
 
