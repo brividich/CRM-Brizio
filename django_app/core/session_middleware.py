@@ -46,7 +46,11 @@ class SessionIdleTimeoutMiddleware:
     def __call__(self, request):
         path = request.path or "/"
         timeout_seconds = int(getattr(settings, "SESSION_IDLE_TIMEOUT_SECONDS", 0) or 0)
-        is_exempt = any(path.startswith(prefix) for prefix in self.exempt_prefixes)
+        # SEC (audit B1): confronto per segmenti come l'ACL: con startswith il
+        # prefisso "/check" esentava anche "/checklist-operativa/" dal timeout.
+        from core.middleware import _path_matches_prefixes
+
+        is_exempt = _path_matches_prefixes(path, tuple(self.exempt_prefixes))
         is_login_post = path.startswith("/login") and request.method == "POST"
 
         if timeout_seconds > 0 and request.user.is_authenticated and not is_exempt:
@@ -73,3 +77,36 @@ class SessionIdleTimeoutMiddleware:
         elif should_refresh_activity and self._should_write_activity(request, now_ts):
             request.session[self.SESSION_KEY] = now_ts
         return response
+
+
+FORCED_PASSWORD_CHANGE_SESSION_KEY = "_must_change_password"
+_FORCED_PASSWORD_CHANGE_ALLOWED = ("/cambia-password", "/logout", "/static/", "/media/", "/2fa/", "/favicon")
+
+
+class ForcedPasswordChangeMiddleware:
+    """SEC (audit B2): il cambio password obbligatorio non si aggira navigando altrove.
+
+    Il login legacy imposta il flag di sessione quando ``deve_cambiare_password``
+    è attivo; finché la password non viene cambiata ogni navigazione torna alla
+    pagina di cambio (le richieste API ricevono 403 JSON).
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        session = getattr(request, "session", None)
+        if (
+            session is not None
+            and session.get(FORCED_PASSWORD_CHANGE_SESSION_KEY)
+            and getattr(request.user, "is_authenticated", False)
+            and not any(request.path.startswith(p) for p in _FORCED_PASSWORD_CHANGE_ALLOWED)
+        ):
+            target = reverse("cambia_password")
+            accept = request.META.get("HTTP_ACCEPT", "")
+            if request.path.startswith("/api/") or ("application/json" in accept and "text/html" not in accept):
+                from django.http import JsonResponse
+
+                return JsonResponse({"ok": False, "error": "password_change_required", "redirect": target}, status=403)
+            return redirect(target)
+        return self.get_response(request)

@@ -2127,9 +2127,16 @@ class AdminPortaleNavigationIconTests(TestCase):
 
     def test_api_navigation_icon_upload_stores_file_in_library(self):
         self.client.force_login(self.admin_user)
+        from io import BytesIO
+
+        from PIL import Image
+
+        # ICO vero: l'upload verifica il contenuto reale, non solo l'estensione.
+        ico_buffer = BytesIO()
+        Image.new("RGBA", (16, 16), (0, 43, 92, 255)).save(ico_buffer, format="ICO")
         upload = SimpleUploadedFile(
             "assets-menu.ico",
-            b"\x00\x00\x01\x00test-ico",
+            ico_buffer.getvalue(),
             content_type="image/x-icon",
         )
 

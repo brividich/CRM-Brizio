@@ -62,16 +62,27 @@ def registro_da_riga(riga, *, numero: int | None = None, oggi=None):
     if esistente is not None:
         return esistente
 
-    numero = numero if numero is not None else (riga.ofi or prossimo_numero())
     spec = riga.mod133.specifica
-    return RegistroOFI.objects.create(
-        numero=numero, data_apertura=oggi, tipo=RegistroOFI.TIPO_OFI,
+    fields = dict(
+        data_apertura=oggi, tipo=RegistroOFI.TIPO_OFI,
         norma_en9100=True, ref=spec.codice,
         processo=riga.tag_processo or "",
         opportunita=(riga.descrizione_impatto or riga.descrizione_modifiche or "")[:5000],
         modulo_origine="gestione_specifiche",
         content_type=ct, object_id=riga.id,
     )
+    fixed = numero if numero is not None else riga.ofi
+    if fixed:
+        return RegistroOFI.objects.create(numero=fixed, **fields)
+    # Audit S8: numero calcolato -> retry su collisione con un inserimento concorrente.
+    from core.numbering_retry import save_with_next_number
+
+    stato = {}
+
+    def assign():
+        stato["numero"] = prossimo_numero()
+
+    return save_with_next_number(assign, lambda: RegistroOFI.objects.create(numero=stato["numero"], **fields))
 
 
 def conta_pdca(qs=None) -> dict:

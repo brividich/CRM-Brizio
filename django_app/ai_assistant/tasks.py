@@ -32,6 +32,10 @@ def run_warmup_ollama(timeout: int | None = None) -> dict:
         return {"ok": False, "skipped": False, "loaded": False, "message": "errore inatteso"}
 
 
+# Poco oltre il timeout dedicato dello schedule (900 s): un lock orfano scade da solo.
+_INDEX_SGI_LOCK_SECONDS = 960
+
+
 def run_index_sgi_documents() -> dict:
     """Indicizza/scalda il corpus documentale SGI nel RAG dell'assistente.
 
@@ -41,8 +45,13 @@ def run_index_sgi_documents() -> dict:
     ``file_hash``/content-hash. Schedulalo a bassa frequenza (es. notturna) per
     evitare che sia la prima chat della giornata a pagare la ricostruzione.
     """
+    from django.core.cache import cache
+
     from ai_assistant.services import index_sgi_documents
 
+    lock_key = "ai_assistant:index_sgi_documents:lock"
+    if not cache.add(lock_key, "1", _INDEX_SGI_LOCK_SECONDS):
+        return {"ok": True, "skipped": True, "message": "Indicizzazione SGI gia' in corso."}
     try:
         result = index_sgi_documents()
         if not result.get("ok") and not result.get("skipped"):
@@ -51,6 +60,8 @@ def run_index_sgi_documents() -> dict:
     except Exception:
         logger.exception("run_index_sgi_documents: errore inatteso")
         return {"ok": False, "skipped": False, "message": "errore inatteso"}
+    finally:
+        cache.delete(lock_key)
 
 
 _RAG_QUALITY_STATE_KEY = "monitoring:rag-quality:fingerprint"

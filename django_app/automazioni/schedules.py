@@ -286,7 +286,10 @@ SCHEDULES: list[dict] = [
         "schedule_type": "C",   # Schedule.CRON
         "cron": "30 3 * * *",   # ogni notte alle 03:30 (off-peak)
         "repeats": -1,
-        "kwargs": {},
+        # Audit S5: la build completa supera i 120 s del cluster e veniva uccisa a
+        # meta'. Timeout dedicato; la riconsegna del broker (retry 180 s) trova il
+        # lock del task in corso e termina subito.
+        "kwargs": {"q_options": {"timeout": 900}},
     },
     {
         # Qualità del RAG SGI: dopo il warm dell'indice (03:30) misura recall/MRR

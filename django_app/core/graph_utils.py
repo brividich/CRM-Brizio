@@ -51,16 +51,16 @@ def acquire_graph_token(tenant_id: str, client_id: str, client_secret: str) -> s
     key = _cache_key(tenant_id, client_id, client_secret)
 
     # Fast path: lettura senza lock, cache hit più comune a regime.
-    cached = cache.get(key)
-    if cached and isinstance(cached, str):
+    cached = _decrypt_cached_token(cache.get(key), client_secret)
+    if cached:
         return cached
 
     # Slow path: serializza l'acquisizione nel worker corrente per evitare
     # storm di richieste MSAL quando la cache è fredda. Gli altri worker
     # vedranno il token subito dopo grazie al backend condiviso.
     with _TOKEN_LOCK:
-        cached = cache.get(key)
-        if cached and isinstance(cached, str):
+        cached = _decrypt_cached_token(cache.get(key), client_secret)
+        if cached:
             return cached
 
         app = msal.ConfidentialClientApplication(
@@ -78,11 +78,47 @@ def acquire_graph_token(tenant_id: str, client_id: str, client_secret: str) -> s
         # proattivo senza mai servire un token scaduto.
         cache_ttl = max(60, ttl - _TOKEN_BUFFER_SECONDS)
         try:
-            cache.set(key, str(token), cache_ttl)
+            cache.set(key, _encrypt_token_for_cache(str(token), client_secret), cache_ttl)
         except Exception as exc:  # pragma: no cover — fallback difensivo
             logger.warning("Impossibile scrivere token Graph in cache: %s", exc)
         logger.debug("Token Graph rinnovato, scade in %ds (cache %ds)", ttl, cache_ttl)
         return str(token)
+
+
+_ENC_PREFIX = "enc1:"
+
+
+def _token_fernet(client_secret: str):
+    """Chiave derivata da SECRET_KEY + client secret (audit B7).
+
+    In produzione la cache è una tabella SQL Server: chi la legge non deve
+    trovarci un bearer token Graph app-only (accesso a caselle e SharePoint)
+    utilizzabile così com'è.
+    """
+    import base64
+    import hashlib
+
+    from cryptography.fernet import Fernet
+    from django.conf import settings
+
+    material = f"graph-token-cache:{settings.SECRET_KEY}:{client_secret}".encode("utf-8")
+    return Fernet(base64.urlsafe_b64encode(hashlib.sha256(material).digest()))
+
+
+def _encrypt_token_for_cache(token: str, client_secret: str) -> str:
+    return _ENC_PREFIX + _token_fernet(client_secret).encrypt(token.encode("utf-8")).decode("ascii")
+
+
+def _decrypt_cached_token(value, client_secret: str) -> str:
+    """Token in chiaro dalla cache, "" se assente, illeggibile o in formato vecchio."""
+    if not value or not isinstance(value, str) or not value.startswith(_ENC_PREFIX):
+        return ""
+    from cryptography.fernet import InvalidToken
+
+    try:
+        return _token_fernet(client_secret).decrypt(value[len(_ENC_PREFIX):].encode("ascii")).decode("utf-8")
+    except (InvalidToken, ValueError):
+        return ""
 
 
 def invalidate_graph_token_cache(tenant_id: str, client_id: str, client_secret: str) -> None:

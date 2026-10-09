@@ -3,9 +3,11 @@ backup_portale — Management command per il backup automatico del portale.
 
 Esegue:
   1. Backup database (SQLite copia file / SQL Server via sqlcmd BACKUP DATABASE)
-  2. File di configurazione (.env)
+  2. Configurazione: solo i NOMI delle variabili .env (audit M10). Il .env
+     completo (chiave Fernet, password DB, secret Graph) viene copiato solo in
+     BACKUP_ENV_DIR, una destinazione separata dai dati.
   3. pip freeze (snapshot dipendenze)
-  4. media/ (opzionale, --include-media)
+  4. media/ e le radici private cifrate (opzionale, --include-media)
 
 Salva in: BACKUP_DIR/<YYYYMMDD_HHMMSS>/
 Mantiene gli ultimi BACKUP_RETENTION backup, elimina i più vecchi.
@@ -14,6 +16,8 @@ Configurazione via .env:
   BACKUP_DIR        path assoluto della directory radice dei backup
                     (default: BASE_DIR/../backups)
   BACKUP_RETENTION  numero di backup da conservare (default: 10)
+  BACKUP_ENV_DIR    cartella SEPARATA (altra share/ACL) dove copiare il .env
+                    completo; vuota = .env non copiato
 
 Uso:
   python manage.py backup_portale
@@ -174,20 +178,53 @@ class Command(BaseCommand):
     # ── Backup config ─────────────────────────────────────────────────────────
 
     def _backup_config(self, backup_dir, log, errors):
+        """SEC (audit M10): la chiave di cifratura non sta accanto ai dati cifrati.
+
+        Nel backup finisce solo l'elenco dei nomi delle variabili; il .env completo
+        va in ``BACKUP_ENV_DIR`` (destinazione separata) se configurata.
+        """
+        import os
+
         config_dst = backup_dir / "config"
         config_dst.mkdir(exist_ok=True)
-        for name in (".env",):
-            # Cerca prima vicino a BASE_DIR, poi in config/ al livello superiore
-            for candidate in [
-                settings.BASE_DIR / name,
-                settings.BASE_DIR.parent / "config" / name,
-            ]:
-                if candidate.exists():
-                    shutil.copy2(candidate, config_dst / name)
-                    log(f"{name} → config/{name}", "OK")
-                    break
-            else:
-                log(f"{name} non trovato (non critico)", "WARN")
+        name = ".env"
+        source = None
+        # Cerca prima vicino a BASE_DIR, poi in config/ al livello superiore
+        for candidate in [
+            settings.BASE_DIR / name,
+            settings.BASE_DIR.parent / "config" / name,
+        ]:
+            if candidate.exists():
+                source = candidate
+                break
+        if source is None:
+            log(f"{name} non trovato (non critico)", "WARN")
+            return
+
+        keys = []
+        for raw in source.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+            line = raw.strip()
+            if line and not line.startswith("#") and "=" in line:
+                keys.append(line.split("=", 1)[0].strip())
+        (config_dst / "env_keys.txt").write_text("\n".join(keys) + "\n", encoding="utf-8")
+        log(f"{len(keys)} nomi variabili .env → config/env_keys.txt (valori esclusi)", "OK")
+
+        env_dir = str(getattr(settings, "BACKUP_ENV_DIR", "") or os.environ.get("BACKUP_ENV_DIR", "")).strip()
+        if not env_dir:
+            log("BACKUP_ENV_DIR non configurata: .env completo NON copiato (salvarlo a parte)", "WARN")
+            return
+        target_dir = Path(env_dir) / backup_dir.name
+        try:
+            if Path(env_dir).resolve() == backup_dir.parent.resolve():
+                log("BACKUP_ENV_DIR coincide con BACKUP_DIR: .env non copiato", "WARN")
+                errors.append("BACKUP_ENV_DIR non separata")
+                return
+            target_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target_dir / name)
+            log(f"{name} → {target_dir}", "OK")
+        except Exception as exc:
+            log(f"Copia .env in BACKUP_ENV_DIR fallita: {exc}", "WARN")
+            errors.append(".env separato")
 
     # ── pip freeze ────────────────────────────────────────────────────────────
 
@@ -220,6 +257,28 @@ class Command(BaseCommand):
         except Exception as e:
             log(f"Media backup fallito: {e}", "WARN")
             errors.append("media")
+        self._backup_private_roots(backup_dir, log, errors)
+
+    def _backup_private_roots(self, backup_dir, log, errors):
+        """Radici private (referti, DPI, ticket, task, SDS...): restano cifrate (audit M10)."""
+        roots: dict[str, Path] = {}
+        for setting_name in dir(settings):
+            if not (setting_name.endswith("_PRIVATE_ROOT") or setting_name == "PRIVATE_ATTACHMENTS_ROOT"):
+                continue
+            value = getattr(settings, setting_name, None)
+            if not value:
+                continue
+            path = Path(value)
+            if path.exists():
+                roots.setdefault(str(path.resolve()).lower(), path)
+        for index, path in enumerate(sorted(roots.values(), key=str)):
+            dst = backup_dir / "media_private" / (f"{index:02d}_" + path.name)
+            try:
+                shutil.copytree(str(path), str(dst), dirs_exist_ok=True)
+                log(f"{path} → {dst}", "OK")
+            except Exception as e:
+                log(f"Backup radice privata {path} fallito: {e}", "WARN")
+                errors.append(f"media_private {path.name}")
 
     # ── Pulizia backup vecchi ─────────────────────────────────────────────────
 

@@ -24,12 +24,18 @@ from django.core.management.base import BaseCommand
 from core.encrypted_storage import _MAGIC, encrypt_bytes, is_encrypted
 
 
+# Tutte le radici degli storage con EncryptedStorageMixin (audit M12: prima 5 su 10).
 _STORAGE_ROOTS = {
     "anagrafica": "ANAGRAFICA_PRIVATE_ROOT",
     "timbri": "TIMBRI_PRIVATE_ROOT",
     "tickets": "TICKETS_PRIVATE_ROOT",
     "diario_preposto": "DIARIO_PREPOSTO_PRIVATE_ROOT",
     "assets": "ASSETS_PRIVATE_ROOT",
+    "tasks": "TASKS_PRIVATE_ROOT",  # anche sistema_gestione
+    "hub_bacheca": "HUB_BACHECA_PRIVATE_ROOT",
+    "private_attachments": "PRIVATE_ATTACHMENTS_ROOT",  # notizie, rentri, suggestion corner
+    "gestione_specifiche": "GESTIONE_SPECIFICHE_PRIVATE_ROOT",
+    "schede_sicurezza": "SCHEDE_SICUREZZA_PRIVATE_ROOT",
 }
 
 
@@ -79,11 +85,17 @@ class Command(BaseCommand):
         total_skipped = 0
         total_errors = 0
 
+        seen_roots: set[str] = set()
         for storage_name, settings_key in targets.items():
             root = Path(str(getattr(settings, settings_key, "")))
             if not root.exists():
                 self.stdout.write(f"  {storage_name}: cartella non trovata ({root}), salto.")
                 continue
+            root_id = str(root.resolve()).lower()
+            if root_id in seen_roots:
+                self.stdout.write(f"  {storage_name}: stessa cartella di uno storage gia' elaborato, salto.")
+                continue
+            seen_roots.add(root_id)
 
             self.stdout.write(f"\n[{storage_name}] root={root}")
             for filepath in root.rglob("*"):

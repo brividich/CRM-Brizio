@@ -167,6 +167,15 @@
       <staticContent>
         <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="1.00:00:00" />
       </staticContent>
+      <!-- Audit 09/10 (A9): i file caricati dagli utenti non eseguono mai script
+           sull'origin del portale, nemmeno un SVG/HTML aperto direttamente.
+           Niente «sandbox»: bloccherebbe il viewer PDF di Chromium. -->
+      <httpProtocol>
+        <customHeaders>
+          <remove name="Content-Security-Policy" />
+          <add name="Content-Security-Policy" value="script-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" />
+        </customHeaders>
+      </httpProtocol>
       <security>
         <authentication>
           <anonymousAuthentication enabled="true" />

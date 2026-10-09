@@ -56,10 +56,25 @@ def nuova_revisione(*, utente=None, motivo: str = "", numero: int | None = None,
         raise TransizioneNonAmmessa("Esiste già una revisione in bozza o proposta: completala prima di aprirne un'altra.")
     assicura_catalogo()
     base = SoaRevisione.objects.order_by("-numero").first()
-    revisione = SoaRevisione.objects.create(
-        numero=prossimo_numero() if numero is None else numero,
-        motivo=motivo, origine=origine, preparata_da=utente,
-    )
+    if numero is None:
+        # Audit S8: retry su collisione dell'indice di revisione (unique).
+        from core.numbering_retry import save_with_next_number
+
+        stato = {}
+
+        def assign():
+            stato["numero"] = prossimo_numero()
+
+        revisione = save_with_next_number(
+            assign,
+            lambda: SoaRevisione.objects.create(
+                numero=stato["numero"], motivo=motivo, origine=origine, preparata_da=utente,
+            ),
+        )
+    else:
+        revisione = SoaRevisione.objects.create(
+            numero=numero, motivo=motivo, origine=origine, preparata_da=utente,
+        )
     voci_base = {v.controllo_id: v for v in base.voci.all()} if base else {}
     nuove = []
     for controllo in ControlloIso27002.objects.all():

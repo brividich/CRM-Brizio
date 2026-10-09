@@ -63,14 +63,21 @@ def _slittamenti(project) -> list[str]:
     return [testo for _, testo in sorted(out, key=lambda x: -x[0])[:3]]
 
 
-def commesse_simili(project, *, limite: int = 4, candidati: int = 300) -> list[dict]:
+def commesse_simili(project, *, limite: int = 4, candidati: int = 300, scope_queryset=None) -> list[dict]:
+    """Commesse simili tra quelle che l'utente puo' vedere.
+
+    ``scope_queryset`` (audit M13): il queryset delle commesse nello scope di chi
+    chiede. Senza, il copilota leggeva e mandava all'LLM problemi e decisioni di
+    commesse fuori dal perimetro dell'utente.
+    """
     from .models import MeetingActionStatus, MeetingIssueStatus, Project
 
     base = _tokens(f"{project.name} {project.description}")
     cliente = (project.client_name or "").strip().lower()
     pn = (project.part_number or "").strip().lower()
     filtro = Q(meeting_issues__isnull=False) | Q(meeting_decisions__isnull=False) | Q(meeting_actions__isnull=False) | Q(vrf_assessment__isnull=False)
-    altre = (Project.objects.exclude(pk=project.pk).filter(filtro).distinct()
+    base_qs = scope_queryset if scope_queryset is not None else Project.objects.none()
+    altre = (base_qs.exclude(pk=project.pk).filter(filtro).distinct()
              .prefetch_related("meeting_issues", "meeting_decisions", "meeting_actions").order_by("-id")[:candidati])
     out = []
     for other in altre:
@@ -170,8 +177,8 @@ ISTRUZIONI = (
 )
 
 
-def proponi_punti(project, meeting, *, user=None) -> dict:
-    simili = commesse_simili(project)
+def proponi_punti(project, meeting, *, user=None, scope_queryset=None) -> dict:
+    simili = commesse_simili(project, scope_queryset=scope_queryset)
     raw = ""
     try:
         from ai_assistant.services import chat_with_ollama

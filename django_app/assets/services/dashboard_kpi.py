@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -16,6 +17,8 @@ from assets.models import (
     WorkOrder,
 )
 from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
+
+logger = logging.getLogger(__name__)
 
 
 UNCATEGORIZED_LABEL = "Senza famiglia"
@@ -397,7 +400,8 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
         if avg_min is not None:
             mttr_hours = Decimal(str(avg_min)) / Decimal("60")
     except Exception:
-        pass
+        # Audit S10: un KPI non calcolato si vede nel log, non e' uno 0 silenzioso.
+        logger.warning("Dashboard assets: KPI non calcolato", exc_info=True)
 
     # --- downtime_hours_month: somma minuti/60 degli OdL chiusi nel mese ---------------
     downtime_hours_month: Decimal = Decimal("0")
@@ -411,7 +415,8 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
         if raw is not None:
             downtime_hours_month = Decimal(str(raw)) / Decimal("60")
     except Exception:
-        pass
+        # Audit S10: un KPI non calcolato si vede nel log, non e' uno 0 silenzioso.
+        logger.warning("Dashboard assets: KPI non calcolato", exc_info=True)
 
     # --- maintenance_cost_month: somma costi OdL chiusi nel mese -----------------------
     maintenance_cost_month: Decimal = Decimal("0")
@@ -426,7 +431,8 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
         if raw_cost is not None:
             maintenance_cost_month = Decimal(str(raw_cost))
     except Exception:
-        pass
+        # Audit S10: un KPI non calcolato si vede nel log, non e' uno 0 silenzioso.
+        logger.warning("Dashboard assets: KPI non calcolato", exc_info=True)
 
     # --- wo_closed_month: conteggio OdL chiusi nel mese --------------------------------
     wo_closed_month: int = 0
@@ -439,7 +445,8 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
             ).count()
         )
     except Exception:
-        pass
+        # Audit S10: un KPI non calcolato si vede nel log, non e' uno 0 silenzioso.
+        logger.warning("Dashboard assets: KPI non calcolato", exc_info=True)
 
     # --- wo_open_by_kind: distribuzione OdL aperti per tipo ----------------------------
     wo_open_by_kind: dict[str, dict] = {}
@@ -464,7 +471,8 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
             for entry in wo_open_by_kind.values():
                 entry["percent"] = int(entry["count"] / wo_open_total * 100)
     except Exception:
-        pass
+        # Audit S10: un KPI non calcolato si vede nel log, non e' uno 0 silenzioso.
+        logger.warning("Dashboard assets: KPI non calcolato", exc_info=True)
 
     # --- ticket_man_open: ticket manutenzione aperti -----------------------------------
     ticket_man_open: int = 0
@@ -473,7 +481,8 @@ def get_maintenance_performance_kpis(today: date | None = None, lookback_days: i
             _base_ticket_man_qs().filter(stato__in=_ticket_open_statuses()).count()
         )
     except Exception:
-        pass
+        # Audit S10: un KPI non calcolato si vede nel log, non e' uno 0 silenzioso.
+        logger.warning("Dashboard assets: KPI non calcolato", exc_info=True)
 
     has_data: bool = (
         wo_open_total > 0
@@ -590,7 +599,8 @@ def get_asset_maintenance_costs(asset_id: int, today: date | None = None) -> dic
         )
         tco_workorders = Decimal(str(val)) if val is not None else ZERO
     except Exception:
-        pass
+        # Audit S10: un KPI non calcolato si vede nel log, non e' uno 0 silenzioso.
+        logger.warning("Dashboard assets: KPI non calcolato", exc_info=True)
 
     tco_deadlines = ZERO
     try:
@@ -602,7 +612,8 @@ def get_asset_maintenance_costs(asset_id: int, today: date | None = None) -> dic
         )
         tco_deadlines = Decimal(str(val)) if val is not None else ZERO
     except Exception:
-        pass
+        # Audit S10: un KPI non calcolato si vede nel log, non e' uno 0 silenzioso.
+        logger.warning("Dashboard assets: KPI non calcolato", exc_info=True)
 
     tco_cumulative = tco_workorders + tco_deadlines
 
@@ -643,7 +654,8 @@ def get_asset_maintenance_costs(asset_id: int, today: date | None = None) -> dic
                 "percent": pct,
             })
     except Exception:
-        pass
+        # Audit S10: un KPI non calcolato si vede nel log, non e' uno 0 silenzioso.
+        logger.warning("Dashboard assets: KPI non calcolato", exc_info=True)
 
     # --- Conteggi interventi per periodo ---
     count_month = _wo_count(month_start, month_end)

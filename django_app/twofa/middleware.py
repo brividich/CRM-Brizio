@@ -53,7 +53,10 @@ class TwoFactorMiddleware:
             # autenticata che richiede il 2FA e non è ancora verificata viene
             # bloccata, incluse quelle aperte via SSO Windows o altri backend che
             # non passano per initiate_2fa(). Chiude il bypass del secondo fattore.
-            if should_require_2fa(request, request.user) and not is_2fa_verified(request):
+            # Durante l'impersonazione il secondo fattore è quello di chi ha fatto
+            # login (l'admin), non dell'utente impersonato (audit A1).
+            real_user = getattr(request, "impersonator_user", None) or request.user
+            if should_require_2fa(request, real_user) and not is_2fa_verified(request):
                 verify_url = reverse("twofa:verify")
                 if not request.path_info.startswith(verify_url):
                     if _is_non_navigation(request):

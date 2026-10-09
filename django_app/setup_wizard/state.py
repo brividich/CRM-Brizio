@@ -32,8 +32,26 @@ def _read_flag(path: Path) -> str | None:
     return None
 
 
+def _running_with_prod_settings() -> bool:
+    import os
+
+    from django.conf import settings
+
+    module = str(getattr(settings, "SETTINGS_MODULE", "") or os.environ.get("DJANGO_SETTINGS_MODULE", "")).lower()
+    return module.endswith(".prod")
+
+
 def setup_needed() -> bool:
-    """True se il setup non risulta completato in nessun .env del runtime."""
+    """True se il setup non risulta completato in nessun .env del runtime.
+
+    SEC (audit M9): con i settings di produzione il wizard web è sempre chiuso.
+    In produzione il portale parte solo con un .env completo (prod.py blocca
+    l'avvio altrimenti): un ``SETUP_COMPLETED`` mancante o perso non deve
+    riaprire gli endpoint anonimi ``/setup/api/*`` (salva .env, crea admin).
+    L'installazione passa dal Setup Wizard desktop.
+    """
+    if _running_with_prod_settings():
+        return False
     for path in iter_runtime_env_paths(_APP_DIR):
         if not path.exists():
             continue

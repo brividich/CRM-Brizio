@@ -56,6 +56,8 @@ class Command(BaseCommand):
         cutoff = timezone.now() - timedelta(days=days)
         mode = "[apply]" if apply else "[dry-run]"
 
+        self._cleanup_queue(days=days, apply=apply)
+
         base_qs = AutomationRunLog.objects.filter(started_at__lt=cutoff)
         total = base_qs.count()
 
@@ -84,3 +86,19 @@ class Command(BaseCommand):
 
         logger.info("cleanup_run_logs: eliminati %s RunLog oltre %s giorni", deleted_total, days)
         self.stdout.write(self.style.SUCCESS(f"Completato: {deleted_total} RunLog eliminati."))
+
+    def _cleanup_queue(self, *, days: int, apply: bool) -> None:
+        """Stessa retention per gli eventi «done» di automation_event_queue (audit S2)."""
+        from django.db import connection
+
+        from automazioni.services import purge_processed_queue_events
+
+        if connection.vendor != "microsoft":
+            return
+        try:
+            count = purge_processed_queue_events(days, apply=apply)
+        except Exception:
+            logger.exception("cleanup_run_logs: pulizia automation_event_queue non riuscita")
+            return
+        verb = "eliminati" if apply else "candidati"
+        self.stdout.write(f"Coda automazioni: eventi done oltre {days} giorni {verb}: {count}")

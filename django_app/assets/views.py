@@ -2627,6 +2627,33 @@ def asset_document_qr_download(request: HttpRequest, public_qr_token: str, docum
     return _document_file_response(storage, file_name, filename)
 
 
+def _can_view_workorder(request: HttpRequest, work_order) -> bool:
+    """Stesso accesso della scheda dell'OdL (audit B3).
+
+    La rotta degli allegati sta sotto un prefisso diverso da ``wo_view``: senza
+    questo controllo bastava l'accesso al modulo assets per scaricare gli allegati
+    di qualsiasi OdL cambiando l'id. Si valuta la decisione ACL della pagina
+    dell'OdL a cui l'allegato appartiene.
+    """
+    if getattr(request.user, "is_superuser", False) or _is_assets_admin(request):
+        return True
+    from core.acl_v2 import resolve_acl_access
+    from core.legacy_utils import legacy_auth_enabled
+    from core.middleware import enforce_strict_canonical
+
+    if not legacy_auth_enabled():
+        return bool(getattr(request.user, "is_authenticated", False))
+    decision = resolve_acl_access(
+        path=reverse("assets:wo_view", args=[work_order.pk]),
+        legacy_user=getattr(request, "legacy_user", None) or get_legacy_user(request.user),
+        django_user=request.user,
+        request=request,
+    )
+    if enforce_strict_canonical(decision):
+        return False
+    return bool(decision.get("allowed"))
+
+
 @login_required
 def workorder_attachment_download(request: HttpRequest, attachment_id: int):
     """Allegati OdL: serviti solo da qui (deny IIS su media/assets_workorders)."""
@@ -2634,6 +2661,19 @@ def workorder_attachment_download(request: HttpRequest, attachment_id: int):
         WorkOrderAttachment.objects.select_related("work_order__asset"),
         pk=attachment_id,
     )
+    if not _can_view_workorder(request, attachment.work_order):
+        log_action(
+            request,
+            "download_workorder_attachment",
+            "assets",
+            {
+                "attachment_id": attachment.id,
+                "work_order_id": attachment.work_order_id,
+                "asset_id": attachment.work_order.asset_id,
+                "esito": "denied",
+            },
+        )
+        return HttpResponseForbidden("Non hai accesso a questo ordine di lavoro.")
     storage = attachment.file.storage if attachment.file else None
     file_name = attachment.file.name if attachment.file else ""
     if not storage or not file_name or not storage.exists(file_name):
@@ -18463,8 +18503,8 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             logo_file = request.FILES.get("logo_file")
             logo_url = request.POST.get("logo_url", "").strip()
             if logo_file:
-                _LOGO_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
-                _LOGO_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/svg+xml", "image/webp"}
+                _LOGO_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp"}  # niente SVG (audit A9)
+                _LOGO_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/webp"}
                 if logo_file.size > 512 * 1024:
                     messages.error(request, "Immagine troppo grande (max 512 KB).")
                     return config_redirect

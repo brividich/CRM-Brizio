@@ -84,8 +84,12 @@ def nuovo(request):
         form = RegistroOFIForm(request.POST)
         if form.is_valid():
             voce = form.save(commit=False)
-            voce.numero = reg.prossimo_numero()
-            voce.save()
+            from core.numbering_retry import save_with_next_number
+
+            def assign():
+                voce.numero = reg.prossimo_numero()
+
+            save_with_next_number(assign, voce.save)  # audit S8
             messages.success(request, f"OFI {voce.numero} creato.")
             return redirect("registro_ofi:lista")
     else:

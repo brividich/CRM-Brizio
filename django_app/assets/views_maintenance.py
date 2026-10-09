@@ -2035,7 +2035,9 @@ def occurrence_reschedule(request: HttpRequest, occurrence_id: int) -> JsonRespo
 @require_POST
 def occurrence_create_workorder(request: HttpRequest) -> HttpResponse:
     """Raccoglie le manutenzioni selezionate in un unico ordine di lavoro."""
-    back = request.POST.get("next") or reverse("assets:maintenance_da_fare")
+    from core.redirects import safe_next
+
+    back = safe_next(request, request.POST.get("next"), reverse("assets:maintenance_da_fare"))  # audit B4
     if not can_plan_maintenance(request):
         return _deny(request, "Non hai i permessi per pianificare gli ordini di lavoro.")
 

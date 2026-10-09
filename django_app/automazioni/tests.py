@@ -3988,7 +3988,8 @@ class AutomationApprovalExecutorTests(TestCase):
         self.assertEqual(mock_post.call_args.kwargs["timeout"], 10)
         payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(payload["approval_id"], approval.pk)
-        self.assertEqual(payload["token"], str(approval.token))
+        # Audit B6: il token condiviso non viaggia nel payload Teams.
+        self.assertEqual(payload["token"], "")
         self.assertEqual(payload["recipient_email"], "manager@test.local")
         self.assertEqual(payload["subject"], "Teams approval #77")
         self.assertEqual(payload["message"], "Richiesta Ferie per Mario Rossi")
@@ -4610,7 +4611,10 @@ class AutomationExtendedActionExecutorTests(TestCase):
             },
         )
 
-        result = execute_action(action, self.payload, old_payload=self.old_payload, run_log=self.run_log)
+        # Il guard SSRF risolve l'host: lo si fa puntare a un IP pubblico.
+        public_addr = [(2, 1, 6, "", ("93.184.216.34", 443))]
+        with patch("socket.getaddrinfo", return_value=public_addr):
+            result = execute_action(action, self.payload, old_payload=self.old_payload, run_log=self.run_log)
 
         self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
         kwargs = mock_request.call_args.kwargs

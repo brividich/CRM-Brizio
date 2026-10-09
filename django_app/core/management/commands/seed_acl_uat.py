@@ -23,7 +23,9 @@ from core.models import (
 
 
 SEED_MARKER = "[UAT_SEED]"
-SEED_PASSWORD_DEFAULT = "UatNovicrom!2026"
+# SEC (audit M3): nessuna password fissa nel codice (il repo è leggibile).
+# Ordine: --password, variabile UAT_SEED_PASSWORD, altrimenti casuale (stampata a fine run).
+SEED_PASSWORD_ENV = "UAT_SEED_PASSWORD"
 SEED_LEGACY_BUTTON_CODE = "uat_acl_nav_map"
 SEED_LEGACY_BUTTON_MODULE = "admin_portale"
 SEED_LEGACY_BUTTON_URL = "/uat/legacy-fallback-map"
@@ -602,13 +604,31 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--password",
-            default=SEED_PASSWORD_DEFAULT,
-            help=f"Password comune per gli utenti Django seed (default: {SEED_PASSWORD_DEFAULT}).",
+            default="",
+            help=(
+                "Password comune per gli utenti Django seed "
+                f"(default: variabile {SEED_PASSWORD_ENV}, altrimenti casuale)."
+            ),
         )
 
     def handle(self, *args, **options):
+        import os
+        import secrets
+
+        from django.conf import settings as dj_settings
+        from django.core.management.base import CommandError
+
+        settings_module = str(getattr(dj_settings, "SETTINGS_MODULE", "") or "")
+        if settings_module.endswith(".prod"):
+            # Crea un superuser e utenti con password comune: mai in produzione.
+            raise CommandError("seed_acl_uat è ammesso solo in TEST/sviluppo, non con settings di produzione.")
+
         do_reset = bool(options.get("reset"))
-        seed_password = str(options.get("password") or SEED_PASSWORD_DEFAULT)
+        seed_password = str(
+            options.get("password")
+            or os.environ.get(SEED_PASSWORD_ENV, "")
+            or secrets.token_urlsafe(12)
+        )
         self._warnings: list[str] = []
         self._stats = {
             "roles_created": 0,

@@ -413,6 +413,8 @@ class AiAssistantTests(TestCase):
         self.assertEqual(entry.question, "Dove sono le ferie?")
         self.assertEqual(entry.answer, "Nel modulo assenze.")
         self.assertEqual(entry.created_by, self.user)
+        # Audit B8: bozza da rivedere, non entra nel RAG finche' non attivata.
+        self.assertFalse(entry.is_active)
 
     def test_build_messages_filters_history_roles(self):
         with override_settings(

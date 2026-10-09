@@ -115,6 +115,9 @@ class LegacyLoginView(LoginView):
 
         legacy_user = get_legacy_user(user)
         if legacy_auth_enabled() and legacy_user and bool(legacy_user.deve_cambiare_password):
+            from core.session_middleware import FORCED_PASSWORD_CHANGE_SESSION_KEY
+
+            self.request.session[FORCED_PASSWORD_CHANGE_SESSION_KEY] = True
             return redirect("cambia_password")
 
         # 2FA: se richiesto, blocca e redirige alla verifica
@@ -167,7 +170,7 @@ def cambia_password(request):
         return redirect("dashboard_home")
 
     if request.method == "POST":
-        form = LegacyChangePasswordForm(request.POST)
+        form = LegacyChangePasswordForm(request.POST, user=request.user)
         if form.is_valid():
             from werkzeug.security import check_password_hash
             stored_pwd = getattr(legacy_user, "password", "") if legacy_user is not None else ""
@@ -184,11 +187,21 @@ def cambia_password(request):
                     legacy_user.password = generate_password_hash(form.cleaned_data["nuova_password"])
                     legacy_user.deve_cambiare_password = False
                     legacy_user.save(update_fields=["password", "deve_cambiare_password"])
+                from core.session_middleware import FORCED_PASSWORD_CHANGE_SESSION_KEY
+
+                request.session.pop(FORCED_PASSWORD_CHANGE_SESSION_KEY, None)
                 try:
                     from core.audit import log_action
                     log_action(request, "cambio_password", "core")
                 except Exception:
                     logger.warning("audit cambio_password non registrato", exc_info=True)
+                from core.security_notify import notify_security_event
+
+                notify_security_event(
+                    request.user,
+                    "Password cambiata",
+                    "La password del tuo account del portale è stata appena cambiata.",
+                )
                 messages.success(request, "Password aggiornata con successo.")
                 return redirect("dashboard_home")
     else:
@@ -205,6 +218,11 @@ def cambia_password(request):
 
 
 def logout_view(request):
+    # SEC (audit B2): un link o un'immagine su un altro sito non deve poter
+    # chiudere la sessione (logout CSRF). I browser moderni dichiarano l'origine
+    # della navigazione in Sec-Fetch-Site; i link interni del portale restano GET.
+    if request.method != "POST" and request.META.get("HTTP_SEC_FETCH_SITE", "") == "cross-site":
+        return redirect("dashboard_home")
     # log PRIMA di logout(): dopo, request.user è già AnonymousUser
     try:
         from core.audit import _get_client_ip, log_action

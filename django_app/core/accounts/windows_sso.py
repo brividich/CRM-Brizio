@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from core.accounts.redirects import get_safe_redirect_target
 from core.legacy_utils import (
+    ldap_login_group_allowed,
     normalize_windows_principal_to_upn,
     provision_legacy_user,
     resolve_ldap_identity,
@@ -114,7 +115,14 @@ def windows_sso_view(request):
     logger.info("Windows SSO: autenticato %s", principal)
 
     normalized_upn = _normalize_principal(principal)
-    resolved_upn, resolved_full_name = resolve_ldap_identity(alias=principal, upn_hint=normalized_upn)
+    groups: list[str] = []
+    resolved_upn, resolved_full_name = resolve_ldap_identity(
+        alias=principal, upn_hint=normalized_upn, groups_out=groups
+    )
+    if not ldap_login_group_allowed(groups):
+        logger.warning("Windows SSO negato per %s: nessun gruppo in LDAP_GROUP_ALLOWLIST", principal)
+        messages.error(request, f"Utente {principal} non autorizzato.")
+        return redirect("login")
     legacy_user = provision_legacy_user(
         resolved_upn or normalized_upn,
         full_name=resolved_full_name,

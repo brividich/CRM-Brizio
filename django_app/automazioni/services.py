@@ -76,6 +76,32 @@ _MODULE_APPS = {
 }
 
 
+# SEC (audit A6): tabelle che nessuna regola può scrivere, qualunque sia la
+# whitelist salvata in AutomationTableConfig. Una insert su core_userpermissiongrant
+# o sulle tabelle legacy ACL equivale a un'escalation di privilegi.
+PROTECTED_TABLE_PREFIXES = ("core_", "automazioni_", "auth_", "django_", "axes_", "twofa_")
+# Tabelle core_* innocue che le regole possono continuare a scrivere.
+CORE_WRITABLE_TABLES = frozenset({
+    "core_notifica",
+    "core_actionitem",
+    "core_checklistesecuzione",
+    "core_checklistrisposta",
+})
+PROTECTED_LEGACY_TABLES = frozenset({"utenti", "ruoli", "permessi", "pulsanti"})
+
+
+def is_protected_table(table_name: str) -> bool:
+    """True se la tabella è fuori dalla portata delle azioni insert/update."""
+    name = str(table_name or "").strip().lower()
+    if not name:
+        return True
+    if name in CORE_WRITABLE_TABLES:
+        return False
+    if name in PROTECTED_LEGACY_TABLES:
+        return True
+    return name.startswith(PROTECTED_TABLE_PREFIXES)
+
+
 _FALLBACK_ACTION_TABLE_WHITELIST: dict[str, dict[str, dict[str, set[str]]]] = {
     AutomationActionType.INSERT_RECORD: {
         "core_notifica": {
@@ -131,6 +157,8 @@ def discover_module_tables() -> dict[str, dict[str, list[str]]]:
         if model._meta.app_label not in _MODULE_APPS:
             continue
         table = model._meta.db_table
+        if is_protected_table(table):
+            continue
         editable: list[str] = []
         all_cols: list[str] = []
         for f in model._meta.get_fields():
@@ -801,6 +829,86 @@ def _did_payload_change(payload: Any, old_payload: Any) -> bool:
     if not isinstance(payload, dict) or not isinstance(old_payload, dict):
         return False
     return payload != old_payload
+
+
+# SEC/STAB (audit S1): un worker django-q ucciso a metà lascia gli eventi in
+# «processing» per sempre. Oltre questa soglia tornano in coda (o in errore se
+# hanno esaurito i tentativi).
+QUEUE_STALE_PROCESSING_MINUTES = 15
+
+
+def recover_stale_processing_events(stale_minutes: int = QUEUE_STALE_PROCESSING_MINUTES) -> int:
+    """Rimette in coda gli eventi rimasti in ``processing`` oltre ``stale_minutes``."""
+    minutes = max(int(stale_minutes or 0), 1)
+    sql = """
+UPDATE dbo.automation_event_queue
+SET
+    status = CASE WHEN retry_count + 1 >= %s THEN %s ELSE %s END,
+    retry_count = retry_count + 1,
+    picked_at = NULL,
+    error_message = %s
+WHERE status = %s
+  AND picked_at IS NOT NULL
+  AND picked_at < DATEADD(minute, -%s, SYSUTCDATETIME());
+"""
+    params = [
+        MAX_QUEUE_EVENT_RETRY_COUNT,
+        QueueEventStatus.ERROR,
+        QueueEventStatus.PENDING,
+        f"Recuperato: rimasto in processing oltre {minutes} minuti (worker interrotto).",
+        QueueEventStatus.PROCESSING,
+        minutes,
+    ]
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        recovered = int(cursor.rowcount or 0)
+    if recovered:
+        logger.warning("automation queue: %s eventi recuperati da processing bloccato", recovered)
+    return recovered
+
+
+def count_stale_processing_events(stale_minutes: int = QUEUE_STALE_PROCESSING_MINUTES) -> int:
+    sql = """
+SELECT COUNT(*) FROM dbo.automation_event_queue
+WHERE status = %s AND picked_at IS NOT NULL
+  AND picked_at < DATEADD(minute, -%s, SYSUTCDATETIME());
+"""
+    with connection.cursor() as cursor:
+        cursor.execute(sql, [QueueEventStatus.PROCESSING, max(int(stale_minutes or 0), 1)])
+        row = cursor.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def purge_processed_queue_events(days: int, *, batch_size: int = 5000, apply: bool = True) -> int:
+    """Cancella gli eventi ``done`` più vecchi di ``days`` giorni (audit S2).
+
+    ``payload_json`` contiene dati personali (ferie, ticket): non va tenuto
+    oltre la retention dei RunLog. Gli eventi in errore restano per l'analisi.
+    """
+    days = max(int(days or 0), 1)
+    size = max(int(batch_size or 0), 100)
+    if not apply:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) FROM dbo.automation_event_queue "
+                "WHERE status = %s AND processed_at < DATEADD(day, -%s, SYSUTCDATETIME());",
+                [QueueEventStatus.DONE, days],
+            )
+            row = cursor.fetchone()
+        return int(row[0] or 0) if row else 0
+    total = 0
+    while True:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"DELETE TOP ({size}) FROM dbo.automation_event_queue "
+                "WHERE status = %s AND processed_at < DATEADD(day, -%s, SYSUTCDATETIME());",
+                [QueueEventStatus.DONE, days],
+            )
+            deleted = int(cursor.rowcount or 0)
+        total += deleted
+        if deleted < size:
+            break
+    return total
 
 
 def fetch_pending_queue_events(limit: int = 50, source_code: str | None = None) -> list[dict[str, Any]]:
@@ -1983,6 +2091,54 @@ def _http_request_payload(config: dict[str, Any], payload_context: Any) -> tuple
     return method, url, headers, body, timeout_seconds, expected_statuses
 
 
+def _host_matches(host: str, patterns: list[str] | tuple[str, ...]) -> bool:
+    host = host.lower().rstrip(".")
+    for raw in patterns or ():
+        pattern = str(raw or "").strip().lower().rstrip(".")
+        if not pattern:
+            continue
+        if pattern.startswith("*."):
+            if host.endswith(pattern[1:]):
+                return True
+        elif host == pattern:
+            return True
+    return False
+
+
+def validate_http_action_target(url: str) -> None:
+    """SEC (audit M7): niente SSRF dalle azioni http_request.
+
+    Loopback, link-local (metadati cloud), indirizzi riservati e multicast sono
+    sempre vietati. Le reti private (LAN) solo per gli host elencati in
+    ``AUTOMATION_HTTP_ALLOWED_HOSTS`` (es. un servizio interno noto).
+    """
+    import ipaddress
+    import socket
+    from urllib.parse import urlsplit
+
+    from django.conf import settings as dj_settings
+
+    parts = urlsplit(url)
+    host = (parts.hostname or "").strip()
+    if not host:
+        raise AutomationSafetyError("http_request: host mancante nell'URL.")
+    allowed_hosts = list(getattr(dj_settings, "AUTOMATION_HTTP_ALLOWED_HOSTS", []) or [])
+    allow_private = _host_matches(host, allowed_hosts)
+    try:
+        infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == "https" else 80), proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise AutomationSafetyError(f"http_request: host non risolvibile ({host}).") from exc
+    for info in infos:
+        addr = ipaddress.ip_address(info[4][0].split("%", 1)[0])
+        if addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_unspecified or addr.is_reserved:
+            raise AutomationSafetyError(f"http_request: destinazione non ammessa ({host} -> {addr}).")
+        if addr.is_private and not allow_private:
+            raise AutomationSafetyError(
+                f"http_request: {host} risolve su una rete interna ({addr}). "
+                "Aggiungerlo ad AUTOMATION_HTTP_ALLOWED_HOSTS se è un servizio interno previsto."
+            )
+
+
 def _perform_http_request(
     *,
     method: str,
@@ -1991,11 +2147,14 @@ def _perform_http_request(
     body: Any,
     timeout_seconds: int,
 ) -> requests.Response:
+    validate_http_action_target(url)
     request_kwargs: dict[str, Any] = {
         "method": method,
         "url": url,
         "headers": headers or None,
         "timeout": timeout_seconds,
+        # Un redirect porterebbe la richiesta su un host non validato.
+        "allow_redirects": False,
     }
 
     if body is not None and body != "":
@@ -2466,7 +2625,10 @@ def _send_approval_teams_chat_flow(
     teams_subject = render_template_string(config.get("teams_title_template") or subject, payload_context).strip() or subject
     payload = {
         "approval_id": approval.pk,
-        "token": str(approval.token),
+        # SEC (audit B6): il token condiviso della richiesta non circola su Teams
+        # (i link sono personali per destinatario). Campo lasciato vuoto per non
+        # rompere lo schema dei flussi Power Automate esistenti.
+        "token": str(approval.token) if getattr(settings, "APPROVAL_TEAMS_INCLUDE_TOKEN", False) else "",
         "recipient_email": recipient_email,
         "subject": teams_subject,
         "message": message_body,
@@ -2494,6 +2656,9 @@ def validate_target_table_and_fields(
     table_name = str(target_table or "").strip()
     if not table_name:
         raise AutomationSafetyError(f"Tabella target mancante per {action_type}.")
+
+    if is_protected_table(table_name):
+        raise AutomationSafetyError(f"Tabella protetta, non scrivibile dalle automazioni: {table_name}.")
 
     whitelist = get_action_table_whitelist().get(action_type, {})
     table_rules = whitelist.get(table_name)
@@ -3482,6 +3647,11 @@ def process_pending_queue_events(
                 )
         return summary
 
+    try:
+        summary["recovered"] = recover_stale_processing_events()
+    except Exception:
+        logger.exception("automation queue: recupero eventi in processing non riuscito")
+        summary["recovered"] = 0
     queue_events = fetch_pending_queue_events(summary["limit"], source_code=summary["source_code"])
     summary["fetched"] = len(queue_events)
     for queue_event in queue_events:
@@ -3755,6 +3925,14 @@ def _insert_loop_reschedule_event(
     )
 
 
+_TEST_DRY_RUN_ACTION_TYPES = frozenset({
+    AutomationActionType.INSERT_RECORD,
+    AutomationActionType.UPDATE_RECORD,
+    AutomationActionType.UPDATE_TRIGGER_RECORD,
+    AutomationActionType.HTTP_REQUEST,
+})
+
+
 def execute_action(
     action: AutomationAction,
     payload: Any,
@@ -3786,6 +3964,20 @@ def execute_action(
                 result_message=result_message,
             )
             return {"status": AutomationActionLogStatus.SKIPPED, "result_message": result_message, "action_log": action_log}
+
+        # SEC (audit A6): il «Test» di una regola non scrive sul database e non
+        # chiama URL esterni: per queste azioni mostra solo l'anteprima.
+        if getattr(run_log, "is_test", False) and action.action_type in _TEST_DRY_RUN_ACTION_TYPES:
+            preview = _preview_action_for_dry_run(action, payload, old_payload=old_payload, queue_event=queue_event)
+            preview_status = preview.get("status") or AutomationActionLogStatus.SKIPPED
+            result_message = str(preview.get("message") or "DRY-RUN.")
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=preview_status,
+                result_message=result_message,
+            )
+            return {"status": preview_status, "result_message": result_message, "action_log": action_log}
 
         # Anomalie inserite da un «controllo OP» a blocchi: la mail con il link di
         # decisione la manda già il controllo (a ogni blocco o a fine controllo).
@@ -4357,12 +4549,9 @@ def execute_action(
             if not ok:
                 raise ValueError(f"HTTP {response.status_code} ricevuto da {url}.")
 
-            body_preview = str(getattr(response, "text", "") or "").replace("\r", " ").replace("\n", " ").strip()
-            if len(body_preview) > 140:
-                body_preview = body_preview[:137].rstrip() + "..."
+            # Il corpo della risposta non finisce nel run log (audit M7): può contenere
+            # dati di un servizio interno.
             result_message = f"HTTP {method} {url} -> {response.status_code}."
-            if body_preview:
-                result_message = f"{result_message} Body: {body_preview}"
             action_log = _create_action_log(
                 run_log=run_log,
                 action=action,

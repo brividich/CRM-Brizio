@@ -679,6 +679,15 @@ def api_gestione_reparto_assegna(request, user_id: int):
         requested_reparto = str(payload.get("reparto") or "").strip()
         if requested_reparto and requested_reparto.lower() != reparto.lower():
             return JsonResponse({"ok": False, "error": "Puoi assegnare solo il tuo reparto."}, status=403)
+        # SEC (audit M5): un caporeparto non sottrae dipendenti ad altri reparti
+        # (vedrebbe poi le loro assenze, malattie comprese). Solo chi e' senza
+        # reparto o gia' nel suo.
+        target_reparto = (_resolve_effective_reparto(int(target.id)) or "").strip()
+        if target_reparto and target_reparto.lower() != reparto.lower():
+            return JsonResponse(
+                {"ok": False, "error": "Il dipendente appartiene a un altro reparto: chiedi a un amministratore."},
+                status=403,
+            )
         caporeparto = _resolve_team_manager_value(legacy_user, _load_option_values("caporeparto"))[:200]
 
     extra_info, _created = UserExtraInfo.objects.get_or_create(legacy_user_id=int(target.id))
