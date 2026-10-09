@@ -22,7 +22,7 @@ from anagrafica.reportistica.dati import filtra_in
 
 logger = logging.getLogger(__name__)
 
-AREE = ("visite", "formazione", "qualifiche", "dpi")
+AREE = ("visite", "formazione", "qualifiche", "dpi", "sicurezza")
 
 
 @dataclass
@@ -306,6 +306,90 @@ class _Verifica:
                      [desc(c) for c in cons if c.richiesta.richiedente_legacy_id
                       and c.richiesta.richiedente_legacy_id not in self.esistenti])
 
+    # ── Sicurezza: mansioni di rischio, piani di cambio mansione, stato operativo ──
+    def sicurezza(self):
+        """Requisiti senza adempimento, adempimenti orfani, cambi senza piano, stato operativo.
+
+        Le righe citano solo id e link: nessun nome di visita, nessun esito.
+        """
+        from django.db.models import Count, Q
+        from anagrafica.models import AdempimentoCambioMansione as A, DipendenteAssegnazione, Mansione
+        from anagrafica.services import stato_operativo
+
+        a = "sicurezza"
+        link = "/anagrafica/dipendenti/{}/"
+        aperti = A.objects.filter(stato=A.STATO_APERTO)
+        if self.id_filtro is not None:
+            aperti = aperti.filter(legacy_anagrafica_id__in=self.id_filtro)
+        aperti = list(aperti.select_related("assegnazione"))
+
+        self.add(a, "Adempimenti aperti senza spostamento", "errore",
+                 [f"adempimento #{x.pk} — {link.format(x.legacy_anagrafica_id)}" for x in aperti if x.assegnazione_id is None],
+                 "Uno spostamento annullato deve annullare i suoi adempimenti: chiuderli a mano con un motivo.")
+        self.add(a, "Adempimenti aperti ma non attivi", "errore",
+                 [f"adempimento #{x.pk} — {link.format(x.legacy_anagrafica_id)}" for x in aperti if not x.attivo],
+                 "Stato incoerente: rieseguire il piano dello spostamento.")
+        riferimenti = self._riferimenti_esistenti()
+        self.add(a, "Adempimenti che puntano a un requisito non più a catalogo", "avviso",
+                 [f"adempimento #{x.pk} ({x.tipo} #{x.riferimento_id}) — {link.format(x.legacy_anagrafica_id)}"
+                  for x in aperti if x.riferimento_id and x.tipo in riferimenti
+                  and x.riferimento_id not in riferimenti[x.tipo]],
+                 "Il tipo di visita, il corso o la categoria DPI sono stati eliminati: chiudere come non necessario.")
+        if self.esistenti is not None:
+            self.orfani(a, aperti, lambda x: f"adempimento #{x.pk}")
+
+        programmate = DipendenteAssegnazione.objects.filter(
+            attivata_il__isnull=True, data_inizio__gte=self.oggi,
+        ).annotate(n=Count("adempimenti")).order_by()
+        if self.id_filtro is not None:
+            programmate = programmate.filter(legacy_anagrafica_id__in=self.id_filtro)
+        senza_piano = []
+        for ass in programmate:
+            if ass.n:
+                continue
+            precedente = (DipendenteAssegnazione.objects
+                          .filter(legacy_anagrafica_id=ass.legacy_anagrafica_id, data_inizio__lt=ass.data_inizio)
+                          .exclude(pk=ass.pk).order_by("-data_inizio", "-created_at").first())
+            if precedente is not None and (precedente.mansione or "").strip().casefold() == (ass.mansione or "").strip().casefold():
+                continue
+            senza_piano.append(f"spostamento #{ass.pk} dal {_d(ass.data_inizio)} — {link.format(ass.legacy_anagrafica_id)}")
+        self.add(a, "Cambi mansione programmati senza piano di adeguamento", "avviso", senza_piano,
+                 "Il piano può essere vuoto se la nuova mansione non porta requisiti nuovi: verificare "
+                 "riaprendo lo spostamento (Modifica) per rigenerarlo.")
+
+        stati = stato_operativo.calcola(self.id_filtro, giorno=self.oggi)
+        self.add(a, "Persone non idonee a operare", "errore",
+                 [f"{link.format(s.legacy_id)} — {s.etichetta}" for s in stati.values() if s.bloccante],
+                 "Registrare la visita o, se ammesso dalla configurazione, una deroga motivata.")
+        self.add(a, "Visita del cambio mansione mancante (solo avviso o in deroga)", "avviso",
+                 [f"{link.format(s.legacy_id)} — {s.etichetta}" for s in stati.values()
+                  if s.codice in (stato_operativo.AVVISO, stato_operativo.DEROGA)])
+
+        if self.id_filtro is None:
+            senza_profilo = (
+                Mansione.objects.filter(is_active=True)
+                .annotate(n_link=Count("link_rischio", filter=Q(link_rischio__mansione_rischio__is_active=True)),
+                          n_dpi=Count("dpi_richiesti", distinct=True), n_vis=Count("visite_richieste", distinct=True),
+                          n_esp=Count("esposizioni_rischio", filter=Q(esposizioni_rischio__is_active=True), distinct=True))
+                .filter(n_link=0, n_dpi=0, n_vis=0, n_esp=0)
+                .order_by("nome")
+            )
+            self.add(a, "Mansioni senza mansione di rischio collegata", "info",
+                     [f"«{m.nome}» — /anagrafica/mansioni/{m.pk}/requisiti" for m in senza_profilo],
+                     "Se la mansione espone a rischi, collegarla a una mansione di rischio del DVR.")
+
+    def _riferimenti_esistenti(self) -> dict[str, set[int]]:
+        from anagrafica.models import TipoVisitaMedica
+        from anagrafica.models_formazione import TrainingCourse
+        out = {"VISITA": set(TipoVisitaMedica.objects.values_list("pk", flat=True)),
+               "FORMAZIONE": set(TrainingCourse.objects.values_list("pk", flat=True))}
+        try:
+            from dpi.models import CategoriaDPI
+            out["DPI"] = set(CategoriaDPI.objects.values_list("pk", flat=True))
+        except Exception:
+            pass
+        return out
+
 
 def verifica(aree=AREE, legacy_ids=None, oggi: date | None = None) -> list[Sezione]:
     """Esegue i controlli richiesti e restituisce le sezioni (vuote comprese)."""
@@ -313,3 +397,39 @@ def verifica(aree=AREE, legacy_ids=None, oggi: date | None = None) -> list[Sezio
     for area in aree:
         getattr(v, area)()
     return v.sezioni
+
+
+def pubblica_in_monitoring(sezioni: list[Sezione]) -> dict:
+    """Porta il report in monitoring: una Issue (dedup) se ci sono errori o avvisi.
+
+    Senza problemi la Issue aperta viene risolta. Il messaggio contiene titoli,
+    conteggi e i primi link diretti; nessun dato sanitario.
+    """
+    from monitoring.models import Issue
+    from monitoring.services import open_or_update_issue_from_health_check, resolve_health_check_issue
+
+    check = "anagrafica_integrita_sicurezza"
+    problemi = [s for s in sezioni if s.righe and s.gravita in ("errore", "avviso")]
+    if not problemi:
+        resolve_health_check_issue(check_name=check, category=Issue.Category.DATA,
+                                   summary="Controllo di integrità sicurezza senza segnalazioni.")
+        return {"errori": 0, "avvisi": 0}
+    errori = sum(len(s.righe) for s in problemi if s.gravita == "errore")
+    avvisi = sum(len(s.righe) for s in problemi if s.gravita == "avviso")
+    righe = []
+    for s in problemi:
+        righe.append(f"[{s.gravita.upper()}] {s.area} — {s.titolo}: {len(s.righe)}")
+        righe += [f"  {r}" for r in s.righe[:10]]
+        if s.rimedio:
+            righe.append(f"  Rimedio: {s.rimedio}")
+    open_or_update_issue_from_health_check(
+        check_name=check,
+        title=f"Integrità HR/sicurezza: {errori} errori, {avvisi} avvisi",
+        message="\n".join(righe)[:8000],
+        severity=Issue.Severity.HIGH if errori else Issue.Severity.MEDIUM,
+        category=Issue.Category.DATA, module_name="anagrafica",
+        extra_json={"sezioni": [{"area": s.area, "titolo": s.titolo, "gravita": s.gravita, "n": len(s.righe)}
+                                for s in problemi]},
+        notify=bool(errori),
+    )
+    return {"errori": errori, "avvisi": avvisi}

@@ -295,3 +295,29 @@ def run_import_cedolini_sharepoint() -> dict:
         "righe_ok": imp.righe_ok if imp else 0,
         "righe_errore": imp.righe_errore if imp else 0,
     }
+
+
+def run_cambio_mansione_digest() -> dict:
+    """Riepilogo cambio mansione (adempimenti in ritardo + stato operativo).
+
+    Fail-safe: senza destinatari (``SiteConfig.cambio_mansione_emails``) non
+    invia nulla. Nessun dato clinico (vedi ``services.notifiche_cambio_mansione``).
+    """
+    from anagrafica.services.notifiche_cambio_mansione import invia_digest
+
+    try:
+        return invia_digest()
+    except Exception:
+        logger.exception("run_cambio_mansione_digest: eccezione inattesa")
+        raise
+
+
+def run_integrita_sicurezza() -> dict:
+    """Controllo di integrità notturno (scadenze + sicurezza) con report in monitoring."""
+    from anagrafica.services.integrita_scadenze import pubblica_in_monitoring, verifica
+
+    try:
+        return pubblica_in_monitoring(verifica())
+    except Exception:
+        logger.exception("run_integrita_sicurezza: eccezione inattesa")
+        raise

@@ -4339,7 +4339,23 @@ def dipendente_assegnazione_annulla(request, legacy_id: int, assegnazione_id: in
         precedente.data_fine = None
         precedente.save(update_fields=["data_fine"])
 
-    assegnazione.delete()
+    # Gli adempimenti generati restano nella storia come ANNULLATI con motivo
+    # (SET_NULL sull'assegnazione), e l'annullamento lascia traccia in timeline.
+    from django.db import transaction as _tx
+    from .services import eventi_sicurezza
+    from .services.cambio_mansione import annulla_piano
+    motivo = (request.POST.get("motivo") or "").strip()[:250]
+    with _tx.atomic():
+        descr = f"Spostamento a «{assegnazione.mansione or assegnazione.reparto}» dal {assegnazione.data_inizio:%d/%m/%Y} annullato"
+        annullati = annulla_piano(assegnazione, motivo=f"{descr}{': ' + motivo if motivo else ''}", user=request.user)
+        eventi_sicurezza.registra(
+            legacy_id, "ASSEGNAZIONE_ANNULLATA", descr, request=request,
+            data_effetto=assegnazione.data_inizio,
+            payload={"assegnazione_id": assegnazione.pk, "mansione": assegnazione.mansione,
+                     "reparto": assegnazione.reparto, "adempimenti_annullati": annullati,
+                     "motivo": motivo},
+        )
+        assegnazione.delete()
     messages.success(request, "Spostamento programmato annullato.")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 

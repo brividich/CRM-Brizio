@@ -45,16 +45,22 @@ def _notifica_sds_cambio_mansione(
     """Bridge fail-open verso Schede Sicurezza, senza dipendenza a import-time."""
     if (mansione_nuova or "").strip().casefold() == (mansione_precedente or "").strip().casefold():
         return
-    try:
-        from schede_sicurezza.services.assegnazioni import notifica_cambio_mansione
 
-        notifica_cambio_mansione(legacy_id, mansione_nuova, mansione_precedente)
-    except Exception:
-        import logging
-        logging.getLogger(__name__).warning(
-            "Aggancio SDS al cambio mansione fallito per dipendente %s", legacy_id,
-            exc_info=True,
-        )
+    def _invia():
+        try:
+            from schede_sicurezza.services.assegnazioni import notifica_cambio_mansione
+
+            notifica_cambio_mansione(legacy_id, mansione_nuova, mansione_precedente)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Aggancio SDS al cambio mansione fallito per dipendente %s", legacy_id,
+                exc_info=True,
+            )
+
+    # Dopo il commit: un rollback dello spostamento non deve lasciare notifiche
+    # di un cambio mai avvenuto.
+    transaction.on_commit(_invia)
 
 
 def verifica_idoneita(
@@ -263,8 +269,25 @@ def crea_assegnazione(
         created_by=user if getattr(user, "is_authenticated", False) else None,
     )
 
-    _genera_piano(assegnazione, mansione_precedente=corrente["mansione"],
-                  area_precedente_id=corrente["area_aziendale_id"])
+    from . import eventi_sicurezza
+    eventi_sicurezza.registra(
+        legacy_id, "ASSEGNAZIONE_REGISTRATA",
+        f"Spostamento registrato: «{mansione or reparto}» dal {data_inizio:%d/%m/%Y}",
+        user=user, data_effetto=data_inizio, oggetto=assegnazione,
+        payload={"assegnazione_id": assegnazione.pk, "mansione": mansione, "reparto": reparto,
+                 "mansione_precedente": corrente["mansione"]},
+    )
+
+    # Baseline del delta: l'assetto che questa assegnazione sostituisce. Se la
+    # precede uno spostamento ancora programmato (A→B già in calendario, ora
+    # B→C), la baseline è B — non l'assetto vivo A, che darebbe il delta A→C.
+    mansione_base, area_base = corrente["mansione"], corrente["area_aziendale_id"]
+    precedente = _assegnazione_precedente(assegnazione)
+    if precedente is not None and precedente.attivata_il is None:
+        mansione_base, area_base = precedente.mansione or "", precedente.area_aziendale_id
+
+    _genera_piano(assegnazione, mansione_precedente=mansione_base,
+                  area_precedente_id=area_base, user=user)
 
     if data_inizio <= timezone.localdate():
         attiva_assegnazione(assegnazione, user=user)
@@ -272,28 +295,42 @@ def crea_assegnazione(
     return assegnazione
 
 
-def _genera_piano(assegnazione, *, mansione_precedente: str, area_precedente_id) -> None:
-    """Piano di adeguamento del cambio mansione; un errore non blocca lo spostamento."""
+def _genera_piano(assegnazione, *, mansione_precedente: str, area_precedente_id, user=None) -> bool:
+    """Piano di adeguamento del cambio mansione; un errore non blocca lo spostamento.
+
+    Ritorna False se il piano non è stato generato: il chiamante lo dice
+    all'utente invece di lasciar credere che sia tutto registrato. Il savepoint
+    tiene lo spostamento valido anche se la generazione fallisce a metà.
+    """
     try:
+        from django.db import transaction as _tx
         from .cambio_mansione import genera_piano
 
-        genera_piano(assegnazione, mansione_precedente=mansione_precedente,
-                     area_precedente_id=area_precedente_id)
+        with _tx.atomic():
+            genera_piano(assegnazione, mansione_precedente=mansione_precedente,
+                         area_precedente_id=area_precedente_id, user=user)
+        return True
     except Exception:
         import logging
         logging.getLogger(__name__).exception(
             "Piano di adeguamento non generato per lo spostamento %s", assegnazione.pk)
+        return False
 
 
-def _assetto_precedente(assegnazione) -> tuple[str, int | None]:
-    """Mansione e area **prima** di questa assegnazione (la card che la precede)."""
-    precedente = (
+def _assegnazione_precedente(assegnazione):
+    """La card che precede questa nel tempo (stesso dipendente), o None."""
+    return (
         DipendenteAssegnazione.objects
         .filter(legacy_anagrafica_id=assegnazione.legacy_anagrafica_id, data_inizio__lt=assegnazione.data_inizio)
         .exclude(pk=assegnazione.pk)
         .order_by("-data_inizio", "-created_at")
         .first()
     )
+
+
+def _assetto_precedente(assegnazione) -> tuple[str, int | None]:
+    """Mansione e area **prima** di questa assegnazione (la card che la precede)."""
+    precedente = _assegnazione_precedente(assegnazione)
     if precedente is None:
         return "", None
     return precedente.mansione or "", precedente.area_aziendale_id
@@ -384,7 +421,7 @@ def modifica_assegnazione(
     if mansione != mansione_prima or area_valida_id != area_prima_id:
         mansione_prec, area_prec = _assetto_precedente(assegnazione)
         _genera_piano(assegnazione, mansione_precedente=mansione_prec or mansione_prima,
-                      area_precedente_id=area_prec)
+                      area_precedente_id=area_prec, user=user)
 
     if era_programmata:
         if data_inizio <= timezone.localdate():

@@ -607,13 +607,21 @@ class Mansione(models.Model):
     # uniscono a quelli ereditati dai FattoreRischio collegati via
     # EsposizioneRischio. La formazione obbligatoria resta su
     # TrainingRequirementRule(mansione=...). Vedi services/mansionario.py.
+    # DEPRECATI (1.6.x): il profilo di rischio vive in ``MansioneRischio``
+    # (models_mansioni_rischio). Restano letti solo come ripiego per le
+    # mansioni senza alcun collegamento a una mansione di rischio; rimozione
+    # in un rilascio successivo, dopo ``migra_mansioni_rischio --apply``.
     dpi_richiesti = models.ManyToManyField(
         "dpi.CategoriaDPI", blank=True, related_name="mansioni_richiedenti",
-        help_text="Categorie DPI obbligatorie per questa mansione.",
+        help_text="DEPRECATO: usare le mansioni di rischio collegate.",
     )
     visite_richieste = models.ManyToManyField(
         "anagrafica.TipoVisitaMedica", blank=True, related_name="mansioni_richiedenti",
-        help_text="Tipologie di visita medica obbligatorie per questa mansione.",
+        help_text="DEPRECATO: usare le mansioni di rischio collegate.",
+    )
+    mansioni_rischio = models.ManyToManyField(
+        "anagrafica.MansioneRischio", through="anagrafica.MansioneLavorativaRischio",
+        blank=True, related_name="mansioni_lavorative",
     )
 
     class Meta:
@@ -2216,14 +2224,29 @@ class AdempimentoCambioMansione(models.Model):
     STATO_APERTO = "APERTO"
     STATO_COMPLETATO = "COMPLETATO"
     STATO_NON_NECESSARIO = "NON_NECESSARIO"
+    STATO_NON_PIU_DOVUTO = "NON_PIU_DOVUTO"
+    STATO_ANNULLATO = "ANNULLATO"
     STATO_CHOICES = [
         (STATO_APERTO, "Da fare"),
         (STATO_COMPLETATO, "Fatto"),
         (STATO_NON_NECESSARIO, "Non necessario"),
+        (STATO_NON_PIU_DOVUTO, "Non più dovuto"),
+        (STATO_ANNULLATO, "Annullato"),
+    ]
+    ORIGINE_CHOICES = [
+        ("MANSIONE_RISCHIO", "Mansione di rischio"),
+        ("OVERRIDE", "Override individuale"),
+        ("MANSIONE", "Mansione lavorativa"),
+        ("AREA", "Area aziendale"),
+        ("DIRETTA", "Esposizione diretta"),
+        ("ALTRO", "Altro"),
     ]
 
+    # SET_NULL, non CASCADE: annullare uno spostamento programmato annulla i suoi
+    # adempimenti con un motivo, non li cancella (restano nella storia).
     assegnazione = models.ForeignKey(
-        DipendenteAssegnazione, on_delete=models.CASCADE, related_name="adempimenti",
+        DipendenteAssegnazione, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="adempimenti",
     )
     legacy_anagrafica_id = models.IntegerField(db_index=True)
     tipo = models.CharField(max_length=12, choices=TIPO_CHOICES)
@@ -2244,11 +2267,37 @@ class AdempimentoCambioMansione(models.Model):
     chiusura_nota = models.CharField(max_length=300, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Chiave stabile del requisito («TIPO:riferimento»): rende idempotente la
+    # rigenerazione del piano (aggiorna invece di cancellare e ricreare).
+    chiave = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    # False quando ANNULLATO / NON_PIU_DOVUTO: l'indice unique filtrato vale
+    # solo sulle righe vive (condizione positiva, vincolo di SQL Server).
+    attivo = models.BooleanField(default=True)
+    origine_tipo = models.CharField(max_length=20, choices=ORIGINE_CHOICES, blank=True, default="")
+    origine_mansione_rischio = models.ForeignKey(
+        "anagrafica.MansioneRischio", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    origine_override = models.ForeignKey(
+        "anagrafica.DipendenteMansioneRischioOverride", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    annullato_il = models.DateTimeField(null=True, blank=True)
+    annullato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    annullato_motivo = models.CharField(max_length=300, blank=True, default="")
+
     class Meta:
         ordering = ["stato", "entro_il", "tipo", "descrizione"]
         verbose_name = "Adempimento cambio mansione"
         verbose_name_plural = "Adempimenti cambio mansione"
         indexes = [models.Index(fields=["stato", "entro_il"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assegnazione", "chiave"], condition=models.Q(attivo=True),
+                name="uniq_adempimento_cm_chiave_attivo",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] {self.get_tipo_display()}: {self.descrizione}"
@@ -3016,6 +3065,7 @@ class AnagraficaVisiteMedichePermission(models.Model):
 # ---------------------------------------------------------------------------
 
 from .models_rischi import *      # noqa: E402, F401, F403
+from .models_mansioni_rischio import *  # noqa: E402, F401, F403
 from .models_formazione import *  # noqa: E402, F401, F403
 # Skill Matrix MOD.187 — strato abilitazione macchina (bridge additivo).
 from .models_skillmatrix import *  # noqa: E402, F401, F403

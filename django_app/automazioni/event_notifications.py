@@ -15,6 +15,19 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "func": "_notifica_gap_idoneita",
     },
     {
+        "code": "cambio_mansione_piano",
+        "label": "Cambio mansione — adempimenti da completare",
+        "module": "Anagrafica HR",
+        "trigger": (
+            "Il piano di adeguamento di uno spostamento (o il riallineamento per un override "
+            "o per una modifica delle mansioni di rischio) crea nuovi adempimenti: visita, "
+            "formazione, DPI, schede di sicurezza. Parte dopo il commit; nessun dato clinico."
+        ),
+        "destinatari": "SiteConfig cambio_mansione_emails (Task pianificati → cambio_mansione_digest → Configura mail)",
+        "source": "anagrafica/services/notifiche_cambio_mansione.py",
+        "func": "notifica_piano_cambio_mansione",
+    },
+    {
         "code": "onboarding_dpi_rischio",
         "label": "Onboarding — DPI da distribuire / controllo uso",
         "module": "Anagrafica HR",

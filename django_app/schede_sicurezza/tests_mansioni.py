@@ -87,7 +87,9 @@ class SdsPerMansioneWorkflowTest(TestCase):
             mansione=self.nuova.nome,
         )
 
-        self.assertTrue(attiva_assegnazione(assegnazione, user=self.user))
+        # La notifica SDS parte dopo il commit dello spostamento.
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertTrue(attiva_assegnazione(assegnazione, user=self.user))
 
         profilo = profilo_sds_utente(self.user)
         self.assertEqual(profilo.mansione_nome, self.nuova.nome)
@@ -138,7 +140,9 @@ class SdsPerMansioneWorkflowTest(TestCase):
         )
         mail.outbox = []
 
-        self.assertTrue(attiva_assegnazione(assegnazione, user=self.user))
+        # La notifica SDS parte dopo il commit dello spostamento.
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertTrue(attiva_assegnazione(assegnazione, user=self.user))
 
         self.assertEqual(mail.outbox, [])
         notifica = Notifica.objects.get(
