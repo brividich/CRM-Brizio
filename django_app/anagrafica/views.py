@@ -10766,11 +10766,15 @@ def _salva_referto_visita(request, visita: VisitaMedica, referto_file) -> Docume
     """Crea il ``DocumentoDipendente`` VISITA_MEDICA_REFERTO (storage privato)
     e lo aggancia a ``visita.referto_documento``. Percorso unico per form
     singolo e sessione batch."""
+    # SEC (audit A8): solo PDF/PNG/JPEG verificati dal contenuto; il tipo salvato
+    # e' quello rilevato, mai il Content-Type dichiarato dal browser.
+    from .services.referti_file import valida_referto
+    mime_reale = valida_referto(referto_file)
     doc = DocumentoDipendente(
         legacy_anagrafica_id=visita.legacy_anagrafica_id,
         tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
         nome_originale=getattr(referto_file, "name", "") or "referto",
-        tipo_mime=getattr(referto_file, "content_type", "") or "",
+        tipo_mime=mime_reale,
         dimensione_bytes=getattr(referto_file, "size", 0) or 0,
         descrizione=f"Referto visita {visita.tipo.nome} del {visita.data_svolgimento}",
         oggetto_riferimento_tipo="anagrafica.visitamedica",
@@ -11213,10 +11217,14 @@ def referto_gestione(request, doc_id: int):
                     )
                 else:
                     try:
-                        from core.upload_mime import sniff_mime
-                        mime = sniff_mime(uploaded)
+                        # SEC (audit A8): libmagic sul contenuto, fail-closed; mai il
+                        # tipo dichiarato dal browser. (``sniff_mime`` non esiste in
+                        # core.upload_mime: l'import falliva sempre e si ripiegava
+                        # sul Content-Type del client.)
+                        from core.upload_mime import sniff_upload_mime
+                        mime = sniff_upload_mime(uploaded)
                     except Exception:
-                        mime = uploaded.content_type or "application/octet-stream"
+                        mime = ""
                     if mime not in _ALLOWED_DOC_MIMES:
                         messages.error(request, "Tipo di file non consentito (contenuto non valido).")
                     else:
@@ -11423,11 +11431,13 @@ def documento_dipendente_download(request, doc_id: int):
     except FileNotFoundError:
         return HttpResponse("File non trovato sul server.", status=404)
     filename = doc.nome_originale or f"documento_{doc.pk}.bin"
+    # SEC (audit A8): tipo dai primi byte del file (sniff lato server), mai da
+    # doc.tipo_mime; inline solo PDF/PNG/JPEG coerenti col nome, il resto come
+    # allegato con CSP sandbox.
+    from core.download_security import harden_sniffed_response, read_head
+    head = read_head(fh)
     response = FileResponse(fh, as_attachment=False, filename=filename)
-    # SEC (audit A8): Content-Type dal nome file lato server, mai da doc.tipo_mime
-    # (dichiarato dal client); inline solo PDF/immagini, il resto come allegato.
-    from core.download_security import harden_file_response
-    return harden_file_response(response, filename, inline=True)
+    return harden_sniffed_response(response, filename, head)
 
 
 @login_required
@@ -12457,6 +12467,15 @@ def visite_mediche_nuova_sessione(request):
                 esito = VisitaMedica.Esito.IDONEO
             prescrizioni = request.POST.get(f"prescrizioni_{legacy_id}_{tipo_id}", "").strip()
             note = request.POST.get(f"note_{legacy_id}_{tipo_id}", "").strip()
+            referto_file = request.FILES.get(f"referto_{legacy_id}_{tipo_id}")
+            if referto_file:
+                from .services.referti_file import UploadMimeValidationError, valida_referto
+                try:
+                    valida_referto(referto_file)
+                except UploadMimeValidationError:
+                    # Referto non ammesso: la visita non si registra senza il suo referto.
+                    errori.append(f"{legacy_id}/{tipo_id} (referto non ammesso: solo PDF/PNG/JPEG)")
+                    continue
             try:
                 if VisitaMedica.objects.filter(
                     legacy_anagrafica_id=legacy_id, tipo=tipo,
@@ -12470,7 +12489,6 @@ def visite_mediche_nuova_sessione(request):
                     prescrizioni=prescrizioni, note=note, medico_competente=medico,
                     sessione=sess, created_by=request.user, updated_by=request.user,
                 )
-                referto_file = request.FILES.get(f"referto_{legacy_id}_{tipo_id}")
                 if referto_file:
                     _salva_referto_visita(request, visita, referto_file)
                 creati += 1

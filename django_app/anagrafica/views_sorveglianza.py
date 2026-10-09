@@ -262,9 +262,18 @@ def referti_carica(request):
         messages.error(request, "Nessun file selezionato.")
         return redirect("anagrafica:referti_coda")
 
+    from .services.referti_file import UploadMimeValidationError, valida_referto
+
     totale = registrati = in_coda = problemi = 0
     documenti = []
     for f in caricati:
+        try:
+            # SEC (audit A8): solo PDF/immagini verificati dal contenuto, prima di
+            # archiviare: un .html/.svg non entra nell'archivio dei referti.
+            valida_referto(f)
+        except UploadMimeValidationError:
+            problemi += 1
+            continue
         try:
             documenti.append((f.name, f.read()))
         except Exception:
@@ -710,4 +719,9 @@ def referto_scarica(request, riga_id: int):
     _audit(request, "referto_archiviato_scaricato", {
         "riga_id": riga.pk, "percorso": riga.percorso, "nome_file": riga.nome_file,
     })
-    return FileResponse(f, as_attachment=False, filename=riga.nome_file or "referto.pdf")
+    # SEC (audit A8): il nome file arriva dal client; il tipo si decide dai primi
+    # byte. Inline solo PDF/PNG/JPEG, il resto come allegato con CSP sandbox.
+    from core.download_security import harden_sniffed_response, read_head
+    nome = riga.nome_file or "referto.pdf"
+    head = read_head(f)
+    return harden_sniffed_response(FileResponse(f, as_attachment=False, filename=nome), nome, head)

@@ -399,3 +399,67 @@ class IntegritaENotificheTests(_Base):
         with self.captureOnCommitCallbacks(execute=True):
             crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=15), mansione="Saldatore T", user=self.admin)
         self.assertEqual(len(mail.outbox), 0)
+
+
+# ── A8: referti serviti e caricati in modo sicuro ────────────────────────────
+class RefertiDownloadSicuroTests(TestCase):
+    PDF = b"%PDF-1.4\n%sintetico\n"
+    HTML = b"<html><script>alert(1)</script></html>"
+    SVG = b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("a8_admin_test", "a8@example.invalid", "x")
+        self.client.force_login(self.admin)
+
+    def _doc(self, nome, contenuto, radice):
+        from django.core.files.base import ContentFile
+        from anagrafica.models import DocumentoDipendente
+        with self.settings(ANAGRAFICA_PRIVATE_ROOT=radice):
+            doc = DocumentoDipendente(legacy_anagrafica_id=1, tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
+                                      nome_originale=nome, tipo_mime="text/html")
+            doc.file.save(nome, ContentFile(contenuto), save=True)
+        return doc
+
+    def _scarica(self, nome, contenuto):
+        import tempfile
+        with tempfile.TemporaryDirectory() as radice:
+            doc = self._doc(nome, contenuto, radice)
+            with self.settings(ANAGRAFICA_PRIVATE_ROOT=radice):
+                r = self.client.get(reverse("anagrafica:documento_download", args=[doc.pk]))
+                b"".join(r.streaming_content)
+                # Non r.close(): emette request_finished e chiude la connessione DB del test.
+                for chiudibile in getattr(r, "_resource_closers", []):
+                    chiudibile()
+            return r
+
+    def test_html_e_svg_serviti_come_allegato_con_sandbox(self):
+        for nome, contenuto in (("referto.html", self.HTML), ("referto.svg", self.SVG),
+                                ("finto.pdf", self.HTML)):  # .pdf che contiene HTML
+            r = self._scarica(nome, contenuto)
+            self.assertEqual(r["Content-Type"], "application/octet-stream", nome)
+            self.assertTrue(r["Content-Disposition"].startswith("attachment"), nome)
+            self.assertIn("sandbox", r["Content-Security-Policy"], nome)
+
+    def test_pdf_vero_resta_inline(self):
+        r = self._scarica("referto.pdf", self.PDF)
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r["Content-Disposition"].startswith("inline"))
+
+    def test_upload_referto_non_pdf_rifiutato(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from anagrafica.forms import VisitaMedicaForm
+        tipo = TipoVisitaMedica.objects.create(nome="Tipo A8", durata_mesi=12)
+        form = VisitaMedicaForm(
+            {"tipo": tipo.pk, "data_svolgimento": OGGI.isoformat(), "esito": "IDONEO"},
+            {"referto_file": SimpleUploadedFile("referto.html", self.HTML, content_type="application/pdf")},
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("referto_file", form.errors)
+
+    def test_caricamento_referti_scarta_html_prima_di_archiviare(self):
+        from unittest import mock
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        with mock.patch("anagrafica.services.referti_intake.elabora_documenti", return_value=[]) as elabora:
+            self.client.post(reverse("anagrafica:referti_carica"),
+                             {"referti": [SimpleUploadedFile("x.html", self.HTML, content_type="application/pdf")]})
+        self.assertEqual(elabora.call_args[0][0], [])  # nessun documento passato all'archivio
