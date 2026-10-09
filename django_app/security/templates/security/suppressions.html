@@ -1,0 +1,98 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Soppressioni | Security Center AI{% endblock %}
+{% block page_icon %}S{% endblock %}
+{% block page_marker %}Soppressioni{% endblock %}
+{% block page_title %}Soppressioni manuali e apprese{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-muted sec-small">
+    Una soppressione trasforma gli eventi che riconosce in «Eventi soppressi» (registrati, senza alert).
+    {% if learning_enabled %}
+      Le soppressioni <strong>apprese</strong> nascono da sole dopo {{ threshold }} disattivazioni dello stesso alert in {{ window_days }} giorni,
+      hanno ambito esatto sull'impronta dell'alert e scadono. Mai per eventi critici, CVE sfruttate (KEV) o minacce.
+    {% else %}
+      La soppressione appresa è spenta.
+    {% endif %}
+    <a href="{% url 'security:soc_settings' %}">Impostazioni</a> ·
+    <a href="{% url 'security:events' %}?decision=suppressed">Eventi soppressi</a>
+    {% if can_edit %}· <a href="{% url 'security:admin_config_suppressions' %}">Nuova soppressione manuale</a>{% endif %}
+  </p>
+  <div class="sec-kpi-strip sec-small">
+    <span><strong>{{ counts.learned_active }}</strong> apprese attive</span> ·
+    <span><strong>{{ counts.manual_active }}</strong> manuali attive</span> ·
+    <span><strong>{{ counts.expiring }}</strong> in scadenza entro {{ expiring_days }} giorni</span>
+  </div>
+  <div class="sec-actions" style="margin-top: 8px;">
+    {% for code, label in kind_filters.items %}
+      <a class="sec-button{% if kind == code %} sec-button-primary{% endif %}" href="?tipo={{ code }}&stato={{ state }}">{{ label }}</a>
+    {% endfor %}
+    <span class="sec-muted">|</span>
+    {% for code, label in state_filters.items %}
+      <a class="sec-button{% if state == code %} sec-button-primary{% endif %}" href="?tipo={{ kind }}&stato={{ code }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-fm-table-skip="1">
+      <thead><tr><th>Regola</th><th>Tipo</th><th>Ambito</th><th class="sec-num">Hit</th><th>Ultimo hit</th><th>Scadenza</th><th>Motivo</th>{% if can_edit %}<th>Revoca</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for rule in rules %}
+        <tr>
+          <td class="sec-title-cell">{{ rule.name }}{% if not rule.is_live %}<br><span class="sec-badge sec-badge-muted">{% if rule.revoked_at %}Revocata {{ rule.revoked_at|date:"d/m/Y" }}{% elif rule.is_expired %}Scaduta{% else %}Spenta{% endif %}</span>{% endif %}</td>
+          <td>{% if rule.is_learned %}<span class="sec-badge warning">Appresa</span>{% else %}<span class="sec-badge sec-badge-muted">Manuale</span>{% endif %}</td>
+          <td class="sec-small">
+            {{ rule.source.name|default:"Tutte le sorgenti" }} · {{ rule.event_type|default:"ogni tipo" }}
+            {% for key, value in rule.match_payload.items %}<br>{{ key }} = {{ value }}{% endfor %}
+            {% if rule.max_severity %}<br>fino a severità {{ rule.get_max_severity_display }}{% endif %}
+          </td>
+          <td class="sec-num">{{ rule.hit_count }}</td>
+          <td class="sec-nowrap">{{ rule.last_hit_at|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td class="sec-nowrap">{% if rule.expires_at %}{% if rule.expiring %}<span class="sec-badge warning">{{ rule.expires_at|date:"d/m/Y" }}</span>{% else %}{{ rule.expires_at|date:"d/m/Y" }}{% endif %}{% else %}nessuna{% endif %}</td>
+          <td class="sec-small">{{ rule.reason|linebreaksbr }}{% if rule.revoked_reason %}<br><em>{{ rule.revoked_reason }}</em>{% endif %}</td>
+          {% if can_edit %}
+            <td>
+              {% if rule.is_live %}
+                <form method="post" action="{% url 'security:suppression_revoke' rule.pk %}" class="sec-inline">
+                  {% csrf_token %}
+                  <input type="text" name="reason" required placeholder="Motivo" aria-label="Motivo della revoca" maxlength="500">
+                  <button type="submit" class="sec-button">Revoca</button>
+                </form>
+              {% endif %}
+            </td>
+          {% endif %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="sec-empty">Nessuna soppressione con questi filtri.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Ultime disattivazioni</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Quando</th><th>Alert</th><th>Esito</th><th>Chi</th><th>Motivo</th><th>Conteggio</th></tr></thead>
+      <tbody>
+      {% for d in recent_dismissals %}
+        <tr>
+          <td class="sec-nowrap">{{ d.created_at|date:"d/m/Y H:i" }}</td>
+          <td><a href="{% url 'security:alert_detail' d.alert_id %}">#{{ d.alert_id }} {{ d.alert.title|truncatechars:60 }}</a></td>
+          <td>{{ d.get_kind_display }}</td>
+          <td>{{ d.actor }}</td>
+          <td class="sec-small">{{ d.reason|truncatechars:120 }}</td>
+          <td class="sec-small">{% if d.learned_rule %}ha creato «{{ d.learned_rule.name|truncatechars:40 }}»{% elif not d.fingerprint %}non apprendibile{% elif d.counted %}conta{% else %}azzerata{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="sec-empty">Nessuna disattivazione registrata.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

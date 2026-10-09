@@ -508,6 +508,19 @@ class SecurityAlertSuppressionRule(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     hit_count = models.PositiveIntegerField(default=0)
     last_hit_at = models.DateTimeField(null=True, blank=True)
+    # Soppressione appresa (owner «system:learned»): ambito = impronta esatta dell'alert,
+    # mai più largo; non scatta se l'evento è più grave delle disattivazioni che l'hanno creata.
+    fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
+    max_severity = models.CharField(max_length=24, choices=Severity.choices, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.TextField(blank=True)
+
+    LEARNED_OWNER = "system:learned"
+    LEARNED_SCOPE = "learned_fingerprint"
+
+    @property
+    def is_learned(self):
+        return self.owner == self.LEARNED_OWNER
 
     def matches(self, event):
         now = timezone.now()
@@ -515,6 +528,10 @@ class SecurityAlertSuppressionRule(models.Model):
             return False
         if self.expires_at and self.expires_at <= now:
             return False
+        if self.fingerprint:
+            from security.services.learned_suppression import learned_rule_matches
+
+            return learned_rule_matches(self, event)
         if self.source_id and self.source_id != event.source_id:
             return False
         if self.event_type and self.event_type != event.event_type:
@@ -534,6 +551,50 @@ class SecurityAlertSuppressionRule(models.Model):
 
     def __str__(self):
         return self.name
+
+
+SEVERITY_RANK = {Severity.INFO: 0, Severity.LOW: 1, Severity.MEDIUM: 2, Severity.WARNING: 3, Severity.HIGH: 4, Severity.CRITICAL: 5}
+
+
+class SecurityAlertDismissal(models.Model):
+    """Una disattivazione manuale di un alert (falso positivo, non rilevante, rischio accettato, silenzia).
+
+    È la materia prima della soppressione appresa: N disattivazioni della stessa impronta
+    nella finestra configurata creano una regola. Chiusure automatiche e «risolto» non
+    finiscono qui. ``counted=False`` = azzerata da una riapertura manuale.
+    """
+
+    KIND_FALSE_POSITIVE = "false_positive"
+    KIND_NOT_RELEVANT = "not_relevant"
+    KIND_ACCEPTED_RISK = "accepted_risk"
+    KIND_MUTE = "mute"
+    KIND_CHOICES = [
+        (KIND_FALSE_POSITIVE, "Falso positivo"),
+        (KIND_NOT_RELEVANT, "Non rilevante"),
+        (KIND_ACCEPTED_RISK, "Rischio accettato"),
+        (KIND_MUTE, "Silenziato"),
+    ]
+
+    alert = models.ForeignKey(SecurityAlert, on_delete=models.CASCADE, related_name="dismissals")
+    source = models.ForeignKey(SecuritySource, on_delete=models.SET_NULL, null=True, blank=True)
+    event_type = models.CharField(max_length=120, blank=True)
+    fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
+    fingerprint_fields = models.JSONField(default=dict, blank=True)
+    kind = models.CharField(max_length=24, choices=KIND_CHOICES)
+    severity = models.CharField(max_length=24, choices=Severity.choices, blank=True)
+    actor = models.CharField(max_length=120)
+    reason = models.TextField()
+    batch = models.CharField(max_length=64, blank=True)
+    counted = models.BooleanField(default=True)
+    learned_rule = models.ForeignKey(SecurityAlertSuppressionRule, on_delete=models.SET_NULL, null=True, blank=True, related_name="dismissals")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["fingerprint", "counted", "created_at"], name="sec_dismiss_fp_idx")]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} alert {self.alert_id}"
 
 
 class BackupExpectedJobConfig(models.Model):

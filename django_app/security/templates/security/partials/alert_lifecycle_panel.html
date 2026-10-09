@@ -25,15 +25,40 @@
     </form>
   {% endif %}
 
-  {% if can_close or can_mark_false_positive %}
-    <div class="sec-actions" style="margin-top: 10px;">
-      {% if can_close %}
-        <form class="sec-inline" method="post" action="{% url 'security:alert_action' alert.pk 'close' %}" hx-post="{% url 'security:alert_action' alert.pk 'close' %}" hx-target="#alert-lifecycle-panel" hx-swap="outerHTML">{% csrf_token %}<input type="hidden" name="reason" value="Chiuso dalla UI"><button type="submit">Chiudi</button></form>
-      {% endif %}
-      {% if can_mark_false_positive %}
-        <form class="sec-inline" method="post" action="{% url 'security:alert_action' alert.pk 'false_positive' %}" hx-post="{% url 'security:alert_action' alert.pk 'false_positive' %}" hx-target="#alert-lifecycle-panel" hx-swap="outerHTML">{% csrf_token %}<input type="hidden" name="reason" value="Marcato falso positivo dalla UI"><button type="submit">Falso positivo</button></form>
-      {% endif %}
-    </div>
+  {% if action_error %}<p class="sec-message sec-error" role="alert">{{ action_error }}</p>{% endif %}
+
+  {% if learning.rule %}
+    <p class="sec-badge sec-badge-muted" title="{{ learning.rule.reason }}">Soppressione appresa attiva fino al {{ learning.rule.expires_at|date:"d/m/Y" }}: le prossime occorrenze non creano alert.</p>
+  {% elif learning.next_creates_rule %}
+    <p class="sec-badge warning">{{ learning.count }}/{{ learning.threshold }} disattivazioni: la prossima creerà una soppressione automatica.</p>
+  {% elif learning.count and learning.enabled %}
+    <p class="sec-muted sec-small">{{ learning.count }}/{{ learning.threshold }} disattivazioni di questo alert{% if learning.blocked %} · non verrà soppresso: {{ learning.blocked }}{% endif %}.</p>
+  {% endif %}
+
+  {% if can_close %}
+    <form class="sec-grid" style="margin-top: 10px;" method="post" action="{% url 'security:alert_action' alert.pk 'close' %}" hx-post="{% url 'security:alert_action' alert.pk 'close' %}" hx-target="#alert-lifecycle-panel" hx-swap="outerHTML">
+      {% csrf_token %}
+      <label>Esito
+        <select name="outcome">{% for value, label in close_outcomes.items %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+      </label>
+      <label>Motivo <input type="text" name="reason" placeholder="Obbligatorio se non rilevante o rischio accettato"></label>
+      <button type="submit">Chiudi</button>
+    </form>
+  {% endif %}
+
+  {% if can_mark_false_positive %}
+    <form class="sec-grid" style="margin-top: 10px;" method="post" action="{% url 'security:alert_action' alert.pk 'false_positive' %}" hx-post="{% url 'security:alert_action' alert.pk 'false_positive' %}" hx-target="#alert-lifecycle-panel" hx-swap="outerHTML">
+      {% csrf_token %}
+      <label>Motivo <input type="text" name="reason" required placeholder="Perché è un falso positivo"></label>
+      <button type="submit">Falso positivo</button>
+    </form>
+  {% endif %}
+  {% if can_mute %}
+    <form class="sec-grid" style="margin-top: 10px;" method="post" action="{% url 'security:alert_action' alert.pk 'mute' %}" hx-post="{% url 'security:alert_action' alert.pk 'mute' %}" hx-target="#alert-lifecycle-panel" hx-swap="outerHTML">
+      {% csrf_token %}
+      <label>Motivo <input type="text" name="reason" required placeholder="Perché silenziarlo"></label>
+      <button type="submit">Silenzia</button>
+    </form>
   {% endif %}
 
   {% if can_reopen %}

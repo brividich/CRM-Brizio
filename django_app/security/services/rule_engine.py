@@ -61,7 +61,9 @@ def _matching_suppression(event):
 
 def _mark_suppressed(event, rule):
     event.suppressed = True
-    event.decision_trace = {"decision": "suppressed_kpi_only", "rule": rule.name, "reason": rule.reason}
+    event.decision_trace = {"decision": "suppressed_kpi_only", "rule": rule.name, "rule_id": rule.pk, "reason": rule.reason}
+    if rule.fingerprint:
+        event.decision_trace.update({"learned": True, "fingerprint": rule.fingerprint, "rule_expires_at": rule.expires_at.isoformat() if rule.expires_at else None})
     event.save(update_fields=["suppressed", "decision_trace"])
     rule.hit_count += 1
     rule.last_hit_at = timezone.now()

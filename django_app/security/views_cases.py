@@ -1,4 +1,6 @@
 """Casi SOC (ticket gestibili) e azioni massive sugli alert."""
+import uuid
+
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
@@ -287,10 +289,16 @@ def alerts_bulk(request):
         messages.success(request, f"{added} alert aggiunti al caso #{case.pk}.")
         return redirect("security:case_detail", pk=case.pk)
 
+    # Le disattivazioni (falso positivo) chiedono un motivo vero; un'azione massiva conta una
+    # volta sola per la soppressione appresa (stesso ``batch``).
+    if action == "false_positive" and not reason:
+        messages.error(request, "Per marcare come falso positivo scrivi il motivo.")
+        return redirect(back)
+    batch = f"bulk-{uuid.uuid4().hex[:20]}"
     handlers = {
         "acknowledge": (lambda alert: acknowledge_alert(alert, actor=actor, reason=reason or "Presa in carico massiva"), {Status.NEW, Status.OPEN}),
         "close": (lambda alert: close_alert(alert, actor=actor, reason=reason or "Chiusura massiva"), set(ACTIVE_ALERT_STATUSES)),
-        "false_positive": (lambda alert: mark_false_positive(alert, actor=actor, reason=reason or "Falso positivo (azione massiva)"), set(ACTIVE_ALERT_STATUSES)),
+        "false_positive": (lambda alert: mark_false_positive(alert, actor=actor, reason=reason, batch=batch), set(ACTIVE_ALERT_STATUSES)),
     }
     if action not in handlers:
         messages.error(request, "Azione non supportata.")

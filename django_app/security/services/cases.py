@@ -177,7 +177,11 @@ def set_case_status(case, new_status, *, user, reason="", close_alerts=False):
         closer = mark_false_positive if new_status == Status.FALSE_POSITIVE else close_alert
         for alert in case_alerts(case):
             if alert.status in ACTIVE_ALERT_STATUSES:
-                closer(alert, actor=actor, reason=reason or f"Chiuso con il ticket #{case.pk}")
+                if closer is mark_false_positive:
+                    # Un caso chiuso come falso positivo conta una volta sola per la soppressione appresa.
+                    closer(alert, actor=actor, reason=reason or f"Chiuso con il ticket #{case.pk}", batch=f"case-{case.pk}")
+                else:
+                    closer(alert, actor=actor, reason=reason or f"Chiuso con il ticket #{case.pk}")
     return case
 
 

@@ -23,10 +23,11 @@ class Option:
     default: object
     label: str
     help: str = ""
-    kind: str = "bool"  # bool | int | choice | channels
+    kind: str = "bool"  # bool | int | choice | channels | text
     choices: tuple = field(default_factory=tuple)
     min_value: int = 0
     max_value: int = 0
+    unit: str = ""
 
 
 SECTIONS = [
@@ -62,6 +63,27 @@ SECTIONS = [
             Option("report.auto.canali", [], "Canali", "Dove mandare il report.", "channels"),
         ],
     },
+    {
+        "code": "soppressione_appresa",
+        "title": "Soppressione appresa",
+        "intro": "Quando lo stesso alert viene disattivato più volte a mano (falso positivo, non rilevante, rischio accettato, silenziato) "
+                 "il sistema crea una regola di soppressione su quell'impronta esatta: le occorrenze successive restano negli Eventi soppressi, "
+                 "senza alert. Ogni regola appresa scade, si revoca con un clic e si spegne da sola se qualcuno riapre l'alert.",
+        "channels_optional": True,
+        "options": [
+            Option("soppressione.appresa.attivo", True, "Impara dalle disattivazioni ripetute"),
+            Option("soppressione.appresa.soglia", 3, "Soglia", "Disattivazioni della stessa impronta che creano la regola.", "int", min_value=2, max_value=10, unit="disattivazioni"),
+            Option("soppressione.appresa.finestra_giorni", 90, "Finestra", "Giorni in cui contare le disattivazioni.", "int", min_value=7, max_value=365),
+            Option("soppressione.appresa.durata_giorni", 180, "Durata", "Giorni di validità della regola appresa.", "int", min_value=7, max_value=365),
+            Option("soppressione.appresa.escludi_critici", True, "Mai per severità critica", "Gli eventi critici fanno sempre nascere l'alert."),
+            Option("soppressione.appresa.escludi_kev", True, "Mai per CVE sfruttate (CISA KEV)"),
+            Option("soppressione.appresa.escludi_minacce", True, "Mai per minacce, malware, ransomware, botnet"),
+            Option("soppressione.appresa.blocca_aggravamento", True, "Alert comunque se la severità sale",
+                   "Se l'evento è più grave delle disattivazioni che hanno creato la regola, l'alert nasce."),
+            Option("soppressione.appresa.tipi_esclusi", "", "Tipi di evento esclusi", "Elenco separato da virgole (es. source_silent, possible_sender_spoofing).", "text"),
+            Option("soppressione.appresa.canali", [], "Canali", "Dove avvisare quando nasce una regola appresa (facoltativo).", "channels"),
+        ],
+    },
 ]
 
 OPTIONS = {option.key: option for section in SECTIONS for option in section["options"]}
@@ -82,7 +104,14 @@ def value(key):
         return [int(x) for x in raw if str(x).isdigit()] if isinstance(raw, list) else []
     if option.kind == "choice":
         return raw if raw in dict(option.choices) else option.default
+    if option.kind == "text":
+        return str(raw or "").strip()
     return raw
+
+
+def text_list(key):
+    """Valore «text» letto come elenco separato da virgole (minuscolo, senza vuoti)."""
+    return [part.strip().lower() for part in value(key).split(",") if part.strip()]
 
 
 def backup_stale_days():
@@ -113,7 +142,11 @@ def parse_post(data):
             values[key] = raw
         elif option.kind == "channels":
             values[key] = sorted({int(x) for x in data.getlist(field_name) if str(x).isdigit() and int(x) in valid_channels})
+        elif option.kind == "text":
+            values[key] = str(data.get(field_name, "")).strip()[:500]
     for section in SECTIONS:
+        if section.get("channels_optional"):
+            continue
         active = next((o.key for o in section["options"] if o.kind == "bool"), None)
         channels = next((o.key for o in section["options"] if o.kind == "channels"), None)
         if active and channels and values.get(active) and not values.get(channels):

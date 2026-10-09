@@ -7,7 +7,7 @@ API REST e mailbox-admin restano fuori (arrivano più avanti).
 from django.http import JsonResponse
 from django.urls import path
 
-from . import api, views, views_backup, views_cases, views_events, views_incidents, views_report, views_live, views_soc, views_work
+from . import api, views, views_backup, views_cases, views_events, views_incidents, views_report, views_live, views_soc, views_suppressions, views_work
 
 from .permissions import soc_view_required as _guard
 
@@ -39,6 +39,9 @@ urlpatterns = [
     path("eventi/<int:pk>/a-posto/", views_events.event_confirm_ok, name="event_confirm_ok"),
     path("eventi/<int:pk>/ai/", views_events.event_ai_triage, name="event_ai_triage"),
     path("eventi/regole-apprese/<int:pk>/attiva/", views_events.escalation_rule_toggle, name="escalation_rule_toggle"),
+    # Soppressioni manuali e apprese (dopo N disattivazioni dello stesso alert)
+    path("soppressioni/", views_suppressions.suppressions_list, name="suppressions"),
+    path("soppressioni/<int:pk>/revoca/", views_suppressions.suppression_revoke, name="suppression_revoke"),
     # Registro incidenti (NIS2 / GDPR) e report periodico
     path("incidenti/", views_incidents.incidents_list, name="incidents"),
     path("incidenti/nuovo/", views_incidents.incident_create, name="incident_create"),

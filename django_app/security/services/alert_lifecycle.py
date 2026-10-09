@@ -34,20 +34,34 @@ def acknowledge_alert(alert, actor="system", reason=""):
     )
 
 
-def close_alert(alert, actor="system", reason=""):
-    return _transition_alert(
+# Esiti di chiusura: «resolved» = il problema è rientrato (non è una disattivazione);
+# gli altri dicono «non è un problema» e alimentano la soppressione appresa.
+CLOSE_OUTCOMES = {
+    "resolved": "Risolto",
+    "not_relevant": "Non rilevante",
+    "accepted_risk": "Rischio accettato",
+}
+
+
+def close_alert(alert, actor="system", reason="", outcome="resolved", batch=""):
+    outcome = outcome if outcome in CLOSE_OUTCOMES else "resolved"
+    alert = _transition_alert(
         alert,
         new_status=Status.CLOSED,
         action="close",
         actor=actor,
         reason=reason,
+        extra_details={"outcome": outcome},
         closed_at=timezone.now(),
         snoozed_until=None,
     )
+    if outcome != "resolved":
+        _record_dismissal(alert, outcome, actor, reason, batch)
+    return alert
 
 
-def mark_false_positive(alert, actor="system", reason=""):
-    return _transition_alert(
+def mark_false_positive(alert, actor="system", reason="", batch=""):
+    alert = _transition_alert(
         alert,
         new_status=Status.FALSE_POSITIVE,
         action="false_positive",
@@ -56,6 +70,29 @@ def mark_false_positive(alert, actor="system", reason=""):
         closed_at=timezone.now(),
         snoozed_until=None,
     )
+    _record_dismissal(alert, "false_positive", actor, reason, batch)
+    return alert
+
+
+def mute_alert(alert, actor="system", reason="", batch=""):
+    """Silenzia: l'alert resta in elenco ma non chiede attenzione. Conta come disattivazione."""
+    alert = _transition_alert(
+        alert,
+        new_status=Status.MUTED,
+        action="mute",
+        actor=actor,
+        reason=reason,
+        closed_at=None,
+        snoozed_until=None,
+    )
+    _record_dismissal(alert, "mute", actor, reason, batch)
+    return alert
+
+
+def _record_dismissal(alert, kind, actor, reason, batch):
+    from security.services.learned_suppression import record_dismissal
+
+    return record_dismissal(alert, kind=kind, actor=actor, reason=reason, batch=batch)
 
 
 def snooze_alert(alert, until, actor="system", reason=""):
@@ -70,8 +107,8 @@ def snooze_alert(alert, until, actor="system", reason=""):
     )
 
 
-def reopen_alert(alert, actor="system", reason=""):
-    return _transition_alert(
+def reopen_alert(alert, actor="system", reason="", user=None):
+    alert = _transition_alert(
         alert,
         new_status=Status.OPEN,
         action="reopen",
@@ -80,9 +117,14 @@ def reopen_alert(alert, actor="system", reason=""):
         closed_at=None,
         snoozed_until=None,
     )
+    # Chi riapre a mano dice «questo è un problema»: la soppressione appresa si spegne.
+    from security.services.learned_suppression import on_manual_reopen
+
+    on_manual_reopen(alert, actor=actor, reason=reason, user=user)
+    return alert
 
 
-def _transition_alert(alert, new_status, action, actor, reason="", **field_updates):
+def _transition_alert(alert, new_status, action, actor, reason="", extra_details=None, **field_updates):
     old_status = alert.status
     alert.status = new_status
     alert.status_reason = reason or ""
@@ -103,6 +145,7 @@ def _transition_alert(alert, new_status, action, actor, reason="", **field_updat
         "new_status": new_status,
         "reason": reason,
         "actor": actor,
+        **(extra_details or {}),
     }
     if alert.snoozed_until:
         details["snoozed_until"] = alert.snoozed_until.isoformat()
