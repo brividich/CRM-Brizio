@@ -65,4 +65,4 @@ puresnmp-crypto>=1.0,<2        # cifratura SNMPv3 (AES/DES) per puresnmp
 defusedxml>=0.7,<1             # parsing sicuro della fattura elettronica (FatturaPA) caricata nei contatori
 
 # --- API REST (modulo security / Security Center AI) ---
-djangorestframework>=3.16,<4   # APIView/permissions dell'app security (SC-AI)
+djangorestframework>=3.18.2,<4   # APIView/permissions dell'app security (SC-AI)
