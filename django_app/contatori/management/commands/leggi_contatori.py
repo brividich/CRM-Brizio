@@ -9,7 +9,8 @@ class Command(BaseCommand):
     help = "Legge i contatori via SNMP di tutte le macchine attive con host"
 
     def add_arguments(self, parser):
-        parser.add_argument("--community", default="novicromprinter")
+        parser.add_argument("--community", default=None,
+                            help="Vuoto = community della configurazione SNMP globale")
         parser.add_argument("--timeout", type=int, default=3)
         parser.add_argument(
             "--snmp-version",
@@ -19,6 +20,12 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **o):
+        from django.core.management.base import CommandError
+        from contatori.models import ImpostazioniSNMP
+        o["community"] = o["community"] or ImpostazioniSNMP.get_solo().community
+        if not o["community"]:
+            raise CommandError("[SNMP-008] Community SNMP non configurata: passa --community "
+                               "o impostala nella configurazione SNMP globale.")
         oggi = timezone.localdate()
         trim = f"{oggi.year}-Q{(oggi.month-1)//3+1}"
         ok = 0
@@ -32,5 +39,6 @@ class Command(BaseCommand):
                 ok += 1
                 self.stdout.write(self.style.SUCCESS(f"{m.reparto}: {vals}"))
             except SNMPError as e:
-                self.stderr.write(self.style.WARNING(f"{m.reparto}: {e}"))
+                from contatori.errori_snmp import testo_con_codice
+                self.stderr.write(self.style.WARNING(f"{m.reparto}: {testo_con_codice(e)}"))
         self.stdout.write(f"\n{ok} macchine lette ({trim}).")

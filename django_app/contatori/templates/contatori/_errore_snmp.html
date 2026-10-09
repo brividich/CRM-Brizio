@@ -1,0 +1,1 @@
+{% load contatori_errori %}{% with v=errore|voce_errore %}<div class="banner errore-snmp" role="status"><strong>{{ v.codice }} · {{ v.titolo }}</strong> — {{ errore|senza_codice }}<div class="errore-azione"><strong>Cosa fare:</strong> {{ v.azione }}</div></div>{% endwith %}

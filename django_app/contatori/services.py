@@ -17,6 +17,8 @@ from time import perf_counter
 
 from django.db import transaction
 from django.utils import timezone
+
+from . import errori_snmp
 from .models import (
     CONTATORI,
     ColonnaProfiloSNMP,
@@ -643,7 +645,7 @@ def interroga_macchina(macchina):
         macchina.snmp_stato = StatoSNMP.ERROR
         macchina.snmp_ultimo_controllo = timezone.now()
         macchina.snmp_tempo_risposta_ms = _tempo_ms(inizio)
-        macchina.snmp_ultimo_errore = str(exc)[:500]
+        macchina.snmp_ultimo_errore = errori_snmp.testo_con_codice(exc)
         macchina.save(update_fields=[
             "snmp_stato", "snmp_ultimo_controllo", "snmp_tempo_risposta_ms",
             "snmp_ultimo_errore",
@@ -705,12 +707,12 @@ def interroga_dispositivo(dispositivo):
         rilevazione = RilevazioneSNMP.objects.create(
             dispositivo=dispositivo, rilevata_il=adesso,
             stato=StatoSNMP.ERROR, tempo_risposta_ms=durata,
-            errore=str(exc)[:500],
+            errore=errori_snmp.testo_con_codice(exc),
         )
         dispositivo.snmp_stato = StatoSNMP.ERROR
         dispositivo.snmp_ultimo_controllo = adesso
         dispositivo.snmp_tempo_risposta_ms = durata
-        dispositivo.snmp_ultimo_errore = str(exc)[:500]
+        dispositivo.snmp_ultimo_errore = errori_snmp.testo_con_codice(exc)
         dispositivo.save(update_fields=[
             "snmp_stato", "snmp_ultimo_controllo", "snmp_tempo_risposta_ms",
             "snmp_ultimo_errore", "aggiornato_il",
@@ -763,7 +765,7 @@ def interroga_dispositivo(dispositivo):
             valori.update(nuovi_valori)
             errori.update(nuovi_errori)
         except SNMPError as exc:
-            errori.update({s.oid: str(exc) for s in nuove_sonde})
+            errori.update({s.oid: errori_snmp.testo_con_codice(exc) for s in nuove_sonde})
         sonde.extend(nuove_sonde)
 
     stampante = (
@@ -785,7 +787,8 @@ def interroga_dispositivo(dispositivo):
                 port=porta, timeout=timeout, version=versione,
             )
         except SNMPError as exc:
-            dati_stampante = {"contatori": [], "consumabili": [], "errori": {"lettura": str(exc)}}
+            dati_stampante = {"contatori": [], "consumabili": [],
+                              "errori": {"lettura": errori_snmp.testo_con_codice(exc)}}
         if dispositivo.categoria != DispositivoSNMP.Categoria.STAMPANTE:
             dispositivo.categoria = DispositivoSNMP.Categoria.STAMPANTE
             dispositivo.save(update_fields=["categoria"])
@@ -884,6 +887,10 @@ def interroga_dispositivo(dispositivo):
     if seriale and not dispositivo.matricola:
         dispositivo.matricola = seriale
         update_fields.append("matricola")
+    if not dispositivo.verificato:
+        # Prima lettura riuscita di una bozza o di un dispositivo creato senza test.
+        dispositivo.verificato = True
+        update_fields.append("verificato")
     dispositivo.save(update_fields=[
         *update_fields,
     ])
@@ -1089,7 +1096,7 @@ def leggi_consumabili_macchina(macchina):
         return leggi_consumabili(macchina, community=_community_snmp(macchina, cfg), port=porta,
                                  timeout=timeout, version=versione), None
     except SNMPError as e:
-        return None, str(e)
+        return None, errori_snmp.testo_con_codice(e)
 
 
 def salva_consumabili(macchina, consumabili, quando=None):

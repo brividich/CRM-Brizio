@@ -63,8 +63,8 @@ Soglie: `SondaSNMP.soglia_{warning,critica}_{min,max}` per singola sonda; non es
 - puresnmp 2.0.1 ha la classe `V3`, ma i plugin installati sono auth `md5`/`sha1` e priv solo `example.py`. **Per AES/DES manca il pacchetto `puresnmp-crypto`**; SHA-2 non è disponibile. Prima di promettere authPriv serve aggiungere la dipendenza, aggiornare `requirements.in`/`.txt` (attenzione al pip-compile Windows) e fare una verifica su device reale.
 - Dove stanno le community oggi:
   - `CommunitySNMP.segreto_cifrato`: Fernet, chiave HMAC(`SECRET_KEY`), supporta `SECRET_KEY_FALLBACKS`, mai mostrata nei form. È la strada corretta.
-  - **In chiaro nel DB**: `ImpostazioniSNMP.community` (default `novicromprinter`), `Macchina.snmp_community`, `DispositivoSNMP.community`.
-  - Il default `novicromprinter` è scritto nel codice (`snmp.py`, firme delle funzioni, e il modello).
+  - **In chiaro nel DB**: `ImpostazioniSNMP.community` (nessun default dalla migrazione `contatori 0028`), `Macchina.snmp_community`, `DispositivoSNMP.community`.
+  - ~~Il default della community era scritto nel codice~~: rimosso (ottobre 2026, migrazione `contatori 0028`). Senza community configurata la lettura si ferma con l'errore `SNMP-008`.
 - Ordine di precedenza: community salvata > override manuale > globale.
 - I messaggi d'errore riportano `str(exc)` di puresnmp con l'host: da verificare che non includano mai la community (in v1/v2c puresnmp normalmente non la stampa).
 

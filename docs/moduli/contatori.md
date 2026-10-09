@@ -10,6 +10,14 @@ Area **SOC IT - CN** · URL `/contatori/` · codice [`django_app/contatori/`](..
 
 ## Note di rilascio
 
+**Wizard «Nuovo dispositivo SNMP» e catalogo errori** (ottobre 2026). Migrazioni `contatori 0028` (campo `verificato`, community globale senza default) e `0029` (binding ACL di gestione delle due route nuove).
+- `/contatori/snmp/dispositivi/wizard/` (permesso gestione): 7 passi — tipo e modello (preset dal catalogo profili o generico), rete (IP o nome host risolto subito, porta, v2c/v3/v1), credenziali (catalogo cifrato, community nuova salvata cifrata, utente v3 o community globale), **test di connessione obbligatorio** (`sysDescr`/`sysObjectID`, 3 s + 1 tentativo sul timeout, profilo riconosciuto dal `sysObjectID`), mappatura (valore letto accanto a ogni colonna del profilo, OID che non rispondono in rosso), asset e reparto (ricerca, asset proposto da IP), riepilogo.
+- Il test vale solo per rete e credenziali con cui è stato eseguito: se cambiano va ripetuto. La conferma riconvalida tutti i passi lato server.
+- «Salva come bozza» (dopo il passo Rete): il dispositivo nasce **non verificato**, come quelli creati dal form completo (`/snmp/dispositivi/nuovo/`, ancora disponibile). Pill «non verificato» su scheda, Monitor e Centrale; la prima interrogazione riuscita lo rende verificato.
+- **Catalogo errori** (`contatori/errori_snmp.py`): `SNMP-001` indirizzo non valido · `002` DNS · `003` nessuna risposta (anche community v1/v2c errata) · `004` credenziali v3 rifiutate · `005` OID non esposto · `006` valore non valido · `007` permessi/gestori ammessi · `008` credenziali non configurate. Usato da wizard e job: `snmp_ultimo_errore` inizia con il codice.
+- **Nessuna community nel codice**: la community storica era scritta nelle firme di `snmp.py` e come default del modello. Rimossa; il valore già salvato in configurazione globale resta. Da fare in produzione: cambiare la community sulle stampanti e aggiornarla nel portale, perché quella vecchia resta nella storia di Git.
+- Wizard per macchina, profilo, colonna e sonda: fase successiva (D2).
+
 **Verifica OID** (ottobre 2026), pulsante «Verifica OID» sulla scheda del dispositivo SNMP (`/contatori/snmp/dispositivi/<id>/verifica-oid/`, permesso gestione):
 - Incolli un elenco di OID o un testo qualsiasi (catalogo, MIB, risposta di un'AI esterna): il portale estrae gli OID e li interroga davvero sull'apparato, in sola lettura (GET, oppure WALK se è una tabella). Facoltativa l'esplorazione dei «rami noti» per produttore: HPE Aruba, Cisco Small Business/IOS, WatchGuard, UniFi, VMware, iLO e Synology, più i rami standard (CPU, memoria, porte, PoE, sensori, UPS).
 - Per ogni OID che risponde mostra modalità, numero di righe, tipo e valori letti; gli OID inesistenti (`noSuchName`) sono elencati a parte e non entrano nel profilo.

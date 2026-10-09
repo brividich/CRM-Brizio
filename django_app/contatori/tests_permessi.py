@@ -89,5 +89,7 @@ class MigrazioneAclTests(TestCase):
         modulo = {k for k, _ in get_resolver().namespace_dict["contatori"][1].reverse_dict.items() if isinstance(k, str)}
         self.assertTrue(modulo)
         mig27 = import_module("contatori.migrations.0027_acl_verifica_oid")
-        self.assertEqual(modulo - set(MIG.ROUTE_VIEW) - set(MIG.ROUTE_GESTIONE) - set(mig27.ROUTE_GESTIONE), set(),
+        mig29 = import_module("contatori.migrations.0029_acl_wizard_dispositivo")
+        self.assertEqual(modulo - set(MIG.ROUTE_VIEW) - set(MIG.ROUTE_GESTIONE) - set(mig27.ROUTE_GESTIONE)
+                         - set(mig29.ROUTE_GESTIONE), set(),
                          "Route nuova senza binding ACL: aggiungila a ROUTE_VIEW o ROUTE_GESTIONE")

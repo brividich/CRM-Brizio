@@ -5,7 +5,7 @@
   <a href="{% url 'contatori:riconciliazione' %}" class="{% if n in 'riconciliazione riconciliazione_trim fattura_nuova fattura_edit' %}active{% endif %}">Riconciliazione</a>
   <a href="{% url 'contatori:analisi' %}" class="{% if n == 'analisi' %}active{% endif %}">Analisi</a>
   <a href="{% url 'contatori:consumabili' %}" class="{% if n == 'consumabili' %}active{% endif %}">Consumabili</a>
-  <a href="{% url 'contatori:snmp_centrale' %}" class="{% if n in 'snmp_centrale snmp_dispositivo snmp_dispositivo_nuovo snmp_dispositivo_edit snmp_sonda_nuova snmp_sonda_edit' %}active{% endif %}">Monitor SNMP</a>
+  <a href="{% url 'contatori:snmp_centrale' %}" class="{% if n in 'snmp_centrale snmp_wizard_dispositivo_avvia snmp_wizard_dispositivo snmp_dispositivo snmp_dispositivo_nuovo snmp_dispositivo_edit snmp_sonda_nuova snmp_sonda_edit' %}active{% endif %}">Monitor SNMP</a>
   <span class="cnav-sep" aria-hidden="true"></span>
   <span class="cnav-label">Configurazione</span>
   <a href="{% url 'contatori:snmp_profili' %}" class="cnav-config {% if n in 'snmp_profili snmp_profilo_nuovo snmp_profilo_edit snmp_profilo_colonna_nuova snmp_profilo_colonna_edit' %}active{% endif %}">Profili SNMP</a>

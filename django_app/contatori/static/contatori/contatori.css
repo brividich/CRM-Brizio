@@ -139,3 +139,26 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .voi-assenti{margin-top:14px}
 .contatori-module .voi-head{flex-wrap:wrap;gap:10px}.contatori-module .voi-head>div:first-child{flex:1 1 280px}
 .contatori-module .voi-ai{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 12px}.contatori-module .voi-ai .muted{font-size:12.5px}
+/* Wizard guidati */
+.contatori-module .wiz-passi{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 18px;padding:0}
+.contatori-module .wiz-passi li>span,.contatori-module .wiz-passi li>button{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border-radius:999px;border:1px solid var(--cm-border);background:var(--cm-surface);color:var(--cm-muted);font:inherit;font-size:12px;font-weight:650}
+.contatori-module .wiz-passi li>button{cursor:pointer;color:var(--cm-primary-mid)}
+.contatori-module .wiz-passi li>button:hover{border-color:var(--cm-accent)}
+.contatori-module .wiz-passi li.corrente>span{border-color:var(--cm-accent);color:var(--cm-text);box-shadow:inset 0 -2px 0 var(--cm-accent)}
+.contatori-module .wiz-num{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:color-mix(in srgb,var(--cm-muted) 15%,transparent);font-size:11px}
+.contatori-module .wiz-passi li.fatto .wiz-num{background:color-mix(in srgb,var(--cm-ok) 20%,transparent);color:var(--cm-ok)}
+.contatori-module .wiz-passi li.corrente .wiz-num{background:var(--cm-accent);color:#fff}
+.contatori-module .wiz-esito{margin-top:14px;padding:14px 16px;border-radius:12px;border:1px solid var(--cm-border);border-left-width:4px;overflow-wrap:anywhere}
+.contatori-module .wiz-esito.ok{border-left-color:var(--cm-ok);background:color-mix(in srgb,var(--cm-ok) 6%,var(--cm-surface))}
+.contatori-module .wiz-esito.ko{border-left-color:var(--cm-danger);background:color-mix(in srgb,var(--cm-danger) 6%,var(--cm-surface))}
+.contatori-module .wiz-esito p{margin:6px 0 0}
+.contatori-module .wiz-esito dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:10px 0 0}
+.contatori-module .wiz-esito dt{color:var(--cm-muted);font-size:12px}
+.contatori-module .wiz-esito dd{margin:0}
+.contatori-module tr.wiz-ko td{color:var(--cm-danger)}
+.contatori-module .wizard .form-actions .spacer{flex:1}
+.contatori-module .info-table th{width:38%}
+.contatori-module .info-table td{overflow-wrap:anywhere}
+@media(max-width:760px){.contatori-module .wiz-esito dl{grid-template-columns:1fr}.contatori-module .wizard .form-actions{flex-wrap:wrap}}
+.contatori-module .errore-snmp{overflow-wrap:anywhere}
+.contatori-module .errore-snmp .errore-azione{margin-top:6px;font-size:13px}

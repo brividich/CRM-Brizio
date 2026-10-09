@@ -334,7 +334,7 @@ class GestioneStampantiTest(_AuthedClientMixin, TestCase):
 
     def test_impostazioni_default(self):
         cfg = ImpostazioniSNMP.get_solo()
-        self.assertEqual(cfg.community, "novicromprinter")
+        self.assertEqual(cfg.community, "")  # nessuna community predefinita nel codice
         self.assertEqual(cfg.version, "v1")
         self.assertEqual(cfg.port, 161)
 
