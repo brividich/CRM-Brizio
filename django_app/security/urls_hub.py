@@ -7,7 +7,7 @@ API REST e mailbox-admin restano fuori (arrivano più avanti).
 from django.http import JsonResponse
 from django.urls import path
 
-from . import api, views, views_backup, views_cases, views_events, views_incidents, views_report, views_live, views_soc, views_suppressions, views_work
+from . import api, views, views_backup, views_cases, views_events, views_incidents, views_report, views_live, views_automation, views_soc, views_suppressions, views_vuln, views_work
 
 from .permissions import soc_view_required as _guard
 
@@ -88,6 +88,8 @@ urlpatterns = [
     path("tickets/<int:pk>/tasks/<int:task_id>/delete/", _guard(views_cases.case_task_delete), name="case_task_delete"),
     path("kpis/", _guard(views.kpis_page), name="kpis"),
     path("kpis/<slug:name>/", _guard(views.kpi_detail_page), name="kpi_detail"),
+    path("vulnerabilita/", views_vuln.vulnerabilities_dashboard, name="vulnerabilities"),
+    path("vulnerabilita/<str:cve_id>/", views_vuln.cve_detail, name="cve_detail"),
     path("assets/", views_soc.assets_list, name="assets"),
     path("vpn/", views_soc.vpn_history, name="vpn_history"),
     # B3 — pipeline (esecuzione sincrona via HTMX POST; nessuna coda/Celery)
@@ -108,6 +110,14 @@ urlpatterns = [
     path("admin/config/notifications/", views.admin_config_notifications, name="admin_config_notifications"),
     path("admin/config/ticketing/", views.admin_config_ticketing, name="admin_config_ticketing"),
     path("admin/config/audit/", views.admin_config_audit, name="admin_config_audit"),
+    # Automatismi di risoluzione (registro regole di rientro + simulazione) e inventario software / CPE
+    path("admin/config/automatismi/", views_automation.automation_page, name="automation"),
+    path("admin/config/automatismi/<slug:code>/simula/", views_automation.automation_simulate, name="automation_simulate"),
+    path("admin/config/automatismi/<slug:code>/attiva/", views_automation.automation_toggle, name="automation_toggle"),
+    path("admin/config/inventario/", views_vuln.inventory_page, name="inventory"),
+    path("admin/config/inventario/<int:pk>/mappa/", views_vuln.inventory_map, name="inventory_map"),
+    path("admin/config/inventario/<int:pk>/annulla/", views_vuln.inventory_discard, name="inventory_discard"),
+    path("admin/config/software/", views_vuln.software_mapping, name="software_mapping"),
     # B3 — autoconfigurazione (piano + fix guidati dalla diagnostica)
     path("admin/autoconfig/", views.admin_autoconfig, name="admin_autoconfig"),
     path("admin/autoconfig/apply/", views.admin_autoconfig_apply, name="admin_autoconfig_apply"),

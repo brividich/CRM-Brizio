@@ -49,6 +49,41 @@ def _scheduled_notifications():
     return run_scheduled_notifications()
 
 
+def _periodic_recoveries():
+    """Regole di rientro periodiche (VPN nei limiti, CVE con patch): spente finché non simulate e accese."""
+    from security.services.auto_resolution import run_periodic_recoveries
+
+    return run_periodic_recoveries()
+
+
+def enrich_cve_task():
+    """Arricchimento CVE (schedule `security_cve_enrichment`, ogni ora): NVD, CISA KEV, EPSS, impatti.
+
+    Fuori dalla request e senza transazione esterna: le chiamate di rete hanno timeout, retry
+    con backoff e rate limit; il giro si ferma entro 90 s (timeout worker 120 s) e riprende
+    al successivo. Spento finché non si accende «Impatto CVE sugli asset» in /soc/impostazioni/.
+    """
+    from security.services.cve_feeds import enrichment_enabled, run_enrichment
+
+    if not enrichment_enabled():
+        return {"skipped": "arricchimento CVE spento"}
+    return run_enrichment(time_budget_seconds=90)
+
+
+def suggest_cpe_task(vendor, product):
+    """Suggerimenti CPE dal dizionario NVD per un prodotto dell'inventario (accodato dalla pagina Software)."""
+    from security.models import SoftwareCpeMapping
+    from security.services.cve_feeds import FeedError, nvd_limiter, suggest_cpe
+
+    mapping, _ = SoftwareCpeMapping.objects.get_or_create(vendor=vendor or "", product=product)
+    try:
+        mapping.suggestions = suggest_cpe(vendor, product, limiter=nvd_limiter())
+    except FeedError as exc:
+        mapping.suggestions = [{"error": str(exc)[:200]}]
+    mapping.save(update_fields=["suggestions", "updated_at"])
+    return len(mapping.suggestions)
+
+
 def run_security_cycle_task():
     """Ciclo periodico del Security Center (schedule `security_cycle`, ogni 15 minuti).
 
@@ -76,6 +111,7 @@ def run_security_cycle_task():
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),
         ("rules_after_heartbeat", evaluate_security_rules),
         ("kpis", build_daily_kpi_snapshots),
+        ("rientri", _periodic_recoveries),
         ("avvisi", _scheduled_notifications),
     )
     for name, step in steps:

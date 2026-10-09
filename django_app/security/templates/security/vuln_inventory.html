@@ -1,0 +1,56 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Inventario software | Security Center AI{% endblock %}
+{% block page_icon %}I{% endblock %}
+{% block page_marker %}Config › Inventario software{% endblock %}
+{% block page_title %}Inventario software{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>Importa un export</h2><a class="sec-small" href="{% url 'security:software_mapping' %}">Software e CPE</a></div>
+  <p class="sec-muted sec-small">
+    Export dei software installati (WatchGuard EPDR/Panda, BusinessLog o altro) in CSV o XLSX, massimo {{ max_mb }} MB.
+    Dopo il caricamento scegli quale colonna è hostname, prodotto, versione (obbligatorie), vendor e data di rilevamento,
+    controlli l'anteprima e importi. Reimportare lo stesso file non crea duplicati; i software spariti dagli host del file
+    diventano «non più rilevati». Il file resta cifrato solo fino all'import.
+  </p>
+  <form method="post" enctype="multipart/form-data" class="sec-grid">
+    {% csrf_token %}
+    <label>File <input type="file" name="file" accept=".csv,.xlsx" required></label>
+    <label>Fonte
+      <select name="source_kind">{% for value, label in source_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    </label>
+    <label>Preset di mappatura
+      <select name="preset"><option value="">Proponi dalle intestazioni</option>{% for p in presets %}<option value="{{ p.pk }}">{{ p.name }} ({{ p.get_source_kind_display }})</option>{% endfor %}</select>
+    </label>
+    <button type="submit" class="sec-button sec-button-primary">Carica e mappa le colonne</button>
+  </form>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Import recenti</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Quando</th><th>File</th><th>Fonte</th><th>Stato</th><th class="sec-num">Importate</th><th class="sec-num">Nuove</th><th class="sec-num">Scartate</th><th class="sec-num">Non più rilevate</th><th class="sec-num">Host</th><th>Inventario del</th></tr></thead>
+      <tbody>
+      {% for imp in imports %}
+        <tr>
+          <td class="sec-nowrap">{{ imp.created_at|date:"d/m/Y H:i" }}</td>
+          <td>{% if imp.status == "preview" %}<a href="{% url 'security:inventory_map' imp.pk %}">{{ imp.original_name }}</a>{% else %}{{ imp.original_name }}{% endif %}</td>
+          <td>{{ imp.get_source_kind_display }}</td>
+          <td>{{ imp.get_status_display }}</td>
+          <td class="sec-num">{{ imp.rows_imported }}</td>
+          <td class="sec-num">{{ imp.rows_new }}</td>
+          <td class="sec-num">{% if imp.rows_skipped %}<details><summary>{{ imp.rows_skipped }}</summary><ul class="sec-small">{% for s in imp.skipped_details|slice:":30" %}<li>riga {{ s.row }}: {{ s.reason }}</li>{% endfor %}</ul></details>{% else %}0{% endif %}</td>
+          <td class="sec-num">{{ imp.rows_marked_missing }}</td>
+          <td class="sec-num">{{ imp.hosts_count }}</td>
+          <td class="sec-nowrap">{{ imp.inventory_date|date:"d/m/Y" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="10" class="sec-empty">Nessun import finora.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

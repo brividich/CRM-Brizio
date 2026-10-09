@@ -28,12 +28,13 @@
       <a href="{% url 'security:kpis' %}" {% if url_name == 'kpis' or url_name == 'kpi_detail' %}class="active"{% endif %}>KPI</a>
       <a href="{% url 'security:vpn_history' %}" {% if url_name == 'vpn_history' %}class="active"{% endif %}>Accessi VPN</a>
       <a href="{% url 'security:assets' %}" {% if url_name == 'assets' %}class="active"{% endif %}>Asset</a>
+      <a href="{% url 'security:vulnerabilities' %}" {% if url_name == 'vulnerabilities' or url_name == 'cve_detail' %}class="active"{% endif %} title="CVE che impattano gli asset secondo l'inventario software">Vulnerabilità</a>
     </div>
     <div class="soc-nav-group">
       <span class="soc-nav-label">Gestione</span>
       <a href="{% url 'security:pipeline' %}" {% if url_name == 'pipeline' %}class="active"{% endif %}>Elaborazione</a>
       <a href="{% url 'security:admin_mailbox_sources_list' %}" {% if url_name|slice:':13' == 'admin_mailbox' %}class="active"{% endif %}>Caselle mail</a>
-      <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' and url_name != 'admin_autoconfig' and url_name|slice:':13' != 'admin_mailbox' %}class="active"{% endif %}>Config</a>
+      <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' and url_name != 'admin_autoconfig' and url_name|slice:':13' != 'admin_mailbox' or url_name == 'automation' or url_name|slice:':9' == 'inventory' or url_name == 'software_mapping' %}class="active"{% endif %}>Config</a>
       <a href="{% url 'security:admin_autoconfig' %}" {% if url_name == 'admin_autoconfig' %}class="active"{% endif %}>Autoconfig</a>
       <a href="{% url 'security:suppressions' %}" {% if url_name == 'suppressions' %}class="active"{% endif %} title="Soppressioni manuali e apprese: hit, scadenze, revoca">Soppressioni</a>
       <a href="{% url 'security:soc_settings' %}" {% if url_name == 'soc_settings' %}class="active"{% endif %} title="Avvisi automatici e report programmato">Impostazioni</a>

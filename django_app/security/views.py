@@ -22,6 +22,9 @@ from .forms import (
     SecurityTicketConfigForm,
 )
 from .models import (
+    SoftwareCpeMapping,
+    SoftwareInstallation,
+    SoftwareInventoryImport,
     BackupExpectedJobConfig,
     SecurityAlert,
     SecurityAlertRuleConfig,
@@ -60,6 +63,7 @@ from .services.alert_lifecycle import (
     reopen_alert,
     snooze_alert,
 )
+from .services.auto_resolution import registry_rows as auto_resolution_registry_rows
 from .services.learned_suppression import dismissal_progress
 from .services.kpi_service import build_daily_kpi_snapshots
 from .services.source_heartbeat import source_status_rows
@@ -459,6 +463,9 @@ def admin_config_dashboard(request):
         _config_card("Notifications", "admin_config_notifications", SecurityNotificationChannel.objects.filter(enabled=True).count(), SecurityNotificationChannel.objects.filter(enabled=False).count(), SecurityNotificationChannel.objects.order_by("-updated_at").first()),
         _config_card("Ticketing", "admin_config_ticketing", SecurityTicketConfig.objects.count(), 0, SecurityTicketConfig.objects.order_by("-updated_at").first()),
         _config_card("Audit Log", "admin_config_audit", SecurityConfigurationAuditLog.objects.count(), 0, SecurityConfigurationAuditLog.objects.order_by("-created_at").first()),
+        _config_card("Automatismi di rientro", "automation", sum(1 for row in auto_resolution_registry_rows() if row["enabled"]), 0, None),
+        _config_card("Inventario software", "inventory", SoftwareInstallation.objects.filter(still_detected=True).count(), SoftwareInstallation.objects.filter(still_detected=False).count(), SoftwareInventoryImport.objects.order_by("-created_at").first()),
+        _config_card("Software e CPE", "software_mapping", SoftwareCpeMapping.objects.filter(confirmed=True).count(), SoftwareCpeMapping.objects.filter(confirmed=False, not_applicable=False).count(), SoftwareCpeMapping.objects.order_by("-updated_at").first()),
     ]
     return render(request, "security/admin_config/dashboard.html", {"cards": cards, "recent_changes": SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at")[:8]})
 

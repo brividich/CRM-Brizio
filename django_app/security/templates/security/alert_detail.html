@@ -1,5 +1,5 @@
 {% extends "security/_base_soc.html" %}
-{% load security_i18n %}
+{% load security_i18n security_cve %}
 
 {% block title %}Workspace investigazione | Security Center AI{% endblock %}
 {% block page_icon %}!{% endblock %}
@@ -52,6 +52,7 @@
 
   {% include "security/partials/alert_lifecycle_panel.html" %}
 </section>
+{% if alert.event.event_type == "vulnerability_finding" and alert.event.payload.cve %}{% cve_impact_panel alert.event.payload.cve %}{% endif %}
 
 <section class="sec-grid sec-two-col inv-cols" style="margin-top: 12px;">
   <div class="sec-panel">

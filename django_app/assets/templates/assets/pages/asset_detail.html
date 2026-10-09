@@ -1897,7 +1897,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   {% endif %}{# /asset_type != PRODOTTO_CHIMICO — corpo standard nascosto per i chimici #}
 
   {# Segnali dei report di sicurezza/backup sul dispositivo collegato (solo a chi vede il Security Center). #}
-  {% if not it_presentation %}<div data-af-tab="Sicurezza">{% security_asset_card asset %}</div>{% endif %}
+  {% if not it_presentation %}<div data-af-tab="Sicurezza">{% security_asset_card asset %}{% security_asset_vulns asset %}</div>{% endif %}
 
   {# Storico audit dell'asset: risponde a "chi ha modificato questa scadenza". #}
   <section class="af-card af-span-full" style="margin-top:18px;" id="asset-storico-section" data-af-tab="Storico">

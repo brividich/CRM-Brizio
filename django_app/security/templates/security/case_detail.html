@@ -1,5 +1,5 @@
 {% extends "security/_base_soc.html" %}
-{% load security_i18n %}
+{% load security_i18n security_cve %}
 
 {% block title %}Ticket #{{ case.pk }} | Security Center AI{% endblock %}
 {% block page_icon %}T{% endblock %}
@@ -24,6 +24,7 @@
     {% if case.description %}<p style="white-space: pre-line; margin-top: 12px;">{{ case.description }}</p>{% endif %}
     {% if case.cve or case.cve_ids %}
       <p>CVE: <strong>{% if case.cve_ids %}{{ case.cve_ids|join:", " }}{% else %}{{ case.cve }}{% endif %}</strong> · Prodotto: {{ case.affected_product|default:"-" }} · CVSS massimo {{ case.max_cvss }} · Dispositivi esposti {{ case.max_exposed_devices }}</p>
+      {% if case.cve %}{% cve_impact_panel case.cve %}{% endif %}
     {% endif %}
     {% if case.resolution %}<p style="margin-top: 12px;"><strong>Esito:</strong> {{ case.resolution }}</p>{% endif %}
   </div>

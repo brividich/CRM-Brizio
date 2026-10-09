@@ -84,6 +84,19 @@ SECTIONS = [
             Option("soppressione.appresa.canali", [], "Canali", "Dove avvisare quando nasce una regola appresa (facoltativo).", "channels"),
         ],
     },
+    {
+        "code": "impatto_cve",
+        "title": "Impatto CVE sugli asset",
+        "intro": "Il job orario legge da NVD i range di versione vulnerabili, da CISA KEV le CVE sfruttate e (facoltativo) "
+                 "il punteggio EPSS, poi incrocia le CVE con l'inventario software importato. Serve accesso Internet dal server.",
+        "channels_optional": True,
+        "options": [
+            Option("cve.arricchimento.attivo", False, "Arricchisci le CVE da NVD e CISA KEV"),
+            Option("cve.epss.attivo", True, "Leggi anche il punteggio EPSS (FIRST.org)"),
+            Option("cve.inventario.freschezza_giorni", 30, "Inventario recente",
+                   "Oltre questi giorni l'inventario è «vecchio»: gli esiti diventano da verificare.", "int", min_value=1, max_value=180),
+        ],
+    },
 ]
 
 OPTIONS = {option.key: option for section in SECTIONS for option in section["options"]}
@@ -129,6 +142,8 @@ def parse_post(data):
         if option.kind == "bool":
             values[key] = data.get(field_name) == "on"
         elif option.kind == "int":
+            if field_name not in data:
+                continue  # campo non inviato (form parziale): resta il valore attuale
             raw = str(data.get(field_name, "")).strip()
             if not raw.isdigit() or not option.min_value <= int(raw) <= option.max_value:
                 errors.append(f"{option.label}: un numero da {option.min_value} a {option.max_value}.")

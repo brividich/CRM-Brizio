@@ -90,6 +90,15 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SECURITY CENTER — arricchimento CVE (NVD, CISA KEV, EPSS) e impatto sugli asset.
+        # Si ferma entro 90 s (timeout worker 120 s); spento finché non acceso da /soc/impostazioni/.
+        "name": "security_cve_enrichment",
+        "func": "security.tasks.enrich_cve_task",
+        "schedule_type": "H",   # Schedule.HOURLY
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         "name": "approval_mailbox",
         "func": "automazioni.tasks.run_approval_mailbox",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)

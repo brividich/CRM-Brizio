@@ -1,0 +1,62 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Vulnerabilità | Security Center AI{% endblock %}
+{% block page_icon %}V{% endblock %}
+{% block page_marker %}Vulnerabilità{% endblock %}
+{% block page_title %}CVE che impattano gli asset{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-small">
+    {% if inventory_date %}Inventario software aggiornato al <strong>{{ inventory_date|date:"d/m/Y" }}</strong>{% if not inventory_fresh %} <span class="sec-badge warning">più vecchio di {{ freshness_days }} giorni: esiti da verificare</span>{% endif %}.
+    {% else %}<span class="sec-badge warning">Nessun inventario software importato</span>: senza inventario ogni CVE resta «da verificare».{% endif %}
+    {{ totals.installations }} software su {{ totals.hosts }} host · {{ totals.cves }} CVE note ({{ totals.kev }} in CISA KEV).
+    {% if can_edit %}<a href="{% url 'security:inventory' %}">Importa inventario</a> · <a href="{% url 'security:software_mapping' %}">Software e CPE</a>{% endif %}
+  </p>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>CVE che impattano o da verificare</h2><span class="sec-muted sec-small">ordine: KEV, CVSS, EPSS, host impattati</span></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-fm-table-skip="1">
+      <thead><tr><th>CVE</th><th>KEV</th><th class="sec-num">CVSS</th><th class="sec-num">EPSS</th><th class="sec-num">Impatta</th><th class="sec-num">Da verificare</th></tr></thead>
+      <tbody>
+      {% for c in cves %}
+        <tr>
+          <td class="sec-title-cell"><a href="{% url 'security:cve_detail' c.cve_id %}">{{ c.cve_id }}</a><br><small class="sec-muted">{{ c.description|truncatechars:90 }}</small></td>
+          <td>{% if c.kev %}<span class="sec-badge sec-badge-critical">Sfruttata</span>{% else %}—{% endif %}</td>
+          <td class="sec-num">{{ c.cvss|default_if_none:"—" }}</td>
+          <td class="sec-num">{% if c.epss is not None %}{{ c.epss|floatformat:3 }}{% else %}—{% endif %}</td>
+          <td class="sec-num">{{ c.impacted }}</td>
+          <td class="sec-num">{{ c.to_verify }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="sec-empty">Nessuna CVE impatta gli asset secondo l'inventario attuale.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Asset più esposti</h2></div>
+    <div class="sec-table-wrap">
+      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+        <thead><tr><th>Host</th><th class="sec-num">CVE</th><th class="sec-num">di cui KEV</th></tr></thead>
+        <tbody>{% for h in hosts %}<tr><td><a href="{% url 'security:pc_detail' %}?nome={{ h.host|urlencode }}">{{ h.host }}</a></td><td class="sec-num">{{ h.cves }}</td><td class="sec-num">{{ h.kev }}</td></tr>{% empty %}<tr><td colspan="3" class="sec-empty">Nessun host impattato.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </div>
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Software senza mappatura CPE</h2>{% if can_edit %}<a class="sec-small" href="{% url 'security:software_mapping' %}">Mappa</a>{% endif %}</div>
+    <p class="sec-muted sec-small">Cosa sistemare per avere copertura: finché non è mappato, un software non può dire «impatta» né «non impatta».</p>
+    <div class="sec-table-wrap">
+      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+        <thead><tr><th>Vendor</th><th>Prodotto</th><th class="sec-num">Host</th></tr></thead>
+        <tbody>{% for s in unmapped %}<tr><td>{{ s.vendor|default:"—" }}</td><td>{% if can_edit %}<a href="{% url 'security:software_mapping' %}?q={{ s.product|urlencode }}">{{ s.product }}</a>{% else %}{{ s.product }}{% endif %}</td><td class="sec-num">{{ s.hosts }}</td></tr>{% empty %}<tr><td colspan="3" class="sec-empty">Tutto mappato.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endblock %}

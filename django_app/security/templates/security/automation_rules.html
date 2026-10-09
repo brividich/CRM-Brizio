@@ -1,0 +1,66 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Automatismi di rientro | Security Center AI{% endblock %}
+{% block page_icon %}A{% endblock %}
+{% block page_marker %}Config › Automatismi{% endblock %}
+{% block page_title %}Automatismi di risoluzione{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-muted sec-small">
+    Quando un report successivo prova che il problema è rientrato, l'alert si chiude come «Risolto» con il motivo e il riferimento alla prova,
+    e compare nella sua timeline. Un caso collegato si chiude solo se non ha attività aperte.
+    Prima di accendere una regola esegui la simulazione: mostra cosa avrebbe chiuso negli ultimi {{ simulation_days }} giorni, senza chiudere nulla
+    (vale {{ valid_days }} giorni).
+  </p>
+  {% if not global_enabled %}<p class="sec-message sec-error">La risoluzione automatica è spenta per tutto il SOC (impostazione <code>SECURITY_AUTO_RESOLVE_ENABLED</code>).</p>{% endif %}
+</section>
+
+{% if simulation %}
+<section class="sec-panel" style="margin-top: 12px;" aria-live="polite">
+  <div class="sec-section-head"><h2>Simulazione: {{ simulation.code }}</h2><span class="sec-badge">{{ simulation.would_close }} alert</span></div>
+  <p class="sec-small">Negli ultimi {{ simulation.days }} giorni la regola avrebbe chiuso <strong>{{ simulation.would_close }}</strong> alert{% if simulation.already_closed_by_people %}, di cui {{ simulation.already_closed_by_people }} poi chiusi a mano dalle persone{% endif %}.</p>
+  {% if simulation.examples %}
+    <div class="sec-table-wrap">
+      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+        <thead><tr><th>Alert</th><th>Stato oggi</th><th>Motivo della chiusura</th><th>Prova</th></tr></thead>
+        <tbody>
+        {% for ex in simulation.examples %}
+          <tr><td><a href="{% url 'security:alert_detail' ex.alert_id %}">#{{ ex.alert_id }} {{ ex.title|truncatechars:70 }}</a></td><td>{{ ex.status }}</td><td class="sec-small">{{ ex.reason }}</td><td class="sec-small">{{ ex.evidence|default:"—" }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-fm-table-skip="1">
+      <thead><tr><th>Regola</th><th>Condizione</th><th>Prova richiesta</th><th>Azione</th><th>Stato</th><th>Comandi</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td class="sec-title-cell">{{ row.rule.label }}<br><small class="sec-muted">{{ row.rule.signal }} · {% if row.rule.trigger == "event" %}a ogni report{% else %}ogni 15 minuti{% endif %}</small></td>
+          <td class="sec-small">{{ row.rule.condition }}</td>
+          <td class="sec-small">{{ row.rule.proof }}</td>
+          <td class="sec-small">{{ row.rule.action }}</td>
+          <td>{% if row.enabled %}<span class="sec-badge sec-badge-success">Accesa</span>{% else %}<span class="sec-badge sec-badge-muted">Spenta</span>{% endif %}
+            <br><small class="sec-muted">{% if row.simulated_at %}simulata il {{ row.simulated_at|date:"d/m/Y H:i" }}{% else %}mai simulata{% endif %}</small></td>
+          <td>
+            <form method="post" action="{% url 'security:automation_simulate' row.rule.code %}" class="sec-inline">{% csrf_token %}<button type="submit" class="sec-button">Simula {{ simulation_days }} giorni</button></form>
+            <form method="post" action="{% url 'security:automation_toggle' row.rule.code %}" class="sec-inline">
+              {% csrf_token %}
+              <input type="hidden" name="enabled" value="{% if row.enabled %}0{% else %}1{% endif %}">
+              {% if row.rule.code == "vpn_within_limits" %}<label class="sec-small">Giorni <input type="number" name="giorni" value="{{ vpn_days }}" min="1" max="30" style="width: 4.5em;"></label>{% endif %}
+              <button type="submit" class="sec-button{% if not row.enabled %} sec-button-primary{% endif %}">{% if row.enabled %}Spegni{% else %}Accendi{% endif %}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

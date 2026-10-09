@@ -1,0 +1,86 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Software e CPE | Security Center AI{% endblock %}
+{% block page_icon %}C{% endblock %}
+{% block page_marker %}Config › Software e CPE{% endblock %}
+{% block page_title %}Normalizzazione software e mappatura CPE{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-muted sec-small">
+    Un software dell'inventario conta per l'impatto CVE solo quando la sua mappatura CPE (vendor:product di NVD) è <strong>confermata</strong> da una persona.
+    I suggerimenti vengono dalle CVE già scaricate e, a richiesta, dal dizionario CPE di NVD (ricerca in coda, mai durante la pagina).
+    <a href="{% url 'security:inventory' %}">Inventario</a> · <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a>
+  </p>
+  <form method="get" class="sec-inline"><input type="search" name="q" value="{{ q }}" placeholder="Cerca vendor o prodotto" aria-label="Cerca software"><button type="submit" class="sec-button">Cerca</button></form>
+  <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="recompute"><button type="submit" class="sec-button">Ricalcola impatti</button></form>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-fm-table-skip="1">
+      <thead><tr><th>Vendor</th><th>Prodotto</th><th class="sec-num">Host</th><th>Mappatura CPE</th><th>Suggerimenti</th><th>Azioni</th></tr></thead>
+      <tbody>
+      {% for row in page.object_list %}
+        <tr>
+          <td>{{ row.vendor|default:"—" }}</td>
+          <td class="sec-title-cell">{{ row.product }}</td>
+          <td class="sec-num">{{ row.hosts }}</td>
+          <td>
+            {% if row.mapping.confirmed %}<span class="sec-badge sec-badge-success">{{ row.mapping.cpe_vendor }}:{{ row.mapping.cpe_product }}</span>
+            {% elif row.mapping.not_applicable %}<span class="sec-badge sec-badge-muted">Non applicabile</span>
+            {% else %}<span class="sec-badge warning">Da mappare</span>{% endif %}
+          </td>
+          <td class="sec-small">
+            {% for s in row.local_suggestions %}<div>{{ s }} <small class="sec-muted">(CVE note)</small></div>{% endfor %}
+            {% for s in row.mapping.suggestions %}{% if s.error %}<div class="sec-muted">NVD: {{ s.error }}</div>{% else %}<div>{{ s.cpe_vendor }}:{{ s.cpe_product }} <small class="sec-muted">{{ s.title|truncatechars:50 }}</small></div>{% endif %}{% endfor %}
+          </td>
+          <td>
+            <form method="post" class="sec-inline">
+              {% csrf_token %}<input type="hidden" name="vendor" value="{{ row.vendor }}"><input type="hidden" name="product" value="{{ row.product }}">
+              <input type="text" name="cpe" placeholder="vendor:product" value="{% if row.mapping.cpe_vendor %}{{ row.mapping.cpe_vendor }}:{{ row.mapping.cpe_product }}{% elif row.local_suggestions %}{{ row.local_suggestions.0 }}{% endif %}" aria-label="CPE vendor:product" style="width: 13em;">
+              <button type="submit" name="action" value="cpe_confirm" class="sec-button sec-button-primary">Conferma</button>
+              <button type="submit" name="action" value="cpe_not_applicable" class="sec-button" title="Il prodotto non ha CVE da seguire (es. driver, componenti interni)">N/A</button>
+              {% if row.mapping %}<button type="submit" name="action" value="cpe_reset" class="sec-button">Azzera</button>{% endif %}
+              <button type="submit" name="action" value="cpe_suggest" class="sec-button" formnovalidate>Cerca in NVD</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="sec-empty">Nessun software nell'inventario. <a href="{% url 'security:inventory' %}">Importa un export</a>.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if page.has_other_pages %}
+    <div class="sec-actions">{% if page.has_previous %}<a class="sec-button" href="?q={{ q|urlencode }}&page={{ page.previous_page_number }}">‹</a>{% endif %}<span class="sec-small">pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a class="sec-button" href="?q={{ q|urlencode }}&page={{ page.next_page_number }}">›</a>{% endif %}</div>
+  {% endif %}
+</section>
+
+<section class="sec-grid sec-two-col" style="margin-top: 12px;">
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>Alias vendor e prodotto</h2></div>
+    <form method="post" class="sec-grid">
+      {% csrf_token %}<input type="hidden" name="action" value="alias">
+      <label>Tipo <select name="kind">{% for value, label in alias_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+      <label>Come appare nell'export <input type="text" name="raw" required maxlength="160" placeholder="Microsoft Corporation"></label>
+      <label>Valore normalizzato <input type="text" name="canonical" required maxlength="160" placeholder="microsoft"></label>
+      <button type="submit" class="sec-button sec-button-primary">Salva alias</button>
+    </form>
+    <div class="sec-table-wrap" style="margin-top: 8px;">
+      <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+        <tbody>{% for a in aliases %}<tr><td>{{ a.get_kind_display }}</td><td>{{ a.raw }}</td><td>→ {{ a.canonical }}</td><td><form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="alias_delete"><input type="hidden" name="alias_id" value="{{ a.pk }}"><button type="submit" class="sec-button">Elimina</button></form></td></tr>{% empty %}<tr><td class="sec-empty">Nessun alias.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </div>
+  <div class="sec-panel">
+    <div class="sec-section-head"><h2>API key NVD</h2><span class="sec-badge {% if has_nvd_key %}sec-badge-success{% else %}sec-badge-muted{% endif %}">{% if has_nvd_key %}Configurata{% else %}Assente{% endif %}</span></div>
+    <p class="sec-muted sec-small">Senza key NVD concede 5 richieste ogni 30 secondi, con la key 50. La key è salvata cifrata e non viene mai mostrata.</p>
+    <form method="post" class="sec-grid">
+      {% csrf_token %}<input type="hidden" name="action" value="nvd_key">
+      <label>Nuova API key <input type="password" name="nvd_key" autocomplete="off" maxlength="200" placeholder="lascia vuoto per rimuoverla"></label>
+      <button type="submit" class="sec-button">Salva</button>
+    </form>
+  </div>
+</section>
+{% endblock %}
