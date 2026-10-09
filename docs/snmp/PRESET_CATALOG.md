@@ -158,4 +158,4 @@ python tools/snmp/genera_catalogo_mib.py <cartella_mib>
 
 ## Ancora da verificare
 
-Servono i walk di: switch Aruba/HPE (stack VSF), Cisco SG250, WatchGuard, ESXi, UPS, iDRAC, Windows. Hanno community diverse da `public`/`novicromprinter`. Procedura in [CATTURA.md](CATTURA.md).
+Servono i walk di: switch Aruba/HPE (stack VSF), Cisco SG250, WatchGuard, ESXi, UPS, iDRAC, Windows. Hanno community diverse da `public` e da quella delle stampanti. Procedura in [CATTURA.md](CATTURA.md).

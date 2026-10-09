@@ -19,7 +19,8 @@ from contatori import snmp_capture as cap
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_OUT_DIR = r"C:\snmp_capture"
-DEFAULT_COMMUNITIES = ("public", "novicromprinter")
+# Solo la community di fabbrica: le community aziendali vanno passate o prese dal catalogo cifrato.
+DEFAULT_COMMUNITIES = ("public",)
 
 
 def _slug(descr):

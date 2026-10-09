@@ -1,0 +1,102 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}{{ wiz.titolo }}{% endblock %}
+{% block modulo %}
+<div id="wizard" class="wizard">
+  <div class="row"><div><div class="eyebrow">{% if titolo_contesto %}{{ titolo_contesto }} · {% endif %}Passo {{ wiz.indice|add:1 }} di {{ wiz.passi|length }}</div><h1>{{ wiz.titolo }}</h1></div><div class="spacer"></div><a class="btn ghost small" href="{{ wiz.url_annulla }}">Esci senza salvare</a></div>
+
+  <form method="post" hx-post="{{ request.path }}" hx-target="#wizard" hx-select="#wizard" hx-swap="outerHTML" hx-indicator="#wiz-load">{% csrf_token %}
+  <ol class="wiz-passi">{% for p in wiz.passi %}
+    <li class="{% if forloop.counter0 == wiz.indice %}corrente{% elif forloop.counter0 < wiz.indice %}fatto{% endif %}">
+      {% if forloop.counter0 < wiz.indice %}<button type="submit" name="azione" value="vai:{{ forloop.counter0 }}" formnovalidate>{% else %}<span>{% endif %}<span class="wiz-num">{{ forloop.counter }}</span>{{ p.titolo }}{% if forloop.counter0 < wiz.indice %}</button>{% else %}</span>{% endif %}
+    </li>{% endfor %}
+  </ol>
+
+  <section class="panel">
+    <div class="panel-head"><div><h2>{{ passo.titolo }}</h2><p>{{ passo.descrizione }}</p></div></div>
+    {% if avviso %}<div class="banner" role="alert">{{ avviso }}</div>{% endif %}
+
+    {% if passo.chiave == "credenziali" %}
+      {% if form.non_field_errors %}<div class="banner">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+      {{ form.versione }}
+      <p class="muted">Versione scelta al passo precedente: <strong>{{ form.versione.value }}</strong>.</p>
+      <div class="form-grid">{% for field in form.campi_visibili %}{% include "contatori/_form_campo.html" %}{% endfor %}</div>
+
+    {% elif passo.chiave == "prova" %}
+      <div class="form-grid">{% for field in form %}{% include "contatori/_form_campo.html" %}{% endfor %}</div>
+      <p class="muted">Lettura reale in sola lettura (GET o WALK come scelto), attesa massima 3 s per richiesta.</p>
+      <button class="btn" type="submit" name="azione" value="prova">{% if prova %}Ripeti la prova{% else %}Prova l'OID{% endif %}</button>
+      {% if prova %}
+        {% if prova_valida %}
+        <div class="wiz-esito ok"><strong>L'OID risponde su {{ prova.bersaglio }}.</strong>
+          <dl><dt>Valore letto</dt><dd class="mono">{{ prova.valore }}</dd><dt>Numerico</dt><dd>{% if prova.numerico %}sì: utilizzabile come contatore o misura{% else %}no: usa il tipo «Testo» o le etichette{% endif %}</dd></dl></div>
+        {% elif prova.ok %}
+        <div class="banner warn">OID o apparato sono cambiati dopo l'ultima prova riuscita: ripetila.</div>
+        {% elif prova.errore %}
+        <div class="wiz-esito ko"><strong>{{ prova.errore.codice }} · {{ prova.errore.titolo }}</strong>
+          <p>{{ prova.errore.messaggio }}</p><p><strong>Cosa fare:</strong> {{ prova.errore.azione }}</p></div>
+        {% endif %}
+      {% endif %}
+
+    {% elif passo.form_class %}
+      {% if form.non_field_errors %}<div class="banner">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+      {% if proposta_asset %}<div class="banner clean">{{ proposta_asset }}</div>{% endif %}
+      <div class="form-grid">{% for field in form %}{% include "contatori/_form_campo.html" %}{% endfor %}</div>
+      {% if passo.chiave == "riconoscimento" %}
+        {% if riconosciuti is None %}<p class="muted">Senza prefisso né pattern il profilo si assegna solo a mano.</p>
+        {% else %}<h3>Apparati già registrati che verrebbero riconosciuti</h3>
+          {% if riconosciuti %}<ul>{% for d in riconosciuti %}<li>{{ d.nome }} <span class="mono muted">{{ d.sys_object_id }}</span></li>{% endfor %}</ul>
+          {% else %}<p class="muted">Nessuno: controlla prefisso e pattern, oppure l'apparato non è ancora stato interrogato.</p>{% endif %}
+        {% endif %}
+      {% endif %}
+
+    {% elif passo.chiave == "test" %}
+      <p>Il portale legge <span class="mono">sysDescr</span> e <span class="mono">sysObjectID</span> (attesa {{ 3 }} s, un nuovo tentativo in caso di timeout). Nessuna scrittura sull'apparato.</p>
+      <button class="btn" type="submit" name="azione" value="test">{% if test %}Ripeti il test{% else %}Esegui il test{% endif %}</button>
+      {% if test %}
+        {% if test_valido %}
+        <div class="wiz-esito ok"><strong>Connessione riuscita.</strong>
+          <dl><dt>Descrizione</dt><dd>{{ test.sys_descr|default:"—" }}</dd><dt>sysObjectID</dt><dd class="mono">{{ test.sys_object_id|default:"—" }}</dd>
+          <dt>Modello riconosciuto</dt><dd>{% if test.profilo_nome %}{{ test.profilo_nome }}{% else %}Nessun profilo corrisponde: verranno lette identità e uptime.{% endif %}</dd></dl></div>
+        {% if profilo_diverso %}<div class="banner warn">Al primo passo hai scelto <strong>{{ profilo }}</strong>, ma l'apparato è stato riconosciuto come <strong>{{ profilo_diverso }}</strong>. Verrà usato quello scelto: se è un errore, torna a «Tipo e modello» e scegli «Generico».</div>{% endif %}
+        {% elif test.ok %}
+        <div class="banner warn">Rete o credenziali sono cambiate dopo l'ultimo test riuscito: ripetilo.</div>
+        {% elif test.errore %}
+        <div class="wiz-esito ko"><strong>{{ test.errore.codice }} · {{ test.errore.titolo }}</strong>
+          <p>{{ test.errore.messaggio }}</p><p><strong>Cosa fare:</strong> {{ test.errore.azione }}</p></div>
+        {% endif %}
+      {% endif %}
+
+    {% elif passo.chiave == "mappatura" %}
+      {% if profilo %}
+        <p>Profilo <strong>{{ profilo }}</strong>: per ogni colonna il valore letto ora dall'apparato. Le righe in rosso non rispondono; puoi proseguire e correggere il profilo dopo.</p>
+        <button class="btn ghost" type="submit" name="azione" value="leggi">{% if mappatura %}Rileggi i valori{% else %}Leggi i valori{% endif %}</button>
+        {% if mappatura %}<div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Colonna</th><th>Contatore</th><th>OID</th><th>Valore letto</th></tr></thead><tbody>
+        {% for r in mappatura.righe %}<tr class="{% if r.errore %}wiz-ko{% endif %}"><td>{{ r.nome }}</td><td>{{ r.contatore|default:"—" }}</td><td class="mono">{{ r.oid }}</td>
+          <td>{% if r.errore %}<strong>{{ r.errore.codice }}</strong> {{ r.errore.messaggio|truncatechars:160 }}{% else %}{{ r.valore }}{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="4" class="empty">Il profilo non ha colonne attive.</td></tr>{% endfor %}
+        </tbody></table></div>{% endif %}
+      {% else %}
+        {% if wiz.tipo == "macchina" %}<p>Modello Canon noto: i quattro contatori si leggono dalla tabella standard.</p>
+        <button class="btn ghost" type="submit" name="azione" value="leggi">{% if mappatura %}Rileggi i contatori{% else %}Leggi i contatori{% endif %}</button>
+        {% if mappatura %}<div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Contatore</th><th>Numero</th><th>Valore letto</th></tr></thead><tbody>
+        {% for r in mappatura.righe %}<tr class="{% if r.errore %}wiz-ko{% endif %}"><td>{{ r.contatore }}</td><td class="mono">{{ r.oid }}</td><td>{% if r.errore %}<strong>{{ r.errore.codice }}</strong> {{ r.errore.messaggio|truncatechars:160 }}{% else %}{{ r.valore }}{% endif %}</td></tr>{% endfor %}
+        </tbody></table></div>{% endif %}
+        {% else %}<div class="banner clean">Nessun profilo scelto o riconosciuto: il dispositivo verrà monitorato con identità, uptime e tempo di risposta. Potrai applicare un profilo dalla sua scheda.</div>{% endif %}
+      {% endif %}
+
+    {% elif passo.chiave == "riepilogo" %}
+      <table class="info-table" data-fm-table-skip="1">{% for etichetta, valore in riepilogo %}<tr><th>{{ etichetta }}</th><td>{{ valore }}</td></tr>{% empty %}<tr><td>Completa i passi precedenti.</td></tr>{% endfor %}</table>
+    {% endif %}
+  </section>
+
+  <div class="form-actions">
+    {% if wiz.indice > 0 %}<button class="btn ghost" type="submit" name="azione" value="indietro" formnovalidate>← Indietro</button>{% endif %}
+    <span class="spacer"></span>
+    {% if wiz.consente_bozza and wiz.indice >= 1 %}<button class="btn ghost" type="submit" name="azione" value="bozza" title="Salva senza test superato: il dispositivo resta «non verificato»">Salva come bozza</button>{% endif %}
+    {% if passo.chiave == "riepilogo" %}<button class="btn" type="submit" name="azione" value="conferma">Conferma e crea</button>
+    {% else %}<button class="btn" type="submit" name="azione" value="avanti"{% if passo.chiave == "test" and not test_valido %} disabled title="Serve un test riuscito"{% endif %}>Avanti →</button>{% endif %}
+  </div>
+  <div id="wiz-load" class="htmx-indicator muted">Operazione in corso…</div>
+  </form>
+</div>
+{% endblock %}

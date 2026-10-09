@@ -622,6 +622,10 @@ def dispositivo_snmp_edit(request, pk=None):
         form = DispositivoSNMPForm(request.POST, instance=dispositivo)
         if form.is_valid():
             dispositivo = form.save()
+            if pk is None:
+                # Creato senza test di connessione: «non verificato» fino alla prima lettura riuscita.
+                dispositivo.verificato = False
+                dispositivo.save(update_fields=["verificato"])
             if dispositivo.profilo_snmp_id:
                 services.applica_profilo_dispositivo(
                     dispositivo, dispositivo.profilo_snmp,

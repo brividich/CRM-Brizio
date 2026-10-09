@@ -56,6 +56,20 @@ class GestioneTests(_AuthedClientMixin, TestCase):
         self.assertContains(r, ">Discovery<")
 
 
+class MigrazioneWizardAclTests(TestCase):
+    def test_0030_sostituisce_i_binding_della_0029(self):
+        from core.models import PermissionDefinition, RoutePermissionBinding as B
+        mig29 = import_module("contatori.migrations.0029_acl_wizard_dispositivo")
+        mig30 = import_module("contatori.migrations.0030_acl_wizard_generici")
+        B.objects.filter(route_name__startswith="contatori:").delete()
+        PermissionDefinition.objects.get_or_create(code=mig30.GESTIONE, defaults={"module": "contatori",
+                                                                                  "label": "gestione"})
+        mig29.avanti(django_apps, None)
+        mig30.avanti(django_apps, None)
+        rotte = set(B.objects.filter(route_name__startswith="contatori:").values_list("route_name", flat=True))
+        self.assertEqual(rotte, {"contatori:wizard_avvia", "contatori:wizard"})
+
+
 class MigrazioneAclTests(TestCase):
     def setUp(self):
         from core.models import PermissionDefinition, RoutePermissionBinding
@@ -89,5 +103,7 @@ class MigrazioneAclTests(TestCase):
         modulo = {k for k, _ in get_resolver().namespace_dict["contatori"][1].reverse_dict.items() if isinstance(k, str)}
         self.assertTrue(modulo)
         mig27 = import_module("contatori.migrations.0027_acl_verifica_oid")
-        self.assertEqual(modulo - set(MIG.ROUTE_VIEW) - set(MIG.ROUTE_GESTIONE) - set(mig27.ROUTE_GESTIONE), set(),
+        mig30 = import_module("contatori.migrations.0030_acl_wizard_generici")
+        self.assertEqual(modulo - set(MIG.ROUTE_VIEW) - set(MIG.ROUTE_GESTIONE) - set(mig27.ROUTE_GESTIONE)
+                         - set(mig30.ROUTE_GESTIONE), set(),
                          "Route nuova senza binding ACL: aggiungila a ROUTE_VIEW o ROUTE_GESTIONE")

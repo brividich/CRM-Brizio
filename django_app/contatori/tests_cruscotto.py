@@ -89,6 +89,16 @@ class NavigazioneTests(_AuthedClientMixin, TestCase):
         self.assertEqual(self._attive(reverse("contatori:importa_lettura")), ["Stampanti MFC"])
         self.assertEqual(self._attive(reverse("contatori:fattura_nuova")), ["Riconciliazione"])
 
+    def test_wizard_sotto_configurazione_con_voce_attiva(self):
+        html = self.client.get(reverse("contatori:dashboard")).content.decode()
+        inizio = html.index('<span class="cnav-label">Configurazione</span>')
+        config = html[inizio:html.index("</nav>", inizio)]
+        for tipo in ("dispositivo", "macchina", "profilo"):
+            self.assertIn(reverse("contatori:wizard_avvia", args=[tipo]), config)
+        for tipo, voce in (("dispositivo", "+ Dispositivo SNMP"), ("macchina", "+ MFC"), ("profilo", "+ Profilo SNMP")):
+            wizard = self.client.get(reverse("contatori:wizard_avvia", args=[tipo]))["Location"]
+            self.assertEqual(self._attive(wizard), [voce])
+
 
 class StatoFlottaTests(_AuthedClientMixin, TestCase):
     """Riquadri della Centrale: conteggi esclusivi e lista filtrata coerente."""
@@ -190,6 +200,7 @@ class MenuRaggruppatoTests(_AuthedClientMixin, TestCase):
             r = self.client.get(reverse("contatori:dashboard"))
         self.assertNotContains(r, '<span class="cnav-label">Configurazione</span>', html=False)
         self.assertNotContains(r, ">Profili SNMP<")
+        self.assertNotContains(r, reverse("contatori:wizard_avvia", args=["dispositivo"]))
         # Le letture proposte sono solo gestione: in consultazione il riquadro non e' un link
         self.assertNotContains(r, reverse("contatori:letture_proposte"))
 
