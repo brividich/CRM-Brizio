@@ -90,6 +90,135 @@ class NavigazioneTests(_AuthedClientMixin, TestCase):
         self.assertEqual(self._attive(reverse("contatori:fattura_nuova")), ["Riconciliazione"])
 
 
+class StatoFlottaTests(_AuthedClientMixin, TestCase):
+    """Riquadri della Centrale: conteggi esclusivi e lista filtrata coerente."""
+
+    def setUp(self):
+        super().setUp()
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import DispositivoSNMP
+        ora = timezone.now()
+        recente, vecchia = ora - timedelta(hours=2), ora - timedelta(days=10)
+        Macchina.objects.create(reparto="Ok", matricola="F-1", host="192.0.2.71",
+                                snmp_stato=StatoSNMP.OK, snmp_ultimo_controllo=recente)
+        Macchina.objects.create(reparto="Err", matricola="F-2", host="192.0.2.72", snmp_stato=StatoSNMP.ERROR,
+                                snmp_ultimo_controllo=vecchia, snmp_ultimo_errore="Timeout sintetico")
+        Macchina.objects.create(reparto="Vecchia", matricola="F-3", host="192.0.2.73",
+                                snmp_stato=StatoSNMP.OK, snmp_ultimo_controllo=vecchia)
+        Macchina.objects.create(reparto="SenzaIP", matricola="F-4", snmp_stato=StatoSNMP.MAI)
+        Macchina.objects.create(reparto="Spenta", matricola="F-5", host="192.0.2.75", attiva=False,
+                                snmp_stato=StatoSNMP.ERROR)
+        DispositivoSNMP.objects.create(nome="Ups", host="192.0.2.81", snmp_stato=StatoSNMP.WARNING,
+                                       snmp_ultimo_controllo=recente)
+        # Stato MAI con data recente (dato incoerente): conta tra i non interrogati, non in attenzione
+        DispositivoSNMP.objects.create(nome="Mai", host="192.0.2.82", snmp_ultimo_controllo=recente)
+        DispositivoSNMP.objects.create(nome="Sw", host="192.0.2.83", snmp_stato=StatoSNMP.ERROR,
+                                       snmp_ultimo_controllo=recente, snmp_ultimo_errore="authorizationError")
+
+    def test_conteggi_esclusivi(self):
+        f = services.stato_flotta()
+        self.assertEqual((f["ok"], f["attenzione"], f["errore"], f["non_interrogati"]), (1, 1, 2, 2))
+        self.assertEqual(f["totale"], 6)  # MFC senza IP e disattivate escluse
+
+    def test_lista_filtrata_coincide_col_riquadro(self):
+        attesi = {"ok": {"Ok"}, "attenzione": {"Ups"}, "errore": {"Err", "Sw"}, "non_interrogati": {"Vecchia", "Mai"}}
+        for chiave, nomi in attesi.items():
+            r = self.client.get(reverse("contatori:snmp_centrale"), {"flotta": chiave})
+            trovati = {d.nome for d in r.context["dispositivi"]} | {m.reparto for m in r.context["macchine"]}
+            self.assertEqual(trovati, nomi, chiave)
+
+    def test_ultimi_errori_con_causa(self):
+        errori = services.ultimi_errori_snmp()
+        self.assertEqual([e["nome"] for e in errori], ["Sw", "Err"])  # piu' recente prima
+        self.assertEqual(errori[0]["errore"], "authorizationError")
+
+    def test_query_della_centrale_non_crescono_con_la_flotta(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from .models import DispositivoSNMP
+
+        def conta():
+            with CaptureQueriesContext(connection) as q:
+                self.client.get(reverse("contatori:dashboard"))
+            return len(q)
+
+        conta()  # la prima richiesta riscalda cache di sessione, navigazione e ACL
+        prima = conta()
+        for i in range(5):
+            Macchina.objects.create(reparto=f"N{i}", matricola=f"N-{i}", host=f"192.0.2.{120 + i}",
+                                    snmp_stato=StatoSNMP.ERROR, snmp_ultimo_errore="x")
+            DispositivoSNMP.objects.create(nome=f"D{i}", host=f"192.0.2.{140 + i}", snmp_stato=StatoSNMP.ERROR)
+        self.assertEqual(conta(), prima)
+
+    def test_centrale_mostra_riquadri_con_link_filtrati(self):
+        r = self.client.get(reverse("contatori:dashboard"))
+        self.assertContains(r, "Stato flotta")
+        self.assertContains(r, "?flotta=errore")
+        self.assertContains(r, "?flotta=non_interrogati")
+        self.assertContains(r, "Timeout sintetico")
+
+
+class FattureDaRiconciliareTests(TestCase):
+    def test_solo_trimestri_con_problemi(self):
+        m = Macchina.objects.create(reparto="Alfa", matricola="R-1", contratto="K1")
+        _lettura(m, "2026-Q1", 100)
+        for trim, al, fornitore in (("2026-Q1", date(2026, 3, 31), 100), ("2026-Q2", date(2026, 6, 30), 50)):
+            f = Fattura.objects.create(numero=f"F-{trim}", data=al, trimestre=trim, periodo_al=al)
+            RigaFattura.objects.create(fattura=f, contratto="K1", a4_bn=fornitore)
+        # Q1 torna; Q2 non ha la lettura interna
+        self.assertEqual([r["trimestre"] for r in services.fatture_da_riconciliare()], ["2026-Q2"])
+
+
+class ConsumabiliFiltroTests(_AuthedClientMixin, TestCase):
+    def test_filtro_critici(self):
+        from .models import LetturaConsumabile
+        a = Macchina.objects.create(reparto="Alfa", matricola="C-1", host="192.0.2.91")
+        Macchina.objects.create(reparto="Beta", matricola="C-2", host="192.0.2.92")
+        LetturaConsumabile.objects.create(macchina=a, nome="Toner nero", pct=3)
+        r = self.client.get(reverse("contatori:consumabili"), {"filtro": "critici"})
+        self.assertEqual([x["macchina"].reparto for x in r.context["righe"]], ["Alfa"])
+        self.assertContains(r, "Mostra tutte")
+
+
+class MenuRaggruppatoTests(_AuthedClientMixin, TestCase):
+    def test_gruppi_e_configurazione_solo_per_gestione(self):
+        r = self.client.get(reverse("contatori:dashboard"))
+        for gruppo in ("Operatività", "Economico", "Configurazione"):
+            self.assertContains(r, f'<span class="cnav-label">{gruppo}</span>', html=False)
+        with mock.patch("contatori.templatetags.contatori_acl._puo_gestire", return_value=False):
+            r = self.client.get(reverse("contatori:dashboard"))
+        self.assertNotContains(r, '<span class="cnav-label">Configurazione</span>', html=False)
+        self.assertNotContains(r, ">Profili SNMP<")
+        # Le letture proposte sono solo gestione: in consultazione il riquadro non e' un link
+        self.assertNotContains(r, reverse("contatori:letture_proposte"))
+
+
+class SchedaInfoTests(_AuthedClientMixin, TestCase):
+    def test_info_macchina(self):
+        from .models import CommunitySNMP, ProfiloSNMP
+        p = ProfiloSNMP.objects.create(slug="syn", nome="Profilo sintetico", produttore="Syn")
+        c = CommunitySNMP.objects.create(nome="Stampanti lettura", segreto_cifrato="x", versione="v2c")
+        m = Macchina.objects.create(reparto="Alfa", matricola="I-1", modello="Syn 1", host="192.0.2.95",
+                                    profilo_snmp=p, community_salvata=c, snmp_stato=StatoSNMP.ERROR,
+                                    snmp_ultimo_errore="Nessuna risposta sintetica")
+        r = self.client.get(reverse("contatori:macchina", args=[m.pk]))
+        for testo in ("Info", "Profilo sintetico", "Stampanti lettura", "SNMPv2c", "Nessuna risposta sintetica",
+                      "192.0.2.95:161"):
+            self.assertContains(r, testo)
+        self.assertNotContains(r, "segreto")
+
+    def test_info_dispositivo_ultima_riuscita_e_fallita(self):
+        from .models import DispositivoSNMP, RilevazioneSNMP
+        d = DispositivoSNMP.objects.create(nome="Sw", host="192.0.2.96", versione="v2c")
+        RilevazioneSNMP.objects.create(dispositivo=d, stato=StatoSNMP.OK)
+        RilevazioneSNMP.objects.create(dispositivo=d, stato=StatoSNMP.ERROR, errore="Timeout sintetico")
+        r = self.client.get(reverse("contatori:snmp_dispositivo", args=[d.pk]))
+        self.assertContains(r, "Ultima interrogazione riuscita")
+        self.assertContains(r, "Ultima interrogazione fallita")
+        self.assertContains(r, "Timeout sintetico")
+
+
 class ConsumabiliTests(_AuthedClientMixin, TestCase):
     def test_riepilogo_non_raggiungibile_marcato_per_ordinamento(self):
         from . import views

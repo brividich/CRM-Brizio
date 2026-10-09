@@ -175,8 +175,12 @@ def controllo_monotonia():
     tempo. Ritorna la lista dei cali rilevati.
     """
     problemi = []
+    # Una query sola per tutte le letture, raggruppate qui (prima: una query per macchina).
+    per_macchina = defaultdict(list)
+    for lettura in LetturaContatori.objects.order_by("macchina_id", "trimestre"):
+        per_macchina[lettura.macchina_id].append(lettura)
     for macchina in Macchina.objects.all():
-        letture = list(macchina.letture.order_by("trimestre"))
+        letture = per_macchina.get(macchina.pk, [])
         if len(letture) < 2:
             continue
         for campo, etichetta in CONTATORI:
@@ -247,12 +251,10 @@ def ultime_rilevazioni(oggi=None):
 
 def _letture_ordinate_per_macchina():
     """{ macchina: [letture ordinate per trimestre] } solo macchine attive."""
-    per_macchina = {}
-    for m in Macchina.objects.filter(attiva=True):
-        letture = list(m.letture.order_by("trimestre"))
-        if letture:
-            per_macchina[m] = letture
-    return per_macchina
+    letture = defaultdict(list)
+    for lettura in LetturaContatori.objects.filter(macchina__attiva=True).order_by("macchina_id", "trimestre"):
+        letture[lettura.macchina_id].append(lettura)
+    return {m: letture[m.pk] for m in Macchina.objects.filter(attiva=True) if letture.get(m.pk)}
 
 
 def andamento_trimestri():
@@ -930,6 +932,103 @@ def centrale_snmp_riepilogo():
 
 # --- Cruscotto operativo ------------------------------------------------------
 
+# --- Stato flotta e schede info -----------------------------------------------
+
+# Un apparato non interrogato da piu' di N giorni non e' "operativo": il dato e' vecchio.
+SNMP_NON_INTERROGATO_GIORNI = 3
+
+# Categorie esclusive dei riquadri della Centrale, nell'ordine in cui si valutano:
+# l'errore prevale, poi il dato vecchio, poi lo stato dell'ultimo controllo.
+FLOTTA = {
+    "errore": "In errore",
+    "non_interrogati": f"Non interrogati da oltre {SNMP_NON_INTERROGATO_GIORNI} giorni",
+    "attenzione": "In attenzione",
+    "ok": "Operativi",
+}
+
+
+def filtra_flotta(qs, chiave, ora=None):
+    """Restringe MFC o dispositivi SNMP alla categoria `chiave` di FLOTTA.
+
+    Stessa funzione per il conteggio del riquadro e per la lista filtrata,
+    cosi' i due numeri coincidono sempre.
+    """
+    from django.db.models import Q
+    soglia = (ora or timezone.now()) - timedelta(days=SNMP_NON_INTERROGATO_GIORNI)
+    vecchio = (Q(snmp_ultimo_controllo__isnull=True) | Q(snmp_ultimo_controllo__lt=soglia)
+               | Q(snmp_stato=StatoSNMP.MAI))
+    if chiave == "errore":
+        return qs.filter(snmp_stato=StatoSNMP.ERROR)
+    qs = qs.exclude(snmp_stato=StatoSNMP.ERROR)
+    if chiave == "non_interrogati":
+        return qs.filter(vecchio)
+    qs = qs.exclude(vecchio)
+    if chiave == "ok":
+        return qs.filter(snmp_stato=StatoSNMP.OK)
+    return qs.filter(snmp_stato=StatoSNMP.WARNING)  # attenzione
+
+
+def flotta_monitorata():
+    """(MFC, dispositivi) monitorati via SNMP: attivi e, per le MFC, con IP."""
+    return (Macchina.objects.filter(attiva=True, host__isnull=False),
+            DispositivoSNMP.objects.filter(attivo=True))
+
+
+def stato_flotta(ora=None):
+    """Conteggi esclusivi della flotta per i riquadri della Centrale."""
+    mfc, dispositivi = flotta_monitorata()
+    out = {chiave: filtra_flotta(mfc, chiave, ora).count() + filtra_flotta(dispositivi, chiave, ora).count()
+           for chiave in FLOTTA}
+    out["totale"] = sum(out[k] for k in FLOTTA)
+    out["giorni"] = SNMP_NON_INTERROGATO_GIORNI
+    return out
+
+
+def ultimi_errori_snmp(limite=6):
+    """Apparati attualmente in errore con la causa registrata, i piu' recenti prima."""
+    from django.urls import reverse
+    mfc, dispositivi = flotta_monitorata()
+    righe = [{"nome": m.reparto, "tipo": "MFC", "quando": m.snmp_ultimo_controllo,
+              "errore": m.snmp_ultimo_errore or "Errore senza dettaglio registrato.",
+              "url": reverse("contatori:macchina", args=[m.pk])}
+             for m in mfc.filter(snmp_stato=StatoSNMP.ERROR).order_by("-snmp_ultimo_controllo")[:limite]]
+    righe += [{"nome": d.nome, "tipo": d.get_categoria_display(), "quando": d.snmp_ultimo_controllo,
+               "errore": d.snmp_ultimo_errore or "Errore senza dettaglio registrato.",
+               "url": reverse("contatori:snmp_dispositivo", args=[d.pk])}
+              for d in dispositivi.filter(snmp_stato=StatoSNMP.ERROR).order_by("-snmp_ultimo_controllo")[:limite]]
+    # Senza data di controllo in fondo: (False, 0) < (True, datetime).
+    righe.sort(key=lambda r: (r["quando"] is not None, r["quando"] or 0), reverse=True)
+    return righe[:limite]
+
+
+def fatture_da_riconciliare(ultimi=4):
+    """Trimestri recenti con fattura caricata la cui riconciliazione non torna."""
+    # order_by() vuoto: il Meta.ordering di Fattura romperebbe il DISTINCT su SQL Server.
+    trimestri = sorted(set(Fattura.objects.order_by().values_list("trimestre", flat=True)), reverse=True)
+    out = []
+    for trimestre in trimestri[:ultimi]:
+        riepilogo = riconcilia(trimestre)[1]
+        if riepilogo["anomalie"] or riepilogo["letture_mancanti"] or not riepilogo["contatori"]:
+            out.append(riepilogo)
+    return out
+
+
+def info_snmp(oggetto):
+    """Parametri SNMP effettivi di una MFC o di un dispositivo, senza segreti."""
+    cfg = ImpostazioniSNMP.get_solo()
+    porta, timeout, versione = _parametri_snmp(oggetto, cfg)
+    community = getattr(oggetto, "community_salvata", None)
+    if community is not None:
+        credenziali = f"Catalogo: {community.nome}" + ("" if community.attiva else " (disattivata)")
+    elif getattr(oggetto, "snmp_community", "") or getattr(oggetto, "community", ""):
+        credenziali = "Community dedicata dell'apparato"
+    else:
+        credenziali = "Community globale"
+    etichette = dict(ProfiloSNMP.Versione.choices)
+    return {"porta": porta, "timeout": timeout, "versione": etichette.get(versione, versione),
+            "credenziali": credenziali}
+
+
 def trimestre_precedente(trimestre):
     anno, q = map(int, _TRIMESTRE_RE.match(trimestre).groups())
     return f"{anno - 1}-Q4" if q == 1 else f"{anno}-Q{q - 1}"
@@ -1047,6 +1146,8 @@ def cruscotto_operativo(oggi=None):
         "consumo_ultimo": ultimo, "consumo_precedente": precedente, "variazione": variazione,
         "riconciliazione": riconc, "fattura_prec": fattura_prec,
         "cali": cali, "da_fare": da_fare,
+        "proposte_pronte": len(pronte), "proposte_totali": len(proposte),
+        "consumabili_critici": len(da_ordinare),
     }
 
 

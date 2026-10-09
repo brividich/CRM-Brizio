@@ -99,10 +99,23 @@ body.theme-dark .contatori-module{--prod-bn:#4a90d9;--prod-col:#e06a18}
 @media(max-width:760px){.contatori-module .prod-chart{gap:4px}.contatori-module .prod-x{font-size:10px;transform:rotate(-30deg);transform-origin:center}.contatori-module .prod-total{font-size:10px}}
 /* Barra del modulo: operatività | configurazione */
 .contatori-module .cnav{align-items:center}
-.contatori-module .cnav-sep{flex:1 1 auto;min-width:12px}
-.contatori-module .cnav-label{font-size:10px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;color:var(--cm-muted);padding:0 4px;white-space:nowrap}
+.contatori-module .cnav-sep{flex:0 0 1px;align-self:stretch;background:var(--cm-border);margin:4px 8px}
+.contatori-module .cnav-label{font-size:10px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;color:var(--cm-muted);padding:0 4px 0 6px;white-space:nowrap}
 .contatori-module .cnav a.cnav-config{font-weight:600}
-@media(max-width:760px){.contatori-module .cnav-sep{flex:0 0 1px;align-self:stretch;background:var(--cm-border);margin:4px 6px}.contatori-module .cnav-label{display:none}}
+@media(max-width:760px){.contatori-module .cnav-sep{margin:4px 6px}.contatori-module .cnav-label{display:none}}
+/* Centrale: stato flotta e ultimi errori */
+.contatori-module .flotta-cards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.contatori-module .flotta-cards .card{text-decoration:none;color:inherit}
+.contatori-module .flotta-cards .card .v{font-size:26px}
+.contatori-module .errori-list{list-style:none;margin:0;padding:0}
+.contatori-module .errori-list li{display:grid;grid-template-columns:minmax(140px,220px) 1fr auto;gap:4px 14px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--cm-border)}
+.contatori-module .errori-list li:last-child{border-bottom:none}
+.contatori-module .errori-list .causa{color:var(--cm-danger);overflow-wrap:anywhere}
+@media(max-width:760px){.contatori-module .errori-list li{grid-template-columns:1fr}}
+.contatori-module .info-table th{width:38%;white-space:nowrap}
+.contatori-module .info-table td{overflow-wrap:anywhere}
+@media(max-width:760px){.contatori-module .info-table th{white-space:normal;width:42%}}
+.contatori-module .filtro-attivo{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .contatori-module .cons-esito{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 .contatori-module .cons-item{font-size:13px}
 body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,var(--cm-accent) 18%,var(--cm-surface));color:#fff;box-shadow:inset 0 -2px 0 var(--cm-accent)}
