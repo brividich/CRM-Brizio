@@ -38,7 +38,7 @@ class WizardBase(_AuthedClientMixin, TestCase):
                                           oid="1.3.6.1.4.1.99999.2.1.0", contatore_mfc="a4_bn")
         ColonnaProfiloSNMP.objects.create(profilo=self.profilo, nome="Toner",
                                           oid="1.3.6.1.4.1.99999.2.9.0")
-        r = self.client.get(reverse("contatori:snmp_wizard_dispositivo_avvia"))
+        r = self.client.get(reverse("contatori:wizard_avvia", args=["dispositivo"]))
         self.url = r["Location"]
 
     def post(self, azione, **dati):
@@ -344,21 +344,21 @@ class CorrezioniReviewTests(WizardBase):
 class PermessiEdErroriTests(WizardBase):
     def test_sola_consultazione_bloccata_anche_in_htmx(self):
         with mock.patch("contatori.permessi.puo_gestire", return_value=False):
-            self.assertRedirects(self.client.get(reverse("contatori:snmp_wizard_dispositivo_avvia")),
+            self.assertRedirects(self.client.get(reverse("contatori:wizard_avvia", args=["dispositivo"])),
                                  reverse("contatori:dashboard"))
             r = self.client.post(self.url, {"azione": "avanti"}, HTTP_HX_REQUEST="true")
         self.assertEqual(r.status_code, 403)
         self.assertEqual(r.json()["ok"], False)
 
     def test_wizard_scaduto(self):
-        r = self.client.get(reverse("contatori:snmp_wizard_dispositivo",
-                                    args=["00000000-0000-0000-0000-000000000000"]))
-        self.assertRedirects(r, reverse("contatori:snmp_wizard_dispositivo_avvia"), fetch_redirect_response=False)
+        r = self.client.get(reverse("contatori:wizard",
+                                    args=["dispositivo", "00000000-0000-0000-0000-000000000000"]))
+        self.assertRedirects(r, reverse("contatori:snmp_centrale"), fetch_redirect_response=False)
 
     def test_precompilazione_da_discovery(self):
         from .credential_crypto import cifra
         c = CommunitySNMP.objects.create(nome="syn", versione="v2c", segreto_cifrato=cifra("x"))
-        r = self.client.get(reverse("contatori:snmp_wizard_dispositivo_avvia"),
+        r = self.client.get(reverse("contatori:wizard_avvia", args=["dispositivo"]),
                             {"host": "192.0.2.77", "nome": "Da discovery", "community_id": c.pk, "versione": "v2c"})
         self.assertContains(self.client.get(r["Location"]), 'value="Da discovery"')
 

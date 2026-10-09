@@ -35,7 +35,7 @@
                 <button class="btn" type="submit">Correggi IP → {{ r.host }}</button>
               </form>
             {% elif r.stato == 'nuova' %}
-              <div class="actions"><a class="btn ghost small" href="{% url 'contatori:snmp_wizard_dispositivo_avvia' %}?host={{ r.host|urlencode }}&nome={{ r.descr|default:'Dispositivo SNMP'|urlencode }}&matricola={{ r.matricola|urlencode }}&descr={{ r.descr|urlencode }}{% if r.community_id %}&community_id={{ r.community_id }}{% endif %}{% if r.versione %}&versione={{ r.versione|urlencode }}&porta={{ r.porta }}{% endif %}">Aggiungi al monitor</a><a class="btn ghost small" href="{% url 'contatori:macchina_nuova' %}">Aggiungi MFC</a></div>
+              <div class="actions"><a class="btn ghost small" href="{% url 'contatori:wizard_avvia' 'dispositivo' %}?host={{ r.host|urlencode }}&nome={{ r.descr|default:'Dispositivo SNMP'|urlencode }}&matricola={{ r.matricola|urlencode }}&descr={{ r.descr|urlencode }}{% if r.community_id %}&community_id={{ r.community_id }}{% endif %}{% if r.versione %}&versione={{ r.versione|urlencode }}&porta={{ r.porta }}{% endif %}">Aggiungi al monitor</a><a class="btn ghost small" href="{% url 'contatori:macchina_nuova' %}">Aggiungi MFC</a></div>
             {% endif %}
           </td>
         </tr>

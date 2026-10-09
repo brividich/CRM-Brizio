@@ -2,7 +2,7 @@
 from django import forms
 
 from .forms import CAMPI_V3, CredenzialiV3Form, _imposta_campo_asset
-from .models import CommunitySNMP, DispositivoSNMP, ProfiloSNMP
+from .models import CommunitySNMP, DispositivoSNMP, Macchina, ProfiloSNMP
 
 
 class PassoTipoForm(forms.Form):
@@ -45,6 +45,10 @@ class PassoReteForm(forms.Form):
             raise forms.ValidationError(
                 f"L'indirizzo {ip} è già usato dal dispositivo «{esistente.nome}»: aprilo dal "
                 "Monitor SNMP invece di crearne un altro.")
+        mfc = Macchina.objects.filter(host=ip).first()
+        if mfc:
+            raise forms.ValidationError(
+                f"L'indirizzo {ip} è già usato dalla stampante «{mfc.reparto}» ({mfc.matricola}).")
         return ip
 
 
@@ -116,6 +120,39 @@ class PassoAssociazioneForm(forms.Form):
                                                   "data-placeholder": "Cerca per tag, nome o seriale…"})
         self.fields["asset"].label_from_instance = (
             lambda a: f"{a.asset_tag} · {a.name}" + (f" · {a.serial_number}" if a.serial_number else ""))
+
+
+class PassoAnagraficaMacchinaForm(forms.ModelForm):
+    """Dati di contratto della MFC; il profilo porta i quattro contatori."""
+    profilo = forms.ModelChoiceField(
+        queryset=ProfiloSNMP.objects.none(), required=False, label="Profilo SNMP (modello)",
+        empty_label="Riconosci durante il test",
+        help_text="Per i Canon iR-ADV noti si può lasciare vuoto; per gli altri modelli serve un "
+                  "profilo con i quattro contatori MFC.")
+
+    class Meta:
+        model = Macchina
+        fields = ["reparto", "matricola", "modello", "contratto", "fornitore"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["profilo"].queryset = ProfiloSNMP.objects.filter(
+            attivo=True, categoria=ProfiloSNMP.Categoria.STAMPANTE).order_by("produttore", "nome")
+        self.fields["profilo"].label_from_instance = lambda p: f"{p.produttore} · {p.nome}"
+        self.fields["profilo"].widget.attrs["class"] = "js-searchable"
+        self.fields["modello"].help_text = ("Es. «iR-ADV C5535i». I Canon iR-ADV noti hanno i contatori "
+                                            "già mappati.")
+
+
+class PassoAssociazioneMacchinaForm(forms.Form):
+    asset = forms.ModelChoiceField(queryset=None, required=False, label="Asset collegato (registro HUB)")
+    attiva = forms.BooleanField(required=False, initial=True, label="Stampante attiva (letta dai job)")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _imposta_campo_asset(self.fields["asset"])
+        self.fields["asset"].widget.attrs.update({"class": "js-searchable",
+                                                  "data-placeholder": "Cerca per tag, nome o seriale…"})
 
 
 CAMPI_SEGRETI = ("community", "v3_auth_key", "v3_priv_key")

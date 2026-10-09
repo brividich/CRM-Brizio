@@ -1,32 +1,34 @@
-"""Wizard guidati del modulo Contatori: per ora «Nuovo dispositivo SNMP»."""
+"""View unica dei wizard guidati del modulo Contatori (dispositivo, MFC, profilo, colonna, sonda)."""
 from django.contrib import messages
-from django.http import HttpResponse
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
+from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from core.audit import log_action
 
 from .permessi import richiede_gestione
-from .wizard import WizardDispositivo
+from .wizard import wizard_per_tipo
 
 
-def _iniziali_da_query(get):
-    """Precompilazione dai link di Discovery: solo valori grezzi, validati dai form dei passi."""
-    dati = {}
-    if get.get("nome"):
-        dati["tipo"] = {"nome": get["nome"][:100]}
-    rete = {k: get[k][:253] for k in ("host", "porta", "versione") if get.get(k)}
-    if rete:
-        dati["rete"] = {"porta": "161", "versione": "v2c", **rete}
-    if (get.get("community_id") or "").isdigit():
-        dati["credenziali"] = {"community_salvata": get["community_id"]}
-    return dati
+def _classe(tipo):
+    try:
+        return wizard_per_tipo(tipo)
+    except KeyError as e:
+        raise Http404("Wizard inesistente") from e
 
 
 @richiede_gestione
-def wizard_dispositivo_avvia(request):
-    wid = WizardDispositivo.avvia(request, _iniziali_da_query(request.GET))
-    return redirect("contatori:snmp_wizard_dispositivo", wid=wid)
+def wizard_avvia(request, tipo):
+    cls = _classe(tipo)
+    try:
+        iniziali, ctx = cls.da_query(request.GET)
+    except ValueError:
+        messages.error(request, "Il wizard va aperto dalla pagina dell'oggetto a cui appartiene.")
+        return redirect("contatori:snmp_centrale")
+    wid = cls.avvia(request, iniziali, ctx)
+    return redirect("contatori:wizard", tipo=tipo, wid=wid)
 
 
 def _fine(request, url):
@@ -37,15 +39,32 @@ def _fine(request, url):
     return redirect(url)
 
 
-@richiede_gestione
-def wizard_dispositivo(request, wid):
+def _salva(wiz, *, bozza):
+    """(oggetto, avviso). Concorrenza o vincoli violati: si resta nel wizard, niente 500."""
     try:
-        wiz = WizardDispositivo(request, wid)
+        return wiz.salva(bozza=bozza), ""
+    except IntegrityError:
+        incompleto = wiz.indice_ammesso()
+        if incompleto is not None:  # il passo con il dato in conflitto, se si riconosce
+            wiz.vai(incompleto)
+        return None, ("Nel frattempo un altro utente ha registrato un oggetto con gli stessi dati "
+                      "(indirizzo, matricola o OID): correggili.")
+    except ValidationError as e:
+        return None, "Dati non coerenti: " + " ".join(e.messages)
+    except ValueError:  # un passo e' diventato non valido tra il controllo e il salvataggio
+        return None, "Un passo non è più valido: ricontrolla i dati e riprova."
+
+
+@richiede_gestione
+def wizard(request, tipo, wid):
+    cls = _classe(tipo)
+    try:
+        wiz = cls(request, wid)
     except KeyError:
         messages.warning(request, "Questo wizard è scaduto o è già stato completato: ricomincia da qui.")
-        return _fine(request, reverse("contatori:snmp_wizard_dispositivo_avvia"))
+        return _fine(request, reverse("contatori:snmp_centrale"))
 
-    form, avviso, dispositivo = None, "", None
+    form, avviso, obj, bozza = None, "", None, False
     if request.method == "POST":
         azione, _, destinazione = request.POST.get("azione", "").partition(":")
         passo = wiz.passo
@@ -65,114 +84,53 @@ def wizard_dispositivo(request, wid):
             form = None
         elif azione == "avanti":
             if form is None or form.is_valid():
-                if wiz.indice == WizardDispositivo.TEST and not wiz.test_valido():
-                    avviso = ("Esegui il test di connessione e fai in modo che riesca: "
-                              "senza test superato il dispositivo non si può completare.")
-                else:
+                avviso = wiz.blocco(passo.chiave)
+                if not avviso:
                     wiz.vai(wiz.indice + 1)
                     form = None
-        elif azione == "test" and wiz.indice == WizardDispositivo.TEST:
-            if not wiz.esegui_test():
-                avviso = "Rete o credenziali non sono più valide: correggi i passi precedenti."
-            esito, parametri = wiz.extra("test") or {}, wiz.parametri()
-            # Traccia ogni sonda verso la rete (mai il segreto): chi, dove, con quale credenziale.
-            cred = wiz.form_valido("credenziali")
-            salvata = cred.cleaned_data.get("community_salvata") if cred else None
-            log_action(request, "snmp_wizard_test", "contatori", dettaglio={
-                "host": parametri[0] if parametri else "", "porta": parametri[1] if parametri else None,
-                "versione": parametri[2] if parametri else "",
-                "credenziale": salvata.pk if salvata else ("nuova" if cred and cred._segreto_inline else "globale"),
-                "esito": "ok" if esito.get("ok") else (esito.get("errore") or {}).get("codice", "")})
-        elif azione == "leggi" and wiz.passo.chiave == "mappatura":
-            wiz.leggi_mappatura()
-        elif azione == "bozza":
+        elif azione in wiz.azioni and wiz.azioni[azione][0] == passo.chiave:
+            avviso = getattr(wiz, wiz.azioni[azione][1])()
+            # Ogni sonda verso la rete resta tracciata (mai il segreto).
+            if azione == "test":
+                log_action(request, "snmp_wizard_test", "contatori", dettaglio=wiz.audit_test())
+            elif azione == "prova":
+                log_action(request, "snmp_wizard_prova_oid", "contatori", dettaglio=wiz.audit_prova())
+        elif azione == "bozza" and wiz.consente_bozza:
             if wiz.form_valido("tipo") is None or wiz.form_valido("rete") is None:
                 avviso = "Per salvare una bozza completa almeno «Tipo e modello» e «Rete»."
             elif form is None or form.is_valid():
-                dispositivo, avviso = _salva(wiz, bozza=True)
-            if dispositivo is not None:
-                log_action(request, "snmp_dispositivo_bozza", "contatori", oggetto=dispositivo,
-                           dettaglio={"host": dispositivo.host, "verificato": dispositivo.verificato})
-                if dispositivo.verificato:
-                    messages.success(request, f"«{dispositivo.nome}» salvato: il test di connessione era già riuscito.")
-                else:
-                    messages.warning(request, f"«{dispositivo.nome}» salvato come bozza NON verificata: "
-                                              "verrà verificato alla prima lettura SNMP riuscita.")
-                return _fine(request, reverse("contatori:snmp_dispositivo", args=[dispositivo.pk]))
+                obj, avviso = _salva(wiz, bozza=True)
+                bozza = True
         elif azione == "conferma":
-            incompleto = wiz.primo_passo_incompleto()
+            incompleto = wiz.indice_ammesso()
             if incompleto is not None:
-                avviso = f"Il passo «{wiz.passi[incompleto].titolo}» non è più valido: correggilo."
+                avviso = (wiz.blocco(wiz.passi[incompleto].chiave)
+                          or f"Il passo «{wiz.passi[incompleto].titolo}» non è più valido: correggilo.")
                 wiz.vai(incompleto)
-            elif not wiz.test_valido():
-                avviso = "Rete o credenziali sono cambiate dopo il test: ripetilo."
-                wiz.vai(WizardDispositivo.TEST)
             else:
-                dispositivo, avviso = _salva(wiz, bozza=False)
-            if dispositivo is not None:
-                log_action(request, "snmp_dispositivo_creato_wizard", "contatori", oggetto=dispositivo,
-                           dettaglio={"host": dispositivo.host, "profilo": str(dispositivo.profilo_snmp or "")})
-                messages.success(request, f"Dispositivo «{dispositivo.nome}» creato e verificato.")
-                return _fine(request, reverse("contatori:snmp_dispositivo", args=[dispositivo.pk]))
+                obj, avviso = _salva(wiz, bozza=False)
+        if obj is not None:
+            url, livello, testo, azione_audit, dettaglio = wiz.fine(obj, bozza=bozza)
+            log_action(request, azione_audit, "contatori", oggetto=obj, dettaglio=dettaglio)
+            getattr(messages, livello)(request, testo)
+            return _fine(request, url)
 
-    # Nessun passo oltre il test senza test superato; nessun passo dopo uno non valido.
-    incompleto = wiz.primo_passo_incompleto(fino_a=wiz.indice)
+    # Nessun passo dopo uno non valido o non superato (test, prova obbligatoria).
+    incompleto = wiz.indice_ammesso(fino_a=wiz.indice)
     if incompleto is not None:
         wiz.vai(incompleto)
-        form = None
-    elif wiz.indice > WizardDispositivo.TEST and not wiz.test_valido():
-        wiz.vai(WizardDispositivo.TEST)
         form = None
     passo = wiz.passo
     if form is None and passo.form_class is not None:
         form = wiz.form(passo.chiave)
 
-    contesto = {"wiz": wiz, "passo": passo, "form": form, "avviso": avviso, "test": wiz.extra("test"),
-                "profilo_diverso": wiz.profilo_diverso_dal_rilevato() if passo.chiave == "test" else None,
-                "test_valido": wiz.test_valido(), "profilo": wiz.profilo(),
-                "mappatura": wiz.extra("mappatura")}
-    if passo.chiave == "associazione" and form is not None and not form.is_bound and not form.initial.get("asset"):
-        asset, motivo = wiz.proposta_asset()
+    contesto = {"wiz": wiz, "passo": passo, "form": form, "avviso": avviso, **wiz.contesto_passo(passo.chiave)}
+    proponi = contesto.pop("proposta_asset", None)
+    if proponi and form is not None and not form.is_bound and not form.initial.get("asset"):
+        asset, motivo = proponi()
         if asset is not None:
             form.initial["asset"] = asset.pk
             contesto["proposta_asset"] = f"Proposto {asset.asset_tag} trovato tramite {motivo}: verifica."
     if passo.chiave == "riepilogo":
-        contesto["riepilogo"] = _riepilogo(wiz)
+        contesto["riepilogo"] = wiz.riepilogo()
     return render(request, "contatori/snmp_wizard.html", contesto)
-
-
-def _salva(wiz, *, bozza):
-    """(dispositivo, avviso): un altro wizard puo' aver registrato lo stesso host nel frattempo."""
-    from django.db import IntegrityError
-    try:
-        return wiz.salva(bozza=bozza), ""
-    except IntegrityError:
-        wiz.vai(1)
-        return None, "Nel frattempo questo indirizzo è stato registrato da un altro dispositivo: cambialo."
-
-
-def _riepilogo(wiz):
-    tipo, rete = wiz.form_valido("tipo"), wiz.form_valido("rete")
-    cred, assoc = wiz.form_valido("credenziali"), wiz.form_valido("associazione")
-    righe = []
-    if tipo:
-        categorie = dict(tipo.fields["categoria"].choices)
-        righe += [("Nome", tipo.cleaned_data["nome"]), ("Tipo", categorie.get(tipo.cleaned_data["categoria"]))]
-    if rete:
-        righe += [("Indirizzo", f"{rete.cleaned_data['host']}:{rete.cleaned_data['porta']}"),
-                  ("Versione", rete.cleaned_data["versione"])]
-    if cred:
-        if cred._segreto_inline:
-            origine = "Nuova credenziale, salvata cifrata nel catalogo"
-        elif cred.cleaned_data.get("community_salvata"):
-            origine = f"Catalogo: {cred.cleaned_data['community_salvata'].nome}"
-        else:
-            origine = "Community della configurazione globale"
-        righe.append(("Credenziali", origine))
-    profilo = wiz.profilo()
-    righe.append(("Profilo", str(profilo) if profilo else "Nessuno: solo identità e uptime"))
-    if assoc:
-        asset = assoc.cleaned_data.get("asset")
-        righe += [("Asset", f"{asset.asset_tag} · {asset.name}" if asset else "Non collegato"),
-                  ("Reparto / posizione", assoc.cleaned_data.get("posizione") or "—")]
-    return righe
