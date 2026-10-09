@@ -72,6 +72,22 @@ class ReadyzReport:
             "checks": [asdict(check) for check in self.checks],
         }
 
+    def to_public_payload(self) -> dict[str, Any]:
+        """Payload dell'endpoint HTTP: solo nome e stato dei check (audit M8).
+
+        I messaggi delle eccezioni (host, utenti, stringhe di connessione) restano
+        nei log e nella Centrale di comando, non nella risposta HTTP del probe.
+        """
+        return {
+            "status": self.status,
+            "cached": self.cached,
+            "generated_at": self.generated_at,
+            "checks": [
+                {"name": check.name, "status": check.status, "critical": check.critical, "latency_ms": check.latency_ms}
+                for check in self.checks
+            ],
+        }
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Whitelist IP
@@ -79,13 +95,14 @@ class ReadyzReport:
 
 
 def _client_ip(request) -> str:
-    """Estrae l'IP client rispettando TRUSTED_PROXY_IPS (se richiesto in futuro).
+    """IP client con la regola unica del portale (audit M8).
 
-    Per gli endpoint health non leggiamo X-Forwarded-For: chi vuole esporre
-    healthz dietro proxy deve aggiungere l'IP del proxy a HEALTHZ_ALLOWED_IPS.
-    Questo evita spoofing banale.
+    Dietro IIS ``REMOTE_ADDR`` e' 127.0.0.1 per tutti: ``core.net.client_ip``
+    legge X-Forwarded-For solo se la connessione arriva da TRUSTED_PROXY_IPS.
     """
-    return (request.META.get("REMOTE_ADDR", "") or "").strip()
+    from core.net import client_ip
+
+    return (client_ip(request) or "").strip()
 
 
 def is_ip_allowed(request) -> bool:
@@ -334,13 +351,22 @@ def check_automation_queue() -> CheckResult:
             message=f"{exc.__class__.__name__}: {exc}",
         )
     count = len(missed)
-    status = STATUS_OK if count == 0 else STATUS_WARN
+    stale = 0
+    try:
+        if connections["default"].vendor == "microsoft":
+            from automazioni.services import count_stale_processing_events
+
+            stale = count_stale_processing_events()
+    except Exception:
+        logger.warning("Health check: conteggio eventi coda in processing non riuscito", exc_info=True)
+    status = STATUS_OK if count == 0 and stale == 0 else STATUS_WARN
     return CheckResult(
         name=name,
         status=status,
         latency_ms=0,
         critical=False,
-        details={"missing_jobs": count},
+        message=f"{stale} eventi della coda bloccati in processing." if stale else "",
+        details={"missing_jobs": count, "stale_processing": stale},
     )
 
 

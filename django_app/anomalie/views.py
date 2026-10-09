@@ -4820,15 +4820,53 @@ def report_segnalazione_html(request):
 
     custom_tpl = _load_report_template()
     if custom_tpl:
-        from django.template import Context, Template
+        from django.template import Context
         try:
-            html = Template(custom_tpl).render(Context(context))
-            return HttpResponse(html)
+            html = _restricted_report_engine().from_string(custom_tpl).render(Context(context, autoescape=True))
+            response = HttpResponse(html)
+            # SEC (audit B5): il markup caricato non esegue script sull'origin del portale.
+            response["Content-Security-Policy"] = (
+                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+                "script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+            )
+            return response
         except Exception as exc:
             logger.warning("Errore rendering template report personalizzato: %s", exc)
             # Fallback al template di default
 
     return render(request, "anomalie/pages/report_segnalazione.html", context)
+
+
+_REPORT_TEMPLATE_SAFE_TAGS = (
+    "autoescape", "comment", "cycle", "filter", "firstof", "for", "if", "ifchanged",
+    "now", "regroup", "spaceless", "templatetag", "verbatim", "widthratio", "with",
+)
+_REPORT_ENGINE = None
+
+
+def _restricted_report_engine():
+    """Motore per il template report caricato da un gestore (audit B5).
+
+    Solo filtri e tag di presentazione: niente ``{% debug %}`` (stampa il
+    contesto), ``{% load %}`` (librerie arbitrarie), ``{% include %}``/
+    ``{% extends %}`` (altri template del portale) né ``{% url %}``/``csrf_token``.
+    """
+    global _REPORT_ENGINE
+    if _REPORT_ENGINE is None:
+        from django.template import Engine, Library
+        from django.template import defaulttags
+
+        safe_tags = Library()
+        for name in _REPORT_TEMPLATE_SAFE_TAGS:
+            safe_tags.tags[name] = defaulttags.register.tags[name]
+        from django.template.library import import_library
+
+        engine = Engine(libraries={}, autoescape=True, debug=False)
+        # Engine aggiunge sempre defaulttags/loader_tags: si sostituisce l'elenco.
+        engine.template_builtins = [import_library("django.template.defaultfilters"), safe_tags]
+        engine.template_libraries = {}
+        _REPORT_ENGINE = engine
+    return _REPORT_ENGINE
 
 
 # ─────────────────────────────────────────────────────────────────────────────

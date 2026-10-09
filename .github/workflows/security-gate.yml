@@ -29,6 +29,12 @@ jobs:
           pip install -r django_app/requirements.txt
           pip install pip-audit
 
+      # Prima dei test: una dipendenza vulnerabile deve fermare il gate subito.
+      # Eccezioni motivate: --ignore-vuln <ID> con commento e data di scadenza.
+      - name: Dependency audit
+        shell: pwsh
+        run: pip-audit -r django_app/requirements.txt
+
       - name: Django check
         shell: pwsh
         run: python django_app/manage.py check --settings=config.settings.test
@@ -51,9 +57,15 @@ jobs:
           python django_app/manage.py test automazioni.tests.TriggerGeneratorAuditTests --settings=config.settings.test
           python django_app/manage.py test assets.tests.AssetMaintenanceStepThreeTests.test_admin_deadline_completion_attachment_uses_private_download_route assets.tests.AssetMaintenanceStepThreeTests.test_admin_deadline_attachment_download_requires_assets_admin assets.tests.AssetMaintenanceStepThreeTests.test_admin_deadline_attachment_malicious_name_cannot_escape_private_root assets.tests.AssetAdminDeadlineAttachmentMigrationCommandTests --settings=config.settings.test
 
-      - name: Dependency audit
+      # Regressioni dell'audit sicurezza 09/10 (2FA, impersonazione, automazioni,
+      # download, LDAP, .env, coda). I guardrail strutturali lenti (route esenti, IDOR:
+      # core.test_security_audit_fase3) girano nella suite notturna.
+      - name: Test security audit regressions
         shell: pwsh
-        run: pip-audit -r django_app/requirements.txt
+        env:
+          DEFAULT_FROM_EMAIL: noreply@example.com
+        run: |
+          python django_app/manage.py test twofa core.test_security_audit_fase1 core.test_security_audit_fase2 core.test_security_audit_privacy core.test_download_security core.tests.ImpersonationFlowTests core.tests.LegacySyncHardeningTests automazioni.test_security_audit --settings=config.settings.test
 
       - name: Release guard
         shell: pwsh
@@ -63,3 +75,69 @@ jobs:
           } else {
             Write-Host "release_guard.ps1 non presente: step saltato."
           }
+
+  # Audit 09/10 (Fase 3): segreti e pattern pericolosi solo sul codice CAMBIATO,
+  # cosi' il debito esistente non tiene il gate sempre rosso.
+  diff-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Compute diff range
+        id: range
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD~1)"
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          git diff --name-only --diff-filter=ACMR "$base" HEAD -- '*.py' > changed_py.txt
+          git diff --name-only --diff-filter=A "$base" HEAD -- '*.py' > added_py.txt
+          echo "Changed: $(wc -l < changed_py.txt)  Added: $(wc -l < added_py.txt)"
+
+      - name: Secret scan (gitleaks, solo commit nuovi)
+        shell: bash
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:latest \
+            git --redact --verbose --log-opts="${{ steps.range.outputs.base }}..HEAD" .
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Bandit (solo problemi nuovi nei file modificati)
+        shell: bash
+        run: |
+          pip install bandit ruff
+          files=$(grep -v -E '(^|/)(tests?|test_[^/]*|tests_[^/]*)\.py$|/migrations/' changed_py.txt || true)
+          if [ -z "$files" ]; then echo "Nessun file Python applicativo modificato."; exit 0; fi
+          # Baseline = stessi file al commit base: il gate segnala solo cio' che il
+          # diff introduce (severita'/confidenza medie o alte).
+          git worktree add -q /tmp/base "${{ steps.range.outputs.base }}"
+          existing=""
+          for f in $files; do [ -f "/tmp/base/$f" ] && existing="$existing $f"; done
+          if [ -n "$existing" ]; then
+            (cd /tmp/base && bandit -q -ll -ii -f json -o /tmp/bandit_base.json $existing || true)
+            bandit -ll -ii -b /tmp/bandit_base.json $files
+          else
+            bandit -ll -ii $files
+          fi
+
+      - name: Ruff BLE001/S110 (file Python nuovi)
+        shell: bash
+        run: |
+          files=$(grep -v -E '/migrations/' added_py.txt || true)
+          if [ -z "$files" ]; then echo "Nessun file Python nuovo."; exit 0; fi
+          # Niente "except Exception: pass" silenziosi nel codice nuovo.
+          ruff check --select BLE001,S110 $files

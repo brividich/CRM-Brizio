@@ -9,10 +9,15 @@ from .models import DispositivoSNMP, LetturaMensileContatori, Macchina, StatoSNM
 from .services import interroga_dispositivo, leggi_mensile_macchina
 
 
+# Audit S9: poco oltre il timeout del task (110 s) e un'attesa in coda ragionevole.
+# Con 3600 s un worker ucciso lasciava l'apparato senza letture per un'ora.
+_QUEUE_LOCK_SECONDS = 240
+
+
 def _enqueue(func, pk, *args):
     # Lock della coda: impedisce di accumulare lo stesso apparato a ogni tick.
     key = f"contatori:queued:{func}:{pk}"
-    if not cache.add(key, True, timeout=3600):
+    if not cache.add(key, True, timeout=_QUEUE_LOCK_SECONDS):
         return False
     try:
         async_task(func, pk, *args, q_options={"timeout": 110})

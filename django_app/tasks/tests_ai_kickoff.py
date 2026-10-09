@@ -45,7 +45,9 @@ class KickoffCopilotaTests(TasksBaseTestCase):
                                                      agenda_items=[{"id": "a1", "titolo": "Presentazioni"}], created_by=self.user)
 
     def test_simili_ricorrenti_e_slittamenti(self):
-        simili = ai_kickoff.commesse_simili(self.nuova)
+        from tasks.models import Project
+
+        simili = ai_kickoff.commesse_simili(self.nuova, scope_queryset=Project.objects.all())
         nomi = [c["nome"] for c in simili]
         self.assertEqual(nomi[0], "Flangia turbina lotto 1")  # stesso cliente e stesso P/N
         self.assertNotIn("Imballo pallet", nomi)
@@ -91,3 +93,10 @@ class KickoffCopilotaTests(TasksBaseTestCase):
         self.assertContains(r, "Flangia turbina lotto 1")
         self.assertContains(r, "AI locale non ha risposto")
         self.assertFalse(AiProposta.objects.exists())
+
+    def test_commesse_fuori_scope_non_entrano_nel_contesto(self):
+        """Audit M13: senza scope (o con scope vuoto) nessuna commessa altrui finisce all'LLM."""
+        from tasks.models import Project
+
+        self.assertEqual(ai_kickoff.commesse_simili(self.nuova), [])
+        self.assertEqual(ai_kickoff.commesse_simili(self.nuova, scope_queryset=Project.objects.none()), [])

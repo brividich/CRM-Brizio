@@ -18,6 +18,11 @@ In produzione la chiave DEVE essere impostata.
 
 Generazione chiave:
     python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+Rotazione (audit M12):
+    1. DOCUMENT_ENCRYPTION_OLD_KEYS = <chiave attuale>; DOCUMENT_ENCRYPTION_KEY = <nuova>
+    2. python manage.py rotate_document_encryption_key --apply
+    3. tolta la vecchia chiave da DOCUMENT_ENCRYPTION_OLD_KEYS
 """
 from __future__ import annotations
 
@@ -33,14 +38,38 @@ _MAGIC = b"NCENC1\n"
 
 
 def _get_fernet():
-    """Restituisce un'istanza Fernet o None se la chiave non è configurata."""
+    """Fernet della chiave corrente, o MultiFernet se ci sono chiavi precedenti.
+
+    Cifra sempre con ``DOCUMENT_ENCRYPTION_KEY``; decifra anche con le chiavi in
+    ``DOCUMENT_ENCRYPTION_OLD_KEYS`` (rotazione senza fermo). None se non configurata.
+    """
     from django.conf import settings
-    from cryptography.fernet import Fernet
+    from cryptography.fernet import Fernet, MultiFernet
 
     key = str(getattr(settings, "DOCUMENT_ENCRYPTION_KEY", "") or "").strip()
     if not key:
         return None
-    return Fernet(key.encode())
+    old_keys = [
+        str(k).strip()
+        for k in (getattr(settings, "DOCUMENT_ENCRYPTION_OLD_KEYS", []) or [])
+        if str(k).strip() and str(k).strip() != key
+    ]
+    if not old_keys:
+        return Fernet(key.encode())
+    return MultiFernet([Fernet(key.encode()), *(Fernet(k.encode()) for k in old_keys)])
+
+
+def rotate_bytes(data: bytes) -> bytes | None:
+    """Ri-cifra un file cifrato con la chiave corrente. None se il file non è cifrato."""
+    if not data.startswith(_MAGIC):
+        return None
+    fernet = _get_fernet()
+    if fernet is None:
+        raise ValueError("DOCUMENT_ENCRYPTION_KEY non configurata.")
+    token = data[len(_MAGIC):]
+    if hasattr(fernet, "rotate"):
+        return _MAGIC + fernet.rotate(token)
+    return _MAGIC + fernet.encrypt(fernet.decrypt(token))
 
 
 def encrypt_bytes(data: bytes) -> bytes:
@@ -88,5 +117,9 @@ class EncryptedStorageMixin:
         data = f.read()
         if hasattr(f, "close"):
             f.close()
+        if not data.startswith(_MAGIC) and _get_fernet() is not None:
+            # Audit M12: un file in chiaro in uno storage cifrato va segnalato
+            # (manca encrypt_existing_documents o è stato copiato a mano).
+            logger.warning("Storage cifrato: letto file NON cifrato %s/%s", type(self).__name__, name)
         decrypted = decrypt_bytes(data)
         return File(io.BytesIO(decrypted), name=name)

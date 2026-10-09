@@ -691,11 +691,14 @@ def api_save_knowledge(request):
     if len(answer) > 6000:
         answer = answer[:6000].rstrip()
 
+    # SEC (audit B8): una risposta della chat puo' contenere dati HR o personali e
+    # la FAQ e' letta dal RAG di TUTTI gli utenti: nasce disattivata e si attiva
+    # dopo la revisione in «FAQ & Knowledge AI».
     entry = AiKnowledgeEntry.objects.create(
         question=question,
         answer=answer,
         source_label=source_label or "FAQ Portale",
-        is_active=True,
+        is_active=False,
         created_by=request.user,
         updated_by=request.user,
     )
@@ -711,7 +714,11 @@ def api_save_knowledge(request):
             "source_label": entry.source_label,
         },
     )
-    return JsonResponse({"ok": True, "entry_id": entry.id, "message": "Conoscenza salvata nella FAQ AI."})
+    return JsonResponse({
+        "ok": True,
+        "entry_id": entry.id,
+        "message": "Salvata come bozza: attivala da «FAQ & Knowledge AI» dopo averla rivista.",
+    })
 
 
 @require_POST

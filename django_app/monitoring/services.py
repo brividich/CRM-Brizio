@@ -87,6 +87,27 @@ def resolve_request_module_name(request) -> str:
     return first_segment or "core"
 
 
+def hash_session_key(session_key: str) -> str:
+    """Impronta non reversibile della sessione: raggruppa le occorrenze senza
+    salvare un session ID utilizzabile per entrare come l'utente (audit M11)."""
+    if not session_key:
+        return ""
+    import hashlib
+
+    return "h:" + hashlib.sha256(session_key.encode("utf-8")).hexdigest()[:40]
+
+
+def strip_url_query(url: str) -> str:
+    """URL senza query string e frammento (audit M11)."""
+    from urllib.parse import urlsplit, urlunsplit
+
+    text = str(url or "")
+    if not text:
+        return ""
+    parts = urlsplit(text)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+
+
 def build_request_event_context(request) -> dict[str, object]:
     user = getattr(request, "user", None)
     resolver_match = getattr(request, "resolver_match", None)
@@ -101,13 +122,15 @@ def build_request_event_context(request) -> dict[str, object]:
 
     return {
         "method": str(getattr(request, "method", "") or "").upper(),
-        "current_url": request.get_full_path() if hasattr(request, "get_full_path") else str(getattr(request, "path", "") or ""),
+        # Audit M11: senza query string (token di approvazione, ricerche con dati
+        # personali) e con la sessione solo come hash, non riutilizzabile.
+        "current_url": str(getattr(request, "path", "") or ""),
         "route_name": getattr(resolver_match, "view_name", "") or "",
         "module_name": resolve_request_module_name(request),
         "view_name": getattr(getattr(request, "resolver_match", None), "view_name", "") or "",
         "user": user if getattr(user, "is_authenticated", False) else None,
         "legacy_user_id": legacy_user_id,
-        "session_key": getattr(getattr(request, "session", None), "session_key", "") or "",
+        "session_key": hash_session_key(getattr(getattr(request, "session", None), "session_key", "") or ""),
         "request_id": (
             request.headers.get("X-Request-ID")
             or request.META.get("HTTP_X_REQUEST_ID")

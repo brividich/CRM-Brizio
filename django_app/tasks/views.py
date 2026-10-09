@@ -5745,13 +5745,15 @@ def project_vrf_upload(request, project_id: int):
     cfg = TaskImpostazioni.get_singleton()
     vrf_detail = _vrf_status_detail(project, cfg)
 
-    next_url = request.GET.get("next") or request.POST.get("next") or reverse(
-        "tasks:project_gantt", kwargs={"project_id": project_id}
-    )
+    # SEC (audit B4): "//evil.example" inizia con "/" ma porta fuori dal portale:
+    # controllo sull'host come nel resto del codice.
+    from core.redirects import safe_next
 
-    # Sanitize next_url to only allow relative paths
-    if next_url and not next_url.startswith("/"):
-        next_url = reverse("tasks:project_gantt", kwargs={"project_id": project_id})
+    next_url = safe_next(
+        request,
+        request.GET.get("next") or request.POST.get("next"),
+        reverse("tasks:project_gantt", kwargs={"project_id": project_id}),
+    )
 
     session_key = f"tasks_vrf_preview_{project_id}"
 
@@ -8125,7 +8127,7 @@ def project_meeting_ai_punti(request, project_id: int, meeting_id: int):
         return HttpResponseForbidden("Non hai i permessi per preparare questo incontro.")
     from .ai_kickoff import proponi_punti
 
-    proposta = proponi_punti(project, meeting, user=request.user)
+    proposta = proponi_punti(project, meeting, user=request.user, scope_queryset=_scoped_projects_queryset(request))
     log_action(request, "kickoff_ai_punti", "tasks", {
         "meeting_id": meeting.pk, "simili": len(proposta["simili"]), "punti": len(proposta["punti"]),
         "ai_disponibile": proposta["ai_disponibile"],

@@ -33,28 +33,40 @@ def get_legacy_nav_cache_ttl() -> int:
     return _safe_positive_int(getattr(settings, "LEGACY_NAV_CACHE_TTL", _DEFAULT_NAV_CACHE_TTL), _DEFAULT_NAV_CACHE_TTL)
 
 
+def _fresh_cache_version(previous: int = 0) -> int:
+    """Versione mai usata prima (audit S4).
+
+    Con DatabaseCache ``incr`` non è atomico e ``_cull`` può cancellare la chiave
+    della versione: ripartire da 1 riattiverebbe permessi vecchi ancora in cache
+    con suffisso ``:v1``. Una versione basata sul tempo in millisecondi apre
+    sempre un namespace nuovo, anche dopo una cancellazione o due bump concorrenti.
+    """
+    import time
+
+    return max(int(time.time() * 1000), int(previous or 0) + 1)
+
+
 def get_legacy_cache_version() -> int:
     cached = cache.get(LEGACY_CACHE_VERSION_KEY)
     if isinstance(cached, int) and cached > 0:
         return cached
-    cache.add(LEGACY_CACHE_VERSION_KEY, _DEFAULT_CACHE_VERSION, timeout=None)
+    cache.add(LEGACY_CACHE_VERSION_KEY, _fresh_cache_version(), timeout=None)
     cached = cache.get(LEGACY_CACHE_VERSION_KEY)
     if isinstance(cached, int) and cached > 0:
         return cached
-    cache.set(LEGACY_CACHE_VERSION_KEY, _DEFAULT_CACHE_VERSION, timeout=None)
-    return _DEFAULT_CACHE_VERSION
+    fresh = _fresh_cache_version()
+    cache.set(LEGACY_CACHE_VERSION_KEY, fresh, timeout=None)
+    return fresh
 
 
 def bump_legacy_cache_version() -> int:
     # Invalida anche la cache degli ID ruoli admin (chiave fissa, non versioned)
     from core.legacy_utils import _ADMIN_ROLE_IDS_CACHE_KEY
     cache.delete(_ADMIN_ROLE_IDS_CACHE_KEY)
-    try:
-        return int(cache.incr(LEGACY_CACHE_VERSION_KEY))
-    except Exception:
-        next_value = get_legacy_cache_version() + 1
-        cache.set(LEGACY_CACHE_VERSION_KEY, next_value, timeout=None)
-        return next_value
+    current = cache.get(LEGACY_CACHE_VERSION_KEY)
+    next_value = _fresh_cache_version(current if isinstance(current, int) else 0)
+    cache.set(LEGACY_CACHE_VERSION_KEY, next_value, timeout=None)
+    return next_value
 
 
 def _versioned_key(base_key: str) -> str:

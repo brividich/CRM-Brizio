@@ -1,5 +1,6 @@
 import logging.handlers  # noqa: F401 — registra il handler per LOGGING dict
 import os
+import sys
 import socket
 import tempfile
 from pathlib import Path
@@ -125,6 +126,11 @@ LDAP_SERVICE_PASSWORD = env("LDAP_SERVICE_PASSWORD", "")
 LDAP_BASE_DN = env("LDAP_BASE_DN", "")
 LDAP_USER_FILTER = env("LDAP_USER_FILTER", "(&(objectCategory=person)(objectClass=user))")
 LDAP_GROUP_ALLOWLIST = env_list("LDAP_GROUP_ALLOWLIST", [])
+# Audit M2: la allowlist vale anche al login LDAP e all'SSO Windows (0 = solo sync).
+LDAP_GROUP_ALLOWLIST_ON_LOGIN = env_bool("LDAP_GROUP_ALLOWLIST_ON_LOGIN", True)
+# Audit A10/S7: CA per verificare il certificato del DC su ldaps:// e timeout di lettura.
+LDAP_CA_CERT_FILE = env("LDAP_CA_CERT_FILE", "")
+LDAP_RECEIVE_TIMEOUT = int(env("LDAP_RECEIVE_TIMEOUT", "0") or 0)
 LDAP_SYNC_PAGE_SIZE = int(env("LDAP_SYNC_PAGE_SIZE", "500") or "500")
 WINDOWS_SSO_HOSTNAME = env("WINDOWS_SSO_HOSTNAME", "").strip()
 WINDOWS_SSO_SERVICE = env("WINDOWS_SSO_SERVICE", "HTTP").strip() or "HTTP"
@@ -217,13 +223,14 @@ MONITORING_AI_CHECK_TIMEOUT = float(env("MONITORING_AI_CHECK_TIMEOUT", "8") or "
 MONITORING_DIGEST_ALWAYS = env_bool("MONITORING_DIGEST_ALWAYS", True)
 # ── Content-Security-Policy ───────────────────────────────────────────────────
 # Applicata da core.middleware.ContentSecurityPolicyMiddleware a tutte le
-# risposte. La allowlist riflette l'inventario reale dei template:
-#   - cdn.jsdelivr.net      → FullCalendar, frappe-gantt, Chart.js, SortableJS
-#   - cdnjs.cloudflare.com  → html2canvas (rule designer)
-#   - fonts.googleapis.com / fonts.gstatic.com → font Outfit (base.html, print)
-# 'unsafe-inline' su script/style e' richiesto dagli script e dagli stili
-# inline dei template SSR (niente nonce per ora). Niente 'unsafe-eval':
-# nessun template usa hx-on/hx-vals js:.
+# risposte. Librerie e font sono self-hostati in core/static/core/vendor
+# (guardrail core/test_vendor_assets.py): nessun host esterno in allowlist.
+# Audit 09/10 (A7): cdn.jsdelivr.net/cdnjs ammettevano QUALSIASI pacchetto npm,
+# un bypass della CSP per chi riesce a iniettare un <script src>.
+# 'unsafe-inline' su script/style resta: ~290 script inline e ~1000 handler
+# on*= nei template SSR. Un nonce oggi annullerebbe 'unsafe-inline' e romperebbe
+# gli handler: va prima completato lo spostamento degli handler in file .js.
+# Niente 'unsafe-eval': nessun template usa hx-on/hx-vals js:.
 # CSP_REPORT_ONLY=1 emette Content-Security-Policy-Report-Only (solo log
 # browser, nessun blocco): usarlo al primo rollout in prod per osservare.
 CSP_ENABLED = env_bool("CSP_ENABLED", True)
@@ -233,9 +240,9 @@ CSP_POLICY = env(
     "; ".join(
         [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-            "font-src 'self' data: https://fonts.gstatic.com",
+            "script-src 'self' 'unsafe-inline'",
+            "style-src 'self' 'unsafe-inline'",
+            "font-src 'self' data:",
             "img-src 'self' data: blob:",
             "connect-src 'self'",
             "frame-src 'self'",
@@ -549,6 +556,7 @@ MIDDLEWARE = [
     "core.session_middleware.SessionIdleTimeoutMiddleware",
     "setup_wizard.middleware.SetupRequiredMiddleware",   # ← prima di ACL/notizie
     "twofa.middleware.TwoFactorMiddleware",
+    "core.session_middleware.ForcedPasswordChangeMiddleware",  # audit B2
     "core.middleware.ACLMiddleware",
     "notizie.mandatory_middleware.NotizieMandatoryMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -628,7 +636,7 @@ DATABASES = {"default": build_database_from_env("sqlite")}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 12}},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
@@ -763,12 +771,15 @@ TASKS_PRIVATE_ROOT = Path(env("TASKS_PRIVATE_ROOT", str(BASE_DIR / "media_privat
 # Generare con: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 # Se vuota: nessuna cifratura (sviluppo). In produzione DEVE essere impostata.
 DOCUMENT_ENCRYPTION_KEY = env("DOCUMENT_ENCRYPTION_KEY", "")
+# Audit M12: chiavi precedenti (separate da virgola) ancora valide in lettura durante la rotazione.
+DOCUMENT_ENCRYPTION_OLD_KEYS = env_list("DOCUMENT_ENCRYPTION_OLD_KEYS", [])
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 Q_CLUSTER = {
     "name": "novicrom_hub",
-    "workers": 2,
+    # Audit S5: 2 worker con job Graph/SMTP/AI lunghi accodavano tutto il resto.
+    "workers": max(1, int(env("Q_CLUSTER_WORKERS", "3") or 3)),
     "timeout": 120,
     "retry": 180,
     "save_limit": 250,
@@ -796,6 +807,20 @@ SESSION_COOKIE_AGE = max(300, SESSION_IDLE_TIMEOUT_SECONDS) if SESSION_IDLE_TIME
 # IP dei reverse proxy fidati. Solo se REMOTE_ADDR è in questo set, X-Forwarded-For viene accettato.
 # Esempio: TRUSTED_PROXY_IPS = {"127.0.0.1", "192.0.2.10"}
 TRUSTED_PROXY_IPS: set[str] = set(env_list("TRUSTED_PROXY_IPS", []))
+
+# SEC (audit A5): host/IP da cui arriva traffico Internet anche se l'IP sembra di LAN
+# (connettore Entra Application Proxy, reverse proxy). Con la policy 2FA «solo da
+# rete esterna» queste richieste sono sempre trattate come esterne.
+TWOFA_EXTERNAL_HOSTS: list[str] = env_list("TWOFA_EXTERNAL_HOSTS", ["*.msappproxy.net"])
+TWOFA_EXTERNAL_PROXY_IPS: set[str] = set(env_list("TWOFA_EXTERNAL_PROXY_IPS", []))
+
+# SEC (audit M7): host che le azioni http_request delle automazioni possono chiamare
+# anche se risolvono su una rete privata (servizi interni noti). Accetta «*.dominio».
+AUTOMATION_HTTP_ALLOWED_HOSTS: list[str] = env_list("AUTOMATION_HTTP_ALLOWED_HOSTS", [])
+
+# Audit B6: 1 = includi il token della richiesta nel payload dei flussi Teams
+# (solo se un flusso Power Automate esistente lo usa davvero).
+APPROVAL_TEAMS_INCLUDE_TOKEN = env_bool("APPROVAL_TEAMS_INCLUDE_TOKEN", False)
 
 # Prefissi URL esenti da autenticazione e timeout di sessione (usati da entrambi i middleware).
 MIDDLEWARE_EXEMPT_PREFIXES = (
@@ -833,6 +858,12 @@ AUTHENTICATION_BACKENDS = [
 
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1
+# SEC (audit A4): dietro IIS/HttpPlatformHandler REMOTE_ADDR è 127.0.0.1 per tutti.
+# IP letto con la stessa regola di audit/rate limit (X-Forwarded-For solo da
+# TRUSTED_PROXY_IPS) e lockout per coppia username+IP: cinque password sbagliate
+# bloccano quell'account da quell'IP, non il login di tutto il portale.
+AXES_CLIENT_IP_CALLABLE = "core.net.client_ip"
+AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_TEMPLATE = "core/pages/lockout.html"
 # Silenzia il messaggio INFO "AXES: BEGIN version ..." emesso a ogni boot/reload;
@@ -851,6 +882,22 @@ if not _configured_log_dir and (_env_name in {"prod", "production"} or _settings
 LOG_DIR = Path(_configured_log_dir or str(_default_log_dir))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+# Audit S6: Waitress e qcluster scrivevano lo stesso app.log; su Windows il file
+# aperto da un processo impedisce all'altro la rotazione e il log cresceva senza
+# limite. Un file per tipo di processo: app.log (web), qcluster.log, commands.log.
+def _log_file_for_process() -> str:
+    if not sys.argv or not str(sys.argv[0]).lower().endswith("manage.py"):
+        return "app.log"  # Waitress (python -m waitress) e WSGI
+    argv = [str(a).lower() for a in sys.argv[1:2]]
+    if "qcluster" in argv:
+        return "qcluster.log"
+    if "runserver" in argv or "runserver_plus" in argv:
+        return "app.log"
+    return "commands.log"
+
+
+LOG_FILE_NAME = _log_file_for_process()
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -866,7 +913,7 @@ LOGGING = {
         },
         "file": {
             "class": "core.logging_handlers.SafeTimedRotatingFileHandler",
-            "filename": str(LOG_DIR / "app.log"),
+            "filename": str(LOG_DIR / LOG_FILE_NAME),
             "formatter": "standard",
             "encoding": "utf-8",
             "when": "midnight",

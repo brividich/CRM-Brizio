@@ -14,6 +14,11 @@ AFTER UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- Audit S3: un errore sulla coda automazioni non deve annullare la richiesta
+    -- dell utente (ferie, ticket). Errori di istruzione intercettati qui; se la
+    -- transazione e compromessa (XACT_STATE = -1) l errore viene rilanciato.
+    SET XACT_ABORT OFF;
+    BEGIN TRY
 
     IF NOT EXISTS (SELECT 1 FROM inserted)
     BEGIN
@@ -91,6 +96,11 @@ BEGIN
         ON ui.id = i.capo_reparto_id
     LEFT JOIN dbo.utenti AS ud
         ON ud.id = d.capo_reparto_id;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() = -1
+            THROW;
+    END CATCH;
 END;
 ';
 END;

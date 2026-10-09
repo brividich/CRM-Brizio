@@ -72,6 +72,7 @@ from core.caporeparto_utils import (
     resolve_caporeparto_legacy_user,
 )
 from core.impersonation import start_impersonation
+from core.ldap_conn import build_ldap_server, ldap_receive_timeout
 from core.legacy_anagrafica import ensure_anagrafica_schema, sync_anagrafica_from_legacy_user
 from core.legacy_cache import (
     bump_legacy_cache_version,
@@ -149,7 +150,10 @@ from core import naming
 PERM_OPTIONAL_FIELDS = ("can_edit", "can_delete", "can_approve")
 logger = logging.getLogger(__name__)
 NAV_ICON_STORAGE_DIR = "navigation/icons"
-NAV_ICON_ALLOWED_EXTENSIONS = {".ico", ".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".avif"}
+# Immagini raster accettate negli upload serviti da /media/ (audit A9: niente SVG/HTML).
+_RASTER_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+_RASTER_IMAGE_MIMES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+NAV_ICON_ALLOWED_EXTENSIONS = {".ico", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".avif"}  # niente SVG (audit A9)
 
 # ---------------------------------------------------------------------------
 # CATALOGO MODULI â€” pulsanti standard per ogni modulo noto del portale.
@@ -904,7 +908,19 @@ def _save_navigation_icon_upload(upload) -> tuple[str, str]:
     base_name, ext = os.path.splitext(filename)
     ext = ext.lower()
     if not _is_allowed_nav_icon_extension(ext):
-        raise ValidationError("Formato file non valido: usa .ico, .png, .svg o un formato immagine supportato.")
+        raise ValidationError("Formato file non valido: usa .ico, .png o un formato immagine supportato.")
+    try:
+        # SEC (audit A9): contenuto reale verificato, niente SVG/HTML rinominati.
+        validate_extension_and_mime(
+            upload,
+            allowed_extensions=NAV_ICON_ALLOWED_EXTENSIONS,
+            allowed_mimes=_RASTER_IMAGE_MIMES | {
+                "image/x-icon", "image/vnd.microsoft.icon", "image/bmp", "image/x-ms-bmp", "image/avif",
+            },
+            label="Icona",
+        )
+    except UploadMimeValidationError as exc:
+        raise ValidationError(str(exc)) from exc
 
     safe_name = slugify(base_name) or "nav-icon"
     unique_suffix = timezone.now().strftime("%Y%m%d%H%M%S%f")
@@ -2706,7 +2722,7 @@ def _ldap_test_connect(server_url: str, timeout: int) -> tuple[bool, str]:
     except Exception as exc:
         return False, f"ldap3 non disponibile: {exc}"
     try:
-        server = Server(server_url, connect_timeout=timeout, get_info=NONE)
+        server = build_ldap_server(server_url, timeout)
         # open() prova la connessione TCP senza bind credenziali
         from ldap3 import Connection
         conn = Connection(server)
@@ -2732,7 +2748,7 @@ def _ldap_test_bind(server_url: str, timeout: int, username: str, password: str,
     if not ident or not pwd:
         return False, "Username e password sono obbligatori per il test bind."
 
-    server = Server(server_url, connect_timeout=timeout, get_info=NONE)
+    server = build_ldap_server(server_url, timeout)
     alias = ident.split("\\")[-1]
     attempts: list[tuple[str, object, str]] = []
     if "\\" in ident:
@@ -2760,6 +2776,7 @@ def _ldap_test_bind(server_url: str, timeout: int, username: str, password: str,
                 auto_bind=False,
                 auto_referrals=False,
                 raise_exceptions=False,
+                receive_timeout=ldap_receive_timeout(),
             )
             if conn.bind():
                 conn.unbind()
@@ -4238,7 +4255,7 @@ def ldap_import_utenti(request):
         return JsonResponse({"ok": False, "error": f"ldap3 non disponibile: {exc}"}, status=500)
 
     def _ldap_connect():
-        srv = LdapServer(server_url, connect_timeout=timeout, get_info=NONE)
+        srv = build_ldap_server(server_url, timeout)
         if "\\" in service_user:
             attempts = [(service_user, NTLM)]
         elif "@" in service_user:
@@ -4262,6 +4279,7 @@ def ldap_import_utenti(request):
                 auto_bind=False,
                 auto_referrals=False,
                 raise_exceptions=False,
+                receive_timeout=ldap_receive_timeout(),
             )
             if conn.bind():
                 return conn, None
@@ -6069,6 +6087,7 @@ def utenti_bulk_action(request):
                 for utente in updated_users:
                     utente.attivo = True
                     _sync_legacy_user_to_anagrafica(utente, force_active=True)
+                _sync_django_active_from_legacy(ids, True)
                 _audit_safe(request, "utenti_bulk_activate", "admin_portale", {"target_user_ids": ids, "count": len(ids)})
                 messages.success(request, f"Attivati {len(ids)} utenti.")
             elif mode == "deactivate":
@@ -6077,6 +6096,7 @@ def utenti_bulk_action(request):
                 for utente in updated_users:
                     utente.attivo = False
                     _sync_legacy_user_to_anagrafica(utente, force_active=False)
+                _sync_django_active_from_legacy(ids, False)
                 _audit_safe(request, "utenti_bulk_deactivate", "admin_portale", {"target_user_ids": ids, "count": len(ids)})
                 messages.success(request, f"Disattivati {len(ids)} utenti.")
             elif mode == "force_pwd":
@@ -6140,6 +6160,39 @@ def utente_force_change_password(request, user_id: int):
     return redirect(next_url)
 
 
+def _acting_is_superuser(request) -> bool:
+    """True se chi ha fatto login (non l'eventuale utente impersonato) e' superuser."""
+    real_user = getattr(request, "impersonator_user", None) or request.user
+    return bool(getattr(real_user, "is_superuser", False))
+
+
+def _django_user_is_privileged(django_user) -> bool:
+    if django_user is None:
+        return False
+    if getattr(django_user, "is_superuser", False) or getattr(django_user, "is_staff", False):
+        return True
+    try:
+        from core.legacy_utils import is_legacy_admin
+
+        return bool(is_legacy_admin(get_legacy_user(django_user)))
+    except Exception:
+        return False
+
+
+def _legacy_user_is_privileged(legacy_user: UtenteLegacy) -> bool:
+    """Utente legacy amministratore o collegato a un account Django privilegiato."""
+    try:
+        from core.legacy_utils import is_legacy_admin
+
+        if is_legacy_admin(legacy_user):
+            return True
+    except Exception:
+        return True  # fail-closed
+    profile = Profile.objects.select_related("user").filter(legacy_user_id=legacy_user.id).first()
+    user = profile.user if profile else None
+    return bool(user and (user.is_superuser or user.is_staff))
+
+
 @legacy_admin_required
 @csrf_protect
 @require_POST
@@ -6160,11 +6213,28 @@ def utente_impersonate(request, user_id: int):
         messages.info(request, "Sei gia' autenticato come questo utente.")
         return redirect(next_url)
 
+    # SEC (audit A1): solo un superuser puo' impersonare un amministratore.
+    if not _acting_is_superuser(request) and _legacy_user_is_privileged(target_user):
+        _audit_safe(request, "impersonation_denied", "admin_portale", {
+            "target_legacy_user_id": int(target_user.id),
+            "reason": "target_privileged",
+        })
+        messages.error(request, "Non puoi impersonare un amministratore.")
+        return redirect(next_url)
+
     context = start_impersonation(request, target_user)
     if not context:
         messages.error(request, "Impossibile avviare l'impersonazione per questo utente.")
         return redirect(next_url)
 
+    from core.security_notify import notify_security_event
+
+    notify_security_event(
+        context["target_user"],
+        "Accesso al tuo account da parte di un amministratore",
+        "Un amministratore del portale ha appena iniziato a usare il tuo account in modalità "
+        "impersonazione (assistenza o verifica dei permessi). L'operazione è registrata nel log di audit.",
+    )
     log_action(
         request,
         "impersonation_start",
@@ -6181,6 +6251,21 @@ def utente_impersonate(request, user_id: int):
     return redirect(next_url)
 
 
+def _sync_django_active_from_legacy(legacy_ids, active: bool) -> int:
+    """Allinea ``User.is_active`` agli utenti legacy (audit M4).
+
+    I backend legacy/LDAP rifiutano in ``get_user`` un utente non attivo: così la
+    disattivazione chiude subito anche le sessioni già aperte.
+    """
+    ids = [int(i) for i in legacy_ids]
+    if not ids:
+        return 0
+    user_ids = list(Profile.objects.filter(legacy_user_id__in=ids).values_list("user_id", flat=True))
+    if not user_ids:
+        return 0
+    return get_user_model().objects.filter(id__in=user_ids).exclude(is_active=active).update(is_active=active)
+
+
 @legacy_admin_required
 @csrf_protect
 @require_POST
@@ -6191,6 +6276,7 @@ def utente_toggle_active(request, user_id: int):
             utente.attivo = not bool(utente.attivo)
             utente.save(update_fields=["attivo"])
             _sync_legacy_user_to_anagrafica(utente, force_active=bool(utente.attivo))
+            _sync_django_active_from_legacy([utente.id], bool(utente.attivo))
         _audit_safe(request, "utente_toggle_active", "admin_portale", {
             "target_legacy_user_id": int(utente.id),
             "attivo": bool(utente.attivo),
@@ -8698,8 +8784,16 @@ def api_pulsanti_card_image(request):
             return _json_error("Pulsante non trovato.", status=404)
         if upload is None:
             return _json_error("File immagine mancante.")
-        if not str(getattr(upload, "content_type", "") or "").lower().startswith("image/"):
-            return _json_error("Formato file non valido: serve una immagine.")
+        try:
+            # SEC (audit A9): estensione + MIME reale (magic), niente SVG/HTML su /media/.
+            validate_extension_and_mime(
+                upload,
+                allowed_extensions=_RASTER_IMAGE_EXTENSIONS,
+                allowed_mimes=_RASTER_IMAGE_MIMES,
+                label="Immagine",
+            )
+        except UploadMimeValidationError as exc:
+            return _json_error(str(exc))
 
         base_name, ext = os.path.splitext(str(getattr(upload, "name", "") or "module"))
         if not ext:
@@ -8762,8 +8856,16 @@ def api_pulsanti_module_card_image(request):
             return _json_error("Modulo mancante.")
         if upload is None:
             return _json_error("File immagine mancante.")
-        if not str(getattr(upload, "content_type", "") or "").lower().startswith("image/"):
-            return _json_error("Formato file non valido: serve una immagine.")
+        try:
+            # SEC (audit A9): estensione + MIME reale (magic), niente SVG/HTML su /media/.
+            validate_extension_and_mime(
+                upload,
+                allowed_extensions=_RASTER_IMAGE_EXTENSIONS,
+                allowed_mimes=_RASTER_IMAGE_MIMES,
+                label="Immagine",
+            )
+        except UploadMimeValidationError as exc:
+            return _json_error(str(exc))
 
         pulsanti = list(Pulsante.objects.filter(modulo__iexact=modulo).order_by("id"))
         if not pulsanti:
@@ -10111,8 +10213,8 @@ _LOGIN_CONFIG_KEYS = [
 ]
 
 _LOGO_UPLOAD_DIR = "site"
-_ALLOWED_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
-_ALLOWED_LOGO_MIMES = {"image/png", "image/jpeg", "image/svg+xml", "image/webp"}
+_ALLOWED_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}  # niente SVG (audit A9)
+_ALLOWED_LOGO_MIMES = {"image/png", "image/jpeg", "image/webp"}
 _LOGO_UPLOAD_MAX_BYTES = 1024 * 1024
 _LOGIN_BRANDING_DEFAULTS = {
     "portal_name": "Portale Novicrom",
@@ -10799,12 +10901,11 @@ def api_pdf_template_config_save(request):
 # ---------------------------------------------------------------------------
 
 _FAVICON_UPLOAD_DIR = "site"
-_FAVICON_ALLOWED_EXTS = {".ico", ".png", ".svg"}
+_FAVICON_ALLOWED_EXTS = {".ico", ".png"}  # niente SVG (audit A9)
 _FAVICON_ALLOWED_MIMES = {
     "image/x-icon",
     "image/vnd.microsoft.icon",
     "image/png",
-    "image/svg+xml",
 }
 
 
@@ -11690,6 +11791,26 @@ def api_twofa_policy_save(request: HttpRequest):
     return redirect(reverse("admin_portale:twofa_config"))
 
 
+def _notify_twofa_changed(target_user, message: str) -> None:
+    from core.security_notify import notify_security_event
+
+    notify_security_event(target_user, "Autenticazione a due fattori modificata", message)
+
+
+def _twofa_target_forbidden(request, target_user) -> JsonResponse | None:
+    """SEC (audit A1): il 2FA di un account privilegiato lo gestisce solo un superuser."""
+    if _acting_is_superuser(request) or not _django_user_is_privileged(target_user):
+        return None
+    _audit_safe(request, "twofa_user_change_denied", "twofa", {
+        "target_user": target_user.username,
+        "path": request.path,
+    })
+    return JsonResponse(
+        {"ok": False, "error": "Solo un superuser puo' modificare il 2FA di un amministratore."},
+        status=403,
+    )
+
+
 @legacy_admin_required
 @csrf_protect
 @require_POST
@@ -11699,6 +11820,9 @@ def api_twofa_user_toggle(request: HttpRequest, user_id: int):
 
     User = get_user_model()
     target_user = get_object_or_404(User, pk=user_id)
+    forbidden = _twofa_target_forbidden(request, target_user)
+    if forbidden is not None:
+        return forbidden
     u2f, _ = UserTwoFactor.objects.get_or_create(user=target_user)
     u2f.is_active = not u2f.is_active
     u2f.save(update_fields=["is_active"])
@@ -11707,6 +11831,7 @@ def api_twofa_user_toggle(request: HttpRequest, user_id: int):
         "is_active": u2f.is_active,
     })
     stato = "attivato" if u2f.is_active else "disattivato"
+    _notify_twofa_changed(target_user, f"L'autenticazione a due fattori del tuo account è stata {stato} da un amministratore.")
     return JsonResponse({"ok": True, "is_active": u2f.is_active, "msg": f"2FA {stato} per {target_user.username}."})
 
 
@@ -11719,6 +11844,9 @@ def api_twofa_user_reset(request: HttpRequest, user_id: int):
 
     User = get_user_model()
     target_user = get_object_or_404(User, pk=user_id)
+    forbidden = _twofa_target_forbidden(request, target_user)
+    if forbidden is not None:
+        return forbidden
     try:
         u2f = target_user.twofa
         u2f.totp_secret_enc = ""
@@ -11730,6 +11858,11 @@ def api_twofa_user_reset(request: HttpRequest, user_id: int):
     # Invalida challenge email attivi
     TwoFactorChallenge.objects.filter(user=target_user, used=False).update(used=True)
     _audit_safe(request, "twofa_user_reset", "twofa", {"target_user": target_user.username})
+    _notify_twofa_changed(
+        target_user,
+        "Un amministratore ha reimpostato l'autenticazione a due fattori del tuo account: "
+        "al prossimo accesso dovrai configurarla di nuovo.",
+    )
     return JsonResponse({"ok": True, "msg": f"2FA reimpostato per {target_user.username}. Al prossimo accesso dovrà ri-configurarlo."})
 
 
@@ -11742,6 +11875,9 @@ def api_twofa_user_method_set(request: HttpRequest, user_id: int):
 
     User = get_user_model()
     target_user = get_object_or_404(User, pk=user_id)
+    forbidden = _twofa_target_forbidden(request, target_user)
+    if forbidden is not None:
+        return forbidden
     method = (request.POST.get("method") or "").strip()
     if method not in ("totp", "email"):
         return JsonResponse({"ok": False, "error": "Metodo non valido."}, status=400)
@@ -11758,6 +11894,7 @@ def api_twofa_user_method_set(request: HttpRequest, user_id: int):
         "target_user": target_user.username,
         "method": method,
     })
+    _notify_twofa_changed(target_user, f"Il metodo di verifica a due fattori del tuo account è stato impostato su «{method}» da un amministratore.")
     return JsonResponse({"ok": True, "msg": f"Metodo 2FA aggiornato a «{method}» per {target_user.username}."})
 
 
@@ -11772,6 +11909,9 @@ def api_twofa_user_email_set(request: HttpRequest, user_id: int):
 
     User = get_user_model()
     target_user = get_object_or_404(User, pk=user_id)
+    forbidden = _twofa_target_forbidden(request, target_user)
+    if forbidden is not None:
+        return forbidden
     email = (request.POST.get("email_override") or "").strip()
     if email:
         try:
@@ -11782,6 +11922,10 @@ def api_twofa_user_email_set(request: HttpRequest, user_id: int):
     u2f.email_override = email
     u2f.save(update_fields=["email_override"])
     _audit_safe(request, "twofa_user_email_set", "twofa", {"target_user": target_user.username, "email_override": email})
+    _notify_twofa_changed(
+        target_user,
+        "L'indirizzo a cui arrivano i codici di verifica del tuo account è stato cambiato da un amministratore.",
+    )
     return JsonResponse({"ok": True, "msg": "Email OTP aggiornata."})
 
 

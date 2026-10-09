@@ -63,6 +63,99 @@ def verify_totp(secret: str, code: str) -> bool:
     return totp.verify(code.strip(), valid_window=1)
 
 
+# ── Anti brute-force e anti-replay per utente (audit M1) ─────────────────────
+# Contatori in cache condivisa (DatabaseCache in produzione), legati all'utente e
+# non alla sessione: un nuovo login non azzera più i tentativi.
+TOTP_MAX_ATTEMPTS = 5
+TOTP_LOCK_BASE_SECONDS = 300
+TOTP_LOCK_MAX_SECONDS = 3600
+EMAIL_OTP_MAX_SENDS = 5
+EMAIL_OTP_SEND_WINDOW_SECONDS = 900
+
+
+def _cache():
+    from django.core.cache import cache
+
+    return cache
+
+
+def totp_lock_remaining(user) -> int:
+    """Secondi di blocco residui per la verifica TOTP dell'utente (0 = libero)."""
+    import time
+
+    until = float(_cache().get(f"twofa:totp_lock:{user.pk}") or 0)
+    return max(0, int(until - time.time())) if until else 0
+
+
+def register_totp_failure(user) -> tuple[int, int]:
+    """Conta un codice errato. Ritorna (tentativi_rimasti, secondi_di_blocco).
+
+    Al quinto errore scatta un blocco progressivo: 5, 10, 20... minuti (max 1 ora).
+    """
+    import time
+
+    cache = _cache()
+    fails_key = f"twofa:totp_fails:{user.pk}"
+    fails = int(cache.get(fails_key) or 0) + 1
+    if fails < TOTP_MAX_ATTEMPTS:
+        cache.set(fails_key, fails, TOTP_LOCK_MAX_SECONDS)
+        return TOTP_MAX_ATTEMPTS - fails, 0
+    locks_key = f"twofa:totp_locks:{user.pk}"
+    locks = int(cache.get(locks_key) or 0) + 1
+    seconds = min(TOTP_LOCK_BASE_SECONDS * (2 ** (locks - 1)), TOTP_LOCK_MAX_SECONDS)
+    cache.set(locks_key, locks, 86400)
+    cache.set(f"twofa:totp_lock:{user.pk}", time.time() + seconds, seconds)
+    cache.delete(fails_key)
+    return 0, seconds
+
+
+def clear_totp_failures(user) -> None:
+    cache = _cache()
+    cache.delete(f"twofa:totp_fails:{user.pk}")
+    cache.delete(f"twofa:totp_lock:{user.pk}")
+    cache.delete(f"twofa:totp_locks:{user.pk}")
+
+
+def verify_totp_once(user, secret: str, code: str) -> bool:
+    """Come ``verify_totp`` ma ogni intervallo da 30 s vale una sola volta.
+
+    Un codice già usato (anche intercettato) non apre una seconda sessione nei
+    ~90 secondi di validità della finestra.
+    """
+    import pyotp
+
+    totp = pyotp.TOTP(secret)
+    code = (code or "").strip()
+    now = timezone.now()
+    current_step = totp.timecode(now)
+    matched_step = None
+    for offset in (0, -1, 1):
+        step = current_step + offset
+        if totp.generate_otp(step) == code:
+            matched_step = step
+            break
+    if matched_step is None:
+        return False
+    key = f"twofa:totp_last_step:{user.pk}"
+    cache = _cache()
+    last_step = cache.get(key)
+    if last_step is not None and int(last_step) >= matched_step:
+        return False
+    cache.set(key, matched_step, 180)
+    return True
+
+
+def email_otp_send_allowed(user) -> bool:
+    """Massimo EMAIL_OTP_MAX_SENDS codici email per utente ogni 15 minuti."""
+    cache = _cache()
+    key = f"twofa:email_sends:{user.pk}"
+    sent = int(cache.get(key) or 0)
+    if sent >= EMAIL_OTP_MAX_SENDS:
+        return False
+    cache.set(key, sent + 1, EMAIL_OTP_SEND_WINDOW_SECONDS)
+    return True
+
+
 def generate_totp_qr_svg(uri: str) -> str:
     """Restituisce il QR code come stringa SVG inline (no file su disco)."""
     import qrcode
@@ -195,6 +288,31 @@ def is_internal_ip(ip_str: str, cidr_list: list[str]) -> bool:
     return False
 
 
+def is_external_entrypoint(request, client_ip: str = "") -> bool:
+    """True se la richiesta arriva da Internet via proxy/App Proxy (audit A5).
+
+    Il connettore Entra sta in LAN: senza questo controllo il suo IP interno farebbe
+    saltare il 2FA «solo da rete esterna» a chi si collega da fuori.
+    """
+    proxy_ips = set(getattr(settings, "TWOFA_EXTERNAL_PROXY_IPS", set()) or set())
+    if client_ip and client_ip in proxy_ips:
+        return True
+    remote_addr = (request.META.get("REMOTE_ADDR") or "") if request is not None else ""
+    if remote_addr and remote_addr in proxy_ips:
+        return True
+    try:
+        host = (request.get_host() or "").split(":", 1)[0].lower().rstrip(".")
+    except Exception:
+        host = (request.META.get("HTTP_HOST") or "").split(":", 1)[0].lower() if request is not None else ""
+    for raw in getattr(settings, "TWOFA_EXTERNAL_HOSTS", []) or []:
+        pattern = str(raw or "").strip().lower().rstrip(".")
+        if not pattern or not host:
+            continue
+        if (pattern.startswith("*.") and host.endswith(pattern[1:])) or host == pattern:
+            return True
+    return False
+
+
 def get_client_ip(request) -> str:
     """Restituisce l'IP reale del client (rispetta X-Forwarded-For se proxy trusted)."""
     try:
@@ -206,31 +324,41 @@ def get_client_ip(request) -> str:
 
 # ── Logica policy ─────────────────────────────────────────────────────────────
 
+def is_privileged_account(user) -> bool:
+    """Superuser e staff Django: soggetti al 2FA anche senza Profile/ruolo legacy."""
+    return bool(getattr(user, "is_superuser", False) or getattr(user, "is_staff", False))
+
+
 def should_require_2fa(request, user) -> bool:
     """True se l'utente deve completare il 2FA per questa richiesta."""
     from twofa.models import TwoFactorPolicy
 
+    privileged = is_privileged_account(user)
     try:
         policy = TwoFactorPolicy.get()
     except Exception:
-        return False
+        # SEC (audit A2): fail-closed per gli account privilegiati; per gli altri
+        # resta fail-open per non bloccare il portale su un errore di lettura.
+        logger.exception("2FA: impossibile leggere la policy")
+        return privileged
 
     if not policy.enabled:
         return False
 
-    # Controlla ruolo legacy
-    try:
-        from core.legacy_utils import get_legacy_user
-        legacy_user = get_legacy_user(user)
-    except Exception:
-        legacy_user = None
+    if not privileged:
+        # Controlla ruolo legacy
+        try:
+            from core.legacy_utils import get_legacy_user
+            legacy_user = get_legacy_user(user)
+        except Exception:
+            legacy_user = None
 
-    if legacy_user is None:
-        return False
+        if legacy_user is None:
+            return False
 
-    ruolo_id = getattr(legacy_user, "ruolo_id", None)
-    if ruolo_id is None or int(ruolo_id) not in [int(r) for r in (policy.required_role_ids or [])]:
-        return False
+        ruolo_id = getattr(legacy_user, "ruolo_id", None)
+        if ruolo_id is None or int(ruolo_id) not in [int(r) for r in (policy.required_role_ids or [])]:
+            return False
 
     # Controlla se disabilitato per questo utente
     try:
@@ -243,7 +371,9 @@ def should_require_2fa(request, user) -> bool:
     # Controlla rete interna
     if policy.when_required == TwoFactorPolicy.WHEN_EXTERNAL:
         client_ip = get_client_ip(request)
-        if is_internal_ip(client_ip, policy.internal_networks or []):
+        if not is_external_entrypoint(request, client_ip) and is_internal_ip(
+            client_ip, policy.internal_networks or []
+        ):
             return False
 
     return True
@@ -299,7 +429,7 @@ def initiate_2fa(request, user) -> None:
     """
     try:
         u2f = user.twofa
-        if u2f.method == "email" and u2f.is_active and not u2f.force_setup:
+        if u2f.method == "email" and u2f.is_active and not u2f.force_setup and email_otp_send_allowed(user):
             code = generate_email_otp(user, get_client_ip(request))
             send_otp_email(user, code)
     except Exception:

@@ -9,11 +9,13 @@ from django.contrib.auth import get_user_model
 from django.db import DatabaseError, connections
 from werkzeug.security import check_password_hash
 
+from core.ldap_conn import build_ldap_server, ldap_receive_timeout
 from core.legacy_models import Ruolo, UtenteLegacy
 from core.legacy_utils import (
     canonicalize_ldap_upn,
     extract_identity_alias,
     legacy_auth_enabled,
+    ldap_login_group_allowed,
     provision_legacy_user,
     resolve_ldap_identity,
     sync_django_user_from_legacy,
@@ -121,9 +123,13 @@ class SQLServerLegacyBackend:
     def get_user(self, user_id):
         User = get_user_model()
         try:
-            return User.objects.filter(pk=user_id).first()
+            user = User.objects.filter(pk=user_id).first()
         except Exception:
             return None
+        # SEC (audit M4): un utente disattivato perde subito le sessioni aperte.
+        if user is not None and not user.is_active:
+            return None
+        return user
 
 
 class LDAPBackend:
@@ -162,7 +168,7 @@ class LDAPBackend:
         resolved_full_name = ""
 
         try:
-            server = Server(server_url, connect_timeout=timeout, get_info=NONE)
+            server = build_ldap_server(server_url, timeout)
             supports_ntlm = _md4_supported()
             if "\\" in ident:
                 if supports_ntlm:
@@ -190,6 +196,7 @@ class LDAPBackend:
                         auto_bind=False,
                         auto_referrals=False,
                         raise_exceptions=False,
+                        receive_timeout=ldap_receive_timeout(),
                     )
                     ok = candidate.bind()
                 except Exception as exc:
@@ -206,8 +213,11 @@ class LDAPBackend:
                     pass
             if conn is None:
                 return None
+            groups: list[str] = []
             try:
-                resolved_upn, resolved_full_name = resolve_ldap_identity(alias=alias, upn_hint=upn, conn=conn)
+                resolved_upn, resolved_full_name = resolve_ldap_identity(
+                    alias=alias, upn_hint=upn, conn=conn, groups_out=groups
+                )
             finally:
                 try:
                     conn.unbind()
@@ -215,6 +225,10 @@ class LDAPBackend:
                     pass
         except (LDAPSocketOpenError, LDAPException, socket.error, OSError, ValueError) as exc:
             logger.warning("LDAP auth failed/unavailable: %s", exc)
+            return None
+
+        if not ldap_login_group_allowed(groups):
+            logger.warning("LDAP login negato per %s: nessun gruppo in LDAP_GROUP_ALLOWLIST", alias)
             return None
 
         legacy_user = provision_legacy_user(
@@ -230,6 +244,10 @@ class LDAPBackend:
     def get_user(self, user_id):
         User = get_user_model()
         try:
-            return User.objects.filter(pk=user_id).first()
+            user = User.objects.filter(pk=user_id).first()
         except Exception:
             return None
+        # SEC (audit M4): un utente disattivato perde subito le sessioni aperte.
+        if user is not None and not user.is_active:
+            return None
+        return user

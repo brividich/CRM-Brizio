@@ -18,7 +18,13 @@ from core.audit import log_action
 
 from .health import http_status_for, is_ip_allowed, run_readyz_checks
 from .models import AutomationExecution, AutomationJob, Issue, UserProblemReport
-from .services import OPEN_ISSUE_STATUSES, detect_missed_jobs, detect_stuck_jobs, register_user_problem_report
+from .services import (
+    OPEN_ISSUE_STATUSES,
+    detect_missed_jobs,
+    detect_stuck_jobs,
+    register_user_problem_report,
+    strip_url_query,
+)
 
 
 def healthz(request):
@@ -33,7 +39,7 @@ def readyz(request):
     if not is_ip_allowed(request):
         return JsonResponse({"status": "forbidden"}, status=403)
     report = run_readyz_checks()
-    return JsonResponse(report.to_payload(), status=http_status_for(report))
+    return JsonResponse(report.to_public_payload(), status=http_status_for(report))
 
 
 @login_required
@@ -46,7 +52,9 @@ def report_problem(request):
     if not message:
         return JsonResponse({"ok": False, "error": "missing_message"}, status=400)
 
-    current_url = (request.POST.get("current_url") or request.META.get("HTTP_REFERER") or request.path or "").strip()
+    current_url = strip_url_query(
+        (request.POST.get("current_url") or request.META.get("HTTP_REFERER") or request.path or "").strip()
+    )
     route_name = (request.POST.get("route_name") or "").strip()
     module_name = (request.POST.get("module_name") or "").strip()
     browser_info = (request.POST.get("browser_info") or request.META.get("HTTP_USER_AGENT") or "").strip()

@@ -11,7 +11,9 @@ from django.views.decorators.http import require_http_methods
 
 from twofa.forms import SetupTOTPConfirmForm, VerifyOTPForm
 from twofa.utils import (
+    clear_totp_failures,
     decrypt_totp_secret,
+    email_otp_send_allowed,
     encrypt_totp_secret,
     generate_email_otp,
     generate_totp_qr_svg,
@@ -22,19 +24,19 @@ from twofa.utils import (
     is_2fa_verified,
     mark_2fa_verified,
     needs_totp_setup,
+    register_totp_failure,
     send_otp_email,
     should_require_2fa,
+    totp_lock_remaining,
     verify_email_otp,
     verify_totp,
+    verify_totp_once,
 )
 
 logger = logging.getLogger(__name__)
 
-# SEC: lockout anti brute-force per la verifica TOTP. Il ramo email ha già un
-# contatore tentativi (TwoFactorChallenge.attempts); il TOTP no, e con un OTP a 6
-# cifre senza limite il brute-force online è fattibile. Contatore in sessione.
-_TOTP_MAX_ATTEMPTS = 5
-_TOTP_LOCK_SECONDS = 300
+# SEC: lockout anti brute-force e anti-replay della verifica TOTP e limite ai
+# codici email: contatori per utente in cache (audit M1), vedi twofa.utils.
 
 
 def _get_next(request) -> str:
@@ -43,11 +45,47 @@ def _get_next(request) -> str:
     return stored or reverse("dashboard_home")
 
 
+def _real_user(request):
+    """Utente che ha fatto login: durante l'impersonazione è l'admin, non il target.
+
+    Il 2FA protegge la sessione di chi si è autenticato (audit A1): la verifica e
+    l'enrollment non devono mai agire sul fattore dell'utente impersonato.
+    """
+    return getattr(request, "impersonator_user", None) or request.user
+
+
+def _has_established_factor(u2f) -> bool:
+    """True se l'utente ha già un secondo fattore attivo e confermato.
+
+    In questo caso l'enrollment self-service di un nuovo TOTP non è ammesso
+    (audit C1): sostituirlo con la sola password azzererebbe il 2FA. La
+    sostituzione passa dal reset admin (``force_setup``).
+    """
+    if u2f is None or getattr(u2f, "pk", None) is None:
+        return False
+    if not u2f.is_active or u2f.force_setup:
+        return False
+    if u2f.method == "totp":
+        return bool(u2f.totp_confirmed and u2f.totp_secret_enc)
+    return True  # metodo email configurato
+
+
+def _notify_totp_enrolled(user) -> None:
+    """Avvisa l'utente che sul suo account è stato registrato un autenticatore."""
+    from core.security_notify import notify_security_event
+
+    notify_security_event(
+        user,
+        "Nuovo autenticatore registrato",
+        "Sul tuo account è stata appena configurata un'app Authenticator per l'autenticazione a due fattori.",
+    )
+
+
 @never_cache
 @login_required(login_url="login")
 def verify(request):
     """Pagina di verifica 2FA. Accessibile solo se twofa_pending in sessione."""
-    user = request.user
+    user = _real_user(request)
 
     if not request.session.get("twofa_pending") and not should_require_2fa(request, user):
         return redirect(_get_next(request))
@@ -74,7 +112,7 @@ def verify(request):
     # chiamato initiate_2fa (es. SSO Windows): ora il middleware è autorevole e può
     # reindirizzare alla verifica qualunque sessione non verificata. Evita che
     # l'utente resti su una pagina senza codice. Inviato una sola volta per sessione.
-    if request.method == "GET" and method == "email" and not email_sent:
+    if request.method == "GET" and method == "email" and not email_sent and email_otp_send_allowed(user):
         code = generate_email_otp(user, get_client_ip(request))
         if send_otp_email(user, code):
             request.session["twofa_email_sent"] = True
@@ -85,6 +123,9 @@ def verify(request):
         action = request.POST.get("action", "verify")
 
         if action == "resend" and method == "email":
+            if not email_otp_send_allowed(user):
+                messages.error(request, "Troppi codici richiesti. Riprova tra qualche minuto.")
+                return redirect(reverse("twofa:verify"))
             code = generate_email_otp(user, get_client_ip(request))
             send_otp_email(user, code)
             request.session["twofa_email_sent"] = True
@@ -96,30 +137,28 @@ def verify(request):
             ok = False
 
             if method == "totp":
-                import time as _time
-                now_ts = _time.time()
-                lock_until = float(request.session.get("twofa_totp_lock_until", 0) or 0)
-                if lock_until and now_ts < lock_until:
+                if totp_lock_remaining(user):
                     ok = False
                     error = "Troppi tentativi. Riprova tra qualche minuto."
                 else:
                     try:
                         secret = decrypt_totp_secret(u2f.totp_secret_enc)
-                        ok = verify_totp(secret, code)
+                        ok = verify_totp_once(user, secret, code)
                     except Exception:
                         ok = False
                     if ok:
-                        request.session.pop("twofa_totp_fails", None)
-                        request.session.pop("twofa_totp_lock_until", None)
+                        clear_totp_failures(user)
                     else:
-                        fails = int(request.session.get("twofa_totp_fails", 0) or 0) + 1
-                        if fails >= _TOTP_MAX_ATTEMPTS:
-                            request.session["twofa_totp_fails"] = 0
-                            request.session["twofa_totp_lock_until"] = now_ts + _TOTP_LOCK_SECONDS
+                        remaining, locked_for = register_totp_failure(user)
+                        if locked_for:
                             error = "Troppi tentativi. Riprova tra qualche minuto."
+                            try:
+                                from core.audit import log_action
+                                log_action(request, "2fa_totp_locked", "twofa", {"seconds": locked_for})
+                            except Exception:
+                                pass
                         else:
-                            request.session["twofa_totp_fails"] = fails
-                            error = f"Codice non valido. Tentativi rimanenti: {_TOTP_MAX_ATTEMPTS - fails}."
+                            error = f"Codice non valido. Tentativi rimanenti: {remaining}."
             else:  # email
                 ok, error = verify_email_otp(user, code)
 
@@ -162,14 +201,33 @@ def verify(request):
 @login_required(login_url="login")
 @require_http_methods(["GET", "POST"])
 def setup_totp(request):
-    """Configurazione TOTP self-service (QR code + conferma primo codice)."""
-    user = request.user
+    """Configurazione TOTP self-service (QR code + conferma primo codice).
+
+    Ammessa solo per il primo enrollment o dopo un reset admin (``force_setup``).
+    Con un fattore già attivo la richiesta viene rimandata alla verifica.
+    """
+    user = _real_user(request)
 
     try:
         u2f = user.twofa
     except Exception:
         from twofa.models import UserTwoFactor
         u2f = UserTwoFactor(user=user, method="totp")
+
+    if _has_established_factor(u2f):
+        request.session.pop("twofa_totp_setup_secret", None)
+        try:
+            from core.audit import log_action
+            log_action(request, "2fa_totp_setup_denied", "twofa", {"method": u2f.method})
+        except Exception:
+            pass
+        if is_2fa_verified(request):
+            messages.info(
+                request,
+                "Il secondo fattore è già configurato. Per sostituire l'autenticatore chiedi un reset all'amministratore.",
+            )
+            return redirect(_get_next(request))
+        return redirect(reverse("twofa:verify"))
 
     # Usa secret già generato in sessione o ne crea uno nuovo
     pending_secret = request.session.get("twofa_totp_setup_secret")
@@ -204,6 +262,7 @@ def setup_totp(request):
                     log_action(request, "2fa_totp_setup", "twofa")
                 except Exception:
                     pass
+                _notify_totp_enrolled(user)
 
                 messages.success(request, "Autenticazione a due fattori configurata correttamente.")
                 next_url = _get_next(request)
@@ -230,7 +289,7 @@ def setup_totp(request):
 @require_http_methods(["POST"])
 def resend_otp(request):
     """Reinvia OTP email (AJAX/POST)."""
-    user = request.user
+    user = _real_user(request)
     try:
         u2f = user.twofa
         if u2f.method != "email":
@@ -240,7 +299,9 @@ def resend_otp(request):
         from django.http import JsonResponse
         return JsonResponse({"ok": False, "error": "Configurazione 2FA non trovata."}, status=400)
 
+    from django.http import JsonResponse
+    if not email_otp_send_allowed(user):
+        return JsonResponse({"ok": False, "error": "Troppi codici richiesti. Riprova tra qualche minuto."}, status=429)
     code = generate_email_otp(user, get_client_ip(request))
     sent = send_otp_email(user, code)
-    from django.http import JsonResponse
     return JsonResponse({"ok": sent})
