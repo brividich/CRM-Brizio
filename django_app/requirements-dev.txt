@@ -31,15 +31,18 @@ coverage==7.13.5
     # via pytest-cov
 croniter==6.2.4
     # via -r requirements.in
-cryptography==44.0.3
+cryptography==50.0.2
     # via
     #   msal
+    #   puresnmp-crypto
     #   pyjwt
     #   pyopenssl
     #   pyspnego
+defusedxml==0.7.1
+    # via -r requirements.in
 distlib==0.4.0
     # via virtualenv
-django==5.2.16
+django==5.2.18
     # via
     #   -r requirements.in
     #   django-axes
@@ -69,7 +72,7 @@ django-q2==1.9.0
     # via -r requirements.in
 django-stubs-ext==6.0.6
     # via django-fsm-2
-djangorestframework==3.17.1
+djangorestframework==3.18.2
     # via -r requirements.in
 et-xmlfile==2.0.0
     # via openpyxl
@@ -93,12 +96,14 @@ markupsafe==3.0.3
     # via werkzeug
 model-bakery==1.24.0
     # via -r requirements-dev.in
-msal==1.36.0
+msal==1.39.0
     # via -r requirements.in
 mssql-django==1.7.4
     # via -r requirements.in
 nodeenv==1.10.0
     # via pre-commit
+numpy==2.5.3
+    # via -r requirements.in
 openpyxl==3.1.5
     # via -r requirements.in
 packaging==26.2
@@ -124,6 +129,7 @@ pluggy==1.6.0
 pre-commit==4.6.0
     # via -r requirements-dev.in
 puresnmp==2.0.1
+    # via -r requirements.in
 puresnmp-crypto==1.0.1.post1
     # via -r requirements.in
 pyasn1==0.6.3
@@ -146,7 +152,7 @@ pyodbc==5.3.0
     # via
     #   -r requirements.in
     #   mssql-django
-pyopenssl==25.1.0
+pyopenssl==26.4.0
     # via -r requirements.in
 pyotp==2.10.0
     # via -r requirements.in
@@ -213,6 +219,8 @@ wheel==0.47.0
 x690==1.0.0.post1
     # via puresnmp
 xlrd==2.0.2
+    # via -r requirements.in
+zxing-cpp==3.1.1
     # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
