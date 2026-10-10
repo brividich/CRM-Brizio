@@ -203,8 +203,9 @@ class CambioMansioneTests(_Base):
                                 user=self.admin)
         self.assertEqual(ass.adempimenti.get(tipo="VISITA").entro_il, OGGI - timedelta(days=5))
         stato = stato_operativo.stato_persona([self.lid])
-        self.assertEqual(stato.codice, stato_operativo.AVVISO)  # default: solo avviso
-        self.assertFalse(stato.bloccante)
+        # Default (decisione 10/10/2026): non idoneo a operare salvo deroga motivata.
+        self.assertEqual(stato.etichetta, "Non idoneo a operare: visita mancante")
+        self.assertTrue(stato.bloccante)
 
     def test_visita_del_tipo_sbagliato_non_chiude(self):
         ass = crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=5), mansione="Saldatore T",
@@ -631,3 +632,55 @@ class RegressioniReviewTests(_Base):
         self.assertContains(self.client.get(url), "Otoprotettori sempre")
         with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False):
             self.assertNotContains(self.client.get(url), "Otoprotettori sempre")
+
+
+# ── Decisioni del 10/10/2026: deroga motivata, rinnovo, protocollo ───────────
+class DecisioniDerogaEProtocolloTests(_Base):
+    def test_default_deroga_motivata_trenta_giorni(self):
+        cfg = ConfigSicurezzaOperativa.load()
+        self.assertEqual(cfg.modalita_visita_mancante, ConfigSicurezzaOperativa.MODALITA_DEROGA)
+        self.assertEqual(cfg.deroga_max_giorni, 30)
+
+    def test_rinnovo_solo_con_motivazione_nuova(self):
+        from anagrafica.models import DerogaOperativaVisita
+        crea_assegnazione(self.lid, data_inizio=OGGI - timedelta(days=1), mansione="Saldatore T", user=self.admin)
+        prima = stato_operativo.concedi_deroga(self.lid, motivo="Visita prenotata il 20",
+                                               valida_fino=OGGI + timedelta(days=10), user=self.admin)
+        with self.assertRaises(ValidationError):
+            stato_operativo.concedi_deroga(self.lid, motivo="  visita PRENOTATA il 20 ",
+                                           valida_fino=OGGI + timedelta(days=20), user=self.admin)
+        with self.assertRaises(ValidationError):
+            stato_operativo.concedi_deroga(self.lid, motivo="Oltre il massimo",
+                                           valida_fino=OGGI + timedelta(days=31), user=self.admin)
+        nuova = stato_operativo.concedi_deroga(self.lid, motivo="Medico competente assente fino al 30",
+                                               valida_fino=OGGI + timedelta(days=25), user=self.admin)
+        prima.refresh_from_db()
+        self.assertFalse(prima.attivo)
+        self.assertEqual(stato_operativo.stato_persona([self.lid]).deroga.pk, nuova.pk)
+        self.assertEqual(DerogaOperativaVisita.objects.filter(legacy_anagrafica_id=self.lid, attivo=True).count(), 1)
+
+    def test_durata_massima_configurabile(self):
+        cfg = ConfigSicurezzaOperativa.load()
+        cfg.deroga_max_giorni = 7
+        cfg.save()
+        crea_assegnazione(self.lid, data_inizio=OGGI - timedelta(days=1), mansione="Saldatore T", user=self.admin)
+        with self.assertRaises(ValidationError):
+            stato_operativo.concedi_deroga(self.lid, motivo="Troppo lunga", valida_fino=OGGI + timedelta(days=8),
+                                           user=self.admin)
+
+    def test_protocollo_visite_solo_con_permesso_visite(self):
+        from unittest import mock
+        self.mr_fumi.visite.add(self.oculistica)
+        self.client.force_login(self.admin)
+        url = reverse("anagrafica:mansione_rischio_modifica", args=[self.mr_fumi.pk])
+        dati = {"codice": "MR-FUM", "nome": "Esposti fumi", "is_active": "on", "fattori": [self.fumi.pk],
+                "visite": [self.audiometria.pk], "mansioni": [self.saldatore.pk], "azione": "salva"}
+        with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False), \
+                mock.patch("django_q.tasks.async_task"):
+            r = self.client.get(url)
+            self.assertNotContains(r, 'name="visite"')
+            self.client.post(url, dati)
+        self.assertEqual(list(self.mr_fumi.visite.values_list("pk", flat=True)), [self.oculistica.pk])
+        with mock.patch("django_q.tasks.async_task"):
+            self.client.post(url, dati)
+        self.assertEqual(list(self.mr_fumi.visite.values_list("pk", flat=True)), [self.audiometria.pk])

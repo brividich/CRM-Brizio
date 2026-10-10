@@ -74,10 +74,14 @@
           </select>
           <div class="fm-help">Visite, DPI e corsi collegati ai fattori si aggiungono da soli.</div></div>
         <div class="fm-form-field"><label>Protocollo sanitario: tipi di visita</label>
+          {% if not puo_protocollo %}
+          <div class="fmd-muted">{{ dati.visite|length }} tipi di visita nel protocollo. Si modifica solo con amministrazione anagrafica <strong>e</strong> permesso visite mediche.</div>
+          {% else %}
           <select name="visite" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca tipo di visita…" aria-label="Tipi di visita">
             {% for v in visite_opts %}<option value="{{ v.pk }}"{% if v.pk in dati.visite %} selected{% endif %}>{{ v.nome }}{% if v.categoria %} · {{ v.categoria }}{% endif %}</option>{% endfor %}
           </select>
-          <div class="fm-help">La periodicità la decide il medico competente.</div></div>
+          <div class="fm-help">La periodicità la decide il medico competente.</div>
+          {% endif %}</div>
         <div class="fm-form-field"><label>Categorie DPI</label>
           {% if dpi_opts %}
           <select name="categorie_dpi" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca DPI…" aria-label="Categorie DPI">

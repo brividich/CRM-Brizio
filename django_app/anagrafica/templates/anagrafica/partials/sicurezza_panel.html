@@ -50,7 +50,14 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
 </form>
 {% endif %}
 {% if puo_sorveglianza and stato.deroga %}
-<form method="post" action="{% url 'anagrafica:dipendente_deroga_revoca' legacy_id stato.deroga.pk %}" style="margin:-4px 0 10px;">
+<form method="post" action="{% url 'anagrafica:dipendente_deroga_aggiungi' legacy_id %}" class="sp-form" aria-label="Rinnova deroga">
+  {% csrf_token %}
+  <div style="grid-column:1/-1;font-weight:700;">Rinnovo della deroga (max {{ config.deroga_max_giorni }} giorni, serve una motivazione nuova)</div>
+  <div><label for="dr-motivo">Nuova motivazione *</label><input id="dr-motivo" name="motivo" class="dp-input" required maxlength="500"></div>
+  <div><label for="dr-fino">Valida fino al *</label><input id="dr-fino" type="date" name="valida_fino" class="dp-input" required min="{{ oggi|date:'Y-m-d' }}"></div>
+  <div><button class="dp-btn dp-btn-primary dp-btn-sm" type="submit">Rinnova deroga</button></div>
+</form>
+<form method="post" action="{% url 'anagrafica:dipendente_deroga_revoca' legacy_id stato.deroga.pk %}" style="margin:6px 0 10px;">
   {% csrf_token %}<input type="hidden" name="motivo" value="Revoca dalla scheda">
   <button class="dp-btn dp-btn-ghost dp-btn-sm" type="submit">Revoca deroga</button>
 </form>

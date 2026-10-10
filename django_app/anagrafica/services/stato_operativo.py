@@ -173,16 +173,36 @@ def concedi_deroga(legacy_id: int, *, motivo: str, valida_fino: date, user, adem
         raise ValidationError("La deroga non può scadere nel passato.")
     if (valida_fino - oggi).days > config.deroga_max_giorni:
         raise ValidationError(f"La deroga non può superare {config.deroga_max_giorni} giorni.")
+
+    # Rinnovo: ammesso solo con una motivazione nuova. Una deroga non si
+    # proroga ripetendo lo stesso motivo: ogni rinnovo deve dire cosa è cambiato.
+    precedenti = list(DerogaOperativaVisita.objects.filter(legacy_anagrafica_id=int(legacy_id)))
+    if any(_normalizza(d.motivo) == _normalizza(motivo) for d in precedenti):
+        raise ValidationError("Il rinnovo della deroga richiede una motivazione nuova, diversa dalle precedenti.")
+    in_corso = [d for d in precedenti if d.attivo and d.valida_fino >= oggi]
+    for vecchia in in_corso:
+        vecchia.attivo = False
+        vecchia.revocata_il = timezone.now()
+        vecchia.revocata_da = user if getattr(user, "is_authenticated", False) else None
+        vecchia.revoca_motivo = "Sostituita da un rinnovo con nuova motivazione"
+        vecchia.save(update_fields=["attivo", "revocata_il", "revocata_da", "revoca_motivo"])
     deroga = DerogaOperativaVisita.objects.create(
         legacy_anagrafica_id=int(legacy_id), adempimento=adempimento, motivo=motivo[:500],
         autorizzato_da=user if getattr(user, "is_authenticated", False) else None, valida_fino=valida_fino,
     )
+    rinnovo = bool(precedenti)
     eventi_sicurezza.registra(
-        legacy_id, "DEROGA_CONCESSA", f"Deroga operativa fino al {valida_fino:%d/%m/%Y}",
+        legacy_id, "DEROGA_CONCESSA",
+        f"Deroga operativa {'rinnovata' if rinnovo else 'concessa'} fino al {valida_fino:%d/%m/%Y}",
         user=user, request=request, oggetto=deroga,
-        payload={"deroga_id": deroga.pk, "valida_fino": valida_fino.isoformat(), "motivo": motivo[:300]},
+        payload={"deroga_id": deroga.pk, "valida_fino": valida_fino.isoformat(), "motivo": motivo[:300],
+                 "rinnovo": rinnovo, "sostituisce": [d.pk for d in in_corso]},
     )
     return deroga
+
+
+def _normalizza(testo: str) -> str:
+    return " ".join((testo or "").casefold().split())
 
 
 def revoca_deroga(deroga, *, motivo: str, user, request=None):

@@ -163,9 +163,15 @@ def mansione_rischio_form(request, mr_id: int | None = None):
     from .services import mansioni_rischio_admin as admin_svc
 
     mr = get_object_or_404(MansioneRischio, pk=mr_id) if mr_id else MansioneRischio()
+    # Il protocollo sanitario (tipi di visita) si modifica solo con il permesso
+    # visite: senza, il form lo mostra in sola lettura e il server lo conserva.
+    puo_protocollo = _puo_sorveglianza(request)
     dati, effetto, errori = _dati_da_istanza(mr), None, []
     if request.method == "POST":
+        visite_attuali = list(mr.visite.values_list("pk", flat=True)) if mr.pk else []
         dati = _dati_da_post(request)
+        if not puo_protocollo:
+            dati.visite = visite_attuali
         if not dati.codice or not dati.nome:
             errori.append("Codice e nome sono obbligatori.")
         elif MansioneRischio.objects.filter(codice=dati.codice).exclude(pk=mr.pk).exists():
@@ -188,7 +194,8 @@ def mansione_rischio_form(request, mr_id: int | None = None):
                 errori.extend(exc.messages)
     return render(request, "anagrafica/pages/mansione_rischio_form.html", {
         "page_title": mr.nome if mr.pk else "Nuova mansione di rischio",
-        "mr": mr, "dati": dati, "effetto": effetto, "errori": errori, **_cataloghi(),
+        "mr": mr, "dati": dati, "effetto": effetto, "errori": errori, "puo_protocollo": puo_protocollo,
+        **_cataloghi(),
     })
 
 

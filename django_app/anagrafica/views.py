@@ -3214,20 +3214,12 @@ def formazione_allegato_upload(request, sessione_id: int):
         messages.error(request, "Seleziona un file da caricare.")
         return _back()
 
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_DOC_EXTENSIONS:
-        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
-        return _back()
-    if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
-        return _back()
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del browser.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
     try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-    if mime not in _ALLOWED_DOC_MIMES:
-        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        mime = valida_documento(uploaded, _ALLOWED_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
+        messages.error(request, f"File rifiutato: {exc} Ammessi: PDF, immagini (JPG, PNG, WEBP), DOC/DOCX, XLS/XLSX.")
         return _back()
 
     att = TrainingAttachment(
@@ -3350,20 +3342,12 @@ def formazione_corso_allegato_upload(request, corso_id: int):
     if not uploaded:
         messages.error(request, "Seleziona un file da caricare.")
         return _back()
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_DOC_EXTENSIONS:
-        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
-        return _back()
-    if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
-        return _back()
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del browser.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
     try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-    if mime not in _ALLOWED_DOC_MIMES:
-        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        mime = valida_documento(uploaded, _ALLOWED_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
+        messages.error(request, f"File rifiutato: {exc} Ammessi: PDF, immagini (JPG, PNG, WEBP), DOC/DOCX, XLS/XLSX.")
         return _back()
 
     att = TrainingAttachment(
@@ -11517,12 +11501,9 @@ _ALLOWED_DOC_MIMES = {
     "image/webp",
 }
 _ALLOWED_DOC_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".webp"}
-_ALLOWED_MANUAL_DOC_MIMES = _ALLOWED_DOC_MIMES | {
-    "application/vnd.ms-outlook",
-    "application/x-msg",
-    "text/html",
-}
-_ALLOWED_MANUAL_DOC_EXTENSIONS = _ALLOWED_DOC_EXTENSIONS | {".msg", ".html"}
+# Niente .html: una pagina caricata verrebbe aperta nel dominio del portale;
+# le email si caricano come .msg.
+_ALLOWED_MANUAL_DOC_EXTENSIONS = _ALLOWED_DOC_EXTENSIONS | {".msg"}
 _MAX_DOC_SIZE = DOCUMENT_MAX_BYTES
 
 
@@ -11543,27 +11524,17 @@ def documento_dipendente_upload(request, legacy_id: int):
         messages.error(request, "Seleziona un file da caricare.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_MANUAL_DOC_EXTENSIONS:
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del
+    # browser. Niente HTML: le mail si caricano come .msg.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
+    try:
+        mime = valida_documento(uploaded, _ALLOWED_MANUAL_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
         messages.error(
             request,
-            f"Formato non consentito ({suffix}). Formati ammessi: "
-            "PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, MSG, HTML.",
+            f"File rifiutato: {exc} Formati ammessi: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, WEBP, "
+            "MSG (le email si caricano come .msg).",
         )
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
-
-    if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
-
-    try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-
-    if mime not in _ALLOWED_MANUAL_DOC_MIMES:
-        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
     cartella = None
@@ -14354,18 +14325,12 @@ def _salva_documento_ente(request, *, azienda=None, docente=None):
     if not uploaded:
         return "Seleziona un file da caricare."
 
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_DOC_EXTENSIONS:
-        return f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS."
-    if uploaded.size > _MAX_DOC_SIZE:
-        return f"File troppo grande ({uploaded.size // (1024 * 1024)} MB). Limite: {DOCUMENT_MAX_MB} MB."
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del browser.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
     try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-    if mime not in _ALLOWED_DOC_MIMES:
-        return "Tipo di file non consentito (contenuto non valido)."
+        mime = valida_documento(uploaded, _ALLOWED_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
+        return f"File rifiutato: {exc} Ammessi: PDF, immagini (JPG, PNG, WEBP), DOC/DOCX, XLS/XLSX."
 
     form = TrainingProviderDocumentForm(request.POST, request.FILES)
     if not form.is_valid():
@@ -15600,20 +15565,12 @@ def formazione_iscrizione_attestato_upload(request, sessione_id: int, iscrizione
     if not uploaded:
         messages.error(request, "Seleziona l'attestato da caricare.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_DOC_EXTENSIONS:
-        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
-        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
-    if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
-        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del browser.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
     try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-    if mime not in _ALLOWED_DOC_MIMES:
-        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        mime = valida_documento(uploaded, _ALLOWED_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
+        messages.error(request, f"File rifiutato: {exc} Ammessi: PDF, immagini (JPG, PNG, WEBP), DOC/DOCX, XLS/XLSX.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
     force = request.POST.get("force") == "1"

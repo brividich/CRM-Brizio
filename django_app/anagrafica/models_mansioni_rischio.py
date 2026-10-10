@@ -292,11 +292,16 @@ class ConfigSicurezzaOperativa(models.Model):
         (MODALITA_BLOCCO, "Non idoneo a operare, nessuna deroga"),
     ]
 
+    # Decisione di Brizio (10/10/2026): non idoneo a operare salvo deroga
+    # motivata, al massimo 30 giorni (configurabile), rinnovabile solo con una
+    # motivazione nuova.
     modalita_visita_mancante = models.CharField(
-        max_length=20, choices=MODALITA_CHOICES, default=MODALITA_SOLO_AVVISO,
+        max_length=20, choices=MODALITA_CHOICES, default=MODALITA_DEROGA,
         help_text="Cosa succede se la decorrenza arriva senza la visita del cambio mansione.",
     )
-    deroga_max_giorni = models.PositiveSmallIntegerField(default=30)
+    deroga_max_giorni = models.PositiveSmallIntegerField(
+        default=30, help_text="Durata massima di una deroga; il rinnovo richiede una motivazione nuova.",
+    )
     aggiornata_il = models.DateTimeField(auto_now=True)
     aggiornata_da = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
