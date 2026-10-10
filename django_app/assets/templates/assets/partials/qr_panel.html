@@ -1,0 +1,42 @@
+<div class="aq-panel" data-aq-panel>
+  <div class="aq-panel-head">
+    <div>
+      <div class="aq-panel-title">QR · {{ qr_asset.name }}</div>
+      <div class="aq-panel-sub">#{{ qr_asset.asset_tag }}</div>
+    </div>
+    <button type="button" class="aq-close" data-aq-close aria-label="Chiudi">&times;</button>
+  </div>
+  <div class="aq-panel-body">
+    <img class="aq-big" src="{{ qr_image_url }}?size=m" alt="QR di {{ qr_asset.asset_tag }}" width="240" height="240">
+    <div class="aq-info">
+      <span class="aq-pill {% if qr_public_active %}aq-pill--pub{% else %}aq-pill--int{% endif %}">
+        {% if qr_public_active %}Link pubblico attivo · senza login{% else %}Landing interna · richiede login{% endif %}
+      </span>
+      <label class="aq-label" for="aq-link-{{ qr_asset.id }}">Destinazione del QR</label>
+      <div class="aq-copy-row">
+        <input id="aq-link-{{ qr_asset.id }}" class="aq-link" type="text" readonly value="{{ qr_dest.url }}">
+        <button type="button" class="aq-btn" data-aq-copy="#aq-link-{{ qr_asset.id }}">Copia</button>
+      </div>
+      <div class="aq-actions">
+        <a class="aq-btn aq-btn--primary" href="{{ qr_label_url }}" target="_blank" rel="noopener">Stampa etichetta</a>
+        <a class="aq-btn" href="{{ qr_download_url }}">Scarica PNG</a>
+      </div>
+      {% if qr_can_manage_public %}
+        <div class="aq-public">
+          <div class="aq-label">Link pubblico</div>
+          <p class="aq-note">{% if qr_public_active %}Chi inquadra il QR vede la scheda mobile in sola lettura, senza login.{% else %}Con il link pubblico il QR si apre anche senza login (tecnici esterni, ispettori). Resta spento finché non lo abiliti.{% endif %}</p>
+          <form method="post" action="{{ qr_public_action_url }}" class="aq-public-form">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="" data-aq-next>
+            {% if qr_public_active %}
+              <button type="submit" name="azione" value="revoca" class="aq-btn">Disattiva link pubblico</button>
+              <button type="submit" name="azione" value="rigenera" class="aq-btn aq-btn--danger" onclick="return confirm('Rigenerare il link? Le etichette già stampate smetteranno di funzionare.')">Rigenera link</button>
+            {% else %}
+              <button type="submit" name="azione" value="abilita" class="aq-btn aq-btn--primary">{% if qr_has_token %}Riattiva link pubblico{% else %}Abilita link pubblico{% endif %}</button>
+            {% endif %}
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_it, views_maintenance, views_verifiche, views_reporting
+from . import views, views_asset_qr, views_asset_storico, views_it, views_report_catalog, views_maintenance, views_verifiche, views_reporting
 
 app_name = "assets"
 
@@ -11,6 +11,10 @@ urlpatterns = [
     path("assets/impostazioni/reportistica/<int:pk>/esegui/", views_reporting.run_now, name="reporting_run"),
     path("assets/impostazioni/reportistica/report/<int:pk>/riprova/", views_reporting.retry, name="reporting_retry"),
     path("assets/reports/archivio/", views_reporting.archive, name="reporting_archive"),
+    path("assets/reports/catalogo/", views_report_catalog.catalog, name="report_catalog"),
+    path("assets/reports/catalogo/salvati/<int:pk>/elimina/", views_report_catalog.delete, name="report_catalog_delete"),
+    path("assets/reports/catalogo/<slug:code>/", views_report_catalog.run, name="report_catalog_run"),
+    path("assets/reports/catalogo/<slug:code>/salva/", views_report_catalog.save, name="report_catalog_save"),
     path("assets/reports/archivio/<int:pk>/", views_reporting.detail, name="reporting_detail"),
     path("assets/reports/archivio/<int:pk>/<str:file_format>/", views_reporting.download, name="reporting_download"),
     path("assets/", views.asset_dashboard, name="asset_dashboard"),
@@ -105,6 +109,11 @@ urlpatterns = [
     path("assets/view-layout/", views.asset_detail_layout_admin, name="asset_detail_layout_admin"),
     path("assets/view/<int:id>/report.pdf", views.asset_report_pdf, name="asset_report_pdf"),
     path("assets/view/<int:id>/qr-label/", views.asset_qr_label, name="asset_qr_label"),
+    path("assets/view/<int:id>/qr.png", views_asset_qr.asset_qr_image, name="asset_qr_image"),
+    path("assets/view/<int:id>/qr/", views_asset_qr.asset_qr_panel, name="asset_qr_panel"),
+    path("assets/view/<int:id>/qr/link-pubblico/", views_asset_qr.asset_qr_public_link, name="asset_qr_public_link"),
+    path("assets/view/qr-etichette/", views_asset_qr.asset_qr_labels_bulk, name="asset_qr_labels_bulk"),
+    path("assets/view/<int:id>/storico-campi/", views_asset_storico.asset_field_history, name="asset_field_history"),
     path("assets/documenti/<int:document_id>/download/", views.asset_document_download, name="asset_document_download"),
     path(
         "assets/workorders/allegati/<int:attachment_id>/download/",

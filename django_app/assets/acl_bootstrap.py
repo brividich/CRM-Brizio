@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v13"
+_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v14"
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_list", "label": "Assets - Lista asset", "url": "/assets/", "hide": False},
@@ -80,6 +80,10 @@ _PULSANTI_DEFINITIONS = [
     # Accessi senza toccare il codice.
     {"modulo": "assets", "codice": "maintenance_planning", "label": "Assets - Pianifica manutenzioni (crea OdL, distribuisci giornate)", "url": "", "hide": True},
     {"modulo": "assets", "codice": "maintenance_execute", "label": "Assets - Esegui manutenzioni (registra, allega, follow-up)", "url": "", "hide": True},
+    # Link pubblico del QR (senza login): abilitare/revocare/rigenerare e' riservato.
+    {"modulo": "assets", "codice": "asset_qr_public", "label": "Assets - Gestisci link pubblico QR", "url": "", "hide": True},
+    # Invio email pianificato dei report del catalogo (i destinatari restano filtrati per permesso).
+    {"modulo": "assets", "codice": "asset_report_email", "label": "Assets - Pianifica invio email dei report", "url": "", "hide": True},
 ]
 
 

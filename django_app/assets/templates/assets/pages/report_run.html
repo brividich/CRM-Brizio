@@ -1,0 +1,51 @@
+{% extends "assets/reporting_base.html" %}
+{% load assets_extras %}
+{% block title %}{{ definizione.titolo }}{% endblock %}
+{% block reporting_content %}
+<section class="rp-hero"><div><h1>{{ risultato.titolo }}</h1><p>{{ definizione.descrizione }}</p></div><a class="rp-button secondary" href="{% url 'assets:report_catalog' %}">← Catalogo report</a></section>
+<section class="rp-panel">
+  <form method="get" class="rp-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));align-items:end">
+    {% for f in definizione.filtri %}
+      <div class="rp-field"><label for="f-{{ f.nome }}">{{ f.etichetta }}</label>
+        {% if f.tipo == "select" %}<select id="f-{{ f.nome }}" name="{{ f.nome }}">{% for code, label in f.scelte %}<option value="{{ code }}"{% if filtri|dict_get:f.nome == code %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        {% else %}<input id="f-{{ f.nome }}" name="{{ f.nome }}" type="{% if f.tipo == 'date' %}date{% elif f.tipo == 'month' %}month{% else %}text{% endif %}" value="{{ filtri|dict_get:f.nome }}">{% endif %}
+      </div>
+    {% endfor %}
+    <div class="rp-actions"><button class="rp-button" type="submit">Aggiorna</button></div>
+  </form>
+  <p class="rp-help">{{ estrazione }} · Filtri: {{ filtri_label }}{% if salvato %} · Report salvato «{{ salvato.nome }}»{% endif %}</p>
+  <div class="rp-actions">
+    <a class="rp-button secondary" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}formato=xlsx">Excel</a>
+    <a class="rp-button secondary" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}formato=pdf">PDF</a>
+  </div>
+</section>
+<section class="rp-panel">
+  {% for nota in risultato.note %}<p class="rp-help">{{ nota }}</p>{% endfor %}
+  {% if risultato.troncato %}<p class="rp-help"><strong>Risultato limitato alle prime 5000 righe:</strong> restringi i filtri.</p>{% endif %}
+  <div class="rp-table-wrap"><table>
+    <thead><tr>{% for h in risultato.intestazioni %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for riga in risultato.righe %}<tr>{% for v in riga %}<td>{% if v|stringformat:"s" == "" %}—{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>
+      {% empty %}<tr><td colspan="{{ risultato.intestazioni|length }}" class="rp-empty">Nessun dato con questi filtri.</td></tr>{% endfor %}
+    </tbody>
+    {% if risultato.totali and risultato.righe %}<tfoot><tr class="rp-totali">{% for v in risultato.totali %}<th>{{ v }}</th>{% endfor %}</tr></tfoot>{% endif %}
+  </table></div>
+</section>
+<section class="rp-panel">
+  <h2>{% if puo_modificare_salvato %}Aggiorna il report salvato{% else %}Salva report{% endif %}</h2>
+  <form method="post" action="{% url 'assets:report_catalog_save' definizione.code %}" class="rp-grid">
+    {% csrf_token %}
+    {% for k, v in filtri.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <input type="hidden" name="querystring" value="{{ querystring }}">
+    {% if puo_modificare_salvato %}<input type="hidden" name="salvato_id" value="{{ salvato.pk }}">{% endif %}
+    <div class="rp-field"><label for="s-nome">Nome</label><input id="s-nome" name="nome" maxlength="120" required value="{% if puo_modificare_salvato %}{{ salvato.nome }}{% endif %}"></div>
+    <div class="rp-field"><label><input type="checkbox" name="condiviso" value="1"{% if puo_modificare_salvato and salvato.condiviso %} checked{% endif %}> Condividi con chi può aprire i report</label><p class="rp-help">I colleghi vedono il report salvato nel catalogo; possono aprirlo, non modificarlo.</p></div>
+    {% if can_schedule %}
+      <div class="rp-field"><label for="s-freq">Invio email</label><select id="s-freq" name="frequenza">{% for code, label in freq_choices %}<option value="{{ code }}"{% if puo_modificare_salvato and salvato.frequenza == code %} selected{% endif %}>{{ label }}</option>{% endfor %}</select><p class="rp-help">Alle 07:00: ogni giorno, il lunedì o il primo del mese.</p></div>
+      <div class="rp-field"><label for="s-formato">Allegato</label><select id="s-formato" name="formato">{% for code, label in format_choices %}<option value="{{ code }}"{% if puo_modificare_salvato and salvato.formato == code %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="rp-field" style="grid-column:1/-1"><label for="s-dest">Destinatari</label><select id="s-dest" name="destinatari" multiple size="6">{% for u in utenti %}<option value="{{ u.pk }}"{% if puo_modificare_salvato and u.pk in destinatari_ids %} selected{% endif %}>{{ u.get_full_name|default:u.get_username }} · {{ u.email }}</option>{% endfor %}</select><p class="rp-help">Ricevono il file solo gli utenti che hanno accesso a questo report: gli altri vengono esclusi al salvataggio e a ogni invio.</p></div>
+    {% endif %}
+    <div class="rp-actions"><button class="rp-button" type="submit">{% if puo_modificare_salvato %}Aggiorna{% else %}Salva report{% endif %}</button>{% if salvato and salvato.ultimo_esito %}<span class="rp-muted">Ultimo invio: {{ salvato.ultimo_esito }}</span>{% endif %}</div>
+  </form>
+</section>
+{% endblock %}

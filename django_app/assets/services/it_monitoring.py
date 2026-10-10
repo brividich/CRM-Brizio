@@ -66,7 +66,7 @@ def _probe_readings(snapshot_ids):
     return out
 
 
-def monitoring_for_asset(request, asset):
+def monitoring_for_asset(request, asset, *, printer=False, endpoint_ips=()):
     central_url = reverse("contatori:snmp_centrale")
     if not can_view_monitoring(request, central_url):
         return None
@@ -108,18 +108,39 @@ def monitoring_for_asset(request, asset):
     last_reading = LetturaMensileContatori.objects.filter(macchina_id=OuterRef("pk")).order_by("-rilevata_il", "-pk")
     machines = list(Macchina.objects.filter(asset=asset).order_by("reparto", "pk").annotate(
         reading_id=Subquery(last_reading.values("pk")[:1]),
-    ).values("id", "reparto", "matricola", "modello", "host", "contratto", "fornitore", "attiva", "snmp_stato", "snmp_ultimo_controllo", "reading_id")[:LINK_LIMIT])
+    ).values("id", "reparto", "matricola", "modello", "host", "contratto", "fornitore", "attiva", "snmp_stato",
+             "snmp_ultimo_controllo", "snmp_ultimo_errore", "reading_id")[:LINK_LIMIT])
     permitted_machines = []
+    # «Leggi adesso» scrive nello storico: solo con la gestione Contatori (job asincrono).
+    from contatori.permessi import puo_gestire
+
+    can_read_now = puo_gestire(request) if machines else False
     for machine in machines:
         machine["url"] = reverse("contatori:macchina", args=[machine["id"]])
         if can_view_monitoring(request, machine["url"]):
             supplies_url = reverse("contatori:macchina_consumabili", args=[machine["id"]])
-            machine["supplies_url"] = supplies_url if machine["host"] and machine["attiva"] and can_view_monitoring(request, supplies_url) else ""
+            machine["supplies_url"] = supplies_url if machine["host"] and machine["attiva"] and can_read_now else ""
             permitted_machines.append(machine)
     readings = {row["id"]: row for row in LetturaMensileContatori.objects.filter(
         pk__in=[row["reading_id"] for row in permitted_machines if row["reading_id"]],
     ).values("id", "mese", "rilevata_il", "a4_bn", "a3_bn", "a4_col", "a3_col")}
+    from .mfc_stats import candidati_collegamento, statistiche_mfc
+
+    stats = statistiche_mfc(permitted_machines)
     for machine in permitted_machines:
         machine["state_label"] = STATE_LABELS.get(machine["snmp_stato"], "Esito non noto")
         machine["reading"] = readings.get(machine["reading_id"])
-    return {"devices": permitted, "machines": permitted_machines, "central_url": central_url}
+        machine["stats"] = stats.get(machine["id"])
+    # Stampante senza MFC collegata: lo si dice, con le MFC candidate da collegare.
+    unlinked = None
+    if printer and not machines:
+        candidates = candidati_collegamento(asset, list(endpoint_ips))
+        # Stesso controllo della riconciliazione (_link): modifica dell'MFC in Contatori.
+        probe = reverse("contatori:macchina_edit", args=[candidates[0]["id"]]) if candidates else reverse("contatori:macchine")
+        unlinked = {
+            "candidates": candidates,
+            "reconcile_url": reverse("assets:it_reconciliation"),
+            "can_link": can_view_monitoring(request, probe),
+        }
+    return {"devices": permitted, "machines": permitted_machines, "central_url": central_url,
+            "mfc_unlinked": unlinked}

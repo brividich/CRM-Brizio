@@ -1,0 +1,42 @@
+{# Storico campi asset: filtri + timeline "cosa e' cambiato" + vista alla data. Caricato via HTMX. #}
+<div class="af-storico" id="{{ target_id }}">
+  <form class="af-storico-filtri" hx-get="{{ url }}" hx-target="#{{ target_id }}" hx-swap="outerHTML" hx-trigger="change, submit">
+    <input type="hidden" name="target" value="{{ target_id }}">
+    <label>Gruppo <select name="gruppo">{% for code, label in gruppi %}<option value="{{ code }}"{% if code == gruppo %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>Campo <select name="campo"><option value="">Tutti</option>{% for code, label in campi %}<option value="{{ code }}"{% if code == campo %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label>Dal <input type="date" name="dal" value="{{ dal|date:'Y-m-d' }}"></label>
+    <label>Al <input type="date" name="al" value="{{ al|date:'Y-m-d' }}"></label>
+    <label>Com'era il <input type="date" name="alla_data" value="{{ alla_data|date:'Y-m-d' }}"></label>
+  </form>
+  {% if stato_alla_data %}
+    <div class="af-storico-alla-data">
+      <h4>Com'era il {{ alla_data|date:"d/m/Y" }}</h4>
+      {% if not stato_alla_data.tracciato %}
+        <p class="af-note">Nessun dato registrato a quella data: lo storico parte dal rilascio della funzione (voce «Stato iniziale»).</p>
+      {% else %}
+        <div class="af-it-facts">{% for c in stato_alla_data.campi %}<div><span>{{ c.etichetta }}</span><strong>{% if c.valore is None %}non registrato{% else %}{{ c.valore|default:"— vuoto —" }}{% endif %}</strong></div>{% endfor %}</div>
+        {% for ep in stato_alla_data.endpoint %}
+          <p><strong>{{ ep.label|default:"Punto rete" }}</strong>: {% for c in ep.campi %}{% if c.valore %}{{ c.etichetta }} {{ c.valore }}{% if not forloop.last %} · {% endif %}{% endif %}{% endfor %}</p>
+        {% empty %}<p class="af-note">Nessun punto rete attivo a quella data.</p>{% endfor %}
+      {% endif %}
+    </div>
+  {% endif %}
+  <div class="af-table-wrap"><table class="af-table af-storico-tab">
+    <thead><tr><th>Quando</th><th>Campo</th><th>Prima</th><th>Dopo</th><th>Chi</th><th>Fonte</th></tr></thead>
+    <tbody>
+    {% for v in voci %}
+      <tr>
+        <td>{{ v.quando|date:"d/m/Y H:i" }}</td>
+        <td>{{ v.etichetta }}{% if v.endpoint %}<br><small>{{ v.endpoint }}</small>{% endif %}</td>
+        <td>{% if v.fonte_code == "baseline" %}<small>—</small>{% else %}{{ v.prima|default:"— vuoto —" }}{% endif %}</td>
+        <td><strong>{{ v.dopo|default:"— vuoto —" }}</strong></td>
+        <td>{{ v.autore|default:"—" }}</td>
+        <td><span class="af-storico-fonte" title="{{ v.dettaglio }}">{{ v.fonte }}</span></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6">Nessuna modifica registrata con questi filtri.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="af-note">Ultime 200 voci. Ogni riga è un campo cambiato: le modifiche che lasciano il valore uguale non vengono registrate.</p>
+</div>

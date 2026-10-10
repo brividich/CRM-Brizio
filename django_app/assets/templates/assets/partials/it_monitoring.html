@@ -1,4 +1,11 @@
 {% if it_monitoring %}
+<style>
+.af-mfc-stale { margin:6px 0; padding:8px 10px; border-radius:8px; background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; }
+body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgba(251,146,60,.35); color:#fdba74; }
+.af-mfc-bar { display:block; height:8px; min-width:2px; border-radius:4px; background:#3b82f6; }
+.af-mfc-pages td:last-child { width:30%; }
+.af-it-supply small { display:block; opacity:.75; }
+</style>
 <section class="af-card af-it-soc" id="asset-it-monitoring" aria-labelledby="asset-it-monitoring-title" data-af-tab="Monitoraggio">
   <div class="af-card-head"><div><div class="af-card-kicker">DATI DAL MONITORAGGIO</div><h2 class="af-card-title" id="asset-it-monitoring-title">{% if it_presentation.profile == 'printer' %}Stampante, consumabili e contatori{% else %}Ultimi controlli SNMP{% endif %}</h2></div><a class="as-link-subtle" href="{{ it_monitoring.central_url }}">Apri centrale</a></div>
   <div class="af-it-body">
@@ -54,20 +61,68 @@
         <div class="af-it-facts af-it-counters"><div><span>A4 B/N</span><strong>{{ reading.a4_bn }}</strong></div><div><span>A3 B/N</span><strong>{{ reading.a3_bn }}</strong></div><div><span>A4 colore</span><strong>{{ reading.a4_col }}</strong></div><div><span>A3 colore</span><strong>{{ reading.a3_col }}</strong></div></div>
       {% else %}<p>Nessuna lettura mensile disponibile.</p>{% endif %}{% endwith %}
       </details>
-      <div class="af-it-live">
+      {% with s=machine.stats %}
+      <div class="af-it-live af-mfc-stats" id="mfc-stats-{{ machine.id }}">
         <h3>Consumabili MFC</h3>
+        {% if s.consumabili %}
+          {% if s.consumabili_vecchi %}
+            <p class="af-mfc-stale" role="status"><strong>Dati del {{ s.consumabili.rilevata_il|date:"d/m/Y" }}:</strong> il job non legge da {{ s.consumabili_eta_giorni }} giorni. I livelli qui sotto non sono quelli attuali.</p>
+          {% else %}
+            <p class="af-note">Ultima lettura: {{ s.consumabili.rilevata_il|date:"d/m/Y H:i" }} (job giornaliero). Stima dal consumo dall'ultima sostituzione.</p>
+          {% endif %}
+          <div class="af-it-supplies">{% for v in s.consumabili.voci %}
+            <div class="af-it-supply">
+              <span>{{ v.nome }}</span>
+              {% if v.pct is not None %}<strong>{{ v.pct }}%</strong><progress max="100" value="{{ v.pct }}" aria-label="{{ v.nome }}: {{ v.pct }}%"{% if v.critico %} class="af-it-low"{% endif %}></progress>{% else %}<strong>Quantità non comunicata</strong>{% endif %}
+              <small>{% if v.giorni is None %}Esaurimento non stimabile{% elif v.giorni == 0 %}Esaurito secondo il ritmo di consumo{% elif v.giorni > 365 %}Oltre un anno{% else %}Circa {{ v.giorni }} giorni{% endif %}</small>
+            </div>{% endfor %}
+          </div>
+        {% else %}
+          <p class="af-note">Nessuna lettura dei consumabili salvata{% if not machine.host %}: l'MFC non ha un indirizzo IP{% elif not machine.attiva %}: monitoraggio disattivato{% else %}: il job giornaliero non ha ancora letto questa stampante{% endif %}.</p>
+        {% endif %}
         {% if machine.supplies_url %}
-        <form method="post" action="{{ machine.supplies_url }}" hx-post="{{ machine.supplies_url }}" hx-target="#mfc-supplies-{{ machine.id }}" hx-disabled-elt="find button" hx-indicator="#mfc-loading-{{ machine.id }}" hx-on::response-error="document.getElementById('mfc-supplies-{{ machine.id }}').textContent='Lettura non disponibile. Verifica i permessi o riprova.'" hx-on::send-error="document.getElementById('mfc-supplies-{{ machine.id }}').textContent='Connessione non disponibile. Riprova.'">
+        <form method="post" action="{{ machine.supplies_url }}" hx-post="{{ machine.supplies_url }}" hx-target="#mfc-supplies-{{ machine.id }}" hx-disabled-elt="find button" hx-on::response-error="document.getElementById('mfc-supplies-{{ machine.id }}').textContent='Lettura non disponibile. Verifica i permessi o riprova.'" hx-on::send-error="document.getElementById('mfc-supplies-{{ machine.id }}').textContent='Connessione non disponibile. Riprova.'">
           {% csrf_token %}<input type="hidden" name="asset_inline" value="1">
-          <button class="af-btn af-btn-secondary" type="submit">Leggi consumabili qui</button>
-          <span class="htmx-indicator" id="mfc-loading-{{ machine.id }}" role="status">Lettura in corso…</span>
+          <button class="af-btn af-btn-secondary" type="submit" title="Mette in coda una lettura: il risultato compare qui appena il job la completa">Leggi adesso</button>
         </form>
-        <div id="mfc-supplies-{{ machine.id }}" aria-live="polite"><p class="af-note">Premi per vedere toner e altri consumabili in questa scheda. La lettura contatta la stampante e può richiedere alcuni secondi.</p></div>
-        {% else %}<p class="af-note">Lettura consumabili non disponibile: occorrono monitoraggio attivo, indirizzo IP e permesso di lettura.</p>{% endif %}
+        <div id="mfc-supplies-{{ machine.id }}" aria-live="polite"></div>
+        {% endif %}
+
+        <h3>Pagine stampate per mese</h3>
+        {% if s.pagine_mesi %}
+          {% if s.contatori_vecchi %}<p class="af-mfc-stale" role="status"><strong>Ultima lettura contatori del {{ machine.reading.rilevata_il|date:"d/m/Y" }}:</strong> il job mensile non legge da {{ s.contatori_eta_giorni }} giorni.</p>{% endif %}
+          {% if s.trend %}<p class="af-note">Ultimi 3 mesi: media {{ s.trend.media_recente }} pagine/mese, {% if s.trend.direzione == 'su' %}in aumento del {{ s.trend.delta_pct }}%{% elif s.trend.direzione == 'giu' %}in calo del {{ s.trend.delta_abs }}%{% else %}stabile{% endif %} rispetto ai 3 precedenti.</p>{% endif %}
+          <div class="af-table-wrap"><table class="af-table af-mfc-pages"><thead><tr><th>Mese</th><th>B/N</th><th>Colore</th><th>Totale</th><th aria-hidden="true"></th></tr></thead><tbody>
+            {% for m in s.pagine_mesi reversed %}<tr>
+              <td>{{ m.mese|date:"m/Y" }}</td>
+              {% if m.totale is None %}<td colspan="3"><small>Non calcolabile (mese mancante o contatore azzerato)</small></td><td></td>
+              {% else %}<td>{{ m.bn }}</td><td>{{ m.col }}</td><td><strong>{{ m.totale }}</strong></td><td aria-hidden="true"><span class="af-mfc-bar" style="width:{{ m.altezza_pct }}%"></span></td>{% endif %}
+            </tr>{% endfor %}
+          </tbody></table></div>
+        {% else %}<p class="af-note">Servono almeno due letture mensili consecutive per calcolare le pagine del mese.</p>{% endif %}
+
+        {% if s.errore_snmp %}<p class="af-mfc-stale"><strong>Ultimo errore SNMP</strong>{% if machine.snmp_ultimo_controllo %} ({{ machine.snmp_ultimo_controllo|date:"d/m/Y H:i" }}){% endif %}: {{ s.errore_snmp }}</p>{% endif %}
+        <p><a class="as-link-subtle" href="{{ machine.url }}">Apri la scheda in Contatori →</a></p>
       </div>
+      {% endwith %}
     {% endfor %}
-    {% if not it_monitoring.devices and not it_monitoring.machines %}<p>Nessun monitoraggio collegato consultabile. Non equivale a dispositivo spento.</p>{% endif %}
+    {% if it_monitoring.mfc_unlinked %}
+      <div class="af-it-diff af-mfc-unlinked" role="group" aria-label="Stampante non collegata">
+        <p><strong>Questa stampante non è collegata a nessuna MFC del modulo Contatori:</strong> consumabili e pagine stampate non possono comparire qui.</p>
+        {% if it_monitoring.mfc_unlinked.candidates %}
+          <p>MFC non collegate con la stessa matricola o lo stesso IP:</p>
+          <ul>{% for c in it_monitoring.mfc_unlinked.candidates %}<li>
+            MFC {{ c.reparto }} · {{ c.matricola }}{% if c.host %} · {{ c.host }}{% endif %}
+            {% if it_monitoring.mfc_unlinked.can_link %}<form method="post" action="{{ it_monitoring.mfc_unlinked.reconcile_url }}" style="display:inline">{% csrf_token %}<input type="hidden" name="row" value="mfc:{{ c.id }}:{{ asset.id }}"><input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="af-btn af-btn-secondary" type="submit">Collega</button></form>{% endif %}
+          </li>{% endfor %}</ul>
+        {% else %}
+          <p class="af-note">Nessuna MFC corrisponde per matricola o IP. {% if it_monitoring.mfc_unlinked.can_link %}<a href="{{ it_monitoring.mfc_unlinked.reconcile_url }}?vista=senza">Apri la riconciliazione</a>.{% endif %}</p>
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if not it_monitoring.devices and not it_monitoring.machines and not it_monitoring.mfc_unlinked %}<p>Nessun monitoraggio collegato consultabile. Non equivale a dispositivo spento.</p>{% endif %}
     <p class="af-note">Massimo 10 collegamenti per tipo. Consulta la centrale per l'elenco completo; apparati diversi non vengono sommati.</p>
+    {% include "assets/partials/storico_campi_lazy.html" with storico_gruppo="" storico_titolo="Cosa è cambiato: stato, assegnazione e rete" storico_target="asset-storico-monitor" %}
   </div>
 </section>
 {% endif %}

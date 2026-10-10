@@ -76,13 +76,28 @@ class FlottaTests(_AuthedClientMixin, TestCase):
         self.assertEqual(ordine, ["Beta critica", "Gamma mai", "Zeta ok"])
         self.assertEqual(r.context["critici"], 1)
 
-    def test_leggi_ora_salva_e_restituisce_la_riga(self):
+    def test_leggi_ora_accoda_e_la_riga_segue_lo_stato(self):
+        cache.clear()
+        with mock.patch("contatori.tasks.async_task") as accoda, \
+                mock.patch.object(services, "leggi_consumabili_macchina", side_effect=AssertionError("no SNMP")):
+            r = self.client.post(reverse("contatori:consumabili_aggiorna", args=[self.mai.pk]))
+        accoda.assert_called_once()
+        self.assertContains(r, f'id="cons-{self.mai.pk}"')
+        self.assertContains(r, "Lettura in coda")
         with mock.patch.object(services, "leggi_consumabili_macchina",
                                return_value=([{"nome": "Nero", "pct": 55, "nota": ""}], None)):
-            r = self.client.post(reverse("contatori:consumabili_aggiorna", args=[self.mai.pk]))
-        self.assertContains(r, f'id="cons-{self.mai.pk}"')
+            tasks.leggi_consumabili(self.mai.pk)
+        r = self.client.get(reverse("contatori:macchina_consumabili", args=[self.mai.pk]) + "?vista=riga")
         self.assertContains(r, "55%")
+        self.assertNotContains(r, "Lettura in coda")
         self.assertTrue(LetturaConsumabile.objects.filter(macchina=self.mai, pct=55).exists())
+
+    def test_leggi_ora_senza_gestione_negato(self):
+        with mock.patch("contatori.permessi.puo_gestire", return_value=False), \
+                mock.patch("contatori.tasks.async_task") as accoda:
+            r = self.client.post(reverse("contatori:consumabili_aggiorna", args=[self.mai.pk]))
+        self.assertEqual(r.status_code, 403)
+        accoda.assert_not_called()
 
     def test_centrale_segnala_consumabili_da_ordinare(self):
         titoli = [t["titolo"] for t in services.cruscotto_operativo()["da_fare"]]

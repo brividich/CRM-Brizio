@@ -630,6 +630,7 @@ body.theme-dark .af-tab:hover { background:rgba(255,255,255,.07); color:#93c5fd;
 body.theme-dark .af-tab[aria-selected="true"] { background:#2563eb; color:#fff; }
 body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
 @media (max-width:640px) { .af-kpiband-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+.af-qr-head { display:flex; flex-direction:column; align-items:center; gap:2px; margin-left:auto; font-size:.7em; font-weight:700; letter-spacing:.06em; opacity:.85; }
 </style>
 <section class="af-page{% if it_presentation %} af-it-page{% endif %}">
   <div class="af-header">
@@ -664,7 +665,9 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
             <img class="af-targhetta" src="{{ asset.foto_targhetta.url }}" alt="Targhetta {{ asset.name }}" loading="lazy">
           </button>
         {% endif %}
+        <div class="af-qr-head">{% include "assets/partials/qr_thumb.html" with qr_asset_id=asset.id qr_size="lg" %}<span>QR</span></div>
       </div>
+      {% include "assets/partials/qr_dialog.html" %}
       <div class="af-sub">
         <span class="af-pill {% if asset_status.badge_class == 'ok' %}af-pill--ok{% elif asset_status.badge_class == 'danger' %}af-pill--danger{% else %}af-pill--warn{% endif %}">{{ asset_status.label }}</span>
         {% if asset.part_145 %}<span class="af-pill af-pill--part145" title="Rientra nel regolamento aeronautico PART 145">PART 145</span>{% endif %}
@@ -1176,7 +1179,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
               <div class="af-mini">
                 <div class="af-mini-label">Mese</div>
                 <div class="af-mini-value">
-                  {% if asset_maintenance_costs.cost_month %}&euro;&nbsp;{{ asset_maintenance_costs.cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}
+                  {% if not asset_maintenance_costs.cost_month|kpi_ok %}{{ asset_maintenance_costs.cost_month }}{% elif asset_maintenance_costs.cost_month %}&euro;&nbsp;{{ asset_maintenance_costs.cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}
                 </div>
                 <div class="af-mini-meta">{{ asset_maintenance_costs.count_month }} intervento/i</div>
               </div>
@@ -1524,11 +1527,12 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
           </div>
         {% elif card.code == "QR" %}
           <div class="af-card-body" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            {% include "assets/partials/qr_thumb.html" with qr_asset_id=asset.id qr_size="lg" %}
             <a class="af-btn af-btn-secondary" href="{{ asset_qr_url }}" target="_blank" rel="noopener">Apri etichetta QR</a>
             {% if asset_label_designer_url %}
               <a class="af-btn" href="{{ asset_label_designer_url }}">Personalizza</a>
             {% endif %}
-            <span class="af-note" style="margin-left:auto;">Il QR punta alla scheda asset.</span>
+            <span class="af-note" style="margin-left:auto;">{% if asset.public_qr_enabled and asset.public_qr_token %}Il QR apre la scheda mobile pubblica (senza login).{% else %}Il QR apre la scheda mobile dietro login.{% endif %}</span>
           </div>
         {% elif card.code == "QUICK_ACTIONS" %}
           <div class="af-card-body">
@@ -1902,6 +1906,7 @@ body.theme-dark .af-tab-count { background:rgba(255,255,255,.12); }
   {# Storico audit dell'asset: risponde a "chi ha modificato questa scadenza". #}
   <section class="af-card af-span-full" style="margin-top:18px;" id="asset-storico-section" data-af-tab="Storico">
     {% include "core/components/_storico_modifiche.html" with storico=storico_audit titolo="Storico modifiche dell'asset" vuoto="Nessuna modifica tracciata per questo asset." %}
+    <div class="af-card-body">{% include "assets/partials/storico_campi_lazy.html" with storico_gruppo="" storico_titolo="Stato, assegnazione e rete: cosa è cambiato campo per campo" storico_target="asset-storico-campi" %}</div>
   </section>
 
 </section>

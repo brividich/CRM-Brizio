@@ -152,7 +152,9 @@ Colonne dinamiche:
 - La relazione e `1:1`: `Asset` resta il master record (tag, nome, stato, reparto), `WorkMachine` contiene le colonne specifiche di officina.
 
 ## QR asset
-- Il QR stampato punta alla landing pubblica `/assets/qr/pub/<public_qr_token>/` (sola lettura, senza login); `?target=detail` forza la scheda autenticata.
+- Il QR stampato punta alla landing pubblica `/assets/qr/pub/<public_qr_token>/` (sola lettura, senza login) **solo se il link pubblico e' abilitato**; altrimenti alla landing interna `/assets/qr/<asset_tag>/` (login). `?target=detail` forza la scheda autenticata.
+- Il link pubblico e' opt-in (audit B3): `Asset.save()` non crea token, `public_qr_enabled` nasce `False`. Abilitare/disattivare/rigenerare passa solo da `services/asset_qr.py` (anteprima QR della scheda, permesso `admin_assets` o azione `assets/asset_qr_public`).
+- Immagine QR: `/assets/view/<id>/qr.png?size=s|m|l[&download=1]` (PNG generato dal portale, in cache); anteprima `/assets/view/<id>/qr/`; etichette multiple `/assets/view/qr-etichette/?ids=1,2,3` (max 200).
 - Se `SITE_URL` e configurato, i PDF etichetta usano quella base canonica per le route QR (es. `https://hub.cnovicrom.local/assets/qr/pub/<token>/`) invece dello scheme visto dalla request interna IIS/Waitress.
 - Con `public_qr_enabled=False` la landing risponde 404.
 - La landing mostra i ticket aperti dell'asset; su ciascuno si allega un rapportino/foto (`asset_qr_ticket_upload`, solo POST, solo JPG/PNG/PDF). I file nascono «Da validare» per il team gestore (`tickets/allegati.py`). Con il form attivo la landing pubblica usa `Referrer-Policy: same-origin`: con `no-referrer` Chromium invia `Origin: null` e il CSRF rifiuta il POST. `ASSETS_QR_PUBLIC_TICKET_UPLOAD=0` spegne il caricamento dal QR pubblico.

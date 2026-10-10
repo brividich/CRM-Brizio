@@ -33,6 +33,7 @@
     <div class="af-table-wrap"><table class="af-table"><thead><tr><th>Endpoint</th><th>IP</th><th>VLAN</th><th>Switch</th><th>Porta SW</th><th>Porta patch panel</th></tr></thead><tbody>
     {% for endpoint in it_presentation.endpoints %}<tr><td>{{ endpoint.endpoint_name|default:"Non indicato" }}</td><td>{{ endpoint.ip|default:"—" }}</td><td>{{ endpoint.vlan|default_if_none:"—" }}</td><td>{{ endpoint.switch_name|default:"—" }}</td><td>{{ endpoint.switch_port|default:"—" }}</td><td>{{ endpoint.punto|default:"—" }}</td></tr>{% empty %}<tr><td colspan="6">Nessuna interfaccia censita.</td></tr>{% endfor %}
     </tbody></table></div>
+    {% include "assets/partials/storico_campi_lazy.html" with storico_gruppo="rete" storico_titolo="Cosa è cambiato nella rete" storico_target="asset-storico-rete" %}
     {% if it_presentation.profile != 'printer' %}<h3>Configurazione dichiarata</h3>
     <p class="af-note">I vecchi campi Sì/No non distinguono un controllo negativo da un dato mai verificato. Queste dichiarazioni non attestano lo stato attuale; MFA e credenziali si verificano nelle rispettive console.</p>
     <div class="af-specs">{% for row in it_presentation.declarations %}<div class="af-spec-item"><span class="af-spec-k">{{ row.label }}</span><span class="af-spec-v">{{ row.value }}</span></div>{% empty %}<p>Profilo IT non compilato.</p>{% endfor %}</div>

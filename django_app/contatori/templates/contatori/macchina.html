@@ -51,13 +51,13 @@
   <div class="row">
     <h2 style="margin:0">Consumabili (toner, tamburi, fusore)</h2>
     <div class="spacer"></div>
-    <button class="btn ghost"
+    {% if g %}<button class="btn ghost"
             hx-post="{% url 'contatori:macchina_consumabili' macchina.pk %}"
             hx-target="#consumabili"
             hx-swap="innerHTML"
             hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
             hx-disabled-elt="this"
-            hx-indicator="#cons-load">Leggi ora via SNMP</button>
+            hx-indicator="#cons-load">Leggi ora via SNMP</button>{% endif %}
   </div>
   <div id="cons-load" class="htmx-indicator pos" style="margin-top:8px">Lettura in corso…</div>
   <div id="consumabili">{% if consumabili_stato %}

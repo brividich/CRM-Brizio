@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 56
+**Totale automazioni disponibili:** 58
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -116,11 +116,23 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `assets.tasks.run_maintenance_reminders`
 - **Cosa fa:** ASSETS — promemoria scadenze manutenzione / verifiche periodiche + OdL scaduti. Destinatari SiteConfig assets_reminder_emails con FALLBACK su ADMINS/superuser (non no-op puro): disattivabile dalla Centrale di comando.
 
+### `assets_report_catalogo_invii`
+
+- **Quando gira:** ogni 15 minuti
+- **Task eseguito:** `assets.services.report_catalog.invia_report_pianificati`
+- **Cosa fa:** ASSETS — report salvati con invio pianificato (catalogo report): ogni 15 minuti invia quelli in scadenza, solo ai destinatari che hanno ancora accesso al report.
+
 ### `assets_reportistica`
 
 - **Quando gira:** ogni minuto
 - **Task eseguito:** `assets.services.reporting.dispatch_due_reports`
 - **Cosa fa:** ASSETS — reportistica programmata dalle Impostazioni: controlla le scadenze, archivia snapshot e PDF/Excel, recupera gli errori temporanei (max 3 tentativi).
+
+### `assets_storico_retention`
+
+- **Quando gira:** ogni giorno, alle 03:15
+- **Task eseguito:** `assets.services.storico_asset.applica_retention`
+- **Cosa fa:** ASSETS — retention dello storico campi (stato, assegnazione, rete) alle 03:15. Con ASSETS_STORICO_RETENTION_GIORNI=0 (default) non elimina nulla; l'ultima voce di ogni campo resta sempre, per la vista "com'era alla data".
 
 ### `intake_verifiche_periodiche`
 

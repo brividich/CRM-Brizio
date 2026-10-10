@@ -13,6 +13,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from core.audit import log_action
 
@@ -124,6 +125,10 @@ def it_reconciliation(request: HttpRequest) -> HttpResponse:
             messages.success(request, f"{len(linked)} dispositivi collegati.")
         if skipped:
             messages.warning(request, f"{skipped} righe non collegate: proposta cambiata o permesso mancante.")
+        # «Collega» dalla scheda asset: si torna alla scheda (solo URL interni).
+        target = request.POST.get("next") or ""
+        if url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+            return redirect(target)
         return redirect("assets:it_reconciliation")
     rows, counts = _rows(request)
     view = request.GET.get("vista") or "proposte"

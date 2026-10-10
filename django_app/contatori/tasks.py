@@ -86,7 +86,10 @@ def run_letture_consumabili():
 def leggi_consumabili(pk):
     from .services import leggi_consumabili_macchina, salva_consumabili
 
+    from .lettura_ora import registra_esito
+
     key = f"contatori:queued:contatori.tasks.leggi_consumabili:{pk}"
+    riuscita = False
     try:
         macchina = Macchina.objects.filter(pk=pk, attiva=True).first()
         if macchina is None or not macchina.host:
@@ -94,6 +97,9 @@ def leggi_consumabili(pk):
         consumabili, errore = leggi_consumabili_macchina(macchina)
         if errore:
             raise RuntimeError(f"Lettura consumabili fallita per MFC {pk}; consultare la pagina Consumabili.")
-        return {"macchina_id": pk, "salvati": salva_consumabili(macchina, consumabili)}
+        salvati = salva_consumabili(macchina, consumabili)
+        riuscita = True
+        return {"macchina_id": pk, "salvati": salvati}
     finally:
+        registra_esito(pk, ok=riuscita)
         cache.delete(key)

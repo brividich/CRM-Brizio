@@ -1250,6 +1250,20 @@ def _asset_model():
         return None
 
 
+def _storico_asset(asset_ids, *, fonte: str, utente=None, dettaglio: str = ""):
+    """Storico assegnazioni asset (servizio unico di ``assets``), transazionale con la modifica.
+
+    Senza il modulo asset installato e' un blocco vuoto: le scritture restano invariate.
+    """
+    from contextlib import nullcontext
+
+    if not django_apps.is_installed("assets"):
+        return nullcontext()
+    from assets.services.storico_asset import traccia
+
+    return traccia(asset_ids, fonte=fonte, utente=utente, dettaglio=dettaglio)
+
+
 LDAP_DIAG_FIELDS: tuple[dict[str, object], ...] = (
     {
         "key": "enabled",
@@ -5949,13 +5963,15 @@ def _delete_legacy_user_with_dependencies(utente: UtenteLegacy) -> dict[str, int
 
     with transaction.atomic():
         if asset_model is not None:
-            released_assets = int(
-                asset_model.objects.filter(assigned_legacy_user_id=utente.id).update(
-                    assigned_legacy_user_id=None,
-                    assignment_to="",
-                    assignment_reparto="",
+            assigned_ids = list(asset_model.objects.filter(assigned_legacy_user_id=utente.id).values_list("id", flat=True))
+            with _storico_asset(assigned_ids, fonte="admin", dettaglio=f"Eliminazione utente #{utente.id}"):
+                released_assets = int(
+                    asset_model.objects.filter(assigned_legacy_user_id=utente.id).update(
+                        assigned_legacy_user_id=None,
+                        assignment_to="",
+                        assignment_reparto="",
+                    )
                 )
-            )
 
         UserPermissionOverride.objects.filter(legacy_user_id=utente.id).delete()
         UserDashboardConfig.objects.filter(legacy_user_id=utente.id).delete()
@@ -6906,7 +6922,11 @@ def api_user_asset_assignments(request, user_id: int):
             if ana:
                 reparto = (ana.reparto or "").strip()[:120]
 
-        with transaction.atomic():
+        touched_ids = set(valid_ids) | set(
+            asset_model.objects.filter(assigned_legacy_user_id=utente.id).values_list("id", flat=True)
+        )
+        with _storico_asset(touched_ids, fonte="api", utente=request.user,
+                            dettaglio=f"Assegnazioni da anagrafica utente #{utente.id}"):
             released = asset_model.objects.filter(assigned_legacy_user_id=utente.id).exclude(id__in=valid_ids).update(
                 assigned_legacy_user_id=None,
                 assignment_to="",

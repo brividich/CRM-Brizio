@@ -6,5 +6,5 @@
   {% if riepilogo.peggiore and not riepilogo.critici %}<span class="cons-item muted">più basso: {{ riepilogo.peggiore.nome }} {{ riepilogo.peggiore.pct }}%</span>{% endif %}
 </span>
 {% else %}
-<span class="cons-esito" data-stato="errore" data-peggiore="101"><span class="pill warn">Non raggiungibile</span> <span class="cons-item muted">{{ errore|truncatechars:80 }}</span></span>
+<span class="cons-esito" data-stato="errore" data-peggiore="101"><span class="pill warn">Mai letta</span> <span class="cons-item muted">{{ errore|truncatechars:80 }}</span></span>
 {% endif %}

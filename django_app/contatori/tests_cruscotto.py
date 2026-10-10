@@ -91,10 +91,11 @@ class NavigazioneTests(_AuthedClientMixin, TestCase):
 
 
 class ConsumabiliTests(_AuthedClientMixin, TestCase):
-    def test_riepilogo_non_raggiungibile_marcato_per_ordinamento(self):
-        from . import views
+    def test_riepilogo_mai_letta_marcata_per_ordinamento(self):
+        from . import services
         m = Macchina.objects.create(reparto="Alfa", matricola="SYN-8", host="192.0.2.48")
-        with mock.patch.object(views, "_leggi_consumabili_cfg", return_value=(None, "timeout")):
+        # Il riepilogo e' un GET: legge solo lo storico, mai la stampante.
+        with mock.patch.object(services, "leggi_consumabili_macchina", side_effect=AssertionError("no SNMP")):
             r = self.client.get(reverse("contatori:consumabili_riepilogo", args=[m.pk]))
         self.assertContains(r, 'data-stato="errore"')
-        self.assertContains(r, "Non raggiungibile")
+        self.assertContains(r, "Mai letta")

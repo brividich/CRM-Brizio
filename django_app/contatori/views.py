@@ -6,7 +6,7 @@ from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from core.audit import log_action
 from . import services
@@ -429,31 +429,59 @@ def analisi(request):
     })
 
 
-def _leggi_consumabili_cfg(macchina):
-    """Legge i consumabili e, se la lettura riesce, la salva nello storico."""
-    consumabili, errore = services.leggi_consumabili_macchina(macchina)
-    if consumabili:
-        services.salva_consumabili(macchina, consumabili)
-    return consumabili, errore
+_VISTE_LETTURA = {"asset", "macchina", "riga"}
 
 
-@require_POST
+def _nega_lettura(request):
+    """«Leggi ora» scrive nello storico: serve la gestione. JSON/fragment 403, mai redirect."""
+    from django.http import JsonResponse
+
+    if (request.headers.get("X-Requested-With") or "").lower() == "xmlhttprequest":
+        return JsonResponse({"ok": False, "error": "Permesso «Contatori - Gestione» richiesto."}, status=403)
+    return HttpResponse('<p class="af-note" role="status">Serve il permesso «Contatori - Gestione» per leggere adesso.</p>',
+                        status=403)
+
+
+def _frammento_lettura(request, macchina, vista):
+    """Stato della lettura richiesta: in coda (il frammento si ri-interroga) o conclusa (dati salvati)."""
+    from . import lettura_ora
+
+    stato = lettura_ora.stato(macchina.pk) or {"stato": lettura_ora.OK}
+    salvato = services.stato_consumabili([macchina]).get(macchina.pk)
+    ctx = {
+        "macchina": macchina, "vista": vista, "lettura": stato,
+        "in_coda": stato["stato"] == lettura_ora.IN_CODA,
+        "fallita": stato["stato"] == lettura_ora.ERRORE,
+        "stato_url": reverse("contatori:macchina_consumabili", args=[macchina.pk]) + f"?vista={vista}",
+        "scaduta": stato.get("scaduta", False),
+        "salvato": salvato, "soglia": services.SOGLIA_CONSUMABILE_PCT,
+    }
+    if vista == "riga":
+        ctx["r"] = _riga_consumabili(macchina, salvato)
+        return render(request, "contatori/_consumabili_riga.html", ctx)
+    return render(request, "contatori/_lettura_ora.html", ctx)
+
+
+@require_http_methods(["GET", "POST"])
 def macchina_consumabili(request, pk):
-    """Legge lo stato consumabili via SNMP; ritorna il frammento HTMX."""
+    """«Leggi ora»: POST accoda il job di lettura (niente SNMP nella request), GET ne
+    segue lo stato (polling HTMX, sola lettura: stessa route e stesso binding ACL)."""
+    from . import lettura_ora
+    from .permessi import puo_gestire
+
+    if request.method == "GET":
+        macchina = get_object_or_404(Macchina, pk=pk)
+        vista = request.GET.get("vista") if request.GET.get("vista") in _VISTE_LETTURA else "macchina"
+        return _frammento_lettura(request, macchina, vista)
+    if not puo_gestire(request):
+        return _nega_lettura(request)
     macchina = get_object_or_404(Macchina, pk=pk)
-    consumabili, errore = _leggi_consumabili_cfg(macchina)
-    if request.POST.get("asset_inline") == "1":
-        # Same POST route and ACL as Contatori; never echo raw network errors.
-        supplies = []
-        for item in (consumabili or [])[:20]:
-            pct = item.get("pct")
-            supplies.append({"nome": item.get("nome", "Consumabile"),
-                             "display_pct": pct if type(pct) in (int, float) and 0 <= pct <= 100 else None})
-        return render(request, "contatori/_consumabili_asset.html", {
-            "supplies": supplies, "failed": bool(errore), "checked_at": timezone.now(),
-        })
-    return render(request, "contatori/_consumabili.html",
-                  {"consumabili": consumabili, "errore": errore, "macchina": macchina})
+    vista = "asset" if request.POST.get("asset_inline") == "1" else "macchina"
+    if not macchina.host or not macchina.attiva:
+        return HttpResponse('<p class="af-note" role="status">Lettura non disponibile: MFC disattivata o senza IP.</p>')
+    lettura_ora.accoda(macchina)
+    log_action(request, "contatori_consumabili_leggi_ora", "contatori", {"macchina_id": macchina.pk})
+    return _frammento_lettura(request, macchina, vista)
 
 
 def _riga_consumabili(macchina, stato):
@@ -486,28 +514,30 @@ def consumabili_flotta(request):
 
 @require_POST
 def consumabili_aggiorna(request, pk):
-    """«Leggi ora» di una riga: lettura SNMP, salvataggio, riga aggiornata (HTMX)."""
+    """«Leggi ora» di una riga della flotta: job in coda, la riga segue lo stato (HTMX)."""
+    from . import lettura_ora
+    from .permessi import puo_gestire
+
+    if not puo_gestire(request):
+        return _nega_lettura(request)
     macchina = get_object_or_404(Macchina, pk=pk, attiva=True)
-    _, errore = _leggi_consumabili_cfg(macchina)
-    stato = services.stato_consumabili([macchina]).get(macchina.pk)
-    return render(request, "contatori/_consumabili_riga.html", {
-        "r": _riga_consumabili(macchina, stato), "errore": errore,
-        "soglia": services.SOGLIA_CONSUMABILE_PCT,
-    })
+    lettura_ora.accoda(macchina)
+    log_action(request, "contatori_consumabili_leggi_ora", "contatori", {"macchina_id": macchina.pk})
+    return _frammento_lettura(request, macchina, "riga")
 
 
 def macchina_consumabili_riepilogo(request, pk):
     """Frammento compatto per la vista flotta: peggior livello + critici (≤15%)."""
+    # Solo l'ultima lettura salvata: un GET non interroga la stampante e non scrive.
     macchina = get_object_or_404(Macchina, pk=pk)
-    consumabili, errore = _leggi_consumabili_cfg(macchina)
+    stato = services.stato_consumabili([macchina]).get(macchina.pk)
     riepilogo = None
-    if consumabili:
-        misurabili = [c for c in consumabili if c["pct"] is not None]
-        critici = [c for c in misurabili if c["pct"] <= 15]
+    errore = "" if stato else "nessuna lettura salvata"
+    if stato:
         riepilogo = {
-            "peggiore": min(misurabili, key=lambda c: c["pct"]) if misurabili else None,
-            "critici": critici,
-            "n_totali": len(consumabili),
+            "peggiore": stato["peggiore"],
+            "critici": stato["critici"],
+            "n_totali": len(stato["voci"]),
         }
     return render(request, "contatori/_consumabili_riepilogo.html",
                   {"riepilogo": riepilogo, "errore": errore, "macchina": macchina})

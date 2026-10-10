@@ -304,6 +304,7 @@
         </div>
         {% if asset %}
           <div class="wmf-inline-actions">
+            {% include "assets/partials/qr_thumb.html" with qr_asset_id=asset.id qr_size="lg" %}
             <a class="btn btn-secondary" href="{% url 'assets:asset_qr_label' asset.id %}" target="_blank" rel="noopener">QR scheda</a>
             {% if asset_label_designer_url %}
               <a class="btn" href="{{ asset_label_designer_url }}">Personalizza etichetta</a>
@@ -403,6 +404,7 @@
       {% endfor %}
     </datalist>
   {% endif %}
+  {% if asset %}{% include "assets/partials/qr_dialog.html" %}{% endif %}
 </section>
 {% endblock %}
 

@@ -12,6 +12,7 @@ from .models import (
     AssetDetailSectionLayout,
     AssetDocument,
     AssetEndpoint,
+    AssetFieldHistory,
     AssetITDetails,
     AssetLabelTemplate,
     AssetListLayout,
@@ -32,6 +33,7 @@ from .models import (
     WorkOrder,
     WorkOrderLog,
 )
+from .services.storico_asset import traccia
 
 class AssetEndpointInline(admin.TabularInline):
     model = AssetEndpoint
@@ -90,7 +92,9 @@ class AssetAdmin(admin.ModelAdmin):
         "model",
         "public_qr_token",
     )
-    readonly_fields = ("public_qr_token",)
+    # Il link pubblico si abilita solo dalla scheda asset (azione tracciata);
+    # qui resta la sola disabilitazione d'emergenza.
+    readonly_fields = ("public_qr_token", "public_qr_enabled")
     actions = ("disable_public_qr",)
     inlines = [
         AssetEndpointInline,
@@ -100,6 +104,22 @@ class AssetAdmin(admin.ModelAdmin):
         AssetComponentInline,
         AssetAdministrativeDeadlineInline,
     ]
+
+    # Storico (PROMPT 06 - C): il form e gli inline (punti rete) si salvano dentro un
+    # unico blocco tracciato; per un asset nuovo l'id si aggiunge dopo il salvataggio.
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if request.method != "POST":
+            return super().changeform_view(request, object_id, form_url, extra_context)
+        ids = [int(object_id)] if object_id and str(object_id).isdigit() else []
+        with traccia(ids, fonte=AssetFieldHistory.FONTE_ADMIN, utente=request.user, dettaglio="Admin Django") as storico:
+            request._storico_asset = storico
+            return super().changeform_view(request, object_id, form_url, extra_context)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        storico = getattr(request, "_storico_asset", None)
+        if storico is not None:
+            storico.aggiungi(obj.pk)
 
     @admin.action(description="Disabilita QR pubblico")
     def disable_public_qr(self, request, queryset):
@@ -194,6 +214,23 @@ class AssetEndpointAdmin(admin.ModelAdmin):
     list_display = ("asset", "endpoint_name", "vlan", "ip", "switch_name", "switch_port", "punto")
     search_fields = ("asset__asset_tag", "asset__name", "endpoint_name", "ip", "switch_name")
     list_filter = ("vlan",)
+
+    # Storico rete (PROMPT 06 - C): anche le modifiche dall'admin passano dal servizio unico.
+    def save_model(self, request, obj, form, change):
+        ids = {obj.asset_id}
+        if change and obj.pk:
+            ids |= set(AssetEndpoint.objects.filter(pk=obj.pk).values_list("asset_id", flat=True))
+        with traccia(ids, fonte=AssetFieldHistory.FONTE_ADMIN, utente=request.user, dettaglio="Admin Django"):
+            super().save_model(request, obj, form, change)
+
+    def delete_model(self, request, obj):
+        with traccia([obj.asset_id], fonte=AssetFieldHistory.FONTE_ADMIN, utente=request.user, dettaglio="Admin Django"):
+            super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        ids = set(queryset.values_list("asset_id", flat=True))
+        with traccia(ids, fonte=AssetFieldHistory.FONTE_ADMIN, utente=request.user, dettaglio="Admin Django"):
+            super().delete_queryset(request, queryset)
 
 
 @admin.register(AssetITDetails)

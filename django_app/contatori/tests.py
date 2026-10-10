@@ -178,27 +178,49 @@ class ConsumabiliTest(_AuthedClientMixin, TestCase):
         self.assertEqual(out[1]["nota"], "presente")
         self.assertEqual(out[2]["pct"], None)
 
-    def test_vista_consumabili_ok(self):
+    def test_vista_consumabili_accoda_e_poi_mostra_i_livelli(self):
+        from django.core.cache import cache
+
+        from . import tasks
+        cache.clear()
         m = Macchina.objects.first()
+        m.host = "10.0.0.98"; m.attiva = True; m.save()
         dati = [{"nome": "Black Toner", "pct": 47, "nota": ""},
                 {"nome": "Fuser Unit", "pct": 10, "nota": ""}]
-        with mock.patch("contatori.snmp.leggi_consumabili", return_value=dati):
+        with mock.patch("contatori.tasks.async_task") as accoda, \
+                mock.patch("contatori.snmp.leggi_consumabili", side_effect=AssertionError("no SNMP in request")):
             r = self.client.post(reverse("contatori:macchina_consumabili", args=[m.pk]))
         self.assertEqual(r.status_code, 200)
+        accoda.assert_called_once()
+        self.assertContains(r, "Lettura in coda")
+        with mock.patch("contatori.snmp.leggi_consumabili", return_value=dati):
+            tasks.leggi_consumabili(m.pk)
+        r = self.client.get(reverse("contatori:macchina_consumabili", args=[m.pk]))
         self.assertContains(r, "Black Toner")
         self.assertContains(r, "47%")
 
     def test_vista_consumabili_errore(self):
-        m = Macchina.objects.first()
-        with mock.patch("contatori.snmp.leggi_consumabili",
-                        side_effect=SNMPError("host irraggiungibile")):
-            r = self.client.post(reverse("contatori:macchina_consumabili", args=[m.pk]))
-        self.assertContains(r, "host irraggiungibile")
+        from django.core.cache import cache
 
-    def test_consumabili_solo_post(self):
+        from . import tasks
+        cache.clear()
         m = Macchina.objects.first()
+        m.host = "10.0.0.97"; m.attiva = True; m.save()
+        with mock.patch("contatori.tasks.async_task"):
+            self.client.post(reverse("contatori:macchina_consumabili", args=[m.pk]))
+        with mock.patch("contatori.snmp.leggi_consumabili", side_effect=SNMPError("host irraggiungibile")):
+            with self.assertRaises(RuntimeError):
+                tasks.leggi_consumabili(m.pk)
         r = self.client.get(reverse("contatori:macchina_consumabili", args=[m.pk]))
-        self.assertEqual(r.status_code, 405)
+        self.assertContains(r, "Lettura non riuscita")
+        self.assertNotContains(r, "host irraggiungibile")
+
+    def test_consumabili_get_e_solo_stato(self):
+        m = Macchina.objects.first()
+        with mock.patch("contatori.tasks.async_task") as accoda:
+            r = self.client.get(reverse("contatori:macchina_consumabili", args=[m.pk]))
+        self.assertEqual(r.status_code, 200)
+        accoda.assert_not_called()
 
     def test_flotta_solo_macchine_con_host(self):
         m = Macchina.objects.get(matricola="2YM19974")
@@ -215,7 +237,8 @@ class ConsumabiliTest(_AuthedClientMixin, TestCase):
         m.host = "10.0.0.99"; m.save()
         dati = [{"nome": "Black Toner", "pct": 8, "nota": ""},
                 {"nome": "Cyan Toner", "pct": 60, "nota": ""}]
-        with mock.patch("contatori.snmp.leggi_consumabili", return_value=dati):
+        services.salva_consumabili(m, dati)
+        with mock.patch("contatori.snmp.leggi_consumabili", side_effect=AssertionError("GET senza SNMP")):
             r = self.client.get(reverse("contatori:consumabili_riepilogo", args=[m.pk]))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "critico")

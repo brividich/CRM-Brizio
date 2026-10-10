@@ -1,0 +1,14 @@
+{# Storico campi caricato quando si apre il riquadro (nessuna query in piu' sulla scheda). Parametri: storico_gruppo, storico_titolo, storico_target. #}
+<style>
+.af-storico-filtri { display:flex; flex-wrap:wrap; gap:8px 12px; margin:8px 0 10px; font-size:.9em; }
+.af-storico-filtri label { display:flex; flex-direction:column; gap:2px; font-weight:600; }
+.af-storico-filtri select, .af-storico-filtri input { min-width:130px; padding:4px 6px; border:1px solid var(--border, #cbd5e1); border-radius:6px; background:var(--surface, #fff); color:inherit; }
+.af-storico-alla-data { margin:8px 0 12px; padding:10px; border:1px dashed var(--border, #cbd5e1); border-radius:8px; }
+.af-storico-fonte { font-size:.85em; white-space:nowrap; }
+</style>
+<details class="af-it-disclosure af-storico-box">
+  <summary>{{ storico_titolo }}</summary>
+  <div id="{{ storico_target }}" hx-get="{% url 'assets:asset_field_history' asset.id %}?gruppo={{ storico_gruppo }}&amp;target={{ storico_target }}" hx-trigger="toggle from:closest details once" hx-swap="outerHTML">
+    <p class="af-note">Caricamento storico…</p>
+  </div>
+</details>

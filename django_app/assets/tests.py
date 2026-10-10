@@ -47,6 +47,7 @@ from .maintenance import (
     upsert_asset_maintenance_rule_state,
 )
 from .services.asset_catalog_import import AssetCatalogImporter
+from .services.asset_qr import abilita_link_pubblico
 from .models import (
     MaintenanceOccurrence,
     Asset,
@@ -2690,6 +2691,7 @@ class AssetsRoutingTests(TestCase):
             source_key="manual-wm-qr-https",
         )
         WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-https")
+        abilita_link_pubblico(asset)  # link pubblico opt-in (audit B3)
         self.client.force_login(self.user)
 
         with patch("assets.views._draw_asset_label_pdf") as draw_label:
@@ -2709,13 +2711,14 @@ class AssetsRoutingTests(TestCase):
             source_key="manual-wm-qr-no-public",
         )
         WorkMachine.objects.create(asset=asset, source_key="manual-wm-qr-no-public")
+        abilita_link_pubblico(asset)  # link pubblico opt-in (audit B3)
         self.client.force_login(self.user)
 
         with patch("assets.views._draw_asset_label_pdf") as draw_label:
             response = self.client.get(reverse("assets:asset_qr_label", kwargs={"id": asset.id}))
 
         self.assertEqual(response.status_code, 200)
-        # Il QR non deve mai puntare a una pagina che richiede login: landing pubblica.
+        # Link pubblico abilitato: il QR punta alla landing pubblica (senza login).
         self.assertEqual(
             draw_label.call_args.kwargs["target_url"],
             response.wsgi_request.build_absolute_uri(
@@ -2732,6 +2735,7 @@ class AssetsRoutingTests(TestCase):
             reparto="CNC",
             source_key="manual-wm-qr-public-landing",
         )
+        abilita_link_pubblico(asset)
 
         response = self.client.get(
             reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": asset.public_qr_token})
@@ -2755,6 +2759,7 @@ class AssetsRoutingTests(TestCase):
             name="Macchina QR disattivata",
             source_key="manual-wm-qr-public-off",
         )
+        abilita_link_pubblico(asset)
         token = asset.public_qr_token
         Asset.objects.filter(pk=asset.pk).update(public_qr_enabled=False)
 
@@ -2934,14 +2939,10 @@ class AssetsRoutingTests(TestCase):
             email="asset-label-logo-admin@test.local",
             password="pass12345",
         )
-        png_logo = SimpleUploadedFile(
-            "logo.png",
-            (
-                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
-                b"\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\x8d\xb1\x87\x00\x00\x00\x00IEND\xaeB`\x82"
-            ),
-            content_type="image/png",
-        )
+        # PNG vero: il logo ora passa anche dalla verifica Pillow (audit A9).
+        png_buffer = io.BytesIO()
+        Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(png_buffer, format="PNG")
+        png_logo = SimpleUploadedFile("logo.png", png_buffer.getvalue(), content_type="image/png")
         self.client.force_login(admin)
         with _workspace_temporary_directory("assets-label-logo-") as tmpdir:
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
@@ -9417,6 +9418,7 @@ class AssetPrivateMediaStorageWiringTests(TestCase):
             asset_type=Asset.TYPE_WORK_MACHINE,
             source_key="manual-docpriv-1",
         )
+        abilita_link_pubblico(asset)
         with (
             _workspace_temporary_directory("assets-media-") as media_root,
             _workspace_temporary_directory("assets-private-") as private_root,
