@@ -232,12 +232,20 @@
           <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Reset tabella</div>
           <div class="fmd-block-aside">Operazione irreversibile</div>
         </div>
-        <p class="fmd-ph-sub" style="margin:0 0 14px;">Cancella tutti i registri timbri locali e ricrea solo i nominativi dall'anagrafica centrale. I record con immagini verranno eliminati definitivamente.</p>
-        <form method="post" onsubmit="return confirm('Reset tabella timbri? Verranno cancellati tutti i registri locali e ricreati solo i nominativi dall\'anagrafica centrale.');">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="reset_table">
-          <button class="fmd-btn fmd-btn-ghost tim-btn-danger" type="submit"{% if schema_issue %} disabled{% endif %}><svg class="fmd-ico"><use href="#i-refresh"/></svg>Reset tabella</button>
-        </form>
+        <p class="fmd-ph-sub" style="margin:0 0 14px;">Cancella tutti i registri timbri locali e ricrea solo i nominativi dall'anagrafica centrale. Prima della cancellazione il registro viene salvato in un CSV nella cartella privata dei timbri (<code>backup/</code>).</p>
+        {% if user.is_superuser %}
+          <form method="post" class="tim-ov-form" onsubmit="return confirm('Reset del registro timbri? Verranno cancellati tutti i registri locali.');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reset_table">
+            <div class="hub-field">
+              <label for="reset-confirm">Scrivi RESET per confermare</label>
+              <input id="reset-confirm" type="text" name="confirm_text" autocomplete="off" required pattern="RESET" placeholder="RESET">
+            </div>
+            <button class="fmd-btn fmd-btn-ghost tim-btn-danger" type="submit" style="height:38px;"{% if schema_issue %} disabled{% endif %}><svg class="fmd-ico"><use href="#i-refresh"/></svg>Reset tabella</button>
+          </form>
+        {% else %}
+          <div class="tim-empty">Operazione riservata ai superutenti.</div>
+        {% endif %}
       </section>
 
     {# ── TAB LOG ──────────────────────────────────────────────────────────── #}

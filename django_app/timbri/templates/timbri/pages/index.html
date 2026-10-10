@@ -224,7 +224,10 @@
       var slots = r.slots.map(function (s) {
         if (!s.url) return '<div class="tim-spec"><span class="tim-spec-lbl">' + esc(s.label) + '</span>' + EMPTY_IMG + '</div>';
         var acts = '';
-        if (canCopy) acts += '<button type="button" class="tim-mini tim-mini-copy" data-tim-copy="' + esc(s.url) + '">Copia</button>';
+        if (canCopy) {
+          var cp = s.url + (s.url.indexOf('?') >= 0 ? '&' : '?') + 'copy=1';
+          acts += '<button type="button" class="tim-mini tim-mini-copy" data-tim-copy="' + esc(cp) + '">Copia</button>';
+        }
         if (canDownload) {
           var dl = s.url + (s.url.indexOf('?') >= 0 ? '&' : '?') + 'download=1';
           acts += '<a class="tim-mini tim-mini-copy" href="' + esc(dl) + '" download>Scarica</a>';

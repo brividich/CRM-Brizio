@@ -376,6 +376,21 @@ def cleanup_orphan_operatori() -> dict[str, int]:
     return summary
 
 
+def _backup_registro_csv() -> Path:
+    """Esporta l'intero registro (CSV compatibile con import_timbri_csv) nella
+    cartella privata dei timbri, prima di un reset. Solleva se non riesce."""
+    from django.conf import settings
+    from django.core.management import call_command
+
+    target_dir = Path(settings.TIMBRI_PRIVATE_ROOT) / "backup"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"registro_pre_reset_{timezone.localtime().strftime('%Y%m%d_%H%M%S')}.csv"
+    call_command("export_timbri_csv", str(target))
+    if not target.exists():
+        raise RuntimeError("file di backup non creato")
+    return target
+
+
 def reset_timbri_table() -> dict[str, int]:
     ensure_anagrafica_schema()
     summary = {
@@ -1420,15 +1435,32 @@ def configurazione_page(request):
             if schema_issue:
                 messages.error(request, schema_issue)
                 return redirect(redirect_url)
+            # Operazione distruttiva sull'intero registro: solo superutente,
+            # conferma scritta e backup CSV obbligatorio prima di cancellare.
+            if not request.user.is_superuser:
+                log_action(request, "timbri_reset_table_denied", "timbri", {"motivo": "non superutente"})
+                messages.error(request, "Il reset del registro è riservato ai superutenti.")
+                return redirect(redirect_url)
+            if str(request.POST.get("confirm_text") or "").strip() != "RESET":
+                messages.error(request, "Reset annullato: per confermare scrivi RESET nel campo di conferma.")
+                return redirect(redirect_url)
+            try:
+                backup_path = _backup_registro_csv()
+            except Exception as exc:
+                logger.exception("[timbri] backup pre-reset fallito")
+                messages.error(request, f"Reset annullato: backup del registro non riuscito ({exc}).")
+                return redirect(redirect_url)
             try:
                 result = reset_timbri_table()
+                result["backup_csv"] = str(backup_path)
                 messages.success(
                     request,
                     "Reset tabella completato. "
                     f"Immagini eliminate={result['deleted_images']} "
                     f"Registri eliminati={result['deleted_records']} "
                     f"Operatori eliminati={result['deleted_operatori']} "
-                    f"Nominativi reimportati={result['imported_operatori']}",
+                    f"Nominativi reimportati={result['imported_operatori']}. "
+                    f"Backup CSV: {backup_path.name}",
                 )
                 log_action(request, "timbri_reset_table", "timbri", result)
             except Exception as exc:
@@ -1530,23 +1562,31 @@ def serve_timbri_image(request, image_id: int):
     """Serve un'immagine timbro/firma verificando i permessi ACL.
     I file sono in TIMBRI_PRIVATE_ROOT, mai esposta dal web server.
     ?download=1  → forza Content-Disposition attachment (richiede timbri_download).
+    ?copy=1      → copia negli appunti dal pulsante «Copia» (richiede timbri_copy).
     Senza parametro → inline (richiede timbri_view).
     """
     as_download = request.GET.get("download") == "1"
+    as_copy = not as_download and request.GET.get("copy") == "1"
 
     if as_download:
         can_access = _can_download_timbri(request)
         denied_reason = "download_not_allowed"
+        tipo = "download"
+    elif as_copy:
+        can_access = _can_copy_timbri(request)
+        denied_reason = "copy_not_allowed"
+        tipo = "copy"
     else:
         can_access = _can_view_timbri(request)
         denied_reason = "permission_denied"
+        tipo = "view"
 
     if not can_access:
         log_action(
             request,
             "timbri_image_denied",
             "timbri",
-            {"image_id": int(image_id), "tipo": "download" if as_download else "view", "motivo": denied_reason},
+            {"image_id": int(image_id), "tipo": tipo, "motivo": denied_reason},
         )
         return HttpResponseForbidden("Accesso non autorizzato.")
 
@@ -1565,7 +1605,7 @@ def serve_timbri_image(request, image_id: int):
     content_type = "image/png" if ext == ".png" else "image/jpeg" if ext in {".jpg", ".jpeg"} else "application/octet-stream"
     log_action(
         request,
-        "timbri_image_download" if as_download else "timbri_image_view",
+        {"download": "timbri_image_download", "copy": "timbri_image_copy"}.get(tipo, "timbri_image_view"),
         "timbri",
         {
             "image_id": img.id,
@@ -1574,7 +1614,10 @@ def serve_timbri_image(request, image_id: int):
         },
     )
     response = FileResponse(storage.open(img.image.name, "rb"), content_type=content_type)
+    response["Cache-Control"] = "private, no-store"
     if as_download:
-        safe_name = img.original_filename or f"timbro_{img.id}{ext}"
+        from core.upload_mime import safe_filename
+
+        safe_name = safe_filename(img.original_filename).replace('"', "") or f"timbro_{img.id}{ext}"
         response["Content-Disposition"] = f'attachment; filename="{safe_name}"'
     return response

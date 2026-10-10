@@ -43,7 +43,7 @@ Parametri: record, active (True = attivo, immagini visibili; False = storico, im
           {% if slot.image %}
             {% url 'timbri:serve_image' slot.image.id as img_url %}
             <span class="tim-spec-box"><img src="{{ img_url }}" alt="{{ slot.label }} {{ record.codice_timbro }}" loading="lazy"></span>
-            {% if can_copy_timbri %}<button type="button" class="tim-mini tim-mini-copy" data-tim-copy="{{ img_url }}">Copia</button>{% endif %}
+            {% if can_copy_timbri %}<button type="button" class="tim-mini tim-mini-copy" data-tim-copy="{{ img_url }}?copy=1">Copia</button>{% endif %}
           {% else %}
             <span class="tim-spec-box is-empty" title="Nessuna immagine"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
           {% endif %}

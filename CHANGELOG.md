@@ -8,6 +8,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Timbri — reset protetto, permesso copia lato server, descrizioni corrette** (`django_app/timbri/views.py`, `timbri/tests.py`, `templates/timbri/pages/configurazione.html`, `pages/index.html`, `components/detail_record.html`, `components/report_record.html`, `django_app/dashboard/views_home_portale.py`, `django_app/hub_tools/views.py`, `django_app/setup_wizard/templates/setup_wizard/wizard.html`, `django_app/admin_portale/views.py`, `django_app/core/management/commands/seed_pulsanti_descrizioni.py`, `README.md`, `docs/moduli/timbri.md`, `docs/ai/03_BACKEND_MODULES.md`, `docs/presentazione_direzione/02_moduli_e_aree.md`).
+  - **Reset tabella**: solo superutenti (prima bastava il permesso di modifica), conferma scritta «RESET» e **backup CSV** del registro in `TIMBRI_PRIVATE_ROOT/backup/` prima di cancellare; se il backup fallisce il reset non parte. Tentativi negati in audit (`timbri_reset_table_denied`).
+  - **Copia immagine**: il pulsante usa `?copy=1`, che richiede il permesso `timbri_copy` lato server e scrive l'audit `timbri_image_copy` (prima bastava il permesso di consultazione). Immagini servite con `Cache-Control: private, no-store`; nome file del download sanitizzato.
+  - **Descrizioni**: il modulo non è più presentato come «timbrature/presenze» nella home (sottotitolo «Timbri, firme e sigle», unità KPI «attivi» invece di «in turno»), in Hub tools, nel Setup Wizard web, nel catalogo admin e nelle descrizioni dei pulsanti; scheda modulo riscritta (rimossi «report per periodo» e l'import SharePoint non più esistente). `deployment/setup_wizard.py` non è stato toccato (richiederebbe la rigenerazione dell'exe).
+  - 4 test nuovi/aggiornati (reset: backup e audit, conferma obbligatoria, negato a non superutente; copia: permesso e audit).
 - **Timbri — elenco e scheda più utili** (`django_app/timbri/views.py`, `timbri/tests.py`, `templates/timbri/pages/index.html`, `pages/record_form.html`, `components/detail_record.html`, `components/_timbri_ui.html`, `docs/moduli/timbri.md`).
   - Ricerca anche per **codice timbro** («chi ha il CNO Q101?»), ignorando gli spazi (`cnoq101` trova `CNO Q101`).
   - Filtri rapidi **Tutti / Con record attivi / Solo storico / Senza timbri** (`?stato=`); le tessere Dipendenti e Record attivi sono cliccabili.

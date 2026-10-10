@@ -64,7 +64,7 @@ Runbook completo: `docs/ASSET_REPORTISTICA.md`. Nessuna lettura SNMP live durant
 | `admin_portale` | Pannello admin custom (non Django admin); la pagina `/admin-portale/crea-release/` crea il package zip e include `Operazioni server` per selezionare TEST/PROD, avviare automaticamente il task schedulato elevato `\PortaleNovicrom\IISRestart_TEST/PROD` per riavviare sito/App Pool IIS e lanciare comandi terminale nel virtualenv dell'ambiente scelto; se il task non e' disponibile resta il fallback diretto IIS/processo Django |
 | `anagrafica` | Anagrafica dipendenti (integrata con AD/legacy DB, fallback automatico `email_notifica` -> `email` quando il dato legacy manca; onboarding tramite creazione dipendente su `/anagrafica/dipendenti/nuovo/`; tab impostazioni per associare i campi del form `+ Nuovo dipendente` alle liste onboarding/offboarding; offboarding dalla scheda dipendente con pratica task/restituzioni, dipendente ancora in forza fino alla chiusura, poi data cessazione, `attivo=0`, account scollegato e rimessa in forza inversa con ricollegamento account automatico quando identificabile in modo univoco) |
 | `notizie` | Bacheca notizie/comunicazioni |
-| `timbri` | Report timbrature (lettura da DB legacy) |
+| `timbri` | Registro timbri, firme e sigle del personale (non timbrature/presenze) |
 | `planimetria` | Wrapper per assets (modelli vuoti, solo reindirizzamento) |
 | `tickets` | Sistema ticket interni |
 | `rentri` | Tracciabilita rifiuti (normativa RENTRI) |

@@ -22,6 +22,8 @@ from django.db import connection
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
+from core.models import AuditLog
+
 from . import views as timbri_views
 from .models import OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue
 
@@ -283,17 +285,44 @@ class TimbriViewTests(TestCase):
 
     def test_config_page_can_reset_table_and_reimport_names(self):
         self.client.force_login(self.admin)
-        response = self.client.post(
-            reverse("timbri:configurazione") + "?tab=import",
-            {"action": "reset_table"},
-        )
+        tmpdir = _make_workspace_tempdir("timbri-reset")
+        try:
+            with override_settings(TIMBRI_PRIVATE_ROOT=tmpdir):
+                response = self.client.post(
+                    reverse("timbri:configurazione") + "?tab=import",
+                    {"action": "reset_table", "confirm_text": "RESET"},
+                )
+            backups = list((tmpdir / "backup").glob("registro_pre_reset_*.csv"))
+            self.assertEqual(len(backups), 1)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
         self.assertEqual(response.status_code, 302)
+        self.assertTrue(AuditLog.objects.filter(azione="timbri_reset_table").exists())
         self.assertEqual(RegistroTimbro.objects.count(), 0)
         self.assertEqual(RegistroTimbroImmagine.objects.count(), 0)
         self.assertEqual(OperatoreTimbri.objects.count(), 1)
         operatore = OperatoreTimbri.objects.get()
         self.assertEqual(operatore.legacy_anagrafica_id, self.legacy_id)
         self.assertEqual(operatore.full_name, "GENTILE SARA")
+
+    def test_reset_table_requires_written_confirmation(self):
+        RegistroTimbro.objects.create(operatore=OperatoreTimbri.objects.create(nome="A", cognome="B"), codice_timbro="KEEP1")
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse("timbri:configurazione"), {"action": "reset_table", "confirm_text": "reset?"})
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(RegistroTimbro.objects.filter(codice_timbro="KEEP1").exists())
+
+    def test_reset_table_denied_to_non_superuser_with_edit_permission(self):
+        RegistroTimbro.objects.create(operatore=OperatoreTimbri.objects.create(nome="A", cognome="B"), codice_timbro="KEEP2")
+        editor = User.objects.create_user(username="timbri-editor", password="pass12345")
+        _mark_onboarding_done(editor)
+        self.client.force_login(editor)
+        with patch("timbri.views._can_edit_timbri", return_value=True), patch(
+            "timbri.views._can_manage_timbri_config", return_value=True
+        ), patch("timbri.views._can_view_timbri", return_value=True):
+            response = self.client.post(reverse("timbri:configurazione"), {"action": "reset_table", "confirm_text": "RESET"})
+        self.assertIn(response.status_code, (302, 403))
+        self.assertTrue(RegistroTimbro.objects.filter(codice_timbro="KEEP2").exists())
 
     def test_reset_table_deduplicates_uppercase_legacy_rows(self):
         with connection.cursor() as cursor:
@@ -585,6 +614,33 @@ class TimbriDownloadAuditTests(TestCase):
                 self.assertNotIn(str(private_root), serialized)
                 # Su denied non viene esposto neanche il nome file fisico
                 self.assertNotIn("denied.png", serialized)
+        finally:
+            shutil.rmtree(private_root, ignore_errors=True)
+
+    def test_copy_requires_copy_permission_and_is_audited(self):
+        private_root = _make_workspace_tempdir("timbri-audit-copy")
+        try:
+            with override_settings(TIMBRI_PRIVATE_ROOT=str(private_root)):
+                image = RegistroTimbroImmagine(
+                    registro=self.registro,
+                    variante=RegistroTimbroImmagine.VARIANTE_TIMBRO,
+                    image=_png_upload("copy.png"),
+                )
+                image.save()
+                url = reverse("timbri:serve_image", args=[image.pk]) + "?copy=1"
+                self.client.force_login(self.basic_user)
+                with patch("timbri.views._can_view_timbri", return_value=True), patch(
+                    "timbri.views._can_copy_timbri", return_value=False
+                ):
+                    denied = self.client.get(url)
+                self.assertEqual(denied.status_code, 403)
+                denied_log = AuditLog.objects.filter(azione="timbri_image_denied").order_by("-id").first()
+                self.assertEqual((denied_log.dettaglio or {}).get("tipo"), "copy")
+                with patch("timbri.views._can_copy_timbri", return_value=True):
+                    allowed = self.client.get(url)
+                self.assertEqual(allowed.status_code, 200)
+                self.assertEqual(allowed["Cache-Control"], "private, no-store")
+                self.assertTrue(AuditLog.objects.filter(azione="timbri_image_copy", modulo="timbri").exists())
         finally:
             shutil.rmtree(private_root, ignore_errors=True)
 
