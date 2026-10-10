@@ -56,6 +56,10 @@ MODULE_AREA = {
     "setup_wizard": AREA_CORE,
     "monitoring": AREA_CORE,
     "ai_assistant": AREA_CORE,
+    # Banco "Piattaforma" della pagina Accessi (login, profilo, notifiche, ...):
+    # vedi core.permission_categories.
+    "piattaforma": AREA_CORE,
+    "glossario_tecnico": AREA_CORE,
     # Operations
     "anagrafica": AREA_OPERAZIONI,
     "assets": AREA_OPERAZIONI,
@@ -63,12 +67,17 @@ MODULE_AREA = {
     "tasks": AREA_OPERAZIONI,
     "planimetria": AREA_OPERAZIONI,
     "gestione_specifiche": AREA_OPERAZIONI,
+    "gestione_carichi_macchina": AREA_OPERAZIONI,
+    "fornitori": AREA_OPERAZIONI,
+    "contatori": AREA_OPERAZIONI,
     # HR / workflow
     "assenze": AREA_HR,
     "anomalie": AREA_HR,
     "tickets": AREA_HR,
     "timbri": AREA_HR,
     "notizie": AREA_HR,
+    "checklist_operativa": AREA_HR,
+    "suggestion_corner": AREA_HR,
     # Safety / compliance
     "dpi": AREA_SICUREZZA,
     "diario_preposto": AREA_SICUREZZA,
@@ -77,6 +86,9 @@ MODULE_AREA = {
     "rentri": AREA_SICUREZZA,
     "report_conformita": AREA_SICUREZZA,
     "sistema_gestione": AREA_SICUREZZA,
+    "schede_sicurezza": AREA_SICUREZZA,
+    "security": AREA_SICUREZZA,
+    "capa": AREA_SICUREZZA,
     # Automation
     "automazioni": AREA_AUTOMAZIONE,
 }

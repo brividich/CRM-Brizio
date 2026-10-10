@@ -18,9 +18,11 @@ from core.models import (
     AccessGroup,
     AccessGroupMembership,
     GroupPermissionGrant,
+    NavigationItem,
     PermissionDefinition,
     Profile,
     RolePermissionGrant,
+    RoutePermissionBinding,
 )
 from core.test_acl_v2 import _clear_legacy_acl_tables, _ensure_legacy_acl_tables
 
@@ -107,10 +109,86 @@ class AccessiUnificatiTest(TestCase):
         self.assertEqual(len(grouped_codes), len(set(grouped_codes)))
         self.assertTrue({PERM_A, PERM_B, *codes}.issubset(grouped_codes))
         operativo = next(group for group in module["gruppi"] if group["nature"] == "operativo")
-        maintenance = next(sub for sub in operativo["submodules"] if sub["key"] == "maintenance")
+        maintenance = next(sub for sub in operativo["submodules"] if sub["key"] == "manutenzione")
         self.assertTrue(set(codes[:3]).issubset({perm["code"] for perm in maintenance["permissions"]}))
-        self.assertContains(response, 'data-sottomodulo="maintenance"')
-        self.assertContains(response, "Accendi sottomodulo")
+        self.assertEqual(maintenance["label"], "Manutenzione: piani, regole e template")
+        self.assertContains(response, 'data-sottomodulo="manutenzione"')
+        self.assertContains(response, "Accendi categoria")
+
+    def test_moduli_con_nome_leggibile_e_area(self):
+        response = self.client.get(self.url)
+        module = next(row for row in response.context["module_rows"] if row["modulo"] == "assets")
+        self.assertEqual(module["label"], "Asset e manutenzione")
+        self.assertEqual(module["area"], "operazioni")
+        self.assertContains(response, "Asset e manutenzione")
+        self.assertContains(response, 'class="acl-area"')
+
+    def test_permessi_di_moduli_alias_finiscono_nel_banco_giusto(self):
+        """`sicurezza` e `rilevazione_incidenti` sono la stessa funzione: un banco solo."""
+        PermissionDefinition.objects.create(
+            code="legacy.sicurezza.sicurezza_lista", label="Sicurezza - Lista rilevazioni", module="sicurezza"
+        )
+        response = self.client.get(self.url)
+        moduli = {row["modulo"]: row for row in response.context["module_rows"]}
+        self.assertNotIn("sicurezza", moduli)
+        codes = {perm["code"]: perm for perm in moduli["rilevazione_incidenti"]["permissions"]}
+        self.assertEqual(codes["legacy.sicurezza.sicurezza_lista"]["source_module"], "sicurezza")
+        self.assertContains(response, "da sicurezza")
+
+    def test_verifica_collegamenti_segnala_i_binding_morti(self):
+        PermissionDefinition.objects.create(code="demo.morto.view", label="Demo morto", module="demo")
+        RoutePermissionBinding.objects.create(
+            permission_id="demo.morto.view",
+            route_name="demo:rotta_sparita",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            is_active=True,
+        )
+        response = self.client.get(self.url)
+        summary = response.context["link_summary"]
+        self.assertIn("demo.morto.view", summary["shadowed_codes"])
+        self.assertGreaterEqual(summary["stale_missing_route"], 1)
+        perm = next(
+            p for row in response.context["module_rows"] for p in row["permissions"] if p["code"] == "demo.morto.view"
+        )
+        self.assertEqual(perm["link_status"], "oscurato")
+        self.assertFalse(perm["governs_route"])
+        self.assertContains(response, "Verifica dei collegamenti")
+        self.assertContains(response, "demo:rotta_sparita")
+
+    def test_binding_morto_ma_richiesto_dal_menu_non_e_oscurato(self):
+        """Un permesso che nessuna rotta sceglie puo' ancora comandare una voce di menu."""
+        PermissionDefinition.objects.create(code="demo.menu.view", label="Demo menu", module="demo")
+        RoutePermissionBinding.objects.create(
+            permission_id="demo.menu.view",
+            route_name="demo:rotta_sparita_menu",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            is_active=True,
+        )
+        NavigationItem.objects.create(
+            code="demo-voce-menu", label="Demo", section="topbar", required_permission_code="demo.menu.view"
+        )
+        response = self.client.get(self.url)
+        perm = next(
+            p for row in response.context["module_rows"] for p in row["permissions"] if p["code"] == "demo.menu.view"
+        )
+        self.assertEqual(perm["link_status"], "menu")
+        self.assertNotIn("demo.menu.view", response.context["link_summary"]["shadowed_codes"])
+
+    def test_permesso_che_governa_una_pagina_elenca_le_rotte(self):
+        RoutePermissionBinding.objects.create(
+            permission_id=PERM_A,
+            route_name="admin_portale:accessi_semplice",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            priority=1,
+            is_active=True,
+        )
+        response = self.client.get(self.url)
+        perm = next(
+            p for row in response.context["module_rows"] for p in row["permissions"] if p["code"] == PERM_A
+        )
+        self.assertEqual(perm["link_status"], "pagine")
+        self.assertIn("admin_portale:accessi_semplice", perm["routes_preview"])
+        self.assertContains(response, 'data-link="pagine"')
 
     def test_i_livelli_non_scrivono_nulla_da_soli(self):
         """Applicare un livello muove gli interruttori: salva solo il pulsante."""
