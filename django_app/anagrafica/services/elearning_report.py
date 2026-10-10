@@ -22,7 +22,8 @@ from django.utils import timezone
 
 def _corsi_pubblicati():
     from ..models_formazione import TrainingCourse
-    return {c.pk: c for c in TrainingCourse.objects.filter(is_elearning=True, is_active=True, stato="ATTIVO")}
+    from .elearning_fruizione import corsi_pubblicati
+    return {c.pk: c for c in corsi_pubblicati()}
 
 
 def copertura(*, reparto: str = "", corso_id: int | None = None) -> dict:

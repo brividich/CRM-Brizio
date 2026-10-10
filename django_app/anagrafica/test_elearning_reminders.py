@@ -26,11 +26,15 @@ from core.models import Notifica
 
 
 def _corso_elearning(codice="ELE1", titolo="Sicurezza base e-learning", is_active=True):
+    from django.utils import timezone
+    from anagrafica.models_formazione import TrainingCompletionRule
     piano = TrainingPlan.objects.create(codice=f"P{codice}", nome=f"Piano {codice}")
-    return TrainingCourse.objects.create(
+    corso = TrainingCourse.objects.create(
         piano=piano, codice=codice, titolo=titolo, durata_ore_teorica=2, is_active=is_active,
         is_elearning=True, stato="ATTIVO",
     )
+    TrainingCompletionRule.objects.create(corso=corso, confermata_rspp_il=timezone.now())
+    return corso
 
 
 def _dipendente(nome: str) -> tuple[int, int]:

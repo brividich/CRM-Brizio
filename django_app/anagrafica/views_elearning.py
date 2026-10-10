@@ -60,15 +60,16 @@ def formazione_online_catalog(request):
     legacy_id, is_editor = _ctx_utente(request)
     assegnazioni = {}
     if legacy_id:
+        # Ordinati per ciclo: nel dizionario vince l'ultimo ciclo (il rinnovo).
         assegnazioni = {
             a.corso_id: a for a in TrainingAssignment.objects.filter(
                 legacy_anagrafica_id=legacy_id, stato__in=fruizione.STATI_ASSEGNAZIONE_ATTIVI,
                 corso__is_elearning=True,
-            )
+            ).order_by("ciclo")
         }
     corsi = (
-        TrainingCourse.objects.filter(is_elearning=True, is_active=True, stato="ATTIVO")
-        .filter(Q(pk__in=list(assegnazioni)) | Q(obbligatorio=False))
+        fruizione.corsi_pubblicati()
+        .filter(Q(pk__in=list(assegnazioni)) | Q(elearning_self_service=True))
         .select_related("piano", "categoria")
         .annotate(
             n_slide=Count("slides", filter=Q(slides__is_active=True), distinct=True),
@@ -78,12 +79,19 @@ def formazione_online_catalog(request):
     )
     iscrizioni = {}
     if legacy_id:
-        iscrizioni = {e.corso_id: e for e in TrainingElearningEnrollment.objects.filter(legacy_anagrafica_id=legacy_id)}
+        iscrizioni = {e.corso_id: e for e in TrainingElearningEnrollment.objects.filter(
+            legacy_anagrafica_id=legacy_id).order_by("ciclo")}
+        from .models_elearning import TrainingElearningSlideView
+        completate = dict(TrainingElearningSlideView.objects.filter(
+            enrollment__in=list(iscrizioni.values()), completata=True, slide__is_active=True)
+            .values("enrollment_id").annotate(n=Count("pk")).order_by().values_list("enrollment_id", "n"))
     cards = []
     oggi = timezone.localdate()
     for c in corsi:
         e = iscrizioni.get(c.pk)
         a = assegnazioni.get(c.pk)
+        if e is not None and a is not None and e.ciclo < a.ciclo:
+            e = None  # rinnovo assegnato, nuovo ciclo non ancora iniziato
         completato = bool(e and e.stato == "COMPLETATO")
         da_fare = bool(a) and a.stato not in ("COMPLETATO", "ESONERATO") and not completato
         cards.append({
@@ -96,8 +104,8 @@ def formazione_online_catalog(request):
             "assegnato_da_fare": da_fare,
             "due_date": a.due_date if a else None,
             "in_ritardo": bool(da_fare and a.due_date and a.due_date < oggi),
-            "progress_pct": round((e.ultima_slide_ordine or 0) / e.n_slide_totali * 100)
-            if e and e.n_slide_totali else 0,
+            "progress_pct": min(round(completate.get(e.pk, 0) / c.n_slide * 100), 100)
+            if e and c.n_slide else 0,
         })
     cards.sort(key=lambda x: (not x["assegnato_da_fare"], x["due_date"] or oggi.max, x["corso"].titolo.lower()))
     return render(request, "anagrafica/pages/formazione_online_catalog.html", {
@@ -167,9 +175,11 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
     pos = ordini.index(ordine)
     slide = slides[pos]
     secondi_mancanti = 0
+    completato = False
     if enr is not None:
         tracciamento.registra_vista(enr, slide, regola, ordini)
         secondi_mancanti = tracciamento.secondi_mancanti_slide(enr, slide, regola)
+        completato = _completa_senza_quiz(enr, regola, request.user)
 
     from .services.elearning_markdown import render_markdown
     return render(request, "anagrafica/partials/_formazione_online_slide.html", {
@@ -185,7 +195,20 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
         "progress_pct": round((pos + 1) / len(slides) * 100),
         "anteprima": accesso.anteprima,
         "secondi_mancanti": secondi_mancanti,
+        "completato": completato or (enr is not None and enr.stato == "COMPLETATO"),
     })
+
+
+def _completa_senza_quiz(enr, regola, user) -> bool:
+    """Corso senza quiz obbligatorio: completamento appena i requisiti (slide, tempo) sono soddisfatti."""
+    if regola.richiede_quiz or enr.stato == "COMPLETATO":
+        return False
+    from .services.elearning_completamento import RequisitiNonSoddisfatti, completa
+    try:
+        completa(enr, tentativo=None, user=user)
+        return True
+    except RequisitiNonSoddisfatti:
+        return False
 
 
 @login_required
@@ -209,10 +232,12 @@ def formazione_online_beat(request, corso_id: int):
         inattivo_ms = max(int(dati.get("inattivo_ms") or 0), 0)
     except (TypeError, ValueError):
         return JsonResponse({"ok": False, "motivo": "payload"}, status=400)
+    regola = regola_corso(corso)
     esito = tracciamento.beat(enr, slide_id=slide_id, visibile=bool(dati.get("visibile", True)),
-                              inattivo_ms=inattivo_ms, regola=regola_corso(corso), ordini=ordini)
-    if esito.get("slide_completata"):
-        enr.refresh_from_db(fields=["ultima_slide_ordine", "secondi_accreditati"])
+                              inattivo_ms=inattivo_ms, regola=regola, ordini=ordini)
+    if esito.get("credito"):
+        enr.refresh_from_db()
+        esito["completato"] = _completa_senza_quiz(enr, regola, request.user)
     esito["minuti_fatti"] = (type(enr).objects.filter(pk=enr.pk).values_list("secondi_accreditati", flat=True).first() or 0) // 60
     return JsonResponse(esito, status=200 if esito.get("ok") or esito.get("motivo") == "troppo_presto" else 409)
 
@@ -429,6 +454,7 @@ def _risposta_range(request, campo_file, content_type: str):
                 fh.close()
 
         resp = StreamingHttpResponse(_blocchi(), status=206, content_type=content_type)
+        resp._resource_closers.append(fh.close)  # anche se il client si disconnette prima
         resp["Content-Range"] = f"bytes {inizio}-{fine}/{dimensione}"
         resp["Content-Length"] = str(lunghezza)
         resp["Accept-Ranges"] = "bytes"
@@ -458,12 +484,12 @@ def elearning_impostazioni_corsi(request):
             if not corso.is_elearning and corso.stato == "ATTIVO":
                 messages.info(request, "Il corso resta pubblicato per l'aula; non è più erogabile online.")
             corso.save(update_fields=["is_elearning", "updated_at"])
-        elif azione == "facoltativo":
-            corso.obbligatorio = not corso.obbligatorio
-            corso.save(update_fields=["obbligatorio", "updated_at"])
+        elif azione == "self_service":
+            corso.elearning_self_service = not corso.elearning_self_service
+            corso.save(update_fields=["elearning_self_service", "updated_at"])
         log_action(request, "elearning_impostazione_corso", MODULE,
                    {"corso": corso.pk, "azione": azione, "is_elearning": corso.is_elearning,
-                    "obbligatorio": corso.obbligatorio}, oggetto=corso)
+                    "self_service": corso.elearning_self_service}, oggetto=corso)
         return redirect(f"{reverse('anagrafica:elearning_impostazioni_corsi')}?q={request.POST.get('q', '')}")
     q = (request.GET.get("q") or "").strip()
     qs = TrainingCourse.objects.filter(is_active=True).order_by("-is_elearning", "titolo")
@@ -547,7 +573,7 @@ def elearning_cruscotto(request):
     ctx = {
         "page_title": "Cruscotto e-learning", "copertura": cop, "andamento": report.andamento(),
         "domande": report.domande_piu_sbagliate(), "reparto": reparto, "corso_id": corso_id,
-        "corsi_opts": TrainingCourse.objects.filter(is_elearning=True, is_active=True, stato="ATTIVO").order_by("titolo"),
+        "corsi_opts": fruizione.corsi_pubblicati().order_by("titolo"),
         "persone": cop["persone"][:200] if reparto or corso_id else [],
     }
     if request.headers.get("HX-Request") and request.GET.get("parte") == "persone":

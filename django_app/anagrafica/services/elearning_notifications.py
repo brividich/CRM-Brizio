@@ -93,20 +93,21 @@ def iter_corsi_da_completare():
     from types import SimpleNamespace
     from ..models_formazione import TrainingAssignment, TrainingElearningEnrollment
 
-    pubblicati = {"corso__is_elearning": True, "corso__is_active": True, "corso__stato": "ATTIVO"}
+    from .elearning_fruizione import filtro_pubblicati
+    pubblicati = filtro_pubblicati("corso__")
     completati = set(
         TrainingElearningEnrollment.objects.filter(stato="COMPLETATO", **pubblicati)
-        .values_list("corso_id", "legacy_anagrafica_id")
+        .values_list("corso_id", "legacy_anagrafica_id", "ciclo")
     )
     voci: dict[tuple[int, int], object] = {}
     for e in (TrainingElearningEnrollment.objects
               .filter(stato__in=["ISCRITTO", "IN_CORSO", "NON_SUPERATO"], **pubblicati)
               .select_related("corso")):
-        voci[(e.corso_id, e.legacy_anagrafica_id)] = e
+        voci[(e.corso_id, e.legacy_anagrafica_id, e.ciclo)] = e
     for a in (TrainingAssignment.objects
               .filter(stato__in=["ASSEGNATO", "IN_CORSO", "SCADUTO"], **pubblicati)
               .select_related("corso")):
-        chiave = (a.corso_id, a.legacy_anagrafica_id)
+        chiave = (a.corso_id, a.legacy_anagrafica_id, a.ciclo)
         if chiave in voci or chiave in completati:
             continue
         voci[chiave] = SimpleNamespace(

@@ -713,10 +713,16 @@ class ElearningConfigForm(forms.ModelForm):
 
     _CON_DEFAULT = ("finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb")
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, puo_rspp: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
         for nome in self._CON_DEFAULT:  # non inviati = si tiene il valore attuale
             self.fields[nome].required = False
+        # Separazione dei ruoli: chi conferma le regole FAD lo decide solo il
+        # superuser, non chi le scrive (un editor non si nomina RSPP da solo).
+        self.puo_rspp = puo_rspp
+        if not puo_rspp:
+            self.fields["conferma_fad_utenti"].disabled = True
+            self.fields["conferma_fad_utenti"].help_text = "Modificabile solo dall'amministratore del portale."
         ids = [int(i) for i in (self.instance.conferma_fad_utente_ids or []) if str(i).isdigit()]
         if ids:
             from core.models import Profile
@@ -725,6 +731,8 @@ class ElearningConfigForm(forms.ModelForm):
 
     def clean_conferma_fad_utenti(self):
         from core.models import Profile
+        if not self.puo_rspp:
+            return list(self.instance.conferma_fad_utente_ids or [])
         nomi = [n.strip() for n in (self.cleaned_data.get("conferma_fad_utenti") or "").split(",") if n.strip()]
         trovati = dict(Profile.objects.filter(user__username__in=nomi).values_list("user__username", "legacy_user_id"))
         mancanti = [n for n in nomi if n not in trovati]

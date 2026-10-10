@@ -14053,10 +14053,11 @@ def formazione_corso_assegna(request, corso_id: int):
         messages.warning(request, "Nessun dipendente selezionato.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
 
+    from .services.elearning_fruizione import ciclo_per_nuova_assegnazione
     n_new = 0
     for lid in ids:
         _, created = TrainingAssignment.objects.get_or_create(
-            corso=corso, legacy_anagrafica_id=lid,
+            corso=corso, legacy_anagrafica_id=lid, ciclo=ciclo_per_nuova_assegnazione(corso, lid),
             defaults={
                 "stato": "ASSEGNATO",
                 "piano": corso.piano,
@@ -18851,7 +18852,7 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
             "quiz_punteggio_pct": str(attempt.punteggio_pct) if attempt else None,
             "quiz_corrette": attempt.n_corrette if attempt else None,
             "quiz_totali": attempt.n_totali if attempt else None,
-            "quiz_minimo_pct": corso.quiz_punteggio_minimo,
+            "quiz_minimo_pct": _regola_elearning_snapshot(corso).get("soglia_pct", corso.quiz_punteggio_minimo),
         },
     )
 
@@ -19142,8 +19143,9 @@ def formazione_elearning_assign(request, corso_id: int):
     from .services.elearning_notifications import notify_corso_assegnato
     n_new = 0
     for lid in ids:
+        from .services.elearning_fruizione import ciclo_per_nuova_assegnazione
         obj, created = TrainingAssignment.objects.get_or_create(
-            corso=corso, legacy_anagrafica_id=lid,
+            corso=corso, legacy_anagrafica_id=lid, ciclo=ciclo_per_nuova_assegnazione(corso, lid),
             defaults={"stato": "ASSEGNATO", "piano": corso.piano, "due_date": due, "assigned_by": request.user},
         )
         if created:
@@ -19184,16 +19186,23 @@ def formazione_elearning_settings(request):
         return redirect("anagrafica:formazione_elearning_hub")
     cfg = ElearningConfig.get_instance()
     if request.method == "POST":
-        form = ElearningConfigForm(request.POST, instance=cfg)
+        prima_rspp = list(cfg.conferma_fad_utente_ids or [])
+        form = ElearningConfigForm(request.POST, instance=cfg, puo_rspp=request.user.is_superuser)
         if form.is_valid():
             obj = form.save(commit=False)
             obj.updated_by = request.user
             obj.save()
+            from core.audit import log_action
+            log_action(request, "elearning_impostazioni", "anagrafica", {
+                "max_tentativi": obj.max_tentativi_quiz, "soglia_default": obj.quiz_punteggio_minimo_default,
+                "rinnovo_giorni": obj.finestra_rinnovo_giorni, "entro_giorni": obj.giorni_entro_default,
+                "conferma_fad_prima": prima_rspp, "conferma_fad_dopo": obj.conferma_fad_utente_ids,
+            }, oggetto=obj)
             messages.success(request, "Impostazioni e-learning salvate.")
             return redirect("anagrafica:formazione_elearning_settings")
         messages.error(request, "Controlla i campi: " + form.errors.as_text())
     else:
-        form = ElearningConfigForm(instance=cfg)
+        form = ElearningConfigForm(instance=cfg, puo_rspp=request.user.is_superuser)
     # Diagnostica LibreOffice (per l'import PowerPoint)
     from .services.elearning_import import find_libreoffice
     return render(request, "anagrafica/pages/formazione_elearning_settings.html", {

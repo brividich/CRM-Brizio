@@ -181,8 +181,11 @@ class ElearningImportTests(TestCase):
         self.client.force_login(u)
         # Corso pubblicato e facoltativo (self-service) -> l'utente può caricare l'immagine.
         # Prompt 05: un corso obbligatorio richiede l'assegnazione (vedi tests_elearning_sicurezza).
-        self.corso.is_elearning, self.corso.is_active, self.corso.stato, self.corso.obbligatorio = True, True, "ATTIVO", False
+        self.corso.is_elearning, self.corso.is_active, self.corso.stato = True, True, "ATTIVO"
+        self.corso.elearning_self_service = True
         self.corso.save()
+        from .models_formazione import TrainingCompletionRule
+        TrainingCompletionRule.objects.update_or_create(corso=self.corso, defaults={"confermata_rspp_il": _tz.now()})
         from core.legacy_models import AnagraficaDipendente, UtenteLegacy
         from core.models import Profile
         utente = UtenteLegacy.objects.create(nome="disc", email="d@e.it", password="x")

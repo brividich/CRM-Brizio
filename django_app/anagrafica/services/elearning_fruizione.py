@@ -4,7 +4,7 @@ Regole verificate **lato server** (rilascio 1 del prompt 05):
 
 - **Accesso**: il corso deve essere un e-learning pubblicato (attivo, stato ATTIVO).
   Il discente lo vede se gli è stato **assegnato** (assegnazione non esonerata)
-  oppure se il corso è **facoltativo** (self-service: ``obbligatorio=False``). Gli
+  oppure se il corso è in **self-service** (``elearning_self_service``). Gli
   editor della formazione vedono anche le bozze in anteprima, senza che venga
   registrato nulla.
 - **Avanzamento sequenziale**: la slide N si serve solo se tutte le precedenti sono
@@ -21,8 +21,26 @@ from django.db import transaction
 STATI_ASSEGNAZIONE_ATTIVI = ("ASSEGNATO", "IN_CORSO", "COMPLETATO", "SCADUTO", "RIMANDATO")
 
 
+# Un corso è online solo con le regole FAD confermate dall'RSPP: l'interruttore
+# «online» o una modifica delle regole non bastano a renderlo fruibile.
+FILTRO_PUBBLICATI = {"is_elearning": True, "is_active": True, "stato": "ATTIVO",
+                     "regola_superamento__confermata_rspp_il__isnull": False}
+
+
+def corsi_pubblicati():
+    from ..models_formazione import TrainingCourse
+    return TrainingCourse.objects.filter(**FILTRO_PUBBLICATI)
+
+
+def filtro_pubblicati(prefisso: str) -> dict:
+    return {f"{prefisso}{k}": v for k, v in FILTRO_PUBBLICATI.items()}
+
+
 def corso_pubblicato(corso) -> bool:
-    return bool(corso.is_elearning and corso.is_active and corso.stato == "ATTIVO")
+    if not (corso.is_elearning and corso.is_active and corso.stato == "ATTIVO"):
+        return False
+    from ..models_formazione import TrainingCompletionRule
+    return TrainingCompletionRule.objects.filter(corso=corso, confermata_rspp_il__isnull=False).exists()
 
 
 @dataclass
@@ -38,7 +56,7 @@ def accesso_discente(corso, legacy_id: int | None, *, is_editor: bool) -> Access
         return Accesso(False, motivo="Non è un corso e-learning.")
     if not corso_pubblicato(corso):
         return Accesso(is_editor, anteprima=is_editor, motivo="Corso non pubblicato.")
-    if legacy_id and (assegnato(corso, legacy_id) or not corso.obbligatorio):
+    if legacy_id and (assegnato(corso, legacy_id) or corso.elearning_self_service):
         return Accesso(True)
     if is_editor:
         return Accesso(True, anteprima=True, motivo="Anteprima editor: non assegnato.")
@@ -73,17 +91,6 @@ def tutte_viste(enr, ordini: list[int]) -> bool:
     return bool(enr) and bool(ordini) and (enr.ultima_slide_ordine or 0) >= max(ordini)
 
 
-def tentativi_massimi(enr, cfg) -> int:
-    """0 = illimitati. Lo sblocco HR aggiunge tentativi (``tentativi_extra``)."""
-    base = int(cfg.max_tentativi_quiz or 0)
-    return base + int(getattr(enr, "tentativi_extra", 0) or 0) if base else 0
-
-
-def tentativi_esauriti(enr, cfg) -> bool:
-    massimo = tentativi_massimi(enr, cfg)
-    return bool(massimo) and (enr.n_tentativi or 0) >= massimo
-
-
 def segna_slide_vista(corso, legacy_id: int, ordine: int, n_slide: int):
     """Aggiorna l'avanzamento sotto lock (avanza solo di una slide alla volta)."""
     with transaction.atomic():
@@ -100,6 +107,15 @@ def segna_slide_vista(corso, legacy_id: int, ordine: int, n_slide: int):
     return enr
 
 
+def ciclo_per_nuova_assegnazione(corso, legacy_id: int) -> int:
+    """Ciclo di un'assegnazione manuale: se il ciclo corrente è già completato, il successivo."""
+    from ..models_formazione import TrainingElearningEnrollment
+    ciclo = ciclo_corrente(corso, legacy_id)
+    completato = TrainingElearningEnrollment.objects.filter(
+        corso=corso, legacy_anagrafica_id=legacy_id, ciclo=ciclo, stato="COMPLETATO").exists()
+    return ciclo + 1 if completato else ciclo
+
+
 def ciclo_corrente(corso, legacy_id: int) -> int:
     """Il ciclo in corso: il più alto fra iscrizioni e assegnazioni (1 se nessuno)."""
     from django.db.models import Max
@@ -111,11 +127,17 @@ def ciclo_corrente(corso, legacy_id: int) -> int:
 
 def iscrizione(corso, legacy_id: int, n_slide: int, *, lock: bool = False):
     """L'iscrizione del discente al ciclo corrente (creata se manca); ``lock`` = select_for_update."""
+    from django.db import IntegrityError
     from ..models_formazione import TrainingElearningEnrollment
-    enr, _ = TrainingElearningEnrollment.objects.get_or_create(
-        corso=corso, legacy_anagrafica_id=legacy_id, ciclo=ciclo_corrente(corso, legacy_id),
-        defaults={"stato": "ISCRITTO", "n_slide_totali": n_slide, "versione_label_snapshot": (corso.versione or "")[:50]},
-    )
+    chiave = {"corso": corso, "legacy_anagrafica_id": legacy_id, "ciclo": ciclo_corrente(corso, legacy_id)}
+    try:
+        with transaction.atomic():
+            enr, _ = TrainingElearningEnrollment.objects.get_or_create(
+                **chiave, defaults={"stato": "ISCRITTO", "n_slide_totali": n_slide,
+                                    "versione_label_snapshot": (corso.versione or "")[:50]},
+            )
+    except IntegrityError:  # due richieste in parallelo (slide + battito): vale quella già scritta
+        enr = TrainingElearningEnrollment.objects.get(**chiave)
     if lock:
         enr = TrainingElearningEnrollment.objects.select_for_update().get(pk=enr.pk)
     if enr.n_slide_totali != n_slide:
@@ -127,15 +149,15 @@ def iscrizione(corso, legacy_id: int, n_slide: int, *, lock: bool = False):
 def sblocca_tentativi(enr, *, user, motivo: str, n: int | None = None):
     """Sblocco HR dei tentativi esauriti: aggiunge ``n`` tentativi (default: un giro intero)."""
     from django.core.exceptions import ValidationError
-    from ..models_formazione import ElearningConfig, TrainingElearningEnrollment
+    from ..models_formazione import TrainingElearningEnrollment
+    from .elearning_regole import regola_corso
 
     motivo = (motivo or "").strip()
     if not motivo:
         raise ValidationError("Il motivo dello sblocco è obbligatorio.")
-    cfg = ElearningConfig.get_instance()
     with transaction.atomic():
-        enr = TrainingElearningEnrollment.objects.select_for_update().get(pk=enr.pk)
-        aggiunti = int(n or cfg.max_tentativi_quiz or 1)
+        enr = TrainingElearningEnrollment.objects.select_for_update().select_related("corso").get(pk=enr.pk)
+        aggiunti = int(n or regola_corso(enr.corso).max_tentativi or 1)
         enr.tentativi_extra = (enr.tentativi_extra or 0) + aggiunti
         enr.save(update_fields=["tentativi_extra", "updated_at"])
     return enr, aggiunti

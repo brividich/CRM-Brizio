@@ -43,6 +43,10 @@ class _Base(TestCase):
             piano=piano, codice="EL1", titolo="Sicurezza online", durata_ore_teorica=1,
             is_elearning=True, is_active=True, stato="ATTIVO", obbligatorio=True, quiz_punteggio_minimo=100,
         )
+        # Online solo con le regole FAD confermate dall'RSPP.
+        from django.utils import timezone
+        from .models_formazione import TrainingCompletionRule
+        TrainingCompletionRule.objects.create(corso=self.corso, confermata_rspp_il=timezone.now())
         for i in (1, 2, 3):
             TrainingSlide.objects.create(corso=self.corso, ordine=i, titolo=f"Slide {i}", contenuto=f"Testo {i}")
         self.q = TrainingQuizQuestion.objects.create(corso=self.corso, ordine=1, testo="Domanda?")
@@ -87,7 +91,7 @@ class AccessoTests(_Base):
         self.assertNotContains(r, "Sicurezza online")
 
     def test_facoltativo_in_self_service(self):
-        self.corso.obbligatorio = False
+        self.corso.elearning_self_service = True
         self.corso.save()
         altro, _lid, _uid = _discente("facoltativo.el")
         self.client.force_login(altro)

@@ -62,8 +62,21 @@ def verifica(enr, regola: Regola, *, tentativo=None) -> tuple[dict, list[str]]:
     return foto, mancanti
 
 
+class _CorsaPersa(Exception):
+    pass
+
+
 def completa(enr, *, tentativo=None, user=None):
     """Registra il completamento (una volta sola). Ritorna il ``TrainingEmployeeRecord``."""
+    from ..models_elearning import TrainingElearningCompletamento
+    try:
+        return _completa(enr, tentativo=tentativo, user=user)
+    except _CorsaPersa:
+        # Corsa persa (DB senza lock reale): vale il completamento già scritto.
+        return TrainingElearningCompletamento.objects.get(enrollment_id=enr.pk).record
+
+
+def _completa(enr, *, tentativo=None, user=None):
     from ..models_elearning import TrainingElearningCompletamento
     from ..models_formazione import TrainingAssignment, TrainingElearningEnrollment
 
@@ -87,9 +100,7 @@ def completa(enr, *, tentativo=None, user=None):
                     creato_da=user if getattr(user, "is_authenticated", False) else None,
                 )
         except IntegrityError:
-            # Corsa persa (DB senza lock reale): vale il completamento già scritto.
-            transaction.set_rollback(True)
-            return TrainingElearningCompletamento.objects.get(enrollment=enr).record
+            raise _CorsaPersa()
         enr.stato = "COMPLETATO"
         enr.data_completamento = timezone.localdate()
         enr.record_completamento = record

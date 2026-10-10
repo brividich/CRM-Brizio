@@ -20,7 +20,7 @@
       <div>
         <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_elearning_hub' %}">E-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">Impostazioni corsi</span></div>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-gear"/></svg>Quali corsi si fanno online</h1>
-        <p class="fmd-ph-sub">Scegli i corsi erogabili online e se sono obbligatori (solo per chi li ha assegnati) o facoltativi (aperti a tutti). Le regole di fruizione di ogni corso le conferma l'RSPP prima della pubblicazione.</p>
+        <p class="fmd-ph-sub">Scegli i corsi erogabili online e se sono solo per chi li ha assegnati o aperti a tutti (self-service). Un corso è online solo quando è pubblicato e le sue regole sono confermate. Le regole di fruizione di ogni corso le conferma l'RSPP prima della pubblicazione.</p>
       </div>
       <div class="fmd-pagehead-actions">
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:elearning_cruscotto' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Cruscotto</a>
@@ -49,8 +49,8 @@
             <td>
               {% if c.is_elearning %}
               <form method="post" style="display:inline;">{% csrf_token %}
-                <input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="azione" value="facoltativo"><input type="hidden" name="q" value="{{ q }}">
-                <button class="fmd-btn fmd-btn-mini fmd-btn-ghost" type="submit">{% if c.obbligatorio %}Solo assegnati{% else %}Facoltativo (aperto){% endif %}</button>
+                <input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="azione" value="self_service"><input type="hidden" name="q" value="{{ q }}">
+                <button class="fmd-btn fmd-btn-mini fmd-btn-ghost" type="submit">{% if c.elearning_self_service %}Aperto a tutti (self-service){% else %}Solo assegnati{% endif %}</button>
               </form>
               {% else %}<span class="fmd-muted">—</span>{% endif %}
             </td>
@@ -62,7 +62,7 @@
               </a>
               {% else %}<span class="fmd-muted">—</span>{% endif %}
             </td>
-            <td>{% if c.is_elearning and c.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-green">Pubblicato</span>{% elif c.is_elearning %}<span class="fmd-badge fmd-b-grey">Bozza</span>{% else %}<span class="fmd-muted">Aula</span>{% endif %}</td>
+            <td>{% if c.is_elearning and c.stato == "ATTIVO" and c.regola_fad.confermata_rspp_il %}<span class="fmd-badge fmd-b-green">Online</span>{% elif c.is_elearning and c.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-amber">Non online: regole da confermare</span>{% elif c.is_elearning %}<span class="fmd-badge fmd-b-grey">Bozza</span>{% else %}<span class="fmd-muted">Aula</span>{% endif %}</td>
           </tr>
           {% empty %}
           <tr><td colspan="5" class="fmd-muted">Nessun corso.</td></tr>

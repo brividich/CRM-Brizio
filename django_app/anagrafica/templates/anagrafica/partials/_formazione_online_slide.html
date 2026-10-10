@@ -40,6 +40,9 @@
               hx-target="#fm-slide-target" hx-swap="innerHTML" hx-push-url="false">
         Avanti <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>
       </button>
+    {% elif completato %}
+      <span class="fmd-badge fmd-b-green">Corso completato</span>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_catalog' %}">Torna ai corsi</a>
     {% elif n_domande > 0 %}
       <a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_online_quiz' corso.pk %}">
         <svg class="fmd-ico"><use href="#i-check"/></svg> Vai al quiz finale

@@ -327,6 +327,9 @@ class TrainingCourse(models.Model):
         help_text="0 = una tantum, altrimenti durata in mesi prima del rinnovo",
     )
     obbligatorio   = models.BooleanField(default=False)
+    # E-learning in self-service: visibile a tutti senza assegnazione. Distinto da
+    # `obbligatorio`, che pilota filtri, idoneità ed export della conformità.
+    elearning_self_service = models.BooleanField(default=False)
     # ── Diritto soggettivo alla formazione (CCNL) ────────────────────────────
     # Il CCNL riconosce un monte ore di formazione — tipicamente non tecnico/
     # professionale — maturato su una finestra di 3 anni (24h). La formazione
@@ -2226,7 +2229,8 @@ class ElearningConfig(models.Model):
         default=60, help_text="Quanti giorni prima della scadenza si apre il ciclo di aggiornamento.")
     giorni_entro_default = models.PositiveSmallIntegerField(
         default=30, help_text="Scadenza di default delle assegnazioni automatiche (giorni).")
-    video_max_mb = models.PositiveSmallIntegerField(default=500, help_text="Dimensione massima di un video (MB).")
+    video_max_mb = models.PositiveSmallIntegerField(
+        default=100, help_text="Dimensione massima di un video (MB); oltre il limite upload del server non serve.")
     libreoffice_path = models.CharField(
         max_length=400, blank=True, default="",
         help_text="Percorso dell'eseguibile LibreOffice (soffice) per l'import PowerPoint. "

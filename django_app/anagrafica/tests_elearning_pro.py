@@ -148,7 +148,7 @@ class QuizTokenTests(_Pro):
         self.assertEqual(voce["scelte"], [self.giusta.pk])
 
     def test_attesa_tra_tentativi(self):
-        self._regola(el_attesa_minuti_tra_tentativi=10, confermata_rspp_il=None)
+        self._regola(el_attesa_minuti_tra_tentativi=10)
         self._vedi_tutte()
         url = reverse("anagrafica:formazione_online_quiz", args=[self.corso.pk])
         token = self.client.get(url).context["token"]
@@ -191,6 +191,7 @@ class RegoleFadEPubblicazioneTests(_Pro):
     def test_pubblicazione_bloccata_senza_conferma_rspp(self):
         self.corso.stato = "BOZZA"
         self.corso.save()
+        TrainingCompletionRule.objects.filter(corso=self.corso).update(confermata_rspp_il=None)
         self.client.force_login(self.admin)
         self.client.post(reverse("anagrafica:formazione_elearning_publish_toggle", args=[self.corso.pk]))
         self.corso.refresh_from_db()
@@ -299,3 +300,85 @@ class PermessoConfermaFadTests(_Pro):
         cfg.refresh_from_db()
         self.assertEqual(cfg.conferma_fad_utente_ids, [self.uid])
         self.assertEqual(cfg.finestra_rinnovo_giorni, 60)  # non inviato: resta il default
+
+
+class CorsoSenzaQuizTests(_Pro):
+    def test_completato_alla_fine_delle_slide(self):
+        self._regola(el_richiede_quiz=False)
+        with self.captureOnCommitCallbacks(execute=True):
+            self._vedi_tutte()
+        enr = self._enr()
+        self.assertEqual(enr.stato, "COMPLETATO")
+        self.assertEqual(TrainingElearningCompletamento.objects.filter(enrollment=enr).count(), 1)
+        self.assertEqual(TrainingEmployeeRecord.objects.filter(legacy_anagrafica_id=self.lid).count(), 1)
+
+    def test_assegnazione_manuale_dopo_un_rinnovo(self):
+        admin = User.objects.create_superuser("ass.el", "a@example.invalid", "x")
+        TrainingAssignment.objects.create(corso=self.corso, legacy_anagrafica_id=self.lid, ciclo=2)
+        self.client.force_login(admin)
+        r = self.client.post(reverse("anagrafica:formazione_elearning_assign", args=[self.corso.pk]),
+                             {"dipendenti_selezionati": [self.lid]})
+        self.assertIn(r.status_code, (200, 302))
+        self.assertEqual(TrainingAssignment.objects.filter(corso=self.corso, legacy_anagrafica_id=self.lid).count(), 2)
+
+
+class CorrezioniReviewTests(_Pro):
+    def test_interruttore_online_non_pubblica_senza_conferma(self):
+        from .models_formazione import TrainingCourse
+        from .services.elearning_fruizione import corso_pubblicato
+        aula = TrainingCourse.objects.create(piano=self.corso.piano, codice="AULA1", titolo="Aula",
+                                             durata_ore_teorica=1, is_active=True, stato="ATTIVO")
+        admin = User.objects.create_superuser("onl.el", "o@example.invalid", "x")
+        self.client.force_login(admin)
+        self.client.post(reverse("anagrafica:elearning_impostazioni_corsi"), {"corso_id": aula.pk, "azione": "online"})
+        aula.refresh_from_db()
+        self.assertTrue(aula.is_elearning)
+        self.assertFalse(corso_pubblicato(aula))
+
+    def test_regola_modificata_toglie_il_corso_dall_online(self):
+        from .services.elearning_fruizione import corso_pubblicato
+        TrainingCompletionRule.objects.filter(corso=self.corso).update(confermata_rspp_il=None)
+        self.assertFalse(corso_pubblicato(self.corso))
+        self.assertEqual(self._slide(1).status_code, 403)
+
+    def test_tentativo_scaduto_consuma_un_tentativo(self):
+        self._regola(el_tempo_quiz_minuti=1, el_max_tentativi=2)
+        self._vedi_tutte()
+        enr = self._enr()
+        regola = regola_corso(self.corso)
+        t = elearning_quiz.apri_tentativo(enr, regola, [1, 2, 3])
+        TrainingQuizAttempt.objects.filter(pk=t.pk).update(scade_il=timezone.now() - timedelta(minutes=1))
+        elearning_quiz.apri_tentativo(enr, regola, [1, 2, 3])  # quello scaduto si chiude e conta
+        self.assertEqual(self._enr().n_tentativi, 1)
+
+    def test_una_sessione_per_persona_su_tutti_i_corsi(self):
+        from .models_formazione import TrainingCourse
+        altro = TrainingCourse.objects.create(piano=self.corso.piano, codice="EL2", titolo="Altro online",
+                                              durata_ore_teorica=1, is_elearning=True, is_active=True, stato="ATTIVO")
+        TrainingCompletionRule.objects.create(corso=altro, confermata_rspp_il=timezone.now())
+        TrainingSlide.objects.create(corso=altro, ordine=1, titolo="S", contenuto="x")
+        TrainingAssignment.objects.create(corso=altro, legacy_anagrafica_id=self.lid)
+        self.client.get(reverse("anagrafica:formazione_online_player", args=[self.corso.pk]))
+        self.client.get(reverse("anagrafica:formazione_online_player", args=[altro.pk]))
+        self.assertEqual(TrainingElearningSessione.objects.filter(
+            enrollment__legacy_anagrafica_id=self.lid, chiusa=False).count(), 1)
+
+    def test_elenco_rspp_modificabile_solo_dal_superuser(self):
+        from .forms import ElearningConfigForm
+        from .models_formazione import ElearningConfig
+        cfg = ElearningConfig.get_instance()
+        form = ElearningConfigForm({"quiz_punteggio_minimo_default": 70, "validita_mesi_default": 0,
+                                    "max_tentativi_quiz": 0, "libreoffice_path": "",
+                                    "conferma_fad_utenti": self.user.username}, instance=cfg, puo_rspp=False)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        cfg.refresh_from_db()
+        self.assertEqual(cfg.conferma_fad_utente_ids, [])
+
+    def test_catalogo_mostra_il_rinnovo_da_fare(self):
+        TrainingElearningEnrollment.objects.create(corso=self.corso, legacy_anagrafica_id=self.lid, stato="COMPLETATO")
+        TrainingAssignment.objects.create(corso=self.corso, legacy_anagrafica_id=self.lid, ciclo=2,
+                                          due_date=timezone.localdate() + timedelta(days=10))
+        r = self.client.get(reverse("anagrafica:formazione_online_catalog"))
+        card = next(c for c in r.context["cards"] if c["corso"].pk == self.corso.pk)
+        self.assertTrue(card["assegnato_da_fare"])

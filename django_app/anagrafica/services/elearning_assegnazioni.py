@@ -38,8 +38,8 @@ def sincronizza(legacy_ids=None, *, oggi=None, notifica: bool = True) -> dict:
     entro = oggi + timedelta(days=int(cfg.giorni_entro_default or 30))
     finestra = oggi + timedelta(days=int(cfg.finestra_rinnovo_giorni or 60))
 
-    pubblicati = set(TrainingCourse.objects.filter(is_elearning=True, is_active=True, stato="ATTIVO")
-                     .values_list("pk", flat=True))
+    from .elearning_fruizione import corsi_pubblicati
+    pubblicati = set(corsi_pubblicati().values_list("pk", flat=True))
     report = {"persone": 0, "assegnate": 0, "rinnovi": 0, "gia_presenti": 0}
     if not pubblicati:
         return report

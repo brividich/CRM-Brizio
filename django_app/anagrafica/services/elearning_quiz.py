@@ -38,7 +38,7 @@ def blocco(enr, regola: Regola, ordini: list[int], *, adesso=None) -> str:
 
     if enr.stato == "COMPLETATO":
         return "Hai già completato questo corso."
-    if regola.richiede_tutte_slide and not (ordini and (enr.ultima_slide_ordine or 0) >= max(ordini)):
+    if regola.richiede_tutte_slide and not tutte_completate(enr):
         return "Il quiz si apre dopo aver completato tutte le slide."
     if regola.tempo_minimo_minuti and (enr.secondi_accreditati or 0) < regola.tempo_minimo_minuti * 60:
         mancano = regola.tempo_minimo_minuti - (enr.secondi_accreditati or 0) // 60
@@ -47,13 +47,33 @@ def blocco(enr, regola: Regola, ordini: list[int], *, adesso=None) -> str:
     if massimo and (enr.n_tentativi or 0) >= massimo:
         return "Hai esaurito i tentativi disponibili: chiedi a HR lo sblocco."
     if regola.attesa_minuti:
-        ultimo = (TrainingQuizAttempt.objects.filter(enrollment=enr, stato="INVIATO", inviato_il__isnull=False)
-                  .order_by("-inviato_il").values_list("inviato_il", flat=True).first())
+        # Anche un tentativo lasciato scadere fa partire l'attesa (dall'apertura).
+        ultimo = (TrainingQuizAttempt.objects.filter(enrollment=enr, stato__in=("INVIATO", "SCADUTO"))
+                  .exclude(iniziato_il__isnull=True, inviato_il__isnull=True)
+                  .order_by("-iniziato_il", "-inviato_il").values_list("iniziato_il", flat=True).first())
         adesso = adesso or timezone.now()
         if ultimo and adesso < ultimo + timedelta(minutes=regola.attesa_minuti):
             minuti = int((ultimo + timedelta(minutes=regola.attesa_minuti) - adesso).total_seconds() // 60) + 1
             return f"Puoi riprovare il quiz fra {minuti} minuti."
     return ""
+
+
+def _scadi(enr, tentativo) -> None:
+    """Un tentativo lasciato scadere CONSUMA un tentativo: altrimenti, facendo
+    scadere i quiz, si vedrebbe tutta la banca domande senza limiti."""
+    tentativo.stato = "SCADUTO"
+    tentativo.save(update_fields=["stato"])
+    enr.n_tentativi = (enr.n_tentativi or 0) + 1
+    enr.save(update_fields=["n_tentativi", "updated_at"])
+
+
+def tutte_completate(enr) -> bool:
+    """Tutte le slide attive completate (anche quelle aggiunte dopo l'inizio del corso)."""
+    from ..models_elearning import TrainingElearningSlideView
+    attive = set(enr.corso.slides.filter(is_active=True).values_list("pk", flat=True))
+    fatte = set(TrainingElearningSlideView.objects.filter(
+        enrollment=enr, completata=True, slide_id__in=attive).values_list("slide_id", flat=True))
+    return bool(attive) and attive <= fatte
 
 
 def tentativi_rimasti(enr, regola: Regola):
@@ -71,8 +91,7 @@ def apri_tentativo(enr, regola: Regola, ordini: list[int], *, user=None):
         if aperto is not None:
             if aperto.scade_il is None or aperto.scade_il > adesso:
                 return aperto
-            aperto.stato = "SCADUTO"
-            aperto.save(update_fields=["stato"])
+            _scadi(enr, aperto)
         motivo = blocco(enr, regola, ordini, adesso=adesso)
         if motivo:
             raise QuizNonDisponibile(motivo)
@@ -89,7 +108,10 @@ def apri_tentativo(enr, regola: Regola, ordini: list[int], *, user=None):
             opzioni = [o.pk for o in d.opzioni.all()]
             if regola.mescola:
                 rnd.shuffle(opzioni)
-            servite.append({"id": d.pk, "opzioni": opzioni})
+            # Le risposte giuste si fotografano ora: se l'autore modifica la domanda
+            # mentre il tentativo è aperto, si corregge su ciò che è stato servito.
+            servite.append({"id": d.pk, "opzioni": opzioni,
+                            "corrette": sorted(o.pk for o in d.opzioni.all() if o.corretta)})
         return TrainingQuizAttempt.objects.create(
             corso=enr.corso, enrollment=enr, legacy_anagrafica_id=enr.legacy_anagrafica_id,
             stato="APERTO", iniziato_il=adesso, domande_servite_json=servite,
@@ -135,8 +157,7 @@ def correggi(enr, token: str, risposte: dict[int, set[int]], regola: Regola):
         elif tentativo.scade_il and adesso > tentativo.scade_il:
             # Si registra la scadenza e si esce DOPO il commit: un'eccezione qui
             # dentro annullerebbe anche il passaggio a SCADUTO.
-            tentativo.stato = "SCADUTO"
-            tentativo.save(update_fields=["stato"])
+            _scadi(enr, tentativo)
             errore = "Il tempo del quiz è scaduto."
         else:
             return _correggi_aperto(enr, tentativo, risposte, regola, adesso)
@@ -145,11 +166,14 @@ def correggi(enr, token: str, risposte: dict[int, set[int]], regola: Regola):
 
 def _correggi_aperto(enr, tentativo, risposte, regola, adesso):
     from ..models_formazione import TrainingQuizOption, TrainingQuizQuestion
-    servite = {v["id"]: set(v["opzioni"]) for v in tentativo.domande_servite_json}
-    corrette_db = {}
-    for o in TrainingQuizOption.objects.filter(domanda_id__in=list(servite), corretta=True):
+    testi = dict(TrainingQuizQuestion.objects.filter(
+        pk__in=[v["id"] for v in tentativo.domande_servite_json]).values_list("pk", "testo"))
+    # Una domanda cancellata dopo il servizio non è stata mostrata: fuori dal totale.
+    servite = {v["id"]: set(v["opzioni"]) for v in tentativo.domande_servite_json if v["id"] in testi}
+    corrette_db = {v["id"]: set(v["corrette"]) for v in tentativo.domande_servite_json if "corrette" in v}
+    mancano = [did for did in servite if did not in corrette_db]
+    for o in TrainingQuizOption.objects.filter(domanda_id__in=mancano, corretta=True):
         corrette_db.setdefault(o.domanda_id, set()).add(o.pk)
-    testi = dict(TrainingQuizQuestion.objects.filter(pk__in=list(servite)).values_list("pk", "testo"))
     n_corrette = 0
     snapshot = []
     for did, ammesse in servite.items():

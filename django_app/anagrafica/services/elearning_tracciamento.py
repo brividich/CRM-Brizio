@@ -2,13 +2,14 @@
 
 Regole:
 
-- **una sola sessione attiva** per iscrizione: aprire il player chiude le altre
-  (più schede non raddoppiano il tempo);
+- **una sola sessione attiva per persona**, su tutti i corsi: aprire un player
+  chiude le altre sessioni (più schede o più corsi affiancati non moltiplicano
+  il tempo);
 - il tempo si accredita solo da **heartbeat** (``beat``): limite ≥ 30 s fra due
   battiti (prima di allora nessun credito), credito massimo 60 s per battito,
   nessun credito se la pagina non è visibile, se il discente è inattivo oltre
   la soglia della regola o se la slide dichiarata non è quella servita;
-- **tetto giornaliero** di 8 ore per iscrizione;
+- **tetto giornaliero** di 8 ore per persona;
 - una slide è **completata** quando il tempo su di essa raggiunge il minimo
   (slide o regola del corso); l'avanzamento (``ultima_slide_ordine``) cresce solo
   su slide completate in sequenza.
@@ -32,8 +33,11 @@ CREDITO_MAX_SECONDI = 60
 TETTO_GIORNALIERO_SECONDI = 8 * 3600
 
 
-def _ip(request):
-    return (request.META.get("REMOTE_ADDR") or "")[:45] or None if request is not None else None
+def _ua_hash(ua: str) -> str:
+    """Impronta HMAC dello user-agent (non reversibile a dizionario senza la chiave)."""
+    import hmac
+    from django.conf import settings
+    return hmac.new(settings.SECRET_KEY.encode(), ua.encode(), hashlib.sha256).hexdigest() if ua else ""
 
 
 def avvia_sessione(enr, request=None):
@@ -43,11 +47,12 @@ def avvia_sessione(enr, request=None):
 
     with transaction.atomic():
         TrainingElearningEnrollment.objects.select_for_update().filter(pk=enr.pk).first()
-        TrainingElearningSessione.objects.filter(enrollment=enr, chiusa=False).update(chiusa=True)
+        TrainingElearningSessione.objects.filter(
+            enrollment__legacy_anagrafica_id=enr.legacy_anagrafica_id, chiusa=False).update(chiusa=True)
         ua = (request.META.get("HTTP_USER_AGENT", "") if request is not None else "")[:500]
+        # Nessun IP salvato (dato personale, dietro IIS poco significativo).
         return TrainingElearningSessione.objects.create(
-            enrollment=enr, ultimo_beat_il=timezone.now(), ip=_ip(request),
-            ua_hash=hashlib.sha256(ua.encode()).hexdigest() if ua else "",
+            enrollment=enr, ultimo_beat_il=timezone.now(), ip=None, ua_hash=_ua_hash(ua),
         )
 
 
@@ -122,7 +127,8 @@ def beat(enr, *, slide_id: int | None, visibile: bool, inattivo_ms: int, regola:
         else:
             oggi = timezone.localdate()
             fatto_oggi = (TrainingElearningSessione.objects
-                          .filter(enrollment=enr, avviata_il__date=oggi)
+                          .filter(enrollment__legacy_anagrafica_id=enr.legacy_anagrafica_id,
+                                  ultimo_beat_il__date=oggi)
                           .aggregate(s=Sum("secondi_accreditati"))["s"] or 0)
             credito = int(min(delta, CREDITO_MAX_SECONDI, max(TETTO_GIORNALIERO_SECONDI - fatto_oggi, 0)))
             if credito <= 0:
