@@ -96,3 +96,14 @@ class AllGuideFilesRenderTests(SimpleTestCase):
             doc = dr.load_doc(dr.slug_for(f))
             self.assertNotIn("non e' ancora stato scritto", doc["html"])
             self.assertGreater(len(doc["html"]), 200, f)
+
+
+class AutomationGuideTests(SimpleTestCase):
+    """Le pagine SOC puntano a queste ancore: se cambia un titolo, il link si rompe."""
+
+    def test_anchors_linked_from_pages_exist(self):
+        doc = dr.load_doc("12-automatismi-e-vulnerabilita")
+        slugs = {entry["slug"] for entry in doc["toc"]}
+        for anchor in ("soppressione-appresa", "automatismi-di-rientro", "impatto-cve-sugli-asset",
+                       "importare-un-inventario", "collegare-i-software-alle-cve-cpe"):
+            self.assertIn(anchor, slugs)

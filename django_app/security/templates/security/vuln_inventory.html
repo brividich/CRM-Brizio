@@ -7,7 +7,7 @@
 
 {% block soc_content %}
 <section class="sec-panel">
-  <div class="sec-section-head"><h2>Importa un export</h2><a class="sec-small" href="{% url 'security:software_mapping' %}">Software e CPE</a></div>
+  <div class="sec-section-head"><h2>Importa un export</h2><span class="sec-small"><a href="{% url 'security:software_mapping' %}">Software e CPE</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#importare-un-inventario">Guida</a></span></div>
   <p class="sec-muted sec-small">
     Export dei software installati (WatchGuard EPDR/Panda, BusinessLog o altro) in CSV o XLSX, massimo {{ max_mb }} MB.
     Dopo il caricamento scegli quale colonna è hostname, prodotto, versione (obbligatorie), vendor e data di rilevamento,

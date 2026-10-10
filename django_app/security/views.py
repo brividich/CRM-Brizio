@@ -1176,6 +1176,7 @@ _DOC_META = {
     "09_TROUBLESHOOTING.md": ("Risoluzione problemi", "Problemi comuni su parser, sorgenti, alert, ticket, backup, notifiche, seed e permessi."),
     "10_DEVELOPER_GUIDE.md": ("Guida sviluppo", "Purezza parser, struttura output, avvisi, test, configurazione seed, regole alert e visibilita dashboard."),
     "11_OPERATIONS_RUNBOOK.md": ("Runbook operativo", "Checklist operative giornaliere, settimanali e mensili."),
+    "12_AUTOMATISMI_E_VULNERABILITA.md": ("Automatismi e vulnerabilità", "Soppressione appresa, regole di rientro con simulazione, inventario software e impatto CVE sugli asset."),
     "MAILBOX_INGESTION.md": ("Mailbox Ingestion", "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."),
 }
 SECURITY_CENTER_DOCS = [

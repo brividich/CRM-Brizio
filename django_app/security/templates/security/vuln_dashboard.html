@@ -11,7 +11,8 @@
     {% if inventory_date %}Inventario software aggiornato al <strong>{{ inventory_date|date:"d/m/Y" }}</strong>{% if not inventory_fresh %} <span class="sec-badge warning">più vecchio di {{ freshness_days }} giorni: esiti da verificare</span>{% endif %}.
     {% else %}<span class="sec-badge warning">Nessun inventario software importato</span>: senza inventario ogni CVE resta «da verificare».{% endif %}
     {{ totals.installations }} software su {{ totals.hosts }} host · {{ totals.cves }} CVE note ({{ totals.kev }} in CISA KEV).
-    {% if can_edit %}<a href="{% url 'security:inventory' %}">Importa inventario</a> · <a href="{% url 'security:software_mapping' %}">Software e CPE</a>{% endif %}
+    {% if can_edit %}<a href="{% url 'security:inventory' %}">Importa inventario</a> · <a href="{% url 'security:software_mapping' %}">Software e CPE</a> ·{% endif %}
+    <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#impatto-cve-sugli-asset">Guida</a>
   </p>
 </section>
 

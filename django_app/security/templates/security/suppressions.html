@@ -16,6 +16,7 @@
       La soppressione appresa è spenta.
     {% endif %}
     <a href="{% url 'security:soc_settings' %}">Impostazioni</a> ·
+    <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#soppressione-appresa">Guida</a> ·
     <a href="{% url 'security:events' %}?decision=suppressed">Eventi soppressi</a>
     {% if can_edit %}· <a href="{% url 'security:admin_config_suppressions' %}">Nuova soppressione manuale</a>{% endif %}
   </p>

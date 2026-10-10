@@ -10,7 +10,7 @@
   <p class="sec-muted sec-small">
     Un software dell'inventario conta per l'impatto CVE solo quando la sua mappatura CPE (vendor:product di NVD) è <strong>confermata</strong> da una persona.
     I suggerimenti vengono dalle CVE già scaricate e, a richiesta, dal dizionario CPE di NVD (ricerca in coda, mai durante la pagina).
-    <a href="{% url 'security:inventory' %}">Inventario</a> · <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a>
+    <a href="{% url 'security:inventory' %}">Inventario</a> · <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#collegare-i-software-alle-cve-cpe">Guida</a>
   </p>
   <form method="get" class="sec-inline"><input type="search" name="q" value="{{ q }}" placeholder="Cerca vendor o prodotto" aria-label="Cerca software"><button type="submit" class="sec-button">Cerca</button></form>
   <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="recompute"><button type="submit" class="sec-button">Ricalcola impatti</button></form>
