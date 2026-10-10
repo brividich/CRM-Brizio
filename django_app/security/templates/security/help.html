@@ -6,6 +6,15 @@
 {% block page_title %}Guida / Operativita{% endblock %}
 
 {% block soc_content %}
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>Guide d'uso</h2><span class="sec-muted sec-small">in ogni pagina del SOC il pulsante <strong>?</strong> in alto apre il capitolo che la riguarda</span></div>
+  <div class="sec-grid sec-three-col">
+    {% for doc in user_guides %}
+      <a class="sec-card" href="{% url 'security:doc_detail' doc.slug %}"><h3>{{ doc.title }}</h3><p class="sec-muted sec-small">{{ doc.summary }}</p></a>
+    {% endfor %}
+  </div>
+</section>
+
 <div class="sec-grid sec-two-col">
   <section class="sec-panel">
     <div class="sec-section-head"><h2>Panoramica</h2></div>

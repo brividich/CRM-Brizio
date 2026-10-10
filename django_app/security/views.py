@@ -396,7 +396,9 @@ def inbox_page(request):
 def help_page(request):
     if not request.user.is_authenticated:
         return redirect_to_login(request.get_full_path(), login_url="/admin/login/")
-    return render(request, "security/help.html", {"docs": SECURITY_CENTER_DOCS})
+    user_guides = [doc for doc in SECURITY_CENTER_DOCS if doc["file"] in USER_GUIDE_FILES]
+    user_guides.sort(key=lambda doc: USER_GUIDE_FILES.index(doc["file"]))
+    return render(request, "security/help.html", {"docs": SECURITY_CENTER_DOCS, "user_guides": user_guides})
 
 
 @ensure_csrf_cookie
@@ -1177,8 +1179,15 @@ _DOC_META = {
     "10_DEVELOPER_GUIDE.md": ("Guida sviluppo", "Purezza parser, struttura output, avvisi, test, configurazione seed, regole alert e visibilita dashboard."),
     "11_OPERATIONS_RUNBOOK.md": ("Runbook operativo", "Checklist operative giornaliere, settimanali e mensili."),
     "12_AUTOMATISMI_E_VULNERABILITA.md": ("Automatismi e vulnerabilità", "Soppressione appresa, regole di rientro con simulazione, inventario software e impatto CVE sugli asset."),
+    "13_LAVORO_QUOTIDIANO.md": ("Lavoro quotidiano", "Da dove partire, barra di stato, ricerca, alert, eventi e allarmi mancati, ticket, analisi dello storico, scheda PC."),
+    "14_INCIDENTI_E_REPORT.md": ("Incidenti e report", "Registro incidenti, valutazione NIS2 e GDPR, scadenze di notifica, report periodico e PDF."),
+    "15_BACKUP_VPN_KPI_ASSET.md": ("Backup, VPN, KPI e asset", "Come leggere backup, accessi VPN e segnali, KPI e trend, collegamento agli asset, stato elaborazione."),
+    "16_IMPOSTAZIONI_E_AI.md": ("Impostazioni e AI", "Avvisi automatici su mail e Teams, report programmato, funzioni dell'AI aziendale e suoi limiti."),
     "MAILBOX_INGESTION.md": ("Mailbox Ingestion", "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."),
 }
+# Guide d'uso per chi lavora nel SOC, in cima alla pagina Guida (gli altri documenti sono per chi configura).
+USER_GUIDE_FILES = ("13_LAVORO_QUOTIDIANO.md", "14_INCIDENTI_E_REPORT.md", "15_BACKUP_VPN_KPI_ASSET.md",
+                    "12_AUTOMATISMI_E_VULNERABILITA.md", "16_IMPOSTAZIONI_E_AI.md")
 SECURITY_CENTER_DOCS = [
     {"file": f, "slug": slug_for(f), "title": _DOC_META[f][0], "summary": _DOC_META[f][1]}
     for f in _DOC_FILES

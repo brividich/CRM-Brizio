@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load static soc_live %}
+{% load static soc_live security_help %}
 {% block title %}Security Center · SOC IT - CN{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'security/security.css' %}">
@@ -41,6 +41,7 @@
       <a href="{% url 'security:help' %}" {% if url_name == 'help' or url_name == 'doc_detail' %}class="active"{% endif %}>Guida</a>
     </div>
     <div class="soc-nav-tools">
+      <a href="{% soc_page_help_url url_name %}" class="soc-nav-help" title="Guida di questa pagina" aria-label="Guida di questa pagina">?</a>
       <a href="{% url 'security:my_work' %}" class="soc-nav-mine{% if url_name == 'my_work' %} active{% endif %}">Il mio lavoro</a>
       <form method="get" action="{% url 'security:search' %}" role="search" class="soc-nav-search">
         <input type="search" name="q" placeholder="Cerca PC, ticket, CVE…" aria-label="Cerca nel SOC" value="{% if url_name == 'search' %}{{ request.GET.q }}{% endif %}">

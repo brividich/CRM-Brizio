@@ -1,4 +1,5 @@
 from django.test import SimpleTestCase
+from django.urls import reverse
 
 from security import docs_render as dr
 
@@ -107,3 +108,26 @@ class AutomationGuideTests(SimpleTestCase):
         for anchor in ("soppressione-appresa", "automatismi-di-rientro", "impatto-cve-sugli-asset",
                        "importare-un-inventario", "collegare-i-software-alle-cve-cpe"):
             self.assertIn(anchor, slugs)
+
+
+class PageHelpLinksTests(SimpleTestCase):
+    """Il pulsante «?» del menu SOC punta a un capitolo e a un'ancora che esistono."""
+
+    def test_every_page_help_points_to_existing_doc_and_anchor(self):
+        from security import urls_hub
+        from security.templatetags.security_help import PAGE_HELP
+
+        route_names = {pattern.name for pattern in urls_hub.urlpatterns}
+        for url_name, (slug, anchor) in PAGE_HELP.items():
+            self.assertIn(url_name, route_names)
+            doc = dr.load_doc(slug)
+            self.assertIsNotNone(doc, slug)
+            if anchor:
+                self.assertIn(anchor, {entry["slug"] for entry in doc["toc"]}, f"{url_name} -> {slug}#{anchor}")
+
+    def test_fallbacks(self):
+        from security.templatetags.security_help import soc_page_help_url
+
+        self.assertIn("08-configuration-guide", soc_page_help_url("admin_config_sources"))
+        self.assertEqual(soc_page_help_url("nome-sconosciuto"), reverse("security:help"))
+        self.assertTrue(soc_page_help_url("alerts_list").endswith("/13-lavoro-quotidiano/#alert"))
