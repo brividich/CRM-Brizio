@@ -148,3 +148,20 @@ class TrainingElearningGradimento(models.Model):
 
     def __str__(self) -> str:
         return f"Gradimento record {self.record_id}: {self.media}"
+
+
+class TrainingElearningModulo(models.Model):
+    """Modulo di un corso online: un gruppo di slide (lezioni) con un titolo."""
+
+    corso = models.ForeignKey("anagrafica.TrainingCourse", on_delete=models.CASCADE, related_name="moduli_elearning")
+    ordine = models.PositiveSmallIntegerField(default=1)
+    titolo = models.CharField(max_length=200)
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["corso", "ordine", "id"]
+        verbose_name = "Modulo e-learning"
+        verbose_name_plural = "Moduli e-learning"
+
+    def __str__(self) -> str:
+        return f"{self.corso_id} · {self.ordine}. {self.titolo}"

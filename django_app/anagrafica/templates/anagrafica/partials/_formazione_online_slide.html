@@ -4,8 +4,30 @@
   <div class="fmd-bar" style="margin-bottom:14px;"><span style="width:{{ progress_pct }}%;"></span></div>
 
   <div class="fm-slide-meta">
-    <span class="fmd-code">Slide {{ indice }} / {{ n_slide }}</span>
+    <span class="fmd-code">{% if slide.modulo_id %}{{ slide.modulo.titolo }} · {% endif %}Lezione {{ indice }} / {{ n_slide }}</span>
   </div>
+
+  {% if indice_corso %}
+  <details class="fm-indice">
+    <summary>Indice del corso</summary>
+    {% for g in indice_corso %}
+    <div class="fm-indice-gruppo">
+      {% if g.titolo %}<div class="fm-indice-modulo">{{ g.titolo }} <span class="fmd-muted">{{ g.fatte }}/{{ g.lezioni|length }}</span></div>{% endif %}
+      <ol class="fm-indice-lezioni">
+        {% for lz in g.lezioni %}
+        <li class="{% if lz.corrente %}is-corrente{% elif lz.fatta %}is-fatta{% elif not lz.aperta %}is-chiusa{% endif %}">
+          {% if lz.aperta and not lz.corrente %}
+          <button type="button" class="fm-indice-link" hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk lz.ordine %}"
+                  hx-target="#fm-slide-target" hx-swap="innerHTML" hx-push-url="false">{{ lz.titolo }}</button>
+          {% else %}<span>{{ lz.titolo }}</span>{% endif %}
+          {% if lz.fatta %}<svg class="fmd-ico" aria-label="completata"><use href="#i-check"/></svg>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+    {% endfor %}
+  </details>
+  {% endif %}
 
   {% if not slide.is_immagine %}<h2 class="fm-slide-title">{{ slide.titolo }}</h2>{% endif %}
 

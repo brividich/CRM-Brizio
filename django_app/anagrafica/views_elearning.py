@@ -173,7 +173,7 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
         return _nega(request, accesso.motivo or "Corso non disponibile.")
     if not request.headers.get("HX-Request"):
         return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
-    slides = list(corso.slides.filter(is_active=True).order_by("ordine", "pk"))
+    slides = list(corso.slides.filter(is_active=True).select_related("modulo").order_by("ordine", "pk"))
     if not slides:
         return HttpResponse('<div class="fmd-empty"><span class="fmd-et">Nessuna slide disponibile</span></div>')
     ordini = [s.ordine for s in slides]
@@ -205,9 +205,17 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
         "anteprima": accesso.anteprima,
         "secondi_mancanti": secondi_mancanti,
         "completato": completato or (enr is not None and enr.stato == "COMPLETATO"),
+        "indice_corso": _indice_se_serve(slides, enr, ordini, ordine),
         "gradimento": bool((completato or (enr is not None and enr.stato == "COMPLETATO")) and not accesso.anteprima
                            and _gradimento_da_dare(corso, enr)),
     })
+
+
+def _indice_se_serve(slides, enr, ordini, ordine):
+    """L'indice compare con i moduli o da 4 slide in su; ogni slide è una lezione."""
+    if not any(s.modulo_id for s in slides) and len(slides) < 4:
+        return []
+    return fruizione.indice_corso(slides, enr, ordini, ordine)
 
 
 def _gradimento_da_dare(corso, enr) -> bool:
@@ -421,6 +429,8 @@ def formazione_slide_video_upload(request, corso_id: int):
     slide.save()
     log_action(request, "elearning_video_caricato", MODULE, {"corso": corso.pk, "slide": slide.pk}, oggetto=slide)
     messages.success(request, f"Video «{titolo}» aggiunto come slide {ordine}.")
+    from .views import _versiona
+    _versiona(request, corso, f"Video «{titolo}» aggiunto")
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
 
 

@@ -329,3 +329,86 @@ class GradimentoEfficaciaTests(_Pro):
         self.assertTrue("4,5 / 5" in r.content.decode() or "4.5 / 5" in r.content.decode())
         self.assertContains(r, "Utile davvero.")
         self.assertNotContains(r, "DISCENTE.EL")
+
+
+class ModuliEVersioniTests(_Pro):
+    def setUp(self):
+        super().setUp()
+        self.admin = User.objects.create_superuser("ver.el", "ver@example.invalid", "x")
+
+    def _completa(self):
+        self._vedi_tutte()
+        with self.captureOnCommitCallbacks(execute=True):
+            self._quiz(self.giusta)
+
+    def _modifica_slide(self, testo):
+        s = self.corso.slides.get(ordine=1)
+        self.client.force_login(self.admin)
+        self.client.post(reverse("anagrafica:formazione_slide_save", args=[self.corso.pk]),
+                         {"slide_id": s.pk, "titolo": s.titolo, "ordine": 1, "contenuto": testo, "is_active": "on"})
+        self.client.force_login(self.user)
+        self.corso.refresh_from_db()
+
+    def test_indice_per_moduli_nel_player(self):
+        from .models_elearning import TrainingElearningModulo
+        m1 = TrainingElearningModulo.objects.create(corso=self.corso, ordine=1, titolo="Rischi")
+        m2 = TrainingElearningModulo.objects.create(corso=self.corso, ordine=2, titolo="Diritti")
+        self.corso.slides.filter(ordine__in=[1, 2]).update(modulo=m1)
+        self.corso.slides.filter(ordine=3).update(modulo=m2)
+        self.client.get(reverse("anagrafica:formazione_online_player", args=[self.corso.pk]))
+        r = self._slide(1)
+        self.assertContains(r, "Indice del corso")
+        self.assertContains(r, "Rischi · Lezione 1 / 3")
+        self.assertContains(r, "fm-indice-modulo")
+        # la lezione 3 non è ancora apribile: niente link
+        self.assertNotContains(r, reverse("anagrafica:formazione_online_slide", args=[self.corso.pk, 3]))
+
+    def test_editor_moduli(self):
+        self.client.force_login(self.admin)
+        self.client.post(reverse("anagrafica:formazione_modulo_save", args=[self.corso.pk]), {"titolo": "Introduzione"})
+        m = self.corso.moduli_elearning.get()
+        s = self.corso.slides.get(ordine=2)
+        self.client.post(reverse("anagrafica:formazione_slide_save", args=[self.corso.pk]),
+                         {"slide_id": s.pk, "titolo": s.titolo, "ordine": 2, "contenuto": s.contenuto,
+                          "modulo": m.pk, "is_active": "on"})
+        s.refresh_from_db()
+        self.assertEqual(s.modulo_id, m.pk)
+        self.client.post(reverse("anagrafica:formazione_modulo_delete", args=[self.corso.pk, m.pk]))
+        s.refresh_from_db()
+        self.assertIsNone(s.modulo_id)
+
+    def test_nuova_versione_solo_dopo_un_completamento(self):
+        from .services import elearning_versioni as ev
+        ev.registra(self.corso, alla_pubblicazione=True)
+        self.assertEqual(list(self.corso.versioni.values_list("version_label", flat=True)), ["1.0"])
+        self._modifica_slide("Testo rivisto prima di ogni completamento")
+        self.assertEqual((self.corso.versione, self.corso.versioni.count()), ("1.0", 1))  # aggiornata lì
+        self._completa()
+        self._modifica_slide("Testo rivisto dopo un completamento")
+        self.assertEqual(self.corso.versione, "1.1")
+        vecchia = self.corso.versioni.get(version_label="1.0")
+        self.assertIsNotNone(vecchia.data_fine_validita)
+        from .models_formazione import TrainingEmployeeRecord
+        self.assertEqual(TrainingEmployeeRecord.objects.get(legacy_anagrafica_id=self.lid).course_version_snapshot, "1.0")
+
+    def test_riassegna_chi_ha_completato_la_versione_precedente(self):
+        from .models_formazione import TrainingAssignment
+        from .services import elearning_versioni as ev
+        self._regola(el_nuova_versione="RIASSEGNA")
+        ev.registra(self.corso, alla_pubblicazione=True)
+        self._completa()
+        self._modifica_slide("Contenuto aggiornato per norma nuova")
+        nuova = TrainingAssignment.objects.get(corso=self.corso, legacy_anagrafica_id=self.lid, ciclo=2)
+        self.assertIsNotNone(nuova.due_date)
+        self.assertIn("1.1", nuova.note)
+
+    def test_bozza_senza_versioni_e_storico_in_gestione(self):
+        from .services import elearning_versioni as ev
+        self.corso.stato = "BOZZA"
+        self.corso.save()
+        self.assertFalse(ev.registra(self.corso).etichetta)
+        self.assertFalse(self.corso.versioni.exists())
+        self.assertEqual(ev.prossima_etichetta("1.9"), "1.10")
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("anagrafica:formazione_elearning_manage", args=[self.corso.pk]))
+        self.assertContains(r, "si crea alla pubblicazione")

@@ -23,9 +23,17 @@ class ElearningRegolaForm(forms.ModelForm):
             "el_domande_estratte": "Domande estratte (0 = tutte)",
             "el_mescola": "Ordine casuale di domande e risposte",
             "el_tempo_quiz_minuti": "Durata massima del quiz (minuti, 0 = senza limite)",
+            "el_nuova_versione": "Se i contenuti cambiano, chi ha già completato",
             "rspp_note": "Note (riferimenti normativi, verbale)",
         }
         widgets = {"rspp_note": forms.Textarea(attrs={"rows": 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["el_nuova_versione"].required = False  # non inviato = valore attuale
+
+    def clean_el_nuova_versione(self):
+        return self.cleaned_data.get("el_nuova_versione") or self.instance.el_nuova_versione or "MANTIENI"
 
     def clean_el_soglia_pct(self):
         v = self.cleaned_data.get("el_soglia_pct")

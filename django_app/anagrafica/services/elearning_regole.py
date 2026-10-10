@@ -12,7 +12,7 @@ from decimal import Decimal
 CAMPI_FAD = (
     "el_tempo_minimo_minuti", "el_richiede_tutte_slide", "el_secondi_minimi_slide", "el_inattivita_secondi",
     "el_richiede_quiz", "el_soglia_pct", "el_max_tentativi", "el_attesa_minuti_tra_tentativi",
-    "el_domande_estratte", "el_mescola", "el_tempo_quiz_minuti",
+    "el_domande_estratte", "el_mescola", "el_tempo_quiz_minuti", "el_nuova_versione",
 )
 
 
@@ -29,6 +29,7 @@ class Regola:
     domande_estratte: int = 0       # 0 = tutte
     mescola: bool = True
     tempo_quiz_minuti: int = 0      # 0 = senza limite
+    nuova_versione: str = "MANTIENI"  # chi ha completato una versione precedente
     confermata_rspp: bool = False
     confermata_il: object = None
 
@@ -57,6 +58,7 @@ def regola_corso(corso) -> Regola:
         domande_estratte=r.el_domande_estratte,
         mescola=r.el_mescola,
         tempo_quiz_minuti=r.el_tempo_quiz_minuti,
+        nuova_versione=r.el_nuova_versione or "MANTIENI",
         confermata_rspp=bool(r.confermata_rspp_il),
         confermata_il=r.confermata_rspp_il,
     )

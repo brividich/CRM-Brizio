@@ -652,10 +652,19 @@ class TrainingCompletionRuleForm(forms.ModelForm):
 # ── E-learning: slide e quiz dei micro-corsi ───────────────────────────────
 
 class TrainingSlideForm(forms.ModelForm):
+    def __init__(self, *args, corso=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models_elearning import TrainingElearningModulo
+        self.fields["modulo"].required = False
+        self.fields["modulo"].empty_label = "— nessun modulo —"
+        self.fields["modulo"].queryset = (TrainingElearningModulo.objects.filter(corso=corso)
+                                          if corso is not None else TrainingElearningModulo.objects.none())
+
     class Meta:
         model = TrainingSlide
-        fields = ["titolo", "ordine", "contenuto", "is_active"]
+        fields = ["titolo", "ordine", "modulo", "contenuto", "is_active"]
         widgets = {
+            "modulo":    forms.Select(attrs=_FM),
             "titolo":    forms.TextInput(attrs=_FM),
             "ordine":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
             "contenuto": forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 10}),

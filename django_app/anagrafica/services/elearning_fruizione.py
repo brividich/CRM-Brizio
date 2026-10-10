@@ -161,3 +161,28 @@ def sblocca_tentativi(enr, *, user, motivo: str, n: int | None = None):
         enr.tentativi_extra = (enr.tentativi_extra or 0) + aggiunti
         enr.save(update_fields=["tentativi_extra", "updated_at"])
     return enr, aggiunti
+
+
+def indice_corso(slides: list, enr, ordini: list[int], corrente: int) -> list[dict]:
+    """Indice del player: gruppi di lezioni consecutive con lo stesso modulo.
+
+    Ogni lezione: ordine, titolo, ``fatta`` (completata), ``corrente``,
+    ``aperta`` (si può aprire ora: le stesse regole di ``slide_consentita``)."""
+    from ..models_elearning import TrainingElearningSlideView
+
+    fatte = set()
+    if enr is not None:
+        fatte = set(TrainingElearningSlideView.objects.filter(enrollment=enr, completata=True)
+                    .values_list("slide_id", flat=True))
+    gruppi: list[dict] = []
+    for s in slides:
+        titolo_modulo = s.modulo.titolo if s.modulo_id else ""
+        if not gruppi or gruppi[-1]["modulo_id"] != s.modulo_id:
+            gruppi.append({"modulo_id": s.modulo_id, "titolo": titolo_modulo, "lezioni": []})
+        gruppi[-1]["lezioni"].append({
+            "ordine": s.ordine, "titolo": s.titolo, "fatta": enr is not None and s.pk in fatte,
+            "corrente": s.ordine == corrente, "aperta": slide_consentita(enr, s.ordine, ordini),
+        })
+    for g in gruppi:
+        g["fatte"] = sum(1 for lz in g["lezioni"] if lz["fatta"])
+    return gruppi

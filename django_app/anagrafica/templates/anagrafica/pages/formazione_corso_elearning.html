@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
 {% include "anagrafica/components/_fmd_form_style.html" %}
 {% endblock %}
 
@@ -77,6 +77,30 @@
         </div>
       </form>
 
+      {# Moduli: raggruppano le slide (lezioni) nell'indice del player #}
+      <div class="fm-import-box">
+        <div class="fmd-block-title" style="font-size:13px;margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-book"/></svg> Moduli <span class="fmd-count">{{ moduli|length }}</span></div>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">Facoltativi. Il discente vede l'indice del corso diviso in moduli; ogni slide è una lezione. La sequenza resta quella dell'ordine delle slide: assegna a un modulo slide consecutive.</p>
+        {% for m in moduli %}
+        <div class="fm-opt-row">
+          <form method="post" action="{% url 'anagrafica:formazione_modulo_save' corso.pk %}" style="display:contents;">
+            {% csrf_token %}<input type="hidden" name="modulo_id" value="{{ m.pk }}">
+            <input class="fm-input" type="number" name="ordine" value="{{ m.ordine }}" min="1" style="max-width:70px;" aria-label="Ordine del modulo">
+            <input class="fm-input" type="text" name="titolo" value="{{ m.titolo }}" maxlength="200" aria-label="Titolo del modulo">
+            <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Salva</button>
+          </form>
+          <form method="post" action="{% url 'anagrafica:formazione_modulo_delete' corso.pk m.pk %}" onsubmit="return confirm('Eliminare il modulo? Le slide restano.');">
+            {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 8px;color:#c0392b;" aria-label="Elimina modulo">✕</button>
+          </form>
+        </div>
+        {% endfor %}
+        <form method="post" action="{% url 'anagrafica:formazione_modulo_save' corso.pk %}" class="fm-opt-row fm-opt-add">
+          {% csrf_token %}
+          <input class="fm-input" type="text" name="titolo" placeholder="Nuovo modulo…" maxlength="200" required aria-label="Titolo del nuovo modulo">
+          <button type="submit" class="fmd-btn fmd-btn-primary" style="padding:4px 10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg></button>
+        </form>
+      </div>
+
       {% for s in slides %}
       <form method="post" action="{% url 'anagrafica:formazione_slide_save' corso.pk %}" class="fm-edit-row">
         {% csrf_token %}
@@ -84,6 +108,11 @@
         <div class="fmd-grid">
           <div class="fmd-field"><label>Ordine</label>
             <input class="fm-input" type="number" name="ordine" value="{{ s.ordine }}" min="1" style="max-width:90px;"></div>
+          <div class="fmd-field"><label>Modulo</label>
+            <select class="fm-input" name="modulo">
+              <option value="">— nessun modulo —</option>
+              {% for m in moduli %}<option value="{{ m.pk }}"{% if s.modulo_id == m.pk %} selected{% endif %}>{{ m.ordine }}. {{ m.titolo }}</option>{% endfor %}
+            </select></div>
           <div class="fmd-field fmd-col-full"><label>Titolo{% if s.is_immagine %} / didascalia{% endif %}</label>
             <input class="fm-input" type="text" name="titolo" value="{{ s.titolo }}"></div>
           {% if s.is_immagine %}
@@ -115,6 +144,7 @@
         <div class="fmd-block-title" style="font-size:13px;margin-bottom:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg> Nuova slide</div>
         <div class="fmd-grid">
           {% include "anagrafica/partials/_fmd_field.html" with field=slide_form.ordine %}
+          {% if moduli %}{% include "anagrafica/partials/_fmd_field.html" with field=slide_form.modulo %}{% endif %}
           {% include "anagrafica/partials/_fmd_field.html" with field=slide_form.titolo full=1 %}
           {% include "anagrafica/partials/_fmd_field.html" with field=slide_form.contenuto full=1 %}
         </div>

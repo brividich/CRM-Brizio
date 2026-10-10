@@ -418,6 +418,10 @@ class TrainingCourseVersion(models.Model):
     data_fine_validita     = models.DateField(null=True, blank=True)
     note                   = models.TextField(blank=True)
     is_active              = models.BooleanField(default=True)
+    # E-learning: impronta e fotografia dei contenuti (slide, moduli, domande) della
+    # versione. Una modifica dopo che qualcuno ha completato la versione ne apre una nuova.
+    impronta               = models.CharField(max_length=64, blank=True, default="")
+    contenuti_json         = models.JSONField(default=dict, blank=True)
     revised_by             = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="+",
@@ -490,6 +494,10 @@ class TrainingCompletionRule(models.Model):
     el_mescola = models.BooleanField(default=True, help_text="Ordine di domande e risposte casuale.")
     el_tempo_quiz_minuti = models.PositiveSmallIntegerField(
         default=0, help_text="Durata massima del quiz (minuti). 0 = senza limite.")
+    el_nuova_versione = models.CharField(
+        max_length=10, default="MANTIENI",
+        choices=[("MANTIENI", "Restano validi"), ("RIASSEGNA", "Devono rifare il corso")],
+        help_text="Chi ha completato una versione precedente quando i contenuti cambiano.")
     confermata_rspp_da = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
@@ -2042,6 +2050,11 @@ class TrainingSlide(models.Model):
     )
     durata_minima_secondi = models.PositiveSmallIntegerField(
         default=0, help_text="Permanenza minima su questa slide (secondi). 0 = vale la regola del corso.")
+    # Raggruppamento in moduli: la sequenza resta quella di «ordine»; il modulo è
+    # l'intestazione sotto cui la slide (lezione) compare nell'indice del player.
+    modulo = models.ForeignKey(
+        "anagrafica.TrainingElearningModulo", null=True, blank=True, on_delete=models.SET_NULL, related_name="slides",
+    )
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

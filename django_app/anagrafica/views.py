@@ -19030,8 +19030,18 @@ def formazione_elearning_manage(request, corso_id: int):
         _ordine_ass = _build_ordine_map()
         assegnabili.sort(key=lambda x: _ordine_ass.get(x["legacy_id"], x["nome"]).lower())
 
+    # Storico delle versioni con i completamenti registrati su ciascuna.
+    from django.db.models import Count as _Count
+    per_versione = dict(TrainingEmployeeRecord.objects.filter(corso=corso, completamento_elearning__isnull=False)
+                        .values("course_version_snapshot").annotate(n=_Count("pk")).order_by()
+                        .values_list("course_version_snapshot", "n"))
+    versioni = list(corso.versioni.select_related("revised_by").order_by("-created_at"))
+    for v in versioni:
+        v.n_completamenti = per_versione.get(v.version_label, 0)
+
     return render(request, "anagrafica/pages/formazione_elearning_manage.html", {
         "corso": corso,
+        "versioni": versioni,
         "is_editor": is_editor,
         "n_slide": len(slides),
         "n_domande": len(domande),
@@ -19075,6 +19085,11 @@ def formazione_elearning_publish_toggle(request, corso_id: int):
             corso.is_active = True
             corso.save(update_fields=["stato", "is_active", "updated_at"])
             messages.success(request, "Corso pubblicato: ora visibile in «Corsi online».")
+            try:
+                from .services.elearning_versioni import registra
+                registra(corso, user=request.user, motivo="Pubblicazione", alla_pubblicazione=True)
+            except Exception:
+                logger.exception("Versione e-learning non fissata alla pubblicazione del corso %s", corso.pk)
     # Ritorna alla pagina di provenienza interna, altrimenti alla cabina di regia
     nxt = request.POST.get("next") or ""
     from core.redirects import safe_next
@@ -19227,6 +19242,20 @@ def _problema_domanda(d) -> str:
     return problema_domanda(d)
 
 
+def _versiona(request, corso, motivo: str) -> None:
+    """Dopo una modifica ai contenuti: allinea la versione del corso (solo se pubblicato)."""
+    try:
+        from .services.elearning_versioni import registra
+        esito = registra(corso, user=request.user, motivo=motivo)
+    except Exception:
+        logger.exception("Versione e-learning non aggiornata per corso %s", corso.pk)
+        return
+    if esito.nuova:
+        messages.info(request, f"Il corso era già stato completato: creata la versione {esito.etichetta}. "
+                               "Il registro di chi ha completato resta legato alla versione precedente."
+                      + (f" Riassegnato a {esito.riassegnati} persone." if esito.riassegnati else ""))
+
+
 @login_required
 def formazione_corso_elearning(request, corso_id: int):
     """Pagina autore: gestione slide e quiz di un micro-corso e-learning."""
@@ -19250,7 +19279,8 @@ def formazione_corso_elearning(request, corso_id: int):
         "domande": domande,
         "n_domande_incomplete": n_domande_incomplete,
         "tipi_domanda": TrainingQuizQuestion.TIPO_CHOICES,
-        "slide_form": TrainingSlideForm(initial={"ordine": (slides[-1].ordine + 1) if slides else 1}),
+        "slide_form": TrainingSlideForm(initial={"ordine": (slides[-1].ordine + 1) if slides else 1}, corso=corso),
+        "moduli": list(corso.moduli_elearning.all()),
         "question_form": TrainingQuizQuestionForm(initial={"ordine": (domande[-1].ordine + 1) if domande else 1}),
     })
 
@@ -19265,7 +19295,7 @@ def formazione_slide_save(request, corso_id: int):
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
     slide_id = request.POST.get("slide_id")
     instance = get_object_or_404(TrainingSlide, pk=slide_id, corso=corso) if slide_id else None
-    form = TrainingSlideForm(request.POST, instance=instance)
+    form = TrainingSlideForm(request.POST, instance=instance, corso=corso)
     if form.is_valid():
         slide = form.save(commit=False)
         slide.corso = corso
@@ -19273,6 +19303,7 @@ def formazione_slide_save(request, corso_id: int):
             slide.created_by = request.user
         slide.save()
         messages.success(request, f'Slide "{slide.titolo}" salvata.')
+        _versiona(request, corso, f"Slide «{slide.titolo}» modificata")
     else:
         messages.error(request, "Errore nel salvataggio della slide: " + form.errors.as_text())
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
@@ -19285,8 +19316,10 @@ def formazione_slide_delete(request, corso_id: int, slide_id: int):
         messages.error(request, "Permesso negato.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     slide = get_object_or_404(TrainingSlide, pk=slide_id, corso_id=corso_id)
+    titolo = slide.titolo
     slide.delete()
     messages.success(request, "Slide eliminata.")
+    _versiona(request, slide.corso, f"Slide «{titolo}» eliminata")
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
 
 
@@ -19310,6 +19343,7 @@ def formazione_slide_import(request, corso_id: int):
     try:
         n = importa_slides_da_file(corso, f, user=request.user)
         messages.success(request, f"Importate {n} slide da «{f.name}».")
+        _versiona(request, corso, f"Importate {n} slide")
     except ImportError_ as e:
         messages.error(request, str(e))
     except Exception:
@@ -19338,6 +19372,7 @@ def formazione_question_save(request, corso_id: int):
                 from .services.elearning_quiz import imposta_vero_falso
                 imposta_vero_falso(q, bool(form.cleaned_data.get("vf_vera")))
         messages.success(request, "Domanda salvata.")
+        _versiona(request, corso, "Domanda del quiz modificata")
     else:
         messages.error(request, "Errore nella domanda: " + form.errors.as_text())
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
@@ -19350,8 +19385,10 @@ def formazione_question_delete(request, corso_id: int, question_id: int):
         messages.error(request, "Permesso negato.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     q = get_object_or_404(TrainingQuizQuestion, pk=question_id, corso_id=corso_id)
+    corso = q.corso
     q.delete()
     messages.success(request, "Domanda eliminata.")
+    _versiona(request, corso, "Domanda del quiz eliminata")
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
 
 
@@ -19374,6 +19411,7 @@ def formazione_option_save(request, corso_id: int, question_id: int):
         opt.domanda = domanda
         opt.save()
         messages.success(request, "Opzione salvata.")
+        _versiona(request, domanda.corso, "Risposta del quiz modificata")
     else:
         messages.error(request, "Errore nell'opzione: " + form.errors.as_text())
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
@@ -19389,8 +19427,10 @@ def formazione_option_delete(request, corso_id: int, option_id: int):
     if opt.domanda.tipo == TrainingQuizQuestion.TIPO_VERO_FALSO:
         messages.error(request, "Le opzioni di una domanda vero/falso si impostano dalla domanda stessa.")
         return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+    corso = opt.domanda.corso
     opt.delete()
     messages.success(request, "Opzione eliminata.")
+    _versiona(request, corso, "Risposta del quiz eliminata")
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
 
 
@@ -19428,6 +19468,51 @@ def formazione_question_import(request, corso_id: int):
         return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
     _audit_formazione(request, "elearning_quiz_import", {"corso_id": corso.pk, "domande": n})
     messages.success(request, f"Importate {n} domande da «{f.name}».")
+    _versiona(request, corso, f"Importate {n} domande")
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_modulo_save(request, corso_id: int):
+    """Crea o rinomina un modulo del corso online (modulo_id vuoto = nuovo)."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    from .models_elearning import TrainingElearningModulo
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    titolo = (request.POST.get("titolo") or "").strip()[:200]
+    ordine = request.POST.get("ordine") or ""
+    if not titolo:
+        messages.error(request, "Il modulo ha bisogno di un titolo.")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+    modulo_id = request.POST.get("modulo_id")
+    modulo = (get_object_or_404(TrainingElearningModulo, pk=modulo_id, corso=corso) if modulo_id
+              else TrainingElearningModulo(corso=corso))
+    modulo.titolo = titolo
+    if ordine.isdigit():
+        modulo.ordine = int(ordine)
+    elif not modulo.pk:
+        modulo.ordine = (corso.moduli_elearning.order_by("-ordine").values_list("ordine", flat=True).first() or 0) + 1
+    modulo.save()
+    messages.success(request, f"Modulo «{titolo}» salvato.")
+    _versiona(request, corso, f"Modulo «{titolo}» salvato")
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_modulo_delete(request, corso_id: int, modulo_id: int):
+    """Elimina il modulo; le sue slide restano, senza modulo."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    from .models_elearning import TrainingElearningModulo
+    modulo = get_object_or_404(TrainingElearningModulo, pk=modulo_id, corso_id=corso_id)
+    corso, titolo = modulo.corso, modulo.titolo
+    modulo.delete()
+    messages.success(request, f"Modulo «{titolo}» eliminato: le sue slide restano nel corso.")
+    _versiona(request, corso, f"Modulo «{titolo}» eliminato")
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
 
 
