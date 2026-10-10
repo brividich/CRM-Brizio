@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Gestione specifiche — «Applica timbri» solo con i timbri delle persone del MOD.133** (`django_app/gestione_specifiche/timbri_views.py`, `composito.py`, `templates/gestione_specifiche/applica_timbri.html`, `tests/test_admin.py`, `docs/moduli/gestione_specifiche.md`).
+  - Prima chi poteva compilare poteva apporre qualunque timbro attivo, compresa la firma di altre persone, e la pagina inviava al browser le immagini di tutte le firme.
+  - Ora tool e composizione accettano solo i timbri attivi del **compilatore** e la **firma MOD.133 dell'approvatore**, che esiste solo da MOD.133 approvato (filtro unico `timbri_ammessi`). La pagina invia solo quelle immagini; un timbro non ammesso fa rifiutare il salvataggio (403), un payload malformato dà 400 invece di 500; salvataggio atomico.
+  - Ogni salvataggio scrive un `EventoSpecifica` `timbri_applicati` (chi, quando, quali timbri). In composizione le posizioni su timbri disattivati o non ammessi non vengono stampate.
+  - Nessuna migrazione. Attenzione al rilascio: i timbri senza utente assegnato in «Admin → Timbri» non sono più applicabili, vanno assegnati al capocommessa.
+  - 5 test nuovi + 1 aggiornato.
 <!-- prompt 04 anagrafica: mansioni di rischio (blocco della sessione, non mescolare) -->
 - **Anagrafica — mansioni di rischio separate dalle mansioni lavorative** (`django_app/anagrafica/models_mansioni_rischio.py` nuovo, `models.py`, `models_formazione.py`, migration `0139`–`0142`, `services/mansionario.py`, `management/commands/migra_mansioni_rischio.py` nuovo)
   - Nuovo modello `MansioneRischio` (gruppo omogeneo DVR: fattori, protocollo visite, categorie DPI, livello DVR, revisione/data DVR) collegato molti-a-molti alle mansioni lavorative (`MansioneLavorativaRischio`, con ordine e note). `TrainingRequirementRule.mansione_rischio` già pronto per l'e-learning (prompt 05).

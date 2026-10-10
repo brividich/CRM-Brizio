@@ -162,12 +162,16 @@ def _risolvi_placements(spec) -> list | None:
         return None
 
     from .models import TimbroCapocommessa
+    from .timbri_views import timbri_ammessi
 
+    # Stesso filtro del tool: solo timbri attivi del compilatore e firma dell'approvatore.
+    # Una posizione rimasta su un timbro disattivato o di un'altra persona non viene stampata.
+    ammessi = set(timbri_ammessi(spec).values_list("pk", flat=True))
     data = _data_ricevuto(spec)
     out = []
     for a in apps:
         t = a.timbro
-        if not t or not t.file:
+        if not t or not t.file or t.pk not in ammessi:
             continue
         try:
             with t.file.open("rb") as fh:

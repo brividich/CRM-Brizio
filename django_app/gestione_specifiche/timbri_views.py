@@ -11,10 +11,53 @@ import json
 import math
 
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 
-from .models import Specifica, TimbroApplicazione, TimbroCapocommessa
+from .models import EventoSpecifica, Specifica, TimbroApplicazione, TimbroCapocommessa
+
+
+def timbri_ammessi(spec, user=None):
+    """Timbri che possono comparire sul composito di ``spec``.
+
+    Sono solo quelli delle persone del MOD.133: tutti i timbri attivi del **compilatore**
+    (RICEVUTO e firma MOD.133) e la sola firma MOD.133 dell'**approvatore**. L'approvatore
+    viene registrato sul MOD.133 all'approvazione, quindi la sua firma non è disponibile
+    prima. Se il MOD.133 non ha ancora un compilatore, vale l'utente che sta lavorando
+    (``user``); senza nessuno dei due il risultato è vuoto. È lo stesso filtro usato in
+    composizione, così una posizione salvata non stampa mai il timbro di un estraneo.
+    """
+    try:
+        mod = spec.mod133
+    except Exception:  # noqa: BLE001
+        mod = None
+    compilatore_id = getattr(mod, "compilatore_id", None) or (
+        getattr(user, "pk", None) if getattr(user, "is_authenticated", False) else None
+    )
+    approvatore_id = getattr(mod, "approvatore_id", None)
+    cond = Q(pk__in=[])
+    if compilatore_id:
+        cond |= Q(utente_id=compilatore_id)
+    if approvatore_id:
+        cond |= Q(utente_id=approvatore_id, tipo=TimbroCapocommessa.TIPO_MOD133)
+    return TimbroCapocommessa.objects.filter(cond, attivo=True)
+
+
+def _placement_valido(pl) -> dict | None:
+    """Valida una posizione dal client: numeri finiti, pagina >= 0, larghezza plausibile."""
+    if not isinstance(pl, dict):
+        return None
+    try:
+        timbro = int(pl.get("timbro"))
+        page = int(pl.get("page", 0))
+        x, y, w = float(pl.get("x", 0)), float(pl.get("y", 0)), float(pl.get("w", 120))
+    except (TypeError, ValueError):
+        return None
+    if page < 0 or not all(math.isfinite(v) for v in (x, y, w)) or not (4 <= w <= 2000):
+        return None
+    return {"timbro": timbro, "page": page, "x": x, "y": y, "w": w}
 
 
 def _leggi_file(field) -> bytes | None:
@@ -59,20 +102,42 @@ def applica_timbri(request, pk: int):
             payload = json.loads(request.body or "{}")
         except Exception:  # noqa: BLE001
             return JsonResponse({"ok": False, "error": "payload non valido"}, status=400)
-        spec.timbri_applicati.all().delete()
-        n = 0
-        for pl in payload.get("placements", []):
-            t = TimbroCapocommessa.objects.filter(pk=pl.get("timbro"), attivo=True).first()
-            if not t:
-                continue
-            page = int(pl.get("page", 0))
-            sez = TimbroApplicazione.SEZ_MOD133 if page < n_mod133 else TimbroApplicazione.SEZ_ORIGINALE
-            pag = page if page < n_mod133 else page - n_mod133
-            TimbroApplicazione.objects.create(
-                specifica=spec, timbro=t, sezione=sez, pagina=pag,
-                x=float(pl.get("x", 0)), y=float(pl.get("y", 0)), w=float(pl.get("w", 120)))
-            n += 1
-        return JsonResponse({"ok": True, "n": n})
+        raw = payload.get("placements", []) if isinstance(payload, dict) else None
+        if not isinstance(raw, list):
+            return JsonResponse({"ok": False, "error": "payload non valido"}, status=400)
+        placements = [_placement_valido(pl) for pl in raw]
+        if any(p is None for p in placements):
+            return JsonResponse({"ok": False, "error": "posizione non valida"}, status=400)
+
+        ammessi = {t.pk: t for t in timbri_ammessi(spec, request.user)}
+        scartati = sorted({p["timbro"] for p in placements if p["timbro"] not in ammessi})
+        if scartati:
+            # Niente salvataggio parziale: chi prova ad apporre un timbro non suo lo sa subito.
+            return JsonResponse(
+                {"ok": False, "error": "Puoi apporre solo i timbri del compilatore e, a MOD.133 "
+                                       "approvato, la firma dell'approvatore."},
+                status=403,
+            )
+
+        registro = []
+        with transaction.atomic():
+            spec.timbri_applicati.all().delete()
+            for p in placements:
+                t = ammessi[p["timbro"]]
+                page = p["page"]
+                sez = TimbroApplicazione.SEZ_MOD133 if page < n_mod133 else TimbroApplicazione.SEZ_ORIGINALE
+                pag = page if page < n_mod133 else page - n_mod133
+                TimbroApplicazione.objects.create(
+                    specifica=spec, timbro=t, sezione=sez, pagina=pag, x=p["x"], y=p["y"], w=p["w"])
+                registro.append({"timbro": t.pk, "codice": t.codice, "tipo": t.tipo,
+                                 "titolare": t.utente_id, "sezione": sez, "pagina": pag})
+            # Traccia di chi ha posizionato quali timbri e quando (EventoSpecifica è append-only).
+            EventoSpecifica.objects.create(
+                specifica=spec, stato_da=spec.stato, stato_a=spec.stato,
+                attore=request.user if request.user.is_authenticated else None,
+                trigger="timbri_applicati", payload={"n": len(registro), "timbri": registro},
+            )
+        return JsonResponse({"ok": True, "n": len(registro)})
 
     # GET — anteprima del composito (senza timbri, senza protezione) resa in pagine PNG
     from .composito import _leggi_pdf_originale, componi_composito_ufficiale, dati_mod133_da_spec
@@ -98,7 +163,8 @@ def applica_timbri(request, pk: int):
             errore = f"Impossibile generare l'anteprima: {exc}"
 
     palette = []
-    for t in TimbroCapocommessa.objects.filter(attivo=True).order_by("tipo", "codice"):
+    # Solo i timbri applicabili a questa specifica: le firme degli altri non lasciano il server.
+    for t in timbri_ammessi(spec, request.user).order_by("tipo", "codice"):
         raw = _leggi_file(t.file)
         if not raw:
             continue
@@ -109,7 +175,10 @@ def applica_timbri(request, pk: int):
         })
 
     esistenti = []
+    ammessi_ids = {p["id"] for p in palette}
     for a in spec.timbri_applicati.select_related("timbro").all():
+        if a.timbro_id not in ammessi_ids:
+            continue
         page = a.pagina if a.sezione == TimbroApplicazione.SEZ_MOD133 else n_mod133 + a.pagina
         esistenti.append({"timbro": a.timbro_id, "page": page, "x": a.x, "y": a.y, "w": a.w})
 
