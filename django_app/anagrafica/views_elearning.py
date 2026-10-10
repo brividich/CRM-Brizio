@@ -602,3 +602,44 @@ def elearning_registro(request):
         "corsi_opts": TrainingCourse.objects.filter(is_elearning=True).order_by("titolo"),
         "dal": request.GET.get("dal", ""), "al": request.GET.get("al", ""),
     })
+
+
+# -- Verifica di autenticità dell'attestato (prompt 05, fase 2) ----------------
+
+VERIFICHE_MAX = 30          # tentativi per utente …
+VERIFICHE_FINESTRA = 600    # … ogni 10 minuti
+
+
+@login_required
+def formazione_verifica_attestato(request, codice: str = ""):
+    """Pagina di verifica: solo il minimo (nome, corso, date, protocollo, esito).
+
+    Aperta a ogni utente autenticato del portale (prefisso shared). Il codice ha
+    ~59 bit casuali; un limite per utente rende comunque inutile tirare a indovinare."""
+    from django.core.cache import cache
+    from .services import attestato_verifica as av
+
+    if request.method == "POST":
+        digitato = av.normalizza(request.POST.get("codice", ""))
+        if digitato:
+            return redirect("anagrafica:formazione_verifica_attestato_codice", codice=av.formatta(digitato))
+        return redirect("anagrafica:formazione_verifica_attestato")
+
+    esito = None
+    limitato = False
+    if codice:
+        chiave = f"elearning:verifica:{request.user.pk}"
+        n = cache.get(chiave, 0)
+        if n >= VERIFICHE_MAX:
+            limitato = True
+        else:
+            cache.set(chiave, n + 1, VERIFICHE_FINESTRA)
+            esito = av.verifica(codice)
+            logger.info("Verifica attestato: utente %s esito %s", request.user.pk, esito.stato)
+    resp = render(request, "anagrafica/pages/formazione_verifica_attestato.html", {
+        "esito": esito, "codice": av.formatta(av.normalizza(codice)) if codice else "", "limitato": limitato,
+        "STATI": {"VALIDO": av.VALIDO, "SCADUTO": av.SCADUTO, "NON_VALIDO": av.NON_VALIDO,
+                  "SCONOSCIUTO": av.SCONOSCIUTO, "ALTERATO": av.ALTERATO},
+    }, status=429 if limitato else 200)
+    resp["Referrer-Policy"] = "no-referrer"
+    return resp

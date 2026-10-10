@@ -2909,7 +2909,7 @@ def attestato_formazione(request, record_id: int):
     # Derivazione condivisa con il builder PDF (tipo, responsabile, nominativo,
     # sede, numero, dati anagrafici) — un'unica fonte di verità.
     from .services.attestato_pdf import build_attestato_context, _documento_esistente
-    ctx = build_attestato_context(record)
+    ctx = build_attestato_context(record, request=request)
     legacy_id = ctx["legacy_id"]
 
     # Variante "stampa": layout sobrio a basso consumo d'inchiostro (B/N),

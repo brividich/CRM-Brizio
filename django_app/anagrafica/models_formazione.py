@@ -1354,6 +1354,9 @@ class TrainingEmployeeRecord(models.Model):
     # stabile (vedi services.attestato_pdf.assegna_numero_protocollo). Vuoto = non
     # ancora emesso.
     numero_protocollo = models.CharField(max_length=20, blank=True, default="", db_index=True)
+    # Codice di verifica dell'attestato (QR o digitato): casuale, non deducibile
+    # dal protocollo. Assegnato insieme al protocollo e poi stabile.
+    codice_verifica = models.CharField(max_length=16, blank=True, default="")
 
     # ── Snapshot storici ─────────────────────────────────────
     # Compilare alla creazione del record — non aggiornare mai.
@@ -1377,6 +1380,11 @@ class TrainingEmployeeRecord(models.Model):
             models.Index(fields=["legacy_anagrafica_id", "corso"]),
             models.Index(fields=["legacy_anagrafica_id", "data_scadenza"]),
             models.Index(fields=["data_scadenza"]),
+        ]
+        constraints = [
+            # Condizione positiva: su SQL Server l'indice filtrato non accetta NOT.
+            models.UniqueConstraint(fields=["codice_verifica"], condition=models.Q(codice_verifica__gt=""),
+                                    name="uniq_record_codice_verifica"),
         ]
 
     def __str__(self) -> str:

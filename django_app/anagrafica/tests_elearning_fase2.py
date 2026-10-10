@@ -131,3 +131,73 @@ class ImportDomandeExcelTests(_Pro):
         self.client.post(self.url, {"file": _xlsx([["Domanda", "Risposta 1", "Risposta 2", "Corrette"],
                                                    ["X?", "a", "b", "1"]])})
         self.assertEqual(self.corso.quiz_domande.count(), 1)
+
+
+class VerificaAttestatoTests(_Pro):
+    def setUp(self):
+        super().setUp()
+        self._vedi_tutte()
+        with self.captureOnCommitCallbacks(execute=True):
+            self._quiz(self.giusta)
+        from .models_formazione import TrainingEmployeeRecord
+        self.record = TrainingEmployeeRecord.objects.get(legacy_anagrafica_id=self.lid)
+
+    def _codice(self):
+        from .services.attestato_verifica import assegna_codice_verifica
+        return assegna_codice_verifica(self.record)
+
+    def test_codice_stabile_e_casuale(self):
+        from .services import attestato_verifica as av
+        codice = self._codice()
+        self.assertEqual(len(codice), av.LUNGHEZZA)
+        self.assertTrue(set(codice) <= set(av.ALFABETO))
+        self.record.refresh_from_db()
+        self.assertEqual(av.assegna_codice_verifica(self.record), codice)
+
+    def test_esiti(self):
+        from datetime import date
+        from .models_elearning import TrainingElearningCompletamento
+        from .services import attestato_verifica as av
+        codice = self._codice()
+        esito = av.verifica(av.formatta(codice).lower())
+        self.assertEqual(esito.stato, av.VALIDO)
+        self.assertEqual(esito.nome, "DISCENTE.EL NOME")
+        self.assertEqual(av.verifica("ZZZZ-ZZZZ-ZZZZ").stato, av.SCONOSCIUTO)
+        self.assertEqual(av.verifica(codice, oggi=date(2999, 1, 1)).stato, av.VALIDO)  # nessuna scadenza
+        type(self.record).objects.filter(pk=self.record.pk).update(data_scadenza=date(2020, 1, 1))
+        self.assertEqual(av.verifica(codice).stato, av.SCADUTO)
+        comp = TrainingElearningCompletamento.objects.get(record=self.record)
+        TrainingElearningCompletamento.objects.filter(pk=comp.pk).update(verifica_json={"falso": True})
+        self.assertEqual(av.verifica(codice).stato, av.ALTERATO)
+
+    def test_pagina_minima_e_solo_autenticati(self):
+        from .services.attestato_verifica import formatta
+        url = reverse("anagrafica:formazione_verifica_attestato_codice", args=[formatta(self._codice())])
+        r = self.client.get(url)
+        self.assertContains(r, "Attestato autentico e valido")
+        self.assertContains(r, "Sicurezza online")
+        self.assertNotContains(r, "discente.el@example.invalid")
+        self.assertEqual(r["Referrer-Policy"], "no-referrer")
+        self.client.logout()
+        self.assertEqual(self.client.get(url).status_code, 302)
+
+    def test_limite_di_verifiche(self):
+        from django.core.cache import cache
+        from .views_elearning import VERIFICHE_MAX
+        cache.set(f"elearning:verifica:{self.user.pk}", VERIFICHE_MAX, 60)
+        r = self.client.get(reverse("anagrafica:formazione_verifica_attestato_codice", args=["AAAA-BBBB-CCCC"]))
+        self.assertEqual(r.status_code, 429)
+        cache.delete(f"elearning:verifica:{self.user.pk}")
+
+    def test_pdf_e_html_portano_il_codice(self):
+        from django.test import override_settings
+        from .services.attestato_pdf import build_attestato_context, build_attestato_pdf_bytes
+        with override_settings(SITE_URL="https://hub.example.invalid"):
+            ctx = build_attestato_context(self.record)
+            self.assertTrue(ctx["verifica_url"].startswith("https://hub.example.invalid/anagrafica/"))
+            self.assertIn("<svg", ctx["verifica_qr_svg"])
+            self.assertTrue(build_attestato_pdf_bytes(self.record).startswith(b"%PDF"))
+        admin = User.objects.create_superuser("att.el", "att@example.invalid", "x")
+        self.client.force_login(admin)
+        r = self.client.get(reverse("anagrafica:attestato_formazione", args=[self.record.pk]))
+        self.assertContains(r, ctx["codice_verifica"])

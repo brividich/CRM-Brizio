@@ -33,6 +33,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - le domande esistenti con più risposte giuste diventano «multipla» (migration), le altre «singola»: nessun quiz cambia esito;
   - controllo di coerenza per tipo (singola = una sola giusta, vero/falso = esattamente «Vero»/«Falso»): la domanda incoerente resta fuori dal quiz e l'editor dice perché; la pubblicazione è bloccata come prima;
   - **import da Excel** delle domande (modello scaricabile, tutto o niente con il numero di riga sbagliata, file verificato dal contenuto), con binding ACL copiato dal salvataggio domanda.
+- **Formazione — verifica di autenticità degli attestati** (`models_formazione.py`, migration `0151`, `services/attestato_verifica.py` nuovo, `services/attestato_pdf.py`, `views.py`, `views_elearning.py`, `urls.py`, template `formazione_verifica_attestato.html` nuovo, `attestato_formazione.html`, `attestato_formazione_stampa.html`, `formazione_online_catalog.html`, test in `tests_elearning_fase2.py`):
+  - ogni attestato (aula ed e-learning) porta un **codice di verifica** casuale di 12 caratteri, assegnato con il protocollo e poi stabile (vincolo univoco filtrato con condizione positiva per SQL Server), stampato in chiaro e come **QR** su PDF e a video; il QR compare solo se `SITE_URL` è impostato;
+  - **pagina di verifica** `/anagrafica/formazione/corsi-online/verifica/` (anche `…/verifica/<codice>/`): nome, corso, date, protocollo ed esito (valido, scaduto, non idoneo, non riconosciuto); nessun altro dato personale; per l'e-learning ricalcola l'impronta SHA-256 del registro e segnala l'attestato **non verificabile** se è stata alterata;
+  - aperta a ogni utente **autenticato** (prefisso shared del discente, nessuna modifica alle superfici pubbliche), limite di 30 verifiche ogni 10 minuti per utente, `Referrer-Policy: no-referrer`; link «Verifica un attestato» dal catalogo dei corsi online.
 <!-- fine prompt 05 -->
 
 <!-- prompt 04 anagrafica: mansioni di rischio (blocco della sessione, non mescolare) -->
