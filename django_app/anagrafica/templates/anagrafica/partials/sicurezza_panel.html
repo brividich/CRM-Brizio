@@ -1,0 +1,130 @@
+{% comment %}
+Pannello "Mansioni di rischio e stato operativo" della scheda dipendente (HTMX lazy-load).
+Privacy: lo stato operativo mostra solo l'etichetta; i motivi (dato derivato da quello
+sanitario) e i nomi delle visite solo con can_view_visite. La timeline è non clinica.
+{% endcomment %}
+<div class="sp-panel" id="sicurezza-panel">
+<style>
+.sp-panel { font-size:13px; }
+.sp-stato { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:10px; margin-bottom:12px; border:1px solid; }
+.sp-stato-ko { background:#fef2f2; border-color:#fca5a5; color:#7f1d1d; }
+.sp-stato-warn { background:#fffbeb; border-color:#fcd34d; color:#78350f; }
+.sp-stato-ok { background:#f0fdf4; border-color:#bbf7d0; color:#14532d; }
+.sp-stato strong { font-size:14px; }
+.sp-sez { margin:14px 0 6px; font-weight:800; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:#64748b; }
+.sp-mr { display:flex; flex-wrap:wrap; gap:6px; }
+.sp-chip { display:inline-flex; gap:6px; align-items:center; padding:3px 10px; border-radius:999px; border:1px solid #e2e8f0; background:#fff; font-size:12.5px; }
+.sp-chip small { color:#64748b; }
+.sp-chip-escl { text-decoration:line-through; color:#94a3b8; }
+.sp-tab { width:100%; border-collapse:collapse; font-size:12.5px; }
+.sp-tab td, .sp-tab th { padding:5px 6px; border-bottom:1px solid #eef2f7; text-align:left; vertical-align:top; }
+.sp-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; align-items:end; margin-top:8px; padding:10px; border:1px dashed #cbd5e1; border-radius:10px; }
+.sp-form label { display:block; font-size:11px; font-weight:700; color:#64748b; margin-bottom:2px; }
+.sp-tl { list-style:none; margin:0; padding:0; }
+.sp-tl li { display:grid; grid-template-columns:110px 1fr; gap:10px; padding:5px 0; border-bottom:1px solid #f1f5f9; }
+.sp-tl time { color:#64748b; font-size:12px; }
+body.theme-dark .sp-chip { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .sp-stato-ko { background:rgba(153,27,27,.25); color:#fecaca; border-color:#7f1d1d; }
+body.theme-dark .sp-stato-warn { background:rgba(133,77,14,.25); color:#fde68a; border-color:#78350f; }
+body.theme-dark .sp-stato-ok { background:rgba(22,101,52,.2); color:#bbf7d0; border-color:#14532d; }
+body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl li { border-color:var(--border); }
+@media (max-width:640px) { .sp-tl li { grid-template-columns:1fr; gap:2px; } }
+</style>
+
+{# ── Stato operativo ─────────────────────────────────────────────────── #}
+<div class="sp-stato {% if stato.bloccante %}sp-stato-ko{% elif stato.codice != 'OK' %}sp-stato-warn{% else %}sp-stato-ok{% endif %}" role="status">
+  <div>
+    <strong>{% if stato.codice == 'OK' %}Può operare nella mansione{% else %}{{ stato.etichetta }}{% endif %}</strong>
+    {% if motivi %}<ul style="margin:4px 0 0;padding-left:18px;">{% for m in motivi %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
+    {% if stato.deroga %}<div style="margin-top:4px;">Deroga: {{ stato.deroga.motivo }} (autorizzata il {{ stato.deroga.autorizzato_il|date:"d/m/Y" }})</div>{% endif %}
+  </div>
+</div>
+
+{% if puo_sorveglianza and config.modalita_visita_mancante == 'DEROGA_AMMESSA' and 'VISITA_MANCANTE' in stato.motivi and not stato.deroga %}
+<form method="post" action="{% url 'anagrafica:dipendente_deroga_aggiungi' legacy_id %}" class="sp-form" aria-label="Concedi deroga">
+  {% csrf_token %}
+  <div style="grid-column:1/-1;font-weight:700;">Deroga motivata (max {{ config.deroga_max_giorni }} giorni)</div>
+  <div><label for="dg-motivo">Motivo *</label><input id="dg-motivo" name="motivo" class="dp-input" required maxlength="500"></div>
+  <div><label for="dg-fino">Valida fino al *</label><input id="dg-fino" type="date" name="valida_fino" class="dp-input" required min="{{ oggi|date:'Y-m-d' }}"></div>
+  <div><button class="dp-btn dp-btn-primary dp-btn-sm" type="submit">Concedi deroga</button></div>
+</form>
+{% endif %}
+{% if puo_sorveglianza and stato.deroga %}
+<form method="post" action="{% url 'anagrafica:dipendente_deroga_revoca' legacy_id stato.deroga.pk %}" style="margin:-4px 0 10px;">
+  {% csrf_token %}<input type="hidden" name="motivo" value="Revoca dalla scheda">
+  <button class="dp-btn dp-btn-ghost dp-btn-sm" type="submit">Revoca deroga</button>
+</form>
+{% endif %}
+
+{# ── Mansioni di rischio effettive ───────────────────────────────────── #}
+<div class="sp-sez">Mansioni di rischio effettive</div>
+<div class="sp-mr">
+  {% for e in det.mansioni_rischio %}
+  <a class="sp-chip" href="{% url 'anagrafica:mansione_rischio_dettaglio' e.mansione_rischio.pk %}" style="text-decoration:none;color:inherit;">
+    {{ e.mansione_rischio.codice }} · {{ e.mansione_rischio.nome }}
+    <small>{% if e.origine == 'OVERRIDE' %}aggiunta individuale{% else %}da mansione «{{ det.mansione_nome }}»{% endif %}</small>
+  </a>
+  {% endfor %}
+  {% for e in det.mansioni_rischio_escluse %}
+  <span class="sp-chip" title="Esclusa: {{ e.override.motivo }}"><span class="sp-chip-escl">{{ e.mansione_rischio.codice }} · {{ e.mansione_rischio.nome }}</span><small>esclusa</small></span>
+  {% endfor %}
+  {% if not det.mansioni_rischio and not det.mansioni_rischio_escluse %}
+  <span style="color:#94a3b8;">Nessuna{% if det.mansione_nome %}: la mansione «{{ det.mansione_nome }}» non è collegata a mansioni di rischio (vale il profilo diretto deprecato){% endif %}.</span>
+  {% endif %}
+</div>
+
+{# ── Override individuali ────────────────────────────────────────────── #}
+<div class="sp-sez">Aggiunte ed esclusioni individuali</div>
+{% if override %}
+<table class="sp-tab">
+  <thead><tr><th>Mansione di rischio</th><th>Tipo</th><th>Periodo</th><th>Motivo</th><th>Da</th><th></th></tr></thead>
+  <tbody>
+  {% for o in override %}
+  <tr{% if not o.attivo %} style="color:#94a3b8;"{% endif %}>
+    <td>{{ o.mansione_rischio.codice }} · {{ o.mansione_rischio.nome }}</td>
+    <td>{{ o.get_azione_display }}</td>
+    <td>dal {{ o.data_inizio|date:"d/m/Y" }}{% if o.data_fine %} al {{ o.data_fine|date:"d/m/Y" }}{% endif %}</td>
+    <td>{{ o.motivo }}{% if not o.attivo %}<br><small>Revocato il {{ o.revocato_il|date:"d/m/Y" }}: {{ o.revoca_motivo }}</small>{% endif %}</td>
+    <td>{{ o.created_by.get_full_name|default:o.created_by.username|default:"—" }}</td>
+    <td>
+      {% if o.attivo and puo_sorveglianza %}
+      <form method="post" action="{% url 'anagrafica:dipendente_override_revoca' legacy_id o.pk %}" style="display:flex;gap:4px;">
+        {% csrf_token %}
+        <input name="motivo" class="dp-input" placeholder="Motivo revoca" required maxlength="300" style="min-width:120px;" aria-label="Motivo della revoca">
+        <button class="dp-btn dp-btn-ghost dp-btn-sm" type="submit">Revoca</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div style="color:#94a3b8;">Nessuna.</div>{% endif %}
+
+{% if puo_sorveglianza %}
+<form method="post" action="{% url 'anagrafica:dipendente_override_aggiungi' legacy_id %}" class="sp-form" aria-label="Nuova aggiunta o esclusione">
+  {% csrf_token %}
+  <div><label for="ov-mr">Mansione di rischio</label>
+    <select id="ov-mr" name="mansione_rischio" class="dp-input" required>
+      {% for mr in mansioni_rischio_opts %}<option value="{{ mr.pk }}">{{ mr.codice }} · {{ mr.nome }}</option>{% endfor %}
+    </select></div>
+  <div><label for="ov-azione">Tipo</label>
+    <select id="ov-azione" name="azione" class="dp-input"><option value="ADD">Aggiunta (es. addetto antincendio)</option><option value="EXCLUDE">Esclusione</option></select></div>
+  <div><label for="ov-dal">Dal</label><input id="ov-dal" type="date" name="data_inizio" class="dp-input" value="{{ oggi|date:'Y-m-d' }}"></div>
+  <div><label for="ov-al">Al (opzionale)</label><input id="ov-al" type="date" name="data_fine" class="dp-input"></div>
+  <div style="grid-column:span 2;"><label for="ov-motivo">Motivo *</label><input id="ov-motivo" name="motivo" class="dp-input" required maxlength="500" placeholder="Es. nomina addetto antincendio del …"></div>
+  <div><button class="dp-btn dp-btn-primary dp-btn-sm" type="submit">Registra</button></div>
+</form>
+{% endif %}
+
+{# ── Timeline sicurezza ──────────────────────────────────────────────── #}
+<div class="sp-sez">Timeline sicurezza</div>
+{% if timeline %}
+<ul class="sp-tl">
+  {% for ev in timeline %}
+  <li><time datetime="{{ ev.occorso_il|date:'c' }}">{{ ev.occorso_il|date:"d/m/Y H:i" }}</time>
+    <div><strong>{{ ev.get_tipo_display }}</strong> — {{ ev.descrizione }}{% if ev.payload.motivo %} <span style="color:#64748b;">({{ ev.payload.motivo }})</span>{% endif %}<br><small style="color:#64748b;">{{ ev.actor_display|default:"Sistema" }}{% if ev.data_effetto %} · effetto {{ ev.data_effetto|date:"d/m/Y" }}{% endif %}</small></div></li>
+  {% endfor %}
+</ul>
+{% else %}<div style="color:#94a3b8;">Nessun evento registrato.</div>{% endif %}
+</div>

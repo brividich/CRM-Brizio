@@ -463,3 +463,79 @@ class RefertiDownloadSicuroTests(TestCase):
             self.client.post(reverse("anagrafica:referti_carica"),
                              {"referti": [SimpleUploadedFile("x.html", self.HTML, content_type="application/pdf")]})
         self.assertEqual(elabora.call_args[0][0], [])  # nessun documento passato all'archivio
+
+
+# ── UI: pagine, permessi, privacy del pannello, subnav ───────────────────────
+class PagineMansioniRischioTests(_Base):
+    def setUp(self):
+        super().setUp()
+        self.semplice = User.objects.create_user("mr_semplice_test", "s@example.invalid", "x")
+
+    def test_pagine_admin(self):
+        self.client.force_login(self.admin)
+        for nome, args in (("mansioni_rischio_list", []), ("mansione_rischio_nuova", []),
+                           ("mansione_rischio_dettaglio", [self.mr_fumi.pk]),
+                           ("mansione_rischio_modifica", [self.mr_fumi.pk]),
+                           ("organigramma_mansioni_rischio", []), ("dipendente_sicurezza_panel", [self.lid]),
+                           ("mansione_requisiti", [self.operaio.pk]), ("cambi_mansione", [])):
+            r = self.client.get(reverse(f"anagrafica:{nome}", args=args))
+            self.assertEqual(r.status_code, 200, nome)
+        r = self.client.get(reverse("anagrafica:organigramma_mansioni_rischio") + "?vista=lavorativa")
+        self.assertContains(r, "Operaio T")
+
+    def test_subnav_raggruppata_con_voce_accesa(self):
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("anagrafica:mansione_rischio_dettaglio", args=[self.mr_fumi.pk]))
+        self.assertContains(r, "Sorveglianza sanitaria")
+        self.assertContains(r, 'class="active" aria-current="page">Mansioni di rischio')
+
+    def test_utente_senza_permessi_negato(self):
+        self.client.force_login(self.semplice)
+        for nome, args in (("mansioni_rischio_list", []), ("mansione_rischio_nuova", []),
+                           ("organigramma_mansioni_rischio", [])):
+            r = self.client.get(reverse(f"anagrafica:{nome}", args=args))
+            self.assertEqual(r.status_code, 302, nome)
+        r = self.client.post(reverse("anagrafica:dipendente_override_aggiungi", args=[self.lid]),
+                             {"mansione_rischio": self.mr_fumi.pk, "azione": "ADD", "motivo": "x"})
+        self.assertFalse(O.objects.exists())
+
+    def test_pannello_senza_permesso_sanitario_non_mostra_i_motivi(self):
+        VisitaMedica.objects.create(legacy_anagrafica_id=self.lid, tipo=self.audiometria,
+                                    data_svolgimento=OGGI, esito="NON_IDONEO_TEMP")
+        from unittest import mock
+        self.client.force_login(self.admin)
+        # Chi apre la scheda ma non ha il permesso visite: vede lo stato, non il perché.
+        with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False):
+            r = self.client.get(reverse("anagrafica:dipendente_sicurezza_panel", args=[self.lid]))
+        self.assertContains(r, "Non idoneo a operare")
+        self.assertNotContains(r, "Giudizio di non idoneità")
+        self.assertNotContains(r, "Registra</button>")  # niente override senza permesso visite
+        r = self.client.get(reverse("anagrafica:dipendente_sicurezza_panel", args=[self.lid]))
+        self.assertContains(r, "Giudizio di non idoneità")
+
+    def test_form_anteprima_non_salva_e_salvataggio_accoda(self):
+        self.client.force_login(self.admin)
+        self._card(self.lid, "Operaio T")
+        dati = {"codice": "MR-NEW", "nome": "Nuova", "is_active": "on", "fattori": [self.fumi.pk],
+                "mansioni": [self.operaio.pk]}
+        r = self.client.post(reverse("anagrafica:mansione_rischio_nuova"), {**dati, "azione": "anteprima"})
+        self.assertContains(r, "genera 1 nuove visite")
+        self.assertFalse(MansioneRischio.objects.filter(codice="MR-NEW").exists())
+        from unittest import mock
+        from django.utils.module_loading import import_string
+
+        def _in_linea(func, *args, **kwargs):  # il cluster django-q non gira nei test
+            kwargs.pop("q_options", None)
+            return import_string(func)(*args, **kwargs)
+
+        with mock.patch("django_q.tasks.async_task", side_effect=_in_linea),                 self.captureOnCommitCallbacks(execute=True):
+            r = self.client.post(reverse("anagrafica:mansione_rischio_nuova"), {**dati, "azione": "salva"})
+        mr = MansioneRischio.objects.get(codice="MR-NEW")
+        self.assertRedirects(r, reverse("anagrafica:mansione_rischio_dettaglio", args=[mr.pk]))
+        self.assertTrue(A.objects.filter(legacy_anagrafica_id=self.lid, chiave=f"VISITA:{self.annuale.pk}").exists())
+
+    def test_export_organigramma(self):
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("anagrafica:export", args=["organigramma_mansioni_rischio"]),
+                            {"format": "xlsx", "scope": "full"})
+        self.assertEqual(r.status_code, 200)

@@ -1,0 +1,100 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{% if mr.pk %}Modifica {{ mr.codice }}{% else %}Nuova mansione di rischio{% endif %} | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+{% include "anagrafica/components/_multiselect_picker.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/partials/_safety_subnav.html" with active="mansioni_rischio" %}
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansioni_rischio_list' %}">Mansioni di rischio</a><span class="fmd-sep"> / </span><span class="fmd-cur">{% if mr.pk %}{{ mr.codice }}{% else %}Nuova{% endif %}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>{% if mr.pk %}{{ mr.nome }}{% else %}Nuova mansione di rischio{% endif %}</h1>
+        <p class="fmd-ph-sub">Prima di salvare usa «Anteprima effetto»: dice quante visite, corsi e DPI la modifica genera per i dipendenti coinvolti. Dopo il salvataggio gli adempimenti vengono riallineati in background.</p>
+      </div>
+    </div>
+
+    {% if errori %}
+    <div class="fmd-panel fmd-block" role="alert" style="border-left:4px solid #ef4444;">{% for e in errori %}<div>{{ e }}</div>{% endfor %}</div>
+    {% endif %}
+
+    {% if effetto %}
+    <div class="fmd-panel fmd-block" role="status" style="border-left:4px solid #1f87cd;">
+      <div class="fmd-block-title" style="margin-bottom:6px;">Anteprima effetto</div>
+      <div>{{ effetto.frase }}</div>
+      {% if effetto.gia_soddisfatte or effetto.senza_assegnazione %}
+      <div class="fmd-muted" style="margin-top:6px;font-size:12px;">{{ effetto.gia_soddisfatte }} requisiti nuovi risultano già soddisfatti{% if effetto.senza_assegnazione %}; {{ effetto.senza_assegnazione }} dipendenti senza assegnazione aperta: per loro i requisiti compaiono nello scadenzario ma non nel piano di adeguamento{% endif %}.</div>
+      {% endif %}
+      <div class="fmd-muted" style="margin-top:6px;font-size:12px;">Nulla è stato salvato.</div>
+    </div>
+    {% endif %}
+
+    <form method="post" class="fmd-panel fmd-block">
+      {% csrf_token %}
+      <div class="fm-form-grid-2">
+        <div class="fm-form-field"><label for="mr-codice">Codice *</label>
+          <input id="mr-codice" name="codice" class="fm-input" maxlength="20" required value="{{ dati.codice }}"></div>
+        <div class="fm-form-field"><label for="mr-nome">Nome *</label>
+          <input id="mr-nome" name="nome" class="fm-input" maxlength="150" required value="{{ dati.nome }}"></div>
+        <div class="fm-form-field"><label for="mr-livello">Livello di rischio (DVR)</label>
+          <select id="mr-livello" name="livello_rischio_dvr" class="fm-input fm-select">
+            <option value="">— non indicato —</option>
+            {% for code, label in livello_choices %}<option value="{{ code }}"{% if dati.livello_rischio_dvr == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <div class="fm-help">Informativo. Le ore di formazione ASR restano sulla mansione lavorativa.</div></div>
+        <div class="fm-form-field" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div><label for="mr-dvr">Revisione DVR</label><input id="mr-dvr" name="dvr_revisione" class="fm-input" maxlength="30" value="{{ dati.dvr_revisione }}"></div>
+          <div><label for="mr-dvr-data">Data revisione</label><input id="mr-dvr-data" type="date" name="dvr_data" class="fm-input" value="{{ dati.dvr_data|date:'Y-m-d' }}"></div>
+        </div>
+      </div>
+      <div class="fm-form-field"><label for="mr-descr">Descrizione</label>
+        <textarea id="mr-descr" name="descrizione" class="fm-input" rows="2">{{ dati.descrizione }}</textarea></div>
+
+      <div class="fm-form-grid-2">
+        <div class="fm-form-field"><label>Fattori di rischio</label>
+          <select name="fattori" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca fattore…" aria-label="Fattori di rischio">
+            {% for f in fattori_opts %}<option value="{{ f.pk }}"{% if f.pk in dati.fattori %} selected{% endif %}>{{ f.nome }} ({{ f.get_categoria_display }})</option>{% endfor %}
+          </select>
+          <div class="fm-help">Visite, DPI e corsi collegati ai fattori si aggiungono da soli.</div></div>
+        <div class="fm-form-field"><label>Protocollo sanitario: tipi di visita</label>
+          <select name="visite" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca tipo di visita…" aria-label="Tipi di visita">
+            {% for v in visite_opts %}<option value="{{ v.pk }}"{% if v.pk in dati.visite %} selected{% endif %}>{{ v.nome }}{% if v.categoria %} · {{ v.categoria }}{% endif %}</option>{% endfor %}
+          </select>
+          <div class="fm-help">La periodicità la decide il medico competente.</div></div>
+        <div class="fm-form-field"><label>Categorie DPI</label>
+          {% if dpi_opts %}
+          <select name="categorie_dpi" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca DPI…" aria-label="Categorie DPI">
+            {% for c in dpi_opts %}<option value="{{ c.pk }}"{% if c.pk in dati.categorie_dpi %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+          </select>
+          {% else %}<div class="fmd-muted">Modulo DPI non disponibile.</div>{% endif %}</div>
+        <div class="fm-form-field"><label>Mansioni lavorative collegate</label>
+          <select name="mansioni" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca mansione…" aria-label="Mansioni lavorative collegate">
+            {% for m in mansioni_opts %}<option value="{{ m.pk }}"{% if m.pk in dati.mansioni %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+          </select>
+          <div class="fm-help">Chi ricopre queste mansioni eredita la mansione di rischio. Collegare una mansione fa ignorare i suoi requisiti diretti (deprecati).</div></div>
+      </div>
+      <label style="display:inline-flex;gap:8px;align-items:center;margin:6px 0 0;"><input type="checkbox" name="is_active"{% if dati.is_active %} checked{% endif %}> Attiva</label>
+      <p class="fm-help">La formazione specifica si collega con le regole di obbligatorietà del modulo Formazione (target «mansione di rischio»).</p>
+
+      <div class="fmd-tfoot" style="border-top:1px solid var(--fmd-line-soft);margin-top:16px;justify-content:flex-end;gap:8px;">
+        <a class="fmd-btn fmd-btn-ghost" href="{% if mr.pk %}{% url 'anagrafica:mansione_rischio_dettaglio' mr.pk %}{% else %}{% url 'anagrafica:mansioni_rischio_list' %}{% endif %}">Annulla</a>
+        <button type="submit" name="azione" value="anteprima" class="fmd-btn fmd-btn-ghost">Anteprima effetto</button>
+        <button type="submit" name="azione" value="salva" class="fmd-btn fmd-btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

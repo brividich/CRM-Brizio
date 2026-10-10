@@ -1,0 +1,69 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ mr.nome }} · Mansioni di rischio | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/partials/_safety_subnav.html" with active="mansioni_rischio" %}
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansioni_rischio_list' %}">Mansioni di rischio</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ mr.codice }}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>{{ mr.nome }}{% if not mr.is_active %} <span class="fmd-badge fmd-b-grey">Disattivata</span>{% endif %}</h1>
+        <p class="fmd-ph-sub">{{ mr.descrizione|default:"Gruppo omogeneo di esposizione del DVR." }}{% if mr.dvr_revisione or mr.dvr_data %} · DVR {{ mr.dvr_revisione }} {{ mr.dvr_data|date:"d/m/Y" }}{% endif %}{% if mr.livello_rischio_dvr %} · rischio {{ mr.get_livello_rischio_dvr_display|lower }}{% endif %}</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% if is_admin %}<a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:mansione_rischio_modifica' mr.pk %}"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica</a>{% endif %}
+      </div>
+    </div>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Requisiti</div></div>
+      <div class="fmd-split" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));">
+        <div><div class="fmd-block-aside" style="margin-bottom:8px;">Fattori di rischio</div>
+          {% for f in requisiti.fattori %}<span class="fmd-badge fmd-b-orange" style="margin:0 5px 6px 0;">{{ f.nome }}</span>{% empty %}<span class="fmd-muted">— nessuno</span>{% endfor %}</div>
+        <div><div class="fmd-block-aside" style="margin-bottom:8px;">Protocollo sanitario</div>
+          {% if can_view_visite %}{% for v in requisiti.visite %}<span class="fmd-badge fmd-b-violet" style="margin:0 5px 6px 0;">{{ v.nome }}</span>{% empty %}<span class="fmd-muted">— nessuna visita</span>{% endfor %}
+          {% else %}<span class="fmd-muted">{{ requisiti.visite|length }} tipi di visita (dettaglio con il permesso visite mediche)</span>{% endif %}</div>
+        <div><div class="fmd-block-aside" style="margin-bottom:8px;">DPI</div>
+          {% for c in requisiti.dpi %}<span class="fmd-badge fmd-b-cyan" style="margin:0 5px 6px 0;">{{ c.nome }}</span>{% empty %}<span class="fmd-muted">— nessuno</span>{% endfor %}</div>
+        <div><div class="fmd-block-aside" style="margin-bottom:8px;">Formazione</div>
+          {% for c in requisiti.corsi %}<span class="fmd-badge fmd-b-green" style="margin:0 5px 6px 0;">{{ c.titolo }}</span>{% endfor %}
+          {% for p in requisiti.piani %}<span class="fmd-badge fmd-b-green" style="margin:0 5px 6px 0;">Piano: {{ p.nome }}</span>{% endfor %}
+          {% if not requisiti.corsi and not requisiti.piani %}<span class="fmd-muted">— nessuna</span>{% endif %}</div>
+      </div>
+      <p class="fmd-muted" style="margin:10px 0 0;font-size:12px;">La periodicità delle visite la decide il medico competente (tipo di visita e protocollo individuale).</p>
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Mansioni lavorative collegate <span class="fmd-count">{{ collegamenti|length }}</span></div></div>
+      {% for link in collegamenti %}<a class="fmd-badge fmd-b-cyan" style="margin:0 5px 6px 0;text-decoration:none;" href="{% url 'anagrafica:mansione_requisiti' link.mansione.pk %}">{{ link.mansione.nome }}</a>{% empty %}<span class="fmd-muted">Nessuna: nessun dipendente la eredita (restano le aggiunte individuali).</span>{% endfor %}
+    </section>
+
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Dipendenti esposti <span class="fmd-count">{{ esposti|length }}</span></div></div>
+      {% if esposti %}
+      <div class="fmd-tablewrap"><table class="fmd-table">
+        <thead><tr><th>Dipendente</th><th>Mansione</th><th>Reparto</th><th>Perché</th></tr></thead>
+        <tbody>{% for p in esposti %}<tr>
+          <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.nome }}</a></td>
+          <td>{{ p.mansione|default:"—" }}</td><td>{{ p.reparto|default:"—" }}</td><td>{{ p.via }}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+      {% else %}<div class="fmd-muted">Nessun dipendente attivo esposto.</div>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

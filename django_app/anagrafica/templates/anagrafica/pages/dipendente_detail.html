@@ -869,6 +869,20 @@ body.theme-dark .dp-link-ok { color:#86efac; }
     </div>
   </div>
 
+  <!-- MANSIONI DI RISCHIO + STATO OPERATIVO + TIMELINE SICUREZZA (prompt 04) -->
+  <div class="dp-card" data-tab="riepilogo">
+    <div class="dp-card-head">
+      <div class="dp-card-title">🛡 Mansioni di rischio e stato operativo</div>
+    </div>
+    <div class="dp-card-body">
+      <div hx-get="{% url 'anagrafica:dipendente_sicurezza_panel' legacy_id %}"
+           hx-trigger="load"
+           hx-swap="innerHTML">
+        <span style="font-size:13px;color:#94a3b8;">Caricamento…</span>
+      </div>
+    </div>
+  </div>
+
   <!-- CONFORMITÀ (semaforo idoneità alla mansione) -->
   <div class="dp-card" data-tab="riepilogo">
     <div class="dp-card-head">

@@ -6,6 +6,7 @@ from . import views_recruiting
 from . import views_reportistica
 from . import views_reportistica_chat
 from . import views_cambio_mansione
+from . import views_mansioni_rischio
 from . import views_sorveglianza
 
 app_name = "anagrafica"
@@ -92,6 +93,19 @@ urlpatterns = [
     path("api/dipendenti/<int:legacy_id>/assegnazione-verifica", views.dipendente_assegnazione_verifica, name="dipendente_assegnazione_verifica"),
     path("dipendenti/<int:legacy_id>/adempimenti/<int:adempimento_id>/stato", views_cambio_mansione.adempimento_cambio_mansione_stato, name="adempimento_cambio_mansione_stato"),
     path("cambi-mansione/", views_cambio_mansione.cambi_mansione, name="cambi_mansione"),
+    # ── Mansioni di rischio (prompt 04) ──────────────────────────────────────
+    path("mansioni-rischio/", views_mansioni_rischio.mansioni_rischio_list, name="mansioni_rischio_list"),
+    path("mansioni-rischio/nuova", views_mansioni_rischio.mansione_rischio_form, name="mansione_rischio_nuova"),
+    path("mansioni-rischio/<int:mr_id>/", views_mansioni_rischio.mansione_rischio_dettaglio, name="mansione_rischio_dettaglio"),
+    path("mansioni-rischio/<int:mr_id>/modifica", views_mansioni_rischio.mansione_rischio_form, name="mansione_rischio_modifica"),
+    path("mansioni-rischio/configurazione", views_mansioni_rischio.sicurezza_operativa_config, name="sicurezza_operativa_config"),
+    path("organigramma/mansioni-rischio/", views_mansioni_rischio.organigramma_mansioni_rischio, name="organigramma_mansioni_rischio"),
+    path("dipendenti/<int:legacy_id>/sicurezza/", views_mansioni_rischio.dipendente_sicurezza_panel, name="dipendente_sicurezza_panel"),
+    path("dipendenti/<int:legacy_id>/mansioni-rischio/override", views_mansioni_rischio.dipendente_override_aggiungi, name="dipendente_override_aggiungi"),
+    path("dipendenti/<int:legacy_id>/mansioni-rischio/override/<int:override_id>/revoca", views_mansioni_rischio.dipendente_override_revoca, name="dipendente_override_revoca"),
+    path("dipendenti/<int:legacy_id>/deroghe", views_mansioni_rischio.dipendente_deroga_aggiungi, name="dipendente_deroga_aggiungi"),
+    path("dipendenti/<int:legacy_id>/deroghe/<int:deroga_id>/revoca", views_mansioni_rischio.dipendente_deroga_revoca, name="dipendente_deroga_revoca"),
+    # ── fine mansioni di rischio ─────────────────────────────────────────────
     # Matricola dipendente (aggiorna campo legacy; preinserimento/recruiting)
     path("dipendenti/<int:legacy_id>/matricola/set", views.dipendente_matricola_set, name="dipendente_matricola_set"),
     # Username dipendente (aliasusername)

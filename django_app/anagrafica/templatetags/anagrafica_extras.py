@@ -421,3 +421,105 @@ def _nome_cognome_da(oggetto):
     if isinstance(oggetto, dict):
         return oggetto.get("nome"), oggetto.get("cognome")
     return getattr(oggetto, "nome", ""), getattr(oggetto, "cognome", "")
+
+
+# ── Subnav «Salute e sicurezza» (prompt 04, obiettivo C) ─────────────────────
+# Gruppi logici in ordine di frequenza d'uso. Ogni voce: (chiave, etichetta,
+# url name, view che la tengono accesa anche nelle sottopagine, contatore).
+_SAFETY_GRUPPI = (
+    ("Operatività", (
+        ("hub", "Cruscotto", "anagrafica:sicurezza_hub", ("anagrafica:sicurezza_ricerca",), None),
+        ("cambi", "Cambi mansione e adempimenti", "anagrafica:cambi_mansione", (), "adempimenti"),
+        ("scadenzario", "Scadenzario", "anagrafica:scadenzario", (), None),
+        ("conformita", "Conformità e idoneità", "anagrafica:conformita_report", (), None),
+    )),
+    ("Sorveglianza sanitaria", (
+        ("visite", "Visite mediche", "anagrafica:visite_mediche_dashboard", (), None),
+        ("referti", "Referti", "anagrafica:referti_coda", ("anagrafica:referti_registro", "anagrafica:referti_impostazioni"), "referti"),
+        ("libretto", "Libretto sanitario", "anagrafica:libretto_sanitario_generale", (), None),
+    )),
+    ("Rischi e mansioni", (
+        ("mansioni_rischio", "Mansioni di rischio", "anagrafica:mansioni_rischio_list",
+         ("anagrafica:mansione_rischio_dettaglio", "anagrafica:mansione_rischio_modifica", "anagrafica:mansione_rischio_nuova"), None),
+        ("organigramma_rischio", "Organigramma rischi", "anagrafica:organigramma_mansioni_rischio", (), None),
+        ("fattori", "Fattori di rischio", "anagrafica:fattori_rischio_list", (), None),
+        ("esposizioni", "Esposizioni", "anagrafica:esposizioni_rischio_list", (), None),
+        ("categorie", "Categorie di rischio", "anagrafica:categorie_corso_list", (), None),
+        ("mansioni", "Mansioni lavorative", "anagrafica:mansioni_list", ("anagrafica:mansione_requisiti",), None),
+    )),
+    ("Formazione e DPI", (
+        ("matrice", "Matrice competenze", "anagrafica:matrice_competenze", (), None),
+        ("qualifiche", "Qualifiche di sicurezza", "anagrafica:qualifiche_list", (), None),
+        ("dpi", "DPI", "dpi:dashboard", (), None),
+        ("wizard", "Guida", "anagrafica:sicurezza_wizard", (), None),
+    )),
+)
+
+
+def _safety_conteggi(chiavi: set[str]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    try:
+        if "adempimenti" in chiavi:
+            from anagrafica.models import AdempimentoCambioMansione as A
+            out["adempimenti"] = A.objects.filter(stato=A.STATO_APERTO, attivo=True).count()
+        if "referti" in chiavi:
+            from anagrafica.models_sorveglianza import RefertoIntakeRiga
+            out["referti"] = RefertoIntakeRiga.objects.filter(esito=RefertoIntakeRiga.ESITO_DA_RIVEDERE).count()
+    except Exception:
+        logger.warning("Subnav sicurezza: conteggi non disponibili", exc_info=True)
+    return out
+
+
+@register.simple_tag(takes_context=True)
+def safety_subnav(context, active=""):
+    """Gruppi della subnav Salute e sicurezza, filtrati per ACL e cancelli in-view.
+
+    Una voce che l'utente non può aprire non compare (stessa politica di
+    ``subnav_anagrafica``); un gruppo senza voci sparisce. La voce resta accesa
+    anche nelle sottopagine (view elencate nella voce).
+    """
+    request = context.get("request")
+    user = getattr(request, "user", None) if request else None
+    view_name = ""
+    try:
+        view_name = request.resolver_match.view_name if request else ""
+    except Exception:
+        pass
+
+    def _apribile(path: str) -> bool:
+        if user is None or not getattr(user, "is_authenticated", False):
+            return False
+        from anagrafica.subnav_gates import section_gate_allows
+        from core.middleware import acl_allows_path
+        try:
+            return bool(acl_allows_path(path, django_user=user, legacy_user=getattr(request, "legacy_user", None),
+                                        request=None)) and section_gate_allows(request, path)
+        except Exception:
+            logger.exception("Subnav sicurezza: verifica ACL fallita per %s", path)
+            return False
+
+    gruppi, contatori_voluti = [], set()
+    for titolo, voci in _SAFETY_GRUPPI:
+        visibili = []
+        for chiave, etichetta, nome_url, sottopagine, contatore in voci:
+            try:
+                url = reverse(nome_url)
+            except NoReverseMatch:
+                continue
+            if not _apribile(url):
+                continue
+            if chiave == "qualifiche":
+                url += "?categoria=SICUREZZA"
+            visibili.append({
+                "chiave": chiave, "label": etichetta, "url": url, "contatore": contatore,
+                "active": chiave == active or view_name == nome_url or view_name in sottopagine,
+            })
+            if contatore:
+                contatori_voluti.add(contatore)
+        if visibili:
+            gruppi.append({"titolo": titolo, "voci": visibili, "active": any(v["active"] for v in visibili)})
+    conteggi = _safety_conteggi(contatori_voluti)
+    for gruppo in gruppi:
+        for voce in gruppo["voci"]:
+            voce["n"] = conteggi.get(voce["contatore"] or "", 0)
+    return gruppi
