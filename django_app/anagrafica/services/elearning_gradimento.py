@@ -89,11 +89,17 @@ def per_corso(corso_ids=None) -> dict[int, dict]:
             for r in qs.values("corso_id").annotate(m=Avg("media"), n=Count("id")).order_by()}
 
 
+MIN_GIUDIZI_PER_COMMENTI = 5
+
+
 def commenti_recenti(limite: int = 10, corso_id: int | None = None) -> list[dict]:
-    """Ultimi commenti, **senza nome**: corso, data, media."""
+    """Ultimi commenti, **senza nome**: corso, data, media. Solo per i corsi con almeno
+    5 giudizi: con pochi partecipanti l'autore sarebbe riconoscibile."""
     from ..models_elearning import TrainingElearningGradimento
 
-    qs = TrainingElearningGradimento.objects.exclude(commento="").select_related("corso")
+    abbastanza = [cid for cid, v in per_corso().items() if v["n"] >= MIN_GIUDIZI_PER_COMMENTI]
+    qs = (TrainingElearningGradimento.objects.exclude(commento="").filter(corso_id__in=abbastanza)
+          .select_related("corso"))
     if corso_id:
         qs = qs.filter(corso_id=corso_id)
     return [{"corso": g.corso.titolo, "data": g.creato_il, "media": g.media, "commento": g.commento}

@@ -43,7 +43,7 @@
         </div>
       </fieldset>
       {% endfor %}
-      <div class="fmd-field fmd-col-full">
+      <div class="elg-commento">
         <label for="commento">Un commento (facoltativo)</label>
         <textarea id="commento" class="fm-input" name="commento" rows="3" maxlength="1000"
                   placeholder="Cosa miglioreresti?">{{ commento }}</textarea>
@@ -60,6 +60,9 @@
 
 <style>
 .elg-q{ border:0; margin:0 0 18px; padding:0; }
+.elg-commento{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px; }
+.elg-commento label{ font-weight:700; color:var(--fmd-navy); }
+.elg-commento textarea{ width:100%; box-sizing:border-box; }
 .elg-q legend{ font-weight:700; color:var(--fmd-navy); margin-bottom:8px; padding:0; }
 .elg-scala{ display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:6px; }
 .elg-voto{ position:relative; cursor:pointer; }

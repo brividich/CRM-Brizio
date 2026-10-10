@@ -309,8 +309,10 @@ def run_elearning_assegnazioni() -> dict:
     from anagrafica.services.elearning_tracciamento import chiudi_sessioni_inattive
 
     try:
+        from anagrafica.services.elearning_versioni import fissa_e_riassegna
         esito = sincronizza()
         esito["sessioni_chiuse"] = chiudi_sessioni_inattive()
+        esito["versioni"] = fissa_e_riassegna()
         return esito
     except Exception:
         logger.exception("run_elearning_assegnazioni: eccezione inattesa")

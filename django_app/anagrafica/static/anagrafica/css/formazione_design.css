@@ -353,7 +353,7 @@ body.theme-dark .fm-indice-link{ color:#7cc4f5; }
 .fm-slide-body li{ margin:3px 0; }
 .fm-slide-body code{ background:#eef2f7; padding:1px 5px; border-radius:5px; font-size:13px; }
 .fm-slide-img{ display:block; max-width:100%; height:auto; margin:0 auto; border:1px solid #e6ecf3; border-radius:8px; box-shadow:0 4px 14px rgba(12,37,69,.08); }
-.fm-slide-nav{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:18px; }
+.fm-slide-nav{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-top:18px; }
 .fm-slide-thumb{ max-width:340px; width:100%; height:auto; border:1px solid #e6ecf3; border-radius:8px; box-shadow:0 3px 10px rgba(12,37,69,.08); }
 .fm-import-box{ border:1px dashed #1f87cd; border-radius:12px; padding:16px; background:#f3f9fe; margin-bottom:18px; }
 .fm-q-warn{ border-color:#f6d9b8; }

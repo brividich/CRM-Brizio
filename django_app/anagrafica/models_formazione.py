@@ -1365,6 +1365,10 @@ class TrainingEmployeeRecord(models.Model):
     # Codice di verifica dell'attestato (QR o digitato): casuale, non deducibile
     # dal protocollo. Assegnato insieme al protocollo e poi stabile.
     codice_verifica = models.CharField(max_length=16, blank=True, default="")
+    # HMAC (chiave derivata da SECRET_KEY) di codice, persona, corso, date ed esito:
+    # rifirmato a ogni salvataggio dal portale; una modifica diretta al database
+    # rende l'attestato «non verificabile».
+    firma_verifica = models.CharField(max_length=64, blank=True, default="")
 
     # ── Snapshot storici ─────────────────────────────────────
     # Compilare alla creazione del record — non aggiornare mai.
@@ -1394,6 +1398,15 @@ class TrainingEmployeeRecord(models.Model):
             models.UniqueConstraint(fields=["codice_verifica"], condition=models.Q(codice_verifica__gt=""),
                                     name="uniq_record_codice_verifica"),
         ]
+
+    def save(self, *args, **kwargs):
+        if self.codice_verifica:
+            from .services.attestato_verifica import firma
+            self.firma_verifica = firma(self)
+            campi = kwargs.get("update_fields")
+            if campi is not None and "firma_verifica" not in campi:
+                kwargs["update_fields"] = list(campi) + ["firma_verifica"]
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] {self.corso.codice} — {self.data_completamento}"

@@ -104,8 +104,13 @@ def registra(corso, *, user=None, motivo: str = "", alla_pubblicazione: bool = F
                 attuale.save()
             return Esito(etichetta=corso.versione)
         etichetta = prossima_etichetta(corso.versione)
-        while TrainingCourseVersion.objects.filter(corso=corso, version_label=etichetta).exists():
+        # L'etichetta sta in 10 caratteri: si controlla quella vera, mai una troncata.
+        while len(etichetta) <= 10 and TrainingCourseVersion.objects.filter(
+                corso=corso, version_label=etichetta).exists():
             etichetta = prossima_etichetta(etichetta)
+        if len(etichetta) > 10:
+            raise RuntimeError(f"Etichetta di versione oltre 10 caratteri per il corso {corso.pk}: "
+                               "rinomina la versione del corso.")
         oggi = timezone.localdate()
         attuale.data_fine_validita = oggi
         attuale.save(update_fields=["data_fine_validita"])
@@ -114,8 +119,29 @@ def registra(corso, *, user=None, motivo: str = "", alla_pubblicazione: bool = F
             note=(motivo or "Contenuti modificati dopo la pubblicazione")[:2000], **dati)
         corso.versione = etichetta[:10]
         corso.save(update_fields=["versione", "updated_at"])
-        riassegnati = _riassegna(corso) if _regola_riassegna(corso) else 0
-    return Esito(nuova=True, etichetta=etichetta, riassegnati=riassegnati)
+    # La riassegnazione (regola RIASSEGNA) la fa il job notturno: l'autore ha il
+    # giorno per finire le modifiche, che intanto aggiornano questa versione.
+    return Esito(nuova=True, etichetta=etichetta, riassegnati=0)
+
+
+def fissa_e_riassegna() -> dict:
+    """Job notturno: versione di base per i corsi pubblicati che non l'hanno (deploy)
+    e nuovo ciclo per chi ha completato una versione precedente (regola RIASSEGNA)."""
+    from .elearning_fruizione import corsi_pubblicati
+
+    esito = {"fissate": 0, "riassegnati": 0}
+    for corso in corsi_pubblicati():
+        try:
+            if versione_corrente(corso) is None:
+                registra(corso, motivo="Versione registrata all'attivazione del versionamento",
+                         alla_pubblicazione=True)
+                esito["fissate"] += 1
+            elif _regola_riassegna(corso):
+                with transaction.atomic():
+                    esito["riassegnati"] += _riassegna(corso)
+        except Exception:
+            logger.exception("Versioni e-learning: corso %s non allineato", corso.pk)
+    return esito
 
 
 def _regola_riassegna(corso) -> bool:

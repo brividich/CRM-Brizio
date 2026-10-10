@@ -26,7 +26,8 @@ MAX_RISPOSTE = 8
 _TIPI = {
     "": "", "singola": "SINGOLA", "s": "SINGOLA", "risposta singola": "SINGOLA",
     "multipla": "MULTIPLA", "m": "MULTIPLA", "risposta multipla": "MULTIPLA",
-    "vero/falso": "VERO_FALSO", "vero falso": "VERO_FALSO", "vf": "VERO_FALSO", "v/f": "VERO_FALSO",
+    "vero/falso": "VERO_FALSO", "vero falso": "VERO_FALSO", "vero / falso": "VERO_FALSO",
+    "vf": "VERO_FALSO", "v/f": "VERO_FALSO",
 }
 
 
@@ -45,9 +46,14 @@ class _Riga:
     corrette: set[int] = field(default_factory=set)  # indici 1-based; per VF {1}=vero {2}=falso
 
 
+MAX_ERRORI = 50
+
+
 def _testo(v) -> str:
     if v is None:
         return ""
+    if isinstance(v, bool):  # Excel in italiano trasforma «Vero»/«Falso» in booleani
+        return "V" if v else "F"
     if isinstance(v, float) and v.is_integer():
         v = int(v)
     return str(v).strip()
@@ -83,7 +89,10 @@ def leggi(file_obj) -> list[_Riga]:
 
     errori, out = [], []
     for numero, valori in enumerate(righe, start=2):
-        valori = list(valori) + [None] * 64
+        if len(errori) >= MAX_ERRORI:
+            errori.append(f"Troppi errori: controllo interrotto alla riga {numero}.")
+            break
+        valori = list(valori) + [None] * (max(col.values()) + 1)
         testo = _testo(valori[col["domanda"]])
         risposte = [_testo(valori[i]) for i in col_risposte]
         while risposte and not risposte[-1]:
@@ -121,7 +130,8 @@ def leggi(file_obj) -> list[_Riga]:
             errori.append(f"Riga {numero}: servono almeno due risposte.")
             continue
         try:
-            corrette = {int(x) for x in re.split(r"[,;\s]+", corrette_txt) if x}
+            # «1,3» digitato in Excel può arrivare come numero 1.3: anche il punto separa.
+            corrette = {int(x) for x in re.split(r"[,;.\s]+", corrette_txt) if x}
         except ValueError:
             errori.append(f"Riga {numero}: «Corrette» deve contenere numeri di risposta (es. 1 oppure 1,3).")
             continue
@@ -176,6 +186,9 @@ def modello_xlsx() -> bytes:
     ws.append(["vero/falso", "Un'uscita di emergenza può restare chiusa a chiave durante il turno.", "", "", "", "", "F"])
     for colonna, larghezza in zip("ABCDEFG", (12, 60, 24, 24, 24, 24, 10)):
         ws.column_dimensions[colonna].width = larghezza
+    for riga in ws.iter_rows(min_col=7, max_col=7, min_row=1, max_row=500):
+        for cella in riga:
+            cella.number_format = "@"  # testo: Excel non converte «1,3» in un numero
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

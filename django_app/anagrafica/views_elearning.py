@@ -302,7 +302,7 @@ def formazione_online_quiz(request, corso_id: int):
         if request.method == "POST":
             messages.info(request, "Anteprima editor: il quiz non viene corretto né registrato.")
             return redirect("anagrafica:formazione_online_quiz", corso_id=corso_id)
-        domande = [quiz.DomandaServita(d.pk, d.testo, [(o.pk, o.testo) for o in d.opzioni.all()])
+        domande = [quiz.DomandaServita(d.pk, d.testo, [(o.pk, o.testo) for o in d.opzioni.all()], d.tipo)
                    for d in quiz.domande_valide(corso)]
         if not domande:
             messages.info(request, "Il quiz non è ancora pronto: nessuna domanda ha una risposta corretta.")

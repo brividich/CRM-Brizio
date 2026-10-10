@@ -99,7 +99,7 @@ body.theme-dark .elc-bar { background:var(--surface-alt); }
       <section class="fmd-panel fmd-block"><div class="fmd-block-title" style="margin-bottom:8px;">Ultimi commenti dei discenti</div>
         {% for c in qualita.commenti %}
         <blockquote class="elc-commento"><p>{{ c.commento }}</p><footer class="fmd-muted">{{ c.corso }} · {{ c.data|date:"d/m/Y" }} · {{ c.media }} / 5</footer></blockquote>
-        {% empty %}<p class="fmd-muted">Nessun commento.</p>{% endfor %}
+        {% empty %}<p class="fmd-muted">Nessun commento da mostrare (si vedono dai corsi con almeno 5 giudizi, per non rendere riconoscibile chi scrive).</p>{% endfor %}
       </section>
     </div>
 

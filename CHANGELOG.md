@@ -53,6 +53,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - il caricamento salva il file e accoda la conversione a django-q (`anagrafica.tasks.run_elearning_import`, timeout 15 minuti): la richiesta web non resta più appesa a LibreOffice; nella sezione Slide lo stato si aggiorna da solo (in coda, in corso, completato con il numero di slide, errore leggibile);
   - lavoro idempotente (una riconsegna del task non duplica le slide), file di origine nello storage privato cancellato a fine lavoro, versione del corso aggiornata dopo l'import;
   - **corretto**: un PDF rotto lasciava bloccato il file temporaneo su Windows; ora il PDF si apre dalla memoria e l'errore è «Il file non è un PDF leggibile».
+- **E-learning fase 2 — correzioni dalla review indipendente** (`models_formazione.py`, migration `0156`, `services/attestato_verifica.py`, `services/upload_documenti.py`, `services/elearning_completamento.py`, `services/elearning_versioni.py`, `services/elearning_import.py`, `services/elearning_quiz_import.py`, `services/elearning_promemoria.py`, `services/elearning_gradimento.py`, `views.py`, `views_elearning.py`, `tasks.py`, template `formazione_corso_elearning.html`, `formazione_online_gradimento.html`, `elearning_cruscotto.html`, `static/anagrafica/css/formazione_design.css`, test in `tests_elearning_fase2.py`):
+  - verifica attestato: **firma HMAC** (chiave derivata da `SECRET_KEY`) di codice, persona, corso, date ed esito, rifirmata a ogni salvataggio dal portale; una modifica diretta al database rende l'attestato «non verificabile»;
+  - import slide verificato **dal contenuto** (firma ZIP/OLE per PPTX/ODP/PPT, PDF reale); lavori di import bloccati oltre 20 minuti chiusi con errore leggibile, polling che si ferma;
+  - completamento e cambio di versione sotto lo stesso lucchetto sul corso; la **riassegnazione per nuova versione** la fa il job notturno (l'autore ha il giorno per finire le modifiche); versione di base fissata di notte per i corsi già pubblicati; etichetta di versione oltre 10 caratteri rifiutata invece di troncarla;
+  - import Excel: celle booleane (Vero/Falso) e «1,3» convertito da Excel in numero accettati, «vero / falso» con spazi, massimo 50 errori riportati, colonna «Corrette» del modello in formato testo;
+  - passaggio di una domanda a vero/falso: si deve dire se è vera o falsa e si chiede conferma prima di sostituire le opzioni;
+  - niente raffica di solleciti al primo avvio per scadenze ormai storiche (oltre l'ultima soglia + 7 giorni: le vede il responsabile nel riepilogo); riepilogo settimanale ritentato se l'email non parte;
+  - commenti del gradimento mostrati solo per i corsi con almeno 5 giudizi; pianificazione dell'efficacia in un savepoint; anteprima editor del quiz con caselle per le domande multiple; pulsanti del player e righe dell'editor che vanno a capo su smartphone;
+  - binding ACL delle rotte HR nuove (moduli, stato import) copiati dalle sorelle (create-only).
 <!-- fine prompt 05 -->
 
 <!-- prompt 04 anagrafica: mansioni di rischio (blocco della sessione, non mescolare) -->

@@ -176,16 +176,16 @@
             <div class="fmd-field"><label>Ordine</label>
               <input class="fm-input" type="number" name="ordine" value="{{ d.ordine }}" min="1" style="max-width:90px;"></div>
             <div class="fmd-field"><label>Tipo</label>
-              <select class="fm-input" name="tipo">
+              <select class="fm-input" name="tipo" data-prima="{{ d.tipo }}"
+                      onchange="if(this.value==='VERO_FALSO'&&this.dataset.prima!=='VERO_FALSO'&&!confirm('Le opzioni di risposta verranno sostituite da «Vero» e «Falso». Continuare?')){this.value=this.dataset.prima;}">
                 {% for val, lab in tipi_domanda %}<option value="{{ val }}"{% if d.tipo == val %} selected{% endif %}>{{ lab }}</option>{% endfor %}
               </select></div>
-            {% if d.tipo == "VERO_FALSO" %}
-            <div class="fmd-field"><label>L'affermazione è</label>
+            <div class="fmd-field"><label>Se vero/falso, l'affermazione è</label>
               <select class="fm-input" name="vf_vera">
-                <option value="1"{% if d.vf_vera %} selected{% endif %}>Vera</option>
-                <option value="0"{% if not d.vf_vera %} selected{% endif %}>Falsa</option>
+                {% if d.tipo != "VERO_FALSO" %}<option value="">—</option>{% endif %}
+                <option value="1"{% if d.tipo == "VERO_FALSO" and d.vf_vera %} selected{% endif %}>Vera</option>
+                <option value="0"{% if d.tipo == "VERO_FALSO" and not d.vf_vera %} selected{% endif %}>Falsa</option>
               </select></div>
-            {% endif %}
             <div class="fmd-field fmd-col-full"><label>Domanda</label>
               <textarea class="fm-input" name="testo" rows="2">{{ d.testo }}</textarea></div>
             <label class="fmd-check"><input type="checkbox" name="is_active" {% if d.is_active %}checked{% endif %}><span>Attiva</span></label>
@@ -273,7 +273,9 @@
 .fm-add-box{ border:1px dashed #cbd5e1; border-radius:12px; padding:16px; background:#f8fafc; margin-top:8px; }
 .fm-q-card{ border:1px solid #e6ecf3; border-radius:12px; padding:16px; margin-bottom:16px; }
 .fm-opts{ margin-top:12px; padding-top:12px; border-top:1px dashed #e6ecf3; }
-.fm-opt-row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.fm-opt-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:6px; }
+.fm-opt-row .fm-input[type=text]{ flex:1 1 160px; min-width:0; }
+.fm-opt-row .fm-input[type=file]{ max-width:100%; min-width:0; }
 .fm-opt-row input[type=text]{ flex:1; }
 .fm-opt-del{ display:inline; }
 .fm-opt-add{ margin-top:8px; }

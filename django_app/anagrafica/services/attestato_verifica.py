@@ -13,6 +13,7 @@ risulta **non verificabile**.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import secrets
 from dataclasses import dataclass
@@ -42,6 +43,15 @@ def formatta(codice: str) -> str:
     return "-".join(codice[i:i + 4] for i in range(0, len(codice), 4)) if codice else ""
 
 
+def firma(record) -> str:
+    """HMAC dei dati che la pagina di verifica mostra (chiave derivata da SECRET_KEY)."""
+    chiave = hashlib.sha256(("attestato-verifica:" + settings.SECRET_KEY).encode()).digest()
+    dati = "|".join(str(x) for x in (
+        record.pk, record.codice_verifica, record.legacy_anagrafica_id, record.corso_id,
+        record.data_completamento, record.data_scadenza, record.idoneo, record.course_title_snapshot))
+    return hmac.new(chiave, dati.encode(), hashlib.sha256).hexdigest()
+
+
 def assegna_codice_verifica(record) -> str:
     """Codice del record, assegnato se manca (idempotente, sicuro in concorrenza)."""
     from ..models_formazione import TrainingEmployeeRecord
@@ -50,15 +60,20 @@ def assegna_codice_verifica(record) -> str:
         return record.codice_verifica
     for _ in range(8):
         codice = _nuovo_codice()
+        record.codice_verifica = codice
         try:
             with transaction.atomic():
-                aggiornate = (TrainingEmployeeRecord.objects
-                              .filter(pk=record.pk, codice_verifica="").update(codice_verifica=codice))
+                aggiornate = (TrainingEmployeeRecord.objects.filter(pk=record.pk, codice_verifica="")
+                              .update(codice_verifica=codice, firma_verifica=firma(record)))
         except IntegrityError:
+            record.codice_verifica = ""
             continue  # collisione (improbabilissima): si ritenta
         if not aggiornate:  # assegnato nel frattempo da un'altra richiesta
-            codice = TrainingEmployeeRecord.objects.values_list("codice_verifica", flat=True).get(pk=record.pk)
-        record.codice_verifica = codice
+            record.codice_verifica, record.firma_verifica = (TrainingEmployeeRecord.objects
+                                                             .values_list("codice_verifica", "firma_verifica")
+                                                             .get(pk=record.pk))
+            return record.codice_verifica
+        record.firma_verifica = firma(record)
         return codice
     raise RuntimeError("Impossibile assegnare un codice di verifica univoco.")
 
@@ -119,7 +134,7 @@ def verifica(codice: str, *, oggi: date | None = None) -> Esito:
     if record is None:
         return Esito(SCONOSCIUTO, codice)
     oggi = oggi or timezone.localdate()
-    if _impronta_integra(record) is False:
+    if not hmac.compare_digest(record.firma_verifica or "", firma(record)) or _impronta_integra(record) is False:
         stato = ALTERATO
     elif not record.idoneo:
         stato = NON_VALIDO

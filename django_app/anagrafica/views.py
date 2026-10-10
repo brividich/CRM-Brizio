@@ -18882,7 +18882,8 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
     # d'aula (prima l'e-learning non la apriva mai). Fail-safe.
     try:
         from .services.formazione_efficacia import pianifica_valutazione_efficacia
-        pianifica_valutazione_efficacia(record)
+        with transaction.atomic():  # savepoint: un errore qui non rovina il completamento
+            pianifica_valutazione_efficacia(record)
     except Exception:
         logger.exception("Valutazione di efficacia non pianificata per record e-learning %s", record.pk)
 
@@ -19253,7 +19254,8 @@ def _versiona(request, corso, motivo: str) -> None:
     if esito.nuova:
         messages.info(request, f"Il corso era già stato completato: creata la versione {esito.etichetta}. "
                                "Il registro di chi ha completato resta legato alla versione precedente."
-                      + (f" Riassegnato a {esito.riassegnati} persone." if esito.riassegnati else ""))
+                      + (" Se le regole del corso lo prevedono, chi ha completato la versione precedente "
+                         "verrà riassegnato stanotte." ))
 
 
 @login_required
@@ -19340,7 +19342,14 @@ def formazione_slide_import(request, corso_id: int):
     if f.size and f.size > DOCUMENT_MAX_BYTES:
         messages.error(request, f"File troppo grande (massimo {DOCUMENT_MAX_MB} MB).")
         return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
-    from .services.elearning_import import ImportError_, accoda_import
+    from core.upload_mime import UploadMimeValidationError
+    from .services.elearning_import import ALLOWED_EXTS, ImportError_, accoda_import
+    from .services.upload_documenti import valida_documento
+    try:
+        valida_documento(f, set(ALLOWED_EXTS), label="Presentazione")
+    except UploadMimeValidationError as exc:
+        messages.error(request, f"File rifiutato: {exc}")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
     try:
         accoda_import(corso, f, user=request.user)
         messages.success(request, f"«{f.name}» caricato: la conversione in slide prosegue in background. "
@@ -19357,13 +19366,15 @@ def formazione_slide_import(request, corso_id: int):
 def formazione_slide_import_stato(request, corso_id: int):
     """Partial HTMX: stato degli ultimi import di slide (si ricarica finché sono in corso)."""
     if not _can_edit_formazione(request):
-        return HttpResponseForbidden("Permesso negato.")
+        return HttpResponse(status=286)  # 286 = HTMX smette di interrogare
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
     return render(request, "anagrafica/partials/_elearning_import_stato.html", _import_stato_ctx(corso))
 
 
 def _import_stato_ctx(corso) -> dict:
     from .models_elearning import TrainingElearningImport
+    from .services.elearning_import import scadi_import_bloccati
+    scadi_import_bloccati()
     lavori = list(TrainingElearningImport.objects.filter(corso=corso).order_by("-creato_il")[:3])
     return {"corso": corso, "import_lavori": lavori, "import_in_corso": any(j.in_lavorazione for j in lavori)}
 
@@ -19378,7 +19389,12 @@ def formazione_question_save(request, corso_id: int):
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
     q_id = request.POST.get("question_id")
     instance = get_object_or_404(TrainingQuizQuestion, pk=q_id, corso=corso) if q_id else None
+    tipo_prima = instance.tipo if instance else ""
     form = TrainingQuizQuestionForm(request.POST, instance=instance)
+    if (form.is_valid() and form.cleaned_data.get("tipo") == TrainingQuizQuestion.TIPO_VERO_FALSO
+            and request.POST.get("vf_vera") not in ("0", "1")):
+        messages.error(request, "Per una domanda vero/falso indica se l'affermazione è vera o falsa.")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
     if form.is_valid():
         q = form.save(commit=False)
         q.corso = corso
@@ -19387,7 +19403,9 @@ def formazione_question_save(request, corso_id: int):
             if q.tipo == TrainingQuizQuestion.TIPO_VERO_FALSO:
                 from .services.elearning_quiz import imposta_vero_falso
                 imposta_vero_falso(q, bool(form.cleaned_data.get("vf_vera")))
-        messages.success(request, "Domanda salvata.")
+        messages.success(request, "Domanda salvata." + (
+            " Le opzioni precedenti sono state sostituite da «Vero» e «Falso»."
+            if tipo_prima and tipo_prima != q.tipo and q.tipo == TrainingQuizQuestion.TIPO_VERO_FALSO else ""))
         _versiona(request, corso, "Domanda del quiz modificata")
     else:
         messages.error(request, "Errore nella domanda: " + form.errors.as_text())

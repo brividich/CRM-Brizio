@@ -82,6 +82,10 @@ def _completa(enr, *, tentativo=None, user=None):
 
     with transaction.atomic():
         enr = TrainingElearningEnrollment.objects.select_for_update().select_related("corso").get(pk=enr.pk)
+        # Stesso lucchetto di ``elearning_versioni.registra``: il completamento si
+        # registra sulla versione in vigore, non su una che sta cambiando.
+        from ..models_formazione import TrainingCourse
+        enr.corso = TrainingCourse.objects.select_for_update().get(pk=enr.corso_id)
         esistente = TrainingElearningCompletamento.objects.filter(enrollment=enr).select_related("record").first()
         if esistente is not None:
             return esistente.record

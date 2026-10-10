@@ -237,3 +237,27 @@ def esegui_import(job_id: int) -> dict:
         except Exception:
             logger.exception("Versione non aggiornata dopo l'import %s", job_id)
     return {"ok": job.stato == TrainingElearningImport.COMPLETATO, "slide": job.n_slide}
+
+
+SCADENZA_IMPORT_MINUTI = 20  # oltre il timeout del task (15 minuti)
+
+
+def scadi_import_bloccati() -> int:
+    """Lavori rimasti in coda o in corso oltre la scadenza: errore leggibile e file cancellato."""
+    from datetime import timedelta
+    from django.utils import timezone
+    from ..models_elearning import TrainingElearningImport
+
+    limite = timezone.now() - timedelta(minutes=SCADENZA_IMPORT_MINUTI)
+    bloccati = list(TrainingElearningImport.objects.filter(
+        stato__in=[TrainingElearningImport.IN_CODA, TrainingElearningImport.IN_CORSO], creato_il__lt=limite))
+    for job in bloccati:
+        aggiornati = TrainingElearningImport.objects.filter(pk=job.pk, stato=job.stato).update(
+            stato=TrainingElearningImport.ERRORE, finito_il=timezone.now(), file="",
+            errore="Conversione non completata in tempo: il servizio in background non ha risposto. Riprova.")
+        if aggiornati and job.file:
+            try:
+                job.file.delete(save=False)
+            except Exception:
+                logger.warning("File di import %s non cancellato", job.pk, exc_info=True)
+    return len(bloccati)

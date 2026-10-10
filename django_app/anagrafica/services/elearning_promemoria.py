@@ -103,10 +103,17 @@ def _soglia_prima(giorni: int, scaletta: list[int]) -> int | None:
     return min(raggiunte) if raggiunte and giorni >= 0 else None
 
 
+MARGINE_SOLLECITI = 7
+
+
 def _soglia_dopo(giorni: int, scaletta: list[int]) -> int | None:
+    """La soglia più alta raggiunta; nessun sollecito per ritardi ben oltre l'ultima
+    (scaduti storici al primo avvio: li vede il responsabile nel riepilogo)."""
     ritardo = -giorni
     raggiunte = [t for t in scaletta if ritardo >= t]
-    return max(raggiunte) if raggiunte else None
+    if not raggiunte or ritardo > max(scaletta) + MARGINE_SOLLECITI:
+        return None
+    return max(raggiunte)
 
 
 def _nomi(legacy_ids) -> dict[int, str]:
@@ -243,4 +250,7 @@ def _digest_settimanale(voci, responsabili, nomi, oggi, orizzonte, *, invia) -> 
         if _manda_email(email, f"[E-LEARNING] Riepilogo settimanale: {len(scaduti)} scaduti, "
                                f"{len(in_scadenza)} in scadenza", testo, sezioni):
             inviati += 1
+        else:  # email non partita: si riprova al prossimo giro
+            from ..models_elearning import TrainingElearningAvviso
+            TrainingElearningAvviso.objects.filter(chiave=f"digest:r{resp}:{anno}-W{settimana:02d}").delete()
     return inviati

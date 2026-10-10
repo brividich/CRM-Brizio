@@ -164,7 +164,9 @@ class VerificaAttestatoTests(_Pro):
         self.assertEqual(esito.nome, "DISCENTE.EL NOME")
         self.assertEqual(av.verifica("ZZZZ-ZZZZ-ZZZZ").stato, av.SCONOSCIUTO)
         self.assertEqual(av.verifica(codice, oggi=date(2999, 1, 1)).stato, av.VALIDO)  # nessuna scadenza
-        type(self.record).objects.filter(pk=self.record.pk).update(data_scadenza=date(2020, 1, 1))
+        self.record.refresh_from_db()
+        self.record.data_scadenza = date(2020, 1, 1)
+        self.record.save()  # dal portale: rifirmato
         self.assertEqual(av.verifica(codice).stato, av.SCADUTO)
         comp = TrainingElearningCompletamento.objects.get(record=self.record)
         TrainingElearningCompletamento.objects.filter(pk=comp.pk).update(verifica_json={"falso": True})
@@ -327,7 +329,8 @@ class GradimentoEfficaciaTests(_Pro):
         self.client.force_login(admin)
         r = self.client.get(reverse("anagrafica:elearning_cruscotto"))
         self.assertTrue("4,5 / 5" in r.content.decode() or "4.5 / 5" in r.content.decode())
-        self.assertContains(r, "Utile davvero.")
+        # Con meno di 5 giudizi il commento non si mostra (l'autore sarebbe riconoscibile).
+        self.assertNotContains(r, "Utile davvero.")
         self.assertNotContains(r, "DISCENTE.EL")
 
 
@@ -398,6 +401,10 @@ class ModuliEVersioniTests(_Pro):
         ev.registra(self.corso, alla_pubblicazione=True)
         self._completa()
         self._modifica_slide("Contenuto aggiornato per norma nuova")
+        # La riassegnazione la fa il job notturno, non la modifica.
+        self.assertFalse(TrainingAssignment.objects.filter(corso=self.corso, ciclo=2).exists())
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(ev.fissa_e_riassegna()["riassegnati"], 1)
         nuova = TrainingAssignment.objects.get(corso=self.corso, legacy_anagrafica_id=self.lid, ciclo=2)
         self.assertIsNotNone(nuova.due_date)
         self.assertIn("1.1", nuova.note)
@@ -458,3 +465,90 @@ class ImportInBackgroundTests(_Pro):
         self.client.force_login(self.user)
         self.assertEqual(self.client.get(reverse("anagrafica:formazione_slide_import_stato",
                                                  args=[self.corso.pk])).status_code, 403)
+
+
+
+class CorrezioniReviewFase2Tests(_Pro):
+    def setUp(self):
+        super().setUp()
+        self.admin = User.objects.create_superuser("rev2.el", "rev2@example.invalid", "x")
+
+    def _record_completato(self):
+        self._vedi_tutte()
+        with self.captureOnCommitCallbacks(execute=True):
+            self._quiz(self.giusta)
+        from .models_formazione import TrainingEmployeeRecord
+        return TrainingEmployeeRecord.objects.get(legacy_anagrafica_id=self.lid)
+
+    def test_dati_alterati_nel_database_non_verificabili(self):
+        from datetime import date
+        from .services import attestato_verifica as av
+        record = self._record_completato()
+        codice = av.assegna_codice_verifica(record)
+        record.refresh_from_db()
+        record.data_scadenza = date(2030, 1, 1)
+        record.save()  # modifica dal portale: rifirmata, resta valida
+        self.assertEqual(av.verifica(codice).stato, av.VALIDO)
+        type(record).objects.filter(pk=record.pk).update(data_scadenza=date(2099, 1, 1))  # modifica diretta
+        self.assertEqual(av.verifica(codice).stato, av.ALTERATO)
+
+    def test_import_slide_verificato_dal_contenuto(self):
+        self.client.force_login(self.admin)
+        finto = SimpleUploadedFile("lezione.pptx", b"<html>no</html>")
+        r = self.client.post(reverse("anagrafica:formazione_slide_import", args=[self.corso.pk]),
+                             {"file": finto}, follow=True)
+        self.assertContains(r, "File rifiutato")
+        from .models_elearning import TrainingElearningImport
+        self.assertFalse(TrainingElearningImport.objects.exists())
+
+    def test_import_bloccato_scade(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models_elearning import TrainingElearningImport
+        from .services.elearning_import import scadi_import_bloccati
+        job = TrainingElearningImport.objects.create(corso=self.corso, nome_file="x.pdf", stato="IN_CORSO")
+        TrainingElearningImport.objects.filter(pk=job.pk).update(creato_il=timezone.now() - timedelta(hours=1))
+        self.assertEqual(scadi_import_bloccati(), 1)
+        job.refresh_from_db()
+        self.assertEqual(job.stato, "ERRORE")
+        self.client.force_login(self.user)
+        self.assertIn(self.client.get(reverse("anagrafica:formazione_slide_import_stato",
+                                              args=[self.corso.pk])).status_code, (286, 403))
+
+    def test_excel_con_booleani_e_decimali(self):
+        from .services.elearning_quiz_import import leggi
+        righe = leggi(_xlsx([["Tipo", "Domanda", "Risposta 1", "Risposta 2", "Risposta 3", "Corrette"],
+                             ["vero / falso", "Vero?", None, None, None, False],
+                             ["multipla", "Quali?", "a", "b", "c", 1.3]]))
+        self.assertEqual([(r.tipo, r.corrette) for r in righe], [("VERO_FALSO", {2}), ("MULTIPLA", {1, 3})])
+
+    def test_passaggio_a_vero_falso_chiede_la_risposta(self):
+        self.client.force_login(self.admin)
+        url = reverse("anagrafica:formazione_question_save", args=[self.corso.pk])
+        self.client.post(url, {"question_id": self.q.pk, "testo": self.q.testo, "tipo": "VERO_FALSO",
+                               "ordine": 1, "is_active": "on"})
+        self.q.refresh_from_db()
+        self.assertEqual(self.q.tipo, "SINGOLA")  # rifiutato: manca vera/falsa
+        self.client.post(url, {"question_id": self.q.pk, "testo": self.q.testo, "tipo": "VERO_FALSO",
+                               "vf_vera": "0", "ordine": 1, "is_active": "on"})
+        self.q.refresh_from_db()
+        self.assertEqual([(o.testo, o.corretta) for o in self.q.opzioni.order_by("ordine")],
+                         [("Vero", False), ("Falso", True)])
+
+    def test_niente_solleciti_per_scaduti_storici(self):
+        from datetime import date, timedelta
+        from .models_formazione import TrainingAssignment
+        from .services.elearning_promemoria import esegui
+        oggi = date(2026, 10, 13)
+        TrainingAssignment.objects.filter(corso=self.corso, legacy_anagrafica_id=self.lid).update(
+            due_date=oggi - timedelta(days=120))
+        self.assertEqual(esegui(oggi=oggi).solleciti, 0)
+        TrainingAssignment.objects.filter(corso=self.corso, legacy_anagrafica_id=self.lid).update(
+            due_date=oggi - timedelta(days=16))
+        self.assertEqual(esegui(oggi=oggi).solleciti, 1)
+
+    def test_versione_di_base_per_i_corsi_gia_pubblicati(self):
+        from .services import elearning_versioni as ev
+        self.assertFalse(self.corso.versioni.exists())
+        self.assertEqual(ev.fissa_e_riassegna()["fissate"], 1)
+        self.assertEqual(self.corso.versioni.get().version_label, "1.0")
