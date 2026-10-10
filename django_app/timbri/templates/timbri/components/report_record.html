@@ -17,7 +17,7 @@
           <img src="{% url 'timbri:serve_image' slot.image.id %}" alt="{{ slot.label }}">
           {% if can_copy %}
             <div class="rpt-img-actions">
-              <button class="rpt-btn rpt-btn-copy" data-url="{% url 'timbri:serve_image' slot.image.id %}">Copia</button>
+              <button class="rpt-btn rpt-btn-copy" data-url="{% url 'timbri:serve_image' slot.image.id %}?copy=1">Copia</button>
             </div>
           {% endif %}
         {% else %}

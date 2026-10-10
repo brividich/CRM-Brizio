@@ -35,7 +35,7 @@ Le fondamenta trasversali che fanno funzionare tutto il resto.
 - **Assenze / Ferie**: richieste, approvazioni, calendario, certificazione presenze.
 - **Anomalie di produzione**: segnalazione e gestione con timeline delle azioni.
 - **Ticket interni**: assistenza IT/manutenzione, fermo macchina, ticket ricorrenti.
-- **Timbri**: registro timbrature e badge (da sistema legacy).
+- **Timbri**: registro dei timbri, delle firme e delle sigle del personale.
 - **Notizie / Bacheca**: comunicazioni aziendali con destinatari e letture tracciate.
 
 ## 4. Sicurezza & Compliance (Security Center)

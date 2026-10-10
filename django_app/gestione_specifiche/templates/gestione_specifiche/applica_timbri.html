@@ -26,7 +26,7 @@
     <div style="flex:1;">
       <div class="gs-eyebrow">MOD.133 — {{ spec.codice }}</div>
       <h1 style="margin:2px 0 0; font-size:18px; font-weight:800; color:#0c2545;">Applica timbri</h1>
-      <p style="margin:4px 0 0; font-size:12.5px; color:#7c8aa2;">Trascina un timbro dalla palette sulla pagina, poi spostalo e ridimensionalo. Per il RICEVUTO la data di oggi viene scritta automaticamente. Le posizioni si applicano al composito ufficiale.</p>
+      <p style="margin:4px 0 0; font-size:12.5px; color:#7c8aa2;">Trascina un timbro dalla palette sulla pagina, poi spostalo e ridimensionalo. Per il RICEVUTO la data di oggi viene scritta automaticamente. Le posizioni si applicano al composito ufficiale. Sono disponibili solo i timbri del compilatore e, a MOD.133 approvato, la firma dell'approvatore.</p>
     </div>
   </div>
 
@@ -48,7 +48,7 @@
         <div style="font-size:10px; color:#7c8aa2;">{{ t.tipo }}</div>
       </div>
       {% empty %}
-      <div style="color:#92a0b5; padding:6px; font-style:italic;">Nessun timbro attivo. Caricali in <strong>Admin → Timbri</strong>.</div>
+      <div style="color:#92a0b5; padding:6px; font-style:italic;">Nessun timbro disponibile per questa specifica: servono timbri attivi assegnati al compilatore del MOD.133 (la firma dell'approvatore compare dopo l'approvazione). Caricali in <strong>Admin → Timbri</strong>.</div>
       {% endfor %}
     </div>
   </div>

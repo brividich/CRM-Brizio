@@ -251,8 +251,9 @@ class AdminSectionTest(TestCase):
         with override_settings(DOCUMENT_ENCRYPTION_KEY=Fernet.generate_key().decode(),
                                GESTIONE_SPECIFICHE_PRIVATE_ROOT=media):
             f = SimpleUploadedFile("t.png", b"\x89PNG-fake", content_type="image/png")
+            # Il timbro appartiene a chi compila (qui l'utente loggato: MOD.133 senza compilatore).
             self.client.post(reverse("gestione_specifiche:admin_timbri"),
-                             {"codice": "CNOT1", "tipo": "ricevuto", "file": f})
+                             {"codice": "CNOT1", "tipo": "ricevuto", "utente": str(self.su.pk), "file": f})
             t = TimbroCapocommessa.objects.get(codice="CNOT1")
             spec = self._spec_flow_down("SP-TIMB")  # crea MOD.133 (0 righe → n_mod133=1)
             r = self.client.post(
@@ -270,3 +271,97 @@ class AdminSectionTest(TestCase):
         self.assertIn("originale", sez)    # page 1 → originale
         self.assertEqual(sez["originale"].pagina, 0)  # 1 - n_mod133(1)
         self.assertEqual(sez["mod133"].pagina, 0)
+        evento = EventoSpecifica.objects.filter(specifica=spec, trigger="timbri_applicati").get()
+        self.assertEqual(evento.attore_id, self.su.pk)
+        self.assertEqual(evento.payload["n"], 2)
+
+    # --- Applica timbri: solo i timbri delle persone del MOD.133 ---
+    def _timbro(self, codice, utente, tipo="ricevuto"):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        return TimbroCapocommessa.objects.create(
+            codice=codice, tipo=tipo, utente=utente,
+            file=SimpleUploadedFile(f"{codice}.png", b"\x89PNG-fake", content_type="image/png"))
+
+    def _media_ctx(self):
+        from cryptography.fernet import Fernet
+
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        return override_settings(DOCUMENT_ENCRYPTION_KEY=Fernet.generate_key().decode(),
+                                 GESTIONE_SPECIFICHE_PRIVATE_ROOT=media)
+
+    def _post_placements(self, spec, placements):
+        import json
+
+        return self.client.post(reverse("gestione_specifiche:applica_timbri", args=[spec.pk]),
+                                data=json.dumps({"placements": placements}), content_type="application/json")
+
+    def test_applica_timbri_rifiuta_timbro_di_altra_persona(self):
+        with self._media_ctx():
+            altrui = self._timbro("CNOT-ALTRO", self.mso)
+            spec = self._spec_flow_down("SP-ALTRUI")
+            r = self._post_placements(spec, [{"timbro": altrui.pk, "page": 0, "x": 1, "y": 1, "w": 100}])
+            self.assertEqual(r.status_code, 403)
+            self.assertFalse(r.json()["ok"])
+            self.assertFalse(TimbroApplicazione.objects.filter(specifica=spec).exists())
+            self.assertFalse(EventoSpecifica.objects.filter(specifica=spec, trigger="timbri_applicati").exists())
+
+    def test_applica_timbri_palette_mostra_solo_timbri_ammessi(self):
+        with self._media_ctx():
+            self._timbro("CNOT-MIO", self.su)
+            self._timbro("CNOT-ALTRO", self.mso)
+            spec = self._spec_flow_down("SP-PAL")
+            from gestione_specifiche.timbri_views import timbri_ammessi
+
+            codici = set(timbri_ammessi(spec, self.su).values_list("codice", flat=True))
+            self.assertEqual(codici, {"CNOT-MIO"})
+
+    def test_firma_approvatore_solo_dopo_approvazione(self):
+        with self._media_ctx():
+            firma_appr = self._timbro("CNOT-APPR", self.mso, tipo="mod133")
+            ricevuto_appr = self._timbro("CNOT-APPR-R", self.mso, tipo="ricevuto")
+            spec = self._spec_flow_down("SP-APPR")
+            from gestione_specifiche.timbri_views import timbri_ammessi
+
+            self.assertNotIn(firma_appr.pk, set(timbri_ammessi(spec, self.su).values_list("pk", flat=True)))
+            mod = spec.mod133
+            mod.compilatore = self.su
+            mod.approvatore = self.mso
+            mod.save()
+            spec = Specifica.objects.get(pk=spec.pk)
+            ammessi = set(timbri_ammessi(spec, self.su).values_list("pk", flat=True))
+            self.assertIn(firma_appr.pk, ammessi)
+            # Dell'approvatore vale solo la firma MOD.133, non il suo RICEVUTO.
+            self.assertNotIn(ricevuto_appr.pk, ammessi)
+
+    def test_applica_timbri_payload_malformato_400(self):
+        with self._media_ctx():
+            t = self._timbro("CNOT-OK", self.su)
+            spec = self._spec_flow_down("SP-BAD")
+            for bad in ([{"timbro": "x", "page": 0}], [{"timbro": t.pk, "page": -1}],
+                        [{"timbro": t.pk, "page": 0, "x": "nan"}], ["stringa"]):
+                r = self._post_placements(spec, bad)
+                self.assertEqual(r.status_code, 400, bad)
+            r = self.client.post(reverse("gestione_specifiche:applica_timbri", args=[spec.pk]),
+                                 data="[1, 2]", content_type="application/json")
+            self.assertEqual(r.status_code, 400)
+
+    def test_composito_non_stampa_timbri_non_ammessi(self):
+        from gestione_specifiche.composito import _risolvi_placements
+
+        with self._media_ctx():
+            mio = self._timbro("CNOT-COMP", self.su)
+            altrui = self._timbro("CNOT-INTRUSO", self.mso)
+            spec = self._spec_flow_down("SP-COMP")
+            mod = spec.mod133
+            mod.compilatore = self.su
+            mod.save()
+            TimbroApplicazione.objects.create(specifica=spec, timbro=mio, sezione="originale", pagina=0)
+            TimbroApplicazione.objects.create(specifica=spec, timbro=altrui, sezione="originale", pagina=0)
+            spec = Specifica.objects.get(pk=spec.pk)
+            out = _risolvi_placements(spec) or []
+            self.assertEqual(len(out), 1)
+            mio.attivo = False
+            mio.save()
+            self.assertIsNone(_risolvi_placements(spec))
