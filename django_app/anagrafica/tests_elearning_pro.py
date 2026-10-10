@@ -275,3 +275,27 @@ class VideoTests(_Pro):
             self.assertEqual(r.status_code, 206)
             self.assertEqual(b"".join(r.streaming_content), b"0123456789")
             self.assertEqual(r["Content-Range"], "bytes 10-19/100")
+
+
+class PermessoConfermaFadTests(_Pro):
+    def test_solo_utenti_indicati_o_superuser(self):
+        from .models_formazione import ElearningConfig
+        from .services.elearning_regole import puo_confermare_fad
+        self.assertFalse(puo_confermare_fad(self.user))
+        cfg = ElearningConfig.get_instance()
+        cfg.conferma_fad_utente_ids = [self.uid]
+        cfg.save()
+        self.assertTrue(puo_confermare_fad(self.user))
+
+    def test_form_impostazioni_salva_gli_utenti(self):
+        from .forms import ElearningConfigForm
+        from .models_formazione import ElearningConfig
+        cfg = ElearningConfig.get_instance()
+        form = ElearningConfigForm({"quiz_punteggio_minimo_default": 70, "validita_mesi_default": 0,
+                                    "max_tentativi_quiz": 0, "libreoffice_path": "",
+                                    "conferma_fad_utenti": self.user.username}, instance=cfg)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        cfg.refresh_from_db()
+        self.assertEqual(cfg.conferma_fad_utente_ids, [self.uid])
+        self.assertEqual(cfg.finestra_rinnovo_giorni, 60)  # non inviato: resta il default

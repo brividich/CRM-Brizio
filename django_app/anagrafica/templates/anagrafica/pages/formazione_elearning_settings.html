@@ -48,6 +48,21 @@
         </div>
       </div>
 
+      {# ── Regole FAD, assegnazioni, video (prompt 05) ─────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-shield"/></svg>
+          <span class="fmd-form-sec-t">Regole, assegnazioni e video</span>
+          <span class="fmd-form-sec-n">Chi conferma le regole FAD, scadenze delle assegnazioni automatiche, rinnovi, dimensione dei video</span>
+        </div>
+        <div class="fmd-stack">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.conferma_fad_utenti full=1 %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.giorni_entro_default %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.finestra_rinnovo_giorni %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.video_max_mb %}
+        </div>
+      </div>
+
       {# ── Import PowerPoint ────────────────────────────────────── #}
       <div class="fmd-form-sec">
         <div class="fmd-form-sec-h">

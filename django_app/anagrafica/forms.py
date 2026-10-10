@@ -689,15 +689,62 @@ class TrainingQuizOptionForm(forms.ModelForm):
 
 
 class ElearningConfigForm(forms.ModelForm):
+    # Chi può confermare le regole FAD (RSPP): username separati da virgola,
+    # salvati come id utente (utenti.id) in ``conferma_fad_utente_ids``.
+    conferma_fad_utenti = forms.CharField(
+        required=False, label="Chi conferma le regole FAD (RSPP)",
+        help_text="Username del portale separati da virgola. Il superuser può sempre confermare.",
+        widget=forms.TextInput(attrs=_FM),
+    )
+
     class Meta:
         model = ElearningConfig
-        fields = ["quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "libreoffice_path"]
+        fields = ["quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "libreoffice_path",
+                  "finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb"]
         widgets = {
+            "finestra_rinnovo_giorni": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
+            "giorni_entro_default":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
+            "video_max_mb":            forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
             "quiz_punteggio_minimo_default": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),
             "validita_mesi_default":         forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
             "max_tentativi_quiz":            forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
             "libreoffice_path":              forms.TextInput(attrs=_FM),
         }
+
+    _CON_DEFAULT = ("finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for nome in self._CON_DEFAULT:  # non inviati = si tiene il valore attuale
+            self.fields[nome].required = False
+        ids = [int(i) for i in (self.instance.conferma_fad_utente_ids or []) if str(i).isdigit()]
+        if ids:
+            from core.models import Profile
+            nomi = Profile.objects.filter(legacy_user_id__in=ids).select_related("user").values_list("user__username", flat=True)
+            self.fields["conferma_fad_utenti"].initial = ", ".join(sorted(nomi))
+
+    def clean_conferma_fad_utenti(self):
+        from core.models import Profile
+        nomi = [n.strip() for n in (self.cleaned_data.get("conferma_fad_utenti") or "").split(",") if n.strip()]
+        trovati = dict(Profile.objects.filter(user__username__in=nomi).values_list("user__username", "legacy_user_id"))
+        mancanti = [n for n in nomi if n not in trovati]
+        if mancanti:
+            raise forms.ValidationError("Utenti non trovati: " + ", ".join(mancanti))
+        return sorted(set(trovati.values()))
+
+    def clean(self):
+        dati = super().clean()
+        for nome in self._CON_DEFAULT:
+            if dati.get(nome) in (None, ""):
+                dati[nome] = getattr(self.instance, nome)
+        return dati
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        obj.conferma_fad_utente_ids = self.cleaned_data.get("conferma_fad_utenti") or []
+        if commit:
+            obj.save()
+        return obj
 
 
 class TrainingCourseVersionForm(forms.ModelForm):
