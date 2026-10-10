@@ -157,7 +157,7 @@ sequenceDiagram
 | 12 | [`assenze`](django_app/assenze/) | HR & Workflow | `/assenze/` | Richieste, gestione, calendario, certificazione presenza, **riconciliazione presenze↔assenze**, sync SharePoint · [scheda](docs/moduli/assenze.md) |
 | 13 | [`anomalie`](django_app/anomalie/) | HR & Workflow | `/anomalie/` `/anomalie-menu` | Controllo dell'OP a blocchi di seriali: più anomalie per blocco con allegati, decisione del capocommessa, mail di esito · [scheda](docs/moduli/anomalie.md) |
 | 14 | [`tickets`](django_app/tickets/) | HR & Workflow | `/tickets/` | Ticket interni con interventi, fermo macchina e ricorrenti; allegati da web e dal QR macchina con validazione del team gestore · [scheda](docs/moduli/tickets.md) |
-| 15 | [`timbri`](django_app/timbri/) | HR & Workflow | `/timbri/` | Report timbrature da DB legacy, registro, immagini badge · [scheda](docs/moduli/timbri.md) |
+| 15 | [`timbri`](django_app/timbri/) | HR & Workflow | `/timbri/` | Registro timbri, firme e sigle del personale, immagini private · [scheda](docs/moduli/timbri.md) |
 | 16 | [`notizie`](django_app/notizie/) | HR & Workflow | `/notizie/` | Bacheca con audience, allegati, letture tracked · [scheda](docs/moduli/notizie.md) |
 | 17 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: catalogo, richieste e approvazione, consegna firmata, sostituzioni, documenti, magazzino, reminder scadenze · [scheda](docs/moduli/dpi.md) |
 | 18 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni, allegati privati e ispezioni periodiche · [scheda](docs/moduli/diario_preposto.md) |

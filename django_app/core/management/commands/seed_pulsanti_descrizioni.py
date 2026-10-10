@@ -151,12 +151,12 @@ _DESCRIZIONI: dict[str, str] = {
     "tasks_projects": "Lista progetti: task raggruppati per progetto.",
 
     # ── TIMBRI ───────────────────────────────────────────────────────────────
-    "timbri_home": "Elenco operatori con report timbrature lette dal database legacy.",
-    "timbri_view": "Scheda operatore: storico timbrature individuali con anomalie rilevate.",
-    "timbri_edit": "Modifica manuale di un record di timbratura.",
-    "timbri_config": "Configurazione importazione timbrature da SharePoint.",
-    "timbri_import": "Import timbrature da file SharePoint.",
-    "timbri_export": "Esporta le timbrature in formato CSV.",
+    "timbri_home": "Registro timbri: dipendenti con timbri, firme e sigle assegnati.",
+    "timbri_view": "Scheda timbri del dipendente: record attivi, storico e immagini.",
+    "timbri_edit": "Crea o modifica un record di timbro, firma o sigla.",
+    "timbri_config": "Impostazioni del modulo timbri: permessi copia/download, operazioni, log audit.",
+    "timbri_import": "Import del registro timbri da CSV.",
+    "timbri_export": "Esporta il registro timbri in formato CSV.",
 
     # ── RENTRI ───────────────────────────────────────────────────────────────
     "rentri_menu": "Home modulo RENTRI: riepilogo registro rifiuti e accessi rapidi.",

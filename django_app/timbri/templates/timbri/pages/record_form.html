@@ -1,241 +1,224 @@
 {% extends "core/base.html" %}
+{% load static %}
+
 {% block title %}{{ form_title }} | Timbri{% endblock %}
-{% block body_class %}{{ block.super }} timbri-form-page{% endblock %}
+
 {% block extra_head %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+{% include "core/components/_hub_formkit.html" %}
+{% include "timbri/components/_timbri_ui.html" %}
 <style>
-/* ── Layout ─────────────────────────────────────────────────────────────── */
-.tim-shell { max-width:960px; margin:0 auto; display:flex; flex-direction:column; gap:20px; }
-.tim-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:22px; }
-
-/* ── Header ──────────────────────────────────────────────────────────────── */
-.tim-form-header { display:flex; align-items:center; gap:16px; }
-.tim-form-avatar { width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,#0f766e,#14b8a6); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; flex-shrink:0; }
-.tim-form-title { font-size:22px; font-weight:800; color:#0f172a; letter-spacing:0; }
-.tim-form-sub { font-size:13px; color:#64748b; margin-top:4px; }
-.tim-form-sub strong { color:#334155; }
-
-/* ── Form grid ───────────────────────────────────────────────────────────── */
-.tim-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
-.tim-field { display:flex; flex-direction:column; gap:5px; }
-.tim-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
-.tim-input { border:1px solid #dbe4f0; border-radius:10px; padding:9px 12px; background:#f8fafc; width:100%; box-sizing:border-box; font-size:13px; color:#334155; transition:border-color .15s; }
-.tim-input:focus { outline:none; border-color:#0f766e; background:#fff; box-shadow:0 0 0 3px rgba(15,118,110,.08); }
-.tim-field-error { color:#b91c1c; font-size:12px; margin-top:2px; }
-
-/* ── Checkbox ────────────────────────────────────────────────────────────── */
-.tim-check-row { display:flex; align-items:center; gap:10px; padding:10px 13px; background:#f8fafc; border:1px solid #f1f5f9; border-radius:10px; }
-.tim-check-row input[type=checkbox] { width:16px; height:16px; accent-color:#0f766e; flex-shrink:0; }
-.tim-check-row label { font-size:13px; color:#334155; font-weight:600; margin:0; text-transform:none; letter-spacing:0; cursor:pointer; }
-
-/* ── Section: immagini ───────────────────────────────────────────────────── */
-.tim-section-head { display:flex; align-items:baseline; gap:10px; margin-bottom:16px; }
-.tim-section-title { font-size:16px; font-weight:800; color:#0f172a; }
-.tim-section-sub { font-size:12px; color:#94a3b8; }
-.tim-img-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
-.tim-img-slot { border:1px solid #e2e8f0; border-radius:14px; padding:16px; background:#f8fafc; display:flex; flex-direction:column; gap:10px; }
-.tim-img-slot-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
-.tim-img-preview { width:100%; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid #f1f5f9; border-radius:10px; overflow:hidden; }
-.tim-img-preview img { max-width:100%; max-height:100%; object-fit:contain; }
-.tim-img-empty-icon { display:flex; flex-direction:column; align-items:center; gap:6px; color:#cbd5e1; font-size:11px; }
-.tim-img-meta { font-size:11px; color:#94a3b8; font-family:monospace; word-break:break-all; }
-.tim-file-input { width:100%; font-size:12px; color:#475569; }
-
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
-.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none; border:1px solid #e2e8f0; background:#fff; color:#334155; cursor:pointer; transition:background .12s, border-color .12s; white-space:nowrap; }
-.tim-btn:hover { background:#f8fafc; border-color:#cbd5e1; }
-.tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
-.tim-btn-main:hover { background:#0d6460; border-color:#0d6460; }
-.tim-btn-archive { background:#fef3c7; border-color:#fde68a; color:#92400e; }
-.tim-btn-archive:hover { background:#fde68a; }
-.tim-actions { display:flex; gap:10px; margin-top:4px; flex-wrap:wrap; align-items:center; }
-
-@media (max-width: 900px) { .tim-grid { grid-template-columns:1fr; } .tim-img-grid { grid-template-columns:1fr; } }
-
-/* ── Dark mode ───────────────────────────────────────────────────────────── */
-body.theme-dark .tim-card { background:var(--surface); border-color:var(--border); }
-body.theme-dark .tim-form-title { color:var(--text); }
-body.theme-dark .tim-form-sub { color:var(--text-light); }
-body.theme-dark .tim-form-sub strong { color:var(--text); }
-body.theme-dark .tim-field label { color:var(--text-light); }
-body.theme-dark .tim-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
-body.theme-dark .tim-input:focus { border-color:#2dd4bf; box-shadow:0 0 0 3px rgba(45,212,191,.1); }
-body.theme-dark .tim-check-row { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .tim-check-row label { color:var(--text); }
-body.theme-dark .tim-section-title { color:var(--text); }
-body.theme-dark .tim-img-slot { background:var(--surface-alt); border-color:var(--border); }
-body.theme-dark .tim-img-slot-label { color:var(--text-light); }
-body.theme-dark .tim-img-preview { background:var(--surface); border-color:var(--border); }
-body.theme-dark .tim-img-meta { color:var(--text-light); }
-body.theme-dark .tim-file-input { color:var(--text-mid); }
-body.theme-dark .tim-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
-body.theme-dark .tim-btn:hover { background:var(--surface-alt); }
-body.theme-dark .tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
-body.theme-dark .tim-btn-main:hover { background:#0d6460; border-color:#0d6460; }
-body.theme-dark .tim-btn-archive { background:rgba(146,64,14,.2); border-color:rgba(253,230,138,.3); color:#fde68a; }
-
-/* 2026 UI refresh */
-.timbri-form-page .content { width:100%; max-width:none; }
-.timbri-form-page .tim-shell { max-width:1180px; gap:16px; }
-.timbri-form-page .tim-card { border-radius:8px; border-color:#dbe7e5; box-shadow:0 14px 34px rgba(15,23,42,.04); }
-.timbri-form-page .tim-card:first-child {
-  position:relative;
-  overflow:hidden;
-  color:#fff;
-  border-color:rgba(15,118,110,.22);
-  background:
-    linear-gradient(135deg, rgba(8,38,52,.97) 0%, rgba(15,118,110,.94) 58%, rgba(2,132,199,.78) 128%),
-    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0, rgba(255,255,255,.05) 1px, transparent 1px, transparent 18px);
-}
-.timbri-form-page .tim-card:first-child::after { content:""; position:absolute; right:22px; bottom:0; width:220px; height:84px; border:1px solid rgba(255,255,255,.12); border-bottom:0; opacity:.34; transform:skewX(-12deg); pointer-events:none; }
-.timbri-form-page .tim-form-header { position:relative; z-index:1; }
-.timbri-form-page .tim-form-title { color:#fff; font-size:26px; font-weight:900; }
-.timbri-form-page .tim-form-sub { color:rgba(255,255,255,.78); }
-.timbri-form-page .tim-form-sub strong { color:#fff; }
-.timbri-form-page .tim-form-avatar { background:#fff; color:#0f766e; border-radius:8px; }
-.timbri-form-page .tim-img-slot { border-radius:8px; border-color:#dbe7e5; }
-.timbri-form-page .tim-img-preview { border-radius:8px; }
-.timbri-form-page .tim-actions { justify-content:flex-end; }
-body.theme-dark.timbri-form-page .tim-card { box-shadow:none; }
+.tim-form-layout{ display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:16px; align-items:start; }
+.tim-form-layout .fmd-block{ margin-top:0; }
+.tim-spec-grid{ display:grid; grid-template-columns:1fr; gap:12px; }
+.tim-spec-card{ display:grid; grid-template-columns:132px minmax(0,1fr); gap:14px; align-items:center; padding:12px; border:1px solid var(--tim-line); border-radius:12px; }
+.tim-spec-card .tim-spec-box{ width:132px; height:96px; }
+.tim-spec-card .tim-spec-lbl{ font-size:10px; }
+.tim-spec-file{ font-family:var(--tim-mono); font-size:11px; color:var(--tim-muted-2); overflow-wrap:anywhere; margin:4px 0 8px; }
+.tim-spec-card input[type=file]{ width:100%; font-size:12px; color:var(--tim-ink); }
+.tim-spec-card.is-drag{ border-color:var(--tim-cyan); box-shadow:0 0 0 3px rgba(31,135,205,.14); background:#f4f9fd; }
+.tim-spec-card.is-new .tim-spec-box{ outline:2px solid var(--tim-cyan); outline-offset:2px; }
+.tim-spec-hint{ font-size:11px; color:var(--tim-muted-2); margin-top:5px; }
+.tim-spec-new{ display:none; margin-top:5px; font-size:11.5px; font-weight:700; color:var(--tim-cyan); }
+.tim-spec-card.is-new .tim-spec-new{ display:block; }
+.tim-spec-err{ margin-top:5px; font-size:11.5px; font-weight:600; color:#c53030; }
+body.theme-dark .tim-spec-card.is-drag{ background:rgba(96,165,250,.1); }
+body.theme-dark .tim-spec-err{ color:#fca5a5; }
+.tim-form-foot{ display:flex; align-items:center; justify-content:flex-end; gap:9px; flex-wrap:wrap; margin-top:16px; }
+.tim-form-foot .tim-spacer{ flex:1; }
+.tim-check{ font-family:inherit !important; text-transform:none !important; letter-spacing:0 !important; font-size:12.5px !important; color:var(--tim-ink) !important; }
+@media (max-width:1000px){ .tim-form-layout{ grid-template-columns:1fr; } }
+@media (max-width:480px){ .tim-spec-card{ grid-template-columns:1fr; } .tim-spec-card .tim-spec-box{ width:100%; } }
 </style>
 {% endblock %}
+
 {% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}
+
 {% block content %}
-<div class="tim-shell">
-  {% include "anagrafica/components/flash_messages.html" %}
+{% include "anagrafica/components/_fm_icons.html" %}
 
-  <!-- Header -->
-  <div class="tim-card">
-    <div class="tim-form-header">
-      <div class="tim-form-avatar">{{ employee.nome|first|upper }}{{ employee.cognome|first|upper }}</div>
+<div class="fmd tim-ui">
+  <div class="fmd-wrap">
+
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    {% if employee.legacy_id %}{% url 'timbri:operatore_detail_by_legacy' employee.legacy_id as back_url %}{% else %}{% url 'timbri:operatore_detail' operatore.id as back_url %}{% endif %}
+
+    <div class="fmd-pagehead">
       <div>
-        <div class="tim-form-title">{{ form_title }}</div>
-        <div class="tim-form-sub">Dipendente: <strong>{{ employee.full_name }}</strong></div>
+        <div class="fmd-crumb"><a href="{% url 'timbri:index' %}">Registro timbri</a><span class="fmd-sep"> / </span><a href="{{ back_url }}">{{ employee.full_name }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">{% if record %}Modifica{% else %}Nuovo{% endif %}</span></div>
+        <div class="tim-head-person">
+          <span class="tim-avatar-lg" aria-hidden="true"><svg class="fmd-ico" style="font-size:24px;"><use href="#i-award"/></svg></span>
+          <div>
+            <h1>{{ form_title }}</h1>
+            <p class="fmd-ph-sub" style="margin:4px 0 0;">Dipendente: <strong>{{ employee.full_name }}</strong>{% if record %} · <span class="fmd-code">{{ record.codice_timbro|default:"senza codice" }}</span>{% endif %}</p>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Form principale -->
-  <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+      {% if form.non_field_errors %}
+        <div class="fmd-alert"><span class="fmd-alert-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><div class="fmd-alert-body">{% for err in form.non_field_errors %}<div class="fmd-alert-m">{{ err }}</div>{% endfor %}</div></div>
+      {% endif %}
 
-    <!-- Campi dati -->
-    <div class="tim-card">
-      <div class="tim-grid">
-        {% for field in form.visible_fields %}
-          {% if field.name != 'image_timbro' and field.name != 'image_firma' and field.name != 'image_sigla' %}
-            {% if field.field.widget.input_type == 'checkbox' %}
-              <div class="tim-field" style="grid-column:1 / -1;">
-                <div class="tim-check-row">
-                  {{ field }}
-                  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      <div class="tim-form-layout">
+        <section class="fmd-panel fmd-block">
+          <div class="hub-form-stack">
+            <div class="hub-fsec">
+              <div class="hub-fsec-h">Identificazione</div>
+              <div class="hub-fsec-d">Codice, qualifica e tipo del timbro.</div>
+              <div class="hub-form-grid">
+                {% include "core/forms/_field.html" with field=form.codice_timbro %}
+                {% include "core/forms/_field.html" with field=form.tipo_timbro %}
+                <div class="hub-col-full">{% include "core/forms/_field.html" with field=form.qualifica %}</div>
+                {% if form.abilitazione_processo %}<div class="hub-col-full">{% include "core/forms/_field.html" with field=form.abilitazione_processo %}</div>{% endif %}
+              </div>
+            </div>
+            <div class="hub-fsec">
+              <div class="hub-fsec-h">Consegna e stato</div>
+              <div class="hub-fsec-d">Un record attivo non può avere una data di ritiro.</div>
+              <div class="hub-form-grid">
+                {% include "core/forms/_field.html" with field=form.data_consegna %}
+                {% include "core/forms/_field.html" with field=form.data_ritiro %}
+                <div class="hub-col-full hub-field{% if form.is_attivo.errors %} hub-field-err{% endif %}">
+                  <label class="hub-check tim-check" for="{{ form.is_attivo.id_for_label }}">{{ form.is_attivo }} <span>Record attivo (in uso)</span></label>
+                  {% for err in form.is_attivo.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
                 </div>
-                {% if field.errors %}<div class="tim-field-error">{{ field.errors|striptags }}</div>{% endif %}
               </div>
-            {% else %}
-              <div class="tim-field{% if field.name == 'note' or field.name == 'firma_testo' %}" style="grid-column:1 / -1;{% endif %}">
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<div class="tim-field-error">{{ field.errors|striptags }}</div>{% endif %}
-              </div>
-            {% endif %}
-          {% endif %}
-        {% endfor %}
-      </div>
-    </div>
+            </div>
+            <div class="hub-fsec">
+              <div class="hub-fsec-h">Note e firma</div>
+              {% include "core/forms/_field.html" with field=form.note %}
+              {% include "core/forms/_field.html" with field=form.firma_testo %}
+            </div>
+          </div>
+        </section>
 
-    <!-- Immagini -->
-    <div class="tim-card">
-      <div class="tim-section-head">
-        <div class="tim-section-title">Timbro, firma e sigla</div>
-        <div class="tim-section-sub">Le immagini esistenti restano inalterate finché non carichi un nuovo PNG.</div>
+        <section class="fmd-panel fmd-block">
+          <div class="fmd-block-head" style="margin-bottom:6px;">
+            <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-award"/></svg>Timbro, firma e sigla</div>
+          </div>
+          <p class="fmd-ph-sub" style="margin:0 0 14px;">Le immagini esistenti restano invariate finché non carichi un nuovo PNG. Puoi anche trascinare il file sul riquadro.</p>
+          <div class="tim-spec-grid">
+            {% with img=record.image_map.TIMBRO %}
+              <div class="tim-spec-card" data-tim-spec-drop>
+                {% if record and img %}<span class="tim-spec-box"><img src="{% url 'timbri:serve_image' img.id %}" alt="Timbro"></span>{% else %}<span class="tim-spec-box is-empty"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>{% endif %}
+                <div>
+                  <span class="tim-spec-lbl">Timbro</span>
+                  <div class="tim-spec-file">{% if record and img %}{{ img.original_filename|default:"PNG" }}{% else %}Nessuna immagine{% endif %}</div>
+                  <label class="fmd-sr-only" for="{{ form.image_timbro.id_for_label }}">{% if record and img %}Sostituisci timbro{% else %}Carica timbro{% endif %}</label>
+                  {{ form.image_timbro }}
+                  {% for err in form.image_timbro.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+                </div>
+              </div>
+            {% endwith %}
+            {% with img=record.image_map.FIRMA %}
+              <div class="tim-spec-card" data-tim-spec-drop>
+                {% if record and img %}<span class="tim-spec-box"><img src="{% url 'timbri:serve_image' img.id %}" alt="Firma"></span>{% else %}<span class="tim-spec-box is-empty"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>{% endif %}
+                <div>
+                  <span class="tim-spec-lbl">Firma</span>
+                  <div class="tim-spec-file">{% if record and img %}{{ img.original_filename|default:"PNG" }}{% else %}Nessuna immagine{% endif %}</div>
+                  <label class="fmd-sr-only" for="{{ form.image_firma.id_for_label }}">{% if record and img %}Sostituisci firma{% else %}Carica firma{% endif %}</label>
+                  {{ form.image_firma }}
+                  {% for err in form.image_firma.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+                </div>
+              </div>
+            {% endwith %}
+            {% with img=record.image_map.SIGLA %}
+              <div class="tim-spec-card" data-tim-spec-drop>
+                {% if record and img %}<span class="tim-spec-box"><img src="{% url 'timbri:serve_image' img.id %}" alt="Sigla"></span>{% else %}<span class="tim-spec-box is-empty"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>{% endif %}
+                <div>
+                  <span class="tim-spec-lbl">Sigla</span>
+                  <div class="tim-spec-file">{% if record and img %}{{ img.original_filename|default:"PNG" }}{% else %}Nessuna immagine{% endif %}</div>
+                  <label class="fmd-sr-only" for="{{ form.image_sigla.id_for_label }}">{% if record and img %}Sostituisci sigla{% else %}Carica sigla{% endif %}</label>
+                  {{ form.image_sigla }}
+                  {% for err in form.image_sigla.errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
+                </div>
+              </div>
+            {% endwith %}
+          </div>
+        </section>
       </div>
-      <div class="tim-img-grid">
-        <!-- Timbro -->
-        <div class="tim-img-slot">
-          <div class="tim-img-slot-label">Timbro</div>
-          <div class="tim-img-preview">
-            {% if record and record.image_map.TIMBRO %}
-              <img src="{% url 'timbri:serve_image' record.image_map.TIMBRO.id %}" alt="Timbro">
-            {% else %}
-              <div class="tim-img-empty-icon">
-                <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                Nessuna immagine
-              </div>
-            {% endif %}
-          </div>
-          {% if record and record.image_map.TIMBRO %}
-            <div class="tim-img-meta">{{ record.image_map.TIMBRO.original_filename|default:"PNG" }}</div>
-          {% endif %}
-          <div class="tim-field">
-            <label for="{{ form.image_timbro.id_for_label }}">Sostituisci</label>
-            {{ form.image_timbro }}
-          </div>
-        </div>
-        <!-- Firma -->
-        <div class="tim-img-slot">
-          <div class="tim-img-slot-label">Firma</div>
-          <div class="tim-img-preview">
-            {% if record and record.image_map.FIRMA %}
-              <img src="{% url 'timbri:serve_image' record.image_map.FIRMA.id %}" alt="Firma">
-            {% else %}
-              <div class="tim-img-empty-icon">
-                <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                Nessuna immagine
-              </div>
-            {% endif %}
-          </div>
-          {% if record and record.image_map.FIRMA %}
-            <div class="tim-img-meta">{{ record.image_map.FIRMA.original_filename|default:"PNG" }}</div>
-          {% endif %}
-          <div class="tim-field">
-            <label for="{{ form.image_firma.id_for_label }}">Sostituisci</label>
-            {{ form.image_firma }}
-          </div>
-        </div>
-        <!-- Sigla -->
-        <div class="tim-img-slot">
-          <div class="tim-img-slot-label">Sigla</div>
-          <div class="tim-img-preview">
-            {% if record and record.image_map.SIGLA %}
-              <img src="{% url 'timbri:serve_image' record.image_map.SIGLA.id %}" alt="Sigla">
-            {% else %}
-              <div class="tim-img-empty-icon">
-                <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                Nessuna immagine
-              </div>
-            {% endif %}
-          </div>
-          {% if record and record.image_map.SIGLA %}
-            <div class="tim-img-meta">{{ record.image_map.SIGLA.original_filename|default:"PNG" }}</div>
-          {% endif %}
-          <div class="tim-field">
-            <label for="{{ form.image_sigla.id_for_label }}">Sostituisci</label>
-            {{ form.image_sigla }}
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Azioni -->
-    <div class="tim-card" style="padding:16px 22px;">
-      <div class="tim-actions">
-        <button class="tim-btn tim-btn-main" type="submit">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-          Salva
-        </button>
+      <div class="tim-form-foot">
         {% if record %}
-          <button class="tim-btn tim-btn-archive" type="submit" name="action" value="archive"
-                  onclick="return confirm('Archiviare questo record? Verrà impostata la data di ritiro ad oggi.')">
-            Archivia
-          </button>
+          <button class="fmd-btn fmd-btn-ghost tim-btn-warn" type="submit" name="action" value="archive"
+                  onclick="return confirm('Archiviare questo record? Verrà impostata la data di ritiro ad oggi.')">Archivia</button>
         {% endif %}
-        {% if employee.legacy_id %}
-          <a class="tim-btn" href="{% url 'timbri:operatore_detail_by_legacy' employee.legacy_id %}">Annulla</a>
-        {% else %}
-          <a class="tim-btn" href="{% url 'timbri:operatore_detail' operatore.id %}">Annulla</a>
-        {% endif %}
+        <span class="tim-spacer"></span>
+        <a class="fmd-btn fmd-btn-ghost" href="{{ back_url }}">Annulla</a>
+        <button class="fmd-btn fmd-btn-primary" type="submit"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva</button>
       </div>
-    </div>
-  </form>
+    </form>
+
+  </div>
 </div>
+
+<script>
+(function () {
+  // Anteprima locale, trascinamento e controllo del formato prima dell'invio.
+  // Il controllo autorevole resta lato server (estensione + MIME reale).
+  document.querySelectorAll('[data-tim-spec-drop]').forEach(function (card) {
+    var input = card.querySelector('input[type="file"]');
+    var box = card.querySelector('.tim-spec-box');
+    if (!input || !box) return;
+    input.setAttribute('accept', 'image/png');
+    var original = box.innerHTML;
+    var originalEmpty = box.classList.contains('is-empty');
+    var note = document.createElement('div');
+    note.className = 'tim-spec-new';
+    note.textContent = 'Nuova immagine: verrà salvata con il record';
+    input.insertAdjacentElement('afterend', note);
+    var err = document.createElement('div');
+    err.className = 'tim-spec-err';
+    err.hidden = true;
+    note.insertAdjacentElement('afterend', err);
+
+    function reset() {
+      box.innerHTML = original;
+      box.classList.toggle('is-empty', originalEmpty);
+      card.classList.remove('is-new');
+    }
+    function show(file) {
+      err.hidden = true;
+      if (!file) { reset(); return; }
+      var isPng = file.type === 'image/png' || /\.png$/i.test(file.name);
+      if (!isPng) {
+        input.value = '';
+        reset();
+        err.textContent = '«' + file.name + '» non è un PNG: carica un file .png.';
+        err.hidden = false;
+        return;
+      }
+      var url = URL.createObjectURL(file);
+      box.classList.remove('is-empty');
+      box.innerHTML = '';
+      var img = document.createElement('img');
+      img.alt = 'Anteprima';
+      img.onload = function () { URL.revokeObjectURL(url); };
+      img.src = url;
+      box.appendChild(img);
+      card.classList.add('is-new');
+    }
+    input.addEventListener('change', function () { show(input.files && input.files[0]); });
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      card.addEventListener(ev, function (e) { e.preventDefault(); card.classList.add('is-drag'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      card.addEventListener(ev, function (e) { e.preventDefault(); card.classList.remove('is-drag'); });
+    });
+    card.addEventListener('drop', function (e) {
+      var files = e.dataTransfer && e.dataTransfer.files;
+      if (!files || !files.length) return;
+      var dt = new DataTransfer();
+      dt.items.add(files[0]);
+      input.files = dt.files;
+      show(files[0]);
+    });
+  });
+})();
+</script>
 {% endblock %}

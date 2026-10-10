@@ -566,12 +566,12 @@ MODULE_CATALOG: dict[str, dict] = {
         ],
     },
     "timbri": {
-        "label": "Timbrature",
+        "label": "Timbri",
         "icon": "scan",
         "buttons": [
             {
                 "codice": "view_timbri",
-                "nome_visibile": "Timbrature",
+                "nome_visibile": "Timbri",
                 "url": "route:timbri:index",
                 "icona": "scan",
                 "ui_slot": "topbar",
