@@ -14,7 +14,7 @@ cd C:\Dev\pn-snmp-preset\django_app
 ```
 
 Il comando funziona così:
-1. Chiede le community da provare, separate da virgola. Premendo solo Invio usa `public, novicromprinter`.
+1. Chiede le community da provare, separate da virgola. Premendo solo Invio usa `public`: le community aziendali si passano o si prendono dal catalogo cifrato.
 2. Scansiona la rete (massimo 512 indirizzi): prima in v2c, poi in v1 sugli indirizzi che non hanno risposto.
 3. Cattura ogni apparato che risponde, 4 alla volta, in `C:\snmp_capture\<ip>_<descrizione>.snmprec`.
 4. Scrive l'elenco in `C:\snmp_capture\indice.txt`, senza community.

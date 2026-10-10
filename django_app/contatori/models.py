@@ -399,6 +399,9 @@ class DispositivoSNMP(models.Model):
         related_name="dispositivi_snmp",
     )
     attivo = models.BooleanField(default=True)
+    # False = creato senza un test di connessione riuscito (bozza del wizard o form
+    # completo): resta «non verificato» finche' una lettura SNMP non va a buon fine.
+    verificato = models.BooleanField(default=True)
     snmp_stato = models.CharField(
         max_length=10, choices=StatoSNMP.choices, default=StatoSNMP.MAI,
     )
@@ -670,8 +673,10 @@ class ImpostazioniSNMP(models.Model):
         V1 = "v1", "SNMPv1"
         V2C = "v2c", "SNMPv2c"
 
-    community = models.CharField(max_length=60, default="novicromprinter",
-                                 help_text="Nome community/gruppo SNMP (in lettura)")
+    community = models.CharField(max_length=60, default="", blank=True,
+                                 help_text="Community SNMP in sola lettura usata quando l'apparato "
+                                           "non ne ha una propria. Vuota = nessuna lettura finché "
+                                           "non la imposti.")
     port = models.PositiveIntegerField(default=161)
     timeout = models.PositiveIntegerField(default=3, help_text="Secondi di attesa per macchina")
     version = models.CharField(max_length=4, choices=Versione.choices, default=Versione.V1)

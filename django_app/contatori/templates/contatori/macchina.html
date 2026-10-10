@@ -3,15 +3,25 @@
 <div class="row"><div><h1>{{ macchina.reparto }}</h1><p class="sub">Matricola {{ macchina.matricola }} · {{ macchina.modello }} · contratto {{ macchina.contratto }} · {{ macchina.get_fornitore_display }}</p></div><div class="spacer"></div>{% if g %}<div class="actions"><a class="btn ghost" href="{% url 'contatori:macchina_edit' macchina.pk %}">Modifica MFC</a><a class="btn" href="{% url 'contatori:importa_lettura' %}?macchina={{ macchina.pk }}">+ Nuova lettura</a></div>{% endif %}</div>
 
 <div class="cards"><div class="card"><div class="k">Stato SNMP</div><div class="v" style="font-size:20px"><span class="pill {% if macchina.snmp_stato == 'OK' %}ok{% elif macchina.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ macchina.get_snmp_stato_display }}</span></div></div><div class="card"><div class="k">Host</div><div class="v mono" style="font-size:20px">{{ macchina.host|default:"—" }}</div></div><div class="card"><div class="k">Ultimo controllo</div><div class="v" style="font-size:20px">{{ macchina.snmp_ultimo_controllo|date:"d/m/Y H:i"|default:"Mai" }}</div></div><div class="card"><div class="k">Latenza</div><div class="v">{% if macchina.snmp_tempo_risposta_ms is not None %}{{ macchina.snmp_tempo_risposta_ms }}<small> ms</small>{% else %}—{% endif %}</div></div></div>
-{% if macchina.snmp_ultimo_errore %}<div class="banner">{{ macchina.snmp_ultimo_errore }}</div>{% endif %}
+{% if macchina.snmp_ultimo_errore %}{% include "contatori/_errore_snmp.html" with errore=macchina.snmp_ultimo_errore %}{% endif %}
 
-{% if macchina.asset %}
-<div class="panel">
-  <h2>Asset collegato</h2>
-  <p><a class="plain" href="{% url 'assets:asset_view' macchina.asset.id %}">{{ macchina.asset.name }}</a>
-     <span class="pos">[{{ macchina.asset.asset_tag }}]</span>{% if macchina.asset.serial_number %} · serial {{ macchina.asset.serial_number }}{% endif %}</p>
+<div class="grid-2" id="info">
+<section class="panel"><h2>Info</h2><table class="info-table" data-fm-table-skip="1">
+  <tr><th>Reparto</th><td>{{ macchina.reparto }}{% if not macchina.attiva %} <span class="pill warn">disattivata</span>{% endif %}</td></tr>
+  <tr><th>Modello</th><td>{{ macchina.modello|default:"—" }}</td></tr>
+  <tr><th>Matricola</th><td class="mono">{{ macchina.matricola }}</td></tr>
+  <tr><th>Contratto · fornitore</th><td>{{ macchina.contratto|default:"—" }} · {{ macchina.get_fornitore_display }}</td></tr>
+  <tr><th>Asset collegato</th><td>{% if macchina.asset %}<a class="plain" href="{% url 'assets:asset_view' macchina.asset.id %}">{{ macchina.asset.name }}</a> <span class="pos">[{{ macchina.asset.asset_tag }}]</span>{% if macchina.asset.serial_number %} · serial {{ macchina.asset.serial_number }}{% endif %}{% else %}<span class="pill warn">non collegato</span>{% endif %}</td></tr>
+</table></section>
+<section class="panel"><h2>Connessione SNMP</h2><table class="info-table" data-fm-table-skip="1">
+  <tr><th>Indirizzo</th><td class="mono">{% if macchina.host %}{{ macchina.host }}:{{ info_snmp.porta }}{% else %}—{% endif %}</td></tr>
+  <tr><th>Versione · timeout</th><td>{{ info_snmp.versione }} · {{ info_snmp.timeout }} s</td></tr>
+  <tr><th>Credenziali</th><td>{{ info_snmp.credenziali }}</td></tr>
+  <tr><th>Profilo applicato</th><td>{% if macchina.profilo_snmp %}{{ macchina.profilo_snmp }}{% else %}Nessuno: riconoscimento automatico{% endif %}</td></tr>
+  <tr><th>Ultimo controllo</th><td>{% if macchina.snmp_ultimo_controllo %}{{ macchina.snmp_ultimo_controllo|date:"d/m/Y H:i" }} · {{ macchina.get_snmp_stato_display }}{% else %}Mai interrogata{% endif %}{% if macchina.snmp_ultimo_errore %}<div class="health-error">Motivo: {{ macchina.snmp_ultimo_errore }}</div>{% endif %}</td></tr>
+  <tr><th>Ultima lettura contatori riuscita</th><td>{% if ultima_mensile %}{{ ultima_mensile.rilevata_il|date:"d/m/Y H:i" }} (mensile automatica){% else %}Nessuna lettura mensile salvata{% endif %}</td></tr>
+</table></section>
 </div>
-{% endif %}
 
 <div class="panel">
   <div class="panel-head"><div><h2>Copie prodotte per trimestre</h2><p>Differenza tra due letture consecutive, divisa in bianco/nero e colore. Passa sopra una barra per il dettaglio.</p></div></div>

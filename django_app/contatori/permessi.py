@@ -29,6 +29,11 @@ def puo_gestire(request) -> bool:
 
 
 def nega(request):
+    if request.headers.get("HX-Request") or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        # AJAX/HTMX: JSON 403, mai un redirect HTML da iniettare nella pagina.
+        from django.http import JsonResponse
+        return JsonResponse({"ok": False, "errore": "Permesso «Contatori - Gestione» richiesto."},
+                            status=403)
     messages.error(request, "Non hai il permesso di modificare i dati dei contatori: "
                             "chiedi l'abilitazione «Contatori - Gestione».")
     return redirect("contatori:dashboard")

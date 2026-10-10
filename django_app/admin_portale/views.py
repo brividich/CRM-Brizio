@@ -89,14 +89,23 @@ from core.navigation_registry import (
 )
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
 from core.branding import get_portal_branding
-from core.acl_capability import capability_index
+from core.acl_capability import STALE_MISSING_ROUTE, STALE_SHADOWED, capability_index
+from core.permission_categories import (
+    category_for,
+    category_order,
+    display_module,
+    module_label,
+    readable_label,
+)
 from core.permission_taxonomy import (
     ACCESS_LEVELS,
+    AREA_ORDER,
     CAPABILITY_IGNOTO,
     NATURE_ORDER,
+    area_for_module,
+    area_label,
     capability_for_code,
     capability_label,
-    derive_resource,
     nature_for_code,
     nature_label,
 )
@@ -11949,38 +11958,65 @@ def _parse_subject(raw: str) -> tuple[str, int | None]:
     return kind, _int_or_none(ident)
 
 
-def _accessi_submodule(code: str, module: str) -> tuple[str, str]:
-    """Raggruppa le risorse ACL per argomento senza alterare i permission code.
+# Quante rotte elencare nel tooltip di un permesso: oltre, il riquadro diventa
+# illeggibile e il numero totale basta a dire "governa mezzo modulo".
+ACCESSI_ROUTES_PREVIEW = 12
 
-    I code canonici hanno gia' una risorsa esplicita. Quelli legacy usano il
-    nome della view: si scarta il prefisso del modulo e si prende il primo
-    termine, cosi' asset_create/asset_detail restano nello stesso gruppo.
+LINK_PAGES = "pagine"
+LINK_MENU = "menu"
+LINK_SECTION = "sezione"
+LINK_SHADOWED = "oscurato"
+LINK_STATUSES = (LINK_PAGES, LINK_MENU, LINK_SECTION, LINK_SHADOWED)
+
+
+def _accessi_menu_codes() -> set[str]:
+    """Permessi richiesti esplicitamente da una voce di menu (topbar, sidebar)."""
+    try:
+        return {
+            str(code).strip().lower()
+            for code in NavigationItem.objects.exclude(required_permission_code="").values_list(
+                "required_permission_code", flat=True
+            )
+            if str(code or "").strip()
+        }
+    except DatabaseError:
+        return set()
+
+
+def _accessi_link_status(code: str, capabilities, menu_codes: set[str] | frozenset = frozenset()) -> tuple[str, list[str]]:
+    """Che cosa collega il permesso: rotte vere, voci di menu, sezioni o nulla.
+
+    ``pagine``: il resolver lo sceglie per almeno una rotta con nome.
+    ``menu``: nessuna rotta lo sceglie, ma una voce di menu lo richiede: decide
+    cosa si vede nella navigazione (che non e' un confine di sicurezza).
+    ``sezione``: nessun binding, lo verifica il codice dentro una pagina.
+    ``oscurato``: ha binding attivi ma nessuna rotta lo sceglie mai e nessun
+    menu lo richiede: i binding puntano a rotte sparite o uno piu' specifico li
+    scavalca. Concesso da solo non apre pagine: e' cio' che la verifica dei
+    collegamenti deve far vedere.
     """
-    if code.startswith("legacy."):
-        # Nel code legacy l'ultimo segmento e' il nome della view, non
-        # un'azione canonica. derive_resource lo scarterebbe.
-        key = code.rsplit(".", 1)[-1]
-        prefix = f"{module}_"
-        if key.startswith(prefix):
-            key = key[len(prefix):]
-        key = key.split("_", 1)[0]
-    else:
-        resource = derive_resource(code, module)
-        if resource == "(generale)":
-            return "generale", "Generale"
-        key = resource.split(".", 1)[0]
-    return key, key.replace("_", " ").capitalize()
+    routes = list(capabilities.governed_routes.get(code, []))
+    if routes:
+        return LINK_PAGES, routes
+    if code.lower() in menu_codes:
+        return LINK_MENU, []
+    if code in capabilities.bound_codes:
+        return LINK_SHADOWED, []
+    return LINK_SECTION, []
 
 
-def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]:
+def _accessi_permission_rows(*, kind: str, subject_id: int | None, capabilities=None) -> list[dict]:
     """Permessi canonici per modulo, con lo stato del soggetto selezionato.
 
     Le righe sono i permessi, non i pulsanti legacy: e' il layer su cui il
-    portale decide davvero. Ogni riga dice anche se il permesso governa una
-    rotta (ha un binding attivo) o solo una sezione dentro una pagina.
+    portale decide davvero. Ogni riga dice anche che cosa il permesso collega
+    davvero: le rotte che governa, nessuna (controllo di sezione) o binding che
+    non decidono piu' nulla.
 
-    Dentro il modulo i permessi sono divisi per natura e sottomodulo. Sono
-    raggruppamenti di presentazione: la lista completa resta in ``permissions``.
+    I moduli sono quelli di pagina (``core.permission_categories``), ordinati
+    per area; dentro il modulo i permessi sono divisi per natura e categoria.
+    Sono raggruppamenti di presentazione: la lista completa resta in
+    ``permissions`` e si salva sempre un grant per code.
     """
     permissions = list(PermissionDefinition.objects.filter(is_active=True).order_by("module", "code"))
     if not permissions:
@@ -11998,31 +12034,46 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
             for row in RolePermissionGrant.objects.filter(legacy_role_id=subject_id)
         }
 
-    bound_codes = set(
-        RoutePermissionBinding.objects.filter(is_active=True).values_list("permission_id", flat=True)
-    )
     # La capacita' non si legge dal solo nome: un permesso legato a un prefisso
     # di URL governa anche le rotte che gli stanno sotto, e quelle possono
-    # scrivere. Vedi core/acl_capability.py.
-    capabilities = capability_index()
+    # scrivere. Lo stesso indice dice quali rotte ogni permesso governa davvero.
+    # Vedi core/acl_capability.py.
+    if capabilities is None:
+        capabilities = capability_index()
+    menu_codes = _accessi_menu_codes()
 
     grouped: dict[str, list[dict]] = {}
     for permission in permissions:
         module = (permission.module or "senza modulo").strip().lower()
+        target = display_module(permission.code, module)
         capability = capabilities.capabilities.get(permission.code) or capability_for_code(
             permission.code, module
         )
-        submodule, submodule_label = _accessi_submodule(permission.code, module)
-        grouped.setdefault(module, []).append(
+        category, category_label = category_for(permission.code, module)
+        link_status, routes = _accessi_link_status(permission.code, capabilities, menu_codes)
+        grouped.setdefault(target, []).append(
             {
                 "code": permission.code,
-                "label": permission.label,
+                "label": readable_label(permission.code, module, permission.label),
+                "stored_label": permission.label,
                 "description": permission.description,
                 "enabled": bool(granted.get(permission.code, False)),
-                "governs_route": permission.code in bound_codes,
+                "governs_route": link_status == LINK_PAGES,
+                "link_status": link_status,
+                "route_count": len(routes),
+                "routes_preview": routes[:ACCESSI_ROUTES_PREVIEW],
+                "routes_title": "\n".join(routes[:ACCESSI_ROUTES_PREVIEW])
+                + (
+                    f"\n… e altre {len(routes) - ACCESSI_ROUTES_PREVIEW}"
+                    if len(routes) > ACCESSI_ROUTES_PREVIEW
+                    else ""
+                ),
+                # Il modulo a database, quando la pagina lo mostra in un altro
+                # banco (es. `admin_portale.automazioni_*` sotto Automazioni).
+                "source_module": module if module != target else "",
                 "nature": nature_for_code(permission.code, module),
-                "submodule": submodule,
-                "submodule_label": submodule_label,
+                "submodule": category,
+                "submodule_label": category_label,
                 "capability": capability,
                 "capability_label": capability_label(capability),
                 "capability_unknown": capability == CAPABILITY_IGNOTO,
@@ -12033,9 +12084,10 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
         )
 
     rows: list[dict] = []
-    for module in sorted(grouped.keys()):
-        entries = grouped[module]
+    for module, entries in grouped.items():
+        order = category_order(module)
         active = sum(1 for entry in entries if entry["enabled"])
+        entries.sort(key=lambda entry: (order.get(entry["submodule"], len(order)), entry["label"].lower(), entry["code"]))
         gruppi: list[dict] = []
         for nature in NATURE_ORDER:
             subset = [entry for entry in entries if entry["nature"] == nature]
@@ -12052,31 +12104,70 @@ def _accessi_permission_rows(*, kind: str, subject_id: int | None) -> list[dict]
                     "submodules": [
                         {
                             "key": key,
-                            "label": rows[0]["submodule_label"],
-                            "permissions": rows,
-                            "total_count": len(rows),
-                            "active_count": sum(1 for row in rows if row["enabled"]),
+                            "label": members[0]["submodule_label"],
+                            "permissions": members,
+                            "total_count": len(members),
+                            "active_count": sum(1 for row in members if row["enabled"]),
+                            "pages_count": sum(row["route_count"] for row in members),
+                            "shadowed_count": sum(1 for row in members if row["link_status"] == LINK_SHADOWED),
                         }
-                        for key, rows in sorted(
-                            submodules.items(), key=lambda pair: (pair[0] != "generale", pair[0])
+                        for key, members in sorted(
+                            submodules.items(), key=lambda pair: order.get(pair[0], len(order))
                         )
                     ],
                     "total_count": len(subset),
                     "active_count": sum(1 for entry in subset if entry["enabled"]),
                 }
             )
+        area = area_for_module(module)
         rows.append(
             {
                 "modulo": module,
+                "label": module_label(module),
+                "area": area,
+                "area_label": area_label(area),
                 "permissions": entries,
                 "gruppi": gruppi,
+                "categories_count": len({entry["submodule"] for entry in entries}),
                 "total_count": len(entries),
                 "active_count": active,
                 "all_on": bool(entries) and active == len(entries),
                 "partial": 0 < active < len(entries),
             }
         )
+    area_rank = {area: index for index, area in enumerate(AREA_ORDER)}
+    rows.sort(key=lambda row: (area_rank.get(row["area"], len(area_rank)), row["label"].lower()))
     return rows
+
+
+def _accessi_link_summary(module_rows: list[dict], capabilities) -> dict:
+    """Verifica dei collegamenti ACL: i numeri che dicono se la mappa e' sana.
+
+    Calcolata dallo stesso indice che il resolver usa per scegliere i binding,
+    quindi descrive cio' che succede davvero, non cio' che e' scritto a
+    database. I binding "morti" sono elencati uno per uno: sono quelli da
+    correggere o disattivare in ACL canonico.
+    """
+    entries = [entry for row in module_rows for entry in row["permissions"]]
+    by_status = {status: 0 for status in LINK_STATUSES}
+    for entry in entries:
+        by_status[entry["link_status"]] = by_status.get(entry["link_status"], 0) + 1
+    stale = list(capabilities.stale_bindings)
+    return {
+        "permissions": len(entries),
+        "with_pages": by_status[LINK_PAGES],
+        "menu_only": by_status[LINK_MENU],
+        "section_only": by_status[LINK_SECTION],
+        "shadowed": by_status[LINK_SHADOWED],
+        "shadowed_codes": sorted(entry["code"] for entry in entries if entry["link_status"] == LINK_SHADOWED),
+        "routes_total": capabilities.routes_total,
+        "routes_bound": capabilities.routes_bound,
+        "stale_bindings": stale,
+        "stale_missing_route": sum(1 for row in stale if row["reason"] == STALE_MISSING_ROUTE),
+        "stale_shadowed": sum(1 for row in stale if row["reason"] == STALE_SHADOWED),
+        "modules": len(module_rows),
+        "categories": sum(row["categories_count"] for row in module_rows),
+    }
 
 
 def _group_members(group) -> list[dict]:
@@ -12151,7 +12242,8 @@ def accessi_unificati(request):
             bump_legacy_cache_version()
         return redirect(f"{reverse('admin_portale:accessi')}?subject={redirect_subject or current_subject}")
 
-    module_rows = _accessi_permission_rows(kind=kind, subject_id=subject_id)
+    capabilities = capability_index()
+    module_rows = _accessi_permission_rows(kind=kind, subject_id=subject_id, capabilities=capabilities)
     selected_group = None
     selected_role = None
     if kind == SUBJECT_GROUP and subject_id:
@@ -12173,6 +12265,7 @@ def accessi_unificati(request):
             "selected_role": selected_role,
             "members": _group_members(selected_group) if selected_group else [],
             "module_rows": module_rows,
+            "link_summary": _accessi_link_summary(module_rows, capabilities),
             "total_active": sum(row["active_count"] for row in module_rows),
             "total_permissions": sum(row["total_count"] for row in module_rows),
             # I livelli sono macro di selezione lato pagina: accendono gli

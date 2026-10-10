@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from django.utils import timezone
+
 from ..models import Mansione
 from ..models_formazione import TrainingCourse, TrainingRequirementRule
 
@@ -37,6 +39,18 @@ def _mansioni_prefetch():
         "esposizioni_rischio__fattore__tipi_visita",
         "esposizioni_rischio__fattore__categorie_dpi",
         "esposizioni_rischio__fattore__categorie_corso",
+        "link_rischio__mansione_rischio",
+    )
+
+
+def _mansioni_rischio_prefetch():
+    from ..models_mansioni_rischio import MansioneRischio
+    return MansioneRischio.objects.prefetch_related(
+        "visite",
+        "categorie_dpi",
+        "fattori__tipi_visita",
+        "fattori__categorie_dpi",
+        "fattori__categorie_corso",
     )
 
 
@@ -66,8 +80,8 @@ def _corsi_per_categoria(categoria_ids: set[int]) -> dict[int, list[TrainingCour
 def _requisiti_da_fattori(fattori, corsi_per_categoria) -> dict[str, list]:
     """DPI/visite/corsi/fattori derivati da una lista di FattoreRischio attivi.
 
-    Helper condiviso fra il resolver mansione (``_resolve``) e il resolver
-    dipendente (``requisiti_dipendente``): unica implementazione fattore→requisiti.
+    Helper condiviso fra i resolver mansione, mansione di rischio e dipendente:
+    unica implementazione fattore→requisiti.
     """
     dpi, visite, corsi, out_fattori = [], [], [], []
     for fattore in fattori:
@@ -84,92 +98,168 @@ def _requisiti_da_fattori(fattori, corsi_per_categoria) -> dict[str, list]:
     return {"dpi": dpi, "visite": visite, "corsi": corsi, "fattori": out_fattori}
 
 
-def _resolve(
-    mansioni: list[Mansione],
-    *,
-    corsi_per_categoria: dict[int, list[TrainingCourse]],
-    rules_per_mansione: dict[int, list[TrainingRequirementRule]],
-) -> dict[int, dict[str, list]]:
-    """Risolve i requisiti per Mansione già prefetchate. Ritorna {mansione_id: req}."""
+def _unisci(*parziali: dict[str, list]) -> dict[str, list]:
+    out = requisiti_vuoti()
+    for parziale in parziali:
+        for dominio in out:
+            out[dominio].extend(parziale.get(dominio, []))
+    return {dominio: _dedup(voci) for dominio, voci in out.items()}
+
+
+def _regole_obbligo(campo: str, ids: list[int]) -> dict[int, list[TrainingRequirementRule]]:
+    """Regole formative obbligatorie attive per target (``mansione`` o ``mansione_rischio``)."""
+    out: dict[int, list[TrainingRequirementRule]] = {}
+    if ids:
+        for rule in (
+            TrainingRequirementRule.objects
+            .filter(**{f"{campo}_id__in": ids}, is_active=True, is_mandatory=True)
+            .select_related("corso", "piano")
+        ):
+            out.setdefault(getattr(rule, f"{campo}_id"), []).append(rule)
+    return out
+
+
+def _da_regole(regole) -> dict[str, list]:
+    corsi, piani = [], []
+    for rule in regole:
+        if rule.corso_id and rule.corso:
+            corsi.append(rule.corso)
+        elif rule.piano_id and rule.piano:
+            piani.append(rule.piano)
+    return {"corsi": corsi, "piani": piani}
+
+
+def collegamenti_attivi(mansione: Mansione) -> list:
+    """Mansioni di rischio attive collegate a una mansione (prefetch ``link_rischio``)."""
+    return [
+        link.mansione_rischio for link in mansione.link_rischio.all()
+        if link.mansione_rischio and link.mansione_rischio.is_active
+    ]
+
+
+def requisiti_mansioni_rischio(ids: Iterable[int]) -> dict[int, dict[str, list]]:
+    """Requisiti per più mansioni di rischio (batch): {mansione_rischio_id: req}.
+
+    Fattori → visite/DPI/corsi, più visite e DPI del protocollo e le regole
+    formative ``TrainingRequirementRule(mansione_rischio=...)``.
+    """
+    voluti = {int(i) for i in ids if i}
+    if not voluti:
+        return {}
+    oggetti = list(_mansioni_rischio_prefetch().filter(pk__in=voluti))
+    categoria_ids = {
+        categoria.pk
+        for mr in oggetti for fattore in mr.fattori.all() if fattore.is_active
+        for categoria in fattore.categorie_corso.all()
+    }
+    corsi_per_categoria = _corsi_per_categoria(categoria_ids)
+    regole = _regole_obbligo("mansione_rischio", [mr.pk for mr in oggetti])
     out: dict[int, dict[str, list]] = {}
-    for mansione in mansioni:
-        dpi: list = []
-        visite: list = []
-        corsi: list = []
-        piani: list = []
-        fattori: list = []
-
-        # 1) requisiti diretti sulla mansione
+    for mr in oggetti:
+        diretti = {"visite": list(mr.visite.all())}
         try:
-            dpi.extend(mansione.dpi_richiesti.all())
+            diretti["dpi"] = list(mr.categorie_dpi.all())
         except Exception:
-            pass
-        visite.extend(mansione.visite_richieste.all())
+            diretti["dpi"] = []
+        out[mr.pk] = _unisci(
+            diretti,
+            _requisiti_da_fattori(list(mr.fattori.all()), corsi_per_categoria),
+            _da_regole(regole.get(mr.pk, [])),
+        )
+    return out
 
-        # 2) requisiti ereditati dai fattori di rischio esposti (helper condiviso)
-        fattori_esposti = [
-            esp.fattore for esp in mansione.esposizioni_rischio.all()
-            if esp.is_active and esp.fattore and esp.fattore.is_active
-        ]
-        parziale = _requisiti_da_fattori(fattori_esposti, corsi_per_categoria)
-        dpi.extend(parziale["dpi"])
-        visite.extend(parziale["visite"])
-        corsi.extend(parziale["corsi"])
-        fattori.extend(parziale["fattori"])
 
-        # 3) formazione obbligatoria diretta (corso o piano)
-        for rule in rules_per_mansione.get(mansione.pk, []):
-            if rule.corso_id and rule.corso:
-                corsi.append(rule.corso)
-            elif rule.piano_id and rule.piano:
-                piani.append(rule.piano)
+def _profilo_legacy(mansione: Mansione, corsi_per_categoria) -> dict[str, list]:
+    """Requisiti dai campi DEPRECATI della mansione (ripiego senza collegamenti)."""
+    diretti = {"visite": list(mansione.visite_richieste.all())}
+    try:
+        diretti["dpi"] = list(mansione.dpi_richiesti.all())
+    except Exception:
+        diretti["dpi"] = []
+    fattori_esposti = [
+        esp.fattore for esp in mansione.esposizioni_rischio.all()
+        if esp.is_active and esp.fattore and esp.fattore.is_active
+    ]
+    return _unisci(diretti, _requisiti_da_fattori(fattori_esposti, corsi_per_categoria))
 
+
+def _categorie_legacy(mansioni: list[Mansione]) -> set[int]:
+    return {
+        categoria.pk
+        for mansione in mansioni
+        for esp in mansione.esposizioni_rischio.all()
+        if esp.is_active and esp.fattore and esp.fattore.is_active
+        for categoria in esp.fattore.categorie_corso.all()
+    }
+
+
+def _profili(mansioni: list[Mansione]) -> dict[int, dict[str, Any]]:
+    """Profilo scomposto di ogni mansione, per sapere da dove viene ogni requisito.
+
+    ``{mansione_id: {"regole": req, "legacy": req | None,
+    "rischio": [(MansioneRischio, req), ...]}}``. Una mansione con almeno un
+    collegamento attivo a una mansione di rischio legge **solo** quelle; senza
+    collegamenti legge i campi deprecati (``legacy``): finché la migrazione
+    dati non è applicata il risultato non cambia.
+    """
+    # Una mansione con QUALSIASI collegamento (anche a una mansione di rischio
+    # disattivata) è migrata: i campi deprecati non tornano in vigore.
+    senza_link = [m for m in mansioni if not list(m.link_rischio.all())]
+    corsi_per_categoria = _corsi_per_categoria(_categorie_legacy(senza_link))
+    regole = _regole_obbligo("mansione", [m.pk for m in mansioni])
+    per_mr = requisiti_mansioni_rischio(
+        mr.pk for mansione in mansioni for mr in collegamenti_attivi(mansione)
+    )
+    out: dict[int, dict[str, Any]] = {}
+    for mansione in mansioni:
+        collegate = collegamenti_attivi(mansione)
         out[mansione.pk] = {
-            "dpi": _dedup(dpi),
-            "visite": _dedup(visite),
-            "corsi": _dedup(corsi),
-            "piani": _dedup(piani),
-            "fattori": _dedup(fattori),
+            "regole": _unisci(_da_regole(regole.get(mansione.pk, []))),
+            "legacy": _profilo_legacy(mansione, corsi_per_categoria) if mansione in senza_link else None,
+            "rischio": [(mr, per_mr.get(mr.pk, requisiti_vuoti())) for mr in collegate],
         }
     return out
 
 
-def _supplementi(mansioni: list[Mansione]) -> tuple[dict[int, list], dict[int, list]]:
-    """Query batch ausiliarie: corsi per categoria e regole per mansione."""
-    categoria_ids: set[int] = set()
-    for mansione in mansioni:
-        for esp in mansione.esposizioni_rischio.all():
-            if esp.is_active and esp.fattore and esp.fattore.is_active:
-                for categoria in esp.fattore.categorie_corso.all():
-                    categoria_ids.add(categoria.pk)
-
-    corsi_per_categoria = _corsi_per_categoria(categoria_ids)
-
-    mansione_ids = [m.pk for m in mansioni]
-    rules_per_mansione: dict[int, list[TrainingRequirementRule]] = {}
-    if mansione_ids:
-        for rule in (
-            TrainingRequirementRule.objects
-            .filter(mansione_id__in=mansione_ids, is_active=True, is_mandatory=True)
-            .select_related("corso", "piano")
-        ):
-            rules_per_mansione.setdefault(rule.mansione_id, []).append(rule)
-
-    return corsi_per_categoria, rules_per_mansione
+def _componi(profilo: dict[str, Any]) -> dict[str, list]:
+    return _unisci(
+        profilo["regole"],
+        profilo["legacy"] or {},
+        *[req for _mr, req in profilo["rischio"]],
+    )
 
 
 def requisiti_mansione(mansione: "Mansione | int") -> dict[str, list]:
-    """Requisiti completi di una singola mansione (diretti + ereditati)."""
+    """Requisiti completi di una singola mansione (mansioni di rischio + regole)."""
     mansione_id = mansione.pk if isinstance(mansione, Mansione) else int(mansione)
     obj = _mansioni_prefetch().filter(pk=mansione_id).first()
     if obj is None:
         return requisiti_vuoti()
-    corsi_per_categoria, rules_per_mansione = _supplementi([obj])
-    return _resolve(
-        [obj],
-        corsi_per_categoria=corsi_per_categoria,
-        rules_per_mansione=rules_per_mansione,
-    )[obj.pk]
+    return _componi(_profili([obj])[obj.pk])
+
+
+def requisiti_mansione_legacy(mansione: "Mansione | int") -> dict[str, list]:
+    """Requisiti calcolati SOLO dai campi deprecati (verifica di equivalenza)."""
+    mansione_id = mansione.pk if isinstance(mansione, Mansione) else int(mansione)
+    obj = _mansioni_prefetch().filter(pk=mansione_id).first()
+    if obj is None:
+        return requisiti_vuoti()
+    regole = _regole_obbligo("mansione", [obj.pk])
+    return _unisci(
+        _da_regole(regole.get(obj.pk, [])),
+        _profilo_legacy(obj, _corsi_per_categoria(_categorie_legacy([obj]))),
+    )
+
+
+def _mansioni_per_nome(nomi: Iterable[str]) -> dict[str, Mansione]:
+    voluti = {str(n).strip().casefold() for n in nomi if str(n or "").strip()}
+    if not voluti:
+        return {}
+    return {
+        m.nome.strip().casefold(): m
+        for m in _mansioni_prefetch().filter(is_active=True)
+        if m.nome.strip().casefold() in voluti
+    }
 
 
 def requisiti_per_nome(nomi: Iterable[str]) -> dict[str, dict[str, list]]:
@@ -177,22 +267,11 @@ def requisiti_per_nome(nomi: Iterable[str]) -> dict[str, dict[str, list]]:
 
     Numero di query costante: usato dal report conformità e dall'onboarding.
     """
-    voluti = {str(n).strip().casefold() for n in nomi if str(n or "").strip()}
-    if not voluti:
+    per_nome = _mansioni_per_nome(nomi)
+    if not per_nome:
         return {}
-    mansioni = [
-        m for m in _mansioni_prefetch().filter(is_active=True)
-        if m.nome.strip().casefold() in voluti
-    ]
-    if not mansioni:
-        return {}
-    corsi_per_categoria, rules_per_mansione = _supplementi(mansioni)
-    per_id = _resolve(
-        mansioni,
-        corsi_per_categoria=corsi_per_categoria,
-        rules_per_mansione=rules_per_mansione,
-    )
-    return {m.nome.strip().casefold(): per_id[m.pk] for m in mansioni}
+    profili = _profili(list(per_nome.values()))
+    return {nome: _componi(profili[m.pk]) for nome, m in per_nome.items()}
 
 
 def requisiti_per_nome_mansione(nome: str) -> dict[str, list]:
@@ -225,7 +304,8 @@ def _mansione_nome_legacy(legacy_id: int) -> str:
 
 
 def requisiti_dipendente(
-    legacy_id: int, *, mansione_nome: str | None = None, area_id: int | None = None
+    legacy_id: int, *, mansione_nome: str | None = None, area_id: int | None = None,
+    data=None,
 ) -> dict[str, list]:
     """Requisiti effettivi di un dipendente ("mansione di rischio" a vista).
 
@@ -240,12 +320,13 @@ def requisiti_dipendente(
     ``{dpi, visite, corsi, piani, fattori}``.
     """
     return requisiti_dipendente_dettaglio(
-        legacy_id, mansione_nome=mansione_nome, area_id=area_id
+        legacy_id, mansione_nome=mansione_nome, area_id=area_id, data=data,
     )["requisiti"]
 
 
 def requisiti_dipendente_dettaglio(
-    legacy_id: int, *, mansione_nome: str | None = None, area_id: int | None = None
+    legacy_id: int, *, mansione_nome: str | None = None, area_id: int | None = None,
+    data=None,
 ) -> dict[str, Any]:
     """Come :func:`requisiti_dipendente`, ma dice **da dove viene** ogni requisito.
 
@@ -268,6 +349,7 @@ def requisiti_dipendente_dettaglio(
         mansioni_per_legacy=({int(legacy_id): mansione_nome}
                              if mansione_nome is not None else None),
         aree_per_legacy=({int(legacy_id): area_id} if area_id is not None else None),
+        data=data,
     )[int(legacy_id)]
 
 
@@ -276,6 +358,7 @@ def requisiti_dipendenti_dettaglio(
     *,
     mansioni_per_legacy: dict[int, str] | None = None,
     aree_per_legacy: dict[int, int | None] | None = None,
+    data=None,
 ) -> dict[int, dict[str, Any]]:
     """Versione batch di :func:`requisiti_dipendente_dettaglio`.
 
@@ -309,10 +392,19 @@ def requisiti_dipendenti_dettaglio(
     if mancanti_mansione:
         mansioni.update(_mansioni_nome_legacy(mancanti_mansione))
 
-    # Fonte 1: mansione lavorativa (resolver per nome, già batch).
-    base_per_nome = requisiti_per_nome(
-        {n for n in mansioni.values() if str(n or "").strip()}
-    )
+    # Fonte 1: mansione lavorativa → regole + mansioni di rischio collegate
+    # (o profilo legacy se la mansione non ha collegamenti).
+    per_nome = _mansioni_per_nome({n for n in mansioni.values() if str(n or "").strip()})
+    profili = _profili(list(per_nome.values())) if per_nome else {}
+
+    # Fonte 1-bis: override individuali validi alla data.
+    giorno = data or timezone.localdate()
+    override_per_dip = override_validi(ids, giorno)
+    aggiunte_ids = {
+        o.mansione_rischio_id for gruppo in override_per_dip.values() for o in gruppo
+        if o.azione == o.AZIONE_AGGIUNGI
+    }
+    req_aggiunte = requisiti_mansioni_rischio(aggiunte_ids)
 
     # Fonti 2+3: esposizioni di area + dirette, in due query per tutti.
     esposizioni = (
@@ -344,43 +436,91 @@ def requisiti_dipendenti_dettaglio(
     out: dict[int, dict[str, Any]] = {}
     for legacy_id in ids:
         origini: dict[tuple[str, Any], list[str]] = {}
+        # Origine strutturata (per il piano di cambio mansione): la prima fonte
+        # che porta il requisito, con la mansione di rischio / l'override.
+        origini_strutturate: dict[tuple[str, Any], dict[str, Any]] = {}
+        parziali: list[dict[str, list]] = []
 
-        def _traccia(parziale: dict[str, list], etichetta: str) -> None:
+        def _traccia(parziale: dict[str, list], etichetta: str, origine: dict[str, Any]) -> None:
+            parziali.append(parziale)
             for dominio, voci in parziale.items():
                 for obj in voci:
-                    voci_origine = origini.setdefault(
-                        (dominio, getattr(obj, "pk", obj)), []
-                    )
+                    chiave = (dominio, getattr(obj, "pk", obj))
+                    voci_origine = origini.setdefault(chiave, [])
                     if etichetta not in voci_origine:
                         voci_origine.append(etichetta)
+                    origini_strutturate.setdefault(chiave, origine)
 
         nome = str(mansioni.get(legacy_id) or "").strip()
-        base = base_per_nome.get(nome.casefold(), requisiti_vuoti()) if nome else requisiti_vuoti()
-        _traccia(base, f"Mansione «{nome}»" if nome else "Mansione")
+        mansione = per_nome.get(nome.casefold()) if nome else None
+        profilo = profili.get(mansione.pk) if mansione is not None else None
+        etichetta_mansione = f"Mansione «{nome}»" if nome else "Mansione"
 
-        extra = {"dpi": [], "visite": [], "corsi": [], "fattori": []}
+        override = override_per_dip.get(legacy_id, [])
+        esclusi = {o.mansione_rischio_id: o for o in override if o.azione == o.AZIONE_ESCLUDI}
+        effettive: list[dict[str, Any]] = []
+        escluse: list[dict[str, Any]] = []
+
+        if profilo is not None:
+            _traccia(profilo["regole"], etichetta_mansione, {"tipo": "MANSIONE"})
+            if profilo["legacy"] is not None:
+                _traccia(profilo["legacy"], etichetta_mansione, {"tipo": "MANSIONE"})
+            for mr, req in profilo["rischio"]:
+                if mr.pk in esclusi:
+                    escluse.append({"mansione_rischio": mr, "override": esclusi[mr.pk]})
+                    continue
+                effettive.append({"mansione_rischio": mr, "origine": "MANSIONE", "override": None})
+                _traccia(req, f"Mansione di rischio «{mr.nome}» (da mansione «{nome}»)",
+                         {"tipo": "MANSIONE_RISCHIO", "mansione_rischio_id": mr.pk})
+        presenti = {e["mansione_rischio"].pk for e in effettive}
+        for o in override:
+            if o.azione != o.AZIONE_AGGIUNGI or o.mansione_rischio_id in presenti:
+                continue
+            mr = o.mansione_rischio
+            if not mr.is_active:
+                continue
+            presenti.add(mr.pk)
+            effettive.append({"mansione_rischio": mr, "origine": "OVERRIDE", "override": o})
+            _traccia(req_aggiunte.get(mr.pk, requisiti_vuoti()),
+                     f"Mansione di rischio «{mr.nome}» (aggiunta individuale dal {o.data_inizio:%d/%m/%Y}: {o.motivo})",
+                     {"tipo": "OVERRIDE", "mansione_rischio_id": mr.pk, "override_id": o.pk})
+
         gruppi = (
-            (per_area.get(aree.get(legacy_id) or 0, []), "Area aziendale"),
-            (per_dipendente.get(legacy_id, []), "Esposizione diretta"),
+            (per_area.get(aree.get(legacy_id) or 0, []), "Area aziendale", "AREA"),
+            (per_dipendente.get(legacy_id, []), "Esposizione diretta", "DIRETTA"),
         )
-        for esposizioni_gruppo, etichetta in gruppi:
-            parziale = _requisiti_da_fattori(
-                [e.fattore for e in esposizioni_gruppo], corsi_per_categoria
+        for esposizioni_gruppo, etichetta, tipo in gruppi:
+            _traccia(
+                _requisiti_da_fattori([e.fattore for e in esposizioni_gruppo], corsi_per_categoria),
+                etichetta, {"tipo": tipo},
             )
-            _traccia(parziale, etichetta)
-            for dominio in extra:
-                extra[dominio].extend(parziale[dominio])
 
         out[legacy_id] = {
-            "requisiti": {
-                "dpi": _dedup(base["dpi"] + extra["dpi"]),
-                "visite": _dedup(base["visite"] + extra["visite"]),
-                "corsi": _dedup(base["corsi"] + extra["corsi"]),
-                "piani": _dedup(base["piani"]),
-                "fattori": _dedup(base["fattori"] + extra["fattori"]),
-            },
+            "requisiti": _unisci(*parziali),
             "origini": origini,
+            "origini_strutturate": origini_strutturate,
+            "mansioni_rischio": effettive,
+            "mansioni_rischio_escluse": escluse,
             "mansione_nome": nome,
             "area_id": aree.get(legacy_id),
         }
+    return out
+
+
+def override_validi(legacy_ids: Iterable[int], giorno) -> dict[int, list]:
+    """Override individuali attivi e validi a ``giorno``, per dipendente."""
+    from ..models_mansioni_rischio import DipendenteMansioneRischioOverride
+
+    out: dict[int, list] = {}
+    ids = [int(i) for i in legacy_ids]
+    if not ids:
+        return out
+    for o in (
+        DipendenteMansioneRischioOverride.objects
+        .filter(legacy_anagrafica_id__in=ids, attivo=True, data_inizio__lte=giorno)
+        .select_related("mansione_rischio")
+        .order_by("legacy_anagrafica_id", "data_inizio", "pk")
+    ):
+        if o.data_fine is None or o.data_fine >= giorno:
+            out.setdefault(o.legacy_anagrafica_id, []).append(o)
     return out

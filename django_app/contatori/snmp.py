@@ -180,6 +180,12 @@ def costruisci_credenziali(segreto, version):
         from puresnmp.credentials import V3, Auth, Priv
     except ImportError as e:
         raise SNMPError("puresnmp non installato (pip install puresnmp)") from e
+    if not segreto:
+        # Nessuna community predefinita nel codice: quella storica era pubblica.
+        from .errori_snmp import ErroreSNMPCatalogato
+        raise ErroreSNMPCatalogato(
+            "SNMP-008", "Community SNMP non configurata: selezionala dal catalogo o "
+                        "impostala nella configurazione globale.")
     if version == "v1":
         return V1(segreto)
     if version != "v3":
@@ -209,7 +215,7 @@ def _testo(valore):
     return str(valore).strip() if valore is not None else ""
 
 
-def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
+def leggi_oids(host, oids, community="", port=161, timeout=3,
                version="v1", *, max_duration=SPECIFICATION_BUDGET):
     """Legge una lista esplicita di OID con sole operazioni GET.
 
@@ -257,7 +263,7 @@ def leggi_oids(host, oids, community="novicromprinter", port=161, timeout=3,
     return valori, errori
 
 
-def leggi_colonna(host, oid, community="novicromprinter", port=161, timeout=3,
+def leggi_colonna(host, oid, community="", port=161, timeout=3,
                    version="v1", *, max_duration=WALK_BUDGET):
     """Esegue un WALK read-only e restituisce i valori della colonna MIB."""
     if not host:
@@ -320,7 +326,7 @@ def aggrega_colonna(valori, aggregazione="PRIMO"):
     raise SNMPError(f"aggregazione non supportata: {aggregazione}")
 
 
-def leggi_specifiche(host, specifiche, community="novicromprinter", port=161,
+def leggi_specifiche(host, specifiche, community="", port=161,
                      timeout=3, version="v1"):
     """Legge specifiche GET/WALK e ritorna ``(valori, errori)`` per OID."""
     specifiche = list(specifiche)
@@ -385,14 +391,14 @@ def hosts_rete(rete):
     return [str(h) for h in net.hosts()]
 
 
-def scansiona_rete(rete, community="novicromprinter", port=161, timeout=2,
+def scansiona_rete(rete, community="", port=161, timeout=2,
                    version="v1", concurrency=32, *, communities=None, max_duration=20):
     return scansiona_hosts(hosts_rete(rete), community=community, port=port,
                            timeout=timeout, version=version, concurrency=concurrency,
                            communities=communities, max_duration=max_duration)
 
 
-def scansiona_hosts(hosts, community="novicromprinter", port=161, timeout=2,
+def scansiona_hosts(hosts, community="", port=161, timeout=2,
                     version="v1", concurrency=32, *, communities=None, max_duration=20):
     """Sonda un elenco limitato di IP, preservando risultati parziali."""
     import ipaddress
@@ -537,7 +543,7 @@ def _consumabili_raw(host, community, port, timeout, version):
         raise SNMPError(f"{host}: {descrivi_errore(e)}") from e
 
 
-def leggi_consumabili(macchina, community="novicromprinter", port=161, timeout=3, version="v1"):
+def leggi_consumabili(macchina, community="", port=161, timeout=3, version="v1"):
     """
     Ritorna la lista dei consumabili con livello in %:
       [{"nome", "pct" (int|None), "nota"}]
@@ -569,7 +575,7 @@ def leggi_consumabili(macchina, community="novicromprinter", port=161, timeout=3
     return out
 
 
-def leggi_macchina(macchina, community="novicromprinter", port=161, timeout=3, version="v1"):
+def leggi_macchina(macchina, community="", port=161, timeout=3, version="v1"):
     """Ritorna dict {a4_bn, a3_bn, a4_col, a3_col} oppure solleva SNMPError.
 
     version: "v1" (default, come richiesto dalle Canon) o "v2c".

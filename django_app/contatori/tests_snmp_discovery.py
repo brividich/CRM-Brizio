@@ -6,6 +6,8 @@ from unittest import TestCase, mock
 
 from contatori import snmp
 
+SYN = "synthetic-community"  # nessuna community predefinita nel codice
+
 
 class DiscoveryTests(TestCase):
     def setUp(self):
@@ -47,7 +49,7 @@ class DiscoveryTests(TestCase):
             finally:
                 cancelled.append(oid)
         self.factory.return_value = SimpleNamespace(get=get)
-        rows = snmp.scansiona_rete("192.0.2.1/32", max_duration=.03)
+        rows = snmp.scansiona_rete("192.0.2.1/32", community=SYN, max_duration=.03)
         self.assertEqual(rows[0]["descr"], "device")
         self.assertTrue(rows.incompleta)
         self.assertEqual(cancelled, [snmp.SYS_NAME])
@@ -60,7 +62,7 @@ class DiscoveryTests(TestCase):
             finally:
                 cancelled.append(oid)
         self.factory.return_value = SimpleNamespace(get=get)
-        rows = snmp.scansiona_rete("192.0.2.1/32", timeout=.01, max_duration=.5)
+        rows = snmp.scansiona_rete("192.0.2.1/32", community=SYN, timeout=.01, max_duration=.5)
         self.assertEqual(rows, [])
         self.assertFalse(rows.incompleta)
         self.assertEqual(rows.completati, 1)
@@ -72,7 +74,7 @@ class DiscoveryTests(TestCase):
                 raise TimeoutError()
             return "serial" if oid == snmp.PRT_SERIAL else "device"
         self.factory.return_value = SimpleNamespace(get=get)
-        rows = snmp.scansiona_rete("192.0.2.1/32")
+        rows = snmp.scansiona_rete("192.0.2.1/32", community=SYN)
         self.assertEqual(rows[0]["matricola"], "serial")
         self.assertEqual(rows[0]["nome"], "")
 
@@ -97,7 +99,7 @@ class DiscoveryTests(TestCase):
         async def get(oid):
             await asyncio.sleep(60)
         self.factory.return_value.get = get
-        rows = snmp.scansiona_rete("192.0.2.0/30", concurrency=1, max_duration=.02)
+        rows = snmp.scansiona_rete("192.0.2.0/30", community=SYN, concurrency=1, max_duration=.02)
         self.assertEqual(rows.totali, 2)
         self.assertEqual(rows.completati, 0)
         self.assertTrue(rows.incompleta)

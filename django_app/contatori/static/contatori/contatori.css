@@ -99,10 +99,23 @@ body.theme-dark .contatori-module{--prod-bn:#4a90d9;--prod-col:#e06a18}
 @media(max-width:760px){.contatori-module .prod-chart{gap:4px}.contatori-module .prod-x{font-size:10px;transform:rotate(-30deg);transform-origin:center}.contatori-module .prod-total{font-size:10px}}
 /* Barra del modulo: operatività | configurazione */
 .contatori-module .cnav{align-items:center}
-.contatori-module .cnav-sep{flex:1 1 auto;min-width:12px}
-.contatori-module .cnav-label{font-size:10px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;color:var(--cm-muted);padding:0 4px;white-space:nowrap}
+.contatori-module .cnav-sep{flex:0 0 1px;align-self:stretch;background:var(--cm-border);margin:4px 8px}
+.contatori-module .cnav-label{font-size:10px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;color:var(--cm-muted);padding:0 4px 0 6px;white-space:nowrap}
 .contatori-module .cnav a.cnav-config{font-weight:600}
-@media(max-width:760px){.contatori-module .cnav-sep{flex:0 0 1px;align-self:stretch;background:var(--cm-border);margin:4px 6px}.contatori-module .cnav-label{display:none}}
+@media(max-width:760px){.contatori-module .cnav-sep{margin:4px 6px}.contatori-module .cnav-label{display:none}}
+/* Centrale: stato flotta e ultimi errori */
+.contatori-module .flotta-cards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.contatori-module .flotta-cards .card{text-decoration:none;color:inherit}
+.contatori-module .flotta-cards .card .v{font-size:26px}
+.contatori-module .errori-list{list-style:none;margin:0;padding:0}
+.contatori-module .errori-list li{display:grid;grid-template-columns:minmax(140px,220px) 1fr auto;gap:4px 14px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--cm-border)}
+.contatori-module .errori-list li:last-child{border-bottom:none}
+.contatori-module .errori-list .causa{color:var(--cm-danger);overflow-wrap:anywhere}
+@media(max-width:760px){.contatori-module .errori-list li{grid-template-columns:1fr}}
+.contatori-module .info-table th{width:38%;white-space:nowrap}
+.contatori-module .info-table td{overflow-wrap:anywhere}
+@media(max-width:760px){.contatori-module .info-table th{white-space:normal;width:42%}}
+.contatori-module .filtro-attivo{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .contatori-module .cons-esito{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 .contatori-module .cons-item{font-size:13px}
 body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,var(--cm-accent) 18%,var(--cm-surface));color:#fff;box-shadow:inset 0 -2px 0 var(--cm-accent)}
@@ -139,3 +152,26 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .voi-assenti{margin-top:14px}
 .contatori-module .voi-head{flex-wrap:wrap;gap:10px}.contatori-module .voi-head>div:first-child{flex:1 1 280px}
 .contatori-module .voi-ai{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 12px}.contatori-module .voi-ai .muted{font-size:12.5px}
+/* Wizard guidati */
+.contatori-module .wiz-passi{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 18px;padding:0}
+.contatori-module .wiz-passi li>span,.contatori-module .wiz-passi li>button{display:inline-flex;align-items:center;gap:7px;padding:7px 11px;border-radius:999px;border:1px solid var(--cm-border);background:var(--cm-surface);color:var(--cm-muted);font:inherit;font-size:12px;font-weight:650}
+.contatori-module .wiz-passi li>button{cursor:pointer;color:var(--cm-primary-mid)}
+.contatori-module .wiz-passi li>button:hover{border-color:var(--cm-accent)}
+.contatori-module .wiz-passi li.corrente>span{border-color:var(--cm-accent);color:var(--cm-text);box-shadow:inset 0 -2px 0 var(--cm-accent)}
+.contatori-module .wiz-num{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:color-mix(in srgb,var(--cm-muted) 15%,transparent);font-size:11px}
+.contatori-module .wiz-passi li.fatto .wiz-num{background:color-mix(in srgb,var(--cm-ok) 20%,transparent);color:var(--cm-ok)}
+.contatori-module .wiz-passi li.corrente .wiz-num{background:var(--cm-accent);color:#fff}
+.contatori-module .wiz-esito{margin-top:14px;padding:14px 16px;border-radius:12px;border:1px solid var(--cm-border);border-left-width:4px;overflow-wrap:anywhere}
+.contatori-module .wiz-esito.ok{border-left-color:var(--cm-ok);background:color-mix(in srgb,var(--cm-ok) 6%,var(--cm-surface))}
+.contatori-module .wiz-esito.ko{border-left-color:var(--cm-danger);background:color-mix(in srgb,var(--cm-danger) 6%,var(--cm-surface))}
+.contatori-module .wiz-esito p{margin:6px 0 0}
+.contatori-module .wiz-esito dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:10px 0 0}
+.contatori-module .wiz-esito dt{color:var(--cm-muted);font-size:12px}
+.contatori-module .wiz-esito dd{margin:0}
+.contatori-module tr.wiz-ko td{color:var(--cm-danger)}
+.contatori-module .wizard .form-actions .spacer{flex:1}
+.contatori-module .info-table th{width:38%}
+.contatori-module .info-table td{overflow-wrap:anywhere}
+@media(max-width:760px){.contatori-module .wiz-esito dl{grid-template-columns:1fr}.contatori-module .wizard .form-actions{flex-wrap:wrap}}
+.contatori-module .errore-snmp{overflow-wrap:anywhere}
+.contatori-module .errore-snmp .errore-azione{margin-top:6px;font-size:13px}

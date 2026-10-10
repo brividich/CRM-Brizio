@@ -4,18 +4,19 @@
 <h1>Consumabili flotta</h1>
 <p class="sub">Ultimo livello letto di toner, tamburi e fusore per ogni MFC attiva con IP. La lettura automatica gira ogni mattina; «Leggi ora» aggiorna una macchina subito. La stima dei giorni usa il consumo dall'ultima sostituzione.</p>
 
-{% if not righe %}
+{% if not totale %}
   <div class="panel"><p class="muted">Nessuna MFC attiva con IP impostato. Aggiungi l'indirizzo dalle <a class="plain" href="{% url 'contatori:macchine' %}">Stampanti MFC</a>.</p></div>
 {% else %}
 <div class="cards kpi-cards">
-  <div class="card"><div class="k">Da ordinare</div><div class="v {% if critici %}health-error{% else %}health-ok{% endif %}">{{ critici }}</div><div class="meta">MFC con un consumabile sotto il {{ soglia }}%</div></div>
+  <a class="card link" href="{% url 'contatori:consumabili' %}?filtro=critici"><div class="k">Da ordinare</div><div class="v {% if critici %}health-error{% else %}health-ok{% endif %}">{{ critici }}</div><div class="meta">MFC con un consumabile sotto il {{ soglia }}%</div></a>
   <div class="card"><div class="k">Mai lette</div><div class="v {% if mai_lette %}health-warning{% endif %}">{{ mai_lette }}</div><div class="meta">Nessun livello salvato</div></div>
-  <div class="card"><div class="k">MFC controllate</div><div class="v">{{ righe|length }}</div><div class="meta">Attive con indirizzo IP</div></div>
+  <div class="card"><div class="k">MFC controllate</div><div class="v">{{ totale }}</div><div class="meta">Attive con indirizzo IP</div></div>
 </div>
+{% if solo_critici %}<div class="banner warn filtro-attivo"><span>Solo le MFC con un consumabile sotto il {{ soglia }}%: {{ righe|length }} su {{ totale }}.</span><a class="btn ghost small" href="{% url 'contatori:consumabili' %}">Mostra tutte</a></div>{% endif %}
 <section class="panel">
   <div class="table-wrap"><table class="cons-table" data-fm-table-skip="1">
     <thead><tr><th>MFC</th><th>Livelli</th><th>Ultima lettura</th></tr></thead>
-    <tbody>{% for r in righe %}{% include "contatori/_consumabili_riga.html" %}{% endfor %}</tbody>
+    <tbody>{% for r in righe %}{% include "contatori/_consumabili_riga.html" %}{% empty %}<tr><td colspan="3" class="empty">Nessuna MFC con consumabili sotto soglia.</td></tr>{% endfor %}</tbody>
   </table></div>
 </section>
 {% endif %}

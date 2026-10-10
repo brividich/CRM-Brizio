@@ -126,6 +126,10 @@ def dashboard(request):
         "dispositivi_snmp": DispositivoSNMP.objects.filter(attivo=True)
         .order_by("snmp_stato", "nome")[:8],
         "snmp_riepilogo": services.centrale_snmp_riepilogo(),
+        "flotta": services.stato_flotta(),
+        "etichette_flotta": services.FLOTTA,
+        "errori_snmp": services.ultimi_errori_snmp(),
+        "da_riconciliare": services.fatture_da_riconciliare(),
     })
 
 
@@ -225,10 +229,12 @@ def fattura_elimina(request, pk):
 
 
 def macchina_detail(request, pk):
-    macchina = get_object_or_404(Macchina, pk=pk)
+    macchina = get_object_or_404(
+        Macchina.objects.select_related("asset", "profilo_snmp", "community_salvata"), pk=pk)
     dati = services.storico_macchina(macchina)
     return render(request, "contatori/macchina.html", {
-        "macchina": macchina, "dati": dati,
+        "macchina": macchina, "dati": dati, "info_snmp": services.info_snmp(macchina),
+        "ultima_mensile": macchina.letture_mensili.order_by("-rilevata_il").first(),
         "produzione": services.produzione_macchina(macchina),
         "consumabili_stato": services.stato_consumabili([macchina]).get(macchina.pk),
         "letture_mensili": macchina.letture_mensili.all()[:24],
@@ -476,10 +482,16 @@ def consumabili_flotta(request):
     macchine = list(Macchina.objects.filter(attiva=True, host__isnull=False))
     stati = services.stato_consumabili(macchine)
     righe = sorted((_riga_consumabili(m, stati.get(m.pk)) for m in macchine), key=lambda r: r["ordine"])
+    critici = sum(1 for r in righe if r["stato"] and r["stato"]["critici"])
+    mai_lette = sum(1 for r in righe if r["stato"] is None)
+    solo_critici = request.GET.get("filtro") == "critici"
+    totale = len(righe)
+    if solo_critici:
+        righe = [r for r in righe if r["stato"] and r["stato"]["critici"]]
     return render(request, "contatori/consumabili.html", {
-        "righe": righe,
-        "critici": sum(1 for r in righe if r["stato"] and r["stato"]["critici"]),
-        "mai_lette": sum(1 for r in righe if r["stato"] is None),
+        "righe": righe, "totale": totale, "solo_critici": solo_critici,
+        "critici": critici,
+        "mai_lette": mai_lette,
         "soglia": services.SOGLIA_CONSUMABILE_PCT,
     })
 
@@ -532,14 +544,24 @@ def macchina_test_snmp(request, pk):
 def snmp_centrale(request):
     categoria = (request.GET.get("categoria") or "").strip().upper()
     stato = (request.GET.get("stato") or "").strip().upper()
+    flotta = (request.GET.get("flotta") or "").strip()
     dispositivi = DispositivoSNMP.objects.select_related("asset").all()
+    macchine = Macchina.objects.filter(attiva=True).select_related("asset")
+    if flotta in services.FLOTTA:
+        # Stesso criterio del riquadro della Centrale: lista e conteggio coincidono.
+        mfc_monitorate, disp_monitorati = services.flotta_monitorata()
+        dispositivi = services.filtra_flotta(dispositivi.filter(pk__in=disp_monitorati), flotta)
+        macchine = services.filtra_flotta(macchine.filter(pk__in=mfc_monitorate), flotta)
+    else:
+        flotta = ""
     if categoria in DispositivoSNMP.Categoria.values:
         dispositivi = dispositivi.filter(categoria=categoria)
     if stato in StatoSNMP.values:
         dispositivi = dispositivi.filter(snmp_stato=stato)
     return render(request, "contatori/snmp_centrale.html", {
         "dispositivi": dispositivi,
-        "macchine": Macchina.objects.filter(attiva=True).select_related("asset"),
+        "macchine": macchine,
+        "flotta": flotta, "flotta_etichetta": services.FLOTTA.get(flotta, ""),
         "riepilogo": services.centrale_snmp_riepilogo(),
         "categoria": categoria,
         "stato": stato,
@@ -550,7 +572,7 @@ def snmp_centrale(request):
 
 def dispositivo_snmp_detail(request, pk):
     dispositivo = get_object_or_404(
-        DispositivoSNMP.objects.select_related("asset"), pk=pk,
+        DispositivoSNMP.objects.select_related("asset", "profilo_snmp", "community_salvata"), pk=pk,
     )
     rilevazioni = list(
         dispositivo.rilevazioni.prefetch_related("valori__sonda")[:20]
@@ -576,6 +598,9 @@ def dispositivo_snmp_detail(request, pk):
         "profili_disponibili": ProfiloSNMP.objects.filter(attivo=True),
         "ultima_rilevazione": rilevazioni[0] if rilevazioni else None,
         "stampante": dispositivo.categoria == DispositivoSNMP.Categoria.STAMPANTE,
+        "info_snmp": services.info_snmp(dispositivo),
+        "ultima_ok": dispositivo.rilevazioni.filter(stato=StatoSNMP.OK).order_by("-rilevata_il").first(),
+        "ultima_ko": dispositivo.rilevazioni.filter(stato=StatoSNMP.ERROR).order_by("-rilevata_il").first(),
     })
 
 
@@ -597,6 +622,10 @@ def dispositivo_snmp_edit(request, pk=None):
         form = DispositivoSNMPForm(request.POST, instance=dispositivo)
         if form.is_valid():
             dispositivo = form.save()
+            if pk is None:
+                # Creato senza test di connessione: «non verificato» fino alla prima lettura riuscita.
+                dispositivo.verificato = False
+                dispositivo.save(update_fields=["verificato"])
             if dispositivo.profilo_snmp_id:
                 services.applica_profilo_dispositivo(
                     dispositivo, dispositivo.profilo_snmp,

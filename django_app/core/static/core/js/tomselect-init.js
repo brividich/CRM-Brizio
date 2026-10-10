@@ -43,6 +43,9 @@
   });
   // I select caricati via HTMX (gli eventi bubblano fino a document).
   document.addEventListener("htmx:afterSwap", function (evt) {
-    initAll((evt.detail && evt.detail.elt) || evt.target || document);
+    var root = (evt.detail && evt.detail.elt) || evt.target || document;
+    // Con hx-swap="outerHTML" elt e' il nodo sostituito, ormai fuori dal DOM: si
+    // riparte dal documento (initOne salta i select gia' inizializzati).
+    initAll(root.isConnected === false ? document : root);
   });
 })();

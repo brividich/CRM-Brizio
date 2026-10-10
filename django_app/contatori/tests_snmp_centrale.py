@@ -263,7 +263,7 @@ class SaluteMFCTest(TestCase):
             services.interroga_macchina(self.mfc)
         self.mfc.refresh_from_db()
         self.assertEqual(self.mfc.snmp_stato, StatoSNMP.ERROR)
-        self.assertEqual(self.mfc.snmp_ultimo_errore, "timeout")
+        self.assertEqual(self.mfc.snmp_ultimo_errore, "[SNMP-003] timeout")  # codice di catalogo
 
 
 class CentraleViewsAndAssetBridgeTest(TestCase):
