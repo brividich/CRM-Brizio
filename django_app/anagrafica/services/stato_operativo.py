@@ -39,6 +39,11 @@ MOTIVO_GIUDIZIO = "GIUDIZIO_NON_IDONEITA"
 
 ESITI_NON_IDONEI = ("NON_IDONEO_TEMP", "NON_IDONEO_DEF")
 
+# Etichette per chi non ha il permesso visite, e per mail e monitoring: non
+# distinguono la causa.
+ETICHETTA_NEUTRA_BLOCCO = "Non può operare: verificare con HR/RSPP"
+ETICHETTA_NEUTRA_AVVISO = "Stato operativo da verificare"
+
 
 @dataclass
 class StatoOperativo:
@@ -56,6 +61,16 @@ class StatoOperativo:
     @property
     def colore(self) -> str:
         return {NON_IDONEO: "#b91c1c", AVVISO: "#b45309", DEROGA: "#b45309"}.get(self.codice, "#15803d")
+
+    def etichetta_visibile(self, can_view_visite: bool) -> str:
+        """Etichetta per chi guarda. Senza permesso visite è **neutra**: la
+        differenza fra «giudizio di non idoneità», «visita mancante» e deroga è
+        un dato derivato da quello sanitario (GDPR art. 9)."""
+        if self.codice == OK:
+            return ""
+        if can_view_visite:
+            return self.etichetta
+        return ETICHETTA_NEUTRA_BLOCCO if self.bloccante else ETICHETTA_NEUTRA_AVVISO
 
     def motivi_visibili(self, can_view_visite: bool) -> list[str]:
         if not can_view_visite:

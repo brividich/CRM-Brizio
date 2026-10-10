@@ -358,11 +358,13 @@ class _Verifica:
                  "riaprendo lo spostamento (Modifica) per rigenerarlo.")
 
         stati = stato_operativo.calcola(self.id_filtro, giorno=self.oggi)
-        self.add(a, "Persone non idonee a operare", "errore",
-                 [f"{link.format(s.legacy_id)} — {s.etichetta}" for s in stati.values() if s.bloccante],
-                 "Registrare la visita o, se ammesso dalla configurazione, una deroga motivata.")
-        self.add(a, "Visita del cambio mansione mancante (solo avviso o in deroga)", "avviso",
-                 [f"{link.format(s.legacy_id)} — {s.etichetta}" for s in stati.values()
+        # Solo link: la causa (giudizio o visita mancante) si legge nella scheda,
+        # con il permesso visite. Il report finisce in monitoring.
+        self.add(a, "Persone che non possono operare", "errore",
+                 [link.format(s.legacy_id) for s in stati.values() if s.bloccante],
+                 "Aprire la scheda (permesso visite): registrare la visita o, se ammesso, una deroga motivata.")
+        self.add(a, "Stato operativo da verificare", "avviso",
+                 [link.format(s.legacy_id) for s in stati.values()
                   if s.codice in (stato_operativo.AVVISO, stato_operativo.DEROGA)])
 
         if self.id_filtro is None:

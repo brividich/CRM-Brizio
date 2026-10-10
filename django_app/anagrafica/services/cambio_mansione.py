@@ -211,6 +211,7 @@ def chiave_voce(tipo: str, riferimento_id: int | None) -> str:
 
 
 _DOMINIO_PER_TIPO = {"VISITA": "visite", "FORMAZIONE": "corsi", "DPI": "dpi"}
+_TIPO_PER_DOMINIO = {v: k for k, v in _DOMINIO_PER_TIPO.items()}
 
 
 def _origine(voce: dict, origini_dopo: dict) -> dict:
@@ -271,8 +272,17 @@ def genera_piano(assegnazione, *, mansione_precedente: str, area_precedente_id: 
             attuale.save(update_fields=cambiati)
             aggiornati += 1
 
+    # Requisiti ancora dovuti alla persona (mansione di destinazione + override +
+    # area + esposizioni dirette): una voce nata da un override o da un
+    # riallineamento sta sulla stessa card e non va chiusa solo perché il delta
+    # dello spostamento non la contiene.
+    dovuti = mansionario.requisiti_dipendente(
+        assegnazione.legacy_anagrafica_id, mansione_nome=assegnazione.mansione,
+        area_id=assegnazione.area_aziendale_id, data=max(timezone.localdate(), assegnazione.data_inizio),
+    )
+    ancora = {chiave_voce(t, getattr(o, "pk", o)) for d, t in _TIPO_PER_DOMINIO.items() for o in dovuti.get(d) or []}
     for chiave, attuale in esistenti.items():
-        if chiave in voci or attuale.stato != A.STATO_APERTO:
+        if chiave in voci or chiave in ancora or attuale.stato != A.STATO_APERTO:
             continue
         attuale.stato = A.STATO_NON_PIU_DOVUTO
         attuale.attivo = False
@@ -337,12 +347,12 @@ def _soddisfatto(adempimento, ctx, persona) -> str:
         # Retroattivo registrato tardi: la tolleranza parte dalla decorrenza, non
         # dalla data di registrazione (vale la piu' vecchia delle due).
         dal=min(adempimento.assegnazione.created_at.date(), adempimento.assegnazione.data_inizio),
-        mansione=adempimento.assegnazione.mansione,
+        mansione=adempimento.assegnazione.mansione, entro=adempimento.entro_il,
     )
 
 
 def requisito_soddisfatto(tipo_voce: str, riferimento_id: int | None, *, ctx, persona,
-                          dal: date, mansione: str) -> str:
+                          dal: date, mansione: str, entro: date | None = None) -> str:
     """Verifica condivisa (piano cambio mansione e onboarding): motivo di chiusura
     automatica, o stringa vuota se il requisito e' ancora da soddisfare.
 
@@ -369,14 +379,16 @@ def requisito_soddisfatto(tipo_voce: str, riferimento_id: int | None, *, ctx, pe
             if requisiti._famiglia(v.tipo) != famiglia:
                 continue
             scadenza = requisiti.scadenza_prudente(v.data_svolgimento, v.tipo.durata_mesi, tipo.durata_mesi)
-            if scadenza is None or scadenza >= oggi:
+            # Deve valere fino alla decorrenza, non solo oggi: una visita che
+            # scade prima dello spostamento non copre il cambio mansione.
+            if scadenza is None or scadenza >= max(oggi, entro or oggi):
                 return f"Visita «{v.tipo.nome}» del {v.data_svolgimento:%d/%m/%Y}"
         return ""
     if tipo_voce == A.TIPO_FORMAZIONE:
         if riferimento_id is None:
             return ""  # informazione/formazione generica: si chiude a mano
         ultimo = requisiti.ultimi_completamenti(ctx, {persona.id: persona}).get((persona.id, riferimento_id))
-        if ultimo and (ultimo[1] is None or ultimo[1] >= oggi):
+        if ultimo and (ultimo[1] is None or ultimo[1] >= max(oggi, entro or oggi)):
             return f"Corso completato il {ultimo[0]:%d/%m/%Y}"
         return ""
     if tipo_voce == A.TIPO_DPI:

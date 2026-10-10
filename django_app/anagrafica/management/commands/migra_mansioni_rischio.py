@@ -132,6 +132,8 @@ class Command(BaseCommand):
                 dubbi.append("esposizioni con note")
             if not mansione.is_active and n_dip:
                 dubbi.append(f"mansione inattiva usata da {n_dip} dipendenti")
+            if mansione.link_rischio.exists():
+                dubbi.append("ha già collegamenti manuali a mansioni di rischio")
             note = list(dubbi)
             if any(not e.is_active for e in esposizioni):
                 note.append("esposizioni inattive ignorate (come oggi)")

@@ -22,7 +22,7 @@
     {% if stati_operativi %}
     <section class="fmd-panel fmd-block" role="status" aria-label="Stato operativo" style="border-left:4px solid #ef4444;">
       <div class="fmd-block-title" style="margin-bottom:6px;">Stato operativo da verificare ({{ stati_operativi|length }})</div>
-      {% for s in stati_operativi %}<a class="fmd-badge {% if s.bloccante %}fmd-b-red{% else %}fmd-b-amber{% endif %}" style="margin:0 5px 6px 0;text-decoration:none;" href="{% url 'anagrafica:dipendente_detail' s.legacy_id %}">{{ s.nome }} · {{ s.etichetta }}</a>{% endfor %}
+      {% for s in stati_operativi %}<a class="fmd-badge {% if s.bloccante %}fmd-b-red{% else %}fmd-b-amber{% endif %}" style="margin:0 5px 6px 0;text-decoration:none;" href="{% url 'anagrafica:dipendente_detail' s.legacy_id %}">{{ s.nome }} · {{ s.etichetta_mostrata }}</a>{% endfor %}
     </section>
     {% endif %}
 

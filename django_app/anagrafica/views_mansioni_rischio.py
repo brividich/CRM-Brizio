@@ -227,7 +227,7 @@ def organigramma_mansioni_rischio(request):
 
     fattore_id = int(request.GET["fattore"]) if (request.GET.get("fattore") or "").isdigit() else None
     vista = "lavorativa" if request.GET.get("vista") == "lavorativa" else "rischio"
-    gruppi = costruisci(fattore_id=fattore_id)
+    gruppi = costruisci(fattore_id=fattore_id, can_view_visite=_can_view_visite_mediche(request))
     per_mansione: dict[int, dict] = {}
     for g in gruppi:
         for m in g.mansioni:
@@ -257,6 +257,18 @@ def dipendente_sicurezza_panel(request, legacy_id: int):
     can_view_visite = _can_view_visite_mediche(request)
     det = mansionario.requisiti_dipendente_dettaglio(legacy_id)
     stato = stato_operativo.stato_persona([legacy_id])
+    stato.etichetta_mostrata = stato.etichetta_visibile(can_view_visite)
+    # Idoneità con prescrizioni/limitazioni sulle visite correnti, da leggere
+    # rispetto alla mansione attuale: solo con il permesso visite.
+    idoneita_condizionate = []
+    if can_view_visite:
+        from .models import VisitaMedica
+        from .services.visite import ultime_visite_correnti_ids
+        condizionati = ("IDONEO_MANS", "IDONEO_PRESCR", "IDONEO_LIM", "IDONEO_LIM_PRESCR")
+        idoneita_condizionate = list(
+            VisitaMedica.objects.filter(pk__in=list(ultime_visite_correnti_ids([legacy_id])), esito__in=condizionati)
+            .select_related("tipo").order_by("-data_svolgimento")
+        )
     override = list(DipendenteMansioneRischioOverride.objects.filter(legacy_anagrafica_id=legacy_id)
                     .select_related("mansione_rischio", "created_by", "revocato_da")
                     .order_by("-attivo", "-created_at")[:30])
@@ -266,6 +278,7 @@ def dipendente_sicurezza_panel(request, legacy_id: int):
         "stato": stato,
         "motivi": stato.motivi_visibili(can_view_visite),
         "can_view_visite": can_view_visite,
+        "idoneita_condizionate": idoneita_condizionate,
         "puo_sorveglianza": _puo_sorveglianza(request),
         "override": override,
         "deroghe": list(DerogaOperativaVisita.objects.filter(legacy_anagrafica_id=legacy_id).order_by("-autorizzato_il")[:10]),
@@ -280,6 +293,11 @@ def _torna(legacy_id):
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
+def _dipendente_esiste(legacy_id: int) -> bool:
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+    return bool(fetch_anagrafica_rows(ids=[legacy_id]))
+
+
 @login_required
 @require_POST
 def dipendente_override_aggiungi(request, legacy_id: int):
@@ -288,6 +306,9 @@ def dipendente_override_aggiungi(request, legacy_id: int):
         return _torna(legacy_id)
     from .services import riallineamento
 
+    if not _dipendente_esiste(legacy_id):
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
     mr = MansioneRischio.objects.filter(pk=request.POST.get("mansione_rischio") or 0, is_active=True).first()
     if mr is None:
         messages.error(request, "Mansione di rischio non valida.")
@@ -332,13 +353,22 @@ def dipendente_deroga_aggiungi(request, legacy_id: int):
         return _torna(legacy_id)
     from .services import stato_operativo
 
+    if not _dipendente_esiste(legacy_id):
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    stato = stato_operativo.stato_persona([legacy_id])
+    if stato_operativo.MOTIVO_VISITA_MANCANTE not in stato.motivi:
+        messages.error(request, "Nessuna visita del cambio mansione mancante: la deroga non serve.")
+        return _torna(legacy_id)
     valida_fino = _data(request.POST.get("valida_fino"))
     if valida_fino is None:
         messages.error(request, "Indica fino a quando vale la deroga.")
         return _torna(legacy_id)
     try:
+        from .models import AdempimentoCambioMansione
+        adempimento = AdempimentoCambioMansione.objects.filter(pk__in=stato.adempimenti_ids).order_by("entro_il").first()
         stato_operativo.concedi_deroga(legacy_id, motivo=request.POST.get("motivo"), valida_fino=valida_fino,
-                                       user=request.user, request=request)
+                                       user=request.user, request=request, adempimento=adempimento)
     except ValidationError as exc:
         messages.error(request, " ".join(exc.messages))
         return _torna(legacy_id)

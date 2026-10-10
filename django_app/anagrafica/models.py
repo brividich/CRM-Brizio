@@ -2294,7 +2294,9 @@ class AdempimentoCambioMansione(models.Model):
         indexes = [models.Index(fields=["stato", "entro_il"])]
         constraints = [
             models.UniqueConstraint(
-                fields=["assegnazione", "chiave"], condition=models.Q(attivo=True),
+                # assegnazione IS NOT NULL: su SQL Server i NULL dell'indice
+                # filtrato collidono (adempimenti di spostamenti annullati).
+                fields=["assegnazione", "chiave"], condition=models.Q(attivo=True, assegnazione__isnull=False),
                 name="uniq_adempimento_cm_chiave_attivo",
             ),
         ]

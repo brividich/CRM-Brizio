@@ -7,6 +7,12 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<style>
+.mrl-cfg .fmd-block-title { white-space:normal; }
+.mrl-cfg-form { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+.mrl-cfg-form .fm-form-field { flex:1 1 260px; min-width:0; margin:0; }
+.mrl-cfg-form .fm-form-field.mrl-giorni { flex:0 1 180px; }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -62,19 +68,19 @@
       </div>
     </section>
 
-    <section class="fmd-panel fmd-block" aria-label="Visita del cambio mansione mancante">
+    <section class="fmd-panel fmd-block mrl-cfg" aria-label="Visita del cambio mansione mancante">
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Visita del cambio mansione mancante alla decorrenza</div></div>
       <p class="fmd-muted" style="margin:0 0 10px;">D.Lgs. 81/2008 art. 41 c. 2 lett. d. Cosa succede quando la data dello spostamento arriva senza la visita: la scelta va condivisa con RSPP e medico competente.</p>
       {% if is_admin %}
-      <form method="post" action="{% url 'anagrafica:sicurezza_operativa_config' %}" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+      <form method="post" action="{% url 'anagrafica:sicurezza_operativa_config' %}" class="mrl-cfg-form">
         {% csrf_token %}
-        <div class="fm-form-field" style="min-width:320px;">
+        <div class="fm-form-field">
           <label for="cfg-modalita">Comportamento</label>
           <select id="cfg-modalita" name="modalita_visita_mancante" class="fm-input fm-select">
             {% for code, label in config.MODALITA_CHOICES %}<option value="{{ code }}"{% if config.modalita_visita_mancante == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
           </select>
         </div>
-        <div class="fm-form-field" style="width:180px;">
+        <div class="fm-form-field mrl-giorni">
           <label for="cfg-giorni">Durata massima deroga (giorni)</label>
           <input id="cfg-giorni" type="number" min="1" max="365" name="deroga_max_giorni" value="{{ config.deroga_max_giorni }}" class="fm-input">
         </div>

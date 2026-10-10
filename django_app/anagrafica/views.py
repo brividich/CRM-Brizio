@@ -4327,25 +4327,26 @@ def dipendente_assegnazione_annulla(request, legacy_id: int, assegnazione_id: in
         )
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
-    # Riapre l'assegnazione che questa aveva chiuso, così non resta un buco.
-    precedente = (
-        DipendenteAssegnazione.objects
-        .filter(legacy_anagrafica_id=legacy_id, data_fine__isnull=False)
-        .exclude(pk=assegnazione.pk)
-        .order_by("-data_fine", "-created_at")
-        .first()
-    )
-    if precedente is not None and precedente.data_fine == assegnazione.data_inizio - _timedelta(days=1):
-        precedente.data_fine = None
-        precedente.save(update_fields=["data_fine"])
-
     # Gli adempimenti generati restano nella storia come ANNULLATI con motivo
     # (SET_NULL sull'assegnazione), e l'annullamento lascia traccia in timeline.
+    # Tutto in una transazione: riapertura della card precedente compresa.
     from django.db import transaction as _tx
     from .services import eventi_sicurezza
+    from .services.assegnazioni import rigenera_successiva
     from .services.cambio_mansione import annulla_piano
     motivo = (request.POST.get("motivo") or "").strip()[:250]
     with _tx.atomic():
+        # Riapre l'assegnazione che questa aveva chiuso, così non resta un buco.
+        precedente = (
+            DipendenteAssegnazione.objects
+            .filter(legacy_anagrafica_id=legacy_id, data_fine__isnull=False)
+            .exclude(pk=assegnazione.pk)
+            .order_by("-data_fine", "-created_at")
+            .first()
+        )
+        if precedente is not None and precedente.data_fine == assegnazione.data_inizio - _timedelta(days=1):
+            precedente.data_fine = None
+            precedente.save(update_fields=["data_fine"])
         descr = f"Spostamento a «{assegnazione.mansione or assegnazione.reparto}» dal {assegnazione.data_inizio:%d/%m/%Y} annullato"
         annullati = annulla_piano(assegnazione, motivo=f"{descr}{': ' + motivo if motivo else ''}", user=request.user)
         eventi_sicurezza.registra(
@@ -4355,7 +4356,9 @@ def dipendente_assegnazione_annulla(request, legacy_id: int, assegnazione_id: in
                      "reparto": assegnazione.reparto, "adempimenti_annullati": annullati,
                      "motivo": motivo},
         )
+        data_annullata = assegnazione.data_inizio
         assegnazione.delete()
+        rigenera_successiva(legacy_id, data_annullata, user=request.user)
     messages.success(request, "Spostamento programmato annullato.")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -6674,7 +6677,7 @@ def mansione_requisiti(request, mansione_id: int):
     return render(request, "anagrafica/pages/mansione_requisiti.html", {
         "mansione": mansione,
         "collegamenti_rischio": collegamenti,
-        "usa_mansioni_rischio": any(c.mansione_rischio.is_active for c in collegamenti),
+        "usa_mansioni_rischio": bool(collegamenti),
         "is_editor": is_editor,
         "requisiti": requisiti,
         "sds_righe": sds_righe,

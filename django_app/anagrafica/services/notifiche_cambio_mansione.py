@@ -104,7 +104,8 @@ def invia_digest() -> dict:
     righe = []
     if stati:
         righe.append(f"Stato operativo da verificare ({len(stati)}):")
-        righe += [f"- {_nome_persona(s.legacy_id)}: {s.etichetta}" for s in stati]
+        # Etichetta neutra: la mail non dice se la causa è un giudizio o una visita mancante.
+        righe += [f"- {_nome_persona(s.legacy_id)}: {s.etichetta_visibile(False)}" for s in stati]
         righe.append("")
     if ritardo:
         righe.append(f"Adempimenti in ritardo ({len(ritardo)}):")

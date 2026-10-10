@@ -14,10 +14,13 @@ from anagrafica.exports import ExportSpec, acl_gate, register
 def _righe(request: HttpRequest, scope: str) -> list[dict]:
     from anagrafica.services.organigramma_rischio import costruisci, righe_export
 
-    fattore = (request.GET.get("fattore") or "").strip() if scope == "filtered" else ""
-    righe = righe_export(costruisci(fattore_id=int(fattore) if fattore.isdigit() else None))
     from anagrafica.views import _can_view_visite_mediche
-    if not _can_view_visite_mediche(request):
+
+    can_view = _can_view_visite_mediche(request)
+    fattore = (request.GET.get("fattore") or "").strip() if scope == "filtered" else ""
+    righe = righe_export(costruisci(fattore_id=int(fattore) if fattore.isdigit() else None,
+                                    can_view_visite=can_view))
+    if not can_view:
         for r in righe:
             r["protocollo"] = ""
     return righe

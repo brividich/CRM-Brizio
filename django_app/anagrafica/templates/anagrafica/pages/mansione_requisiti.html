@@ -33,8 +33,8 @@
 
     {# ── Mansioni di rischio collegate (fonte dei requisiti) ───────────── #}
     <section class="fmd-panel fmd-block">
-      <div class="fmd-block-head">
-        <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Mansioni di rischio collegate <span class="fmd-count">{{ collegamenti_rischio|length }}</span></div>
+      <div class="fmd-block-head" style="flex-wrap:wrap;gap:8px;">
+        <div class="fmd-block-title" style="white-space:normal;"><svg class="fmd-ico"><use href="#i-shield"/></svg>Mansioni di rischio collegate <span class="fmd-count">{{ collegamenti_rischio|length }}</span></div>
         <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'anagrafica:mansioni_rischio_list' %}">Gestisci mansioni di rischio</a>
       </div>
       {% if collegamenti_rischio %}

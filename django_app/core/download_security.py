@@ -108,10 +108,11 @@ def harden_sniffed_response(response, filename: str, head: bytes, *,
 
 
 def read_head(fh, n: int = 16) -> bytes:
-    """Legge i primi byte di un file aperto e torna all'inizio (fail-safe: b"")."""
-    try:
-        head = fh.read(n) or b""
-        fh.seek(0)
-        return head if isinstance(head, bytes) else b""
-    except Exception:
-        return b""
+    """Legge i primi byte di un file aperto e torna all'inizio.
+
+    Se il file non è riavvolgibile solleva ``OSError``: servirlo dopo averne
+    consumato l'inizio lo consegnerebbe troncato.
+    """
+    head = fh.read(n) or b""
+    fh.seek(0)
+    return head if isinstance(head, bytes) else b""

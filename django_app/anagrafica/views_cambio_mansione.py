@@ -131,8 +131,10 @@ def cambi_mansione(request):
     if mancanti:
         for row in fetch_anagrafica_rows(ids=mancanti):
             nomi[int(row["id"])] = naming.nome_completo(row.get("nome"), row.get("cognome"))
+    can_view_visite = _can_view_visite_mediche(request)
     for s in stati:
         s.nome = nomi.get(s.legacy_id) or f"#{s.legacy_id}"
+        s.etichetta_mostrata = s.etichetta_visibile(can_view_visite)
 
     def _ordine(g):
         # Gli adempimenti di uno spostamento annullato non hanno più l'assegnazione.

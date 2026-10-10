@@ -34,9 +34,9 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
 {# ── Stato operativo ─────────────────────────────────────────────────── #}
 <div class="sp-stato {% if stato.bloccante %}sp-stato-ko{% elif stato.codice != 'OK' %}sp-stato-warn{% else %}sp-stato-ok{% endif %}" role="status">
   <div>
-    <strong>{% if stato.codice == 'OK' %}Può operare nella mansione{% else %}{{ stato.etichetta }}{% endif %}</strong>
+    <strong>{% if stato.codice == 'OK' %}Può operare nella mansione{% else %}{{ stato.etichetta_mostrata }}{% endif %}</strong>
     {% if motivi %}<ul style="margin:4px 0 0;padding-left:18px;">{% for m in motivi %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
-    {% if stato.deroga %}<div style="margin-top:4px;">Deroga: {{ stato.deroga.motivo }} (autorizzata il {{ stato.deroga.autorizzato_il|date:"d/m/Y" }})</div>{% endif %}
+    {% if stato.deroga and can_view_visite %}<div style="margin-top:4px;">Deroga: {{ stato.deroga.motivo }} (autorizzata il {{ stato.deroga.autorizzato_il|date:"d/m/Y" }})</div>{% endif %}
   </div>
 </div>
 
@@ -56,6 +56,16 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
 </form>
 {% endif %}
 
+{% if idoneita_condizionate %}
+<div class="sp-stato sp-stato-warn" role="note">
+  <div><strong>Idoneità con prescrizioni o limitazioni{% if det.mansione_nome %} — da verificare per la mansione «{{ det.mansione_nome }}»{% endif %}</strong>
+    <ul style="margin:4px 0 0;padding-left:18px;">
+      {% for v in idoneita_condizionate %}<li>{{ v.tipo.nome }} del {{ v.data_svolgimento|date:"d/m/Y" }}: {{ v.get_esito_display }}{% if v.prescrizioni %} — {{ v.prescrizioni }}{% endif %}{% if v.note %} ({{ v.note }}){% endif %}</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
 {# ── Mansioni di rischio effettive ───────────────────────────────────── #}
 <div class="sp-sez">Mansioni di rischio effettive</div>
 <div class="sp-mr">
@@ -66,7 +76,7 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
   </a>
   {% endfor %}
   {% for e in det.mansioni_rischio_escluse %}
-  <span class="sp-chip" title="Esclusa: {{ e.override.motivo }}"><span class="sp-chip-escl">{{ e.mansione_rischio.codice }} · {{ e.mansione_rischio.nome }}</span><small>esclusa</small></span>
+  <span class="sp-chip"{% if can_view_visite %} title="Esclusa: {{ e.override.motivo }}"{% endif %}><span class="sp-chip-escl">{{ e.mansione_rischio.codice }} · {{ e.mansione_rischio.nome }}</span><small>esclusa</small></span>
   {% endfor %}
   {% if not det.mansioni_rischio and not det.mansioni_rischio_escluse %}
   <span style="color:#94a3b8;">Nessuna{% if det.mansione_nome %}: la mansione «{{ det.mansione_nome }}» non è collegata a mansioni di rischio (vale il profilo diretto deprecato){% endif %}.</span>
@@ -84,7 +94,7 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
     <td>{{ o.mansione_rischio.codice }} · {{ o.mansione_rischio.nome }}</td>
     <td>{{ o.get_azione_display }}</td>
     <td>dal {{ o.data_inizio|date:"d/m/Y" }}{% if o.data_fine %} al {{ o.data_fine|date:"d/m/Y" }}{% endif %}</td>
-    <td>{{ o.motivo }}{% if not o.attivo %}<br><small>Revocato il {{ o.revocato_il|date:"d/m/Y" }}: {{ o.revoca_motivo }}</small>{% endif %}</td>
+    <td>{% if can_view_visite %}{{ o.motivo }}{% else %}<span style="color:#94a3b8;">motivo riservato</span>{% endif %}{% if not o.attivo %}<br><small>Revocato il {{ o.revocato_il|date:"d/m/Y" }}{% if can_view_visite %}: {{ o.revoca_motivo }}{% endif %}</small>{% endif %}</td>
     <td>{{ o.created_by.get_full_name|default:o.created_by.username|default:"—" }}</td>
     <td>
       {% if o.attivo and puo_sorveglianza %}
@@ -123,7 +133,7 @@ body.theme-dark .sp-tab td, body.theme-dark .sp-tab th, body.theme-dark .sp-tl l
 <ul class="sp-tl">
   {% for ev in timeline %}
   <li><time datetime="{{ ev.occorso_il|date:'c' }}">{{ ev.occorso_il|date:"d/m/Y H:i" }}</time>
-    <div><strong>{{ ev.get_tipo_display }}</strong> — {{ ev.descrizione }}{% if ev.payload.motivo %} <span style="color:#64748b;">({{ ev.payload.motivo }})</span>{% endif %}<br><small style="color:#64748b;">{{ ev.actor_display|default:"Sistema" }}{% if ev.data_effetto %} · effetto {{ ev.data_effetto|date:"d/m/Y" }}{% endif %}</small></div></li>
+    <div><strong>{{ ev.get_tipo_display }}</strong> — {{ ev.descrizione }}{% if ev.payload.motivo and can_view_visite %} <span style="color:#64748b;">({{ ev.payload.motivo }})</span>{% endif %}<br><small style="color:#64748b;">{{ ev.actor_display|default:"Sistema" }}{% if ev.data_effetto %} · effetto {{ ev.data_effetto|date:"d/m/Y" }}{% endif %}</small></div></li>
   {% endfor %}
 </ul>
 {% else %}<div style="color:#94a3b8;">Nessun evento registrato.</div>{% endif %}

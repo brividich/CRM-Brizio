@@ -8,6 +8,10 @@
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
 {% include "anagrafica/components/_multiselect_picker.html" %}
+<style>
+@media (max-width:720px) { .mrf .fm-form-grid-2 { grid-template-columns:minmax(0,1fr); } .mrf .msp { min-width:0; } }
+.mrf .fm-form-grid-2 > * { min-width:0; }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -42,7 +46,7 @@
     </div>
     {% endif %}
 
-    <form method="post" class="fmd-panel fmd-block">
+    <form method="post" class="fmd-panel fmd-block mrf">
       {% csrf_token %}
       <div class="fm-form-grid-2">
         <div class="fm-form-field"><label for="mr-codice">Codice *</label>
@@ -79,7 +83,7 @@
           <select name="categorie_dpi" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca DPI…" aria-label="Categorie DPI">
             {% for c in dpi_opts %}<option value="{{ c.pk }}"{% if c.pk in dati.categorie_dpi %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}
           </select>
-          {% else %}<div class="fmd-muted">Modulo DPI non disponibile.</div>{% endif %}</div>
+          {% else %}<div class="fmd-muted">Nessuna categoria DPI a catalogo.</div>{% endif %}</div>
         <div class="fm-form-field"><label>Mansioni lavorative collegate</label>
           <select name="mansioni" class="fm-input fm-select fm-multiselect" multiple size="8" data-picker data-picker-placeholder="Cerca mansione…" aria-label="Mansioni lavorative collegate">
             {% for m in mansioni_opts %}<option value="{{ m.pk }}"{% if m.pk in dati.mansioni %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}

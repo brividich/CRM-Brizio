@@ -37,8 +37,8 @@
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Stato operativo da verificare <span class="fmd-count">{{ stati_operativi|length }}</span></div></div>
       <ul class="hrg-cm-voci">
         {% for s in stati_operativi %}
-        <li class="{% if s.bloccante %}hrg-cm-ritardo{% endif %}">
-          <span class="hrg-pill {% if s.bloccante %}hrg-pill-danger{% else %}hrg-pill-warn{% endif %}">{{ s.etichetta }}</span>
+        <li class="{% if s.bloccante %}hrg-cm-ritardo{% endif %}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+          <span class="hrg-pill {% if s.bloccante %}hrg-pill-danger{% else %}hrg-pill-warn{% endif %}">{{ s.etichetta_mostrata }}</span>
           <span class="hrg-cm-testo"><a href="{% url 'anagrafica:dipendente_detail' s.legacy_id %}">{{ s.nome }}</a></span>
         </li>
         {% endfor %}

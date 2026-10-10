@@ -375,7 +375,7 @@ class IntegritaENotificheTests(_Base):
         VisitaMedica.objects.create(legacy_anagrafica_id=self.lid, tipo=self.audiometria,
                                     data_svolgimento=OGGI, esito="NON_IDONEO_TEMP")
         sezioni = {s.titolo: s for s in verifica(aree=("sicurezza",))}
-        righe = sezioni["Persone non idonee a operare"].righe
+        righe = sezioni["Persone che non possono operare"].righe
         self.assertEqual(len(righe), 1)
         self.assertNotIn("Audiometria", righe[0])  # niente dati sanitari nel report
         esito = pubblica_in_monitoring(list(sezioni.values()))
@@ -507,7 +507,8 @@ class PagineMansioniRischioTests(_Base):
         # Chi apre la scheda ma non ha il permesso visite: vede lo stato, non il perché.
         with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False):
             r = self.client.get(reverse("anagrafica:dipendente_sicurezza_panel", args=[self.lid]))
-        self.assertContains(r, "Non idoneo a operare")
+        self.assertContains(r, "Non può operare: verificare con HR/RSPP")
+        self.assertNotContains(r, "Non idoneo a operare")
         self.assertNotContains(r, "Giudizio di non idoneità")
         self.assertNotContains(r, "Registra</button>")  # niente override senza permesso visite
         r = self.client.get(reverse("anagrafica:dipendente_sicurezza_panel", args=[self.lid]))
@@ -545,4 +546,88 @@ class PagineMansioniRischioTests(_Base):
                                     data_svolgimento=OGGI, esito="NON_IDONEO_TEMP")
         self.client.force_login(self.admin)
         self.assertContains(self.client.get(reverse("anagrafica:scadenzario")), "Stato operativo da verificare")
-        self.assertContains(self.client.get(reverse("anagrafica:index")), "non idonei a operare")
+        self.assertContains(self.client.get(reverse("anagrafica:index")), "non possono operare")
+
+
+# ── Regressioni dalla review indipendente ────────────────────────────────────
+class RegressioniReviewTests(_Base):
+    def test_visita_valida_oggi_ma_scaduta_alla_decorrenza_non_chiude(self):
+        # Visita annuale fatta 11 mesi fa: valida oggi, scaduta fra 60 giorni.
+        VisitaMedica.objects.create(legacy_anagrafica_id=self.lid, tipo=self.annuale,
+                                    data_svolgimento=OGGI - timedelta(days=335))
+        ass = crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=60), mansione="Saldatore T",
+                                user=self.admin)
+        cambio_mansione.aggiorna_piani([self.lid])
+        self.assertEqual(ass.adempimenti.get(tipo="VISITA").stato, A.STATO_APERTO)
+
+    def test_rigenerazione_non_chiude_le_voci_degli_override(self):
+        card = self._card(self.lid, "Operaio T")
+        riallineamento.aggiungi_override(self.lid, self.mr_fumi, azione=O.AZIONE_AGGIUNGI,
+                                         motivo="Addetto saldature", data_inizio=OGGI, user=self.admin)
+        cambio_mansione.genera_piano(card, mansione_precedente="Operaio T", user=self.admin)
+        self.assertEqual(card.adempimenti.get(chiave=f"VISITA:{self.annuale.pk}").stato, A.STATO_APERTO)
+
+    def test_override_ancorato_alla_card_in_corso_non_alla_programmata(self):
+        self._card(self.lid, "Operaio T")
+        programmata = crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=30), mansione="Operaio T",
+                                        user=self.admin)
+        riallineamento.aggiungi_override(self.lid, self.mr_fumi, azione=O.AZIONE_AGGIUNGI,
+                                         motivo="Addetto saldature", data_inizio=OGGI, user=self.admin)
+        self.assertFalse(programmata.adempimenti.filter(chiave=f"VISITA:{self.annuale.pk}").exists())
+
+    def test_vincolo_unique_escluse_le_righe_senza_assegnazione(self):
+        vincolo = next(c for c in A._meta.constraints if c.name == "uniq_adempimento_cm_chiave_attivo")
+        self.assertIn(("assegnazione__isnull", False), vincolo.condition.children)
+
+    def test_job_rispetta_le_esclusioni_individuali(self):
+        altro = self._dipendente("Escluso", "Sintetico", "Operaio T")
+        self._card(altro, "Operaio T")
+        O.objects.create(legacy_anagrafica_id=altro, mansione_rischio=self.mr_fumi, azione=O.AZIONE_ESCLUDI,
+                         motivo="Indicazione del medico competente", data_inizio=OGGI)
+        foto = riallineamento.fotografa_mansioni([self.operaio.pk])
+        MansioneLavorativaRischio.objects.create(mansione=self.operaio, mansione_rischio=self.mr_fumi, ordine=1)
+        riallineamento.esegui_riallineamento({str(k): v for k, v in foto.items()}, "Test")
+        self.assertFalse(A.objects.filter(legacy_anagrafica_id=altro, chiave=f"VISITA:{self.annuale.pk}").exists())
+
+    def test_mansione_migrata_non_torna_ai_campi_deprecati(self):
+        self.operaio.visite_richieste.add(self.oculistica)
+        self.mr_rumore.is_active = False
+        self.mr_rumore.save()
+        self.assertEqual(mansionario.requisiti_mansione(self.operaio)["visite"], [])
+
+    def test_annullare_b_rigenera_il_piano_di_c(self):
+        self.client.force_login(self.admin)
+        b = crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=10), mansione="Saldatore T", user=self.admin)
+        capo = Mansione.objects.create(nome="Saldatore capo T")
+        MansioneLavorativaRischio.objects.create(mansione=capo, mansione_rischio=self.mr_fumi)
+        c = crea_assegnazione(self.lid, data_inizio=OGGI + timedelta(days=40), mansione="Saldatore capo T", user=self.admin)
+        self.assertFalse(c.adempimenti.filter(tipo="VISITA").exists())  # baseline B: nulla di nuovo
+        self.client.post(reverse("anagrafica:dipendente_assegnazione_annulla", args=[self.lid, b.pk]), {"motivo": "x"})
+        self.assertTrue(c.adempimenti.filter(chiave=f"VISITA:{self.annuale.pk}", stato=A.STATO_APERTO).exists())
+
+    def test_etichetta_neutra_senza_permesso_visite(self):
+        VisitaMedica.objects.create(legacy_anagrafica_id=self.lid, tipo=self.audiometria,
+                                    data_svolgimento=OGGI, esito="NON_IDONEO_TEMP")
+        stato = stato_operativo.stato_persona([self.lid])
+        self.assertEqual(stato.etichetta_visibile(False), stato_operativo.ETICHETTA_NEUTRA_BLOCCO)
+        self.assertEqual(stato.etichetta_visibile(True), "Non idoneo a operare")
+
+    def test_deroga_rifiutata_se_non_serve(self):
+        cfg = ConfigSicurezzaOperativa.load()
+        cfg.modalita_visita_mancante = ConfigSicurezzaOperativa.MODALITA_DEROGA
+        cfg.save()
+        self.client.force_login(self.admin)
+        self.client.post(reverse("anagrafica:dipendente_deroga_aggiungi", args=[self.lid]),
+                         {"motivo": "preventiva", "valida_fino": (OGGI + timedelta(days=5)).isoformat()})
+        from anagrafica.models import DerogaOperativaVisita
+        self.assertFalse(DerogaOperativaVisita.objects.exists())
+
+    def test_prescrizioni_nel_contesto_della_mansione_solo_con_permesso(self):
+        from unittest import mock
+        VisitaMedica.objects.create(legacy_anagrafica_id=self.lid, tipo=self.audiometria, data_svolgimento=OGGI,
+                                    esito="IDONEO_PRESCR", prescrizioni="Otoprotettori sempre")
+        self.client.force_login(self.admin)
+        url = reverse("anagrafica:dipendente_sicurezza_panel", args=[self.lid])
+        self.assertContains(self.client.get(url), "Otoprotettori sempre")
+        with mock.patch("anagrafica.views._can_view_visite_mediche", return_value=False):
+            self.assertNotContains(self.client.get(url), "Otoprotettori sempre")

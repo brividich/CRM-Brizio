@@ -202,7 +202,9 @@ def _profili(mansioni: list[Mansione]) -> dict[int, dict[str, Any]]:
     collegamenti legge i campi deprecati (``legacy``): finché la migrazione
     dati non è applicata il risultato non cambia.
     """
-    senza_link = [m for m in mansioni if not collegamenti_attivi(m)]
+    # Una mansione con QUALSIASI collegamento (anche a una mansione di rischio
+    # disattivata) è migrata: i campi deprecati non tornano in vigore.
+    senza_link = [m for m in mansioni if not list(m.link_rischio.all())]
     corsi_per_categoria = _corsi_per_categoria(_categorie_legacy(senza_link))
     regole = _regole_obbligo("mansione", [m.pk for m in mansioni])
     per_mr = requisiti_mansioni_rischio(
@@ -213,7 +215,7 @@ def _profili(mansioni: list[Mansione]) -> dict[int, dict[str, Any]]:
         collegate = collegamenti_attivi(mansione)
         out[mansione.pk] = {
             "regole": _unisci(_da_regole(regole.get(mansione.pk, []))),
-            "legacy": None if collegate else _profilo_legacy(mansione, corsi_per_categoria),
+            "legacy": _profilo_legacy(mansione, corsi_per_categoria) if mansione in senza_link else None,
             "rischio": [(mr, per_mr.get(mr.pk, requisiti_vuoti())) for mr in collegate],
         }
     return out

@@ -25,7 +25,8 @@ class Gruppo:
         return sum(len(m["persone"]) for m in self.mansioni) + len(self.aggiunte)
 
 
-def costruisci(*, fattore_id: int | None = None, solo_attive: bool = True) -> list[Gruppo]:
+def costruisci(*, fattore_id: int | None = None, solo_attive: bool = True,
+               can_view_visite: bool = False) -> list[Gruppo]:
     from core import naming
     from core.legacy_anagrafica import fetch_anagrafica_rows
     from ..models_mansioni_rischio import MansioneRischio
@@ -52,7 +53,7 @@ def costruisci(*, fattore_id: int | None = None, solo_attive: bool = True) -> li
 
     def _con_stato(p):
         s = stati.get(p["legacy_id"])
-        return {**p, "stato": s.etichetta if s else "", "bloccante": bool(s and s.bloccante)}
+        return {**p, "stato": s.etichetta_visibile(can_view_visite) if s else "", "bloccante": bool(s and s.bloccante)}
 
     gruppi = []
     for mr in qs:

@@ -176,7 +176,8 @@ def calcola(*, include_visite: bool, oggi: date | None = None) -> Cruscotto:
         stati = [s for s in stato_operativo.calcola(giorno=oggi).values() if s.codice != stato_operativo.OK]
         out.n_non_idonei_operare = sum(1 for s in stati if s.bloccante)
         out.righe_stato_operativo = _prime([
-            Riga(ctx.canonico(s.legacy_id), nomi.get(ctx.canonico(s.legacy_id), f"#{s.legacy_id}"), s.etichetta,
+            Riga(ctx.canonico(s.legacy_id), nomi.get(ctx.canonico(s.legacy_id), f"#{s.legacy_id}"),
+                 s.etichetta_visibile(include_visite),
                  None, "ko" if s.bloccante else "warn")
             for s in stati
         ])

@@ -43,14 +43,20 @@ def _nome(obj) -> str:
 
 
 def card_aperta(legacy_id: int):
-    """La card di assegnazione su cui ancorare gli adempimenti (aperta, la più recente)."""
+    """La card su cui ancorare gli adempimenti: quella **in corso** (attivata, oggi
+    nel periodo). Se c'è uno spostamento programmato, la card in corso ha già
+    una data di fine: ancorarsi alla programmata farebbe annullare questi
+    obblighi insieme allo spostamento. Ripiego: la card aperta più recente."""
+    from django.db.models import Q
     from ..models import DipendenteAssegnazione
-    return (
-        DipendenteAssegnazione.objects
-        .filter(legacy_anagrafica_id=legacy_id, data_fine__isnull=True)
-        .order_by("-data_inizio", "-created_at")
-        .first()
+    oggi = timezone.localdate()
+    base = DipendenteAssegnazione.objects.filter(legacy_anagrafica_id=legacy_id)
+    in_corso = (
+        base.filter(attivata_il__isnull=False, data_inizio__lte=oggi)
+        .filter(Q(data_fine__isnull=True) | Q(data_fine__gte=oggi))
+        .order_by("-data_inizio", "-created_at").first()
     )
+    return in_corso or base.filter(data_fine__isnull=True).order_by("-data_inizio", "-created_at").first()
 
 
 def applica_delta(
@@ -89,14 +95,17 @@ def applica_delta(
         esistenti = {a.chiave: a for a in card.adempimenti.filter(attivo=True)}
         for dominio, tipo in _TIPO.items():
             prima_ids, dopo_ids = _ids(prima, dominio), _ids(dopo, dominio)
+            effettivi = _ids(ancora_dovuti, dominio) if ancora_dovuti is not None else None
             for pk, obj in dopo_ids.items():
                 if pk in prima_ids:
                     continue
+                if effettivi is not None and pk not in effettivi:
+                    continue  # esclusa per la persona (override EXCLUDE) o non dovuta
                 chiave = chiave_voce(tipo, pk)
                 if chiave in esistenti:
                     continue
                 if persona is not None and requisito_soddisfatto(
-                    tipo, pk, ctx=ctx, persona=persona, dal=entro, mansione=card.mansione,
+                    tipo, pk, ctx=ctx, persona=persona, dal=entro, mansione=card.mansione, entro=entro,
                 ):
                     esito["gia_soddisfatti"] += 1
                     continue
@@ -159,6 +168,10 @@ def aggiungi_override(legacy_id: int, mansione_rischio, *, azione: str, motivo: 
         raise ValidationError("La data di fine precede quella di inizio.")
     giorno = max(timezone.localdate(), data_inizio)
     with transaction.atomic():
+        # Un override il cui periodo è finito non vale più: si chiude da solo.
+        O.objects.filter(legacy_anagrafica_id=legacy_id, mansione_rischio=mansione_rischio, attivo=True,
+                         data_fine__lt=timezone.localdate()).update(
+            attivo=False, revocato_il=timezone.now(), revoca_motivo="Periodo concluso")
         if O.objects.select_for_update().filter(
             legacy_anagrafica_id=legacy_id, mansione_rischio=mansione_rischio, attivo=True,
         ).exists():
@@ -245,23 +258,34 @@ def fotografa_mansioni(mansione_ids: Iterable[int]) -> dict[int, dict[str, list[
     return {int(m): _serializza(mansionario.requisiti_mansione(int(m))) for m in mansione_ids}
 
 
-def accoda_riallineamento(prima: dict[int, dict[str, list[int]]], *, causa: str, user_id: int | None = None) -> None:
-    """Accoda (dopo il commit) il riallineamento dei dipendenti delle mansioni fotografate."""
+def fotografa_mansioni_rischio(mr_ids: Iterable[int]) -> dict[int, dict[str, list[int]]]:
+    """Requisiti di livello mansione di rischio, PRIMA di una modifica (per le aggiunte individuali)."""
+    per_mr = mansionario.requisiti_mansioni_rischio(mr_ids)
+    return {int(k): _serializza(v) for k, v in per_mr.items()}
+
+
+def accoda_riallineamento(prima: dict[int, dict[str, list[int]]], *, causa: str, user_id: int | None = None,
+                          prima_mr: dict[int, dict[str, list[int]]] | None = None) -> None:
+    """Accoda (dopo il commit) il riallineamento dei dipendenti coinvolti.
+
+    Se il cluster non accetta il task, il riallineamento NON gira dentro la
+    richiesta web: lo recupera il controllo notturno e l'errore va in log.
+    """
     payload = {str(k): v for k, v in prima.items()}
+    payload_mr = {str(k): v for k, v in (prima_mr or {}).items()}
 
     def _enqueue():
         try:
             from django_q.tasks import async_task
             async_task("anagrafica.services.riallineamento.esegui_riallineamento", payload, causa, user_id,
-                       q_options={"timeout": 600})
+                       payload_mr, q_options={"timeout": 600})
         except Exception:
-            logger.warning("riallineamento non accodato: eseguo in linea", exc_info=True)
-            esegui_riallineamento(payload, causa, user_id)
+            logger.exception("riallineamento non accodato (%s): da rieseguire", causa)
 
     transaction.on_commit(_enqueue)
 
 
-def esegui_riallineamento(prima: dict, causa: str, user_id: int | None = None) -> dict:
+def esegui_riallineamento(prima: dict, causa: str, user_id: int | None = None, prima_mr: dict | None = None) -> dict:
     """Corpo del job: per ogni mansione toccata, delta prima/dopo su ogni dipendente.
 
     Ritorna (e scrive in audit) il report: dipendenti, adempimenti creati,
@@ -290,6 +314,26 @@ def esegui_riallineamento(prima: dict, causa: str, user_id: int | None = None) -
                     legacy_id, req_prima, req_dopo, causa=f"{causa} (mansione «{mansione.nome}»)",
                     ancora_dovuti=attuali, user=user, ctx=ctx, persona=tutti.get(ctx.canonico(legacy_id)),
                     origine={"origine_tipo": "MANSIONE_RISCHIO"},
+                )
+            except Exception:
+                logger.exception("riallineamento fallito per %s", legacy_id)
+                report["errori"] += 1
+                continue
+            for k in ("creati", "non_piu_dovuti", "gia_soddisfatti", "senza_assegnazione"):
+                report[k] += esito.get(k, 0)
+    # Aggiunte individuali (override ADD) sulle mansioni di rischio modificate.
+    from ..models_mansioni_rischio import DipendenteMansioneRischioOverride as O
+    for mr_id, req_prima in (prima_mr or {}).items():
+        req_dopo = mansionario.requisiti_mansioni_rischio([int(mr_id)]).get(int(mr_id)) or mansionario.requisiti_vuoti()
+        titolari = sorted(set(O.objects.filter(mansione_rischio_id=int(mr_id), attivo=True, azione=O.AZIONE_AGGIUNGI)
+                              .values_list("legacy_anagrafica_id", flat=True)))
+        for legacy_id in titolari:
+            report["dipendenti"] += 1
+            try:
+                esito = applica_delta(
+                    legacy_id, req_prima, req_dopo, causa=f"{causa} (aggiunta individuale)",
+                    ancora_dovuti=mansionario.requisiti_dipendente(legacy_id), user=user, ctx=ctx,
+                    persona=tutti.get(ctx.canonico(legacy_id)), origine={"origine_tipo": "OVERRIDE"},
                 )
             except Exception:
                 logger.exception("riallineamento fallito per %s", legacy_id)

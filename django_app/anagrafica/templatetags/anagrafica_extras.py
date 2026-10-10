@@ -525,10 +525,15 @@ def safety_subnav(context, active=""):
     return gruppi
 
 
-@register.simple_tag
-def stati_operativi_da_segnalare():
-    """Persone non idonee a operare / in avviso / in deroga, con nome (solo etichetta)."""
+@register.simple_tag(takes_context=True)
+def stati_operativi_da_segnalare(context):
+    """Persone con stato operativo da segnalare, con nome ed etichetta visibile.
+
+    Senza permesso visite l'etichetta è neutra (non distingue la causa)."""
     try:
+        request = context.get("request")
+        from anagrafica.views import _can_view_visite_mediche
+        can_view = bool(request) and _can_view_visite_mediche(request)
         from core import naming
         from core.legacy_anagrafica import fetch_anagrafica_rows
         from anagrafica.services import stato_operativo
@@ -540,6 +545,7 @@ def stati_operativi_da_segnalare():
                 for r in fetch_anagrafica_rows(ids=[s.legacy_id for s in stati])}
         for s in stati:
             s.nome = nomi.get(s.legacy_id) or f"#{s.legacy_id}"
+            s.etichetta_mostrata = s.etichetta_visibile(can_view)
         return sorted(stati, key=lambda s: (not s.bloccante, s.nome.casefold()))
     except Exception:
         logger.warning("Stati operativi non calcolabili", exc_info=True)

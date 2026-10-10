@@ -120,7 +120,7 @@ def anteprima(mr, dati: Dati) -> Effetto:
                             continue
                         if persona is not None and requisito_soddisfatto(
                             tipo, obj.pk, ctx=ctx, persona=persona, dal=ctx.today,
-                            mansione=card.mansione if card else "",
+                            mansione=card.mansione if card else "", entro=ctx.today,
                         ):
                             effetto.gia_soddisfatte += 1
                         else:
@@ -139,13 +139,14 @@ def salva(mr, dati: Dati, *, user=None) -> tuple[object, bool]:
     """Salva e accoda il riallineamento dei dipendenti coinvolti (dopo il commit)."""
     coinvolte = _mansioni_coinvolte(mr, dati)
     foto = riallineamento.fotografa_mansioni(coinvolte) if coinvolte else {}
+    foto_mr = riallineamento.fotografa_mansioni_rischio([mr.pk]) if mr.pk else {}
     nuova = mr.pk is None
     with transaction.atomic():
         mr = _applica(mr, dati, user=user)
-        if foto:
+        if foto or foto_mr:
             riallineamento.accoda_riallineamento(
                 foto, causa=f"Modifica mansione di rischio «{mr.nome}»",
-                user_id=getattr(user, "pk", None),
+                user_id=getattr(user, "pk", None), prima_mr=foto_mr,
             )
     return mr, nuova
 
