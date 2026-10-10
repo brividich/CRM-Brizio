@@ -652,10 +652,19 @@ class TrainingCompletionRuleForm(forms.ModelForm):
 # ── E-learning: slide e quiz dei micro-corsi ───────────────────────────────
 
 class TrainingSlideForm(forms.ModelForm):
+    def __init__(self, *args, corso=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models_elearning import TrainingElearningModulo
+        self.fields["modulo"].required = False
+        self.fields["modulo"].empty_label = "— nessun modulo —"
+        self.fields["modulo"].queryset = (TrainingElearningModulo.objects.filter(corso=corso)
+                                          if corso is not None else TrainingElearningModulo.objects.none())
+
     class Meta:
         model = TrainingSlide
-        fields = ["titolo", "ordine", "contenuto", "is_active"]
+        fields = ["titolo", "ordine", "modulo", "contenuto", "is_active"]
         widgets = {
+            "modulo":    forms.Select(attrs=_FM),
             "titolo":    forms.TextInput(attrs=_FM),
             "ordine":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
             "contenuto": forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 10}),
@@ -667,14 +676,28 @@ class TrainingSlideForm(forms.ModelForm):
 
 
 class TrainingQuizQuestionForm(forms.ModelForm):
+    # Solo per il vero/falso: le opzioni «Vero» e «Falso» le crea il portale.
+    vf_vera = forms.TypedChoiceField(
+        required=False, label="L'affermazione è", coerce=lambda v: v == "1",
+        choices=[("1", "Vera"), ("0", "Falsa")], widget=forms.Select(attrs=_FM),
+    )
+
     class Meta:
         model = TrainingQuizQuestion
-        fields = ["testo", "ordine", "is_active"]
+        fields = ["testo", "tipo", "ordine", "is_active"]
         widgets = {
+            "tipo":      forms.Select(attrs=_FM),
             "testo":     forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 2}),
             "ordine":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
             "is_active": forms.CheckboxInput(attrs=_FM_CHECK),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["tipo"].required = False  # non inviato = risposta singola
+
+    def clean_tipo(self):
+        return self.cleaned_data.get("tipo") or TrainingQuizQuestion.TIPO_SINGOLA
 
 
 class TrainingQuizOptionForm(forms.ModelForm):
@@ -689,15 +712,98 @@ class TrainingQuizOptionForm(forms.ModelForm):
 
 
 class ElearningConfigForm(forms.ModelForm):
+    # Chi può confermare le regole FAD (RSPP): username separati da virgola,
+    # salvati come id utente (utenti.id) in ``conferma_fad_utente_ids``.
+    conferma_fad_utenti = forms.CharField(
+        required=False, label="Chi conferma le regole FAD (RSPP)",
+        help_text="Username del portale separati da virgola. Il superuser può sempre confermare.",
+        widget=forms.TextInput(attrs=_FM),
+    )
+
     class Meta:
         model = ElearningConfig
-        fields = ["quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "libreoffice_path"]
+        fields = ["quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "libreoffice_path",
+                  "finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb",
+                  "promemoria_giorni_prima", "solleciti_giorni_dopo", "digest_responsabile_giorno",
+                  "gradimento_attivo", "gradimento_domande"]
         widgets = {
+            "gradimento_attivo":  forms.CheckboxInput(attrs=_FM_CHECK),
+            "gradimento_domande": forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 5}),
+            "promemoria_giorni_prima": forms.TextInput(attrs={**_FM, "placeholder": "14,7,1"}),
+            "solleciti_giorni_dopo":   forms.TextInput(attrs={**_FM, "placeholder": "1,7,14"}),
+            "digest_responsabile_giorno": forms.Select(attrs=_FM),
+            "finestra_rinnovo_giorni": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
+            "giorni_entro_default":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
+            "video_max_mb":            forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
             "quiz_punteggio_minimo_default": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),
             "validita_mesi_default":         forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
             "max_tentativi_quiz":            forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
             "libreoffice_path":              forms.TextInput(attrs=_FM),
         }
+
+    _CON_DEFAULT = ("finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb")
+    # Scaletta promemoria: vuoto è una scelta (nessun avviso); non inviato = invariato.
+    _SE_INVIATI = ("promemoria_giorni_prima", "solleciti_giorni_dopo", "digest_responsabile_giorno",
+                   "gradimento_domande")
+
+    def __init__(self, *args, puo_rspp: bool = True, **kwargs):
+        super().__init__(*args, **kwargs)
+        for nome in self._CON_DEFAULT + self._SE_INVIATI:  # non inviati = si tiene il valore attuale
+            self.fields[nome].required = False
+        # Separazione dei ruoli: chi conferma le regole FAD lo decide solo il
+        # superuser, non chi le scrive (un editor non si nomina RSPP da solo).
+        self.puo_rspp = puo_rspp
+        if not puo_rspp:
+            self.fields["conferma_fad_utenti"].disabled = True
+            self.fields["conferma_fad_utenti"].help_text = "Modificabile solo dall'amministratore del portale."
+        ids = [int(i) for i in (self.instance.conferma_fad_utente_ids or []) if str(i).isdigit()]
+        if ids:
+            from core.models import Profile
+            nomi = Profile.objects.filter(legacy_user_id__in=ids).select_related("user").values_list("user__username", flat=True)
+            self.fields["conferma_fad_utenti"].initial = ", ".join(sorted(nomi))
+
+    def clean_conferma_fad_utenti(self):
+        from core.models import Profile
+        if not self.puo_rspp:
+            return list(self.instance.conferma_fad_utente_ids or [])
+        nomi = [n.strip() for n in (self.cleaned_data.get("conferma_fad_utenti") or "").split(",") if n.strip()]
+        trovati = dict(Profile.objects.filter(user__username__in=nomi).values_list("user__username", "legacy_user_id"))
+        mancanti = [n for n in nomi if n not in trovati]
+        if mancanti:
+            raise forms.ValidationError("Utenti non trovati: " + ", ".join(mancanti))
+        return sorted(set(trovati.values()))
+
+    def _clean_soglie(self, nome):
+        from .services.elearning_promemoria import soglie
+        testo = (self.cleaned_data.get(nome) or "").strip()
+        valori = soglie(testo)
+        pezzi = [p.strip() for p in testo.replace(";", ",").split(",") if p.strip()]
+        if len(valori) != len(set(pezzi)):
+            raise forms.ValidationError("Scrivi numeri di giorni fra 1 e 365 separati da virgola (es. 14,7,1).")
+        return ",".join(str(v) for v in valori)
+
+    def clean_promemoria_giorni_prima(self):
+        return self._clean_soglie("promemoria_giorni_prima")
+
+    def clean_solleciti_giorni_dopo(self):
+        return self._clean_soglie("solleciti_giorni_dopo")
+
+    def clean(self):
+        dati = super().clean()
+        for nome in self._CON_DEFAULT:
+            if dati.get(nome) in (None, ""):
+                dati[nome] = getattr(self.instance, nome)
+        for nome in self._SE_INVIATI:
+            if self.data is not None and nome not in self.data:
+                dati[nome] = getattr(self.instance, nome)
+        return dati
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        obj.conferma_fad_utente_ids = self.cleaned_data.get("conferma_fad_utenti") or []
+        if commit:
+            obj.save()
+        return obj
 
 
 class TrainingCourseVersionForm(forms.ModelForm):

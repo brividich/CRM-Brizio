@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
 <style>
 /* Box "Assegna dipendenti": classi al posto degli inline style grezzi (stream 3, Task 5).
    Token con fallback + override tema scuro per la label di sezione. */
@@ -179,6 +179,24 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
       {% endif %}
     </section>
 
+    {# ── Versioni (prompt 05, fase 2) ──────────────────────────────────── #}
+    <section class="fmd-panel" style="padding:18px 22px;">
+      <div class="fmd-block-title" style="margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-clipboard"/></svg> Versioni <span class="fmd-count">{{ versioni|length }}</span></div>
+      <p class="fmd-fhelp" style="margin:0 0 10px;">La versione si fissa alla pubblicazione. Se cambi i contenuti dopo che qualcuno ha completato il corso, nasce una nuova versione: il registro di chi ha completato resta legato alla sua. Cosa succede a chi ha completato la versione precedente lo decidono le regole FAD del corso.</p>
+      {% if versioni %}
+      <div class="fmd-tablewrap"><table class="fmd-table">
+        <thead><tr><th>Versione</th><th>Dal</th><th>Al</th><th>Motivo</th><th>Da</th><th>Completamenti</th></tr></thead>
+        <tbody>
+        {% for v in versioni %}
+          <tr><td><strong>{{ v.version_label }}</strong>{% if v.version_label == corso.versione %} <span class="fmd-badge fmd-b-green">corrente</span>{% endif %}</td>
+            <td>{{ v.data_inizio_validita|date:"d/m/Y"|default:"—" }}</td><td>{{ v.data_fine_validita|date:"d/m/Y"|default:"—" }}</td>
+            <td>{{ v.note|default:"—" }}</td><td>{{ v.revised_by.username|default:"—" }}</td><td class="fmd-num">{{ v.n_completamenti }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}<p class="fmd-muted" style="margin:0;">Nessuna versione: si crea alla pubblicazione.</p>{% endif %}
+    </section>
+
     {# ── Iscritti & esiti ───────────────────────────────────────────────── #}
     <section class="fmd-panel">
       <div class="fmd-toolbar">
@@ -212,7 +230,12 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
               </td>
               <td class="fmd-c fmd-num">{{ r.avanzamento }}</td>
               <td class="fmd-c fmd-num">{% if r.best is not None %}{{ r.best }}%{% else %}—{% endif %}</td>
-              <td class="fmd-c fmd-num">{{ r.n_tentativi }}</td>
+              <td class="fmd-c fmd-num">{{ r.n_tentativi }}{% if r.esauriti %}
+                <form method="post" action="{% url 'anagrafica:formazione_elearning_sblocca' corso.pk r.pk %}" style="display:flex;gap:4px;margin-top:4px;">
+                  {% csrf_token %}
+                  <input name="motivo" class="fm-input" required maxlength="300" placeholder="Motivo sblocco" aria-label="Motivo dello sblocco" style="min-width:120px;">
+                  <button class="fmd-btn fmd-btn-ghost fmd-btn-mini" type="submit">Sblocca</button>
+                </form>{% endif %}</td>
               <td>{{ r.data_completamento|default:"—" }}</td>
             </tr>
             {% endfor %}

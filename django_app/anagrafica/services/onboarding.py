@@ -559,6 +559,7 @@ def avvia_onboarding(
         genera_task_pratica(pratica, ruolo_ids=ruolo_ids)
     if legacy_id:
         aggiorna_pratiche(pratiche=[pratica])
+        _assegna_elearning(legacy_id)
     if notifica_dpi:
         notifica_assegnazione_mansione_rischio(
             dipendente_nome=dipendente_nome, mansione=mansione, reparto=reparto,
@@ -589,7 +590,20 @@ def collega_dipendente(pratica: OnboardingPratica, legacy_id: int, *, user=None,
     genera_task_pratica(pratica)
     ricalcola_scadenze(pratica)
     aggiorna_pratiche(pratiche=[pratica])
+    _assegna_elearning(legacy_id)
     return pratica
+
+
+def _assegna_elearning(legacy_id: int) -> None:
+    """Nuovo ingresso: assegna subito i corsi e-learning obbligatori (dopo il commit, fail-open)."""
+    def _esegui():
+        try:
+            from .elearning_assegnazioni import sincronizza
+            sincronizza([int(legacy_id)])
+        except Exception:
+            logger.warning("Assegnazione e-learning all'ingresso fallita per %s", legacy_id, exc_info=True)
+
+    transaction.on_commit(_esegui)
 
 
 def pratica_aperta(legacy_id: int) -> OnboardingPratica | None:

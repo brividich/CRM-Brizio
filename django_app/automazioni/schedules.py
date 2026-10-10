@@ -432,6 +432,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ANAGRAFICA HR — e-learning: assegna i corsi online obbligatori non ancora
+        # soddisfatti (dal motore dei requisiti) e apre i cicli di aggiornamento
+        # in scadenza; chiude le sessioni del player abbandonate. Idempotente.
+        "name": "elearning_assegnazioni",
+        "func": "anagrafica.tasks.run_elearning_assegnazioni",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "50 0 * * *",       # ogni notte alle 00:50, dopo il ricalcolo scadenze
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # ANAGRAFICA HR — cambio mansione: adempimenti in ritardo + persone con stato
         # operativo da verificare (visita del cambio mansione mancante, non idoneita').
         # No-op senza destinatari (SiteConfig cambio_mansione_emails). Nessun dato clinico.

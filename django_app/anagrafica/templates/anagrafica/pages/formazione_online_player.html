@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -28,6 +28,9 @@
       </div>
     </div>
 
+    {% if anteprima %}
+    <div class="fmd-panel" style="padding:12px 16px;margin-bottom:12px;border-left:4px solid #1f87cd;">Anteprima editor: avanzamento e quiz non vengono registrati.</div>
+    {% endif %}
     {% if no_anagrafica %}
     <div class="fmd-alert">
       <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
@@ -45,7 +48,10 @@
         </div>
       </section>
     {% else %}
-      <section class="fmd-panel" style="padding:24px;">
+      {% if enrollment %}
+      <p class="fmd-muted js-tempo" style="margin:0 0 8px;">Tempo di fruizione registrato: <strong class="js-minuti">{{ minuti_fatti }}</strong> minuti{% if regola.tempo_minimo_minuti %} su {{ regola.tempo_minimo_minuti }} richiesti{% endif %}.</p>
+      {% endif %}
+      <section class="fmd-panel fm-player" style="padding:24px;"{% if beat_url %} data-beat-url="{{ beat_url }}" data-beat-intervallo="{{ beat_intervallo }}"{% endif %}>
         {# Target HTMX: la prima slide viene caricata al load, poi navigata avanti/indietro #}
         <div id="fm-slide-target"
              hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk slide_iniziale %}"
@@ -57,4 +63,5 @@
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
+{% if beat_url %}<script src="{% static 'anagrafica/js/elearning_player.js' %}?v=1" defer></script>{% endif %}
 {% endblock %}

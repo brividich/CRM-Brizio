@@ -1,16 +1,41 @@
 {# Partial HTMX: una slide del micro-corso e-learning. Swappato dentro #fm-slide-target. #}
-<div class="fm-slide" id="fm-slide-{{ slide.ordine }}">
+<div class="fm-slide" id="fm-slide-{{ slide.ordine }}" data-slide-id="{{ slide.pk }}" data-secondi-mancanti="{{ secondi_mancanti }}">
 
   <div class="fmd-bar" style="margin-bottom:14px;"><span style="width:{{ progress_pct }}%;"></span></div>
 
   <div class="fm-slide-meta">
-    <span class="fmd-code">Slide {{ indice }} / {{ n_slide }}</span>
+    <span class="fmd-code">{% if slide.modulo_id %}{{ slide.modulo.titolo }} · {% endif %}Lezione {{ indice }} / {{ n_slide }}</span>
   </div>
+
+  {% if indice_corso %}
+  <details class="fm-indice">
+    <summary>Indice del corso</summary>
+    {% for g in indice_corso %}
+    <div class="fm-indice-gruppo">
+      {% if g.titolo %}<div class="fm-indice-modulo">{{ g.titolo }} <span class="fmd-muted">{{ g.fatte }}/{{ g.lezioni|length }}</span></div>{% endif %}
+      <ol class="fm-indice-lezioni">
+        {% for lz in g.lezioni %}
+        <li class="{% if lz.corrente %}is-corrente{% elif lz.fatta %}is-fatta{% elif not lz.aperta %}is-chiusa{% endif %}">
+          {% if lz.aperta and not lz.corrente %}
+          <button type="button" class="fm-indice-link" hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk lz.ordine %}"
+                  hx-target="#fm-slide-target" hx-swap="innerHTML" hx-push-url="false">{{ lz.titolo }}</button>
+          {% else %}<span>{{ lz.titolo }}</span>{% endif %}
+          {% if lz.fatta %}<svg class="fmd-ico" aria-label="completata"><use href="#i-check"/></svg>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+    {% endfor %}
+  </details>
+  {% endif %}
 
   {% if not slide.is_immagine %}<h2 class="fm-slide-title">{{ slide.titolo }}</h2>{% endif %}
 
   <div class="fm-slide-body">
-    {% if slide.is_immagine %}
+    {% if slide.tipo == "VIDEO" and slide.video %}
+      <video class="fm-slide-video" controls preload="metadata" playsinline controlslist="nodownload"
+             src="{% url 'anagrafica:formazione_slide_video' slide.pk %}" style="width:100%;max-height:70vh;border-radius:10px;background:#000;"></video>
+    {% elif slide.is_immagine %}
       <img class="fm-slide-img" src="{% url 'anagrafica:formazione_slide_image' slide.pk %}" alt="{{ slide.titolo }}" loading="lazy">
     {% else %}
       {{ contenuto_html }}
@@ -22,18 +47,25 @@
       <button type="button" class="fmd-btn fmd-btn-ghost"
               hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk ordine_prec %}"
               hx-target="#fm-slide-target" hx-swap="innerHTML" hx-push-url="false">
-        <svg class="fmd-ico"><use href="#i-arrow-right" style="transform:scaleX(-1);"/></svg> Indietro
+        <svg class="fmd-ico" style="transform:scaleX(-1);"><use href="#i-arrow-right"/></svg> Indietro
       </button>
     {% else %}
       <span></span>
     {% endif %}
 
+    {% if secondi_mancanti %}
+      <span class="fm-slide-attesa fmd-muted" role="status" aria-live="polite">Resta su questa slide ancora circa <strong class="js-secondi">{{ secondi_mancanti }}</strong> secondi.</span>
+    {% endif %}
     {% if not is_ultima %}
-      <button type="button" class="fmd-btn fmd-btn-primary"
+      <button type="button" class="fmd-btn fmd-btn-primary js-avanti"{% if secondi_mancanti %} disabled{% endif %}
               hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk ordine_succ %}"
               hx-target="#fm-slide-target" hx-swap="innerHTML" hx-push-url="false">
         Avanti <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>
       </button>
+    {% elif completato %}
+      <span class="fmd-badge fmd-b-green">Corso completato</span>
+      {% if gradimento %}<a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_gradimento' corso.pk %}"><svg class="fmd-ico"><use href="#i-award"/></svg>Lascia un giudizio</a>{% endif %}
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_catalog' %}">Torna ai corsi</a>
     {% elif n_domande > 0 %}
       <a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_online_quiz' corso.pk %}">
         <svg class="fmd-ico"><use href="#i-check"/></svg> Vai al quiz finale

@@ -1,0 +1,76 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Impostazioni e-learning | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_elearning_hub' %}">E-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">Impostazioni corsi</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-gear"/></svg>Quali corsi si fanno online</h1>
+        <p class="fmd-ph-sub">Scegli i corsi erogabili online e se sono solo per chi li ha assegnati o aperti a tutti (self-service). Un corso è online solo quando è pubblicato e le sue regole sono confermate. Le regole di fruizione di ogni corso le conferma l'RSPP prima della pubblicazione.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:elearning_cruscotto' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Cruscotto</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_elearning_settings' %}"><svg class="fmd-ico"><use href="#i-gear"/></svg>Impostazioni globali</a>
+      </div>
+    </div>
+
+    <section class="fmd-panel fmd-block">
+      <form method="get" class="fmd-filterbar" style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="search" name="q" value="{{ q }}" class="fm-input" placeholder="Cerca corso per titolo o codice…" aria-label="Cerca corso">
+        <button class="fmd-btn fmd-btn-ghost" type="submit">Cerca</button>
+      </form>
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Corso</th><th>Online</th><th>Accesso</th><th>Regole FAD</th><th>Stato</th></tr></thead>
+          <tbody>
+          {% for c in corsi %}
+          <tr>
+            <td><span class="fmd-code">{{ c.codice }}</span> {{ c.titolo }}</td>
+            <td>
+              <form method="post" style="display:inline;">{% csrf_token %}
+                <input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="azione" value="online"><input type="hidden" name="q" value="{{ q }}">
+                <button class="fmd-btn fmd-btn-mini {% if c.is_elearning %}fmd-btn-primary{% else %}fmd-btn-ghost{% endif %}" type="submit" aria-pressed="{{ c.is_elearning|yesno:'true,false' }}">{% if c.is_elearning %}Sì{% else %}No{% endif %}</button>
+              </form>
+            </td>
+            <td>
+              {% if c.is_elearning %}
+              <form method="post" style="display:inline;">{% csrf_token %}
+                <input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="azione" value="self_service"><input type="hidden" name="q" value="{{ q }}">
+                <button class="fmd-btn fmd-btn-mini fmd-btn-ghost" type="submit">{% if c.elearning_self_service %}Aperto a tutti (self-service){% else %}Solo assegnati{% endif %}</button>
+              </form>
+              {% else %}<span class="fmd-muted">—</span>{% endif %}
+            </td>
+            <td>
+              {% if c.is_elearning %}
+              <a class="fmd-data-link" href="{% url 'anagrafica:elearning_regola_corso' c.pk %}">
+                {% if c.regola_fad and c.regola_fad.confermata_rspp_il %}<span class="fmd-badge fmd-b-green">Confermate {{ c.regola_fad.confermata_rspp_il|date:"d/m/Y" }}</span>
+                {% else %}<span class="fmd-badge fmd-b-amber">Da confermare</span>{% endif %}
+              </a>
+              {% else %}<span class="fmd-muted">—</span>{% endif %}
+            </td>
+            <td>{% if c.is_elearning and c.stato == "ATTIVO" and c.regola_fad.confermata_rspp_il %}<span class="fmd-badge fmd-b-green">Online</span>{% elif c.is_elearning and c.stato == "ATTIVO" %}<span class="fmd-badge fmd-b-amber">Non online: regole da confermare</span>{% elif c.is_elearning %}<span class="fmd-badge fmd-b-grey">Bozza</span>{% else %}<span class="fmd-muted">Aula</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="fmd-muted">Nessun corso.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

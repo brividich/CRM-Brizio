@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 58
+**Totale automazioni disponibili:** 59
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -47,6 +47,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 07:50
 - **Task eseguito:** `anagrafica.tasks.run_contratti_expiry_reminders`
 - **Cosa fa:** ANAGRAFICA HR — contratti a termine + periodi di prova in scadenza. Destinatari contratti_reminder_emails con fallback amministrativo da verificare.
+
+### `elearning_assegnazioni`
+
+- **Quando gira:** ogni giorno, alle 00:50
+- **Task eseguito:** `anagrafica.tasks.run_elearning_assegnazioni`
+- **Cosa fa:** ANAGRAFICA HR — e-learning: assegna i corsi online obbligatori non ancora soddisfatti (dal motore dei requisiti) e apre i cicli di aggiornamento in scadenza; chiude le sessioni del player abbandonate. Idempotente.
 
 ### `elearning_reminders`
 

@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -22,6 +22,9 @@
         <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Corsi online</span></div>
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>Corsi online <span class="fmd-count">{{ cards|length }}</span></h1>
         <p class="fmd-ph-sub">Micro-corsi e-learning: slide sequenziali e quiz finale. Il completamento viene tracciato per l'audit.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_verifica_attestato' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-shield"/></svg>Verifica un attestato</a>
       </div>
     </div>
 
@@ -59,6 +62,7 @@
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;">
           <span>
             {% if it.stato == "COMPLETATO" %}<span class="fmd-badge fmd-b-green">Completato{% if it.best_pct %} · {{ it.best_pct }}%{% endif %}</span>
+            {% if it.da_valutare %}<a class="fmd-data-link" style="display:block;margin-top:4px;font-size:12.5px;" href="{% url 'anagrafica:formazione_online_gradimento' it.corso.pk %}">Lascia un giudizio</a>{% endif %}
             {% elif it.stato == "IN_CORSO" %}<span class="fmd-badge fmd-b-amber">In corso</span>
             {% elif it.stato == "NON_SUPERATO" %}<span class="fmd-badge fmd-b-grey">Non superato{% if it.best_pct %} · {{ it.best_pct }}%{% endif %}</span>
             {% elif it.stato == "ISCRITTO" %}<span class="fmd-badge fmd-b-grey">Iscritto</span>
@@ -86,7 +90,7 @@
 </div>{# .fmd #}
 
 <style>
-.fm-card-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:16px; }
+.fm-card-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr)); gap:16px; }
 .fm-card-grid .fmd-area{ height:100%; }
 </style>
 {% endblock %}

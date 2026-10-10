@@ -13,6 +13,12 @@ from django.utils import timezone
 
 from .storage import PrivateAnagraficaStorage
 
+
+def _nuovo_token() -> str:
+    """Token casuale non indovinabile (tentativi di quiz)."""
+    import uuid
+    return uuid.uuid4().hex
+
 __all__ = [
     "AnagraficaFormazionePermission",
     "TrainingPlan",
@@ -321,6 +327,9 @@ class TrainingCourse(models.Model):
         help_text="0 = una tantum, altrimenti durata in mesi prima del rinnovo",
     )
     obbligatorio   = models.BooleanField(default=False)
+    # E-learning in self-service: visibile a tutti senza assegnazione. Distinto da
+    # `obbligatorio`, che pilota filtri, idoneità ed export della conformità.
+    elearning_self_service = models.BooleanField(default=False)
     # ── Diritto soggettivo alla formazione (CCNL) ────────────────────────────
     # Il CCNL riconosce un monte ore di formazione — tipicamente non tecnico/
     # professionale — maturato su una finestra di 3 anni (24h). La formazione
@@ -409,6 +418,10 @@ class TrainingCourseVersion(models.Model):
     data_fine_validita     = models.DateField(null=True, blank=True)
     note                   = models.TextField(blank=True)
     is_active              = models.BooleanField(default=True)
+    # E-learning: impronta e fotografia dei contenuti (slide, moduli, domande) della
+    # versione. Una modifica dopo che qualcuno ha completato la versione ne apre una nuova.
+    impronta               = models.CharField(max_length=64, blank=True, default="")
+    contenuti_json         = models.JSONField(default=dict, blank=True)
     revised_by             = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="+",
@@ -458,6 +471,39 @@ class TrainingCompletionRule(models.Model):
                   "formazione è stata efficace. 0 = valutazione non richiesta.",
     )
     rule_json               = models.JSONField(default=dict, blank=True, help_text="Estensioni future regola")
+
+    # ── Regole di fruizione e-learning (FAD), configurabili per corso ──────────
+    # Nessuna regola di legge scritta nel codice: i valori li decide l'azienda e
+    # li conferma l'RSPP (confermata_rspp_*). Qualsiasi modifica annulla la conferma.
+    el_tempo_minimo_minuti = models.PositiveSmallIntegerField(
+        default=0, help_text="Tempo minimo di fruizione effettiva (minuti). 0 = nessun minimo.")
+    el_richiede_tutte_slide = models.BooleanField(default=True, help_text="Tutte le slide vanno completate.")
+    el_secondi_minimi_slide = models.PositiveSmallIntegerField(
+        default=0, help_text="Secondi minimi di permanenza su ciascuna slide. 0 = nessun minimo.")
+    el_inattivita_secondi = models.PositiveSmallIntegerField(
+        default=120, help_text="Oltre questa inattività il tempo non viene accreditato.")
+    el_richiede_quiz = models.BooleanField(default=True, help_text="Il quiz finale va superato.")
+    el_soglia_pct = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Soglia di superamento (%). Vuoto = quella del corso.")
+    el_max_tentativi = models.PositiveSmallIntegerField(
+        default=0, help_text="Tentativi massimi. 0 = valore globale delle impostazioni e-learning.")
+    el_attesa_minuti_tra_tentativi = models.PositiveSmallIntegerField(
+        default=0, help_text="Attesa minima tra due tentativi (minuti).")
+    el_domande_estratte = models.PositiveSmallIntegerField(
+        default=0, help_text="Domande estratte a caso dalla banca. 0 = tutte.")
+    el_mescola = models.BooleanField(default=True, help_text="Ordine di domande e risposte casuale.")
+    el_tempo_quiz_minuti = models.PositiveSmallIntegerField(
+        default=0, help_text="Durata massima del quiz (minuti). 0 = senza limite.")
+    el_nuova_versione = models.CharField(
+        max_length=10, default="MANTIENI",
+        choices=[("MANTIENI", "Restano validi"), ("RIASSEGNA", "Devono rifare il corso")],
+        help_text="Chi ha completato una versione precedente quando i contenuti cambiano.")
+    confermata_rspp_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    confermata_rspp_il = models.DateTimeField(null=True, blank=True)
+    rspp_note = models.TextField(blank=True, default="")
+
     valid_from              = models.DateField(null=True, blank=True)
     valid_to                = models.DateField(null=True, blank=True)
     is_active               = models.BooleanField(default=True)
@@ -884,9 +930,12 @@ class TrainingAssignment(models.Model):
         on_delete=models.SET_NULL, related_name="+",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    # Ciclo di formazione: un aggiornamento periodico apre il ciclo successivo
+    # (la storia dei cicli precedenti resta).
+    ciclo = models.PositiveSmallIntegerField(default=1)
 
     class Meta:
-        unique_together = [("corso", "legacy_anagrafica_id")]
+        unique_together = [("corso", "legacy_anagrafica_id", "ciclo")]
         verbose_name = "Assegnazione corso"
         verbose_name_plural = "Assegnazioni corsi"
         indexes = [models.Index(fields=["legacy_anagrafica_id", "stato"])]
@@ -1313,6 +1362,13 @@ class TrainingEmployeeRecord(models.Model):
     # stabile (vedi services.attestato_pdf.assegna_numero_protocollo). Vuoto = non
     # ancora emesso.
     numero_protocollo = models.CharField(max_length=20, blank=True, default="", db_index=True)
+    # Codice di verifica dell'attestato (QR o digitato): casuale, non deducibile
+    # dal protocollo. Assegnato insieme al protocollo e poi stabile.
+    codice_verifica = models.CharField(max_length=16, blank=True, default="")
+    # HMAC (chiave derivata da SECRET_KEY) di codice, persona, corso, date ed esito:
+    # rifirmato a ogni salvataggio dal portale; una modifica diretta al database
+    # rende l'attestato «non verificabile».
+    firma_verifica = models.CharField(max_length=64, blank=True, default="")
 
     # ── Snapshot storici ─────────────────────────────────────
     # Compilare alla creazione del record — non aggiornare mai.
@@ -1337,6 +1393,20 @@ class TrainingEmployeeRecord(models.Model):
             models.Index(fields=["legacy_anagrafica_id", "data_scadenza"]),
             models.Index(fields=["data_scadenza"]),
         ]
+        constraints = [
+            # Condizione positiva: su SQL Server l'indice filtrato non accetta NOT.
+            models.UniqueConstraint(fields=["codice_verifica"], condition=models.Q(codice_verifica__gt=""),
+                                    name="uniq_record_codice_verifica"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.codice_verifica:
+            from .services.attestato_verifica import firma
+            self.firma_verifica = firma(self)
+            campi = kwargs.get("update_fields")
+            if campi is not None and "firma_verifica" not in campi:
+                kwargs["update_fields"] = list(campi) + ["firma_verifica"]
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] {self.corso.codice} — {self.data_completamento}"
@@ -1982,6 +2052,22 @@ class TrainingSlide(models.Model):
         null=True, blank=True,
         help_text="Slide-immagine (pagina importata da PPTX/PDF). Se valorizzata sostituisce il contenuto Markdown.",
     )
+    TIPO_TESTO = "TESTO"
+    TIPO_IMMAGINE = "IMMAGINE"
+    TIPO_VIDEO = "VIDEO"
+    TIPO_CHOICES = [(TIPO_TESTO, "Testo"), (TIPO_IMMAGINE, "Immagine"), (TIPO_VIDEO, "Video")]
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default=TIPO_TESTO)
+    video = models.FileField(
+        upload_to="elearning/video/", storage=PrivateAnagraficaStorage(), null=True, blank=True,
+        help_text="Video MP4 (storage privato).",
+    )
+    durata_minima_secondi = models.PositiveSmallIntegerField(
+        default=0, help_text="Permanenza minima su questa slide (secondi). 0 = vale la regola del corso.")
+    # Raggruppamento in moduli: la sequenza resta quella di «ordine»; il modulo è
+    # l'intestazione sotto cui la slide (lezione) compare nell'indice del player.
+    modulo = models.ForeignKey(
+        "anagrafica.TrainingElearningModulo", null=True, blank=True, on_delete=models.SET_NULL, related_name="slides",
+    )
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2009,9 +2095,19 @@ class TrainingSlide(models.Model):
 class TrainingQuizQuestion(models.Model):
     """Domanda del quiz finale di un micro-corso e-learning."""
 
+    TIPO_SINGOLA, TIPO_MULTIPLA, TIPO_VERO_FALSO = "SINGOLA", "MULTIPLA", "VERO_FALSO"
+    TIPO_CHOICES = [
+        (TIPO_SINGOLA, "Risposta singola"),
+        (TIPO_MULTIPLA, "Risposta multipla"),
+        (TIPO_VERO_FALSO, "Vero / falso"),
+    ]
+
     corso      = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="quiz_domande")
     ordine     = models.PositiveSmallIntegerField(default=1)
     testo      = models.TextField()
+    # Singola e vero/falso: una sola risposta giusta (radio); multipla: tutte e
+    # sole le giuste (checkbox). La correzione è sempre «tutto o niente».
+    tipo       = models.CharField(max_length=10, choices=TIPO_CHOICES, default=TIPO_SINGOLA)
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -2067,6 +2163,12 @@ class TrainingElearningEnrollment(models.Model):
     n_slide_totali       = models.PositiveSmallIntegerField(default=0)
     best_punteggio_pct   = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     n_tentativi          = models.PositiveSmallIntegerField(default=0)
+    # Sblocco HR dei tentativi esauriti: si aggiungono al massimo configurato.
+    tentativi_extra      = models.PositiveSmallIntegerField(default=0)
+    ciclo                = models.PositiveSmallIntegerField(default=1)
+    # Tempo effettivo accreditato dagli heartbeat lato server (somma delle sessioni).
+    secondi_accreditati  = models.PositiveIntegerField(default=0)
+    versione_label_snapshot = models.CharField(max_length=50, blank=True, default="")
     data_completamento   = models.DateField(null=True, blank=True)
     record_completamento = models.ForeignKey(
         TrainingEmployeeRecord, null=True, blank=True,
@@ -2075,7 +2177,7 @@ class TrainingElearningEnrollment(models.Model):
     updated_at           = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [("corso", "legacy_anagrafica_id")]
+        unique_together = [("corso", "legacy_anagrafica_id", "ciclo")]
         verbose_name = "Iscrizione e-learning"
         verbose_name_plural = "Iscrizioni e-learning"
         indexes = [models.Index(fields=["legacy_anagrafica_id", "stato"])]
@@ -2097,7 +2199,16 @@ class TrainingQuizAttempt(models.Model):
     )
     legacy_anagrafica_id = models.IntegerField(db_index=True)
     iniziato_il          = models.DateTimeField(null=True, blank=True)
-    inviato_il           = models.DateTimeField(auto_now_add=True)
+    inviato_il           = models.DateTimeField(null=True, blank=True)
+    STATO_APERTO, STATO_INVIATO, STATO_SCADUTO = "APERTO", "INVIATO", "SCADUTO"
+    stato                = models.CharField(
+        max_length=10, choices=[("APERTO", "Aperto"), ("INVIATO", "Inviato"), ("SCADUTO", "Scaduto")],
+        default="INVIATO",
+    )
+    # Domande e ordine delle opzioni serviti al discente: si corregge solo su questi.
+    domande_servite_json = models.JSONField(default=list, blank=True)
+    token                = models.CharField(max_length=32, unique=True, default=_nuovo_token)
+    scade_il             = models.DateTimeField(null=True, blank=True)
     punteggio_pct        = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     n_corrette           = models.PositiveSmallIntegerField(default=0)
     n_totali             = models.PositiveSmallIntegerField(default=0)
@@ -2154,6 +2265,34 @@ class ElearningConfig(models.Model):
         default=0,
         help_text="Numero massimo di tentativi del quiz per dipendente (0 = illimitati).",
     )
+    conferma_fad_utente_ids = models.JSONField(
+        default=list, blank=True,
+        help_text="Utenti (utenti.id) autorizzati a confermare le regole FAD dei corsi (RSPP).",
+    )
+    finestra_rinnovo_giorni = models.PositiveSmallIntegerField(
+        default=60, help_text="Quanti giorni prima della scadenza si apre il ciclo di aggiornamento.")
+    giorni_entro_default = models.PositiveSmallIntegerField(
+        default=30, help_text="Scadenza di default delle assegnazioni automatiche (giorni).")
+    video_max_mb = models.PositiveSmallIntegerField(
+        default=100, help_text="Dimensione massima di un video (MB); oltre il limite upload del server non serve.")
+    # Scaletta dei promemoria sulle assegnazioni con scadenza (prompt 05, fase 2).
+    promemoria_giorni_prima = models.CharField(
+        max_length=60, blank=True, default="14,7,1",
+        help_text="Giorni prima della scadenza in cui ricordare il corso al dipendente (es. 14,7,1). Vuoto = nessuno.")
+    solleciti_giorni_dopo = models.CharField(
+        max_length=60, blank=True, default="1,7,14",
+        help_text="Giorni dopo la scadenza in cui sollecitare dipendente e responsabile (es. 1,7,14). Vuoto = nessuno.")
+    digest_responsabile_giorno = models.PositiveSmallIntegerField(
+        default=0, choices=[(0, "Lunedì"), (1, "Martedì"), (2, "Mercoledì"), (3, "Giovedì"), (4, "Venerdì"),
+                            (7, "Mai")],
+        help_text="Giorno del riepilogo settimanale al responsabile dei corsi in scadenza o scaduti.")
+    gradimento_attivo = models.BooleanField(
+        default=True, help_text="Proporre il questionario di gradimento a fine corso.")
+    gradimento_domande = models.TextField(
+        blank=True,
+        default="I contenuti erano chiari\nGli argomenti sono utili per il mio lavoro\n"
+                "La durata era adeguata\nIl corso ha funzionato bene sul mio dispositivo",
+        help_text="Una domanda per riga; il discente risponde da 1 (per niente) a 5 (del tutto).")
     libreoffice_path = models.CharField(
         max_length=400, blank=True, default="",
         help_text="Percorso dell'eseguibile LibreOffice (soffice) per l'import PowerPoint. "

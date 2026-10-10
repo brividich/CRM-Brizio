@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
 {% include "anagrafica/components/_fmd_form_style.html" %}
 {% endblock %}
 
@@ -45,6 +45,48 @@
           {% include "anagrafica/partials/_fmd_field.html" with field=form.quiz_punteggio_minimo_default %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.validita_mesi_default %}
           {% include "anagrafica/partials/_fmd_field.html" with field=form.max_tentativi_quiz %}
+        </div>
+      </div>
+
+      {# ── Regole FAD, assegnazioni, video (prompt 05) ─────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-shield"/></svg>
+          <span class="fmd-form-sec-t">Regole, assegnazioni e video</span>
+          <span class="fmd-form-sec-n">Chi conferma le regole FAD, scadenze delle assegnazioni automatiche, rinnovi, dimensione dei video</span>
+        </div>
+        <div class="fmd-stack">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.conferma_fad_utenti full=1 %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.giorni_entro_default %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.finestra_rinnovo_giorni %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.video_max_mb %}
+        </div>
+      </div>
+
+      {# ── Scaletta dei promemoria (prompt 05, fase 2) ─────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-alarm"/></svg>
+          <span class="fmd-form-sec-t">Promemoria e solleciti</span>
+          <span class="fmd-form-sec-n">Per i corsi assegnati con scadenza: avvisi al dipendente prima, solleciti a dipendente e responsabile dopo, riepilogo settimanale al responsabile</span>
+        </div>
+        <div class="fmd-stack">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.promemoria_giorni_prima %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.solleciti_giorni_dopo %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.digest_responsabile_giorno %}
+        </div>
+      </div>
+
+      {# ── Questionario di gradimento (prompt 05, fase 2) ──────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-award"/></svg>
+          <span class="fmd-form-sec-t">Questionario di gradimento</span>
+          <span class="fmd-form-sec-n">Proposto al discente a fine corso: voto da 1 a 5 per domanda e un commento; nel cruscotto si vedono medie e commenti senza nome</span>
+        </div>
+        <div class="fmd-stack">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.gradimento_attivo %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.gradimento_domande full=1 %}
         </div>
       </div>
 
