@@ -62,7 +62,11 @@
           <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_player' corso.pk %}">Rivedi le slide</a>
           <span class="fmd-spacer"></span>
           {% if not esito.superato %}
-          <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_quiz' corso.pk %}">Riprova il quiz</a>
+          {% if tentativi_rimasti == 0 %}
+          <span class="fmd-muted">Tentativi esauriti: chiedi a HR lo sblocco.</span>
+          {% else %}
+          <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_quiz' corso.pk %}">Riprova il quiz{% if tentativi_rimasti %} ({{ tentativi_rimasti }} rimast{{ tentativi_rimasti|pluralize:"o,i" }}){% endif %}</a>
+          {% endif %}
           {% else %}
           <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_catalog' %}">Torna al catalogo</a>
           {% endif %}
@@ -78,9 +82,12 @@
       </div>
       {% endif %}
 
+      {% if anteprima %}
+      <div class="fmd-panel" style="padding:12px 16px;margin-bottom:12px;border-left:4px solid #1f87cd;">Anteprima editor: il quiz non viene corretto né registrato.</div>
+      {% endif %}
       <form method="post" class="fmd-panel" style="padding:24px;">
         {% csrf_token %}
-        <p class="fmd-muted" style="margin-top:0;">Seleziona <strong>tutte</strong> le risposte corrette per ciascuna domanda.</p>
+        <p class="fmd-muted" style="margin-top:0;">Seleziona <strong>tutte</strong> le risposte corrette per ciascuna domanda.{% if tentativi_rimasti %} Tentativi rimasti: <strong>{{ tentativi_rimasti }}</strong>.{% endif %}</p>
 
         {% for d in domande %}
         <div class="fm-quiz-q">

@@ -18871,14 +18871,18 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
     # Archiviazione automatica dell'attestato nella cartella documenti del dipendente
     # (stesso flusso dei corsi d'aula: cartella «Attestati formazione» o quella scelta
     # in Impostazioni → Template attestato). Fail-safe: non deve bloccare il completamento.
-    try:
-        cfg = AttestatoFormazioneConfig.get_instance()
-        if cfg.auto_salva_attestato:
-            from .services.attestato_pdf import archivia_attestato
-            archivia_attestato(record, cfg=cfg, user=created_by)
-    except Exception:
-        logger.exception("Archiviazione automatica attestato e-learning fallita per record %s", record.pk)
+    # Dopo il commit: la generazione del PDF non tiene lock né lascia file orfani
+    # se il completamento viene annullato.
+    def _archivia():
+        try:
+            cfg = AttestatoFormazioneConfig.get_instance()
+            if cfg.auto_salva_attestato:
+                from .services.attestato_pdf import archivia_attestato
+                archivia_attestato(record, cfg=cfg, user=created_by)
+        except Exception:
+            logger.exception("Archiviazione automatica attestato e-learning fallita per record %s", record.pk)
 
+    transaction.on_commit(_archivia)
     return record
 
 
@@ -18897,11 +18901,15 @@ def _elearning_salute(n_slide: int, n_domande: int, n_invalid: int) -> tuple[str
 
 def _elearning_iscritti_rows(corso):
     """Righe «iscritti & esiti» di un micro-corso: nome dipendente + avanzamento + esito."""
+    from .services.elearning_fruizione import tentativi_esauriti
     enrollments = list(TrainingElearningEnrollment.objects.filter(corso=corso))
     nomi = _build_nomi_map() if enrollments else {}
+    cfg_el = ElearningConfig.get_instance()
     rows = []
     for e in enrollments:
         rows.append({
+            "pk": e.pk,
+            "esauriti": e.stato != "COMPLETATO" and tentativi_esauriti(e, cfg_el),
             "legacy_id": e.legacy_anagrafica_id,
             "nome": nomi.get(e.legacy_anagrafica_id, f"#{e.legacy_anagrafica_id}"),
             "stato": e.stato,
@@ -19273,30 +19281,6 @@ def formazione_slide_import(request, corso_id: int):
 
 
 @login_required
-def formazione_slide_image(request, slide_id: int):
-    """Serve inline l'immagine di una slide dallo storage privato.
-
-    Accesso: editor formazione, oppure qualsiasi utente autenticato se il corso è un
-    e-learning pubblicato (così il discente vede le slide-immagine nel player)."""
-    slide = get_object_or_404(TrainingSlide.objects.select_related("corso"), pk=slide_id)
-    corso = slide.corso
-    pubblicato = corso.is_elearning and corso.is_active and corso.stato == "ATTIVO"
-    if not (_can_edit_formazione(request) or pubblicato):
-        return HttpResponse(status=403)
-    if not slide.immagine:
-        return HttpResponse("Immagine non disponibile.", status=404)
-    from django.http import FileResponse
-    try:
-        fh = slide.immagine.open("rb")
-    except FileNotFoundError:
-        return HttpResponse("Immagine non trovata sul server.", status=404)
-    resp = FileResponse(fh, content_type="image/png")
-    resp["Content-Disposition"] = f'inline; filename="slide_{slide.pk}.png"'
-    resp["Cache-Control"] = "private, max-age=300"
-    return resp
-
-
-@login_required
 @require_POST
 def formazione_question_save(request, corso_id: int):
     """Crea o aggiorna una domanda del quiz."""
@@ -19362,257 +19346,6 @@ def formazione_option_delete(request, corso_id: int, option_id: int):
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
 
 
-# -- DISCENTE: catalogo, player slide (HTMX), quiz ---------------------------
+# -- DISCENTE: catalogo, player, slide, quiz e immagini delle slide vivono in
+# views_elearning.py (prompt 05, rilascio 1: accesso verificato lato server).
 
-@login_required
-def formazione_online_catalog(request):
-    """Catalogo dei micro-corsi e-learning pubblicati, con il mio stato per ciascuno."""
-    legacy_id = _current_legacy_anagrafica_id(request)
-    corsi = list(
-        TrainingCourse.objects.filter(is_elearning=True, is_active=True, stato="ATTIVO")
-        .select_related("piano", "categoria")
-        .order_by("titolo")
-    )
-    iscrizioni = {}
-    assegnazioni = {}
-    if legacy_id:
-        iscrizioni = {
-            e.corso_id: e
-            for e in TrainingElearningEnrollment.objects.filter(
-                legacy_anagrafica_id=legacy_id, corso__in=corsi
-            )
-        }
-        assegnazioni = {
-            a.corso_id: a
-            for a in TrainingAssignment.objects.filter(
-                legacy_anagrafica_id=legacy_id, corso__in=corsi
-            )
-        }
-    cards = []
-    for c in corsi:
-        e = iscrizioni.get(c.pk)
-        a = assegnazioni.get(c.pk)
-        # «Da fare» = assegnato (obbligo) e non ancora completato
-        assegnato_da_fare = bool(a) and a.stato not in ("COMPLETATO", "ESONERATO") and (e is None or e.stato != "COMPLETATO")
-        cards.append({
-            "corso": c,
-            "stato": e.stato if e else None,
-            "best_pct": e.best_punteggio_pct if e else None,
-            "n_slide": c.slides.filter(is_active=True).count(),
-            "n_domande": c.quiz_domande.filter(is_active=True).count(),
-            "assegnato": bool(a),
-            "assegnato_da_fare": assegnato_da_fare,
-            "due_date": a.due_date if a else None,
-        })
-    # Ordina: prima i corsi assegnati da completare, poi gli altri (per titolo)
-    cards.sort(key=lambda x: (not x["assegnato_da_fare"], x["corso"].titolo.lower()))
-    return render(request, "anagrafica/pages/formazione_online_catalog.html", {
-        "cards": cards,
-        "no_anagrafica": legacy_id is None,
-        "is_editor": _can_edit_formazione(request),
-    })
-
-
-def _enrollment_corrente(corso, legacy_id):
-    """Ritorna (creandola se serve) l'iscrizione e-learning del discente al corso."""
-    n_slide = corso.slides.filter(is_active=True).count()
-    enr, _created = TrainingElearningEnrollment.objects.get_or_create(
-        corso=corso, legacy_anagrafica_id=legacy_id,
-        defaults={"stato": "ISCRITTO", "n_slide_totali": n_slide},
-    )
-    if enr.n_slide_totali != n_slide:
-        enr.n_slide_totali = n_slide
-        enr.save(update_fields=["n_slide_totali"])
-    return enr
-
-
-@login_required
-def formazione_online_player(request, corso_id: int):
-    """Apre il player del micro-corso: iscrive il discente (se non gia) e mostra la
-    prima slide (o quella piu avanti gia vista)."""
-    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
-    if not (corso.is_active and corso.stato == "ATTIVO") and not _can_edit_formazione(request):
-        messages.error(request, "Corso non disponibile.")
-        return redirect("anagrafica:formazione_online_catalog")
-    legacy_id = _current_legacy_anagrafica_id(request)
-    slides = list(corso.slides.filter(is_active=True))
-    enr = None
-    slide_iniziale = slides[0].ordine if slides else 1
-    if legacy_id and slides:
-        enr = _enrollment_corrente(corso, legacy_id)
-        ordini = [s.ordine for s in slides]
-        if enr.ultima_slide_ordine in ordini:
-            slide_iniziale = enr.ultima_slide_ordine
-    return render(request, "anagrafica/pages/formazione_online_player.html", {
-        "corso": corso,
-        "slides": slides,
-        "n_slide": len(slides),
-        "slide_iniziale": slide_iniziale,
-        "enrollment": enr,
-        "no_anagrafica": legacy_id is None,
-        "n_domande": corso.quiz_domande.filter(is_active=True).count(),
-    })
-
-
-@login_required
-def formazione_online_slide(request, corso_id: int, ordine: int):
-    """Partial HTMX: rende la slide <ordine> del corso e aggiorna l'avanzamento.
-
-    Ritorna il partial quando chiamata via HTMX, altrimenti reindirizza al player."""
-    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
-    slides = list(corso.slides.filter(is_active=True))
-    if not slides:
-        if request.headers.get("HX-Request"):
-            return HttpResponse('<div class="fmd-empty"><span class="fmd-et">Nessuna slide disponibile</span></div>')
-        return redirect("anagrafica:formazione_online_catalog")
-
-    ordini = [s.ordine for s in slides]
-    pos = ordini.index(ordine) if ordine in ordini else 0
-    slide = slides[pos]
-
-    from .services.elearning_markdown import render_markdown
-    contenuto_html = render_markdown(slide.contenuto)
-
-    # Avanzamento (solo se il discente e tracciabile)
-    legacy_id = _current_legacy_anagrafica_id(request)
-    if legacy_id:
-        enr = _enrollment_corrente(corso, legacy_id)
-        campi = []
-        if slide.ordine > enr.ultima_slide_ordine:
-            enr.ultima_slide_ordine = slide.ordine
-            campi.append("ultima_slide_ordine")
-        if enr.stato == "ISCRITTO":
-            enr.stato = "IN_CORSO"
-            campi.append("stato")
-        if campi:
-            enr.save(update_fields=campi + ["updated_at"])
-
-    ctx = {
-        "corso": corso,
-        "slide": slide,
-        "contenuto_html": contenuto_html,
-        "indice": pos + 1,
-        "n_slide": len(slides),
-        "ordine_prec": ordini[pos - 1] if pos > 0 else None,
-        "ordine_succ": ordini[pos + 1] if pos < len(slides) - 1 else None,
-        "is_ultima": pos == len(slides) - 1,
-        "n_domande": corso.quiz_domande.filter(is_active=True).count(),
-        "progress_pct": round((pos + 1) / len(slides) * 100),
-    }
-    if request.headers.get("HX-Request"):
-        return render(request, "anagrafica/partials/_formazione_online_slide.html", ctx)
-    return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
-
-
-@login_required
-def formazione_online_quiz(request, corso_id: int):
-    """Quiz finale del micro-corso: GET mostra le domande, POST corregge, scrive il
-    tentativo (audit) e — al superamento — il record di completamento storicizzato."""
-    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
-    domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
-    legacy_id = _current_legacy_anagrafica_id(request)
-
-    if not domande:
-        messages.info(request, "Questo corso non ha ancora un quiz finale.")
-        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
-
-    # Solo domande "valide" (almeno un'opzione corretta): una domanda senza risposta
-    # corretta sarebbe impossibile da indovinare e bloccherebbe il superamento, quindi
-    # viene esclusa dal quiz finché l'autore non la completa (segnalata in pagina autore).
-    domande = [d for d in domande if any(o.corretta for o in d.opzioni.all())]
-    if not domande:
-        messages.info(request, "Il quiz non è ancora pronto: nessuna domanda ha una risposta corretta configurata.")
-        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
-
-    if request.method != "POST":
-        return render(request, "anagrafica/pages/formazione_online_quiz.html", {
-            "corso": corso,
-            "domande": domande,
-            "no_anagrafica": legacy_id is None,
-            "esito": None,
-        })
-
-    if legacy_id is None:
-        messages.error(request, "Il tuo profilo non e collegato all'anagrafica: il completamento non puo essere registrato. Contatta HR.")
-        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
-
-    # Limite tentativi (Impostazioni e-learning): blocca un nuovo invio se esaurito.
-    cfg_el = ElearningConfig.get_instance()
-    if cfg_el.max_tentativi_quiz:
-        _enr = TrainingElearningEnrollment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).first()
-        if _enr and _enr.stato != "COMPLETATO" and (_enr.n_tentativi or 0) >= cfg_el.max_tentativi_quiz:
-            messages.error(request, f"Hai esaurito i tentativi disponibili per questo quiz ({cfg_el.max_tentativi_quiz}).")
-            return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
-
-    # -- Correzione -----------------------------------------------------------
-    n_totali = len(domande)
-    n_corrette = 0
-    risposte_snapshot = []
-    for d in domande:
-        scelte = set(int(x) for x in request.POST.getlist(f"q_{d.pk}") if str(x).isdigit())
-        corrette = set(o.pk for o in d.opzioni.all() if o.corretta)
-        giusta = bool(corrette) and scelte == corrette
-        if giusta:
-            n_corrette += 1
-        risposte_snapshot.append({
-            "domanda_id": d.pk,
-            "domanda": d.testo,
-            "scelte": sorted(scelte),
-            "corrette": sorted(corrette),
-            "giusta": giusta,
-        })
-
-    from decimal import Decimal
-    punteggio = Decimal(str(round(n_corrette / n_totali * 100, 2))) if n_totali else Decimal("0")
-    superato = punteggio >= corso.quiz_punteggio_minimo
-
-    with transaction.atomic():
-        enr = _enrollment_corrente(corso, legacy_id)
-        attempt = TrainingQuizAttempt.objects.create(
-            corso=corso,
-            enrollment=enr,
-            legacy_anagrafica_id=legacy_id,
-            punteggio_pct=punteggio,
-            n_corrette=n_corrette,
-            n_totali=n_totali,
-            superato=superato,
-            risposte_json={"risposte": risposte_snapshot},
-            utente=request.user,
-        )
-        enr.n_tentativi = (enr.n_tentativi or 0) + 1
-        if enr.best_punteggio_pct is None or punteggio > enr.best_punteggio_pct:
-            enr.best_punteggio_pct = punteggio
-        campi = ["n_tentativi", "best_punteggio_pct", "updated_at"]
-        if superato and enr.stato != "COMPLETATO":
-            from django.utils import timezone as _tz
-            enr.stato = "COMPLETATO"
-            enr.data_completamento = _tz.localdate()
-            campi += ["stato", "data_completamento"]
-            if not enr.record_completamento_id:
-                record = _crea_record_completamento_elearning(corso, legacy_id, attempt, request.user)
-                enr.record_completamento = record
-                attempt.record = record
-                attempt.save(update_fields=["record"])
-                campi.append("record_completamento")
-            # Chiude eventuali assegnazioni (obbligo) aperte per questo corso/dipendente
-            TrainingAssignment.objects.filter(
-                corso=corso, legacy_anagrafica_id=legacy_id,
-            ).exclude(stato="COMPLETATO").update(stato="COMPLETATO")
-        elif not superato and enr.stato != "COMPLETATO":
-            enr.stato = "NON_SUPERATO"
-            campi.append("stato")
-        enr.save(update_fields=list(dict.fromkeys(campi)))
-
-    return render(request, "anagrafica/pages/formazione_online_quiz.html", {
-        "corso": corso,
-        "domande": domande,
-        "no_anagrafica": False,
-        "esito": {
-            "superato": superato,
-            "punteggio": punteggio,
-            "n_corrette": n_corrette,
-            "n_totali": n_totali,
-            "minimo": corso.quiz_punteggio_minimo,
-            "risposte": risposte_snapshot,
-        },
-    })

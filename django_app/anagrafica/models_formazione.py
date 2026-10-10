@@ -2067,6 +2067,8 @@ class TrainingElearningEnrollment(models.Model):
     n_slide_totali       = models.PositiveSmallIntegerField(default=0)
     best_punteggio_pct   = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     n_tentativi          = models.PositiveSmallIntegerField(default=0)
+    # Sblocco HR dei tentativi esauriti: si aggiungono al massimo configurato.
+    tentativi_extra      = models.PositiveSmallIntegerField(default=0)
     data_completamento   = models.DateField(null=True, blank=True)
     record_completamento = models.ForeignKey(
         TrainingEmployeeRecord, null=True, blank=True,

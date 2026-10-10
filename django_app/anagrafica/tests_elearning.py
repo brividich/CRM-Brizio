@@ -179,7 +179,15 @@ class ElearningImportTests(TestCase):
         from core.models import UserOnboarding
         UserOnboarding.objects.update_or_create(user=u, defaults={"completed": True, "completed_at": _tz.now()})
         self.client.force_login(u)
-        # Corso pubblicato e-learning -> qualsiasi utente autenticato puo' caricare l'immagine
+        # Corso pubblicato e facoltativo (self-service) -> l'utente può caricare l'immagine.
+        # Prompt 05: un corso obbligatorio richiede l'assegnazione (vedi tests_elearning_sicurezza).
+        self.corso.is_elearning, self.corso.is_active, self.corso.stato, self.corso.obbligatorio = True, True, "ATTIVO", False
+        self.corso.save()
+        from core.legacy_models import AnagraficaDipendente, UtenteLegacy
+        from core.models import Profile
+        utente = UtenteLegacy.objects.create(nome="disc", email="d@e.it", password="x")
+        Profile.objects.create(user=u, legacy_user_id=utente.id)
+        AnagraficaDipendente.objects.create(nome="D", cognome="Disc", aliasusername="disc", utente=utente)
         resp = self.client.get(reverse("anagrafica:formazione_slide_image", args=[slide.pk]))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp["Content-Type"], "image/png")
@@ -359,7 +367,9 @@ class ElearningAttestatoArchiveTests(TestCase):
             corso=corso, legacy_anagrafica_id=777, punteggio_pct=Decimal("90"),
             n_corrette=9, n_totali=10, superato=True,
         )
-        anag_views._crea_record_completamento_elearning(corso, 777, att, None)
+        # L'archiviazione parte dopo il commit (prompt 05, rilascio 1).
+        with self.captureOnCommitCallbacks(execute=True):
+            anag_views._crea_record_completamento_elearning(corso, 777, att, None)
         self.assertTrue(
             DocumentoDipendente.objects.filter(
                 legacy_anagrafica_id=777, tipo=DocumentoDipendente.Tipo.CERTIFICATO_FORMAZIONE,

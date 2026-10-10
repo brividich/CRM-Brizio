@@ -28,6 +28,9 @@
       </div>
     </div>
 
+    {% if anteprima %}
+    <div class="fmd-panel" style="padding:12px 16px;margin-bottom:12px;border-left:4px solid #1f87cd;">Anteprima editor: avanzamento e quiz non vengono registrati.</div>
+    {% endif %}
     {% if no_anagrafica %}
     <div class="fmd-alert">
       <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>

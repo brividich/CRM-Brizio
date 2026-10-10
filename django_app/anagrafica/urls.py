@@ -7,6 +7,7 @@ from . import views_reportistica
 from . import views_reportistica_chat
 from . import views_cambio_mansione
 from . import views_mansioni_rischio
+from . import views_elearning
 from . import views_sorveglianza
 
 app_name = "anagrafica"
@@ -440,16 +441,17 @@ urlpatterns = [
     path("formazione/corsi/<int:corso_id>/elearning/slide/<int:slide_id>/elimina", views.formazione_slide_delete, name="formazione_slide_delete"),
     # Sotto il prefisso shared "corsi-online/" così il discente può caricarla inline
     # (il gating reale è dentro la view).
-    path("formazione/corsi-online/slide/<int:slide_id>/immagine", views.formazione_slide_image, name="formazione_slide_image"),
+    path("formazione/corsi-online/slide/<int:slide_id>/immagine", views_elearning.formazione_slide_image, name="formazione_slide_image"),
     path("formazione/corsi/<int:corso_id>/elearning/domande/salva", views.formazione_question_save, name="formazione_question_save"),
     path("formazione/corsi/<int:corso_id>/elearning/domande/<int:question_id>/elimina", views.formazione_question_delete, name="formazione_question_delete"),
     path("formazione/corsi/<int:corso_id>/elearning/domande/<int:question_id>/opzioni/salva", views.formazione_option_save, name="formazione_option_save"),
     path("formazione/corsi/<int:corso_id>/elearning/opzioni/<int:option_id>/elimina", views.formazione_option_delete, name="formazione_option_delete"),
     # Discente (fruizione)
-    path("formazione/corsi-online/", views.formazione_online_catalog, name="formazione_online_catalog"),
-    path("formazione/corsi-online/<int:corso_id>/", views.formazione_online_player, name="formazione_online_player"),
-    path("formazione/corsi-online/<int:corso_id>/slide/<int:ordine>", views.formazione_online_slide, name="formazione_online_slide"),
-    path("formazione/corsi-online/<int:corso_id>/quiz", views.formazione_online_quiz, name="formazione_online_quiz"),
+    path("formazione/corsi-online/", views_elearning.formazione_online_catalog, name="formazione_online_catalog"),
+    path("formazione/corsi-online/<int:corso_id>/", views_elearning.formazione_online_player, name="formazione_online_player"),
+    path("formazione/corsi-online/<int:corso_id>/slide/<int:ordine>", views_elearning.formazione_online_slide, name="formazione_online_slide"),
+    path("formazione/corsi-online/<int:corso_id>/quiz", views_elearning.formazione_online_quiz, name="formazione_online_quiz"),
+    path("formazione/elearning/<int:corso_id>/iscritti/<int:enrollment_id>/sblocca", views_elearning.formazione_elearning_sblocca, name="formazione_elearning_sblocca"),
 
     # ── Formazione HR — Istruttori ─────────────────────────────────────────
     path("formazione/istruttori/", views.formazione_istruttori_list, name="formazione_istruttori_list"),

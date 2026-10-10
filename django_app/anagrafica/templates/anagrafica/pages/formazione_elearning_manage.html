@@ -212,7 +212,12 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
               </td>
               <td class="fmd-c fmd-num">{{ r.avanzamento }}</td>
               <td class="fmd-c fmd-num">{% if r.best is not None %}{{ r.best }}%{% else %}—{% endif %}</td>
-              <td class="fmd-c fmd-num">{{ r.n_tentativi }}</td>
+              <td class="fmd-c fmd-num">{{ r.n_tentativi }}{% if r.esauriti %}
+                <form method="post" action="{% url 'anagrafica:formazione_elearning_sblocca' corso.pk r.pk %}" style="display:flex;gap:4px;margin-top:4px;">
+                  {% csrf_token %}
+                  <input name="motivo" class="fm-input" required maxlength="300" placeholder="Motivo sblocco" aria-label="Motivo dello sblocco" style="min-width:120px;">
+                  <button class="fmd-btn fmd-btn-ghost fmd-btn-mini" type="submit">Sblocca</button>
+                </form>{% endif %}</td>
               <td>{{ r.data_completamento|default:"—" }}</td>
             </tr>
             {% endfor %}

@@ -8,6 +8,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+<!-- prompt 05 e-learning (blocco della sessione, non mescolare) -->
+- **SICUREZZA — e-learning, rilascio 1: accesso e completamento verificati lato server** (`django_app/anagrafica/views_elearning.py` nuovo, `services/elearning_fruizione.py` nuovo, `views.py`, `urls.py`, `models_formazione.py`, migration `0145`, template `formazione_online_player.html`, `formazione_online_quiz.html`, `formazione_elearning_manage.html`)
+  - Catalogo, player, slide, quiz e immagini delle slide spostati in `views_elearning.py`. Il discente accede solo a corsi **pubblicati** e **assegnati**, oppure facoltativi (self-service); prima chiunque fosse autenticato poteva fare il quiz di un corso in bozza e ottenere un attestato vero. Gli editor vedono le bozze in anteprima, senza registrazioni.
+  - Slide servite **in sequenza** (non si salta all'ultima), quiz disponibile solo dopo averle viste tutte e solo se restano tentativi; a corso completato non si rifà.
+  - Invio del quiz sotto **lock dell'iscrizione**: niente completamenti doppi né tentativi oltre il limite con invii simultanei. L'attestato si genera **dopo il commit**.
+  - Il dettaglio domanda per domanda si vede solo a quiz superato (con tentativi residui direbbe quali risposte cambiare).
+  - Tentativi esauriti: **sblocco HR** motivato dalla pagina del corso (`tentativi_extra`, audit).
+- **E-learning — promemoria corretti** (`services/elearning_notifications.py`, `test_elearning_reminders.py`): la notifica va all'**utente del portale** collegato all'anagrafica (prima riceveva l'id anagrafica come id utente: arrivava a un'altra persona o a nessuno) e porta al corso, non alla pagina HR; ricordati anche gli assegnati che non hanno mai aperto il corso; solo corsi pubblicati. Notifica in-app all'assegnazione (prima non faceva nulla).
+- Test: `anagrafica/tests_elearning_sicurezza.py` nuovo.
+<!-- fine prompt 05 -->
+
 <!-- prompt 04 anagrafica: mansioni di rischio (blocco della sessione, non mescolare) -->
 - **Anagrafica — mansioni di rischio separate dalle mansioni lavorative** (`django_app/anagrafica/models_mansioni_rischio.py` nuovo, `models.py`, `models_formazione.py`, migration `0139`–`0142`, `services/mansionario.py`, `management/commands/migra_mansioni_rischio.py` nuovo)
   - Nuovo modello `MansioneRischio` (gruppo omogeneo DVR: fattori, protocollo visite, categorie DPI, livello DVR, revisione/data DVR) collegato molti-a-molti alle mansioni lavorative (`MansioneLavorativaRischio`, con ordine e note). `TrainingRequirementRule.mansione_rischio` già pronto per l'e-learning (prompt 05).
