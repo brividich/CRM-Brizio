@@ -148,6 +148,123 @@ class OpCompletatoTests(AutomazioniBase):
         self.assertIn("OP/B", mail.outbox[0].subject)
 
 
+DEC_COLS = {
+    "id", "ex_op_nominativo", "seriale", "descrizione", "aprire_rdc", "numero_rdc", "chiudere",
+    "avanzamento", "note_capocommessa", "segnalare_cliente", "created_by_user_id",
+}
+OPERATORI = {11: ("op11@example.com", "ROSSI MARIO"), 12: ("", "BIANCHI LUCA"), 99: ("capo@example.com", "CAPO")}
+
+
+@override_settings(DEFAULT_FROM_EMAIL="hub@example.com", SITE_URL="https://hub.example")
+class DecisioniOperatoreTests(TestCase):
+    """Automazione «decisioni del capocommessa all'operatore»."""
+
+    def setUp(self):
+        with connection.cursor() as cur:
+            cur.execute(
+                "CREATE TABLE anomalie (id INTEGER PRIMARY KEY, ex_op_nominativo TEXT, seriale TEXT, "
+                "descrizione TEXT, aprire_rdc INTEGER, numero_rdc TEXT, chiudere INTEGER, avanzamento TEXT, "
+                "note_capocommessa TEXT, segnalare_cliente INTEGER, created_by_user_id INTEGER)"
+            )
+        self.cfg = {"decisioni_operatore_attivo": True, "op_completato_attivo": False}
+        self._patches = [
+            patch.object(auto, "_anomalie_cols", return_value=DEC_COLS),
+            patch.object(auto, "contatto_operatore", side_effect=lambda uid: OPERATORI.get(int(uid), ("", ""))),
+            patch.object(svc, "_fetch_pn_for_ops", side_effect=lambda ops: {o.lower(): "PN-X" for o in ops}),
+            patch("anomalie.escalation_config.get_escalation_config", side_effect=lambda: self.cfg),
+        ]
+        for p in self._patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self._patches:
+            p.stop()
+        with connection.cursor() as cur:
+            cur.execute("DROP TABLE anomalie")
+
+    def add(self, pk, autore, *, avanzamento="In attesa", rdc=False, numero="", segnalare=False, note="", chiusa=False):
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO anomalie VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                [pk, "OP/A", f"LCN{pk:05d}", f"Stato superficie: Graffi\n\ndifetto {pk}", int(rdc), numero,
+                 int(chiusa), avanzamento, note, int(segnalare), autore],
+            )
+
+    def test_raggruppa_per_operatore_e_salta_non_decise_e_proprie(self):
+        self.add(1, 11, avanzamento="Rilavorare", rdc=True, numero="RDC-7", note="sostituire")
+        self.add(2, 11, avanzamento="In attesa")                 # nessuna decisione
+        self.add(3, 12, segnalare=True)                          # decisione: segnalare
+        self.add(4, 11, avanzamento="Accetto lo stato")          # modificata dall'autore stesso
+        updates = [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4, "modified_by_legacy_id": 11}]
+        piano = auto.prepara_decisioni_operatore("OP/A", updates, deciso_da_legacy_id=99)
+        per_uid = {g["legacy_uid"]: g for g in piano}
+        self.assertEqual(sorted(per_uid), [11, 12])
+        self.assertEqual(per_uid[11]["righe"], [["LCN00001", "difetto 1", "Rilavorare · Aprire RDC n° RDC-7", "sostituire"]])
+        self.assertEqual(per_uid[12]["righe"][0][2], "In attesa · Segnalare al cliente")
+
+    def test_mail_e_notifica_all_operatore(self):
+        self.add(1, 11, avanzamento="Rilavorare", note="sostituire")
+        self.add(2, 12, chiusa=True)
+        piano = auto.prepara_decisioni_operatore("OP/A", [{"id": 1}, {"id": 2}], deciso_da_email="capo@example.com")
+        self.assertEqual(auto.invia_decisioni_operatore("OP/A", piano, deciso_da="Capo Commessa"), 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["op11@example.com"])
+        self.assertIn("OP/A", mail.outbox[0].subject)
+        self.assertIn("Rilavorare", mail.outbox[0].body)
+        self.assertIn("/gestione-anomalie?op=OP/A", mail.outbox[0].body)
+        # Senza email di notifica resta la notifica nel portale.
+        self.assertEqual(
+            sorted(Notifica.objects.filter(tipo=auto.TIPO_NOTIFICA_DECISIONE).values_list("legacy_user_id", flat=True)),
+            [11, 12],
+        )
+
+    def test_capocommessa_autore_non_si_autonotifica(self):
+        self.add(1, 99, avanzamento="Rilavorare")
+        self.assertEqual(auto.prepara_decisioni_operatore("OP/A", [{"id": 1}], deciso_da_email="CAPO@example.com"), [])
+
+    def test_disattivata(self):
+        self.cfg["decisioni_operatore_attivo"] = False
+        self.add(1, 11, avanzamento="Rilavorare")
+        self.assertEqual(auto.prepara_decisioni_operatore("OP/A", [{"id": 1}]), [])
+
+    def test_flush_portale_operatore_fuori_dal_riepilogo(self):
+        from anomalie.mail_action_models import AnomaliaPendingNotification
+
+        self.add(1, 11, avanzamento="Rilavorare")
+        AnomaliaPendingNotification.objects.create(
+            op_id="OP/A", op_nominativo="OP/A", last_modified_by="Capo Commessa",
+            last_modified_at=dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc),
+            updates_snapshot=[{"id": 1, "seriale": "LCN00001", "avanzamento": "Rilavorare",
+                               "modified_by": "Capo Commessa", "modified_by_legacy_id": 99}],
+        )
+        with (
+            patch("core.legacy_utils.legacy_table_columns", return_value=DEC_COLS),
+            patch.object(svc, "_resolve_lista_fissa_conferma", return_value=["qualita@example.com"]),
+            patch.object(svc, "_resolve_lista_rdc_segnalazione", return_value=[]),
+            patch("automazioni.services._resolve_op_recipients", return_value=[]),
+        ):
+            out = svc.flush_pending_update_notifications(threshold_minutes=5)
+        self.assertEqual((out["sent"], out["decisioni_operatore"]), (1, 1))
+        destinatari = [m.to for m in mail.outbox]
+        self.assertIn(["qualita@example.com"], destinatari)      # riepilogo senza l'operatore
+        self.assertIn(["op11@example.com"], destinatari)         # mail dedicata
+        self.assertIn("Capo Commessa", mail.outbox[1].body)
+
+
+class DecisioniOperatoreConfigPageTests(TestCase):
+    def test_voce_in_configurazione_accesa_di_default(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        admin = get_user_model().objects.create_superuser("anom-cfg", "anom-cfg@test.local", "pass12345")
+        self.client.force_login(admin)
+        html = self.client.get(reverse("anomalie_configurazione_page")).content.decode()
+        self.assertIn('id="auto_decisioni_operatore_attivo"', html)
+        self.assertIn("decisioni_operatore_attivo: true", html)
+        self.assertIn("['auto_decisioni_operatore_attivo', 'decisioni_operatore_attivo', 'bool', true]", html)
+        self.assertNotIn("{#", html)
+
+
 class PromemoriaEscalationFixTests(TestCase):
     def test_promemoria_di_op_gestiti_vengono_chiusi(self):
         Notifica.objects.create(legacy_user_id=7, tipo="anomalia_da_gestire", messaggio="x",

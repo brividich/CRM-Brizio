@@ -47,6 +47,9 @@ KEY_RDC_ATTIVO = "anomalie_auto_rdc_attivo"
 KEY_RDC_GIORNI = "anomalie_auto_rdc_giorni"
 KEY_DIGEST_ATTIVO = "anomalie_auto_digest_attivo"
 KEY_OP_COMPLETATO_ATTIVO = "anomalie_auto_op_completato_attivo"
+# Eccezione: accesa di default. Non gira nel task orario ma quando il capocommessa
+# decide (pagina della mail o Gestione anomalie): riporta la decisione all'operatore.
+KEY_DECISIONI_OPERATORE_ATTIVO = "anomalie_auto_decisioni_operatore_attivo"
 
 DEFAULT_RICORRENZA_N = 3
 RICORRENZA_N_MIN, RICORRENZA_N_MAX = 2, 50
@@ -106,6 +109,7 @@ def get_escalation_config() -> dict:
         ),
         "digest_attivo": _parse_bool(SiteConfig.get(KEY_DIGEST_ATTIVO, ""), default=False),
         "op_completato_attivo": _parse_bool(SiteConfig.get(KEY_OP_COMPLETATO_ATTIVO, ""), default=False),
+        "decisioni_operatore_attivo": _parse_bool(SiteConfig.get(KEY_DECISIONI_OPERATORE_ATTIVO, ""), default=True),
     }
 
 
@@ -121,6 +125,8 @@ def save_automazioni_config(payload: dict) -> bool:
         "rdc_attivo": (KEY_RDC_ATTIVO, "Anomalie: promemoria RDC richiesto senza numero."),
         "digest_attivo": (KEY_DIGEST_ATTIVO, "Anomalie: digest settimanale KPI ai supervisori."),
         "op_completato_attivo": (KEY_OP_COMPLETATO_ATTIVO, "Anomalie: mail a CC/CAR quando un OP ha tutte le anomalie chiuse."),
+        "decisioni_operatore_attivo": (KEY_DECISIONI_OPERATORE_ATTIVO,
+                                       "Anomalie: mail e notifica all'operatore con le decisioni del capocommessa."),
     }
     for field, (key, desc) in flags.items():
         if field in payload:

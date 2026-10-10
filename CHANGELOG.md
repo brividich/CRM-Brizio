@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Anomalie — automazione «Decisioni del capocommessa all'operatore»** (`django_app/anomalie/automazioni_service.py`, `escalation_config.py`, `mail_action_service.py`, `mail_action_views.py`, `views.py`, `templates/anomalie/pages/anomalie_configurazione.html`, `tests_automazioni.py`, `docs/moduli/anomalie.md`).
+  - Quando il capocommessa decide dalla pagina della mail o da Gestione anomalie, l'operatore che ha segnalato le anomalie riceve una mail dedicata (S/N, anomalia, stato, RDC con numero, segnalazione al cliente, chiusura, note) e una notifica nel portale (`anomalia_decisione`) che apre l'OP. Più operatori sullo stesso OP: una mail ciascuno.
+  - Saltate le anomalie senza decisione e quelle modificate dall'autore stesso; chi riceve la mail dedicata esce dal riepilogo generico. Dalla Gestione la mail parte con la coda di riepilogo (~5 min) e solo dopo l'esito del riepilogo, così un ritentativo SMTP non la duplica.
+  - Accesa di default, si spegne in Configurazione > Promemoria & escalation (`anomalie_auto_decisioni_operatore_attivo`). Nessuna migrazione.
+  - **Correzione:** `_resolve_segnalante_email` non trovava mai il segnalante (query su `utenti.cognome`, colonna inesistente, e indirizzo da `utenti.email`, che è il login): ora usa `anagrafica_dipendenti.email_notifica`. Effetto: anche la copia di riepilogo al segnalante del controllo a blocchi inizia ad arrivare.
+
 - **Contatori — integrazione Centrale/menu e wizard in main** (`django_app/contatori/templates/contatori/_modulo_nav.html`, `snmp_dispositivo_detail.html`, `tests_cruscotto.py`, `docs/moduli/contatori.md`).
   - Menu del modulo: tre gruppi Operatività / Economico / Configurazione; sotto Configurazione (solo permesso gestione) anche le voci dei wizard «+ Dispositivo SNMP», «+ MFC», «+ Profilo SNMP». Il wizard colonna evidenzia Profili SNMP, il wizard lettore OID il Monitor SNMP.
   - Scheda dispositivo: sezione Info della Centrale insieme a banner «non verificato», errore con codice catalogo e pulsanti «+ Lettore guidato» / «Modulo completo».

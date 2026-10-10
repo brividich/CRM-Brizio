@@ -10,6 +10,9 @@ sono spente di default: si accendono da Configurazione > Promemoria & escalation
 - Digest settimanale KPI: il lunedi' all'ora del resoconto, ai supervisori.
 - OP completato: quando l'ultima anomalia aperta di un OP viene chiusa -> mail a
   CC/CAR con il link al Report OP.
+- Decisioni all'operatore (accesa di default, fuori dal task orario): quando il
+  capocommessa decide sulle anomalie (pagina della mail o Gestione anomalie),
+  l'operatore che le ha segnalate riceve mail e notifica con le decisioni.
 
 La tabella `anomalie` e' legacy (SQL Server in prod, SQLite nei test): le query
 restano semplici e l'aggregazione si fa in Python. Le date sono DATETIME2 scritte
@@ -500,5 +503,161 @@ def notify_op_completati(op_ids: list[str] | None = None, *, now=None) -> int:
         if _send(kind="op_completato", subject=subject, lines=lines, html=html, to=to, op_id=op_id,
                  context={"n": n}):
             _marker_set(M.Tipo.OP_COMPLETATO, chiave, {"inviata": True, "to": len(to)})
+            sent += 1
+    return sent
+
+
+# ── 5. Decisioni del capocommessa all'operatore ────────────────────────────
+
+TIPO_NOTIFICA_DECISIONE = "anomalia_decisione"
+
+
+def contatto_operatore(legacy_uid) -> tuple[str, str]:
+    """(email di notifica, nome) dell'utente legacy che ha segnalato l'anomalia.
+
+    ``anomalie.created_by_user_id`` è ``utenti.id``; l'indirizzo reale sta in
+    ``anagrafica_dipendenti.email_notifica`` (mai ``email``: è il login legacy).
+    """
+    try:
+        uid = int(legacy_uid)
+    except (TypeError, ValueError):
+        return "", ""
+    try:
+        from core import naming
+        from core.legacy_models import AnagraficaDipendente, UtenteLegacy
+
+        dip = AnagraficaDipendente.objects.filter(utente_id=uid).only("nome", "cognome", "email_notifica").first()
+        if dip is not None:
+            return str(dip.email_notifica or "").strip(), naming.nome_completo(dip.nome, dip.cognome) or ""
+        utente = UtenteLegacy.objects.filter(id=uid).only("nome").first()
+        return "", str(getattr(utente, "nome", "") or "").strip()
+    except Exception:
+        logger.warning("contatto_operatore: risoluzione fallita uid=%s", uid, exc_info=True)
+        return "", ""
+
+
+def _etichetta_decisione(row: dict) -> str:
+    parti = ["Chiusa" if row.get("chiudere") else (str(row.get("avanzamento") or "").strip() or "In attesa")]
+    if row.get("aprire_rdc"):
+        numero = str(row.get("numero_rdc") or "").strip()
+        parti.append(f"Aprire RDC{f' n° {numero}' if numero else ''}")
+    if row.get("segnalare_cliente"):
+        parti.append("Segnalare al cliente")
+    return " · ".join(parti)
+
+
+def prepara_decisioni_operatore(op_id: str, updates: list[dict], *, deciso_da_legacy_id=None,
+                                deciso_da_email: str = "") -> list[dict]:
+    """Raggruppa per operatore segnalante le anomalie su cui c'è una decisione.
+
+    Non invia nulla: chi chiama esclude questi indirizzi dalla mail di riepilogo
+    e manda le mail con ``invia_decisioni_operatore`` (anche dopo un errore SMTP
+    del riepilogo, senza doppioni al ritentativo).
+
+    Si salta l'anomalia se l'autore è chi ha deciso (l'operatore che modifica la
+    propria segnalazione) o se non c'è ancora una decisione (``riga_gestita``).
+    Ogni update può portare ``modified_by_legacy_id``/``modified_by``: nella coda
+    del portale gli update dello stesso OP possono venire da persone diverse.
+    """
+    from anomalie.controllo_service import riga_gestita, separa_descrizione
+    from anomalie.escalation_config import get_escalation_config
+
+    if not updates or not get_escalation_config().get("decisioni_operatore_attivo"):
+        return []
+    cols = _anomalie_cols()
+    if "created_by_user_id" not in cols:
+        return []
+    per_id: dict[int, dict] = {}
+    for u in updates:
+        try:
+            per_id[int(u.get("id"))] = u
+        except (TypeError, ValueError):
+            continue
+    if not per_id:
+        return []
+    select, _ = _select_base(cols, ("created_by_user_id", "note_capocommessa", "segnalare_cliente"))
+    ph = ",".join(["%s"] * len(per_id))
+    righe = _fetch(f"SELECT {select} FROM anomalie WHERE id IN ({ph})", list(per_id))
+
+    gruppi: dict[int, dict] = {}
+    for row in sorted(righe, key=lambda r: r.get("id") or 0):
+        autore = row.get("created_by_user_id")
+        if autore in (None, ""):
+            continue
+        autore = int(autore)
+        u = per_id.get(int(row["id"])) or {}
+        decisore = u.get("modified_by_legacy_id", deciso_da_legacy_id)
+        if decisore not in (None, "") and int(decisore) == autore:
+            continue
+        if not riga_gestita(row):
+            continue
+        gruppo = gruppi.get(autore)
+        if gruppo is None:
+            email, nome = contatto_operatore(autore)
+            if deciso_da_email and email.lower() == deciso_da_email.strip().lower():
+                continue
+            gruppo = gruppi[autore] = {"legacy_uid": autore, "email": email, "nome": nome,
+                                       "deciso_da": set(), "righe": []}
+        if str(u.get("modified_by") or "").strip():
+            gruppo["deciso_da"].add(str(u["modified_by"]).strip())
+        _stati, testo = separa_descrizione(row.get("descrizione"))
+        gruppo["righe"].append([
+            str(row.get("seriale") or "").strip() or "—",
+            (testo or "—")[:160],
+            _etichetta_decisione(row),
+            str(row.get("note_capocommessa") or "").strip()[:300] or "—",
+        ])
+    for g in gruppi.values():
+        g["deciso_da"] = sorted(g["deciso_da"])
+    return list(gruppi.values())
+
+
+def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str = "") -> int:
+    """Mail (se l'operatore ha un'email di notifica) e notifica in-app per gruppo.
+    Ritorna il numero di mail inviate. Mai bloccante."""
+    from core.models import Notifica
+    from anomalie.mail_action_service import _fetch_pn_for_ops
+
+    if not piano:
+        return 0
+    pn = ""
+    try:
+        pn = _fetch_pn_for_ops([op_id]).get(str(op_id).strip().lower(), "")
+    except Exception:
+        logger.warning("decisioni operatore: P/N non letto op=%s", op_id, exc_info=True)
+    link = f"{_site_url()}{op_url(op_id)}" if _site_url() else ""
+    sent = 0
+    for g in piano:
+        n = len(g["righe"])
+        chi = ", ".join(g.get("deciso_da") or []) or deciso_da or "il capocommessa"
+        cosa = f"{n} anomali{'a' if n == 1 else 'e'}"
+        try:
+            Notifica.objects.create(
+                legacy_user_id=g["legacy_uid"], tipo=TIPO_NOTIFICA_DECISIONE,
+                messaggio=f"OP {op_id}: decisione di {chi} su {cosa} che hai segnalato."[:500],
+                url_azione=op_url(op_id),
+            )
+        except Exception:
+            logger.warning("decisioni operatore: notifica fallita op=%s uid=%s", op_id, g["legacy_uid"], exc_info=True)
+        if not g.get("email"):
+            logger.info("decisioni operatore: uid=%s senza email di notifica, solo notifica in-app", g["legacy_uid"])
+            continue
+        subject = f"[Novicrom Hub] {f'P/N {pn} · ' if pn else ''}OP {op_id} — decisione su {cosa} che hai segnalato"
+        lines = [f"{chi} ha registrato una decisione su {cosa} dell'OP {op_id}"
+                 f"{f' (P/N {pn})' if pn else ''} che hai segnalato.", ""]
+        lines += [f"  • S/N {r[0]} · {r[2]}" + (f" · Note: {r[3]}" if r[3] != "—" else "") + f"\n      {r[1]}"
+                  for r in g["righe"]]
+        if link:
+            lines += ["", f"Gestione anomalie: {link}"]
+        html = _render_mail(
+            badge="Decisione capocommessa", eyebrow=f"OP {op_id}{f' · P/N {pn}' if pn else ''}",
+            title=f"Decisione su {cosa} che hai segnalato",
+            intro=(f"{'Buongiorno ' + g['nome'] + ', ' if g.get('nome') else ''}{chi} ha deciso come procedere. "
+                   "Lo stato e le note qui sotto sono quelli registrati nel portale."),
+            columns=["S/N", "Anomalia", "Decisione", "Note del capocommessa"], rows=g["righe"],
+            cta_url=link, cta_label="Apri in Gestione anomalie",
+        )
+        if _send(kind="decisioni_operatore", subject=subject, lines=lines, html=html, to=[g["email"]],
+                 op_id=op_id, context={"n": n, "deciso_da": chi}):
             sent += 1
     return sent

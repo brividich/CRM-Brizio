@@ -3030,6 +3030,10 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
                 "aprire_rdc": bool(payload_map.get("aprire_rdc")),
                 "segnalare": bool(segnalare_val),
                 "chiudere": bool(chiudere_val),
+                # Chi ha salvato: l'automazione «decisioni all'operatore» non avvisa
+                # l'operatore delle modifiche fatte da lui stesso.
+                "modified_by": modified_by,
+                "modified_by_legacy_id": int(legacy_user.id) if legacy_user else None,
             }
             from anomalie.mail_action_service import register_pending_update
             register_pending_update(
