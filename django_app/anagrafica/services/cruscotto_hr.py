@@ -64,6 +64,9 @@ class Cruscotto:
     cambi_aperti: int = 0
     cambi_ritardo: int = 0
     righe_cambi: list[Riga] = field(default_factory=list)
+    # Stato operativo (prompt 04): solo l'etichetta, mai il motivo sanitario.
+    n_non_idonei_operare: int = 0
+    righe_stato_operativo: list[Riga] = field(default_factory=list)
 
     @property
     def copertura_totale(self) -> Copertura:
@@ -168,7 +171,21 @@ def calcola(*, include_visite: bool, oggi: date | None = None) -> Cruscotto:
             righe.append(Riga(pid, nomi[pid], q.tipo.nome, q.data_scadenza, tono))
     out.righe_qualifiche = _prime(righe)
 
-    aperti = list(AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO)
+    try:
+        from . import stato_operativo
+        stati = [s for s in stato_operativo.calcola(giorno=oggi).values() if s.codice != stato_operativo.OK]
+        out.n_non_idonei_operare = sum(1 for s in stati if s.bloccante)
+        out.righe_stato_operativo = _prime([
+            Riga(ctx.canonico(s.legacy_id), nomi.get(ctx.canonico(s.legacy_id), f"#{s.legacy_id}"),
+                 s.etichetta_visibile(include_visite),
+                 None, "ko" if s.bloccante else "warn")
+            for s in stati
+        ])
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("cruscotto: stato operativo non calcolabile", exc_info=True)
+
+    aperti = list(AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True)
                   .order_by("entro_il"))
     out.cambi_aperti = len(aperti)
     out.cambi_ritardo = sum(1 for a in aperti if a.in_ritardo)

@@ -50,6 +50,8 @@ class Confronto:
     dpi_nuovi: list = field(default_factory=list)              # (CategoriaDPI, consegnato: bool)
     dpi_non_piu_dovuti: list = field(default_factory=list)
     sds_da_leggere: list = field(default_factory=list)
+    # (dominio, pk) -> origine strutturata nella mansione di destinazione
+    origini_dopo: dict = field(default_factory=dict)
 
     @property
     def cambia_qualcosa(self) -> bool:
@@ -88,10 +90,10 @@ class Confronto:
         }
 
 
-def _dettaglio_mansione(persona) -> dict:
+def _dettaglio_mansione(persona, data=None) -> dict:
     return mansionario.requisiti_dipendenti_dettaglio(
         [persona.id], mansioni_per_legacy={persona.id: persona.mansione},
-        aree_per_legacy={persona.id: persona.area_aziendale_id},
+        aree_per_legacy={persona.id: persona.area_aziendale_id}, data=data,
     ).get(persona.id) or {"requisiti": mansionario.requisiti_vuoti(), "origini": {}}
 
 
@@ -112,7 +114,8 @@ def _dpi_consegnati(legacy_ids: list[int]) -> set[int]:
 
 
 def confronta(legacy_id: int, mansione_nuova: str, *, area_nuova_id: int | None = None,
-              mansione_attuale: str | None = None, area_attuale_id: int | None = None) -> Confronto:
+              mansione_attuale: str | None = None, area_attuale_id: int | None = None,
+              data=None) -> Confronto:
     """Confronto fra la mansione attuale (o quella indicata) e la nuova, per la persona."""
     from .conformita import _persone
 
@@ -127,7 +130,8 @@ def confronta(legacy_id: int, mansione_nuova: str, *, area_nuova_id: int | None 
     if not dopo.mansione:
         return out
 
-    det_prima, det_dopo = _dettaglio_mansione(prima), _dettaglio_mansione(dopo)
+    det_prima, det_dopo = _dettaglio_mansione(prima, data), _dettaglio_mansione(dopo, data)
+    out.origini_dopo = det_dopo.get("origini_strutturate") or {}
     fattori_prima = {f.pk: f for f in det_prima["requisiti"].get("fattori") or []}
     fattori_dopo = {f.pk: f for f in det_dopo["requisiti"].get("fattori") or []}
     out.rischi_acquisiti = [f for pk, f in fattori_dopo.items() if pk not in fattori_prima]
@@ -201,40 +205,154 @@ def _voci_piano(confronto: Confronto, entro_il: date) -> list[dict]:
     return voci
 
 
+def chiave_voce(tipo: str, riferimento_id: int | None) -> str:
+    """Chiave stabile di un requisito del piano: «TIPO:riferimento» (0 = generico)."""
+    return f"{tipo}:{riferimento_id or 0}"
+
+
+_DOMINIO_PER_TIPO = {"VISITA": "visite", "FORMAZIONE": "corsi", "DPI": "dpi"}
+_TIPO_PER_DOMINIO = {v: k for k, v in _DOMINIO_PER_TIPO.items()}
+
+
+def _origine(voce: dict, origini_dopo: dict) -> dict:
+    """Origine strutturata della voce (mansione di rischio / override), se nota."""
+    dominio = _DOMINIO_PER_TIPO.get(voce["tipo"])
+    origine = origini_dopo.get((dominio, voce["riferimento_id"])) if dominio and voce["riferimento_id"] else None
+    if not origine:
+        return {"origine_tipo": "ALTRO" if voce["riferimento_id"] is None else "MANSIONE"}
+    return {
+        "origine_tipo": origine.get("tipo", "ALTRO"),
+        "origine_mansione_rischio_id": origine.get("mansione_rischio_id"),
+        "origine_override_id": origine.get("override_id"),
+    }
+
+
 @transaction.atomic
-def genera_piano(assegnazione, *, mansione_precedente: str, area_precedente_id: int | None = None) -> list:
-    """Crea gli adempimenti dello spostamento (rigenerando quelli ancora aperti).
+def genera_piano(assegnazione, *, mansione_precedente: str, area_precedente_id: int | None = None,
+                 user=None) -> list:
+    """Allinea il piano di adeguamento dello spostamento al delta dei requisiti.
 
-    Gli adempimenti gia' chiusi (fatti o «non necessari») restano: sono storia.
+    Idempotente: ogni requisito ha una ``chiave`` stabile. Rieseguire con gli
+    stessi dati non crea doppioni; le voci aperte ancora dovute si aggiornano,
+    quelle non più dovute passano a «non più dovuto» (con traccia, non
+    cancellate), quelle già chiuse (fatte o «non necessarie») restano storia.
+    L'assegnazione è bloccata (``select_for_update``) per evitare che due
+    rigenerazioni concorrenti si sovrappongano. Ritorna le voci create.
     """
-    from ..models import AdempimentoCambioMansione
+    from ..models import AdempimentoCambioMansione as A, DipendenteAssegnazione
+    from . import eventi_sicurezza
 
+    DipendenteAssegnazione.objects.select_for_update().filter(pk=assegnazione.pk).first()
     confronto = confronta(assegnazione.legacy_anagrafica_id, assegnazione.mansione,
                           area_nuova_id=assegnazione.area_aziendale_id,
-                          mansione_attuale=mansione_precedente, area_attuale_id=area_precedente_id)
-    assegnazione.adempimenti.filter(stato=AdempimentoCambioMansione.STATO_APERTO).delete()
-    chiusi = {(a.tipo, a.riferimento_id, a.descrizione) for a in assegnazione.adempimenti.all()}
-    creati = []
-    for voce in _voci_piano(confronto, assegnazione.data_inizio):
-        if (voce["tipo"], voce["riferimento_id"], voce["descrizione"]) in chiusi:
+                          mansione_attuale=mansione_precedente, area_attuale_id=area_precedente_id,
+                          data=assegnazione.data_inizio)
+    voci = {chiave_voce(v["tipo"], v["riferimento_id"]): v for v in _voci_piano(confronto, assegnazione.data_inizio)}
+    esistenti = {a.chiave: a for a in assegnazione.adempimenti.filter(attivo=True)}
+    adesso = timezone.now()
+    creati, aggiornati, non_piu_dovuti = [], 0, 0
+
+    for chiave, voce in voci.items():
+        origine = _origine(voce, confronto.origini_dopo)
+        attuale = esistenti.get(chiave)
+        if attuale is None:
+            creati.append(A.objects.create(
+                assegnazione=assegnazione, legacy_anagrafica_id=assegnazione.legacy_anagrafica_id,
+                entro_il=assegnazione.data_inizio, chiave=chiave, **voce, **origine,
+            ))
             continue
-        creati.append(AdempimentoCambioMansione.objects.create(
-            assegnazione=assegnazione, legacy_anagrafica_id=assegnazione.legacy_anagrafica_id,
-            entro_il=assegnazione.data_inizio, **voce,
-        ))
+        if attuale.stato != A.STATO_APERTO:
+            continue  # gia' chiusa: e' storia, non si riapre da sola
+        campi = {"descrizione": voce["descrizione"], "motivo": voce["motivo"],
+                 "entro_il": assegnazione.data_inizio, **origine}
+        cambiati = [k for k, v in campi.items() if getattr(attuale, k) != v]
+        if cambiati:
+            for k in cambiati:
+                setattr(attuale, k, campi[k])
+            attuale.save(update_fields=cambiati)
+            aggiornati += 1
+
+    # Requisiti ancora dovuti alla persona (mansione di destinazione + override +
+    # area + esposizioni dirette): una voce nata da un override o da un
+    # riallineamento sta sulla stessa card e non va chiusa solo perché il delta
+    # dello spostamento non la contiene.
+    dovuti = mansionario.requisiti_dipendente(
+        assegnazione.legacy_anagrafica_id, mansione_nome=assegnazione.mansione,
+        area_id=assegnazione.area_aziendale_id, data=max(timezone.localdate(), assegnazione.data_inizio),
+    )
+    ancora = {chiave_voce(t, getattr(o, "pk", o)) for d, t in _TIPO_PER_DOMINIO.items() for o in dovuti.get(d) or []}
+    for chiave, attuale in esistenti.items():
+        if chiave in voci or chiave in ancora or attuale.stato != A.STATO_APERTO:
+            continue
+        attuale.stato = A.STATO_NON_PIU_DOVUTO
+        attuale.attivo = False
+        attuale.chiuso_il = adesso
+        attuale.chiuso_da = user if getattr(user, "is_authenticated", False) else None
+        attuale.chiusura_nota = "Non più dovuto: i requisiti della mansione di destinazione sono cambiati"
+        attuale.save(update_fields=["stato", "attivo", "chiuso_il", "chiuso_da", "chiusura_nota"])
+        non_piu_dovuti += 1
+
+    if creati or aggiornati or non_piu_dovuti:
+        eventi_sicurezza.registra(
+            assegnazione.legacy_anagrafica_id, "PIANO_AGGIORNATO",
+            f"Piano di adeguamento per «{assegnazione.mansione}»: {len(creati)} nuovi, "
+            f"{aggiornati} aggiornati, {non_piu_dovuti} non più dovuti",
+            user=user, data_effetto=assegnazione.data_inizio, oggetto=assegnazione,
+            payload={"assegnazione_id": assegnazione.pk, "mansione": assegnazione.mansione,
+                     "mansione_precedente": mansione_precedente, "creati": len(creati),
+                     "aggiornati": aggiornati, "non_piu_dovuti": non_piu_dovuti},
+        )
+    if creati:
+        legacy_id, pk = assegnazione.legacy_anagrafica_id, assegnazione.pk
+        transaction.on_commit(lambda: _notifica_piano_dopo_commit(legacy_id, pk))
     return creati
+
+
+def _notifica_piano_dopo_commit(legacy_id: int, assegnazione_id: int) -> None:
+    try:
+        from .notifiche_cambio_mansione import notifica_piano_cambio_mansione
+        notifica_piano_cambio_mansione(legacy_id, assegnazione_id)
+    except Exception:
+        logger.warning("notifica piano cambio mansione fallita (assegnazione %s)", assegnazione_id, exc_info=True)
+
+
+@transaction.atomic
+def annulla_piano(assegnazione, *, motivo: str, user=None) -> int:
+    """Annulla (non cancella) gli adempimenti di uno spostamento annullato.
+
+    Le voci aperte diventano ANNULLATO con il motivo; quelle già chiuse restano
+    com'erano. Va chiamata PRIMA di eliminare l'assegnazione: dopo, il
+    collegamento va a NULL (SET_NULL) e la riga resta nella storia.
+    """
+    from ..models import AdempimentoCambioMansione as A
+
+    motivo = (motivo or "").strip()[:300] or "Spostamento programmato annullato"
+    adesso = timezone.now()
+    annullati = 0
+    for adempimento in assegnazione.adempimenti.select_for_update().filter(stato=A.STATO_APERTO):
+        adempimento.stato = A.STATO_ANNULLATO
+        adempimento.attivo = False
+        adempimento.annullato_il = adesso
+        adempimento.annullato_da = user if getattr(user, "is_authenticated", False) else None
+        adempimento.annullato_motivo = motivo
+        adempimento.save(update_fields=["stato", "attivo", "annullato_il", "annullato_da", "annullato_motivo"])
+        annullati += 1
+    return annullati
 
 
 def _soddisfatto(adempimento, ctx, persona) -> str:
     """Motivo di chiusura automatica, o stringa vuota se l'adempimento e' ancora da fare."""
     return requisito_soddisfatto(
         adempimento.tipo, adempimento.riferimento_id, ctx=ctx, persona=persona,
-        dal=adempimento.assegnazione.created_at.date(), mansione=adempimento.assegnazione.mansione,
+        # Retroattivo registrato tardi: la tolleranza parte dalla decorrenza, non
+        # dalla data di registrazione (vale la piu' vecchia delle due).
+        dal=min(adempimento.assegnazione.created_at.date(), adempimento.assegnazione.data_inizio),
+        mansione=adempimento.assegnazione.mansione, entro=adempimento.entro_il,
     )
 
 
 def requisito_soddisfatto(tipo_voce: str, riferimento_id: int | None, *, ctx, persona,
-                          dal: date, mansione: str) -> str:
+                          dal: date, mansione: str, entro: date | None = None) -> str:
     """Verifica condivisa (piano cambio mansione e onboarding): motivo di chiusura
     automatica, o stringa vuota se il requisito e' ancora da soddisfare.
 
@@ -261,14 +379,16 @@ def requisito_soddisfatto(tipo_voce: str, riferimento_id: int | None, *, ctx, pe
             if requisiti._famiglia(v.tipo) != famiglia:
                 continue
             scadenza = requisiti.scadenza_prudente(v.data_svolgimento, v.tipo.durata_mesi, tipo.durata_mesi)
-            if scadenza is None or scadenza >= oggi:
+            # Deve valere fino alla decorrenza, non solo oggi: una visita che
+            # scade prima dello spostamento non copre il cambio mansione.
+            if scadenza is None or scadenza >= max(oggi, entro or oggi):
                 return f"Visita «{v.tipo.nome}» del {v.data_svolgimento:%d/%m/%Y}"
         return ""
     if tipo_voce == A.TIPO_FORMAZIONE:
         if riferimento_id is None:
             return ""  # informazione/formazione generica: si chiude a mano
         ultimo = requisiti.ultimi_completamenti(ctx, {persona.id: persona}).get((persona.id, riferimento_id))
-        if ultimo and (ultimo[1] is None or ultimo[1] >= oggi):
+        if ultimo and (ultimo[1] is None or ultimo[1] >= max(oggi, entro or oggi)):
             return f"Corso completato il {ultimo[0]:%d/%m/%Y}"
         return ""
     if tipo_voce == A.TIPO_DPI:
@@ -289,7 +409,9 @@ def aggiorna_piani(legacy_ids=None) -> dict[str, int]:
     """Chiude gli adempimenti aperti il cui requisito ora risulta soddisfatto."""
     from ..models import AdempimentoCambioMansione
 
-    aperti = AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO)
+    aperti = AdempimentoCambioMansione.objects.filter(
+        stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True, assegnazione__isnull=False,
+    )
     if legacy_ids is not None:
         aperti = aperti.filter(legacy_anagrafica_id__in=[int(i) for i in legacy_ids])
     aperti = list(aperti.select_related("assegnazione"))
@@ -308,10 +430,19 @@ def aggiorna_piani(legacy_ids=None) -> dict[str, int]:
             logger.exception("verifica adempimento %s fallita", adempimento.pk)
             continue
         if motivo:
-            adempimento.stato = AdempimentoCambioMansione.STATO_COMPLETATO
-            adempimento.chiuso_il = timezone.now()
-            adempimento.chiusura_automatica = True
-            adempimento.chiusura_nota = motivo[:300]
-            adempimento.save(update_fields=["stato", "chiuso_il", "chiusura_automatica", "chiusura_nota"])
+            from . import eventi_sicurezza
+            with transaction.atomic():
+                aggiornate = AdempimentoCambioMansione.objects.filter(
+                    pk=adempimento.pk, stato=AdempimentoCambioMansione.STATO_APERTO,
+                ).update(stato=AdempimentoCambioMansione.STATO_COMPLETATO, chiuso_il=timezone.now(),
+                         chiusura_automatica=True, chiusura_nota=motivo[:300])
+                if not aggiornate:
+                    continue  # chiuso nel frattempo da un'altra esecuzione
+                eventi_sicurezza.registra(
+                    adempimento.legacy_anagrafica_id, "ADEMPIMENTO_CHIUSO",
+                    f"{adempimento.get_tipo_display()}: chiuso automaticamente",
+                    oggetto=adempimento,
+                    payload={"adempimento_id": adempimento.pk, "chiave": adempimento.chiave},
+                )
             chiusi += 1
     return {"controllati": len(aperti), "chiusi": chiusi}

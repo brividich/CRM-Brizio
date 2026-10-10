@@ -77,13 +77,14 @@ class Command(BaseCommand):
         cards = []
         for v in in_scadenza:
             days_left = (v.data_scadenza - today).days
+            # Privacy: nessun esito/giudizio di idoneita' nella mail (dato sanitario).
             lines.append(
                 f"  [{days_left}gg] dipendente legacy_id={v.legacy_anagrafica_id} - "
-                f"esito {v.esito} - scadenza {v.data_scadenza:%d-%m-%Y}"
+                f"scadenza {v.data_scadenza:%d-%m-%Y}"
             )
             cards.append({
                 "title": f"Dipendente #{v.legacy_anagrafica_id}",
-                "subtitle": f"Esito ultima visita: {v.get_esito_display()}",
+                "subtitle": "Visita medica in scadenza",
                 "badge": scadenza_badge(days_left),
                 "note": f"Scadenza {v.data_scadenza:%d-%m-%Y}",
                 "accent": "#f59e0b",

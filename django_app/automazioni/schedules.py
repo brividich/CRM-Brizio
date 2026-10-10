@@ -432,6 +432,27 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ANAGRAFICA HR — cambio mansione: adempimenti in ritardo + persone con stato
+        # operativo da verificare (visita del cambio mansione mancante, non idoneita').
+        # No-op senza destinatari (SiteConfig cambio_mansione_emails). Nessun dato clinico.
+        "name": "cambio_mansione_digest",
+        "func": "anagrafica.tasks.run_cambio_mansione_digest",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 7 * * 1-5",     # giorni feriali alle 07:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # ANAGRAFICA HR — controllo di integrita' requisiti/adempimenti/visite: il
+        # report finisce in monitoring (vedi anagrafica.services.integrita_scadenze).
+        "name": "anagrafica_integrita_sicurezza",
+        "func": "anagrafica.tasks.run_integrita_sicurezza",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "40 0 * * *",       # ogni notte alle 00:40, dopo il ricalcolo scadenze
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # ANAGRAFICA HR — reminder visite mediche scadute/in scadenza: digest ai
         # responsabili (card+badge nel frame HUB) + notifica in-app al dipendente.
         # Destinatari visite_reminder_emails con fallback amministrativo da verificare.
