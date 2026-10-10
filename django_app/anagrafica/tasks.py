@@ -297,6 +297,20 @@ def run_import_cedolini_sharepoint() -> dict:
     }
 
 
+def run_elearning_assegnazioni() -> dict:
+    """Assegnazioni automatiche dei corsi e-learning obbligatori e cicli di rinnovo."""
+    from anagrafica.services.elearning_assegnazioni import sincronizza
+    from anagrafica.services.elearning_tracciamento import chiudi_sessioni_inattive
+
+    try:
+        esito = sincronizza()
+        esito["sessioni_chiuse"] = chiudi_sessioni_inattive()
+        return esito
+    except Exception:
+        logger.exception("run_elearning_assegnazioni: eccezione inattesa")
+        raise
+
+
 def run_cambio_mansione_digest() -> dict:
     """Riepilogo cambio mansione (adempimenti in ritardo + stato operativo).
 

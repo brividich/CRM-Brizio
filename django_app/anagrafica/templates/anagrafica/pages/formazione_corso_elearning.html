@@ -33,6 +33,9 @@
         <a href="{% url 'anagrafica:formazione_online_player' corso.pk %}" class="fmd-btn fmd-btn-ghost" target="_blank">
           <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Anteprima discente
         </a>
+        <a href="{% url 'anagrafica:elearning_regola_corso' corso.pk %}" class="fmd-btn fmd-btn-ghost">
+          <svg class="fmd-ico"><use href="#i-shield"/></svg>Regole FAD
+        </a>
       </div>
     </div>
 
@@ -58,6 +61,19 @@
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <input type="file" name="file" accept=".pptx,.ppt,.odp,.pdf" class="fm-input" required style="max-width:420px;">
           <button type="submit" class="fmd-btn fmd-btn-navy"><svg class="fmd-ico"><use href="#i-download"/></svg>Importa</button>
+        </div>
+      </form>
+
+      {# Video: una slide video (MP4, storage privato) #}
+      <form method="post" action="{% url 'anagrafica:formazione_slide_video_upload' corso.pk %}" enctype="multipart/form-data" class="fm-import-box">
+        {% csrf_token %}
+        <div class="fmd-block-title" style="font-size:13px;margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-download"/></svg> Aggiungi un video</div>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">File <strong>.mp4</strong> (verificato dal contenuto). Diventa una slide in coda. La permanenza minima vale come tempo di visione richiesto.</p>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="text" name="titolo" class="fm-input" placeholder="Titolo del video" required maxlength="300" style="max-width:260px;" aria-label="Titolo del video">
+          <input type="number" name="durata_minima_secondi" class="fm-input" min="0" placeholder="Visione minima (s)" style="max-width:170px;" aria-label="Visione minima in secondi">
+          <input type="file" name="video" accept=".mp4,video/mp4" class="fm-input" required style="max-width:320px;" aria-label="File video">
+          <button type="submit" class="fmd-btn fmd-btn-navy">Carica video</button>
         </div>
       </form>
 

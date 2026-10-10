@@ -100,12 +100,21 @@ def segna_slide_vista(corso, legacy_id: int, ordine: int, n_slide: int):
     return enr
 
 
+def ciclo_corrente(corso, legacy_id: int) -> int:
+    """Il ciclo in corso: il più alto fra iscrizioni e assegnazioni (1 se nessuno)."""
+    from django.db.models import Max
+    from ..models_formazione import TrainingAssignment, TrainingElearningEnrollment
+    a = TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).aggregate(m=Max("ciclo"))["m"]
+    e = TrainingElearningEnrollment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).aggregate(m=Max("ciclo"))["m"]
+    return max(a or 1, e or 1)
+
+
 def iscrizione(corso, legacy_id: int, n_slide: int, *, lock: bool = False):
-    """L'iscrizione del discente (creata se manca); ``lock`` = select_for_update."""
+    """L'iscrizione del discente al ciclo corrente (creata se manca); ``lock`` = select_for_update."""
     from ..models_formazione import TrainingElearningEnrollment
     enr, _ = TrainingElearningEnrollment.objects.get_or_create(
-        corso=corso, legacy_anagrafica_id=legacy_id,
-        defaults={"stato": "ISCRITTO", "n_slide_totali": n_slide},
+        corso=corso, legacy_anagrafica_id=legacy_id, ciclo=ciclo_corrente(corso, legacy_id),
+        defaults={"stato": "ISCRITTO", "n_slide_totali": n_slide, "versione_label_snapshot": (corso.versione or "")[:50]},
     )
     if lock:
         enr = TrainingElearningEnrollment.objects.select_for_update().get(pk=enr.pk)

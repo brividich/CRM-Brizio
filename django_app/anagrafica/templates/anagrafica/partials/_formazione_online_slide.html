@@ -1,5 +1,5 @@
 {# Partial HTMX: una slide del micro-corso e-learning. Swappato dentro #fm-slide-target. #}
-<div class="fm-slide" id="fm-slide-{{ slide.ordine }}">
+<div class="fm-slide" id="fm-slide-{{ slide.ordine }}" data-slide-id="{{ slide.pk }}" data-secondi-mancanti="{{ secondi_mancanti }}">
 
   <div class="fmd-bar" style="margin-bottom:14px;"><span style="width:{{ progress_pct }}%;"></span></div>
 
@@ -10,7 +10,10 @@
   {% if not slide.is_immagine %}<h2 class="fm-slide-title">{{ slide.titolo }}</h2>{% endif %}
 
   <div class="fm-slide-body">
-    {% if slide.is_immagine %}
+    {% if slide.tipo == "VIDEO" and slide.video %}
+      <video class="fm-slide-video" controls preload="metadata" playsinline controlslist="nodownload"
+             src="{% url 'anagrafica:formazione_slide_video' slide.pk %}" style="width:100%;max-height:70vh;border-radius:10px;background:#000;"></video>
+    {% elif slide.is_immagine %}
       <img class="fm-slide-img" src="{% url 'anagrafica:formazione_slide_image' slide.pk %}" alt="{{ slide.titolo }}" loading="lazy">
     {% else %}
       {{ contenuto_html }}
@@ -28,8 +31,11 @@
       <span></span>
     {% endif %}
 
+    {% if secondi_mancanti %}
+      <span class="fm-slide-attesa fmd-muted" role="status" aria-live="polite">Resta su questa slide ancora circa <strong class="js-secondi">{{ secondi_mancanti }}</strong> secondi.</span>
+    {% endif %}
     {% if not is_ultima %}
-      <button type="button" class="fmd-btn fmd-btn-primary"
+      <button type="button" class="fmd-btn fmd-btn-primary js-avanti"{% if secondi_mancanti %} disabled{% endif %}
               hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk ordine_succ %}"
               hx-target="#fm-slide-target" hx-swap="innerHTML" hx-push-url="false">
         Avanti <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>

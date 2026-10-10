@@ -36,8 +36,8 @@
         {% if esito.superato %}
         <div class="fmd-alert" style="border-color:#bbe6c8;border-left-color:#22a35a;background:linear-gradient(135deg,#edfaf0,#fff);">
           <svg class="fmd-ico" style="color:#22a35a;"><use href="#i-award"/></svg>
-          <span><strong>Corso superato!</strong> Punteggio {{ esito.punteggio }}% ({{ esito.n_corrette }}/{{ esito.n_totali }} corrette).
-          Il completamento è stato registrato.</span>
+          <span><strong>Quiz superato!</strong> Punteggio {{ esito.punteggio }}% ({{ esito.n_corrette }}/{{ esito.n_totali }} corrette).
+          {% if esito.completato %}Il completamento è stato registrato.{% else %}Il corso non è ancora completo: {{ esito.mancanti|join:"; " }}.{% endif %}</span>
         </div>
         {% else %}
         <div class="fmd-alert">
@@ -89,14 +89,16 @@
         {% csrf_token %}
         <p class="fmd-muted" style="margin-top:0;">Seleziona <strong>tutte</strong> le risposte corrette per ciascuna domanda.{% if tentativi_rimasti %} Tentativi rimasti: <strong>{{ tentativi_rimasti }}</strong>.{% endif %}</p>
 
+        <input type="hidden" name="token" value="{{ token }}">
+        {% if scade_il %}<p class="fmd-muted">Il quiz va inviato entro le {{ scade_il|time:"H:i" }}.</p>{% endif %}
         {% for d in domande %}
         <div class="fm-quiz-q">
           <div class="fm-quiz-q-h"><span>{{ forloop.counter }}. {{ d.testo }}</span></div>
           <div class="fm-quiz-opts">
-            {% for o in d.opzioni.all %}
+            {% for oid, testo in d.opzioni %}
             <label class="fmd-check">
-              <input type="checkbox" name="q_{{ d.pk }}" value="{{ o.pk }}" class="fmd-check-input">
-              <span>{{ o.testo }}</span>
+              <input type="checkbox" name="q_{{ d.id }}" value="{{ oid }}" class="fmd-check-input">
+              <span>{{ testo }}</span>
             </label>
             {% endfor %}
           </div>

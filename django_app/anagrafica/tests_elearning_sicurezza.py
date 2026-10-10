@@ -62,8 +62,11 @@ class _Base(TestCase):
             self.assertEqual(self._slide(o).status_code, 200)
 
     def _quiz(self, opzione):
-        return self.client.post(reverse("anagrafica:formazione_online_quiz", args=[self.corso.pk]),
-                                {f"q_{self.q.pk}": [opzione.pk]})
+        """Apre il quiz (GET: token del tentativo servito) e invia la risposta."""
+        url = reverse("anagrafica:formazione_online_quiz", args=[self.corso.pk])
+        g = self.client.get(url)
+        token = (g.context or {}).get("token", "") if g.status_code == 200 else ""
+        return self.client.post(url, {"token": token, f"q_{self.q.pk}": [opzione.pk]})
 
 
 class AccessoTests(_Base):

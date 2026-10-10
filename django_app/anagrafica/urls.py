@@ -452,6 +452,15 @@ urlpatterns = [
     path("formazione/corsi-online/<int:corso_id>/slide/<int:ordine>", views_elearning.formazione_online_slide, name="formazione_online_slide"),
     path("formazione/corsi-online/<int:corso_id>/quiz", views_elearning.formazione_online_quiz, name="formazione_online_quiz"),
     path("formazione/elearning/<int:corso_id>/iscritti/<int:enrollment_id>/sblocca", views_elearning.formazione_elearning_sblocca, name="formazione_elearning_sblocca"),
+    # ── E-learning professionale (prompt 05) ──
+    path("formazione/corsi-online/<int:corso_id>/beat", views_elearning.formazione_online_beat, name="formazione_online_beat"),
+    path("formazione/corsi-online/slide/<int:slide_id>/video", views_elearning.formazione_slide_video, name="formazione_slide_video"),
+    path("formazione/elearning/<int:corso_id>/video", views_elearning.formazione_slide_video_upload, name="formazione_slide_video_upload"),
+    path("formazione/elearning/impostazioni/corsi/", views_elearning.elearning_impostazioni_corsi, name="elearning_impostazioni_corsi"),
+    path("formazione/elearning/<int:corso_id>/regole/", views_elearning.elearning_regola_corso, name="elearning_regola_corso"),
+    path("formazione/elearning/cruscotto/", views_elearning.elearning_cruscotto, name="elearning_cruscotto"),
+    path("formazione/elearning/registro/", views_elearning.elearning_registro, name="elearning_registro"),
+    # ── fine e-learning professionale ──
 
     # ── Formazione HR — Istruttori ─────────────────────────────────────────
     path("formazione/istruttori/", views.formazione_istruttori_list, name="formazione_istruttori_list"),

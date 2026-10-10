@@ -1,0 +1,65 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Regole FAD · {{ corso.titolo }} | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<style>
+.rfad-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:12px 18px; }
+.rfad-grid .fm-form-field { margin:0; }
+.rfad-grid input[type=checkbox] { width:18px; height:18px; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap" style="max-width:980px;">
+    {% include "anagrafica/components/flash_messages.html" %}
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:elearning_impostazioni_corsi' %}">Impostazioni e-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ corso.codice }}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>Regole di fruizione: {{ corso.titolo }}</h1>
+        <p class="fmd-ph-sub">Tempo minimo, slide, quiz e tentativi. Il portale le verifica lato server per ogni completamento. Nessuna regola di legge è precompilata: i valori li decide l'azienda e li conferma l'RSPP.</p>
+      </div>
+    </div>
+
+    <section class="fmd-panel fmd-block" role="status" style="border-left:4px solid {% if regola.confermata_rspp_il %}#22a35a{% else %}#f59e0b{% endif %};">
+      {% if regola.confermata_rspp_il %}
+        <strong>Confermate dall'RSPP</strong> il {{ regola.confermata_rspp_il|date:"d/m/Y H:i" }}{% if regola.confermata_rspp_da %} da {{ regola.confermata_rspp_da.get_full_name|default:regola.confermata_rspp_da.username }}{% endif %}. Una modifica annulla la conferma.
+      {% else %}
+        <strong>Da confermare.</strong> Senza conferma dell'RSPP il corso non si può pubblicare.
+      {% endif %}
+      {% if puo_confermare and not regola.confermata_rspp_il %}
+      <form method="post" style="margin-top:10px;">{% csrf_token %}<input type="hidden" name="azione" value="conferma">
+        <button class="fmd-btn fmd-btn-primary" type="submit">Confermo le regole (RSPP)</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <form method="post" class="fmd-panel fmd-block">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div role="alert" style="color:#b91c1c;">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="rfad-grid">
+        {% for field in form %}
+        <div class="fm-form-field">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<div class="fm-help">{{ field.help_text }}</div>{% endif %}
+          {% for e in field.errors %}<div style="color:#b91c1c;font-size:12px;">{{ e }}</div>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="fmd-tfoot" style="border-top:1px solid var(--fmd-line-soft);margin-top:16px;justify-content:flex-end;gap:8px;">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:elearning_impostazioni_corsi' %}">Indietro</a>
+        <button class="fmd-btn fmd-btn-primary" type="submit">Salva regole</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

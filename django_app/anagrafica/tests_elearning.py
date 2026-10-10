@@ -258,6 +258,10 @@ class ElearningManageTests(TestCase):
         self.assertEqual(resp.context["counts"]["completati"], 1)
 
     def test_pubblica_ok(self):
+        # Prompt 05: si pubblica solo con le regole FAD confermate dall'RSPP.
+        from django.utils import timezone
+        from .models_formazione import TrainingCompletionRule
+        TrainingCompletionRule.objects.update_or_create(corso=self.corso, defaults={"confermata_rspp_il": timezone.now()})
         resp = self.client.post(reverse("anagrafica:formazione_elearning_publish_toggle", args=[self.corso.pk]))
         self.assertEqual(resp.status_code, 302)
         self.corso.refresh_from_db()

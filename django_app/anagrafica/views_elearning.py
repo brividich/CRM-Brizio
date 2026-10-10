@@ -19,6 +19,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -29,6 +30,9 @@ from .models_formazione import (
     TrainingSlide,
 )
 from .services import elearning_fruizione as fruizione
+from .services import elearning_quiz as quiz
+from .services import elearning_tracciamento as tracciamento
+from .services.elearning_regole import regola_corso
 
 logger = logging.getLogger(__name__)
 MODULE = "anagrafica"
@@ -120,9 +124,12 @@ def formazione_online_player(request, corso_id: int):
     slide_iniziale = ordini[0] if ordini else 1
     if not accesso.anteprima and legacy_id and slides:
         enr = fruizione.iscrizione(corso, legacy_id, len(slides))
-        # Ripresa: l'ultima slide raggiunta (o la prima).
-        raggiunte = [o for o in ordini if o <= (enr.ultima_slide_ordine or 0)]
-        slide_iniziale = raggiunte[-1] if raggiunte else ordini[0]
+        # Una sola sessione attiva: aprire il player chiude le altre schede.
+        tracciamento.avvia_sessione(enr, request)
+        # Ripresa: la prima slide non ancora completata (o l'ultima).
+        dopo = [o for o in ordini if o > (enr.ultima_slide_ordine or 0)]
+        slide_iniziale = dopo[0] if dopo else ordini[-1]
+    regola = regola_corso(corso)
     return render(request, "anagrafica/pages/formazione_online_player.html", {
         "corso": corso,
         "slides": slides,
@@ -132,12 +139,16 @@ def formazione_online_player(request, corso_id: int):
         "anteprima": accesso.anteprima,
         "no_anagrafica": legacy_id is None,
         "n_domande": corso.quiz_domande.filter(is_active=True).count(),
+        "regola": regola,
+        "beat_url": reverse("anagrafica:formazione_online_beat", args=[corso.pk]) if enr else "",
+        "beat_intervallo": tracciamento.INTERVALLO_MIN_SECONDI,
+        "minuti_fatti": (enr.secondi_accreditati or 0) // 60 if enr else 0,
     })
 
 
 @login_required
 def formazione_online_slide(request, corso_id: int, ordine: int):
-    """Partial HTMX della slide <ordine>: servita solo in sequenza, poi segnata come vista."""
+    """Partial HTMX della slide <ordine>: servita solo in sequenza, poi registrata."""
     corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
     legacy_id, is_editor = _ctx_utente(request)
     accesso = fruizione.accesso_discente(corso, legacy_id, is_editor=is_editor)
@@ -149,13 +160,16 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
     if not slides:
         return HttpResponse('<div class="fmd-empty"><span class="fmd-et">Nessuna slide disponibile</span></div>')
     ordini = [s.ordine for s in slides]
+    regola = regola_corso(corso)
     enr = None if accesso.anteprima else fruizione.iscrizione(corso, legacy_id, len(slides))
     if not fruizione.slide_consentita(enr, ordine, ordini):
-        return _nega(request, "Prosegui in ordine: questa slide non è ancora disponibile.", htmx_status=409)
+        return _nega(request, "Prosegui in ordine: completa prima la slide precedente.", htmx_status=409)
     pos = ordini.index(ordine)
     slide = slides[pos]
+    secondi_mancanti = 0
     if enr is not None:
-        enr = fruizione.segna_slide_vista(corso, legacy_id, slide.ordine, len(slides))
+        tracciamento.registra_vista(enr, slide, regola, ordini)
+        secondi_mancanti = tracciamento.secondi_mancanti_slide(enr, slide, regola)
 
     from .services.elearning_markdown import render_markdown
     return render(request, "anagrafica/partials/_formazione_online_slide.html", {
@@ -170,7 +184,37 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
         "n_domande": corso.quiz_domande.filter(is_active=True).count(),
         "progress_pct": round((pos + 1) / len(slides) * 100),
         "anteprima": accesso.anteprima,
+        "secondi_mancanti": secondi_mancanti,
     })
+
+
+@login_required
+@require_POST
+def formazione_online_beat(request, corso_id: int):
+    """Heartbeat del player (JSON). Il tempo lo misura il server: il client manda solo segnali."""
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    legacy_id, is_editor = _ctx_utente(request)
+    accesso = fruizione.accesso_discente(corso, legacy_id, is_editor=is_editor)
+    if not accesso.consentito or accesso.anteprima:
+        return JsonResponse({"ok": False, "motivo": "non_consentito"}, status=403)
+    import json
+    try:
+        dati = json.loads(request.body or b"{}")
+    except ValueError:
+        return JsonResponse({"ok": False, "motivo": "payload"}, status=400)
+    ordini = fruizione.ordini_slide(corso)
+    enr = fruizione.iscrizione(corso, legacy_id, len(ordini))
+    try:
+        slide_id = int(dati.get("slide_id")) if dati.get("slide_id") is not None else None
+        inattivo_ms = max(int(dati.get("inattivo_ms") or 0), 0)
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "motivo": "payload"}, status=400)
+    esito = tracciamento.beat(enr, slide_id=slide_id, visibile=bool(dati.get("visibile", True)),
+                              inattivo_ms=inattivo_ms, regola=regola_corso(corso), ordini=ordini)
+    if esito.get("slide_completata"):
+        enr.refresh_from_db(fields=["ultima_slide_ordine", "secondi_accreditati"])
+    esito["minuti_fatti"] = (type(enr).objects.filter(pk=enr.pk).values_list("secondi_accreditati", flat=True).first() or 0) // 60
+    return JsonResponse(esito, status=200 if esito.get("ok") or esito.get("motivo") == "troppo_presto" else 409)
 
 
 @login_required
@@ -198,12 +242,6 @@ def formazione_slide_image(request, slide_id: int):
 # Quiz
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _domande_valide(corso) -> list:
-    domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
-    # Una domanda senza risposta corretta non è indovinabile: esclusa finché l'autore non la completa.
-    return [d for d in domande if any(o.corretta for o in d.opzioni.all())]
-
-
 @login_required
 def formazione_online_quiz(request, corso_id: int):
     corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
@@ -211,106 +249,66 @@ def formazione_online_quiz(request, corso_id: int):
     accesso = fruizione.accesso_discente(corso, legacy_id, is_editor=is_editor)
     if not accesso.consentito:
         return _nega(request, accesso.motivo or "Corso non disponibile.")
-    domande = _domande_valide(corso)
-    if not domande:
-        messages.info(request, "Il quiz non è ancora pronto.")
-        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
     if accesso.anteprima:
         if request.method == "POST":
             messages.info(request, "Anteprima editor: il quiz non viene corretto né registrato.")
             return redirect("anagrafica:formazione_online_quiz", corso_id=corso_id)
+        domande = [quiz.DomandaServita(d.pk, d.testo, [(o.pk, o.testo) for o in d.opzioni.all()])
+                   for d in quiz.domande_valide(corso)]
+        if not domande:
+            messages.info(request, "Il quiz non è ancora pronto: nessuna domanda ha una risposta corretta.")
+            return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
         return render(request, "anagrafica/pages/formazione_online_quiz.html", {
-            "corso": corso, "domande": domande, "no_anagrafica": False, "esito": None, "anteprima": True,
+            "corso": corso, "domande": domande, "esito": None, "anteprima": True, "token": "",
         })
 
+    regola = regola_corso(corso)
     ordini = fruizione.ordini_slide(corso)
-    cfg = ElearningConfig.get_instance()
     enr = fruizione.iscrizione(corso, legacy_id, len(ordini))
-    blocco = _blocco_quiz(enr, ordini, cfg)
-    if blocco:
-        messages.info(request, blocco)
-        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
 
     if request.method != "POST":
+        try:
+            tentativo = quiz.apri_tentativo(enr, regola, ordini, user=request.user)
+        except quiz.QuizNonDisponibile as exc:
+            messages.info(request, str(exc))
+            return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
         return render(request, "anagrafica/pages/formazione_online_quiz.html", {
-            "corso": corso, "domande": domande, "no_anagrafica": False, "esito": None,
-            "tentativi_rimasti": _tentativi_rimasti(enr, cfg),
+            "corso": corso, "domande": quiz.domande_servite(tentativo), "esito": None,
+            "token": tentativo.token, "scade_il": tentativo.scade_il,
+            "tentativi_rimasti": quiz.tentativi_rimasti(enr, regola),
         })
 
-    n_totali = len(domande)
-    n_corrette = 0
-    risposte = []
-    for d in domande:
-        scelte = {int(x) for x in request.POST.getlist(f"q_{d.pk}") if str(x).isdigit()}
-        corrette = {o.pk for o in d.opzioni.all() if o.corretta}
-        giusta = bool(corrette) and scelte == corrette
-        n_corrette += giusta
-        risposte.append({"domanda_id": d.pk, "domanda": d.testo, "scelte": sorted(scelte),
-                         "corrette": sorted(corrette), "giusta": giusta})
-    punteggio = Decimal(str(round(n_corrette / n_totali * 100, 2))) if n_totali else Decimal("0")
-    superato = punteggio >= corso.quiz_punteggio_minimo
-
-    with transaction.atomic():
-        # Lock dell'iscrizione: conteggio tentativi e completamento senza corse.
-        enr = TrainingElearningEnrollment.objects.select_for_update().get(pk=enr.pk)
-        blocco = _blocco_quiz(enr, ordini, cfg)
-        if blocco:
-            transaction.set_rollback(True)
-            messages.info(request, blocco)
-            return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
-        attempt = TrainingQuizAttempt.objects.create(
-            corso=corso, enrollment=enr, legacy_anagrafica_id=legacy_id, punteggio_pct=punteggio,
-            n_corrette=n_corrette, n_totali=n_totali, superato=superato,
-            risposte_json={"risposte": risposte}, utente=request.user,
-        )
-        enr.n_tentativi = (enr.n_tentativi or 0) + 1
-        if enr.best_punteggio_pct is None or punteggio > enr.best_punteggio_pct:
-            enr.best_punteggio_pct = punteggio
-        campi = ["n_tentativi", "best_punteggio_pct", "updated_at"]
-        if superato:
-            from .views import _crea_record_completamento_elearning
-            enr.stato = "COMPLETATO"
-            enr.data_completamento = timezone.localdate()
-            campi += ["stato", "data_completamento"]
-            if not enr.record_completamento_id:
-                record = _crea_record_completamento_elearning(corso, legacy_id, attempt, request.user)
-                enr.record_completamento = record
-                attempt.record = record
-                attempt.save(update_fields=["record"])
-                campi.append("record_completamento")
-            TrainingAssignment.objects.filter(corso=corso, legacy_anagrafica_id=legacy_id).exclude(
-                stato__in=("COMPLETATO", "ESONERATO")).update(stato="COMPLETATO")
-        else:
-            enr.stato = "NON_SUPERATO"
-            campi.append("stato")
-        enr.save(update_fields=list(dict.fromkeys(campi)))
-
+    risposte = {}
+    for chiave in request.POST:
+        if chiave.startswith("q_") and chiave[2:].isdigit():
+            risposte[int(chiave[2:])] = {int(x) for x in request.POST.getlist(chiave) if str(x).isdigit()}
+    try:
+        tentativo = quiz.correggi(enr, (request.POST.get("token") or "")[:32], risposte, regola)
+    except quiz.QuizNonDisponibile as exc:
+        messages.error(request, str(exc))
+        return redirect("anagrafica:formazione_online_player", corso_id=corso_id)
+    completato, mancanti = False, []
+    if tentativo.superato:
+        from .services.elearning_completamento import RequisitiNonSoddisfatti, completa
+        try:
+            completa(enr, tentativo=tentativo, user=request.user)
+            completato = True
+        except RequisitiNonSoddisfatti as exc:
+            mancanti = exc.mancanti
+    enr.refresh_from_db()
+    risposte_snapshot = tentativo.risposte_json.get("risposte", [])
     return render(request, "anagrafica/pages/formazione_online_quiz.html", {
-        "corso": corso, "domande": domande, "no_anagrafica": False,
-        "tentativi_rimasti": _tentativi_rimasti(enr, cfg),
+        "corso": corso, "domande": [], "token": "",
+        "tentativi_rimasti": quiz.tentativi_rimasti(enr, regola),
         "esito": {
-            "superato": superato, "punteggio": punteggio, "n_corrette": n_corrette, "n_totali": n_totali,
-            "minimo": corso.quiz_punteggio_minimo,
+            "superato": tentativo.superato, "completato": completato, "mancanti": mancanti,
+            "punteggio": tentativo.punteggio_pct, "n_corrette": tentativo.n_corrette,
+            "n_totali": tentativo.n_totali, "minimo": regola.soglia_pct,
             # Il dettaglio per domanda solo a quiz superato: con tentativi residui
             # direbbe quali risposte cambiare.
-            "risposte": risposte if superato else [],
+            "risposte": risposte_snapshot if tentativo.superato else [],
         },
     })
-
-
-def _blocco_quiz(enr, ordini, cfg) -> str:
-    if enr.stato == "COMPLETATO":
-        return "Hai già completato questo corso."
-    if not fruizione.tutte_viste(enr, ordini):
-        return "Il quiz si apre dopo aver visto tutte le slide."
-    if fruizione.tentativi_esauriti(enr, cfg):
-        return "Hai esaurito i tentativi disponibili: chiedi a HR lo sblocco."
-    return ""
-
-
-def _tentativi_rimasti(enr, cfg):
-    massimo = fruizione.tentativi_massimi(enr, cfg)
-    return max(massimo - (enr.n_tentativi or 0), 0) if massimo else None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -338,3 +336,243 @@ def formazione_elearning_sblocca(request, corso_id: int, enrollment_id: int):
     }, oggetto=enr)
     messages.success(request, f"Sbloccati {aggiunti} tentativi.")
     return redirect("anagrafica:formazione_elearning_manage", corso_id=corso_id)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Video delle slide: caricamento (editor) e riproduzione con Range (discente)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+@require_POST
+def formazione_slide_video_upload(request, corso_id: int):
+    """Crea una slide video: MP4 verificato dal contenuto, storage privato."""
+    from .views import _can_edit_formazione
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    f = request.FILES.get("video")
+    titolo = (request.POST.get("titolo") or "").strip()[:300] or "Video"
+    if not f:
+        messages.error(request, "Seleziona un file video MP4.")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+    from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+    cfg = ElearningConfig.get_instance()
+    try:
+        validate_extension_and_mime(f, allowed_extensions={".mp4"}, allowed_mimes={"video/mp4"},
+                                    max_bytes=int(cfg.video_max_mb or 500) * 1024 * 1024, label="Video",
+                                    allow_empty=False)
+    except UploadMimeValidationError as exc:
+        messages.error(request, f"Video rifiutato: {exc}")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+    from django.db.models import Max
+    ordine = (corso.slides.aggregate(m=Max("ordine"))["m"] or 0) + 1
+    try:
+        durata = max(int(request.POST.get("durata_minima_secondi") or 0), 0)
+    except ValueError:
+        durata = 0
+    slide = TrainingSlide(corso=corso, ordine=ordine, titolo=titolo, tipo=TrainingSlide.TIPO_VIDEO,
+                          durata_minima_secondi=min(durata, 32767), created_by=request.user)
+    slide.video.save(f.name, f, save=False)
+    slide.save()
+    log_action(request, "elearning_video_caricato", MODULE, {"corso": corso.pk, "slide": slide.pk}, oggetto=slide)
+    messages.success(request, f"Video «{titolo}» aggiunto come slide {ordine}.")
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+def formazione_slide_video(request, slide_id: int):
+    """Serve il video di una slide (Range per lo scorrimento), solo a chi può fruire del corso."""
+    slide = get_object_or_404(TrainingSlide.objects.select_related("corso"), pk=slide_id, tipo=TrainingSlide.TIPO_VIDEO)
+    legacy_id, is_editor = _ctx_utente(request)
+    if not fruizione.accesso_discente(slide.corso, legacy_id, is_editor=is_editor).consentito:
+        return HttpResponse(status=403)
+    if not slide.video:
+        return HttpResponse("Video non disponibile.", status=404)
+    return _risposta_range(request, slide.video, "video/mp4")
+
+
+def _risposta_range(request, campo_file, content_type: str):
+    import re
+    from django.http import FileResponse, StreamingHttpResponse
+
+    try:
+        dimensione = campo_file.size
+        fh = campo_file.open("rb")
+    except (FileNotFoundError, OSError):
+        return HttpResponse("File non trovato sul server.", status=404)
+    intervallo = re.match(r"^bytes=(\d*)-(\d*)$", request.headers.get("Range", "").strip())
+    if not intervallo or (not intervallo.group(1) and not intervallo.group(2)):
+        resp = FileResponse(fh, content_type=content_type)
+        resp["Accept-Ranges"] = "bytes"
+    else:
+        inizio = int(intervallo.group(1)) if intervallo.group(1) else max(dimensione - int(intervallo.group(2)), 0)
+        fine = int(intervallo.group(2)) if intervallo.group(1) and intervallo.group(2) else dimensione - 1
+        fine = min(fine, dimensione - 1)
+        if inizio > fine:
+            fh.close()
+            resp = HttpResponse(status=416)
+            resp["Content-Range"] = f"bytes */{dimensione}"
+            return resp
+        fh.seek(inizio)
+        lunghezza = fine - inizio + 1
+
+        def _blocchi(restanti=lunghezza, blocco=64 * 1024):
+            try:
+                while restanti > 0:
+                    dati = fh.read(min(blocco, restanti))
+                    if not dati:
+                        break
+                    restanti -= len(dati)
+                    yield dati
+            finally:
+                fh.close()
+
+        resp = StreamingHttpResponse(_blocchi(), status=206, content_type=content_type)
+        resp["Content-Range"] = f"bytes {inizio}-{fine}/{dimensione}"
+        resp["Content-Length"] = str(lunghezza)
+        resp["Accept-Ranges"] = "bytes"
+    resp["Content-Disposition"] = "inline"
+    resp["X-Content-Type-Options"] = "nosniff"
+    resp["Cache-Control"] = "private, max-age=300"
+    return resp
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Impostazioni: quali corsi sono online e con quali regole (FAD, conferma RSPP)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required
+def elearning_impostazioni_corsi(request):
+    """Elenco dei corsi con l'interruttore «erogabile online» e lo stato della regola FAD."""
+    from .views import _can_edit_formazione
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per le impostazioni e-learning.")
+        return redirect("anagrafica:formazione_dashboard")
+    from .models_formazione import TrainingCompletionRule
+    if request.method == "POST":
+        corso = get_object_or_404(TrainingCourse, pk=request.POST.get("corso_id") or 0)
+        azione = request.POST.get("azione")
+        if azione == "online":
+            corso.is_elearning = not corso.is_elearning
+            if not corso.is_elearning and corso.stato == "ATTIVO":
+                messages.info(request, "Il corso resta pubblicato per l'aula; non è più erogabile online.")
+            corso.save(update_fields=["is_elearning", "updated_at"])
+        elif azione == "facoltativo":
+            corso.obbligatorio = not corso.obbligatorio
+            corso.save(update_fields=["obbligatorio", "updated_at"])
+        log_action(request, "elearning_impostazione_corso", MODULE,
+                   {"corso": corso.pk, "azione": azione, "is_elearning": corso.is_elearning,
+                    "obbligatorio": corso.obbligatorio}, oggetto=corso)
+        return redirect(f"{reverse('anagrafica:elearning_impostazioni_corsi')}?q={request.POST.get('q', '')}")
+    q = (request.GET.get("q") or "").strip()
+    qs = TrainingCourse.objects.filter(is_active=True).order_by("-is_elearning", "titolo")
+    if q:
+        qs = qs.filter(Q(titolo__icontains=q) | Q(codice__icontains=q))
+    corsi = list(qs[:300])
+    regole = {r.corso_id: r for r in TrainingCompletionRule.objects.filter(corso__in=corsi)}
+    for c in corsi:
+        c.regola_fad = regole.get(c.pk)
+    return render(request, "anagrafica/pages/elearning_impostazioni_corsi.html", {
+        "page_title": "Impostazioni e-learning", "corsi": corsi, "q": q,
+    })
+
+
+@login_required
+def elearning_regola_corso(request, corso_id: int):
+    """Regola FAD del corso: modificabile da HR; la conferma la dà l'RSPP (permesso dedicato)."""
+    from .forms_elearning import ElearningRegolaForm
+    from .models_formazione import TrainingCompletionRule
+    from .services.elearning_regole import CAMPI_FAD, puo_confermare_fad
+    from .views import _can_edit_formazione
+
+    if not _can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per le impostazioni e-learning.")
+        return redirect("anagrafica:formazione_dashboard")
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    regola, _ = TrainingCompletionRule.objects.get_or_create(corso=corso)
+    puo_confermare = puo_confermare_fad(request.user)
+    form = ElearningRegolaForm(instance=regola)
+    if request.method == "POST":
+        if request.POST.get("azione") == "conferma":
+            if not puo_confermare:
+                messages.error(request, "Solo l'RSPP (o chi ha il permesso dedicato) può confermare le regole.")
+            else:
+                regola.confermata_rspp_da = request.user
+                regola.confermata_rspp_il = timezone.now()
+                regola.save(update_fields=["confermata_rspp_da", "confermata_rspp_il"])
+                log_action(request, "elearning_regola_confermata", MODULE,
+                           {"corso": corso.pk, "regola": {k: getattr(regola, k) for k in CAMPI_FAD}}, oggetto=regola)
+                messages.success(request, "Regole FAD confermate.")
+            return redirect("anagrafica:elearning_regola_corso", corso_id=corso.pk)
+        prima = {k: getattr(regola, k) for k in CAMPI_FAD}
+        form = ElearningRegolaForm(request.POST, instance=regola)
+        if form.is_valid():
+            regola = form.save(commit=False)
+            dopo = {k: getattr(regola, k) for k in CAMPI_FAD}
+            cambiate = prima != dopo
+            if cambiate and regola.confermata_rspp_il:
+                # Ogni modifica annulla la conferma: l'RSPP deve rivederle.
+                regola.confermata_rspp_da = None
+                regola.confermata_rspp_il = None
+            regola.save()
+            log_action(request, "elearning_regola_modificata", MODULE,
+                       {"corso": corso.pk, "prima": prima, "dopo": dopo}, oggetto=regola)
+            messages.success(request, "Regole salvate." + (" La conferma RSPP va ripetuta." if cambiate else ""))
+            return redirect("anagrafica:elearning_regola_corso", corso_id=corso.pk)
+    return render(request, "anagrafica/pages/elearning_regola_corso.html", {
+        "page_title": f"Regole FAD · {corso.titolo}", "corso": corso, "regola": regola, "form": form,
+        "puo_confermare": puo_confermare,
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Cruscotto Direzione e registro di audit
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _puo_report(request) -> bool:
+    from .views import _can_view_formazione
+    return _can_view_formazione(request)
+
+
+@login_required
+def elearning_cruscotto(request):
+    if not _puo_report(request):
+        messages.error(request, "Non hai i permessi per la reportistica della formazione.")
+        return redirect("anagrafica:formazione_dashboard")
+    from .services import elearning_report as report
+    reparto = (request.GET.get("reparto") or "").strip()
+    corso_id = int(request.GET["corso"]) if (request.GET.get("corso") or "").isdigit() else None
+    cop = report.copertura(reparto=reparto, corso_id=corso_id)
+    ctx = {
+        "page_title": "Cruscotto e-learning", "copertura": cop, "andamento": report.andamento(),
+        "domande": report.domande_piu_sbagliate(), "reparto": reparto, "corso_id": corso_id,
+        "corsi_opts": TrainingCourse.objects.filter(is_elearning=True, is_active=True, stato="ATTIVO").order_by("titolo"),
+        "persone": cop["persone"][:200] if reparto or corso_id else [],
+    }
+    if request.headers.get("HX-Request") and request.GET.get("parte") == "persone":
+        return render(request, "anagrafica/partials/_elearning_persone.html", ctx)
+    return render(request, "anagrafica/pages/elearning_cruscotto.html", ctx)
+
+
+@login_required
+def elearning_registro(request):
+    if not _puo_report(request):
+        messages.error(request, "Non hai i permessi per la reportistica della formazione.")
+        return redirect("anagrafica:formazione_dashboard")
+    from datetime import date
+    from .services import elearning_report as report
+
+    def _data(v):
+        try:
+            return date.fromisoformat(v) if v else None
+        except ValueError:
+            return None
+
+    corso_id = int(request.GET["corso"]) if (request.GET.get("corso") or "").isdigit() else None
+    righe = report.registro(corso_id=corso_id, dal=_data(request.GET.get("dal")), al=_data(request.GET.get("al")))
+    return render(request, "anagrafica/pages/elearning_registro.html", {
+        "page_title": "Registro e-learning", "righe": righe[:500], "n_righe": len(righe), "corso_id": corso_id,
+        "corsi_opts": TrainingCourse.objects.filter(is_elearning=True).order_by("titolo"),
+        "dal": request.GET.get("dal", ""), "al": request.GET.get("al", ""),
+    })

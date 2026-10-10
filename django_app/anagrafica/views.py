@@ -18806,6 +18806,15 @@ def _current_legacy_anagrafica_id(request) -> int | None:
     return int(ana.id) if ana else None
 
 
+def _regola_elearning_snapshot(corso) -> dict:
+    """Regola FAD applicata al completamento (fotografia storica, immutabile)."""
+    try:
+        from .services.elearning_regole import regola_corso
+        return {"modalita": "ELEARNING", **regola_corso(corso).come_dict()}
+    except Exception:
+        return {"modalita": "ELEARNING", "quiz_minimo_pct": corso.quiz_punteggio_minimo}
+
+
 def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
     """Crea un TrainingEmployeeRecord storicizzato per il superamento di un micro-corso
     e-learning, riusando la tabella audit esistente (niente duplicazione).
@@ -18834,14 +18843,14 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
         plan_name_snapshot=corso.piano.nome if corso.piano_id else "",
         duration_hours_snapshot=corso.durata_ore_teorica,
         validity_months_snapshot=corso.validita_mesi,
-        completion_rule_snapshot_json={"modalita": "ELEARNING", "quiz_minimo_pct": corso.quiz_punteggio_minimo},
+        completion_rule_snapshot_json=_regola_elearning_snapshot(corso),
         session_code_snapshot="",
         teacher_name_snapshot="",
         completion_calculation_snapshot_json={
             "modalita": "ELEARNING",
-            "quiz_punteggio_pct": str(attempt.punteggio_pct),
-            "quiz_corrette": attempt.n_corrette,
-            "quiz_totali": attempt.n_totali,
+            "quiz_punteggio_pct": str(attempt.punteggio_pct) if attempt else None,
+            "quiz_corrette": attempt.n_corrette if attempt else None,
+            "quiz_totali": attempt.n_totali if attempt else None,
             "quiz_minimo_pct": corso.quiz_punteggio_minimo,
         },
     )
@@ -18901,15 +18910,16 @@ def _elearning_salute(n_slide: int, n_domande: int, n_invalid: int) -> tuple[str
 
 def _elearning_iscritti_rows(corso):
     """Righe «iscritti & esiti» di un micro-corso: nome dipendente + avanzamento + esito."""
-    from .services.elearning_fruizione import tentativi_esauriti
+    from .services.elearning_quiz import tentativi_rimasti
+    from .services.elearning_regole import regola_corso
     enrollments = list(TrainingElearningEnrollment.objects.filter(corso=corso))
     nomi = _build_nomi_map() if enrollments else {}
-    cfg_el = ElearningConfig.get_instance()
+    regola = regola_corso(corso)
     rows = []
     for e in enrollments:
         rows.append({
             "pk": e.pk,
-            "esauriti": e.stato != "COMPLETATO" and tentativi_esauriti(e, cfg_el),
+            "esauriti": e.stato != "COMPLETATO" and tentativi_rimasti(e, regola) == 0,
             "legacy_id": e.legacy_anagrafica_id,
             "nome": nomi.get(e.legacy_anagrafica_id, f"#{e.legacy_anagrafica_id}"),
             "stato": e.stato,
@@ -19043,8 +19053,12 @@ def formazione_elearning_publish_toggle(request, corso_id: int):
         n_slide = corso.slides.filter(is_active=True).count()
         domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
         n_invalid = sum(1 for d in domande if not any(o.corretta for o in d.opzioni.all()))
+        from .services.elearning_regole import regola_corso
         if n_slide == 0:
             messages.error(request, "Impossibile pubblicare: aggiungi almeno una slide.")
+        elif not regola_corso(corso).confermata_rspp:
+            messages.error(request, "Impossibile pubblicare: le regole di fruizione (FAD) del corso non sono "
+                                    "state confermate dall'RSPP. Impostazioni e-learning → Regole del corso.")
         elif domande and n_invalid:
             messages.error(request, "Impossibile pubblicare: il quiz ha domande senza risposta corretta. Completa le domande o disattivale.")
         else:

@@ -214,3 +214,4 @@ from anagrafica import exports_hr  # noqa: E402,F401
 from anagrafica import exports_persone  # noqa: E402,F401
 from anagrafica import exports_qualifiche  # noqa: E402,F401
 from anagrafica import exports_sicurezza  # noqa: E402,F401
+from anagrafica import exports_elearning  # noqa: E402,F401

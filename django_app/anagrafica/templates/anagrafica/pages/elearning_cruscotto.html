@@ -1,0 +1,93 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Cruscotto e-learning | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<style>
+.elc-kpi { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); gap:12px; margin-bottom:16px; }
+.elc-kpi .fmd-panel { padding:14px 16px; }
+.elc-kpi strong { display:block; font-size:26px; }
+.elc-bar { height:8px; border-radius:99px; background:#eef2f7; overflow:hidden; min-width:80px; }
+.elc-bar > span { display:block; height:100%; background:#22a35a; }
+.elc-bar.warn > span { background:#f59e0b; } .elc-bar.ko > span { background:#ef4444; }
+.elc-cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:16px; }
+body.theme-dark .elc-bar { background:var(--surface-alt); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_elearning_hub' %}">E-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">Cruscotto</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>Cruscotto e-learning</h1>
+        <p class="fmd-ph-sub">Copertura degli obblighi sui corsi online (stessi numeri dello scadenzario), andamento dei completamenti e qualità dei contenuti. Estratto il {% now "d/m/Y H:i" %}.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% include "anagrafica/components/_export_menu.html" with export_key="elearning_copertura" %}
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:elearning_registro' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Registro</a>
+      </div>
+    </div>
+
+    <form method="get" class="fmd-panel fmd-block" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="fm-form-field" style="margin:0;min-width:200px;"><label for="elc-rep">Reparto</label>
+        <input id="elc-rep" name="reparto" class="fm-input" value="{{ reparto }}" placeholder="Tutti"></div>
+      <div class="fm-form-field" style="margin:0;min-width:240px;"><label for="elc-corso">Corso</label>
+        <select id="elc-corso" name="corso" class="fm-input fm-select"><option value="">Tutti</option>
+          {% for c in corsi_opts %}<option value="{{ c.pk }}"{% if c.pk == corso_id %} selected{% endif %}>{{ c.titolo }}</option>{% endfor %}</select></div>
+      <button class="fmd-btn fmd-btn-primary" type="submit">Filtra</button>
+    </form>
+
+    <div class="elc-kpi">
+      <div class="fmd-panel"><span class="fmd-muted">Obblighi in regola</span><strong>{{ copertura.pct }}%</strong><span class="fmd-muted">{{ copertura.in_regola }} su {{ copertura.obblighi }}</span></div>
+      <div class="fmd-panel"><span class="fmd-muted">Ore di fruizione effettiva</span><strong>{{ andamento.ore_erogate }}</strong><span class="fmd-muted">misurate lato server</span></div>
+      <div class="fmd-panel"><span class="fmd-muted">Completamenti (12 mesi)</span><strong>{{ andamento.totale_periodo }}</strong><span class="fmd-muted">registrati nel registro</span></div>
+    </div>
+
+    <div class="elc-cols">
+      <section class="fmd-panel fmd-block"><div class="fmd-block-title" style="margin-bottom:8px;">Copertura per reparto</div>
+        <table class="fmd-table"><thead><tr><th>Reparto</th><th>In regola</th><th></th></tr></thead><tbody>
+        {% for r in copertura.per_reparto %}<tr><td><a class="fmd-data-link" href="?reparto={{ r.nome|urlencode }}{% if corso_id %}&amp;corso={{ corso_id }}{% endif %}">{{ r.nome }}</a></td>
+          <td class="fmd-num">{{ r.in_regola }}/{{ r.obblighi }}</td>
+          <td><div class="elc-bar {% if r.pct < 50 %}ko{% elif r.pct < 90 %}warn{% endif %}" title="{{ r.pct }}%"><span style="width:{{ r.pct }}%"></span></div></td></tr>
+        {% empty %}<tr><td colspan="3" class="fmd-muted">Nessun obbligo su corsi online.</td></tr>{% endfor %}</tbody></table>
+      </section>
+      <section class="fmd-panel fmd-block"><div class="fmd-block-title" style="margin-bottom:8px;">Copertura per mansione</div>
+        <table class="fmd-table"><thead><tr><th>Mansione</th><th>In regola</th><th></th></tr></thead><tbody>
+        {% for r in copertura.per_mansione %}<tr><td>{{ r.nome }}</td><td class="fmd-num">{{ r.in_regola }}/{{ r.obblighi }}</td>
+          <td><div class="elc-bar {% if r.pct < 50 %}ko{% elif r.pct < 90 %}warn{% endif %}" title="{{ r.pct }}%"><span style="width:{{ r.pct }}%"></span></div></td></tr>
+        {% empty %}<tr><td colspan="3" class="fmd-muted">—</td></tr>{% endfor %}</tbody></table>
+      </section>
+      <section class="fmd-panel fmd-block"><div class="fmd-block-title" style="margin-bottom:8px;">Corsi: completamenti, punteggio e tempo medi</div>
+        <table class="fmd-table"><thead><tr><th>Corso</th><th>Completati</th><th>Punteggio medio</th><th>Minuti medi</th></tr></thead><tbody>
+        {% for r in andamento.per_corso %}<tr><td>{{ r.corso__titolo }}</td><td class="fmd-num">{{ r.n }}</td><td class="fmd-num">{{ r.punteggio }}%</td><td class="fmd-num">{{ r.minuti_medi }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="fmd-muted">Nessun completamento.</td></tr>{% endfor %}</tbody></table>
+      </section>
+      <section class="fmd-panel fmd-block"><div class="fmd-block-title" style="margin-bottom:8px;">Domande più sbagliate</div>
+        <table class="fmd-table"><thead><tr><th>Domanda</th><th>Errori</th></tr></thead><tbody>
+        {% for d in domande %}<tr><td>{{ d.testo }}</td><td class="fmd-num">{{ d.pct_errori }}% di {{ d.risposte }}</td></tr>
+        {% empty %}<tr><td colspan="2" class="fmd-muted">Dati insufficienti (almeno 3 risposte per domanda).</td></tr>{% endfor %}</tbody></table>
+      </section>
+      <section class="fmd-panel fmd-block"><div class="fmd-block-title" style="margin-bottom:8px;">Completamenti per mese</div>
+        <table class="fmd-table"><thead><tr><th>Mese</th><th>Completamenti</th></tr></thead><tbody>
+        {% for m in andamento.per_mese %}<tr><td>{{ m.mese|date:"F Y" }}</td><td class="fmd-num">{{ m.n }}</td></tr>
+        {% empty %}<tr><td colspan="2" class="fmd-muted">Nessun completamento negli ultimi 12 mesi.</td></tr>{% endfor %}</tbody></table>
+      </section>
+    </div>
+
+    {% if persone %}
+    <section class="fmd-panel fmd-block"><div class="fmd-block-title" style="margin-bottom:8px;">Persone{% if reparto %} · {{ reparto }}{% endif %}</div>
+      {% include "anagrafica/partials/_elearning_persone.html" %}
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

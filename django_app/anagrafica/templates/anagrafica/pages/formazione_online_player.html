@@ -48,7 +48,10 @@
         </div>
       </section>
     {% else %}
-      <section class="fmd-panel" style="padding:24px;">
+      {% if enrollment %}
+      <p class="fmd-muted js-tempo" style="margin:0 0 8px;">Tempo di fruizione registrato: <strong class="js-minuti">{{ minuti_fatti }}</strong> minuti{% if regola.tempo_minimo_minuti %} su {{ regola.tempo_minimo_minuti }} richiesti{% endif %}.</p>
+      {% endif %}
+      <section class="fmd-panel fm-player" style="padding:24px;"{% if beat_url %} data-beat-url="{{ beat_url }}" data-beat-intervallo="{{ beat_intervallo }}"{% endif %}>
         {# Target HTMX: la prima slide viene caricata al load, poi navigata avanti/indietro #}
         <div id="fm-slide-target"
              hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk slide_iniziale %}"
@@ -60,4 +63,5 @@
 
   </div>{# .fmd-wrap #}
 </div>{# .fmd #}
+{% if beat_url %}<script src="{% static 'anagrafica/js/elearning_player.js' %}?v=1" defer></script>{% endif %}
 {% endblock %}
