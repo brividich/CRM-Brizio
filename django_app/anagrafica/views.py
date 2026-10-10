@@ -19281,6 +19281,7 @@ def formazione_corso_elearning(request, corso_id: int):
         "tipi_domanda": TrainingQuizQuestion.TIPO_CHOICES,
         "slide_form": TrainingSlideForm(initial={"ordine": (slides[-1].ordine + 1) if slides else 1}, corso=corso),
         "moduli": list(corso.moduli_elearning.all()),
+        **_import_stato_ctx(corso),
         "question_form": TrainingQuizQuestionForm(initial={"ordine": (domande[-1].ordine + 1) if domande else 1}),
     })
 
@@ -19339,17 +19340,32 @@ def formazione_slide_import(request, corso_id: int):
     if f.size and f.size > DOCUMENT_MAX_BYTES:
         messages.error(request, f"File troppo grande (massimo {DOCUMENT_MAX_MB} MB).")
         return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
-    from .services.elearning_import import importa_slides_da_file, ImportError_
+    from .services.elearning_import import ImportError_, accoda_import
     try:
-        n = importa_slides_da_file(corso, f, user=request.user)
-        messages.success(request, f"Importate {n} slide da «{f.name}».")
-        _versiona(request, corso, f"Importate {n} slide")
+        accoda_import(corso, f, user=request.user)
+        messages.success(request, f"«{f.name}» caricato: la conversione in slide prosegue in background. "
+                                  "Lo stato è qui sotto, nella sezione Slide.")
     except ImportError_ as e:
         messages.error(request, str(e))
     except Exception:
-        logger.exception("Import slide e-learning fallito per corso %s", corso_id)
-        messages.error(request, "Import non riuscito: errore imprevisto nella conversione.")
+        logger.exception("Import slide e-learning non accodato per corso %s", corso_id)
+        messages.error(request, "Import non avviato: errore imprevisto.")
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+def formazione_slide_import_stato(request, corso_id: int):
+    """Partial HTMX: stato degli ultimi import di slide (si ricarica finché sono in corso)."""
+    if not _can_edit_formazione(request):
+        return HttpResponseForbidden("Permesso negato.")
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    return render(request, "anagrafica/partials/_elearning_import_stato.html", _import_stato_ctx(corso))
+
+
+def _import_stato_ctx(corso) -> dict:
+    from .models_elearning import TrainingElearningImport
+    lavori = list(TrainingElearningImport.objects.filter(corso=corso).order_by("-creato_il")[:3])
+    return {"corso": corso, "import_lavori": lavori, "import_in_corso": any(j.in_lavorazione for j in lavori)}
 
 
 @login_required

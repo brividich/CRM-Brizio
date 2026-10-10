@@ -104,7 +104,15 @@ def _pdf_to_png_list(pdf_path: str) -> list[bytes]:
     except ImportError:
         raise ImportError_("Libreria di rendering PDF (PyMuPDF) non installata sul server.")
     out: list[bytes] = []
-    with fitz.open(pdf_path) as doc:
+    # Aperto dalla memoria: un PDF rotto non lascia il file bloccato (Windows non
+    # riuscirebbe più a cancellare la cartella temporanea).
+    with open(pdf_path, "rb") as fh:
+        dati = fh.read()
+    try:
+        doc = fitz.open(stream=dati, filetype="pdf")
+    except Exception as exc:
+        raise ImportError_("Il file non è un PDF leggibile.") from exc
+    with doc:
         n = doc.page_count
         if n == 0:
             raise ImportError_("Il documento non contiene pagine.")
@@ -157,3 +165,75 @@ def importa_slides_da_file(corso, uploaded_file, user=None) -> int:
             slide.save()
             created += 1
     return created
+
+
+# ---------------------------------------------------------------------------
+# Import in background (prompt 05, fase 2)
+# ---------------------------------------------------------------------------
+
+def accoda_import(corso, uploaded_file, user=None):
+    """Salva il file, crea il lavoro e lo accoda a django-q dopo il commit."""
+    from django.db import transaction
+    from ..models_elearning import TrainingElearningImport
+
+    ext = Path(getattr(uploaded_file, "name", "") or "").suffix.lower()
+    if ext not in ALLOWED_EXTS:
+        raise ImportError_(f"Formato non supportato ({ext or 'sconosciuto'}). Carica PPTX, PPT, ODP o PDF.")
+    job = TrainingElearningImport(corso=corso, nome_file=Path(uploaded_file.name).name[:255],
+                                  creato_da=user if getattr(user, "is_authenticated", False) else None)
+    job.file.save(f"import_{corso.pk}{ext}", uploaded_file, save=False)
+    job.save()
+
+    def _accoda():
+        try:
+            from django_q.tasks import async_task
+            async_task("anagrafica.tasks.run_elearning_import", job.pk, q_options={"timeout": 900})
+        except Exception:
+            logger.exception("Import slide %s non accodato", job.pk)
+            type(job).objects.filter(pk=job.pk).update(
+                stato=type(job).ERRORE, errore="Servizio di elaborazione non raggiungibile: riprova più tardi.")
+
+    transaction.on_commit(_accoda)
+    return job
+
+
+def esegui_import(job_id: int) -> dict:
+    """Corpo del lavoro. Idempotente: un lavoro già preso in carico non riparte."""
+    from django.db import transaction
+    from django.utils import timezone
+    from ..models_elearning import TrainingElearningImport
+
+    with transaction.atomic():
+        job = TrainingElearningImport.objects.select_for_update().select_related("corso").filter(pk=job_id).first()
+        if job is None or job.stato != TrainingElearningImport.IN_CODA:
+            return {"ok": False, "motivo": "non_in_coda"}
+        job.stato, job.avviato_il = TrainingElearningImport.IN_CORSO, timezone.now()
+        job.save(update_fields=["stato", "avviato_il"])
+    try:
+        from django.core.files import File
+        percorso = job.file.name
+        with job.file.open("rb") as grezzo:
+            # Copia con il nome originale (estensione e titoli delle slide): il nome
+            # del FieldFile è il percorso nello storage e non va toccato.
+            n = importa_slides_da_file(job.corso, File(grezzo, name=job.nome_file), user=job.creato_da)
+        job.file.name = percorso
+        job.stato, job.n_slide, job.errore = TrainingElearningImport.COMPLETATO, n, ""
+    except ImportError_ as exc:
+        job.stato, job.errore = TrainingElearningImport.ERRORE, str(exc)[:500]
+    except Exception:
+        logger.exception("Import slide %s fallito", job_id)
+        job.stato, job.errore = TrainingElearningImport.ERRORE, "Errore imprevisto nella conversione."
+    job.finito_il = timezone.now()
+    job.save(update_fields=["stato", "n_slide", "errore", "finito_il"])
+    try:
+        job.file.delete(save=False)
+        TrainingElearningImport.objects.filter(pk=job.pk).update(file="")
+    except Exception:
+        logger.warning("File di import %s non cancellato", job_id, exc_info=True)
+    if job.stato == TrainingElearningImport.COMPLETATO and job.n_slide:
+        try:
+            from .elearning_versioni import registra
+            registra(job.corso, user=job.creato_da, motivo=f"Importate {job.n_slide} slide")
+        except Exception:
+            logger.exception("Versione non aggiornata dopo l'import %s", job_id)
+    return {"ok": job.stato == TrainingElearningImport.COMPLETATO, "slide": job.n_slide}

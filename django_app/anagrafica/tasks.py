@@ -163,6 +163,12 @@ def run_visite_mediche_digest(days: int = 60) -> dict:
         raise
 
 
+def run_elearning_import(job_id: int) -> dict:
+    """Import di slide da PowerPoint/PDF accodato dall'autore (vedi ``elearning_import.esegui_import``)."""
+    from anagrafica.services.elearning_import import esegui_import
+    return esegui_import(job_id)
+
+
 def run_elearning_reminders() -> dict:
     """Promemoria micro-corsi e-learning non completati (digest HR + notifica in-app).
 

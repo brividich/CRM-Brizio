@@ -445,6 +445,8 @@ urlpatterns = [
     path("formazione/corsi/<int:corso_id>/elearning/domande/salva", views.formazione_question_save, name="formazione_question_save"),
     path("formazione/corsi/<int:corso_id>/elearning/domande/import", views.formazione_question_import, name="formazione_question_import"),
     path("formazione/corsi/<int:corso_id>/elearning/moduli/salva", views.formazione_modulo_save, name="formazione_modulo_save"),
+    path("formazione/corsi/<int:corso_id>/elearning/slide/import/stato", views.formazione_slide_import_stato,
+         name="formazione_slide_import_stato"),
     path("formazione/corsi/<int:corso_id>/elearning/moduli/<int:modulo_id>/elimina", views.formazione_modulo_delete,
          name="formazione_modulo_delete"),
     path("formazione/corsi/<int:corso_id>/elearning/domande/<int:question_id>/elimina", views.formazione_question_delete, name="formazione_question_delete"),

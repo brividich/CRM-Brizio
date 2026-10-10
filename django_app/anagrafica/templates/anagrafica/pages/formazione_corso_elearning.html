@@ -62,6 +62,7 @@
           <input type="file" name="file" accept=".pptx,.ppt,.odp,.pdf" class="fm-input" required style="max-width:420px;">
           <button type="submit" class="fmd-btn fmd-btn-navy"><svg class="fmd-ico"><use href="#i-download"/></svg>Importa</button>
         </div>
+        {% if import_lavori %}<div style="margin-top:10px;">{% include "anagrafica/partials/_elearning_import_stato.html" %}</div>{% endif %}
       </form>
 
       {# Video: una slide video (MP4, storage privato) #}
@@ -264,6 +265,9 @@
 </div>{# .fmd #}
 
 <style>
+.el-import-riga{ display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; font-size:13px; padding:4px 0; }
+.el-import-errore span:first-of-type{ color:#c0392b; }
+.el-import-completato span:first-of-type{ color:#15803d; }
 .fm-edit-row{ padding:0; }
 .fm-edit-row-actions{ margin:8px 0 4px; }
 .fm-add-box{ border:1px dashed #cbd5e1; border-radius:12px; padding:16px; background:#f8fafc; margin-top:8px; }

@@ -49,6 +49,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - **moduli** facoltativi (`TrainingElearningModulo`) che raggruppano le slide; nel player l'**indice del corso** per moduli e lezioni, con le lezioni completate spuntate e apribili solo quelle consentite dalla sequenza (stessa regola lato server);
   - **versioni formali** (`TrainingCourseVersion` con impronta e fotografia dei contenuti): la versione si fissa alla pubblicazione; una modifica dopo che qualcuno ha completato il corso apre la versione successiva (1.0 → 1.1) e il registro di chi ha completato resta legato alla sua; prima del primo completamento la versione si aggiorna senza crearne di nuove; corsi in bozza liberi;
   - regola FAD «se i contenuti cambiano, chi ha già completato»: **restano validi** (default) oppure **devono rifare il corso** (nuovo ciclo con scadenza e notifica, esclusi i cessati); storico delle versioni con i completamenti nella cabina di regia del corso.
+- **E-learning fase 2 — import slide da PowerPoint/PDF in background** (`models_elearning.py`, migration `0155`, `services/elearning_import.py`, `tasks.py`, `views.py`, `urls.py`, template `partials/_elearning_import_stato.html` nuovo, `formazione_corso_elearning.html`, test in `tests_elearning_fase2.py`):
+  - il caricamento salva il file e accoda la conversione a django-q (`anagrafica.tasks.run_elearning_import`, timeout 15 minuti): la richiesta web non resta più appesa a LibreOffice; nella sezione Slide lo stato si aggiorna da solo (in coda, in corso, completato con il numero di slide, errore leggibile);
+  - lavoro idempotente (una riconsegna del task non duplica le slide), file di origine nello storage privato cancellato a fine lavoro, versione del corso aggiornata dopo l'import;
+  - **corretto**: un PDF rotto lasciava bloccato il file temporaneo su Windows; ora il PDF si apre dalla memoria e l'errore è «Il file non è un PDF leggibile».
 <!-- fine prompt 05 -->
 
 <!-- prompt 04 anagrafica: mansioni di rischio (blocco della sessione, non mescolare) -->

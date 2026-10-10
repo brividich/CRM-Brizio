@@ -412,3 +412,49 @@ class ModuliEVersioniTests(_Pro):
         self.client.force_login(self.admin)
         r = self.client.get(reverse("anagrafica:formazione_elearning_manage", args=[self.corso.pk]))
         self.assertContains(r, "si crea alla pubblicazione")
+
+
+class ImportInBackgroundTests(_Pro):
+    def setUp(self):
+        super().setUp()
+        self.admin = User.objects.create_superuser("imp2.el", "imp2@example.invalid", "x")
+        self.client.force_login(self.admin)
+
+    def _pdf(self):
+        from .tests_elearning import _pdf_due_pagine
+        return SimpleUploadedFile("lezione.pdf", _pdf_due_pagine(), content_type="application/pdf")
+
+    def test_upload_accoda_e_il_lavoro_crea_le_slide(self):
+        from unittest import mock
+        from .models_elearning import TrainingElearningImport
+        from .services.elearning_import import esegui_import
+        with mock.patch("django_q.tasks.async_task") as accoda, self.captureOnCommitCallbacks(execute=True):
+            r = self.client.post(reverse("anagrafica:formazione_slide_import", args=[self.corso.pk]),
+                                 {"file": self._pdf()}, follow=True)
+        job = TrainingElearningImport.objects.get()
+        accoda.assert_called_once()
+        self.assertEqual(accoda.call_args.args, ("anagrafica.tasks.run_elearning_import", job.pk))
+        self.assertContains(r, "in coda")
+        self.assertEqual(self.corso.slides.count(), 3)  # niente conversione nella richiesta web
+        esito = esegui_import(job.pk)
+        job.refresh_from_db()
+        self.assertEqual((esito["ok"], job.stato, job.n_slide), (True, "COMPLETATO", 2))
+        self.assertEqual(self.corso.slides.count(), 5)
+        self.assertFalse(job.file)  # file di origine cancellato
+        self.assertEqual(esegui_import(job.pk)["motivo"], "non_in_coda")  # riconsegna del task: niente doppioni
+        stato = self.client.get(reverse("anagrafica:formazione_slide_import_stato", args=[self.corso.pk]))
+        self.assertContains(stato, "2 slide importate")
+        self.assertNotContains(stato, "every 4s")
+
+    def test_file_rotto_errore_leggibile_e_permessi(self):
+        from .models_elearning import TrainingElearningImport
+        from .services.elearning_import import accoda_import, esegui_import
+        with self.captureOnCommitCallbacks(execute=False):
+            job = accoda_import(self.corso, SimpleUploadedFile("rotto.pdf", b"non un pdf"), user=self.admin)
+        esegui_import(job.pk)
+        job.refresh_from_db()
+        self.assertEqual(job.stato, TrainingElearningImport.ERRORE)
+        self.assertTrue(job.errore)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("anagrafica:formazione_slide_import_stato",
+                                                 args=[self.corso.pk])).status_code, 403)

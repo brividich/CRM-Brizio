@@ -15,6 +15,11 @@ from __future__ import annotations
 from django.conf import settings
 from django.db import models
 
+
+def _storage_privato():
+    from .storage import PrivateAnagraficaStorage
+    return PrivateAnagraficaStorage()
+
 __all__ = ["TrainingElearningSessione", "TrainingElearningSlideView", "TrainingElearningCompletamento"]
 
 
@@ -165,3 +170,38 @@ class TrainingElearningModulo(models.Model):
 
     def __str__(self) -> str:
         return f"{self.corso_id} · {self.ordine}. {self.titolo}"
+
+
+class TrainingElearningImport(models.Model):
+    """Import di slide da PowerPoint/PDF eseguito in background (django-q).
+
+    La conversione con LibreOffice può durare minuti: la richiesta web salva il
+    file e accoda il lavoro; la pagina dell'autore mostra lo stato. Il file di
+    origine si cancella a lavoro finito."""
+
+    IN_CODA, IN_CORSO, COMPLETATO, ERRORE = "IN_CODA", "IN_CORSO", "COMPLETATO", "ERRORE"
+    STATO_CHOICES = [(IN_CODA, "In coda"), (IN_CORSO, "In corso"), (COMPLETATO, "Completato"), (ERRORE, "Errore")]
+
+    corso = models.ForeignKey("anagrafica.TrainingCourse", on_delete=models.CASCADE, related_name="+")
+    file = models.FileField(upload_to="elearning/import/", storage=_storage_privato, blank=True)
+    nome_file = models.CharField(max_length=255)
+    stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=IN_CODA)
+    n_slide = models.PositiveSmallIntegerField(default=0)
+    errore = models.CharField(max_length=500, blank=True, default="")
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                  related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+    avviato_il = models.DateTimeField(null=True, blank=True)
+    finito_il = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-creato_il"]
+        verbose_name = "Import slide e-learning"
+        verbose_name_plural = "Import slide e-learning"
+
+    def __str__(self) -> str:
+        return f"Import {self.nome_file} ({self.stato})"
+
+    @property
+    def in_lavorazione(self) -> bool:
+        return self.stato in (self.IN_CODA, self.IN_CORSO)
