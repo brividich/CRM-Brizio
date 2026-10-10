@@ -18878,6 +18878,14 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
     except Exception:
         logger.exception("Allineamento qualifica e-learning fallito per record %s", record.pk)
 
+    # Valutazione di efficacia sul campo, se il corso la prevede: come il flusso
+    # d'aula (prima l'e-learning non la apriva mai). Fail-safe.
+    try:
+        from .services.formazione_efficacia import pianifica_valutazione_efficacia
+        pianifica_valutazione_efficacia(record)
+    except Exception:
+        logger.exception("Valutazione di efficacia non pianificata per record e-learning %s", record.pk)
+
     # Archiviazione automatica dell'attestato nella cartella documenti del dipendente
     # (stesso flusso dei corsi d'aula: cartella «Attestati formazione» o quella scelta
     # in Impostazioni → Template attestato). Fail-safe: non deve bloccare il completamento.

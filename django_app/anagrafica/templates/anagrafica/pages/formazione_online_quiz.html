@@ -68,6 +68,7 @@
           <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_quiz' corso.pk %}">Riprova il quiz{% if tentativi_rimasti %} ({{ tentativi_rimasti }} rimast{{ tentativi_rimasti|pluralize:"o,i" }}){% endif %}</a>
           {% endif %}
           {% else %}
+          {% if gradimento %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_gradimento' corso.pk %}"><svg class="fmd-ico"><use href="#i-award"/></svg>Lascia un giudizio</a>{% endif %}
           <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_catalog' %}">Torna al catalogo</a>
           {% endif %}
         </div>

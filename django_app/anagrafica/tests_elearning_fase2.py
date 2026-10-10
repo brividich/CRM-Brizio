@@ -287,3 +287,45 @@ class ScalettaPromemoriaTests(_Pro):
         self.assertEqual((cfg.promemoria_giorni_prima, cfg.solleciti_giorni_dopo, cfg.digest_responsabile_giorno),
                          ("30,7", "", 7))
         self.assertFalse(ElearningConfigForm({"promemoria_giorni_prima": "sette"}, instance=cfg).is_valid())
+
+
+class GradimentoEfficaciaTests(_Pro):
+    def _completa(self):
+        self._vedi_tutte()
+        with self.captureOnCommitCallbacks(execute=True):
+            return self._quiz(self.giusta)
+
+    def test_offerto_dopo_il_quiz_e_una_volta_sola(self):
+        from .models_elearning import TrainingElearningGradimento
+        r = self._completa()
+        url = reverse("anagrafica:formazione_online_gradimento", args=[self.corso.pk])
+        self.assertContains(r, url)
+        self.assertContains(self.client.get(reverse("anagrafica:formazione_online_catalog")), url)
+        incompleto = self.client.post(url, {"v_0": "5"})
+        self.assertEqual(incompleto.status_code, 400)
+        self.client.post(url, {"v_0": "5", "v_1": "4", "v_2": "4", "v_3": "3", "commento": "Chiaro."})
+        g = TrainingElearningGradimento.objects.get()
+        self.assertEqual((str(g.media), g.voti_json, len(g.domande_json)), ("4.00", [5, 4, 4, 3], 4))
+        self.assertEqual(self.client.get(url).status_code, 302)  # già dato
+        self.assertNotContains(self.client.get(reverse("anagrafica:formazione_online_catalog")), url)
+
+    def test_non_completato_non_valuta(self):
+        url = reverse("anagrafica:formazione_online_gradimento", args=[self.corso.pk])
+        self.assertEqual(self.client.get(url).status_code, 302)
+
+    def test_completamento_elearning_apre_la_valutazione_di_efficacia(self):
+        from .models_formazione import TrainingEfficacia
+        self._regola(valutazione_efficacia_mesi=3)
+        self._completa()
+        self.assertEqual(TrainingEfficacia.objects.filter(legacy_anagrafica_id=self.lid).count(), 1)
+
+    def test_cruscotto_medie_e_commenti_senza_nome(self):
+        self._completa()
+        url = reverse("anagrafica:formazione_online_gradimento", args=[self.corso.pk])
+        self.client.post(url, {"v_0": "5", "v_1": "5", "v_2": "4", "v_3": "4", "commento": "Utile davvero."})
+        admin = User.objects.create_superuser("cru.el", "cru@example.invalid", "x")
+        self.client.force_login(admin)
+        r = self.client.get(reverse("anagrafica:elearning_cruscotto"))
+        self.assertTrue("4,5 / 5" in r.content.decode() or "4.5 / 5" in r.content.decode())
+        self.assertContains(r, "Utile davvero.")
+        self.assertNotContains(r, "DISCENTE.EL")

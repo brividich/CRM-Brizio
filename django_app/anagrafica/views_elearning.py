@@ -85,6 +85,14 @@ def formazione_online_catalog(request):
         completate = dict(TrainingElearningSlideView.objects.filter(
             enrollment__in=list(iscrizioni.values()), completata=True, slide__is_active=True)
             .values("enrollment_id").annotate(n=Count("pk")).order_by().values_list("enrollment_id", "n"))
+    # Completamenti ancora senza questionario di gradimento.
+    da_valutare = set()
+    from .models_formazione import ElearningConfig
+    if iscrizioni and ElearningConfig.get_instance().gradimento_attivo:
+        from .models_elearning import TrainingElearningGradimento
+        record_ids = {e.record_completamento_id for e in iscrizioni.values() if e.record_completamento_id}
+        gia = set(TrainingElearningGradimento.objects.filter(record_id__in=record_ids).values_list("record_id", flat=True))
+        da_valutare = record_ids - gia
     cards = []
     oggi = timezone.localdate()
     for c in corsi:
@@ -106,6 +114,7 @@ def formazione_online_catalog(request):
             "in_ritardo": bool(da_fare and a.due_date and a.due_date < oggi),
             "progress_pct": min(round(completate.get(e.pk, 0) / c.n_slide * 100), 100)
             if e and c.n_slide else 0,
+            "da_valutare": bool(completato and e.record_completamento_id in da_valutare),
         })
     cards.sort(key=lambda x: (not x["assegnato_da_fare"], x["due_date"] or oggi.max, x["corso"].titolo.lower()))
     return render(request, "anagrafica/pages/formazione_online_catalog.html", {
@@ -196,7 +205,14 @@ def formazione_online_slide(request, corso_id: int, ordine: int):
         "anteprima": accesso.anteprima,
         "secondi_mancanti": secondi_mancanti,
         "completato": completato or (enr is not None and enr.stato == "COMPLETATO"),
+        "gradimento": bool((completato or (enr is not None and enr.stato == "COMPLETATO")) and not accesso.anteprima
+                           and _gradimento_da_dare(corso, enr)),
     })
+
+
+def _gradimento_da_dare(corso, enr) -> bool:
+    from .services.elearning_gradimento import record_da_valutare
+    return enr is not None and record_da_valutare(corso, enr.legacy_anagrafica_id) is not None
 
 
 def _completa_senza_quiz(enr, regola, user) -> bool:
@@ -322,6 +338,8 @@ def formazione_online_quiz(request, corso_id: int):
             mancanti = exc.mancanti
     enr.refresh_from_db()
     risposte_snapshot = tentativo.risposte_json.get("risposte", [])
+    from .services.elearning_gradimento import record_da_valutare
+    gradimento = bool(enr.stato == "COMPLETATO" and record_da_valutare(corso, enr.legacy_anagrafica_id))
     return render(request, "anagrafica/pages/formazione_online_quiz.html", {
         "corso": corso, "domande": [], "token": "",
         "tentativi_rimasti": quiz.tentativi_rimasti(enr, regola),
@@ -333,6 +351,7 @@ def formazione_online_quiz(request, corso_id: int):
             # direbbe quali risposte cambiare.
             "risposte": risposte_snapshot if tentativo.superato else [],
         },
+        "gradimento": gradimento,
     })
 
 
@@ -575,10 +594,25 @@ def elearning_cruscotto(request):
         "domande": report.domande_piu_sbagliate(), "reparto": reparto, "corso_id": corso_id,
         "corsi_opts": fruizione.corsi_pubblicati().order_by("titolo"),
         "persone": cop["persone"][:200] if reparto or corso_id else [],
+        "qualita": _qualita_corsi(corso_id),
     }
     if request.headers.get("HX-Request") and request.GET.get("parte") == "persone":
         return render(request, "anagrafica/partials/_elearning_persone.html", ctx)
     return render(request, "anagrafica/pages/elearning_cruscotto.html", ctx)
+
+
+def _qualita_corsi(corso_id=None) -> dict:
+    """Gradimento (reazione a fine corso) ed efficacia (verifica sul campo) per corso."""
+    from .services import elearning_gradimento as grad
+
+    corsi = {c.pk: c.titolo for c in TrainingCourse.objects.filter(is_elearning=True)
+             .filter(**({"pk": corso_id} if corso_id else {})).only("titolo")}
+    gradimento = grad.per_corso(corsi)
+    efficacia = grad.efficacia_per_corso(corsi)
+    righe = [{"titolo": titolo, "gradimento": gradimento.get(pk), "efficacia": efficacia.get(pk)}
+             for pk, titolo in corsi.items() if pk in gradimento or pk in efficacia]
+    righe.sort(key=lambda r: r["titolo"].lower())
+    return {"righe": righe, "commenti": grad.commenti_recenti(corso_id=corso_id)}
 
 
 @login_required
@@ -643,3 +677,35 @@ def formazione_verifica_attestato(request, codice: str = ""):
     }, status=429 if limitato else 200)
     resp["Referrer-Policy"] = "no-referrer"
     return resp
+
+
+# -- Questionario di gradimento (prompt 05, fase 2) ----------------------------
+
+@login_required
+def formazione_online_gradimento(request, corso_id: int):
+    """Giudizio del discente sul corso appena completato (facoltativo, una volta)."""
+    from .services import elearning_gradimento as grad
+
+    corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
+    legacy_id, _is_editor = _ctx_utente(request)
+    record = grad.record_da_valutare(corso, legacy_id)
+    if record is None:
+        messages.info(request, "Non c'è un corso completato da valutare, o hai già lasciato il tuo giudizio.")
+        return redirect("anagrafica:formazione_online_catalog")
+    domande = grad.domande()
+    errore = ""
+    voti = {}
+    if request.method == "POST":
+        voti = {i: request.POST.get(f"v_{i}", "") for i in range(len(domande))}
+        try:
+            grad.salva(record, [voti[i] for i in range(len(domande))], request.POST.get("commento", ""))
+        except grad.GradimentoNonValido as exc:
+            errore = str(exc)
+        else:
+            messages.success(request, "Grazie: il tuo giudizio aiuta a migliorare il corso.")
+            return redirect("anagrafica:formazione_online_catalog")
+    return render(request, "anagrafica/pages/formazione_online_gradimento.html", {
+        "corso": corso, "domande": list(enumerate(domande)), "voti": voti, "errore": errore,
+        "scala": [(1, "Per niente"), (2, "Poco"), (3, "Abbastanza"), (4, "Molto"), (5, "Del tutto")],
+        "commento": request.POST.get("commento", "") if request.method == "POST" else "",
+    }, status=400 if errore else 200)

@@ -77,6 +77,19 @@
         </div>
       </div>
 
+      {# ── Questionario di gradimento (prompt 05, fase 2) ──────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-award"/></svg>
+          <span class="fmd-form-sec-t">Questionario di gradimento</span>
+          <span class="fmd-form-sec-n">Proposto al discente a fine corso: voto da 1 a 5 per domanda e un commento; nel cruscotto si vedono medie e commenti senza nome</span>
+        </div>
+        <div class="fmd-stack">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.gradimento_attivo %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.gradimento_domande full=1 %}
+        </div>
+      </div>
+
       {# ── Import PowerPoint ────────────────────────────────────── #}
       <div class="fmd-form-sec">
         <div class="fmd-form-sec-h">

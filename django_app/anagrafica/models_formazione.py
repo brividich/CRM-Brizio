@@ -2260,6 +2260,13 @@ class ElearningConfig(models.Model):
         default=0, choices=[(0, "Lunedì"), (1, "Martedì"), (2, "Mercoledì"), (3, "Giovedì"), (4, "Venerdì"),
                             (7, "Mai")],
         help_text="Giorno del riepilogo settimanale al responsabile dei corsi in scadenza o scaduti.")
+    gradimento_attivo = models.BooleanField(
+        default=True, help_text="Proporre il questionario di gradimento a fine corso.")
+    gradimento_domande = models.TextField(
+        blank=True,
+        default="I contenuti erano chiari\nGli argomenti sono utili per il mio lavoro\n"
+                "La durata era adeguata\nIl corso ha funzionato bene sul mio dispositivo",
+        help_text="Una domanda per riga; il discente risponde da 1 (per niente) a 5 (del tutto).")
     libreoffice_path = models.CharField(
         max_length=400, blank=True, default="",
         help_text="Percorso dell'eseguibile LibreOffice (soffice) per l'import PowerPoint. "

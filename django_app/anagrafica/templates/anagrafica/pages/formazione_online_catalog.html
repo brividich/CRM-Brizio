@@ -62,6 +62,7 @@
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;">
           <span>
             {% if it.stato == "COMPLETATO" %}<span class="fmd-badge fmd-b-green">Completato{% if it.best_pct %} · {{ it.best_pct }}%{% endif %}</span>
+            {% if it.da_valutare %}<a class="fmd-data-link" style="display:block;margin-top:4px;font-size:12.5px;" href="{% url 'anagrafica:formazione_online_gradimento' it.corso.pk %}">Lascia un giudizio</a>{% endif %}
             {% elif it.stato == "IN_CORSO" %}<span class="fmd-badge fmd-b-amber">In corso</span>
             {% elif it.stato == "NON_SUPERATO" %}<span class="fmd-badge fmd-b-grey">Non superato{% if it.best_pct %} · {{ it.best_pct }}%{% endif %}</span>
             {% elif it.stato == "ISCRITTO" %}<span class="fmd-badge fmd-b-grey">Iscritto</span>

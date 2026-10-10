@@ -715,8 +715,11 @@ class ElearningConfigForm(forms.ModelForm):
         model = ElearningConfig
         fields = ["quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "libreoffice_path",
                   "finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb",
-                  "promemoria_giorni_prima", "solleciti_giorni_dopo", "digest_responsabile_giorno"]
+                  "promemoria_giorni_prima", "solleciti_giorni_dopo", "digest_responsabile_giorno",
+                  "gradimento_attivo", "gradimento_domande"]
         widgets = {
+            "gradimento_attivo":  forms.CheckboxInput(attrs=_FM_CHECK),
+            "gradimento_domande": forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 5}),
             "promemoria_giorni_prima": forms.TextInput(attrs={**_FM, "placeholder": "14,7,1"}),
             "solleciti_giorni_dopo":   forms.TextInput(attrs={**_FM, "placeholder": "1,7,14"}),
             "digest_responsabile_giorno": forms.Select(attrs=_FM),
@@ -731,7 +734,8 @@ class ElearningConfigForm(forms.ModelForm):
 
     _CON_DEFAULT = ("finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb")
     # Scaletta promemoria: vuoto è una scelta (nessun avviso); non inviato = invariato.
-    _SE_INVIATI = ("promemoria_giorni_prima", "solleciti_giorni_dopo", "digest_responsabile_giorno")
+    _SE_INVIATI = ("promemoria_giorni_prima", "solleciti_giorni_dopo", "digest_responsabile_giorno",
+                   "gradimento_domande")
 
     def __init__(self, *args, puo_rspp: bool = True, **kwargs):
         super().__init__(*args, **kwargs)

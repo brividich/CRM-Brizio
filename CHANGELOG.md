@@ -41,6 +41,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - sulle assegnazioni con scadenza: promemoria al dipendente **prima** (default 14/7/1 giorni), **solleciti dopo** la scadenza (default 1/7/14) al dipendente e al **responsabile effettivo** (in-app ed email di notifica, un messaggio per responsabile con tutte le persone del giorno), **riepilogo settimanale** al responsabile (default lunedì, «Mai» per spegnerlo); tutto configurabile in Impostazioni e-learning;
   - **nessun doppione**: ogni avviso ha una chiave univoca (`TrainingElearningAvviso`); si manda la soglia più urgente già raggiunta, così un giorno saltato dal job non produce avvisi arretrati a raffica; dipendenti cessati esclusi; `--dry-run` non scrive nulla;
   - tolta la notifica quotidiana a ogni iscritto (arrivava ogni mattina per ogni corso aperto); il digest HR resta com'era.
+- **E-learning fase 2 — questionario di gradimento ed efficacia** (`models_elearning.py`, `models_formazione.py`, migration `0153`, `services/elearning_gradimento.py` nuovo, `views_elearning.py`, `views.py`, `urls.py`, `forms.py`, template `formazione_online_gradimento.html` nuovo, `elearning_cruscotto.html`, `formazione_online_quiz.html`, `formazione_online_catalog.html`, `partials/_formazione_online_slide.html`, `formazione_elearning_settings.html`, test in `tests_elearning_fase2.py`, `tests_elearning_sicurezza.py` adeguato):
+  - a fine corso il discente può lasciare un **giudizio** (voto 1–5 per domanda + commento), una volta per completamento; domande configurabili in Impostazioni e-learning (o questionario spento), fotografate con le risposte;
+  - **corretto**: il completamento e-learning non apriva mai la **valutazione di efficacia** (`TrainingEfficacia`) anche quando il corso la prevede; ora la apre come l'aula;
+  - nel **cruscotto** «Gradimento ed efficacia per corso» (media e numero di giudizi, valutazioni di efficacia compilate e quota di efficaci) e gli ultimi commenti **senza nome**.
 <!-- fine prompt 05 -->
 
 <!-- prompt 04 anagrafica: mansioni di rischio (blocco della sessione, non mescolare) -->

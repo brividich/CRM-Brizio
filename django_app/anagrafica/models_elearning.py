@@ -120,3 +120,31 @@ class TrainingElearningAvviso(models.Model):
 
     def __str__(self) -> str:
         return self.chiave
+
+
+class TrainingElearningGradimento(models.Model):
+    """Questionario di gradimento compilato dal discente dopo il completamento.
+
+    Uno per completamento (record). Le domande si fotografano con le risposte:
+    se HR cambia il questionario, le risposte vecchie restano leggibili. Il
+    cruscotto mostra solo medie e commenti senza nome."""
+
+    record = models.OneToOneField(
+        "anagrafica.TrainingEmployeeRecord", on_delete=models.CASCADE, related_name="gradimento_elearning",
+    )
+    corso = models.ForeignKey("anagrafica.TrainingCourse", on_delete=models.CASCADE, related_name="+")
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    domande_json = models.JSONField(default=list)
+    voti_json = models.JSONField(default=list, help_text="Un voto da 1 a 5 per domanda, nello stesso ordine.")
+    media = models.DecimalField(max_digits=3, decimal_places=2)
+    commento = models.TextField(blank=True, default="")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-creato_il"]
+        verbose_name = "Gradimento e-learning"
+        verbose_name_plural = "Gradimenti e-learning"
+        indexes = [models.Index(fields=["corso", "creato_il"])]
+
+    def __str__(self) -> str:
+        return f"Gradimento record {self.record_id}: {self.media}"

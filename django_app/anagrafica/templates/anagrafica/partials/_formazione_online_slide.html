@@ -42,6 +42,7 @@
       </button>
     {% elif completato %}
       <span class="fmd-badge fmd-b-green">Corso completato</span>
+      {% if gradimento %}<a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_online_gradimento' corso.pk %}"><svg class="fmd-ico"><use href="#i-award"/></svg>Lascia un giudizio</a>{% endif %}
       <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_online_catalog' %}">Torna ai corsi</a>
     {% elif n_domande > 0 %}
       <a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_online_quiz' corso.pk %}">

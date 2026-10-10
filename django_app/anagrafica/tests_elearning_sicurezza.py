@@ -190,6 +190,11 @@ class AvanzamentoEQuizTests(_Base):
 
 class PromemoriaTests(_Base):
     def test_notifica_all_utente_del_portale_con_link_al_corso(self):
+        # Fase 2: il promemoria al discente lo manda la scaletta, sulle assegnazioni con scadenza.
+        from datetime import timedelta
+        from django.utils import timezone
+        TrainingAssignment.objects.filter(corso=self.corso, legacy_anagrafica_id=self.lid).update(
+            due_date=timezone.localdate() + timedelta(days=1))
         out = StringIO()
         call_command("send_elearning_reminders", recipients=["hr@example.invalid"], stdout=out)
         n = Notifica.objects.get(legacy_user_id=self.uid)  # assegnato, mai aperto: ricordato

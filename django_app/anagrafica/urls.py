@@ -456,6 +456,8 @@ urlpatterns = [
     path("formazione/corsi-online/<int:corso_id>/", views_elearning.formazione_online_player, name="formazione_online_player"),
     path("formazione/corsi-online/<int:corso_id>/slide/<int:ordine>", views_elearning.formazione_online_slide, name="formazione_online_slide"),
     path("formazione/corsi-online/<int:corso_id>/quiz", views_elearning.formazione_online_quiz, name="formazione_online_quiz"),
+    path("formazione/corsi-online/<int:corso_id>/gradimento", views_elearning.formazione_online_gradimento,
+         name="formazione_online_gradimento"),
     path("formazione/elearning/<int:corso_id>/iscritti/<int:enrollment_id>/sblocca", views_elearning.formazione_elearning_sblocca, name="formazione_elearning_sblocca"),
     # ── E-learning professionale (prompt 05) ──
     path("formazione/corsi-online/<int:corso_id>/beat", views_elearning.formazione_online_beat, name="formazione_online_beat"),
