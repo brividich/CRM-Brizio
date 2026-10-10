@@ -3214,20 +3214,12 @@ def formazione_allegato_upload(request, sessione_id: int):
         messages.error(request, "Seleziona un file da caricare.")
         return _back()
 
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_DOC_EXTENSIONS:
-        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
-        return _back()
-    if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
-        return _back()
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del browser.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
     try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-    if mime not in _ALLOWED_DOC_MIMES:
-        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        mime = valida_documento(uploaded, _ALLOWED_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
+        messages.error(request, f"File rifiutato: {exc} Ammessi: PDF, immagini (JPG, PNG, WEBP), DOC/DOCX, XLS/XLSX.")
         return _back()
 
     att = TrainingAttachment(
@@ -3350,20 +3342,12 @@ def formazione_corso_allegato_upload(request, corso_id: int):
     if not uploaded:
         messages.error(request, "Seleziona un file da caricare.")
         return _back()
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_DOC_EXTENSIONS:
-        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
-        return _back()
-    if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
-        return _back()
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del browser.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
     try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-    if mime not in _ALLOWED_DOC_MIMES:
-        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        mime = valida_documento(uploaded, _ALLOWED_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
+        messages.error(request, f"File rifiutato: {exc} Ammessi: PDF, immagini (JPG, PNG, WEBP), DOC/DOCX, XLS/XLSX.")
         return _back()
 
     att = TrainingAttachment(
@@ -4327,19 +4311,38 @@ def dipendente_assegnazione_annulla(request, legacy_id: int, assegnazione_id: in
         )
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
-    # Riapre l'assegnazione che questa aveva chiuso, così non resta un buco.
-    precedente = (
-        DipendenteAssegnazione.objects
-        .filter(legacy_anagrafica_id=legacy_id, data_fine__isnull=False)
-        .exclude(pk=assegnazione.pk)
-        .order_by("-data_fine", "-created_at")
-        .first()
-    )
-    if precedente is not None and precedente.data_fine == assegnazione.data_inizio - _timedelta(days=1):
-        precedente.data_fine = None
-        precedente.save(update_fields=["data_fine"])
-
-    assegnazione.delete()
+    # Gli adempimenti generati restano nella storia come ANNULLATI con motivo
+    # (SET_NULL sull'assegnazione), e l'annullamento lascia traccia in timeline.
+    # Tutto in una transazione: riapertura della card precedente compresa.
+    from django.db import transaction as _tx
+    from .services import eventi_sicurezza
+    from .services.assegnazioni import rigenera_successiva
+    from .services.cambio_mansione import annulla_piano
+    motivo = (request.POST.get("motivo") or "").strip()[:250]
+    with _tx.atomic():
+        # Riapre l'assegnazione che questa aveva chiuso, così non resta un buco.
+        precedente = (
+            DipendenteAssegnazione.objects
+            .filter(legacy_anagrafica_id=legacy_id, data_fine__isnull=False)
+            .exclude(pk=assegnazione.pk)
+            .order_by("-data_fine", "-created_at")
+            .first()
+        )
+        if precedente is not None and precedente.data_fine == assegnazione.data_inizio - _timedelta(days=1):
+            precedente.data_fine = None
+            precedente.save(update_fields=["data_fine"])
+        descr = f"Spostamento a «{assegnazione.mansione or assegnazione.reparto}» dal {assegnazione.data_inizio:%d/%m/%Y} annullato"
+        annullati = annulla_piano(assegnazione, motivo=f"{descr}{': ' + motivo if motivo else ''}", user=request.user)
+        eventi_sicurezza.registra(
+            legacy_id, "ASSEGNAZIONE_ANNULLATA", descr, request=request,
+            data_effetto=assegnazione.data_inizio,
+            payload={"assegnazione_id": assegnazione.pk, "mansione": assegnazione.mansione,
+                     "reparto": assegnazione.reparto, "adempimenti_annullati": annullati,
+                     "motivo": motivo},
+        )
+        data_annullata = assegnazione.data_inizio
+        assegnazione.delete()
+        rigenera_successiva(legacy_id, data_annullata, user=request.user)
     messages.success(request, "Spostamento programmato annullato.")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
@@ -6652,8 +6655,13 @@ def mansione_requisiti(request, mansione_id: int):
     except Exception:
         logger.warning("Elenco SDS della mansione non disponibile", exc_info=True)
 
+    collegamenti = list(
+        mansione.link_rischio.select_related("mansione_rischio").order_by("ordine", "pk")
+    )
     return render(request, "anagrafica/pages/mansione_requisiti.html", {
         "mansione": mansione,
+        "collegamenti_rischio": collegamenti,
+        "usa_mansioni_rischio": bool(collegamenti),
         "is_editor": is_editor,
         "requisiti": requisiti,
         "sds_righe": sds_righe,
@@ -10750,11 +10758,15 @@ def _salva_referto_visita(request, visita: VisitaMedica, referto_file) -> Docume
     """Crea il ``DocumentoDipendente`` VISITA_MEDICA_REFERTO (storage privato)
     e lo aggancia a ``visita.referto_documento``. Percorso unico per form
     singolo e sessione batch."""
+    # SEC (audit A8): solo PDF/PNG/JPEG verificati dal contenuto; il tipo salvato
+    # e' quello rilevato, mai il Content-Type dichiarato dal browser.
+    from .services.referti_file import valida_referto
+    mime_reale = valida_referto(referto_file)
     doc = DocumentoDipendente(
         legacy_anagrafica_id=visita.legacy_anagrafica_id,
         tipo=DocumentoDipendente.Tipo.VISITA_MEDICA_REFERTO,
         nome_originale=getattr(referto_file, "name", "") or "referto",
-        tipo_mime=getattr(referto_file, "content_type", "") or "",
+        tipo_mime=mime_reale,
         dimensione_bytes=getattr(referto_file, "size", 0) or 0,
         descrizione=f"Referto visita {visita.tipo.nome} del {visita.data_svolgimento}",
         oggetto_riferimento_tipo="anagrafica.visitamedica",
@@ -11197,10 +11209,14 @@ def referto_gestione(request, doc_id: int):
                     )
                 else:
                     try:
-                        from core.upload_mime import sniff_mime
-                        mime = sniff_mime(uploaded)
+                        # SEC (audit A8): libmagic sul contenuto, fail-closed; mai il
+                        # tipo dichiarato dal browser. (``sniff_mime`` non esiste in
+                        # core.upload_mime: l'import falliva sempre e si ripiegava
+                        # sul Content-Type del client.)
+                        from core.upload_mime import sniff_upload_mime
+                        mime = sniff_upload_mime(uploaded)
                     except Exception:
-                        mime = uploaded.content_type or "application/octet-stream"
+                        mime = ""
                     if mime not in _ALLOWED_DOC_MIMES:
                         messages.error(request, "Tipo di file non consentito (contenuto non valido).")
                     else:
@@ -11407,11 +11423,13 @@ def documento_dipendente_download(request, doc_id: int):
     except FileNotFoundError:
         return HttpResponse("File non trovato sul server.", status=404)
     filename = doc.nome_originale or f"documento_{doc.pk}.bin"
+    # SEC (audit A8): tipo dai primi byte del file (sniff lato server), mai da
+    # doc.tipo_mime; inline solo PDF/PNG/JPEG coerenti col nome, il resto come
+    # allegato con CSP sandbox.
+    from core.download_security import harden_sniffed_response, read_head
+    head = read_head(fh)
     response = FileResponse(fh, as_attachment=False, filename=filename)
-    # SEC (audit A8): Content-Type dal nome file lato server, mai da doc.tipo_mime
-    # (dichiarato dal client); inline solo PDF/immagini, il resto come allegato.
-    from core.download_security import harden_file_response
-    return harden_file_response(response, filename, inline=True)
+    return harden_sniffed_response(response, filename, head)
 
 
 @login_required
@@ -11483,12 +11501,9 @@ _ALLOWED_DOC_MIMES = {
     "image/webp",
 }
 _ALLOWED_DOC_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".webp"}
-_ALLOWED_MANUAL_DOC_MIMES = _ALLOWED_DOC_MIMES | {
-    "application/vnd.ms-outlook",
-    "application/x-msg",
-    "text/html",
-}
-_ALLOWED_MANUAL_DOC_EXTENSIONS = _ALLOWED_DOC_EXTENSIONS | {".msg", ".html"}
+# Niente .html: una pagina caricata verrebbe aperta nel dominio del portale;
+# le email si caricano come .msg.
+_ALLOWED_MANUAL_DOC_EXTENSIONS = _ALLOWED_DOC_EXTENSIONS | {".msg"}
 _MAX_DOC_SIZE = DOCUMENT_MAX_BYTES
 
 
@@ -11509,27 +11524,17 @@ def documento_dipendente_upload(request, legacy_id: int):
         messages.error(request, "Seleziona un file da caricare.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_MANUAL_DOC_EXTENSIONS:
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del
+    # browser. Niente HTML: le mail si caricano come .msg.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
+    try:
+        mime = valida_documento(uploaded, _ALLOWED_MANUAL_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
         messages.error(
             request,
-            f"Formato non consentito ({suffix}). Formati ammessi: "
-            "PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, MSG, HTML.",
+            f"File rifiutato: {exc} Formati ammessi: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, WEBP, "
+            "MSG (le email si caricano come .msg).",
         )
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
-
-    if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
-
-    try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-
-    if mime not in _ALLOWED_MANUAL_DOC_MIMES:
-        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
     cartella = None
@@ -12441,6 +12446,15 @@ def visite_mediche_nuova_sessione(request):
                 esito = VisitaMedica.Esito.IDONEO
             prescrizioni = request.POST.get(f"prescrizioni_{legacy_id}_{tipo_id}", "").strip()
             note = request.POST.get(f"note_{legacy_id}_{tipo_id}", "").strip()
+            referto_file = request.FILES.get(f"referto_{legacy_id}_{tipo_id}")
+            if referto_file:
+                from .services.referti_file import UploadMimeValidationError, valida_referto
+                try:
+                    valida_referto(referto_file)
+                except UploadMimeValidationError:
+                    # Referto non ammesso: la visita non si registra senza il suo referto.
+                    errori.append(f"{legacy_id}/{tipo_id} (referto non ammesso: solo PDF/PNG/JPEG)")
+                    continue
             try:
                 if VisitaMedica.objects.filter(
                     legacy_anagrafica_id=legacy_id, tipo=tipo,
@@ -12454,7 +12468,6 @@ def visite_mediche_nuova_sessione(request):
                     prescrizioni=prescrizioni, note=note, medico_competente=medico,
                     sessione=sess, created_by=request.user, updated_by=request.user,
                 )
-                referto_file = request.FILES.get(f"referto_{legacy_id}_{tipo_id}")
                 if referto_file:
                     _salva_referto_visita(request, visita, referto_file)
                 creati += 1
@@ -14312,18 +14325,12 @@ def _salva_documento_ente(request, *, azienda=None, docente=None):
     if not uploaded:
         return "Seleziona un file da caricare."
 
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_DOC_EXTENSIONS:
-        return f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS."
-    if uploaded.size > _MAX_DOC_SIZE:
-        return f"File troppo grande ({uploaded.size // (1024 * 1024)} MB). Limite: {DOCUMENT_MAX_MB} MB."
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del browser.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
     try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-    if mime not in _ALLOWED_DOC_MIMES:
-        return "Tipo di file non consentito (contenuto non valido)."
+        mime = valida_documento(uploaded, _ALLOWED_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
+        return f"File rifiutato: {exc} Ammessi: PDF, immagini (JPG, PNG, WEBP), DOC/DOCX, XLS/XLSX."
 
     form = TrainingProviderDocumentForm(request.POST, request.FILES)
     if not form.is_valid():
@@ -15558,20 +15565,12 @@ def formazione_iscrizione_attestato_upload(request, sessione_id: int, iscrizione
     if not uploaded:
         messages.error(request, "Seleziona l'attestato da caricare.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
-    suffix = Path(uploaded.name or "").suffix.lower()
-    if suffix not in _ALLOWED_DOC_EXTENSIONS:
-        messages.error(request, f"Formato non consentito ({suffix}). Ammessi: PDF, immagini, DOC/XLS.")
-        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
-    if uploaded.size > _MAX_DOC_SIZE:
-        messages.error(request, f"File troppo grande ({uploaded.size // (1024*1024)} MB). Limite: {DOCUMENT_MAX_MB} MB.")
-        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
+    # SEC: tipo verificato dal contenuto, senza ripiego sul Content-Type del browser.
+    from .services.upload_documenti import UploadMimeValidationError, valida_documento
     try:
-        from core.upload_mime import sniff_mime
-        mime = sniff_mime(uploaded)
-    except Exception:
-        mime = uploaded.content_type or "application/octet-stream"
-    if mime not in _ALLOWED_DOC_MIMES:
-        messages.error(request, "Tipo di file non consentito (contenuto non valido).")
+        mime = valida_documento(uploaded, _ALLOWED_DOC_EXTENSIONS)
+    except UploadMimeValidationError as exc:
+        messages.error(request, f"File rifiutato: {exc} Ammessi: PDF, immagini (JPG, PNG, WEBP), DOC/DOCX, XLS/XLSX.")
         return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione_id)
 
     force = request.POST.get("force") == "1"

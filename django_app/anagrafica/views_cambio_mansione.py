@@ -53,8 +53,10 @@ def adempimento_cambio_mansione_stato(request, legacy_id: int, adempimento_id: i
         adempimento.chiusura_automatica = False
         adempimento.chiusura_nota = motivo
     elif azione == "riapri":
-        if adempimento.aperto or adempimento.chiusura_automatica:
-            messages.info(request, "Si riapre solo un adempimento chiuso a mano.")
+        # Solo i «non necessario» chiusi a mano: annullati e non più dovuti sono
+        # storia di uno spostamento annullato o di un requisito sparito.
+        if adempimento.stato != AdempimentoCambioMansione.STATO_NON_NECESSARIO or adempimento.chiusura_automatica:
+            messages.info(request, "Si riapre solo un adempimento chiuso a mano come «non necessario».")
             return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
         adempimento.stato = AdempimentoCambioMansione.STATO_APERTO
         adempimento.chiuso_il = None
@@ -64,6 +66,13 @@ def adempimento_cambio_mansione_stato(request, legacy_id: int, adempimento_id: i
         messages.error(request, "Azione non valida.")
         return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
     adempimento.save(update_fields=["stato", "chiuso_il", "chiuso_da", "chiusura_automatica", "chiusura_nota"])
+    from .services import eventi_sicurezza
+    eventi_sicurezza.registra(
+        legacy_id, "ADEMPIMENTO_CHIUSO" if azione == "non_necessario" else "ADEMPIMENTO_RIAPERTO",
+        f"{adempimento.get_tipo_display()}: {'non necessario' if azione == 'non_necessario' else 'riaperto'}",
+        request=request, oggetto=adempimento,
+        payload={"adempimento_id": adempimento.pk, "chiave": adempimento.chiave, "motivo": motivo},
+    )
     log_action(request, "cambio_mansione_adempimento", MODULE, {
         "adempimento": adempimento.pk, "assegnazione": adempimento.assegnazione_id, "azione": azione,
         "tipo": adempimento.tipo, "motivo": motivo,
@@ -111,9 +120,31 @@ def cambi_mansione(request):
         voce["aperti"] += a.aperto
         voce["ritardo"] += a.in_ritardo
     tutti_aperti = AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO)
+    # Stato operativo (visita del cambio mansione mancante, non idoneità): solo
+    # l'etichetta, il perché resta a chi ha il permesso visite.
+    from .services import stato_operativo
+    stati = sorted(
+        (s for s in stato_operativo.calcola().values() if s.codice != stato_operativo.OK),
+        key=lambda s: (not s.bloccante, s.legacy_id),
+    )
+    mancanti = [s.legacy_id for s in stati if s.legacy_id not in nomi]
+    if mancanti:
+        for row in fetch_anagrafica_rows(ids=mancanti):
+            nomi[int(row["id"])] = naming.nome_completo(row.get("nome"), row.get("cognome"))
+    can_view_visite = _can_view_visite_mediche(request)
+    for s in stati:
+        s.nome = nomi.get(s.legacy_id) or f"#{s.legacy_id}"
+        s.etichetta_mostrata = s.etichetta_visibile(can_view_visite)
+
+    def _ordine(g):
+        # Gli adempimenti di uno spostamento annullato non hanno più l'assegnazione.
+        inizio = g["assegnazione"].data_inizio if g["assegnazione"] else g["voci"][0].entro_il
+        return (-g["ritardo"], inizio, g["nome"])
+
     return render(request, "anagrafica/pages/cambi_mansione.html", {
         "page_title": "Cambi mansione",
-        "gruppi": sorted(persone.values(), key=lambda g: (-g["ritardo"], g["assegnazione"].data_inizio, g["nome"])),
+        "gruppi": sorted(persone.values(), key=_ordine),
+        "stati_operativi": stati,
         "filtro": filtro,
         "n_aperti": tutti_aperti.count(),
         "n_ritardo": tutti_aperti.filter(entro_il__lt=timezone.localdate()).count(),

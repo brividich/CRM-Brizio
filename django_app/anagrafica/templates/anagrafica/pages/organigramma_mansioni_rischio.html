@@ -1,0 +1,100 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Organigramma per mansione di rischio | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<style>
+.orgr-gruppo { margin-bottom:14px; }
+.orgr-mansione { border-top:1px solid var(--fmd-line-soft,#eef2f7); padding:10px 0 4px; }
+.orgr-mansione-head { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; font-weight:700; }
+.orgr-persone { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.orgr-persona { display:inline-flex; gap:6px; align-items:center; padding:4px 10px; border-radius:999px; font-size:12.5px;
+  border:1px solid var(--fmd-line,#e7edf3); background:#fff; color:inherit; text-decoration:none; }
+.orgr-persona.orgr-ko { border-color:#fca5a5; background:#fef2f2; }
+.orgr-persona.orgr-warn { border-color:#fcd34d; background:#fffbeb; }
+.orgr-tabs { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+body.theme-dark .orgr-persona { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .orgr-persona.orgr-ko { background:rgba(153,27,27,.25); border-color:#7f1d1d; }
+body.theme-dark .orgr-persona.orgr-warn { background:rgba(133,77,14,.25); border-color:#78350f; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/partials/_safety_subnav.html" with active="organigramma_rischio" %}
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:organigramma' %}">Organigramma</a><span class="fmd-sep"> / </span><span class="fmd-cur">Mansioni di rischio</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-users"/></svg>Organigramma per mansione di rischio</h1>
+        <p class="fmd-ph-sub">Gruppi omogenei del DVR con le persone esposte, per RSPP e medico competente. In rosso chi non è idoneo a operare, in giallo chi ha un avviso o è in deroga.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% include "anagrafica/components/_export_menu.html" with export_key="organigramma_mansioni_rischio" %}
+      </div>
+    </div>
+
+    <form method="get" class="fmd-filterbar fmd-panel fmd-block" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <input type="hidden" name="vista" value="{{ vista }}">
+      <div class="fm-form-field" style="min-width:260px;margin:0;"><label for="orgr-fattore">Fattore di rischio</label>
+        <select id="orgr-fattore" name="fattore" class="fm-input fm-select" onchange="this.form.submit()">
+          <option value="">Tutti</option>
+          {% for f in fattori_opts %}<option value="{{ f.pk }}"{% if f.pk == fattore_id %} selected{% endif %}>{{ f.nome }}</option>{% endfor %}
+        </select></div>
+      <noscript><button class="fmd-btn fmd-btn-ghost" type="submit">Filtra</button></noscript>
+      <div class="orgr-tabs" role="group" aria-label="Vista">
+        <a class="fmd-btn {% if vista == 'rischio' %}fmd-btn-navy{% else %}fmd-btn-ghost{% endif %}" href="?vista=rischio{% if fattore_id %}&amp;fattore={{ fattore_id }}{% endif %}">Per mansione di rischio</a>
+        <a class="fmd-btn {% if vista == 'lavorativa' %}fmd-btn-navy{% else %}fmd-btn-ghost{% endif %}" href="?vista=lavorativa{% if fattore_id %}&amp;fattore={{ fattore_id }}{% endif %}">Per mansione lavorativa</a>
+      </div>
+    </form>
+
+    {% if vista == 'rischio' %}
+      {% for g in gruppi %}
+      <section class="fmd-panel fmd-block orgr-gruppo">
+        <div class="fmd-block-head">
+          <div class="fmd-block-title"><a class="fmd-data-link" href="{% url 'anagrafica:mansione_rischio_dettaglio' g.mansione_rischio.pk %}">{{ g.mansione_rischio.codice }} · {{ g.mansione_rischio.nome }}</a> <span class="fmd-count">{{ g.n_persone }}</span></div>
+          <div>{% for f in g.fattori %}<span class="fmd-badge fmd-b-orange" style="margin-left:4px;">{{ f.nome }}</span>{% endfor %}</div>
+        </div>
+        {% if can_view_visite and g.visite %}<div class="fmd-muted" style="font-size:12px;margin-bottom:6px;">Protocollo: {% for v in g.visite %}{{ v.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+        {% for m in g.mansioni %}
+        <div class="orgr-mansione">
+          <div class="orgr-mansione-head">{{ m.mansione.nome }} <span class="fmd-muted" style="font-weight:400;">{{ m.persone|length }} persone</span></div>
+          <div class="orgr-persone">
+            {% for p in m.persone %}<a class="orgr-persona{% if p.bloccante %} orgr-ko{% elif p.stato %} orgr-warn{% endif %}" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}" title="{{ p.reparto }}{% if p.stato %} · {{ p.stato }}{% endif %}">{{ p.nome }}</a>{% empty %}<span class="fmd-muted">Nessuno</span>{% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+        {% if g.aggiunte %}
+        <div class="orgr-mansione">
+          <div class="orgr-mansione-head">Aggiunte individuali</div>
+          <div class="orgr-persone">{% for p in g.aggiunte %}<a class="orgr-persona{% if p.bloccante %} orgr-ko{% elif p.stato %} orgr-warn{% endif %}" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.nome }}</a>{% endfor %}</div>
+        </div>
+        {% endif %}
+        {% if g.escluse %}<div class="fmd-muted" style="font-size:12px;margin-top:8px;">Escluse individualmente: {% for p in g.escluse %}{{ p.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+      </section>
+      {% empty %}
+      <div class="fmd-panel fmd-block fmd-muted">Nessuna mansione di rischio{% if fattore_id %} con questo fattore{% endif %}.</div>
+      {% endfor %}
+    {% else %}
+      <section class="fmd-panel fmd-block">
+        <div class="fmd-tablewrap"><table class="fmd-table">
+          <thead><tr><th>Mansione lavorativa</th><th>Mansioni di rischio</th><th>Persone</th></tr></thead>
+          <tbody>{% for v in per_mansione %}<tr>
+            <td><a class="fmd-data-link" href="{% url 'anagrafica:mansione_requisiti' v.mansione.pk %}">{{ v.mansione.nome }}</a></td>
+            <td>{% for mr in v.rischi %}<a class="fmd-badge fmd-b-cyan" style="margin:0 4px 4px 0;text-decoration:none;" href="{% url 'anagrafica:mansione_rischio_dettaglio' mr.pk %}">{{ mr.codice }}</a>{% endfor %}</td>
+            <td><div class="orgr-persone" style="margin:0;">{% for p in v.persone %}<a class="orgr-persona{% if p.bloccante %} orgr-ko{% elif p.stato %} orgr-warn{% endif %}" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.nome }}</a>{% empty %}<span class="fmd-muted">—</span>{% endfor %}</div></td>
+          </tr>{% empty %}<tr><td colspan="3" class="fmd-muted">Nessuna mansione lavorativa collegata.</td></tr>{% endfor %}</tbody>
+        </table></div>
+      </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

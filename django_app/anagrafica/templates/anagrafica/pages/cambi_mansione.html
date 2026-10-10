@@ -15,6 +15,7 @@
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
   <div class="fmd-wrap">
+    {% include "anagrafica/partials/_safety_subnav.html" with active="cambi" %}
     {% include "anagrafica/components/flash_messages.html" %}
 
     <div class="fmd-pagehead">
@@ -31,6 +32,20 @@
       {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_persone label="Persone coinvolte" sub="con almeno un adempimento" url="?stato=aperti" %}
     </section>
 
+    {% if stati_operativi %}
+    <section class="fmd-panel fmd-block" aria-label="Stato operativo">
+      <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Stato operativo da verificare <span class="fmd-count">{{ stati_operativi|length }}</span></div></div>
+      <ul class="hrg-cm-voci">
+        {% for s in stati_operativi %}
+        <li class="{% if s.bloccante %}hrg-cm-ritardo{% endif %}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+          <span class="hrg-pill {% if s.bloccante %}hrg-pill-danger{% else %}hrg-pill-warn{% endif %}">{{ s.etichetta_mostrata }}</span>
+          <span class="hrg-cm-testo"><a href="{% url 'anagrafica:dipendente_detail' s.legacy_id %}">{{ s.nome }}</a></span>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
     <div class="hrg-filtri" role="group" aria-label="Filtro">
       <a href="?stato=aperti" class="hrg-filtro{% if filtro == 'aperti' %} hrg-filtro-on{% endif %}">Da fare</a>
       <a href="?stato=ritardo" class="hrg-filtro{% if filtro == 'ritardo' %} hrg-filtro-on{% endif %}">In ritardo</a>
@@ -44,7 +59,11 @@
         <div class="hrg-cm-head">
           <div>
             <a class="hrg-cm-nome" href="{% url 'anagrafica:dipendente_detail' g.legacy_id %}">{{ g.nome }}</a>
+            {% if g.assegnazione %}
             <div class="hrg-cm-sub">Mansione «{{ g.assegnazione.mansione|default:"—" }}» dal {{ g.assegnazione.data_inizio|date:"d-m-Y" }} · {{ g.assegnazione.stato_label }}</div>
+            {% else %}
+            <div class="hrg-cm-sub">Spostamento annullato</div>
+            {% endif %}
           </div>
           <div class="hrg-cm-badges">
             {% if g.ritardo %}<span class="hrg-pill hrg-pill-danger">{{ g.ritardo }} in ritardo</span>{% endif %}

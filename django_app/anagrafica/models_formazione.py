@@ -601,6 +601,11 @@ class TrainingRequirementRule(models.Model):
         "anagrafica.Mansione", null=True, blank=True,
         on_delete=models.CASCADE, related_name="regole_formazione",
     )
+    mansione_rischio = models.ForeignKey(
+        "anagrafica.MansioneRischio", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="regole_formazione",
+        help_text="Regola per una mansione di rischio (gruppo omogeneo DVR).",
+    )
     area = models.ForeignKey(
         "anagrafica.AreaAziendale", null=True, blank=True,
         on_delete=models.CASCADE, related_name="regole_formazione",
@@ -635,6 +640,7 @@ class TrainingRequirementRule(models.Model):
         verbose_name_plural = "Regole di obbligatorietà"
         indexes = [
             models.Index(fields=["mansione", "is_active"]),
+            models.Index(fields=["mansione_rischio", "is_active"]),
             models.Index(fields=["area", "is_active"]),
             models.Index(fields=["ruolo_operativo", "is_active"]),
             models.Index(fields=["legacy_anagrafica_id", "is_active"]),

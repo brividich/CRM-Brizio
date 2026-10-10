@@ -31,6 +31,24 @@
       </div>
     </div>
 
+    {# ── Mansioni di rischio collegate (fonte dei requisiti) ───────────── #}
+    <section class="fmd-panel fmd-block">
+      <div class="fmd-block-head" style="flex-wrap:wrap;gap:8px;">
+        <div class="fmd-block-title" style="white-space:normal;"><svg class="fmd-ico"><use href="#i-shield"/></svg>Mansioni di rischio collegate <span class="fmd-count">{{ collegamenti_rischio|length }}</span></div>
+        <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'anagrafica:mansioni_rischio_list' %}">Gestisci mansioni di rischio</a>
+      </div>
+      {% if collegamenti_rischio %}
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        {% for link in collegamenti_rischio %}
+        <a class="fmd-badge {% if link.mansione_rischio.is_active %}fmd-b-cyan{% else %}fmd-b-grey{% endif %}" style="text-decoration:none;"
+           href="{% url 'anagrafica:mansione_rischio_dettaglio' link.mansione_rischio.pk %}">{{ link.mansione_rischio.codice }} · {{ link.mansione_rischio.nome }}{% if not link.mansione_rischio.is_active %} (disattivata){% endif %}</a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="fmd-muted">Nessuna mansione di rischio collegata: i requisiti vengono ancora dal profilo diretto qui sotto (deprecato).</div>
+      {% endif %}
+    </section>
+
     {# ── Riepilogo requisiti effettivi ─────────────────────────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Requisiti della mansione</div></div>
@@ -81,6 +99,11 @@
     {# ── Requisiti diretti (modificabili) — form invariato ─────────────── #}
     <section class="fmd-panel fmd-block">
       <div class="fmd-block-head"><div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-gear"/></svg>Requisiti diretti della mansione</div></div>
+      {% if usa_mansioni_rischio %}
+      <div class="fmd-muted" style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:var(--fmd-amber-soft,#fef3c7);color:#92400e;">
+        Questa mansione legge i requisiti dalle <strong>mansioni di rischio collegate</strong>: DPI e visite indicati qui sotto sono <strong>ignorati</strong> (campi deprecati, restano solo per la migrazione). Il livello ASR resta valido.
+      </div>
+      {% endif %}
       {% if is_editor %}
       <form method="post" action="{% url 'anagrafica:mansione_requisiti' mansione.pk %}">
         {% csrf_token %}

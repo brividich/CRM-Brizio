@@ -4,13 +4,19 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 56
+**Totale automazioni disponibili:** 58
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
 ---
 
 ## Anagrafica · HR, Formazione e Visite
+
+### `anagrafica_integrita_sicurezza`
+
+- **Quando gira:** ogni giorno, alle 00:40
+- **Task eseguito:** `anagrafica.tasks.run_integrita_sicurezza`
+- **Cosa fa:** ANAGRAFICA HR — controllo di integrita' requisiti/adempimenti/visite: il report finisce in monitoring (vedi anagrafica.services.integrita_scadenze).
 
 ### `anagrafica_ricalcolo_scadenze`
 
@@ -29,6 +35,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 00:05
 - **Task eseguito:** `anagrafica.tasks.run_attiva_assegnazioni_programmate`
 - **Cosa fa:** Attiva gli spostamenti organizzativi programmati la cui decorrenza e' arrivata (reparto/area/mansione/ruolo del dipendente). Presto al mattino, prima che chiunque apra il portale, cosi la giornata inizia gia' con l'assetto nuovo. Idempotente e no-op se non ce n'e' nessuno.
+
+### `cambio_mansione_digest`
+
+- **Quando gira:** da lun a ven, alle 07:30
+- **Task eseguito:** `anagrafica.tasks.run_cambio_mansione_digest`
+- **Cosa fa:** ANAGRAFICA HR — cambio mansione: adempimenti in ritardo + persone con stato operativo da verificare (visita del cambio mansione mancante, non idoneita'). No-op senza destinatari (SiteConfig cambio_mansione_emails). Nessun dato clinico.
 
 ### `contratti_expiry_reminders`
 

@@ -1297,14 +1297,16 @@ class DocumentoDipendenteUploadTests(TestCase):
             self.assertEqual(doc.descrizione, "Contratto firmato")
             self.assertTrue(doc.file.name.endswith(".pdf"))
 
-    def test_documento_upload_accetta_msg_e_html(self):
+    def test_documento_upload_accetta_msg_rifiuta_html(self):
         from django.contrib.messages.storage.fallback import FallbackStorage
         from django.contrib.sessions.backends.signed_cookies import SessionStore
         from django.test import RequestFactory
         from .views import documento_dipendente_upload
 
+        # Le email si caricano come .msg (contenitore OLE vero); l'HTML non è più
+        # ammesso: aperto dal portale girerebbe nel suo dominio.
         uploads = (
-            ("comunicazione.msg", b"messaggio outlook", "application/vnd.ms-outlook"),
+            ("comunicazione.msg", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 2040, "application/vnd.ms-outlook"),
             ("comunicazione.html", b"<!doctype html><html></html>", "text/html"),
         )
         with tempfile.TemporaryDirectory() as private_root, override_settings(
@@ -1324,19 +1326,22 @@ class DocumentoDipendenteUploadTests(TestCase):
                     resp = documento_dipendente_upload(request, legacy_id)
 
                     self.assertEqual(resp.status_code, 302)
+                    if filename.endswith(".html"):
+                        self.assertFalse(DocumentoDipendente.objects.filter(legacy_anagrafica_id=legacy_id).exists())
+                        continue
                     doc = DocumentoDipendente.objects.get(legacy_anagrafica_id=legacy_id)
                     self.assertEqual(doc.nome_originale, filename)
                     self.assertEqual(doc.tipo_mime, content_type)
                     self.assertTrue(doc.file.name.endswith(f".{filename.rsplit('.', 1)[1]}"))
 
-    def test_documento_upload_input_espone_msg_e_html(self):
+    def test_documento_upload_input_espone_msg_non_html(self):
         from django.template.loader import get_template
 
         template = get_template("anagrafica/pages/dipendente_detail.html")
         source = template.template.source
 
-        self.assertIn(".msg,.html", source)
-        self.assertIn("MSG, HTML", source)
+        self.assertIn(".webp,.msg\"", source)
+        self.assertNotIn(".msg,.html", source)
 
 
 class ImpostazioniRedirectTests(TestCase):

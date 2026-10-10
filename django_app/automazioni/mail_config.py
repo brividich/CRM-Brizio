@@ -30,6 +30,10 @@ MAIL_TASKS: dict[str, dict] = {
         "config_key": "idoneita_reminder_emails",
         "label": "Digest idoneità alla mansione",
     },
+    "cambio_mansione_digest": {
+        "config_key": "cambio_mansione_emails",
+        "label": "Cambio mansione: adempimenti e stato operativo",
+    },
     "training_expiry_reminders": {
         "config_key": "training_reminder_emails",
         "label": "Reminder formazione obbligatoria in scadenza",

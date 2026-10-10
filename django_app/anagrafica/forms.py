@@ -247,6 +247,17 @@ class VisitaMedicaForm(forms.ModelForm):
             raise forms.ValidationError("La data di svolgimento non può essere nel futuro.")
         return data
 
+    def clean_referto_file(self):
+        """SEC (audit A8): solo PDF/PNG/JPEG, verificati dal contenuto."""
+        f = self.cleaned_data.get("referto_file")
+        if f:
+            from .services.referti_file import UploadMimeValidationError, valida_referto
+            try:
+                valida_referto(f)
+            except UploadMimeValidationError as exc:
+                raise forms.ValidationError(str(exc))
+        return f
+
     def clean(self):
         cleaned = super().clean()
         esito = cleaned.get("esito")
