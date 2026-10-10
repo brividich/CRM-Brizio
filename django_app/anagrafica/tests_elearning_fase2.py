@@ -201,3 +201,89 @@ class VerificaAttestatoTests(_Pro):
         self.client.force_login(admin)
         r = self.client.get(reverse("anagrafica:attestato_formazione", args=[self.record.pk]))
         self.assertContains(r, ctx["codice_verifica"])
+
+
+class ScalettaPromemoriaTests(_Pro):
+    def setUp(self):
+        super().setUp()
+        from datetime import date
+        from core.legacy_models import AnagraficaDipendente
+        from .models import AreaAziendale, DipendenteAnagraficaAziendale, Reparto
+        from .models_formazione import TrainingAssignment
+        from .tests_elearning_sicurezza import _discente
+        self.oggi = date(2026, 10, 12)  # lunedì
+        _u, self.resp_lid, self.resp_uid = _discente("resp.el")
+        AnagraficaDipendente.objects.filter(pk=self.resp_lid).update(email_notifica="resp@example.invalid")
+        area = AreaAziendale.objects.create(nome="Linea QA", reparto=Reparto.objects.create(nome="Rep QA"),
+                                            responsabile_legacy_id=self.resp_lid)
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=self.lid, area_aziendale=area)
+        self.ass = TrainingAssignment.objects.get(corso=self.corso, legacy_anagrafica_id=self.lid)
+
+    def _scadenza(self, giorni):
+        from datetime import timedelta
+        type(self.ass).objects.filter(pk=self.ass.pk).update(due_date=self.oggi + timedelta(days=giorni))
+
+    def _esegui(self, **kw):
+        from .services.elearning_promemoria import esegui
+        return esegui(oggi=kw.pop("oggi", self.oggi), **kw)
+
+    def _notifiche(self, uid, tipo):
+        from core.models import Notifica
+        return Notifica.objects.filter(legacy_user_id=uid, tipo=tipo).count()
+
+    def test_soglie(self):
+        from .services.elearning_promemoria import soglie
+        self.assertEqual(soglie("1, 14;7,x,0,7"), [14, 7, 1])
+
+    def test_promemoria_una_volta_per_soglia(self):
+        from django.core import mail
+        self._scadenza(7)
+        self.assertEqual(self._esegui().promemoria, 1)
+        self.assertEqual(self._esegui().promemoria, 0)  # stesso giorno, rilanciato
+        self.assertEqual(self._notifiche(self.uid, "elearning_promemoria"), 1)
+        self._scadenza(5)  # nessuna nuova soglia raggiunta (7 già inviata)
+        self.assertEqual(self._esegui().promemoria, 0)
+        self._scadenza(1)
+        self.assertEqual(self._esegui().promemoria, 1)
+        self.assertEqual(len([m for m in mail.outbox if "riepilogo" in m.subject.lower()]), 1)  # lunedì
+
+    def test_sollecito_a_dipendente_e_responsabile(self):
+        from django.core import mail
+        self._scadenza(-8)  # scaduto da 8 giorni: soglia 7, non arretrati 1 e 7 insieme
+        rie = self._esegui()
+        self.assertEqual((rie.solleciti, rie.email_responsabili), (1, 1))
+        self.assertEqual(self._notifiche(self.uid, "elearning_sollecito"), 1)
+        self.assertEqual(self._notifiche(self.resp_uid, "elearning_sollecito_responsabile"), 1)
+        self.assertIn("resp@example.invalid", [d for m in mail.outbox for d in m.to])
+        self.assertEqual(self._esegui().solleciti, 0)
+
+    def test_completato_cessato_o_dry_run_niente(self):
+        from .models import DipendenteAnagraficaAziendale
+        from .models_elearning import TrainingElearningAvviso
+        self._scadenza(1)
+        self.assertEqual(self._esegui(invia=False).promemoria, 1)
+        self.assertFalse(TrainingElearningAvviso.objects.exists())
+        DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=self.lid).update(
+            data_cessazione=self.oggi)
+        self.assertEqual(self._esegui().promemoria, 0)
+
+    def test_digest_settimanale_una_volta(self):
+        from datetime import timedelta
+        self._scadenza(3)
+        self.assertEqual(self._esegui().digest, 1)
+        self.assertEqual(self._esegui().digest, 0)
+        self.assertEqual(self._esegui(oggi=self.oggi + timedelta(days=1)).digest, 0)  # martedì
+
+    def test_impostazioni_salvano_la_scaletta(self):
+        from .forms import ElearningConfigForm
+        from .models_formazione import ElearningConfig
+        cfg = ElearningConfig.get_instance()
+        form = ElearningConfigForm({"quiz_punteggio_minimo_default": 70, "validita_mesi_default": 0,
+                                    "max_tentativi_quiz": 0, "promemoria_giorni_prima": "30, 7",
+                                    "solleciti_giorni_dopo": "", "digest_responsabile_giorno": 7}, instance=cfg)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        cfg.refresh_from_db()
+        self.assertEqual((cfg.promemoria_giorni_prima, cfg.solleciti_giorni_dopo, cfg.digest_responsabile_giorno),
+                         ("30,7", "", 7))
+        self.assertFalse(ElearningConfigForm({"promemoria_giorni_prima": "sette"}, instance=cfg).is_valid())

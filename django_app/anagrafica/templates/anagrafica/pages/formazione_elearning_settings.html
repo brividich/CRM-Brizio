@@ -63,6 +63,20 @@
         </div>
       </div>
 
+      {# ── Scaletta dei promemoria (prompt 05, fase 2) ─────────────── #}
+      <div class="fmd-form-sec">
+        <div class="fmd-form-sec-h">
+          <svg class="fmd-ico"><use href="#i-alarm"/></svg>
+          <span class="fmd-form-sec-t">Promemoria e solleciti</span>
+          <span class="fmd-form-sec-n">Per i corsi assegnati con scadenza: avvisi al dipendente prima, solleciti a dipendente e responsabile dopo, riepilogo settimanale al responsabile</span>
+        </div>
+        <div class="fmd-stack">
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.promemoria_giorni_prima %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.solleciti_giorni_dopo %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=form.digest_responsabile_giorno %}
+        </div>
+      </div>
+
       {# ── Import PowerPoint ────────────────────────────────────── #}
       <div class="fmd-form-sec">
         <div class="fmd-form-sec-h">

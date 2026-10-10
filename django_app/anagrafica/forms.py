@@ -714,8 +714,12 @@ class ElearningConfigForm(forms.ModelForm):
     class Meta:
         model = ElearningConfig
         fields = ["quiz_punteggio_minimo_default", "validita_mesi_default", "max_tentativi_quiz", "libreoffice_path",
-                  "finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb"]
+                  "finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb",
+                  "promemoria_giorni_prima", "solleciti_giorni_dopo", "digest_responsabile_giorno"]
         widgets = {
+            "promemoria_giorni_prima": forms.TextInput(attrs={**_FM, "placeholder": "14,7,1"}),
+            "solleciti_giorni_dopo":   forms.TextInput(attrs={**_FM, "placeholder": "1,7,14"}),
+            "digest_responsabile_giorno": forms.Select(attrs=_FM),
             "finestra_rinnovo_giorni": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
             "giorni_entro_default":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
             "video_max_mb":            forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
@@ -726,10 +730,12 @@ class ElearningConfigForm(forms.ModelForm):
         }
 
     _CON_DEFAULT = ("finestra_rinnovo_giorni", "giorni_entro_default", "video_max_mb")
+    # Scaletta promemoria: vuoto è una scelta (nessun avviso); non inviato = invariato.
+    _SE_INVIATI = ("promemoria_giorni_prima", "solleciti_giorni_dopo", "digest_responsabile_giorno")
 
     def __init__(self, *args, puo_rspp: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
-        for nome in self._CON_DEFAULT:  # non inviati = si tiene il valore attuale
+        for nome in self._CON_DEFAULT + self._SE_INVIATI:  # non inviati = si tiene il valore attuale
             self.fields[nome].required = False
         # Separazione dei ruoli: chi conferma le regole FAD lo decide solo il
         # superuser, non chi le scrive (un editor non si nomina RSPP da solo).
@@ -754,10 +760,28 @@ class ElearningConfigForm(forms.ModelForm):
             raise forms.ValidationError("Utenti non trovati: " + ", ".join(mancanti))
         return sorted(set(trovati.values()))
 
+    def _clean_soglie(self, nome):
+        from .services.elearning_promemoria import soglie
+        testo = (self.cleaned_data.get(nome) or "").strip()
+        valori = soglie(testo)
+        pezzi = [p.strip() for p in testo.replace(";", ",").split(",") if p.strip()]
+        if len(valori) != len(set(pezzi)):
+            raise forms.ValidationError("Scrivi numeri di giorni fra 1 e 365 separati da virgola (es. 14,7,1).")
+        return ",".join(str(v) for v in valori)
+
+    def clean_promemoria_giorni_prima(self):
+        return self._clean_soglie("promemoria_giorni_prima")
+
+    def clean_solleciti_giorni_dopo(self):
+        return self._clean_soglie("solleciti_giorni_dopo")
+
     def clean(self):
         dati = super().clean()
         for nome in self._CON_DEFAULT:
             if dati.get(nome) in (None, ""):
+                dati[nome] = getattr(self.instance, nome)
+        for nome in self._SE_INVIATI:
+            if self.data is not None and nome not in self.data:
                 dati[nome] = getattr(self.instance, nome)
         return dati
 

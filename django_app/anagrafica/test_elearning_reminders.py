@@ -68,9 +68,9 @@ class ElearningReminderCommandTests(TestCase):
 
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["hr@x.local"])
-        self.assertEqual(Notifica.objects.filter(legacy_user_id=u1).count(), 1)
-        self.assertEqual(Notifica.objects.filter(legacy_user_id=u2).count(), 1)
-        self.assertEqual(Notifica.objects.filter(legacy_user_id=u3).count(), 0)
+        # Fase 2: niente notifica quotidiana a ogni iscritto; la manda solo la
+        # scaletta, sulle assegnazioni con scadenza (vedi tests_elearning_fase2).
+        self.assertEqual(Notifica.objects.filter(legacy_user_id__in=[u1, u2, u3]).count(), 0)
 
     def test_noop_senza_iscrizioni_da_completare(self):
         corso = _corso_elearning()

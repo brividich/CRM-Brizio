@@ -84,3 +84,39 @@ class TrainingElearningCompletamento(models.Model):
 
     def __str__(self) -> str:
         return f"Completamento #{self.pk} record {self.record_id}"
+
+
+class TrainingElearningAvviso(models.Model):
+    """Promemoria, sollecito o digest già inviato: la ``chiave`` univoca impedisce i doppioni.
+
+    Una riga per soglia della scaletta (es. «14 giorni prima» del ciclo 2 di quel
+    corso per quella persona) o per digest settimanale di un responsabile. Il job
+    può girare più volte al giorno, o saltare un giorno, senza mandare due volte
+    lo stesso avviso.
+    """
+
+    TIPO_CHOICES = [
+        ("PRIMA", "Promemoria prima della scadenza"),
+        ("SOLLECITO", "Sollecito dopo la scadenza"),
+        ("DIGEST", "Digest settimanale al responsabile"),
+    ]
+
+    chiave = models.CharField(max_length=160, unique=True)
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES)
+    corso = models.ForeignKey(
+        "anagrafica.TrainingCourse", null=True, blank=True, on_delete=models.CASCADE, related_name="+",
+    )
+    legacy_anagrafica_id = models.IntegerField(null=True, blank=True, db_index=True)
+    ciclo = models.PositiveSmallIntegerField(default=1)
+    giorni = models.SmallIntegerField(default=0, help_text="Soglia della scaletta (giorni prima o dopo la scadenza).")
+    responsabile_legacy_id = models.IntegerField(null=True, blank=True)
+    email_inviata = models.BooleanField(default=False)
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-creato_il"]
+        verbose_name = "Avviso e-learning inviato"
+        verbose_name_plural = "Avvisi e-learning inviati"
+
+    def __str__(self) -> str:
+        return self.chiave

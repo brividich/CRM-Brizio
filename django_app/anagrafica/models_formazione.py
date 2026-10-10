@@ -2249,6 +2249,17 @@ class ElearningConfig(models.Model):
         default=30, help_text="Scadenza di default delle assegnazioni automatiche (giorni).")
     video_max_mb = models.PositiveSmallIntegerField(
         default=100, help_text="Dimensione massima di un video (MB); oltre il limite upload del server non serve.")
+    # Scaletta dei promemoria sulle assegnazioni con scadenza (prompt 05, fase 2).
+    promemoria_giorni_prima = models.CharField(
+        max_length=60, blank=True, default="14,7,1",
+        help_text="Giorni prima della scadenza in cui ricordare il corso al dipendente (es. 14,7,1). Vuoto = nessuno.")
+    solleciti_giorni_dopo = models.CharField(
+        max_length=60, blank=True, default="1,7,14",
+        help_text="Giorni dopo la scadenza in cui sollecitare dipendente e responsabile (es. 1,7,14). Vuoto = nessuno.")
+    digest_responsabile_giorno = models.PositiveSmallIntegerField(
+        default=0, choices=[(0, "Lunedì"), (1, "Martedì"), (2, "Mercoledì"), (3, "Giovedì"), (4, "Venerdì"),
+                            (7, "Mai")],
+        help_text="Giorno del riepilogo settimanale al responsabile dei corsi in scadenza o scaduti.")
     libreoffice_path = models.CharField(
         max_length=400, blank=True, default="",
         help_text="Percorso dell'eseguibile LibreOffice (soffice) per l'import PowerPoint. "
