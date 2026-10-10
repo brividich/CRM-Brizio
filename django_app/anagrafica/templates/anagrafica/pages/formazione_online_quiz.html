@@ -87,17 +87,18 @@
       {% endif %}
       <form method="post" class="fmd-panel" style="padding:24px;">
         {% csrf_token %}
-        <p class="fmd-muted" style="margin-top:0;">Seleziona <strong>tutte</strong> le risposte corrette per ciascuna domanda.{% if tentativi_rimasti %} Tentativi rimasti: <strong>{{ tentativi_rimasti }}</strong>.{% endif %}</p>
+        <p class="fmd-muted" style="margin-top:0;">Una risposta per domanda; dove è indicato «più risposte», seleziona <strong>tutte</strong> quelle corrette.{% if tentativi_rimasti %} Tentativi rimasti: <strong>{{ tentativi_rimasti }}</strong>.{% endif %}</p>
 
         <input type="hidden" name="token" value="{{ token }}">
         {% if scade_il %}<p class="fmd-muted">Il quiz va inviato entro le {{ scade_il|time:"H:i" }}.</p>{% endif %}
         {% for d in domande %}
         <div class="fm-quiz-q">
           <div class="fm-quiz-q-h"><span>{{ forloop.counter }}. {{ d.testo }}</span></div>
+          {% if d.multipla %}<div class="fm-quiz-hint">Più risposte corrette: selezionale tutte.</div>{% endif %}
           <div class="fm-quiz-opts">
             {% for oid, testo in d.opzioni %}
             <label class="fmd-check">
-              <input type="checkbox" name="q_{{ d.id }}" value="{{ oid }}" class="fmd-check-input">
+              <input type="{% if d.multipla %}checkbox{% else %}radio{% endif %}" name="q_{{ d.id }}" value="{{ oid }}" class="fmd-check-input">
               <span>{{ testo }}</span>
             </label>
             {% endfor %}
@@ -119,6 +120,7 @@
 <style>
 .fm-quiz-q{ padding:14px 16px; border:1px solid #e6ecf3; border-radius:12px; margin-bottom:12px; background:#fff; }
 .fm-quiz-q-h{ display:flex; align-items:flex-start; gap:9px; font-weight:700; color:var(--fmd-navy); }
+.fm-quiz-hint{ font-size:12.5px; color:var(--fmd-muted, #64748b); margin-top:4px; }
 .fm-quiz-opts{ display:flex; flex-direction:column; gap:6px; margin-top:10px; padding-left:6px; }
 .fm-quiz-opts .fmd-check{ display:flex; align-items:center; gap:9px; font-weight:500; }
 .fm-quiz-q.is-ok{ border-left:4px solid #22a35a; }

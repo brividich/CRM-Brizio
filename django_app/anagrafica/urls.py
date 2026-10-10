@@ -443,6 +443,7 @@ urlpatterns = [
     # (il gating reale è dentro la view).
     path("formazione/corsi-online/slide/<int:slide_id>/immagine", views_elearning.formazione_slide_image, name="formazione_slide_image"),
     path("formazione/corsi/<int:corso_id>/elearning/domande/salva", views.formazione_question_save, name="formazione_question_save"),
+    path("formazione/corsi/<int:corso_id>/elearning/domande/import", views.formazione_question_import, name="formazione_question_import"),
     path("formazione/corsi/<int:corso_id>/elearning/domande/<int:question_id>/elimina", views.formazione_question_delete, name="formazione_question_delete"),
     path("formazione/corsi/<int:corso_id>/elearning/domande/<int:question_id>/opzioni/salva", views.formazione_option_save, name="formazione_option_save"),
     path("formazione/corsi/<int:corso_id>/elearning/opzioni/<int:option_id>/elimina", views.formazione_option_delete, name="formazione_option_delete"),

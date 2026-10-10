@@ -18960,7 +18960,7 @@ def formazione_elearning_hub(request):
     for c in corsi:
         n_invalid = sum(
             1 for d in c.quiz_domande.all()
-            if d.is_active and not any(o.corretta for o in d.opzioni.all())
+            if d.is_active and _problema_domanda(d)
         )
         salute = _elearning_salute(c.n_slide, c.n_domande, n_invalid)
         if c.stato == "ATTIVO" and c.is_active:
@@ -18987,7 +18987,7 @@ def formazione_elearning_manage(request, corso_id: int):
     corso = get_object_or_404(TrainingCourse, pk=corso_id, is_elearning=True)
     slides = list(corso.slides.filter(is_active=True))
     domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
-    n_invalid = sum(1 for d in domande if not any(o.corretta for o in d.opzioni.all()))
+    n_invalid = sum(1 for d in domande if _problema_domanda(d))
     salute = _elearning_salute(len(slides), len(domande), n_invalid)
 
     iscritti = _elearning_iscritti_rows(corso)
@@ -19053,7 +19053,7 @@ def formazione_elearning_publish_toggle(request, corso_id: int):
     else:
         n_slide = corso.slides.filter(is_active=True).count()
         domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni"))
-        n_invalid = sum(1 for d in domande if not any(o.corretta for o in d.opzioni.all()))
+        n_invalid = sum(1 for d in domande if _problema_domanda(d))
         from .services.elearning_regole import regola_corso
         if n_slide == 0:
             messages.error(request, "Impossibile pubblicare: aggiungi almeno una slide.")
@@ -19061,7 +19061,7 @@ def formazione_elearning_publish_toggle(request, corso_id: int):
             messages.error(request, "Impossibile pubblicare: le regole di fruizione (FAD) del corso non sono "
                                     "state confermate dall'RSPP. Impostazioni e-learning → Regole del corso.")
         elif domande and n_invalid:
-            messages.error(request, "Impossibile pubblicare: il quiz ha domande senza risposta corretta. Completa le domande o disattivale.")
+            messages.error(request, "Impossibile pubblicare: il quiz ha domande incomplete (risposte corrette mancanti o non coerenti con il tipo). Completa le domande o disattivale.")
         else:
             corso.stato = "ATTIVO"
             corso.is_active = True
@@ -19214,6 +19214,11 @@ def formazione_elearning_settings(request):
 
 # -- AUTORE: gestione contenuti (slide + quiz) -------------------------------
 
+def _problema_domanda(d) -> str:
+    from .services.elearning_quiz import problema_domanda
+    return problema_domanda(d)
+
+
 @login_required
 def formazione_corso_elearning(request, corso_id: int):
     """Pagina autore: gestione slide e quiz di un micro-corso e-learning."""
@@ -19227,14 +19232,16 @@ def formazione_corso_elearning(request, corso_id: int):
     # superare e vengono escluse dal quiz del discente finché non si completa l'autoring.
     n_domande_incomplete = 0
     for d in domande:
-        d.senza_corretta = d.is_active and not any(o.corretta for o in d.opzioni.all())
-        if d.senza_corretta:
+        d.problema = _problema_domanda(d) if d.is_active else ""
+        d.vf_vera = any(o.corretta and o.testo == "Vero" for o in d.opzioni.all())
+        if d.problema:
             n_domande_incomplete += 1
     return render(request, "anagrafica/pages/formazione_corso_elearning.html", {
         "corso": corso,
         "slides": slides,
         "domande": domande,
         "n_domande_incomplete": n_domande_incomplete,
+        "tipi_domanda": TrainingQuizQuestion.TIPO_CHOICES,
         "slide_form": TrainingSlideForm(initial={"ordine": (slides[-1].ordine + 1) if slides else 1}),
         "question_form": TrainingQuizQuestionForm(initial={"ordine": (domande[-1].ordine + 1) if domande else 1}),
     })
@@ -19317,7 +19324,11 @@ def formazione_question_save(request, corso_id: int):
     if form.is_valid():
         q = form.save(commit=False)
         q.corso = corso
-        q.save()
+        with transaction.atomic():
+            q.save()
+            if q.tipo == TrainingQuizQuestion.TIPO_VERO_FALSO:
+                from .services.elearning_quiz import imposta_vero_falso
+                imposta_vero_falso(q, bool(form.cleaned_data.get("vf_vera")))
         messages.success(request, "Domanda salvata.")
     else:
         messages.error(request, "Errore nella domanda: " + form.errors.as_text())
@@ -19344,6 +19355,9 @@ def formazione_option_save(request, corso_id: int, question_id: int):
         messages.error(request, "Permesso negato.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     domanda = get_object_or_404(TrainingQuizQuestion, pk=question_id, corso_id=corso_id)
+    if domanda.tipo == TrainingQuizQuestion.TIPO_VERO_FALSO:
+        messages.error(request, "Le opzioni di una domanda vero/falso si impostano dalla domanda stessa.")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
     opt_id = request.POST.get("option_id")
     instance = get_object_or_404(TrainingQuizOption, pk=opt_id, domanda=domanda) if opt_id else None
     form = TrainingQuizOptionForm(request.POST, instance=instance)
@@ -19364,8 +19378,48 @@ def formazione_option_delete(request, corso_id: int, option_id: int):
         messages.error(request, "Permesso negato.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     opt = get_object_or_404(TrainingQuizOption, pk=option_id, domanda__corso_id=corso_id)
+    if opt.domanda.tipo == TrainingQuizQuestion.TIPO_VERO_FALSO:
+        messages.error(request, "Le opzioni di una domanda vero/falso si impostano dalla domanda stessa.")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
     opt.delete()
     messages.success(request, "Opzione eliminata.")
+    return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+
+
+@login_required
+def formazione_question_import(request, corso_id: int):
+    """GET: scarica il foglio modello. POST: importa le domande da Excel (tutto o niente)."""
+    if not _can_edit_formazione(request):
+        messages.error(request, "Permesso negato.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    corso = get_object_or_404(TrainingCourse, pk=corso_id)
+    from .services import elearning_quiz_import as qimp
+    if request.method != "POST":
+        resp = HttpResponse(qimp.modello_xlsx(),
+                            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = 'attachment; filename="modello_domande_quiz.xlsx"'
+        return resp
+    f = request.FILES.get("file")
+    if not f:
+        messages.error(request, "Nessun file selezionato.")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+    from core.upload_mime import UploadMimeValidationError
+    from .services.upload_documenti import valida_documento
+    try:
+        valida_documento(f, {".xlsx"}, label="Foglio domande")
+    except UploadMimeValidationError as exc:
+        messages.error(request, f"File rifiutato: {exc}")
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+    try:
+        n = qimp.importa(corso, f)
+    except qimp.ImportQuizError as exc:
+        elenco = exc.errori[:8]
+        altri = len(exc.errori) - len(elenco)
+        messages.error(request, "Import non eseguito, nessuna domanda salvata. " + " · ".join(elenco)
+                       + (f" · e altri {altri} errori." if altri > 0 else ""))
+        return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
+    _audit_formazione(request, "elearning_quiz_import", {"corso_id": corso.pk, "domande": n})
+    messages.success(request, f"Importate {n} domande da «{f.name}».")
     return redirect("anagrafica:formazione_corso_elearning", corso_id=corso_id)
 
 

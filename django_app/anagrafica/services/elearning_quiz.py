@@ -27,9 +27,47 @@ class QuizNonDisponibile(Exception):
     pass
 
 
+VERO, FALSO = "Vero", "Falso"
+
+
+def problema_domanda(d) -> str:
+    """Perché la domanda non può andare nel quiz (stringa vuota = valida).
+
+    Una domanda mal costruita sarebbe impossibile da superare o ambigua: resta
+    fuori dal quiz finché l'autore non la sistema (l'editor mostra il motivo)."""
+    opzioni = list(d.opzioni.all())
+    giuste = sum(1 for o in opzioni if o.corretta)
+    tipo = getattr(d, "tipo", "") or "SINGOLA"
+    if tipo == "VERO_FALSO":
+        if len(opzioni) != 2 or giuste != 1:
+            return "Vero/falso: indica se l'affermazione è vera o falsa."
+        return ""
+    if tipo == "SINGOLA" and giuste != 1:
+        return ("Risposta singola: segna una sola opzione corretta."
+                if giuste else "Nessuna risposta corretta selezionata.")
+    if not giuste:
+        return "Nessuna risposta corretta selezionata."
+    return ""
+
+
 def domande_valide(corso) -> list:
     domande = list(corso.quiz_domande.filter(is_active=True).prefetch_related("opzioni").order_by("ordine", "pk"))
-    return [d for d in domande if any(o.corretta for o in d.opzioni.all())]
+    return [d for d in domande if not problema_domanda(d)]
+
+
+def imposta_vero_falso(domanda, vera: bool) -> None:
+    """Riduce le opzioni di una domanda vero/falso esattamente a «Vero» e «Falso»."""
+    from ..models_formazione import TrainingQuizOption
+
+    domanda.opzioni.exclude(testo__in=(VERO, FALSO)).delete()
+    for ordine, testo in ((1, VERO), (2, FALSO)):
+        opzione = domanda.opzioni.filter(testo=testo).order_by("pk").first()
+        if opzione is None:
+            opzione = TrainingQuizOption(domanda=domanda, testo=testo)
+        opzione.ordine = ordine
+        opzione.corretta = (testo == VERO) == vera
+        opzione.save()
+        domanda.opzioni.filter(testo=testo).exclude(pk=opzione.pk).delete()
 
 
 def blocco(enr, regola: Regola, ordini: list[int], *, adesso=None) -> str:
@@ -106,11 +144,11 @@ def apri_tentativo(enr, regola: Regola, ordini: list[int], *, user=None):
         servite = []
         for d in domande:
             opzioni = [o.pk for o in d.opzioni.all()]
-            if regola.mescola:
+            if regola.mescola and d.tipo != "VERO_FALSO":  # «Vero» resta sempre primo
                 rnd.shuffle(opzioni)
             # Le risposte giuste si fotografano ora: se l'autore modifica la domanda
             # mentre il tentativo è aperto, si corregge su ciò che è stato servito.
-            servite.append({"id": d.pk, "opzioni": opzioni,
+            servite.append({"id": d.pk, "tipo": d.tipo, "opzioni": opzioni,
                             "corrette": sorted(o.pk for o in d.opzioni.all() if o.corretta)})
         return TrainingQuizAttempt.objects.create(
             corso=enr.corso, enrollment=enr, legacy_anagrafica_id=enr.legacy_anagrafica_id,
@@ -125,6 +163,11 @@ class DomandaServita:
     id: int
     testo: str
     opzioni: list  # [(id, testo)]
+    tipo: str = "SINGOLA"
+
+    @property
+    def multipla(self) -> bool:
+        return self.tipo == "MULTIPLA"
 
 
 def domande_servite(tentativo) -> list[DomandaServita]:
@@ -138,7 +181,10 @@ def domande_servite(tentativo) -> list[DomandaServita]:
         d = domande.get(voce["id"])
         if d is None:
             continue
-        out.append(DomandaServita(d.pk, d.testo, [(oid, opzioni[oid].testo) for oid in voce["opzioni"] if oid in opzioni]))
+        # Il tipo è quello servito: se l'autore lo cambia a tentativo aperto, il
+        # discente continua a vedere la domanda com'era.
+        out.append(DomandaServita(d.pk, d.testo, [(oid, opzioni[oid].testo) for oid in voce["opzioni"] if oid in opzioni],
+                                  voce.get("tipo") or d.tipo))
     return out
 
 

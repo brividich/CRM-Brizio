@@ -2061,9 +2061,19 @@ class TrainingSlide(models.Model):
 class TrainingQuizQuestion(models.Model):
     """Domanda del quiz finale di un micro-corso e-learning."""
 
+    TIPO_SINGOLA, TIPO_MULTIPLA, TIPO_VERO_FALSO = "SINGOLA", "MULTIPLA", "VERO_FALSO"
+    TIPO_CHOICES = [
+        (TIPO_SINGOLA, "Risposta singola"),
+        (TIPO_MULTIPLA, "Risposta multipla"),
+        (TIPO_VERO_FALSO, "Vero / falso"),
+    ]
+
     corso      = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name="quiz_domande")
     ordine     = models.PositiveSmallIntegerField(default=1)
     testo      = models.TextField()
+    # Singola e vero/falso: una sola risposta giusta (radio); multipla: tutte e
+    # sole le giuste (checkbox). La correzione è sempre «tutto o niente».
+    tipo       = models.CharField(max_length=10, choices=TIPO_CHOICES, default=TIPO_SINGOLA)
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -667,14 +667,28 @@ class TrainingSlideForm(forms.ModelForm):
 
 
 class TrainingQuizQuestionForm(forms.ModelForm):
+    # Solo per il vero/falso: le opzioni «Vero» e «Falso» le crea il portale.
+    vf_vera = forms.TypedChoiceField(
+        required=False, label="L'affermazione è", coerce=lambda v: v == "1",
+        choices=[("1", "Vera"), ("0", "Falsa")], widget=forms.Select(attrs=_FM),
+    )
+
     class Meta:
         model = TrainingQuizQuestion
-        fields = ["testo", "ordine", "is_active"]
+        fields = ["testo", "tipo", "ordine", "is_active"]
         widgets = {
+            "tipo":      forms.Select(attrs=_FM),
             "testo":     forms.Textarea(attrs={**_FM_TEXTAREA, "rows": 2}),
             "ordine":    forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "1"}),
             "is_active": forms.CheckboxInput(attrs=_FM_CHECK),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["tipo"].required = False  # non inviato = risposta singola
+
+    def clean_tipo(self):
+        return self.cleaned_data.get("tipo") or TrainingQuizQuestion.TIPO_SINGOLA
 
 
 class TrainingQuizOptionForm(forms.ModelForm):
