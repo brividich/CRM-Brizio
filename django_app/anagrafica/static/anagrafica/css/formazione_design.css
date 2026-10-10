@@ -186,7 +186,7 @@
 .fmd-crumb a{ text-decoration:none; color:var(--fmd-muted-2); }
 .fmd-crumb a:hover{ color:var(--fmd-cyan); }
 .fmd-pagehead h1{ margin:0; font-size:25px; font-weight:800; color:var(--fmd-navy); letter-spacing:-.015em; display:flex; align-items:center; gap:11px; }
-.fmd-pagehead-actions{ display:flex; gap:9px; align-items:center; }
+.fmd-pagehead-actions{ display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
 
 /* ── Form controls / toolbar selects (liste) ── */
 .fmd-spacer{ flex:1; }

@@ -25,7 +25,7 @@
       <button type="button" class="fmd-btn fmd-btn-ghost"
               hx-get="{% url 'anagrafica:formazione_online_slide' corso.pk ordine_prec %}"
               hx-target="#fm-slide-target" hx-swap="innerHTML" hx-push-url="false">
-        <svg class="fmd-ico"><use href="#i-arrow-right" style="transform:scaleX(-1);"/></svg> Indietro
+        <svg class="fmd-ico" style="transform:scaleX(-1);"><use href="#i-arrow-right"/></svg> Indietro
       </button>
     {% else %}
       <span></span>
