@@ -539,3 +539,10 @@ class PagineMansioniRischioTests(_Base):
         r = self.client.get(reverse("anagrafica:export", args=["organigramma_mansioni_rischio"]),
                             {"format": "xlsx", "scope": "full"})
         self.assertEqual(r.status_code, 200)
+
+    def test_stato_operativo_su_scadenzario_e_cruscotto(self):
+        VisitaMedica.objects.create(legacy_anagrafica_id=self.lid, tipo=self.audiometria,
+                                    data_svolgimento=OGGI, esito="NON_IDONEO_TEMP")
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse("anagrafica:scadenzario")), "Stato operativo da verificare")
+        self.assertContains(self.client.get(reverse("anagrafica:index")), "non idonei a operare")

@@ -523,3 +523,24 @@ def safety_subnav(context, active=""):
         for voce in gruppo["voci"]:
             voce["n"] = conteggi.get(voce["contatore"] or "", 0)
     return gruppi
+
+
+@register.simple_tag
+def stati_operativi_da_segnalare():
+    """Persone non idonee a operare / in avviso / in deroga, con nome (solo etichetta)."""
+    try:
+        from core import naming
+        from core.legacy_anagrafica import fetch_anagrafica_rows
+        from anagrafica.services import stato_operativo
+
+        stati = [s for s in stato_operativo.calcola().values() if s.codice != stato_operativo.OK]
+        if not stati:
+            return []
+        nomi = {int(r["id"]): naming.nome_completo(r.get("nome"), r.get("cognome"))
+                for r in fetch_anagrafica_rows(ids=[s.legacy_id for s in stati])}
+        for s in stati:
+            s.nome = nomi.get(s.legacy_id) or f"#{s.legacy_id}"
+        return sorted(stati, key=lambda s: (not s.bloccante, s.nome.casefold()))
+    except Exception:
+        logger.warning("Stati operativi non calcolabili", exc_info=True)
+        return []

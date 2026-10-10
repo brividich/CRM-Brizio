@@ -233,9 +233,12 @@ body.theme-dark .hr-goto-title { color:var(--text-light); }
       {% endif %}
       <section class="hr-card hrg-box">
         <div class="hrg-box-head">
-          <span class="hrg-box-title">🔁 Cambi mansione{% if cruscotto.cambi_ritardo %} <span class="hrg-pill hrg-pill-danger">{{ cruscotto.cambi_ritardo }} in ritardo</span>{% endif %}</span>
+          <span class="hrg-box-title">🔁 Cambi mansione{% if cruscotto.n_non_idonei_operare %} <span class="hrg-pill hrg-pill-danger">{{ cruscotto.n_non_idonei_operare }} non idonei a operare</span>{% endif %}{% if cruscotto.cambi_ritardo %} <span class="hrg-pill hrg-pill-danger">{{ cruscotto.cambi_ritardo }} in ritardo</span>{% endif %}</span>
           {% if can_admin or can_view_hr %}<a class="hrg-box-link" href="{% url 'anagrafica:cambi_mansione' %}">Piani di adeguamento →</a>{% endif %}
         </div>
+        {% if cruscotto.righe_stato_operativo %}
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_stato_operativo vuoto="" %}
+        {% endif %}
         {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_cambi vuoto="Nessun adempimento aperto per cambi mansione." etichetta_data="entro il" %}
       </section>
       <section class="hr-card hrg-box">
