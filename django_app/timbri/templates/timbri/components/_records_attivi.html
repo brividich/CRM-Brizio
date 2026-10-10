@@ -1,0 +1,44 @@
+{% comment %}
+Record attivi divisi in Timbri / Firme / Sigle (tab segmentati).
+Usato dalla scheda timbri e dal frammento nella scheda dipendente.
+Parametri: active_timbri, active_firme, active_sigle.
+{% endcomment %}
+{% if active_timbri or active_firme or active_sigle %}
+<div data-tim-seg-root>
+  <div class="tim-seg" role="tablist" aria-label="Tipo di record">
+    <button type="button" role="tab" class="tim-seg-btn{% if active_timbri or not active_firme and not active_sigle %} is-on{% endif %}" data-tim-seg="timbri" aria-selected="{% if active_timbri or not active_firme and not active_sigle %}true{% else %}false{% endif %}">
+      Timbri <span class="tim-seg-n">{{ active_timbri|length }}</span>
+    </button>
+    {% if active_firme %}
+      <button type="button" role="tab" class="tim-seg-btn{% if not active_timbri %} is-on{% endif %}" data-tim-seg="firme" aria-selected="{% if not active_timbri %}true{% else %}false{% endif %}">
+        Firme <span class="tim-seg-n">{{ active_firme|length }}</span>
+      </button>
+    {% endif %}
+    {% if active_sigle %}
+      <button type="button" role="tab" class="tim-seg-btn{% if not active_timbri and not active_firme %} is-on{% endif %}" data-tim-seg="sigle" aria-selected="{% if not active_timbri and not active_firme %}true{% else %}false{% endif %}">
+        Sigle <span class="tim-seg-n">{{ active_sigle|length }}</span>
+      </button>
+    {% endif %}
+  </div>
+
+  <div class="tim-seg-panel{% if active_timbri or not active_firme and not active_sigle %} is-on{% endif %}" data-tim-seg-panel="timbri">
+    {% if active_timbri %}
+      <div class="tim-recs">{% for record in active_timbri %}{% include "timbri/components/detail_record.html" with record=record active=True %}{% endfor %}</div>
+    {% else %}
+      <div class="tim-empty">Nessun timbro attivo.</div>
+    {% endif %}
+  </div>
+  {% if active_firme %}
+    <div class="tim-seg-panel{% if not active_timbri %} is-on{% endif %}" data-tim-seg-panel="firme">
+      <div class="tim-recs">{% for record in active_firme %}{% include "timbri/components/detail_record.html" with record=record active=True %}{% endfor %}</div>
+    </div>
+  {% endif %}
+  {% if active_sigle %}
+    <div class="tim-seg-panel{% if not active_timbri and not active_firme %} is-on{% endif %}" data-tim-seg-panel="sigle">
+      <div class="tim-recs">{% for record in active_sigle %}{% include "timbri/components/detail_record.html" with record=record active=True %}{% endfor %}</div>
+    </div>
+  {% endif %}
+</div>
+{% else %}
+  <div class="tim-empty">Nessun record attivo per questo dipendente.</div>
+{% endif %}

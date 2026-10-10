@@ -8,6 +8,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Timbri — nuovo layout e UI** (`django_app/timbri/templates/timbri/pages/index.html`, `pages/operatore_detail.html`, `pages/record_form.html`, `pages/configurazione.html`, `pages/report.html`, `partials/operatore_embed.html`, `components/detail_record.html`, `components/subnav.html`, `components/_timbri_ui.html` nuovo, `components/_records_attivi.html` nuovo, `docs/moduli/timbri.md`).
+  - Solo presentazione: view, permessi, modelli e dati invariati, nessuna migrazione.
+  - Le pagine passano dal tema teal su misura al design system HR del portale: guscio `fmd-` (intestazione con breadcrumb, tessere KPI, pannelli, tabelle, paginatore) e form-kit `hub-` per il form record, organizzato in sezioni con le immagini timbro/firma/sigla a lato.
+  - Componenti propri del modulo in un unico partial (`_timbri_ui.html`, CSS e JS a delega, idempotente con l'embed HTMX): riga record con immagini, tab Timbri/Firme/Sigle, griglia dati, anteprima espandibile, menu Report. Tema scuro e mobile verificati a video.
+  - Correzioni di UI: la paginazione dell'elenco conserva il filtro qualifica; il link «Impostazioni» apre la tab Permessi (prima `?tab=config` finiva sul log senza tab evidenziata); i valori delle etichette nell'anteprima vengono escapati.
 - **Glossario — pagina Guida** (`django_app/glossario_tecnico/views.py`, `urls.py`, `acl_bootstrap.py`, `templates/glossario_tecnico/pages/guida.html` nuovo, `pages/index.html`, `pages/revisione.html`, `tests.py`, `docs/moduli/glossario_tecnico.md`).
   - Nuova pagina `/glossario/guida/` (pulsante «Guida» nell'elenco, «Guida alla revisione» in «Da rivedere»): ricerca, scheda, stati, tipi di variante, uso nell'assistente per tutti; validazione delle bozze, inserimento e correzione, parole comuni, proposte AI, controlli prima di validare e import CSV solo per chi ha `glossario_tecnico.gestione`. Binding ACL `glossario_tecnico:guida` → consultazione (chiave di bootstrap v2). Nessuna migrazione.
   - Scheda modulo: procedura di attivazione nell'assistente (`OLLAMA_RAG_GLOSSARIO_ENABLED`, baseline, rollback) e lavoro della Qualità in ordine di priorità.
