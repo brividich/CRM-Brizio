@@ -7,6 +7,15 @@ Parametri: record, active (True = attivo, immagini visibili; False = storico, im
     <div class="tim-rec-id">
       <div class="tim-rec-code">{{ record.codice_timbro|default:"—" }}</div>
       {% if record.qualifica %}<div class="tim-rec-qual">{{ record.qualifica }}</div>{% endif %}
+      {% if record.abilitazione_processo_id %}
+        {% with ab=record.abilitazione_processo %}
+          <div class="tim-rec-mpq" title="Abilitazione MOD.128 collegata: {{ ab.get_stato_display }}">
+            <span class="tim-rec-mpq-k">MOD.128</span>
+            <span class="tim-rec-mpq-v">{{ ab.processo.nome }}</span>
+            {% if ab.stato != "ATTIVA" %}<span class="tim-pill tim-pill-bad">{{ ab.get_stato_display }}</span>{% endif %}
+          </div>
+        {% endwith %}
+      {% endif %}
     </div>
 
     <div class="tim-rec-dates">
@@ -56,6 +65,17 @@ Parametri: record, active (True = attivo, immagini visibili; False = storico, im
       {% endif %}
     </div>
   </div>
+
+  {% if record.is_sospeso %}
+    <div class="tim-rec-susp" role="note">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
+      <div>
+        <strong>Sospeso{% if record.sospeso_dal %} dal {{ record.sospeso_dal|date:"d-m-Y" }}{% endif %}{% if record.sospeso_al %} al {{ record.sospeso_al|date:"d-m-Y" }}{% endif %}</strong>
+        {% if record.sospeso_riferimento == "[mpq-abilitazione]" %}<span class="tim-pill tim-pill-neu">automatica da MOD.128</span>{% elif record.sospeso_riferimento %}<span class="tim-pill tim-pill-neu">{{ record.sospeso_riferimento }}</span>{% endif %}
+        {% if record.sospeso_motivo %}<div class="tim-rec-susp-m">{{ record.sospeso_motivo }}</div>{% endif %}
+      </div>
+    </div>
+  {% endif %}
 
   {% if record.note or record.firma_testo %}
     <div class="tim-rec-extra">

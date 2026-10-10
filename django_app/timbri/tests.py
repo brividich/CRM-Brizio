@@ -723,3 +723,105 @@ class TimbriQualificaFilterTests(TestCase):
         self.assertContains(response, 'name="qualifica"')
         self.assertContains(response, "Cromatore")
         self.assertContains(response, "Rettificatore")
+
+
+def _insert_dipendente(alias, nome, cognome, matricola, reparto="DIR") -> int:
+    with connection.cursor() as cursor:
+        params = [alias, nome, cognome, reparto, matricola, f"{alias}@test.local"]
+        if connection.vendor == "sqlite":
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, mansione, reparto, ruolo, matricola, attivo, email, email_notifica, utente_id) "
+                "VALUES (%s, %s, %s, 'OP', %s, 'OP', %s, 1, %s, NULL, NULL)",
+                params,
+            )
+            return int(cursor.lastrowid)
+        cursor.execute(
+            "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, mansione, reparto, ruolo, matricola, attivo, email, email_notifica, utente_id) "
+            "OUTPUT INSERTED.id VALUES (%s, %s, %s, 'OP', %s, 'OP', %s, 1, %s, NULL, NULL)",
+            params,
+        )
+        return int(cursor.fetchone()[0])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TimbriElencoRicercaFiltriExportTests(TestCase):
+    """Elenco: ricerca per codice timbro, filtri rapidi per stato, export Excel/PDF."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="timbri-elenco-admin", email="timbri-elenco-admin@test.local", password="pass12345"
+        )
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+        self.id_attivo = _insert_dipendente("a.attivo", "Aldo", "Attivo", "AT001")
+        self.id_storico = _insert_dipendente("s.storico", "Sara", "Storico", "ST001")
+        self.id_senza = _insert_dipendente("n.senza", "Nino", "Senza", "SE001")
+        op_attivo = OperatoreTimbri.objects.create(legacy_anagrafica_id=self.id_attivo, nome="Aldo", cognome="Attivo")
+        op_storico = OperatoreTimbri.objects.create(legacy_anagrafica_id=self.id_storico, nome="Sara", cognome="Storico")
+        RegistroTimbro.objects.create(operatore=op_attivo, codice_timbro="CNO Q101", is_attivo=True)
+        RegistroTimbro.objects.create(
+            operatore=op_storico, codice_timbro="CNO Z900", is_attivo=False, is_archived=True
+        )
+        self.client.force_login(self.admin)
+
+    def test_search_finds_employee_by_stamp_code(self):
+        response = self.client.get(reverse("timbri:index"), {"q": "CNO Q101"})
+        self.assertContains(response, "ATTIVO ALDO")
+        self.assertNotContains(response, "STORICO SARA")
+
+    def test_search_by_stamp_code_ignores_spaces(self):
+        response = self.client.get(reverse("timbri:index"), {"q": "cnoq101"})
+        self.assertContains(response, "ATTIVO ALDO")
+
+    def test_stato_filters(self):
+        attesi = {"attivi": "ATTIVO ALDO", "storico": "STORICO SARA", "senza": "SENZA NINO"}
+        for stato, atteso in attesi.items():
+            response = self.client.get(reverse("timbri:index"), {"stato": stato})
+            self.assertContains(response, atteso, msg_prefix=stato)
+            for altro in set(attesi.values()) - {atteso}:
+                self.assertNotContains(response, altro, msg_prefix=stato)
+
+    def test_unknown_stato_shows_everyone(self):
+        response = self.client.get(reverse("timbri:index"), {"stato": "boh"})
+        for nome in ("ATTIVO ALDO", "STORICO SARA", "SENZA NINO"):
+            self.assertContains(response, nome)
+
+    def test_export_xlsx_respects_filters_and_is_audited(self):
+        from openpyxl import load_workbook
+        from core.models import AuditLog
+
+        response = self.client.get(reverse("timbri:index"), {"stato": "attivi", "export": "xlsx"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("attachment", response["Content-Disposition"])
+        self.assertIn(".xlsx", response["Content-Disposition"])
+        workbook = load_workbook(io.BytesIO(response.content))
+        testo = " ".join(str(c.value) for row in workbook.active.iter_rows() for c in row if c.value is not None)
+        self.assertIn("ATTIVO ALDO", testo)
+        self.assertIn("CNO Q101", testo)
+        self.assertNotIn("STORICO SARA", testo)
+        self.assertTrue(AuditLog.objects.filter(azione="timbri_export_elenco").exists())
+
+    def test_export_pdf(self):
+        response = self.client.get(reverse("timbri:index"), {"export": "pdf"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_export_requires_view_permission(self):
+        with patch("timbri.views._can_view_timbri", return_value=False):
+            response = self.client.get(reverse("timbri:index"), {"export": "xlsx"})
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_suspended_record_shows_reason(self):
+        op = OperatoreTimbri.objects.get(legacy_anagrafica_id=self.id_attivo)
+        RegistroTimbro.objects.create(
+            operatore=op,
+            codice_timbro="CNO S555",
+            is_sospeso=True,
+            sospeso_motivo="Abilitazione revocata",
+            sospeso_riferimento="[mpq-abilitazione]",
+        )
+        response = self.client.get(reverse("timbri:operatore_detail_by_legacy", args=[self.id_attivo]))
+        self.assertContains(response, "Abilitazione revocata")
+        self.assertContains(response, "automatica da MOD.128")

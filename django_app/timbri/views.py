@@ -9,7 +9,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import DatabaseError, connections, transaction
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Prefetch, Q, Value
+from django.db.models.functions import Replace
 from django.http import FileResponse, HttpResponse, HttpResponseForbidden, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -499,6 +500,87 @@ def _base_context(request, **extra):
     return base
 
 
+_STATO_FILTRO_LABEL = {
+    "attivi": "con record attivi",
+    "storico": "solo storico",
+    "senza": "senza timbri",
+}
+
+
+def _export_elenco(request, entries, fmt, *, q, reparto, qualifica, stato):
+    """Export Excel/PDF dell'elenco, con gli stessi filtri della pagina.
+
+    Servito dalla stessa route dell'elenco (`?export=xlsx|pdf`): stessi permessi,
+    nessun binding ACL nuovo. Colonne = quelle a video più i codici attivi.
+    """
+    from core.excel_export import make_xlsx_response
+    from core.table_pdf import render_table_pdf
+
+    legacy_ids = [int(item["legacy_id"]) for item in entries if item.get("legacy_id")]
+    codici_attivi: dict[int, list[str]] = {}
+    for lid, codice in (
+        RegistroTimbro.objects.filter(
+            operatore__legacy_anagrafica_id__in=legacy_ids, is_attivo=True, is_archived=False
+        )
+        .order_by("codice_timbro")
+        .values_list("operatore__legacy_anagrafica_id", "codice_timbro")
+    ):
+        if codice:
+            codici_attivi.setdefault(int(lid), []).append(codice)
+
+    headers = ["Dipendente", "Matricola", "Reparto", "Ruolo", "Record attivi", "Storico", "Codici attivi"]
+    rows = [
+        [
+            item.get("full_name") or "",
+            item.get("matricola") or "",
+            item.get("reparto") or "",
+            item.get("ruolo") or "",
+            item.get("active_records") or 0,
+            item.get("historical_records") or 0,
+            ", ".join(codici_attivi.get(int(item.get("legacy_id") or 0), [])),
+        ]
+        for item in entries
+    ]
+
+    filtri = []
+    if q:
+        filtri.append(f"ricerca «{q}»")
+    if reparto:
+        filtri.append(f"reparto {reparto}")
+    if qualifica:
+        filtri.append(f"qualifica {qualifica}")
+    if stato:
+        filtri.append(_STATO_FILTRO_LABEL.get(stato, stato))
+    filters_label = (" · ".join(filtri) or "Tutti i dipendenti") + f" · {len(rows)} righe"
+    today = timezone.localdate()
+    actor = (request.user.get_full_name() or request.user.get_username() or "").strip()
+    subtitle = f"Generato il {today.strftime('%d-%m-%Y')}" + (f" da {actor}" if actor else "")
+
+    log_action(request, "timbri_export_elenco", "timbri", {
+        "formato": fmt,
+        "n_righe": len(rows),
+        "filtri": filters_label,
+    })
+
+    filename = f"registro_timbri_{today.strftime('%Y%m%d')}"
+    if fmt == "pdf":
+        response = HttpResponse(
+            render_table_pdf(title="Registro timbri", headers=headers, rows=rows, subtitle=f"{subtitle} · {filters_label}"),
+            content_type="application/pdf",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}.pdf"'
+        return response
+    return make_xlsx_response(
+        filename=f"{filename}.xlsx",
+        columns=headers,
+        rows=rows,
+        sheet_title="Registro timbri",
+        title="Registro timbri",
+        subtitle=subtitle,
+        filters_label=filters_label,
+    )
+
+
 @login_required
 def index(request):
     if not _can_view_timbri(request):
@@ -550,10 +632,23 @@ def index(request):
     )
     if q:
         q_norm = q.casefold()
+        # La ricerca trova anche il codice timbro (es. «CNO Q101»): risponde a
+        # «chi ha questo timbro?». Il confronto ignora gli spazi nel codice.
+        q_compact = "".join(q.split())
+        codice_legacy_ids = {
+            int(lid)
+            for lid in RegistroTimbro.objects.annotate(
+                codice_compatto=Replace("codice_timbro", Value(" "), Value(""))
+            )
+            .filter(codice_compatto__icontains=q_compact, operatore__legacy_anagrafica_id__isnull=False)
+            .values_list("operatore__legacy_anagrafica_id", flat=True)
+            if lid
+        }
         rows = [
             row
             for row in rows
-            if any(
+            if int(row.get("id") or 0) in codice_legacy_ids
+            or any(
                 q_norm in value.casefold()
                 for value in [
                     _legacy_full_name(row),
@@ -591,6 +686,24 @@ def index(request):
         if obj.legacy_anagrafica_id
     }
     entries = [_employee_row_payload(row, bridge_map.get(int(row.get("id") or 0))) for row in rows]
+    # Le tessere KPI contano l'elenco prima del filtro rapido, così restano
+    # un riferimento stabile mentre si passa da un filtro all'altro.
+    con_timbri = sum(1 for item in entries if item["timbri_count"] > 0)
+    stato = str(request.GET.get("stato") or "").strip()
+    stato_filters = {
+        "attivi": lambda item: item["active_records"] > 0,
+        "storico": lambda item: item["active_records"] == 0 and item["historical_records"] > 0,
+        "senza": lambda item: item["timbri_count"] == 0,
+    }
+    if stato in stato_filters:
+        entries = [item for item in entries if stato_filters[stato](item)]
+    else:
+        stato = ""
+
+    export_format = str(request.GET.get("export") or "").strip().lower()
+    if export_format in ("xlsx", "pdf"):
+        return _export_elenco(request, entries, export_format, q=q, reparto=reparto, qualifica=qualifica, stato=stato)
+
     paginator = Paginator(entries, 30)
     page_obj = paginator.get_page(request.GET.get("page"))
     pending_issues = _pending_import_issues(100)
@@ -607,9 +720,10 @@ def index(request):
             reparti=reparti,
             qualifica=qualifica,
             qualifiche=qualifiche,
+            stato=stato,
             stats={
                 "dipendenti": len(rows),
-                "con_timbri": sum(1 for item in entries if item["timbri_count"] > 0),
+                "con_timbri": con_timbri,
                 "record_attivi": RegistroTimbro.objects.filter(is_attivo=True, is_archived=False).count(),
                 "da_gestire": len(pending_issues),
             },
@@ -779,7 +893,9 @@ def operatore_detail(request, operatore_id: int):
     if operatore.legacy_anagrafica_id:
         return redirect("timbri:operatore_detail_by_legacy", legacy_id=int(operatore.legacy_anagrafica_id))
 
-    registri_qs = RegistroTimbro.objects.filter(operatore=operatore).prefetch_related(
+    registri_qs = RegistroTimbro.objects.filter(operatore=operatore).select_related(
+        "abilitazione_processo__processo"
+    ).prefetch_related(
         Prefetch("immagini", queryset=RegistroTimbroImmagine.objects.order_by("variante"))
     )
     active_records = list(registri_qs.filter(is_attivo=True, is_archived=False))
@@ -830,7 +946,9 @@ def operatore_detail_by_legacy(request, legacy_id: int):
         return redirect("timbri:index")
 
     operatore = _ensure_legacy_operatore(row)
-    registri_qs = RegistroTimbro.objects.filter(operatore=operatore).prefetch_related(
+    registri_qs = RegistroTimbro.objects.filter(operatore=operatore).select_related(
+        "abilitazione_processo__processo"
+    ).prefetch_related(
         Prefetch("immagini", queryset=RegistroTimbroImmagine.objects.order_by("variante"))
     )
     active_records = list(registri_qs.filter(is_attivo=True, is_archived=False))
@@ -905,7 +1023,9 @@ def operatore_embed(request, legacy_id: int):
         return render(request, template, {"not_found": True})
 
     operatore = _ensure_legacy_operatore(row)
-    registri_qs = RegistroTimbro.objects.filter(operatore=operatore).prefetch_related(
+    registri_qs = RegistroTimbro.objects.filter(operatore=operatore).select_related(
+        "abilitazione_processo__processo"
+    ).prefetch_related(
         Prefetch("immagini", queryset=RegistroTimbroImmagine.objects.order_by("variante"))
     )
     active_records = list(registri_qs.filter(is_attivo=True, is_archived=False))

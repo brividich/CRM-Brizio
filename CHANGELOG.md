@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Timbri — elenco e scheda più utili** (`django_app/timbri/views.py`, `timbri/tests.py`, `templates/timbri/pages/index.html`, `pages/record_form.html`, `components/detail_record.html`, `components/_timbri_ui.html`, `docs/moduli/timbri.md`).
+  - Ricerca anche per **codice timbro** («chi ha il CNO Q101?»), ignorando gli spazi (`cnoq101` trova `CNO Q101`).
+  - Filtri rapidi **Tutti / Con record attivi / Solo storico / Senza timbri** (`?stato=`); le tessere Dipendenti e Record attivi sono cliccabili.
+  - **Esporta** Excel/PDF dell'elenco filtrato (colonne a video + codici attivi), servito dalla stessa route con `?export=xlsx|pdf`: stessi permessi, nessun binding ACL nuovo, audit `timbri_export_elenco`.
+  - Riga record: **abilitazione MOD.128 collegata** (con stato se non attiva) e riquadro **sospensione** con data, motivo e origine («automatica da MOD.128»).
+  - Form record: anteprima dell'immagine scelta, trascinamento del file sul riquadro, avviso immediato se il file non è PNG (il controllo autorevole resta lato server).
+  - «Da gestire»: link «Cerca» in anagrafica per ogni riga scartata; nell'elenco, accesso diretto alla scheda anagrafica accanto a «Timbri».
+  - 8 test nuovi (ricerca per codice, filtri, export xlsx/pdf e permesso, sospensione a video).
 - **Timbri — nuovo layout e UI** (`django_app/timbri/templates/timbri/pages/index.html`, `pages/operatore_detail.html`, `pages/record_form.html`, `pages/configurazione.html`, `pages/report.html`, `partials/operatore_embed.html`, `components/detail_record.html`, `components/subnav.html`, `components/_timbri_ui.html` nuovo, `components/_records_attivi.html` nuovo, `docs/moduli/timbri.md`).
   - Solo presentazione: view, permessi, modelli e dati invariati, nessuna migrazione.
   - Le pagine passano dal tema teal su misura al design system HR del portale: guscio `fmd-` (intestazione con breadcrumb, tessere KPI, pannelli, tabelle, paginatore) e form-kit `hub-` per il form record, organizzato in sezioni con le immagini timbro/firma/sigla a lato.

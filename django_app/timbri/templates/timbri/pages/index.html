@@ -39,9 +39,10 @@
     {% endif %}
 
     <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Registro in sintesi">
-      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=stats.dipendenti label="Dipendenti" sub="in elenco" %}
+      {% url 'timbri:index' as u_tutti %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=stats.dipendenti label="Dipendenti" sub="in elenco" url=u_tutti %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-award" valore=stats.con_timbri label="Con timbri" sub="almeno un record" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=stats.record_attivi label="Record attivi" sub="timbri, firme e sigle" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=stats.record_attivi label="Record attivi" sub="timbri, firme e sigle" url="?stato=attivi" %}
       {% if stats.da_gestire %}
         {% include "anagrafica/components/_kpi_tile.html" with tono="orange" icona="i-alert-cir" valore=stats.da_gestire label="Da gestire" sub="righe import scartate" url="#tim-da-gestire" %}
       {% else %}
@@ -53,7 +54,7 @@
       <form method="get" class="fmd-toolbar" id="tim-filters">
         <span class="fmd-search">
           <svg class="fmd-ico"><use href="#i-search"/></svg>
-          <input type="text" name="q" value="{{ q }}" placeholder="Nome, cognome, matricola, reparto…" autocomplete="off" aria-label="Cerca dipendente">
+          <input type="text" name="q" value="{{ q }}" placeholder="Nome, matricola, reparto o codice timbro…" autocomplete="off" aria-label="Cerca dipendente">
         </span>
         <select class="fmd-select" name="reparto" aria-label="Filtra per reparto">
           <option value="">Tutti i reparti</option>
@@ -63,9 +64,27 @@
           <option value="">Tutte le qualifiche</option>
           {% for item in qualifiche %}<option value="{{ item }}"{% if item == qualifica %} selected{% endif %}>{{ item }}</option>{% endfor %}
         </select>
+        {% if stato %}<input type="hidden" name="stato" value="{{ stato }}">{% endif %}
         <button class="fmd-btn fmd-btn-primary" type="submit"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
-        {% if q or reparto or qualifica %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'timbri:index' %}">Reset</a>{% endif %}
+        {% if q or reparto or qualifica or stato %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'timbri:index' %}">Reset</a>{% endif %}
+        <span class="fmd-spacer"></span>
+        {% if not schema_issue %}
+        <details class="fmd-export">
+          <summary class="fmd-btn fmd-btn-ghost" title="Esporta l'elenco con i filtri attivi"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta</summary>
+          <div class="fmd-export-menu" role="menu">
+            <a role="menuitem" href="{% querystring export='xlsx' page=None %}">Excel — elenco filtrato</a>
+            <a role="menuitem" href="{% querystring export='pdf' page=None %}">PDF — elenco filtrato</a>
+          </div>
+        </details>
+        {% endif %}
       </form>
+
+      <nav class="fmd-chips tim-stato-chips" aria-label="Filtro rapido">
+        <a class="fmd-chip{% if not stato %} fmd-on{% endif %}" href="{% querystring stato=None page=None %}">Tutti</a>
+        <a class="fmd-chip{% if stato == 'attivi' %} fmd-on{% endif %}" href="{% querystring stato='attivi' page=None %}">Con record attivi</a>
+        <a class="fmd-chip{% if stato == 'storico' %} fmd-on{% endif %}" href="{% querystring stato='storico' page=None %}">Solo storico</a>
+        <a class="fmd-chip{% if stato == 'senza' %} fmd-on{% endif %}" href="{% querystring stato='senza' page=None %}">Senza timbri</a>
+      </nav>
 
       <div class="fmd-tablewrap">
         <table class="fmd-table" data-fm-table-skip="1">
@@ -100,7 +119,8 @@
                 <td class="fmd-c">{% if operatore.active_records %}<span class="fmd-badge fmd-b-green">{{ operatore.active_records }}</span>{% else %}<span class="fmd-muted">0</span>{% endif %}</td>
                 <td class="fmd-c">{% if operatore.historical_records %}<span class="fmd-badge fmd-b-grey">{{ operatore.historical_records }}</span>{% else %}<span class="fmd-muted">0</span>{% endif %}</td>
                 <td class="fmd-r fmd-nowrap">
-                  <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'timbri:operatore_detail_by_legacy' operatore.legacy_id %}" data-tim-stop>Apri <svg class="fmd-ico"><use href="#i-chevron-right"/></svg></a>
+                  <a class="tim-mini" href="{% url 'anagrafica:dipendente_detail' operatore.legacy_id %}" data-tim-stop title="Scheda anagrafica di {{ operatore.full_name }}" aria-label="Scheda anagrafica"><svg class="fmd-ico"><use href="#i-users"/></svg></a>
+                  <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'timbri:operatore_detail_by_legacy' operatore.legacy_id %}" data-tim-stop>Timbri <svg class="fmd-ico"><use href="#i-chevron-right"/></svg></a>
                 </td>
               </tr>
               <tr class="tim-xpanel" id="tim-x-{{ operatore.legacy_id }}" hidden>
@@ -114,7 +134,7 @@
       </div>
 
       <div class="fmd-tfoot" style="padding-bottom:13px;">
-        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} dipendenti{% if q or reparto or qualifica %} (filtrati){% endif %}</span>
+        <span class="fmd-info">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }} · {{ page_obj.paginator.count }} dipendenti{% if q or reparto or qualifica or stato %} (filtrati){% endif %}</span>
         {% if page_obj.has_other_pages %}
           <div class="fmd-pager">
             {% if page_obj.has_previous %}<a href="{% querystring page=page_obj.previous_page_number %}" aria-label="Pagina precedente">‹</a>{% endif %}
@@ -135,7 +155,7 @@
         <div class="fmd-tablewrap" style="margin:0 -22px -2px;">
           <table class="fmd-table" data-fm-table-skip="1">
             <thead>
-              <tr><th>Riga</th><th>Operatore</th><th>Matricola</th><th>Codice</th><th>Tipo</th><th>Motivo</th></tr>
+              <tr><th>Riga</th><th>Operatore</th><th>Matricola</th><th>Codice</th><th>Tipo</th><th>Motivo</th><th class="fmd-r">Anagrafica</th></tr>
             </thead>
             <tbody>
               {% for issue in pending_issues %}
@@ -149,6 +169,11 @@
                   <td class="fmd-muted">{{ issue.codice_timbro|default:"—" }}</td>
                   <td class="fmd-muted">{{ issue.tipo_timbro_raw|default:"—" }}</td>
                   <td><span class="tim-pill tim-pill-warn" style="white-space:normal;">{{ issue.motivo_scarto }}</span></td>
+                  <td class="fmd-r fmd-nowrap">
+                    {% with cerca=issue.matricola|default:issue.operatore_label|default:issue.operatore_label_alt %}
+                      {% if cerca %}<a class="tim-mini" href="{% url 'anagrafica:dipendenti_list' %}?q={{ cerca|urlencode }}" target="_blank" rel="noopener" title="Cerca «{{ cerca }}» tra i dipendenti">Cerca <svg class="fmd-ico"><use href="#i-search"/></svg></a>{% else %}<span class="fmd-muted">—</span>{% endif %}
+                    {% endwith %}
+                  </td>
                 </tr>
               {% endfor %}
             </tbody>
