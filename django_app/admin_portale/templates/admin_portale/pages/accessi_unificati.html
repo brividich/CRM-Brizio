@@ -173,7 +173,7 @@ body.theme-dark .acl-commit { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .0
 .acl-bank__body.is-open { display: block; }
 
 .acl-bulk {
-  display: flex; align-items: center; gap: var(--hub-space-2, 8px);
+  display: flex; align-items: center; gap: var(--hub-space-2, 8px); flex-wrap: wrap;
   padding: 7px var(--hub-space-4, 16px);
   background: var(--hub-color-surface-raised, #fbfdff);
   border-bottom: 1px solid var(--hub-color-border, #d7e0ea);
@@ -249,6 +249,67 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
 .acl-scope { font-size: 11px; color: var(--hub-color-text-muted, #4a5568); }
 .acl-scope::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 2px; background: currentColor; margin-right: 6px; vertical-align: 1px; }
 .acl-scope--page { color: var(--acl-navy); }
+/* Collegamento morto: binding attivi che nessuna rotta sceglie. Concederlo non
+   apre nulla, quindi e' l'unico stato che deve saltare all'occhio. */
+.acl-scope--oscurato { color: var(--hub-status-danger, #c53030); font-weight: 700; }
+.acl-scope[title] { cursor: help; }
+body.theme-dark .acl-scope--page { color: #7aa2d6; }
+body.theme-dark .acl-scope--oscurato { color: #fc8181; }
+.acl-grid td.is-scope { width: 104px; white-space: nowrap; }
+/* Il permesso vive a database in un altro modulo: la pagina lo mostra dove
+   serve, ma il codice d'origine resta dichiarato. */
+.acl-from {
+  display: inline-block; margin-left: 6px; font-size: 10px;
+  padding: 0 6px; border-radius: 999px;
+  background: var(--hub-color-surface-raised, #f1f5f9);
+  border: 1px dashed var(--hub-color-border, #d7e0ea);
+  color: var(--hub-color-text-muted, #4a5568);
+}
+
+/* ── Aree e moduli ────────────────────────────────────────────────────── */
+.acl-area {
+  margin: var(--hub-space-4, 16px) 0 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--hub-color-text-muted, #4a5568);
+}
+.acl-area[hidden] { display: none; }
+.acl-bank__name small {
+  font-weight: 400; margin-left: 8px; font-size: 11px;
+  color: var(--hub-color-text-muted, #4a5568);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.acl-bank__cats { font-size: 11px; color: var(--hub-color-text-muted, #4a5568); white-space: nowrap; }
+@media (max-width: 640px) { .acl-bank__cats, .acl-bank__name small { display: none; } }
+.acl-submodule__meta { font-size: 11px; color: var(--hub-color-text-muted, #4a5568); font-weight: 400; }
+.acl-submodule__meta--warn { color: var(--hub-status-danger, #c53030); font-weight: 600; }
+body.theme-dark .acl-submodule__meta--warn { color: #fc8181; }
+
+/* ── Verifica dei collegamenti ────────────────────────────────────────── */
+.acl-verify__figures {
+  display: grid; gap: var(--hub-space-2, 8px);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-bottom: var(--hub-space-3, 12px);
+}
+.acl-figure {
+  border: 1px solid var(--hub-color-border, #d7e0ea);
+  border-radius: var(--hub-radius-sm, 6px);
+  padding: 8px 10px;
+  background: var(--hub-color-surface-raised, #fbfdff);
+}
+.acl-figure b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; color: var(--hub-color-text, #1a202c); }
+.acl-figure span { font-size: 11px; color: var(--hub-color-text-muted, #4a5568); }
+.acl-figure--warn { border-left: 3px solid var(--hub-status-danger, #c53030); }
+.acl-verify details { margin-top: var(--hub-space-2, 8px); font-size: var(--hub-font-xs, 12px); }
+.acl-verify summary { cursor: pointer; font-weight: 600; color: var(--hub-color-text, #1a202c); }
+.acl-verify table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.acl-verify td, .acl-verify th {
+  text-align: left; padding: 5px 8px; font-size: 11px;
+  border-bottom: 1px solid var(--hub-color-border, #d7e0ea);
+  color: var(--hub-color-text, #1a202c); overflow-wrap: anywhere;
+}
+.acl-verify th { color: var(--hub-color-text-muted, #4a5568); font-weight: 600; }
+.acl-verify code { font-size: 11px; }
+.acl-verify__scroll { max-height: 320px; overflow: auto; }
 
 /* La capacita' di ogni permesso, stampata accanto al codice: e' cio' su cui i
    livelli ragionano, quindi deve essere leggibile riga per riga invece di
@@ -266,7 +327,7 @@ body.theme-dark .acl-group--configurazione .acl-group__name::before { background
 .acl-cap--approvazione { border-color: var(--acl-steel); color: var(--acl-steel); }
 .acl-cap--amministrazione { border-color: var(--acl-navy); color: var(--acl-navy); }
 .acl-cap--ignoto { border-color: var(--acl-live); color: var(--acl-live); font-weight: 700; }
-.acl-cap--sub::after { content: "  b7 sottoalbero"; }
+.acl-cap--sub::after { content: " \00b7 sottoalbero"; }
 body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d6; }
 
 /* Interruttori, non caselle: l'oggetto di questa pagina e' aprire e chiudere. */
@@ -437,6 +498,55 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
     </section>
   </div>
 
+  {# ── Verifica dei collegamenti ── #}
+  {% if module_rows %}
+  <section class="acl-panel acl-verify" id="acl-verifica" style="margin-bottom:var(--hub-space-4, 16px)">
+    <h3>Verifica dei collegamenti</h3>
+    <p class="acl-note">
+      Ricalcolata a ogni apertura (cache di 5 minuti) con lo stesso criterio con cui il portale sceglie il permesso
+      di una pagina: binding esatto sul nome della rotta, altrimenti il prefisso di URL più lungo.
+      {{ link_summary.permissions }} permessi in {{ link_summary.modules }} moduli e {{ link_summary.categories }} categorie.
+    </p>
+    <div class="acl-verify__figures">
+      <div class="acl-figure"><b>{{ link_summary.with_pages }}</b><span>permessi che aprono pagine</span></div>
+      <div class="acl-figure"><b>{{ link_summary.menu_only }}</b><span>che comandano solo voci di menu</span></div>
+      <div class="acl-figure"><b>{{ link_summary.section_only }}</b><span>di sezione (verificati dentro la pagina)</span></div>
+      <div class="acl-figure{% if link_summary.shadowed %} acl-figure--warn{% endif %}"><b>{{ link_summary.shadowed }}</b><span>con collegamento oscurato</span></div>
+      <div class="acl-figure"><b>{{ link_summary.routes_bound }}/{{ link_summary.routes_total }}</b><span>rotte con un permesso canonico</span></div>
+      <div class="acl-figure{% if link_summary.stale_bindings %} acl-figure--warn{% endif %}"><b>{{ link_summary.stale_bindings|length }}</b><span>binding che non decidono nulla</span></div>
+    </div>
+    <p class="acl-note" style="margin:0">
+      <b>Pagine</b>: il permesso governa le rotte elencate passando il mouse sul numero.
+      <b>Menu</b>: nessuna rotta lo sceglie, ma una voce di menu lo richiede (decide cosa si vede, non cosa si apre).
+      <b>Sezione</b>: nessun binding, il controllo è nel codice di una pagina (pulsanti, schede, azioni).
+      <b>Oscurato</b>: ha binding attivi ma nessuna rotta lo sceglie e nessun menu lo richiede: concesso da solo non apre pagine.
+      Le rotte senza alcun permesso sono in <a href="{% url 'admin_portale:acl_route_coverage' %}">Copertura route ACL</a>;
+      i binding si correggono in <a href="{% url 'admin_portale:acl_canonico' %}">ACL canonico</a>.
+    </p>
+    {% if link_summary.stale_bindings %}
+    <details>
+      <summary>Binding da rivedere ({{ link_summary.stale_missing_route }} verso rotte inesistenti, {{ link_summary.stale_shadowed }} sempre scavalcati)</summary>
+      <div class="acl-verify__scroll">
+        <table data-fm-table-skip="1">
+          <thead><tr><th>#</th><th>Destinazione</th><th>Tipo</th><th>Permesso</th><th>Esito</th></tr></thead>
+          <tbody>
+            {% for row in link_summary.stale_bindings %}
+            <tr>
+              <td>{{ row.id }}</td>
+              <td><code>{{ row.target }}</code></td>
+              <td>{{ row.match }}</td>
+              <td><code>{{ row.permission }}</code></td>
+              <td>{% if row.reason == "rotta_inesistente" %}La rotta non esiste più{% else %}Un binding più specifico lo scavalca sempre{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endif %}
+  </section>
+  {% endif %}
+
   {# ── Quadro dei permessi ── #}
   {% if module_rows %}
   <form method="post" id="accessi-form">
@@ -466,22 +576,31 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
     </div>
 
     <div class="acl-filter">
-      <input class="input" type="search" id="perm-search" placeholder="Filtra per permesso, codice, modulo o sottomodulo" aria-label="Filtra i permessi">
+      <input class="input" type="search" id="perm-search" placeholder="Filtra per permesso, codice, modulo, categoria o pagina" aria-label="Filtra i permessi">
+      <select class="input" id="perm-link-filter" aria-label="Filtra per collegamento" style="flex:0 0 auto;width:auto;min-width:0">
+        <option value="">Tutti i collegamenti</option>
+        <option value="pagine">Solo chi apre pagine</option>
+        <option value="menu">Solo voci di menu</option>
+        <option value="sezione">Solo di sezione</option>
+        <option value="oscurato">Solo collegamenti oscurati</option>
+      </select>
       <button type="button" class="btn btn-secondary btn-sm" id="btn-expand-all">Apri tutti</button>
       <button type="button" class="btn btn-secondary btn-sm" id="btn-collapse-all">Chiudi tutti</button>
     </div>
 
     {% for mod in module_rows %}
-    <section class="acl-bank {% if mod.all_on %}acl-bank--live{% elif mod.partial %}acl-bank--part{% endif %}" data-modulo="{{ mod.modulo }}">
+    {% ifchanged mod.area %}<h2 class="acl-area" data-area="{{ mod.area }}">{{ mod.area_label }}</h2>{% endifchanged %}
+    <section class="acl-bank {% if mod.all_on %}acl-bank--live{% elif mod.partial %}acl-bank--part{% endif %}" data-modulo="{{ mod.modulo }}" data-area="{{ mod.area }}" data-label="{{ mod.label|lower }}">
       <div class="acl-bank__head" data-target="acl-bank-{{ forloop.counter }}">
         <span class="acl-bank__switch" onclick="event.stopPropagation()">
-          <label class="acl-switch" title="Accendi o spegni tutto {{ mod.modulo }}">
+          <label class="acl-switch" title="Accendi o spegni tutto: {{ mod.label }}">
             <input type="checkbox" class="acl-master" data-modulo="{{ mod.modulo }}" {% if mod.all_on %}checked{% endif %}
-                   aria-label="Tutti i permessi di {{ mod.modulo }}">
+                   aria-label="Tutti i permessi di {{ mod.label }}">
             <span></span>
           </label>
         </span>
-        <span class="acl-bank__name">{{ mod.modulo }}</span>
+        <span class="acl-bank__name">{{ mod.label }}<small>{{ mod.modulo }}</small></span>
+        <span class="acl-bank__cats">{{ mod.categories_count }} categori{{ mod.categories_count|pluralize:"a,e" }}</span>
         <span class="acl-bank__gauge">
           <span class="acl-bank__track" aria-hidden="true"><span class="acl-bank__level" data-fill-of="{{ mod.total_count }}" data-fill-value="{{ mod.active_count }}"></span></span>
           <span class="acl-bank__score">{{ mod.active_count }}/{{ mod.total_count }}</span>
@@ -516,29 +635,35 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
           <details class="acl-submodule" data-sottomodulo="{{ sub.key }}" data-sub-label="{{ sub.label|lower }}">
             <summary class="acl-submodule__head">
               <b>{{ sub.label }}</b>
+              <span class="acl-submodule__meta">{{ sub.total_count }} permess{{ sub.total_count|pluralize:"o,i" }}{% if sub.pages_count %} · {{ sub.pages_count }} pagin{{ sub.pages_count|pluralize:"a,e" }}{% endif %}</span>
+              {% if sub.shadowed_count %}<span class="acl-submodule__meta acl-submodule__meta--warn">{{ sub.shadowed_count }} oscurat{{ sub.shadowed_count|pluralize:"o,i" }}</span>{% endif %}
               <span class="acl-bulk__count acl-submodule__score">{{ sub.active_count }}/{{ sub.total_count }}</span>
             </summary>
             <div class="acl-submodule__actions">
               <div class="acl-bulk">
-                <button type="button" class="btn btn-secondary btn-sm acl-bulk-on" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}" data-sottomodulo="{{ sub.key }}">Accendi sottomodulo</button>
-                <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}" data-sottomodulo="{{ sub.key }}">Spegni sottomodulo</button>
+                <button type="button" class="btn btn-secondary btn-sm acl-bulk-on" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}" data-sottomodulo="{{ sub.key }}">Accendi categoria</button>
+                <button type="button" class="btn btn-secondary btn-sm acl-bulk-off" data-modulo="{{ mod.modulo }}" data-natura="{{ grp.nature }}" data-sottomodulo="{{ sub.key }}">Spegni categoria</button>
               </div>
             </div>
           <table class="acl-grid" data-fm-table-skip="1">
             <tbody>
               {% for perm in sub.permissions %}
-              <tr data-search="{{ perm.code }} {{ perm.label|lower }}">
+              <tr data-search="{{ perm.code }} {{ perm.label|lower }} {{ perm.stored_label|lower }} {{ perm.routes_preview|join:' '|lower }}" data-link="{{ perm.link_status }}">
                 <td>
-                  <div class="acl-perm">{{ perm.label }}</div>
+                  <div class="acl-perm" {% if perm.description %}title="{{ perm.description }}"{% endif %}>{{ perm.label }}{% if perm.source_module %}<span class="acl-from" title="A database il permesso appartiene al modulo «{{ perm.source_module }}».">da {{ perm.source_module }}</span>{% endif %}</div>
                   <div class="acl-code">{{ perm.code }}<span
                       class="acl-cap acl-cap--{{ perm.capability }}{% if perm.governs_subtree %} acl-cap--sub{% endif %}"
                       title="{% if perm.capability_unknown %}Il nome non dice cosa faccia: lo accende solo il livello «Amministratore del modulo».{% else %}I livelli accendono questo permesso a partire da «{{ perm.capability_label }}».{% endif %}{% if perm.governs_subtree %} Governa un intero sottoalbero di URL, quindi la capacità tiene conto anche delle rotte che vi ricadono sotto.{% endif %}">{{ perm.capability_label }}</span></div>
                 </td>
                 <td class="is-scope">
-                  {% if perm.governs_route %}
-                    <span class="acl-scope acl-scope--page">pagina</span>
+                  {% if perm.link_status == "pagine" %}
+                    <span class="acl-scope acl-scope--page" title="Rotte governate:&#10;{{ perm.routes_title }}">{{ perm.route_count }} pagin{{ perm.route_count|pluralize:"a,e" }}</span>
+                  {% elif perm.link_status == "menu" %}
+                    <span class="acl-scope" title="Nessuna rotta lo sceglie, ma una voce di menu lo richiede: decide se la voce si vede, non se la pagina si apre.">menu</span>
+                  {% elif perm.link_status == "oscurato" %}
+                    <span class="acl-scope acl-scope--oscurato" title="Ha binding attivi ma nessuna rotta lo sceglie e nessuna voce di menu lo richiede: i binding puntano a rotte inesistenti o uno più specifico li scavalca. Concesso da solo non apre pagine.">oscurato</span>
                   {% else %}
-                    <span class="acl-scope">sezione</span>
+                    <span class="acl-scope" title="Nessun binding di rotta: il permesso è verificato nel codice di una pagina (sezioni, pulsanti, azioni).">sezione</span>
                   {% endif %}
                 </td>
                 <td class="is-switch">
@@ -757,43 +882,56 @@ body.theme-dark .acl-cap--amministrazione { border-color: #7aa2d6; color: #7aa2d
     document.getElementById('granted-json').value = JSON.stringify(selected);
   });
 
+  // Filtro: testo libero (codice, etichetta, modulo, categoria, rotte
+  // governate) e tipo di collegamento. Le due condizioni valgono insieme: cosi'
+  // "oscurato" + "assets" mostra i soli collegamenti morti del modulo Asset.
   var search = document.getElementById('perm-search');
-  if (search) {
-    search.addEventListener('input', function () {
-      var needle = search.value.trim().toLowerCase();
-      document.querySelectorAll('.acl-bank').forEach(function (bank) {
-        var visible = 0;
-        bank.querySelectorAll('tbody tr').forEach(function (row) {
-          var sub = row.closest('.acl-submodule');
-          var hit = !needle || (row.dataset.search || '').indexOf(needle) !== -1
-                    || (bank.dataset.modulo || '').indexOf(needle) !== -1
-                    || (sub && (sub.dataset.subLabel || '').indexOf(needle) !== -1);
-          row.hidden = !hit;
-          if (hit) { visible += 1; }
-        });
-        // Uno scomparto senza righe superstiti sparisce con la sua etichetta:
-        // altrimenti il filtro lascerebbe intestazioni vuote.
-        bank.querySelectorAll('.acl-group').forEach(function (group) {
-          var alive = 0;
-          group.querySelectorAll('tbody tr').forEach(function (row) { if (!row.hidden) { alive += 1; } });
-          group.hidden = needle !== '' && alive === 0;
-          group.querySelectorAll('.acl-submodule').forEach(function (sub) {
-            var subAlive = 0;
-            sub.querySelectorAll('tbody tr').forEach(function (row) { if (!row.hidden) { subAlive += 1; } });
-            sub.hidden = needle !== '' && subAlive === 0;
-            if (needle && subAlive) { sub.open = true; }
-          });
-        });
-        bank.hidden = needle !== '' && visible === 0;
-        if (needle !== '' && visible > 0) {
-          var head = bank.querySelector('.acl-bank__head');
-          var body = bodyFor(head);
-          head.classList.add('is-open');
-          if (body) { body.classList.add('is-open'); }
-        }
+  var linkFilter = document.getElementById('perm-link-filter');
+  function applyFilter() {
+    var needle = search ? search.value.trim().toLowerCase() : '';
+    var link = linkFilter ? linkFilter.value : '';
+    var active = needle !== '' || link !== '';
+    var liveAreas = {};
+    document.querySelectorAll('.acl-bank').forEach(function (bank) {
+      var visible = 0;
+      var bankHit = (bank.dataset.modulo || '').indexOf(needle) !== -1
+                    || (bank.dataset.label || '').indexOf(needle) !== -1;
+      bank.querySelectorAll('tbody tr').forEach(function (row) {
+        var sub = row.closest('.acl-submodule');
+        var textHit = !needle || bankHit || (row.dataset.search || '').indexOf(needle) !== -1
+                      || (sub && (sub.dataset.subLabel || '').indexOf(needle) !== -1);
+        var linkHit = !link || row.dataset.link === link;
+        row.hidden = !(textHit && linkHit);
+        if (!row.hidden) { visible += 1; }
       });
+      // Uno scomparto senza righe superstiti sparisce con la sua etichetta:
+      // altrimenti il filtro lascerebbe intestazioni vuote.
+      bank.querySelectorAll('.acl-group').forEach(function (group) {
+        var alive = 0;
+        group.querySelectorAll('tbody tr').forEach(function (row) { if (!row.hidden) { alive += 1; } });
+        group.hidden = active && alive === 0;
+        group.querySelectorAll('.acl-submodule').forEach(function (sub) {
+          var subAlive = 0;
+          sub.querySelectorAll('tbody tr').forEach(function (row) { if (!row.hidden) { subAlive += 1; } });
+          sub.hidden = active && subAlive === 0;
+          if (active && subAlive) { sub.open = true; }
+        });
+      });
+      bank.hidden = active && visible === 0;
+      if (!bank.hidden) { liveAreas[bank.dataset.area] = true; }
+      if (active && visible > 0) {
+        var head = bank.querySelector('.acl-bank__head');
+        var body = bodyFor(head);
+        head.classList.add('is-open');
+        if (body) { body.classList.add('is-open'); }
+      }
+    });
+    document.querySelectorAll('.acl-area').forEach(function (title) {
+      title.hidden = active && !liveAreas[title.dataset.area];
     });
   }
+  if (search) { search.addEventListener('input', applyFilter); }
+  if (linkFilter) { linkFilter.addEventListener('change', applyFilter); }
 })();
 </script>
 {% endblock %}

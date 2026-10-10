@@ -14,7 +14,7 @@ from io import StringIO
 from django.core.management import call_command
 from django.test import TestCase
 
-from core.acl_capability import build_capability_index
+from core.acl_capability import STALE_MISSING_ROUTE, STALE_SHADOWED, build_capability_index
 from core.models import PermissionDefinition, RoutePermissionBinding
 
 
@@ -83,6 +83,65 @@ class CapabilityIndexTests(TestCase):
         )
         index = build_capability_index()
         self.assertEqual(index.capabilities[permission.code], "amministrazione")
+
+
+class LinkVerificationTests(TestCase):
+    """L'indice dice anche quali rotte ogni permesso governa, e quali binding sono morti."""
+
+    def test_binding_esatto_governa_la_sua_rotta(self):
+        permission = PermissionDefinition.objects.create(
+            code="demo.collegamento.view", label="Demo", module="demo"
+        )
+        RoutePermissionBinding.objects.create(
+            permission=permission,
+            route_name="admin_portale:accessi",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            priority=1,
+            is_active=True,
+        )
+        index = build_capability_index()
+        self.assertIn("admin_portale:accessi", index.governed_routes[permission.code])
+        self.assertIn(permission.code, index.bound_codes)
+        self.assertGreater(index.routes_bound, 0)
+        self.assertGreaterEqual(index.routes_total, index.routes_bound)
+
+    def test_binding_verso_rotta_inesistente_e_segnalato(self):
+        permission = PermissionDefinition.objects.create(
+            code="demo.orfano.view", label="Demo orfano", module="demo"
+        )
+        binding = RoutePermissionBinding.objects.create(
+            permission=permission,
+            route_name="demo:rotta_che_non_esiste",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            is_active=True,
+        )
+        index = build_capability_index()
+        self.assertNotIn(permission.code, index.governed_routes)
+        stale = {row["id"]: row for row in index.stale_bindings}
+        self.assertEqual(stale[binding.pk]["reason"], STALE_MISSING_ROUTE)
+        self.assertEqual(stale[binding.pk]["permission"], permission.code)
+
+    def test_prefisso_sempre_scavalcato_e_oscurato(self):
+        """Un prefisso che copre solo rotte con binding proprio non decide nulla."""
+        exact = PermissionDefinition.objects.create(code="demo.esatto.view", label="Esatto", module="demo")
+        shadowed = PermissionDefinition.objects.create(code="demo.prefisso.view", label="Prefisso", module="demo")
+        RoutePermissionBinding.objects.create(
+            permission=exact,
+            route_name="admin_portale:accessi_semplice",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            priority=1,
+            is_active=True,
+        )
+        binding = RoutePermissionBinding.objects.create(
+            permission=shadowed,
+            path_pattern="/admin-portale/accessi-semplice",
+            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
+            is_active=True,
+        )
+        index = build_capability_index()
+        self.assertNotIn(shadowed.code, index.governed_routes)
+        stale = {row["id"]: row for row in index.stale_bindings}
+        self.assertEqual(stale[binding.pk]["reason"], STALE_SHADOWED)
 
 
 class CapabilityReportCommandTests(TestCase):

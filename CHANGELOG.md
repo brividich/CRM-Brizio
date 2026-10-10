@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Accessi — categorie dei permessi rifatte e verifica dei collegamenti ACL** (`django_app/core/permission_categories.py` nuovo, `django_app/core/acl_capability.py`, `django_app/core/permission_taxonomy.py`, `django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, test `core/test_permission_categories.py`, `core/test_acl_capability.py`, `admin_portale/test_accessi_unificati.py`, `docs/moduli/admin_portale.md`).
+  - Categorie: prima un "sottomodulo" per ogni secondo segmento del code (centinaia di gruppi da un permesso, es. «Api navigation item create»); ora una tabella di regole scritta sul catalogo reale (868 permessi + le rotte che il bootstrap mapperà) dà **160 categorie** leggibili in 34 moduli, nessun permesso in «Altre funzioni».
+  - Moduli: nome leggibile, ordinati per area (Core, Operazioni, HR, Sicurezza, Automazione). Alias riuniti: `sicurezza`→Rilevazione incidenti, `rifiuti`→RENTRI, `admin`/`portale_esterno`→Amministrazione portale, `api.anomalie_*`→Anomalie, `admin_portale.automazioni_*`→Automazioni, `monitoring_admin`→Monitoraggio, ~25 micro-moduli tecnici (login, logout, healthz, profilo, rubrica, notifiche…) in «Piattaforma e servizi comuni». La riga dichiara il modulo d'origine («da admin_portale»).
+  - Etichette: quelle tecniche (`admin_portale / utente_toggle_active`) diventano leggibili («Utente attivo — attiva/disattiva»); quelle scritte a mano restano.
+  - Verifica collegamenti: per ogni permesso la pagina dice se apre **pagine** (numero e rotte nel tooltip, calcolate col resolver vero), comanda solo **voci di menu**, è di **sezione** o è **oscurato** (binding attivi che nessuna rotta sceglie). Pannello riassuntivo con l'elenco dei binding morti e filtro per tipo di collegamento.
+  - Corretto un byte NUL nel CSS del badge «sottoalbero» (a video usciva «b7 sottoalbero»).
+  - Solo presentazione: nessuna migrazione, nessun grant toccato; la chiave della cache dell'indice passa a `acl_capability_index_v2`.
+
 - **Contatori — integrazione Centrale/menu e wizard in main** (`django_app/contatori/templates/contatori/_modulo_nav.html`, `snmp_dispositivo_detail.html`, `tests_cruscotto.py`, `docs/moduli/contatori.md`).
   - Menu del modulo: tre gruppi Operatività / Economico / Configurazione; sotto Configurazione (solo permesso gestione) anche le voci dei wizard «+ Dispositivo SNMP», «+ MFC», «+ Profilo SNMP». Il wizard colonna evidenzia Profili SNMP, il wizard lettore OID il Monitor SNMP.
   - Scheda dispositivo: sezione Info della Centrale insieme a banner «non verificato», errore con codice catalogo e pulsanti «+ Lettore guidato» / «Modulo completo».

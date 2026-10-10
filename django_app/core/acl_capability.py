@@ -35,8 +35,13 @@ from core.permission_taxonomy import (
     strongest_capability,
 )
 
-CACHE_KEY = "acl_capability_index_v1"
+# v2: l'indice porta anche i collegamenti permesso -> rotte. Chiave nuova perche'
+# in produzione la cache e' su database: un oggetto v1 in cache non ha i campi.
+CACHE_KEY = "acl_capability_index_v2"
 CACHE_TTL_SECONDS = 300
+
+STALE_MISSING_ROUTE = "rotta_inesistente"
+STALE_SHADOWED = "oscurato"
 
 
 @dataclass
@@ -48,6 +53,16 @@ class CapabilityIndex:
     by_name: dict[str, str] = field(default_factory=dict)
     # code -> [(route_name, capacita')] delle rotte coperte per prefisso.
     subtree_routes: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    # Collegamenti reali: code -> rotte con nome che il resolver gli assegna
+    # (binding esatto o prefisso vincente), nell'ordine dell'urlconf.
+    governed_routes: dict[str, list[str]] = field(default_factory=dict)
+    # Code con almeno un binding attivo, governi o no qualche rotta.
+    bound_codes: set[str] = field(default_factory=set)
+    # Binding attivi che non decidono nessuna rotta: puntano a un nome di rotta
+    # che non esiste piu', oppure un binding piu' specifico li scavalca sempre.
+    stale_bindings: list[dict] = field(default_factory=list)
+    routes_total: int = 0
+    routes_bound: int = 0
 
     def get(self, code: str, default: str = CAPABILITY_IGNOTO) -> str:
         return self.capabilities.get(code, default)
@@ -98,28 +113,50 @@ def build_capability_index() -> CapabilityIndex:
     bindings = list(
         RoutePermissionBinding.objects.filter(is_active=True).select_related("permission")
     )
-    prefix_bound = {
-        str(binding.permission_id)
-        for binding in bindings
-        if str(binding.path_pattern or "").strip() and not str(binding.route_name or "").strip()
-    }
+    index.bound_codes = {str(binding.permission_id) for binding in bindings}
 
-    if prefix_bound:
-        for row in _named_routes():
-            binding, matched_by = _find_canonical_binding(
-                route_name=row.route_name, path_norm=row.sample_path, bindings=bindings
-            )
-            # Solo i match per prefisso dicono qualcosa di nuovo: se la rotta ha
-            # un binding proprio, quel permesso e' gia' classificato dal suo nome.
-            if binding is None or matched_by != "path_pattern":
-                continue
-            code = str(binding.permission_id)
-            if code not in permissions:
-                continue
-            capability = capability_for_name(row.route_name)
-            if capability == CAPABILITY_IGNOTO:
-                continue
-            index.subtree_routes.setdefault(code, []).append((row.route_name, capability))
+    routes = _named_routes() if bindings else []
+    route_names = {str(row.route_name).lower() for row in routes}
+    used_binding_ids: set[int] = set()
+    index.routes_total = len(routes)
+    for row in routes:
+        binding, matched_by = _find_canonical_binding(
+            route_name=row.route_name, path_norm=row.sample_path, bindings=bindings
+        )
+        if binding is None:
+            continue
+        used_binding_ids.add(int(binding.pk))
+        index.routes_bound += 1
+        code = str(binding.permission_id)
+        index.governed_routes.setdefault(code, []).append(row.route_name)
+        # Solo i match per prefisso dicono qualcosa di nuovo sulla capacita':
+        # se la rotta ha un binding proprio, il permesso e' gia' classificato
+        # dal suo nome.
+        if matched_by != "path_pattern" or code not in permissions:
+            continue
+        capability = capability_for_name(row.route_name)
+        if capability == CAPABILITY_IGNOTO:
+            continue
+        index.subtree_routes.setdefault(code, []).append((row.route_name, capability))
+
+    for binding in bindings:
+        if int(binding.pk) in used_binding_ids:
+            continue
+        route_name = str(binding.route_name or "").strip()
+        index.stale_bindings.append(
+            {
+                "id": int(binding.pk),
+                "permission": str(binding.permission_id),
+                "target": route_name or str(binding.path_pattern or ""),
+                "match": str(binding.match_strategy or ""),
+                "reason": (
+                    STALE_MISSING_ROUTE
+                    if route_name and route_name.lower() not in route_names
+                    else STALE_SHADOWED
+                ),
+            }
+        )
+    index.stale_bindings.sort(key=lambda row: (row["reason"], row["permission"], row["target"]))
 
     for code, from_name in index.by_name.items():
         if from_name == CAPABILITY_IGNOTO:
