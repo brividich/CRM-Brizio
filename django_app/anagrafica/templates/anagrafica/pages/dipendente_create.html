@@ -847,6 +847,14 @@ function dcAddFiglioRow() {
     window.scrollTo({top: 0, behavior: 'smooth'});
   }
   nav.addEventListener('click', function (e) { const b = e.target.closest('[data-go]'); if (b) mostra(parseInt(b.dataset.go, 10)); });
+  form.addEventListener('invalid', function (e) {
+    const card = e.target.closest('[data-step]');
+    if (card && card.hidden) {
+      mostra(parseInt(card.dataset.step, 10));
+      const coll = e.target.closest('.dc-collapsed'); if (coll) coll.classList.remove('dc-collapsed');
+      setTimeout(function () { e.target.focus(); e.target.reportValidity && e.target.reportValidity(); }, 50);
+    }
+  }, true);
   prev.addEventListener('click', function () { mostra(corrente - 1); });
   next.addEventListener('click', function () {
     if (corrente === 1 && !val('nome')) { const n = form.querySelector('[name="nome"]'); if (n) { n.reportValidity && n.focus(); } return; }
@@ -891,7 +899,9 @@ function dcAddFiglioRow() {
     const q = new URLSearchParams({email: v('email_notifica') || v('email'), nome: v('nome'), cognome: v('cognome'), codice_fiscale: v('codice_fiscale')});
     btn.disabled = true;
     esito.textContent = 'Ricerca in corso…';
-    fetch(btn.dataset.url + '?' + q.toString(), {headers: {'X-Requested-With': 'XMLHttpRequest'}, credentials: 'same-origin'})
+    const csrf = form.querySelector('[name="csrfmiddlewaretoken"]');
+    fetch(btn.dataset.url, {method: 'POST', body: q, credentials: 'same-origin',
+      headers: {'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf ? csrf.value : ''}})
       .then(function (r) {
         if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.error || ('Errore ' + r.status)); });
         return r.text();

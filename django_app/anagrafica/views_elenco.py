@@ -69,7 +69,9 @@ class VistaElencoForm(forms.ModelForm):
         visibili_admin = {c.chiave for c in colonne_elenco.REGISTRO.values() if colonne_elenco.colonna_permessa(c, permessi)}
         pulite, viste_chiavi = [], set()
         for voce in voci if isinstance(voci, list) else []:
-            chiave = str((voce or {}).get("chiave") or "")
+            if not isinstance(voce, dict):
+                continue
+            chiave = str(voce.get("chiave") or "")
             if chiave not in visibili_admin or chiave in viste_chiavi:
                 continue  # solo chiavi del registro che l'admin può vedere, una volta sola
             viste_chiavi.add(chiave)
@@ -131,7 +133,12 @@ def vista_elenco_modifica(request, pk: int | None = None):
         messages.success(request, f"Vista «{vista.nome}» salvata.")
         return redirect("anagrafica:viste_elenco")
     disponibili = colonne_elenco.colonne_disponibili(request)
-    attuali = {v["chiave"]: v for v in json.loads(form["colonne_json"].value() or "[]")} if form["colonne_json"].value() else {}
+    try:
+        grezze = json.loads(form["colonne_json"].value() or "[]")
+    except (TypeError, ValueError):
+        grezze = []
+    attuali = {v["chiave"]: v for v in (grezze if isinstance(grezze, list) else [])
+               if isinstance(v, dict) and isinstance(v.get("chiave"), str)}
     ordinate = [c for c in disponibili if c.chiave in attuali]
     ordinate.sort(key=lambda c: list(attuali).index(c.chiave))
     ordinate += [c for c in disponibili if c.chiave not in attuali]
@@ -182,11 +189,14 @@ def vista_elenco_azione(request, pk: int):
     return redirect("anagrafica:viste_elenco")
 
 
-@login_required
 def vista_elenco_anteprima(request):
     """Anteprima live (HTMX/fetch): prime righe vere con le colonne scelte, filtrate dai permessi dell'admin."""
+    from django.http import JsonResponse
+
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "Autenticazione richiesta."}, status=401)
     if not _admin(request):
-        return HttpResponse(status=403)
+        return JsonResponse({"ok": False, "error": "Accesso riservato agli amministratori dell'anagrafica."}, status=403)
     try:
         voci = json.loads(request.POST.get("colonne_json") or request.GET.get("colonne_json") or "[]")
     except ValueError:

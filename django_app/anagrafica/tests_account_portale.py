@@ -131,16 +131,18 @@ class RicercaADTests(AccountPortaleBase):
         url = reverse("anagrafica:account_portale_cerca")
         p, _conn = _ad([_entry("m.rossi@example.invalid")])
         with p:
-            ok = self.client.get(url, {"email": "m.rossi@example.invalid"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+            ok = self.client.post(url, {"email": "m.rossi@example.invalid"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
         self.assertContains(ok, "m.rossi@example.invalid")
         self.assertContains(ok, "abilitato")
         self.client.logout()
-        anon = self.client.get(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        anon = self.client.post(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
         self.assertIn(anon.status_code, (401, 403))
         self.assertEqual(anon["Content-Type"].split(";")[0], "application/json")
         semplice = User.objects.create_user("acc_semplice", "acc_semplice@example.invalid", "x")
         self.client.force_login(semplice)
-        negato = self.client.get(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        negato = self.client.post(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(url).status_code, 405)  # CF ed email mai in querystring
         self.assertEqual(negato.status_code, 403)
         self.assertEqual(negato["Content-Type"].split(";")[0], "application/json")
 
@@ -192,6 +194,34 @@ class CreazioneConAccountTests(AccountPortaleBase):
         self.assertEqual(self._dipendente().utente_id, utente.id)
         self.assertTrue(AuditLog.objects.filter(azione="ACCOUNT_PORTALE_CREATO").exists())
 
+    def test_login_locale_non_occupa_identita_ad(self):
+        p, _conn = _ad([])
+        with p:
+            con_chiocciola = self._post(account_scelta="locale", account_login="m.rossi@example.invalid", account_password=PWD_OK)
+        self.assertEqual(con_chiocciola.status_code, 200)
+        UtenteLegacy.objects.create(nome="ESISTE", email="m.rossi@altro.example.invalid", password=svc.AD_MANAGED, attivo=True)
+        with p:
+            omonimo = self._post(account_scelta="locale", account_login="m.rossi", account_password=PWD_OK)
+        self.assertEqual(omonimo.status_code, 200)
+        UtenteLegacy.objects.all().delete()
+        p_ad, _conn = _ad([_entry("m.rossi@example.invalid")])
+        with p_ad, override_settings(LDAP_UPN_SUFFIX="example.invalid"):
+            in_ad = self._post(account_scelta="locale", account_login="m.rossi", account_password=PWD_OK)
+        self.assertEqual(in_ad.status_code, 200)
+        self.assertIsNone(self._dipendente())
+
+    def test_dipendente_inattivo_non_riceve_account(self):
+        r = self._post(attivo="", account_scelta="locale", account_login="m.rossi", account_password=PWD_OK)
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(self._dipendente())
+
+    def test_ad_ambiguo_blocca_il_submit(self):
+        p, _conn = _ad([_entry("m.rossi@example.invalid"), _entry("m.rossi@example.invalid", nome="Omonimo")])
+        with p:
+            r = self._post(account_scelta="ad", account_ad_upn="m.rossi@example.invalid")
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(self._dipendente())
+
     def test_collega_solo_utente_con_stessa_email(self):
         estraneo = UtenteLegacy.objects.create(nome="ESTRANEO", email="estraneo@example.invalid", password="h", attivo=True)
         r = self._post(account_scelta="collega", account_collega_id=str(estraneo.id))
@@ -234,6 +264,11 @@ class AccountPrivilegiatoTests(AccountPortaleBase):
         self.assertEqual(dip.utente_id, self.legacy.id)
         log = AuditLog.objects.get(azione="ACCOUNT_PORTALE_COLLEGATO", oggetto_id=str(dip.id))
         self.assertTrue(log.dettaglio["conferma_privilegiato"])
+
+    def test_admin_legacy_e_privilegiato(self):
+        Profile.objects.filter(legacy_user_id=self.legacy.id).delete()
+        with patch.object(svc, "is_legacy_admin", return_value=True):
+            self.assertEqual(svc._privilegio_legacy(self.legacy), "amministratore del portale")
 
     def test_ad_su_utente_privilegiato_esistente_richiede_conferma(self):
         p, _conn = _ad([_entry("m.rossi@example.invalid")])

@@ -782,7 +782,8 @@ def dipendenti_list(request):
 
     # Vista configurabile (prompt 03): colonne dal registro, filtrate dai permessi dell'utente.
     vista = viste_elenco.vista_corrente(request)
-    if vista and vista.filtri and not any(request.GET.get(k) for k in ("q", "reparto", "area", "tipologia_contratto")):
+    if (vista and vista.filtri and request.GET.get("vf") != "0"
+            and not any(k in request.GET for k in ("q", "reparto", "area", "tipologia_contratto"))):
         filtri = request.GET.copy()
         for chiave, valore in vista.filtri.items():
             if chiave in ("reparto", "area", "tipologia_contratto") and valore:
@@ -834,6 +835,20 @@ def dipendenti_list(request):
     # (fm-table-enhanced.js), che opera sulle righe nel DOM. Con il volume reale
     # dell'anagrafica (~150 dipendenti) carichiamo tutto in un blocco così filtro
     # e ordinamento coprono l'intero elenco e non solo la pagina corrente.
+    # Ordinamento all'apertura scelto nella vista (solo su una colonna che l'utente può vedere).
+    if vista and vista.ordinamento and not request.GET.get("sort"):
+        da_ordinare = colonne_elenco.colonne_da_specifica(viste_elenco.specifica([vista.ordinamento]), request)
+        if da_ordinare:
+            chiave_ord = da_ordinare[0]["colonna"].chiave
+            colonne_elenco.arricchisci(rows, [da_ordinare[0]["colonna"]])
+            pieni = [r for r in rows if (r.get("valori") or {}).get(chiave_ord, ("", None))[1] not in (None, "")]
+            vuoti = [r for r in rows if r not in pieni]
+            try:
+                pieni.sort(key=lambda r: r["valori"][chiave_ord][1])
+            except TypeError:
+                pieni.sort(key=lambda r: str(r["valori"][chiave_ord][1]))
+            rows = pieni + vuoti
+
     paginator = Paginator(rows, 500)
     page = paginator.get_page(request.GET.get("page"))
 
@@ -1248,14 +1263,14 @@ def dipendente_create(request):
                     except Exception:
                         logger.warning("Registrazione formazione pregressa fallita per %s", new_id, exc_info=True)
 
-                views_account.completa_creazione(creazione_token, new_id)
+                views_account.completa_creazione(request, creazione_token, new_id)
                 nome_disp = naming.nome_completo(data.get("nome"), data.get("cognome")) or "Dipendente"
                 messages.success(request, f'Dipendente "{nome_disp}" creato.')
                 if new_id:
                     return redirect("anagrafica:dipendente_detail", legacy_id=new_id)
                 return redirect("anagrafica:dipendenti_list")
             except Exception as exc:
-                views_account.annulla_creazione(creazione_token)
+                views_account.annulla_creazione(request, creazione_token)
                 logger.exception("Errore creazione dipendente")
                 messages.error(request, f"Impossibile creare il dipendente: {exc}")
         elif not errori_account:
@@ -8850,7 +8865,7 @@ def _import_xlsx_cedolini(file_obj, user, file_nome: str) -> ImportazioneCedolin
             )
             ok = err = nf = 0
             scarti: list[dict] = []
-            for n_riga, (cf, row) in enumerate(righe, start=1):
+            for n_riga, (cf, row) in enumerate(righe, start=2):
                 try:
                     lid = cf_to_lid.get(cf)
                     if lid is None:

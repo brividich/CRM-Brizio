@@ -20,7 +20,7 @@ PRESET = {
 
 
 def specifica(chiavi: list[str]) -> list[dict]:
-    return [{"chiave": k, "visibile": True, "larghezza": 0} for k in chiavi if k in REGISTRO]
+    return [{"chiave": k, "visibile": True, "larghezza": 0} for k in dict.fromkeys(chiavi) if k in REGISTRO]
 
 
 def _ruolo_legacy_id(request) -> int | None:
@@ -47,7 +47,13 @@ def vista_corrente(request, *, ricorda: bool = True) -> VistaElenco | None:
     if richiesta and richiesta in disponibili:
         vista = disponibili[richiesta]
         if ricorda and request.user.is_authenticated:
-            PreferenzaVistaUtente.objects.update_or_create(user=request.user, defaults={"vista": vista})
+            from django.db import IntegrityError, transaction
+
+            try:
+                with transaction.atomic():
+                    PreferenzaVistaUtente.objects.update_or_create(user=request.user, defaults={"vista": vista})
+            except IntegrityError:  # due richieste in parallelo: basta che una delle due la salvi
+                pass
         return vista
     if request.user.is_authenticated:
         pref = PreferenzaVistaUtente.objects.filter(user=request.user).select_related("vista").first()
@@ -63,6 +69,6 @@ def colonne_richieste(request, vista: VistaElenco | None) -> list[dict]:
     """Colonne da mostrare: ``?colonne=a,b`` (ad hoc) oppure quelle della vista, sempre filtrate
     dai permessi. Una colonna sensibile chiesta in querystring da chi non ha il permesso sparisce."""
     ad_hoc = [k.strip() for k in (request.GET.get("colonne") or "").split(",") if k.strip()]
-    if ad_hoc:
+    if ad_hoc and not (vista and vista.blocca_personalizzazione):
         return colonne_da_specifica(specifica(ad_hoc), request)
     return colonne_da_specifica(vista.colonne if vista else specifica(DEFAULT_COLONNE), request)

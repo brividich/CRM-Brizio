@@ -12,7 +12,7 @@ from django.contrib import messages
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_POST
 
 from .services import account_portale
 
@@ -28,15 +28,16 @@ def token_creazione(raw) -> str:
     return raw if _TOKEN_RE.match(raw) else uuid.uuid4().hex
 
 
-def _chiave(token: str) -> str:
-    return f"anagrafica:dipendente_create:{token}"
+def _chiave(token: str, user_id=None) -> str:
+    return f"anagrafica:dipendente_create:{user_id}:{token}"
 
 
 def prenota_creazione(request, token: str):
     """None se la creazione può procedere, altrimenti la risposta per il submit duplicato."""
-    if cache.add(_chiave(token), _IN_CORSO, _TOKEN_TTL):
+    chiave = _chiave(token, request.user.pk)
+    if cache.add(chiave, _IN_CORSO, _TOKEN_TTL):
         return None
-    esistente = cache.get(_chiave(token))
+    esistente = cache.get(chiave)
     if isinstance(esistente, int) and esistente > 0:
         messages.info(request, "Il dipendente era già stato creato con questo modulo: nessun doppione.")
         return redirect("anagrafica:dipendente_detail", legacy_id=esistente)
@@ -44,17 +45,18 @@ def prenota_creazione(request, token: str):
     return redirect("anagrafica:dipendenti_list")
 
 
-def completa_creazione(token: str, new_id: int) -> None:
+def completa_creazione(request, token: str, new_id: int) -> None:
     if new_id:
-        cache.set(_chiave(token), int(new_id), _TOKEN_TTL)
+        cache.set(_chiave(token, request.user.pk), int(new_id), _TOKEN_TTL)
 
 
-def annulla_creazione(token: str) -> None:
-    if cache.get(_chiave(token)) == _IN_CORSO:
-        cache.delete(_chiave(token))
+def annulla_creazione(request, token: str) -> None:
+    chiave = _chiave(token, request.user.pk)
+    if cache.get(chiave) == _IN_CORSO:
+        cache.delete(chiave)
 
 
-@require_GET
+@require_POST
 def account_portale_cerca(request):
     from .views import _is_anagrafica_admin
 
@@ -63,10 +65,10 @@ def account_portale_cerca(request):
     if not _is_anagrafica_admin(request):
         return JsonResponse({"ok": False, "error": "Non hai i permessi per creare dipendenti."}, status=403)
 
-    email = (request.GET.get("email") or "").strip()[:200]
-    nome = (request.GET.get("nome") or "").strip()[:100]
-    cognome = (request.GET.get("cognome") or "").strip()[:100]
-    codice_fiscale = (request.GET.get("codice_fiscale") or "").strip()[:16]
+    email = (request.POST.get("email") or "").strip()[:200]
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    cognome = (request.POST.get("cognome") or "").strip()[:100]
+    codice_fiscale = (request.POST.get("codice_fiscale") or "").strip()[:16]
     portale = account_portale.cerca_utenti_portale(email=email, codice_fiscale=codice_fiscale)
     esito_ad = account_portale.cerca_ad(email=email, nome=nome, cognome=cognome)
     return render(request, "anagrafica/partials/_account_portale_risultati.html", {

@@ -100,6 +100,45 @@ class VisteEPreferenzeTests(VisteElencoBase):
         self.assertIn('name="vista"', html)
 
 
+class FiltriOrdinamentoTests(VisteElencoBase):
+    def _righe(self, html, *nomi):
+        return [html.index(n) for n in nomi]
+
+    def test_filtro_della_vista_solo_all_apertura_e_reset_lo_toglie(self):
+        VistaElenco.objects.create(codice="prod", nome="Produzione", filtri={"reparto": "PRODUZIONE"}, colonne=viste_elenco.specifica(["reparto"]))
+        aperta = views.dipendenti_list(_req(self.admin, data={"vista": "prod"})).content.decode()
+        self.assertNotIn("UFFICIO", aperta.split("<tbody", 1)[1])
+        reset = views.dipendenti_list(_req(self.admin, data={"vf": "0"})).content.decode()
+        self.assertIn("UFFICIO", reset.split("<tbody", 1)[1])
+        tutti = views.dipendenti_list(_req(self.admin, data={"reparto": ""})).content.decode()
+        self.assertIn("UFFICIO", tutti.split("<tbody", 1)[1])
+
+    def test_ordinamento_della_vista(self):
+        VistaElenco.objects.create(codice="ord", nome="Ordinata", ordinamento="reparto", colonne=viste_elenco.specifica(["reparto"]))
+        corpo = views.dipendenti_list(_req(self.admin, data={"vista": "ord"})).content.decode().split("<tbody", 1)[1]
+        self.assertLess(corpo.index("PRODUZIONE"), corpo.index("UFFICIO"))
+
+    def test_colonne_duplicate_e_vista_bloccata(self):
+        self.assertEqual(len(viste_elenco.specifica(["reparto", "reparto"])), 1)
+        bloccata = VistaElenco.objects.create(codice="lock", nome="Bloccata", blocca_personalizzazione=True,
+                                              colonne=viste_elenco.specifica(["mansione"]))
+        cols = viste_elenco.colonne_richieste(_req(self.admin, data={"colonne": "reparto"}), bloccata)
+        self.assertEqual([c["colonna"].chiave for c in cols], ["mansione"])
+
+    def test_form_vista_con_json_malformato_non_va_in_errore(self):
+        for grezzo in ("non json", json.dumps(["x", 3, None]), json.dumps({"a": 1})):
+            with self.subTest(grezzo=grezzo):
+                r = views_elenco.vista_elenco_modifica(_req(self.admin, path="/x/", method="post",
+                                                            data={"nome": "", "colonne_json": grezzo, "ambito": "GLOBALE"}))
+                self.assertEqual(r.status_code, 200)
+
+    def test_vista_eliminata_torna_alla_predefinita(self):
+        hr = VistaElenco.objects.get(codice="hr")
+        viste_elenco.vista_corrente(_req(self.utente, data={"vista": "hr"}))
+        hr.delete()
+        self.assertEqual(viste_elenco.vista_corrente(_req(self.utente)).codice, "standard")
+
+
 class QueryCostantiTests(VisteElencoBase):
     def test_numero_di_query_non_cresce_con_righe_e_colonne(self):
         tutte = list(colonne_elenco.REGISTRO.values())
@@ -128,6 +167,15 @@ class ExportVistaTests(VisteElencoBase):
         self.assertNotIn("RSSMRA80A01H501U", valori)
         self.assertIn("=CMD()", valori)  # testo, non formula viva
 
+    def test_audit_dell_export_dichiara_le_colonne_sensibili(self):
+        from core.models import AuditLog
+
+        build_export_response(_req(self.admin, path="/anagrafica/export/dipendenti/", data={"colonne": "mansione,codice_fiscale"}),
+                              "dipendenti", "xlsx", "full")
+        log = AuditLog.objects.filter(azione="export", modulo="anagrafica").order_by("-id").first()
+        self.assertIn("v:codice_fiscale", log.dettaglio["colonne"])
+        self.assertEqual(log.dettaglio["colonne_sensibili"], ["codice_fiscale"])
+
 
 class AdminVisteTests(VisteElencoBase):
     def test_form_accetta_solo_chiavi_del_registro_e_predefinita_unica(self):
@@ -154,6 +202,7 @@ class AdminVisteTests(VisteElencoBase):
 
     def test_pagine_admin_negate_a_chi_non_amministra(self):
         self.assertEqual(views_elenco.viste_elenco(_req(self.utente)).status_code, 302)
-        self.assertEqual(views_elenco.vista_elenco_anteprima(_req(self.utente)).status_code, 403)
+        negata = views_elenco.vista_elenco_anteprima(_req(self.utente))
+        self.assertEqual((negata.status_code, negata["Content-Type"]), (403, "application/json"))
         self.assertContains(views_elenco.vista_elenco_anteprima(_req(self.admin, data={"colonne_json": json.dumps(viste_elenco.specifica(["reparto"]))})),
                             "PRODUZIONE")

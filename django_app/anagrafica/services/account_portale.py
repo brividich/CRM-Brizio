@@ -27,7 +27,7 @@ from django.core.exceptions import ValidationError
 
 from core.ldap_conn import build_ldap_server, ldap_receive_timeout
 from core.legacy_models import AnagraficaDipendente, Ruolo, UtenteLegacy
-from core.legacy_utils import _ldap_escape_filter, ldap_group_cns
+from core.legacy_utils import _ldap_escape_filter, canonicalize_ldap_upn, is_legacy_admin, ldap_group_cns
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,8 @@ def privilegio(user) -> str:
 
 def _privilegio_legacy(legacy: UtenteLegacy, django_user=None) -> str:
     User = get_user_model()
+    if is_legacy_admin(legacy):
+        return "amministratore del portale"
     motivo = privilegio(django_user)
     if motivo:
         return motivo
@@ -326,10 +328,9 @@ def valida_scelta(request, scelta: SceltaAccount, *, email: str, codice_fiscale:
         return ["Un dipendente inserito come non attivo non riceve un accesso al portale: scegli «Nessun accesso»."]
     if scelta.tipo == SCELTA_LOCALE:
         errori = []
-        if not scelta.login:
-            errori.append("Indica il nome utente (login) dell'utente locale.")
-        elif UtenteLegacy.objects.filter(email__iexact=scelta.login).exists():
-            errori.append(f"Esiste già un utente portale «{scelta.login}»: usa «Collega utente portale esistente».")
+        errore_login = _errore_login_locale(scelta.login)
+        if errore_login:
+            errori.append(errore_login)
         try:
             validate_password(scelta.password)
         except ValidationError as exc:
@@ -360,14 +361,45 @@ def valida_scelta(request, scelta: SceltaAccount, *, email: str, codice_fiscale:
     return []
 
 
+_LOGIN_LOCALE_RE = __import__("re").compile(r"^[a-z0-9][a-z0-9._-]{2,49}$")
+
+
+def _errore_login_locale(login: str) -> str:
+    """Un utente locale non deve poter occupare un'identità AD: niente login a forma di email,
+    niente omonimi tra utenti portale/Django e, con l'AD configurato, nessun account AD omonimo."""
+    login = (login or "").strip().lower()
+    if not login:
+        return "Indica il nome utente (login) dell'utente locale."
+    if not _LOGIN_LOCALE_RE.match(login):
+        return ("Il login dell'utente locale usa solo lettere minuscole, cifre, punto, trattino e trattino basso "
+                "(niente @: gli indirizzi email sono riservati agli account Active Directory).")
+    User = get_user_model()
+    if (UtenteLegacy.objects.filter(email__iexact=login).exists()
+            or UtenteLegacy.objects.filter(email__istartswith=f"{login}@").exists()
+            or User.objects.filter(username__iexact=login).exists()
+            or User.objects.filter(email__istartswith=f"{login}@").exists()):
+        return f"Esiste già un utente con login «{login}»: usa «Collega utente portale esistente» o scegli un altro login."
+    if _configurazione() is not None:
+        upn = canonicalize_ldap_upn(login)
+        esito = cerca_ad(upn=upn if "@" in upn else "", nome="", cognome="")
+        if esito.stato != "ok":
+            return "Non è stato possibile verificare in Active Directory che il login sia libero: riprova più tardi o scegli «Nessun accesso»."
+        if esito.risultati:
+            return f"In Active Directory esiste già l'account «{upn}»: collega l'account AD invece di creare un utente locale."
+    return ""
+
+
 def _audit(request, azione: str, new_id: int, dettaglio: dict) -> None:
     from core.audit import log_action
 
     log_action(request, azione, "anagrafica", dettaglio, oggetto_tipo="dipendente", oggetto_id=str(new_id))
 
 
-def _collega(new_id: int, legacy: UtenteLegacy) -> None:
-    AnagraficaDipendente.objects.filter(id=new_id, utente_id__isnull=True).update(utente_id=legacy.id)
+def _collega(new_id: int, legacy: UtenteLegacy) -> bool:
+    """Collega solo se la scheda è libera e l'utente non è già su un'altra scheda (ricontrollato qui)."""
+    if AnagraficaDipendente.objects.filter(utente_id=legacy.id).exclude(id=new_id).exists():
+        return False
+    return AnagraficaDipendente.objects.filter(id=new_id, utente_id__isnull=True).update(utente_id=legacy.id) == 1
 
 
 def applica_scelta(request, new_id: int, scelta: SceltaAccount, *, nome_completo: str) -> tuple[str, str]:
@@ -379,7 +411,8 @@ def applica_scelta(request, new_id: int, scelta: SceltaAccount, *, nome_completo
         return "info", "Nessun accesso al portale: l'account si può collegare in seguito dalla scheda."
     if scelta.tipo == SCELTA_COLLEGA:
         legacy = UtenteLegacy.objects.get(pk=scelta.collega_id)
-        _collega(new_id, legacy)
+        if not _collega(new_id, legacy):
+            return "warning", "Utente portale non collegato: nel frattempo è stato collegato a un'altra scheda."
         _audit(request, "ACCOUNT_PORTALE_COLLEGATO", new_id, {"utente_legacy_id": legacy.id, "modo": "esistente",
                                                               "conferma_privilegiato": scelta.conferma_privilegiato})
         return "success", f"Collegato all'utente portale «{legacy.email or legacy.nome}»."
@@ -388,7 +421,8 @@ def applica_scelta(request, new_id: int, scelta: SceltaAccount, *, nome_completo
         legacy = UtenteLegacy.objects.create(nome=nome_completo, email=scelta.login, password=generate_password_hash(scelta.password),
                                              ruolo="utente", ruolo_id=ruolo.id if ruolo else None, attivo=True,
                                              deve_cambiare_password=True)
-        _collega(new_id, legacy)
+        if not _collega(new_id, legacy):
+            return "warning", "Utente locale creato ma non collegato alla scheda: collegalo a mano."
         _audit(request, "ACCOUNT_PORTALE_CREATO", new_id, {"utente_legacy_id": legacy.id, "modo": "locale", "login": scelta.login})
         return "success", f"Creato l'utente locale «{scelta.login}»: al primo accesso dovrà cambiare la password."
     account, errore, irraggiungibile = verifica_account_ad(scelta.upn)
@@ -404,7 +438,8 @@ def applica_scelta(request, new_id: int, scelta: SceltaAccount, *, nome_completo
                                              ruolo_id=ruolo.id if ruolo else None, attivo=True, deve_cambiare_password=False)
     elif _collegato_a([legacy.id]) or _blocco_privilegio(request, legacy, scelta):
         return "warning", "Account AD non collegato: l'utente portale è già collegato o è privilegiato."
-    _collega(new_id, legacy)
+    if not _collega(new_id, legacy):
+        return "warning", "Account AD non collegato: nel frattempo l'utente è stato collegato a un'altra scheda."
     _audit(request, "ACCOUNT_PORTALE_COLLEGATO", new_id, {"utente_legacy_id": legacy.id, "modo": "ad", "upn": upn,
                                                           "utente_creato": creato, "conferma_privilegiato": scelta.conferma_privilegiato})
     return "success", f"Collegato all'account AD «{upn}»."

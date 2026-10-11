@@ -65,7 +65,7 @@
         </select>
         {% endif %}
         <button class="fmd-btn fmd-btn-primary" type="submit"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
-        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">Reset</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}?vf=0">Reset</a>
         {% if viste %}
         <select class="fmd-select" name="vista" aria-label="Vista dell'elenco" onchange="this.form.submit()">
           {% for v in viste %}<option value="{{ v.codice }}"{% if vista and v.pk == vista.pk %} selected{% endif %}>Vista: {{ v.nome }}</option>{% endfor %}

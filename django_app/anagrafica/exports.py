@@ -74,6 +74,13 @@ def _actor_name(request: HttpRequest) -> str:
     return (getattr(user, "get_full_name", lambda: "")() or getattr(user, "username", "") or "").strip()
 
 
+def _colonne_sensibili(columns) -> list[str]:
+    from anagrafica.services.colonne_elenco import REGISTRO
+
+    chiavi = [acc[2:] for _l, acc in columns if str(acc).startswith("v:")]
+    return [k for k in chiavi if k in REGISTRO and REGISTRO[k].sensibile]
+
+
 def build_export_response(request: HttpRequest, key: str, fmt: str, scope: str) -> HttpResponse:
     spec = EXPORT_SPECS.get(key)
     if spec is None:
@@ -99,6 +106,8 @@ def build_export_response(request: HttpRequest, key: str, fmt: str, scope: str) 
 
     log_action(request, "export", "anagrafica", {
         "lista": spec.key,
+        "colonne": [accessor for _label, accessor in columns],
+        "colonne_sensibili": _colonne_sensibili(columns),
         "formato": fmt,
         "scope": scope,
         "n_righe": len(rows),
