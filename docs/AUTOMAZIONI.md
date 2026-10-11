@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 62
+**Totale automazioni disponibili:** 63
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -389,6 +389,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 5 minuti
 - **Task eseguito:** `contatori.tasks.run_poll_snmp`
 - **Cosa fa:** CONTATORI — monitor SNMP dei dispositivi attivi, con un job per apparato. Stato, sonde ed errori sono consultabili nella Centrale MFC/SNMP.
+
+### `security_cve_enrichment`
+
+- **Quando gira:** ogni None minuti
+- **Task eseguito:** `security.tasks.enrich_cve_task`
+- **Cosa fa:** SECURITY CENTER — arricchimento CVE (NVD, CISA KEV, EPSS) e impatto sugli asset. Si ferma entro 90 s (timeout worker 120 s); spento finché non acceso da /soc/impostazioni/.
 
 ### `security_cycle`
 
