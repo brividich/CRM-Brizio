@@ -92,6 +92,47 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
 @media (max-width:700px) {
   .dc-grid, .dc-grid-2, .dc-grid-3 { grid-template-columns:1fr; }
 }
+/* ── Wizard a step + account portale ── */
+.dc-page [hidden] { display:none !important; }
+.dc-steps { display:flex; gap:8px; flex-wrap:wrap; }
+.dc-step { display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px; border:1px solid #e2e8f0; background:#fff; color:#334155; font-size:13px; font-weight:600; cursor:pointer; }
+.dc-step span { display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:#e2e8f0; font-size:12px; }
+.dc-step.is-current { border-color:#1f87cd; color:#0c2545; }
+.dc-step.is-current span { background:#1f87cd; color:#fff; }
+.dc-step-nav { display:flex; justify-content:space-between; gap:10px; }
+.dc-acc-note { font-size:12.5px; color:#64748b; margin:6px 0; }
+.dc-acc-list { list-style:none; margin:8px 0 14px; padding:0; display:flex; flex-direction:column; gap:8px; }
+.dc-acc-item { border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; }
+.dc-acc-pick { display:flex; gap:10px; align-items:flex-start; font-size:13px; color:#1e293b; cursor:pointer; }
+.dc-acc-meta { font-size:12px; color:#64748b; margin:4px 0 0 26px; overflow-wrap:anywhere; }
+.dc-acc-badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px; background:#e2e8f0; color:#334155; margin-left:4px; }
+.dc-acc-badge.is-ok { background:#dcfce7; color:#166534; }
+.dc-acc-badge.is-warn, .dc-acc-alert.is-warn { background:#fef3c7; color:#92400e; }
+.is-warn { color:#b45309; }
+.dc-acc-alert { border-radius:10px; padding:10px 12px; font-size:13px; margin:8px 0; }
+.dc-acc-alert.is-info { background:#e0f2fe; color:#075985; }
+.dc-acc-choices { display:flex; flex-direction:column; gap:6px; font-size:13px; color:#1e293b; }
+.dc-acc-choices label, .dc-acc-confirm { display:flex !important; flex-direction:row !important; align-items:center; gap:8px; margin:0; }
+.dc-acc-choices input, .dc-acc-confirm input, .dc-acc-pick input { width:auto !important; margin:0; flex:0 0 auto; }
+#dc-acc-cerca { margin-bottom:12px; }
+body.theme-dark .dc-footer label { color:var(--text) !important; }
+.dc-acc-sel { font-size:12.5px; color:#0c2545; margin-top:6px; font-weight:600; }
+.dc-acc-confirm { display:flex; gap:8px; align-items:flex-start; font-size:12.5px; color:#92400e; margin-top:12px; }
+.dc-riep { display:grid; grid-template-columns:minmax(120px, 200px) 1fr; gap:8px 16px; margin:0; font-size:13px; }
+.dc-riep dt { color:#64748b; }
+.dc-riep dd { margin:0; color:#0f172a; font-weight:600; overflow-wrap:anywhere; }
+body.theme-dark .dc-step { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .dc-step span { background:var(--border); color:var(--text); }
+body.theme-dark .dc-step.is-current { border-color:#1f87cd; color:var(--text); }
+body.theme-dark .dc-acc-item { border-color:var(--border); }
+body.theme-dark .dc-acc-pick, body.theme-dark .dc-acc-choices, body.theme-dark .dc-riep dd, body.theme-dark .dc-acc-sel { color:var(--text); }
+body.theme-dark .dc-acc-note, body.theme-dark .dc-acc-meta, body.theme-dark .dc-riep dt { color:var(--text-light); }
+body.theme-dark .dc-acc-badge { background:var(--border); color:var(--text); }
+body.theme-dark .dc-acc-badge.is-ok { background:rgba(22,163,74,.2); color:#86efac; }
+body.theme-dark .dc-acc-badge.is-warn, body.theme-dark .dc-acc-alert.is-warn { background:rgba(217,119,6,.2); color:#fcd34d; }
+body.theme-dark .is-warn, body.theme-dark .dc-acc-confirm { color:#fcd34d; }
+body.theme-dark .dc-acc-alert.is-info { background:rgba(14,165,233,.15); color:#7dd3fc; }
+@media (max-width: 640px) { .dc-riep { grid-template-columns:1fr; } .dc-step { flex:1 1 45%; justify-content:center; } }
 </style>
 {% endblock %}
 
@@ -111,13 +152,21 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
     <a class="dc-btn dc-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Torna all'elenco</a>
   </div>
 
-  <form method="post" autocomplete="off" id="dc-form" enctype="multipart/form-data">
+  <form method="post" autocomplete="off" id="dc-form" enctype="multipart/form-data" data-step-iniziale="{{ step_iniziale }}">
     {% csrf_token %}
+    <input type="hidden" name="creazione_token" value="{{ creazione_token }}">
+
+    <nav class="dc-steps" id="dc-steps" aria-label="Passi della creazione" hidden>
+      <button type="button" class="dc-step" data-go="1"><span>1</span> Dati anagrafici</button>
+      <button type="button" class="dc-step" data-go="2"><span>2</span> Organizzazione</button>
+      <button type="button" class="dc-step" data-go="3"><span>3</span> Account portale</button>
+      <button type="button" class="dc-step" data-go="4"><span>4</span> Riepilogo</button>
+    </nav>
 
     <!-- ══════════════════════════════════════════════════════════════════════
          SEZIONE 1 — Dati account (sempre aperta)
     ═══════════════════════════════════════════════════════════════════════ -->
-    <div class="dc-card" id="card-legacy">
+    <div class="dc-card" id="card-legacy" data-step="1">
       <div class="dc-card-head" onclick="toggleCard('card-legacy')" role="button" tabindex="0" aria-expanded="true">
         <div class="dc-card-title">
           👤 Dati account
@@ -227,7 +276,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
     <!-- ══════════════════════════════════════════════════════════════════════
          SEZIONE 2 — Anagrafica aziendale (collassata)
     ═══════════════════════════════════════════════════════════════════════ -->
-    <div class="dc-card dc-collapsed" id="card-aziendale">
+    <div class="dc-card dc-collapsed" id="card-aziendale" data-step="2">
       <div class="dc-card-head" onclick="toggleCard('card-aziendale')" role="button" tabindex="0" aria-expanded="false">
         <div class="dc-card-title">
           🏢 Anagrafica aziendale
@@ -424,7 +473,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
     <!-- ══════════════════════════════════════════════════════════════════════
          SEZIONE 3 — Anagrafica civile (collassata)
     ═══════════════════════════════════════════════════════════════════════ -->
-    <div class="dc-card dc-collapsed" id="card-civile">
+    <div class="dc-card dc-collapsed" id="card-civile" data-step="1">
       <div class="dc-card-head" onclick="toggleCard('card-civile')" role="button" tabindex="0" aria-expanded="false">
         <div class="dc-card-title">
           🪪 Anagrafica civile
@@ -555,7 +604,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
          SEZIONE 4 — Dati riservati HR (solo can_hr)
     ═══════════════════════════════════════════════════════════════════════ -->
     {% if can_hr %}
-    <div class="dc-card dc-collapsed" id="card-hr">
+    <div class="dc-card dc-collapsed" id="card-hr" data-step="2">
       <div class="dc-card-head" onclick="toggleCard('card-hr')" role="button" tabindex="0" aria-expanded="false">
         <div class="dc-card-title">
           🔒 Dati riservati HR
@@ -620,7 +669,7 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
 
     <!-- ── Formazione sicurezza pregressa ── -->
     {% if formazione_sicurezza_corsi %}
-    <div class="dc-card">
+    <div class="dc-card" data-step="2">
       <div class="dc-card-head">
         <div class="dc-card-title">🎓 Formazione sicurezza pregressa</div>
         <div class="dc-card-sub">Dichiara i corsi di sicurezza già frequentati dal nuovo assunto (con la data). Verranno registrati nello storico e contribuiranno all'idoneità alla mansione.</div>
@@ -646,8 +695,54 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
     </div>
     {% endif %}
 
+    <!-- ══ STEP 3 — Account portale ══════════════════════════════════════════ -->
+    <div class="dc-card" id="card-account" data-step="3">
+      <div class="dc-card-head">
+        <div class="dc-card-title">🔐 Account portale</div>
+      </div>
+      <div class="dc-card-body">
+        <p class="dc-acc-note">Il portale cerca un utente già esistente con la stessa email o lo stesso codice fiscale e,
+          in sola lettura, l'account in Active Directory. Il portale non crea né modifica account in AD.</p>
+        <button type="button" class="dc-btn dc-btn-ghost" id="dc-acc-cerca" data-url="{% url 'anagrafica:account_portale_cerca' %}">🔎 Cerca utenti portale e account AD</button>
+        <div id="dc-acc-esito" aria-live="polite"></div>
+
+        <div class="dc-area-title" style="margin-top:18px;">Scelta</div>
+        <div class="dc-acc-choices" role="radiogroup" aria-label="Account portale">
+          <label><input type="radio" name="account_scelta" value="nessuno" {% if scelta_account.tipo == "nessuno" %}checked{% endif %}> Nessun accesso al portale per ora</label>
+          <label><input type="radio" name="account_scelta" value="ad" {% if scelta_account.tipo == "ad" %}checked{% endif %}> Collega account AD</label>
+          <label><input type="radio" name="account_scelta" value="collega" {% if scelta_account.tipo == "collega" %}checked{% endif %}> Collega utente portale esistente</label>
+          <label><input type="radio" name="account_scelta" value="locale" {% if scelta_account.tipo == "locale" %}checked{% endif %}> Crea utente locale portale</label>
+        </div>
+        <input type="hidden" name="account_ad_upn" id="dc-acc-upn" value="{{ scelta_account.upn }}">
+        <input type="hidden" name="account_collega_id" id="dc-acc-collega" value="{{ scelta_account.collega_id|default_if_none:'' }}">
+        <div class="dc-acc-sel" id="dc-acc-sel"></div>
+
+        <div class="dc-grid" id="dc-acc-locale" style="margin-top:12px;">
+          <div class="dc-field">
+            <label class="dc-label" for="dc-acc-login">Nome utente (login)</label>
+            <input id="dc-acc-login" name="account_login" type="text" class="dc-input" value="{{ scelta_account.login }}" autocomplete="off">
+          </div>
+          <div class="dc-field">
+            <label class="dc-label" for="dc-acc-pwd">Password iniziale</label>
+            <input id="dc-acc-pwd" name="account_password" type="password" class="dc-input" autocomplete="new-password">
+            <div class="dc-acc-note">Scelta da te, comunicala di persona: al primo accesso il sistema ne chiede il cambio.</div>
+          </div>
+        </div>
+        {% if puo_confermare_privilegiati %}
+        <label class="dc-acc-confirm"><input type="checkbox" name="account_conferma_privilegiato" value="1" {% if scelta_account.conferma_privilegiato %}checked{% endif %}>
+          Confermo come superuser il collegamento a un account privilegiato (superuser, staff o con password locale)</label>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ══ STEP 4 — Riepilogo ═════════════════════════════════════════════════ -->
+    <div class="dc-card" id="card-riepilogo" data-step="4" hidden>
+      <div class="dc-card-head"><div class="dc-card-title">✅ Riepilogo</div></div>
+      <div class="dc-card-body"><dl class="dc-riep" id="dc-riep"></dl></div>
+    </div>
+
     <!-- ── Footer ── -->
-    <div class="dc-card">
+    <div class="dc-card" data-step="4">
       <div class="dc-footer" style="flex-wrap:wrap;gap:10px;">
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;flex:1 1 100%;">
           <input type="checkbox" name="avvia_onboarding" value="1">
@@ -659,6 +754,10 @@ body.theme-dark .dc-card-body { border-color:var(--border); }
       </div>
     </div>
 
+    <div class="dc-step-nav" id="dc-step-nav" hidden>
+      <button type="button" class="dc-btn dc-btn-ghost" id="dc-prev">&larr; Indietro</button>
+      <button type="button" class="dc-btn dc-btn-primary" id="dc-next">Avanti &rarr;</button>
+    </div>
   </form>
 
 </div>
@@ -703,6 +802,119 @@ function dcAddFiglioRow() {
   }
   flag.addEventListener('change', sync);
   sync();
+})();
+/* ── Wizard a step: senza JS il modulo resta tutto visibile e funzionante ── */
+(function () {
+  const form = document.getElementById('dc-form');
+  const nav = document.getElementById('dc-steps');
+  const stepNav = document.getElementById('dc-step-nav');
+  if (!form || !nav || !stepNav) return;
+  const cards = Array.from(form.querySelectorAll('[data-step]'));
+  const prev = document.getElementById('dc-prev');
+  const next = document.getElementById('dc-next');
+  let corrente = 1;
+  nav.hidden = false; stepNav.hidden = false;
+
+  function val(name) {
+    const el = form.querySelector('[name="' + name + '"]');
+    if (!el) return '';
+    if (el.tagName === 'SELECT') return (el.value && el.options[el.selectedIndex]) ? el.options[el.selectedIndex].text : '';
+    return (el.value || '').trim();
+  }
+  function riepilogo() {
+    const dl = document.getElementById('dc-riep');
+    const scelta = form.querySelector('[name="account_scelta"]:checked');
+    const etichette = {nessuno: 'Nessun accesso per ora', ad: 'Collega account AD', collega: 'Collega utente portale esistente', locale: 'Crea utente locale'};
+    let account = etichette[scelta ? scelta.value : 'nessuno'];
+    if (scelta && scelta.value === 'ad' && val('account_ad_upn')) account += ' — ' + val('account_ad_upn');
+    if (scelta && scelta.value === 'locale' && val('account_login')) account += ' — ' + val('account_login');
+    const righe = [['Nome', val('nome')], ['Cognome', val('cognome')], ['Codice fiscale', val('codice_fiscale')],
+      ['Email notifica', val('email_notifica') || val('email')], ['Reparto', val('reparto')], ['Mansione', val('mansione')], ['Account portale', account]];
+    dl.replaceChildren();
+    righe.forEach(function (r) {
+      const dt = document.createElement('dt'); dt.textContent = r[0];
+      const dd = document.createElement('dd'); dd.textContent = r[1] || '—';
+      dl.append(dt, dd);
+    });
+  }
+  function mostra(n) {
+    corrente = Math.max(1, Math.min(4, n));
+    cards.forEach(function (c) { c.hidden = String(c.dataset.step) !== String(corrente); });
+    nav.querySelectorAll('.dc-step').forEach(function (b) {
+      const on = b.dataset.go === String(corrente);
+      b.classList.toggle('is-current', on);
+      if (on) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+    });
+    prev.disabled = corrente === 1;
+    next.hidden = corrente === 4;
+    if (corrente === 4) riepilogo();
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+  nav.addEventListener('click', function (e) { const b = e.target.closest('[data-go]'); if (b) mostra(parseInt(b.dataset.go, 10)); });
+  form.addEventListener('invalid', function (e) {
+    const card = e.target.closest('[data-step]');
+    if (card && card.hidden) {
+      mostra(parseInt(card.dataset.step, 10));
+      const coll = e.target.closest('.dc-collapsed'); if (coll) coll.classList.remove('dc-collapsed');
+      setTimeout(function () { e.target.focus(); e.target.reportValidity && e.target.reportValidity(); }, 50);
+    }
+  }, true);
+  prev.addEventListener('click', function () { mostra(corrente - 1); });
+  next.addEventListener('click', function () {
+    if (corrente === 1 && !val('nome')) { const n = form.querySelector('[name="nome"]'); if (n) { n.reportValidity && n.focus(); } return; }
+    mostra(corrente + 1);
+  });
+  const errore = form.querySelector('.has-error, .dc-error');
+  const iniziale = errore ? parseInt((errore.closest('[data-step]') || {dataset: {step: '1'}}).dataset.step, 10) : parseInt(form.dataset.stepIniziale || '1', 10);
+  // Le card a soffietto con un errore vanno aperte, altrimenti l'errore resta nascosto.
+  if (errore) { const card = errore.closest('.dc-collapsed'); if (card) card.classList.remove('dc-collapsed'); }
+  mostra(iniziale || 1);
+})();
+
+/* ── Account portale: ricerca e selezione ── */
+(function () {
+  const form = document.getElementById('dc-form');
+  const btn = document.getElementById('dc-acc-cerca');
+  const esito = document.getElementById('dc-acc-esito');
+  const upn = document.getElementById('dc-acc-upn');
+  const collega = document.getElementById('dc-acc-collega');
+  const sel = document.getElementById('dc-acc-sel');
+  const locale = document.getElementById('dc-acc-locale');
+  const login = document.getElementById('dc-acc-login');
+  if (!form || !btn || !esito) return;
+  function v(name) { const el = form.querySelector('[name="' + name + '"]'); return el ? (el.value || '').trim() : ''; }
+  function scelta(valore) { const r = form.querySelector('[name="account_scelta"][value="' + valore + '"]'); if (r) r.checked = true; aggiorna(); }
+  function aggiorna() {
+    const s = form.querySelector('[name="account_scelta"]:checked');
+    const tipo = s ? s.value : 'nessuno';
+    locale.hidden = tipo !== 'locale';
+    if (tipo === 'locale' && login && !login.value) login.value = v('aliasusername');
+    sel.textContent = tipo === 'ad' ? (upn.value ? 'Account AD scelto: ' + upn.value : 'Seleziona un account AD dai risultati.')
+      : tipo === 'collega' ? (collega.value ? 'Utente portale scelto: #' + collega.value : 'Seleziona un utente portale dai risultati.') : '';
+  }
+  form.addEventListener('change', function (e) {
+    if (e.target.name === 'account_scelta') aggiorna();
+    if (e.target.name === 'account_pick') {
+      if (e.target.dataset.tipo === 'ad') { upn.value = e.target.dataset.upn || ''; scelta('ad'); }
+      else { collega.value = e.target.dataset.id || ''; scelta('collega'); }
+    }
+  });
+  btn.addEventListener('click', function () {
+    const q = new URLSearchParams({email: v('email_notifica') || v('email'), nome: v('nome'), cognome: v('cognome'), codice_fiscale: v('codice_fiscale')});
+    btn.disabled = true;
+    esito.textContent = 'Ricerca in corso…';
+    const csrf = form.querySelector('[name="csrfmiddlewaretoken"]');
+    fetch(btn.dataset.url, {method: 'POST', body: q, credentials: 'same-origin',
+      headers: {'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf ? csrf.value : ''}})
+      .then(function (r) {
+        if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.error || ('Errore ' + r.status)); });
+        return r.text();
+      })
+      .then(function (html) { esito.innerHTML = html; })
+      .catch(function (err) { esito.textContent = 'Ricerca non riuscita: ' + err.message; })
+      .finally(function () { btn.disabled = false; });
+  });
+  aggiorna();
 })();
 </script>
 {% endblock %}

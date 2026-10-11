@@ -102,6 +102,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+{% include "anagrafica/partials/_safety_subnav.html" with active="visite" %}
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd hr-shell">
 

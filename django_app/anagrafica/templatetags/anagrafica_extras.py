@@ -9,6 +9,19 @@ from core import naming
 
 
 register = template.Library()
+
+
+@register.filter(name="get_valore")
+def get_valore(valori, chiave):
+    """Testo di una colonna configurabile dell'elenco (``riga["valori"][chiave] = (testo, ordine)``)."""
+    voce = (valori or {}).get(chiave) if isinstance(valori, dict) else None
+    return voce[0] if voce else ""
+
+
+@register.filter(name="get_ordine")
+def get_ordine(valori, chiave):
+    voce = (valori or {}).get(chiave) if isinstance(valori, dict) else None
+    return voce[1] if voce else ""
 logger = logging.getLogger(__name__)
 
 
@@ -430,11 +443,11 @@ _SAFETY_GRUPPI = (
     ("Operatività", (
         ("hub", "Cruscotto", "anagrafica:sicurezza_hub", ("anagrafica:sicurezza_ricerca",), None),
         ("cambi", "Cambi mansione e adempimenti", "anagrafica:cambi_mansione", (), "adempimenti"),
-        ("scadenzario", "Scadenzario", "anagrafica:scadenzario", (), None),
+        ("scadenzario", "Scadenzario", "anagrafica:scadenzario", (), "scadute"),
         ("conformita", "Conformità e idoneità", "anagrafica:conformita_report", (), None),
     )),
     ("Sorveglianza sanitaria", (
-        ("visite", "Visite mediche", "anagrafica:visite_mediche_dashboard", (), None),
+        ("visite", "Visite mediche", "anagrafica:visite_mediche_dashboard", ("anagrafica:visite_mediche_sessioni", "anagrafica:visite_mediche_sessione_detail", "anagrafica:visite_mediche_nuova_sessione"), "visite_scadute"),
         ("referti", "Referti", "anagrafica:referti_coda", ("anagrafica:referti_registro", "anagrafica:referti_impostazioni"), "referti"),
         ("libretto", "Libretto sanitario", "anagrafica:libretto_sanitario_generale", (), None),
     )),
@@ -456,9 +469,32 @@ _SAFETY_GRUPPI = (
 )
 
 
-def _safety_conteggi(chiavi: set[str]) -> dict[str, int]:
+_SAFETY_CACHE_TTL = 300
+
+
+def _scadenze_scadute(request) -> dict[str, int]:
+    """Scadenze già scadute (tutte e solo visite) per l'utente: stessa fonte dello scadenzario,
+    che applica da sé i permessi per sorgente. In cache per utente: la subnav compare ovunque."""
+    from django.core.cache import cache
+
+    user_id = getattr(getattr(request, "user", None), "pk", None)
+    chiave = f"anagrafica:safety_subnav:scadute:{user_id}"
+    valori = cache.get(chiave)
+    if valori is None:
+        from anagrafica.views import _build_scadenzario_voci
+
+        voci = _build_scadenzario_voci(request, filtro_stato="scaduta")
+        voci = [v for v in voci if v.get("scaduta")]
+        valori = {"scadute": len(voci), "visite_scadute": sum(1 for v in voci if v.get("kind") == "visita")}
+        cache.set(chiave, valori, _SAFETY_CACHE_TTL)
+    return valori
+
+
+def _safety_conteggi(chiavi: set[str], request=None) -> dict[str, int]:
     out: dict[str, int] = {}
     try:
+        if request is not None and chiavi & {"scadute", "visite_scadute"}:
+            out.update(_scadenze_scadute(request))
         if "adempimenti" in chiavi:
             from anagrafica.models import AdempimentoCambioMansione as A
             out["adempimenti"] = A.objects.filter(stato=A.STATO_APERTO, attivo=True).count()
@@ -518,7 +554,7 @@ def safety_subnav(context, active=""):
                 contatori_voluti.add(contatore)
         if visibili:
             gruppi.append({"titolo": titolo, "voci": visibili, "active": any(v["active"] for v in visibili)})
-    conteggi = _safety_conteggi(contatori_voluti)
+    conteggi = _safety_conteggi(contatori_voluti, request)
     for gruppo in gruppi:
         for voce in gruppo["voci"]:
             voce["n"] = conteggi.get(voce["contatore"] or "", 0)

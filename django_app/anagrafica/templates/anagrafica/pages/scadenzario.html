@@ -18,6 +18,7 @@
   <div class="fmd-wrap">
 
     {% include "anagrafica/components/flash_messages.html" %}
+    {% include "anagrafica/partials/_safety_subnav.html" with active="scadenzario" %}
     {% load anagrafica_extras %}{% stati_operativi_da_segnalare as stati_operativi %}
     {% if stati_operativi %}
     <section class="fmd-panel fmd-block" role="status" aria-label="Stato operativo" style="border-left:4px solid #ef4444;">

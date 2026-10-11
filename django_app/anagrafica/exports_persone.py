@@ -70,96 +70,38 @@ def _documenti_gate(list_path: str):
 # tipologia_contratto). Gli ex dipendenti (rapporto cessato) non compaiono mai:
 # hanno la loro lista dedicata, non è un filtro della querystring.
 
-def _dipendenti_base_rows() -> list[dict]:
-    from core.legacy_anagrafica import ensure_anagrafica_schema, fetch_anagrafica_rows
+def _dipendenti_colonne_vista(request: HttpRequest) -> list:
+    from anagrafica.services import viste_elenco
 
-    from anagrafica.models import DipendenteAnagraficaAziendale
-    from anagrafica.views import _cessati_legacy_ids
+    vista = viste_elenco.vista_corrente(request, ricorda=False)
+    return [c["colonna"] for c in viste_elenco.colonne_richieste(request, vista) if c["colonna"].esportabile]
 
-    ensure_anagrafica_schema()
-    cessati_ids = _cessati_legacy_ids()
-    rows = [
-        row
-        for row in fetch_anagrafica_rows(deduplicate=True)
-        if int(row.get("id") or 0) not in cessati_ids
-    ]
 
-    # Fallback reparto: se il campo legacy è vuoto usa l'anagrafica aziendale.
-    ids_no_reparto = [
-        int(r.get("id") or 0) for r in rows if not str(r.get("reparto") or "").strip()
-    ]
-    if ids_no_reparto:
-        az_area_map = dict(
-            DipendenteAnagraficaAziendale.objects
-            .filter(legacy_anagrafica_id__in=ids_no_reparto)
-            .exclude(area="")
-            .values_list("legacy_anagrafica_id", "area")
-        )
-        for row in rows:
-            if not str(row.get("reparto") or "").strip():
-                lid = int(row.get("id") or 0)
-                if lid in az_area_map:
-                    row["reparto"] = az_area_map[lid]
-
-    rows.sort(key=lambda row: (
-        str(row.get("cognome") or "").strip().casefold(),
-        str(row.get("nome") or "").strip().casefold(),
-        str(row.get("aliasusername") or "").strip().casefold(),
-        int(row.get("id") or 0),
-    ))
-    return rows
+def _dipendenti_columns(request: HttpRequest) -> list[tuple[str, str]]:
+    return [("Dipendente", "dipendente")] + [(c.etichetta, "v:" + c.chiave) for c in _dipendenti_colonne_vista(request)]
 
 
 def _dipendenti_rows(request: HttpRequest, scope: str) -> list[dict]:
-    from anagrafica.models import DipendenteAnagraficaAziendale
+    """Stesse righe dell'elenco (fonte unica ``views.build_dipendenti_rows``) con le colonne della
+    vista scelta, già filtrate dai permessi."""
+    from anagrafica.services.colonne_elenco import arricchisci
+    from anagrafica.views import build_dipendenti_rows
 
-    rows = _dipendenti_base_rows()
+    rows = build_dipendenti_rows(request, apply_filters=(scope == "filtered"))
+    colonne = _dipendenti_colonne_vista(request)
+    if rows and any(c.gruppo == "ruoli" for c in colonne):
+        from anagrafica.views import ruoli_ricoperti_map
 
-    if scope == "filtered":
-        q_text = (request.GET.get("q") or "").strip()
-        reparto = (request.GET.get("reparto") or "").strip()
-        area_filter = (request.GET.get("area") or "").strip()
-        contratto_filter = (request.GET.get("tipologia_contratto") or "").strip()
-
-        if q_text:
-            q_norm = q_text.casefold()
-            rows = [
-                row
-                for row in rows
-                if any(
-                    q_norm in value.casefold()
-                    for value in [
-                        str(row.get("nome") or "").strip(),
-                        str(row.get("cognome") or "").strip(),
-                        str(row.get("aliasusername") or "").strip(),
-                        str(row.get("matricola") or "").strip(),
-                    ]
-                    if value
-                )
-            ]
-        if reparto:
-            rows = [
-                row for row in rows
-                if str(row.get("reparto") or "").strip().casefold() == reparto.casefold()
-            ]
-        if area_filter or contratto_filter:
-            az_qs = DipendenteAnagraficaAziendale.objects.all()
-            if area_filter:
-                az_qs = az_qs.filter(area__iexact=area_filter)
-            if contratto_filter:
-                az_qs = az_qs.filter(tipologia_contratto=contratto_filter)
-            allowed_ids = set(az_qs.values_list("legacy_anagrafica_id", flat=True))
-            rows = [row for row in rows if int(row.get("id") or 0) in allowed_ids]
-
-    return [
-        {
-            "dipendente": naming.nome_completo(row.get("nome"), row.get("cognome")),
-            "reparto": str(row.get("reparto") or "").strip(),
-            "mansione": str(row.get("mansione") or "").strip(),
-            "email_notifica": str(row.get("email_notifica") or "").strip(),
-        }
-        for row in rows
-    ]
+        mappa = ruoli_ricoperti_map([int(r.get("id") or 0) for r in rows])
+        for r in rows:
+            r["ruoli"] = mappa.get(int(r.get("id") or 0), [])
+    arricchisci(rows, colonne)
+    out = []
+    for row in rows:
+        riga = {"dipendente": naming.nome_completo(row.get("nome"), row.get("cognome"))}
+        riga.update({"v:" + chiave: testo for chiave, (testo, _ordine) in row.get("valori", {}).items()})
+        out.append(riga)
+    return out
 
 
 def _dipendenti_filters(request: HttpRequest) -> str:
@@ -190,13 +132,15 @@ register(ExportSpec(
     key="dipendenti",
     title="Dipendenti in forza",
     sheet_title="Dipendenti",
+    # Colonne della vista standard; quelle reali le decide ``columns_fn`` (vista + permessi).
     columns=[
         ("Dipendente", "dipendente"),
-        ("Reparto", "reparto"),
-        ("Mansione", "mansione"),
-        ("Email notifica", "email_notifica"),
+        ("Reparto", "v:reparto"),
+        ("Mansione", "v:mansione"),
+        ("Email notifica", "v:email"),
     ],
     dataset=_dipendenti_rows,
+    columns_fn=_dipendenti_columns,
     filters_label=_dipendenti_filters,
     permission=acl_gate("/anagrafica/dipendenti/"),
 ))
