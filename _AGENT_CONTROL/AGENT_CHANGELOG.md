@@ -262,6 +262,13 @@
 - Backup creati: nessuno aggiuntivo; worktree e commit rendono recuperabili le modifiche. README aggiornato: si. CHANGELOG: si (root/Django Unreleased). AGENT_CHANGELOG: si. Checkpoint: si. Nessuna nuova dipendenza/job, modifica a DB reali o agli originali X, email o deploy.
 - Esito: implementazione pronta per commit sulla feature, non distribuita. Rischi residui: collaudo SQL Server/ruoli reali, qualita e completezza del catalogo, risoluzione delle discrepanze documentali e 63 pagine da verifica visiva/OCR. Il confronto riferimenti non interpreta intervalli normativi; nessun connettore BMS/Qlik nuovo e nessuna formula VR inventata per OTD mancante.
 - Note altro agente/Brizio: applicare SG 0008 (oltre agli antenati), bootstrap ACL e riavvio al rilascio. Import Turtle prima in anteprima, poi --apply nell'ambiente autorizzato; completare/validare/attivare le schede. Ruoli RSGQ/Direzione rappresentati dal permesso audit.approva: verificare grant reali. La checklist contiene fonti, stato implementazione, istruzioni e validazioni aziendali aperte. Versione Unreleased per bump coordinato.
+## 2026-09-29 - Codex (analisi preliminare ruoli SGI)
+
+- Richiesta: valutare ruoli/permessi e automazioni dalla cartella SGI. Share X: consultata in sola lettura, struttura e riscontro locale di termini in quattro documenti organizzativi; nessun nominativo o contenuto riservato riportato. Analisi statica di modelli anagrafica, helper ruoli, ACL SG e pacchetto automazioni.
+- File modificati: docs/PROPOSTA_RUOLI_SGI.md, questo registro, session_checkpoint.md, nel worktree C:/Dev/pn-sgi-ruoli-analisi, branch feature/sgi-ruoli-analisi. Checkout condiviso preservato, incluso parser pdf/ non tracciato. Controlli ACTIVE_SESSION, WORK_LOCKS, CRITICAL_FILES e CRITICAL_CHANGE_REQUESTS assenti; checkpoint e registri consultati.
+- File critici modificati: nessuno. Backup: nessuno aggiuntivo, documenti versionati. README/CHANGELOG: no, comportamento invariato. AGENT_CHANGELOG/checkpoint: si.
+- Check: lettura statica e accessibilita documenti; git diff --check. Test applicativi non necessari per soli documenti. Nessun DB, grant, nomina, notifica o automazione modificati.
+- Esito: proposta preliminare documentata. Rischi residui: responsabilita e sigle da validare sulle fonti/nomine; runtime non verificato. Helper ruoli non filtra decorrenza/scadenza delle assegnazioni e account attivi: da valutare prima di usarlo per nuove automazioni. Note altro agente: non scambiare profili candidati per autorizzazioni approvate; preservare distinzione incarichi/ACL/perimetro.
 
 ## 2026-09-28 - Codex (merge audit in release/prod)
 

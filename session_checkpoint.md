@@ -168,6 +168,10 @@ Data: 2026-09-29 (attuazione procedure aziendali audit, CAR e KPI)
 - MT CN 12: copertura annuale, indipendenza, preavviso, preparazione e PDF; MT CN 11: CAR con scadenze/approvazioni/proroghe/efficacia collegate al Registro OFI; MT CN 13: rilevazioni KPI e VR 30/70; import Turtle in proposte inattive. Migration SG 0008. Checklist `docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md` aggiornata.
 - 171 test SG/report_conformita/registro OFI verdi, check/migration drift/diff check verdi. QA browser KPI e mobile scuro, cinque Turtle reali letti senza import nel DB. Server QA fermato; nessun database aziendale, PDF privato, dipendenza, backup aggiuntivo o deploy.
 - Critici: tre route locali e binding ACL audit.view con controlli scrittura/approvazione aggiuntivi. Cross-modulo OFI autorizzato. README/changelog root e Django/registro aggiornati; rilascio con migrate 0008, bootstrap ACL, riavvio e validazione SQL Server/ruoli/catalogo. Discrepanze aziendali rimangono nella checklist.
+Data: 2026-09-29 (analisi preliminare ruoli SGI)
+
+- Vista/aggiunta voce AGENT_CHANGELOG analisi preliminare ruoli SGI; precedente ultima voce merge audit in release/prod del 2026-09-28. CHANGELOG consultato, nessuna modifica operativa introdotta.
+- Proposta in docs/PROPOSTA_RUOLI_SGI.md nel worktree C:/Dev/pn-sgi-ruoli-analisi; nessun cambiamento codice/ACL/DB. Validare fonti e nomine prima di attuare la matrice.
 
 Data: 2026-09-28 (merge audit in release/prod)
 
