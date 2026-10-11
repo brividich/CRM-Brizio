@@ -9,6 +9,20 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 ## [Unreleased]
 
 <!-- prompt 08 audit interni (blocco della sessione, non mescolare) -->
+- **Audit interni — cruscotto, export dei rilievi, allegato «Rilievi e azioni», «I miei rilievi» per l'auditato** (`django_app/sistema_gestione/services/cruscotto.py`, `report_views.py`, `miei_rilievi_views.py` nuovi, `audit_exports.py`, `procedure_views.py`, `models.py`, `services/audit.py`, `services/programma.py`, `urls.py`, `acl_bootstrap.py` (permesso `sistema_gestione.audit.miei_rilievi`, cache `v5`), migration `0014`, template `audit_cruscotto.html`, `audit_miei_rilievi.html` nuovi, `audit_index.html`, `audit_dettaglio.html`, test `tests_audit_report.py` nuovo, `tests_procedure.py`)
+  - **Cruscotto** (`/sistema-gestione/audit/cruscotto/`):
+    - avanzamento del programma approvato (programmate / eseguite / in ritardo, con l'elenco dei ritardi);
+    - rilievi per gravità, per processo, per clausola e per mese;
+    - giorni medi di chiusura delle CAR e percentuale di efficacia verificata;
+    - processi con rilievi ricorrenti (in almeno 2 audit in 24 mesi);
+    - copertura delle clausole per norma (richieste dal catalogo e verificate negli audit chiusi).
+
+    Le query sono aggregate e non crescono con il numero di rilievi.
+  - **Export:** rilievi in Excel per anno o per audit (clausola, gravità, responsabile, scadenza, MOD.174, stato CAR), con celle sempre testo, data di estrazione e filtri nell'intestazione.
+  - **Rapporto MOD.035B:** nuovo allegato «Rilievi e azioni». Allegato preparazione e indice evidenze diventano opzionali dalle Impostazioni (tutti attivi di default).
+  - **Ruolo auditato:** le persone dell'audit si collegano all'utente del portale solo per email esatta e univoca. «I miei rilievi» mostra solo i rilievi in cui l'utente è auditato, responsabile del processo o dell'azione, e solo a rapporto firmato. Il responsabile apre la propria CAR anche senza consultazione degli audit. Il nuovo permesso è concesso di default a tutti i ruoli, perché la vista filtra per utente.
+  - L'email di distribuzione del rapporto indica dove trovare i propri rilievi.
+  - Test: 9 nuovi + 1 adeguato (`test_binding_route_procedurali`: la CAR passa al permesso «i miei rilievi», il controllo fine è nella view). 558 test verdi. Deploy: `migrate sistema_gestione` 0014; il bootstrap aggiorna il binding della CAR e crea il nuovo permesso.
 - **Audit interni — preparazione e inviti: follow-up dei rilievi aperti, persone e agenda proposte, invito Outlook con conferma, annullamento, numerazione per tipo** (`django_app/sistema_gestione/services/audit.py`, `services/audit_outlook.py` nuovo, `programma_views.py`, `audit_views.py`, `models.py`, `urls.py`, `acl_bootstrap.py` (cache `v4`), migration `0013`, template `audit_dettaglio.html`, `django_app/core/outlook_calendar.py` (`get_event`, solo lettura), test `tests_audit_preparazione.py` nuovo)
   - **Follow-up:** il nuovo piano include una domanda per ogni NC/OFI degli audit chiusi sugli stessi processi con CAR non chiusa o ultima efficacia non positiva (ISO 19011 §6.3.1), una sola volta.
   - **Piano guidato:** alla creazione propone i responsabili di processo tra le persone e un'attività di agenda per processo (slot di 90 minuti), da completare in bozza.
@@ -17,7 +31,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - **Annullamento:** un audit non avviato si annulla con motivo; la cella del programma torna da pianificare e l'invito Outlook si cancella.
   - **Numerazione:** RAIS (sistema), RAI (mandatorio cliente), STR (straordinario); prima ogni tipo era RAIS.
   - **Correzione:** l'invito calendario via email usava `django.utils.timezone.utc`, che non esiste più da Django 5.0: la comunicazione «Email + invito calendario» andava in errore.
-  - Test: 10 nuovi. Deploy: `migrate sistema_gestione` 0013. Per l'invito Outlook servono le credenziali Graph già usate dal KickOff e il permesso `Calendars.ReadWrite` sulla casella dell'organizzatore.
+  - Test: 8 nuovi. Deploy: `migrate sistema_gestione` 0013. Per l'invito Outlook servono le credenziali Graph già usate dal KickOff e il permesso `Calendars.ReadWrite` sulla casella dell'organizzatore.
 - **Audit interni — esecuzione da tablet e rete instabile** (`django_app/sistema_gestione/automation_views.py`, `models.py`, migration `0012`, `static/sistema_gestione/audit_editor.js`, template `audit_esito_editor.html`, test `tests_audit_esecuzione.py` nuovo)
   - **Editor domanda per domanda:** «Verifica N di M», precedente/successiva nell'ordine della checklist, «prossima da completare», elenco di cosa manca. Esiti a pulsanti grandi (≥44 px), barra di salvataggio fissa in fondo, campi grandi per il touch, tema chiaro e scuro.
   - **Fotocamera:** «Scatta foto» apre la fotocamera posteriore (`capture=environment`), «Scegli file» accetta PDF/PNG/JPEG. Il caricamento avviene senza ricaricare la pagina (JSON 200/400/401/403/409). Se l'allegato era l'ultimo requisito della NC, il rilievo entra subito nel MOD.174.

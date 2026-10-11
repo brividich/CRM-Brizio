@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -60,10 +61,21 @@ def preparazione_ai(request, pk):
 @login_required
 @transaction.atomic
 def car(request, pk):
-    if not _has_perm(request, PERM_AUDIT_VIEW):
-        return _nega(request, "Accesso non consentito.")
-    registro = get_object_or_404(RegistroOFI.objects.select_for_update(), pk=pk)
+    consulta = _has_perm(request, PERM_AUDIT_VIEW)
+    registro = RegistroOFI.objects.select_for_update().filter(pk=pk).first()
+    if registro is None:
+        if not consulta:
+            # Senza consultazione non si rivela quali registri esistono.
+            return _nega(request, "Accesso non consentito.")
+        raise Http404
     oggetto = AzioneCorrettivaAudit.objects.filter(registro=registro).first() or AzioneCorrettivaAudit(registro=registro, data_richiesta=timezone.localdate())
+    # Chi non consulta gli audit apre solo la CAR di cui è responsabile (o dell'azione del rilievo).
+    responsabile = bool(
+        (oggetto.pk and oggetto.responsabile_id == request.user.pk)
+        or AuditEsito.objects.filter(ofi=registro, responsabile_azione_id=request.user.pk).exists()
+    )
+    if not (consulta or responsabile):
+        return _nega(request, "Accesso non consentito.")
     approva = _has_perm(request, PERM_AUDIT_APPROVA)
     modifica = _has_perm(request, PERM_AUDIT_EDIT) or approva or (oggetto.pk and oggetto.responsabile_id == request.user.pk)
     modificabile = modifica and not oggetto.chiusa_il and not registro.is_chiuso

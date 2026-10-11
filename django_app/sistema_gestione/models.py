@@ -662,9 +662,23 @@ class AuditPersona(models.Model):
                         ("PROVVISORIO", "Provvisorio"), ("RIFIUTATO", "Rifiutato")]
     conferma_stato = models.CharField(max_length=12, choices=CONFERMA_CHOICES, blank=True, default="")
     conferma_il = models.DateTimeField(null=True, blank=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_come_persona",
+        help_text="Utente del portale: vede i propri rilievi in «I miei rilievi».",
+    )
 
     class Meta:
         ordering = ["ruolo", "nome"]
+
+    def save(self, *args, **kwargs):
+        # Collegamento all'utente solo per email esatta e univoca: mai per nome o prefisso.
+        if not self.user_id and self.email.strip():
+            from django.contrib.auth import get_user_model
+
+            candidati = list(get_user_model().objects.filter(email__iexact=self.email.strip(), is_active=True)[:2])
+            if len(candidati) == 1:
+                self.user = candidati[0]
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.nome

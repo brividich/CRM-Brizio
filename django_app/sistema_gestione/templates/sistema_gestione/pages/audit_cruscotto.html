@@ -1,0 +1,36 @@
+{% extends "core/base.html" %}{% block title %}Cruscotto audit{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}
+<style>
+.sg-bar{height:10px;border-radius:999px;background:var(--surface-soft);overflow:hidden}
+.sg-bar>span{display:block;height:100%;background:var(--primary,#1f87cd)}
+.sg-num{text-align:right;font-variant-numeric:tabular-nums}
+</style>{% endblock %}
+{% block content %}<div class="rc-wrap"><a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
+<div class="page-header"><div class="page-header-main"><div class="page-h">Cruscotto audit interni {{ c.anno }}</div><div class="page-sub">Avanzamento del programma, rilievi, azioni ed efficacia, copertura delle clausole.</div></div>
+<div class="sg-actions"><form method="get" class="sg-actions"><label for="anno">Anno</label><input id="anno" name="anno" type="number" min="2000" max="2100" value="{{ c.anno }}"><button class="btn btn-secondary">Mostra</button></form><a class="btn btn-secondary" href="{% url 'sistema_gestione:audit_rilievi_export' %}?anno={{ c.anno }}">Rilievi in Excel</a></div></div>
+<div class="sg-kpis">
+  <div class="sg-kpi"><span>Verifiche programmate</span><strong>{{ c.avanzamento.pianificati }}</strong></div>
+  <div class="sg-kpi"><span>Eseguite</span><strong>{{ c.avanzamento.eseguiti }}</strong></div>
+  <div class="sg-kpi"><span>In ritardo</span><strong>{{ c.avanzamento.in_ritardo }}</strong></div>
+  <div class="sg-kpi"><span>NC maggiori / minori</span><strong>{{ c.totali.NC_MAGGIORE|default:0 }} / {{ c.totali.NC_MINORE|default:0 }}</strong></div>
+  <div class="sg-kpi"><span>OFI · Osservazioni</span><strong>{{ c.totali.OFI|default:0 }} · {{ c.totali.OSS|default:0 }}</strong></div>
+  <div class="sg-kpi"><span>Giorni medi chiusura CAR</span><strong>{{ c.giorni_medi_chiusura|default_if_none:"—" }}</strong></div>
+  <div class="sg-kpi"><span>Efficacia verificata</span><strong>{% if c.efficacia.percentuale is not None %}{{ c.efficacia.percentuale }}%{% else %}—{% endif %}</strong></div>
+</div>
+{% if not c.avanzamento.programma %}<section class="rc-card sg-section"><p class="sg-muted">Nessun programma approvato per il {{ c.anno }}: l'avanzamento si calcola sul MOD.034 in vigore.</p></section>
+{% elif c.avanzamento.ritardi %}<section class="rc-card sg-section"><h2>Verifiche in ritardo</h2><ul>{% for cella in c.avanzamento.ritardi %}<li>{{ cella.riga.area }} · mese {{ cella.mese }}{% if cella.audit %} · <a href="{% url 'sistema_gestione:audit_dettaglio' cella.audit.pk %}">{{ cella.audit.numero }}</a> ({{ cella.audit.get_stato_display }}){% else %} · non pianificato{% endif %}</li>{% endfor %}</ul></section>{% endif %}
+<section class="rc-card sg-section"><h2>Rilievi per processo</h2><div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Processo</th><th class="sg-num">NC magg.</th><th class="sg-num">NC min.</th><th class="sg-num">OFI</th><th class="sg-num">Oss.</th><th class="sg-num">Totale</th></tr></thead><tbody>
+{% for nome, v, tot in c.per_processo %}<tr><td>{{ nome }}</td><td class="sg-num">{{ v.NC_MAGGIORE|default:0 }}</td><td class="sg-num">{{ v.NC_MINORE|default:0 }}</td><td class="sg-num">{{ v.OFI|default:0 }}</td><td class="sg-num">{{ v.OSS|default:0 }}</td><td class="sg-num"><strong>{{ tot }}</strong></td></tr>{% empty %}<tr><td colspan="6">Nessun rilievo nell'anno.</td></tr>{% endfor %}
+</tbody></table></div></section>
+<section class="rc-card sg-section"><h2>Rilievi nel tempo</h2><div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Mese</th>{% for m in c.per_mese %}<th class="sg-num">{{ m.mese }}</th>{% endfor %}</tr></thead><tbody>
+<tr><td>NC</td>{% for m in c.per_mese %}<td class="sg-num">{{ m.NC|default:"·" }}</td>{% endfor %}</tr>
+<tr><td>OFI</td>{% for m in c.per_mese %}<td class="sg-num">{{ m.OFI|default:"·" }}</td>{% endfor %}</tr>
+<tr><td>Oss.</td>{% for m in c.per_mese %}<td class="sg-num">{{ m.OSS|default:"·" }}</td>{% endfor %}</tr>
+</tbody></table></div></section>
+<div class="sg-columns">
+<section class="rc-card sg-section"><h2>Clausole con più rilievi</h2>{% if c.per_clausola %}<ul>{% for clausola, n in c.per_clausola %}<li>§ {{ clausola }} — {{ n }}</li>{% endfor %}</ul>{% else %}<p class="sg-muted">Nessun rilievo.</p>{% endif %}</section>
+<section class="rc-card sg-section"><h2>Processi con rilievi ricorrenti</h2><p class="sg-muted">NC/OFI in almeno due audit diversi negli ultimi 24 mesi.</p>{% if c.ricorrenti %}<ul>{% for r in c.ricorrenti %}<li>{{ r.processo }} — {{ r.rilievi }} rilievi in {{ r.audit }} audit</li>{% endfor %}</ul>{% else %}<p class="sg-muted">Nessuna ricorrenza.</p>{% endif %}</section>
+</div>
+<section class="rc-card sg-section"><h2>Copertura delle clausole per norma</h2><p class="sg-muted">Clausole richieste dal catalogo processi e verificate negli audit chiusi del {{ c.anno }} (esiti valutati, esclusi N/A).</p>
+{% for n in c.copertura %}<div style="margin:10px 0"><div class="sg-actions" style="justify-content:space-between"><strong>{{ n.norma }}</strong><span>{{ n.verificate }} / {{ n.richieste }} · {{ n.percentuale }}%</span></div><div class="sg-bar" role="img" aria-label="{{ n.percentuale }}% di copertura"><span style="width:{{ n.percentuale }}%"></span></div>{% if n.mancanti %}<details><summary>{{ n.mancanti|length }} clausole non verificate</summary><p>{{ n.mancanti|join:", " }}</p></details>{% endif %}</div>{% empty %}<p class="sg-muted">Nessuna clausola nel catalogo processi.</p>{% endfor %}</section>
+</div>{% endblock %}

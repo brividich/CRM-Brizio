@@ -25,6 +25,12 @@ IMPOSTAZIONI = {
         "Giorni di ritardo di una CAR prima dell'escalation a RSGI", "15", "int"),
     "sistema_gestione.audit_email_rsgi": (
         "Email RSGI per escalation (separate da virgola)", "", "text"),
+    "sistema_gestione.rapporto_allegato_rilievi": (
+        "Rapporto MOD.035B: allegato «Rilievi e azioni» per processo e clausola", "1", "bool"),
+    "sistema_gestione.rapporto_allegato_preparazione": (
+        "Rapporto MOD.035B: allegato con la preparazione MT CN 12", "1", "bool"),
+    "sistema_gestione.rapporto_indice_evidenze": (
+        "Rapporto MOD.035B: indice delle evidenze con impronta SHA-256", "1", "bool"),
 }
 
 

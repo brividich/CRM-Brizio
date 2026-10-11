@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 MODULE = "sistema_gestione"
 # v3: route del programma basato sul rischio (cicli, calendario, impostazioni, rifiuto, deroga).
 # v4: annullamento audit e aggiornamento conferme Outlook.
-_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v4"
+# v5: cruscotto, export rilievi, «I miei rilievi».
+_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v5"
 
 PERM_VIEW = "sistema_gestione.modulo.view"
 PERM_SOA_VIEW = "sistema_gestione.soa.view"
@@ -28,6 +29,7 @@ PERM_AUDIT_VIEW = "sistema_gestione.audit.view"
 PERM_AUDIT_EDIT = "sistema_gestione.audit.edit"
 PERM_AUDIT_ESEGUI = "sistema_gestione.audit.esegui"
 PERM_AUDIT_APPROVA = "sistema_gestione.audit.approva"
+PERM_AUDIT_MIEI = "sistema_gestione.audit.miei_rilievi"
 
 _CANONICAL = {
     PERM_VIEW: {
@@ -62,12 +64,19 @@ _CANONICAL = {
         "label": "Sistema di gestione - Audit: approva",
         "description": "Approva programma e piano, convalida e valuta il rapporto di audit.",
     },
+    PERM_AUDIT_MIEI: {
+        "label": "Sistema di gestione - Audit: i miei rilievi",
+        "description": "Consulta solo i rilievi dei propri audit (auditato, responsabile di processo o dell'azione) e la propria CAR.",
+    },
 }
 
 _ROUTE_BINDINGS = {
     "sistema_gestione:procedura_preparazione": PERM_AUDIT_VIEW,
     "sistema_gestione:procedura_preparazione_ai": PERM_AUDIT_VIEW,
-    "sistema_gestione:procedura_car": PERM_AUDIT_VIEW,
+    # La CAR la apre anche il suo responsabile senza consultazione degli audit: il controllo
+    # fine (consultazione o responsabile della CAR/azione) è nella view.
+    "sistema_gestione:procedura_car": PERM_AUDIT_MIEI,
+    "sistema_gestione:audit_miei_rilievi": PERM_AUDIT_MIEI,
     "sistema_gestione:procedura_kpi": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_esito_editor": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_priorita": PERM_AUDIT_VIEW,
@@ -90,6 +99,8 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:audit_approva_deroga": PERM_AUDIT_APPROVA,
     "sistema_gestione:audit_annulla": PERM_AUDIT_EDIT,
     "sistema_gestione:audit_conferme_aggiorna": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_cruscotto": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_rilievi_export": PERM_AUDIT_VIEW,
 
     "sistema_gestione:audit_elemento_modifica": PERM_AUDIT_EDIT,
     "sistema_gestione:processi_catalogo": PERM_AUDIT_VIEW,
@@ -152,7 +163,12 @@ _ROUTE_BINDINGS = {
 # si assegnano per utente o gruppo in Admin › ACL.
 _ROLE_GRANTS = {
     "admin": set(_CANONICAL),
-    "qualita": {PERM_VIEW, PERM_SOA_VIEW, PERM_AUDIT_VIEW},
+    "qualita": {PERM_VIEW, PERM_SOA_VIEW, PERM_AUDIT_VIEW, PERM_AUDIT_MIEI},
+    # «I miei rilievi» filtra per utente: concederlo a tutti non espone i rilievi altrui.
+    "amministrazione": {PERM_AUDIT_MIEI},
+    "caporeparto": {PERM_AUDIT_MIEI},
+    "hr": {PERM_AUDIT_MIEI},
+    "utente": {PERM_AUDIT_MIEI},
 }
 
 _LEGACY_ACTIONS = {"sg_view": PERM_VIEW}

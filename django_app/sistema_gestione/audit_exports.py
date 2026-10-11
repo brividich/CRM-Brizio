@@ -305,6 +305,24 @@ def piano_audit_pdf(audit: Audit) -> bytes:
     return buf.getvalue()
 
 
+def _allegato_rilievi(audit: Audit, styles, width) -> list:
+    """Rilievi per processo e clausola con le azioni (MOD.174 / CAR): sezione configurabile."""
+    from .services.cruscotto import RILIEVI, righe_rilievi
+
+    esiti = list(audit.esiti.filter(esito__in=RILIEVI)
+                 .select_related("audit", "processo", "ofi", "ofi__car_procedurale", "responsabile_azione"))
+    if not esiti:
+        return []
+    rows = [[_p(t, styles["head"]) for t in ("Processo", "§", "Rilievo", "Scostamento", "Responsabile / scadenza", "MOD.174 · CAR")]]
+    for r in sorted(righe_rilievi(esiti), key=lambda r: (str(r[2]), str(r[3]))):
+        rows.append([
+            _p(r[2], styles["small"]), _p(r[3], styles["small"]), _p(r[4], styles["small"]), _p(r[5], styles["small"]),
+            _p(f"{r[7]}\n{_d(r[8])}", styles["small"]), _p(f"n. {r[9]} · {r[10]}" if r[9] else r[10], styles["small"]),
+        ])
+    tabella = _table(rows, [34 * mm, 14 * mm, 22 * mm, width - 132 * mm, 34 * mm, 28 * mm], repeat=1, font_size=6.4, split_in_row=1)
+    return [PageBreak(), _p("ALLEGATO - RILIEVI E AZIONI", styles["head"]), Spacer(1, 3 * mm), tabella]
+
+
 def _filigrana_bozza(canvas, doc):
     canvas.saveState()
     canvas.setFont("Helvetica-Bold", 64)
@@ -436,8 +454,12 @@ def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False) -> bytes:
         ),
     ]
     from .models import AuditPreparazione
+    from .services.programma import impostazione_attiva
+
+    if impostazione_attiva("sistema_gestione.rapporto_allegato_rilievi"):
+        story += _allegato_rilievi(audit, styles, width)
     preparazione = AuditPreparazione.objects.filter(audit=audit).select_related("verificato_da").first()
-    if preparazione:
+    if preparazione and impostazione_attiva("sistema_gestione.rapporto_allegato_preparazione"):
         story += [PageBreak(), _p("ALLEGATO - PREPARAZIONE MT CN 12", styles["head"])]
         for campo, titolo in [("audit_precedenti", "Audit precedenti"), ("car_cliente", "CAR cliente"), ("documenti_registrazioni", "Documenti e campioni"), ("obiettivi_carenze", "Obiettivi e carenze")]:
             story += [_p(titolo, styles["head"]), _p(getattr(preparazione, campo), styles["cell"]), Spacer(1, 3*mm)]
@@ -445,7 +467,7 @@ def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False) -> bytes:
         if preparazione.origine_ai:
             story += [_p("Bozza iniziale proposta dall'AI e verificata dall'auditor prima della conferma.", styles["note"])]
     allegati = [(e, a) for e in audit.esiti.prefetch_related("allegati") for a in e.allegati.all()]
-    if allegati:
+    if allegati and impostazione_attiva("sistema_gestione.rapporto_indice_evidenze"):
         story += [PageBreak(), _p("ALLEGATO - INDICE DELLE EVIDENZE", styles["head"]), Spacer(1, 4*mm)]
         for esito, allegato in allegati:
             story += [_p(f"Verifica {esito.punti}: {allegato.nome} ({allegato.dimensione} byte)", styles["cell"]),

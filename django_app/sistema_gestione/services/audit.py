@@ -235,7 +235,7 @@ def _proponi_persone_e_agenda(audit: Audit) -> None:
         resp = processo.responsabile
         email = (getattr(resp, "email", "") or "").strip()
         if resp and email and email.lower() not in email_presenti:
-            AuditPersona.objects.create(audit=audit, nome=_nome_utente(resp), email=email,
+            AuditPersona.objects.create(audit=audit, nome=_nome_utente(resp), email=email, user=resp,
                                         funzione_ente=f"Responsabile {processo.codice}", ruolo=AuditPersona.RUOLO_PROCESSO)
             email_presenti.add(email.lower())
     con_agenda = set(audit.agenda.filter(processo__isnull=False).values_list("processo_id", flat=True))
@@ -667,7 +667,9 @@ def distribuisci_rapporto(audit: Audit) -> None:
             body_text=(
                 f"Il rapporto dell'audit {audit.numero} è stato chiuso e valutato.\n"
                 f"OFI: {audit.esiti.filter(esito=AuditEsito.ESITO_OFI).count()} - "
-                f"NC: {audit.esiti.filter(esito=AuditEsito.ESITO_NC).count()}."
+                f"NC: {audit.esiti.filter(esito=AuditEsito.ESITO_NC).count()}.\n"
+                "I rilievi che ti riguardano sono nel portale: Sistema di gestione › Audit › I miei rilievi "
+                "(/sistema-gestione/audit/miei-rilievi/)."
             ),
             recipients=sorted(destinatari),
             title="Rapporto di audit interno",

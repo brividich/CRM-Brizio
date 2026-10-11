@@ -35,7 +35,12 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 
 - **Preparazione e inviti:** domande di follow-up dai rilievi ancora aperti; persone e agenda proposte dalle schede processo; invito Outlook con conferma degli auditati (Graph) oppure email con `.ics`; annullamento motivato che libera la cella del programma; numerazione RAIS/RAI/STR per tipo.
 
+- **Cruscotto e report:** cruscotto annuale (avanzamento, rilievi per processo/clausola/gravità/mese, tempo medio CAR, % efficacia, ricorrenze, copertura clausole per norma); export xlsx dei rilievi; allegato «Rilievi e azioni» nel MOD.035B, sezioni opzionali da Impostazioni.
+- **Auditato:** `/sistema-gestione/audit/miei-rilievi/` mostra solo i propri rilievi a rapporto firmato; il responsabile apre la propria CAR. Permesso `sistema_gestione.audit.miei_rilievi`, concesso a tutti i ruoli.
+
 ## Note di rilascio
+
+**Audit interni professionali — fasi 6-7 (Unreleased, prompt 08):** cruscotto, export rilievi, allegato Rilievi e azioni, «I miei rilievi». Deploy: `migrate sistema_gestione` 0014.
 
 **Audit interni professionali — fase 5 (Unreleased, prompt 08):** follow-up, piano guidato, invito Outlook con conferma, annullamento, numerazione per tipo. Deploy: `migrate sistema_gestione` 0013; opzionale `sistema_gestione.audit_organizer_email`.
 
