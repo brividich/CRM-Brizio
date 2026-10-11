@@ -798,6 +798,9 @@ class AuditEsito(models.Model):
     aggiornato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
+    # Ultimo tentativo di autosalvataggio applicato: un retry dopo una risposta persa (rete
+    # instabile) torna lo stesso esito invece di un falso conflitto di versione.
+    bozza_token = models.CharField(max_length=40, blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

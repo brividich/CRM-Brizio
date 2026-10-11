@@ -31,7 +31,11 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 - **Programma basato sul rischio:** cicli triennali con copertura per processo e clausola (`/sistema-gestione/audit/cicli/`); calendario mensile (`/audit/calendario/`); priorità `priorita-v2` con NC, OFI, requisiti cliente ed efficacia; frequenza raccomandata entro i 12 mesi di MT CN 12; rifiuto motivato del programma, proponente ≠ approvatore. Norme: EN 9100, ISO 45001, ISO 14001, ISO/IEC 27001, UNI/PdR 125.
 - **Auditor e indipendenza:** qualifica con scadenza e norme abilitate; deroga d'indipendenza solo se ammessa nelle impostazioni (`/audit/impostazioni/`) e approvata da un RDD esterno al team.
 
+- **Esecuzione da tablet:** editor domanda per domanda con navigazione, esiti a pulsanti, foto dalla fotocamera e caricamento senza ricaricare. Le modifiche restano sul dispositivo finché il server non le conferma; i salvataggi si ritentano da soli quando la rete torna.
+
 ## Note di rilascio
+
+**Audit interni professionali — fase 4 (Unreleased, prompt 08):** esecuzione da tablet, fotocamera, tolleranza alla rete instabile. Deploy: `migrate sistema_gestione` 0012.
 
 **Audit interni professionali — fase 3 (Unreleased, prompt 08):** cicli triennali, ISO 14001, frequenza raccomandata, calendario, rifiuto del programma, qualifica con scadenza, deroga configurabile, pagina Impostazioni. Deploy: `migrate sistema_gestione` 0011.
 

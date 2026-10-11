@@ -26,14 +26,26 @@ from .views import _has_perm, _nega, MODULE
 
 @login_required
 def esito_editor(request, pk, esito_pk):
+    from django import forms as dj_forms
+
     audit = get_object_or_404(Audit, pk=pk)
     if not _has_perm(request, PERM_AUDIT_VIEW):
         return _nega(request, "Non puoi consultare questa verifica.")
     esito = get_object_or_404(AuditEsito, pk=esito_pk, audit=audit)
-    prossima = next((e for e in audit.esiti.all() if e.pk != esito.pk and service.problemi_esito(e)), None)
+    # Esecuzione domanda per domanda nell'ordine della checklist (anche da tablet).
+    ordine = list(audit.esiti.values_list("pk", flat=True))
+    indice = ordine.index(esito.pk) if esito.pk in ordine else 0
+    precedente = ordine[indice - 1] if indice > 0 else None
+    successiva = ordine[indice + 1] if indice + 1 < len(ordine) else None
+    successive_aperte = [e for e in audit.esiti.all() if e.pk != esito.pk and service.problemi_esito(e)]
+    prossima = next((e for e in successive_aperte if ordine.index(e.pk) > indice), None) or (successive_aperte[0] if successive_aperte else None)
+    form = AuditEsitoForm(instance=esito)
+    # Esiti come pulsanti grandi: un tocco invece di un menu a tendina.
+    form.fields["esito"].widget = dj_forms.RadioSelect(choices=[c for c in AuditEsito.ESITO_CHOICES])
     return render(request, "sistema_gestione/pages/audit_esito_editor.html", {
-        "audit": audit, "esito": esito, "form": AuditEsitoForm(instance=esito),
+        "audit": audit, "esito": esito, "form": form,
         "form_allegato": AllegatoEvidenzaForm(), "prossima": prossima,
+        "precedente_pk": precedente, "successiva_pk": successiva, "posizione": indice + 1, "totale": len(ordine),
         "puo_compilare": _assigned_executor(request, audit) and _rapporto_modificabile(audit),
         "mancanti": service.problemi_esito(esito), "evidenza_completa": service.testo_evidenza(esito),
     })
@@ -86,25 +98,49 @@ def esito_bozza(request, pk, esito_pk):
     if not _rapporto_modificabile(audit):
         return JsonResponse({"errore": "Il rapporto e firmato o non modificabile."}, status=409)
     esito = get_object_or_404(AuditEsito, pk=esito_pk, audit=audit)
+    token = (request.POST.get("salvataggio_id") or "").strip()[:40]
+    if token and token == esito.bozza_token:
+        # Stesso tentativo ripetuto dopo una risposta persa: era già applicato.
+        return JsonResponse({"versione": esito.versione, "salvato_il": timezone.localtime(esito.updated_at).strftime("%H:%M:%S"),
+                             "mancanti": service.problemi_esito(esito), "ripetuto": True})
     form = AuditEsitoForm(request.POST, instance=esito)
     if not form.is_valid():
         return JsonResponse({"errore": "Bozza non salvata", "errori": form.errors.get_json_data()}, status=409 if form.non_field_errors() else 400)
-    esito = audit_service.salva_esito(form.save(commit=False), utente=request.user, genera_rilievo=False)
+    bozza = form.save(commit=False)
+    bozza.bozza_token = token
+    esito = audit_service.salva_esito(bozza, utente=request.user, genera_rilievo=False)
     log_action(request, "audit_bozza_salvata", MODULE, {"esito": esito.pk, "versione": esito.versione}, oggetto=audit)
     return JsonResponse({"versione": esito.versione, "salvato_il": timezone.localtime(esito.updated_at).strftime("%H:%M:%S"),
                          "mancanti": service.problemi_esito(esito)})
 
 
-@login_required
+def _vuole_json(request) -> bool:
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get("Accept", "")
+
+
 @require_POST
 @transaction.atomic
 def allegato_carica(request, pk, esito_pk):
+    json_mode = _vuole_json(request)
+    if not request.user.is_authenticated:
+        if json_mode:
+            return JsonResponse({"errore": "Sessione scaduta. Accedi e riprova: il file resta da caricare."}, status=401)
+        from django.contrib.auth.views import redirect_to_login
+        return redirect_to_login(request.get_full_path())
     audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if not _assigned_executor(request, audit) or not _rapporto_modificabile(audit):
+        if json_mode:
+            return JsonResponse({"errore": "Le evidenze si caricano durante la compilazione del rapporto."}, status=403)
         return _nega(request, "Le evidenze si caricano durante la compilazione del rapporto.")
     esito = get_object_or_404(AuditEsito, pk=esito_pk, audit=audit)
-    form = AllegatoEvidenzaForm(request.POST, request.FILES)
+    from django.utils.datastructures import MultiValueDict
+
+    # Il form offre «Scatta foto» e «Scegli file»: vale il primo file effettivamente scelto.
+    scelti = [f for f in request.FILES.getlist("file") if f and f.size]
+    form = AllegatoEvidenzaForm(request.POST, MultiValueDict({"file": scelti[:1]}) if scelti else request.FILES)
     if not form.is_valid():
+        if json_mode:
+            return JsonResponse({"errore": " ".join(form.errors.get("file", ["File non valido."]))}, status=400)
         return render(request, "sistema_gestione/pages/audit_form.html", {"page_title": "Allega evidenza",
             "form": form, "indietro": _audit_url(audit, f"esito-{esito.pk}")})
     file = form.cleaned_data["file"]
@@ -114,6 +150,8 @@ def allegato_carica(request, pk, esito_pk):
     file.seek(0)
     impronta = digest.hexdigest()
     if esito.allegati.filter(sha256=impronta).exists():
+        if json_mode:
+            return JsonResponse({"errore": "Questa evidenza è già allegata alla verifica.", "duplicato": True}, status=409)
         messages.info(request, "Questa evidenza e gia allegata alla verifica.")
         return redirect(_audit_url(audit, f"esito-{esito.pk}"))
     allegato = AuditAllegato(esito=esito, nome=safe_filename(file.name), sha256=impronta,
@@ -128,8 +166,14 @@ def allegato_carica(request, pk, esito_pk):
     audit.save(update_fields=["riepilogo_generato"])
     # L'evidenza allegata può essere l'ultimo requisito mancante della NC: il rilievo nasce ora.
     if esito.esito in {AuditEsito.ESITO_NC, AuditEsito.ESITO_OFI} and not esito.ofi_id and not service.problemi_esito(esito):
-        audit_service.sincronizza_ofi(esito)
+        esito.ofi = audit_service.sincronizza_ofi(esito)
     log_action(request, "audit_evidenza_allegata", MODULE, {"allegato": allegato.pk, "sha256": impronta}, oggetto=audit)
+    if json_mode:
+        return JsonResponse({
+            "nome": allegato.nome, "dimensione": allegato.dimensione, "sha256": impronta,
+            "url": reverse("sistema_gestione:audit_allegato_download", args=[audit.pk, allegato.pk]),
+            "mancanti": service.problemi_esito(esito), "rilievo_emesso": bool(esito.ofi_id),
+        })
     messages.success(request, "Evidenza archiviata con impronta SHA-256.")
     return redirect(_audit_url(audit, f"esito-{esito.pk}"))
 
