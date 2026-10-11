@@ -144,6 +144,11 @@ Data: 2026-09-29 (check produzione automazioni)
 - Worktree C:/Dev/pn-automazioni-check, feature/automazioni-check-produzione, base 5871b10a. Rapporto docs/AUDIT_AUTOMAZIONI_PROD_2026-09-29.md: 48 job, 46 registrati + 2 disabilitati, 25 regole, funzioni/stato/miglioramenti per modulo.
 - Produzione c4ead42 verificata via share e SELECT read-only. Broker 8.857 -> 8.887, q completamenti fermi alle 12:49 locali; eventi SQL smaltiti con monitor corrente. Nessuna modifica runtime, invio o dato personale esportato. WinRM non raggiungibile, causa worker da accertare.
 - Solo documentazione/registro/checkpoint; nessun file critico/backup, README/CHANGELOG invariati. Confronto schedule senza drift e copertura inventario verificati. Prossimo intervento: P0 cluster/broker con recupero controllato, poi collegamenti sorgenti e deduplica.
+Data: 2026-09-29 (merge Assenze e proposta multiruolo SGI)
+
+- Assenze integrate e pubblicate su origin/release/prod: 5871b10a (feature 3fd894b7), hash remoto verificato; 230 test/check/QA verdi, deploy separato.
+- Proposta multiruolo completata in docs/PROPOSTA_RUOLI_SGI.md, branch feature/sgi-multiruolo-proposta, worktree C:/Dev/pn-sgi-multiruolo. Verificati gruppi ACL gia presenti, precedenze, perimetri e provenienza contributi; nessun grant applicato.
+- Registro aggiornato. Vecchio worktree proposta con modifica utente alla prima riga preservato. Validare nomine/fonti e inventario runtime prima di attuare i collegamenti automatici.
 
 Data: 2026-09-29 (Assenze reparto, card e storico)
 
