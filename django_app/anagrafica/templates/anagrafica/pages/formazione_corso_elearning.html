@@ -30,6 +30,7 @@
         <p class="fmd-ph-sub">Slide e quiz del micro-corso. Le slide sono dati: ordinale con il campo «ordine».</p>
       </div>
       <div class="fmd-pagehead-actions">
+        {% include "anagrafica/partials/_elearning_guida_link.html" with ancora="contenuti" %}
         <a href="{% url 'anagrafica:formazione_online_player' corso.pk %}" class="fmd-btn fmd-btn-ghost" target="_blank">
           <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Anteprima discente
         </a>

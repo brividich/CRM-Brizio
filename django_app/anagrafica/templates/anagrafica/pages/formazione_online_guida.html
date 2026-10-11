@@ -1,0 +1,223 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Guida e-learning | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<style>
+.elg-sec{ padding:20px 22px; scroll-margin-top:80px; }
+.elg-sec h2{ font-size:17px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+.elg-sec h3{ font-size:14px; margin:16px 0 6px; }
+.elg-sec p, .elg-sec li{ font-size:14px; line-height:1.55; }
+.elg-sec ul, .elg-sec ol{ margin:6px 0 10px; padding-left:22px; }
+.elg-sec li{ margin-bottom:4px; }
+.elg-indice{ display:flex; flex-wrap:wrap; gap:6px 14px; padding:16px 22px; font-size:14px; }
+.elg-indice strong{ width:100%; font-size:13px; }
+.elg-nota{ border-left:4px solid #f59e0b; padding:8px 12px; margin:10px 0; font-size:13px; }
+.elg-parte{ font-size:13px; text-transform:uppercase; letter-spacing:.04em; margin:22px 0 8px; opacity:.75; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap" style="max-width:900px;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>Guida e-learning</h1>
+        <p class="fmd-ph-sub">Come si seguono i corsi online{% if parte_hr %} e come HR e RSPP li preparano, li assegnano e ne controllano l'esito{% endif %}.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:formazione_online_catalog' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-cap"/></svg>Corsi online</a>
+        {% if is_editor %}<a href="{% url 'anagrafica:formazione_elearning_hub' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-gear"/></svg>Gestione e-learning</a>{% endif %}
+      </div>
+    </div>
+
+    <nav class="fmd-panel elg-indice" aria-label="Indice della guida">
+      <strong>In questa guida</strong>
+      <a class="fmd-data-link" href="#discente">Seguire un corso</a>
+      <a class="fmd-data-link" href="#quiz-finale">Il quiz finale</a>
+      <a class="fmd-data-link" href="#dopo-il-corso">Dopo il corso</a>
+      <a class="fmd-data-link" href="#verifica">Verificare un attestato</a>
+      {% if parte_hr %}
+      <a class="fmd-data-link" href="#creare">Creare un corso</a>
+      <a class="fmd-data-link" href="#contenuti">Slide, moduli, import</a>
+      <a class="fmd-data-link" href="#domande">Domande del quiz</a>
+      <a class="fmd-data-link" href="#regole">Regole FAD e RSPP</a>
+      <a class="fmd-data-link" href="#pubblicare">Pubblicare e versioni</a>
+      <a class="fmd-data-link" href="#assegnare">Assegnare</a>
+      <a class="fmd-data-link" href="#promemoria">Promemoria e solleciti</a>
+      <a class="fmd-data-link" href="#seguire">Iscritti, sblocchi, attestati</a>
+      <a class="fmd-data-link" href="#cruscotto">Cruscotto e registro</a>
+      <a class="fmd-data-link" href="#impostazioni">Impostazioni</a>
+      {% endif %}
+    </nav>
+
+    {# ══════════════ PARTE DISCENTE ══════════════ #}
+    <div class="elg-parte">Per chi segue i corsi</div>
+
+    <section class="fmd-panel elg-sec" id="discente">
+      <h2><svg class="fmd-ico"><use href="#i-cap"/></svg>Seguire un corso</h2>
+      <ol>
+        <li>Apri <strong>Formazione → Corsi online</strong>. In cima trovi i corsi che ti sono stati assegnati, con la scadenza; sotto, i corsi facoltativi aperti a tutti.</li>
+        <li>Apri il corso: le slide si vedono <strong>in ordine</strong>. Si passa alla successiva solo dopo il tempo minimo previsto per la slide; per un video conta il tempo di visione richiesto.</li>
+        <li>Se il corso è diviso in moduli, a lato trovi l'<strong>indice</strong> con le lezioni già viste e quella in corso.</li>
+        <li>Puoi interrompere e riprendere: il portale riparte dalla prima slide non ancora completata.</li>
+        <li>Il corso si segue in una scheda alla volta: aprirlo in un'altra scheda chiude quella precedente.</li>
+      </ol>
+      <p class="elg-nota">Il tempo conta solo mentre stai davvero seguendo: se la pagina resta ferma oltre la soglia di inattività del corso, quel tempo non viene registrato.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="quiz-finale">
+      <h2><svg class="fmd-ico"><use href="#i-check"/></svg>Il quiz finale</h2>
+      <ul>
+        <li>Si apre dopo l'ultima slide. In alto vedi il <strong>punteggio minimo per superare</strong> e, se previsto, il tempo a disposizione.</li>
+        <li>Le domande possono essere a <strong>risposta singola</strong> (una sola giusta), a <strong>risposta multipla</strong> (vanno segnate tutte le giuste) o <strong>vero / falso</strong>.</li>
+        <li>Premi <strong>Invia risposte</strong>. Se non superi, puoi <strong>Riprova il quiz</strong> (o <strong>Rivedi le slide</strong>) finché hai tentativi; tra un tentativo e l'altro può esserci un'attesa.</li>
+        <li>Finiti i tentativi, chiedi all'ufficio HR: può sbloccarne altri.</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="dopo-il-corso">
+      <h2><svg class="fmd-ico"><use href="#i-award"/></svg>Dopo il corso</h2>
+      <ul>
+        <li>Il completamento viene registrato una volta sola, con data, tempi ed esito: vale come registro della formazione.</li>
+        <li>Ti viene proposto un breve giudizio sul corso (<strong>Lascia un giudizio</strong>, oppure <strong>Non ora</strong>). È facoltativo: HR vede le medie per corso e i commenti <strong>senza il tuo nome</strong>, e i commenti solo per i corsi con almeno 5 giudizi.</li>
+        <li>Se un corso ti è assegnato con scadenza, ricevi un'e-mail qualche giorno prima; se la scadenza passa, l'avviso arriva anche al tuo responsabile.</li>
+        <li>Quando un corso con validità sta per scadere, il portale te lo riassegna per l'aggiornamento.</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="verifica">
+      <h2><svg class="fmd-ico"><use href="#i-shield"/></svg>Verificare un attestato</h2>
+      <p>Ogni attestato riporta un <strong>codice di verifica</strong> di 12 caratteri (es. <code>XXXX-XXXX-XXXX</code>) e un QR. Da <strong>Corsi online → Verifica un attestato</strong> inserisci il codice, oppure inquadra il QR con il telefono. L'esito può essere:</p>
+      <ul>
+        <li><strong>Attestato autentico e valido</strong>, con nome, corso, data di completamento, scadenza e protocollo;</li>
+        <li><strong>Attestato autentico, validità scaduta</strong> oppure <strong>esito non idoneo</strong>;</li>
+        <li><strong>Codice non riconosciuto</strong>: controlla di averlo trascritto per intero;</li>
+        <li><strong>Attestato non verificabile</strong>: i dati non corrispondono più a quelli registrati. Segnalalo all'ufficio HR.</li>
+      </ul>
+      <p>La pagina richiede l'accesso al portale e consente al massimo 30 verifiche ogni 10 minuti.</p>
+    </section>
+
+    {% if parte_hr %}
+    {# ══════════════ PARTE HR / RSPP ══════════════ #}
+    <div class="elg-parte">Per HR e RSPP</div>
+
+    <section class="fmd-panel elg-sec" id="creare">
+      <h2><svg class="fmd-ico"><use href="#i-plus"/></svg>Creare un corso online</h2>
+      <ol>
+        <li>Da <strong>Formazione → Gestione e-learning</strong> premi <strong>Nuovo corso e-learning</strong> e compila la scheda corso (titolo, punteggio minimo, validità in mesi).</li>
+        <li>Per rendere online un corso che esiste già: <strong>Corsi online e regole</strong> (pagina «Quali corsi si fanno online») e attiva l'erogazione online.</li>
+        <li>Nella stessa pagina scegli se il corso è <strong>Solo assegnati</strong> oppure <strong>Aperto a tutti (self-service)</strong>.</li>
+      </ol>
+      <p>Il corso resta in <strong>Bozza</strong> finché non lo pubblichi: nel frattempo puoi modificarlo liberamente e provarlo con <strong>Anteprima</strong>.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="contenuti">
+      <h2><svg class="fmd-ico"><use href="#i-book"/></svg>Slide, moduli e import</h2>
+      <p>Da <strong>Gestisci → Slide e quiz</strong> (pagina «Contenuti e-learning»):</p>
+      <ul>
+        <li><strong>Nuova slide</strong>: titolo e testo (Markdown). Il campo <strong>Ordine</strong> decide la sequenza.</li>
+        <li><strong>Importa da PowerPoint / PDF</strong>: carica un <code>.pptx</code>, <code>.ppt</code>, <code>.odp</code> o <code>.pdf</code>. Ogni pagina diventa una slide-immagine accodata alle esistenti. La conversione gira in background: lo stato si aggiorna da solo e puoi continuare a lavorare. Il PowerPoint richiede LibreOffice sul server; il PDF funziona sempre. Un import fermo da più di 20 minuti viene chiuso con un errore.</li>
+        <li><strong>Aggiungi un video</strong>: file <code>.mp4</code> con titolo e visione minima in secondi.</li>
+        <li><strong>Moduli</strong> (facoltativi): raggruppano le slide nell'indice del discente; ogni slide è una lezione. Assegna a un modulo <strong>slide consecutive</strong>, altrimenti nell'indice il modulo appare spezzato.</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="domande">
+      <h2><svg class="fmd-ico"><use href="#i-check"/></svg>Domande del quiz</h2>
+      <ul>
+        <li><strong>Risposta singola</strong>: aggiungi le opzioni e segna come <strong>Corretta</strong> una sola.</li>
+        <li><strong>Risposta multipla</strong>: segna tutte le corrette; il discente deve indicarle tutte.</li>
+        <li><strong>Vero / falso</strong>: scegli solo se l'affermazione è <strong>Vera</strong> o <strong>Falsa</strong>; le opzioni le crea il portale. Passando una domanda esistente a vero/falso, il portale chiede conferma perché sostituisce le opzioni.</li>
+      </ul>
+      <p>Una domanda senza risposte corrette, o non coerente con il suo tipo, viene segnalata in arancione e <strong>resta fuori dal quiz</strong> finché non la sistemi.</p>
+      <h3>Importare da Excel</h3>
+      <p>In <strong>Importa domande da Excel</strong> usa <strong>Scarica il modello</strong>. Colonne: Tipo (singola, multipla, vero/falso), Domanda, Risposta 1…8, Corrette (<code>1</code> oppure <code>1,3</code>; per vero/falso <code>V</code> o <code>F</code>). L'import è <strong>tutto o niente</strong>: se una riga è sbagliata non si salva nulla e il messaggio indica la riga da correggere.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="regole">
+      <h2><svg class="fmd-ico"><use href="#i-shield"/></svg>Regole FAD e conferma dell'RSPP</h2>
+      <p>Da <strong>Regole FAD</strong> (nell'editor del corso o in «Quali corsi si fanno online») si fissano le regole che il portale verifica a ogni completamento:</p>
+      <ul>
+        <li>tempo minimo di fruizione, tutte le slide obbligatorie, permanenza minima per slide, soglia di inattività;</li>
+        <li>quiz obbligatorio, soglia di superamento, tentativi massimi, attesa tra tentativi, domande estratte, ordine casuale, durata massima del quiz;</li>
+        <li>cosa succede a chi ha già completato quando i contenuti cambiano: <strong>Restano validi</strong> oppure <strong>Devono rifare il corso</strong>.</li>
+      </ul>
+      <p>Nessun valore di legge è precompilato: li decide l'azienda. L'RSPP li approva con <strong>Confermo le regole (RSPP)</strong>. <strong>Senza conferma il corso non si può pubblicare</strong>, e ogni modifica successiva annulla la conferma. Chi può confermare si indica in Impostazioni e lo decide solo l'amministratore del portale.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="pubblicare">
+      <h2><svg class="fmd-ico"><use href="#i-refresh"/></svg>Pubblicare e versioni</h2>
+      <ul>
+        <li>Nella pagina del corso premi <strong>Pubblica</strong> (o <strong>Ritira</strong> per toglierlo dai corsi online).</li>
+        <li>Alla pubblicazione il portale fissa la <strong>versione</strong> del corso (es. 1.0), con la fotografia di slide e domande.</li>
+        <li>Se modifichi i contenuti quando qualcuno ha già completato il corso, nasce la versione successiva (1.0 → 1.1). Chi aveva completato resta legato alla sua versione nel registro.</li>
+        <li>Se la regola FAD dice <strong>Devono rifare il corso</strong>, la notte successiva il portale riassegna il corso a chi aveva completato la versione precedente. Così hai il resto della giornata per finire le modifiche.</li>
+        <li>Lo storico è nella sezione <strong>Versioni</strong> della pagina del corso.</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="assegnare">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Assegnare il corso</h2>
+      <ul>
+        <li><strong>A mano</strong>: nella pagina del corso, <strong>Assegna dipendenti</strong>: scegli le persone, indica una scadenza (facoltativa) e premi <strong>Assegna selezionati</strong>. <strong>Rimuovi</strong> toglie un'assegnazione non ancora completata.</li>
+        <li><strong>In automatico</strong>: ogni notte il portale assegna i corsi online pubblicati a chi ne ha l'obbligo non ancora soddisfatto (mansione di rischio, mansione, area, ruoli operativi, regole per persona). La scadenza è quella di default delle Impostazioni.</li>
+        <li><strong>Rinnovi</strong>: quando un corso con validità sta per scadere (finestra di rinnovo nelle Impostazioni), il portale apre l'aggiornamento senza toccare lo storico del ciclo precedente.</li>
+        <li>I cessati sono sempre esclusi.</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="promemoria">
+      <h2><svg class="fmd-ico"><use href="#i-alarm"/></svg>Promemoria e solleciti</h2>
+      <p>Valgono per le assegnazioni con scadenza e si configurano in <strong>Impostazioni</strong>:</p>
+      <ul>
+        <li><strong>promemoria</strong> al dipendente nei giorni prima della scadenza (default 14, 7 e 1);</li>
+        <li><strong>solleciti</strong> dopo la scadenza al dipendente e al suo responsabile (default 1, 7 e 14 giorni);</li>
+        <li><strong>riepilogo settimanale</strong> al responsabile con i corsi in scadenza o scaduti della sua squadra, nel giorno scelto (o «Mai»).</li>
+      </ul>
+      <p>Ogni avviso parte una volta sola. Un campo vuoto vuol dire nessun avviso di quel tipo.</p>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="seguire">
+      <h2><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Iscritti, sblocchi e attestati</h2>
+      <ul>
+        <li>In <strong>Iscritti &amp; esiti</strong> vedi stato, punteggio e data di completamento di ognuno. <strong>Esporta CSV</strong> scarica l'elenco.</li>
+        <li>Se un dipendente ha finito i tentativi, scrivi il motivo e premi <strong>Sblocca</strong>: l'operazione resta nel registro.</li>
+        <li>L'attestato si apre dalla scheda del dipendente (scheda Formazione) o dal libretto formativo. Riporta il codice di verifica e il QR.</li>
+        <li>Se i dati dell'attestato vengono alterati fuori dal portale (per esempio direttamente nel database), la verifica risponde «non verificabile».</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="cruscotto">
+      <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Cruscotto e registro</h2>
+      <ul>
+        <li><strong>Cruscotto</strong>: copertura per reparto e per corso, andamento dei completamenti, domande più sbagliate. Mostra anche il <strong>gradimento</strong> (reazione del discente a fine corso, da 1 a 5) accanto all'<strong>efficacia</strong> (valutazione del preposto, aperta al completamento se il corso la prevede).</li>
+        <li><strong>Registro</strong>: tutti i completamenti, filtrabili per corso e per date, con i dati che servono in caso di audit.</li>
+      </ul>
+    </section>
+
+    <section class="fmd-panel elg-sec" id="impostazioni">
+      <h2><svg class="fmd-ico"><use href="#i-gear"/></svg>Impostazioni</h2>
+      <p>In <strong>Gestione e-learning → Impostazioni</strong>:</p>
+      <ul>
+        <li>default dei nuovi corsi: punteggio minimo, validità in mesi, tentativi massimi del quiz;</li>
+        <li>finestra di rinnovo, scadenza di default delle assegnazioni automatiche, dimensione massima dei video;</li>
+        <li>promemoria, solleciti e giorno del riepilogo al responsabile;</li>
+        <li>questionario di gradimento: attivo sì/no e domande, una per riga;</li>
+        <li>chi conferma le regole FAD (RSPP), modificabile solo dall'amministratore;</li>
+        <li>percorso di LibreOffice per l'import PowerPoint.</li>
+      </ul>
+    </section>
+    {% endif %}
+
+  </div>{# .fmd-wrap #}
+</div>{# .fmd #}
+{% endblock %}

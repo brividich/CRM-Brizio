@@ -21,6 +21,7 @@
         <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>Verifica attestato</h1>
         <p class="fmd-ph-sub">Inserisci il codice stampato sull'attestato (o inquadra il QR) per controllare che sia autentico e ancora valido.</p>
       </div>
+      <div class="fmd-pagehead-actions">{% include "anagrafica/partials/_elearning_guida_link.html" with ancora="verifica" %}</div>
     </div>
 
     <form method="post" action="{% url 'anagrafica:formazione_verifica_attestato' %}" class="fmd-panel" style="padding:18px;margin-bottom:14px;">

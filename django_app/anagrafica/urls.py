@@ -459,6 +459,8 @@ urlpatterns = [
     # Discente (fruizione)
     path("formazione/corsi-online/", views_elearning.formazione_online_catalog, name="formazione_online_catalog"),
     # Verifica attestato (QR/codice): sotto il prefisso shared, aperta a ogni utente autenticato.
+    # Guida d'uso dell'e-learning: discenti e HR (sotto il prefisso shared, aperta agli autenticati).
+    path("formazione/corsi-online/guida/", views_elearning.formazione_online_guida, name="formazione_online_guida"),
     path("formazione/corsi-online/verifica/", views_elearning.formazione_verifica_attestato, name="formazione_verifica_attestato"),
     path("formazione/corsi-online/verifica/<str:codice>/", views_elearning.formazione_verifica_attestato,
          name="formazione_verifica_attestato_codice"),

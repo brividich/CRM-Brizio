@@ -24,6 +24,7 @@
         <p class="fmd-ph-sub">Micro-corsi e-learning: slide sequenziali e quiz finale. Il completamento viene tracciato per l'audit.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        {% include "anagrafica/partials/_elearning_guida_link.html" with ancora="discente" %}
         <a href="{% url 'anagrafica:formazione_verifica_attestato' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-shield"/></svg>Verifica un attestato</a>
       </div>
     </div>
