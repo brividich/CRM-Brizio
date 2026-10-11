@@ -335,7 +335,7 @@
 
       <div class="field" style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
         <label style="font-weight:800;">Automazioni aggiuntive</label>
-        <small>Girano insieme al controllo orario dell'escalation. Tutte spente finch&eacute; non le attivi; ogni evento viene notificato una sola volta.</small>
+        <small>Girano insieme al controllo orario dell'escalation. Spente finch&eacute; non le attivi (tranne le decisioni all'operatore); ogni evento viene notificato una sola volta.</small>
       </div>
       <div class="field">
         <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
@@ -377,6 +377,13 @@
           <span>OP completato</span>
         </label>
         <small>Quando l'ultima anomalia aperta di un OP viene chiusa, capocommessa e CAR ricevono una mail con il link al Report OP (circa 5 minuti dopo il salvataggio).</small>
+      </div>
+      <div class="field">
+        <label class="create-op-checkbox" style="font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="auto_decisioni_operatore_attivo" />
+          <span>Decisioni del capocommessa all'operatore</span>
+        </label>
+        <small>Attiva di default. Quando il capocommessa decide (dalla pagina della mail o da Gestione anomalie), l'operatore che ha segnalato le anomalie riceve una mail con stato, RDC, segnalazione al cliente e note, pi&ugrave; una notifica nel portale. L'indirizzo &egrave; l'<em>email di notifica</em> della sua scheda anagrafica.</small>
       </div>
     </div>
     <div id="esc-status" class="status" style="margin:0 16px;"></div>
@@ -982,7 +989,8 @@
     rdc_attivo: {% if escalation_cfg.rdc_attivo %}true{% else %}false{% endif %},
     rdc_giorni: {{ escalation_cfg.rdc_giorni|default:3 }},
     digest_attivo: {% if escalation_cfg.digest_attivo %}true{% else %}false{% endif %},
-    op_completato_attivo: {% if escalation_cfg.op_completato_attivo %}true{% else %}false{% endif %}
+    op_completato_attivo: {% if escalation_cfg.op_completato_attivo %}true{% else %}false{% endif %},
+    decisioni_operatore_attivo: {% if escalation_cfg.decisioni_operatore_attivo %}true{% else %}false{% endif %}
   };
 </script>
 {% endblock %}
@@ -1250,7 +1258,9 @@
       ['auto_rdc_attivo', 'rdc_attivo', 'bool', false],
       ['auto_rdc_giorni', 'rdc_giorni', 'int', 3],
       ['auto_digest_attivo', 'digest_attivo', 'bool', false],
-      ['auto_op_completato_attivo', 'op_completato_attivo', 'bool', false],    ];
+      ['auto_op_completato_attivo', 'op_completato_attivo', 'bool', false],
+      ['auto_decisioni_operatore_attivo', 'decisioni_operatore_attivo', 'bool', true],
+    ];
     const fillAuto = (src) => {
       AUTO_FIELDS.forEach(([id, key, type, def]) => {
         const el = document.getElementById(id);

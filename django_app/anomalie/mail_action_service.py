@@ -434,9 +434,13 @@ def _build_plain_text(
 # ── Mail di conferma post-aggiornamento ──────────────────────────────────────
 
 def _resolve_segnalante_email(op_id: str, anomalie_ids: list) -> tuple[str, str]:
-    """Email + display dell'operatore che ha creato la/e anomalia/e (created_by_user_id).
+    """Email di notifica + display dell'operatore che ha creato la/e anomalia/e
+    (created_by_user_id).
 
     Usa la prima anomalia con un autore risolvibile. Ritorna ("", "") se non trovato.
+    L'indirizzo è ``anagrafica_dipendenti.email_notifica``: ``utenti.email`` è il
+    login legacy e ``utenti`` non ha la colonna ``cognome`` (la vecchia query
+    falliva sempre e il segnalante non riceveva mai il riepilogo).
     """
     if not anomalie_ids:
         return "", ""
@@ -456,21 +460,9 @@ def _resolve_segnalante_email(op_id: str, anomalie_ids: list) -> tuple[str, str]
             row = cur.fetchone()
         if not row or row[0] is None:
             return "", ""
-        legacy_uid = int(row[0])
-        # Risolvi email/nome dall'utente legacy
-        cur_cols = legacy_table_columns("utenti") or set()
-        email_col = "email" if "email" in cur_cols else None
-        if not email_col:
-            return "", ""
-        with connections["default"].cursor() as cur:
-            cur.execute(
-                f"SELECT {email_col}, nome, cognome FROM utenti WHERE id = %s",
-                [legacy_uid],
-            )
-            u = cur.fetchone()
-        if u and u[0]:
-            email = str(u[0]).strip()
-            display = f"{str(u[1] or '').strip()} {str(u[2] or '').strip()}".strip().title()
+        from .automazioni_service import contatto_operatore
+        email, display = contatto_operatore(row[0])
+        if email:
             return email, (display or email)
     except Exception:
         logger.warning("_resolve_segnalante_email: errore op=%s", op_id, exc_info=True)
@@ -512,11 +504,13 @@ def send_anomalie_update_confirmation(
     extra_emails: list[str] | None = None,
     from_email: str | None = None,
     include_op_recipients: bool = True,
+    exclude_emails: list[str] | None = None,
 ) -> bool:
     """Invia la mail di RIEPILOGO delle modifiche registrate (no token, no azione).
 
     Destinatari: operatore segnalante + CC/CAR dell'OP + lista fissa configurabile
-    (+ extra_emails). `updates_summary` è una lista di dict per anomalia:
+    (+ extra_emails), meno ``exclude_emails`` (gli operatori che ricevono già la
+    mail dedicata con le decisioni). `updates_summary` è una lista di dict per anomalia:
     {id, seriale, avanzamento, note, aprire_rdc, segnalare, chiudere}.
 
     Ritorna True se inviata, False se nessun destinatario o errore.
@@ -560,7 +554,7 @@ def send_anomalie_update_confirmation(
         destinatari.extend(extra_emails)
 
     # Dedup case-insensitive preservando l'ordine
-    seen = set()
+    seen = {str(e or "").strip().lower() for e in (exclude_emails or []) if str(e or "").strip()}
     to_list = []
     for e in destinatari:
         k = e.strip().lower()
@@ -755,9 +749,12 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
     pending = list(
         AnomaliaPendingNotification.objects.filter(notified=False, last_modified_at__lte=cutoff)
     )
+    from . import automazioni_service as automazioni_decisioni
+
     sent = 0
     failed = 0
     given_up = 0
+    decisioni_inviate = 0
     flushed_ops: list[str] = []
     for p in pending:
         snapshot = p.updates_snapshot if isinstance(p.updates_snapshot, list) else []
@@ -765,6 +762,16 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
             p.notified = True
             p.save(update_fields=["notified"])
             continue
+        # Decisioni del capocommessa: gli operatori segnalanti le ricevono in una
+        # mail dedicata (inviata solo a riepilogo chiuso, così un ritentativo SMTP
+        # non la duplica) e per questo escono dal riepilogo.
+        try:
+            piano_operatori = automazioni_decisioni.prepara_decisioni_operatore(
+                p.op_id, snapshot, deciso_da_legacy_id=None,
+            )
+        except Exception:
+            logger.warning("flush: decisioni all'operatore non preparate op=%s", p.op_id, exc_info=True)
+            piano_operatori = []
         try:
             ok = send_anomalie_update_confirmation(
                 op_id=p.op_id,
@@ -772,6 +779,7 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
                 anomalie_rows=[{"id": u.get("id"), "seriale": u.get("seriale")} for u in snapshot],
                 updates_summary=snapshot,
                 source_label=f"Modifiche da portale (debounce {threshold_minutes} min)",
+                exclude_emails=[g["email"] for g in piano_operatori if g.get("email")],
             )
         except Exception as exc:
             # Errore SMTP: NON marcare notified, ritenta al prossimo giro fino alla soglia.
@@ -797,7 +805,14 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
         if ok:
             sent += 1
         flushed_ops.append(p.op_id)
-    result = {"sent": sent, "failed": failed, "given_up": given_up, "checked": len(pending)}
+        try:
+            decisioni_inviate += automazioni_decisioni.invia_decisioni_operatore(
+                p.op_id, piano_operatori, deciso_da=p.last_modified_by or "",
+            )
+        except Exception:
+            logger.warning("flush: decisioni all'operatore non inviate op=%s", p.op_id, exc_info=True)
+    result = {"sent": sent, "failed": failed, "given_up": given_up, "checked": len(pending),
+              "decisioni_operatore": decisioni_inviate}
     # Controlli OP a blocchi: mail al capocommessa con il link di decisione.
     try:
         from .controllo_service import flush_controlli

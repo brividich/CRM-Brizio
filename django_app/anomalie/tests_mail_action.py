@@ -374,3 +374,113 @@ class AnomaliaMailActionSendTests(TestCase):
         sent = mail.outbox[0]
         self.assertIn("OP-SEND-TEST", sent.subject)
         self.assertIn("dest@example.local", sent.to)
+
+
+# PNG 1x1 sintetico: basta che il file esista, il tipo si deduce dal nome.
+_PNG_1X1 = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+    b"\x00\x00\x00\rIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=True, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
+class MailActionAllegatoTests(TestCase):
+    """Le foto della pagina a token si vedono senza login, e solo quelle del token.
+
+    Regressione: la pagina raggiunta dalla mail mostrava le foto tramite
+    ``/api/anomalie/allegati/file``, che richiede il login; senza sessione le
+    immagini restavano rotte.
+    """
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+
+        from anomalie.mail_action_models import AnomaliaMailActionToken
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.foto = Path(self.tmp.name) / "abc123__foto pezzo.png"
+        self.foto.write_bytes(_PNG_1X1)
+        self.html = Path(self.tmp.name) / "abc124__pagina.html"
+        self.html.write_bytes(b"<script>alert(1)</script>")
+        self.token = AnomaliaMailActionToken.objects.create(
+            recipient_email="cc@example.local",
+            recipient_display="Capocommessa Test",
+            op_id="OP-2026-FOTO",
+            anomalie_ids=[7],
+            anomalie_snapshot=_make_anomalie_rows(1),
+            action="aggiorna_avanzamento",
+            expires_at=timezone.now() + timedelta(hours=48),
+        )
+        rows = {
+            7: {"id": 7, "ex_op_nominativo": "OP-2026-FOTO"},
+            8: {"id": 8, "ex_op_nominativo": "op-2026-foto"},
+            9: {"id": 9, "ex_op_nominativo": "OP-ALTRO"},
+        }
+        files = {"abc123__foto pezzo.png": self.foto, "abc124__pagina.html": self.html}
+        patcher_row = patch("anomalie.views._anomaly_local_row", side_effect=lambda local_id: rows.get(local_id))
+        patcher_path = patch(
+            "anomalie.views._resolve_anomalia_attachment_path",
+            side_effect=lambda local_id, file_id: files.get(file_id),
+        )
+        patcher_row.start()
+        patcher_path.start()
+        self.addCleanup(patcher_row.stop)
+        self.addCleanup(patcher_path.stop)
+
+    def _get(self, local_id, file_id="abc123__foto pezzo.png", token=None):
+        url = reverse("anomalie_mail_action_allegato", kwargs={"token": token or self.token.token})
+        response = self.client.get(url, {"local_id": local_id, "file_id": file_id})
+        # FileResponse tiene il file aperto finche' non lo si legge tutto: su
+        # Windows la cartella temporanea non si cancellerebbe. (Niente
+        # response.close(): manda request_finished e chiude il DB di test.)
+        response.body = b"".join(response.streaming_content) if response.streaming else response.content
+        return response
+
+    def test_foto_visibile_senza_login(self):
+        response = self._get(7)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/png")
+        self.assertTrue(response["Content-Disposition"].startswith("inline"))
+        self.assertEqual(response.body, _PNG_1X1)
+        self.assertEqual(response["Referrer-Policy"], "no-referrer")
+
+    def test_foto_di_altra_anomalia_dello_stesso_op(self):
+        """La pagina mostra tutte le anomalie aperte dell'OP: anche le loro foto."""
+        self.assertEqual(self._get(8).status_code, 200)
+
+    def test_anomalia_di_altro_op_non_si_apre(self):
+        self.assertEqual(self._get(9).status_code, 404)
+
+    def test_token_revocato_o_scaduto_non_apre_nulla(self):
+        self.token.is_revoked = True
+        self.token.save(update_fields=["is_revoked"])
+        self.assertEqual(self._get(7).status_code, 404)
+        self.token.is_revoked = False
+        self.token.expires_at = timezone.now() - timedelta(seconds=1)
+        self.token.save(update_fields=["is_revoked", "expires_at"])
+        self.assertEqual(self._get(7).status_code, 404)
+
+    def test_token_inesistente(self):
+        self.assertEqual(self._get(7, token="token-che-non-esiste").status_code, 404)
+
+    def test_file_non_immagine_scaricato_come_allegato_opaco(self):
+        response = self._get(7, file_id="abc124__pagina.html")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/octet-stream")
+        self.assertTrue(response["Content-Disposition"].startswith("attachment"))
+        self.assertIn("sandbox", response["Content-Security-Policy"])
+
+    def test_la_pagina_punta_all_endpoint_a_token(self):
+        righe = _make_anomalie_rows(1)
+        righe[0]["id"] = 7
+        with patch("anomalie.mail_action_views._load_anomalie_live_by_op", return_value=righe), \
+             patch("anomalie.views._list_attachments_for_local", return_value=[
+                 {"file_id": "abc123__foto pezzo.png", "name": "foto pezzo.png", "size": 10, "is_image": True},
+             ]):
+            response = self.client.get(reverse("anomalie_mail_action", kwargs={"token": self.token.token}))
+        self.assertEqual(response.status_code, 200)
+        allegato_url = reverse("anomalie_mail_action_allegato", kwargs={"token": self.token.token})
+        self.assertContains(response, f'src="{allegato_url}?local_id=7')
+        self.assertNotContains(response, "/api/anomalie/allegati/file")

@@ -40,7 +40,7 @@ Se un report successivo dimostra che l'anomalia non c'è più, l'alert si chiude
 | CVE critica esposta | La stessa CVE sullo stesso prodotto viene riletta con **0 dispositivi esposti** (l'assenza dal report non basta) |
 | Sorgente silenziosa | La sorgente torna a inviare report nei tempi attesi |
 
-Picchi VPN, segnalazioni WatchGuard, spoofing del mittente e dati illeggibili non hanno un segnale di rientro affidabile: restano da chiudere a mano. Per disattivare la chiusura automatica impostare `SECURITY_AUTO_RESOLVE_ENABLED` a `false` nelle impostazioni del Security Center.
+Altre due regole, spente di default, chiudono gli alert VPN tornati nei limiti e le CVE non critiche già corrette secondo l'inventario software. Tutte le regole si simulano e si accendono da Config › Automatismi di rientro: vedi [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#automatismi-di-rientro). Spoofing del mittente, segnalazioni WatchGuard e dati illeggibili restano da chiudere a mano. Per disattivare la chiusura automatica impostare `SECURITY_AUTO_RESOLVE_ENABLED` a `false` nelle impostazioni del Security Center.
 
 ## Ticket
 

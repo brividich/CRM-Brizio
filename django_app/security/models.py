@@ -508,6 +508,19 @@ class SecurityAlertSuppressionRule(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     hit_count = models.PositiveIntegerField(default=0)
     last_hit_at = models.DateTimeField(null=True, blank=True)
+    # Soppressione appresa (owner «system:learned»): ambito = impronta esatta dell'alert,
+    # mai più largo; non scatta se l'evento è più grave delle disattivazioni che l'hanno creata.
+    fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
+    max_severity = models.CharField(max_length=24, choices=Severity.choices, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.TextField(blank=True)
+
+    LEARNED_OWNER = "system:learned"
+    LEARNED_SCOPE = "learned_fingerprint"
+
+    @property
+    def is_learned(self):
+        return self.owner == self.LEARNED_OWNER
 
     def matches(self, event):
         now = timezone.now()
@@ -515,6 +528,10 @@ class SecurityAlertSuppressionRule(models.Model):
             return False
         if self.expires_at and self.expires_at <= now:
             return False
+        if self.fingerprint:
+            from security.services.learned_suppression import learned_rule_matches
+
+            return learned_rule_matches(self, event)
         if self.source_id and self.source_id != event.source_id:
             return False
         if self.event_type and self.event_type != event.event_type:
@@ -534,6 +551,51 @@ class SecurityAlertSuppressionRule(models.Model):
 
     def __str__(self):
         return self.name
+
+
+SEVERITY_RANK = {Severity.INFO: 0, Severity.LOW: 1, Severity.MEDIUM: 2, Severity.WARNING: 3, Severity.HIGH: 4, Severity.CRITICAL: 5}
+
+
+class SecurityAlertDismissal(models.Model):
+    """Una disattivazione manuale di un alert (falso positivo, non rilevante, rischio accettato, silenzia).
+
+    È la materia prima della soppressione appresa: N disattivazioni della stessa impronta
+    nella finestra configurata creano una regola. Chiusure automatiche e «risolto» non
+    finiscono qui. ``counted=False`` = azzerata da una riapertura manuale.
+    """
+
+    KIND_FALSE_POSITIVE = "false_positive"
+    KIND_NOT_RELEVANT = "not_relevant"
+    KIND_ACCEPTED_RISK = "accepted_risk"
+    KIND_MUTE = "mute"
+    KIND_CHOICES = [
+        (KIND_FALSE_POSITIVE, "Falso positivo"),
+        (KIND_NOT_RELEVANT, "Non rilevante"),
+        (KIND_ACCEPTED_RISK, "Rischio accettato"),
+        (KIND_MUTE, "Silenziato"),
+    ]
+
+    alert = models.ForeignKey(SecurityAlert, on_delete=models.CASCADE, related_name="dismissals")
+    source = models.ForeignKey(SecuritySource, on_delete=models.SET_NULL, null=True, blank=True)
+    event_type = models.CharField(max_length=120, blank=True)
+    fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
+    fingerprint_fields = models.JSONField(default=dict, blank=True)
+    kind = models.CharField(max_length=24, choices=KIND_CHOICES)
+    severity = models.CharField(max_length=24, choices=Severity.choices, blank=True)
+    actor = models.CharField(max_length=120)
+    reason = models.TextField()
+    batch = models.CharField(max_length=64, blank=True)
+    by_config_user = models.BooleanField(default=False)
+    counted = models.BooleanField(default=True)
+    learned_rule = models.ForeignKey(SecurityAlertSuppressionRule, on_delete=models.SET_NULL, null=True, blank=True, related_name="dismissals")
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["fingerprint", "counted", "created_at"], name="sec_dismiss_fp_idx")]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} alert {self.alert_id}"
 
 
 class BackupExpectedJobConfig(models.Model):
@@ -1224,3 +1286,209 @@ class SecurityIncidentLog(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+# --- Inventario software e impatto CVE sugli asset ------------------------------------------
+
+class SoftwareSourceKind(models.TextChoices):
+    WATCHGUARD = "watchguard", "WatchGuard EPDR / Panda"
+    BUSINESSLOG = "businesslog", "BusinessLog"
+    OTHER = "other", "Altro export"
+
+
+class SoftwareImportPreset(models.Model):
+    """Mappatura colonne salvata per una fonte (quale colonna è hostname, vendor, prodotto...)."""
+
+    FIELDS = ("hostname", "vendor", "product", "version", "detected_at")
+    REQUIRED_FIELDS = ("hostname", "product", "version")
+
+    name = models.CharField(max_length=120, unique=True)
+    source_kind = models.CharField(max_length=24, choices=SoftwareSourceKind.choices, default=SoftwareSourceKind.OTHER)
+    column_map = models.JSONField(default=dict, blank=True)
+    date_format = models.CharField(max_length=40, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class SoftwareInventoryImport(models.Model):
+    STATUS_PREVIEW = "preview"
+    STATUS_IMPORTED = "imported"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [(STATUS_PREVIEW, "Anteprima"), (STATUS_IMPORTED, "Importato"), (STATUS_FAILED, "Fallito")]
+
+    source_kind = models.CharField(max_length=24, choices=SoftwareSourceKind.choices, default=SoftwareSourceKind.OTHER)
+    preset = models.ForeignKey(SoftwareImportPreset, on_delete=models.SET_NULL, null=True, blank=True, related_name="imports")
+    original_name = models.CharField(max_length=255)
+    file_sha256 = models.CharField(max_length=64, db_index=True)
+    # File in attesa di mappatura: storage privato cifrato, cancellato dopo l'import.
+    stored_name = models.CharField(max_length=255, blank=True)
+    headers = models.JSONField(default=list, blank=True)
+    column_map = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PREVIEW, db_index=True)
+    inventory_date = models.DateField(default=timezone.localdate)
+    rows_total = models.PositiveIntegerField(default=0)
+    rows_imported = models.PositiveIntegerField(default=0)
+    rows_skipped = models.PositiveIntegerField(default=0)
+    rows_new = models.PositiveIntegerField(default=0)
+    rows_marked_missing = models.PositiveIntegerField(default=0)
+    skipped_details = models.JSONField(default=list, blank=True)
+    hosts_count = models.PositiveIntegerField(default=0)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    imported_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.original_name} ({self.get_source_kind_display()})"
+
+
+class SoftwareInstallation(models.Model):
+    """Un software rilevato su un host da una fonte. Mai cancellato: «non più rilevato» se sparisce."""
+
+    dedup_key = models.CharField(max_length=64, unique=True)
+    source_kind = models.CharField(max_length=24, choices=SoftwareSourceKind.choices, db_index=True)
+    host = models.CharField(max_length=255, db_index=True)
+    host_display = models.CharField(max_length=255, blank=True)
+    security_asset = models.ForeignKey(SecurityAsset, on_delete=models.SET_NULL, null=True, blank=True, related_name="software")
+    hub_asset = models.ForeignKey("assets.Asset", on_delete=models.SET_NULL, null=True, blank=True, related_name="security_software")
+    vendor_raw = models.CharField(max_length=255, blank=True)
+    product_raw = models.CharField(max_length=255)
+    vendor = models.CharField(max_length=120, blank=True, db_index=True)
+    product = models.CharField(max_length=160, db_index=True)
+    version_raw = models.CharField(max_length=120, blank=True)
+    version_norm = models.CharField(max_length=120, blank=True)
+    still_detected = models.BooleanField(default=True, db_index=True)
+    first_import = models.ForeignKey(SoftwareInventoryImport, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    last_import = models.ForeignKey(SoftwareInventoryImport, on_delete=models.SET_NULL, null=True, blank=True, related_name="installations")
+    detected_at = models.DateTimeField(null=True, blank=True)
+    seen_at = models.DateTimeField(default=timezone.now)
+    last_seen_at = models.DateTimeField(default=timezone.now, db_index=True)
+    last_inventory_date = models.DateField(default=timezone.localdate)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["vendor", "product", "still_detected"], name="sec_sw_product_idx"),
+            models.Index(fields=["source_kind", "host"], name="sec_sw_source_host_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.product_raw} {self.version_raw} @ {self.host}"
+
+
+class SoftwareAlias(models.Model):
+    """Normalizzazione modificabile da UI: «Microsoft Corporation» → ``microsoft``."""
+
+    KIND_VENDOR = "vendor"
+    KIND_PRODUCT = "product"
+    KIND_CHOICES = [(KIND_VENDOR, "Vendor"), (KIND_PRODUCT, "Prodotto")]
+
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES)
+    raw = models.CharField(max_length=160)
+    canonical = models.CharField(max_length=160)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["kind", "raw"]
+        constraints = [models.UniqueConstraint(fields=["kind", "raw"], name="uniq_software_alias_kind_raw")]
+
+    def __str__(self):
+        return f"{self.raw} → {self.canonical}"
+
+
+class SoftwareCpeMapping(models.Model):
+    """Prodotto normalizzato ↔ CPE (vendor:product). I suggerimenti valgono solo dopo conferma."""
+
+    vendor = models.CharField(max_length=120, blank=True)
+    product = models.CharField(max_length=160)
+    cpe_vendor = models.CharField(max_length=120, blank=True)
+    cpe_product = models.CharField(max_length=160, blank=True)
+    confirmed = models.BooleanField(default=False, db_index=True)
+    not_applicable = models.BooleanField(default=False)
+    suggestions = models.JSONField(default=list, blank=True)
+    confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["vendor", "product"]
+        constraints = [models.UniqueConstraint(fields=["vendor", "product"], name="uniq_software_cpe_vendor_product")]
+        indexes = [models.Index(fields=["cpe_vendor", "cpe_product"], name="sec_cpe_pair_idx")]
+
+    def __str__(self):
+        return f"{self.vendor}/{self.product} → {self.cpe_vendor}:{self.cpe_product}"
+
+
+class SecurityExternalFeedCache(models.Model):
+    """Cache dedicata per NVD / CISA KEV / EPSS (non la DatabaseCache condivisa)."""
+
+    feed = models.CharField(max_length=24, db_index=True)
+    key = models.CharField(max_length=190)
+    payload = models.JSONField(default=dict, blank=True)
+    status_code = models.PositiveIntegerField(default=0)
+    error = models.CharField(max_length=500, blank=True)
+    fetched_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["feed", "key"], name="uniq_external_feed_key")]
+
+
+class SecurityCveRecord(models.Model):
+    """CVE arricchita da NVD (range di versione per CPE), CISA KEV ed EPSS."""
+
+    cve_id = models.CharField(max_length=32, unique=True)
+    description = models.TextField(blank=True)
+    cvss = models.FloatField(null=True, blank=True)
+    severity = models.CharField(max_length=24, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    nvd_last_modified = models.DateTimeField(null=True, blank=True)
+    configurations = models.JSONField(default=list, blank=True)
+    ambiguous_configuration = models.BooleanField(default=False)
+    kev = models.BooleanField(default=False, db_index=True)
+    kev_added = models.DateField(null=True, blank=True)
+    kev_due = models.DateField(null=True, blank=True)
+    epss = models.FloatField(null=True, blank=True)
+    epss_percentile = models.FloatField(null=True, blank=True)
+    nvd_fetched_at = models.DateTimeField(null=True, blank=True)
+    nvd_error = models.CharField(max_length=300, blank=True)
+    impact_computed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["cve_id"]
+
+    def __str__(self):
+        return self.cve_id
+
+
+class SecurityCveImpact(models.Model):
+    """Esito per (CVE, host): IMPATTA / NON IMPATTA / DA VERIFICARE, con la spiegazione."""
+
+    IMPACTS = "impacts"
+    NOT_IMPACTED = "not_impacted"
+    TO_VERIFY = "to_verify"
+    OUTCOME_CHOICES = [(IMPACTS, "Impatta"), (NOT_IMPACTED, "Non impatta"), (TO_VERIFY, "Da verificare")]
+
+    cve = models.ForeignKey(SecurityCveRecord, on_delete=models.CASCADE, related_name="impacts")
+    host = models.CharField(max_length=255)
+    installation = models.ForeignKey(SoftwareInstallation, on_delete=models.SET_NULL, null=True, blank=True, related_name="cve_impacts")
+    hub_asset = models.ForeignKey("assets.Asset", on_delete=models.SET_NULL, null=True, blank=True, related_name="security_cve_impacts")
+    outcome = models.CharField(max_length=16, choices=OUTCOME_CHOICES, db_index=True)
+    explanation = models.TextField()
+    inventory_date = models.DateField(null=True, blank=True)
+    computed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["cve", "outcome", "host"]
+        constraints = [models.UniqueConstraint(fields=["cve", "host"], name="uniq_cve_impact_host")]
+
+    def __str__(self):
+        return f"{self.cve_id} {self.host}: {self.outcome}"

@@ -1,0 +1,28 @@
+{% if not hide %}
+<section class="sec-panel" style="margin-top: 12px;" id="cve-impact">
+  <div class="sec-section-head"><h2>Impatto sugli asset</h2>{% if record %}<a class="sec-small" href="{% url 'security:cve_detail' record.cve_id %}">Dettaglio {{ record.cve_id }}</a>{% endif %}</div>
+  {% if not record %}
+    <p class="sec-muted sec-small">CVE non ancora arricchita da NVD: impatto da verificare. Il job orario la leggerà se l'arricchimento è acceso.</p>
+  {% else %}
+    <div class="sec-actions">
+      <span class="sec-badge sec-badge-critical">Impatta: {{ summary.impacts }}</span>
+      <span class="sec-badge warning">Da verificare: {{ summary.to_verify }}</span>
+      <span class="sec-badge sec-badge-success">Non impatta: {{ summary.not_impacted }}</span>
+      <span class="sec-badge sec-badge-muted" title="Host con inventario recente senza il prodotto">Prodotto assente: {{ summary.absent_hosts }}</span>
+    </div>
+    <p class="sec-small">
+      {% if summary.inventory_date %}Inventario del {{ summary.inventory_date|date:"d/m/Y" }}{% if not summary.inventory_fresh %} (vecchio: gli esiti vanno verificati){% endif %}.{% else %}Nessun inventario software importato.{% endif %}
+      {% if summary.no_configurations %}Configurazioni CVE non disponibili da NVD: da verificare.{% endif %}
+      {% for u in summary.unmapped %}{% if u.similar %}<br>{{ u.similar }} software forse corrispondent{{ u.similar|pluralize:"e,i" }} a {{ u.cpe }} senza mappatura CPE confermata.{% endif %}{% endfor %}
+    </p>
+    {% if summary.closure.0 %}
+      <p class="sec-message">{{ summary.closure.1 }} La chiusura resta una decisione di una persona.</p>
+    {% else %}
+      <p class="sec-muted sec-small">Chiusura non proponibile: {{ summary.closure.1 }}</p>
+    {% endif %}
+    {% if impacts %}
+      <ul class="sec-small">{% for imp in impacts %}<li><strong>{{ imp.get_outcome_display }}</strong> · {{ imp.explanation|truncatechars:220 }}</li>{% endfor %}</ul>
+    {% endif %}
+  {% endif %}
+</section>
+{% endif %}

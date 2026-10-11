@@ -68,3 +68,25 @@ def security_asset_card(context, asset):
     data = signals_for_hub_asset(asset)
     linked = asset.security_assets.count()
     return {"show": bool(linked), "asset": asset, "linked": linked, **data}
+
+
+@register.inclusion_tag("security/partials/asset_vulns.html", takes_context=True)
+def security_asset_vulns(context, asset):
+    """Sezione «Vulnerabilità» nella pagina di un asset HUB: CVE che lo impattano o da verificare."""
+    request = context.get("request")
+    if not can_view_security_center(getattr(request, "user", None)) or not getattr(asset, "pk", None):
+        return {"show": False}
+    from security.models import SoftwareInstallation
+    from security.services.cve_impact import impacts_for_hub_asset
+
+    installs = SoftwareInstallation.objects.filter(hub_asset=asset, still_detected=True)
+    if not installs.exists():
+        return {"show": False}
+    from django.db.models import Max
+
+    return {
+        "show": True,
+        "impacts": impacts_for_hub_asset(asset),
+        "software_count": installs.count(),
+        "inventory_date": installs.aggregate(last=Max("last_inventory_date"))["last"],
+    }

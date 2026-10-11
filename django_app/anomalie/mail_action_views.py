@@ -287,6 +287,7 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
     )
 
     # Mail di conferma post-aggiornamento al segnalante + CC/CAR + lista fissa.
+    piano_operatori: list[dict] = []
     try:
         from anomalie.mail_action_service import send_anomalie_update_confirmation
         by_id = {str(a.get("id")): a for a in anomalie_live}
@@ -310,15 +311,34 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
                 "chiudere": bool(per_riga.get("chiudere")) or action == "chiudi",
             })
         if updates_summary:
+            # Automazione «decisioni all'operatore»: chi ha segnalato riceve una mail
+            # dedicata con le decisioni e per questo esce dal riepilogo generico.
+            try:
+                from anomalie.automazioni_service import prepara_decisioni_operatore
+                piano_operatori = prepara_decisioni_operatore(
+                    token_obj.op_id, updates_summary, deciso_da_email=token_obj.recipient_email or "",
+                )
+            except Exception:
+                logger.warning("mail_action: decisioni all'operatore non preparate op=%s", token_obj.op_id, exc_info=True)
             send_anomalie_update_confirmation(
                 op_id=token_obj.op_id,
                 op_nominativo=token_obj.op_nominativo or "",
                 anomalie_rows=anomalie_live,
                 updates_summary=updates_summary,
                 source_label=f"Risposta da mail ({token_obj.recipient_display})",
+                exclude_emails=[g["email"] for g in piano_operatori if g.get("email")],
             )
     except Exception:
         logger.warning("mail_action: invio conferma aggiornamento fallito op=%s", token_obj.op_id, exc_info=True)
+    try:
+        if piano_operatori:
+            from anomalie.automazioni_service import invia_decisioni_operatore
+            invia_decisioni_operatore(
+                token_obj.op_id, piano_operatori,
+                deciso_da=token_obj.recipient_display or token_obj.recipient_email or "",
+            )
+    except Exception:
+        logger.warning("mail_action: decisioni all'operatore non inviate op=%s", token_obj.op_id, exc_info=True)
     return redirect(reverse("anomalie_mail_action_done", kwargs={"token": token_obj.token}))
 
 
@@ -345,6 +365,81 @@ def mail_action_done_view(request: HttpRequest, token: str) -> HttpResponse:
             "already_done": False,
         },
     )
+
+
+@risposta_pubblica
+@require_http_methods(["GET"])
+def mail_action_allegato_view(request: HttpRequest, token: str) -> HttpResponse:
+    """Foto e allegati delle anomalie mostrate dalla pagina a token. Nessun login.
+
+    La pagina raggiunta dalla mail mostrava le foto tramite
+    ``/api/anomalie/allegati/file``, che richiede il login: chi apriva il link
+    dalla mail senza sessione vedeva immagini rotte. Qui l'autorizzazione e' la
+    stessa della pagina — il token, valido e non revocato — ristretta alle sole
+    anomalie che quel token mostra: quelle salvate nel token o quelle dell'OP
+    del token. Immagini e PDF inline, tutto il resto scaricato come allegato
+    opaco (``core.download_security``).
+    """
+    from django.http import FileResponse, Http404
+
+    from core.download_security import harden_file_response
+
+    from .mail_action_models import AnomaliaMailActionToken
+    from .views import _anomaly_local_row, _attachment_display_name, _resolve_anomalia_attachment_path
+
+    token_obj = AnomaliaMailActionToken.objects.filter(token=token).first()
+    if token_obj is None or token_obj.is_revoked or timezone.now() > token_obj.expires_at:
+        raise Http404("Link non valido o scaduto.")
+
+    local_id_raw = str(request.GET.get("local_id") or "").strip()
+    file_id = str(request.GET.get("file_id") or "").strip()
+    if not local_id_raw.isdigit() or not file_id:
+        raise Http404("Allegato non trovato.")
+    local_id = int(local_id_raw)
+    if not _token_shows_anomalia(token_obj, local_id, _anomaly_local_row(local_id)):
+        raise Http404("Allegato non trovato.")
+
+    path = _resolve_anomalia_attachment_path(local_id, file_id)
+    if not path:
+        raise Http404("Allegato non trovato.")
+    display_name = _attachment_display_name(path.name)
+    try:
+        log_action(
+            request,
+            "anomalia_allegato_open_mail_action",
+            "anomalie",
+            {
+                "local_id": local_id,
+                "op_id": token_obj.op_id,
+                "file_id": file_id,
+                "file_name": display_name,
+                "token": str(token_obj.token)[:8],
+                "recipient": token_obj.recipient_display,
+            },
+        )
+    except Exception:
+        pass
+    response = FileResponse(path.open("rb"), as_attachment=False, filename=display_name)
+    return harden_file_response(response, display_name, inline=True)
+
+
+def _token_shows_anomalia(token_obj, local_id: int, row: dict | None) -> bool:
+    """L'anomalia e' fra quelle che la pagina del token mostra?
+
+    Stesso perimetro di :func:`mail_action_view`: le anomalie salvate nel token
+    oppure quelle dell'OP del token. Un token non apre gli allegati di altri OP.
+    """
+    if not row:
+        return False
+    for value in token_obj.anomalie_ids or []:
+        try:
+            if int(value) == local_id:
+                return True
+        except (TypeError, ValueError):
+            continue
+    op_token = str(token_obj.op_id or "").strip().lower()
+    op_row = str(row.get("ex_op_nominativo") or "").strip().lower()
+    return bool(op_token) and op_token == op_row
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────

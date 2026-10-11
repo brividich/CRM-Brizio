@@ -22,6 +22,9 @@ from .forms import (
     SecurityTicketConfigForm,
 )
 from .models import (
+    SoftwareCpeMapping,
+    SoftwareInstallation,
+    SoftwareInventoryImport,
     BackupExpectedJobConfig,
     SecurityAlert,
     SecurityAlertRuleConfig,
@@ -52,12 +55,16 @@ from .models import (
 from .permissions import can_view_security_center
 from .services.alert_lifecycle import (
     ACTIVE_ALERT_STATUSES,
+    CLOSE_OUTCOMES,
     acknowledge_alert,
     close_alert,
     mark_false_positive,
+    mute_alert,
     reopen_alert,
     snooze_alert,
 )
+from .services.auto_resolution import registry_rows as auto_resolution_registry_rows
+from .services.learned_suppression import dismissal_progress
 from .services.kpi_service import build_daily_kpi_snapshots
 from .services.source_heartbeat import source_status_rows
 from .services.vpn_history import vpn_recent_stats
@@ -280,19 +287,34 @@ def history_proposals(request):
 
 @require_POST
 def alert_action(request, pk, action):
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
     alert = get_object_or_404(SecurityAlert, pk=pk)
     action = "false_positive" if action == "false-positive" else action
     actor = request.user.username if request.user.is_authenticated else "ui"
     reason = request.POST.get("reason", "").strip()
+    outcome = request.POST.get("outcome", "resolved")
     handlers = {
         "acknowledge": lambda: acknowledge_alert(alert, actor=actor, reason=reason),
-        "close": lambda: close_alert(alert, actor=actor, reason=reason),
-        "false_positive": lambda: mark_false_positive(alert, actor=actor, reason=reason),
+        "close": lambda: close_alert(alert, actor=actor, reason=reason, outcome=outcome, user=request.user),
+        "false_positive": lambda: mark_false_positive(alert, actor=actor, reason=reason, user=request.user),
+        "mute": lambda: mute_alert(alert, actor=actor, reason=reason, user=request.user),
         "snooze": lambda: snooze_alert(alert, _parse_snooze_until(request.POST.get("snooze_until")), actor=actor, reason=reason),
-        "reopen": lambda: reopen_alert(alert, actor=actor, reason=reason),
+        "reopen": lambda: reopen_alert(alert, actor=actor, reason=reason, user=request.user),
     }
     if action not in handlers:
         messages.error(request, "Azione alert non supportata.")
+        return redirect("security:alert_detail", pk=alert.pk)
+    # Le disattivazioni (falso positivo, non rilevante, rischio accettato, silenzia) chiedono
+    # un motivo: alimentano la soppressione appresa e restano nella timeline.
+    is_dismissal = action in {"false_positive", "mute"} or (action == "close" and outcome in {"not_relevant", "accepted_risk"})
+    if is_dismissal and not reason:
+        error = "Scrivi il motivo: serve a chi rilegge l'alert e alla soppressione appresa."
+        if request.headers.get("HX-Request"):
+            context = _alert_lifecycle_context(alert)
+            context.update({"alert": alert, "action_error": error})
+            return render(request, "security/partials/alert_lifecycle_panel.html", context)
+        messages.error(request, error)
         return redirect("security:alert_detail", pk=alert.pk)
 
     alert = handlers[action]()
@@ -374,7 +396,9 @@ def inbox_page(request):
 def help_page(request):
     if not request.user.is_authenticated:
         return redirect_to_login(request.get_full_path(), login_url="/admin/login/")
-    return render(request, "security/help.html", {"docs": SECURITY_CENTER_DOCS})
+    user_guides = [doc for doc in SECURITY_CENTER_DOCS if doc["file"] in USER_GUIDE_FILES]
+    user_guides.sort(key=lambda doc: USER_GUIDE_FILES.index(doc["file"]))
+    return render(request, "security/help.html", {"docs": SECURITY_CENTER_DOCS, "user_guides": user_guides})
 
 
 @ensure_csrf_cookie
@@ -441,6 +465,9 @@ def admin_config_dashboard(request):
         _config_card("Notifications", "admin_config_notifications", SecurityNotificationChannel.objects.filter(enabled=True).count(), SecurityNotificationChannel.objects.filter(enabled=False).count(), SecurityNotificationChannel.objects.order_by("-updated_at").first()),
         _config_card("Ticketing", "admin_config_ticketing", SecurityTicketConfig.objects.count(), 0, SecurityTicketConfig.objects.order_by("-updated_at").first()),
         _config_card("Audit Log", "admin_config_audit", SecurityConfigurationAuditLog.objects.count(), 0, SecurityConfigurationAuditLog.objects.order_by("-created_at").first()),
+        _config_card("Automatismi di rientro", "automation", sum(1 for row in auto_resolution_registry_rows() if row["enabled"]), 0, None),
+        _config_card("Inventario software", "inventory", SoftwareInstallation.objects.filter(still_detected=True).count(), SoftwareInstallation.objects.filter(still_detected=False).count(), SoftwareInventoryImport.objects.order_by("-created_at").first()),
+        _config_card("Software e CPE", "software_mapping", SoftwareCpeMapping.objects.filter(confirmed=True).count(), SoftwareCpeMapping.objects.filter(confirmed=False, not_applicable=False).count(), SoftwareCpeMapping.objects.order_by("-updated_at").first()),
     ]
     return render(request, "security/admin_config/dashboard.html", {"cards": cards, "recent_changes": SecurityConfigurationAuditLog.objects.select_related("actor").order_by("-created_at")[:8]})
 
@@ -1109,8 +1136,11 @@ def _alert_lifecycle_context(alert):
         "can_snooze": is_active and alert.status != Status.SNOOZED,
         "can_close": is_active,
         "can_mark_false_positive": is_active,
-        "can_reopen": is_terminal,
+        "can_reopen": is_terminal or alert.status == Status.MUTED,
+        "can_mute": is_active and alert.status != Status.MUTED,
         "can_act": is_active,
+        "close_outcomes": CLOSE_OUTCOMES,
+        "learning": dismissal_progress(alert),
     }
 
 
@@ -1148,8 +1178,16 @@ _DOC_META = {
     "09_TROUBLESHOOTING.md": ("Risoluzione problemi", "Problemi comuni su parser, sorgenti, alert, ticket, backup, notifiche, seed e permessi."),
     "10_DEVELOPER_GUIDE.md": ("Guida sviluppo", "Purezza parser, struttura output, avvisi, test, configurazione seed, regole alert e visibilita dashboard."),
     "11_OPERATIONS_RUNBOOK.md": ("Runbook operativo", "Checklist operative giornaliere, settimanali e mensili."),
+    "12_AUTOMATISMI_E_VULNERABILITA.md": ("Automatismi e vulnerabilità", "Soppressione appresa, regole di rientro con simulazione, inventario software e impatto CVE sugli asset."),
+    "13_LAVORO_QUOTIDIANO.md": ("Lavoro quotidiano", "Da dove partire, barra di stato, ricerca, alert, eventi e allarmi mancati, ticket, analisi dello storico, scheda PC."),
+    "14_INCIDENTI_E_REPORT.md": ("Incidenti e report", "Registro incidenti, valutazione NIS2 e GDPR, scadenze di notifica, report periodico e PDF."),
+    "15_BACKUP_VPN_KPI_ASSET.md": ("Backup, VPN, KPI e asset", "Come leggere backup, accessi VPN e segnali, KPI e trend, collegamento agli asset, stato elaborazione."),
+    "16_IMPOSTAZIONI_E_AI.md": ("Impostazioni e AI", "Avvisi automatici su mail e Teams, report programmato, funzioni dell'AI aziendale e suoi limiti."),
     "MAILBOX_INGESTION.md": ("Mailbox Ingestion", "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."),
 }
+# Guide d'uso per chi lavora nel SOC, in cima alla pagina Guida (gli altri documenti sono per chi configura).
+USER_GUIDE_FILES = ("13_LAVORO_QUOTIDIANO.md", "14_INCIDENTI_E_REPORT.md", "15_BACKUP_VPN_KPI_ASSET.md",
+                    "12_AUTOMATISMI_E_VULNERABILITA.md", "16_IMPOSTAZIONI_E_AI.md")
 SECURITY_CENTER_DOCS = [
     {"file": f, "slug": slug_for(f), "title": _DOC_META[f][0], "summary": _DOC_META[f][1]}
     for f in _DOC_FILES

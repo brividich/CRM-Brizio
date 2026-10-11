@@ -32,6 +32,7 @@ msal==1.39.0              # via -r requirements.in
 mssql-django==1.7.4         # via -r requirements.in
 numpy==2.2.6              # via -r requirements.in (lettura planimetrie verifiche periodiche)
 openpyxl==3.1.5           # via -r requirements.in
+packaging==26.2           # via -r requirements.in
 pillow==12.3.0            # via -r requirements.in, qrcode, reportlab
 pyasn1==0.6.4             # via ldap3
 pycparser==3.0            # via cffi
