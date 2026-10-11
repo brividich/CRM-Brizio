@@ -37,6 +37,9 @@ urlpatterns = [
 
     # Scheda dettaglio dipendente
     path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),
+    # Riquadro «Account portale» della scheda: collega / scollega l'utente portale
+    path("dipendenti/<int:legacy_id>/account-portale/", views_account.dipendente_account_portale, name="dipendente_account_portale"),
+    path("dipendenti/<int:legacy_id>/account-portale/scollega/", views_account.dipendente_account_scollega, name="dipendente_account_scollega"),
     # Stampa scheda dipendente completa (anagrafica civile + aziendale + dati bancari)
     path("dipendenti/<int:legacy_id>/stampa/", views.dipendente_print, name="dipendente_print"),
     # Libretto formativo stampabile (storico corsi + obblighi correnti); ?formato=pdf per il PDF
@@ -595,6 +598,7 @@ urlpatterns = [
     # Permessi canonici ACL v2 del modulo (write-through su tabelle core)
     path("impostazioni/permessi/acl/ruoli/salva", views.impostazioni_acl_role_grants_save, name="impostazioni_acl_role_grants_save"),
     path("impostazioni/permessi/acl/utente/salva", views.impostazioni_acl_user_override_save, name="impostazioni_acl_user_override_save"),
+    path("impostazioni/workflow/avviso-it/salva", views.avviso_it_save, name="avviso_it_save"),
     path("impostazioni/workflow/campi/nuovo", views.workflow_campo_create, name="workflow_campo_create"),
     path("impostazioni/workflow/campi/<int:campo_id>/salva", views.workflow_campo_update, name="workflow_campo_update"),
     path("impostazioni/workflow/campi/<int:campo_id>/elimina", views.workflow_campo_delete, name="workflow_campo_delete"),

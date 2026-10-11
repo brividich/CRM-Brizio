@@ -1,6 +1,10 @@
 <div class="dc-acc-results" data-account-results>
   {% if not cercato %}
+    {% if da_scheda %}
+    <div class="dc-acc-note">Indica un'email oppure nome e cognome, poi cerca.</div>
+    {% else %}
     <div class="dc-acc-note">Compila email oppure nome e cognome nello step «Dati anagrafici», poi cerca.</div>
+    {% endif %}
   {% endif %}
 
   <div class="dc-area-title">Utenti portale esistenti (stessa email o codice fiscale)</div>

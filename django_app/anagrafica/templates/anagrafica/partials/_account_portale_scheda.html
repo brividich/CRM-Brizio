@@ -1,0 +1,171 @@
+{% comment %}
+Riquadro «Account portale» della scheda dipendente: collega o scollega l'utente portale di una scheda
+già esistente con le regole del wizard di creazione (services.account_portale). Lo vede solo chi
+amministra l'anagrafica (contesto_scheda restituisce None agli altri); le view lo ricontrollano.
+{% endcomment %}
+{% if account_scheda %}{% with acc=account_scheda dati=account_scheda.dati %}
+<style>
+.dp-acc .dc-area-title { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.07em; margin:14px 0 8px; padding-bottom:6px; border-bottom:1px solid #f1f5f9; }
+.dp-acc .dc-acc-note { font-size:12.5px; color:#64748b; margin:6px 0; }
+.dp-acc .dc-acc-list { list-style:none; margin:8px 0 14px; padding:0; display:flex; flex-direction:column; gap:8px; }
+.dp-acc .dc-acc-item { border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; }
+.dp-acc .dc-acc-pick { display:flex; gap:10px; align-items:flex-start; font-size:13px; color:#1e293b; cursor:pointer; }
+.dp-acc .dc-acc-meta { font-size:12px; color:#64748b; margin:4px 0 0 26px; overflow-wrap:anywhere; }
+.dp-acc .dc-acc-badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 8px; border-radius:999px; background:#e2e8f0; color:#334155; margin-left:4px; }
+.dp-acc .dc-acc-badge.is-ok { background:#dcfce7; color:#166534; }
+.dp-acc .dc-acc-badge.is-warn, .dp-acc .dc-acc-alert.is-warn { background:#fef3c7; color:#92400e; }
+.dp-acc .is-warn { color:#b45309; }
+.dp-acc .dc-acc-alert { border-radius:10px; padding:10px 12px; font-size:13px; margin:8px 0; }
+.dp-acc .dc-acc-alert.is-info { background:#e0f2fe; color:#075985; }
+.dp-acc .dc-acc-choices { display:flex; flex-direction:column; gap:6px; font-size:13px; color:#1e293b; }
+.dp-acc .dc-acc-choices label, .dp-acc .dc-acc-confirm { display:flex; flex-direction:row; align-items:center; gap:8px; margin:0; }
+.dp-acc .dc-acc-choices input, .dp-acc .dc-acc-confirm input, .dp-acc .dc-acc-pick input { width:auto; margin:0; flex:0 0 auto; }
+.dp-acc .dc-acc-sel { font-size:12.5px; color:#0c2545; margin-top:6px; font-weight:600; }
+.dp-acc .dc-acc-confirm { font-size:12.5px; color:#92400e; margin-top:12px; }
+.dp-acc [hidden] { display:none !important; }
+.dp-acc-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+body.theme-dark .dp-acc .dc-area-title { color:var(--text-light); border-color:var(--border); }
+body.theme-dark .dp-acc .dc-acc-item { border-color:var(--border); }
+body.theme-dark .dp-acc .dc-acc-pick, body.theme-dark .dp-acc .dc-acc-choices, body.theme-dark .dp-acc .dc-acc-sel { color:var(--text); }
+body.theme-dark .dp-acc .dc-acc-note, body.theme-dark .dp-acc .dc-acc-meta { color:var(--text-light); }
+body.theme-dark .dp-acc .dc-acc-badge { background:var(--border); color:var(--text); }
+body.theme-dark .dp-acc .dc-acc-badge.is-ok { background:rgba(22,163,74,.2); color:#86efac; }
+body.theme-dark .dp-acc .dc-acc-badge.is-warn, body.theme-dark .dp-acc .dc-acc-alert.is-warn { background:rgba(217,119,6,.2); color:#fcd34d; }
+body.theme-dark .dp-acc .is-warn, body.theme-dark .dp-acc .dc-acc-confirm { color:#fcd34d; }
+body.theme-dark .dp-acc .dc-acc-alert.is-info { background:rgba(14,165,233,.15); color:#7dd3fc; }
+</style>
+<div class="dp-card dp-acc" id="account-portale" data-tab="anagrafica">
+  <div class="dp-card-head">
+    <div class="dp-card-title">🔐 Account portale</div>
+  </div>
+  <div class="dp-card-body">
+    {% if acc.collegato %}
+      <div class="dp-info-grid">
+        {% if acc.collegato.trovato %}
+        <div class="dp-info-item"><div class="dp-info-label">Login</div><div class="dp-info-value">{{ acc.collegato.login|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Nome utente portale</div><div class="dp-info-value">{{ acc.collegato.nome|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Tipo</div><div class="dp-info-value">{% if acc.collegato.ad %}Active Directory{% else %}Utente locale{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Stato</div><div class="dp-info-value">{% if acc.collegato.attivo %}<span class="dp-pill dp-pill-green">Attivo</span>{% else %}<span class="dp-pill dp-pill-gray">Non attivo</span>{% endif %}</div></div>
+        {% else %}
+        <div class="dp-info-item"><div class="dp-info-label">Utente portale</div><div class="dp-info-value is-warn">#{{ acc.collegato.id }} non trovato tra gli utenti del portale</div></div>
+        {% endif %}
+      </div>
+      <form method="post" action="{% url 'anagrafica:dipendente_account_scollega' legacy_id %}" class="dp-acc-actions" data-acc-scollega>
+        {% csrf_token %}
+        <input type="hidden" name="conferma" value="1">
+        <button type="submit" class="dp-btn dp-btn-danger dp-btn-sm">Scollega</button>
+        <span class="dc-acc-note">Scollegare toglie solo il legame con la scheda: l'utente portale non viene cancellato.</span>
+      </form>
+    {% elif not dati.attivo %}
+      <p class="dc-acc-note">Nessun account portale collegato. Il dipendente non è attivo: riattivalo per collegare un account.</p>
+    {% else %}
+      <p class="dc-acc-note">Nessun account portale collegato. Il portale cerca un utente già esistente con la stessa email o lo
+        stesso codice fiscale della scheda e, in sola lettura, l'account in Active Directory. Il portale non crea né modifica account in AD.</p>
+      <form method="post" action="{% url 'anagrafica:dipendente_account_portale' legacy_id %}" id="dp-acc-form">
+        {% csrf_token %}
+        <div class="dp-form-grid">
+          <div class="dp-form-field">
+            <label class="dp-form-label" for="dp-acc-q-email">Email</label>
+            <input id="dp-acc-q-email" type="email" class="dp-input" data-q="email" value="{{ dati.email }}" autocomplete="off">
+          </div>
+          <div class="dp-form-field">
+            <label class="dp-form-label" for="dp-acc-q-nome">Nome</label>
+            <input id="dp-acc-q-nome" type="text" class="dp-input" data-q="nome" value="{{ dati.nome }}" autocomplete="off">
+          </div>
+          <div class="dp-form-field">
+            <label class="dp-form-label" for="dp-acc-q-cognome">Cognome</label>
+            <input id="dp-acc-q-cognome" type="text" class="dp-input" data-q="cognome" value="{{ dati.cognome }}" autocomplete="off">
+          </div>
+          <div class="dp-form-field">
+            <label class="dp-form-label">Codice fiscale</label>
+            <input type="text" class="dp-input" data-q="codice_fiscale" value="{{ dati.codice_fiscale }}" readonly>
+          </div>
+        </div>
+        <div class="dp-acc-actions">
+          <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" id="dp-acc-cerca" data-url="{% url 'anagrafica:account_portale_cerca' %}">🔎 Cerca utenti portale e account AD</button>
+        </div>
+        <div id="dp-acc-esito" aria-live="polite"></div>
+
+        <div class="dc-area-title">Scelta</div>
+        <div class="dc-acc-choices" role="radiogroup" aria-label="Account portale">
+          <label><input type="radio" name="account_scelta" value="ad"> Collega account AD</label>
+          <label><input type="radio" name="account_scelta" value="collega"> Collega utente portale esistente</label>
+          <label><input type="radio" name="account_scelta" value="locale"> Crea utente locale portale</label>
+        </div>
+        <input type="hidden" name="account_ad_upn" id="dp-acc-upn" value="">
+        <input type="hidden" name="account_collega_id" id="dp-acc-collega" value="">
+        <div class="dc-acc-sel" id="dp-acc-sel"></div>
+
+        <div class="dp-form-grid" id="dp-acc-locale" style="margin-top:12px;" hidden>
+          <div class="dp-form-field">
+            <label class="dp-form-label" for="dp-acc-login">Nome utente (login)</label>
+            <input id="dp-acc-login" name="account_login" type="text" class="dp-input" value="{{ dati.alias }}" autocomplete="off">
+          </div>
+          <div class="dp-form-field">
+            <label class="dp-form-label" for="dp-acc-pwd">Password iniziale</label>
+            <input id="dp-acc-pwd" name="account_password" type="password" class="dp-input" autocomplete="new-password">
+            <div class="dc-acc-note">Scelta da te, comunicala di persona: al primo accesso il sistema ne chiede il cambio.</div>
+          </div>
+        </div>
+        {% if acc.puo_confermare_privilegiati %}
+        <label class="dc-acc-confirm"><input type="checkbox" name="account_conferma_privilegiato" value="1">
+          Confermo come superuser il collegamento a un account privilegiato (superuser, staff o con password locale)</label>
+        {% endif %}
+        <div class="dp-acc-actions">
+          <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Collega account</button>
+        </div>
+      </form>
+    {% endif %}
+  </div>
+</div>
+<script>
+(function () {
+  const scollega = document.querySelector('[data-acc-scollega]');
+  if (scollega) {
+    scollega.addEventListener('submit', function (e) {
+      if (!window.confirm('Scollegare l’account portale da questa scheda? L’utente portale non viene cancellato.')) e.preventDefault();
+    });
+  }
+  const form = document.getElementById('dp-acc-form');
+  if (!form) return;
+  const btn = document.getElementById('dp-acc-cerca');
+  const esito = document.getElementById('dp-acc-esito');
+  const upn = document.getElementById('dp-acc-upn');
+  const collega = document.getElementById('dp-acc-collega');
+  const sel = document.getElementById('dp-acc-sel');
+  const locale = document.getElementById('dp-acc-locale');
+  function q(nome) { const el = form.querySelector('[data-q="' + nome + '"]'); return el ? (el.value || '').trim() : ''; }
+  function scelta(valore) { const r = form.querySelector('[name="account_scelta"][value="' + valore + '"]'); if (r) r.checked = true; aggiorna(); }
+  function aggiorna() {
+    const s = form.querySelector('[name="account_scelta"]:checked');
+    const tipo = s ? s.value : '';
+    locale.hidden = tipo !== 'locale';
+    sel.textContent = tipo === 'ad' ? (upn.value ? 'Account AD scelto: ' + upn.value : 'Seleziona un account AD dai risultati.')
+      : tipo === 'collega' ? (collega.value ? 'Utente portale scelto: #' + collega.value : 'Seleziona un utente portale dai risultati.') : '';
+  }
+  form.addEventListener('change', function (e) {
+    if (e.target.name === 'account_scelta') aggiorna();
+    if (e.target.name === 'account_pick') {
+      if (e.target.dataset.tipo === 'ad') { upn.value = e.target.dataset.upn || ''; scelta('ad'); }
+      else { collega.value = e.target.dataset.id || ''; scelta('collega'); }
+    }
+  });
+  btn.addEventListener('click', function () {
+    const dati = new URLSearchParams({email: q('email'), nome: q('nome'), cognome: q('cognome'), codice_fiscale: q('codice_fiscale'), contesto: 'scheda'});
+    btn.disabled = true;
+    esito.textContent = 'Ricerca in corso…';
+    const csrf = form.querySelector('[name="csrfmiddlewaretoken"]');
+    fetch(btn.dataset.url, {method: 'POST', body: dati, credentials: 'same-origin',
+      headers: {'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf ? csrf.value : ''}})
+      .then(function (r) {
+        if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.error || ('Errore ' + r.status)); });
+        return r.text();
+      })
+      .then(function (html) { esito.innerHTML = html; })
+      .catch(function (err) { esito.textContent = 'Ricerca non riuscita: ' + err.message; })
+      .finally(function () { btn.disabled = false; });
+  });
+  aggiorna();
+})();
+</script>
+{% endwith %}{% endif %}

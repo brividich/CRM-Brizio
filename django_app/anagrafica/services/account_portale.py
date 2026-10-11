@@ -255,7 +255,7 @@ def cerca_ad(*, email: str = "", upn: str = "", nome: str = "", cognome: str = "
     except (LDAPException, socket.error, OSError, ValueError) as exc:
         logger.warning("cerca_ad: Active Directory non raggiungibile: %s", type(exc).__name__)
         return EsitoAD("irraggiungibile", "Active Directory non risponde (timeout o rete). Il dipendente si può creare "
-                                          "comunque: l'account si collega dopo dalla scheda.")
+                                          "comunque: l'account si collega dopo dal riquadro «Account portale» della scheda.")
     finally:
         if conn is not None:
             try:
@@ -320,11 +320,26 @@ def _blocco_privilegio(request, legacy: UtenteLegacy, scelta: SceltaAccount) -> 
             "il collegamento richiede la conferma esplicita di un superuser.")
 
 
-def valida_scelta(request, scelta: SceltaAccount, *, email: str, codice_fiscale: str, attivo: bool) -> list[str]:
-    """Errori bloccanti PRIMA di creare il dipendente (l'AD irraggiungibile non blocca)."""
+def _collegato_altrove(legacy_id: int, scheda_id: int | None) -> bool:
+    """L'utente portale è già su una scheda diversa da ``scheda_id`` (None = scheda non ancora creata)."""
+    altra = _collegato_a([legacy_id]).get(legacy_id)
+    return bool(altra) and altra != scheda_id
+
+
+def valida_scelta(request, scelta: SceltaAccount, *, email: str, codice_fiscale: str, attivo: bool,
+                  scheda_id: int | None = None) -> list[str]:
+    """Errori bloccanti prima di applicare la scelta.
+
+    Senza ``scheda_id`` (wizard di creazione) l'AD irraggiungibile non blocca: il dipendente si crea e
+    l'account si collega dopo. Con ``scheda_id`` (riquadro «Account portale» di una scheda esistente)
+    la scheda stessa è esclusa dal controllo «già collegato» e l'AD irraggiungibile blocca.
+    """
+    da_scheda = scheda_id is not None
     if scelta.tipo == SCELTA_NESSUNO:
-        return []
+        return ["Scegli come collegare l'account portale."] if da_scheda else []
     if not attivo:
+        if da_scheda:
+            return ["Il dipendente non è attivo: riattivalo prima di collegare un account portale."]
         return ["Un dipendente inserito come non attivo non riceve un accesso al portale: scegli «Nessun accesso»."]
     if scelta.tipo == SCELTA_LOCALE:
         errori = []
@@ -340,7 +355,7 @@ def valida_scelta(request, scelta: SceltaAccount, *, email: str, codice_fiscale:
         candidati = {r["id"]: r for r in cerca_utenti_portale(email=email, codice_fiscale=codice_fiscale)}
         if scelta.collega_id not in candidati:
             return ["Si può collegare solo un utente portale trovato con la stessa email o lo stesso codice fiscale."]
-        if candidati[scelta.collega_id]["collegato_a"]:
+        if candidati[scelta.collega_id]["collegato_a"] not in (None, scheda_id):
             return ["Questo utente portale è già collegato a un'altra scheda dipendente."]
         legacy = UtenteLegacy.objects.get(pk=scelta.collega_id)
         blocco = _blocco_privilegio(request, legacy, scelta)
@@ -348,12 +363,12 @@ def valida_scelta(request, scelta: SceltaAccount, *, email: str, codice_fiscale:
     # SCELTA_AD
     account, errore, irraggiungibile = verifica_account_ad(scelta.upn)
     if irraggiungibile:
-        return []
+        return ["Active Directory non risponde (timeout o rete): account non collegato, riprova più tardi."] if da_scheda else []
     if account is None:
         return [errore]
     esistente = UtenteLegacy.objects.filter(email__iexact=account.upn or scelta.upn).first()
     if esistente is not None:
-        if _collegato_a([esistente.id]):
+        if _collegato_altrove(esistente.id, scheda_id):
             return ["L'utente portale di questo account AD è già collegato a un'altra scheda dipendente."]
         blocco = _blocco_privilegio(request, esistente, scelta)
         if blocco:
@@ -402,18 +417,26 @@ def _collega(new_id: int, legacy: UtenteLegacy) -> bool:
     return AnagraficaDipendente.objects.filter(id=new_id, utente_id__isnull=True).update(utente_id=legacy.id) == 1
 
 
-def applica_scelta(request, new_id: int, scelta: SceltaAccount, *, nome_completo: str) -> tuple[str, str]:
-    """Esegue la scelta dopo la creazione del dipendente: (livello messaggio, testo)."""
+def applica_scelta(request, new_id: int, scelta: SceltaAccount, *, nome_completo: str,
+                   da_scheda: bool = False) -> tuple[str, str]:
+    """Esegue la scelta: (livello messaggio, testo).
+
+    ``new_id`` è la scheda appena creata dal wizard oppure, con ``da_scheda``, una scheda esistente
+    ancora senza utente collegato (riquadro «Account portale» della scheda dipendente).
+    """
     from werkzeug.security import generate_password_hash
 
-
+    origine = "scheda" if da_scheda else "creazione"
     if scelta.tipo == SCELTA_NESSUNO:
-        return "info", "Nessun accesso al portale: l'account si può collegare in seguito dalla scheda."
+        return "info", "Nessun accesso al portale: l'account si può collegare in seguito dal riquadro «Account portale» della scheda."
+    # Scheda già collegata (doppio submit o modifica concorrente): niente utenti orfani.
+    if AnagraficaDipendente.objects.filter(id=new_id, utente_id__isnull=False).exists():
+        return "warning", "La scheda ha già un account portale collegato: scollegalo prima di collegarne un altro."
     if scelta.tipo == SCELTA_COLLEGA:
         legacy = UtenteLegacy.objects.get(pk=scelta.collega_id)
         if not _collega(new_id, legacy):
             return "warning", "Utente portale non collegato: nel frattempo è stato collegato a un'altra scheda."
-        _audit(request, "ACCOUNT_PORTALE_COLLEGATO", new_id, {"utente_legacy_id": legacy.id, "modo": "esistente",
+        _audit(request, "ACCOUNT_PORTALE_COLLEGATO", new_id, {"utente_legacy_id": legacy.id, "modo": "esistente", "origine": origine,
                                                               "conferma_privilegiato": scelta.conferma_privilegiato})
         return "success", f"Collegato all'utente portale «{legacy.email or legacy.nome}»."
     ruolo = Ruolo.objects.filter(nome__iexact="utente").first()
@@ -423,12 +446,16 @@ def applica_scelta(request, new_id: int, scelta: SceltaAccount, *, nome_completo
                                              deve_cambiare_password=True)
         if not _collega(new_id, legacy):
             return "warning", "Utente locale creato ma non collegato alla scheda: collegalo a mano."
-        _audit(request, "ACCOUNT_PORTALE_CREATO", new_id, {"utente_legacy_id": legacy.id, "modo": "locale", "login": scelta.login})
+        _audit(request, "ACCOUNT_PORTALE_CREATO", new_id, {"utente_legacy_id": legacy.id, "modo": "locale", "origine": origine,
+                                                           "login": scelta.login})
         return "success", f"Creato l'utente locale «{scelta.login}»: al primo accesso dovrà cambiare la password."
     account, errore, irraggiungibile = verifica_account_ad(scelta.upn)
     if account is None:
         if irraggiungibile:
-            return "warning", "Active Directory non risponde: dipendente creato senza account, collegalo dopo dalla scheda."
+            if da_scheda:
+                return "warning", "Active Directory non risponde: account non collegato, riprova più tardi."
+            return "warning", ("Active Directory non risponde: dipendente creato senza account, collegalo dopo dal "
+                               "riquadro «Account portale» della scheda.")
         return "warning", f"Account AD non collegato: {errore}"
     upn = account.upn or scelta.upn
     legacy = UtenteLegacy.objects.filter(email__iexact=upn).first()
@@ -436,10 +463,24 @@ def applica_scelta(request, new_id: int, scelta: SceltaAccount, *, nome_completo
     if creato:
         legacy = UtenteLegacy.objects.create(nome=nome_completo or account.nome, email=upn, password=AD_MANAGED, ruolo="utente",
                                              ruolo_id=ruolo.id if ruolo else None, attivo=True, deve_cambiare_password=False)
-    elif _collegato_a([legacy.id]) or _blocco_privilegio(request, legacy, scelta):
+    elif _collegato_altrove(legacy.id, new_id) or _blocco_privilegio(request, legacy, scelta):
         return "warning", "Account AD non collegato: l'utente portale è già collegato o è privilegiato."
     if not _collega(new_id, legacy):
         return "warning", "Account AD non collegato: nel frattempo l'utente è stato collegato a un'altra scheda."
-    _audit(request, "ACCOUNT_PORTALE_COLLEGATO", new_id, {"utente_legacy_id": legacy.id, "modo": "ad", "upn": upn,
+    _audit(request, "ACCOUNT_PORTALE_COLLEGATO", new_id, {"utente_legacy_id": legacy.id, "modo": "ad", "upn": upn, "origine": origine,
                                                           "utente_creato": creato, "conferma_privilegiato": scelta.conferma_privilegiato})
     return "success", f"Collegato all'account AD «{upn}»."
+
+
+def scollega(request, scheda_id: int) -> tuple[str, str]:
+    """Scollega l'utente portale dalla scheda (``utente_id = NULL``): l'utente non viene cancellato."""
+    utente_id = AnagraficaDipendente.objects.filter(id=scheda_id).values_list("utente_id", flat=True).first()
+    if not utente_id:
+        return "info", "La scheda non ha un account portale collegato."
+    legacy = UtenteLegacy.objects.filter(pk=utente_id).first()
+    if AnagraficaDipendente.objects.filter(id=scheda_id, utente_id=utente_id).update(utente_id=None) != 1:
+        return "warning", "Account non scollegato: la scheda è stata modificata nel frattempo, ricarica la pagina."
+    _audit(request, "ACCOUNT_PORTALE_SCOLLEGATO", scheda_id, {"utente_legacy_id": int(utente_id), "origine": "scheda",
+                                                             "login": (legacy.email if legacy else "") or ""})
+    etichetta = (legacy.email or legacy.nome) if legacy else f"#{utente_id}"
+    return "success", f"Utente portale «{etichetta}» scollegato dalla scheda: l'utente non è stato cancellato."
