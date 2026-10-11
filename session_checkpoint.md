@@ -144,6 +144,11 @@ Data: 2026-09-29 (check produzione automazioni)
 - Worktree C:/Dev/pn-automazioni-check, feature/automazioni-check-produzione, base 5871b10a. Rapporto docs/AUDIT_AUTOMAZIONI_PROD_2026-09-29.md: 48 job, 46 registrati + 2 disabilitati, 25 regole, funzioni/stato/miglioramenti per modulo.
 - Produzione c4ead42 verificata via share e SELECT read-only. Broker 8.857 -> 8.887, q completamenti fermi alle 12:49 locali; eventi SQL smaltiti con monitor corrente. Nessuna modifica runtime, invio o dato personale esportato. WinRM non raggiungibile, causa worker da accertare.
 - Solo documentazione/registro/checkpoint; nessun file critico/backup, README/CHANGELOG invariati. Confronto schedule senza drift e copertura inventario verificati. Prossimo intervento: P0 cluster/broker con recupero controllato, poi collegamenti sorgenti e deduplica.
+Data: 2026-09-29 (merge Assenze e proposta multiruolo SGI)
+
+- Assenze integrate e pubblicate su origin/release/prod: 5871b10a (feature 3fd894b7), hash remoto verificato; 230 test/check/QA verdi, deploy separato.
+- Proposta multiruolo completata in docs/PROPOSTA_RUOLI_SGI.md, branch feature/sgi-multiruolo-proposta, worktree C:/Dev/pn-sgi-multiruolo. Verificati gruppi ACL gia presenti, precedenze, perimetri e provenienza contributi; nessun grant applicato.
+- Registro aggiornato. Vecchio worktree proposta con modifica utente alla prima riga preservato. Validare nomine/fonti e inventario runtime prima di attuare i collegamenti automatici.
 
 Data: 2026-09-29 (Assenze reparto, card e storico)
 
@@ -163,6 +168,10 @@ Data: 2026-09-29 (attuazione procedure aziendali audit, CAR e KPI)
 - MT CN 12: copertura annuale, indipendenza, preavviso, preparazione e PDF; MT CN 11: CAR con scadenze/approvazioni/proroghe/efficacia collegate al Registro OFI; MT CN 13: rilevazioni KPI e VR 30/70; import Turtle in proposte inattive. Migration SG 0008. Checklist `docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md` aggiornata.
 - 171 test SG/report_conformita/registro OFI verdi, check/migration drift/diff check verdi. QA browser KPI e mobile scuro, cinque Turtle reali letti senza import nel DB. Server QA fermato; nessun database aziendale, PDF privato, dipendenza, backup aggiuntivo o deploy.
 - Critici: tre route locali e binding ACL audit.view con controlli scrittura/approvazione aggiuntivi. Cross-modulo OFI autorizzato. README/changelog root e Django/registro aggiornati; rilascio con migrate 0008, bootstrap ACL, riavvio e validazione SQL Server/ruoli/catalogo. Discrepanze aziendali rimangono nella checklist.
+Data: 2026-09-29 (analisi preliminare ruoli SGI)
+
+- Vista/aggiunta voce AGENT_CHANGELOG analisi preliminare ruoli SGI; precedente ultima voce merge audit in release/prod del 2026-09-28. CHANGELOG consultato, nessuna modifica operativa introdotta.
+- Proposta in docs/PROPOSTA_RUOLI_SGI.md nel worktree C:/Dev/pn-sgi-ruoli-analisi; nessun cambiamento codice/ACL/DB. Validare fonti e nomine prima di attuare la matrice.
 
 Data: 2026-09-28 (merge audit in release/prod)
 
@@ -184,8 +193,17 @@ Data: 2026-09-28 (audit guidati e catalogo processi revisionato)
 - 83 verifiche verdi incluse QA render sintetiche; check Django, migration drift, secret hygiene e diff check verdi. Verifica browser chiaro/scuro/mobile di HTML Django. Nessun DB aziendale o nuova dipendenza; nessun backup aggiuntivo/deploy.
 - Critici: sole route locali e binding ACL esistenti del modulo, senza nuovi grant o modifiche globali. README/changelog root e Django/docs AI/registro aggiornati.
 - Rilascio separato: migrate SG e bootstrap ACL, riavvio, popolamento catalogo con processi reali, collaudo SQL Server/ruoli. Main indietro di 91 commit rispetto alla release: nessuna integrazione automatica di aree estranee.
+Data: 2026-09-28 (Dati e fonti / rettifiche Report conformita)
+
+- Vista/aggiunta voce AGENT_CHANGELOG `Report conformita: dati, fonti e rettifiche`; viste le voci precedenti fino al checkpoint SNMP 2026-09-27 e il delta CHANGELOG (fix indice SQL Server Contatori 0008). README, changelog root/Django e docs mirate aggiornati.
+- Worktree `temp/codex-report-dati`, branch `feature/report-conformita-dati`, base `34cb1219`. Pagina `/report-conformita/<slug>/dati/` su tutti i 16 report, fonti per campo, link sorgenti, rettifiche di celle/KPI con audit, storico/ripristino, concorrenza e sospensione su sorgente cambiata. Modifica sorgente tramite editor esistenti; rettifiche solo presentazione, incluse in web/PDF/Excel e KPI del riesame.
+- 39 test verdi, Django check/migration drift/diff check verdi. File critici: route locale e bootstrap ACL report (permesso rettifiche separato + binding, grant admin create-only); nessuna modifica globale o a DB aziendali. Nessun backup o deploy, checkout condiviso intatto.
+- Prossimo rilascio: integrare branch, `migrate report_conformita`, riavvio web; collaudare SQL Server e grant reali. Rettifiche di riga non ricalcolano KPI/semafori. QA visuale browser non eseguita (runtime integrato non disponibile); rendering di tutte le pagine coperto dai test.
+
 
 Data: 2026-09-27 (autodetect e dati stampante nei Dispositivi SNMP)
+
+- Commit funzione `b12a2112`; push NON riuscito: credenziali HTTPS GitHub assenti/non disponibili, nessun login gh. Remoto ancora `48af907c`. Nessun blocco di auto-review; serve autenticazione prima di ritentare. Worktree/branch conservati per completare la pubblicazione.
 
 - Vista/aggiunta voce AGENT_CHANGELOG `autodetect SNMP e consumabili nella scheda dispositivo`; README, changelog e docs aggiornati. Worktree dedicato `temp/codex-snmp-autodetect`, branch `feature/snmp-autodetect-dati`, base release `48af907c`.
 - Nuove sonde lette gia' durante il primo autodetect; profili senza sonde riparati al polling. Stampanti: contatori/toner Printer-MIB automatici in scheda, snapshot storico (migration 0013), valori sconosciuti ed errori espliciti.
@@ -212,7 +230,7 @@ Data: 2026-09-26 (integrazione centrale MFC/SNMP e reportistica in release/prod)
 - `d7ab908f` non conteneva i commit SNMP. Integrati `c463cb85`, `d052f2e3`, `716010f5`, `ff230d6f` sopra l'attuale `release/prod` `4776678e` nel worktree `temp/codex-release-contatori`, branch `integration/contatori-release-20260926`.
 - Conflitti esclusivamente documentali risolti conservando entrambe le linee; `docs/AUTOMAZIONI.md` rigenerato dalla fonte con 48 schedule, incluso `security_cycle` gia' in release e i tre nuovi job Contatori/Asset.
 - 118 test mirati verdi sul merge; system check incluso senza errori. Nessun DB o apparato reale toccato, nessun backup aggiuntivo. File critici integrati: route locali Contatori/Assets, binding ACL report e catalogo scheduler; nessun middleware/settings/auth/routing globale.
-- Deploy ancora separato: dopo pubblicazione/pacchetto eseguire `migrate`, `setup_q_schedules` e riavviare web/qcluster esistente. Il checkout condiviso e la cartella utente `parser pdf/` non sono stati modificati.
+- Merge `1b1f404f` pubblicato su `origin/release/prod`; deploy ancora separato. Dopo il nuovo pacchetto eseguire `migrate`, `setup_q_schedules` e riavviare web/qcluster esistente. Il checkout condiviso e la cartella utente `parser pdf/` non sono stati modificati.
 
 Data: 2026-09-26 (reportistica Asset programmata)
 

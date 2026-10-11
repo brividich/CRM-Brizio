@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -60,15 +61,30 @@ def preparazione_ai(request, pk):
 @login_required
 @transaction.atomic
 def car(request, pk):
-    if not _has_perm(request, PERM_AUDIT_VIEW):
-        return _nega(request, "Accesso non consentito.")
-    registro = get_object_or_404(RegistroOFI.objects.select_for_update(), pk=pk)
+    consulta = _has_perm(request, PERM_AUDIT_VIEW)
+    registro = RegistroOFI.objects.select_for_update().filter(pk=pk).first()
+    if registro is None:
+        if not consulta:
+            # Senza consultazione non si rivela quali registri esistono.
+            return _nega(request, "Accesso non consentito.")
+        raise Http404
     oggetto = AzioneCorrettivaAudit.objects.filter(registro=registro).first() or AzioneCorrettivaAudit(registro=registro, data_richiesta=timezone.localdate())
+    # Chi non consulta gli audit apre solo la CAR di cui è responsabile (o dell'azione del rilievo).
+    responsabile = bool(
+        (oggetto.pk and oggetto.responsabile_id == request.user.pk)
+        or AuditEsito.objects.filter(ofi=registro, responsabile_azione_id=request.user.pk).exists()
+    )
+    if not (consulta or responsabile):
+        return _nega(request, "Accesso non consentito.")
     approva = _has_perm(request, PERM_AUDIT_APPROVA)
     modifica = _has_perm(request, PERM_AUDIT_EDIT) or approva or (oggetto.pk and oggetto.responsabile_id == request.user.pk)
     modificabile = modifica and not oggetto.chiusa_il and not registro.is_chiuso
     azione = request.POST.get("azione", "salva")
     form = CarForm(request.POST if request.method == "POST" and azione == "salva" else None, instance=oggetto)
+    if not (_has_perm(request, PERM_AUDIT_EDIT) or approva):
+        # Il responsabile compila cause e azioni ma non si riassegna la CAR né attesta l'approvazione esterna.
+        for campo in ("responsabile", "origine_esterna", "approvazione_esterna"):
+            form.fields[campo].disabled = True
     proroga = ProrogaForm(request.POST if request.method == "POST" and azione == "proroga" else None)
     if request.method == "POST":
         if not modificabile:
@@ -81,7 +97,7 @@ def car(request, pk):
                 return redirect("sistema_gestione:procedura_car", pk=pk)
         if azione == "salva" and form.is_valid():
             oggetto = form.save(commit=False)
-            if set(form.changed_data) & {"responsabile", "causa", "contenimento", "azione", "analizzata_il", "origine_esterna", "approvazione_esterna"}:
+            if form.campi_analisi_cambiati or set(form.changed_data) & {"responsabile", "causa", "contenimento", "azione", "analizzata_il", "origine_esterna", "approvazione_esterna"}:
                 oggetto.approvata_da = None
                 oggetto.approvata_il = None
             oggetto.versione += 1
@@ -93,7 +109,7 @@ def car(request, pk):
         elif azione == "approva" and oggetto.pk:
             if not approva:
                 return _nega(request, "Approvazione riservata a RSGQ/Direzione.")
-            if not all([oggetto.causa.strip(), oggetto.contenimento.strip(), oggetto.azione.strip(), oggetto.analizzata_il]) or (oggetto.origine_esterna and not oggetto.approvazione_esterna.strip()):
+            if not all([oggetto.analisi_compilata, oggetto.contenimento.strip(), oggetto.azione.strip(), oggetto.analizzata_il]) or (oggetto.origine_esterna and not oggetto.approvazione_esterna.strip()):
                 messages.error(request, "Completa analisi, contenimento, azione, data e l'eventuale approvazione esterna.")
             else:
                 oggetto.approvata_da = request.user
@@ -115,6 +131,7 @@ def car(request, pk):
                     oggetto.motivo_proroga = proroga.cleaned_data["motivo"]
                     oggetto.proroga_da = request.user
                     oggetto.proroga_il = timezone.now()
+                    oggetto.escalation_il = None  # nuova scadenza: l'escalation riparte da zero
                     oggetto.versione += 1
                     oggetto.save()
                     registro.data_richiesta = data

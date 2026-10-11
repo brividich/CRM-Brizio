@@ -46,7 +46,7 @@ def _has_perm(request, code: str) -> bool:
 
 def _nega(request, testo: str = "Non hai i permessi per questa operazione."):
     messages.error(request, testo)
-    return redirect("sistema_gestione:index" if _has_perm(request, PERM_VIEW) else "dashboard:dashboard")
+    return redirect("sistema_gestione:index" if _has_perm(request, PERM_VIEW) else "dashboard")
 
 
 # ---------------------------------------------------------------------------

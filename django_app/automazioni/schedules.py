@@ -689,6 +689,16 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # AUDIT INTERNI — solleciti CAR in ritardo (analisi 1 mese, chiusura 3 mesi o proroga,
+        # verifica di efficacia programmata) e una sola escalation a RSGI oltre soglia.
+        "name": "sistema_gestione_car_solleciti",
+        "func": "sistema_gestione.tasks.run_car_solleciti",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "15 7 * * 1-5",     # giorni feriali alle 07:15
+        "repeats": -1,
+        "kwargs": {},
+    },
 ]
 
 

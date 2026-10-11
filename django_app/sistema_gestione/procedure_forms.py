@@ -7,8 +7,18 @@ from .services.procedure import risultato_kpi
 class PreparazioneForm(forms.ModelForm):
     class Meta:
         model = AuditPreparazione
-        fields = ["audit_precedenti", "car_cliente", "documenti_registrazioni", "obiettivi_carenze"]
-        widgets = {f: forms.Textarea(attrs={"rows": 3}) for f in fields}
+        fields = ["audit_precedenti", "car_cliente", "documenti_registrazioni", "obiettivi_carenze", "origine_ai"]
+        widgets = {f: forms.Textarea(attrs={"rows": 3}) for f in fields[:4]}
+        # Valorizzato da «Copia nei campi vuoti»: resta la traccia che il testo è partito da una bozza AI.
+        widgets["origine_ai"] = forms.HiddenInput
+
+    def clean_origine_ai(self):
+        # Una volta partita da una bozza AI la preparazione resta marcata anche se poi riscritta.
+        return bool(self.cleaned_data.get("origine_ai") or self.instance.origine_ai)
+
+
+_PERCHE = [f"perche_{n}" for n in range(1, 6)]
+_ISHIKAWA = [f"ishikawa_{k}" for k in AzioneCorrettivaAudit.ISHIKAWA]
 
 
 class CarForm(forms.ModelForm):
@@ -16,15 +26,42 @@ class CarForm(forms.ModelForm):
 
     class Meta:
         model = AzioneCorrettivaAudit
-        fields = ["data_richiesta", "responsabile", "origine_esterna", "approvazione_esterna", "causa", "contenimento", "azione", "analizzata_il", "evidenza_attuazione", "evidenza_efficacia"]
+        fields = ["data_richiesta", "responsabile", "origine_esterna", "approvazione_esterna", "analisi_metodo", "causa", "contenimento", "azione", "analizzata_il", "evidenza_attuazione", "evidenza_efficacia"]
         widgets = {f: forms.Textarea(attrs={"rows": 3}) for f in ["causa", "contenimento", "azione", "evidenza_attuazione", "evidenza_efficacia"]}
         widgets.update({f: forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d") for f in ["data_richiesta", "analizzata_il"]})
+        labels = {"causa": "Causa radice (sintesi o riferimento al documento esterno)"}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["versione"].initial = self.instance.versione
         if self.instance.pk:
             self.fields["data_richiesta"].disabled = True
+        perche = list(self.instance.analisi_perche or []) + [""] * 5
+        for n, nome in enumerate(_PERCHE):
+            self.fields[nome] = forms.CharField(label=f"Perché {n + 1}", required=False, max_length=500, initial=perche[n])
+        for nome in _ISHIKAWA:
+            chiave = nome.removeprefix("ishikawa_")
+            self.fields[nome] = forms.CharField(
+                label=AzioneCorrettivaAudit.ISHIKAWA[chiave], required=False, max_length=1000,
+                widget=forms.Textarea(attrs={"rows": 2}), initial=(self.instance.analisi_ishikawa or {}).get(chiave, ""),
+            )
+
+    def save(self, commit=True):
+        car = super().save(commit=False)
+        car.analisi_perche = [self.cleaned_data.get(n, "").strip() for n in _PERCHE]
+        if not any(car.analisi_perche):
+            car.analisi_perche = []
+        car.analisi_ishikawa = {
+            n.removeprefix("ishikawa_"): self.cleaned_data.get(n, "").strip()
+            for n in _ISHIKAWA if self.cleaned_data.get(n, "").strip()
+        }
+        if commit:
+            car.save()
+        return car
+
+    @property
+    def campi_analisi_cambiati(self) -> bool:
+        return bool(set(self.changed_data) & set(_PERCHE + _ISHIKAWA + ["analisi_metodo"]))
 
     def clean(self):
         dati = super().clean()
@@ -35,6 +72,13 @@ class CarForm(forms.ModelForm):
                 self.add_error(campo, "La data non puo essere futura.")
         if dati.get("analizzata_il") and dati.get("data_richiesta") and dati["analizzata_il"] < dati["data_richiesta"]:
             self.add_error("analizzata_il", "La valutazione non puo precedere la richiesta.")
+        metodo = dati.get("analisi_metodo")
+        if metodo == AzioneCorrettivaAudit.METODO_CINQUE_PERCHE and not any((dati.get(n) or "").strip() for n in _PERCHE):
+            self.add_error("perche_1", "Con il metodo 5 perché compila almeno il primo perché.")
+        if metodo == AzioneCorrettivaAudit.METODO_ISHIKAWA and not any((dati.get(n) or "").strip() for n in _ISHIKAWA):
+            self.add_error("analisi_metodo", "Con Ishikawa compila almeno una categoria 6M.")
+        if metodo == AzioneCorrettivaAudit.METODO_ESTERNA and not (dati.get("causa") or "").strip():
+            self.add_error("causa", "Indica il documento esterno che contiene l'analisi e la causa radice.")
         return dati
 
 
@@ -42,8 +86,9 @@ class CarForm(forms.ModelForm):
     def sezioni(self):
         return sezioni_form(self, [
             ("1. Richiesta e responsabilita", "data_richiesta responsabile origine_esterna approvazione_esterna"),
-            ("2. Cause e azioni", "causa contenimento azione analizzata_il"),
-            ("3. Prove di attuazione ed efficacia", "evidenza_attuazione evidenza_efficacia"),
+            ("2. Analisi delle cause", "analisi_metodo " + " ".join(_PERCHE) + " " + " ".join(_ISHIKAWA) + " causa"),
+            ("3. Contenimento e azione correttiva", "contenimento azione analizzata_il"),
+            ("4. Prove di attuazione ed efficacia", "evidenza_attuazione evidenza_efficacia"),
         ])
 
 

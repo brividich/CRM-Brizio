@@ -136,7 +136,7 @@ class AutomazioniAuditTests(AuditBase):
     @patch("sistema_gestione.automation_views._assigned_executor", return_value=True)
     def test_autosalvataggio_optimistic_lock_non_emette_ofi(self, _executor):
         esito = self.esito()
-        dati = self.dati_esito(esito="NC", requisito_atteso="Criterio", scostamento="Scarto", responsabile_azione=self.direzione.pk,
+        dati = self.dati_esito(esito="NC", gravita="MINORE", requisito_atteso="Criterio", scostamento="Scarto", responsabile_azione=self.direzione.pk,
                                scadenza_azione=(timezone.localdate()+timedelta(days=7)).isoformat())
         response = views.esito_bozza(_request(self.user, data=dati), esito.audit_id, esito.pk)
         self.assertEqual(response.status_code, 200)
@@ -148,6 +148,12 @@ class AutomazioniAuditTests(AuditBase):
         self.assertEqual(response.status_code, 409)
         esito.refresh_from_db()
         self.assertNotEqual(esito.evidenze, "Scrittura obsoleta")
+        # Prompt 08: una NC entra nel MOD.174 solo con un'evidenza oggettiva allegata.
+        service.salva_esito(esito, utente=self.user)
+        esito.refresh_from_db()
+        self.assertIsNone(esito.ofi_id)
+        AuditAllegato.objects.create(esito=esito, file="evidenza.pdf", nome="evidenza.pdf", sha256="a" * 64,
+                                     dimensione=1, caricato_da=self.user)
         service.salva_esito(esito, utente=self.user)
         esito.refresh_from_db()
         self.assertIsNotNone(esito.ofi_id)
@@ -266,7 +272,7 @@ class AutomazioniAuditTests(AuditBase):
     def test_editor_e_priorita_renderizzano(self,_executor,_perm):
         esito=self.esito()
         self.assertContains(views.esito_editor(_request(self.user,method="get"),esito.audit_id,esito.pk),"data-audit-autosave")
-        self.assertContains(views.priorita(_request(self.user,method="get")),"priorita-v1")
+        self.assertContains(views.priorita(_request(self.user,method="get")),"priorita-v2")
 
     @patch("sistema_gestione.automation_views._has_perm", return_value=True)
     def test_revisione_archivia_pdf_e_azzera_firme(self,_perm):

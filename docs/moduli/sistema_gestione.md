@@ -24,7 +24,31 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 - **ACL**: oltre ai permessi SoA, `.audit.view`, `.audit.edit`, `.audit.esegui`, `.audit.approva`; ogni route ha binding canonico e controllo fail-closed nella view. Default: admin tutto, qualità consultazione; assegnazioni operative da Admin › ACL.
 - **Report conformità**: «Dichiarazione di applicabilità» nell'area IT e «Audit interni» nell'area Qualità, entrambi inclusi nel pacchetto del riesame. I controlli SoA 5.35 e 5.36 linkano l'evidenza viva degli audit.
 
+- **Rapporto emesso e integrità:** alla chiusura (valutazione RDD) il MOD.035B è generato una sola volta e archiviato con SHA-256 (versione «Emissione»); i download successivi consegnano quel file. Prima della chiusura il PDF è un'anteprima con filigrana «BOZZA - NON EMESSO». Direzione ≠ Lead per il piano, RDD ≠ auditor per il rapporto. Copie firmate: piano dopo l'approvazione, rapporto dopo la chiusura, sostituzione solo da approvatore.
+- **Rilievi:** esiti Conforme, Punto di forza, Osservazione, OFI, NC (maggiore/minore), N/A, con clausola. Una NC entra nel MOD.174 solo con gravità ed evidenza allegata; NC maggiore = priorità Alta. Le evidenze si scaricano con un ruolo sull'audit o con la gestione del programma.
+- **CAR e chiusura:** analisi cause 5 perché / Ishikawa 6M / documento esterno (schema delle NC di produzione). L'audit si chiude solo con il piano azioni approvato per ogni NC (`sistema_gestione.audit_chiusura_richiede_car_approvate`, default attivo). Solleciti giornalieri al responsabile ed escalation a RSGI oltre `sistema_gestione.car_escalation_giorni` (default 15) con il job `sistema_gestione_car_solleciti`; destinatari `sistema_gestione.audit_email_rsgi`.
+
+- **Programma basato sul rischio:** cicli triennali con copertura per processo e clausola (`/sistema-gestione/audit/cicli/`); calendario mensile (`/audit/calendario/`); priorità `priorita-v2` con NC, OFI, requisiti cliente ed efficacia; frequenza raccomandata entro i 12 mesi di MT CN 12; rifiuto motivato del programma, proponente ≠ approvatore. Norme: EN 9100, ISO 45001, ISO 14001, ISO/IEC 27001, UNI/PdR 125.
+- **Auditor e indipendenza:** qualifica con scadenza e norme abilitate; deroga d'indipendenza solo se ammessa nelle impostazioni (`/audit/impostazioni/`) e approvata da un RDD esterno al team.
+
+- **Esecuzione da tablet:** editor domanda per domanda con navigazione, esiti a pulsanti, foto dalla fotocamera e caricamento senza ricaricare. Le modifiche restano sul dispositivo finché il server non le conferma; i salvataggi si ritentano da soli quando la rete torna.
+
+- **Preparazione e inviti:** domande di follow-up dai rilievi ancora aperti; persone e agenda proposte dalle schede processo; invito Outlook con conferma degli auditati (Graph) oppure email con `.ics`; annullamento motivato che libera la cella del programma; numerazione RAIS/RAI/STR per tipo.
+
+- **Cruscotto e report:** cruscotto annuale (avanzamento, rilievi per processo/clausola/gravità/mese, tempo medio CAR, % efficacia, ricorrenze, copertura clausole per norma); export xlsx dei rilievi; allegato «Rilievi e azioni» nel MOD.035B, sezioni opzionali da Impostazioni.
+- **Auditato:** `/sistema-gestione/audit/miei-rilievi/` mostra solo i propri rilievi a rapporto firmato; il responsabile apre la propria CAR. Permesso `sistema_gestione.audit.miei_rilievi`, concesso a tutti i ruoli.
+
 ## Note di rilascio
+
+**Audit interni professionali — fasi 6-7 (Unreleased, prompt 08):** cruscotto, export rilievi, allegato Rilievi e azioni, «I miei rilievi». Deploy: `migrate sistema_gestione` 0014.
+
+**Audit interni professionali — fase 5 (Unreleased, prompt 08):** follow-up, piano guidato, invito Outlook con conferma, annullamento, numerazione per tipo. Deploy: `migrate sistema_gestione` 0013; opzionale `sistema_gestione.audit_organizer_email`.
+
+**Audit interni professionali — fase 4 (Unreleased, prompt 08):** esecuzione da tablet, fotocamera, tolleranza alla rete instabile. Deploy: `migrate sistema_gestione` 0012.
+
+**Audit interni professionali — fase 3 (Unreleased, prompt 08):** cicli triennali, ISO 14001, frequenza raccomandata, calendario, rifiuto del programma, qualifica con scadenza, deroga configurabile, pagina Impostazioni. Deploy: `migrate sistema_gestione` 0011.
+
+**Audit interni professionali — fasi 1-2 (Unreleased, prompt 08):** rapporto emesso immutabile con SHA-256, firme separate, rilievi classificati, CAR 5 perché/Ishikawa, chiusura condizionata e solleciti. Piano completo in [gap analysis](../specs/sgi_audit_interni_gap_analysis.md). Deploy: `migrate sistema_gestione` 0009-0010 e `setup_q_schedules`. Configurare `sistema_gestione.audit_email_rsgi` per l'escalation.
 
 **Procedure aziendali (Unreleased):** copertura annuale e preparazione audit MT CN 12, CAR MT CN 11 nel registro trasversale, indicatori MT CN 13 e import controllato dei Turtle. [Checklist e avanzamento](../../docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md). Richiede migrazione SG 0008 e bootstrap ACL; nessuna nuova dipendenza.
 

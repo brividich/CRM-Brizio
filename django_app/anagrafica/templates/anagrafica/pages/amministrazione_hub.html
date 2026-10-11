@@ -1,0 +1,90 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Amministrazione | Anagrafica HR{% endblock %}
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<style>
+.adh-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px; }
+.adh-card { display:flex; flex-direction:column; gap:4px; padding:14px 16px; border:1px solid var(--fmd-line); border-radius:12px; text-decoration:none; background:var(--fmd-card, #fff); transition:border-color .15s; }
+.adh-card:hover, .adh-card:focus-visible { border-color:var(--fmd-cyan); }
+.adh-card strong { color:var(--fmd-navy); font-size:14px; }
+.adh-card span { color:var(--fmd-muted); font-size:12.5px; }
+.adh-section-title { font-size:13px; font-weight:700; color:var(--fmd-navy); margin:18px 0 8px; }
+.adh-code { font-family:ui-monospace, SFMono-Regular, Consolas, monospace; font-size:12px; }
+body.theme-dark .adh-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .adh-card strong, body.theme-dark .adh-section-title { color:var(--text); }
+body.theme-dark .adh-card span { color:var(--text-light); }
+</style>
+{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd"><div class="fmd-wrap">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-pagehead">
+    <div>
+      <h1>Amministrazione anagrafica</h1>
+      <p class="fmd-ph-sub">Configurazione, viste, cataloghi, import e manutenzione in un posto solo. Vedi solo le pagine a cui hai accesso.</p>
+    </div>
+  </div>
+
+  <nav class="fmd-chips" aria-label="Schede dell'amministrazione" style="margin-bottom:14px;">
+    {% for codice, etichetta in schede %}
+      <a class="fmd-chip{% if codice == scheda %} fmd-on{% endif %}" href="?scheda={{ codice }}"{% if codice == scheda %} aria-current="page"{% endif %}>{{ etichetta }}</a>
+    {% endfor %}
+  </nav>
+
+  <section class="fmd-panel" style="padding:16px;">
+    {% if voci %}
+    <div class="adh-grid">
+      {% for v in voci %}
+      <a class="adh-card" href="{{ v.url }}"><strong>{{ v.titolo }}</strong><span>{{ v.descrizione }}</span></a>
+      {% endfor %}
+    </div>
+    {% elif scheda != "manutenzione" %}
+    <div class="fmd-empty"><div class="fmd-et">Nessuna pagina disponibile</div><div class="fmd-em">Non hai accesso alle pagine di questa scheda.</div></div>
+    {% endif %}
+
+    {% if scheda == "viste" %}
+      <div class="adh-section-title">Viste attive</div>
+      <div class="fmd-tablewrap"><table class="fmd-table">
+        <thead><tr><th>Vista</th><th>Codice</th><th>Predefinita</th></tr></thead>
+        <tbody>
+        {% for v in viste %}<tr><td>{{ v.nome }}</td><td class="adh-code">{{ v.codice }}</td><td>{% if v.predefinita %}Sì{% else %}—{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="3">Nessuna vista attiva.</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+    {% endif %}
+
+    {% if scheda == "import" %}
+      <div class="adh-section-title">Storico degli import</div>
+      <div class="fmd-tablewrap"><table class="fmd-table">
+        <thead><tr><th>Quando</th><th>Fonte</th><th>Chi</th><th>File</th><th class="fmd-r">Righe ok</th><th class="fmd-r">Scartate</th><th>Note</th><th class="fmd-r">Scarto</th></tr></thead>
+        <tbody>
+        {% for r in storico %}<tr>
+          <td>{{ r.quando|date:"d-m-Y H:i" }}</td>
+          <td>{{ r.fonte }}</td>
+          <td>{{ r.chi }}</td>
+          <td>{{ r.file|default:"—" }}</td>
+          <td class="fmd-r">{{ r.ok }}</td>
+          <td class="fmd-r">{{ r.scartate }}</td>
+          <td>{{ r.nota|default:""|truncatechars:80 }}</td>
+          <td class="fmd-r">{% if r.tipo and r.n_scarti %}<a href="{% url 'anagrafica:import_scarti_export' r.tipo r.pk %}">Scarica ({{ r.n_scarti }})</a>{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}<tr><td colspan="8">Nessun import registrato.</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+      <p class="fmd-ph-sub" style="margin-top:8px;">Retribuzioni e cedolini compaiono solo a chi ha il permesso HR. Il dettaglio dello scarto è disponibile per gli import fatti da questa versione in poi.</p>
+    {% endif %}
+
+    {% if scheda == "manutenzione" %}
+      <p class="fmd-ph-sub">Operazioni di manutenzione dei dati: si eseguono dal server come comandi di gestione (prima senza <span class="adh-code">--apply</span>, per vedere cosa cambierebbe). La pagina non le esegue.</p>
+      <div class="fmd-tablewrap"><table class="fmd-table">
+        <thead><tr><th>Comando</th><th>A cosa serve</th></tr></thead>
+        <tbody>{% for nome, descr in comandi %}<tr><td class="adh-code">manage.py {{ nome }}</td><td>{{ descr }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    {% endif %}
+  </section>
+</div></div>
+{% endblock %}

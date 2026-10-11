@@ -3,7 +3,7 @@ from . import procedure_views
 
 from django.urls import path
 
-from . import audit_views, views, processi_views, automation_views
+from . import audit_views, views, processi_views, automation_views, programma_views, report_views, miei_rilievi_views
 
 app_name = "sistema_gestione"
 
@@ -25,6 +25,17 @@ urlpatterns = [
     path("audit/<int:pk>/rapporto/prepara/", automation_views.prepara_rapporto, name="audit_prepara_rapporto"),
     path("audit/<int:pk>/rapporto/revisiona/", automation_views.revisiona_rapporto, name="audit_revisiona_rapporto"),
     path("audit/<int:pk>/versione/<int:versione_pk>/<str:tipo>/", automation_views.versione_download, name="audit_versione_download"),
+    path("audit/cicli/", programma_views.cicli, name="programma_cicli"),
+    path("audit/cicli/<int:pk>/", programma_views.ciclo_dettaglio, name="programma_ciclo"),
+    path("audit/calendario/", programma_views.calendario, name="audit_calendario"),
+    path("audit/impostazioni/", programma_views.impostazioni, name="audit_impostazioni"),
+    path("audit/programmi/<int:pk>/respingi/", programma_views.programma_rifiuta, name="programma_rifiuta"),
+    path("audit/<int:pk>/deroga-indipendenza/approva/", programma_views.audit_approva_deroga, name="audit_approva_deroga"),
+    path("audit/<int:pk>/annulla/", programma_views.audit_annulla, name="audit_annulla"),
+    path("audit/cruscotto/", report_views.cruscotto, name="audit_cruscotto"),
+    path("audit/rilievi/export/", report_views.rilievi_export, name="audit_rilievi_export"),
+    path("audit/miei-rilievi/", miei_rilievi_views.miei_rilievi, name="audit_miei_rilievi"),
+    path("audit/<int:pk>/conferme/aggiorna/", programma_views.audit_conferme_aggiorna, name="audit_conferme_aggiorna"),
 
     path("", views.index, name="index"),
     path("soa/", views.soa, name="soa"),

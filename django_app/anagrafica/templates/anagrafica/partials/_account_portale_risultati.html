@@ -1,0 +1,57 @@
+<div class="dc-acc-results" data-account-results>
+  {% if not cercato %}
+    <div class="dc-acc-note">Compila email oppure nome e cognome nello step «Dati anagrafici», poi cerca.</div>
+  {% endif %}
+
+  <div class="dc-area-title">Utenti portale esistenti (stessa email o codice fiscale)</div>
+  {% if portale %}
+    <ul class="dc-acc-list">
+      {% for u in portale %}
+      <li class="dc-acc-item">
+        <label class="dc-acc-pick">
+          <input type="radio" name="account_pick" value="collega:{{ u.id }}" {% if u.collegato_a %}disabled{% endif %}
+                 data-tipo="collega" data-id="{{ u.id }}" data-privilegiato="{{ u.privilegiato }}">
+          <span><strong>{{ u.nome|default:u.login }}</strong> · {{ u.login }}
+            {% if u.ad %}<span class="dc-acc-badge">AD</span>{% else %}<span class="dc-acc-badge">locale</span>{% endif %}
+            {% if not u.attivo %}<span class="dc-acc-badge is-warn">non attivo</span>{% endif %}
+          </span>
+        </label>
+        <div class="dc-acc-meta">Corrispondenza: {{ u.corrispondenza|join:", " }}
+          {% if u.collegato_a %} · <span class="is-warn">già collegato a un'altra scheda</span>{% endif %}
+          {% if u.privilegiato %} · <span class="is-warn">account privilegiato ({{ u.privilegiato }}): serve la conferma di un superuser</span>{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="dc-acc-note">Nessun utente portale con la stessa email o lo stesso codice fiscale.</div>
+  {% endif %}
+
+  <div class="dc-area-title">Active Directory (sola lettura)</div>
+  {% if esito_ad.stato == "ok" %}
+    {% if esito_ad.messaggio %}<div class="dc-acc-note">{{ esito_ad.messaggio }}</div>{% endif %}
+    {% if ambiguo %}<div class="dc-acc-alert is-warn">Più account corrispondono: verifica l'UPN prima di collegare.</div>{% endif %}
+    {% if esito_ad.risultati %}
+      <ul class="dc-acc-list">
+        {% for a in esito_ad.risultati %}
+        <li class="dc-acc-item">
+          <label class="dc-acc-pick">
+            <input type="radio" name="account_pick" value="ad:{{ a.upn }}" data-tipo="ad" data-upn="{{ a.upn }}"
+                   {% if not a.abilitato or not a.in_allowlist or not a.upn %}disabled{% endif %}>
+            <span><strong>{{ a.nome|default:a.sam }}</strong> · {{ a.upn|default:"(senza UPN)" }}{% if a.mail and a.mail != a.upn %} · {{ a.mail }}{% endif %}
+              {% if a.abilitato %}<span class="dc-acc-badge is-ok">abilitato</span>{% else %}<span class="dc-acc-badge is-warn">disabilitato in AD</span>{% endif %}
+            </span>
+          </label>
+          <div class="dc-acc-meta">Gruppi: {{ a.gruppi|join:", "|default:"nessuno" }}
+            {% if not a.in_allowlist %} · <span class="is-warn">fuori dai gruppi autorizzati al portale: non collegabile</span>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    {% elif cercato and not esito_ad.messaggio %}
+      <div class="dc-acc-note">Nessun account AD trovato.</div>
+    {% endif %}
+  {% else %}
+    <div class="dc-acc-alert {% if esito_ad.stato == 'non_configurato' %}is-info{% else %}is-warn{% endif %}">{{ esito_ad.messaggio }}</div>
+  {% endif %}
+</div>

@@ -102,7 +102,7 @@ def _registro_nc_ofi(params: ReportParams) -> ReportResult:
                 d(r.data_apertura), d(r.data_richiesta), d(r.data_chiusura),
                 giorni if giorni is not None else "", r.owner_processo or r.proprietario,
             ],
-            tone,
+            tone, source=r
         )
     result.notes = [
         "Righe: tutte le voci aperte, più quelle aperte nel periodo e già chiuse.",
@@ -177,7 +177,7 @@ def _albo_fornitori(params: ReportParams) -> ReportResult:
                 v.qualita if v else "", v.puntualita if v else "", v.comunicazione if v else "",
                 media, per_periodo.get(f.id, 0), certificazioni.get(f.id, 0), esito,
             ],
-            tone,
+            tone, source=f
         )
 
     totale = len(fornitori)
@@ -236,7 +236,7 @@ def _verifiche_periodiche(params: ReportParams) -> ReportResult:
         result.add_row(
             [v.name, str(v.supplier) if v.supplier_id else "", v.frequency_months,
              d(v.last_verification_date), d(v.next_verification_date), asset_label, stato],
-            tone,
+            tone, source=v
         )
     totale = sum(counts.values())
     result.kpis = [
@@ -305,7 +305,7 @@ def _presa_visione(params: ReportParams) -> ReportResult:
         result.add_row(
             [rev.document.code, rev.document.title, rev.revision_code, d(rev.effective_date or rev.revision_date),
              s["tot"], s["ok"], pct(s["ok"], s["tot"]), s["late"]],
-            tone,
+            tone, source=rev
         )
     result.kpis = [
         Kpi("Documenti in vigore", len(revisioni)),
@@ -375,7 +375,7 @@ def _manutenzione(params: ReportParams) -> ReportResult:
         result.add_row(
             [categoria, g["pianificate"], g["eseguite"], g["in_tempo"], g["scadute"],
              pct(g["in_tempo"], dovute), round(g["fermo"] / 60, 1)],
-            tone,
+            tone, key="categoria:" + categoria
         )
     dovute = tot["eseguite"] + tot["scadute"]
     result.kpis = [
@@ -462,7 +462,7 @@ def _audit_interni(params: ReportParams) -> ReportResult:
             audit.numero, d(audit.data_inizio), audit.get_tipo_display(), short(audit.processi), audit.norme_label,
             audit.lead_auditor.nome, audit.get_stato_display(), n_ofi, n_nc,
             d(audit.rapporto_valutato_rdd_il),
-        ], tone)
+        ], tone, source=audit)
     result.notes = [
         "KPI MT CN 12 §7: verifiche effettuate (audit chiusi) / celle PR-RP-ST del programma nel periodo.",
         "OFI e NC sono conteggiate dalla checklist del rapporto e collegate al Registro OFI MOD.174.",

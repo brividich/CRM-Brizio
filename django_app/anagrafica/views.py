@@ -160,6 +160,8 @@ from .services.visite import (
 )
 from .services import conformita as conformita_service
 from .services import onboarding as onboarding_service
+from .services import account_portale
+from . import views_account
 from .services import mansionario as mansionario_service
 from .acl_bootstrap import (
     PERM_DOCUMENTI_RISERVATI,
@@ -776,6 +778,18 @@ def ruoli_ricoperti_map(legacy_ids: list[int]) -> dict[int, list[dict]]:
 
 @login_required
 def dipendenti_list(request):
+    from .services import colonne_elenco, viste_elenco
+
+    # Vista configurabile (prompt 03): colonne dal registro, filtrate dai permessi dell'utente.
+    vista = viste_elenco.vista_corrente(request)
+    if (vista and vista.filtri and request.GET.get("vf") != "0"
+            and not any(k in request.GET for k in ("q", "reparto", "area", "tipologia_contratto"))):
+        filtri = request.GET.copy()
+        for chiave, valore in vista.filtri.items():
+            if chiave in ("reparto", "area", "tipologia_contratto") and valore:
+                filtri[chiave] = valore
+        request.GET = filtri
+    colonne = viste_elenco.colonne_richieste(request, vista)
     q = request.GET.get("q", "").strip()
     reparto = request.GET.get("reparto", "").strip()
     area_filter = request.GET.get("area", "").strip()
@@ -821,6 +835,20 @@ def dipendenti_list(request):
     # (fm-table-enhanced.js), che opera sulle righe nel DOM. Con il volume reale
     # dell'anagrafica (~150 dipendenti) carichiamo tutto in un blocco così filtro
     # e ordinamento coprono l'intero elenco e non solo la pagina corrente.
+    # Ordinamento all'apertura scelto nella vista (solo su una colonna che l'utente può vedere).
+    if vista and vista.ordinamento and not request.GET.get("sort"):
+        da_ordinare = colonne_elenco.colonne_da_specifica(viste_elenco.specifica([vista.ordinamento]), request)
+        if da_ordinare:
+            chiave_ord = da_ordinare[0]["colonna"].chiave
+            colonne_elenco.arricchisci(rows, [da_ordinare[0]["colonna"]])
+            pieni = [r for r in rows if (r.get("valori") or {}).get(chiave_ord, ("", None))[1] not in (None, "")]
+            vuoti = [r for r in rows if r not in pieni]
+            try:
+                pieni.sort(key=lambda r: r["valori"][chiave_ord][1])
+            except TypeError:
+                pieni.sort(key=lambda r: str(r["valori"][chiave_ord][1]))
+            rows = pieni + vuoti
+
     paginator = Paginator(rows, 500)
     page = paginator.get_page(request.GET.get("page"))
 
@@ -868,6 +896,7 @@ def dipendenti_list(request):
     ruoli_map = ruoli_ricoperti_map([int(dip.get("id") or 0) for dip in list(page.object_list)])
     for dip in list(page.object_list):
         dip["ruoli"] = ruoli_map.get(int(dip.get("id") or 0), [])
+    colonne_elenco.arricchisci(list(page.object_list), [c["colonna"] for c in colonne])
 
     status_stats = count_anagrafica_statuses()
     tipologie_contratto_list = list(
@@ -887,6 +916,11 @@ def dipendenti_list(request):
         "n_attivi": status_stats["active"],
         "n_non_attivi": status_stats["inactive"],
         "n_ex": len(cessati_ids),
+        "vista": vista,
+        "viste": viste_elenco.viste_per_utente(request),
+        "colonne": colonne,
+        "puo_gestire_viste": _is_anagrafica_admin(request),
+        "table_id": "anagrafica.dipendenti.list" + (f":{vista.codice}" if vista else ""),
     })
 
 
@@ -1001,8 +1035,24 @@ def dipendente_create(request):
             if k not in ("csrfmiddlewaretoken",) and v and k in AnagraficaAziendaleForm().fields
         )
 
+        scelta_account = account_portale.scelta_da_post(request.POST)
+        errori_account: list[str] = []
         if legacy_form.is_valid():
+            errori_account = account_portale.valida_scelta(
+                request, scelta_account,
+                email=(legacy_form.cleaned_data.get("email_notifica") or legacy_form.cleaned_data.get("email") or "").strip(),
+                codice_fiscale=(request.POST.get("codice_fiscale") or "").strip(),
+                attivo=bool(legacy_form.cleaned_data.get("attivo")),
+            )
+            for _errore in errori_account:
+                messages.error(request, _errore)
+        creazione_token = views_account.token_creazione(request.POST.get("creazione_token"))
+
+        if legacy_form.is_valid() and not errori_account:
             data = legacy_form.cleaned_data
+            duplicato = views_account.prenota_creazione(request, creazione_token)
+            if duplicato is not None:
+                return duplicato
             try:
                 _nome = (data.get("nome") or "").strip()
                 _cognome = (data.get("cognome") or "").strip()
@@ -1063,45 +1113,19 @@ def dipendente_create(request):
                         area_aziendale_id=_area_az_id, saved_by=request.user,
                     )
 
-                # Crea automaticamente account portale (solo se non già collegato).
-                # Solo per dipendenti ATTIVI: un dipendente inserito come inattivo
-                # (storico, cessato, non ancora in forza) non deve ottenere un
-                # account con password iniziale prevedibile che nessuno presidia.
-                if new_id and _alias and bool(data.get("attivo")):
-                    if not row.get("utente_id"):
-                        try:
-                            from django.db.models import Q as _Q
-                            from werkzeug.security import generate_password_hash as _gph
-                            _existing_utente = UtenteLegacy.objects.filter(
-                                _Q(email__iexact=_alias) | _Q(email__istartswith=f"{_alias}@")
-                            ).order_by("id").first()
-                            if _existing_utente is not None:
-                                # Utente LDAP o locale già presente: collega senza creare
-                                AnagraficaDipendente.objects.filter(id=new_id).update(utente_id=_existing_utente.id)
-                            else:
-                                _ruolo_utente = Ruolo.objects.filter(nome__iexact="utente").first()
-                                _anno_nascita = None
-                                if form_civile.is_valid():
-                                    _dn = form_civile.cleaned_data.get("data_nascita")
-                                    if _dn:
-                                        _anno_nascita = _dn.year
-                                _pwd_iniziale = str(_anno_nascita) if _anno_nascita else f"Portale{django_timezone.localdate().year}"
-                                _nome_completo = naming.nome_completo(data.get("nome"), data.get("cognome"))
-                                _nuovo_utente = UtenteLegacy.objects.create(
-                                    nome=_nome_completo,
-                                    email=_alias,
-                                    password=_gph(_pwd_iniziale),
-                                    ruolo="utente",
-                                    ruolo_id=_ruolo_utente.id if _ruolo_utente else None,
-                                    attivo=True,
-                                    deve_cambiare_password=True,
-                                )
-                                AnagraficaDipendente.objects.filter(id=new_id).update(utente_id=_nuovo_utente.id)
-                        except Exception:
-                            logger.warning(
-                                "Creazione automatica account portale fallita per dipendente %s", new_id,
-                                exc_info=True,
-                            )
+                # Account portale: scelta esplicita dello step «Account portale», rivalidata dal
+                # service (UPN/email esatti, allowlist AD, account privilegiati solo con conferma di
+                # un superuser, audit). Nessun collegamento per alias né password prevedibili.
+                if new_id:
+                    try:
+                        _livello, _testo = account_portale.applica_scelta(
+                            request, new_id, scelta_account,
+                            nome_completo=naming.nome_completo(data.get("nome"), data.get("cognome")),
+                        )
+                        getattr(messages, _livello)(request, _testo)
+                    except Exception:
+                        logger.warning("Account portale non applicato per dipendente %s", new_id, exc_info=True)
+                        messages.warning(request, "Account portale non collegato per un errore: collegalo dalla scheda del dipendente.")
 
                 # Assegna ruoli operativi scelti nel form (multiselect "ruoli_operativi_ids")
                 if new_id:
@@ -1239,21 +1263,25 @@ def dipendente_create(request):
                     except Exception:
                         logger.warning("Registrazione formazione pregressa fallita per %s", new_id, exc_info=True)
 
+                views_account.completa_creazione(request, creazione_token, new_id)
                 nome_disp = naming.nome_completo(data.get("nome"), data.get("cognome")) or "Dipendente"
                 messages.success(request, f'Dipendente "{nome_disp}" creato.')
                 if new_id:
                     return redirect("anagrafica:dipendente_detail", legacy_id=new_id)
                 return redirect("anagrafica:dipendenti_list")
             except Exception as exc:
+                views_account.annulla_creazione(request, creazione_token)
                 logger.exception("Errore creazione dipendente")
                 messages.error(request, f"Impossibile creare il dipendente: {exc}")
-        else:
+        elif not errori_account:
             messages.error(request, "Controlla i campi obbligatori nella sezione Dati account.")
     else:
         legacy_form = DipendenteLegacyForm(initial={"attivo": True})
         form_civile = AnagraficaCivileForm()
         form_aziendale = AnagraficaAziendaleForm()
         formset_figli = FiglioACaricoFormSet(prefix="figli")
+        creazione_token = views_account.token_creazione("")
+        scelta_account = account_portale.SceltaAccount()
 
     reparti_catalogo = list(
         Reparto.objects.filter(is_active=True).order_by("nome")
@@ -1278,6 +1306,11 @@ def dipendente_create(request):
         "livelli_contrattuali": list(LivelloContrattuale.objects.filter(is_active=True).order_by("ordine", "codice")),
         "ruoli_operativi_catalogo": list(RuoloOperativo.objects.filter(is_active=True).order_by("nome")),
         "formazione_sicurezza_corsi": formazione_sicurezza_corsi,
+        "creazione_token": creazione_token,
+        "step_iniziale": 3 if (request.method == "POST" and errori_account) else 1,
+        "scelta_account": scelta_account,
+        "account_scelte": account_portale.SCELTE,
+        "puo_confermare_privilegiati": bool(getattr(request.user, "is_superuser", False)),
     })
 
 
@@ -5358,8 +5391,9 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
             prev_voci[(voce.tax_code, voce.pay_item_key)] = voce.importo
 
     ok = err = 0
+    scarti: list[dict] = []
     voci_to_create: list[VoceRetributiva] = []
-    for row in rows:
+    for n_riga, row in enumerate(rows, start=2):
         try:
             tax_code = (row.get("tax_code") or "").strip().upper()
             pay_item = (row.get("pay_item") or "").strip()
@@ -5367,6 +5401,7 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
             date_str = (row.get("date") or "").strip()
             if not tax_code or not pay_item:
                 err += 1
+                scarti.append({"riga": n_riga, "chiave": tax_code, "motivo": "Codice fiscale o voce mancante"})
                 continue
             importo = Decimal(value_str)
             data_riga = datetime.strptime(date_str, "%d/%m/%Y").date()
@@ -5393,11 +5428,13 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
             ok += 1
         except (InvalidOperation, ValueError):
             err += 1
+            scarti.append({"riga": n_riga, "chiave": tax_code, "motivo": "Importo o data non validi"})
 
     VoceRetributiva.objects.bulk_create(voci_to_create)
     importazione.righe_ok = ok
     importazione.righe_errore = err
-    importazione.save(update_fields=["righe_ok", "righe_errore"])
+    importazione.scarti = scarti[:2000]
+    importazione.save(update_fields=["righe_ok", "righe_errore", "scarti"])
     return importazione
 
 
@@ -8827,11 +8864,13 @@ def _import_xlsx_cedolini(file_obj, user, file_nome: str) -> ImportazioneCedolin
                 righe_totali=len(righe),
             )
             ok = err = nf = 0
-            for cf, row in righe:
+            scarti: list[dict] = []
+            for n_riga, (cf, row) in enumerate(righe, start=2):
                 try:
                     lid = cf_to_lid.get(cf)
                     if lid is None:
                         nf += 1
+                        scarti.append({"riga": n_riga, "chiave": cf, "motivo": "Codice fiscale non in anagrafica (saldo importato senza scheda)"})
                     SaldoCedolino.objects.update_or_create(
                         tax_code=cf,
                         data_competenza=dt,
@@ -8861,12 +8900,14 @@ def _import_xlsx_cedolini(file_obj, user, file_nome: str) -> ImportazioneCedolin
                     ok += 1
                 except Exception:
                     err += 1
+                    scarti.append({"riga": n_riga, "chiave": cf, "motivo": "Errore di salvataggio (dettaglio nel log applicativo)"})
                     logger.exception("Errore import cedolino CF=%s mese=%s", cf, dt)
 
             imp.righe_ok = ok
             imp.righe_errore = err
             imp.righe_non_trovate = nf
-            imp.save(update_fields=["righe_ok", "righe_errore", "righe_non_trovate"])
+            imp.scarti = scarti[:2000]
+            imp.save(update_fields=["righe_ok", "righe_errore", "righe_non_trovate", "scarti"])
             totale_ok += ok
             totale_err += err
             totale_nf += nf

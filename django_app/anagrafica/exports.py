@@ -33,6 +33,9 @@ class ExportSpec:
     permission: Callable[[HttpRequest], bool]
     filters_label: Callable[[HttpRequest], str] = lambda request: ""
     sheet_title: str = "Dati"
+    # Colonne che dipendono dalla richiesta (vista scelta e permessi dell'utente): se presente
+    # sostituisce ``columns``. Una colonna non permessa non arriva mai nel file.
+    columns_fn: Callable[[HttpRequest], list[tuple[str, str]]] | None = None
 
 
 EXPORT_SPECS: dict[str, ExportSpec] = {}
@@ -71,6 +74,13 @@ def _actor_name(request: HttpRequest) -> str:
     return (getattr(user, "get_full_name", lambda: "")() or getattr(user, "username", "") or "").strip()
 
 
+def _colonne_sensibili(columns) -> list[str]:
+    from anagrafica.services.colonne_elenco import REGISTRO
+
+    chiavi = [acc[2:] for _l, acc in columns if str(acc).startswith("v:")]
+    return [k for k in chiavi if k in REGISTRO and REGISTRO[k].sensibile]
+
+
 def build_export_response(request: HttpRequest, key: str, fmt: str, scope: str) -> HttpResponse:
     spec = EXPORT_SPECS.get(key)
     if spec is None:
@@ -84,8 +94,9 @@ def build_export_response(request: HttpRequest, key: str, fmt: str, scope: str) 
         scope = "filtered"
 
     rows_data = list(spec.dataset(request, scope))
-    headers = [label for label, _accessor in spec.columns]
-    rows = [[row.get(accessor, "") for _label, accessor in spec.columns] for row in rows_data]
+    columns = spec.columns_fn(request) if spec.columns_fn else spec.columns
+    headers = [label for label, _accessor in columns]
+    rows = [[row.get(accessor, "") for _label, accessor in columns] for row in rows_data]
 
     filters = spec.filters_label(request) if scope == "filtered" else "Tutti i record"
     today = timezone.localdate().strftime("%d-%m-%Y")
@@ -95,6 +106,8 @@ def build_export_response(request: HttpRequest, key: str, fmt: str, scope: str) 
 
     log_action(request, "export", "anagrafica", {
         "lista": spec.key,
+        "colonne": [accessor for _label, accessor in columns],
+        "colonne_sensibili": _colonne_sensibili(columns),
         "formato": fmt,
         "scope": scope,
         "n_righe": len(rows),

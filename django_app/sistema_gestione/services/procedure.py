@@ -15,7 +15,7 @@ def copertura_annuale(programma):
         applicabili = [c for c in celle if c.riga.processo_id == p.pk and (not c.audit_id or (c.audit.stato != Audit.STATO_ANNULLATO and c.audit.data_inizio.year == programma.anno))]
         mesi = sorted({c.mese for c in applicabili})
         scoperti = []
-        for campo in ["punti_9100", "punti_45001", "punti_27001", "punti_pdr125"]:
+        for campo in ["punti_9100", "punti_45001", "punti_14001", "punti_27001", "punti_pdr125"]:
             richiesti = {v.strip() for v in re.split(r"[,;\n]", getattr(p, campo)) if v.strip()}
             coperti = {v.strip() for c in applicabili for v in re.split(r"[,;\n]", getattr(c.riga, campo)) if v.strip()}
             scoperti.extend(campo.removeprefix("punti_") + ": " + v for v in sorted(richiesti-coperti))
@@ -68,6 +68,6 @@ def problemi_chiusura_car(car, utente):
         problemi.append("Indica il riferimento all'approvazione del cliente/ente richiedente.")
     if car.responsabile_id == utente.pk:
         problemi.append("La verifica deve essere effettuata da persona distinta dal responsabile dell'azione (MT CN 11).")
-    if not all([car.causa.strip(), car.contenimento.strip(), car.azione.strip(), car.analizzata_il, car.evidenza_attuazione.strip(), car.evidenza_efficacia.strip()]):
+    if not all([car.analisi_compilata, car.contenimento.strip(), car.azione.strip(), car.analizzata_il, car.evidenza_attuazione.strip(), car.evidenza_efficacia.strip()]):
         problemi.append("Completa causa, contenimento, azione, data analisi, attuazione e verifica di efficacia.")
     return problemi

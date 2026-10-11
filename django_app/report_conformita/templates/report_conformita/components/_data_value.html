@@ -1,0 +1,3 @@
+<div class="rc-value{% if cell.corrected %} rc-corrected{% endif %}">{{ cell.value|default:"(vuoto)" }}</div>
+{% if cell.corrected %}<span class="rc-original">Rettificato &middot; sorgente: {{ cell.original|default:"(vuoto)" }}</span>{% endif %}
+{% if cell.stale %}<span class="rc-original rc-stale">Rettifica sospesa: sorgente cambiata</span>{% endif %}

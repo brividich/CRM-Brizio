@@ -9,6 +9,9 @@ from . import views_cambio_mansione
 from . import views_mansioni_rischio
 from . import views_elearning
 from . import views_sorveglianza
+from . import views_elenco
+from . import views_account
+from . import views_admin_hub
 
 app_name = "anagrafica"
 
@@ -30,6 +33,7 @@ urlpatterns = [
 
     # Crea nuovo dipendente
     path("dipendenti/nuovo/", views.dipendente_create, name="dipendente_create"),
+    path("dipendenti/nuovo/account-portale/", views_account.account_portale_cerca, name="account_portale_cerca"),
 
     # Scheda dettaglio dipendente
     path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),
@@ -579,7 +583,14 @@ urlpatterns = [
     path("ratei/export/", views.ratei_export, name="ratei_export"),
 
     # Pannello impostazioni — catalogo cataloghi e permessi del modulo anagrafica
+    path("amministrazione/", views_admin_hub.amministrazione_hub, name="amministrazione_hub"),
+    path("amministrazione/import/<str:tipo>/<int:pk>/scarti.xlsx", views_admin_hub.import_scarti_export, name="import_scarti_export"),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
+    path("impostazioni/viste-elenco/", views_elenco.viste_elenco, name="viste_elenco"),
+    path("impostazioni/viste-elenco/nuova/", views_elenco.vista_elenco_modifica, name="vista_elenco_nuova"),
+    path("impostazioni/viste-elenco/<int:pk>/", views_elenco.vista_elenco_modifica, name="vista_elenco_modifica"),
+    path("impostazioni/viste-elenco/<int:pk>/azione/", views_elenco.vista_elenco_azione, name="vista_elenco_azione"),
+    path("impostazioni/viste-elenco/anteprima/", views_elenco.vista_elenco_anteprima, name="vista_elenco_anteprima"),
     path("impostazioni/permessi/salva", views.impostazioni_permessi_save, name="impostazioni_permessi_save"),
     # Permessi canonici ACL v2 del modulo (write-through su tabelle core)
     path("impostazioni/permessi/acl/ruoli/salva", views.impostazioni_acl_role_grants_save, name="impostazioni_acl_role_grants_save"),

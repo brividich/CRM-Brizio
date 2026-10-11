@@ -106,12 +106,20 @@ class ReportResult:
     rows: list[list] = field(default_factory=list)
     row_tones: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    riesame_notes: list[str] = field(default_factory=list)
+    corrected_cells: set[tuple[int, int]] = field(default_factory=set)
     # Link "dove si gestisce": (etichetta, url) verso la pagina del modulo sorgente.
     links: list[tuple[str, str]] = field(default_factory=list)
+    row_keys: list[str] = field(default_factory=list)
+    row_sources: list[list[tuple[str, str]]] = field(default_factory=list)
 
-    def add_row(self, values: list, tone: str = "") -> None:
+    def add_row(self, values: list, tone: str = "", *, source=None, key: str = "") -> None:
+        from .sources import record_links
+
         self.rows.append(values)
         self.row_tones.append(tone)
+        self.row_keys.append(f"{source._meta.label_lower}:{source.pk}" if source is not None else key)
+        self.row_sources.append(record_links(source) if source is not None else [])
 
 
 @dataclass(frozen=True)

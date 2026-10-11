@@ -3,6 +3,7 @@
 {% block extra_head %}{% include "anagrafica/components/_hr_restyle.html" %}{% endblock %}
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
 {% block content %}
+{% include "anagrafica/partials/_safety_subnav.html" with active="visite" %}
 <div style="display:flex;flex-direction:column;gap:16px;margin-top:14px;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
     <h1 style="font-size:24px;font-weight:800;color:#0f172a;margin:0;">Giornata visite</h1>

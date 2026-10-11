@@ -15,6 +15,7 @@
       <div class="page-sub">{{ report.description }}</div>
     </div>
     <div class="page-header-actions">
+      <a class="btn btn-secondary" href="{{ data_url }}">Dati e fonti</a>
       <a class="btn btn-secondary" href="{{ xlsx_url }}">Excel</a>
       <a class="btn" href="{{ pdf_url }}">PDF</a>
     </div>
@@ -68,7 +69,7 @@
           <thead><tr>{% for col in result.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
           <tbody>
             {% for values, tone in rows %}
-              <tr{% if tone %} class="tone-{{ tone }}"{% endif %}>{% for v in values %}<td>{{ v }}</td>{% endfor %}</tr>
+              <tr{% if tone %} class="tone-{{ tone }}"{% endif %}>{% for cell in values %}<td>{{ cell.value }}{% if cell.corrected %}<br><span class="rc-chip">Rettifica manuale</span>{% endif %}</td>{% endfor %}</tr>
             {% endfor %}
           </tbody>
         </table>

@@ -64,9 +64,10 @@ def _competenze(params: ReportParams) -> ReportResult:
         p = in_forza[v.persona]
         tone = TONE_WARN if v.stato == "IN_SCADENZA_30" else TONE_DANGER
         corso = getattr(v.corso, "titolo", "") or getattr(v.corso, "codice", "")
+        # La voce di formazione è calcolata (motore unico), non un record: niente link alla sorgente.
         righe.append((p.reparto, p.nominativo,
                       [p.nominativo, p.reparto, "Formazione obbligatoria", corso, d(v.scadenza), _STATI_KO[v.stato]],
-                      tone))
+                      tone, None, f"formazione:{v.persona}:{getattr(v.corso, 'pk', corso)}"))
     qual_scadute = 0
     for q in qualifiche:
         p = in_forza[ctx.canonico(q.legacy_anagrafica_id)]
@@ -75,9 +76,9 @@ def _competenze(params: ReportParams) -> ReportResult:
             qual_scadute += 1
         righe.append((p.reparto, p.nominativo,
                       [p.nominativo, p.reparto, "Qualifica", getattr(q.tipo, "nome", ""), d(q.data_scadenza), stato],
-                      tone))
-    for _rep, _nom, values, tone in sorted(righe, key=lambda r: (r[0].casefold(), r[1].casefold())):
-        result.add_row(values, tone)
+                      tone, q, ""))
+    for _rep, _nom, values, tone, source, chiave in sorted(righe, key=lambda r: (r[0].casefold(), r[1].casefold())):
+        result.add_row(values, tone, source=source, key=chiave)
 
     result.kpis = [
         Kpi("Copertura formazione obbligatoria", pct(coperti, totale_req),
@@ -151,7 +152,7 @@ def _processi_speciali(params: ReportParams) -> ReportResult:
             result.add_row(
                 [proc.nome, proc.get_regime_display(), str(proc.cliente or ""), d(proc.data_scadenza) or stato_proc,
                  "—", "", "", "Nessun operatore abilitato"],
-                TONE_DANGER,
+                TONE_DANGER, source=proc
             )
             continue
         for a in persone_proc:
@@ -174,7 +175,7 @@ def _processi_speciali(params: ReportParams) -> ReportResult:
             result.add_row(
                 [proc.nome, proc.get_regime_display(), str(proc.cliente or ""),
                  d(proc.data_scadenza) or stato_proc, nome, ", ".join(ruoli), d(scad_cert), esito],
-                tone,
+                tone, source=a
             )
 
     result.kpis = [
@@ -243,7 +244,7 @@ def _efficacia_formazione(params: ReportParams) -> ReportResult:
         result.add_row(
             [p.nominativo if p else "", p.reparto if p else "", corso,
              d(getattr(record, "data_completamento", None)), d(v.attesa_dal), d(v.valutata_il), esito, short(v.azione, 90)],
-            tone,
+            tone, source=v
         )
     totale = len(valutazioni)
     valutate = totale - esiti["attesa"]

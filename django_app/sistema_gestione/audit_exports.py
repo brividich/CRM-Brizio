@@ -150,7 +150,7 @@ def programma_pdf(programma: ProgrammaAudit) -> bytes:
     months = ["G", "F", "M", "A", "M", "G", "L", "A", "S", "O", "N", "D"]
     rows = [[
         _p("AREA SOGGETTA AD AUDIT INTERNO", styles["head"]), _p("ENTI", styles["head"]),
-        _p("9100:2018", styles["small"]), _p("45001:2018", styles["small"]),
+        _p("9100:2018", styles["small"]), _p("45001:2018", styles["small"]), _p("14001:2015", styles["small"]),
         _p("27001:2022", styles["small"]), _p("PdR 125:2022", styles["small"]),
         _p("Normative", styles["head"]), *[_p(m, styles["head"]) for m in months],
     ]]
@@ -159,11 +159,11 @@ def programma_pdf(programma: ProgrammaAudit) -> bytes:
         rows.append([
             _p(riga.area + (f"\n{riga.note}" if riga.note else ""), styles["cell"]),
             _p(riga.enti, styles["cell"]), _p(riga.punti_9100, styles["cell"]),
-            _p(riga.punti_45001, styles["cell"]), _p(riga.punti_27001, styles["cell"]),
+            _p(riga.punti_45001, styles["cell"]), _p(riga.punti_14001, styles["cell"]), _p(riga.punti_27001, styles["cell"]),
             _p(riga.punti_pdr125, styles["cell"]), _p(riga.altre_normative, styles["small"]),
             *[_p(celle.get(mese, ""), styles["head"]) for mese in range(1, 13)],
         ])
-    fixed = [62 * mm, 35 * mm, 23 * mm, 23 * mm, 23 * mm, 23 * mm, 35 * mm]
+    fixed = [56 * mm, 32 * mm, 21 * mm, 21 * mm, 21 * mm, 21 * mm, 21 * mm, 32 * mm]
     month_width = max(8 * mm, (width - sum(fixed)) / 12)
     griglia = _table(rows, fixed + [month_width] * 12, repeat=1, font_size=6.2)
     colori_stato = {
@@ -213,7 +213,7 @@ def piano_audit_pdf(audit: Audit) -> bytes:
         f"{_check(audit.tipo == Audit.TIPO_STRAORDINARIO)} Straordinario",
     ])
     norme = "  ".join([
-        f"{_check(audit.en9100)} EN 9100:2018", f"{_check(audit.iso45001)} ISO 45001:2018",
+        f"{_check(audit.en9100)} EN 9100:2018", f"{_check(audit.iso45001)} ISO 45001:2018", f"{_check(audit.iso14001)} ISO 14001:2015",
         f"{_check(audit.iso27001)} ISO/IEC 27001:2022", f"{_check(audit.pdr125)} UNI/PdR 125",
     ])
     metodi = "  ".join([
@@ -305,7 +305,37 @@ def piano_audit_pdf(audit: Audit) -> bytes:
     return buf.getvalue()
 
 
-def rapporto_audit_pdf(audit: Audit) -> bytes:
+def _allegato_rilievi(audit: Audit, styles, width) -> list:
+    """Rilievi per processo e clausola con le azioni (MOD.174 / CAR): sezione configurabile."""
+    from .services.cruscotto import RILIEVI, righe_rilievi
+
+    esiti = list(audit.esiti.filter(esito__in=RILIEVI)
+                 .select_related("audit", "processo", "ofi", "ofi__car_procedurale", "responsabile_azione"))
+    if not esiti:
+        return []
+    rows = [[_p(t, styles["head"]) for t in ("Processo", "§", "Rilievo", "Scostamento", "Responsabile / scadenza", "MOD.174 · CAR")]]
+    for r in sorted(righe_rilievi(esiti), key=lambda r: (str(r[2]), str(r[3]))):
+        rows.append([
+            _p(r[2], styles["small"]), _p(r[3], styles["small"]), _p(r[4], styles["small"]), _p(r[5], styles["small"]),
+            _p(f"{r[7]}\n{_d(r[8])}", styles["small"]), _p(f"n. {r[9]} · {r[10]}" if r[9] else r[10], styles["small"]),
+        ])
+    tabella = _table(rows, [34 * mm, 14 * mm, 22 * mm, width - 132 * mm, 34 * mm, 28 * mm], repeat=1, font_size=6.4, split_in_row=1)
+    return [PageBreak(), _p("ALLEGATO - RILIEVI E AZIONI", styles["head"]), Spacer(1, 3 * mm), tabella]
+
+
+def _filigrana_bozza(canvas, doc):
+    canvas.saveState()
+    canvas.setFont("Helvetica-Bold", 64)
+    canvas.setFillColor(colors.Color(0.75, 0.1, 0.1, alpha=0.18))
+    canvas.translate(A4[0] / 2, A4[1] / 2)
+    canvas.rotate(45)
+    canvas.drawCentredString(0, 0, "BOZZA - NON EMESSO")
+    canvas.restoreState()
+
+
+def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False, nota: str = "") -> bytes:
+    """MOD.035B. Con ``bozza`` ogni pagina porta la filigrana: è l'anteprima prima della chiusura.
+    ``nota`` compare in testa (es. rapporto rigenerato di un audit chiuso prima dell'archiviazione)."""
     styles = _styles()
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -317,10 +347,13 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
         "RAPPORTO DI AUDIT INTERNO / RAIS - MOD.035B Rev.0",
         f"Codice: MOD.035B\nRev.: 0\nN.: {audit.numero}\nData: {_d(audit.data_fine or audit.data_inizio)}",
     ), Spacer(1, 4 * mm)]
+    if nota:
+        story += [_p(nota, styles["note"]), Spacer(1, 3 * mm)]
     team = ", ".join(a.nome for a in audit.auditor.all())
     norme_rapporto = "  ".join([
         f"{_check(audit.en9100)} EN 9100:2018",
         f"{_check(audit.iso45001)} ISO 45001:2018",
+        f"{_check(audit.iso14001)} ISO 14001:2015",
         f"{_check(audit.iso27001)} ISO/IEC 27001:2022",
         f"{_check(audit.pdr125)} UNI/PdR 125",
     ])
@@ -366,11 +399,18 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
         checklist.append([_p(f"{sezione.codice} - {sezione.titolo}   Criteri: {sezione.criteri}", styles["head"]), "", "", ""])
         for esito in gruppi[sezione]:
             rilievo = "  ".join([
-                _check(esito.esito == AuditEsito.ESITO_CONFORME) + " ✓",
+                _check(esito.esito in {AuditEsito.ESITO_CONFORME, AuditEsito.ESITO_PUNTO_FORZA}) + " ✓",
+                _check(esito.esito == AuditEsito.ESITO_OSSERVAZIONE) + " OSS",
                 _check(esito.esito == AuditEsito.ESITO_OFI) + " OFI",
                 _check(esito.esito == AuditEsito.ESITO_NC) + " NC",
                 _check(esito.esito == AuditEsito.ESITO_NA) + " N/A",
             ])
+            if esito.esito == AuditEsito.ESITO_NC and esito.gravita:
+                rilievo += f"\n{esito.get_gravita_display()}"
+            elif esito.esito == AuditEsito.ESITO_PUNTO_FORZA:
+                rilievo += "\nPunto di forza"
+            if esito.esito in AuditEsito.ESITI_RILIEVO and esito.clausola and esito.clausola != esito.punti:
+                rilievo += f"\n§ {esito.clausola}"
             checklist.append([
                 _p(esito.punti, styles["head"]), _p(esito.testo, styles["small"]),
                 _p(testo_evidenza(esito), styles["small"]), _p(rilievo, styles["small"]),
@@ -385,7 +425,7 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
         label = esito.domanda_snapshot.get("processo") or "Verifica aggiuntiva"
         checklist.append([_p(f"{label} - domanda Rev.{esito.domanda_snapshot.get('revisione', '-')}", styles["head"]), "", "", ""])
         checklist.append([_p(esito.punti, styles["head"]), _p(esito.testo, styles["small"]),
-            _p(testo_evidenza(esito), styles["small"]), _p(esito.get_esito_display() or "Da valutare", styles["small"])])
+            _p(testo_evidenza(esito), styles["small"]), _p(esito.esito_label or "Da valutare", styles["small"])])
     ct = _table(checklist, [12 * mm, 66 * mm, 63 * mm, width - 141 * mm], repeat=1, section_rows=tuple(section_rows), font_size=6.5, split_in_row=1)
     for row in section_rows:
         ct.setStyle(TableStyle([("SPAN", (0, row), (-1, row))]))
@@ -393,10 +433,15 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
     story += [ct, PageBreak(), _p("D. GIUDIZI ED OSSERVAZIONI DELL'AUDITOR", styles["head"])]
     story += [
         _table([
+            *([[_p("RIEPILOGO DEI RILIEVI", styles["head"])], [_p(audit.riepilogo_generato, styles["cell"])]]
+              if audit.riepilogo_generato.strip() else []),
             [_p("GIUDIZIO COMPLESSIVO DELL'AUDITOR", styles["head"])], [_p(audit.giudizio, styles["cell"])],
             [_p("PUNTI DI FORZA RILEVATI", styles["head"])], [_p(audit.punti_forza, styles["cell"])],
-            [_p(f"OFI emesse: {counts['ofi']}    NC di sistema: {counts['nc']}", styles["head"])],
+            [_p(f"OFI emesse: {counts['ofi']}    NC di sistema: {counts['nc']} "
+                f"(maggiori {counts['nc_maggiori']}, minori {counts['nc_minori']})    "
+                f"Osservazioni: {counts['osservazioni']}    Punti di forza: {counts['punti_forza']}", styles["head"])],
             [_p(_firma("Firma Auditor", audit.rapporto_firmato_auditor_da, audit.rapporto_firmato_auditor_il), styles["cell"])],
+            [_p(_firma("Convalida responsabile ente", audit.rapporto_convalidato_ente_da, audit.rapporto_convalidato_ente_il), styles["cell"])],
         ], [width]),
         Spacer(1, 5 * mm), _p("E. VALUTAZIONI RDD", styles["head"]),
         _table([
@@ -412,17 +457,26 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
         ),
     ]
     from .models import AuditPreparazione
+    from .services.programma import impostazione_attiva
+
+    if impostazione_attiva("sistema_gestione.rapporto_allegato_rilievi"):
+        story += _allegato_rilievi(audit, styles, width)
     preparazione = AuditPreparazione.objects.filter(audit=audit).select_related("verificato_da").first()
-    if preparazione:
+    if preparazione and impostazione_attiva("sistema_gestione.rapporto_allegato_preparazione"):
         story += [PageBreak(), _p("ALLEGATO - PREPARAZIONE MT CN 12", styles["head"])]
         for campo, titolo in [("audit_precedenti", "Audit precedenti"), ("car_cliente", "CAR cliente"), ("documenti_registrazioni", "Documenti e campioni"), ("obiettivi_carenze", "Obiettivi e carenze")]:
             story += [_p(titolo, styles["head"]), _p(getattr(preparazione, campo), styles["cell"]), Spacer(1, 3*mm)]
         story += [_p(_firma("Preparazione confermata", preparazione.verificato_da, preparazione.verificato_il), styles["cell"])]
+        if preparazione.origine_ai:
+            story += [_p("Bozza iniziale proposta dall'AI e verificata dall'auditor prima della conferma.", styles["note"])]
     allegati = [(e, a) for e in audit.esiti.prefetch_related("allegati") for a in e.allegati.all()]
-    if allegati:
+    if allegati and impostazione_attiva("sistema_gestione.rapporto_indice_evidenze"):
         story += [PageBreak(), _p("ALLEGATO - INDICE DELLE EVIDENZE", styles["head"]), Spacer(1, 4*mm)]
         for esito, allegato in allegati:
             story += [_p(f"Verifica {esito.punti}: {allegato.nome} ({allegato.dimensione} byte)", styles["cell"]),
                       _p(f"SHA-256: {allegato.sha256}", styles["small"]), Spacer(1, 3*mm)]
-    doc.build(story)
+    if bozza:
+        doc.build(story, onFirstPage=_filigrana_bozza, onLaterPages=_filigrana_bozza)
+    else:
+        doc.build(story)
     return buf.getvalue()

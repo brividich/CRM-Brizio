@@ -1,0 +1,118 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}{% if vista.pk %}{{ vista.nome }}{% else %}Nuova vista{% endif %} | Viste elenco{% endblock %}
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+{% include "core/components/_hub_formkit.html" %}
+<style>
+.ve-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px}
+@media (max-width:900px){.ve-grid{grid-template-columns:1fr}}
+.ve-col{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--fmd-line,#e2e8f0);border-radius:10px;background:var(--fmd-card,#fff);margin-bottom:6px;cursor:grab}
+.ve-col.dragging{opacity:.5}
+.ve-col .ve-handle{color:var(--fmd-muted,#94a3b8);font-size:18px;line-height:1;user-select:none}
+.ve-col .ve-name{flex:1;min-width:0}
+.ve-col .ve-sez{display:block;font-size:11px;color:var(--fmd-muted,#64748b)}
+.ve-col input[type=number]{width:72px}
+.ve-col label{display:flex;align-items:center;gap:6px;min-height:36px}
+.ve-move{border:1px solid var(--fmd-line,#e2e8f0);background:transparent;border-radius:6px;padding:2px 6px;cursor:pointer;color:inherit}
+body.theme-dark .ve-col{background:var(--surface,#0e1a2c);border-color:rgba(255,255,255,.12)}
+</style>
+{% endblock %}
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd"><div class="fmd-wrap">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-pagehead"><div>
+    <div class="fmd-crumb"><a href="{% url 'anagrafica:impostazioni' %}">Impostazioni</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:viste_elenco' %}">Viste elenco</a><span class="fmd-sep"> / </span><span class="fmd-cur">{% if vista.pk %}{{ vista.nome }}{% else %}Nuova{% endif %}</span></div>
+    <h1>{% if vista.pk %}{{ vista.nome }}{% else %}Nuova vista{% endif %}</h1>
+    <p class="fmd-ph-sub">Trascina le colonne per ordinarle (o usa ↑ ↓), spunta quelle da mostrare, indica la larghezza in pixel (0 = automatica). L'anteprima usa dati veri, filtrati dai tuoi permessi.</p>
+  </div></div>
+  <form method="post" id="ve-form">{% csrf_token %}{{ form.colonne_json }}{{ form.non_field_errors }}
+  <div class="ve-grid">
+    <section class="fmd-panel" style="padding:16px">
+      <h2 style="margin-top:0">Impostazioni</h2>
+      {% for field in form.visible_fields %}<div style="margin-bottom:10px">{% include "core/forms/_field.html" with field=field %}</div>{% endfor %}
+      <button class="fmd-btn fmd-btn-primary" type="submit">Salva la vista</button>
+      <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:viste_elenco' %}">Annulla</a>
+    </section>
+    <section class="fmd-panel" style="padding:16px">
+      <h2 style="margin-top:0">Colonne</h2>
+      <p class="fmd-ph-sub">Il nominativo è sempre la prima colonna. <span class="fmd-badge fmd-b-red">sensibile</span> = dati personali, sanitari o HR riservati: compaiono solo a chi ha il permesso indicato.</p>
+      <div id="ve-colonne">
+      {% for r in righe %}<div class="ve-col" draggable="true" data-chiave="{{ r.colonna.chiave }}">
+        <span class="ve-handle" aria-hidden="true">⋮⋮</span>
+        <label><input type="checkbox" data-visibile {% if r.visibile %}checked{% endif %} aria-label="Mostra {{ r.colonna.etichetta }}"></label>
+        <span class="ve-name"><strong>{{ r.colonna.etichetta }}</strong>{% if r.colonna.sensibile %} <span class="fmd-badge fmd-b-red">sensibile</span>{% endif %}<span class="ve-sez">{{ r.colonna.sezione }}{% if r.colonna.permesso %} · richiede: {{ r.colonna.permesso_label }}{% endif %}</span></span>
+        <label>px <input type="number" min="0" max="600" step="10" data-larghezza value="{{ r.larghezza }}" aria-label="Larghezza di {{ r.colonna.etichetta }}"></label>
+        <button type="button" class="ve-move" data-su aria-label="Sposta su">↑</button><button type="button" class="ve-move" data-giu aria-label="Sposta giù">↓</button>
+      </div>{% endfor %}
+      </div>
+    </section>
+  </div>
+  </form>
+  <section class="fmd-panel" style="padding:16px;margin-top:16px">
+    <h2 style="margin-top:0">Anteprima</h2>
+    <div id="ve-anteprima" data-url="{% url 'anagrafica:vista_elenco_anteprima' %}"><p class="fmd-muted">Caricamento…</p></div>
+  </section>
+  {% if vista.pk %}
+  <section class="fmd-panel" style="padding:16px;margin-top:16px">
+    <h2 style="margin-top:0">Altre azioni</h2>
+    <form method="post" action="{% url 'anagrafica:vista_elenco_azione' vista.pk %}" style="display:inline">{% csrf_token %}<button class="fmd-btn fmd-btn-ghost" name="azione" value="duplica">Duplica</button></form>
+    {% if vista.preset %}<form method="post" action="{% url 'anagrafica:vista_elenco_azione' vista.pk %}" style="display:inline">{% csrf_token %}<button class="fmd-btn fmd-btn-ghost" name="azione" value="ripristina">Ripristina le colonne di partenza</button></form>{% endif %}
+    <details style="margin-top:12px"><summary>Elimina la vista</summary>
+      <form method="post" action="{% url 'anagrafica:vista_elenco_azione' vista.pk %}">{% csrf_token %}<input type="hidden" name="azione" value="elimina">
+        <p>Chi la usa tornerà alla vista predefinita. Per confermare scrivi <code>{{ vista.codice }}</code>:</p>
+        <input name="conferma" required autocomplete="off" aria-label="Codice della vista per confermare"> <button class="fmd-btn fmd-btn-ghost" type="submit">Elimina definitivamente</button>
+      </form>
+    </details>
+  </section>
+  {% endif %}
+</div></div>
+<script>
+(() => {
+  const lista = document.getElementById("ve-colonne");
+  const campo = document.querySelector('[name="colonne_json"]');
+  const anteprima = document.getElementById("ve-anteprima");
+  const csrf = document.querySelector("[name=csrfmiddlewaretoken]").value;
+  const serializza = () => {
+    campo.value = JSON.stringify(Array.from(lista.querySelectorAll(".ve-col")).map(el => ({
+      chiave: el.dataset.chiave, visibile: el.querySelector("[data-visibile]").checked,
+      larghezza: parseInt(el.querySelector("[data-larghezza]").value || "0", 10) || 0,
+    })));
+  };
+  let timer;
+  const aggiorna = () => {
+    serializza();
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const body = new FormData(); body.set("colonne_json", campo.value); body.set("csrfmiddlewaretoken", csrf);
+      try {
+        const r = await fetch(anteprima.dataset.url, {method: "POST", body, credentials: "same-origin", headers: {"X-Requested-With": "XMLHttpRequest"}});
+        if (r.ok) anteprima.innerHTML = await r.text();  // HTML reso dal server (escape di Django)
+      } catch (e) { anteprima.textContent = "Anteprima non disponibile: riprova."; }
+    }, 300);
+  };
+  let trascinato = null;
+  lista.addEventListener("dragstart", e => { trascinato = e.target.closest(".ve-col"); trascinato.classList.add("dragging"); });
+  lista.addEventListener("dragend", () => { if (trascinato) trascinato.classList.remove("dragging"); trascinato = null; aggiorna(); });
+  lista.addEventListener("dragover", e => {
+    e.preventDefault();
+    const sopra = e.target.closest(".ve-col");
+    if (!trascinato || !sopra || sopra === trascinato) return;
+    const r = sopra.getBoundingClientRect();
+    sopra.parentNode.insertBefore(trascinato, e.clientY > r.top + r.height / 2 ? sopra.nextSibling : sopra);
+  });
+  lista.addEventListener("click", e => {
+    const riga = e.target.closest(".ve-col");
+    if (!riga) return;
+    if (e.target.matches("[data-su]") && riga.previousElementSibling) { riga.parentNode.insertBefore(riga, riga.previousElementSibling); aggiorna(); }
+    if (e.target.matches("[data-giu]") && riga.nextElementSibling) { riga.parentNode.insertBefore(riga.nextElementSibling, riga); aggiorna(); }
+  });
+  lista.addEventListener("change", aggiorna);
+  document.getElementById("ve-form").addEventListener("submit", serializza);
+  aggiorna();
+})();
+</script>
+{% endblock %}
