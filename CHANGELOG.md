@@ -8,6 +8,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Dipendenze di sviluppo allineate a quelle di produzione, senza vulnerabilità note** (`django_app/requirements-dev.txt`).
+  - `requirements-dev.txt` era rimasto indietro rispetto a `requirements.txt` e bloccava versioni con vulnerabilità note (cryptography 44.0.3, PyJWT 2.12.1, urllib3 2.6.3, sqlparse 0.5.5, Werkzeug 3.1.8, pyOpenSSL 25.1.0, Django 5.2.16, djangorestframework 3.17.1, idna 3.13, pyasn1 0.6.3); installare insieme i due file dava un conflitto.
+  - Ogni pacchetto presente in entrambi i file ha ora la stessa versione di `requirements.txt`; `virtualenv` 21.7.13 (via pre-commit, con `python-discovery` 1.6.2). Allineamento fatto a mano per non perdere i marker non-Windows (`python-magic`) che `pip-compile` su Windows elimina.
+  - Verifica: `pip-audit` senza vulnerabilità su entrambi i file, `pip install --dry-run` dei due file insieme senza conflitti. Il pacchetto di produzione non cambia (usa solo `requirements.txt`).
+
 - **Anomalie — automazione «Decisioni del capocommessa all'operatore»** (`django_app/anomalie/automazioni_service.py`, `escalation_config.py`, `mail_action_service.py`, `mail_action_views.py`, `views.py`, `templates/anomalie/pages/anomalie_configurazione.html`, `tests_automazioni.py`, `docs/moduli/anomalie.md`).
   - Quando il capocommessa decide dalla pagina della mail o da Gestione anomalie, l'operatore che ha segnalato le anomalie riceve una mail dedicata (S/N, anomalia, stato, RDC con numero, segnalazione al cliente, chiusura, note) e una notifica nel portale (`anomalia_decisione`) che apre l'OP. Più operatori sullo stesso OP: una mail ciascuno.
   - Saltate le anomalie senza decisione e quelle modificate dall'autore stesso; chi riceve la mail dedicata esce dal riepilogo generico. Dalla Gestione la mail parte con la coda di riepilogo (~5 min) e solo dopo l'esito del riepilogo, così un ritentativo SMTP non la duplica.
