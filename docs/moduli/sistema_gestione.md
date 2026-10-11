@@ -33,7 +33,11 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 
 - **Esecuzione da tablet:** editor domanda per domanda con navigazione, esiti a pulsanti, foto dalla fotocamera e caricamento senza ricaricare. Le modifiche restano sul dispositivo finché il server non le conferma; i salvataggi si ritentano da soli quando la rete torna.
 
+- **Preparazione e inviti:** domande di follow-up dai rilievi ancora aperti; persone e agenda proposte dalle schede processo; invito Outlook con conferma degli auditati (Graph) oppure email con `.ics`; annullamento motivato che libera la cella del programma; numerazione RAIS/RAI/STR per tipo.
+
 ## Note di rilascio
+
+**Audit interni professionali — fase 5 (Unreleased, prompt 08):** follow-up, piano guidato, invito Outlook con conferma, annullamento, numerazione per tipo. Deploy: `migrate sistema_gestione` 0013; opzionale `sistema_gestione.audit_organizer_email`.
 
 **Audit interni professionali — fase 4 (Unreleased, prompt 08):** esecuzione da tablet, fotocamera, tolleranza alla rete instabile. Deploy: `migrate sistema_gestione` 0012.
 

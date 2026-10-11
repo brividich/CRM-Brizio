@@ -9,6 +9,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 ## [Unreleased]
 
 <!-- prompt 08 audit interni (blocco della sessione, non mescolare) -->
+- **Audit interni — preparazione e inviti: follow-up dei rilievi aperti, persone e agenda proposte, invito Outlook con conferma, annullamento, numerazione per tipo** (`django_app/sistema_gestione/services/audit.py`, `services/audit_outlook.py` nuovo, `programma_views.py`, `audit_views.py`, `models.py`, `urls.py`, `acl_bootstrap.py` (cache `v4`), migration `0013`, template `audit_dettaglio.html`, `django_app/core/outlook_calendar.py` (`get_event`, solo lettura), test `tests_audit_preparazione.py` nuovo)
+  - **Follow-up:** il nuovo piano include una domanda per ogni NC/OFI degli audit chiusi sugli stessi processi con CAR non chiusa o ultima efficacia non positiva (ISO 19011 §6.3.1), una sola volta.
+  - **Piano guidato:** alla creazione propone i responsabili di processo tra le persone e un'attività di agenda per processo (slot di 90 minuti), da completare in bozza.
+  - **Invito Outlook con conferma:** nuova comunicazione «Invito Outlook con richiesta di conferma» via Microsoft Graph dal calendario del Lead Auditor (o da `sistema_gestione.audit_organizer_email`). «Aggiorna conferme» riporta le risposte (accettato, provvisorio, rifiutato, in attesa) sulle persone. La chiamata Graph è fuori dalla transazione: se fallisce, la comunicazione non vale e l'audit non parte.
+  - L'invito `.ics` via email ora ha i partecipanti, la `SEQUENCE` per gli aggiornamenti e l'escape RFC 5545.
+  - **Annullamento:** un audit non avviato si annulla con motivo; la cella del programma torna da pianificare e l'invito Outlook si cancella.
+  - **Numerazione:** RAIS (sistema), RAI (mandatorio cliente), STR (straordinario); prima ogni tipo era RAIS.
+  - **Correzione:** l'invito calendario via email usava `django.utils.timezone.utc`, che non esiste più da Django 5.0: la comunicazione «Email + invito calendario» andava in errore.
+  - Test: 10 nuovi. Deploy: `migrate sistema_gestione` 0013. Per l'invito Outlook servono le credenziali Graph già usate dal KickOff e il permesso `Calendars.ReadWrite` sulla casella dell'organizzatore.
 - **Audit interni — esecuzione da tablet e rete instabile** (`django_app/sistema_gestione/automation_views.py`, `models.py`, migration `0012`, `static/sistema_gestione/audit_editor.js`, template `audit_esito_editor.html`, test `tests_audit_esecuzione.py` nuovo)
   - **Editor domanda per domanda:** «Verifica N di M», precedente/successiva nell'ordine della checklist, «prossima da completare», elenco di cosa manca. Esiti a pulsanti grandi (≥44 px), barra di salvataggio fissa in fondo, campi grandi per il touch, tema chiaro e scuro.
   - **Fotocamera:** «Scatta foto» apre la fotocamera posteriore (`capture=environment`), «Scegli file» accetta PDF/PNG/JPEG. Il caricamento avviene senza ricaricare la pagina (JSON 200/400/401/403/409). Se l'allegato era l'ultimo requisito della NC, il rilievo entra subito nel MOD.174.

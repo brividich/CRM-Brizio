@@ -501,7 +501,9 @@ class Audit(models.Model):
     ]
     COM_EMAIL = "EMAIL"
     COM_CALENDARIO = "CALENDARIO"
-    COM_CHOICES = [(COM_EMAIL, "Email"), (COM_CALENDARIO, "Email + invito calendario")]
+    COM_OUTLOOK = "OUTLOOK"
+    COM_CHOICES = [(COM_EMAIL, "Email"), (COM_CALENDARIO, "Email + invito calendario"),
+                   (COM_OUTLOOK, "Invito Outlook con richiesta di conferma")]
 
     numero = models.CharField(max_length=40, unique=True)
     programma = models.ForeignKey(
@@ -532,6 +534,12 @@ class Audit(models.Model):
     metodo_verifica_evidenze = models.BooleanField(default=True)
     comunicazione_il = models.DateTimeField(null=True, blank=True)
     comunicazione_metodo = models.CharField(max_length=12, choices=COM_CHOICES, blank=True, default="")
+    outlook_event_id = models.CharField(max_length=255, blank=True, default="")
+    outlook_organizer_email = models.EmailField(blank=True, default="")
+    conferme_aggiornate_il = models.DateTimeField(null=True, blank=True)
+    motivo_annullamento = models.CharField(max_length=500, blank=True, default="")
+    annullato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    annullato_il = models.DateTimeField(null=True, blank=True)
     preavviso_deroga_motivo = models.TextField(blank=True, default="")
     imparzialita_deroga_motivo = models.TextField(blank=True, default="")
     imparzialita_deroga_approvata_da = models.ForeignKey(
@@ -650,6 +658,10 @@ class AuditPersona(models.Model):
     ruolo = models.CharField(max_length=12, choices=RUOLO_CHOICES)
     data_intervista = models.DateField(null=True, blank=True)
     intervistato = models.BooleanField(default=False)
+    CONFERMA_CHOICES = [("", "Non richiesta"), ("IN_ATTESA", "In attesa"), ("ACCETTATO", "Accettato"),
+                        ("PROVVISORIO", "Provvisorio"), ("RIFIUTATO", "Rifiutato")]
+    conferma_stato = models.CharField(max_length=12, choices=CONFERMA_CHOICES, blank=True, default="")
+    conferma_il = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["ruolo", "nome"]

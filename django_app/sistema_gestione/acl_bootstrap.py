@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 MODULE = "sistema_gestione"
 # v3: route del programma basato sul rischio (cicli, calendario, impostazioni, rifiuto, deroga).
-_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v3"
+# v4: annullamento audit e aggiornamento conferme Outlook.
+_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v4"
 
 PERM_VIEW = "sistema_gestione.modulo.view"
 PERM_SOA_VIEW = "sistema_gestione.soa.view"
@@ -87,6 +88,8 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:audit_impostazioni": PERM_AUDIT_APPROVA,
     "sistema_gestione:programma_rifiuta": PERM_AUDIT_APPROVA,
     "sistema_gestione:audit_approva_deroga": PERM_AUDIT_APPROVA,
+    "sistema_gestione:audit_annulla": PERM_AUDIT_EDIT,
+    "sistema_gestione:audit_conferme_aggiorna": PERM_AUDIT_EDIT,
 
     "sistema_gestione:audit_elemento_modifica": PERM_AUDIT_EDIT,
     "sistema_gestione:processi_catalogo": PERM_AUDIT_VIEW,

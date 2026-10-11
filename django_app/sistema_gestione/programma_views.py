@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 from core.audit import log_action
 
 from .acl_bootstrap import PERM_AUDIT_APPROVA, PERM_AUDIT_EDIT, PERM_AUDIT_VIEW
-from .models import Audit, CicloAudit, ProgrammaAudit
+from .models import Audit, AuditPersona, CicloAudit, ProgrammaAudit
 from .services import audit as service
 from .services import programma as programma_service
 from .views import MODULE, _has_perm, _nega
@@ -157,3 +157,55 @@ def audit_approva_deroga(request, pk: int):
                    {"motivo": audit.imparzialita_deroga_motivo}, oggetto=audit)
         messages.success(request, "Deroga all'indipendenza approvata e tracciata.")
     return redirect(reverse("sistema_gestione:audit_dettaglio", kwargs={"pk": pk}) + "#approvazioni")
+
+
+@login_required
+@require_POST
+def audit_annulla(request, pk: int):
+    """Annulla un audit non ancora avviato: motivo obbligatorio, la cella del programma torna libera."""
+    if not _has_perm(request, PERM_AUDIT_EDIT):
+        return _nega(request, "Non puoi annullare gli audit.")
+    motivo = (request.POST.get("motivo") or "").strip()
+    with transaction.atomic():
+        audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
+        if audit.stato not in {Audit.STATO_PIANIFICATO, Audit.STATO_PIANO_APPROVATO}:
+            messages.error(request, "Si annulla solo un audit non ancora avviato.")
+            return redirect("sistema_gestione:audit_dettaglio", pk=pk)
+        if not motivo:
+            messages.error(request, "Indica il motivo dell'annullamento.")
+            return redirect("sistema_gestione:audit_dettaglio", pk=pk)
+        audit.stato = Audit.STATO_ANNULLATO
+        audit.motivo_annullamento = motivo[:500]
+        audit.annullato_da = request.user
+        audit.annullato_il = timezone.now()
+        audit.save(update_fields=["stato", "motivo_annullamento", "annullato_da", "annullato_il", "updated_at"])
+        celle = list(audit.celle_programma.values_list("pk", flat=True))
+        audit.celle_programma.update(audit=None)
+    from .services import audit_outlook
+
+    try:
+        audit_outlook.annulla_invito(audit)
+    except Exception as exc:  # noqa: BLE001 - l'audit resta annullato; l'invito si cancella a mano
+        messages.warning(request, f"Audit annullato, ma l'invito Outlook non è stato cancellato: {exc}")
+    log_action(request, "audit_annullato", MODULE, {"motivo": audit.motivo_annullamento, "celle_liberate": celle}, oggetto=audit)
+    messages.success(request, "Audit annullato: la verifica del programma torna da pianificare.")
+    return redirect("sistema_gestione:audit_dettaglio", pk=pk)
+
+
+@login_required
+@require_POST
+def audit_conferme_aggiorna(request, pk: int):
+    if not _has_perm(request, PERM_AUDIT_EDIT):
+        return _nega(request, "Non puoi aggiornare le conferme.")
+    audit = get_object_or_404(Audit, pk=pk)
+    from .services import audit_outlook
+
+    try:
+        conteggio = audit_outlook.aggiorna_conferme(audit)
+    except Exception as exc:  # noqa: BLE001 - errore Graph spiegato all'utente
+        messages.error(request, f"Conferme non aggiornate: {exc}")
+    else:
+        sintesi = ", ".join(f"{dict(AuditPersona.CONFERMA_CHOICES).get(k, k)}: {v}" for k, v in sorted(conteggio.items())) or "nessuna risposta"
+        log_action(request, "audit_conferme_aggiornate", MODULE, conteggio, oggetto=audit)
+        messages.success(request, f"Conferme aggiornate da Outlook ({sintesi}).")
+    return redirect(reverse("sistema_gestione:audit_dettaglio", kwargs={"pk": pk}) + "#comunicazione")

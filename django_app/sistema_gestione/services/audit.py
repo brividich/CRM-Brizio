@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import re
 import unicodedata
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone as dt_timezone
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
@@ -163,8 +163,11 @@ def convalida_programma(programma: ProgrammaAudit, *, utente) -> None:
     programma.save(update_fields=["stato", "convalidato_da", "convalidato_il", "updated_at"])
 
 
-def prossimo_numero_audit(anno: int) -> str:
-    prefisso = f"RAIS-{anno}-"
+PREFISSI_NUMERO = {Audit.TIPO_SISTEMA: "RAIS", Audit.TIPO_MANDATORIO_CLIENTE: "RAI", Audit.TIPO_STRAORDINARIO: "STR"}
+
+
+def prossimo_numero_audit(anno: int, tipo: str = Audit.TIPO_SISTEMA) -> str:
+    prefisso = f"{PREFISSI_NUMERO.get(tipo, 'RAIS')}-{anno}-"
     ultimo = (
         Audit.objects.filter(numero__startswith=prefisso)
         .order_by("-numero").values_list("numero", flat=True).first()
@@ -183,10 +186,13 @@ def _datetime_locale(data, ora: time):
 
 
 @transaction.atomic
-def prepara_nuovo_audit(audit: Audit, *, cella: CellaProgramma | None = None) -> Audit:
-    """Salva l'audit, collega la cella e genera apertura/chiusura e checklist."""
+def prepara_nuovo_audit(audit: Audit, *, cella: CellaProgramma | None = None, nuovo: bool = False) -> Audit:
+    """Salva l'audit, collega la cella e genera apertura/chiusura e checklist.
+
+    Su un piano nuovo propone anche i responsabili di processo e un'attività di agenda per
+    processo: si correggono in bozza, non sostituiscono la pianificazione del Lead."""
     if not audit.numero:
-        audit.numero = prossimo_numero_audit(audit.data_inizio.year)
+        audit.numero = prossimo_numero_audit(audit.data_inizio.year, audit.tipo)
     audit.full_clean(exclude=["righe"])
     audit.save()
     if cella:
@@ -216,8 +222,73 @@ def prepara_nuovo_audit(audit: Audit, *, cella: CellaProgramma | None = None) ->
             "ordine": 900,
         },
     )
+    if nuovo:
+        _proponi_persone_e_agenda(audit)
     inizializza_checklist(audit)
     return audit
+
+
+def _proponi_persone_e_agenda(audit: Audit) -> None:
+    processi = list(audit.processi_catalogo.select_related("responsabile"))
+    email_presenti = {p.email.strip().lower() for p in audit.persone.all() if p.email}
+    for processo in processi:
+        resp = processo.responsabile
+        email = (getattr(resp, "email", "") or "").strip()
+        if resp and email and email.lower() not in email_presenti:
+            AuditPersona.objects.create(audit=audit, nome=_nome_utente(resp), email=email,
+                                        funzione_ente=f"Responsabile {processo.codice}", ruolo=AuditPersona.RUOLO_PROCESSO)
+            email_presenti.add(email.lower())
+    con_agenda = set(audit.agenda.filter(processo__isnull=False).values_list("processo_id", flat=True))
+    giorno, ora = audit.data_inizio, time(10, 0)
+    fine_giorno = audit.data_fine or audit.data_inizio
+    for ordine, processo in enumerate(processi, start=1):
+        if processo.pk in con_agenda:
+            continue
+        AuditAgenda.objects.create(
+            audit=audit, processo=processo, processo_area=f"{processo.codice} - {processo.nome}"[:255],
+            quando=_datetime_locale(giorno, ora), auditor=audit.lead_auditor.nome, ordine=100 + ordine,
+            attivita="Da completare: campione, documenti e metodo di verifica del processo.",
+        )
+        # Slot di 90 minuti fino alle 15:00, poi il giorno successivo del piano.
+        minuti = ora.hour * 60 + ora.minute + 90
+        if minuti > 15 * 60 and giorno < fine_giorno:
+            giorno, ora = giorno + timedelta(days=1), time(9, 30)
+        elif minuti <= 15 * 60:
+            ora = time(minuti // 60, minuti % 60)
+
+
+def genera_domande_followup(audit: Audit) -> int:
+    """Domande di follow-up sui rilievi ancora aperti degli audit chiusi sugli stessi processi:
+    NC/OFI con CAR non chiusa o ultima verifica di efficacia non positiva (ISO 19011 §6.3.1)."""
+    processi = list(audit.processi_catalogo.all())
+    if not processi:
+        return 0
+    gia = {e.domanda_snapshot.get("followup_di") for e in audit.esiti.all() if e.domanda_snapshot.get("followup_di")}
+    precedenti = AuditEsito.objects.filter(
+        audit__stato=Audit.STATO_CHIUSO, audit__processi_catalogo__in=processi, esito__in=[AuditEsito.ESITO_NC, AuditEsito.ESITO_OFI],
+        audit__data_inizio__lt=audit.data_inizio,
+    ).exclude(audit=audit).select_related("audit", "ofi").prefetch_related("verifiche_efficacia").distinct()
+    create = []
+    for rilievo in precedenti:
+        if rilievo.pk in gia:
+            continue
+        car = getattr(rilievo.ofi, "car_procedurale", None) if rilievo.ofi_id else None
+        ultima = rilievo.verifiche_efficacia.all()[0] if rilievo.verifiche_efficacia.all() else None
+        if car is not None and car.chiusa_il and ultima and ultima.risultato == "EFFICACE":
+            continue
+        descrizione = (rilievo.scostamento or rilievo.evidenze or rilievo.testo or "").strip()[:200]
+        create.append(AuditEsito(
+            audit=audit, strutturato=True, punti_aggiuntivi=rilievo.clausola_effettiva[:100],
+            testo_aggiuntivo=f"Follow-up {rilievo.audit.numero}: l'azione sul rilievo è attuata ed efficace?",
+            domanda_snapshot={
+                "followup_di": rilievo.pk, "punti": rilievo.clausola_effettiva,
+                "domanda": f"Follow-up {rilievo.get_esito_display()} {rilievo.audit.numero} (§ {rilievo.clausola_effettiva}): «{descrizione}». L'azione è attuata ed efficace?",
+                "criterio": f"Registro MOD.174 n. {rilievo.ofi.numero}" if rilievo.ofi_id else "Rilievo dell'audit precedente",
+                "processo": rilievo.domanda_snapshot.get("processo", ""),
+            },
+        ))
+    AuditEsito.objects.bulk_create(create)
+    return len(create)
 
 
 def modello_en9100_attivo() -> ChecklistModello | None:
@@ -229,7 +300,7 @@ def modello_en9100_attivo() -> ChecklistModello | None:
 @transaction.atomic
 def inizializza_checklist(audit: Audit) -> int:
     from .audit_automation import genera_checklist_processi
-    nuovi_processi = genera_checklist_processi(audit)
+    nuovi_processi = genera_checklist_processi(audit) + genera_domande_followup(audit)
     if not audit.en9100:
         return nuovi_processi
     modello = modello_en9100_attivo()
@@ -509,18 +580,28 @@ def invalida_approvazione_piano(audit):
                               "imparzialita_deroga_approvata_da", "imparzialita_deroga_approvata_il", "updated_at"])
 
 
-def _ics(audit: Audit) -> bytes:
-    inizio = _datetime_locale(audit.data_inizio, time(9, 0)).astimezone(timezone.utc)
-    fine = _datetime_locale(audit.data_fine or audit.data_inizio, time(17, 0)).astimezone(timezone.utc)
-    stamp = timezone.now().astimezone(timezone.utc)
-    testo = "\r\n".join([
+def _ics_testo(valore: str) -> str:
+    """Escape RFC 5545 per TEXT: barra rovescia, punto e virgola, virgola, a capo."""
+    return (str(valore or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
+            .replace("\r\n", "\\n").replace("\n", "\\n"))
+
+
+def _ics(audit: Audit, destinatari: list[str] | None = None) -> bytes:
+    inizio = _datetime_locale(audit.data_inizio, time(9, 0)).astimezone(dt_timezone.utc)
+    fine = _datetime_locale(audit.data_fine or audit.data_inizio, time(17, 0)).astimezone(dt_timezone.utc)
+    stamp = timezone.now().astimezone(dt_timezone.utc)
+    righe = [
         "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//NOVICROM HUB//Audit//IT", "METHOD:REQUEST",
         "BEGIN:VEVENT", f"UID:audit-{audit.pk}@novicrom-hub", f"DTSTAMP:{stamp:%Y%m%dT%H%M%SZ}",
+        # SEQUENCE crescente: una nuova comunicazione aggiorna l'evento invece di duplicarlo.
+        f"SEQUENCE:{int(stamp.timestamp())}",
         f"DTSTART:{inizio:%Y%m%dT%H%M%SZ}", f"DTEND:{fine:%Y%m%dT%H%M%SZ}",
-        f"SUMMARY:Audit {audit.numero}", f"LOCATION:{audit.sede}",
-        f"DESCRIPTION:{audit.processi}", "END:VEVENT", "END:VCALENDAR", "",
-    ])
-    return testo.encode("utf-8")
+        f"SUMMARY:{_ics_testo('Audit ' + audit.numero)}", f"LOCATION:{_ics_testo(audit.sede)}",
+        f"DESCRIPTION:{_ics_testo(audit.processi)}",
+    ]
+    righe += [f"ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:{email}" for email in (destinatari or [])]
+    righe += ["END:VEVENT", "END:VCALENDAR", ""]
+    return "\r\n".join(righe).encode("utf-8")
 
 
 def comunica_audit(audit: Audit, *, metodo: str, deroga_motivo: str = "") -> int:
@@ -537,9 +618,16 @@ def comunica_audit(audit: Audit, *, metodo: str, deroga_motivo: str = "") -> int
         raise ValidationError("Inserisci almeno una persona auditata con indirizzo email.")
     from core.email_utils import send_hub_mail
 
+    if metodo == Audit.COM_OUTLOOK:
+        # L'invito parte da Graph dopo il commit (audit_outlook.invia_invito), non per email.
+        audit.comunicazione_il = timezone.now()
+        audit.comunicazione_metodo = metodo
+        audit.preavviso_deroga_motivo = (deroga_motivo or "").strip()
+        audit.save(update_fields=["comunicazione_il", "comunicazione_metodo", "preavviso_deroga_motivo", "updated_at"])
+        return 0
     allegati = []
     if metodo == Audit.COM_CALENDARIO:
-        allegati.append((f"audit-{audit.numero}.ics", _ics(audit), "text/calendar; method=REQUEST"))
+        allegati.append((f"audit-{audit.numero}.ics", _ics(audit, destinatari), "text/calendar; method=REQUEST"))
     inviati = send_hub_mail(
         subject=f"Piano di audit {audit.numero}",
         body_text=(

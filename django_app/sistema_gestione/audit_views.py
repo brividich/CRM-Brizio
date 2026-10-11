@@ -417,11 +417,11 @@ def audit_modifica(request, pk: int | None = None):
         with transaction.atomic():
             audit = form.save(commit=False)
             if not audit.numero:
-                audit.numero = service.prossimo_numero_audit(audit.data_inizio.year)
+                audit.numero = service.prossimo_numero_audit(audit.data_inizio.year, audit.tipo)
             audit.created_by = audit.created_by or request.user
             audit.save()
             form.save_m2m()
-            service.prepara_nuovo_audit(audit, cella=cella)
+            service.prepara_nuovo_audit(audit, cella=cella, nuovo=not pk)
             service.invalida_approvazione_piano(audit)
         conflitti = service.conflitti_imparzialita(
             processi=audit.processi, lead=audit.lead_auditor, auditor=audit.auditor.all(),
@@ -618,29 +618,39 @@ def audit_approva_direzione(request, pk: int):
 
 @login_required
 @require_POST
-@transaction.atomic
 def audit_comunica(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
-    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
-    if audit.stato not in {Audit.STATO_PIANIFICATO, Audit.STATO_PIANO_APPROVATO}:
-        messages.error(request, "Il piano può essere comunicato solo prima dell'avvio dell'audit.")
-        return redirect(_audit_url(audit, "comunicazione"))
     form = ComunicazioneAuditForm(request.POST)
-    if form.is_valid():
+    with transaction.atomic():
+        audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
+        if audit.stato not in {Audit.STATO_PIANIFICATO, Audit.STATO_PIANO_APPROVATO}:
+            messages.error(request, "Il piano può essere comunicato solo prima dell'avvio dell'audit.")
+            return redirect(_audit_url(audit, "comunicazione"))
+        if not form.is_valid():
+            return redirect(_audit_url(audit, "comunicazione"))
+        metodo = form.cleaned_data["metodo"]
         try:
-            service.comunica_audit(
-                audit, metodo=form.cleaned_data["metodo"], deroga_motivo=form.cleaned_data["deroga_motivo"],
-            )
+            service.comunica_audit(audit, metodo=metodo, deroga_motivo=form.cleaned_data["deroga_motivo"])
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
-        else:
-            if audit.preavviso_deroga_motivo:
-                log_action(request, "audit_deroga_preavviso", MODULE, {
-                    "motivo": audit.preavviso_deroga_motivo,
-                }, oggetto=audit)
-            log_action(request, "audit_comunicato", MODULE, {"metodo": form.cleaned_data["metodo"]}, oggetto=audit)
-            messages.success(request, "Piano comunicato agli auditati.")
+            return redirect(_audit_url(audit, "comunicazione"))
+    if metodo == Audit.COM_OUTLOOK:
+        # Chiamata Graph fuori dalla transazione: se fallisce la comunicazione non vale.
+        from .services import audit_outlook
+
+        try:
+            audit_outlook.invia_invito(audit)
+        except Exception as exc:  # noqa: BLE001 - errore Graph mostrato all'utente e registrato
+            Audit.objects.filter(pk=audit.pk).update(comunicazione_il=None, comunicazione_metodo="")
+            log_action(request, "audit_invito_outlook_fallito", MODULE, {"errore": str(exc)[:300]}, oggetto=audit)
+            messages.error(request, f"Invito Outlook non inviato: {exc}")
+            return redirect(_audit_url(audit, "comunicazione"))
+    if audit.preavviso_deroga_motivo:
+        log_action(request, "audit_deroga_preavviso", MODULE, {"motivo": audit.preavviso_deroga_motivo}, oggetto=audit)
+    log_action(request, "audit_comunicato", MODULE, {"metodo": metodo}, oggetto=audit)
+    messages.success(request, "Invito Outlook inviato: le risposte si aggiornano da «Aggiorna conferme»."
+                     if metodo == Audit.COM_OUTLOOK else "Piano comunicato agli auditati.")
     return redirect(_audit_url(audit, "comunicazione"))
 
 

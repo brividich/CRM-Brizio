@@ -31,6 +31,8 @@ urlpatterns = [
     path("audit/impostazioni/", programma_views.impostazioni, name="audit_impostazioni"),
     path("audit/programmi/<int:pk>/respingi/", programma_views.programma_rifiuta, name="programma_rifiuta"),
     path("audit/<int:pk>/deroga-indipendenza/approva/", programma_views.audit_approva_deroga, name="audit_approva_deroga"),
+    path("audit/<int:pk>/annulla/", programma_views.audit_annulla, name="audit_annulla"),
+    path("audit/<int:pk>/conferme/aggiorna/", programma_views.audit_conferme_aggiorna, name="audit_conferme_aggiorna"),
 
     path("", views.index, name="index"),
     path("soa/", views.soa, name="soa"),
