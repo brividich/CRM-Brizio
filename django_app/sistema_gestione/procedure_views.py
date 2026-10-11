@@ -81,7 +81,7 @@ def car(request, pk):
                 return redirect("sistema_gestione:procedura_car", pk=pk)
         if azione == "salva" and form.is_valid():
             oggetto = form.save(commit=False)
-            if set(form.changed_data) & {"responsabile", "causa", "contenimento", "azione", "analizzata_il", "origine_esterna", "approvazione_esterna"}:
+            if form.campi_analisi_cambiati or set(form.changed_data) & {"responsabile", "causa", "contenimento", "azione", "analizzata_il", "origine_esterna", "approvazione_esterna"}:
                 oggetto.approvata_da = None
                 oggetto.approvata_il = None
             oggetto.versione += 1
@@ -93,7 +93,7 @@ def car(request, pk):
         elif azione == "approva" and oggetto.pk:
             if not approva:
                 return _nega(request, "Approvazione riservata a RSGQ/Direzione.")
-            if not all([oggetto.causa.strip(), oggetto.contenimento.strip(), oggetto.azione.strip(), oggetto.analizzata_il]) or (oggetto.origine_esterna and not oggetto.approvazione_esterna.strip()):
+            if not all([oggetto.analisi_compilata, oggetto.contenimento.strip(), oggetto.azione.strip(), oggetto.analizzata_il]) or (oggetto.origine_esterna and not oggetto.approvazione_esterna.strip()):
                 messages.error(request, "Completa analisi, contenimento, azione, data e l'eventuale approvazione esterna.")
             else:
                 oggetto.approvata_da = request.user

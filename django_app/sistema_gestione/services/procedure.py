@@ -68,6 +68,6 @@ def problemi_chiusura_car(car, utente):
         problemi.append("Indica il riferimento all'approvazione del cliente/ente richiedente.")
     if car.responsabile_id == utente.pk:
         problemi.append("La verifica deve essere effettuata da persona distinta dal responsabile dell'azione (MT CN 11).")
-    if not all([car.causa.strip(), car.contenimento.strip(), car.azione.strip(), car.analizzata_il, car.evidenza_attuazione.strip(), car.evidenza_efficacia.strip()]):
+    if not all([car.analisi_compilata, car.contenimento.strip(), car.azione.strip(), car.analizzata_il, car.evidenza_attuazione.strip(), car.evidenza_efficacia.strip()]):
         problemi.append("Completa causa, contenimento, azione, data analisi, attuazione e verifica di efficacia.")
     return problemi

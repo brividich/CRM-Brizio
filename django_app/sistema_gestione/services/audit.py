@@ -326,7 +326,9 @@ def sincronizza_ofi(esito: AuditEsito):
         "norma_en9100": audit.en9100,
         "norma_iso45001": audit.iso45001,
         "norma_iso27001": audit.iso27001,
-        "rif_norma": esito.punti[:200],
+        "rif_norma": esito.clausola_effettiva[:200],
+        "priorita": (RegistroOFI.PRIORITA_ALTA if esito.gravita == AuditEsito.GRAVITA_MAGGIORE
+                     else RegistroOFI.PRIORITA_MEDIA),
         "ref": audit.numero[:100],
         "processo": audit.processi[:200],
         "opportunita": esito.evidenze,
@@ -340,6 +342,8 @@ def sincronizza_ofi(esito: AuditEsito):
         from .audit_automation import testo_evidenza
         dati["opportunita"] = testo_evidenza(esito)
         dati["processo"] = esito.domanda_snapshot.get("processo", audit.processi)[:200]
+    if esito.esito == AuditEsito.ESITO_NC and esito.gravita:
+        dati["opportunita"] = f"[{esito.get_gravita_display()}] {dati['opportunita']}"
     for _tentativo in range(2):
         try:
             # Il savepoint rende recuperabile la transazione esterna anche su SQL Server.
@@ -368,12 +372,45 @@ def salva_esito(esito: AuditEsito, *, utente, genera_rilievo=True):
 
 
 def contatori_rilievi(audit: Audit) -> dict[str, int]:
-    return {
-        "ofi": audit.esiti.filter(esito=AuditEsito.ESITO_OFI).count(),
-        "nc": audit.esiti.filter(esito=AuditEsito.ESITO_NC).count(),
-        "conformi": audit.esiti.filter(esito=AuditEsito.ESITO_CONFORME).count(),
-        "na": audit.esiti.filter(esito=AuditEsito.ESITO_NA).count(),
-    }
+    from django.db.models import Count, Q
+
+    c = audit.esiti.aggregate(
+        ofi=Count("pk", filter=Q(esito=AuditEsito.ESITO_OFI)),
+        nc=Count("pk", filter=Q(esito=AuditEsito.ESITO_NC)),
+        nc_maggiori=Count("pk", filter=Q(esito=AuditEsito.ESITO_NC, gravita=AuditEsito.GRAVITA_MAGGIORE)),
+        nc_minori=Count("pk", filter=Q(esito=AuditEsito.ESITO_NC, gravita=AuditEsito.GRAVITA_MINORE)),
+        osservazioni=Count("pk", filter=Q(esito=AuditEsito.ESITO_OSSERVAZIONE)),
+        punti_forza=Count("pk", filter=Q(esito=AuditEsito.ESITO_PUNTO_FORZA)),
+        conformi=Count("pk", filter=Q(esito=AuditEsito.ESITO_CONFORME)),
+        na=Count("pk", filter=Q(esito=AuditEsito.ESITO_NA)),
+    )
+    return {k: v or 0 for k, v in c.items()}
+
+
+def chiusura_richiede_car_approvate() -> bool:
+    """Regola configurabile (SiteConfig): di default l'audit si chiude solo con il piano azioni
+    approvato per ogni NC (ISO 19011 §6.6); l'efficacia si segue poi sulla CAR."""
+    from core.models import SiteConfig
+
+    return (SiteConfig.get(CHIAVE_CHIUSURA_CAR, "1") or "1").strip() not in {"0", "false", "no"}
+
+
+CHIAVE_CHIUSURA_CAR = "sistema_gestione.audit_chiusura_richiede_car_approvate"
+
+
+def problemi_chiusura_audit(audit: Audit) -> list[str]:
+    if not chiusura_richiede_car_approvate():
+        return []
+    problemi = []
+    for esito in audit.esiti.filter(esito=AuditEsito.ESITO_NC).select_related("ofi"):
+        car = getattr(esito.ofi, "car_procedurale", None) if esito.ofi_id else None
+        if not esito.ofi_id:
+            problemi.append(f"{esito.clausola_effettiva}: la NC non è nel Registro OFI.")
+        elif car is None:
+            problemi.append(f"{esito.clausola_effettiva}: apri la CAR della NC n. {esito.ofi.numero}.")
+        elif not car.approvata_il:
+            problemi.append(f"{esito.clausola_effettiva}: il piano azioni della NC n. {esito.ofi.numero} non è ancora approvato.")
+    return problemi
 
 
 def verifica_completezza(audit: Audit) -> dict:
@@ -426,7 +463,8 @@ def verifica_completezza(audit: Audit) -> dict:
               f"{esito.punti}: manca il collegamento al Registro OFI.", f"esito-{esito.pk}")
     manca(rapporto, not audit.giudizio.strip(), "Scrivi il giudizio conclusivo del rapporto.", "rapporto")
     return {"piano": piano, "rapporto": rapporto, "completi": completi, "totale": len(esiti),
-            "percentuale": round(100 * completi / len(esiti)) if esiti else 0}
+            "percentuale": round(100 * completi / len(esiti)) if esiti else 0,
+            "chiusura": problemi_chiusura_audit(audit) if audit.stato == Audit.STATO_RAPPORTO else []}
 
 
 def invalida_approvazione_piano(audit):

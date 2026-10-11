@@ -24,7 +24,13 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 - **ACL**: oltre ai permessi SoA, `.audit.view`, `.audit.edit`, `.audit.esegui`, `.audit.approva`; ogni route ha binding canonico e controllo fail-closed nella view. Default: admin tutto, qualità consultazione; assegnazioni operative da Admin › ACL.
 - **Report conformità**: «Dichiarazione di applicabilità» nell'area IT e «Audit interni» nell'area Qualità, entrambi inclusi nel pacchetto del riesame. I controlli SoA 5.35 e 5.36 linkano l'evidenza viva degli audit.
 
+- **Rapporto emesso e integrità:** alla chiusura (valutazione RDD) il MOD.035B è generato una sola volta e archiviato con SHA-256 (versione «Emissione»); i download successivi consegnano quel file. Prima della chiusura il PDF è un'anteprima con filigrana «BOZZA - NON EMESSO». Direzione ≠ Lead per il piano, RDD ≠ auditor per il rapporto. Copie firmate: piano dopo l'approvazione, rapporto dopo la chiusura, sostituzione solo da approvatore.
+- **Rilievi:** esiti Conforme, Punto di forza, Osservazione, OFI, NC (maggiore/minore), N/A, con clausola. Una NC entra nel MOD.174 solo con gravità ed evidenza allegata; NC maggiore = priorità Alta. Le evidenze si scaricano con un ruolo sull'audit o con la gestione del programma.
+- **CAR e chiusura:** analisi cause 5 perché / Ishikawa 6M / documento esterno (schema delle NC di produzione). L'audit si chiude solo con il piano azioni approvato per ogni NC (`sistema_gestione.audit_chiusura_richiede_car_approvate`, default attivo). Solleciti giornalieri al responsabile ed escalation a RSGI oltre `sistema_gestione.car_escalation_giorni` (default 15) con il job `sistema_gestione_car_solleciti`; destinatari `sistema_gestione.audit_email_rsgi`.
+
 ## Note di rilascio
+
+**Audit interni professionali — fasi 1-2 (Unreleased, prompt 08):** rapporto emesso immutabile con SHA-256, firme separate, rilievi classificati, CAR 5 perché/Ishikawa, chiusura condizionata e solleciti. Piano completo in [gap analysis](../specs/sgi_audit_interni_gap_analysis.md). Deploy: `migrate sistema_gestione` 0009-0010 e `setup_q_schedules`. Configurare `sistema_gestione.audit_email_rsgi` per l'escalation.
 
 **Procedure aziendali (Unreleased):** copertura annuale e preparazione audit MT CN 12, CAR MT CN 11 nel registro trasversale, indicatori MT CN 13 e import controllato dei Turtle. [Checklist e avanzamento](../../docs/ai/CHECKLIST_PROCEDURE_AZIENDALI.md). Richiede migrazione SG 0008 e bootstrap ACL; nessuna nuova dipendenza.
 

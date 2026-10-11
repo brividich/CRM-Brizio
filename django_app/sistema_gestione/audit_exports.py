@@ -305,7 +305,18 @@ def piano_audit_pdf(audit: Audit) -> bytes:
     return buf.getvalue()
 
 
-def rapporto_audit_pdf(audit: Audit) -> bytes:
+def _filigrana_bozza(canvas, doc):
+    canvas.saveState()
+    canvas.setFont("Helvetica-Bold", 64)
+    canvas.setFillColor(colors.Color(0.75, 0.1, 0.1, alpha=0.18))
+    canvas.translate(A4[0] / 2, A4[1] / 2)
+    canvas.rotate(45)
+    canvas.drawCentredString(0, 0, "BOZZA - NON EMESSO")
+    canvas.restoreState()
+
+
+def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False) -> bytes:
+    """MOD.035B. Con ``bozza`` ogni pagina porta la filigrana: è l'anteprima prima della chiusura."""
     styles = _styles()
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -366,11 +377,18 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
         checklist.append([_p(f"{sezione.codice} - {sezione.titolo}   Criteri: {sezione.criteri}", styles["head"]), "", "", ""])
         for esito in gruppi[sezione]:
             rilievo = "  ".join([
-                _check(esito.esito == AuditEsito.ESITO_CONFORME) + " ✓",
+                _check(esito.esito in {AuditEsito.ESITO_CONFORME, AuditEsito.ESITO_PUNTO_FORZA}) + " ✓",
+                _check(esito.esito == AuditEsito.ESITO_OSSERVAZIONE) + " OSS",
                 _check(esito.esito == AuditEsito.ESITO_OFI) + " OFI",
                 _check(esito.esito == AuditEsito.ESITO_NC) + " NC",
                 _check(esito.esito == AuditEsito.ESITO_NA) + " N/A",
             ])
+            if esito.esito == AuditEsito.ESITO_NC and esito.gravita:
+                rilievo += f"\n{esito.get_gravita_display()}"
+            elif esito.esito == AuditEsito.ESITO_PUNTO_FORZA:
+                rilievo += "\nPunto di forza"
+            if esito.esito in AuditEsito.ESITI_RILIEVO and esito.clausola and esito.clausola != esito.punti:
+                rilievo += f"\n§ {esito.clausola}"
             checklist.append([
                 _p(esito.punti, styles["head"]), _p(esito.testo, styles["small"]),
                 _p(testo_evidenza(esito), styles["small"]), _p(rilievo, styles["small"]),
@@ -385,7 +403,7 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
         label = esito.domanda_snapshot.get("processo") or "Verifica aggiuntiva"
         checklist.append([_p(f"{label} - domanda Rev.{esito.domanda_snapshot.get('revisione', '-')}", styles["head"]), "", "", ""])
         checklist.append([_p(esito.punti, styles["head"]), _p(esito.testo, styles["small"]),
-            _p(testo_evidenza(esito), styles["small"]), _p(esito.get_esito_display() or "Da valutare", styles["small"])])
+            _p(testo_evidenza(esito), styles["small"]), _p(esito.esito_label or "Da valutare", styles["small"])])
     ct = _table(checklist, [12 * mm, 66 * mm, 63 * mm, width - 141 * mm], repeat=1, section_rows=tuple(section_rows), font_size=6.5, split_in_row=1)
     for row in section_rows:
         ct.setStyle(TableStyle([("SPAN", (0, row), (-1, row))]))
@@ -393,10 +411,15 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
     story += [ct, PageBreak(), _p("D. GIUDIZI ED OSSERVAZIONI DELL'AUDITOR", styles["head"])]
     story += [
         _table([
+            *([[_p("RIEPILOGO DEI RILIEVI", styles["head"])], [_p(audit.riepilogo_generato, styles["cell"])]]
+              if audit.riepilogo_generato.strip() else []),
             [_p("GIUDIZIO COMPLESSIVO DELL'AUDITOR", styles["head"])], [_p(audit.giudizio, styles["cell"])],
             [_p("PUNTI DI FORZA RILEVATI", styles["head"])], [_p(audit.punti_forza, styles["cell"])],
-            [_p(f"OFI emesse: {counts['ofi']}    NC di sistema: {counts['nc']}", styles["head"])],
+            [_p(f"OFI emesse: {counts['ofi']}    NC di sistema: {counts['nc']} "
+                f"(maggiori {counts['nc_maggiori']}, minori {counts['nc_minori']})    "
+                f"Osservazioni: {counts['osservazioni']}    Punti di forza: {counts['punti_forza']}", styles["head"])],
             [_p(_firma("Firma Auditor", audit.rapporto_firmato_auditor_da, audit.rapporto_firmato_auditor_il), styles["cell"])],
+            [_p(_firma("Convalida responsabile ente", audit.rapporto_convalidato_ente_da, audit.rapporto_convalidato_ente_il), styles["cell"])],
         ], [width]),
         Spacer(1, 5 * mm), _p("E. VALUTAZIONI RDD", styles["head"]),
         _table([
@@ -418,11 +441,16 @@ def rapporto_audit_pdf(audit: Audit) -> bytes:
         for campo, titolo in [("audit_precedenti", "Audit precedenti"), ("car_cliente", "CAR cliente"), ("documenti_registrazioni", "Documenti e campioni"), ("obiettivi_carenze", "Obiettivi e carenze")]:
             story += [_p(titolo, styles["head"]), _p(getattr(preparazione, campo), styles["cell"]), Spacer(1, 3*mm)]
         story += [_p(_firma("Preparazione confermata", preparazione.verificato_da, preparazione.verificato_il), styles["cell"])]
+        if preparazione.origine_ai:
+            story += [_p("Bozza iniziale proposta dall'AI e verificata dall'auditor prima della conferma.", styles["note"])]
     allegati = [(e, a) for e in audit.esiti.prefetch_related("allegati") for a in e.allegati.all()]
     if allegati:
         story += [PageBreak(), _p("ALLEGATO - INDICE DELLE EVIDENZE", styles["head"]), Spacer(1, 4*mm)]
         for esito, allegato in allegati:
             story += [_p(f"Verifica {esito.punti}: {allegato.nome} ({allegato.dimensione} byte)", styles["cell"]),
                       _p(f"SHA-256: {allegato.sha256}", styles["small"]), Spacer(1, 3*mm)]
-    doc.build(story)
+    if bozza:
+        doc.build(story, onFirstPage=_filigrana_bozza, onLaterPages=_filigrana_bozza)
+    else:
+        doc.build(story)
     return buf.getvalue()

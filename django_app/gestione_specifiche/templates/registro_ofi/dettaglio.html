@@ -41,7 +41,7 @@ body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
 </style>
 {% endblock %}
 
-{% block content %}<p><a href="{% url 'sistema_gestione:procedura_car' voce.pk %}">Azione correttiva MT CN 11: analisi, scadenze, proroga ed efficacia</a></p>
+{% block content %}
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd">
   <div class="fmd-wrap" style="max-width:960px;margin:0 auto;">
@@ -54,6 +54,9 @@ body.theme-dark .pdca-step.done .pdca-dot{ background:rgba(22,163,74,.14); }
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-clipboard"/></svg>{% if voce.tipo == "OFI" %}OFI{% else %}NC{% endif %} n. {{ voce.numero }}
             {% if voce.tipo == "OFI" %}<span class="fmd-badge fmd-b-amber">OFI</span>{% else %}<span class="fmd-badge fmd-b-red">NC</span>{% endif %}</h1>
           <p class="fmd-sub">Modulo d'origine: <strong>{{ voce.modulo_display }}</strong> · Fase {{ voce.get_fase_display }} (TOT {{ voce.tot_letter }}).</p>
+          <p class="fmd-sub">
+            {% if voce.modulo_origine == "sistema_gestione" and voce.origine.audit_id %}<a href="{% url 'sistema_gestione:audit_dettaglio' voce.origine.audit_id %}#esito-{{ voce.origine.pk }}">Rilievo dell'audit {{ voce.origine.audit.numero }}{% if voce.origine.clausola_effettiva %} · § {{ voce.origine.clausola_effettiva }}{% endif %}</a> · {% endif %}<a href="{% url 'sistema_gestione:procedura_car' voce.pk %}">Azione correttiva MT CN 11: analisi, scadenze, proroga ed efficacia</a>
+          </p>
         </div>
         <div class="fmd-hero-side">
           <a href="{% url 'registro_ofi:lista' %}" class="fmd-btn fmd-btn-ghost">← Registro</a>

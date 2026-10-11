@@ -82,7 +82,7 @@ def _puo_convalidare_ente(request, audit: Audit) -> bool:
 
 
 def _rapporto_firmato_redirect(request, audit: Audit):
-    messages.error(request, "Il rapporto firmato non Ã¨ modificabile: riaprilo prima di apportare variazioni.")
+    messages.error(request, "Il rapporto firmato non è modificabile: riaprilo prima di apportare variazioni.")
     return redirect(_audit_url(audit, "rapporto"))
 
 
@@ -598,6 +598,8 @@ def audit_approva_direzione(request, pk: int):
     audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if audit.stato != Audit.STATO_PIANIFICATO or not audit.piano_approvato_lead_il:
         messages.error(request, "Serve prima l'approvazione del Lead Auditor.")
+    elif audit.piano_approvato_lead_da_id == request.user.id:
+        messages.error(request, "L'approvazione della Direzione deve essere di una persona diversa dal Lead Auditor.")
     elif service.verifica_completezza(audit)["piano"]:
         messages.error(request, "Il piano contiene informazioni mancanti: consulta la guida di compilazione.")
     else:
@@ -619,7 +621,7 @@ def audit_comunica(request, pk: int):
         return _deny(request)
     audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if audit.stato not in {Audit.STATO_PIANIFICATO, Audit.STATO_PIANO_APPROVATO}:
-        messages.error(request, "Il piano puÃ² essere comunicato solo prima dell'avvio dell'audit.")
+        messages.error(request, "Il piano può essere comunicato solo prima dell'avvio dell'audit.")
         return redirect(_audit_url(audit, "comunicazione"))
     form = ComunicazioneAuditForm(request.POST)
     if form.is_valid():
@@ -773,15 +775,15 @@ def audit_riapri_rapporto(request, pk: int):
     if not _assigned_executor(request, audit):
         return _deny(request)
     if audit.rapporto_convalidato_ente_il or audit.rapporto_valutato_rdd_il:
-        messages.error(request, "Il rapporto giÃ  convalidato o valutato non puÃ² essere riaperto.")
+        messages.error(request, "Il rapporto già convalidato o valutato non può essere riaperto.")
     elif not audit.rapporto_firmato_auditor_il:
         messages.error(request, "Il rapporto non risulta firmato.")
     else:
         audit.rapporto_firmato_auditor_da = None
         audit.rapporto_firmato_auditor_il = None
-        audit.save(update_fields=["riepilogo_generato", "rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
+        audit.save(update_fields=["rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
         log_action(request, "audit_rapporto_riaperto", MODULE, {}, oggetto=audit)
-        messages.success(request, "Rapporto riaperto: Ã¨ nuovamente modificabile.")
+        messages.success(request, "Rapporto riaperto: è nuovamente modificabile.")
     return redirect(_audit_url(audit, "rapporto"))
 
 
@@ -812,16 +814,26 @@ def audit_valuta_rdd(request, pk: int):
     if not audit.rapporto_firmato_auditor_il or not audit.rapporto_convalidato_ente_il:
         messages.error(request, "Servono firma dell'auditor e convalida del responsabile dell'ente.")
         return redirect(_audit_url(audit, "rapporto"))
+    if audit.rapporto_firmato_auditor_da_id == request.user.id:
+        messages.error(request, "La valutazione RDD deve essere di una persona diversa dall'auditor che ha firmato il rapporto.")
+        return redirect(_audit_url(audit, "rapporto"))
+    problemi_chiusura = service.problemi_chiusura_audit(audit)
+    if problemi_chiusura:
+        messages.error(request, "Audit non chiudibile: " + " ".join(problemi_chiusura))
+        return redirect(_audit_url(audit, "rapporto"))
     form = ValutazioneRddForm(request.POST, instance=audit)
     if form.is_valid():
+        from .services.rapporto import emetti_rapporto
+
         audit = form.save(commit=False)
         audit.rapporto_valutato_rdd_da = request.user
         audit.rapporto_valutato_rdd_il = timezone.now()
         audit.stato = Audit.STATO_CHIUSO
         audit.save()
-        service.distribuisci_rapporto(audit)
-        log_action(request, "audit_chiuso", MODULE, {}, oggetto=audit)
-        messages.success(request, "Audit chiuso e rapporto distribuito.")
+        emissione = emetti_rapporto(audit, autore=request.user)
+        transaction.on_commit(lambda: service.distribuisci_rapporto(audit))
+        log_action(request, "audit_chiuso", MODULE, {"versione": emissione.numero, "sha256": emissione.sha256}, oggetto=audit)
+        messages.success(request, "Audit chiuso: rapporto emesso, archiviato con impronta SHA-256 e distribuito.")
     return redirect(_audit_url(audit, "rapporto"))
 
 
@@ -833,7 +845,19 @@ def audit_export(request, pk: int, documento: str):
     if documento == "piano":
         body, name = piano_audit_pdf(audit), f"MOD035A_{audit.numero}.pdf"
     elif documento == "rapporto":
-        body, name = rapporto_audit_pdf(audit), f"MOD035B_{audit.numero}.pdf"
+        from .services.rapporto import rapporto_emesso
+
+        emesso = rapporto_emesso(audit)
+        if emesso:
+            # Il rapporto emesso non si rigenera: si consegna il PDF archiviato alla chiusura.
+            log_action(request, "audit_pdf", MODULE, {"documento": documento, "versione": emesso.numero,
+                                                       "sha256": emesso.sha256}, oggetto=audit)
+            response = FileResponse(emesso.pdf.open("rb"), content_type="application/pdf", as_attachment=True,
+                                    filename=f"MOD035B_{audit.numero}_v{emesso.numero}.pdf")
+            response["X-Content-Type-Options"] = "nosniff"
+            response["Cache-Control"] = "private, no-store"
+            return response
+        body, name = rapporto_audit_pdf(audit, bozza=True), f"MOD035B_{audit.numero}_BOZZA.pdf"
     else:
         raise Http404
     log_action(request, "audit_pdf", MODULE, {"documento": documento}, oggetto=audit)
@@ -849,15 +873,30 @@ def audit_carica_firmata(request, pk: int, documento: str):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
     audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
+    if documento not in {"piano", "rapporto"}:
+        raise Http404
+    campo = "copia_firmata_piano" if documento == "piano" else "copia_firmata_rapporto"
+    nome_campo = campo + "_nome"
+    # La copia firmata documenta un atto concluso: il piano dopo l'approvazione della Direzione,
+    # il rapporto dopo la chiusura. Sostituirla resta possibile solo a un approvatore, tracciato.
+    if documento == "piano" and not audit.piano_approvato_direzione_il:
+        messages.error(request, "La copia firmata del piano si carica dopo l'approvazione della Direzione.")
+        return redirect(_audit_url(audit, "documenti"))
+    if documento == "rapporto" and audit.stato != Audit.STATO_CHIUSO:
+        messages.error(request, "La copia firmata del rapporto si carica dopo la chiusura dell'audit.")
+        return redirect(_audit_url(audit, "documenti"))
+    precedente = getattr(audit, nome_campo)
+    if getattr(audit, campo) and not _has_perm(request, PERM_AUDIT_APPROVA):
+        messages.error(request, "Una copia firmata è già archiviata: solo un approvatore può sostituirla.")
+        return redirect(_audit_url(audit, "documenti"))
     form = CopiaFirmataForm(request.POST, request.FILES)
-    if form.is_valid() and documento in {"piano", "rapporto"}:
+    if form.is_valid():
         file = form.cleaned_data["file"]
-        campo = "copia_firmata_piano" if documento == "piano" else "copia_firmata_rapporto"
-        nome_campo = campo + "_nome"
         getattr(audit, campo).save(f"{documento}_{audit.numero}_firmato.pdf", file, save=False)
         setattr(audit, nome_campo, Path(file.name).name[:255])
         audit.save(update_fields=[campo, nome_campo, "updated_at"])
-        log_action(request, "audit_copia_firmata", MODULE, {"documento": documento}, oggetto=audit)
+        log_action(request, "audit_copia_firmata", MODULE,
+                   {"documento": documento, "sostituisce": precedente or None}, oggetto=audit)
         messages.success(request, "Copia firmata caricata.")
     else:
         messages.error(request, "File non valido.")

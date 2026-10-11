@@ -32,6 +32,8 @@
       var el = document.querySelector('[name=' + campo + ']');
       if (el && bozza[campo] && !el.value.trim()) el.value = bozza[campo];
     });
+    var origine = document.querySelector('[name=origine_ai]');
+    if (origine) origine.value = 'True';
     copia.textContent = 'Copiata nei campi vuoti: rileggi e registra';
   });
 })();

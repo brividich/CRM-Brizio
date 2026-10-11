@@ -676,13 +676,21 @@ class ChecklistProcesso(models.Model):
 
 class AuditEsito(models.Model):
     ESITO_CONFORME = "CONFORME"
+    ESITO_PUNTO_FORZA = "PF"
+    ESITO_OSSERVAZIONE = "OSS"
     ESITO_OFI = "OFI"
     ESITO_NC = "NC"
     ESITO_NA = "NA"
     ESITO_CHOICES = [
-        (ESITO_CONFORME, "Conforme"), (ESITO_OFI, "OFI"),
+        (ESITO_CONFORME, "Conforme"), (ESITO_PUNTO_FORZA, "Punto di forza"),
+        (ESITO_OSSERVAZIONE, "Osservazione"), (ESITO_OFI, "OFI"),
         (ESITO_NC, "NC"), (ESITO_NA, "N/A"),
     ]
+    # Esiti che registrano un rilievo con riferimento al requisito (ISO 19011 §6.4.8).
+    ESITI_RILIEVO = {ESITO_OSSERVAZIONE, ESITO_OFI, ESITO_NC}
+    GRAVITA_MAGGIORE = "MAGGIORE"
+    GRAVITA_MINORE = "MINORE"
+    GRAVITA_CHOICES = [(GRAVITA_MAGGIORE, "NC maggiore"), (GRAVITA_MINORE, "NC minore")]
     audit = models.ForeignKey(Audit, on_delete=models.CASCADE, related_name="esiti")
     processo = models.ForeignKey(Processo, null=True, blank=True, on_delete=models.PROTECT, related_name="esiti_audit")
     modello_processo = models.ForeignKey(ChecklistProcesso, null=True, blank=True, on_delete=models.PROTECT)
@@ -706,6 +714,11 @@ class AuditEsito(models.Model):
     punti_aggiuntivi = models.CharField(max_length=100, blank=True, default="")
     testo_aggiuntivo = models.TextField(blank=True, default="")
     esito = models.CharField(max_length=10, choices=ESITO_CHOICES, blank=True, default="")
+    gravita = models.CharField(max_length=8, choices=GRAVITA_CHOICES, blank=True, default="")
+    clausola = models.CharField(
+        "Clausola / requisito", max_length=100, blank=True, default="",
+        help_text="Lascia vuoto per usare i punti norma della domanda.",
+    )
     evidenze = models.TextField(blank=True, default="")
     ofi = models.ForeignKey(
         "gestione_specifiche.RegistroOFI", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
@@ -742,6 +755,16 @@ class AuditEsito(models.Model):
     @property
     def testo(self) -> str:
         return self.domanda_snapshot.get("domanda") or (self.domanda.testo if self.domanda_id else self.testo_aggiuntivo)
+
+    @property
+    def clausola_effettiva(self) -> str:
+        return (self.clausola or "").strip() or (self.punti or "").strip()
+
+    @property
+    def esito_label(self) -> str:
+        if self.esito == self.ESITO_NC and self.gravita:
+            return self.get_gravita_display()
+        return self.get_esito_display()
 
 
 class AuditSezioneCar(models.Model):
@@ -781,8 +804,20 @@ class AuditVerificaEfficacia(models.Model):
 
 
 class AuditRapportoVersione(models.Model):
+    """Rapporto MOD.035B congelato: emissione alla chiusura o archivio prima di una revisione.
+
+    Il PDF archiviato non si rigenera: l'impronta SHA-256 permette di dimostrare che il
+    documento consegnato all'ente coincide con quello conservato.
+    """
+
+    TIPO_EMISSIONE = "EMISSIONE"
+    TIPO_REVISIONE = "REVISIONE"
+    TIPO_CHOICES = [(TIPO_EMISSIONE, "Emissione"), (TIPO_REVISIONE, "Archiviato per revisione")]
+
     audit = models.ForeignKey(Audit, on_delete=models.PROTECT, related_name="versioni_rapporto")
     numero = models.PositiveIntegerField()
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default=TIPO_REVISIONE)
+    sha256 = models.CharField(max_length=64, blank=True, default="")
     motivo = models.CharField(max_length=500)
     snapshot = models.JSONField(default=dict)
     pdf = models.FileField(upload_to="sistema_gestione/revisioni/%Y/", storage=PrivateSistemaGestioneStorage())
@@ -801,14 +836,32 @@ class AuditPreparazione(models.Model):
     car_cliente = models.TextField("CAR cliente: riferimenti e stato, oppure assenza motivata")
     documenti_registrazioni = models.TextField("Documenti e registrazioni da campionare, revisioni e disponibilita")
     obiettivi_carenze = models.TextField("Obiettivi della verifica e carenze da approfondire")
+    origine_ai = models.BooleanField(default=False, help_text="Partita da una bozza AI poi verificata dall'auditor.")
     verificato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     verificato_il = models.DateTimeField(auto_now=True)
 
 
 class AzioneCorrettivaAudit(models.Model):
+    # Stesso schema dell'analisi cause delle NC di produzione (anomalie.AnomaliaNC), così i due
+    # registri si leggono allo stesso modo.
+    METODO_CINQUE_PERCHE = "CINQUE_PERCHE"
+    METODO_ISHIKAWA = "ISHIKAWA"
+    METODO_ESTERNA = "ESTERNA"
+    METODO_CHOICES = [
+        (METODO_CINQUE_PERCHE, "5 perché"), (METODO_ISHIKAWA, "Ishikawa (6M)"),
+        (METODO_ESTERNA, "Documento esterno"),
+    ]
+    ISHIKAWA = {
+        "manodopera": "Manodopera", "metodo": "Metodo", "macchina": "Macchina",
+        "materiale": "Materiale", "misura": "Misura", "ambiente": "Ambiente",
+    }
+
     registro = models.OneToOneField("gestione_specifiche.RegistroOFI", on_delete=models.PROTECT, related_name="car_procedurale")
     data_richiesta = models.DateField("Data richiesta CAR")
     responsabile = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="car_assegnate")
+    analisi_metodo = models.CharField("Metodo di analisi", max_length=14, choices=METODO_CHOICES, blank=True, default="")
+    analisi_perche = models.JSONField(default=list, blank=True)
+    analisi_ishikawa = models.JSONField(default=dict, blank=True)
     causa = models.TextField("Analisi della causa radice", blank=True)
     contenimento = models.TextField("Azione di contenimento", blank=True)
     azione = models.TextField("Azione correttiva e modifiche documentali", blank=True)
@@ -826,6 +879,16 @@ class AzioneCorrettivaAudit(models.Model):
     chiusa_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")
     chiusa_il = models.DateTimeField(null=True)
     versione = models.PositiveIntegerField(default=0)
+    sollecitata_il = models.DateField(null=True, blank=True)
+    escalation_il = models.DateField(null=True, blank=True)
+
+    @property
+    def analisi_compilata(self) -> bool:
+        return bool(
+            (self.causa or "").strip()
+            or any(str(x or "").strip() for x in (self.analisi_perche or []))
+            or any(str(v or "").strip() for v in (self.analisi_ishikawa or {}).values())
+        )
 
     @property
     def scadenza_analisi(self):

@@ -276,7 +276,7 @@ class AuditEsitoForm(forms.ModelForm):
     versione = forms.IntegerField(required=False, widget=forms.HiddenInput())
     class Meta:
         model = AuditEsito
-        fields = ["esito", "documento", "revisione_documento", "campione", "data_verifica", "evidenze", "requisito_atteso", "scostamento", "responsabile_azione", "scadenza_azione"]
+        fields = ["esito", "gravita", "clausola", "documento", "revisione_documento", "campione", "data_verifica", "evidenze", "requisito_atteso", "scostamento", "responsabile_azione", "scadenza_azione"]
         widgets = {nome: forms.Textarea(attrs={"rows": 3}) for nome in ["campione", "evidenze", "requisito_atteso", "scostamento"]}
         widgets.update(data_verifica=_DATE, scadenza_azione=_DATE)
         labels = {"documento": "Documento o registrazione verificata", "revisione_documento": "Revisione / versione",
@@ -304,6 +304,8 @@ class AuditEsitoForm(forms.ModelForm):
             dati.get("evidenze") or ""
         ).strip():
             self.add_error("evidenze", "Descrivi l'evidenza che genera il rilievo.")
+        if dati.get("esito") != AuditEsito.ESITO_NC:
+            dati["gravita"] = ""
         return dati
 
 
