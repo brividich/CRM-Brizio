@@ -8,6 +8,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Anomalie — le foto della pagina raggiunta dalla mail si vedono senza login** (`django_app/anomalie/mail_action_views.py`, `urls.py`, `views.py`, `templates/anomalie/pages/mail_action_form.html`, `tests_mail_action.py`, `docs/moduli/anomalie.md`).
+  - La pagina a token `/gestione-anomalie/mail-action/<token>/` mostrava foto e allegati tramite `/api/anomalie/allegati/file`, che richiede il login: chi apriva il link dalla mail senza sessione vedeva immagini rotte e link che portavano al login.
+  - Nuovo endpoint `/gestione-anomalie/mail-action/<token>/allegato/` sotto lo stesso prefisso pubblico: autorizza solo con token valido e non revocato e solo per le anomalie che quella pagina mostra (salvate nel token o dello stesso OP); 404 altrimenti. Immagini e PDF inline, ogni altro file come allegato opaco (`core.download_security`), header pubblici `no-referrer`/`no-store`, apertura registrata in audit.
+  - Risoluzione del percorso dell'allegato estratta in `_resolve_anomalia_attachment_path`, condivisa con l'endpoint autenticato (comportamento invariato).
+
 ## 1.6.2 - 2026-10-10
 
 - **Accessi — categorie dei permessi rifatte e verifica dei collegamenti ACL** (`django_app/core/permission_categories.py` nuovo, `django_app/core/acl_capability.py`, `django_app/core/permission_taxonomy.py`, `django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, test `core/test_permission_categories.py`, `core/test_acl_capability.py`, `admin_portale/test_accessi_unificati.py`, `docs/moduli/admin_portale.md`).

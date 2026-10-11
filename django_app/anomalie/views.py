@@ -2654,6 +2654,32 @@ def api_anomalie_descrizione_allegati_upload(request):
     return JsonResponse({"success": bool(saved) and not errors, "allegati": saved, "errors": errors}, status=200 if saved else 400)
 
 
+def _resolve_anomalia_attachment_path(local_id: int, file_id: str):
+    """Percorso dell'allegato ``file_id`` dell'anomalia, o ``None``.
+
+    Vale per gli allegati della segnalazione e per quelli di una riga di
+    descrizione (``descrizione:<id>``); il file deve stare dentro la cartella
+    dell'anomalia. Nessun controllo d'accesso: lo fa chi chiama (permesso ACL
+    nel portale, token nella pagina raggiunta dalla mail).
+    """
+    file_id = str(file_id or "").strip()
+    if file_id.startswith("descrizione:") and file_id.split(":", 1)[1].isdigit():
+        from .quality_models import AnomaliaDescrizioneAllegato
+        attached = AnomaliaDescrizioneAllegato.objects.filter(
+            pk=int(file_id.split(":", 1)[1]),
+            descrizione__segnalazione__anomalia_id=local_id,
+        ).first()
+        folder = _attachment_dir_for_local(local_id, create=False).resolve()
+        path = (folder / attached.file_rel).resolve() if attached else None
+        if path and not path.is_relative_to(folder):
+            path = None
+    else:
+        path = _attachment_file_path(local_id, file_id)
+    if not path or not path.exists() or not path.is_file():
+        return None
+    return path
+
+
 @login_required
 def api_anomalie_allegati_file(request):
     try:
@@ -2670,19 +2696,8 @@ def api_anomalie_allegati_file(request):
         op_id = str(row.get("ex_op_nominativo") or "").strip()
         if not _can_view_anomalie_for_op(request, op_id):
             return _json_error("Permesso negato", status=403)
-        if file_id.startswith("descrizione:") and file_id.split(":", 1)[1].isdigit():
-            from .quality_models import AnomaliaDescrizioneAllegato
-            attached = AnomaliaDescrizioneAllegato.objects.filter(
-                pk=int(file_id.split(":", 1)[1]),
-                descrizione__segnalazione__anomalia_id=local_id,
-            ).first()
-            folder = _attachment_dir_for_local(local_id, create=False).resolve()
-            path = (folder / attached.file_rel).resolve() if attached else None
-            if path and not path.is_relative_to(folder):
-                path = None
-        else:
-            path = _attachment_file_path(local_id, file_id)
-        if not path or not path.exists() or not path.is_file():
+        path = _resolve_anomalia_attachment_path(local_id, file_id)
+        if not path:
             return _json_error("Allegato non trovato", status=404)
 
         mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"

@@ -404,7 +404,7 @@
             {% for descrizione in a.descrizioni %}
             <div class="body-desc-full body-desc-box">
               <strong>Descrizione {{ forloop.counter }} · S/N {{ descrizione.seriali|join:", " }}</strong><br>{{ descrizione.testo }}
-              {% for allegato in descrizione.allegati %}<div class="allegato-line">Allegato: <a href="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id=descrizione:{{ allegato.id }}" target="_blank" rel="noopener">{{ allegato.nome }}</a> ({{ allegato.size|filesizeformat }})</div>{% endfor %}
+              {% for allegato in descrizione.allegati %}<div class="allegato-line">Allegato: <a href="{% url 'anomalie_mail_action_allegato' token.token %}?local_id={{ a.id }}&amp;file_id=descrizione:{{ allegato.id }}" target="_blank" rel="noopener">{{ allegato.nome }}</a> ({{ allegato.size|filesizeformat }})</div>{% endfor %}
               {% if descrizione.risposta %}<div class="body-note-existing">Risposta capocommessa: {{ descrizione.risposta }}</div>{% endif %}
             </div>
             {% endfor %}
@@ -415,8 +415,8 @@
             {% if a.immagini %}
             <div class="anomalia-images">
               {% for img in a.immagini %}
-              <a href="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id={{ img.file_id|urlencode }}" target="_blank" rel="noopener">
-                <img src="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id={{ img.file_id|urlencode }}" alt="{{ img.name }}" title="{{ img.name }}" loading="lazy">
+              <a href="{% url 'anomalie_mail_action_allegato' token.token %}?local_id={{ a.id }}&amp;file_id={{ img.file_id|urlencode }}" target="_blank" rel="noopener">
+                <img src="{% url 'anomalie_mail_action_allegato' token.token %}?local_id={{ a.id }}&amp;file_id={{ img.file_id|urlencode }}" alt="{{ img.name }}" title="{{ img.name }}" loading="lazy">
               </a>
               {% endfor %}
             </div>
@@ -424,7 +424,7 @@
             {% if a.allegati %}
             <div class="allegati-list">
               {% for f in a.allegati %}
-              <a class="allegato-chip" href="{% url 'api_anomalie_allegati_file' %}?local_id={{ a.id }}&amp;file_id={{ f.file_id|urlencode }}" target="_blank" rel="noopener">{{ f.name }}</a>
+              <a class="allegato-chip" href="{% url 'anomalie_mail_action_allegato' token.token %}?local_id={{ a.id }}&amp;file_id={{ f.file_id|urlencode }}" target="_blank" rel="noopener">{{ f.name }}</a>
               {% endfor %}
               <div class="allegati-hint">Gli allegati si aprono con l'accesso al portale.</div>
             </div>
