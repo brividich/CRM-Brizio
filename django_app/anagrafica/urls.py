@@ -11,6 +11,7 @@ from . import views_elearning
 from . import views_sorveglianza
 from . import views_elenco
 from . import views_account
+from . import views_admin_hub
 
 app_name = "anagrafica"
 
@@ -580,6 +581,8 @@ urlpatterns = [
     path("ratei/export/", views.ratei_export, name="ratei_export"),
 
     # Pannello impostazioni — catalogo cataloghi e permessi del modulo anagrafica
+    path("amministrazione/", views_admin_hub.amministrazione_hub, name="amministrazione_hub"),
+    path("amministrazione/import/<str:tipo>/<int:pk>/scarti.xlsx", views_admin_hub.import_scarti_export, name="import_scarti_export"),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
     path("impostazioni/viste-elenco/", views_elenco.viste_elenco, name="viste_elenco"),
     path("impostazioni/viste-elenco/nuova/", views_elenco.vista_elenco_modifica, name="vista_elenco_nuova"),

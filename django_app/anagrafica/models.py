@@ -1736,6 +1736,7 @@ class ImportazioneRetributiva(models.Model):
     righe_ok = models.IntegerField(default=0)
     righe_errore = models.IntegerField(default=0)
     note = models.TextField(blank=True, default="")
+    scarti = models.JSONField(blank=True, default=list, help_text="Righe scartate: [{riga, chiave, motivo}]")
 
     class Meta:
         ordering = ["-data_competenza", "-data_importazione"]
@@ -2398,6 +2399,7 @@ class ImportazioneCedolini(models.Model):
     righe_errore = models.IntegerField(default=0)
     righe_non_trovate = models.IntegerField(default=0)
     note = models.TextField(blank=True, default="")
+    scarti = models.JSONField(blank=True, default=list, help_text="Righe scartate o non abbinate: [{riga, chiave, motivo}]")
 
     class Meta:
         ordering = ["-data_competenza", "-data_importazione"]

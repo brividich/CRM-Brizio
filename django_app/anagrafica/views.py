@@ -5376,8 +5376,9 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
             prev_voci[(voce.tax_code, voce.pay_item_key)] = voce.importo
 
     ok = err = 0
+    scarti: list[dict] = []
     voci_to_create: list[VoceRetributiva] = []
-    for row in rows:
+    for n_riga, row in enumerate(rows, start=2):
         try:
             tax_code = (row.get("tax_code") or "").strip().upper()
             pay_item = (row.get("pay_item") or "").strip()
@@ -5385,6 +5386,7 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
             date_str = (row.get("date") or "").strip()
             if not tax_code or not pay_item:
                 err += 1
+                scarti.append({"riga": n_riga, "chiave": tax_code, "motivo": "Codice fiscale o voce mancante"})
                 continue
             importo = Decimal(value_str)
             data_riga = datetime.strptime(date_str, "%d/%m/%Y").date()
@@ -5411,11 +5413,13 @@ def _import_csv_retribuzioni(file_obj, user, file_nome: str = "") -> Importazion
             ok += 1
         except (InvalidOperation, ValueError):
             err += 1
+            scarti.append({"riga": n_riga, "chiave": tax_code, "motivo": "Importo o data non validi"})
 
     VoceRetributiva.objects.bulk_create(voci_to_create)
     importazione.righe_ok = ok
     importazione.righe_errore = err
-    importazione.save(update_fields=["righe_ok", "righe_errore"])
+    importazione.scarti = scarti[:2000]
+    importazione.save(update_fields=["righe_ok", "righe_errore", "scarti"])
     return importazione
 
 
@@ -8845,11 +8849,13 @@ def _import_xlsx_cedolini(file_obj, user, file_nome: str) -> ImportazioneCedolin
                 righe_totali=len(righe),
             )
             ok = err = nf = 0
-            for cf, row in righe:
+            scarti: list[dict] = []
+            for n_riga, (cf, row) in enumerate(righe, start=1):
                 try:
                     lid = cf_to_lid.get(cf)
                     if lid is None:
                         nf += 1
+                        scarti.append({"riga": n_riga, "chiave": cf, "motivo": "Codice fiscale non in anagrafica (saldo importato senza scheda)"})
                     SaldoCedolino.objects.update_or_create(
                         tax_code=cf,
                         data_competenza=dt,
@@ -8879,12 +8885,14 @@ def _import_xlsx_cedolini(file_obj, user, file_nome: str) -> ImportazioneCedolin
                     ok += 1
                 except Exception:
                     err += 1
+                    scarti.append({"riga": n_riga, "chiave": cf, "motivo": "Errore di salvataggio (dettaglio nel log applicativo)"})
                     logger.exception("Errore import cedolino CF=%s mese=%s", cf, dt)
 
             imp.righe_ok = ok
             imp.righe_errore = err
             imp.righe_non_trovate = nf
-            imp.save(update_fields=["righe_ok", "righe_errore", "righe_non_trovate"])
+            imp.scarti = scarti[:2000]
+            imp.save(update_fields=["righe_ok", "righe_errore", "righe_non_trovate", "scarti"])
             totale_ok += ok
             totale_err += err
             totale_nf += nf

@@ -22,6 +22,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - AD irraggiungibile (timeout): il dipendente si crea comunque e l'account si collega dopo. Risultati ambigui e account disabilitati sono spiegati e non collegabili.
   - Doppio invio del modulo: un token per modulo fa trovare la scheda già creata invece di creare un doppione.
   - Deploy: `migrate anagrafica` (0160 copia il binding ACL di `anagrafica:dipendente_create` sulla ricerca).
+- **Anagrafica — hub «Amministrazione anagrafica» e storico centralizzato degli import (prompt 03, obiettivo C)** (`django_app/anagrafica/views_admin_hub.py` nuovo, `models.py`, `views.py` (`_import_csv_retribuzioni`, import cedolini), `urls.py`, template `pages/amministrazione_hub.html` nuovo, `pages/impostazioni.html`, migrazione `0161_admin_hub_scarti_import`, test `tests_admin_hub.py`).
+  - Nuova pagina `/anagrafica/amministrazione/` a schede: Configurazione, Viste elenco, Cataloghi (aprono la scheda giusta di Impostazioni con `?tab=`), Import e storico, Manutenzione (elenco dei comandi di gestione con lo scopo: la pagina non li esegue). Mostra solo le pagine che l'utente può aprire, con la stessa politica del middleware ACL; il controllo resta sulle pagine di destinazione.
+  - Storico degli import unico: retribuzioni, cedolini, slide e-learning, con chi, quando, file e righe ok/scartate. Retribuzioni e cedolini compaiono solo a chi ha il permesso HR.
+  - Gli import retribuzioni e cedolini salvano le righe scartate con il motivo (nuovo campo `scarti`, al massimo 2000 righe); dallo storico si scarica lo scarto in xlsx (valori sempre testo, export in audit, riservato ad admin con permesso HR). Gli import precedenti restano senza dettaglio.
+  - Le pagine di import restano dove sono, già raggiungibili dalle schede delle loro entità (storico retribuzioni, contratti, cedolini nella scheda dipendente): nessun URL spostato, quindi nessun redirect.
+  - Deploy: `migrate anagrafica` (0161: campi `scarti` + binding ACL delle due rotte nuove, copiati da `anagrafica:impostazioni`).
 
 ## 1.6.2 - 2026-10-10
 
