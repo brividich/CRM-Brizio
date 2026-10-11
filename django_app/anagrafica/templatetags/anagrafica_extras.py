@@ -9,6 +9,19 @@ from core import naming
 
 
 register = template.Library()
+
+
+@register.filter(name="get_valore")
+def get_valore(valori, chiave):
+    """Testo di una colonna configurabile dell'elenco (``riga["valori"][chiave] = (testo, ordine)``)."""
+    voce = (valori or {}).get(chiave) if isinstance(valori, dict) else None
+    return voce[0] if voce else ""
+
+
+@register.filter(name="get_ordine")
+def get_ordine(valori, chiave):
+    voce = (valori or {}).get(chiave) if isinstance(valori, dict) else None
+    return voce[1] if voce else ""
 logger = logging.getLogger(__name__)
 
 

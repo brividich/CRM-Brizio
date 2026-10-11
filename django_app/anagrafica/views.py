@@ -776,6 +776,17 @@ def ruoli_ricoperti_map(legacy_ids: list[int]) -> dict[int, list[dict]]:
 
 @login_required
 def dipendenti_list(request):
+    from .services import colonne_elenco, viste_elenco
+
+    # Vista configurabile (prompt 03): colonne dal registro, filtrate dai permessi dell'utente.
+    vista = viste_elenco.vista_corrente(request)
+    if vista and vista.filtri and not any(request.GET.get(k) for k in ("q", "reparto", "area", "tipologia_contratto")):
+        filtri = request.GET.copy()
+        for chiave, valore in vista.filtri.items():
+            if chiave in ("reparto", "area", "tipologia_contratto") and valore:
+                filtri[chiave] = valore
+        request.GET = filtri
+    colonne = viste_elenco.colonne_richieste(request, vista)
     q = request.GET.get("q", "").strip()
     reparto = request.GET.get("reparto", "").strip()
     area_filter = request.GET.get("area", "").strip()
@@ -868,6 +879,7 @@ def dipendenti_list(request):
     ruoli_map = ruoli_ricoperti_map([int(dip.get("id") or 0) for dip in list(page.object_list)])
     for dip in list(page.object_list):
         dip["ruoli"] = ruoli_map.get(int(dip.get("id") or 0), [])
+    colonne_elenco.arricchisci(list(page.object_list), [c["colonna"] for c in colonne])
 
     status_stats = count_anagrafica_statuses()
     tipologie_contratto_list = list(
@@ -887,6 +899,11 @@ def dipendenti_list(request):
         "n_attivi": status_stats["active"],
         "n_non_attivi": status_stats["inactive"],
         "n_ex": len(cessati_ids),
+        "vista": vista,
+        "viste": viste_elenco.viste_per_utente(request),
+        "colonne": colonne,
+        "puo_gestire_viste": _is_anagrafica_admin(request),
+        "table_id": "anagrafica.dipendenti.list" + (f":{vista.codice}" if vista else ""),
     })
 
 

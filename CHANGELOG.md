@@ -8,6 +8,13 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Anagrafica — elenco dipendenti a colonne configurabili e viste salvate (prompt 03, obiettivo A)** (`django_app/anagrafica/services/colonne_elenco.py` nuovo, `services/viste_elenco.py` nuovo, `models_elenco.py` nuovo, `views_elenco.py` nuovo, `models.py`, `views.py`, `urls.py`, `exports.py`, `exports_persone.py`, `templatetags/anagrafica_extras.py`, template `pages/dipendenti_list.html`, `pages/impostazioni.html`, `pages/viste_elenco.html`, `pages/vista_elenco_form.html`, `partials/_vista_elenco_anteprima.html`, migrazioni `0157_viste_elenco_dipendenti`, `0158_viste_elenco_preset`, `0159_viste_elenco_acl`, test `tests_viste_elenco.py`).
+  - Registro unico di ~31 colonne (dati aziendali, civili, formazione, visite, account, timbri) con gruppo, permesso richiesto e marcatura «sensibile»; i valori arrivano con caricamenti a lotti (query costanti al crescere di righe e colonne, `__in` a blocchi da 1000 per SQL Server).
+  - Viste preconfigurate Standard, ISO 9001, ISO 45001, HR, Sicurezza, Altro; in Impostazioni → «Viste elenco dipendenti» si creano, duplicano, riordinano (drag&drop) e si ripristinano, con anteprima dal vivo; predefinita globale o per ruolo, eliminazione con conferma del codice.
+  - La vista scelta viene ricordata per utente. Le colonne non permesse non arrivano mai: né nell'HTML, né forzandole con `?colonne=`, né in una vista condivisa, né nell'export.
+  - L'export Excel/PDF dei dipendenti usa le stesse righe e le stesse colonne dell'elenco (rimossa la copia divergente del dataset); i valori restano testo, mai formule.
+  - Deploy: `migrate anagrafica` (0157-0159; la 0159 copia il binding ACL di `anagrafica:impostazioni` sulle nuove rotte).
+
 ## 1.6.2 - 2026-10-10
 
 - **Accessi — categorie dei permessi rifatte e verifica dei collegamenti ACL** (`django_app/core/permission_categories.py` nuovo, `django_app/core/acl_capability.py`, `django_app/core/permission_taxonomy.py`, `django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, test `core/test_permission_categories.py`, `core/test_acl_capability.py`, `admin_portale/test_accessi_unificati.py`, `docs/moduli/admin_portale.md`).

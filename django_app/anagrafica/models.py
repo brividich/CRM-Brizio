@@ -3080,3 +3080,4 @@ from .models_recruiting import *  # noqa: E402, F401, F403
 # TipoVisitaMedica/VisitaMedica, descrive solo il tragitto della scansione).
 from .models_sorveglianza import *  # noqa: E402, F401, F403
 from .models_reportistica import *  # noqa: E402, F401, F403
+from .models_elenco import *  # noqa: E402, F401, F403
