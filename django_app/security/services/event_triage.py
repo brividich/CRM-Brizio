@@ -296,6 +296,13 @@ def promote_event(event, *, user, severity, title="", reason="", learn=True, mat
         logger.exception("Evidenza non creata per l'evento %s", event.pk)
     if created:
         notify_alert_created(alert)
+    if previous.get("learned") and previous.get("fingerprint"):
+        # Un evento silenziato da una soppressione appresa promosso a mano = riapertura:
+        # la regola si spegne e il conteggio delle disattivazioni riparte da zero.
+        from security.services.learned_suppression import reset_fingerprint
+
+        reset_fingerprint(previous["fingerprint"], user=user, actor=actor,
+                          reason=f"Evento #{event.pk} soppresso promosso ad alert da {actor}" + (f": {reason[:300]}" if reason else ""))
     _learn(event, severity=severity, user=user, previous_code=previous_code)
     if rule:
         _audit_rule(rule, user, "create")

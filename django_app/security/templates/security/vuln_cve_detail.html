@@ -1,0 +1,54 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}{{ record.cve_id }} | Security Center AI{% endblock %}
+{% block page_icon %}V{% endblock %}
+{% block page_marker %}Vulnerabilità{% endblock %}
+{% block page_title %}{{ record.cve_id }}{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p>{{ record.description|default:"Descrizione non ancora letta da NVD." }}</p>
+  <p class="sec-small">
+    CVSS <strong>{{ record.cvss|default_if_none:"—" }}</strong>{% if record.severity %} ({{ record.severity }}){% endif %}
+    · {% if record.kev %}<span class="sec-badge sec-badge-critical">CISA KEV: sfruttata attivamente{% if record.kev_due %}, scadenza {{ record.kev_due|date:"d/m/Y" }}{% endif %}</span>{% else %}non in CISA KEV{% endif %}
+    {% if record.epss is not None %}· EPSS {{ record.epss|floatformat:3 }} (percentile {{ record.epss_percentile|floatformat:2 }}){% endif %}
+    · NVD letto {% if record.nvd_fetched_at %}il {{ record.nvd_fetched_at|date:"d/m/Y H:i" }}{% else %}mai{% endif %}{% if record.nvd_error %} <span class="sec-muted">({{ record.nvd_error }})</span>{% endif %}
+  </p>
+</section>
+
+{% include "security/partials/cve_impact_summary.html" with summary=summary record=record %}
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Esito per host</h2>
+    <div class="sec-actions">
+      <a class="sec-button{% if not outcome %} sec-button-primary{% endif %}" href="?">Tutti</a>
+      {% for value, label in outcomes %}<a class="sec-button{% if outcome == value %} sec-button-primary{% endif %}" href="?esito={{ value }}">{{ label }}</a>{% endfor %}
+    </div>
+  </div>
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-fm-table-skip="1">
+      <thead><tr><th>Host</th><th>Esito</th><th>Spiegazione</th><th>Inventario</th></tr></thead>
+      <tbody>
+      {% for imp in impacts %}
+        <tr>
+          <td>{% if imp.hub_asset %}<a href="{% url 'assets:asset_view' imp.hub_asset.pk %}">{{ imp.host }}</a>{% else %}{{ imp.host }}{% endif %}</td>
+          <td>{% if imp.outcome == "impacts" %}<span class="sec-badge sec-badge-critical">Impatta</span>{% elif imp.outcome == "to_verify" %}<span class="sec-badge warning">Da verificare</span>{% else %}<span class="sec-badge sec-badge-success">Non impatta</span>{% endif %}</td>
+          <td class="sec-small">{{ imp.explanation|linebreaksbr }}</td>
+          <td class="sec-nowrap">{{ imp.inventory_date|date:"d/m/Y"|default:"—" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="sec-empty">Nessun host con il prodotto nell'inventario.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if record.configurations %}
+<section class="sec-panel" style="margin-top: 12px;">
+  <details><summary>Configurazioni vulnerabili lette da NVD ({{ record.configurations|length }})</summary>
+    <ul class="sec-small">{% for c in record.configurations %}<li>{{ c.vendor }}:{{ c.product }}{% if c.version and c.version != "*" %} = {{ c.version }}{% endif %}{% if c.start_including %} ≥ {{ c.start_including }}{% endif %}{% if c.start_excluding %} &gt; {{ c.start_excluding }}{% endif %}{% if c.end_including %} ≤ {{ c.end_including }}{% endif %}{% if c.end_excluding %} &lt; {{ c.end_excluding }}{% endif %}{% if c.requires_platform %} <em>(solo su piattaforma specifica)</em>{% endif %}</li>{% endfor %}</ul>
+  </details>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Mappatura colonne | Security Center AI{% endblock %}
+{% block page_icon %}I{% endblock %}
+{% block page_marker %}Config › Inventario software{% endblock %}
+{% block page_title %}Mappa le colonne: {{ item.original_name }}{% endblock %}
+
+{% block soc_content %}
+{% if errors %}<div class="sec-message sec-error" role="alert">{{ errors|join:" " }}</div>{% endif %}
+
+<section class="sec-panel">
+  <div class="sec-section-head"><h2>1. Colonne</h2><span class="sec-muted sec-small">{{ item.get_source_kind_display }} · {{ item.rows_total }} righe</span></div>
+  <form method="post" class="sec-grid">
+    {% csrf_token %}
+    {% for name, label in fields.items %}
+      <label>{{ label }}{% if name in required %} *{% endif %}
+        <select name="col_{{ name }}">
+          <option value="">—</option>
+          {% for h in headers %}{% if h %}<option value="{{ h }}" {% for k, v in item.column_map.items %}{% if k == name and v == h %}selected{% endif %}{% endfor %}>{{ h }}</option>{% endif %}{% endfor %}
+        </select>
+      </label>
+    {% endfor %}
+    <label>Formato data (facoltativo) <input type="text" name="date_format" value="{{ date_format }}" placeholder="%d/%m/%Y"></label>
+    <label>Data dell'inventario <input type="date" name="inventory_date"></label>
+    <label>Salva come preset <input type="text" name="preset_name" maxlength="120" placeholder="es. WatchGuard EPDR"></label>
+    <div class="sec-actions">
+      <button type="submit" name="do" value="preview" class="sec-button">Aggiorna anteprima</button>
+      {% if preview and preview.valid %}<button type="submit" name="do" value="import" class="sec-button sec-button-primary">Importa {{ preview.valid|length }} righe</button>{% endif %}
+    </div>
+  </form>
+  <form method="post" action="{% url 'security:inventory_discard' item.pk %}" class="sec-inline" style="margin-top: 8px;">{% csrf_token %}<button type="submit" class="sec-button">Annulla e elimina il file</button></form>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Prime righe del file</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in sample_rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</section>
+
+{% if preview %}
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>2. Anteprima</h2><span class="sec-small"><strong>{{ preview.valid|length }}</strong> valide · <strong>{{ preview.skipped|length }}</strong> scartate su {{ preview.total }}</span></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Host</th><th>Vendor</th><th>Prodotto</th><th>Versione</th><th>Rilevato</th></tr></thead>
+      <tbody>{% for r in valid_sample %}<tr><td>{{ r.host }}</td><td>{{ r.vendor }}</td><td>{{ r.product }}</td><td>{{ r.version }}</td><td>{{ r.detected_at|date:"d/m/Y"|default:"—" }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% if skipped_sample %}
+    <details style="margin-top: 8px;"><summary>Righe scartate e motivo</summary>
+      <ul class="sec-small">{% for n, reason in skipped_sample %}<li>riga {{ n }}: {{ reason }}</li>{% endfor %}</ul>
+    </details>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

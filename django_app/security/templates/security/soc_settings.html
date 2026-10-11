@@ -30,12 +30,17 @@
           {% if f.option.help %}<small class="st-help">{{ f.option.help }}</small>{% endif %}
         {% elif f.option.kind == "int" %}
           <label class="st-field">{{ f.option.label }}
-            <span class="st-inline"><input type="number" name="{{ f.name }}" value="{{ f.value }}" min="{{ f.option.min_value }}" max="{{ f.option.max_value }}" {% if not can_edit %}disabled{% endif %}>{% if "giorni" in f.option.key %} giorni{% else %} ore{% endif %}</span>
+            <span class="st-inline"><input type="number" name="{{ f.name }}" value="{{ f.value }}" min="{{ f.option.min_value }}" max="{{ f.option.max_value }}" {% if not can_edit %}disabled{% endif %}>{% if f.option.unit %} {{ f.option.unit }}{% elif "giorni" in f.option.key %} giorni{% else %} ore{% endif %}</span>
           </label>
           {% if f.option.help %}<small class="st-help">{{ f.option.help }}</small>{% endif %}
         {% elif f.option.kind == "choice" %}
           <label class="st-field">{{ f.option.label }}
             <select name="{{ f.name }}" {% if not can_edit %}disabled{% endif %}>{% for value, label in f.option.choices %}<option value="{{ value }}" {% if f.value == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          </label>
+          {% if f.option.help %}<small class="st-help">{{ f.option.help }}</small>{% endif %}
+        {% elif f.option.kind == "text" %}
+          <label class="st-field">{{ f.option.label }}
+            <input type="text" name="{{ f.name }}" value="{{ f.value }}" maxlength="500" {% if not can_edit %}disabled{% endif %}>
           </label>
           {% if f.option.help %}<small class="st-help">{{ f.option.help }}</small>{% endif %}
         {% elif f.option.kind == "channels" %}
@@ -51,6 +56,7 @@
       <p class="st-preview">
         {% if section.code == "incidenti" %}{% if preview.incidenti is not None %}Adesso: <strong>{{ preview.incidenti }}</strong> scadenz{{ preview.incidenti|pluralize:"a,e" }} da avvisare.{% endif %}
         {% elif section.code == "backup" %}{% if preview.backup is not None %}Adesso: <strong>{{ preview.backup }}</strong> PC da segnalare. <a href="{% url 'security:backup' %}">Vedi Backup</a>{% endif %}
+        {% elif section.code == "soppressione_appresa" %}<a href="{% url 'security:suppressions' %}">Vedi le soppressioni</a>
         {% elif section.code == "report" %}{% if preview.report %}Prossimo invio: <strong>{{ preview.report|date:"l d/m/Y" }}</strong> dalle 7. <a href="{% url 'security:report' %}">Vedi il report</a>{% endif %}{% endif %}
       </p>
     </section>

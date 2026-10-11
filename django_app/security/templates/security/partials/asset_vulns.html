@@ -1,0 +1,25 @@
+{% if show %}
+<section class="af-card" id="asset-vulnerabilita" aria-labelledby="asset-vulnerabilita-title">
+  <div class="af-card-head"><div><div class="af-card-kicker">SECURITY CENTER</div><h2 class="af-card-title" id="asset-vulnerabilita-title">Vulnerabilità</h2></div></div>
+  <p class="af-note">{{ software_count }} software rilevati, inventario del {{ inventory_date|date:"d/m/Y" }}. <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></p>
+  {% if impacts %}
+    <div class="af-table-wrap">
+      <table class="af-table">
+        <thead><tr><th>CVE</th><th>Esito</th><th>CVSS</th><th>Perché</th></tr></thead>
+        <tbody>
+        {% for imp in impacts %}
+          <tr>
+            <td><a href="{% url 'security:cve_detail' imp.cve.cve_id %}">{{ imp.cve.cve_id }}</a>{% if imp.cve.kev %} <strong title="CISA KEV: sfruttata attivamente">KEV</strong>{% endif %}</td>
+            <td>{{ imp.get_outcome_display }}</td>
+            <td>{{ imp.cve.cvss|default_if_none:"—" }}</td>
+            <td>{{ imp.explanation|truncatechars:200 }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="af-note">Nessuna CVE nota impatta questo asset (o è da verificare) secondo l'inventario.</p>
+  {% endif %}
+</section>
+{% endif %}

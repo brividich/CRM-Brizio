@@ -883,6 +883,8 @@ body.theme-dark .soc-module .sec-panel a.pc-area { color: var(--text); }
 .soc-module .soc-nav-tools { display: flex; gap: 8px; align-items: center; margin-left: auto; padding-left: 8px; }
 .soc-module .soc-nav .soc-nav-mine { border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; }
 .soc-module .soc-nav .soc-nav-mine.active { border-color: var(--accent); }
+.soc-module .soc-nav .soc-nav-help { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 50%; font-weight: 700; }
+.soc-module .soc-nav .soc-nav-help:hover, .soc-module .soc-nav .soc-nav-help:focus-visible { border-color: var(--accent); }
 .soc-module .soc-nav-search input { width: 190px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: var(--fs-sm); }
 @media (max-width: 720px) { .soc-module .soc-nav-tools { width: 100%; margin-left: 0; padding: 4px 0 0; border-top: 1px solid var(--border); } .soc-module .soc-nav-search { flex: 1; } .soc-module .soc-nav-search input { width: 100%; } }
 
