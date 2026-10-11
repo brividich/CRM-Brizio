@@ -28,6 +28,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - Gli import retribuzioni e cedolini salvano le righe scartate con il motivo (nuovo campo `scarti`, al massimo 2000 righe); dallo storico si scarica lo scarto in xlsx (valori sempre testo, export in audit, riservato ad admin con permesso HR). Gli import precedenti restano senza dettaglio.
   - Le pagine di import restano dove sono, già raggiungibili dalle schede delle loro entità (storico retribuzioni, contratti, cedolini nella scheda dipendente): nessun URL spostato, quindi nessun redirect.
   - Deploy: `migrate anagrafica` (0161: campi `scarti` + binding ACL delle due rotte nuove, copiati da `anagrafica:impostazioni`).
+- **Anagrafica — subnav «Salute e sicurezza» completa e con i conteggi delle scadenze (prompt 03, obiettivo D)** (`django_app/anagrafica/templatetags/anagrafica_extras.py`, template `pages/scadenzario.html`, `pages/visite_mediche_dashboard.html`, `pages/visite_mediche_sessioni.html`, `pages/visite_mediche_sessione_detail.html`, `pages/visite_mediche_nuova_sessione.html`, `pages/referti_coda.html`, `pages/referti_registro.html`, `pages/referti_impostazioni.html`, test `tests_safety_subnav.py`).
+  - La subnav compare anche su scadenzario, visite mediche (cruscotto, sessioni, giornata, nuova giornata) e referti (coda, registro, impostazioni), dove mancava; «Visite mediche» resta accesa nelle pagine delle sessioni.
+  - Nuovi conteggi: scadenze già scadute su «Scadenzario» e visite scadute su «Visite mediche», dalla stessa fonte dello scadenzario (che applica i permessi per sorgente: chi non vede le visite non le conta). In cache 5 minuti per utente.
+  - Invariato: le voci rispettano ACL e cancelli in-view, un gruppo senza voci sparisce.
 
 ## 1.6.2 - 2026-10-10
 
