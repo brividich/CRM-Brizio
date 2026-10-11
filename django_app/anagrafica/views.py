@@ -1125,7 +1125,7 @@ def dipendente_create(request):
                         getattr(messages, _livello)(request, _testo)
                     except Exception:
                         logger.warning("Account portale non applicato per dipendente %s", new_id, exc_info=True)
-                        messages.warning(request, "Account portale non collegato per un errore: collegalo dalla scheda del dipendente.")
+                        messages.warning(request, "Account portale non collegato per un errore: collegalo dal riquadro «Account portale» della scheda del dipendente.")
 
                 # Assegna ruoli operativi scelti nel form (multiselect "ruoli_operativi_ids")
                 if new_id:
@@ -2566,6 +2566,7 @@ def dipendente_detail(request, legacy_id: int):
         "legacy_id": legacy_id,
         "can_stats": can_stats,
         "is_admin": is_admin,
+        "account_scheda": views_account.contesto_scheda(request, legacy_id) if is_admin else None,
         "can_hr": can_hr,
         "civile": civile,
         "civile_foto_url": civile_foto_url,
