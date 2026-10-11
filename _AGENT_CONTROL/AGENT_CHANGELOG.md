@@ -304,6 +304,8 @@
 
 ## 2026-09-27 - Codex (autodetect SNMP e consumabili nella scheda dispositivo)
 
+- Pubblicazione: commit funzione `b12a2112` completato. Push su origin/release/prod tentato ma bloccato dal gestore credenziali; tentativo non interattivo conferma `could not read Username`, `gh auth status` conferma nessun login. Remoto verificato ancora a `48af907c`; nessuna pubblicazione o deploy. Arrestati solo i processi del proprio push sospeso dopo verifica degli ID/parent. Ripristinare autenticazione GitHub e ripetere push del branch `feature/snmp-autodetect-dati` su release/prod, verificando prima nuovi aggiornamenti remoti.
+
 - Problema: la Kyocera configurata in Dispositivi rispondeva ma la pagina non raccoglieva toner; le sonde del profilo venivano lette soltanto dal secondo polling. Ora il riconoscimento materializza e legge le nuove sonde nella stessa interrogazione, anche per firewall/server/rete, e ripara profili esistenti senza sonde conservando le personalizzazioni.
 - File modificati: `contatori/{services.py,models.py,views.py,tests_snmp_centrale.py}`, nuovi `printer_snmp.py`, `tests_printer_autodetect.py`, migration `0013_rilevazionesnmp_dati_stampante.py`, template dettaglio e `_stampante_snmp.html`; README, changelog root/Django, docs PROFILI_SNMP e AI backend, questo registro e checkpoint.
 - Stampanti: WALK read-only Printer-MIB con indici dinamici, colonne indipendenti (128 righe/20s ciascuna), contatori cumulativi con unita' dichiarata, livelli e nomi consumabili. Snapshot per polling, pannello automatico e ultime 20 interrogazioni; assenza/errore/sconosciuto espliciti, zero preservato, nessuna somma arbitraria dei motori o ripartizione A3/A4/colore inventata. La versione SNMP che ha risposto viene preservata durante autodetect.
