@@ -161,6 +161,7 @@ from .services.visite import (
 from .services import conformita as conformita_service
 from .services import onboarding as onboarding_service
 from .services import account_portale
+from .services import avviso_it_ingresso
 from . import views_account
 from .services import mansionario as mansionario_service
 from .acl_bootstrap import (
@@ -1262,6 +1263,11 @@ def dipendente_create(request):
                                 messages.info(request, f"Registrati {n_fsic} corsi di formazione pregressa.")
                     except Exception:
                         logger.warning("Registrazione formazione pregressa fallita per %s", new_id, exc_info=True)
+
+                # Avviso all'IT (email / notifica in-app / ticket, se configurati): parte dopo il
+                # commit ed è fail-soft. Logica in services.avviso_it_ingresso.
+                if new_id:
+                    avviso_it_ingresso.programma_avviso(request, new_id, scelta_tipo=scelta_account.tipo)
 
                 views_account.completa_creazione(request, creazione_token, new_id)
                 nome_disp = naming.nome_completo(data.get("nome"), data.get("cognome")) or "Dipendente"
@@ -8124,6 +8130,31 @@ def _workflow_campo_payload(request, existing: OnboardingOffboardingCampo | None
 
 @login_required
 @require_POST
+def avviso_it_save(request):
+    """Salva destinatari e interruttori dell'avviso IT ai nuovi ingressi (solo admin anagrafica)."""
+    ok, resp = _impostazioni_admin_check(request, "workflow")
+    if not ok:
+        return resp
+    errori = avviso_it_ingresso.salva_configurazione(
+        emails_raw=request.POST.get("avviso_it_emails") or "",
+        utenti_ids=request.POST.getlist("avviso_it_utenti"),
+        ticket=request.POST.get("avviso_it_ticket") == "1",
+    )
+    if errori:
+        for errore in errori:
+            messages.error(request, errore)
+    else:
+        try:
+            from core.audit import log_action
+            log_action(request, "AVVISO_IT_CONFIGURAZIONE", "anagrafica", avviso_it_ingresso.configurazione())
+        except Exception:
+            logger.warning("Audit AVVISO_IT_CONFIGURAZIONE fallito", exc_info=True)
+        messages.success(request, "Avviso IT ai nuovi ingressi salvato.")
+    return _redirect_impostazioni("workflow")
+
+
+@login_required
+@require_POST
 def workflow_campo_create(request):
     ok, resp = _impostazioni_admin_check(request, "workflow")
     if not ok:
@@ -10145,6 +10176,8 @@ def impostazioni(request):
         "workflow_field_groups": workflow_field_groups,
         "workflow_fase_choices": OnboardingOffboardingCampo.FASE_CHOICES,
         "workflow_categoria_choices": OnboardingOffboardingCampo.CATEGORIA_CHOICES,
+        # Avviso IT ai nuovi ingressi (SiteConfig)
+        "avviso_it": avviso_it_ingresso.configurazione(),
     })
 
 

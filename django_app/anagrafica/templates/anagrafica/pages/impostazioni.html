@@ -1967,6 +1967,43 @@ body.theme-dark .imp-acl-ov-opt { color:var(--text-mid); }
 
       <!-- ============= ONBOARDING / OFFBOARDING ============= -->
       <section class="imp-panel" data-panel="workflow" id="tab-workflow">
+        <div class="imp-card" id="avviso-it">
+          <div class="imp-card-head">
+            <div>
+              <div class="imp-card-title">Avviso IT ai nuovi ingressi</div>
+              <div class="imp-card-sub">Quando HR crea un dipendente da "+ Nuovo dipendente", l'IT riceve nominativo, reparto, mansione, data di ingresso, email di notifica, esito dell'account portale e i link alla scheda e alla pratica onboarding. Nessun dato sensibile. Un canale lasciato vuoto non viene usato.</div>
+            </div>
+          </div>
+          {% if is_admin %}
+          <form method="post" action="{% url 'anagrafica:avviso_it_save' %}">
+            {% csrf_token %}
+            <div class="imp-field">
+              <label class="imp-label" for="avviso_it_emails">Email IT da avvisare</label>
+              <textarea class="imp-textarea" id="avviso_it_emails" name="avviso_it_emails" maxlength="2000" placeholder="it@azienda.example, helpdesk@azienda.example">{{ avviso_it.emails|join:", " }}</textarea>
+            </div>
+            <div class="imp-field">
+              <label class="imp-label" for="avviso_it_utenti">Utenti IT da notificare nel portale (campanella)</label>
+              <select class="imp-select" id="avviso_it_utenti" name="avviso_it_utenti" multiple size="6">
+                {% for u in utenti_acl %}
+                  <option value="{{ u.id }}" {% if u.id in avviso_it.utenti_ids %}selected{% endif %}>{{ u.nome|default:u.email }}{% if u.email %} — {{ u.email }}{% endif %}</option>
+                {% endfor %}
+              </select>
+              <div class="imp-card-sub">Ctrl+clic per selezionarne più di uno.</div>
+            </div>
+            <div class="imp-workflow-checks">
+              <label><input type="checkbox" name="avviso_it_ticket" value="1" {% if avviso_it.ticket %}checked{% endif %}> Apri anche un ticket IT (annotato sulla voce "Creare account AD" della pratica onboarding)</label>
+            </div>
+            <div style="margin-top:10px;">
+              <button type="submit" class="imp-btn imp-btn-primary">Salva avviso IT</button>
+            </div>
+          </form>
+          {% else %}
+          <div class="imp-card-sub">
+            Email: {{ avviso_it.emails|join:", "|default:"nessuna" }} · Utenti in-app: {{ avviso_it.utenti_ids|length }} · Ticket IT: {% if avviso_it.ticket %}sì{% else %}no{% endif %}
+          </div>
+          {% endif %}
+        </div>
+
         <div class="imp-card">
           <div class="imp-card-head">
             <div>
