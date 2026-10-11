@@ -277,14 +277,18 @@ def prodotto_form(request, pk: int | None = None):
             # inventario collegato (tipo "Prodotto chimico"). Import in-funzione
             # per non creare una dipendenza dura schede_sicurezza -> assets.
             if pk is None and request.POST.get("crea_asset") and not getattr(prodotto, "asset_container", None):
-                from assets.models import Asset
+                from assets.models import Asset, AssetFieldHistory
+                from assets.services.storico_asset import traccia
 
-                Asset.objects.create(
-                    name=prodotto.nome,
-                    asset_type=Asset.TYPE_CHEMICAL,
-                    prodotto_chimico=prodotto,
-                    asset_category=Asset.default_chemical_category(),
-                )
+                with traccia(fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                             dettaglio="Nuovo asset da Schede di sicurezza") as storico:
+                    nuovo = Asset.objects.create(
+                        name=prodotto.nome,
+                        asset_type=Asset.TYPE_CHEMICAL,
+                        prodotto_chimico=prodotto,
+                        asset_category=Asset.default_chemical_category(),
+                    )
+                    storico.aggiungi(nuovo.pk)
 
             messages.success(request, "Prodotto salvato.")
             return redirect("schede_sicurezza:prodotto_detail", pk=prodotto.pk)

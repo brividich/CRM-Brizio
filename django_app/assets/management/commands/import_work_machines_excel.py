@@ -10,7 +10,8 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandError
 from openpyxl import load_workbook
 
-from assets.models import Asset, WorkMachine
+from assets.models import Asset, AssetFieldHistory, WorkMachine
+from assets.services.storico_asset import traccia
 
 
 TRUE_VALUES = {"1", "S", "SI", "YES", "Y", "TRUE", "ON", "OK", "PRESENTE", "X", "CHECK", "CHECKED", "V"}
@@ -246,7 +247,10 @@ class Command(BaseCommand):
                     status=Asset.STATUS_IN_USE,
                 )
                 if not dry_run:
-                    asset.save()
+                    with traccia(fonte=AssetFieldHistory.FONTE_IMPORT,
+                                 dettaglio=f"Import macchine {ws.title} riga {row_idx}") as storico:
+                        asset.save()
+                        storico.aggiungi(asset.pk)
                 stats["assets_created"] += 1
                 asset_created = True
             elif update_existing:
@@ -269,7 +273,9 @@ class Command(BaseCommand):
 
                 if changed_fields:
                     if not dry_run:
-                        asset.save(update_fields=sorted(set(changed_fields + ["updated_at"])))
+                        with traccia([asset.pk], fonte=AssetFieldHistory.FONTE_IMPORT,
+                                     dettaglio=f"Import macchine {ws.title} riga {row_idx}"):
+                            asset.save(update_fields=sorted(set(changed_fields + ["updated_at"])))
                     stats["assets_updated"] += 1
             else:
                 continue

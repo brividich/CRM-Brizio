@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import hashlib
 import re
@@ -12,7 +12,28 @@ from django.utils import timezone
 from django.utils.text import slugify
 from openpyxl import load_workbook
 
-from assets.models import Asset, AssetCustomField, AssetEndpoint, AssetITDetails, WorkOrder
+from assets.models import Asset, AssetCustomField, AssetEndpoint, AssetFieldHistory, AssetITDetails, WorkOrder
+from assets.services.storico_asset import traccia
+
+
+class _SenzaStorico:
+    """Dry-run: nessuna scrittura, quindi nessuno storico (stessa interfaccia di ``traccia``)."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def aggiungi(self, *asset_ids):
+        pass
+
+
+def _storico_riga(existing_id, dry_run: bool, dettaglio: str, utente=None):
+    if dry_run:
+        return _SenzaStorico()
+    return traccia([existing_id] if existing_id else [], fonte=AssetFieldHistory.FONTE_IMPORT, utente=utente,
+                   dettaglio=dettaglio)
 
 DEFAULT_PRIMARY_SHEETS = [
     "LAN A 203.0.113.x",
@@ -433,6 +454,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--file", default="CN - Asset Inventory (1).xlsx", help="Path file Excel da importare.")
+        parser.add_argument("--utente-id", type=int, default=None, help="Utente che lancia l'import (autore nello storico).")
         parser.add_argument("--sheets", default=",".join(DEFAULT_PRIMARY_SHEETS), help="Lista fogli separata da virgola.")
         parser.add_argument(
             "--include-optional",
@@ -461,6 +483,9 @@ class Command(BaseCommand):
             raise CommandError(f"File non trovato: {file_path}")
 
         dry_run = bool(options.get("dry_run"))
+        from django.contrib.auth import get_user_model
+
+        utente = get_user_model().objects.filter(pk=options.get("utente_id")).first() if options.get("utente_id") else None
         update_existing = bool(options.get("update", True))
         include_optional = bool(options.get("include_optional"))
         all_sheets = bool(options.get("all_sheets"))
@@ -609,283 +634,296 @@ class Command(BaseCommand):
                     ip=ip_value,
                 )
 
+                codici_prima = set(field_by_code)
                 try:
-                    asset = Asset.objects.filter(source_key=source_key).first()
-                    if asset is None:
-                        asset = Asset(
-                            source_key=source_key,
-                            name=name_value[:255],
-                            asset_type=asset_type_value,
-                            reparto=reparto_value[:120],
-                            manufacturer=_clean_str(canonical_values.get("manufacturer"))[:120] or None,
-                            model=_clean_str(canonical_values.get("model"))[:120] or None,
-                            serial_number=serial_value[:120] or None,
-                            status=Asset.STATUS_IN_USE,
-                            notes=_clean_str(canonical_values.get("notes")),
-                            assignment_to=_clean_str(canonical_values.get("assignment_to"))[:200],
-                            assignment_reparto=_clean_str(canonical_values.get("assignment_reparto"))[:120],
-                            assignment_location=_clean_str(canonical_values.get("assignment_location"))[:200],
-                        )
+                    # Storico (PROMPT 06 - C): stato di partenza della riga, poi scritture e diff
+                    # nella stessa transazione. In dry-run nessuna scrittura, nessuno storico.
+                    existing_id = Asset.objects.filter(source_key=source_key).values_list("pk", flat=True).first()
+                    with _storico_riga(existing_id, dry_run, f"Import Excel {sheet_name} riga {row_idx}", utente) as storico:
+                        asset = Asset.objects.filter(source_key=source_key).first()
+                        if asset is None:
+                            asset = Asset(
+                                source_key=source_key,
+                                name=name_value[:255],
+                                asset_type=asset_type_value,
+                                reparto=reparto_value[:120],
+                                manufacturer=_clean_str(canonical_values.get("manufacturer"))[:120] or None,
+                                model=_clean_str(canonical_values.get("model"))[:120] or None,
+                                serial_number=serial_value[:120] or None,
+                                status=Asset.STATUS_IN_USE,
+                                notes=_clean_str(canonical_values.get("notes")),
+                                assignment_to=_clean_str(canonical_values.get("assignment_to"))[:200],
+                                assignment_reparto=_clean_str(canonical_values.get("assignment_reparto"))[:120],
+                                assignment_location=_clean_str(canonical_values.get("assignment_location"))[:200],
+                            )
 
-                        status_text = _normalize_text(canonical_values.get("status"))
-                        if status_text:
-                            if "REPAIR" in status_text or "RIPAR" in status_text:
-                                asset.status = Asset.STATUS_IN_REPAIR
-                            elif "RETIR" in status_text or "DISMES" in status_text:
-                                asset.status = Asset.STATUS_RETIRED
-                            elif "STOCK" in status_text or "MAGAZ" in status_text:
-                                asset.status = Asset.STATUS_IN_STOCK
+                            status_text = _normalize_text(canonical_values.get("status"))
+                            if status_text:
+                                if "REPAIR" in status_text or "RIPAR" in status_text:
+                                    asset.status = Asset.STATUS_IN_REPAIR
+                                elif "RETIR" in status_text or "DISMES" in status_text:
+                                    asset.status = Asset.STATUS_RETIRED
+                                elif "STOCK" in status_text or "MAGAZ" in status_text:
+                                    asset.status = Asset.STATUS_IN_STOCK
 
-                        if not dry_run:
-                            asset.save()
-                        stats["assets_created"] += 1
-                    else:
-                        if not update_existing:
-                            stats["assets_skipped_update"] += 1
-                            continue
-
-                        changed_fields: list[str] = []
-
-                        def update_if_value(field_name: str, value: Any, max_len: int | None = None):
-                            if value is None:
-                                return
-                            raw = _clean_str(value)
-                            if raw == "":
-                                return
-                            next_value: Any = raw
-                            if max_len is not None:
-                                next_value = raw[:max_len]
-                            current = getattr(asset, field_name)
-                            if current != next_value:
-                                setattr(asset, field_name, next_value)
-                                changed_fields.append(field_name)
-
-                        update_if_value("name", name_value, 255)
-                        if asset_type_value != Asset.TYPE_OTHER and asset.asset_type != asset_type_value:
-                            asset.asset_type = asset_type_value
-                            changed_fields.append("asset_type")
-                        update_if_value("reparto", reparto_value, 120)
-
-                        manufacturer = _clean_str(canonical_values.get("manufacturer"))
-                        if manufacturer and asset.manufacturer != manufacturer[:120]:
-                            asset.manufacturer = manufacturer[:120]
-                            changed_fields.append("manufacturer")
-
-                        model = _clean_str(canonical_values.get("model"))
-                        if model and asset.model != model[:120]:
-                            asset.model = model[:120]
-                            changed_fields.append("model")
-
-                        if serial_value and asset.serial_number != serial_value[:120]:
-                            asset.serial_number = serial_value[:120]
-                            changed_fields.append("serial_number")
-
-                        notes = _clean_str(canonical_values.get("notes"))
-                        if notes and asset.notes != notes:
-                            asset.notes = notes
-                            changed_fields.append("notes")
-
-                        assign_to = _clean_str(canonical_values.get("assignment_to"))
-                        if assign_to and asset.assignment_to != assign_to[:200]:
-                            asset.assignment_to = assign_to[:200]
-                            changed_fields.append("assignment_to")
-
-                        assign_rep = _clean_str(canonical_values.get("assignment_reparto"))
-                        if assign_rep and asset.assignment_reparto != assign_rep[:120]:
-                            asset.assignment_reparto = assign_rep[:120]
-                            changed_fields.append("assignment_reparto")
-
-                        assign_loc = _clean_str(canonical_values.get("assignment_location"))
-                        if assign_loc and asset.assignment_location != assign_loc[:200]:
-                            asset.assignment_location = assign_loc[:200]
-                            changed_fields.append("assignment_location")
-
-                        status_text = _normalize_text(canonical_values.get("status"))
-                        if status_text:
-                            mapped_status = asset.status
-                            if "REPAIR" in status_text or "RIPAR" in status_text:
-                                mapped_status = Asset.STATUS_IN_REPAIR
-                            elif "RETIR" in status_text or "DISMES" in status_text:
-                                mapped_status = Asset.STATUS_RETIRED
-                            elif "STOCK" in status_text or "MAGAZ" in status_text:
-                                mapped_status = Asset.STATUS_IN_STOCK
-                            elif "USE" in status_text or "USO" in status_text or "ATTIV" in status_text:
-                                mapped_status = Asset.STATUS_IN_USE
-                            if mapped_status != asset.status:
-                                asset.status = mapped_status
-                                changed_fields.append("status")
-
-                        if changed_fields:
                             if not dry_run:
-                                asset.save(update_fields=sorted(set(changed_fields + ["updated_at"])))
-                            stats["assets_updated"] += 1
+                                asset.save()
+                                storico.aggiungi(asset.pk)
+                            stats["assets_created"] += 1
                         else:
-                            stats["assets_unchanged"] += 1
-
-                    merged_extra = dict(asset.extra_columns or {}) if hasattr(asset, "extra_columns") else {}
-                    extra_changed = False
-                    for header_label, raw_value in extra_values.items():
-                        if _is_blank(raw_value):
-                            continue
-
-                        is_sensitive = _looks_sensitive(header_label)
-                        if is_sensitive:
-                            field = ensure_custom_field(header_label, AssetCustomField.TYPE_BOOL, sensitive=True)
-                            if field is None:
-                                continue
-                            value_to_store = not _is_blank(raw_value)
-                        else:
-                            parsed_bool = _parse_bool(raw_value)
-                            parsed_date = _parse_date(raw_value)
-                            parsed_int = _parse_int(raw_value)
-                            field_type = AssetCustomField.TYPE_TEXT
-                            if parsed_bool is not None:
-                                field_type = AssetCustomField.TYPE_BOOL
-                            elif parsed_date is not None:
-                                field_type = AssetCustomField.TYPE_DATE
-                            elif parsed_int is not None:
-                                field_type = AssetCustomField.TYPE_NUMBER
-
-                            field = ensure_custom_field(header_label, field_type, sensitive=False)
-                            if field is None:
+                            if not update_existing:
+                                stats["assets_skipped_update"] += 1
                                 continue
 
-                            if field.field_type == AssetCustomField.TYPE_BOOL:
-                                value_to_store = _to_bool(raw_value, default=False)
-                            elif field.field_type == AssetCustomField.TYPE_DATE:
-                                date_val = _parse_date(raw_value)
-                                value_to_store = date_val.isoformat() if date_val else _clean_str(raw_value)
-                            elif field.field_type == AssetCustomField.TYPE_NUMBER:
-                                number_val = _parse_int(raw_value)
-                                value_to_store = number_val if number_val is not None else _clean_str(raw_value)
+                            changed_fields: list[str] = []
+
+                            def update_if_value(field_name: str, value: Any, max_len: int | None = None):
+                                if value is None:
+                                    return
+                                raw = _clean_str(value)
+                                if raw == "":
+                                    return
+                                next_value: Any = raw
+                                if max_len is not None:
+                                    next_value = raw[:max_len]
+                                current = getattr(asset, field_name)
+                                if current != next_value:
+                                    setattr(asset, field_name, next_value)
+                                    changed_fields.append(field_name)
+
+                            update_if_value("name", name_value, 255)
+                            if asset_type_value != Asset.TYPE_OTHER and asset.asset_type != asset_type_value:
+                                asset.asset_type = asset_type_value
+                                changed_fields.append("asset_type")
+                            update_if_value("reparto", reparto_value, 120)
+
+                            manufacturer = _clean_str(canonical_values.get("manufacturer"))
+                            if manufacturer and asset.manufacturer != manufacturer[:120]:
+                                asset.manufacturer = manufacturer[:120]
+                                changed_fields.append("manufacturer")
+
+                            model = _clean_str(canonical_values.get("model"))
+                            if model and asset.model != model[:120]:
+                                asset.model = model[:120]
+                                changed_fields.append("model")
+
+                            if serial_value and asset.serial_number != serial_value[:120]:
+                                asset.serial_number = serial_value[:120]
+                                changed_fields.append("serial_number")
+
+                            notes = _clean_str(canonical_values.get("notes"))
+                            if notes and asset.notes != notes:
+                                asset.notes = notes
+                                changed_fields.append("notes")
+
+                            assign_to = _clean_str(canonical_values.get("assignment_to"))
+                            if assign_to and asset.assignment_to != assign_to[:200]:
+                                asset.assignment_to = assign_to[:200]
+                                changed_fields.append("assignment_to")
+
+                            assign_rep = _clean_str(canonical_values.get("assignment_reparto"))
+                            if assign_rep and asset.assignment_reparto != assign_rep[:120]:
+                                asset.assignment_reparto = assign_rep[:120]
+                                changed_fields.append("assignment_reparto")
+
+                            assign_loc = _clean_str(canonical_values.get("assignment_location"))
+                            if assign_loc and asset.assignment_location != assign_loc[:200]:
+                                asset.assignment_location = assign_loc[:200]
+                                changed_fields.append("assignment_location")
+
+                            status_text = _normalize_text(canonical_values.get("status"))
+                            if status_text:
+                                mapped_status = asset.status
+                                if "REPAIR" in status_text or "RIPAR" in status_text:
+                                    mapped_status = Asset.STATUS_IN_REPAIR
+                                elif "RETIR" in status_text or "DISMES" in status_text:
+                                    mapped_status = Asset.STATUS_RETIRED
+                                elif "STOCK" in status_text or "MAGAZ" in status_text:
+                                    mapped_status = Asset.STATUS_IN_STOCK
+                                elif "USE" in status_text or "USO" in status_text or "ATTIV" in status_text:
+                                    mapped_status = Asset.STATUS_IN_USE
+                                if mapped_status != asset.status:
+                                    asset.status = mapped_status
+                                    changed_fields.append("status")
+
+                            if changed_fields:
+                                if not dry_run:
+                                    asset.save(update_fields=sorted(set(changed_fields + ["updated_at"])))
+                                stats["assets_updated"] += 1
                             else:
-                                value_to_store = _clean_str(raw_value)
+                                stats["assets_unchanged"] += 1
 
-                        if merged_extra.get(field.code) != value_to_store:
-                            merged_extra[field.code] = value_to_store
-                            extra_changed = True
-
-                    if extra_changed and not dry_run:
-                        asset.extra_columns = merged_extra
-                        asset.save(update_fields=["extra_columns", "updated_at"])
-
-                    has_endpoint_payload = any(
-                        [
-                            endpoint_name_value,
-                            vlan_int is not None,
-                            ip_value,
-                            _clean_str(canonical_values.get("switch_name")),
-                            _clean_str(canonical_values.get("switch_port")),
-                            _clean_str(canonical_values.get("punto")),
-                        ]
-                    )
-
-                    if has_endpoint_payload and not dry_run:
-                        endpoint, endpoint_created = AssetEndpoint.objects.get_or_create(
-                            asset=asset,
-                            endpoint_name=endpoint_name_value[:255],
-                            vlan=vlan_int,
-                            ip=ip_value[:80] or None,
-                            defaults={
-                                "switch_name": _clean_str(canonical_values.get("switch_name"))[:120],
-                                "switch_port": _clean_str(canonical_values.get("switch_port"))[:120],
-                                "punto": _clean_str(canonical_values.get("punto"))[:120],
-                            },
-                        )
-                        if endpoint_created:
-                            stats["endpoints_created"] += 1
-                        else:
-                            endpoint_changed = False
-                            switch_name = _clean_str(canonical_values.get("switch_name"))[:120]
-                            switch_port = _clean_str(canonical_values.get("switch_port"))[:120]
-                            punto = _clean_str(canonical_values.get("punto"))[:120]
-                            if switch_name and endpoint.switch_name != switch_name:
-                                endpoint.switch_name = switch_name
-                                endpoint_changed = True
-                            if switch_port and endpoint.switch_port != switch_port:
-                                endpoint.switch_port = switch_port
-                                endpoint_changed = True
-                            if punto and endpoint.punto != punto:
-                                endpoint.punto = punto
-                                endpoint_changed = True
-                            if endpoint_changed:
-                                endpoint.save(update_fields=["switch_name", "switch_port", "punto"])
-                                stats["endpoints_updated"] += 1
-
-                    has_it_payload = any(
-                        [
-                            not _is_blank(canonical_values.get("os")),
-                            not _is_blank(canonical_values.get("cpu")),
-                            not _is_blank(canonical_values.get("ram")),
-                            not _is_blank(canonical_values.get("disco")),
-                            not _is_blank(canonical_values.get("domain")),
-                            not _is_blank(canonical_values.get("edpr")),
-                            not _is_blank(canonical_values.get("ad360")),
-                            not _is_blank(canonical_values.get("office_2fa")),
-                            not _is_blank(canonical_values.get("bios_pwd")),
-                        ]
-                    )
-
-                    if has_it_payload and not dry_run:
-                        details, _ = AssetITDetails.objects.get_or_create(asset=asset)
-                        details_changed = False
-
-                        for field_name in ["os", "cpu", "ram", "disco"]:
-                            value = _clean_str(canonical_values.get(field_name))
-                            if value and getattr(details, field_name) != value[:120]:
-                                setattr(details, field_name, value[:120])
-                                details_changed = True
-
-                        bool_map = {
-                            "domain": "domain_joined",
-                            "edpr": "edr_enabled",
-                            "ad360": "ad360_managed",
-                            "office_2fa": "office_2fa_enabled",
-                        }
-                        for source_key, target_field in bool_map.items():
-                            source_value = canonical_values.get(source_key)
-                            if _is_blank(source_value):
+                        merged_extra = dict(asset.extra_columns or {}) if hasattr(asset, "extra_columns") else {}
+                        extra_changed = False
+                        for header_label, raw_value in extra_values.items():
+                            if _is_blank(raw_value):
                                 continue
-                            parsed = _to_bool(source_value, default=False)
-                            if getattr(details, target_field) != parsed:
-                                setattr(details, target_field, parsed)
-                                details_changed = True
 
-                        if not _is_blank(canonical_values.get("bios_pwd")):
-                            bios_set = not _is_blank(canonical_values.get("bios_pwd"))
-                            if details.bios_pwd_set != bios_set:
-                                details.bios_pwd_set = bios_set
-                                details_changed = True
+                            is_sensitive = _looks_sensitive(header_label)
+                            if is_sensitive:
+                                field = ensure_custom_field(header_label, AssetCustomField.TYPE_BOOL, sensitive=True)
+                                if field is None:
+                                    continue
+                                value_to_store = not _is_blank(raw_value)
+                            else:
+                                parsed_bool = _parse_bool(raw_value)
+                                parsed_date = _parse_date(raw_value)
+                                parsed_int = _parse_int(raw_value)
+                                field_type = AssetCustomField.TYPE_TEXT
+                                if parsed_bool is not None:
+                                    field_type = AssetCustomField.TYPE_BOOL
+                                elif parsed_date is not None:
+                                    field_type = AssetCustomField.TYPE_DATE
+                                elif parsed_int is not None:
+                                    field_type = AssetCustomField.TYPE_NUMBER
 
-                        if details_changed:
-                            details.save()
-                            stats["it_details_updated"] += 1
+                                field = ensure_custom_field(header_label, field_type, sensitive=False)
+                                if field is None:
+                                    continue
 
-                    mtz_date = _parse_date(canonical_values.get("ultima_mtz"))
-                    if mtz_date and not dry_run:
-                        mtz_dt = _to_aware_datetime(mtz_date)
-                        exists_wo = WorkOrder.objects.filter(
-                            asset=asset,
-                            kind=WorkOrder.KIND_PREVENTIVE,
-                            status=WorkOrder.STATUS_DONE,
-                            title="Manutenzione importata",
-                            closed_at__date=mtz_date,
-                        ).exists()
-                        if not exists_wo:
-                            WorkOrder.objects.create(
+                                if field.field_type == AssetCustomField.TYPE_BOOL:
+                                    value_to_store = _to_bool(raw_value, default=False)
+                                elif field.field_type == AssetCustomField.TYPE_DATE:
+                                    date_val = _parse_date(raw_value)
+                                    value_to_store = date_val.isoformat() if date_val else _clean_str(raw_value)
+                                elif field.field_type == AssetCustomField.TYPE_NUMBER:
+                                    number_val = _parse_int(raw_value)
+                                    value_to_store = number_val if number_val is not None else _clean_str(raw_value)
+                                else:
+                                    value_to_store = _clean_str(raw_value)
+
+                            if merged_extra.get(field.code) != value_to_store:
+                                merged_extra[field.code] = value_to_store
+                                extra_changed = True
+
+                        if extra_changed and not dry_run:
+                            asset.extra_columns = merged_extra
+                            asset.save(update_fields=["extra_columns", "updated_at"])
+
+                        has_endpoint_payload = any(
+                            [
+                                endpoint_name_value,
+                                vlan_int is not None,
+                                ip_value,
+                                _clean_str(canonical_values.get("switch_name")),
+                                _clean_str(canonical_values.get("switch_port")),
+                                _clean_str(canonical_values.get("punto")),
+                            ]
+                        )
+
+                        if has_endpoint_payload and not dry_run:
+                            endpoint, endpoint_created = AssetEndpoint.objects.get_or_create(
+                                asset=asset,
+                                endpoint_name=endpoint_name_value[:255],
+                                vlan=vlan_int,
+                                ip=ip_value[:80] or None,
+                                defaults={
+                                    "switch_name": _clean_str(canonical_values.get("switch_name"))[:120],
+                                    "switch_port": _clean_str(canonical_values.get("switch_port"))[:120],
+                                    "punto": _clean_str(canonical_values.get("punto"))[:120],
+                                },
+                            )
+                            if endpoint_created:
+                                stats["endpoints_created"] += 1
+                            else:
+                                endpoint_changed = False
+                                switch_name = _clean_str(canonical_values.get("switch_name"))[:120]
+                                switch_port = _clean_str(canonical_values.get("switch_port"))[:120]
+                                punto = _clean_str(canonical_values.get("punto"))[:120]
+                                if switch_name and endpoint.switch_name != switch_name:
+                                    endpoint.switch_name = switch_name
+                                    endpoint_changed = True
+                                if switch_port and endpoint.switch_port != switch_port:
+                                    endpoint.switch_port = switch_port
+                                    endpoint_changed = True
+                                if punto and endpoint.punto != punto:
+                                    endpoint.punto = punto
+                                    endpoint_changed = True
+                                if endpoint_changed:
+                                    endpoint.save(update_fields=["switch_name", "switch_port", "punto"])
+                                    stats["endpoints_updated"] += 1
+
+                        has_it_payload = any(
+                            [
+                                not _is_blank(canonical_values.get("os")),
+                                not _is_blank(canonical_values.get("cpu")),
+                                not _is_blank(canonical_values.get("ram")),
+                                not _is_blank(canonical_values.get("disco")),
+                                not _is_blank(canonical_values.get("domain")),
+                                not _is_blank(canonical_values.get("edpr")),
+                                not _is_blank(canonical_values.get("ad360")),
+                                not _is_blank(canonical_values.get("office_2fa")),
+                                not _is_blank(canonical_values.get("bios_pwd")),
+                            ]
+                        )
+
+                        if has_it_payload and not dry_run:
+                            details, _ = AssetITDetails.objects.get_or_create(asset=asset)
+                            details_changed = False
+
+                            for field_name in ["os", "cpu", "ram", "disco"]:
+                                value = _clean_str(canonical_values.get(field_name))
+                                if value and getattr(details, field_name) != value[:120]:
+                                    setattr(details, field_name, value[:120])
+                                    details_changed = True
+
+                            bool_map = {
+                                "domain": "domain_joined",
+                                "edpr": "edr_enabled",
+                                "ad360": "ad360_managed",
+                                "office_2fa": "office_2fa_enabled",
+                            }
+                            for source_key, target_field in bool_map.items():
+                                source_value = canonical_values.get(source_key)
+                                if _is_blank(source_value):
+                                    continue
+                                parsed = _to_bool(source_value, default=False)
+                                if getattr(details, target_field) != parsed:
+                                    setattr(details, target_field, parsed)
+                                    details_changed = True
+
+                            if not _is_blank(canonical_values.get("bios_pwd")):
+                                bios_set = not _is_blank(canonical_values.get("bios_pwd"))
+                                if details.bios_pwd_set != bios_set:
+                                    details.bios_pwd_set = bios_set
+                                    details_changed = True
+
+                            if details_changed:
+                                details.save()
+                                stats["it_details_updated"] += 1
+
+                        mtz_date = _parse_date(canonical_values.get("ultima_mtz"))
+                        if mtz_date and not dry_run:
+                            mtz_dt = _to_aware_datetime(mtz_date)
+                            exists_wo = WorkOrder.objects.filter(
                                 asset=asset,
                                 kind=WorkOrder.KIND_PREVENTIVE,
                                 status=WorkOrder.STATUS_DONE,
-                                opened_at=mtz_dt,
-                                closed_at=mtz_dt,
                                 title="Manutenzione importata",
-                                description=f"Importata da Excel ({sheet_name})",
-                                resolution="Record storico importato",
-                                downtime_minutes=0,
-                            )
-                            stats["workorders_created"] += 1
+                                closed_at__date=mtz_date,
+                            ).exists()
+                            if not exists_wo:
+                                WorkOrder.objects.create(
+                                    asset=asset,
+                                    kind=WorkOrder.KIND_PREVENTIVE,
+                                    status=WorkOrder.STATUS_DONE,
+                                    opened_at=mtz_dt,
+                                    closed_at=mtz_dt,
+                                    title="Manutenzione importata",
+                                    description=f"Importata da Excel ({sheet_name})",
+                                    resolution="Record storico importato",
+                                    downtime_minutes=0,
+                                )
+                                stats["workorders_created"] += 1
 
+                        if asset is not None and asset.pk:
+                            storico.aggiungi(asset.pk)
                 except Exception as exc:
+                    # Riga annullata (transazione): via dalla cache anche i campi custom creati qui.
+                    for codice in set(field_by_code) - codici_prima:
+                        campo = field_by_code.pop(codice)
+                        field_by_label_key.pop(_normalize_text(campo.label), None)
+                        stats["custom_fields_created"] -= 1
                     stats["errors"] += 1
                     self.stdout.write(self.style.ERROR(f"[{sheet_name}] Riga {row_idx}: {exc}"))
 

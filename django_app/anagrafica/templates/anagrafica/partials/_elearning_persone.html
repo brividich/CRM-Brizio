@@ -1,0 +1,17 @@
+{# Dettaglio per persona della copertura e-learning (drill-down dal cruscotto). #}
+<div class="fmd-tablewrap">
+  <table class="fmd-table">
+    <thead><tr><th>Dipendente</th><th>Mansione</th><th>Corsi online</th></tr></thead>
+    <tbody>
+    {% for p in persone %}
+      <tr>
+        <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.nome }}</a></td>
+        <td>{{ p.mansione|default:"—" }}</td>
+        <td>{% for v in p.voci %}<span class="fmd-badge {% if v.ok %}fmd-b-green{% elif v.stato == 'SCADUTO' %}fmd-b-red{% else %}fmd-b-amber{% endif %}" style="margin:0 4px 4px 0;">{{ v.corso.titolo }}{% if not v.ok %} · {% if v.stato == 'SCADUTO' %}scaduto{% else %}da fare{% endif %}{% endif %}</span>{% endfor %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" class="fmd-muted">Nessuna persona con obblighi su corsi online.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>

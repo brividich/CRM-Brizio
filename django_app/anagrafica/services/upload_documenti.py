@@ -32,6 +32,10 @@ MIME_PER_ESTENSIONE: dict[str, set[str]] = {
     ".doc": {"application/msword"} | _OLE,
     ".xls": {"application/vnd.ms-excel"} | _OLE,
     ".msg": {"application/vnd.ms-outlook", "application/x-msg"} | _OLE,
+    # Presentazioni per l'import delle slide e-learning.
+    ".pptx": {"application/vnd.openxmlformats-officedocument.presentationml.presentation"} | _OFFICE_ZIP,
+    ".odp": {"application/vnd.oasis.opendocument.presentation"} | _OFFICE_ZIP,
+    ".ppt": {"application/vnd.ms-powerpoint"} | _OLE,
 }
 
 # Tipo registrato sul documento quando libmagic dà un'etichetta generica.
@@ -44,8 +48,17 @@ _MIME_CANONICO = {
 }
 
 
+_FIRMA_ZIP = b"PK\x03\x04"
+
+
 def _firma_ok(uploaded_file, ext: str) -> bool:
-    if ext == ".msg":  # non è nella tabella core: contenitore OLE
+    if ext in (".pptx", ".odp"):  # contenitori ZIP, non nella tabella core
+        try:
+            head = uploaded_file.read(4)
+        finally:
+            uploaded_file.seek(0)
+        return head == _FIRMA_ZIP
+    if ext in (".msg", ".ppt"):  # non sono nella tabella core: contenitore OLE
         try:
             head = uploaded_file.read(8)
         finally:

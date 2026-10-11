@@ -18,6 +18,7 @@ from schede_sicurezza.forms import ProdottoChimicoForm
 from schede_sicurezza.models import ProdottoChimico
 
 from .maintenance import build_workorder_prefill_payload, get_applicable_assistance_contracts, resolve_asset_maintenance_rules
+from .upload_rules import clean_image_upload
 from .models import (
     Asset,
     AssetEndpoint,
@@ -422,7 +423,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
         size = int(getattr(upload, "size", 0) or 0)
         if size > 10 * 1024 * 1024:
             raise forms.ValidationError("La foto targhetta non puo superare 10 MB.")
-        return upload
+        return clean_image_upload(upload, max_bytes=10 * 1024 * 1024, label="Foto targhetta")
 
     def _custom_field_form_name(self, code: str) -> str:
         return f"extra__{code}"
@@ -2423,7 +2424,9 @@ class PlantLayoutForm(forms.ModelForm):
             size = int(getattr(upload, "size", 0) or 0)
             if size > 10 * 1024 * 1024:
                 raise forms.ValidationError("La planimetria non puo superare 10 MB.")
-            return upload
+            return clean_image_upload(
+                upload, extensions={".png", ".jpg", ".jpeg"}, max_bytes=10 * 1024 * 1024, label="Planimetria"
+            )
         if self.instance and self.instance.pk and self.instance.image:
             return self.instance.image
         raise forms.ValidationError("Carica una planimetria PNG o JPG.")
@@ -2723,7 +2726,7 @@ class AssetLabelTemplateForm(forms.ModelForm):
         size = int(getattr(upload, "size", 0) or 0)
         if size > 2 * 1024 * 1024:
             raise forms.ValidationError("Il logo non puo superare 2 MB.")
-        return upload
+        return clean_image_upload(upload, extensions={".png", ".jpg", ".jpeg"}, max_bytes=2 * 1024 * 1024, label="Logo")
 
     def clean(self):
         cleaned_data = super().clean()

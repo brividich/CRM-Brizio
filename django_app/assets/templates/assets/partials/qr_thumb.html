@@ -1,0 +1,2 @@
+{# Miniatura QR cliccabile: apre il dialog condiviso (assets/partials/qr_dialog.html). Parametri: qr_asset_id, qr_size ("lg" opzionale). #}
+<button type="button" class="aq-thumb{% if qr_size == 'lg' %} aq-thumb--lg{% endif %}" data-aq-open="{% url 'assets:asset_qr_panel' qr_asset_id %}" title="QR: anteprima, link, etichetta" aria-label="Apri QR dell'asset"><img src="{% url 'assets:asset_qr_image' qr_asset_id %}?size=s" alt="" loading="lazy"></button>

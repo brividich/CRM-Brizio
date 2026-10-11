@@ -163,6 +163,12 @@ def run_visite_mediche_digest(days: int = 60) -> dict:
         raise
 
 
+def run_elearning_import(job_id: int) -> dict:
+    """Import di slide da PowerPoint/PDF accodato dall'autore (vedi ``elearning_import.esegui_import``)."""
+    from anagrafica.services.elearning_import import esegui_import
+    return esegui_import(job_id)
+
+
 def run_elearning_reminders() -> dict:
     """Promemoria micro-corsi e-learning non completati (digest HR + notifica in-app).
 
@@ -295,6 +301,22 @@ def run_import_cedolini_sharepoint() -> dict:
         "righe_ok": imp.righe_ok if imp else 0,
         "righe_errore": imp.righe_errore if imp else 0,
     }
+
+
+def run_elearning_assegnazioni() -> dict:
+    """Assegnazioni automatiche dei corsi e-learning obbligatori e cicli di rinnovo."""
+    from anagrafica.services.elearning_assegnazioni import sincronizza
+    from anagrafica.services.elearning_tracciamento import chiudi_sessioni_inattive
+
+    try:
+        from anagrafica.services.elearning_versioni import fissa_e_riassegna
+        esito = sincronizza()
+        esito["sessioni_chiuse"] = chiudi_sessioni_inattive()
+        esito["versioni"] = fissa_e_riassegna()
+        return esito
+    except Exception:
+        logger.exception("run_elearning_assegnazioni: eccezione inattesa")
+        raise
 
 
 def run_cambio_mansione_digest() -> dict:

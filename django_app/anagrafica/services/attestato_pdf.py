@@ -22,6 +22,7 @@ Punti d'ingresso principali:
 from __future__ import annotations
 
 import logging
+import re
 from io import BytesIO
 
 from django.core.files.base import ContentFile
@@ -79,7 +80,7 @@ def assegna_numero_protocollo(record) -> str:
 # Derivazione contesto (condivisa view HTML ↔ PDF)
 # ---------------------------------------------------------------------------
 
-def build_attestato_context(record, cfg=None) -> dict:
+def build_attestato_context(record, cfg=None, request=None) -> dict:
     """Deriva i campi dell'attestato da un ``TrainingEmployeeRecord``.
 
     Logica identica alla view HTML: tipo (qualifica/frequenza/partecipazione),
@@ -142,7 +143,19 @@ def build_attestato_context(record, cfg=None) -> dict:
     else:
         numero_display = assegna_numero_protocollo(record)
 
+    # Codice di verifica (QR + testo): stabile come il protocollo.
+    from .attestato_verifica import assegna_codice_verifica, formatta, url_verifica
+    try:
+        codice = assegna_codice_verifica(record)
+    except Exception:
+        logger.exception("Codice di verifica non assegnato per record %s", record.pk)
+        codice = ""
+    verifica_url = url_verifica(codice, request) if codice else ""
+
     return {
+        "codice_verifica": formatta(codice),
+        "verifica_url": verifica_url,
+        "verifica_qr_svg": qr_svg(verifica_url) if verifica_url else "",
         "record": record,
         "certificato": certificato,
         "cfg": cfg,
@@ -156,6 +169,20 @@ def build_attestato_context(record, cfg=None) -> dict:
         "numero_display": numero_display,
         "sede_display": sede_display,
     }
+
+
+def qr_svg(testo: str) -> str:
+    """QR come SVG inline (per l'attestato a video)."""
+    import qrcode
+    import qrcode.image.svg
+
+    img = qrcode.make(testo, image_factory=qrcode.image.svg.SvgPathImage, box_size=6, border=1)
+    buf = BytesIO()
+    img.save(buf)
+    svg = buf.getvalue().decode("utf-8")
+    svg = svg[svg.find("<svg"):]
+    # Dimensioni dal contenitore (le misure in mm della libreria non scalano).
+    return re.sub(r'^<svg width="[^"]*" height="[^"]*"', '<svg width="100%" height="100%"', svg)
 
 
 # ---------------------------------------------------------------------------
@@ -270,6 +297,29 @@ def build_attestato_pdf_bytes(record, cfg=None) -> bytes:
     firme.setStyle(firma_cell)
     story.append(firme)
     story.append(Spacer(1, 10 * mm))
+
+    # Verifica di autenticità: codice in chiaro e, se l'indirizzo del portale è
+    # noto (SITE_URL), anche il QR che apre la pagina di verifica.
+    if ctx["codice_verifica"]:
+        testo = (f"Verifica di autenticità: codice <b>{ctx['codice_verifica']}</b>"
+                 + (f"<br/>{ctx['verifica_url']}" if ctx["verifica_url"] else
+                    "<br/>Portale › Formazione › Verifica attestato"))
+        cella_testo = Paragraph(testo, styles["cell"])
+        if ctx["verifica_url"]:
+            from reportlab.graphics.barcode import qr as rl_qr
+            from reportlab.graphics.shapes import Drawing
+            widget = rl_qr.QrCodeWidget(ctx["verifica_url"])
+            x1, y1, x2, y2 = widget.getBounds()
+            lato = 24 * mm
+            disegno = Drawing(lato, lato, transform=[lato / (x2 - x1), 0, 0, lato / (y2 - y1), 0, 0])
+            disegno.add(widget)
+            riga = Table([[disegno, cella_testo]], colWidths=[28 * mm, None])
+        else:
+            riga = Table([[cella_testo]], colWidths=[None])
+        riga.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                                  ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
+        story.append(riga)
+        story.append(Spacer(1, 4 * mm))
 
     # Nota legale
     if cfg.nota_legale:

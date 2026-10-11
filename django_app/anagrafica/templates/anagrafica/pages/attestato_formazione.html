@@ -294,6 +294,12 @@
         </div>
       </div>
 
+      {% if codice_verifica %}
+      <div class="att-verifica" style="display:flex;align-items:center;gap:12px;margin:10px 0 4px;font-size:11px;">
+        {% if verifica_qr_svg %}<div style="width:72px;height:72px;flex:0 0 72px;background:#fff;">{{ verifica_qr_svg|safe }}</div>{% endif %}
+        <div>Verifica di autenticità: codice <strong style="font-family:monospace;letter-spacing:.06em;">{{ codice_verifica }}</strong>{% if verifica_url %}<br><span style="word-break:break-all;">{{ verifica_url }}</span>{% endif %}</div>
+      </div>
+      {% endif %}
       <!-- Footer -->
       <div class="att-divider"></div>
       <div class="att-foot">

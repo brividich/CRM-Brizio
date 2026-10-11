@@ -542,6 +542,17 @@ def _upload_layout(request: HttpRequest, check_type: PeriodicCheckType) -> HttpR
     if upload is None or not (upload.name or "").lower().endswith(".pdf"):
         messages.error(request, "Carica la planimetria in PDF (vettoriale, quella da cui si stampa).")
         return redirect(back)
+    from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+
+    try:
+        validate_extension_and_mime(
+            upload, allowed_extensions={".pdf"}, allowed_mimes={"application/pdf"}, label="Planimetria", allow_empty=False
+        )
+    except UploadMimeValidationError as exc:
+        messages.error(request, str(exc))
+        return redirect(back)
+    finally:
+        upload.seek(0)
     try:
         areas = _parse_areas(request.POST.get("exclude_areas", ""))
     except ValueError:

@@ -1,0 +1,14 @@
+{# Stato degli import di slide in background. Si ricarica ogni 4 s finché un lavoro è in corso. #}
+<div id="el-import-stato"{% if import_in_corso %} hx-get="{% url 'anagrafica:formazione_slide_import_stato' corso.pk %}" hx-trigger="every 4s" hx-swap="outerHTML"{% endif %}>
+  {% for j in import_lavori %}
+  <div class="el-import-riga el-import-{{ j.stato|lower }}">
+    <strong>{{ j.nome_file }}</strong>
+    {% if j.stato == "IN_CODA" %}<span>in coda…</span>
+    {% elif j.stato == "IN_CORSO" %}<span>conversione in corso…</span>
+    {% elif j.stato == "COMPLETATO" %}<span>{{ j.n_slide }} slide importate · <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_elearning' corso.pk %}">aggiorna la pagina</a></span>
+    {% else %}<span>non riuscito: {{ j.errore }}</span>{% endif %}
+    <span class="fmd-muted">{{ j.creato_il|date:"d/m H:i" }}</span>
+  </div>
+  {% endfor %}
+  {% if import_in_corso %}<p class="fmd-fhelp" style="margin:4px 0 0;">Puoi lasciare la pagina: la conversione continua. Se resta «in coda» per molti minuti, il servizio di elaborazione in background (qcluster) non è attivo.</p>{% endif %}
+</div>

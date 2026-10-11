@@ -1,6 +1,20 @@
 from django import template
+from django.template.defaultfilters import floatformat
 
 register = template.Library()
+
+
+@register.filter
+def kpi(value, decimals=0):
+    """Come ``floatformat``, ma un KPI non calcolato si legge «dato non disponibile» (PROMPT 06 - D)."""
+    if not getattr(value, "disponibile", True):
+        return str(value)
+    return floatformat(value, decimals)
+
+
+@register.filter
+def kpi_ok(value) -> bool:
+    return bool(getattr(value, "disponibile", True))
 
 
 @register.filter

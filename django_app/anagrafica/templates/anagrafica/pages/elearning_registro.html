@@ -1,0 +1,62 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Registro e-learning | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+{% include "anagrafica/components/_fm_style.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:elearning_cruscotto' %}">Cruscotto e-learning</a><span class="fmd-sep"> / </span><span class="fmd-cur">Registro</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-clipboard"/></svg>Registro dei completamenti</h1>
+        <p class="fmd-ph-sub">Per ogni completamento: chi, quale ciclo e versione, quando, tempo effettivo misurato lato server, slide, tentativi, punteggio e impronta dei requisiti verificati. Le righe non si modificano.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% include "anagrafica/components/_export_menu.html" with export_key="elearning_registro" %}
+      </div>
+    </div>
+
+    <form method="get" class="fmd-panel fmd-block" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+      <div class="fm-form-field" style="margin:0;min-width:240px;"><label for="elr-corso">Corso</label>
+        <select id="elr-corso" name="corso" class="fm-input fm-select"><option value="">Tutti</option>
+          {% for c in corsi_opts %}<option value="{{ c.pk }}"{% if c.pk == corso_id %} selected{% endif %}>{{ c.titolo }}</option>{% endfor %}</select></div>
+      <div class="fm-form-field" style="margin:0;"><label for="elr-dal">Dal</label><input id="elr-dal" type="date" name="dal" value="{{ dal }}" class="fm-input"></div>
+      <div class="fm-form-field" style="margin:0;"><label for="elr-al">Al</label><input id="elr-al" type="date" name="al" value="{{ al }}" class="fm-input"></div>
+      <button class="fmd-btn fmd-btn-primary" type="submit">Filtra</button>
+    </form>
+
+    <section class="fmd-panel fmd-block">
+      <p class="fmd-muted" style="margin:0 0 8px;">{{ n_righe }} completamenti{% if n_righe > 500 %} (a schermo i primi 500: l'export li contiene tutti){% endif %}.</p>
+      <div class="fmd-tablewrap">
+        <table class="fmd-table">
+          <thead><tr><th>Data</th><th>Dipendente</th><th>Corso</th><th>Ciclo</th><th>Versione</th><th>Minuti effettivi</th><th>Slide</th><th>Tentativi</th><th>Punteggio</th><th>Protocollo</th><th>Impronta</th></tr></thead>
+          <tbody>
+          {% for r in righe %}
+          <tr>
+            <td class="fmd-nowrap">{{ r.data|date:"d/m/Y H:i" }}</td>
+            <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.dipendente }}</a></td>
+            <td>{{ r.corso }}</td><td class="fmd-num">{{ r.ciclo }}</td><td>{{ r.versione|default:"—" }}</td>
+            <td class="fmd-num">{{ r.minuti_effettivi }}</td><td class="fmd-num">{{ r.slide }}</td><td class="fmd-num">{{ r.tentativi }}</td>
+            <td class="fmd-num">{{ r.punteggio|default:"—" }}{% if r.punteggio %}%{% endif %}</td><td>{{ r.protocollo|default:"—" }}</td>
+            <td><span class="fmd-code">{{ r.impronta }}</span></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="11" class="fmd-muted">Nessun completamento registrato.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

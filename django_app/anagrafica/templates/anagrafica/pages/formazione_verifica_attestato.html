@@ -1,0 +1,80 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Verifica attestato | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap" style="max-width:720px;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_online_catalog' %}">Corsi online</a><span class="fmd-sep"> / </span><span class="fmd-cur">Verifica attestato</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>Verifica attestato</h1>
+        <p class="fmd-ph-sub">Inserisci il codice stampato sull'attestato (o inquadra il QR) per controllare che sia autentico e ancora valido.</p>
+      </div>
+    </div>
+
+    <form method="post" action="{% url 'anagrafica:formazione_verifica_attestato' %}" class="fmd-panel" style="padding:18px;margin-bottom:14px;">
+      {% csrf_token %}
+      <label for="codice" class="fmd-block-title" style="font-size:13px;display:block;margin-bottom:8px;">Codice di verifica</label>
+      <div class="elv-row">
+        <input id="codice" class="fm-input" type="text" name="codice" value="{{ codice }}" placeholder="XXXX-XXXX-XXXX"
+               autocomplete="off" spellcheck="false" maxlength="40" style="font-family:monospace;letter-spacing:.06em;">
+        <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-search"/></svg>Verifica</button>
+      </div>
+    </form>
+
+    {% if limitato %}
+    <div class="fmd-alert"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg><span>Troppe verifiche in pochi minuti: riprova più tardi.</span></div>
+    {% elif esito %}
+    <section class="fmd-panel elv-esito elv-{{ esito.stato|lower }}" style="padding:20px;">
+      {% if esito.stato == STATI.SCONOSCIUTO %}
+        <div class="elv-titolo"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg>Codice non riconosciuto</div>
+        <p class="fmd-muted" style="margin:6px 0 0;">Nessun attestato corrisponde a questo codice. Controlla di averlo trascritto per intero.</p>
+      {% elif esito.stato == STATI.ALTERATO %}
+        <div class="elv-titolo"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Attestato non verificabile</div>
+        <p class="fmd-muted" style="margin:6px 0 0;">Il registro del completamento non corrisponde più all'impronta registrata. Segnalalo all'ufficio HR.</p>
+      {% else %}
+        <div class="elv-titolo">
+          {% if esito.stato == STATI.VALIDO %}<svg class="fmd-ico"><use href="#i-check"/></svg>Attestato autentico e valido
+          {% elif esito.stato == STATI.SCADUTO %}<svg class="fmd-ico"><use href="#i-clock"/></svg>Attestato autentico, validità scaduta
+          {% else %}<svg class="fmd-ico"><use href="#i-alert-cir"/></svg>Attestato autentico, esito non idoneo{% endif %}
+        </div>
+        <dl class="elv-dati">
+          <dt>Nome</dt><dd>{{ esito.nome|default:"—" }}</dd>
+          <dt>Corso</dt><dd>{{ esito.corso|default:"—" }}</dd>
+          <dt>Completato il</dt><dd>{{ esito.data_completamento|date:"d/m/Y"|default:"—" }}</dd>
+          <dt>Valido fino al</dt><dd>{% if esito.data_scadenza %}{{ esito.data_scadenza|date:"d/m/Y" }}{% else %}nessuna scadenza{% endif %}</dd>
+          {% if esito.protocollo %}<dt>Protocollo</dt><dd>{{ esito.protocollo }}</dd>{% endif %}
+        </dl>
+      {% endif %}
+    </section>
+    {% endif %}
+
+  </div>
+</div>
+
+<style>
+.elv-row{ display:flex; gap:9px; flex-wrap:wrap; }
+.elv-row .fm-input{ flex:1 1 220px; min-width:0; }
+.elv-titolo{ display:flex; align-items:center; gap:9px; font-weight:800; font-size:17px; color:var(--fmd-navy); }
+.elv-esito{ border-left:5px solid #94a3b8; }
+.elv-valido{ border-left-color:#22a35a; }
+.elv-valido .elv-titolo{ color:#15803d; }
+.elv-scaduto, .elv-non_valido{ border-left-color:var(--fmd-orange); }
+.elv-alterato, .elv-sconosciuto{ border-left-color:#c0392b; }
+.elv-dati{ display:grid; grid-template-columns:max-content 1fr; gap:6px 16px; margin:14px 0 0; }
+.elv-dati dt{ color:var(--fmd-muted, #64748b); font-size:13px; }
+.elv-dati dd{ margin:0; font-weight:600; overflow-wrap:anywhere; }
+body.theme-dark .elv-valido .elv-titolo{ color:#4ade80; }
+</style>
+{% endblock %}

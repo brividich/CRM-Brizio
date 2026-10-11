@@ -20,6 +20,7 @@ from anagrafica.models import Fornitore
 from core.form_fields import user_display_label
 
 from .forms import _attach_input_css
+from .upload_rules import clean_document_upload
 from .models import (
     Asset,
     AssetCategory,
@@ -490,6 +491,9 @@ class OccurrenceCompletionForm(forms.Form):
             )
         _attach_input_css(self)
 
+    def clean_attachment(self):
+        return clean_document_upload(self.cleaned_data.get("attachment"), label="Rapporto")
+
     def clean(self):
         cleaned = super().clean()
         occurrence = self.occurrence
@@ -533,6 +537,9 @@ class OccurrenceBulkCompletionForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["completed_on"].initial = timezone.localdate()
         _attach_input_css(self)
+
+    def clean_attachment(self):
+        return clean_document_upload(self.cleaned_data.get("attachment"), label="Rapporto unico")
 
     def clean_completed_on(self):
         completed_on = self.cleaned_data["completed_on"]

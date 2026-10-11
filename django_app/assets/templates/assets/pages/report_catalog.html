@@ -1,0 +1,35 @@
+{% extends "assets/reporting_base.html" %}
+{% block title %}Catalogo report Asset{% endblock %}
+{% block reporting_content %}
+<section class="rp-hero"><div><h1>Catalogo report</h1><p>Tutti i report del modulo in un posto: cosa contengono, con quali filtri e in che formato escono. Salva i filtri che usi spesso, condividili o falli arrivare via email.</p></div><a class="rp-button secondary" href="{% url 'assets:reporting_archive' %}">Archivio report</a></section>
+<section class="rp-panel">
+  <h2>Report interattivi</h2>
+  <div class="rp-table-wrap"><table><thead><tr><th>Report</th><th>Filtri</th><th>Esempio di riga</th><th>Formati</th></tr></thead><tbody>
+  {% for d in definizioni %}<tr>
+    <td><a href="{% url 'assets:report_catalog_run' d.code %}"><strong>{{ d.titolo }}</strong></a><div class="rp-muted">{{ d.descrizione }}</div></td>
+    <td>{% for f in d.filtri %}{{ f.etichetta }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+    <td class="rp-muted">{{ d.esempio }}</td>
+    <td>Pagina · Excel · PDF</td>
+  </tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="rp-panel">
+  <h2>Report salvati</h2>
+  <div class="rp-table-wrap"><table><thead><tr><th>Nome</th><th>Report</th><th>Di</th><th>Invio email</th><th>Ultimo esito</th><th></th></tr></thead><tbody>
+  {% for s in salvati %}<tr>
+    <td><a href="{% url 'assets:report_catalog_run' s.report_code %}?salvato={{ s.pk }}">{{ s.nome }}</a>{% if s.condiviso %} <span class="rp-badge">Condiviso</span>{% endif %}</td>
+    <td>{{ s.report_code }}</td>
+    <td>{% if s.owner_id == request.user.id %}Tu{% else %}{{ s.owner.get_full_name|default:s.owner.get_username }}{% endif %}</td>
+    <td>{% if s.frequenza %}{{ s.get_frequenza_display }} · {{ s.get_formato_display }}{% if s.prossimo_invio %}<div class="rp-muted">prossimo {{ s.prossimo_invio|date:"d/m/Y H:i" }}</div>{% endif %}{% else %}—{% endif %}</td>
+    <td class="rp-muted">{{ s.ultimo_esito|default:"—" }}</td>
+    <td>{% if s.owner_id == request.user.id %}<form method="post" action="{% url 'assets:report_catalog_delete' s.pk %}" onsubmit="return confirm('Eliminare il report salvato?')">{% csrf_token %}<button class="rp-button secondary" type="submit">Elimina</button></form>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="6" class="rp-empty">Nessun report salvato: apri un report, imposta i filtri e premi «Salva report».</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<section class="rp-panel">
+  <h2>Altri report del modulo</h2>
+  <div class="rp-table-wrap"><table><thead><tr><th>Report</th><th>Filtri</th><th>Output</th></tr></thead><tbody>
+  {% for r in esistenti %}<tr><td>{% if r.url %}<a href="{{ r.url }}"><strong>{{ r.titolo }}</strong></a>{% else %}<strong>{{ r.titolo }}</strong>{% endif %}<div class="rp-muted">{{ r.descrizione }}</div></td><td>{{ r.filtri }}</td><td>{{ r.output }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}

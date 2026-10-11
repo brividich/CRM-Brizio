@@ -1,8 +1,9 @@
 """Promemoria micro-corsi e-learning ancora da completare.
 
-Per ogni iscrizione e-learning non completata (ISCRITTO/IN_CORSO/NON_SUPERATO su
-corso attivo) invia una notifica in-app al discente e produce un digest email per
-i responsabili formazione. Pattern speculare a ``send_visite_expiry_reminders`` /
+1. **Scaletta** (``services.elearning_promemoria``): promemoria prima della
+   scadenza, solleciti dopo la scadenza al dipendente e al suo responsabile,
+   digest settimanale al responsabile; ogni avviso parte una volta sola.
+2. **Digest HR** di tutte le iscrizioni non completate. Pattern speculare a ``send_visite_expiry_reminders`` /
 ``send_visite_mediche_digest``. Schedulare via QCluster (intervalli in MINUTI).
 
 Destinatari digest: override CLI → SiteConfig ``elearning_reminder_emails`` →
@@ -15,10 +16,7 @@ from collections import defaultdict
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from anagrafica.services.elearning_notifications import (
-    iter_corsi_da_completare,
-    notify_promemoria_da_completare,
-)
+from anagrafica.services.elearning_notifications import iter_corsi_da_completare
 from anagrafica.services.email_digest import digest_fragment
 from anagrafica.services.reminders import get_reminder_recipients
 
@@ -40,6 +38,15 @@ class Command(BaseCommand):
         dry_run = bool(options.get("dry_run"))
         recipients = get_reminder_recipients("elearning_reminder_emails", options.get("recipients") or [])
 
+        from anagrafica.services.elearning_promemoria import esegui
+        rie = esegui(oggi=today, invia=not dry_run)
+        self.stdout.write(
+            f"Scaletta: {rie.promemoria} promemoria, {rie.solleciti} solleciti, "
+            f"{rie.email_responsabili} email ai responsabili, {rie.digest} digest settimanali"
+            + (f", {len(set(rie.senza_responsabile))} persone senza responsabile" if rie.senza_responsabile else "")
+            + (" [DRY-RUN]" if dry_run else "") + "."
+        )
+
         iscrizioni = list(iter_corsi_da_completare())
         if not iscrizioni:
             self.stdout.write("Nessun micro-corso e-learning da completare.")
@@ -59,8 +66,7 @@ class Command(BaseCommand):
                 f"  [{_STATO_LABEL.get(iscr.stato, iscr.stato)}] dip #{iscr.legacy_anagrafica_id}"
                 f" - {iscr.corso.codice} {iscr.corso.titolo}"
             )
-            if not dry_run:
-                notify_promemoria_da_completare(iscr.corso_id, iscr.legacy_anagrafica_id)
+            # Niente più notifica quotidiana a ogni discente: la manda la scaletta.
 
         body = "\n".join(lines)
         subject = f"[E-LEARNING] {len(iscrizioni)} corsi da completare - {today:%d-%m-%Y}"
@@ -74,7 +80,7 @@ class Command(BaseCommand):
         if not recipients:
             self.stdout.write(self.style.ERROR(
                 "Nessun destinatario configurato (SiteConfig 'elearning_reminder_emails' / ADMINS vuoti)."
-                " Notifiche in-app inviate comunque."
+                " Scaletta dei promemoria eseguita comunque."
             ))
             return
 

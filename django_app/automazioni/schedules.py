@@ -30,6 +30,27 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ASSETS — report salvati con invio pianificato (catalogo report): ogni 15 minuti
+        # invia quelli in scadenza, solo ai destinatari che hanno ancora accesso al report.
+        "name": "assets_report_catalogo_invii",
+        "func": "assets.services.report_catalog.invia_report_pianificati",
+        "schedule_type": "I",
+        "minutes": 15,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # ASSETS — retention dello storico campi (stato, assegnazione, rete) alle 03:15.
+        # Con ASSETS_STORICO_RETENTION_GIORNI=0 (default) non elimina nulla; l'ultima
+        # voce di ogni campo resta sempre, per la vista "com'era alla data".
+        "name": "assets_storico_retention",
+        "func": "assets.services.storico_asset.applica_retention",
+        "schedule_type": "C",
+        "cron": "15 3 * * *",
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CONTATORI — monitor SNMP dei dispositivi attivi, con un job per apparato.
         # Stato, sonde ed errori sono consultabili nella Centrale MFC/SNMP.
         "name": "contatori_poll_snmp",
@@ -428,6 +449,17 @@ SCHEDULES: list[dict] = [
         "func": "anagrafica.tasks.run_ricalcolo_scadenze",
         "schedule_type": "C",       # Schedule.CRON
         "cron": "20 0 * * *",       # ogni notte alle 00:20
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # ANAGRAFICA HR — e-learning: assegna i corsi online obbligatori non ancora
+        # soddisfatti (dal motore dei requisiti) e apre i cicli di aggiornamento
+        # in scadenza; chiude le sessioni del player abbandonate. Idempotente.
+        "name": "elearning_assegnazioni",
+        "func": "anagrafica.tasks.run_elearning_assegnazioni",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "50 0 * * *",       # ogni notte alle 00:50, dopo il ricalcolo scadenze
         "repeats": -1,
         "kwargs": {},
     },

@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
 {% include "anagrafica/components/_fmd_form_style.html" %}
 {% endblock %}
 
@@ -33,6 +33,9 @@
         <a href="{% url 'anagrafica:formazione_online_player' corso.pk %}" class="fmd-btn fmd-btn-ghost" target="_blank">
           <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Anteprima discente
         </a>
+        <a href="{% url 'anagrafica:elearning_regola_corso' corso.pk %}" class="fmd-btn fmd-btn-ghost">
+          <svg class="fmd-ico"><use href="#i-shield"/></svg>Regole FAD
+        </a>
       </div>
     </div>
 
@@ -59,7 +62,45 @@
           <input type="file" name="file" accept=".pptx,.ppt,.odp,.pdf" class="fm-input" required style="max-width:420px;">
           <button type="submit" class="fmd-btn fmd-btn-navy"><svg class="fmd-ico"><use href="#i-download"/></svg>Importa</button>
         </div>
+        {% if import_lavori %}<div style="margin-top:10px;">{% include "anagrafica/partials/_elearning_import_stato.html" %}</div>{% endif %}
       </form>
+
+      {# Video: una slide video (MP4, storage privato) #}
+      <form method="post" action="{% url 'anagrafica:formazione_slide_video_upload' corso.pk %}" enctype="multipart/form-data" class="fm-import-box">
+        {% csrf_token %}
+        <div class="fmd-block-title" style="font-size:13px;margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-download"/></svg> Aggiungi un video</div>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">File <strong>.mp4</strong> (verificato dal contenuto). Diventa una slide in coda. La permanenza minima vale come tempo di visione richiesto.</p>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="text" name="titolo" class="fm-input" placeholder="Titolo del video" required maxlength="300" style="max-width:260px;" aria-label="Titolo del video">
+          <input type="number" name="durata_minima_secondi" class="fm-input" min="0" placeholder="Visione minima (s)" style="max-width:170px;" aria-label="Visione minima in secondi">
+          <input type="file" name="video" accept=".mp4,video/mp4" class="fm-input" required style="max-width:320px;" aria-label="File video">
+          <button type="submit" class="fmd-btn fmd-btn-navy">Carica video</button>
+        </div>
+      </form>
+
+      {# Moduli: raggruppano le slide (lezioni) nell'indice del player #}
+      <div class="fm-import-box">
+        <div class="fmd-block-title" style="font-size:13px;margin-bottom:8px;"><svg class="fmd-ico"><use href="#i-book"/></svg> Moduli <span class="fmd-count">{{ moduli|length }}</span></div>
+        <p class="fmd-fhelp" style="margin:0 0 10px;">Facoltativi. Il discente vede l'indice del corso diviso in moduli; ogni slide è una lezione. La sequenza resta quella dell'ordine delle slide: assegna a un modulo slide consecutive.</p>
+        {% for m in moduli %}
+        <div class="fm-opt-row">
+          <form method="post" action="{% url 'anagrafica:formazione_modulo_save' corso.pk %}" style="display:contents;">
+            {% csrf_token %}<input type="hidden" name="modulo_id" value="{{ m.pk }}">
+            <input class="fm-input" type="number" name="ordine" value="{{ m.ordine }}" min="1" style="max-width:70px;" aria-label="Ordine del modulo">
+            <input class="fm-input" type="text" name="titolo" value="{{ m.titolo }}" maxlength="200" aria-label="Titolo del modulo">
+            <button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 10px;">Salva</button>
+          </form>
+          <form method="post" action="{% url 'anagrafica:formazione_modulo_delete' corso.pk m.pk %}" onsubmit="return confirm('Eliminare il modulo? Le slide restano.');">
+            {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost" style="padding:4px 8px;color:#c0392b;" aria-label="Elimina modulo">✕</button>
+          </form>
+        </div>
+        {% endfor %}
+        <form method="post" action="{% url 'anagrafica:formazione_modulo_save' corso.pk %}" class="fm-opt-row fm-opt-add">
+          {% csrf_token %}
+          <input class="fm-input" type="text" name="titolo" placeholder="Nuovo modulo…" maxlength="200" required aria-label="Titolo del nuovo modulo">
+          <button type="submit" class="fmd-btn fmd-btn-primary" style="padding:4px 10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg></button>
+        </form>
+      </div>
 
       {% for s in slides %}
       <form method="post" action="{% url 'anagrafica:formazione_slide_save' corso.pk %}" class="fm-edit-row">
@@ -68,6 +109,11 @@
         <div class="fmd-grid">
           <div class="fmd-field"><label>Ordine</label>
             <input class="fm-input" type="number" name="ordine" value="{{ s.ordine }}" min="1" style="max-width:90px;"></div>
+          <div class="fmd-field"><label>Modulo</label>
+            <select class="fm-input" name="modulo">
+              <option value="">— nessun modulo —</option>
+              {% for m in moduli %}<option value="{{ m.pk }}"{% if s.modulo_id == m.pk %} selected{% endif %}>{{ m.ordine }}. {{ m.titolo }}</option>{% endfor %}
+            </select></div>
           <div class="fmd-field fmd-col-full"><label>Titolo{% if s.is_immagine %} / didascalia{% endif %}</label>
             <input class="fm-input" type="text" name="titolo" value="{{ s.titolo }}"></div>
           {% if s.is_immagine %}
@@ -99,6 +145,7 @@
         <div class="fmd-block-title" style="font-size:13px;margin-bottom:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg> Nuova slide</div>
         <div class="fmd-grid">
           {% include "anagrafica/partials/_fmd_field.html" with field=slide_form.ordine %}
+          {% if moduli %}{% include "anagrafica/partials/_fmd_field.html" with field=slide_form.modulo %}{% endif %}
           {% include "anagrafica/partials/_fmd_field.html" with field=slide_form.titolo full=1 %}
           {% include "anagrafica/partials/_fmd_field.html" with field=slide_form.contenuto full=1 %}
         </div>
@@ -115,19 +162,30 @@
       {% if n_domande_incomplete %}
       <div class="fmd-alert">
         <svg class="fmd-ico"><use href="#i-alert-tri"/></svg>
-        <span><strong>{{ n_domande_incomplete }}</strong> domanda/e attiva/e <strong>senza risposta corretta</strong>: vengono escluse dal quiz finché non spunti almeno un'opzione corretta. I discenti non le vedranno.</span>
+        <span><strong>{{ n_domande_incomplete }}</strong> domanda/e attiva/e <strong>incompleta/e</strong> (risposte corrette mancanti o non coerenti con il tipo): restano fuori dal quiz finché non le sistemi. I discenti non le vedranno.</span>
       </div>
       {% endif %}
 
       {% for d in domande %}
-      <div class="fm-q-card{% if d.senza_corretta %} fm-q-warn{% endif %}">
-        {% if d.senza_corretta %}<div class="fm-q-warnbar"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg> Nessuna risposta corretta selezionata — domanda esclusa dal quiz.</div>{% endif %}
+      <div class="fm-q-card{% if d.problema %} fm-q-warn{% endif %}">
+        {% if d.problema %}<div class="fm-q-warnbar"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg> {{ d.problema }} — domanda esclusa dal quiz.</div>{% endif %}
         <form method="post" action="{% url 'anagrafica:formazione_question_save' corso.pk %}" class="fm-edit-row">
           {% csrf_token %}
           <input type="hidden" name="question_id" value="{{ d.pk }}">
           <div class="fmd-grid">
             <div class="fmd-field"><label>Ordine</label>
               <input class="fm-input" type="number" name="ordine" value="{{ d.ordine }}" min="1" style="max-width:90px;"></div>
+            <div class="fmd-field"><label>Tipo</label>
+              <select class="fm-input" name="tipo" data-prima="{{ d.tipo }}"
+                      onchange="if(this.value==='VERO_FALSO'&&this.dataset.prima!=='VERO_FALSO'&&!confirm('Le opzioni di risposta verranno sostituite da «Vero» e «Falso». Continuare?')){this.value=this.dataset.prima;}">
+                {% for val, lab in tipi_domanda %}<option value="{{ val }}"{% if d.tipo == val %} selected{% endif %}>{{ lab }}</option>{% endfor %}
+              </select></div>
+            <div class="fmd-field"><label>Se vero/falso, l'affermazione è</label>
+              <select class="fm-input" name="vf_vera">
+                {% if d.tipo != "VERO_FALSO" %}<option value="">—</option>{% endif %}
+                <option value="1"{% if d.tipo == "VERO_FALSO" and d.vf_vera %} selected{% endif %}>Vera</option>
+                <option value="0"{% if d.tipo == "VERO_FALSO" and not d.vf_vera %} selected{% endif %}>Falsa</option>
+              </select></div>
             <div class="fmd-field fmd-col-full"><label>Domanda</label>
               <textarea class="fm-input" name="testo" rows="2">{{ d.testo }}</textarea></div>
             <label class="fmd-check"><input type="checkbox" name="is_active" {% if d.is_active %}checked{% endif %}><span>Attiva</span></label>
@@ -138,6 +196,9 @@
         </form>
 
         {# Opzioni #}
+        {% if d.tipo == "VERO_FALSO" %}
+        <p class="fmd-fhelp" style="margin:6px 0 0;">Il discente risponde «Vero» o «Falso»: le opzioni le gestisce il portale.</p>
+        {% else %}
         <div class="fm-opts">
           {% for o in d.opzioni.all %}
           <form method="post" action="{% url 'anagrafica:formazione_option_save' corso.pk d.pk %}" class="fm-opt-row">
@@ -163,6 +224,7 @@
             <button type="submit" class="fmd-btn fmd-btn-primary" style="padding:4px 10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg></button>
           </form>
         </div>
+        {% endif %}
 
         <form method="post" action="{% url 'anagrafica:formazione_question_delete' corso.pk d.pk %}" onsubmit="return confirm('Eliminare la domanda e tutte le sue opzioni?');" style="margin-top:8px;">
           {% csrf_token %}
@@ -179,10 +241,23 @@
         <div class="fmd-block-title" style="font-size:13px;margin-bottom:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg> Nuova domanda</div>
         <div class="fmd-grid">
           {% include "anagrafica/partials/_fmd_field.html" with field=question_form.ordine %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=question_form.tipo %}
+          {% include "anagrafica/partials/_fmd_field.html" with field=question_form.vf_vera %}
           {% include "anagrafica/partials/_fmd_field.html" with field=question_form.testo full=1 %}
         </div>
         <button type="submit" class="fmd-btn fmd-btn-primary" style="margin-top:10px;"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi domanda</button>
-        <p class="fmd-fhelp" style="margin-top:8px;">Dopo aver creato la domanda potrai aggiungere le opzioni di risposta e marcare quelle corrette.</p>
+        <p class="fmd-fhelp" style="margin-top:8px;">Singola e multipla: dopo averla creata aggiungi le opzioni e segna le corrette (singola = una sola). Vero/falso: basta scegliere se l'affermazione è vera o falsa.</p>
+      </form>
+
+      {# Import da Excel #}
+      <form method="post" action="{% url 'anagrafica:formazione_question_import' corso.pk %}" enctype="multipart/form-data" class="fm-add-box">
+        {% csrf_token %}
+        <div class="fmd-block-title" style="font-size:13px;margin-bottom:10px;"><svg class="fmd-ico"><use href="#i-doc"/></svg> Importa domande da Excel</div>
+        <div class="fm-opt-row">
+          <input class="fm-input" type="file" name="file" accept=".xlsx" required>
+          <button type="submit" class="fmd-btn fmd-btn-primary" style="padding:6px 12px;">Importa</button>
+        </div>
+        <p class="fmd-fhelp" style="margin-top:8px;">Colonne: Tipo, Domanda, Risposta 1…8, Corrette (es. <code>1</code> o <code>1,3</code>; per vero/falso <code>V</code> o <code>F</code>). Tutto o niente: se una riga è sbagliata non si salva nulla. <a class="fmd-data-link" href="{% url 'anagrafica:formazione_question_import' corso.pk %}">Scarica il modello</a></p>
       </form>
     </section>
 
@@ -190,12 +265,17 @@
 </div>{# .fmd #}
 
 <style>
+.el-import-riga{ display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; font-size:13px; padding:4px 0; }
+.el-import-errore span:first-of-type{ color:#c0392b; }
+.el-import-completato span:first-of-type{ color:#15803d; }
 .fm-edit-row{ padding:0; }
 .fm-edit-row-actions{ margin:8px 0 4px; }
 .fm-add-box{ border:1px dashed #cbd5e1; border-radius:12px; padding:16px; background:#f8fafc; margin-top:8px; }
 .fm-q-card{ border:1px solid #e6ecf3; border-radius:12px; padding:16px; margin-bottom:16px; }
 .fm-opts{ margin-top:12px; padding-top:12px; border-top:1px dashed #e6ecf3; }
-.fm-opt-row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.fm-opt-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:6px; }
+.fm-opt-row .fm-input[type=text]{ flex:1 1 160px; min-width:0; }
+.fm-opt-row .fm-input[type=file]{ max-width:100%; min-width:0; }
 .fm-opt-row input[type=text]{ flex:1; }
 .fm-opt-del{ display:inline; }
 .fm-opt-add{ margin-top:8px; }

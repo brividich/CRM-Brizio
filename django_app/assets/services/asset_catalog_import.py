@@ -12,7 +12,8 @@ from django.db import transaction
 from django.utils.text import slugify
 from openpyxl import load_workbook
 
-from assets.models import Asset, AssetCategory
+from assets.models import Asset, AssetCategory, AssetFieldHistory
+from assets.services.storico_asset import traccia
 
 
 ASSET_CODE_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{1,31}$")
@@ -237,10 +238,13 @@ class AssetCatalogImporter:
             asset = Asset.objects.filter(asset_tag__iexact=asset_id).first()
             if asset is None:
                 asset = Asset.objects.filter(source_key=source_key).first()
-            if asset is None:
-                Asset.objects.create(**payload)
-            else:
-                self._update_asset(asset, payload)
+            # Storico (PROMPT 06 - C) nella stessa transazione dell'import.
+            with traccia([asset.pk] if asset else [], fonte=AssetFieldHistory.FONTE_IMPORT,
+                         dettaglio=f"Import catalogo {Path(str(file_path)).name}"[:255]) as storico:
+                if asset is None:
+                    storico.aggiungi(Asset.objects.create(**payload).pk)
+                else:
+                    self._update_asset(asset, payload)
         return preview
 
     def _plan(self, loaded_rows: list[tuple[str, dict[str, str]]]) -> ImportPreview:

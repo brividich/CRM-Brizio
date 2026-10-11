@@ -186,7 +186,7 @@
 .fmd-crumb a{ text-decoration:none; color:var(--fmd-muted-2); }
 .fmd-crumb a:hover{ color:var(--fmd-cyan); }
 .fmd-pagehead h1{ margin:0; font-size:25px; font-weight:800; color:var(--fmd-navy); letter-spacing:-.015em; display:flex; align-items:center; gap:11px; }
-.fmd-pagehead-actions{ display:flex; gap:9px; align-items:center; }
+.fmd-pagehead-actions{ display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
 
 /* ── Form controls / toolbar selects (liste) ── */
 .fmd-spacer{ flex:1; }
@@ -331,6 +331,20 @@ a.fmd-mtr:hover{ transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,43,92,
 
 /* ── E-learning player: slide (testo o immagine) ─────────────────────────── */
 .fm-slide-meta{ margin-bottom:6px; }
+/* Indice del corso nel player (moduli e lezioni) */
+.fm-indice{ margin:0 0 14px; border:1px solid #e6ecf3; border-radius:10px; padding:8px 12px; background:#f8fafc; }
+.fm-indice summary{ cursor:pointer; font-weight:700; color:var(--fmd-navy); }
+.fm-indice-gruppo{ margin-top:8px; }
+.fm-indice-modulo{ font-weight:700; font-size:13px; color:var(--fmd-navy); margin-bottom:2px; }
+.fm-indice-lezioni{ margin:0; padding-left:22px; display:flex; flex-direction:column; gap:2px; }
+.fm-indice-lezioni li{ font-size:13.5px; }
+.fm-indice-lezioni li .fmd-ico{ color:#22a35a; margin-left:4px; vertical-align:-2px; }
+.fm-indice-lezioni li.is-corrente{ font-weight:700; }
+.fm-indice-lezioni li.is-chiusa{ color:#94a3b8; }
+.fm-indice-link{ background:none; border:0; padding:0; color:#1f6fb2; cursor:pointer; text-align:left; font:inherit; }
+.fm-indice-link:hover{ text-decoration:underline; }
+body.theme-dark .fm-indice{ background:transparent; border-color:#334155; }
+body.theme-dark .fm-indice-link{ color:#7cc4f5; }
 .fm-slide-title{ font-size:20px; font-weight:800; color:var(--fmd-navy); margin:2px 0 12px; }
 .fm-slide-body{ font-size:14.5px; line-height:1.6; color:#1f2d3d; }
 .fm-slide-body h2{ font-size:19px; color:var(--fmd-navy); margin:4px 0 10px; }
@@ -339,7 +353,7 @@ a.fmd-mtr:hover{ transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,43,92,
 .fm-slide-body li{ margin:3px 0; }
 .fm-slide-body code{ background:#eef2f7; padding:1px 5px; border-radius:5px; font-size:13px; }
 .fm-slide-img{ display:block; max-width:100%; height:auto; margin:0 auto; border:1px solid #e6ecf3; border-radius:8px; box-shadow:0 4px 14px rgba(12,37,69,.08); }
-.fm-slide-nav{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:18px; }
+.fm-slide-nav{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-top:18px; }
 .fm-slide-thumb{ max-width:340px; width:100%; height:auto; border:1px solid #e6ecf3; border-radius:8px; box-shadow:0 3px 10px rgba(12,37,69,.08); }
 .fm-import-box{ border:1px dashed #1f87cd; border-radius:12px; padding:16px; background:#f3f9fe; margin-bottom:18px; }
 .fm-q-warn{ border-color:#f6d9b8; }
