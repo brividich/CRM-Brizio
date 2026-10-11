@@ -34,9 +34,12 @@ croniter==6.2.4
 cryptography==50.0.2
     # via
     #   msal
+    #   puresnmp-crypto
     #   pyjwt
     #   pyopenssl
     #   pyspnego
+defusedxml==0.7.1
+    # via -r requirements.in
 distlib==0.4.0
     # via virtualenv
 django==5.2.17
@@ -99,10 +102,13 @@ mssql-django==1.7.4
     # via -r requirements.in
 nodeenv==1.10.0
     # via pre-commit
+numpy==2.5.4
+    # via -r requirements.in
 openpyxl==3.1.5
     # via -r requirements.in
 packaging==26.2
     # via
+    #   -r requirements.in
     #   build
     #   pytest
     #   wheel
@@ -114,9 +120,7 @@ pillow==12.3.0
 pip-tools==7.5.3
     # via -r requirements-dev.in
 platformdirs==4.9.6
-    # via
-    #   python-discovery
-    #   virtualenv
+    # via virtualenv
 pluggy==1.6.0
     # via
     #   pytest
@@ -124,6 +128,7 @@ pluggy==1.6.0
 pre-commit==4.6.0
     # via -r requirements-dev.in
 puresnmp==2.0.1
+    # via -r requirements.in
 puresnmp-crypto==1.0.1.post1
     # via -r requirements.in
 pyasn1==0.6.4
@@ -154,7 +159,7 @@ pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
-pyspnego==0.12.1
+pyspnego==0.12.4
     # via -r requirements.in
 pytest==9.0.3
     # via
@@ -213,6 +218,8 @@ wheel==0.47.0
 x690==1.0.0.post1
     # via puresnmp
 xlrd==2.0.1
+    # via -r requirements.in
+zxing-cpp==3.1.1
     # via -r requirements.in
 
 # The following packages are considered to be unsafe in a requirements file:
