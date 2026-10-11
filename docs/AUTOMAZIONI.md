@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 61
+**Totale automazioni disponibili:** 62
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -395,6 +395,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 15 minuti
 - **Task eseguito:** `security.tasks.run_security_cycle_task`
 - **Cosa fa:** SECURITY CENTER — legge le caselle mail dei report (Graph), parser, regole, heartbeat sorgenti e KPI. Senza questo schedule il SOC non riceve dati.
+
+### `sistema_gestione_car_solleciti`
+
+- **Quando gira:** da lun a ven, alle 07:15
+- **Task eseguito:** `sistema_gestione.tasks.run_car_solleciti`
+- **Cosa fa:** AUDIT INTERNI — solleciti CAR in ritardo (analisi 1 mese, chiusura 3 mesi o proroga, verifica di efficacia programmata) e una sola escalation a RSGI oltre soglia.
 
 ### `suggestion_corner_reminders`
 

@@ -229,9 +229,20 @@ class Auditor(models.Model):
     )
     approvato_ceo_il = models.DateTimeField(null=True, blank=True)
     formazione_processi_il = models.DateField(null=True, blank=True)
+    qualifica_scadenza = models.DateField(
+        "Scadenza della qualifica", null=True, blank=True,
+        help_text="Oltre questa data l'auditor non è qualificato finché i requisiti non vengono riverificati.",
+    )
+    norme_abilitate = models.CharField(
+        "Norme per cui è abilitato", max_length=120, blank=True, default="",
+        help_text="Vuoto = tutte le norme del sistema di gestione.",
+    )
     attivo = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    NORME = [("en9100", "EN 9100"), ("iso45001", "ISO 45001"), ("iso14001", "ISO 14001"),
+             ("iso27001", "ISO/IEC 27001"), ("pdr125", "UNI/PdR 125")]
 
     class Meta:
         ordering = ["-attivo", "nome_esterno", "user__last_name", "user__first_name"]
@@ -272,7 +283,52 @@ class Auditor(models.Model):
             self.req_settore, self.req_esperienza_2_anni,
         )
         esterno_approvato = self.interno or bool(self.approvato_ceo_da_id and self.approvato_ceo_il and self.formazione_processi_il)
-        return bool(all(requisiti) and self.requisiti_verificati_il and esterno_approvato and self.audit_svolti >= 4)
+        return bool(all(requisiti) and self.requisiti_verificati_il and esterno_approvato and self.audit_svolti >= 4
+                    and not self.qualifica_scaduta)
+
+    @property
+    def qualifica_scaduta(self) -> bool:
+        from django.utils import timezone
+
+        return bool(self.qualifica_scadenza and self.qualifica_scadenza < timezone.localdate())
+
+    @property
+    def norme_abilitate_set(self) -> set[str]:
+        return {n.strip() for n in (self.norme_abilitate or "").split(",") if n.strip()}
+
+    def abilitato_per(self, norme: set[str]) -> bool:
+        abilitate = self.norme_abilitate_set
+        return not abilitate or norme <= abilitate
+
+
+class CicloAudit(models.Model):
+    """Ciclo di certificazione (di norma triennale): raggruppa i programmi annuali MOD.034
+    per verificare che ogni processo e ogni clausola siano coperti nel triennio."""
+
+    nome = models.CharField(max_length=120)
+    anno_inizio = models.PositiveSmallIntegerField()
+    anno_fine = models.PositiveSmallIntegerField()
+    note = models.TextField(blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-anno_inizio"]
+        constraints = [models.CheckConstraint(condition=models.Q(anno_fine__gte=models.F("anno_inizio")), name="sg_ciclo_anni_ordinati")]
+        verbose_name = "Ciclo di audit"
+        verbose_name_plural = "Cicli di audit"
+
+    def __str__(self) -> str:
+        return f"{self.nome} ({self.anno_inizio}-{self.anno_fine})"
+
+    def clean(self):
+        super().clean()
+        if self.anno_inizio and self.anno_fine and not 0 <= self.anno_fine - self.anno_inizio <= 2:
+            raise ValidationError({"anno_fine": "Il ciclo copre al massimo tre anni consecutivi."})
+
+    @property
+    def anni(self) -> list[int]:
+        return list(range(self.anno_inizio, self.anno_fine + 1))
 
 
 class ProgrammaAudit(models.Model):
@@ -291,6 +347,7 @@ class ProgrammaAudit(models.Model):
     revisione = models.PositiveSmallIntegerField(default=0)
     stato = models.CharField(max_length=12, choices=STATO_CHOICES, default=STATO_BOZZA, db_index=True)
     motivo_revisione = models.CharField(max_length=255, blank=True, default="")
+    motivo_rifiuto = models.CharField(max_length=500, blank=True, default="")
     rif_riesame = models.CharField(max_length=255, blank=True, default="")
     periodi = models.TextField(blank=True, default="")
     esclusioni_27002 = models.TextField(blank=True, default="")
@@ -351,10 +408,15 @@ class Processo(models.Model):
     fonte_documentale = models.TextField(blank=True, help_text="File, revisione, pagina e impronta della fonte; discrepanze da verificare.")
     punti_9100 = models.CharField(max_length=255, blank=True)
     punti_45001 = models.CharField(max_length=255, blank=True)
+    punti_14001 = models.CharField(max_length=255, blank=True)
     punti_27001 = models.CharField(max_length=255, blank=True)
     punti_pdr125 = models.CharField(max_length=255, blank=True)
     criticita = models.PositiveSmallIntegerField(default=2, choices=[(1,"Bassa"),(2,"Media"),(3,"Alta")])
     frequenza_mesi = models.PositiveSmallIntegerField(default=12)
+    requisiti_cliente = models.TextField(
+        "Requisiti cliente o ente", blank=True,
+        help_text="Es. audit annuale richiesto dal cliente su un processo speciale. Aumenta la priorità.",
+    )
     attivo = models.BooleanField(default=True)
     revisione = models.PositiveIntegerField(default=1, editable=False)
     updated_at = models.DateTimeField(auto_now=True)
@@ -399,6 +461,7 @@ class RigaProgramma(models.Model):
     enti = models.CharField(max_length=255, blank=True, default="")
     punti_9100 = models.CharField(max_length=255, blank=True, default="")
     punti_45001 = models.CharField(max_length=255, blank=True, default="")
+    punti_14001 = models.CharField(max_length=255, blank=True, default="")
     punti_27001 = models.CharField(max_length=255, blank=True, default="")
     punti_pdr125 = models.CharField(max_length=255, blank=True, default="")
     altre_normative = models.CharField(max_length=500, blank=True, default="")
@@ -438,7 +501,9 @@ class Audit(models.Model):
     ]
     COM_EMAIL = "EMAIL"
     COM_CALENDARIO = "CALENDARIO"
-    COM_CHOICES = [(COM_EMAIL, "Email"), (COM_CALENDARIO, "Email + invito calendario")]
+    COM_OUTLOOK = "OUTLOOK"
+    COM_CHOICES = [(COM_EMAIL, "Email"), (COM_CALENDARIO, "Email + invito calendario"),
+                   (COM_OUTLOOK, "Invito Outlook con richiesta di conferma")]
 
     numero = models.CharField(max_length=40, unique=True)
     programma = models.ForeignKey(
@@ -448,6 +513,7 @@ class Audit(models.Model):
     tipo = models.CharField(max_length=24, choices=TIPO_CHOICES, default=TIPO_SISTEMA)
     en9100 = models.BooleanField(default=True)
     iso45001 = models.BooleanField(default=False)
+    iso14001 = models.BooleanField(default=False)
     iso27001 = models.BooleanField(default=False)
     pdr125 = models.BooleanField(default=False)
     lead_auditor = models.ForeignKey(Auditor, on_delete=models.PROTECT, related_name="audit_come_lead")
@@ -468,8 +534,18 @@ class Audit(models.Model):
     metodo_verifica_evidenze = models.BooleanField(default=True)
     comunicazione_il = models.DateTimeField(null=True, blank=True)
     comunicazione_metodo = models.CharField(max_length=12, choices=COM_CHOICES, blank=True, default="")
+    outlook_event_id = models.CharField(max_length=255, blank=True, default="")
+    outlook_organizer_email = models.EmailField(blank=True, default="")
+    conferme_aggiornate_il = models.DateTimeField(null=True, blank=True)
+    motivo_annullamento = models.CharField(max_length=500, blank=True, default="")
+    annullato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    annullato_il = models.DateTimeField(null=True, blank=True)
     preavviso_deroga_motivo = models.TextField(blank=True, default="")
     imparzialita_deroga_motivo = models.TextField(blank=True, default="")
+    imparzialita_deroga_approvata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    imparzialita_deroga_approvata_il = models.DateTimeField(null=True, blank=True)
     stato = models.CharField(max_length=20, choices=STATO_CHOICES, default=STATO_PIANIFICATO, db_index=True)
 
     piano_approvato_lead_da = models.ForeignKey(
@@ -523,12 +599,16 @@ class Audit(models.Model):
     def norme_label(self) -> str:
         valori = []
         for flag, label in (
-            (self.en9100, "EN 9100:2018"), (self.iso45001, "ISO 45001:2018"),
+            (self.en9100, "EN 9100:2018"), (self.iso45001, "ISO 45001:2018"), (self.iso14001, "ISO 14001:2015"),
             (self.iso27001, "ISO/IEC 27001:2022"), (self.pdr125, "UNI/PdR 125:2022"),
         ):
             if flag:
                 valori.append(label)
         return ", ".join(valori)
+
+    @property
+    def norme_codici(self) -> set[str]:
+        return {codice for codice, _label in Auditor.NORME if getattr(self, codice, False)}
 
     def utente_e_auditor(self, user) -> bool:
         if not user or not getattr(user, "is_authenticated", False):
@@ -578,9 +658,32 @@ class AuditPersona(models.Model):
     ruolo = models.CharField(max_length=12, choices=RUOLO_CHOICES)
     data_intervista = models.DateField(null=True, blank=True)
     intervistato = models.BooleanField(default=False)
+    CONFERMA_CHOICES = [("", "Non richiesta"), ("IN_ATTESA", "In attesa"), ("ACCETTATO", "Accettato"),
+                        ("PROVVISORIO", "Provvisorio"), ("RIFIUTATO", "Rifiutato")]
+    conferma_stato = models.CharField(max_length=12, choices=CONFERMA_CHOICES, blank=True, default="")
+    conferma_il = models.DateTimeField(null=True, blank=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_come_persona",
+        help_text="Utente del portale: vede i propri rilievi in «I miei rilievi».",
+    )
 
     class Meta:
         ordering = ["ruolo", "nome"]
+
+    def save(self, *args, **kwargs):
+        # Collegamento all'utente solo per email esatta e univoca: mai per nome o prefisso.
+        # Se l'email cambia il collegamento si ricalcola: il vecchio utente perde la visibilità.
+        if self.pk and self.user_id:
+            precedente = AuditPersona.objects.filter(pk=self.pk).values_list("email", flat=True).first()
+            if (precedente or "").strip().lower() != self.email.strip().lower():
+                self.user = None
+        if not self.user_id and self.email.strip():
+            from django.contrib.auth import get_user_model
+
+            candidati = list(get_user_model().objects.filter(email__iexact=self.email.strip(), is_active=True)[:2])
+            if len(candidati) == 1:
+                self.user = candidati[0]
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.nome
@@ -656,7 +759,7 @@ class ChecklistDomanda(models.Model):
 class ChecklistProcesso(models.Model):
     processo = models.ForeignKey(Processo, on_delete=models.PROTECT, related_name="checklist")
     codice = models.CharField(max_length=30)
-    norma = models.CharField(max_length=12, choices=[("en9100", "EN 9100"), ("iso45001", "ISO 45001"), ("iso27001", "ISO/IEC 27001"), ("pdr125", "UNI/PdR 125")], default="en9100")
+    norma = models.CharField(max_length=12, choices=[("en9100", "EN 9100"), ("iso45001", "ISO 45001"), ("iso14001", "ISO 14001"), ("iso27001", "ISO/IEC 27001"), ("pdr125", "UNI/PdR 125")], default="en9100")
     punti = models.CharField(max_length=100)
     domanda = models.TextField()
     criterio = models.TextField()
@@ -676,13 +779,21 @@ class ChecklistProcesso(models.Model):
 
 class AuditEsito(models.Model):
     ESITO_CONFORME = "CONFORME"
+    ESITO_PUNTO_FORZA = "PF"
+    ESITO_OSSERVAZIONE = "OSS"
     ESITO_OFI = "OFI"
     ESITO_NC = "NC"
     ESITO_NA = "NA"
     ESITO_CHOICES = [
-        (ESITO_CONFORME, "Conforme"), (ESITO_OFI, "OFI"),
+        (ESITO_CONFORME, "Conforme"), (ESITO_PUNTO_FORZA, "Punto di forza"),
+        (ESITO_OSSERVAZIONE, "Osservazione"), (ESITO_OFI, "OFI"),
         (ESITO_NC, "NC"), (ESITO_NA, "N/A"),
     ]
+    # Esiti che registrano un rilievo con riferimento al requisito (ISO 19011 §6.4.8).
+    ESITI_RILIEVO = {ESITO_OSSERVAZIONE, ESITO_OFI, ESITO_NC}
+    GRAVITA_MAGGIORE = "MAGGIORE"
+    GRAVITA_MINORE = "MINORE"
+    GRAVITA_CHOICES = [(GRAVITA_MAGGIORE, "NC maggiore"), (GRAVITA_MINORE, "NC minore")]
     audit = models.ForeignKey(Audit, on_delete=models.CASCADE, related_name="esiti")
     processo = models.ForeignKey(Processo, null=True, blank=True, on_delete=models.PROTECT, related_name="esiti_audit")
     modello_processo = models.ForeignKey(ChecklistProcesso, null=True, blank=True, on_delete=models.PROTECT)
@@ -706,6 +817,11 @@ class AuditEsito(models.Model):
     punti_aggiuntivi = models.CharField(max_length=100, blank=True, default="")
     testo_aggiuntivo = models.TextField(blank=True, default="")
     esito = models.CharField(max_length=10, choices=ESITO_CHOICES, blank=True, default="")
+    gravita = models.CharField(max_length=8, choices=GRAVITA_CHOICES, blank=True, default="")
+    clausola = models.CharField(
+        "Clausola / requisito", max_length=100, blank=True, default="",
+        help_text="Lascia vuoto per usare i punti norma della domanda.",
+    )
     evidenze = models.TextField(blank=True, default="")
     ofi = models.ForeignKey(
         "gestione_specifiche.RegistroOFI", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
@@ -713,6 +829,9 @@ class AuditEsito(models.Model):
     aggiornato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
+    # Ultimo tentativo di autosalvataggio applicato: un retry dopo una risposta persa (rete
+    # instabile) torna lo stesso esito invece di un falso conflitto di versione.
+    bozza_token = models.CharField(max_length=40, blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -742,6 +861,16 @@ class AuditEsito(models.Model):
     @property
     def testo(self) -> str:
         return self.domanda_snapshot.get("domanda") or (self.domanda.testo if self.domanda_id else self.testo_aggiuntivo)
+
+    @property
+    def clausola_effettiva(self) -> str:
+        return (self.clausola or "").strip() or (self.punti or "").strip()
+
+    @property
+    def esito_label(self) -> str:
+        if self.esito == self.ESITO_NC and self.gravita:
+            return self.get_gravita_display()
+        return self.get_esito_display()
 
 
 class AuditSezioneCar(models.Model):
@@ -781,8 +910,20 @@ class AuditVerificaEfficacia(models.Model):
 
 
 class AuditRapportoVersione(models.Model):
+    """Rapporto MOD.035B congelato: emissione alla chiusura o archivio prima di una revisione.
+
+    Il PDF archiviato non si rigenera: l'impronta SHA-256 permette di dimostrare che il
+    documento consegnato all'ente coincide con quello conservato.
+    """
+
+    TIPO_EMISSIONE = "EMISSIONE"
+    TIPO_REVISIONE = "REVISIONE"
+    TIPO_CHOICES = [(TIPO_EMISSIONE, "Emissione"), (TIPO_REVISIONE, "Archiviato per revisione")]
+
     audit = models.ForeignKey(Audit, on_delete=models.PROTECT, related_name="versioni_rapporto")
     numero = models.PositiveIntegerField()
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES, default=TIPO_REVISIONE)
+    sha256 = models.CharField(max_length=64, blank=True, default="")
     motivo = models.CharField(max_length=500)
     snapshot = models.JSONField(default=dict)
     pdf = models.FileField(upload_to="sistema_gestione/revisioni/%Y/", storage=PrivateSistemaGestioneStorage())
@@ -794,6 +935,19 @@ class AuditRapportoVersione(models.Model):
         ordering = ["-numero"]
         constraints = [models.UniqueConstraint(fields=["audit", "numero"], name="sg_rapporto_versione_unica")]
 
+    IMMUTABILI = ("audit_id", "numero", "tipo", "sha256", "pdf")
+
+    def save(self, *args, **kwargs):
+        # Una versione archiviata non cambia: si può solo collegarle la copia firmata.
+        if self.pk:
+            prima = AuditRapportoVersione.objects.filter(pk=self.pk).values("audit_id", "numero", "tipo", "sha256", "pdf").first()
+            if prima and any(str(prima[c]) != str(getattr(self, c) if c != "pdf" else self.pdf.name) for c in self.IMMUTABILI):
+                raise ValidationError("Il rapporto archiviato non è modificabile: si crea una nuova revisione.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Il rapporto archiviato non si elimina.")
+
 
 class AuditPreparazione(models.Model):
     audit = models.OneToOneField(Audit, on_delete=models.CASCADE, related_name="preparazione")
@@ -801,14 +955,32 @@ class AuditPreparazione(models.Model):
     car_cliente = models.TextField("CAR cliente: riferimenti e stato, oppure assenza motivata")
     documenti_registrazioni = models.TextField("Documenti e registrazioni da campionare, revisioni e disponibilita")
     obiettivi_carenze = models.TextField("Obiettivi della verifica e carenze da approfondire")
+    origine_ai = models.BooleanField(default=False, help_text="Partita da una bozza AI poi verificata dall'auditor.")
     verificato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     verificato_il = models.DateTimeField(auto_now=True)
 
 
 class AzioneCorrettivaAudit(models.Model):
+    # Stesso schema dell'analisi cause delle NC di produzione (anomalie.AnomaliaNC), così i due
+    # registri si leggono allo stesso modo.
+    METODO_CINQUE_PERCHE = "CINQUE_PERCHE"
+    METODO_ISHIKAWA = "ISHIKAWA"
+    METODO_ESTERNA = "ESTERNA"
+    METODO_CHOICES = [
+        (METODO_CINQUE_PERCHE, "5 perché"), (METODO_ISHIKAWA, "Ishikawa (6M)"),
+        (METODO_ESTERNA, "Documento esterno"),
+    ]
+    ISHIKAWA = {
+        "manodopera": "Manodopera", "metodo": "Metodo", "macchina": "Macchina",
+        "materiale": "Materiale", "misura": "Misura", "ambiente": "Ambiente",
+    }
+
     registro = models.OneToOneField("gestione_specifiche.RegistroOFI", on_delete=models.PROTECT, related_name="car_procedurale")
     data_richiesta = models.DateField("Data richiesta CAR")
     responsabile = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="car_assegnate")
+    analisi_metodo = models.CharField("Metodo di analisi", max_length=14, choices=METODO_CHOICES, blank=True, default="")
+    analisi_perche = models.JSONField(default=list, blank=True)
+    analisi_ishikawa = models.JSONField(default=dict, blank=True)
     causa = models.TextField("Analisi della causa radice", blank=True)
     contenimento = models.TextField("Azione di contenimento", blank=True)
     azione = models.TextField("Azione correttiva e modifiche documentali", blank=True)
@@ -826,6 +998,16 @@ class AzioneCorrettivaAudit(models.Model):
     chiusa_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")
     chiusa_il = models.DateTimeField(null=True)
     versione = models.PositiveIntegerField(default=0)
+    sollecitata_il = models.DateField(null=True, blank=True)
+    escalation_il = models.DateField(null=True, blank=True)
+
+    @property
+    def analisi_compilata(self) -> bool:
+        return bool(
+            (self.causa or "").strip()
+            or any(str(x or "").strip() for x in (self.analisi_perche or []))
+            or any(str(v or "").strip() for v in (self.analisi_ishikawa or {}).values())
+        )
 
     @property
     def scadenza_analisi(self):

@@ -22,14 +22,27 @@ _DATETIME = forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-
 
 
 class AuditorForm(forms.ModelForm):
+    norme = forms.MultipleChoiceField(
+        choices=Auditor.NORME, required=False, widget=forms.CheckboxSelectMultiple,
+        label="Norme per cui è abilitato", help_text="Nessuna selezione = abilitato per tutte le norme.",
+    )
+
     class Meta:
         model = Auditor
         fields = [
             "interno", "user", "nome_esterno", "ente_esterno",
             "req_diploma", "req_norme", "req_tecniche_audit", "req_settore", "req_esperienza_2_anni",
-            "requisiti_verificati_il", "audit_svolti_pregressi", "formazione_processi_il", "attivo",
+            "requisiti_verificati_il", "qualifica_scadenza", "audit_svolti_pregressi", "formazione_processi_il", "attivo",
         ]
-        widgets = {"requisiti_verificati_il": _DATE, "formazione_processi_il": _DATE}
+        widgets = {"requisiti_verificati_il": _DATE, "formazione_processi_il": _DATE, "qualifica_scadenza": _DATE}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["norme"].initial = sorted(self.instance.norme_abilitate_set)
+
+    def save(self, commit=True):
+        self.instance.norme_abilitate = ",".join(self.cleaned_data.get("norme") or [])
+        return super().save(commit=commit)
 
 
 class ProgrammaAuditForm(forms.ModelForm):
@@ -47,7 +60,7 @@ class RigaProgrammaForm(forms.ModelForm):
     class Meta:
         model = RigaProgramma
         fields = [
-            "processo", "ordine", "area", "enti", "punti_9100", "punti_45001",
+            "processo", "ordine", "area", "enti", "punti_9100", "punti_45001", "punti_14001",
             "punti_27001", "punti_pdr125", "altre_normative", "note",
         ]
         widgets = {"note": forms.Textarea(attrs={"rows": 2})}
@@ -56,7 +69,7 @@ class RigaProgrammaForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["processo"].required = True
         self.fields["processo"].queryset = Processo.objects.filter(Q(attivo=True) | Q(pk=self.instance.processo_id))
-        for nome in ("area", "enti", "punti_9100", "punti_45001", "punti_27001", "punti_pdr125", "altre_normative"):
+        for nome in ("area", "enti", "punti_9100", "punti_45001", "punti_14001", "punti_27001", "punti_pdr125", "altre_normative"):
             self.fields[nome].required = False
             self.fields[nome].widget = forms.HiddenInput()
 
@@ -65,7 +78,7 @@ class RigaProgrammaForm(forms.ModelForm):
         processo = dati.get("processo")
         if processo:
             dati.update(area=f"{processo} (Rev.{processo.revisione})"[:255], enti=processo.enti, altre_normative=processo.procedure[:500])
-            for nome in ("punti_9100", "punti_45001", "punti_27001", "punti_pdr125"):
+            for nome in ("punti_9100", "punti_45001", "punti_14001", "punti_27001", "punti_pdr125"):
                 dati[nome] = getattr(processo, nome)
         return dati
 
@@ -76,7 +89,7 @@ class AuditForm(forms.ModelForm):
     class Meta:
         model = Audit
         fields = [
-            "numero", "programma", "righe", "tipo", "en9100", "iso45001", "iso27001", "pdr125",
+            "numero", "programma", "righe", "tipo", "en9100", "iso45001", "iso14001", "iso27001", "pdr125",
             "lead_auditor", "auditor", "processi_catalogo", "processi", "punti_norma", "procedure_criteri", "esclusioni",
             "data_inizio", "data_fine", "durata_stimata", "sede",
             "metodo_intervista", "metodo_esame_documenti", "metodo_osservazione_diretta",
@@ -95,13 +108,13 @@ class AuditForm(forms.ModelForm):
         }
         help_texts = {
             "numero": "Lascia vuoto per la numerazione automatica RAIS-AAAA-NN.",
-            "imparzialita_deroga_motivo": "Note storiche. I conflitti di indipendenza richiedono un diverso auditor (MT CN 12).",
+            "imparzialita_deroga_motivo": "I conflitti di indipendenza richiedono un diverso auditor (MT CN 12). Se le impostazioni ammettono la deroga, motivala qui: la approva l'RDD.",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["numero"].required = False
-        for nome, label in {"en9100": "EN 9100", "iso45001": "ISO 45001", "iso27001": "ISO/IEC 27001", "pdr125": "UNI/PdR 125", "righe": "Righe del programma (facoltativo)"}.items():
+        for nome, label in {"en9100": "EN 9100", "iso45001": "ISO 45001", "iso14001": "ISO 14001", "iso27001": "ISO/IEC 27001", "pdr125": "UNI/PdR 125", "righe": "Righe del programma (facoltativo)"}.items():
             self.fields[nome].label = label
         self.fields["processi"].required = False
         self.fields["processi"].widget = forms.HiddenInput()
@@ -132,15 +145,15 @@ class AuditForm(forms.ModelForm):
                 dati["procedure_criteri"] = "\n".join(f'{p["codice"]}: {p["procedure"]}' for p in schede if p["procedure"])
             if not dati.get("punti_norma"):
                 dati["punti_norma"] = "\n".join(
-                    f'{p["codice"]} - {label}: {p[campo]}' for p in schede
-                    for flag, campo, label in [("en9100", "punti_9100", "EN 9100"), ("iso45001", "punti_45001", "ISO 45001"),
+                    f'{p["codice"]} - {label}: {p.get(campo, "")}' for p in schede
+                    for flag, campo, label in [("en9100", "punti_9100", "EN 9100"), ("iso45001", "punti_45001", "ISO 45001"), ("iso14001", "punti_14001", "ISO 14001"),
                                                ("iso27001", "punti_27001", "ISO 27001"), ("pdr125", "punti_pdr125", "PdR 125")]
-                    if dati.get(flag) and p[campo])
+                    if dati.get(flag) and p.get(campo))
         self.instance.processi_snapshot = schede
         inizio, fine = dati.get("data_inizio"), dati.get("data_fine")
         if inizio and fine and fine < inizio:
             self.add_error("data_fine", "La data finale non può precedere quella iniziale.")
-        if not any(dati.get(campo) for campo in ("en9100", "iso45001", "iso27001", "pdr125")):
+        if not any(dati.get(campo) for campo in ("en9100", "iso45001", "iso14001", "iso27001", "pdr125")):
             raise ValidationError("Seleziona almeno una norma di riferimento.")
         conflitti = conflitti_imparzialita(
             processi=dati.get("processi") or "",
@@ -150,17 +163,25 @@ class AuditForm(forms.ModelForm):
         utenti_team = {a.user_id for a in [dati.get("lead_auditor"), *list(dati.get("auditor") or [])] if a and a.user_id}
         conflitti.extend(str(p) for p in processi if p.responsabile_id in utenti_team)
         if conflitti:
-            self.add_error(
-                "imparzialita_deroga_motivo",
-                "Possibile conflitto di imparzialità per: " + ", ".join(conflitti) + ". Assegna un auditor indipendente: una nota non supera il requisito MT CN 12.",
-            )
+            from .services.programma import deroga_imparzialita_ammessa
+
+            if not deroga_imparzialita_ammessa():
+                self.add_error(
+                    "imparzialita_deroga_motivo",
+                    "Possibile conflitto di imparzialità per: " + ", ".join(conflitti) + ". Assegna un auditor indipendente: una nota non supera il requisito MT CN 12.",
+                )
+            elif not (dati.get("imparzialita_deroga_motivo") or "").strip():
+                self.add_error(
+                    "imparzialita_deroga_motivo",
+                    "Conflitto di imparzialità per: " + ", ".join(conflitti) + ". Assegna un auditor indipendente oppure motiva la deroga: dovrà approvarla l'RDD.",
+                )
         return dati
 
     @property
     def sezioni(self):
         gruppi = [
             ("1. Campo di audit", "Scegli i processi dal catalogo e le norme applicabili.",
-             "numero programma righe tipo processi_catalogo aggiorna_schede en9100 iso45001 iso27001 pdr125"),
+             "numero programma righe tipo processi_catalogo aggiorna_schede en9100 iso45001 iso14001 iso27001 pdr125"),
             ("2. Criteri e limiti", "Lascia i criteri vuoti per usare quelli delle schede processo. Precisa le esclusioni.",
              "punti_norma procedure_criteri esclusioni"),
             ("3. Team e indipendenza", "Assegna il Lead Auditor e il team; motiva eventuali conflitti.",
@@ -178,8 +199,8 @@ class ProcessoForm(forms.ModelForm):
     class Meta:
         model = Processo
         fields = ["codice", "nome", "categoria", "responsabile", "enti", "scopo", "input", "output",
-                  "rischi", "indicatori", "procedure", "fonte_documentale", "punti_9100", "punti_45001", "punti_27001",
-                  "punti_pdr125", "criticita", "frequenza_mesi", "attivo"]
+                  "rischi", "indicatori", "procedure", "fonte_documentale", "punti_9100", "punti_45001", "punti_14001", "punti_27001",
+                  "punti_pdr125", "criticita", "frequenza_mesi", "requisiti_cliente", "attivo"]
         widgets = {nome: forms.Textarea(attrs={"rows": 3}) for nome in
                    ("scopo", "input", "output", "rischi", "indicatori", "procedure")}
         labels = {"input": "Ingressi", "output": "Risultati attesi", "indicatori": "Indicatori, obiettivi e frequenza di misura",
@@ -276,7 +297,7 @@ class AuditEsitoForm(forms.ModelForm):
     versione = forms.IntegerField(required=False, widget=forms.HiddenInput())
     class Meta:
         model = AuditEsito
-        fields = ["esito", "documento", "revisione_documento", "campione", "data_verifica", "evidenze", "requisito_atteso", "scostamento", "responsabile_azione", "scadenza_azione"]
+        fields = ["esito", "gravita", "clausola", "documento", "revisione_documento", "campione", "data_verifica", "evidenze", "requisito_atteso", "scostamento", "responsabile_azione", "scadenza_azione"]
         widgets = {nome: forms.Textarea(attrs={"rows": 3}) for nome in ["campione", "evidenze", "requisito_atteso", "scostamento"]}
         widgets.update(data_verifica=_DATE, scadenza_azione=_DATE)
         labels = {"documento": "Documento o registrazione verificata", "revisione_documento": "Revisione / versione",
@@ -304,6 +325,8 @@ class AuditEsitoForm(forms.ModelForm):
             dati.get("evidenze") or ""
         ).strip():
             self.add_error("evidenze", "Descrivi l'evidenza che genera il rilievo.")
+        if dati.get("esito") != AuditEsito.ESITO_NC:
+            dati["gravita"] = ""
         return dati
 
 

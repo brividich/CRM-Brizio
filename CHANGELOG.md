@@ -59,6 +59,98 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - Wizard: un campo non valido in uno step nascosto riporta a quello step invece di bloccare l'invio in silenzio. Numero di riga degli scarti cedolini allineato al file.
   - Verifica a video (chiaro, scuro, mobile): scelte dell'account allineate ai loro radio, riepilogo senza il segnaposto «— Nessun reparto —», etichetta onboarding leggibile in tema scuro, form della vista con il form-kit del portale (`vista_elenco_form.html`).
   - Comportamento cambiato da confermare: prima ogni dipendente **attivo** riceveva in automatico un account (collegato per alias o creato con password prevedibile); ora l'account nasce solo con una scelta esplicita nello step «Account portale», di default «Nessun accesso». Senza JavaScript «Collega account AD» e «Collega utente esistente» non sono selezionabili (servono i risultati della ricerca).
+<!-- prompt 08 audit interni (blocco della sessione, non mescolare) -->
+- **Audit interni — correzioni dalle review indipendenti (sicurezza e QA lead auditor)** (`django_app/sistema_gestione/audit_views.py`, `programma_views.py`, `procedure_views.py`, `miei_rilievi_views.py`, `models.py`, `services/audit.py`, `services/audit_automation.py`, `services/cruscotto.py`, `services/programma.py`, `audit_exports.py`, `tasks.py`, `static/sistema_gestione/audit_editor.js`, template `audit_dettaglio.html`, `audit_esito_editor.html`, `audit_cruscotto.html`, `_esito_card.html`, test `tests_audit_review.py` nuovo, `tests_audit.py`, `tests_audit_pro.py`, `tests_audit_report.py`)
+  - **Rapporto:**
+    - un audit chiuso prima di questo rilascio, quindi senza emissione archiviata, non esce più come «BOZZA»: PDF rigenerato senza filigrana, dichiarato nel documento;
+    - le versioni archiviate sono immutabili (né modifica né cancellazione);
+    - l'impronta si riverifica a ogni download (`X-Content-SHA256`);
+    - la copia firmata si lega all'emissione con il suo SHA-256;
+    - l'elenco delle versioni mostra tipo e impronta.
+  - **Firme:** la convalida dell'ente è di una persona esterna al team; l'RDD è diverso dal team e da chi ha convalidato; la convalida del programma è diversa da proponente e approvatore.
+  - **«I miei rilievi»:** il responsabile vede solo i rilievi del proprio processo o della propria azione, non quelli degli altri processi dello stesso audit. Se l'email della persona cambia, il collegamento all'utente si ricalcola.
+  - **Autosalvataggio:** ogni salvataggio dal form classico azzera il token del tentativo. Prima un retry di rete vecchio poteva sovrascrivere senza conflitto le modifiche di un coauditor.
+  - **JavaScript:**
+    - un 5xx in HTML si ritenta e non blocca come «sessione scaduta»;
+    - la bozza locale si propone anche se la versione è cambiata e non si cancella al submit;
+    - la chiave include l'utente e la bozza scade dopo 7 giorni;
+    - una foto caricata senza rete resta in attesa e parte al ritorno della connessione.
+  - **Comunicazione:**
+    - l'email del piano parte fuori dalla transazione: se fallisce, la comunicazione non vale;
+    - l'annullamento avvisa gli auditati (Outlook: evento cancellato; email: `.ics` con `METHOD:CANCEL`);
+    - gli errori sono loggati.
+  - **Dati storici e cruscotto:**
+    - le nuove regole (gravità, allegato, clausola) non rendono «incompleti» gli audit già chiusi;
+    - le NC senza gravità contano come «non classificate»;
+    - la copertura delle clausole attribuisce la clausola alla norma della domanda (le numerazioni comuni HLS non si coprono a vicenda);
+    - si preferisce il programma approvato rispetto a una bozza più recente.
+  - **Follow-up:** niente più domande per voci MOD.174 chiuse o per rilievi già trovati conformi in un follow-up chiuso; finestra di 36 mesi.
+  - **Solleciti CAR:**
+    - senza profilo legacy il sollecito va per email e conta solo se consegnato;
+    - l'escalation arriva anche al responsabile di funzione;
+    - una proroga azzera l'escalation.
+  - **Altro:**
+    - qualifica valutata alla data dell'audit;
+    - la deroga d'indipendenza non la approvano i responsabili dei processi coinvolti e non serve se il conflitto è sparito;
+    - il responsabile della CAR senza permesso di modifica non può riassegnarla né scrivere l'approvazione esterna;
+    - i rilievi ISO 14001 indicano la norma nel MOD.174;
+    - N+1 su allegati e CAR eliminati;
+    - agenda proposta senza slot sovrapposti.
+  - Non riproducibile, quindi non corretto: un rilievo già nel MOD.174 non cambia tipo o gravità, perché il form ne blocca i campi.
+  - Test: 16 nuovi, 4 adeguati alle regole nuove. 574 test verdi.
+- **Audit interni — cruscotto, export dei rilievi, allegato «Rilievi e azioni», «I miei rilievi» per l'auditato** (`django_app/sistema_gestione/services/cruscotto.py`, `report_views.py`, `miei_rilievi_views.py` nuovi, `audit_exports.py`, `procedure_views.py`, `models.py`, `services/audit.py`, `services/programma.py`, `urls.py`, `acl_bootstrap.py` (permesso `sistema_gestione.audit.miei_rilievi`, cache `v5`), migration `0014`, template `audit_cruscotto.html`, `audit_miei_rilievi.html` nuovi, `audit_index.html`, `audit_dettaglio.html`, test `tests_audit_report.py` nuovo, `tests_procedure.py`)
+  - **Cruscotto** (`/sistema-gestione/audit/cruscotto/`):
+    - avanzamento del programma approvato (programmate / eseguite / in ritardo, con l'elenco dei ritardi);
+    - rilievi per gravità, per processo, per clausola e per mese;
+    - giorni medi di chiusura delle CAR e percentuale di efficacia verificata;
+    - processi con rilievi ricorrenti (in almeno 2 audit in 24 mesi);
+    - copertura delle clausole per norma (richieste dal catalogo e verificate negli audit chiusi).
+
+    Le query sono aggregate e non crescono con il numero di rilievi.
+  - **Export:** rilievi in Excel per anno o per audit (clausola, gravità, responsabile, scadenza, MOD.174, stato CAR), con celle sempre testo, data di estrazione e filtri nell'intestazione.
+  - **Rapporto MOD.035B:** nuovo allegato «Rilievi e azioni». Allegato preparazione e indice evidenze diventano opzionali dalle Impostazioni (tutti attivi di default).
+  - **Ruolo auditato:** le persone dell'audit si collegano all'utente del portale solo per email esatta e univoca. «I miei rilievi» mostra solo i rilievi in cui l'utente è auditato, responsabile del processo o dell'azione, e solo a rapporto firmato. Il responsabile apre la propria CAR anche senza consultazione degli audit. Il nuovo permesso è concesso di default a tutti i ruoli, perché la vista filtra per utente.
+  - L'email di distribuzione del rapporto indica dove trovare i propri rilievi.
+  - Test: 9 nuovi + 1 adeguato (`test_binding_route_procedurali`: la CAR passa al permesso «i miei rilievi», il controllo fine è nella view). 558 test verdi. Deploy: `migrate sistema_gestione` 0014; il bootstrap aggiorna il binding della CAR e crea il nuovo permesso.
+- **Audit interni — preparazione e inviti: follow-up dei rilievi aperti, persone e agenda proposte, invito Outlook con conferma, annullamento, numerazione per tipo** (`django_app/sistema_gestione/services/audit.py`, `services/audit_outlook.py` nuovo, `programma_views.py`, `audit_views.py`, `models.py`, `urls.py`, `acl_bootstrap.py` (cache `v4`), migration `0013`, template `audit_dettaglio.html`, `django_app/core/outlook_calendar.py` (`get_event`, solo lettura), test `tests_audit_preparazione.py` nuovo)
+  - **Follow-up:** il nuovo piano include una domanda per ogni NC/OFI degli audit chiusi sugli stessi processi con CAR non chiusa o ultima efficacia non positiva (ISO 19011 §6.3.1), una sola volta.
+  - **Piano guidato:** alla creazione propone i responsabili di processo tra le persone e un'attività di agenda per processo (slot di 90 minuti), da completare in bozza.
+  - **Invito Outlook con conferma:** nuova comunicazione «Invito Outlook con richiesta di conferma» via Microsoft Graph dal calendario del Lead Auditor (o da `sistema_gestione.audit_organizer_email`). «Aggiorna conferme» riporta le risposte (accettato, provvisorio, rifiutato, in attesa) sulle persone. La chiamata Graph è fuori dalla transazione: se fallisce, la comunicazione non vale e l'audit non parte.
+  - L'invito `.ics` via email ora ha i partecipanti, la `SEQUENCE` per gli aggiornamenti e l'escape RFC 5545.
+  - **Annullamento:** un audit non avviato si annulla con motivo; la cella del programma torna da pianificare e l'invito Outlook si cancella.
+  - **Numerazione:** RAIS (sistema), RAI (mandatorio cliente), STR (straordinario); prima ogni tipo era RAIS.
+  - **Correzione:** l'invito calendario via email usava `django.utils.timezone.utc`, che non esiste più da Django 5.0: la comunicazione «Email + invito calendario» andava in errore.
+  - Test: 8 nuovi. Deploy: `migrate sistema_gestione` 0013. Per l'invito Outlook servono le credenziali Graph già usate dal KickOff e il permesso `Calendars.ReadWrite` sulla casella dell'organizzatore.
+- **Audit interni — esecuzione da tablet e rete instabile** (`django_app/sistema_gestione/automation_views.py`, `models.py`, migration `0012`, `static/sistema_gestione/audit_editor.js`, template `audit_esito_editor.html`, test `tests_audit_esecuzione.py` nuovo)
+  - **Editor domanda per domanda:** «Verifica N di M», precedente/successiva nell'ordine della checklist, «prossima da completare», elenco di cosa manca. Esiti a pulsanti grandi (≥44 px), barra di salvataggio fissa in fondo, campi grandi per il touch, tema chiaro e scuro.
+  - **Fotocamera:** «Scatta foto» apre la fotocamera posteriore (`capture=environment`), «Scegli file» accetta PDF/PNG/JPEG. Il caricamento avviene senza ricaricare la pagina (JSON 200/400/401/403/409). Se l'allegato era l'ultimo requisito della NC, il rilievo entra subito nel MOD.174.
+  - **Rete instabile:** ogni modifica resta anche sul dispositivo (`localStorage`) finché il server non conferma. Se la pagina si riapre con modifiche non salvate, il banner «Ripristina / Scarta» le recupera. I salvataggi falliti per rete o 5xx si ritentano con attesa crescente (2 s → 60 s) e al ritorno della connessione.
+  - Ogni tentativo porta un `salvataggio_id`: se la risposta si perde e il client ripete, il server riconosce il tentativo già applicato (`AuditEsito.bozza_token`) invece di dare un falso conflitto di versione.
+  - Test: 7 nuovi. Deploy: `migrate sistema_gestione` 0012 (un campo).
+- **Audit interni — programma basato sul rischio: ciclo triennale, ISO 14001, frequenza raccomandata, calendario, qualifica e deroga configurabile** (`django_app/sistema_gestione/models.py`, `services/programma.py` nuovo, `programma_views.py` nuovo, `services/audit.py`, `services/audit_automation.py`, `services/procedure.py`, `audit_forms.py`, `audit_views.py`, `automation_views.py`, `audit_exports.py`, `urls.py`, `acl_bootstrap.py` (cache `v3`), migration `0011`, template `audit_cicli.html`, `audit_ciclo.html`, `audit_calendario.html` nuovi, `audit_index.html`, `audit_dettaglio.html`, `programma_dettaglio.html`, `processo_dettaglio.html`, `audit_priorita.html`, `components/_styles.html`, test `tests_audit_programma.py` nuovo, `tests_automation.py`)
+  - **Ciclo triennale:** nuovi «Cicli di audit» (massimo 3 anni). Per ogni processo mostrano gli anni con audit eseguito o programmato e le clausole del catalogo mai programmate nel triennio: è l'evidenza di copertura per l'ente.
+  - **ISO 14001:** nuova norma in piano, programma (colonna MOD.034), schede processo (`punti_14001`), checklist di processo e PDF.
+  - **Frequenza raccomandata:** la priorità (`priorita-v2`) conta anche OFI e requisiti cliente/ente della scheda. La frequenza si avvicina con criticità alta, NC, azioni non efficaci o OFI ripetute, senza mai superare la scheda né i 12 mesi di MT CN 12. La pagina e l'indice audit mostrano «mai auditato» e «oltre la frequenza».
+  - **Calendario:** vista mensile degli audit e delle verifiche del programma ancora da pianificare.
+  - **Programma:** la Direzione può respingere la proposta con motivo (torna in bozza). Chi propone non può approvare.
+  - **Auditor:** scadenza della qualifica e norme abilitate. Un team non abilitato per tutte le norme dell'audit blocca il piano.
+  - **Indipendenza:** blocco MT CN 12 di default; con l'impostazione «deroga ammessa» un conflitto motivato passa solo con l'approvazione di un RDD esterno al team, che si azzera a ogni modifica del piano.
+  - **Impostazioni** (`/sistema-gestione/audit/impostazioni/`, solo approvatori): chiusura con CAR approvate, deroga d'indipendenza, giorni di escalation, email RSGI; modifiche tracciate.
+  - Test: 14 nuovi + 1 adeguato (`priorita-v2`). 534 test verdi. Deploy: `migrate sistema_gestione` 0011; i binding ACL delle 6 route nuove li crea il bootstrap del modulo all'avvio.
+- **Audit interni — rapporto emesso immutabile, firme separate, rilievi classificati, CAR con 5 perché/Ishikawa, chiusura condizionata e solleciti** (`django_app/sistema_gestione/models.py`, `services/rapporto.py` nuovo, `services/audit.py`, `services/audit_automation.py`, `services/procedure.py`, `audit_views.py`, `automation_views.py`, `procedure_views.py`, `procedure_forms.py`, `audit_forms.py`, `audit_exports.py`, `views.py`, `tasks.py` nuovo, migration `0009`, `0010`, template `audit_dettaglio.html`, `audit_esito_editor.html`, `_esito_card.html`, `_ai_preparazione.html`, `gestione_specifiche/templates/registro_ofi/dettaglio.html`, `automazioni/schedules.py`, `docs/AUTOMAZIONI.md`, test `tests_audit_pro.py` nuovo, `tests_automation.py`, `docs/moduli/sistema_gestione.md`, `docs/specs/sgi_audit_interni_gap_analysis.md`)
+  - **Rapporto emesso:** alla valutazione RDD il MOD.035B viene generato una volta, archiviato con impronta SHA-256 come versione «Emissione» e da quel momento si scarica sempre quel file. Prima ogni download lo rigenerava dai dati attuali, quindi un dato cambiato dopo la chiusura cambiava il documento consegnato all'ente. Prima della chiusura il download è un'anteprima con filigrana «BOZZA - NON EMESSO». Anche le revisioni archiviate hanno l'impronta.
+  - Nel PDF compaiono la convalida del responsabile dell'ente (prima mancava), il riepilogo dei rilievi e, se la preparazione MT CN 12 è partita da una bozza AI, la nota «verificata dall'auditor» (campo `origine_ai`, valorizzato da «Copia nei campi vuoti»).
+  - **Firme separate:** la Direzione non può approvare un piano già firmato da lei come Lead, l'RDD non può valutare un rapporto firmato da lei come auditor.
+  - **Copie firmate:** quella del piano dopo l'approvazione della Direzione, quella del rapporto dopo la chiusura; sostituirle è riservato all'approvatore ed è tracciato.
+  - **Evidenze:** il download richiede, oltre alla consultazione, un ruolo sull'audit (team) o la gestione/approvazione del programma. Chi ha solo `audit.view` non scarica più gli allegati degli altri audit.
+  - **Rilievi:** nuovi esiti *Osservazione* e *Punto di forza*; le NC si classificano *maggiore/minore*; campo *clausola* (vuoto = punti della domanda). Una NC richiede gravità e **almeno un'evidenza allegata** prima di entrare nel MOD.174: il rilievo nasce anche al caricamento dell'allegato che lo completa. NC maggiore → priorità Alta nel registro. Osservazioni e punti di forza restano nel rapporto, non nel MOD.174.
+  - **CAR MT CN 11:** analisi cause con metodo *5 perché*, *Ishikawa 6M* o *documento esterno*, stesso schema delle NC di produzione (`anomalie`); vale come causa compilata per approvazione e chiusura.
+  - **Chiusura audit:** di default l'RDD chiude solo se ogni NC ha la CAR con piano azioni approvato (ISO 19011 §6.6); regola spegnibile con SiteConfig `sistema_gestione.audit_chiusura_richiede_car_approvate=0`. La pagina elenca cosa manca.
+  - **Solleciti:** nuovo job `sistema_gestione_car_solleciti` (feriali 07:15). Notifica in-app al responsabile, una al giorno, per analisi oltre 1 mese, chiusura oltre scadenza/proroga e verifica di efficacia programmata non eseguita. Oltre `sistema_gestione.car_escalation_giorni` (default 15) una sola email a RSGI (`sistema_gestione.audit_email_rsgi` o `SISTEMA_GESTIONE_AUDIT_EMAIL_MSM`).
+  - **Registro OFI:** dal dettaglio MOD.174 il link torna al rilievo d'audit d'origine; il link CAR non è più fuori dal layout.
+  - **Correzioni:** il diniego del modulo rimandava a `dashboard:dashboard`, inesistente, quindi errore 500 per chi non ha il permesso del modulo: ora va alla dashboard; corrette le stringhe con caratteri corrotti in `audit_views.py`.
+  - Test: 23 nuovi + 1 adeguato (`test_autosalvataggio_optimistic_lock_non_emette_ofi`: la NC ora richiede gravità e allegato). 520 test di sistema_gestione, gestione_specifiche, report_conformita e automazioni verdi.
+  - Deploy: `migrate sistema_gestione` (0009, 0010, solo campi nuovi), `setup_q_schedules`. Gli audit **in corso** con NC già registrate senza gravità o allegato mostreranno questi due punti da completare prima della firma; le versioni archiviate prima di questo rilascio non hanno impronta.
 
 ## 1.6.2 - 2026-10-10
 

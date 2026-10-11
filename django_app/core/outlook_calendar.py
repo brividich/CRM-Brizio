@@ -161,6 +161,17 @@ def update_event(*, target_email: str, event_id: str, payload: dict[str, Any]) -
     _raise_graph_error(response)
 
 
+def get_event(*, target_email: str, event_id: str) -> dict[str, Any]:
+    """Legge un evento (es. per le risposte dei partecipanti in ``attendees[].status``)."""
+    if not target_email or not event_id:
+        raise RuntimeError("Outlook get: email o event_id mancanti.")
+    url = f"{GRAPH_BASE_URL}/users/{quote(target_email, safe='')}/calendar/events/{quote(event_id, safe='')}"
+    response = requests.get(url, headers=_headers(), params={"$select": "id,attendees,webLink"}, timeout=20)
+    if response.status_code == 200:
+        return response.json()
+    _raise_graph_error(response)
+
+
 def delete_event(*, target_email: str, event_id: str) -> bool:
     """Ritorna True se l'evento e' stato eliminato o non esisteva piu'."""
     if not target_email or not event_id:

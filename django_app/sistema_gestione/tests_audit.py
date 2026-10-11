@@ -317,8 +317,8 @@ class WorkflowAuditTest(AuditBase):
     def test_responsabile_processo_con_view_puo_convalidare(self):
         from sistema_gestione.audit_views import audit_convalida_ente
 
-        self.user.email = "responsabile@example.com"
-        self.user.save(update_fields=["email"])
+        # Prompt 08: chi convalida per l'ente è esterno al team (il firmatario non convalida se stesso).
+        responsabile = User.objects.create_user(username="resp-processo", password="x", email="responsabile@example.com")
         audit = self.make_audit(
             stato=Audit.STATO_RAPPORTO,
             rapporto_firmato_auditor_da=self.user,
@@ -330,10 +330,11 @@ class WorkflowAuditTest(AuditBase):
         )
         with patch("sistema_gestione.audit_views._has_perm") as has_perm:
             has_perm.side_effect = lambda _request, code: code == PERM_AUDIT_VIEW
-            response = audit_convalida_ente(_request(self.user), audit.pk)
+            response = audit_convalida_ente(_request(responsabile), audit.pk)
+            audit_convalida_ente(_request(self.user), audit.pk)  # il firmatario non convalida
         self.assertEqual(response.status_code, 302)
         audit.refresh_from_db()
-        self.assertEqual(audit.rapporto_convalidato_ente_da, self.user)
+        self.assertEqual(audit.rapporto_convalidato_ente_da, responsabile)
 
     @patch("sistema_gestione.audit_views._has_perm", return_value=True)
     def test_anno_non_numerico_ripiega_su_anno_corrente(self, _perm):

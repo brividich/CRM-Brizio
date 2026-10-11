@@ -1,6 +1,7 @@
 """Viste fail-closed della Fase 2: audit interni EN 9100."""
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 
@@ -39,6 +40,7 @@ from .models import (
     AuditPersona,
     Auditor,
     CellaProgramma,
+    Processo,
     ProgrammaAudit,
     RigaProgramma,
 )
@@ -47,6 +49,7 @@ from .services import audit_automation as automation
 from .services import procedure
 from .views import MODULE, _has_perm, _nega
 
+logger = logging.getLogger(__name__)
 
 def _deny(request):
     return _nega(request, "Non hai i permessi richiesti per gli audit interni.")
@@ -82,7 +85,7 @@ def _puo_convalidare_ente(request, audit: Audit) -> bool:
 
 
 def _rapporto_firmato_redirect(request, audit: Audit):
-    messages.error(request, "Il rapporto firmato non Ã¨ modificabile: riaprilo prima di apportare variazioni.")
+    messages.error(request, "Il rapporto firmato non è modificabile: riaprilo prima di apportare variazioni.")
     return redirect(_audit_url(audit, "rapporto"))
 
 
@@ -105,6 +108,8 @@ def audit_index(request):
         "auditor_attivi": Auditor.objects.filter(attivo=True).count(),
         "audit_chiusi": audit.filter(stato=Audit.STATO_CHIUSO).count(),
         "audit_programmati": audit.exclude(stato=Audit.STATO_ANNULLATO).count(),
+        "da_verificare": [r for r in automation.priorita_processi(Processo.objects.filter(attivo=True))
+                          if r["mesi_dall_ultimo"] is None or r["oltre_frequenza"]],
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
         "puo_eseguire": _has_perm(request, PERM_AUDIT_ESEGUI),
         "puo_approvare": _has_perm(request, PERM_AUDIT_APPROVA),
@@ -386,11 +391,11 @@ def _initial_da_cella(cella: CellaProgramma) -> dict:
     return {
         "programma": riga.programma,
         "righe": [riga],
-        "en9100": bool(riga.punti_9100), "iso45001": bool(riga.punti_45001),
+        "en9100": bool(riga.punti_9100), "iso45001": bool(riga.punti_45001), "iso14001": bool(riga.punti_14001),
         "iso27001": bool(riga.punti_27001), "pdr125": bool(riga.punti_pdr125),
         "processi": riga.area + (f" - {riga.enti}" if riga.enti else ""),
         "processi_catalogo": [riga.processo_id] if riga.processo_id else [],
-        "punti_norma": "; ".join(filter(None, [riga.punti_9100, riga.punti_45001, riga.punti_27001, riga.punti_pdr125])),
+        "punti_norma": "; ".join(filter(None, [riga.punti_9100, riga.punti_45001, riga.punti_14001, riga.punti_27001, riga.punti_pdr125])),
         "procedure_criteri": riga.altre_normative,
         "data_inizio": giorno,
     }
@@ -414,11 +419,11 @@ def audit_modifica(request, pk: int | None = None):
         with transaction.atomic():
             audit = form.save(commit=False)
             if not audit.numero:
-                audit.numero = service.prossimo_numero_audit(audit.data_inizio.year)
+                audit.numero = service.prossimo_numero_audit(audit.data_inizio.year, audit.tipo)
             audit.created_by = audit.created_by or request.user
             audit.save()
             form.save_m2m()
-            service.prepara_nuovo_audit(audit, cella=cella)
+            service.prepara_nuovo_audit(audit, cella=cella, nuovo=not pk)
             service.invalida_approvazione_piano(audit)
         conflitti = service.conflitti_imparzialita(
             processi=audit.processi, lead=audit.lead_auditor, auditor=audit.auditor.all(),
@@ -598,6 +603,8 @@ def audit_approva_direzione(request, pk: int):
     audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
     if audit.stato != Audit.STATO_PIANIFICATO or not audit.piano_approvato_lead_il:
         messages.error(request, "Serve prima l'approvazione del Lead Auditor.")
+    elif audit.piano_approvato_lead_da_id == request.user.id:
+        messages.error(request, "L'approvazione della Direzione deve essere di una persona diversa dal Lead Auditor.")
     elif service.verifica_completezza(audit)["piano"]:
         messages.error(request, "Il piano contiene informazioni mancanti: consulta la guida di compilazione.")
     else:
@@ -613,29 +620,43 @@ def audit_approva_direzione(request, pk: int):
 
 @login_required
 @require_POST
-@transaction.atomic
 def audit_comunica(request, pk: int):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
-    audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
-    if audit.stato not in {Audit.STATO_PIANIFICATO, Audit.STATO_PIANO_APPROVATO}:
-        messages.error(request, "Il piano puÃ² essere comunicato solo prima dell'avvio dell'audit.")
-        return redirect(_audit_url(audit, "comunicazione"))
     form = ComunicazioneAuditForm(request.POST)
-    if form.is_valid():
+    with transaction.atomic():
+        audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
+        if audit.stato not in {Audit.STATO_PIANIFICATO, Audit.STATO_PIANO_APPROVATO}:
+            messages.error(request, "Il piano può essere comunicato solo prima dell'avvio dell'audit.")
+            return redirect(_audit_url(audit, "comunicazione"))
+        if not form.is_valid():
+            return redirect(_audit_url(audit, "comunicazione"))
+        metodo = form.cleaned_data["metodo"]
         try:
-            service.comunica_audit(
-                audit, metodo=form.cleaned_data["metodo"], deroga_motivo=form.cleaned_data["deroga_motivo"],
-            )
+            destinatari = service.comunica_audit(audit, metodo=metodo, deroga_motivo=form.cleaned_data["deroga_motivo"])
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
+            return redirect(_audit_url(audit, "comunicazione"))
+    # Invio fuori dalla transazione (SMTP o Graph): se fallisce la comunicazione non vale.
+    try:
+        if metodo == Audit.COM_OUTLOOK:
+            from .services import audit_outlook
+
+            audit_outlook.invia_invito(audit)
         else:
-            if audit.preavviso_deroga_motivo:
-                log_action(request, "audit_deroga_preavviso", MODULE, {
-                    "motivo": audit.preavviso_deroga_motivo,
-                }, oggetto=audit)
-            log_action(request, "audit_comunicato", MODULE, {"metodo": form.cleaned_data["metodo"]}, oggetto=audit)
-            messages.success(request, "Piano comunicato agli auditati.")
+            service.invia_email_comunicazione(audit, metodo=metodo, destinatari=list(destinatari or []))
+    except Exception as exc:  # noqa: BLE001 - errore di invio mostrato all'utente e registrato
+        logger.warning("Comunicazione audit %s non inviata", audit.numero, exc_info=True)
+        Audit.objects.filter(pk=audit.pk).update(comunicazione_il=None, comunicazione_metodo="")
+        log_action(request, "audit_comunicazione_fallita", MODULE, {"metodo": metodo, "errore": str(exc)[:300]}, oggetto=audit)
+        dettaglio = str(exc) if isinstance(exc, RuntimeError) else "errore del servizio di invio"
+        messages.error(request, f"Comunicazione non inviata ({dettaglio}): il piano resta da comunicare.")
+        return redirect(_audit_url(audit, "comunicazione"))
+    if audit.preavviso_deroga_motivo:
+        log_action(request, "audit_deroga_preavviso", MODULE, {"motivo": audit.preavviso_deroga_motivo}, oggetto=audit)
+    log_action(request, "audit_comunicato", MODULE, {"metodo": metodo}, oggetto=audit)
+    messages.success(request, "Invito Outlook inviato: le risposte si aggiornano da «Aggiorna conferme»."
+                     if metodo == Audit.COM_OUTLOOK else "Piano comunicato agli auditati.")
     return redirect(_audit_url(audit, "comunicazione"))
 
 
@@ -773,15 +794,15 @@ def audit_riapri_rapporto(request, pk: int):
     if not _assigned_executor(request, audit):
         return _deny(request)
     if audit.rapporto_convalidato_ente_il or audit.rapporto_valutato_rdd_il:
-        messages.error(request, "Il rapporto giÃ  convalidato o valutato non puÃ² essere riaperto.")
+        messages.error(request, "Il rapporto già convalidato o valutato non può essere riaperto.")
     elif not audit.rapporto_firmato_auditor_il:
         messages.error(request, "Il rapporto non risulta firmato.")
     else:
         audit.rapporto_firmato_auditor_da = None
         audit.rapporto_firmato_auditor_il = None
-        audit.save(update_fields=["riepilogo_generato", "rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
+        audit.save(update_fields=["rapporto_firmato_auditor_da", "rapporto_firmato_auditor_il", "updated_at"])
         log_action(request, "audit_rapporto_riaperto", MODULE, {}, oggetto=audit)
-        messages.success(request, "Rapporto riaperto: Ã¨ nuovamente modificabile.")
+        messages.success(request, "Rapporto riaperto: è nuovamente modificabile.")
     return redirect(_audit_url(audit, "rapporto"))
 
 
@@ -794,6 +815,8 @@ def audit_convalida_ente(request, pk: int):
         return _deny(request)
     if not audit.rapporto_firmato_auditor_il:
         messages.error(request, "Serve prima la firma dell'auditor.")
+    elif audit.rapporto_firmato_auditor_da_id == request.user.id or audit.utente_e_auditor(request.user):
+        messages.error(request, "La convalida dell'ente deve essere di una persona esterna al team di audit.")
     else:
         audit.rapporto_convalidato_ente_da = request.user
         audit.rapporto_convalidato_ente_il = timezone.now()
@@ -812,16 +835,27 @@ def audit_valuta_rdd(request, pk: int):
     if not audit.rapporto_firmato_auditor_il or not audit.rapporto_convalidato_ente_il:
         messages.error(request, "Servono firma dell'auditor e convalida del responsabile dell'ente.")
         return redirect(_audit_url(audit, "rapporto"))
+    if (audit.rapporto_firmato_auditor_da_id == request.user.id or audit.rapporto_convalidato_ente_da_id == request.user.id
+            or audit.utente_e_auditor(request.user)):
+        messages.error(request, "La valutazione RDD deve essere di una persona diversa dal team di audit e da chi ha convalidato per l'ente.")
+        return redirect(_audit_url(audit, "rapporto"))
+    problemi_chiusura = service.problemi_chiusura_audit(audit)
+    if problemi_chiusura:
+        messages.error(request, "Audit non chiudibile: " + " ".join(problemi_chiusura))
+        return redirect(_audit_url(audit, "rapporto"))
     form = ValutazioneRddForm(request.POST, instance=audit)
     if form.is_valid():
+        from .services.rapporto import emetti_rapporto
+
         audit = form.save(commit=False)
         audit.rapporto_valutato_rdd_da = request.user
         audit.rapporto_valutato_rdd_il = timezone.now()
         audit.stato = Audit.STATO_CHIUSO
         audit.save()
-        service.distribuisci_rapporto(audit)
-        log_action(request, "audit_chiuso", MODULE, {}, oggetto=audit)
-        messages.success(request, "Audit chiuso e rapporto distribuito.")
+        emissione = emetti_rapporto(audit, autore=request.user)
+        transaction.on_commit(lambda: service.distribuisci_rapporto(audit))
+        log_action(request, "audit_chiuso", MODULE, {"versione": emissione.numero, "sha256": emissione.sha256}, oggetto=audit)
+        messages.success(request, "Audit chiuso: rapporto emesso, archiviato con impronta SHA-256 e distribuito.")
     return redirect(_audit_url(audit, "rapporto"))
 
 
@@ -833,7 +867,36 @@ def audit_export(request, pk: int, documento: str):
     if documento == "piano":
         body, name = piano_audit_pdf(audit), f"MOD035A_{audit.numero}.pdf"
     elif documento == "rapporto":
-        body, name = rapporto_audit_pdf(audit), f"MOD035B_{audit.numero}.pdf"
+        from .services.rapporto import rapporto_emesso
+
+        emesso = rapporto_emesso(audit)
+        if emesso:
+            # Il rapporto emesso non si rigenera: si consegna il PDF archiviato alla chiusura,
+            # dopo averne riverificato l'impronta.
+            from hashlib import sha256 as _sha256
+
+            with emesso.pdf.open("rb") as file:
+                corpo = file.read()
+            if emesso.sha256 and _sha256(corpo).hexdigest() != emesso.sha256:
+                log_action(request, "audit_rapporto_impronta_errata", MODULE, {"versione": emesso.numero}, oggetto=audit)
+                messages.error(request, "Il file del rapporto emesso non corrisponde all'impronta archiviata: segnala a RSGI.")
+                return redirect(_audit_url(audit, "rapporto"))
+            log_action(request, "audit_pdf", MODULE, {"documento": documento, "versione": emesso.numero,
+                                                       "sha256": emesso.sha256}, oggetto=audit)
+            response = HttpResponse(corpo, content_type="application/pdf")
+            response["Content-Disposition"] = f'attachment; filename="MOD035B_{audit.numero}_v{emesso.numero}.pdf"'
+            response["X-Content-Type-Options"] = "nosniff"
+            response["Cache-Control"] = "private, no-store"
+            response["X-Content-SHA256"] = emesso.sha256
+            return response
+        if audit.stato == Audit.STATO_CHIUSO:
+            # Audit chiuso prima dell'archiviazione delle emissioni: rigenerato, senza filigrana,
+            # dichiarandolo nel documento (non è il file consegnato all'epoca).
+            nota = (f"Documento rigenerato il {timezone.localtime():%d/%m/%Y %H:%M} dai dati registrati: l'audit è stato "
+                    "chiuso prima dell'archiviazione del rapporto emesso. Fa fede la copia firmata, se presente.")
+            body, name = rapporto_audit_pdf(audit, nota=nota), f"MOD035B_{audit.numero}_rigenerato.pdf"
+        else:
+            body, name = rapporto_audit_pdf(audit, bozza=True), f"MOD035B_{audit.numero}_BOZZA.pdf"
     else:
         raise Http404
     log_action(request, "audit_pdf", MODULE, {"documento": documento}, oggetto=audit)
@@ -849,15 +912,46 @@ def audit_carica_firmata(request, pk: int, documento: str):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
     audit = get_object_or_404(Audit.objects.select_for_update(), pk=pk)
+    if documento not in {"piano", "rapporto"}:
+        raise Http404
+    campo = "copia_firmata_piano" if documento == "piano" else "copia_firmata_rapporto"
+    nome_campo = campo + "_nome"
+    # La copia firmata documenta un atto concluso: il piano dopo l'approvazione della Direzione,
+    # il rapporto dopo la chiusura. Sostituirla resta possibile solo a un approvatore, tracciato.
+    if documento == "piano" and not audit.piano_approvato_direzione_il:
+        messages.error(request, "La copia firmata del piano si carica dopo l'approvazione della Direzione.")
+        return redirect(_audit_url(audit, "documenti"))
+    if documento == "rapporto" and audit.stato != Audit.STATO_CHIUSO:
+        messages.error(request, "La copia firmata del rapporto si carica dopo la chiusura dell'audit.")
+        return redirect(_audit_url(audit, "documenti"))
+    precedente = getattr(audit, nome_campo)
+    if getattr(audit, campo) and not _has_perm(request, PERM_AUDIT_APPROVA):
+        messages.error(request, "Una copia firmata è già archiviata: solo un approvatore può sostituirla.")
+        return redirect(_audit_url(audit, "documenti"))
     form = CopiaFirmataForm(request.POST, request.FILES)
-    if form.is_valid() and documento in {"piano", "rapporto"}:
+    if form.is_valid():
+        from hashlib import sha256 as _sha256
+
         file = form.cleaned_data["file"]
-        campo = "copia_firmata_piano" if documento == "piano" else "copia_firmata_rapporto"
-        nome_campo = campo + "_nome"
+        digest = _sha256()
+        for chunk in file.chunks():
+            digest.update(chunk)
+        file.seek(0)
         getattr(audit, campo).save(f"{documento}_{audit.numero}_firmato.pdf", file, save=False)
         setattr(audit, nome_campo, Path(file.name).name[:255])
         audit.save(update_fields=[campo, nome_campo, "updated_at"])
-        log_action(request, "audit_copia_firmata", MODULE, {"documento": documento}, oggetto=audit)
+        if documento == "rapporto":
+            # La copia firmata si lega all'emissione in vigore, con la sua impronta.
+            from .services.rapporto import rapporto_emesso
+
+            emesso = rapporto_emesso(audit)
+            if emesso:
+                emesso.copia_firmata = audit.copia_firmata_rapporto.name
+                emesso.snapshot = {**(emesso.snapshot or {}), "copia_firmata_sha256": digest.hexdigest(),
+                                   "copia_firmata_caricata_il": timezone.now().isoformat()}
+                emesso.save(update_fields=["copia_firmata", "snapshot"])
+        log_action(request, "audit_copia_firmata", MODULE,
+                   {"documento": documento, "sostituisce": precedente or None, "sha256": digest.hexdigest()}, oggetto=audit)
         messages.success(request, "Copia firmata caricata.")
     else:
         messages.error(request, "File non valido.")

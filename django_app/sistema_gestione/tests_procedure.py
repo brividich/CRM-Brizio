@@ -155,8 +155,11 @@ class ProcedureTests(AuditBase):
         self.assertContains(views.preparazione(_request(self.user,method="get"),a.pk),"Preparazione")
 
     def test_binding_route_procedurali(self):
-        for name in ["procedura_car","procedura_preparazione","procedura_kpi"]:
+        for name in ["procedura_preparazione","procedura_kpi"]:
             self.assertEqual(_ROUTE_BINDINGS["sistema_gestione:"+name],PERM_AUDIT_VIEW)
+        # Prompt 08: la CAR la apre anche il suo responsabile senza consultazione degli audit;
+        # il controllo fine resta nella view (test_car_aperta_dal_responsabile_senza_consultazione_audit).
+        self.assertEqual(_ROUTE_BINDINGS["sistema_gestione:procedura_car"],"sistema_gestione.audit.miei_rilievi")
 
     def test_import_turtle_inattivo_idempotente(self):
         root=settings.BASE_DIR/".tmp_tests";root.mkdir(exist_ok=True)
