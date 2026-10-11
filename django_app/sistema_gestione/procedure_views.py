@@ -81,6 +81,10 @@ def car(request, pk):
     modificabile = modifica and not oggetto.chiusa_il and not registro.is_chiuso
     azione = request.POST.get("azione", "salva")
     form = CarForm(request.POST if request.method == "POST" and azione == "salva" else None, instance=oggetto)
+    if not (_has_perm(request, PERM_AUDIT_EDIT) or approva):
+        # Il responsabile compila cause e azioni ma non si riassegna la CAR né attesta l'approvazione esterna.
+        for campo in ("responsabile", "origine_esterna", "approvazione_esterna"):
+            form.fields[campo].disabled = True
     proroga = ProrogaForm(request.POST if request.method == "POST" and azione == "proroga" else None)
     if request.method == "POST":
         if not modificabile:
@@ -127,6 +131,7 @@ def car(request, pk):
                     oggetto.motivo_proroga = proroga.cleaned_data["motivo"]
                     oggetto.proroga_da = request.user
                     oggetto.proroga_il = timezone.now()
+                    oggetto.escalation_il = None  # nuova scadenza: l'escalation riparte da zero
                     oggetto.versione += 1
                     oggetto.save()
                     registro.data_richiesta = data

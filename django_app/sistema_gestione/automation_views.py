@@ -106,9 +106,7 @@ def esito_bozza(request, pk, esito_pk):
     form = AuditEsitoForm(request.POST, instance=esito)
     if not form.is_valid():
         return JsonResponse({"errore": "Bozza non salvata", "errori": form.errors.get_json_data()}, status=409 if form.non_field_errors() else 400)
-    bozza = form.save(commit=False)
-    bozza.bozza_token = token
-    esito = audit_service.salva_esito(bozza, utente=request.user, genera_rilievo=False)
+    esito = audit_service.salva_esito(form.save(commit=False), utente=request.user, genera_rilievo=False, bozza_token=token)
     log_action(request, "audit_bozza_salvata", MODULE, {"esito": esito.pk, "versione": esito.versione}, oggetto=audit)
     return JsonResponse({"versione": esito.versione, "salvato_il": timezone.localtime(esito.updated_at).strftime("%H:%M:%S"),
                          "mancanti": service.problemi_esito(esito)})

@@ -20,7 +20,9 @@
   document.querySelectorAll("form[data-audit-autosave]").forEach(form => {
     const status = form.querySelector("[data-save-status]");
     const version = form.querySelector('[name="versione"]');
-    const chiave = "sg-bozza:" + form.dataset.auditAutosave;
+    // Chiave per utente (tablet condivisi) e scadenza: le bozze locali non restano per sempre.
+    const chiave = "sg-bozza:" + (form.dataset.utente || "") + ":" + form.dataset.auditAutosave;
+    const SCADENZA_MS = 7 * 24 * 3600 * 1000;
     let timer, saving = false, dirty = false, blocked = false, submitted = false, changes = 0;
     let tentativo = 0, salvataggioId = nuovoId(), daConfermare = false;
     const announce = (message, error = false) => {
@@ -43,12 +45,17 @@
       try {
         const locale = JSON.parse(storage.getItem(chiave) || "null");
         const attuali = campi();
-        if (locale && locale.versione === version.value && Object.keys(locale.campi).some(k => (attuali[k] || "") !== locale.campi[k])) {
+        const scaduta = locale && Date.now() - (locale.quando || 0) > SCADENZA_MS;
+        // Si propone il ripristino ogni volta che il testo locale differisce da quello del server,
+        // anche se nel frattempo la versione è cambiata (risposta persa, altro salvataggio).
+        if (locale && !scaduta && Object.keys(locale.campi).some(k => (attuali[k] || "") !== locale.campi[k])) {
           const banner = document.createElement("div");
           banner.className = "sg-alert warn";
           banner.setAttribute("role", "status");
-          banner.innerHTML = "<strong>Modifiche non salvate su questo dispositivo</strong> del " +
-            new Date(locale.quando).toLocaleString("it-IT") + ". ";
+          const titolo = document.createElement("strong");
+          titolo.textContent = "Modifiche non salvate su questo dispositivo";
+          banner.append(titolo, " del " + new Date(locale.quando).toLocaleString("it-IT") + ". " +
+            (locale.versione !== version.value ? "La verifica è stata salvata anche dopo: controlla i campi prima di ripristinare. " : ""));
           const ripristina = document.createElement("button");
           ripristina.type = "button"; ripristina.className = "btn"; ripristina.textContent = "Ripristina";
           const scarta = document.createElement("button");
@@ -84,13 +91,15 @@
           method: "POST", body, credentials: "same-origin",
           headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}
         });
+        // 5xx prima del tipo di risposta: una pagina d'errore HTML del server (502/503) va ritentata,
+        // non scambiata per una sessione scaduta.
+        if (response.status >= 500) { retry = true; throw new Error("Server non disponibile, riprovo."); }
         const contentType = response.headers.get("content-type") || "";
         if (response.redirected || !contentType.includes("application/json")) {
           blocked = true;
           throw new Error("Sessione scaduta o risposta non valida. Il testo resta su questo dispositivo: accedi e riprova.");
         }
         const data = await response.json();
-        if (response.status >= 500) { retry = true; throw new Error("Server non disponibile, riprovo."); }
         if (!response.ok) {
           blocked = [401, 403, 409].includes(response.status);
           const details = Object.values(data.errori || {}).flat().map(item => item.message).join(" ");
@@ -151,8 +160,8 @@
         announce("La verifica non e piu modificabile o e cambiata altrove. Conserva il testo e ricarica la pagina.", true);
         return;
       }
+      // La bozza locale resta finché la pagina successiva non conferma che il server ha lo stesso testo.
       submitted = true;
-      dimentica();
     });
     window.addEventListener("beforeunload", event => {
       if (!submitted && (dirty || saving)) { event.preventDefault(); event.returnValue = ""; }
@@ -163,6 +172,8 @@
   document.querySelectorAll("form[data-audit-upload]").forEach(form => {
     const esito = form.querySelector("[data-upload-status]");
     const lista = document.querySelector(form.dataset.auditUpload);
+    let inAttesa = null;  // file non caricato per rete assente: si riprova al ritorno della connessione
+    window.addEventListener("online", () => { if (inAttesa) invia(inAttesa); });
     form.querySelectorAll('input[type="file"]').forEach(input => {
       input.addEventListener("change", () => { if (input.files.length) invia(input); });
     });
@@ -178,22 +189,34 @@
       body.set("file", input.files[0]);
       esito.textContent = "Caricamento di " + input.files[0].name + "...";
       esito.dataset.error = "0";
+      let errRete = false;
       try {
         const response = await fetch(form.action, {method: "POST", body, credentials: "same-origin",
           headers: {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}});
+        if (response.status >= 500 || !(response.headers.get("content-type") || "").includes("application/json")) {
+          errRete = response.status >= 500;
+          throw new Error(response.status === 413 ? "File troppo grande per il server." : "Risposta non valida dal server: riprova.");
+        }
         const data = await response.json();
         if (!response.ok) throw new Error(data.errore || "Caricamento non riuscito.");
+        inAttesa = null;
         const riga = document.createElement("p");
         const link = document.createElement("a");
         link.href = data.url; link.textContent = data.nome;
         riga.append(link, ` · ${Math.round(data.dimensione / 1024)} kB · SHA-256 ${data.sha256.slice(0, 12)}…`);
         if (lista) { lista.querySelector("[data-vuoto]")?.remove(); lista.append(riga); }
         esito.textContent = data.rilievo_emesso ? "Evidenza archiviata: il rilievo è stato registrato nel MOD.174." : "Evidenza archiviata con impronta SHA-256.";
-      } catch (error) {
-        esito.textContent = (error instanceof TypeError ? "Rete non disponibile: riprova quando torna la connessione." : error.message);
-        esito.dataset.error = "1";
-      } finally {
         input.value = "";
+      } catch (error) {
+        if (error instanceof TypeError || errRete) {
+          // Rete assente: la foto resta selezionata e si ricarica da sola appena torna la connessione.
+          inAttesa = input;
+          esito.textContent = "Rete non disponibile: il file resta in attesa e verrà caricato appena torna la connessione.";
+        } else {
+          esito.textContent = error.message;
+          input.value = "";
+        }
+        esito.dataset.error = "1";
       }
     }
   });

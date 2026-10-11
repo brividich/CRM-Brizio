@@ -76,8 +76,8 @@ class RapportoEmessoTests(AuditBase):
             # Un dato collegato cambia dopo la chiusura: il rapporto emesso non deve cambiare.
             Audit.objects.filter(pk=audit.pk).update(giudizio="Giudizio riscritto dopo")
             response = audit_views.audit_export(_request(self.user, method="get"), audit.pk, "rapporto")
-            consegnato = b"".join(response.streaming_content)
-            response.file_to_stream.close()
+            consegnato = response.content
+            self.assertEqual(response["X-Content-SHA256"], emissione.sha256)
         self.assertEqual(consegnato, archiviato)
         testo = _testo_pdf(consegnato)
         self.assertIn("Giudizio originale", testo)
@@ -334,8 +334,9 @@ class ChiusuraCondizionataTests(_CarBase):
 
 class SollecitiCarTests(_CarBase):
     @patch("core.email_utils.send_hub_mail", return_value=1)
+    @patch("sistema_gestione.tasks._legacy_id", return_value=77)
     @patch("core.notifiche.invia_notifica")
-    def test_un_sollecito_al_giorno_e_una_sola_escalation(self, notifica, mail):
+    def test_un_sollecito_al_giorno_e_una_sola_escalation(self, notifica, _legacy, mail):
         from . import tasks
 
         _audit, car = self._car(data_richiesta=timezone.localdate() - timedelta(days=200))

@@ -12,13 +12,15 @@ from .views import _has_perm, _nega
 
 
 def rilievi_utente(user):
-    """Rilievi di audit con rapporto firmato in cui l'utente è auditato, responsabile del processo
-    o responsabile dell'azione. Le bozze in compilazione non sono visibili."""
+    """Rilievi di audit con rapporto firmato che riguardano l'utente: è responsabile dell'azione,
+    oppure il rilievo è sul processo di cui risponde in un audit in cui è persona coinvolta.
+    Un audit su più processi non mostra a un responsabile i rilievi degli altri processi; le bozze
+    in compilazione non sono visibili."""
     miei_audit = AuditPersona.objects.filter(
         user=user, ruolo__in=[AuditPersona.RUOLO_AUDITATO, AuditPersona.RUOLO_PROCESSO],
     ).values("audit_id")
     return (AuditEsito.objects.filter(esito__in=RILIEVI, audit__rapporto_firmato_auditor_il__isnull=False)
-            .filter(Q(responsabile_azione=user) | Q(audit_id__in=miei_audit))
+            .filter(Q(responsabile_azione=user) | Q(audit_id__in=miei_audit, processo__responsabile=user))
             .select_related("audit", "processo", "ofi", "ofi__car_procedurale", "responsabile_azione")
             .order_by("-audit__data_inizio", "pk"))
 

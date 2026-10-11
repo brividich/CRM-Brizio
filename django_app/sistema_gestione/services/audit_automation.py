@@ -86,13 +86,18 @@ def problemi_esito(esito):
                                  ("responsabile_azione", "responsabile dell'azione"), ("scadenza_azione", "scadenza dell'azione")]:
                 if not getattr(esito, campo):
                     problemi.append("Indica " + label)
+    # Requisiti introdotti con il prompt 08: valgono per gli audit ancora in lavorazione. Un audit
+    # già chiuso resta com'era (le NC storiche senza gravità non diventano «incomplete»).
+    if getattr(esito.audit, "stato", "") == "CHIUSO":
+        return problemi
     if esito.esito in {"NC", "OFI", "OSS"} and not esito.clausola_effettiva:
         problemi.append("Indica la clausola o il requisito di riferimento")
     if esito.esito == "NC":
         if not esito.gravita:
             problemi.append("Classifica la NC come maggiore o minore")
         # Una NC si regge su un'evidenza oggettiva conservata, non solo su una descrizione.
-        if not esito.pk or not esito.allegati.exists():
+        # all() usa il prefetch quando c'è (nessuna query per esito nelle liste).
+        if not esito.pk or not len(esito.allegati.all()):
             problemi.append("Allega almeno un'evidenza oggettiva (documento o foto) della NC")
     return problemi
 

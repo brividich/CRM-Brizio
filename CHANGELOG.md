@@ -9,6 +9,44 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 ## [Unreleased]
 
 <!-- prompt 08 audit interni (blocco della sessione, non mescolare) -->
+- **Audit interni — correzioni dalle review indipendenti (sicurezza e QA lead auditor)** (`django_app/sistema_gestione/audit_views.py`, `programma_views.py`, `procedure_views.py`, `miei_rilievi_views.py`, `models.py`, `services/audit.py`, `services/audit_automation.py`, `services/cruscotto.py`, `services/programma.py`, `audit_exports.py`, `tasks.py`, `static/sistema_gestione/audit_editor.js`, template `audit_dettaglio.html`, `audit_esito_editor.html`, `audit_cruscotto.html`, `_esito_card.html`, test `tests_audit_review.py` nuovo, `tests_audit.py`, `tests_audit_pro.py`, `tests_audit_report.py`)
+  - **Rapporto:**
+    - un audit chiuso prima di questo rilascio, quindi senza emissione archiviata, non esce più come «BOZZA»: PDF rigenerato senza filigrana, dichiarato nel documento;
+    - le versioni archiviate sono immutabili (né modifica né cancellazione);
+    - l'impronta si riverifica a ogni download (`X-Content-SHA256`);
+    - la copia firmata si lega all'emissione con il suo SHA-256;
+    - l'elenco delle versioni mostra tipo e impronta.
+  - **Firme:** la convalida dell'ente è di una persona esterna al team; l'RDD è diverso dal team e da chi ha convalidato; la convalida del programma è diversa da proponente e approvatore.
+  - **«I miei rilievi»:** il responsabile vede solo i rilievi del proprio processo o della propria azione, non quelli degli altri processi dello stesso audit. Se l'email della persona cambia, il collegamento all'utente si ricalcola.
+  - **Autosalvataggio:** ogni salvataggio dal form classico azzera il token del tentativo. Prima un retry di rete vecchio poteva sovrascrivere senza conflitto le modifiche di un coauditor.
+  - **JavaScript:**
+    - un 5xx in HTML si ritenta e non blocca come «sessione scaduta»;
+    - la bozza locale si propone anche se la versione è cambiata e non si cancella al submit;
+    - la chiave include l'utente e la bozza scade dopo 7 giorni;
+    - una foto caricata senza rete resta in attesa e parte al ritorno della connessione.
+  - **Comunicazione:**
+    - l'email del piano parte fuori dalla transazione: se fallisce, la comunicazione non vale;
+    - l'annullamento avvisa gli auditati (Outlook: evento cancellato; email: `.ics` con `METHOD:CANCEL`);
+    - gli errori sono loggati.
+  - **Dati storici e cruscotto:**
+    - le nuove regole (gravità, allegato, clausola) non rendono «incompleti» gli audit già chiusi;
+    - le NC senza gravità contano come «non classificate»;
+    - la copertura delle clausole attribuisce la clausola alla norma della domanda (le numerazioni comuni HLS non si coprono a vicenda);
+    - si preferisce il programma approvato rispetto a una bozza più recente.
+  - **Follow-up:** niente più domande per voci MOD.174 chiuse o per rilievi già trovati conformi in un follow-up chiuso; finestra di 36 mesi.
+  - **Solleciti CAR:**
+    - senza profilo legacy il sollecito va per email e conta solo se consegnato;
+    - l'escalation arriva anche al responsabile di funzione;
+    - una proroga azzera l'escalation.
+  - **Altro:**
+    - qualifica valutata alla data dell'audit;
+    - la deroga d'indipendenza non la approvano i responsabili dei processi coinvolti e non serve se il conflitto è sparito;
+    - il responsabile della CAR senza permesso di modifica non può riassegnarla né scrivere l'approvazione esterna;
+    - i rilievi ISO 14001 indicano la norma nel MOD.174;
+    - N+1 su allegati e CAR eliminati;
+    - agenda proposta senza slot sovrapposti.
+  - Non riproducibile, quindi non corretto: un rilievo già nel MOD.174 non cambia tipo o gravità, perché il form ne blocca i campi.
+  - Test: 16 nuovi, 4 adeguati alle regole nuove. 574 test verdi.
 - **Audit interni — cruscotto, export dei rilievi, allegato «Rilievi e azioni», «I miei rilievi» per l'auditato** (`django_app/sistema_gestione/services/cruscotto.py`, `report_views.py`, `miei_rilievi_views.py` nuovi, `audit_exports.py`, `procedure_views.py`, `models.py`, `services/audit.py`, `services/programma.py`, `urls.py`, `acl_bootstrap.py` (permesso `sistema_gestione.audit.miei_rilievi`, cache `v5`), migration `0014`, template `audit_cruscotto.html`, `audit_miei_rilievi.html` nuovi, `audit_index.html`, `audit_dettaglio.html`, test `tests_audit_report.py` nuovo, `tests_procedure.py`)
   - **Cruscotto** (`/sistema-gestione/audit/cruscotto/`):
     - avanzamento del programma approvato (programmate / eseguite / in ritardo, con l'elenco dei ritardi);

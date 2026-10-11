@@ -68,12 +68,18 @@ def frequenza_raccomandata(processo: Processo, *, nc: int, ofi: int, non_efficac
     return mesi, motivi
 
 
+def _programmi_in_vigore(anni) -> list[ProgrammaAudit]:
+    """Per anno: prima il programma APPROVATO, poi la revisione di lavoro più recente."""
+    righe = list(ProgrammaAudit.objects.filter(anno__in=list(anni)).exclude(stato=ProgrammaAudit.STATO_SUPERATO))
+    return sorted(righe, key=lambda p: (p.anno, 0 if p.stato == ProgrammaAudit.STATO_APPROVATO else 1, -p.revisione))
+
+
 def copertura_ciclo(ciclo: CicloAudit) -> dict:
     """Per ogni processo attivo: anni con audit eseguito o programmato e clausole del catalogo
     mai programmate nel ciclo. È l'evidenza da mostrare all'ente di certificazione."""
     anni = ciclo.anni
     programmi = {}
-    for p in ProgrammaAudit.objects.filter(anno__in=anni).exclude(stato=ProgrammaAudit.STATO_SUPERATO).order_by("anno", "-revisione"):
+    for p in _programmi_in_vigore(anni):
         programmi.setdefault(p.anno, p)
     celle = list(CellaProgramma.objects.filter(riga__programma__in=programmi.values()).select_related("riga", "riga__programma"))
     chiusi = Audit.objects.filter(stato=Audit.STATO_CHIUSO, data_inizio__year__in=anni).prefetch_related("processi_catalogo")
@@ -118,7 +124,7 @@ def calendario_mese(anno: int, mese: int) -> dict:
         while giorno <= min(a.data_fine or a.data_inizio, ultimo):
             per_giorno.setdefault(giorno, []).append(a)
             giorno += timedelta(days=1)
-    programmi = [p for p in ProgrammaAudit.objects.filter(anno=anno).exclude(stato=ProgrammaAudit.STATO_SUPERATO).order_by("-revisione")[:1]]
+    programmi = _programmi_in_vigore([anno])[:1]
     da_pianificare = list(CellaProgramma.objects.filter(
         riga__programma__in=programmi, mese=mese, audit__isnull=True,
     ).select_related("riga"))

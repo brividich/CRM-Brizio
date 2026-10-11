@@ -672,6 +672,11 @@ class AuditPersona(models.Model):
 
     def save(self, *args, **kwargs):
         # Collegamento all'utente solo per email esatta e univoca: mai per nome o prefisso.
+        # Se l'email cambia il collegamento si ricalcola: il vecchio utente perde la visibilità.
+        if self.pk and self.user_id:
+            precedente = AuditPersona.objects.filter(pk=self.pk).values_list("email", flat=True).first()
+            if (precedente or "").strip().lower() != self.email.strip().lower():
+                self.user = None
         if not self.user_id and self.email.strip():
             from django.contrib.auth import get_user_model
 
@@ -929,6 +934,19 @@ class AuditRapportoVersione(models.Model):
     class Meta:
         ordering = ["-numero"]
         constraints = [models.UniqueConstraint(fields=["audit", "numero"], name="sg_rapporto_versione_unica")]
+
+    IMMUTABILI = ("audit_id", "numero", "tipo", "sha256", "pdf")
+
+    def save(self, *args, **kwargs):
+        # Una versione archiviata non cambia: si può solo collegarle la copia firmata.
+        if self.pk:
+            prima = AuditRapportoVersione.objects.filter(pk=self.pk).values("audit_id", "numero", "tipo", "sha256", "pdf").first()
+            if prima and any(str(prima[c]) != str(getattr(self, c) if c != "pdf" else self.pdf.name) for c in self.IMMUTABILI):
+                raise ValidationError("Il rapporto archiviato non è modificabile: si crea una nuova revisione.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Il rapporto archiviato non si elimina.")
 
 
 class AuditPreparazione(models.Model):

@@ -40,6 +40,13 @@ def rilievi_anno(anno: int):
             .order_by("audit__data_inizio", "audit__numero", "pk"))
 
 
+def chiave_rilievo(esito) -> str:
+    """NC maggiore / minore / non classificata (dati storici senza gravità), OFI, OSS."""
+    if esito.esito == AuditEsito.ESITO_NC:
+        return {"MAGGIORE": "NC_MAGGIORE", "MINORE": "NC_MINORE"}.get(esito.gravita, "NC_ND")
+    return esito.esito
+
+
 def _processo_label(esito) -> str:
     if esito.processo_id:
         return str(esito.processo)
@@ -53,7 +60,7 @@ def cruscotto(anno: int, oggi: date | None = None) -> dict:
     per_clausola: Counter = Counter()
     per_mese: dict[int, Counter] = defaultdict(Counter)
     for e in rilievi:
-        chiave = "NC_MAGGIORE" if e.esito == "NC" and e.gravita == "MAGGIORE" else "NC_MINORE" if e.esito == "NC" else e.esito
+        chiave = chiave_rilievo(e)
         per_processo[_processo_label(e)][chiave] += 1
         per_clausola[e.clausola_effettiva or "—"] += 1
         per_mese[e.audit.data_inizio.month][chiave] += 1
@@ -72,10 +79,10 @@ def cruscotto(anno: int, oggi: date | None = None) -> dict:
     return {
         "anno": anno,
         "avanzamento": avanzamento_programma(anno, oggi),
-        "totali": Counter(("NC_MAGGIORE" if e.esito == "NC" and e.gravita == "MAGGIORE" else "NC_MINORE" if e.esito == "NC" else e.esito) for e in rilievi),
+        "totali": Counter(chiave_rilievo(e) for e in rilievi),
         "per_processo": sorted(((k, dict(v), sum(v.values())) for k, v in per_processo.items()), key=lambda r: -r[2]),
         "per_clausola": per_clausola.most_common(15),
-        "per_mese": [{"mese": m, "NC": per_mese[m]["NC_MAGGIORE"] + per_mese[m]["NC_MINORE"],
+        "per_mese": [{"mese": m, "NC": per_mese[m]["NC_MAGGIORE"] + per_mese[m]["NC_MINORE"] + per_mese[m]["NC_ND"],
                       "OFI": per_mese[m]["OFI"], "OSS": per_mese[m]["OSS"]} for m in range(1, 13)],
         "car_chiuse": len(chiuse),
         "giorni_medi_chiusura": round(sum(giorni) / len(giorni)) if giorni else None,
@@ -95,12 +102,22 @@ def copertura_clausole(anno: int) -> list[dict]:
             richieste[label] |= _punti(getattr(processo, campo, ""))
     verificate: dict[str, set[str]] = defaultdict(set)
     esiti = (AuditEsito.objects.filter(audit__stato=Audit.STATO_CHIUSO, audit__data_inizio__year=anno)
-             .exclude(esito__in=["", AuditEsito.ESITO_NA]).select_related("audit", "domanda"))
+             .exclude(esito__in=["", AuditEsito.ESITO_NA]).select_related("audit", "domanda", "modello_processo"))
+    etichette = {flag: label for flag, _campo, label in CAMPI_NORMA}
     for e in esiti:
         punti = _punti(e.clausola_effettiva)
-        for flag, _campo, label in CAMPI_NORMA:
-            if getattr(e.audit, flag, False):
-                verificate[label] |= punti
+        # La clausola vale per la norma della domanda: le norme con numerazione comune (HLS, es.
+        # §7.1 in 9001/14001/45001) non si coprono a vicenda. Solo le domande aggiuntive senza
+        # norma dichiarata valgono per tutte le norme dell'audit.
+        if e.modello_processo_id:
+            norme = [e.modello_processo.norma]
+        elif e.domanda_id:
+            norme = ["en9100"]
+        else:
+            norme = [flag for flag, _c, _l in CAMPI_NORMA if getattr(e.audit, flag, False)]
+        for flag in norme:
+            if flag in etichette:
+                verificate[etichette[flag]] |= punti
     out = []
     for _flag, _campo, label in CAMPI_NORMA:
         richiesto = richieste.get(label, set())

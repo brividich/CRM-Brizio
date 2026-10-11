@@ -18,6 +18,21 @@ def _legacy_id(user) -> int | None:
     return int(profile.legacy_user_id) if profile is not None and profile.legacy_user_id else None
 
 
+def _nome(user) -> str:
+    return ((user.get_full_name() or user.get_username()).strip() if user else "") or "responsabile non assegnato"
+
+
+def _responsabili_funzione(car) -> set[str]:
+    """Email dei responsabili dei processi dei rilievi collegati alla CAR (escalation di funzione)."""
+    from .models import AuditEsito
+
+    return {
+        (e.processo.responsabile.email or "").strip()
+        for e in AuditEsito.objects.filter(ofi_id=car.registro_id, processo__responsabile__isnull=False).select_related("processo__responsabile")
+        if (e.processo.responsabile.email or "").strip()
+    }
+
+
 def _giorni_escalation() -> int:
     from core.models import SiteConfig
 
@@ -73,29 +88,41 @@ def run_car_solleciti() -> dict:
     """Un sollecito al giorno al responsabile; oltre la soglia, una sola escalation a RSGI."""
     from django.urls import reverse
 
-    from core.notifiche import invia_notifica
+    from core.notifiche import invia_notifica, invia_notifica_email
 
     oggi = timezone.localdate()
     soglia = _giorni_escalation()
     solleciti = escalation = 0
     da_escalare = []
+    responsabili_funzione: set[str] = set()
     for riga in ritardi_car(oggi):
         car = riga["car"]
         url = reverse("sistema_gestione:procedura_car", args=[car.registro_id])
         testo = "; ".join(_TESTO[m].format(d=d.strftime("%d/%m/%Y")) for m, d in riga["motivi"])
         if car.sollecitata_il != oggi:
-            invia_notifica(_legacy_id(car.responsabile), "sistema_gestione",
-                           f"CAR MOD.174 n. {car.registro.numero}: {testo}.", url)
-            car.sollecitata_il = oggi
-            car.save(update_fields=["sollecitata_il"])
-            solleciti += 1
+            messaggio = f"CAR MOD.174 n. {car.registro.numero}: {testo}."
+            legacy_id = _legacy_id(car.responsabile)
+            consegnato = False
+            if legacy_id:
+                invia_notifica(legacy_id, "sistema_gestione", messaggio, url)
+                consegnato = True
+            elif getattr(car.responsabile, "email", ""):
+                # Senza profilo legacy la notifica in-app non arriva: ripiego sull'email.
+                consegnato = bool(invia_notifica_email(car.responsabile.email, "sistema_gestione", messaggio, url))
+            if consegnato:
+                car.sollecitata_il = oggi
+                car.save(update_fields=["sollecitata_il"])
+                solleciti += 1
+            else:
+                logger.warning("Sollecito CAR %s non consegnato: responsabile senza profilo né email", car.registro.numero)
         if riga["giorni"] >= soglia and car.escalation_il is None:
             da_escalare.append((car, testo, url))
-    destinatari = _email_rsgi()
+            responsabili_funzione |= _responsabili_funzione(car)
+    destinatari = sorted(set(_email_rsgi()) | responsabili_funzione)
     if da_escalare and destinatari:
         from core.email_utils import send_hub_mail
 
-        corpo = "\n".join(f"- MOD.174 n. {c.registro.numero} ({c.responsabile}): {t}" for c, t, _u in da_escalare)
+        corpo = "\n".join(f"- MOD.174 n. {c.registro.numero} ({_nome(c.responsabile)}): {t}" for c, t, _u in da_escalare)
         try:
             send_hub_mail(
                 subject=f"CAR in ritardo oltre {soglia} giorni: {len(da_escalare)}",

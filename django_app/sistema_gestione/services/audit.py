@@ -153,6 +153,8 @@ def rifiuta_programma(programma: ProgrammaAudit, *, motivo: str, utente) -> None
 def convalida_programma(programma: ProgrammaAudit, *, utente) -> None:
     if programma.stato != ProgrammaAudit.STATO_PROPOSTA or not programma.approvato_il:
         raise TransizioneNonAmmessa("È necessaria prima l'approvazione della Direzione.")
+    if utente and utente.pk in {programma.approvato_da_id, programma.proposto_da_id}:
+        raise TransizioneNonAmmessa("La convalida RDD deve essere di una persona diversa da chi ha proposto e approvato il programma.")
     _verifica_copertura_procedurale(programma)
     ProgrammaAudit.objects.filter(
         anno=programma.anno, stato=ProgrammaAudit.STATO_APPROVATO,
@@ -249,11 +251,15 @@ def _proponi_persone_e_agenda(audit: Audit) -> None:
             quando=_datetime_locale(giorno, ora), auditor=audit.lead_auditor.nome, ordine=100 + ordine,
             attivita="Da completare: campione, documenti e metodo di verifica del processo.",
         )
-        # Slot di 90 minuti fino alle 15:00, poi il giorno successivo del piano.
+        # Slot di 90 minuti fino alle 15:00, poi il giorno successivo del piano; nell'ultimo giorno
+        # gli slot restanti si accorciano a 30 minuti prima della riunione di chiusura (16:30).
         minuti = ora.hour * 60 + ora.minute + 90
         if minuti > 15 * 60 and giorno < fine_giorno:
             giorno, ora = giorno + timedelta(days=1), time(9, 30)
         elif minuti <= 15 * 60:
+            ora = time(minuti // 60, minuti % 60)
+        else:
+            minuti = min(ora.hour * 60 + ora.minute + 30, 16 * 60)
             ora = time(minuti // 60, minuti % 60)
 
 
@@ -264,14 +270,23 @@ def genera_domande_followup(audit: Audit) -> int:
     if not processi:
         return 0
     gia = {e.domanda_snapshot.get("followup_di") for e in audit.esiti.all() if e.domanda_snapshot.get("followup_di")}
+    # Un rilievo già verificato conforme in un follow-up di un audit chiuso non torna più.
+    chiusi_conformi = {
+        e.domanda_snapshot.get("followup_di") for e in AuditEsito.objects.filter(
+            audit__stato=Audit.STATO_CHIUSO, esito__in=[AuditEsito.ESITO_CONFORME, AuditEsito.ESITO_PUNTO_FORZA],
+            testo_aggiuntivo__startswith="Follow-up ",  # filtro portabile (niente lookup JSON su SQL Server)
+        ).only("domanda_snapshot")
+    } - {None}
     precedenti = AuditEsito.objects.filter(
         audit__stato=Audit.STATO_CHIUSO, audit__processi_catalogo__in=processi, esito__in=[AuditEsito.ESITO_NC, AuditEsito.ESITO_OFI],
-        audit__data_inizio__lt=audit.data_inizio,
-    ).exclude(audit=audit).select_related("audit", "ofi").prefetch_related("verifiche_efficacia").distinct()
+        audit__data_inizio__lt=audit.data_inizio, audit__data_inizio__gte=audit.data_inizio - timedelta(days=3 * 365),
+    ).exclude(audit=audit).select_related("audit", "ofi", "ofi__car_procedurale").prefetch_related("verifiche_efficacia").distinct()
     create = []
     for rilievo in precedenti:
-        if rilievo.pk in gia:
+        if rilievo.pk in gia or rilievo.pk in chiusi_conformi:
             continue
+        if rilievo.ofi_id and rilievo.ofi.is_chiuso:
+            continue  # voce MOD.174 chiusa con verifica: nessun follow-up
         car = getattr(rilievo.ofi, "car_procedurale", None) if rilievo.ofi_id else None
         ultima = rilievo.verifiche_efficacia.all()[0] if rilievo.verifiche_efficacia.all() else None
         if car is not None and car.chiusa_il and ultima and ultima.risultato == "EFFICACE":
@@ -374,15 +389,18 @@ def conflitti_imparzialita(*, processi: str, lead: Auditor | None, auditor) -> l
     return conflitti
 
 
-def auditor_non_qualificati(*, lead: Auditor | None, auditor) -> list[str]:
+def auditor_non_qualificati(*, lead: Auditor | None, auditor, al=None) -> list[str]:
+    """Auditor non qualificati; con ``al`` la scadenza della qualifica si confronta con quella data
+    (l'ultimo giorno dell'audit), non con oggi."""
     candidati = [a for a in [lead, *list(auditor or [])] if a]
     out, visti = [], set()
     for persona in candidati:
         if persona.pk in visti:
             continue
         visti.add(persona.pk)
-        if not persona.qualificato:
-            out.append(persona.nome)
+        scade_prima = bool(al and persona.qualifica_scadenza and persona.qualifica_scadenza < al)
+        if not persona.qualificato or scade_prima:
+            out.append(persona.nome + (f" (qualifica in scadenza il {persona.qualifica_scadenza:%d/%m/%Y})" if scade_prima else ""))
     return out
 
 
@@ -416,7 +434,8 @@ def sincronizza_ofi(esito: AuditEsito):
         "norma_en9100": audit.en9100,
         "norma_iso45001": audit.iso45001,
         "norma_iso27001": audit.iso27001,
-        "rif_norma": esito.clausola_effettiva[:200],
+        # Il MOD.174 non ha un flag ISO 14001: la norma resta leggibile nel riferimento.
+        "rif_norma": (esito.clausola_effettiva + (" (ISO 14001)" if audit.iso14001 else ""))[:200],
         "priorita": (RegistroOFI.PRIORITA_ALTA if esito.gravita == AuditEsito.GRAVITA_MAGGIORE
                      else RegistroOFI.PRIORITA_MEDIA),
         "ref": audit.numero[:100],
@@ -449,10 +468,13 @@ def sincronizza_ofi(esito: AuditEsito):
 
 
 @transaction.atomic
-def salva_esito(esito: AuditEsito, *, utente, genera_rilievo=True):
+def salva_esito(esito: AuditEsito, *, utente, genera_rilievo=True, bozza_token: str = ""):
     from .audit_automation import problemi_esito
     esito.aggiornato_da = utente
     esito.versione += 1
+    # Il token identifica SOLO l'ultimo autosalvataggio: qualunque altro salvataggio lo azzera,
+    # così un retry vecchio torna a essere un conflitto di versione (niente lost update).
+    esito.bozza_token = bozza_token
     esito.full_clean()
     esito.save()
     Audit.objects.filter(pk=esito.audit_id).update(riepilogo_generato="")
@@ -492,7 +514,7 @@ def problemi_chiusura_audit(audit: Audit) -> list[str]:
     if not chiusura_richiede_car_approvate():
         return []
     problemi = []
-    for esito in audit.esiti.filter(esito=AuditEsito.ESITO_NC).select_related("ofi"):
+    for esito in audit.esiti.filter(esito=AuditEsito.ESITO_NC).select_related("ofi", "ofi__car_procedurale"):
         car = getattr(esito.ofi, "car_procedurale", None) if esito.ofi_id else None
         if not esito.ofi_id:
             problemi.append(f"{esito.clausola_effettiva}: la NC non è nel Registro OFI.")
@@ -542,12 +564,13 @@ def verifica_completezza(audit: Audit) -> dict:
             manca(piano, True, "MT CN 12: risolvi il conflitto di indipendenza del team: " + ", ".join(conflitti), "campo")
         elif not audit.imparzialita_deroga_approvata_il:
             manca(piano, True, "Deroga d'indipendenza motivata in attesa dell'approvazione RDD: " + ", ".join(conflitti), "campo")
-    non_qualificati = auditor_non_qualificati(lead=audit.lead_auditor, auditor=audit.auditor.all())
+    non_qualificati = auditor_non_qualificati(lead=audit.lead_auditor, auditor=audit.auditor.all(),
+                                              al=audit.data_fine or audit.data_inizio)
     manca(piano, bool(non_qualificati), "Verifica le qualifiche del team: " + ", ".join(non_qualificati), "campo")
     norme = audit.norme_codici
     non_abilitati = sorted({a.nome for a in [audit.lead_auditor, *team] if not a.abilitato_per(norme)})
     manca(piano, bool(non_abilitati), "Il team non è abilitato per tutte le norme dell'audit: " + ", ".join(non_abilitati), "campo")
-    esiti = list(audit.esiti.all())
+    esiti = list(audit.esiti.prefetch_related("allegati"))
     from .audit_automation import problemi_esito
     completi = sum(not problemi_esito(e) for e in esiti)
     manca(rapporto, not esiti, "Carica una checklist prima di firmare il rapporto.", "checklist")
@@ -586,13 +609,15 @@ def _ics_testo(valore: str) -> str:
             .replace("\r\n", "\\n").replace("\n", "\\n"))
 
 
-def _ics(audit: Audit, destinatari: list[str] | None = None) -> bytes:
+def _ics(audit: Audit, destinatari: list[str] | None = None, *, annulla: bool = False) -> bytes:
     inizio = _datetime_locale(audit.data_inizio, time(9, 0)).astimezone(dt_timezone.utc)
     fine = _datetime_locale(audit.data_fine or audit.data_inizio, time(17, 0)).astimezone(dt_timezone.utc)
     stamp = timezone.now().astimezone(dt_timezone.utc)
     righe = [
-        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//NOVICROM HUB//Audit//IT", "METHOD:REQUEST",
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//NOVICROM HUB//Audit//IT",
+        "METHOD:CANCEL" if annulla else "METHOD:REQUEST",
         "BEGIN:VEVENT", f"UID:audit-{audit.pk}@novicrom-hub", f"DTSTAMP:{stamp:%Y%m%dT%H%M%SZ}",
+        *(["STATUS:CANCELLED"] if annulla else []),
         # SEQUENCE crescente: una nuova comunicazione aggiorna l'evento invece di duplicarlo.
         f"SEQUENCE:{int(stamp.timestamp())}",
         f"DTSTART:{inizio:%Y%m%dT%H%M%SZ}", f"DTEND:{fine:%Y%m%dT%H%M%SZ}",
@@ -616,36 +641,32 @@ def comunica_audit(audit: Audit, *, metodo: str, deroga_motivo: str = "") -> int
     })
     if not destinatari:
         raise ValidationError("Inserisci almeno una persona auditata con indirizzo email.")
-    from core.email_utils import send_hub_mail
-
-    if metodo == Audit.COM_OUTLOOK:
-        # L'invito parte da Graph dopo il commit (audit_outlook.invia_invito), non per email.
-        audit.comunicazione_il = timezone.now()
-        audit.comunicazione_metodo = metodo
-        audit.preavviso_deroga_motivo = (deroga_motivo or "").strip()
-        audit.save(update_fields=["comunicazione_il", "comunicazione_metodo", "preavviso_deroga_motivo", "updated_at"])
-        return 0
-    allegati = []
-    if metodo == Audit.COM_CALENDARIO:
-        allegati.append((f"audit-{audit.numero}.ics", _ics(audit, destinatari), "text/calendar; method=REQUEST"))
-    inviati = send_hub_mail(
-        subject=f"Piano di audit {audit.numero}",
-        body_text=(
-            f"È stato pianificato l'audit {audit.numero} per il {audit.data_inizio:%d/%m/%Y}.\n"
-            f"Processi/aree: {audit.processi}.\nSede: {audit.sede or 'da definire'}."
-        ),
-        recipients=destinatari,
-        title="Piano di audit",
-        email_type="Sistema di gestione",
-        attachments=allegati,
-    )
+    # Solo stato e validazione: l'invio (email o Graph) avviene dopo il commit, fuori dal lock.
     audit.comunicazione_il = timezone.now()
     audit.comunicazione_metodo = metodo
     audit.preavviso_deroga_motivo = (deroga_motivo or "").strip()
-    audit.save(update_fields=[
-        "comunicazione_il", "comunicazione_metodo", "preavviso_deroga_motivo", "updated_at",
-    ])
-    return inviati
+    audit.save(update_fields=["comunicazione_il", "comunicazione_metodo", "preavviso_deroga_motivo", "updated_at"])
+    return destinatari
+
+
+def invia_email_comunicazione(audit: Audit, *, metodo: str, destinatari: list[str], annullamento: bool = False) -> int:
+    """Email del piano (o del suo annullamento) con eventuale invito/cancellazione .ics."""
+    from core.email_utils import send_hub_mail
+
+    allegati = []
+    if metodo == Audit.COM_CALENDARIO:
+        allegati.append((f"audit-{audit.numero}.ics", _ics(audit, destinatari, annulla=annullamento),
+                         "text/calendar; method=CANCEL" if annullamento else "text/calendar; method=REQUEST"))
+    if annullamento:
+        oggetto = f"Audit {audit.numero} annullato"
+        corpo = (f"L'audit {audit.numero} del {audit.data_inizio:%d/%m/%Y} è stato annullato.\n"
+                 f"Motivo: {audit.motivo_annullamento}.")
+    else:
+        oggetto = f"Piano di audit {audit.numero}"
+        corpo = (f"È stato pianificato l'audit {audit.numero} per il {audit.data_inizio:%d/%m/%Y}.\n"
+                 f"Processi/aree: {audit.processi}.\nSede: {audit.sede or 'da definire'}.")
+    return send_hub_mail(subject=oggetto, body_text=corpo, recipients=destinatari, title="Piano di audit",
+                         email_type="Sistema di gestione", attachments=allegati)
 
 
 def distribuisci_rapporto(audit: Audit) -> None:
@@ -676,8 +697,10 @@ def distribuisci_rapporto(audit: Audit) -> None:
             email_type="Sistema di gestione",
             fail_silently=True,
         )
-    except Exception:
-        return
+    except Exception:  # noqa: BLE001 - l'audit resta chiuso; l'invio mancato si registra
+        import logging
+
+        logging.getLogger(__name__).exception("Distribuzione del rapporto %s non riuscita", audit.numero)
 
 
 def _verifica_copertura_procedurale(programma):

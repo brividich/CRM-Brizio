@@ -333,8 +333,9 @@ def _filigrana_bozza(canvas, doc):
     canvas.restoreState()
 
 
-def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False) -> bytes:
-    """MOD.035B. Con ``bozza`` ogni pagina porta la filigrana: è l'anteprima prima della chiusura."""
+def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False, nota: str = "") -> bytes:
+    """MOD.035B. Con ``bozza`` ogni pagina porta la filigrana: è l'anteprima prima della chiusura.
+    ``nota`` compare in testa (es. rapporto rigenerato di un audit chiuso prima dell'archiviazione)."""
     styles = _styles()
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -346,6 +347,8 @@ def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False) -> bytes:
         "RAPPORTO DI AUDIT INTERNO / RAIS - MOD.035B Rev.0",
         f"Codice: MOD.035B\nRev.: 0\nN.: {audit.numero}\nData: {_d(audit.data_fine or audit.data_inizio)}",
     ), Spacer(1, 4 * mm)]
+    if nota:
+        story += [_p(nota, styles["note"]), Spacer(1, 3 * mm)]
     team = ", ".join(a.nome for a in audit.auditor.all())
     norme_rapporto = "  ".join([
         f"{_check(audit.en9100)} EN 9100:2018",

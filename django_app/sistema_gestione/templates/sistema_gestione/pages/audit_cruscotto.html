@@ -12,7 +12,7 @@
   <div class="sg-kpi"><span>Verifiche programmate</span><strong>{{ c.avanzamento.pianificati }}</strong></div>
   <div class="sg-kpi"><span>Eseguite</span><strong>{{ c.avanzamento.eseguiti }}</strong></div>
   <div class="sg-kpi"><span>In ritardo</span><strong>{{ c.avanzamento.in_ritardo }}</strong></div>
-  <div class="sg-kpi"><span>NC maggiori / minori</span><strong>{{ c.totali.NC_MAGGIORE|default:0 }} / {{ c.totali.NC_MINORE|default:0 }}</strong></div>
+  <div class="sg-kpi"><span>NC maggiori / minori</span><strong>{{ c.totali.NC_MAGGIORE|default:0 }} / {{ c.totali.NC_MINORE|default:0 }}</strong>{% if c.totali.NC_ND %}<small>{{ c.totali.NC_ND }} non classificate (storiche)</small>{% endif %}</div>
   <div class="sg-kpi"><span>OFI · Osservazioni</span><strong>{{ c.totali.OFI|default:0 }} · {{ c.totali.OSS|default:0 }}</strong></div>
   <div class="sg-kpi"><span>Giorni medi chiusura CAR</span><strong>{{ c.giorni_medi_chiusura|default_if_none:"—" }}</strong></div>
   <div class="sg-kpi"><span>Efficacia verificata</span><strong>{% if c.efficacia.percentuale is not None %}{{ c.efficacia.percentuale }}%{% else %}—{% endif %}</strong></div>
@@ -20,7 +20,7 @@
 {% if not c.avanzamento.programma %}<section class="rc-card sg-section"><p class="sg-muted">Nessun programma approvato per il {{ c.anno }}: l'avanzamento si calcola sul MOD.034 in vigore.</p></section>
 {% elif c.avanzamento.ritardi %}<section class="rc-card sg-section"><h2>Verifiche in ritardo</h2><ul>{% for cella in c.avanzamento.ritardi %}<li>{{ cella.riga.area }} · mese {{ cella.mese }}{% if cella.audit %} · <a href="{% url 'sistema_gestione:audit_dettaglio' cella.audit.pk %}">{{ cella.audit.numero }}</a> ({{ cella.audit.get_stato_display }}){% else %} · non pianificato{% endif %}</li>{% endfor %}</ul></section>{% endif %}
 <section class="rc-card sg-section"><h2>Rilievi per processo</h2><div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Processo</th><th class="sg-num">NC magg.</th><th class="sg-num">NC min.</th><th class="sg-num">OFI</th><th class="sg-num">Oss.</th><th class="sg-num">Totale</th></tr></thead><tbody>
-{% for nome, v, tot in c.per_processo %}<tr><td>{{ nome }}</td><td class="sg-num">{{ v.NC_MAGGIORE|default:0 }}</td><td class="sg-num">{{ v.NC_MINORE|default:0 }}</td><td class="sg-num">{{ v.OFI|default:0 }}</td><td class="sg-num">{{ v.OSS|default:0 }}</td><td class="sg-num"><strong>{{ tot }}</strong></td></tr>{% empty %}<tr><td colspan="6">Nessun rilievo nell'anno.</td></tr>{% endfor %}
+{% for nome, v, tot in c.per_processo %}<tr><td>{{ nome }}</td><td class="sg-num">{{ v.NC_MAGGIORE|default:0 }}</td><td class="sg-num">{{ v.NC_MINORE|default:0 }}{% if v.NC_ND %} <small>+{{ v.NC_ND }} n.c.</small>{% endif %}</td><td class="sg-num">{{ v.OFI|default:0 }}</td><td class="sg-num">{{ v.OSS|default:0 }}</td><td class="sg-num"><strong>{{ tot }}</strong></td></tr>{% empty %}<tr><td colspan="6">Nessun rilievo nell'anno.</td></tr>{% endfor %}
 </tbody></table></div></section>
 <section class="rc-card sg-section"><h2>Rilievi nel tempo</h2><div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Mese</th>{% for m in c.per_mese %}<th class="sg-num">{{ m.mese }}</th>{% endfor %}</tr></thead><tbody>
 <tr><td>NC</td>{% for m in c.per_mese %}<td class="sg-num">{{ m.NC|default:"·" }}</td>{% endfor %}</tr>

@@ -1,6 +1,8 @@
 """Programma basato sul rischio (prompt 08): ciclo triennale, calendario, impostazioni, rifiuto e deroghe."""
 from __future__ import annotations
 
+import logging
+
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -17,6 +19,8 @@ from .models import Audit, AuditPersona, CicloAudit, ProgrammaAudit
 from .services import audit as service
 from .services import programma as programma_service
 from .views import MODULE, _has_perm, _nega
+
+logger = logging.getLogger(__name__)
 
 
 class CicloForm(forms.ModelForm):
@@ -135,6 +139,13 @@ def programma_rifiuta(request, pk: int):
     return redirect("sistema_gestione:programma_dettaglio", pk=pk)
 
 
+def _conflitti(audit) -> list[str]:
+    team = list(audit.auditor.all())
+    conflitti = service.conflitti_imparzialita(processi=audit.processi, lead=audit.lead_auditor, auditor=team)
+    utenti = {a.user_id for a in [audit.lead_auditor, *team] if a.user_id}
+    return conflitti + [str(p) for p in audit.processi_catalogo.all() if p.responsabile_id in utenti]
+
+
 @login_required
 @require_POST
 @transaction.atomic
@@ -147,8 +158,10 @@ def audit_approva_deroga(request, pk: int):
         messages.error(request, "Le impostazioni non ammettono deroghe all'indipendenza.")
     elif audit.stato != Audit.STATO_PIANIFICATO or not audit.imparzialita_deroga_motivo.strip():
         messages.error(request, "Serve un piano in bozza con la deroga motivata.")
-    elif request.user.pk in team:
-        messages.error(request, "Chi fa parte del team di audit non può approvare la propria deroga.")
+    elif request.user.pk in team or audit.processi_catalogo.filter(responsabile_id=request.user.pk).exists():
+        messages.error(request, "Chi fa parte del team o è responsabile di un processo dell'audit non può approvare la deroga.")
+    elif not _conflitti(audit):
+        messages.info(request, "Il conflitto d'indipendenza non c'è più: la deroga non serve.")
     else:
         audit.imparzialita_deroga_approvata_da = request.user
         audit.imparzialita_deroga_approvata_il = timezone.now()
@@ -183,10 +196,18 @@ def audit_annulla(request, pk: int):
         audit.celle_programma.update(audit=None)
     from .services import audit_outlook
 
+    # Chi aveva ricevuto il piano va avvisato: Outlook cancella l'evento, l'email porta il .ics CANCEL.
     try:
-        audit_outlook.annulla_invito(audit)
-    except Exception as exc:  # noqa: BLE001 - l'audit resta annullato; l'invito si cancella a mano
-        messages.warning(request, f"Audit annullato, ma l'invito Outlook non è stato cancellato: {exc}")
+        if audit.outlook_event_id:
+            audit_outlook.annulla_invito(audit)
+        elif audit.comunicazione_il and audit.comunicazione_metodo in {Audit.COM_EMAIL, Audit.COM_CALENDARIO}:
+            destinatari = sorted({p.email.strip() for p in audit.persone.filter(ruolo=AuditPersona.RUOLO_AUDITATO) if p.email.strip()})
+            if destinatari:
+                service.invia_email_comunicazione(audit, metodo=audit.comunicazione_metodo, destinatari=destinatari, annullamento=True)
+    except Exception as exc:  # noqa: BLE001 - l'audit resta annullato; l'avviso si manda a mano
+        logger.warning("Avviso di annullamento dell'audit %s non inviato", audit.numero, exc_info=True)
+        dettaglio = str(exc) if isinstance(exc, RuntimeError) else "errore del servizio di invio"
+        messages.warning(request, f"Audit annullato, ma l'avviso agli auditati non è partito ({dettaglio}): avvisali a mano.")
     log_action(request, "audit_annullato", MODULE, {"motivo": audit.motivo_annullamento, "celle_liberate": celle}, oggetto=audit)
     messages.success(request, "Audit annullato: la verifica del programma torna da pianificare.")
     return redirect("sistema_gestione:audit_dettaglio", pk=pk)
@@ -203,7 +224,9 @@ def audit_conferme_aggiorna(request, pk: int):
     try:
         conteggio = audit_outlook.aggiorna_conferme(audit)
     except Exception as exc:  # noqa: BLE001 - errore Graph spiegato all'utente
-        messages.error(request, f"Conferme non aggiornate: {exc}")
+        logger.warning("Conferme Outlook dell'audit %s non aggiornate", audit.numero, exc_info=True)
+        dettaglio = str(exc) if isinstance(exc, RuntimeError) else "errore di comunicazione con Outlook"
+        messages.error(request, f"Conferme non aggiornate: {dettaglio}")
     else:
         sintesi = ", ".join(f"{dict(AuditPersona.CONFERMA_CHOICES).get(k, k)}: {v}" for k, v in sorted(conteggio.items())) or "nessuna risposta"
         log_action(request, "audit_conferme_aggiornate", MODULE, conteggio, oggetto=audit)

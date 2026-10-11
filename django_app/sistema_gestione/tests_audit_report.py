@@ -124,8 +124,13 @@ class MieiRilieviTests(AuditBase):
         self.assertIsNone(ambigua.user)
 
     def test_vede_solo_i_propri_rilievi_a_rapporto_firmato(self):
-        self.assertEqual(list(miei_rilievi_views.rilievi_utente(self.auditato)), [self.nc])
+        # Responsabile dell'azione: vede il rilievo. Auditato senza responsabilità sul rilievo: no.
         self.assertEqual(list(miei_rilievi_views.rilievi_utente(self.estraneo)), [self.nc])
+        self.assertEqual(list(miei_rilievi_views.rilievi_utente(self.auditato)), [])
+        # Responsabile del processo del rilievo, coinvolto nell'audit: lo vede.
+        from .models import Processo
+        AuditEsito.objects.filter(pk=self.nc.pk).update(processo=Processo.objects.create(codice="PX", nome="X", responsabile=self.auditato))
+        self.assertEqual(list(miei_rilievi_views.rilievi_utente(self.auditato)), [self.nc])
         terzo = User.objects.create_user(username="terzo-test", password="x")
         self.assertEqual(list(miei_rilievi_views.rilievi_utente(terzo)), [])
 
