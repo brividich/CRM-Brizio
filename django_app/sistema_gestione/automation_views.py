@@ -233,12 +233,12 @@ def applica_priorita(request):
             continue
         riga = RigaProgramma.objects.create(programma=programma, processo=processo,
             area=f"{processo} (Rev.{processo.revisione})"[:255], enti=processo.enti,
-            punti_9100=processo.punti_9100, punti_45001=processo.punti_45001,
+            punti_9100=processo.punti_9100, punti_45001=processo.punti_45001, punti_14001=processo.punti_14001,
             punti_27001=processo.punti_27001, punti_pdr125=processo.punti_pdr125,
-            altre_normative=processo.procedure[:500], note="Proposta priorita-v1: " + "; ".join(proposta["motivi"]))
+            altre_normative=processo.procedure[:500], note="Proposta priorita-v2: " + "; ".join(proposta["motivi"]))
         CellaProgramma.objects.create(riga=riga, mese=data.month, stato=CellaProgramma.STATO_PR)
         inserite += 1
-    log_action(request, "audit_priorita_applicata", MODULE, {"righe": inserite, "algoritmo": "priorita-v1"}, oggetto=programma)
+    log_action(request, "audit_priorita_applicata", MODULE, {"righe": inserite, "algoritmo": "priorita-v2"}, oggetto=programma)
     messages.info(request, f"{inserite} righe aggiunte. Saltati processi gia pianificati, gia presenti o con proposta fuori dall'anno selezionato.")
     return redirect("sistema_gestione:programma_dettaglio", pk=programma.pk)
 

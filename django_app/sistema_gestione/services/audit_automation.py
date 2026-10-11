@@ -25,7 +25,7 @@ def proponi_domande(processo):
         ("DOC", "procedure", "Il campione esaminato segue i documenti e le revisioni applicabili?"),
     ]
     create = 0
-    for norma, campo_norma in [("en9100", "punti_9100"), ("iso45001", "punti_45001"),
+    for norma, campo_norma in [("en9100", "punti_9100"), ("iso45001", "punti_45001"), ("iso14001", "punti_14001"),
                               ("iso27001", "punti_27001"), ("pdr125", "punti_pdr125")]:
         punti = getattr(processo, campo_norma)
         if not punti.strip():
@@ -134,18 +134,25 @@ def aggiungi_mesi(data, mesi):
 
 
 def priorita_processi(processi, oggi=None):
-    """Punteggio operativo 0-100, versione 1. Non e una valutazione normativa del rischio."""
+    """Punteggio operativo 0-100, versione 2. Non e una valutazione normativa del rischio."""
+    from .programma import frequenza_raccomandata
+
     oggi = oggi or timezone.localdate()
     risultati = []
-    recenti = AuditEsito.objects.filter(esito="NC", audit__data_inizio__gte=oggi-timedelta(days=730), audit__data_inizio__lte=oggi).exclude(audit__stato=Audit.STATO_ANNULLATO).prefetch_related("verifiche_efficacia")
+    recenti = AuditEsito.objects.filter(esito__in=["NC", "OFI"], audit__data_inizio__gte=oggi-timedelta(days=730), audit__data_inizio__lte=oggi).exclude(audit__stato=Audit.STATO_ANNULLATO).prefetch_related("verifiche_efficacia")
     processi = processi.prefetch_related(
         Prefetch("audit", queryset=Audit.objects.only("id", "stato", "data_inizio", "processi_snapshot"), to_attr="audit_priorita"),
-        Prefetch("esiti_audit", queryset=recenti, to_attr="nc_priorita"),
+        Prefetch("esiti_audit", queryset=recenti, to_attr="rilievi_priorita"),
     )
     for processo in processi:
         chiusi = sorted((a for a in processo.audit_priorita if a.stato == Audit.STATO_CHIUSO), key=lambda a: a.data_inizio, reverse=True)
         ultimo = chiusi[0].data_inizio if chiusi else None
-        scadenza = aggiungi_mesi(ultimo, min(processo.frequenza_mesi, 12)) if ultimo else oggi
+        esiti = [e for e in processo.rilievi_priorita if e.esito == "NC"]
+        ofi = sum(1 for e in processo.rilievi_priorita if e.esito == "OFI")
+        non_efficaci = sum(1 for e in esiti
+                          if e.verifiche_efficacia.all() and e.verifiche_efficacia.all()[0].risultato != "EFFICACE")
+        frequenza, motivi_frequenza = frequenza_raccomandata(processo, nc=len(esiti), ofi=ofi, non_efficaci=non_efficaci)
+        scadenza = aggiungi_mesi(ultimo, frequenza) if ultimo else oggi
         score = processo.criticita * 10
         motivi = [f"Criticita dichiarata {processo.get_criticita_display()}: +{score}"]
         if not ultimo:
@@ -155,14 +162,18 @@ def priorita_processi(processi, oggi=None):
             punti = min(30, 10 + (oggi - scadenza).days // 30 * 5)
             score += punti
             motivi.append(f"Verifica in scadenza/scaduta di {(oggi-scadenza).days} giorni: +{punti}")
-        esiti = processo.nc_priorita
         nc = len(esiti)
         if nc:
             punti = min(30, nc * 10)
             score += punti
             motivi.append(f"{nc} NC attribuite al processo negli ultimi 24 mesi: +{punti}")
-        non_efficaci = sum(1 for e in esiti
-                          if e.verifiche_efficacia.all() and e.verifiche_efficacia.all()[0].risultato != "EFFICACE")
+        if ofi:
+            punti = min(15, ofi * 5)
+            score += punti
+            motivi.append(f"{ofi} OFI negli ultimi 24 mesi: +{punti}")
+        if (processo.requisiti_cliente or "").strip():
+            score += 10
+            motivi.append("Requisiti cliente/ente sul processo: +10")
         if non_efficaci:
             score += 10
             motivi.append("Verifiche di efficacia ancora negative/in sospeso: +10")
@@ -171,7 +182,10 @@ def priorita_processi(processi, oggi=None):
             score += 10
             motivi.append("Scheda revisionata dopo l'ultima versione verificata: +10")
         score = min(100, score)
+        mesi_ultimo = ((oggi.year - ultimo.year) * 12 + oggi.month - ultimo.month) if ultimo else None
         risultati.append({"processo": processo, "punteggio": score, "motivi": motivi,
+            "frequenza_mesi": frequenza, "motivi_frequenza": motivi_frequenza,
+            "mesi_dall_ultimo": mesi_ultimo, "oltre_frequenza": bool(ultimo and scadenza < oggi),
             "scadenza": scadenza, "data_proposta": oggi if scadenza <= oggi else min(scadenza, oggi+timedelta(days=30)) if score >= 60 else scadenza,
             "priorita": "Alta" if score >= 60 else "Media" if score >= 30 else "Bassa",
             "programmato": any(a.data_inizio >= oggi and a.stato not in [Audit.STATO_CHIUSO, Audit.STATO_ANNULLATO] for a in processo.audit_priorita)})

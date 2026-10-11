@@ -15,7 +15,7 @@ def copertura_annuale(programma):
         applicabili = [c for c in celle if c.riga.processo_id == p.pk and (not c.audit_id or (c.audit.stato != Audit.STATO_ANNULLATO and c.audit.data_inizio.year == programma.anno))]
         mesi = sorted({c.mese for c in applicabili})
         scoperti = []
-        for campo in ["punti_9100", "punti_45001", "punti_27001", "punti_pdr125"]:
+        for campo in ["punti_9100", "punti_45001", "punti_14001", "punti_27001", "punti_pdr125"]:
             richiesti = {v.strip() for v in re.split(r"[,;\n]", getattr(p, campo)) if v.strip()}
             coperti = {v.strip() for c in applicabili for v in re.split(r"[,;\n]", getattr(c.riga, campo)) if v.strip()}
             scoperti.extend(campo.removeprefix("punti_") + ": " + v for v in sorted(richiesti-coperti))

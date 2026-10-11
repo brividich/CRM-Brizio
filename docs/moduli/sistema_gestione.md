@@ -28,7 +28,12 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 - **Rilievi:** esiti Conforme, Punto di forza, Osservazione, OFI, NC (maggiore/minore), N/A, con clausola. Una NC entra nel MOD.174 solo con gravità ed evidenza allegata; NC maggiore = priorità Alta. Le evidenze si scaricano con un ruolo sull'audit o con la gestione del programma.
 - **CAR e chiusura:** analisi cause 5 perché / Ishikawa 6M / documento esterno (schema delle NC di produzione). L'audit si chiude solo con il piano azioni approvato per ogni NC (`sistema_gestione.audit_chiusura_richiede_car_approvate`, default attivo). Solleciti giornalieri al responsabile ed escalation a RSGI oltre `sistema_gestione.car_escalation_giorni` (default 15) con il job `sistema_gestione_car_solleciti`; destinatari `sistema_gestione.audit_email_rsgi`.
 
+- **Programma basato sul rischio:** cicli triennali con copertura per processo e clausola (`/sistema-gestione/audit/cicli/`); calendario mensile (`/audit/calendario/`); priorità `priorita-v2` con NC, OFI, requisiti cliente ed efficacia; frequenza raccomandata entro i 12 mesi di MT CN 12; rifiuto motivato del programma, proponente ≠ approvatore. Norme: EN 9100, ISO 45001, ISO 14001, ISO/IEC 27001, UNI/PdR 125.
+- **Auditor e indipendenza:** qualifica con scadenza e norme abilitate; deroga d'indipendenza solo se ammessa nelle impostazioni (`/audit/impostazioni/`) e approvata da un RDD esterno al team.
+
 ## Note di rilascio
+
+**Audit interni professionali — fase 3 (Unreleased, prompt 08):** cicli triennali, ISO 14001, frequenza raccomandata, calendario, rifiuto del programma, qualifica con scadenza, deroga configurabile, pagina Impostazioni. Deploy: `migrate sistema_gestione` 0011.
 
 **Audit interni professionali — fasi 1-2 (Unreleased, prompt 08):** rapporto emesso immutabile con SHA-256, firme separate, rilievi classificati, CAR 5 perché/Ishikawa, chiusura condizionata e solleciti. Piano completo in [gap analysis](../specs/sgi_audit_interni_gap_analysis.md). Deploy: `migrate sistema_gestione` 0009-0010 e `setup_q_schedules`. Configurare `sistema_gestione.audit_email_rsgi` per l'escalation.
 

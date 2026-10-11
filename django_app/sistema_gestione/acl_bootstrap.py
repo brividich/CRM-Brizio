@@ -16,7 +16,8 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "sistema_gestione"
-_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v2"
+# v3: route del programma basato sul rischio (cicli, calendario, impostazioni, rifiuto, deroga).
+_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v3"
 
 PERM_VIEW = "sistema_gestione.modulo.view"
 PERM_SOA_VIEW = "sistema_gestione.soa.view"
@@ -80,6 +81,12 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:audit_prepara_rapporto": PERM_AUDIT_ESEGUI,
     "sistema_gestione:audit_revisiona_rapporto": PERM_AUDIT_APPROVA,
     "sistema_gestione:audit_versione_download": PERM_AUDIT_VIEW,
+    "sistema_gestione:programma_cicli": PERM_AUDIT_VIEW,
+    "sistema_gestione:programma_ciclo": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_calendario": PERM_AUDIT_VIEW,
+    "sistema_gestione:audit_impostazioni": PERM_AUDIT_APPROVA,
+    "sistema_gestione:programma_rifiuta": PERM_AUDIT_APPROVA,
+    "sistema_gestione:audit_approva_deroga": PERM_AUDIT_APPROVA,
 
     "sistema_gestione:audit_elemento_modifica": PERM_AUDIT_EDIT,
     "sistema_gestione:processi_catalogo": PERM_AUDIT_VIEW,

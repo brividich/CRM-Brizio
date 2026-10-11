@@ -1,0 +1,9 @@
+{% extends "core/base.html" %}{% block title %}Cicli di audit{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}<div class="rc-wrap"><a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a><h1>Cicli di audit</h1>
+<section class="rc-card sg-section"><h2>Il triennio di certificazione</h2><p>Un ciclo raggruppa i programmi annuali MOD.034 degli anni indicati e mostra, processo per processo, gli anni con audit eseguito o programmato e le clausole del catalogo mai programmate nel ciclo.</p></section>
+<section class="rc-card sg-section"><h2>Cicli</h2><div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Ciclo</th><th>Anni</th><th>Note</th></tr></thead><tbody>
+{% for ciclo in cicli %}<tr><td><a href="{% url 'sistema_gestione:programma_ciclo' ciclo.pk %}">{{ ciclo.nome }}</a></td><td>{{ ciclo.anno_inizio }}–{{ ciclo.anno_fine }}</td><td>{{ ciclo.note|truncatechars:120 }}</td></tr>{% empty %}<tr><td colspan="3">Nessun ciclo: crea il primo qui sotto.</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% if puo_modificare %}<section class="rc-card sg-section"><h2>Nuovo ciclo</h2><form method="post" class="hub-form-stack">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}{% include "sistema_gestione/components/_audit_field.html" with field=field %}{% endfor %}<button class="btn" type="submit">Crea il ciclo</button></form></section>{% endif %}
+</div>{% endblock %}

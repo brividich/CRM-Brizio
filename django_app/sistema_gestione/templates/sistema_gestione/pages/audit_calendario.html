@@ -1,0 +1,22 @@
+{% extends "core/base.html" %}{% block title %}Calendario audit{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}
+<style>
+.sg-cal{width:100%;border-collapse:collapse;table-layout:fixed}
+.sg-cal th{font-size:.75rem;color:var(--text-light);padding:6px;text-align:left}
+.sg-cal td{border:1px solid var(--border,#d9dee7);vertical-align:top;height:92px;padding:4px 6px;font-size:.8rem}
+.sg-cal td.fuori{background:var(--surface-alt,#f6f7f9);color:var(--text-light)}
+.sg-cal td.oggi{outline:2px solid var(--primary,#1f87cd);outline-offset:-2px}
+.sg-cal .giorno{font-weight:600;display:block;margin-bottom:2px}
+.sg-cal a.evento{display:block;margin-top:2px;padding:2px 4px;border-radius:4px;background:var(--primary-soft,#e7f1fb);color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.theme-dark .sg-cal td.fuori{background:rgba(255,255,255,.03)}
+body.theme-dark .sg-cal a.evento{background:rgba(31,135,205,.22)}
+@media (max-width:700px){.sg-cal td{height:64px;font-size:.7rem}.sg-cal a.evento{white-space:normal}}
+</style>{% endblock %}
+{% block content %}<div class="rc-wrap"><a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
+<div class="page-header"><div class="page-header-main"><div class="page-h">Calendario audit · {{ cal.primo|date:"F Y" }}</div><div class="page-sub">Audit pianificati nelle loro date e verifiche del programma ancora da pianificare nel mese.</div></div>
+<div class="sg-actions"><a class="btn btn-secondary" href="?anno={{ cal.precedente.year }}&mese={{ cal.precedente.month }}">← {{ cal.precedente|date:"F" }}</a><a class="btn btn-secondary" href="?anno={{ oggi.year }}&mese={{ oggi.month }}">Oggi</a><a class="btn btn-secondary" href="?anno={{ cal.successivo.year }}&mese={{ cal.successivo.month }}">{{ cal.successivo|date:"F" }} →</a></div></div>
+<section class="rc-card sg-section"><div class="sg-table-scroll"><table class="sg-cal" aria-label="Calendario degli audit"><thead><tr><th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th><th>Dom</th></tr></thead><tbody>
+{% for settimana in cal.settimane %}<tr>{% for g in settimana %}<td class="{% if not g.nel_mese %}fuori{% endif %}{% if g.giorno == oggi %} oggi{% endif %}"><span class="giorno">{{ g.giorno.day }}</span>{% for a in g.audit %}<a class="evento" href="{% url 'sistema_gestione:audit_dettaglio' a.pk %}" title="{{ a.numero }} · {{ a.processi }}">{{ a.numero }} · {{ a.get_stato_display }}</a>{% endfor %}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table></div></section>
+<section class="rc-card sg-section"><h2>Da pianificare nel mese</h2>{% if cal.da_pianificare %}<ul>{% for cella in cal.da_pianificare %}<li>{{ cella.riga.area }} · {{ cella.get_stato_display }} — <a href="{% url 'sistema_gestione:audit_nuovo' %}?cella={{ cella.pk }}">Pianifica</a></li>{% endfor %}</ul>{% else %}<p class="sg-muted">Nessuna verifica del programma in attesa di data per questo mese.</p>{% endif %}</section>
+</div>{% endblock %}

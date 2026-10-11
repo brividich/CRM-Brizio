@@ -39,6 +39,7 @@ from .models import (
     AuditPersona,
     Auditor,
     CellaProgramma,
+    Processo,
     ProgrammaAudit,
     RigaProgramma,
 )
@@ -105,6 +106,8 @@ def audit_index(request):
         "auditor_attivi": Auditor.objects.filter(attivo=True).count(),
         "audit_chiusi": audit.filter(stato=Audit.STATO_CHIUSO).count(),
         "audit_programmati": audit.exclude(stato=Audit.STATO_ANNULLATO).count(),
+        "da_verificare": [r for r in automation.priorita_processi(Processo.objects.filter(attivo=True))
+                          if r["mesi_dall_ultimo"] is None or r["oltre_frequenza"]],
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
         "puo_eseguire": _has_perm(request, PERM_AUDIT_ESEGUI),
         "puo_approvare": _has_perm(request, PERM_AUDIT_APPROVA),
@@ -386,11 +389,11 @@ def _initial_da_cella(cella: CellaProgramma) -> dict:
     return {
         "programma": riga.programma,
         "righe": [riga],
-        "en9100": bool(riga.punti_9100), "iso45001": bool(riga.punti_45001),
+        "en9100": bool(riga.punti_9100), "iso45001": bool(riga.punti_45001), "iso14001": bool(riga.punti_14001),
         "iso27001": bool(riga.punti_27001), "pdr125": bool(riga.punti_pdr125),
         "processi": riga.area + (f" - {riga.enti}" if riga.enti else ""),
         "processi_catalogo": [riga.processo_id] if riga.processo_id else [],
-        "punti_norma": "; ".join(filter(None, [riga.punti_9100, riga.punti_45001, riga.punti_27001, riga.punti_pdr125])),
+        "punti_norma": "; ".join(filter(None, [riga.punti_9100, riga.punti_45001, riga.punti_14001, riga.punti_27001, riga.punti_pdr125])),
         "procedure_criteri": riga.altre_normative,
         "data_inizio": giorno,
     }

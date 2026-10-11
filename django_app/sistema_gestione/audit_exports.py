@@ -150,7 +150,7 @@ def programma_pdf(programma: ProgrammaAudit) -> bytes:
     months = ["G", "F", "M", "A", "M", "G", "L", "A", "S", "O", "N", "D"]
     rows = [[
         _p("AREA SOGGETTA AD AUDIT INTERNO", styles["head"]), _p("ENTI", styles["head"]),
-        _p("9100:2018", styles["small"]), _p("45001:2018", styles["small"]),
+        _p("9100:2018", styles["small"]), _p("45001:2018", styles["small"]), _p("14001:2015", styles["small"]),
         _p("27001:2022", styles["small"]), _p("PdR 125:2022", styles["small"]),
         _p("Normative", styles["head"]), *[_p(m, styles["head"]) for m in months],
     ]]
@@ -159,11 +159,11 @@ def programma_pdf(programma: ProgrammaAudit) -> bytes:
         rows.append([
             _p(riga.area + (f"\n{riga.note}" if riga.note else ""), styles["cell"]),
             _p(riga.enti, styles["cell"]), _p(riga.punti_9100, styles["cell"]),
-            _p(riga.punti_45001, styles["cell"]), _p(riga.punti_27001, styles["cell"]),
+            _p(riga.punti_45001, styles["cell"]), _p(riga.punti_14001, styles["cell"]), _p(riga.punti_27001, styles["cell"]),
             _p(riga.punti_pdr125, styles["cell"]), _p(riga.altre_normative, styles["small"]),
             *[_p(celle.get(mese, ""), styles["head"]) for mese in range(1, 13)],
         ])
-    fixed = [62 * mm, 35 * mm, 23 * mm, 23 * mm, 23 * mm, 23 * mm, 35 * mm]
+    fixed = [56 * mm, 32 * mm, 21 * mm, 21 * mm, 21 * mm, 21 * mm, 21 * mm, 32 * mm]
     month_width = max(8 * mm, (width - sum(fixed)) / 12)
     griglia = _table(rows, fixed + [month_width] * 12, repeat=1, font_size=6.2)
     colori_stato = {
@@ -213,7 +213,7 @@ def piano_audit_pdf(audit: Audit) -> bytes:
         f"{_check(audit.tipo == Audit.TIPO_STRAORDINARIO)} Straordinario",
     ])
     norme = "  ".join([
-        f"{_check(audit.en9100)} EN 9100:2018", f"{_check(audit.iso45001)} ISO 45001:2018",
+        f"{_check(audit.en9100)} EN 9100:2018", f"{_check(audit.iso45001)} ISO 45001:2018", f"{_check(audit.iso14001)} ISO 14001:2015",
         f"{_check(audit.iso27001)} ISO/IEC 27001:2022", f"{_check(audit.pdr125)} UNI/PdR 125",
     ])
     metodi = "  ".join([
@@ -332,6 +332,7 @@ def rapporto_audit_pdf(audit: Audit, *, bozza: bool = False) -> bytes:
     norme_rapporto = "  ".join([
         f"{_check(audit.en9100)} EN 9100:2018",
         f"{_check(audit.iso45001)} ISO 45001:2018",
+        f"{_check(audit.iso14001)} ISO 14001:2015",
         f"{_check(audit.iso27001)} ISO/IEC 27001:2022",
         f"{_check(audit.pdr125)} UNI/PdR 125",
     ])

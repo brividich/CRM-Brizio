@@ -272,7 +272,7 @@ class AutomazioniAuditTests(AuditBase):
     def test_editor_e_priorita_renderizzano(self,_executor,_perm):
         esito=self.esito()
         self.assertContains(views.esito_editor(_request(self.user,method="get"),esito.audit_id,esito.pk),"data-audit-autosave")
-        self.assertContains(views.priorita(_request(self.user,method="get")),"priorita-v1")
+        self.assertContains(views.priorita(_request(self.user,method="get")),"priorita-v2")
 
     @patch("sistema_gestione.automation_views._has_perm", return_value=True)
     def test_revisione_archivia_pdf_e_azzera_firme(self,_perm):

@@ -94,6 +94,7 @@ def nuova_revisione_programma(programma: ProgrammaAudit, *, motivo: str, utente)
             enti=riga.enti,
             punti_9100=riga.punti_9100,
             punti_45001=riga.punti_45001,
+            punti_14001=riga.punti_14001,
             punti_27001=riga.punti_27001,
             punti_pdr125=riga.punti_pdr125,
             altre_normative=riga.altre_normative,
@@ -124,10 +125,28 @@ def proponi_programma(programma: ProgrammaAudit, *, utente) -> None:
 def approva_programma(programma: ProgrammaAudit, *, utente) -> None:
     if programma.stato != ProgrammaAudit.STATO_PROPOSTA:
         raise TransizioneNonAmmessa("Il programma non è in attesa di approvazione.")
+    if programma.proposto_da_id and utente and programma.proposto_da_id == utente.pk:
+        raise TransizioneNonAmmessa("L'approvazione deve essere di una persona diversa da chi ha proposto il programma.")
     _verifica_copertura_procedurale(programma)
     programma.approvato_da = utente
     programma.approvato_il = timezone.now()
     programma.save(update_fields=["approvato_da", "approvato_il", "updated_at"])
+
+
+@transaction.atomic
+def rifiuta_programma(programma: ProgrammaAudit, *, motivo: str, utente) -> None:
+    """La Direzione respinge la proposta: torna in bozza con il motivo, le firme si azzerano."""
+    motivo = (motivo or "").strip()
+    if programma.stato != ProgrammaAudit.STATO_PROPOSTA:
+        raise TransizioneNonAmmessa("Si può respingere solo un programma proposto.")
+    if not motivo:
+        raise TransizioneNonAmmessa("Indica il motivo per cui il programma torna in bozza.")
+    programma.stato = ProgrammaAudit.STATO_BOZZA
+    programma.motivo_rifiuto = motivo[:500]
+    programma.proposto_da = programma.approvato_da = None
+    programma.proposto_il = programma.approvato_il = None
+    programma.save(update_fields=["stato", "motivo_rifiuto", "proposto_da", "proposto_il",
+                                  "approvato_da", "approvato_il", "updated_at"])
 
 
 @transaction.atomic
@@ -445,9 +464,18 @@ def verifica_completezza(audit: Audit) -> dict:
     conflitti = conflitti_imparzialita(processi=audit.processi, lead=audit.lead_auditor, auditor=team)
     utenti = {a.user_id for a in [audit.lead_auditor, *team] if a.user_id}
     conflitti.extend(str(p) for p in audit.processi_catalogo.all() if p.responsabile_id in utenti)
-    manca(piano, bool(conflitti), "MT CN 12: risolvi il conflitto di indipendenza del team: " + ", ".join(conflitti), "campo")
+    if conflitti:
+        from .programma import deroga_imparzialita_ammessa
+
+        if not (deroga_imparzialita_ammessa() and audit.imparzialita_deroga_motivo.strip()):
+            manca(piano, True, "MT CN 12: risolvi il conflitto di indipendenza del team: " + ", ".join(conflitti), "campo")
+        elif not audit.imparzialita_deroga_approvata_il:
+            manca(piano, True, "Deroga d'indipendenza motivata in attesa dell'approvazione RDD: " + ", ".join(conflitti), "campo")
     non_qualificati = auditor_non_qualificati(lead=audit.lead_auditor, auditor=audit.auditor.all())
     manca(piano, bool(non_qualificati), "Verifica le qualifiche del team: " + ", ".join(non_qualificati), "campo")
+    norme = audit.norme_codici
+    non_abilitati = sorted({a.nome for a in [audit.lead_auditor, *team] if not a.abilitato_per(norme)})
+    manca(piano, bool(non_abilitati), "Il team non è abilitato per tutte le norme dell'audit: " + ", ".join(non_abilitati), "campo")
     esiti = list(audit.esiti.all())
     from .audit_automation import problemi_esito
     completi = sum(not problemi_esito(e) for e in esiti)
@@ -473,8 +501,12 @@ def invalida_approvazione_piano(audit):
     audit.piano_approvato_lead_il = None
     audit.comunicazione_il = None
     audit.comunicazione_metodo = ""
+    # Una deroga d'indipendenza vale per il team e il campo approvati: si riapprova.
+    audit.imparzialita_deroga_approvata_da = None
+    audit.imparzialita_deroga_approvata_il = None
     audit.save(update_fields=["piano_approvato_lead_da", "piano_approvato_lead_il",
-                              "comunicazione_il", "comunicazione_metodo", "updated_at"])
+                              "comunicazione_il", "comunicazione_metodo",
+                              "imparzialita_deroga_approvata_da", "imparzialita_deroga_approvata_il", "updated_at"])
 
 
 def _ics(audit: Audit) -> bytes:
