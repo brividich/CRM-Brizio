@@ -25,6 +25,7 @@
         <p class="fmd-ph-sub">Micro-corsi interni: slide + quiz finale. Crea, controlla lo stato di salute e monitora iscritti e completamenti.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        {% include "anagrafica/partials/_elearning_guida_link.html" with ancora="creare" %}
         <a href="{% url 'anagrafica:formazione_online_catalog' %}" class="fmd-btn fmd-btn-ghost" target="_blank"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Vista discente</a>
         {% if is_editor %}
         <a href="{% url 'anagrafica:elearning_cruscotto' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-grid"/></svg>Cruscotto</a>

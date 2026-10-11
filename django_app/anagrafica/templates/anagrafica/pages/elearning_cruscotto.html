@@ -35,6 +35,7 @@ body.theme-dark .elc-bar { background:var(--surface-alt); }
         <p class="fmd-ph-sub">Copertura degli obblighi sui corsi online (stessi numeri dello scadenzario), andamento dei completamenti e qualità dei contenuti. Estratto il {% now "d/m/Y H:i" %}.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        {% include "anagrafica/partials/_elearning_guida_link.html" with ancora="cruscotto" %}
         {% include "anagrafica/components/_export_menu.html" with export_key="elearning_copertura" %}
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:elearning_registro' %}"><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Registro</a>
       </div>
