@@ -8,6 +8,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Anagrafica — riquadro «Account portale» nella scheda dipendente** (`django_app/anagrafica/views_account.py`, `views.py`, `urls.py`, `services/account_portale.py`, `migrations/0162_account_scheda_acl.py` nuovo, `templates/anagrafica/partials/_account_portale_scheda.html` nuovo, `partials/_account_portale_risultati.html`, `pages/dipendente_detail.html`, `anagrafica/tests_account_scheda.py` nuovo, `docs/moduli/anagrafica.md`).
+  - Nella tab Anagrafica della scheda, solo per chi amministra l'anagrafica (controllo ripetuto nelle view): se collegato, login, tipo (AD o locale) e stato dell'utente portale con **Scollega** (POST con conferma, solo `utente_id = NULL`, l'utente resta; audit `ACCOUNT_PORTALE_SCOLLEGATO`); se non collegato, ricerca precompilata con email, nome, cognome e codice fiscale della scheda e le scelte del wizard: collega AD, collega utente esistente, crea utente locale.
+  - Nuove route `anagrafica:dipendente_account_portale` e `anagrafica:dipendente_account_scollega` (POST, CSRF, JSON 401/403/400 alle richieste AJAX). La scelta è rivalidata con `valida_scelta` usando email e codice fiscale letti dal DB, poi `applica_scelta`: scheda già collegata, dipendente non attivo, account privilegiato senza conferma di un superuser e AD irraggiungibile vengono rifiutati.
+  - `valida_scelta` accetta `scheda_id` (esclude la scheda stessa dal controllo «già collegato», AD irraggiungibile bloccante); `applica_scelta` accetta `da_scheda`, non crea utenti se la scheda risulta già collegata e scrive `origine` (creazione/scheda) nell'audit. Wizard invariato.
+  - I messaggi «collegalo dopo dalla scheda» ora indicano il riquadro «Account portale»; la scheda apre la tab giusta quando l'URL ha un'ancora (`#account-portale`).
+  - 20 test nuovi (LDAP mockato, dati `example.invalid`).
+  - **Deploy:** `migrate anagrafica` (0162: binding ACL v2 delle due route copiati da `anagrafica:dipendente_detail`, create-only e reversibile).
+
 - **Dipendenze di sviluppo allineate a quelle di produzione, senza vulnerabilità note** (`django_app/requirements-dev.txt`).
   - `requirements-dev.txt` era rimasto indietro rispetto a `requirements.txt` e bloccava versioni con vulnerabilità note (cryptography 44.0.3, PyJWT 2.12.1, urllib3 2.6.3, sqlparse 0.5.5, Werkzeug 3.1.8, pyOpenSSL 25.1.0, Django 5.2.16, djangorestframework 3.17.1, idna 3.13, pyasn1 0.6.3); installare insieme i due file dava un conflitto.
   - Ogni pacchetto presente in entrambi i file ha ora la stessa versione di `requirements.txt`; `virtualenv` 21.7.13 (via pre-commit, con `python-discovery` 1.6.2). Allineamento fatto a mano per non perdere i marker non-Windows (`python-magic`) che `pip-compile` su Windows elimina.

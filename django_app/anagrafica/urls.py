@@ -37,6 +37,9 @@ urlpatterns = [
 
     # Scheda dettaglio dipendente
     path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),
+    # Riquadro «Account portale» della scheda: collega / scollega l'utente portale
+    path("dipendenti/<int:legacy_id>/account-portale/", views_account.dipendente_account_portale, name="dipendente_account_portale"),
+    path("dipendenti/<int:legacy_id>/account-portale/scollega/", views_account.dipendente_account_scollega, name="dipendente_account_scollega"),
     # Stampa scheda dipendente completa (anagrafica civile + aziendale + dati bancari)
     path("dipendenti/<int:legacy_id>/stampa/", views.dipendente_print, name="dipendente_print"),
     # Libretto formativo stampabile (storico corsi + obblighi correnti); ?formato=pdf per il PDF

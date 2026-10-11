@@ -1063,6 +1063,9 @@ body.theme-dark .dp-link-ok { color:#86efac; }
   </div>
   {% endif %}
 
+  <!-- ACCOUNT PORTALE (collega / scollega, solo amministrazione anagrafica) -->
+  {% include "anagrafica/partials/_account_portale_scheda.html" %}
+
   <!-- ANAGRAFICA CIVILE -->
   {% if is_admin %}
   <div class="dp-card" data-tab="anagrafica">
@@ -3285,7 +3288,11 @@ function toggleContrattoEdit(id) {
   });
   if (!firstAvailable) return;
 
-  show(firstAvailable);
+  // Ritorno da un'azione con ancora (es. #account-portale): apre la tab che contiene il riquadro.
+  var ancora = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+  var tabAncora = ancora && ancora.closest('[data-tab]') ? ancora.closest('[data-tab]').getAttribute('data-tab') : null;
+  show(tabAncora && present[tabAncora] ? tabAncora : firstAvailable);
+  if (tabAncora && present[tabAncora]) ancora.scrollIntoView({block: 'start'});
 })();
 
 // Auto-fill caporeparto in sola lettura + cascading Reparto -> Area aziendale
