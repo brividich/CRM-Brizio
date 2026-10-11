@@ -74,6 +74,11 @@ class _Base(TestCase):
 
         self.asset = Asset.objects.create(asset_tag="AST-QR-TKT-1", name="Tornio QR")
         self.other_asset = Asset.objects.create(asset_tag="AST-QR-TKT-2", name="Fresa QR")
+        # Link pubblico opt-in (audit B3): lo si abilita esplicitamente.
+        from assets.services.asset_qr import abilita_link_pubblico
+
+        abilita_link_pubblico(self.asset)
+        abilita_link_pubblico(self.other_asset)
         self.ticket = self._ticket(self.asset, titolo="Perdita olio mandrino")
         self.other_ticket = self._ticket(self.other_asset, titolo="Rumore fresa")
 

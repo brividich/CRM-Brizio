@@ -115,7 +115,9 @@ class Asset(models.Model):
         help_text="Indica se l'asset rientra nel regolamento aeronautico PART 145.",
     )
     public_qr_token = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
-    public_qr_enabled = models.BooleanField(default=True)
+    # Link pubblico del QR opt-in (audit B3): nasce spento e senza token; lo
+    # abilita solo un utente con permesso (services/asset_qr.abilita_link_pubblico).
+    public_qr_enabled = models.BooleanField(default=False)
     extra_columns = models.JSONField(default=dict, blank=True)
     source_key = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     assigned_legacy_user_id = models.IntegerField(null=True, blank=True, db_index=True)
@@ -231,8 +233,8 @@ class Asset(models.Model):
     def save(self, *args, **kwargs):
         if self.source_key == "":
             self.source_key = None
-        if self.public_qr_enabled and not self.public_qr_token:
-            self.public_qr_token = uuid.uuid4().hex
+        # Nessun token QR pubblico implicito: lo crea solo l'abilitazione esplicita
+        # (services/asset_qr.py). Gli asset esistenti conservano il proprio token.
         # N. interno opt-in: nessuna auto-assegnazione. Il progressivo si "prende"
         # su richiesta esplicita dal form (bottone "Assegna progressivo", endpoint
         # assets:internal_number_next). Campo vuoto → salva vuoto.
@@ -3992,6 +3994,107 @@ class PeriodicCheckCategory(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class AssetFieldHistory(models.Model):
+    """Storico per campo di stato, assegnazione e rete (PROMPT 06 - C).
+
+    Una riga per campo cambiato: chi, quando, prima/dopo e da quale via (form,
+    import, job...). Scritta solo da ``services/storico_asset.py`` nella stessa
+    transazione della modifica. Tabella unica e generica (non tabelle per dominio):
+    i campi tracciati sono pochi ed eterogenei e la timeline e la vista "com'era
+    alla data X" interrogano un solo indice ``(asset, cambiato_il)``.
+
+    ``endpoint_id`` non e' una FK: lo storico deve sopravvivere all'eliminazione
+    del punto rete (la riga "eliminato" e' proprio quella che lo racconta).
+    """
+
+    FONTE_FORM = "form"
+    FONTE_BULK = "bulk"
+    FONTE_IMPORT = "import"
+    FONTE_ADMIN = "admin"
+    FONTE_API = "api"
+    FONTE_JOB = "job"
+    FONTE_BASELINE = "baseline"
+    FONTE_CHOICES = [
+        (FONTE_FORM, "Utente (scheda)"),
+        (FONTE_BULK, "Modifica in blocco"),
+        (FONTE_IMPORT, "Import"),
+        (FONTE_ADMIN, "Amministrazione"),
+        (FONTE_API, "Integrazione"),
+        (FONTE_JOB, "Job automatico"),
+        (FONTE_BASELINE, "Stato iniziale"),
+    ]
+
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="field_history")
+    campo = models.CharField(max_length=40, db_index=True)
+    endpoint_id = models.IntegerField(null=True, blank=True)
+    endpoint_label = models.CharField(max_length=255, blank=True, default="")
+    valore_prima = models.TextField(blank=True, default="")
+    valore_dopo = models.TextField(blank=True, default="")
+    fonte = models.CharField(max_length=16, choices=FONTE_CHOICES, db_index=True)
+    autore = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    autore_display = models.CharField(max_length=200, blank=True, default="")
+    dettaglio = models.CharField(max_length=255, blank=True, default="")
+    cambiato_il = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-cambiato_il", "-id"]
+        indexes = [
+            models.Index(fields=["asset", "cambiato_il"], name="assets_hist_asset_when"),
+            models.Index(fields=["asset", "campo", "cambiato_il"], name="assets_hist_asset_field"),
+        ]
+        verbose_name = "Storico campo asset"
+        verbose_name_plural = "Storico campi asset"
+
+    def __str__(self) -> str:
+        return f"{self.asset_id} {self.campo}: {self.valore_prima!r} -> {self.valore_dopo!r}"
+
+
+class AssetSavedReport(models.Model):
+    """Report del catalogo con filtri salvati, personale o condiviso, con invio pianificato.
+
+    L'invio email (job ``invia_report_pianificati``) parte solo verso destinatari che,
+    al momento dell'invio, hanno ancora accesso alla pagina del report.
+    """
+
+    FREQ_NONE = ""
+    FREQ_DAILY = "DAILY"
+    FREQ_WEEKLY = "WEEKLY"
+    FREQ_MONTHLY = "MONTHLY"
+    FREQ_CHOICES = [
+        (FREQ_NONE, "Nessun invio"),
+        (FREQ_DAILY, "Ogni giorno"),
+        (FREQ_WEEKLY, "Ogni settimana"),
+        (FREQ_MONTHLY, "Ogni mese"),
+    ]
+    FORMAT_XLSX = "xlsx"
+    FORMAT_PDF = "pdf"
+    FORMAT_CHOICES = [(FORMAT_XLSX, "Excel"), (FORMAT_PDF, "PDF")]
+
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="asset_saved_reports")
+    report_code = models.CharField(max_length=60, db_index=True)
+    nome = models.CharField(max_length=120)
+    filtri = models.JSONField(default=dict, blank=True)
+    condiviso = models.BooleanField(default=False, db_index=True)
+    frequenza = models.CharField(max_length=10, choices=FREQ_CHOICES, default=FREQ_NONE, blank=True)
+    formato = models.CharField(max_length=4, choices=FORMAT_CHOICES, default=FORMAT_XLSX)
+    destinatari = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="+")
+    prossimo_invio = models.DateTimeField(null=True, blank=True, db_index=True)
+    ultimo_invio = models.DateTimeField(null=True, blank=True)
+    ultimo_esito = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["nome", "id"]
+        verbose_name = "Report asset salvato"
+        verbose_name_plural = "Report asset salvati"
+
+    def __str__(self) -> str:
+        return self.nome
 
 
 PERIODIC_FREQUENCY_LABELS = {

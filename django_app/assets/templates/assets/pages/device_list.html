@@ -466,7 +466,7 @@ body.theme-dark .dv-cov-badge.none { background:rgba(255,255,255,.08); color:var
             <td>{{ asset.serial_number|default:"-" }}</td>
             <td>{% include "assets/components/it_coverage_badges.html" with cov=asset.coverage %}</td>
             <td><span title="{{ asset.updated_at|date:'d-m-Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
-            <td class="dv-act"><a class="dv-row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
+            <td class="dv-act"><span style="display:inline-flex;gap:6px;align-items:center;">{% include "assets/partials/qr_thumb.html" with qr_asset_id=asset.id %}<a class="dv-row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></span></td>
           </tr>
           {% empty %}
           <tr><td colspan="12" class="dv-empty"><div class="dv-empty-text">Nessun dispositivo trovato</div><div class="dv-empty-sub">Prova a modificare i filtri di ricerca.</div></td></tr>
@@ -642,6 +642,7 @@ body.theme-dark .dv-cov-badge.none { background:rgba(255,255,255,.08); color:var
     </div>
   </div>
 </div>
+{% include "assets/partials/qr_dialog.html" %}
 {% endblock %}
 
 {% block assets_shell_scripts %}

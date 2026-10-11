@@ -27,6 +27,7 @@ from django.utils import timezone
 from core.models import AuditLog, UserOnboarding
 
 from .models import Asset, AssetDocument, WorkOrder, WorkOrderAttachment
+from .services.asset_qr import abilita_link_pubblico
 
 User = get_user_model()
 
@@ -61,6 +62,9 @@ class AssetDocumentQrAccessTests(_MediaRootMixin, TestCase):
         super().setUp()
         self.asset = Asset.objects.create(asset_tag="AST-SEC-QR-1", name="Pressa QR")
         self.other_asset = Asset.objects.create(asset_tag="AST-SEC-QR-2", name="Forno QR")
+        # Link pubblico opt-in (audit B3): lo si abilita esplicitamente.
+        abilita_link_pubblico(self.asset)
+        abilita_link_pubblico(self.other_asset)
         self.document = AssetDocument.objects.create(
             asset=self.asset,
             category=AssetDocument.CATEGORY_MANUALI,

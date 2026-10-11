@@ -678,6 +678,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
             <label class="checkline"><input type="checkbox" data-col-toggle="switch_port" {% if "switch_port" in asset_list_default_visible_columns %}checked{% endif %}> Porta SW</label>
             <label class="checkline"><input type="checkbox" data-col-toggle="patch_panel_port" {% if "patch_panel_port" in asset_list_default_visible_columns %}checked{% endif %}> Porta patch panel</label>
             <label class="checkline"><input type="checkbox" data-col-toggle="last_seen" {% if "last_seen" in asset_list_default_visible_columns %}checked{% endif %}> Ultimo aggiornamento</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="qr" {% if "qr" in asset_list_default_visible_columns %}checked{% endif %}> QR</label>
           </div>
           <div class="muted text-sm" style="margin-top:8px;">
             Vista standard condivisa per tutte le liste asset. I dati specialistici restano nella scheda del singolo asset.
@@ -688,6 +689,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
         <div id="bulkToolbar" class="bulk-toolbar" style="display:none;">
           <span class="bulk-count"><span id="bulkCountNum">0</span> asset selezionati</span>
           <button type="button" class="btn text-sm" id="bulkEditBtn" style="padding:4px 12px;">✏ Modifica in blocco</button>
+          <button type="button" class="btn text-sm" id="bulkQrLabelsBtn" style="padding:4px 12px;" data-url="{% url 'assets:asset_qr_labels_bulk' %}" title="Un PDF con un'etichetta QR per ogni asset selezionato (max 200)">Stampa etichette QR</button>
           <button type="button" class="admin-close" id="bulkDeselectBtn">Deseleziona tutti</button>
         </div>
 
@@ -740,6 +742,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
                 <th data-col="switch_port">Porta SW<span class="col-resizer" data-col-resizer></span></th>
                 <th data-col="patch_panel_port">Porta patch panel<span class="col-resizer" data-col-resizer></span></th>
                 <th data-col="last_seen">Aggiornato<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="qr">QR<span class="col-resizer" data-col-resizer></span></th>
                 <th class="act-col">Azioni</th>
               </tr>
             </thead>
@@ -759,6 +762,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
                   <td data-col="switch_port">{{ asset.endpoint_switch_port_display|default:"-" }}</td>
                   <td data-col="patch_panel_port">{{ asset.endpoint_patch_panel_display|default:"-" }}</td>
                   <td data-col="last_seen"><span title="{{ asset.updated_at|date:'d-m-Y H:i' }}">{{ asset.updated_at|timesince }} fa</span></td>
+                  <td data-col="qr">{% include "assets/partials/qr_thumb.html" with qr_asset_id=asset.id %}</td>
                   <td class="act-col"><a class="row-action" href="{% url 'assets:asset_view' asset.id %}">Apri</a></td>
                 </tr>
               {% empty %}
@@ -1850,6 +1854,7 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
     </div>
   </div>
 </div>
+{% include "assets/partials/qr_dialog.html" %}
 
 {% endblock %}
 
@@ -2864,6 +2869,16 @@ body.theme-dark .ai { background: rgba(255,255,255,.08); color: var(--text-mid);
   function getSelectedIds() {
     return Array.from(document.querySelectorAll(".row-select-cb:checked")).map(function (cb) { return cb.value; });
   }
+
+  (function () {
+    var btn = document.getElementById("bulkQrLabelsBtn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var ids = getSelectedIds();
+      if (!ids.length) return;
+      window.open(btn.getAttribute("data-url") + "?ids=" + encodeURIComponent(ids.slice(0, 200).join(",")), "_blank", "noopener");
+    });
+  })();
 
   function updateBulkToolbar() {
     const ids = getSelectedIds();

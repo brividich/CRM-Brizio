@@ -1,0 +1,20 @@
+{# Stato di «Leggi ora»: si ri-interroga ogni 3 s finche' il job e' in coda, poi mostra i livelli salvati. #}
+<div class="lettura-ora"{% if in_coda %} hx-get="{{ stato_url }}" hx-trigger="load delay:3s" hx-swap="outerHTML"{% endif %} aria-live="polite">
+  {% if in_coda %}
+    <p class="{% if vista == 'asset' %}af-note{% else %}pos{% endif %}" role="status">Lettura in coda: il job interroga la stampante, i livelli compaiono qui appena salvati.</p>
+  {% elif fallita %}
+    <p role="status"><strong>{% if scaduta %}Lettura non completata in tempo{% else %}Lettura non riuscita{% endif %}.</strong> Restano i livelli dell'ultima lettura salvata. Dettagli nella pagina Consumabili del modulo Contatori.</p>
+  {% else %}
+    <p class="{% if vista == 'asset' %}af-note{% else %}muted{% endif %}" role="status">Lettura conclusa.</p>
+  {% endif %}
+  {% if salvato %}
+    <p class="{% if vista == 'asset' %}af-note{% else %}muted{% endif %}">Ultima lettura salvata: {{ salvato.rilevata_il|date:"d/m/Y H:i" }}.</p>
+    <div class="cons-voci af-it-supplies">{% for v in salvato.voci %}
+      <div class="cons-voce af-it-supply{% if v.critico %} critico{% endif %}">
+        <span class="cons-nome">{{ v.nome }}</span>
+        {% if v.pct is not None %}<strong class="cons-pct">{{ v.pct }}%</strong>{% else %}<span class="muted">n/d</span>{% endif %}
+        <span class="cons-giorni muted">{% if v.giorni is not None %}{% if v.giorni == 0 %}esaurito{% elif v.giorni > 365 %}oltre 1 anno{% else %}~{{ v.giorni }} gg{% endif %}{% endif %}</span>
+      </div>{% endfor %}
+    </div>
+  {% elif not in_coda %}<p class="muted">Nessuna lettura salvata.</p>{% endif %}
+</div>

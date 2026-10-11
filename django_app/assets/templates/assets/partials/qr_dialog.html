@@ -1,0 +1,68 @@
+{# Dialog QR condiviso: includere una sola volta per pagina; si apre da qualunque [data-aq-open]. #}
+<style>
+.aq-thumb { display:inline-flex; align-items:center; justify-content:center; padding:3px; border:1px solid var(--border, #d8e2f2); border-radius:8px; background:#fff; cursor:pointer; line-height:0; }
+.aq-thumb:hover, .aq-thumb:focus-visible { border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.18); outline:none; }
+.aq-thumb img { width:var(--aq-thumb-size, 28px); height:var(--aq-thumb-size, 28px); image-rendering:pixelated; }
+.aq-thumb--lg { --aq-thumb-size:64px; padding:4px; border-radius:10px; }
+dialog.aq-dialog { border:1px solid var(--border, #d8e2f2); border-radius:14px; padding:0; width:min(560px, calc(100vw - 32px)); max-height:calc(100vh - 32px); background:var(--surface, #fff); color:inherit; box-shadow:0 18px 50px rgba(15,23,42,.35); }
+dialog.aq-dialog::backdrop { background:rgba(15,23,42,.55); }
+.aq-panel-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border, #dbe3f0); }
+.aq-panel-title { font-weight:700; }
+.aq-panel-sub { font-size:.85em; opacity:.75; }
+.aq-close { border:0; background:transparent; font-size:1.5em; line-height:1; cursor:pointer; color:inherit; }
+.aq-panel-body { display:grid; grid-template-columns:auto 1fr; gap:16px; padding:16px; }
+.aq-big { width:240px; height:240px; background:#fff; border-radius:8px; image-rendering:pixelated; }
+.aq-info { display:grid; gap:10px; align-content:start; min-width:0; }
+.aq-label { font-size:.8em; font-weight:700; text-transform:uppercase; letter-spacing:.04em; opacity:.75; }
+.aq-copy-row { display:flex; gap:6px; }
+.aq-link { flex:1; min-width:0; padding:6px 8px; border:1px solid var(--border, #cbd5e1); border-radius:8px; background:var(--surface-alt, #f8fafc); color:inherit; font-size:.85em; }
+.aq-actions, .aq-public-form { display:flex; gap:8px; flex-wrap:wrap; }
+.aq-btn { display:inline-flex; align-items:center; padding:6px 12px; border-radius:8px; border:1px solid var(--border, #cbd5e1); background:var(--surface, #fff); color:inherit; text-decoration:none; font-size:.9em; font-weight:600; cursor:pointer; }
+.aq-btn--primary { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+.aq-btn--danger { background:#fff1f2; border-color:#fecdd3; color:#b91c1c; }
+.aq-pill { justify-self:start; padding:3px 10px; border-radius:999px; font-size:.8em; font-weight:700; }
+.aq-pill--pub { background:#fef3c7; color:#92400e; }
+.aq-pill--int { background:#dcfce7; color:#166534; }
+.aq-public { border-top:1px dashed var(--border, #dbe3f0); padding-top:10px; display:grid; gap:6px; }
+.aq-note { margin:0; font-size:.85em; opacity:.85; }
+.aq-error { padding:16px; }
+body.theme-dark .aq-btn--danger { background:rgba(185,28,28,.15); border-color:rgba(248,113,113,.4); color:#fca5a5; }
+body.theme-dark .aq-pill--pub { background:rgba(245,158,11,.18); color:#fcd34d; }
+body.theme-dark .aq-pill--int { background:rgba(34,197,94,.16); color:#86efac; }
+@media (max-width:560px) { .aq-panel-body { grid-template-columns:1fr; justify-items:center; } .aq-info { width:100%; } }
+@media print { dialog.aq-dialog { display:none; } }
+</style>
+<dialog class="aq-dialog" id="aqDialog" aria-label="Anteprima QR"><div id="aqDialogBody"></div></dialog>
+<script>
+(function () {
+  if (window.__aqInit) return;
+  window.__aqInit = true;
+  var dialog = document.getElementById("aqDialog");
+  var body = document.getElementById("aqDialogBody");
+  function open(url) {
+    body.innerHTML = '<div class="aq-error">Caricamento…</div>';
+    if (dialog.showModal) dialog.showModal(); else dialog.setAttribute("open", "");
+    fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" }, credentials: "same-origin" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(function (html) {
+        body.innerHTML = html;
+        body.querySelectorAll("[data-aq-next]").forEach(function (el) { el.value = window.location.pathname + window.location.search; });
+      })
+      .catch(function () { body.innerHTML = '<div class="aq-error">QR non disponibile.</div>'; });
+  }
+  document.addEventListener("click", function (ev) {
+    var opener = ev.target.closest("[data-aq-open]");
+    if (opener) { ev.preventDefault(); ev.stopPropagation(); open(opener.getAttribute("data-aq-open")); return; }
+    if (ev.target.closest("[data-aq-close]") || ev.target === dialog) { dialog.close ? dialog.close() : dialog.removeAttribute("open"); return; }
+    var copy = ev.target.closest("[data-aq-copy]");
+    if (copy) {
+      var input = document.querySelector(copy.getAttribute("data-aq-copy"));
+      if (!input) return;
+      input.select();
+      var done = function () { copy.textContent = "Copiato"; setTimeout(function () { copy.textContent = "Copia"; }, 1500); };
+      if (navigator.clipboard) navigator.clipboard.writeText(input.value).then(done, function () { document.execCommand("copy"); done(); });
+      else { document.execCommand("copy"); done(); }
+    }
+  }, true);
+})();
+</script>

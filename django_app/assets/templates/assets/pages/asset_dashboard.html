@@ -852,7 +852,7 @@ body.theme-dark .ad-overlay { background:rgba(0,0,0,.6); }
         <div class="ad-metric"><div class="ad-metric-label">OdL chiusi mese</div><div class="ad-metric-val">{{ family_kpis.wo_chiuse_mese_famiglia }}</div></div>
         <div class="ad-metric"><div class="ad-metric-label">Ticket MAN aperti</div><div class="ad-metric-val">{{ family_kpis.ticket_man_aperti_famiglia }}</div></div>
         <div class="ad-metric"><div class="ad-metric-label">Ticket chiusi mese</div><div class="ad-metric-val">{{ family_kpis.ticket_man_chiusi_mese_famiglia }}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Ore fermo mese</div><div class="ad-metric-val">{{ family_kpis.fermi_ore_mese_famiglia|floatformat:1 }}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Ore fermo mese</div><div class="ad-metric-val">{{ family_kpis.fermi_ore_mese_famiglia|kpi:1 }}</div></div>
       </div>
 
       <div class="ad-panels">
@@ -897,9 +897,9 @@ body.theme-dark .ad-overlay { background:rgba(0,0,0,.6); }
       {% if maintenance_perf.has_data %}
       <h3 class="ad-subhead">Performance manutenzione del mese</h3>
       <div class="ad-metrics" style="grid-template-columns:repeat(4,minmax(0,1fr));">
-        <div class="ad-metric"><div class="ad-metric-label">MTTR medio (correttive)</div><div class="ad-metric-val">{% if maintenance_perf.mttr_hours %}{{ maintenance_perf.mttr_hours|floatformat:1 }} h{% else %}&mdash;{% endif %}</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Fermo macchina</div><div class="ad-metric-val {% if maintenance_perf.downtime_hours_month %}warn{% endif %}">{{ maintenance_perf.downtime_hours_month|floatformat:1 }} h</div></div>
-        <div class="ad-metric"><div class="ad-metric-label">Costo manutenzione</div><div class="ad-metric-val">{% if maintenance_perf.maintenance_cost_month %}&euro;&nbsp;{{ maintenance_perf.maintenance_cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">MTTR medio (correttive)</div><div class="ad-metric-val">{% if not maintenance_perf.mttr_hours|kpi_ok %}{{ maintenance_perf.mttr_hours }}{% elif maintenance_perf.mttr_hours %}{{ maintenance_perf.mttr_hours|floatformat:1 }} h{% else %}&mdash;{% endif %}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Fermo macchina</div><div class="ad-metric-val {% if maintenance_perf.downtime_hours_month %}warn{% endif %}">{{ maintenance_perf.downtime_hours_month|kpi:1 }}{% if maintenance_perf.downtime_hours_month|kpi_ok %} h{% endif %}</div></div>
+        <div class="ad-metric"><div class="ad-metric-label">Costo manutenzione</div><div class="ad-metric-val">{% if not maintenance_perf.maintenance_cost_month|kpi_ok %}{{ maintenance_perf.maintenance_cost_month }}{% elif maintenance_perf.maintenance_cost_month %}&euro;&nbsp;{{ maintenance_perf.maintenance_cost_month|floatformat:0 }}{% else %}&mdash;{% endif %}</div></div>
         <div class="ad-metric"><div class="ad-metric-label">OdL chiusi</div><div class="ad-metric-val"><a href="{% url 'assets:wo_list' %}?status=DONE">{{ maintenance_perf.wo_closed_month }}</a></div></div>
       </div>
       {% if maintenance_perf.wo_open_by_kind %}

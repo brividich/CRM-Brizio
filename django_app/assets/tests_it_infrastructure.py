@@ -60,7 +60,8 @@ class InfrastructureProfilesTests(TestCase):
         self.assertNotContains(response, "RAM-LEGACY")
         self.assertNotContains(response, "EDR abilitato")
         self.assertNotContains(response, "Dispositivo non collegato al SOC")
-        self.assertContains(response, "Nessun monitoraggio collegato consultabile")
+        # Stampante senza MFC: lo si dice esplicitamente (PROMPT 06 - B).
+        self.assertContains(response, "non è collegata a nessuna MFC")
 
     def test_printer_still_shows_soc_when_explicitly_linked(self):
         asset = self.asset("STAMPANTE")
@@ -186,8 +187,10 @@ class ITMonitoringTests(TestCase):
         self.snapshot(dati_stampante={"contatori": [{"valore": 100, "unita": "fogli"}]})
         machine = Macchina.objects.create(reparto="Demo MFC", matricola="DEMO-SERIAL", asset=self.asset)
         reading = LetturaMensileContatori.objects.create(macchina=machine, mese=timezone.localdate().replace(day=1), a4_bn=300, a3_bn=5, a4_col=10, a3_col=2)
-        # 5 query fisse: dispositivi, rilevazioni, valori sonde, macchine, letture.
-        with patch("assets.services.it_monitoring.can_view_monitoring", return_value=True), self.assertNumQueries(5):
+        # 8 query fisse (non crescono con il numero di MFC, max LINK_LIMIT): dispositivi,
+        # rilevazioni, valori sonde, macchine, profilo per il permesso «Leggi adesso»,
+        # ultima lettura mensile, consumabili salvati, storico mensile per il trend.
+        with patch("assets.services.it_monitoring.can_view_monitoring", return_value=True), self.assertNumQueries(8):
             data = monitoring_for_asset(self.request, self.asset)
         self.assertEqual(data["devices"][0]["counters"][0]["valore"], 100)
         self.assertEqual(data["machines"][0]["reading"]["id"], reading.pk)
@@ -211,31 +214,61 @@ class ITMonitoringTests(TestCase):
 
     def test_inline_mfc_action_respects_own_permission_and_never_polls_on_page_get(self):
         machine = Macchina.objects.create(reparto="Demo", matricola="INLINE-DEMO", host="192.0.2.70", asset=self.asset)
-        action = reverse("contatori:macchina_consumabili", args=[machine.pk])
-        with patch("assets.services.it_monitoring.can_view_monitoring", side_effect=lambda request, path: path != action):
+        # «Leggi adesso» scrive nello storico: senza gestione Contatori il pulsante non c'e'.
+        with patch("contatori.permessi.puo_gestire", return_value=False):
             self.assertEqual(monitoring_for_asset(self.request, self.asset)["machines"][0]["supplies_url"], "")
         self.client.force_login(self.user)
-        with patch("contatori.views._leggi_consumabili_cfg", side_effect=AssertionError("no automatic polling")):
+        with patch("contatori.services.leggi_consumabili_macchina", side_effect=AssertionError("no automatic polling")):
             response = self.client.get(reverse("assets:asset_view", args=[self.asset.pk]))
-        self.assertContains(response, "Leggi consumabili qui")
+        self.assertContains(response, "Leggi adesso")
         self.assertContains(response, "192.0.2.70")
 
-    def test_inline_mfc_consumables_post_renders_levels_and_sanitizes_errors(self):
+    def test_inline_mfc_read_now_is_queued_and_sanitizes_errors(self):
+        from django.core.cache import cache
+
+        from contatori import services as cont_services, tasks as cont_tasks
+
+        cache.clear()
         machine = Macchina.objects.create(reparto="Demo", matricola="INLINE-POST", host="192.0.2.71", asset=self.asset)
         action = reverse("contatori:macchina_consumabili", args=[machine.pk])
         self.client.force_login(self.user)
-        self.assertEqual(self.client.get(action).status_code, 405)
-        with patch("contatori.views._leggi_consumabili_cfg", return_value=([{"nome": "Nero demo", "pct": 0}, {"nome": "Ciano demo", "pct": None}], None)):
+        with patch("contatori.tasks.async_task") as never:
+            self.assertEqual(self.client.get(action).status_code, 200)  # GET = solo stato
+        never.assert_not_called()
+        with patch("contatori.tasks.async_task") as queue, \
+                patch.object(cont_services, "leggi_consumabili_macchina", side_effect=AssertionError("no SNMP in request")):
             response = self.client.post(action, {"asset_inline": "1"})
-        self.assertContains(response, "0%")
-        self.assertContains(response, "Quantità non comunicata")
-        with patch("contatori.views._leggi_consumabili_cfg", return_value=(None, "PRIVATE-NETWORK-ERROR")):
-            response = self.client.post(action, {"asset_inline": "1"})
-        self.assertContains(response, "Lettura non riuscita")
-        self.assertNotContains(response, "PRIVATE-NETWORK-ERROR")
+        queue.assert_called_once()
+        self.assertContains(response, "Lettura in coda")
+        # Il job (eseguito qui in linea) salva; il polling mostra i livelli salvati.
+        with patch.object(cont_services, "leggi_consumabili_macchina",
+                          return_value=([{"nome": "Nero demo", "pct": 0}, {"nome": "Ciano demo", "pct": None}], None)):
+            cont_tasks.leggi_consumabili(machine.pk)
+        status = self.client.get(reverse("contatori:macchina_consumabili", args=[machine.pk]) + "?vista=asset")
+        self.assertContains(status, "Lettura conclusa")
+        self.assertContains(status, "0%")
+        self.assertContains(status, "n/d")
+        with patch("contatori.tasks.async_task"):
+            self.client.post(action, {"asset_inline": "1"})
+        with patch.object(cont_services, "leggi_consumabili_macchina", return_value=(None, "PRIVATE-NETWORK-ERROR")):
+            with self.assertRaises(RuntimeError):
+                cont_tasks.leggi_consumabili(machine.pk)
+        status = self.client.get(reverse("contatori:macchina_consumabili", args=[machine.pk]) + "?vista=asset")
+        self.assertContains(status, "Lettura non riuscita")
+        self.assertNotContains(status, "PRIVATE-NETWORK-ERROR")
         csrf_client = Client(enforce_csrf_checks=True)
         csrf_client.force_login(self.user)
         csrf_client.cookies["csrftoken"] = "a" * 32
-        with patch("contatori.views._leggi_consumabili_cfg") as poll:
+        with patch("contatori.tasks.async_task") as queue:
             self.assertEqual(csrf_client.post(action, {"asset_inline": "1"}).status_code, 403)
-            poll.assert_not_called()
+            queue.assert_not_called()
+
+    def test_read_now_requires_contatori_gestione(self):
+        machine = Macchina.objects.create(reparto="Demo", matricola="INLINE-RO", host="192.0.2.72", asset=self.asset)
+        action = reverse("contatori:macchina_consumabili", args=[machine.pk])
+        self.client.force_login(self.user)
+        with patch("contatori.permessi.puo_gestire", return_value=False), patch("contatori.tasks.async_task") as queue:
+            response = self.client.post(action, {"asset_inline": "1"}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["ok"], False)
+        queue.assert_not_called()

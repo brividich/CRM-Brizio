@@ -168,6 +168,8 @@ from .services.dashboard_kpi import (
     get_maintenance_performance_kpis,
 )
 from .services.maintenance_kpi import build_maintenance_report_kpis
+from .services import storico_asset
+from .models import AssetFieldHistory
 from .services.sidebar_categories import (
     category_sidebar_active_match as _service_category_sidebar_active_match,
     category_sidebar_target as _service_category_sidebar_target,
@@ -235,8 +237,11 @@ REPORT_TEMPLATE_ALLOWED_EXTENSIONS = {
     ".xlsm",
     ".ppt",
     ".pptx",
-    ".html",
-    ".htm",
+    # Niente .html/.htm: il file e' servito da MEDIA sullo stesso dominio (audit A9).
+}
+REPORT_TEMPLATE_ALLOWED_MIMES = ASSET_DOCUMENT_ALLOWED_MIMES | {
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 }
 DEFAULT_REPORT_DEFINITIONS = [
     {
@@ -362,6 +367,7 @@ ASSET_LIST_BASE_COLUMN_CHOICES = [
     ("ip", "IP"),
     ("switch_port", "Porta SW"),
     ("patch_panel_port", "Porta patch panel"),
+    ("qr", "QR"),
 ]
 ASSET_LIST_IT_COLUMNS = ["ip", "switch_port", "patch_panel_port"]
 ASSET_LIST_COMMON_COLUMNS = [
@@ -2318,19 +2324,16 @@ def _normalize_document_path(value: str | None) -> str:
 
 
 def _asset_qr_target_url(request: HttpRequest, asset: Asset, *, target: str = "detail") -> tuple[str, str]:
+    from .services import asset_qr
+
     desired = _clean_string(target).lower()
-    public_token = _clean_string(getattr(asset, "public_qr_token", ""))
-    public_qr_enabled = bool(public_token) and getattr(asset, "public_qr_enabled", True)
     # "sharepoint" e' un valore legacy (link e template etichetta salvati prima
     # della rimozione dell'archivio SharePoint): vale come "landing".
     if desired in {"sharepoint", "landing"}:
-        # Landing QR: pubblica (token opaco) quando disponibile, così il QR resta
-        # leggibile da tecnici/ispettori esterni senza login.
-        if public_qr_enabled:
-            public_landing = reverse("assets:asset_qr_public_landing", kwargs={"public_qr_token": public_token})
-            return _portal_absolute_uri(request, public_landing), "Landing QR pubblica"
-        landing_url = reverse("assets:asset_qr_landing", kwargs={"asset_tag": asset.asset_tag})
-        return _portal_absolute_uri(request, landing_url), "Landing mobile QR"
+        # Landing pubblica solo se il link e' stato abilitato esplicitamente,
+        # altrimenti landing interna dietro login (services/asset_qr.py).
+        dest = asset_qr.destinazione(request, asset)
+        return dest.url, dest.label
     detail_url = reverse("assets:asset_view", kwargs={"id": asset.id})
     return _portal_absolute_uri(request, detail_url), "Scheda asset"
 
@@ -2635,23 +2638,31 @@ def _can_view_workorder(request: HttpRequest, work_order) -> bool:
     di qualsiasi OdL cambiando l'id. Si valuta la decisione ACL della pagina
     dell'OdL a cui l'allegato appartiene.
     """
+    if not getattr(request.user, "is_authenticated", False):
+        return False
     if getattr(request.user, "is_superuser", False) or _is_assets_admin(request):
         return True
-    from core.acl_v2 import resolve_acl_access
-    from core.legacy_utils import legacy_auth_enabled
-    from core.middleware import enforce_strict_canonical
+    from core.middleware import acl_allows_path
 
-    if not legacy_auth_enabled():
-        return bool(getattr(request.user, "is_authenticated", False))
-    decision = resolve_acl_access(
-        path=reverse("assets:wo_view", args=[work_order.pk]),
-        legacy_user=getattr(request, "legacy_user", None) or get_legacy_user(request.user),
+    # Stessa politica dell'ACLMiddleware sulla pagina dell'OdL (bypass, strict-mode
+    # e binding canonico inclusi): un solo predicato, come per i documenti asset.
+    return acl_allows_path(
+        reverse("assets:wo_view", args=[work_order.pk]),
         django_user=request.user,
+        legacy_user=getattr(request, "legacy_user", None),
         request=request,
     )
-    if enforce_strict_canonical(decision):
+
+
+def _can_download_workorder_attachment(request: HttpRequest, attachment) -> bool:
+    """Controllo per oggetto sugli allegati OdL, parallelo a ``_can_download_asset_document``.
+
+    Un allegato si scarica se si vede l'OdL a cui appartiene; l'OdL deve avere un asset.
+    """
+    work_order = getattr(attachment, "work_order", None)
+    if work_order is None:
         return False
-    return bool(decision.get("allowed"))
+    return _can_view_workorder(request, work_order)
 
 
 @login_required
@@ -2661,7 +2672,7 @@ def workorder_attachment_download(request: HttpRequest, attachment_id: int):
         WorkOrderAttachment.objects.select_related("work_order__asset"),
         pk=attachment_id,
     )
-    if not _can_view_workorder(request, attachment.work_order):
+    if not _can_download_workorder_attachment(request, attachment):
         log_action(
             request,
             "download_workorder_attachment",
@@ -2671,9 +2682,10 @@ def workorder_attachment_download(request: HttpRequest, attachment_id: int):
                 "work_order_id": attachment.work_order_id,
                 "asset_id": attachment.work_order.asset_id,
                 "esito": "denied",
+                "motivo": "permission_denied",
             },
         )
-        return HttpResponseForbidden("Non hai accesso a questo ordine di lavoro.")
+        return render(request, "core/pages/forbidden.html", status=403)
     storage = attachment.file.storage if attachment.file else None
     file_name = attachment.file.name if attachment.file else ""
     if not storage or not file_name or not storage.exists(file_name):
@@ -8330,7 +8342,7 @@ def _ensure_default_asset_list_layouts() -> list[AssetListLayout]:
 
 
 def _asset_list_valid_column_keys(custom_fields: list[AssetCustomField]) -> set[str]:
-    return set(ASSET_LIST_COMMON_COLUMNS) | set(ASSET_LIST_IT_COLUMNS)
+    return set(ASSET_LIST_COMMON_COLUMNS) | set(ASSET_LIST_IT_COLUMNS) | {"qr"}
 
 
 def _sanitize_asset_list_visible_columns(columns: object, valid_keys: set[str], fallback: list[str] | None = None) -> list[str]:
@@ -8651,6 +8663,7 @@ def _handle_excel_import_request(request: HttpRequest) -> tuple[bool, str]:
             include_optional=include_optional,
             all_sheets=all_sheets,
             update=update_existing,
+            utente_id=request.user.pk,
             stdout=output,
             stderr=output,
         )
@@ -10633,7 +10646,12 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     it_monitoring = None
     if it_presentation is not None:
         from .services.it_monitoring import monitoring_for_asset
-        it_monitoring = monitoring_for_asset(request, asset)
+        it_monitoring = monitoring_for_asset(
+            request,
+            asset,
+            printer=it_presentation.get("profile") == "printer",
+            endpoint_ips=[e.ip for e in it_presentation.get("endpoints", []) if e.ip],
+        )
         if it_monitoring is not None:
             from .services.it_identity_diff import snmp_identity_diffs
 
@@ -11330,7 +11348,10 @@ def chemical_asset_create(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         form = ChemicalAssetForm(request.POST)
         if form.is_valid():
-            asset = form.save()
+            with storico_asset.traccia(fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                                       dettaglio="Nuovo prodotto chimico") as storico:
+                asset = form.save()
+                storico.aggiungi(asset.pk)
             messages.success(request, "Asset prodotto chimico creato.")
             return redirect("assets:asset_view", id=asset.id)
     else:
@@ -11355,7 +11376,9 @@ def chemical_asset_edit(request: HttpRequest, id: int | None = None) -> HttpResp
     if request.method == "POST":
         form = ChemicalAssetForm(request.POST, instance=asset)
         if form.is_valid():
-            asset = form.save()
+            with storico_asset.traccia([asset.pk], fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                                       dettaglio="Modifica prodotto chimico"):
+                asset = form.save()
             messages.success(request, "Asset prodotto chimico aggiornato.")
             return redirect("assets:asset_view", id=asset.id)
     else:
@@ -11388,7 +11411,10 @@ def asset_create(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         form = AssetForm(request.POST, request.FILES, custom_fields=custom_fields, list_suggestions=list_suggestions, **assignment_kwargs)
         if form.is_valid():
-            asset = form.save()
+            with storico_asset.traccia(fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                                       dettaglio="Nuovo asset") as storico:
+                asset = form.save()
+                storico.aggiungi(asset.pk)
             if form.cleaned_data.get("include_in_plant_layout"):
                 marker_warning = _ensure_asset_plant_layout_marker(asset)
                 if marker_warning:
@@ -11421,6 +11447,7 @@ def asset_create(request: HttpRequest) -> HttpResponse:
 
 
 ASSET_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+ASSET_IMAGE_MIMES = {"image/png", "image/jpeg", "image/webp"}
 ASSET_IMAGE_MAX_BYTES = 10 * 1024 * 1024
 
 
@@ -11437,10 +11464,25 @@ def _can_edit_asset(request: HttpRequest, asset_id: int) -> bool:
 
 def _validate_asset_image(upload) -> str:
     """Ritorna un messaggio d'errore, oppure stringa vuota se l'immagine e' valida."""
+    from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+
     if Path(getattr(upload, "name", "") or "").suffix.lower() not in ASSET_IMAGE_EXTENSIONS:
         return "Carica un'immagine PNG, JPG o WEBP."
     if int(getattr(upload, "size", 0) or 0) > ASSET_IMAGE_MAX_BYTES:
         return "L'immagine non puo' superare 10 MB."
+    # MIME reale dal contenuto: un SVG/HTML rinominato .png non passa (audit A9).
+    try:
+        validate_extension_and_mime(
+            upload,
+            allowed_extensions=ASSET_IMAGE_EXTENSIONS,
+            allowed_mimes=ASSET_IMAGE_MIMES,
+            max_bytes=ASSET_IMAGE_MAX_BYTES,
+            allow_empty=False,
+        )
+    except UploadMimeValidationError as exc:
+        return str(exc)
+    finally:
+        upload.seek(0)
     try:
         from PIL import Image
 
@@ -11504,7 +11546,9 @@ def asset_edit(request: HttpRequest, id: int | None = None) -> HttpResponse:
             **assignment_kwargs,
         )
         if form.is_valid():
-            asset = form.save()
+            with storico_asset.traccia([asset.pk], fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                                       dettaglio="Modifica asset"):
+                asset = form.save()
             if form.cleaned_data.get("include_in_plant_layout"):
                 marker_warning = _ensure_asset_plant_layout_marker(asset)
                 if marker_warning:
@@ -14995,15 +15039,32 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _work_machine_image_errors(request: HttpRequest) -> list[str]:
+    """Targhetta e foto macchina finiscono in MEDIA: solo immagini vere (no SVG/HTML)."""
+    errors = []
+    for field_name, label in (("foto_targhetta", "Foto targhetta"), ("photo", "Foto macchina")):
+        upload = request.FILES.get(field_name)
+        if upload is None:
+            continue
+        error = _validate_asset_image(upload)
+        if error:
+            errors.append(f"{label}: {error}")
+    return errors
+
+
 @login_required
 def work_machine_create(request: HttpRequest) -> HttpResponse:
     list_suggestions = _build_asset_list_suggestions()
     assignment_kwargs = _assignment_form_kwargs()
     if request.method == "POST":
         uploads, upload_errors = _validate_asset_document_uploads(request)
+        upload_errors = list(upload_errors) + _work_machine_image_errors(request)
         form = WorkMachineAssetForm(request.POST, list_suggestions=list_suggestions, **assignment_kwargs)
         if form.is_valid() and not upload_errors:
-            asset = form.save()
+            with storico_asset.traccia(fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                                       dettaglio="Nuova macchina di lavoro") as storico:
+                asset = form.save()
+                storico.aggiungi(asset.pk)
             if "foto_targhetta" in request.FILES:
                 asset.foto_targhetta = request.FILES["foto_targhetta"]
                 asset.save(update_fields=["foto_targhetta"])
@@ -15074,6 +15135,7 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
 
     if request.method == "POST":
         uploads, upload_errors = _validate_asset_document_uploads(request, asset)
+        upload_errors = list(upload_errors) + _work_machine_image_errors(request)
         remove_ids = {_as_int(value, default=0) for value in request.POST.getlist("remove_document_ids")}
         remove_ids = {value for value in remove_ids if value > 0}
         form = WorkMachineAssetForm(
@@ -15084,7 +15146,9 @@ def work_machine_edit(request: HttpRequest, id: int | None = None) -> HttpRespon
             **assignment_kwargs,
         )
         if form.is_valid() and not upload_errors:
-            asset = form.save()
+            with storico_asset.traccia([asset.pk], fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                                       dettaglio="Modifica macchina di lavoro"):
+                asset = form.save()
             if form.cleaned_data.get("include_in_plant_layout"):
                 marker_warning = _ensure_asset_plant_layout_marker(asset)
                 if marker_warning:
@@ -15189,7 +15253,9 @@ def assignment_set(request: HttpRequest, id: int | None = None) -> HttpResponse:
                     saved_asset.assignment_reparto = selected_reparto
             else:
                 saved_asset.assigned_legacy_user_id = None
-            saved_asset.save()
+            with storico_asset.traccia([asset.pk], fonte=AssetFieldHistory.FONTE_FORM, utente=request.user,
+                                       dettaglio="Assegnazione"):
+                saved_asset.save()
             messages.success(request, "Assegnazione aggiornata.")
             return redirect("assets:asset_view", id=asset.id)
     else:
@@ -18221,6 +18287,19 @@ def report_template_admin(request: HttpRequest) -> HttpResponse:
                 if suffix not in REPORT_TEMPLATE_ALLOWED_EXTENSIONS:
                     messages.error(request, "Formato template non supportato.")
                     return redirect(redirect_url)
+                try:
+                    validate_extension_and_mime(
+                        uploaded_file,
+                        allowed_extensions=REPORT_TEMPLATE_ALLOWED_EXTENSIONS,
+                        allowed_mimes=REPORT_TEMPLATE_ALLOWED_MIMES,
+                        max_bytes=ASSET_DOCUMENT_MAX_BYTES,
+                        label="Template",
+                    )
+                except UploadMimeValidationError as exc:
+                    messages.error(request, str(exc))
+                    return redirect(redirect_url)
+                finally:
+                    uploaded_file.seek(0)
 
                 should_activate = bool(request.POST.get("is_active")) or not AssetReportTemplate.objects.filter(
                     report_code=report_code
@@ -18783,7 +18862,13 @@ def asset_bulk_update(request: HttpRequest) -> JsonResponse:
     except (ValueError, TypeError):
         return JsonResponse({"ok": False, "error": "ID asset non validi"}, status=400)
 
-    updated = Asset.objects.filter(pk__in=clean_ids).update(**update_kwargs)
+    # queryset.update() salta save(): lo storico lo fotografa il servizio, prima e dopo.
+    # A blocchi: SQL Server non accetta piu' di 2.100 parametri per query.
+    updated = 0
+    with storico_asset.traccia(clean_ids, fonte=AssetFieldHistory.FONTE_BULK, utente=request.user,
+                               dettaglio="Modifica in blocco"):
+        for start in range(0, len(clean_ids), storico_asset.CHUNK):
+            updated += Asset.objects.filter(pk__in=clean_ids[start:start + storico_asset.CHUNK]).update(**update_kwargs)
     log_action(
         request,
         "asset_bulk_update",
