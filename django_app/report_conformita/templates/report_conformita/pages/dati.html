@@ -1,0 +1,62 @@
+{% extends "core/base.html" %}
+{% block title %}Dati e fonti | {{ report.title }}{% endblock %}
+{% block extra_head %}
+{% include "report_conformita/components/_styles.html" %}
+<style>
+.content{width:100%;max-width:100%}.rc-wrap{max-width:1800px;margin:auto}
+.rc-data-card{padding:18px}.rc-data-card h2{margin:0 0 12px}.rc-data-card p{line-height:1.6}
+.rc-value{white-space:pre-wrap;overflow-wrap:anywhere}.rc-original{display:block;color:var(--text-mid);font-size:var(--fs-xs);margin-top:5px}
+.rc-corrected{border-left:3px solid var(--warning);padding-left:8px}.rc-edit{display:inline-block;font-size:var(--fs-xs);margin-top:8px}
+.rc-editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:24px;border-left:4px solid var(--accent)}
+.rc-editor form p{display:flex;flex-direction:column;gap:6px}.rc-editor textarea,.rc-editor select,.rc-editor input[type=text]{width:100%;box-sizing:border-box;padding:10px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px}
+.rc-editor label{font-weight:700}.rc-editor .errorlist{color:var(--danger)}.rc-data-nav{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.rc-table td{min-width:110px}.rc-table summary{cursor:pointer;font-weight:600}.rc-stale{color:var(--danger);font-weight:700}
+@media(max-width:700px){.rc-editor{grid-template-columns:1fr}.rc-data-card{padding:12px}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{{ report_url }}">&larr; Torna al report</a>
+  <div class="page-header">
+    <div class="page-header-main"><h1 class="page-h">Dati e fonti</h1><div class="page-sub">{{ report.title }}</div></div>
+    <div class="page-header-actions"><a class="btn" href="{{ report_url }}">Visualizza report aggiornato</a></div>
+  </div>
+  <div class="rc-chips"><span class="rc-chip">{{ report.fonte }}</span><span class="rc-chip">{% if report.usa_periodo %}{{ params.periodo_label }}{% else %}Situazione corrente{% endif %}</span>{% for key,value in params.extra.items %}{% if value %}<span class="rc-chip">{{ key }}: {{ value }}</span>{% endif %}{% endfor %}</div>
+  <section class="rc-card rc-data-card">
+    <h2 class="rc-section-title">Due modi per correggere le informazioni</h2>
+    <p><strong>Correggi la sorgente:</strong> apri la scheda nel modulo di origine. Il salvataggio aggiorna i dati usati dal portale e dai report; valgono i permessi di quel modulo.</p>
+    <div class="rc-links">{% for label,url in source_links %}<a class="btn btn-secondary" href="{{ url }}">{{ label }} &rarr;</a>{% empty %}<span class="rc-note-inline">Nessun collegamento sorgente disponibile con i tuoi permessi.</span>{% endfor %}</div>
+    <p><strong>Rettifica soltanto il report:</strong> seleziona un valore e indica la motivazione. Il valore originale resta visibile qui e la rettifica viene segnalata nel report, nel PDF e in Excel. Le rettifiche sono condivise con chi consulta questo report.</p>
+    <p class="rc-note-inline">{% if report.usa_periodo %}Le rettifiche valgono per questo preciso periodo e questi filtri.{% else %}Le rettifiche valgono per la situazione corrente con questi filtri, anche nelle consultazioni successive.{% endif %} Se cambia il valore sorgente, la rettifica viene sospesa. Rettificare una riga non ricalcola indicatori e semafori: gli indicatori possono essere rettificati separatamente.</p>
+    {% if not can_edit %}<p><strong>Accesso in consultazione.</strong> Per salvare rettifiche serve il permesso &ldquo;Report conformita - Rettifiche&rdquo;.</p>{% endif %}
+  </section>
+  <details class="rc-card rc-data-card"><summary><strong>Da dove vengono prelevati i campi</strong></summary>
+    <div class="rc-table-wrap"><table class="rc-table"><thead><tr><th>Campo nel report</th><th>Origine o calcolo</th></tr></thead><tbody>{% for label,source in columns_sources %}<tr><td>{{ label }}</td><td>{{ source }}</td></tr>{% endfor %}</tbody></table></div>
+    {% if result.notes %}<ul>{% for note in result.notes %}<li>{{ note }}</li>{% endfor %}</ul>{% endif %}
+  </details>
+  {% if selected %}
+  <section class="rc-card rc-data-card rc-editor" id="editor">
+    <div><h2 class="rc-section-title">{{ selected.label }}</h2><p>{{ selected.source }}</p><p>Valore sorgente: <strong class="rc-value">{{ selected.original|default:"(vuoto)" }}</strong></p><p>Valore nel report: <strong class="rc-value">{{ selected.value|default:"(vuoto)" }}</strong></p>
+    {% if selected.stale %}<p class="rc-stale">Sorgente cambiata: rettifica sospesa. Verifica il dato prima di salvarne una nuova.</p>{% endif %}
+    {% if selected.correction %}<p class="rc-note-inline">Ultima operazione: {{ selected.correction.author_label }} &middot; {{ selected.correction.created_at|date:"d/m/Y H:i" }}<br>{{ selected.correction.reason }}</p>{% endif %}</div>
+    {% if form %}<form method="post" action="{{ data_url }}&amp;target={{ selected.target }}#editor">{% csrf_token %}<input type="hidden" name="target" value="{{ selected.target }}">{{ form.as_p }}<div class="rc-data-nav"><button class="btn" type="submit">Salva operazione</button><a href="{{ data_url }}">Chiudi</a></div></form>{% endif %}
+  </section>
+  {% endif %}
+  <section class="rc-group"><h2 class="rc-section-title">Indicatori</h2><div class="rc-table-wrap"><table class="rc-table"><thead><tr><th>Indicatore</th><th>Sorgente</th><th>Valore nel report</th><th>Operazione</th></tr></thead><tbody>
+  {% for cell in kpis %}<tr><td>{{ cell.label }}</td><td>{{ cell.original }}</td><td>{% include "report_conformita/components/_data_value.html" %}</td><td><a href="{{ data_url }}&amp;target={{ cell.target }}#editor">{% if can_edit %}Rettifica{% else %}Dettaglio{% endif %}</a></td></tr>{% endfor %}
+  </tbody></table></div></section>
+  <section class="rc-group"><div class="rc-group-head"><h2 class="rc-section-title">Informazioni acquisite</h2><span class="rc-note-inline">{{ page.paginator.count }} righe</span></div>
+  <div class="rc-table-wrap"><table class="rc-table"><thead><tr><th>Sorgente</th>{% for col in result.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead><tbody>
+  {% for row in rows %}<tr><td><span class="rc-note-inline">Riga {{ row.number }}</span>{% for label,url in row.links %}<a class="rc-edit" href="{{ url }}">{{ label }} &rarr;</a>{% empty %}<span class="rc-original">Sorgente non accessibile</span>{% endfor %}</td>{% for cell in row.cells %}<td>{% include "report_conformita/components/_data_value.html" %}<a class="rc-edit" href="{{ data_url }}&amp;target={{ cell.target }}#editor">{% if can_edit %}Rettifica{% else %}Dettaglio{% endif %}</a></td>{% endfor %}</tr>
+  {% empty %}<tr><td colspan="30">Nessuna informazione acquisita con questi filtri.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <nav class="rc-data-nav" aria-label="Pagine dei dati">{% if page.has_previous %}<a href="{{ data_url }}&amp;pagina={{ page.previous_page_number }}">&larr; Precedenti</a>{% endif %}<span>Pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="{{ data_url }}&amp;pagina={{ page.next_page_number }}">Successive &rarr;</a>{% endif %}</nav>
+  </section>
+  <section class="rc-group" id="storico"><h2 class="rc-section-title">Storico {% if selected %}del dato selezionato{% else %}delle rettifiche{% endif %}</h2>
+  <div class="rc-table-wrap"><table class="rc-table"><thead><tr><th>Quando / chi</th><th>Dato</th><th>Originale al salvataggio</th><th>Operazione</th><th>Motivazione</th></tr></thead><tbody>
+  {% for item in history %}<tr><td>{{ item.created_at|date:"d/m/Y H:i" }}<br>{{ item.author_label }}</td><td>{{ item.target_label }}</td><td class="rc-value">{{ item.source_value|default:"(vuoto)" }}</td><td>{% if item.restored %}Ripristino sorgente{% else %}<span class="rc-value">{{ item.value|default:"(vuoto)" }}</span>{% endif %}</td><td>{{ item.reason }}</td></tr>{% empty %}<tr><td colspan="5">Nessuna rettifica registrata.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <nav class="rc-data-nav" aria-label="Pagine dello storico">{% if history.has_previous %}<a href="{{ history_url }}&amp;storico={{ history.previous_page_number }}#storico">&larr; Recenti</a>{% endif %}<span>{{ history.number }} / {{ history.paginator.num_pages }}</span>{% if history.has_next %}<a href="{{ history_url }}&amp;storico={{ history.next_page_number }}#storico">Precedenti &rarr;</a>{% endif %}</nav>
+  </section>
+</div>
+{% endblock %}
