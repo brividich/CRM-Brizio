@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Anomalie — automazione «Decisioni del capocommessa all'operatore»** (`django_app/anomalie/automazioni_service.py`, `escalation_config.py`, `mail_action_service.py`, `mail_action_views.py`, `views.py`, `templates/anomalie/pages/anomalie_configurazione.html`, `tests_automazioni.py`, `docs/moduli/anomalie.md`).
+  - Quando il capocommessa decide dalla pagina della mail o da Gestione anomalie, l'operatore che ha segnalato le anomalie riceve una mail dedicata (S/N, anomalia, stato, RDC con numero, segnalazione al cliente, chiusura, note) e una notifica nel portale (`anomalia_decisione`) che apre l'OP. Più operatori sullo stesso OP: una mail ciascuno.
+  - Saltate le anomalie senza decisione e quelle modificate dall'autore stesso; chi riceve la mail dedicata esce dal riepilogo generico. Dalla Gestione la mail parte con la coda di riepilogo (~5 min) e solo dopo l'esito del riepilogo, così un ritentativo SMTP non la duplica.
+  - Accesa di default, si spegne in Configurazione > Promemoria & escalation (`anomalie_auto_decisioni_operatore_attivo`). Nessuna migrazione.
+  - **Correzione:** `_resolve_segnalante_email` non trovava mai il segnalante (query su `utenti.cognome`, colonna inesistente, e indirizzo da `utenti.email`, che è il login): ora usa `anagrafica_dipendenti.email_notifica`. Effetto: anche la copia di riepilogo al segnalante del controllo a blocchi inizia ad arrivare.
+
 ## 1.6.2 - 2026-10-10
 
 - **Accessi — categorie dei permessi rifatte e verifica dei collegamenti ACL** (`django_app/core/permission_categories.py` nuovo, `django_app/core/acl_capability.py`, `django_app/core/permission_taxonomy.py`, `django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/accessi_unificati.html`, test `core/test_permission_categories.py`, `core/test_acl_capability.py`, `admin_portale/test_accessi_unificati.py`, `docs/moduli/admin_portale.md`).

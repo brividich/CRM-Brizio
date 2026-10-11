@@ -287,6 +287,7 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
     )
 
     # Mail di conferma post-aggiornamento al segnalante + CC/CAR + lista fissa.
+    piano_operatori: list[dict] = []
     try:
         from anomalie.mail_action_service import send_anomalie_update_confirmation
         by_id = {str(a.get("id")): a for a in anomalie_live}
@@ -310,15 +311,34 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
                 "chiudere": bool(per_riga.get("chiudere")) or action == "chiudi",
             })
         if updates_summary:
+            # Automazione «decisioni all'operatore»: chi ha segnalato riceve una mail
+            # dedicata con le decisioni e per questo esce dal riepilogo generico.
+            try:
+                from anomalie.automazioni_service import prepara_decisioni_operatore
+                piano_operatori = prepara_decisioni_operatore(
+                    token_obj.op_id, updates_summary, deciso_da_email=token_obj.recipient_email or "",
+                )
+            except Exception:
+                logger.warning("mail_action: decisioni all'operatore non preparate op=%s", token_obj.op_id, exc_info=True)
             send_anomalie_update_confirmation(
                 op_id=token_obj.op_id,
                 op_nominativo=token_obj.op_nominativo or "",
                 anomalie_rows=anomalie_live,
                 updates_summary=updates_summary,
                 source_label=f"Risposta da mail ({token_obj.recipient_display})",
+                exclude_emails=[g["email"] for g in piano_operatori if g.get("email")],
             )
     except Exception:
         logger.warning("mail_action: invio conferma aggiornamento fallito op=%s", token_obj.op_id, exc_info=True)
+    try:
+        if piano_operatori:
+            from anomalie.automazioni_service import invia_decisioni_operatore
+            invia_decisioni_operatore(
+                token_obj.op_id, piano_operatori,
+                deciso_da=token_obj.recipient_display or token_obj.recipient_email or "",
+            )
+    except Exception:
+        logger.warning("mail_action: decisioni all'operatore non inviate op=%s", token_obj.op_id, exc_info=True)
     return redirect(reverse("anomalie_mail_action_done", kwargs={"token": token_obj.token}))
 
 
