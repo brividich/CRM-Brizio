@@ -14,6 +14,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - La vista scelta viene ricordata per utente. Le colonne non permesse non arrivano mai: né nell'HTML, né forzandole con `?colonne=`, né in una vista condivisa, né nell'export.
   - L'export Excel/PDF dei dipendenti usa le stesse righe e le stesse colonne dell'elenco (rimossa la copia divergente del dataset); i valori restano testo, mai formule.
   - Deploy: `migrate anagrafica` (0157-0159; la 0159 copia il binding ACL di `anagrafica:impostazioni` sulle nuove rotte).
+- **Anagrafica — creazione dipendente a step con verifica dell'account portale (prompt 03, obiettivo B)** (`django_app/anagrafica/services/account_portale.py` nuovo, `views_account.py` nuovo, `views.py` (`dipendente_create`), `urls.py`, template `pages/dipendente_create.html`, `partials/_account_portale_risultati.html` nuovo, migrazione `0160_account_portale_acl`, test `tests_account_portale.py`).
+  - Quattro passi: dati anagrafici → organizzazione → account portale → riepilogo. Senza JavaScript il modulo resta tutto visibile e funziona come prima.
+  - Step «Account portale»: cerca gli utenti portale con la stessa email o lo stesso codice fiscale e, **in sola lettura**, gli account Active Directory per email/UPN o nome e cognome, con gruppi e stato abilitato/disabilitato. Scelte: collega account AD, collega utente portale esistente, crea utente locale, nessun accesso per ora.
+  - Sicurezza (finding A3/M2): collegamento AD solo per UPN/email esatti, solo ad account abilitati e nei gruppi di `LDAP_GROUP_ALLOWLIST`; un account privilegiato (superuser, staff o con password locale) si collega solo con la conferma esplicita di un superuser; la scelta viene ricontrollata dal server al salvataggio; ogni collegamento o creazione va in audit (`ACCOUNT_PORTALE_COLLEGATO` / `ACCOUNT_PORTALE_CREATO`). Il portale non crea né modifica account in AD.
+  - Rimossi il collegamento automatico per prefisso dell'alias (`email istartswith alias@`) e la password iniziale prevedibile (anno di nascita / `PortaleAAAA`): l'utente locale nasce con la password scelta dall'operatore, validata dai validator Django, e con il cambio obbligatorio al primo accesso. Senza scelta esplicita non viene creato nessun account.
+  - AD irraggiungibile (timeout): il dipendente si crea comunque e l'account si collega dopo. Risultati ambigui e account disabilitati sono spiegati e non collegabili.
+  - Doppio invio del modulo: un token per modulo fa trovare la scheda già creata invece di creare un doppione.
+  - Deploy: `migrate anagrafica` (0160 copia il binding ACL di `anagrafica:dipendente_create` sulla ricerca).
 
 ## 1.6.2 - 2026-10-10
 

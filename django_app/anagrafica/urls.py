@@ -10,6 +10,7 @@ from . import views_mansioni_rischio
 from . import views_elearning
 from . import views_sorveglianza
 from . import views_elenco
+from . import views_account
 
 app_name = "anagrafica"
 
@@ -31,6 +32,7 @@ urlpatterns = [
 
     # Crea nuovo dipendente
     path("dipendenti/nuovo/", views.dipendente_create, name="dipendente_create"),
+    path("dipendenti/nuovo/account-portale/", views_account.account_portale_cerca, name="account_portale_cerca"),
 
     # Scheda dettaglio dipendente
     path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),
