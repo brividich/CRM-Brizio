@@ -8,6 +8,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Anagrafica — binding ACL del salvataggio «Avviso IT ai nuovi ingressi»** (`django_app/anagrafica/migrations/0163_avviso_it_acl.py`): la route `anagrafica:avviso_it_save` riceve il binding di `anagrafica:workflow_campo_create` (o, se manca, di `anagrafica:impostazioni`); senza, con ACL strict il salvataggio sarebbe negato ai non superuser. Deploy: `migrate anagrafica` (0162-0163).
+
 - **Anagrafica — riquadro «Account portale» nella scheda dipendente** (`django_app/anagrafica/views_account.py`, `views.py`, `urls.py`, `services/account_portale.py`, `migrations/0162_account_scheda_acl.py` nuovo, `templates/anagrafica/partials/_account_portale_scheda.html` nuovo, `partials/_account_portale_risultati.html`, `pages/dipendente_detail.html`, `anagrafica/tests_account_scheda.py` nuovo, `docs/moduli/anagrafica.md`).
   - Nella tab Anagrafica della scheda, solo per chi amministra l'anagrafica (controllo ripetuto nelle view): se collegato, login, tipo (AD o locale) e stato dell'utente portale con **Scollega** (POST con conferma, solo `utente_id = NULL`, l'utente resta; audit `ACCOUNT_PORTALE_SCOLLEGATO`); se non collegato, ricerca precompilata con email, nome, cognome e codice fiscale della scheda e le scelte del wizard: collega AD, collega utente esistente, crea utente locale.
   - Nuove route `anagrafica:dipendente_account_portale` e `anagrafica:dipendente_account_scollega` (POST, CSRF, JSON 401/403/400 alle richieste AJAX). La scelta è rivalidata con `valida_scelta` usando email e codice fiscale letti dal DB, poi `applica_scelta`: scheda già collegata, dipendente non attivo, account privilegiato senza conferma di un superuser e AD irraggiungibile vengono rifiutati.
