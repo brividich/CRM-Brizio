@@ -8,6 +8,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Dipendenze di sviluppo allineate a quelle di produzione, senza vulnerabilità note** (`django_app/requirements-dev.txt`).
+  - `requirements-dev.txt` era rimasto indietro rispetto a `requirements.txt` e bloccava versioni con vulnerabilità note (cryptography 44.0.3, PyJWT 2.12.1, urllib3 2.6.3, sqlparse 0.5.5, Werkzeug 3.1.8, pyOpenSSL 25.1.0, Django 5.2.16, djangorestframework 3.17.1, idna 3.13, pyasn1 0.6.3); installare insieme i due file dava un conflitto.
+  - Ogni pacchetto presente in entrambi i file ha ora la stessa versione di `requirements.txt`; `virtualenv` 21.7.13 (via pre-commit, con `python-discovery` 1.6.2). Allineamento fatto a mano per non perdere i marker non-Windows (`python-magic`) che `pip-compile` su Windows elimina.
+  - Verifica: `pip-audit` senza vulnerabilità su entrambi i file, `pip install --dry-run` dei due file insieme senza conflitti. Il pacchetto di produzione non cambia (usa solo `requirements.txt`).
+
+- **Anagrafica — guida d'uso dell'e-learning nel portale** (`django_app/anagrafica/views_elearning.py`, `urls.py`, `templates/anagrafica/pages/formazione_online_guida.html`, `templates/anagrafica/partials/_elearning_guida_link.html`, pagine e-learning `formazione_online_catalog.html`, `formazione_elearning_hub.html`, `formazione_corso_elearning.html`, `formazione_elearning_manage.html`, `elearning_cruscotto.html`, `elearning_registro.html`, `elearning_impostazioni_corsi.html`, `elearning_regola_corso.html`, `formazione_elearning_settings.html`, `formazione_verifica_attestato.html`, `anagrafica/tests_elearning_guida.py`, `docs/moduli/anagrafica.md`)
+  - Nuova pagina **Guida e-learning** (`/anagrafica/formazione/corsi-online/guida/`): parte del discente (seguire un corso, quiz, gradimento, promemoria, verifica attestato) visibile a tutti gli autenticati; parte HR/RSPP (creazione, slide e import, domande ed Excel, regole FAD e conferma RSPP, pubblicazione e versioni, assegnazioni e rinnovi, promemoria, sblocchi e attestati, cruscotto, impostazioni) solo a chi gestisce o consulta la formazione.
+  - Pulsante **Guida** nelle 10 pagine e-learning, con rimando al paragrafo pertinente.
+  - 5 test nuovi (visibilità per ruolo, ancore dei pulsanti, login obbligatorio). Nessuna migrazione.
+
 - **Anomalie — automazione «Decisioni del capocommessa all'operatore»** (`django_app/anomalie/automazioni_service.py`, `escalation_config.py`, `mail_action_service.py`, `mail_action_views.py`, `views.py`, `templates/anomalie/pages/anomalie_configurazione.html`, `tests_automazioni.py`, `docs/moduli/anomalie.md`).
   - Quando il capocommessa decide dalla pagina della mail o da Gestione anomalie, l'operatore che ha segnalato le anomalie riceve una mail dedicata (S/N, anomalia, stato, RDC con numero, segnalazione al cliente, chiusura, note) e una notifica nel portale (`anomalia_decisione`) che apre l'OP. Più operatori sullo stesso OP: una mail ciascuno.
   - Saltate le anomalie senza decisione e quelle modificate dall'autore stesso; chi riceve la mail dedicata esce dal riepilogo generico. Dalla Gestione la mail parte con la coda di riepilogo (~5 min) e solo dopo l'esito del riepilogo, così un ritentativo SMTP non la duplica.

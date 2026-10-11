@@ -23,6 +23,7 @@
         <p class="fmd-ph-sub">Scegli i corsi erogabili online e se sono solo per chi li ha assegnati o aperti a tutti (self-service). Un corso è online solo quando è pubblicato e le sue regole sono confermate. Le regole di fruizione di ogni corso le conferma l'RSPP prima della pubblicazione.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        {% include "anagrafica/partials/_elearning_guida_link.html" with ancora="creare" %}
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:elearning_cruscotto' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Cruscotto</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:formazione_elearning_settings' %}"><svg class="fmd-ico"><use href="#i-gear"/></svg>Impostazioni globali</a>
       </div>
