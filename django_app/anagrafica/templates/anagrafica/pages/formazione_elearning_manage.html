@@ -52,6 +52,7 @@ body.theme-dark .fm-assign-field > span { color:var(--text,#e5e7eb); }
         </p>
       </div>
       <div class="fmd-pagehead-actions">
+        {% include "anagrafica/partials/_elearning_guida_link.html" with ancora="pubblicare" %}
         <a href="{% url 'anagrafica:formazione_online_player' corso.pk %}" target="_blank" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-arrow-right"/></svg>Anteprima</a>
         {% if is_editor %}
         <a href="{% url 'anagrafica:formazione_corso_elearning' corso.pk %}" class="fmd-btn fmd-btn-navy"><svg class="fmd-ico"><use href="#i-edit"/></svg>Slide e quiz</a>

@@ -648,6 +648,18 @@ def elearning_registro(request):
     })
 
 
+# -- Guida d'uso ---------------------------------------------------------------
+
+@login_required
+def formazione_online_guida(request):
+    """Guida dell'e-learning dentro il portale. La parte del discente la vedono tutti;
+    quella di HR/RSPP solo chi gestisce o consulta la formazione."""
+    _legacy_id, is_editor = _ctx_utente(request)
+    return render(request, "anagrafica/pages/formazione_online_guida.html", {
+        "page_title": "Guida e-learning", "is_editor": is_editor, "parte_hr": is_editor or _puo_report(request),
+    })
+
+
 # -- Verifica di autenticità dell'attestato (prompt 05, fase 2) ----------------
 
 VERIFICHE_MAX = 30          # tentativi per utente …
