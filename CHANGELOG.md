@@ -8,6 +8,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **SOC — collegamento automatico software ↔ CVE (CPE)** (`django_app/security/services/cpe_auto.py` nuovo, `security/models.py`, `security/migrations/0021_cpe_mapping_origine.py` nuovo, `security/services/cve_feeds.py`, `security/services/cve_impact.py`, `security/views_vuln.py`, `security/templates/security/vuln_software.html`, `security/guide/12_AUTOMATISMI_E_VULNERABILITA.md`, test `security/tests/test_cve_impact.py`, `docs/moduli/security.md`).
+  - Dopo ogni giro dell'arricchimento CVE e ogni import dell'inventario, i software il cui nome coincide senza dubbi con un CPE delle CVE scaricate vengono collegati da soli (badge «automatico»); la spiegazione degli esiti lo dice. «Azzera» annulla e il sistema non lo rifà; le decisioni delle persone non vengono toccate.
+  - Pagina Software e CPE: filtri Proposte da confermare / Collegati in automatico / Da mappare, «Collega automaticamente ora», «Conferma selezionati» per confermare in blocco le proposte.
+  - Deploy: `migrate security` (0021).
+
 - **Monitoring — la pagina Schedule dice se ogni job sta girando davvero** (`django_app/monitoring/schedule_health.py` nuovo, `monitoring/views.py`, `monitoring/templates/monitoring/pages/schedules.html`, test `monitoring/test_system_status.py`, `docs/moduli/monitoring.md`): oltre a registrato/abilitato e prossimo run, ultimo run (OK/fallito con l'errore), fallimenti nelle 24 h e stato «In regola / In ritardo / Ultimo run fallito / Non registrato / Mai eseguito / Disabilitato», problemi in cima; banner se il cluster django-q è fermo (nessun job completato da 20 minuti); cadenza corretta per i job orari (prima «ogni None min»).
 
 - **Automazioni — fix `setup_q_schedules` che cadeva con `KeyError: 'minutes'`** (`django_app/automazioni/schedules.py`, test `automazioni/tests_managed_flows.py`): la spec oraria `security_cve_enrichment` non ha i minuti e il comando si fermava lì, lasciando non registrati il job di arricchimento CVE e gli schedule successivi. Ora i minuti servono solo agli schedule «ogni N minuti». Deploy: rilanciare `setup_q_schedules`.

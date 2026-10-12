@@ -378,6 +378,14 @@ def run_enrichment(time_budget_seconds=90, clock=time.monotonic, sleep=time.slee
                 result["errors"].append(f"EPSS: {exc}")
     except BudgetExhausted:
         result["errors"].append("budget di tempo esaurito: il resto al prossimo giro")
+    try:
+        # Prodotti dell'inventario con nome identico a un CPE delle CVE scaricate: collegati da soli.
+        from security.services.cpe_auto import auto_link
+
+        result["auto_linked"] = auto_link()
+    except Exception as exc:  # noqa: BLE001 - il collegamento automatico non deve fermare il ricalcolo
+        logger.exception("Collegamento automatico CPE non eseguito")
+        result["errors"].append(f"collegamento automatico: {exc}"[:200])
     result["recompute"] = (recompute or queue_recompute)()
     return result
 

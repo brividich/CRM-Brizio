@@ -1413,6 +1413,12 @@ class SoftwareCpeMapping(models.Model):
     confirmed = models.BooleanField(default=False, db_index=True)
     not_applicable = models.BooleanField(default=False)
     suggestions = models.JSONField(default=list, blank=True)
+    # "" = decisa da una persona; "auto" = collegata dal sistema (nome identico a quello NVD);
+    # "auto_rifiutato" = collegamento automatico annullato da una persona: il sistema non lo rifà.
+    ORIGIN_MANUAL = ""
+    ORIGIN_AUTO = "auto"
+    ORIGIN_AUTO_REJECTED = "auto_rifiutato"
+    origin = models.CharField(max_length=16, blank=True, default="", db_index=True)
     confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     confirmed_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)

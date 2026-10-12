@@ -70,11 +70,13 @@ def _confirmed_mappings():
     return out
 
 
-def _evaluate_install(record, criterion, install, stale_before):
+def _evaluate_install(record, criterion, install, stale_before, auto_pairs=frozenset()):
     name = f"{install.product_raw} {install.version_raw}".strip()
     where = install.host_display or install.host
     rng = _range_text(criterion)
     base = f"{name} installato su {where}; {rng}; {_source_text(install)}"
+    if (install.vendor, install.product) in auto_pairs:
+        base += f"; collegamento automatico a {criterion.get('vendor')}:{criterion.get('product')} (nome identico in NVD)"
     if criterion.get("version") == "-":
         return SecurityCveImpact.TO_VERIFY, f"{base}. La CVE non indica versioni confrontabili."
     exact = criterion.get("version") if criterion.get("version") not in ("", "*", "-") else None
@@ -98,6 +100,9 @@ def evaluate(record, today=None):
     """Esiti per host (dict host → (esito, [spiegazioni], installazione, data inventario)) + criteri non mappati."""
     stale_before = fresh_since(today)
     mappings = _confirmed_mappings()
+    auto_pairs = frozenset(
+        SoftwareCpeMapping.objects.filter(confirmed=True, origin=SoftwareCpeMapping.ORIGIN_AUTO).values_list("vendor", "product")
+    )
     not_applicable = set(SoftwareCpeMapping.objects.filter(not_applicable=True).values_list("vendor", "product"))
     per_host, unmapped = {}, []
     for criterion in record.configurations or []:
@@ -109,7 +114,7 @@ def evaluate(record, today=None):
                 q |= Q(vendor=vendor, product=product)
             installs = SoftwareInstallation.objects.filter(q, still_detected=True)
             for install in installs:
-                outcome, text = _evaluate_install(record, criterion, install, stale_before)
+                outcome, text = _evaluate_install(record, criterion, install, stale_before, auto_pairs)
                 _merge(per_host, install, outcome, text)
             continue
         # Nessuna mappatura confermata: cerco prodotti dal nome simile, da verificare.

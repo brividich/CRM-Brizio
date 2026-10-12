@@ -8,31 +8,40 @@
 {% block soc_content %}
 <section class="sec-panel">
   <p class="sec-muted sec-small">
-    Un software dell'inventario conta per l'impatto CVE solo quando la sua mappatura CPE (vendor:product di NVD) è <strong>confermata</strong> da una persona.
-    I suggerimenti vengono dalle CVE già scaricate e, a richiesta, dal dizionario CPE di NVD (ricerca in coda, mai durante la pagina).
+    Un software dell'inventario conta per l'impatto CVE quando è collegato al suo CPE (vendor:product di NVD). Il sistema collega <strong>da solo</strong> i software il cui nome coincide senza dubbi con un CPE delle {{ known_cpes }} coppie presenti nelle CVE scaricate (badge «automatico», si annulla con «Azzera»); gli altri restano <strong>proposte</strong> da confermare, anche in blocco.
     <a href="{% url 'security:inventory' %}">Inventario</a> · <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#collegare-i-software-alle-cve-cpe">Guida</a>
   </p>
-  <form method="get" class="sec-inline"><input type="search" name="q" value="{{ q }}" placeholder="Cerca vendor o prodotto" aria-label="Cerca software"><button type="submit" class="sec-button">Cerca</button></form>
+  <div class="sec-actions" style="flex-wrap:wrap;gap:6px">
+    <a class="sec-button{% if not stato %} sec-button-primary{% endif %}" href="?q={{ q|urlencode }}">Tutti</a>
+    <a class="sec-button{% if stato == 'proposte' %} sec-button-primary{% endif %}" href="?stato=proposte&q={{ q|urlencode }}">Proposte da confermare ({{ counts.proposte }})</a>
+    <a class="sec-button{% if stato == 'automatici' %} sec-button-primary{% endif %}" href="?stato=automatici&q={{ q|urlencode }}">Collegati in automatico ({{ counts.automatici }})</a>
+    <a class="sec-button{% if stato == 'da_mappare' %} sec-button-primary{% endif %}" href="?stato=da_mappare&q={{ q|urlencode }}">Da mappare</a>
+    <span class="sec-small sec-muted">Confermati a mano: {{ counts.confermati }}</span>
+  </div>
+  <form method="get" class="sec-inline"><input type="hidden" name="stato" value="{{ stato }}"><input type="search" name="q" value="{{ q }}" placeholder="Cerca vendor o prodotto" aria-label="Cerca software"><button type="submit" class="sec-button">Cerca</button></form>
+  <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="cpe_auto"><button type="submit" class="sec-button" title="Collega i software il cui nome coincide senza dubbi con un CPE delle CVE scaricate">Collega automaticamente ora</button></form>
   <form method="post" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="recompute"><button type="submit" class="sec-button">Ricalcola impatti</button></form>
+  <form method="post" id="bulk-form" class="sec-inline">{% csrf_token %}<input type="hidden" name="action" value="cpe_confirm_bulk"><button type="submit" class="sec-button sec-button-primary" title="Conferma la prima proposta delle righe spuntate">Conferma selezionati</button></form>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-table-wrap">
     <table class="sec-table" data-fm-table-skip="1">
-      <thead><tr><th>Vendor</th><th>Prodotto</th><th class="sec-num">Host</th><th>Mappatura CPE</th><th>Suggerimenti</th><th>Azioni</th></tr></thead>
+      <thead><tr><th><span class="sr-only">Seleziona</span></th><th>Vendor</th><th>Prodotto</th><th class="sec-num">Host</th><th>Mappatura CPE</th><th>Suggerimenti</th><th>Azioni</th></tr></thead>
       <tbody>
       {% for row in page.object_list %}
         <tr>
+          <td>{% if row.local_suggestions and not row.mapping.confirmed and not row.mapping.not_applicable %}<input type="checkbox" form="bulk-form" name="bulk" value="{{ row.vendor }}|||{{ row.product }}|||{{ row.local_suggestions.0 }}" aria-label="Conferma {{ row.local_suggestions.0 }} per {{ row.product }}">{% endif %}</td>
           <td>{{ row.vendor|default:"—" }}</td>
           <td class="sec-title-cell">{{ row.product }}</td>
           <td class="sec-num">{{ row.hosts }}</td>
           <td>
-            {% if row.mapping.confirmed %}<span class="sec-badge sec-badge-success">{{ row.mapping.cpe_vendor }}:{{ row.mapping.cpe_product }}</span>
+            {% if row.mapping.confirmed %}<span class="sec-badge sec-badge-success">{{ row.mapping.cpe_vendor }}:{{ row.mapping.cpe_product }}</span>{% if row.mapping.origin == "auto" %} <span class="sec-badge sec-badge-muted" title="Collegato dal sistema: il nome coincide con un CPE delle CVE scaricate">automatico</span>{% endif %}
             {% elif row.mapping.not_applicable %}<span class="sec-badge sec-badge-muted">Non applicabile</span>
-            {% else %}<span class="sec-badge warning">Da mappare</span>{% endif %}
+            {% else %}<span class="sec-badge warning">Da mappare</span>{% if row.mapping.origin == "auto_rifiutato" %} <small class="sec-muted">(collegamento automatico annullato)</small>{% endif %}{% endif %}
           </td>
           <td class="sec-small">
-            {% for s in row.local_suggestions %}<div>{{ s }} <small class="sec-muted">(CVE note)</small></div>{% endfor %}
+            {% for s in row.local_suggestions %}<div>{{ s }} <small class="sec-muted">(CVE note){% if forloop.first and not row.mapping.confirmed %} · proposta{% endif %}</small></div>{% endfor %}
             {% for s in row.mapping.suggestions %}{% if s.error %}<div class="sec-muted">NVD: {{ s.error }}</div>{% else %}<div>{{ s.cpe_vendor }}:{{ s.cpe_product }} <small class="sec-muted">{{ s.title|truncatechars:50 }}</small></div>{% endif %}{% endfor %}
           </td>
           <td>
@@ -47,13 +56,13 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="6" class="sec-empty">Nessun software nell'inventario. <a href="{% url 'security:inventory' %}">Importa un export</a>.</td></tr>
+        <tr><td colspan="7" class="sec-empty">Nessun software nell'inventario. <a href="{% url 'security:inventory' %}">Importa un export</a>.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
   {% if page.has_other_pages %}
-    <div class="sec-actions">{% if page.has_previous %}<a class="sec-button" href="?q={{ q|urlencode }}&page={{ page.previous_page_number }}">‹</a>{% endif %}<span class="sec-small">pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a class="sec-button" href="?q={{ q|urlencode }}&page={{ page.next_page_number }}">›</a>{% endif %}</div>
+    <div class="sec-actions">{% if page.has_previous %}<a class="sec-button" href="?stato={{ stato }}&q={{ q|urlencode }}&page={{ page.previous_page_number }}">‹</a>{% endif %}<span class="sec-small">pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a class="sec-button" href="?stato={{ stato }}&q={{ q|urlencode }}&page={{ page.next_page_number }}">›</a>{% endif %}</div>
   {% endif %}
 </section>
 
