@@ -34,6 +34,7 @@ urlpatterns = [
     # Crea nuovo dipendente
     path("dipendenti/nuovo/", views.dipendente_create, name="dipendente_create"),
     path("dipendenti/nuovo/account-portale/", views_account.account_portale_cerca, name="account_portale_cerca"),
+    path("dipendenti/guida/", views_account.guida_persone_account, name="guida_persone_account"),
 
     # Scheda dettaglio dipendente
     path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),

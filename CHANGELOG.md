@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Anagrafica — guida d'uso «Persone e account» nel portale** (`django_app/anagrafica/views_account.py`, `urls.py`, template `pages/guida_persone_account.html` nuovo, `partials/_guida_persone_link.html` nuovo, pulsante «Guida» in `pages/dipendenti_list.html`, `pages/viste_elenco.html`, `pages/vista_elenco_form.html`, `pages/dipendente_create.html`, `pages/amministrazione_hub.html`, `pages/impostazioni.html`, `partials/_account_portale_scheda.html`, migrazione `0164_guida_persone_acl`, test `tests_guida_persone.py`, `docs/moduli/anagrafica.md`).
+  - Nuova pagina `/anagrafica/dipendenti/guida/`: per tutti l'elenco dipendenti e le viste; per chi amministra l'anagrafica anche configurazione delle viste, nuovo dipendente passo per passo, account portale dalla scheda, hub Amministrazione e storico import; per admin e IT ricerca in Active Directory (cosa la rende non collegabile, account privilegiati, utenti locali), collegamento automatico al primo accesso, avviso IT ai nuovi ingressi e cosa fare dopo l'aggiornamento.
+  - Pulsante «Guida» su ogni pagina coinvolta, che apre il paragrafo giusto; il test verifica che ogni pulsante punti a un paragrafo esistente.
+  - Corretta l'icona del titolo di «Viste elenco» (`i-list` non esiste nel set di icone: ora `i-grid`).
+  - Deploy: `migrate anagrafica` (0164 copia sulla guida il binding ACL di `anagrafica:dipendenti_list`).
+
 - **Anagrafica — binding ACL del salvataggio «Avviso IT ai nuovi ingressi»** (`django_app/anagrafica/migrations/0163_avviso_it_acl.py`): la route `anagrafica:avviso_it_save` riceve il binding di `anagrafica:workflow_campo_create` (o, se manca, di `anagrafica:impostazioni`); senza, con ACL strict il salvataggio sarebbe negato ai non superuser. Deploy: `migrate anagrafica` (0162-0163).
 
 - **Anagrafica — riquadro «Account portale» nella scheda dipendente** (`django_app/anagrafica/views_account.py`, `views.py`, `urls.py`, `services/account_portale.py`, `migrations/0162_account_scheda_acl.py` nuovo, `templates/anagrafica/partials/_account_portale_scheda.html` nuovo, `partials/_account_portale_risultati.html`, `pages/dipendente_detail.html`, `anagrafica/tests_account_scheda.py` nuovo, `docs/moduli/anagrafica.md`).
