@@ -8,6 +8,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Monitoring — la pagina Schedule dice se ogni job sta girando davvero** (`django_app/monitoring/schedule_health.py` nuovo, `monitoring/views.py`, `monitoring/templates/monitoring/pages/schedules.html`, test `monitoring/test_system_status.py`, `docs/moduli/monitoring.md`): oltre a registrato/abilitato e prossimo run, ultimo run (OK/fallito con l'errore), fallimenti nelle 24 h e stato «In regola / In ritardo / Ultimo run fallito / Non registrato / Mai eseguito / Disabilitato», problemi in cima; banner se il cluster django-q è fermo (nessun job completato da 20 minuti); cadenza corretta per i job orari (prima «ogni None min»).
+
 - **Automazioni — fix `setup_q_schedules` che cadeva con `KeyError: 'minutes'`** (`django_app/automazioni/schedules.py`, test `automazioni/tests_managed_flows.py`): la spec oraria `security_cve_enrichment` non ha i minuti e il comando si fermava lì, lasciando non registrati il job di arricchimento CVE e gli schedule successivi. Ora i minuti servono solo agli schedule «ogni N minuti». Deploy: rilanciare `setup_q_schedules`.
 
 - **Asset — fix errore 500 nel dettaglio del Catalogo software** (`django_app/assets/views_software.py`, `assets/templates/assets/pages/software_catalog_detail.html`, test `security/tests/test_software_catalog.py`): per un software mai classificato il template usava `entry.vendor_name` come argomento di un filtro con `entry` vuoto, e Django rispondeva 500 su ogni dettaglio non classificato. Il produttore ora è calcolato nella vista; test di regressione sul dettaglio non classificato.

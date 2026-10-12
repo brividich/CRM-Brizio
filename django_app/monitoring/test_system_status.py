@@ -114,6 +114,32 @@ class ScheduleManagementTests(TestCase):
         async_task.assert_called_once()
         self.assertEqual(async_task.call_args.args[0], "monitoring.tasks.run_ai_readiness_alert")
 
+    def test_health_shows_late_failed_and_missing(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        from django_q.models import Schedule, Task
+
+        from automazioni.schedules import register_schedule, spec_by_name
+        from monitoring.schedule_health import STATUS_FAILED, STATUS_LATE, STATUS_MISSING, schedule_rows
+
+        now = timezone.now()
+        register_schedule(spec_by_name("security_cycle"))
+        Schedule.objects.filter(name="security_cycle").update(next_run=now - timedelta(hours=2))
+        register_schedule(spec_by_name("security_cve_enrichment"))
+        Schedule.objects.filter(name="security_cve_enrichment").update(next_run=now + timedelta(minutes=30))
+        Task.objects.create(id="t-cve", name="t-cve", func="security.tasks.enrich_cve_task", started=now - timedelta(minutes=5),
+                            stopped=now - timedelta(minutes=4), success=False, result="NVD non raggiungibile")
+        rows = {r["name"]: r for r in schedule_rows(now)}
+        self.assertEqual(rows["security_cycle"]["status"], STATUS_LATE)
+        self.assertEqual(rows["security_cve_enrichment"]["status"], STATUS_FAILED)
+        self.assertEqual(rows["security_cve_enrichment"]["cadence"], "ogni ora")
+        self.assertEqual(rows["ai_readiness_alert"]["status"], STATUS_MISSING)
+        resp = self.client.get(reverse("monitoring_admin:schedule_list"))
+        self.assertContains(resp, "IN RITARDO")
+        self.assertContains(resp, "NVD non raggiungibile")
+        self.assertContains(resp, "schedule da controllare")
+
     def test_unknown_schedule_redirects(self):
         resp = self.client.post(self.action_url, {"name": "nope", "action": "toggle"})
         self.assertEqual(resp.status_code, 302)
