@@ -95,6 +95,10 @@ SECTIONS = [
             Option("cve.epss.attivo", True, "Leggi anche il punteggio EPSS (FIRST.org)"),
             Option("cve.inventario.freschezza_giorni", 30, "Inventario recente",
                    "Oltre questi giorni l'inventario è «vecchio»: gli esiti diventano da verificare.", "int", min_value=1, max_value=180),
+            Option("cve.impatto.alert", True, "Apri un alert quando un PC risulta impattato",
+                   "Solo per CVE critiche (CVSS 9 o più) o sfruttate attivamente (CISA KEV). Un alert per CVE, che si aggiorna se altri PC si aggiungono."),
+            Option("cve.impatto.ticket", True, "Apri anche il ticket di rimedio",
+                   "Se la CVE ha già un ticket aperto (per esempio da Defender), l'alert si collega a quello."),
         ],
     },
 ]

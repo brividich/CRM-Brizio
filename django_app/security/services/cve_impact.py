@@ -142,6 +142,7 @@ def _merge(per_host, install, outcome, text):
 def recompute(record, today=None):
     per_host, _unmapped = evaluate(record, today)
     now = timezone.now()
+    before = set(record.impacts.filter(outcome=SecurityCveImpact.IMPACTS).values_list("host", flat=True))
     rows = [
         SecurityCveImpact(cve=record, host=host[:255], installation=install, hub_asset_id=install.hub_asset_id, outcome=outcome,
                           explanation="\n".join(texts)[:4000], inventory_date=inventory_date, computed_at=now)
@@ -152,14 +153,87 @@ def recompute(record, today=None):
         SecurityCveImpact.objects.bulk_create(rows, batch_size=100)
         record.impact_computed_at = now
         record.save(update_fields=["impact_computed_at"])
+    impacted = {host: per_host[host] for host in per_host if per_host[host][0] == SecurityCveImpact.IMPACTS}
+    record._new_impact_event = record_new_impacts(record, impacted, set(impacted) - before, now)
     return len(rows)
 
 
 def recompute_all(today=None):
-    total = 0
+    total, events = 0, 0
     for record in SecurityCveRecord.objects.all():
         total += recompute(record, today)
+        events += 1 if getattr(record, "_new_impact_event", None) else 0
+    if events:
+        # Gli eventi passano dal motore regole come tutti gli altri: soppressioni, alert, ticket, notifiche.
+        from security.services.rule_engine import evaluate_security_rules
+
+        evaluate_security_rules()
     return total
+
+
+# --- Alert sui PC impattati ---------------------------------------------------------------
+
+IMPACT_EVENT_TYPE = "cve_impact_confirmed"
+IMPACT_SOURCE_NAME = "Inventario software (impatto CVE)"
+
+
+def alert_worthy(record):
+    """Solo CVE sfruttate (CISA KEV) o critiche: il resto si guarda nella pagina Vulnerabilità."""
+    return bool(record.kev) or (record.severity or "").lower() == "critical" or (record.cvss or 0) >= 9
+
+
+def impact_source():
+    from security.models import SecuritySource, SourceType
+
+    source, _ = SecuritySource.objects.get_or_create(
+        name=IMPACT_SOURCE_NAME, defaults={"source_type": SourceType.MANUAL, "vendor": "inventario"},
+    )
+    return source
+
+
+def alert_dedup_hash(source, record):
+    from security.services.dedup import make_hash
+
+    return make_hash(source.pk, IMPACT_EVENT_TYPE, record.cve_id.upper())
+
+
+def record_new_impacts(record, impacted, new_hosts, now=None):
+    """Un evento quando almeno un PC *diventa* impattato da una CVE critica o sfruttata.
+
+    Un PC già impattato al giro precedente non rigenera nulla: l'evento nasce solo per i PC nuovi.
+    L'alert è uno per CVE (dedup sulla CVE) e si aggiorna se altri PC si aggiungono dopo.
+    """
+    if not new_hosts or not alert_worthy(record) or not soc_settings.value("cve.impatto.alert"):
+        return None
+    from security.models import SecurityEventRecord, Severity
+
+    now = now or timezone.now()
+    source = impact_source()
+    dedup = alert_dedup_hash(source, record)
+    products = Counter(entry[2].product_raw for entry in impacted.values() if entry[2] is not None)
+    severity = Severity.CRITICAL
+    payload = {
+        "cve": record.cve_id,
+        "cvss": record.cvss,
+        "severity": severity,
+        "nvd_severity": record.severity,
+        "kev": record.kev,
+        "kev_due": record.kev_due.isoformat() if record.kev_due else None,
+        "epss": record.epss,
+        "affected_product": products.most_common(1)[0][0] if products else "",
+        "impacted_hosts": sorted(impacted)[:200],
+        "impacted_count": len(impacted),
+        "new_hosts": sorted(new_hosts)[:200],
+        "explanations": [impacted[h][1][0] for h in sorted(new_hosts)[:20]],
+        "inventory_date": max((entry[3] for entry in impacted.values() if entry[3]), default=None),
+        "alert_candidate": True,
+    }
+    if payload["inventory_date"]:
+        payload["inventory_date"] = payload["inventory_date"].isoformat()
+    return SecurityEventRecord.objects.create(
+        source=source, event_type=IMPACT_EVENT_TYPE, severity=severity, occurred_at=now,
+        fingerprint=dedup, dedup_hash=dedup, payload=payload,
+    )
 
 
 def latest_inventory_date():

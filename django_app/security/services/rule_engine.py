@@ -34,6 +34,8 @@ def evaluate_security_rules():
             _evaluate_source_silent(event)
         elif event.event_type == "possible_sender_spoofing":
             _evaluate_sender_spoofing(event)
+        elif event.event_type == "cve_impact_confirmed":
+            _evaluate_cve_impact(event)
         else:
             event.decision_trace = {"decision": "kpi_only", "reason": "No alert rule matched"}
             event.save(update_fields=["decision_trace"])
@@ -171,6 +173,85 @@ def _evaluate_source_silent(event):
     _mark_rule_triggered(rule)
     if alert_created:
         notify_alert_created(alert)
+
+
+def _evaluate_cve_impact(event):
+    """PC che l'inventario dice vulnerabili a una CVE critica o sfruttata (CISA KEV): alert per CVE.
+
+    Il ticket si apre solo se acceso in Impostazioni; se la CVE ha già un ticket aperto (per
+    esempio da Defender) l'alert si collega a quello, senza un secondo ticket per lo stesso rimedio.
+    """
+    from security.services import soc_settings
+
+    payload = event.payload
+    rule = _get_rule("cve_impact_confirmed")
+    if rule and not rule.enabled:
+        event.decision_trace = {"decision": "kpi_only", "reason": "CVE impact rule disabled", "rule": rule.code}
+        event.save(update_fields=["decision_trace"])
+        return
+    cve = (payload.get("cve") or "").upper()
+    trace = {
+        "decision": "alert",
+        "rule": "Inventario: PC con versione vulnerabile di una CVE critica o in CISA KEV => alert",
+        "cve": cve,
+        "cvss": payload.get("cvss"),
+        "kev": payload.get("kev"),
+        "impacted_count": payload.get("impacted_count"),
+        "new_hosts": payload.get("new_hosts"),
+        "inventory_date": payload.get("inventory_date"),
+    }
+    reason = "sfruttata attivamente (CISA KEV)" if payload.get("kev") else f"critica (CVSS {payload.get('cvss') or 'n/d'})"
+    product = f" di {payload['affected_product']}" if payload.get("affected_product") else ""
+    title = f"{cve} {reason}: {payload.get('impacted_count')} PC con versione vulnerabile{product}"[:255]
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source,
+        event=event,
+        title=title,
+        severity=(rule.severity if rule else Severity.CRITICAL),
+        dedup_hash=event.dedup_hash,
+        decision_trace=trace,
+    )
+    if not alert_created:
+        alert.title = title
+        alert.save(update_fields=["title", "updated_at"])
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    evidence = build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    if soc_settings.value("cve.impatto.ticket"):
+        _ticket_for_cve_impact(event, alert, evidence, payload, cve)
+    SecurityAlertActionLog.objects.create(
+        alert=alert,
+        action="alert_created" if alert_created else "alert_reused",
+        details=trace,
+    )
+    _mark_rule_triggered(rule)
+    if alert_created:
+        notify_alert_created(alert)
+
+
+def _ticket_for_cve_impact(event, alert, evidence, payload, cve):
+    from security.models import SecurityRemediationTicket
+    from security.services.ticketing import ACTIVE_TICKET_STATUSES
+
+    active = SecurityRemediationTicket.objects.filter(status__in=ACTIVE_TICKET_STATUSES).order_by("-updated_at")
+    existing = active.filter(cve=cve).first() or next((t for t in active[:300] if cve in (t.cve_ids or [])), None)
+    if existing:
+        existing.linked_alerts.add(alert)
+        if evidence:
+            existing.evidence.add(evidence)
+        SecurityAlertActionLog.objects.create(alert=alert, ticket=existing, action="ticket_linked_existing_cve",
+                                              details={"cve": cve, "impacted_count": payload.get("impacted_count")})
+        return existing
+    ticket, _created = create_or_update_remediation_ticket_for_vulnerability_finding(
+        event.source, alert, evidence,
+        {"cve": cve, "affected_product": payload.get("affected_product") or "", "source": "inventario",
+         "cvss": payload.get("cvss") or 0, "exposed_devices": payload.get("impacted_count") or 0,
+         "severity": Severity.CRITICAL},
+        dedup_hash=event.dedup_hash,
+    )
+    return ticket
 
 
 def _evaluate_sender_spoofing(event):
