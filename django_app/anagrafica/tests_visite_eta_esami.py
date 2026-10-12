@@ -170,7 +170,7 @@ class ImpostazioniFasciaEtaTests(TestCase):
 
 class MigrazioneOculisticaVdtTests(TestCase):
     def test_configura_solo_la_coppia_e_solo_i_campi_vuoti(self):
-        modulo = import_module("anagrafica.migrations.0166_visite_fasce_eta_esami")
+        modulo = import_module("anagrafica.migrations.0167_visite_fasce_eta_esami")
         q = TipoVisitaMedica.objects.create(nome="Visita Oculistica Terminalisti (Quinquennale)", durata_mesi=60)
         b = TipoVisitaMedica.objects.create(nome="Visita Oculistica Terminalisti (Biennale)", durata_mesi=24)
         altro = TipoVisitaMedica.objects.create(nome="Visita Oculistica (Annuale)", durata_mesi=12)

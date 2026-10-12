@@ -29,6 +29,7 @@ from core.models import AuditLog
 from .forms import TrainingCourseForm
 from .models_formazione import (
     TrainingCourse,
+    TrainingEnrollment,
     TrainingLesson,
     TrainingLessonAttendance,
     TrainingPlan,
@@ -148,12 +149,17 @@ class AuditFormazioneTests(TestCase):
             ora_inizio=time(8, 0), ora_fine=time(17, 0),
         )
 
+    def _iscrivi(self, lid: int):
+        # La presenza si registra solo per gli iscritti all'edizione.
+        TrainingEnrollment.objects.get_or_create(sessione=self.sess, legacy_anagrafica_id=lid)
+
     def _voci(self, azione: str):
         return AuditLog.objects.filter(modulo=MODULO, azione=azione)
 
     def test_prima_registrazione_non_sporca_il_registro(self):
         """Le presenze ordinarie sono migliaia: se finissero tutte in audit,
         il registro non servirebbe più a nessuno."""
+        self._iscrivi(4242)
         self.client.post(
             reverse("anagrafica:formazione_presenza_set",
                     args=[self.sess.pk, self.lez.pk]),
@@ -163,6 +169,7 @@ class AuditFormazioneTests(TestCase):
         self.assertFalse(self._voci("presenza_modificata").exists())
 
     def test_cambio_di_stato_su_presenza_esistente_tracciato(self):
+        self._iscrivi(4242)
         TrainingLessonAttendance.objects.create(
             lezione=self.lez, legacy_anagrafica_id=4242, stato_presenza="PRESENTE",
         )
@@ -180,6 +187,7 @@ class AuditFormazioneTests(TestCase):
     def test_ritocco_dopo_la_firma_tracciato_anche_a_stato_invariato(self):
         """È il caso peggiore in verifica ispettiva: qualcuno tocca una riga
         già firmata. Va tracciato anche se lo stato non cambia."""
+        self._iscrivi(99)
         TrainingLessonAttendance.objects.create(
             lezione=self.lez, legacy_anagrafica_id=99, stato_presenza="PRESENTE",
             signature_status="FIRMATO",

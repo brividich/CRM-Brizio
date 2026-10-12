@@ -520,10 +520,15 @@ class TrainingEmployeeRecordAdmin(admin.ModelAdmin):
         "legacy_anagrafica_id", "corso", "data_completamento",
         "ore_frequentate", "percentuale_presenza", "idoneo", "data_scadenza",
     )
-    list_filter = ("idoneo",)
+    list_filter = ("idoneo", ("annullato_il", admin.EmptyFieldListFilter))
     search_fields = ("legacy_anagrafica_id", "corso__codice", "corso__titolo")
-    readonly_fields = ("created_at", "validato_da") + _SNAPSHOT_FIELDS_EMPLOYEE_RECORD
+    readonly_fields = ("created_at", "validato_da", "annullato_il", "annullato_da", "annullato_da_nome",
+                       "annullato_motivo") + _SNAPSHOT_FIELDS_EMPLOYEE_RECORD
     date_hierarchy = "data_completamento"
+
+    def get_queryset(self, request):
+        # Anche gli annullati: l'admin è il posto dove cercarli.
+        return TrainingEmployeeRecord.tutti.select_related("corso")
 
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
