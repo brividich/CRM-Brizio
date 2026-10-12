@@ -141,3 +141,7 @@ Gli interventi Assets supportano una coda operativa distinta tra aperti, assegna
 Scheda asset: cruscotto con i KPI del tipo di dispositivo (MFC, firewall, PC/server) e sezioni in schede; testata compatta con menu «Altro»; timeline in una scheda propria; dispositivo SOC proposto collegabile dalla scheda per chi gestisce la configurazione SOC.
 
 Asset IT: mini-andamenti nel cruscotto (pagine MFC, sonde SNMP, esiti backup); pagina «Riconciliazione dispositivi» per collegare in blocco SNMP, MFC e SOC agli asset; avvisi giornalieri per dispositivi muti o in errore e consumabili bassi (dopo il deploy: `setup_q_schedules`).
+
+## Ruoli del portale
+
+Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) amministra il modulo chi ha «gestire» con visibilità «tutti» (preset Tecnico IT e Tecnico Manutenzione). L'elenco non è filtrato per assegnatario.

@@ -84,6 +84,11 @@ def _get_legacy_role_id(request) -> int | None:
 def _is_admin_or_hr(request) -> bool:
     if getattr(request.user, "is_superuser", False):
         return True
+    from core.permessi import puo_fare, sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        # Ruoli: chi gestisce le notizie (HR, Sicurezza), non il nome del ruolo legacy.
+        return puo_fare(request, "notizie", "gestire")
     legacy_user = getattr(request, "legacy_user", None)
     if legacy_user is not None:
         if is_legacy_admin(legacy_user):

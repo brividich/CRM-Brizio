@@ -83,7 +83,7 @@ PRESETS: tuple[Preset, ...] = (
         "Anagrafica, visite e formazione di tutti; vede ed esporta tutte le assenze.",
         celle=_celle(
             assenze={"vedere": A, "esportare": A, "creare": A, "gestire": A},
-            anagrafica=_tutte(senza=("approvare",)),
+            anagrafica={**_tutte(senza=("approvare",)), "dati_riservati": A},
             visite_mediche=_tutte(senza=("approvare",)),
             formazione=_tutte(senza=("cancellare",)),
             notizie=_tutte(senza=("approvare",)),
@@ -156,7 +156,7 @@ PRESETS: tuple[Preset, ...] = (
         celle=_celle(
             contatori=_ve(),
             fornitori=_ve(),
-            anagrafica={"vedere": A},
+            anagrafica={"vedere": A, "dati_riservati": A},
         ),
     ),
     Preset(

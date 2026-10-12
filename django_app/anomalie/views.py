@@ -1459,6 +1459,18 @@ def _request_anomalie_global_access_level(request) -> str:
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     if legacy_user and is_legacy_admin(legacy_user):
         return AnomalieAccessLevel.EDIT_ALL
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        # Ruoli: il livello globale viene dalla matrice («tutti» su modificare/vedere).
+        # Sotto «tutti» restano le regole per OP in carico (capocommessa/CAR) del modulo.
+        modificare = decisione(request, "anomalie", "modificare")
+        if modificare.consentito and modificare.ambito == "tutti":
+            return AnomalieAccessLevel.EDIT_ALL
+        vedere = decisione(request, "anomalie", "vedere")
+        if vedere.consentito and vedere.ambito == "tutti":
+            return AnomalieAccessLevel.READ_ALL
+        return AnomalieAccessLevel.NONE
     return _max_anomalie_access_level(
         [
             _request_anomalie_user_override_level(request),
@@ -1613,6 +1625,15 @@ def _can_edit_anomalie_for_op(request, op_id: str) -> bool:
     global_level = _request_anomalie_global_access_level(request)
     if _access_level_at_least(global_level, AnomalieAccessLevel.EDIT_ALL):
         return True
+
+    from core.permessi import sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        # Ruoli: niente whitelist per nome (omonimi); valgono i ruoli dell'OP.
+        matched_op_roles = _op_role_codes_for_current_user(request, op_id)
+        return _access_level_at_least(
+            _anomalie_role_access_level_for_codes(matched_op_roles), AnomalieAccessLevel.EDIT_ASSIGNED
+        )
 
     config_lists = _load_anomalie_lists()
     edit_whitelist = config_lists.get("autorizzati_modifica", []) if isinstance(config_lists, dict) else []

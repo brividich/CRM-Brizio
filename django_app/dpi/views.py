@@ -23,6 +23,9 @@ from core.legacy_anagrafica import ensure_anagrafica_schema, fetch_anagrafica_ro
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.operational_roles import get_legacy_anagrafica_id
+from core.permessi import decisione, puo_fare, sistema_ruoli_attivo, utenti_visibili
+from core.permessi.identita import anagrafiche_di_utenti, utente_da_anagrafica
+from core.permessi.negato import risposta_negata
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from . import flusso, magazzino
@@ -81,9 +84,32 @@ DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine", "Docum
 # Helpers
 # ---------------------------------------------------------------------------
 
+MODULO = "dpi"
+
+
+def _anagrafiche_visibili(request, azione: str) -> set[int] | None:
+    """Ruoli attivi: id anagrafica dei richiedenti su cui l'azione e' concessa. None = tutti."""
+    ammessi = utenti_visibili(request, MODULO, azione)
+    if ammessi is None:
+        return None
+    return anagrafiche_di_utenti(ammessi)
+
+
+def _filtro_visibili(request, azione: str = "vedere") -> Q:
+    """Q delle richieste visibili con i ruoli attivi (le proprie sempre comprese)."""
+    ids = _anagrafiche_visibili(request, azione)
+    if ids is None:
+        return Q()
+    q = _own_richiesta_filter(request) if decisione(request, MODULO, azione).consentito else Q(pk__in=[])
+    return q | Q(richiedente_legacy_id__in=list(ids)) if ids else q
+
+
 def _is_gestore(request) -> bool:
     if request.user.is_superuser:
         return True
+    if sistema_ruoli_attivo():
+        # Gestire = consegne, magazzino, catalogo, impostazioni (Sicurezza, Magazzino).
+        return puo_fare(request, MODULO, "gestire")
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     if legacy_user and is_legacy_admin(legacy_user):
         return True
@@ -95,11 +121,22 @@ def _is_gestore(request) -> bool:
 
 def _scope_approvatore(request) -> set[int]:
     """Dipendenti (id legacy anagrafica) le cui richieste l'utente approva come responsabile/preposto."""
+    if sistema_ruoli_attivo():
+        # Ruoli: chi approva e' deciso dalla matrice, il perimetro e' il team d'organigramma.
+        ids = _anagrafiche_visibili(request, "approvare")
+        if ids is None:
+            return set(RichiestaDPI.objects.exclude(richiedente_legacy_id=None).values_list("richiedente_legacy_id", flat=True))
+        ids.discard(_legacy_id(request))  # nessuno approva la propria richiesta
+        return ids
     return flusso.dipendenti_di_approvatore(_legacy_id(request))
 
 
 def _can_approve(request, richiesta: RichiestaDPI, *, scope: set[int] | None = None) -> bool:
     """Gestori DPI (ripiego) oppure responsabile/preposto del dipendente della richiesta."""
+    if sistema_ruoli_attivo():
+        if richiesta.richiedente_legacy_id and richiesta.richiedente_legacy_id == _legacy_id(request):
+            return False  # la propria richiesta non si approva
+        return puo_fare(request, MODULO, "approvare", richiesta)
     if _is_gestore(request):
         return True
     if not richiesta.richiedente_legacy_id:
@@ -428,7 +465,12 @@ def dashboard(request):
     is_gestore = _is_gestore(request)
 
     # KPI globali (visibili al gestore) o personali (utente)
-    if is_gestore:
+    if sistema_ruoli_attivo():
+        # Ruoli: proprie, del team o tutte secondo la visibilita' su «vedere».
+        qs_all = RichiestaDPI.objects.filter(_filtro_visibili(request)).select_related(
+            "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi"
+        )
+    elif is_gestore:
         qs_all = RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi")
     else:
         qs_all = RichiestaDPI.objects.filter(
@@ -581,7 +623,16 @@ def nuova_richiesta(request):
 @login_required
 def richiesta_detail(request, pk: int):
     is_gestore = _is_gestore(request)
-    if is_gestore:
+    if sistema_ruoli_attivo():
+        richiesta = get_object_or_404(
+            RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "created_by"),
+            pk=pk,
+        )
+        if not (richiesta.created_by_id == request.user.id or puo_fare(request, MODULO, "vedere", richiesta)):
+            return risposta_negata(
+                request, "Questa richiesta non rientra fra quelle che il tuo ruolo ti consente di vedere.", pagina="DPI"
+            )
+    elif is_gestore:
         richiesta = get_object_or_404(
             RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "created_by"),
             pk=pk,
@@ -793,10 +844,21 @@ def report_conformita(request):
 @login_required
 def gestione_list(request):
     is_gestore = _is_gestore(request)
-    scope = None if is_gestore else _scope_approvatore(request)
-    if not is_gestore and not scope:
-        messages.error(request, "Accesso non autorizzato.")
-        return redirect("dpi:dashboard")
+    if sistema_ruoli_attivo():
+        # Coda di lavoro: chi gestisce (consegne) e chi approva, ognuno sul suo perimetro.
+        gestire = _anagrafiche_visibili(request, "gestire") if is_gestore else set()
+        approvare = _scope_approvatore(request) if decisione(request, MODULO, "approvare").consentito else set()
+        if gestire is None:
+            scope = None
+        else:
+            scope = set(gestire) | set(approvare)
+            if not scope:
+                return risposta_negata(request, pagina="DPI — gestione richieste")
+    else:
+        scope = None if is_gestore else _scope_approvatore(request)
+        if not is_gestore and not scope:
+            messages.error(request, "Accesso non autorizzato.")
+            return redirect("dpi:dashboard")
 
     base_qs = RichiestaDPI.objects.all()
     if scope is not None:
@@ -847,7 +909,10 @@ def gestione_detail(request, pk: int):
         RichiestaDPI.objects.select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi", "created_by"),
         pk=pk,
     )
-    if not _can_approve(request, richiesta):
+    if sistema_ruoli_attivo():
+        if not (_can_approve(request, richiesta) or puo_fare(request, MODULO, "gestire", richiesta)):
+            return risposta_negata(request, pagina="DPI — gestione richieste")
+    elif not _can_approve(request, richiesta):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
     commenti = richiesta.commenti.order_by("created_at")
@@ -913,7 +978,7 @@ def approva_richiesta(request, pk: int):
         from core.notifiche import invia_notifica
         from django.urls import reverse
         invia_notifica(
-            legacy_user_id=richiesta.richiedente_legacy_id,
+            legacy_user_id=utente_da_anagrafica(richiesta.richiedente_legacy_id),
             tipo="dpi_approvata",
             messaggio=f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata approvata.",
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
@@ -953,7 +1018,7 @@ def rifiuta_richiesta(request, pk: int):
         from core.notifiche import invia_notifica
         from django.urls import reverse
         invia_notifica(
-            legacy_user_id=richiesta.richiedente_legacy_id,
+            legacy_user_id=utente_da_anagrafica(richiesta.richiedente_legacy_id),
             tipo="dpi_rifiutata",
             messaggio=f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata rifiutata.",
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
@@ -1070,7 +1135,7 @@ def consegna_richiesta(request, pk: int):
         from core.notifiche import invia_notifica
         from django.urls import reverse
         invia_notifica(
-            legacy_user_id=richiesta.richiedente_legacy_id,
+            legacy_user_id=utente_da_anagrafica(richiesta.richiedente_legacy_id),
             tipo="dpi_consegnata",
             messaggio=f"Il tuo {richiesta.categoria.nome} ({richiesta.numero}) è stato consegnato il {data_consegna.strftime('%d-%m-%Y')}.",
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
