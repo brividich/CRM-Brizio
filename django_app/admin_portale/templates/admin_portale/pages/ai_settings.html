@@ -853,7 +853,7 @@ body.theme-dark .ai-faq-title {
     <div class="ai-card-head">
       <div>
         <div class="ai-card-title">Suggerimenti FAQ</div>
-        <div class="ai-card-subtitle">Analisi statistica degli ultimi 30 giorni e correzioni pendenti ad alta priorità.</div>
+        <div class="ai-card-subtitle">Analisi degli ultimi 30 giorni e FAQ suggerite dalle risposte giudicate non utili.</div>
       </div>
     </div>
     <div class="ai-card-body">
@@ -894,39 +894,45 @@ body.theme-dark .ai-faq-title {
       </div>
 
       <div style="margin-top:20px;">
-        <div class="ai-card-title" style="margin-bottom:10px;">Correzioni pendenti ad alta priorità</div>
-        {% if pending_corrections %}
+        <div class="ai-card-title" style="margin-bottom:4px;">FAQ suggerite dai 👎</div>
+        <div class="ai-card-subtitle" style="margin-bottom:10px;">Domande con risposta giudicata non utile, raggruppate quando si somigliano. «Genera bozza» fa scrivere la risposta all'AI dalle guide dei moduli e dalla knowledge base (mai da procedure e specifiche riservate); la FAQ approvata è visibile a tutti gli utenti e l'assistente la usa da subito.</div>
+        {% if faq_gruppi %}
           <div class="ai-mini-list">
-            {% for fb in pending_corrections %}
+            {% for g in faq_gruppi %}
               <div class="ai-faq-item">
-                <div class="ai-faq-title">{{ fb.prompt|truncatechars:120 }}</div>
-                <div class="ai-faq-answer">
-                  <strong>Correzione proposta:</strong><br>{{ fb.correction|truncatechars:300 }}
-                </div>
-                <div class="ai-faq-meta">
-                  <span class="cell-muted">{{ fb.user.username|default:"anonimo" }} &middot; {{ fb.created_at|date:"d-m-Y" }}</span>
-                  {% if fb.knowledge_entry and not fb.knowledge_entry.is_active %}
-                    <div class="ai-inline-form">
-                      <form method="post" action="{% url 'admin_portale:ai_feedback_approva' fb.id %}" class="ai-inline-form">
-                        {% csrf_token %}
-                        <button class="btn btn-sm" type="submit">Approva e attiva FAQ</button>
-                      </form>
-                      <form method="post" action="{% url 'admin_portale:ai_feedback_scarta' fb.id %}" class="ai-inline-form">
-                        {% csrf_token %}
-                        <button class="btn btn-secondary btn-sm" type="submit">Scarta</button>
-                      </form>
-                    </div>
-                  {% else %}
-                    <a class="btn btn-sm" href="{% url 'admin_portale:ai_settings' %}?tab=faq&q={{ fb.prompt|urlencode }}">Crea FAQ manuale</a>
+                <div class="ai-faq-title">{{ g.domanda|truncatechars:160 }} <span class="ai-badge">{{ g.numero }} feedback</span></div>
+                {% if g.domande|length > 1 %}
+                  <div class="cell-muted" style="font-size:12px;">Varianti: {% for d in g.domande|slice:"1:4" %}«{{ d|truncatechars:80 }}»{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+                {% endif %}
+                {% if g.correzioni %}
+                  <div class="ai-faq-answer"><strong>Risposta proposta da un utente:</strong> {{ g.correzioni.0|truncatechars:300 }}</div>
+                {% endif %}
+                <form method="post" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+                  {% csrf_token %}
+                  <input type="hidden" name="tab" value="suggerimenti">
+                  <input type="hidden" name="ids" value="{{ g.ids_csv }}">
+                  {% if g.bozza or g.correzioni %}
+                    <label class="cell-muted" style="font-size:12px;">Domanda della FAQ</label>
+                    <input class="input" type="text" name="question" maxlength="500" value="{% if g.bozza %}{{ g.bozza.question }}{% else %}{{ g.domanda }}{% endif %}">
+                    <label class="cell-muted" style="font-size:12px;">{% if g.bozza %}Risposta scritta dall'AI{% else %}Risposta proposta dall'utente{% endif %} (correggila se serve)</label>
+                    <textarea class="input" name="answer" rows="6">{% if g.bozza %}{{ g.bozza.answer }}{% else %}{{ g.correzioni.0 }}{% endif %}</textarea>
                   {% endif %}
-                </div>
+                  <div class="ai-inline-form">
+                    {% if g.bozza or g.correzioni %}
+                      <button class="btn btn-sm" type="submit" name="action" value="faq_approva_gruppo">Approva e attiva FAQ</button>
+                    {% endif %}
+                    <button class="btn {% if g.bozza or g.correzioni %}btn-secondary {% endif %}btn-sm" type="submit" name="action" value="faq_genera_bozza">{% if g.bozza %}Rigenera bozza{% else %}Genera bozza con l'AI{% endif %}</button>
+                    <button class="btn btn-secondary btn-sm" type="submit" name="action" value="faq_scarta_gruppo">Scarta</button>
+                  </div>
+                </form>
               </div>
             {% endfor %}
           </div>
         {% else %}
-          <div class="cell-muted">Nessuna correzione pendente. Ottimo lavoro!</div>
+          <div class="cell-muted">Nessun 👎 da rivedere.</div>
         {% endif %}
       </div>
+
     </div>
   </section>
   {% endif %}

@@ -100,8 +100,11 @@ def sezioni() -> list[dict]:
                     "resta salvata in questo browser.",
                     "«Report PDF» genera un PDF sull'argomento scritto nel riquadro (o sull'ultima domanda), "
                     "con le fonti. È una bozza da verificare.",
-                    "👍 e 👎 sotto la risposta: con 👎 puoi scrivere la risposta corretta. Gli amministratori la "
-                    "rivedono e possono trasformarla in una FAQ.",
+                    "👍 e 👎 sotto la risposta: con 👎 puoi scrivere la risposta corretta. Gli amministratori "
+                    "raccolgono le domande simili, fanno preparare all'AI una risposta dalle guide dei moduli e, "
+                    "dopo averla controllata, la attivano come FAQ: da quel momento l'assistente la usa per tutti.",
+                    "Sotto una risposta senza fonti compare un invito a premere 👎: è il modo per segnalare che "
+                    "manca una risposta.",
                 ]),
             ],
         },

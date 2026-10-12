@@ -760,6 +760,12 @@ body.theme-dark .ai-segmented button.is-active {
   color: #fff;
 }
 
+.ai-no-source-hint {
+  margin: 4px 0 0 46px;
+  font-size: 11.5px;
+  color: var(--text-light, #64748b);
+}
+
 /* ── Storico conversazioni ───────────────────────────────────────── */
 .ai-history-body {
   border-top: 1px solid var(--border, #e2e8f0);
@@ -1663,6 +1669,12 @@ body.theme-dark .ai-history-del:hover { background: rgba(185,28,28,.25); color: 
 
       if (answer) {
         log.appendChild(renderActions(answer));
+        if (!sources.length && !meta.stopped) {
+          var hint = document.createElement("div");
+          hint.className = "ai-no-source-hint";
+          hint.textContent = "Nessuna fonte per questa risposta. Se non ti è utile premi 👎 e, se la conosci, scrivi la risposta giusta: un amministratore la aggiungerà alle FAQ.";
+          log.appendChild(hint);
+        }
         log.appendChild(renderFeedback(text, answer));
       }
 

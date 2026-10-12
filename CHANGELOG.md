@@ -8,6 +8,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Assistente AI — FAQ suggerite dai 👎** (`django_app/ai_assistant/faq_suggerite.py` nuovo, `ai_assistant/guida.py`, template `ai_assistant/chat.html`, `django_app/admin_portale/views.py`, `admin_portale/templates/admin_portale/pages/ai_settings.html`, test `ai_assistant/tests_faq_suggerite.py` nuovo, `docs/ai/13_AI_GOVERNANCE.md`, `docs/ai/GUIDA_AI.html`, `docs/moduli/ai_assistant.md`):
+  - Gestione AI → Suggerimenti FAQ: i 👎 con domande simili raggruppati; «Genera bozza con l'AI» scrive la risposta da guide in-app e knowledge base (mai Procedure/Specifiche); «Approva e attiva FAQ» con un clic (testo modificabile), «Scarta». Sostituisce la lista «Correzioni pendenti».
+  - Chat: sotto le risposte senza fonti, invito a premere 👎.
+  - Fonte solo i 👎 volontari: audit e storico chat non alimentano le FAQ.
+
 - **Assistente AI — permessi reali dell'utente, periodo e totali nei tool, moduli chiesti senza dati** (`django_app/ai_assistant/permessi_utente.py` nuovo, `ai_assistant/tools.py`, `ai_assistant/services.py`, `ai_assistant/views.py`, `ai_assistant/guida.py`, `django_app/admin_portale/views.py`, `admin_portale/templates/admin_portale/pages/ai_settings.html`, test `ai_assistant/tests_permessi_utente.py` nuovo, `ai_assistant/tests.py`, `docs/ai/GUIDA_AI.html`, `docs/moduli/ai_assistant.md`):
   - **«Posso…?»**: nuovo tool `permessi_utente` con accesso al modulo e azioni SÌ/NO dai permessi reali dell'utente (controlli del Registro Timbri, permessi ACL canonici degli altri moduli). Non toglie la conoscenza documentale.
   - **Periodo e totale** per DPI, anomalie e attività KICK-OFF, come già per i ticket; «miei» sulle attività = assegnate all'utente.

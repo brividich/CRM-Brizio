@@ -58,6 +58,15 @@ Questa matrice riflette la sezione "Matrice Moduli" di `12_AI_RUNTIME_TOOLS_TODO
 - Eliminazione fisica solo su richiesta esplicita dell'amministratore con documentazione del motivo.
 - Non salvare in FAQ: risposte che contengono dati personali, nominativi reali, dettagli di incidenti specifici, contenuto di email/documenti riservati.
 
+**FAQ suggerite dai 👎 (dal 2026-10-12, `ai_assistant/faq_suggerite.py`).** Decisione del 12/10/2026:
+
+- **Fonte:** solo i feedback negativi che l'utente invia di sua scelta (`AiChatFeedback`, domanda + risposta + eventuale correzione). Né l'audit (solo metadati) né lo storico conversazioni (§3.3) alimentano le FAQ. Sotto le risposte senza fonti la chat invita a premere 👎.
+- **Raggruppamento:** i 👎 non rivisti con domande simili (Jaccard ≥ 0,5 sui token) formano un gruppo in Gestione AI → Suggerimenti FAQ.
+- **Bozza AI:** «Genera bozza» fa scrivere all'AI una risposta **spenta** (`source_label` «Bozza AI da feedback») dalle **guide in-app, knowledge base e FAQ già approvate**; **mai** da Procedure e Specifiche (`allow_specifiche/allow_procedure=False`), perché una FAQ approvata è visibile a tutti. Le correzioni degli utenti sono passate come indicazione da verificare. Se il contesto non basta l'AI risponde `NON_DISPONIBILE` e non si crea nulla.
+- **Approvazione:** solo chi ha `ai_assistant.knowledge.manage` nella console admin; un clic, con domanda e risposta modificabili prima. Solo dopo diventa conoscenza (RAG) e i feedback del gruppo sono chiusi.
+- **Bozze mai attivate:** quando una bozza viene sostituita (nuova bozza, approvazione, «Scarta») le bozze spente non più collegate a nessun feedback vengono eliminate; le FAQ attive non vengono mai toccate e il feedback resta in archivio.
+- **Audit:** `ai_faq_bozza`, `ai_faq_approvata`, `ai_faq_scartata` con soli conteggi e id.
+
 ### 3.3 Storico conversazioni (dal 2026-10-12)
 
 Decisione del 12/10/2026 (revisione privacy dedicata, scelte del responsabile del portale):
@@ -150,6 +159,7 @@ Seguire la checklist in `12_AI_RUNTIME_TOOLS_TODOLIST.md` sezione "Checklist Per
 
 | Data | Revisore | Modifica |
 |---|---|---|
+| 2026-10-12 | Responsabile portale | FAQ suggerite (§3.2): solo dai 👎 volontari, bozza AI senza Procedure/Specifiche, approvazione admin a un clic. |
 | 2026-10-12 | Responsabile portale | Storico conversazioni per utente (§3.3): solo il proprietario, 90 giorni, nessuna vista admin dei contenuti. |
 | 2026-05-22 | Codex | Separato `anagrafica_summary` (restricted, read-only con campi minimi e ratei ferie/permessi solo ore+periodo) dal dominio `timbri_presenze` ancora bloccato. |
 | 2026-05-13 | Sistema (Fase 5) | Prima stesura: matrice campi, policy retention, prompt aggiornato, runbook operativo. |
