@@ -1,0 +1,5 @@
+{% if show %}
+<nav class="soc-config-tabs" aria-label="Sezioni della configurazione">
+  {% for tab in tabs %}<a href="{{ tab.url }}"{% if tab.active %} class="active" aria-current="page"{% endif %}>{{ tab.label }}</a>{% endfor %}
+</nav>
+{% endif %}
