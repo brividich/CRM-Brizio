@@ -63,7 +63,7 @@ class UltimeVisiteCorrentiIdsTests(TestCase):
         self.assertEqual(ultime_visite_correnti_ids(), {recente.pk})
 
     def test_spareggio_stessa_data_vince_pk_maggiore(self):
-        # Stesso tipo e stessa data e' vietato dal vincolo unico (0165): il pareggio
+        # Stesso tipo e stessa data e' vietato dal vincolo unico (0166): il pareggio
         # resta possibile tra due tipi della stessa famiglia.
         annuale = TipoVisitaMedica.objects.create(nome="Spareggio annuale", durata_mesi=12, categoria="Spareggio")
         biennale = TipoVisitaMedica.objects.create(nome="Spareggio biennale", durata_mesi=24, categoria="Spareggio")
