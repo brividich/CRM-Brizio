@@ -870,7 +870,9 @@ def _schedule_defaults(spec: dict) -> dict:
         defaults["cron"] = spec["cron"]
         defaults["minutes"] = None
     else:
-        defaults["minutes"] = spec["minutes"]
+        # Solo MINUTES ("I") ha bisogno dei minuti: HOURLY/DAILY no. Con spec["minutes"] una spec oraria
+        # senza il campo faceva cadere setup_q_schedules a metà (gli schedule successivi non registrati).
+        defaults["minutes"] = spec.get("minutes")
         # riallinea il next_run a "ora" così riparte subito dopo la (re)registrazione
         defaults["next_run"] = timezone.now()
     return defaults

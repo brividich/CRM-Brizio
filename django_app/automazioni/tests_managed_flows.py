@@ -21,6 +21,17 @@ from .services import run_rule
 
 
 class ManagedFlowsTests(TestCase):
+    def test_every_schedule_spec_registers(self):
+        # Regressione: una spec oraria senza «minutes» (security_cve_enrichment) faceva cadere
+        # setup_q_schedules a metà, lasciando non registrati gli schedule successivi.
+        from .schedules import SCHEDULES
+
+        for spec in SCHEDULES:
+            register_schedule(spec)
+        names = set(Schedule.objects.values_list("name", flat=True))
+        self.assertIn("security_cve_enrichment", names)
+        self.assertEqual(Schedule.objects.get(name="security_cve_enrichment").schedule_type, "H")
+
     def test_legacy_tick_preserves_explicit_batch_limit(self):
         callback = Mock(return_value={"ok": True})
         with patch("automazioni.managed_flows.import_string", return_value=callback):
