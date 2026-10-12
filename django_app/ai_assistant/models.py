@@ -196,3 +196,51 @@ class AiKnowledgeEntry(models.Model):
 
     def __str__(self) -> str:
         return self.question[:80]
+
+
+class AiConversation(models.Model):
+    """Una conversazione dell'utente con l'assistente (storico chat).
+
+    Visibile solo al proprietario: nessuna vista admin dei contenuti, solo conteggi
+    aggregati. Conservata ``AI_CHAT_HISTORY_RETENTION_DAYS`` giorni dall'ultimo
+    messaggio, poi cancellata dal job notturno ``ai_pulisci_conversazioni``.
+    """
+
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ai_conversazioni",
+    )
+    titolo = models.CharField(max_length=120, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        indexes = [models.Index(fields=["utente", "-updated_at"], name="ai_conv_utente_upd_idx")]
+        verbose_name = "conversazione AI"
+        verbose_name_plural = "conversazioni AI"
+
+    def __str__(self) -> str:
+        return self.titolo or f"Conversazione {self.pk}"
+
+
+class AiConversationMessage(models.Model):
+    ROLE_USER = "user"
+    ROLE_ASSISTANT = "assistant"
+    ROLES = [(ROLE_USER, "Utente"), (ROLE_ASSISTANT, "Assistente")]
+
+    conversazione = models.ForeignKey(AiConversation, on_delete=models.CASCADE, related_name="messaggi")
+    ruolo = models.CharField(max_length=10, choices=ROLES)
+    contenuto = models.TextField()
+    # Solo le etichette delle fonti (es. «tool:tickets:riepilogo», «guida:timbri#3 > …»),
+    # mai il contesto recuperato.
+    fonti = models.JSONField(default=list, blank=True)
+    modello = models.CharField(max_length=120, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        verbose_name = "messaggio conversazione AI"
+        verbose_name_plural = "messaggi conversazione AI"
+
+    def __str__(self) -> str:
+        return f"{self.ruolo}: {self.contenuto[:60]}"

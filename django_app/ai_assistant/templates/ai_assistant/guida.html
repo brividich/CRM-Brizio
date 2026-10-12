@@ -1,0 +1,77 @@
+{% extends "core/base.html" %}
+
+{% block title %}Guida · Assistente AI | NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+<style>
+.aig-wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.aig-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.aig-head h1 { margin: 0 0 4px; font-size: 22px; color: var(--text, #0f172a); }
+.aig-head p { margin: 0; color: var(--text-light, #64748b); font-size: 14px; }
+.aig-back { font-size: 13px; color: var(--text-light, #64748b); text-decoration: none; }
+.aig-back:hover { text-decoration: underline; }
+.aig-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; align-items: start; }
+.aig-card { border: 1px solid var(--border, #e2e8f0); border-radius: 12px; background: var(--surface, #fff); box-shadow: 0 1px 6px rgba(0,0,0,.04); }
+.aig-toc { position: sticky; top: 16px; padding: 14px 16px; }
+.aig-toc-t { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-light, #64748b); margin-bottom: 8px; }
+.aig-toc ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.aig-toc a { color: var(--text, #0f172a); text-decoration: none; }
+.aig-toc a:hover { color: #1e40af; text-decoration: underline; }
+.aig-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.aig-sec { padding: 18px 22px; scroll-margin-top: 16px; }
+.aig-sec h2 { margin: 0 0 10px; font-size: 17px; color: #002b5c; }
+.aig-sec p, .aig-sec ul, .aig-sec dd { color: var(--text, #0f172a); font-size: 14px; line-height: 1.6; }
+.aig-sec p { margin: 0 0 10px; }
+.aig-sec ul { margin: 0 0 10px; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.aig-sec dl { margin: 0 0 10px; display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); gap: 8px 18px; font-size: 14px; line-height: 1.55; }
+.aig-sec dt { font-weight: 700; color: #002b5c; }
+.aig-sec dd { margin: 0; }
+.aig-nota { padding: 10px 14px; border: 1px solid #fdba74; background: #fff7ed; border-radius: 10px; color: #7c2d12; font-size: 13.5px; line-height: 1.55; margin-bottom: 10px; }
+body.theme-dark .aig-card { background: var(--surface); border-color: var(--border); }
+body.theme-dark .aig-sec h2, body.theme-dark .aig-sec dt { color: #dbeafe; }
+body.theme-dark .aig-sec p, body.theme-dark .aig-sec ul, body.theme-dark .aig-sec dd, body.theme-dark .aig-toc a, body.theme-dark .aig-head h1 { color: var(--text); }
+body.theme-dark .aig-nota { background: rgba(251,146,60,.12); border-color: rgba(251,146,60,.45); color: #fed7aa; }
+@media (max-width: 860px) {
+  .aig-grid { grid-template-columns: 1fr; }
+  .aig-toc { position: static; }
+  .aig-sec { padding: 14px 16px; }
+  .aig-sec dl { grid-template-columns: 1fr; gap: 2px; }
+  .aig-sec dd { margin-bottom: 8px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="aig-wrap">
+  <div class="aig-head">
+    <div>
+      <a class="aig-back" href="{% url 'ai_assistant:chat' %}">&larr; Assistente AI</a>
+      <h1>Guida · Assistente AI</h1>
+      <p>Come fare domande, riprendere le conversazioni e capire da dove arrivano le risposte.</p>
+    </div>
+  </div>
+
+  <div class="aig-grid">
+    <nav class="aig-card aig-toc" aria-label="Indice della guida">
+      <div class="aig-toc-t">In questa guida</div>
+      <ol>
+        {% for sezione in sezioni %}<li><a href="#{{ sezione.id }}">{{ sezione.titolo }}</a></li>{% endfor %}
+      </ol>
+    </nav>
+    <div class="aig-body">
+      {% for sezione in sezioni %}
+      <section class="aig-card aig-sec" id="{{ sezione.id }}">
+        <h2>{{ sezione.titolo }}</h2>
+        {% for tipo, valore in sezione.blocchi %}
+          {% if tipo == "p" %}<p>{{ valore }}</p>
+          {% elif tipo == "nota" %}<div class="aig-nota">{{ valore }}</div>
+          {% elif tipo == "ul" %}<ul>{% for voce in valore %}<li>{{ voce }}</li>{% endfor %}</ul>
+          {% elif tipo == "def" %}<dl>{% for termine, spiegazione in valore %}<dt>{{ termine }}</dt><dd>{{ spiegazione }}</dd>{% endfor %}</dl>
+          {% endif %}
+        {% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

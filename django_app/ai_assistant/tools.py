@@ -60,6 +60,16 @@ RUNTIME_TOOL_CATALOG: tuple[RuntimeToolSpec, ...] = (
         privacy_note="Espone soltanto voci di navigazione visibili, non contenuti dei moduli.",
     ),
     RuntimeToolSpec(
+        key="permessi_utente",
+        label="Permessi dell'utente",
+        domain="Navigazione",
+        audit_tool="permessi_utente",
+        source_prefix="tool:portale:permessi",
+        status="enabled",
+        sample_prompt="posso inserire un nuovo timbro?",
+        privacy_note="Solo i permessi dell'utente stesso sul modulo nominato (SI/NO), nessun dato di altri.",
+    ),
+    RuntimeToolSpec(
         key="assenze_periodo",
         label="Assenze",
         domain="Calendario",
@@ -314,6 +324,17 @@ _TICKET_KEYWORDS = {
     "guasto",
     "guasti",
 }
+# Ticket richiesti dall'utente stesso (non la coda che gestisce).
+_TICKET_SELF_RE = re.compile(
+    r"\b(miei|mie|mio|personali|da me)\b"
+    r"|\bho\s+(aperto|aperti|creato|creati|inviato|inviati|segnalato|fatto|chiesto)\b"
+    r"|\b(aperti|creati|inviati)\s+da\s+me\b"
+)
+_TICKET_MAX_ROWS = 200
+# Domande di conteggio («quanti ticket…», «quante anomalie…»): i tool aggiungono una
+# RISPOSTA DIRETTA con il totale, cosi' il modello non deve contare le righe.
+_COUNT_INTENT_RE = re.compile(r"\b(quanti|quante|numero|conta|contare|totale)\b")
+_COUNT_MAX_ROWS = 200
 _TASK_KEYWORDS = {
     "task",
     "tasks",
@@ -521,8 +542,10 @@ _ANAGRAFICA_FORBIDDEN_KEYWORDS = {
     "documenti",
 }
 _ANAGRAFICA_FORBIDDEN_TOKEN_PATTERN = re.compile(r"\bcf\b")
+# «timbri» NON e' qui: nel portale e' il Registro Timbri (timbri/firme/sigle,
+# MOD.130), che ha guida e controllo permessi. Il dominio bloccato e' quello delle
+# timbrature/presenze (orari di ingresso e uscita).
 _UNAVAILABLE_DOMAIN_KEYWORDS = {
-    "timbri",
     "timbrature",
     "cartellino",
     "cartellini",
@@ -591,6 +614,7 @@ _RUNTIME_PRIORITY_BY_TOOL = {
     "anagrafica_summary": 85,
     "skillmatrix": 86,
     "assenze_periodo": 90,
+    "permessi_utente": 95,
     "module_catalog": 100,
     "runtime_unavailable": 110,
 }
@@ -804,7 +828,7 @@ def _wants_ticket_context(prompt: str) -> bool:
         return False
     return bool(
         re.search(
-            r"\b(chi|quali|elenco|lista|riepilogo|mostra|dimmi|vedere|sono|ho|miei|mie|personali|aperti|aperte|urgenti)\b",
+            r"\b(chi|quali|quanti|quante|elenco|lista|riepilogo|mostra|dimmi|vedere|sono|ho|miei|mie|personali|aperti|aperte|urgenti)\b",
             text,
         )
         or re.search(r"\b(chiusi|chiuse|risolti|risolte|storico)\b", text)
@@ -1211,6 +1235,30 @@ def _target_period(prompt: str) -> tuple[str, datetime, datetime] | None:
             label = f"{month_name.capitalize()} {year}"
             return label, datetime.combine(first, datetime.min.time()), datetime.combine(last + timedelta(days=1), datetime.min.time())
     return None
+
+
+def _aware_period(prompt: str) -> tuple[str, datetime, datetime] | None:
+    """``_target_period`` con datetime aware, pronto per filtrare un DateTimeField."""
+    period = _target_period(prompt)
+    if not period:
+        return None
+    label, start, end = period
+    if timezone.is_naive(start):
+        start, end = timezone.make_aware(start), timezone.make_aware(end)
+    return label, start, end
+
+
+def _direct_count_line(
+    text: str, *, total: int, capped: bool, soggetto: str, oggetto: str, period_label: str = "",
+    filters: list[str] | None = None,
+) -> str:
+    """Riga «RISPOSTA DIRETTA: <soggetto> N <oggetto> in <periodo>» per le domande «quanti»."""
+    if not _COUNT_INTENT_RE.search(text):
+        return ""
+    numero = f"almeno {total}" if capped else str(total)
+    when = f" in {period_label}" if period_label else ""
+    detail = f" (filtri: {', '.join(filters)})" if filters else ""
+    return f"RISPOSTA DIRETTA: {soggetto} {numero} {oggetto}{when}{detail}.\n"
 
 
 def _target_date_window(prompt: str) -> tuple[str, date, date] | None:
@@ -1783,6 +1831,49 @@ def _module_catalog_context(request, prompt: str) -> RuntimeContext:
     )
 
 
+def _permessi_context(request, prompt: str) -> RuntimeContext:
+    """Permessi reali dell'utente sul modulo nominato («posso inserire un timbro?»)."""
+    from . import permessi_utente
+
+    raw_prompt = getattr(request, "ai_prompt_raw", None) or prompt
+    if not permessi_utente.vuole_permessi(raw_prompt):
+        return RuntimeContext()
+    moduli = permessi_utente.moduli_citati(raw_prompt)
+    if not moduli:
+        return RuntimeContext()
+    if not getattr(getattr(request, "user", None), "is_authenticated", False):
+        return RuntimeContext()
+
+    blocchi: list[str] = []
+    audit_moduli: list[dict[str, Any]] = []
+    for modulo in moduli:
+        accesso = permessi_utente.accesso_modulo(request, modulo)
+        azioni, totale = permessi_utente.azioni_modulo(request, modulo, raw_prompt) if accesso else ([], 0)
+        righe = [f"Modulo: {modulo.nome} ({modulo.path})", f"Accesso al modulo: {'SI' if accesso else 'NO'}"]
+        if azioni:
+            righe.append("Azioni:")
+            righe.extend(f"- {etichetta}: {'SI' if ok else 'NO'}" for etichetta, ok in azioni)
+            if totale > len(azioni):
+                righe.append(f"(mostrate {len(azioni)} azioni su {totale}, quelle piu' vicine alla domanda)")
+        elif accesso:
+            righe.append("Azioni: il modulo non ha permessi di dettaglio registrati; vale l'accesso al modulo.")
+        blocchi.append("\n".join(righe))
+        audit_moduli.append({"modulo": modulo.slug, "accesso": accesso, "azioni": len(azioni)})
+
+    return RuntimeContext(
+        text=(
+            "DATI LIVE PORTALE - PERMESSI DELL'UTENTE CORRENTE\n"
+            + "\n\n".join(blocchi)
+            + "\nISTRUZIONE RISPOSTA: sono i permessi reali dell'utente che sta scrivendo. A «posso…?» rispondi "
+            "SI o NO usando questo elenco. Se un'azione e' NO, spiega che il pulsante non gli compare e che il "
+            "permesso si chiede a un amministratore del portale. Se l'accesso al modulo e' NO, non descrivere "
+            "dati del modulo. Non citare permessi che non sono in elenco."
+        ),
+        sources=("tool:portale:permessi",),
+        audit={"tool": "permessi_utente", "allowed": True, "moduli": audit_moduli},
+    )
+
+
 def _ticket_context(request, prompt: str) -> RuntimeContext:
     if not _should_run(request, "tickets", _wants_ticket_context(prompt)):
         return RuntimeContext()
@@ -1796,7 +1887,9 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
         for ticket_type in (TipoTicket.IT, TipoTicket.MAN)
         if ticket_views._can_manage_tickets(request, ticket_type)
     ]
-    manager_scope = bool(manager_types) and not re.search(r"\b(miei|mie|mio|personali)\b", text)
+    # «ho aperto», «creati da me»: i ticket richiesti dall'utente, anche se gestisce la coda.
+    self_request = bool(_TICKET_SELF_RE.search(text))
+    manager_scope = bool(manager_types) and not self_request
 
     filters: list[str] = []
     if manager_scope:
@@ -1830,6 +1923,14 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
         scope = "personale"
         scope_label = "ticket aperti o richiesti dall'utente corrente"
 
+    # Periodo di apertura («questo mese», «oggi», «settembre»): filtra su created_at.
+    period = _aware_period(prompt)
+    period_label = ""
+    if period:
+        period_label, period_start, period_end = period
+        qs = qs.filter(created_at__gte=period_start, created_at__lt=period_end)
+        filters.append(f"aperti in {period_label}")
+
     open_statuses = (StatoTicket.APERTA, StatoTicket.IN_CARICO, StatoTicket.IN_ATTESA)
     if re.search(r"\b(urgente|urgenti|critico|critici)\b", text):
         qs = qs.filter(priorita=PrioritaTicket.URGENTE, stato__in=open_statuses)
@@ -1837,13 +1938,14 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
     elif re.search(r"\b(chiusi|chiuse|chiuso|risolti|risolte|risolto)\b", text):
         qs = qs.filter(stato__in=(StatoTicket.RISOLTO, StatoTicket.CHIUSO))
         filters.append("stato=risolto/chiuso")
-    elif re.search(r"\b(tutti|tutte|storico)\b", text):
+    elif re.search(r"\b(tutti|tutte|storico)\b", text) or period or self_request:
+        # «quanti ticket ho aperto questo mese»: «aperto» è l'azione, non lo stato.
         filters.append("stato=tutti")
     else:
         qs = qs.filter(stato__in=open_statuses)
         filters.append("stato=aperto")
 
-    rows = list(qs.order_by("-created_at")[:60])
+    rows = list(qs.order_by("-created_at")[:_TICKET_MAX_ROWS])
 
     # filtri post-ACL estratti dal prompt
     richiedente_filter = _extract_name_filter(prompt)
@@ -1867,17 +1969,28 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
         ]
         extra_filters.append(f"reparto/area contiene '{reparto_filter}'")
     filters.extend(extra_filters)
+    total = len(rows)
+    total_label = f"almeno {total}" if total >= _TICKET_MAX_ROWS else str(total)
     rows = rows[:30]
 
     lines = "\n".join(_ticket_line(ticket) for ticket in rows) if rows else "Nessun ticket trovato per i filtri richiesti."
+    shown_note = f" (mostrati i {len(rows)} più recenti)" if total > len(rows) else ""
+
+    direct = _direct_count_line(
+        text, total=total, capped=total >= _TICKET_MAX_ROWS,
+        soggetto="Hai aperto" if scope == "personale" else "Risultano", oggetto="ticket",
+        period_label=period_label, filters=filters,
+    )
 
     return RuntimeContext(
         text=(
             "DATI LIVE PORTALE - TICKET\n"
             f"Ambito autorizzato: {scope_label}.\n"
             f"Filtri applicati: {', '.join(filters) if filters else 'nessuno'}.\n"
-            f"Ticket trovati: {len(rows)}.\n"
-            "ISTRUZIONE RISPOSTA: elenca tutti i ticket qui sotto uno per uno. "
+            f"Ticket trovati: {total_label}{shown_note}.\n"
+            f"{direct}"
+            "ISTRUZIONE RISPOSTA: questi sono dati reali del modulo Ticket letti per l'utente. "
+            "Se e' presente la RISPOSTA DIRETTA, parti da quella. Poi elenca i ticket qui sotto uno per uno. "
             "Non sintetizzare, non raggruppare, non inventare dati non presenti. "
             "Riporta numero, titolo, tipo, stato, priorita, richiedente, assegnatario e data apertura.\n"
             f"{lines}"
@@ -1889,6 +2002,7 @@ def _ticket_context(request, prompt: str) -> RuntimeContext:
             "scope": scope,
             "filters": filters,
             "row_count": len(rows),
+            "total": total,
         },
     )
 
@@ -1928,12 +2042,17 @@ def _tasks_context(request, prompt: str) -> RuntimeContext:
         filters.append("stato=aperto")
 
     window = _target_date_window(prompt)
+    task_period_label = ""
     if window is not None:
         label, start_day, end_day = window
+        task_period_label = label
         qs = qs.filter(Q(due_date__range=(start_day, end_day)) | Q(next_step_due__range=(start_day, end_day)))
         filters.append(f"periodo={label}")
+    if re.search(r"\b(miei|mie|assegnat[aeio] a me)\b", text):
+        qs = qs.filter(assigned_to=request.user)
+        filters.append("assegnati all'utente")
 
-    _raw_task_rows = list(qs.order_by("due_date", "next_step_due", "-updated_at")[:60])
+    _raw_task_rows = list(qs.order_by("due_date", "next_step_due", "-updated_at")[:_COUNT_MAX_ROWS])
 
     # filtri post-ACL estratti dal prompt
     task_assegnatario_filter = _extract_assegnatario_filter(prompt)
@@ -1958,7 +2077,12 @@ def _tasks_context(request, prompt: str) -> RuntimeContext:
         task_extra_filters.append(f"progetto contiene '{task_progetto_filter}'")
     if task_extra_filters:
         filters.extend(task_extra_filters)
+    task_total = len(_raw_task_rows)
     rows = _raw_task_rows[:30]
+    task_direct = _direct_count_line(
+        text, total=task_total, capped=task_total >= _COUNT_MAX_ROWS, soggetto="Risultano",
+        oggetto="task", period_label=task_period_label, filters=filters,
+    )
 
     task_lines = "\n".join(_task_line(task, today) for task in rows) if rows else "Nessun task trovato per i filtri richiesti."
 
@@ -1979,8 +2103,10 @@ def _tasks_context(request, prompt: str) -> RuntimeContext:
             "DATI LIVE PORTALE - KICK-OFF / TASKS\n"
             f"Ambito autorizzato: {scope}.\n"
             f"Filtri applicati: {', '.join(filters) if filters else 'nessuno'}.\n"
-            f"Task trovati: {len(rows)}.\n"
-            "ISTRUZIONE RISPOSTA: elenca tutti i task qui sotto uno per uno. "
+            f"Task trovati: {task_total}" + (f" (mostrati i primi {len(rows)})" if task_total > len(rows) else "") + ".\n"
+            f"{task_direct}"
+            "ISTRUZIONE RISPOSTA: se e' presente la RISPOSTA DIRETTA, parti da quella. "
+            "Poi elenca tutti i task qui sotto uno per uno. "
             "Non sintetizzare, non raggruppare, non inventare. "
             "Riporta progetto, titolo, stato, assegnatario, scadenza e ritardo.\n"
             f"{task_lines}"
@@ -2913,7 +3039,14 @@ def _dpi_context(request, prompt: str) -> RuntimeContext:
     else:
         filters.append("stato=tutti")
 
-    rows = list(qs.order_by("-created_at")[:60])
+    dpi_period = _aware_period(prompt)
+    dpi_period_label = ""
+    if dpi_period:
+        dpi_period_label, dpi_start, dpi_end = dpi_period
+        qs = qs.filter(created_at__gte=dpi_start, created_at__lt=dpi_end)
+        filters.append(f"richieste in {dpi_period_label}")
+
+    rows = list(qs.order_by("-created_at")[:_COUNT_MAX_ROWS])
 
     # filtri post-ACL estratti dal prompt
     dpi_name_filter = _extract_name_filter(prompt)
@@ -2932,7 +3065,13 @@ def _dpi_context(request, prompt: str) -> RuntimeContext:
         ]
         dpi_extra_filters.append(f"reparto contiene '{dpi_reparto_filter}'")
     filters.extend(dpi_extra_filters)
+    dpi_total = len(rows)
     rows = rows[:30]
+    dpi_direct = _direct_count_line(
+        text, total=dpi_total, capped=dpi_total >= _COUNT_MAX_ROWS,
+        soggetto="Hai fatto" if scope == "personale" else "Risultano", oggetto="richieste DPI",
+        period_label=dpi_period_label, filters=filters,
+    )
 
     lines = (
         "\n".join(_dpi_line(row, include_requester=manager_scope) for row in rows)
@@ -2945,8 +3084,10 @@ def _dpi_context(request, prompt: str) -> RuntimeContext:
             "DATI LIVE PORTALE - DPI\n"
             f"Ambito autorizzato: {scope_label}.\n"
             f"Filtri applicati: {', '.join(filters)}.\n"
-            f"Richieste DPI trovate: {len(rows)}.\n"
-            "ISTRUZIONE RISPOSTA: elenca tutte le richieste DPI qui sotto una per una. "
+            f"Richieste DPI trovate: {dpi_total}" + (f" (mostrate le {len(rows)} piu' recenti)" if dpi_total > len(rows) else "") + ".\n"
+            f"{dpi_direct}"
+            "ISTRUZIONE RISPOSTA: se e' presente la RISPOSTA DIRETTA, parti da quella. "
+            "Poi elenca tutte le richieste DPI qui sotto una per una. "
             "Non sintetizzare, non raggruppare, non inventare. "
             "Riporta numero, tipo DPI, quantita, stato, consegna e scadenza.\n"
             f"{lines}"
@@ -3329,8 +3470,17 @@ def _anomalie_context(request, prompt: str) -> RuntimeContext:
     global_level = anomalie_views._request_anomalie_global_access_level(request)
     can_read_all = anomalie_views._access_level_at_least(global_level, AnomalieAccessLevel.READ_ALL)
     only_closed = bool(re.search(r"\b(chius[aeio]|storico|tutte|tutti)\b", text))
-    status_filter = "" if only_closed else "WHERE COALESCE(a.chiudere, 0) = 0"
+    where = [] if only_closed else ["COALESCE(a.chiudere, 0) = 0"]
     filters = ["stato=tutti" if only_closed else "stato=aperta"]
+    sql_params: list = []
+    anomalie_period = _aware_period(prompt)
+    anomalie_period_label = ""
+    if anomalie_period:
+        anomalie_period_label, an_start, an_end = anomalie_period
+        where.append("a.modified_datetime >= %s AND a.modified_datetime < %s")
+        sql_params.extend([an_start, an_end])
+        filters.append(f"aggiornate in {anomalie_period_label}")
+    status_filter = ("WHERE " + " AND ".join(where)) if where else ""
 
     has_op_table = anomalie_views._has_table("ordini_produzione")
     if has_op_table:
@@ -3380,7 +3530,7 @@ def _anomalie_context(request, prompt: str) -> RuntimeContext:
         """
 
     try:
-        rows = list(anomalie_views._fetch_all_dict(sql))
+        rows = list(anomalie_views._fetch_all_dict(sql, sql_params))
     except Exception:
         return RuntimeContext(
             text=(
@@ -3438,7 +3588,12 @@ def _anomalie_context(request, prompt: str) -> RuntimeContext:
         allowed_rows, extra_labels = _apply_row_filters(allowed_rows, extra_filters_map)
         filters.extend(extra_labels)
 
+    anomalie_total = len(allowed_rows)
     visible_rows = allowed_rows[:30]
+    anomalie_direct = _direct_count_line(
+        text, total=anomalie_total, capped=len(rows) >= 80, soggetto="Risultano",
+        oggetto="anomalie", period_label=anomalie_period_label, filters=filters,
+    )
     lines = (
         "\n".join(_anomalie_line(row) for row in visible_rows)
         if visible_rows
@@ -3450,8 +3605,10 @@ def _anomalie_context(request, prompt: str) -> RuntimeContext:
             "DATI LIVE PORTALE - ANOMALIE\n"
             f"Ambito autorizzato: {'tutte le anomalie autorizzate al gestore' if scope == 'gestione' else 'anomalie in carico all utente corrente'}.\n"
             f"Filtri applicati: {', '.join(filters)}.\n"
-            f"Anomalie trovate: {len(visible_rows)}.\n"
-            "ISTRUZIONE RISPOSTA: elenca tutte le anomalie qui sotto una per una. "
+            f"Anomalie trovate: {anomalie_total}" + (f" (mostrate le {len(visible_rows)} piu' recenti)" if anomalie_total > len(visible_rows) else "") + ".\n"
+            f"{anomalie_direct}"
+            "ISTRUZIONE RISPOSTA: se e' presente la RISPOSTA DIRETTA, parti da quella. "
+            "Poi elenca tutte le anomalie qui sotto una per una. "
             "Non sintetizzare, non raggruppare, non inventare. "
             "Riporta ID, OP, part number, seriale, stato, avanzamento, RDC e data aggiornamento.\n"
             f"{lines}"
@@ -3860,8 +4017,8 @@ def _unavailable_domain_context(request, prompt: str) -> RuntimeContext:
 
     text = _norm_text(prompt)
     domains: list[str] = []
-    if any(keyword in text for keyword in ("timbri", "timbrature", "cartellino", "cartellini", "presenze")):
-        domains.append("Timbri/Presenze")
+    if any(keyword in text for keyword in ("timbrature", "cartellino", "cartellini", "presenze")):
+        domains.append("Timbrature/Presenze")
     if not domains:
         domains.append("dominio richiesto")
 
@@ -4684,6 +4841,7 @@ def _rischi_mansione_context(request, prompt: str) -> RuntimeContext:
 RUNTIME_TOOLS: tuple[RuntimeTool, ...] = (
     _absence_context,
     _module_catalog_context,
+    _permessi_context,
     _ticket_context,
     _tasks_context,
     _assets_context,
