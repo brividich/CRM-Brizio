@@ -129,7 +129,7 @@ class VisiteTest(_Base):
         self.assertIn("Nessun errore", out.getvalue())
         anticipate = out.getvalue().split("anticipate dal requisito")[1]
         self.assertIn(f"visita #{v.pk}", anticipate)
-        self.assertIn("Ruolo «Saldatore» richiede", anticipate)  # la nota dice da dove viene l'obbligo
+        self.assertIn("richiesta da Ruolo «Saldatore»", anticipate)  # la nota dice da dove viene l'obbligo
 
     def test_esami_con_piu_cadenze_senza_famiglia(self):
         a = TipoVisitaMedica.objects.create(nome="Spirometria basale annuale", durata_mesi=12)

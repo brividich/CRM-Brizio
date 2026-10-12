@@ -99,6 +99,7 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
   </div>
   {% endif %}
 
+  {% if puo_modificare %}
   <form class="rf-carica" method="post" action="{% url 'anagrafica:referti_carica' %}"
         enctype="multipart/form-data">
     {% csrf_token %}
@@ -111,6 +112,7 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
     <input type="file" name="referti" accept="application/pdf" multiple required class="rf-input">
     <button type="submit" class="hr-btn hr-btn-primary">Leggi</button>
   </form>
+  {% endif %}
 
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Referti in sintesi">
     {% include "anagrafica/components/_kpi_tile.html" with tono=conteggi.da_rivedere|yesno:"amber,green" icona="i-clipboard" valore=conteggi.da_rivedere label="In attesa di revisione" sub="referti da abbinare" %}
@@ -151,6 +153,8 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           {% if riga.e_oculistica %}
             <span class="rf-tag rf-neutro">certificato oculistico</span>
+          {% elif riga.e_esami %}
+            <span class="rf-tag rf-neutro">esami di laboratorio</span>
           {% elif riga.pronto %}
             <span class="rf-tag rf-si">pronto</span>
           {% elif riga.nominativo_da_ripiego %}
@@ -166,10 +170,16 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
       <div class="rf-corpo">
         {% if riga.messaggio %}<div class="rf-motivo">{{ riga.messaggio }}</div>{% endif %}
 
-        {% if riga.e_oculistica %}
+        {% if riga.da_completare_a_mano %}
         <div class="rf-griglia">
+          {% if riga.e_esami %}
           <div>
-            <label class="rf-et" for="rf-data-{{ riga.pk }}">Data della visita (scritta a mano)</label>
+            <div class="rf-et">Paziente letto</div>
+            <div class="rf-val">{{ riga.letto_nominativo|default:"—" }}{% if riga.letto_data_nascita %} · nato il {{ riga.letto_data_nascita|date:"d/m/Y" }}{% if riga.data_nascita_conferma %} <span class="rf-tag rf-si">coincide</span>{% endif %}{% endif %}</div>
+          </div>
+          {% endif %}
+          <div>
+            <label class="rf-et" for="rf-data-{{ riga.pk }}">{% if riga.e_esami %}Data del prelievo{% else %}Data della visita (scritta a mano){% endif %}</label>
             <div class="rf-val">
               <input type="date" name="data_visita_{{ riga.pk }}" id="rf-data-{{ riga.pk }}" class="rf-input"
                      value="{{ riga.letto_data_giudizio|date:'Y-m-d' }}">
@@ -180,10 +190,17 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
             <label class="rf-et" for="rf-tipo-{{ riga.pk }}">Tipo di visita</label>
             <div class="rf-val">
               <select name="tipo_visita_{{ riga.pk }}" id="rf-tipo-{{ riga.pk }}" class="rf-input">
+                {% if riga.e_esami %}
+                <option value="">— dal protocollo sanitario del dipendente —</option>
+                {% for t in tipi_esami %}
+                <option value="{{ t.pk }}" {% if t.pk == riga.tipo_visita_proposto_id %}selected{% endif %}>{{ t.nome }}</option>
+                {% endfor %}
+                {% else %}
                 <option value="">— dal requisito oculistico del dipendente —</option>
                 {% for t in tipi_oculistici %}
                 <option value="{{ t.pk }}" {% if t.pk == riga.tipo_visita_proposto_id %}selected{% endif %}>{{ t.nome }}</option>
                 {% endfor %}
+                {% endif %}
               </select>
             </div>
           </div>
@@ -192,7 +209,7 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
             <div class="rf-val">
               <select name="esito_visita_{{ riga.pk }}" id="rf-esito-{{ riga.pk }}" class="rf-input">
                 {% for valore, etichetta in esiti_visita %}
-                <option value="{{ valore }}" {% if valore == esito_predefinito %}selected{% endif %}>{{ etichetta }}</option>
+                <option value="{{ valore }}" {% if riga.e_esami and valore == esito_esami or not riga.e_esami and valore == esito_predefinito %}selected{% endif %}>{{ etichetta }}</option>
                 {% endfor %}
               </select>
             </div>

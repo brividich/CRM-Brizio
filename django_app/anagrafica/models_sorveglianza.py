@@ -227,9 +227,11 @@ class RefertoIntakeRiga(models.Model):
     ]
     TIPO_IDONEITA = "IDONEITA"
     TIPO_OCULISTICA = "OCULISTICA"
+    TIPO_ESAMI = "ESAMI"
     TIPO_REFERTO_CHOICES = [
         (TIPO_IDONEITA, "Certificato di idoneità"),
         (TIPO_OCULISTICA, "Certificato oculistico"),
+        (TIPO_ESAMI, "Referto esami di laboratorio"),
     ]
 
     # ── Il file ────────────────────────────────────────────────────────────────
@@ -253,8 +255,9 @@ class RefertoIntakeRiga(models.Model):
     origine = models.CharField(max_length=10, choices=ORIGINE_CHOICES, default="WEB")
     tipo_referto = models.CharField(
         max_length=12, choices=TIPO_REFERTO_CHOICES, default=TIPO_IDONEITA,
-        help_text="Certificato di idoneità (stampato, letto per intero) o certificato "
-                  "oculistico (data, nome ed esito scritti a mano: si completano in coda).",
+        help_text="Certificato di idoneità (stampato, letto per intero), certificato "
+                  "oculistico (data, nome ed esito scritti a mano: si completano in coda) o "
+                  "referto di laboratorio (esami ematici: tipo e data si confermano in coda).",
     )
 
     esito = models.CharField(
@@ -373,6 +376,15 @@ class RefertoIntakeRiga(models.Model):
     @property
     def e_oculistica(self) -> bool:
         return self.tipo_referto == self.TIPO_OCULISTICA
+
+    @property
+    def e_esami(self) -> bool:
+        return self.tipo_referto == self.TIPO_ESAMI
+
+    @property
+    def da_completare_a_mano(self) -> bool:
+        """Data, tipo ed esito si confermano in coda (oculistico, esami di laboratorio)."""
+        return self.tipo_referto in (self.TIPO_OCULISTICA, self.TIPO_ESAMI)
 
 
 class RequisitoVisitaDipendente(models.Model):

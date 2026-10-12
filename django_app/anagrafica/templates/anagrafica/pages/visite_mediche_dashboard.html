@@ -172,7 +172,7 @@ body.theme-dark .tipo-detail-dip a { color:#93c5fd; }
             {% for v in mese_group.list %}
             <tr>
               <td><a href="{% url 'anagrafica:dipendente_detail' v.legacy_anagrafica_id %}#visite-mediche" style="color:#0c2545;font-weight:700;text-decoration:none;">{{ v.dipendente_nome }}</a></td>
-              <td>{{ v.tipo.nome }}</td>
+              <td>{{ v.tipo.nome }}{% if v.scadenza_nota %}<div style="margin-top:3px;font-size:11.5px;color:{% if v.scadenza_nota|slice:':19' == 'Tipologia cambiata:' %}#9a3412{% else %}#64748b{% endif %};">{% if v.scadenza_nota|slice:':19' == 'Tipologia cambiata:' %}↻ {% endif %}{{ v.scadenza_nota }}</div>{% endif %}</td>
               <td data-sort-value="{{ v.data_svolgimento|date:'Y-m-d' }}">{{ v.data_svolgimento|date:"d-m-Y" }}</td>
               <td data-sort-value="{{ v.data_scadenza|date:'Y-m-d' }}">{{ v.data_scadenza|date:"d-m-Y" }}</td>
               <td>

@@ -8,6 +8,8 @@ e produce un digest email per i responsabili + notifica al dipendente.
 
 from __future__ import annotations
 
+import logging
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -17,6 +19,8 @@ from anagrafica.models import DipendenteAnagraficaAziendale, DipendenteRuoloOper
 from anagrafica.services.email_digest import digest_fragment, scadenza_badge
 from anagrafica.services.reminders import get_reminder_recipients
 from anagrafica.services.visite import STATO_IN_SCADENZA, STATO_SCADUTA, stato_visite
+
+logger = logging.getLogger(__name__)
 
 
 def _get_recipients(override: list[str] | None) -> list[str]:
@@ -70,12 +74,20 @@ class Command(BaseCommand):
 
         legacy_ids = _dipendenti_attivi_legacy_ids()
 
+        from anagrafica.services import requisiti
+
+        # Un solo contesto aziendale per tutto il ciclo (prima: uno per persona).
+        ctx = requisiti.ambito(today)
         scadute: list[tuple[int, dict]] = []
         in_scadenza: list[tuple[int, dict]] = []
+        errori: list[int] = []
         for legacy_id in legacy_ids:
             try:
-                stato = stato_visite(legacy_id, soglia_giorni_avviso=days)
+                stato = stato_visite(legacy_id, soglia_giorni_avviso=days, ctx=ctx)
             except Exception:
+                # Mai in silenzio: una persona saltata e' una scadenza non segnalata.
+                logger.exception("Promemoria visite: stato non calcolabile per #%s", legacy_id)
+                errori.append(legacy_id)
                 continue
             for row in stato:
                 if row["stato"] == STATO_SCADUTA:
@@ -83,6 +95,11 @@ class Command(BaseCommand):
                 elif row["stato"] == STATO_IN_SCADENZA:
                     in_scadenza.append((legacy_id, row))
 
+        if errori:
+            self.stderr.write(
+                f"ATTENZIONE: stato visite non calcolato per {len(errori)} dipendenti "
+                f"({', '.join(f'#{i}' for i in errori[:20])}{'…' if len(errori) > 20 else ''}): vedi log."
+            )
         if not scadute and not in_scadenza:
             self.stdout.write("Nessuna visita medica scaduta o in scadenza.")
             return

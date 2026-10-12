@@ -251,7 +251,14 @@ class VisitaMedicaAdmin(admin.ModelAdmin):
 
 @admin.register(AnagraficaVisiteMedichePermission)
 class AnagraficaVisiteMedichePermissionAdmin(admin.ModelAdmin):
-    list_display = ("accesso",)
+    list_display = ("accesso", "richiedi_permesso_modifica")
+
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        # Dato sanitario: «tutti gli utenti autenticati» non si sceglie piu'.
+        # Un valore storico va cambiato al primo salvataggio (validate_deployment lo segnala).
+        if db_field.name == "accesso":
+            kwargs["choices"] = AnagraficaVisiteMedichePermission.ACCESSO_CHOICES_SELEZIONABILI
+        return super().formfield_for_choice_field(db_field, request, **kwargs)
 
     def has_add_permission(self, request):
         return not AnagraficaVisiteMedichePermission.objects.exists()

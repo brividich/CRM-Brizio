@@ -259,18 +259,12 @@ class VisitaMedicaForm(forms.ModelForm):
         return f
 
     def clean(self):
+        from .services.visite import errore_esito_note
+
         cleaned = super().clean()
-        esito = cleaned.get("esito")
-        esiti_con_limitazioni = {
-            VisitaMedica.Esito.IDONEO_CON_LIMITAZIONI,
-            VisitaMedica.Esito.IDONEO_LIM_PRESCR,
-        }
-        if esito in esiti_con_limitazioni and not (cleaned.get("note") or "").strip():
-            self.add_error(
-                "note",
-                "Con esito «idoneo con limitazioni» descrivere qui la limitazione o "
-                "condizione di lavoro (es. divieto lavoro in quota, no turno notturno).",
-            )
+        errore = errore_esito_note(cleaned.get("esito"), cleaned.get("note"))
+        if errore:
+            self.add_error("note", errore)
         return cleaned
 
 

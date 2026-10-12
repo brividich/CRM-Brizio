@@ -440,6 +440,51 @@ def tipo_oculistico_da_requisiti(legacy_id: int, data=None):
     return max(candidati, key=lambda r: (r.data_certificato, r.pk)).tipo
 
 
+_PAROLE_ESAMI = ("EMATIC", "SANGU", "LABORATOR", "EMOCROM")
+
+
+def _e_esame_laboratorio(testo: str) -> bool:
+    piatto = normalizza(testo)
+    return any(p in piatto for p in _PAROLE_ESAMI)
+
+
+def tipi_esami_laboratorio():
+    """Tipi a catalogo che sono esami di laboratorio (nome o categoria)."""
+    from ..models import TipoVisitaMedica
+
+    return [
+        t for t in TipoVisitaMedica.objects.filter(is_active=True).order_by("nome")
+        if _e_esame_laboratorio(t.nome) or _e_esame_laboratorio(t.categoria or "")
+    ]
+
+
+def tipo_esami_da_requisiti(legacy_id: int | None, data=None):
+    """Il tipo di esame di laboratorio richiesto al dipendente dal protocollo sanitario.
+
+    Come per l'oculistica: con una data, il requisito del certificato in vigore a
+    quella data; senza requisiti, l'unico tipo «esami» a catalogo, se ce n'è uno solo.
+    """
+    from ..models_sorveglianza import RequisitoVisitaDipendente
+
+    if legacy_id:
+        candidati = [
+            r for r in (
+                RequisitoVisitaDipendente.objects
+                .filter(legacy_anagrafica_id=legacy_id, tipo__isnull=False, tipo__is_active=True)
+                .select_related("tipo")
+            )
+            if _e_esame_laboratorio(r.esame) or _e_esame_laboratorio(r.tipo.nome)
+        ]
+        if candidati:
+            if data is not None:
+                precedenti = [r for r in candidati if r.data_certificato <= data]
+                if precedenti:
+                    return max(precedenti, key=lambda r: (r.data_certificato, r.pk)).tipo
+            return max(candidati, key=lambda r: (r.data_certificato, r.pk)).tipo
+    a_catalogo = tipi_esami_laboratorio()
+    return a_catalogo[0] if len(a_catalogo) == 1 else None
+
+
 def tipi_famiglia(tipo) -> set[int]:
     """Tipi di visita intercambiabili con ``tipo`` nell'unione manuale di un referto.
 
@@ -476,6 +521,15 @@ def tipo_visita_per_riga(riga, *, legacy_id: int | None = None, tipo_visita=None
             tipo_visita
             or riga.tipo_visita_scelto
             or tipo_oculistico_da_requisiti(
+                legacy_id or riga.legacy_anagrafica_id_proposto,
+                riga.letto_data_giudizio,
+            )
+        )
+    if riga.tipo_referto == RefertoIntakeRiga.TIPO_ESAMI:
+        return (
+            tipo_visita
+            or riga.tipo_visita_scelto
+            or tipo_esami_da_requisiti(
                 legacy_id or riga.legacy_anagrafica_id_proposto,
                 riga.letto_data_giudizio,
             )
@@ -580,6 +634,11 @@ def registra(riga, *, utente=None, legacy_id: int | None = None,
             riga, utente=utente, legacy_id=legacy_id,
             data_visita=data_visita, tipo_visita=tipo_visita, esito_visita=esito_visita,
         )
+    if riga.tipo_referto == RefertoIntakeRiga.TIPO_ESAMI:
+        return _registra_esami(
+            riga, utente=utente, legacy_id=legacy_id,
+            data_visita=data_visita, tipo_visita=tipo_visita, esito_visita=esito_visita,
+        )
 
     data = riga.letto_data_giudizio
     if data is None:
@@ -671,6 +730,48 @@ def _registra_oculistica(riga, *, utente, legacy_id, data_visita, tipo_visita, e
     )
     riga.save()
     return [_visita] if stato in ("creata", "agganciata") else []
+
+
+def _registra_esami(riga, *, utente, legacy_id, data_visita, tipo_visita, esito_visita):
+    """Referto di laboratorio: data del prelievo e tipo confermati da chi revisiona.
+
+    Esito predefinito «Eseguito»: un esame ematico non è un giudizio di idoneità.
+    """
+    from django.utils import timezone
+
+    from ..models import VisitaMedica
+    from ..models_sorveglianza import RefertoIntakeRiga
+
+    data = data_visita or riga.letto_data_giudizio
+    if data is None:
+        raise ErroreRegistrazione("Referto di laboratorio: inserire la data del prelievo.")
+    if data > timezone.localdate():
+        raise ErroreRegistrazione("La data del prelievo è nel futuro.")
+    tipo = tipo_visita or riga.tipo_visita_scelto or tipo_esami_da_requisiti(legacy_id, data)
+    if tipo is None:
+        raise ErroreRegistrazione(
+            "Nessun esame di laboratorio nel protocollo del dipendente: scegliere il tipo di esame."
+        )
+    esiti_validi = dict(VisitaMedica.Esito.choices)
+    esito = esito_visita if esito_visita in esiti_validi else VisitaMedica.Esito.ESEGUITO
+
+    documento = _archivia_nel_fascicolo(riga, legacy_id, utente)
+    stato, visita = _registra_visita(
+        legacy_id=legacy_id, tipo=tipo, data=data, esito=esito,
+        documento=documento, note="", utente=utente,
+    )
+    riga.legacy_anagrafica_id_proposto = legacy_id
+    riga.letto_data_giudizio = data
+    riga.tipo_visita_scelto = tipo
+    riga.esito = RefertoIntakeRiga.ESITO_OK
+    riga.visite_create = 1 if stato == "creata" else 0
+    riga.visite_associate = 1 if stato == "agganciata" else 0
+    riga.documento = documento
+    riga.confermato_da = utente
+    riga.confermato_il = timezone.now()
+    riga.messaggio = f"{_MESSAGGI_STATO[stato]}: {tipo.nome} del {data:%d/%m/%Y} (esame di laboratorio)."
+    riga.save()
+    return [visita] if stato in ("creata", "agganciata") else []
 
 
 def _archivia_nel_fascicolo(riga, legacy_id: int, utente):

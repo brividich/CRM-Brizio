@@ -49,7 +49,7 @@ MISTI = [
 ]
 # Cataloghi: (app, modello, campi che contano; None = tutti).
 CATALOGHI = [
-    ("anagrafica", "TipoVisitaMedica", ("durata_mesi", "categoria", "obbligatoria", "is_active")),
+    ("anagrafica", "TipoVisitaMedica", ("durata_mesi", "categoria", "obbligatoria", "is_active", "eta_minima", "eta_massima")),
     ("anagrafica", "TrainingCourse", ("validita_mesi", "is_active", "piano_id", "categoria_id")),
     ("anagrafica", "TrainingPlan", ("stato", "is_active")),
     ("anagrafica", "Mansione", ("nome", "is_active")),

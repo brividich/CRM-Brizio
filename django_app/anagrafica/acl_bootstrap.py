@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # Bump alla v14: permesso e binding della rimozione motivata visite mediche.
 # Bump alla v15: permessi e binding della Reportistica componibile.
 # Bump alla v16: binding Recruiting di pipeline, offerta e posizioni aperte.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v17"
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v18"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -267,6 +267,7 @@ _EXPORT_ROUTE_BINDINGS = {
 PERM_HR_VIEW = "anagrafica.hr.view"
 PERM_VISITE_VIEW = "anagrafica.visite.view"
 PERM_VISITE_DELETE = "anagrafica.visite.delete"
+PERM_VISITE_EDIT = "anagrafica.visite.edit"
 PERM_FORMAZIONE_VIEW = "anagrafica.formazione.view"
 PERM_FORMAZIONE_MANAGE = "anagrafica.formazione.manage"
 # Approvazione formale del MOD.040 Registro Corsi (MSM, o MSO quale delegato).
@@ -289,6 +290,14 @@ _SEZIONI_CANONICAL = {
         "description": (
             "Visite mediche e idoneita' (dato sanitario). Concedere solo ai ruoli "
             "autorizzati al trattamento dei dati sanitari."
+        ),
+    },
+    PERM_VISITE_EDIT: {
+        "label": "Anagrafica - Modifica visite mediche",
+        "description": (
+            "Registrazione, modifica e superamento di visite mediche e giornate visite. "
+            "Conta solo se in Permessi visite mediche e' attivo «richiedi permesso di "
+            "modifica»: altrimenti chi vede le visite puo' anche registrarle."
         ),
     },
     PERM_VISITE_DELETE: {
@@ -340,7 +349,7 @@ _SEZIONI_CANONICAL = {
 # e sanitari non si concedono per default.
 _SEZIONI_ROLE_GRANTS = {
     "admin": {
-        PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_VISITE_DELETE, PERM_FORMAZIONE_VIEW,
+        PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_VISITE_EDIT, PERM_VISITE_DELETE, PERM_FORMAZIONE_VIEW,
         PERM_FORMAZIONE_MANAGE, PERM_FORMAZIONE_APPROVE, PERM_SCHEDA_MANAGE, PERM_STATISTICHE_VIEW,
         PERM_DOCUMENTI_RISERVATI,
     },

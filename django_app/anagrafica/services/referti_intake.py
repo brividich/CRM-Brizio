@@ -286,11 +286,15 @@ def _elabora_testo(testo: str, nome_file: str, pagina: int, *,
         riga.save()
         return riga
 
+    if campi.tipo_referto == RefertoIntakeRiga.TIPO_ESAMI:
+        return _elabora_esami(riga, campi, config)
+
     if not campi.e_certificato:
         riga.esito = RefertoIntakeRiga.ESITO_RIFIUTATO
         riga.messaggio = (
-            "Non sembra un certificato di idoneità né un certificato oculistico: nessuna "
-            "delle diciture attese è stata riconosciuta. Il file resta archiviato e consultabile."
+            "Non sembra un certificato di idoneità, un certificato oculistico o un referto di "
+            "laboratorio: nessuna delle diciture attese è stata riconosciuta. Il file resta "
+            "archiviato e consultabile."
         )
         riga.save()
         return riga
@@ -363,6 +367,40 @@ def _elabora_testo(testo: str, nome_file: str, pagina: int, *,
         riga.esito = RefertoIntakeRiga.ESITO_DA_RIVEDERE
         riga.messaggio = "Registrazione automatica fallita: lasciata alla conferma manuale."
         riga.save(update_fields=["esito", "messaggio"])
+    return riga
+
+
+def _elabora_esami(riga, campi, config):
+    """Referto di laboratorio: si propone dipendente e data, mai registrazione automatica.
+
+    Non c'è un giudizio di idoneità e il tipo di esame dipende dal protocollo del
+    dipendente: chi revisiona conferma tipo e data guardando la scansione.
+    """
+    from ..models_sorveglianza import RefertoIntakeRiga
+    from .referti_match import cerca_dipendente
+
+    riga.tipo_referto = RefertoIntakeRiga.TIPO_ESAMI
+    riga.letto_nominativo = (campi.nominativo or "")[:200]
+    riga.letto_data_nascita = campi.data_nascita
+    riga.letto_data_giudizio = campi.data_giudizio
+    riga.date_trovate = campi.date_trovate
+    riga.esito = RefertoIntakeRiga.ESITO_DA_RIVEDERE
+    mancano = []
+    if campi.nominativo:
+        match = cerca_dipendente(campi.nominativo, campi.data_nascita, da_ripiego=False, config=config)
+        if match.scelto is not None:
+            riga.legacy_anagrafica_id_proposto = match.scelto.legacy_id
+            riga.punteggio = match.scelto.punteggio
+            riga.data_nascita_conferma = match.scelto.conferma_data_nascita
+        riga.candidati = [c.come_dizionario() for c in match.candidati]
+    else:
+        mancano.append("il paziente")
+    if campi.data_giudizio is None:
+        mancano.append("la data del prelievo")
+    riga.messaggio = "Referto di laboratorio (esami ematici): controllare dipendente, data del prelievo e tipo di esame, poi confermare."
+    if mancano:
+        riga.messaggio += " Non letti: " + " e ".join(mancano) + "."
+    riga.save()
     return riga
 
 
