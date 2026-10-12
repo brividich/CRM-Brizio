@@ -97,6 +97,8 @@ NVD, KEV ed EPSS vengono letti da un job in background ogni ora, solo se in **Im
 3. Premi **Aggiorna anteprima**: vedi le righe valide e quelle scartate, ognuna con il motivo (PC vuoto, versione vuota, riga duplicata…). In Excel formatta la colonna versione come **testo**: una versione salvata come numero («2.10» diventa 2.1) viene scartata.
 4. Premi **Importa**. Le installazioni già note vengono aggiornate; quelle che non compaiono più nel nuovo export dello stesso tipo vengono segnate come **non più rilevate**.
 
+**Export di WatchGuard EPDR**: serve l'elenco dei software **suddiviso per PC**, con la colonna `Computer`. L'elenco aggregato, che per ogni software riporta solo il numero di computer, non dice quali PC sono esposti e non si può usare. Il file si carica così com'è. Associa **PC** a `Computer` (non a `Computer type`), **prodotto** a `Name`, **produttore** a `Publisher` e **versione** a `Version`. Lascia vuota la **data di rilevamento**: `Installation date` è la data di installazione, non quella del rilevamento. L'aggiornamento dell'inventario si misura dalla data dell'import. Le righe senza versione vengono scartate: è normale per alcuni programmi.
+
 Il file caricato resta in un'area privata e cifrata solo fino all'import e non è mai scaricabile dal browser. Se abbandoni un'importazione a metà, **Annulla e elimina il file**; in ogni caso le anteprime non confermate vengono cancellate dopo 2 giorni.
 
 ### Collegare i software alle CVE (CPE)

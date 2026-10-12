@@ -1183,6 +1183,7 @@ _DOC_META = {
     "14_INCIDENTI_E_REPORT.md": ("Incidenti e report", "Registro incidenti, valutazione NIS2 e GDPR, scadenze di notifica, report periodico e PDF."),
     "15_BACKUP_VPN_KPI_ASSET.md": ("Backup, VPN, KPI e asset", "Come leggere backup, accessi VPN e segnali, KPI e trend, collegamento agli asset, stato elaborazione."),
     "16_IMPOSTAZIONI_E_AI.md": ("Impostazioni e AI", "Avvisi automatici su mail e Teams, report programmato, funzioni dell'AI aziendale e suoi limiti."),
+    "17_MODULI_DIAGNOSTICA_DOCUMENTAZIONE.md": ("Moduli, diagnostica e documentazione", "Stato di ogni modulo, controllo salute della catena, test di riconoscimento di una mail, elenco della documentazione."),
     "MAILBOX_INGESTION.md": ("Mailbox Ingestion", "Ingestion schedulata da mailbox, provider, deduplicazione, configurazione e troubleshooting."),
 }
 # Guide d'uso per chi lavora nel SOC, in cima alla pagina Guida (gli altri documenti sono per chi configura).

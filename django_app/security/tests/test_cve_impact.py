@@ -103,6 +103,18 @@ class InventoryImportTests(_Base):
         self.assertEqual(suggested["hostname"], "Computer")
         self.assertEqual(suggested["version"], "Versione")
 
+    def test_watchguard_utf16_tab_export(self):
+        # Formato reale dell'export WatchGuard EPDR «per PC»: UTF-16 LE con BOM, separato da tab.
+        text = ("Client\tComputer type\tComputer\tName\tPublisher\tInstallation date\tVersion\r\n"
+                "Demo\tWorkstation\tPC-DEMO-01\t7-Zip 23.01 (x64)\tIgor Pavlov\t2025-08-29\t23.01\r\n")
+        table = software_inventory.read_table(text.encode("utf-16"), "Software_demo.csv")
+        self.assertEqual(table.headers[2], "Computer")
+        self.assertEqual(table.rows[0][2], "PC-DEMO-01")
+        suggested = software_inventory.suggest_mapping(table.headers)
+        self.assertEqual(suggested["hostname"], "Computer")  # non «Computer type»
+        self.assertEqual(suggested["product"], "Name")
+        self.assertEqual(suggested["vendor"], "Publisher")
+
     def test_preview_reports_skipped_rows_with_reason(self):
         _item, preview = self._import()
         self.assertEqual(len(preview.valid), 3)

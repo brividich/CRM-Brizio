@@ -106,6 +106,22 @@ La pagina **Storico** (Analisi dello storico) guarda indietro di 30, 90 o più g
 
 **Analizza con l'AI** propone fino a 5 azioni (soppressioni, cause da risolvere alla radice, ticket da chiudere o riassegnare). Non cambia nulla: decidi tu.
 
+## Caricare un report a mano
+
+Di solito i report arrivano da soli dalle caselle mail. Quando un report non è arrivato, oppure ne hai uno da un'altra fonte, lo carichi dalla pagina [Inbox](/soc/inbox/).
+
+1. In **Carica o incolla un report** scegli il **File del report** (PDF, CSV, TXT, EML o LOG), oppure incolla il contenuto in **Testo**.
+2. Compila **Mittente** e **Oggetto** come nella mail originale: servono a riconoscere la sorgente.
+3. In **Sorgente** lascia **Riconoscimento automatico**, oppure scegli tu la sorgente e il parser se sai da dove viene il report.
+4. **Tipo di contenuto** si lascia vuoto, salvo casi particolari (per esempio `text/plain` per un testo incollato).
+5. Premi **Elabora report**.
+
+Il report viene elaborato subito, come se fosse arrivato per mail: gli alert e i ticket che ne nascono sono veri. In **Ultimo risultato** vedi l'esito (**Riuscita**, **Scartato** se il report non è stato elaborato, per esempio perché già arrivato, **Errore**), la sorgente riconosciuta, il parser usato e quante metriche, eventi, alert, evidenze e ticket ha prodotto, con gli avvisi e gli errori.
+
+Se la sorgente risulta «Nessuna» o il parser è vuoto, il report non è stato letto: scegli la sorgente a mano e riprova, oppure verifica con la [Diagnostica](/soc/docs/17-moduli-diagnostica-documentazione/#provare-se-una-mail-viene-riconosciuta).
+
+Sotto ci sono **Report recenti**, **Messaggi ricevuti** e **File caricati**, con il loro stato, e l'elenco **Sorgenti e parser** configurati.
+
 ## Scheda PC e server
 
 Da un risultato di ricerca, dalla pagina Backup o da un alert si apre la **scheda PC**: un riepilogo di backup, alert aperti, vulnerabilità, protezione endpoint e ultimi eventi di quel dispositivo, con il link all'asset del portale se è collegato. **Controlla il dispositivo** chiede all'AI cosa rischia e cosa fare.
