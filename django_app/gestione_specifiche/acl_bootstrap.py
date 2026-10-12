@@ -19,7 +19,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "gestione_specifiche"
-_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v17"
+_BOOTSTRAP_CACHE_KEY = "gestione_specifiche_acl_bootstrap_v18"
 
 # --- Permessi canonici --------------------------------------------------------
 PERM_VIEW = "gestione_specifiche.specifica.view"
@@ -69,6 +69,7 @@ _ROUTE_BINDINGS = {
     # Registro OFI standalone (namespace registro_ofi, montato a /ofi-registro/).
     "registro_ofi:lista": PERM_VIEW,
     "registro_ofi:dettaglio": PERM_VIEW,
+    "registro_ofi:guida": PERM_VIEW,
     "registro_ofi:nuovo": PERM_OFI_ADD,
     "registro_ofi:modifica": PERM_OFI_ADD,
     "gestione_specifiche:distribuzione_nuova": PERM_DISTRIBUISCI,

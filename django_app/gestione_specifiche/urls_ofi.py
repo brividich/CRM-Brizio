@@ -13,6 +13,7 @@ app_name = "registro_ofi"
 urlpatterns = [
     path("", views_ofi.lista, name="lista"),
     path("nuovo/", views_ofi.nuovo, name="nuovo"),
+    path("guida/", views_ofi.guida, name="guida"),
     path("<int:pk>/", views_ofi.dettaglio, name="dettaglio"),
     path("<int:pk>/modifica/", views_ofi.modifica, name="modifica"),
 ]

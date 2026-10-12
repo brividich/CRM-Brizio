@@ -3,6 +3,7 @@ from . import procedure_views
 
 from django.urls import path
 
+from . import guida
 from . import audit_views, views, processi_views, automation_views, programma_views, report_views, miei_rilievi_views
 
 app_name = "sistema_gestione"
@@ -35,6 +36,7 @@ urlpatterns = [
     path("audit/cruscotto/", report_views.cruscotto, name="audit_cruscotto"),
     path("audit/rilievi/export/", report_views.rilievi_export, name="audit_rilievi_export"),
     path("audit/miei-rilievi/", miei_rilievi_views.miei_rilievi, name="audit_miei_rilievi"),
+    path("audit/guida/", guida.guida_audit, name="audit_guida"),
     path("audit/<int:pk>/conferme/aggiorna/", programma_views.audit_conferme_aggiorna, name="audit_conferme_aggiorna"),
 
     path("", views.index, name="index"),

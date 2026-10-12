@@ -5,7 +5,7 @@
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}
 <style>.content{width:100%;max-width:100%}.rc-wrap{max-width:1800px;margin:0 auto}</style>{% endblock %}
 
-{% block content %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
 <div class="rc-wrap">
   <a class="rc-back" href="{% url 'sistema_gestione:index' %}">← Sistema di gestione</a>
 

@@ -19,7 +19,7 @@ MODULE = "sistema_gestione"
 # v3: route del programma basato sul rischio (cicli, calendario, impostazioni, rifiuto, deroga).
 # v4: annullamento audit e aggiornamento conferme Outlook.
 # v5: cruscotto, export rilievi, «I miei rilievi».
-_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v5"
+_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v6"
 
 PERM_VIEW = "sistema_gestione.modulo.view"
 PERM_SOA_VIEW = "sistema_gestione.soa.view"
@@ -77,6 +77,8 @@ _ROUTE_BINDINGS = {
     # fine (consultazione o responsabile della CAR/azione) è nella view.
     "sistema_gestione:procedura_car": PERM_AUDIT_MIEI,
     "sistema_gestione:audit_miei_rilievi": PERM_AUDIT_MIEI,
+    # La guida è per tutti i ruoli che toccano un audit, anche il solo auditato.
+    "sistema_gestione:audit_guida": PERM_AUDIT_MIEI,
     "sistema_gestione:procedura_kpi": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_esito_editor": PERM_AUDIT_VIEW,
     "sistema_gestione:audit_priorita": PERM_AUDIT_VIEW,
