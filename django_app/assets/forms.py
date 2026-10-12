@@ -38,6 +38,7 @@ from .models import (
     PlantLayoutArea,
     PlantLayoutMarker,
     SoftwareLicense,
+    SoftwareLicenseRenewal,
     WorkMachine,
     WorkOrder,
 )
@@ -2369,6 +2370,62 @@ class SoftwareLicenseForm(forms.ModelForm):
             instance.full_clean()
             instance.save()
         return instance
+
+
+class SoftwareLicenseRenewalForm(forms.ModelForm):
+    """Rinnovo di una licenza: la nuova scadenza è obbligatoria, il resto facoltativo."""
+
+    class Meta:
+        model = SoftwareLicenseRenewal
+        fields = [
+            "period_end",
+            "renewed_on",
+            "period_start",
+            "seats_total",
+            "cost_eur",
+            "supplier",
+            "reference",
+            "notes",
+        ]
+        labels = {
+            "period_end": "Nuova scadenza",
+            "renewed_on": "Data rinnovo",
+            "period_start": "Inizio periodo",
+            "seats_total": "Posti acquistati",
+            "cost_eur": "Costo (€)",
+            "supplier": "Fornitore",
+            "reference": "Riferimento ordine / fattura",
+            "notes": "Note",
+        }
+        widgets = {
+            "period_end": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "renewed_on": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "period_start": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["period_end"].required = True
+        self.fields["renewed_on"].required = False
+        self.fields["supplier"].required = False
+        self.fields["supplier"].queryset = Fornitore.objects.filter(is_active=True).order_by("ragione_sociale", "id")
+        self.fields["seats_total"].help_text = "Lascia vuoto per non cambiare i posti della licenza."
+
+    def clean(self):
+        cleaned_data = super().clean()
+        period_start = cleaned_data.get("period_start")
+        period_end = cleaned_data.get("period_end")
+        if period_start and period_end and period_end < period_start:
+            self.add_error("period_end", "La nuova scadenza non può essere precedente all'inizio del periodo.")
+        cost = cleaned_data.get("cost_eur")
+        if cost is not None and cost < 0:
+            self.add_error("cost_eur", "Il costo non può essere negativo.")
+        if not cleaned_data.get("renewed_on"):
+            cleaned_data["renewed_on"] = timezone.localdate()
+        cleaned_data["reference"] = (cleaned_data.get("reference") or "").strip()
+        cleaned_data["notes"] = (cleaned_data.get("notes") or "").strip()
+        return cleaned_data
 
 
 class PlantLayoutForm(forms.ModelForm):
