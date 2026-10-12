@@ -69,9 +69,21 @@ def _can_view_timbri(request) -> bool:
     )
 
 
+def _ruoli(request, azione: str) -> bool | None:
+    """Ruoli attivi: esito della matrice per il registro timbri; None = regole storiche."""
+    from core.permessi import puo_fare, sistema_ruoli_attivo
+
+    if not sistema_ruoli_attivo():
+        return None
+    return puo_fare(request, "timbri", azione)
+
+
 def _can_edit_timbri(request) -> bool:
     if getattr(request.user, "is_superuser", False):
         return True
+    esito = _ruoli(request, "modificare")
+    if esito is not None:
+        return esito
     legacy_user = _legacy_user(request)
     if not legacy_user:
         return False
@@ -94,6 +106,9 @@ def _user_timbri_override(user, azione: str):
 def _can_copy_timbri(request) -> bool:
     if getattr(request.user, "is_superuser", False):
         return True
+    esito = _ruoli(request, "esportare")
+    if esito is not None:
+        return esito
     legacy_user = _legacy_user(request)
     if not legacy_user:
         return False
@@ -111,6 +126,9 @@ def _can_copy_timbri(request) -> bool:
 def _can_download_timbri(request) -> bool:
     if getattr(request.user, "is_superuser", False):
         return True
+    esito = _ruoli(request, "esportare")
+    if esito is not None:
+        return esito
     legacy_user = _legacy_user(request)
     if not legacy_user:
         return False

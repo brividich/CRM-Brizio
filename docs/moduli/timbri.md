@@ -28,3 +28,7 @@ Registro dei timbri (fisici e digitali), delle firme e delle sigle assegnati al 
 - **Immagini timbro/firma/sigla** (solo PNG) in storage privato `TIMBRI_PRIVATE_ROOT` (sovrascrivibile da `.env`, cifrate at rest), servite solo dalla view protetta `serve_timbri_image` con audit di ogni accesso
 - **Registro** con correzione manuale auditata (creazione, modifica, archiviazione)
 - **Timbri inline nella scheda dipendente**: dal tab «Timbri» di `/anagrafica/dipendenti/<id>/` i record (attivi con sub-tab timbri/firme/sigle + storico, immagini, copia, link al report) si vedono **dentro la scheda** senza uscire dal modulo anagrafica. Frammento reso da `timbri:operatore_embed` (`/timbri/anagrafica/<legacy_id>/embed/`) e caricato in **lazy via HTMX** al primo click sul tab; ACL `timbri_view` autoritativa lato server
+
+## Ruoli del portale
+
+Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) modifica e configurazione richiedono «modificare», copia e download delle immagini «esportare» su «Registro timbri MOD.130»; i nomi dei ruoli legacy e gli override per utente valgono solo a sistema spento.

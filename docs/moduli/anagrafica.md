@@ -169,3 +169,7 @@ Anagrafica master HR del portale, integrata con Active Directory e tabelle legac
 - **Stats dashboard dipendente** con layout drag&drop salvato per utente
 - **Sync LDAP/AD** con `sync_ldap_users`, paging configurabile, credenziali service account su `config/.env`
 - **Fallback email** automatico `email_notifica` → `email` per notifiche legacy
+
+## Ruoli del portale
+
+Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): elenco ed export dipendenti mostrano solo le schede visibili (propri / team / tutti) e la scheda fuori perimetro risponde «Accesso negato». Gestione, dati riservati (azione «Dati riservati»), dashboard visite mediche e formazione richiedono visibilità «tutti» su Anagrafica, Visite mediche o Formazione: chi ha «team» non apre le pagine globali. I singleton AnagraficaHR/Visite/Formazione/Stat valgono solo a sistema spento.

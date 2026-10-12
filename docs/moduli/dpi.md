@@ -25,3 +25,7 @@ Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
 - **Reminder scadenze** schedulabile con `python manage.py send_dpi_expiry_reminders --dry-run`
 - **Storico** completo per dipendente con export PDF
 - **KPI dashboard** su consumi, costi, scadenze imminenti
+
+## Ruoli del portale
+
+Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): «gestire» apre consegne, magazzino, catalogo e impostazioni (Sicurezza, Magazzino); «approvare» approva sul perimetro del ruolo, per preposti e responsabili il team d'organigramma; nessuno approva la propria richiesta. Dashboard e dettaglio mostrano proprie, del team o tutte secondo «vedere». Sempre: la notifica in-app di approvazione, rifiuto e consegna va all'account del richiedente (prima riceveva l'id anagrafica come id utente e poteva arrivare a un'altra persona).

@@ -47,6 +47,10 @@ return risposta_negata(request, "testo chiaro", pagina="Nome modulo")  # 403 HTM
 Fail-closed ovunque: modulo non registrato, azione non dichiarata, errore DB, record
 senza proprietario determinabile (visibile solo con ambito «tutti»).
 
+Id delle persone: i permessi lavorano su `utenti.id`. Se il modulo salva l'id
+**anagrafica** (DPI, visite, formazione, ruoli d'organigramma) usare
+`core.permessi.identita.utente_da_anagrafica` / `anagrafiche_di_utenti`, mai confondere i due.
+
 ## Come si aggiunge un modulo nuovo (procedura obbligatoria)
 
 1. **Dichiararlo**: crea `<app>/registro_permessi.py`:
@@ -117,9 +121,29 @@ Ticket IT e Manutenzione (moduli distinti, lista/dettaglio/allegati/PDF/ricerca 
 Diario preposto (lista, dettaglio, modifica, elimina, export, allegati, ispezioni),
 Segnalazione incidenti (lista, dettaglio, modifica, elimina, statistiche, heatmap, export;
 autore in `segnalato_da_legacy_id`), Assenze (flag storici derivati dalla matrice, perimetro
-del capo = team d'organigramma), Assistente AI (`tool_consentito`). Gli altri moduli sono
-governati per ora dai permessi di pagina generati dalla matrice e dai loro cancelli
-interni: vanno collegati con la procedura sopra quando passano in produzione.
+del capo = team d'organigramma), Assistente AI (`tool_consentito`).
+
+Secondo giro:
+- **DPI**: «gestire» = consegne/magazzino/catalogo, «approvare» = approvazione sul perimetro
+  (team d'organigramma), nessuno approva la propria richiesta; dashboard e dettaglio per
+  visibilità. `richiedente_legacy_id` è un id **anagrafica**: conversioni in
+  `core/permessi/identita.py` (anche le notifiche al richiedente, prima inviate all'id sbagliato).
+- **Anagrafica**: elenco ed export filtrati per visibilità (`build_dipendenti_rows`), scheda
+  negata fuori perimetro. Le sezioni globali (gestione, dati riservati, dashboard visite,
+  formazione) richiedono ambito **tutti**: chi ha «team» non le apre. Azione propria
+  `dati_riservati` (IBAN, CF, contratti, documenti riservati).
+- **KICK-OFF** (`tasks/access.py`): codici d'azione dalla matrice, `tasks_admin` = gestire su
+  tutti; visibilità tutti / partecipazione + team / sola partecipazione.
+- **Assets**: «gestire» su tutti = amministratore del modulo. Elenco non filtrato per
+  propri/team (preset sempre «tutti»).
+- **Anomalie**: livello globale dalla matrice (modificare tutti = EDIT_ALL, vedere tutti =
+  READ_ALL); niente whitelist per nome; restano i ruoli per OP (capocommessa/CAR).
+- **Timbri, Notizie, Procedure**: cancelli dalla matrice invece che dal nome del ruolo legacy.
+
+I moduli che nei cancelli interni usano già codici canonici (`request_has_permission_code`:
+RENTRI, Checklist, Schede sicurezza, Sistema di gestione, Specifiche, Contatori, SOC,
+Suggestion Corner, configurazione Anomalie) seguono la matrice tramite la sincronizzazione dei
+permessi di pagina: il permesso di gestione si accende con «gestire».
 
 ## Checklist manuale prima di rilasciare un modulo
 
