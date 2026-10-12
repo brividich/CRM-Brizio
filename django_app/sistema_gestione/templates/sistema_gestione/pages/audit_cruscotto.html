@@ -5,7 +5,7 @@
 .sg-bar>span{display:block;height:100%;background:var(--primary,#1f87cd)}
 .sg-num{text-align:right;font-variant-numeric:tabular-nums}
 </style>{% endblock %}
-{% block content %}<div class="rc-wrap"><a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
+{% block content %}{% load sg_guida %}{% sg_guida_link %}<div class="rc-wrap"><a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
 <div class="page-header"><div class="page-header-main"><div class="page-h">Cruscotto audit interni {{ c.anno }}</div><div class="page-sub">Avanzamento del programma, rilievi, azioni ed efficacia, copertura delle clausole.</div></div>
 <div class="sg-actions"><form method="get" class="sg-actions"><label for="anno">Anno</label><input id="anno" name="anno" type="number" min="2000" max="2100" value="{{ c.anno }}"><button class="btn btn-secondary">Mostra</button></form><a class="btn btn-secondary" href="{% url 'sistema_gestione:audit_rilievi_export' %}?anno={{ c.anno }}">Rilievi in Excel</a></div></div>
 <div class="sg-kpis">

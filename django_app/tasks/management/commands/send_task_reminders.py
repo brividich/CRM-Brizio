@@ -6,7 +6,7 @@ Schedulare come task Windows quotidiano (suggerito alle 07:30):
 
 Esegue in modo idempotente: un `TaskReminder.fired=True` non viene mai
 rielaborato. Il comando scorre i reminder con `fire_at <= oggi, fired=False`,
-crea una `core.Notifica` per l'utente legacy e marca il reminder come fired.
+crea la notifica in-app (``invia_notifica``, che rispetta le preferenze) per l'utente legacy e marca il reminder come fired.
 Se l'utente legacy e' disattivo o non esiste, il reminder viene scartato
 comunque per evitare retry infiniti.
 """
@@ -17,7 +17,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
-from core.models import Notifica
+from core.notifiche import invia_notifica
 from tasks.models import TaskReminder, TaskStatus
 
 
@@ -70,12 +70,7 @@ class Command(BaseCommand):
                 continue
 
             with transaction.atomic():
-                Notifica.objects.create(
-                    legacy_user_id=int(reminder.legacy_user_id),
-                    tipo="generico",
-                    messaggio=message,
-                    url_azione=url_action,
-                )
+                invia_notifica(int(reminder.legacy_user_id), "generico", message, url_action)
                 reminder.fired = True
                 reminder.fired_at = timezone.now()
                 reminder.save(update_fields=["fired", "fired_at"])

@@ -13,10 +13,11 @@
   <div class="fmd-pagehead">
     <div>
       <div class="fmd-crumb"><a href="{% url 'anagrafica:impostazioni' %}">Impostazioni</a><span class="fmd-sep"> / </span><span class="fmd-cur">Viste elenco</span></div>
-      <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-list"/></svg>Viste dell'elenco dipendenti <span class="fmd-count">{{ viste|length }}</span></h1>
+      <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-grid"/></svg>Viste dell'elenco dipendenti <span class="fmd-count">{{ viste|length }}</span></h1>
       <p class="fmd-ph-sub">Scegli quali colonne mostra l'elenco, in che ordine e per chi. Le colonne sensibili restano visibili solo a chi ha il permesso, anche se la vista le contiene.</p>
     </div>
     <div class="fmd-pagehead-actions">
+      {% include "anagrafica/partials/_guida_persone_link.html" with ancora="viste" %}
       <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">Apri l'elenco</a>
       <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:vista_elenco_nuova' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova vista</a>
     </div>

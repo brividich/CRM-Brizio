@@ -12,7 +12,7 @@ body.theme-dark .sg-cal td.fuori{background:rgba(255,255,255,.03)}
 body.theme-dark .sg-cal a.evento{background:rgba(31,135,205,.22)}
 @media (max-width:700px){.sg-cal td{height:64px;font-size:.7rem}.sg-cal a.evento{white-space:normal}}
 </style>{% endblock %}
-{% block content %}<div class="rc-wrap"><a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
+{% block content %}{% load sg_guida %}{% sg_guida_link %}<div class="rc-wrap"><a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
 <div class="page-header"><div class="page-header-main"><div class="page-h">Calendario audit · {{ cal.primo|date:"F Y" }}</div><div class="page-sub">Audit pianificati nelle loro date e verifiche del programma ancora da pianificare nel mese.</div></div>
 <div class="sg-actions"><a class="btn btn-secondary" href="?anno={{ cal.precedente.year }}&mese={{ cal.precedente.month }}">← {{ cal.precedente|date:"F" }}</a><a class="btn btn-secondary" href="?anno={{ oggi.year }}&mese={{ oggi.month }}">Oggi</a><a class="btn btn-secondary" href="?anno={{ cal.successivo.year }}&mese={{ cal.successivo.month }}">{{ cal.successivo|date:"F" }} →</a></div></div>
 <section class="rc-card sg-section"><div class="sg-table-scroll"><table class="sg-cal" aria-label="Calendario degli audit"><thead><tr><th>Lun</th><th>Mar</th><th>Mer</th><th>Gio</th><th>Ven</th><th>Sab</th><th>Dom</th></tr></thead><tbody>

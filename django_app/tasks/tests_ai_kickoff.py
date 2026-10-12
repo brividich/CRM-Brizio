@@ -13,7 +13,7 @@ from django.utils import timezone
 from ai_assistant.models import AiProposta
 from tasks import ai_kickoff
 from tasks.models import GanttBaseline, KickoffMeeting, MeetingIssue, MeetingIssueStatus, MeetingStatus, Task
-from tasks.tests import TasksBaseTestCase, _create_user_with_legacy, _ensure_role, _grant_role_actions
+from tasks.tests_utils import TasksBaseTestCase, _create_user_with_legacy, _ensure_role, _grant_role_actions
 
 from .tests_utils import make_project
 

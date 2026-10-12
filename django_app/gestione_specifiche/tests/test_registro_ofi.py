@@ -431,9 +431,106 @@ class InserimentoOFITests(RegistroBase):
         self.assertEqual(v.fase, RegistroOFI.FASE_DO)
 
 
+class AllineamentoSgiTests(RegistroBase):
+    """Verifica 12/10/2026 contro MT CN 11/12 e MOD.174: regole di chiusura, link, solleciti, export."""
+
+    def setUp(self):
+        super().setUp()
+        self.su = get_user_model().objects.create_superuser("su_sgi", "g@x.it", "x")
+        self.client.force_login(self.su)
+        self.oggi = timezone.localdate()
+
+    def _dati(self, **extra):
+        dati = {"tipo": RegistroOFI.TIPO_NC, "data_apertura": self.oggi.isoformat(), "processo": "Collaudo",
+                "opportunita": "x", "fase": RegistroOFI.FASE_PLAN, "priorita": RegistroOFI.PRIORITA_MEDIA}
+        dati.update(extra)
+        return dati
+
+    def test_chiuso_richiede_data_e_check(self):
+        resp = self.client.post(reverse("registro_ofi:nuovo"), self._dati(fase=RegistroOFI.FASE_CHIUSO))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "richiede la DATA CLOSED")
+        self.assertContains(resp, "verificata l&#x27;efficacia")
+        self.assertFalse(RegistroOFI.objects.exists())
+
+    def test_data_chiusura_con_fase_aperta_rifiutata(self):
+        resp = self.client.post(reverse("registro_ofi:nuovo"), self._dati(data_chiusura=self.oggi.isoformat()))
+        self.assertContains(resp, "la fase deve essere")
+        self.assertFalse(RegistroOFI.objects.exists())
+
+    def test_chiusura_completa_accettata(self):
+        resp = self.client.post(reverse("registro_ofi:nuovo"), self._dati(
+            fase=RegistroOFI.FASE_CHIUSO, data_chiusura=self.oggi.isoformat(), verifica="Campione di 5 ordini conforme"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(RegistroOFI.objects.get().is_chiuso)
+
+    def test_link_javascript_rifiutato_e_mai_cliccabile(self):
+        resp = self.client.post(reverse("registro_ofi:nuovo"), self._dati(allegato_link="javascript:alert(1)"))
+        self.assertContains(resp, "percorso di rete")
+        v = RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=self.oggi,
+                                       allegato_link="javascript:alert(1)")
+        self.assertFalse(v.allegato_link_sicuro)
+        for url in (reverse("registro_ofi:dettaglio", args=[v.pk]), reverse("registro_ofi:lista")):
+            self.assertNotContains(self.client.get(url), 'href="javascript:')
+
+    def test_link_di_rete_accettato(self):
+        resp = self.client.post(reverse("registro_ofi:nuovo"), self._dati(allegato_link=r"\\novisrv\qualita\car.pdf"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_nuova_scadenza_riattiva_il_sollecito(self):
+        v = RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=self.oggi,
+                                       data_richiesta=self.oggi - timedelta(days=1), reminder_inviato=True)
+        v.data_richiesta = self.oggi + timedelta(days=30)
+        v.save(update_fields=["data_richiesta"])
+        v.refresh_from_db()
+        self.assertFalse(v.reminder_inviato)
+
+    def test_fonte_e_norme_sgi_in_lista_e_ricerca(self):
+        RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=self.oggi, processo="Ambiente",
+                                   fonte="DEKRA", norma_iso14001=True, norma_pdr125=True)
+        RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=self.oggi, processo="Acquisti")
+        resp = self.client.get(reverse("registro_ofi:lista"), {"q": "dekra"})
+        self.assertContains(resp, "Ambiente")
+        self.assertContains(resp, "14001")
+        self.assertContains(resp, "PdR 125")
+        self.assertNotContains(resp, "Acquisti")
+
+    def test_filtro_tipo(self):
+        RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=self.oggi, tipo="NC", processo="Voce NC")
+        RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=self.oggi, tipo="OFI", processo="Voce OFI")
+        resp = self.client.get(reverse("registro_ofi:lista"), {"tipo": "NC"})
+        self.assertContains(resp, "Voce NC")
+        self.assertNotContains(resp, "Voce OFI")
+
+    def test_export_excel_colonne_mod174(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        RegistroOFI.objects.create(numero=R.prossimo_numero(), data_apertura=self.oggi, processo="Collaudo",
+                                   fonte="INTERNO", norma_en9100=True, fase=RegistroOFI.FASE_DO)
+        resp = self.client.get(reverse("registro_ofi:lista"), {"export": "xlsx"})
+        self.assertEqual(resp.status_code, 200)
+        ws = load_workbook(BytesIO(resp.content)).active
+        self.assertEqual(ws.cell(row=3, column=1).value, "REF")
+        self.assertEqual(ws.cell(row=3, column=4).value, "FONTE")
+        riga = [c.value for c in ws[4]]
+        self.assertIn("INTERNO", riga)
+        self.assertEqual(riga[16:21], ["X", "X", None, None, "D"])
+
+    def test_guida_registro_e_link_di_pagina(self):
+        resp = self.client.get(reverse("registro_ofi:guida"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'id="ofi-lista"')
+        self.assertContains(resp, 'id="pagina-car"')
+        lista = self.client.get(reverse("registro_ofi:lista"))
+        self.assertContains(lista, reverse("registro_ofi:guida") + "#ofi-lista")
+        pdf = self.client.get(reverse("registro_ofi:guida"), {"pdf": "1"})
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+
+
 class AclBindingTests(TestCase):
     def test_rotte_ofi_hanno_binding_canonico(self):
         from gestione_specifiche import acl_bootstrap as B
+        self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:guida"], B.PERM_VIEW)
         self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:lista"], B.PERM_VIEW)
         self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:nuovo"], B.PERM_OFI_ADD)
         self.assertEqual(B._ROUTE_BINDINGS["registro_ofi:modifica"], B.PERM_OFI_ADD)

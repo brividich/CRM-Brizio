@@ -4,7 +4,7 @@
 
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
 
-{% block content %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
 <div class="rc-wrap">
   <div class="page-header">
     <div class="page-header-main">

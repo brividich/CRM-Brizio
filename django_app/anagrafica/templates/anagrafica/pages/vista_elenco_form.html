@@ -27,6 +27,7 @@ body.theme-dark .ve-col{background:var(--surface,#0e1a2c);border-color:rgba(255,
   <div class="fmd-pagehead"><div>
     <div class="fmd-crumb"><a href="{% url 'anagrafica:impostazioni' %}">Impostazioni</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:viste_elenco' %}">Viste elenco</a><span class="fmd-sep"> / </span><span class="fmd-cur">{% if vista.pk %}{{ vista.nome }}{% else %}Nuova{% endif %}</span></div>
     <h1>{% if vista.pk %}{{ vista.nome }}{% else %}Nuova vista{% endif %}</h1>
+    <div style="margin-top:6px;">{% include "anagrafica/partials/_guida_persone_link.html" with ancora="viste" %}</div>
     <p class="fmd-ph-sub">Trascina le colonne per ordinarle (o usa ↑ ↓), spunta quelle da mostrare, indica la larghezza in pixel (0 = automatica). L'anteprima usa dati veri, filtrati dai tuoi permessi.</p>
   </div></div>
   <form method="post" id="ve-form">{% csrf_token %}{{ form.colonne_json }}{{ form.non_field_errors }}

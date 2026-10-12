@@ -162,8 +162,8 @@ class RegistroOFIForm(forms.ModelForm):
     class Meta:
         model = RegistroOFI
         fields = [
-            "ref", "data_apertura", "tipo", "modulo_origine",
-            "norma_iso27001", "norma_iso45001", "norma_en9100", "rif_norma",
+            "ref", "data_apertura", "tipo", "fonte", "modulo_origine",
+            "norma_en9100", "norma_iso45001", "norma_iso14001", "norma_iso27001", "norma_pdr125", "rif_norma",
             "processo", "opportunita",
             "fase", "plan", "allegato_link", "do", "verifica", "act",
             "data_richiesta", "data_chiusura",
@@ -176,6 +176,8 @@ class RegistroOFIForm(forms.ModelForm):
         _area = {"rows": 3}
         widgets = {
             "ref": forms.TextInput(),
+            "fonte": forms.TextInput(attrs={
+                "list": "ofi-fonti", "placeholder": "es. INTERNO, Audit interno, DEKRA, cliente…"}),
             "modulo_origine": forms.TextInput(attrs={
                 "list": "ofi-moduli",
                 "placeholder": "es. produzione, qualità… (o scegli tra i già presenti)"}),
@@ -198,7 +200,7 @@ class RegistroOFIForm(forms.ModelForm):
             "note": forms.Textarea(attrs=_area),
         }
         labels = {
-            "ref": "REF", "data_apertura": "DATA", "tipo": "OFI / NC",
+            "ref": "REF", "data_apertura": "DATA", "tipo": "OFI / NC", "fonte": "Fonte (chi ha rilevato)",
             "modulo_origine": "Modulo di competenza",
             "rif_norma": "REF NORMA", "processo": "PROCESSO", "opportunita": "OPPORTUNITY",
             "fase": "Fase PDCA (P/D/C/A)", "plan": "PLAN", "allegato_link": "Allegato / Link",
@@ -216,8 +218,26 @@ class RegistroOFIForm(forms.ModelForm):
             self.fields["data_apertura"].initial = timezone.localdate()
 
 
+    def clean_allegato_link(self):
+        # Il link finisce in un href: solo indirizzi web o percorsi di rete, mai javascript:/data:.
+        valore = (self.cleaned_data.get("allegato_link") or "").strip()
+        if valore and not valore.lower().startswith(("http://", "https://", "file://", "\\\\")):
+            raise forms.ValidationError("Indica un indirizzo http(s):// oppure un percorso di rete \\\\server\\cartella.")
+        return valore
+
     def clean(self):
         dati = super().clean()
+        fase, chiusura, apertura = dati.get("fase"), dati.get("data_chiusura"), dati.get("data_apertura")
+        chiude = fase == RegistroOFI.FASE_CHIUSO
+        if chiude and not chiusura:
+            self.add_error("data_chiusura", "Una voce chiusa richiede la DATA CLOSED.")
+        if chiusura and fase and not chiude:
+            self.add_error("fase", "Con la DATA CLOSED compilata la fase deve essere «Chiuso».")
+        if chiusura and apertura and chiusura < apertura:
+            self.add_error("data_chiusura", "La chiusura non può precedere l'apertura.")
+        if chiude and not (dati.get("verifica") or "").strip():
+            # MT CN 11 §5.4: l'esito della verifica si registra prima di chiudere.
+            self.add_error("verifica", "Prima di chiudere registra nel CHECK come è stata verificata l'efficacia.")
         if self.instance.pk:
             from sistema_gestione.models import AzioneCorrettivaAudit
             car = AzioneCorrettivaAudit.objects.filter(registro_id=self.instance.pk).first()

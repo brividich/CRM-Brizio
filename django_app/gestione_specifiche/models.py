@@ -418,7 +418,12 @@ class RegistroOFI(models.Model):
     norma_iso27001 = models.BooleanField("ISO 27001", default=False)
     norma_iso45001 = models.BooleanField("ISO 45001", default=False)
     norma_en9100 = models.BooleanField("EN 9100", default=False)
+    # Norme del SGI coperte anche dagli audit interni (MT CN 12): 14001 e PdR 125.
+    norma_iso14001 = models.BooleanField("ISO 14001", default=False)
+    norma_pdr125 = models.BooleanField("UNI/PdR 125", default=False)
     rif_norma = models.CharField("Rif. norma/paragrafo", max_length=200, blank=True, default="")
+    # Colonna D del MOD.174 compilato: chi ha rilevato la voce (es. «DEKRA», «INTERNO», cliente).
+    fonte = models.CharField("Fonte del rilievo", max_length=100, blank=True, default="")
 
     processo = models.CharField("Processo/area", max_length=200, blank=True, default="")
     opportunita = models.TextField("Opportunità / descrizione", blank=True, default="")
@@ -459,6 +464,28 @@ class RegistroOFI(models.Model):
 
     def __str__(self) -> str:
         return f"OFI {self.numero}"
+
+    NORME = (("norma_en9100", "9100"), ("norma_iso45001", "45001"), ("norma_iso14001", "14001"),
+             ("norma_iso27001", "27001"), ("norma_pdr125", "PdR 125"))
+
+    @property
+    def allegato_link_sicuro(self) -> bool:
+        """Il link si rende cliccabile solo se è web o di rete (mai javascript:/data:, anche sui dati storici)."""
+        return (self.allegato_link or "").strip().lower().startswith(("http://", "https://", "file://", "\\\\"))
+
+    @property
+    def norme_sigle(self) -> list[str]:
+        return [sigla for campo, sigla in self.NORME if getattr(self, campo)]
+
+    def save(self, *args, **kwargs):
+        # Nuova scadenza (proroga CAR o modifica manuale): il sollecito deve poter ripartire.
+        if self.pk and self.reminder_inviato:
+            prima = RegistroOFI.objects.filter(pk=self.pk).values_list("data_richiesta", flat=True).first()
+            if prima != self.data_richiesta:
+                self.reminder_inviato = False
+                if kwargs.get("update_fields") is not None:
+                    kwargs["update_fields"] = list({*kwargs["update_fields"], "reminder_inviato"})
+        super().save(*args, **kwargs)
 
     @property
     def is_chiuso(self) -> bool:

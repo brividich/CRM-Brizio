@@ -38,7 +38,11 @@ Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del 
 - **Cruscotto e report:** cruscotto annuale (avanzamento, rilievi per processo/clausola/gravità/mese, tempo medio CAR, % efficacia, ricorrenze, copertura clausole per norma); export xlsx dei rilievi; allegato «Rilievi e azioni» nel MOD.035B, sezioni opzionali da Impostazioni.
 - **Auditato:** `/sistema-gestione/audit/miei-rilievi/` mostra solo i propri rilievi a rapporto firmato; il responsabile apre la propria CAR. Permesso `sistema_gestione.audit.miei_rilievi`, concesso a tutti i ruoli.
 
+- **Guida d'uso in-app:** `/sistema-gestione/audit/guida/` con parte generale (fasi MT CN 12, ruoli, sigle) e un capitolo per ogni pagina degli audit, della CAR e del Registro OFI; **Scarica PDF** (`?pdf=1`). Ogni pagina ha in alto «Guida di questa pagina» (mappa `PAGE_HELP` in `guida.py`, tag `{% sg_guida_link %}`). Binding `audit.miei_rilievi`, così la legge anche l'auditato. Se cambia un'etichetta o un pulsante, aggiornare `guida.py` nello stesso commit; `tests_guida.py` verifica rotte e ancore.
+
 ## Note di rilascio
+
+**Verifica SGI e guida (Unreleased, 12/10/2026):** rilievi verso il MOD.174 con ISO 14001, PdR 125 e fonte «Audit interno»; guida d'uso in-app generale e per pagina. Deploy: `migrate gestione_specifiche` 0014.
 
 **Audit interni professionali — fasi 6-7 (Unreleased, prompt 08):** cruscotto, export rilievi, allegato Rilievi e azioni, «I miei rilievi». Deploy: `migrate sistema_gestione` 0014.
 

@@ -88,7 +88,7 @@ body.theme-dark .af-mfc-stale { background:rgba(234,88,12,.12); border-color:rgb
         <div id="mfc-supplies-{{ machine.id }}" aria-live="polite"></div>
         {% endif %}
 
-        <h3>Pagine stampate per mese</h3>
+        <h3>Pagine stampate per mese <a class="af-note" style="font-weight:400;font-size:.8em" href="{% url 'assets:guida' %}#mfc">Come leggere questi dati</a></h3>
         {% if s.pagine_mesi %}
           {% if s.contatori_vecchi %}<p class="af-mfc-stale" role="status"><strong>Ultima lettura contatori del {{ machine.reading.rilevata_il|date:"d/m/Y" }}:</strong> il job mensile non legge da {{ s.contatori_eta_giorni }} giorni.</p>{% endif %}
           {% if s.trend %}<p class="af-note">Ultimi 3 mesi: media {{ s.trend.media_recente }} pagine/mese, {% if s.trend.direzione == 'su' %}in aumento del {{ s.trend.delta_pct }}%{% elif s.trend.direzione == 'giu' %}in calo del {{ s.trend.delta_abs }}%{% else %}stabile{% endif %} rispetto ai 3 precedenti.</p>{% endif %}
