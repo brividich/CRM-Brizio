@@ -47,14 +47,14 @@ def configura_oculistica_vdt(apps, schema_editor):
     for t in (q, b):
         t.categoria = t.categoria or categoria
         t.save(update_fields=["categoria", "eta_minima", "eta_massima"])
-    print(f"\n  anagrafica 0165: «{q.nome}» fino a {q.eta_massima} anni, «{b.nome}» dai "
+    print(f"\n  anagrafica 0166: «{q.nome}» fino a {q.eta_massima} anni, «{b.nome}» dai "
           f"{b.eta_minima} anni, famiglia «{categoria}».")
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0164_visite_robustezza'),
+        ('anagrafica', '0165_visite_robustezza'),
     ]
 
     operations = [

@@ -3029,7 +3029,7 @@ class VisitaMedica(models.Model):
         constraints = [
             # Una sola visita attiva per persona, tipo e giorno. Le superate restano
             # fuori (filtro IS NULL, ammesso negli indici filtrati di SQL Server):
-            # la migrazione 0164 vi ha parcheggiato i doppioni storici senza cancellarli.
+            # la migrazione 0165 vi ha parcheggiato i doppioni storici senza cancellarli.
             models.UniqueConstraint(
                 fields=["legacy_anagrafica_id", "tipo", "data_svolgimento"],
                 condition=models.Q(superata_il__isnull=True),

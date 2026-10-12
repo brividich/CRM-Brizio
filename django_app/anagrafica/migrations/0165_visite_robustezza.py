@@ -12,7 +12,7 @@ from django.db import migrations, models
 from django.db.models import Count
 from django.utils import timezone
 
-MARCATORE = "[0164]"
+MARCATORE = "[0165]"
 MOTIVO = (
     MARCATORE + " Doppione della visita #{principale} (stesso dipendente, tipo e data): "
     "messa da parte all'introduzione del vincolo di unicità, nessun dato cancellato."
@@ -43,7 +43,7 @@ def parcheggia_doppioni(apps, schema_editor):
                 superata_il=adesso, superata_motivo=MOTIVO.format(principale=principale),
             )
             AuditLog.objects.create(
-                utente_display="migrazione anagrafica 0164",
+                utente_display="migrazione anagrafica 0165",
                 azione="VISITA_MEDICA_DOPPIONE_SUPERATO",
                 modulo="anagrafica",
                 dettaglio={
@@ -58,7 +58,7 @@ def parcheggia_doppioni(apps, schema_editor):
             )
             parcheggiate += 1
     if parcheggiate:
-        print(f"\n  anagrafica 0164: {parcheggiate} visite doppie segnate come superate (audit "
+        print(f"\n  anagrafica 0165: {parcheggiate} visite doppie segnate come superate (audit "
               f"VISITA_MEDICA_DOPPIONE_SUPERATO).")
 
 
@@ -71,7 +71,7 @@ def ripristina_doppioni(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("anagrafica", "0163_avviso_it_acl"),
+        ("anagrafica", "0164_guida_persone_acl"),
         ("core", "0075_notifica_archivio"),
     ]
 
