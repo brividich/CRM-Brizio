@@ -70,7 +70,7 @@ from ..services.agenda import (
     _set_meeting_agenda_issue_done,
 )
 from ..services.notify import (
-    _notifica_utente,
+    notify_user,
 )
 from ._shared import (
     _safe_int,
@@ -940,10 +940,11 @@ def project_meeting_proposal_create(request, project_id: int, meeting_id: int):
     referenti = project.team_members("project_managers") + project.team_members("capi_commessa")
     for manager in {u.pk: u for u in referenti}.values():
         if manager.pk != request.user.pk:
-            _notifica_utente(
+            notify_user(
                 manager,
                 f'{autore} propone un punto per l\'incontro {meeting.numero}: "{titolo}".',
                 _meeting_public_url(meeting),
+                tipo="generico",
             )
     messages.success(request, "Punto proposto: lo vedrà chi gestisce la commessa.")
     return detail
@@ -1011,10 +1012,11 @@ def project_meeting_proposal_decide(request, project_id: int, meeting_id: int, p
         "project_id": project.pk, "stato": proposal.stato,
     })
     if proposal.proposed_by is not None and proposal.proposed_by.pk != request.user.pk:
-        _notifica_utente(
+        notify_user(
             proposal.proposed_by,
             f'La tua proposta "{proposal.titolo}" per l\'incontro {meeting.numero} è {esito_msg}.',
             _meeting_public_url(meeting),
+            tipo="generico",
         )
     messages.success(request, f"Proposta {proposal.get_stato_display().lower()}.")
     return detail

@@ -34,7 +34,7 @@ from ..access import (
     task_permissions_required,
 )
 from ..services.notify import (
-    _notify_user,
+    notify_user,
     _project_notify_users_queryset,
 )
 from ._shared import (
@@ -459,10 +459,10 @@ def add_project_comment(request, project_id: int):
         comment.author = request.user
         comment.save()
         if comment.target_user_id and comment.target_user_id != request.user.id:
-            _notify_user(
+            notify_user(
                 comment.target_user,
-                message_text=f"Nuovo commento nel kickoff '{project.name}'.",
-                action_url=reverse("tasks:project_gantt", kwargs={"project_id": project.id}),
+                f"Nuovo commento nel kickoff '{project.name}'.",
+                reverse("tasks:project_gantt", kwargs={"project_id": project.id}),
             )
         messages.success(request, "Commento kickoff aggiunto.")
     else:

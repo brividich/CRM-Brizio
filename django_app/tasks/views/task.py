@@ -63,7 +63,7 @@ from ..services.asset_conflicts import (
     _parse_iso_date,
 )
 from ..services.notify import (
-    _notify_user,
+    notify_user,
     _task_notify_users_queryset,
 )
 from ._extra_fields import (
@@ -1023,10 +1023,10 @@ def add_comment(request, task_id: int):
             },
         )
         if comment.target_user_id and comment.target_user_id != request.user.id:
-            _notify_user(
+            notify_user(
                 comment.target_user,
-                message_text=f"Nuovo commento su task '{task.title}'.",
-                action_url=reverse("tasks:detail", kwargs={"task_id": task.id}),
+                f"Nuovo commento su task '{task.title}'.",
+                reverse("tasks:detail", kwargs={"task_id": task.id}),
             )
         messages.success(request, "Commento aggiunto.")
     else:

@@ -18,7 +18,8 @@ from admin_portale.decorators import legacy_admin_or_acl_required
 from core.audit import log_action
 from core.legacy_models import UtenteLegacy
 from core.legacy_utils import sync_django_user_from_legacy
-from core.models import AuditLog, Notifica, Profile
+from core.models import AuditLog, Profile
+from core.notifiche import invia_notifica
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from ..forms import (
@@ -808,11 +809,11 @@ def _handle_tasks_reminders_post(request):
                 f"Promemoria scadenza attivita kickoff: \"{task.title}\"{project_label} "
                 f"in scadenza il {due_str}."
             )[:500]
-            Notifica.objects.create(
-                legacy_user_id=int(rem.legacy_user_id or 0),
-                tipo="task",
-                messaggio=message_text,
-                url_azione=reverse("tasks:detail", args=[task.id]),
+            invia_notifica(
+                int(rem.legacy_user_id or 0),
+                "task",
+                message_text,
+                reverse("tasks:detail", args=[task.id]),
             )
             rem.fired = True
             rem.fired_at = timezone.now()

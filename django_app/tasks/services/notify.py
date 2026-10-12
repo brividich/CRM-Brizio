@@ -5,7 +5,7 @@ import logging
 
 from django.contrib.auth import get_user_model
 
-from core.models import Notifica
+from core.notifiche import invia_notifica
 
 from ..models import (
     Project,
@@ -48,27 +48,16 @@ def _legacy_user_id_for_user(user) -> int | None:
     return None
 
 
-def _notify_user(target_user, *, message_text: str, action_url: str = "") -> None:
-    target_legacy_user_id = _legacy_user_id_for_user(target_user)
-    if not target_legacy_user_id:
+def notify_user(user, message: str, url: str = "", *, tipo: str = "task") -> None:
+    """Notifica in-app a un utente portale, se ha un id legacy collegato.
+
+    Unico punto di uscita del modulo: passa da ``core.notifiche.invia_notifica``,
+    che rispetta gli interruttori notifiche (globale admin + preferenza utente).
+    Prima le notifiche delle attivita' scrivevano ``Notifica`` direttamente e
+    ignoravano le preferenze.
+    """
+    legacy_user_id = _legacy_user_id_for_user(user)
+    if not legacy_user_id:
         return
-    Notifica.objects.create(
-        legacy_user_id=target_legacy_user_id,
-        tipo="task",
-        messaggio=str(message_text or "")[:500],
-        url_azione=str(action_url or "")[:255],
-    )
+    invia_notifica(legacy_user_id, tipo, str(message or "")[:500], str(url or "")[:255])
 
-
-def _notifica_utente(user, messaggio: str, url: str = "") -> None:
-    """Notifica in-app a un utente portale, se ha un id legacy collegato."""
-    profile = getattr(user, "profile", None)
-    legacy_id = getattr(profile, "legacy_user_id", None) if profile else None
-    if not legacy_id:
-        return
-    try:
-        from core.notifiche import invia_notifica
-
-        invia_notifica(int(legacy_id), "generico", messaggio[:500], url)
-    except Exception:
-        logger.exception("Notifica in-app fallita per user=%s", getattr(user, "pk", None))

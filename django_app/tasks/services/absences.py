@@ -1,4 +1,13 @@
-"""Assenze dei dipendenti viste dal KICK-OFF (conflitti con le date delle attivita')."""
+"""Assenze dei dipendenti viste dal KICK-OFF (conflitti con le date delle attivita').
+
+La fonte e' il servizio dell'app ``assenze`` (``disponibilita_per_anagrafica``),
+interrogato per ``anagrafica_dipendenti.id``: l'utente si collega alla sua
+anagrafica dal ponte ``anagrafica_dipendenti.utente_id = Profile.legacy_user_id``,
+e il servizio cerca le richieste per tutte le varianti del nominativo
+(«Cognome Nome» / «Nome Cognome», accenti) e per email. Il vecchio confronto
+esatto fra ``copia_nome`` e il nome completo Django resta solo come riserva per
+gli utenti senza anagrafica collegata.
+"""
 from __future__ import annotations
 
 import logging
@@ -6,6 +15,7 @@ from datetime import date, datetime, timedelta
 
 from django.db import DatabaseError, connections
 
+from assenze.availability import disponibilita_per_anagrafica
 from core.legacy_utils import legacy_table_columns
 
 from ..models import (
@@ -13,6 +23,51 @@ from ..models import (
 )
 
 logger = logging.getLogger(__name__)
+
+_STATO_LABEL = {"confermata": "Approvato", "pendente": "In attesa"}
+
+
+def _legacy_anagrafica_id_for_user(user) -> int | None:
+    """``anagrafica_dipendenti.id`` dell'utente, dal ponte ``utente_id``.
+
+    ``Profile.legacy_user_id`` e' l'id di ``utenti``, non dell'anagrafica: i due
+    interi non vanno mai confrontati direttamente.
+    """
+    profile = getattr(user, "profile", None)
+    legacy_user_id = getattr(profile, "legacy_user_id", None) if profile else None
+    if not legacy_user_id:
+        return None
+    columns = legacy_table_columns("anagrafica_dipendenti") or []
+    if "id" not in columns or "utente_id" not in columns:
+        return None
+    try:
+        rows = _legacy_fetch_all_dict(
+            "SELECT id FROM anagrafica_dipendenti WHERE utente_id = %s ORDER BY id DESC",
+            [int(legacy_user_id)],
+        )
+    except Exception:
+        logger.warning("Anagrafica non risolta per legacy_user_id=%s", legacy_user_id, exc_info=True)
+        return None
+    for row in rows:
+        if row.get("id") is not None:
+            return int(row["id"])
+    return None
+
+
+def _absences_from_anagrafica(anagrafica_id: int, *, date_start: date, date_end: date) -> list[dict]:
+    rows = disponibilita_per_anagrafica([anagrafica_id], date_start, date_end, includi_pendenti=True)
+    normalized = [
+        {
+            "id": None,
+            "start_date": row["data_inizio"],
+            "end_date": row["data_fine"],
+            "tipo": row.get("tipo") or "Assenza",
+            "status": _STATO_LABEL.get(row.get("stato"), "In attesa"),
+        }
+        for row in rows.get(anagrafica_id, [])
+    ]
+    normalized.sort(key=lambda row: (row["start_date"], row["end_date"]))
+    return normalized
 
 
 def _legacy_fetch_all_dict(sql: str, params: list | tuple | None = None) -> list[dict]:
@@ -67,6 +122,14 @@ def _load_user_absences(user, *, date_start: date, date_end: date) -> list[dict]
     if not user or date_end < date_start:
         return []
 
+    anagrafica_id = _legacy_anagrafica_id_for_user(user)
+    if anagrafica_id is not None:
+        return _absences_from_anagrafica(anagrafica_id, date_start=date_start, date_end=date_end)
+    return _load_user_absences_by_name(user, date_start=date_start, date_end=date_end)
+
+
+def _load_user_absences_by_name(user, *, date_start: date, date_end: date) -> list[dict]:
+    """Riserva per utenti senza anagrafica: confronto esatto su nome completo/email."""
     columns = legacy_table_columns("assenze")
     if not columns:
         legacy_table_columns.cache_clear()

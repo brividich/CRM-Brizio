@@ -90,8 +90,7 @@ from ..services.gantt import (  # noqa: F401
 )
 from ..services.notify import (  # noqa: F401
     _legacy_user_id_for_user,
-    _notifica_utente,
-    _notify_user,
+    notify_user,
     _project_notify_users_queryset,
     _task_notify_users_queryset,
 )
