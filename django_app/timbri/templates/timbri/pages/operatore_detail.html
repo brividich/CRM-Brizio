@@ -20,7 +20,7 @@
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'timbri:index' %}">Registro timbri</a><span class="fmd-sep"> / </span><span class="fmd-cur">Scheda timbri</span></div>
+        <div class="fmd-crumb"><a href="{% url 'timbri:index' %}">{{ module_branding_display_label }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">Scheda timbri</span></div>
         <div class="tim-head-person">
           <span class="tim-avatar-lg" aria-hidden="true">{% if employee.foto_url %}<img src="{{ employee.foto_url }}" alt="">{% else %}{{ employee.cognome|first|upper }}{{ employee.nome|first|upper }}{% endif %}</span>
           <div>

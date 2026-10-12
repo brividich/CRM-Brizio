@@ -6,9 +6,12 @@ Area **HR & Workflow** · URL `/timbri/` · codice [`django_app/timbri/`](../../
 
 ## Sintesi
 
-Registro timbri, firme e sigle del personale, immagini private
+**Registro Timbri MOD.130-RTF-Rev.2**: timbri, firme e sigle del personale, immagini private, guida in-app
 
 ## Dettaglio
+
+- **Nome del modulo** (10/2026): «Registro Timbri MOD.130-RTF-Rev.2» (`default_label` in `core/module_registry.py`, titoli e breadcrumb delle pagine, intestazione degli export Excel/PDF, `verbose_name` dell'app, etichetta predefinita della voce di menu per le installazioni nuove). Un nome impostato da Impostazioni (branding del modulo, `SiteConfig module_branding.timbri.*`) ha la precedenza e non viene toccato.
+- **Guida d'uso in-app** (10/2026): voce **Guida** nella subnav del modulo, pagina `/timbri/?guida=1` con indice e dieci sezioni (scopo, permessi, elenco, scheda, registrazione record, stati, MOD.128 e sospensione automatica, riservatezza immagini, impostazioni, domande frequenti) e pulsante **Scarica PDF** (`/timbri/?guida=pdf`, file `MOD.130-RTF-Rev.2_Guida_Registro_Timbri.pdf` con intestazione e piè di pagina del modulo). Il contenuto vive in un solo posto, `timbri/guida.py` (`SEZIONI`), usato sia dal template `pages/guida.html` sia dal PDF (reportlab). Servita dalla route dell'elenco come l'export: stessi permessi di consultazione, nessun binding ACL nuovo. **Quando cambia un'etichetta o una funzione del modulo, aggiornare `SEZIONI`.**
 
 Registro dei timbri (fisici e digitali), delle firme e delle sigle assegnati al personale: chi ha quale timbro, da quando, con quale qualifica, con le immagini usate per l'apposizione. **Non** gestisce timbrature o presenze.
 

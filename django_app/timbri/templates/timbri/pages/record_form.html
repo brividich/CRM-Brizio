@@ -46,7 +46,7 @@ body.theme-dark .tim-spec-err{ color:#fca5a5; }
 
     <div class="fmd-pagehead">
       <div>
-        <div class="fmd-crumb"><a href="{% url 'timbri:index' %}">Registro timbri</a><span class="fmd-sep"> / </span><a href="{{ back_url }}">{{ employee.full_name }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">{% if record %}Modifica{% else %}Nuovo{% endif %}</span></div>
+        <div class="fmd-crumb"><a href="{% url 'timbri:index' %}">{{ module_branding_display_label }}</a><span class="fmd-sep"> / </span><a href="{{ back_url }}">{{ employee.full_name }}</a><span class="fmd-sep"> / </span><span class="fmd-cur">{% if record %}Modifica{% else %}Nuovo{% endif %}</span></div>
         <div class="tim-head-person">
           <span class="tim-avatar-lg" aria-hidden="true"><svg class="fmd-ico" style="font-size:24px;"><use href="#i-award"/></svg></span>
           <div>
