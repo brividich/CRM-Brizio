@@ -15535,12 +15535,22 @@ def _calcola_percentuale_presenza(enrollment: TrainingEnrollment) -> float | Non
     }
     ore_effettive = 0.0
     for lz in lezioni:
+        durata = lz.durata_ore
+        if durata <= 0:
+            # Giornata senza durata (import storici 09:00-09:00): non entra nel
+            # denominatore, quindi non può entrare nemmeno nel numeratore,
+            # altrimenti la percentuale supera il 100%.
+            continue
         p = presenze.get(lz.pk)
         if p and p.stato_presenza == "PRESENTE":
-            ore_effettive += float(p.ore_effettive) if p.ore_effettive else lz.durata_ore
+            ore = float(p.ore_effettive) if p.ore_effettive else durata
         elif p and p.stato_presenza == "PARZIALE":
-            ore_effettive += float(p.ore_effettive) if p.ore_effettive else (lz.durata_ore * 0.5)
-    return round(ore_effettive / ore_totali * 100, 2)
+            ore = float(p.ore_effettive) if p.ore_effettive else (durata * 0.5)
+        else:
+            continue
+        # Mai più ore della giornata (dato storico fuori misura).
+        ore_effettive += min(ore, durata)
+    return round(min(100.0, ore_effettive / ore_totali * 100), 2)
 
 
 def _ricalcola_presenza_enrollment(enrollment: TrainingEnrollment) -> None:
