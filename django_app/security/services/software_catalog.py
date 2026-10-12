@@ -125,6 +125,60 @@ def software_for_hub_asset(asset, *, with_cve=False, license_states=None):
     }
 
 
+def product_hosts(key):
+    """PC che hanno oggi il prodotto, con versione, asset collegato e ultima rilevazione."""
+    vendor, product = split_key(key)
+    return list(
+        SoftwareInstallation.objects.filter(still_detected=True, vendor=vendor, product=product)
+        .select_related("hub_asset").order_by("host", "version_raw")
+    )
+
+
+def versions_by_key():
+    """{chiave: Counter(versione → PC)} dei prodotti presenti."""
+    out = defaultdict(Counter)
+    for vendor, product, version, host in SoftwareInstallation.objects.filter(still_detected=True).values_list(
+        "vendor", "product", "version_raw", "host"
+    ).distinct():
+        out[inventory_key(vendor, product)][version] += 1
+    return out
+
+
+def cve_by_key():
+    """{chiave: numero di CVE che impattano almeno un PC} dai calcoli d'impatto del SOC."""
+    out = defaultdict(set)
+    for vendor, product, cve_id in SecurityCveImpact.objects.filter(
+        outcome=SecurityCveImpact.IMPACTS, installation__isnull=False,
+    ).values_list("installation__vendor", "installation__product", "cve__cve_id"):
+        out[inventory_key(vendor, product)].add(cve_id)
+    return {key: len(ids) for key, ids in out.items()}
+
+
+def below_min_version(versions, min_version):
+    """PC con versione sotto la minima e PC con versione non confrontabile (contati a parte, mai «vecchi»)."""
+    from security.services.versioning import compare
+
+    old, unknown = 0, 0
+    if not min_version:
+        return 0, 0
+    for version, hosts in versions.items():
+        result = compare(version, min_version)
+        if result is None:
+            unknown += hosts
+        elif result < 0:
+            old += hosts
+    return old, unknown
+
+
+def outdated_hosts(key, min_version):
+    """PC con il prodotto in una versione sicuramente inferiore alla minima."""
+    from security.services.versioning import compare
+
+    if not min_version:
+        return []
+    return [i for i in product_hosts(key) if (compare(i.version_raw, min_version) or 0) < 0]
+
+
 def license_states_for_keys(licenses, today=None):
     """{chiave: "coperta" | "scaduta"} da licenze con ``inventory_key``; una licenza valida vince su una scaduta."""
     today = today or timezone.localdate()

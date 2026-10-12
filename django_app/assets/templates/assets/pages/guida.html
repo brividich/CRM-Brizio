@@ -30,6 +30,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#mfc">Stampanti multifunzione</a>
     <a href="#storico">Storico delle modifiche</a>
     <a href="#software">Software installati e licenze</a>
+    <a href="#catalogo">Catalogo software</a>
     <a href="#report">Catalogo report</a>
     <a href="#kpi">Numeri della dashboard</a>
     <a href="#permessi">Permessi</a>
@@ -125,6 +126,24 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       </ol>
       <p>L'elenco avvisa con <em>Più installazioni che posti</em> se i PC con il software superano i posti acquistati, e con <em>Scaduta ma ancora installata</em> se la licenza è scaduta o disattivata ma il software è ancora sui PC.</p>
       <p class="ag-note">I numeri valgono quanto l'ultimo inventario importato: caricane uno nuovo per aggiornarli. Il campo <em>Posti utilizzati</em> resta manuale.</p>
+    </section>
+
+    <section class="ag-sec" id="catalogo">
+      <h2>Catalogo software</h2>
+      <p>La pagina <a href="{% url 'assets:software_catalog' %}">Catalogo software</a> (menu Configurazione, accanto a Licenze software) elenca tutti i programmi installati sui PC dell'azienda secondo l'ultimo inventario: per ognuno su quanti PC c'è, quante versioni diverse, la decisione dell'azienda, la licenza e, a chi vede il SOC, le CVE.</p>
+      <h3>Filtri</h3>
+      <p>In alto: <em>Da classificare</em>, <em>Non autorizzati</em>, <em>Da rimuovere</em>, <em>A pagamento senza licenza</em>, <em>Sotto la versione minima</em>, <em>Con CVE</em>. Il numero accanto dice quanti software ci sono in quel gruppo.</p>
+      <h3>Classificare un software</h3>
+      <ol>
+        <li>Apri il software dal catalogo (o dal nome nella scheda Software di un asset).</li>
+        <li>In <strong>Decisione dell'azienda</strong> scegli la <strong>Classificazione</strong>: Consentito, Da rimuovere, Non autorizzato.</li>
+        <li>In <strong>Licenza</strong> indica se è Gratuito o A pagamento: un software a pagamento senza una licenza valida collegata finisce nel filtro <em>A pagamento senza licenza</em>.</li>
+        <li>Se serve, scrivi la <strong>Versione minima</strong> accettata (per esempio <kbd>24.07</kbd>): i PC con una versione più vecchia vengono segnati «sotto la minima». Una versione scritta in modo non confrontabile (per esempio «2023 R2») non viene mai contata come vecchia.</li>
+        <li>Premi <span class="ag-btn">Salva</span>.</li>
+      </ol>
+      <p>Solo gli amministratori del modulo Asset possono cambiare la decisione; gli altri la vedono.</p>
+      <h3>Cosa succede nel SOC</h3>
+      <p>Dopo ogni salvataggio e ogni import dell'inventario il SOC controlla il catalogo: se nuovi PC hanno un software <em>Non autorizzato</em> o <em>Da rimuovere</em>, o una versione sotto la minima, nasce un alert (uno per software, che si aggiorna se altri PC si aggiungono). Il riepilogo è nella pagina Vulnerabilità del SOC, riquadro «Software non conforme».</p>
     </section>
 
     <section class="ag-sec" id="report">

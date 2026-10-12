@@ -6,9 +6,9 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from assets.models import Asset, SoftwareLicense
-from security.models import SoftwareInstallation
-from security.services import software_catalog
+from assets.models import Asset, SoftwareCatalogEntry, SoftwareLicense
+from security.models import SecurityAlert, SecurityEventRecord, SoftwareInstallation
+from security.services import software_catalog, software_policy
 
 
 def _install(host, version, *, hub=None, still=True, product="7-zip", vendor="igor pavlov", days_ago=0):
@@ -80,3 +80,91 @@ class SoftwarePagesTests(TestCase):
         response = self.client.get(reverse("assets:software_license_list"))
         self.assertContains(response, 'name="inventory_key"')
         self.assertContains(response, "7-Zip (x64) · Igor Pavlov (2 PC)")
+
+
+class SoftwareCatalogPageTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create(username="cat_admin", is_staff=True, is_superuser=True)
+        self.client.force_login(self.admin)
+        self.hub = Asset.objects.create(asset_tag="SW-DEMO", name="PC-DEMO-01")
+        _install("PC-DEMO-01", "24.08", hub=self.hub)
+        _install("PC-DEMO-02", "23.01")
+        self.key = software_catalog.inventory_key("igor pavlov", "7-zip")
+
+    def test_catalog_lists_products_and_filters(self):
+        response = self.client.get(reverse("assets:software_catalog"))
+        self.assertContains(response, "7-Zip (x64)")
+        self.assertContains(response, "Da classificare")
+        SoftwareCatalogEntry.objects.create(inventory_key=self.key, classification="non_autorizzato")
+        self.assertContains(self.client.get(reverse("assets:software_catalog") + "?f=non_autorizzato"), "7-Zip (x64)")
+        self.assertNotContains(self.client.get(reverse("assets:software_catalog") + "?f=da_rimuovere"), "7-Zip (x64)")
+
+    def test_detail_saves_decision(self):
+        url = reverse("assets:software_catalog_detail")
+        response = self.client.post(url, {"k": self.key, "classification": "consentito", "licensing": "gratuito", "min_version": "24.07"})
+        self.assertEqual(response.status_code, 302)
+        entry = SoftwareCatalogEntry.objects.get(inventory_key=self.key)
+        self.assertEqual((entry.classification, entry.licensing, entry.min_version), ("consentito", "gratuito", "24.07"))
+        detail = self.client.get(url, {"k": self.key})
+        self.assertContains(detail, "Installato su 2 PC")
+        self.assertContains(detail, "sotto la minima")
+
+    def test_non_admin_cannot_change_decision(self):
+        from unittest.mock import patch
+
+        with patch("assets.views_software._can_edit", return_value=False):
+            self.client.post(reverse("assets:software_catalog_detail"), {"k": self.key, "classification": "non_autorizzato", "licensing": "gratuito"})
+        self.assertFalse(SoftwareCatalogEntry.objects.exists())
+
+    def test_unknown_product_is_404(self):
+        self.assertEqual(self.client.get(reverse("assets:software_catalog_detail"), {"k": "x|y"}).status_code, 404)
+
+
+class SoftwarePolicyTests(TestCase):
+    def setUp(self):
+        _install("PC-DEMO-01", "24.08")
+        _install("PC-DEMO-02", "23.01")
+        _install("PC-DEMO-03", "2023 R2")
+        self.key = software_catalog.inventory_key("igor pavlov", "7-zip")
+
+    def _alerts(self):
+        return SecurityAlert.objects.filter(event__event_type=software_policy.EVENT_TYPE)
+
+    def test_forbidden_software_raises_one_alert_and_updates_it(self):
+        SoftwareCatalogEntry.objects.create(inventory_key=self.key, display_name="7-Zip", classification="non_autorizzato")
+        self.assertEqual(software_policy.run(), 1)
+        self.assertEqual(software_policy.run(), 0)
+        alert = self._alerts().get()
+        self.assertEqual(alert.severity, "high")
+        self.assertIn("3 PC", alert.title)
+        _install("PC-DEMO-04", "24.08")
+        self.assertEqual(software_policy.run(), 1)
+        alert = self._alerts().get()
+        self.assertIn("4 PC", alert.title)
+
+    def test_min_version_flags_only_comparable_older_versions(self):
+        SoftwareCatalogEntry.objects.create(inventory_key=self.key, display_name="7-Zip", classification="consentito", min_version="24.07")
+        self.assertEqual([i.host for i in software_catalog.outdated_hosts(self.key, "24.07")], ["pc-demo-02"])
+        software_policy.run()
+        event = SecurityEventRecord.objects.get(event_type=software_policy.EVENT_TYPE)
+        self.assertEqual(event.payload["hosts"], ["pc-demo-02"])
+
+    def test_unreviewed_and_allowed_without_min_version_raise_nothing(self):
+        SoftwareCatalogEntry.objects.create(inventory_key=self.key, classification="consentito")
+        self.assertEqual(software_policy.run(), 0)
+
+    def test_setting_off_raises_nothing(self):
+        from unittest.mock import patch
+
+        from security.services import soc_settings
+
+        SoftwareCatalogEntry.objects.create(inventory_key=self.key, classification="non_autorizzato")
+        with patch.object(soc_settings, "value", return_value=False):
+            self.assertEqual(software_policy.run(), 0)
+
+    def test_vulnerability_page_shows_summary(self):
+        SoftwareCatalogEntry.objects.create(inventory_key=self.key, classification="da_rimuovere")
+        self.client.force_login(get_user_model().objects.create(username="soc_viewer", is_staff=True, is_superuser=True))
+        response = self.client.get(reverse("security:vulnerabilities"))
+        self.assertContains(response, "Software non conforme")
+        self.assertContains(response, "?f=da_rimuovere")

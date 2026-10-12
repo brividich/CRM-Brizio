@@ -91,6 +91,19 @@ def security_asset_software(context, asset):
     )
     if not data["rows"]:
         return {"show": False}
+    from urllib.parse import urlencode
+
+    from django.urls import reverse
+
+    from assets.models import SoftwareCatalogEntry
+
+    entries = {e.inventory_key: e for e in SoftwareCatalogEntry.objects.filter(inventory_key__in=[r["key"] for r in data["rows"]])}
+    detail = reverse("assets:software_catalog_detail")
+    for row in data["rows"]:
+        entry = entries.get(row["key"])
+        row["catalog_url"] = f"{detail}?{urlencode({'k': row['key']})}"
+        row["classification"] = entry.classification if entry else ""
+        row["classification_label"] = entry.get_classification_display() if entry else ""
     return {"show": True, "asset": asset, "show_cve": can_view_security_center(getattr(request, "user", None)), **data}
 
 

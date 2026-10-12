@@ -9,7 +9,7 @@
       <tbody>
       {% for row in rows %}
         <tr{% if not row.present %} style="opacity:.65"{% endif %}>
-          <td><strong>{{ row.name }}</strong><br><span class="af-note">{{ row.vendor|default:"produttore n/d" }}</span></td>
+          <td><a href="{{ row.catalog_url }}"><strong>{{ row.name }}</strong></a>{% if row.classification == "non_autorizzato" %} <span class="af-pill af-pill--danger">Non autorizzato</span>{% elif row.classification == "da_rimuovere" %} <span class="af-pill af-pill--warn">Da rimuovere</span>{% endif %}<br><span class="af-note">{{ row.vendor|default:"produttore n/d" }}</span></td>
           <td>
             {% if row.present %}{{ row.versions|join:", "|default:"—" }}{% else %}<span class="af-pill af-pill--warn">Non più rilevato</span>{% endif %}
             {% if row.previous %}<br><span class="af-note">Prima: {% for prev in row.previous %}{{ prev.version|default:"—" }} (fino al {{ prev.until|date:"d/m/Y" }}){% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}
