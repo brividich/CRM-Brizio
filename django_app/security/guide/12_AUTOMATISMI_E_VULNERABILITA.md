@@ -112,16 +112,42 @@ NVD descrive i prodotti con un codice chiamato **CPE** (produttore e prodotto, p
 
 Questi collegamenti hanno il badge **automatico** e nella spiegazione degli esiti compare «collegamento automatico a …». Se uno è sbagliato, **Azzera**: il sistema non lo rifà più. Le decisioni prese da una persona (confermato, N/A) non vengono mai cambiate. **Collega automaticamente ora** lo esegue subito.
 
-**Proposte da confermare.** Per i nomi solo simili la pagina mostra una proposta. Il filtro **Proposte da confermare** le elenca; spunta le righe giuste e premi **Conferma selezionati** per confermarle in blocco (vale la prima proposta di ogni riga).
+**Cosa c'è da fare davvero.** I CPE candidati sono solo quelli che compaiono nelle CVE già presenti nel sistema (arrivate dagli alert e arricchite da NVD): il sistema non cerca CVE partendo dall'inventario. Per questo la pagina divide i software in filtri:
+
+| Filtro | Cosa contiene | Cosa fare |
+| --- | --- | --- |
+| **Da decidere** | software con almeno una CVE dal nome simile (proposta) | confermare il CPE giusto o segnare **N/A** |
+| **Senza CVE note** | nessuna CVE nel sistema ha un nome simile | niente: se più avanti arriva una CVE che li riguarda, passano da soli in **Da decidere** |
+| **Collegati in automatico** | collegati dal sistema (badge **automatico**) | controllare a campione; **Azzera** se sbagliati |
+| **Non applicabili** | segnati N/A a mano, in blocco o da una regola | niente |
+
+Il vecchio filtro «Da mappare» (tutto ciò che non era deciso) non c'è più: un link salvato con `?stato=da_mappare` apre **Da decidere**.
+
+**Azioni in blocco.**
+
+- **Conferma selezionati**: conferma la prima proposta delle righe spuntate (le righe senza proposta vengono ignorate). La casella nell'intestazione della tabella spunta tutte le righe della pagina.
+- **N/A selezionati**: segna non applicabili le righe spuntate.
+- **Conferma tutte le proposte a candidato unico (N)**: conferma, su tutte le pagine della vista corrente, i software che hanno **una sola** proposta. Chiede conferma prima di procedere.
+- **N/A tutti i risultati di «testo» (N)**: compare quando cerchi almeno 3 caratteri; segna non applicabili tutti i software ancora aperti trovati dalla ricerca, su tutte le pagine (per esempio cerca `redistributable` o `driver`). Chiede conferma prima di procedere.
+
+Ogni modifica in blocco resta nel registro audit, una riga per software.
+
+**Regole «non applicabile».** In fondo alla pagina, **Regole «non applicabile»** esclude in modo permanente i software il cui nome **contiene** un testo (almeno 3 caratteri), eventualmente solo di un produttore: **Salva e applica** la applica subito e poi a ogni import dell'inventario. Una regola:
+
+- non cambia mai i software già confermati o segnati N/A;
+- non esclude i software che hanno una CVE dal nome simile: quelli restano in **Da decidere**;
+- se più avanti arriva una CVE dal nome simile per un software che aveva escluso, il software torna in **Da decidere** con la nota «è arrivata una CVE dal nome simile: decidi».
+
+**Elimina** una regola e i software che aveva escluso tornano da valutare.
 
 Per il resto:
 
-- **Cerca in NVD** propone i CPE più simili; **Conferma** quello giusto.
+- **Cerca in NVD** propone i CPE più simili; **Conferma** quello giusto. Serve solo per i casi dubbi: non va fatto riga per riga.
 - **N/A** per i software senza CVE da seguire (driver, componenti interni): non verranno più proposti.
 - **Alias** unisce nomi diversi dello stesso produttore o prodotto (per esempio «Microsoft Corporation» e «Microsoft»).
 - **Ricalcola impatti** riapplica tutte le regole dopo una serie di modifiche.
 
-Finché un software non ha il CPE confermato, le CVE che potrebbero riguardarlo risultano **da verificare**, mai «non impatta». Conviene partire dai software installati sul maggior numero di PC: la dashboard Vulnerabilità li elenca in «Software senza mappatura CPE».
+Finché un software non ha il CPE confermato, le CVE che potrebbero riguardarlo risultano **da verificare**, mai «non impatta». Parti da **Da decidere**: le righe sono ordinate per numero di PC, quindi le prime sono le più importanti.
 
 La **API key NVD** è facoltativa: senza key NVD accetta 5 richieste ogni 30 secondi, con la key molte di più. Si inserisce nella stessa pagina, viene salvata cifrata e si rimuove solo con **Rimuovi la key**.
 
