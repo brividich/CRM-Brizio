@@ -116,6 +116,13 @@ class SoftwareCatalogPageTests(TestCase):
             self.client.post(reverse("assets:software_catalog_detail"), {"k": self.key, "classification": "non_autorizzato", "licensing": "gratuito"})
         self.assertFalse(SoftwareCatalogEntry.objects.exists())
 
+    def test_detail_of_unclassified_product_renders(self):
+        # Regressione: senza voce di catalogo la pagina andava in 500.
+        response = self.client.get(reverse("assets:software_catalog_detail"), {"k": self.key})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Igor Pavlov")
+        self.assertContains(response, "Installato su 2 PC")
+
     def test_unknown_product_is_404(self):
         self.assertEqual(self.client.get(reverse("assets:software_catalog_detail"), {"k": "x|y"}).status_code, 404)
 

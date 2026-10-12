@@ -194,6 +194,9 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
     return render(request, "assets/pages/software_catalog_detail.html", {
         **_assets_shell_context(request, search_placeholder="Cerca software"),
         "page_title": (row or {}).get("name") or key,
+        # Calcolato qui: nel template `entry` è None per un software mai classificato e un filtro con
+        # argomento `entry.vendor_name` alzava VariableDoesNotExist (500 su ogni software non classificato).
+        "vendor_label": (row or {}).get("vendor") or (entry.vendor_name if entry else ""),
         "row": row,
         "entry": entry,
         "key": key,
