@@ -1,10 +1,10 @@
 # Moduli, diagnostica e documentazione
 
-Tre pagine di controllo per chi configura il SOC: servono a capire se ogni fonte di dati è collegata bene e, quando qualcosa non arriva, dove si è fermato. Si aprono solo con il permesso di configurazione. Da **Config** e da **Autoconfig** si arriva alla diagnostica; dalla pagina **Moduli** si arriva a diagnostica e documentazione.
+Tre pagine di controllo per chi configura il SOC: servono a capire se ogni fonte di dati è collegata bene e, quando qualcosa non arriva, dove si è fermato. Si aprono solo con il permesso di configurazione. Dalla **Configurazione** (Panoramica e Autoconfigurazione) si arriva alla diagnostica; dalla pagina **Moduli** si arriva a diagnostica e documentazione.
 
 ## Moduli
 
-La pagina **Moduli gestiti** elenca le fonti di dati del SOC, una scheda per ciascuna: WatchGuard, Microsoft Defender, Backup/NAS, Microsoft 365, Caricamento manuale, Email generica. È in sola lettura: si guarda qui, si corregge in **Config**.
+La pagina **Moduli gestiti** elenca le fonti di dati del SOC, una scheda per ciascuna: WatchGuard, Microsoft Defender, Backup/NAS, Microsoft 365, Caricamento manuale, Email generica. È in sola lettura: si guarda qui, si corregge in **Configurazione**.
 
 Ogni scheda ha uno stato:
 
@@ -43,7 +43,7 @@ In alto dieci riquadri, ognuno con stato **OK**, **Attenzione** o **Errore**:
 | Riquadro | Cosa controlla |
 | --- | --- |
 | Database e Migrations | Il database risponde e le tabelle del SOC sono aggiornate |
-| Security config seeded | La configurazione di base è stata caricata (se no: **Autoconfig**) |
+| Security config seeded | La configurazione di base è stata caricata (se no: **Configurazione › Autoconfigurazione**) |
 | Parser registry | Ogni parser presente nel codice ha la sua configurazione |
 | Alert rules | Esistono le regole per gli allarmi critici |
 | Suppression rules | Non ci sono soppressioni scadute ancora attive |
@@ -66,7 +66,7 @@ Sotto, la tabella **Diagnostica** riporta tutti i controlli, con il messaggio e 
 
 **Matching sorgenti** risponde alla domanda «se arriva questa mail, il SOC la riconosce?». Scrivi **Mittente** e **Oggetto** (e se serve un pezzo del **Corpo**) di una mail di esempio, poi **Test corrispondenza**. La tabella mostra per ogni sorgente se corrisponde e perché: il pattern sul mittente, quello sull'oggetto, oppure nessuno. Il test non salva nulla e non crea alert.
 
-Se nessuna sorgente corrisponde, correggi i pattern della sorgente in **Config › Sorgenti** o in **Caselle mail**. Per i casi più comuni vedi [Risoluzione problemi](/soc/docs/09-troubleshooting/).
+Se nessuna sorgente corrisponde, correggi i pattern della sorgente in **Configurazione › Sorgenti** o in **Configurazione › Caselle mail**. Per i casi più comuni vedi [Risoluzione problemi](/soc/docs/09-troubleshooting/).
 
 ## Documentazione
 

@@ -1,16 +1,16 @@
 {% extends "security/_base_soc.html" %}
 
-{% block title %}Impostazioni | Security Center AI{% endblock %}
+{% block title %}Configurazione · Avvisi e automatismi | Security Center AI{% endblock %}
 {% block page_icon %}S{% endblock %}
-{% block page_marker %}Impostazioni{% endblock %}
-{% block page_title %}Impostazioni avvisi e report{% endblock %}
+{% block page_marker %}Configurazione{% endblock %}
+{% block page_title %}Avvisi e automatismi{% endblock %}
 
 {% block soc_content %}
 {% if errors %}<div class="sec-message sec-error" role="alert">{{ errors|join:" " }}</div>{% endif %}
 {% if not can_edit %}<p class="sec-message">Puoi vedere le impostazioni ma non modificarle: serve il permesso di configurazione del SOC.</p>{% endif %}
 {% if not channels %}
   <section class="sec-panel sec-callout sec-callout-warning">
-    <strong>Nessun canale di notifica.</strong> Gli avvisi partono verso i canali (mail o Teams): creane uno in <a href="{% url 'security:admin_config_notifications' %}">Config › Notifiche</a>.
+    <strong>Nessun canale di notifica.</strong> Gli avvisi partono verso i canali (mail o Teams): creane uno in <a href="{% url 'security:admin_config_notifications' %}">Configurazione › Notifiche</a>.
   </section>
 {% endif %}
 

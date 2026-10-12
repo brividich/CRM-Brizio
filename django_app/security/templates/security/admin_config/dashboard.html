@@ -5,9 +5,11 @@
 {% block page_icon %}*{% endblock %}
 {% block soc_content %}
 <section class="sec-panel" style="margin-bottom:12px">
-  <div class="sec-section-head"><h2>Autoconfigurazione</h2><span class="sec-badge open">Assistita</span></div>
-  <p class="sec-muted">Semina la configurazione mancante e applica le correzioni suggerite dalla diagnostica, senza riga di comando.</p>
-  <a class="sec-button sec-button-primary" href="{% url 'security:admin_autoconfig' %}">Apri autoconfigurazione</a>
+  <div class="sec-section-head"><h2>Tutta la configurazione del SOC è qui</h2></div>
+  <p class="sec-muted">Le schede in alto portano a ogni sezione: <strong>Avvisi e automatismi</strong> (avvisi automatici, report programmato, soppressione appresa, impatto CVE), caselle mail, sorgenti e parser, regole, notifiche, inventario software, autoconfigurazione e audit. Se manca qualcosa, l'<strong>Autoconfigurazione</strong> la semina e applica le correzioni suggerite dalla diagnostica.</p>
+  <a class="sec-button sec-button-primary" href="{% url 'security:soc_settings' %}">Avvisi e automatismi</a>
+  <a class="sec-button" href="{% url 'security:admin_autoconfig' %}">Apri autoconfigurazione</a>
+  <a class="sec-button" href="{% url 'security:admin_diagnostics' %}">Diagnostica</a>
 </section>
 <div class="sec-grid sec-three-col">
   {% for card in cards %}
