@@ -8,7 +8,7 @@
 
 {% block content %}
   {% url 'monitoring_admin:system_status' as monitoring_status_url %}
-  {% include "admin_portale/components/page_header.html" with page_title="Schedule automazioni" page_subtitle="Abilita/disabilita (durevole) ed esegui ora i job pianificati. La cadenza è definita nel codice." page_action_label="Stato sistema" page_action_url=monitoring_status_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Schedule automazioni" page_subtitle="Se ogni job pianificato sta girando davvero: ultimo run, errori, ritardi. Abilita/disabilita (durevole) ed esegui ora." page_action_label="Stato sistema" page_action_url=monitoring_status_url %}
 
   <style>
     .sch-table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
@@ -16,27 +16,58 @@
     .sch-table th{background:#f8fafc;color:#0c2545;font-size:12px;text-transform:uppercase;letter-spacing:.3px}
     .sch-table tr:last-child td{border-bottom:0}
     .sch-func{font-family:Consolas,Monaco,monospace;font-size:12px;color:#64748b}
-    .sch-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
+    .sch-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
     .sch-on{background:#dcfce7;color:#166534}
-    .sch-off{background:#fee2e2;color:#991b1b}
+    .sch-off,.sch-err{background:#fee2e2;color:#991b1b}
+    .sch-warn{background:#fef3c7;color:#92400e}
+    .sch-mute{background:#f1f5f9;color:#475569}
     .sch-btn{border:1px solid #cbd5e1;background:#fff;color:#0c2545;font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:7px;cursor:pointer}
     .sch-btn:hover{background:#f1f5f9}
     .sch-btn.warn{border-color:#fca5a5;color:#991b1b}
     .sch-actions{display:flex;gap:8px}
     .sch-actions form{margin:0}
+    .sch-sum{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 4px}
+    .sch-sum div{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:10px 14px;min-width:130px}
+    .sch-sum strong{display:block;font-size:20px}
+    .sch-sum span{font-size:12px;color:#64748b}
+    .sch-alert{margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid #fca5a5;background:#fef2f2;color:#991b1b;font-weight:600}
+    .sch-okbar{margin:8px 0;padding:12px 14px;border-radius:12px;border:1px solid #86efac;background:#f0fdf4;color:#166534;font-weight:600}
+    .sch-err-text{font-size:12px;color:#991b1b;margin-top:4px;max-width:420px;word-break:break-word}
+    .sch-small{font-size:12px;color:#64748b}
+    body.theme-dark .sch-table,body.theme-dark .sch-sum div{background:var(--surface,#0f172a);border-color:var(--border,#334155);color:var(--text,#e2e8f0)}
+    body.theme-dark .sch-table th{background:var(--surface-alt,#1e293b);color:var(--text,#e2e8f0)}
+    body.theme-dark .sch-table td{border-color:var(--border,#334155)}
+    body.theme-dark .sch-btn{background:transparent;color:var(--text,#e2e8f0)}
   </style>
+
+  {% if not cluster.alive %}
+    <div class="sch-alert">Il cluster dei job (qcluster) sembra fermo: nessun job completato negli ultimi 20 minuti{% if cluster.last_task %} (ultimo il {{ cluster.last_task|date:"d/m/Y H:i" }}){% endif %}. Finché non riparte nessuno schedule viene eseguito.</div>
+  {% elif summary.problems %}
+    <div class="sch-alert">{{ summary.problems }} schedule da controllare: non registrati, in ritardo o con l'ultimo run fallito. Sono in cima alla tabella.</div>
+  {% else %}
+    <div class="sch-okbar">Cluster attivo{% if cluster.last_task %} (ultimo job completato alle {{ cluster.last_task|date:"H:i" }}){% endif %} e tutti gli schedule in regola.</div>
+  {% endif %}
+  <div class="sch-sum">
+    <div><strong>{{ summary.counts.ok }}</strong><span>In regola</span></div>
+    <div><strong>{{ summary.counts.in_ritardo }}</strong><span>In ritardo</span></div>
+    <div><strong>{{ summary.counts.errore }}</strong><span>Ultimo run fallito</span></div>
+    <div><strong>{{ summary.counts.non_registrato }}</strong><span>Non registrati</span></div>
+    <div><strong>{{ summary.counts.mai_eseguito }}</strong><span>Mai eseguiti</span></div>
+    <div><strong>{{ summary.counts.disabilitato }}</strong><span>Disabilitati</span></div>
+  </div>
 
   <table class="sch-table">
     <thead>
-      <tr><th>Schedule</th><th>Cadenza</th><th>Prossimo run</th><th>Stato</th><th>Azioni</th></tr>
+      <tr><th>Schedule</th><th>Cadenza</th><th>Ultimo run</th><th>Prossimo run</th><th>Salute</th><th>Azioni</th></tr>
     </thead>
     <tbody>
       {% for r in rows %}
         <tr>
           <td><strong>{{ r.name }}</strong><br><span class="sch-func">{{ r.func }}</span></td>
           <td>{{ r.cadence }}</td>
+          <td>{% if r.last_run %}{{ r.last_run|date:"d-m H:i" }} {% if r.last_success %}<span class="sch-badge sch-on">OK</span>{% else %}<span class="sch-badge sch-err">FALLITO</span>{% endif %}{% else %}<span class="sch-small">mai</span>{% endif %}{% if r.failures_24h %}<br><span class="sch-err-text">{{ r.failures_24h }} fallimenti nelle 24 h</span>{% endif %}</td>
           <td>{% if r.registered %}{{ r.next_run|date:"d-m H:i"|default:"—" }}{% else %}<span style="color:#991b1b">non registrato</span>{% endif %}</td>
-          <td><span class="sch-badge {% if r.enabled %}sch-on{% else %}sch-off{% endif %}">{% if r.enabled %}ABILITATO{% else %}DISABILITATO{% endif %}</span></td>
+          <td><span class="sch-badge {% if r.status == 'ok' %}sch-on{% elif r.status == 'disabilitato' or r.status == 'mai_eseguito' %}sch-mute{% elif r.status == 'errore' %}sch-warn{% else %}sch-err{% endif %}">{{ r.status_label|upper }}</span>{% if r.last_error %}<div class="sch-err-text">{{ r.last_error }}</div>{% endif %}</td>
           <td>
             <div class="sch-actions">
               <form method="post" action="{% url 'monitoring_admin:schedule_action' %}">
@@ -55,14 +86,16 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="5">Nessuno schedule definito.</td></tr>
+        <tr><td colspan="6">Nessuno schedule definito.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 
   <p style="font-size:12.5px;color:#64748b;margin-top:12px">
-    <strong>Disabilita</strong> è durevole: rimosso anche dopo un redeploy (via <code>monitoring.ScheduleControl</code>,
-    rispettato da <code>setup_q_schedules</code>). La <strong>cadenza</strong> resta definita in
-    <code>automazioni/schedules.py</code> (fonte di verità). <strong>Esegui ora</strong> accoda il task al cluster django-q.
+    <strong>Salute</strong>: <em>In ritardo</em> = il prossimo run previsto è passato da più di metà cadenza (almeno 10 minuti): il job non sta partendo, di solito perché il cluster è fermo.
+    <em>Non registrato</em> = manca tra i job pianificati: rilancia <code>setup_q_schedules</code> (o «Registra schedule» in Stato sistema).
+    <em>Ultimo run fallito</em> = il job parte ma va in errore: il messaggio è sotto lo stato.
+    <strong>Disabilita</strong> è durevole (anche dopo un redeploy, via <code>monitoring.ScheduleControl</code>). La cadenza resta definita in
+    <code>automazioni/schedules.py</code>. <strong>Esegui ora</strong> accoda il task al cluster django-q.
   </p>
 {% endblock %}

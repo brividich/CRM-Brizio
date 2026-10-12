@@ -281,28 +281,14 @@ def schedule_list(request):
     """Gestione schedule django-q dalla centrale (Ondata 3). Abilita/disabilita è
     DUREVOLE (monitoring.ScheduleControl, rispettato da setup_q_schedules anche dopo
     un redeploy); la cadenza resta definita nel codice (automazioni/schedules.py)."""
-    from django_q.models import Schedule
+    from .schedule_health import cluster_status, schedule_rows, summary
 
-    from automazioni.schedules import SCHEDULES
-
-    from .models import ScheduleControl
-
-    live = {s.name: s for s in Schedule.objects.all()}
-    controls = {c.name: c.enabled for c in ScheduleControl.objects.all()}
-    rows = []
-    for spec in SCHEDULES:
-        name = spec["name"]
-        sch = live.get(name)
-        rows.append({
-            "name": name,
-            "func": spec["func"],
-            "cadence": (f"cron {spec['cron']}" if spec.get("schedule_type") == "C"
-                        else f"ogni {spec.get('minutes')} min"),
-            "enabled": controls.get(name, True),
-            "registered": sch is not None,
-            "next_run": getattr(sch, "next_run", None),
-        })
-    return render(request, "monitoring/pages/schedules.html", {"rows": rows})
+    rows = schedule_rows()
+    return render(request, "monitoring/pages/schedules.html", {
+        "rows": rows,
+        "summary": summary(rows),
+        "cluster": cluster_status(),
+    })
 
 
 @legacy_admin_or_acl_required("monitoring", "schedule_action")
