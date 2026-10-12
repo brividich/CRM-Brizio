@@ -26,6 +26,7 @@ from .models import (
     SoftwareImportPreset,
     SoftwareInstallation,
     SoftwareInventoryImport,
+    SoftwareNaRule,
     SoftwareSourceKind,
 )
 from .permissions import can_view_security_center
@@ -224,6 +225,7 @@ def _inventory_run(request, item, date_format):
     software_inventory.discard_stored(item)
     audit_config_change(request.user, "import", item, field_name="rows_imported", new_value=item.rows_imported, request=request)
     _auto_link_cpe()
+    _apply_na_rules()
     _queue_recompute()
     _run_software_policy()
     messages.success(request, f"Importate {item.rows_imported} righe ({item.rows_new} nuove) da {item.hosts_count} host; "
@@ -256,6 +258,17 @@ def _auto_link_cpe():
         return 0
 
 
+def _apply_na_rules():
+    """Regole «non applicabile» sui prodotti nuovi: un import non fallisce per questo."""
+    try:
+        from .services.cpe_rules import apply_rules
+
+        return sum(apply_rules().values())
+    except Exception:  # noqa: BLE001
+        logger.exception("Regole non applicabile CPE non eseguite")
+        return 0
+
+
 def _run_software_policy():
     """Software non conforme (Catalogo software del modulo Asset): un import non fallisce per questo controllo."""
     try:
@@ -283,45 +296,109 @@ def software_mapping(request):
         return _config_denied(request)
     if request.method == "POST":
         return _software_mapping_post(request)
+    q = request.GET.get("q", "").strip()
+    state = _state(request.GET.get("stato", ""))
+    rows, known = _mapping_rows(q)
+    counts = {
+        "automatici": sum(1 for r in rows if _is_auto(r)),
+        "confermati": sum(1 for r in rows if r["mapping"] and r["mapping"].confirmed and not _is_auto(r)),
+        "proposte": sum(1 for r in rows if _needs_decision(r)),
+        "senza_cve": sum(1 for r in rows if _without_cve(r)),
+        "non_applicabili": sum(1 for r in rows if _is_na(r)),
+    }
+    rows = _filter_rows(rows, state)
+    page = Paginator(rows, 50).get_page(request.GET.get("page"))
+    return render(request, "security/vuln_software.html", {
+        "page": page, "q": q, "stato": state, "counts": counts, "known_cpes": len(known),
+        "unique_proposals": sum(1 for r in rows if _needs_decision(r) and len(r["local_suggestions"]) == 1),
+        "open_in_view": sum(1 for r in rows if _is_open(r)),
+        "aliases": SoftwareAlias.objects.all()[:300], "alias_kinds": SoftwareAlias.KIND_CHOICES,
+        "na_rules": SoftwareNaRule.objects.annotate(n=Count("mappings")).order_by("pattern", "vendor"),
+        "has_nvd_key": bool(nvd_api_key()),
+    })
+
+
+def _state(raw):
+    # «da_mappare» era tutto ciò che non era deciso: oggi il lavoro vero è «Da decidere».
+    return "proposte" if raw == "da_mappare" else raw
+
+
+def _mapping_rows(q=""):
+    """Prodotti dell'inventario (vendor+prodotto) con mappatura e proposte locali, i più diffusi prima."""
     from .services.cpe_auto import known_cpe_pairs, proposals
 
-    q = request.GET.get("q", "").strip()
-    state = request.GET.get("stato", "")
     products = (
         SoftwareInstallation.objects.filter(still_detected=True).values("vendor", "product").order_by()
         .annotate(hosts=Count("host", distinct=True)).order_by("-hosts", "vendor", "product")
     )
     if q:
         products = products.filter(Q(vendor__icontains=q) | Q(product__icontains=q))
-    mappings = {(m.vendor, m.product): m for m in SoftwareCpeMapping.objects.all()}
+    mappings = {(m.vendor, m.product): m for m in SoftwareCpeMapping.objects.select_related("na_rule")}
     known = known_cpe_pairs()
     rows = list(products)
     for row in rows:
         row["mapping"] = mappings.get((row["vendor"], row["product"]))
         row["local_suggestions"] = proposals(row["vendor"], row["product"], known)
-    counts = {
-        "automatici": sum(1 for r in rows if r["mapping"] and r["mapping"].confirmed and r["mapping"].origin == SoftwareCpeMapping.ORIGIN_AUTO),
-        "confermati": sum(1 for r in rows if r["mapping"] and r["mapping"].confirmed and r["mapping"].origin != SoftwareCpeMapping.ORIGIN_AUTO),
-        "proposte": sum(1 for r in rows if _is_open(r) and r["local_suggestions"]),
-    }
+    return rows, known
+
+
+def _filter_rows(rows, state):
     if state == "proposte":
-        rows = [r for r in rows if _is_open(r) and r["local_suggestions"]]
-    elif state == "automatici":
-        rows = [r for r in rows if r["mapping"] and r["mapping"].confirmed and r["mapping"].origin == SoftwareCpeMapping.ORIGIN_AUTO]
-    elif state == "da_mappare":
-        rows = [r for r in rows if _is_open(r)]
-    page = Paginator(rows, 50).get_page(request.GET.get("page"))
-    return render(request, "security/vuln_software.html", {
-        "page": page, "q": q, "stato": state, "counts": counts, "known_cpes": len(known),
-        "aliases": SoftwareAlias.objects.all()[:300], "alias_kinds": SoftwareAlias.KIND_CHOICES,
-        "has_nvd_key": bool(nvd_api_key()),
-    })
+        return [r for r in rows if _needs_decision(r)]
+    if state == "senza_cve":
+        return [r for r in rows if _without_cve(r)]
+    if state == "automatici":
+        return [r for r in rows if _is_auto(r)]
+    if state == "non_applicabili":
+        return [r for r in rows if _is_na(r)]
+    return rows
 
 
 def _is_open(row):
     """Né confermato né non applicabile: c'è ancora da decidere."""
     mapping = row["mapping"]
     return not mapping or not (mapping.confirmed or mapping.not_applicable)
+
+
+def _is_auto(row):
+    mapping = row["mapping"]
+    return bool(mapping and mapping.confirmed and mapping.origin == SoftwareCpeMapping.ORIGIN_AUTO)
+
+
+def _excluded_by_rule(row):
+    mapping = row["mapping"]
+    return bool(mapping and mapping.not_applicable and mapping.origin == SoftwareCpeMapping.ORIGIN_RULE)
+
+
+def _needs_decision(row):
+    """Aperto con una CVE dal nome simile, o escluso da una regola ma con una CVE arrivata dopo."""
+    return bool(row["local_suggestions"]) and (_is_open(row) or _excluded_by_rule(row))
+
+
+def _without_cve(row):
+    """Aperto, ma nessuna CVE presente nel sistema ha un nome simile: oggi non c'è nulla da decidere."""
+    return _is_open(row) and not row["local_suggestions"]
+
+
+def _is_na(row):
+    return bool(row["mapping"] and row["mapping"].not_applicable) and not _needs_decision(row)
+
+
+def _set_mapping(request, vendor, product, *, cpe=None, note=""):
+    """Conferma (``cpe`` = "vendor:product") o segna non applicabile (``cpe`` None), con audit."""
+    mapping, _ = SoftwareCpeMapping.objects.get_or_create(vendor=vendor[:120], product=product[:160])
+    old = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed} n/a={mapping.not_applicable}"
+    if cpe:
+        mapping.cpe_vendor, mapping.cpe_product = cpe.split(":", 1)
+        mapping.confirmed, mapping.not_applicable = True, False
+    else:
+        mapping.confirmed, mapping.not_applicable = False, True
+    mapping.origin, mapping.na_rule = SoftwareCpeMapping.ORIGIN_MANUAL, None
+    mapping.confirmed_by, mapping.confirmed_at = request.user, timezone.now()
+    mapping.save()
+    new = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata" if cpe else "non applicabile"
+    audit_config_change(request.user, "update", mapping, field_name="cpe", old_value=old,
+                        new_value=f"{new} {note}".strip(), request=request)
 
 
 def _software_mapping_post(request):
@@ -368,6 +445,7 @@ def _software_mapping_post(request):
             mapping.origin = (SoftwareCpeMapping.ORIGIN_AUTO_REJECTED if mapping.origin == SoftwareCpeMapping.ORIGIN_AUTO
                               else mapping.origin if mapping.origin == SoftwareCpeMapping.ORIGIN_AUTO_REJECTED else SoftwareCpeMapping.ORIGIN_MANUAL)
             mapping.confirmed, mapping.not_applicable = False, False
+        mapping.na_rule = None
         mapping.confirmed_by, mapping.confirmed_at = request.user, timezone.now()
         mapping.save()
         audit_config_change(request.user, "update", mapping, field_name="cpe", old_value=old,
@@ -379,26 +457,76 @@ def _software_mapping_post(request):
         if linked:
             _queue_recompute()
         messages.success(request, f"Collegamento automatico: {linked} software collegat{'o' if linked == 1 else 'i'}" + (", impatti in ricalcolo." if linked else "."))
-    elif action == "cpe_confirm_bulk":
-        confirmed = 0
-        for item in request.POST.getlist("bulk")[:200]:
+    elif action in {"cpe_confirm_bulk", "cpe_na_bulk"}:
+        done = 0
+        for item in request.POST.getlist("bulk")[:500]:
             vendor, _sep, rest = item.partition("|||")
             product, _sep, cpe = rest.partition("|||")
             cpe = cpe.strip().lower()
-            if not product or not CPE_PAIR_RE.match(cpe):
+            if not product:
                 continue
-            mapping, _ = SoftwareCpeMapping.objects.get_or_create(vendor=vendor[:120], product=product[:160])
-            old = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed}"
-            mapping.cpe_vendor, mapping.cpe_product = cpe.split(":", 1)
-            mapping.confirmed, mapping.not_applicable, mapping.origin = True, False, SoftwareCpeMapping.ORIGIN_MANUAL
-            mapping.confirmed_by, mapping.confirmed_at = request.user, timezone.now()
-            mapping.save()
-            audit_config_change(request.user, "update", mapping, field_name="cpe", old_value=old,
-                                new_value=f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata in blocco", request=request)
-            confirmed += 1
-        if confirmed:
+            if action == "cpe_na_bulk":
+                _set_mapping(request, vendor, product, note="in blocco")
+            elif CPE_PAIR_RE.match(cpe):
+                _set_mapping(request, vendor, product, cpe=cpe, note="in blocco")
+            else:
+                continue  # riga senza proposta: non c'è nulla da confermare
+            done += 1
+        if done:
             _queue_recompute()
-        messages.success(request, f"Confermate {confirmed} mappature" + (": impatti in ricalcolo." if confirmed else "."))
+        verb = "Segnati non applicabili" if action == "cpe_na_bulk" else "Confermate"
+        messages.success(request, f"{verb} {done} software" + (": impatti in ricalcolo." if done else "."))
+    elif action in {"cpe_confirm_unique", "cpe_na_search"}:
+        q = request.POST.get("q", "").strip()
+        if action == "cpe_na_search" and len(q) < 3:
+            messages.error(request, "Per segnare in blocco serve una ricerca di almeno 3 caratteri.")
+            return redirect(request.get_full_path())
+        rows = _filter_rows(_mapping_rows(q)[0], _state(request.POST.get("stato", "")))
+        done = 0
+        for row in rows:
+            if action == "cpe_confirm_unique":
+                if _needs_decision(row) and len(row["local_suggestions"]) == 1:
+                    _set_mapping(request, row["vendor"], row["product"], cpe=row["local_suggestions"][0], note="in blocco (candidato unico)")
+                    done += 1
+            elif _is_open(row):
+                _set_mapping(request, row["vendor"], row["product"], note=f"in blocco (ricerca «{q[:60]}»)")
+                done += 1
+        if done:
+            _queue_recompute()
+        if action == "cpe_confirm_unique":
+            messages.success(request, f"Confermate {done} proposte a candidato unico" + (": impatti in ricalcolo." if done else "."))
+        else:
+            messages.success(request, f"Segnati non applicabili {done} software che contengono «{q}»" + (": impatti in ricalcolo." if done else "."))
+    elif action == "na_rule":
+        from .services.cpe_rules import MIN_PATTERN_LEN, apply_rules, normalize_pattern
+
+        pattern = normalize_pattern(request.POST.get("pattern"))[:160]
+        vendor = normalize_pattern(request.POST.get("vendor"))[:120]
+        if len(pattern) < MIN_PATTERN_LEN:
+            messages.error(request, f"La regola vuole un testo di almeno {MIN_PATTERN_LEN} caratteri.")
+            return redirect(request.get_full_path())
+        rule, created = SoftwareNaRule.objects.get_or_create(
+            vendor=vendor, pattern=pattern,
+            defaults={"note": request.POST.get("note", "").strip()[:200], "created_by": request.user},
+        )
+        applied = apply_rules([rule]).get(rule.pk, 0)
+        audit_config_change(request.user, "create" if created else "update", rule, field_name="software_esclusi",
+                            new_value=applied, request=request)
+        if applied:
+            _queue_recompute()
+        messages.success(request, f"Regola «{rule}» {'salvata' if created else 'riapplicata'}: {applied} software segnati non applicabili "
+                                  "(quelli con una CVE dal nome simile restano da decidere).")
+    elif action == "na_rule_delete":
+        from .services.cpe_rules import release_rule
+
+        rule = SoftwareNaRule.objects.filter(pk=request.POST.get("rule_id") or 0).first()
+        if rule:
+            reopened = release_rule(rule)
+            audit_config_change(request.user, "delete", rule, old_value=str(rule), new_value=f"riaperti {reopened}", request=request)
+            rule.delete()
+            if reopened:
+                _queue_recompute()
+            messages.success(request, f"Regola eliminata: {reopened} software tornano da valutare.")
     elif action == "cpe_suggest":
         vendor = request.POST.get("vendor", "")[:120]
         product = request.POST.get("product", "")[:160]
