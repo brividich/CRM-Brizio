@@ -131,7 +131,8 @@ Il sistema non tira mai a indovinare: quando non può dimostrare l'esito, scrive
 - **Vulnerabilità**: CVE che impattano o da verificare, ordinate per KEV, CVSS, EPSS e numero di PC impattati; i PC più esposti; i software ancora da collegare.
 - **Scheda CVE**: l'esito PC per PC con la spiegazione.
 - **Scheda alert e ticket** di una CVE: il riquadro «Impatto sugli asset» e, se non ci sono PC impattati, la proposta di chiusura. La proposta **non compare mai** per CVE sfruttate (KEV) o critiche.
-- **Scheda asset** del modulo Asset: la sezione «Vulnerabilità» con le CVE che riguardano quel PC.
+- **Scheda asset** del modulo Asset: la sezione «Vulnerabilità» con le CVE che riguardano quel PC e la scheda **Software** con tutti i programmi installati, le versioni precedenti, la licenza collegata e le CVE per programma.
+- **Licenze software** del modulo Asset: per le licenze collegate a un software dell'inventario, su quanti PC è installato rispetto ai posti acquistati.
 
 ### Alert e ticket automatici
 
@@ -144,6 +145,18 @@ Quando l'inventario dice che un PC ha una versione vulnerabile di una CVE **crit
 - Le CVE alte, medie e basse non aprono alert: si guardano nella pagina **Vulnerabilità**.
 
 Si accende e si spegne in **Configurazione › Avvisi e automatismi › Impatto CVE sugli asset**: «Apri un alert quando un PC risulta impattato» e «Apri anche il ticket di rimedio». Arrivano accese, ma funzionano solo con l'arricchimento CVE acceso e un inventario importato.
+
+## Software non conforme
+
+Nel modulo Asset il **Catalogo software** raccoglie le decisioni dell'azienda su ogni programma dell'inventario: **Consentito**, **Da rimuovere**, **Non autorizzato**, ed eventualmente una **versione minima**. Il SOC confronta l'inventario con queste decisioni dopo ogni import dell'inventario e ogni modifica al catalogo.
+
+- **Un alert per software e per caso**: software non autorizzato (severità alta), software da rimuovere, versione sotto la minima (solo per i software consentiti). Il titolo dice il prodotto e su quanti PC è.
+- L'alert nasce solo quando **nuovi** PC entrano nel caso; se altri PC si aggiungono dopo, lo stesso alert si aggiorna.
+- Una versione scritta in modo non confrontabile (per esempio «2023 R2») non viene mai contata come vecchia.
+- Quando il software sparisce dall'inventario l'alert **non** si chiude da solo: lo chiude chi ha verificato la rimozione.
+- Riepilogo nella pagina **Vulnerabilità**, riquadro **Software non conforme**, con il link al catalogo già filtrato.
+
+Si accendono e si spengono in **Configurazione › Avvisi e automatismi › Software non conforme** (tre interruttori, accesi di default). Senza software classificati nel catalogo non nasce nessun alert.
 
 ## Domande frequenti
 

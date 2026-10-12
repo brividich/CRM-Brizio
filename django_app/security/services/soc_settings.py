@@ -101,6 +101,20 @@ SECTIONS = [
                    "Se la CVE ha già un ticket aperto (per esempio da Defender), l'alert si collega a quello."),
         ],
     },
+    {
+        "code": "software_conformita",
+        "title": "Software non conforme",
+        "intro": "Confronta l'inventario software con le decisioni del Catalogo software (modulo Asset): un alert per prodotto quando "
+                 "nuovi PC hanno un software non autorizzato, da rimuovere o in una versione sotto la minima. Si controlla dopo ogni "
+                 "import dell'inventario e ogni modifica al catalogo.",
+        "channels_optional": True,
+        "options": [
+            Option("software.non_autorizzato.alert", True, "Alert per software non autorizzato", "Severità alta."),
+            Option("software.da_rimuovere.alert", True, "Alert per software da rimuovere"),
+            Option("software.versione_minima.alert", True, "Alert per versioni sotto la minima",
+                   "Solo per i software «Consentiti» con una versione minima; le versioni non confrontabili non vengono mai segnalate."),
+        ],
+    },
 ]
 
 OPTIONS = {option.key: option for section in SECTIONS for option in section["options"]}

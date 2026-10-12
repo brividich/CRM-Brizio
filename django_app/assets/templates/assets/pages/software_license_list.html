@@ -75,6 +75,16 @@ body.theme-dark .sl-new > summary { color:#93c5fd; }
 .sl-meta { color:#64748b; font-size:var(--fs-sm); line-height:1.5; }
 .sl-row-actions { display:flex; gap:8px; flex-wrap:wrap; }
 .sl-empty { color:#64748b; }
+.sl-renewals { margin-top:6px; }
+.sl-renewals > summary { cursor:pointer; color:var(--primary,#002b5c); font-size:var(--fs-sm); font-weight:700; }
+.sl-renewals ol { margin:6px 0 0; padding-left:18px; display:grid; gap:6px; }
+.sl-renewals li { font-size:var(--fs-sm); line-height:1.45; }
+.sl-renew > summary { list-style:none; cursor:pointer; }
+.sl-renew > summary::-webkit-details-marker { display:none; }
+.sl-renew-form { display:grid; gap:8px; grid-template-columns:repeat(2, minmax(140px, 1fr)); margin-top:8px; min-width:300px; }
+.sl-renew-form .sl-field input, .sl-renew-form .sl-field select, .sl-renew-form .sl-field textarea { padding:6px 8px; }
+.sl-renew-form .sl-field textarea { min-height:56px; }
+body.theme-dark .sl-renewals > summary { color:#93c5fd; }
 @media (max-width: 1220px) {
   .sl-grid { grid-template-columns:1fr; }
   .sl-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
@@ -265,6 +275,13 @@ body.theme-dark .sl-new > summary { color:#93c5fd; }
                       {% if row.license.assigned_reparto %}
                         <div class="sl-meta">{{ row.license.assigned_reparto }}</div>
                       {% endif %}
+                      {% if row.installed_on is not None %}
+                        <div class="sl-meta" title="PC con il software installato secondo l'inventario importato nel SOC">
+                          Installato su <strong>{{ row.installed_on }}</strong> PC{% if row.license.seats_total %} su {{ row.license.seats_total }} posti{% endif %}
+                        </div>
+                        {% if row.over_seats %}<span class="as-badge as-badge--danger">Più installazioni che posti</span>{% endif %}
+                        {% if row.expired_but_installed %}<span class="as-badge as-badge--warn">Scaduta ma ancora installata</span>{% endif %}
+                      {% endif %}
                     </td>
                     <td>
                       {% if row.license.expiry_date %}
@@ -272,6 +289,25 @@ body.theme-dark .sl-new > summary { color:#93c5fd; }
                         <span class="sl-meta">{{ row.state.days_label }}</span>
                       {% else %}
                         <span class="sl-meta">Non impostata</span>
+                      {% endif %}
+                      {% if row.renewal_count %}
+                        <details class="sl-renewals">
+                          <summary>{{ row.renewal_count }} rinnov{{ row.renewal_count|pluralize:"o,i" }}{% if row.renewal_total_cost is not None %} · speso € {{ row.renewal_total_cost|floatformat:2 }}{% endif %}</summary>
+                          <ol>
+                            {% for renewal in row.renewals %}
+                              <li>
+                                <strong>{{ renewal.renewed_on|date:"d-m-Y" }}</strong>:
+                                {{ renewal.previous_expiry|date:"d-m-Y"|default:"nessuna scadenza" }} → <strong>{{ renewal.period_end|date:"d-m-Y"|default:"nessuna scadenza" }}</strong>
+                                {% if renewal.period_start %}<br><span class="sl-meta">Periodo dal {{ renewal.period_start|date:"d-m-Y" }}{% if renewal.period_end %} al {{ renewal.period_end|date:"d-m-Y" }}{% endif %}</span>{% endif %}
+                                {% if renewal.seats_total or renewal.cost_eur is not None %}<br><span class="sl-meta">{% if renewal.seats_total %}{{ renewal.seats_total }} posti{% endif %}{% if renewal.seats_total and renewal.cost_eur is not None %} · {% endif %}{% if renewal.cost_eur is not None %}€ {{ renewal.cost_eur|floatformat:2 }}{% endif %}</span>{% endif %}
+                                {% if renewal.supplier %}<br><span class="sl-meta">Fornitore: {{ renewal.supplier.ragione_sociale }}</span>{% endif %}
+                                {% if renewal.reference %}<br><span class="sl-meta">Rif. {{ renewal.reference }}</span>{% endif %}
+                                {% if renewal.notes %}<br><span class="sl-meta">{{ renewal.notes }}</span>{% endif %}
+                                {% if renewal.created_by %}<br><span class="sl-meta">Registrato da {{ renewal.created_by.get_full_name|default:renewal.created_by.username }}</span>{% endif %}
+                              </li>
+                            {% endfor %}
+                          </ol>
+                        </details>
                       {% endif %}
                     </td>
                     <td>
@@ -286,6 +322,56 @@ body.theme-dark .sl-new > summary { color:#93c5fd; }
                             <input type="hidden" name="license_id" value="{{ row.license.id }}">
                             <button type="submit" class="btn btn-danger" onclick="return confirm('Eliminare questa licenza software?');">Elimina</button>
                           </form>
+                          <details class="sl-renew">
+                            <summary class="btn btn-primary">Rinnova</summary>
+                            <form method="post" class="sl-renew-form">
+                              {% csrf_token %}
+                              {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
+                              {% if selected_anagrafica_id %}<input type="hidden" name="anagrafica_id" value="{{ selected_anagrafica_id }}">{% endif %}
+                              <input type="hidden" name="action" value="renew_software_license">
+                              <input type="hidden" name="license_id" value="{{ row.license.id }}">
+                              <div class="sl-field">
+                                <label for="id_{{ row.renew_prefix }}-period_end">Nuova scadenza</label>
+                                <input type="date" id="id_{{ row.renew_prefix }}-period_end" name="{{ row.renew_prefix }}-period_end" required>
+                              </div>
+                              <div class="sl-field">
+                                <label for="id_{{ row.renew_prefix }}-renewed_on">Data rinnovo</label>
+                                <input type="date" id="id_{{ row.renew_prefix }}-renewed_on" name="{{ row.renew_prefix }}-renewed_on" value="{{ today|date:'Y-m-d' }}">
+                              </div>
+                              <div class="sl-field">
+                                <label for="id_{{ row.renew_prefix }}-period_start">Inizio periodo</label>
+                                <input type="date" id="id_{{ row.renew_prefix }}-period_start" name="{{ row.renew_prefix }}-period_start" value="{{ row.renew_default_start|date:'Y-m-d' }}">
+                              </div>
+                              <div class="sl-field">
+                                <label for="id_{{ row.renew_prefix }}-seats_total">Posti acquistati</label>
+                                <input type="number" min="0" id="id_{{ row.renew_prefix }}-seats_total" name="{{ row.renew_prefix }}-seats_total" value="{{ row.license.seats_total|default_if_none:'' }}">
+                              </div>
+                              <div class="sl-field">
+                                <label for="id_{{ row.renew_prefix }}-cost_eur">Costo (€)</label>
+                                <input type="number" min="0" step="0.01" id="id_{{ row.renew_prefix }}-cost_eur" name="{{ row.renew_prefix }}-cost_eur">
+                              </div>
+                              <div class="sl-field">
+                                <label for="id_{{ row.renew_prefix }}-supplier">Fornitore</label>
+                                <select id="id_{{ row.renew_prefix }}-supplier" name="{{ row.renew_prefix }}-supplier">
+                                  <option value="">Nessuno</option>
+                                  {% for supplier in renewal_supplier_options %}
+                                    <option value="{{ supplier.id }}">{{ supplier.ragione_sociale }}</option>
+                                  {% endfor %}
+                                </select>
+                              </div>
+                              <div class="sl-field sl-field--full">
+                                <label for="id_{{ row.renew_prefix }}-reference">Riferimento ordine / fattura</label>
+                                <input type="text" maxlength="200" id="id_{{ row.renew_prefix }}-reference" name="{{ row.renew_prefix }}-reference">
+                              </div>
+                              <div class="sl-field sl-field--full">
+                                <label for="id_{{ row.renew_prefix }}-notes">Note</label>
+                                <textarea id="id_{{ row.renew_prefix }}-notes" name="{{ row.renew_prefix }}-notes" rows="2"></textarea>
+                              </div>
+                              <div class="sl-actions">
+                                <button type="submit" class="btn btn-primary">Salva rinnovo</button>
+                              </div>
+                            </form>
+                          </details>
                         {% else %}
                           <a class="btn btn-secondary" href="{{ row.edit_url }}">Dettaglio</a>
                         {% endif %}

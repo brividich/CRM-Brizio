@@ -36,6 +36,8 @@ def evaluate_security_rules():
             _evaluate_sender_spoofing(event)
         elif event.event_type == "cve_impact_confirmed":
             _evaluate_cve_impact(event)
+        elif event.event_type == "software_policy":
+            _evaluate_software_policy(event)
         else:
             event.decision_trace = {"decision": "kpi_only", "reason": "No alert rule matched"}
             event.save(update_fields=["decision_trace"])
@@ -226,6 +228,42 @@ def _evaluate_cve_impact(event):
         action="alert_created" if alert_created else "alert_reused",
         details=trace,
     )
+    _mark_rule_triggered(rule)
+    if alert_created:
+        notify_alert_created(alert)
+
+
+def _evaluate_software_policy(event):
+    """Software non autorizzato, da rimuovere o sotto la versione minima secondo il Catalogo software."""
+    payload = event.payload
+    rule = _get_rule("software_policy")
+    if rule and not rule.enabled:
+        event.decision_trace = {"decision": "kpi_only", "reason": "Software policy rule disabled", "rule": rule.code}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Catalogo software: prodotto non conforme presente su PC => alert",
+        "kind": payload.get("kind"),
+        "product": payload.get("product"),
+        "host_count": payload.get("host_count"),
+        "new_hosts": payload.get("new_hosts"),
+        "min_version": payload.get("min_version"),
+    }
+    title = f"{payload.get('product')}: {payload.get('kind_label')} su {payload.get('host_count')} PC"[:255]
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source, event=event, title=title,
+        severity=(rule.severity if rule else event.severity), dedup_hash=event.dedup_hash, decision_trace=trace,
+    )
+    if not alert_created and alert.title != title:
+        alert.title = title
+        alert.save(update_fields=["title", "updated_at"])
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "alert_reused", details=trace)
     _mark_rule_triggered(rule)
     if alert_created:
         notify_alert_created(alert)

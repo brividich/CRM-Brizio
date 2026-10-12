@@ -38,6 +38,7 @@ from .models import (
     PlantLayoutArea,
     PlantLayoutMarker,
     SoftwareLicense,
+    SoftwareLicenseRenewal,
     WorkMachine,
     WorkOrder,
 )
@@ -2143,6 +2144,7 @@ class AssistanceContractForm(forms.ModelForm):
 
 class SoftwareLicenseForm(forms.ModelForm):
     assigned_employee_id = forms.ChoiceField(required=False, label="Dipendente anagrafica")
+    inventory_key = forms.ChoiceField(required=False, label="Software dell'inventario")
 
     class Meta:
         model = SoftwareLicense
@@ -2161,6 +2163,7 @@ class SoftwareLicenseForm(forms.ModelForm):
             "expiry_date",
             "auto_renew",
             "is_active",
+            "inventory_key",
             "notes",
         ]
         labels = {
@@ -2245,6 +2248,7 @@ class SoftwareLicenseForm(forms.ModelForm):
         self.fields["account_email"].help_text = "Email, tenant o account di riferimento usato per la licenza."
         self.fields["license_reference"].help_text = "Seriale, contratto, product key o codice interno."
         self.fields["seats_used"].help_text = "Puoi lasciare 0 per licenze a stock non ancora assegnate."
+        self._setup_inventory_key()
         self.order_fields(
             [
                 "category",
@@ -2255,6 +2259,7 @@ class SoftwareLicenseForm(forms.ModelForm):
                 "account_email",
                 "asset",
                 "assigned_employee_id",
+                "inventory_key",
                 "seats_total",
                 "seats_used",
                 "purchase_date",
@@ -2272,6 +2277,23 @@ class SoftwareLicenseForm(forms.ModelForm):
             self.fields["asset"].widget.attrs.pop("class", None)
         if isinstance(self.fields["assigned_employee_id"].widget, forms.HiddenInput):
             self.fields["assigned_employee_id"].widget.attrs.pop("class", None)
+
+    def _setup_inventory_key(self):
+        """Elenco dei software dell'inventario (SOC): collegata la licenza, i PC con il software si contano da soli."""
+        try:
+            from security.services.software_catalog import catalog_choices
+
+            choices = catalog_choices()
+        except Exception:  # noqa: BLE001 - senza inventario il form delle licenze deve restare usabile
+            choices = []
+        current = (getattr(self.instance, "inventory_key", "") or "").strip()
+        if current and current not in {key for key, _label in choices}:
+            choices.append((current, f"{current.replace('|', ' · ')} (non più rilevato)"))
+        self.fields["inventory_key"].choices = [("", "Non collegata all'inventario"), *choices]
+        self.fields["inventory_key"].help_text = (
+            "Collega la licenza al software rilevato sui PC (inventario importato nel SOC): "
+            "l'elenco mostra su quanti PC è installato e avvisa se supera i posti acquistati."
+        )
 
     def clean_vendor(self):
         return (self.cleaned_data.get("vendor") or "").strip()
@@ -2348,6 +2370,62 @@ class SoftwareLicenseForm(forms.ModelForm):
             instance.full_clean()
             instance.save()
         return instance
+
+
+class SoftwareLicenseRenewalForm(forms.ModelForm):
+    """Rinnovo di una licenza: la nuova scadenza è obbligatoria, il resto facoltativo."""
+
+    class Meta:
+        model = SoftwareLicenseRenewal
+        fields = [
+            "period_end",
+            "renewed_on",
+            "period_start",
+            "seats_total",
+            "cost_eur",
+            "supplier",
+            "reference",
+            "notes",
+        ]
+        labels = {
+            "period_end": "Nuova scadenza",
+            "renewed_on": "Data rinnovo",
+            "period_start": "Inizio periodo",
+            "seats_total": "Posti acquistati",
+            "cost_eur": "Costo (€)",
+            "supplier": "Fornitore",
+            "reference": "Riferimento ordine / fattura",
+            "notes": "Note",
+        }
+        widgets = {
+            "period_end": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "renewed_on": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "period_start": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["period_end"].required = True
+        self.fields["renewed_on"].required = False
+        self.fields["supplier"].required = False
+        self.fields["supplier"].queryset = Fornitore.objects.filter(is_active=True).order_by("ragione_sociale", "id")
+        self.fields["seats_total"].help_text = "Lascia vuoto per non cambiare i posti della licenza."
+
+    def clean(self):
+        cleaned_data = super().clean()
+        period_start = cleaned_data.get("period_start")
+        period_end = cleaned_data.get("period_end")
+        if period_start and period_end and period_end < period_start:
+            self.add_error("period_end", "La nuova scadenza non può essere precedente all'inizio del periodo.")
+        cost = cleaned_data.get("cost_eur")
+        if cost is not None and cost < 0:
+            self.add_error("cost_eur", "Il costo non può essere negativo.")
+        if not cleaned_data.get("renewed_on"):
+            cleaned_data["renewed_on"] = timezone.localdate()
+        cleaned_data["reference"] = (cleaned_data.get("reference") or "").strip()
+        cleaned_data["notes"] = (cleaned_data.get("notes") or "").strip()
+        return cleaned_data
 
 
 class PlantLayoutForm(forms.ModelForm):

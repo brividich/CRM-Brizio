@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_asset_qr, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_verifiche, views_reporting
+from . import views, views_asset_qr, views_asset_storico, views_guida, views_it, views_report_catalog, views_maintenance, views_software, views_verifiche, views_reporting
 
 app_name = "assets"
 
@@ -68,6 +68,8 @@ urlpatterns = [
     path("assets/manutenzione/prossime/", views.maintenance_schedule, name="maintenance_schedule"),
     path("assets/manutenzione/contratti/", views.assistance_contract_list, name="assistance_contract_list"),
     path("assets/licenze/", views.software_license_list, name="software_license_list"),
+    path("assets/software/", views_software.software_catalog, name="software_catalog"),
+    path("assets/software/dettaglio/", views_software.software_catalog_detail, name="software_catalog_detail"),
     path("assets/dispositivi/", views.device_list, name="device_list"),
     path("assets/dispositivi/riconciliazione/", views_it.it_reconciliation, name="it_reconciliation"),
     path("assets/work-machines/", views.work_machine_list, name="work_machine_list"),

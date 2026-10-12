@@ -1,0 +1,61 @@
+{% extends "assets/pages/software_catalog.html" %}
+
+{% block title %}{{ page_title }} · Catalogo software{% endblock %}
+{% block assets_shell_title %}{{ page_title }}{% endblock %}
+{% block assets_shell_subtitle %}<p><a href="{{ catalog_url }}">Catalogo software</a> · {{ row.vendor|default:entry.vendor_name|default:"produttore n/d" }} · <a href="{% url 'assets:guida' %}#catalogo">? Guida</a></p>{% endblock %}
+
+{% block assets_shell_content %}
+<section class="sc-page">
+  <div class="sc-card">
+    <h2 style="margin:0 0 10px;font-size:18px">Decisione dell'azienda</h2>
+    {% if can_edit %}
+    <form method="post" class="sc-form" style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:end">
+      {% csrf_token %}<input type="hidden" name="k" value="{{ key }}">
+      <label style="display:grid;gap:6px;font-weight:700">Classificazione
+        <select name="classification" class="sc-input">{% for value, label in classification_choices %}<option value="{{ value }}" {% if entry.classification == value or not entry and value == 'da_classificare' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label style="display:grid;gap:6px;font-weight:700">Licenza
+        <select name="licensing" class="sc-input">{% for value, label in licensing_choices %}<option value="{{ value }}" {% if entry.licensing == value or not entry and value == 'da_verificare' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label style="display:grid;gap:6px;font-weight:700">Versione minima
+        <input type="text" name="min_version" value="{{ entry.min_version|default:'' }}" maxlength="120" placeholder="es. 24.07" class="sc-input"></label>
+      <label style="display:grid;gap:6px;font-weight:700;grid-column:1/-1">Note
+        <textarea name="notes" rows="2" class="sc-input">{{ entry.notes|default:'' }}</textarea></label>
+      <div><button type="submit" class="btn btn-primary">Salva</button></div>
+    </form>
+    <p class="sc-note" style="margin-top:10px">«Non autorizzato» e «Da rimuovere» fanno comparire il software nei controlli del SOC; con la versione minima i PC più vecchi vengono segnalati. Le versioni scritte in modo non confrontabile (es. «2023 R2») non vengono mai contate come vecchie.</p>
+    {% else %}
+    <p class="sc-note">Classificazione: <strong>{{ row.classification_label|default:"Da classificare" }}</strong> · Licenza: <strong>{{ row.licensing_label|default:"Da verificare" }}</strong>{% if entry.min_version %} · Versione minima: <strong>{{ entry.min_version }}</strong>{% endif %}. Solo gli amministratori del modulo Asset possono cambiarle.</p>
+    {% if entry.notes %}<p class="sc-note">{{ entry.notes|linebreaksbr }}</p>{% endif %}
+    {% endif %}
+    {% if entry.updated_by %}<p class="sc-note" style="margin-top:6px">Ultima modifica: {{ entry.updated_at|date:"d/m/Y H:i" }}, {{ entry.updated_by }}.</p>{% endif %}
+  </div>
+
+  <div class="sc-card sc-table-wrap">
+    <h2 style="margin:0 0 10px;font-size:18px">Licenze collegate</h2>
+    {% if licenses %}
+      <table class="sc-table"><thead><tr><th>Licenza</th><th>Posti</th><th>Scadenza</th><th>Stato</th></tr></thead><tbody>
+      {% for lic in licenses %}<tr><td>{{ lic }}</td><td>{{ lic.seats_total|default_if_none:"—" }}</td><td>{{ lic.expiry_date|date:"d/m/Y"|default:"—" }}</td><td>{% if lic.is_active %}Attiva{% else %}Disattivata{% endif %}</td></tr>{% endfor %}
+      </tbody></table>
+    {% else %}
+      <p class="sc-note">Nessuna licenza collegata. Collegala da <a href="{{ licenses_url }}">Licenze software</a> scegliendo questo programma in «Software dell'inventario».</p>
+    {% endif %}
+  </div>
+
+  <div class="sc-card sc-table-wrap">
+    <h2 style="margin:0 0 10px;font-size:18px">Installato su {{ hosts|length }} PC</h2>
+    <table class="sc-table">
+      <thead><tr><th>PC</th><th>Asset</th><th>Versione</th><th>Rilevato dal</th><th>Ultima rilevazione</th></tr></thead>
+      <tbody>
+      {% for h in hosts %}
+        <tr>
+          <td>{{ h.install.host_display|default:h.install.host }}</td>
+          <td>{% if h.install.hub_asset %}<a href="{% url 'assets:asset_view' h.install.hub_asset_id %}#tab-software">{{ h.install.hub_asset.asset_tag }}</a>{% else %}<span class="sc-meta">non collegato</span>{% endif %}</td>
+          <td>{{ h.install.version_raw|default:"—" }}{% if h.outdated %} <span class="sc-tag sc-tag--warn">sotto la minima</span>{% endif %}</td>
+          <td>{{ h.install.seen_at|date:"d/m/Y" }}</td>
+          <td>{{ h.install.last_seen_at|date:"d/m/Y" }}</td>
+        </tr>
+      {% empty %}<tr><td colspan="5" class="sc-meta">Non più rilevato su nessun PC.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
