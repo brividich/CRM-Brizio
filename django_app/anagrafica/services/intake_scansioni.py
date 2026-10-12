@@ -195,6 +195,7 @@ def _elabora_file(percorso: Path, radice: Path, config, esito: _Esito) -> None:
     scritte = 0
     consentita, perche_no = _conferma_consentita(config, lettura)
     if consentita:
+        from .formazione_integrita import EdizioneChiusa
         from .formazione_presenze import applica_firme_lezione
 
         firme = {
@@ -205,6 +206,9 @@ def _elabora_file(percorso: Path, radice: Path, config, esito: _Esito) -> None:
             # Il metodo resta UPLOAD: la firma è arrivata da una scansione, e da
             # dove sia entrata nel portale lo dice già `origine` sul registro.
             scritte = len(applica_firme_lezione(lezione, firme))
+        except EdizioneChiusa as exc:
+            perche_no = f"{exc} Scansione archiviata, presenze non registrate."
+            scritte = 0
         except Exception:
             logger.exception("Registrazione automatica delle presenze fallita (%s)", percorso)
             perche_no = "registrazione automatica fallita: lasciata alla conferma manuale"

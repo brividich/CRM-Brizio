@@ -1,0 +1,86 @@
+{# Chiusura e approvazione dell'edizione: MOD.040 Registro Corsi (MT CN 06 §9.2-9.3). #}
+<div class="hr-card fm-section" id="chiusura-edizione" style="margin-bottom:16px;">
+  <div class="fm-section-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+    <div>
+      <h3 class="fm-section-title" style="margin:0;">Chiusura e approvazione (MOD.040)</h3>
+      <p class="muted" style="font-size:12px;margin:4px 0 0;">
+        {% if sessione.is_approvata %}
+          Approvato da <strong>{{ sessione.approvata_da_nome|default:"—" }}</strong> il {{ sessione.approvata_il|date:"d/m/Y H:i" }}.
+          L'edizione è chiusa: calendario, iscritti, esiti e presenze non si modificano.
+        {% elif sessione.stato == "COMPLETATA" %}
+          Edizione completata: calendario, iscritti e presenze sono bloccati; gli esiti degli iscritti si chiudono ancora.
+          Manca l'approvazione formale di MSM/MSO.
+        {% else %}
+          Quando l'edizione è finita portala a «Completata» da «Modifica sessione», chiudi gli esiti e chiedi l'approvazione a MSM/MSO.
+        {% endif %}
+      </p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:formazione_sessione_mod040' sessione.pk %}" target="_blank" rel="noopener"
+         title="Stampa il MOD.040 Registro Corsi Rev.4 compilato con i dati dell'edizione">🖨 MOD.040</a>
+      {% include "anagrafica/partials/_formazione_guida_link.html" with ancora="chiusura" %}
+    </div>
+  </div>
+  <div class="fm-chiusura-body" style="padding:4px 16px 14px;">
+
+  {% if not sessione.is_approvata %}
+    {% if requisiti_approvazione.mancanti %}
+    <div class="fm-cache-banner" style="display:block;margin:10px 0;">
+      <strong>Prima dell'approvazione manca:</strong>
+      <ul style="margin:6px 0 0 18px;">
+        {% for m in requisiti_approvazione.mancanti %}<li>{{ m }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% else %}
+    <p class="muted" style="font-size:12px;margin:10px 0;">✔ La registrazione è completa: argomento, date, partecipanti, docente/tutor ed esiti ci sono.</p>
+    {% endif %}
+    {% if can_approve and not requisiti_approvazione.mancanti %}
+    <form method="post" action="{% url 'anagrafica:formazione_sessione_approva' sessione.pk %}" class="fm-inline-form" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+      {% csrf_token %}
+      <div class="fm-f" style="flex:1;min-width:220px;"><label for="approva-note">Note di approvazione (facoltative)</label>
+        <input type="text" id="approva-note" name="note" maxlength="500" class="fm-input"></div>
+      <button type="submit" class="hr-btn hr-btn-primary">Approva MOD.040</button>
+    </form>
+    {% endif %}
+  {% endif %}
+
+  {% if sessione.is_approvata %}
+  <div style="margin-top:12px;">
+    <strong style="font-size:13px;">Verifica assenza NC nei successivi 6 mesi</strong>
+    {% if sessione.verifica_nc_esito %}
+      <p style="margin:4px 0 0;font-size:13px;">{{ sessione.get_verifica_nc_esito_display }} — registrata il {{ sessione.verifica_nc_il|date:"d/m/Y" }} da {{ sessione.verifica_nc_da_nome|default:"—" }}.
+        {% if sessione.verifica_nc_note %}<br><span class="muted">{{ sessione.verifica_nc_note }}</span>{% endif %}</p>
+    {% else %}
+      <p class="muted" style="font-size:12px;margin:4px 0 6px;">Dovuta dal {{ sessione.verifica_nc_dovuta_dal|date:"d/m/Y" }}{% if verifica_nc_scaduta %} — <strong>è il momento di registrarla</strong>{% endif %}.</p>
+    {% endif %}
+    {% if can_approve %}
+    <form method="post" action="{% url 'anagrafica:formazione_sessione_verifica_nc' sessione.pk %}" class="fm-inline-form" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+      {% csrf_token %}
+      <div class="fm-f"><label for="nc-esito">Esito</label>
+        <select id="nc-esito" name="esito" class="fm-select" required>
+          <option value="">—</option>
+          {% for val, lab in sessione.VERIFICA_NC_CHOICES %}<option value="{{ val }}" {% if sessione.verifica_nc_esito == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+        </select></div>
+      <div class="fm-f" style="flex:1;min-width:220px;"><label for="nc-note">Esito / azione (obbligatorio se «No»)</label>
+        <input type="text" id="nc-note" name="note" maxlength="1000" class="fm-input" value="{{ sessione.verifica_nc_note }}"></div>
+      <button type="submit" class="hr-btn hr-btn-outline">Registra verifica</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if sessione.is_chiusa and can_reopen %}
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;font-size:13px;font-weight:600;">Riapri l'edizione per correggere un dato</summary>
+    <form method="post" action="{% url 'anagrafica:formazione_sessione_riapri' sessione.pk %}" class="fm-inline-form" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;">
+      {% csrf_token %}
+      <div class="fm-f" style="flex:1;min-width:260px;"><label for="riapri-motivo">Motivo (resta nel registro attività)</label>
+        <input type="text" id="riapri-motivo" name="motivo" maxlength="500" required class="fm-input"
+               placeholder="es. integrazione del docente mancante"></div>
+      <button type="submit" class="hr-btn hr-btn-danger">Riapri</button>
+    </form>
+    {% if sessione.is_approvata %}<p class="muted" style="font-size:12px;margin:6px 0 0;">Riaprire revoca l'approvazione: andrà approvata di nuovo.</p>{% endif %}
+  </details>
+  {% endif %}
+</div>
+</div>

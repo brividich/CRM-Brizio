@@ -48,6 +48,7 @@
         <div class="elv-titolo">
           {% if esito.stato == STATI.VALIDO %}<svg class="fmd-ico"><use href="#i-check"/></svg>Attestato autentico e valido
           {% elif esito.stato == STATI.SCADUTO %}<svg class="fmd-ico"><use href="#i-clock"/></svg>Attestato autentico, validità scaduta
+          {% elif esito.stato == STATI.ANNULLATO %}<svg class="fmd-ico"><use href="#i-alert-tri"/></svg>Attestato annullato: il completamento è stato annullato dall'ufficio formazione e non è più valido
           {% else %}<svg class="fmd-ico"><use href="#i-alert-cir"/></svg>Attestato autentico, esito non idoneo{% endif %}
         </div>
         <dl class="elv-dati">

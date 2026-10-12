@@ -71,6 +71,7 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a href="{% url 'anagrafica:formazione_sessione_iscritti' sessione.pk %}" class="hr-btn hr-btn-ghost"
          title="Iscritti, presenze e attestati">👥 Iscritti & presenze</a>
+      {% include "anagrafica/partials/_formazione_guida_link.html" with ancora="edizione" %}
       {% if is_editor %}
       <button class="hr-btn hr-btn-ghost"
               onclick="document.getElementById('panel-dividi-gruppi').style.display=
@@ -90,6 +91,11 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
       {% endif %}
     </div>
   </div>
+
+  {% if motivo_blocco %}
+  <div class="fm-cache-banner" role="status">🔒 {{ motivo_blocco }}</div>
+  {% endif %}
+  {% if gestore or can_approve %}{% include "anagrafica/components/_formazione_chiusura_panel.html" %}{% endif %}
 
   {# ── Edizione / gruppi gemelli: stesso corso erogato a più gruppi in parallelo ── #}
   {% if sessione.edizione %}

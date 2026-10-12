@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # Bump alla v14: permesso e binding della rimozione motivata visite mediche.
 # Bump alla v15: permessi e binding della Reportistica componibile.
 # Bump alla v16: binding Recruiting di pipeline, offerta e posizioni aperte.
-_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v16"
+_BOOTSTRAP_CACHE_KEY = "anagrafica_acl_bootstrap_v17"
 
 # ── ACL v2 canonico — Skill Matrix MOD.187 ─────────────────────────────────────
 # Rende le route Skill Matrix governabili da /admin-portale/acl-canonico/ (e
@@ -269,6 +269,8 @@ PERM_VISITE_VIEW = "anagrafica.visite.view"
 PERM_VISITE_DELETE = "anagrafica.visite.delete"
 PERM_FORMAZIONE_VIEW = "anagrafica.formazione.view"
 PERM_FORMAZIONE_MANAGE = "anagrafica.formazione.manage"
+# Approvazione formale del MOD.040 Registro Corsi (MSM, o MSO quale delegato).
+PERM_FORMAZIONE_APPROVE = "anagrafica.formazione.approve"
 PERM_SCHEDA_MANAGE = "anagrafica.scheda.manage"
 PERM_STATISTICHE_VIEW = "anagrafica.statistiche.view"
 PERM_DOCUMENTI_RISERVATI = "anagrafica.documenti_riservati.view"
@@ -301,6 +303,13 @@ _SEZIONI_CANONICAL = {
         "label": "Anagrafica - Formazione (gestisci)",
         "description": "Modifica catalogo formazione: piani, corsi, sessioni, istruttori, attestati.",
     },
+    PERM_FORMAZIONE_APPROVE: {
+        "label": "Anagrafica - Formazione (approva MOD.040)",
+        "description": (
+            "Approvazione formale del MOD.040 Registro Corsi delle edizioni completate "
+            "(MT CN 06 §9.3: MSM o MSO quale delegato) e riapertura di un'edizione approvata."
+        ),
+    },
     PERM_SCHEDA_MANAGE: {
         "label": "Anagrafica - Gestione schede e cataloghi",
         "description": (
@@ -332,7 +341,7 @@ _SEZIONI_CANONICAL = {
 _SEZIONI_ROLE_GRANTS = {
     "admin": {
         PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_VISITE_DELETE, PERM_FORMAZIONE_VIEW,
-        PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE, PERM_STATISTICHE_VIEW,
+        PERM_FORMAZIONE_MANAGE, PERM_FORMAZIONE_APPROVE, PERM_SCHEDA_MANAGE, PERM_STATISTICHE_VIEW,
         PERM_DOCUMENTI_RISERVATI,
     },
 }

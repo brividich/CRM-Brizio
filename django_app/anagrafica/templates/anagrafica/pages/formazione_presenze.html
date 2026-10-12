@@ -22,6 +22,9 @@ body.theme-dark .fm-form-panel{background:rgba(148,163,184,.06);border-color:#33
 <div class="hr-shell">
   {% include "anagrafica/components/flash_messages.html" %}
 
+  {% if motivo_blocco %}<div class="fm-cache-banner" role="status">🔒 {{ motivo_blocco }}</div>
+  {% elif giornata_futura %}<div class="fm-cache-banner" role="status">La giornata non si è ancora svolta: le presenze si registrano dal giorno della lezione.</div>{% endif %}
+
   {# ── Header ─────────────────────────────────────────────────────────────── #}
   <div class="hr-pagehead">
     <div>
