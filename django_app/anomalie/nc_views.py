@@ -9,6 +9,7 @@ Permessi (tutti lato server):
 """
 from __future__ import annotations
 
+from anomalie.guida import con_guida
 import logging
 from datetime import date
 from pathlib import Path
@@ -102,6 +103,7 @@ def _mie(request, nc) -> bool:
 
 
 @login_required
+@con_guida
 def nc_lista(request):
     gestore = _gestore(request)
     stato = str(request.GET.get("stato") or "aperte").strip().upper()
@@ -179,6 +181,7 @@ def _passi(nc) -> list[dict]:
 
 
 @login_required
+@con_guida
 def nc_dettaglio(request, pk: int):
     nc = get_object_or_404(NC.objects.select_related("precedente", "chiusa_da"), pk=pk)
     perm = _permessi(request, nc)

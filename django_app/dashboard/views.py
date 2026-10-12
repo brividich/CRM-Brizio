@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+from anomalie.guida import con_guida
 import json
 import logging
 import re
@@ -726,6 +727,7 @@ def _anomalie_access_flags(request) -> dict[str, bool]:
 
 
 @login_required
+@con_guida
 def anomalie_menu(request):
     from anomalie.views import _load_anomalie_menu_logo
     access_flags = _anomalie_access_flags(request)

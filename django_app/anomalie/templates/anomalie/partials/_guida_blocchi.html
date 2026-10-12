@@ -1,0 +1,14 @@
+{% comment %}Blocchi di una sezione della guida (anomalie/guida.py): pagina guida e riquadro della pagina a token.{% endcomment %}
+{% for kind, contenuto in blocchi %}
+  {% if kind == "p" %}
+    <p>{{ contenuto }}</p>
+  {% elif kind == "passi" %}
+    <ol class="ag-passi">{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ol>
+  {% elif kind == "ul" %}
+    <ul>{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ul>
+  {% elif kind == "def" %}
+    <dl>{% for termine, spiegazione in contenuto %}<dt>{{ termine }}</dt><dd>{{ spiegazione }}</dd>{% endfor %}</dl>
+  {% elif kind == "nota" %}
+    <div class="ag-nota" role="note">{{ contenuto }}</div>
+  {% endif %}
+{% endfor %}

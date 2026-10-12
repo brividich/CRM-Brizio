@@ -313,6 +313,23 @@
     {% endwith %}
   </p>
 
+  {% if guida %}
+  <details class="ag-guida-box">
+    <summary><span class="ag-guida-box__q" aria-hidden="true">?</span> Come funziona questa pagina</summary>
+    <div class="ag-guida-box__body">
+      {% include "anomalie/partials/_guida_blocchi.html" with blocchi=guida.blocchi %}
+    </div>
+  </details>
+  <style>
+    .ag-guida-box { margin: 0 0 18px; border: 1px solid #cfe0f1; border-radius: 10px; background: #f5f9fd; }
+    .ag-guida-box summary { cursor: pointer; padding: 10px 14px; font-weight: 700; color: #1f3a5f; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .ag-guida-box__q { width: 22px; height: 22px; border-radius: 50%; background: #1f3a5f; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
+    .ag-guida-box__body { padding: 0 16px 12px; font-size: 14px; line-height: 1.55; color: #1e293b; }
+    .ag-guida-box__body p { margin: 0 0 8px; }
+    .ag-guida-box__body ol, .ag-guida-box__body ul { margin: 0 0 8px; padding-left: 22px; display: grid; gap: 4px; }
+  </style>
+  {% endif %}
+
   {% if not can_edit and is_dispositive %}
   <div class="readonly-notice">
     Non hai i permessi per modificare le anomalie di questo OP. Puoi visualizzarle ma non confermare l'azione.
@@ -426,7 +443,7 @@
               {% for f in a.allegati %}
               <a class="allegato-chip" href="{% url 'anomalie_mail_action_allegato' token.token %}?local_id={{ a.id }}&amp;file_id={{ f.file_id|urlencode }}" target="_blank" rel="noopener">{{ f.name }}</a>
               {% endfor %}
-              <div class="allegati-hint">Gli allegati si aprono con l'accesso al portale.</div>
+              <div class="allegati-hint">Foto e PDF si aprono nel browser; gli altri file si scaricano.</div>
             </div>
             {% endif %}
 
