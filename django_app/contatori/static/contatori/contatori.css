@@ -175,3 +175,74 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 @media(max-width:760px){.contatori-module .wiz-esito dl{grid-template-columns:1fr}.contatori-module .wizard .form-actions{flex-wrap:wrap}}
 .contatori-module .errore-snmp{overflow-wrap:anywhere}
 .contatori-module .errore-snmp .errore-azione{margin-top:6px;font-size:13px}
+/* Fattura «solo totali» e riconciliazione per contratto */
+.contatori-module .righe-table.solo-totali .col-a3{display:none}
+.contatori-module .solo-totali-nota{display:none}
+.contatori-module form.solo-totali .solo-totali-nota{display:inline}
+.contatori-module .riconc-vista{display:inline-flex;border:1px solid var(--cm-border);border-radius:10px;overflow:hidden}
+.contatori-module .riconc-vista a{padding:8px 12px;font-size:13px;font-weight:650;color:var(--cm-muted);text-decoration:none}
+.contatori-module .riconc-vista a.active{background:color-mix(in srgb,var(--cm-accent) 12%,var(--cm-surface));color:var(--cm-text)}
+.contatori-module .riconc-kpi .v.riconc-ok{color:var(--cm-ok)}
+.contatori-module .riconc-kpi .v.riconc-danger{color:var(--cm-danger)}
+.contatori-module .riconc-kpi .v.riconc-warn{color:var(--cm-warn)}
+.contatori-module .riconc-titolo{margin:6px 0 12px}
+.contatori-module .riconc-unita{border-left:4px solid var(--cm-ok);padding-top:16px}
+.contatori-module .riconc-unita.warn{border-left-color:var(--cm-warn)}
+.contatori-module .riconc-unita.danger{border-left-color:var(--cm-danger)}
+.contatori-module .riconc-unita-head{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px}
+.contatori-module .riconc-contratto{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:16px}
+.contatori-module .riconc-macchine{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.contatori-module .riconc-macchine li.manca{color:var(--cm-warn)}
+.contatori-module .riconc-table tr.riga-danger td{background:color-mix(in srgb,var(--cm-danger) 6%,transparent)}
+.contatori-module .riconc-parti{font-size:11px;color:var(--cm-muted);font-weight:400}
+.contatori-module .guida-indice ul{margin:8px 0 0;padding-left:18px;columns:2}
+.contatori-module .guida-sezione dt{font-weight:700;margin-top:8px}
+.contatori-module .guida-sezione dd{margin:2px 0 0 0;color:var(--cm-muted)}
+.contatori-module .guida-sezione p,.contatori-module .guida-sezione li{line-height:1.55}
+@media (max-width:640px){.contatori-module .guida-indice ul{columns:1}}
+/* Barra del modulo: gruppi che vanno a capo, niente barra di scorrimento, wizard in «+ Nuovo» */
+.contatori-module .cnav{flex-wrap:wrap;overflow:visible;gap:4px 6px;padding:4px;margin-bottom:16px}
+.contatori-module .cnav-gruppo{display:flex;align-items:center;gap:2px;padding-right:8px;border-right:1px solid var(--cm-border)}
+.contatori-module .cnav-gruppo:nth-last-child(2),.contatori-module .cnav-gruppo:last-child{border-right:0}
+.contatori-module .cnav a{padding:7px 11px}
+.contatori-module .cnav-nuovo{position:relative;margin-left:auto}
+.contatori-module .cnav-nuovo summary{list-style:none;cursor:pointer;font-weight:700;font-size:13px;color:var(--cm-primary-mid);padding:7px 12px;border:1px solid var(--cm-border);border-radius:10px;white-space:nowrap}
+.contatori-module .cnav-nuovo summary::-webkit-details-marker{display:none}
+.contatori-module .cnav-nuovo.attivo summary,.contatori-module .cnav-nuovo[open] summary{background:var(--cm-surface);border-color:var(--cm-accent)}
+.contatori-module .cnav-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;display:flex;flex-direction:column;min-width:200px;padding:6px;background:var(--cm-surface);border:1px solid var(--cm-border);border-radius:12px;box-shadow:0 10px 26px rgba(15,23,42,.14)}
+@media(max-width:760px){.contatori-module .cnav-gruppo{border-right:0;padding-right:0}.contatori-module .cnav-nuovo{margin-left:0}}
+/* Centrale compatta: una schermata, le liste scorrono dentro il loro riquadro */
+.contatori-module .centrale-head{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.contatori-module .centrale-head h1{font-size:clamp(20px,2.2vw,26px);margin:0}
+.contatori-module .centrale-head .eyebrow{margin-bottom:3px;color:var(--cm-muted)}
+.contatori-module .centrale-kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,2.2fr) repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.contatori-module .kpi{display:flex;flex-direction:column;gap:2px;min-width:0;background:var(--cm-surface);border:1px solid var(--cm-border);border-radius:14px;padding:10px 13px;text-decoration:none;color:inherit;transition:border-color .15s}
+.contatori-module a.kpi:hover{border-color:var(--cm-accent)}
+.contatori-module .kpi .k{color:var(--cm-muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:750;line-height:1.25;min-height:2.5em}
+.contatori-module .kpi .v{font-size:22px;font-weight:760;line-height:1.15}
+.contatori-module .kpi .v small{font-size:13px}
+.contatori-module .kpi .meta{color:var(--cm-muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.contatori-module .flotta-seg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:2px}
+.contatori-module .flotta-seg a{display:flex;flex-direction:column;padding:2px 8px;border-radius:9px;text-decoration:none;color:var(--cm-muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent}
+.contatori-module .flotta-seg a:hover{border-color:var(--cm-accent)}
+.contatori-module .flotta-seg b{font-size:20px;line-height:1.15;color:var(--cm-text)}
+.contatori-module .flotta-seg b.health-ok{color:var(--cm-ok)}.contatori-module .flotta-seg b.health-warning{color:var(--cm-warn)}.contatori-module .flotta-seg b.health-error{color:var(--cm-danger)}
+.contatori-module .centrale-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.2fr) minmax(0,1fr);gap:12px;height:max(380px,calc(100vh - 345px))}
+.contatori-module .centrale-col{display:flex;flex-direction:column;min-height:0;margin:0;padding:14px 16px}
+.contatori-module .centrale-col .panel-head{margin-bottom:8px}
+.contatori-module .centrale-col .panel-head h2{font-size:15px}
+.contatori-module .centrale-col .panel-head p{font-size:12px}
+.contatori-module .centrale-scroll{flex:1;min-height:0;overflow:auto;margin-right:-6px;padding-right:6px}
+.contatori-module .panel .centrale-sub{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--cm-muted);margin:12px 0 6px}
+.contatori-module .panel .centrale-sub:first-child{margin-top:0}
+.contatori-module .centrale-col .todo{padding:8px 10px;gap:10px}
+.contatori-module .centrale-col .todo-body span{font-size:12px}
+.contatori-module table.compatta th,.contatori-module table.compatta td{padding:6px;font-size:13px}
+.contatori-module table.compatta .pill{padding:3px 7px;font-size:10.5px}
+.contatori-module .errori-list.compatta li{grid-template-columns:1fr;padding:6px 0;gap:2px;font-size:13px}
+.contatori-module .disp-list{list-style:none;margin:0;padding:0}
+.contatori-module .disp-list li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--cm-border);font-size:13px}
+.contatori-module .disp-list li:last-child{border-bottom:0}
+.contatori-module .disp-list .muted{font-size:11.5px}
+@media(max-width:1280px){.contatori-module .centrale-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}.contatori-module .kpi-flotta{grid-column:1/-1}}
+@media(max-width:1100px){.contatori-module .centrale-grid{grid-template-columns:1fr;height:auto}.contatori-module .centrale-scroll{max-height:420px}}

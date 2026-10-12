@@ -5,6 +5,7 @@
   <h1>Riconciliazione trimestrale</h1>
   <p class="sub">Fattura fornitore contro lettura interna. La lettura interna, fatta qualche giorno dopo, deve essere maggiore o uguale a quella del fornitore.</p>
 </div><div class="spacer"></div>
+<a class="btn ghost" href="{% url 'contatori:riconciliazione_guida' %}">? Guida</a>
 {% if g %}<a class="btn" href="{% url 'contatori:fattura_nuova' %}{% if trimestre %}?trimestre={{ trimestre }}{% endif %}">+ Nuova fattura</a>{% endif %}</div>
 
 <section class="panel">
@@ -15,22 +16,37 @@
         {% for t in trimestri %}<option value="{% url 'contatori:riconciliazione_trim' t %}" {% if t == trimestre %}selected{% endif %}>{{ t }}</option>{% empty %}<option value="">Nessun trimestre</option>{% endfor %}
       </select>
     </div>
+    {% if gruppi_tutti %}
+    <div class="riconc-vista" role="group" aria-label="Contratti mostrati">
+      <a class="{% if not solo_da_verificare %}active{% endif %}" href="?">Tutti ({{ riepilogo.contratti }})</a>
+      <a class="{% if solo_da_verificare %}active{% endif %}" href="?vista=da-verificare">Da verificare ({{ da_verificare }})</a>
+    </div>
+    {% endif %}
     <div class="spacer"></div>
     {% if riepilogo and righe %}
       {% if riepilogo.ok %}<span class="pill ok">Fattura corretta</span>
       {% elif riepilogo.anomalie %}<span class="pill danger">{{ riepilogo.anomalie }} da controllare</span>{% endif %}
       {% if riepilogo.letture_mancanti %}<span class="pill warn">{{ riepilogo.letture_mancanti }} letture interne mancanti</span>{% endif %}
-      <a class="btn ghost small" href="{% url 'contatori:export_riconciliazione' trimestre %}">Esporta .xlsx</a>
     {% endif %}
+    {% if riepilogo and righe %}<a class="btn ghost small" href="{% url 'contatori:export_riconciliazione' trimestre %}">Esporta .xlsx</a>{% endif %}
   </div>
 </section>
+
+{% if riepilogo and righe %}
+<div class="cards riconc-kpi">
+  <div class="card"><div class="k">Contratti</div><div class="v">{{ riepilogo.contratti }}</div><div class="meta">{{ riepilogo.fatture|length }} fattur{{ riepilogo.fatture|length|pluralize:"a,e" }}</div></div>
+  <div class="card"><div class="k">Allineati</div><div class="v riconc-ok">{{ riepilogo.contratti_ok }}</div><div class="meta">interno ≥ fornitore su ogni contatore</div></div>
+  <div class="card"><div class="k">Da controllare</div><div class="v {% if riepilogo.contratti_danger %}riconc-danger{% endif %}">{{ riepilogo.contratti_danger }}</div><div class="meta">{{ riepilogo.anomalie }} contator{{ riepilogo.anomalie|pluralize:"e,i" }} con fornitore &gt; interno</div></div>
+  <div class="card"><div class="k">Letture interne mancanti</div><div class="v {% if riepilogo.letture_mancanti %}riconc-warn{% endif %}">{{ riepilogo.letture_mancanti }}</div><div class="meta">MFC senza lettura nel {{ trimestre }}</div></div>
+</div>
+{% endif %}
 
 {% if trimestre %}
 <section class="panel">
   <div class="panel-head"><div><h2>Fatture del trimestre</h2><p>Correggi una fattura se una lettura del fornitore è stata trascritta male.</p></div></div>
   {% if fatture %}
-  <div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Numero</th><th>Data</th><th>Fornitore</th><th>Chiusura letture</th><th class="num">Contratti</th><th></th></tr></thead><tbody>
-  {% for f in fatture %}<tr><td><strong>{{ f.numero }}</strong></td><td>{{ f.data|date:"d/m/Y" }}</td><td>{{ f.fornitore }}</td><td>{{ f.periodo_al|date:"d/m/Y" }}</td><td class="num">{{ f.righe.all|length }}</td><td>{% if g %}<a class="plain" href="{% url 'contatori:fattura_edit' f.pk %}">Modifica</a>{% endif %}</td></tr>{% endfor %}
+  <div class="table-wrap"><table data-fm-table-skip="1"><thead><tr><th>Numero</th><th>Data</th><th>Fornitore</th><th>Letture in fattura</th><th>Chiusura letture</th><th class="num">Contratti</th><th></th></tr></thead><tbody>
+  {% for f in fatture %}<tr><td><strong>{{ f.numero }}</strong></td><td>{{ f.data|date:"d/m/Y" }}</td><td>{{ f.fornitore }}</td><td>{{ f.get_dettaglio_display }}</td><td>{{ f.periodo_al|date:"d/m/Y" }}</td><td class="num">{{ f.righe.all|length }}</td><td>{% if g %}<a class="plain" href="{% url 'contatori:fattura_edit' f.pk %}">Modifica</a>{% endif %}</td></tr>{% endfor %}
   </tbody></table></div>
   {% else %}
   <div class="banner warn">Nessuna fattura caricata per il {{ trimestre }}.{% if g %} <a class="plain" href="{% url 'contatori:fattura_nuova' %}?trimestre={{ trimestre }}">Inseriscila ora</a> per avviare il confronto.{% endif %}</div>
@@ -39,26 +55,48 @@
 {% endif %}
 
 {% if righe %}
-<section class="panel">
-  <div class="panel-head"><div><h2>Confronto per contatore</h2><p>Scarto = interno − fornitore. Negativo significa copie fatturate che la macchina non mostra.</p></div></div>
+<div class="panel-head riconc-titolo"><div><h2>Confronto per contratto</h2><p>Scarto = interno − fornitore. Negativo significa copie fatturate che la macchina non mostra.</p></div></div>
+{% for gr in gruppi %}
+<section class="panel riconc-unita {{ gr.livello }}">
+  <header class="riconc-unita-head">
+    <div>
+      <div class="riconc-contratto"><strong>{{ gr.contratto }}</strong>
+        {% if gr.pool %}<span class="pill warn" title="Più MFC sullo stesso contratto: le letture interne si sommano">pool · {{ gr.macchine|length }} MFC</span>{% endif %}
+        {% if gr.totali %}<span class="pill" title="La fattura riporta solo i totali: si confrontano con A4 + A3 interni">solo totali</span>{% endif %}
+      </div>
+      <div class="muted">Fattura {{ gr.fattura.numero }} · {{ gr.fattura.fornitore }} · chiusura {{ gr.fattura.periodo_al|date:"d/m/Y" }}{% if gr.descrizione %} · {{ gr.descrizione }}{% endif %}</div>
+    </div>
+    <div class="spacer"></div>
+    {% if gr.livello == "danger" %}<span class="pill danger">Da controllare · {{ gr.copie_in_eccesso }} copie fatturate in più</span>
+    {% elif gr.livello == "warn" %}<span class="pill warn">Incompleto</span>
+    {% else %}<span class="pill ok">Allineato</span>{% endif %}
+  </header>
+  <ul class="riconc-macchine">
+    {% for x in gr.macchine %}<li class="{% if not x.lettura %}manca{% endif %}">
+      <a class="plain" href="{% url 'contatori:macchina' x.macchina.pk %}"><strong>{{ x.macchina.reparto }}</strong></a> <span class="muted">{{ x.macchina.matricola }}</span>
+      {% if x.lettura %}<span class="muted">· lettura {{ x.lettura.data|date:"d/m/Y" }} ({{ x.lettura.get_fonte_display }}{% if x.giorni is not None %}, {% if x.giorni >= 0 %}+{{ x.giorni }} gg{% else %}{{ x.giorni }} gg: prima della chiusura del fornitore{% endif %}{% endif %})</span>
+      {% else %}<span class="pill warn">lettura mancante</span>{% if g %} <a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ x.macchina.pk }}&amp;trimestre={{ trimestre }}">+ Lettura</a>{% endif %}{% endif %}
+    </li>{% empty %}<li class="manca"><span class="pill warn">Nessuna MFC con questo contratto</span> <span class="muted">Imposta il contratto nell'anagrafica stampanti.</span></li>{% endfor %}
+  </ul>
   <div class="table-wrap"><table class="riconc-table" data-fm-table-skip="1">
-    <thead><tr><th>Contratto</th><th>Contatore</th><th class="num">Fornitore</th><th class="num">Interno</th><th class="num">Scarto</th><th>Esito</th></tr></thead>
+    <thead><tr><th>Contatore</th><th class="num">Fornitore</th><th class="num">Interno</th><th class="num">Scarto</th><th>Esito</th></tr></thead>
     <tbody>
-    {% for r in righe %}
-      <tr class="{% ifchanged r.contratto %}gruppo-inizio{% endifchanged %}">
-        <td>{% ifchanged r.contratto %}<strong>{{ r.contratto }}</strong>{% if r.pool %} <span class="pill warn">pool</span>{% endif %}<div class="muted">{{ r.descrizione }}</div>{% endifchanged %}</td>
+    {% for r in gr.righe %}
+      <tr class="{% if r.livello == 'danger' %}riga-danger{% endif %}">
         <td>{{ r.contatore }}</td>
         <td class="num">{{ r.fornitore }}</td>
-        <td class="num">{% if r.ns is not None %}{{ r.ns }}{% else %}—{% endif %}</td>
+        <td class="num">{% if r.ns is not None %}{{ r.ns }}{% else %}—{% endif %}
+          {% if r.per_macchina %}<div class="riconc-parti">{% for m, v in r.per_macchina %}{{ m.reparto }} {{ v }}{% if not forloop.last %} + {% endif %}{% endfor %}</div>{% endif %}</td>
         <td class="num {% if r.scarto is not None and r.scarto < 0 %}neg{% endif %}">{% if r.scarto is not None %}{{ r.scarto }}{% else %}—{% endif %}</td>
-        <td><span class="pill {{ r.livello }}">{{ r.esito }}</span>
-          {% if g and r.mancanti and r.contatore == "A4 BN" %}<div class="azioni-mancanti">{% for m in r.mancanti %}<a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ m.pk }}&amp;trimestre={{ trimestre }}">+ Lettura {{ m.reparto }}</a>{% endfor %}</div>{% endif %}
-        </td>
+        <td><span class="pill {{ r.livello }}">{{ r.esito }}</span></td>
       </tr>
     {% endfor %}
     </tbody>
   </table></div>
 </section>
+{% empty %}
+<section class="panel"><p class="muted">Nessun contratto da verificare nel {{ trimestre }}: tutto allineato. <a class="plain" href="?">Mostra tutti</a></p></section>
+{% endfor %}
 {% elif trimestre and fatture %}
 <section class="panel"><p class="muted">Le fatture del trimestre non contengono righe.</p></section>
 {% elif not trimestre %}

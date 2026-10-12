@@ -5,6 +5,7 @@ app_name = "contatori"
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("riconciliazione/", views.riconciliazione, name="riconciliazione"),
+    path("riconciliazione/guida/", views.riconciliazione_guida, name="riconciliazione_guida"),
     path("riconciliazione/<str:trimestre>/", views.riconciliazione, name="riconciliazione_trim"),
     path("fatture/nuova/", views.fattura_edit, name="fattura_nuova"),
     path("fatture/<int:pk>/", views.fattura_edit, name="fattura_edit"),
