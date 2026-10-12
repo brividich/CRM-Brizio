@@ -72,6 +72,7 @@
         </select>
         {% endif %}
         {% if puo_gestire_viste %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:viste_elenco' %}" title="Configura le viste dell'elenco">Viste</a>{% endif %}
+        {% include "anagrafica/partials/_guida_persone_link.html" with ancora="elenco" %}
         <span class="fmd-spacer"></span>
         {% include "anagrafica/partials/_export_buttons.html" with export_key="dipendenti" %}
       </form>

@@ -6,7 +6,7 @@ Questo capitolo spiega tre funzioni che riducono il lavoro ripetitivo del SOC se
 - gli **automatismi di rientro**: l'alert si chiude da solo quando un dato successivo prova che il problema non c'è più;
 - l'**impatto CVE sugli asset**: per ogni vulnerabilità si vede quali PC la hanno davvero, partendo dall'inventario software.
 
-Le pagine si trovano nel menu del SOC: **Soppressioni** e **Vulnerabilità** per tutti; **Config › Automatismi di rientro**, **Config › Inventario software** e **Config › Software e CPE** per chi ha il permesso di configurazione.
+Le pagine si trovano nel menu del SOC: **Soppressioni** e **Vulnerabilità** per tutti; in **Configurazione** le schede **Automatismi di rientro** e **Inventario software** (da cui si apre **Software e CPE**) per chi ha il permesso di configurazione.
 
 ## Soppressione appresa
 
@@ -75,9 +75,9 @@ Un automatismo di rientro chiude un alert come **Risolto** quando un dato succes
 
 ### Simulare prima di accendere
 
-Nella pagina **Config › Automatismi di rientro** ogni regola ha il pulsante **Simula 30 giorni**: mostra quali alert degli ultimi 30 giorni la regola avrebbe chiuso, con il motivo, **senza chiudere nulla**. Un alert che il team ha chiuso per altri motivi ma che la regola avrebbe chiuso è un buon segnale; un alert ancora in lavorazione che la regola avrebbe chiuso è un campanello d'allarme.
+Nella pagina **Configurazione › Automatismi di rientro** ogni regola ha il pulsante **Simula 30 giorni**: mostra quali alert degli ultimi 30 giorni la regola avrebbe chiuso, con il motivo, **senza chiudere nulla**. Un alert che il team ha chiuso per altri motivi ma che la regola avrebbe chiuso è un buon segnale; un alert ancora in lavorazione che la regola avrebbe chiuso è un campanello d'allarme.
 
-Una regola si può **accendere solo se è stata simulata negli ultimi 7 giorni**. Accensioni e spegnimenti finiscono nel registro audit. Per spegnere tutte le chiusure automatiche in un colpo solo si imposta `SECURITY_AUTO_RESOLVE_ENABLED` a `false` in Config › Impostazioni generali.
+Una regola si può **accendere solo se è stata simulata negli ultimi 7 giorni**. Accensioni e spegnimenti finiscono nel registro audit. Per spegnere tutte le chiusure automatiche in un colpo solo si imposta `SECURITY_AUTO_RESOLVE_ENABLED` a `false` in Configurazione › Impostazioni generali.
 
 ## Impatto CVE sugli asset
 
@@ -88,11 +88,11 @@ Una regola si può **accendere solo se è stata simulata negli ultimi 7 giorni**
 - **CISA KEV**: l'elenco delle CVE sfruttate attivamente.
 - **EPSS** (FIRST.org): la probabilità che una CVE venga sfruttata nei prossimi 30 giorni.
 
-NVD, KEV ed EPSS vengono letti da un job in background ogni ora, solo se in **Impostazioni › Impatto CVE sugli asset** è acceso «Arricchisci le CVE da NVD e CISA KEV». Nessuna pagina del portale chiama questi servizi mentre la si apre.
+NVD, KEV ed EPSS vengono letti da un job in background ogni ora, solo se in **Configurazione › Avvisi e automatismi › Impatto CVE sugli asset** è acceso «Arricchisci le CVE da NVD e CISA KEV». Nessuna pagina del portale chiama questi servizi mentre la si apre.
 
 ### Importare un inventario
 
-1. Apri **Config › Inventario software**, scegli la provenienza (WatchGuard, BusinessLog, altro) e carica il file CSV o XLSX.
+1. Apri **Configurazione › Inventario software**, scegli la provenienza (WatchGuard, BusinessLog, altro) e carica il file CSV o XLSX.
 2. Associa le colonne del file ai campi: **PC**, **prodotto** e **versione** (obbligatori), **produttore** e **data di rilevamento** (facoltativi). Il sistema propone l'associazione leggendo le intestazioni; se compili **Salva come preset**, la volta dopo le colonne si associano da sole.
 3. Premi **Aggiorna anteprima**: vedi le righe valide e quelle scartate, ognuna con il motivo (PC vuoto, versione vuota, riga duplicata…). In Excel formatta la colonna versione come **testo**: una versione salvata come numero («2.10» diventa 2.1) viene scartata.
 4. Premi **Importa**. Le installazioni già note vengono aggiornate; quelle che non compaiono più nel nuovo export dello stesso tipo vengono segnate come **non più rilevate**.
@@ -103,7 +103,7 @@ Il file caricato resta in un'area privata e cifrata solo fino all'import e non �
 
 ### Collegare i software alle CVE (CPE)
 
-NVD descrive i prodotti con un codice chiamato **CPE** (produttore e prodotto, per esempio `7-zip:7-zip`). Per sapere se una CVE riguarda un software dell'inventario, ogni coppia produttore/prodotto va collegata al suo CPE una volta sola, in **Config › Software e CPE**:
+NVD descrive i prodotti con un codice chiamato **CPE** (produttore e prodotto, per esempio `7-zip:7-zip`). Per sapere se una CVE riguarda un software dell'inventario, ogni coppia produttore/prodotto va collegata al suo CPE una volta sola, in **Configurazione › Inventario software › Software e CPE**:
 
 - **Cerca in NVD** propone i CPE più simili; **Conferma** quello giusto.
 - **N/A** per i software senza CVE da seguire (driver, componenti interni): non verranno più proposti.
@@ -133,11 +133,23 @@ Il sistema non tira mai a indovinare: quando non può dimostrare l'esito, scrive
 - **Scheda alert e ticket** di una CVE: il riquadro «Impatto sugli asset» e, se non ci sono PC impattati, la proposta di chiusura. La proposta **non compare mai** per CVE sfruttate (KEV) o critiche.
 - **Scheda asset** del modulo Asset: la sezione «Vulnerabilità» con le CVE che riguardano quel PC.
 
+### Alert e ticket automatici
+
+Quando l'inventario dice che un PC ha una versione vulnerabile di una CVE **critica** (CVSS 9 o più) o **sfruttata attivamente** (CISA KEV), il SOC apre un alert critico, senza aspettare che lo segnali Defender.
+
+- **Un alert per CVE**, con il numero di PC impattati e il prodotto nel titolo. Se al giro dopo altri PC risultano impattati, l'alert si aggiorna; non ne nasce uno nuovo.
+- L'alert nasce solo per i PC che **diventano** impattati: lo stesso PC già segnalato non lo fa ripartire. Se chiudi l'alert e il PC resta vulnerabile, l'alert non si riapre da solo finché non si aggiunge un altro PC.
+- **Ticket di rimedio**: si apre insieme all'alert. Se per quella CVE c'è già un ticket aperto (per esempio nato da Defender), l'alert si collega a quello, senza un secondo ticket.
+- Le notifiche sono quelle degli altri alert e ticket, sugli stessi canali.
+- Le CVE alte, medie e basse non aprono alert: si guardano nella pagina **Vulnerabilità**.
+
+Si accende e si spegne in **Configurazione › Avvisi e automatismi › Impatto CVE sugli asset**: «Apri un alert quando un PC risulta impattato» e «Apri anche il ticket di rimedio». Arrivano accese, ma funzionano solo con l'arricchimento CVE acceso e un inventario importato.
+
 ## Domande frequenti
 
 **Ho disattivato tre volte lo stesso alert ma la regola non è nata.** Controlla nella scheda dell'alert il conteggio e il motivo: probabilmente l'alert è critico, riguarda una CVE sfruttata o una minaccia, il tipo è escluso, oppure nessuna delle tre disattivazioni è stata fatta da chi ha il permesso di configurazione.
 
-**Una soppressione appresa nasconde un problema vero.** Riapri l'alert o promuovi l'evento soppresso: la regola si spegne subito e il conteggio riparte. Per spegnere del tutto la funzione: Impostazioni › Soppressione appresa.
+**Una soppressione appresa nasconde un problema vero.** Riapri l'alert o promuovi l'evento soppresso: la regola si spegne subito e il conteggio riparte. Per spegnere del tutto la funzione: Configurazione › Avvisi e automatismi › Soppressione appresa.
 
 **Un PC risulta «da verificare» per tutte le CVE.** L'inventario di quel PC è più vecchio di 30 giorni (la soglia si cambia in Impostazioni): carica un export aggiornato.
 

@@ -71,7 +71,7 @@ def _has_planned_task(project) -> bool:
     return project.tasks.filter(due_date__isnull=False).exists()
 
 
-_TEAM_REQUIRED_FIELDS = ("project_managers", "capi_commessa", "programmers")
+_TEAM_REQUIRED_CODES = ("PM", "CC", "PRG")
 
 
 def _has_team(project) -> bool:
@@ -79,7 +79,7 @@ def _has_team(project) -> bool:
     anno = getattr(project, "rd_has_team", None)
     if anno is not None:
         return bool(anno)
-    return all(getattr(project, field).exists() for field in _TEAM_REQUIRED_FIELDS)
+    return all(project.team_members(code) for code in _TEAM_REQUIRED_CODES)
 
 
 def _meeting_action_url(project, pid: int) -> str:
@@ -122,7 +122,7 @@ def compute_project_readiness(project) -> ReadinessResult:
 
 
 def annotate_readiness_qs(qs):
-    from .models import KickoffMeeting, MeetingStatus, Project, Task
+    from .models import KickoffMeeting, MeetingStatus, ProjectMember, Task
 
     return qs.annotate(
         rd_has_meeting=Exists(
@@ -134,12 +134,12 @@ def annotate_readiness_qs(qs):
         rd_has_planned=Exists(
             Task.objects.filter(project=OuterRef("pk"), due_date__isnull=False)
         ),
-        # Il team e' M2M: senza annotazione ogni progetto costerebbe tre query.
+        # Senza annotazione ogni progetto costerebbe una query per ruolo.
         rd_has_team=reduce(
             and_,
             (
-                Exists(Project.objects.filter(pk=OuterRef("pk"), **{f"{field}__isnull": False}))
-                for field in _TEAM_REQUIRED_FIELDS
+                Exists(ProjectMember.objects.filter(project=OuterRef("pk"), role_code=code))
+                for code in _TEAM_REQUIRED_CODES
             ),
         ),
     )

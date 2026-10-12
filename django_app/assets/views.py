@@ -6014,6 +6014,17 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "sort_order": 80,
             "is_visible": True,
         },
+        {
+            "code": "guida_asset",
+            "section": AssetSidebarButton.SECTION_OPERATIONS,
+            "label": "Guida Asset",
+            "target_url": "django:assets:guida",
+            "active_match": "/assets/guida/",
+            "is_subitem": False,
+            "parent_code": "",
+            "sort_order": 99,
+            "is_visible": True,
+        },
     ]
 
 

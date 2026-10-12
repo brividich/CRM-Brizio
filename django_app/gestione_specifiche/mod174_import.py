@@ -96,6 +96,11 @@ def leggi_righe_mod174(fileobj, *, sheet: str | None = None) -> list[dict]:
         if not numero:
             continue
         normative = _txt(ws.cell(row=r, column=COL["normative"]).value)
+        rif_norma = _txt(ws.cell(row=r, column=COL["rif_norma"]).value)
+        # Nel MOD.174 compilato la colonna D (intestata «27001») riporta chi ha rilevato la voce
+        # («DEKRA», «INTERNO»): la norma si ricava allora dal REF NORMA (27001-9.2, 27002-7.2…).
+        norme_txt = f"{normative} {rif_norma}"
+        fonte = "" if any(n in normative for n in ("27001", "27002", "45001", "9100", "14001", "125")) else normative
         tipo_raw = _txt(ws.cell(row=r, column=COL["tipo"]).value).upper()
         data_chiusura = _to_date(ws.cell(row=r, column=COL["data_closed"]).value)
         marks = sum(1 for k in ("p", "d", "c", "a") if _is_x(ws.cell(row=r, column=COL[k]).value))
@@ -103,10 +108,13 @@ def leggi_righe_mod174(fileobj, *, sheet: str | None = None) -> list[dict]:
             "numero": numero,
             "data_apertura": _to_date(ws.cell(row=r, column=COL["data"]).value),
             "tipo": "NC" if "NC" in tipo_raw else "OFI",
-            "norma_iso27001": "27001" in normative,
-            "norma_iso45001": "45001" in normative,
-            "norma_en9100": "9100" in normative,
-            "rif_norma": _txt(ws.cell(row=r, column=COL["rif_norma"]).value)[:200],
+            "norma_iso27001": "27001" in norme_txt or "27002" in norme_txt,
+            "norma_iso45001": "45001" in norme_txt,
+            "norma_en9100": "9100" in norme_txt,
+            "norma_iso14001": "14001" in norme_txt,
+            "norma_pdr125": "125" in normative or "PDR" in norme_txt.upper(),
+            "fonte": fonte[:100],
+            "rif_norma": rif_norma[:200],
             "processo": _txt(ws.cell(row=r, column=COL["processo"]).value)[:200],
             "opportunita": _txt(ws.cell(row=r, column=COL["opportunita"]).value),
             "plan": _txt(ws.cell(row=r, column=COL["plan"]).value),
@@ -125,7 +133,7 @@ def leggi_righe_mod174(fileobj, *, sheet: str | None = None) -> list[dict]:
 # Campi del dict-riga scrivibili direttamente su RegistroOFI.
 _CAMPI = (
     "data_apertura", "tipo", "norma_iso27001", "norma_iso45001", "norma_en9100",
-    "rif_norma", "processo", "opportunita", "plan", "allegato_link", "do",
+    "norma_iso14001", "norma_pdr125", "fonte", "rif_norma", "processo", "opportunita", "plan", "allegato_link", "do",
     "verifica", "act", "data_richiesta", "data_chiusura", "owner_processo", "fase",
 )
 

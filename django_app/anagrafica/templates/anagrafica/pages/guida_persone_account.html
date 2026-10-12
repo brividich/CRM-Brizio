@@ -1,0 +1,182 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Guida persone e account | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<style>
+.gpa-sec{ padding:20px 22px; scroll-margin-top:80px; }
+.gpa-sec h2{ font-size:17px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+.gpa-sec h3{ font-size:14px; margin:16px 0 6px; }
+.gpa-sec p, .gpa-sec li{ font-size:14px; line-height:1.55; }
+.gpa-sec ul, .gpa-sec ol{ margin:6px 0 10px; padding-left:22px; }
+.gpa-sec li{ margin-bottom:4px; }
+.gpa-indice{ display:flex; flex-wrap:wrap; gap:6px 14px; padding:16px 22px; font-size:14px; }
+.gpa-indice strong{ width:100%; font-size:13px; }
+.gpa-nota{ border-left:4px solid #f59e0b; padding:8px 12px; margin:10px 0; font-size:13px; }
+.gpa-parte{ font-size:13px; text-transform:uppercase; letter-spacing:.04em; margin:22px 0 8px; opacity:.75; }
+.gpa-code{ font-family:ui-monospace, SFMono-Regular, Consolas, monospace; font-size:12.5px; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap" style="max-width:900px;">
+
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:dipendenti_list' %}">Dipendenti</a><span class="fmd-sep"> / </span><span class="fmd-cur">Guida</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-book"/></svg>Guida: persone e account</h1>
+        <p class="fmd-ph-sub">Come si usa l'elenco dipendenti{% if parte_admin %}, come si inserisce un nuovo dipendente con il suo account portale e come si configurano viste, import e avviso IT{% endif %}.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a href="{% url 'anagrafica:dipendenti_list' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-users"/></svg>Elenco dipendenti</a>
+        {% if parte_admin %}<a href="{% url 'anagrafica:amministrazione_hub' %}" class="fmd-btn fmd-btn-ghost"><svg class="fmd-ico"><use href="#i-gear"/></svg>Amministrazione</a>{% endif %}
+      </div>
+    </div>
+
+    <nav class="fmd-panel gpa-indice" aria-label="Indice della guida">
+      <strong>In questa guida</strong>
+      <a class="fmd-data-link" href="#elenco">L'elenco e le viste</a>
+      {% if parte_admin %}
+      <a class="fmd-data-link" href="#viste">Configurare le viste</a>
+      <a class="fmd-data-link" href="#nuovo-dipendente">Nuovo dipendente</a>
+      <a class="fmd-data-link" href="#account-portale">Account portale nella scheda</a>
+      <a class="fmd-data-link" href="#amministrazione">Amministrazione e import</a>
+      <a class="fmd-data-link" href="#ad">Ricerca in Active Directory</a>
+      <a class="fmd-data-link" href="#collegamento-automatico">Collegamento al primo accesso</a>
+      <a class="fmd-data-link" href="#avviso-it">Avviso IT ai nuovi ingressi</a>
+      <a class="fmd-data-link" href="#dopo-il-deploy">Dopo l'aggiornamento</a>
+      {% endif %}
+    </nav>
+
+    <section class="fmd-panel gpa-sec" id="elenco">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>L'elenco dipendenti e le viste</h2>
+      <p>In alto, accanto a <strong>Filtra</strong> e <strong>Reset</strong>, il menu <strong>Vista</strong> sceglie quali colonne mostra l'elenco.</p>
+      <ol>
+        <li>Apri <strong>Persone → Dipendenti</strong>.</li>
+        <li>Scegli una vista dal menu <strong>Vista</strong>: l'elenco si ricarica con le sue colonne. Le viste di partenza sono <strong>Standard, ISO 9001, ISO 45001, HR, Sicurezza</strong> e <strong>Altro</strong>.</li>
+        <li>La vista scelta resta tua: la ritrovi la volta successiva.</li>
+        <li><strong>Esporta</strong> scarica in Excel o PDF le stesse colonne che vedi a schermo.</li>
+      </ol>
+      <p>Alcune viste si aprono già filtrate (per esempio su un reparto) o ordinate: <strong>Reset</strong> toglie il filtro.</p>
+      <div class="gpa-nota">Se una colonna della vista non compare, è un dato riservato (dati personali, sanitari o HR) e il tuo profilo non ha il permesso di vederlo. Lo stesso vale per l'export: la colonna non arriva nemmeno nel file.</div>
+    </section>
+
+    {% if parte_admin %}
+    <div class="gpa-parte">Per HR e amministratori dell'anagrafica</div>
+
+    <section class="fmd-panel gpa-sec" id="viste">
+      <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Configurare le viste</h2>
+      <p>Da <strong>Impostazioni → Viste elenco dipendenti</strong> (oppure <strong>Amministrazione → Viste elenco</strong>).</p>
+      <ol>
+        <li><strong>Nuova vista</strong> per crearne una, oppure <strong>Modifica</strong> su una esistente.</li>
+        <li>Nel riquadro <strong>Colonne</strong> spunta quelle da mostrare e trascinale (o usa ↑ ↓) per l'ordine; la larghezza in pixel è facoltativa (0 = automatica).</li>
+        <li>In <strong>Impostazioni</strong> scegli per chi vale: <em>Tutti</em> o un ruolo. <strong>Predefinita</strong> la propone a chi non ne ha scelta una (una sola per gruppo). <strong>Blocca personalizzazione</strong> impedisce a chi la usa di cambiarne le colonne.</li>
+        <li><strong>Ordina all'apertura per</strong> e <strong>Filtro reparto all'apertura</strong> valgono quando si apre l'elenco senza filtri.</li>
+        <li>L'<strong>Anteprima</strong> in basso mostra le prime righe vere con i tuoi permessi. Poi <strong>Salva la vista</strong>.</li>
+      </ol>
+      <p>In <strong>Altre azioni</strong>: <strong>Duplica</strong>, <strong>Ripristina le colonne di partenza</strong> (per le viste di sistema) ed <strong>Elimina la vista</strong>, che chiede di scrivere il codice della vista. Chi la usava torna alla predefinita.</p>
+      <div class="gpa-nota">Le colonne con il badge <strong>sensibile</strong> si possono mettere in una vista condivisa: chi non ha il permesso indicato semplicemente non le vede.</div>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="nuovo-dipendente">
+      <h2><svg class="fmd-ico"><use href="#i-plus"/></svg>Inserire un nuovo dipendente</h2>
+      <p><strong>Persone → Nuovo dipendente</strong> apre quattro passi; si va avanti con <strong>Avanti →</strong> e si torna con <strong>← Indietro</strong>, oppure cliccando sul passo.</p>
+      <ol>
+        <li><strong>Dati anagrafici</strong>: nome (obbligatorio), cognome, alias login, reparto, mansione, email di notifica; dati civili e figli se servono.</li>
+        <li><strong>Organizzazione</strong>: dati aziendali, sezione HR, formazione sicurezza pregressa.</li>
+        <li><strong>Account portale</strong>: vedi sotto.</li>
+        <li><strong>Riepilogo</strong>: controlla i dati, spunta se vuoi <strong>Avvia subito la pratica di onboarding</strong>, poi <strong>✓ Crea dipendente</strong>.</li>
+      </ol>
+      <h3>Lo step «Account portale»</h3>
+      <ol>
+        <li>Premi <strong>🔎 Cerca utenti portale e account AD</strong>: il portale cerca un utente già esistente con la <em>stessa</em> email o lo <em>stesso</em> codice fiscale e, in sola lettura, l'account in Active Directory.</li>
+        <li>Seleziona un risultato oppure una scelta:
+          <ul>
+            <li><strong>Collega account AD</strong>: la persona entrerà con le sue credenziali aziendali;</li>
+            <li><strong>Collega utente portale esistente</strong>: solo tra quelli trovati con la stessa email o lo stesso codice fiscale;</li>
+            <li><strong>Crea utente locale portale</strong>: indica un <strong>Nome utente (login)</strong> senza @ e una <strong>Password iniziale</strong> da comunicare di persona; al primo accesso va cambiata;</li>
+            <li><strong>Nessun accesso al portale per ora</strong> (la scelta di partenza).</li>
+          </ul>
+        </li>
+      </ol>
+      <div class="gpa-nota">L'account non si crea più da solo: senza una scelta il dipendente nasce senza accesso. Un dipendente inserito come non attivo non può ricevere un account. Se premi due volte «Crea dipendente», il portale ti porta alla scheda già creata.</div>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="account-portale">
+      <h2><svg class="fmd-ico"><use href="#i-shield"/></svg>Account portale di un dipendente già inserito</h2>
+      <p>Nella scheda del dipendente, tab <strong>🪪 Anagrafica</strong>, riquadro <strong>Account portale</strong>.</p>
+      <ul>
+        <li><strong>Scheda senza account</strong>: la ricerca parte con email, nome, cognome e codice fiscale della scheda. Premi <strong>Cerca utenti portale e account AD</strong>, scegli come nel nuovo inserimento e premi <strong>Collega account</strong>.</li>
+        <li><strong>Scheda con account</strong>: vedi login, tipo (AD o locale) e stato. <strong>Scollega</strong> toglie solo il collegamento (chiede conferma): l'utente portale non viene cancellato.</li>
+      </ul>
+      <p>Ogni collegamento e scollegamento resta nel registro attività.</p>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="amministrazione">
+      <h2><svg class="fmd-ico"><use href="#i-gear"/></svg>Amministrazione anagrafica e storico import</h2>
+      <p><strong>Impostazioni → Amministrazione e import</strong> apre una pagina a schede: <strong>Configurazione, Viste elenco, Cataloghi, Import e storico, Manutenzione</strong>. Mostra solo le pagine che puoi aprire.</p>
+      <ul>
+        <li><strong>Import e storico</strong>: gli import di retribuzioni, cedolini e slide e-learning con chi, quando, file e righe ok/scartate. Per retribuzioni e cedolini <strong>Scarica</strong> dà l'elenco delle righe scartate con il motivo (riga del file, codice fiscale). Retribuzioni e cedolini li vede solo chi ha il permesso HR.</li>
+        <li><strong>Manutenzione</strong>: i comandi di riallineamento dei dati, da far eseguire all'IT sul server (prima in prova).</li>
+      </ul>
+    </section>
+
+    <div class="gpa-parte">Per amministratori del portale e IT</div>
+
+    <section class="fmd-panel gpa-sec" id="ad">
+      <h2><svg class="fmd-ico"><use href="#i-shield"/></svg>Ricerca in Active Directory: cosa controlla</h2>
+      <p>La ricerca fa solo letture in AD con l'utente di servizio configurato: il portale non crea né modifica account AD. Un account compare ma <strong>non è selezionabile</strong> quando:</p>
+      <ul>
+        <li>è <strong>disabilitato in AD</strong>;</li>
+        <li>non è in nessuno dei gruppi di <span class="gpa-code">LDAP_GROUP_ALLOWLIST</span> («fuori dai gruppi autorizzati al portale»);</li>
+        <li>non ha UPN.</li>
+      </ul>
+      <p>Il collegamento avviene solo per <strong>UPN o email esattamente uguali</strong>: mai per somiglianza del nome o prefisso. Se più account corrispondono, il risultato è segnalato come <strong>ambiguo</strong> e non si collega. Se AD non risponde, nel nuovo inserimento il dipendente si crea comunque e l'account si collega dopo dalla scheda.</p>
+      <h3>Account privilegiati</h3>
+      <p>Un utente portale che è superuser, staff, amministratore del portale o ha una password locale si collega solo se un <strong>superuser</strong> spunta <strong>Confermo come superuser il collegamento a un account privilegiato</strong>. La conferma resta nel registro attività.</p>
+      <h3>Utenti locali</h3>
+      <p>Il login di un utente locale non può avere la @ né coincidere con un utente o un account AD già esistente: così un utente locale non può «occupare» l'identità di una persona che entrerà con AD.</p>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="collegamento-automatico">
+      <h2><svg class="fmd-ico"><use href="#i-refresh"/></svg>Collegamento automatico al primo accesso</h2>
+      <p>Quando una persona entra per la prima volta con il suo account AD, il portale la aggancia da solo a una scheda <em>ancora senza account</em> se nella scheda l'<strong>Alias login</strong> è uguale al nome account AD, oppure il <strong>login</strong> è uguale al suo UPN.</p>
+      <div class="gpa-nota">Dopo uno <strong>Scollega</strong>, se alias o login della scheda corrispondono ancora all'account AD, al successivo accesso la persona viene ricollegata. Per evitarlo correggi l'alias nella scheda.</div>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="avviso-it">
+      <h2><svg class="fmd-ico"><use href="#i-alarm"/></svg>Avviso IT ai nuovi ingressi</h2>
+      <p>Si configura in <strong>Impostazioni → Onboarding / Offboarding → Avviso IT ai nuovi ingressi</strong>:</p>
+      <ol>
+        <li><strong>Email IT da avvisare</strong>: uno o più indirizzi separati da virgola.</li>
+        <li><strong>Utenti IT da notificare nel portale (campanella)</strong>: Ctrl+clic per sceglierne più di uno.</li>
+        <li><strong>Apri anche un ticket IT</strong>: il ticket viene annotato sulla voce «Creare account AD» della pratica onboarding.</li>
+        <li><strong>Salva avviso IT</strong>.</li>
+      </ol>
+      <p>A ogni nuovo dipendente l'IT riceve nominativo, reparto, mansione, data di ingresso, email di notifica, l'esito dell'account portale (account AD collegato, utente locale creato oppure nessun accesso: account da creare) e i link alla scheda e alla pratica onboarding. Non contiene codice fiscale né dati sanitari.</p>
+      <div class="gpa-nota">Un canale lasciato vuoto non viene usato; senza nessuna configurazione non parte niente. Se un invio fallisce il dipendente viene creato lo stesso: l'esito dell'avviso resta nel registro attività.</div>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="dopo-il-deploy">
+      <h2><svg class="fmd-ico"><use href="#i-clipboard"/></svg>Dopo l'aggiornamento del portale</h2>
+      <ol>
+        <li>Eseguire le migrazioni (<span class="gpa-code">migrate</span>): creano le viste di partenza e i permessi delle pagine nuove, copiati dalle pagine vicine (Impostazioni, Nuovo dipendente, scheda dipendente).</li>
+        <li>Controllare in <strong>Accessi</strong> che le pagine nuove abbiano il permesso: con l'accesso rigoroso attivo una pagina senza permesso resta chiusa a chi non è superuser.</li>
+        <li>Compilare i destinatari dell'<a class="fmd-data-link" href="#avviso-it">avviso IT</a>.</li>
+        <li>Se serve, adattare le viste di partenza in <strong>Viste elenco dipendenti</strong>.</li>
+      </ol>
+    </section>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

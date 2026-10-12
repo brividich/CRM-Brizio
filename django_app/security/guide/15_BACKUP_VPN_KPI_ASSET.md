@@ -10,7 +10,7 @@ La pagina **Backup** legge i report dei backup già arrivati (Synology Active Ba
 
 - **Esecuzioni riuscite**: percentuale e conteggio di riuscite, con avvisi e fallite.
 - **PC e server protetti**: quanti dispositivi compaiono nei report e quanti sono **senza backup riuscito** oltre la soglia (3 giorni di default, si cambia in Impostazioni).
-- **Job**: quanti job e quanti **job attesi non arrivati**. I job attesi si definiscono in Config › Backup.
+- **Job**: quanti job e quanti **job attesi non arrivati**. I job attesi si definiscono in Configurazione › Backup.
 - **Dati trasferiti** e **durata media**.
 
 ### Da controllare
@@ -81,5 +81,5 @@ Un dispositivo non collegato funziona comunque nel SOC (scheda PC, backup, alert
 **Elaborazione** (gruppo Gestione) dice se i dati stanno arrivando. Il SOC lavora da solo: ogni 15 minuti legge le caselle mail, riconosce i report, applica le regole e calcola i KPI. Di solito non c'è niente da premere.
 
 - **Lettura automatica attiva** con l'ora del prossimo giro: tutto in ordine. Se compare **Lettura automatica NON registrata**, va registrato lo schedule `security_cycle` dalla Centrale di comando.
-- **Da guardare**: mail o allegati che non sono stati elaborati, con il motivo. Dopo aver corretto un parser o una configurazione, **Config › Parser › Rielabora** li ripropone.
+- **Da guardare**: mail o allegati che non sono stati elaborati, con il motivo. Dopo aver corretto un parser o una configurazione, **Configurazione › Parser › Rielabora** li ripropone.
 - **Esegui a mano**: solo per verifiche. Per leggere subito le caselle usa **Leggi ora** in Caselle mail.
