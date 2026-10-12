@@ -878,7 +878,7 @@ automaticamente tutti i documenti supportati. Per consultazione da repo:
 - 🤝 [Guida Teams approvazioni (HTML)](doc/GUIDA_TEAMS_APPROVAZIONI.html)
 - 🏭 [Note modulo assets](django_app/assets/README.md)
 - 🧩 [Schede dei moduli](docs/moduli/) — dettaglio funzionale di ogni app
-- 🗂️ [Changelog fino alla 1.4.0](docs/changelog/CHANGELOG_fino_1.4.0.md) — versioni archiviate
+- 🗂️ Changelog archiviati: [dalla 1.4.0 alla 1.6.2](docs/changelog/CHANGELOG_1.4.0-1.6.2_pre_golive.md), [fino alla 1.4.0](docs/changelog/CHANGELOG_fino_1.4.0.md)
 
 ---
 
@@ -901,7 +901,7 @@ Il protocollo Agent Control risolve questo con sessioni, lock, manifest e tracci
 
 1. **Solo Brizio** avvia formalmente le sessioni tramite script PowerShell.
 2. Lo script apre una sessione, apre VS Code con `--wait` e al termine chiude la sessione ed esegue diff.
-3. La struttura `_AGENT_CONTROL/` contiene lo stato di sessione, i lock per area, l'elenco dei file critici e il changelog operativo degli agenti.
+3. La struttura `_AGENT_CONTROL/` contiene lo stato di sessione, i lock per area, l'elenco dei file critici e il changelog operativo degli agenti. Resta locale alla cartella condivisa: non è versionata (`.gitignore`).
 
 ### Metodo raccomandato — apertura sessione Collega HR
 
@@ -944,13 +944,12 @@ Il comando `status` segnala automaticamente sessioni stale (avvio > 8 ore: avvis
 ### Regole operative
 
 - Non aprire VS Code direttamente: usare sempre il wrapper `open-agent-workspace.ps1`.
-- A inizio chat leggere `session_checkpoint.md`: per `CHANGELOG.md` fermarsi alla prima voce gia' nota, per `_AGENT_CONTROL/AGENT_CHANGELOG.md` leggere solo le voci successive al checkpoint.
+- A inizio chat leggere solo le voci recenti di `CHANGELOG.md` (storico pre go-live in `docs/changelog/`) e di `_AGENT_CONTROL/AGENT_CHANGELOG.md`.
 - Leggere `_AGENT_CONTROL/ACTIVE_SESSION.md` e `WORK_LOCKS.md` prima di qualsiasi modifica.
 - I file critici (core, config, admin_portale, ACL, middleware) non sono vietati ma devono essere modificati solo se necessario e documentati obbligatoriamente in `_AGENT_CONTROL/AGENT_CHANGELOG.md`.
 - `CRITICAL_CHANGE_REQUESTS.md` serve solo per modifiche dubbie, invasive o da verificare da parte di Brizio.
 - Se la modifica riguarda ACL, middleware, settings, routing globale, autenticazione o navigazione globale, chiedere conferma verbale a Brizio prima di procedere.
 - Aggiornare `_AGENT_CONTROL/AGENT_CHANGELOG.md` a fine sessione.
-- Aggiornare `session_checkpoint.md` a fine sessione con le nuove voci viste o aggiunte.
 - Aggiornare `README.md` e `CHANGELOG.md` se cambia il comportamento operativo.
 - Brizio supervisiona la sessione tramite il wrapper `open-agent-workspace.ps1`.
 

@@ -45,6 +45,29 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 - **Topnav**: voci in eccesso raccolte in «Altro», hamburger da ≤1100px, menu utente (profilo, preferenze, tema chiaro/scuro, segnala problema, esci), approvazioni assenze in attesa come «N da approvare». Struttura: Per me · Tickets · Produzione · Persone · Sicurezza e ambiente · Qualità · IT · Suggestion Corner, con sottocategorie da `NavigationItem.group`; si applica con `python manage.py riorganizza_topbar --apply` (dry-run senza `--apply`)
 - **Messaggi di conferma subito e uguali in tutti i moduli** (`core/flash_messages.py`, `core/js/hub-flash.js`, `core/css/hub-flash.css`): toast in basso a destra; successo/info spariscono dopo 7 s (pausa al passaggio del mouse), avvisi/errori restano fino alla ×. Messaggi identici raggruppati con «×N», messaggi lunghi riassunti alla prima frase con «Dettagli», al massimo 5 visibili con «+N altri» e «Chiudi tutti», Esc li chiude. Consegna: pagina intera via `{% flash_messages_fallback %}` in `core/base.html`; HTMX/fetch/XHR via header `X-Hub-Flash` (`FlashMessagesDeliveryMiddleware`, dopo `MessageMiddleware`, solo i messaggi della richiesta stessa); download via cookie `hub_flash`. Se la pagina cambia subito dopo un'azione asincrona, il messaggio ricompare nella successiva. I riquadri messaggi propri dei moduli sono stati tolti (restano login e scheda QR pubblica). Regole per sviluppatori: `docs/ai/04_FRONTEND_DIRECTION.md`.
 
+## Pulizia pre go-live (`pulizia_pre_golive`)
+
+Comando una tantum per partire in produzione senza i log accumulati in sviluppo e collaudo. Dry-run di default (solo conteggi); `--esegui` cancella a batch da 2000 righe e scrive una riga `AuditLog` (`azione=pulizia_pre_golive`) con i numeri; `--solo` accetta i codici separati da virgola.
+
+| Codice | Cosa svuota |
+|---|---|
+| `run_log` | `AutomationRunLog` e, a cascata, `AutomationActionLog` |
+| `coda_automazioni` | `automation_event_queue` con stato `done`/`error` (solo SQL Server; le pending restano) |
+| `notifiche` | `Notifica` (campanella, archiviate comprese) |
+| `email_anomalie` | `AnomalieEmailLog` |
+| `pending_anomalie` | `AnomaliaPendingNotification` già inviate (`notified=True`) |
+| `chat_assistente` | `AiConversation` e messaggi dell'assistente AI |
+| `chat_security` | `security.AIConversation` e messaggi |
+| `ingestion_security` | `SecurityMailboxIngestionRun` concluse |
+| `task_django_q` | esiti dei task django-q (non la coda né gli schedule) |
+| `sessioni_scadute` | sessioni Django scadute |
+
+Non tocca, per scelta: `AuditLog`, `AclDenialEvent`, log admin Django, Axes, `AnomaliaActionLog`, `WorkOrderLog`, `CandidatoLog`, `TicketStatoLog`, `SgiSyncLog`, `SecurityNotificationLog` (anche fonte del cooldown), audit di configurazione SOC, messaggi di casella usati per la deduplica (approvazioni e SOC), outbox SharePoint delle assenze e tutti i dati di dominio.
+
+Dopo la pulizia, i promemoria in-app ancora validi (anomalie da gestire, RDC da aprire, SLA ticket) ricompaiono al giro successivo dei job: la loro deduplica si basa sulle notifiche non lette e non manda email.
+
+Procedura: backup del DB → `pulizia_pre_golive` (verificare i conteggi) → `pulizia_pre_golive --esegui`. I log su file (`logs\*.log` dell'istanza) si archiviano a parte, con il sito fermo, perché Waitress e il qcluster li tengono aperti.
+
 ## Hardening ottobre 2026
 
 - Helper di sicurezza: `core.net.client_ip` (IP client, `X-Forwarded-For` solo da `TRUSTED_PROXY_IPS`), `core.redirects.safe_next` (redirect di ritorno validati sull'host), filtro template `js_json` (`{% load safe_json %}`, dati negli `<script>` senza XSS), `core.private_attachments.PrivateAttachmentStorage` (allegati privati cifrati con lettura dei file storici). In produzione `LEGACY_AUTH_ENABLED=0` blocca l'avvio senza `ACL_DISABLE_ACKNOWLEDGED=1`; DRF ha default espliciti (sessione + utente autenticato).
