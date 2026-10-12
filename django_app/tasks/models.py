@@ -69,32 +69,9 @@ class Project(models.Model):
     name = models.CharField(max_length=180)
     description = models.TextField(blank=True, default="")
     client_name = models.CharField(max_length=180, blank=True, default="")
-    # Team di progetto: dal 1.5.1 ogni ruolo ammette piu' persone (M2M), perche'
-    # una commessa puo' avere due capicommessa o due programmatori che si alternano.
-    project_managers = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        blank=True,
-        related_name="projects_as_pm",
-        verbose_name="Project manager",
-    )
-    capi_commessa = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        blank=True,
-        related_name="projects_as_cc",
-        verbose_name="Capocommessa",
-    )
-    programmers = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        blank=True,
-        related_name="projects_as_prg",
-        verbose_name="Programmatore",
-    )
-    caporeparti = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        blank=True,
-        related_name="projects_as_cr",
-        verbose_name="Caporeparto",
-    )
+    # Team di progetto: righe `ProjectMember` (utente + codice ruolo), lette e
+    # scritte con `team_members()` / `set_team()` / `add_team_member()`. Ogni
+    # ruolo ammette piu' persone: una commessa puo' avere due capicommessa.
     control_method = models.CharField(max_length=180, blank=True, default="")
     part_number = models.CharField(max_length=120, blank=True, default="")
     revisione = models.CharField(max_length=60, blank=True, default="")
@@ -140,8 +117,10 @@ class Project(models.Model):
     class Meta:
         ordering = ["-updated_at", "-id"]
 
-    # Ruoli del team di progetto: (campo M2M, etichetta, codice TaskRoleType).
-    # I codici sono letterali per non anticipare TaskRoleType, definito piu' sotto.
+    # Ruoli del team di progetto: (chiave, etichetta, codice ruolo). La chiave e'
+    # il vecchio nome del campo M2M, ancora usato da form, template e chiamanti;
+    # il dato e' `ProjectMember.role_code`. I codici sono letterali per non
+    # anticipare TaskRoleType, definito piu' sotto.
     TEAM_ROLES = (
         ("project_managers", "Project manager", "PM"),
         ("capi_commessa", "Capocommessa", "CC"),
@@ -149,13 +128,78 @@ class Project(models.Model):
         ("caporeparti", "Caporeparto", "CR"),
     )
     TEAM_ROLE_FIELDS = tuple(field for field, _label, _code in TEAM_ROLES)
+    TEAM_CODE_BY_FIELD = {field: code for field, _label, code in TEAM_ROLES}
 
-    def team_members(self, field_name):
+    @classmethod
+    def team_code(cls, role) -> str:
+        """Codice ruolo da chiave (``"capi_commessa"``) o da codice (``"CC"``)."""
+        return cls.TEAM_CODE_BY_FIELD.get(role, role)
+
+    @classmethod
+    def team_prefetch(cls, prefix: str = ""):
+        """Prefetch del team (con gli utenti) per elenchi senza N+1."""
+        from django.db.models import Prefetch
+
+        return Prefetch(
+            f"{prefix}members",
+            queryset=ProjectMember.objects.select_related("user").order_by("id"),
+        )
+
+    @classmethod
+    def team_q(cls, user, roles=None, prefix: str = "") -> models.Q:
+        """Filtro «l'utente e' nel team», su tutti i ruoli o solo su ``roles``."""
+        lookup = {f"{prefix}members__user": user}
+        if roles is not None:
+            lookup[f"{prefix}members__role_code__in"] = [cls.team_code(role) for role in roles]
+        return models.Q(**lookup)
+
+    def _team_rows(self) -> list:
+        prefetched = getattr(self, "_prefetched_objects_cache", {}).get("members")
+        if prefetched is not None:
+            return list(prefetched)
+        rows = self.__dict__.get("_team_rows_cache")
+        if rows is None:
+            rows = list(self.members.select_related("user").order_by("id")) if self.pk else []
+            self.__dict__["_team_rows_cache"] = rows
+        return rows
+
+    def _forget_team(self) -> None:
+        self.__dict__.pop("_team_rows_cache", None)
+        prefetched = getattr(self, "_prefetched_objects_cache", None)
+        if prefetched:
+            prefetched.pop("members", None)
+
+    def refresh_from_db(self, *args, **kwargs):
+        super().refresh_from_db(*args, **kwargs)
+        self._forget_team()
+
+    def team_members(self, role):
         """Persone assegnate a un ruolo del team (lista, sfrutta il prefetch)."""
-        return list(getattr(self, field_name).all())
+        code = self.team_code(role)
+        return [row.user for row in self._team_rows() if row.role_code == code]
 
-    def team_display(self, field_name) -> str:
-        return ", ".join(user_label(u) for u in self.team_members(field_name))
+    def set_team(self, role, users) -> None:
+        """Sostituisce le persone di un ruolo (chi resta non viene riscritto)."""
+        code = self.team_code(role)
+        wanted = {user.pk: user for user in (users or [])}
+        current = set(self.members.filter(role_code=code).values_list("user_id", flat=True))
+        self.members.filter(role_code=code).exclude(user_id__in=list(wanted)).delete()
+        for pk, user in wanted.items():
+            if pk not in current:
+                ProjectMember.objects.create(project=self, user=user, role_code=code)
+        self._forget_team()
+
+    def add_team_member(self, role, user) -> bool:
+        """Aggiunge una persona a un ruolo; False se c'era gia'."""
+        _member, created = ProjectMember.objects.get_or_create(
+            project=self, user=user, role_code=self.team_code(role)
+        )
+        if created:
+            self._forget_team()
+        return created
+
+    def team_display(self, role) -> str:
+        return ", ".join(user_label(u) for u in self.team_members(role))
 
     @property
     def team_blocks(self):
@@ -193,11 +237,8 @@ class Project(models.Model):
 
     def role_types_for_user(self, user_id) -> list[str]:
         """Codici ruolo ricoperti dall'utente in questo kickoff."""
-        return [
-            code
-            for field, _label, code in self.TEAM_ROLES
-            if any(member.pk == user_id for member in self.team_members(field))
-        ]
+        codes = {row.role_code for row in self._team_rows() if row.user_id == user_id}
+        return [code for _field, _label, code in self.TEAM_ROLES if code in codes]
 
     def default_name(self, kickoff_number=None) -> str:
         """Nome proposto: «Cliente · P/N · KICK-OFF n».
@@ -249,6 +290,37 @@ class Project(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class ProjectMember(models.Model):
+    """Persona del team di un kickoff in un ruolo (PM, CC, PRG, CR).
+
+    Sostituisce i quattro elenchi M2M di `Project` (uno per ruolo): un solo
+    posto dove il team vive, filtri di visibilita' su una sola relazione, e un
+    ruolo in piu' non richiede un campo nuovo.
+    """
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="members", verbose_name="Kickoff"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="kickoff_memberships",
+        verbose_name="Persona",
+    )
+    role_code = models.CharField(max_length=32, db_index=True, verbose_name="Ruolo")
+
+    class Meta:
+        ordering = ["project", "role_code", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["project", "user", "role_code"], name="tasks_projectmember_uniq"),
+        ]
+        verbose_name = "Membro del team kickoff"
+        verbose_name_plural = "Team kickoff"
+
+    def __str__(self) -> str:
+        return f"{self.project_id}:{self.role_code}:{self.user_id}"
 
 
 class Task(models.Model):
@@ -757,7 +829,7 @@ class TaskRoleAccessRule(models.Model):
     """Regola accesso per ruolo operativo kickoff.
 
     La regola vale all'interno dei kickoff in cui l'utente ricopre il ruolo
-    configurato (`project_managers`, `capi_commessa`, `programmers`, `caporeparti`).
+    configurato (righe `ProjectMember` con quel codice ruolo).
     """
 
     role_type = models.CharField(

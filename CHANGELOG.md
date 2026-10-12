@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **KICK-OFF — il team di commessa in una tabella sola (`ProjectMember`)** (`django_app/tasks/models.py`, nuova migrazione `tasks/migrations/0048_projectmember.py`, `tasks/access.py`, `tasks/readiness.py`, `tasks/da_gestire.py`, `tasks/meeting_alerts.py`, `tasks/forms.py`, `tasks/admin.py`, `tasks/views/__init__.py`, `tasks/views/gantt.py`, `tasks/views/task.py`, `tasks/views/settings.py`, `tasks/views/projects.py`, `tasks/views/import_excel.py`, `django_app/dashboard/views.py`, `tasks/tests_utils.py`, `tasks/tests_projects.py`, `tasks/tests_action_register.py`, `docs/moduli/tasks.md`).
+  - I quattro elenchi del team (Project manager, Capocommessa, Programmatore, Caporeparto) erano quattro campi M2M: ogni filtro di visibilità ripeteva quattro condizioni e un ruolo nuovo richiedeva un campo e una migrazione. Ora sono righe `ProjectMember(kickoff, persona, codice ruolo)` con codici PM / CC / PRG / CR. Form, pagine, email e regole di accesso per ruolo funzionano come prima.
+  - Elenchi più leggeri: il team si carica con una query invece di quattro (portfolio, registro azioni, Gantt).
+  - Admin: il team del kickoff si modifica dall'elenco «Team kickoff» nella scheda progetto.
+  - **Deploy: `migrate tasks` (0048).** Travasa gli elenchi esistenti nelle nuove righe e rimuove i quattro campi; reversibile.
+
 - **KICK-OFF — i punti dell'ordine del giorno diventano righe (`MeetingAgendaItem`)** (`django_app/tasks/models.py`, nuove migrazioni `tasks/migrations/0045_meetingagendaitem.py`, `0046_agenda_items_json_to_righe.py`, `0047_remove_kickoffmeeting_agenda_items.py`, `tasks/services/agenda.py`, `tasks/forms.py`, `tasks/templates/tasks/project_meeting_minutes.html`, `tasks/tests_meetings.py`, `docs/moduli/tasks.md`).
   - I punti erano un campo JSON dell'incontro: collegamenti ad attività, problemi, azioni e responsabile senza vincolo (restavano puntati a record cancellati), id duplicati possibili, suggerimenti ODG calcolati scandendo il JSON in Python. Ora ogni punto è una riga con chiavi esterne vere (cancellando l'attività o il problema il collegamento si azzera) e id univoco per incontro.
   - Nessun cambiamento per pagine, form, conduzione, minuta, email e assistente: `KickoffMeeting.agenda_items` resta una lista di punti con le stesse chiavi e si salva come prima.

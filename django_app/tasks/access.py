@@ -24,7 +24,6 @@ from .models import (
     TaskEvent,
     TaskRoleAssignment,
     TaskRoleAccessRule,
-    TaskRoleType,
     TaskUserAccessRule,
 )
 
@@ -213,18 +212,22 @@ def _task_role_access_level(request, task: Task | None) -> str:
     return max(levels, key=_task_access_rank)
 
 
+def _readable_team_codes(role_map: dict[str, str]) -> list[str]:
+    """Ruoli del team che, per regola di accesso, danno visibilita' sul kickoff."""
+    return [
+        code
+        for _field, _label, code in Project.TEAM_ROLES
+        if _task_access_allows_read(role_map.get(code))
+    ]
+
+
 def _task_scope_filter_q(request) -> Q:
     user = request.user
     q = Q(created_by=user) | Q(assigned_to=user) | Q(subscribers=user)
     role_map = _request_task_role_access_map(request)
-    if _task_access_allows_read(role_map.get(TaskRoleType.PROJECT_MANAGER)):
-        q |= Q(project__project_managers=user)
-    if _task_access_allows_read(role_map.get(TaskRoleType.CAPO_COMMESSA)):
-        q |= Q(project__capi_commessa=user)
-    if _task_access_allows_read(role_map.get(TaskRoleType.PROGRAMMER)):
-        q |= Q(project__programmers=user)
-    if _task_access_allows_read(role_map.get(TaskRoleType.CAPOREPARTO)):
-        q |= Q(project__caporeparti=user)
+    team_codes = _readable_team_codes(role_map)
+    if team_codes:
+        q |= Project.team_q(user, team_codes, prefix="project__")
     category_role_codes = [
         role_code
         for role_code in _request_task_user_role_codes(request)
@@ -248,14 +251,9 @@ def _project_scope_filter_q(request) -> Q:
         | Q(meetings__created_by=user)
     )
     role_map = _request_task_role_access_map(request)
-    if _task_access_allows_read(role_map.get(TaskRoleType.PROJECT_MANAGER)):
-        q |= Q(project_managers=user)
-    if _task_access_allows_read(role_map.get(TaskRoleType.CAPO_COMMESSA)):
-        q |= Q(capi_commessa=user)
-    if _task_access_allows_read(role_map.get(TaskRoleType.PROGRAMMER)):
-        q |= Q(programmers=user)
-    if _task_access_allows_read(role_map.get(TaskRoleType.CAPOREPARTO)):
-        q |= Q(caporeparti=user)
+    team_codes = _readable_team_codes(role_map)
+    if team_codes:
+        q |= Project.team_q(user, team_codes, prefix="")
     category_role_codes = [
         role_code
         for role_code in _request_task_user_role_codes(request)
@@ -266,10 +264,6 @@ def _project_scope_filter_q(request) -> Q:
     return q
 
 
-# Il team del kickoff e' M2M: si prefetcha per non fare una query per riga.
-_PROJECT_TEAM_PREFETCH_VIA_TASK = tuple(
-    f"project__{field}" for field in Project.TEAM_ROLE_FIELDS
-)
 
 
 def scoped_tasks_queryset(request):
@@ -279,7 +273,7 @@ def scoped_tasks_queryset(request):
         "category",
         "project",
         "project__similar_project",
-    ).prefetch_related(*_PROJECT_TEAM_PREFETCH_VIA_TASK)
+    ).prefetch_related(Project.team_prefetch("project__"))
     if has_task_permission(request, "tasks_admin"):
         return qs
     if _task_access_allows_read(_request_task_user_access_level(request)):
@@ -291,7 +285,7 @@ def scoped_projects_queryset(request):
     qs = Project.objects.select_related(
         "created_by",
         "similar_project",
-    ).prefetch_related(*Project.TEAM_ROLE_FIELDS)
+    ).prefetch_related(Project.team_prefetch())
     if has_task_permission(request, "tasks_admin"):
         return qs
     if _task_access_allows_read(_request_task_user_access_level(request)):

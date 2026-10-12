@@ -293,7 +293,7 @@ class ProjectKickoffForm(forms.ModelForm):
     def save_team(self, project) -> None:
         """Applica gli elenchi multipli del team (richiede project gia' salvato)."""
         for name in self.TEAM_FIELDS:
-            getattr(project, name).set(self.cleaned_data.get(name) or [])
+            project.set_team(name, self.cleaned_data.get(name) or [])
 
 
 class TaskForm(forms.ModelForm):
@@ -857,13 +857,9 @@ class TaskForm(forms.ModelForm):
     def _add_team_members(self, project) -> bool:
         """Aggiunge agli elenchi del team i referenti scelti nel form task."""
         added = False
-        for form_field, m2m_field in self._NEW_PROJECT_TEAM_MAP:
+        for form_field, role in self._NEW_PROJECT_TEAM_MAP:
             user = self.cleaned_data.get(form_field)
-            if user is None:
-                continue
-            manager = getattr(project, m2m_field)
-            if not manager.filter(pk=user.pk).exists():
-                manager.add(user)
+            if user is not None and project.add_team_member(role, user):
                 added = True
         return added
 

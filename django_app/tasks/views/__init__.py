@@ -9,7 +9,6 @@ from __future__ import annotations
 from ..access import (  # noqa: F401
     TASK_ACCESS_LEVEL_ORDER,
     TASK_MODULE_CODE,
-    _PROJECT_TEAM_PREFETCH_VIA_TASK,
     _can_edit_project_schedule,
     can_manage_project,
     can_manage_task,

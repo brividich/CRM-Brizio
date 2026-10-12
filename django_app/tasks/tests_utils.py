@@ -38,7 +38,7 @@ def make_project(**kwargs) -> Project:
     project = Project.objects.create(**kwargs)
     for field, user in team.items():
         if user is not None:
-            getattr(project, field).add(user)
+            project.add_team_member(field, user)
     return project
 
 

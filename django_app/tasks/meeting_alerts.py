@@ -37,9 +37,7 @@ def _mine_filter(user) -> Q:
         | Q(created_by=user)
         | Q(project__created_by=user)
     )
-    for field in Project.TEAM_ROLE_FIELDS:
-        q |= Q(**{f"project__{field}": user})
-    return q
+    return q | Project.team_q(user, prefix="project__")
 
 
 def _meeting_label(meeting) -> str:

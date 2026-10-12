@@ -231,7 +231,7 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         if filter_status:
             tasks_qs = tasks_qs.filter(status=filter_status)
 
-        projects_qs = Project.objects.prefetch_related("project_managers").order_by("-updated_at")
+        projects_qs = Project.objects.prefetch_related(Project.team_prefetch()).order_by("-updated_at")
         if q_proj:
             projects_qs = projects_qs.filter(Q(name__icontains=q_proj) | Q(client_name__icontains=q_proj))
 

@@ -28,13 +28,7 @@ def _projects_qs(request, scope):
     qs = scoped_projects_queryset(request)
     if scope == "mine":
         u = request.user
-        # Il team di commessa e' M2M dal 1.5.1 (project_managers/capi_commessa/...):
-        # i vecchi nomi FK al singolare sollevavano FieldError, inghiottito dal
-        # try/except di build_kickoff_da_gestire -> le sezioni sparivano in scope "mine".
-        team_q = Q(created_by=u)
-        for field, _label, _code in Project.TEAM_ROLES:
-            team_q |= Q(**{field: u})
-        qs = qs.filter(team_q).distinct()
+        qs = qs.filter(Q(created_by=u) | Project.team_q(u)).distinct()
     return qs
 
 

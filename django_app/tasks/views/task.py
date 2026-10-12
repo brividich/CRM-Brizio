@@ -609,7 +609,7 @@ def _task_create_locked_project(request, projects_qs):
     except (TypeError, ValueError):
         return None
     return get_object_or_404(
-        projects_qs.prefetch_related(*Project.TEAM_ROLE_FIELDS),
+        projects_qs,
         pk=project_id,
     )
 

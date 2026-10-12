@@ -322,9 +322,8 @@ def import_excel(request):
                             updated_fields.append(field_name)
                     if updated_fields:
                         project.save(update_fields=updated_fields + ["updated_at"])
-                    if pm_user is not None and not project.project_managers.filter(pk=pm_user.pk).exists():
-                        # Il PM del file si aggiunge all'elenco, non sostituisce chi c'e' gia'.
-                        project.project_managers.add(pm_user)
+                    # Il PM del file si aggiunge all'elenco, non sostituisce chi c'e' gia'.
+                    if pm_user is not None and project.add_team_member("project_managers", pm_user):
                         updated_fields.append("project_managers")
                     if project.id not in updated_project_ids and updated_fields and not project_was_created:
                         updated_project_ids.add(project.id)

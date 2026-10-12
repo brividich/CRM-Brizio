@@ -17,6 +17,7 @@ from django.utils import timezone
 
 
 from .models import (
+    ProjectMember,
     MeetingStatus,
     Project,
     ProjectComment,
@@ -181,9 +182,9 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertIsNotNone(task.project_id)
         project = task.project
         self.assertEqual(project.client_name, "Cliente Alfa")
-        self.assertEqual(list(project.project_managers.all()), [project_manager])
-        self.assertEqual(list(project.capi_commessa.all()), [capo_commessa])
-        self.assertEqual(list(project.programmers.all()), [programmatore])
+        self.assertEqual(project.team_members("project_managers"), [project_manager])
+        self.assertEqual(project.team_members("capi_commessa"), [capo_commessa])
+        self.assertEqual(project.team_members("programmers"), [programmatore])
         self.assertEqual(project.control_method, "Checklist e test collaudo")
         self.assertEqual(project.part_number, "PN-001")
         self.assertEqual(project.similar_project_id, similar_project.id)
@@ -360,12 +361,12 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
         # Budget: 1 query per le righe progetto (readiness Exists() e i conteggi
         # azioni di annotate_open_action_counts() sono sottoquery correlate nella
-        # stessa query, non round-trip aggiuntivi) + 4 per il prefetch dei ruoli
-        # del team (M2M) + 1 per client_choices + 6 per
+        # stessa query, non round-trip aggiuntivi) + 1 per il prefetch del team
+        # (ProjectMember con utenti) + 1 per client_choices + 6 per
         # TaskImpostazioni.get_singleton() (get_or_create con audit log). Nessuna
         # di queste cresce con il numero di commesse nel portfolio.
         with patch("tasks.views.projects.render", side_effect=render_without_template_queries):
-            with self.assertNumQueries(12):
+            with self.assertNumQueries(9):
                 response = project_list(request)
 
         self.assertEqual(response.status_code, 200)
@@ -433,8 +434,8 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(copied_project.description, source_project.description)
         self.assertEqual(copied_project.client_name, source_project.client_name)
         self.assertEqual(
-            list(copied_project.project_managers.all()),
-            list(source_project.project_managers.all()),
+            copied_project.team_members("project_managers"),
+            source_project.team_members("project_managers"),
         )
         self.assertEqual(copied_project.control_method, source_project.control_method)
         self.assertEqual(copied_project.part_number, "PN-COPY-001")
@@ -1437,3 +1438,43 @@ class VrfXlsxFormulaInjectionTests(TestCase):
         # Non-regressione: le formule del template (totali TR) restano vive.
         tr_cell = ws[catalog.TR_CELLS["p"]]
         self.assertEqual(tr_cell.data_type, "f")
+
+
+class ProjectTeamMembersTests(TestCase):
+    """Team del kickoff su ProjectMember: stessa API di prima, una sola tabella."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username="team-owner", password="x")
+        self.anna = User.objects.create_user(username="team-anna", password="x", first_name="Anna")
+        self.bruno = User.objects.create_user(username="team-bruno", password="x", first_name="Bruno")
+        self.project = make_project(name="Team", created_by=self.owner)
+
+    def test_set_team_sostituisce_solo_il_ruolo_indicato(self):
+        self.project.set_team("project_managers", [self.anna, self.bruno])
+        self.project.set_team("capi_commessa", [self.anna])
+        self.project.set_team("project_managers", [self.bruno])
+        self.assertEqual(self.project.team_members("project_managers"), [self.bruno])
+        self.assertEqual(self.project.team_members("CC"), [self.anna])
+        self.assertEqual(self.project.role_types_for_user(self.anna.pk), ["CC"])
+
+    def test_add_team_member_non_duplica(self):
+        self.assertTrue(self.project.add_team_member("programmers", self.anna))
+        self.assertFalse(self.project.add_team_member("programmers", self.anna))
+        self.assertEqual(ProjectMember.objects.filter(project=self.project).count(), 1)
+
+    def test_team_q_filtra_per_ruolo(self):
+        self.project.add_team_member("caporeparti", self.anna)
+        self.assertTrue(Project.objects.filter(Project.team_q(self.anna)).exists())
+        self.assertTrue(Project.objects.filter(Project.team_q(self.anna, ["caporeparti"])).exists())
+        self.assertFalse(Project.objects.filter(Project.team_q(self.anna, ["capi_commessa"])).exists())
+
+    def test_prefetch_evita_query_per_progetto(self):
+        self.project.add_team_member("project_managers", self.anna)
+        altro = make_project(name="Altro", created_by=self.owner)
+        altro.add_team_member("project_managers", self.bruno)
+        progetti = list(
+            Project.objects.filter(pk__in=[self.project.pk, altro.pk]).prefetch_related(Project.team_prefetch())
+        )
+        with self.assertNumQueries(0):
+            membri = [p.team_members("project_managers") for p in progetti]
+        self.assertEqual(sorted(u.username for m in membri for u in m), ["team-anna", "team-bruno"])

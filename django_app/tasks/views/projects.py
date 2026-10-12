@@ -101,7 +101,7 @@ def _duplicate_kickoff(source_project: Project, *, created_by, clear_part_number
 
     # Il team si eredita per intero: ogni ruolo puo' avere piu' persone.
     for field in Project.TEAM_ROLE_FIELDS:
-        getattr(kickoff, field).set(getattr(source_project, field).all())
+        kickoff.set_team(field, source_project.team_members(field))
 
     file_bytes, filename = _copy_project_vrf_file(source_project, clear_part_number=clear_part_number)
     if file_bytes is not None:

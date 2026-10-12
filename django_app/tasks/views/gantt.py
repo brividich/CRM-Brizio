@@ -21,6 +21,7 @@ from ..forms import (
 from ..models import (
     DependencyType,
     GanttBaseline,
+    Project,
     ProjectComment,
     Task,
     TaskDependency,
@@ -29,7 +30,6 @@ from ..models import (
     TaskStatus,
 )
 from ..access import (
-    _PROJECT_TEAM_PREFETCH_VIA_TASK,
     _can_edit_project_schedule,
     can_manage_project,
     can_manage_task,
@@ -73,7 +73,7 @@ def project_gantt(request, project_id: int):
                 "assigned_to",
                 "project",
                 "project__similar_project",
-            ).prefetch_related("subscribers", *_PROJECT_TEAM_PREFETCH_VIA_TASK).order_by("id"),
+            ).prefetch_related("subscribers", Project.team_prefetch("project__")).order_by("id"),
         ),
         Prefetch(
             "comments",
