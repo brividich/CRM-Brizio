@@ -502,14 +502,14 @@ def campo_trimestre(valore_attuale=""):
 
 class FatturaForm(SezioniFormMixin, forms.ModelForm):
     sezioni_def = (
-        ("Fattura", "", ("numero", "data", "fornitore")),
+        ("Fattura", "", ("numero", "data", "fornitore", "dettaglio")),
         ("Periodo fatturato", "Le letture del fornitore si riferiscono alla data di chiusura.",
          ("trimestre", "periodo_dal", "periodo_al")),
     )
 
     class Meta:
         model = Fattura
-        fields = ["numero", "data", "fornitore", "trimestre", "periodo_dal", "periodo_al"]
+        fields = ["numero", "data", "fornitore", "dettaglio", "trimestre", "periodo_dal", "periodo_al"]
         labels = {"numero": "Numero fattura", "data": "Data fattura",
                   "periodo_dal": "Periodo dal", "periodo_al": "Chiusura letture fornitore"}
         help_texts = {"periodo_al": "", "trimestre": ""}
@@ -520,6 +520,10 @@ class FatturaForm(SezioniFormMixin, forms.ModelForm):
         self.fields["trimestre"] = campo_trimestre(self.instance.trimestre)
         self.fields["fornitore"] = forms.ChoiceField(label="Fornitore",
                                                      choices=Macchina.Fornitore.choices)
+        self.fields["dettaglio"].required = False
+
+    def clean_dettaglio(self):
+        return self.cleaned_data.get("dettaglio") or Fattura.Dettaglio.FORMATO
 
     def clean(self):
         data = super().clean()

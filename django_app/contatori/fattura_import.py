@@ -1,9 +1,15 @@
 """Lettura della fattura elettronica del fornitore MFC (FatturaPA XML o sua stampa PDF).
 
 Produce i dati per precompilare la pagina «Nuova fattura»: nulla viene salvato qui
-e il file non viene conservato. Le righe «COPIE EFFETTUATE» non dicono a quale
-contatore si riferiscono: lo si ricava dal prezzo per copia, che in ogni contratto
-segue le proporzioni A4 B/N = x, A3 B/N = 2x, A4 colore = 10x, A3 colore = 20x.
+e il file non viene conservato. Due tracciati:
+
+- BASE («N. Contratto: …»): una riga «COPIE EFFETTUATE» per contatore A4/A3 B/N e
+  colore. Le righe non dicono a quale contatore si riferiscono: lo si ricava dal
+  prezzo per copia, che in ogni contratto segue le proporzioni A4 B/N = x,
+  A3 B/N = 2x, A4 colore = 10x, A3 colore = 20x.
+- Copylab («Matricola:… Contratto:…», una per macchina): righe «COPIE EFFETTUATE
+  B/N» e «COPIE EFFETTUATE COLORE» con i soli totali, senza distinzione A4/A3. La
+  fattura si salva «per totali»: B/N nel campo A4 B/N, colore nel campo A4 colore.
 """
 from __future__ import annotations
 
@@ -28,6 +34,21 @@ _RIGA_RE = re.compile(
 )
 _PERIODO_RE = re.compile(r"letture\s+dal\s+(\d{2}/\d{2}/\d{4})\s+al\s+(\d{2}/\d{2}/\d{4})", re.I)
 _TESTATA_PDF_RE = re.compile(r"TD\d{2}\s*\([^)]*\)\s+(\S+)\s+(\d{2}-\d{2}-\d{4})")
+# Testata della stampa Copylab: "TD01 (Fattura) nr. 3114/2026 del 28/08/2026".
+_TESTATA_NR_RE = re.compile(r"TD\d{2}\s*\([^)]*\)\s*nr\.?\s*(\S+)\s+del\s+(\d{2}/\d{2}/\d{4})", re.I)
+
+# Tracciato Copylab. Il contratto e' testo libero ("1769/sala controllo"): finisce
+# dove inizia la descrizione successiva.
+_FINE_CAMPO = r"(?=\s*(?:Descr\.\s*agg\.|Articolo\s*:|AswTRiga|Riga di commento|COPIE\s+EFFETTUATE|CANONE|$))"
+_MACCHINA_CL_RE = re.compile(r"Matricola\s*:\s*([A-Z0-9-]+)\s*Contratto\s*:\s*(.+?)" + _FINE_CAMPO, re.I)
+_RIGA_CL_RE = re.compile(
+    r"COPIE\s+EFFETTUATE\s+(B/N|COLORE)\b(.*?)(?=COPIE\s+EFFETTUATE|CANONE|Matricola\s*:|$)", re.I | re.S)
+_LETTURA_CL_RE = re.compile(r"Lett\.\s*al\s*(\d{2}/\d{2}/\d{4})\s*:\s*([\d.]+)", re.I)
+_DIFFERENZA_CL_RE = re.compile(r"Differenza\s+\w+\s*:\s*([\d.]+)", re.I)
+_PREZZO_CL_RE = re.compile(r"C/Copia\s*:\s*([\d.,]+)\s*x", re.I)
+_PERIODO_CL_RE = re.compile(r"\bdal\s+(\d{2}/\d{2}/\d{4})\s+al\s+(\d{2}/\d{2}/\d{4})", re.I)
+
+DETTAGLIO_FORMATO, DETTAGLIO_TOTALI = "FORMATO", "TOTALI"
 
 
 class FatturaNonLeggibile(ValueError):
@@ -91,6 +112,9 @@ def dati_da_xml(contenuto: bytes) -> tuple[str, str, date | None]:
             for figlio in el:
                 if locale(figlio) == "Descrizione":
                     righe.append(figlio.text or "")
+                elif locale(figlio) == "AltriDatiGestionali":
+                    # Le "Descr.agg." della stampa (letture Copylab) stanno qui.
+                    righe.extend(n.text or "" for n in figlio if locale(n) == "RiferimentoTesto")
     if not righe:
         raise FatturaNonLeggibile("Nessuna riga di dettaglio nella fattura elettronica.")
     return " ".join(righe), numero, data_doc
@@ -141,12 +165,41 @@ def _assegna_contatori(righe):
                 r["certo"] = False
 
 
+def _interpreta_copylab(testo: str) -> dict:
+    """Tracciato Copylab: un blocco per macchina, letture totali B/N e colore."""
+    pezzi = _MACCHINA_CL_RE.split(testo)
+    contratti, periodi = [], set()
+    for matricola, contratto, blocco in zip(pezzi[1::3], pezzi[2::3], pezzi[3::3]):
+        righe = []
+        for m in _RIGA_CL_RE.finditer(blocco):
+            letture = sorted((_data(d), _intero(v)) for d, v in _LETTURA_CL_RE.findall(m.group(2)))
+            if len(letture) < 2:
+                continue
+            (_, apertura), (chiusa_il, chiusura) = letture[0], letture[-1]
+            differenza = _DIFFERENZA_CL_RE.search(m.group(2))
+            totale = _intero(differenza.group(1)) if differenza else chiusura - apertura
+            prezzo = _PREZZO_CL_RE.search(m.group(2))
+            righe.append({"lettura": chiusura, "apertura": apertura, "totale": totale,
+                          "prezzo": _decimale(prezzo.group(1)) if prezzo else Decimal(0),
+                          "chiusa_il": chiusa_il, "coerente": chiusura - apertura == totale,
+                          "contatore": "a4_bn" if m.group(1).upper() == "B/N" else "a4_col",
+                          "certo": True})
+            periodi.update(_PERIODO_CL_RE.findall(m.group(2)))
+        contratti.append({"contratto": contratto.strip(), "matricole": [matricola.upper()],
+                          "righe": righe})
+    return {"contratti": contratti, "periodi": periodi, "dettaglio": DETTAGLIO_TOTALI}
+
+
 def interpreta(testo: str) -> dict:
     """Contratti, letture di chiusura e periodo dal testo della fattura."""
     testo = _normalizza(testo)
     pezzi = _CONTRATTO_RE.split(testo)
     if len(pezzi) < 3:
-        raise FatturaNonLeggibile("Nella fattura non ci sono righe «N. Contratto»: formato non riconosciuto.")
+        if not _MACCHINA_CL_RE.search(testo):
+            raise FatturaNonLeggibile("Nella fattura non ci sono righe «N. Contratto» né "
+                                      "«Matricola:… Contratto:…»: formato non riconosciuto.")
+        dati = _interpreta_copylab(testo)
+        return _chiudi(dati["contratti"], dati["periodi"], DETTAGLIO_TOTALI)
     contratti, periodi = [], set()
     for contratto, blocco in zip(pezzi[1::2], pezzi[2::2]):
         righe = []
@@ -162,13 +215,17 @@ def interpreta(testo: str) -> dict:
             "matricole": list(dict.fromkeys(_MATRICOLA_RE.findall(blocco))),
             "righe": righe,
         })
+    return _chiudi(contratti, periodi, DETTAGLIO_FORMATO)
+
+
+def _chiudi(contratti, periodi, dettaglio):
     if not any(c["righe"] for c in contratti):
         raise FatturaNonLeggibile("Nessuna riga «COPIE EFFETTUATE» con le letture: formato non riconosciuto.")
     dal = al = None
     if periodi:
         dal = min(_data(d) for d, _ in periodi)
         al = max(_data(a) for _, a in periodi)
-    return {"contratti": contratti, "periodo_dal": dal, "periodo_al": al}
+    return {"contratti": contratti, "periodo_dal": dal, "periodo_al": al, "dettaglio": dettaglio}
 
 
 def leggi_fattura(nome_file: str, contenuto: bytes) -> dict:
@@ -187,42 +244,69 @@ def leggi_fattura(nome_file: str, contenuto: bytes) -> dict:
         testata = _TESTATA_PDF_RE.search(_normalizza(testo))
         if testata:
             numero, data_doc = testata.group(1), _data(testata.group(2), "%d-%m-%Y")
+        elif testata := _TESTATA_NR_RE.search(_normalizza(testo)):
+            numero, data_doc = testata.group(1), _data(testata.group(2))
     elif contenuto.lstrip()[:1] == b"<":
         testo, numero, data_doc = dati_da_xml(contenuto)
     else:
         raise FatturaNonLeggibile("Formato non supportato: carica l'XML o il PDF della fattura.")
 
     dati = interpreta(testo)
+    totali = dati["dettaglio"] == DETTAGLIO_TOTALI
+    etichette = _ETICHETTE_TOTALI if totali else _ETICHETTE
+    attesi = ("a4_bn", "a4_col") if totali else tuple(_RAPPORTI)
     avvisi = []
-    fornitore = "COPYLAB" if re.search(r"copylab", testo, re.I) else "BASE"
+    fornitore = "COPYLAB" if totali or re.search(r"copy\s*lab", testo, re.I) else "BASE"
     contratti_noti = set(Macchina.objects.exclude(contratto="").values_list("contratto", flat=True))
-    righe_form = []
+    per_matricola = {m.upper(): c for m, c in Macchina.objects.values_list("matricola", "contratto")}
+
+    # Il contratto della riga e' quello dell'anagrafica quando la matricola e' nota:
+    # la fattura Copylab lo scrive a testo libero e piu' macchine possono condividerlo.
+    unita = {}
     for c in dati["contratti"]:
-        valori = {campo: 0 for campo in _RAPPORTI}
+        chiave = c["contratto"][:20]
+        if totali:
+            noto = [per_matricola[m] for m in c["matricole"] if per_matricola.get(m)]
+            if noto:
+                chiave = noto[0]
+            elif c["matricole"] and c["matricole"][0] in per_matricola:
+                avvisi.append(f"Matricola {c['matricole'][0]}: in anagrafica stampanti manca il contratto; "
+                              f"impostalo a «{chiave}» perché la riconciliazione la trovi.")
+        u = unita.setdefault(chiave, {"matricole": [], "valori": {k: 0 for k in _RAPPORTI}})
+        u["matricole"] += c["matricole"]
         for r in c["righe"]:
-            if r["contatore"]:
-                valori[r["contatore"]] = r["lettura"]
+            if r["contatore"] and totali:
+                # Pool: la fattura Copylab elenca ogni macchina a parte, le letture si sommano.
+                u["valori"][r["contatore"]] += r["lettura"]
+            elif r["contatore"]:
+                u["valori"][r["contatore"]] = r["lettura"]
             if not r["certo"]:
-                avvisi.append(f"Contratto {c['contratto']}: riga con lettura {r['lettura']} e prezzo "
-                              f"{r['prezzo']} €/copia assegnata a «{_ETICHETTE.get(r['contatore'], '?')}» "
+                avvisi.append(f"Contratto {chiave}: riga con lettura {r['lettura']} e prezzo "
+                              f"{r['prezzo']} €/copia assegnata a «{etichette.get(r['contatore'], '?')}» "
                               "senza certezza: verificala.")
             if not r["coerente"]:
-                avvisi.append(f"Contratto {c['contratto']}: per la lettura {r['lettura']} il totale "
+                avvisi.append(f"Contratto {chiave}: per la lettura {r['lettura']} il totale "
                               "copie in fattura non torna con le letture: verifica.")
-        mancanti = [_ETICHETTE[k] for k in _RAPPORTI if k not in {r["contatore"] for r in c["righe"]}]
-        if mancanti and c["righe"]:
-            avvisi.append(f"Contratto {c['contratto']}: in fattura manca la riga di "
-                          f"{', '.join(mancanti)}; il valore resta 0 da completare a mano.")
-        if c["contratto"] not in contratti_noti:
-            avvisi.append(f"Contratto {c['contratto']} non presente nell'anagrafica stampanti.")
-        righe_form.append({"contratto": c["contratto"],
-                           "descrizione": ("Matricole " + ", ".join(c["matricole"]))[:120] if c["matricole"] else "",
-                           **valori})
+        if c["righe"]:
+            mancanti = [etichette[k] for k in attesi if k not in {r["contatore"] for r in c["righe"]}]
+            if mancanti:
+                avvisi.append(f"Contratto {chiave}: in fattura manca la riga di "
+                              f"{', '.join(mancanti)}; il valore resta 0 da completare a mano.")
+
+    righe_form = []
+    for chiave, u in unita.items():
+        if chiave not in contratti_noti:
+            avvisi.append(f"Contratto {chiave} non presente nell'anagrafica stampanti.")
+        matricole = list(dict.fromkeys(u["matricole"]))
+        righe_form.append({"contratto": chiave,
+                           "descrizione": ("Matricole " + ", ".join(matricole))[:120] if matricole else "",
+                           **u["valori"]})
     if not numero:
         avvisi.append("Numero e data della fattura non trovati: inseriscili a mano.")
     al = dati["periodo_al"]
     return {
         "testata": {"numero": numero, "data": data_doc, "fornitore": fornitore,
+                    "dettaglio": dati["dettaglio"],
                     "periodo_dal": dati["periodo_dal"], "periodo_al": al,
                     "trimestre": trimestre_di(al) if al else ""},
         "righe": righe_form,
@@ -231,3 +315,4 @@ def leggi_fattura(nome_file: str, contenuto: bytes) -> dict:
 
 
 _ETICHETTE = {"a4_bn": "A4 B/N", "a3_bn": "A3 B/N", "a4_col": "A4 colore", "a3_col": "A3 colore", None: "?"}
+_ETICHETTE_TOTALI = {"a4_bn": "B/N totale", "a4_col": "Colore totale", None: "?"}

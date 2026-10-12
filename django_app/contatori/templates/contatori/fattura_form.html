@@ -1,7 +1,7 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}{% if fattura %}Fattura {{ fattura.numero }}{% else %}Nuova fattura{% endif %}{% endblock %}
 {% block modulo %}
-<div class="eyebrow">Riconciliazione</div>
+<div class="row"><div class="eyebrow">Riconciliazione</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:riconciliazione_guida' %}#fattura">? Guida</a></div>
 <h1>{% if fattura %}Fattura {{ fattura.numero }}{% else %}Nuova fattura fornitore{% endif %}</h1>
 <p class="sub">Riporta le letture stampate in fattura per ogni contratto. La riconciliazione le confronta con le letture interne dello stesso trimestre.</p>
 {% if not fattura %}
@@ -24,12 +24,12 @@
   <section class="panel form-section">
     <header class="form-section-head">
       <span class="form-section-num" aria-hidden="true">3</span>
-      <div><h2>Letture del fornitore</h2><p>Una riga per contratto. Per i contratti in pool inserisci il totale come in fattura. Le righe lasciate a zero non vengono salvate.</p></div>
+      <div><h2>Letture del fornitore</h2><p>Una riga per contratto. Per i contratti in pool inserisci il totale come in fattura. Le righe lasciate a zero non vengono salvate.<span class="solo-totali-nota"> Fattura «Solo totali»: inserisci il totale B/N e il totale colore; le colonne A3 non servono.</span></p></div>
     </header>
     {{ righe.management_form }}
     {% if righe.non_form_errors %}<div class="banner">{{ righe.non_form_errors|join:" " }}</div>{% endif %}
-    <div class="table-wrap"><table class="righe-table" data-fm-table-skip="1">
-      <thead><tr><th>Contratto</th><th>Descrizione</th><th class="num">A4 B/N</th><th class="num">A3 B/N</th><th class="num">A4 colore</th><th class="num">A3 colore</th><th>{% if fattura %}Elimina{% endif %}</th></tr></thead>
+    <div class="table-wrap"><table class="righe-table" id="righe-table" data-fm-table-skip="1">
+      <thead><tr><th>Contratto</th><th>Descrizione</th><th class="num" data-formato="A4 B/N" data-totali="B/N totale">A4 B/N</th><th class="num col-a3">A3 B/N</th><th class="num" data-formato="A4 colore" data-totali="Colore totale">A4 colore</th><th class="num col-a3">A3 colore</th><th>{% if fattura %}Elimina{% endif %}</th></tr></thead>
       <tbody id="righe-body">
       {% for r in righe %}{% include "contatori/_fattura_riga.html" with r=r %}{% endfor %}
       </tbody>
@@ -48,6 +48,22 @@
 </form>
 {% endif %}
 <script>
+(function () {
+  // Fattura «Solo totali» (Copylab): due colonne, B/N e colore; le A3 si nascondono.
+  var sel = document.getElementById("id_dettaglio");
+  var tab = document.getElementById("righe-table");
+  if (!sel || !tab) return;
+  function aggiorna() {
+    var totali = sel.value === "TOTALI";
+    tab.classList.toggle("solo-totali", totali);
+    document.getElementById("fattura-form").classList.toggle("solo-totali", totali);
+    tab.querySelectorAll("th[data-totali]").forEach(function (th) {
+      th.textContent = totali ? th.dataset.totali : th.dataset.formato;
+    });
+  }
+  sel.addEventListener("change", aggiorna);
+  aggiorna();
+})();
 (function () {
   var btn = document.getElementById("aggiungi-riga");
   var total = document.getElementById("id_righe-TOTAL_FORMS");

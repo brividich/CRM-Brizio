@@ -104,6 +104,7 @@ class MigrazioneAclTests(TestCase):
         self.assertTrue(modulo)
         mig27 = import_module("contatori.migrations.0027_acl_verifica_oid")
         mig30 = import_module("contatori.migrations.0030_acl_wizard_generici")
+        mig32 = import_module("contatori.migrations.0032_acl_riconciliazione_guida")
         self.assertEqual(modulo - set(MIG.ROUTE_VIEW) - set(MIG.ROUTE_GESTIONE) - set(mig27.ROUTE_GESTIONE)
-                         - set(mig30.ROUTE_GESTIONE), set(),
+                         - set(mig30.ROUTE_GESTIONE) - set(mig32.ROUTE_VIEW), set(),
                          "Route nuova senza binding ACL: aggiungila a ROUTE_VIEW o ROUTE_GESTIONE")
