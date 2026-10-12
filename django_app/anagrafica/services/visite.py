@@ -217,6 +217,8 @@ def stato_visite(legacy_id: int, soglia_giorni_avviso: int = 60, ctx=None) -> li
             "giorni_a_scadenza": int | None,
             "nota": str,          # perche' la scadenza e' anticipata (ricalcolo prudente)
             "origini": [str],     # perche' la visita e' dovuta
+            "cambio": str,        # tipologia cambiata rispetto all'ultima visita, con il motivo
+            "data_cambio": date | None,  # da quando vale il nuovo requisito
         }
 
     Dal motore unico ``services.requisiti``: visite dovute da ruoli operativi,
@@ -246,7 +248,8 @@ def stato_visite(legacy_id: int, soglia_giorni_avviso: int = 60, ctx=None) -> li
     for v in sorted(voci, key=lambda x: x.tipo_da_mostrare.nome):
         if v.ultima is None:
             out.append({"tipo": v.tipo_da_mostrare, "ultima": None, "data_scadenza": None, "stato": STATO_MANCANTE,
-                        "giorni_a_scadenza": None, "nota": "", "origini": list(v.origini)})
+                        "giorni_a_scadenza": None, "nota": "", "origini": list(v.origini),
+                        "cambio": "", "data_cambio": None})
             continue
         scadenza = v.scadenza
         if scadenza is None:
@@ -260,18 +263,51 @@ def stato_visite(legacy_id: int, soglia_giorni_avviso: int = 60, ctx=None) -> li
             else:
                 stato = STATO_VALIDA
         out.append({"tipo": v.tipo_da_mostrare, "ultima": visite_db.get(v.visita_id), "data_scadenza": scadenza,
-                    "stato": stato, "giorni_a_scadenza": giorni, "nota": v.nota, "origini": list(v.origini)})
+                    "stato": stato, "giorni_a_scadenza": giorni, "nota": v.nota, "origini": list(v.origini),
+                    "cambio": v.cambio, "data_cambio": v.data_cambio})
     return out
 
 
 def visite_storico(legacy_id: int) -> list[VisitaMedica]:
-    """Storico completo delle visite del dipendente, più recenti prima."""
-    return completa_referti_visite(
+    """Storico completo delle visite del dipendente, più recenti prima.
+
+    Ogni visita porta anche (``annota_storico``): ``corrente``, ``sostituita_da``
+    (la visita della famiglia che l'ha rinnovata) e ``stesso_giorno`` (altre visite
+    della stessa famiglia nella stessa data: probabile doppione da verificare).
+    """
+    return annota_storico(completa_referti_visite(
         VisitaMedica.objects
         .filter(legacy_anagrafica_id=legacy_id)
         .select_related("tipo", "referto_documento")
         .order_by("-data_svolgimento", "-id")
+    ))
+
+
+def annota_storico(visite: list[VisitaMedica]) -> list[VisitaMedica]:
+    """Una visita rinnovata non è «scaduta»: lo storico deve dirlo, non mostrare il pallino rosso."""
+    if not visite:
+        return visite
+    correnti = ultime_visite_correnti_ids(
+        {v.legacy_anagrafica_id for v in visite}, includi_cessati=True,
     )
+    per_famiglia: dict[tuple[int, str], list[VisitaMedica]] = {}
+    for v in visite:
+        per_famiglia.setdefault((v.legacy_anagrafica_id, famiglia_tipo(v.tipo)), []).append(v)
+    for gruppo in per_famiglia.values():
+        attuale = next((v for v in gruppo if v.pk in correnti), None)
+        # La più recente della famiglia, anche se segnata a mano come superata.
+        piu_recente = max(gruppo, key=lambda v: (v.data_svolgimento, v.pk))
+        for v in gruppo:
+            v.corrente = v.pk in correnti
+            v.sostituita_da = None
+            if not v.corrente and v.superata_il is None:
+                sostituta = attuale or piu_recente
+                v.sostituita_da = sostituta if sostituta.pk != v.pk else None
+            v.stesso_giorno = [
+                altra for altra in gruppo
+                if altra.pk != v.pk and altra.data_svolgimento == v.data_svolgimento
+            ]
+    return visite
 
 
 def ultime_visite_correnti_ids(

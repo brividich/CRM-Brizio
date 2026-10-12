@@ -86,7 +86,7 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
             <div class="vm-detail-field"><dt>Dipendente</dt><dd>{{ dipendente_nome }}</dd></div>
             <div class="vm-detail-field"><dt>Tipo visita</dt><dd>{{ visita.tipo.nome }}</dd></div>
             <div class="vm-detail-field"><dt>Data visita</dt><dd>{{ visita.data_svolgimento|date:"d/m/Y" }}</dd></div>
-            <div class="vm-detail-field"><dt>Scadenza</dt><dd>{{ visita.data_scadenza|date:"d/m/Y"|default:"Nessuna scadenza" }}{% if scadenza_anticipata %}<div class="vm-detail-sub vm-scadenza-nota">Anticipata rispetto al {{ scadenza_tipo|date:"d/m/Y" }} previsto dal tipo di visita.{% if visita.scadenza_nota %} {{ visita.scadenza_nota }}{% endif %}</div>{% endif %}</dd></div>
+            <div class="vm-detail-field"><dt>Scadenza</dt><dd>{{ visita.data_scadenza|date:"d/m/Y"|default:"Nessuna scadenza" }}{% if scadenza_anticipata %}<div class="vm-detail-sub vm-scadenza-nota">Anticipata rispetto al {{ scadenza_tipo|date:"d/m/Y" }} previsto dal tipo di visita.{% if visita.scadenza_nota %} {{ visita.scadenza_nota }}{% endif %}</div>{% elif visita.scadenza_nota %}<div class="vm-detail-sub vm-scadenza-nota">{{ visita.scadenza_nota }}</div>{% endif %}</dd></div>
             <div class="vm-detail-field"><dt>Esito</dt><dd>{{ visita.get_esito_display }}</dd></div>
             <div class="vm-detail-field"><dt>Medico competente</dt><dd>{{ visita.medico_competente|default:"—" }}</dd></div>
             <div class="vm-detail-field vm-detail-wide"><dt>Prescrizioni</dt><dd>{{ visita.prescrizioni|default:"—" }}</dd></div>

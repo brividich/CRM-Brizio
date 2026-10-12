@@ -10377,6 +10377,27 @@ def _visite_mediche_response(request):
     return _redirect_impostazioni("visite-mediche")
 
 
+def _fascia_eta_tipo_visita(post) -> tuple[int | None, int | None, str]:
+    """(eta_minima, eta_massima, errore) dai campi del form; vuoto = nessun limite."""
+    valori = []
+    for campo in ("eta_minima", "eta_massima"):
+        raw = (post.get(campo) or "").strip()
+        if not raw:
+            valori.append(None)
+            continue
+        try:
+            valore = int(raw)
+        except ValueError:
+            return None, None, "Età non valida: un numero di anni da 0 a 120."
+        if not 0 <= valore <= 120:
+            return None, None, "Età non valida: un numero di anni da 0 a 120."
+        valori.append(valore)
+    minima, massima = valori
+    if minima is not None and massima is not None and minima > massima:
+        return None, None, "Fascia d'età non valida: «età da» supera «età fino a»."
+    return minima, massima, ""
+
+
 def _durata_tipo_visita(raw) -> int | None:
     """Periodicità in mesi da 0 (nessuna scadenza) a DURATA_VISITA_MAX_MESI; None se non valida.
     Prima un valore sbagliato diventava 12 in silenzio, cambiando tutte le scadenze."""
@@ -10404,11 +10425,17 @@ def tipo_visita_medica_create(request):
     if durata_mesi is None:
         messages.error(request, f"Periodicità non valida: un numero di mesi da 0 a {DURATA_VISITA_MAX_MESI}.")
         return _visite_mediche_response(request)
+    eta_minima, eta_massima, errore_eta = _fascia_eta_tipo_visita(request.POST)
+    if errore_eta:
+        messages.error(request, errore_eta)
+        return _visite_mediche_response(request)
     tv, created = TipoVisitaMedica.objects.get_or_create(
         nome__iexact=nome,
         defaults={
             "nome": nome,
             "durata_mesi": durata_mesi,
+            "eta_minima": eta_minima,
+            "eta_massima": eta_massima,
             "obbligatoria": request.POST.get("obbligatoria") == "1",
             "descrizione": (request.POST.get("descrizione") or "").strip(),
             "categoria": (request.POST.get("categoria") or "").strip()[:100],
@@ -10442,8 +10469,14 @@ def tipo_visita_medica_edit(request, tipo_id: int):
     if durata_mesi is None:
         messages.error(request, f"Periodicità non valida: un numero di mesi da 0 a {DURATA_VISITA_MAX_MESI}.")
         return _visite_mediche_response(request)
+    eta_minima, eta_massima, errore_eta = _fascia_eta_tipo_visita(request.POST)
+    if errore_eta:
+        messages.error(request, errore_eta)
+        return _visite_mediche_response(request)
     tipo.nome = nome
     tipo.durata_mesi = durata_mesi
+    tipo.eta_minima = eta_minima
+    tipo.eta_massima = eta_massima
     tipo.obbligatoria = request.POST.get("obbligatoria") == "1"
     tipo.descrizione = (request.POST.get("descrizione") or "").strip()
     tipo.categoria = (request.POST.get("categoria") or "").strip()[:100]

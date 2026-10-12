@@ -99,7 +99,9 @@ def referti_coda(request):
     from .models import TipoVisitaMedica, VisitaMedica
     from .services.referti_registrazione import (
         e_riga_visita_medica,
+        tipi_esami_laboratorio,
         tipi_famiglia,
+        tipo_esami_da_requisiti,
         tipo_oculistico_da_requisiti,
         tipo_visita_per_riga,
     )
@@ -113,6 +115,11 @@ def referti_coda(request):
     nomi = _nomi_per_legacy_ids([r.legacy_anagrafica_id_proposto for r in righe])
     tipi_oculistici = list(
         TipoVisitaMedica.objects.filter(is_active=True, nome__icontains="oculist").order_by("nome")
+    )
+    # Esami di laboratorio: i tipi riconosciuti come tali; se il catalogo non ne ha,
+    # tutto il catalogo, per non lasciare la riga senza scelta.
+    tipi_esami = tipi_esami_laboratorio() or list(
+        TipoVisitaMedica.objects.filter(is_active=True).order_by("nome")
     )
     # Chi non ha una proposta (nessun nome leggibile, tipico dell'oculistica caricata
     # a mano) deve poter essere abbinato comunque: elenco completo, solo se serve.
@@ -135,6 +142,14 @@ def referti_coda(request):
             proposto = riga.tipo_visita_scelto
             if proposto is None and riga.legacy_anagrafica_id_proposto:
                 proposto = tipo_oculistico_da_requisiti(riga.legacy_anagrafica_id_proposto)
+            riga.tipo_visita_proposto = proposto
+            riga.tipo_visita_proposto_id = proposto.pk if proposto else None
+            riga.pronto = False
+            continue
+        if riga.e_esami:
+            proposto = riga.tipo_visita_scelto or tipo_esami_da_requisiti(
+                riga.legacy_anagrafica_id_proposto, riga.letto_data_giudizio,
+            )
             riga.tipo_visita_proposto = proposto
             riga.tipo_visita_proposto_id = proposto.pk if proposto else None
             riga.pronto = False
@@ -208,8 +223,10 @@ def referti_coda(request):
         "conteggi": conteggi,
         "ocr_attivo": ocr_disponibile(),
         "tipi_oculistici": tipi_oculistici,
+        "tipi_esami": tipi_esami,
         "esiti_visita": VisitaMedica.Esito.choices,
         "esito_predefinito": VisitaMedica.Esito.IDONEO,
+        "esito_esami": VisitaMedica.Esito.ESEGUITO,
         "tutti_i_dipendenti": tutti_i_dipendenti,
     })
 
@@ -234,7 +251,7 @@ def _dati_oculistica(request, riga) -> tuple[dict, str]:
 
     from .models import TipoVisitaMedica
 
-    if not riga.e_oculistica:
+    if not riga.da_completare_a_mano:
         return {}, ""
     grezza = (request.POST.get(f"data_visita_{riga.pk}") or "").strip()
     try:

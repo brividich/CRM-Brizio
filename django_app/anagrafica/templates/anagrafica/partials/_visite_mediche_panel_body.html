@@ -41,6 +41,19 @@
         </label>
       </div>
     </div>
+    <div class="imp-form-row" style="margin-bottom:10px;">
+      <div class="imp-field" style="max-width:140px;">
+        <label class="imp-label">Età da (anni)</label>
+        <input class="imp-input" type="number" min="0" max="120" name="eta_minima" placeholder="—">
+      </div>
+      <div class="imp-field" style="max-width:140px;">
+        <label class="imp-label">Età fino a (anni)</label>
+        <input class="imp-input" type="number" min="0" max="120" name="eta_massima" placeholder="—">
+      </div>
+      <div class="imp-field" style="font-size:12px;color:#64748b;align-self:flex-end;">
+        Facoltative, estremi compresi. Con una categoria comune (es. oculistica quinquennale «fino a 49», biennale «da 50») il portale richiede da solo il tipo valido per l'età del dipendente; il protocollo del certificato prevale sempre.
+      </div>
+    </div>
     <div class="imp-field" style="max-width:260px;margin-bottom:10px;">
       <label class="imp-label">Categoria (facoltativa)</label>
       <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" placeholder="Es. Rischio chimico">
@@ -102,6 +115,7 @@
           <div class="imp-row-meta">
             {% if t.durata_mesi %}ogni {{ t.durata_mesi }} mesi{% else %}senza scadenza{% endif %}
             {% if t.obbligatoria %} · <span class="imp-badge imp-badge-orange">obbligatoria</span>{% endif %}
+            {% if t.ha_fascia_eta %} · <span class="imp-badge">{{ t.fascia_eta_label }}</span>{% endif %}
             · {{ t.n_visite|default:0 }} visite registrate
             {% with ruoli_list=t.ruoli_operativi.all %}
               {% if ruoli_list %} · ruoli: {% for ro in ruoli_list %}{{ ro.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
@@ -152,6 +166,12 @@
               <div class="imp-field">
                 <label class="imp-label">Categoria (facoltativa)</label>
                 <input class="imp-input" type="text" name="categoria" maxlength="100" list="visite-categorie-list" value="{{ t.categoria }}" placeholder="Es. Rischio chimico">
+              </div>
+              <div class="imp-field" style="flex-direction:row;gap:12px;">
+                <label class="imp-label" style="display:flex;flex-direction:column;gap:3px;">Età da (anni)
+                  <input class="imp-input" type="number" min="0" max="120" name="eta_minima" value="{{ t.eta_minima|default_if_none:'' }}" style="max-width:110px;"></label>
+                <label class="imp-label" style="display:flex;flex-direction:column;gap:3px;">Età fino a (anni)
+                  <input class="imp-input" type="number" min="0" max="120" name="eta_massima" value="{{ t.eta_massima|default_if_none:'' }}" style="max-width:110px;"></label>
               </div>
               <div class="imp-field" style="flex-direction:row;gap:16px;">
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;">

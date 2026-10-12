@@ -2821,6 +2821,18 @@ class TipoVisitaMedica(models.Model):
         help_text="Ruoli operativi per cui questa visita è obbligatoria.",
     )
     obbligatoria = models.BooleanField(default=True)
+    # Fascia d'età in cui il tipo vale, estremi compresi (es. oculistica
+    # videoterminalisti: quinquennale «fino a 49», biennale «da 50»). Nella stessa
+    # famiglia (categoria) il motore dei requisiti sceglie il tipo valido per l'età
+    # attuale; il protocollo del certificato, deciso dal medico, prevale sempre.
+    eta_minima = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MaxValueValidator(120)],
+        help_text="Età da cui vale questo tipo (compresa). Vuoto = nessun limite.",
+    )
+    eta_massima = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MaxValueValidator(120)],
+        help_text="Età fino a cui vale questo tipo (compresa). Vuoto = nessun limite.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -2831,6 +2843,30 @@ class TipoVisitaMedica(models.Model):
 
     def __str__(self) -> str:
         return self.nome
+
+    @property
+    def ha_fascia_eta(self) -> bool:
+        return self.eta_minima is not None or self.eta_massima is not None
+
+    def vale_per_eta(self, eta: int | None) -> bool:
+        """Il tipo vale a questa età? Età sconosciuta: si considera valido."""
+        if eta is None:
+            return True
+        if self.eta_minima is not None and eta < self.eta_minima:
+            return False
+        if self.eta_massima is not None and eta > self.eta_massima:
+            return False
+        return True
+
+    @property
+    def fascia_eta_label(self) -> str:
+        if self.eta_minima is not None and self.eta_massima is not None:
+            return f"da {self.eta_minima} a {self.eta_massima} anni"
+        if self.eta_minima is not None:
+            return f"dai {self.eta_minima} anni"
+        if self.eta_massima is not None:
+            return f"fino a {self.eta_massima} anni"
+        return ""
 
 
 class DipendenteVisitaFacoltativa(models.Model):
@@ -2910,6 +2946,9 @@ class VisitaMedica(models.Model):
         IDONEO_LIM_PRESCR         = "IDONEO_LIM_PRESCR", "Idoneo con limitazioni e prescrizioni"
         NON_IDONEO_TEMPORANEO     = "NON_IDONEO_TEMP",   "Non idoneo (temporaneo)"
         NON_IDONEO_DEFINITIVO     = "NON_IDONEO_DEF",    "Non idoneo (definitivo)"
+        # Accertamento senza giudizio di idoneità (es. esami ematici di laboratorio):
+        # neutro per i semafori, non è né idoneo né non idoneo.
+        ESEGUITO                  = "ESEGUITO",          "Eseguito (accertamento senza giudizio)"
 
     legacy_anagrafica_id = models.IntegerField(db_index=True)
     tipo = models.ForeignKey(

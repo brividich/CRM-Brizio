@@ -2470,7 +2470,8 @@ body.theme-dark .dp-link-ok { color:#86efac; }
 
       {% if visite_stato_list %}
       <div style="margin-bottom:18px;">
-        <div class="dp-sec-label" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Stato visite richieste (in base ai ruoli operativi)</div>
+        <div class="dp-sec-label" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Stato visite richieste</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:8px;">Dovute per ruoli operativi, mansione e rischi, protocollo sanitario del certificato, processi qualificati ed età. Passa sul tipo per vedere da dove viene ciascuna.</div>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
             <tr class="dp-tr-head dp-thead-soft">
@@ -2483,8 +2484,11 @@ body.theme-dark .dp-link-ok { color:#86efac; }
           <tbody>
             {% for row in visite_stato_list %}
             <tr class="dp-tr-line">
-              <td class="dp-td-strong" style="padding:7px 8px;font-weight:600;">{{ row.tipo.nome }}</td>
-              <td class="dp-td-mid" style="padding:7px 8px;">{% if row.ultima %}{{ row.ultima.data_svolgimento|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+              <td class="dp-td-strong" style="padding:7px 8px;font-weight:600;" title="Richiesta da: {{ row.origini|join:'; ' }}">{{ row.tipo.nome }}
+                {% if row.cambio %}<div class="vm-cambio" style="margin-top:3px;font-size:11.5px;font-weight:500;color:#9a3412;">↻ {{ row.cambio }}</div>
+                {% elif row.nota %}<div style="margin-top:3px;font-size:11.5px;font-weight:500;color:#64748b;">{{ row.nota }}</div>{% endif %}
+              </td>
+              <td class="dp-td-mid" style="padding:7px 8px;">{% if row.ultima %}{{ row.ultima.data_svolgimento|date:"d-m-Y" }}{% if row.ultima.tipo_id != row.tipo.pk %}<div style="font-size:11px;color:#64748b;">{{ row.ultima.tipo.nome }}</div>{% endif %}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
               <td class="dp-td-mid" style="padding:7px 8px;">{% if row.data_scadenza %}{{ row.data_scadenza|date:"d-m-Y" }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
               <td style="padding:7px 8px;">
                 {% if row.stato == "mancante" %}
@@ -2522,9 +2526,11 @@ body.theme-dark .dp-link-ok { color:#86efac; }
             {% for v in visite_storico_list %}
             <tr class="dp-tr-line">
               <td class="dp-td-strong" style="padding:7px 8px;"><a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}">{{ v.data_svolgimento|date:"d-m-Y" }}</a></td>
-              <td class="dp-td-strong" style="padding:7px 8px;font-weight:600;">{{ v.tipo.nome }}</td>
+              <td class="dp-td-strong" style="padding:7px 8px;font-weight:600;">{{ v.tipo.nome }}
+                {% if v.stesso_giorno %}<div style="margin-top:3px;font-size:11px;font-weight:600;color:#b45309;" title="Due visite della stessa famiglia nella stessa data: di solito è un doppione. Apri la visita e segnala come superata quella sbagliata.">⚠ Stesso giorno di {% for altra in v.stesso_giorno %}«{{ altra.tipo.nome }}»{% if not forloop.last %}, {% endif %}{% endfor %}: verificare</div>{% endif %}
+              </td>
               <td class="dp-td-mid" style="padding:7px 8px;">{{ v.get_esito_display }}</td>
-              <td class="dp-td-mid" style="padding:7px 8px;">{% if v.data_scadenza %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% else %}—{% endif %}</td>
+              <td class="dp-td-mid" style="padding:7px 8px;">{% if v.data_scadenza %}{% if v.superata_il %}<span style="color:#94a3b8;">{{ v.data_scadenza|date:"d-m-Y" }}</span> <span style="font-size:11px;color:#64748b;">· superata</span>{% elif v.sostituita_da %}<span style="color:#94a3b8;">{{ v.data_scadenza|date:"d-m-Y" }}</span> <span style="font-size:11px;color:#64748b;">· {% if v.sostituita_da.data_svolgimento == v.data_svolgimento %}non corrente (stesso giorno){% else %}rinnovata il {{ v.sostituita_da.data_svolgimento|date:"d-m-Y" }}{% endif %}</span>{% else %}{{ v.data_scadenza|date:"d-m-Y" }}{% if v.is_scaduta %} 🔴{% elif v.in_scadenza %} 🟠{% endif %}{% endif %}{% else %}—{% endif %}</td>
               <td style="padding:7px 8px;">
                 {% if v.referti_documenti %}
                   {% for documento in v.referti_documenti %}
