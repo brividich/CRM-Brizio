@@ -1,3 +1,0 @@
-# Alias legacy mantenuto per compatibilita'.
-# La sorgente autorevole delle dipendenze Django e' `django_app/requirements.txt`.
--r django_app/requirements.txt
