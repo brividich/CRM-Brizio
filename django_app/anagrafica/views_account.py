@@ -11,6 +11,7 @@ import re
 import uuid
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.core.cache import cache
 from django.http import JsonResponse
@@ -209,3 +210,16 @@ def dipendente_account_scollega(request, legacy_id: int):
         return _esito(request, legacy_id, "error", "Conferma lo scollegamento dell'account portale.", ok=False)
     livello, testo = account_portale.scollega(request, legacy_id)
     return _esito(request, legacy_id, livello, testo, ok=livello == "success")
+
+
+# ── Guida d'uso: persone e account ───────────────────────────────────────────
+
+@login_required
+def guida_persone_account(request):
+    """Guida dentro il portale per elenco, viste, nuovo dipendente e account portale.
+    La parte di gestione (viste, creazione, account, avviso IT) la vede solo chi amministra l'anagrafica."""
+    from .views import _is_anagrafica_admin
+
+    return render(request, "anagrafica/pages/guida_persone_account.html", {
+        "page_title": "Guida persone e account", "parte_admin": _is_anagrafica_admin(request),
+    })

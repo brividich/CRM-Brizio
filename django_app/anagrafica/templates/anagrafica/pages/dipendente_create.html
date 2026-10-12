@@ -149,7 +149,8 @@ body.theme-dark .dc-acc-alert.is-info { background:rgba(14,165,233,.15); color:#
       <div class="dc-title">+ Nuovo dipendente</div>
       <div class="dc-sub">Compila i campi obbligatori. Le sezioni facoltative si possono completare anche dalla scheda.</div>
     </div>
-    <a class="dc-btn dc-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Torna all'elenco</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">{% include "anagrafica/partials/_guida_persone_link.html" with ancora="nuovo-dipendente" classe="dc-btn dc-btn-ghost" %}
+    <a class="dc-btn dc-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Torna all'elenco</a></div>
   </div>
 
   <form method="post" autocomplete="off" id="dc-form" enctype="multipart/form-data" data-step-iniziale="{{ step_iniziale }}">
