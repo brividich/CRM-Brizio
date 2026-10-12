@@ -103,7 +103,18 @@ Il file caricato resta in un'area privata e cifrata solo fino all'import e non �
 
 ### Collegare i software alle CVE (CPE)
 
-NVD descrive i prodotti con un codice chiamato **CPE** (produttore e prodotto, per esempio `7-zip:7-zip`). Per sapere se una CVE riguarda un software dell'inventario, ogni coppia produttore/prodotto va collegata al suo CPE una volta sola, in **Configurazione › Inventario software › Software e CPE**:
+NVD descrive i prodotti con un codice chiamato **CPE** (produttore e prodotto, per esempio `7-zip:7-zip`). Per sapere se una CVE riguarda un software dell'inventario, ogni coppia produttore/prodotto va collegata al suo CPE una volta sola, in **Configurazione › Inventario software › Software e CPE**.
+
+**Collegamento automatico.** Dopo ogni giro dell'arricchimento CVE e dopo ogni import dell'inventario il sistema collega **da solo** i software il cui nome coincide senza dubbi con un CPE delle CVE scaricate:
+
+- produttore e prodotto uguali (per esempio «google» + «google chrome» ↔ `google:chrome`);
+- oppure il prodotto uguale a un nome NVD che nessun altro produttore usa, di almeno 4 caratteri (per esempio «7-zip» ↔ `7-zip:7-zip`).
+
+Questi collegamenti hanno il badge **automatico** e nella spiegazione degli esiti compare «collegamento automatico a …». Se uno è sbagliato, **Azzera**: il sistema non lo rifà più. Le decisioni prese da una persona (confermato, N/A) non vengono mai cambiate. **Collega automaticamente ora** lo esegue subito.
+
+**Proposte da confermare.** Per i nomi solo simili la pagina mostra una proposta. Il filtro **Proposte da confermare** le elenca; spunta le righe giuste e premi **Conferma selezionati** per confermarle in blocco (vale la prima proposta di ogni riga).
+
+Per il resto:
 
 - **Cerca in NVD** propone i CPE più simili; **Conferma** quello giusto.
 - **N/A** per i software senza CVE da seguire (driver, componenti interni): non verranno più proposti.

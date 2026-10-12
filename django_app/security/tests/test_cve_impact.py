@@ -516,3 +516,67 @@ class ViewTests(_Base):
         html = Template("{% load security_asset %}{% security_asset_vulns asset %}").render(Context({"asset": asset, "request": request}))
         self.assertIn("CVE-2099-0001", html)
         self.assertIn("Vulnerabilità", html)
+
+
+class AutoLinkTests(_Base):
+    """Collegamento automatico software ↔ CPE quando il nome non lascia dubbi."""
+
+    def setUp(self):
+        super().setUp()
+        self._import()
+
+    def test_match_rules(self):
+        from security.services.cpe_auto import match
+
+        pairs = {("google", "chrome"), ("7-zip", "7-zip"), ("acme", "viewer"), ("demo", "viewer"), ("x", "zip")}
+        self.assertEqual(match("google", "google chrome", pairs), ("google", "chrome"))
+        self.assertEqual(match("igor pavlov", "7-zip", pairs), ("7-zip", "7-zip"))
+        self.assertIsNone(match("other", "viewer", pairs))  # stesso nome per due produttori: decide una persona
+        self.assertIsNone(match("other", "zip", pairs))     # nome troppo corto per collegarlo da solo
+        self.assertIsNone(match("google", "google earth", pairs))
+
+    def test_auto_link_then_impact_explains_it(self):
+        from security.services.cpe_auto import auto_link
+
+        record = self._cve()
+        self.assertEqual(auto_link(), 1)
+        mapping = SoftwareCpeMapping.objects.get(product="7-zip")
+        self.assertTrue(mapping.confirmed)
+        self.assertEqual(mapping.origin, SoftwareCpeMapping.ORIGIN_AUTO)
+        cve_impact.recompute(record)
+        impact = record.impacts.get(host="pc-demo-01")
+        self.assertEqual(impact.outcome, SecurityCveImpact.IMPACTS)
+        self.assertIn("collegamento automatico a 7-zip:7-zip", impact.explanation)
+        self.assertEqual(auto_link(), 0)  # già collegato: niente da rifare
+
+    def test_reset_of_auto_link_is_not_redone(self):
+        from security.services.cpe_auto import auto_link
+
+        self._cve()
+        auto_link()
+        mapping = SoftwareCpeMapping.objects.get(product="7-zip")
+        self.client.post(reverse("security:software_mapping"), {"action": "cpe_reset", "vendor": mapping.vendor, "product": mapping.product})
+        mapping.refresh_from_db()
+        self.assertFalse(mapping.confirmed)
+        self.assertEqual(mapping.origin, SoftwareCpeMapping.ORIGIN_AUTO_REJECTED)
+        self.assertEqual(auto_link(), 0)
+        mapping.refresh_from_db()
+        self.assertFalse(mapping.confirmed)
+
+    def test_human_decisions_are_never_touched(self):
+        from security.services.cpe_auto import auto_link
+
+        self._cve()
+        SoftwareCpeMapping.objects.create(vendor="igor pavlov", product="7-zip", not_applicable=True)
+        self.assertEqual(auto_link(), 0)
+        self.assertFalse(SoftwareCpeMapping.objects.get(product="7-zip").confirmed)
+
+    def test_bulk_confirm_and_filters(self):
+        self._cve(criteria=[{"part": "a", "vendor": "democorp", "product": "demoviewer_pro", "version": "*", "start_including": "",
+                             "start_excluding": "", "end_including": "", "end_excluding": "22.0", "requires_platform": False}])
+        page = self.client.get(reverse("security:software_mapping"), {"stato": "proposte"})
+        self.assertContains(page, "Proposte da confermare (1)")
+        self.assertContains(page, "demo corp|||demoviewer|||democorp:demoviewer_pro")
+        self.client.post(reverse("security:software_mapping"), {"action": "cpe_confirm_bulk", "bulk": ["demo corp|||demoviewer|||democorp:demoviewer_pro"]})
+        mapping = SoftwareCpeMapping.objects.get(product="demoviewer")
+        self.assertEqual((mapping.cpe_vendor, mapping.cpe_product, mapping.confirmed, mapping.origin), ("democorp", "demoviewer_pro", True, ""))

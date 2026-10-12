@@ -35,6 +35,7 @@ from .services.cve_feeds import nvd_api_key, set_nvd_api_key
 
 logger = logging.getLogger(__name__)
 CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,7}$")
+CPE_PAIR_RE = re.compile(r"^[a-z0-9_.\-~%!]+:[a-z0-9_.\-~%!]+$")
 
 
 def _denied(request):
@@ -222,6 +223,7 @@ def _inventory_run(request, item, date_format):
     software_inventory.run_import(item, preview)
     software_inventory.discard_stored(item)
     audit_config_change(request.user, "import", item, field_name="rows_imported", new_value=item.rows_imported, request=request)
+    _auto_link_cpe()
     _queue_recompute()
     _run_software_policy()
     messages.success(request, f"Importate {item.rows_imported} righe ({item.rows_new} nuove) da {item.hosts_count} host; "
@@ -241,6 +243,17 @@ def inventory_discard(request, pk):
     item.save(update_fields=["status"])
     messages.info(request, "Import annullato: il file caricato è stato eliminato.")
     return redirect("security:inventory")
+
+
+def _auto_link_cpe():
+    """Collega da solo i software dal nome identico a un CPE delle CVE note; un errore non blocca l'import."""
+    try:
+        from .services.cpe_auto import auto_link
+
+        return auto_link()
+    except Exception:  # noqa: BLE001
+        logger.exception("Collegamento automatico CPE non eseguito")
+        return 0
 
 
 def _run_software_policy():
@@ -270,40 +283,45 @@ def software_mapping(request):
         return _config_denied(request)
     if request.method == "POST":
         return _software_mapping_post(request)
+    from .services.cpe_auto import known_cpe_pairs, proposals
+
     q = request.GET.get("q", "").strip()
+    state = request.GET.get("stato", "")
     products = (
         SoftwareInstallation.objects.filter(still_detected=True).values("vendor", "product").order_by()
         .annotate(hosts=Count("host", distinct=True)).order_by("-hosts", "vendor", "product")
     )
     if q:
         products = products.filter(Q(vendor__icontains=q) | Q(product__icontains=q))
-    page = Paginator(list(products), 50).get_page(request.GET.get("page"))
     mappings = {(m.vendor, m.product): m for m in SoftwareCpeMapping.objects.all()}
-    known = _local_cpe_pairs()
-    for row in page.object_list:
+    known = known_cpe_pairs()
+    rows = list(products)
+    for row in rows:
         row["mapping"] = mappings.get((row["vendor"], row["product"]))
-        row["local_suggestions"] = _local_suggestions(row["product"], known)
+        row["local_suggestions"] = proposals(row["vendor"], row["product"], known)
+    counts = {
+        "automatici": sum(1 for r in rows if r["mapping"] and r["mapping"].confirmed and r["mapping"].origin == SoftwareCpeMapping.ORIGIN_AUTO),
+        "confermati": sum(1 for r in rows if r["mapping"] and r["mapping"].confirmed and r["mapping"].origin != SoftwareCpeMapping.ORIGIN_AUTO),
+        "proposte": sum(1 for r in rows if _is_open(r) and r["local_suggestions"]),
+    }
+    if state == "proposte":
+        rows = [r for r in rows if _is_open(r) and r["local_suggestions"]]
+    elif state == "automatici":
+        rows = [r for r in rows if r["mapping"] and r["mapping"].confirmed and r["mapping"].origin == SoftwareCpeMapping.ORIGIN_AUTO]
+    elif state == "da_mappare":
+        rows = [r for r in rows if _is_open(r)]
+    page = Paginator(rows, 50).get_page(request.GET.get("page"))
     return render(request, "security/vuln_software.html", {
-        "page": page, "q": q, "aliases": SoftwareAlias.objects.all()[:300], "alias_kinds": SoftwareAlias.KIND_CHOICES,
+        "page": page, "q": q, "stato": state, "counts": counts, "known_cpes": len(known),
+        "aliases": SoftwareAlias.objects.all()[:300], "alias_kinds": SoftwareAlias.KIND_CHOICES,
         "has_nvd_key": bool(nvd_api_key()),
     })
 
 
-def _local_cpe_pairs():
-    pairs = set()
-    for configurations in SecurityCveRecord.objects.exclude(configurations=[]).values_list("configurations", flat=True)[:2000]:
-        for c in configurations or []:
-            if c.get("vendor") and c.get("product"):
-                pairs.add((c["vendor"], c["product"]))
-    return pairs
-
-
-def _local_suggestions(product, known):
-    key = re.sub(r"[^a-z0-9]+", "", product.lower())
-    if not key:
-        return []
-    out = [f"{v}:{p}" for v, p in known if key in re.sub(r"[^a-z0-9]+", "", p.lower()) or re.sub(r"[^a-z0-9]+", "", p.lower()) in key]
-    return sorted(out)[:5]
+def _is_open(row):
+    """Né confermato né non applicabile: c'è ancora da decidere."""
+    mapping = row["mapping"]
+    return not mapping or not (mapping.confirmed or mapping.not_applicable)
 
 
 def _software_mapping_post(request):
@@ -336,14 +354,19 @@ def _software_mapping_post(request):
         old = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed}"
         if action == "cpe_confirm":
             cpe = request.POST.get("cpe", "").strip().lower()
-            if not re.match(r"^[a-z0-9_.\-~%!]+:[a-z0-9_.\-~%!]+$", cpe):
+            if not CPE_PAIR_RE.match(cpe):
                 messages.error(request, "CPE nel formato vendor:product (es. 7-zip:7-zip).")
                 return redirect(request.get_full_path())
             mapping.cpe_vendor, mapping.cpe_product = cpe.split(":", 1)
             mapping.confirmed, mapping.not_applicable = True, False
+            mapping.origin = SoftwareCpeMapping.ORIGIN_MANUAL
         elif action == "cpe_not_applicable":
             mapping.confirmed, mapping.not_applicable = False, True
+            mapping.origin = SoftwareCpeMapping.ORIGIN_MANUAL
         else:
+            # Annullare un collegamento automatico lo segna come rifiutato: il sistema non lo rifà.
+            mapping.origin = (SoftwareCpeMapping.ORIGIN_AUTO_REJECTED if mapping.origin == SoftwareCpeMapping.ORIGIN_AUTO
+                              else mapping.origin if mapping.origin == SoftwareCpeMapping.ORIGIN_AUTO_REJECTED else SoftwareCpeMapping.ORIGIN_MANUAL)
             mapping.confirmed, mapping.not_applicable = False, False
         mapping.confirmed_by, mapping.confirmed_at = request.user, timezone.now()
         mapping.save()
@@ -351,6 +374,31 @@ def _software_mapping_post(request):
                             new_value=f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed} n/a={mapping.not_applicable}", request=request)
         _queue_recompute()
         messages.success(request, f"Mappatura di «{product}» aggiornata: impatti in ricalcolo.")
+    elif action == "cpe_auto":
+        linked = _auto_link_cpe()
+        if linked:
+            _queue_recompute()
+        messages.success(request, f"Collegamento automatico: {linked} software collegat{'o' if linked == 1 else 'i'}" + (", impatti in ricalcolo." if linked else "."))
+    elif action == "cpe_confirm_bulk":
+        confirmed = 0
+        for item in request.POST.getlist("bulk")[:200]:
+            vendor, _sep, rest = item.partition("|||")
+            product, _sep, cpe = rest.partition("|||")
+            cpe = cpe.strip().lower()
+            if not product or not CPE_PAIR_RE.match(cpe):
+                continue
+            mapping, _ = SoftwareCpeMapping.objects.get_or_create(vendor=vendor[:120], product=product[:160])
+            old = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed}"
+            mapping.cpe_vendor, mapping.cpe_product = cpe.split(":", 1)
+            mapping.confirmed, mapping.not_applicable, mapping.origin = True, False, SoftwareCpeMapping.ORIGIN_MANUAL
+            mapping.confirmed_by, mapping.confirmed_at = request.user, timezone.now()
+            mapping.save()
+            audit_config_change(request.user, "update", mapping, field_name="cpe", old_value=old,
+                                new_value=f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata in blocco", request=request)
+            confirmed += 1
+        if confirmed:
+            _queue_recompute()
+        messages.success(request, f"Confermate {confirmed} mappature" + (": impatti in ricalcolo." if confirmed else "."))
     elif action == "cpe_suggest":
         vendor = request.POST.get("vendor", "")[:120]
         product = request.POST.get("product", "")[:160]
