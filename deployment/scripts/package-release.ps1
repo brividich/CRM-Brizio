@@ -548,13 +548,41 @@ if ($script:ExportWorktree -and $script:RepoRoot) {
         # L'export non ha il DB di test (runtime.sqlite3 e' gitignorato), mentre i
         # check ACL del guard (bootstrap_acl_v2, acl_coverage_report) hanno bisogno
         # dello schema. Lo creiamo qui: migrate e' idempotente e resta nella temp.
+        # Da zero sono ~1100 migrazioni (15-20 minuti su macchina carica). Si parte
+        # dalla copia gia' migrata del pacchetto precedente, cosi' migrate applica
+        # solo le nuove; se la copia non e' compatibile (storia diversa) si rifa'
+        # da zero. Il DB serve solo ai check ACL del guard: e' usa e getta.
         Write-Log "Inizializzo il DB di test dell'export (migrate)..." "STEP"
         $exportManage = Join-Path $SourcePath "django_app\manage.py"
+        $exportDbDir  = Join-Path $SourcePath "django_app\.tmp_tests"
+        $exportDb     = Join-Path $exportDbDir "runtime.sqlite3"
+        $cacheDbDir   = Join-Path $script:RepoRoot "django_app\.tmp_tests"
+        $cacheDb      = Join-Path $cacheDbDir "package_export_runtime.sqlite3"
+        New-Item -ItemType Directory -Force -Path $exportDbDir | Out-Null
+        $usaCache = Test-Path -LiteralPath $cacheDb
+        if ($usaCache) {
+            Copy-Item -LiteralPath $cacheDb -Destination $exportDb -Force
+            Write-Log "  DB di partenza: copia gia' migrata del pacchetto precedente." "INFO"
+        }
+        $inizioMigrate = Get-Date
         & $repoVenvPython $exportManage migrate --settings=config.settings.test --noinput 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0 -and $usaCache) {
+            Write-Log "  Copia non compatibile con questo branch: rifaccio il DB da zero." "WARN"
+            Remove-Item -LiteralPath $exportDb -Force -ErrorAction SilentlyContinue
+            & $repoVenvPython $exportManage migrate --settings=config.settings.test --noinput 2>&1 | Out-Null
+        }
         if ($LASTEXITCODE -ne 0) {
             Write-Log "migrate sul DB di test dell'export fallito." "ERROR"
             Remove-ExportWorktree
             exit 1
+        }
+        $durata = [int]((Get-Date) - $inizioMigrate).TotalSeconds
+        Write-Log "  migrate completato in $durata s." "INFO"
+        try {
+            New-Item -ItemType Directory -Force -Path $cacheDbDir | Out-Null
+            Copy-Item -LiteralPath $exportDb -Destination $cacheDb -Force
+        } catch {
+            Write-Log "  Copia del DB per il prossimo pacchetto non salvata: $_" "WARN"
         }
         Write-Log "Release guard: uso il Python del venv del repo ($repoVenvPython)." "INFO"
     }
