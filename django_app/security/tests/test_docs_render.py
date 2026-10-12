@@ -131,3 +131,9 @@ class PageHelpLinksTests(SimpleTestCase):
         self.assertIn("08-configuration-guide", soc_page_help_url("admin_config_sources"))
         self.assertEqual(soc_page_help_url("nome-sconosciuto"), reverse("security:help"))
         self.assertTrue(soc_page_help_url("alerts_list").endswith("/13-lavoro-quotidiano/#alert"))
+
+    def test_admin_pages_and_inbox_have_dedicated_chapter(self):
+        from security.templatetags.security_help import soc_page_help_url
+
+        for url_name in ("inbox", "admin_addons", "admin_addon_detail", "admin_diagnostics", "admin_docs"):
+            self.assertNotEqual(soc_page_help_url(url_name), reverse("security:help"), url_name)

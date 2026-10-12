@@ -43,6 +43,11 @@ PAGE_HELP = {
     "admin_mailbox_sources_list": ("mailbox-ingestion", ""),
     "admin_mailbox_source_detail": ("mailbox-ingestion", ""),
     "admin_autoconfig": ("02-admin-guide", "autoconfigurazione"),
+    "inbox": ("13-lavoro-quotidiano", "caricare-un-report-a-mano"),
+    "admin_addons": ("17-moduli-diagnostica-documentazione", "moduli"),
+    "admin_addon_detail": ("17-moduli-diagnostica-documentazione", "la-scheda-del-modulo"),
+    "admin_diagnostics": ("17-moduli-diagnostica-documentazione", "diagnostica"),
+    "admin_docs": ("17-moduli-diagnostica-documentazione", "documentazione"),
 }
 
 

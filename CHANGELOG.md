@@ -21,6 +21,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
   - Servita dalla route dell'elenco (`?guida=1|pdf`), come l'export: stessi permessi di consultazione, nessuna route e nessun binding ACL nuovi, nessuna migrazione.
   - Test: pagina con tutte le sezioni, PDF scaricabile, guida visibile a chi consulta e negata (403) agli altri.
 
+- **SOC — guida in-app per Moduli, Diagnostica, Documentazione e Inbox** (`django_app/security/guide/17_MODULI_DIAGNOSTICA_DOCUMENTAZIONE.md` nuovo, `guide/13_LAVORO_QUOTIDIANO.md`, `docs_render.py`, `views.py`, `templatetags/security_help.py`, `tests/test_docs_render.py`, `docs/moduli/security.md`): nuovo capitolo «Moduli, diagnostica e documentazione» (stati dei moduli, scheda modulo, controllo salute, tabelle di dettaglio, test di riconoscimento di una mail) e paragrafo «Caricare un report a mano» per l'Inbox; il pulsante «?» di queste cinque pagine porta al paragrafo dedicato.
+
 - **Anagrafica — binding ACL del salvataggio «Avviso IT ai nuovi ingressi»** (`django_app/anagrafica/migrations/0163_avviso_it_acl.py`): la route `anagrafica:avviso_it_save` riceve il binding di `anagrafica:workflow_campo_create` (o, se manca, di `anagrafica:impostazioni`); senza, con ACL strict il salvataggio sarebbe negato ai non superuser. Deploy: `migrate anagrafica` (0162-0163).
 
 - **Anagrafica — riquadro «Account portale» nella scheda dipendente** (`django_app/anagrafica/views_account.py`, `views.py`, `urls.py`, `services/account_portale.py`, `migrations/0162_account_scheda_acl.py` nuovo, `templates/anagrafica/partials/_account_portale_scheda.html` nuovo, `partials/_account_portale_risultati.html`, `pages/dipendente_detail.html`, `anagrafica/tests_account_scheda.py` nuovo, `docs/moduli/anagrafica.md`).
