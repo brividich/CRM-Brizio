@@ -20,7 +20,7 @@ from .models import (
     TaskStatus,
     VRFDocStatus,
 )
-from .tests import TasksBaseTestCase, _create_user_with_legacy, _ensure_role, _grant_role_actions
+from .tests_utils import TasksBaseTestCase, _create_user_with_legacy, _ensure_role, _grant_role_actions
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

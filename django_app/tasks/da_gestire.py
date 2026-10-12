@@ -23,9 +23,9 @@ def _url(name, *args):
 
 def _projects_qs(request, scope):
     from .models import Project
-    from .views import _scoped_projects_queryset
+    from .access import scoped_projects_queryset
 
-    qs = _scoped_projects_queryset(request)
+    qs = scoped_projects_queryset(request)
     if scope == "mine":
         u = request.user
         # Il team di commessa e' M2M dal 1.5.1 (project_managers/capi_commessa/...):
@@ -39,9 +39,9 @@ def _projects_qs(request, scope):
 
 
 def _tasks_qs(request, scope):
-    from .views import _scoped_tasks_queryset
+    from .access import scoped_tasks_queryset
 
-    qs = _scoped_tasks_queryset(request)
+    qs = scoped_tasks_queryset(request)
     if scope == "mine":
         u = request.user
         qs = qs.filter(Q(created_by=u) | Q(assigned_to=u) | Q(subscribers=u)).distinct()

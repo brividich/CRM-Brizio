@@ -4,7 +4,7 @@ Risponde a due domande che la dashboard attivita' non copriva: «quando ho il
 prossimo incontro» e «quali incontri stanno aspettando qualcosa da me».
 
 Regole:
-- lo scope e' sempre quello ACL delle commesse (`_scoped_projects_queryset`):
+- lo scope e' sempre quello ACL delle commesse (`scoped_projects_queryset`):
   qui non si allarga mai la visibilita', si filtra soltanto;
 - il taglio «i miei» e' personale (convocato, presente, creatore o membro del
   team di commessa), non un permesso: chi ha scope ampio puo' vedere tutto;
@@ -63,11 +63,11 @@ def _row(meeting, *, tone: str, motivo: str, action_url: str = "", action_label:
 def build_meeting_alerts(request, *, only_mine: bool = True) -> dict:
     """Prossimi incontri + incontri da gestire, nello scope dell'utente."""
     from .models import KickoffMeeting, MeetingIssueStatus, MeetingStatus
-    from .views import _can_manage_project, _scoped_projects_queryset
+    from .access import can_manage_project, scoped_projects_queryset
 
     user = request.user
     today = timezone.localdate()
-    projects = _scoped_projects_queryset(request)
+    projects = scoped_projects_queryset(request)
 
     base = KickoffMeeting.objects.filter(project_id__in=projects.values("id")).select_related("project")
     personal = bool(only_mine and getattr(user, "is_authenticated", False))
@@ -99,7 +99,7 @@ def build_meeting_alerts(request, *, only_mine: bool = True) -> dict:
 
     def can_manage(project) -> bool:
         if project.id not in manage_cache:
-            manage_cache[project.id] = _can_manage_project(request, project)
+            manage_cache[project.id] = can_manage_project(request, project)
         return manage_cache[project.id]
 
     da_gestire: list[dict] = []

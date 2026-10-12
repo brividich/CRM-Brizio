@@ -17,8 +17,8 @@ from .models import (
     Task,
     TaskStatus,
 )
-from .tests import TasksBaseTestCase, _create_user_with_legacy, _ensure_role, _grant_role_actions
-from .views_projects import project_actions
+from .tests_utils import TasksBaseTestCase, _create_user_with_legacy, _ensure_role, _grant_role_actions
+from .views.overview import project_actions
 
 User = get_user_model()
 
@@ -311,7 +311,7 @@ class ProjectActionsViewTests(TasksBaseTestCase):
         def render_without_template_queries(request, template_name, context):
             return HttpResponse(f"{template_name}:{context['open_count']}")
 
-        with patch("tasks.views_projects.render", side_effect=render_without_template_queries):
+        with patch("tasks.views.overview.render", side_effect=render_without_template_queries):
             # 4 + il prefetch dei quattro ruoli del team (M2M) sul progetto.
             with self.assertNumQueries(8):
                 response = project_actions(request, project_id=self.project.pk)

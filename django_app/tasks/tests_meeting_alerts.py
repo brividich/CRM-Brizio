@@ -14,7 +14,7 @@ from django.urls import resolve, reverse
 from django.utils import timezone
 
 from tasks.models import KickoffMeeting, MeetingStatus, Project
-from tasks.tests import (
+from tasks.tests_utils import (
     TasksBaseTestCase,
     _create_user_with_legacy,
     _ensure_role,
