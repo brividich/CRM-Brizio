@@ -8,6 +8,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Automazioni — fix `setup_q_schedules` che cadeva con `KeyError: 'minutes'`** (`django_app/automazioni/schedules.py`, test `automazioni/tests_managed_flows.py`): la spec oraria `security_cve_enrichment` non ha i minuti e il comando si fermava lì, lasciando non registrati il job di arricchimento CVE e gli schedule successivi. Ora i minuti servono solo agli schedule «ogni N minuti». Deploy: rilanciare `setup_q_schedules`.
+
 - **Asset — fix errore 500 nel dettaglio del Catalogo software** (`django_app/assets/views_software.py`, `assets/templates/assets/pages/software_catalog_detail.html`, test `security/tests/test_software_catalog.py`): per un software mai classificato il template usava `entry.vendor_name` come argomento di un filtro con `entry` vuoto, e Django rispondeva 500 su ogni dettaglio non classificato. Il produttore ora è calcolato nella vista; test di regressione sul dettaglio non classificato.
 
 - **Anagrafica — Integrità dati formazione: correzione delle giornate fuori intervallo per edizione** (`django_app/anagrafica/services/formazione_integrita.py`, test `anagrafica/tests_formazione_integrita.py`): con più giornate fuori dalle date della stessa edizione ogni correzione sovrascriveva la precedente e ne restava qualcuna da sistemare (3 in dev); ora l'intervallo si allarga una volta per edizione al minimo e massimo delle giornate.
