@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from anomalie.guida import con_guida
 import json
 import logging
 import mimetypes
@@ -1955,6 +1956,7 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
 
 @login_required
 @ensure_csrf_cookie
+@con_guida
 def gestione_anomalie_page(request):
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin = user_can_modulo_action(request, "anomalie", "admin_anomalie")
@@ -3442,6 +3444,7 @@ def _audit_detail_items(dettaglio) -> list[tuple[str, str]]:
 
 @login_required
 @ensure_csrf_cookie
+@con_guida
 def anomalie_configurazione_page(request):
     if not _can_manage_anomalie_config(request):
         return _json_error("Permesso negato", status=403)
@@ -3992,6 +3995,7 @@ def api_anomalie_config_logo_reset(request):
 
 @login_required
 @ensure_csrf_cookie
+@con_guida
 def apertura_segnalazione_page(request):
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     display_name = (
@@ -4237,6 +4241,7 @@ def export_anomalie_csv(request):
 
 
 @login_required
+@con_guida
 def anomalie_statistiche_page(request):
     """Pagina statistiche ed estrazioni anomalie."""
     context = {

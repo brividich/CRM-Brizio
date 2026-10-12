@@ -1,0 +1,28 @@
+{% comment %}Pulsante «?» della pagina: apre la guida del modulo sul paragrafo di questa pagina.
+Stile in linea perché va anche nelle pagine a sé (React, menu) che non caricano il CSS del portale.
+Uso: {% include "anomalie/partials/_guida_btn.html" with sezione="gestione" %}{% endcomment %}
+<a class="ag-help-btn" href="?guida=1#{{ sezione }}" title="Guida di questa pagina" aria-label="Guida di questa pagina">
+  <span class="ag-help-btn__q" aria-hidden="true">?</span><span class="ag-help-btn__t">Guida</span>
+</a>
+<style>
+.ag-help-btn {
+  position: fixed; left: 16px; bottom: 16px; z-index: 900;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px 6px 6px; border-radius: 999px;
+  background: #1f3a5f; color: #fff; text-decoration: none;
+  font: 700 13px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-shadow: 0 4px 14px rgba(15, 35, 56, .28);
+}
+.ag-help-btn:hover { filter: brightness(1.12); }
+.ag-help-btn:focus-visible { outline: 3px solid #7cc4f2; outline-offset: 2px; }
+.ag-help-btn__q {
+  width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; color: #1f3a5f; font-size: 14px; font-weight: 800;
+}
+/* Da telefono la pagina Gestione ha le schede in basso: il pulsante sale sopra. */
+@media (max-width: 760px) {
+  .ag-help-btn { bottom: 76px; padding: 6px; }
+  .ag-help-btn__t { display: none; }
+}
+@media print { .ag-help-btn { display: none !important; } }
+</style>
