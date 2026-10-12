@@ -31,6 +31,16 @@ alla visita eliminata vengono rimossi nella stessa transazione, con gli ID dei
 documenti registrati nell'audit. I grant per ruoli non admin sono disabilitati
 per default.
 
+### 0. Ruoli del portale (core.permessi) — sopra l'ACL v2
+
+Sistema unico per ruoli, matrice ruolo × modulo × azione e visibilità dei dati
+(propri / team d'organigramma / tutti): `django_app/core/permessi/`, pagina
+`/admin-portale/ruoli-portale/`. I ruoli sono `AccessGroup` (ordine = `priority`); la
+matrice genera i `GroupPermissionGrant` delle pagine. Con l'interruttore acceso il ruolo
+legacy, la tabella `permessi` e il fallback legacy non concedono più nulla. Ogni modulo
+nuovo si dichiara in `<app>/registro_permessi.py` e usa `puo_fare` / `utenti_visibili`:
+procedura in [PERMESSI_RUOLI.md](PERMESSI_RUOLI.md).
+
 ### 1. ACL Canonico v2 (sorgente primaria sicurezza)
 
 - File: `core/acl_v2.py`, `core/middleware.py`

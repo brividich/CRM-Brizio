@@ -207,11 +207,13 @@ class AccessiUnificatiTest(TestCase):
         self.assertIn(f"group:{group.id}", response["Location"])
 
     def test_codice_gruppo_non_valido_non_crea_nulla(self):
+        # I ruoli preset (core 0077) esistono gia': conta solo cio' che si aggiunge.
+        prima = AccessGroup.objects.count()
         self.client.post(
             self.url,
             {"action": "group_create", "code": "Manu Tenzione!", "label": "X", "priority": "10"},
         )
-        self.assertEqual(AccessGroup.objects.count(), 0)
+        self.assertEqual(AccessGroup.objects.count(), prima)
 
     def test_aggiunge_e_rimuove_un_membro(self):
         group = self._group()

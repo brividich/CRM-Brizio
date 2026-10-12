@@ -20,6 +20,8 @@ from core.audit import log_action
 from core.graph_utils import acquire_graph_token
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
+from core.permessi import legacy_id, puo_fare, sistema_ruoli_attivo, utenti_visibili
+from core.permessi.negato import risposta_negata
 
 from .acl_bootstrap import PERM_IMPOSTAZIONI_MANAGE
 
@@ -142,10 +144,46 @@ def _legacy_identity(request) -> tuple[str, str]:
     return name, email
 
 
+MODULO = "rilevazione_incidenti"
+
+
+def _visibili(request, items: list[dict]) -> list[dict]:
+    """Con i ruoli attivi tiene solo le rilevazioni che la persona puo' vedere."""
+    if not sistema_ruoli_attivo():
+        return items
+    ammessi = utenti_visibili(request, MODULO, "vedere")
+    if ammessi is None:
+        return items
+    return [f for f in items if _autore(f) in ammessi]
+
+
+def _autore(fields: dict) -> int | None:
+    try:
+        valore = (fields or {}).get("SegnalatoDaLegacyId")
+        return int(valore) if valore else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _nega_se_non_visibile(request, fields: dict | None, azione: str = "vedere"):
+    """Risposta 403 se i ruoli non consentono ``azione`` su questa rilevazione, altrimenti None."""
+    if not sistema_ruoli_attivo() or fields is None:
+        return None
+    if puo_fare(request, MODULO, azione, fields):
+        return None
+    return risposta_negata(
+        request,
+        "Questa rilevazione non rientra fra quelle che il tuo ruolo ti consente di vedere.",
+        pagina="Segnalazione incidenti",
+    )
+
+
 def _can_create(request) -> bool:
     """Capireparto/preposti: acl_preposti whitelist. Vuota = accesso aperto."""
     if not request.user.is_authenticated:
         return False
+    if sistema_ruoli_attivo():
+        return puo_fare(request, MODULO, "creare")
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     if legacy_user and is_legacy_admin(legacy_user):
         return True
@@ -162,6 +200,8 @@ def _can_manage_rspp(request) -> bool:
     """RSPP/ASPP: acl_rspp whitelist. Solo admin se vuota."""
     if not request.user.is_authenticated:
         return False
+    if sistema_ruoli_attivo():
+        return puo_fare(request, MODULO, "gestire")
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     if legacy_user and is_legacy_admin(legacy_user):
         return True
@@ -420,6 +460,7 @@ _SP_TO_MODEL: dict[str, str] = {
     "x34__x0020_WHY": "why_4",
     "x35__x0020_WHY": "why_5",
     "Partecipanti": "partecipanti",
+    "SegnalatoDaLegacyId": "segnalato_da_legacy_id",
 }
 
 _BOOL_MODEL_FIELDS = {
@@ -447,7 +488,12 @@ def _sp_fields_to_kwargs(sp_fields: dict) -> dict:
             continue
         seen.add(model_field)
 
-        if model_field in _BOOL_MODEL_FIELDS:
+        if model_field == "segnalato_da_legacy_id":
+            try:
+                result[model_field] = int(value) if value else None
+            except (TypeError, ValueError):
+                result[model_field] = None
+        elif model_field in _BOOL_MODEL_FIELDS:
             if isinstance(value, bool):
                 result[model_field] = value
             else:
@@ -552,6 +598,8 @@ def lista(request):
         except Exception as exc:
             logger.warning("rilevazione_incidenti lista: errore DB locale: %s", exc)
             error = str(exc)
+
+    items = _visibili(request, items)
 
     # Stats globali (prima dei filtri)
     _stati_cnt = Counter(f["stato"] for f in items)
@@ -661,6 +709,8 @@ def nuovo(request):
             try:
                 if _use_local(cfg):
                     _add_local_only_fields(fields, request.POST)
+                    # Autore della segnalazione: base della visibilita' «propri / team».
+                    fields["SegnalatoDaLegacyId"] = legacy_id(request)
                     created = _create_item_local(fields)
                 else:
                     created = _create_item(fields)
@@ -758,9 +808,15 @@ def dettaglio(request, sp_id):
             logger.warning("rilevazione_incidenti dettaglio locale %s: %s", sp_id, exc)
             error = str(exc)
 
+    negata = _nega_se_non_visibile(request, item_fields)
+    if negata is not None:
+        return negata
+
     can_edit_preposto = _can_create(request) and (
         item_fields is None or item_fields.get("stato") == "APERTO"
     )
+    if sistema_ruoli_attivo() and item_fields is not None:
+        can_edit_preposto = can_edit_preposto and puo_fare(request, MODULO, "modificare", item_fields)
     can_edit_rspp = _can_manage_rspp(request)
 
     # CAPA — Azioni correttive/preventive collegate a questo incidente.
@@ -844,6 +900,15 @@ def modifica(request, sp_id):
         logger.error("rilevazione_incidenti modifica GET %s: %s", sp_id, exc)
         error = str(exc)
 
+    if sistema_ruoli_attivo():
+        if not can_rspp:
+            # Il preposto modifica solo cio' che il suo ruolo gli fa vedere e modificare.
+            negata = _nega_se_non_visibile(request, item_fields, "modificare")
+            if negata is not None:
+                return negata
+        elif not puo_fare(request, MODULO, "gestire", item_fields):
+            return risposta_negata(request, pagina="Segnalazione incidenti")
+
     # Verifica che preposto possa ancora modificare
     if can_preposto and not can_rspp and item_fields.get("stato") != "APERTO":
         messages.warning(request, "La scheda è già approvata o chiusa: non modificabile.")
@@ -913,7 +978,14 @@ def modifica(request, sp_id):
 @login_required
 @require_POST
 def elimina(request, sp_id):
-    if not _can_manage_rspp(request):
+    if sistema_ruoli_attivo():
+        try:
+            fields = _fetch_item_local(sp_id)["fields"] if _use_local(_get_impostazioni()) else {}
+        except Exception:
+            fields = {}
+        if not puo_fare(request, MODULO, "cancellare", fields):
+            return risposta_negata(request, pagina="Segnalazione incidenti")
+    elif not _can_manage_rspp(request):
         return render(request, "core/pages/forbidden.html", status=403)
     cfg = _get_impostazioni()
     try:
@@ -962,6 +1034,8 @@ def statistiche(request):
         except Exception as exc:
             logger.warning("rilevazione_incidenti statistiche locale: %s", exc)
             error = str(exc)
+
+    items = _visibili(request, items)
 
     # Aggregazioni
     totale = len(items)
@@ -1121,9 +1195,14 @@ def heatmap(request):
     points = []
     if layout:
         areas = PlantLayoutArea.objects.filter(layout=layout).order_by("sort_order", "name")
+        rilevazioni = RilevazioneIncidente.objects.filter(planimetria_area__layout=layout)
+        if sistema_ruoli_attivo():
+            ammessi = utenti_visibili(request, MODULO, "vedere")
+            if ammessi is not None:
+                rilevazioni = rilevazioni.filter(segnalato_da_legacy_id__in=list(ammessi))
         area_counts = {
             row["planimetria_area_id"]: row["n"]
-            for row in RilevazioneIncidente.objects.filter(planimetria_area__layout=layout)
+            for row in rilevazioni
             .values("planimetria_area_id")
             .annotate(n=models.Count("id"))
         }
@@ -1224,7 +1303,10 @@ def export_csv(request):
     import csv as csv_module
     from django.http import HttpResponse
 
-    if not _can_manage_rspp(request):
+    if sistema_ruoli_attivo():
+        if not puo_fare(request, MODULO, "esportare"):
+            return risposta_negata(request, pagina="Segnalazione incidenti")
+    elif not _can_manage_rspp(request):
         return render(request, "core/pages/forbidden.html", status=403)
 
     cfg = _get_impostazioni()
@@ -1243,6 +1325,12 @@ def export_csv(request):
     except Exception as exc:
         messages.error(request, f"Errore durante l'export: {exc}")
         return redirect("rilevazione_incidenti:lista")
+
+    if sistema_ruoli_attivo():
+        ammessi = utenti_visibili(request, MODULO, "esportare")
+        if ammessi is not None:
+            items = [f for f in items if _autore(f) in ammessi]
+    log_action(request, "export_csv", MODULO, {"righe": len(items)})
 
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="rilevazioni_sicurezza.csv"'
@@ -1307,7 +1395,10 @@ def export_pdf(request, sp_id):
     # SEC-PREPROD-02 (H1): l'export PDF contiene PII e dati sicurezza della
     # singola rilevazione. Consentito solo a gestori sicurezza (preposti/RSPP)
     # o amministratori; mai a chi ha solo accesso generico al modulo.
-    if not (
+    if sistema_ruoli_attivo():
+        if not puo_fare(request, MODULO, "esportare"):
+            return risposta_negata(request, pagina="Segnalazione incidenti")
+    elif not (
         getattr(request.user, "is_superuser", False)
         or _can_manage_rspp(request)
         or _can_create(request)
@@ -1329,6 +1420,10 @@ def export_pdf(request, sp_id):
         # veniva restituito il template "forbidden" con status 404 incoerente).
         logger.warning("rilevazione_incidenti export_pdf %s: %s", sp_id, exc)
         raise Http404("Rilevazione non trovata.")
+
+    negata = _nega_se_non_visibile(request, item_fields, "esportare")
+    if negata is not None:
+        return negata
 
     f = item_fields
     response = HttpResponse(content_type="application/pdf")

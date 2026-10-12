@@ -164,7 +164,10 @@ class AccessiNegatiTest(TestCase):
         response = self.client.get(PAGE)
         self.assertEqual(response.status_code, 403)
         self.assertNotContains(response, "Risolvi come amministratore", status_code=403)
-        self.assertContains(response, "il tentativo è stato registrato", status_code=403)
+        self.assertContains(response, "tentativo è stato registrato", status_code=403)
+        self.assertContains(response, "reparto IT", status_code=403)
+        # I dettagli tecnici della decisione restano all'amministratore.
+        self.assertNotContains(response, "Dettagli tecnici", status_code=403)
 
     def test_consenti_al_ruolo_dal_403(self):
         self._impersonate()

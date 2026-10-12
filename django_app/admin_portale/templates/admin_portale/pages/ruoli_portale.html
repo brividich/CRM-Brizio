@@ -1,0 +1,344 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Ruoli e permessi | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/acl_resolve.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/ruoli_portale.css' %}">
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Ruoli e permessi" page_subtitle="Chi ha quale ruolo, cosa concede ogni ruolo modulo per modulo, e cosa vede ogni persona." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="rp-banner {% if sistema_attivo %}on{% else %}off{% endif %}">
+    {% if sistema_attivo %}
+      <span><strong>Sistema dei ruoli attivo.</strong> Decidono solo i ruoli: quello che nessun ruolo concede è negato.</span>
+    {% else %}
+      <span><strong>Sistema dei ruoli spento.</strong> Valgono ancora le regole storiche dei moduli. Prepara ruoli e persone, poi attivalo da «Sistema».</span>
+    {% endif %}
+    <a class="btn btn-secondary" href="?tab=guida">? Guida</a>
+  </div>
+
+  <nav class="rp-tabs" aria-label="Sezioni">
+    <a href="?tab=persone" class="{% if tab == 'persone' %}active{% endif %}">Persone</a>
+    <a href="?tab=matrice" class="{% if tab == 'matrice' %}active{% endif %}">Matrice dei ruoli</a>
+    <a href="?tab=anteprima" class="{% if tab == 'anteprima' %}active{% endif %}">Cosa vede questa persona</a>
+    <a href="?tab=registro" class="{% if tab == 'registro' %}active{% endif %}">Registro modifiche</a>
+    <a href="?tab=sistema" class="{% if tab == 'sistema' %}active{% endif %}">Sistema</a>
+    <a href="?tab=guida" class="{% if tab == 'guida' %}active{% endif %}">Guida</a>
+  </nav>
+
+  {% if tab == "persone" %}
+  <div class="rp-split">
+    <div class="card"><div class="card-body">
+      <form method="get" class="rp-search">
+        <input type="hidden" name="tab" value="persone">
+        <input class="input" type="search" name="q" value="{{ q }}" placeholder="Cerca per nome o email" aria-label="Cerca persona">
+        <label class="rp-check"><input type="checkbox" name="con_ruoli" value="1"{% if solo_con_ruoli %} checked{% endif %}> solo con ruoli</label>
+        <button class="btn" type="submit">Cerca</button>
+      </form>
+      {% if persone %}
+      <div class="acl-table-wrap">
+        <table class="acl-table">
+          <thead><tr><th>Persona</th><th>Ruoli</th></tr></thead>
+          <tbody>
+          {% for row in persone %}
+            <tr{% if selezionata and selezionata.id == row.persona.id %} class="rp-row-active"{% endif %}>
+              <td>
+                <a class="rp-person-link" href="?tab=persone&persona={{ row.persona.id }}&q={{ q|urlencode }}">{{ row.persona.nome|default:"—" }}</a>
+                <div class="acl-muted">{{ row.persona.email|default:"" }}</div>
+              </td>
+              <td>
+                <div class="rp-chips">
+                  {% for g in row.ruoli %}<span class="acl-chip{% if not g.is_active %} unset{% endif %}">{{ g.label }}</span>{% empty %}<span class="acl-muted">Solo Dipendente</span>{% endfor %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="acl-empty">Nessuna persona trovata.</div>
+      {% endif %}
+    </div></div>
+
+    <div class="card"><div class="card-body">
+      {% if selezionata %}
+        <div class="card-title">{{ selezionata.nome }}</div>
+        <div class="acl-muted">{{ selezionata.email|default:"" }} · tutti hanno il ruolo base «Dipendente», non serve spuntarlo.</div>
+        <form method="post" action="{% url 'admin_portale:ruoli_portale_persona' selezionata.id %}">
+          {% csrf_token %}
+          <input type="hidden" name="q" value="{{ q }}">
+          <div class="rp-role-list">
+            {% for r in ruoli %}{% if r.preset != "dipendente" %}
+              <label>
+                <input type="checkbox" name="ruoli" value="{{ r.id }}"{% if r.id in ruoli_selezionata %} checked{% endif %}>
+                <span>{{ r.label }}{% if not r.is_active %} <span class="acl-chip unset">disattivo</span>{% endif %}
+                  <small>{{ r.description|default:"" }}</small></span>
+                <span class="rp-order">ordine {{ r.priority }}</span>
+              </label>
+            {% endif %}{% endfor %}
+          </div>
+          <label class="acl-muted" for="rp-nota">Nota per il registro (facoltativa)</label>
+          <input id="rp-nota" class="input" type="text" name="nota" maxlength="255" placeholder="es. nomina a preposto del 12/10">
+          <div class="acl-actions" style="margin-top:12px;">
+            <button class="btn" type="submit">Salva ruoli</button>
+            <a class="btn btn-secondary" href="?tab=anteprima&persona={{ selezionata.id }}">Cosa vede</a>
+          </div>
+        </form>
+      {% else %}
+        <div class="acl-empty">Scegli una persona dall'elenco per assegnare i ruoli.</div>
+      {% endif %}
+    </div></div>
+  </div>
+  {% endif %}
+
+  {% if tab == "matrice" %}
+  <div class="card"><div class="card-body">
+    <form method="get" class="rp-search">
+      <input type="hidden" name="tab" value="matrice">
+      <select class="input" name="ruolo" aria-label="Ruolo" onchange="this.form.submit()">
+        {% for r in ruoli %}<option value="{{ r.id }}"{% if ruolo and r.id == ruolo.id %} selected{% endif %}>{{ r.priority }} · {{ r.label }}{% if not r.is_active %} (disattivo){% endif %}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn" type="submit">Apri</button></noscript>
+    </form>
+
+    {% if ruolo %}
+      <details class="acl-tech" style="margin-bottom:12px;">
+        <summary>Proprietà del ruolo «{{ ruolo.label }}» · {{ persone_ruolo }} persone</summary>
+        <form method="post" action="{% url 'admin_portale:ruoli_portale_ruolo' ruolo.id %}" style="margin-top:10px;">
+          {% csrf_token %}
+          <div class="rp-form-grid">
+            <label>Nome<input class="input" name="label" value="{{ ruolo.label }}" maxlength="160" required></label>
+            <label>Ordine (più alto = decide)<input class="input" type="number" name="priority" value="{{ ruolo.priority }}"></label>
+            <label>Descrizione<input class="input" name="description" value="{{ ruolo.description }}" maxlength="500"></label>
+          </div>
+          <div class="acl-actions" style="margin-bottom:10px;">
+            <label class="rp-check"><input type="checkbox" name="amministratore" value="1"{% if ruolo.amministratore %} checked{% endif %}> Amministratore (vede e fa tutto)</label>
+            <label class="rp-check"><input type="checkbox" name="vede_tutto" value="1"{% if ruolo.vede_tutto %} checked{% endif %}> Vede ed esporta tutto, senza modificare</label>
+            <label class="rp-check"><input type="hidden" name="is_active" value="0"><input type="checkbox" name="is_active" value="1"{% if ruolo.is_active %} checked{% endif %}> Attivo</label>
+          </div>
+          <div class="acl-actions">
+            <button class="btn" type="submit">Salva proprietà</button>
+          </div>
+        </form>
+        {% if preset_ruolo %}
+          <form method="post" action="{% url 'admin_portale:ruoli_portale_preset' %}" style="margin-top:10px;">
+            {% csrf_token %}
+            <input type="hidden" name="preset" value="{{ preset_ruolo.chiave }}">
+            <input type="hidden" name="reset" value="1">
+            <button class="btn btn-secondary" type="submit" onclick="return confirm('Riportare «{{ ruolo.label|escapejs }}» al preset? Le modifiche a mano della matrice si perdono.');">Ripristina il preset «{{ preset_ruolo.nome }}»</button>
+          </form>
+        {% endif %}
+      </details>
+
+      {% if ruolo.amministratore %}
+        <div class="acl-flash warning">Questo ruolo è <strong>amministratore</strong>: vede e fa tutto su ogni modulo, la matrice sotto non conta.</div>
+      {% elif ruolo.vede_tutto %}
+        <div class="acl-flash">Questo ruolo <strong>vede ed esporta tutto</strong> su ogni modulo, anche futuro. Qui sotto aggiungi solo altre azioni.</div>
+      {% endif %}
+
+      <div class="rp-legend">
+        <span><strong>—</strong> il ruolo non si esprime (decide un altro ruolo della persona)</span>
+        <span><strong>Propri</strong> solo i dati della persona</span>
+        <span><strong>Team</strong> propri e del team d'organigramma</span>
+        <span><strong>Tutti</strong> tutta l'azienda</span>
+        <span><strong>No</strong> nega anche se un ruolo più basso concede</span>
+      </div>
+
+      <form method="post" action="{% url 'admin_portale:ruoli_portale_matrice' ruolo.id %}">
+        {% csrf_token %}
+        <div class="rp-matrix-wrap">
+          <table class="rp-matrix">
+            <thead>
+              <tr>
+                <th>Modulo</th>
+                {% for label in azioni_header %}<th>{{ label }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+            {% for r in righe %}
+              {% ifchanged r.spec.area %}<tr class="rp-area"><td colspan="8">{{ r.spec.area|default:"Altro" }}</td></tr>{% endifchanged %}
+              <tr>
+                <td class="rp-mod">
+                  <div class="acl-text">{{ r.spec.nome }}{% if r.spec.solo_amministratore %} <span class="acl-chip unset">solo amministratori</span>{% endif %}</div>
+                  <div class="acl-muted">{{ r.spec.descrizione }}</div>
+                </td>
+                {% for c in r.celle %}
+                  <td class="rp-cell">
+                    <select name="c__{{ r.spec.chiave }}__{{ c.azione }}" data-v="{{ c.valore }}" aria-label="{{ r.spec.nome }}: {{ c.label }}" onchange="this.dataset.v=this.value">
+                      <option value=""{% if not c.valore %} selected{% endif %}>—</option>
+                      <option value="propri"{% if c.valore == "propri" %} selected{% endif %}>Propri</option>
+                      <option value="team"{% if c.valore == "team" %} selected{% endif %}>Team</option>
+                      <option value="tutti"{% if c.valore == "tutti" %} selected{% endif %}>Tutti</option>
+                      <option value="no"{% if c.valore == "no" %} selected{% endif %}>No</option>
+                    </select>
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="rp-sticky-actions">
+          <span class="acl-muted">Al salvataggio si aggiornano anche i permessi delle pagine del ruolo. Ogni cella cambiata va nel registro.</span>
+          <button class="btn" type="submit">Salva matrice</button>
+        </div>
+      </form>
+    {% endif %}
+
+    <details class="acl-tech" style="margin-top:16px;">
+      <summary>Nuovo ruolo</summary>
+      <form method="post" action="{% url 'admin_portale:ruoli_portale_ruolo_nuovo' %}" style="margin-top:10px;">
+        {% csrf_token %}
+        <div class="rp-form-grid">
+          <label>Nome<input class="input" name="label" maxlength="160" required></label>
+          <label>Ordine (più alto = decide)<input class="input" type="number" name="priority" value="450"></label>
+          <label>Descrizione<input class="input" name="description" maxlength="500"></label>
+        </div>
+        <button class="btn" type="submit">Crea ruolo</button>
+      </form>
+    </details>
+  </div></div>
+  {% endif %}
+
+  {% if tab == "anteprima" %}
+  <div class="card"><div class="card-body">
+    <form method="get" class="rp-search">
+      <input type="hidden" name="tab" value="anteprima">
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Cerca la persona" aria-label="Cerca persona">
+      <button class="btn" type="submit">Cerca</button>
+    </form>
+    {% if risultati %}
+      <div class="rp-chips" style="margin-bottom:12px;">
+        {% for p in risultati %}<a class="btn btn-secondary" href="?tab=anteprima&persona={{ p.id }}">{{ p.nome }}</a>{% endfor %}
+      </div>
+    {% endif %}
+    {% if errore %}<div class="acl-flash warning">{{ errore }}</div>{% endif %}
+    {% if righe %}
+      <div class="card-title">{{ persona.nome }}</div>
+      <div class="rp-chips" style="margin:6px 0 4px;">
+        {% if amministratore %}<span class="acl-chip allow">Amministratore: vede e fa tutto</span>{% endif %}
+        {% for r in ruoli_persona %}<span class="acl-chip">{{ r.label }} · {{ r.priority }}</span>{% endfor %}
+      </div>
+      <div class="acl-muted" style="margin-bottom:10px;">
+        Team d'organigramma: {% if team %}{{ team|length }} persone ({{ team|join:", " }}){% else %}nessuno{% endif %}.
+        {% if not sistema_attivo %}<strong>Il sistema è spento:</strong> oggi valgono ancora le regole storiche; questa è la situazione dopo l'attivazione.{% endif %}
+      </div>
+      {% for r in righe %}
+        <div class="rp-preview-mod{% if not r.qualcosa %} rp-preview-off{% endif %}">
+          <div class="rp-preview-head">
+            <span class="acl-text"><strong>{{ r.modulo.nome }}</strong></span>
+            {% if not r.qualcosa %}<span class="acl-muted">non vede il modulo</span>{% endif %}
+          </div>
+          {% if r.qualcosa %}
+          <div class="rp-preview-actions">
+            {% for a in r.azioni %}{% if a.esito.consentito %}
+              <span class="acl-chip allow" title="{{ a.esito.motivo }}">{{ a.label }}: {{ a.esito.ambito_label }}{% if a.esito.ruolo %} · {{ a.esito.ruolo }}{% endif %}</span>
+            {% endif %}{% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% elif not errore %}
+      <div class="acl-empty">Cerca una persona per vedere, modulo per modulo, cosa può fare e su quali dati.</div>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  {% if tab == "registro" %}
+  <div class="card"><div class="card-body">
+    {% if voci %}
+      <div class="acl-table-wrap">
+        <table class="acl-table">
+          <thead><tr><th>Quando</th><th>Chi</th><th>Cosa</th><th>Dettaglio</th></tr></thead>
+          <tbody>
+          {% for row in voci %}
+            <tr>
+              <td>{{ row.voce.created_at|date:"d/m/Y H:i" }}</td>
+              <td>{{ row.voce.utente_display|default:"—" }}</td>
+              <td>{{ row.titolo }}</td>
+              <td class="acl-muted">{{ row.descrizione }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="acl-empty">Nessuna modifica registrata.</div>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  {% if tab == "sistema" %}
+  <div class="card"><div class="card-body">
+    <div class="rp-kpis">
+      <div class="rp-kpi"><strong>{{ persone_con_ruolo }}</strong><span>persone con almeno un ruolo, su {{ persone_attive }} attive</span></div>
+      <div class="rp-kpi"><strong>{{ amministratori }}</strong><span>amministratori da ruolo</span></div>
+      <div class="rp-kpi"><strong>{{ ruoli_senza_persone|length }}</strong><span>ruoli ancora senza persone</span></div>
+    </div>
+    {% if ruoli_senza_persone %}
+      <p class="acl-muted">Ruoli senza persone: {% for r in ruoli_senza_persone %}{{ r.label }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+    {% endif %}
+
+    <div class="acl-actions" style="margin:12px 0 18px;">
+      <form method="post" action="{% url 'admin_portale:ruoli_portale_sistema' %}">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="sincronizza">
+        <button class="btn btn-secondary" type="submit">Sincronizza i permessi delle pagine</button>
+      </form>
+      <form method="post" action="{% url 'admin_portale:ruoli_portale_preset' %}">
+        {% csrf_token %}
+        <button class="btn btn-secondary" type="submit">Applica i preset mancanti</button>
+      </form>
+    </div>
+
+    {% if sistema_attivo %}
+      <form method="post" action="{% url 'admin_portale:ruoli_portale_sistema' %}">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="disattiva">
+        <p class="acl-why">Spegnendo, tornano a valere le regole storiche dei moduli (liste di utenti, ruolo legacy). I ruoli restano salvati.</p>
+        <button class="btn btn-secondary" type="submit">Spegni il sistema dei ruoli</button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'admin_portale:ruoli_portale_sistema' %}">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="attiva">
+        <p class="acl-why">Da quel momento <strong>decidono solo i ruoli</strong>: chi non ha ruoli ha solo il ruolo base «Dipendente», le liste di utenti nelle impostazioni dei moduli e il ruolo legacy non concedono più nulla. Prima di attivare: assegna i ruoli alle persone, controlla qualche persona in «Cosa vede questa persona» e verifica che l'organigramma abbia i ruoli collegati (serve al «team»).</p>
+        <label class="rp-check" style="margin-bottom:10px;"><input type="checkbox" name="conferma" value="1"> Ho assegnato i ruoli e controllato l'anteprima</label>
+        <button class="btn" type="submit">Attiva il sistema dei ruoli</button>
+      </form>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  {% if tab == "guida" %}
+  <div class="card"><div class="card-body rp-guide">
+    <h3>Come funziona</h3>
+    <p>Ogni persona ha uno o più <strong>ruoli</strong>. Ogni ruolo dice, modulo per modulo, quali azioni concede (vedere, creare, modificare, approvare, chiudere/gestire, esportare, cancellare) e su quali dati: <strong>propri</strong>, <strong>team</strong> (le persone del suo team d'organigramma) o <strong>tutti</strong>.</p>
+    <p>Se una persona ha più ruoli, per ogni azione decide il ruolo con <strong>ordine più alto</strong> fra quelli che si esprimono su quell'azione. Un ruolo che non dice nulla («—») lascia decidere il ruolo successivo. «No» nega anche se un ruolo più basso concede. A parità di ordine vince il «No», e fra due «sì» la visibilità più ampia.</p>
+    <p>Tutti hanno il ruolo base <strong>Dipendente</strong> (vede e crea solo i propri dati). <strong>Amministratore</strong> e <strong>Direzione</strong> vedono tutto su ogni modulo, anche su quelli che verranno; la Direzione non modifica.</p>
+    <h3>Il team</h3>
+    <p>Il team viene dall'<strong>organigramma per ruolo</strong> (Anagrafica → Ruoli, campo «Riporta a»). Chi ricopre un ruolo ha nel team tutte le persone che ricoprono ruoli che gli riportano, anche indirettamente. Chi ricopre lo stesso ruolo è un collega, non un membro del team. Senza ruoli d'organigramma il team è vuoto.</p>
+    <h3>Le schede</h3>
+    <ul>
+      <li><strong>Persone</strong>: cerca la persona, spunta i suoi ruoli, salva. La nota finisce nel registro.</li>
+      <li><strong>Matrice dei ruoli</strong>: scegli un ruolo, imposta le celle, salva. I permessi delle pagine del ruolo si aggiornano da soli. Da qui crei un ruolo nuovo o ripristini un preset.</li>
+      <li><strong>Cosa vede questa persona</strong>: per ogni modulo, le azioni consentite, su quali dati e quale ruolo decide.</li>
+      <li><strong>Registro modifiche</strong>: chi ha cambiato ruoli, matrice o stato del sistema, e quando.</li>
+      <li><strong>Sistema</strong>: interruttore generale. Spento valgono le regole storiche; acceso decidono solo i ruoli.</li>
+    </ul>
+    <h3>Cosa vedono le persone senza permesso</h3>
+    <p>Chi apre una pagina o un'operazione che il suo ruolo non consente vede «Accesso negato» con l'invito a rivolgersi al reparto IT. L'Assistente AI usa gli stessi permessi: non risponde con dati di moduli che la persona non vede.</p>
+    <h3>Visibilità dei moduli nel menu</h3>
+    <p>Quali moduli compaiono nel menu lo decidi dal <strong>Navigation Builder</strong>. Il menu però non è un controllo di sicurezza: le pagine e le API si aprono solo se il ruolo lo consente.</p>
+  </div></div>
+  {% endif %}
+{% endblock %}

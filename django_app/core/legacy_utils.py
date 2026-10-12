@@ -657,6 +657,10 @@ def is_legacy_admin(legacy_user: UtenteLegacy | None) -> bool:
     admin_names = _get_admin_role_names()
     if str(legacy_user.ruolo or "").strip().lower() in admin_names:
         return True
-    if legacy_user.ruolo_id is None:
-        return False
-    return int(legacy_user.ruolo_id) in get_admin_role_ids()
+    if legacy_user.ruolo_id is not None and int(legacy_user.ruolo_id) in get_admin_role_ids():
+        return True
+    # Ruolo del portale «Amministratore» (core.permessi): vale come admin ovunque.
+    from core.permessi.cache import utenti_amministratori_da_ruolo
+
+    legacy_id = getattr(legacy_user, "id", None)
+    return bool(legacy_id) and int(legacy_id) in utenti_amministratori_da_ruolo()

@@ -80,6 +80,9 @@ class RilevazioneIncidente(models.Model):
 
     contatore = models.IntegerField(default=0)
     id_originale = models.IntegerField(null=True, blank=True, help_text="ID originale da CSV/SharePoint")
+    # Chi ha inserito la segnalazione (utenti.id): serve alla visibilita'
+    # «propri / team» dei ruoli. Vuoto sullo storico: lo vede solo chi ha «tutti».
+    segnalato_da_legacy_id = models.IntegerField(null=True, blank=True, db_index=True)
 
     class Meta:
         verbose_name = "Rilevazione Incidente"
@@ -135,6 +138,7 @@ class RilevazioneIncidente(models.Model):
             "x34__x0020_WHY": self.why_4,
             "x35__x0020_WHY": self.why_5,
             "Partecipanti": self.partecipanti,
+            "SegnalatoDaLegacyId": self.segnalato_da_legacy_id,
         }
 
 

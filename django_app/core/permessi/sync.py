@@ -1,0 +1,189 @@
+"""Dalla matrice dei ruoli ai permessi di pagina (``GroupPermissionGrant``).
+
+La matrice dice «il ruolo X puo' vedere/creare/... sul modulo Y». Le pagine
+pero' sono protette dal middleware ACL v2 con un permesso per rotta. Questo
+modulo traduce la prima nei secondi, cosi' esiste una sola cosa da gestire.
+
+Classificazione dei permessi di pagina: si leggono le rotte che il permesso
+governa davvero (``core.acl_capability``) e il nome della risorsa. Molti code
+generati in automatico finiscono in ``.view`` anche quando la pagina approva o
+cancella (``dpi.approva.view``, ``diario_preposto.elimina.view``): fidarsi del
+suffisso farebbe concedere un'approvazione a chi deve solo vedere. Fra piu'
+segnali vince il piu' alto; un permesso illeggibile lo accende solo «gestire».
+
+Le righe scritte qui portano la nota ``NOTA_MATRICE``: sono le sole che la
+sincronizzazione crea e cancella. I grant di gruppo messi a mano (pagina
+Accessi) non vengono toccati. Non si scrive mai ``enabled=False``: un ruolo che
+non concede tace, e decide il ruolo successivo.
+"""
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+
+from django.db import transaction
+
+from core.permessi.registro import AZIONE_CAPACITA, moduli_registrati
+from core.permission_taxonomy import (
+    CAPABILITY_IGNOTO,
+    CAPABILITY_LETTURA,
+    capability_for_name,
+    strongest_capability,
+)
+
+logger = logging.getLogger(__name__)
+
+NOTA_MATRICE = "matrice ruoli"
+
+
+def _capacita_da_code(code: str, dal_nome: str) -> list[str]:
+    parti = code.split(".")
+    segnali = []
+    if len(parti) == 3 and parti[0] != "legacy" and parti[2] == "view":
+        # code generato dalla rotta: «<app>.<nome_rotta>.view» -> conta il nome rotta.
+        segnali.append(capability_for_name(parti[1]))
+    else:
+        segnali.append(dal_nome)
+    return segnali
+
+
+def capacita_permessi() -> dict[str, str]:
+    """code -> capacita' effettiva (lettura/modifica/approvazione/amministrazione/ignoto)."""
+    from core.acl_capability import capability_index
+    from core.models import PermissionDefinition
+
+    indice = capability_index(use_cache=False)
+    forzate = {
+        code: capacita for spec in moduli_registrati().values() for code, capacita in spec.capacita_forzate
+    }
+    risultato: dict[str, str] = {}
+    for code, modulo in PermissionDefinition.objects.filter(is_active=True).values_list("code", "module"):
+        if code in forzate:
+            risultato[code] = forzate[code]
+            continue
+        dal_nome = indice.by_name.get(code) or indice.get(code)
+        segnali = _capacita_da_code(code, dal_nome)
+        segnali.extend(capability_for_name(rotta) for rotta in indice.governed_routes.get(code, []))
+        segnali.extend(cap for _rotta, cap in indice.subtree_routes.get(code, []))
+        noti = [s for s in segnali if s and s != CAPABILITY_IGNOTO]
+        risultato[code] = strongest_capability(noti) if noti else CAPABILITY_IGNOTO
+    return risultato
+
+
+def codici_per_modulo() -> dict[str, list[str]]:
+    """chiave modulo -> code di pagina che gli appartengono.
+
+    Un code dichiarato esplicitamente (``codici_acl``) appartiene a quel
+    modulo anche se il suo ``PermissionDefinition.module`` dice altro.
+    """
+    from core.models import PermissionDefinition
+
+    specs = moduli_registrati()
+    espliciti: dict[str, str] = {}
+    per_modulo_acl: dict[str, str] = {}
+    for spec in specs.values():
+        for code in spec.codici_acl:
+            espliciti[code] = spec.chiave
+        for nome in spec.moduli_acl:
+            per_modulo_acl[nome] = spec.chiave
+
+    risultato: dict[str, list[str]] = {chiave: [] for chiave in specs}
+    for code, modulo in PermissionDefinition.objects.filter(is_active=True).values_list("code", "module"):
+        chiave = espliciti.get(code) or per_modulo_acl.get(modulo)
+        if chiave:
+            risultato[chiave].append(code)
+    for codes in risultato.values():
+        codes.sort()
+    return risultato
+
+
+@dataclass
+class EsitoSync:
+    ruolo: str
+    accesi: int = 0
+    spenti: int = 0
+    invariati: int = 0
+    governati: int = 0
+    dettaglio: list[str] = field(default_factory=list)
+
+
+def codici_desiderati(ruolo, *, capacita=None, per_modulo=None) -> tuple[set[str], set[str]]:
+    """(code da accendere, code governati dalla matrice) per un ruolo."""
+    from core.models import RuoloPermessoModulo
+
+    capacita = capacita if capacita is not None else capacita_permessi()
+    per_modulo = per_modulo if per_modulo is not None else codici_per_modulo()
+    specs = moduli_registrati()
+
+    governati = {code for codes in per_modulo.values() for code in codes}
+    desiderati: set[str] = set()
+    for cella in RuoloPermessoModulo.objects.filter(ruolo=ruolo, consentito=True):
+        capacita_azione = AZIONE_CAPACITA.get(cella.azione)
+        if not capacita_azione:
+            continue  # azioni proprie del modulo: si controllano dentro le view
+        for code in per_modulo.get(cella.modulo, []):
+            if capacita.get(code, CAPABILITY_IGNOTO) in capacita_azione:
+                desiderati.add(code)
+
+    if ruolo.vede_tutto:
+        # «Vede tutto» = le azioni di AZIONI_LETTURA su ogni modulo: tutte
+        # accendono i soli permessi di lettura.
+        for chiave, codes in per_modulo.items():
+            spec = specs.get(chiave)
+            if spec is None or spec.solo_amministratore:
+                continue
+            desiderati.update(c for c in codes if capacita.get(c) == CAPABILITY_LETTURA)
+    return desiderati, governati
+
+
+def sincronizza_ruolo(ruolo, *, capacita=None, per_modulo=None, dry_run: bool = False) -> EsitoSync:
+    from core.models import GroupPermissionGrant
+
+    esito = EsitoSync(ruolo=ruolo.label)
+    desiderati, governati = codici_desiderati(ruolo, capacita=capacita, per_modulo=per_modulo)
+    esito.governati = len(governati)
+    esistenti = {
+        g.permission_id: g
+        for g in GroupPermissionGrant.objects.filter(group=ruolo, permission_id__in=governati | desiderati)
+    }
+    with transaction.atomic():
+        for code in sorted(desiderati):
+            grant = esistenti.get(code)
+            if grant is None:
+                esito.accesi += 1
+                esito.dettaglio.append(f"+ {code}")
+                if not dry_run:
+                    GroupPermissionGrant.objects.create(
+                        group=ruolo, permission_id=code, enabled=True, note=NOTA_MATRICE
+                    )
+            elif grant.note == NOTA_MATRICE and not grant.enabled:
+                esito.accesi += 1
+                if not dry_run:
+                    grant.enabled = True
+                    grant.save(update_fields=["enabled", "updated_at"])
+            else:
+                esito.invariati += 1
+        for code in sorted(governati - desiderati):
+            grant = esistenti.get(code)
+            if grant is not None and grant.note == NOTA_MATRICE:
+                esito.spenti += 1
+                esito.dettaglio.append(f"- {code}")
+                if not dry_run:
+                    grant.delete()
+    return esito
+
+
+def sincronizza_tutti(*, dry_run: bool = False) -> list[EsitoSync]:
+    from core.models import AccessGroup
+
+    capacita = capacita_permessi()
+    per_modulo = codici_per_modulo()
+    esiti = [
+        sincronizza_ruolo(ruolo, capacita=capacita, per_modulo=per_modulo, dry_run=dry_run)
+        for ruolo in AccessGroup.objects.all().order_by("-priority", "id")
+    ]
+    if not dry_run:
+        from core.permessi.cache import invalida_permessi
+
+        invalida_permessi()
+    return esiti

@@ -1206,6 +1206,23 @@ class AccessGroup(models.Model):
         help_text="Piu' alto = pesa di piu' quando due gruppi dicono cose diverse.",
     )
     is_active = models.BooleanField(default=True, db_index=True)
+    # Ruoli del portale (core.permessi): un gruppo e' un ruolo, ``priority`` e'
+    # il suo ordine. I due flag valgono per tutti i moduli, presenti e futuri.
+    amministratore = models.BooleanField(
+        default=False,
+        help_text="Chi ha questo ruolo e' amministratore del portale: vede e fa tutto.",
+    )
+    vede_tutto = models.BooleanField(
+        default=False,
+        help_text="Vede ed esporta i dati di tutti i moduli (es. Direzione), senza poter modificare.",
+    )
+    preset = models.CharField(
+        max_length=40,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Preset da cui nasce il ruolo (vuoto = ruolo creato a mano).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1267,6 +1284,42 @@ class GroupPermissionGrant(models.Model):
 
     def __str__(self) -> str:
         return f"GroupGrant<group={self.group_id} code={self.permission_id} enabled={self.enabled}>"
+
+
+class RuoloPermessoModulo(models.Model):
+    """Una cella della matrice dei ruoli: ruolo x modulo x azione -> visibilita'.
+
+    Stessa regola dei grant: la riga che esiste e' una decisione (``consentito``
+    True o False), l'assenza e' silenzio. Fra i ruoli di una persona decide
+    quello con ordine (``AccessGroup.priority``) piu' alto che si esprime.
+    """
+
+    AMBITO_PROPRI = "propri"
+    AMBITO_TEAM = "team"
+    AMBITO_TUTTI = "tutti"
+    AMBITO_CHOICES = [
+        (AMBITO_PROPRI, "Propri"),
+        (AMBITO_TEAM, "Propri e del team"),
+        (AMBITO_TUTTI, "Tutti"),
+    ]
+
+    ruolo = models.ForeignKey(AccessGroup, on_delete=models.CASCADE, related_name="permessi_modulo")
+    modulo = models.CharField(max_length=80, db_index=True)
+    azione = models.CharField(max_length=40)
+    ambito = models.CharField(max_length=10, choices=AMBITO_CHOICES, default=AMBITO_TUTTI)
+    consentito = models.BooleanField(default=True)
+    note = models.CharField(max_length=255, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("ruolo", "modulo", "azione")]
+        ordering = ["ruolo_id", "modulo", "azione"]
+        verbose_name = "Permesso di ruolo sul modulo"
+        verbose_name_plural = "Permessi di ruolo sui moduli"
+
+    def __str__(self) -> str:
+        stato = self.ambito if self.consentito else "no"
+        return f"RuoloPermesso<ruolo={self.ruolo_id} {self.modulo}.{self.azione}={stato}>"
 
 
 class AclDenialEvent(models.Model):

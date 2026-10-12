@@ -219,8 +219,12 @@ def _compiled_items_for_role(
     for row in access_rows:
         access_map.setdefault(int(row.item_id), {})[int(row.legacy_role_id)] = bool(row.can_view)
 
+    from core.permessi.motore import sistema_ruoli_attivo
+
+    # Con i ruoli del portale attivi il ruolo legacy non concede voci di menu.
+    ruoli_attivi = sistema_ruoli_attivo()
     role_grants_map: dict[str, bool] = {}
-    if role_id is not None:
+    if role_id is not None and not ruoli_attivi:
         role_grants_map = {
             normalize_permission_code(str(row.permission_id or "")): bool(row.enabled)
             for row in RolePermissionGrant.objects.filter(legacy_role_id=int(role_id))
@@ -254,6 +258,8 @@ def _compiled_items_for_role(
                     allowed = bool(group_map[required_permission_code])
                 elif required_permission_code in role_grants_map:
                     allowed = bool(role_grants_map.get(required_permission_code, False))
+                elif ruoli_attivi:
+                    allowed = False
                 else:
                     legacy_compat = evaluate_legacy_permission_code_compat(
                         permission_code=required_permission_code,

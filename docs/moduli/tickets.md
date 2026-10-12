@@ -23,3 +23,7 @@ Sistema ticket per richieste interne con capabilities analitiche avanzate.
 - **Download autenticato** via view Django (non da `/media/tickets/` diretto)
 - **Audit log download** allegati sensibili (non loggati path fisici, contenuto file, token o segreti)
 - **Integrazione registro manutenzione asset**: i ticket MAN con flag `include_in_maintenance_register=True` e asset collegato compaiono nel registro manutenzione dell'asset come interventi straordinari (PATCH 21E)
+
+## Ruoli del portale
+
+Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) Ticket IT e Ticket manutenzione sono **due moduli distinti** in matrice (`ticket_it`, `ticket_manutenzione`): gestire uno non dà la gestione dell'altro, e la lista di gestione mostra solo i tipi gestiti. Ognuno vede i propri ticket; preposti e responsabili anche quelli del team d'organigramma (manutenzione), la Direzione tutti. Le liste di utenti «apertura/gestione» nelle impostazioni valgono solo a sistema spento. Sempre, anche a sistema spento: il richiedente si riconosce solo da account, id utente o email aziendale (mai dal nome), e la ricerca globale mostra solo i ticket visibili.
