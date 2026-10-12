@@ -838,7 +838,7 @@ class AiAssistantTests(TestCase):
         comunque applicare l'ACL interna e negare l'accesso se non autorizzato."""
         request = SimpleNamespace(user=self.user, path="/assistente-ai/")
         with patch("ai_assistant.tools._rank_domains", return_value=[("tasks", 0.9)]), patch(
-            "tasks.views._has_task_permission", return_value=False
+            "tasks.access.has_task_permission", return_value=False
         ), override_settings(
             AI_TOOL_ROUTING_THRESHOLD=0.7,
             AI_TOOL_ROUTING_MARGIN=0.04,
@@ -1200,7 +1200,7 @@ class AiAssistantTests(TestCase):
         def has_task_permission(_request, action_code):
             return action_code == "tasks_view"
 
-        with patch("tasks.views._has_task_permission", side_effect=has_task_permission):
+        with patch("tasks.access.has_task_permission", side_effect=has_task_permission):
             context = build_runtime_context(request, "quali task aperti ho?")
 
         self.assertIn("tool:tasks:riepilogo", context.sources)
@@ -1211,7 +1211,7 @@ class AiAssistantTests(TestCase):
     def test_runtime_tasks_context_denies_without_module_permission(self):
         request = SimpleNamespace(user=self.user, path="/assistente-ai/")
 
-        with patch("tasks.views._has_task_permission", return_value=False):
+        with patch("tasks.access.has_task_permission", return_value=False):
             context = build_runtime_context(request, "mostra task in ritardo")
 
         self.assertIn("tool:tasks:accesso-negato", context.sources)
@@ -1236,7 +1236,7 @@ class AiAssistantTests(TestCase):
         def has_task_permission(_request, action_code):
             return action_code in {"tasks_view", "tasks_admin"}
 
-        with patch("tasks.views._has_task_permission", side_effect=has_task_permission):
+        with patch("tasks.access.has_task_permission", side_effect=has_task_permission):
             context = build_runtime_context(request, "riepilogo task in ritardo")
 
         self.assertIn(task.title, context.text)
@@ -1944,7 +1944,7 @@ class AiAssistantTests(TestCase):
         def has_task_permission(_request, action_code):
             return action_code in {"tasks_view", "tasks_admin"}
 
-        with patch("tasks.views._has_task_permission", side_effect=has_task_permission):
+        with patch("tasks.access.has_task_permission", side_effect=has_task_permission):
             context = build_runtime_context(request, "mostra cosa devo fare oggi sui task")
 
         self.assertIn("tool:tasks:riepilogo", context.sources)

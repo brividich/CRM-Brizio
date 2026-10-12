@@ -17,7 +17,7 @@ from attrezzature.services.kickoff_integration import (
 
 from .identity import normalize_client_name, normalize_part_number
 from .models import Project
-from .tests import (
+from .tests_utils import (
     TasksBaseTestCase,
     _create_user_with_legacy,
     _ensure_role,

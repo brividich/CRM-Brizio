@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% block title %}Auditor{% endblock %}
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
-{% block content %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
 <div class="rc-wrap">
   <a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
   <div class="page-header"><div class="page-header-main"><div class="page-h">Auditor</div><div class="page-sub">Qualifica secondo MT CN 12 §6 e approvazione degli auditor esterni.</div></div>{% if puo_modificare %}<a class="btn" href="{% url 'sistema_gestione:auditor_nuovo' %}">Nuovo auditor</a>{% endif %}</div>

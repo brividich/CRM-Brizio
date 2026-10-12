@@ -12,7 +12,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from security.models import (
+    SecurityAlert,
     SecurityCenterSetting,
+    SecurityEventRecord,
+    SecurityRemediationTicket,
+    SecuritySource,
     SecurityCveImpact,
     SecurityCveRecord,
     SecurityExternalFeedCache,
@@ -261,6 +265,73 @@ class MatchingTests(_Base):
         self.assertEqual([c.cve_id for c in cve_impact.impacting_cves()], ["CVE-2099-0001"])
         self.assertEqual(cve_impact.most_exposed_hosts()[0]["host"], "pc-demo-01")
         self.assertIn("demoviewer", [row["product"] for row in cve_impact.unmapped_software()])
+
+
+class ImpactAlertTests(_Base):
+    """PC che diventano impattati da una CVE critica o in KEV: alert per CVE ed eventuale ticket."""
+
+    def setUp(self):
+        super().setUp()
+        self._import()
+        self._map_7zip()
+
+    def _settings(self, **overrides):
+        from security.services import soc_settings
+
+        real = soc_settings.value
+        values = {"cve.impatto.alert": True, "cve.impatto.ticket": True, **overrides}
+        return patch.object(soc_settings, "value", side_effect=lambda key: values[key] if key in values else real(key))
+
+    def _alerts(self):
+        return SecurityAlert.objects.filter(event__event_type=cve_impact.IMPACT_EVENT_TYPE)
+
+    def test_critical_cve_opens_one_alert_and_ticket(self):
+        self._cve(cvss=9.8, severity="critical")
+        with self._settings():
+            cve_impact.recompute_all()
+        alert = self._alerts().get()
+        self.assertEqual(alert.severity, "critical")
+        self.assertIn("CVE-2099-0001", alert.title)
+        self.assertIn("1 PC", alert.title)
+        ticket = SecurityRemediationTicket.objects.get(linked_alerts=alert)
+        self.assertIn("CVE-2099-0001", ticket.cve_ids)
+
+    def test_same_hosts_do_not_raise_again(self):
+        self._cve(kev=True)
+        with self._settings():
+            cve_impact.recompute_all()
+            cve_impact.recompute_all()
+        self.assertEqual(SecurityEventRecord.objects.filter(event_type=cve_impact.IMPACT_EVENT_TYPE).count(), 1)
+        self.assertEqual(self._alerts().count(), 1)
+
+    def test_non_critical_cve_without_kev_has_no_alert(self):
+        self._cve(cvss=7.8, severity="high")
+        with self._settings():
+            cve_impact.recompute_all()
+        self.assertFalse(self._alerts().exists())
+
+    def test_setting_off_means_no_alert(self):
+        self._cve(kev=True)
+        with self._settings(**{"cve.impatto.alert": False}):
+            cve_impact.recompute_all()
+        self.assertFalse(SecurityEventRecord.objects.filter(event_type=cve_impact.IMPACT_EVENT_TYPE).exists())
+
+    def test_existing_ticket_for_the_cve_is_reused(self):
+        self._cve(kev=True)
+        other = SecuritySource.objects.create(name="Defender demo", source_type="email")
+        existing = SecurityRemediationTicket.objects.create(source=other, cve="CVE-2099-0001", cve_ids=["CVE-2099-0001"], title="Remediate demo",
+                                                            affected_product="7-zip", dedup_hash="demo-hash")
+        with self._settings():
+            cve_impact.recompute_all()
+        self.assertEqual(SecurityRemediationTicket.objects.count(), 1)
+        self.assertIn(self._alerts().get(), existing.linked_alerts.all())
+
+    def test_ticket_off_keeps_only_the_alert(self):
+        self._cve(kev=True)
+        with self._settings(**{"cve.impatto.ticket": False}):
+            cve_impact.recompute_all()
+        self.assertTrue(self._alerts().exists())
+        self.assertFalse(SecurityRemediationTicket.objects.exists())
 
 
 class FeedTests(_Base):

@@ -6,17 +6,17 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 
-from .action_register import build_project_actions
-from .identity import normalize_client_name, normalize_part_number
-from .models import MeetingStatus
-from .readiness import annotate_readiness_qs, compute_project_readiness
-from .views import (
-    _can_manage_project,
-    _has_task_permission,
-    _scoped_projects_queryset,
-    _tasks_shell_context,
+from ..access import (
+    can_manage_project,
+    has_task_permission,
+    scoped_projects_queryset,
     task_permissions_required,
 )
+from ..action_register import build_project_actions
+from ..identity import normalize_client_name, normalize_part_number
+from ..models import MeetingStatus
+from ..readiness import annotate_readiness_qs, compute_project_readiness
+from ._shared import _tasks_shell_context
 
 
 _IDENTITY_FIELDS = {
@@ -31,7 +31,7 @@ def _json_permission_error(request):
             {"ok": False, "reason": "unauthenticated", "values": []},
             status=401,
         )
-    if not _has_task_permission(request, "tasks_view"):
+    if not has_task_permission(request, "tasks_view"):
         return JsonResponse(
             {"ok": False, "reason": "forbidden", "values": []},
             status=403,
@@ -59,7 +59,7 @@ def identity_suggest(request):
         return JsonResponse({"values": []})
 
     values = list(
-        _scoped_projects_queryset(request)
+        scoped_projects_queryset(request)
         .filter(**{f"{model_field}__istartswith": query})
         .exclude(**{model_field: ""})
         .order_by(model_field)
@@ -72,7 +72,7 @@ def identity_suggest(request):
 @task_permissions_required("tasks_view")
 def project_actions(request, project_id: int):
     """Mostra in un unico registro issue, attivita' e sotto-attivita'."""
-    project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     include_closed = request.GET.get("closed") == "1"
     actions = build_project_actions(project, include_closed=include_closed)
     open_count = sum(row.is_open for row in actions)
@@ -106,7 +106,7 @@ def project_actions(request, project_id: int):
 @task_permissions_required("tasks_view")
 def project_overview(request, project_id: int):
     """Landing leggibile della commessa con stato e prossime azioni."""
-    project_queryset = annotate_readiness_qs(_scoped_projects_queryset(request))
+    project_queryset = annotate_readiness_qs(scoped_projects_queryset(request))
     project = get_object_or_404(project_queryset, pk=project_id)
     actions = build_project_actions(project)
     action_open_count = len(actions)
@@ -132,7 +132,7 @@ def project_overview(request, project_id: int):
         .first()
     )
     readiness = compute_project_readiness(project)
-    can_manage = _can_manage_project(request, project)
+    can_manage = can_manage_project(request, project)
 
     return render(
         request,

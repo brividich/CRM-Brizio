@@ -43,6 +43,11 @@ body.theme-dark .soc-module .sec-panel a:not(.sec-button):not(.sec-chip):not(.se
 .soc-module .soc-nav-group a { padding: 7px 9px; }
 .soc-module .soc-nav-group:first-child { padding-left: 0; }
 .soc-module .soc-nav-group + .soc-nav-group { border-left: 1px solid var(--border); }
+/* Configurazione: una voce di menu, le sezioni come schede (prima erano 4 voci separate). */
+.soc-module .soc-config-tabs { display: flex; gap: 2px; margin: -8px 0 16px; padding: 0 0 6px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: thin; }
+.soc-module .soc-config-tabs a { flex: 0 0 auto; padding: 6px 11px; border-radius: 8px 8px 0 0; color: var(--text-mid); font-size: var(--fs-sm, 13px); font-weight: 600; text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
+.soc-module .soc-config-tabs a:hover { color: var(--text); background: var(--hover-bg, rgba(0, 43, 92, 0.06)); }
+.soc-module .soc-config-tabs a.active { color: var(--accent); border-bottom-color: var(--accent); }
 .soc-module .soc-nav-label { color: var(--text-light); font-size: var(--fs-xs, 11px); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; margin-right: 2px; }
 @media (max-width: 720px) {
   .soc-module .soc-nav-group { padding: 0; width: 100%; }

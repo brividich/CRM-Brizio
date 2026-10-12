@@ -1,0 +1,60 @@
+{% extends "core/base.html" %}
+{% block title %}Guida · {{ guida.titolo }}{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}
+<style>
+.sg-guide{ display:grid; grid-template-columns:260px minmax(0,1fr); gap:22px; align-items:start; }
+.sg-guide-toc{ position:sticky; top:16px; padding:16px 18px; max-height:calc(100vh - 32px); overflow:auto; }
+.sg-guide-toc-t{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text-light); margin-bottom:8px; }
+.sg-guide-toc ol{ margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:13px; }
+.sg-guide-toc a{ color:var(--text); text-decoration:none; }
+.sg-guide-toc a:hover{ color:var(--primary,#1f87cd); text-decoration:underline; }
+.sg-guide-body{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+.sg-guide-sec{ padding:20px 24px; scroll-margin-top:16px; }
+.sg-guide-sec:target{ outline:2px solid var(--primary,#1f87cd); outline-offset:2px; }
+.sg-guide-sec h2{ margin:0 0 10px; font-size:17px; display:flex; gap:10px; align-items:baseline; }
+.sg-guide-n{ font-family:var(--hub-mono,monospace); font-size:12px; font-weight:800; color:var(--primary,#1f87cd); }
+.sg-guide-sec p, .sg-guide-sec ul, .sg-guide-sec dl{ margin:0 0 10px; line-height:1.6; font-size:14px; }
+.sg-guide-sec ul{ padding-left:20px; display:flex; flex-direction:column; gap:6px; }
+.sg-guide-sec dl{ display:grid; grid-template-columns:minmax(150px,260px) minmax(0,1fr); gap:8px 18px; }
+.sg-guide-sec dt{ font-weight:700; }
+.sg-guide-sec dd{ margin:0; }
+.sg-guide-nota{ padding:11px 14px; border:1px solid #fdba74; background:#fff7ed; border-radius:10px; color:#7c2d12; font-size:13.5px; line-height:1.55; }
+body.theme-dark .sg-guide-nota{ background:rgba(251,146,60,.12); border-color:rgba(251,146,60,.45); color:#fed7aa; }
+@media (max-width:900px){
+  .sg-guide{ grid-template-columns:1fr; }
+  .sg-guide-toc{ position:static; max-height:none; }
+  .sg-guide-sec{ padding:16px; }
+  .sg-guide-sec dl{ grid-template-columns:1fr; gap:2px; }
+  .sg-guide-sec dd{ margin-bottom:8px; }
+}
+@media print{ .subnav, .sg-guide-toc, .sg-actions{ display:none !important; } .sg-guide{ display:block; } .sg-guide-sec{ break-inside:avoid; } }
+</style>{% endblock %}
+{% block content %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{{ indietro_url }}">← {{ indietro_label }}</a>
+  <div class="page-header">
+    <div class="page-header-main"><div class="page-h">Guida · {{ guida.titolo }}</div><div class="page-sub"><span class="sg-badge">{{ guida.codice }}</span> {{ guida.sottotitolo }}</div></div>
+    <div class="sg-actions"><a class="btn" href="{{ pdf_url }}">Scarica PDF</a></div>
+  </div>
+  <div class="sg-guide">
+    <nav class="rc-card sg-guide-toc" aria-label="Indice della guida">
+      <div class="sg-guide-toc-t">Indice</div>
+      <ol>{% for sez in sezioni %}<li><a href="#{{ sez.id }}">{{ sez.titolo }}</a></li>{% endfor %}</ol>
+    </nav>
+    <div class="sg-guide-body">
+      {% for sez in sezioni %}
+      <section class="rc-card sg-guide-sec" id="{{ sez.id }}">
+        <h2><span class="sg-guide-n">{{ forloop.counter }}</span>{{ sez.titolo }}</h2>
+        {% for kind, contenuto in sez.blocchi %}
+          {% if kind == "p" %}<p>{{ contenuto }}</p>
+          {% elif kind == "ul" %}<ul>{% for voce in contenuto %}<li>{{ voce }}</li>{% endfor %}</ul>
+          {% elif kind == "def" %}<dl>{% for termine, spiegazione in contenuto %}<dt>{{ termine }}</dt><dd>{{ spiegazione }}</dd>{% endfor %}</dl>
+          {% elif kind == "nota" %}<div class="sg-guide-nota" role="note">{{ contenuto }}</div>
+          {% endif %}
+        {% endfor %}
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

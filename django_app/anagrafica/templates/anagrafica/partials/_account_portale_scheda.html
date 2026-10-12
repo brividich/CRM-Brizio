@@ -37,6 +37,7 @@ body.theme-dark .dp-acc .dc-acc-alert.is-info { background:rgba(14,165,233,.15);
 <div class="dp-card dp-acc" id="account-portale" data-tab="anagrafica">
   <div class="dp-card-head">
     <div class="dp-card-title">🔐 Account portale</div>
+    {% include "anagrafica/partials/_guida_persone_link.html" with ancora="account-portale" classe="dp-btn dp-btn-ghost dp-btn-sm" %}
   </div>
   <div class="dp-card-body">
     {% if acc.collegato %}

@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% block title %}Catalogo processi{% endblock %}
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
-{% block content %}<div class="rc-wrap">
+{% block content %}{% load sg_guida %}{% sg_guida_link %}<div class="rc-wrap">
 <a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">Audit interni</a>
 <div class="page-header"><div><h1>Catalogo processi</h1><p class="page-sub">Una scheda condivisa per ogni processo. Responsabilità, criteri e storico delle verifiche.</p></div>{% if puo_modificare %}<a class="btn" href="{% url 'sistema_gestione:processo_nuovo' %}">Nuovo processo</a>{% endif %}</div>
 <section class="rc-card sg-section"><form method="get" class="sg-actions"><label for="q">Cerca</label><input id="q" name="q" value="{{ q }}" placeholder="Codice, nome o ente"><label for="stato">Mostra</label><select id="stato" name="stato"><option value="attivi">Attivi</option><option value="archiviati"{% if stato == 'archiviati' %} selected{% endif %}>Archiviati</option><option value="tutti"{% if stato == 'tutti' %} selected{% endif %}>Tutti</option></select><button class="btn btn-secondary">Filtra</button></form></section>

@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load static soc_live security_help %}
+{% load static soc_live security_help security_config_nav %}
 {% block title %}Security Center · SOC IT - CN{% endblock %}
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'security/security.css' %}">
@@ -33,11 +33,9 @@
     <div class="soc-nav-group">
       <span class="soc-nav-label">Gestione</span>
       <a href="{% url 'security:pipeline' %}" {% if url_name == 'pipeline' %}class="active"{% endif %}>Elaborazione</a>
-      <a href="{% url 'security:admin_mailbox_sources_list' %}" {% if url_name|slice:':13' == 'admin_mailbox' %}class="active"{% endif %}>Caselle mail</a>
-      <a href="{% url 'security:admin_config' %}" {% if url_name|slice:':6' == 'admin_' and url_name != 'admin_autoconfig' and url_name|slice:':13' != 'admin_mailbox' or url_name == 'automation' or url_name|slice:':9' == 'inventory' or url_name == 'software_mapping' %}class="active"{% endif %}>Config</a>
-      <a href="{% url 'security:admin_autoconfig' %}" {% if url_name == 'admin_autoconfig' %}class="active"{% endif %}>Autoconfig</a>
       <a href="{% url 'security:suppressions' %}" {% if url_name == 'suppressions' %}class="active"{% endif %} title="Soppressioni manuali e apprese: hit, scadenze, revoca">Soppressioni</a>
-      <a href="{% url 'security:soc_settings' %}" {% if url_name == 'soc_settings' %}class="active"{% endif %} title="Avvisi automatici e report programmato">Impostazioni</a>
+      {% soc_is_config_page url_name as on_config %}
+      <a href="{% soc_config_home_url %}" {% if on_config %}class="active"{% endif %} title="Impostazioni, avvisi, caselle mail, sorgenti, regole, inventario software, autoconfigurazione">Configurazione</a>
       <a href="{% url 'security:help' %}" {% if url_name == 'help' or url_name == 'doc_detail' %}class="active"{% endif %}>Guida</a>
     </div>
     <div class="soc-nav-tools">
@@ -48,6 +46,7 @@
       </form>
     </div>
   </nav>
+  {% soc_config_tabs url_name %}
   {% endwith %}
   {# Barra di stato: resa con la pagina, poi riletta ogni minuto da soc-ui.js. #}
   <div class="soc-live" data-live-url="{% url 'security:live_strip' %}" data-live-every="60" aria-label="Stato del SOC">{% soc_live_strip %}</div>

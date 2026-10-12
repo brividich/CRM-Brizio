@@ -1,7 +1,7 @@
 {% extends "assets/reporting_base.html" %}
 {% block title %}Catalogo report Asset{% endblock %}
 {% block reporting_content %}
-<section class="rp-hero"><div><h1>Catalogo report</h1><p>Tutti i report del modulo in un posto: cosa contengono, con quali filtri e in che formato escono. Salva i filtri che usi spesso, condividili o falli arrivare via email.</p></div><a class="rp-button secondary" href="{% url 'assets:reporting_archive' %}">Archivio report</a></section>
+<section class="rp-hero"><div><h1>Catalogo report</h1><p>Tutti i report del modulo in un posto: cosa contengono, con quali filtri e in che formato escono. Salva i filtri che usi spesso, condividili o falli arrivare via email.</p></div><div class="rp-actions"><a class="rp-button secondary" href="{% url 'assets:guida' %}#report">Guida</a><a class="rp-button secondary" href="{% url 'assets:reporting_archive' %}">Archivio report</a></div></section>
 <section class="rp-panel">
   <h2>Report interattivi</h2>
   <div class="rp-table-wrap"><table><thead><tr><th>Report</th><th>Filtri</th><th>Esempio di riga</th><th>Formati</th></tr></thead><tbody>

@@ -434,8 +434,10 @@ def sincronizza_ofi(esito: AuditEsito):
         "norma_en9100": audit.en9100,
         "norma_iso45001": audit.iso45001,
         "norma_iso27001": audit.iso27001,
-        # Il MOD.174 non ha un flag ISO 14001: la norma resta leggibile nel riferimento.
-        "rif_norma": (esito.clausola_effettiva + (" (ISO 14001)" if audit.iso14001 else ""))[:200],
+        "norma_iso14001": audit.iso14001,
+        "norma_pdr125": audit.pdr125,
+        "rif_norma": esito.clausola_effettiva[:200],
+        "fonte": "Audit interno",
         "priorita": (RegistroOFI.PRIORITA_ALTA if esito.gravita == AuditEsito.GRAVITA_MAGGIORE
                      else RegistroOFI.PRIORITA_MEDIA),
         "ref": audit.numero[:100],

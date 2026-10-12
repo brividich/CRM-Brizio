@@ -119,6 +119,7 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 
   - **Riconciliazione dispositivi IT** (`/assets/dispositivi/riconciliazione/`): proposte di collegamento SNMP, MFC e SOC in un'unica tabella con conferma multipla; righe visibili solo con il permesso del modulo proprietario, proposta ricalcolata alla conferma
   - **Avvisi del monitoraggio IT** (`notify_it_monitoring`, schedule `assets_it_monitoring_alerts` 07:15): digest dei dispositivi in errore/muti e dei consumabili sotto il 15%, notifica in app solo per i problemi nuovi; destinatari `SiteConfig['assets_it_monitoring_emails']` → `assets_reminder_emails` → admin
+  - **Guida Asset in-app** (`/assets/guida/`, voce «Guida Asset» nella sidebar): QR ed etichette, MFC, storico delle modifiche, catalogo report, KPI e permessi; per ogni azione riservata dice se l'utente corrente ha il permesso. Rimandi dal catalogo report, dall'anteprima QR, dallo storico e dal riquadro MFC. Binding ACL v2 su `assets_view` (migrazione 0127). A ogni nuova funzione visibile del modulo va aggiornata insieme a questa scheda.
 
 ## Note di rilascio
 
@@ -129,6 +130,8 @@ Anche gli asset legacy di tipo Altro possono usare il profilo IT della categoria
 MFC sulla scheda asset (PROMPT 06): **consumabili automatici** dall'ultima lettura salvata dal job giornaliero (livello, stima dei giorni all'esaurimento dal consumo dopo l'ultima sostituzione), **pagine B/N e colore per mese** dalle letture mensili con trend sugli ultimi 3 mesi, ultimo errore SNMP e link «Apri la scheda in Contatori». Nessuna interrogazione della stampante all'apertura. Se i dati sono vecchi (consumabili oltre 3 giorni, contatori oltre 40; `ASSETS_MFC_CONSUMABILI_VECCHI_GIORNI`, `ASSETS_MFC_CONTATORI_VECCHI_GIORNI`) la scheda lo scrive invece di mostrarli come attuali. **«Leggi adesso»** compare solo con il permesso «Contatori - Gestione», mette in coda la lettura e mostra i livelli appena il job li salva. Una stampante senza MFC collegata lo segnala e propone le MFC con stessa matricola o IP, con **«Collega»** per chi può modificare l'MFC.
 
 Dopo il deploy di PROMPT 06: `migrate` (assets 0124-0126) e `setup_q_schedules` (nuovi job `assets_report_catalogo_invii`, `assets_storico_retention`). La 0125 crea lo «Stato iniziale» di tutti gli asset e punti rete: su installazioni grandi richiede qualche minuto.
+
+Guida Asset in-app (`/assets/guida/`): dopo il deploy `migrate assets` (0127, binding ACL e voce di sidebar).
 
 Gli interventi Assets supportano una coda operativa distinta tra aperti, assegnati all'utente, non assegnati e chiusi, la presa in carico dalla lista e sia la creazione ordinaria sia il passaggio immediato alla chiusura formale, con data/ora editabile, piu giornate di esecuzione opzionali e consuntivo indicativo in ore/minuti.
 

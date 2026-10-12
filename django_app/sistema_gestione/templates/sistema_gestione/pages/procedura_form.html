@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% block title %}{{ page_title }}{% endblock %}
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
-{% block content %}<div class="rc-wrap"><a class="rc-back" href="{{ indietro }}">Torna alla scheda</a><h1>{{ page_title }}</h1>
+{% block content %}{% load sg_guida %}{% sg_guida_link %}<div class="rc-wrap"><a class="rc-back" href="{{ indietro }}">Torna alla scheda</a><h1>{{ page_title }}</h1>
 {% if precedenti %}<section class="rc-card sg-section"><h2>Audit precedenti dei processi selezionati</h2><ul>{% for a in precedenti %}<li><a href="{% url 'sistema_gestione:audit_dettaglio' a.pk %}">{{ a.numero }} - {{ a.data_inizio }}</a></li>{% endfor %}</ul></section>{% endif %}
 {% if ai_prep_url %}{% include "sistema_gestione/components/_ai_preparazione.html" %}{% endif %}
 {% if car.pk %}<section class="rc-card sg-section"><h2>Scadenze e responsabilita</h2><p>Analisi entro {{ car.scadenza_analisi|date:"d/m/Y" }} {% if not car.analizzata_il and car.scadenza_analisi < oggi %}<strong>SCADUTA</strong>{% endif %} - Chiusura entro {{ car.scadenza_chiusura|date:"d/m/Y" }} {% if not car.chiusa_il and car.scadenza_chiusura < oggi %}<strong>SCADUTA</strong>{% endif %}</p>{% if car.proroga_il %}<p>Proroga approvata da {{ car.proroga_da }} il {{ car.proroga_il }}: {{ car.motivo_proroga }}</p>{% endif %}{% if car.chiusa_il %}<p>Verificata e chiusa da {{ car.chiusa_da }} il {{ car.chiusa_il }}.</p>{% endif %}</section>{% endif %}
