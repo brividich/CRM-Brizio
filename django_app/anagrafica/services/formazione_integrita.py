@@ -413,14 +413,22 @@ def correggi(oggi: date | None = None) -> dict[str, int]:
             s.data_inizio, s.data_fine = s.data_fine, s.data_inizio
             s.save(update_fields=["data_inizio", "data_fine"])
             fatti["sessione_date_invertite"] += 1
-        for lz in TrainingLesson.objects.filter(
-            Q(data__lt=F("sessione__data_inizio")) | Q(data__gt=F("sessione__data_fine"))
-        ).select_related("sessione"):
-            s = lz.sessione
-            s.data_inizio = min(s.data_inizio, lz.data)
-            s.data_fine = max(s.data_fine, lz.data)
-            s.save(update_fields=["data_inizio", "data_fine"])
+        # Per edizione, non per giornata: con più giornate fuori intervallo ogni
+        # riga caricherebbe la propria copia dell'edizione e l'ultimo salvataggio
+        # cancellerebbe l'allargamento fatto dai precedenti.
+        fuori = (TrainingLesson.objects
+                 .filter(Q(data__lt=F("sessione__data_inizio")) | Q(data__gt=F("sessione__data_fine")))
+                 .values_list("sessione_id", "data"))
+        estremi: dict[int, list] = {}
+        for sid, giorno in fuori:
+            e = estremi.setdefault(sid, [giorno, giorno])
+            e[0], e[1] = min(e[0], giorno), max(e[1], giorno)
             fatti["lezioni_fuori_intervallo"] += 1
+        for s in TrainingSession.objects.filter(pk__in=estremi):
+            primo, ultimo = estremi[s.pk]
+            s.data_inizio = min(s.data_inizio, primo)
+            s.data_fine = max(s.data_fine, ultimo)
+            s.save(update_fields=["data_inizio", "data_fine"])
         for p in TrainingLessonAttendance.objects.filter(stato_presenza__startswith="ASSENTE", ore_effettive__gt=0) \
                 .select_related("lezione"):
             p.ore_effettive = None

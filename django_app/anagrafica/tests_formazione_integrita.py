@@ -355,6 +355,20 @@ class IntegritaTests(_Base):
         self.assertEqual(self.enr.ore_frequentate, Decimal("4.00"))
         self.assertTrue(self._voci("integrita_correzioni_automatiche").exists())
 
+    def test_piu_giornate_fuori_intervallo_stessa_edizione(self):
+        prima = IERI - timedelta(days=4)
+        dopo = IERI + timedelta(days=0)
+        self.sess.data_inizio = self.sess.data_fine = IERI - timedelta(days=2)
+        self.sess.save()
+        TrainingLesson.objects.filter(pk=self.lez.pk).update(data=dopo)
+        TrainingLesson.objects.create(sessione=self.sess, numero=2, data=prima,
+                                      ora_inizio=time(8, 0), ora_fine=time(9, 0), argomento="x")
+        fatti = fi.correggi()
+        self.assertEqual(fatti["lezioni_fuori_intervallo"], 2)
+        self.sess.refresh_from_db()
+        self.assertEqual((self.sess.data_inizio, self.sess.data_fine), (prima, dopo))
+        self.assertEqual({c.codice: c.n for c in fi.controlli_integrita()}["lezioni_fuori_intervallo"], 0)
+
     def test_pagine_integrita_e_guida(self):
         r = self.client.get(reverse("anagrafica:formazione_integrita"))
         self.assertContains(r, "Integrità dati")
