@@ -24,7 +24,9 @@ from django.views.decorators.http import require_POST
 from core.acl_v2 import request_has_permission_code
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 from core.legacy_utils import get_legacy_user, is_legacy_admin
-from core.models import ChecklistEsecuzione, ChecklistRisposta, ChecklistVoce
+from core.models import ChecklistEsecuzione, ChecklistRisposta, ChecklistVoce, Profile
+from core.permessi import puo_fare, sistema_ruoli_attivo, utenti_visibili
+from core.permessi.negato import risposta_negata
 from core.upload_mime import (
     UploadMimeValidationError,
     safe_filename,
@@ -165,10 +167,38 @@ def _acl_list_matches(acl: list, identities: set[str]) -> bool:
     return False
 
 
+MODULO = "diario_preposto"
+
+
+def _filtra_visibili(request, qs, azione: str = "vedere"):
+    """Con i ruoli attivi: solo le segnalazioni create da persone visibili."""
+    if not sistema_ruoli_attivo():
+        return qs
+    ammessi = utenti_visibili(request, MODULO, azione)
+    if ammessi is None:
+        return qs
+    autori = Profile.objects.filter(legacy_user_id__in=list(ammessi)).values_list("user_id", flat=True)
+    return qs.filter(creato_da_id__in=list(autori))
+
+
+def _nega_record(request, segnalazione, azione: str):
+    """403 chiaro se i ruoli non consentono ``azione`` su questa segnalazione, altrimenti None."""
+    if not sistema_ruoli_attivo() or puo_fare(request, MODULO, azione, segnalazione):
+        return None
+    return risposta_negata(
+        request,
+        "Questa segnalazione non rientra fra quelle che il tuo ruolo ti consente di "
+        + ("vedere." if azione == "vedere" else "modificare."),
+        pagina="Diario preposto",
+    )
+
+
 def _can_write(request) -> bool:
     """Controlla se l'utente puo creare/modificare/eliminare segnalazioni."""
     if not request.user.is_authenticated:
         return False
+    if sistema_ruoli_attivo():
+        return puo_fare(request, MODULO, "creare") or puo_fare(request, MODULO, "modificare")
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     if legacy_user and is_legacy_admin(legacy_user):
         return True
@@ -212,6 +242,8 @@ def _can_view(request) -> bool:
     # modulo (la stessa che protegge la scheda dettaglio), come da docstring.
     if getattr(user, "is_superuser", False):
         return True
+    if sistema_ruoli_attivo():
+        return puo_fare(request, MODULO, "vedere")
     from core.legacy_utils import legacy_auth_enabled
     if not legacy_auth_enabled():
         return True
@@ -236,7 +268,8 @@ def _write_required(view_func):
         if not request.user.is_authenticated:
             return redirect_to_login(request.get_full_path())
         if not _can_write(request):
-            return render(request, "core/pages/forbidden.html", status=403)
+            # Pagine: messaggio chiaro; API/AJAX: JSON 403, mai una pagina HTML.
+            return risposta_negata(request, pagina="Diario preposto")
         return view_func(request, *args, **kwargs)
 
     return _wrapped
@@ -321,7 +354,7 @@ def _prepare_ispezione_rows(esecuzioni) -> list[ChecklistEsecuzione]:
 
 @login_required
 def lista(request):
-    qs = SegnalazionePreposto.objects.all()
+    qs = _filtra_visibili(request, SegnalazionePreposto.objects.all())
 
     q = request.GET.get("q", "").strip()
     if q:
@@ -338,7 +371,7 @@ def lista(request):
         qs = qs.filter(preposto__icontains=filtro_preposto)
 
     preposti = (
-        SegnalazionePreposto.objects.exclude(preposto="")
+        _filtra_visibili(request, SegnalazionePreposto.objects.all()).exclude(preposto="")
         .values_list("preposto", flat=True)
         .distinct()
         .order_by("preposto")
@@ -363,10 +396,13 @@ def lista(request):
 def ispezioni(request):
     voci = _ensure_ispezione_voci()
     cfg = DiarioPrepostoImpostazioni.get_singleton()
+    esecuzioni_qs = ChecklistEsecuzione.objects.filter(tipo_checklist=CHECKLIST_ISPEZIONE_PREPOSTO)
+    if sistema_ruoli_attivo():
+        ammessi = utenti_visibili(request, MODULO, "vedere")
+        if ammessi is not None:
+            esecuzioni_qs = esecuzioni_qs.filter(legacy_user_id__in=list(ammessi))
     esecuzioni = _prepare_ispezione_rows(
-        ChecklistEsecuzione.objects.filter(tipo_checklist=CHECKLIST_ISPEZIONE_PREPOSTO)
-        .prefetch_related("risposte")
-        .order_by("-data_esecuzione")[:50]
+        esecuzioni_qs.prefetch_related("risposte").order_by("-data_esecuzione")[:50]
     )
     ultima = esecuzioni[0] if esecuzioni else None
     prossima_scadenza = None
@@ -465,20 +501,28 @@ def ispezione_nuova(request):
 @login_required
 def dettaglio(request, pk):
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    negata = _nega_record(request, segnalazione, "vedere")
+    if negata is not None:
+        return negata
     allegati = segnalazione.allegati.all()
+    can_write = _can_write(request)
+    if sistema_ruoli_attivo():
+        can_write = puo_fare(request, MODULO, "modificare", segnalazione)
     return render(
         request,
         "diario_preposto/pages/dettaglio.html",
         {
             "segnalazione": segnalazione,
             "allegati": allegati,
-            "can_write": _can_write(request),
+            "can_write": can_write,
         },
     )
 
 
 @_write_required
 def nuovo(request):
+    if sistema_ruoli_attivo() and not puo_fare(request, MODULO, "creare"):
+        return risposta_negata(request, pagina="Diario preposto")
     nome, email = _legacy_identity(request)
     if request.method == "POST":
         form = SegnalazioneForm(request.POST)
@@ -527,6 +571,9 @@ def nuovo(request):
 @_write_required
 def modifica(request, pk):
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    negata = _nega_record(request, segnalazione, "modificare")
+    if negata is not None:
+        return negata
     if request.method == "POST":
         form = SegnalazioneForm(request.POST, instance=segnalazione)
         if form.is_valid():
@@ -571,6 +618,9 @@ def modifica(request, pk):
 @require_POST
 def elimina(request, pk):
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    negata = _nega_record(request, segnalazione, "cancellare")
+    if negata is not None:
+        return negata
     for allegato in segnalazione.allegati.all():
         try:
             if allegato.file and allegato.file.name:
@@ -593,7 +643,9 @@ def export_excel(request):
         # openpyxl li scriverebbe come formula viva (formula injection).
         from core.excel_export import write_cell
 
-        qs = SegnalazionePreposto.objects.all()
+        if sistema_ruoli_attivo() and not puo_fare(request, MODULO, "esportare"):
+            return risposta_negata(request, pagina="Diario preposto")
+        qs = _filtra_visibili(request, SegnalazionePreposto.objects.all(), "esportare")
 
         q = request.GET.get("q", "").strip()
         if q:
@@ -697,6 +749,9 @@ def export_excel(request):
 @login_required
 def export_pdf(request, pk):
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    negata = _nega_record(request, segnalazione, "esportare")
+    if negata is not None:
+        return negata
     allegati = list(segnalazione.allegati.all())
 
     try:
@@ -797,6 +852,8 @@ def api_allegato_upload(request):
     if not pk:
         return _json_err("segnalazione_id obbligatorio")
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    if sistema_ruoli_attivo() and not puo_fare(request, MODULO, "modificare", segnalazione):
+        return _json_err("Il tuo ruolo non consente di modificare questa segnalazione.", status=403)
     uploaded_file = request.FILES.get("file")
     if not uploaded_file:
         return _json_err("Nessun file ricevuto")
@@ -826,6 +883,8 @@ def api_allegato_delete(request):
     if not pk:
         return _json_err("allegato_id obbligatorio")
     allegato = get_object_or_404(SegnalazioneAllegato, pk=pk)
+    if sistema_ruoli_attivo() and not puo_fare(request, MODULO, "modificare", allegato.segnalazione):
+        return _json_err("Il tuo ruolo non consente di modificare questa segnalazione.", status=403)
     try:
         if allegato.file and allegato.file.name:
             allegato.file.storage.delete(allegato.file.name)
@@ -867,6 +926,9 @@ def allegato_download(request, allegato_id: int):
         SegnalazioneAllegato.objects.select_related("segnalazione"),
         pk=allegato_id,
     )
+    negata = _nega_record(request, allegato.segnalazione, "vedere")
+    if negata is not None:
+        return negata
     storage = allegato.file.storage
     if (
         not allegato.file

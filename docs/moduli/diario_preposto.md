@@ -23,3 +23,7 @@ Registro obbligatorio delle verifiche del preposto sicurezza.
 - **Firma** preposto e controfirma responsabile
 - **Report** per audit ispettivo esterno
 - **ACL bootstrap automatico** all'avvio app
+
+## Ruoli del portale
+
+Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) le segnalazioni sono filtrate per autore (`creato_da`): il preposto vede e modifica le proprie, il responsabile vede quelle del suo team d'organigramma, la Sicurezza tutte. Dettaglio, modifica, eliminazione, export Excel/PDF, allegati e ispezioni applicano la stessa regola; la lista «acl_scrittura» delle impostazioni vale solo a sistema spento.

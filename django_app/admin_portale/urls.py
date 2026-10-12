@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca
+from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca, views_ruoli
 
 
 app_name = "admin_portale"
@@ -118,6 +118,13 @@ urlpatterns = [
     path("notifiche-config/", views.notifiche_config_view, name="notifiche_config"),
     path("health/", views.admin_health_check, name="health_check"),
     path("accessi/", views.accessi_unificati, name="accessi"),
+    path("ruoli-portale/", views_ruoli.ruoli_portale, name="ruoli_portale"),
+    path("ruoli-portale/persona/<int:legacy_user_id>/", views_ruoli.ruoli_portale_persona, name="ruoli_portale_persona"),
+    path("ruoli-portale/matrice/<int:ruolo_id>/", views_ruoli.ruoli_portale_matrice, name="ruoli_portale_matrice"),
+    path("ruoli-portale/ruolo/nuovo/", views_ruoli.ruoli_portale_ruolo, name="ruoli_portale_ruolo_nuovo"),
+    path("ruoli-portale/ruolo/<int:ruolo_id>/", views_ruoli.ruoli_portale_ruolo, name="ruoli_portale_ruolo"),
+    path("ruoli-portale/preset/", views_ruoli.ruoli_portale_preset, name="ruoli_portale_preset"),
+    path("ruoli-portale/sistema/", views_ruoli.ruoli_portale_sistema, name="ruoli_portale_sistema"),
     path("accessi-negati/", views_accessi_negati.accessi_negati, name="accessi_negati"),
     path("accessi-negati/azione/", views_accessi_negati.accessi_negati_azione, name="accessi_negati_azione"),
     path("gestione-accessi/", views.gestione_accessi, name="gestione_accessi"),

@@ -2259,12 +2259,22 @@ class AiAssistantTests(TestCase):
     AI_TOOL_ROUTING_ENABLED=False,  # routing keyword-only: test deterministico, no rete
 )
 class CarichiMacchinaContextTests(TestCase):
-    """Tool live 'carichi macchina' (Ondata 1.2): read-only, ACL=login, soli aggregati."""
+    """Tool live 'carichi macchina' (Ondata 1.2): read-only, soli aggregati.
+
+    Gate: il permesso di consultazione del piano carichi, come la pagina (prima
+    bastava il login). Qui il permesso e' concesso; il diniego e' coperto da
+    core.tests_permessi_moduli.
+    """
 
     def setUp(self):
         from decimal import Decimal
+        from unittest.mock import patch
 
         from django.core.cache import cache
+
+        permesso = patch("core.acl_v2.request_has_permission_code", return_value=True)
+        permesso.start()
+        self.addCleanup(permesso.stop)
 
         from assets.models import Asset
         from gestione_carichi_macchina.models import Commessa, Macchina, Pianificazione

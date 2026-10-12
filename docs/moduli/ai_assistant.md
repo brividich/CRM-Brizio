@@ -55,3 +55,7 @@ Superficie minima ed estendibile per chat AI locale, servita da Django e protett
 ## Hardening ottobre 2026
 
 - Al massimo `OLLAMA_MAX_CONCURRENT_REQUESTS` (default 3) chiamate al modello contemporanee per processo: oltre il limite l'utente riceve subito «assistente occupato» invece di occupare un thread del server web.
+
+## Ruoli del portale
+
+Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) ogni tool di dati gira solo se la persona può «vedere» almeno uno dei moduli che legge (`ai_assistant/tools.py::TOOL_MODULI`, `tool_consentito`). Sempre: il tool «Carichi macchina» richiede il permesso di consultazione del piano carichi, e il tool ticket riconosce i ticket propri solo da identificativi stabili (mai dal nome).

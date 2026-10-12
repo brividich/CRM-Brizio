@@ -136,8 +136,11 @@ def check_permesso(legacy_user: UtenteLegacy | None, path: str) -> bool:
         return False
     if is_legacy_admin(legacy_user):
         return True
+    from core.permessi.motore import sistema_ruoli_attivo
+
+    ruoli_attivi = sistema_ruoli_attivo()
     ruolo_id = legacy_user.ruolo_id
-    if not ruolo_id:
+    if not ruolo_id and not ruoli_attivi:
         return False
 
     path_norm = normalize_acl_path(path)
@@ -155,6 +158,9 @@ def check_permesso(legacy_user: UtenteLegacy | None, path: str) -> bool:
                 allow_legacy_admin=False,
             )
             return bool(canonical_result.get("allowed", False))
+
+        if ruoli_attivi:
+            return False
 
         pulsante = _match_pulsante(path_norm)
         if not pulsante:
@@ -407,8 +413,11 @@ def evaluate_modulo_action_access(*, legacy_user: UtenteLegacy | None, modulo: s
         result["source"] = "legacy_admin"
         result["reason"] = "Utente riconosciuto come admin legacy."
         return result
+    from core.permessi.motore import sistema_ruoli_attivo
+
+    ruoli_attivi = sistema_ruoli_attivo()
     ruolo_id = result["role_id"]
-    if not ruolo_id or not modulo_norm or not azione_norm:
+    if (not ruolo_id and not ruoli_attivi) or not modulo_norm or not azione_norm:
         result["reason"] = "Ruolo legacy o coordinate modulo/azione mancanti."
         return result
     try:
@@ -426,6 +435,11 @@ def evaluate_modulo_action_access(*, legacy_user: UtenteLegacy | None, modulo: s
             result["source"] = str(canonical_result.get("effective_level") or "canonical_permission")
             result["reason"] = str(canonical_result.get("reason") or "")
             result["override"] = canonical_result.get("user_override")
+            return result
+
+        if ruoli_attivi:
+            result["source"] = "ruoli_attivi"
+            result["reason"] = "Sistema dei ruoli attivo: azione senza permesso nel catalogo, negata."
             return result
 
         override = _get_user_override(int(legacy_user.id), modulo_norm, azione_norm)
