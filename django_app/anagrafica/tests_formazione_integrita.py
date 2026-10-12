@@ -355,6 +355,21 @@ class IntegritaTests(_Base):
         self.assertEqual(self.enr.ore_frequentate, Decimal("4.00"))
         self.assertTrue(self._voci("integrita_correzioni_automatiche").exists())
 
+    def test_giornata_senza_durata_non_porta_oltre_il_100(self):
+        """Prod 12/10: lezione 09:00-09:00 con ore importate → % > 100 e vincolo CHECK violato."""
+        from .views import _ricalcola_presenza_enrollment
+
+        zero = TrainingLesson.objects.create(sessione=self.sess, numero=2, data=IERI,
+                                             ora_inizio=time(9, 0), ora_fine=time(9, 0), argomento="storico")
+        TrainingLessonAttendance.objects.create(lezione=self.lez, legacy_anagrafica_id=501,
+                                                stato_presenza="PRESENTE")
+        TrainingLessonAttendance.objects.create(lezione=zero, legacy_anagrafica_id=501,
+                                                stato_presenza="PRESENTE", ore_effettive=Decimal("4"))
+        _ricalcola_presenza_enrollment(self.enr)  # non deve violare il vincolo 0-100
+        self.enr.refresh_from_db()
+        self.assertEqual(self.enr.percentuale_presenza, Decimal("100.00"))
+        fi.correggi()  # nemmeno qui
+
     def test_piu_giornate_fuori_intervallo_stessa_edizione(self):
         prima = IERI - timedelta(days=4)
         dopo = IERI + timedelta(days=0)
