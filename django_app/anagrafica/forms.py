@@ -587,7 +587,10 @@ class TrainingRequirementRuleForm(forms.ModelForm):
         fields = [
             "corso", "piano",
             "mansione", "area", "ruolo_operativo", "legacy_anagrafica_id",
-            "is_mandatory", "override_frequenza_mesi",
+            # `override_frequenza_mesi` non è nel form: il calcolo delle scadenze usa
+            # la validità del corso e il campo non veniva applicato. Le regole che
+            # l'hanno valorizzato compaiono in «Integrità dati».
+            "is_mandatory",
             "data_inizio_validita", "data_fine_validita",
             "priority", "note", "is_active",
         ]
@@ -599,7 +602,6 @@ class TrainingRequirementRuleForm(forms.ModelForm):
             "ruolo_operativo":         forms.Select(attrs=_FM_SELECT),
             "legacy_anagrafica_id":    forms.NumberInput(attrs={**_FM_NUMBER, "min": "1"}),
             "is_mandatory":            forms.CheckboxInput(attrs=_FM_CHECK),
-            "override_frequenza_mesi": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
             "data_inizio_validita":    forms.DateInput(attrs=_FM_DATE),
             "data_fine_validita":      forms.DateInput(attrs=_FM_DATE),
             "priority":                forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0"}),
@@ -1309,6 +1311,11 @@ class TrainingCompletamentoDirettoForm(forms.Form):
         return data
 
 
+def _valida_0_100(valore):
+    if valore is not None and not (0 <= valore <= 100):
+        raise forms.ValidationError("Il valore deve essere compreso fra 0 e 100.")
+
+
 class TrainingEnrollmentEditForm(forms.ModelForm):
     """Modifica stato iscrizione e dati di completamento."""
 
@@ -1345,15 +1352,38 @@ class TrainingEnrollmentEditForm(forms.ModelForm):
         # La soglia del corso è il default sensato: si compila da sola, e resta
         # scritta sull'iscrizione così l'esito è rileggibile anni dopo con il
         # criterio di allora e non con quello vigente al momento della lettura.
-        if self.instance and self.instance.pk and self.instance.punteggio_minimo is None:
-            try:
-                regola = self.instance.sessione.corso.regola_superamento
-                self.fields["punteggio_minimo"].initial = regola.ore_minime_percentuale
-            except Exception:
-                pass
+        # È la soglia della verifica (punteggio), non la percentuale di ore.
+        sessione = self.instance.sessione if (self.instance and self.instance.sessione_id) else None
+        if self.instance and self.instance.pk and self.instance.punteggio_minimo is None and sessione:
+            self.fields["punteggio_minimo"].initial = sessione.corso.quiz_punteggio_minimo
+        # Con un calendario di giornate, ore e percentuale si calcolano dalle
+        # presenze: scriverle a mano aggirerebbe il minimo di frequenza.
+        self.frequenza_calcolata = bool(sessione and sessione.lezioni.exists())
+        if self.frequenza_calcolata:
+            for nome in ("ore_frequentate", "percentuale_presenza"):
+                self.fields[nome].disabled = True
+                self.fields[nome].help_text = "Calcolato dalle presenze registrate."
+        self.fields["percentuale_presenza"].validators.append(_valida_0_100)
+        self.fields["punteggio"].validators.append(_valida_0_100)
 
     def clean(self):
+        from django.utils import timezone as _tz
+
         dati = super().clean()
+        oggi = _tz.localdate()
+        sessione = self.instance.sessione if self.instance.sessione_id else None
+        for campo, etichetta in (("data_completamento", "completamento"), ("data_verifica", "verifica")):
+            valore = dati.get(campo)
+            if not valore:
+                continue
+            if valore > oggi:
+                self.add_error(campo, f"La data di {etichetta} non può essere nel futuro.")
+            elif sessione and sessione.data_inizio and valore < sessione.data_inizio:
+                self.add_error(campo, f"La data di {etichetta} non può precedere l'inizio dell'edizione "
+                                      f"({sessione.data_inizio:%d/%m/%Y}).")
+        ore = dati.get("ore_frequentate")
+        if ore is not None and ore < 0:
+            self.add_error("ore_frequentate", "Le ore non possono essere negative.")
         punteggio = dati.get("punteggio")
         soglia = dati.get("punteggio_minimo")
         # Se ci sono punteggio e soglia, l'esito lo deduce il sistema: lasciarlo
@@ -1374,6 +1404,24 @@ class TrainingLessonAttendanceForm(forms.ModelForm):
             "firma_uscita":   forms.CheckboxInput(attrs=_FM_CHECK),
             "note":           forms.Textarea(attrs=_FM_TEXTAREA),
         }
+
+    def clean(self):
+        dati = super().clean()
+        stato = dati.get("stato_presenza") or ""
+        ore = dati.get("ore_effettive")
+        if stato.startswith("ASSENTE"):
+            # Un'assenza non ha ore: lasciarle scritte confonde il registro.
+            dati["ore_effettive"] = None
+            return dati
+        if ore is not None:
+            if ore < 0:
+                self.add_error("ore_effettive", "Le ore non possono essere negative.")
+            lezione = self.instance.lezione if self.instance.lezione_id else None
+            durata = lezione.durata_ore if lezione else 0
+            if durata > 0 and float(ore) > durata + 0.001:
+                self.add_error("ore_effettive",
+                               f"Le ore effettive ({ore:g}) superano la durata formativa della giornata ({durata:g}).")
+        return dati
 
 
 class TrainingLessonForm(forms.ModelForm):

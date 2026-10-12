@@ -1,0 +1,90 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Integrità dati | Formazione{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=8">
+<style>
+.fint-tab{ width:100%; border-collapse:collapse; font-size:13px; }
+.fint-tab th, .fint-tab td{ padding:8px 10px; border-bottom:1px solid var(--border,#e2e8f0); text-align:left; vertical-align:top; }
+.fint-tab td.n{ text-align:right; font-weight:700; white-space:nowrap; }
+.fint-ok{ opacity:.6; }
+.fint-badge{ display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+.fint-alta{ background:#fee2e2; color:#991b1b; }
+.fint-media{ background:#fef3c7; color:#92400e; }
+.fint-bassa{ background:#e0f2fe; color:#075985; }
+body.theme-dark .fint-alta{ background:rgba(254,226,226,.12); color:#fca5a5; }
+body.theme-dark .fint-media{ background:rgba(254,243,199,.12); color:#fcd34d; }
+body.theme-dark .fint-bassa{ background:rgba(224,242,254,.12); color:#7dd3fc; }
+.fint-esempi{ font-size:11.5px; opacity:.75; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap" style="max-width:1100px;">
+    <div class="fmd-pagehead">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:formazione_dashboard' %}">Formazione</a><span class="fmd-sep"> / </span><span class="fmd-cur">Integrità dati</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-shield"/></svg>Integrità dati</h1>
+        <p class="fmd-ph-sub">Controlli di coerenza su edizioni, giornate, presenze e completamenti, con il riferimento SGI (MT CN 06, MT CN 08, MOD.040). La pagina legge soltanto: le correzioni automatiche partono solo dal pulsante.</p>
+      </div>
+      <div class="fmd-pagehead-actions">
+        {% include "anagrafica/partials/_formazione_guida_link.html" with ancora="integrita" %}
+      </div>
+    </div>
+
+    <section class="fmd-panel" style="padding:16px 20px;margin-bottom:14px;">
+      <p style="margin:0 0 8px;font-size:14px;">
+        {% if n_anomalie %}<strong>{{ n_anomalie }}</strong> anomalie trovate, di cui <strong>{{ n_correggibili }}</strong> correggibili in automatico.
+        {% else %}Nessuna anomalia: i dati sono coerenti.{% endif %}
+      </p>
+      {% if n_correggibili %}
+      <form method="post" onsubmit="return confirm('Applicare le correzioni automatiche? Riguardano solo i controlli marcati «automatica»; l\'operazione resta nel registro attività.');">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="correggi">
+        <button type="submit" class="fmd-btn fmd-btn-primary">Applica le correzioni automatiche</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="fmd-panel" style="padding:4px 0;margin-bottom:14px;overflow-x:auto;">
+      <table class="fint-tab">
+        <thead><tr><th>Controllo</th><th>Riferimento</th><th>Priorità</th><th>Correzione</th><th style="text-align:right;">Casi</th></tr></thead>
+        <tbody>
+        {% for c in controlli %}
+          <tr class="{% if not c.n %}fint-ok{% endif %}">
+            <td><strong>{{ c.titolo }}</strong><br><span class="fint-esempi">{{ c.spiegazione }}</span>
+              {% if c.n and c.esempi %}<br><span class="fint-esempi">Esempi (id): {{ c.esempi|join:", " }}</span>{% endif %}</td>
+            <td>{{ c.riferimento }}</td>
+            <td><span class="fint-badge fint-{{ c.gravita }}">{{ c.gravita }}</span></td>
+            <td>{% if c.correggibile %}automatica{% else %}a mano{% endif %}</td>
+            <td class="n">{{ c.n }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="fmd-panel" style="padding:16px 20px;">
+      <h2 style="font-size:16px;margin:0 0 8px;">Completamenti annullati (ultimi 50)</h2>
+      {% if annullati %}
+      <table class="fint-tab">
+        <thead><tr><th>Corso</th><th>Persona (id)</th><th>Completato il</th><th>Annullato il</th><th>Da</th><th>Motivo</th></tr></thead>
+        <tbody>
+        {% for r in annullati %}
+          <tr><td>{{ r.course_code_snapshot|default:r.corso.codice }} — {{ r.course_title_snapshot|default:r.corso.titolo }}</td>
+              <td>{{ r.legacy_anagrafica_id }}</td><td>{{ r.data_completamento|date:"d/m/Y" }}</td>
+              <td>{{ r.annullato_il|date:"d/m/Y H:i" }}</td><td>{{ r.annullato_da_nome|default:"—" }}</td><td>{{ r.annullato_motivo }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<p class="fmd-muted" style="margin:0;font-size:13px;">Nessun completamento annullato.</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

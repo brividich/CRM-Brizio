@@ -14,6 +14,15 @@ from django.utils import timezone
 from .storage import PrivateAnagraficaStorage
 
 
+def aggiungi_mesi(dt, months: int):
+    """Aggiunge N mesi a una data; il giorno si ferma all'ultimo del mese."""
+    import calendar
+    month = dt.month - 1 + months
+    year = dt.year + month // 12
+    month = month % 12 + 1
+    return dt.replace(year=year, month=month, day=min(dt.day, calendar.monthrange(year, month)[1]))
+
+
 def _nuovo_token() -> str:
     """Token casuale non indovinabile (tentativi di quiz)."""
     import uuid
@@ -373,7 +382,8 @@ class TrainingCourse(models.Model):
     )
     quiz_punteggio_minimo = models.PositiveSmallIntegerField(
         default=70,
-        help_text="Percentuale minima di risposte corrette per superare il quiz finale (solo e-learning).",
+        help_text="Percentuale minima per superare la verifica finale: quiz e-learning e "
+                  "soglia proposta per la verifica d'aula.",
     )
     costo_unitario = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     stato          = models.CharField(max_length=15, choices=STATO_CHOICES, default="BOZZA")
@@ -998,6 +1008,36 @@ class TrainingSession(models.Model):
         on_delete=models.SET_NULL, related_name="+",
     )
 
+    # ── Approvazione del MOD.040 Registro Corsi (MT CN 06 §9.3) ──────────────
+    # MSM, o MSO quale delegato, approva con una verifica formale: attività
+    # eseguita e registro compilato. Un'edizione approvata è chiusa: per
+    # correggerla va riaperta con un motivo (MT CN 08 §7.3).
+    approvata_il    = models.DateTimeField(null=True, blank=True)
+    approvata_da    = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    approvata_da_nome = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Snapshot di chi ha approvato: resta leggibile anche se l'utenza sparisce.",
+    )
+    approvazione_note = models.TextField(blank=True, default="")
+
+    # ── MOD.040: «Verifica assenza NC nei successivi 6 mesi» ─────────────────
+    VERIFICA_NC_CHOICES = [
+        ("SI", "Sì, nessuna NC"),
+        ("NO", "No, NC riconducibili alla formazione"),
+        ("NA", "Non applicabile"),
+    ]
+    verifica_nc_esito = models.CharField(max_length=2, choices=VERIFICA_NC_CHOICES, blank=True, default="")
+    verifica_nc_note  = models.TextField(blank=True, default="")
+    verifica_nc_il    = models.DateField(null=True, blank=True)
+    verifica_nc_da    = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    verifica_nc_da_nome = models.CharField(max_length=200, blank=True, default="")
+
     class Meta:
         ordering = ["-data_inizio"]
         verbose_name = "Sessione formativa"
@@ -1012,7 +1052,32 @@ class TrainingSession(models.Model):
                 condition=~models.Q(docente__isnull=False, docente_ente__isnull=False),
                 name="training_session_docente_o_ente_non_entrambi",
             ),
+            models.CheckConstraint(
+                condition=models.Q(data_fine__gte=models.F("data_inizio")),
+                name="training_session_fine_dopo_inizio",
+            ),
         ]
+
+    # Mesi dopo la fine dell'edizione per la verifica NC del MOD.040.
+    MESI_VERIFICA_NC = 6
+
+    @property
+    def is_approvata(self) -> bool:
+        return self.approvata_il is not None
+
+    @property
+    def is_chiusa(self) -> bool:
+        """Edizione chiusa: calendario, iscritti e presenze non si toccano più.
+
+        È chiusa quando è COMPLETATA o approvata. Si corregge solo riaprendola
+        con un motivo, che resta nel registro delle attività."""
+        return self.stato == "COMPLETATA" or self.is_approvata
+
+    @property
+    def verifica_nc_dovuta_dal(self):
+        if not self.data_fine:
+            return None
+        return aggiungi_mesi(self.data_fine, self.MESI_VERIFICA_NC)
 
     @property
     def ore_pianificate(self) -> float:
@@ -1207,6 +1272,21 @@ class TrainingEnrollment(models.Model):
             models.Index(fields=["legacy_anagrafica_id", "stato"]),
             models.Index(fields=["legacy_anagrafica_id", "data_completamento"]),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(ore_frequentate__gte=0),
+                name="training_enrollment_ore_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(percentuale_presenza__isnull=True)
+                | models.Q(percentuale_presenza__gte=0, percentuale_presenza__lte=100),
+                name="training_enrollment_percentuale_0_100",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(punteggio__isnull=True) | models.Q(punteggio__gte=0, punteggio__lte=100),
+                name="training_enrollment_punteggio_0_100",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] → {self.sessione.codice_sessione} ({self.stato})"
@@ -1315,6 +1395,12 @@ class TrainingLessonAttendance(models.Model):
         indexes = [
             models.Index(fields=["legacy_anagrafica_id", "lezione"]),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(ore_effettive__isnull=True) | models.Q(ore_effettive__gte=0),
+                name="training_attendance_ore_non_negative",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] — {self.lezione} — {self.stato_presenza}"
@@ -1324,12 +1410,27 @@ class TrainingLessonAttendance(models.Model):
 # RECORD COMPLETAMENTO (storico dipendente × corso)
 # ─────────────────────────────────────────────────────────────
 
+class RecordValidiManager(models.Manager):
+    """Solo i completamenti in vigore: un record annullato non esiste per
+    requisiti, scadenze, libretto ed export. Resta leggibile da ``tutti``."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(annullato_il__isnull=True)
+
+
 class TrainingEmployeeRecord(models.Model):
     """Record storico di completamento corso per dipendente.
 
     I campi snapshot_ garantiscono integrità storica anche se corso/sessione/piano
     cambiano in seguito. Compilare alla creazione; non aggiornare mai i snapshot.
+
+    Un completamento non si cancella: si **annulla** con un motivo (MT CN 08
+    §7.3, la correzione lascia leggibile il dato errato con chi e quando). Il
+    manager ``objects`` esclude gli annullati, ``tutti`` li comprende.
     """
+
+    objects = RecordValidiManager()
+    tutti = models.Manager()
 
     corso    = models.ForeignKey(TrainingCourse, on_delete=models.PROTECT, related_name="record_completamenti")
     sessione = models.ForeignKey(
@@ -1370,6 +1471,15 @@ class TrainingEmployeeRecord(models.Model):
     # rende l'attestato «non verificabile».
     firma_verifica = models.CharField(max_length=64, blank=True, default="")
 
+    # Annullamento motivato (al posto della cancellazione).
+    annullato_il = models.DateTimeField(null=True, blank=True, db_index=True)
+    annullato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+    annullato_da_nome = models.CharField(max_length=200, blank=True, default="")
+    annullato_motivo = models.TextField(blank=True, default="")
+
     # ── Snapshot storici ─────────────────────────────────────
     # Compilare alla creazione del record — non aggiornare mai.
     course_code_snapshot               = models.CharField(max_length=30, blank=True)
@@ -1397,7 +1507,24 @@ class TrainingEmployeeRecord(models.Model):
             # Condizione positiva: su SQL Server l'indice filtrato non accetta NOT.
             models.UniqueConstraint(fields=["codice_verifica"], condition=models.Q(codice_verifica__gt=""),
                                     name="uniq_record_codice_verifica"),
+            # Niente vincolo univoco su (corso, persona, data): i doppioni storici
+            # si sistemano con `pulisci_scadenze_hr --doppioni`, che tiene il record
+            # più collegato e lascia a mano i casi dubbi. Il controllo resta
+            # applicativo (_crea_record_diretto) e in «Integrità dati».
+            models.CheckConstraint(
+                condition=models.Q(ore_frequentate__gte=0),
+                name="training_record_ore_non_negative",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(percentuale_presenza__isnull=True)
+                | models.Q(percentuale_presenza__gte=0, percentuale_presenza__lte=100),
+                name="training_record_percentuale_0_100",
+            ),
         ]
+
+    @property
+    def is_annullato(self) -> bool:
+        return self.annullato_il is not None
 
     def save(self, *args, **kwargs):
         if self.codice_verifica:
@@ -1853,6 +1980,7 @@ class TrainingExportLog(models.Model):
         ("KPI",          "Report KPI direzionale"),
         ("REPORT_FIRMA", "Report firma lezione PDF"),
         ("ATTESTATO",    "Attestato di completamento"),
+        ("MOD040",       "MOD.040 Registro Corsi"),
     ]
 
     tipo            = models.CharField(max_length=20, choices=TIPO_EXPORT_CHOICES)

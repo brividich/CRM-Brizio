@@ -25,13 +25,19 @@
           <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Formazione</div>
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>Formazione aziendale</h1>
           <p class="fmd-sub">Piani formativi, corsi, sessioni e scadenze in un'unica vista. Aggiornato al {{ oggi|date:"d-m-Y" }}.</p>
-          {% if can_edit_formazione %}
           <div class="fmd-hero-actions">
+            {% if can_edit_formazione %}
             <a class="fmd-btn-template" href="{% url 'anagrafica:attestato_impostazioni' %}">
               <svg class="fmd-ico"><use href="#i-award"/></svg>Template attestato
             </a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:formazione_integrita' %}" title="Controlli di coerenza dei dati della formazione (MT CN 06, MT CN 08)">
+              <svg class="fmd-ico"><use href="#i-shield"/></svg>Integrità dati
+            </a>
+            {% endif %}
+            <a class="fmd-btn-template" href="{% url 'anagrafica:formazione_guida' %}" title="Come funziona la formazione d'aula">
+              <svg class="fmd-ico"><use href="#i-book"/></svg>Guida
+            </a>
           </div>
-          {% endif %}
         </div>
         <div class="fmd-hero-side">
           <div class="fmd-hero-tile">

@@ -28,6 +28,8 @@ ALFABETO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 LUNGHEZZA = 12
 
 VALIDO, SCADUTO, NON_VALIDO, SCONOSCIUTO, ALTERATO = "VALIDO", "SCADUTO", "NON_VALIDO", "SCONOSCIUTO", "ALTERATO"
+# Completamento annullato con motivo: l'attestato esiste ma non vale più.
+ANNULLATO = "ANNULLATO"
 
 
 def _nuovo_codice() -> str:
@@ -63,13 +65,13 @@ def assegna_codice_verifica(record) -> str:
         record.codice_verifica = codice
         try:
             with transaction.atomic():
-                aggiornate = (TrainingEmployeeRecord.objects.filter(pk=record.pk, codice_verifica="")
+                aggiornate = (TrainingEmployeeRecord.tutti.filter(pk=record.pk, codice_verifica="")
                               .update(codice_verifica=codice, firma_verifica=firma(record)))
         except IntegrityError:
             record.codice_verifica = ""
             continue  # collisione (improbabilissima): si ritenta
         if not aggiornate:  # assegnato nel frattempo da un'altra richiesta
-            record.codice_verifica, record.firma_verifica = (TrainingEmployeeRecord.objects
+            record.codice_verifica, record.firma_verifica = (TrainingEmployeeRecord.tutti
                                                              .values_list("codice_verifica", "firma_verifica")
                                                              .get(pk=record.pk))
             return record.codice_verifica
@@ -129,13 +131,16 @@ def verifica(codice: str, *, oggi: date | None = None) -> Esito:
     codice = normalizza(codice)
     if len(codice) != LUNGHEZZA:
         return Esito(SCONOSCIUTO, codice)
-    record = (TrainingEmployeeRecord.objects.select_related("corso")
+    # `tutti`: anche gli annullati, che devono risultare tali e non «sconosciuti».
+    record = (TrainingEmployeeRecord.tutti.select_related("corso")
               .filter(codice_verifica=codice).first())
     if record is None:
         return Esito(SCONOSCIUTO, codice)
     oggi = oggi or timezone.localdate()
     if not hmac.compare_digest(record.firma_verifica or "", firma(record)) or _impronta_integra(record) is False:
         stato = ALTERATO
+    elif record.annullato_il:
+        stato = ANNULLATO
     elif not record.idoneo:
         stato = NON_VALIDO
     elif record.data_scadenza and record.data_scadenza < oggi:
