@@ -2,7 +2,7 @@
 
 {% block title %}{{ page_title }} · Catalogo software{% endblock %}
 {% block assets_shell_title %}{{ page_title }}{% endblock %}
-{% block assets_shell_subtitle %}<p><a href="{{ catalog_url }}">Catalogo software</a> · {{ row.vendor|default:entry.vendor_name|default:"produttore n/d" }} · <a href="{% url 'assets:guida' %}#catalogo">? Guida</a></p>{% endblock %}
+{% block assets_shell_subtitle %}<p><a href="{{ catalog_url }}">Catalogo software</a> · {{ vendor_label|default:"produttore n/d" }} · <a href="{% url 'assets:guida' %}#catalogo">? Guida</a></p>{% endblock %}
 
 {% block assets_shell_content %}
 <section class="sc-page">
