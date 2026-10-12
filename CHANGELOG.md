@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Asset — Guida d'uso dentro il portale** (`django_app/assets/views_guida.py` nuovo, `templates/assets/pages/guida.html` nuovo, `assets/urls.py`, `assets/views.py` — voce nel seed della sidebar —, `migrations/0127_guida_asset.py` nuovo, `templates/assets/pages/report_catalog.html`, `partials/qr_panel.html`, `partials/storico_campi.html`, `partials/it_monitoring.html`, `assets/tests_guida.py` nuovo, `docs/moduli/assets.md`).
+  - Nuova pagina `/assets/guida/` («Guida Asset» nella sidebar, sezione Strumenti e gestione): QR ed etichette, stampanti multifunzione («Leggi adesso», dati vecchi, pagine per mese), storico delle modifiche e «Com'era il…», catalogo report e invio email, numeri della dashboard, tabella dei permessi.
+  - Ogni azione riservata dice se l'utente corrente ha il permesso (link pubblico QR, «Leggi adesso», invio email), così la guida spiega anche perché un pulsante non compare. Soglie e limiti mostrati sono letti dal codice (giorni dei dati vecchi, mesi del trend, massimo etichette, retention).
+  - Rimandi alla sezione giusta dal catalogo report, dall'anteprima QR, dallo storico campi e dal riquadro MFC della scheda.
+  - Migrazione `assets 0127`: binding ACL v2 `/assets/guida/` su `legacy.assets.assets_view` e voce di menu (creata solo se manca). Deploy: `migrate assets`.
+
 - **Anagrafica — binding ACL del salvataggio «Avviso IT ai nuovi ingressi»** (`django_app/anagrafica/migrations/0163_avviso_it_acl.py`): la route `anagrafica:avviso_it_save` riceve il binding di `anagrafica:workflow_campo_create` (o, se manca, di `anagrafica:impostazioni`); senza, con ACL strict il salvataggio sarebbe negato ai non superuser. Deploy: `migrate anagrafica` (0162-0163).
 
 - **Anagrafica — riquadro «Account portale» nella scheda dipendente** (`django_app/anagrafica/views_account.py`, `views.py`, `urls.py`, `services/account_portale.py`, `migrations/0162_account_scheda_acl.py` nuovo, `templates/anagrafica/partials/_account_portale_scheda.html` nuovo, `partials/_account_portale_risultati.html`, `pages/dipendente_detail.html`, `anagrafica/tests_account_scheda.py` nuovo, `docs/moduli/anagrafica.md`).
