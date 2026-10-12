@@ -7,12 +7,12 @@
 <div style="display:flex;flex-direction:column;gap:18px;margin-top:14px;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
     <h1 style="font-size:24px;font-weight:800;color:#0f172a;margin:0;">Sessioni &amp; proposte visite</h1>
-    <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}" style="padding:9px 18px;background:#1f87cd;color:#fff;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;">+ Nuova giornata</a>
+    {% if can_edit_visite %}<a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}" style="padding:9px 18px;background:#1f87cd;color:#fff;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;">+ Nuova giornata</a>{% endif %}
   </div>
 
   <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
     <div style="font-size:15px;font-weight:700;color:#1e293b;margin-bottom:12px;">Proposte di rinnovo</div>
-    {% if tot_da_rinnovare %}
+    {% if tot_da_rinnovare and can_edit_visite %}
     <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?all=1" style="display:inline-block;margin-bottom:12px;padding:8px 16px;background:#fef3c7;color:#92400e;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;">⚡ Giornata completa: {{ tot_da_rinnovare }} da rinnovare →</a>
     {% endif %}
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">
@@ -20,7 +20,7 @@
       <div style="border:1px solid #e6ecf3;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;">
         <div style="font-weight:700;color:#0f172a;">{{ p.tipo.nome }}</div>
         <div style="font-size:13px;color:#475569;">🔴 {{ p.n_scadute }} scadute · 🟠 {{ p.n_in_scadenza }} in scadenza</div>
-        <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ p.tipo.pk }}" style="align-self:flex-start;padding:6px 14px;background:#059669;color:#fff;border-radius:7px;font-size:12px;font-weight:700;text-decoration:none;">Crea sessione</a>
+        {% if can_edit_visite %}<a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ p.tipo.pk }}" style="align-self:flex-start;padding:6px 14px;background:#059669;color:#fff;border-radius:7px;font-size:12px;font-weight:700;text-decoration:none;">Crea sessione</a>{% endif %}
       </div>
       {% empty %}
       <div style="color:#94a3b8;font-size:13px;">Nessuna visita da rinnovare al momento.</div>

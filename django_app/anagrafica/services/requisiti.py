@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 ORIGINE_FREQUENTATO = "Corso frequentato (non richiesto)"
 ORIGINE_VISITA_REGISTRATA = "Visita registrata (non richiesta)"
+ORIGINE_PROTOCOLLO = "Protocollo sanitario"
 
 
 def _aggiungi(origini: dict, chiave, etichetta: str) -> None:
@@ -289,6 +290,10 @@ class VoceVisita:
     # Tipo richiesto alla persona nella famiglia (periodicita' piu' stretta): per le
     # visite gia' fatte ``tipo`` e' quello della visita, che puo' essere diverso.
     tipo_richiesto: object = None
+    # Tipologia cambiata rispetto all'ultima visita (eta', mansione, protocollo...):
+    # testo per l'utente e data da cui vale il nuovo requisito, se nota.
+    cambio: str = ""
+    data_cambio: date | None = None
 
     @property
     def tipo_da_mostrare(self):
@@ -302,7 +307,7 @@ def _famiglia(tipo) -> str:
 
 
 def scadenza_prudente(data_svolgimento: date, durata_propria: int | None,
-                      mesi_richiesti: int | None) -> date | None:
+                      mesi_richiesti: int | None, dal: date | None = None) -> date | None:
     """Scadenza effettiva di una visita quando la periodicita' richiesta e' cambiata.
 
     Regola scelta dall'azienda (07/10/2026), «ricalcolo prudente»: la visita fatta
@@ -310,6 +315,11 @@ def scadenza_prudente(data_svolgimento: date, durata_propria: int | None,
     (tipo della visita fatta) e quella calcolata con la periodicita' richiesta oggi.
     Una periodicita' piu' lunga non allunga mai la scadenza da sola: serve una
     nuova visita del tipo giusto.
+
+    ``dal`` (12/10/2026, scelta dell'azienda): data da cui vale il nuovo requisito
+    (es. il 50° compleanno, la data del certificato). La scadenza anticipata non
+    cade mai prima di quella: un requisito nato oggi non rende la visita «scaduta
+    da mesi». Resta comunque mai oltre la scadenza naturale.
     """
     from anagrafica.models import _add_months
 
@@ -317,7 +327,71 @@ def scadenza_prudente(data_svolgimento: date, durata_propria: int | None,
     if not mesi_richiesti or mesi_richiesti <= 0:
         return propria
     richiesta = _add_months(data_svolgimento, mesi_richiesti)
+    if dal is not None and richiesta < dal:
+        richiesta = dal
     return min(propria, richiesta) if propria else richiesta
+
+
+def _eta(nascita: date, oggi: date) -> int:
+    return oggi.year - nascita.year - ((oggi.month, oggi.day) < (nascita.month, nascita.day))
+
+
+def _compleanno(nascita: date, anni: int) -> date:
+    try:
+        return nascita.replace(year=nascita.year + anni)
+    except ValueError:  # nato il 29 febbraio
+        return date(nascita.year + anni, 3, 1)
+
+
+def _applica_fasce_eta(ctx, persone: dict, out: dict) -> dict[tuple[int, int], dict]:
+    """Sostituisce, nella stessa famiglia, i tipi richiesti fuori dalla fascia d'eta'.
+
+    Es. ruolo «Videoterminalista» → oculistica quinquennale; a 52 anni vale la
+    biennale della stessa famiglia. Non si tocca cio' che chiede il protocollo
+    sanitario del certificato: lo decide il medico, eta' compresa. Senza un tipo
+    alternativo nella fascia giusta il requisito resta quello configurato.
+    Ritorna ``{(persona, tipo_scelto_id): {"data", "motivo", "da_tipo"}}``.
+    """
+    from anagrafica.models import TipoVisitaMedica
+
+    tipi = list(TipoVisitaMedica.objects.filter(is_active=True))
+    cambi: dict[tuple[int, int], dict] = {}
+    if not any(t.ha_fascia_eta for t in tipi):
+        return cambi
+    per_famiglia: dict[str, list] = {}
+    for t in tipi:
+        if (t.categoria or "").strip():
+            per_famiglia.setdefault(_famiglia(t), []).append(t)
+    for pid, richiesti in out.items():
+        nascita = getattr(persone.get(pid), "data_nascita", None)
+        if not nascita:
+            continue
+        eta = _eta(nascita, ctx.today)
+        for tipo_id, (tipo, origini) in list(richiesti.items()):
+            if tipo.vale_per_eta(eta) or any(o.startswith(ORIGINE_PROTOCOLLO) for o in origini):
+                continue
+            fratelli = [t for t in per_famiglia.get(_famiglia(tipo), [])
+                        if t.pk != tipo.pk and t.vale_per_eta(eta)]
+            if not fratelli:
+                continue
+            # Piu' tipi validi per quell'eta': il piu' stretto (prudente); durata 0 = senza scadenza.
+            scelto = min(fratelli, key=lambda t: (t.durata_mesi or 10 ** 6, t.pk))
+            if scelto.eta_minima is not None and (tipo.eta_minima is None or scelto.eta_minima > tipo.eta_minima):
+                quando = _compleanno(nascita, scelto.eta_minima)
+                motivo = f"ha compiuto {scelto.eta_minima} anni il {quando:%d/%m/%Y}"
+            elif tipo.eta_massima is not None and eta > tipo.eta_massima:
+                quando = _compleanno(nascita, tipo.eta_massima + 1)
+                motivo = f"ha superato i {tipo.eta_massima} anni il {quando:%d/%m/%Y}"
+            else:
+                quando = None
+                motivo = f"a {eta} anni «{tipo.nome}» non vale ({tipo.fascia_eta_label})"
+            del richiesti[tipo_id]
+            voce = richiesti.setdefault(scelto.pk, (scelto, []))
+            for o in list(origini) + [f"Età {eta} anni ({scelto.fascia_eta_label})"]:
+                if o not in voce[1]:
+                    voce[1].append(o)
+            cambi[(pid, scelto.pk)] = {"data": quando, "motivo": motivo, "da_tipo": tipo}
+    return cambi
 
 
 def periodicita_richieste(richieste: dict) -> dict[tuple[int, str], tuple[int, object]]:
@@ -338,22 +412,44 @@ def requisiti_visite(ctx, persone: dict) -> dict[int, dict[int, tuple[object, li
     """``{persona: {tipo_id: (tipo, [origini])}}`` delle visite dovute.
 
     Fonti: ruoli operativi in essere, protocollo sanitario dell'ultimo
-    certificato, mansione e fattori di rischio, processi qualificati.
+    certificato, mansione e fattori di rischio, processi qualificati; poi le
+    fasce d'eta' dei tipi (``_applica_fasce_eta``).
+    """
+    return _requisiti_visite_dettaglio(ctx, persone)[0]
+
+
+def _requisiti_visite_dettaglio(ctx, persone: dict):
+    """Come ``requisiti_visite``, piu' i cambi per eta' e la data d'inizio di ogni requisito.
+
+    Ritorna ``(richieste, cambi_eta, decorrenze)``: ``decorrenze[(persona, tipo_id)]`` e'
+    la data da cui il requisito vale (certificato, inizio del ruolo, compleanno),
+    ``None`` se almeno una fonte non ha una data (mansione, processo).
     """
     from anagrafica.models import TipoVisitaMedica
 
     estesi = ctx.id_estesi(persone)
     out: dict[int, dict[int, tuple[object, list[str]]]] = {pid: {} for pid in persone}
+    date_fonti: dict[tuple[int, int], list] = {}
 
-    def _metti(pid: int, tipo, etichetta: str) -> None:
+    def _metti(pid: int, tipo, etichetta: str, dal: date | None = None) -> None:
         if pid not in out or tipo is None or not tipo.is_active:
             return
         voce = out[pid].setdefault(tipo.pk, (tipo, []))
         if etichetta not in voce[1]:
             voce[1].append(etichetta)
+        date_fonti.setdefault((pid, tipo.pk), []).append(dal)
 
     ruoli = _ruoli_in_essere(ctx, estesi)
     if ruoli:
+        from anagrafica.models import DipendenteRuoloOperativo
+
+        inizio_ruolo: dict[tuple[int, int], date | None] = {}
+        for a in filtra_in(DipendenteRuoloOperativo.objects.all(), "legacy_anagrafica_id", estesi):
+            if a.data_fine and a.data_fine < ctx.today:
+                continue
+            chiave = (ctx.canonico(a.legacy_anagrafica_id), a.ruolo_id)
+            precedente = inizio_ruolo.get(chiave, date.max)
+            inizio_ruolo[chiave] = None if (a.data_inizio is None or precedente is None) else min(a.data_inizio, precedente)
         per_ruolo: dict[int, list] = {}
         for tipo in TipoVisitaMedica.objects.filter(is_active=True, obbligatoria=True).prefetch_related("ruoli_operativi"):
             for ruolo in tipo.ruoli_operativi.all():
@@ -361,7 +457,7 @@ def requisiti_visite(ctx, persone: dict) -> dict[int, dict[int, tuple[object, li
         for pid, lista in ruoli.items():
             for ruolo in lista:
                 for tipo in per_ruolo.get(ruolo.pk, []):
-                    _metti(pid, tipo, f"Ruolo «{ruolo}»")
+                    _metti(pid, tipo, f"Ruolo «{ruolo}»", inizio_ruolo.get((pid, ruolo.pk)))
 
     try:
         from anagrafica.models_sorveglianza import RequisitoVisitaDipendente
@@ -369,7 +465,7 @@ def requisiti_visite(ctx, persone: dict) -> dict[int, dict[int, tuple[object, li
         for req in filtra_in(RequisitoVisitaDipendente.objects.filter(attivo=True, tipo__isnull=False)
                              .select_related("tipo"), "legacy_anagrafica_id", estesi):
             _metti(ctx.canonico(req.legacy_anagrafica_id), req.tipo,
-                   f"Protocollo sanitario del {req.data_certificato:%d/%m/%Y}")
+                   f"{ORIGINE_PROTOCOLLO} del {req.data_certificato:%d/%m/%Y}", req.data_certificato)
     except Exception:
         logger.warning("reportistica: protocollo sanitario non leggibile", exc_info=True)
         ctx.avviso("Protocollo sanitario dei certificati non leggibile: le visite che richiede non sono comprese.")
@@ -384,7 +480,34 @@ def requisiti_visite(ctx, persone: dict) -> dict[int, dict[int, tuple[object, li
         for tipo in dato["requisiti"].get("visite") or []:
             for etichetta in dato["origini"].get(("visite", tipo.pk)) or ["Processo qualificato"]:
                 _metti(pid, tipo, etichetta)
-    return out
+
+    # Le decorrenze vanno lette prima delle fasce d'eta', che spostano i requisiti di tipo.
+    decorrenze: dict[tuple[int, int], date | None] = {}
+    for chiave, date_lista in date_fonti.items():
+        decorrenze[chiave] = None if any(d is None for d in date_lista) else min(date_lista)
+    cambi = _applica_fasce_eta(ctx, persone, out)
+    for (pid, scelto_id), cambio in cambi.items():
+        # Il requisito per eta' decorre dal compleanno, ma non prima della fonte originaria.
+        originale = decorrenze.get((pid, cambio["da_tipo"].pk))
+        candidati = [d for d in (cambio["data"], originale) if d is not None]
+        decorrenze[(pid, scelto_id)] = max(candidati) if candidati and cambio["data"] is not None else None
+    return out, cambi, decorrenze
+
+
+def _testo_cambio(tipo_fatto, tipo_richiesto, richiesti_persona: dict, cambio_eta: dict | None,
+                  dal: date | None) -> tuple[str, date | None]:
+    """«Tipologia cambiata» con il motivo: eta', o le fonti che chiedono il nuovo tipo."""
+    if cambio_eta is not None:
+        motivo = cambio_eta["motivo"]
+        quando = cambio_eta["data"]
+    else:
+        origini = (richiesti_persona.get(tipo_richiesto.pk) or (None, []))[1]
+        motivo = "richiesta da " + (", ".join(origini) if origini else "un requisito")
+        quando = dal
+        if quando:
+            motivo += f", in vigore dal {quando:%d/%m/%Y}"
+    return (f"Tipologia cambiata: l'ultima visita era «{tipo_fatto.nome}», ora è richiesta "
+            f"«{tipo_richiesto.nome}» ({motivo}).", quando)
 
 
 def visite(ctx, persone: dict) -> list[VoceVisita]:
@@ -392,7 +515,7 @@ def visite(ctx, persone: dict) -> list[VoceVisita]:
     from anagrafica.models import VisitaMedica
     from anagrafica.services.visite import ultime_visite_correnti_ids
 
-    richieste = requisiti_visite(ctx, persone)
+    richieste, cambi_eta, decorrenze = _requisiti_visite_dettaglio(ctx, persone)
     id_correnti: set[int] = set()
     for blocco in persone_a_blocchi(persone):
         # A blocchi di persone: tutti gli id di una persona finiscono nello stesso blocco.
@@ -420,10 +543,12 @@ def visite(ctx, persone: dict) -> list[VoceVisita]:
         origini = origini_famiglia.get((pid, fam))
         coperte.add((pid, fam))
         mesi, tipo_richiesto = periodicita.get((pid, fam), (None, None))
+        dal = decorrenze.get((pid, tipo_richiesto.pk)) if tipo_richiesto is not None else None
         propria = scadenza_prudente(v.data_svolgimento, v.tipo.durata_mesi, None)
-        effettiva = scadenza_prudente(v.data_svolgimento, v.tipo.durata_mesi, mesi)
+        effettiva = scadenza_prudente(v.data_svolgimento, v.tipo.durata_mesi, mesi, dal=dal)
         nota = ""
-        if effettiva and (propria is None or effettiva < propria):
+        anticipata = bool(effettiva and (propria is None or effettiva < propria))
+        if anticipata:
             # L'obbligo puo' venire da mansione, ruolo, protocollo o processo: si dice da dove.
             fonte = ", ".join(origini or []) or "il requisito"
             nota = (f"Scadenza anticipata: {fonte} richiede «{tipo_richiesto.nome}» "
@@ -431,9 +556,18 @@ def visite(ctx, persone: dict) -> list[VoceVisita]:
         if origini and tipo_richiesto is None:
             # Richiesta senza periodicita' (durata 0): si mostra il primo tipo richiesto della famiglia.
             tipo_richiesto = next((t for t, _o in richieste.get(pid, {}).values() if _famiglia(t) == fam), None)
+        cambio, data_cambio = "", None
+        if origini and tipo_richiesto is not None and tipo_richiesto.pk != v.tipo.pk:
+            cambio, data_cambio = _testo_cambio(v.tipo, tipo_richiesto, richieste.get(pid, {}),
+                                                cambi_eta.get((pid, tipo_richiesto.pk)), dal)
+            if anticipata:
+                nota = f"{cambio} Scadenza anticipata al {effettiva:%d/%m/%Y}."
+            else:
+                nota = cambio
         voci.append(VoceVisita(pid, v.tipo, bool(origini), list(origini or [ORIGINE_VISITA_REGISTRATA]),
                                ultima=v.data_svolgimento, scadenza=effettiva, scadenza_propria=propria,
-                               nota=nota, visita_id=v.pk, tipo_richiesto=tipo_richiesto if origini else None))
+                               nota=nota, visita_id=v.pk, tipo_richiesto=tipo_richiesto if origini else None,
+                               cambio=cambio, data_cambio=data_cambio))
     for pid, tipi in richieste.items():
         for tipo, origini in tipi.values():
             chiave = (pid, _famiglia(tipo))

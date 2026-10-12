@@ -38,6 +38,14 @@ def _puo(request) -> bool:
     return _can_view_visite_mediche(request)
 
 
+def _puo_modificare(request) -> bool:
+    """Caricare, confermare, scartare referti e cambiarne le impostazioni registra
+    visite: serve il permesso di modifica (vedi ``_can_edit_visite_mediche``)."""
+    from .views import _can_edit_visite_mediche
+
+    return _can_edit_visite_mediche(request)
+
+
 def _nega(request):
     messages.error(request, "Non hai i permessi per gestire i referti sanitari.")
     return redirect("anagrafica:visite_mediche_dashboard")
@@ -91,7 +99,9 @@ def referti_coda(request):
     from .models import TipoVisitaMedica, VisitaMedica
     from .services.referti_registrazione import (
         e_riga_visita_medica,
+        tipi_esami_laboratorio,
         tipi_famiglia,
+        tipo_esami_da_requisiti,
         tipo_oculistico_da_requisiti,
         tipo_visita_per_riga,
     )
@@ -105,6 +115,11 @@ def referti_coda(request):
     nomi = _nomi_per_legacy_ids([r.legacy_anagrafica_id_proposto for r in righe])
     tipi_oculistici = list(
         TipoVisitaMedica.objects.filter(is_active=True, nome__icontains="oculist").order_by("nome")
+    )
+    # Esami di laboratorio: i tipi riconosciuti come tali; se il catalogo non ne ha,
+    # tutto il catalogo, per non lasciare la riga senza scelta.
+    tipi_esami = tipi_esami_laboratorio() or list(
+        TipoVisitaMedica.objects.filter(is_active=True).order_by("nome")
     )
     # Chi non ha una proposta (nessun nome leggibile, tipico dell'oculistica caricata
     # a mano) deve poter essere abbinato comunque: elenco completo, solo se serve.
@@ -127,6 +142,14 @@ def referti_coda(request):
             proposto = riga.tipo_visita_scelto
             if proposto is None and riga.legacy_anagrafica_id_proposto:
                 proposto = tipo_oculistico_da_requisiti(riga.legacy_anagrafica_id_proposto)
+            riga.tipo_visita_proposto = proposto
+            riga.tipo_visita_proposto_id = proposto.pk if proposto else None
+            riga.pronto = False
+            continue
+        if riga.e_esami:
+            proposto = riga.tipo_visita_scelto or tipo_esami_da_requisiti(
+                riga.legacy_anagrafica_id_proposto, riga.letto_data_giudizio,
+            )
             riga.tipo_visita_proposto = proposto
             riga.tipo_visita_proposto_id = proposto.pk if proposto else None
             riga.pronto = False
@@ -195,12 +218,15 @@ def referti_coda(request):
     }
 
     return render(request, "anagrafica/pages/referti_coda.html", {
+        "puo_modificare": _puo_modificare(request),
         "righe": righe,
         "conteggi": conteggi,
         "ocr_attivo": ocr_disponibile(),
         "tipi_oculistici": tipi_oculistici,
+        "tipi_esami": tipi_esami,
         "esiti_visita": VisitaMedica.Esito.choices,
         "esito_predefinito": VisitaMedica.Esito.IDONEO,
+        "esito_esami": VisitaMedica.Esito.ESEGUITO,
         "tutti_i_dipendenti": tutti_i_dipendenti,
     })
 
@@ -225,7 +251,7 @@ def _dati_oculistica(request, riga) -> tuple[dict, str]:
 
     from .models import TipoVisitaMedica
 
-    if not riga.e_oculistica:
+    if not riga.da_completare_a_mano:
         return {}, ""
     grezza = (request.POST.get(f"data_visita_{riga.pk}") or "").strip()
     try:
@@ -252,7 +278,7 @@ def referti_carica(request):
     scansiona in blocco, questa a chi ha tre file sul desktop e non ha ragione di
     imparare dove sta la share.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .services.referti_intake import elabora_documenti
@@ -374,7 +400,7 @@ def referti_conferma(request, riga_id: int):
     il fatto che il sistema aveva proposto altro — serve a capire, col tempo,
     quanto ci si possa fidare del riconoscimento.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .models_sorveglianza import RefertoIntakeRiga
@@ -405,7 +431,7 @@ def referti_scarta(request, riga_id: int):
     Non cancella niente: il file resta in archivio e la riga nel registro. Uno
     scarto è una decisione, e le decisioni si conservano.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .models_sorveglianza import RefertoIntakeRiga
@@ -431,7 +457,7 @@ def referti_azioni(request):
     ferma gli altri e viene riportato per nome, perché «3 su 12 non registrati»
     senza dire quali sarebbe inservibile.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .models_sorveglianza import RefertoIntakeRiga
@@ -595,7 +621,7 @@ def referti_impostazioni(request):
     sono il punto in cui un certificato scritto in modo mai visto smette di
     essere un problema di sviluppo e diventa una riga da inserire.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .forms import (

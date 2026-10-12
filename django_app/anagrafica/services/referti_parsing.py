@@ -38,6 +38,7 @@ __all__ = [
     "normalizza",
     "analizza_testo",
     "pare_certificato",
+    "pare_esami_laboratorio",
     "PERIODICITA_NOTE",
 ]
 
@@ -80,6 +81,30 @@ _IMPRONTE_OCULISTICA = (
     r"SEG\.?\s+AUT",
 )
 
+# Referto di laboratorio (esami ematici): stampato, quindi leggibile, ma con un
+# impaginato diverso per ogni laboratorio. Si riconosce da etichette tipiche;
+# ne servono almeno due di gruppi diversi. I VALORI degli esami non si leggono e
+# non si salvano: servono solo dipendente e data del prelievo.
+TIPO_ESAMI = "ESAMI"
+_IMPRONTE_LABORATORIO = (
+    r"LABORATORIO\s+(?:DI\s+)?ANALISI|ANALISI\s+CLINICHE|MEDICINA\s+DI\s+LABORATORIO|PATOLOGIA\s+CLINICA",
+    r"DATA\s+(?:DEL\s+)?PRELIEVO|PRELIEV[OA]\s+(?:DEL|ESEGUIT[OA])|DATA\s+(?:DI\s+)?ACCETTAZIONE",
+    r"VALORI\s+DI\s+RIFERIMENTO|INTERVALL[OI]\s+DI\s+RIFERIMENTO|VALORI\s+NORMALI",
+    r"EMOCROMO|EMOCROMOCITOMETRIC|EMOGLOBINA|GLICEMIA|COLESTEROLO|TRIGLICERIDI|CREATININA|TRANSAMINASI|GAMMA\s*-?\s*GT",
+)
+_ETICHETTE_DATA_LAB = (
+    # In ordine di significato: il prelievo e' la data dell'esame; accettazione e
+    # referto vengono dopo e valgono solo se il prelievo non si legge.
+    ("prelievo", rf"(?:Data\s+(?:del\s+)?prelievo|Prelievo\s+(?:del|eseguito\s+il)|Prelevato\s+il)\s*[.:]*\s*{_DATA}"),
+    ("accettazione", rf"(?:Data\s+(?:di\s+)?accettazione|Accettat[oa]\s+il)\s*[.:]*\s*{_DATA}"),
+    ("referto", rf"(?:Data\s+(?:del\s+)?referto|Refertat[oa]\s+il|Data\s+stampa)\s*[.:]*\s*{_DATA}"),
+)
+_NASCITA_LAB = rf"(?:Data\s+(?:di\s+)?nascita|Nat[oa]\s+il|\bD\.?\s*N\.?)\s*[.:]*\s*{_DATA}"
+_NOME_LAB = (
+    r"(?:Paziente|Cognome\s+e\s+[Nn]ome|Nominativo|Sig\.(?:ra)?|Sig\.ra)\s*[.:]*\s*"
+    r"([A-ZÀ-Ù][A-ZÀ-Ù']+(?:\s+[A-ZÀ-Ù][A-ZÀ-Ù']+){1,3})"
+)
+
 _NOME_ANAGRAFICO = (
     # Il blocco anagrafico: il nominativo segue la data di nascita, sulla stessa
     # riga o subito dopo. Due maiuscole almeno, per non agganciare un'iniziale.
@@ -110,12 +135,12 @@ class CampiReferto:
     protocollo: list[dict] = field(default_factory=list)
     date_trovate: list[dict] = field(default_factory=list)
     e_certificato: bool = False          # certificato di idoneità
-    tipo_referto: str = ""               # TIPO_IDONEITA / TIPO_OCULISTICA / "" (altro)
+    tipo_referto: str = ""               # TIPO_IDONEITA / TIPO_OCULISTICA / TIPO_ESAMI / "" (altro)
 
     @property
     def e_referto(self) -> bool:
-        """Un documento da gestire: idoneità o oculistico."""
-        return self.tipo_referto in (TIPO_IDONEITA, TIPO_OCULISTICA)
+        """Un documento da gestire: idoneità, oculistico o esami di laboratorio."""
+        return self.tipo_referto in (TIPO_IDONEITA, TIPO_OCULISTICA, TIPO_ESAMI)
 
     @property
     def minimo_utile(self) -> bool:
@@ -166,6 +191,40 @@ def pare_oculistica(testo: str) -> bool:
     """Il documento è un certificato del medico oculista? (almeno due etichette)"""
     piatto = _piatto(testo)
     return sum(1 for p in _IMPRONTE_OCULISTICA if re.search(p, piatto, re.IGNORECASE)) >= 2
+
+
+def pare_esami_laboratorio(testo: str) -> bool:
+    """Il documento è un referto di laboratorio? (almeno due gruppi di etichette)"""
+    piatto = _piatto(testo)
+    return sum(1 for p in _IMPRONTE_LABORATORIO if re.search(p, piatto, re.IGNORECASE)) >= 2
+
+
+def _analizza_laboratorio(testo: str, campi: "CampiReferto") -> None:
+    """Dipendente, data di nascita e data del prelievo (in ``data_giudizio``)."""
+    piatto = _piatto(testo)
+    per_etichetta: dict[str, date] = {}
+    for etichetta, pattern in _ETICHETTE_DATA_LAB:
+        for m in re.finditer(pattern, piatto, re.IGNORECASE):
+            valore = _a_data(m.group(1), m.group(2), m.group(3))
+            if valore is None:
+                continue
+            campi.date_trovate.append({"etichetta": etichetta, "data": valore.isoformat()})
+            per_etichetta.setdefault(etichetta, valore)
+    campi.data_giudizio = next(
+        (per_etichetta[e] for e, _p in _ETICHETTE_DATA_LAB if e in per_etichetta), None,
+    )
+    m = re.search(_NASCITA_LAB, piatto, re.IGNORECASE)
+    if m:
+        campi.data_nascita = _a_data(m.group(1), m.group(2), m.group(3))
+        if campi.data_nascita:
+            campi.date_trovate.append({"etichetta": "nascita", "data": campi.data_nascita.isoformat()})
+    # Nome in maiuscolo come lo stampano i laboratori: niente IGNORECASE, per non
+    # agganciare testo discorsivo.
+    m = re.search(_NOME_LAB, piatto)
+    if m:
+        nome = re.sub(r"\s+", " ", m.group(1)).strip()
+        if len(nome) >= 5:
+            campi.nominativo = nome
 
 
 def _estrai_date(testo: str) -> tuple[list[dict], date | None, date | None]:
@@ -301,6 +360,9 @@ def analizza_testo(testo: str) -> CampiReferto:
         # Si riconosce il tipo di documento e basta: il resto si completa in coda.
         if pare_oculistica(testo):
             campi.tipo_referto = TIPO_OCULISTICA
+        elif pare_esami_laboratorio(testo):
+            campi.tipo_referto = TIPO_ESAMI
+            _analizza_laboratorio(testo, campi)
         return campi
     campi.tipo_referto = TIPO_IDONEITA
 
