@@ -66,7 +66,49 @@ def _check_task_action_for_legacy(legacy_user, action_code: str) -> bool:
     )
 
 
+MODULO = "kickoff"
+# Codici d'azione storici del modulo -> azioni della matrice dei ruoli.
+_AZIONI_RUOLI = {
+    "tasks_view": "vedere",
+    "view_tasks": "vedere",
+    "tasks_comment": "vedere",
+    "tasks_create": "creare",
+    "tasks_edit": "modificare",
+}
+
+
+def _ruoli_attivi() -> bool:
+    from core.permessi import sistema_ruoli_attivo
+
+    return sistema_ruoli_attivo()
+
+
+def _ambito(request, azione: str) -> str:
+    """Ruoli attivi: ambito concesso (propri/team/tutti) o '' se negato."""
+    from core.permessi import decisione
+
+    esito = decisione(request, MODULO, azione)
+    return esito.ambito if esito.consentito else ""
+
+
+def _team_users_q(request, *campi: str) -> Q:
+    """Q sui record il cui utente (nei campi indicati) e' nel team d'organigramma."""
+    from core.permessi.motore import contesto_per
+
+    team = list(contesto_per(request).team)
+    q = Q(pk__in=[])
+    if team:
+        for campo in campi:
+            q |= Q(**{f"{campo}__profile__legacy_user_id__in": team})
+    return q
+
+
 def has_task_permission(request, action_code: str) -> bool:
+    if getattr(request.user, "is_authenticated", False) and not request.user.is_superuser and _ruoli_attivi():
+        key = str(action_code or "").strip().lower()
+        if key in {"tasks_admin", "admin_tasks"}:
+            return _ambito(request, "gestire") == "tutti"
+        return bool(_ambito(request, _AZIONI_RUOLI.get(key, "gestire")))
     cache = getattr(request, "_task_perm_cache", None)
     if cache is None:
         cache = {}
@@ -276,6 +318,17 @@ def scoped_tasks_queryset(request):
     ).prefetch_related(Project.team_prefetch("project__"))
     if has_task_permission(request, "tasks_admin"):
         return qs
+    if not request.user.is_superuser and _ruoli_attivi():
+        # Ruoli: tutte; o quelle a cui si partecipa piu' quelle del team; o solo le proprie.
+        ambito = _ambito(request, "vedere")
+        if ambito == "tutti":
+            return qs
+        if not ambito:
+            return qs.none()
+        q = _task_scope_filter_q(request)
+        if ambito == "team":
+            q |= _team_users_q(request, "assigned_to", "created_by")
+        return qs.filter(q).distinct()
     if _task_access_allows_read(_request_task_user_access_level(request)):
         return qs
     return qs.filter(_task_scope_filter_q(request)).distinct()
@@ -288,6 +341,16 @@ def scoped_projects_queryset(request):
     ).prefetch_related(Project.team_prefetch())
     if has_task_permission(request, "tasks_admin"):
         return qs
+    if not request.user.is_superuser and _ruoli_attivi():
+        ambito = _ambito(request, "vedere")
+        if ambito == "tutti":
+            return qs
+        if not ambito:
+            return qs.none()
+        q = _project_scope_filter_q(request)
+        if ambito == "team":
+            q |= _team_users_q(request, "created_by", "tasks__assigned_to")
+        return qs.filter(q).distinct()
     if _task_access_allows_read(_request_task_user_access_level(request)):
         return qs
     return qs.filter(_project_scope_filter_q(request)).distinct()
@@ -312,6 +375,8 @@ def _can_edit_project_schedule(request, project: Project) -> bool:
         return True
     if project.created_by_id == request.user.id:
         return True
+    if _ruoli_attivi() and _ambito(request, "modificare") == "tutti":
+        return True
     global_level = _request_task_user_access_level(request)
     if _task_access_allows_edit_all(global_level):
         return True
@@ -329,6 +394,8 @@ def can_manage_project(request, project: Project) -> bool:
     if has_task_permission(request, "tasks_admin"):
         return True
     if project.created_by_id == request.user.id:
+        return True
+    if _ruoli_attivi() and _ambito(request, "modificare") == "tutti":
         return True
     global_level = _request_task_user_access_level(request)
     if _task_access_allows_edit_all(global_level):
@@ -348,6 +415,15 @@ def can_manage_task(request, task: Task) -> bool:
         return True
     if _is_project_lead_for_task(request.user, task):
         return True
+    if _ruoli_attivi():
+        ambito = _ambito(request, "modificare")
+        if ambito == "tutti":
+            return True
+        if ambito == "team":
+            from core.permessi import puo_fare
+
+            if puo_fare(request, MODULO, "modificare", task):
+                return True
     global_level = _request_task_user_access_level(request)
     if _task_access_allows_edit_all(global_level):
         return True

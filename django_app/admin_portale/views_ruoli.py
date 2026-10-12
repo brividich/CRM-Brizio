@@ -192,7 +192,15 @@ def _ctx_matrice(request) -> dict:
                     }
                     for azione in AZIONI_STANDARD
                 ],
-                "extra": len(spec.azioni) > len(AZIONI_STANDARD),
+                # Azioni proprie del modulo (dichiarate nel registro), sotto la riga.
+                "extra": [
+                    {
+                        "azione": azione,
+                        "label": spec.etichetta_azione(azione),
+                        "valore": celle.get((spec.chiave, azione), ""),
+                    }
+                    for azione, _label in spec.azioni_extra
+                ],
             }
         )
     return {

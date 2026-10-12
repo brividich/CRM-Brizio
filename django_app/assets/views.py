@@ -3371,7 +3371,15 @@ def _build_asset_primary_kpis(
 
 def _is_assets_admin(request: HttpRequest) -> bool:
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    return bool(request.user.is_superuser or (legacy_user and is_legacy_admin(legacy_user)))
+    if request.user.is_superuser or (legacy_user and is_legacy_admin(legacy_user)):
+        return True
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        # Ruoli: amministra il modulo chi lo «gestisce» su tutti gli asset (IT, Manutenzione).
+        esito = decisione(request, "assets", "gestire")
+        return bool(esito.consentito and esito.ambito == "tutti")
+    return False
 
 
 def _can_manage_asset_detail_layout(request: HttpRequest) -> bool:

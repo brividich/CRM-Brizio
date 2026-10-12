@@ -32,3 +32,7 @@ Campagne di aggiornamento procedure MT/MTSI con tracking letture obbligatorio (c
 - **Export CSV** per audit
 - **Report** copertura per reparto/procedura
 - **Import SGI e permessi (10/2026)**: `import_sgi_da_share` mostra l'utente di processo che scandisce la share e quanti file vede; avvisa se il numero è diverso dall'ultima esecuzione con `--apply` (con l'enumerazione per permessi, utenti diversi vedono documenti diversi).
+
+## Ruoli del portale
+
+Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) campagne, documenti e report sono di chi ha «gestire» con visibilità «tutti» su Procedure (preset Sicurezza e Qualità).

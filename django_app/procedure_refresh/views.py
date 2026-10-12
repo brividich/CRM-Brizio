@@ -49,7 +49,15 @@ User = get_user_model()
 
 def _is_manager(request) -> bool:
     legacy_user = get_legacy_user(request.user)
-    return request.user.is_superuser or is_legacy_admin(legacy_user)
+    if request.user.is_superuser or is_legacy_admin(legacy_user):
+        return True
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        # Ruoli: gestisce campagne e documenti chi ha «gestire» su tutti (Sicurezza, Qualità).
+        esito = decisione(request, "procedure", "gestire")
+        return bool(esito.consentito and esito.ambito == "tutti")
+    return False
 
 
 def _can_manage(request) -> bool:

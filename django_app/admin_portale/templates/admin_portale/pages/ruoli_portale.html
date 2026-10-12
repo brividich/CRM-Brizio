@@ -183,6 +183,21 @@
                   </td>
                 {% endfor %}
               </tr>
+              {% for c in r.extra %}
+                <tr class="rp-extra">
+                  <td class="rp-mod"><span class="acl-muted">↳ {{ c.label }}</span></td>
+                  <td class="rp-cell">
+                    <select name="c__{{ r.spec.chiave }}__{{ c.azione }}" data-v="{{ c.valore }}" aria-label="{{ r.spec.nome }}: {{ c.label }}" onchange="this.dataset.v=this.value">
+                      <option value=""{% if not c.valore %} selected{% endif %}>—</option>
+                      <option value="propri"{% if c.valore == "propri" %} selected{% endif %}>Propri</option>
+                      <option value="team"{% if c.valore == "team" %} selected{% endif %}>Team</option>
+                      <option value="tutti"{% if c.valore == "tutti" %} selected{% endif %}>Tutti</option>
+                      <option value="no"{% if c.valore == "no" %} selected{% endif %}>No</option>
+                    </select>
+                  </td>
+                  <td colspan="6"></td>
+                </tr>
+              {% endfor %}
             {% endfor %}
             </tbody>
           </table>
@@ -325,6 +340,8 @@
     <p>Ogni persona ha uno o più <strong>ruoli</strong>. Ogni ruolo dice, modulo per modulo, quali azioni concede (vedere, creare, modificare, approvare, chiudere/gestire, esportare, cancellare) e su quali dati: <strong>propri</strong>, <strong>team</strong> (le persone del suo team d'organigramma) o <strong>tutti</strong>.</p>
     <p>Se una persona ha più ruoli, per ogni azione decide il ruolo con <strong>ordine più alto</strong> fra quelli che si esprimono su quell'azione. Un ruolo che non dice nulla («—») lascia decidere il ruolo successivo. «No» nega anche se un ruolo più basso concede. A parità di ordine vince il «No», e fra due «sì» la visibilità più ampia.</p>
     <p>Tutti hanno il ruolo base <strong>Dipendente</strong> (vede e crea solo i propri dati). <strong>Amministratore</strong> e <strong>Direzione</strong> vedono tutto su ogni modulo, anche su quelli che verranno; la Direzione non modifica.</p>
+    <p>Alcuni moduli hanno <strong>azioni proprie</strong>, mostrate nella matrice sotto la riga del modulo (es. Anagrafica → «Dati riservati»: IBAN, codice fiscale, contratti, documenti riservati).</p>
+    <p>Le pagine che elencano <strong>tutti i dipendenti</strong> (gestione anagrafica, dati riservati, visite mediche, formazione) si aprono solo con visibilità <strong>Tutti</strong>: chi ha «Team» vede i dati del suo team dalla scheda del singolo dipendente, non dalle pagine globali.</p>
     <h3>Il team</h3>
     <p>Il team viene dall'<strong>organigramma per ruolo</strong> (Anagrafica → Ruoli, campo «Riporta a»). Chi ricopre un ruolo ha nel team tutte le persone che ricoprono ruoli che gli riportano, anche indirettamente. Chi ricopre lo stesso ruolo è un collega, non un membro del team. Senza ruoli d'organigramma il team è vuoto.</p>
     <h3>Le schede</h3>

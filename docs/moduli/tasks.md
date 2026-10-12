@@ -74,3 +74,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - `services/` — logica senza request: `calendar_it` (delega a `core/calendario_it.py`), `absences` (assenze dal modulo Assenze per anagrafica: ferie, malattia, permessi approvati o in attesa), `notify` (unico punto di uscita delle notifiche, rispetta le preferenze utente), `gantt`, `asset_conflicts`, `agenda`
 - `views/` — viste per area: `task`, `projects`, `overview`, `gantt`, `meetings`, `vrf`, `settings`, `import_excel`; helper comuni in `_shared`, `_tooling`, `_extra_fields`. `tasks.views.<nome>` resta importabile
 - Test per area: `tests_access`, `tests_task`, `tests_projects`, `tests_gantt`, `tests_meetings`, `tests_settings` (+ i `tests_*` tematici); helper e base `TasksBaseTestCase` in `tests_utils`
+
+## Ruoli del portale
+
+Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): i codici d'azione (tasks_view, tasks_create, tasks_edit, tasks_admin) vengono dalla matrice di «KICK-OFF» (tasks_admin = «gestire» su tutti). Visibilità: tutti; oppure partecipazione ai progetti più attività e progetti delle persone del team d'organigramma; oppure solo partecipazione. «Modificare» su tutti o sul team apre la modifica delle relative attività. Le regole di accesso per ruolo di progetto (PM/CC/PRG/CR) restano attive sotto la matrice.

@@ -740,6 +740,11 @@ def build_dipendenti_rows(
     l'helper la calcoli da sé.
     """
     rows = base_rows if base_rows is not None else _dipendenti_base_rows()
+    if _ruoli_attivi():
+        # Ruoli: elenco ed export mostrano solo le schede visibili (propri / team / tutti).
+        visibili = _schede_visibili(request)
+        if visibili is not None:
+            rows = [r for r in rows if int(r.get("id") or 0) in visibili]
     if apply_filters:
         rows = _filter_dipendenti_rows(rows, request)
     return _sort_dipendenti_rows(list(rows))
@@ -1464,10 +1469,46 @@ def _user_in_utente_allowlist(legacy_user, perm) -> bool:
     return uid in [int(u) for u in (getattr(perm, "utente_ids", None) or [])]
 
 
+def _ruoli_attivi() -> bool:
+    from core.permessi import sistema_ruoli_attivo
+
+    return sistema_ruoli_attivo()
+
+
+def _puo(request, modulo: str, azione: str, oggetto=None) -> bool:
+    from core.permessi import puo_fare
+
+    return puo_fare(request, modulo, azione, oggetto)
+
+
+def _puo_su_tutti(request, modulo: str, azione: str) -> bool:
+    """Ruoli attivi: l'azione e' concessa con visibilita' «tutti».
+
+    Le sezioni globali (dashboard visite, formazione, dati riservati, gestione)
+    elencano tutti i dipendenti: chi ha solo «propri» o «team» non le apre, e
+    vede quei dati sulla scheda dei dipendenti che gli competono.
+    """
+    from core.permessi import decisione
+
+    esito = decisione(request, modulo, azione)
+    return bool(esito.consentito and esito.ambito == "tutti")
+
+
+def _schede_visibili(request, modulo: str = "anagrafica", azione: str = "vedere") -> set[int] | None:
+    """Ruoli attivi: id anagrafica delle schede visibili. None = tutte."""
+    from core.permessi import utenti_visibili
+    from core.permessi.identita import anagrafiche_di_utenti
+
+    ammessi = utenti_visibili(request, modulo, azione)
+    return None if ammessi is None else anagrafiche_di_utenti(ammessi)
+
+
 def _can_view_stats(request) -> bool:
     """Verifica se l'utente corrente può visualizzare la sezione statistiche."""
     if request.user.is_superuser:
         return True
+    if _ruoli_attivi():
+        return _puo(request, "anagrafica", "vedere")
     perm = AnagraficaStatPermission.get_instance()
     if perm.accesso == AnagraficaStatPermission.ACCESSO_TUTTI:
         return True
@@ -1491,6 +1532,8 @@ def _check_hr_permission(request) -> bool:
     """Verifica se l'utente può vedere i dati HR riservati (IBAN, CF, disabilità)."""
     if request.user.is_superuser:
         return True
+    if _ruoli_attivi():
+        return _puo_su_tutti(request, "anagrafica", "dati_riservati")
     perm = AnagraficaHRPermission.get_instance()
     if perm.accesso == AnagraficaHRPermission.ACCESSO_TUTTI:
         return True
@@ -1563,6 +1606,8 @@ def _is_anagrafica_admin(request) -> bool:
     legacy_user = get_legacy_user(request.user)
     if request.user.is_superuser or is_legacy_admin(legacy_user):
         return True
+    if _ruoli_attivi():
+        return _puo_su_tutti(request, "anagrafica", "gestire")
     return _has_canonical_grant(request, PERM_SCHEDA_MANAGE, legacy_user=legacy_user)
 
 
@@ -1579,6 +1624,8 @@ def _can_view_documenti_riservati(request) -> bool:
     legacy_user = get_legacy_user(request.user)
     if is_legacy_admin(legacy_user):
         return True
+    if _ruoli_attivi():
+        return _puo_su_tutti(request, "anagrafica", "dati_riservati")
     return _has_canonical_grant(request, PERM_DOCUMENTI_RISERVATI, legacy_user=legacy_user)
 
 
@@ -1590,6 +1637,8 @@ def _can_view_visite_mediche(request) -> bool:
     """
     if request.user.is_superuser:
         return True
+    if _ruoli_attivi():
+        return _puo_su_tutti(request, "visite_mediche", "vedere")
     perm = AnagraficaVisiteMedichePermission.get_instance()
     if perm.accesso == AnagraficaVisiteMedichePermission.ACCESSO_TUTTI:
         return True
@@ -1625,6 +1674,8 @@ def _can_edit_visite_mediche(request) -> bool:
         return False
     if request.user.is_superuser:
         return True
+    if _ruoli_attivi():
+        return _puo_su_tutti(request, "visite_mediche", "modificare")
     perm = AnagraficaVisiteMedichePermission.get_instance()
     if not perm.richiedi_permesso_modifica:
         return True
@@ -1637,6 +1688,8 @@ def _can_view_formazione(request) -> bool:
     """
     if request.user.is_superuser:
         return True
+    if _ruoli_attivi():
+        return _puo_su_tutti(request, "formazione", "vedere")
     perm = AnagraficaFormazionePermission.get_instance()
     if perm.accesso_visualizzazione == AnagraficaFormazionePermission.ACCESSO_TUTTI:
         return True
@@ -1926,6 +1979,14 @@ def dipendente_detail(request, legacy_id: int):
         messages.error(request, "Dipendente non trovato.")
         return redirect("anagrafica:dipendenti_list")
     dip = rows[0]
+    if _ruoli_attivi() and not _puo(request, "anagrafica", "vedere", dip):
+        from core.permessi.negato import risposta_negata
+
+        return risposta_negata(
+            request,
+            "Questa scheda non rientra fra quelle che il tuo ruolo ti consente di vedere.",
+            pagina="Anagrafica dipendenti",
+        )
 
     can_stats = _can_view_stats(request)
     legacy_user = get_legacy_user(request.user)
@@ -13576,6 +13637,8 @@ def _can_edit_formazione(request) -> bool:
     """Verifica permesso di modifica sezione formazione (modifica catalogo piani/corsi/istruttori)."""
     if request.user.is_superuser:
         return True
+    if _ruoli_attivi():
+        return _puo_su_tutti(request, "formazione", "modificare")
     perm = AnagraficaFormazionePermission.get_instance()
     if perm.accesso_modifica == AnagraficaFormazionePermission.ACCESSO_TUTTI:
         return True
@@ -15480,6 +15543,8 @@ def _can_approve_formazione(request) -> bool:
     legacy_user = get_legacy_user(request.user)
     if is_legacy_admin(legacy_user):
         return True
+    if _ruoli_attivi():
+        return _puo_su_tutti(request, "formazione", "approvare")
     return _has_canonical_grant(request, PERM_FORMAZIONE_APPROVE, legacy_user=legacy_user)
 
 
