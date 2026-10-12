@@ -81,6 +81,20 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "centrale",
+        "titolo": "Barra del modulo e Centrale",
+        "blocchi": [
+            ("p", "La barra in alto raggruppa le pagine in Operatività, Economico e Configurazione. Le "
+                  "procedure guidate «+ MFC», «+ Dispositivo SNMP» e «+ Profilo SNMP» sono nel menu «+ Nuovo» "
+                  "(solo con il permesso di gestione)."),
+            ("p", "La Centrale sta in una schermata: in alto gli indicatori (letture del trimestre, copie, "
+                  "riconciliazione del trimestre precedente, stato flotta SNMP, consumabili sotto soglia, "
+                  "letture da confermare, fatture da riconciliare), sotto tre colonne che scorrono ognuna per "
+                  "conto suo: «Da fare», «Parco MFC» e «SNMP». Ogni indicatore e ogni voce aprono la pagina "
+                  "dove si interviene; nel Parco MFC il dettaglio A4/A3 compare passando il mouse sul totale."),
+        ],
+    },
+    {
         "id": "permessi",
         "titolo": "Chi può fare cosa",
         "blocchi": [

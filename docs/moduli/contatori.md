@@ -15,6 +15,8 @@ Area **SOC IT - CN** · URL `/contatori/` · codice [`django_app/contatori/`](..
 - «Letture in fattura»: *A4/A3 B/N e colore* (default) o *Solo totali B/N e colore*. Con i totali, B/N è salvato in `a4_bn`, colore in `a4_col`, e si confrontano con A4 + A3 interni (contatori «BN totale» / «COL totale»).
 - Riconciliazione: KPI per contratto, filtro `?vista=da-verificare`, una scheda per contratto con le MFC del pool, data e fonte della lettura interna, giorni dalla chiusura del fornitore (segnalata la lettura fatta prima) e ripartizione per MFC del totale interno.
 - Guida in-app: `/contatori/riconciliazione/guida/` (pulsante «? Guida» in Riconciliazione e Nuova fattura).
+- Barra del modulo: gruppi Operatività · Economico · Configurazione che vanno a capo (niente scorrimento orizzontale); i wizard sono nel menu «+ Nuovo» (solo con il permesso di gestione).
+- Centrale in una schermata: riga di indicatori (lo stato flotta SNMP è un unico riquadro con i quattro conteggi cliccabili) e tre colonne con scorrimento interno: Da fare (+ cali di lettura), Parco MFC (totale del trimestre; A4/A3 al passaggio del mouse) e SNMP (ultimi errori e dispositivi). Sotto i 1100 px le colonne si impilano.
 
 **Centrale a colpo d'occhio, menu raggruppato, schede Info** (ottobre 2026). Nessuna migrazione, nessuna route nuova.
 - Centrale: riquadri **Stato flotta SNMP** con categorie esclusive (l'errore prevale, poi il dato vecchio oltre 3 giorni, poi attenzione/operativo) su MFC attive con IP e dispositivi attivi. Ogni riquadro apre `/contatori/snmp/?flotta=<ok|attenzione|errore|non_interrogati>`, filtrato con la stessa funzione (`services.filtra_flotta`), quindi il numero del riquadro e la lista coincidono.
