@@ -720,6 +720,28 @@ class DeploymentValidator:
                 "SQL_LOG_ENABLED disabilitato (default sicuro).",
             )
 
+        # Visite mediche = dato sanitario (GDPR art. 9): l'accesso «tutti gli
+        # utenti autenticati» non e' piu' selezionabile, ma un valore storico resta.
+        try:
+            from anagrafica.models import AnagraficaVisiteMedichePermission
+
+            accesso = (
+                AnagraficaVisiteMedichePermission.objects.filter(pk=1)
+                .values_list("accesso", flat=True).first()
+            )
+        except Exception:
+            accesso = None
+        if accesso == "TUTTI":
+            self.add(
+                "security",
+                "VISITE_MEDICHE_ACCESSO",
+                _severity_for_env(FAIL, WARN),
+                "Visite mediche aperte a tutti gli utenti autenticati: impostare "
+                "«Solo amministratori» o «Ruoli ACL specifici» (dato sanitario).",
+            )
+        elif accesso is not None:
+            self.add("security", "VISITE_MEDICHE_ACCESSO", OK, "Accesso visite mediche ristretto.", accesso=accesso)
+
         self.add("security", "public_repo", WARN, "Controllo repository pubblico non eseguito: web check non applicabile.")
 
 

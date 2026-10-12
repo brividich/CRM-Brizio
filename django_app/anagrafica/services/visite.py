@@ -7,9 +7,10 @@ di verità.
 
 from __future__ import annotations
 
+import logging
+from datetime import date
 from typing import Any, Iterable
 
-from django.db.models import Max
 from django.utils import timezone
 
 from ..models import (
@@ -26,6 +27,79 @@ STATO_VALIDA = "valida"
 STATO_IN_SCADENZA = "in_scadenza"
 STATO_SCADUTA = "scaduta"
 RIFERIMENTO_VISITA = "anagrafica.visitamedica"
+
+logger = logging.getLogger(__name__)
+
+# Esiti per cui la limitazione va descritta nelle note: stessa regola per form
+# singolo, giornata visite e aggiunta di un partecipante.
+ESITI_CON_LIMITAZIONI = frozenset({
+    VisitaMedica.Esito.IDONEO_CON_LIMITAZIONI,
+    VisitaMedica.Esito.IDONEO_LIM_PRESCR,
+})
+MSG_NOTE_LIMITAZIONI = (
+    "Con esito «idoneo con limitazioni» descrivere nelle note la limitazione o "
+    "condizione di lavoro (es. divieto lavoro in quota, no turno notturno)."
+)
+
+
+def errore_esito_note(esito: str, note: str) -> str | None:
+    """Messaggio d'errore se l'esito richiede di descrivere la limitazione e le note sono vuote."""
+    if esito in ESITI_CON_LIMITAZIONI and not (note or "").strip():
+        return MSG_NOTE_LIMITAZIONI
+    return None
+
+
+def dipendenti_esistenti(legacy_ids: Iterable[int]) -> set[int]:
+    """Id che esistono davvero in anagrafica: una visita non nasce per un id inventato."""
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    ids = sorted({int(i) for i in legacy_ids if int(i or 0) > 0})
+    if not ids:
+        return set()
+    trovati: set[int] = set()
+    for i in range(0, len(ids), 500):
+        trovati |= {int(r["id"]) for r in fetch_anagrafica_rows(ids=ids[i:i + 500])}
+    return trovati
+
+
+def errore_data_visita(legacy_id: int, data_svolgimento: date | None) -> str | None:
+    """Data impossibile: nel futuro o anteriore alla nascita del dipendente."""
+    from ..models import DipendenteAnagraficaCivile
+
+    if data_svolgimento is None:
+        return None
+    if data_svolgimento > timezone.localdate():
+        return "La data di svolgimento non può essere nel futuro."
+    nascita = (
+        DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id)
+        .values_list("data_nascita", flat=True).first()
+    )
+    if nascita and data_svolgimento < nascita:
+        return (f"La data di svolgimento ({data_svolgimento:%d-%m-%Y}) è anteriore alla "
+                f"data di nascita del dipendente ({nascita:%d-%m-%Y}).")
+    return None
+
+
+def famiglia_tipo(tipo: TipoVisitaMedica) -> str:
+    """Chiave di famiglia, la stessa di ``ultime_visite_correnti_ids``."""
+    categoria = (tipo.categoria or "").strip().lower()
+    return f"cat:{categoria}" if categoria else f"tipo:{tipo.pk}"
+
+
+def visita_doppia(legacy_id: int, tipo: TipoVisitaMedica, data_svolgimento: date,
+                  escludi_pk: int | None = None) -> VisitaMedica | None:
+    """Visita già registrata per la stessa persona, nello stesso giorno e nella stessa
+    famiglia (una biennale e un'annuale lo stesso giorno sono lo stesso esame).
+    Le superate contano: ripristinarle produrrebbe di nuovo il doppione."""
+    categoria = (tipo.categoria or "").strip()
+    qs = VisitaMedica.objects.filter(legacy_anagrafica_id=legacy_id, data_svolgimento=data_svolgimento)
+    if categoria:
+        qs = qs.filter(tipo__categoria__iexact=categoria)
+    else:
+        qs = qs.filter(tipo=tipo)
+    if escludi_pk:
+        qs = qs.exclude(pk=escludi_pk)
+    return qs.select_related("tipo").order_by("pk").first()
 
 
 def completa_referti_visite(visite: Iterable[VisitaMedica]) -> list[VisitaMedica]:
@@ -86,11 +160,9 @@ def tipi_visita_richiesti_per_dipendente(legacy_id: int) -> list[TipoVisitaMedic
             tipi[t.id] = t
 
     # Sorgente MOD.128: visite richieste dai processi a cui la persona è abilitata.
-    try:
-        from .mpq_visite import tipi_visita_richiesti_da_processo
-        extra_ids = tipi_visita_richiesti_da_processo(legacy_id) - set(tipi.keys())
-    except Exception:
-        extra_ids = set()
+    # Un errore qui NON deve far sparire visite dovute: si propaga.
+    from .mpq_visite import tipi_visita_richiesti_da_processo
+    extra_ids = tipi_visita_richiesti_da_processo(legacy_id) - set(tipi.keys())
     if extra_ids:
         for t in TipoVisitaMedica.objects.filter(id__in=extra_ids, is_active=True):
             tipi[t.id] = t
@@ -105,51 +177,34 @@ def tipi_visita_richiesti_per_dipendente(legacy_id: int) -> list[TipoVisitaMedic
 
 def tipi_visita_da_requisiti(legacy_id: int) -> list[TipoVisitaMedica]:
     """Tipi di visita richiesti dal protocollo dell'ultimo certificato (requisiti attivi)."""
-    try:
-        return list(
-            TipoVisitaMedica.objects
-            .filter(
-                is_active=True,
-                requisiti_dipendente__legacy_anagrafica_id=legacy_id,
-                requisiti_dipendente__attivo=True,
-            )
-            .distinct()
+    return list(
+        TipoVisitaMedica.objects
+        .filter(
+            is_active=True,
+            requisiti_dipendente__legacy_anagrafica_id=legacy_id,
+            requisiti_dipendente__attivo=True,
         )
-    except Exception:
-        return []
+        .distinct()
+    )
 
 
 def ultime_visite_per_tipo(legacy_id: int) -> dict[int, VisitaMedica]:
     """Restituisce, per ogni ``TipoVisitaMedica``, l'ultima ``VisitaMedica``
     svolta dal dipendente (per data_svolgimento).
 
-    Implementato SQL Server-safe via subquery ``Max('data_svolgimento')`` per
-    (legacy, tipo).
+    Una sola query ordinata (data più recente, a parità il pk più alto): la
+    prima riga incontrata per ogni tipo è l'ultima.
     """
-    qs = VisitaMedica.objects.filter(legacy_anagrafica_id=legacy_id)
-    if not qs.exists():
-        return {}
-
-    # Per ogni tipo, prendiamo data massima e poi recuperiamo l'oggetto con
-    # quella data; nei rari casi di pareggio teniamo il pk più alto.
-    max_per_tipo = (
-        qs.values("tipo_id")
-        .annotate(max_data=Max("data_svolgimento"))
-    )
     out: dict[int, VisitaMedica] = {}
-    for row in max_per_tipo:
-        candidate = (
-            qs.filter(tipo_id=row["tipo_id"], data_svolgimento=row["max_data"])
-            .order_by("-pk")
-            .select_related("tipo")
-            .first()
-        )
-        if candidate:
-            out[row["tipo_id"]] = candidate
+    for visita in (
+        VisitaMedica.objects.filter(legacy_anagrafica_id=legacy_id)
+        .select_related("tipo").order_by("-data_svolgimento", "-pk")
+    ):
+        out.setdefault(visita.tipo_id, visita)
     return out
 
 
-def stato_visite(legacy_id: int, soglia_giorni_avviso: int = 60) -> list[dict[str, Any]]:
+def stato_visite(legacy_id: int, soglia_giorni_avviso: int = 60, ctx=None) -> list[dict[str, Any]]:
     """Ritorna lo stato delle visite richieste dal ruolo del dipendente.
 
     Ogni elemento ha forma::
@@ -169,10 +224,13 @@ def stato_visite(legacy_id: int, soglia_giorni_avviso: int = 60) -> list[dict[st
     **famiglia** (una biennale fatta copre la famiglia «Visita medica») e scadenza
     effettiva con il ricalcolo prudente; in piu' ``nota`` spiega un'eventuale
     scadenza anticipata.
+
+    ``ctx`` (``requisiti.ambito()``) si passa quando si cicla su molte persone: il
+    contesto aziendale si costruisce una volta sola invece che a ogni chiamata.
     """
     from . import requisiti
 
-    ctx = requisiti.ambito()
+    ctx = ctx or requisiti.ambito()
     pid = ctx.canonico(int(legacy_id))
     persona = next((d for d in ctx._tutti() if d.id == pid), None)
     if persona is None:

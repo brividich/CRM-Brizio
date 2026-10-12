@@ -2552,7 +2552,7 @@ body.theme-dark .dp-link-ok { color:#86efac; }
       <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessuna visita registrata.</div>
       {% endif %}
 
-      {% if is_admin and tipi_visita_attivi %}
+      {% if is_admin and can_edit_visite and tipi_visita_attivi %}
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;">
         <button type="button" onclick="(function(btn){var panel=document.getElementById('visita-form-panel');var open=panel.style.display!=='none';panel.style.display=open?'none':'block';btn.textContent=open?'+ Registra nuova visita':'− Chiudi form';btn.style.color=open?'#64748b':'#2563eb';})(this)" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:0;margin-bottom:0;">+ Registra nuova visita</button>
         <div id="visita-form-panel" style="display:none;margin-top:10px;">

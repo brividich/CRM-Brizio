@@ -38,6 +38,14 @@ def _puo(request) -> bool:
     return _can_view_visite_mediche(request)
 
 
+def _puo_modificare(request) -> bool:
+    """Caricare, confermare, scartare referti e cambiarne le impostazioni registra
+    visite: serve il permesso di modifica (vedi ``_can_edit_visite_mediche``)."""
+    from .views import _can_edit_visite_mediche
+
+    return _can_edit_visite_mediche(request)
+
+
 def _nega(request):
     messages.error(request, "Non hai i permessi per gestire i referti sanitari.")
     return redirect("anagrafica:visite_mediche_dashboard")
@@ -195,6 +203,7 @@ def referti_coda(request):
     }
 
     return render(request, "anagrafica/pages/referti_coda.html", {
+        "puo_modificare": _puo_modificare(request),
         "righe": righe,
         "conteggi": conteggi,
         "ocr_attivo": ocr_disponibile(),
@@ -252,7 +261,7 @@ def referti_carica(request):
     scansiona in blocco, questa a chi ha tre file sul desktop e non ha ragione di
     imparare dove sta la share.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .services.referti_intake import elabora_documenti
@@ -374,7 +383,7 @@ def referti_conferma(request, riga_id: int):
     il fatto che il sistema aveva proposto altro — serve a capire, col tempo,
     quanto ci si possa fidare del riconoscimento.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .models_sorveglianza import RefertoIntakeRiga
@@ -405,7 +414,7 @@ def referti_scarta(request, riga_id: int):
     Non cancella niente: il file resta in archivio e la riga nel registro. Uno
     scarto è una decisione, e le decisioni si conservano.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .models_sorveglianza import RefertoIntakeRiga
@@ -431,7 +440,7 @@ def referti_azioni(request):
     ferma gli altri e viene riportato per nome, perché «3 su 12 non registrati»
     senza dire quali sarebbe inservibile.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .models_sorveglianza import RefertoIntakeRiga
@@ -595,7 +604,7 @@ def referti_impostazioni(request):
     sono il punto in cui un certificato scritto in modo mai visto smette di
     essere un problema di sviluppo e diventa una riga da inserire.
     """
-    if not _puo(request):
+    if not _puo_modificare(request):
         return _nega(request)
 
     from .forms import (

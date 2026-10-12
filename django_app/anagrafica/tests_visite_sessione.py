@@ -63,12 +63,16 @@ class UltimeVisiteCorrentiIdsTests(TestCase):
         self.assertEqual(ultime_visite_correnti_ids(), {recente.pk})
 
     def test_spareggio_stessa_data_vince_pk_maggiore(self):
+        # Stesso tipo e stessa data e' vietato dal vincolo unico (0164): il pareggio
+        # resta possibile tra due tipi della stessa famiglia.
+        annuale = TipoVisitaMedica.objects.create(nome="Spareggio annuale", durata_mesi=12, categoria="Spareggio")
+        biennale = TipoVisitaMedica.objects.create(nome="Spareggio biennale", durata_mesi=24, categoria="Spareggio")
         VisitaMedica.objects.create(
-            legacy_anagrafica_id=3, tipo=self.tipo,
+            legacy_anagrafica_id=3, tipo=annuale,
             data_svolgimento=self.oggi - timedelta(days=30),
         )
         seconda = VisitaMedica.objects.create(
-            legacy_anagrafica_id=3, tipo=self.tipo,
+            legacy_anagrafica_id=3, tipo=biennale,
             data_svolgimento=self.oggi - timedelta(days=30),
         )
         self.assertEqual(ultime_visite_correnti_ids(), {seconda.pk})
@@ -532,7 +536,9 @@ class SessioneDetailTests(TestCase):
         self.assertIn("Dr. Det", resp.content.decode())
 
     def test_aggiungi_partecipante_crea_visita_nella_sessione(self):
+        from .tests_visite_robustezza import _crea_dipendenti
         from .views import visite_mediche_sessione_partecipante_add
+        _crea_dipendenti(99)  # la visita nasce solo per un dipendente esistente
         sess = self._mk_sess()
         rf = RequestFactory()
         request = rf.post(
@@ -573,6 +579,8 @@ class GiornataPostTests(TestCase):
         self.tipo_b = TipoVisitaMedica.objects.create(nome="Rumore-G", durata_mesi=12)
         self.tipo_a.ruoli_operativi.add(self.ruolo)
         self.tipo_b.ruoli_operativi.add(self.ruolo)
+        from .tests_visite_robustezza import _crea_dipendenti
+        _crea_dipendenti(41, 55, 66)  # la giornata registra solo dipendenti esistenti
         DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=41, ruolo=self.ruolo)
 
     def _post(self, data):

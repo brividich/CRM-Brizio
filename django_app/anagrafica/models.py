@@ -2787,6 +2787,10 @@ class DocumentoDipendente(models.Model):
 # Visite mediche (catalogo tipi + registrazioni per dipendente)
 # ---------------------------------------------------------------------------
 
+# Periodicità massima di un tipo di visita: oltre i 10 anni è un errore di battitura.
+DURATA_VISITA_MAX_MESI = 120
+
+
 class TipoVisitaMedica(models.Model):
     """Catalogo tipologie di visita medica configurabili dall'utente.
 
@@ -2806,7 +2810,9 @@ class TipoVisitaMedica(models.Model):
     )
     durata_mesi = models.PositiveSmallIntegerField(
         default=12,
-        help_text="Periodicità in mesi: la scadenza parte dalla data dell'ultima visita.",
+        validators=[MaxValueValidator(DURATA_VISITA_MAX_MESI)],
+        help_text="Periodicità in mesi: la scadenza parte dalla data dell'ultima visita "
+                  "(0 = nessuna scadenza, massimo 120).",
     )
     ruoli_operativi = models.ManyToManyField(
         RuoloOperativo,
@@ -2981,18 +2987,42 @@ class VisitaMedica(models.Model):
             models.Index(fields=["legacy_anagrafica_id", "data_scadenza"]),
             models.Index(fields=["tipo", "data_scadenza"]),
         ]
+        constraints = [
+            # Una sola visita attiva per persona, tipo e giorno. Le superate restano
+            # fuori (filtro IS NULL, ammesso negli indici filtrati di SQL Server):
+            # la migrazione 0164 vi ha parcheggiato i doppioni storici senza cancellarli.
+            models.UniqueConstraint(
+                fields=["legacy_anagrafica_id", "tipo", "data_svolgimento"],
+                condition=models.Q(superata_il__isnull=True),
+                name="uniq_visita_medica_persona_tipo_data",
+            ),
+        ]
         verbose_name = "Visita medica"
         verbose_name_plural = "Visite mediche"
 
     def __str__(self) -> str:
         return f"[{self.legacy_anagrafica_id}] {self.tipo.nome} — {self.data_svolgimento}"
 
+    # Campi il cui salvataggio non tocca né la scadenza né la visita corrente.
+    _CAMPI_SENZA_RICALCOLO = frozenset({
+        "referto_documento", "referto_documento_secondario", "updated_at", "updated_by",
+        "note", "prescrizioni", "medico_competente",
+    })
+
     def save(self, *args, **kwargs):
-        if self.data_svolgimento and self.tipo_id:
+        update_fields = kwargs.get("update_fields")
+        campi = set(update_fields) if update_fields is not None else None
+        # Con update_fields la scadenza si ricalcola solo se cambiano data o tipo:
+        # azzerare in memoria scadenza_nota senza salvarla lascerebbe l'oggetto incoerente.
+        if (campi is None or campi & {"data_svolgimento", "tipo", "data_scadenza"})                 and self.data_svolgimento and self.tipo_id:
             durata = self.tipo.durata_mesi or 0
             self.data_scadenza = _add_months(self.data_svolgimento, durata) if durata > 0 else None
             self.scadenza_nota = ""
+            if campi is not None:
+                kwargs["update_fields"] = list(campi | {"data_scadenza", "scadenza_nota"})
         super().save(*args, **kwargs)
+        if campi is not None and campi <= self._CAMPI_SENZA_RICALCOLO:
+            return
         # La scadenza del tipo va confrontata con la periodicità richiesta dalla mansione
         # (ricalcolo prudente): lo fa il motore dei requisiti a transazione conclusa.
         if self.legacy_anagrafica_id:
@@ -3035,6 +3065,9 @@ class AnagraficaVisiteMedichePermission(models.Model):
         (ACCESSO_ADMIN, "Solo amministratori"),
         (ACCESSO_RUOLI, "Ruoli ACL specifici"),
     ]
+    # «Tutti» resta solo per leggere valori storici: non si offre più nei form
+    # (dato sanitario) e validate_deployment lo segnala.
+    ACCESSO_CHOICES_SELEZIONABILI = [(ACCESSO_ADMIN, "Solo amministratori"), (ACCESSO_RUOLI, "Ruoli ACL specifici")]
 
     accesso = models.CharField(max_length=20, choices=ACCESSO_CHOICES, default=ACCESSO_ADMIN)
     ruolo_ids = models.JSONField(
@@ -3046,6 +3079,13 @@ class AnagraficaVisiteMedichePermission(models.Model):
         default=list,
         blank=True,
         help_text="Lista UtenteLegacy.id sempre abilitati (concessione additiva a admin/ruoli)",
+    )
+    richiedi_permesso_modifica = models.BooleanField(
+        default=False,
+        help_text="Se attivo, registrare, modificare o superare una visita richiede il "
+                  "permesso canonico «Anagrafica - Modifica visite mediche»; chi ha solo "
+                  "l'accesso alle visite le consulta in sola lettura. Spento = chi vede "
+                  "le visite può anche registrarle (comportamento storico).",
     )
 
     class Meta:

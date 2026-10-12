@@ -267,6 +267,7 @@ _EXPORT_ROUTE_BINDINGS = {
 PERM_HR_VIEW = "anagrafica.hr.view"
 PERM_VISITE_VIEW = "anagrafica.visite.view"
 PERM_VISITE_DELETE = "anagrafica.visite.delete"
+PERM_VISITE_EDIT = "anagrafica.visite.edit"
 PERM_FORMAZIONE_VIEW = "anagrafica.formazione.view"
 PERM_FORMAZIONE_MANAGE = "anagrafica.formazione.manage"
 PERM_SCHEDA_MANAGE = "anagrafica.scheda.manage"
@@ -287,6 +288,14 @@ _SEZIONI_CANONICAL = {
         "description": (
             "Visite mediche e idoneita' (dato sanitario). Concedere solo ai ruoli "
             "autorizzati al trattamento dei dati sanitari."
+        ),
+    },
+    PERM_VISITE_EDIT: {
+        "label": "Anagrafica - Modifica visite mediche",
+        "description": (
+            "Registrazione, modifica e superamento di visite mediche e giornate visite. "
+            "Conta solo se in Permessi visite mediche e' attivo «richiedi permesso di "
+            "modifica»: altrimenti chi vede le visite puo' anche registrarle."
         ),
     },
     PERM_VISITE_DELETE: {
@@ -331,7 +340,7 @@ _SEZIONI_CANONICAL = {
 # e sanitari non si concedono per default.
 _SEZIONI_ROLE_GRANTS = {
     "admin": {
-        PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_VISITE_DELETE, PERM_FORMAZIONE_VIEW,
+        PERM_HR_VIEW, PERM_VISITE_VIEW, PERM_VISITE_EDIT, PERM_VISITE_DELETE, PERM_FORMAZIONE_VIEW,
         PERM_FORMAZIONE_MANAGE, PERM_SCHEDA_MANAGE, PERM_STATISTICHE_VIEW,
         PERM_DOCUMENTI_RISERVATI,
     },

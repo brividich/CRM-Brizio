@@ -120,6 +120,9 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
     <section class="hr-card vm-detail-edit" id="superata" aria-labelledby="vm-superata" style="margin-top:14px;">
       <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-superata">Scadenziario</h2><div class="hr-card-desc">Una visita superata resta nello storico e nel libretto, ma non compare più tra le scadute</div></div></div>
       <div class="hr-card-pad" style="padding:20px;">
+        {% if not can_edit_visite %}
+          <p class="vm-detail-sub" style="margin:0;">{% if visita.superata_il %}Segnata come superata il {{ visita.superata_il|date:"d/m/Y H:i" }}: «{{ visita.superata_motivo }}».{% else %}Visita attiva nello scadenziario.{% endif %} Hai accesso in sola lettura.</p>
+        {% else %}
         <form method="post" action="{% url 'anagrafica:visita_medica_superata' visita.pk %}">
           {% csrf_token %}
           {% if visita.superata_il %}
@@ -133,13 +136,15 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
             <div class="vm-detail-form-footer"><button type="submit" class="hr-btn hr-btn-primary">Segna come superata</button></div>
           {% endif %}
         </form>
+        {% endif %}
       </div>
     </section>
 
+    {% if can_edit_visite %}
     <section class="hr-card vm-detail-edit" aria-labelledby="vm-modifica" style="margin-top:14px;">
       <div class="hr-card-head"><div><h2 class="hr-card-title" id="vm-modifica">Modifica visita</h2><div class="hr-card-desc">Correggi i dati della registrazione</div></div></div>
       <div class="hr-card-pad" style="padding:20px;">
-        <p class="vm-detail-sub" style="margin:0 0 16px;">La scadenza viene ricalcolata dal tipo e dalla data della visita, e anticipata se la mansione richiede oggi una periodicità più stretta. Un nuovo referto sostituisce quello principale.</p>
+        <p class="vm-detail-sub" style="margin:0 0 16px;">La scadenza viene ricalcolata dal tipo e dalla data della visita, e anticipata se la mansione richiede oggi una periodicità più stretta. Un nuovo referto diventa quello principale: il precedente resta nel fascicolo, segnato come sostituito.</p>
         <form method="post" enctype="multipart/form-data" action="{% url 'anagrafica:dipendente_visita_edit' visita.legacy_anagrafica_id visita.pk %}">
           {% csrf_token %}
           <div class="vm-detail-form">{% for field in form %}<div><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="helptext">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}</div>
@@ -147,6 +152,7 @@ body.theme-dark .vm-detail-docs a, body.theme-dark .vm-detail-form input, body.t
         </form>
       </div>
     </section>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

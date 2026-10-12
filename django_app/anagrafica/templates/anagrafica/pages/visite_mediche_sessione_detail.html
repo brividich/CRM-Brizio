@@ -26,13 +26,16 @@
 
   {% if is_admin %}
   <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;">
+    {% if can_edit_visite %}
     <form method="post" action="{% url 'anagrafica:visite_mediche_sessione_partecipante_add' sess.pk %}" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
       {% csrf_token %}
       <div><label style="display:block;font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;">ID dipendente</label><input type="number" name="legacy_id" required style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;"></div>
       <div><label style="display:block;font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;">Tipo</label><select name="tipo_id" required style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;">{% for t in tipi_attivi %}<option value="{{ t.pk }}">{{ t.nome }}</option>{% endfor %}</select></div>
       <div><label style="display:block;font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;">Esito</label><select name="esito" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;">{% for val, label in esiti %}<option value="{{ val }}"{% if val == esito_default %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div><label style="display:block;font-size:11px;color:#475569;font-weight:700;text-transform:uppercase;">Note / limitazioni</label><input type="text" name="note" maxlength="500" placeholder="Obbligatorie con limitazioni" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;"></div>
       <button type="submit" style="padding:8px 16px;background:#1f87cd;color:#fff;border:none;border-radius:7px;font-weight:700;cursor:pointer;">+ Aggiungi</button>
     </form>
+    {% endif %}
     <form method="post" action="{% url 'anagrafica:visite_mediche_sessione_delete' sess.pk %}" onsubmit="return confirm('Eliminare la giornata? Le visite restano.');">
       {% csrf_token %}
       <button type="submit" style="padding:8px 16px;background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:7px;font-weight:700;cursor:pointer;">Elimina giornata</button>

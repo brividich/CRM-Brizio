@@ -99,6 +99,7 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
   </div>
   {% endif %}
 
+  {% if puo_modificare %}
   <form class="rf-carica" method="post" action="{% url 'anagrafica:referti_carica' %}"
         enctype="multipart/form-data">
     {% csrf_token %}
@@ -111,6 +112,7 @@ body.theme-dark .rf-input{border-color:#3a4a5e;background:#1e293b;color:#e2e8f0}
     <input type="file" name="referti" accept="application/pdf" multiple required class="rf-input">
     <button type="submit" class="hr-btn hr-btn-primary">Leggi</button>
   </form>
+  {% endif %}
 
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Referti in sintesi">
     {% include "anagrafica/components/_kpi_tile.html" with tono=conteggi.da_rivedere|yesno:"amber,green" icona="i-clipboard" valore=conteggi.da_rivedere label="In attesa di revisione" sub="referti da abbinare" %}
