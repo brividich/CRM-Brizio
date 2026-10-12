@@ -2143,6 +2143,7 @@ class AssistanceContractForm(forms.ModelForm):
 
 class SoftwareLicenseForm(forms.ModelForm):
     assigned_employee_id = forms.ChoiceField(required=False, label="Dipendente anagrafica")
+    inventory_key = forms.ChoiceField(required=False, label="Software dell'inventario")
 
     class Meta:
         model = SoftwareLicense
@@ -2161,6 +2162,7 @@ class SoftwareLicenseForm(forms.ModelForm):
             "expiry_date",
             "auto_renew",
             "is_active",
+            "inventory_key",
             "notes",
         ]
         labels = {
@@ -2245,6 +2247,7 @@ class SoftwareLicenseForm(forms.ModelForm):
         self.fields["account_email"].help_text = "Email, tenant o account di riferimento usato per la licenza."
         self.fields["license_reference"].help_text = "Seriale, contratto, product key o codice interno."
         self.fields["seats_used"].help_text = "Puoi lasciare 0 per licenze a stock non ancora assegnate."
+        self._setup_inventory_key()
         self.order_fields(
             [
                 "category",
@@ -2255,6 +2258,7 @@ class SoftwareLicenseForm(forms.ModelForm):
                 "account_email",
                 "asset",
                 "assigned_employee_id",
+                "inventory_key",
                 "seats_total",
                 "seats_used",
                 "purchase_date",
@@ -2272,6 +2276,23 @@ class SoftwareLicenseForm(forms.ModelForm):
             self.fields["asset"].widget.attrs.pop("class", None)
         if isinstance(self.fields["assigned_employee_id"].widget, forms.HiddenInput):
             self.fields["assigned_employee_id"].widget.attrs.pop("class", None)
+
+    def _setup_inventory_key(self):
+        """Elenco dei software dell'inventario (SOC): collegata la licenza, i PC con il software si contano da soli."""
+        try:
+            from security.services.software_catalog import catalog_choices
+
+            choices = catalog_choices()
+        except Exception:  # noqa: BLE001 - senza inventario il form delle licenze deve restare usabile
+            choices = []
+        current = (getattr(self.instance, "inventory_key", "") or "").strip()
+        if current and current not in {key for key, _label in choices}:
+            choices.append((current, f"{current.replace('|', ' · ')} (non più rilevato)"))
+        self.fields["inventory_key"].choices = [("", "Non collegata all'inventario"), *choices]
+        self.fields["inventory_key"].help_text = (
+            "Collega la licenza al software rilevato sui PC (inventario importato nel SOC): "
+            "l'elenco mostra su quanti PC è installato e avvisa se supera i posti acquistati."
+        )
 
     def clean_vendor(self):
         return (self.cleaned_data.get("vendor") or "").strip()

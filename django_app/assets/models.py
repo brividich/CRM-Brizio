@@ -1538,6 +1538,9 @@ class SoftwareLicense(models.Model):
     expiry_date = models.DateField(null=True, blank=True, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
     auto_renew = models.BooleanField(default=False)
+    # Software dell'inventario (vendor|prodotto normalizzati, come in security.SoftwareInstallation):
+    # con il collegamento i PC che hanno il software installato si contano da soli.
+    inventory_key = models.CharField(max_length=300, blank=True, default="", db_index=True)
     notes = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

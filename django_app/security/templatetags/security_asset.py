@@ -70,6 +70,30 @@ def security_asset_card(context, asset):
     return {"show": bool(linked), "asset": asset, "linked": linked, **data}
 
 
+@register.inclusion_tag("security/partials/asset_software.html", takes_context=True)
+def security_asset_software(context, asset):
+    """Sezione «Software» della scheda asset: cosa è installato, da quando, versioni precedenti, licenza.
+
+    La scheda asset ha già i suoi permessi (la view): i software si vedono a chi vede l'asset.
+    Le CVE compaiono solo a chi vede anche il Security Center.
+    """
+    if not getattr(asset, "pk", None):
+        return {"show": False}
+    from assets.models import SoftwareLicense
+    from security.services import software_catalog
+
+    request = context.get("request")
+    licenses = SoftwareLicense.objects.exclude(inventory_key="")
+    data = software_catalog.software_for_hub_asset(
+        asset,
+        with_cve=can_view_security_center(getattr(request, "user", None)),
+        license_states=software_catalog.license_states_for_keys(licenses),
+    )
+    if not data["rows"]:
+        return {"show": False}
+    return {"show": True, "asset": asset, "show_cve": can_view_security_center(getattr(request, "user", None)), **data}
+
+
 @register.inclusion_tag("security/partials/asset_vulns.html", takes_context=True)
 def security_asset_vulns(context, asset):
     """Sezione «Vulnerabilità» nella pagina di un asset HUB: CVE che lo impattano o da verificare."""

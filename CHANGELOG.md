@@ -8,6 +8,11 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Asset — software installati nella scheda e licenze collegate all'inventario** (`django_app/security/services/software_catalog.py` nuovo, `security/templatetags/security_asset.py`, `security/templates/security/partials/asset_software.html` nuovo, `assets/models.py`, `assets/migrations/0128_licenza_software_inventario.py` nuovo, `assets/forms.py`, `assets/views.py`, `assets/templates/assets/pages/asset_detail.html`, `software_license_list.html`, `guida.html`, `security/guide/12_AUTOMATISMI_E_VULNERABILITA.md`, test `security/tests/test_software_catalog.py`, `docs/moduli/assets.md`).
+  - Scheda asset, nuova scheda **Software**: i programmi rilevati sul PC dall'inventario (export WatchGuard/BusinessLog importato nel SOC) con versione, versioni precedenti e data fino a cui c'erano, prima e ultima rilevazione, «Non più rilevato», licenza collegata (valida/scaduta) e, solo a chi vede il SOC, le CVE della versione installata.
+  - Licenze software: nuovo campo **Software dell'inventario** (elenco dei prodotti con il numero di PC); l'elenco mostra «Installato su N PC su M posti» e avvisa con «Più installazioni che posti» e «Scaduta ma ancora installata».
+  - Deploy: `migrate assets` (0128).
+
 - **KICK-OFF — JavaScript di incontri e Gantt in file statici** (nuovi `django_app/tasks/static/tasks/js/meeting_form.js`, `meeting_run.js`, `meeting_minutes.js`, `meeting_detail.js`, `project_gantt.js`; template `tasks/templates/tasks/project_meeting_form.html`, `project_meeting_run.html`, `project_meeting_minutes.html`, `project_meeting_detail.html`, `project_gantt.html`; `tasks/tests_meetings.py`).
   - Circa 1.300 righe di script scritte dentro i template ora sono file statici, cacheabili e controllabili a parte. URL e valori del server arrivano dagli attributi `data-` del tag `<script>`; gli elenchi di opzioni (responsabili, impatto delle decisioni) da un `<template>` in pagina. Comportamento invariato, verificato nel browser: conduzione (spunta punto con salvataggio), convocazione, esito, dettaglio e Gantt senza errori JavaScript.
   - Deploy: i nuovi file statici richiedono il consueto `collectstatic`.

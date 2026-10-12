@@ -13493,6 +13493,20 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
             }
         )
 
+    # PC che hanno davvero il software (inventario importato nel SOC), per le licenze collegate.
+    try:
+        from security.services.software_catalog import hosts_by_key
+
+        installed_counts = hosts_by_key({row["license"].inventory_key for row in license_rows})
+    except Exception:  # noqa: BLE001 - l'elenco licenze resta usabile anche senza inventario
+        installed_counts = {}
+    for row in license_rows:
+        lic = row["license"]
+        installed = installed_counts.get(lic.inventory_key, 0) if lic.inventory_key else None
+        row["installed_on"] = installed
+        row["over_seats"] = bool(installed and lic.seats_total and installed > lic.seats_total)
+        row["expired_but_installed"] = bool(installed and row["state"]["status"] in {"expired", "inactive"})
+
     return render(
         request,
         "assets/pages/software_license_list.html",

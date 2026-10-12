@@ -29,6 +29,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#qr">QR ed etichette</a>
     <a href="#mfc">Stampanti multifunzione</a>
     <a href="#storico">Storico delle modifiche</a>
+    <a href="#software">Software installati e licenze</a>
     <a href="#report">Catalogo report</a>
     <a href="#kpi">Numeri della dashboard</a>
     <a href="#permessi">Permessi</a>
@@ -36,7 +37,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
   <div class="ag-body">
     <section class="ag-sec ag-intro">
       <h1 style="margin:0 0 8px;font-size:24px">Guida Asset</h1>
-      <p>Come usare il QR degli asset, i dati delle stampanti multifunzione, lo storico delle modifiche e il catalogo dei report. Per la manutenzione (interventi, scadenze, piani) usa il riquadro <span class="ag-btn">&#10067; Cosa posso fare qui</span> nelle pagine di Manutenzione.</p>
+      <p>Come usare il QR degli asset, i dati delle stampanti multifunzione, lo storico delle modifiche, i software installati con le licenze e il catalogo dei report. Per la manutenzione (interventi, scadenze, piani) usa il riquadro <span class="ag-btn">&#10067; Cosa posso fare qui</span> nelle pagine di Manutenzione.</p>
       <p>Dove un'azione è riservata, accanto al titolo trovi se <em>tu</em> hai il permesso: se un pulsante descritto qui non compare, il motivo è quello.</p>
     </section>
 
@@ -103,6 +104,27 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
       <h3>Com'era il…</h3>
       <p>Scegli una data in <strong>Com'era il</strong>: vedi i valori di quel giorno, compresi i punti rete attivi. Lo storico parte dal rilascio della funzione: prima c'è solo la voce «Stato iniziale».</p>
       <p class="ag-note">Le modifiche che lasciano il valore uguale non vengono registrate.{% if retention_giorni %} Le voci più vecchie di {{ retention_giorni }} giorni vengono eliminate di notte, ma l'ultimo valore di ogni campo resta sempre.{% else %} Lo storico non viene cancellato.{% endif %}</p>
+    </section>
+
+    <section class="ag-sec" id="software">
+      <h2>Software installati e licenze</h2>
+      <p>I software dei PC arrivano dall'<strong>inventario software</strong>: l'export di WatchGuard (o BusinessLog) caricato nel SOC in <em>Configurazione › Inventario software</em>. Un PC compare collegato al suo asset quando il nome del computer nell'export corrisponde all'asset.</p>
+      <h3>Nella scheda asset</h3>
+      <p>Il riquadro <strong>Software installati</strong> (scheda <span class="ag-btn">Software</span>) elenca per ogni programma:</p>
+      <ul>
+        <li><strong>Versione</strong> attuale e, sotto, le versioni precedenti con la data fino a cui c'erano: lo storico degli aggiornamenti;</li>
+        <li><strong>Rilevato dal</strong> e <strong>Ultima rilevazione</strong>: le date degli import in cui il software c'era. Un software sparito dall'export resta in elenco come <em>Non più rilevato</em>, non viene cancellato;</li>
+        <li><strong>Licenza</strong>: <em>Licenza valida</em> o <em>Licenza scaduta</em> se il software è collegato a una licenza; un trattino se non è collegato (non vuol dire che sia a pagamento);</li>
+        <li><strong>CVE</strong> (solo per chi vede il SOC): quante vulnerabilità note colpiscono quella versione, con il link al dettaglio.</li>
+      </ul>
+      <h3>Collegare una licenza a un software</h3>
+      <ol>
+        <li>Apri <a href="{% url 'assets:software_license_list' %}">Licenze software</a> e crea o modifica la licenza.</li>
+        <li>In <strong>Software dell'inventario</strong> scegli il programma: accanto al nome vedi su quanti PC è installato.</li>
+        <li>Salva. Nell'elenco licenze compare <strong>Installato su N PC su M posti</strong>.</li>
+      </ol>
+      <p>L'elenco avvisa con <em>Più installazioni che posti</em> se i PC con il software superano i posti acquistati, e con <em>Scaduta ma ancora installata</em> se la licenza è scaduta o disattivata ma il software è ancora sui PC.</p>
+      <p class="ag-note">I numeri valgono quanto l'ultimo inventario importato: caricane uno nuovo per aggiornarli. Il campo <em>Posti utilizzati</em> resta manuale.</p>
     </section>
 
     <section class="ag-sec" id="report">

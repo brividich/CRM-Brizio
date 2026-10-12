@@ -265,6 +265,13 @@ body.theme-dark .sl-new > summary { color:#93c5fd; }
                       {% if row.license.assigned_reparto %}
                         <div class="sl-meta">{{ row.license.assigned_reparto }}</div>
                       {% endif %}
+                      {% if row.installed_on is not None %}
+                        <div class="sl-meta" title="PC con il software installato secondo l'inventario importato nel SOC">
+                          Installato su <strong>{{ row.installed_on }}</strong> PC{% if row.license.seats_total %} su {{ row.license.seats_total }} posti{% endif %}
+                        </div>
+                        {% if row.over_seats %}<span class="as-badge as-badge--danger">Più installazioni che posti</span>{% endif %}
+                        {% if row.expired_but_installed %}<span class="as-badge as-badge--warn">Scaduta ma ancora installata</span>{% endif %}
+                      {% endif %}
                     </td>
                     <td>
                       {% if row.license.expiry_date %}
