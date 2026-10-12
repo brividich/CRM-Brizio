@@ -21,7 +21,7 @@ ROTTE = {
     "anagrafica:formazione_integrita": "anagrafica:formazione_dashboard",
     "anagrafica:formazione_guida": "anagrafica:formazione_dashboard",
 }
-NOTA = "[FORMAZIONE_0164] copiato da {}"
+NOTA = "[FORMAZIONE_0165] copiato da {}"
 
 
 def bonifica(apps, schema_editor):
@@ -68,7 +68,7 @@ def binding_indietro(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('anagrafica', '0163_avviso_it_acl'),
+        ('anagrafica', '0164_guida_persone_acl'),
         ('core', '0074_admin_subnav_accessi_negati'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
