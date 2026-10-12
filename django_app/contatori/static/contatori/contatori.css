@@ -175,3 +175,28 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 @media(max-width:760px){.contatori-module .wiz-esito dl{grid-template-columns:1fr}.contatori-module .wizard .form-actions{flex-wrap:wrap}}
 .contatori-module .errore-snmp{overflow-wrap:anywhere}
 .contatori-module .errore-snmp .errore-azione{margin-top:6px;font-size:13px}
+/* Fattura «solo totali» e riconciliazione per contratto */
+.contatori-module .righe-table.solo-totali .col-a3{display:none}
+.contatori-module .solo-totali-nota{display:none}
+.contatori-module form.solo-totali .solo-totali-nota{display:inline}
+.contatori-module .riconc-vista{display:inline-flex;border:1px solid var(--cm-border);border-radius:10px;overflow:hidden}
+.contatori-module .riconc-vista a{padding:8px 12px;font-size:13px;font-weight:650;color:var(--cm-muted);text-decoration:none}
+.contatori-module .riconc-vista a.active{background:color-mix(in srgb,var(--cm-accent) 12%,var(--cm-surface));color:var(--cm-text)}
+.contatori-module .riconc-kpi .v.riconc-ok{color:var(--cm-ok)}
+.contatori-module .riconc-kpi .v.riconc-danger{color:var(--cm-danger)}
+.contatori-module .riconc-kpi .v.riconc-warn{color:var(--cm-warn)}
+.contatori-module .riconc-titolo{margin:6px 0 12px}
+.contatori-module .riconc-unita{border-left:4px solid var(--cm-ok);padding-top:16px}
+.contatori-module .riconc-unita.warn{border-left-color:var(--cm-warn)}
+.contatori-module .riconc-unita.danger{border-left-color:var(--cm-danger)}
+.contatori-module .riconc-unita-head{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px}
+.contatori-module .riconc-contratto{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:16px}
+.contatori-module .riconc-macchine{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px}
+.contatori-module .riconc-macchine li.manca{color:var(--cm-warn)}
+.contatori-module .riconc-table tr.riga-danger td{background:color-mix(in srgb,var(--cm-danger) 6%,transparent)}
+.contatori-module .riconc-parti{font-size:11px;color:var(--cm-muted);font-weight:400}
+.contatori-module .guida-indice ul{margin:8px 0 0;padding-left:18px;columns:2}
+.contatori-module .guida-sezione dt{font-weight:700;margin-top:8px}
+.contatori-module .guida-sezione dd{margin:2px 0 0 0;color:var(--cm-muted)}
+.contatori-module .guida-sezione p,.contatori-module .guida-sezione li{line-height:1.55}
+@media (max-width:640px){.contatori-module .guida-indice ul{columns:1}}

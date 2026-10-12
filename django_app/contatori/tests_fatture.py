@@ -108,3 +108,59 @@ class TrimestriTests(TestCase):
         opzioni = services.opzioni_trimestri(indietro=4)
         self.assertEqual(opzioni[0], services.trimestre_corrente())
         self.assertEqual(len(opzioni), 5)
+
+
+class RiconciliazioneTotaliTests(_AuthedClientMixin, TestCase):
+    """Fattura «solo totali» (Copylab): B/N e colore contro A4 + A3 interni, anche in pool."""
+
+    def setUp(self):
+        super().setUp()
+        self.a = Macchina.objects.create(reparto="Prove A", matricola="SYN-TA", contratto="K-T")
+        self.b = Macchina.objects.create(reparto="Prove B", matricola="SYN-TB", contratto="K-T")
+        self.f = Fattura.objects.create(numero="CL-1", data=date(2026, 7, 5), fornitore="COPYLAB",
+                                        dettaglio=Fattura.Dettaglio.TOTALI, trimestre="2026-Q2",
+                                        periodo_al=date(2026, 6, 30))
+        RigaFattura.objects.create(fattura=self.f, contratto="K-T", a4_bn=1000, a4_col=300)
+        LetturaContatori.objects.create(macchina=self.a, trimestre="2026-Q2", data=date(2026, 7, 3),
+                                        a4_bn=500, a3_bn=100, a4_col=100, a3_col=20)
+        LetturaContatori.objects.create(macchina=self.b, trimestre="2026-Q2", data=date(2026, 7, 3),
+                                        a4_bn=350, a3_bn=60, a4_col=150, a3_col=10)
+
+    def test_totali_confrontati_con_a4_piu_a3_del_pool(self):
+        righe, riepilogo = services.riconcilia("2026-Q2")
+        self.assertEqual([(r["contatore"], r["fornitore"], r["ns"], r["scarto"]) for r in righe],
+                         [("BN totale", 1000, 1010, 10), ("COL totale", 300, 280, -20)])
+        self.assertEqual(riepilogo["anomalie"], 1)
+        gruppo = riepilogo["gruppi"][0]
+        self.assertTrue(gruppo["pool"] and gruppo["totali"])
+        self.assertEqual(gruppo["livello"], "danger")
+        self.assertEqual(gruppo["copie_in_eccesso"], 20)
+        self.assertEqual([x["giorni"] for x in gruppo["macchine"]], [3, 3])
+        self.assertEqual([(m.pk, v) for m, v in righe[0]["per_macchina"]],
+                         [(self.a.pk, 600), (self.b.pk, 410)])
+
+    def test_pagina_schede_e_filtro_da_verificare(self):
+        c = Macchina.objects.create(reparto="Solo", matricola="SYN-TC", contratto="K-OK")
+        RigaFattura.objects.create(fattura=self.f, contratto="K-OK", a4_bn=10, a4_col=1)
+        LetturaContatori.objects.create(macchina=c, trimestre="2026-Q2", data=date(2026, 7, 3),
+                                        a4_bn=10, a4_col=1)
+        url = reverse("contatori:riconciliazione_trim", args=["2026-Q2"])
+        r = self.client.get(url)
+        self.assertContains(r, "pool · 2 MFC")
+        self.assertContains(r, "Solo totali B/N e colore")
+        self.assertContains(r, "Da controllare · 20 copie fatturate in più")
+        self.assertEqual(len(r.context["gruppi"]), 2)
+        r = self.client.get(url + "?vista=da-verificare")
+        self.assertEqual([g["contratto"] for g in r.context["gruppi"]], ["K-T"])
+
+    def test_salvataggio_senza_dettaglio_resta_per_formato(self):
+        data = {"numero": "F-9", "data": "2026-07-05", "fornitore": "BASE", "trimestre": "2026-Q2",
+                "periodo_dal": "2026-04-01", "periodo_al": "2026-06-30",
+                **_righe_post([{"contratto": "K-T", "a4_bn": "5", "a3_bn": "0", "a4_col": "0", "a3_col": "0"}])}
+        self.client.post(reverse("contatori:fattura_nuova"), data)
+        self.assertEqual(Fattura.objects.get(numero="F-9").dettaglio, Fattura.Dettaglio.FORMATO)
+
+    def test_guida(self):
+        r = self.client.get(reverse("contatori:riconciliazione_guida"))
+        self.assertContains(r, "Più MFC sullo stesso contratto (pool)")
+        self.assertContains(r, "COPIE EFFETTUATE COLORE")

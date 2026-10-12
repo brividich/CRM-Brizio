@@ -1,0 +1,21 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Guida riconciliazione{% endblock %}
+{% block modulo %}
+<div class="eyebrow">Guida</div>
+<div class="row"><h1>Riconciliazione fatture MFC</h1><div class="spacer"></div>
+<a class="btn ghost" href="{% url 'contatori:riconciliazione' %}">← Riconciliazione</a></div>
+<nav class="panel guida-indice"><strong>In questa guida</strong>
+  <ul>{% for s in sezioni %}<li><a class="plain" href="#{{ s.id }}">{{ s.titolo }}</a></li>{% endfor %}</ul>
+</nav>
+{% for s in sezioni %}
+<section class="panel guida-sezione" id="{{ s.id }}">
+  <h2>{{ s.titolo }}</h2>
+  {% for tipo, contenuto in s.blocchi %}
+    {% if tipo == "p" %}<p>{{ contenuto }}</p>
+    {% elif tipo == "ul" %}<ul>{% for v in contenuto %}<li>{{ v }}</li>{% endfor %}</ul>
+    {% elif tipo == "nota" %}<div class="banner warn">{{ contenuto }}</div>
+    {% elif tipo == "def" %}<dl>{% for t, d in contenuto %}<dt>{{ t }}</dt><dd>{{ d }}</dd>{% endfor %}</dl>{% endif %}
+  {% endfor %}
+</section>
+{% endfor %}
+{% endblock %}

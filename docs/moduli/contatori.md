@@ -10,6 +10,12 @@ Area **SOC IT - CN** · URL `/contatori/` · codice [`django_app/contatori/`](..
 
 ## Note di rilascio
 
+**Fattura Copylab e riconciliazione per contratto** (ottobre 2026). Migrazioni `contatori 0031` (campo `Fattura.dettaglio`) e `0032` (binding ACL `contatori:riconciliazione_guida` → `contatori.modulo.view`).
+- Import fattura: oltre al tracciato BASE («N. Contratto:», contatore dal prezzo per copia) legge il tracciato **Copylab** («Matricola:… Contratto:…», righe «COPIE EFFETTUATE B/N» e «COPIE EFFETTUATE COLORE»). Il contratto si prende dall'anagrafica tramite matricola (avviso se la MFC non ha il contratto); più MFC con lo stesso contratto si sommano.
+- «Letture in fattura»: *A4/A3 B/N e colore* (default) o *Solo totali B/N e colore*. Con i totali, B/N è salvato in `a4_bn`, colore in `a4_col`, e si confrontano con A4 + A3 interni (contatori «BN totale» / «COL totale»).
+- Riconciliazione: KPI per contratto, filtro `?vista=da-verificare`, una scheda per contratto con le MFC del pool, data e fonte della lettura interna, giorni dalla chiusura del fornitore (segnalata la lettura fatta prima) e ripartizione per MFC del totale interno.
+- Guida in-app: `/contatori/riconciliazione/guida/` (pulsante «? Guida» in Riconciliazione e Nuova fattura).
+
 **Centrale a colpo d'occhio, menu raggruppato, schede Info** (ottobre 2026). Nessuna migrazione, nessuna route nuova.
 - Centrale: riquadri **Stato flotta SNMP** con categorie esclusive (l'errore prevale, poi il dato vecchio oltre 3 giorni, poi attenzione/operativo) su MFC attive con IP e dispositivi attivi. Ogni riquadro apre `/contatori/snmp/?flotta=<ok|attenzione|errore|non_interrogati>`, filtrato con la stessa funzione (`services.filtra_flotta`), quindi il numero del riquadro e la lista coincidono.
 - Riquadri **Da gestire**: consumabili sotto soglia (`/contatori/consumabili/?filtro=critici`), letture proposte da confermare (link solo con permesso di gestione), fatture da riconciliare negli ultimi 4 trimestri fatturati (anomalie, letture interne mancanti o fattura senza righe).

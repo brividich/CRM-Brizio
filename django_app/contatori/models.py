@@ -652,9 +652,16 @@ class LetturaMensileContatori(models.Model):
 
 class Fattura(models.Model):
     """Testata fattura fornitore relativa a un trimestre."""
+    class Dettaglio(models.TextChoices):
+        FORMATO = "FORMATO", "A4/A3 B/N e colore"
+        TOTALI = "TOTALI", "Solo totali B/N e colore"
+
     numero = models.CharField(max_length=30)
     data = models.DateField()
     fornitore = models.CharField(max_length=10, default="BASE")
+    dettaglio = models.CharField(
+        "Letture in fattura", max_length=8, choices=Dettaglio.choices, default=Dettaglio.FORMATO,
+        help_text="Copylab fattura solo i totali B/N e colore: si confrontano con A4+A3 interni.")
     trimestre = models.CharField(max_length=8, help_text='Es. "2026-Q2"')
     periodo_dal = models.DateField(null=True, blank=True)
     periodo_al = models.DateField(help_text="Data di chiusura letture fornitore")
@@ -698,7 +705,8 @@ class RigaFattura(models.Model):
     """
     Un'unità di fatturazione (un contratto) con le letture del fornitore alla
     chiusura del periodo. Per il pool 2020/124 la riga contiene le letture cumulate
-    di CQF+CQI, come le stampa la fattura.
+    di CQF+CQI, come le stampa la fattura. Nelle fatture «solo totali» il totale B/N
+    sta in `a4_bn`, il totale colore in `a4_col` e i campi A3 restano a zero.
     """
     fattura = models.ForeignKey(Fattura, on_delete=models.CASCADE, related_name="righe")
     contratto = models.CharField(max_length=20)

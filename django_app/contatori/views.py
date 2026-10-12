@@ -140,13 +140,24 @@ def riconciliazione(request, trimestre=None):
     righe, riepilogo = ([], None)
     if trimestre:
         righe, riepilogo = services.riconcilia(trimestre)
+    gruppi_tutti = riepilogo["gruppi"] if riepilogo else []
+    solo_da_verificare = request.GET.get("vista") == "da-verificare"
+    da_verificare = [gr for gr in gruppi_tutti if gr["livello"] != "ok"]
     return render(request, "contatori/riconciliazione.html", {
         "trimestri": services.opzioni_trimestri(extra=[trimestre] if trimestre else ()),
         "trimestre": trimestre,
         "righe": righe, "riepilogo": riepilogo,
+        "gruppi_tutti": gruppi_tutti,
+        "gruppi": da_verificare if solo_da_verificare else gruppi_tutti,
+        "da_verificare": len(da_verificare), "solo_da_verificare": solo_da_verificare,
         "fatture": Fattura.objects.filter(trimestre=trimestre).prefetch_related("righe")
         if trimestre else [],
     })
+
+
+def riconciliazione_guida(request):
+    from .guida import SEZIONI
+    return render(request, "contatori/guida.html", {"sezioni": SEZIONI})
 
 
 def _righe_formset(fattura, data=None, initial=None):

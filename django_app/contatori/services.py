@@ -109,16 +109,28 @@ def contratti_attivi():
     return [(c, " + ".join(r)) for c, r in sorted(reparti.items())]
 
 
+# Contatori confrontati: (etichetta, campo della riga fattura, campi interni sommati).
+_CONFRONTO_FORMATO = tuple((etichetta, campo, (campo,)) for campo, etichetta in CONTATORI)
+# Fattura «solo totali» (Copylab): il totale fatturato vale A4 + A3 della macchina.
+_CONFRONTO_TOTALI = (("BN totale", "a4_bn", ("a4_bn", "a3_bn")),
+                     ("COL totale", "a4_col", ("a4_col", "a3_col")))
+_GRAVITA = {"ok": 0, "warn": 1, "danger": 2}
+
+
 def riconcilia(trimestre):
     """
     Ritorna (righe, riepilogo) per un trimestre.
     Ogni riga = un'unita' di fatturazione x un contatore, con scarto ed esito.
+    `riepilogo["gruppi"]` raccoglie le stesse righe per fattura e contratto, con le
+    macchine del contratto e la data della loro lettura interna.
     """
     fatture = Fattura.objects.filter(trimestre=trimestre).prefetch_related("righe")
-    righe_out = []
+    righe_out, gruppi = [], []
     anomalie = 0
 
     for fattura in fatture:
+        totali = fattura.dettaglio == Fattura.Dettaglio.TOTALI
+        confronto = _CONFRONTO_TOTALI if totali else _CONFRONTO_FORMATO
         for rf in fattura.righe.all():
             macchine = _macchine_per_contratto(rf.contratto)
             # letture interne del trimestre per le macchine di questo contratto
@@ -126,14 +138,13 @@ def riconcilia(trimestre):
                 trimestre=trimestre, macchina__in=macchine)}
             pool = len(macchine) > 1
             mancanti = [m for m in macchine if m.id not in letture]
-            for campo, etichetta in CONTATORI:
+            completo = bool(macchine) and not mancanti
+            righe_gruppo = []
+            for etichetta, campo, campi_interni in confronto:
                 forn = getattr(rf, campo)
-                if letture and len(letture) == len(macchine):
-                    ns = sum(getattr(letture[m.id], campo) for m in macchine)
-                    ns_disp = ns
-                else:
-                    ns = None
-                    ns_disp = None
+                per_macchina = [(m, sum(getattr(letture[m.id], c) for c in campi_interni))
+                                for m in macchine if m.id in letture]
+                ns = sum(v for _, v in per_macchina) if completo else None
                 if not macchine:
                     scarto, esito, livello = None, "nessuna MFC con questo contratto", "warn"
                 elif ns is None:
@@ -147,18 +158,38 @@ def riconcilia(trimestre):
                         esito, livello = "OK esatto", "ok"
                     else:
                         esito, livello = "OK (stampe nel ritardo)", "ok"
-                righe_out.append({
+                righe_gruppo.append({
                     "contratto": rf.contratto,
                     "descrizione": rf.descrizione,
                     "pool": pool,
                     "contatore": etichetta,
                     "fornitore": forn,
-                    "ns": ns_disp,
+                    "ns": ns,
                     "scarto": scarto,
                     "esito": esito,
                     "livello": livello,
                     "mancanti": mancanti,
+                    "per_macchina": per_macchina if pool else [],
                 })
+            righe_out += righe_gruppo
+            gruppi.append({
+                "fattura": fattura,
+                "contratto": rf.contratto,
+                "descrizione": rf.descrizione,
+                "pool": pool,
+                "totali": totali,
+                "macchine": [{
+                    "macchina": m,
+                    "lettura": letture.get(m.id),
+                    # giorni tra la chiusura del fornitore e la lettura interna
+                    "giorni": (letture[m.id].data - fattura.periodo_al).days if m.id in letture else None,
+                } for m in macchine],
+                "mancanti": mancanti,
+                "righe": righe_gruppo,
+                "livello": max((r["livello"] for r in righe_gruppo), key=_GRAVITA.get, default="ok"),
+                "copie_in_eccesso": -sum(r["scarto"] for r in righe_gruppo
+                                       if r["scarto"] is not None and r["scarto"] < 0),
+            })
 
     riepilogo = {
         "trimestre": trimestre,
@@ -167,6 +198,10 @@ def riconcilia(trimestre):
         "ok": anomalie == 0 and len(righe_out) > 0,
         "fatture": [f.numero for f in fatture],
         "letture_mancanti": len({m.id for r in righe_out for m in r["mancanti"]}),
+        "gruppi": gruppi,
+        "contratti": len(gruppi),
+        "contratti_ok": sum(1 for g in gruppi if g["livello"] == "ok"),
+        "contratti_danger": sum(1 for g in gruppi if g["livello"] == "danger"),
     }
     return righe_out, riepilogo
 
