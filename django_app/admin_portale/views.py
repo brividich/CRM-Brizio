@@ -2415,6 +2415,21 @@ def _ai_runtime_tool_test(request: HttpRequest) -> dict[str, object]:
     return result
 
 
+def _moduli_senza_dati_rows(counter: dict[str, int]) -> list[dict]:
+    """Moduli più chiesti dall'assistente senza dati live, con nome leggibile."""
+    try:
+        from ai_assistant.permessi_utente import MODULI
+
+        nomi = {m.slug: (m.nome, bool(m.tool_prefix)) for m in MODULI}
+    except Exception:
+        nomi = {}
+    righe = []
+    for slug, count in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))[:15]:
+        nome, ha_tool = nomi.get(slug, (slug, False))
+        righe.append({"slug": slug, "nome": nome, "count": count, "ha_tool": ha_tool})
+    return righe
+
+
 def _ai_conversazioni_stats() -> dict | None:
     """Conteggi aggregati dello storico chat AI (mai i contenuti); None se non disponibile."""
     try:
@@ -2608,6 +2623,7 @@ def ai_settings(request: HttpRequest):
     # Sessioni senza dati: nessun tool live (runtime_sources_count=0) e nessun RAG (rag_sources_count=0)
     # I valori sono in dettaglio (JSONField). Conta le sessioni con entrambi a 0.
     no_data_sessions = 0
+    moduli_senza_dati_counter: dict[str, int] = {}
     prompt_short = 0   # < 50 char
     prompt_medium = 0  # 50-200 char
     prompt_long = 0    # > 200 char
@@ -2618,6 +2634,9 @@ def ai_settings(request: HttpRequest):
         prompt_chars = detail.get("prompt_chars", 0) or 0
         if runtime_cnt == 0 and rag_cnt == 0:
             no_data_sessions += 1
+        for slug in detail.get("moduli_senza_dati") or []:
+            slug = str(slug)[:40]
+            moduli_senza_dati_counter[slug] = moduli_senza_dati_counter.get(slug, 0) + 1
         if prompt_chars < 50:
             prompt_short += 1
         elif prompt_chars <= 200:
@@ -2661,6 +2680,7 @@ def ai_settings(request: HttpRequest):
             "feedback_pending_count": feedback_pending_count,
             # Suggerimenti tab
             "no_data_sessions": no_data_sessions,
+            "moduli_senza_dati": _moduli_senza_dati_rows(moduli_senza_dati_counter),
             "total_chat_sessions": total_chat_sessions,
             "prompt_short": prompt_short,
             "prompt_medium": prompt_medium,

@@ -30,6 +30,7 @@ from .services import (
 )
 from . import conversazioni
 from .guide_portale import guide_consentite
+from .permessi_utente import moduli_senza_dati
 from .tools import build_runtime_context
 
 logger = logging.getLogger(__name__)
@@ -387,6 +388,7 @@ def api_chat(request):
                 "rag_context_chars": result.rag_context_chars,
                 "ai_preferences": sorted(preferences.keys()),
                 "elapsed_ms": elapsed_ms,
+                "moduli_senza_dati": moduli_senza_dati(message, runtime_context.sources),
                 **runtime_audit,
             },
         )
@@ -541,6 +543,7 @@ def api_chat_stream(request):
                 "elapsed_ms": elapsed_ms,
                 "streamed": True,
                 "stream_partial_error": bool(stream_error),
+                "moduli_senza_dati": moduli_senza_dati(message, runtime_context.sources),
                 **runtime_audit,
             },
         )

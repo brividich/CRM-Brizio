@@ -33,7 +33,12 @@ def sezioni() -> list[dict]:
                      "e i pulsanti delle guide dei moduli e ti dà il link alla guida completa."),
                     ("Procedure", "«in che MT si parla dei timbri?»: cita codice, revisione e paragrafo del documento."),
                     ("I tuoi dati", "«quanti ticket ho aperto questo mese?», «chi è assente domani?»: legge i dati "
-                     "del modulo con i tuoi permessi."),
+                     "del modulo con i tuoi permessi. Per ticket, attività, DPI e anomalie capisce il periodo "
+                     "(«oggi», «questa settimana», «questo mese», il nome di un mese) e alle domande «quanti» "
+                     "risponde subito con il totale."),
+                    ("I tuoi permessi", "«posso inserire un nuovo timbro?», «perché non vedo il pulsante Copia?»: "
+                     "controlla i permessi che hai davvero sul modulo nominato e risponde sì o no per ogni azione. "
+                     "Se manca un permesso, va chiesto a un amministratore del portale."),
                 ]),
             ],
         },

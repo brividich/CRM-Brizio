@@ -8,6 +8,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ## [Unreleased]
 
+- **Assistente AI — permessi reali dell'utente, periodo e totali nei tool, moduli chiesti senza dati** (`django_app/ai_assistant/permessi_utente.py` nuovo, `ai_assistant/tools.py`, `ai_assistant/services.py`, `ai_assistant/views.py`, `ai_assistant/guida.py`, `django_app/admin_portale/views.py`, `admin_portale/templates/admin_portale/pages/ai_settings.html`, test `ai_assistant/tests_permessi_utente.py` nuovo, `ai_assistant/tests.py`, `docs/ai/GUIDA_AI.html`, `docs/moduli/ai_assistant.md`):
+  - **«Posso…?»**: nuovo tool `permessi_utente` con accesso al modulo e azioni SÌ/NO dai permessi reali dell'utente (controlli del Registro Timbri, permessi ACL canonici degli altri moduli). Non toglie la conoscenza documentale.
+  - **Periodo e totale** per DPI, anomalie e attività KICK-OFF, come già per i ticket; «miei» sulle attività = assegnate all'utente.
+  - **Fix**: «timbri» non attiva più il blocco privacy delle timbrature/presenze.
+  - **Gestione AI → Suggerimenti FAQ**: moduli su cui gli utenti chiedono dati senza un tool live (audit con il solo nome del modulo).
+
 - **Assistente AI — storico conversazioni personale e guida in-app** (`django_app/ai_assistant/models.py`, `migrations/0005_conversazioni.py` nuova, `conversazioni.py` nuovo, `views.py`, `urls.py`, `tasks.py`, `guida.py` nuovo, `guide_portale.py`, `management/commands/ai_pulisci_conversazioni.py` nuovo, template `chat.html`, `guida.html` nuovo, `django_app/core/middleware.py`, `django_app/admin_portale/views.py`, `admin_portale/templates/admin_portale/pages/ai_settings.html`, `django_app/automazioni/schedules.py`, `config/settings/base.py`, test `ai_assistant/tests_conversazioni.py` nuovo, `docs/ai/13_AI_GOVERNANCE.md`, `docs/ai/GUIDA_AI.html`, `docs/moduli/ai_assistant.md`, `docs/AUTOMAZIONI.md`):
   - **«Le tue conversazioni»** nella chat: ogni conversazione si salva dopo la prima risposta, si riapre e si continua; × ne elimina una, «Elimina tutte» tutto lo storico; «Nuova chat» non cancella più.
   - **Solo il proprietario** vede e cancella le proprie conversazioni (altrui → 404); agli amministratori solo conteggi aggregati e «Svuota storico chat» in Gestione AI → Governance.

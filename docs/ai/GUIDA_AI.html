@@ -67,7 +67,7 @@
   <div class="wrap">
     <h1>Assistente AI — Guida al funzionamento</h1>
     <p>Come è fatto, cosa sa rispondere e quali sono i suoi limiti. Documento interno NOVICROM HUB.</p>
-    <span class="badge">Ultimo aggiornamento: 2026-10-12 · Versione guida 2.5</span>
+    <span class="badge">Ultimo aggiornamento: 2026-10-12 · Versione guida 2.6</span>
   </div>
 </header>
 
@@ -138,6 +138,8 @@
     <tr><td>«A che punto è il ciclo PDCA delle segnalazioni SMS?»</td><td>Tool live <em>Suggestion Corner</em> (aggregati; guardrail anonimato)</td></tr>
     <tr><td>«Qual è la scheda di sicurezza corrente dell'acetone / quali sono scadute?»</td><td>Tool live <em>Schede di Sicurezza</em> (stato/metadati; prese visione = conteggio)</td></tr>
     <tr><td>«Quali ticket aperti ho?» · «Quanti ticket ho aperto questo mese?»</td><td>Tool live <em>Ticket</em> (scope personale/gestione da ACL; periodo e conteggio)</td></tr>
+    <tr><td>«Posso inserire un nuovo timbro?» · «Perché non vedo il pulsante Copia?»</td><td>Tool <em>Permessi dell'utente</em>: accesso al modulo e azioni con SÌ/NO dai permessi reali</td></tr>
+    <tr><td>«Quante anomalie sono state aggiornate questo mese?» · «Quante richieste DPI ho fatto a settembre?»</td><td>Tool live <em>Anomalie</em>, <em>DPI</em>, <em>KICK-OFF</em>, <em>Ticket</em>: periodo e totale in risposta diretta</td></tr>
     <tr><td>«Come inserisco un nuovo timbro nel registro?»</td><td>Guida in-app del modulo (<em>Registro Timbri</em>) → passi e pulsanti + link alla guida</td></tr>
     <tr><td>«Chi è assente domani?»</td><td>Tool live <em>Assenze</em></td></tr>
     <tr><td>«Quali moduli posso usare?»</td><td>Tool <em>Catalogo moduli</em> (navigazione visibile)</td></tr>
@@ -297,6 +299,7 @@
   <h2>9. Storico della guida</h2>
   <table>
     <tr><th>Data</th><th>Versione</th><th>Modifica</th></tr>
+    <tr><td>2026-10-12</td><td>2.6</td><td><strong>L'assistente conosce i tuoi permessi.</strong> Alle domande «posso…?» sul modulo nominato risponde con l'accesso al modulo e le azioni con SÌ/NO, letti dai permessi reali (controlli del modulo o permessi ACL canonici): niente più «non hai accesso» inventato. <strong>Periodo e totale</strong> anche per anomalie, DPI e attività KICK-OFF. Corretto un equivoco: «timbri» (Registro Timbri, MOD.130) non viene più scambiato per le timbrature di presenza bloccate per privacy. Gli admin vedono in <em>Gestione AI → Suggerimenti FAQ</em> su quali moduli gli utenti chiedono dati che l'assistente non sa ancora leggere.</td></tr>
     <tr><td>2026-10-12</td><td>2.5</td><td><strong>Storico conversazioni.</strong> Ogni conversazione resta in «Le tue conversazioni»: si riapre e si continua, «Nuova chat» non la cancella più. Visibile solo al proprietario, cancellazione automatica dopo 90 giorni dall'ultimo messaggio, × per una e «Elimina tutte» per tutto. Quando si continua una conversazione salvata, l'assistente legge gli ultimi messaggi dal server. Nuova guida in-app dell'assistente (<code>/assistente-ai/guida/</code>), che l'assistente stesso conosce.</td></tr>
     <tr><td>2026-10-12</td><td>2.4</td><td><strong>L'assistente conosce le guide dei moduli.</strong> Le guide in-app («? Guida») entrano nella memoria documentale, filtrate con i permessi della pagina guida, e vengono preferite per le domande su <em>come si fa</em> una cosa nel portale. Prima, a «come inserisco un timbro?», l'assistente citava solo la procedura SGI e, appena partiva il catalogo moduli, perdeva anche quella. <strong>Ticket</strong>: «quanti ticket ho aperto questo mese?» ora conta i ticket aperti dall'utente nel periodo, in qualsiasi stato (prima contava solo quelli ancora aperti). <strong>Regole anti-invenzione</strong> sempre attive: niente sigle sciolte a fantasia (es. «MSM»), niente «non hai accesso» se i permessi non lo dicono, niente «non vedo i dati» quando i dati live ci sono.</td></tr>
     <tr><td>2026-07-06</td><td>2.3</td><td><strong>Memoria documentale filtrata per permessi di modulo.</strong> La ricerca sui documenti SGI (chat e report PDF) ora rispetta l'ACL dei moduli d'origine: le <strong>Specifiche</strong> sono citabili solo da chi può aprire <em>Gestione specifiche</em>, le <strong>Procedure</strong> solo dai <strong>gestori</strong> (come la libreria documenti di <em>Procedure</em>). Prima chiunque autenticato poteva estrarre il contenuto integrale di quei documenti chiedendolo alla chat o generando un report, anche senza accesso al modulo. Anche la <em>panoramica documento</em> (scopo + indice) è filtrata. Le guide del portale e le FAQ curate restano condivise. Nessun impatto su tool live, difese anti-allucinazione o prestazioni (la cache dell'indice resta condivisa; il filtro è per-richiesta).</td></tr>

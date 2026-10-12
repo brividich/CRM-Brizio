@@ -1971,7 +1971,7 @@ class AiAssistantTests(TestCase):
         context = build_runtime_context(request, "mostra timbrature e cartellini")
 
         self.assertIn("tool:runtime:non-disponibile", context.sources)
-        self.assertIn("Timbri/Presenze", context.text)
+        self.assertIn("Timbrature/Presenze", context.text)
         self.assertIn("nessun tool live AI", context.text)
         self.assertFalse(context.audit["tools"][0]["allowed"])
         self.assertEqual(context.audit["tools"][0]["tool"], "runtime_unavailable")

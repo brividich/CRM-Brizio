@@ -1964,7 +1964,7 @@ _HOWTO_INTENT_RE = re.compile(
 )
 
 # Tool live che descrivono la navigazione, non dati operativi: non tolgono il RAG.
-_NAVIGATIONAL_RUNTIME_SOURCES = ("tool:portale:moduli",)
+_NAVIGATIONAL_RUNTIME_SOURCES = ("tool:portale:moduli", "tool:portale:permessi")
 
 
 # Riferimenti al turno precedente: «inserirlo», «aprirla», «questo», «lo stesso».

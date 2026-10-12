@@ -869,6 +869,21 @@ body.theme-dark .ai-faq-title {
           </div>
         </div>
         <div class="ai-faq-item">
+          <div class="ai-faq-title">Moduli chiesti senza dati live (ultimi 30 giorni)</div>
+          <div class="ai-faq-answer">
+            {% if moduli_senza_dati %}
+              Domande che chiedevano dati di un modulo («quanti», «quali», «elenco»…) a cui l'assistente non ha potuto rispondere con i dati. Sono i candidati per un nuovo tool live.
+              <ul style="margin:8px 0 0;padding-left:18px;">
+                {% for row in moduli_senza_dati %}
+                  <li><strong>{{ row.nome }}</strong>: {{ row.count }} domand{{ row.count|pluralize:"a,e" }}{% if row.ha_tool %} <span class="cell-muted">(il tool esiste: la domanda non l'ha attivato)</span>{% else %} <span class="cell-muted">(nessun tool)</span>{% endif %}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              Nessuna domanda di dati rimasta senza risposta negli ultimi 30 giorni.
+            {% endif %}
+          </div>
+        </div>
+        <div class="ai-faq-item">
           <div class="ai-faq-title">Distribuzione prompt per lunghezza (ultimi 30 giorni)</div>
           <div class="ai-faq-answer">
             <strong>Corti (&lt; 50 char):</strong> {{ prompt_short }} &mdash;
